@@ -87,6 +87,8 @@ export interface RunnerdHealth {
    * across spawner restarts. */
   lastActivityAtMs: number;
   liveExecs: number;
+  /** Optional dependency diagnostics; do not affect daemon liveness. */
+  dependencies?: { docker?: { ok: boolean }; egress?: { ok: boolean } };
   /** Absent on older runtime images; pressure reclamation then fails closed. */
   activity?: {
     generation: string;
@@ -163,10 +165,18 @@ export interface RunnerdStdinWriteResponse {
  * and the daemon replays only events with a higher seq — making reconnect
  * idempotent (no missed or double-counted lines). Optional only because the
  * pre-spawn `fail` lines (which can never be reconnected to) skip the counter. */
+/** Maximum encoded checkpoint payload; state is opaque to the sandbox. */
+export const RUNNERD_CHECKPOINT_MAX_BYTES = 1024 * 1024;
+export interface RunnerdExecCheckpoint {
+  seq: number;
+  state: unknown;
+}
+
 export type RunnerdExecEvent = (
   | { t: 'start'; execId: string; startedAtMs: number }
   | { t: 'stdout'; b64: string }
   | { t: 'stderr'; b64: string }
+  | { t: 'gap'; fromSeq: number; toSeq: number }
   | {
       t: 'exit';
       exitCode: number;

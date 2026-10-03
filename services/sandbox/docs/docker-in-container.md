@@ -242,8 +242,9 @@ boundary and upgrade requirements.
   `docker compose up --build`, so DinD adjusts them:
   - **`fsize`** is lifted to unlimited (the 512 MiB per-file cap otherwise fails
     layer extraction of any image shipping a larger file — e.g. paradedb's
-    ~885 MiB debug symbols — with `EFBIG`). The disk bound is the
-    `/var/lib/docker` volume quota above, not a per-file ceiling. `nofile` is
+    ~885 MiB debug symbols — with `EFBIG`). Hard disk bounds require the
+    operator-provisioned volume quotas described above; Tale itself checks
+    admission headroom, which cannot stop a running build filling the disk. `nofile` is
     raised to a daemon-class range.
   - **`pids`** is raised to 16384 (a parallel multi-service build's
     dockerd + buildkit + N executors blow past the 512 agent default and tools

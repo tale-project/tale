@@ -165,6 +165,85 @@ describe('runnerd HTTP service', () => {
     });
   });
 
+  test('checkpoint state is bounded, monotonic and scoped to a retained exec', async () => {
+    const response = await fetch(`${baseUrl}/execs`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        execId: 'checkpoint-http',
+        command: ['/bin/sh', '-c', 'printf checkpoint'],
+        cwd: workspace,
+        timeoutMs: 5_000,
+        stdoutMaxBytes: 10_000,
+        stderrMaxBytes: 10_000,
+      }),
+    });
+    const events = (await response.text())
+      .trim()
+      .split('\n')
+      .map((line) => record(JSON.parse(line)));
+    const seq = Number(events.at(-1)?.seq);
+    const url = `${baseUrl}/execs/checkpoint-http/checkpoint`;
+    expect(await (await fetch(url, { headers })).json()).toEqual({
+      checkpoint: null,
+    });
+    const put = (body: unknown) =>
+      fetch(url, { method: 'PUT', headers, body: JSON.stringify(body) });
+    expect(
+      (await put({ seq, state: { pendingTasks: ['task-1'] } })).status,
+    ).toBe(200);
+    expect(await (await fetch(url, { headers })).json()).toEqual({
+      checkpoint: { seq, state: { pendingTasks: ['task-1'] } },
+    });
+    expect((await put({ seq: seq - 1, state: {} })).status).toBe(409);
+    expect((await put({ seq: seq + 1, state: {} })).status).toBe(400);
+    expect((await put({ seq, state: 'a'.repeat(1024 * 1024) })).status).toBe(
+      413,
+    );
+    expect(
+      (await fetch(`${baseUrl}/execs/missing/checkpoint`, { headers })).status,
+    ).toBe(404);
+  });
+
+  test('disconnected staging stops fetching and releases its operation', async () => {
+    const entered = Promise.withResolvers<void>();
+    const release = Promise.withResolvers<Response>();
+    const source = Bun.serve({
+      port: 0,
+      fetch: () => {
+        entered.resolve();
+        return release.promise;
+      },
+    });
+    const caller = new AbortController();
+    try {
+      const staging = fetch(`${baseUrl}/files/stage`, {
+        method: 'POST',
+        headers,
+        signal: caller.signal,
+        body: JSON.stringify({
+          files: [
+            { path: 'cancelled-stage', url: `http://127.0.0.1:${source.port}` },
+          ],
+        }),
+      }).catch(() => null);
+      await entered.promise;
+      caller.abort();
+      await staging;
+      const deadline = Date.now() + 1_000;
+      let active = await currentActiveOperations();
+      while (active > 0 && Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        active = await currentActiveOperations();
+      }
+      expect(active).toBe(0);
+      expect(existsSync(`${workspace}/cancelled-stage`)).toBe(false);
+    } finally {
+      release.resolve(new Response('released'));
+      await source.stop(true);
+    }
+  });
+
   test('a partial exec request body already protects the runtime from release and reclaim', async () => {
     const completed = Promise.withResolvers<number>();
     const upload = request(

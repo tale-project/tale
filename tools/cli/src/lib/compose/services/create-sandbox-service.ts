@@ -1,3 +1,5 @@
+import { isAbsolute } from 'node:path';
+
 import { getProjectId } from '../../../utils/load-env';
 import type { ComposeService, ServiceConfig } from '../types';
 import { DEFAULT_LOGGING, imageRef } from '../types';
@@ -29,6 +31,21 @@ import { DEFAULT_LOGGING, imageRef } from '../types';
  * install gVisor on the host; the spawner picks the runtime via env.
  */
 export function createSandboxService(config: ServiceConfig): ComposeService {
+  // Opt-in: a Linux daemon data-root path is not a valid host bind on every
+  // Docker Desktop or remote installation. loadEnv has read the project .env.
+  const dockerDataRoot = process.env.SANDBOX_DOCKER_DATA_ROOT?.trim();
+  const dockerDataPath =
+    process.env.SANDBOX_DOCKER_DATA_PATH?.trim() ||
+    '/var/lib/tale-sandbox/docker-data';
+  if (dockerDataRoot) {
+    for (const path of [dockerDataRoot, dockerDataPath]) {
+      if (!isAbsolute(path) || /[:,\r\n\0]/.test(path)) {
+        throw new Error(
+          'sandbox Docker data mount must use absolute paths without mount separators',
+        );
+      }
+    }
+  }
   return {
     image: imageRef(config, 'sandbox'),
     container_name: `${getProjectId()}-sandbox`,
@@ -60,6 +77,12 @@ export function createSandboxService(config: ServiceConfig): ComposeService {
     },
     env_file: ['.env'],
     environment: {
+      ...(dockerDataRoot
+        ? {
+            SANDBOX_DOCKER_DATA_ROOT: dockerDataRoot,
+            SANDBOX_DOCKER_DATA_PATH: dockerDataPath,
+          }
+        : {}),
       SANDBOX_RUNTIME: '${SANDBOX_RUNTIME:-runc}',
       // The device hub: organizations connect their own machines here to run
       // their sandboxes (Settings → Sandboxes → Devices). The proxy publishes
@@ -99,6 +122,7 @@ export function createSandboxService(config: ServiceConfig): ComposeService {
       // visible to the docker daemon at the same host path when it mounts
       // them into the runtime container.
       '/var/lib/tale-sandbox:/var/lib/tale-sandbox',
+      ...(dockerDataRoot ? [`${dockerDataRoot}:${dockerDataPath}:ro`] : []),
       // Read-only deployment config so loadConfig reads the sandboxRuntime tier
       // from deployment.json (same shared volume as rag/platform; R2-B11 lockstep
       // with compose.yml).

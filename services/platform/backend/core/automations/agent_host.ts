@@ -23,13 +23,16 @@
  * `automationLlmCall`.
  */
 
-import { randomBytes, randomUUID } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
+
+import PQueue from 'p-queue';
 
 import { escapeForXmlTag } from '../../../lib/chat/untrusted-content';
 import { agentLanguageGuidance } from '../../../lib/shared/agent-language';
 import { sanitizeUntrustedField } from '../../../lib/shared/sanitize-untrusted-field';
 import { parseSkillMd } from '../../../lib/skills/parse';
 import type { SkillViewer } from '../../../lib/skills/visibility';
+import { traceSandboxPhase } from '../../tracing';
 import {
   buildExternalTurnExec,
   classifyHarnessEnd,
@@ -82,6 +85,10 @@ import {
   resolveGatewayRouting,
   revokeVirtualKey,
 } from '../node_only/sandbox/llm_gateway_admin';
+import {
+  pruneManagedStageFiles,
+  stageBlobCacheKey,
+} from '../node_only/sandbox/managed_stage';
 import { harvestSessionOutput } from '../node_only/sandbox/session_exec';
 import {
   isTurnBudgetExceededError,
@@ -804,10 +811,20 @@ async function stageSkill(
   if (bundle === null || bundle.files.length === 0) {
     throw new SkillUnavailableError(slug);
   }
-  const files = bundle.files.map((file: SkillBundleFile) => ({
-    path: `${destDir}/${file.path}`,
-    contentBase64: file.contentBase64,
-  }));
+  const files: SessionStageFile[] = bundle.files.map(
+    (file: SkillBundleFile) => ({
+      path: `${destDir}/${file.path}`,
+      contentBase64: file.contentBase64,
+      sha256: createHash('sha256')
+        .update(Buffer.from(file.contentBase64, 'base64'))
+        .digest('hex'),
+    }),
+  );
+  await pruneManagedStageFiles(
+    sessionId,
+    destDir,
+    files.map((file) => file.path),
+  );
   const result = await sessionStageFiles(sessionId, files);
   if (result.skipped.length > 0) {
     throw new Error(
@@ -886,17 +903,26 @@ export async function stageWorkflowSkills(
   viewer: SkillViewer,
 ): Promise<string> {
   if (skillSlugs.length === 0) return '';
+  const queue = new PQueue({ concurrency: 4 });
+  const stagedSkills = await Promise.allSettled(
+    skillSlugs.map((slug) =>
+      queue.add(async () => {
+        const staged = await stageSkill(
+          ctx,
+          organizationId,
+          sessionId,
+          slug,
+          `${SKILLS_DIR}/${slug}`,
+          viewer,
+        );
+        return equippedSkillLine(slug, staged.skillMd);
+      }),
+    ),
+  );
   const lines: string[] = [];
-  for (const slug of skillSlugs) {
-    const staged = await stageSkill(
-      ctx,
-      organizationId,
-      sessionId,
-      slug,
-      `${SKILLS_DIR}/${slug}`,
-      viewer,
-    );
-    lines.push(equippedSkillLine(slug, staged.skillMd));
+  for (const staged of stagedSkills) {
+    if (staged.status === 'rejected') throw staged.reason;
+    if (staged.value !== undefined) lines.push(staged.value);
   }
   return [
     'Skills equipped for this task — when one fits the work, read it before starting and follow it:',
@@ -970,17 +996,9 @@ export async function stageWorkflowFiles(
         `the files entry ${JSON.stringify(rawName)} names no usable source — use a folder id string, {folderPath}, or {content}`,
       );
     }
-    // The run's session is shared across its nodes — clear the mount first so
-    // a file from an earlier staging of the same mount cannot linger into
-    // this node's view of its inputs. Best-effort: a fresh session has
-    // nothing to clear.
-    await sessionDeleteFiles(sessionId, [`${pathPrefix}${name}`]).catch((err) =>
-      console.debug(
-        `[agent-host] mount pre-clear skipped for ${pathPrefix}${name}:`,
-        err instanceof Error ? err.message : err,
-      ),
-    );
     if ('content' in source) {
+      // A previous folder can occupy this inline file's mount.
+      await sessionDeleteFiles(sessionId, [`${pathPrefix}${name}`]);
       toStage.push({
         path: `${pathPrefix}${name}`,
         contentBase64: Buffer.from(source.content, 'utf8').toString('base64'),
@@ -1020,8 +1038,19 @@ export async function stageWorkflowFiles(
       // via the token-gated stream route instead of a `_storage` URL.
       const url = await stageUrlForBlobRef(String(file.fileId), organizationId);
       if (url === null) continue; // blob purged under a live row — skip, don't fail
-      toStage.push({ path: `${pathPrefix}${name}/${file.name}`, url });
+      toStage.push({
+        path: `${pathPrefix}${name}/${file.name}`,
+        url,
+        cacheKey: stageBlobCacheKey(organizationId, String(file.fileId)),
+      });
     }
+    await pruneManagedStageFiles(
+      sessionId,
+      `${pathPrefix}${name}`,
+      toStage
+        .filter((file) => file.path.startsWith(`${pathPrefix}${name}/`))
+        .map((file) => file.path),
+    );
     mounts.push(name);
   }
   if (toStage.length > 0) {
@@ -2367,35 +2396,53 @@ export function liveProgressSink(
    * final transcript snapshot. */
   flush: () => Promise<void>;
 } {
-  // Serialized like the chat lane's stream chain: each write carries the full
-  // state-so-far, so in-order landing is what keeps the tail monotonic.
-  let chain: Promise<void> = Promise.resolve();
-  const write = (patch: {
+  // One in-flight write and one latest snapshot. A slow database must not
+  // retain every superseded transcript or delay settlement by replaying it.
+  // Text and timeline arrive together in one synchronous notification; the
+  // microtask combines them before starting the write.
+  type ProgressPatch = {
     progressText?: string;
     liveTimeline?: HarnessTimelinePart[];
-  }) => {
-    chain = chain.then(() =>
-      ctx
-        .runMutation(internal.sandbox.session_mutations.upsertSessionOp, {
-          organizationId: args.organizationId,
-          sessionId: args.sessionId,
-          execId: args.execId,
-          kind,
-          status: 'running',
-          lastEventAt: Date.now(),
-          ...(visionModelRef !== undefined && { visionModelRef }),
-          ...patch,
-        })
-        .then(() => undefined)
-        .catch((err) =>
-          console.warn('[agent-host] live progress write failed:', err),
-        ),
-    );
+  };
+  let pending: ProgressPatch | undefined;
+  let chain: Promise<void> | undefined;
+  const drain = async () => {
+    while (pending !== undefined) {
+      const patch = pending;
+      pending = undefined;
+      try {
+        await traceSandboxPhase('persist', () =>
+          ctx.runMutation(internal.sandbox.session_mutations.upsertSessionOp, {
+            organizationId: args.organizationId,
+            sessionId: args.sessionId,
+            execId: args.execId,
+            kind,
+            status: 'running',
+            lastEventAt: Date.now(),
+            ...(visionModelRef !== undefined && { visionModelRef }),
+            ...patch,
+          }),
+        );
+      } catch (err) {
+        console.warn('[agent-host] live progress write failed:', err);
+      }
+    }
+    chain = undefined;
+  };
+  const write = (patch: ProgressPatch) => {
+    pending = { ...pending, ...patch };
+    chain ??= Promise.resolve().then(drain);
   };
   return {
     onText: (text) => write({ progressText: text }),
     onTimeline: (liveTimeline) => write({ liveTimeline }),
-    flush: () => chain,
+    flush: async () => {
+      for (;;) {
+        const active = chain;
+        if (active === undefined) return;
+        await active;
+      }
+    },
   };
 }
 

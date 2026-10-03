@@ -52,6 +52,47 @@ const input = {
 };
 
 describe('buildSessionPod', () => {
+  test('startup covers the create budget and liveness recovers a pinned unresponsive daemon', () => {
+    const runner = buildSessionPod(cfg, input).spec?.containers[0];
+    expect(runner?.startupProbe).toMatchObject({
+      httpGet: { path: '/readyz', port: 8200 },
+      periodSeconds: 5,
+      failureThreshold: 36,
+    });
+    expect(runner?.livenessProbe).toMatchObject({
+      httpGet: { path: '/readyz', port: 8200 },
+      periodSeconds: 10,
+      failureThreshold: 6,
+    });
+  });
+
+  test('light agents keep agent identity and durable workspace without an inner Docker daemon', () => {
+    const pod = buildSessionPod(
+      {
+        ...cfg,
+        dockerInContainer: true,
+        runtimeTier: 'runc',
+        session: {
+          ...cfg.session,
+          agentLightMemory: '4g',
+          agentProfile: { ...cfg.session.agentProfile, memory: '8g' },
+        },
+      },
+      { ...input, profile: 'agent-light' },
+    );
+    const runner = pod.spec?.containers[0];
+    expect(runner?.resources?.limits?.memory).toBe('4Gi');
+    expect(runner?.securityContext?.runAsUser).toBe(10001);
+    expect(runner?.securityContext?.privileged).toBeUndefined();
+    expect(runner?.env?.some((item) => item.name === 'TALE_DIND')).toBe(false);
+    expect(
+      pod.spec?.volumes?.find((volume) => volume.name === 'workspace')
+        ?.persistentVolumeClaim,
+    ).toBeDefined();
+    expect(
+      pod.spec?.volumes?.some((volume) => volume.name === 'docker-storage'),
+    ).toBe(false);
+  });
   test('passes an operator inner pool only to DinD runners without Docker build-cache wiring or unsafe sysctls', () => {
     const configured: SpawnerConfig = {
       ...cfg,

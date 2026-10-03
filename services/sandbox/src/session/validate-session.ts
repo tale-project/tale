@@ -97,12 +97,14 @@ export function validateCreateSession(
         rawProfile,
       ))
   ) {
-    return { ok: false, error: 'profile must be default|agent' };
+    return { ok: false, error: 'profile must be default|agent|agent-light' };
   }
   // Narrow to the union without an assertion (only 'agent' | 'default' reach
   // here after the guard above).
   const profile: SandboxSessionProfile =
-    rawProfile === 'agent' ? 'agent' : 'default';
+    rawProfile === 'agent' || rawProfile === 'agent-light'
+      ? rawProfile
+      : 'default';
   // ttl/idle clamped to the configured ceilings (a caller may request less).
   const ttlMs = clampPositive(
     raw.ttlMs,

@@ -5,7 +5,9 @@
 // layer forwards to the platform. No kubectl exec anywhere — this is ordinary
 // fetch, which is what keeps the K8s backend exec-free.
 
+import { operationSignal } from '../operation-budget.ts';
 import {
+  RUNNERD_CHECKPOINT_MAX_BYTES,
   RUNNERD_TOKEN_HEADER,
   type RunnerdExecEvent,
   type RunnerdExecRequest,
@@ -37,6 +39,60 @@ const RUNNERD_HEALTH_TIMEOUT_MS = 5_000;
  * residual means a malfunctioning/compromised daemon streaming without
  * newlines — abort rather than grow the buffer until the spawner OOMs. */
 const MAX_NDJSON_BUFFER_BYTES = 1_048_576;
+
+/** Checkpoints are opaque, bounded platform state. Preserve protocol status
+ * codes so an older runtime can be distinguished from an unavailable one. */
+export async function runnerdExecCheckpoint(
+  opts: RunnerdClientOptions,
+  execId: string,
+  method: 'GET' | 'PUT',
+  body: string,
+  signal: AbortSignal,
+): Promise<Response> {
+  if (method === 'PUT') {
+    if (Buffer.byteLength(body) > RUNNERD_CHECKPOINT_MAX_BYTES)
+      return Response.json({ error: 'checkpoint_too_large' }, { status: 413 });
+    let value: unknown;
+    try {
+      value = JSON.parse(body);
+    } catch {
+      return Response.json({ error: 'bad_checkpoint' }, { status: 400 });
+    }
+    if (
+      value === null ||
+      typeof value !== 'object' ||
+      Array.isArray(value) ||
+      !('seq' in value) ||
+      typeof value.seq !== 'number' ||
+      !Number.isSafeInteger(value.seq) ||
+      value.seq < 0 ||
+      !('state' in value)
+    )
+      return Response.json({ error: 'bad_checkpoint' }, { status: 400 });
+  }
+  const response = await fetch(
+    `${opts.baseUrl}/execs/${encodeURIComponent(execId)}/checkpoint`,
+    {
+      method,
+      headers: {
+        ...authHeaders(opts.token),
+        'content-type': 'application/json',
+      },
+      ...(method === 'PUT' ? { body } : {}),
+      signal: AbortSignal.any([
+        signal,
+        AbortSignal.timeout(RUNNERD_RPC_TIMEOUT_MS),
+      ]),
+    },
+  );
+  return new Response(response.body, {
+    status: response.status,
+    headers: {
+      'content-type': 'application/json',
+      'cache-control': 'no-store',
+    },
+  });
+}
 
 /** GET /healthz — used by create-poll and the idle reaper. Throws on
  * unreachable/non-200 so callers can distinguish "not ready yet" (retry)
@@ -102,10 +158,12 @@ export async function waitForRunnerd(
 ): Promise<void> {
   const start = Date.now();
   for (;;) {
+    operationSignal()?.throwIfAborted();
     try {
-      await runnerdHealth(opts);
+      await runnerdHealth(opts, operationSignal());
       return;
     } catch {
+      operationSignal()?.throwIfAborted();
       if (Date.now() - start > deadlineMs) {
         throw new Error(`runnerd did not become ready within ${deadlineMs}ms`);
       }
@@ -287,7 +345,7 @@ export async function runnerdEnvPatch(
     method: 'POST',
     headers: { ...authHeaders(opts.token), 'content-type': 'application/json' },
     body: JSON.stringify(patch),
-    signal: AbortSignal.timeout(RUNNERD_RPC_TIMEOUT_MS),
+    signal: operationSignal(AbortSignal.timeout(RUNNERD_RPC_TIMEOUT_MS)),
   });
   if (!res.ok) throw new Error(`runnerd /env ${res.status}`);
   // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
@@ -304,13 +362,22 @@ interface RunnerdStageResult {
  * bytes, or fetched by the daemon from its URL). */
 export async function runnerdStageFiles(
   opts: RunnerdClientOptions,
-  files: Array<{ path: string; url?: string; contentBase64?: string }>,
+  files: Array<{
+    path: string;
+    url?: string;
+    contentBase64?: string;
+    sha256?: string;
+    cacheKey?: string;
+  }>,
+  signal?: AbortSignal,
 ): Promise<RunnerdStageResult> {
   const res = await fetch(`${opts.baseUrl}/files/stage`, {
     method: 'POST',
     headers: { ...authHeaders(opts.token), 'content-type': 'application/json' },
     body: JSON.stringify({ files }),
-    signal: AbortSignal.timeout(RUNNERD_RPC_TIMEOUT_MS),
+    signal: signal
+      ? AbortSignal.any([signal, AbortSignal.timeout(RUNNERD_RPC_TIMEOUT_MS)])
+      : AbortSignal.timeout(RUNNERD_RPC_TIMEOUT_MS),
   });
   if (!res.ok) throw new Error(`runnerd /files/stage ${res.status}`);
   // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion

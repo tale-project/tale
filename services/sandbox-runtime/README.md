@@ -15,7 +15,12 @@ Any other argument exits 65 (there is no per-call language lane).
 runnerd disconnects an exec or attach output reader once its pending writes
 would exceed 8 MiB, releasing the connection and its request activity while
 the command continues. A reader can reconnect through attach using its last
-sequence number and the retained 256 KiB output ring. Session idle and TTL
+sequence number and a bounded 64 MiB disk replay spool. Output framing retains
+at most three trailing bytes until a split UTF-8 character is complete, without
+changing raw bytes, so text decoders and reconnects preserve Unicode. Replay writes backpressure
+child output, and delivery is paced to the reader. Parser checkpoints are stored
+atomically before old segments are pruned; unavailable retained history produces
+an explicit gap event instead of silently dropping output. Session idle and TTL
 cleanup atomically checks the current work generation and activity clock
 before freezing compute; see the [session contract](../sandbox/docs/sessions.md).
 
@@ -212,3 +217,10 @@ browser screenshots and still has the batch lane for its scripts.
 ### Per-request vision thinking
 
 `tale-vision --thinking disabled` requests the standard Anthropic disabled-thinking mode for that batch only. The default (`--thinking provider`, or omission) leaves provider behavior unchanged. Choose the override only for a compatible vision model; it does not change provider defaults, output-token limits, image processing, per-image deadlines or the ordinary Read-hook fallback. The batch cache distinguishes the override from the provider default, while the default retains historical cache entries. Runtime tests cover both request forms, cache isolation, exact original image bytes and invalid-value refusal.
+
+File staging streams downloads to temporary files and atomically renames them on
+success. At most two files stage concurrently under one 25-second batch deadline;
+cancellation removes temporary files. Verified SHA-256 manifests skip unchanged
+managed inputs, while changed or deleted workspace files are repaired. `/readyz`
+checks daemon liveness; `/healthz` adds bounded, coalesced Docker and egress
+observations when configured, without treating those dependencies as liveness.

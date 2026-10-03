@@ -18,6 +18,8 @@ const KEYS = [
   'SANDBOX_BACKEND',
   'SANDBOX_AGENT_MEMORY',
   'SANDBOX_HOST_SESSION_ROOT',
+  'SANDBOX_DOCKER_DATA_ROOT',
+  'SANDBOX_DOCKER_DATA_PATH',
   'SANDBOX_TOKEN',
   'SANDBOX_MAX_REQUEST_BODY_BYTES',
   'SANDBOX_MAX_SESSIONS',
@@ -26,6 +28,7 @@ const KEYS = [
   'SANDBOX_K8S_MEMORY_REQUEST',
   'SANDBOX_BUILDKITD_CPUS',
   'SANDBOX_BUILDKITD_MEMORY',
+  'SANDBOX_BUILDKITD_START_TIMEOUT_MS',
   'SANDBOX_BUILDKITD_IDLE_CACHE',
   'SANDBOX_BUILDKITD_CACHE_RETENTION',
   'SANDBOX_MIN_FREE_DISK',
@@ -102,6 +105,25 @@ test('the builder bounds are optional and validated', () => {
   process.env.SANDBOX_BUILDKITD_MEMORY = '12g';
   process.env.SANDBOX_BUILDKITD_CPUS = 'many';
   expect(() => loadConfig()).toThrow(/SANDBOX_BUILDKITD_CPUS/);
+});
+
+test('optional build cache startup has a bounded, configurable budget', () => {
+  expect(loadConfig().buildkitdStartTimeoutMs).toBe(30_000);
+  process.env.SANDBOX_BUILDKITD_START_TIMEOUT_MS = '5000';
+  expect(loadConfig().buildkitdStartTimeoutMs).toBe(5_000);
+  process.env.SANDBOX_BUILDKITD_START_TIMEOUT_MS = '0';
+  expect(() => loadConfig()).toThrow('SANDBOX_BUILDKITD_START_TIMEOUT_MS');
+});
+
+test('Docker data filesystem monitoring is opt-in and requires absolute paths', () => {
+  expect(loadConfig().dockerDataPath).toBeUndefined();
+  process.env.SANDBOX_DOCKER_DATA_ROOT = '/srv/docker';
+  expect(loadConfig()).toMatchObject({
+    dockerDataRoot: '/srv/docker',
+    dockerDataPath: '/var/lib/tale-sandbox/docker-data',
+  });
+  process.env.SANDBOX_DOCKER_DATA_PATH = 'relative';
+  expect(() => loadConfig()).toThrow('SANDBOX_DOCKER_DATA_PATH');
 });
 
 test("an idle builder's cache budget is optional and validated", () => {
@@ -247,12 +269,14 @@ describe('loadConfig — docker-in-container gating', () => {
       process.env.SANDBOX_RUNTIME = 'sysbox';
       process.env.SANDBOX_DOCKER_IN_CONTAINER = 'true';
       expect(loadConfig().session.agentProfile.memory).toBe('8g');
+      expect(loadConfig().session.agentLightMemory).toBe('4g');
     });
 
     test('explicit SANDBOX_AGENT_MEMORY wins over the DinD default', () => {
       process.env.SANDBOX_RUNTIME = 'sysbox';
       process.env.SANDBOX_DOCKER_IN_CONTAINER = 'true';
       process.env.SANDBOX_AGENT_MEMORY = '12g';
+      expect(loadConfig().session.agentLightMemory).toBe('12g');
       expect(loadConfig().session.agentProfile.memory).toBe('12g');
     });
   });

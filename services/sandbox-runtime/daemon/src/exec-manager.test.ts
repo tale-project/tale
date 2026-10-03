@@ -122,6 +122,98 @@ describe('ExecManager', () => {
     expect(last).toMatchObject({ t: 'exit', exitCode: 0, cancelled: false });
   });
 
+  test('forced UTF-8 pipe splits decode correctly in live frames and replay', async () => {
+    const mgr = new ExecManager(new EnvStore(), () => {});
+    const live = collect();
+    await mgr.run(
+      {
+        ...base,
+        execId: 'utf8-frames',
+        cwd: ROOT,
+        stdinMode: 'hold',
+        // Each ASCII marker and unfinished character is one write. The child
+        // waits for the consumer's acknowledgement before writing its suffix,
+        // so the OS cannot combine the two sides into one pipe data event.
+        command: [
+          '/bin/sh',
+          '-c',
+          String.raw`
+          printf 'a\342'; read -r ack; printf '\202\254'
+          printf 'b\360\237'; read -r ack; printf '\230\200'
+          printf 'c\302'; read -r ack; printf '\242'
+          printf 'x\360\237\230' >&2; read -r ack; printf '\200' >&2
+          printf 'y\342\202' >&2; read -r ack; printf '\254' >&2
+        `,
+        ],
+      },
+      (event) => {
+        live.emit(event);
+        if (event.t !== 'stdout' && event.t !== 'stderr') return;
+        const bytes = Buffer.from(event.b64, 'base64');
+        if (/[abcxy]/.test(bytes.toString())) {
+          expect(
+            mgr.writeStdin('utf8-frames', {
+              b64: Buffer.from('{}\n').toString('base64'),
+            }),
+          ).toEqual({ ok: true });
+        }
+      },
+    );
+    expect(live.events.at(-1)).toMatchObject({ t: 'exit', exitCode: 0 });
+    expect(decode(live.events, 'stdout')).toBe('a€b😀c¢');
+    expect(decode(live.events, 'stderr')).toBe('x😀y€');
+    const replay = collect();
+    await mgr.attach('utf8-frames', replay.emit);
+    expect(replay.events).toEqual(live.events);
+    const first = live.events.find((event) => event.t === 'stdout');
+    const resumed = collect();
+    await mgr.attach('utf8-frames', resumed.emit, first?.seq);
+    expect(decode(resumed.events, 'stdout')).toBe('€b😀c¢');
+    for (const event of replay.events) {
+      if (event.t === 'stdout' || event.t === 'stderr') {
+        new TextDecoder('utf-8', { fatal: true }).decode(
+          Buffer.from(event.b64, 'base64'),
+        );
+      }
+    }
+  });
+
+  test('UTF-8 framing preserves raw incomplete EOF and capped bytes', async () => {
+    const mgr = new ExecManager(new EnvStore(), () => {});
+    for (const cap of [0, 2]) {
+      const output = collect();
+      await mgr.run(
+        {
+          ...base,
+          execId: `utf8-raw-${cap}`,
+          cwd: ROOT,
+          command: [
+            '/bin/sh',
+            '-c',
+            String.raw`printf '\342\202\254'; printf '\360\237\230' >&2`,
+          ],
+          stdoutMaxBytes: cap,
+        },
+        output.emit,
+      );
+      const raw = (stream: 'stdout' | 'stderr') =>
+        Buffer.concat(
+          output.events.flatMap((event) =>
+            event.t === stream ? [Buffer.from(event.b64, 'base64')] : [],
+          ),
+        );
+      expect(raw('stdout')).toEqual(
+        Buffer.from(cap ? [0xe2, 0x82] : [0xe2, 0x82, 0xac]),
+      );
+      expect(raw('stderr')).toEqual(Buffer.from([0xf0, 0x9f, 0x98]));
+      expect(output.events.at(-1)).toMatchObject({
+        t: 'exit',
+        exitCode: 0,
+        truncated: { stdout: cap > 0, stderr: false },
+      });
+    }
+  });
+
   test('flushes all output before the terminal exit event (ordering contract)', async () => {
     const mgr = new ExecManager(new EnvStore(), () => {});
     const { events, emit } = collect();
@@ -316,17 +408,31 @@ describe('ExecManager', () => {
   test('what an exec left running ends with it, and its exit is not held back', async () => {
     const mgr = new ExecManager(new EnvStore(), () => {});
     const { events, emit } = collect();
+    let outputAt = 0;
+    let exitAt = 0;
     // The background sleep inherits stdout: before, it outlived the exec and
-    // held the pipe, so the exit waited out the drain grace.
+    // held the pipe, so the exit waited out the drain grace. Start measuring
+    // once the command prints its PID, excluding host shell initialization
+    // and process startup from this output-drain regression.
     await mgr.run(
-      { ...base, execId: 'ebg', shell: 'sleep 30 & echo $!', cwd: ROOT },
-      emit,
+      {
+        ...base,
+        execId: 'ebg',
+        command: ['/bin/sh', '-c', 'sleep 30 & echo $!'],
+        cwd: ROOT,
+      },
+      (event) => {
+        if (event.t === 'stdout') outputAt = Date.now();
+        if (event.t === 'exit') exitAt = Date.now();
+        emit(event);
+      },
     );
     const pid = Number(decode(events, 'stdout').trim());
     expect(pid).toBeGreaterThan(1);
     const last = events[events.length - 1];
     expect(last?.t).toBe('exit');
-    if (last?.t === 'exit') expect(last.durationMs).toBeLessThan(1_500);
+    expect(outputAt).toBeGreaterThan(0);
+    expect(exitAt - outputAt).toBeLessThan(1_500);
     const deadline = Date.now() + 3_000;
     while (isAlive(pid) && Date.now() < deadline) {
       await new Promise((r) => setTimeout(r, 20));
@@ -871,7 +977,14 @@ describe('ExecManager', () => {
     const mgr = new ExecManager(new EnvStore(), () => {});
     const long = collect();
     const longDone = mgr.run(
-      { ...base, execId: 'ewlong', shell: 'sleep 30', cwd: ROOT },
+      {
+        ...base,
+        // This companion must outlive the drain/assertions, even under load.
+        timeoutMs: 30_000,
+        execId: 'ewlong',
+        shell: 'sleep 30',
+        cwd: ROOT,
+      },
       long.emit,
     );
     const short = collect();
@@ -1003,7 +1116,14 @@ describe('ExecManager', () => {
     try {
       const long = collect();
       const longDone = mgr.run(
-        { ...base, execId: 'prune-long', shell: 'sleep 30', cwd: ROOT },
+        {
+          ...base,
+          // Starting 256 children can exceed the usual five-second deadline.
+          timeoutMs: 30_000,
+          execId: 'prune-long',
+          shell: 'sleep 30',
+          cwd: ROOT,
+        },
         long.emit,
       );
       while (mgr.status('prune-long')?.state !== 'running') {
@@ -1029,6 +1149,7 @@ describe('ExecManager', () => {
       }
       expect(sent).toContainEqual([99991, 'SIGTERM']);
     } finally {
+      await mgr.terminateAll();
       rmSync(procRoot, { recursive: true, force: true });
     }
   }, 30_000);
@@ -1111,6 +1232,29 @@ describe('ExecManager', () => {
     for (const consumer of consumers) {
       expect(getEventListeners(consumer.signal, 'abort')).toHaveLength(0);
     }
+  });
+
+  test('a consumer can attach from the start callback without missing or duplicating its sequence', async () => {
+    const mgr = new ExecManager(new EnvStore(), () => {});
+    const replay = collect();
+    const attached: { stream: Promise<void> | null } = { stream: null };
+    await mgr.run(
+      {
+        ...base,
+        execId: 'reentrant-attach',
+        command: ['/bin/sh', '-c', 'printf reentrant'],
+      },
+      (event) => {
+        if (event.t === 'start')
+          attached.stream = mgr.attach('reentrant-attach', replay.emit);
+      },
+    );
+    await attached.stream;
+    expect(replay.events[0]?.t).toBe('start');
+    expect(replay.events.at(-1)?.t).toBe('exit');
+    expect(replay.events.map((event) => event.seq)).toEqual(
+      replay.events.map((_event, index) => index + 1),
+    );
   });
 
   test('attach replays the ring of a just-finished exec', async () => {

@@ -68,6 +68,7 @@ const stopped = new Set<string>();
 const stdinWrites: Array<{ execId: string; b64?: string; eof?: boolean }> = [];
 // Each POST /execs/:id/cancel runnerd received, path and query.
 const cancelRequests: string[] = [];
+const attachRequests: string[] = [];
 // Captures each POST /execs body the spawner sends to runnerd, so tests can
 // assert the per-exec stdoutMaxBytes/stderrMaxBytes the spawner chose.
 const execRequests: Array<{
@@ -289,12 +290,21 @@ beforeAll(() => {
         });
       }
       if (url.pathname.endsWith('/attach')) {
+        attachRequests.push(url.pathname);
+        if (url.pathname.includes('/done-disappears/')) {
+          return new Response('gone', { status: 404 });
+        }
         if (url.pathname.includes('/hang-')) {
           return hangingExecResponse();
         }
         return new Response(
           ndjson([
-            { t: 'stdout', b64: Buffer.from('replayed').toString('base64') },
+            {
+              t: 'stdout',
+              b64: Buffer.from(
+                url.pathname.includes('/bom-') ? '\uFEFFreplayed' : 'replayed',
+              ).toString('base64'),
+            },
             {
               t: 'exit',
               exitCode: 0,
@@ -417,6 +427,7 @@ beforeEach(() => {
   stopped.clear();
   stdinWrites.length = 0;
   execRequests.length = 0;
+  attachRequests.length = 0;
   backendGone.clear();
   backendCheckThrows = false;
   backendDestroyThrows.clear();
@@ -490,6 +501,31 @@ describe('SessionRoutes (fake runnerd)', () => {
     expect(destroyed.has('sess1')).toBe(true);
     // gone from registry
     expect((await routes.handleGet('sess1')).status).toBe(404);
+  });
+
+  test('exec and attach preserve a frame-leading Unicode BOM as output', async () => {
+    const routes = new SessionRoutes(cfg, fakeBackend);
+    await routes.handleCreate(
+      JSON.stringify({ sessionId: 'sess_bom', organizationId: 'org_bom' }),
+    );
+    const execRes = await routes.handleExec(
+      new Request('http://x/v1/sessions/sess_bom/exec', { method: 'POST' }),
+      'sess_bom',
+      JSON.stringify({ execId: 'bom-live', command: ['echo', '\uFEFFhi'] }),
+    );
+    const live = await readSse(execRes);
+    expect(
+      live.events.find((event) => event.event === 'stdout')?.data.text,
+    ).toBe('\uFEFFhi\n');
+    const attachRes = await routes.handleExecAttach(
+      new Request('http://x', { method: 'GET' }),
+      'sess_bom',
+      'bom-replay',
+    );
+    const replay = await readSse(attachRes);
+    expect(
+      replay.events.find((event) => event.event === 'stdout')?.data.text,
+    ).toBe('\uFEFFreplayed');
   });
 
   test('result forwards runnerd exit durationMs VERBATIM (the runner-measured wall-clock)', async () => {
@@ -3177,6 +3213,12 @@ describe('the first-come line for host room', () => {
 
 describe('memory-aware admission', () => {
   const GIB = 1024 ** 3;
+  const release = async (routes: SessionRoutes, id: string) => {
+    const ticket: unknown = await (
+      await routes.handleActivity(id, 'ticket')
+    ).json();
+    return routes.handleActivity(id, 'release', JSON.stringify(ticket));
+  };
   const create = (routes: SessionRoutes, id: string) =>
     routes.handleCreate(
       JSON.stringify({
@@ -3193,6 +3235,164 @@ describe('memory-aware admission', () => {
     });
     return { latest: reading, read: () => Promise.resolve(reading()) };
   };
+  const exec = (routes: SessionRoutes, id: string, execId: string) =>
+    routes.handleExec(
+      new Request(`http://spawner/v1/sessions/${id}/exec`, { method: 'POST' }),
+      id,
+      JSON.stringify({ execId, command: ['echo', 'admitted'] }),
+    );
+
+  test('a new direct exec on released warm compute cannot bypass memory admission', async () => {
+    let available = 8;
+    const routes = new SessionRoutes(
+      cfg,
+      fakeBackend,
+      undefined,
+      host(() => available),
+    );
+    await create(routes, 'direct-pressure');
+    await release(routes, 'direct-pressure');
+    available = 0.125;
+    const response = await exec(routes, 'direct-pressure', 'gone-new');
+    expect(response.status).toBe(429);
+    expect(await response.json()).toMatchObject({ error: 'host_memory' });
+    expect(execRequests).toHaveLength(0);
+    expect(attachRequests).toHaveLength(0);
+  });
+
+  test('concurrent direct execs share one warm growth reservation', async () => {
+    let available = 8;
+    const routes = new SessionRoutes(
+      cfg,
+      fakeBackend,
+      undefined,
+      host(() => available),
+    );
+    for (const id of ['direct-pair', 'direct-other']) {
+      await create(routes, id);
+      await release(routes, id);
+    }
+    available = 2.2;
+    const responses = await Promise.all([
+      exec(routes, 'direct-pair', 'gone-first'),
+      exec(routes, 'direct-pair', 'gone-second'),
+    ]);
+    expect(responses.map((response) => response.status)).toEqual([200, 200]);
+    await Promise.all(responses.map(readSse));
+    expect(execRequests).toHaveLength(2);
+    expect((await exec(routes, 'direct-other', 'gone-third')).status).toBe(429);
+    expect(execRequests).toHaveLength(2);
+  });
+
+  test('an acquired work lease is not charged again for an exec under pressure', async () => {
+    let available = 8;
+    const routes = new SessionRoutes(
+      cfg,
+      fakeBackend,
+      undefined,
+      host(() => available),
+    );
+    await create(routes, 'direct-held');
+    await release(routes, 'direct-held');
+    expect((await routes.handleActivity('direct-held', 'acquire')).status).toBe(
+      200,
+    );
+    try {
+      setSystemTime(Date.now() + 120_000);
+      available = 0.125;
+      const response = await exec(routes, 'direct-held', 'gone-new');
+      expect(response.status).toBe(200);
+      await readSse(response);
+      expect(execRequests).toHaveLength(1);
+      expect(attachRequests).toHaveLength(0);
+    } finally {
+      setSystemTime();
+    }
+  });
+
+  test.each(['running-existing', 'done-existing', 'done-disappears'])(
+    'a capacity-refused retry of %s only attaches and never starts a fresh exec',
+    async (execId) => {
+      let available = 8;
+      const routes = new SessionRoutes(
+        cfg,
+        fakeBackend,
+        undefined,
+        host(() => available),
+      );
+      await create(routes, 'direct-replay');
+      await release(routes, 'direct-replay');
+      available = 0.125;
+      const response = await exec(routes, 'direct-replay', execId);
+      expect(response.status).toBe(200);
+      const { events } = await readSse(response);
+      expect(execRequests).toHaveLength(0);
+      expect(attachRequests).toEqual([`/execs/${execId}/attach`]);
+      if (execId === 'done-disappears') {
+        expect(events.some((event) => event.event === 'error')).toBe(true);
+        expect(events.some((event) => event.event === 'result')).toBe(false);
+      } else {
+        expect(
+          events.find((event) => event.event === 'result')?.data,
+        ).toMatchObject({
+          status: 'completed',
+          stdoutBase64: Buffer.from('replayed').toString('base64'),
+        });
+      }
+    },
+  );
+
+  test('warm turns reserve growth, refuse pressure, and release the reservation', async () => {
+    let available = 8;
+    const routes = new SessionRoutes(
+      cfg,
+      fakeBackend,
+      undefined,
+      host(() => available),
+    );
+    for (const id of ['warm-one', 'warm-two']) {
+      expect((await create(routes, id)).status).toBe(201);
+      await release(routes, id);
+    }
+    available = 2;
+    const refused = await routes.handleActivity('warm-one', 'acquire');
+    expect(refused.status).toBe(429);
+    expect(await refused.json()).toMatchObject({ error: 'host_memory' });
+    expect(stopped.size).toBe(0);
+    available = 2.5;
+    const burst = await Promise.all([
+      routes.handleActivity('warm-one', 'acquire'),
+      routes.handleActivity('warm-two', 'acquire'),
+    ]);
+    expect(burst.map((response) => response.status)).toEqual([200, 429]);
+    // An existing lease can retry; it does not pay a second working set.
+    expect((await routes.handleActivity('warm-one', 'acquire')).status).toBe(
+      200,
+    );
+    await release(routes, 'warm-one');
+    expect((await routes.handleActivity('warm-two', 'acquire')).status).toBe(
+      200,
+    );
+  });
+
+  test('duplicate warm acquires share one generation and reservation', async () => {
+    let available = 8;
+    const routes = new SessionRoutes(
+      cfg,
+      fakeBackend,
+      undefined,
+      host(() => available),
+    );
+    await create(routes, 'same-warm');
+    await release(routes, 'same-warm');
+    available = 2.2;
+    const responses = await Promise.all([
+      routes.handleActivity('same-warm', 'acquire'),
+      routes.handleActivity('same-warm', 'acquire'),
+    ]);
+    expect(responses.map((response) => response.status)).toEqual([200, 200]);
+    expect(await responses[0].json()).toEqual(await responses[1].json());
+  });
 
   test('a create that would leave the host under its reserve is refused with host_memory', async () => {
     // 16 GiB host: the reserve is 1.6 GiB; an agent session is planned at
@@ -3313,6 +3513,30 @@ describe('disk-aware admission', () => {
     return { latest: reading, read: () => Promise.resolve(reading()) };
   };
 
+  test('a new direct exec cannot bypass disk admission on warm compute', async () => {
+    let available = 50;
+    const routes = new SessionRoutes(
+      cfg,
+      fakeBackend,
+      undefined,
+      undefined,
+      disk(() => available),
+    );
+    await create(routes, 'direct-disk');
+    available = 4;
+    const response = await routes.handleExec(
+      new Request('http://spawner/v1/sessions/direct-disk/exec', {
+        method: 'POST',
+      }),
+      'direct-disk',
+      JSON.stringify({ execId: 'gone-new', command: ['echo', 'blocked'] }),
+    );
+    expect(response.status).toBe(429);
+    expect(await response.json()).toMatchObject({ error: 'host_disk' });
+    expect(execRequests).toHaveLength(0);
+    expect(attachRequests).toHaveLength(0);
+  });
+
   test('below its floor, the session disk takes no session: the create waits in line with host_disk', async () => {
     let available = 4;
     const routes = new SessionRoutes(
@@ -3330,6 +3554,9 @@ describe('disk-aware admission', () => {
     ).json();
     await routes.handleActivity('warm-disk', 'release', JSON.stringify(ticket));
     available = 4;
+    const warmRefused = await routes.handleActivity('warm-disk', 'acquire');
+    expect(warmRefused.status).toBe(429);
+    expect(await warmRefused.json()).toMatchObject({ error: 'host_disk' });
     const refused = await create(routes, 'disk-wait');
     expect(refused.status).toBe(429);
     expect(refused.headers.get('retry-after')).toBe('5');

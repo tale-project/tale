@@ -16,6 +16,8 @@
 //     stats?: { total_tokens, input_tokens, output_tokens, cached, input,
 //               duration_ms, tool_calls, models } }
 
+import { z } from 'zod';
+
 import {
   asNumber,
   asString,
@@ -109,6 +111,13 @@ function mapRunStatus(
   return status ? 'error' : 'completed';
 }
 
+const checkpointSchema = z.object({
+  lines: z.string(),
+  started: z.boolean(),
+  sessionId: z.string().optional(),
+  assistantText: z.string(),
+});
+
 class GeminiStreamParser implements HarnessEventParser {
   private readonly lines = new LineReassembler();
   private started = false;
@@ -118,6 +127,23 @@ class GeminiStreamParser implements HarnessEventParser {
   private assistantText = '';
 
   constructor(private readonly slug: HarnessSlug) {}
+
+  snapshot(): Record<string, unknown> {
+    return {
+      lines: this.lines.snapshot(),
+      started: this.started,
+      sessionId: this.sessionId,
+      assistantText: this.assistantText,
+    };
+  }
+
+  restore(value: unknown): void {
+    const state = checkpointSchema.parse(value);
+    this.lines.restore(state.lines);
+    this.started = state.started;
+    this.sessionId = state.sessionId;
+    this.assistantText = state.assistantText;
+  }
 
   feed(chunk: string): HarnessEvent[] {
     return this.lines.push(chunk).flatMap((line) => this.line(line));

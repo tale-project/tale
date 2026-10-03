@@ -2,10 +2,9 @@
  * The agent-turn transcript timeline — ONE merge discipline for every holder
  * of it.
  *
- * A turn's drain windows each rebuild their projection from scratch (fresh
- * parser over the exec's 256 KB ring buffer), so any single flush is a
- * bounded, possibly much shorter view of the turn: entries routinely vanish
- * from its head, and a fresh window can open with almost nothing. Every
+ * A turn's drain windows carry a bounded projection through durable parser
+ * checkpoints. Entries still age out of its head, and legacy runtimes without
+ * checkpoints rebuild from replay, so a flush may show a shorter view. Every
  * holder of a transcript therefore MERGES flushes instead of replacing —
  * the op row (`upsertSessionOp`, under its row lock) and the run views'
  * client accumulator both fold each flush in through this module, so neither
@@ -43,10 +42,8 @@ export interface TimelineEntry {
  * tool-heavy turn to stay readable end to end. */
 export const TIMELINE_MAX_ENTRIES = 400;
 /** Byte budget of a stored transcript (serialized). Keeps the op row well
- * under Convex's 1 MB document cap next to `progressText`, and — being
- * larger than the exec's 256 KB ring buffer — guarantees a replay can never
- * re-deliver an entry old enough to have been evicted (which would re-append
- * it out of order). */
+ * under its 1 MB document cap next to `progressText`; the merge retains more
+ * history than any individual live projection. */
 const TIMELINE_MAX_JSON_BYTES = 600_000;
 
 const encoder = new TextEncoder();

@@ -25,6 +25,7 @@ import {
   ensureBuildkitd,
   MIRROR_REGISTRIES,
 } from './buildkitd.ts';
+import { DOCKER_TEST_STATE_LOCK } from './docker-test-lock.ts';
 import { TEST_SESSION_CONFIG } from './session/session-test-config.ts';
 import type { SpawnerConfig } from './types.ts';
 
@@ -35,6 +36,7 @@ import { readFileSync, writeFileSync, appendFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 const dir = dirname(process.argv[1]);
 const path = join(dir, 'state.json');
+${DOCKER_TEST_STATE_LOCK}
 const s = JSON.parse(readFileSync(path, 'utf8'));
 const a = process.argv.slice(2);
 appendFileSync(join(dir, 'calls.jsonl'), JSON.stringify(a) + '\n');

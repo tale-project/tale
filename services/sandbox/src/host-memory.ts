@@ -72,6 +72,7 @@ export function sessionWorkingSetBytes(
   profile: SandboxSessionProfile,
   dockerInside: boolean,
 ): number {
+  if (profile === 'agent-light') return SESSION_WORKING_SET_BYTES.agent;
   if (profile !== 'agent') return SESSION_WORKING_SET_BYTES.default;
   return dockerInside
     ? SESSION_WORKING_SET_BYTES.dind

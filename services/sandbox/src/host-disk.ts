@@ -18,6 +18,9 @@ export interface HostDisk {
   /** What an unprivileged process may still write there: sessions run as
    * one. */
   availableBytes: number;
+  /** An explicitly configured filesystem could not be verified/read.
+   * Its zero counters are placeholders, never a successful observation. */
+  unavailable?: boolean;
 }
 
 /** The free space admission keeps on the session disk: the operator's (0
@@ -44,6 +47,8 @@ export function belowDiskFloor(
   configuredBytes?: number,
 ): boolean {
   if (disk === null) return false;
+  if (configuredBytes === 0) return false;
+  if (disk.unavailable === true) return true;
   return (
     disk.availableBytes < diskReserveBytes(disk.totalBytes, configuredBytes)
   );

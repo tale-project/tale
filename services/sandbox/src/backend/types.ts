@@ -92,6 +92,8 @@ export interface SessionSpec {
    * process env — docker inspect must never show user values. */
   env: Record<string, string>;
   createdAtMs: number;
+  /** Caller cancellation; never serialized into the container or Pod. */
+  signal?: AbortSignal;
 }
 
 /** A backend's record of one live session, reconstructed from backend-object

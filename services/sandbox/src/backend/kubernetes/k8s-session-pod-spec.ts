@@ -25,7 +25,11 @@ import {
   transparentEgressSupported,
 } from '../../runtime-tier.ts';
 import { RUNNERD_PORT } from '../../session/runnerd-protocol.ts';
-import { sessionDindEnabled } from '../../session/session-profile.ts';
+import {
+  isAgentSessionProfile,
+  sessionAgentProfile,
+  sessionDindEnabled,
+} from '../../session/session-profile.ts';
 import type { SessionAgentProfileConfig, SpawnerConfig } from '../../types.ts';
 import type { SandboxSessionProfile } from '../../wire.ts';
 
@@ -129,8 +133,9 @@ export function buildSessionPod(
   assertSafe('sessionId', inp.sessionId, ID_RE);
   assertSafe('organizationId', inp.organizationId, ORG_RE);
 
-  const profile =
-    inp.profile === 'agent' ? cfg.session.agentProfile : { ...DEFAULT_PROFILE };
+  const profile = isAgentSessionProfile(inp.profile)
+    ? sessionAgentProfile(cfg, inp.profile)
+    : { ...DEFAULT_PROFILE };
   const [uidStr, gidStr] = profile.user.split(':');
   const uid = Number(uidStr ?? '65534');
   const gid = Number(gidStr ?? '65534');
@@ -176,7 +181,7 @@ export function buildSessionPod(
     : hardenedSecurityContext;
   const requested =
     SESSION_REQUESTS[
-      dind ? 'dind' : inp.profile === 'agent' ? 'agent' : 'default'
+      dind ? 'dind' : isAgentSessionProfile(inp.profile) ? 'agent' : 'default'
     ];
   const requests = {
     cpu: notAbove(cfg.k8s.cpuRequest ?? requested.cpu, cpuLimit, cpuMillis),
@@ -190,7 +195,7 @@ export function buildSessionPod(
   // destroyed after it, never resumed: its workspace is a sized emptyDir, not
   // a provisioned volume (a CSI create/attach/delete per batch). Agent
   // sessions keep their PVC across stop and resume.
-  const durableWorkspace = inp.profile === 'agent';
+  const durableWorkspace = isAgentSessionProfile(inp.profile);
 
   // Transparent egress (non-DinD, supported tier). A native sidecar (an init
   // container with restartPolicy: Always — K8s 1.28+) holds NET_ADMIN, installs
@@ -379,6 +384,24 @@ export function buildSessionPod(
             httpGet: { path: '/readyz', port: RUNNERD_PORT },
             initialDelaySeconds: 1,
             periodSeconds: 5,
+          },
+          // Give DinD/bootstrap its full create budget. Once booted, an
+          // unresponsive daemon must recover even when its session is pinned.
+          // Probe daemon responsiveness, never an agent's stdout or Docker.
+          startupProbe: {
+            httpGet: { path: '/readyz', port: RUNNERD_PORT },
+            periodSeconds: 5,
+            timeoutSeconds: 2,
+            failureThreshold: Math.max(
+              1,
+              Math.ceil(cfg.session.createHealthTimeoutMs / 5_000),
+            ),
+          },
+          livenessProbe: {
+            httpGet: { path: '/readyz', port: RUNNERD_PORT },
+            periodSeconds: 10,
+            timeoutSeconds: 5,
+            failureThreshold: 6,
           },
           resources: {
             requests,

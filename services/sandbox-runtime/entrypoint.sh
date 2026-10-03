@@ -666,26 +666,41 @@ start_inner_dockerd() {
     >/var/log/dockerd.log 2>&1 &
   TALE_DOCKERD_PID=$!
 
-  _i=0
-  while [ "$_i" -lt 60 ]; do
-    if ! kill -0 "$TALE_DOCKERD_PID" 2>/dev/null; then
-      echo "[entrypoint] FATAL: inner dockerd exited during startup:" >&2
-      tail -n 20 /var/log/dockerd.log >&2 2>/dev/null || true
-      exit 1
-    fi
-    if docker info >/dev/null 2>&1; then
-      # DOCKER-USER exists now that dockerd is up — install the IMDS fence and
-      # the transparent-egress redirect (both need the daemon's chains/bridge).
-      apply_inner_egress_fence
-      protect_shared_cache_network
-      setup_inner_transparent_egress
-      echo "[entrypoint] inner dockerd ready (tier=${TALE_RUNTIME_TIER:-?}, pid=${TALE_DOCKERD_PID})"
-      return 0
-    fi
-    _i=$((_i + 1))
-    sleep 0.5
-  done
-  echo "[entrypoint] FATAL: inner dockerd not ready within 30s:" >&2
+  # A count of sleeps is not a deadline: docker info itself can hang. Keep
+  # each probe, its child group and the whole readiness wait under one
+  # monotonic budget, with no shell or user Python import path involved.
+  if /usr/local/bin/python3 -Es - "$TALE_DOCKERD_PID" <<'PYREADY'
+import os
+import signal
+import subprocess
+import sys
+import time
+
+deadline = time.monotonic() + 30
+while time.monotonic() < deadline:
+    try:
+        os.kill(int(sys.argv[1]), 0)
+    except ProcessLookupError:
+        sys.exit(1)
+    probe = subprocess.Popen(["docker", "info"], stdout=subprocess.DEVNULL,
+                             stderr=subprocess.DEVNULL, start_new_session=True)
+    try:
+        if probe.wait(timeout=min(1, max(0.01, deadline - time.monotonic()))) == 0:
+            sys.exit(0)
+    except subprocess.TimeoutExpired:
+        os.killpg(probe.pid, signal.SIGKILL)
+        probe.wait()
+    time.sleep(min(0.5, max(0, deadline - time.monotonic())))
+sys.exit(1)
+PYREADY
+  then
+    apply_inner_egress_fence
+    protect_shared_cache_network
+    setup_inner_transparent_egress
+    echo "[entrypoint] inner dockerd ready (tier=${TALE_RUNTIME_TIER:-?}, pid=${TALE_DOCKERD_PID})"
+    return 0
+  fi
+  echo "[entrypoint] FATAL: inner dockerd exited or was not ready within 30s:" >&2
   tail -n 20 /var/log/dockerd.log >&2 2>/dev/null || true
   exit 1
 }

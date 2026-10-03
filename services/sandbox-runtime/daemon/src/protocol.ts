@@ -53,6 +53,8 @@ export interface RunnerdHealth {
   bootedAtMs: number;
   lastActivityAtMs: number;
   liveExecs: number;
+  /** Optional dependency diagnostics; do not affect daemon liveness. */
+  dependencies?: { docker?: { ok: boolean }; egress?: { ok: boolean } };
   /** Absent on older runtime images; pressure reclamation then fails closed. */
   activity?: {
     generation: string;
@@ -110,10 +112,18 @@ export interface RunnerdStdinWriteResponse {
   reason?: 'NOT_FOUND' | 'STDIN_CLOSED' | 'BAD_LINE' | 'WRITE_FAILED';
 }
 
+/** Maximum encoded checkpoint payload; state is opaque to the sandbox. */
+export const RUNNERD_CHECKPOINT_MAX_BYTES = 1024 * 1024;
+export interface RunnerdExecCheckpoint {
+  seq: number;
+  state: unknown;
+}
+
 export type RunnerdExecEvent = (
   | { t: 'start'; execId: string; startedAtMs: number }
   | { t: 'stdout'; b64: string }
   | { t: 'stderr'; b64: string }
+  | { t: 'gap'; fromSeq: number; toSeq: number }
   | {
       t: 'exit';
       exitCode: number;

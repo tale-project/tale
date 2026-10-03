@@ -74,6 +74,10 @@ import {
   resolveGatewayRouting,
 } from '../node_only/sandbox/llm_gateway_admin';
 import {
+  pruneManagedStageFiles,
+  stageBlobCacheKey,
+} from '../node_only/sandbox/managed_stage';
+import {
   harvestSessionOutput,
   type HarvestSkippedOutput,
   OUTPUT_DIR,
@@ -328,11 +332,6 @@ async function stageTaskInputs(
 ): Promise<StagedTaskInputs> {
   const dir = taskInputsDir(args.taskId);
   const staged: StagedTaskInputs = { dir, attachments: [], outputs: [] };
-  try {
-    await sessionDeleteFiles(args.sessionId, [dir]);
-  } catch (err) {
-    console.warn('[task-agent] inputs pre-clear failed (continuing):', err);
-  }
   const toStage: SessionStageFile[] = [];
   const planned = new Map<string, PlannedTaskInput>();
   for (const [kind, files] of [
@@ -345,7 +344,11 @@ async function stageTaskInputs(
       if (url === null) continue; // a retired backend's ref — skip, don't fail
       const name = safeInputFileName(file.fileName, taken);
       const path = `${dir}/${kind}/${name}`;
-      toStage.push({ path, url });
+      toStage.push({
+        path,
+        url,
+        cacheKey: stageBlobCacheKey(args.organizationId, file.fileId),
+      });
       planned.set(path, {
         kind,
         stagedName: name,
@@ -354,6 +357,11 @@ async function stageTaskInputs(
       staged[kind].push(name);
     }
   }
+  await pruneManagedStageFiles(
+    args.sessionId,
+    dir,
+    toStage.map((file) => file.path),
+  );
   if (toStage.length === 0) return staged;
   const result = await sessionStageFiles(args.sessionId, toStage);
   const verdict = partitionTaskInputSkips(result.skipped, planned);

@@ -10,6 +10,8 @@
 //   result (+ camelCase usage)   → usage + turn-ended + finalText + isError
 //   unknown / missing call_id    → raw
 
+import { z } from 'zod';
+
 import {
   asNumber,
   asRecord,
@@ -59,6 +61,13 @@ function unwrapToolCall(wrapper: Record<string, unknown>): {
   return { name: '', inner: wrapper };
 }
 
+const checkpointSchema = z.object({
+  lines: z.string(),
+  started: z.boolean(),
+  sessionId: z.string().optional(),
+  finalTextParts: z.array(z.string()),
+});
+
 class CursorJsonlParser implements HarnessEventParser {
   private readonly lines = new LineReassembler();
   private started = false;
@@ -66,6 +75,23 @@ class CursorJsonlParser implements HarnessEventParser {
   private finalTextParts: string[] = [];
 
   constructor(private readonly slug: HarnessSlug) {}
+
+  snapshot(): Record<string, unknown> {
+    return {
+      lines: this.lines.snapshot(),
+      started: this.started,
+      sessionId: this.sessionId,
+      finalTextParts: this.finalTextParts,
+    };
+  }
+
+  restore(value: unknown): void {
+    const state = checkpointSchema.parse(value);
+    this.lines.restore(state.lines);
+    this.started = state.started;
+    this.sessionId = state.sessionId;
+    this.finalTextParts = state.finalTextParts;
+  }
 
   feed(chunk: string): HarnessEvent[] {
     return this.lines.push(chunk).flatMap((line) => this.line(line));

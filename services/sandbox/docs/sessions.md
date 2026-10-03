@@ -174,7 +174,8 @@ When a reader falls behind that ceiling, runnerd disconnects that reader and
 releases its socket, buffered writes, subscription and request activity. The
 exec continues under its existing deadline; reconnect through
 `/execs/:id/attach?sinceSeq=<last-seen-seq>` to replay the retained output from
-the 256 KiB ring. Other readers continue receiving output. A dropped consumer
+the bounded 64 MiB disk spool. A checkpoint is durably stored before pruning
+acknowledged output; a `gap` event names any unavailable sequence interval. Other readers continue receiving output. A dropped consumer
 does not cancel the command or keep an idle session busy after the command ends.
 
 The build-cache upkeep — the reconcile for the organizations whose agent
@@ -495,3 +496,24 @@ NetworkPolicy verbs, is in [kubernetes.md](kubernetes.md#rbac-namespaced-role--n
   built agent image.)
 - Live agent smoke (secret-gated, needs real provider creds via the LLM gateway):
   one real `claude -p` + `agent -p` turn end-to-end. (Pending.)
+
+### Checkpoint and staging protocol
+
+`GET /v1/sessions/:id/exec/:execId/checkpoint` returns `{checkpoint: null}` or
+`{checkpoint: {seq, state}}`. `PUT` accepts `{seq, state}` up to 1 MiB; it rejects
+invalid/future cursors with 400, stale checkpoints with 409 and oversized bodies
+with 413. State is opaque to the sandbox. The platform saves parser state,
+partial JSONL, background-task state and its bounded progress projection every
+five seconds and at a drain handoff before acknowledging replay. A 404 from an
+older runtime retains the legacy path during a rolling upgrade.
+
+Staged files accept optional `sha256` and `cacheKey` fields. The runtime verifies
+existing content against its manifest before skipping a transfer; it never
+trusts the platform's claim alone. Downloads use two lanes, a shared 25-second
+budget and atomic temporary-file renames. Cancellation reaches the runtime.
+
+`agent-light` uses the same non-root agent identity and persistent workspace as
+`agent`, without Docker or BuildKit. The backend's `SANDBOX_AGENT_PROFILE` chooses
+new workspaces; saved profiles survive stop/resume and pin reconciliation.
+Released-session acquire performs memory/disk admission and may return 429,
+which the platform handles as a capacity wait.

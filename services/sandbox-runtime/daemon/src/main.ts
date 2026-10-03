@@ -23,6 +23,7 @@ import { fileURLToPath } from 'node:url';
 import { ActivityGate } from './activity-gate.ts';
 import { reconcileBakedSkills } from './baked-skills.ts';
 import { exitDaemon } from './daemon-exit.ts';
+import { dependencyHealth } from './dependency-health.ts';
 import { EnvStore } from './env-store.ts';
 import { ExecManager } from './exec-manager.ts';
 import {
@@ -34,6 +35,7 @@ import {
 } from './file-ops.ts';
 import { readJsonBody } from './http-body.ts';
 import {
+  RUNNERD_CHECKPOINT_MAX_BYTES,
   RUNNERD_CONSUMER_BUFFER_MAX_BYTES,
   RUNNERD_MAX_LIVE_EXECS,
   RUNNERD_PORT,
@@ -43,6 +45,8 @@ import {
   type RunnerdStdinWriteRequest,
 } from './protocol.ts';
 const FILE_READ_MAX_BYTES = 20 * 1024 * 1024;
+const MAX_STAGING_OPERATIONS = 2;
+let stagingOperations = 0;
 
 const TOKEN = process.env.TALE_RUNNERD_TOKEN ?? '';
 const bootedAtMs = Date.now();
@@ -184,6 +188,19 @@ function execConsumer(
         res.destroy();
       }
     },
+    ready: (): Promise<void> => {
+      if (!res.writableNeedDrain || consumer.signal.aborted)
+        return Promise.resolve();
+      return new Promise((finishReady) => {
+        const settle = () => {
+          res.removeListener('drain', settle);
+          consumer.signal.removeEventListener('abort', settle);
+          finishReady();
+        };
+        res.once('drain', settle);
+        consumer.signal.addEventListener('abort', settle, { once: true });
+      });
+    },
     end() {
       gone();
       req.removeListener('aborted', gone);
@@ -249,6 +266,7 @@ async function handleExec(
 const EXEC_CANCEL_RE = /^\/execs\/([a-zA-Z0-9_-]{1,64})\/cancel$/;
 const EXEC_ATTACH_RE = /^\/execs\/([a-zA-Z0-9_-]{1,64})\/attach$/;
 const EXEC_STDIN_RE = /^\/execs\/([a-zA-Z0-9_-]{1,64})\/stdin$/;
+const EXEC_CHECKPOINT_RE = /^\/execs\/([a-zA-Z0-9_-]{1,64})\/checkpoint$/;
 const EXEC_STATUS_RE = /^\/execs\/([a-zA-Z0-9_-]{1,64})$/;
 
 async function handleAttach(
@@ -276,6 +294,7 @@ async function handleAttach(
       consumer.emit,
       sinceSeq,
       consumer.signal,
+      consumer.ready,
     );
     if (stream) await stream;
   } finally {
@@ -302,12 +321,14 @@ async function router(
   }
 
   if (req.method === 'GET' && path === '/healthz') {
+    const dependencies = await dependencyHealth();
     const body: Record<string, unknown> = {
       ok: true,
       bootedAtMs,
       lastActivityAtMs,
       liveExecs: execManager.liveCount(),
       activity: activity.snapshot(),
+      ...(dependencies ? { dependencies } : {}),
     };
     sendJson(res, 200, body);
     return;
@@ -452,6 +473,54 @@ async function handleOperation(
     sendJson(res, 200, execManager.writeStdin(stdinMatch[1] ?? '', body));
     return;
   }
+  const checkpointMatch = path.match(EXEC_CHECKPOINT_RE);
+  if (checkpointMatch && (req.method === 'GET' || req.method === 'PUT')) {
+    const id = checkpointMatch[1] ?? '';
+    if (!execManager.canAttach(id)) {
+      sendJson(res, 404, { error: 'not_found' });
+      return;
+    }
+    if (req.method === 'GET') {
+      sendJson(res, 200, { checkpoint: await execManager.checkpoint(id) });
+      return;
+    }
+    const body = await readJsonBody(req);
+    if (!body.ok) {
+      sendJson(res, body.status, { error: body.error });
+      return;
+    }
+    if (
+      !isObject(body.value) ||
+      typeof body.value.seq !== 'number' ||
+      !Number.isSafeInteger(body.value.seq) ||
+      body.value.seq < 0 ||
+      !Object.hasOwn(body.value, 'state')
+    ) {
+      sendJson(res, 400, { error: 'bad_request' });
+      return;
+    }
+    if (
+      Buffer.byteLength(JSON.stringify(body.value)) >
+      RUNNERD_CHECKPOINT_MAX_BYTES
+    ) {
+      sendJson(res, 413, { error: 'payload_too_large' });
+      return;
+    }
+    const result = await execManager.saveCheckpoint(id, {
+      seq: body.value.seq,
+      state: body.value.state,
+    });
+    const status =
+      result === 'ok'
+        ? 200
+        : result === 'stale'
+          ? 409
+          : result === 'not_found'
+            ? 404
+            : 400;
+    sendJson(res, status, result === 'ok' ? { ok: true } : { error: result });
+    return;
+  }
   const statusMatch = path.match(EXEC_STATUS_RE);
   if (req.method === 'GET' && statusMatch) {
     const id = statusMatch[1] ?? '';
@@ -488,16 +557,39 @@ async function handleOperation(
     return;
   }
   if (req.method === 'POST' && path === '/files/stage') {
-    const stageBody = await readJsonBody(req);
-    if (!stageBody.ok) {
-      sendJson(res, stageBody.status, { error: stageBody.error });
+    if (stagingOperations >= MAX_STAGING_OPERATIONS) {
+      sendJson(res, 503, { error: 'staging_busy' });
       return;
     }
-    // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
-    const body = stageBody.value as { files?: StageItem[] };
-    touch();
-    const result = await stageFiles(body.files ?? []);
-    sendJson(res, 200, result);
+    stagingOperations += 1;
+    const caller = new AbortController();
+    const gone = () => caller.abort();
+    req.once('aborted', gone);
+    res.once('close', gone);
+    try {
+      const stageBody = await readJsonBody(req);
+      if (!stageBody.ok) {
+        sendJson(res, stageBody.status, { error: stageBody.error });
+        return;
+      }
+      if (
+        !isObject(stageBody.value) ||
+        !Array.isArray(stageBody.value.files) ||
+        !stageBody.value.files.every(isStageItem)
+      ) {
+        sendJson(res, 400, { error: 'bad_request' });
+        return;
+      }
+      touch();
+      const result = await stageFiles(stageBody.value.files, {
+        signal: caller.signal,
+      });
+      if (!caller.signal.aborted) sendJson(res, 200, result);
+    } finally {
+      stagingOperations -= 1;
+      req.removeListener('aborted', gone);
+      res.removeListener('close', gone);
+    }
     return;
   }
   if (req.method === 'POST' && path === '/files/delete') {
@@ -589,4 +681,19 @@ if (
       `[runnerd] listening on :${RUNNERD_PORT}; tokenAuth=${TOKEN === '' ? 'OFF (dev)' : 'on'}; execShim=${execManager.execShim ?? 'off'}`,
     );
   });
+}
+
+function isStageItem(value: unknown): value is StageItem {
+  return (
+    isObject(value) &&
+    typeof value.path === 'string' &&
+    (value.url === undefined || typeof value.url === 'string') &&
+    (value.contentBase64 === undefined ||
+      typeof value.contentBase64 === 'string') &&
+    (value.sha256 === undefined ||
+      (typeof value.sha256 === 'string' &&
+        /^[a-f0-9]{64}$/.test(value.sha256))) &&
+    (value.cacheKey === undefined ||
+      (typeof value.cacheKey === 'string' && value.cacheKey.length <= 256))
+  );
 }

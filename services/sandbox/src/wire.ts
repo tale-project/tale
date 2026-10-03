@@ -103,7 +103,11 @@ export type SandboxSessionState = (typeof sandboxSessionStateLiterals)[number];
  * (uid 10001, 2 cpu / 4 GiB / 512 pids / no cpu-time ulimit / 512m shm —
  * see session/docker-session-args.ts).
  */
-export const sandboxSessionProfileLiterals = ['default', 'agent'] as const;
+export const sandboxSessionProfileLiterals = [
+  'default',
+  'agent',
+  'agent-light',
+] as const;
 
 export type SandboxSessionProfile =
   (typeof sandboxSessionProfileLiterals)[number];

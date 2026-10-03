@@ -25,7 +25,10 @@ import {
   retainBuildkitd,
   sweepIdleBuildkitd,
 } from './buildkitd.ts';
+import { DOCKER_TEST_STATE_LOCK } from './docker-test-lock.ts';
+import { withOperationBudget } from './operation-budget.ts';
 import { TEST_SESSION_CONFIG } from './session/session-test-config.ts';
+import { dockerCliLoad } from './spawn-util.ts';
 import type { SpawnerConfig } from './types.ts';
 
 // Runs the actual orchestration against an isolated fake Docker CLI. Persistent
@@ -35,6 +38,7 @@ import { appendFileSync, readFileSync, writeFileSync, existsSync } from 'node:fs
 import { dirname, join } from 'node:path';
 const dir = dirname(process.argv[1]);
 const path = join(dir, 'state.json');
+${DOCKER_TEST_STATE_LOCK}
 const s = JSON.parse(readFileSync(path, 'utf8'));
 const a = process.argv.slice(2);
 appendFileSync(join(dir, 'calls.jsonl'), JSON.stringify(a) + '\n');
@@ -1065,7 +1069,14 @@ describe('organization build-cache lifecycle', () => {
         throw new Error('fake stop did not reach its gate');
       await Bun.sleep(5);
     }
+    // A cancelled queued ensure must not free the queue behind an older stop.
+    expect(
+      await rejection(withOperationBudget(20, () => ensureBuildkitd(cfg, org))),
+    ).toContain('deadline');
+    const runningBefore = dockerCliLoad().running;
     const ensure = ensureBuildkitd(cfg, org);
+    await Bun.sleep(30);
+    expect(dockerCliLoad().running).toBe(runningBefore);
     await writeFile(join(root, 'release-stop'), '1');
 
     expect((await sweep).stopped).toBe(1);

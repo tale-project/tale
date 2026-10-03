@@ -4,6 +4,8 @@
 // every actual docker call goes through one shape with consistent stdout/stderr
 // handling and timeouts.
 
+import { operationSignal } from './operation-budget.ts';
+
 interface RunDockerOptions {
   timeoutMs?: number;
   // Cancellation also removes a call still waiting for a CLI slot, so it
@@ -275,6 +277,7 @@ export async function runDocker(
   args: string[],
   opts: RunDockerOptions = {},
 ): Promise<RunDockerResult> {
+  opts = { ...opts, signal: operationSignal(opts.signal) };
   const budgetMs = resolveDockerTimeoutMs(opts.timeoutMs);
   const queuedAtMs = Date.now();
   const release = await dockerCliSlot(

@@ -28,6 +28,11 @@ import {
   sweepIdleBuildkitd,
 } from '../../buildkitd.ts';
 import {
+  operationSignal,
+  outsideOperationBudget,
+  withOperationBudget,
+} from '../../operation-budget.ts';
+import {
   attachBuildkitNetwork,
   readBuildkitNetworkPlan,
   type BuildkitNetworkPlan,
@@ -47,7 +52,10 @@ import {
   sessionInstanceFilter,
   sessionWorkspaceDirName,
 } from '../../session/session-naming.ts';
-import { sessionDindEnabled } from '../../session/session-profile.ts';
+import {
+  isAgentSessionProfile,
+  sessionDindEnabled,
+} from '../../session/session-profile.ts';
 import { listWorkspaceDirs } from '../../session/workspace-inventory.ts';
 import {
   workspaceTrash,
@@ -257,7 +265,34 @@ export class DockerSessionBackend implements SessionBackend {
         ? retainBuildkitd(spec.organizationId)
         : undefined;
     try {
-      return await this.createSessionUnlocked(spec);
+      return await withOperationBudget(
+        this.cfg.session.createHealthTimeoutMs,
+        async (signal) => {
+          try {
+            const created = await this.createSessionUnlocked(spec);
+            signal.throwIfAborted();
+            return created;
+          } catch (error) {
+            if (signal.aborted) {
+              // A Docker request may have completed as its CLI was cancelled.
+              // Reconcile by incarnation, under a fresh cleanup budget, and
+              // never delete the preserved workspace on cancellation.
+              await outsideOperationBudget(() =>
+                withOperationBudget(30_000, () =>
+                  this.stopSession(spec.sessionId, spec.createdAtMs),
+                ),
+              ).catch((cleanupError: unknown) => {
+                console.warn(
+                  '[sandbox.session] cancelled create cleanup deferred:',
+                  cleanupError,
+                );
+              });
+            }
+            throw error;
+          }
+        },
+        spec.signal,
+      );
     } finally {
       release?.();
     }
@@ -281,10 +316,9 @@ export class DockerSessionBackend implements SessionBackend {
     // numerics (config.ts userEnv); the default profile is the fixed nobody
     // (65534). Both are real integers >= 1, so the chown can never silently
     // land on root.
-    const { uid, gid } =
-      spec.profile === 'agent'
-        ? this.cfg.session.agentProfile
-        : { uid: 65534, gid: 65534 };
+    const { uid, gid } = isAgentSessionProfile(spec.profile)
+      ? this.cfg.session.agentProfile
+      : { uid: 65534, gid: 65534 };
 
     // A pre-existing workspace dir means this is a RESUME of a stopped session
     // (idle reaper removed the container but kept the data). A failed create
@@ -339,10 +373,15 @@ export class DockerSessionBackend implements SessionBackend {
     let buildkitNetworkPlan: BuildkitNetworkPlan | undefined;
     if (dind && this.cfg.dockerBuildCache) {
       try {
-        const endpoint = await ensureBuildkitd(this.cfg, spec.organizationId);
-        const planned = await readBuildkitNetworkPlan(spec.organizationId);
-        buildkitNetworkPlan = planned;
-        buildkitdEndpoint = endpoint;
+        const ready = await withOperationBudget(
+          this.cfg.buildkitdStartTimeoutMs ?? 30_000,
+          async () => ({
+            endpoint: await ensureBuildkitd(this.cfg, spec.organizationId),
+            plan: await readBuildkitNetworkPlan(spec.organizationId),
+          }),
+        );
+        buildkitNetworkPlan = ready.plan;
+        buildkitdEndpoint = ready.endpoint;
       } catch (err) {
         console.warn(
           `[sandbox.session] shared buildkitd unavailable for ${spec.sessionId}; ` +
@@ -352,6 +391,7 @@ export class DockerSessionBackend implements SessionBackend {
       }
     }
 
+    operationSignal()?.throwIfAborted();
     const token = this.tokenFor(spec.sessionId);
     const argv = buildDockerSessionRunArgs(this.cfg, {
       sessionId: spec.sessionId,
@@ -474,6 +514,7 @@ export class DockerSessionBackend implements SessionBackend {
         }
       }
     } catch (err) {
+      operationSignal()?.throwIfAborted();
       if (preexisting) {
         await this.stopSession(spec.sessionId);
       } else {
@@ -513,9 +554,11 @@ export class DockerSessionBackend implements SessionBackend {
     const start = Date.now();
     for (let miss = 1; ; miss += 1) {
       try {
-        await runnerdHealth(opts);
+        operationSignal()?.throwIfAborted();
+        await runnerdHealth(opts, operationSignal());
         return;
       } catch {
+        operationSignal()?.throwIfAborted();
         const status =
           miss % 5 === 0 ? await this.containerStatus(containerName) : null;
         if (status !== null && isReapableContainerStatus(status)) {
@@ -936,7 +979,7 @@ export class DockerSessionBackend implements SessionBackend {
       out.push({
         sessionId,
         organizationId: org ?? '',
-        profile: profile === 'agent' ? 'agent' : 'default',
+        profile: isAgentSessionProfile(profile) ? profile : 'default',
         createdAtMs: Number(created) || 0,
         ttlMs: this.cfg.session.maxLifetimeMs,
         idleTimeoutMs: this.cfg.session.maxIdleMs,

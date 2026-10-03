@@ -24,6 +24,7 @@ import {
   hubDevicesSchema,
   type HubDevices,
 } from '../../../../../lib/shared/schemas/sandbox-devices.ts';
+import { traceSandboxPhase } from '../../../../tracing';
 
 const SIGNATURE_HEADER = 'x-tale-sandbox-signature';
 const TIMESTAMP_HEADER = 'x-tale-sandbox-timestamp';
@@ -342,7 +343,7 @@ async function spawnerFetch(
 export interface SessionCreateBody {
   sessionId: string;
   organizationId: string;
-  profile: 'default' | 'agent';
+  profile: 'default' | 'agent' | 'agent-light';
   ttlMs?: number;
   idleTimeoutMs?: number;
   env?: Record<string, string>;
@@ -355,7 +356,7 @@ export interface SessionCreateBody {
 export interface SessionInfo {
   sessionId: string;
   organizationId: string;
-  profile: 'default' | 'agent';
+  profile: 'default' | 'agent' | 'agent-light';
   state: string;
   backend: string;
   createdAtMs: number;
@@ -445,31 +446,34 @@ export async function sandboxDeviceDisconnect(
 /** Claim warm compute before staging any new work. A concurrent idle stop
  * finishes first; a definitive 404 then allows the caller to recreate it. */
 export async function sessionAcquire(sessionId: string): Promise<boolean> {
-  const response = await spawnerFetch(
-    'POST',
-    `/v1/sessions/${encodeURIComponent(sessionId)}/acquire`,
-    { signal: AbortSignal.timeout(15_000) },
-  );
-  await throwIfDeviceOffline(response);
-  if (response.status === 404) {
-    // Rolling upgrade: an old spawner has neither activity routes nor the
-    // limits endpoint (and cannot pressure-reclaim compute). Only that
-    // positively identified legacy protocol may use the old liveness door.
-    const limits = await spawnerFetch('GET', '/v1/limits', {
-      signal: AbortSignal.timeout(5_000),
-    });
-    if (limits.status === 404) return sessionIsAlive(sessionId);
-    if (!limits.ok)
-      throw new Error(
-        `Sandbox acquisition protocol unavailable (${limits.status})`,
-      );
-    sandboxDeploymentLimitsSchema.parse(await limits.json());
-    return false;
-  }
-  if (!response.ok)
-    throw new Error(`Sandbox acquisition unavailable (${response.status})`);
-  acquisitionSchema.parse(await response.json());
-  return true;
+  return traceSandboxPhase('acquire', async () => {
+    const response = await spawnerFetch(
+      'POST',
+      `/v1/sessions/${encodeURIComponent(sessionId)}/acquire`,
+      { signal: AbortSignal.timeout(15_000) },
+    );
+    await throwIfDeviceOffline(response);
+    if (response.status === 429) throw await spawnerBusyErrorOf(response);
+    if (response.status === 404) {
+      // Rolling upgrade: an old spawner has neither activity routes nor the
+      // limits endpoint (and cannot pressure-reclaim compute). Only that
+      // positively identified legacy protocol may use the old liveness door.
+      const limits = await spawnerFetch('GET', '/v1/limits', {
+        signal: AbortSignal.timeout(5_000),
+      });
+      if (limits.status === 404) return sessionIsAlive(sessionId);
+      if (!limits.ok)
+        throw new Error(
+          `Sandbox acquisition protocol unavailable (${limits.status})`,
+        );
+      sandboxDeploymentLimitsSchema.parse(await limits.json());
+      return false;
+    }
+    if (!response.ok)
+      throw new Error(`Sandbox acquisition unavailable (${response.status})`);
+    acquisitionSchema.parse(await response.json());
+    return true;
+  });
 }
 
 /** Capture BEFORE releasing the database allocation. The generation binds a
@@ -509,7 +513,7 @@ export async function sessionReleaseIdle(
     .released;
 }
 
-const CREATE_TIMEOUT_MS = 200_000; // create polls runnerd readiness (≤180s)
+const CREATE_TIMEOUT_MS = 240_000; // bounded creation (180s) plus failed-start cleanup
 // Drain-retry for session create. A 503 "draining" means the spawner is being
 // rolled in place at deploy time — it refuses NEW sessions while it drains
 // in-flight work before its restart. Re-POST so the create lands once the
@@ -545,7 +549,13 @@ const IDLE_READ_TIMEOUT_MS = Number(
  * POST /v1/sessions — create + wait for runnerd ready. Throws on 4xx/5xx.
  * Targets the bare `sandbox` alias.
  */
-export async function sessionCreate(
+export function sessionCreate(
+  body: SessionCreateBody,
+): Promise<SessionCreateResult> {
+  return traceSandboxPhase('acquire', () => createSession(body));
+}
+
+async function createSession(
   body: SessionCreateBody,
 ): Promise<SessionCreateResult> {
   const path = '/v1/sessions';
@@ -834,6 +844,10 @@ export interface SessionStageFile {
   url?: string;
   /** Inline bytes, base64 — for small control files (steer messages). */
   contentBase64?: string;
+  /** Expected content digest, verified against workspace bytes on each hit. */
+  sha256?: string;
+  /** Organization-scoped immutable blob identity; contains no credentials. */
+  cacheKey?: string;
 }
 
 export interface SessionStageResult {
@@ -917,13 +931,15 @@ export async function sessionStageFiles(
   sessionId: string,
   files: SessionStageFile[],
 ): Promise<SessionStageResult> {
-  const merged: SessionStageResult = { staged: [], skipped: [] };
-  for (const batch of chunkStageFiles(files)) {
-    const result = await postStageFiles(sessionId, batch);
-    merged.staged.push(...result.staged);
-    merged.skipped.push(...result.skipped);
-  }
-  return merged;
+  return traceSandboxPhase('stage', async () => {
+    const merged: SessionStageResult = { staged: [], skipped: [] };
+    for (const batch of chunkStageFiles(files)) {
+      const result = await postStageFiles(sessionId, batch);
+      merged.staged.push(...result.staged);
+      merged.skipped.push(...result.skipped);
+    }
+    return merged;
+  });
 }
 
 export interface SessionDeleteResult {
@@ -1151,6 +1167,76 @@ export interface SessionExecCallbacks {
   onStderr?: (text: string) => void;
 }
 
+const execCheckpointSchema = z.object({
+  seq: z.number().int().nonnegative(),
+  state: z.unknown(),
+});
+export type SessionExecCheckpoint = z.infer<typeof execCheckpointSchema>;
+
+/** The daemon stores parser state beside its replay spool. A 404 is the
+ * rolling-upgrade fallback; attaching still determines whether the exec lives. */
+export async function sessionGetExecCheckpoint(
+  sessionId: string,
+  execId: string,
+): Promise<SessionExecCheckpoint | null> {
+  const path = `/v1/sessions/${encodeURIComponent(sessionId)}/exec/${encodeURIComponent(execId)}/checkpoint`;
+  const response = await spawnerFetch('GET', path, {
+    signal: AbortSignal.timeout(5_000),
+  });
+  if (response.status === 404) return null;
+  if (!response.ok)
+    throw new Error(`sandbox exec checkpoint read failed (${response.status})`);
+  return z
+    .object({ checkpoint: execCheckpointSchema.nullable() })
+    .parse(await response.json()).checkpoint;
+}
+
+/** Acknowledge only a complete cursor + parser snapshot. Oversized partial
+ * JSONL records wait for their closing newline rather than acknowledging
+ * bytes whose parser state cannot fit; the spool retains them meanwhile. */
+export async function sessionPutExecCheckpoint(
+  sessionId: string,
+  execId: string,
+  checkpoint: SessionExecCheckpoint,
+): Promise<void> {
+  const body = JSON.stringify(checkpoint);
+  if (Buffer.byteLength(body) > 1024 * 1024) return;
+  const path = `/v1/sessions/${encodeURIComponent(sessionId)}/exec/${encodeURIComponent(execId)}/checkpoint`;
+  const response = await spawnerFetch('PUT', path, {
+    body,
+    signal: AbortSignal.timeout(5_000),
+  });
+  // A later checkpoint may have won on a concurrent recovering drainer.
+  // Neither that nor an old runtime's absent endpoint justifies restarting.
+  if (response.status === 404 || response.status === 409) return;
+  if (!response.ok)
+    throw new Error(
+      `sandbox exec checkpoint write failed (${response.status})`,
+    );
+}
+
+const execReplayGapSchema = z
+  .object({
+    fromSeq: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
+    toSeq: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
+  })
+  .refine((range) => range.toSeq >= range.fromSeq);
+
+/** Output outside the durable replay retention is not a valid parser prefix. */
+export class ExecReplayGapError extends Error {
+  readonly fromSeq: number | undefined;
+  readonly toSeq: number | undefined;
+
+  constructor(execId: string, range?: { fromSeq: number; toSeq: number }) {
+    super(
+      `sandbox exec ${execId} output is no longer available for lossless replay`,
+    );
+    this.name = 'ExecReplayGapError';
+    this.fromSeq = range?.fromSeq;
+    this.toSeq = range?.toSeq;
+  }
+}
+
 /**
  * POST /v1/sessions/:id/exec as SSE. Streams stdout/stderr deltas to the
  * callbacks (the progress-bridge action feeds these through the agent adapter
@@ -1286,6 +1372,10 @@ export async function drainSessionExecResilient(
       // A 404 means the session is gone, not a transient drop — retrying can't
       // help. Surface it so the caller self-heals the stale platform row.
       if (err instanceof SessionNotFoundError) throw err;
+      if (err instanceof ExecReplayGapError) throw err;
+      // Parser/callback failures are deterministic, not transport failures.
+      // Re-attaching after rejected bytes could silently parse only a suffix.
+      if (err instanceof ExecOutputConsumerError) throw err.cause;
       // An idle SSE (no keepalive) is a wedged socket, NOT an exec failure: a
       // live-but-quiet exec resumes losslessly via sinceSeq, and a genuinely
       // dead sandbox surfaces as a real fetch error on the next re-attach
@@ -1322,6 +1412,12 @@ export interface ExecCursor {
   lastSeq: number;
 }
 
+class ExecOutputConsumerError extends Error {
+  constructor(cause: unknown) {
+    super('Sandbox exec output consumer failed', { cause });
+  }
+}
+
 async function consumeExecSse(
   body: ReadableStream<Uint8Array>,
   execId: string,
@@ -1336,17 +1432,27 @@ async function consumeExecSse(
     if (event === 'stdout' || event === 'stderr') {
       const parsed = parseData<{ text?: string; seq?: number }>(data);
       const text = parsed?.text ?? '';
-      // Advance the reconnect cursor as each seq'd delta is consumed, so a drop
-      // resumes from exactly here (no missed or replayed bytes).
-      if (
-        cursor &&
-        typeof parsed?.seq === 'number' &&
-        parsed.seq > cursor.lastSeq
-      ) {
+      const previousSeq = cursor?.lastSeq;
+      // A retried attach must never feed acknowledged bytes twice (including
+      // usage). Legacy unsequenced output retains its compatibility behavior.
+      if (cursor && typeof parsed?.seq === 'number') {
+        if (parsed.seq <= cursor.lastSeq) return;
         cursor.lastSeq = parsed.seq;
       }
-      if (event === 'stdout') callbacks.onStdout?.(text);
-      else callbacks.onStderr?.(text);
+      try {
+        if (event === 'stdout') callbacks.onStdout?.(text);
+        else callbacks.onStderr?.(text);
+      } catch (cause) {
+        if (cursor !== undefined && previousSeq !== undefined)
+          cursor.lastSeq = previousSeq;
+        throw new ExecOutputConsumerError(cause);
+      }
+    } else if (event === 'gap') {
+      const range = execReplayGapSchema.safeParse(parseData<unknown>(data));
+      throw new ExecReplayGapError(
+        execId,
+        range.success ? range.data : undefined,
+      );
     } else if (event === 'result') {
       const parsed = parseData<SessionExecResult>(data);
       if (parsed) result = parsed;
@@ -1361,47 +1467,52 @@ async function consumeExecSse(
       throw new Error(message);
     }
   };
-  for (;;) {
-    // Race each read against an idle deadline. The spawner's 20s `: keepalive`
-    // comment feeds a healthy connection (even through a long silent agent
-    // phase), so this only fires on a wedged/half-open socket → cancel + throw
-    // a benign idle error the resilient drain re-attaches on (no failure-budget
-    // cost). Without it a half-open read blocks until the hours-long fetch
-    // deadline.
-    let idleTimer: ReturnType<typeof setTimeout> | undefined;
-    let chunk: Awaited<ReturnType<typeof reader.read>>;
-    try {
-      chunk = await Promise.race([
-        reader.read(),
-        new Promise<never>((_, reject) => {
-          idleTimer = setTimeout(
-            () => reject(new ExecStreamIdleError(execId)),
-            IDLE_READ_TIMEOUT_MS,
-          );
-        }),
-      ]);
-    } catch (err) {
-      await reader.cancel().catch(() => {});
-      throw err;
-    } finally {
-      if (idleTimer) clearTimeout(idleTimer);
+  try {
+    for (;;) {
+      // Race each read against an idle deadline. The spawner's 20s `: keepalive`
+      // comment feeds a healthy connection (even through a long silent agent
+      // phase), so this only fires on a wedged/half-open socket → cancel + throw
+      // a benign idle error the resilient drain re-attaches on (no failure-budget
+      // cost). Without it a half-open read blocks until the hours-long fetch
+      // deadline.
+      let idleTimer: ReturnType<typeof setTimeout> | undefined;
+      let chunk: Awaited<ReturnType<typeof reader.read>>;
+      try {
+        chunk = await Promise.race([
+          reader.read(),
+          new Promise<never>((_, reject) => {
+            idleTimer = setTimeout(
+              () => reject(new ExecStreamIdleError(execId)),
+              IDLE_READ_TIMEOUT_MS,
+            );
+          }),
+        ]);
+      } catch (err) {
+        await reader.cancel().catch(() => {});
+        throw err;
+      } finally {
+        if (idleTimer) clearTimeout(idleTimer);
+      }
+      const { value, done } = chunk;
+      if (done) break;
+      // Normalize CRLF → LF so the `\n\n` SSE block split below can't leave a
+      // stray `\r` on event/data lines (parity with spawner_client.ts:371).
+      buf += decoder.decode(value, { stream: true }).replace(/\r\n/g, '\n');
+      let idx = buf.indexOf('\n\n');
+      while (idx !== -1) {
+        parseSseBlock(buf.slice(0, idx), handleEvent);
+        buf = buf.slice(idx + 2);
+        idx = buf.indexOf('\n\n');
+      }
     }
-    const { value, done } = chunk;
-    if (done) break;
-    // Normalize CRLF → LF so the `\n\n` SSE block split below can't leave a
-    // stray `\r` on event/data lines (parity with spawner_client.ts:371).
-    buf += decoder.decode(value, { stream: true }).replace(/\r\n/g, '\n');
-    let idx = buf.indexOf('\n\n');
-    while (idx !== -1) {
-      parseSseBlock(buf.slice(0, idx), handleEvent);
-      buf = buf.slice(idx + 2);
-      idx = buf.indexOf('\n\n');
+    if (result === null) {
+      throw new Error('sandbox session exec stream ended without a result');
     }
+    return result;
+  } finally {
+    await reader.cancel().catch(() => {});
+    reader.releaseLock();
   }
-  if (result === null) {
-    throw new Error('sandbox session exec stream ended without a result');
-  }
-  return result;
 }
 
 function parseSseBlock(

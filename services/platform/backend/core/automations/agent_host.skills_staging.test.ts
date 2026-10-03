@@ -25,6 +25,9 @@ let staged: Array<{ path: string; contentBase64: string }>;
 let skipStage: boolean;
 
 const sandboxFetch = vi.fn(async (url: string, init?: RequestInit) => {
+  if (init?.method === 'GET' && url.includes('/files?')) {
+    return Response.json({ entries: [] });
+  }
   expect(url).toBe(
     `http://skill-review.invalid/v1/sessions/${encodeURIComponent(SESSION)}/files/stage`,
   );
@@ -188,7 +191,9 @@ describe('equipped skill staging with real bundles', () => {
       { kind: 'project', teamIds: ['red'] },
     );
     expect(prompt).toContain('Red team report.');
-    expect(sandboxFetch).toHaveBeenCalledOnce();
+    expect(
+      sandboxFetch.mock.calls.filter(([, init]) => init?.method === 'POST'),
+    ).toHaveLength(1);
   });
 
   it.each<SkillViewer>([orgViewer, { kind: 'project', teamIds: ['blue'] }])(

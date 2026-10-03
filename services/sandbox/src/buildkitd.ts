@@ -15,6 +15,7 @@ import {
   removeBuildkitVolume,
   retireLegacyBuildkitd,
 } from './buildkit-resources.ts';
+import { operationSignal, waitWithinOperation } from './operation-budget.ts';
 import { runDocker } from './spawn-util.ts';
 import type { SpawnerConfig } from './types.ts';
 
@@ -223,19 +224,25 @@ async function withBuildkitdOperation<T>(
   operation: () => Promise<T>,
 ): Promise<T> {
   const previous = organizationOperations.get(organizationId);
-  const result = (previous ?? Promise.resolve()).then(operation);
-  const settled = result.then(
+  const result = waitWithinOperation(previous ?? Promise.resolve()).then(() => {
+    operationSignal()?.throwIfAborted();
+    return operation();
+  });
+  const done = result.then(
     () => undefined,
     () => undefined,
   );
+  // A waiter may cancel before the producer ahead of it finishes. Its queue
+  // slot still retains that producer, so later callers cannot overtake it.
+  const settled = Promise.all([previous, done]).then(() => undefined);
   organizationOperations.set(organizationId, settled);
-  try {
-    return await result;
-  } finally {
+  void settled.then(() => {
     if (organizationOperations.get(organizationId) === settled) {
       organizationOperations.delete(organizationId);
     }
-  }
+    return undefined;
+  });
+  return result;
 }
 
 const DOCKER_ID_RE = /^[a-f0-9]{12,64}$/;
@@ -490,7 +497,7 @@ async function liveBuildkitOrganizations(
     // Only agent sessions build: a crawler render or a script session of the
     // organization kept its helpers running for nothing. A container without
     // the label predates it and counts, as before.
-    if (profile === 'default') continue;
+    if (profile === 'default' || profile === 'agent-light') continue;
     // Created, paused, restarting, removing and unrecognized non-terminal
     // states may still use the cache. Pinned/warm runtimes are also retained.
     if (status !== 'exited' && status !== 'dead') live.add(org);
@@ -913,20 +920,23 @@ async function ensureBuildkitdMirrors(
    * then: the pulls through it come from that builder's builds. */
   idle: () => Promise<boolean>,
 ): Promise<string> {
-  const pairs: string[] = [];
-  for (const registry of MIRROR_REGISTRIES) {
-    try {
-      await ensureOneMirror(cfg, organizationId, registry, idle);
-      pairs.push(`${registry}=${buildkitdMirrorRef(organizationId, registry)}`);
-    } catch (err) {
-      console.warn(
-        `[sandbox.buildkitd] mirror for ${registry} unavailable; ` +
-          `${registry} base images won't be pullable in builds:`,
-        err,
-      );
-    }
-  }
-  return pairs.join(';');
+  const pairs = await Promise.all(
+    MIRROR_REGISTRIES.map(async (registry) => {
+      try {
+        await ensureOneMirror(cfg, organizationId, registry, idle);
+        return `${registry}=${buildkitdMirrorRef(organizationId, registry)}`;
+      } catch (err) {
+        console.warn(
+          `[sandbox.buildkitd] mirror for ${registry} unavailable; ` +
+            `${registry} base images won't be pullable in builds:`,
+          err,
+        );
+        return null;
+      }
+    }),
+  );
+  operationSignal()?.throwIfAborted();
+  return pairs.filter((pair) => pair !== null).join(';');
 }
 
 async function ensureOneMirror(
@@ -937,7 +947,7 @@ async function ensureOneMirror(
 ): Promise<void> {
   const name = buildkitdMirrorContainerName(organizationId, registry);
   const existing = mirrorInFlight.get(name);
-  if (existing) return existing;
+  if (existing) return waitWithinOperation(existing);
   const work = ensureOneMirrorUnlocked(
     cfg,
     organizationId,
@@ -1056,7 +1066,7 @@ export async function ensureBuildkitd(
 ): Promise<string> {
   const name = buildkitdContainerName(organizationId);
   const existing = ensureInFlight.get(name);
-  if (existing) return existing;
+  if (existing) return waitWithinOperation(existing);
   const release = retainBuildkitd(organizationId);
   const work = withBuildkitdOperation(organizationId, () =>
     ensureBuildkitdUnlocked(cfg, organizationId, name),
