@@ -67,6 +67,7 @@ beforeEach(() => {
 /** Renders the composer with real selection state so picks stick. */
 function renderComposer({
   models = [MODEL],
+  subscriptionProviders,
   initial = {},
   onSend = vi.fn(),
   onStop = vi.fn(),
@@ -93,6 +94,7 @@ function renderComposer({
   onIngestVideoUrls,
 }: {
   models?: ComposerModelOption[];
+  subscriptionProviders?: readonly string[];
   initial?: ComposerSelection;
   onSend?: (text: string) => void;
   onStop?: () => void;
@@ -130,6 +132,9 @@ function renderComposer({
       <Composer
         draftKey={draftKey}
         models={models}
+        {...(subscriptionProviders !== undefined
+          ? { subscriptionProviders }
+          : {})}
         selection={selection}
         onSelectionChange={setSelection}
         onSend={onSend}
@@ -236,6 +241,41 @@ describe('Composer model picker', () => {
     expect(
       screen.getByRole('button', { name: 'Choose model and reasoning effort' }),
     ).toHaveTextContent('No models available');
+  });
+
+  it('says under the model list which subscriptions run only in tasks', async () => {
+    const { user } = renderComposer({
+      subscriptionProviders: ['Anthropic', 'OpenAI'],
+    });
+
+    await openSection(user, /^Model/);
+    expect(
+      await screen.findByText(
+        'Subscriptions from Anthropic and OpenAI run only in tasks and automations. To chat with their models, add an API key or environment-variable credential.',
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it('says it even when the subscriptions are all there is to list', async () => {
+    const { user } = renderComposer({
+      models: [],
+      subscriptionProviders: ['Anthropic'],
+    });
+
+    await openSection(user, /^Model/);
+    // The trigger and the empty list both say so; the note says why.
+    expect(await screen.findAllByText('No models available')).toHaveLength(2);
+    expect(
+      screen.getByText(/^Subscriptions from Anthropic run only in tasks/),
+    ).toBeInTheDocument();
+  });
+
+  it('adds no note when no subscription is left out', async () => {
+    const { user } = renderComposer();
+
+    await openSection(user, /^Model/);
+    await screen.findByRole('menuitemradio', { name: /^Claude Fable 5/ });
+    expect(screen.queryByText(/run only in tasks/)).toBeNull();
   });
 
   it('lists the models under the Model section, and a pick sticks', async () => {

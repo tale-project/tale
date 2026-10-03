@@ -1,6 +1,6 @@
 # Settings
 
-> **Prefix** `SET-` · **Reset** none · **Cost** 117 boxes
+> **Prefix** `SET-` · **Reset** none · **Cost** 118 boxes
 
 Exercise the settings surface along its real rail — **Personal** (Account,
 Preferences, Notifications, Usage), **Organization** (Organization, Teams, Members,
@@ -839,6 +839,17 @@ run.
   stays available); another row can be pinned meanwhile; the row
   leaves the list within a few seconds of the spawner finishing, without a
   reload.
+- [ ] `SET-F74` · **Subscription scope where a subscription is set up** —
+  `/dashboard/{org}/settings/providers` → **Add credential** → Anthropic →
+  **Authentication method** **Subscription broker**
+  (`settings.providers.authMethod.subscriptionBroker`) → An info notice
+  **Tasks and automations only** (`settings.providers.subscriptionScope.title`)
+  with its reason (`settings.providers.subscriptionScope.description`) sits
+  above the broker fields and is not announced as an alert; with **API key**
+  chosen it is gone. In the table a subscription row carries
+  `settings.providers.credential.tasksOnly` under its name. In `en`, `de`,
+  `de-CH` (which spells *ausser*) and `fr`, both texts wrap without clipping
+  at desktop and narrow widths.
 
 ## Boundary & error tests
 

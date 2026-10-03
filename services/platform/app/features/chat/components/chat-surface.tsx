@@ -160,6 +160,7 @@ import { WelcomeView } from './welcome-view';
 const NO_SELECTION: ComposerSelection = {};
 
 const NO_MODELS: readonly ComposerModelOption[] = [];
+const NO_PROVIDERS: readonly string[] = [];
 /** The message field's DOM id — the chat skip link's target. */
 const COMPOSER_TEXTAREA_ID = 'chat-composer';
 
@@ -486,6 +487,21 @@ function ChatSurfaceInner({
         : NO_MODELS,
     [composerOptions],
   );
+  // The providers whose models are left out for that reason, named in the
+  // picker so a short or empty list explains itself.
+  const subscriptionProviders = useMemo(() => {
+    if (composerOptions.status !== 'ready') return NO_PROVIDERS;
+    const offered = new Set(models);
+    const hidden = composerOptions.data.models.filter(
+      (model) => !offered.has(model),
+    );
+    if (hidden.length === 0) return NO_PROVIDERS;
+    return [
+      ...new Set(
+        hidden.map((model) => model.providerLabel ?? model.providerSlug),
+      ),
+    ];
+  }, [composerOptions, models]);
 
   // The thread being viewed, once the list has answered.
   const activeThread =
@@ -2085,6 +2101,7 @@ function ChatSurfaceInner({
                   textareaId={COMPOSER_TEXTAREA_ID}
                   draftKey={draftKey}
                   models={models}
+                  subscriptionProviders={subscriptionProviders}
                   selection={selection}
                   onSelectionChange={stableSelectionChange}
                   onSend={stableSend}

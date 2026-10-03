@@ -398,6 +398,9 @@ export class ExecReplay {
     this.stopped.abort();
     this.disposal = (async () => {
       await this.serial(async () => {
+        // A deferred descendant may keep this spool object reachable after
+        // eviction. The parser snapshot is no longer usable or owned here.
+        this.checkpoint = null;
         await this.writer?.close();
         this.writer = undefined;
         await rm(await this.directory, { recursive: true, force: true });

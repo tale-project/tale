@@ -9,7 +9,7 @@ Un harness est le programme de code qui exécute la session d’un agent dans un
 
 Dans l’onglet **Agents** d’un projet, ouvre un agent et choisis son **Harness**. Le nœud agent d’une automatisation utilise le même nom de champ. Choisis ensuite le modèle et le fournisseur. Sous **Paramètres > Fournisseurs IA**, la section **Harnesses** montre les voies d’exécution actuellement disponibles pour l’organisation.
 
-Il faut des identifiants compatibles et de la [capacité de sandbox](/fr/platform/admin/sandboxes). Un modèle qui fonctionne dans Chat ne suffit pas. Si un environnement manque ou ne propose aucun modèle, examine son état et les identifiants du fournisseur avant de modifier la demande de travail.
+Il faut des identifiants compatibles et de la [capacité de sandbox](/fr/platform/admin/sandboxes). Un modèle qui fonctionne dans Chat ne suffit pas. Si un environnement manque ou ne propose aucun modèle, examine son état et les identifiants du fournisseur avant de modifier la demande de travail. Un modèle qui n’appelle des tools que via l’API Responses d’OpenAI, comme GPT-6 Astra ou GPT-6.1 Sol, ne fonctionne que sur Codex : le sélecteur de modèle ne le propose donc pour aucun autre environnement.
 
 ## Comparer les environnements pris en charge
 
@@ -37,7 +37,7 @@ Gemini CLI fait exception : Tale ne poursuit jamais une de ses conversations. Un
 
 Avec une clé API stockée ou fournie par l’environnement du déploiement, Tale remet une clé de passerelle limitée à la session. La clé d’origine du fournisseur de modèle reste dans la plateforme. Les appels de passerelle sont mesurés et soumis aux règles de dépense applicables, en tenant compte des montants déjà attribués aux autres échanges en cours.
 
-Les abonnements fournisseurs utilisent leur harness compatible et reçoivent les identifiants d’abonnement dans l’environnement de la session. Ils ne servent pas d’identifiants de chat ordinaire et ne fonctionnent pas avec un harness incompatible. Leurs appels directs échappent à la mesure et aux plafonds de la passerelle Tale. Examine la consommation auprès du fournisseur d’abonnement.
+Les abonnements fournisseurs utilisent leur harness compatible et reçoivent les identifiants d’abonnement dans l’environnement de la session. Ils ne servent pas d’identifiants de chat ordinaire et ne fonctionnent pas avec un harness incompatible, car les fournisseurs n’autorisent les jetons d’abonnement que dans leur propre environnement ; la page [Fournisseurs IA](/fr/platform/admin/providers#utiliser-les-abonnements-dans-les-taches-pas-dans-le-chat) l’explique. Leurs appels directs échappent à la mesure et aux plafonds de la passerelle Tale. Examine la consommation auprès du fournisseur d’abonnement.
 
 Ces règles sur les identifiants de modèle ne signifient pas que la sandbox ne contient aucun secret. Les **Secrets** explicitement accordés et le jeton d’un accès GitHub équipé peuvent y être disponibles. Limite ces accès aux besoins de la tâche.
 

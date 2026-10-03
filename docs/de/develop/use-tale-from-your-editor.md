@@ -70,7 +70,7 @@ Die Antwort ist eine Modellliste im OpenAI-Format: `owned_by` ist der Slug des A
 }
 ```
 
-Die Liste enthält die Chatmodelle deiner Organisation, die Anbieter-Zugangsdaten vom Typ **API-Schlüssel** oder **Umgebungsvariable** bereitstellen, eingeschränkt durch die erlaubten Modelle der jeweiligen Zugangsdaten und durch deinen Modellzugriff. Modelle, die über Abonnement-Zugangsdaten laufen, fehlen darin, ebenso Modelle eines Anbieters, dessen Endpunkt je Zugangsdaten-Eintrag festgelegt wird, etwa Azure. `GET /api/v1/models` nennt für jedes dieser Modelle Kontextfenster, Fähigkeiten und Preise, unter demselben `providerSlug` und derselben `id`.
+Die Liste enthält die Chatmodelle deiner Organisation, die Anbieter-Zugangsdaten vom Typ **API-Schlüssel** oder **Umgebungsvariable** bereitstellen, eingeschränkt durch die erlaubten Modelle der jeweiligen Zugangsdaten und durch deinen Modellzugriff. Modelle, die über Abonnement-Zugangsdaten laufen, fehlen darin, ebenso Modelle eines Anbieters, dessen Endpunkt je Zugangsdaten-Eintrag festgelegt wird, etwa Azure, und Modelle, die Tools nur über die Responses-API von OpenAI aufrufen, etwa GPT-6.1 Sol, denn diese Endpunkte leiten sie nicht weiter. `GET /api/v1/models` nennt für jedes dieser Modelle Kontextfenster, Fähigkeiten und Preise, unter demselben `providerSlug` und derselben `id`.
 
 ### opencode auf Tale ausrichten
 

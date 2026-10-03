@@ -151,68 +151,80 @@ function execConsumer(
   res: ServerResponse,
   label: string,
 ) {
+  // A running exec retains its consumer after this exchange ends. Clearing the
+  // nullable transport releases the request/response and their upload buffers.
+  let transport: { req: IncomingMessage; res: ServerResponse } | null = {
+    req,
+    res,
+  };
   const consumer = new AbortController();
   const closed = new Promise<void>((settleClosed) => {
     consumer.signal.addEventListener('abort', () => settleClosed(), {
       once: true,
     });
   });
-  const gone = () => consumer.abort();
-  // IncomingMessage 'close' also means a completely received request under
-  // Node. The response's close is the consumer's lifetime; aborted covers an
-  // incomplete request without mistaking normal receipt for a disconnect.
+  const gone = () => {
+    transport?.req.removeListener('aborted', gone);
+    transport?.res.removeListener('close', gone);
+    transport = null;
+    // Error stacks can retain this close listener's response. A detached exec
+    // needs only the abort state, not an Error carrying that response stack.
+    consumer.abort('consumer disconnected');
+  };
   req.once('aborted', gone);
   res.once('close', gone);
   return {
     signal: consumer.signal,
     closed,
     emit: (event: RunnerdExecEvent) => {
-      if (consumer.signal.aborted || res.destroyed || res.writableEnded) return;
+      const response = transport?.res;
+      if (!response || response.destroyed || response.writableEnded) return;
       const line = `${JSON.stringify(event)}\n`;
       if (
-        res.writableLength + Buffer.byteLength(line) >
+        response.writableLength + Buffer.byteLength(line) >
         RUNNERD_CONSUMER_BUFFER_MAX_BYTES
       ) {
         console.warn(
           `[runnerd] ${label} consumer backpressured past ${RUNNERD_CONSUMER_BUFFER_MAX_BYTES}B — disconnecting it (reconnect via /attach)`,
         );
         gone();
-        // end() would leave the queued bytes waiting on the stalled reader.
-        // Destroying just this response releases its socket and write queue.
-        res.destroy();
+        response.destroy();
         return;
       }
       try {
-        res.write(line);
+        response.write(line);
       } catch (err) {
         console.warn(`[runnerd] ${label} write failed:`, err);
         gone();
-        res.destroy();
+        response.destroy();
       }
     },
     ready: (): Promise<void> => {
-      if (!res.writableNeedDrain || consumer.signal.aborted)
+      // Only the in-flight wait holds the response; the reusable callback
+      // captures the nullable transport, so detach can release the socket.
+      const response = transport?.res;
+      if (!response?.writableNeedDrain || consumer.signal.aborted)
         return Promise.resolve();
       return new Promise((finishReady) => {
         const settle = () => {
-          res.removeListener('drain', settle);
+          response.removeListener('drain', settle);
           consumer.signal.removeEventListener('abort', settle);
           clearTimeout(stalled);
           finishReady();
         };
         const stalled = setTimeout(() => {
           gone();
-          res.destroy();
+          response.destroy();
         }, 2_000);
-        res.once('drain', settle);
+        response.once('drain', settle);
         consumer.signal.addEventListener('abort', settle, { once: true });
       });
     },
     end() {
+      const response = transport?.res;
       gone();
-      req.removeListener('aborted', gone);
-      res.removeListener('close', gone);
-      if (!res.destroyed && !res.writableEnded) res.end();
+      if (response && !response.destroyed && !response.writableEnded)
+        response.end();
     },
   };
 }
@@ -257,13 +269,15 @@ async function handleExec(
     // The request's activity ends with its consumer. The exec keeps running,
     // protected by liveCount and its orphan deadline, with any late failure
     // observed even after the consumer left.
-    const run = execManager.run(parsed, consumer.emit).catch((err: unknown) => {
-      consumer.emit({
-        t: 'fail',
-        code: 'BAD_REQUEST',
-        message: err instanceof Error ? err.message : String(err),
+    const run = execManager
+      .run(parsed, consumer.emit, consumer.signal)
+      .catch((err: unknown) => {
+        consumer.emit({
+          t: 'fail',
+          code: 'BAD_REQUEST',
+          message: err instanceof Error ? err.message : String(err),
+        });
       });
-    });
     await Promise.race([run, consumer.closed]);
   } finally {
     consumer.end();
