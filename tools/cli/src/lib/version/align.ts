@@ -45,6 +45,8 @@ export const ALIGN_GUARD_ENV = 'TALE_ALIGNED';
 const SELF_MANAGING_COMMANDS = new Set([
   'update',
   'init',
+  // Diagnostics must stay read-only, including when a workspace pins an older CLI.
+  'doctor',
   'uninstall',
   'auth hash-password',
   'config build',

@@ -411,6 +411,38 @@ export function useArchivedThreads(
 }
 
 /**
+ * Asks again for the chat list reads that came back `unavailable` — the
+ * caller's chats (`useChatThreads`), the first archived page
+ * (`useArchivedThreads` with no cursor), or both — and for those alone: the
+ * Home stream's **Try again** (#4093). Resolves once they have settled,
+ * answered or failed again.
+ */
+export function useChatThreadsRetry(
+  organizationId: string,
+): (reads: {
+  readonly threads: boolean;
+  readonly archived: boolean;
+}) => Promise<void> {
+  const queryClient = useChatQueryClient();
+  return useCallback(
+    async (reads) => {
+      const keys = [
+        ...(reads.threads ? [chatThreadsQuery(organizationId).queryKey] : []),
+        ...(reads.archived
+          ? [archivedThreadsQuery(organizationId).queryKey]
+          : []),
+      ];
+      await Promise.all(
+        keys.map((queryKey) =>
+          queryClient.refetchQueries({ queryKey, exact: true }),
+        ),
+      );
+    },
+    [queryClient, organizationId],
+  );
+}
+
+/**
  * The two turn lanes stamp cost in different units — the direct pipeline
  * writes `costEstimateCents`, the external (harness) lane `costEstimateUsd`
  * — so the seam normalizes to cents ONCE, here, and the view model only ever

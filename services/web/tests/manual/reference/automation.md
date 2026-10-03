@@ -19,7 +19,7 @@ Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no s
 | [accessibility](../suites/accessibility.md) | Layer / case | Status | Where |
 | [accessibility](../suites/accessibility.md) | Per-component axe (WCAG 2.1 AA) | ✅ automated | `@tale/ui` component tests (`checkAccessibility()` via `vitest-axe`) + Storybook a11y addon |
 | [accessibility](../suites/accessibility.md) | `A11Y-A3` on `/platform` + `/pricing` | ✅ automated | `smoke.spec.ts` (single `h1`, no skipped levels in `main`) |
-| [accessibility](../suites/accessibility.md) | `A11Y-A7` (demo end states under reduced motion) | 🔶 partial | `home-demos.spec.ts` (whole suite runs with `reducedMotion: 'reduce'` and asserts complete end states — not the scroll/fade behaviour) |
+| [accessibility](../suites/accessibility.md) | `A11Y-A7` (demo end states under reduced motion) | 🔶 partial | `home-demos.spec.ts` (end-state cases run with `reducedMotion: 'reduce'`; separate narrow sandbox cases verify stable height during normal playback) |
 | [accessibility](../suites/accessibility.md) | `A11Y-A8` (demo accessible names) | 🔶 partial | `home-demos.spec.ts` (locates every demo by `getByRole('img', { name: … })`) |
 | [accessibility](../suites/accessibility.md) | `A11Y-A1`–`A11Y-A2`, `A11Y-A4`–`A11Y-A6`, `A11Y-B1`–`A11Y-B2` | ⛔ manual-only | — this guide |
 | [forms](../suites/forms.md) | `FORM-F1`, `FORM-F3` (render only) | 🔶 partial | `smoke.spec.ts` (`/contact` and `/request-demo` each render a form + their submit button by label) |
@@ -49,6 +49,8 @@ Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no s
 | [responsive](../suites/responsive.md) | Agent identities, knowledge sources, chat replies, workflow, governance, task board and sandbox text fits every clipping ancestor in EN/DE/FR at 320, 390, 768, 1024 and 1440px; task cards remain at least 140px wide without overlapping; mobile GitHub target is at least 44px high | ✅ automated | `demo-responsive.spec.ts` |
 | [responsive](../suites/responsive.md) | `RESP-F1`–`RESP-F5`, `RESP-B1`–`RESP-B2`, `RESP-A1`–`RESP-A2`, `RESP-P1` | ⛔ manual-only | — (`smoke.spec.ts` runs desktop-viewport only) |
 | [seo](../suites/seo.md) | Every marketing locale's title, description, h1, canonical, reciprocal alternates and sitemap entry; legal noindex HTML and crawlable Markdown response policy | ✅ | `tests/prerender/seo.test.ts`, `lib/seo/build.test.ts` (`bun run --filter @tale/web test:prerender`, dependsOn build) |
+| [seo](../suites/seo.md) | Per-page Markdown declares its configured HTML canonical on fresh, cached and conditional responses; aggregates stay uncanonicalized; invalid header metadata is refused and old manifests still load | ✅ automated | `packages/ui/src/seo/runtime/canonical.test.ts` |
+| [seo](../suites/seo.md) | Exported Markdown resolves real links and HTML resources against each source page while preserving code examples | ✅ automated | `packages/ui/src/seo/builders/page-as-markdown.test.ts`, `packages/ui/src/seo/builders/llms-full-txt.test.ts` |
 | [seo](../suites/seo.md) | Guide locale identity, validated metadata, publication clusters, draft exclusion, internal links and related use cases | ✅ automated | `lib/content/*.test.ts` |
 | [responsive](../suites/responsive.md) | Guide hubs and articles in EN/DE/FR at 320/1440px; single H1, canonical/alternates, comparison table semantics and keyboard scrolling, localized links, related navigation and unknown slug recovery | ✅ automated | `marketing-content.spec.ts` |
 | [responsive](../suites/responsive.md) | Every localized competitor guide has a named table, three columns, substantive rows and matching dimensions across locales | ✅ automated | `lib/content/comparison-tables.test.tsx` |
@@ -89,3 +91,4 @@ server and a local receiver; it checks escaped runtime HTML, strict CSP, HTTP
 error receipt and zero report traffic when disabled.
 
 | [navigation](../suites/navigation.md) | Homepage has a split task-board hero, three chapters and three capability cards; every module destination works; connector names remain readable; motion preference changes complete mounted demos without replay | ✅ automated | `home-demos.spec.ts`, `motion-and-connectors.spec.ts` |
+| [responsive](../suites/responsive.md) | French homepage and agents sandbox illustrations reserve their final height before normal-motion playback at 320px | ✅ automated | `home-demos.spec.ts` |

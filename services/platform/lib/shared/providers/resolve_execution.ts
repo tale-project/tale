@@ -25,6 +25,8 @@
  * Sandbox with no harness selected is a refusal, not a guess: the caller
  * owns default-harness policy and passes a concrete slug (a subscription
  * credential is the one case that carries its own forced harness).
+ * A model's explicit tool API requirement also holds: native chat uses
+ * Chat Completions, while a sandbox must declare the compatible wire.
  *
  * Refusal reasons are user-facing API — actionable one-liners naming the
  * offending piece and the way out.
@@ -35,6 +37,7 @@
 import type {
   ExecutionConstraints,
   HarnessDefinition,
+  HarnessGatewayWire,
   ModelCatalogEntry,
 } from '@tale/shared/schemas/providers';
 
@@ -78,6 +81,29 @@ export function buildHarnessTable(
   return new Map(harnesses.map((harness) => [harness.slug, harness]));
 }
 
+/** A model may accept plain text on a wire that cannot carry its tools.
+ * Native chat uses Chat Completions; Codex uses Responses. Keep that
+ * distinction shared by the picker, the turn and agent serving. */
+export function supportsToolCallingWire(
+  model: Pick<ModelCatalogEntry, 'toolCallingApi'>,
+  wire: HarnessGatewayWire,
+): boolean {
+  return model.toolCallingApi !== 'responses' || wire === 'openai-responses';
+}
+
+/** Harness declarations predate the explicit wire field. Keep their one
+ * fallback rule beside the capability check, shared with gateway routing. */
+export function harnessToolCallingWire(
+  harness: HarnessDefinition | undefined,
+): HarnessGatewayWire {
+  return (
+    harness?.gatewayWire ??
+    (harness?.credentialEnvKeys.includes('ANTHROPIC_BASE_URL') === true
+      ? 'anthropic'
+      : 'openai-chat')
+  );
+}
+
 export type ExecutionResolution =
   | { readonly mode: 'direct' }
   | { readonly mode: 'sandbox'; readonly harness: HarnessDefinition }
@@ -102,11 +128,17 @@ function acceptSandboxHarness(
   slug: string,
   posture: SandboxPosture,
   harnesses: HarnessTable,
+  model: ModelCatalogEntry,
 ): ExecutionResolution {
   const harness = harnesses.get(slug);
   if (!harness) {
     return refused(
       `Unknown harness "${slug}" — available harnesses: ${knownHarnessList(harnesses)}.`,
+    );
+  }
+  if (!supportsToolCallingWire(model, harnessToolCallingWire(harness))) {
+    return refused(
+      `Model "${model.id}" requires the Responses API for tools; harness "${slug}" does not use it. Select a Responses-capable harness.`,
     );
   }
   switch (posture) {
@@ -149,6 +181,11 @@ export function resolveExecution(
       // gateway key, so both modes are open; sandbox runs managed.
       switch (mode) {
         case 'direct':
+          if (!supportsToolCallingWire(model, 'openai-chat')) {
+            return refused(
+              `Model "${model.id}" requires the Responses API for tools and cannot run in direct chat. Select a Responses-capable sandbox harness.`,
+            );
+          }
           return { mode: 'direct' };
         case 'sandbox': {
           if (!selection.harness) {
@@ -156,7 +193,12 @@ export function resolveExecution(
               `Sandbox execution needs a harness for model "${model.id}" — select one of: ${knownHarnessList(harnesses)}.`,
             );
           }
-          return acceptSandboxHarness(selection.harness, 'managed', harnesses);
+          return acceptSandboxHarness(
+            selection.harness,
+            'managed',
+            harnesses,
+            model,
+          );
         }
         default: {
           const _exhaustive: never = mode;
@@ -182,7 +224,7 @@ export function resolveExecution(
               `This subscription credential only runs on the "${forced}" harness; "${selection.harness}" cannot use it. Select "${forced}", or pick an api-key or env credential.`,
             );
           }
-          return acceptSandboxHarness(forced, 'byo', harnesses);
+          return acceptSandboxHarness(forced, 'byo', harnesses, model);
         }
         default: {
           const _exhaustive: never = mode;

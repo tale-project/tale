@@ -99,6 +99,49 @@ describe('resolveExecution — direct mode', () => {
   });
 });
 
+describe('resolveExecution — tool API compatibility', () => {
+  const model = { ...MODEL, toolCallingApi: 'responses' as const };
+  const codex = {
+    ...harness('codex', { managed: true, byo: true }),
+    gatewayWire: 'openai-responses' as const,
+  };
+  const table = buildHarnessTable([...HARNESSES.values(), codex]);
+
+  it('allows Responses tools on a managed or subscription Codex harness', () => {
+    for (const credential of [
+      API_KEY,
+      {
+        authMethod: 'subscription-broker' as const,
+        constraints: { execution: 'sandbox' as const, harness: 'codex' },
+      },
+    ]) {
+      expect(
+        resolveExecution(
+          { model, credential, mode: 'sandbox', harness: 'codex' },
+          table,
+        ),
+      ).toMatchObject({ mode: 'sandbox', harness: { slug: 'codex' } });
+    }
+  });
+
+  it('refuses Responses tools on a managed Chat Completions harness', () => {
+    expect(
+      resolveExecution(
+        {
+          model,
+          credential: API_KEY,
+          mode: 'sandbox',
+          harness: 'opencode',
+        },
+        table,
+      ),
+    ).toMatchObject({
+      mode: 'refused',
+      reason: expect.stringContaining('Responses'),
+    });
+  });
+});
+
 describe('resolveExecution — subscription-key (static plan/portal keys)', () => {
   it('refuses direct exactly like the broker flavor', () => {
     const result = resolve({ credential: SUBSCRIPTION_KEY, mode: 'direct' });

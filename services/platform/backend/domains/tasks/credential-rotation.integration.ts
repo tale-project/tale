@@ -8,6 +8,7 @@ import type { Sql } from 'postgres';
 
 import { resolveAutoRetryBudget } from '../../core/tasks/task_auto_retry.ts';
 import { failAgentRunFromTurn, kickAgentRun } from './agent-runs.ts';
+import { admitAutomatedStart } from './delegated-start.ts';
 import { loadTaskRetryHistory, resolveTaskKickStartArgs } from './kick-plan.ts';
 
 export async function checkCredentialRotationRetry(
@@ -275,5 +276,67 @@ export async function checkCooledStartRetry(
       start.state === 'created' &&
       Math.abs(heldBy) < 1_000,
     `armed=${JSON.stringify(armed)} (want one arm, startAfterMs ${retryAtMs}), budget=${JSON.stringify(budget)} (want retry, attempt 1 — the 429 counted, the wait did not), run=${start?.status ?? 'none'} (want queued), start job=${start?.state ?? 'none'} held ${heldBy} ms off the cooldown end (want created, |off| < 1000)`,
+  );
+
+  // The same 429 -> cooldown pair in a delegated chain: both retry budgets
+  // must recognize the wait as the same event. The cancelled human run
+  // stays in the actual history, but never spends an automated start.
+  await sql`
+    UPDATE app.project_agent_runs SET
+      trigger = CASE WHEN id = ${failedRunId} THEN 'auto_retry' ELSE 'delegated' END,
+      started_via = 'agent', started_via_run_id = 'itest-manager-run',
+      started_via_agent_id = ${agentId}
+    WHERE task_id = ${taskId} AND id <> ${kicked.runId}
+  `;
+  const failedAutomatedAttempt = async (): Promise<void> => {
+    const at = Date.now();
+    await sql`
+      INSERT INTO app.project_agent_runs (
+        org_id, project_id, task_id, agent_id, exec_id, session_id, status,
+        harness, model, started_by, trigger, failure_code,
+        started_via, started_via_run_id, started_via_agent_id,
+        started_at_ms, launched_at_ms, settled_at_ms, deadline_at_ms,
+        updated_at_ms
+      ) VALUES (
+        ${orgId}, ${projectId}, ${taskId}, ${agentId}, ${randomUUID()},
+        ${`pa-${agentId}`}, 'failed', 'claude-code', 'itest-model', ${userId},
+        'auto_retry', 'turn_crashed', 'agent', 'itest-manager-run', ${agentId},
+        ${at}, ${at}, ${at}, ${at + 3_600_000}, ${at}
+      )
+    `;
+  };
+  const admit = () =>
+    sql.begin((tx) =>
+      admitAutomatedStart(tx, {
+        task: { id: taskId, organizationId: orgId, projectId },
+        agentId,
+      }),
+    );
+  await failedAutomatedAttempt();
+  const afterWait = await admit();
+  record(
+    'cooled start: delegated admission excludes the same free cooldown as the retry budget and never counts a human run',
+    afterWait.admitted,
+    `admission=${JSON.stringify(afterWait)} (want admitted: two actual automated starts, one free wait, one human run)`,
+  );
+  await failedAutomatedAttempt();
+  const afterThreeStarts = await admit();
+  record(
+    'cooled start: three actual automated starts still pause the task after a free wait',
+    !afterThreeStarts.admitted &&
+      afterThreeStarts.retryAfter === now - 120_000 + 3_600_000,
+    `admission=${JSON.stringify(afterThreeStarts)} (want refused until the first actual start leaves the hour)`,
+  );
+  // The cooldown lies inside the hour, but the 429 it followed does not.
+  // The history read needs that older predecessor to retain the free wait.
+  await sql`
+    UPDATE app.project_agent_runs SET started_at_ms = ${Date.now() - 3_660_000}
+    WHERE task_id = ${taskId} AND exec_id = 'exec-limited-1'
+  `;
+  const acrossHour = await admit();
+  record(
+    'cooled start: the hour boundary retains the cooldown predecessor without counting its expired start',
+    acrossHour.admitted,
+    `admission=${JSON.stringify(acrossHour)} (want admitted: two actual starts remain inside the hour)`,
   );
 }

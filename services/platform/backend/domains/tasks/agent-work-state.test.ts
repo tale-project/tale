@@ -52,6 +52,7 @@ const summary = (id: string, seq: number, status = 'settled') => ({
   settledAt: status === 'running' ? null : 3,
   waitingForCapacity: false,
   failureCode: null,
+  retryPending: false,
   feedback: null,
   feedbackTruncated: false,
 });

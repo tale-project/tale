@@ -17,20 +17,29 @@ import {
   rule,
   runStep,
   sourceLine,
-  StepWarning,
   warnLine,
 } from '@tale/shared/tux';
 
 import pkg from '../../../package.json';
 import { isUserInterrupt } from '../../utils/exit-codes';
+import {
+  CliError,
+  ExitCode,
+  externalDepError,
+  preconditionError,
+} from '../../utils/fail';
 import { getProjectId, loadEnv } from '../../utils/load-env';
 import * as logger from '../../utils/logger';
+import { getOutputMode } from '../../utils/output-mode';
 import { findComposeOverride } from '../compose/find-compose-override';
 import { DEV_VOLUME_NAMES } from '../compose/generators/constants';
 import {
   generateDevCompose,
   orgConfigMountTargets,
 } from '../compose/generators/generate-dev-compose';
+import { ALL_SERVICES } from '../compose/types';
+import { resolveDevOrigin } from '../config/dev-origin';
+import { daemonReachable } from '../docker/daemon-reachable';
 import { dockerCompose } from '../docker/docker-compose';
 import { ensureConfigMountpoints } from '../docker/ensure-config-mountpoints';
 import { ensureDocker } from '../docker/ensure-docker';
@@ -40,9 +49,15 @@ import { ensureSandboxRuntimeImage } from '../docker/ensure-sandbox-runtime-imag
 import { ensureVolumes } from '../docker/ensure-volumes';
 import { exec } from '../docker/exec';
 import { getContainerHealth } from '../docker/get-container-health';
+import { isContainerRunning } from '../docker/is-container-running';
+import { composeCreatedContainerFilters } from '../docker/list-service-containers';
 import { migrateConfigVolume } from '../docker/migrate-config-volume';
+import { assertComposeAvailable } from '../docker/setup-checks';
 import { findChildProject, findProject } from '../project/find-project';
-import { resolveOrAssignProjectContext } from '../project/project-context';
+import {
+  resolveOrAssignProjectContext,
+  resolveProjectContext,
+} from '../project/project-context';
 import { withLock } from '../state/with-lock';
 import { init } from './init';
 
@@ -72,6 +87,8 @@ async function assertDockerAvailable(): Promise<void> {
 }
 
 async function openBrowser(url: string): Promise<void> {
+  if (getOutputMode().ci || !process.stdin.isTTY || !process.stdout.isTTY)
+    return;
   const opened = await openUrl(url, { onDebug: logger.debug });
   if (!opened) {
     warnLine(`Could not open browser automatically. Visit: ${url}`);
@@ -79,7 +96,7 @@ async function openBrowser(url: string): Promise<void> {
 }
 
 /**
- * Wait for the platform container's Docker healthcheck to report healthy.
+ * Wait for the local services, including the API behind the web tier.
  * The old probe fetched `${url}/health` — but that path is answered by the
  * proxy alone (it returns 200 with no platform container at all), and the
  * dev proxy's self-signed certificate failed default TLS verification on
@@ -91,15 +108,77 @@ async function waitForHealth(
   signal?: AbortSignal,
   maxAttempts = 120,
 ): Promise<boolean> {
-  const containerName = `${getProjectId()}-platform`;
   for (let i = 0; i < maxAttempts; i++) {
     if (signal?.aborted) return false;
-    if ((await getContainerHealth(containerName)) === 'healthy') {
+    const ready = await Promise.all(
+      ALL_SERVICES.map(async (service) => {
+        const containerName = `${getProjectId()}-${service}`;
+        const running = await isContainerRunning(containerName);
+        if (!running) return false;
+        const health = await getContainerHealth(containerName);
+        // Match Compose --wait when an override disables a health probe.
+        return health === 'healthy' || health === 'none';
+      }),
+    );
+    if (ready.every(Boolean)) {
       return true;
     }
     await Bun.sleep(2000);
   }
   return false;
+}
+
+/** Stop only this project's local Compose containers; no setup or deletion. */
+export async function stopDev(): Promise<void> {
+  const projectDir = findProject();
+  if (!projectDir) {
+    throw preconditionError(
+      'No Tale project found.',
+      'Run tale dev --stop from your project directory.',
+    );
+  }
+  await resolveProjectContext(projectDir);
+  const daemon = await daemonReachable();
+  if (!daemon.reachable) {
+    throw preconditionError('Docker is not reachable.', daemon.detail);
+  }
+  const projectName = `${getProjectId()}-dev`;
+  const listed = await exec(
+    'docker',
+    [
+      'ps',
+      '--quiet',
+      ...composeCreatedContainerFilters(projectName),
+      '--filter',
+      'label=com.docker.compose.oneoff=False',
+    ],
+    { silent: true, timeout: 10 },
+  );
+  if (!listed.success) {
+    throw externalDepError(
+      'Could not inspect the local Tale containers.',
+      new Error(listed.stderr),
+    );
+  }
+  const ids = listed.stdout.split(/\s+/).filter(Boolean);
+  if (ids.some((id) => !/^[a-f0-9]{12,64}$/.test(id))) {
+    throw externalDepError(
+      'Docker returned an invalid container ID; no containers were stopped.',
+    );
+  }
+  if (ids.length === 0) {
+    infoLine('Local Tale is already stopped.');
+    return;
+  }
+  const stopped = await exec('docker', ['stop', ...ids], { timeout: 120 });
+  if (!stopped.success) {
+    throw externalDepError(
+      'Could not stop every local Tale container.',
+      new Error(stopped.stderr),
+    );
+  }
+  doneLine('Local Tale stopped. Your project and data are preserved.');
+  infoLine('Start again with: tale dev');
 }
 
 /** The clean READY block: an ASCII rule and the app URL. */
@@ -118,6 +197,7 @@ interface DevOptions {
 }
 
 export async function runDev(options: DevOptions): Promise<void> {
+  const origin = resolveDevOrigin(options.host, options.port);
   let projectDir = findProject();
   if (!projectDir) {
     // `tale init` scaffolds into a named subdirectory, so a common mistake is
@@ -154,11 +234,14 @@ export async function runDev(options: DevOptions): Promise<void> {
   const env = loadEnv(projectDir);
 
   // Zero-prerequisite: install/start Docker if needed.
-  const docker = await ensureDocker({ assumeYes: options.assumeYes });
+  const docker = await ensureDocker({
+    assumeYes: options.assumeYes ?? getOutputMode().assumeYes,
+  });
   if (docker.status === 'refused' || docker.status === 'failed') {
     throw new Error(docker.detail);
   }
   await assertDockerAvailable();
+  await assertComposeAvailable();
 
   const imageVersion = pkg.version.includes('-dev') ? 'latest' : pkg.version;
   const appImage = `${env.GHCR_REGISTRY}/tale-platform:${imageVersion}`;
@@ -219,10 +302,7 @@ export async function runDev(options: DevOptions): Promise<void> {
   );
 
   const version = imageVersion;
-  const port = options.port ?? 443;
-  const hostAlias = options.host ?? 'localhost';
-  const portSuffix = port === 443 ? '' : `:${port}`;
-  const url = `${env.SITE_URL.replace(/:443$/, '')}${portSuffix}`;
+  const { port, host: hostAlias, siteUrl: url } = origin;
 
   const compose = generateDevCompose(
     { version, registry: env.GHCR_REGISTRY },
@@ -246,36 +326,41 @@ export async function runDev(options: DevOptions): Promise<void> {
   if (options.detach) {
     const ring = new RingBuffer<string>(200);
     await runStep(
-      { active: 'Starting Tale', done: 'Tale started' },
+      {
+        active: 'Starting Tale and waiting for services',
+        done: 'Services ready',
+      },
       async () => {
-        const result = await dockerCompose(compose, ['up', '-d'], {
-          ...composeOpts,
-          onLine(line) {
-            ring.push(line);
+        const result = await dockerCompose(
+          compose,
+          ['up', '-d', '--wait', '--wait-timeout', '600'],
+          {
+            ...composeOpts,
+            onLine(line) {
+              ring.push(line);
+            },
           },
-        });
+        );
         if (!result.success) {
           if (!isUserInterrupt(result.exitCode)) detailLines(ring.tail(15));
-          throw new Error('docker compose up failed');
+          throw new CliError({
+            summary:
+              'Tale did not become ready. The containers are kept for diagnosis.',
+            code: ExitCode.ExternalDep,
+            next: [
+              'tale status',
+              'tale logs backend-api --tail 100',
+              'tale logs proxy --tail 100',
+              `Retry: tale dev --detach --host "${hostAlias}" --port ${port}`,
+              'Stop without deleting data: tale dev --stop',
+            ],
+          });
         }
       },
     );
-    const healthy = await runStep(
-      { active: 'Waiting for services', done: 'Services healthy' },
-      async () => {
-        // First boot runs the database migrations inside the
-        // platform container — allow up to 10 minutes before warning.
-        if (!(await waitForHealth(abortController.signal, 300))) {
-          throw new StepWarning(
-            'not healthy yet — they may still be warming up; check `tale logs`',
-          );
-        }
-        return true;
-      },
-    );
-    if (healthy) void openBrowser(url);
+    void openBrowser(url);
     printReadyBlock(url);
-    infoLine(`Stop with: docker compose -p ${projectName} down`);
+    infoLine('Stop with: tale dev --stop');
     return;
   }
 
@@ -315,27 +400,31 @@ export async function runDev(options: DevOptions): Promise<void> {
       }
     }
     if (!ok || abortController.signal.aborted) return;
-    if (abortController.signal.aborted) return;
     void openBrowser(url);
     printReadyBlock(url);
   })();
 
   infoLine('Starting Tale — press Ctrl-C to stop.');
-  const result = await dockerCompose(compose, ['up'], {
-    ...composeOpts,
-    onLine(line) {
-      const c = classify(line);
-      if (c.kind === 'error') sourceLine('tale', 'error', c.text ?? c.raw);
-      else if (c.kind === 'warn') sourceLine('tale', 'warn', c.text ?? c.raw);
-      else if (c.kind === 'info' && c.text) sourceLine('tale', 'info', c.text);
-      // progress/noise (layer pulls, HMR, "Watching…") collapse silently.
-    },
-  });
+  let result;
+  try {
+    result = await dockerCompose(compose, ['up'], {
+      ...composeOpts,
+      onLine(line) {
+        const c = classify(line);
+        if (c.kind === 'error') sourceLine('tale', 'error', c.text ?? c.raw);
+        else if (c.kind === 'warn') sourceLine('tale', 'warn', c.text ?? c.raw);
+        else if (c.kind === 'info' && c.text)
+          sourceLine('tale', 'info', c.text);
+        // progress/noise (layer pulls, HMR, "Watching…") collapse silently.
+      },
+    });
+  } finally {
+    abortController.abort();
+    await announce;
+  }
 
   // Compose has exited (Ctrl-C → graceful stop, or a real failure). Stop the
   // readiness announcer and report only genuine, non-interrupt failures.
-  abortController.abort();
-  await announce;
   if (!result.success && !isUserInterrupt(result.exitCode)) {
     logger.error('Tale stopped unexpectedly.');
     if (result.stderr) logger.error(result.stderr);

@@ -901,7 +901,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Deine erste selbst gehostete Instanz starten",
-      "description": "Installiere die CLI, starte ein lokales Tale-Projekt und prüfe eine erste Modellantwort."
+      "description": "Installiere die CLI, starte Tale lokal, erstelle dein Inhaberkonto und prüfe die erste Chatantwort."
     }
   },
   "de:self-hosted/operate/backups-and-restore": {
@@ -2062,7 +2062,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Run your first self-hosted instance",
-      "description": "Install the CLI, start a local Tale project and verify a first model reply."
+      "description": "Install the CLI, start Tale locally, create your owner account and verify a first chat reply."
     }
   },
   "en:self-hosted/operate/backups-and-restore": {
@@ -3223,7 +3223,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Démarrer ta première instance auto-hébergée",
-      "description": "Installe la CLI, démarre un projet Tale local et vérifie une première réponse de modèle."
+      "description": "Installe la CLI, démarre Tale localement, crée ton compte propriétaire et vérifie une première réponse dans le chat."
     }
   },
   "fr:self-hosted/operate/backups-and-restore": {

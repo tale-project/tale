@@ -25,6 +25,7 @@ import type {
   RobotsConfig,
 } from '../types';
 import { ArtifactCache } from './cache';
+import { normalizeCanonicalUrl } from './canonical-url';
 import { etagOf, respondWithEtag, type CachedEntry } from './etag';
 import {
   pluginMatches,
@@ -161,6 +162,9 @@ export function createOnDemandServer(
       etag: etagOf(response.body),
       contentType: response.contentType,
       cacheControl: response.cacheControl,
+      ...(response.canonicalUrl !== undefined
+        ? { canonicalUrl: normalizeCanonicalUrl(response.canonicalUrl) }
+        : {}),
     };
   }
 

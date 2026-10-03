@@ -20,6 +20,7 @@ on:
     branches:
       - main
     paths:
+      - 'LICENSE'
       - 'packages/ui/**'
       - 'packages/marketing-ui/**'
       - 'scripts/publish-package.ts'

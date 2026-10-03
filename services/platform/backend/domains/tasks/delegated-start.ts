@@ -7,6 +7,10 @@ import type { TransactionSql } from 'postgres';
 import { parseRunStarter } from '../../../lib/shared/run-starter.ts';
 import { SANDBOX_SESSION_LIVE_STATUSES } from '../../core/sandbox/session_constants.ts';
 import { standingSessionIdForProjectAgent } from '../../core/sandbox/session_naming.ts';
+import {
+  freeCooldownWaits,
+  type AutoRetryRunFacts,
+} from '../../core/tasks/task_auto_retry.ts';
 import { loadProjectOrThrow } from '../projects/service.ts';
 import { kickAgentRun, type StartedVia } from './agent-runs.ts';
 import { openTaskBlockerIds } from './dependencies.ts';
@@ -98,10 +102,10 @@ import {
  * - `paused` — the per-task circuit breaker ({@link admitAutomatedStart}):
  *   at most {@link AUTOMATED_STARTS_PER_TASK_PER_HOUR} starts by
  *   automations and agents per task in any rolling hour, their automatic
- *   retries included, so two agents (or an agent and a schedule) cannot
- *   restart one task in a loop, and failing retries cannot stretch the
- *   budget. The refusal lands on the task's timeline (`agent_run.refused`,
- *   `task_circuit_breaker`); a person's own Start, and its retries, are
+ *   retries included (a broker cooldown after its own 429 spends no second
+ *   start), so two agents (or an agent and a schedule) cannot restart one
+ *   task in a loop, and failing retries cannot stretch the budget. The refusal
+ *   lands on the task's timeline (`agent_run.refused`, `task_circuit_breaker`); a person's own Start, and its retries, are
  *   never counted or refused by it.
  *
  * The slot receipt: an automation step starts a task at most once per
@@ -124,8 +128,8 @@ export const SCHEDULE_REVOKED_BEFORE_LAUNCH =
   'The schedule that started this run was paused or removed, or its automation is no longer bound to the project, before the run launched — nothing ran.';
 
 /** Starts by automations and agents one task takes in any rolling hour —
- * their automatic retries included — before the circuit breaker refuses the
- * next. */
+ * their automatic retries included, except the existing free cooldown wait
+ * after the run's own 429 — before the circuit breaker refuses the next. */
 export const AUTOMATED_STARTS_PER_TASK_PER_HOUR = 3;
 
 const HOUR_MS = 60 * 60 * 1000;
@@ -137,8 +141,10 @@ const HOUR_MS = 60 * 60 * 1000;
  * one (`task.agent_retry`: a retry inherits `started_via`, so it stays
  * automated). It admits while the task has taken fewer than
  * {@link AUTOMATED_STARTS_PER_TASK_PER_HOUR} such starts in the last hour —
- * every run row carrying `started_via`, whatever its trigger — and records a
- * refusal on the task's timeline as the refused agent (`agent_run.refused`,
+ * every run row carrying `started_via`, whatever its trigger, except the
+ * broker wait its retry budget already counts as part of the preceding 429
+ * ({@link freeCooldownWaits}) — and records a refusal on the task's timeline
+ * as the refused agent (`agent_run.refused`,
  * `task_circuit_breaker`: "<agent> could not start: agent runs are paused on
  * this task"). Runs a person started carry no `started_via`, so neither they
  * nor their retries count, and neither is ever refused here.
@@ -160,12 +166,49 @@ export async function admitAutomatedStart(
     FOR UPDATE
   `;
   const now = Date.now();
-  const recent = await tx<{ startedAt: number }[]>`
-    SELECT started_at_ms::float8 AS "startedAt" FROM app.project_agent_runs
-    WHERE task_id = ${args.task.id} AND started_via IS NOT NULL
-      AND started_at_ms > ${now - HOUR_MS}
-    ORDER BY started_at_ms
+  const since = now - HOUR_MS;
+  // The cooldown rule reads actual predecessor order. Keep human runs in
+  // that order and the row just before the hour's first run: filtering them
+  // out first could make an unrelated 429 look adjacent, or charge a wait
+  // whose own 429 just aged out. The seq index bounds this to the hour's
+  // history plus its predecessor, including any intervening clock rollback.
+  const history = await tx<
+    (Pick<AutoRetryRunFacts, 'agentId' | 'status'> & {
+      startedAt: number;
+      automated: boolean;
+      failureCode: string | null;
+      apiErrorStatus: number | null;
+    })[]
+  >`
+    WITH oldest_recent AS (
+      SELECT min(seq) AS seq FROM app.project_agent_runs
+      WHERE task_id = ${args.task.id} AND org_id = ${args.task.organizationId}
+        AND started_at_ms > ${since}
+    ), predecessor AS (
+      SELECT max(seq) AS seq FROM app.project_agent_runs
+      WHERE task_id = ${args.task.id} AND org_id = ${args.task.organizationId}
+        AND seq < (SELECT seq FROM oldest_recent)
+    )
+    SELECT started_at_ms::float8 AS "startedAt",
+           started_via IS NOT NULL AS automated,
+           agent_id AS "agentId", status, failure_code AS "failureCode",
+           api_error_status AS "apiErrorStatus"
+    FROM app.project_agent_runs
+    WHERE task_id = ${args.task.id} AND org_id = ${args.task.organizationId}
+      AND seq >= coalesce((SELECT seq FROM predecessor),
+                          (SELECT seq FROM oldest_recent))
+    ORDER BY seq DESC
   `;
+  const waits = freeCooldownWaits(
+    history.map((run) => ({
+      ...run,
+      failureCode: run.failureCode ?? undefined,
+      apiErrorStatus: run.apiErrorStatus ?? undefined,
+    })),
+  );
+  const recent = history.filter(
+    (run, index) => run.automated && run.startedAt > since && !waits[index],
+  );
   if (recent.length < AUTOMATED_STARTS_PER_TASK_PER_HOUR) {
     return { admitted: true };
   }
@@ -178,7 +221,11 @@ export async function admitAutomatedStart(
   });
   return {
     admitted: false,
-    retryAfter: (recent[0]?.startedAt ?? now) + HOUR_MS,
+    retryAfter:
+      recent.reduce(
+        (oldest, run) => Math.min(oldest, run.startedAt),
+        Infinity,
+      ) + HOUR_MS,
   };
 }
 

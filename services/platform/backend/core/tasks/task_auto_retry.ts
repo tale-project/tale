@@ -199,6 +199,8 @@ export function freeCredentialRotations(
  * for its cooldown is the same event, not a second attempt. Each free wait
  * needs a counted 429 of its own directly behind it, so waits cannot loop:
  * a second refusal in a row, or one that follows anything else, counts.
+ * The automated-start circuit uses this same exception, over actual run
+ * order before excluding human runs or starts outside its rolling hour.
  */
 export function freeCooldownWaits(
   rows: readonly AutoRetryRunFacts[],

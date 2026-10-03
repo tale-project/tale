@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { render, screen, waitFor } from '@/tests/utils/render';
 
+import { pageAsMarkdown } from '../../seo/builders/page-as-markdown';
 import { PageActions } from './page-actions';
 
 const MARKDOWN_URL = 'https://docs.tale.dev/platform/chat/basics.md';
@@ -31,6 +32,26 @@ describe('PageActions', () => {
     render(<PageActions markdownUrl={MARKDOWN_URL} markdown={null} />);
     expect(screen.queryByRole('button', { name: 'Copy page' })).toBeNull();
     expect(screen.getByRole('button', { name: 'Open in' })).toBeInTheDocument();
+  });
+
+  it('prepares normalized source-page links only when Copy page is clicked', async () => {
+    const markdown = vi.fn(() =>
+      pageAsMarkdown({
+        frontmatter: null,
+        body: 'See [settings](./settings#scope).\n\n`[sample](/unchanged)`',
+        siteUrl: 'https://docs.example.test',
+        pageUrl: 'https://docs.example.test/platform/chat/basics',
+      }),
+    );
+    const { user } = render(
+      <PageActions markdownUrl={MARKDOWN_URL} markdown={markdown} />,
+    );
+    expect(markdown).not.toHaveBeenCalled();
+    await user.click(screen.getByRole('button', { name: 'Copy page' }));
+    expect(markdown).toHaveBeenCalledTimes(1);
+    expect(await navigator.clipboard.readText()).toBe(
+      'See [settings](https://docs.example.test/platform/chat/settings#scope).\n\n`[sample](/unchanged)`\n',
+    );
   });
 
   it('hands the markdown twin to a model from the Open in menu', async () => {

@@ -5,6 +5,7 @@ import { stringify } from 'yaml';
 
 import { getProjectId } from '../../../utils/load-env';
 import * as logger from '../../../utils/logger';
+import { resolveDevOrigin } from '../../config/dev-origin';
 import {
   discoverOrgs,
   ORG_DOMAIN_DIRS,
@@ -117,6 +118,7 @@ export function generateDevCompose(
   port: number,
   options: DevComposeOptions = {},
 ): string {
+  const origin = resolveDevOrigin(hostAlias, port);
   const projectDir = options.projectDir ?? process.cwd();
 
   // Discovered once and shared by every service that bind-mounts org config
@@ -167,8 +169,8 @@ export function generateDevCompose(
     db: { condition: 'service_healthy' },
   };
 
-  const proxy = createProxyService(config, hostAlias);
-  proxy.ports = [`${port}:443`];
+  const proxy = createProxyService(config, origin.host);
+  proxy.ports = [`${origin.port}:443`];
 
   // Dev-only: publish the sandbox spawner on host loopback so `bun dev`
   // running Convex on the host can reach it at http://127.0.0.1:8003. The
@@ -176,6 +178,31 @@ export function generateDevCompose(
   // is in-container and uses the `internal` Docker network alias.
   const sandbox = createSandboxService(config);
   sandbox.ports = ['127.0.0.1:8003:8003'];
+
+  // Explicit Compose environment wins over env_file. Auth, callback and blob
+  // URLs must match the address advertised by this local run even when .env
+  // contains production settings. Keep the stored deployment settings intact.
+  for (const service of [proxy, platform, backendApi, backendWorker, sandbox]) {
+    service.environment = {
+      ...service.environment,
+      HOST: origin.host,
+      SITE_URL: origin.siteUrl,
+      TLS_MODE: 'selfsigned',
+    };
+  }
+  // Caddy's site address selects its listener as well as its hostname. Keep
+  // that listener on 443 so a public port such as 2020 cannot collide with
+  // its private health endpoint. The app still uses the full public origin.
+  const proxyOrigin = new URL(origin.siteUrl);
+  proxyOrigin.port = '';
+  proxy.environment = { ...proxy.environment, SITE_URL: proxyOrigin.origin };
+  for (const service of [backendApi, backendWorker]) {
+    service.environment = {
+      ...service.environment,
+      // Compose interpolation reads .env, not this service's environment.
+      OBJECT_STORE_PUBLIC_ENDPOINT: `\${OBJECT_STORE_PUBLIC_ENDPOINT:-${origin.siteUrl}}`,
+    };
+  }
 
   // Scope dev volumes/networks explicitly via `external: true` + `name:`.
   // Dev volumes live under the `${projectId}-dev_` prefix (matching the

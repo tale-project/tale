@@ -1,3 +1,7 @@
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import * as logger from '../../utils/logger';
 import { confirm } from '../../utils/prompt';
 import { daemonReachable } from './daemon-reachable';
@@ -35,7 +39,7 @@ export type InstallStrategyKind =
   | 'dmg' // download the official Docker.dmg, mount, copy to /Applications
   | 'winget' // `winget install -e --id Docker.DockerDesktop`
   | 'desktop-exe' // download the official Docker Desktop installer, run silently
-  | 'get-docker' // curl/wget get.docker.com | sh (+ bootstrap a downloader first)
+  | 'get-docker' // download get.docker.com, then run it (+ bootstrap a downloader first)
   | 'manual'; // no automated path — print guidance + docs link, never a dead end
 
 interface InstallStrategy {
@@ -56,6 +60,24 @@ interface DockerInstallPlan {
 }
 
 const DOCKER_DOCS_URL = 'https://docs.docker.com/get-docker/';
+const LINUX_POSTINSTALL_URL =
+  'https://docs.docker.com/engine/install/linux-postinstall/';
+
+/** A socket refusal needs a new access grant/session, not a daemon restart. */
+function linuxDockerAccessRecovery(detail: string): string | null {
+  if (
+    !/permission denied/i.test(detail) ||
+    !/(?:docker.*sock|unix:\/\/)/i.test(detail)
+  ) {
+    return null;
+  }
+  return (
+    'Docker is installed, but this session cannot access its socket. ' +
+    `Configure Docker access using ${LINUX_POSTINSTALL_URL}. ` +
+    'After configuring group membership, sign out and back in (or run `newgrp docker`). ' +
+    'Verify `docker info` works without sudo, then re-run `tale dev`.'
+  );
+}
 
 function manualStrategy(platform: DockerPlatform): InstallStrategy {
   return {
@@ -137,9 +159,9 @@ function planLinux(probe: DockerEnvProbe): InstallStrategy[] {
       steps.push(`Install curl via ${probe.packageManager}`);
     }
     steps.push(
-      'curl -fsSL https://get.docker.com | sh',
+      'Download https://get.docker.com, then run the downloaded installer',
       'Enable and start the Docker daemon (systemctl when present)',
-      'Add the current user to the `docker` group',
+      'If socket access is denied, configure Docker access and start a new login session',
     );
     strategies.push({ kind: 'get-docker', label: 'get.docker.com', steps });
   }
@@ -268,6 +290,11 @@ async function waitForDockerReady(
   for (;;) {
     const status = await daemonReachable();
     if (status.reachable) return true;
+    if (
+      currentDockerPlatform() === 'linux' &&
+      linuxDockerAccessRecovery(status.detail)
+    )
+      return false;
     if (now() >= deadline) return false;
     await new Promise((resolve) => setTimeout(resolve, intervalMs));
   }
@@ -295,7 +322,10 @@ function isInteractive(opts: EnsureDockerOptions): boolean {
  * reachable. Strategy runners intentionally fail soft (return false / throw)
  * so the orchestrator can fall through to the next strategy.
  */
-async function runStrategy(strategy: InstallStrategy): Promise<boolean> {
+async function runStrategy(
+  strategy: InstallStrategy,
+  probe: DockerEnvProbe,
+): Promise<boolean> {
   if (strategy.kind === 'manual') {
     logger.notice('Automatic install was not possible. Finish manually:');
     for (const line of strategy.steps) logger.info(`  • ${line}`);
@@ -319,7 +349,7 @@ async function runStrategy(strategy: InstallStrategy): Promise<boolean> {
       await runDesktopExeInstall();
       break;
     case 'get-docker':
-      await runGetDockerScript();
+      await runGetDockerScript(probe);
       break;
   }
 
@@ -412,18 +442,93 @@ async function runDesktopExeInstall(): Promise<void> {
   await launchDockerDesktopWindows();
 }
 
-async function runGetDockerScript(): Promise<void> {
-  // The Linux plan accepts a wget-only host (and may bootstrap a downloader),
-  // so honor whichever fetcher is present rather than hardcoding curl.
-  await exec('/bin/sh', [
-    '-c',
-    'if command -v curl >/dev/null 2>&1; then curl -fsSL https://get.docker.com | sh; ' +
-      'else wget -qO- https://get.docker.com | sh; fi',
-  ]);
-  // Best-effort daemon start on systemd hosts; ignored where systemctl is absent.
-  if (await commandExists('systemctl')) {
-    await exec('sudo', ['systemctl', 'enable', '--now', 'docker']);
+interface LinuxDockerInstallDeps {
+  exec: typeof exec;
+  commandExists: typeof commandExists;
+  isRoot: boolean;
+}
+
+/** Download completely before execution; a failed fetch must never run a partial script. */
+export async function runGetDockerScript(
+  probe: DockerEnvProbe,
+  {
+    exec: execute = exec,
+    commandExists: exists = commandExists,
+    isRoot = process.getuid?.() === 0,
+  }: Partial<LinuxDockerInstallDeps> = {},
+): Promise<void> {
+  async function checked(command: string, args: string[]): Promise<void> {
+    const result = await execute(command, args);
+    if (!result.success) {
+      throw new Error(
+        `${command} failed (exit ${result.exitCode}): ${result.stderr || result.stdout}`,
+      );
+    }
   }
+  function privileged(command: string, args: string[]): Promise<void> {
+    return isRoot
+      ? checked(command, args)
+      : checked('sudo', [command, ...args]);
+  }
+
+  if (!probe.hasCurl && !probe.hasWget) {
+    switch (probe.packageManager) {
+      case 'apt':
+        await privileged('apt-get', ['update']);
+        await privileged('apt-get', [
+          'install',
+          '-y',
+          'ca-certificates',
+          'curl',
+        ]);
+        break;
+      case 'dnf':
+        await privileged('dnf', ['install', '-y', 'ca-certificates', 'curl']);
+        break;
+      case 'pacman':
+        await privileged('pacman', [
+          '-S',
+          '--noconfirm',
+          '--needed',
+          'ca-certificates',
+          'curl',
+        ]);
+        break;
+      case 'zypper':
+        await privileged('zypper', [
+          '--non-interactive',
+          'install',
+          'ca-certificates',
+          'curl',
+        ]);
+        break;
+      default:
+        throw new Error('Install curl or wget, then re-run `tale dev`.');
+    }
+  }
+
+  const directory = await mkdtemp(join(tmpdir(), 'tale-docker-install-'));
+  const script = join(directory, 'get-docker.sh');
+  try {
+    if (probe.hasCurl || !probe.hasWget) {
+      await checked('curl', ['-fsSL', 'https://get.docker.com', '-o', script]);
+    } else {
+      await checked('wget', ['-q', 'https://get.docker.com', '-O', script]);
+    }
+    await privileged('sh', [script]);
+    if (await exists('systemctl')) {
+      await privileged('systemctl', ['enable', '--now', 'docker']);
+    }
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+}
+
+interface EnsureDockerDeps {
+  detectDockerState: typeof detectDockerState;
+  platform: DockerPlatform | null;
+  probeDockerEnv: typeof probeDockerEnv;
+  runStrategy: typeof runStrategy;
 }
 
 /**
@@ -436,18 +541,29 @@ async function runGetDockerScript(): Promise<void> {
  */
 export async function ensureDocker(
   opts: EnsureDockerOptions = {},
+  {
+    detectDockerState: detectState = detectDockerState,
+    platform = currentDockerPlatform(),
+    probeDockerEnv: probeEnvironment = probeDockerEnv,
+    runStrategy: runInstallStrategy = runStrategy,
+  }: Partial<EnsureDockerDeps> = {},
 ): Promise<EnsureDockerResult> {
-  const state = await detectDockerState();
+  const state = await detectState();
   if (state.daemonReachable) {
     return { status: 'ready', detail: state.detail };
   }
 
-  const platform = currentDockerPlatform();
   if (platform === null) {
     return {
       status: 'failed',
       detail: `Unsupported platform: ${process.platform}`,
     };
+  }
+
+  const accessRecovery =
+    platform === 'linux' ? linuxDockerAccessRecovery(state.detail) : null;
+  if (state.cliPresent && accessRecovery) {
+    return { status: 'failed', detail: accessRecovery };
   }
 
   // CLI present, daemon down: try to wake it rather than reinstall.
@@ -463,9 +579,13 @@ export async function ensureDocker(
     if (await waitForDockerReady(60_000)) {
       return { status: 'ready', detail: 'engine started' };
     }
+    const stoppedState = await detectState();
     return {
       status: 'failed',
       detail:
+        (platform === 'linux'
+          ? linuxDockerAccessRecovery(stoppedState.detail)
+          : null) ??
         'Docker is installed but the engine did not start. Start Docker manually and re-run.',
     };
   }
@@ -496,28 +616,35 @@ export async function ensureDocker(
     }
   }
 
-  const probe = await probeDockerEnv(platform);
+  const probe = await probeEnvironment(platform);
   const plan = planDockerInstall(probe);
+  let lastFailure: string | undefined;
 
   for (const strategy of plan.strategies) {
     try {
-      if (await runStrategy(strategy)) {
+      if (await runInstallStrategy(strategy, probe)) {
         logger.success('Docker is installed and the engine is running.');
         return {
           status: 'installed',
           detail: `installed via ${strategy.kind}`,
         };
       }
+      if (platform === 'linux') {
+        const installedState = await detectState();
+        const recovery = linuxDockerAccessRecovery(installedState.detail);
+        if (installedState.cliPresent && recovery) {
+          return { status: 'failed', detail: recovery };
+        }
+      }
     } catch (err) {
-      logger.warn(
-        `Docker install via ${strategy.kind} failed: ${err instanceof Error ? err.message : String(err)}`,
-      );
+      lastFailure = err instanceof Error ? err.message : String(err);
+      logger.warn(`Docker install via ${strategy.kind} failed: ${lastFailure}`);
       // Fall through to the next strategy (the last is always `manual`).
     }
   }
 
   return {
     status: 'failed',
-    detail: `Could not install Docker automatically. See ${DOCKER_DOCS_URL}.`,
+    detail: `Could not install Docker automatically. ${lastFailure ? `${lastFailure} ` : ''}See ${DOCKER_DOCS_URL}.`,
   };
 }
