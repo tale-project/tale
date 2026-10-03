@@ -18,6 +18,64 @@ interface StageBody {
 }
 
 describe('managed staging transport', () => {
+  it('replaces a non-directory managed root before staging its children', async () => {
+    const operations: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn<typeof fetch>().mockImplementation(async (url, init) => {
+        const path = new URL(url instanceof Request ? url.url : url.toString())
+          .pathname;
+        if (init?.method === 'GET') {
+          operations.push('inspect');
+          return new Response(null, { status: 404 });
+        }
+        const body = JSON.parse(
+          typeof init?.body === 'string' ? init.body : '',
+        ) as StageBody & {
+          paths?: string[];
+        };
+        if (path.endsWith('/delete')) {
+          operations.push('delete');
+          expect(body.paths).toEqual(['inputs']);
+          return Response.json({ deleted: ['inputs'], skipped: [] });
+        }
+        operations.push(body.replaceRoots ? 'reconcile' : 'stage');
+        return Response.json({
+          staged: body.files.map((file) => ({ path: file.path, bytes: 1 })),
+          skipped: [],
+          ...(body.replaceRoots ? { reconciled: true } : {}),
+        });
+      }),
+    );
+    await sessionStageFiles(
+      's',
+      [{ path: 'inputs/child', contentBase64: 'YQ==' }],
+      { replaceRoots: ['inputs'] },
+    );
+    expect(operations).toEqual(['inspect', 'delete', 'stage', 'reconcile']);
+  });
+
+  it('fails a refused non-directory root replacement before any staging', async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(null, { status: 404 }))
+      .mockResolvedValueOnce(
+        Response.json({
+          deleted: [],
+          skipped: [{ path: 'inputs', reason: 'permission' }],
+        }),
+      );
+    vi.stubGlobal('fetch', fetcher);
+    await expect(
+      sessionStageFiles(
+        's',
+        [{ path: 'inputs/child', contentBase64: 'YQ==' }],
+        { replaceRoots: ['inputs'] },
+      ),
+    ).rejects.toThrow('managed staging roots could not be prepared');
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+
   it('retries only admission refusals and preserves a single deadline across attempts', async () => {
     const fetcher = vi
       .fn<typeof fetch>()
@@ -79,6 +137,10 @@ describe('managed staging transport', () => {
     vi.stubGlobal(
       'fetch',
       vi.fn<typeof fetch>().mockImplementation(async (_url, init) => {
+        if (init?.method === 'GET')
+          return Response.json({
+            entries: [{ name: 'kept', type: 'file', size: 4, mtimeMs: 0 }],
+          });
         const body = JSON.parse(
           typeof init?.body === 'string' ? init.body : '',
         ) as StageBody;
@@ -107,6 +169,10 @@ describe('managed staging transport', () => {
     vi.stubGlobal(
       'fetch',
       vi.fn<typeof fetch>().mockImplementation(async (_url, init) => {
+        if (init?.method === 'GET')
+          return Response.json({
+            entries: [{ name: 'kept', type: 'file', size: 4, mtimeMs: 0 }],
+          });
         const body = JSON.parse(
           typeof init?.body === 'string' ? init.body : '',
         ) as StageBody;
@@ -162,6 +228,10 @@ describe('managed staging transport', () => {
     vi.stubGlobal(
       'fetch',
       vi.fn<typeof fetch>().mockImplementation(async (_url, init) => {
+        if (init?.method === 'GET')
+          return Response.json({
+            entries: [{ name: 'a', type: 'file', size: 4, mtimeMs: 0 }],
+          });
         bodies.push(
           JSON.parse(
             typeof init?.body === 'string' ? init.body : '',
@@ -187,6 +257,10 @@ describe('managed staging transport', () => {
     vi.stubGlobal(
       'fetch',
       vi.fn<typeof fetch>().mockImplementation(async (url, init) => {
+        if (init?.method === 'GET')
+          return Response.json({
+            entries: [{ name: 'a', type: 'file', size: 4, mtimeMs: 0 }],
+          });
         paths.push(url instanceof Request ? url.url : url.toString());
         const body = JSON.parse(
           typeof init?.body === 'string' ? init.body : '',

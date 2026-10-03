@@ -147,7 +147,10 @@ async function fileDigest(
 ): Promise<{ digest: string; bytes: number } | null> {
   let file: FileHandle | undefined;
   try {
-    file = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+    file = await open(
+      path,
+      constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
+    );
     const info = await file.stat();
     if (!info.isFile() || info.size > FETCH_MAX_BYTES) return null;
     const hash = createHash('sha256');
@@ -216,6 +219,17 @@ export async function stageFiles(
         parentHandle = parent.handle;
         const anchoredParent = anchoredDirectory(parentHandle, parent.path);
         const destination = join(anchoredParent, basename(abs));
+        const existing = await lstat(destination).catch((error: unknown) => {
+          if (
+            error instanceof Error &&
+            'code' in error &&
+            error.code === 'ENOENT'
+          )
+            return null;
+          throw error;
+        });
+        if (existing && !existing.isFile() && !existing.isSymbolicLink())
+          throw new Error('unsafe_path');
         const key = abs;
         const previous = stagedSources.get(key);
         if (item.sourceId && previous?.sourceId === item.sourceId) {
@@ -232,6 +246,13 @@ export async function stageFiles(
           source = Buffer.from(item.contentBase64, 'base64');
           if (source.byteLength > INLINE_MAX_BYTES)
             throw new Error('too_large');
+          const actual = await fileDigest(destination, signal);
+          if (
+            actual?.digest === createHash('sha256').update(source).digest('hex')
+          ) {
+            staged.push({ path: item.path, bytes: actual.bytes });
+            continue;
+          }
         } else if (item.url !== undefined) {
           const response = await fetch(item.url, { signal });
           if (!response.ok) throw new Error(`http_${response.status}`);
@@ -260,6 +281,7 @@ export async function stageFiles(
                 offset,
                 chunk.byteLength - offset,
               );
+              if (result.bytesWritten === 0) throw new Error('write_stalled');
               offset += result.bytesWritten;
             }
           };
@@ -440,8 +462,29 @@ export async function deletePaths(paths: string[]): Promise<DeleteResult> {
       continue;
     }
     try {
-      await rm(abs, { recursive: true, force: true });
-      deleted.push(rel);
+      let parent: Awaited<ReturnType<typeof stageParent>>;
+      try {
+        parent = await stageParent(abs, false);
+      } catch (error) {
+        if (
+          error instanceof Error &&
+          'code' in error &&
+          error.code === 'ENOENT'
+        ) {
+          deleted.push(rel);
+          continue;
+        }
+        throw error;
+      }
+      try {
+        await rm(
+          join(anchoredDirectory(parent.handle, parent.path), basename(abs)),
+          { recursive: true, force: true },
+        );
+        deleted.push(rel);
+      } finally {
+        await parent.handle.close();
+      }
     } catch (err) {
       skipped.push({
         path: rel,
@@ -462,9 +505,14 @@ interface FsEntry {
 export async function listDir(rel: string): Promise<FsEntry[] | null> {
   const abs = resolveUnderWorkspace(rel);
   if (abs === null) return null;
-  if ((await realpathUnderRoot(abs)) === null) return null;
   const out: FsEntry[] = [];
   try {
+    // Never traverse a staged root symlink, even to another workspace directory:
+    // reconciliation must replace the link, not prune the link target.
+    if (!(await lstat(abs)).isDirectory()) return null;
+    const canonical = await realpath(abs);
+    const root = await realpath(workspaceRoot());
+    if (canonical !== root && !canonical.startsWith(`${root}/`)) return null;
     const entries = await readdir(abs, { withFileTypes: true });
     for (const e of entries) {
       let size = 0;
@@ -483,8 +531,14 @@ export async function listDir(rel: string): Promise<FsEntry[] | null> {
         mtimeMs,
       });
     }
-  } catch {
-    return null;
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      'code' in error &&
+      (error.code === 'ENOENT' || error.code === 'ENOTDIR')
+    )
+      return null;
+    throw error;
   }
   return out;
 }
@@ -523,7 +577,7 @@ export async function streamWorkspaceFile(
     parentHandle = parent.handle;
     file = await open(
       join(anchoredDirectory(parentHandle, parent.path), basename(abs)),
-      constants.O_RDONLY | constants.O_NOFOLLOW,
+      constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
     );
     const info = await file.stat();
     if (!info.isFile() || info.size > maxBytes) {

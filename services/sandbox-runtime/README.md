@@ -10,7 +10,19 @@ Tale sandbox runtime image — the Python/Node/coding-agent environment that
 2. **`egress-sidecar`** — the Kubernetes native sidecar that installs the
    transparent-egress redirect and runs redsocks beside the session container.
 
-Any other argument exits 65 (there is no per-call language lane).
+`internal-dockerd` is reserved for the root supervisor's engine child. Any
+other argument exits 65 (there is no per-call language lane).
+
+When DinD is enabled, the session starts with the standard Docker socket and
+no inner engine. Its first Docker client starts the engine automatically;
+concurrent clients share that startup. After five minutes without clients,
+the supervisor stops the engine only if no container is running, restarting
+or paused and every container has its restart policy disabled. Unknown
+inventory keeps it running. The next Docker command starts
+it again with the same image store, volumes and workspace. Existing container
+state at session-container boot starts the engine immediately so restart
+policies still work. This needs no agent setting and does not change the
+deployment's runtime isolation or resource limits.
 
 runnerd keeps the complete exec protocol in a disk-backed journal for
 reconnection during the runtime's lifetime. Each journal is limited to 64 MiB
@@ -19,7 +31,8 @@ encoding counts toward those limits. Completed journals are evicted oldest
 first when space is needed. The 256 KiB in-memory ring is diagnostic only.
 Exceeding the remaining storage budget ends the writer with `OUTPUT_LIMIT`;
 an evicted or unreadable transcript reports `REPLAY_UNAVAILABLE`, never a
-partial replay presented as complete. Journals are unlinked after opening and
+partial replay presented as complete. Journals live under `/agent/.runtime/tmp`
+on the workspace disk rather than the memory-backed `/tmp`. They are unlinked after opening and
 held through file descriptors: stopping or restarting the runtime loses them,
 while the workspace remains persistent.
 
@@ -156,10 +169,12 @@ bun run --filter @tale/sandbox-runtime docker:build
 ## Container
 
 `docker-entrypoint.sh` (PID 1, container-level envelope) `exec`s `entrypoint.sh`
-with args preserved, which dispatches on mode and `exec`s the daemon so
-signals (SIGTERM) reach it directly. The `daemon` (session) dispatch `exec`s
-`tini -g` with runnerd as its child on every path, so PID 1 reaps the orphans a
-long-lived session accumulates. runnerd starts every exec under
+with args preserved, which dispatches on mode. The `daemon` (session) dispatch
+`exec`s `tini -g`, so PID 1 reaps the orphans a long-lived session accumulates.
+Without DinD its child is runnerd; with DinD its child is the root Docker
+supervisor, which forwards shutdown and starts runnerd as uid 10001. The
+supervisor uses a private engine socket and proxies the ordinary
+`/var/run/docker.sock` with bounded, backpressured connections. runnerd starts every exec under
 `/usr/local/bin/tale-exec-shim`, built in its own stage from
 `daemon/exec-shim/tale-exec-shim.c`: a child subreaper that keeps whatever the
 exec starts its descendant, so runnerd can end what the exec left

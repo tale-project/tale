@@ -595,10 +595,16 @@ export async function sessionCreate(
 /** GET /v1/sessions/:id — is the session alive spawner-side? `false` ONLY on
  * a definitive 404 (the phantom-session signal); transport errors throw so a
  * spawner blip is never misread as "session gone". */
-export async function sessionIsAlive(sessionId: string): Promise<boolean> {
+export async function sessionIsAlive(
+  sessionId: string,
+  options: { signal?: AbortSignal } = {},
+): Promise<boolean> {
   const path = `/v1/sessions/${encodeURIComponent(sessionId)}`;
   const res = await spawnerFetch('GET', path, {
-    signal: AbortSignal.timeout(15_000),
+    signal: AbortSignal.any([
+      AbortSignal.timeout(15_000),
+      ...(options.signal ? [options.signal] : []),
+    ]),
   });
   if (res.status === 404) return false;
   await throwIfDeviceOffline(res);
@@ -627,14 +633,15 @@ export async function sessionObserve(
   if (res.status === 404) return null;
   await throwIfDeviceOffline(res);
   if (!res.ok) throw new Error(`sandbox session get failed (${res.status})`);
-  return z
+  const observed = z
     .object({
       session: z.object({
         pinned: z.boolean().optional(),
         pinSynchronized: z.boolean().optional(),
       }),
     })
-    .parse(await res.json()).session;
+    .safeParse(await res.json().catch(() => null));
+  return observed.success ? observed.data.session : {};
 }
 
 /** Returns true when the spawner destroyed a live session, false when it had
@@ -809,7 +816,7 @@ export async function sandboxOrganizationTeardown(
 export async function sessionSetPinned(
   sessionId: string,
   pinned: boolean,
-  signal?: AbortSignal,
+  options: { signal?: AbortSignal } = {},
 ): Promise<boolean> {
   const path = `/v1/sessions/${encodeURIComponent(sessionId)}/pin`;
   const bodyJson = JSON.stringify({ pinned });
@@ -817,7 +824,7 @@ export async function sessionSetPinned(
     body: bodyJson,
     signal: AbortSignal.any([
       AbortSignal.timeout(30_000),
-      ...(signal ? [signal] : []),
+      ...(options.signal ? [options.signal] : []),
     ]),
   });
   if (!res.ok) return false;
@@ -1041,6 +1048,23 @@ export async function sessionStageFiles(
   files: SessionStageFile[],
   options: StageOptions = {},
 ): Promise<SessionStageResult> {
+  // A previous node (or the agent) can replace a managed directory with a
+  // file/link. Prepare only those roots before writing children. Intact
+  // directory contents stay available for current-byte verification; the
+  // daemon prunes stale children only after every transfer succeeds.
+  for (const root of new Set(options.replaceRoots ?? [])) {
+    if (
+      !files.some((file) => file.path.startsWith(`${root.replace(/\/$/, '')}/`))
+    )
+      continue;
+    if ((await sessionListFiles(sessionId, root)) !== null) continue;
+    const cleared = await sessionDeleteFiles(sessionId, [root]);
+    if (cleared.skipped.length > 0) {
+      throw new Error(
+        `managed staging roots could not be prepared: ${cleared.skipped.map((file) => file.path).join(', ')}`,
+      );
+    }
+  }
   const merged: SessionStageResult = { staged: [], skipped: [] };
   const identified = options.reuse
     ? files.map((file) =>
@@ -1348,6 +1372,11 @@ export class ExecStreamProtocolError extends Error {
   }
 }
 
+/** Missing earlier control/output records cannot be repaired by reattaching. */
+export class ExecOutputGapError extends ExecStreamProtocolError {
+  readonly code = 'OUTPUT_GAP';
+}
+
 /**
  * POST /v1/sessions/:id/exec as SSE. Streams stdout/stderr deltas to the
  * callbacks (the progress-bridge action feeds these through the agent adapter
@@ -1374,7 +1403,7 @@ async function sessionExec(
   ]);
   const res = await spawnerFetch('POST', path, {
     body: bodyJson,
-    accept: 'text/event-stream',
+    accept: 'text/event-stream; tale-output=base64',
     signal: fetchAbort,
   });
   if (res.status === 404) throw new SessionNotFoundError(sessionId);
@@ -1414,7 +1443,7 @@ async function sessionAttachExec(
     ),
   ]);
   const res = await spawnerFetch('GET', signedPath, {
-    accept: 'text/event-stream',
+    accept: 'text/event-stream; tale-output=base64',
     signal: fetchAbort,
   });
   if (res.status === 404) throw new SessionNotFoundError(sessionId);
@@ -1625,6 +1654,7 @@ async function consumeExecSse(
       const message = parsed?.message ?? 'sandbox session exec stream error';
       // The spawner's attach grammar for an unknown exec (session-routes.ts):
       // `exec <id> not found`.
+      if (parsed?.code === 'OUTPUT_GAP') throw new ExecOutputGapError(message);
       if (message === `exec ${execId} not found`) {
         throw new ExecNotFoundError(execId);
       }

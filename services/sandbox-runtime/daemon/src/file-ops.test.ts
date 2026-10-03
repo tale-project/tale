@@ -1,5 +1,7 @@
 import { afterAll, beforeAll, describe, expect, spyOn, test } from 'bun:test';
+import { spawnSync } from 'node:child_process';
 import {
+  statSync,
   mkdtempSync,
   realpathSync,
   renameSync,
@@ -16,6 +18,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import {
+  deletePaths,
   listDir,
   readWorkspaceFile,
   stageFiles,
@@ -468,4 +471,38 @@ describe('bounded atomic staging', () => {
     expect(text).toBe('original');
     expect(await streamWorkspaceFile('range.txt', 8)).toBeNull();
   });
+});
+
+test('staging does not rewrite identical inline bytes', async () => {
+  const item = {
+    path: 'same-inline.txt',
+    contentBase64: Buffer.from('same bytes').toString('base64'),
+  };
+  expect((await stageFiles([item])).skipped).toEqual([]);
+  const original = statSync(join(ROOT, item.path));
+  expect((await stageFiles([item])).skipped).toEqual([]);
+  expect(statSync(join(ROOT, item.path)).ino).toBe(original.ino);
+});
+
+test('FIFO staging and streamed reads return promptly without opening a blocking reader', async () => {
+  const path = join(ROOT, 'stage-fifo');
+  expect(spawnSync('mkfifo', [path]).status).toBe(0);
+  expect(
+    (await stageFiles([{ path: 'stage-fifo', contentBase64: 'eA==' }])).skipped,
+  ).toEqual([{ path: 'stage-fifo', reason: 'unsafe_path' }]);
+  expect(await streamWorkspaceFile('stage-fifo', 1024)).toBeNull();
+  expect(statSync(path).isFIFO()).toBe(true);
+});
+
+test('managed roots reject file and symlink listings and deletion never follows a parent symlink', async () => {
+  const target = join(ROOT, 'guarded-target');
+  mkdirSync(target);
+  writeFileSync(join(target, 'keep.txt'), 'keep');
+  symlinkSync(target, join(ROOT, 'root-link'));
+  expect(await listDir('root-link')).toBeNull();
+  expect(await listDir('hello.txt')).toBeNull();
+  expect((await deletePaths(['root-link/keep.txt'])).skipped).toHaveLength(1);
+  expect(readFileSync(join(target, 'keep.txt'), 'utf8')).toBe('keep');
+  expect((await deletePaths(['root-link'])).deleted).toEqual(['root-link']);
+  expect(readFileSync(join(target, 'keep.txt'), 'utf8')).toBe('keep');
 });

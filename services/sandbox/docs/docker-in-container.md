@@ -22,6 +22,17 @@ Docker-in-container is enabled with `SANDBOX_DOCKER_IN_CONTAINER=true`. It is
 an **agent-profile capability** — a `default`-profile session (run_code, crawler
 renders) never starts an inner daemon, on either backend.
 
+Within a DinD-enabled agent session, Docker starts automatically on the first
+connection to its standard socket. The agent uses ordinary `docker` and
+`docker compose` commands; there is no lightweight/full setting to select.
+Concurrent first commands share one engine startup. After five minutes with
+no connected clients, the engine stops only when its inventory confirms no
+running, restarting or paused containers and no enabled restart policies.
+An unavailable or unknown inventory
+keeps it running. A later command restarts it against the same Docker store.
+This reduces idle processes; the session retains its configured runtime
+boundary, privileges and resource limits throughout.
+
 ### What each tier means for DinD
 
 - **`sysbox`** maps in-container uid 0 to an unprivileged host subuid via a
@@ -154,6 +165,12 @@ override it with `SANDBOX_RUNTIME_CLASS`.
 
 ## Storage & lifecycle
 
+- **Automatic engine sleep.** Stopping only the idle inner engine preserves
+  the workspace, images, named volumes and networks. Its selected address pool
+  stays fixed across activations. A session-container restart with existing
+  container metadata starts the engine immediately to honor restart policies.
+  Running services, enabled restart policies and connected clients prevent
+  automatic engine sleep.
 - The inner `/var/lib/docker` is a **dedicated, ephemeral per-session volume**
   (Docker backend: a named volume `tale-dind-<session>`; K8s: a size-bounded
   `emptyDir`). It is **not** the workspace (nested overlay is rejected by the
@@ -183,6 +200,12 @@ override it with `SANDBOX_RUNTIME_CLASS`.
 
 The Docker backend keeps each session's inner `/var/lib/docker` disposable and
 shares persistent build caches only among sessions from the same organization.
+Optional preparation waits at most five seconds or a quarter of the session
+readiness budget, whichever is shorter, and prepares the three mirrors in
+parallel. If it takes longer, that session uses its local builder while the
+shared preparation completes for future sessions; a late result does not
+attach a network to the session already running. Registering an available
+remote buildx builder does not itself start the session's inner engine.
 `SANDBOX_DOCKER_BUILD_CACHE` defaults to the DinD setting. Set it to `false` on
 the `sandbox` service, or set `sandboxRuntime.dockerBuildCache` in deployment
 configuration, to use only the session's local builder.

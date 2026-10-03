@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   sessionAcquire,
+  sessionObserve,
   sessionReleaseIdle,
   sessionReleaseTicket,
   SpawnerBusyError,
@@ -133,4 +134,41 @@ describe('runtime acquisition and release transport', () => {
     await expect(sessionReleaseTicket('session-1')).rejects.toThrow();
     await expect(sessionReleaseIdle('session-1', 'use-1')).rejects.toThrow();
   });
+});
+
+it('classifies warm-acquire memory refusal as capacity parking with the retry hint', async () => {
+  const fetcher = vi
+    .fn<typeof fetch>()
+    .mockResolvedValue(
+      Response.json(
+        { error: 'host_memory' },
+        { status: 429, headers: { 'retry-after': '5' } },
+      ),
+    );
+  vi.stubGlobal('fetch', fetcher);
+  await expect(sessionAcquire('warm')).rejects.toMatchObject({
+    name: 'SpawnerBusyError',
+    retryAfterMs: 5000,
+  });
+  await expect(sessionAcquire('warm')).rejects.toBeInstanceOf(SpawnerBusyError);
+  expect(fetcher).toHaveBeenCalledTimes(2);
+});
+
+it('reads liveness and runtime pin in one GET, preserving unknown older shapes', async () => {
+  const fetcher = vi
+    .fn<typeof fetch>()
+    .mockResolvedValueOnce(Response.json({ session: { pinned: true } }))
+    .mockResolvedValueOnce(Response.json({ session: { pinned: false } }))
+    .mockResolvedValueOnce(Response.json({ sessionId: 'old' }))
+    .mockResolvedValueOnce(new Response(null, { status: 404 }));
+  vi.stubGlobal('fetch', fetcher);
+  expect(await sessionObserve('pinned')).toEqual({
+    pinned: true,
+  });
+  expect(await sessionObserve('unpinned')).toEqual({
+    pinned: false,
+  });
+  expect(await sessionObserve('legacy')).toEqual({});
+  expect(await sessionObserve('gone')).toBeNull();
+  expect(fetcher).toHaveBeenCalledTimes(4);
 });

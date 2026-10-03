@@ -64,7 +64,7 @@ const TURN_ENDED_EXIT_GRACE_MS = 1_500;
 /** Floor between two mid-window notifications of the accumulating output —
  * the cadence of the `onText`/`onTimeline` progress sinks, so a host's
  * per-notification write stays off the hot path. */
-const STREAM_TEXT_THROTTLE_MS = 250;
+const STREAM_TEXT_THROTTLE_MS = 500;
 /** The `timeoutMs` handed to a harness exec. NOT a turn deadline: runnerd's
  * timer is a SLIDING orphan window (re-armed on every drain attach, see the
  * daemon's exec manager), not an absolute cap — an exec whose drainer keeps
@@ -379,7 +379,7 @@ export async function drainHarnessWindow(args: {
   execId: string;
   harness: string;
   start?: HarnessExec;
-  /** Throttled bounded text-tail callback (at most 4/s), for live display. */
+  /** Throttled bounded text-tail callback (at most 2/s), for live display. */
   onText?: (text: string) => void;
   /** Throttled transcript-so-far callback (same cadence as `onText`), in the
    * op row's `liveTimeline` shape. The chat lane renders its transcript from
@@ -613,7 +613,7 @@ export async function drainHarnessWindow(args: {
     disarmTurnEndedCut();
   }
 
-  const text = projection.text;
+  const text = projection.answerText;
   const timeline = projection.timeline();
   // Reply in, background ledger still open: the harness is still working
   // (a deliverable may be mid-write) — keep draining, never reap.
@@ -713,7 +713,7 @@ function hasWords(text: string | undefined): boolean {
  * end), a tool call, or output tokens, from the window's usage reports or
  * the end's own totals. The tokens are what counts a turn that only reasoned
  * (no timeline part shows reasoning), and for a harness whose end reports
- * the whole turn they cover what a long turn's replay no longer holds.
+ * the whole turn they also cover reasoning absent from the timeline.
  */
 function isEmptyAnswer(
   window: HarnessEndWindow,

@@ -8,6 +8,7 @@ import {
   chunkStageFiles,
   drainSessionExecResilient,
   ExecStreamProtocolError,
+  ExecOutputGapError,
   SandboxDeviceOfflineError,
   sandboxDeploymentLimits,
   sandboxDeviceDisconnect,
@@ -190,7 +191,13 @@ describe('drainSessionExecResilient', () => {
     const frame = (event: string, seq: number, bytes: Uint8Array) =>
       `event: ${event}\ndata: ${JSON.stringify({ seq, b64: Buffer.from(bytes).toString('base64'), text: 'legacy replacement' })}\n\n`;
     let calls = 0;
-    globalThis.fetch = (async () => {
+    globalThis.fetch = (async (
+      _url: unknown,
+      init: RequestInit | undefined,
+    ) => {
+      expect(new Headers(init?.headers).get('accept')).toBe(
+        'text/event-stream; tale-output=base64',
+      );
       calls += 1;
       return calls === 1
         ? sseResponse([
@@ -276,6 +283,31 @@ describe('drainSessionExecResilient', () => {
     expect(phases).toEqual(['started', 'complete']);
     expect(requests).toBe(1);
   });
+
+  test.each(['OUTPUT_GAP', 'OUTPUT_LIMIT', 'REPLAY_UNAVAILABLE'])(
+    'fails %s terminally without retrying missing or refused history',
+    async (code) => {
+      let requests = 0;
+      globalThis.fetch = (async () => {
+        requests++;
+        return sseResponse([
+          `event: error\ndata: ${JSON.stringify({ code, message: 'history unavailable' })}\n\n`,
+        ]);
+      }) as unknown as typeof fetch;
+      await expect(
+        drainSessionExecResilient(
+          's',
+          { execId: 'e' },
+          new AbortController().signal,
+          {},
+          { resumeSinceSeq: 0 },
+        ),
+      ).rejects.toBeInstanceOf(
+        code === 'OUTPUT_GAP' ? ExecOutputGapError : ExecStreamProtocolError,
+      );
+      expect(requests).toBe(1);
+    },
+  );
 
   test('does not advance past a refused harness record and cancels its reader', async () => {
     let cancelled = false;
