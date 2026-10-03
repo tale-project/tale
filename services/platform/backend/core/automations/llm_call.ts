@@ -20,6 +20,8 @@
  * one wire for thread titles and llm nodes.
  */
 
+import type { HarnessGatewayWire } from '@tale/shared/schemas/providers';
+
 import { compileSchema } from '../../../lib/engine/core/validate/schema';
 import {
   createBuilderModel,
@@ -81,8 +83,15 @@ export async function resolveServingTarget(
   ctx: ActionCtx,
   organizationId: string,
   modelId: string,
+  /** Legacy task agents share this direct-only walk but carry tools. */
+  toolCallingWire?: HarnessGatewayWire,
 ): Promise<BuilderModelTarget> {
-  const walk = await walkLlmServing(ctx, organizationId, modelId);
+  const walk = await walkLlmServing(
+    ctx,
+    organizationId,
+    modelId,
+    toolCallingWire,
+  );
   if (walk.target !== null) return walk.target;
   const detail =
     walk.unreachable.length > 0
@@ -103,9 +112,16 @@ export async function walkLlmServing(
   ctx: ActionCtx,
   organizationId: string,
   modelId: string,
+  toolCallingWire?: HarnessGatewayWire,
 ): Promise<DirectServingWalk> {
   const connectors = await resolveProvidersForOrgId(ctx, organizationId);
-  return walkDirectServing(ctx, organizationId, modelId, connectors);
+  return walkDirectServing(
+    ctx,
+    organizationId,
+    modelId,
+    connectors,
+    toolCallingWire,
+  );
 }
 
 const MISS = Symbol('not json');

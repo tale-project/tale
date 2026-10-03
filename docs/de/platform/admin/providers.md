@@ -47,6 +47,8 @@ Trage unter **Pfad zum Token-Array** den Wert `$.tokens` ein, unter **Token-Feld
 
 Begrenze bei OpenAI **Erlaubte Modelle** auf Modell-IDs, die dein ChatGPT-Abonnement unterstützt. Der OpenAI-API-Katalog kann Modelle enthalten, die dieses Abonnement nicht nutzen kann.
 
+Für Sol 6.1 (`gpt-6.1-sol`) speicherst du zuerst die OpenAI-Broker-Zugangsdaten. Wähle dann bei einem [Projektagenten](/de/platform/projects/project-agents) unter **Agent-Laufzeit** den Eintrag **Codex**. Suche unter **Modell** nach `gpt-6.1-sol` und wähle den Eintrag mit **OpenAI · Abo**. Codex nutzt die Responses-API, die dieses Modell für Tool-Aufrufe benötigt. Tales direkter Chat nutzt Chat Completions; dort wird dieses Modell über OpenAI deshalb auch bei der automatischen Modellauswahl nicht angeboten.
+
 Mit **Token-Auswahl** bestimmst du, wie neue Agentendurchläufe verteilt werden:
 
 - **Zufällig** ist vorausgewählt. Bei jeder Auswahl haben alle nutzbaren Konten die gleiche Wahrscheinlichkeit.

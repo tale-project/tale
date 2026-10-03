@@ -142,13 +142,16 @@ describe('egress proxy connection limit', () => {
   });
 
   test('warns when the open-file limit cannot hold the connections', () => {
-    const limit = spawnSync('/bin/sh', ['-c', 'ulimit -n'], {
-      encoding: 'utf8',
-    }).stdout.trim();
-    const { result } = boot('100000000');
+    // Constrain only the child shell. An inherited unlimited hard limit
+    // otherwise lets the entrypoint raise even a very large soft limit.
+    const { result } = boot(
+      '3500',
+      'ulimit -S -n 4096 && ulimit -H -n 4096 || exit 1',
+    );
     expect(result.status).toBe(0);
-    if (limit !== 'unlimited') {
-      expect(result.stdout).toContain('raise its nofile ulimit');
-    }
+    expect(result.stdout).toContain(
+      "WARN: 3500 connections need about 7064 open files, more than this container's limit of 4096 allows; raise its nofile ulimit",
+    );
+    expect(readFileSync(tinyproxyFiles, 'utf8').trim()).toBe('4096');
   });
 });

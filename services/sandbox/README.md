@@ -66,7 +66,9 @@ once, each within its own time budget, the wait for a slot included; short
 calls (the health probe's `docker version`, the identity and liveness
 inspects, the build helper and host memory checks) take a free one of those
 or one of 4 more kept for them, and never queue behind long calls. A health
-probe that found no slot in time answers unhealthy without caching it. Platform adds an organization's three
+probe that found no slot in time answers unhealthy without caching it.
+Cancelling a queued call removes its waiter immediately; it consumes no slot
+and never starts the Docker command. Platform adds an organization's three
 `sandbox_quota` workload limits (defaults 2/2/2) and refuses a save if the sum
 exceeds the current deployment capacity or that capacity cannot be read.
 There is no independently configured organization runtime ceiling. With

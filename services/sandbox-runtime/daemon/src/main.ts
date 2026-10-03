@@ -74,7 +74,10 @@ const envStore = new EnvStore(seedEnv);
 const execManager = new ExecManager(envStore, touch, () =>
   reconcileBakedSkills(),
 );
-const activity = new ActivityGate(() => execManager.liveCount());
+const activity = new ActivityGate(
+  () => execManager.liveCount(),
+  () => lastActivityAtMs,
+);
 
 function tokenOk(req: IncomingMessage): boolean {
   if (TOKEN === '') return true; // unsigned dev mode
@@ -134,6 +137,62 @@ function parseEnvPatch(
   return { set, unset };
 }
 
+/** One HTTP consumer of an exec. A slow reader must lose its connection,
+ * buffered writes and subscription together; the detached exec and its replay
+ * ring remain available to this reader's next attach. */
+function execConsumer(
+  req: IncomingMessage,
+  res: ServerResponse,
+  label: string,
+) {
+  const consumer = new AbortController();
+  const closed = new Promise<void>((settleClosed) => {
+    consumer.signal.addEventListener('abort', () => settleClosed(), {
+      once: true,
+    });
+  });
+  const gone = () => consumer.abort();
+  // IncomingMessage 'close' also means a completely received request under
+  // Node. The response's close is the consumer's lifetime; aborted covers an
+  // incomplete request without mistaking normal receipt for a disconnect.
+  req.once('aborted', gone);
+  res.once('close', gone);
+  return {
+    signal: consumer.signal,
+    closed,
+    emit: (event: RunnerdExecEvent) => {
+      if (consumer.signal.aborted || res.destroyed || res.writableEnded) return;
+      const line = `${JSON.stringify(event)}\n`;
+      if (
+        res.writableLength + Buffer.byteLength(line) >
+        RUNNERD_CONSUMER_BUFFER_MAX_BYTES
+      ) {
+        console.warn(
+          `[runnerd] ${label} consumer backpressured past ${RUNNERD_CONSUMER_BUFFER_MAX_BYTES}B — disconnecting it (reconnect via /attach)`,
+        );
+        gone();
+        // end() would leave the queued bytes waiting on the stalled reader.
+        // Destroying just this response releases its socket and write queue.
+        res.destroy();
+        return;
+      }
+      try {
+        res.write(line);
+      } catch (err) {
+        console.warn(`[runnerd] ${label} write failed:`, err);
+        gone();
+        res.destroy();
+      }
+    },
+    end() {
+      gone();
+      req.removeListener('aborted', gone);
+      res.removeListener('close', gone);
+      if (!res.destroyed && !res.writableEnded) res.end();
+    },
+  };
+}
+
 async function handleExec(
   req: IncomingMessage,
   res: ServerResponse,
@@ -164,43 +223,26 @@ async function handleExec(
     'cache-control': 'no-cache, no-transform',
     'x-accel-buffering': 'no',
   });
-  let primaryClosed = false;
-  const emit = (event: RunnerdExecEvent) => {
-    if (primaryClosed) return; // stop writing to a dead socket (no log spam)
-    // Backpressure ceiling: a stalled-but-attached consumer must not let the
-    // response buffer grow without bound. Stop writing to THIS consumer past the
-    // cap; it reconnects via /attach?sinceSeq= and replays from the ring.
-    if (res.writableLength > RUNNERD_CONSUMER_BUFFER_MAX_BYTES) {
-      primaryClosed = true;
-      console.warn(
-        `[runnerd] exec stream consumer backpressured past ${RUNNERD_CONSUMER_BUFFER_MAX_BYTES}B — dropping it (reconnect via /attach)`,
-      );
-      return;
-    }
-    try {
-      res.write(`${JSON.stringify(event)}\n`);
-    } catch (err) {
-      console.warn('[runnerd] NDJSON write after close:', err);
-    }
-  };
+  const consumer = execConsumer(req, res, 'exec stream');
   // Consumer disconnect: do NOT touch the exec. The child runs detached and is
   // kept alive by its SLIDING deadline (re-armed on every /attach), so a
   // platform action that lost its SSE can reconnect via /attach?sinceSeq= for
   // as long as the window allows — an orphaned exec (no reconnect for the whole
   // window) is the only thing the deadline reaps. We just stop writing here.
-  req.on('close', () => {
-    primaryClosed = true;
-  });
   try {
-    await execManager.run(parsed, emit);
-  } catch (err) {
-    emit({
-      t: 'fail',
-      code: 'BAD_REQUEST',
-      message: err instanceof Error ? err.message : String(err),
+    // The request's activity ends with its consumer. The exec keeps running,
+    // protected by liveCount and its orphan deadline, with any late failure
+    // observed even after the consumer left.
+    const run = execManager.run(parsed, consumer.emit).catch((err: unknown) => {
+      consumer.emit({
+        t: 'fail',
+        code: 'BAD_REQUEST',
+        message: err instanceof Error ? err.message : String(err),
+      });
     });
+    await Promise.race([run, consumer.closed]);
   } finally {
-    res.end();
+    consumer.end();
   }
 }
 
@@ -224,37 +266,21 @@ async function handleAttach(
     'cache-control': 'no-cache, no-transform',
     'x-accel-buffering': 'no',
   });
-  let attachClosed = false;
-  const emit = (event: RunnerdExecEvent) => {
-    if (attachClosed) return;
-    // Same backpressure ceiling as the primary stream (see handleExec): bound a
-    // slow attach consumer's buffer; it can reconnect and replay from the ring.
-    if (res.writableLength > RUNNERD_CONSUMER_BUFFER_MAX_BYTES) {
-      attachClosed = true;
-      console.warn(
-        `[runnerd] attach consumer backpressured past ${RUNNERD_CONSUMER_BUFFER_MAX_BYTES}B — dropping it (reconnect via /attach)`,
-      );
-      return;
-    }
-    try {
-      res.write(`${JSON.stringify(event)}\n`);
-    } catch (err) {
-      console.warn('[runnerd] attach write after close:', err);
-    }
-  };
+  const consumer = execConsumer(req, res, 'attach');
   // This attach consumer dropping leaves the exec to its sliding deadline; a
   // further reattach re-arms it. No grace kill here (see handleExec). The
   // attach itself ends with its consumer, so it stops counting as work.
-  const consumer = new AbortController();
-  const gone = () => {
-    attachClosed = true;
-    consumer.abort();
-  };
-  req.on('close', gone);
-  res.on('close', gone);
-  const stream = execManager.attach(execId, emit, sinceSeq, consumer.signal);
-  if (stream) await stream;
-  res.end();
+  try {
+    const stream = execManager.attach(
+      execId,
+      consumer.emit,
+      sinceSeq,
+      consumer.signal,
+    );
+    if (stream) await stream;
+  } finally {
+    consumer.end();
+  }
 }
 
 async function router(
@@ -339,12 +365,29 @@ async function router(
       sendJson(res, 400, { error: 'bad_request' });
       return;
     }
+    const idleBeforeMs = body.value.idleBeforeMs;
+    if (
+      path === '/reclaim' &&
+      idleBeforeMs !== undefined &&
+      (typeof idleBeforeMs !== 'number' ||
+        !Number.isSafeInteger(idleBeforeMs) ||
+        idleBeforeMs < 0)
+    ) {
+      sendJson(res, 400, { error: 'bad_request' });
+      return;
+    }
     sendJson(
       res,
       200,
       path === '/release'
         ? { released: activity.release(token) }
-        : { claimed: activity.claim(token, String(body.value.generation)) },
+        : {
+            claimed: activity.claim(
+              token,
+              String(body.value.generation),
+              typeof idleBeforeMs === 'number' ? idleBeforeMs : undefined,
+            ),
+          },
     );
     return;
   }

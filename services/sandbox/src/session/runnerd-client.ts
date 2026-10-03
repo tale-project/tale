@@ -29,8 +29,8 @@ function authHeaders(token: string): Record<string, string> {
  * short deadline would kill it. Without a timeout a hung daemon ties up the
  * spawner's connection pool until Bun's (long) default fires. */
 const RUNNERD_RPC_TIMEOUT_MS = 30_000;
-/** Health-probe timeout. The idle reaper hits /healthz once per session in a
- * sequential sweep, so a single hung daemon must not stall the whole pass. */
+/** Health-probe timeout. The idle reaper probes a bounded set of sessions at
+ * once, so hung daemons must not hold those lanes for the whole pass. */
 const RUNNERD_HEALTH_TIMEOUT_MS = 5_000;
 /** Upper bound on the inter-newline NDJSON residual. A well-behaved runnerd
  * emits newline-terminated lines (≤ a few hundred KB each); an unbounded
@@ -75,7 +75,7 @@ export async function runnerdActivity(
   action: 'ticket' | 'acquire' | 'release' | 'reclaim' | 'pin',
   body?:
     | { generation: string }
-    | { claimId: string; generation: string }
+    | { claimId: string; generation: string; idleBeforeMs?: number }
     | { pinned: boolean },
 ): Promise<Record<string, unknown>> {
   const path = action === 'ticket' ? 'release' : action;
