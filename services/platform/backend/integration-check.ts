@@ -39280,10 +39280,23 @@ async function checkSandboxSettingsViews(
     foreignDestroy.status === 404 && foreignSession[0]?.status === 'stopped',
     `status=${foreignDestroy.status}, foreign session=${foreignSession[0]?.status}`,
   );
-  await sql`DELETE FROM app.sandbox_session_ops WHERE session_id = ANY(${[sessionId, workflowSessionId]})`;
-  await sql`DELETE FROM app.sandbox_sessions WHERE session_id = ANY(${[sessionId, workflowSessionId]})`;
+  const fixtureSessionIds = [sessionId, workflowSessionId, busySessionId];
+  await sql`DELETE FROM app.sandbox_session_ops WHERE session_id = ANY(${fixtureSessionIds})`;
+  await sql`DELETE FROM app.sandbox_sessions WHERE session_id = ANY(${fixtureSessionIds})`;
   await sql`DELETE FROM app.automation_runs WHERE id = ${runId}`;
   await sql`DELETE FROM app.projects WHERE id = ${projectId}`;
+  const remaining = await sql<{ ops: number; sessions: number }[]>`
+    SELECT
+      (SELECT count(*)::int FROM app.sandbox_session_ops
+       WHERE session_id = ANY(${fixtureSessionIds})) AS ops,
+      (SELECT count(*)::int FROM app.sandbox_sessions
+       WHERE session_id = ANY(${fixtureSessionIds})) AS sessions
+  `;
+  record(
+    'sandbox settings remove their history before later settlement sweeps',
+    remaining[0]?.ops === 0 && remaining[0].sessions === 0,
+    `remaining ops=${remaining[0]?.ops}, sessions=${remaining[0]?.sessions} (want 0/0)`,
+  );
 }
 
 /**
