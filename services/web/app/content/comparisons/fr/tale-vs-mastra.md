@@ -14,6 +14,14 @@ Pour une équipe TypeScript, intégrer des agents dans un produit existant peut 
 
 [Mastra](https://mastra.ai/) est un framework TypeScript pour agents et applications IA. Il propose agents, workflows, mémoire, espaces de travail, observabilité et outils d’évaluation, avec intégration dans des applications frontend ou backend. C’est une base de développement : le choix porte donc sur la création d’une application ou l’adoption de l’espace projet de Tale.
 
+## Comparaison en bref
+
+| Critère | Tale | Mastra |
+| --- | --- | --- |
+| Niveau du produit | Un espace d’équipe existant pour les tâches du projet et l’exécution des agents. | Un framework TypeScript pour développer des agents et des applications. |
+| Éléments principaux | Tâches, consignes, fichiers de projet, agents équipés et validation. | Agents, workflows, mémoire, espaces de travail, observabilité et évaluations. |
+| Travail d’exploitation | Configurer les runtimes, les outils et les accès au déploiement pour l’équipe. | Intégrer le framework à l’application que ton équipe développe. |
+
 ## Inclus la maintenance dans le choix
 
 Envisage Mastra si tu veux intégrer l’expérience des agents dans ton propre logiciel et si des développeurs prennent en charge son comportement et son évolution. Vérifie l’adéquation de ses abstractions avec ton application, y compris les tests avant de rendre une modification accessible aux utilisateurs.

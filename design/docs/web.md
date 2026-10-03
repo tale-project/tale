@@ -84,16 +84,21 @@ overridden here so chrome matches the paper, not the app's true-neutral black:
 | `shadow-site-card` / `shadow-site-card-hover`               | quiet elevation on cards and logo tiles          |
 | `shadow-site-inset`                                         | recessed icon wells / pillar panels              |
 | `bg-demo-traffic-*`                                         | browser chrome traffic lights (demo only)        |
-| `bg-demo-stage-*`                                           | `DemoStage` bloom / vignette / grid layers       |
+| `demo-{mint,coral,violet,gold,sky}` + `-soft`               | domain illustration ink and surfaces, theme-aware |
 
 New marketing surface values go into that `@theme` block (plus its `.dark` overrides), never inline.
 Light marketing surfaces use porcelain (`#fafafa`), raised cards at `#ffffff`, and a quiet
-wash (`#f0f1f3`) under product windows. Atmosphere blooms use cool gray
-(`--color-atmosphere-warm` / `--color-atmosphere-deep`), never brand blue and never amber/umber.
+wash (`#f0f1f3`) for neutral section rhythm. Page atmosphere uses cool gray
+(`--color-atmosphere-warm` / `--color-atmosphere-deep`). Illustrations use intentional domain palettes:
+mint for projects and governance, coral for agent workspaces, violet for chat, gold for automations,
+and sky for knowledge. Pair color with recognizable content and structure; a tinted copy of the
+same card grid is not an individual illustration. These colors describe the story, not product
+status: success, warning, and error states retain their established meanings.
 Promo chips are muted stone, not sand. Primary marketing CTAs use the ink `accent-*` tokens
 (rounded-xl shape, weight 500); secondary actions use a raised surface and a fine outline. Brand
-blue is for product details — connectors, step markers, live rings, send buttons, and the fine
-DemoStage accent line — never for body text or large fills.
+blue remains available for real product details. Do not add a decorative blue hairline above
+illustrations. `DemoShell domain` defaults to its navigation domain, with explicit overrides for
+agent workspaces and governance. `DemoStage` reads that marker to coordinate its palette and texture.
 
 ## Animated product demos — the doctrine
 
@@ -118,7 +123,7 @@ One contract:
 - **Framed by `DemoShell` — a 1:1 depiction of the app.** The frame reproduces the product's real
   anatomy: browser chrome (marketing-only), icon nav rail matching
   `use-navigation-items.ts` (Home → Knowledge → Automations; Settings,
-  Bell + avatar at bottom; `bg-muted` / `surface-site-inset` active, no left bar), and the
+  Bell + avatar at bottom; a soft domain tint for the active item, no left bar), and the
   **correct page header for the active nav** — chat demos use `chat-header.tsx`
   (`MessagesSquare`, `Search`, Share **with label** — `demo.chrome.share`, the package's own catalog
   key — `Ellipsis`, no thread title); list demos
@@ -207,7 +212,8 @@ Motion rules:
 - Hero mount only may use a small `y` with `Reveal onMount` — never `whileInView` + `y` on
   long pages (that was the homepage scroll jitter).
 - No infinite `translateY` / float on product windows.
-- DemoStage reveals its fine accent line once. CTAs use short (160–180ms) color/press feedback,
+- DemoStage itself stays still; motion belongs to the scene and its story. CTAs use short
+  (160–180ms) color/press feedback,
   and linked arrows move only under `motion-safe`. Reduced motion disables these movements
   while preserving all information and controls. Comparison help opens on tap or click through
   the shared Popover; it never depends on hover.
@@ -259,7 +265,8 @@ card (`public/og.png`, 1200×630) all derive from it. On top of that:
 - **Page language** — editorial: weight-500 display with tight tracking, a split headline and
   supporting-copy hero, inset product stages, alternating desktop tour rows, fine borders, and
   rounded ink CTAs on porcelain. Each section carries a clear idea; avoid repeating a centered
-  heading and identical card grid down the whole page. Brand blue stays in product details.
+  heading and identical card grid down the whole page. Topic-specific illustrations add purposeful
+  color and detailed native diagrams while page chrome stays quiet.
 - **Fluid geometry** — `SiteContainer` is at most 1360px wide with 20px phone, 32px tablet, and
   48px desktop gutters. `SectionHeading` uses fluid display (44–92px), section (32–60px), and
   subsection (28–44px) scales. Phone layouts stack in reading order; desktop feature tours split

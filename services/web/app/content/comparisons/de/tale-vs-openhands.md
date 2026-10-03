@@ -10,6 +10,14 @@ draft: false
 
 Ein Agentenarbeitsbereich kann mehrere Coding-Sitzungen koordinieren; ein Projektarbeitsbereich verbindet diese Arbeit mit dem restlichen Team. OpenHands und Tale überschneiden sich bei Ausführung und Koordination. Prüfe, wo euer gesamtes Projektgespräch und die Prüfentscheidungen stattfinden sollen.
 
+## Vergleich auf einen Blick
+
+| Kriterium | Tale | OpenHands |
+| --- | --- | --- |
+| Arbeitsbereich | Projektaufgaben für Software, Recherche, Berichte und Dokumente. | Agent Canvas koordiniert parallele Coding-Agenten in getrennten Git-Worktrees. |
+| Übergabe im Team | Teammitglieder steuern zugewiesene Agenten in Aufgabenkommentaren und prüfen Berichte und Dateien. | Dokumentiert Automationen und Teamfreigaben im Cloud-Angebot. |
+| Runtime-Auswahl | Unterstützte Runtime- und Abonnementpfade hängen von konfigurierten Zugangsdaten und Kapazität ab. | ACP-Anbindungen, Nutzung bestehender Abonnements und lokale, entfernte oder Cloud-Ausführung. |
+
 ## Die Arbeitsoberfläche vergleichen
 
 OpenHands Agent Canvas beschreibt parallele Coding-Agenten in getrennten Git-Worktrees, Anbindungen über ACP, die Nutzung vorhandener Abos und lokale, entfernte oder Cloud-Ausführung. Hinzu kommen Automatisierungen und gemeinsamer Zugriff im Cloud-Angebot. Das ist mehr als ein Coding-Chat mit einem Agenten. [OpenHands Agent Canvas](https://www.openhands.dev/product/canvas).

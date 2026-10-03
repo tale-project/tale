@@ -10,6 +10,14 @@ draft: false
 
 Eine unternehmensweite KI-Einführung und das nächste Teamprojekt haben oft unterschiedliche Ausgangspunkte. Glean und Tale überschneiden sich bei der Arbeit mit Agenten. Beginne deinen Vergleich deshalb mit der Frage, was ihr in der Organisation vereinheitlichen wollt.
 
+## Vergleich auf einen Blick
+
+| Kriterium | Tale | Glean |
+| --- | --- | --- |
+| Einführung | Gemeinsame Projektkoordination für Menschen und konfigurierte Agenten | Unternehmensweite KI-Einführung mit Unternehmenskontext und bestehenden Systemen |
+| Gemeinsamer Kontext | Aufgaben, Dateien und Gespräche rund um ein Projektergebnis | Suche, Assistent und Agenten mit berechtigungsabhängigem Zugriff |
+| Ausführung | Persistente Sandbox-Arbeitsbereiche; Parallelität hängt von der konfigurierten Kapazität ab | Gemeinsame Arbeit, Inhaltserstellung, Ausführung und Agentenorchestrierung |
+
 ## Den Umfang der Einführung festlegen
 
 Glean vereint Unternehmenskontext, Suche, Assistent und Agenten. Das aktuelle Angebot umfasst gemeinsame Arbeit, Inhaltserstellung, die Ausführung von Aufgaben, Agentenkoordination und Zugriffe unter Berücksichtigung von Berechtigungen. Es geht deutlich über einen Ersatz für die Suche hinaus. [Glean kennenlernen](https://www.glean.com/).

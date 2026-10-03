@@ -10,6 +10,14 @@ draft: false
 
 An agent workspace can coordinate several coding sessions while a project workspace connects that work to the rest of the team. OpenHands and Tale overlap in execution and coordination. Evaluate where your team wants the wider project conversation and review decisions to happen.
 
+## Compare at a glance
+
+| Criterion | Tale | OpenHands |
+| --- | --- | --- |
+| Work surface | Project tasks spanning software, research, reports and documents. | Agent Canvas coordinates parallel coding agents in separate Git worktrees. |
+| Team handoff | Teammates steer assigned agents in task comments and review reports and files. | Documents automations and team sharing in its cloud offering. |
+| Runtime choices | Supported runtime and subscription paths depend on configured credentials and capacity. | ACP connections, existing subscription reuse and local, remote or cloud execution. |
+
 ## Compare the work surface
 
 OpenHands Agent Canvas presents parallel coding agents in separate Git worktrees, connections through ACP, existing subscription reuse and local, remote or cloud execution options. It also describes automations and team sharing in its cloud offering. This is more than a single-agent coding chat. [OpenHands Agent Canvas](https://www.openhands.dev/product/canvas).

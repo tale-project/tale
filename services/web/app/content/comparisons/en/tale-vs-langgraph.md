@@ -14,6 +14,14 @@ If you are designing an agent application, the execution graph may be essential 
 
 [LangGraph](https://www.langchain.com/langgraph) is a low-level orchestration framework and runtime. Its product documentation describes customizable single-agent and multi-agent control flows, memory, streaming, and human intervention. It supplies building blocks for an application; this comparison is therefore a framework-versus-workspace decision, not a claim that review or coordination exists only in Tale.
 
+## Compare at a glance
+
+| Criterion | Tale | LangGraph |
+| --- | --- | --- |
+| Adoption | Adopt an existing shared project workspace | Build on a low-level orchestration framework and runtime |
+| Control model | Configure the product's task lifecycle and delegation model | Customize state, branching, and single-agent or multi-agent control flows |
+| Review | Task review policies within the shared project workflow | Human intervention, memory, and streaming are documented building blocks |
+
 ## Compare the application you will operate
 
 Consider LangGraph when engineers need direct control over state transitions, branching, and the way an agent pauses for input. Include the surrounding interface, access model, operational support, and application tests in the scope of what your team will deliver.

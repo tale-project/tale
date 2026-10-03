@@ -1,6 +1,6 @@
 # Responsive (cross-cutting)
 
-> **Prefix** `RESP-` · **Reset** none · **Cost** 11 boxes
+> **Prefix** `RESP-` · **Reset** none · **Cost** 13 boxes
 
 Verify the marketing site adapts across viewports — the mobile hamburger
 drawer (the desktop nav is `hidden lg:flex`, so the split is the Tailwind
@@ -87,6 +87,10 @@ read-only (no form submits needed).
   Tab and Shift+Tab through every link, then scroll its contents on a short
   landscape viewport → Focus remains inside the sheet, the close control and
   final CTA remain reachable, and no control sits beneath a notch or home indicator.
+
+- [ ] `RESP-A4` · **Individual illustrations** — At 320 px and 1440 px, inspect projects, agents, knowledge, chat, automations, and governance in light and dark themes → Domain colors support different boards, identities, document marks, model panes, workflow nodes, and approval records; text remains readable, status is not conveyed by color alone, and no decorative blue line crosses the top of the stage. Under reduced motion every scene is complete and still.
+
+- [ ] `RESP-A5` · **Use-case artwork** — Open marketing campaigns, software development, research, document work, and operations under `/use-cases/` at 320 px and 1440 px in both themes → Each topic has a distinct, unclipped illustration; the art stacks below its heading on phones and conveys no information absent from the adjacent copy. With reduced motion, the complete composition is visible without animation.
 
 ## Performance
 

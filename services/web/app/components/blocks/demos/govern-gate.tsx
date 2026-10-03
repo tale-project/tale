@@ -48,9 +48,10 @@ export function GovernGate({
         label={scene.label}
         title={t('demos.automation.windowTitle')}
         activeNav="automations"
+        domain="governance"
         className="mx-auto min-h-176 max-w-4xl @sm/demo:min-h-136 @lg/demo:aspect-[16/9]"
       >
-        <div className="flex h-full flex-col gap-4 p-4 @2xl/demo:gap-5 @2xl/demo:p-6">
+        <div className="demo-surface flex h-full flex-col gap-4 p-4 @2xl/demo:gap-5 @2xl/demo:p-6">
           {beat >= BEAT.card ? (
             <motion.div
               initial={reduceMotion ? false : { opacity: 0, y: 12 }}
@@ -59,7 +60,7 @@ export function GovernGate({
               className="border-border-base bg-surface-site-raised shadow-site-card mx-auto w-full max-w-md rounded-2xl border p-4 @2xl/demo:p-5"
             >
               <div className="flex flex-col items-start gap-3 @xs/demo:flex-row">
-                <span className="bg-surface-site-inset text-fg-muted flex size-9 shrink-0 items-center justify-center rounded-lg">
+                <span className="demo-soft demo-accent flex size-9 shrink-0 items-center justify-center rounded-lg">
                   <Workflow aria-hidden className="size-4" strokeWidth={1.75} />
                 </span>
                 <div className="min-w-0">
@@ -78,7 +79,7 @@ export function GovernGate({
                     initial={reduceMotion ? false : { opacity: 0, scale: 0.94 }}
                     animate={{ opacity: 1, scale: 1 }}
                     transition={{ duration: 0.3, ease: easeOut }}
-                    className="bg-accent-base text-accent-fg inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium"
+                    className="bg-demo-mint-soft text-demo-mint inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium"
                   >
                     <Check aria-hidden className="size-3.5" strokeWidth={2.5} />
                     {t('demos.govern.approved')}
@@ -143,7 +144,7 @@ export function GovernGate({
             <div className="bg-surface-site-inset mt-2 h-1.5 overflow-hidden rounded-full">
               <div
                 className={cn(
-                  'bg-brand-base h-full origin-left rounded-full motion-safe:transition-transform motion-safe:duration-700 motion-safe:ease-out',
+                  'demo-accent-bg h-full origin-left rounded-full motion-safe:transition-transform motion-safe:duration-700 motion-safe:ease-out',
                   beat >= BEAT.approved ? 'scale-x-100' : 'scale-x-0',
                 )}
                 style={{ width: `${BUDGET_PERCENT}%` }}
@@ -168,9 +169,13 @@ function JournalLine({
       initial={reduceMotion ? false : { opacity: 0, y: 4 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, ease: easeOut }}
-      className="text-fg-muted flex items-center gap-2 text-xs"
+      className="text-fg-muted relative flex items-center gap-2 text-xs"
     >
-      <Check aria-hidden className="size-3 shrink-0" strokeWidth={2.5} />
+      <Check
+        aria-hidden
+        className="text-demo-mint size-3 shrink-0"
+        strokeWidth={2.5}
+      />
       {text}
     </motion.p>
   );

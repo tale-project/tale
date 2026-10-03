@@ -10,6 +10,14 @@ draft: false
 
 When agent activity spreads across several runtimes, an operator dashboard can become as important as the task board. Tale and Builderz Labs Mission Control both address this coordination problem. Evaluate them with the people doing the work and the people keeping it running.
 
+## Compare at a glance
+
+| Criterion | Tale | Mission Control (Builderz Labs) |
+| --- | --- | --- |
+| Work surface | Shared projects spanning code, research, documents and reviewed deliverables. | A self-hosted control plane for agent dispatch, review and runtime coordination. |
+| Team visibility | Task instructions, files, discussions and progress reports stay with the project. | Documents logs, spend tracking, knowledge and governance alongside task coordination. |
+| Rollout checks | Validate credentials, equipment, capacity and the team handoff. | An alpha product; verify the adapter depth and maintenance needed for your runtimes. |
+
 ## Distinguish operational visibility from daily fit
 
 Builderz Labs describes Mission Control as a self-hosted agent control plane with task dispatch, review, runtime coordination, logs and spending views. Its repository also documents knowledge and governance surfaces and labels the software alpha. Adapter depth varies by runtime. [Mission Control repository](https://github.com/builderz-labs/mission-control).

@@ -13,6 +13,7 @@ import { ChevronRight } from 'lucide-react';
 import { useMemo } from 'react';
 
 import { RelatedUseCases } from '@/app/components/blocks/related-use-cases';
+import { UseCaseIllustration } from '@/app/components/blocks/use-case-illustration';
 import { MarketingProse } from '@/app/components/marketing/marketing-prose';
 import type { MarketingContentDocument } from '@/lib/content/model';
 import { MARKETING_CONTENT_PATHS } from '@/lib/content/model';
@@ -42,6 +43,7 @@ export function MarketingContentPage({
     `resource.${category === 'comparisons' ? 'compare' : 'useCases'}.label`,
   );
   const isHub = slug === 'index';
+  const hasIllustration = category === 'use-cases' && !isHub;
   const toc = useMemo(() => extractToc(content), [content]);
   const jsonLd = useMemo(() => {
     const url = absoluteSitePath(TALE_SITE_URL, document.url);
@@ -112,27 +114,42 @@ export function MarketingContentPage({
             </>
           ) : null}
         </nav>
-        <SectionHeading
-          bare
-          as="h1"
-          size="section"
-          align="start"
-          className="max-w-5xl"
-          title={frontmatter.title}
-          description={frontmatter.description}
-          descriptionClassName="max-w-3xl"
-        />
-        <p className="text-fg-subtle mt-7 font-mono text-xs">
-          <time dateTime={frontmatter.reviewed}>
-            {t('reviewed', { date: reviewedDate })}
-          </time>
-        </p>
+        <div
+          className={
+            hasIllustration
+              ? 'grid items-center gap-10 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] lg:gap-16'
+              : undefined
+          }
+        >
+          <div className="min-w-0">
+            <SectionHeading
+              bare
+              as="h1"
+              size="section"
+              align="start"
+              className="max-w-5xl"
+              title={frontmatter.title.replace(/ \| Tale$/, '')}
+              description={frontmatter.description}
+              descriptionClassName="max-w-3xl"
+            />
+            <p className="text-fg-subtle mt-7 font-mono text-xs">
+              <time dateTime={frontmatter.reviewed}>
+                {t('reviewed', { date: reviewedDate })}
+              </time>
+            </p>
+          </div>
+          {hasIllustration ? <UseCaseIllustration slug={slug} /> : null}
+        </div>
       </PageSection>
       <SiteContainer>
         <div className="mx-auto flex max-w-6xl items-start justify-between gap-16 py-10 sm:py-16 xl:gap-24">
           <article className="w-full max-w-3xl min-w-0 flex-1">
             <DocsTocOutline entries={toc} />
-            <MarketingProse className="text-base leading-relaxed [&_h2]:mt-12 [&_h2]:mb-5 [&_h2]:text-2xl [&_h2]:leading-tight [&_h2]:font-medium [&_h2]:tracking-[-0.03em] [&_h2]:text-balance sm:[&_h2]:text-3xl [&_p]:my-5 [&_p]:leading-[1.8]">
+            <MarketingProse
+              tableLabel={frontmatter.title}
+              tableScrollHint={t('tableScrollHint')}
+              className="text-base leading-relaxed [&_h2]:mt-12 [&_h2]:mb-5 [&_h2]:text-2xl [&_h2]:leading-tight [&_h2]:font-medium [&_h2]:tracking-[-0.03em] [&_h2]:text-balance sm:[&_h2]:text-3xl [&_p]:my-5 [&_p]:leading-[1.8]"
+            >
               {content}
             </MarketingProse>
           </article>

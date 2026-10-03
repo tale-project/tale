@@ -14,6 +14,14 @@ An internal AI initiative can have two different deliverables: a reusable applic
 
 [StackAI’s overview](https://docs.stackai.com/welcome-to-stackai/overview) describes a visual builder connected to knowledge bases, tools, and business systems. It supports deployment to chat, forms, APIs, and internal teams, alongside governance, access controls, and observability. Its documented emphasis is building, deploying, and operating enterprise agents.
 
+## Compare at a glance
+
+| Criterion | Tale | StackAI |
+| --- | --- | --- |
+| Starting point | Project tasks with equipped agents and reviewed outputs. | A visual builder connecting knowledge, tools and business systems. |
+| Team delivery | Task discussions and shared files connect research, drafts and review. | Deploys agent experiences through chat, forms and APIs for internal teams. |
+| Operating setup | Prepare runtime access, instructions, tools and an owner for review. | Documents governance, access controls and observability for deployed systems. |
+
 ## Match the product to its owner
 
 Consider StackAI when an IT or automation team is responsible for packaging a defined service for other users. Your evaluation should include how that service is updated, how users reach it, and how its operators investigate a wrong answer or failed action.

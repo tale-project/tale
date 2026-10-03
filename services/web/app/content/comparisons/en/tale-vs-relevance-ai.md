@@ -10,6 +10,14 @@ draft: false
 
 An agent workforce needs more than a set of prompts. Your team needs to decide who defines the work, how it is operated, and where people intervene. Tale and Relevance AI are candidates for different ways of organizing that responsibility.
 
+## Compare at a glance
+
+| Criterion | Tale | Relevance AI |
+| --- | --- | --- |
+| Starting point | A shared project board with tasks, owners, instructions, files and review. | Turning team expertise into automated systems and agent workforces. |
+| Coordination | Specialist agents, equipped manager agents and versioned automations for repeatable work. | Deployment and training assistance alongside evaluations, monitoring and governance. |
+| Pilot focus | Test how teammates change priorities and review individual task outputs. | Test who changes the recurring process and handles exceptions after training. |
+
 ## Start with the process you want to own
 
 Relevance AI's current offering emphasizes turning team expertise into automated systems and agent workforces. Its site describes assistance with deployment and training, alongside evaluations, monitoring, and governance. Examples include account research, meeting preparation, and sales follow-up. [Explore Relevance AI](https://relevanceai.com/).

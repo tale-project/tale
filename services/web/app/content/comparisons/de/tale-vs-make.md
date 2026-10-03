@@ -14,6 +14,14 @@ Kläre den Ausgangspunkt, bevor du Automatisierungsfunktionen vergleichst. Pfleg
 
 [Make](https://www.make.com/en) beschreibt sich als visuelle Automatisierungsplattform, auf der du Workflows und KI-Agenten mit einem visuellen Editor, Code oder Prompts erstellst und verwaltest. Die Verbindung von Geschäftsanwendungen steht im Mittelpunkt. Make kommt damit infrage, wenn du vor allem den Prozess zwischen Systemen gestalten willst.
 
+## Vergleich auf einen Blick
+
+| Kriterium | Tale | Make |
+| --- | --- | --- |
+| Arbeitsbereich | Ein Projektboard für verantwortete Aufgaben, die sich durch Diskussion und Prüfung weiterentwickeln. | Visuelle Automationsabläufe und KI-Agenten, erstellt per Editor, Code oder Prompts. |
+| Wiederholbare Abläufe | Versionierte Automationen ergänzen Projektaufgaben um wiederholbare Schritte. | Geschäftsanwendungen zu verbinden und Workflows zu betreiben steht im Mittelpunkt. |
+| Fokus des Tests | Verantwortung, Agentenanweisungen und Prüfung bei geänderten Anforderungen testen. | Konnektorzugriff, fehlgeschlagene Updates und Ausnahmen im Workflow testen. |
+
 ## Entscheide anhand des Arbeitsablaufs
 
 Prüfe Make, wenn die verantwortliche Person einen Ablauf für Eingang, Anreicherung, Weiterleitung und Aktualisierung in bestehenden Tools abbilden will. Teste die benötigten Konnektoren und die Behandlung von Ausnahmen. Kläre auch, wer Zugangsdaten pflegt, wenn die Zuständigkeit wechselt.

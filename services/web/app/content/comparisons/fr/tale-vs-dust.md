@@ -10,6 +10,14 @@ draft: false
 
 Tale et Dust réunissent personnes et agents autour du travail, y compris des tâches attribuées. Compare surtout le cycle des tâches, les environnements compatibles et le modèle de déploiement. Un tableau de projet ne suffit pas à distinguer les deux produits.
 
+## Comparaison en bref
+
+| Critère | Tale | Dust |
+| --- | --- | --- |
+| Espace de travail | Projets partagés avec tâches attribuées, fichiers et vérification | Les Pods réunissent conversations, fichiers et tâches pour personnes et agents |
+| Contexte partagé | Briefs de projet, fichiers, échanges et résultats vérifiés | Agents partagés connectés aux sources et outils de l’entreprise |
+| Exécution | Espaces sandbox persistants ; exécution parallèle selon la capacité configurée | Les conversations liées aux tâches permettent de suivre et réorienter le travail |
+
 ## Deux façons de travailler avec des agents
 
 Dust relie sources et outils métier à des agents partagés. Ses Pods rassemblent conversations, fichiers et tâches que personnes ou agents attribuent, lancent et terminent. Les conversations liées aux tâches permettent de suivre et réorienter le travail. Voir [Dust](https://dust.tt/) et les [tâches des Pods](https://docs.dust.tt/docs/user-documentation/pods/tasks).

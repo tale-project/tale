@@ -61,6 +61,8 @@ const PAGE_HEADER_NAVS = new Set<DemoNav>([
 ]);
 
 interface DemoShellProps {
+  /** Editorial illustration palette; independent of the depicted navigation. */
+  domain?: DemoNav | 'governance';
   /** Localized one-sentence description of what the demo shows. */
   label: string;
   /**
@@ -98,6 +100,7 @@ export function DemoShell({
   label,
   title,
   activeNav,
+  domain = activeNav,
   className,
   elevation = 'default',
   children,
@@ -111,6 +114,7 @@ export function DemoShell({
       role="img"
       aria-label={label}
       data-nosnippet=""
+      data-demo-domain={domain}
       className={cn(
         'border-border-base/70 bg-surface-site m-0 flex min-h-120 w-full flex-col overflow-hidden rounded-2xl border',
         'ring-1 ring-black/[0.03] dark:ring-white/[0.04]',
@@ -155,9 +159,7 @@ export function DemoShell({
                     key={index}
                     className={cn(
                       'flex shrink-0 items-center justify-center rounded-lg p-1.5 @2xl/demo:p-2',
-                      active
-                        ? 'bg-surface-site-inset text-fg-base'
-                        : 'text-fg-muted',
+                      active ? 'demo-soft demo-accent' : 'text-fg-muted',
                     )}
                   >
                     <Icon
@@ -183,7 +185,7 @@ export function DemoShell({
               </span>
               <span className="relative flex items-center justify-center rounded-lg p-1.5 @2xl/demo:p-2">
                 <Bell className="size-4 @2xl/demo:size-5" strokeWidth={1.75} />
-                <span className="bg-brand-base absolute top-1.5 right-1.5 size-1.5 rounded-full @2xl/demo:top-2 @2xl/demo:right-2" />
+                <span className="demo-accent-bg absolute top-1.5 right-1.5 size-1.5 rounded-full @2xl/demo:top-2 @2xl/demo:right-2" />
               </span>
               <span className="bg-surface-site-inset text-fg-muted ring-border-base/50 flex size-6 items-center justify-center rounded-full ring-1 @2xl/demo:size-7">
                 <CircleUser

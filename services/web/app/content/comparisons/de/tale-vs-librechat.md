@@ -10,6 +10,14 @@ draft: false
 
 Dein Team braucht vielleicht einen flexiblen Ort für KI-Gespräche, einen Ort für delegierte Arbeit oder beides. Tale und LibreChat überschneiden sich bei Modellen und Agentenfunktionen. Vergleiche deshalb den Ablauf rund um die Ergebnisse, statt nur Chat-Funktionen zu zählen.
 
+## Vergleich auf einen Blick
+
+| Kriterium | Tale | LibreChat |
+| --- | --- | --- |
+| Arbeitsoberfläche | Gemeinsame Projekte mit zugewiesenen Aufgaben, Dateien und Prüfung | Anpassbare Gespräche über Modellanbieter, Agenten und Tools hinweg |
+| Ausführung | Projektagenten nutzen persistente Arbeitsbereiche über mehrere Läufe hinweg | Agenten bieten Dateiverarbeitung, API-Aktionen, Codeausführung und MCP-Tools |
+| Ergebnis | Ergebnisse behalten Aufgabenbezug, Verantwortliche, Gespräch und Prüfkontext | Gespräche können Artefakte und Ergebnisse über Textantworten hinaus enthalten |
+
 ## Gespräch und Aufgabe als Ausgangspunkt
 
 LibreChat bündelt KI-Gespräche in einer anpassbaren Oberfläche. Der offizielle Überblick nennt mehrere Modellanbieter, Agenten mit Dateiverarbeitung und API-Aktionen, Code-Ausführung, Artefakte und MCP-Werkzeuge. Das Angebot reicht damit über reine Textantworten hinaus. Siehe [LibreChat](https://www.librechat.ai/) und die [Dokumentation](https://www.librechat.ai/docs).

@@ -14,6 +14,14 @@ Choose the starting point before comparing automation features. Is your team mai
 
 [Make](https://www.make.com/en) presents a visual automation platform for building and managing workflows and AI agents through a visual editor, code, or prompts. Connecting business applications is central to its product. That makes it a relevant candidate when the process between systems is what you need to design.
 
+## Compare at a glance
+
+| Criterion | Tale | Make |
+| --- | --- | --- |
+| Work surface | A project board for owned tasks that evolve through discussion and review. | Visual automation workflows and AI agents built with editor, code or prompts. |
+| Repeatable processes | Versioned automations support repeatable steps alongside project tasks. | Connecting business applications and operating workflows are central. |
+| Pilot focus | Test task ownership, agent instructions and review when requirements change. | Test connector access, failed updates and exceptions in the workflow. |
+
 ## Choose around the operating workflow
 
 Consider Make when your automation owner wants to map an intake, enrichment, routing, and update process across existing tools. Evaluate the actual connectors and exception handling your process requires, including who maintains credentials when ownership changes.

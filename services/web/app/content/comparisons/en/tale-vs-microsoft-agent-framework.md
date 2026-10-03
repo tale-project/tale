@@ -14,6 +14,14 @@ An organization with a platform engineering team may want to design its agent ar
 
 [Microsoft Agent Framework](https://github.com/microsoft/agent-framework) provides multi-agent workflow development across Python and .NET, with a separate Go SDK. The repository describes sequential, concurrent, handoff, and group patterns, plus checkpointing and human intervention. It is an application framework, distinct from Microsoft's packaged assistant products and from Tale's team workspace.
 
+## Compare at a glance
+
+| Criterion | Tale | Microsoft Agent Framework |
+| --- | --- | --- |
+| Product layer | A shared application for project tasks, agents and review. | An agent framework for Python and .NET, with a separate Go SDK. |
+| Coordination | Configured manager agents can delegate ready tasks within execution and review policies. | Sequential, concurrent, handoff and group patterns with checkpoints and human intervention. |
+| Setup responsibility | Prepare runtime access, tools and the deployment used by the team. | Build and operate the application interface, identity and hosting. |
+
 ## Choose your implementation responsibility
 
 Consider Microsoft Agent Framework when your engineers need to implement domain-specific orchestration and integrate it into software they own. Evaluate the framework alongside the hosting, identity, user interface, and operational processes you will supply. The presence of framework features does not by itself define how colleagues will use the finished application.

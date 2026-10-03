@@ -14,6 +14,14 @@ Pour une entreprise déjà équipée de Google Workspace, le premier achat IA pe
 
 [Google Workspace avec Gemini](https://workspace.google.com/solutions/ai/) intègre l’IA dans des applications comme Gmail, Docs, Sheets et Meet. L’offre actuelle décrit aussi Workspace Studio pour créer des workflows entre applications Workspace. La suite concerne donc l’assistance quotidienne et l’automatisation, au-delà de la rédaction de documents.
 
+## Comparaison en bref
+
+| Critère | Tale | Google Workspace with Gemini |
+| --- | --- | --- |
+| Espace de travail | Projets partagés avec tâches attribuées, fichiers et vérification | IA dans Gmail, Docs, Sheets et Meet |
+| Coordination | Personnes et agents configurés partagent tâches, fichiers et conversations | Collaboration dans les applications et l’édition utilisées par ton équipe |
+| Processus | Structure de projet pour délégation, vérification et tâches de suivi | Workspace Studio crée des processus entre les applications Workspace |
+
 ## Évalue les lieux de travail existants
 
 Envisage Google Workspace avec Gemini si l’essentiel du travail doit rester dans ta suite bureautique. Teste les applications et l’édition réellement utilisées par l’équipe, notamment l’accès aux fichiers sources et la manière de modifier ou contester le contenu généré. Inclus les besoins d’automatisation sans supposer qu’ils imposent un autre produit.

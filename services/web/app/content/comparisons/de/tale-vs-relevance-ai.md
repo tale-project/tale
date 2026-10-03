@@ -10,6 +10,14 @@ draft: false
 
 Eine Agentenflotte braucht mehr als eine Sammlung von Prompts. Dein Team muss festlegen, wer Arbeit definiert, Abläufe betreut und bei Bedarf eingreift. Tale und Relevance AI bieten unterschiedliche Ansätze, um diese Verantwortung zu organisieren.
 
+## Vergleich auf einen Blick
+
+| Kriterium | Tale | Relevance AI |
+| --- | --- | --- |
+| Ausgangspunkt | Ein gemeinsames Projektboard mit Aufgaben, Verantwortlichen, Anweisungen, Dateien und Prüfung. | Teamwissen in automatisierte Systeme und Agententeams überführen. |
+| Koordination | Spezialisierte Agenten, ausgestattete Manager-Agenten und versionierte Automationen für wiederholbare Arbeit. | Unterstützung bei Bereitstellung und Schulung sowie Evaluationen, Monitoring und Governance. |
+| Fokus des Tests | Testen, wie Teammitglieder Prioritäten ändern und einzelne Aufgabenergebnisse prüfen. | Testen, wer nach der Schulung den wiederkehrenden Ablauf ändert und Ausnahmen bearbeitet. |
+
 ## Den Prozess als Ausgangspunkt nehmen
 
 Relevance AI stellt derzeit die Umsetzung von Teamwissen in automatisierte Systeme und Agentenflotten in den Vordergrund. Die Website beschreibt Unterstützung bei Einführung und Schulung sowie Auswertung, Überwachung und Governance. Beispiele sind Kundenrecherche, Gesprächsvorbereitung und Nachbereitung im Vertrieb. [Relevance AI kennenlernen](https://relevanceai.com/).

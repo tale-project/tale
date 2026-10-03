@@ -10,6 +10,14 @@ draft: false
 
 Tale et OpenClaw ne sont pas toujours des alternatives. Tale inclut OpenClaw parmi ses environnements d’agents pris en charge. La question utile est de savoir si ton équipe a besoin de l’interaction propre à l’assistant, d’une couche de projet partagée autour de son travail, ou des deux.
 
+## Comparaison en bref
+
+| Critère | Tale | OpenClaw |
+| --- | --- | --- |
+| Niveau du produit | Un espace de projet partagé qui prend en charge OpenClaw comme runtime d’agent. | Un runtime d’assistant accessible via des canaux de messagerie et son propre environnement. |
+| Interaction en équipe | Attribution des tâches, configuration des agents et validation des rapports et livrables. | Sessions partagées de passerelle documentées, que les collègues peuvent ouvrir et piloter. |
+| Limite de compatibilité | Comportement de l’intégration prise en charge ; vérifier outils, identifiants et sandbox. | L’usage direct garde ses canaux et son modèle de mémoire ; Tale ne les importe pas automatiquement. |
+
 ## Comparer des couches différentes
 
 OpenClaw présente un assistant accessible par des canaux de messagerie, avec actions dans le navigateur, sur les fichiers et dans le shell. Sa documentation actuelle décrit aussi des sessions de gateway partagées que les collègues peuvent ouvrir et orienter. Le qualifier de strictement personnel ou sans collaboration serait réducteur. Consulte le [site OpenClaw](https://openclaw.ai/), le [mode multi-utilisateur](https://docs.openclaw.ai/concepts/multi-user) et la [documentation du chat partagé](https://docs.openclaw.ai/web/control-ui/chat).

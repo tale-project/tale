@@ -44,18 +44,22 @@ Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no s
 | [platform-pages](../suites/platform-pages.md) | `PAGE-A1` | 🔶 partial | `smoke.spec.ts` (single `h1` / no skipped levels — `/platform` and `/pricing` only) |
 | [platform-pages](../suites/platform-pages.md) | `PAGE-A2` | 🔶 partial | `home-demos.spec.ts` (every demo located by `role="img"` accessible name) |
 | [platform-pages](../suites/platform-pages.md) | `PAGE-F3`, `PAGE-F10`, `PAGE-F12`, `PAGE-B1`–`PAGE-B2`, `PAGE-A3`, `PAGE-P1`–`PAGE-P2` | ⛔ manual-only | — |
-| [responsive](../suites/responsive.md) | Workflow, governance, task board and sandbox text fits every clipping ancestor in EN/DE/FR at 320, 390, 768, 1024 and 1440px; task cards remain at least 140px wide without overlapping; mobile GitHub target is at least 44px high | ✅ automated | `demo-responsive.spec.ts` |
+| [responsive](../suites/responsive.md) | Cold startup retains the prerendered page until its route is ready; changelog timeline updates never move the document at the footer | ✅ automated | `app/main.test.tsx`, `changelog.spec.ts` |
+| [responsive](../suites/responsive.md) | Cold homepage startup preserves reading position, including initial hashes; normal-motion wheel scrolling and anchor continuation remain stable through navigation hover; subsequent route changes still reset scroll | ✅ automated | `scroll-stability.spec.ts` (390/1440px; actual homepage snapshot fallback for client-only preview) |
+| [responsive](../suites/responsive.md) | Agent identities, knowledge sources, chat replies, workflow, governance, task board and sandbox text fits every clipping ancestor in EN/DE/FR at 320, 390, 768, 1024 and 1440px; task cards remain at least 140px wide without overlapping; mobile GitHub target is at least 44px high | ✅ automated | `demo-responsive.spec.ts` |
 | [responsive](../suites/responsive.md) | `RESP-F1`–`RESP-F5`, `RESP-B1`–`RESP-B2`, `RESP-A1`–`RESP-A2`, `RESP-P1` | ⛔ manual-only | — (`smoke.spec.ts` runs desktop-viewport only) |
 | [seo](../suites/seo.md) | Per-route h1 / lang / canonical | ✅ | `tests/prerender/seo.test.ts` (`bun run --filter @tale/web test:prerender`, dependsOn build) |
 | [seo](../suites/seo.md) | Guide locale identity, validated metadata, publication clusters, draft exclusion, internal links and related use cases | ✅ automated | `lib/content/*.test.ts` |
-| [responsive](../suites/responsive.md) | Guide hubs and articles in EN/DE/FR at 320/1440px; single H1, canonical/alternates, table readability, localized links, related navigation and unknown slug recovery | ✅ automated | `marketing-content.spec.ts` |
+| [responsive](../suites/responsive.md) | Guide hubs and articles in EN/DE/FR at 320/1440px; single H1, canonical/alternates, comparison table semantics and keyboard scrolling, localized links, related navigation and unknown slug recovery | ✅ automated | `marketing-content.spec.ts` |
+| [responsive](../suites/responsive.md) | Every localized competitor guide has a named table, three columns, substantive rows and matching dimensions across locales | ✅ automated | `lib/content/comparison-tables.test.tsx` |
 | [seo](../suites/seo.md) | Registry bijection | ✅ | `lib/seo/marketing-routes.test.ts` |
 | [seo](../suites/seo.md) | Image budgets | ✅ | `tests/images.test.ts` |
 | [seo](../suites/seo.md) | Build-time release snapshot keeps the newest 40 complete releases without mutating the fetched list | ✅ | `lib/releases/write-manifest.test.ts` |
 | [seo](../suites/seo.md) | Container HTTP probes | ✅ | `services/platform/tests/integration/container-web-test.ts` (`/nope`→404, `/pricing`, `/de/pricing`, sitemap, og.png) |
 | [seo](../suites/seo.md) | A path no file can carry — a NUL or another C0 control (`/%00`, `/a%00b`, `/de/%00`), or one past the OS path limit (5000 characters) — answers the real 404, never a reported 500 | ✅ automated | `packages/ui/src/server/static-paths.integration.test.ts` (`reportError` is not called) |
 | [seo](../suites/seo.md) | Lighthouse targets (Perf ≥95, SEO 100, a11y ≥95, BP 100, CLS 0) | 🔶 | Local Lighthouse 13.4 on built `start` (2026-07-09): desktop unthrottled `/` **99/100/100/100** CLS≈0; `/pricing` **100/100/100/100**; mobile default throttle `/` Perf **58** (FCP/LCP on Slow 4G), A11y/BP/SEO **100**. Re-run PSI on production after deploy. |
-| [theme](../suites/theme.md) | `THEME-F1`–`THEME-F6`, `THEME-B1`, `THEME-A1`–`THEME-A3` | ⛔ manual-only | — |
+| [theme](../suites/theme.md) | `THEME-F1`, `THEME-A1`–`THEME-A2` | `packages/ui/src/components/site/theme-switcher.test.tsx`, `theme-switcher.browser.test.tsx` | Theme persistence, radio keyboard selection, active surface alignment at 44/52px targets; visual focus remains manual. |
+| [theme](../suites/theme.md) | `THEME-F2`–`THEME-F6`, `THEME-B1`, `THEME-A3` | ⛔ manual-only | — |
 
 ## Seams
 

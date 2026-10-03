@@ -14,6 +14,14 @@ Ein Team, das bereits in Microsoft-Anwendungen arbeitet, möchte Agenten viellei
 
 [Microsoft Copilot Studio](https://www.microsoft.com/en-us/copilot/products/copilot-studio) unterstützt das Erstellen, Testen und Veröffentlichen von Agenten per natürlicher Sprache oder grafischer Oberfläche. Microsoft beschreibt eigenständige Agenten, Veröffentlichung in Copilot und Kanäle wie Teams und SharePoint. Auch autonome Geschäftsprozesse gehören dazu. Der Vergleich geht daher über Frage-Antwort-Bots hinaus.
 
+## Vergleich auf einen Blick
+
+| Kriterium | Tale | Microsoft Copilot Studio |
+| --- | --- | --- |
+| Arbeitsoberfläche | Gemeinsame Projekte mit zugewiesenen Aufgaben, Dateien und Prüfung | Agenten mit natürlicher Sprache oder grafischem Builder erstellen, testen und veröffentlichen |
+| Ergebnis | Arbeit über Projektaufgaben koordinieren und Ergebnisse prüfen | Agenten in Copilot und Kanälen wie Teams und SharePoint veröffentlichen |
+| Einrichtung | Eigenbetrieb oder verwalteter Betrieb mit unterstützten Laufzeiten | Zielkanal, Identität, Datenzugriff und Verwaltung prüfen |
+
 ## Folge der Bereitstellungsentscheidung
 
 Prüfe Copilot Studio, wenn du eine definierte Agentenanwendung entwickeln und über die gewählten Kanäle deiner Organisation verteilen willst. Bewerte die Einbindung in vorhandene Identitäts-, Datenzugriffs- und Verwaltungsstrukturen. Teste den Zielkanal selbst, statt eine Vorschau im Builder mit der späteren Nutzererfahrung gleichzusetzen.

@@ -14,6 +14,14 @@ Un assistant personnel peut aider une personne à tenir ses engagements et à r�
 
 Le [produit actuel de Vellum](https://www.vellum.ai/) se présente comme un assistant IA personnel. Il décrit mémoire persistante, tâches récurrentes, outils connectés et fonctionnement local ou cloud. Cette page compare cette offre actuelle, plutôt que l’ancien positionnement d’outil de création de workflows d’entreprise. L’assistance personnelle peut inclure du travail professionnel ; la distinction porte sur le modèle d’organisation.
 
+## Comparaison en bref
+
+| Critère | Tale | Vellum |
+| --- | --- | --- |
+| Point de départ | Un espace de projet partagé avec tâches, responsables et validation. | Un assistant IA personnel avec mémoire persistante et tâches récurrentes. |
+| Contexte de travail | Fichiers et conversations du projet accompagnent le travail à transmettre aux collègues. | Outils connectés et mémoire de l’assistant personnel ; un concept distinct du contexte de projet. |
+| Point à tester | Demander à un collègue de reprendre la mise à jour récurrente et de valider le prochain résultat. | Tester le fonctionnement de l’assistant local ou cloud et le contexte qu’il conserve. |
+
 ## Évalue la continuité et la responsabilité
 
 Envisage Vellum si tu cherches surtout un assistant qui suit tes préférences et réalise des tâches dans tes outils. Teste les permissions et les interfaces que tu utiliseras, notamment la manière de vérifier une tâche récurrente avant de t’y fier. Le fonctionnement local ou cloud mérite aussi une évaluation propre.

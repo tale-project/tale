@@ -10,6 +10,14 @@ draft: false
 
 Si ton équipe hésite entre Tale et Conductor, teste jusqu’où son travail dépasse un dépôt de code. Les deux produits organisent le travail partagé avec des agents. La collaboration et l’utilisation d’abonnements existants ne sont pas propres à Tale.
 
+## Comparaison en bref
+
+| Critère | Tale | Conductor |
+| --- | --- | --- |
+| Espace de travail | Projets partagés avec tâches attribuées, fichiers et vérification | Espaces de programmation cloud où les collègues échangent avec les agents |
+| Travaux couverts | Logiciels, recherche, documents et autres livrables collectifs | Développement logiciel assisté par agents autour des dépôts |
+| Configuration | Préparer fournisseurs, outils, autorisations et capacité sandbox | Sandboxes microVM isolées ; utilisation de ses abonnements et clés |
+
 ## Partir des livrables de l’équipe
 
 Conductor présente des agents de programmation dans le cloud, des espaces où plusieurs collègues donnent ensemble des consignes et des sandboxes isolés en microVM. Il propose aussi d’apporter ses abonnements et ses clés. C’est donc une option directe pour une équipe qui coordonne la livraison de logiciels avec des agents. [Présentation de Conductor](https://www.conductor.build/).

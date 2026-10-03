@@ -165,7 +165,7 @@ address:
   country: Suisse
 home:
   hero:
-    title: Un tableau de projet pour ton équipe et tes agents IA
+    title: Un espace de travail pour ton équipe et tes agents IA
     subtitle:
       Planifie le travail avec ton équipe, délègue les tâches aux agents IA et
       examine les résultats avec elle. Du développement logiciel aux campagnes
@@ -2428,6 +2428,7 @@ changelogPage:
   emptyBody: Pas de notes pour cette version.
   fetchedAt: Dernière mise à jour le {date}.
 contentPages:
+  tableScrollHint: Fais défiler horizontalement pour comparer
   breadcrumb: Chemin de la page
   reviewed: 'Vérifié le {date}'
   relatedTitle: Des tâches à essayer avec ton équipe

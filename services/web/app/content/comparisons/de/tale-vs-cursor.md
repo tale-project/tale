@@ -10,6 +10,14 @@ draft: false
 
 Cursor kommt infrage, wenn dein Team mit Agenten Software schreiben, testen und prüfen möchte. Tale lohnt sich für Teams, die Agentenarbeit über Software, Recherche, Marketing und Dokumente hinweg koordinieren wollen. Entscheidend ist, welche Arbeitsumgebung ihr braucht. Beide Produkte können sich ergänzen.
 
+## Vergleich auf einen Blick
+
+| Kriterium | Tale | Cursor |
+| --- | --- | --- |
+| Arbeitsoberfläche | Gemeinsame Projekte mit zugewiesenen Aufgaben, Dateien und Prüfung | Code-Editor, gemeinsame Teamabläufe und Cloud-Agenten |
+| Koordination | Getrennte Agentenaufgaben und Prüfer für Code, Recherche und Dokumente | Gemeinsame Läufe erfordern Repository-Zugriff; Folgeanweisungen kann ein Administrator aktivieren |
+| Ausführung | Cursor-CLI-Laufzeit mit direkten Zugangsdaten, ohne Tales MCP-Kanal; Folgeanweisungen in neuem Prozess | Cloud-Agenten nutzen isolierte Entwicklungsumgebungen und können parallel laufen |
+
 ## Unterscheide Produkt und Laufzeit
 
 [Cursor Teams](https://cursor.com/en-US/business/teams) verbindet den Code-Editor mit gemeinsamen Regeln, Skills und Arbeitsabläufen. Die [Cloud-Agenten](https://cursor.com/docs/cloud-agent) arbeiten in isolierten Entwicklungsumgebungen und können parallel laufen. Teammitglieder mit Repository-Zugriff können einen geteilten Lauf ansehen; ein Administrator kann weitere Nachrichten freigeben. Zusammenarbeit gehört bereits zu Cursors Angebot.

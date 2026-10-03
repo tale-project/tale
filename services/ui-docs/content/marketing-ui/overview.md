@@ -11,7 +11,7 @@ description: Build public-facing page sections with host-owned copy, routing, an
 
 The example combines `SectionHeading`, `MarketingButton`, `MarketingPanel`, and `MarketingCard`. The buttons demonstrate styling only. The cards have no `to` destination, so they are static content rather than links.
 
-Marketing surfaces use near-white paper in light mode and charcoal in dark mode, with fine dividers and restrained blue details inside product illustrations. Fluid Inter headings and rounded rectangular calls to action share one scale across the public sites. The application package supplies the underlying controls and utilities; use the marketing `surface-site` tokens for the surrounding page.
+Marketing surfaces use near-white paper in light mode and charcoal in dark mode, with fine dividers and distinct illustration palettes: mint projects, coral agents, violet chat, gold automations, and sky knowledge. Fluid Inter headings and rounded rectangular calls to action share one scale across the public sites. The application package supplies the underlying controls and utilities; use the marketing `surface-site` tokens for the surrounding page.
 
 Compose the page around the content: a split introduction can pair a large heading with a shorter description, while an asymmetric guide grid can give the starting point more space. Use `SiteContainer` to keep their edges aligned. Let columns stack on narrow screens, preserve readable controls, and simplify a decorative illustration before shrinking its text.
 
@@ -69,7 +69,7 @@ This plain-anchor adapter works without a client router and deliberately does no
 
 ## Present product windows as illustrations
 
-`DemoShell` places content inside the product window frame; `DemoStage` supplies the surrounding presentation. The window is one labelled illustration: `role="img"` with an accessible description, and an `aria-hidden`, `inert` payload. Its demo copy is excluded from search snippets with `data-nosnippet`.
+`DemoShell` places content inside the product window frame; `DemoStage` supplies the surrounding presentation. Its `domain` prop defaults to the depicted navigation and coordinates the illustration palette with the stage. Use an explicit override when the story differs from the navigation, such as an agent workspace inside chat or a governance approval inside Automations. The stage has no decorative accent line and stays still; the scene owns meaningful motion. The window is one labelled illustration: `role="img"` with an accessible description, and an `aria-hidden`, `inert` payload. Its demo copy is excluded from search snippets with `data-nosnippet`.
 
 That treatment lets a marketing page show real components without exposing a second application navigation or a misleading form to keyboard users. Supply a description of what the illustration demonstrates, and keep the explanation outside it complete. If the reader must interact, build an explicitly interactive example instead of placing required controls inside an inert frame.
 

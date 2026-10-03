@@ -10,6 +10,14 @@ draft: false
 
 Start by deciding whether the unit of adoption is one person's assistant or a shared project. AnythingLLM and Tale can both work with documents and agents, but your pilot should include the team handoff you expect to happen in practice.
 
+## Compare at a glance
+
+| Criterion | Tale | AnythingLLM |
+| --- | --- | --- |
+| Working surface | Shared projects with assigned tasks, files, and review | Document-aware assistant with desktop and multi-user server editions |
+| Shared context | Briefs, files, discussion, and outputs within the same project | Document knowledge, background jobs, and custom agent skills |
+| Adoption | Evaluate agent assignments and review across teammates | Include the server edition when evaluating shared access |
+
 ## Look beyond the desktop label
 
 AnythingLLM presents a desktop assistant with document knowledge, background jobs, and custom agent skills. It also offers a self-hosted multi-user server edition. A comparison that assumes AnythingLLM is exclusively a personal desktop tool would be incomplete. [Explore AnythingLLM](https://anythingllm.com/).

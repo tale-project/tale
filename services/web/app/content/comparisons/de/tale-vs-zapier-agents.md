@@ -10,6 +10,14 @@ draft: false
 
 Wenn ein Agent mehrere Geschäftsanwendungen nutzen soll, kann die passende Integration den Kauf bestimmen. Muss das Team außerdem ein umfangreiches Ergebnis planen, überarbeiten und abnehmen, zählt der Projektablauf genauso. Vergleiche Tale und Zapier Agents an beiden Anforderungen.
 
+## Vergleich auf einen Blick
+
+| Kriterium | Tale | Zapier Agents |
+| --- | --- | --- |
+| Arbeitsbereich | Gemeinsame Projektaufgaben, Diskussionen, Dateien und persistente Agentenarbeitsbereiche. | Agenten nutzen Unternehmenswissen über verbundene Anwendungen hinweg. |
+| Eingriffe im Team | Arbeit zuweisen, Ergebnisse prüfen und über die Projektaufgabe eine Überarbeitung anfordern. | Spezialisierte Agenten mit Aktivitätsübersicht und Eingriffen per Chat. |
+| Externe Änderungen | Schreibzugriffe über Konnektoren laufen in Automationen mit konfigurierten Freigaberegeln. | Aktionen in verbundenen Apps mit den vorgesehenen Zugangsdaten und Abläufen testen. |
+
 ## Verbundene Aktionen und gemeinsame Ergebnisse
 
 Zapier Agents verbindet Unternehmenswissen mit Agenten, die in angeschlossenen Anwendungen arbeiten. Die offizielle Seite beschreibt spezialisierte Agenten, Aktivitätsüberwachung und Eingriffe per Chat. Beispiele sind Gesprächsvorbereitung, Lead-Qualifizierung und recherchierte Inhalte. [Zapier Agents kennenlernen](https://zapier.com/agents).

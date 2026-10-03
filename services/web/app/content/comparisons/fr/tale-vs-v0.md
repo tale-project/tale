@@ -10,6 +10,14 @@ draft: false
 
 Améliorer un tableau de bord client exige de définir le changement, de le réaliser et de coordonner le travail associé. v0 et Tale couvrent des parties communes de ce parcours. Compare le développement de l’application avec la façon dont ton équipe souhaite attribuer les tâches et examiner les résultats.
 
+## Comparaison en bref
+
+| Critère | Tale | v0 |
+| --- | --- | --- |
+| Espace de travail | Tâches de projet pour code, recherche, documents et validation en équipe. | Applications full stack et agents par prompts, avec composants, tokens et conventions d’équipe. |
+| Collaboration | Responsabilités partagées par tâche, discussions et espaces persistants pour les agents. | Chats, projets et modèles partagés, avec contrôles de branches et de revue GitHub. |
+| Processus de mise en production | La publication nécessite hébergement, outils de mise en production et accès configurés. | Aperçus et déploiement en production via Vercel. |
+
 ## Compare développement et collaboration
 
 v0 crée des applications full-stack et des agents à partir de prompts. [Présentation](https://v0.app/docs). Son système de design utilise les composants, tokens et conventions de l’équipe. [Design Systems 2.0](https://v0.app/docs/design-systems-2). Les chats, projets et modèles partagés facilitent la collaboration. [Équipes](https://v0.app/docs/teams). Les aperçus et la production sont hébergés sur Vercel. Avec GitHub, la publication suit les règles configurées pour les branches et les vérifications. [Déploiements](https://v0.app/docs/deployments).

@@ -51,6 +51,13 @@ Read each language naturally using Tale's `you` / `du` / `tu` voice. Preserve fa
 source links, and equivalent outcomes. Bodies use ordinary Markdown so the design agent can
 compose prose, comparison tables, and calls to action with the existing primitives.
 
+Every competitor article includes one three-column GFM comparison table after its introduction:
+localized criterion, Tale, and the competitor's name. Include at least three substantive rows
+grounded in the article's linked sources, preserve qualifications and genuine overlaps, and keep
+the dimensions equivalent across locales. The hub remains an index rather than a comparison.
+The shared Markdown renderer supplies column headers, a localized caption and a keyboard-accessible
+horizontal scroll region, keeping the columns readable on narrow screens without widening the page.
+
 ## Integration handoff
 
 - Lead each page with the real decision, then give Tale's relevant project-work example.

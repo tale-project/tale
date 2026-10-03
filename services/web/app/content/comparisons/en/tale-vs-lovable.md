@@ -10,6 +10,14 @@ draft: false
 
 An operations team planning a request portal needs a working application and a way to organize the people and work around it. Lovable and Tale can support parts of that effort. The decision is where your team wants to build, coordinate, and maintain the result.
 
+## Compare at a glance
+
+| Criterion | Tale | Lovable |
+| --- | --- | --- |
+| Work surface | Shared tasks for software, research, documents and other project outputs. | Natural-language creation of full-stack apps, documents and generated files. |
+| Collaboration | Assigned tasks, discussions and deliverable review in a shared project. | Shared projects, workspace roles and separate drafts accepted into the project. |
+| Publishing | Deployment needs suitable tooling, hosting and authorized access. | Managed HTTPS publishing; access options depend on the plan. |
+
 ## Compare the work each workspace centers on
 
 Lovable builds applications from natural-language instructions, including frontend, backend, authentication, and editable code. Its scope also includes documents, presentations, and other generated files. See the [Lovable overview](https://docs.lovable.dev/introduction/welcome).

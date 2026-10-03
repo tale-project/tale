@@ -14,6 +14,14 @@ For a company already working in Google Workspace, the first AI purchase may be 
 
 [Google Workspace with Gemini](https://workspace.google.com/solutions/ai/) places AI in applications including Gmail, Docs, Sheets, and Meet. Its current offering also describes Workspace Studio for creating workflows across Workspace apps. The suite is therefore relevant to both everyday assistance and automation, not just document drafting.
 
+## Compare at a glance
+
+| Criterion | Tale | Google Workspace with Gemini |
+| --- | --- | --- |
+| Working surface | Shared projects with assigned tasks, files, and review | AI within Gmail, Docs, Sheets, and Meet |
+| Coordination | People and configured agents share tasks, files, and conversations | Collaboration within the productivity apps and edition your team uses |
+| Workflows | Project structure for delegation, review, and follow-up tasks | Workspace Studio creates workflows across Workspace apps |
+
 ## Evaluate where colleagues already work
 
 Consider Google Workspace with Gemini when most of the work should happen inside your existing productivity suite. Test the applications and edition your team actually uses, including access to source files and the way colleagues edit or challenge generated material. Include automation requirements rather than assuming they require another product.

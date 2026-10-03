@@ -10,6 +10,14 @@ draft: false
 
 La planification et la vérification comptent dans Tale comme dans Vibe Kanban. Le choix dépend des livrables que ton équipe gère et du modèle de maintenance qu’elle peut prendre en charge. Clarifie ces points avant de comparer l’apparence des tableaux.
 
+## Comparaison en bref
+
+| Critère | Tale | Vibe Kanban |
+| --- | --- | --- |
+| Orientation du travail | Tâches de projet couvrant code, recherche, documents et autres livrables d’équipe. | Organisation du travail des agents de code, exécution parallèle et revue de code. |
+| Validation | La personne ou l’agent chargé de la validation examine rapports et fichiers, puis accepte le résultat ou demande des modifications. | Évaluer le fonctionnement du dépôt et le retour du code pour validation. |
+| Choix de maintenance | Vérifier runtime, accès et responsabilités d’exploitation du déploiement. | Le site officiel annonce l’arrêt progressif du projet sous sa forme actuelle et une transition vers une maintenance communautaire open source. |
+
 ## Tenir compte du statut actuel
 
 Le site de Vibe Kanban annonce l’arrêt progressif du projet sous sa forme actuelle, avec une poursuite en open source maintenue par la communauté. Relis l’annonce avant une adoption ou une migration. Ce changement de maintenance ne signifie pas que le logiciel cesse de fonctionner. [Site de Vibe Kanban](https://www.vibekanban.com/).

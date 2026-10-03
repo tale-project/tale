@@ -10,6 +10,14 @@ draft: false
 
 Wenn Agenten ein Softwareprodukt fortlaufend verbessern sollen, ist Autensa eine relevante Alternative. Gehören auch Recherche, Marketing, Dokumente und Aufgaben für Menschen dazu, prüfe, wie beide Produkte dieses umfassendere Projekt abbilden und Ergebnisse prüfen lassen.
 
+## Vergleich auf einen Blick
+
+| Kriterium | Tale | Autensa |
+| --- | --- | --- |
+| Arbeitsumfang | Software, Recherche, Dokumente und weitere Teamergebnisse | Produktverbesserung von Recherche und Ideen bis zu Tests und Pull Requests |
+| Koordination | Menschen oder Agenten übernehmen Aufgaben; Prüfung folgt der Aufgabenkonfiguration | Parallele Arbeit unter Berücksichtigung von Abhängigkeiten im Verbesserungsprozess |
+| Ausführung | Konfigurierte Projektagenten; Manager-Delegation mit konfigurierten Grenzen | Nutzt ein separates OpenClaw Gateway zur Ausführung |
+
 ## Den Mittelpunkt des Ablaufs wählen
 
 Autensa wird im Repository crshdn/mission-control veröffentlicht. Es beschreibt einen Produktverbesserungsprozess von Recherche und Ideen über Umsetzung und Tests bis zum Pull Request. Dokumentiert sind parallele Arbeit mit Abhängigkeiten und die Ausführung über ein separates OpenClaw Gateway. Es ist ein anderes Projekt als Mission Control von Builderz Labs. [Autensa-Repository](https://github.com/crshdn/mission-control).

@@ -10,6 +10,14 @@ draft: false
 
 Eine Buchungs-App ist nur ein Teil eines neuen Angebots. Jemand muss auch Anforderungen klären, Kundentexte vorbereiten und Folgeaufgaben übernehmen. Vergleiche Bolt.new und Tale anhand dieser gesamten Verantwortung und bewerte die eigentliche App-Entwicklung zusätzlich für sich.
 
+## Vergleich auf einen Blick
+
+| Kriterium | Tale | Bolt.new |
+| --- | --- | --- |
+| Arbeitsoberfläche | Gemeinsame Projekte mit zugewiesenen Aufgaben, Dateien und Prüfung | Websites und Anwendungen aus natürlichsprachlichen Aufträgen erstellen |
+| Koordination | Manager-Delegation und parallele Aufgaben innerhalb der konfigurierten Kapazität | Multiplayer-Modus verlangt öffentliche Projekte und reiht Prompts zur Konfliktvermeidung ein |
+| Ergebnis | Sandbox-Ergebnisse brauchen einen passenden Prüf- und Veröffentlichungsprozess | Bolt Cloud umfasst Hosting, Datenbanken, Authentifizierung und Domainverwaltung |
+
 ## Entwicklung und Koordination vergleichen
 
 Bolt erstellt Websites und Anwendungen aus natürlichsprachlichen Anfragen. Als Ausgangspunkt lassen sich unter anderem Figma und GitHub nutzen. [Produktübersicht von Bolt](https://bolt.new/). Bolt Cloud integriert Hosting, Datenbanken, Anmeldung und Domainverwaltung. [Bolt Cloud](https://support.bolt.new/cloud/bolt-cloud).

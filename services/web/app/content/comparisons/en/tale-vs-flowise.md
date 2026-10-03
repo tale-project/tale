@@ -10,6 +10,14 @@ draft: false
 
 For an existing Flowise user, this is now a continuity and migration decision. Before comparing interfaces, inventory what your deployment actually does and decide which parts are applications you must preserve and which are team work you could organize differently.
 
+## Compare at a glance
+
+| Criterion | Tale | Flowise |
+| --- | --- | --- |
+| Working surface | Shared projects with assigned tasks, files, and review | Existing visual agent and retrieval flows exposed through APIs or embedded chat |
+| Migration scope | Versioned automations; not a drop-in executor for Flowise graphs | Inventory inputs, tools, human review steps, and output contracts before migration |
+| Continuity | Evaluate a shared workspace for the underlying team outcome | Official end of life on 31 August 2026; verify forks and services separately |
+
 ## Account for Flowise's announced end of life
 
 Flowise's official notice lists a feature freeze on 29 July 2026, repository archival on 10 August, and end of life on 31 August. It says the core team's official presence ends. Confirm the status of any fork or service separately. [Read the sunset notice](https://flowiseai.com/sunset).

@@ -165,7 +165,7 @@ address:
   country: Switzerland
 home:
   hero:
-    title: One project board for your team and AI agents
+    title: One workspace for your team and AI agents
     subtitle: Plan work with your teammates, delegate tasks to AI agents, and review
       the results together. From software delivery to marketing campaigns,
       Tale keeps your agent fleet, discussions, and deliverables in one shared
@@ -2317,6 +2317,7 @@ changelogPage:
   emptyBody: No release notes for this version.
   fetchedAt: Last updated {date}.
 contentPages:
+  tableScrollHint: Scroll sideways to compare
   breadcrumb: Page path
   reviewed: 'Reviewed {date}'
   relatedTitle: Work you can try with your team

@@ -10,6 +10,14 @@ draft: false
 
 Tale and OpenClaw are not always alternatives. Tale lists OpenClaw among its supported agent runtimes. The useful question is whether your team needs the assistant's own interaction model, a shared project layer around its work, or a combination.
 
+## Compare at a glance
+
+| Criterion | Tale | OpenClaw |
+| --- | --- | --- |
+| Product layer | A shared project workspace that supports OpenClaw as an agent runtime. | An assistant runtime accessed through messaging channels and its own environment. |
+| Team interaction | Task assignment, agent configuration and review of reports and deliverables. | Documented shared gateway sessions that teammates can open and steer. |
+| Compatibility boundary | Supported harness behavior; validate tools, credentials and sandbox behavior. | Direct use retains its own channels and memory model; these are not automatically imported into Tale. |
+
 ## Compare different layers
 
 OpenClaw presents an assistant accessed through messaging channels, with browser, file and shell actions. Its current documentation also describes shared gateway sessions that teammates can open and steer. Calling it a strictly personal or non-collaborative assistant would miss that scope. See the [OpenClaw website](https://openclaw.ai/), [multi-user mode](https://docs.openclaw.ai/concepts/multi-user) and [shared chat documentation](https://docs.openclaw.ai/web/control-ui/chat).

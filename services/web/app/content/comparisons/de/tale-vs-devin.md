@@ -10,6 +10,14 @@ draft: false
 
 Wenn eure Entwicklungsaufgaben bereits in einem Ticketsystem liegen, kannst du mit Devin die Umsetzung innerhalb dieses Ablaufs delegieren. Tale bietet einen gemeinsamen Projektraum, um unterschiedliche Unternehmensaufgaben an Agenten zu vergeben und ihre Ergebnisse zu prüfen. Beide setzen auf Delegation. Vergleiche, wo dein Team Arbeit beschreiben, eingreifen und Ergebnisse abnehmen möchte.
 
+## Vergleich auf einen Blick
+
+| Kriterium | Tale | Devin |
+| --- | --- | --- |
+| Arbeitsoberfläche | Gemeinsame Projekte mit zugewiesenen Aufgaben, Dateien und Prüfung | Entwicklungsarbeit mit Anbindung an bestehende Tracker wie Linear |
+| Arbeitsumfang | Software, Recherche, Dokumente und weitere Teamergebnisse | Fehlerbehebungen, Tests, Migrationen und interne Tools mit parallelen Sitzungen |
+| Zugangsdaten | Kompatible Zugangsdaten über dokumentierte Laufzeiten; gewählte Einrichtung prüfen | Geeignete ChatGPT-Tarife für unterstützte GPT-Nutzung, mit Konto- und Modellbeschränkungen |
+
 ## Beginne bei den Aufgaben, die du delegierst
 
 [Devins Dokumentation](https://docs.devin.ai/get-started/devin-intro) beschreibt Softwareaufgaben wie Fehlerbehebungen, Tests, Migrationen und interne Werkzeuge sowie parallele Sitzungen. Die [Linear-Integration](https://docs.devin.ai/integrations/linear) startet Sitzungen über Zuweisungen, Playbook-Labels oder @Erwähnungen. Das ist ein Teamablauf mit Anschluss an die vorhandene Aufgabenliste, kein bloß separater Code-Chat.

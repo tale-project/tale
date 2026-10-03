@@ -10,6 +10,14 @@ draft: false
 
 A team choosing between Tale and Conductor should test how far its work extends beyond a repository. Both address shared agent work; multiplayer access and existing subscriptions are not exclusive reasons to choose Tale.
 
+## Compare at a glance
+
+| Criterion | Tale | Conductor |
+| --- | --- | --- |
+| Working surface | Shared projects with assigned tasks, files, and review | Shared cloud coding workspaces where teammates prompt together |
+| Scope of work | Software, research, documents, and other team deliverables | Agent-assisted software delivery centered on repositories |
+| Setup choices | Prepare providers, tools, permissions, and sandbox capacity | Isolated microVM sandboxes; bring-your-own subscriptions and keys |
+
 ## Start with your team's deliverables
 
 Conductor presents cloud coding agents, shared workspaces where teammates prompt together, and isolated microVM sandboxes. It also advertises bringing your own subscriptions and keys. These capabilities make it a direct option for teams coordinating agent-assisted software delivery. [Conductor product overview](https://www.conductor.build/).

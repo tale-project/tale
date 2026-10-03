@@ -10,6 +10,14 @@ draft: false
 
 Der Name AutoGPT steht heute für eine Agentenplattform, nicht nur für das frühe Experiment mit autonomen Agenten. Beginne den Vergleich mit Tale bei der Arbeit, die wiederholbar werden soll, und der Arbeit, die dein Team als Projekt koordinieren muss.
 
+## Vergleich auf einen Blick
+
+| Kriterium | Tale | AutoGPT |
+| --- | --- | --- |
+| Arbeitsoberfläche | Gemeinsame Projekte mit zugewiesenen Aufgaben, Dateien und Prüfung | Agentenplattform mit AutoPilot, Builder und Marktplatz |
+| Wiederkehrende Arbeit | Projektaufgaben neben separat konfigurierten, versionierten Automatisierungen | Agenten laufen auf Abruf, nach Zeitplan oder durch Auslöser |
+| Einführung | Verantwortliche, Agenten und Prüfentscheidungen im Projekt koordinieren | Wiederverwendbare Agenten bauen oder übernehmen; verwalteter Betrieb und Eigenbetrieb sind dokumentiert |
+
 ## Wiederverwendbare Agenten und gemeinsame Projekte
 
 AutoGPT beschreibt im Repository eine Plattform mit AutoPilot, Agenten, Marketplace und Builder. Agenten laufen auf Abruf, nach Zeitplan oder über Auslöser. Dokumentiert sind betreuter Betrieb und Selbsthosting. Die Beispiele umfassen Vertrieb, Marketing, Recherche, Support und Entwicklung. [AutoGPT-Repository](https://github.com/Significant-Gravitas/AutoGPT).

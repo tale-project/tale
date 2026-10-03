@@ -14,6 +14,14 @@ Pour une équipe qui évalue ChatGPT Business ou Enterprise, la question est de 
 
 La [documentation de ChatGPT Work](https://learn.chatgpt.com/docs/enterprise/chatgpt-work-overview) décrit des tâches en plusieurs étapes utilisant fichiers, applications et outils autorisés, avec exécution locale ou cloud selon la configuration. Disponibilité et contrôles dépendent du forfait, des réglages et du déploiement. L’alternative dépasse donc une fenêtre de chat ; teste les capacités réellement activées dans ton organisation.
 
+## Comparaison en bref
+
+| Critère | Tale | ChatGPT Business and Enterprise |
+| --- | --- | --- |
+| Espace de travail | Projets partagés avec tâches attribuées, fichiers et vérification | Environnement ChatGPT avec fichiers, applications et outils autorisés |
+| Exécution | Agents de projet avec environnements, outils et autorisations configurés | Travail en plusieurs étapes, en local ou dans le cloud selon la configuration |
+| Configuration | Auto-hébergement ou exploitation gérée avec choix d’environnements pris en charge | Capacités selon le forfait, les réglages de l’espace et le déploiement |
+
 ## Compare le fonctionnement, pas seulement les réponses
 
 Envisage ChatGPT si ton organisation souhaite travailler dans son environnement et avec ses outils pris en charge. Teste le partage, les permissions et les tâches de ton forfait avec un véritable processus collectif. Une démonstration d’un autre espace ne représente pas forcément tes réglages.

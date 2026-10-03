@@ -10,6 +10,14 @@ draft: false
 
 L’interface utilisée pour diriger les agents influence la manière dont tu suis leur progression et prends des décisions. Claw Empire et Tale coordonnent tous deux ce travail, avec des modèles d’organisation différents. Teste celui qui reste compréhensible lorsqu’un collègue prend le relais.
 
+## Comparaison en bref
+
+| Critère | Tale | Claw Empire |
+| --- | --- | --- |
+| Espace de travail | Projets partagés avec tâches attribuées, fichiers et vérification | Entreprise virtuelle avec départements, réunions d’agents et bureau en pixel art |
+| Travaux couverts | Logiciels, recherche, documents et autres livrables collectifs | Packs documentés pour développement, rapports et recherche web |
+| Configuration | Agents de projet avec environnements, outils et autorisations configurés | Connexion des agents par CLI, OAuth ou API |
+
 ## Entreprise virtuelle et projet partagé
 
 Claw Empire présente une entreprise virtuelle avec bureau en pixel art, départements, réunions d’agents et cycle de tâches. Les ensembles de workflows documentés couvrent développement, rapports et recherche web : le limiter au code serait trompeur. Les agents se connectent par CLI, OAuth ou API. [Dépôt Claw Empire](https://github.com/GreenSheep01201/claw-empire).

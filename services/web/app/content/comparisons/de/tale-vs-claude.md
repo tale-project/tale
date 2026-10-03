@@ -14,6 +14,14 @@ Claude Enterprise ist eine relevante Alternative, wenn ein Unternehmen KI für R
 
 [Claude Enterprise](https://claude.com/solutions/enterprise) umfasst Chat, Claude Code und Cowork. Anthropic beschreibt Cowork für delegierte Arbeit und dokumentiert Verbindungen zu Unternehmenstools sowie Organisationskontrollen. Prüfe diesen aktuellen Umfang, statt das Angebot auf Gesprächsunterstützung zu reduzieren.
 
+## Vergleich auf einen Blick
+
+| Kriterium | Tale | Claude Enterprise |
+| --- | --- | --- |
+| Arbeitsoberfläche | Gemeinsame Projekte mit zugewiesenen Aufgaben, Dateien und Prüfung | Claude Enterprise verbindet Chat, Claude Code und Cowork |
+| Koordination | Ausführungsergebnisse und Prüfung gehören zu zugewiesenen Projektaufgaben | Cowork bearbeitet delegierte Arbeit mit Konnektoren zu Unternehmenswerkzeugen |
+| Einrichtung | Eigenbetrieb oder verwalteter Betrieb mit unterstützten Laufzeiten | Verknüpfte Arbeitsumgebungen mit Organisationskontrollen |
+
 ## Entscheide, wo Verantwortung sichtbar wird
 
 Prüfe Claude Enterprise, wenn dein Unternehmen Claudes Arbeitsumgebungen mit den verbundenen Tools und administrativen Einstellungen nutzen möchte. Teste die für dein Team relevanten Funktionen und die Zugriffsregeln, die du tatsächlich aktivieren wirst. Für Code und Dokumente können unterschiedliche Testfälle erforderlich sein.

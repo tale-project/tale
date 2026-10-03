@@ -10,6 +10,14 @@ draft: false
 
 Un espace IA partagé peut servir à construire des systèmes d’agents ou à organiser le travail que ces agents réalisent avec des collègues. Sim et Tale couvrent plusieurs aspects de cet ensemble. Compare l’activité quotidienne attendue de la majorité des participants.
 
+## Comparaison en bref
+
+| Critère | Tale | Sim |
+| --- | --- | --- |
+| Espace de travail | Un tableau de projet pour les tâches attribuées, les consignes aux agents et la validation. | Un espace IA pour créer des agents visuellement, par conversation ou avec du code. |
+| Contexte partagé | Briefs, discussions et fichiers de travail du projet accompagnent les agents attribués. | Connaissances, fichiers, tables structurées, journaux et contrôles centralisés. |
+| Travail reproductible | Des automatisations versionnées gèrent les étapes récurrentes aux côtés des tâches attribuées. | Agents et workflows réutilisables, avec une option de déploiement dans ton propre cloud. |
+
 ## Construire un système et coordonner son travail
 
 Sim présente un espace IA pour créer des agents visuellement, par conversation ou avec du code. Son produit documenté comprend workflows, connaissances, fichiers, tables structurées, journaux et contrôles centraux, avec une exploitation dans votre propre cloud. Contexte partagé et gouvernance ne sont donc pas exclusifs à Tale. [Présentation de Sim](https://www.sim.ai/).

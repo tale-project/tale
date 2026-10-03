@@ -10,6 +10,14 @@ draft: false
 
 Taskade und Tale verbinden beide Projekte mit Agentenarbeit. Es ist ein direkter Vergleich, kein Gegensatz zwischen Projektwerkzeug und KI-Werkzeug. Entscheidend ist, wie dein Team Agenten einrichten und an ihrer Arbeit mitwirken möchte.
 
+## Vergleich auf einen Blick
+
+| Kriterium | Tale | Taskade |
+| --- | --- | --- |
+| Arbeitsbereich | Gemeinsame Projekte mit zugewiesenen Aufgaben, Diskussionen und geprüften Ergebnissen. | Projekte mit eigenen Agenten, Wissen, Tools und Projektaktionen. |
+| Agentenkoordination | Ausgestattete Manager-Agenten delegieren bereite Aufgaben innerhalb konfigurierter Projektgrenzen. | Spezialisierte Agententeams mit gemeinsamem Workspace-Kontext und Ausführungskoordination. |
+| Runtime und Einführung | Konfigurierbare Runtimes, persistente Sandboxes und eine MIT-lizenzierte Bereitstellungsoption; Abonnements sind Runtime-spezifisch. | Projekt- und Agenteneinrichtung anhand deines benötigten Teamablaufs bewerten. |
+
 ## Zwei Ansätze für Agententeams vergleichen
 
 Taskade dokumentiert eigene Agenten mit Wissen und Werkzeugen, Projektaktionen und teilbare Agentenanwendungen. Der Leitfaden zu mehreren Agenten beschreibt spezialisierte Teams, gemeinsamen Projektkontext und verschiedene Arten der Ausführungskoordination. Agentenzusammenarbeit gehört bereits zum Kern des Produkts. Siehe [eigene Agenten](https://www.taskade.com/learn/agents/custom-agents) und [Agententeams](https://www.taskade.com/learn/agents/multi-agents).

@@ -14,6 +14,14 @@ Un canevas visuel aide à exprimer le fonctionnement d’une application IA. Un 
 
 [Langflow](https://www.langflow.org/) propose des flux visuels, des composants réutilisables, la personnalisation en Python et des outils pour agents. Il décrit aussi l’exposition par API et le déploiement autonome ou cloud. C’est une option de développement d’applications à part entière ; le présenter comme une simple démonstration de chat serait réducteur.
 
+## Comparaison en bref
+
+| Critère | Tale | Langflow |
+| --- | --- | --- |
+| Livrables | Un espace existant pour le travail de projet attribué et vérifié | Créer des applications IA avec des processus visuels et composants réutilisables |
+| Mode de contrôle | Contexte de projet, attribution des tâches, exécution d’agents et vérification | Personnalisation Python et outils d’agents dans l’outil de création |
+| Adoption | Configurer le processus collectif dans l’application de projet existante | Mise à disposition par API, avec déploiement autogéré ou cloud |
+
 ## Décide ce qui doit être déjà disponible
 
 Envisage Langflow si tu veux composer un flux de recherche documentaire ou d’agents, examiner ses composants et le proposer dans une application. Inclus l’entretien des composants personnalisés et l’accès des futurs utilisateurs au service terminé.

@@ -10,6 +10,14 @@ draft: false
 
 Si ton besoin principal est un agent capable d’utiliser un ordinateur, Agent Zero mérite un essai. Si plusieurs personnes doivent planifier, déléguer et vérifier ce travail ensemble, teste aussi le processus de projet qui l’entoure. L’accès à un ordinateur ne suffit pas à trancher.
 
+## Comparaison en bref
+
+| Critère | Tale | Agent Zero |
+| --- | --- | --- |
+| Espace de travail | Projets partagés avec tâches attribuées, fichiers et vérification | Environnement d’agent avec projets, skills et accès à un ordinateur |
+| Exécution | Agents de projet avec environnements, outils et autorisations configurés | Bureau Linux sous Docker, navigateur et connexion à la machine hôte |
+| Coordination | Tableau d’équipe ; délégation selon les autorisations et la capacité | Délégation à des sous-agents documentée |
+
 ## Souplesse d’exécution et coordination
 
 Le dépôt d’Agent Zero décrit un bureau Linux sous Docker, l’usage du navigateur, le travail documentaire, les projets, les skills et une connexion à la machine hôte. Il permet aussi de déléguer à des sous-agents. Ses usages documentés couvrent recherche, code et livrables bureautiques : il ne se limite pas à un framework de programmation. [Dépôt Agent Zero](https://github.com/agent0ai/agent-zero).

@@ -14,6 +14,14 @@ An agent that turns a brief into a useful artifact can remove a substantial piec
 
 [Manus](https://manus.im/) highlights creating slides, websites, games, video, and design work. Its official site also lists research, browser operation, a Slack integration, an API, and a team offering. It is a relevant delegated-work alternative; this comparison does not assume its scope stops at individual use.
 
+## Compare at a glance
+
+| Criterion | Tale | Manus |
+| --- | --- | --- |
+| Documented scope | Project tasks for research, documents and software with configured agents. | Research and browser work alongside slides, websites, games, video and design. |
+| Team work | Task ownership, discussions, shared files and deliverable review. | A team offering with Slack and API entry points. |
+| Outputs to validate | Confirm the tools and formats needed for each requested deliverable. | Try the required creation workflow and assess its returned artifacts. |
+
 ## Define the part of the job you are buying
 
 Consider Manus when your main requirement is giving an agent a brief and working with the artifact it produces. Test the output types you actually need and how your colleagues can inspect, revise, and reuse them. Include the team configuration relevant to your organization in that evaluation.

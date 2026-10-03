@@ -163,7 +163,7 @@ address:
   country: Schweiz
 home:
   hero:
-    title: Ein Projektboard für dein Team und KI-Agenten
+    title: Ein Arbeitsbereich für dein Team und KI-Agenten
     subtitle:
       "Plane die Arbeit mit deinem Team, delegiere Aufgaben an KI-Agenten und
       prüfe die Ergebnisse gemeinsam. Von Softwareprojekten bis zu
@@ -2389,6 +2389,7 @@ changelogPage:
   emptyBody: Keine Release Notes für diese Version.
   fetchedAt: Zuletzt aktualisiert am {date}.
 contentPages:
+  tableScrollHint: Zum Vergleichen seitlich scrollen
   breadcrumb: Seitenpfad
   reviewed: 'Geprüft am {date}'
   relatedTitle: Aufgaben für dein Team

@@ -14,6 +14,14 @@ Dokumentenarbeit umfasst mehrere Probleme: Informationen extrahieren, sie Agente
 
 [LlamaIndex](https://www.llamaindex.ai/) betont aktuell Dokumentenverarbeitung mit KI, darunter LlamaParse, strukturierte Extraktion, Retrieval und Werkzeuge für Dokumentenagenten. Das Angebot reicht von Entwicklerinfrastruktur bis zu verwalteten Produkten. Dieser Vergleich betrachtet es als Grundlage für Dokumentensysteme und setzt das gesamte Angebot nicht mit einem einzelnen Framework-Paket gleich.
 
+## Vergleich auf einen Blick
+
+| Kriterium | Tale | LlamaIndex |
+| --- | --- | --- |
+| Ausgangspunkt | Ein Projektarbeitsbereich für zugewiesene Agentenarbeit und geprüfte Ergebnisse. | Dokumentenverarbeitung, Retrieval und Tools für Dokumentenagenten. |
+| Dokumentenarbeit | Agenten analysieren Dateien und erstellen Projektergebnisse mit konfigurierten Tools. | LlamaParse, strukturierte Extraktion und Retrieval sind zentrale Funktionen. |
+| Zu prüfende Einrichtung | Benötigte Runtime, Dokumententools und Prüfprozess abklären. | Passende Entwickler-Infrastruktur oder verwaltetes Produkt auswählen. |
+
 ## Vergleiche das vollständige Ergebnis
 
 Prüfe LlamaIndex, wenn Parsing, Extraktion oder Retrieval das technische Problem ist, das du lösen musst. Teste die tatsächlich eingehenden Dateiformate und lege fest, wie Nutzer unsichere Ergebnisse prüfen können. Bewerte das jeweilige verwaltete Produkt getrennt von Framework-Code, den du selbst betreiben willst.

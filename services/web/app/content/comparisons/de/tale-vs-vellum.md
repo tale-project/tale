@@ -14,6 +14,14 @@ Ein leistungsfähiger persönlicher Assistent kann einer Person helfen, Verpflic
 
 [Vellums aktuelles Produkt](https://www.vellum.ai/) wird als persönlicher KI-Assistent positioniert. Es beschreibt dauerhaftes Gedächtnis, wiederkehrende Aufgaben, verbundene Tools sowie lokalen oder Cloud-Betrieb. Diese Seite vergleicht das aktuelle Angebot und übernimmt nicht die ältere Positionierung als Enterprise-Workflow-Builder. Persönliche Assistenz kann Geschäftsarbeit einschließen; der Unterschied liegt im Organisationsmodell.
 
+## Vergleich auf einen Blick
+
+| Kriterium | Tale | Vellum |
+| --- | --- | --- |
+| Ausgangspunkt | Ein gemeinsamer Projektarbeitsbereich mit Aufgaben, Verantwortlichen und Prüfung. | Ein persönlicher KI-Assistent mit dauerhaftem Gedächtnis und wiederkehrenden Aufgaben. |
+| Arbeitskontext | Projektdateien und Gespräche unterstützen Arbeit, die Teammitglieder übergeben können. | Angebundene Tools und persönliches Assistentengedächtnis; ein anderer Begriff als Projektkontext. |
+| Fokus des Tests | Eine Kollegin oder einen Kollegen das regelmäßige Update übernehmen und das nächste Ergebnis prüfen lassen. | Den lokalen oder Cloud-Assistentenablauf und den erhaltenen Kontext testen. |
+
 ## Prüfe Kontinuität und Zuständigkeit
 
 Prüfe Vellum, wenn du vor allem einen Assistenten willst, der deine Vorlieben berücksichtigt und Aufgaben über deine Tools hinweg erledigt. Teste die tatsächlichen Berechtigungen und die Oberflächen, die du nutzen wirst. Prüfe dabei, wie du eine wiederkehrende Aufgabe kontrollierst, bevor du dich darauf verlässt. Lokaler und Cloud-Betrieb verdienen ebenfalls eine eigene Bewertung.

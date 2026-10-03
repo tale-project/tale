@@ -10,6 +10,14 @@ draft: false
 
 Un accès commun aux modèles et un espace commun pour organiser le travail des agents répondent à deux aspects de l'adoption de l'IA. Compare Tale et Open WebUI sur le travail que ton équipe doit reprendre une fois la conversation terminée.
 
+## Comparaison en bref
+
+| Critère | Tale | Open WebUI |
+| --- | --- | --- |
+| Point de départ | Tâches de projet avec attribution aux agents, discussions et validation des livrables. | Une plateforme IA auto-hébergée reliant modèles locaux et cloud. |
+| Exécution | Des agents configurés travaillent sur les fichiers dans des espaces persistants. | Recherche, outils, extensions Python, approbations d’appels d’outils et gestion de fichiers dans le terminal. |
+| Ce qu’il faut exploiter | Un processus de projet avec runtimes, outils et capacité d’exécution préparés. | Une interface commune pour les modèles, avec extensions et contrôles d’accès choisis. |
+
 ## Partir des modèles ou de la coordination
 
 Open WebUI est une plateforme IA auto-hébergée reliant modèles locaux et cloud. Son site décrit la recherche documentaire, les outils, les extensions Python et les contrôles d'accès d'entreprise. Des versions récentes ajoutent aussi l'approbation des appels d'outils et la gestion de fichiers dans le terminal. Voir [Open WebUI](https://openwebui.com/) et sa [documentation d'exécution](https://docs.openwebui.com/).

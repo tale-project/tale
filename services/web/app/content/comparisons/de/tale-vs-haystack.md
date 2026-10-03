@@ -14,6 +14,14 @@ Ein Dokumentenprojekt kann scheitern, weil das System falsche Belege findet oder
 
 [Haystack](https://haystack.deepset.ai/) ist ein Open-Source-Framework für Agenten und Anwendungen mit kombinierbaren Retrieval- und Verarbeitungspipelines. Zum Ökosystem gehören auch Enterprise-Support und eine Orchestrierungsplattform mit visuellem Pipeline-Design und Bereitstellungsoptionen. Dieser Vergleich konzentriert sich auf die Framework-Entscheidung und berücksichtigt, dass das weitere Angebot auch Produktwerkzeuge umfasst.
 
+## Vergleich auf einen Blick
+
+| Kriterium | Tale | Haystack |
+| --- | --- | --- |
+| Arbeitsoberfläche | Gemeinsame Projekte mit zugewiesenen Aufgaben, Dateien und Prüfung | Open-Source-Framework für Agenten sowie Retrieval- und Verarbeitungspipelines |
+| Steuerung | Belege, Zuständigkeiten und Prüfung im Projekt organisieren | Retrieval-Strategie, Dokumentenverarbeitung und eigene Agentenlogik entwickeln |
+| Einführung | Bestehenden Arbeitsbereich konfigurieren; Quellenqualität und Tools weiterhin prüfen | Weiteres Ökosystem mit Enterprise-Support und visuellen Pipeline-Werkzeugen |
+
 ## Trenne Entwicklungsumfang und Teamarbeit
 
 Prüfe Haystack, wenn Retrieval-Strategie, Dokumentenverarbeitung und eigene Agentenlogik zentrale Anforderungen sind, die deine Entwickler kontrollieren müssen. Bewerte die vollständige Anwendung, die du bauen würdest. Dazu gehört, wie Fachleute Belege prüfen und Ergebnisse korrigieren. Die Anforderungen an die Enterprise-Plattform solltest du gesondert prüfen, statt sie aus dem Framework abzuleiten.

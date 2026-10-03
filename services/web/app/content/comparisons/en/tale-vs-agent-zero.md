@@ -10,6 +10,14 @@ draft: false
 
 If your main requirement is an agent that can use a computer, Agent Zero deserves an evaluation. If several people must plan, delegate and review that work together, also test the surrounding project workflow. Computer access alone does not settle the choice.
 
+## Compare at a glance
+
+| Criterion | Tale | Agent Zero |
+| --- | --- | --- |
+| Working surface | Shared projects with assigned tasks, files, and review | Agent environment with projects, skills, and computer access |
+| Execution | Project agents use configured runtimes, tools, and permissions | Dockerized Linux desktop, browser interaction, and a host-machine bridge |
+| Coordination | Team board; delegation depends on permissions and capacity | Delegation to subagents is documented |
+
 ## Execution flexibility and team coordination
 
 Agent Zero's repository describes a Dockerized Linux desktop, browser interaction, document work, projects, skills and a host-machine bridge. It also supports delegation to subagents. Its documented scope includes research, coding and office deliverables, so it is not merely a coding framework. [Agent Zero repository](https://github.com/agent0ai/agent-zero).

@@ -1,8 +1,89 @@
 import { cn } from '@tale/ui/cn';
 import { AnchoredHeading } from '@tale/ui/markdown/anchored-heading';
-import type { ComponentPropsWithoutRef, ReactNode } from 'react';
+import { useResizeObserver } from '@tale/ui/use-resize-observer';
+import { MoveHorizontal } from 'lucide-react';
+import {
+  createContext,
+  useContext,
+  useId,
+  useMemo,
+  useState,
+  type ComponentPropsWithoutRef,
+  type KeyboardEvent,
+  type ReactNode,
+} from 'react';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+
+const TableCopyContext = createContext<{
+  label: string;
+  scrollHint?: string;
+}>({ label: '' });
+
+/** Safari does not consistently pan a focused overflow region with arrow keys. */
+function scrollTableWithKeyboard(event: KeyboardEvent<HTMLDivElement>) {
+  const region = event.currentTarget;
+  if (
+    event.target !== region ||
+    event.altKey ||
+    event.ctrlKey ||
+    event.metaKey ||
+    event.shiftKey ||
+    region.scrollWidth <= region.clientWidth ||
+    (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight')
+  )
+    return;
+  event.preventDefault();
+  region.scrollBy({
+    left:
+      Math.round(region.clientWidth * 0.75) *
+      (event.key === 'ArrowRight' ? 1 : -1),
+    behavior: 'instant',
+  });
+}
+
+function ProseTable({ children }: { children?: ReactNode }) {
+  const { label, scrollHint } = useContext(TableCopyContext);
+  const [region, setRegion] = useState<HTMLDivElement | null>(null);
+  const hintId = useId();
+  const [overflows, setOverflows] = useState(false);
+  useResizeObserver(region, () => {
+    if (region) setOverflows(region.scrollWidth > region.clientWidth + 1);
+  });
+  const showHint = overflows && scrollHint;
+  return (
+    <div className="my-6">
+      {/* oxlint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- a named, focusable scroll region needs arrow-key panning in WebKit; descendant controls keep their own keys */}
+      <div
+        ref={setRegion}
+        role="region"
+        aria-label={label}
+        aria-describedby={showHint ? hintId : undefined}
+        tabIndex={0}
+        onKeyDown={scrollTableWithKeyboard}
+        className="border-border-base focus-visible:outline-accent-base max-w-full overflow-x-auto rounded-xl border focus-visible:outline-2 focus-visible:outline-offset-4"
+      >
+        <table className="w-full min-w-[36rem] table-fixed border-collapse text-sm leading-relaxed [&_tr:last-child_td]:border-b-0">
+          <caption className="sr-only">{label}</caption>
+          {children}
+        </table>
+      </div>
+      {scrollHint ? (
+        <div
+          id={hintId}
+          aria-hidden={!overflows}
+          className={cn(
+            'text-fg-subtle mt-3 flex items-center gap-2 text-xs',
+            !overflows && 'invisible',
+          )}
+        >
+          <MoveHorizontal aria-hidden className="size-4 shrink-0" />
+          {scrollHint}
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 const markdownComponents: Components = {
   h1: ({ children }: { children?: ReactNode }) => (
@@ -89,20 +170,17 @@ const markdownComponents: Components = {
     </pre>
   ),
   hr: () => <hr className="border-border-base my-10" />,
-  table: ({ children }: { children?: ReactNode }) => (
-    <div className="my-6 overflow-x-auto">
-      <table className="border-border-base w-full border-collapse border text-sm">
-        {children}
-      </table>
-    </div>
-  ),
+  table: ProseTable,
   th: ({ children }: { children?: ReactNode }) => (
-    <th className="border-border-base bg-bg-elevated text-fg-base border px-3 py-2 text-left font-semibold">
+    <th
+      scope="col"
+      className="border-border-base bg-bg-elevated text-fg-base border-b px-4 py-4 text-left align-top font-semibold first:w-[22%] sm:px-5"
+    >
       {children}
     </th>
   ),
   td: ({ children }: { children?: ReactNode }) => (
-    <td className="border-border-base text-fg-muted border px-3 py-2 align-top">
+    <td className="border-border-base text-fg-muted first:text-fg-base border-b px-4 py-4 align-top first:font-medium sm:px-5">
       {children}
     </td>
   ),
@@ -112,18 +190,29 @@ const markdownComponents: Components = {
 export function MarketingProse({
   children,
   className,
+  tableLabel,
+  tableScrollHint,
 }: {
   children: string;
   className?: string;
+  /** Localized page title names both the table and its keyboard scroll region. */
+  tableLabel: string;
+  tableScrollHint?: string;
 }) {
+  const tableCopy = useMemo(
+    () => ({ label: tableLabel, scrollHint: tableScrollHint }),
+    [tableLabel, tableScrollHint],
+  );
   return (
     <div className={cn('min-w-0 [overflow-wrap:anywhere]', className)}>
-      <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
-        components={markdownComponents}
-      >
-        {children}
-      </ReactMarkdown>
+      <TableCopyContext.Provider value={tableCopy}>
+        <ReactMarkdown
+          remarkPlugins={[remarkGfm]}
+          components={markdownComponents}
+        >
+          {children}
+        </ReactMarkdown>
+      </TableCopyContext.Provider>
     </div>
   );
 }

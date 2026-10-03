@@ -25,7 +25,7 @@ for (const locale of ['en', 'de', 'fr'] as const) {
       for (const contentDocument of pages) {
         await page.goto(contentDocument.url);
         await expect(page.getByRole('heading', { level: 1 })).toHaveText(
-          contentDocument.frontmatter.title,
+          contentDocument.frontmatter.title.replace(/ \| Tale$/, ''),
         );
         await expect(page.locator('link[rel=canonical]')).toHaveAttribute(
           'href',
@@ -55,6 +55,58 @@ for (const locale of ['en', 'de', 'fr'] as const) {
             ),
           ).toBe(true);
         }
+        if (contentDocument.frontmatter.competitor) {
+          const table = page.getByRole('table', {
+            name: contentDocument.frontmatter.title,
+            exact: true,
+          });
+          await expect(table).toHaveCount(1);
+          await expect(table.getByRole('columnheader')).toHaveCount(3);
+          expect(
+            await table.locator('tbody tr').count(),
+          ).toBeGreaterThanOrEqual(3);
+          const scrollRegion = page.getByRole('region', {
+            name: contentDocument.frontmatter.title,
+            exact: true,
+          });
+          await expect(scrollRegion).toHaveAttribute('tabindex', '0');
+          if (width === 320) {
+            await expect(scrollRegion).toHaveAccessibleDescription(/.+/);
+            await page
+              .locator('article h2')
+              .first()
+              .getByRole('button')
+              .focus();
+            await page.keyboard.press('Tab');
+            await expect(scrollRegion).toBeFocused();
+            await expect(scrollRegion).toHaveCSS('outline-style', 'solid');
+            await page.keyboard.press('ArrowRight');
+            await expect
+              .poll(() =>
+                scrollRegion.evaluate((element) => element.scrollLeft),
+              )
+              .toBeGreaterThan(0);
+            await page.keyboard.press('ArrowLeft');
+            await expect
+              .poll(() =>
+                scrollRegion.evaluate((element) => element.scrollLeft),
+              )
+              .toBe(0);
+            await page.keyboard.press('Tab');
+            await expect(scrollRegion).not.toBeFocused();
+            await page.setViewportSize({ width: 1440, height: 900 });
+            await expect(scrollRegion).not.toHaveAttribute('aria-describedby');
+            await page.setViewportSize({ width, height: 900 });
+            await expect(scrollRegion).toHaveAccessibleDescription(/.+/);
+          } else {
+            await expect(scrollRegion).not.toHaveAttribute('aria-describedby');
+            expect(
+              await scrollRegion.evaluate(
+                (element) => element.scrollWidth <= element.clientWidth + 1,
+              ),
+            ).toBe(true);
+          }
+        }
         const localLinks = await page
           .locator('article a[href^="/"]')
           .evaluateAll((elements) =>
@@ -69,9 +121,7 @@ for (const locale of ['en', 'de', 'fr'] as const) {
   }
 }
 
-test('a comparison links to its relevant use case and unknown slugs recover', async ({
-  page,
-}) => {
+test('a comparison links to its relevant use case', async ({ page }) => {
   await page.goto('/compare/tale-vs-dust');
   const next = page
     .locator('main a[href="/use-cases/marketing-campaigns"]')
@@ -79,10 +129,23 @@ test('a comparison links to its relevant use case and unknown slugs recover', as
   await next.click();
   await expect(page).toHaveURL('/use-cases/marketing-campaigns');
   await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1);
-  await page.goto('/compare/tale-vs-not-a-published-product');
-  await expect(page.locator('meta[name=robots]')).toHaveAttribute(
-    'content',
-    'noindex,nofollow',
-  );
-  await expect(page.locator('main a[href="/"]').first()).toBeVisible();
 });
+
+for (const locale of ['en', 'de', 'fr'] as const) {
+  for (const category of ['compare', 'use-cases']) {
+    test(`${locale} unknown ${category} slugs recover without mounting a content page`, async ({
+      page,
+    }) => {
+      const prefix = locale === 'en' ? '' : `/${locale}`;
+      await page.goto(`${prefix}/${category}/not-a-published-guide`);
+      await expect(page.locator('meta[name=robots]')).toHaveAttribute(
+        'content',
+        'noindex,nofollow',
+      );
+      await expect(
+        page.locator(`main a[href="${prefix || '/'}"]`).first(),
+      ).toBeVisible();
+      await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1);
+    });
+  }
+}

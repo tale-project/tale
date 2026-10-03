@@ -10,6 +10,14 @@ draft: false
 
 Si tu souhaites que des agents améliorent un logiciel en continu, Autensa constitue une alternative pertinente. Si le travail comprend aussi recherche, marketing, documents et tâches confiées à des personnes, compare la manière dont chaque produit représente et fait vérifier ce projet plus large.
 
+## Comparaison en bref
+
+| Critère | Tale | Autensa |
+| --- | --- | --- |
+| Travaux couverts | Logiciels, recherche, documents et autres livrables collectifs | Amélioration produit, de la recherche et des idées aux tests et pull requests |
+| Coordination | Tâches confiées à des personnes ou agents ; vérification selon la configuration | Travail parallèle tenant compte des dépendances dans le processus d’amélioration |
+| Exécution | Agents de projet configurés ; délégation par gestionnaire avec limites configurées | Utilise un OpenClaw Gateway distinct pour l’exécution |
+
 ## Choisir le centre du processus
 
 Autensa, publié dans le dépôt crshdn/mission-control, présente un parcours d’amélioration produit allant de la recherche et des idées à la réalisation, aux tests et aux pull requests. Il documente le travail parallèle avec dépendances et utilise un OpenClaw Gateway séparé pour l’exécution. Il s’agit d’un autre projet que Mission Control de Builderz Labs. [Dépôt Autensa](https://github.com/crshdn/mission-control).

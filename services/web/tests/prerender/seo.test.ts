@@ -52,7 +52,7 @@ describe('prerender SEO suite', () => {
           const document = dom.window.document;
           expect(document.querySelectorAll('h1')).toHaveLength(1);
           expect(document.querySelector('h1')?.textContent).toBe(
-            page.frontmatter.title,
+            page.frontmatter.title.replace(/ \| Tale$/, ''),
           );
           expect(document.title).toBe(resolveFullTitle(page.frontmatter.title));
           expect(

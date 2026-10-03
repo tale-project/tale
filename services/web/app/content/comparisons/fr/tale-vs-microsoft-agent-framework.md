@@ -14,6 +14,14 @@ Une organisation disposant d’une équipe plateforme peut vouloir définir dire
 
 [Microsoft Agent Framework](https://github.com/microsoft/agent-framework) permet de développer des workflows multi-agents en Python et .NET, avec un SDK Go distinct. Le dépôt décrit parcours séquentiels et concurrents, transmissions, travail en groupe, points de reprise et intervention humaine. C’est un framework applicatif, distinct des assistants prêts à utiliser de Microsoft et de l’espace d’équipe de Tale.
 
+## Comparaison en bref
+
+| Critère | Tale | Microsoft Agent Framework |
+| --- | --- | --- |
+| Niveau du produit | Une application partagée pour les tâches du projet, les agents et la validation. | Un framework d’agents pour Python et .NET, avec un SDK Go distinct. |
+| Coordination | Des agents de coordination configurés peuvent déléguer les tâches prêtes selon les règles d’exécution et de validation. | Schémas séquentiels, parallèles, de transfert et de groupe avec points de reprise et intervention humaine. |
+| Responsabilité de configuration | Préparer l’accès aux runtimes, les outils et le déploiement de l’équipe. | Développer et exploiter l’interface applicative, l’identité et l’hébergement. |
+
 ## Choisis ta responsabilité d’implémentation
 
 Envisage Microsoft Agent Framework si tes développeurs doivent réaliser une orchestration métier et l’intégrer à leur propre logiciel. Évalue-le avec l’hébergement, l’identité, l’interface et les procédures d’exploitation à fournir. La présence d’une fonction dans le framework ne détermine pas à elle seule comment les collègues utiliseront l’application finale.

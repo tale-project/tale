@@ -10,6 +10,14 @@ draft: false
 
 A company-wide AI rollout and a team's next project can require different starting points. Glean and Tale overlap in agent-assisted work, but your evaluation should start with the scope you need to standardize across the organization.
 
+## Compare at a glance
+
+| Criterion | Tale | Glean |
+| --- | --- | --- |
+| Adoption | Shared project coordination for people and configured agents | Enterprise AI rollout across company context and existing systems |
+| Shared context | Tasks, files, and discussion organized around a project outcome | Search, assistant, and agents with permission-aware access |
+| Execution | Persistent sandbox workspaces; concurrency depends on configured capacity | Collaborative work, content creation, execution, and agent orchestration |
+
 ## Start with the rollout boundary
 
 Glean brings enterprise context, search, an assistant, and agents into one platform. Its current offering includes collaborative work, content creation, work execution, agent orchestration, and permission-aware access. It is a broader candidate than a search replacement. [Explore Glean's platform](https://www.glean.com/).

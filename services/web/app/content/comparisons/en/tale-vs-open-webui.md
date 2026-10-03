@@ -10,6 +10,14 @@ draft: false
 
 A shared interface for models and a shared place to manage agent work solve different parts of AI adoption. Compare Tale and Open WebUI by the work your teammates need to return to after the conversation ends.
 
+## Compare at a glance
+
+| Criterion | Tale | Open WebUI |
+| --- | --- | --- |
+| Starting point | Project tasks with agent assignment, discussions and deliverable review. | A self-hosted AI platform connecting local and cloud models. |
+| Execution | Configured agents work on files in persistent workspaces. | Retrieval, tools, Python extensions, tool-call approvals and terminal file handling. |
+| What to operate | A project workflow with prepared runtimes, tools and execution capacity. | A common model interface with chosen extensions and access controls. |
+
 ## Model access or project coordination as the starting point
 
 Open WebUI is a self-hosted AI platform connecting local and cloud models. Its site documents retrieval, tools, Python extensions, and enterprise access controls. Recent releases also describe tool-call approvals and terminal file handling. It should not be dismissed as a bare chat interface. [Explore Open WebUI](https://openwebui.com/) and its [execution documentation](https://docs.openwebui.com/).

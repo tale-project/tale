@@ -4,6 +4,30 @@ import { createI18n } from '@tale/e2e/i18n';
 test.use({ contextOptions: { reducedMotion: 'reduce' } });
 
 const demoFields = {
+  connect: [
+    'agent1',
+    'agent2',
+    'agent3',
+    'agent4',
+    'agent5',
+    'model1',
+    'model2',
+    'model3',
+    'model4',
+    'model5',
+  ],
+  knowledge: ['source1', 'source2', 'source3', 'source4'],
+  arena: [
+    'prompt',
+    'modelA',
+    'modelB',
+    'replyA1',
+    'replyA2',
+    'replyA3',
+    'replyB1',
+    'replyB2',
+    'replyB3',
+  ],
   automation: [
     'trigger',
     'llm',
@@ -56,6 +80,9 @@ const demoFields = {
 } as const;
 
 const demoChrome = {
+  connect: ['statusReady'],
+  knowledge: ['statusIndexed'],
+  arena: ['vs'],
   automation: [
     'kindTrigger',
     'kindLlm',
@@ -135,7 +162,17 @@ for (const locale of ['en', 'de', 'fr'] as const) {
         {
           path: '/platform/agents',
           namespace: 'platformAgents',
-          demos: ['sandbox'],
+          demos: ['connect', 'sandbox'],
+        },
+        {
+          path: '/platform/knowledge',
+          namespace: 'platformKnowledge',
+          demos: ['knowledge'],
+        },
+        {
+          path: '/platform/chat',
+          namespace: 'platformChat',
+          demos: ['arena'],
         },
         {
           path: '/platform/automations',

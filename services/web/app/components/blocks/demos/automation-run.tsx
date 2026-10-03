@@ -63,10 +63,10 @@ export function AutomationRun({
         activeNav="automations"
         className="mx-auto min-h-216 max-w-4xl @xs/demo:min-h-192 @sm/demo:min-h-184 @4xl/demo:aspect-[16/9] @4xl/demo:min-h-136"
       >
-        <div className="bg-surface-site flex h-full flex-col gap-3 p-3 @4xl/demo:gap-4 @4xl/demo:p-4">
+        <div className="demo-surface flex h-full flex-col gap-3 p-3 @4xl/demo:gap-4 @4xl/demo:p-4">
           {/* Canvas — dotted surface like xyflow Background. */}
           <div
-            className="border-border-base bg-surface-site-raised shadow-site-card relative flex flex-1 flex-col justify-center overflow-hidden rounded-xl border p-3 @4xl/demo:px-4 @4xl/demo:py-5"
+            className="border-demo-gold/20 bg-demo-gold-soft/35 shadow-site-card relative flex flex-1 flex-col justify-center overflow-hidden rounded-xl border p-3 @4xl/demo:px-4 @4xl/demo:py-5"
             style={{
               backgroundImage:
                 'radial-gradient(color-mix(in oklab, var(--color-border-strong) 40%, transparent) 1px, transparent 1px)',
@@ -125,7 +125,7 @@ export function AutomationRun({
             <p className="text-fg-base border-border-base border-b px-3 py-2.5 text-xs font-medium @4xl/demo:px-4">
               {t('demos.automation.logTitle')}
             </p>
-            <div className="text-fg-subtle border-border-base/70 grid grid-cols-[1fr_1.4fr_0.8fr] gap-2 border-b px-3 py-1.5 text-[10px] font-medium tracking-wide uppercase @4xl/demo:px-4">
+            <div className="text-fg-subtle border-border-base/70 grid grid-cols-[auto_minmax(0,1fr)_auto] gap-1 border-b px-1.5 py-1.5 text-[10px] font-medium tracking-wide uppercase @sm/demo:gap-2 @sm/demo:px-3 @4xl/demo:px-4">
               <span>{t('demos.automation.logColRun')}</span>
               <span>{t('demos.automation.logColStatus')}</span>
               <span className="text-right">
@@ -230,7 +230,7 @@ function StepNode({
       {state === 'done' ? (
         <Check
           aria-hidden
-          className="text-fg-muted size-3.5 shrink-0"
+          className="text-demo-mint size-3.5 shrink-0"
           strokeWidth={2.5}
         />
       ) : null}
@@ -247,7 +247,7 @@ function Connector({ filled, pill }: { filled: boolean; pill?: string }) {
       <div className="bg-border-base relative h-4 w-px overflow-hidden @4xl/demo:h-px @4xl/demo:w-5">
         <div
           className={cn(
-            'bg-brand-base absolute inset-0 origin-top scale-y-0 motion-safe:transition-transform motion-safe:duration-500 @4xl/demo:origin-left @4xl/demo:scale-x-0 @4xl/demo:scale-y-100',
+            'demo-accent-bg absolute inset-0 origin-top scale-y-0 motion-safe:transition-transform motion-safe:duration-500 @4xl/demo:origin-left @4xl/demo:scale-x-0 @4xl/demo:scale-y-100',
             filled && 'scale-y-100 @4xl/demo:scale-x-100',
           )}
         />
@@ -279,13 +279,13 @@ function ExecRow({
       initial={reduceMotion ? false : { opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35, ease: easeOut }}
-      className="text-fg-muted border-border-base/60 grid grid-cols-[1fr_1.4fr_0.8fr] items-center gap-2 border-b px-3 py-2 text-xs last:border-b-0 @4xl/demo:px-4"
+      className="text-fg-muted border-border-base/60 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-1 border-b px-1.5 py-2 text-xs last:border-b-0 @sm/demo:gap-2 @sm/demo:px-3 @4xl/demo:px-4"
     >
       <span className="text-fg-base font-medium tabular-nums">{run}</span>
-      <span className="flex items-center gap-1.5">
+      <span className="flex min-w-0 items-center gap-1.5">
         <span
           className={cn(
-            'inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-medium',
+            'inline-flex min-w-0 items-center rounded-md px-1.5 py-0.5 text-[10px] font-medium wrap-anywhere',
             tone === 'done'
               ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400'
               : tone === 'running'
@@ -296,7 +296,9 @@ function ExecRow({
           {status}
         </span>
       </span>
-      <span className="text-right tabular-nums">{duration}</span>
+      <span className="text-right whitespace-nowrap tabular-nums">
+        {duration}
+      </span>
     </motion.div>
   );
 }

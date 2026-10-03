@@ -14,6 +14,14 @@ Choisis ton point de départ avant de comparer les fonctions d’automatisation.
 
 [Make](https://www.make.com/en) présente une plateforme d’automatisation visuelle pour créer et gérer des workflows et des agents IA avec un éditeur visuel, du code ou des prompts. La connexion entre applications métier occupe une place centrale. C’est donc une piste pertinente si tu veux surtout concevoir le processus entre les systèmes.
 
+## Comparaison en bref
+
+| Critère | Tale | Make |
+| --- | --- | --- |
+| Espace de travail | Un tableau de projet pour des tâches avec responsables, discussions et validation. | Automatisations visuelles et agents IA créés avec un éditeur, du code ou des prompts. |
+| Processus reproductibles | Des automatisations versionnées complètent les tâches du projet par des étapes reproductibles. | La connexion des applications métier et l’exploitation des workflows sont centrales. |
+| Point à tester | Tester les responsabilités, les consignes aux agents et la validation quand le besoin change. | Tester l’accès aux connecteurs, les mises à jour en échec et les exceptions du workflow. |
+
 ## Pars du fonctionnement de ton équipe
 
 Envisage Make si la personne responsable de l’automatisation veut organiser la réception, l’enrichissement, l’orientation et la mise à jour des données dans les outils existants. Vérifie les connecteurs et le traitement des exceptions nécessaires, y compris la gestion des identifiants quand la responsabilité change.

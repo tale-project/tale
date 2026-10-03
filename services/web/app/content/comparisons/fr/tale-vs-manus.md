@@ -14,6 +14,14 @@ Un agent capable de transformer un brief en livrable utile peut prendre en charg
 
 [Manus](https://manus.im/) met en avant la création de présentations, sites web, jeux, vidéos et contenus graphiques. Son site officiel mentionne aussi recherche, navigation, intégration Slack, API et offre pour les équipes. C’est donc une alternative pour le travail délégué dont le périmètre ne se limite pas à l’usage individuel.
 
+## Comparaison en bref
+
+| Critère | Tale | Manus |
+| --- | --- | --- |
+| Périmètre documenté | Tâches de recherche, de documentation et de logiciel avec des agents configurés. | Recherche et travail dans le navigateur, mais aussi présentations, sites, jeux, vidéo et design. |
+| Travail en équipe | Responsabilités par tâche, discussions, fichiers partagés et validation des livrables. | Une offre d’équipe avec des points d’entrée via Slack et l’API. |
+| Livrables à vérifier | Vérifier les outils et formats nécessaires à chaque livrable demandé. | Essayer le processus de création requis et examiner les fichiers produits. |
+
 ## Définis la partie du travail que tu veux couvrir
 
 Envisage Manus si ton besoin principal est de confier un brief à un agent puis de travailler avec son résultat. Teste les formats réellement nécessaires et la manière dont les collègues peuvent les examiner, les réviser et les réutiliser. Inclus la configuration d’équipe adaptée à ton organisation.

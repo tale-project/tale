@@ -14,6 +14,14 @@ Wenn du eine Agentenanwendung entwickelst, kann ihr Ausführungsgraph ein wesent
 
 [LangGraph](https://www.langchain.com/langgraph) ist ein Framework und eine Laufzeitumgebung für Orchestrierung auf niedriger Abstraktionsebene. Die Produktdokumentation beschreibt anpassbare Abläufe für einzelne und mehrere Agenten, Gedächtnis, Streaming und menschliche Eingriffe. Es liefert Bausteine für eine Anwendung. Dieser Vergleich stellt daher Framework und Workspace gegenüber, ohne Reviews oder Koordination als Alleinstellungsmerkmal von Tale auszugeben.
 
+## Vergleich auf einen Blick
+
+| Kriterium | Tale | LangGraph |
+| --- | --- | --- |
+| Einführung | Einen bestehenden gemeinsamen Projektarbeitsbereich einführen | Auf einem grundlegenden Orchestrierungsframework mit Laufzeit aufbauen |
+| Steuerung | Aufgabenablauf und Delegationsmodell des Produkts konfigurieren | Zustände, Verzweigungen und Abläufe mit einem oder mehreren Agenten anpassen |
+| Prüfung | Richtlinien zur Aufgabenprüfung im gemeinsamen Projektablauf | Menschliches Eingreifen, Speicher und Streaming sind dokumentierte Bausteine |
+
 ## Vergleiche die Anwendung, die du betreiben wirst
 
 Prüfe LangGraph, wenn Entwickler Zustandsübergänge, Verzweigungen und Pausen für Eingaben direkt steuern müssen. Beziehe die Bedienoberfläche, das Zugriffsmodell, den Betrieb und Anwendungstests in den Umfang ein, den dein Team liefern soll.

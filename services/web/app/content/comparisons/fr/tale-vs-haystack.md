@@ -14,6 +14,14 @@ Un projet documentaire peut échouer parce que le système retrouve les mauvaise
 
 [Haystack](https://haystack.deepset.ai/) est un framework open source pour agents et applications, avec des pipelines composables de recherche et de traitement. Son écosystème comprend aussi du support entreprise et une plateforme d’orchestration avec conception visuelle des pipelines et options de déploiement. Le comparatif porte sur le choix du framework, tout en reconnaissant cette offre plus large.
 
+## Comparaison en bref
+
+| Critère | Tale | Haystack |
+| --- | --- | --- |
+| Espace de travail | Projets partagés avec tâches attribuées, fichiers et vérification | Framework open source pour agents et pipelines de recherche ou de traitement |
+| Mode de contrôle | Organiser preuves, responsabilités et vérification dans un projet | Concevoir recherche, traitement documentaire et logique d’agent personnalisée |
+| Adoption | Configurer un espace existant ; toujours tester qualité des sources et outils | Écosystème élargi avec support entreprise et outils visuels de pipelines |
+
 ## Sépare la conception technique du travail collectif
 
 Envisage Haystack si la stratégie de recherche, le traitement documentaire et la logique des agents sont des exigences centrales à maîtriser par tes développeurs. Évalue l’application complète à construire, notamment la manière dont les spécialistes examineront les preuves et corrigeront les résultats. Les besoins liés à la plateforme entreprise méritent leur propre analyse.

@@ -14,6 +14,14 @@ Ein Team kann Agentenarbeit über einen Projekt-Workspace koordinieren oder das 
 
 [CrewAI](https://crewai.com/) bietet neben seinem Open-Source-Angebot eine Enterprise-Plattform für Agentenentwicklung und Ausführung. Das aktuelle Produkt beschreibt visuelle und codebasierte Entwicklung, rollenbasierte Agenten, Tracing und menschliche Eingriffe. Dieser Vergleich behandelt deshalb ein Framework und eine Entwicklungsplattform. Er reduziert CrewAI weder auf eine Bibliothek noch unterstellt er fehlende Betriebskontrollen.
 
+## Vergleich auf einen Blick
+
+| Kriterium | Tale | CrewAI |
+| --- | --- | --- |
+| Einführung | Agenten in einem bestehenden Projektarbeitsbereich konfigurieren | Open-Source-Framework plus Enterprise-Plattform für Agentenentwicklung und Ausführung |
+| Steuerung | Aufgabenanweisungen, Tools, Ergebnisse und Prüfung strukturieren die Ausführung | Visuelle und codebasierte Entwicklung, rollenbasierte Agenten und Tracing |
+| Prüfung | Zugewiesene Aufgaben liefern Berichte und Dateien zur Prüfung | Menschliches Eingreifen gehört zum dokumentierten Produktumfang |
+
 ## Wähle die Ebene, die du verantworten willst
 
 Prüfe CrewAI, wenn dein Entwicklungs- oder Plattformteam spezialisiertes Agentenverhalten definieren und dieses System im Unternehmen bereitstellen will. Bewerte das Open-Source- und das Enterprise-Angebot getrennt anhand deiner Anforderungen. Für Implementierung, Tests und die Bedienoberfläche deiner Kollegen braucht es klare Verantwortliche.

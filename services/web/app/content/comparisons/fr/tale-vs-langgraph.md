@@ -14,6 +14,14 @@ Si tu développes une application d’agents, son graphe d’exécution peut con
 
 [LangGraph](https://www.langchain.com/langgraph) est un framework d’orchestration de bas niveau et un moteur d’exécution. Sa documentation décrit des parcours personnalisables pour un ou plusieurs agents, la mémoire, le streaming et l’intervention humaine. Il fournit les composants d’une application. Ce comparatif oppose donc framework et espace de travail sans présenter la validation comme exclusive à Tale.
 
+## Comparaison en bref
+
+| Critère | Tale | LangGraph |
+| --- | --- | --- |
+| Adoption | Adopter un espace projet partagé existant | Construire sur un framework d’orchestration de bas niveau et son environnement d’exécution |
+| Mode de contrôle | Configurer le cycle des tâches et le modèle de délégation du produit | Personnaliser états, branchements et flux de contrôle mono-agent ou multi-agents |
+| Vérification | Règles de vérification des tâches dans le processus de projet partagé | Intervention humaine, mémoire et streaming font partie des composants documentés |
+
 ## Compare l’application que tu exploiteras
 
 Envisage LangGraph si tes développeurs doivent contrôler directement les transitions d’état, les branches et les pauses pour demander une intervention. Inclus l’interface, les accès, l’exploitation et les tests applicatifs dans le périmètre à livrer.

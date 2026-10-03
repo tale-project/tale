@@ -10,6 +10,14 @@ draft: false
 
 Une équipe opérationnelle qui a besoin d’une app interne peut évaluer Replit et Tale. Replit réunit création et publication dans son produit. Tale organise le projet d’ensemble avec des tâches, des affectations aux agents et des revues. Pars du résultat attendu : une application en service ou un travail coordonné comprenant aussi des recherches et des documents.
 
+## Comparaison en bref
+
+| Critère | Tale | Replit |
+| --- | --- | --- |
+| Espace de travail | Tâches de projet partagées pour logiciel, recherche, documents et livrables à valider. | Création d’applications, de designs et de présentations en langage naturel, avec publication intégrée. |
+| Collaboration | Responsabilités, consignes, fichiers et rapports d’agents restent dans le projet partagé. | Tableau partagé et fils d’agents séparés ; tâches de fond isolées, validées avant application des changements. |
+| Déploiement | Nécessite identifiants de runtime, outils, capacité et accès au déploiement préparés. | La publication crée un déploiement distinct de l’aperçu de développement. |
+
 ## Tiens compte des vrais points communs
 
 [Replit Agent](https://docs.replit.com/features/agent/overview) reçoit des demandes en langage naturel pour des apps, des designs et des présentations. Son périmètre dépasse le code. Les [collègues](https://docs.replit.com/build/invite-teammates) peuvent ouvrir leurs propres conversations avec l’agent dans un même projet et utiliser un tableau partagé. Le [système de tâches](https://docs.replit.com/core-concepts/agent/task-system) permet de travailler en arrière-plan dans des copies isolées du projet, avec une revue avant application des changements. Le nombre de tâches simultanées dépend de l’offre.

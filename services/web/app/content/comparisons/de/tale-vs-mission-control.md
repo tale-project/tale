@@ -10,6 +10,14 @@ draft: false
 
 Wenn sich Agentenaktivität auf mehrere Laufzeiten verteilt, kann die Betriebsübersicht so wichtig werden wie das Aufgabenboard. Tale und Mission Control von Builderz Labs greifen dieses Koordinationsproblem auf. Prüfe beide mit den Menschen, die Aufgaben bearbeiten, und denen, die den Betrieb sichern.
 
+## Vergleich auf einen Blick
+
+| Kriterium | Tale | Mission Control (Builderz Labs) |
+| --- | --- | --- |
+| Arbeitsbereich | Gemeinsame Projekte für Code, Recherche, Dokumente und geprüfte Ergebnisse. | Eine selbst gehostete Steuerungszentrale für Agentenzuweisung, Prüfung und Runtime-Koordination. |
+| Transparenz im Team | Aufgabenanweisungen, Dateien, Diskussionen und Fortschrittsberichte bleiben beim Projekt. | Dokumentiert Logs, Ausgabenverfolgung, Wissen und Governance neben der Aufgabenkoordination. |
+| Prüfungen vor dem Einsatz | Zugangsdaten, Ausstattung, Kapazität und die Übergabe im Team prüfen. | Ein Alpha-Produkt; Adapterumfang und Wartungsbedarf für deine Runtimes prüfen. |
+
 ## Betriebsübersicht und Arbeitsalltag unterscheiden
 
 Builderz Labs beschreibt Mission Control als selbst gehostete Steuerungsebene mit Aufgabenverteilung, Prüfung, Laufzeitkoordination, Logs und Ausgabenansichten. Das Repository dokumentiert auch Wissens- und Governance-Funktionen und kennzeichnet die Software als Alpha. Der Funktionsumfang der Adapter hängt von der Laufzeit ab. [Mission-Control-Repository](https://github.com/builderz-labs/mission-control).

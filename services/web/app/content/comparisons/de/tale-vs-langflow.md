@@ -14,6 +14,14 @@ Eine visuelle Arbeitsfläche hilft Entwicklern, den Ablauf einer KI-Anwendung au
 
 [Langflow](https://www.langflow.org/) bietet visuelle Flows, wiederverwendbare Komponenten, Anpassungen mit Python und Agententools für KI-Anwendungen. Es beschreibt auch die Bereitstellung per API sowie Eigenbetrieb und Cloud-Betrieb. Der Builder ist eine Option für die Anwendungsentwicklung. Ihn als einfache Chat-Demo zu behandeln, würde diesem Umfang nicht gerecht.
 
+## Vergleich auf einen Blick
+
+| Kriterium | Tale | Langflow |
+| --- | --- | --- |
+| Ergebnis | Ein bestehender Arbeitsbereich für zugewiesene und geprüfte Projektarbeit | KI-Anwendungen aus visuellen Abläufen und wiederverwendbaren Komponenten bauen |
+| Steuerung | Projektkontext, Aufgabenzuweisung, Agentenausführung und Prüfung | Python-Anpassungen und Agenten-Tools im Ablauf-Builder |
+| Einführung | Teamablauf in der bestehenden Projektanwendung konfigurieren | Bereitstellung über APIs mit Eigenbetrieb oder Cloud-Optionen |
+
 ## Entscheide, was bereits vorhanden sein soll
 
 Prüfe Langflow, wenn du einen Retrieval- oder Agentenablauf zusammensetzen, seine Komponenten untersuchen und ihn über eine Anwendung anbieten willst. Berücksichtige, wie du eigene Komponenten pflegst und wie der fertige Dienst seine Nutzer erreicht.

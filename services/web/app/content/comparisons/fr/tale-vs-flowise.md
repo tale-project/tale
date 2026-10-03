@@ -10,6 +10,14 @@ draft: false
 
 Pour une équipe utilisant Flowise, il s'agit désormais de continuité et de migration. Avant de comparer les interfaces, inventorie le fonctionnement réel du déploiement. Distingue les applications à préserver du travail d'équipe que tu pourrais organiser autrement.
 
+## Comparaison en bref
+
+| Critère | Tale | Flowise |
+| --- | --- | --- |
+| Espace de travail | Projets partagés avec tâches attribuées, fichiers et vérification | Processus visuels d’agents et de recherche existants, accessibles par API ou chat intégré |
+| Périmètre de migration | Automatisations versionnées ; pas un exécuteur de remplacement direct pour les graphes Flowise | Recenser entrées, outils, vérifications humaines et formats de sortie avant migration |
+| Continuité | Évaluer un espace partagé pour le résultat collectif recherché | Fin de vie officielle le 31 août 2026 ; vérifier séparément forks et services |
+
 ## Tenir compte de la fin de vie annoncée
 
 L'annonce officielle de Flowise fixe le gel des fonctionnalités au 29 juillet 2026, l'archivage du dépôt au 10 août et la fin de vie au 31 août. L'équipe principale met fin à sa présence officielle. Vérifie séparément les forks et services. [Lire l'annonce](https://flowiseai.com/sunset).

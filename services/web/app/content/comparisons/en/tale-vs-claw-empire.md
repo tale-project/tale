@@ -10,6 +10,14 @@ draft: false
 
 The interface you use to direct agents shapes how you notice progress and make decisions. Claw Empire and Tale both coordinate agent work, but their organizing metaphors differ. Test which one remains understandable when another teammate takes over.
 
+## Compare at a glance
+
+| Criterion | Tale | Claw Empire |
+| --- | --- | --- |
+| Working surface | Shared projects with assigned tasks, files, and review | Virtual company with departments, agent meetings, and a pixel-art office |
+| Scope of work | Software, research, documents, and other team deliverables | Documented packs cover development, reports, and web research |
+| Setup choices | Project agents use configured runtimes, tools, and permissions | Agent connections through CLI, OAuth, or API paths |
+
 ## A virtual company and a shared project
 
 Claw Empire presents a virtual company with a pixel-art office, departments, agent meetings and a task lifecycle. Its documented workflow packs include development, reports and web research, so describing it as coding-only would be misleading. It connects agents through CLI, OAuth or API paths. [Claw Empire repository](https://github.com/GreenSheep01201/claw-empire).

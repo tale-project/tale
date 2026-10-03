@@ -14,6 +14,14 @@ A document project can fail because the system retrieves the wrong evidence, or 
 
 [Haystack](https://haystack.deepset.ai/) is an open-source framework for agents and applications with composable retrieval and processing pipelines. Its ecosystem also includes enterprise support and an orchestration platform with visual pipeline design and deployment options. This comparison focuses on the framework choice while acknowledging that the wider offering includes product tooling.
 
+## Compare at a glance
+
+| Criterion | Tale | Haystack |
+| --- | --- | --- |
+| Working surface | Shared projects with assigned tasks, files, and review | Open-source framework for agents and retrieval or processing pipelines |
+| Control model | Organize evidence, ownership, and review within a project | Engineer retrieval strategy, document processing, and custom agent logic |
+| Adoption | Configure an existing workspace; still test source quality and tools | Wider ecosystem includes enterprise support and visual pipeline tooling |
+
 ## Separate engineering scope from team workflow
 
 Consider Haystack when retrieval strategy, document processing, and custom agent logic are core requirements your engineers need to control. Evaluate the complete application you would build, including the way domain experts inspect evidence and correct results. Enterprise platform requirements deserve their own review rather than being inferred from the framework alone.

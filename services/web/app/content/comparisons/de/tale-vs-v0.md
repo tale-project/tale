@@ -10,6 +10,14 @@ draft: false
 
 Ein Team, das ein Kunden-Dashboard verbessert, muss die Änderung abstimmen, umsetzen und die begleitende Arbeit koordinieren. v0 und Tale unterstützen überlappende Teile dieses Ablaufs. Vergleiche die App-Entwicklung und die Art, wie dein Team Aufgaben zuweisen und Ergebnisse prüfen möchte.
 
+## Vergleich auf einen Blick
+
+| Kriterium | Tale | v0 |
+| --- | --- | --- |
+| Arbeitsbereich | Projektaufgaben für Code, Recherche, Dokumente und Prüfung im Team. | Full-Stack-Apps und Agenten per Prompt mit Teamkomponenten, Tokens und Konventionen. |
+| Zusammenarbeit | Gemeinsame Aufgabenverantwortung, Diskussionen und persistente Agentenarbeitsbereiche. | Gemeinsame Chats, Projekte und Vorlagen mit GitHub-Branch- und Review-Kontrollen. |
+| Release-Ablauf | Veröffentlichung braucht konfiguriertes Hosting, Release-Tools und Zugriff. | Vorschauen und Produktionsbereitstellung über Vercel. |
+
 ## Entwicklung und Teamabläufe vergleichen
 
 v0 erstellt Full-Stack-Anwendungen und Agenten aus Prompts. [Produktübersicht](https://v0.app/docs). Der Designsystem-Ablauf nutzt Komponenten, Tokens und Konventionen des Teams. [Design Systems 2.0](https://v0.app/docs/design-systems-2). Gemeinsame Chats, Projekte und Teamvorlagen unterstützen die Zusammenarbeit. [Teams](https://v0.app/docs/teams). Vorschau und Produktion laufen auf Vercel. Bei GitHub-Projekten folgt die Veröffentlichung den eingerichteten Branch- und Prüfregeln. [Bereitstellungen](https://v0.app/docs/deployments).

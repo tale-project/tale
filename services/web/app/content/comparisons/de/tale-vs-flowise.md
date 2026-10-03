@@ -10,6 +10,14 @@ draft: false
 
 Für bestehende Flowise-Nutzer geht es inzwischen um Weiterbetrieb und Migration. Erfasse vor einem Oberflächenvergleich, was deine Installation tatsächlich tut. Trenne Anwendungen, deren Verhalten erhalten bleiben muss, von Teamarbeit, die ihr anders organisieren könntet.
 
+## Vergleich auf einen Blick
+
+| Kriterium | Tale | Flowise |
+| --- | --- | --- |
+| Arbeitsoberfläche | Gemeinsame Projekte mit zugewiesenen Aufgaben, Dateien und Prüfung | Bestehende visuelle Agenten- und Retrieval-Abläufe über APIs oder eingebetteten Chat |
+| Migrationsumfang | Versionierte Automatisierungen; kein direkter Ersatz zur Ausführung von Flowise-Graphen | Vor einer Migration Eingaben, Tools, menschliche Prüfschritte und Ausgabeformate erfassen |
+| Fortführung | Gemeinsamen Arbeitsbereich für das eigentliche Teamergebnis prüfen | Offizielles Supportende am 31. August 2026; Forks und Dienste separat prüfen |
+
 ## Das angekündigte Supportende berücksichtigen
 
 Die offizielle Flowise-Mitteilung nennt den Entwicklungsstopp am 29. Juli 2026, die Archivierung des Repositorys am 10. August und das Supportende am 31. August. Die offizielle Betreuung durch das Kernteam endet. Prüfe Forks und Dienste jeweils gesondert. [Mitteilung lesen](https://flowiseai.com/sunset).

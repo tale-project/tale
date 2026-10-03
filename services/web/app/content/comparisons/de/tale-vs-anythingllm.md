@@ -10,6 +10,14 @@ draft: false
 
 Kläre zuerst, ob du einen Assistenten für einzelne Personen oder einen gemeinsamen Projektablauf einführen willst. AnythingLLM und Tale arbeiten beide mit Dokumenten und Agenten. Dein Test sollte deshalb die Übergabe im Team enthalten, die später tatsächlich gebraucht wird.
 
+## Vergleich auf einen Blick
+
+| Kriterium | Tale | AnythingLLM |
+| --- | --- | --- |
+| Arbeitsoberfläche | Gemeinsame Projekte mit zugewiesenen Aufgaben, Dateien und Prüfung | Dokumentenbasierter Assistent als Desktop- und Mehrbenutzer-Server-Edition |
+| Gemeinsamer Kontext | Aufträge, Dateien, Gespräche und Ergebnisse im selben Projekt | Dokumentenwissen, Hintergrundaufgaben und eigene Agenten-Skills |
+| Einführung | Agentenzuweisung und Prüfung durch mehrere Teammitglieder testen | Für gemeinsamen Zugriff die Server-Edition einbeziehen |
+
 ## Mehr als eine Desktop-Anwendung
 
 AnythingLLM stellt einen Desktop-Assistenten mit Dokumentenwissen, Hintergrundaufgaben und eigenen Agenten-Skills bereit. Daneben gibt es eine selbst gehostete Serverausgabe für mehrere Benutzer. Ein Vergleich, der AnythingLLM ausschließlich als persönlichen Desktop-Assistenten betrachtet, wäre unvollständig. [AnythingLLM kennenlernen](https://anythingllm.com/).

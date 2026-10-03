@@ -10,6 +10,14 @@ draft: false
 
 Les agents partagés, le travail en arrière-plan et les contrôles d'équipe ne sont pas exclusifs à une plateforme. Tale et Gumloop se recoupent directement. Compare surtout la manière dont ton équipe organise les demandes et exploite les agents au quotidien.
 
+## Comparaison en bref
+
+| Critère | Tale | Gumloop |
+| --- | --- | --- |
+| Espace de travail | Projets partagés avec tâches attribuées, fichiers et vérification | Agents partagés dans le produit ainsi que via Slack, Teams et Gmail |
+| Coordination | Agents de projet et délégation par gestionnaire selon la capacité configurée | Sous-agents en arrière-plan, évaluations et contrôles administratifs |
+| Configuration | Community Edition sous MIT et environnements pris en charge pour exploiter et adapter l’espace | Le déploiement VPC fait partie des options documentées |
+
 ## Reconnaître les points communs
 
 Gumloop documente les agents partagés, la collaboration via Slack, Teams et Gmail, les sous-agents en arrière-plan, les évaluations et les contrôles administratifs. L'offre comprend aussi un déploiement en VPC. Le choix dépasse donc une opposition entre automatisation hébergée et collaboration privée. [Découvrir Gumloop](https://www.gumloop.com/).

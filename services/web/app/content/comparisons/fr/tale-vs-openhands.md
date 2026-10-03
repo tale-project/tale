@@ -10,6 +10,14 @@ draft: false
 
 Un espace d’agents peut coordonner plusieurs sessions de programmation, tandis qu’un espace de projet relie ce travail au reste de l’équipe. OpenHands et Tale se recoupent dans l’exécution et la coordination. Évalue où les échanges du projet et les décisions de vérification doivent se dérouler.
 
+## Comparaison en bref
+
+| Critère | Tale | OpenHands |
+| --- | --- | --- |
+| Espace de travail | Tâches de projet couvrant logiciel, recherche, rapports et documents. | Agent Canvas coordonne des agents de code parallèles dans des worktrees Git séparés. |
+| Passage de relais | Les collègues guident les agents attribués dans les commentaires et valident rapports et fichiers. | Documente des automatisations et le partage en équipe dans son offre cloud. |
+| Choix des runtimes | Les runtimes et abonnements pris en charge dépendent des identifiants et de la capacité configurés. | Connexions ACP, réutilisation d’abonnements existants et exécution locale, distante ou cloud. |
+
 ## Comparer l’espace de travail
 
 OpenHands Agent Canvas présente des agents de programmation parallèles dans des worktrees Git séparés, des connexions ACP, la réutilisation d’abonnements et des options d’exécution locale, distante ou cloud. Il décrit aussi des automatisations et le partage en équipe dans son offre cloud. Il dépasse donc le chat de programmation avec un seul agent. [OpenHands Agent Canvas](https://www.openhands.dev/product/canvas).

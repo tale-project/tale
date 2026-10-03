@@ -10,6 +10,14 @@ draft: false
 
 Entscheide, welche Struktur dein Team jeden Morgen steuern soll: ein Projekt mit Kolleginnen und Kollegen oder eine Agentenorganisation mit Unternehmenszielen. Tale und Paperclip überschneiden sich stark. Dieser Ausgangspunkt hilft, die passende Arbeitsweise zu prüfen.
 
+## Vergleich auf einen Blick
+
+| Kriterium | Tale | Paperclip |
+| --- | --- | --- |
+| Organisationsstruktur | Gemeinsame Projekte mit Aufgaben, Abnahmekriterien sowie Menschen und Agenten. | Agentenorganisationen mit Unternehmenszielen, Berichtswegen und Aufgabenkoordination. |
+| Menschliche Mitwirkung | Menschen briefen Agenten, steuern Aufgaben und prüfen Ergebnisse. | Agententeams für Menschen bei der Arbeit, mit dokumentierten Freigaben und Budgets. |
+| Fokus des Tests | Geänderte Anforderungen, Aufgabenverantwortung, Belege und Prüfentscheidungen verfolgen. | Ziel- und Berichtsstrukturen, Übergaben und den genauen Umfang der Budgetkontrollen testen. |
+
 ## Projekte und eine Agentenorganisation
 
 Paperclips Repository beschreibt Unternehmensziele, Berichtswege, Aufgabenkoordination, Budgets und Freigaben für unterschiedliche Agenten. Die aktuelle Website stellt Agententeams für Menschen im Arbeitsalltag vor. Eine Darstellung als System ohne menschliche Beteiligung wäre falsch. [Paperclip-Repository](https://github.com/paperclipai/paperclip), [Paperclip-Website](https://paperclip.ing/).

@@ -14,6 +14,14 @@ Ein Agent, der aus einem Briefing ein nutzbares Arbeitsergebnis erstellt, kann e
 
 [Manus](https://manus.im/) betont die Erstellung von Präsentationen, Websites, Spielen, Videos und Designs. Die offizielle Website nennt außerdem Recherche, Browserbedienung, Slack-Integration, API und ein Teamangebot. Manus ist damit eine relevante Alternative für delegierte Arbeit. Der Vergleich setzt keine Beschränkung auf Einzelnutzer voraus.
 
+## Vergleich auf einen Blick
+
+| Kriterium | Tale | Manus |
+| --- | --- | --- |
+| Dokumentierter Umfang | Projektaufgaben für Recherche, Dokumente und Software mit konfigurierten Agenten. | Recherche und Browserarbeit neben Präsentationen, Websites, Spielen, Video und Design. |
+| Teamarbeit | Aufgabenverantwortung, Diskussionen, gemeinsame Dateien und Ergebnisprüfung. | Ein Teamangebot mit Zugängen über Slack und API. |
+| Zu prüfende Ergebnisse | Die benötigten Tools und Formate für jedes Ergebnis abklären. | Den benötigten Erstellungsablauf testen und die gelieferten Artefakte prüfen. |
+
 ## Definiere den Teil der Arbeit, den du einkaufst
 
 Prüfe Manus, wenn du vor allem einem Agenten einen Auftrag geben und mit seinem Ergebnis weiterarbeiten möchtest. Teste die tatsächlich benötigten Ausgabeformate und wie Kollegen diese prüfen, überarbeiten und wiederverwenden. Beziehe die passende Teamkonfiguration in die Bewertung ein.

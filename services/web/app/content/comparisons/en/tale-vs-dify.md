@@ -10,6 +10,14 @@ draft: false
 
 An AI application that others can use and a workspace where a team gets work done are different deliverables. Dify and Tale overlap in agents and workflows, but start the comparison by deciding which of those outcomes you need to own.
 
+## Compare at a glance
+
+| Criterion | Tale | Dify |
+| --- | --- | --- |
+| Delivery | A shared project for completing and reviewing team deliverables | Reusable AI applications, APIs, embeds, and MCP-compatible tools |
+| Control model | Assigned tasks, shared discussion, and configured project agents | Visual workflows, knowledge pipelines, and model and tool integrations |
+| Recurring work | Automations for defined recurring processes alongside project work | Publish and operate reusable AI experiences in cloud or self-hosted deployments |
+
 ## Application delivery and project delivery
 
 Dify provides a visual workflow builder, knowledge pipelines, agents, and model and tool integrations. Its publishing options include web apps, APIs, embeds, and MCP-compatible tools; deployment options include cloud and self-hosting. Teams can build and operate their own AI experiences. [Explore Dify](https://dify.ai/).

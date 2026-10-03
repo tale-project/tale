@@ -62,6 +62,7 @@ export function SandboxWorkspace({
       <DemoShell
         label={scene.label}
         activeNav="chat"
+        domain="agents"
         className="mx-auto min-h-192 max-w-4xl @sm/demo:min-h-176 @4xl/demo:aspect-[16/10] @4xl/demo:min-h-136"
       >
         <div className="flex h-full min-h-0 flex-col @4xl/demo:flex-row">
@@ -69,7 +70,7 @@ export function SandboxWorkspace({
             <div className="flex min-h-0 flex-1 flex-col justify-start gap-2.5 px-3 py-3 @lg/demo:gap-3 @lg/demo:px-4 @lg/demo:py-3.5">
               {beat >= BEAT.prompt ? (
                 <motion.div {...pop()} className="flex flex-col items-end">
-                  <div className="bg-surface-site-inset text-fg-base max-w-[92%] rounded-2xl px-3 py-2 text-xs @lg/demo:max-w-xs @lg/demo:text-[13px]">
+                  <div className="demo-soft text-fg-base max-w-[92%] rounded-2xl px-3 py-2 text-xs @lg/demo:max-w-xs @lg/demo:text-[13px]">
                     {scene.prompt}
                   </div>
                 </motion.div>
@@ -148,7 +149,7 @@ export function SandboxWorkspace({
                                   className={cn(
                                     'flex items-center gap-1 rounded px-1 py-0.5 text-[10px] @2xl/demo:text-[11px]',
                                     active
-                                      ? 'bg-surface-site-inset text-fg-base font-medium'
+                                      ? 'demo-soft demo-accent font-medium'
                                       : 'text-fg-muted',
                                   )}
                                 >
@@ -213,10 +214,10 @@ export function SandboxWorkspace({
                               {scene.browserUrl}
                             </span>
                           </div>
-                          <div className="from-surface-site-inset to-surface-site-raised relative flex min-h-0 flex-1 flex-col items-center justify-center bg-gradient-to-b px-3">
+                          <div className="from-demo-coral-soft to-surface-site-raised relative flex min-h-0 flex-1 flex-col items-center justify-center bg-gradient-to-b px-3">
                             <MonitorPlay
                               aria-hidden
-                              className="text-fg-subtle mb-2 size-6 @2xl/demo:size-7"
+                              className="text-demo-coral mb-2 size-6 @2xl/demo:size-7"
                               strokeWidth={1.5}
                             />
                             <p className="text-fg-base text-center text-[11px] font-medium @2xl/demo:text-xs">

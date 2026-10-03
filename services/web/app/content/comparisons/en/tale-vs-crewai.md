@@ -14,6 +14,14 @@ A team can coordinate agent work by adopting a project workspace or by developin
 
 [CrewAI](https://crewai.com/) offers an enterprise agent build and runtime platform alongside its open-source offering. Its current product describes visual and code-based building, role-based agents, tracing, and human intervention. This comparison therefore covers a framework and build platform, rather than treating CrewAI as just a library or pretending it lacks operational controls.
 
+## Compare at a glance
+
+| Criterion | Tale | CrewAI |
+| --- | --- | --- |
+| Adoption | Configure agents within an existing project workspace | Open-source framework plus enterprise agent build and runtime platform |
+| Control model | Task instructions, tools, results, and review organize execution | Visual and code-based building, role-based agents, and tracing |
+| Review | Assigned tasks return reports and files for review | Human intervention is part of the documented product scope |
+
 ## Choose the layer you want to own
 
 Consider CrewAI when your engineering or platform team wants to define specialized agent behavior and deliver that system to the business. Evaluate the open-source and enterprise offerings separately against your requirements. The team needs a clear owner for implementation, testing, and the experience through which colleagues use the resulting system.

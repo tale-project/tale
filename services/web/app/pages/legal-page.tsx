@@ -140,7 +140,7 @@ export function LegalPage({ slug }: LegalPageProps) {
             </MarketingButton>
           </header>
           <div className="mt-8 text-base">
-            <MarketingProse>{doc.content}</MarketingProse>
+            <MarketingProse tableLabel={title}>{doc.content}</MarketingProse>
           </div>
         </div>
       </SiteContainer>

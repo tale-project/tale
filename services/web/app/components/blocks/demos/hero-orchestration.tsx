@@ -91,7 +91,7 @@ export function HeroOrchestration({
         <div className={HERO_THREAD_CLASS}>
           {beat >= BEAT.sent ? (
             <motion.div {...pop()} className="flex flex-col items-end">
-              <div className="bg-surface-site-inset text-fg-base max-w-[85%] rounded-2xl px-3.5 py-2.5 text-sm @lg/demo:max-w-md">
+              <div className="demo-soft text-fg-base max-w-[85%] rounded-2xl px-3.5 py-2.5 text-sm @lg/demo:max-w-md">
                 {scene.prompt}
               </div>
             </motion.div>
@@ -206,11 +206,11 @@ function SourceCard({ label }: { label: string }) {
       initial={reduceMotion ? false : { opacity: 0, y: 3 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25, ease: easeOut }}
-      className="border-border-base bg-surface-site-inset/60 text-fg-base inline-flex max-w-[200px] items-center gap-2 rounded-lg border px-2.5 py-1.5 text-left text-xs"
+      className="border-demo-sky/20 bg-demo-sky-soft text-fg-base inline-flex max-w-[200px] items-center gap-2 rounded-lg border px-2.5 py-1.5 text-left text-xs"
     >
       <FileText
         aria-hidden
-        className="text-fg-muted size-3.5 shrink-0"
+        className="text-demo-sky size-3.5 shrink-0"
         strokeWidth={1.75}
       />
       <span className="truncate font-medium">{label}</span>

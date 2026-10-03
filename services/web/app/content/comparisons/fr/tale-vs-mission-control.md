@@ -10,6 +10,14 @@ draft: false
 
 Lorsque l’activité des agents se répartit entre plusieurs environnements, la vue d’exploitation peut devenir aussi importante que le tableau de tâches. Tale et Mission Control de Builderz Labs répondent à ce problème de coordination. Évalue-les avec les personnes qui réalisent le travail et celles qui assurent le fonctionnement.
 
+## Comparaison en bref
+
+| Critère | Tale | Mission Control (Builderz Labs) |
+| --- | --- | --- |
+| Espace de travail | Projets partagés couvrant code, recherche, documents et livrables à valider. | Un centre de contrôle auto-hébergé pour l’affectation, la validation et la coordination des runtimes. |
+| Visibilité pour l’équipe | Consignes, fichiers, discussions et rapports d’avancement restent dans le projet. | Documente journaux, suivi des dépenses, connaissances et gouvernance avec la coordination des tâches. |
+| Vérifications avant déploiement | Vérifier identifiants, équipement, capacité et passage de relais dans l’équipe. | Un produit en alpha ; vérifier les capacités des adaptateurs et la maintenance de tes runtimes. |
+
 ## Distinguer visibilité et usage quotidien
 
 Builderz Labs présente Mission Control comme un plan de contrôle auto-hébergé : distribution des tâches, vérification, coordination des environnements, journaux et suivi des dépenses. Le dépôt documente aussi des fonctions de connaissances et de gouvernance et signale un statut alpha. La couverture des adaptateurs varie selon l’environnement. [Dépôt Mission Control](https://github.com/builderz-labs/mission-control).

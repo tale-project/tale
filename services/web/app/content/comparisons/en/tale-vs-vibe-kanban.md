@@ -10,6 +10,14 @@ draft: false
 
 Planning and review matter in both Tale and Vibe Kanban. The choice depends on the outputs your team manages and the maintenance arrangement you can support. Start with that decision before comparing the appearance of their boards.
 
+## Compare at a glance
+
+| Criterion | Tale | Vibe Kanban |
+| --- | --- | --- |
+| Work focus | Project tasks spanning code, research, documents and other team deliverables. | Organizing coding-agent work, parallel execution and code review. |
+| Review | The configured reviewer inspects reports and files, then accepts results or requests changes. | Evaluate the repository workflow and how code returns for review. |
+| Maintenance decision | Validate the runtime, access and operator responsibilities for the deployment. | The official site announces sunsetting and a transition to community-maintained open source. |
+
 ## Account for the current project status
 
 Vibe Kanban's website announces that the project is sunsetting and will continue as open source under community maintenance. Check the current announcement before adopting it or planning a migration. This is a maintenance transition, not evidence that the software stops working. [Vibe Kanban website](https://www.vibekanban.com/).

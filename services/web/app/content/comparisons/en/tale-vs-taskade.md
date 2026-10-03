@@ -10,6 +10,14 @@ draft: false
 
 Taskade and Tale both connect projects with agent work, making this a direct comparison rather than a project tool versus an AI tool. Look closely at how your team wants to configure agents and participate in their work.
 
+## Compare at a glance
+
+| Criterion | Tale | Taskade |
+| --- | --- | --- |
+| Work surface | Shared projects with assigned tasks, discussions and reviewed deliverables. | Projects with custom agents, knowledge, tools and project actions. |
+| Agent coordination | Equipped manager agents delegate ready tasks within configured project limits. | Specialist agent teams with shared workspace context and execution coordination. |
+| Runtime and rollout | Configurable runtimes, persistent sandboxes and an MIT-licensed deployment choice; subscription support is runtime-specific. | Evaluate its project and agent setup against the team workflow you need. |
+
 ## Compare two approaches to agent teams
 
 Taskade documents custom agents with knowledge and tools, project actions, and shareable agent experiences. Its multi-agent guide describes specialist teams, shared workspace context, and several ways to coordinate execution. Agent collaboration is already a core part of the product. [Custom agents](https://www.taskade.com/learn/agents/custom-agents) and [multi-agent teams](https://www.taskade.com/learn/agents/multi-agents).

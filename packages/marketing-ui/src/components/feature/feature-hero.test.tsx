@@ -15,7 +15,7 @@ describe('FeatureHero', () => {
     );
 
     const visual = container.querySelector('[data-testid="feature-visual"]');
-    const stage = visual?.closest('.bg-surface-wash');
+    const stage = visual?.closest('.demo-stage');
     expect(stage).toBeTruthy();
     expect(stage?.className).toMatch(/rounded-2xl/);
     expect(stage?.className).not.toMatch(/border-y/);

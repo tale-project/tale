@@ -10,6 +10,14 @@ draft: false
 
 Your team may need a flexible place to talk with AI, a place to manage delegated work, or both. Tale and LibreChat overlap in models and agent capabilities, so compare the workflow around the output rather than counting chat features.
 
+## Compare at a glance
+
+| Criterion | Tale | LibreChat |
+| --- | --- | --- |
+| Working surface | Shared projects with assigned tasks, files, and review | Customizable conversations across model providers, agents, and tools |
+| Execution | Project agents use persistent workspaces across successive runs | Agents offer file handling, API actions, code interpretation, and MCP tools |
+| Delivery | Results retain a task, assignee, discussion, and review context | Conversations can include artifacts and outputs beyond text replies |
+
 ## Conversation and task are different starting units
 
 LibreChat unifies AI conversations in a customizable interface. Its official overview includes multiple model providers, agents with file handling and API actions, code interpretation, artifacts, and MCP tools. It already covers work beyond text replies. [Explore LibreChat](https://www.librechat.ai/) and its [documentation](https://www.librechat.ai/docs).

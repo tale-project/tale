@@ -14,6 +14,14 @@ A capable personal assistant can help one person keep commitments and complete r
 
 [Vellum's current product](https://www.vellum.ai/) is positioned as a personal AI assistant. It describes persistent memory, recurring tasks, connected tools, and local or cloud operation. This page compares that current offering, rather than carrying forward the enterprise workflow-builder positioning found in older comparisons. Personal assistance can include business work; the distinction is the organizing model.
 
+## Compare at a glance
+
+| Criterion | Tale | Vellum |
+| --- | --- | --- |
+| Starting point | A shared project workspace with tasks, owners and review. | A personal AI assistant with persistent memory and recurring tasks. |
+| Working context | Project files and conversations support work that teammates can hand over. | Connected tools and personal assistant memory; not the same concept as project context. |
+| Pilot focus | Ask a colleague to take over the recurring update and review the next result. | Test the local or cloud assistant workflow and the context it retains. |
+
 ## Evaluate continuity and ownership
 
 Consider Vellum when the main goal is an assistant that follows your preferences and handles tasks across your tools. Test its actual permissions and the surfaces you will use, including how you inspect a recurring task before relying on it. Local or cloud operation also deserves evaluation on its own terms.
