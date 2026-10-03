@@ -209,6 +209,16 @@ it fails: every later `/api/v1` call on that user's keys would answer
 `ORG_SLUG_REQUIRED`. A probe that needs another organization gives it an owner of
 its own.
 
+A lane that does not settle within 10 minutes truncates the run the same way, and
+a truncated run still prints its tally and exits: the teardown closes the backend
+the way the deployment does (ending every live `/events` stream, then any
+connection a stuck lane still holds), and bounds each of its steps. A lane reads
+`/events` through `connectSse` in
+[`integration-lane-helpers.ts`](integration-lane-helpers.ts), whose `close()`
+ends the tail within seconds or fails the lane naming it. The harness's outbound
+boundary hands fetch the caller's own abort signal: a signal that only followed it
+through an intermediate `Request` was lost to garbage collection, and a closed
+tail then read on forever (#4112).
 
 ## Measure backend work
 

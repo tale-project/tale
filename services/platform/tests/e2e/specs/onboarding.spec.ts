@@ -103,11 +103,12 @@ test.describe('onboarding wizard', () => {
       page.getByRole('heading', { name: t('onboarding.finish.heading') }),
     ).toBeVisible();
     // Assert the checklist body rendered (not just the hero heading) via a
-    // state-independent item. The provider row flips to "connected" whenever the
-    // org has a keyed provider, and the E2E builtin-config seeds a mock provider
-    // whose key is set — so `providerItem` never shows here; the invite row always
-    // renders as a pending next step. (The provider-connected vs CTA branching is
-    // unit-tested in finish-step.test.tsx.)
+    // state-independent item. The provider row is not asserted: the wizard
+    // does not read the org's provider state today (`providerConnected` is
+    // fixed false in onboarding-wizard.tsx), and nothing seeds a provider into
+    // an e2e org. The invite row always renders as a pending next step. (The
+    // provider-connected vs CTA branching is unit-tested in
+    // finish-step.test.tsx.)
     await expect(
       page.getByText(t('onboarding.finish.inviteItem')),
     ).toBeVisible();

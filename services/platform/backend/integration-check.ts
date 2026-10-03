@@ -135,14 +135,20 @@ import { checkTaskSourceThread } from './domains/tasks/source-thread.integration
 import { checkTaskWorkflowParentMoves } from './domains/tasks/workflow-parent-moves.integration.ts';
 import { checkVideoLinkComposerChips } from './domains/video_links/composer-chips.integration.ts';
 import { checkRenderFailedCreate } from './domains/websites/render-failed-create.integration.ts';
+import { closeServerGracefully } from './http-shutdown.ts';
 import {
+  connectSse,
   cookieHeaderFrom,
+  errorText,
   fullCoverageBlockers,
   isSkippedCheck,
   itestObjectStore,
   recordSkip,
   requestedLanes,
+  settleTeardown,
   signUpUser,
+  withinDeadline,
+  type SseEvent,
 } from './integration-lane-helpers.ts';
 import {
   itestResolve,
@@ -404,64 +410,6 @@ async function checkPickupLatency(sql: Sql, boss: PgBoss): Promise<void> {
   );
 }
 
-interface SseEvent {
-  event: string;
-  id: string | null;
-  data: string;
-}
-
-/** Minimal SSE client: collects events until aborted. */
-function connectSse(
-  url: string,
-  headers: Record<string, string>,
-): { events: SseEvent[]; abort: () => void; done: Promise<void> } {
-  const controller = new AbortController();
-  const events: SseEvent[] = [];
-
-  const done = (async () => {
-    const response = await fetch(url, { signal: controller.signal, headers });
-    const body = response.body;
-    if (!body) {
-      throw new Error('SSE response has no body');
-    }
-    const reader = body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
-    for (;;) {
-      const { done: finished, value } = await reader.read();
-      if (finished) {
-        break;
-      }
-      buffer += decoder.decode(value, { stream: true });
-      let boundary = buffer.indexOf('\n\n');
-      while (boundary !== -1) {
-        const frame = buffer.slice(0, boundary);
-        buffer = buffer.slice(boundary + 2);
-        let event = 'message';
-        let id: string | null = null;
-        const dataLines: string[] = [];
-        for (const line of frame.split('\n')) {
-          if (line.startsWith('event:')) {
-            event = line.slice(6).trim();
-          } else if (line.startsWith('id:')) {
-            id = line.slice(3).trim();
-          } else if (line.startsWith('data:')) {
-            dataLines.push(line.slice(5).trim());
-          }
-        }
-        events.push({ event, id, data: dataLines.join('\n') });
-        boundary = buffer.indexOf('\n\n');
-      }
-    }
-  })().catch((error: unknown) => {
-    if (!(error instanceof Error && error.name === 'AbortError')) {
-      throw error;
-    }
-  });
-
-  return { events, abort: () => controller.abort(), done };
-}
-
 async function waitFor(
   predicate: () => boolean | Promise<boolean>,
   timeoutMs: number,
@@ -697,8 +645,7 @@ async function checkAuthAndSse(
     3_000,
   );
   const lastId = [...first.events].reverse().find((e) => e.id)?.id ?? null;
-  first.abort();
-  await first.done;
+  await first.close();
 
   await sql.begin(async (tx) => {
     await emitHintInTx(tx, { orgId, entity: 'task', entityId: 't2' });
@@ -713,8 +660,7 @@ async function checkAuthAndSse(
     3_000,
   );
   const noDuplicate = !second.events.some((e) => e.data.includes('"t1"'));
-  second.abort();
-  await second.done;
+  await second.close();
 
   record(
     'authorized outbox → SSE',
@@ -761,8 +707,7 @@ async function checkAuthAndSse(
     endedWithForbidden(kickedStream),
     endedWithForbidden(revokedStream),
   ]);
-  kickedStream.abort();
-  revokedStream.abort();
+  await Promise.all([kickedStream.close(), revokedStream.close()]);
   await sql`
     DELETE FROM "member" WHERE "id" IN (${kicked.memberId}, ${revoked.memberId})
   `;
@@ -885,10 +830,7 @@ async function checkOutboxRetention(
   );
   const intactReplayed = intact.events.some((e) => e.data.includes('"skewed"'));
   const intactResynced = intact.events.some((e) => e.event === 'resync');
-  gapped.abort();
-  intact.abort();
-  await gapped.done;
-  await intact.done;
+  await Promise.all([gapped.close(), intact.close()]);
 
   record(
     'realtime outbox retention: prefix reclaim, skew-safe, resync on a reclaimed cursor',
@@ -944,8 +886,7 @@ async function checkNotifications(
       ),
     5_000,
   );
-  stream.abort();
-  await stream.done;
+  await stream.close();
 
   const countAfterCreate = z
     .object({ count: z.number() })
@@ -45283,102 +45224,107 @@ async function checkBellHintWire(
   const mateStream = connectSse(`${base}/events?orgId=${orgId}`, {
     cookie: mateCookie,
   });
-  await sleep(500); // both tails established
-  const startId = await latestOutboxId(sql);
+  try {
+    await sleep(500); // both tails established
+    const startId = await latestOutboxId(sql);
 
-  // The row is about a real task of an organization-wide project, which the
-  // teammate can open: a task-bound row is written only for its readers.
-  await sql`
-    INSERT INTO app.projects (id, org_id, name, created_by, created_at_ms,
-                              updated_at_ms)
-    VALUES ('p-bell-wire', ${orgId}, 'Bell wire', ${userId}, ${Date.now()},
-            ${Date.now()})
-  `;
-  await sql`
-    INSERT INTO app.tasks (
-      id, org_id, project_id, title, status, rank, number, created_by,
-      created_by_type, created_at_ms, updated_at_ms
-    ) VALUES (
-      'itest-bell-wire', ${orgId}, 'p-bell-wire', 'Bell wire', 'todo', 'b0', 1,
-      ${userId}, 'user', ${Date.now()}, ${Date.now()}
-    )
-  `;
-  const { writeCoalescedNotification } =
-    await import('./domains/collab/service.ts');
-  await sql.begin((tx) =>
-    writeCoalescedNotification(tx, {
-      userId: mateId,
-      organizationId: orgId,
-      type: 'task_status_changed',
-      titleKey: 'taskStatusChanged',
-      bodyKey: 'taskStatusChangedBody',
-      params: {
-        title: 'Bell wire',
-        from: 'todo',
-        to: 'in_progress',
-        projectId: 'p-bell-wire',
-      },
-      resourceType: 'task',
-      resourceId: 'itest-bell-wire',
-      taskId: 'itest-bell-wire',
-      actorType: 'user',
-      actorId: userId,
-    }),
-  );
-  const bellHint = JSON.stringify({ entity: 'notification', entityId: null });
-  const isBellHint = (e: SseEvent): boolean =>
-    e.event === 'hint' && e.data === bellHint;
-  const mateGotIt = await waitFor(
-    () => mateStream.events.some(isBellHint),
-    5_000,
-  );
-  await sleep(700); // two poll cycles — the owner's stream had every chance
-  const ownerSpared = !ownerStream.events.some(isBellHint);
-  const outboxRows = await sql<{ userId: string | null; entity: string }[]>`
-    SELECT user_id AS "userId", entity FROM app_realtime.outbox
-    WHERE org_id = ${orgId} AND id > ${startId}::bigint
-      AND entity IN ('notification', 'user_notification')
-  `;
-  const narrowed =
-    outboxRows.length === 1 &&
-    outboxRows[0]?.entity === 'notification' &&
-    outboxRows[0].userId === mateId;
+    // The row is about a real task of an organization-wide project, which the
+    // teammate can open: a task-bound row is written only for its readers.
+    await sql`
+      INSERT INTO app.projects (id, org_id, name, created_by, created_at_ms,
+                                updated_at_ms)
+      VALUES ('p-bell-wire', ${orgId}, 'Bell wire', ${userId}, ${Date.now()},
+              ${Date.now()})
+    `;
+    await sql`
+      INSERT INTO app.tasks (
+        id, org_id, project_id, title, status, rank, number, created_by,
+        created_by_type, created_at_ms, updated_at_ms
+      ) VALUES (
+        'itest-bell-wire', ${orgId}, 'p-bell-wire', 'Bell wire', 'todo', 'b0', 1,
+        ${userId}, 'user', ${Date.now()}, ${Date.now()}
+      )
+    `;
+    const { writeCoalescedNotification } =
+      await import('./domains/collab/service.ts');
+    await sql.begin((tx) =>
+      writeCoalescedNotification(tx, {
+        userId: mateId,
+        organizationId: orgId,
+        type: 'task_status_changed',
+        titleKey: 'taskStatusChanged',
+        bodyKey: 'taskStatusChangedBody',
+        params: {
+          title: 'Bell wire',
+          from: 'todo',
+          to: 'in_progress',
+          projectId: 'p-bell-wire',
+        },
+        resourceType: 'task',
+        resourceId: 'itest-bell-wire',
+        taskId: 'itest-bell-wire',
+        actorType: 'user',
+        actorId: userId,
+      }),
+    );
+    const bellHint = JSON.stringify({ entity: 'notification', entityId: null });
+    const isBellHint = (e: SseEvent): boolean =>
+      e.event === 'hint' && e.data === bellHint;
+    const mateGotIt = await waitFor(
+      () => mateStream.events.some(isBellHint),
+      5_000,
+    );
+    await sleep(700); // two poll cycles — the owner's stream had every chance
+    const ownerSpared = !ownerStream.events.some(isBellHint);
+    const outboxRows = await sql<{ userId: string | null; entity: string }[]>`
+      SELECT user_id AS "userId", entity FROM app_realtime.outbox
+      WHERE org_id = ${orgId} AND id > ${startId}::bigint
+        AND entity IN ('notification', 'user_notification')
+    `;
+    const narrowed =
+      outboxRows.length === 1 &&
+      outboxRows[0]?.entity === 'notification' &&
+      outboxRows[0].userId === mateId;
 
-  // The recipient reads everything → their own streams are told as well.
-  const hintsBeforeRead = mateStream.events.filter(isBellHint).length;
-  const markAll = await post(
-    `/api/app/collab/notifications/read-all?orgId=${orgId}`,
-    undefined,
-    mateCookie,
-  );
-  const mateToldOfRead = await waitFor(
-    () => mateStream.events.filter(isBellHint).length > hintsBeforeRead,
-    5_000,
-  );
-  ownerStream.abort();
-  mateStream.abort();
-  await ownerStream.done;
-  await mateStream.done;
-  const row = await sql<{ read: boolean }[]>`
-    SELECT read FROM app.user_notifications
-    WHERE org_id = ${orgId} AND user_id = ${mateId}
-      AND resource_id = 'itest-bell-wire'
-  `;
-  record(
-    'personal bell hint wire: app entity, recipient-only, read-all hints',
-    joined.ok &&
-      mateGotIt &&
-      ownerSpared &&
-      narrowed &&
-      markAll.ok &&
-      mateToldOfRead &&
-      (row[0]?.read ?? false),
-    `joined=${joined.status}, recipientHint=${mateGotIt}, otherMemberSpared=${ownerSpared}, outbox=${outboxRows.map((r) => `${r.entity}→${r.userId === mateId ? 'recipient' : (r.userId ?? 'org-wide')}`).join(',') || 'none'} (want notification→recipient), readAll=${markAll.status}/hint=${mateToldOfRead}, read=${row[0]?.read}`,
-  );
-  // Later lanes count the organization's projects.
-  await sql`
-    DELETE FROM app.projects WHERE id = 'p-bell-wire' AND org_id = ${orgId}
-  `;
+    // The recipient reads everything → their own streams are told as well.
+    const hintsBeforeRead = mateStream.events.filter(isBellHint).length;
+    const markAll = await post(
+      `/api/app/collab/notifications/read-all?orgId=${orgId}`,
+      undefined,
+      mateCookie,
+    );
+    const mateToldOfRead = await waitFor(
+      () => mateStream.events.filter(isBellHint).length > hintsBeforeRead,
+      5_000,
+    );
+    const row = await sql<{ read: boolean }[]>`
+      SELECT read FROM app.user_notifications
+      WHERE org_id = ${orgId} AND user_id = ${mateId}
+        AND resource_id = 'itest-bell-wire'
+    `;
+    record(
+      'personal bell hint wire: app entity, recipient-only, read-all hints',
+      joined.ok &&
+        mateGotIt &&
+        ownerSpared &&
+        narrowed &&
+        markAll.ok &&
+        mateToldOfRead &&
+        (row[0]?.read ?? false),
+      `joined=${joined.status}, recipientHint=${mateGotIt}, otherMemberSpared=${ownerSpared}, outbox=${outboxRows.map((r) => `${r.entity}→${r.userId === mateId ? 'recipient' : (r.userId ?? 'org-wide')}`).join(',') || 'none'} (want notification→recipient), readAll=${markAll.status}/hint=${mateToldOfRead}, read=${row[0]?.read}`,
+    );
+  } finally {
+    // On every path: both tails end (a tail that will not fails the lane in
+    // seconds, naming it, instead of holding it to the lane deadline), and
+    // the project goes, since later lanes count the organization's projects.
+    try {
+      await Promise.all([ownerStream.close(), mateStream.close()]);
+    } finally {
+      await sql`
+        DELETE FROM app.projects WHERE id = 'p-bell-wire' AND org_id = ${orgId}
+      `;
+    }
+  }
 }
 
 /**
@@ -57993,49 +57939,15 @@ interface LaneSummary {
   filter: string | null;
 }
 
-function errorText(error: unknown): string {
-  return error instanceof Error
-    ? `${error.name}: ${error.message}`
-    : String(error);
-}
-
-/** Does the suite's shared session still resolve to its user? Better Auth's
- * own door, outside every org-scoped gate, so a policy probe (2FA
- * enforcement, idle windows) cannot false-alarm it. */
 /** The longest a single lane may run — the slowest lanes take well under
  * two minutes, and a lane that passes this is not slow but stuck. */
 const LANE_DEADLINE_MS = 10 * 60_000;
 /** The post-lane probes are one request and one query each. */
 const PROBE_DEADLINE_MS = 2 * 60_000;
 
-/**
- * Settles `work`, or rejects naming `what` once `ms` have passed — so a
- * lane (or a probe between lanes) that never settles truncates the run
- * under its own name instead of holding the job until CI's wall clock
- * kills it 30 minutes later, with nothing in the log to say which lane.
- */
-async function withinDeadline<T>(
-  work: Promise<T>,
-  ms: number,
-  what: string,
-): Promise<T> {
-  let timer: NodeJS.Timeout | undefined;
-  const deadline = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => {
-      reject(
-        new Error(
-          `${what} did not settle within ${Math.round(ms / 60_000)} min`,
-        ),
-      );
-    }, ms);
-  });
-  try {
-    return await Promise.race([work, deadline]);
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
+/** Does the suite's shared session still resolve to its user? Better Auth's
+ * own door, outside every org-scoped gate, so a policy probe (2FA
+ * enforcement, idle windows) cannot false-alarm it. */
 async function sharedSessionAlive(
   base: string,
   ctx: { cookie: string; userId: string },
@@ -59488,13 +59400,20 @@ async function main(): Promise<void> {
       `RUN TRUNCATED before the lanes: ${errorText(error)}`,
     );
   } finally {
-    await boss.stop({ graceful: false });
-    await new Promise<void>((resolve) => {
-      server.close(() => resolve());
-    });
-    await vendorStub.close();
-    await sql`DROP TABLE IF EXISTS itest_counter`;
-    await sql.end({ timeout: 5 });
+    // Bounded step by step, so a run a lane left hanging still prints its
+    // tally and exits with its code. The backend closes the way the
+    // deployment does: a bare `server.close()` waits for every connection,
+    // and an `/events` tail a stuck lane still holds never ends on its own.
+    await settleTeardown(
+      [
+        ['stops pg-boss', () => boss.stop({ graceful: false })],
+        ['closes the backend', () => closeServerGracefully(server)],
+        ['closes the vendor stub', () => vendorStub.close()],
+        ['drops itest_counter', () => sql`DROP TABLE IF EXISTS itest_counter`],
+        ['ends the database pool', () => sql.end({ timeout: 5 })],
+      ],
+      record,
+    );
   }
 
   // The run's traffic off the box, as evidence in the log. A refused
