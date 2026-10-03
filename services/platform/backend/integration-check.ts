@@ -55785,7 +55785,7 @@ async function checkWatchdogs(
 
   // What waiting for room leaves behind goes: the op rows of refused starts
   // an hour after they ended — the session's newest kept, the run view
-  // reads it — and failed session rows a week after they were collected.
+  // reads it — and failed session rows a day after they were collected.
   const waitSession = `wf-wd-wait-${randomUUID()}`;
   const hourAgo = now - 2 * 60 * 60 * 1000;
   for (const [execId, startedAt] of [
@@ -55813,17 +55813,17 @@ async function checkWatchdogs(
       'awaiting_room', 'key-wd-wait', ${hourAgo - 4_000}, ${hourAgo - 3_500}
     )
   `;
-  const week = 7 * 24 * 60 * 60 * 1000;
+  const day = 24 * 60 * 60 * 1000;
   const collectedRows = await sql<{ id: string; old: boolean }[]>`
     INSERT INTO app.sandbox_sessions (
       org_id, session_id, status, owner_type, owner_id, created_by,
       created_at_ms, expires_at_ms, destroyed_at_ms
     ) VALUES
       (${orgId}, 'pa-wd-collected-old', 'failed', 'project_agent', 'agent-wd',
-       'itest', ${now - week - 120_000}, ${now}, ${now - week - 60_000}),
+       'itest', ${now - day - 120_000}, ${now}, ${now - day - 60_000}),
       (${orgId}, 'pa-wd-collected-new', 'failed', 'project_agent', 'agent-wd',
        'itest', ${now - 120_000}, ${now}, ${now - 60_000})
-    RETURNING id, destroyed_at_ms < ${now - week} AS old
+    RETURNING id, destroyed_at_ms < ${now - day} AS old
   `;
   const { sweepRoomWaitLeftovers } =
     await import('./domains/sandbox/wait-retention.ts');

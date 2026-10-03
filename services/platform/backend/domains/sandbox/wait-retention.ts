@@ -13,16 +13,18 @@ import type { Sql } from 'postgres';
  *   the newest op of its session: the run view reads that one to say the
  *   step waits. A row that minted a gateway key is never touched — its
  *   settlement still has a key to read and revoke.
- * - A `failed` session row a week after it was collected goes: no compute
- *   is left under it, the cleanup pass that collects failed creates skips
- *   it, and every other reader (the latest incarnation of an id, a recent
- *   op's attribution) looks at newer rows or at rows still holding compute.
+ * - A `failed` session row a day after it was collected goes: no compute is
+ *   left under it, the cleanup pass that collects failed creates skips it,
+ *   and every other reader (the latest incarnation of an id, a recent op's
+ *   attribution) looks at newer rows or at rows still holding compute. A
+ *   start at the front of the sandbox host's line asks every few seconds,
+ *   so a long wait leaves hundreds of them an hour.
  */
 
 /** How long a refused start's op row stays after it ended. */
 const AWAITING_ROOM_OP_RETENTION_MS = 60 * 60 * 1000;
 /** How long a failed session row stays after it was collected. */
-const COLLECTED_SESSION_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
+const COLLECTED_SESSION_RETENTION_MS = 24 * 60 * 60 * 1000;
 
 /** Rows deleted per statement, and statements per table per sweep — a
  * backlog beyond one sweep drains over the following ticks instead of in
