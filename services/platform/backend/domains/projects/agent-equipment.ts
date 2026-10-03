@@ -39,7 +39,9 @@ export const AGENT_TOOL_GRANT_NAMES: readonly string[] = AGENT_TOOL_CATALOG.map(
  * Whether (`model`, `modelProvider`) is a pair this organization can call,
  * from the composer's servable listing (governance model access applied for
  * the configuring user). A subscription-served entry runs only in the
- * harness its credential is bound to, so it counts only for that harness.
+ * harness its credential is bound to, so it counts only for that harness;
+ * an entry whose tools work only on the Responses API counts only for a
+ * harness that speaks it.
  */
 export async function agentModelRefusal(
   sql: Sql,
@@ -51,7 +53,7 @@ export async function agentModelRefusal(
     modelProvider?: string;
   },
 ): Promise<EquipmentRefusal | null> {
-  const { models } = await listComposerModels(sql, {
+  const { models, harnesses } = await listComposerModels(sql, {
     organizationId: args.organizationId,
     userId: args.userId,
   });
@@ -81,30 +83,45 @@ export async function agentModelRefusal(
           : `Provider "${args.modelProvider}" does not serve model "${args.model}". ${hint}`,
     };
   }
-  const servesHarness = candidates.some((option) => {
+  const harnessFits = candidates.filter((option) => {
     const credential = option.credential;
     return credential.authMethod === 'api-key' ||
       credential.authMethod === 'env'
       ? true
       : credential.constraints.harness === args.harness;
   });
-  if (!servesHarness) {
-    const bound = [
-      ...new Set(
-        candidates.flatMap((option) =>
-          option.credential.authMethod === 'api-key' ||
-          option.credential.authMethod === 'env'
-            ? []
-            : [option.credential.constraints.harness],
-        ),
-      ),
-    ];
+  if (harnessFits.length > 0) {
+    const wire = harnesses.find(
+      (row) => row.harness === args.harness,
+    )?.toolCallingWire;
+    if (
+      wire === 'openai-responses' ||
+      harnessFits.some((option) => option.toolCallingApi !== 'responses')
+    ) {
+      return null;
+    }
+    const capable = harnesses
+      .filter((row) => row.toolCallingWire === 'openai-responses')
+      .map((row) => row.harness);
     return {
       code: 'PROJECT_AGENT_MODEL_INVALID',
-      message: `Model "${args.model}" is served by a subscription bound to the ${bound.join(', ')} harness, not ${args.harness}. ${hint}`,
+      message: `Model "${args.model}" takes tools only through the Responses API, which the ${args.harness} harness does not speak. Run it on ${capable.length > 0 ? capable.join(', ') : 'a harness that speaks it'}, or pick another model. ${hint}`,
     };
   }
-  return null;
+  const bound = [
+    ...new Set(
+      candidates.flatMap((option) =>
+        option.credential.authMethod === 'api-key' ||
+        option.credential.authMethod === 'env'
+          ? []
+          : [option.credential.constraints.harness],
+      ),
+    ),
+  ];
+  return {
+    code: 'PROJECT_AGENT_MODEL_INVALID',
+    message: `Model "${args.model}" is served by a subscription bound to the ${bound.join(', ')} harness, not ${args.harness}. ${hint}`,
+  };
 }
 
 /**

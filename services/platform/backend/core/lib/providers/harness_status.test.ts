@@ -52,6 +52,30 @@ describe('deriveHarnessStatus — against the real shipped harness facts', () =>
     });
   });
 
+  it('counts a Responses-only model only for a harness that speaks the Responses API', () => {
+    const rows = deriveHarnessStatus({
+      harnesses: HARNESSES,
+      directModels: [
+        { id: 'gpt-6.1-sol', toolCallingApi: 'responses' },
+        ...DIRECT,
+      ],
+      subscriptions: [],
+    });
+
+    // Codex speaks Responses: the model counts, and leads as the default.
+    expect(entryOf(rows, 'codex').managed).toEqual({
+      available: true,
+      modelCount: 3,
+      defaultModelId: 'gpt-6.1-sol',
+    });
+    // Claude Code does not: it neither counts the model nor falls back to it.
+    expect(entryOf(rows, 'claude-code').managed).toEqual({
+      available: true,
+      modelCount: 2,
+      defaultModelId: 'deepseek/deepseek-v3.2',
+    });
+  });
+
   it('omits byo-only harnesses (cursor) from the status list', () => {
     const rows = deriveHarnessStatus({
       harnesses: HARNESSES,

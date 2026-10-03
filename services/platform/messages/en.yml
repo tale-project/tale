@@ -1130,6 +1130,10 @@ chat:
     auto: Auto
     autoDescription: Let Tale pick the best model for each message — balances quality, speed, and cost.
     noModelsAvailable: No models available
+    subscriptionsTasksOnly:
+      Subscriptions from {providers} run only in tasks and automations.
+      To chat with their models, add an API key or environment-variable
+      credential.
     viewProvider: View provider settings
     viewInfo: Model details
     info:
@@ -6566,6 +6570,9 @@ settings:
       catalogUnavailable: 'Model catalog unavailable: {error}'
     credential:
       disabled: Disabled
+      tasksOnly:
+        Tasks and automations only — chat needs an API key or environment
+        variable
       deleteEmbeddingWarning: >-
         The knowledge embedding model uses this credential: deleting it stops
         document indexing and search for the whole organization. Choose
@@ -6588,7 +6595,6 @@ settings:
     dialog:
       secret: API key
       subscriptionSecret: Subscription key
-      sandboxedExplainer: Runs sandboxed on its provider's harness.
       envName: Environment variable
       envNameHelp:
         Name of the deployment variable that holds the key — the prefix is
@@ -6608,11 +6614,19 @@ settings:
         no model is available.
       allowlistFreeTextPlaceholder: gpt-4o, o4-mini
       removeModel: Remove {model}
+    subscriptionScope:
+      title: Tasks and automations only
+      description: >-
+        A subscription token runs only inside the agent runtime its vendor
+        supports, such as Claude Code or Codex, in a sandbox: vendors do not
+        permit these tokens in other applications, and Anthropic refuses them
+        from any client other than Claude Code. Chat cannot use this
+        credential. To chat with these models, add an API key or
+        environment-variable credential for the provider.
     broker:
       explainer:
         A subscription broker supplies rotating OAuth tokens for Claude or
-        ChatGPT subscriptions. Use them for task and automation agents running
-        in the provider's sandbox runtime.
+        ChatGPT subscriptions.
       invalid: 'Invalid broker configuration: {error}'
       endpoint: Broker endpoint
       httpMethod: HTTP method

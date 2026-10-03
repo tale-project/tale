@@ -28,7 +28,9 @@ import type {
 
 import {
   buildHarnessTable,
+  harnessToolCallingWire,
   resolveExecution,
+  supportsToolCallingWire,
   type CredentialAuth,
 } from '../../../../lib/shared/providers/resolve_execution';
 
@@ -87,24 +89,30 @@ function neutralModelEntry(id: string): ModelCatalogEntry {
 export function deriveHarnessStatus(inputs: {
   harnesses: readonly HarnessDefinition[];
   /** Direct-served composer models, in the order the picker lists them —
-   * the first is the kick's fallback default. */
-  directModels: readonly { id: string }[];
+   * the first a harness can run is the kick's fallback default. A model
+   * whose tools need the Responses API counts only for a harness that
+   * speaks it. */
+  directModels: readonly { id: string; toolCallingApi?: 'responses' }[];
   subscriptions: readonly SubscriptionCredentialFact[];
 }): HarnessStatusEntry[] {
   const table = buildHarnessTable(inputs.harnesses);
-  const firstDirect = inputs.directModels[0];
-  const probe = neutralModelEntry(firstDirect?.id ?? 'none');
+  const probe = neutralModelEntry(inputs.directModels[0]?.id ?? 'none');
 
   return [...inputs.harnesses]
     .filter((harness) => harness.credentialPolicy.managed)
     .sort((a, b) => a.displayName.localeCompare(b.displayName))
     .map((harness) => {
+      const wire = harnessToolCallingWire(harness);
+      const pool = inputs.directModels.filter((model) =>
+        supportsToolCallingWire(model, wire),
+      );
+      const firstDirect = pool[0];
       const managed: HarnessStatusEntry['managed'] =
         firstDirect === undefined
           ? { available: false, reason: 'no-direct-credential' }
           : {
               available: true,
-              modelCount: inputs.directModels.length,
+              modelCount: pool.length,
               defaultModelId: firstDirect.id,
             };
 

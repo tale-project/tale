@@ -193,6 +193,57 @@ describe('chooseStandardAgentServing — what runs the standard agent', () => {
     ).toMatchObject({ ok: true, harness: 'codex', source: 'pinned' });
   });
 
+  it('runs a Responses-only model only on a runtime that speaks the Responses API', () => {
+    const responsesOnly = option('gpt-6.1-sol', 'openai', {
+      toolCallingApi: 'responses',
+      pricing: { inputCentsPerMillion: 1, outputCentsPerMillion: 1 },
+    });
+    const speakers = new Set(['codex']);
+    // Pinned with no runtime: the default runtime cannot carry its tools,
+    // so the first one that can runs it.
+    expect(
+      chooseStandardAgentServing(
+        [responsesOnly],
+        { providerSlug: 'openai', modelId: 'gpt-6.1-sol' },
+        ELIGIBLE,
+        speakers,
+      ),
+    ).toEqual({
+      ok: true,
+      harness: 'codex',
+      model: 'gpt-6.1-sol',
+      modelProvider: 'openai',
+      source: 'pinned',
+    });
+    // Pinned onto a runtime that cannot carry it: refused, never swapped.
+    expect(
+      chooseStandardAgentServing(
+        [responsesOnly],
+        { harness: 'opencode', providerSlug: 'openai', modelId: 'gpt-6.1-sol' },
+        ELIGIBLE,
+        speakers,
+      ),
+    ).toEqual({ ok: false, refusal: 'pin-unavailable' });
+    // Automatic on the default runtime: the cheaper Responses-only model is
+    // passed over for one the default runtime can run.
+    expect(
+      chooseStandardAgentServing(
+        [responsesOnly, option('modest', 'acme')],
+        {},
+        ELIGIBLE,
+        speakers,
+      ),
+    ).toMatchObject({ ok: true, harness: 'claude-code', model: 'modest' });
+    // Without any runtime that speaks it, nothing runs it.
+    expect(
+      chooseStandardAgentServing(
+        [responsesOnly],
+        { providerSlug: 'openai', modelId: 'gpt-6.1-sol' },
+        ELIGIBLE,
+      ),
+    ).toEqual({ ok: false, refusal: 'pin-unavailable' });
+  });
+
   it('refuses a pin it cannot run, and never swaps in another model', () => {
     expect(
       chooseStandardAgentServing(
