@@ -97,16 +97,25 @@ the read. A cancel that comes before the shim has named the command's group
 waits for it — the shim does so as soon as it has forked — so the group still
 gets its signal as a whole.
 
+A shim that exits normally has waited for every descendant to end. Its later
+SIGKILL round therefore reads neither the process table nor environments. A
+shim killed by a signal does not provide that proof: runnerd falls back to
+group records and tags. In a mixed tag scan, an intermediate whose environment
+read stalls still contributes its already-read parent/group information to
+the descendant walk. A stalled `stat` read cannot provide that information;
+its subtree may remain undiscoverable until a later scan.
+
 **A rotation keeps what the turn started.** A steer's restart cancels a
 running turn and continues the conversation in a new exec over the same
 workspace, so the platform sends that cancel as a rotation:
 `POST /v1/sessions/:id/exec/:execId/cancel?leftovers=keep`, which the spawner
 forwards to runnerd's `POST /execs/:id/cancel?leftovers=keep`. runnerd then
 ends only the exec's own process group (SIGTERM, then SIGKILL five seconds
-later while its own process still runs) and holds what it left outside the
+later while its own process or a proven group member still runs) and holds what it left outside the
 group, such as a dev server a harness's tool call started in a session of its
 own, for the exec that takes over. The hold lifts when an exec started after
-the cancel ends; the leftovers then end with the session's last running exec,
+the cancel ends without itself being rotated; chained rotations keep earlier
+holds until a successor actually finishes. The leftovers then end with the session's last running exec,
 as above, or when runnerd stops. A hold that sees no successor within ten
 minutes (a restart whose new exec never started) lifts too, and with no exec
 running its leftovers end at once. A later cancel of the handed-over exec (the
@@ -114,6 +123,31 @@ platform's superseded drive still reaps the exec it no longer owns) ends none
 of what it holds; a person's Stop goes to the exec that took over, and its
 end ends them. A plain cancel ends everything; a spawner or runnerd that
 predates the flag ignores it and does the same.
+
+Without a shim, a rotation snapshots the group before SIGTERM, while the
+leader still proves ownership. That stat-only scan is bounded to two seconds;
+if the leader exits before it completes, its snapshot is discarded. The
+group-only rounds use recorded pid/start-time pairs or an exec tag still in
+the group, not an unverified group number, and never signal held processes
+outside the group. When the leader exits during the snapshot, tag fallback
+still reaches tagged survivors; without a live subreaper, those fallback
+rounds may read environments.
+A survivor that removes its tag and leaves the group remains out of reach
+without a working subreaper. So does a group whose entire recorded membership
+has been replaced by newly forked, untagged processes after the leader exits.
+
+**Session teardown is best effort, not a wrapper-cleanup guarantee.** runnerd
+passes SIGTERM to execs when it receives a graceful stop, but does not await
+their completion before exiting. Docker's force-removal path does not deliver
+that graceful stop at all. This change intentionally retains those teardown
+semantics; guaranteeing wrapper cleanup would require a separate provider and
+daemon shutdown change. The unit tests prove the manager's signal delivery,
+not provider teardown or the timing of wrapper completion.
+
+Avoid `pkill -9 -f '<command>'` for managed execs: the shim's argv contains the
+command too, so that pattern can kill the shim. runnerd then reports the shim's
+signal exit (137) if no command status was received, and falls back to reaping
+by tag/group. Cancel through runnerd instead; SIGKILL cannot be caught.
 
 **No `kubectl exec`/attach anywhere** — runnerd is reached by ordinary HTTP, so
 the exec-free K8s constraint holds. runnerd auth is the per-session token
