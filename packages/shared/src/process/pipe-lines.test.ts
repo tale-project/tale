@@ -134,6 +134,43 @@ describe('pipeLines (web ReadableStream)', () => {
     expect(stream.locked).toBe(false);
   });
 
+  it('rejects and releases its reader without waiting for source cancellation', async () => {
+    const cancellation = Promise.withResolvers<void>();
+    const cancel = vi.fn(() => cancellation.promise);
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode('line\n'));
+      },
+      cancel,
+    });
+    const error = new Error('consumer failed');
+    const outcome = pipeLines(stream, () => {
+      throw error;
+    }).catch((reason: unknown) => reason);
+    try {
+      // A source may acknowledge cancellation much later (or never). Error
+      // delivery and reader release must finish by the next event-loop turn.
+      const nextTurn = new Promise<undefined>((resolve) =>
+        setImmediate(() => resolve(undefined)),
+      );
+      expect(await Promise.race([outcome, nextTurn])).toBe(error);
+      expect(cancel).toHaveBeenCalledOnce();
+      expect(stream.locked).toBe(false);
+    } finally {
+      cancellation.resolve();
+      await outcome;
+    }
+  });
+
+  it('preserves a short Unicode tail captured from an oversized chunk', async () => {
+    const first = `${'x'.repeat(1024 * 1024)}\n🚀${'y'.repeat(20)}`;
+    expect(await collect([first, '\r', '\nnext'], 32)).toEqual([
+      'x'.repeat(32) + ' …[truncated]',
+      '🚀' + 'y'.repeat(20),
+      'next',
+    ]);
+  });
+
   it('releases its reader when the source fails', async () => {
     const error = new Error('source failed');
     const stream = new ReadableStream<Uint8Array>({

@@ -43,10 +43,15 @@ function lineSink(onLine: (line: string) => void, maxChars: number) {
 
   function append(chunk: string, start: number, end: number): void {
     if (truncated) return;
-    buffer += chunk.slice(
+    const part = chunk.slice(
       start,
       Math.min(end, start + maxUnits - buffer.length),
     );
+    // A short suffix can be a V8 SlicedString pointing at the ENTIRE chunk.
+    // Copy fragments of oversized inputs before retaining/emitting them, not
+    // only lines that truncate. The copied fragment itself is bounded, and
+    // code-point splitting/joining preserves Unicode without re-encoding it.
+    buffer += chunk.length > maxUnits ? Array.from(part).join('') : part;
     if (buffer.length >= maxUnits) {
       // capLine copies only this bounded prefix, so a slice cannot retain
       // the backing storage of an arbitrarily large incoming chunk.
@@ -103,7 +108,9 @@ export async function pipeLines(
   } catch (error) {
     // Stop a still-producing source when its consumer throws; cancellation
     // failure must not replace the original read/consumer error.
-    await reader.cancel().catch(() => {});
+    // Do not wait for a source that never acknowledges cancellation: the
+    // consumer's error and reader unlock must still be delivered immediately.
+    void reader.cancel().catch(() => {});
     throw error;
   } finally {
     reader.releaseLock();
