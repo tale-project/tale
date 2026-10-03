@@ -25,7 +25,6 @@ import {
   groupMembers,
   processesLeft,
   signalExecProcesses,
-  signalGroup,
   type GroupMember,
   type ReaperDeps,
   type ReapTarget,
