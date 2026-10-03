@@ -41,7 +41,9 @@ import {
 import { isStandardGatewayProvider } from '../../../../lib/shared/providers/gateway_standard_providers';
 import {
   buildHarnessTable,
+  harnessToolCallingWire,
   resolveExecution,
+  supportsToolCallingWire,
 } from '../../../../lib/shared/providers/resolve_execution';
 import { isRecord } from '../../../../lib/utils/type-utils';
 import type { ActionCtx } from '../ctx';
@@ -135,9 +137,9 @@ function readAgentDefaultCredentialRow(
   return shaped;
 }
 
-/** The resolver only reads a model's identity; neutral values fill the
- * catalog fields it ignores (same convention as the composer's affordance
- * probe and the harness status derivation). */
+/** The subscription policy probe tests identity and credential constraints.
+ * Model tool-wire compatibility is checked against the actual catalog entry
+ * once that policy has admitted the harness. */
 function neutralModelEntry(id: string, provider: string): ModelCatalogEntry {
   return {
     id,
@@ -271,6 +273,8 @@ export async function walkDirectServing(
   organizationId: string,
   modelId: string,
   connectors: readonly ProviderDefinition[],
+  /** Absent for a plain no-tools LLM call; agent turns pass their harness wire. */
+  toolCallingWire?: HarnessGatewayWire,
 ): Promise<DirectServingWalk> {
   const unreachable: string[] = [];
   const rows = new Map<string, unknown>();
@@ -297,7 +301,11 @@ export async function walkDirectServing(
       continue;
     }
     const entry = findChatModel(catalog, modelId);
-    if (entry !== undefined) {
+    if (
+      entry !== undefined &&
+      (toolCallingWire === undefined ||
+        supportsToolCallingWire(entry, toolCallingWire))
+    ) {
       return {
         target: { providerSlug: connector.name, modelId: entry.id },
         unreachable,
@@ -322,12 +330,9 @@ export async function walkDirectServing(
 /** The wire a harness speaks to the sandbox gateway on the managed lane: its
  * declaration, else derived — a harness that points ANTHROPIC_BASE_URL at the
  * gateway's `/anthropic` path speaks Anthropic, every other one chat. */
-function harnessGatewayWire(harness: string): HarnessGatewayWire {
+export function harnessGatewayWire(harness: string): HarnessGatewayWire {
   const def = loadHarnesses().find((entry) => entry.slug === harness);
-  if (def?.gatewayWire !== undefined) return def.gatewayWire;
-  return def?.credentialEnvKeys.includes('ANTHROPIC_BASE_URL') === true
-    ? 'anthropic'
-    : 'openai-chat';
+  return harnessToolCallingWire(def);
 }
 
 /** The gateway serving of a client speaking `wire` should ride the
@@ -400,9 +405,13 @@ export async function resolvePinnedAgentServing(
   }
 
   if (row.authMethod === 'api-key' || row.authMethod === 'env') {
-    const walk = await walkDirectServing(ctx, args.organizationId, args.model, [
-      connector,
-    ]);
+    const walk = await walkDirectServing(
+      ctx,
+      args.organizationId,
+      args.model,
+      [connector],
+      harnessGatewayWire(args.harness),
+    );
     if (walk.target !== null) {
       return {
         lane: 'gateway',
@@ -443,6 +452,11 @@ export async function resolvePinnedAgentServing(
   if (entry === undefined) {
     throw new Error(
       `provider "${pinned}" does not list model "${args.model}" in its catalog — edit the agent's model`,
+    );
+  }
+  if (!supportsToolCallingWire(entry, harnessGatewayWire(args.harness))) {
+    throw new Error(
+      `model "${entry.id}" requires the Responses API for tools; harness "${args.harness}" cannot serve it`,
     );
   }
   // The lane mints no gateway key, so there is no vision polyfill: images
@@ -509,6 +523,7 @@ export async function resolveWorkflowAgentServing(
     args.organizationId,
     args.model,
     connectors,
+    harnessGatewayWire(args.harness),
   );
   if (direct.target !== null) {
     const chosen = connectors.find(
@@ -561,6 +576,12 @@ export async function resolveWorkflowAgentServing(
     }
     const entry = findChatModel(catalog, args.model);
     if (entry === undefined) continue;
+    if (!supportsToolCallingWire(entry, harnessGatewayWire(args.harness))) {
+      refusals.push(
+        `"${connector.name}": model "${entry.id}" requires the Responses API for tools; harness "${args.harness}" cannot serve it`,
+      );
+      continue;
+    }
     const apiBaseUrl = subscriptionApiBaseUrl(connector, row.authMethod);
     if (apiBaseUrl === undefined) {
       refusals.push(

@@ -16,6 +16,7 @@ import {
   findLatestAutomationRunForTask,
   findLiveAutomationRunForTask,
 } from './external-ref.ts';
+import { readTaskReviewDecision } from './review-decision.ts';
 import { getPendingReviewForTask } from './reviews.ts';
 
 vi.mock('./agent-runs.ts', () => ({ listTaskAgentRunSummaries: vi.fn() }));
@@ -24,6 +25,7 @@ vi.mock('./external-ref.ts', () => ({
   findLatestAutomationRunForTask: vi.fn(),
 }));
 vi.mock('./reviews.ts', () => ({ getPendingReviewForTask: vi.fn() }));
+vi.mock('./review-decision.ts', () => ({ readTaskReviewDecision: vi.fn() }));
 vi.mock('../automations/store.ts', async (importOriginal) => ({
   // `runWaitingFor` stays the store's own: the park vocabulary is its.
   ...(await importOriginal<typeof import('../automations/store.ts')>()),
@@ -50,6 +52,7 @@ const summary = (id: string, seq: number, status = 'settled') => ({
   settledAt: status === 'running' ? null : 3,
   waitingForCapacity: false,
   failureCode: null,
+  retryPending: false,
   feedback: null,
   feedbackTruncated: false,
 });
@@ -63,6 +66,7 @@ describe('readTaskWorkState', () => {
       .mockResolvedValue(null);
     vi.mocked(getPendingAskForRun).mockReset().mockResolvedValue(null);
     vi.mocked(getPendingReviewForTask).mockReset().mockResolvedValue(null);
+    vi.mocked(readTaskReviewDecision).mockReset().mockResolvedValue(null);
   });
 
   it('reads one run past the page to say whether an older page exists', async () => {
@@ -175,7 +179,11 @@ describe('readTaskWorkState', () => {
       taskId: 't-1',
       round: 2,
       requestedFor: 'user-9',
+      reviewer: { kind: 'user', userId: 'user-9' },
       agentSlug: 'agent-1',
+      implementationAgentId: 'agent-1',
+      evidenceRevision: 'a'.repeat(64),
+      agentReviewBlockedReason: null,
       runId: 'run-2',
       createdAt: 30,
     });
@@ -185,6 +193,10 @@ describe('readTaskWorkState', () => {
       round: 2,
       runId: 'run-2',
       requestedFor: 'user-9',
+      reviewer: { kind: 'user', userId: 'user-9' },
+      implementationAgentId: 'agent-1',
+      evidenceRevision: 'a'.repeat(64),
+      agentReviewBlockedReason: null,
       createdAt: 30,
     });
   });
@@ -196,5 +208,25 @@ describe('readTaskWorkState', () => {
     await expect(readTaskWorkState(sql, ARGS)).rejects.toThrow(
       'connection terminated',
     );
+  });
+
+  it('carries the same blocked agent diagnosis to native task_get', async () => {
+    vi.mocked(getPendingReviewForTask).mockResolvedValue({
+      approvalId: 'agent-review',
+      taskId: 't-1',
+      round: 0,
+      requestedFor: null,
+      reviewer: { kind: 'agent', agentId: 'reviewer' },
+      agentSlug: null,
+      implementationAgentId: 'worker',
+      evidenceRevision: 'a'.repeat(64),
+      agentReviewBlockedReason: 'permission_missing',
+      runId: 'run',
+      createdAt: 1,
+    });
+    expect((await readTaskWorkState(sql, ARGS)).pendingReview).toMatchObject({
+      reviewer: { kind: 'agent', agentId: 'reviewer' },
+      agentReviewBlockedReason: 'permission_missing',
+    });
   });
 });

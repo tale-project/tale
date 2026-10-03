@@ -342,12 +342,9 @@ export async function init(options: InitOptions): Promise<InitResult> {
   }
   logger.info(`  ${step++}. tale dev    (launch locally)`);
   logger.info(
-    `  ${step++}. Open the app, create the owner account, then add your`,
+    `  ${step++}. Open the app, create your account and workspace, then add`,
   );
-  logger.info('       OpenRouter key when the setup wizard asks — or later in');
-  logger.info(
-    '       Settings → AI providers. Get a key: https://openrouter.ai/keys',
-  );
+  logger.info('       a supported model provider in Settings → AI providers.');
   logger.info(`  ${step++}. tale deploy   (when ready, deploy to your domain)`);
   logger.blank();
   logger.notice(

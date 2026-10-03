@@ -9,6 +9,7 @@ import { page } from 'vitest/browser';
 import { render, screen } from '@/tests/utils/render';
 
 import { ACTIVE_HREF, SECTIONS } from './__fixtures__/docs-nav';
+import { DocsArticle } from './docs-article';
 import { DocsHeader } from './docs-header';
 import { DocsLayout } from './docs-layout';
 import { PageActions } from './page-actions';
@@ -46,7 +47,10 @@ beforeEach(async () => {
 
 afterEach(cleanup);
 
-function renderPage(actions: ReactNode) {
+function renderPage(
+  actions: ReactNode,
+  children: ReactNode = <p>Page body</p>,
+) {
   return render(
     <DocsLayout
       sections={SECTIONS}
@@ -72,7 +76,7 @@ function renderPage(actions: ReactNode) {
         ]}
         actions={actions}
       />
-      <p>Page body</p>
+      {children}
     </DocsLayout>,
   );
 }
@@ -119,5 +123,67 @@ describe('DocsLayout bars', () => {
     expect(logoRow.height).toBe(52);
     expect(strip.height).toBe(logoRow.height);
     expect(strip.bottom).toBe(logoRow.bottom);
+  });
+});
+
+describe('DocsLayout narrow screens', () => {
+  it.each([320, 768])(
+    'keeps the article, long neighbour titles and footer inside %ipx',
+    async (width) => {
+      await page.viewport(width, 812);
+      const title = 'Configure your organization and connect a model provider';
+      renderPage(
+        <PageActions
+          markdownUrl="https://example.com/page.md"
+          markdown="# Page"
+        />,
+        <DocsArticle
+          title={title}
+          description="Read the setup guide for your team and your infrastructure."
+          readingTimeMinutes={4}
+          toc={[]}
+          next={{ href: '/next', label: title }}
+        >
+          <p>Documentation body</p>
+        </DocsArticle>,
+      );
+
+      expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(width);
+      const article = screen.getByRole('article');
+      const next = screen.getByRole('link', { name: `Next: ${title}` });
+      const label = next.lastElementChild;
+      if (!label) throw new Error('Next page title is missing');
+      expect(article.scrollWidth).toBeLessThanOrEqual(article.clientWidth);
+      expect(label.scrollWidth).toBeLessThanOrEqual(label.clientWidth);
+      for (const link of screen
+        .getByRole('contentinfo')
+        .querySelectorAll('a')) {
+        const box = link.getBoundingClientRect();
+        expect(box.right).toBeLessThanOrEqual(width);
+        expect(box.left).toBeGreaterThanOrEqual(0);
+      }
+    },
+  );
+
+  it('makes the phone controls and drawer rows actual 44px touch targets', async () => {
+    await page.viewport(320, 812);
+    const { user } = renderPage(undefined);
+    const menu = screen.getByRole('button', { name: 'Open navigation menu' });
+    const search = screen.getByRole('button', { name: 'Open search' });
+    for (const control of [menu, search]) {
+      const box = control.getBoundingClientRect();
+      expect(box.width).toBeGreaterThanOrEqual(44);
+      expect(box.height).toBeGreaterThanOrEqual(44);
+    }
+
+    await user.click(menu);
+    const drawer = await screen.findByRole('dialog');
+    for (const row of drawer.querySelectorAll('nav a, nav button')) {
+      if (row.closest('[inert]')) continue;
+      expect(row.getBoundingClientRect().height).toBeGreaterThanOrEqual(44);
+    }
+    const close = screen.getByRole('button', { name: 'Close navigation menu' });
+    expect(close.getBoundingClientRect().height).toBeGreaterThanOrEqual(44);
+    expect(drawer.scrollWidth).toBeLessThanOrEqual(drawer.clientWidth);
   });
 });

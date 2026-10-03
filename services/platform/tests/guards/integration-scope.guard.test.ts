@@ -211,6 +211,8 @@ describe('the Integration scope filter', () => {
       'services/platform/backend/integration-lane-helpers.ts',
       'services/platform/backend/db/migrate.ts',
       'services/platform/backend/db/migrations/**',
+      'services/sandbox-runtime/daemon/src/file-ops.ts',
+      'services/sandbox-runtime/daemon/src/protocol.ts',
     ]) {
       expect(graph.reads, reached).toContain(reached);
     }

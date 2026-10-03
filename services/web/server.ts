@@ -25,8 +25,9 @@ import { buildDiscordPayload } from './lib/forms/discord-embeds';
 import { webHealthStatus } from './lib/forms/health';
 import { checkRateLimit } from './lib/forms/rate-limit';
 import { MIN_SUBMIT_DELAY_MS, submitRequest } from './lib/forms/schemas';
-import { createReleaseFeed } from './lib/releases/feed';
-import { handleReleasesRequest, RELEASES_ROUTE } from './lib/releases/route';
+import { createReleaseFeed, releaseFeedHealth } from './lib/releases/feed';
+import { handleReleasesRequest, RELEASES_ROUTES } from './lib/releases/route';
+import { withLegalArtifactNoindex } from './lib/seo/legal-artifacts';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -59,9 +60,11 @@ if (!DISCORD_WEBHOOK_URL) {
 // Precompiled artifact server
 // ---------------------------------------------------------------------------
 
-const artifactsServer = await createPrecompiledServer({
-  dir: resolve(import.meta.dir, 'dist-seo'),
-});
+const artifactsServer = withLegalArtifactNoindex(
+  await createPrecompiledServer({
+    dir: resolve(import.meta.dir, 'dist-seo'),
+  }),
+);
 
 // ---------------------------------------------------------------------------
 // Form-submit handler (web-specific)
@@ -185,6 +188,7 @@ async function handleFormSubmit(request: Request): Promise<Response> {
 const releaseFeed = createReleaseFeed({
   snapshot: RELEASES,
   snapshotFetchedAt: RELEASES_FETCHED_AT,
+  reportStale: monitoring.capture,
 });
 
 // ---------------------------------------------------------------------------
@@ -205,6 +209,7 @@ startReactServer({
       webhookUrl: DISCORD_WEBHOOK_URL,
       formsRequired: FORMS_REQUIRED,
       version: process.env.TALE_VERSION ?? 'dev',
+      releases: releaseFeedHealth(releaseFeed.read()),
     });
     return Response.json(body, { status });
   },
@@ -212,7 +217,7 @@ startReactServer({
     if (url.pathname === '/api/forms/submit') {
       return handleFormSubmit(request);
     }
-    if (url.pathname === RELEASES_ROUTE) {
+    if (RELEASES_ROUTES.some((path) => path === url.pathname)) {
       return handleReleasesRequest(request, releaseFeed);
     }
     return null;

@@ -1,3 +1,4 @@
+import { Card } from '@tale/ui/card';
 import { cn } from '@tale/ui/cn';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { ArrowRight, type LucideIcon } from 'lucide-react';
@@ -7,18 +8,21 @@ import { useMarketingLink } from '../../routing';
 import { Reveal } from './reveal';
 
 const marketingCardVariants = cva(
-  'group block transition-colors duration-200',
+  'group focus-visible:outline-fg-base relative block h-full min-w-0 transition-[background-color,border-color,box-shadow] duration-200 focus-visible:outline-2 focus-visible:outline-offset-4 motion-reduce:transition-none',
   {
     variants: {
       surface: {
         /** Quiet cell for framed divider panels. */
         plain:
-          'hover:bg-surface-site-inset/70 h-full px-5 py-6 md:px-6 md:py-7',
+          'hover:bg-surface-site-inset/60 rounded-none border-0 bg-transparent px-5 py-6 md:px-7 md:py-8',
         /** Soft raised tile — prefer sparingly (standalone discovery). */
         raised:
-          'border-border-base bg-surface-site-raised shadow-site-card hover:shadow-site-card-hover rounded-xl border p-5',
-        inset:
-          'border-border-base bg-surface-site-inset hover:bg-surface-site-deep rounded-xl border p-5',
+          'bg-surface-site-raised shadow-site-card hover:border-border-strong hover:shadow-site-card-hover p-6 md:p-7',
+        inset: 'bg-surface-site-inset hover:bg-surface-site-deep p-5',
+        /** Lead destination in an editorial grid. */
+        featured: 'bg-surface-site-inset hover:border-border-strong p-6 md:p-8',
+        /** A compact destination in a host-owned list or divider grid. */
+        quiet: 'rounded-none border-0 bg-transparent px-0 py-5',
       },
     },
     defaultVariants: {
@@ -40,7 +44,7 @@ export interface MarketingCardProps extends VariantProps<
   className?: string;
   /** Wrap in opacity-only Reveal. */
   reveal?: boolean;
-  /** Show a trailing arrow on linked cards (default for `plain`). */
+  /** Show a trailing arrow on linked cards (default when `to` is set). */
   showArrow?: boolean;
 }
 
@@ -63,43 +67,55 @@ export function MarketingCard({
 }: MarketingCardProps) {
   const LinkComponent = useMarketingLink();
   const classes = cn(marketingCardVariants({ surface }), className);
-  const arrow = showArrow ?? (surface === 'plain' && Boolean(to));
+  const arrow = showArrow ?? Boolean(to);
   const inner = (
     <>
       {Icon ? (
-        <span className="border-border-base bg-surface-site-deep text-fg-base shadow-site-inset mb-4 flex size-10 items-center justify-center rounded-xl border">
-          <Icon aria-hidden className="size-4.5" strokeWidth={1.75} />
+        <span
+          className={cn(
+            'text-fg-base mb-5 flex size-9 items-center justify-center',
+            surface === 'featured' && 'mb-8 size-11',
+          )}
+        >
+          <Icon
+            aria-hidden
+            className={surface === 'featured' ? 'size-7' : 'size-5'}
+            strokeWidth={1.5}
+          />
         </span>
       ) : null}
-      <span className="flex items-start justify-between gap-3">
-        <span className="text-fg-base block text-lg font-normal tracking-tight">
+      <div className="flex items-start justify-between gap-3">
+        <div
+          className={cn(
+            'text-fg-base block text-xl leading-snug font-medium tracking-[-0.025em]',
+            surface === 'featured' && 'text-2xl md:text-3xl',
+          )}
+        >
           {title}
-        </span>
+        </div>
         {arrow ? (
           <ArrowRight
             aria-hidden
-            className="text-fg-muted group-hover:text-fg-base mt-1 size-4 shrink-0 transition-transform duration-200 group-hover:translate-x-0.5"
+            className="text-fg-muted group-hover:text-fg-base mt-1 size-4 shrink-0 transition-transform duration-200 motion-safe:group-hover:translate-x-1 motion-safe:group-focus-visible:translate-x-1 motion-reduce:transition-none"
           />
         ) : null}
-      </span>
+      </div>
       {description ? (
-        <span
+        <div
           className="text-fg-muted mt-2 block text-sm"
-          style={{ lineHeight: 1.5 }}
+          style={{ lineHeight: 1.6 }}
         >
           {description}
-        </span>
+        </div>
       ) : null}
       {children}
     </>
   );
 
-  const node = to ? (
-    <LinkComponent to={to} className={classes}>
-      {inner}
-    </LinkComponent>
-  ) : (
-    <div className={classes}>{inner}</div>
+  const node = (
+    <Card asChild padding="none" radius="xl" className={classes}>
+      {to ? <LinkComponent to={to}>{inner}</LinkComponent> : <div>{inner}</div>}
+    </Card>
   );
 
   if (!reveal) return node;

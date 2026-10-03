@@ -1,3 +1,8 @@
+import type {
+  AgentReviewBlockedReason,
+  TaskAgentReviewReceipt,
+  TaskReviewRecipient,
+} from '@tale/shared/schemas/task-review';
 import type { Sql } from 'postgres';
 
 import type { RunSummary } from '../../../lib/engine/api/dispatch.ts';
@@ -10,18 +15,20 @@ import {
   findLatestAutomationRunForTask,
   findLiveAutomationRunForTask,
 } from './external-ref.ts';
+import { readTaskReviewDecision } from './review-decision.ts';
 import { getPendingReviewForTask } from './reviews.ts';
 
 /**
- * What is working on a task, and what waits on a person — the run half of an
+ * What is working on a task, and who reviews it — the run half of an
  * agent's `task_get`, read with the readers the task sheet uses: its run
  * list, its automation banner and Run row, the ask card and the review gate.
- * A task has at most one live run of each family (migrations 0080 and 0104),
- * so "the live one" is exact.
+ * Task-specific starts serialize on the task. Generic org-level admissions
+ * can also carry its subject and may overlap; the reader selects the newest
+ * matching live automation, without claiming those starts share that lock.
  *
  * The caller has scope-checked the task and passes its project: every read is
- * bound to the task (and the automation run to the task's own project), so
- * nothing here reaches past it.
+ * bound to the task and its org (a project automation must match the task's
+ * project; an org-level run is already member-readable).
  */
 
 /** A live automation run: the statuses the start guard counts as holding
@@ -48,18 +55,24 @@ export interface TaskWorkflowRunState {
 }
 
 export interface TaskWorkState {
+  /** Latest recorded native decision; a newer non-native or pending review hides it. */
+  reviewDecision: TaskAgentReviewReceipt | null;
   /** Newest first — the first is the live run when the task has one. */
   agentRuns: TaskAgentRunSummary[];
   /** Whether older runs than this page exist. */
   agentRunsHasMore: boolean;
   /** The live automation run, else the latest one, else null. */
   workflowRun: TaskWorkflowRunState | null;
-  /** The task's open review, which only a person decides. */
+  /** Captured review ownership; agent verdicts use a separate opt-in tool. */
   pendingReview: {
     approvalId: string;
     round: number;
     runId: string | null;
     requestedFor: string | null;
+    reviewer: TaskReviewRecipient | null;
+    implementationAgentId: string | null;
+    evidenceRevision: string | null;
+    agentReviewBlockedReason: AgentReviewBlockedReason | null;
     createdAt: number;
   } | null;
 }
@@ -135,6 +148,7 @@ export async function readTaskWorkState(
     agentRuns: runs.slice(0, runLimit),
     agentRunsHasMore: runs.length > runLimit,
     workflowRun,
+    reviewDecision: await readTaskReviewDecision(sql, subject),
     pendingReview:
       review === null
         ? null
@@ -143,6 +157,10 @@ export async function readTaskWorkState(
             round: review.round,
             runId: review.runId,
             requestedFor: review.requestedFor,
+            reviewer: review.reviewer,
+            implementationAgentId: review.implementationAgentId,
+            evidenceRevision: review.evidenceRevision,
+            agentReviewBlockedReason: review.agentReviewBlockedReason,
             createdAt: review.createdAt,
           },
   };

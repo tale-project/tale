@@ -311,6 +311,21 @@ describe('providerDefinitionSchema', () => {
 });
 
 describe('modelCatalogEntrySchema', () => {
+  it('declares a Responses-only tool API and refuses an unknown wire', () => {
+    expect(
+      modelCatalogEntrySchema.safeParse({
+        ...VALID_MODEL,
+        toolCallingApi: 'responses',
+      }).success,
+    ).toBe(true);
+    expect(
+      modelCatalogEntrySchema.safeParse({
+        ...VALID_MODEL,
+        toolCallingApi: 'unknown',
+      }).success,
+    ).toBe(false);
+  });
+
   it('accepts a full entry', () => {
     expect(modelCatalogEntrySchema.safeParse(VALID_MODEL).success).toBe(true);
   });

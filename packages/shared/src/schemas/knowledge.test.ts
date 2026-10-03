@@ -19,6 +19,8 @@ describe('knowledgeEmbeddingWriteSchema — what a write may clear', () => {
   it('names the settings a write keeps when it omits them', () => {
     expect([...KNOWLEDGE_EMBEDDING_KEPT_KEYS].sort()).toEqual([
       'maxConcurrentRequests',
+      'maxRequestsPerMinute',
+      'maxTokensPerMinute',
       'minSimilarity',
       'minTokensPerSecond',
     ]);

@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { parse } from 'yaml';
 
 import {
-  ARRIVAL_WORKFLOWS,
+  ALWAYS_PUSH_WORKFLOWS,
   CANDIDATE_JOBS,
   FILTERED_PUSH_WORKFLOWS,
 } from './release-candidate-gate';
@@ -63,7 +63,7 @@ const sourceWorkflows = [
 const C = 'c'.repeat(40);
 const H = 'd'.repeat(40);
 
-describe('where a candidate reached main', () => {
+describe('push workflows used to detect contradictory arrival evidence', () => {
   const pushTrigger = async (path: string) =>
     (
       await workflow(
@@ -76,7 +76,7 @@ describe('where a candidate reached main', () => {
       | { branches?: string[]; paths?: string[]; 'paths-ignore'?: string[] }
       | undefined;
 
-  test.each([...ARRIVAL_WORKFLOWS])(
+  test.each([...ALWAYS_PUSH_WORKFLOWS])(
     'GitHub runs %s for every push to main: no path filter',
     async (path) => {
       const push = await pushTrigger(path);

@@ -27,6 +27,7 @@ function TimelineRow({
   nodeType,
   view,
   isCurrent,
+  waitingForRoom,
   organizationId,
   runId,
 }: {
@@ -36,6 +37,8 @@ function TimelineRow({
    * flight, so it is always present here. */
   view: NodeRunView;
   isCurrent: boolean;
+  /** This step's agent turn waits for sandbox room to start. */
+  waitingForRoom: boolean;
   organizationId: string;
   runId: string;
 }) {
@@ -99,6 +102,7 @@ function TimelineRow({
         <AgentActivityLine
           organizationId={organizationId}
           runId={runId}
+          waitingForRoom={waitingForRoom}
           className="mt-1 pl-6"
         />
       )}
@@ -115,7 +119,11 @@ function TimelineRow({
           {/* The transcript is the AGENT step's detail — never another
               step's, and nothing at all for other types. */}
           {nodeType === 'agent' && (
-            <AgentExecutionLog organizationId={organizationId} runId={runId} />
+            <AgentExecutionLog
+              organizationId={organizationId}
+              runId={runId}
+              waitingForRoom={waitingForRoom}
+            />
           )}
         </div>
       )}
@@ -148,6 +156,7 @@ export function RunStepTimeline({
   graph,
   projection,
   currentNodeId,
+  waitingForRoom = false,
   organizationId,
   runId,
 }: {
@@ -155,6 +164,9 @@ export function RunStepTimeline({
   projection: RunProjection;
   /** The node a live run is parked on — from the stepper's cursor. */
   currentNodeId: string | null;
+  /** The run is parked on its current agent step's start, waiting for
+   * sandbox room (`waitingFor: room`). */
+  waitingForRoom?: boolean;
   organizationId: string;
   runId: string;
 }) {
@@ -211,6 +223,7 @@ export function RunStepTimeline({
             nodeType={node.type}
             view={view}
             isCurrent={isCurrent}
+            waitingForRoom={isCurrent && waitingForRoom}
             organizationId={organizationId}
             runId={runId}
           />

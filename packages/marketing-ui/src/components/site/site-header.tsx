@@ -1,16 +1,24 @@
 import { cn } from '@tale/ui/cn';
 import { TaleLogo } from '@tale/ui/logo';
-import { motion, useReducedMotion } from 'framer-motion';
-import { type ReactNode, useEffect, useRef, useState } from 'react';
+import { Sheet } from '@tale/ui/sheet';
+import { useMediaQuery } from '@tale/ui/use-media-query';
+import { motion } from 'framer-motion';
+import { Menu, X } from 'lucide-react';
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 
+import { useReducedMotion } from '../../lib/entrance';
 import { SiteContainer } from './site-container';
 
 const easeOut = [0.22, 1, 0.36, 1] as const;
 
-function getScrollbarWidth(): number {
-  if (typeof window === 'undefined') return 0;
-  return window.innerWidth - document.documentElement.clientWidth;
-}
+const MENU_BUTTON_CLASS =
+  'text-fg-base border-border-base/70 hover:bg-surface-site-inset focus-visible:ring-accent-base inline-flex size-11 shrink-0 items-center justify-center rounded-full border transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none motion-reduce:transition-none';
 
 function BurgerIcon({
   open,
@@ -23,44 +31,51 @@ function BurgerIcon({
     ? { duration: 0 }
     : { duration: 0.18, ease: easeOut };
   return (
-    <svg
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
+    <motion.span
       aria-hidden
+      initial={false}
+      animate={{ rotate: open ? 90 : 0 }}
+      transition={transition}
+      className="relative size-5"
     >
-      <motion.line
-        initial={false}
-        animate={
-          open
-            ? { x1: 6, y1: 6, x2: 18, y2: 18 }
-            : { x1: 4, y1: 8, x2: 20, y2: 8 }
-        }
-        transition={transition}
+      <Menu
+        className={cn('absolute inset-0 size-5', open && 'opacity-0')}
+        strokeWidth={1.5}
       />
-      <motion.line
-        initial={false}
-        animate={
-          open
-            ? { x1: 4, y1: 12, x2: 20, y2: 12, opacity: 0 }
-            : { x1: 4, y1: 12, x2: 20, y2: 12, opacity: 1 }
-        }
-        transition={transition}
+      <X
+        className={cn('absolute inset-0 size-5', !open && 'opacity-0')}
+        strokeWidth={1.5}
       />
-      <motion.line
-        initial={false}
-        animate={
-          open
-            ? { x1: 6, y1: 18, x2: 18, y2: 6 }
-            : { x1: 4, y1: 16, x2: 20, y2: 16 }
-        }
-        transition={transition}
-      />
-    </svg>
+    </motion.span>
+  );
+}
+
+/** Mount inside the Sheet portal so its link listener follows that lifecycle. */
+function MobileMenuContents({
+  children,
+  onNavigate,
+}: {
+  children: ReactNode;
+  onNavigate: () => void;
+}) {
+  const contentRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const content = contentRef.current;
+    if (!content) return undefined;
+    const onClick = (event: MouseEvent) => {
+      if (event.target instanceof Element && event.target.closest('a')) {
+        onNavigate();
+      }
+    };
+    content.addEventListener('click', onClick);
+    return () => content.removeEventListener('click', onClick);
+  }, [onNavigate]);
+
+  return (
+    <div ref={contentRef} className="flex min-h-0 flex-1 flex-col">
+      {children}
+    </div>
   );
 }
 
@@ -71,7 +86,9 @@ interface SiteHeaderProps {
   desktopNav?: ReactNode;
   /** Trailing slot on desktop (CTAs, search button, etc.). */
   desktopActions?: ReactNode;
-  /** Body of the mobile drawer that slides under the header when open. */
+  /** Actions beside the mobile menu button, such as documentation search. */
+  mobileActions?: ReactNode;
+  /** Body of the mobile navigation sheet. */
   mobileNav?: ReactNode;
   /** Localized label for the burger button when the drawer is closed. */
   openMenuLabel: string;
@@ -83,7 +100,7 @@ interface SiteHeaderProps {
   onOpenChange?: (open: boolean) => void;
   /**
    * Override the inner content-width container. The default `SiteContainer`
-   * uses the marketing-site frame (max-w-[1280px], px-20 on desktop); docs
+   * uses the marketing-site frame; docs
    * pages need a wider, less-padded frame to align with the sidebar. Pass a
    * custom className to opt out of the marketing defaults.
    */
@@ -99,14 +116,15 @@ interface SiteHeaderProps {
  * Sticky top navigation shell of the marketing site.
  *
  * Owns scroll-based transparent → tinted blur transition, mobile burger
- * animation, drawer state with scroll-lock, and Esc-to-close. The slots
+ * animation and mobile sheet state. The shared Sheet owns focus containment,
+ * scroll-lock, Escape/outside dismissal and focus restoration. The slots
  * (`logo`, `desktopNav`, `desktopActions`, `mobileNav`) are pure render
  * input — routing, link components and i18n stay in the caller so this
  * shell is framework-neutral.
  *
- * Mobile drawer uses CSS `grid-template-rows` (0fr → 1fr) instead of
- * animating `height: auto`, which avoids measure jank. At the top of the
- * page the bar is transparent with a light bottom border; scroll adds the
+ * The mobile sheet enters with a short transform/fade and closes when the
+ * desktop navigation appears. At the top of the page the bar is transparent
+ * with a light bottom border; scroll adds the
  * tinted blur surface. The marketing root paints `bg-gradient-site-hero`
  * behind the header so the wash is continuous (no flat `surface-site` seam).
  */
@@ -114,6 +132,7 @@ export function SiteHeader({
   logo,
   desktopNav,
   desktopActions,
+  mobileActions,
   mobileNav,
   openMenuLabel,
   closeMenuLabel,
@@ -123,9 +142,15 @@ export function SiteHeader({
   surface = 'base',
 }: SiteHeaderProps) {
   const reduceMotion = useReducedMotion();
+  const isDesktop = useMediaQuery('(min-width: 1024px)');
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
-  const mobileNavRef = useRef<HTMLElement>(null);
+  const logoRef = useRef<HTMLDivElement>(null);
+  const desktopFocusRef = useRef<HTMLElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
+  const hasMobileNav = Boolean(mobileNav);
+  const menuOpen = open && !isDesktop && hasMobileNav;
+  const closeMenu = useCallback(() => setOpen(false), []);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
@@ -135,67 +160,43 @@ export function SiteHeader({
   }, []);
 
   useEffect(() => {
-    onOpenChange?.(open);
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setOpen(false);
-    };
-    if (open) {
-      const scrollbarWidth = getScrollbarWidth();
-      document.addEventListener('keydown', onKey);
-      document.body.style.overflow = 'hidden';
-      if (scrollbarWidth > 0) {
-        document.body.style.paddingRight = `${scrollbarWidth}px`;
-      }
-    }
-    return () => {
-      document.removeEventListener('keydown', onKey);
-      document.body.style.overflow = '';
-      document.body.style.paddingRight = '';
-    };
-  }, [open, onOpenChange]);
+    onOpenChange?.(menuOpen);
+  }, [menuOpen, onOpenChange]);
 
-  // Close the drawer when a link inside it is activated. Attached via
-  // addEventListener so the nav stays a landmark without a React onClick
-  // (jsx-a11y treats click-on-nav as a non-interactive control).
+  // Unmounting the now-hidden opener lets Sheet restore focus to the visible
+  // logo link. Reset state too, so returning to phone width cannot reopen it.
   useEffect(() => {
-    const nav = mobileNavRef.current;
-    if (!nav) return undefined;
-    const onClick = (event: MouseEvent) => {
-      // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion -- event.target is an Element inside the drawer
-      const target = event.target as Element | null;
-      if (target?.closest('a')) setOpen(false);
-    };
-    nav.addEventListener('click', onClick);
-    return () => nav.removeEventListener('click', onClick);
-  }, []);
+    desktopFocusRef.current =
+      logoRef.current?.querySelector<HTMLElement>('a, button') ?? null;
+    if (isDesktop || !hasMobileNav) setOpen(false);
+  }, [isDesktop, hasMobileNav]);
 
-  const hasMobileNav = Boolean(mobileNav);
   // Marketing pages paint `surface-site` (cool stone paper); docs stay on `bg-base`.
   // Using the wrong token makes the sticky bar read as a cold strip over the hero.
   // Top of page stays transparent so the hero shows through; scroll adds tint + blur.
   const solidBg = surface === 'site' ? 'bg-surface-site' : 'bg-bg-base';
   const scrolledBg =
     surface === 'site'
-      ? 'bg-surface-site/90 supports-[backdrop-filter]:bg-surface-site/75'
-      : 'bg-bg-base/85 supports-[backdrop-filter]:bg-bg-base/65';
+      ? 'bg-surface-site/95 supports-[backdrop-filter]:bg-surface-site/85'
+      : 'bg-bg-base/95 supports-[backdrop-filter]:bg-bg-base/85';
 
   return (
     <header
       className={cn(
-        'sticky top-0 z-40 transition-colors duration-200 print:hidden',
-        open
-          ? cn('border-border-base border-b', solidBg)
-          : scrolled
-            ? cn('border-border-base border-b backdrop-blur', scrolledBg)
-            : 'border-border-base/40 border-b bg-transparent',
+        'sticky top-0 z-40 border-b pt-(--safe-top) pr-(--safe-right) pl-(--safe-left) transition-colors duration-200 motion-reduce:transition-none print:hidden',
+        scrolled
+          ? cn('border-border-base/70 backdrop-blur-xl', scrolledBg)
+          : 'border-border-base/40 bg-transparent',
       )}
     >
       <SiteContainer className={containerClassName}>
-        <div className="flex h-16 items-center justify-between gap-4 lg:grid lg:grid-cols-[1fr_auto_1fr]">
-          <div className="lg:justify-self-start">{logo}</div>
+        <div className="flex h-16 items-center justify-between gap-4 lg:grid lg:h-18 lg:grid-cols-[1fr_auto_1fr]">
+          <div ref={logoRef} className="lg:justify-self-start">
+            {logo}
+          </div>
 
           {desktopNav ? (
-            <nav className="hidden items-center gap-8 lg:flex lg:justify-self-center">
+            <nav className="hidden items-center gap-1 lg:flex lg:justify-self-center">
               {desktopNav}
             </nav>
           ) : (
@@ -208,49 +209,75 @@ export function SiteHeader({
                 {desktopActions}
               </div>
             ) : null}
-            {hasMobileNav ? (
+            {mobileActions ? (
+              <div className="flex items-center gap-2 lg:hidden">
+                {mobileActions}
+              </div>
+            ) : null}
+            {hasMobileNav && !isDesktop ? (
               <button
                 type="button"
-                aria-label={open ? closeMenuLabel : openMenuLabel}
-                aria-expanded={open}
-                aria-controls={mobileNavId}
-                className="text-fg-muted hover:text-fg-base -mr-2.5 inline-flex h-11 w-11 items-center justify-center rounded-lg transition-colors lg:hidden"
+                aria-label={menuOpen ? closeMenuLabel : openMenuLabel}
+                aria-expanded={menuOpen}
+                aria-haspopup="dialog"
+                aria-controls={menuOpen ? mobileNavId : undefined}
+                className={cn(MENU_BUTTON_CLASS, 'lg:hidden')}
                 onClick={() => setOpen((prev) => !prev)}
               >
-                <BurgerIcon open={open} reduceMotion={reduceMotion} />
+                <BurgerIcon open={menuOpen} reduceMotion={reduceMotion} />
               </button>
             ) : null}
           </div>
         </div>
       </SiteContainer>
 
-      {hasMobileNav ? (
-        <div
+      {/* Unmount the portal at the breakpoint. CSS-hiding an exiting Sheet
+          can cancel animationend and leave Radix Presence holding aria-hidden
+          on the rest of the page indefinitely. */}
+      {hasMobileNav && !isDesktop ? (
+        <Sheet
+          open={menuOpen}
+          onOpenChange={setOpen}
+          side="top"
+          title={openMenuLabel}
+          hideClose
+          restoreFocusRef={desktopFocusRef}
+          onOpenAutoFocus={(event) => {
+            event.preventDefault();
+            closeRef.current?.focus();
+          }}
           className={cn(
-            'grid lg:hidden',
-            'transition-[grid-template-rows] duration-200 ease-out motion-reduce:transition-none',
-            open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]',
+            'border-border-base/70 data-[state=open]:slide-in-from-top-2 data-[state=closed]:slide-out-to-top-2 data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0 flex h-auto max-h-dvh flex-col gap-0 overflow-hidden rounded-b-2xl p-0 pt-(--safe-top) pr-(--safe-right) pl-(--safe-left) data-[state=closed]:duration-150 data-[state=open]:duration-200',
+            solidBg,
           )}
         >
-          <div className="min-h-0 overflow-hidden">
+          <MobileMenuContents onNavigate={closeMenu}>
+            <div className="border-border-base/70 shrink-0 border-b">
+              <SiteContainer className={containerClassName}>
+                <div className="flex h-16 items-center justify-between gap-4">
+                  {logo}
+                  <button
+                    ref={closeRef}
+                    type="button"
+                    aria-label={closeMenuLabel}
+                    className={MENU_BUTTON_CLASS}
+                    onClick={closeMenu}
+                  >
+                    <BurgerIcon open reduceMotion={reduceMotion} />
+                  </button>
+                </div>
+              </SiteContainer>
+            </div>
             <nav
-              ref={mobileNavRef}
               id={mobileNavId}
-              aria-hidden={!open}
-              inert={!open ? true : undefined}
-              className={cn(
-                'border-border-base max-h-[calc(100dvh-4rem)] overflow-y-auto overscroll-contain border-t',
-                'transition-opacity duration-200 ease-out motion-reduce:transition-none',
-                open ? 'opacity-100' : 'opacity-0',
-                solidBg,
-              )}
+              className="min-h-0 overflow-y-auto overscroll-contain pb-(--safe-bottom)"
             >
               <SiteContainer className={containerClassName}>
-                <div className="flex flex-col gap-2 py-6">{mobileNav}</div>
+                <div className="flex flex-col gap-2 py-5">{mobileNav}</div>
               </SiteContainer>
             </nav>
-          </div>
-        </div>
+          </MobileMenuContents>
+        </Sheet>
       ) : null}
     </header>
   );

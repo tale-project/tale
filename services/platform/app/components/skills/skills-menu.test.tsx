@@ -61,6 +61,7 @@ describe('SkillsMenu', () => {
             label: 'house-voice',
             origin: 'member',
             ownerName: 'Ada Lovelace',
+            description: 'A description must not replace creator provenance',
           },
           { slug: 'orphan', label: 'orphan', origin: 'member' },
           { slug: 'docx', label: 'docx', origin: 'builtin' },
@@ -83,6 +84,9 @@ describe('SkillsMenu', () => {
     const row = (name: string) =>
       screen.findByRole('menuitemcheckbox', { name: new RegExp(`^${name}`) });
     expect(await row('house-voice')).toHaveTextContent('By Ada Lovelace');
+    expect(await row('house-voice')).not.toHaveTextContent(
+      'A description must not replace creator provenance',
+    );
     expect(await row('orphan')).toHaveTextContent('By a former member');
     expect(await row('docx')).toHaveTextContent('Built-in');
     expect(await row('invoices')).toHaveTextContent('Configuration release');
@@ -93,7 +97,41 @@ describe('SkillsMenu', () => {
     );
   });
 
-  it('adds no caption to an option that carries no provenance', async () => {
+  it('shows the supplied read/write descriptions and keeps tool selection unchanged', async () => {
+    const onChange = vi.fn();
+    const { user } = render(
+      <SkillsMenu
+        skills={[]}
+        connectors={[]}
+        tools={[
+          { slug: 'task_find', label: 'Find tasks', description: 'Read only' },
+          {
+            slug: 'task_update_metadata',
+            label: 'Change task priority and agent assignment',
+            description: 'Writes data',
+          },
+        ]}
+        value={EMPTY}
+        onChange={onChange}
+      />,
+    );
+    await user.click(screen.getByRole('button', { name: /skills/i }));
+    expect(
+      await screen.findByRole('menuitemcheckbox', { name: /^Find tasks/ }),
+    ).toHaveTextContent('Read only');
+    const write = await screen.findByRole('menuitemcheckbox', {
+      name: /^Change task priority and agent assignment/,
+    });
+    expect(write).toHaveTextContent('Writes data');
+    await user.click(write);
+    expect(onChange).toHaveBeenCalledWith({
+      skills: [],
+      connectors: [],
+      tools: ['task_update_metadata'],
+    });
+  });
+
+  it('adds no caption when neither provenance nor description is supplied', async () => {
     const { user } = render(
       <SkillsMenu
         skills={[]}

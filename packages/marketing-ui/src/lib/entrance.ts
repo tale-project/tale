@@ -1,4 +1,4 @@
-import { useReducedMotion } from 'framer-motion';
+import { useMediaQuery } from '@tale/ui/use-media-query';
 
 // Stamped when the client bundle first evaluates. Components that mount
 // within the window belong to the initial page load; anything mounting
@@ -19,6 +19,16 @@ export function withinEntranceWindow(): boolean {
 }
 
 /**
+ * Static illustrations on the server; the live motion preference in the
+ * browser. The shared media-query hook also responds to preference changes
+ * after mount, so newly revealed demo content never animates against them.
+ */
+export function useReducedMotion(): boolean {
+  const reduceMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
+  return typeof window === 'undefined' || reduceMotion;
+}
+
+/**
  * Whether a block should skip its entrance animation: on the server (the
  * prerendered HTML must be fully visible without JS), for reduced-motion
  * users, and on every mount after the initial-load window (SPA
@@ -27,6 +37,5 @@ export function withinEntranceWindow(): boolean {
  */
 export function useSkipEntrance(): boolean {
   const reduceMotion = useReducedMotion();
-  if (typeof window === 'undefined') return true;
-  return (reduceMotion ?? false) || !withinEntranceWindow();
+  return reduceMotion || !withinEntranceWindow();
 }

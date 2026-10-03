@@ -1,5 +1,6 @@
 import { transactSerializable } from '@tale/shared/db/serializable';
-import type { Sql } from 'postgres';
+import type { TaskAgentResumeFrom } from '@tale/shared/schemas/task-review';
+import type { Sql, TransactionSql } from 'postgres';
 
 import { parseRunStarter } from '../../../lib/shared/run-starter.ts';
 import { PROJECT_TEAM_IDS_SQL } from '../../core/lib/audience.ts';
@@ -11,6 +12,12 @@ import { automationAskShimHandlers } from '../automations/ask-shim.ts';
 import { chatShimHandlers } from '../chat/shim.ts';
 import { resolveCredentialRowForShim } from '../connector_credentials/service.ts';
 import { listDocumentsForAgent } from '../documents/agent-list.ts';
+import { updateAgentTaskMetadata } from '../tasks/agent-metadata.ts';
+import {
+  authorizeAgentReviewFile,
+  stageAgentReviewFile,
+} from '../tasks/agent-review-files.ts';
+import { reviewAgentTask } from '../tasks/agent-review.ts';
 import { startDelegatedAgentRun } from '../tasks/delegated-start.ts';
 import { TaskError } from '../tasks/errors.ts';
 import {
@@ -66,7 +73,7 @@ interface BindingResolution {
  * nothing downstream, which is the fail-closed direction.
  */
 async function boundProjectIdsOf(
-  sql: Sql,
+  sql: Sql | TransactionSql,
   organizationId: string,
   automationName: string,
 ): Promise<string[]> {
@@ -80,7 +87,7 @@ async function boundProjectIdsOf(
 }
 
 async function resolveSessionBinding(
-  sql: Sql,
+  sql: Sql | TransactionSql,
   organizationId: string,
   sessionId: string,
 ): Promise<BindingResolution> {
@@ -162,11 +169,12 @@ async function resolveSessionBinding(
  * workspace never lacks it.
  */
 async function taskRunConfinement(
-  sql: Sql,
+  sql: Sql | TransactionSql,
   args: {
     organizationId: string;
     sessionId: string;
     agentId: string;
+    projectId: string;
     execId?: string;
   },
 ): Promise<'ended' | 'revoked' | { taskId?: string }> {
@@ -194,7 +202,12 @@ async function taskRunConfinement(
     LIMIT 1
   `;
   const run = runs[0];
-  if (run === undefined) return 'ended';
+  if (
+    run === undefined ||
+    run.agentId !== args.agentId ||
+    run.projectId !== args.projectId
+  )
+    return 'ended';
   if (
     parseRunStarter(run.startedBy).kind === 'trigger' &&
     !(await runStarterMayEditProject(sql, {
@@ -210,6 +223,60 @@ async function taskRunConfinement(
     ...run,
   });
   return confined ? { taskId: run.taskId } : {};
+}
+
+/** The same session and starter gate for project-wide task mutations.
+ * A caller-named actor/project never crosses this boundary. */
+async function requireProjectTaskRun(
+  tx: TransactionSql,
+  args: {
+    organizationId: string;
+    sessionId: string;
+    taskRunExecId?: string;
+  },
+  code: 'TASK_METADATA_FORBIDDEN' | 'TASK_REVIEW_FORBIDDEN',
+): Promise<{ projectId: string; agentId: string; execId: string }> {
+  const binding = await resolveSessionBinding(
+    tx,
+    args.organizationId,
+    args.sessionId,
+  );
+  if (
+    binding.kind !== 'project' ||
+    binding.ownerType !== 'project_agent' ||
+    binding.projectId === undefined ||
+    binding.actorId === undefined ||
+    args.taskRunExecId === undefined
+  ) {
+    throw new TaskError(
+      code,
+      'Only a live project agent run may change task metadata or review work',
+      403,
+    );
+  }
+  const confinement = await taskRunConfinement(tx, {
+    organizationId: args.organizationId,
+    sessionId: args.sessionId,
+    agentId: binding.actorId,
+    projectId: binding.projectId,
+    execId: args.taskRunExecId,
+  });
+  if (
+    confinement === 'ended' ||
+    confinement === 'revoked' ||
+    confinement.taskId !== undefined
+  ) {
+    throw new TaskError(
+      code,
+      'This run no longer has project-wide task authority',
+      403,
+    );
+  }
+  return {
+    projectId: binding.projectId,
+    agentId: binding.actorId,
+    execId: args.taskRunExecId,
+  };
 }
 
 /**
@@ -466,6 +533,7 @@ export function sandboxToolShimHandlers(sql: Sql): ShimHandlers {
                 organizationId: args.organizationId,
                 sessionId: args.sessionId,
                 agentId: binding.actorId,
+                projectId: binding.projectId,
                 ...(args.taskRunExecId !== undefined
                   ? { execId: args.taskRunExecId }
                   : {}),
@@ -524,6 +592,89 @@ export function sandboxToolShimHandlers(sql: Sql): ShimHandlers {
       return { allowed: false, reason: 'no_access_context' };
     },
 
+    'tasks/internal_mutations:agentUpdateTaskMetadata': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- internal bridge boundary; metadata is validated again by the domain
+      const args = raw as {
+        organizationId: string;
+        sessionId: string;
+        taskRunExecId?: string;
+        patch: unknown;
+      };
+      return coded(() =>
+        transactSerializable(sql, async (tx) => {
+          const authority = await requireProjectTaskRun(
+            tx,
+            args,
+            'TASK_METADATA_FORBIDDEN',
+          );
+          return updateAgentTaskMetadata(tx, {
+            organizationId: args.organizationId,
+            projectId: authority.projectId,
+            actorId: authority.agentId,
+            patch: args.patch,
+          });
+        }),
+      );
+    },
+
+    'tasks/internal_actions:stageAgentReviewFile': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- internal bridge boundary; the complete operation is validated by the domain
+      const args = raw as {
+        organizationId: string;
+        sessionId: string;
+        taskRunExecId?: string;
+        request: unknown;
+      };
+      return coded(() =>
+        stageAgentReviewFile(args.sessionId, args.request, (request) =>
+          transactSerializable(sql, async (tx) => {
+            const authority = await requireProjectTaskRun(
+              tx,
+              args,
+              'TASK_REVIEW_FORBIDDEN',
+            );
+            return authorizeAgentReviewFile(
+              tx,
+              {
+                organizationId: args.organizationId,
+                sessionId: args.sessionId,
+                ...authority,
+              },
+              request,
+            );
+          }),
+        ),
+      );
+    },
+
+    'tasks/internal_mutations:agentReviewTask': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- internal bridge boundary; the domain validates the complete review input
+      const args = raw as {
+        organizationId: string;
+        sessionId: string;
+        taskRunExecId?: string;
+        review: unknown;
+      };
+      return coded(() =>
+        transactSerializable(sql, async (tx) => {
+          const authority = await requireProjectTaskRun(
+            tx,
+            args,
+            'TASK_REVIEW_FORBIDDEN',
+          );
+          return reviewAgentTask(
+            tx,
+            {
+              organizationId: args.organizationId,
+              sessionId: args.sessionId,
+              ...authority,
+            },
+            args.review,
+          );
+        }),
+      );
+    },
+
     'tasks/internal_mutations:agentStartTaskAgent': async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the bridge narrows every argument before calling
       const args = raw as {
@@ -534,7 +685,7 @@ export function sandboxToolShimHandlers(sql: Sql): ShimHandlers {
         agentId?: string;
         feedback?: string;
         moveToInProgress?: boolean;
-        resumeFrom?: { runId: string; approvalId: string };
+        resumeFrom?: TaskAgentResumeFrom;
       };
       // A project agent's live run delegates on behalf of whoever it answers
       // to (`delegated-start.ts`); the session proves the agent and the

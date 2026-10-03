@@ -6,10 +6,16 @@
 // ReadableStream API drift along with the cap semantics.
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
+import { chmod, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 import {
+  DOCKER_CLI_CONCURRENCY,
+  DOCKER_CLI_PRIORITY_CONCURRENCY,
   IMAGE_PULL_TIMEOUT_MS,
   RUN_DOCKER_DEFAULT_TIMEOUT_MS,
+  dockerCliLoad,
   ensureImage,
   resolveDockerTimeoutMs,
   runDocker,
@@ -160,4 +166,260 @@ describe('runDocker — default timeout', () => {
       { args: ['pull', 'tale/runtime:test'], timeoutMs: IMAGE_PULL_TIMEOUT_MS },
     ]);
   });
+});
+
+describe('docker CLI concurrency', () => {
+  test('at most DOCKER_CLI_CONCURRENCY docker processes run at once; the rest wait their turn', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'tale-docker-slots-'));
+    const bin = join(dir, 'docker');
+    await writeFile(bin, '#!/bin/sh\nsleep 0.3\necho done\n');
+    await chmod(bin, 0o755);
+    const previous = process.env.DOCKER_BIN;
+    process.env.DOCKER_BIN = bin;
+    try {
+      const calls = Array.from({ length: DOCKER_CLI_CONCURRENCY + 6 }, () =>
+        runDocker(['info']),
+      );
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      expect(dockerCliLoad()).toEqual({
+        running: DOCKER_CLI_CONCURRENCY,
+        waiting: 6,
+      });
+      const results = await Promise.all(calls);
+      expect(results.every((result) => result.stdout.trim() === 'done')).toBe(
+        true,
+      );
+      expect(dockerCliLoad()).toEqual({ running: 0, waiting: 0 });
+    } finally {
+      if (previous === undefined) delete process.env.DOCKER_BIN;
+      else process.env.DOCKER_BIN = previous;
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('a call that waits past its budget for a slot answers as a timeout', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'tale-docker-slots-'));
+    const bin = join(dir, 'docker');
+    await writeFile(bin, '#!/bin/sh\nsleep "$2"\necho done\n');
+    await chmod(bin, 0o755);
+    const previous = process.env.DOCKER_BIN;
+    process.env.DOCKER_BIN = bin;
+    try {
+      // Long pulls hold every slot.
+      const holders = Array.from({ length: DOCKER_CLI_CONCURRENCY }, () =>
+        runDocker(['pull', '1.5'], { timeoutMs: 10_000 }),
+      );
+      const startedAtMs = Date.now();
+      const probe = await runDocker(['inspect', '0'], { timeoutMs: 300 });
+      expect(probe.exitCode).toBe(124);
+      expect(probe.noSlot).toBe(true);
+      expect(Date.now() - startedAtMs).toBeLessThan(1_000);
+      expect(dockerCliLoad().waiting).toBe(0);
+      // A call whose wait used part of its budget runs on what is left.
+      const late = runDocker(['inspect', '1'], { timeoutMs: 1_800 });
+      expect((await late).exitCode).toBe(124);
+      const results = await Promise.all(holders);
+      expect(results.every((result) => result.exitCode === 0)).toBe(true);
+      expect(results.some((result) => result.noSlot === true)).toBe(false);
+      expect(dockerCliLoad()).toEqual({ running: 0, waiting: 0 });
+    } finally {
+      if (previous === undefined) delete process.env.DOCKER_BIN;
+      else process.env.DOCKER_BIN = previous;
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('a short call never queues behind long ones holding every shared slot', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'tale-docker-slots-'));
+    const bin = join(dir, 'docker');
+    await writeFile(bin, '#!/bin/sh\nsleep "$2"\necho done\n');
+    await chmod(bin, 0o755);
+    const previous = process.env.DOCKER_BIN;
+    process.env.DOCKER_BIN = bin;
+    try {
+      const holders = Array.from({ length: DOCKER_CLI_CONCURRENCY }, () =>
+        runDocker(['pull', '3'], { timeoutMs: 10_000 }),
+      );
+      // Queued behind them, an ordinary call waits for the first to end.
+      const queued = runDocker(['inspect', '0'], { timeoutMs: 10_000 });
+      const short = await runDocker(['inspect', '0'], {
+        timeoutMs: 2_000,
+        priority: true,
+      });
+      // It ran, and ended while every shared slot was still held and the
+      // ordinary call still waited.
+      expect(short.exitCode).toBe(0);
+      expect(dockerCliLoad()).toEqual({
+        running: DOCKER_CLI_CONCURRENCY,
+        waiting: 1,
+      });
+      await Promise.all([...holders, queued]);
+      expect(dockerCliLoad('priority')).toEqual({ running: 0, waiting: 0 });
+    } finally {
+      if (previous === undefined) delete process.env.DOCKER_BIN;
+      else process.env.DOCKER_BIN = previous;
+      await rm(dir, { recursive: true, force: true });
+    }
+  }, 10_000);
+
+  test('short calls take a free shared slot first, and their own lane is bounded too', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'tale-docker-slots-'));
+    const bin = join(dir, 'docker');
+    await writeFile(bin, '#!/bin/sh\nsleep "$2"\necho done\n');
+    await chmod(bin, 0o755);
+    const previous = process.env.DOCKER_BIN;
+    process.env.DOCKER_BIN = bin;
+    try {
+      const calls = Array.from(
+        { length: DOCKER_CLI_CONCURRENCY + DOCKER_CLI_PRIORITY_CONCURRENCY },
+        () =>
+          runDocker(['inspect', '1'], { timeoutMs: 10_000, priority: true }),
+      );
+      expect(dockerCliLoad()).toEqual({
+        running: DOCKER_CLI_CONCURRENCY,
+        waiting: 0,
+      });
+      expect(dockerCliLoad('priority')).toEqual({
+        running: DOCKER_CLI_PRIORITY_CONCURRENCY,
+        waiting: 0,
+      });
+      const late = await runDocker(['inspect', '0'], {
+        timeoutMs: 300,
+        priority: true,
+      });
+      expect(late.exitCode).toBe(124);
+      expect(late.noSlot).toBe(true);
+      const results = await Promise.all(calls);
+      expect(results.every((result) => result.exitCode === 0)).toBe(true);
+      expect(dockerCliLoad()).toEqual({ running: 0, waiting: 0 });
+      expect(dockerCliLoad('priority')).toEqual({ running: 0, waiting: 0 });
+    } finally {
+      if (previous === undefined) delete process.env.DOCKER_BIN;
+      else process.env.DOCKER_BIN = previous;
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('runDocker — cancellation before spawn', () => {
+  test.each([false, true])(
+    'an already-aborted call does not take a slot or spawn (priority %p)',
+    async (priority) => {
+      const dir = await mkdtemp(join(tmpdir(), 'tale-docker-cancel-'));
+      const marker = join(dir, 'started');
+      const aborter = new AbortController();
+      aborter.abort();
+      const cancelled = runDocker(
+        ['-c', 'echo started > "$1"', 'cancelled', marker],
+        { priority, signal: aborter.signal },
+      );
+      const completed = Promise.allSettled([cancelled]);
+      try {
+        expect(dockerCliLoad()).toEqual({ running: 0, waiting: 0 });
+        expect(dockerCliLoad('priority')).toEqual({ running: 0, waiting: 0 });
+        const result = await cancelled;
+        expect(result.exitCode).toBe(-1);
+        expect(result.noSlot).toBeUndefined();
+        expect(result.stderr).toContain('aborted');
+        expect(await Bun.file(marker).exists()).toBe(false);
+      } finally {
+        await completed;
+        await rm(dir, { recursive: true, force: true });
+      }
+    },
+  );
+
+  test('cancellation between a free slot grant and spawn releases the slot', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'tale-docker-cancel-'));
+    const marker = join(dir, 'started');
+    const aborter = new AbortController();
+    try {
+      const cancelled = runDocker(
+        ['-c', 'echo started > "$1"', 'cancelled', marker],
+        { signal: aborter.signal },
+      );
+      expect(dockerCliLoad()).toEqual({ running: 1, waiting: 0 });
+      aborter.abort();
+      expect((await cancelled).exitCode).toBe(-1);
+      expect(await Bun.file(marker).exists()).toBe(false);
+      expect(dockerCliLoad()).toEqual({ running: 0, waiting: 0 });
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test.each([false, true])(
+    'a cancelled waiter leaves its queue immediately without spawning (priority %p)',
+    async (priority) => {
+      const dir = await mkdtemp(join(tmpdir(), 'tale-docker-cancel-'));
+      const release = join(dir, 'release');
+      const marker = join(dir, 'started');
+      const aborter = new AbortController();
+      const holders = Array.from(
+        {
+          length:
+            DOCKER_CLI_CONCURRENCY +
+            (priority ? DOCKER_CLI_PRIORITY_CONCURRENCY : 0),
+        },
+        () =>
+          runDocker(
+            [
+              '-c',
+              'while [ ! -e "$1" ]; do sleep 0.01; done',
+              'holder',
+              release,
+            ],
+            { timeoutMs: 10_000, priority },
+          ),
+      );
+      // Exercise both finite-budget cleanup and the unbounded wait's abort.
+      const cancelled = runDocker(
+        ['-c', 'echo started > "$1"', 'cancelled', marker],
+        {
+          timeoutMs: priority ? Infinity : 10_000,
+          priority,
+          signal: aborter.signal,
+        },
+      );
+      const next = runDocker(['-c', 'echo next'], {
+        timeoutMs: 10_000,
+        priority,
+      });
+      const completed = Promise.allSettled([...holders, cancelled, next]);
+      const lane = priority ? 'priority' : 'shared';
+      try {
+        expect(dockerCliLoad(lane).waiting).toBe(2);
+        aborter.abort();
+        expect(dockerCliLoad(lane).waiting).toBe(1);
+        const result = await cancelled;
+        expect(result.exitCode).toBe(-1);
+        expect(result.noSlot).toBeUndefined();
+        expect(result.stderr).toContain('aborted');
+        expect(await Bun.file(marker).exists()).toBe(false);
+        // The holders still own every slot; cancellation did not release one.
+        expect(dockerCliLoad()).toEqual({
+          running: DOCKER_CLI_CONCURRENCY,
+          waiting: priority ? 0 : 1,
+        });
+        if (priority) {
+          expect(dockerCliLoad('priority')).toEqual({
+            running: DOCKER_CLI_PRIORITY_CONCURRENCY,
+            waiting: 1,
+          });
+        }
+        await writeFile(release, '');
+        expect((await next).stdout).toBe('next\n');
+        expect(
+          (await Promise.all(holders)).every((r) => r.exitCode === 0),
+        ).toBe(true);
+        expect(await Bun.file(marker).exists()).toBe(false);
+        expect(dockerCliLoad()).toEqual({ running: 0, waiting: 0 });
+        expect(dockerCliLoad('priority')).toEqual({ running: 0, waiting: 0 });
+      } finally {
+        await writeFile(release, '');
+        await completed;
+        await rm(dir, { recursive: true, force: true });
+      }
+    },
+  );
 });

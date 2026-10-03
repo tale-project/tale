@@ -1,7 +1,8 @@
 import { DemoShell } from '@tale/marketing-ui/demo-shell';
+import { useReducedMotion } from '@tale/marketing-ui/entrance';
 import { useDemoTimeline } from '@tale/marketing-ui/use-demo-timeline';
 import { cn } from '@tale/ui/cn';
-import { motion, useInView, useReducedMotion } from 'framer-motion';
+import { motion, useInView } from 'framer-motion';
 import { Check, Workflow } from 'lucide-react';
 import { useRef } from 'react';
 
@@ -25,8 +26,8 @@ const BEAT = {
 const BUDGET_PERCENT = 41;
 
 /**
- * D5 — in-chat approval card (ApprovalCard / WorkflowRunApprovalCard idiom)
- * with a short run journal — not a Settings governance split-panel.
+ * D5 — automation run approval card (WorkflowRunApprovalCard idiom)
+ * with a short run journal.
  */
 export function GovernGate({
   scenario,
@@ -46,38 +47,40 @@ export function GovernGate({
     <div ref={ref}>
       <DemoShell
         label={scene.label}
-        activeNav="chat"
-        className="mx-auto aspect-[7/10] max-w-4xl sm:aspect-[16/9]"
+        title={t('demos.automation.windowTitle')}
+        activeNav="automations"
+        domain="governance"
+        className="mx-auto min-h-176 max-w-4xl @sm/demo:min-h-136 @lg/demo:aspect-[16/9]"
       >
-        <div className="flex h-full flex-col gap-4 p-4 md:gap-5 md:p-6">
+        <div className="demo-surface flex h-full flex-col gap-4 p-4 @2xl/demo:gap-5 @2xl/demo:p-6">
           {beat >= BEAT.card ? (
             <motion.div
               initial={reduceMotion ? false : { opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.45, ease: easeOut }}
-              className="border-border-base bg-surface-site-raised shadow-site-card mx-auto w-full max-w-md rounded-2xl border p-4 md:p-5"
+              className="border-border-base bg-surface-site-raised shadow-site-card mx-auto w-full max-w-md rounded-2xl border p-4 @2xl/demo:p-5"
             >
-              <div className="flex items-start gap-3">
-                <span className="bg-surface-site-inset text-fg-muted flex size-9 shrink-0 items-center justify-center rounded-lg">
+              <div className="flex flex-col items-start gap-3 @xs/demo:flex-row">
+                <span className="demo-soft demo-accent flex size-9 shrink-0 items-center justify-center rounded-lg">
                   <Workflow aria-hidden className="size-4" strokeWidth={1.75} />
                 </span>
                 <div className="min-w-0">
-                  <p className="text-fg-base text-sm leading-snug font-medium">
+                  <p className="text-fg-base text-sm leading-snug font-medium wrap-anywhere">
                     {scene.approvalTitle}
                   </p>
-                  <p className="text-fg-subtle mt-1 text-xs">
+                  <p className="text-fg-subtle mt-1 text-xs wrap-anywhere">
                     {scene.requester}
                   </p>
                 </div>
               </div>
 
-              <div className="mt-4 flex items-center gap-2">
+              <div className="mt-4 flex flex-wrap items-center gap-2">
                 {beat >= BEAT.approved ? (
                   <motion.span
                     initial={reduceMotion ? false : { opacity: 0, scale: 0.94 }}
                     animate={{ opacity: 1, scale: 1 }}
                     transition={{ duration: 0.3, ease: easeOut }}
-                    className="bg-accent-base text-accent-fg inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium"
+                    className="bg-demo-mint-soft text-demo-mint inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium"
                   >
                     <Check aria-hidden className="size-3.5" strokeWidth={2.5} />
                     {t('demos.govern.approved')}
@@ -110,18 +113,18 @@ export function GovernGate({
                   <div className="flex flex-col gap-1.5">
                     <JournalLine
                       text={scene.journal[0]}
-                      reduceMotion={reduceMotion ?? false}
+                      reduceMotion={reduceMotion}
                     />
                     {beat >= BEAT.journal2 ? (
                       <JournalLine
                         text={scene.journal[1]}
-                        reduceMotion={reduceMotion ?? false}
+                        reduceMotion={reduceMotion}
                       />
                     ) : null}
                     {beat >= BEAT.journal3 ? (
                       <JournalLine
                         text={scene.journal[2]}
-                        reduceMotion={reduceMotion ?? false}
+                        reduceMotion={reduceMotion}
                       />
                     ) : null}
                   </div>
@@ -131,7 +134,7 @@ export function GovernGate({
           ) : null}
 
           <div className="border-border-base bg-surface-site-raised mt-auto rounded-xl border p-4">
-            <div className="flex items-baseline justify-between gap-2">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
               <p className="text-fg-subtle text-xs font-medium">
                 {t('demos.govern.budgetLabel')}
               </p>
@@ -142,7 +145,7 @@ export function GovernGate({
             <div className="bg-surface-site-inset mt-2 h-1.5 overflow-hidden rounded-full">
               <div
                 className={cn(
-                  'bg-brand-base h-full origin-left rounded-full transition-transform duration-700 ease-out',
+                  'demo-accent-bg h-full origin-left rounded-full motion-safe:transition-transform motion-safe:duration-700 motion-safe:ease-out',
                   beat >= BEAT.approved ? 'scale-x-100' : 'scale-x-0',
                 )}
                 style={{ width: `${BUDGET_PERCENT}%` }}
@@ -167,9 +170,13 @@ function JournalLine({
       initial={reduceMotion ? false : { opacity: 0, y: 4 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, ease: easeOut }}
-      className="text-fg-muted flex items-center gap-2 text-xs"
+      className="text-fg-muted relative flex items-center gap-2 text-xs"
     >
-      <Check aria-hidden className="size-3 shrink-0" strokeWidth={2.5} />
+      <Check
+        aria-hidden
+        className="text-demo-mint size-3 shrink-0"
+        strokeWidth={2.5}
+      />
       {text}
     </motion.p>
   );

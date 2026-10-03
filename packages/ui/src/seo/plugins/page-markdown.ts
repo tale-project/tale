@@ -11,8 +11,10 @@ import {
   routeToMdPath,
 } from '../builders/md-paths';
 import { pageAsMarkdown } from '../builders/page-as-markdown';
+import { normalizeCanonicalUrl } from '../runtime/canonical-url';
 import type { ArtifactPlugin } from '../runtime/plugin';
 import { CONTENT_TYPES, STATIC_CACHE_CONTROL } from '../types';
+import { absoluteSitePath } from '../urls';
 
 export const pageMarkdownPlugin: ArtifactPlugin = {
   id: 'page-markdown',
@@ -28,6 +30,9 @@ export const pageMarkdownPlugin: ArtifactPlugin = {
 
     const body = await ctx.body(route.url);
     if (body == null) return null;
+    const canonicalUrl = normalizeCanonicalUrl(
+      absoluteSitePath(ctx.siteUrl, route.url),
+    );
 
     return {
       body: pageAsMarkdown({
@@ -37,9 +42,11 @@ export const pageMarkdownPlugin: ArtifactPlugin = {
         },
         body,
         siteUrl: ctx.siteUrl,
+        pageUrl: canonicalUrl,
       }),
       contentType: CONTENT_TYPES.md,
       cacheControl: STATIC_CACHE_CONTROL,
+      canonicalUrl,
     };
   },
   async enumerate(ctx) {

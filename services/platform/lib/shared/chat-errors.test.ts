@@ -8,8 +8,38 @@ import {
   describeChatError,
   encodeChatError,
   isChatErrorCode,
+  isProviderRequestRefusal,
 } from './chat-errors';
 import { AppError } from './errors/app-error';
+
+describe('isProviderRequestRefusal', () => {
+  it.each([
+    { status: 429 },
+    { statusCode: 400 },
+    { code: 'rate_limit_error' },
+    { code: 'slow_down' },
+    { code: 'invalid_request_error' },
+    { error: { code: 'rate_limit_exceeded' } },
+    { data: { code: 'insufficient_quota' } },
+  ])('recognizes a structured request refusal: %j', (error) => {
+    expect(isProviderRequestRefusal(error)).toBe(true);
+  });
+
+  it.each([
+    null,
+    'Rate limit exceeded',
+    { message: 'Rate limit exceeded' },
+    { message: '{"code":"rate_limit_exceeded"}' },
+    { code: 'server_error' },
+    { code: 'api_error' },
+    { code: 'overloaded_error' },
+    { code: 'unknown_refusal' },
+    { status: 503, code: 'rate_limit_exceeded' },
+    { status: 200, code: 'insufficient_quota' },
+  ])('does not waive usage from an ambiguous failure: %j', (error) => {
+    expect(isProviderRequestRefusal(error)).toBe(false);
+  });
+});
 
 describe('classifyChatErrorCode', () => {
   it('classifies funds errors by status and by message', () => {
@@ -147,6 +177,43 @@ describe('classifyChatErrorCode', () => {
     expect(
       classifyChatErrorCode({ message: 'maximum context length exceeded' }),
     ).toBe('context_length');
+  });
+
+  it('reads a tokens-per-minute rate limit as a rate limit, not an output cap', () => {
+    // OpenAI's most common refusal names "tokens" and "Limit" in one
+    // sentence; the broad token_limit match used to claim it, and the reader
+    // was told to shorten a request that only had to wait.
+    const tpm =
+      'Rate limit reached for gpt-6-luna in organization org-x on tokens per min (TPM): Limit 30000, Used 28000, Requested 3000. Please try again in 2s.';
+    expect(
+      classifyChatErrorCode({
+        status: 429,
+        message: `The model provider answered 429: {"error":{"message":"${tpm}","type":"tokens","code":"rate_limit_exceeded"}}`,
+      }),
+    ).toBe('rate_limited');
+    // The same refusal reported inside an opened stream.
+    expect(
+      classifyChatErrorCode({
+        status: 429,
+        code: '429',
+        message: `The model provider ended the reply with an error: ${tpm} (429)`,
+      }),
+    ).toBe('rate_limited');
+    // A real output cap still reads as one.
+    expect(
+      classifyChatErrorCode({
+        message: 'This model has a token limit of 4096 output tokens.',
+      }),
+    ).toBe('token_limit');
+    // So does one request larger than the whole per-minute allowance: a 429
+    // no wait lifts, whose remedy is a smaller request.
+    expect(
+      classifyChatErrorCode({
+        status: 429,
+        message:
+          'The model provider answered 429: {"error":{"message":"Request too large for gpt-6-luna in organization org-x on tokens per min (TPM): Limit 30000, Requested 36000. The input or output tokens must be reduced in order to run successfully.","type":"tokens","code":"rate_limit_exceeded"}}',
+      }),
+    ).toBe('token_limit');
   });
 
   it('classifies OpenRouter output-budget-in-context errors as output_cap_too_high', () => {

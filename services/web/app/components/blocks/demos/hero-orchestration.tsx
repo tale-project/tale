@@ -1,12 +1,12 @@
 import { DemoShell } from '@tale/marketing-ui/demo-shell';
 import { DemoStreamText } from '@tale/marketing-ui/demo-stream-text';
 import { DemoTypingText } from '@tale/marketing-ui/demo-typing-text';
+import { useReducedMotion } from '@tale/marketing-ui/entrance';
 import { useDemoTimeline } from '@tale/marketing-ui/use-demo-timeline';
-import { motion, useReducedMotion } from 'framer-motion';
+import { motion } from 'framer-motion';
 import {
   ArrowUp,
   Bookmark,
-  Bot,
   Brain,
   ChevronDown,
   ChevronRight,
@@ -33,7 +33,7 @@ const easeOut = [0.22, 1, 0.36, 1] as const;
  * never shift prior bubbles (CLS). Do not switch back to `justify-end`.
  */
 export const HERO_THREAD_CLASS =
-  'flex min-h-0 flex-1 flex-col justify-start gap-2.5 px-3 py-3 sm:gap-3 sm:px-5 sm:py-4';
+  'flex min-h-0 flex-1 flex-col justify-start gap-2.5 px-3 py-3 @lg/demo:gap-3 @lg/demo:px-5 @lg/demo:py-4';
 
 // Compact beat script — end state must fit the frame with no inner scroll.
 const BEATS = [0, 250, 1200, 1600, 2100, 2700, 3300, 3900, 4500] as const;
@@ -84,7 +84,7 @@ export function HeroOrchestration({
       label={scene.label}
       activeNav="chat"
       elevation={elevation}
-      className="mx-auto aspect-[3/4] max-w-4xl sm:aspect-[16/10]"
+      className="mx-auto aspect-[3/4] min-h-176 max-w-4xl @sm/demo:min-h-156 @lg/demo:aspect-[16/10] @lg/demo:min-h-140 @3xl/demo:min-h-128"
     >
       <div className="flex h-full flex-col">
         {/* Thread grows downward (`justify-start`) so new beats never push
@@ -92,7 +92,7 @@ export function HeroOrchestration({
         <div className={HERO_THREAD_CLASS}>
           {beat >= BEAT.sent ? (
             <motion.div {...pop()} className="flex flex-col items-end">
-              <div className="bg-surface-site-inset text-fg-base max-w-[85%] rounded-2xl px-3.5 py-2.5 text-sm sm:max-w-md">
+              <div className="demo-soft text-fg-base max-w-[85%] rounded-2xl px-3.5 py-2.5 text-sm @lg/demo:max-w-md">
                 {scene.prompt}
               </div>
             </motion.div>
@@ -100,7 +100,7 @@ export function HeroOrchestration({
 
           {beat >= BEAT.routing ? (
             <motion.div {...pop()} className="flex flex-col items-start">
-              <p className="text-fg-subtle mb-1.5 flex items-start gap-1.5 text-[11px] sm:text-xs">
+              <p className="text-fg-subtle mb-1.5 flex items-start gap-1.5 text-[11px] @lg/demo:text-xs">
                 <Waypoints
                   aria-hidden
                   className="mt-0.5 size-3.5 shrink-0"
@@ -115,7 +115,7 @@ export function HeroOrchestration({
               </p>
 
               {beat >= BEAT.thought ? (
-                <p className="text-fg-subtle mb-1.5 flex items-center gap-1.5 text-[11px] sm:text-xs">
+                <p className="text-fg-subtle mb-1.5 flex items-center gap-1.5 text-[11px] @lg/demo:text-xs">
                   <ChevronRight aria-hidden className="size-3" />
                   <Brain aria-hidden className="size-3.5" strokeWidth={1.75} />
                   {t('demos.hero.thought')}
@@ -158,9 +158,9 @@ export function HeroOrchestration({
         </div>
 
         {/* Composer — chat-input.tsx card chrome. */}
-        <div className="shrink-0 px-3 pb-2.5 sm:px-4 sm:pb-3">
-          <div className="border-border-base relative flex flex-col rounded-xl border px-3 pt-2.5 shadow-[0_-6px_16px_-8px_color-mix(in_oklab,var(--color-fg-base)_12%,transparent)] sm:rounded-2xl sm:px-4 sm:pt-3">
-            <span className="text-fg-subtle min-h-7 text-sm sm:min-h-8">
+        <div className="shrink-0 px-3 pb-2.5 @lg/demo:px-4 @lg/demo:pb-3">
+          <div className="border-border-base relative flex flex-col rounded-xl border px-3 pt-2.5 shadow-[0_-6px_16px_-8px_color-mix(in_oklab,var(--color-fg-base)_12%,transparent)] @lg/demo:rounded-2xl @lg/demo:px-4 @lg/demo:pt-3">
+            <span className="text-fg-subtle min-h-7 text-sm @lg/demo:min-h-8">
               {beat < BEAT.sent ? (
                 <DemoTypingText
                   text={scene.prompt}
@@ -179,17 +179,10 @@ export function HeroOrchestration({
                   className="text-fg-subtle size-3.5 shrink-0"
                 />
                 <span className="text-fg-muted ml-0.5 inline-flex items-center gap-1 text-xs font-medium">
-                  <Bot aria-hidden className="size-3.5" />
-                  <span className="max-w-24 truncate sm:max-w-none">
-                    {beat >= BEAT.routing
-                      ? scene.agentRouted
-                      : t('demos.hero.composerAgent')}
-                  </span>
-                  <ChevronDown aria-hidden className="size-3 opacity-70" />
-                </span>
-                <span className="text-fg-muted hidden items-center gap-1 text-xs font-medium sm:inline-flex">
                   <Cpu aria-hidden className="size-3.5" />
-                  {scene.model}
+                  <span className="max-w-24 truncate @lg/demo:max-w-none">
+                    {scene.model}
+                  </span>
                   <ChevronDown aria-hidden className="size-3 opacity-70" />
                 </span>
               </div>
@@ -214,11 +207,11 @@ function SourceCard({ label }: { label: string }) {
       initial={reduceMotion ? false : { opacity: 0, y: 3 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25, ease: easeOut }}
-      className="border-border-base bg-surface-site-inset/60 text-fg-base inline-flex max-w-[200px] items-center gap-2 rounded-lg border px-2.5 py-1.5 text-left text-xs"
+      className="border-demo-sky/20 bg-demo-sky-soft text-fg-base inline-flex max-w-[200px] items-center gap-2 rounded-lg border px-2.5 py-1.5 text-left text-xs"
     >
       <FileText
         aria-hidden
-        className="text-fg-muted size-3.5 shrink-0"
+        className="text-demo-sky size-3.5 shrink-0"
         strokeWidth={1.75}
       />
       <span className="truncate font-medium">{label}</span>

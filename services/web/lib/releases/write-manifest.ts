@@ -9,6 +9,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { RELEASE_DISPLAY_LIMIT } from './prerender-budget';
 import type { Release } from './types';
 
 const REPO_ROOT = resolve(
@@ -16,7 +17,7 @@ const REPO_ROOT = resolve(
   '../../../..',
 );
 
-/** Raw TypeScript source before house-style formatting. */
+/** Bundle the visible newest-first history, before house-style formatting. */
 export function renderReleasesManifestSource(
   releases: readonly Release[],
   fetchedAt: string,
@@ -26,7 +27,7 @@ import type { Release } from '@/lib/releases/types';
 
 export const RELEASES_FETCHED_AT = ${JSON.stringify(fetchedAt)} as const;
 
-export const RELEASES: readonly Release[] = ${JSON.stringify(releases, null, 2)} as const;
+export const RELEASES: readonly Release[] = ${JSON.stringify(releases.slice(0, RELEASE_DISPLAY_LIMIT), null, 2)} as const;
 `;
 }
 

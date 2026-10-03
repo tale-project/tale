@@ -7,6 +7,7 @@ import {
   updateProjectInstructionsSchema,
   updateProjectSharingSchema,
 } from '@tale/shared/schemas/projects';
+import { setProjectTaskReviewerInputSchema } from '@tale/shared/schemas/task-review';
 import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
@@ -47,6 +48,7 @@ import {
   restoreProject,
   searchProjects,
   setProjectPinned,
+  setProjectTaskReviewer,
   updateProjectAgent,
   updateProjectIdentity,
   updateProjectInstructions,
@@ -272,6 +274,22 @@ export function createProjectRoutes(deps: {
         }),
       );
       return c.json({ ok: true });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.post('/:id/task-reviewer', async (c) => {
+    const body = setProjectTaskReviewerInputSchema.safeParse(
+      await c.req.json(),
+    );
+    if (!body.success) return invalidBodyResponse(c, body.error);
+    try {
+      const auth = await authCtx(c);
+      const result = await transactSerializable(deps.sql, (tx) =>
+        setProjectTaskReviewer(tx, auth, c.req.param('id'), body.data),
+      );
+      return c.json(result);
     } catch (error) {
       return handleError(c, error);
     }

@@ -45,7 +45,7 @@ import { ChangelogToastTrigger } from '@/app/features/changelog/components/chang
 import { HomePanel } from '@/app/features/home/components/home-panel';
 import { HomePanelProvider } from '@/app/features/home/components/home-panel-context';
 import {
-  isPanelCollapsible,
+  hasOwnPhoneHeader,
   readHomeLocation,
   showsHomePanel,
 } from '@/app/features/home/lib/home-paths';
@@ -102,7 +102,7 @@ function DashboardLayout() {
   // phone — back arrow, title, actions — so the shell's bar would only stack
   // an empty row above it.
   const { pathname, search } = useLocation();
-  const threadPage = isPanelCollapsible(
+  const threadPage = hasOwnPhoneHeader(
     readHomeLocation(pathname, search, organizationId),
   );
 

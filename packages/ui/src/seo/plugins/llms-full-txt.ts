@@ -31,7 +31,7 @@ export const llmsFullTxtPlugin: ArtifactPlugin = {
     if (pages.length === 0) return null;
 
     return {
-      body: buildLlmsFullTxt(pages),
+      body: buildLlmsFullTxt(pages, ctx.siteUrl),
       contentType: CONTENT_TYPES.txt,
       cacheControl: STATIC_CACHE_CONTROL,
     };

@@ -17,8 +17,8 @@ import { useState } from 'react';
 export interface PageActionsProps {
   /** Absolute URL of the page's plain-markdown twin (`<page>.md`). */
   markdownUrl: string;
-  /** Raw markdown "Copy page" puts on the clipboard. `null` hides the action. */
-  markdown: string | null;
+  /** Markdown to copy, optionally prepared only on click. `null` hides the action. */
+  markdown: string | (() => string) | null;
   className?: string;
 }
 
@@ -51,7 +51,9 @@ export function PageActions({
   const handleCopy = async () => {
     if (markdown === null) return;
     try {
-      await navigator.clipboard.writeText(markdown);
+      await navigator.clipboard.writeText(
+        typeof markdown === 'function' ? markdown() : markdown,
+      );
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch (error) {

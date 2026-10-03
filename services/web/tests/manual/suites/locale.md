@@ -40,11 +40,10 @@ Bring the site up per [SETUP.md](../setup.md) — any mode. Messages live in
   same search params; picking **English** from there returns to
   `/pricing?billing=monthly` (prefix dropped, not remapped elsewhere)
 - [ ] `LOC-F2` · **German content** — Open `/de` → Hero renders the German
-  title (`home.hero.title` from `messages/de.yml` — **Orchestriere jeden
-  KI-Agent auf deinem Stack**); header nav labels are German; no untranslated
+  title (`home.hero.title` from `messages/de.yml`); header nav labels are German; no untranslated
   English leaks in the shell.
 - [ ] `LOC-F3` · **French content** — Open `/fr` and `/fr/contact` → French
-  hero (**Orchestre chaque agent IA de ta stack**, `messages/fr.yml`) and a
+  hero (`home.hero.title` from `messages/fr.yml`) and a
   fully French contact form (labels from `messages/fr.yml`)
 - [ ] `LOC-F4` · **`<html lang>` sync** — On `/`, read
   `document.documentElement.lang`; switch to **Deutsch**; read again → `en` →

@@ -22,6 +22,7 @@ import { emitEvent } from '../events/emit.ts';
 import { endRepeatForAutomationOwner } from './repeat.ts';
 import {
   closePendingTaskReviewOnStatusLeave,
+  getPendingReviewForTask,
   requestTaskReview,
 } from './reviews.ts';
 import { assertTaskAutomationEnabled, lockTaskRunStart } from './run-start.ts';
@@ -455,6 +456,13 @@ export async function upsertTaskByExternalRef(
     // `open` to lift `done` alone, so a mirror could not represent an item
     // closed and then reopened upstream (2026-09-13 evaluation, E2-02).
     const completingActor = args.actorId === 'workflow';
+    // A custom source's lifecycle is a fact, not the native reviewer's
+    // verdict. Keep syncing the batch and the source close/reopen fact,
+    // without moving or withdrawing a captured agent-owned review.
+    const preserveAgentReview =
+      existing.status === 'in_review' &&
+      (await getPendingReviewForTask(tx, args.organizationId, existing.id))
+        ?.reviewer?.kind === 'agent';
     const mirrorParked =
       existing.status === 'in_review' && existing.externalClosedAt !== null;
     let statusFrom: TaskStatus | undefined;
@@ -462,7 +470,10 @@ export async function upsertTaskByExternalRef(
     let completedAt: number | null = existing.completedAt;
     let externalClosedAt: number | null = existing.externalClosedAt;
     let rank = existing.rank;
-    if (
+    if (preserveAgentReview) {
+      if (lifecycleState === 'closed') externalClosedAt ??= now;
+      else if (lifecycleState === 'open') externalClosedAt = null;
+    } else if (
       lifecycleState === 'closed' &&
       !TERMINAL_STATUSES.has(existing.status)
     ) {
@@ -829,7 +840,7 @@ export async function startWorkflowForTaskInTx(
     const rows = await tx<{ id: string }[]>`
       SELECT id FROM app.automation_runs
       WHERE org_id = ${args.organizationId}
-        AND project_id = ${args.task.projectId}
+        AND (project_id = ${args.task.projectId} OR project_id IS NULL)
         AND status IN ('queued', 'running', 'waiting')
         AND input->'task'->>'id' = ${args.task.id}
       ORDER BY started_at_ms DESC LIMIT 1
@@ -911,7 +922,9 @@ interface AutomationRunForTaskArgs {
   taskId: string;
 }
 
-/** The subject-linked live automation run operating this task, if any. */
+/** The subject-linked live automation run operating this task, if any.
+ * The caller has authorized the task and derived its project. A same-org
+ * organization run may carry its subject without a project binding. */
 export async function findLiveAutomationRunForTask(
   sql: Sql,
   args: AutomationRunForTaskArgs,
@@ -945,7 +958,8 @@ async function findAutomationRunForTask(
   >`
     SELECT id, name, status, version, detail
     FROM app.automation_runs
-    WHERE org_id = ${args.organizationId} AND project_id = ${args.projectId}
+    WHERE org_id = ${args.organizationId}
+      AND (project_id = ${args.projectId} OR project_id IS NULL)
       AND ${
         options.liveOnly
           ? sql`status IN ('queued', 'running', 'waiting')`

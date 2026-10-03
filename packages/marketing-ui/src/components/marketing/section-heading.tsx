@@ -4,27 +4,27 @@ import type { CSSProperties, ElementType, ReactNode } from 'react';
 
 import { Reveal } from './reveal';
 
-const sectionHeadingTitleVariants = cva('text-fg-base font-normal', {
-  variants: {
-    size: {
-      display:
-        'text-[44px] tracking-[-0.045em] md:text-[80px] md:tracking-[-0.05em]',
-      section:
-        'text-4xl tracking-[-0.045em] md:text-[64px] md:tracking-[-0.05em]',
-      subsection:
-        'text-3xl tracking-[-0.04em] md:text-[48px] md:tracking-[-0.045em]',
+const sectionHeadingTitleVariants = cva(
+  'text-fg-base max-w-full font-medium text-balance [overflow-wrap:anywhere]',
+  {
+    variants: {
+      size: {
+        display: 'text-site-display tracking-[-0.05em]',
+        section: 'text-site-section tracking-[-0.04em]',
+        subsection: 'text-site-subsection tracking-[-0.035em]',
+      },
+    },
+    defaultVariants: {
+      size: 'section',
     },
   },
-  defaultVariants: {
-    size: 'section',
-  },
-});
+);
 
 const sectionHeadingDescriptionVariants = cva('text-fg-muted', {
   variants: {
     size: {
-      display: 'max-w-155 text-[17px] text-balance md:text-xl',
-      section: 'max-w-140 text-[17px] md:text-xl',
+      display: 'max-w-155 text-[17px] text-pretty md:text-xl',
+      section: 'max-w-140 text-[17px] text-pretty md:text-lg',
       subsection: 'max-w-125 text-base md:text-lg',
     },
   },
@@ -49,9 +49,9 @@ const TITLE_LH: Record<
   NonNullable<VariantProps<typeof sectionHeadingTitleVariants>['size']>,
   number
 > = {
-  display: 1.02,
-  section: 1.02,
-  subsection: 1.05,
+  display: 1.04,
+  section: 1.08,
+  subsection: 1.1,
 };
 
 interface SectionHeadingProps extends VariantProps<
@@ -73,6 +73,8 @@ interface SectionHeadingProps extends VariantProps<
   descriptionClassName?: string;
   /** Skip the shared Reveal wrapper (caller owns motion). */
   bare?: boolean;
+  /** Put the description beside the heading on wide screens. */
+  layout?: 'stack' | 'editorial';
 }
 
 /**
@@ -89,6 +91,7 @@ export function SectionHeading({
   className,
   descriptionClassName,
   bare = false,
+  layout = 'stack',
 }: SectionHeadingProps) {
   // subsection is a type scale, not an outline level — default to h2 so
   // pages that lead with a display h1 don't skip a level.
@@ -96,25 +99,41 @@ export function SectionHeading({
   const resolvedSize = size ?? 'section';
 
   const body = (
-    <div className={cn(sectionHeadingAlignVariants({ align }), className)}>
-      {eyebrow ? (
-        <p className="text-fg-subtle text-[13px] font-normal tracking-[0.02em]">
-          {eyebrow}
-        </p>
-      ) : null}
-      <HeadingTag
-        className={sectionHeadingTitleVariants({ size: resolvedSize })}
-        style={{ lineHeight: TITLE_LH[resolvedSize] } satisfies CSSProperties}
+    <div
+      className={cn(
+        sectionHeadingAlignVariants({ align }),
+        layout === 'editorial' &&
+          'w-full items-start text-left lg:grid lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] lg:items-end lg:gap-16',
+        className,
+      )}
+    >
+      <div
+        className={cn(
+          'flex min-w-0 flex-col gap-4',
+          align === 'center' && layout !== 'editorial'
+            ? 'items-center'
+            : 'items-start',
+        )}
       >
-        {title}
-      </HeadingTag>
+        {eyebrow ? (
+          <p className="text-fg-muted flex items-center gap-3 text-xs font-semibold tracking-[0.07em] before:h-px before:w-5 before:bg-current">
+            {eyebrow}
+          </p>
+        ) : null}
+        <HeadingTag
+          className={sectionHeadingTitleVariants({ size: resolvedSize })}
+          style={{ lineHeight: TITLE_LH[resolvedSize] } satisfies CSSProperties}
+        >
+          {title}
+        </HeadingTag>
+      </div>
       {description ? (
         <p
           className={cn(
             sectionHeadingDescriptionVariants({ size: resolvedSize }),
             descriptionClassName,
           )}
-          style={{ letterSpacing: '-0.015em', lineHeight: 1.5 }}
+          style={{ letterSpacing: '-0.01em', lineHeight: 1.6 }}
         >
           {description}
         </p>

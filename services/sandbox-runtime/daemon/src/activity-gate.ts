@@ -10,7 +10,10 @@ export class ActivityGate {
   private pinned = false;
   private reclaimClaim: string | null = null;
 
-  constructor(private readonly liveExecs: () => number) {}
+  constructor(
+    private readonly liveExecs: () => number,
+    private readonly lastActivityAtMs?: () => number,
+  ) {}
 
   snapshot() {
     return {
@@ -19,6 +22,7 @@ export class ActivityGate {
       released: this.released,
       pinned: this.pinned,
       reclaiming: this.reclaimClaim !== null,
+      ...(this.lastActivityAtMs !== undefined ? { idleReclaim: true } : {}),
     };
   }
 
@@ -61,13 +65,21 @@ export class ActivityGate {
 
   /** Check and freeze without awaiting between them. Busy/unknown sessions
    * never reach this state, and every later operation sees the freeze. */
-  claim(claimId: string, generation: string): boolean {
+  claim(claimId: string, generation: string, idleBeforeMs?: number): boolean {
+    if (
+      idleBeforeMs !== undefined &&
+      (!Number.isSafeInteger(idleBeforeMs) || idleBeforeMs < 0)
+    ) {
+      return false;
+    }
     if (generation !== this.generation) return false;
     // A replacement spawner may finish a previously frozen stop. The backend
     // also fences removal to the original immutable container/Pod identity.
     if (this.reclaimClaim !== null) return true;
     if (
-      !this.released ||
+      (idleBeforeMs === undefined
+        ? !this.released
+        : !this.idleBefore(idleBeforeMs)) ||
       this.pinned ||
       this.activeOperations > 0 ||
       this.liveExecs() > 0
@@ -76,5 +88,17 @@ export class ActivityGate {
     }
     this.reclaimClaim = claimId;
     return true;
+  }
+
+  /** The daemon checks its own clock inside the claim: a touch that finished
+   * after a spawner's health snapshot must keep the session alive. */
+  private idleBefore(cutoffMs: number): boolean {
+    const lastActivityAtMs = this.lastActivityAtMs?.();
+    return (
+      lastActivityAtMs !== undefined &&
+      Number.isSafeInteger(lastActivityAtMs) &&
+      lastActivityAtMs >= 0 &&
+      lastActivityAtMs <= cutoffMs
+    );
   }
 }

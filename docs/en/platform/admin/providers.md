@@ -47,6 +47,8 @@ Set **Token array path** to `$.tokens`, **Token field** to `access_token`, and *
 
 For OpenAI, restrict **Model allowlist** to model IDs your ChatGPT plan supports. The OpenAI API catalog can include models that the subscription cannot use.
 
+For Sol 6.1 (`gpt-6.1-sol`), save the OpenAI broker credential, then configure a [project agent](/platform/projects/project-agents) with **Agent type** set to **Codex**. Under **Model**, search for `gpt-6.1-sol` and select the entry marked **OpenAI · Subscription**. Codex uses the Responses API required by this model's tool calls. Tale's direct chat uses Chat Completions, so it does not offer this model through OpenAI, including automatic model selection.
+
 Choose **Token selection** according to how you want to distribute new agent turns:
 
 - **Random**, the initial choice, picks uniformly from the usable accounts for each selection.

@@ -156,6 +156,15 @@ frame. The rail's logo row and the header strip are the same `h-13` box **border
 their bottom borders meet as one line whether or not the strip holds buttons — never wrap a
 fixed-height row in a bordered parent.
 
+The reading frame uses a quiet tinted rail, fine border rules and a width-capped article. A
+larger, medium-weight title leads into a generous description and compact reading metadata;
+one hairline separates this introduction from the body. Search has a lightly raised surface,
+while active navigation keeps the shared sub-panel treatment. Previous/next cards show their
+full page titles and move only their arrows on hover or keyboard focus; reduced motion keeps
+them still. Phone menu, search, navigation rows and the outline disclosure provide 44px touch
+targets, long labels wrap, and the footer wraps to its available column width. The app's global
+tokens remain authoritative; neither documentation service supplies a parallel visual theme.
+
 ## Accessibility (app)
 
 WCAG 2.1 AA. The recurring gaps and the token hierarchy are in

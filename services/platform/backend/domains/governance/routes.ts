@@ -43,7 +43,11 @@ import { listModelApiModels } from '../model_api/models.ts';
 import { eligibleProjectAgentHarnesses } from '../projects/service.ts';
 import { getSandboxDeploymentLimits } from '../sandbox/limits.ts';
 import { recordUnusedWorkspaceRule } from '../sandbox/unused-rule.ts';
-import { holdsApiKeys, listOrgApiKeys } from './api-keys.ts';
+import {
+  describeRuleApiKeys,
+  holdsApiKeys,
+  listOrgApiKeys,
+} from './api-keys.ts';
 import {
   findBudgetViolation,
   loadBudgetSubject,
@@ -409,11 +413,34 @@ export function createGovernanceRoutes(deps: {
 
   /** The API keys of this organization's members, masked — the budget
    * editor's per-key picker. Admin only, like writing the budget rules; an
-   * admin's own key listing (`/api/auth/api-key/list`) shows only theirs. */
+   * admin's own key listing (`/api/auth/api-key/list`) shows only theirs.
+   * `ruleKeys` describes the keys the saved budget rules name that are no
+   * longer in that listing — expired, disabled, revoked, or held by someone
+   * who left — so the rule table names each by key and owner, never by a
+   * bare id. */
   app.get('/api-keys', async (c) => {
     const denied = requireAdmin(c);
     if (denied) return denied;
-    return c.json({ keys: await listOrgApiKeys(deps.sql, c.get('orgId')) });
+    const organizationId = c.get('orgId');
+    const keys = await listOrgApiKeys(deps.sql, organizationId);
+    const listed = new Set(keys.map((key) => key.id));
+    const budgets = await readGovernancePolicyForOrg(
+      deps.sql,
+      organizationId,
+      'budgets',
+    );
+    const ruleKeyIds = (budgets?.rules ?? []).flatMap((rule) =>
+      rule.scope === 'apiKey' &&
+      rule.apiKeyId !== undefined &&
+      rule.apiKeyId !== '' &&
+      !listed.has(rule.apiKeyId)
+        ? [rule.apiKeyId]
+        : [],
+    );
+    return c.json({
+      keys,
+      ruleKeys: await describeRuleApiKeys(deps.sql, organizationId, ruleKeyIds),
+    });
   });
 
   /** Org usage metrics (the metrics page; admin) — the 0.4 fold reused. */

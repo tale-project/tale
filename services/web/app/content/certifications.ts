@@ -1,13 +1,7 @@
 /**
- * Trust chips shown on the homepage hero line and the compliance section.
- * Order is the product claim order — keep hero and badges in lockstep.
+ * Verified provider certification and product licence chips in the
+ * compliance section. Labels state the scope of each claim.
  */
-export const CERTIFICATION_KEYS = [
-  'iso27001',
-  'soc2',
-  'gdpr',
-  'mit',
-  'openSource',
-] as const;
+export const CERTIFICATION_KEYS = ['iso27001', 'mit', 'openSource'] as const;
 
 export type CertificationKey = (typeof CERTIFICATION_KEYS)[number];

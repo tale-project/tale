@@ -42,6 +42,10 @@ describe('listWorkspaceDirs', () => {
     await mkdir(join(root, 'blue', 'one-shot-exec'));
     await mkdir(join(root, '.pins'));
     await mkdir(join(root, '.pins', 'ses-not-a-workspace'));
+    // A destroyed workspace waiting in the trash is nobody's any more.
+    await mkdir(join(root, '.trash', 'ses-destroyed.0b9c5d2e'), {
+      recursive: true,
+    });
     await mkdir(join(root, 'with space'));
     await mkdir(join(root, 'with space', 'ses-hidden'));
     await writeFile(join(root, 'ses-file'), 'not a dir');

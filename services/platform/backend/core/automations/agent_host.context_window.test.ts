@@ -18,13 +18,17 @@ import { functionRefName } from '../../../lib/shared/handlers/function-refs';
 import type { ActionCtx } from '../lib/ctx';
 import { resolveModel } from '../lib/providers/resolve_model';
 import { resolveProviderCredential } from '../provider_credentials/resolve_credential';
+import { SANDBOX_DESTROY_PENDING_MESSAGE } from '../sandbox/session_constants';
 
 const io = vi.hoisted(() => ({
   /** The serving the resolver answers; the local gateway model when unset. */
   serving: undefined as Record<string, unknown> | undefined,
   instructions: [] as string[],
+  prompts: [] as string[],
   /** The org's `system_prompt` policy file; null reads as "no policy". */
   systemPrompt: null as unknown,
+  /** What the session ensure throws, when it refuses. */
+  sessionRefusal: undefined as Error | undefined,
   starts: [] as Array<{
     execId: string;
     argv: string[];
@@ -41,6 +45,7 @@ vi.mock('../chat/external_turn_shared', async (importActual) => {
       args: Parameters<typeof actual.buildExternalTurnExec>[0],
     ) => {
       io.instructions.push(args.instructions);
+      io.prompts.push(args.prompt);
       return actual.buildExternalTurnExec(args);
     },
     drainHarnessWindow: async (args: {
@@ -82,7 +87,10 @@ vi.mock('../lib/providers/resolve_vision_model', () => ({
   resolveTurnVisionModel: async () => null,
 }));
 vi.mock('../node_only/sandbox/agent_session', () => ({
-  ensureAgentSession: async () => ({ liveCreatedAt: 1000 }),
+  ensureAgentSession: async () => {
+    if (io.sessionRefusal !== undefined) throw io.sessionRefusal;
+    return { liveCreatedAt: 1000 };
+  },
 }));
 vi.mock('../node_only/sandbox/gateway_provisioning', () => ({
   provisionSessionGatewayKey: async () => ({
@@ -212,7 +220,9 @@ beforeEach(() => {
   io.serving = undefined;
   io.starts = [];
   io.instructions = [];
+  io.prompts = [];
   io.systemPrompt = null;
+  io.sessionRefusal = undefined;
   vi.mocked(resolveModel).mockReset();
   vi.mocked(resolveProviderCredential).mockReset();
   vi.spyOn(console, 'warn').mockImplementation(() => {});
@@ -461,6 +471,144 @@ describe('an automation agent turn', () => {
     });
   });
 
+  it('settles an answered-ask resume refused for sandbox room with the asking conversation, the answer still undelivered', async () => {
+    io.sessionRefusal = Object.assign(
+      new Error('At most 2 workflow sandbox sessions can be active.'),
+      { code: 'QUOTA_EXCEEDED' },
+    );
+    const { ctx, mutations } = makeCtx(WAITING_CURSOR);
+
+    await resumeWorkflowAgentTurnWithAnswerImpl(ctx, {
+      organizationId: 'org-1',
+      askId: 'ask-1',
+    } as never);
+
+    expect(io.starts).toHaveLength(0);
+    expect(
+      mutations.find(
+        (m) => m.name === 'automations/mutations:recordAgentTurnSettled',
+      )?.args,
+    ).toMatchObject({
+      execId: 'exec-asking',
+      result: {
+        errored: true,
+        failureCode: 'sandbox_capacity',
+        agentSessionId: 'claude-session-1',
+        undeliveredAskId: 'ask-1',
+        retryAfterMs: 15_000,
+      },
+    });
+  });
+
+  it('fails a start whose workspace an administrator is destroying with the reason, waiting for no room', async () => {
+    // What the shim throws for a session whose Destroy is pending (#4122).
+    io.sessionRefusal = new AppError({
+      code: 'QUOTA_EXCEEDED',
+      message: SANDBOX_DESTROY_PENDING_MESSAGE,
+      reason: 'destroy_pending',
+    });
+    const { ctx, mutations } = makeCtx({
+      status: 'running',
+      cursor: {
+        node: 'book',
+        agent: { ...WAITING_CURSOR.cursor.agent, execId: 'exec-1' },
+      },
+    });
+
+    await startWorkflowAgentTurnImpl(ctx, {
+      organizationId: 'org-1',
+      runId: 'run-1',
+      nodeId: 'book',
+      execId: 'exec-1',
+      sessionId: 'wf-run-1',
+      harness: 'claude-code',
+      lane: 'gateway',
+      providerSlug: 'local-inference',
+      modelId: 'qwen3-32b',
+      gatewayModel: 'local-inference-org-1/qwen3-32b',
+      deadlineAt: Date.now() + 60_000,
+      request: { model: 'qwen3-32b', prompt: 'Book the synthetic invoice.' },
+    } as never);
+
+    expect(io.starts).toHaveLength(0);
+    const settled = mutations.find(
+      (m) => m.name === 'automations/mutations:recordAgentTurnSettled',
+    )?.args.result;
+    expect(settled).toMatchObject({
+      errored: true,
+      failureCode: 'sandbox_destroying',
+      reason: `the agent turn could not start: ${SANDBOX_DESTROY_PENDING_MESSAGE}`,
+    });
+    expect(settled).not.toHaveProperty('retryAtMs');
+    expect(settled).not.toHaveProperty('retryAfterMs');
+    // A refused start, not a wait for room: the op row reads failed.
+    expect(
+      mutations.some((m) => m.args.agentResultStatus === 'awaiting_room'),
+    ).toBe(false);
+  });
+
+  it('fails an answered-ask resume whose workspace an administrator is destroying, leaving no answer to deliver', async () => {
+    io.sessionRefusal = new AppError({
+      code: 'QUOTA_EXCEEDED',
+      message: SANDBOX_DESTROY_PENDING_MESSAGE,
+      reason: 'destroy_pending',
+    });
+    const { ctx, mutations } = makeCtx(WAITING_CURSOR);
+
+    await resumeWorkflowAgentTurnWithAnswerImpl(ctx, {
+      organizationId: 'org-1',
+      askId: 'ask-1',
+    } as never);
+
+    expect(io.starts).toHaveLength(0);
+    const settled = mutations.find(
+      (m) => m.name === 'automations/mutations:recordAgentTurnSettled',
+    )?.args;
+    expect(settled).toMatchObject({
+      execId: 'exec-asking',
+      result: {
+        errored: true,
+        failureCode: 'sandbox_destroying',
+        reason: `the agent turn could not resume after the answer: ${SANDBOX_DESTROY_PENDING_MESSAGE}`,
+      },
+    });
+    expect(settled?.result).not.toHaveProperty('undeliveredAskId');
+    expect(settled?.result).not.toHaveProperty('retryAfterMs');
+  });
+
+  it('resumes the asking conversation with an answer its refused delivery never brought', async () => {
+    servesWindow(65_536);
+    const { ctx } = makeCtx({ status: 'running' });
+
+    await startWorkflowAgentTurnImpl(ctx, {
+      organizationId: 'org-1',
+      runId: 'run-1',
+      nodeId: 'book',
+      execId: 'exec-1',
+      sessionId: 'wf-run-1',
+      harness: 'claude-code',
+      lane: 'gateway',
+      providerSlug: 'local-inference',
+      modelId: 'qwen3-32b',
+      gatewayModel: 'local-inference-org-1/qwen3-32b',
+      deadlineAt: Date.now() + 60_000,
+      request: { model: 'qwen3-32b', prompt: 'Book the synthetic invoice.' },
+      resume: {
+        agentSessionId: 'claude-session-1',
+        reason:
+          "the agent turn is waiting for sandbox room: the organization's workflow sessions are all in use",
+        askId: 'ask-1',
+      },
+    } as never);
+
+    expect(console.error).not.toHaveBeenCalled();
+    expect(io.starts).toHaveLength(1);
+    expect(io.starts[0]?.argv).toContain('claude-session-1');
+    expect(io.prompts[0]).toContain('The operator answered your question:');
+    expect(io.prompts[0]).toContain('Cost centre 4711.');
+    expect(io.prompts[0]).not.toContain('cut short by an infrastructure');
+  });
+
   it('holds a kicked start until a cooling broker pool has an account back', async () => {
     const NOW = Date.UTC(2026, 8, 28, 12, 0, 0);
     vi.useFakeTimers({ toFake: ['Date'] });
@@ -476,11 +624,13 @@ describe('an automation agent turn', () => {
 
       const now = await host.kick(kick);
       const held = await host.kick({ ...kick, notBefore: NOW + 42_000 });
+      await host.kick({ ...kick, notBefore: NOW + 100_000 });
       await host.kick({ ...kick, notBefore: NOW + 10 * 60_000 });
       await host.kick({ ...kick, notBefore: NOW - 1 });
 
-      // Never past a cooldown's length, nor for one already over.
-      expect(delays).toEqual([0, 42_000, 60_000, 0]);
+      // A wait for sandbox room holds its start up to two minutes; never
+      // longer, nor for a hold already over.
+      expect(delays).toEqual([0, 42_000, 100_000, 120_000, 0]);
       // The turn's time limit counts from its start, not from the kick.
       expect(held.deadlineAt - now.deadlineAt).toBe(42_000);
     } finally {

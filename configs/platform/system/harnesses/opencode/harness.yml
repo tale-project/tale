@@ -1,7 +1,7 @@
 # Sandbox harness — OpenCode (`opencode run`). Managed only: its provider
 # config points at the platform gateway and authenticates with the session
-# virtual key; there is no bring-your-own path. The prompt rides argv — the
-# CLI has no stdin prompt channel. `opencode run` has no turn-cap flag; the
+# virtual key; there is no bring-your-own path. The prompt rides argv for
+# compatibility with existing runtime images. `opencode run` has no turn-cap flag; the
 # runaway backstop is the platform runner.
 #
 # Config is injected via OPENCODE_CONFIG_CONTENT (the envDoc below) so
@@ -39,11 +39,9 @@ exec:
     - model:
         flag: '-m'
         value: 'tale/${model}'
-    # Prompt as the trailing positional (argv element — no shell). Unlike
-    # the stdin contract the other harnesses honor, `opencode run` only
-    # accepts the prompt as a positional `[message..]` argument — it has no
-    # stdin/`-` prompt source — so it cannot honor the argv-leak guard. This
-    # is the CLI's documented surface, not a leak we can avoid here.
+    # Keep the trailing positional for older runtime images during a roll.
+    # OpenCode 1.18.34 also accepts piped stdin; moving this adapter to that
+    # channel requires a separately verified platform/runtime transition.
     - prompt: {}
   stdin:
     mode: none

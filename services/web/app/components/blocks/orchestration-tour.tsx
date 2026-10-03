@@ -1,49 +1,26 @@
 import { DemoTourSection } from '@tale/marketing-ui/demo-tour-section';
-import type { ComponentType } from 'react';
+import { Brain, MessagesSquare, Workflow } from 'lucide-react';
 
 import {
-  HomeArenaDemo,
-  HomeAutomationDemo,
-  HomeConnectDemo,
   HomeGovernDemo,
-  HomeKnowledgeDemo,
   HomeProjectsDemo,
 } from '@/app/components/blocks/demos/content';
-import type { LocalizedRoutePath } from '@/app/components/layout/localized-link';
+import { SandboxWorkspace } from '@/app/components/blocks/demos/sandbox-workspace';
+import { MarketingCard, PageSection } from '@/app/components/marketing';
 import { useT } from '@/lib/i18n/client';
 
-type StageKey =
-  | 'connect'
-  | 'pool'
-  | 'delegate'
-  | 'govern'
-  | 'arena'
-  | 'projects';
-
-/** Each stage deep-links to the module page whose story it previews. */
-const STAGES: readonly {
-  key: StageKey;
-  Demo: ComponentType;
-  moduleTo?: LocalizedRoutePath;
-  moduleNavKey?: string;
-}[] = [
+const STAGES = [
+  {
+    key: 'projects',
+    Demo: HomeProjectsDemo,
+    moduleTo: '/platform/projects',
+    moduleNavKey: 'projects',
+  },
   {
     key: 'connect',
-    Demo: HomeConnectDemo,
+    Demo: SandboxWorkspace,
     moduleTo: '/platform/agents',
     moduleNavKey: 'agents',
-  },
-  {
-    key: 'pool',
-    Demo: HomeKnowledgeDemo,
-    moduleTo: '/platform/knowledge',
-    moduleNavKey: 'knowledge',
-  },
-  {
-    key: 'delegate',
-    Demo: HomeAutomationDemo,
-    moduleTo: '/platform/automations',
-    moduleNavKey: 'automations',
   },
   {
     key: 'govern',
@@ -51,45 +28,53 @@ const STAGES: readonly {
     moduleTo: '/platform/governance',
     moduleNavKey: 'governance',
   },
-  {
-    key: 'arena',
-    Demo: HomeArenaDemo,
-    moduleTo: '/platform/chat',
-    moduleNavKey: 'chat',
-  },
-  { key: 'projects', Demo: HomeProjectsDemo },
-];
+] as const;
 
-/**
- * Homepage orchestration journey — thin wrapper over DemoTourSection with
- * home.tour.* copy and the six product demos.
- */
+const CAPABILITIES = [
+  { key: 'pool', to: '/platform/knowledge', Icon: Brain },
+  { key: 'delegate', to: '/platform/automations', Icon: Workflow },
+  { key: 'arena', to: '/platform/chat', Icon: MessagesSquare },
+] as const;
+
+/** Three main chapters, followed by the capabilities that support the work. */
 export function OrchestrationTour() {
   const { t } = useT('home');
   const { t: tNav } = useT('nav');
 
   return (
-    <DemoTourSection
-      heading={t('tour.title')}
-      description={t('tour.subtitle')}
-      stages={STAGES.map((stage, index) => ({
-        id: stage.key,
-        eyebrow: `${String(index + 1).padStart(2, '0')} ${t(
-          `tour.${stage.key}.eyebrow`,
-        )}`,
-        title: t(`tour.${stage.key}.title`),
-        description: t(`tour.${stage.key}.description`),
-        link:
-          stage.moduleTo && stage.moduleNavKey
-            ? {
-                label: t('tour.explore', {
-                  module: tNav(`product.${stage.moduleNavKey}.label`),
-                }),
-                to: stage.moduleTo,
-              }
-            : undefined,
-        demo: <stage.Demo />,
-      }))}
-    />
+    <>
+      <DemoTourSection
+        heading={t('tour.title')}
+        description={t('tour.subtitle')}
+        stages={STAGES.map((stage, index) => ({
+          id: stage.key,
+          eyebrow: `${String(index + 1).padStart(2, '0')} ${t(`tour.${stage.key}.eyebrow`)}`,
+          title: t(`tour.${stage.key}.title`),
+          description: t(`tour.${stage.key}.description`),
+          link: {
+            label: t('tour.explore', {
+              module: tNav(`product.${stage.moduleNavKey}.label`),
+            }),
+            to: stage.moduleTo,
+          },
+          demo: <stage.Demo />,
+        }))}
+      />
+      <PageSection surface="wash" pad="compact" border="none">
+        <div className="grid gap-x-10 gap-y-2 md:grid-cols-3">
+          {CAPABILITIES.map(({ key, to, Icon }) => (
+            <MarketingCard
+              key={key}
+              to={to}
+              icon={Icon}
+              title={<h3>{t(`tour.${key}.title`)}</h3>}
+              description={t(`tour.${key}.description`)}
+              surface="quiet"
+              showArrow
+            />
+          ))}
+        </div>
+      </PageSection>
+    </>
   );
 }

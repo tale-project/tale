@@ -17,6 +17,8 @@
  * so existing consumers stay happy.
  */
 
+import { normalizeMarkdownLinks } from './markdown-links';
+
 export interface LlmsFullTxtPage {
   title: string;
   /** Absolute URL of the canonical HTML page. */
@@ -25,12 +27,20 @@ export interface LlmsFullTxtPage {
   body: string;
 }
 
-export function buildLlmsFullTxt(pages: readonly LlmsFullTxtPage[]): string {
+export function buildLlmsFullTxt(
+  pages: readonly LlmsFullTxtPage[],
+  /** Configured site mount for slash-root destinations; otherwise each page uses its origin. */
+  siteUrl?: string,
+): string {
   return pages
     .map((page) =>
-      [`# ${page.title}`, `Source: ${page.url}`, '', page.body.trim(), ''].join(
-        '\n',
-      ),
+      [
+        `# ${page.title}`,
+        `Source: ${page.url}`,
+        '',
+        normalizeMarkdownLinks(page.body, page.url, siteUrl).trim(),
+        '',
+      ].join('\n'),
     )
     .join('\n');
 }

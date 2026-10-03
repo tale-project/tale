@@ -1,8 +1,9 @@
 import { DemoToolbar } from '@tale/marketing-ui/demo-chrome';
 import { DemoShell } from '@tale/marketing-ui/demo-shell';
+import { useReducedMotion } from '@tale/marketing-ui/entrance';
 import { useDemoTimeline } from '@tale/marketing-ui/use-demo-timeline';
 import { cn } from '@tale/ui/cn';
-import { motion, useInView, useReducedMotion } from 'framer-motion';
+import { motion, useInView } from 'framer-motion';
 import { Bot, Folder, Users } from 'lucide-react';
 import { useRef } from 'react';
 
@@ -46,9 +47,9 @@ export function ProjectsBoard({
         label={scene.label}
         title={t('demos.projects.windowTitle')}
         activeNav="projects"
-        className="mx-auto aspect-[7/10] max-w-4xl sm:aspect-[16/10]"
+        className="mx-auto aspect-[7/10] max-w-4xl @lg/demo:aspect-[16/10]"
       >
-        <div className="flex h-full flex-col gap-3 p-3 md:gap-4 md:p-4">
+        <div className="flex h-full flex-col gap-3 p-3 @2xl/demo:gap-4 @2xl/demo:p-4">
           <DemoToolbar
             searchPlaceholder={t('demos.projects.searchPlaceholder')}
             addLabel={t('demos.projects.newProject')}
@@ -56,7 +57,7 @@ export function ProjectsBoard({
 
           <div className="border-border-base bg-surface-site-raised flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border">
             <div
-              className="text-fg-subtle border-border-base grid gap-2 border-b px-3 py-2 text-[10px] font-medium tracking-wide uppercase md:px-4"
+              className="text-fg-subtle border-border-base grid gap-2 border-b px-3 py-2 text-[10px] font-medium tracking-wide uppercase @2xl/demo:px-4"
               style={{ gridTemplateColumns: COLS }}
             >
               <span>{t('demos.projects.colName')}</span>
@@ -74,14 +75,14 @@ export function ProjectsBoard({
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.3, ease: easeOut }}
                     className={cn(
-                      'border-border-base/60 grid items-center gap-2 border-b px-3 py-2.5 last:border-b-0 md:px-4',
+                      'border-border-base/60 grid items-center gap-2 border-b px-3 py-2.5 last:border-b-0 @2xl/demo:px-4',
                       beat >= BEAT.done && index === 0
                         ? 'bg-surface-site-inset/50'
                         : '',
                     )}
                     style={{ gridTemplateColumns: COLS }}
                   >
-                    <span className="text-fg-base flex min-w-0 items-center gap-2 text-xs font-medium md:text-[13px]">
+                    <span className="text-fg-base flex min-w-0 items-center gap-2 text-xs font-medium @2xl/demo:text-[13px]">
                       <span className="bg-surface-site-inset text-fg-muted flex size-7 shrink-0 items-center justify-center rounded-md">
                         <Folder className="size-3.5" strokeWidth={1.75} />
                       </span>

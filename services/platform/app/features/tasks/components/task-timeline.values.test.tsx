@@ -1,3 +1,4 @@
+import { baseLocaleOf, type Locale } from '@tale/ui/i18n/locales';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { taskReadAdapters } from '@/app/lib/backend/tasks';
@@ -33,6 +34,7 @@ vi.mock('../hooks/queries', () => ({
 const MEMBERS: Record<string, string> = {
   'user-kim': 'Kim Lee',
   'user-alex': 'Alex Doe',
+  'agent-reviewer': 'Review agent',
 };
 
 vi.mock('../hooks/use-actor-directory', () => ({
@@ -194,8 +196,9 @@ const WORDS = {
   },
 } as const satisfies Record<ShippedLocale, Record<string, string>>;
 
-async function renderHistory(locale: ShippedLocale, rows: Wire[]) {
-  saveLocale(locale);
+async function renderHistory(locale: Locale, rows: Wire[]) {
+  vi.spyOn(navigator, 'language', 'get').mockReturnValue(locale);
+  saveLocale(baseLocaleOf(locale));
   await i18n.changeLanguage(locale);
   timeline.activity = await readNativeActivity(rows);
   render(
@@ -221,6 +224,117 @@ afterEach(async () => {
   timeline.activity = [];
   await forgetSavedLocale();
 });
+
+describe('typed reviewer history', () => {
+  it('preserves actor kind and the explicit return to the project default', async () => {
+    await renderHistory('en', [
+      wire(
+        'reviewer.changed',
+        JSON.stringify({ kind: 'user', userId: 'user-kim' }),
+        JSON.stringify({ kind: 'agent', agentId: 'agent-reviewer' }),
+      ),
+      wire(
+        'reviewer.changed',
+        JSON.stringify({ kind: 'agent', agentId: 'agent-reviewer' }),
+        JSON.stringify({ kind: 'inherit' }),
+      ),
+    ]);
+    expect(screen.getByText(/Kim Lee → Review agent/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Review agent → Project default/),
+    ).toBeInTheDocument();
+  });
+});
+
+describe.each([
+  [
+    'en',
+    'Review decided',
+    'Approved',
+    'Changes requested',
+    'Review decision unavailable',
+  ],
+  [
+    'de',
+    'Review entschieden',
+    'Freigegeben',
+    'Änderungen angefordert',
+    'Review-Entscheidung nicht verfügbar',
+  ],
+  [
+    'fr',
+    'Décision de relecture',
+    'Approuvé',
+    'Modifications demandées',
+    'Décision de relecture indisponible',
+  ],
+  [
+    'de-CH',
+    'Review entschieden',
+    'Freigegeben',
+    'Änderungen angefordert',
+    'Review-Entscheidung nicht verfügbar',
+  ],
+] as const)(
+  'Agent review history in %s',
+  (locale, label, approved, changes, unavailable) => {
+    it('shows the decision in words and keeps malformed receipts out of the timeline', async () => {
+      const receipt = {
+        taskId: 'task-1',
+        approvalId: 'approval-1',
+        runId: 'source-run',
+        reviewer: { kind: 'agent', agentId: 'agent-reviewer' },
+        issuerRunId: 'reviewer-run',
+        evidenceRevision: 'a'.repeat(64),
+        decision: 'approve',
+        status: 'done',
+        feedbackCommentId: 'comment-1',
+        evidence: {
+          checks: [
+            {
+              name: 'Checks',
+              outcome: 'passed',
+              details: 'Review evidence stays in the linked discussion.',
+            },
+          ],
+          pullRequests: [],
+        },
+        decidedAt: 1,
+      };
+      await renderHistory(locale, [
+        wire('review.responded', null, JSON.stringify(receipt)),
+        wire(
+          'review.responded',
+          null,
+          JSON.stringify({
+            ...receipt,
+            decision: 'request_changes',
+            status: 'todo',
+          }),
+        ),
+        wire(
+          'review.responded',
+          null,
+          '{"unexpected":"payload must not render"}',
+        ),
+      ]);
+      expect(
+        screen.getByText(line(label.toLowerCase(), approved)),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(line(label.toLowerCase(), changes)),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(line(label.toLowerCase(), unavailable)),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText(
+          /payload must not render|Review evidence stays|approval-1/,
+        ),
+      ).not.toBeInTheDocument();
+    });
+  },
+);
 
 describe.each(SHIPPED_LOCALES)('Task history in %s', (locale) => {
   const w = WORDS[locale];

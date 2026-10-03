@@ -9,6 +9,10 @@ import {
   PROJECT_SHARED_TEAMS_MAX,
 } from '@tale/shared/schemas/projects';
 import {
+  projectTaskReviewerFromId,
+  type SetProjectTaskReviewerInput,
+} from '@tale/shared/schemas/task-review';
+import {
   deriveProjectKey,
   isValidProjectKey,
   normalizeProjectKey,
@@ -50,6 +54,7 @@ import {
 } from '../legal_holds/service.ts';
 import { scheduleAgentWorkspaceRetirement } from '../sandbox/retirement-schedule.ts';
 import { retireTasksInTx } from '../tasks/retire.ts';
+import { agentReviewerEligibility } from '../tasks/reviews.ts';
 import { clearAgentAssignmentsInTx } from '../tasks/unassign.ts';
 import {
   AGENT_TOOL_GRANT_NAMES,
@@ -156,6 +161,7 @@ export interface ProjectRow {
   openTaskCount: number;
   doneTaskCount: number;
   projectAgentCount: number;
+  defaultTaskReviewerAgentId: string | null;
   /** The audience — team ids; empty = organization-wide. */
   teamIds: string[];
   /** @deprecated Derived: `teamIds[0]`; kept while the previous image reads it. */
@@ -175,6 +181,7 @@ const PROJECT_COLUMNS = `
   external_item_id AS "externalItemId", task_counter AS "taskCounter",
   open_task_count AS "openTaskCount", done_task_count AS "doneTaskCount",
   project_agent_count AS "projectAgentCount",
+  default_task_reviewer_agent_id AS "defaultTaskReviewerAgentId",
   ${PROJECT_TEAM_IDS_SQL} AS "teamIds",
   (${PROJECT_TEAM_IDS_SQL})[1] AS "teamId",
   (${PROJECT_TEAM_IDS_SQL})[2:] AS "sharedWithTeamIds", instructions,
@@ -927,6 +934,63 @@ export async function setProjectPinned(
     }),
   );
   await hintProject(tx, auth.organizationId, projectId);
+}
+
+/** Explicit opt-in for future review mints. Pending reviews keep their
+ * captured owner until a separate task handoff; this setting grants no tool. */
+export async function setProjectTaskReviewer(
+  tx: TransactionSql,
+  auth: ProjectAuthContext,
+  projectId: string,
+  args: SetProjectTaskReviewerInput,
+) {
+  const project = await loadProjectOrThrow(tx, projectId);
+  assertActiveWritable(project, auth);
+  const expectedId =
+    args.expected.kind === 'agent' ? args.expected.agentId : null;
+  if ((project.defaultTaskReviewerAgentId ?? null) !== expectedId) {
+    throw new ProjectError(
+      'PROJECT_REVIEWER_STALE',
+      'Project reviewer changed; read it again',
+      409,
+    );
+  }
+  const agentId = args.reviewer.kind === 'agent' ? args.reviewer.agentId : null;
+  if (agentId !== null) {
+    const eligibility = await agentReviewerEligibility(tx, {
+      organizationId: auth.organizationId,
+      projectId,
+      agentId,
+    });
+    if (eligibility === 'permission_missing') {
+      throw new ProjectError(
+        'PROJECT_REVIEWER_PERMISSION_MISSING',
+        'Grant this agent the task review permission before choosing it',
+      );
+    }
+    if (eligibility !== 'eligible') {
+      throw new ProjectError(
+        'PROJECT_REVIEWER_INVALID',
+        'Choose an agent in this project',
+      );
+    }
+  }
+  if (agentId === expectedId)
+    return { reviewer: projectTaskReviewerFromId(agentId) };
+  await tx`
+    UPDATE app.projects SET default_task_reviewer_agent_id = ${agentId},
+      updated_at_ms = ${Date.now()}
+    WHERE id = ${projectId} AND org_id = ${auth.organizationId}
+  `;
+  await createAuditLog(
+    tx,
+    projectAudit(auth, project, PROJECT_AUDIT_ACTIONS.updated, {
+      previousState: { taskReviewer: projectTaskReviewerFromId(expectedId) },
+      newState: { taskReviewer: args.reviewer },
+    }),
+  );
+  await hintProject(tx, auth.organizationId, projectId);
+  return { reviewer: args.reviewer };
 }
 
 export async function updateProjectInstructions(

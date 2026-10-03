@@ -48,6 +48,13 @@ export function createSandboxEgressService(
     image: imageRef(config, 'sandbox-egress'),
     container_name: `${getProjectId()}-sandbox-egress`,
     env_file: ['.env'],
+    environment: {
+      // Connections the proxy serves at once for the whole fleet (tinyproxy
+      // MaxClients; the entrypoint's default too). With transparent egress
+      // every outbound TCP connection of every session goes through it, and
+      // a host's capacity reaches 256 sessions. Match compose.yml.
+      SANDBOX_EGRESS_MAX_CLIENTS: '${SANDBOX_EGRESS_MAX_CLIENTS:-2000}',
+    },
     restart: 'unless-stopped',
     // Match compose.yml: IPv4-only networks need no IPv6 kernel firewall.
     // Explicit defaults also cover org build bridges attached after startup.
@@ -76,10 +83,13 @@ export function createSandboxEgressService(
     ],
     // tinyproxy + tail = trivial footprint; the cap is here to bound a
     // misbehaving allowlist-regex DoS that pegs CPU or floods the log.
+    // tinyproxy runs a thread and holds two descriptors per connection
+    // (SANDBOX_EGRESS_MAX_CLIENTS), and threads count against the pids
+    // limit: both are sized for the default connection limit.
     mem_limit: '512m',
-    pids_limit: 512,
+    pids_limit: 4096,
     ulimits: {
-      nofile: { soft: 4096, hard: 8192 },
+      nofile: { soft: 8192, hard: 16384 },
     },
     healthcheck: {
       // Local readiness probe: one HTTP request to the proxy port. A

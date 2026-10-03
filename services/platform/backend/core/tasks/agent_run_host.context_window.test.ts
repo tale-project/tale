@@ -15,6 +15,7 @@ import { AppError } from '../../../lib/shared/errors/app-error';
 import { functionRefName } from '../../../lib/shared/handlers/function-refs';
 import { resolveModel } from '../lib/providers/resolve_model';
 import { resolveProviderCredential } from '../provider_credentials/resolve_credential';
+import { SANDBOX_DESTROY_PENDING_MESSAGE } from '../sandbox/session_constants';
 
 const io = vi.hoisted(() => ({
   instructions: [] as string[],
@@ -31,6 +32,8 @@ const io = vi.hoisted(() => ({
   subscription: undefined as
     | undefined
     | { providerSlug: string; modelId: string; apiBaseUrl: string },
+  /** What the session ensure throws, when it refuses. */
+  sessionRefusal: undefined as Error | undefined,
 }));
 
 vi.mock('../chat/external_turn_shared', async (importActual) => {
@@ -89,7 +92,10 @@ vi.mock('../node_only/sandbox/helpers/session_client', async (importActual) => {
   };
 });
 vi.mock('../node_only/sandbox/agent_session', () => ({
-  ensureAgentSession: async () => ({ liveCreatedAt: 1000 }),
+  ensureAgentSession: async () => {
+    if (io.sessionRefusal !== undefined) throw io.sessionRefusal;
+    return { liveCreatedAt: 1000 };
+  },
 }));
 vi.mock('./task_serving', () => ({
   resolveTaskServing: async () =>
@@ -254,6 +260,7 @@ beforeEach(() => {
   io.builds = [];
   io.windows = [];
   io.subscription = undefined;
+  io.sessionRefusal = undefined;
   vi.mocked(resolveProviderCredential).mockReset();
   vi.mocked(resolveModel).mockReset();
   vi.spyOn(console, 'warn').mockImplementation(() => {});
@@ -383,6 +390,31 @@ describe('a task agent start', () => {
       error:
         'the agent run could not start: Every account behind credential "Synthetic broker" is cooling down after a rate limit — try again in 42 seconds.',
     });
+  });
+
+  it('parks a start whose workspace an administrator is destroying until the Destroy settles', async () => {
+    // What the shim throws for a session whose Destroy is pending: no want
+    // of room, but the task lane waits on it all the same (#4122).
+    io.sessionRefusal = new AppError({
+      code: 'QUOTA_EXCEEDED',
+      message: SANDBOX_DESTROY_PENDING_MESSAGE,
+      reason: 'destroy_pending',
+    });
+    const { ctx, mutations } = makeCtx({ status: 'queued', execId: 'exec-1' });
+
+    await startTaskAgentTurnImpl(ctx, { ...KEYS, sweep: true } as never);
+
+    expect(io.starts).toHaveLength(0);
+    expect(
+      mutations.find(
+        (m) => m.name === 'tasks/agent_runs:parkTaskAgentRunForCapacity',
+      )?.args,
+    ).toEqual({ runId: 'run-1', execId: 'exec-1' });
+    expect(
+      mutations.some(
+        (m) => m.name === 'tasks/agent_runs:markTaskAgentRunFailed',
+      ),
+    ).toBe(false);
   });
 
   it('hands Claude Code the serving model’s window', async () => {

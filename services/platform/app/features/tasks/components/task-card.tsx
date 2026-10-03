@@ -74,7 +74,7 @@ export function TaskCard({
     isAgentWorking,
     isAgentAsking,
     needsReview,
-    reviewRequestedFor,
+    reviewRecipient,
   } = useTaskBoardContext();
   // Drag and the inline pickers are for whoever may work this task.
   const editable = canWorkTask(task) && task.archivedAt == null;
@@ -83,13 +83,17 @@ export function TaskCard({
   // Name the reviewer the review-gate chip waits on ("You" for the viewer).
   const { resolveActor, currentUserId } = useActorDirectory(
     task.organizationId,
+    task.projectId,
   );
-  const reviewerUserId = reviewRequestedFor(task._id);
+  const reviewer = reviewRecipient(task._id);
   const reviewerIsMe =
-    reviewerUserId !== undefined && reviewerUserId === currentUserId;
+    reviewer?.kind === 'user' && reviewer.userId === currentUserId;
   const reviewerName =
-    reviewerUserId !== undefined && !reviewerIsMe
-      ? resolveActor('user', reviewerUserId).name
+    reviewer !== undefined && !reviewerIsMe
+      ? resolveActor(
+          reviewer.kind,
+          reviewer.kind === 'user' ? reviewer.userId : reviewer.agentId,
+        ).name
       : undefined;
 
   // The subtask glyph names its parent ("Part of TAL-2") — fall back to the

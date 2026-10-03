@@ -1,7 +1,7 @@
 {
   "name": "Tale",
   "short_name": "Tale",
-  "description": "Tale design-system documentation site (ui.tale.dev)",
+  "description": "MIT-licensed React components behind Tale, with live examples, themes, translations, and composition guides.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",

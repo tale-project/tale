@@ -16,6 +16,7 @@
  */
 
 import { Button } from '@tale/ui/button';
+import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
 import { cn } from '@tale/ui/cn';
 import { FilterPanel, type FilterConfig } from '@tale/ui/filters/filter-panel';
 import { SearchInput } from '@tale/ui/search-input';
@@ -103,6 +104,18 @@ const SEARCH_PLACEHOLDER_KEY: Record<HomeView, string> = {
   inbox: 'inbox.searchPlaceholder',
 };
 
+/** The stream's three reads in stream order: the kind each lists, and the
+ * line that names its failure. */
+const STREAM_SOURCES = [
+  { source: 'chats', kind: 'chat', failedKey: 'failed.chats' },
+  { source: 'tasks', kind: 'task', failedKey: 'failed.tasks' },
+  {
+    source: 'conversations',
+    kind: 'conversation',
+    failedKey: 'failed.conversations',
+  },
+] as const;
+
 function isHomeView(value: unknown): value is HomeView {
   return HOME_VIEWS.some((view) => view === value);
 }
@@ -140,9 +153,9 @@ export function HomePanel({ organizationId }: { organizationId: string }) {
     setMounted,
   } = useHomePanel();
   const { pathname, search } = useLocation();
-  // Only a conversation-shaped page (a chat, a task, an open conversation)
-  // carries the toggle in its header, so only there may the panel fold away;
-  // everywhere else in Home it stays, or it could not be brought back.
+  // Only a page whose header carries the toggle (a chat, a task, an open
+  // conversation, a project's page) may fold the panel away; everywhere else
+  // in Home it stays, or it could not be brought back.
   const collapsible = isPanelCollapsible(
     readHomeLocation(pathname, search, organizationId),
   );
@@ -522,6 +535,17 @@ export function HomeNavigator({
     (viewIncludes(view, 'chat') && data.loading.chats) ||
     (viewIncludes(view, 'task') && data.loading.tasks) ||
     (view === 'inbox' && data.loading.conversations);
+  // A read that gave up is named above the rows that did load, never passed
+  // off as an empty view (#4093): the kinds this view lists whose read
+  // failed.
+  const failedSources = STREAM_SOURCES.filter(
+    ({ source, kind }) => data.failed[source] && viewIncludes(view, kind),
+  );
+  const streamFailed = failedSources.length > 0;
+  // Where a Try again that worked hands its focus as it goes: the search
+  // above the rows it brought back.
+  const searchRef = useRef<HTMLInputElement>(null);
+  const focusSearch = useCallback(() => searchRef.current?.focus(), []);
 
   // Keep the open item in sight: when a chat, task or conversation opens
   // from elsewhere (a notification, search, a link), its row scrolls into
@@ -738,6 +762,7 @@ export function HomeNavigator({
 
               <div className="flex shrink-0 items-center gap-1.5 pt-0.5 pb-1.5">
                 <SearchInput
+                  ref={searchRef}
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder={t(SEARCH_PLACEHOLDER_KEY[view])}
@@ -764,6 +789,23 @@ export function HomeNavigator({
                 )}
               </div>
 
+              {streamFailed && (
+                <div className="shrink-0">
+                  <CatalogLoadError
+                    message={
+                      data.retrying
+                        ? t('failed.retrying')
+                        : failedSources
+                            .map(({ failedKey }) => t(failedKey))
+                            .join(' ')
+                    }
+                    onRetry={data.retry}
+                    isRetrying={data.retrying}
+                    onFocusLost={focusSearch}
+                  />
+                </div>
+              )}
+
               <HomeStreamScroller
                 scrollerRef={streamRef}
                 highlightKey={highlightKey}
@@ -775,12 +817,16 @@ export function HomeNavigator({
                     <HomeRowsSkeleton />
                   </Skeletonize>
                 ) : groups.length === 0 && !draftingChat ? (
-                  <HomeEmpty
-                    view={view}
-                    organizationId={organizationId}
-                    scoped={scoped}
-                    showCreate={variant === 'panel'}
-                  />
+                  // A failed read has said so above: an empty state here
+                  // would claim a list nobody could read is empty.
+                  streamFailed ? null : (
+                    <HomeEmpty
+                      view={view}
+                      organizationId={organizationId}
+                      scoped={scoped}
+                      showCreate={variant === 'panel'}
+                    />
+                  )
                 ) : (
                   <ol
                     // Re-keyed per view, so switching views fades the new

@@ -44,6 +44,7 @@ COPY tsconfig.base.json ./
 COPY tsconfig.dom.json ./
 COPY tsconfig.vite.json ./
 COPY packages/ui ./packages/ui
+COPY packages/marketing-ui ./packages/marketing-ui
 COPY services/docs ./services/docs
 COPY docs ./docs
 

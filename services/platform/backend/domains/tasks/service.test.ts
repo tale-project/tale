@@ -42,6 +42,7 @@ const project = (overrides: Partial<ProjectRow> = {}): ProjectRow => ({
   openTaskCount: 0,
   doneTaskCount: 0,
   projectAgentCount: 0,
+  defaultTaskReviewerAgentId: null,
   teamId: null,
   sharedWithTeamIds: [],
   teamIds: [],

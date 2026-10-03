@@ -1236,12 +1236,14 @@ export async function notifyTaskMentions(
 // ---------------------------------------------------- agent-run failures
 
 /** The `inbox` body a failed run is announced with, by who can act on it
- * (`lib/shared/task-run-failure.ts`). A spent usage limit waits on an admin
- * and a broken setup on a project editor, so those two say so; every other
- * failure is the reader's to start again, and the task says what happened. */
+ * (`lib/shared/task-run-failure.ts`). A spent usage limit waits on an admin,
+ * a broken setup on a project editor and a gone attachment on whoever can
+ * change the task, so those three say so; every other failure is the
+ * reader's to start again, and the task says what happened. */
 const AGENT_RUN_FAILED_BODY_KEY: Record<TaskRunFailureClass, string> = {
   budget: 'agentRunFailedBudgetBody',
   setup: 'agentRunFailedSetupBody',
+  input: 'agentRunFailedInputBody',
   time_limit: 'agentRunFailedBody',
   capacity: 'agentRunFailedBody',
   model: 'agentRunFailedBody',

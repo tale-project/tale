@@ -1,7 +1,7 @@
 {
   "name": "Tale",
   "short_name": "Tale",
-  "description": "Tale — The Orchestrator for AI Agents. Self-hosted AI platform.",
+  "description": "Tale: the open-source workspace for teams and AI agents. Coordinate project tasks and review results together.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#f4f4f4",

@@ -1,6 +1,6 @@
 seo:
-  siteTitle: Le design system de Tale
-  ogImageAlt: Tale — l’orchestrateur pour agents IA
+  siteTitle: 'Tale UI : bibliothèque de composants React'
+  ogImageAlt: Logo Tale
 nav:
   homeAriaLabel: Accueil du design system Tale
   skipToMain: Aller au contenu principal
@@ -26,51 +26,62 @@ demo:
   missingBody: Aucun exemple n’est enregistré sous « {name} ». Crée
     app/demos/{name}.tsx et référence-le depuis une page.
 home:
-  heroTitle: Le design system de Tale
-  heroDescription: Construis les écrans de ton application avec @tale/ui et tes sites publics avec @tale/marketing-ui. Les guides et les exemples interactifs t’aident à choisir et à assembler les composants.
-  heroPrimary: Lire la doc
-  heroSecondary: Voir sur GitHub
-  heroMeta: "{count, plural, one {# guide} other {# guides}} · @tale/ui et
-    @tale/marketing-ui · sous licence MIT"
-  showcaseTitle: Les composants dans un espace de travail fictif
-  showcaseDescription: Cette illustration utilise les composants publiés et suit le thème choisi. Essaie les exemples interactifs dans les guides.
-  showcaseWindowTitle: Paramètres de l’espace de travail
-  showcaseFormLegend: Général
+  heroEyebrow: Tale UI · Système de design
+  heroTitle: Des composants React. Un langage commun.
+  heroDescription: Crée des applications et des sites avec les composants React de Tale sous licence MIT. Essaie les contrôles, consulte les guides et compose ton interface.
+  heroPrimary: Commencer
+  heroSecondary: Voir les composants
+  heroMeta: "{count, plural, one {# guide} other {# guides}} · Deux paquets · Licence MIT"
+  showcaseTitle: Atelier de composants
+  showcaseLive: Aperçu interactif
+  showcaseDescription: Essaie le champ de nom et l’interrupteur. Les modifications restent sur cette page.
+  showcaseMarketingDescription: Consulte le guide marketing pour les sections de page, la navigation et les démos produit.
+  showcasePackagesLabel: Aperçu des paquets de composants
+  showcaseAppTab: Applications
+  showcaseMarketingTab: Sites publics
   showcaseNameLabel: Nom de l’espace de travail
-  showcaseNameValue: Northwind Trading
-  showcaseRegionLabel: Région des données
-  showcaseRegionSwitzerland: Suisse
-  showcaseRegionGermany: Allemagne
-  showcaseRegionIreland: Irlande
+  showcaseNameValue: Studio Nordwind
+  showcaseNamePlaceholder: Ton espace de travail
   showcaseDigestLabel: Résumé hebdomadaire
-  showcaseDigestDescription: Envoyer un récapitulatif le lundi à chaque membre.
-  showcaseTabGeneral: Général
-  showcaseTabMembers: Membres
-  showcaseTableCaption: Membres de cet espace de travail
-  showcaseColumnName: Nom
-  showcaseColumnRole: Rôle
-  showcaseColumnStatus: Statut
-  showcaseRoleAdmin: Administration
-  showcaseRoleEditor: Éditeur
-  showcaseRoleMember: Membre
-  showcaseStatusActive: Actif
-  showcaseStatusInvited: Invité
-  sectionsTitle: La suite
-  sectionsDescription: Choisis un guide pour configurer les paquets, prendre une décision de conception ou construire ton écran.
-  sectionsGettingStarted: Installe les paquets, comprends leur articulation et configure les thèmes et les traductions.
-  sectionsFoundations: Choisis les couleurs, la typographie, les espacements et les icônes, puis vérifie l’accessibilité.
-  sectionsComponents: Choisis les états des composants et relie leurs propriétés, leurs fonctions de rappel et leurs noms accessibles.
-  sectionsPatterns: Compose des listes et des pages de paramètres avec recherche, brouillons et gestion de l’enregistrement.
-  sectionsMarketingUi: Utilise la navigation, les composants marketing et les cadres d’illustration pour construire un site public.
+  showcaseDigestDescription: Un aperçu pour ton équipe le lundi.
+  showcaseDigestOn: Résumé activé
+  showcaseDigestOff: Résumé désactivé
+  showcaseReset: Réinitialiser l’aperçu
+  showcaseSiteName: Nordwind
+  showcaseSiteEyebrow: Pour ta prochaine idée
+  showcaseSiteTitle: Un peu d’espace. Tant de possibilités.
+  showcaseSiteDescription: Donne une place à ton produit avec une typographie, des thèmes et des sections de page communs.
+  showcaseSiteAction: Voir les éléments de base
+  packagesTitle: Deux paquets. Un système de design.
+  packagesDescription: Des tokens, des thèmes et des interactions communs. Utilise chaque paquet dans ton propre dépôt, sans backend Tale.
+  appPackageTitle: Interfaces applicatives
+  appPackageDescription: Formulaires, tableaux, boîtes de dialogue et navigation pour le travail dans ton application.
+  appPackageLink: Voir les composants applicatifs
+  appPackageSpecimen: Prêt
+  marketingPackageTitle: Sites publics
+  marketingPackageDescription: Navigation, sections de page, appels à l’action et illustrations de produit. Repose sur @tale/ui.
+  marketingPackageLink: Voir les composants marketing
+  marketingPackageSpecimen: Fais place à tes idées.
+  marketingPackageSpecimenAction: Commencer
+  sectionsTitle: Trouve ton prochain composant.
+  sectionsDescription: De la première installation aux détails d’une interface aboutie. Chaque section propose des exemples fonctionnels ou des conseils pratiques.
+  sectionsGettingStarted: Installation, thèmes et traductions.
+  sectionsFoundations: Couleur, typographie, espacement, icônes et accessibilité.
+  sectionsComponents: Props, états et exemples interactifs de composants.
+  sectionsPatterns: Composer des pages de liste et de paramètres.
+  sectionsMarketingUi: Navigation du site, sections de page et démos produit.
   guideCount: "{count, plural, one {# guide} other {# guides}}"
-  installTitle: L’installer dans ton propre dépôt
-  installDescription: Les paquets fournissent du code source TypeScript. Essaie une branche snapshot, puis fixe un tag de version et enregistre le fichier de verrouillage dans Git pour obtenir une installation reproductible.
-  installCodeLabel: package.json
+  installTitle: Pour ton propre projet.
+  installDescription: Installe le code source TypeScript depuis GitHub. Commence avec une branche snapshot, puis épingle un tag de version et enregistre le fichier de verrouillage dans Git pour obtenir des builds reproductibles.
+  installPackagesLabel: Paquet à installer
+  installCodeLabel: Terminal · Bun
+  installAppCopyLabel: Commande d’installation du paquet applicatif
+  installMarketingCopyLabel: Commande d’installation du paquet marketing
+  installSetupNote: Configure ensuite Vite, importe la feuille de style et ajoute AppShell. Le guide d’installation décrit la configuration complète.
   installDocsLink: Lire le guide d’installation
-  closingTitle: Commence par l’introduction
-  closingDescription: L’introduction explique les deux langages visuels, la relation entre les paquets et les responsabilités de ton service.
-  closingPrimary: Lire l’introduction
-  closingSecondary: Voir la page Button
+  closingTitle: Open source. À toi de composer.
+  closingDescription: Lis le code source, adapte les composants et connecte tes propres données.
+  closingPrimary: Comprendre le système de design
 footer:
   copyrightLine1: © {year} Tale par Ruler GmbH
   copyrightLine2: Tale est sous licence MIT — libre d’utilisation, de

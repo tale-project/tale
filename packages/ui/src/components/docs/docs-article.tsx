@@ -47,21 +47,28 @@ export function DocsArticle({
   const { t } = useT('docs');
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-1 justify-between gap-8 px-4 py-8 lg:px-6 xl:gap-10">
+    <div className="mx-auto flex w-full max-w-6xl flex-1 justify-between gap-10 px-5 py-8 md:py-12 lg:px-8 xl:gap-14">
       <article className="w-full max-w-3xl min-w-0 flex-1">
         <DocsTocOutline entries={toc} />
-        <header className="min-w-0 [overflow-wrap:anywhere]">
-          <Heading level={1} tracking="tight" className="text-3xl md:text-4xl">
+        <header className="border-border/70 min-w-0 border-b pb-7 [overflow-wrap:anywhere] md:pb-9">
+          <Heading
+            level={1}
+            tracking="tight"
+            className="text-[clamp(2rem,3.5vw,2.75rem)] leading-[1.12] font-medium text-balance"
+          >
             {title}
           </Heading>
           {description ? (
-            <Text variant="muted" className="mt-3 text-base leading-relaxed">
+            <Text
+              variant="muted"
+              className="mt-5 max-w-2xl text-base leading-relaxed md:text-lg"
+            >
               {description}
             </Text>
           ) : null}
           <Text
             variant="caption"
-            className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-1"
+            className="mt-5 flex flex-wrap items-center gap-x-2 gap-y-1"
           >
             <span>{t('readingTime', { minutes: readingTimeMinutes })}</span>
             {updatedAt ? (
@@ -72,7 +79,7 @@ export function DocsArticle({
             ) : null}
           </Text>
         </header>
-        <div className="mt-8">{children}</div>
+        <div className="mt-8 md:mt-10">{children}</div>
         <DocsPrevNext prev={prev} next={next} />
         {editHref ? (
           <div className="mt-4 flex justify-end print:hidden">

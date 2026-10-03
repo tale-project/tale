@@ -947,6 +947,7 @@ automations:
       approval: En attente d’approbation
       ask: En attente de ta réponse
       agent: Agent au travail
+      room: En attente d’une place de sandbox
       repeat: 'Interrogation — étape {node}'
     startedAt: 'Lancée {date}'
     finishedAt: 'Terminée {date}'
@@ -1241,7 +1242,9 @@ chat:
     voiceOutputThreadSaveFailed: Impossible d'enregistrer le paramètre vocal pour ce chat
   notFound: Ce chat n'est pas disponible.
   placeholder: Pose une question…
-  generationIncomplete: La réponse n'a pas pu être terminée. Réessaie.
+  generationIncomplete: Le modèle n'a renvoyé aucune réponse. Réessaie ou choisis un autre modèle.
+  generationIncompleteFiltered: Le filtre de contenu du fournisseur du modèle a retenu cette réponse. Essaie de reformuler ton message.
+  generationIncompleteLength: Le modèle a épuisé sa limite de tokens en sortie avant d'écrire une réponse. Essaie un effort de raisonnement plus faible, une demande plus courte ou un autre modèle.
   generationIncompleteWithTools: La réponse n'a pas pu être terminée après l'exécution de {tools}. Réessaie.
   stepLimitReached: Arrêt ici — ce tour a atteint sa limite d'étapes. Envoie un message pour continuer.
   send: Envoyer le message
@@ -2848,6 +2851,26 @@ governance:
     invalidCostLimit: La limite de coût doit être supérieure à zéro.
     invalidMaxRequests: La limite de requêtes doit être supérieure à zéro.
     invalidWarningThreshold: Le seuil d'alerte doit être compris entre 0 et 100.
+    scopeLabels:
+      default: Par défaut
+      user: Utilisateur
+      team: Équipe
+      role: Rôle
+      apiKey: Clé API
+      org: Organisation
+    periodLabels:
+      daily: Quotidienne
+      weekly: Hebdomadaire
+      monthly: Mensuelle
+    apiKeyOwnerUnknown: Propriétaire inconnu
+    apiKeyInactive: Cette clé ne peut plus rien dépenser dans cette organisation, la règle ne limite donc rien. Choisis une clé active ou supprime la règle.
+    apiKeyStatus:
+      expired: Expirée
+      disabled: Désactivée
+      revoked: Révoquée
+      unavailable: Indisponible
+      holder_left: Ancien membre
+      unknown: Clé inconnue
   defaultModels:
     title: Modèles par défaut
     description:
@@ -3201,9 +3224,7 @@ governance:
         d'automatisation plus anciens que la période de rétention. Inclut les blobs de
         stockage de variables/sorties par exécution.
       placeholder: ex. 30
-      helper:
-        Les exécutions d'automatisation plus anciennes seront supprimées (1 à 365
-        jours).
+      helper: Les exécutions d'automatisation plus anciennes seront supprimées.
     auditLogs:
       title: Journaux d'audit
       description: "Supprime automatiquement les entrées du journal d'audit plus
@@ -3212,9 +3233,7 @@ governance:
         conformité ; garde une rétention suffisamment longue pour satisfaire tes
         exigences d'audit ou de conformité."
       placeholder: ex. 90
-      helper:
-        Les entrées du journal d'audit plus anciennes seront supprimées (30 à
-        365 jours).
+      helper: Les entrées du journal d'audit plus anciennes seront supprimées.
     usageLedger:
       title: Registre d'utilisation
       description:
@@ -3223,9 +3242,7 @@ governance:
         raccourcir cette rétention tronque les analyses historiques (les budgets
         et les rapports s'appuient sur ces lignes)."
       placeholder: ex. 365
-      helper:
-        Les lignes du registre d'utilisation plus anciennes seront supprimées
-        (30 à 3650 jours).
+      helper: Les lignes du registre d'utilisation plus anciennes seront supprimées.
     loginAttempts:
       title: Tentatives de connexion
       description: "Supprime automatiquement les enregistrements de suivi des
@@ -3234,8 +3251,7 @@ governance:
         à l'ensemble du déploiement — la valeur la plus stricte (la plus courte)
         parmi toutes les organisations est utilisée."
       placeholder: ex. 90
-      helper: Les enregistrements de tentatives de connexion plus anciens seront
-        supprimés (7 à 365 jours).
+      helper: Les enregistrements de tentatives de connexion plus anciens seront supprimés.
   passwordPolicy:
     title: Politique de mot de passe
     description:
@@ -4611,6 +4627,13 @@ home:
       title: Aucune conversation
       hint: Les conversations clients de ce statut apparaissent ici.
       filtered: Aucune conversation ne correspond à la recherche ou aux filtres.
+  # Une lecture abandonnée (#4093) : une ligne par type que la vue liste,
+  # mises bout à bout si plusieurs ont échoué, au-dessus des lignes chargées.
+  failed:
+    chats: Impossible de charger tes chats.
+    tasks: Impossible de charger tes tâches.
+    conversations: Impossible de charger les conversations clients.
+    retrying: Nouvelle tentative…
   aria:
     panel: Accueil
     stream: Tes chats, tâches et conversations
@@ -7382,6 +7405,7 @@ inbox:
   agentRunFailedBody: 'L’agent n’a pas pu terminer « {title} ». Ouvre la tâche pour voir pourquoi et le relancer.'
   agentRunFailedBudgetBody: 'Une limite d’utilisation a arrêté l’agent sur « {title} ». Relance-le dès qu’un admin l’aura relevée.'
   agentRunFailedSetupBody: 'Il manque quelque chose à l’agent de « {title} ». Un éditeur ou un admin peut corriger cela dans l’onglet Agents du projet.'
+  agentRunFailedInputBody: 'Une pièce jointe de « {title} » n’est plus dans le stockage. Retire-la de la tâche ou téléverse-la à nouveau, puis relance l’agent.'
   email:
     cta: Ouvrir dans Tale
     footer: Tu reçois cet e-mail parce que tu as activé les notifications dans Tale.
@@ -7496,6 +7520,7 @@ tasks:
     failure:
       budget: Une limite d’utilisation a arrêté cette exécution. Demande à un admin de la relever, puis relance l’agent.
       setup: Il manque quelque chose à cet agent — son modèle, l’un de ses skills ou l’agent lui-même. Un éditeur ou un admin peut corriger cela dans l’onglet Agents du projet.
+      input: Une pièce jointe de cette tâche n’est plus dans le stockage — « Détails » indique laquelle. Retire-la de la tâche ou téléverse-la à nouveau, puis relance l’agent.
       time_limit: L’exécution a atteint sa limite de temps avant que l’agent ait terminé. Relance l’agent, ou découpe la tâche en tâches plus petites.
       capacity: L’exécution a attendu trop longtemps une sandbox libre. Relance l’agent quand moins d’agents seront occupés.
       model: Le modèle d’IA derrière cet agent a échoué avant la fin du travail. Relance l’agent — s’il échoue encore, demande à un admin de vérifier le fournisseur d’IA.
@@ -7745,6 +7770,7 @@ tasks:
     standardAgentHint: L'agent de l'organisation pour les projets sans agent propre
     standardAgentFooter: Tant que ce projet n'a pas d'agents propres, l'agent standard de l'organisation prend en charge ses tâches.
   activity:
+    reviewResponded: "Décision de relecture"
     created: Créé
     updated: Mis à jour
     claimed: Pris en charge
@@ -7774,6 +7800,9 @@ tasks:
       labels: Aucune étiquette
       attachments: Aucune pièce jointe
   review:
+    decisionApproved: "Approuvé"
+    decisionChangesRequested: "Modifications demandées"
+    decisionUnavailable: "Décision de relecture indisponible"
     needsReview: Revue requise
     waitingOn: 'En attente de {name}'
     waitingOnYou: En attente de ta relecture
@@ -7786,9 +7815,30 @@ tasks:
   reviewer:
     none: Aucun relecteur
     assignToMe: Relire moi-même
-    search: Rechercher des personnes
-    clear: Retirer le relecteur
+    search: "Rechercher des personnes et des agents"
     editorsOnly: Seuls les membres qui peuvent modifier ce projet peuvent être relecteurs.
+    projectDefaultLabel: "Choix par défaut du projet"
+    projectDefault: "Choix du projet · {reviewer}"
+    projectDefaultHuman: "Choix du projet · personne"
+    independentAgent: "Choisis un autre agent que celui qui a effectué le travail."
+    agentReview: "Examine le résultat depuis sa propre tâche de relecture."
+    routingHint: "Les personnes doivent pouvoir modifier le projet. Les agents doivent avoir la permission de relire les tâches et ne peuvent pas relire leur propre travail."
+    pendingFor: "Relecture en cours : {reviewer}"
+    transferHint: "Choisir un relecteur lui transfère aussi cette relecture en attente."
+    agentUnavailable: "Cet agent relecteur est indisponible. Choisis un autre relecteur."
+    agentPermissionRequired: "Cet agent doit avoir la permission de relire les tâches avant de pouvoir décider."
+    saveError: "Impossible de changer le relecteur"
+    loadError: "Impossible de charger la relecture en cours. Réessaie avant de la modifier."
+    stale: "Le relecteur ou le résultat a changé. Vérifie la relecture en cours et choisis à nouveau."
+    handoffRequired: "Transfère explicitement la relecture en attente avant de changer de relecteur."
+    busy: "Attends la fin de l’exécution ou la réponse à la question ouverte avant de transférer la relecture."
+    sourceRequired: "Ce résultat ne comporte aucune exécution d’agent compatible avec la relecture."
+    sourceChanged: "Cette relecture ne correspond plus à l’exécution ou à l’agent chargé du travail. Si l’affectation a changé, rétablis l’agent d’origine ou transfère la relecture à une personne autorisée."
+    humanPolicy: "La politique de l’organisation exige une personne pour cette relecture. Transfère-la à un membre autorisé."
+    policyUnavailable: "La politique de relecture n’a pas pu être lue. Rétablis une politique d’organisation valide avant toute décision."
+    notIndependent: "Choisis un agent qui n’a pas produit ce résultat."
+    agentRequired: "L’agent chargé de la relecture doit se prononcer sur ce résultat."
+    invalid: "Choisis un membre autorisé ou un agent de ce projet."
   watch:
     watch: Suivre
     unwatch: Ne plus suivre
@@ -8218,6 +8268,7 @@ websites:
       unresolved: Les identifiants du modèle d'embedding ne peuvent pas être utilisés. Un administrateur peut les vérifier sous Paramètres → Fournisseurs IA.
       dimension: Les vecteurs du modèle ne correspondent pas à cette base de connaissances. Un administrateur peut vérifier le modèle d'embedding sous Paramètres → Résidence des données.
       upstream: Le fournisseur est en panne ou injoignable. Choisis Analyser maintenant dès qu'il est de retour.
+      throttled: La limite de débit du fournisseur a tenu malgré toutes les tentatives. La prochaine analyse reprend d'elle-même ; un administrateur peut espacer les requêtes sous Paramètres → Résidence des données.
       generic: Un administrateur peut vérifier le modèle d'embedding sous Paramètres → Résidence des données.
     technicalDetails: Détails techniques
   scanPausedBadge: Suspendu
@@ -8292,6 +8343,18 @@ websites:
     warning: Cette action est irréversible.
     title: Supprimer le site web
 projects:
+  taskReview:
+    title: "Relecture des tâches"
+    description: "Choisis qui relit le travail terminé des agents dans ce projet."
+    defaultReviewer: "Relecteur par défaut"
+    humanDefault: "Personne"
+    humanDefaultHint: "La personne qui a créé la tâche, puis celle qui a créé le projet, si elle peut le modifier."
+    agentHint: "Relit le travail terminé de façon indépendante."
+    existingReviews: "S’applique aux nouvelles relectures. Les relectures déjà en attente conservent leur relecteur enregistré."
+    permissionRequired: "Cet agent doit avoir la permission de relire les tâches avant de pouvoir décider."
+    unavailable: "L’agent relecteur sélectionné est indisponible. Choisis un autre relecteur."
+    stale: "Le relecteur par défaut du projet a changé pendant ta modification. Abandonne ce brouillon et choisis à nouveau."
+    search: "Rechercher des agents relecteurs"
   title: Projets
   entityLabel: projets
   entityLabelOne: projet
@@ -8537,6 +8600,8 @@ projects:
       task_create: Créer des tâches
       task_comment: Commenter des tâches
       task_update_status: Déplacer des tâches entre colonnes
+      task_update_metadata: Modifier la priorité et l'agent assigné aux tâches
+      task_review: "Revoir les résultats des tâches d’autres agents"
       task_start_agent: Lancer d'autres agents sur des tâches
       task_upsert_by_external_ref: Synchroniser un élément externe vers une tâche
       document_find: Trouver des documents
@@ -8850,6 +8915,8 @@ sandboxes:
     pausedBudget: En pause (budget)
     pinned: Épinglée
     deletesOn: Suppression prévue le {date}, sauf nouvelle utilisation
+    destroying: Suppression…
+    destroyFailed: Non supprimée
   task:
     none: Aucune tâche active
     project: '{count, plural, one {Tâche de projet} other {# tâches de projet}}'
@@ -8862,13 +8929,14 @@ sandboxes:
     destroy: Supprimer
   destroyConfirm:
     title: Supprimer la sandbox ?
-    description: Cela supprime la sandbox et son espace de travail et annule les tâches en cours. Le prochain lancement de l'agent crée une nouvelle sandbox.
+    description: Cela supprime la sandbox et son espace de travail et annule les tâches en cours. Une fois la sandbox supprimée, le prochain lancement de l'agent en crée une nouvelle.
     confirm: Supprimer
   toast:
     stopped: Tâche arrêtée
     pinned: Sandbox épinglée
     unpinned: Sandbox détachée
-    destroyed: Sandbox supprimée
+    destroying: Suppression de la sandbox en cours
+    destroyingDescription: Elle disparaît de la liste dès que son espace de travail est supprimé.
     error: Échec de l'action
   empty:
     title: Aucun espace de travail pour le moment

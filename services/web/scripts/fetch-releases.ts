@@ -15,6 +15,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { fetchGithubReleases } from '../lib/releases/fetch-github';
+import { RELEASE_DISPLAY_LIMIT } from '../lib/releases/prerender-budget';
 import { writeReleasesManifest } from '../lib/releases/write-manifest';
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
@@ -36,7 +37,7 @@ async function main(): Promise<void> {
 
   await writeReleasesManifest(OUT, releases, fetchedAt, { format });
   console.log(
-    `[fetch-releases] wrote ${releases.length} releases → ${OUT} (${fetchedAt})`,
+    `[fetch-releases] wrote ${Math.min(releases.length, RELEASE_DISPLAY_LIMIT)} releases from ${releases.length} fetched → ${OUT} (${fetchedAt})`,
   );
 }
 

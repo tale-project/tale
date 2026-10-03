@@ -17,13 +17,13 @@ The dev server up per [`../setup.md`](../setup.md), devtools open, a 1440×900
 viewport, the theme at **System** with the OS in light mode.
 
 > **Agent note**: wait on the route's own heading, never on a timeout — the
-> front page's `h1` is **The Tale design system** (`home.heroTitle`), a docs page's
+> front page's `h1` is **React components. One shared language.** (`home.heroTitle`), a docs page's
 > `h1` is its frontmatter `title` (Button, Input, …).
 
 ## Boxes
 
 - [ ] `SMOKE-1` · **Open `/` with the console open** → the display heading and
-  the two calls to action (**Read the docs**, **View on GitHub**) render on the
+  the two calls to action (**Start building**, **Browse components**) render on the
   marketing paper; no console message at `warn` or `error` level.
 - [ ] `SMOKE-2` · **Open `/docs/components/button`** → the app chrome renders:
   the rail with the Button row highlighted, the header strip with the trail

@@ -1,9 +1,11 @@
 ---
 title: Introduction
-description: Choose the Tale UI package for your screen and find a working example to build from.
+description: Build with the MIT-licensed React components behind Tale. Choose a package for your screen and find a working example.
 ---
 
-Use `@tale/ui` to build application screens: forms, tables, dialogs, navigation, and the providers behind them. Use `@tale/marketing-ui` for public websites: page sections, calls to action, site navigation, and product illustrations. The marketing package builds on the application package, so you install both when building a marketing site.
+These are the MIT-licensed React components behind [Tale](https://tale.dev), the open-source workspace for teams and AI agents. Use them to build interfaces in Tale or in your own application. You do not need a running Tale instance to use the packages.
+
+Use `@tale/ui` for application screens: forms, tables, dialogs, navigation, and the providers behind them. Use `@tale/marketing-ui` for public websites: page sections, calls to action, site navigation, and product illustrations. The marketing package builds on the application package, so you install both when building a marketing site.
 
 ## Start with your task
 

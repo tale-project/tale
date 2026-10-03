@@ -178,6 +178,26 @@ describe('external issue task intake', () => {
     ]);
   });
 
+  it('refuses legacy externalState at the workflow batch boundary before store writes', async () => {
+    const upsertIssues = vi.fn();
+    const native = platformTaskNatives({ upsertIssues } as never)[
+      'task.upsert_issues'
+    ];
+    await expect(
+      native?.(
+        {
+          projectId: 'project-1',
+          issues: [{ ...issue, externalState: 'closed' }],
+        },
+        {
+          organizationId: 'org-1',
+          caller: { kind: 'workflow', runId: 'run-1', nodeId: 'tasks' },
+        } as never,
+      ),
+    ).rejects.toMatchObject({ code: 'INPUT_INVALID' });
+    expect(upsertIssues).not.toHaveBeenCalled();
+  });
+
   /**
    * A blank title names nothing, and every task door answers it with the
    * one empty-title sentence — the agent's upsert, the app's intake and now

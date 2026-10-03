@@ -14,6 +14,7 @@ import {
 } from '@/app/components/marketing';
 import { FOOTER_PLATFORM_PAGES } from '@/app/content/platform-pages';
 import { FOOTER_COMPANY_CTAS } from '@/app/content/site-ctas';
+import { listMarketingContent } from '@/lib/content/client';
 import { DOCS_URL } from '@/lib/docs-url';
 import { EXTERNAL_LINKS } from '@/lib/external-links';
 import { useT } from '@/lib/i18n/client';
@@ -83,6 +84,20 @@ export function SiteFooter() {
         <MarketingExternalLink key="docs" href={DOCS_URL} tone="footer">
           {tNav('resource.docs.label')}
         </MarketingExternalLink>,
+        ...(['comparisons', 'use-cases'] as const).flatMap((category) => {
+          if (
+            !listMarketingContent(category, 'en').some(
+              (page) => page.slug === 'index',
+            )
+          )
+            return [];
+          const compare = category === 'comparisons';
+          return [
+            <RouteLink key={category} to={compare ? '/compare' : '/use-cases'}>
+              {tNav(`resource.${compare ? 'compare' : 'useCases'}.label`)}
+            </RouteLink>,
+          ];
+        }),
         <RouteLink key="changelog" to="/changelog">
           {t('changelog')}
         </RouteLink>,

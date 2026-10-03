@@ -1,6 +1,7 @@
 import { createFileRoute, notFound } from '@tanstack/react-router';
 
 import { DocsPage } from '@/app/pages/docs-page';
+import { HomePage } from '@/app/pages/home-page';
 import { NotFoundPage } from '@/app/pages/not-found-page';
 import { ensureDocBody, getDocPage } from '@/lib/content/loader';
 import { isUrlPrefixedLocale, type SupportedLocale } from '@/lib/i18n/locales';
@@ -41,6 +42,7 @@ function SplatRoute() {
   const params = Route.useParams() as { _splat?: string };
   const splat = params._splat ?? '';
   const { locale, slug } = resolve(splat);
+  if (slug === 'index') return <HomePage locale={locale} />;
   return <DocsPage locale={locale} slug={slug} />;
 }
 
@@ -64,7 +66,7 @@ export const Route = createFileRoute('/$')({
     const splat = params._splat ?? '';
     if (isSpecialEndpoint(splat)) return undefined;
     const { locale, slug } = resolve(splat);
-    await ensureDocBody(locale, slug);
+    if (slug !== 'index') await ensureDocBody(locale, slug);
     const page = getDocPage(locale, slug);
     if (page) {
       const path = page.slug.replace(/(?:^|\/)index$/, '');

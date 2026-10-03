@@ -3,6 +3,7 @@ import type { TransactionSql } from 'postgres';
 import { cancelRunInTx } from '../automations/store.ts';
 import { queueRefRelease } from '../knowledge/release-queue.ts';
 import { cancelAgentRunInTx } from './agent-runs.ts';
+import { taskHoldsBlobRef } from './blob-holders.ts';
 
 /**
  * The ONE retirement walk for a set of tasks that are about to be hard
@@ -84,7 +85,8 @@ export async function retireTasksInTx(
   }
   const liveAutomationRuns = await tx<{ id: string }[]>`
     SELECT id FROM app.automation_runs
-    WHERE org_id = ${args.organizationId} AND project_id = ${args.projectId}
+    WHERE org_id = ${args.organizationId}
+      AND (project_id = ${args.projectId} OR project_id IS NULL)
       AND status IN ('queued', 'running', 'waiting')
       AND input -> 'task' ->> 'id' = ANY(${ids})
   `;
@@ -179,16 +181,16 @@ export async function releaseUnlistedTaskBlobRefs(
   if (refs.length === 0) return [];
   const orphaned = await tx<{ ref: string }[]>`
     SELECT r.ref FROM unnest(${[...refs]}::text[]) AS r(ref)
-    WHERE NOT EXISTS (
-      SELECT 1 FROM app.tasks t
-      WHERE t.org_id = ${organizationId}
-        AND (t.outputs @> jsonb_build_array(jsonb_build_object('fileId', r.ref))
-             OR t.attachments
-                @> jsonb_build_array(jsonb_build_object('fileId', r.ref)))
-    )
+    WHERE NOT ${taskHoldsBlobRef(tx, organizationId, tx`r.ref`)}
   `;
   const releasedRefs = orphaned.map((row) => row.ref);
   if (releasedRefs.length > 0) {
+    // A row another lane binds outside these columns is that lane's, not
+    // the task's: a product's image (the product domain ends it,
+    // `releaseManagedImage`) and a video link's file row (its job's cleanup
+    // and GC end it). Trashed here, the release took the bytes and the row
+    // of an image a product still showed, or a transcript a chip was about
+    // to send (#4110).
     await tx`
       UPDATE app.file_metadata SET
         lifecycle_status = 'trashed', status_changed_at_ms = ${Date.now()}
@@ -196,6 +198,12 @@ export async function releaseUnlistedTaskBlobRefs(
         AND storage_ref = ANY(${releasedRefs})
         AND document_id IS NULL AND thread_id IS NULL
         AND conversation_id IS NULL
+        AND source IS DISTINCT FROM 'product-image'
+        AND NOT EXISTS (
+          SELECT 1 FROM app.video_link_jobs job
+          WHERE job.org_id = file_metadata.org_id
+            AND job.file_metadata_id = file_metadata.id
+        )
         AND (lifecycle_status IS NULL OR lifecycle_status = 'active')
     `;
     await queueRefRelease(tx, organizationId, releasedRefs);

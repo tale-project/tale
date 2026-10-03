@@ -104,9 +104,10 @@ export interface RunSummary {
   failureCode?: string;
   /** What a `waiting` run is parked on — `approval` (a person's decision),
    * `ask` (a question a person has to answer), `agent` (an agent turn
-   * still running), `repeat` (a node polling until its condition holds).
-   * Only the first two need a human; present only while waiting. */
-  waitingFor?: 'approval' | 'ask' | 'agent' | 'repeat';
+   * still running), `room` (an agent turn waiting for sandbox room to
+   * start), `repeat` (a node polling until its condition holds). Only the
+   * first two need a human; present only while waiting. */
+  waitingFor?: 'approval' | 'ask' | 'agent' | 'room' | 'repeat';
   startedAt: number;
   finishedAt?: number;
 }

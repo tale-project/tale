@@ -61,6 +61,10 @@ import {
 import type { Id } from '../lib/rows';
 import { ensureAgentSession } from '../node_only/sandbox/agent_session';
 import {
+  isDestroyPendingRefusal,
+  sandboxCapacityRefusal,
+} from '../node_only/sandbox/capacity_refusal';
+import {
   settleGatewayKey,
   settlementPending,
 } from '../node_only/sandbox/gateway_key_settlement';
@@ -95,6 +99,10 @@ import {
   agentWorkTurnDeadlineMs,
   workflowAgentBudgetCents,
 } from '../sandbox/agent_deadline';
+import {
+  AWAITING_ROOM_RESULT_STATUS,
+  SANDBOX_DESTROY_PENDING_MESSAGE,
+} from '../sandbox/session_constants';
 import { sessionIdForWorkflowExecution } from '../sandbox/session_naming';
 import {
   ASK_HUMAN_TOOL,
@@ -111,6 +119,8 @@ import { SkillUnavailableError } from '../skills/skill_unavailable_error';
 import { isCredentialRotation } from '../tasks/task_auto_retry';
 import {
   retryResumePrompt,
+  SANDBOX_ROOM_RETRY_CEILING_MS,
+  type WorkflowAgentFailureCode,
   type WorkflowAgentRetryResume,
 } from './agent_retry';
 import {
@@ -437,15 +447,19 @@ export function automationAgentHost(
           : null;
       const execId = randomUUID();
       const sessionId = sessionIdForWorkflowExecution(runId);
-      // A cooldown ends a minute after its 429 at the latest, so a held
-      // start stays far inside the stalled-turn sweep's window for the op
-      // row written below.
+      // A cooldown ends a minute after its 429 at the latest, and a wait
+      // for sandbox room holds a start two minutes at most, so a held start
+      // stays far inside the stalled-turn sweep's window for the op row
+      // written below.
       const startDelayMs =
         notBefore === undefined
           ? 0
           : Math.min(
               Math.max(0, notBefore - Date.now()),
-              BROKER_RATE_LIMIT_COOLDOWN_MS,
+              Math.max(
+                BROKER_RATE_LIMIT_COOLDOWN_MS,
+                SANDBOX_ROOM_RETRY_CEILING_MS,
+              ),
             );
       const deadlineAt = Date.now() + startDelayMs + agentWorkTurnDeadlineMs();
       // The op row exists BEFORE the start action is scheduled (the chat
@@ -1222,6 +1236,62 @@ export interface StartWorkflowAgentTurnArgs {
   };
 }
 
+/**
+ * How a workflow agent turn that could not START settles: the reason, the
+ * code the stepper's retry reads, and when the re-kick may start. A cap
+ * refusal is the org's decision, not a fault: named as such, and never
+ * retried (the cap only moves with the period or an admin). No sandbox room
+ * (the organization's session budget, or the host's capacity or memory)
+ * frees as other work settles: the re-kick waits out the refusal's retry
+ * hint and spends no attempt, instead of failing the run after three
+ * instant retries. A workspace an administrator is destroying is no want of
+ * room: the step fails with the reason at once, never retried, since a
+ * start after the Destroy would continue the run in a fresh, empty
+ * workspace. A broker pool whose every account is cooling down says when
+ * the first is back: the stepper holds the re-kick's start until then
+ * instead of meeting the same refusal at once.
+ */
+export function classifyWorkflowStartFailure(
+  err: unknown,
+  now: number,
+): {
+  reason: string;
+  failureCode: WorkflowAgentFailureCode;
+  retryAtMs?: number;
+  retryAfterMs?: number;
+  roomQueued?: true;
+} {
+  if (isTurnBudgetExceededError(err)) {
+    return {
+      reason: `the agent turn was refused by the organization's spend cap: ${err.reason}`,
+      failureCode: 'budget_exceeded',
+    };
+  }
+  if (isDestroyPendingRefusal(err)) {
+    return {
+      reason: `the agent turn could not start: ${SANDBOX_DESTROY_PENDING_MESSAGE}`,
+      failureCode: 'sandbox_destroying',
+    };
+  }
+  const noRoom = sandboxCapacityRefusal(err);
+  if (noRoom !== null) {
+    return {
+      reason: `the agent turn is waiting for sandbox room: ${noRoom.scope === 'host' ? 'the sandbox host is busy' : "the organization's workflow sessions are all in use"}`,
+      failureCode: 'sandbox_capacity',
+      retryAtMs: now + noRoom.retryAfterMs,
+      retryAfterMs: noRoom.retryAfterMs,
+      ...(noRoom.queue !== undefined ? { roomQueued: true as const } : {}),
+    };
+  }
+  const retryAtMs = credentialRetryAtMs(err);
+  return {
+    reason: `the agent turn could not start: ${runFailureMessage(err)}`,
+    failureCode:
+      retryAtMs !== undefined ? 'credential_cooldown' : 'start_failed',
+    ...(retryAtMs !== undefined ? { retryAtMs } : {}),
+  };
+}
+
 /** The start as a PLAIN exported function — the internalAction above wraps
  * it, and the 0.5 backend's `automation.agent_turn` job runs it on the ctx
  * shim (same pattern as the task-agent lane). */
@@ -1470,6 +1540,16 @@ export async function startWorkflowAgentTurnImpl(
               },
             )
           : [];
+      // A resume that delivers an answered question — its own delivery was
+      // refused for want of sandbox room before it launched — opens the
+      // asking conversation with that answer, as the delivery would have.
+      const undeliveredAnswer =
+        args.resume?.askId !== undefined
+          ? await readUndeliveredAnswer(ctx, {
+              organizationId: args.organizationId,
+              askId: args.resume.askId,
+            })
+          : undefined;
       // The serving model's window, so the harness compacts before the
       // prompt outgrows what the model serves; unknown leaves it to the
       // harness.
@@ -1490,7 +1570,14 @@ export async function startWorkflowAgentTurnImpl(
         prompt:
           args.resume === undefined
             ? promptWithAnsweredAsks(args.request.prompt, answeredAsks)
-            : retryResumePrompt(args.resume.reason),
+            : undeliveredAnswer !== undefined
+              ? answerResumePrompt({
+                  nodePrompt: args.request.prompt,
+                  answer: undeliveredAnswer,
+                  hasConversation: true,
+                  answeredAsks: [],
+                })
+              : retryResumePrompt(args.resume.reason),
         execId: args.execId,
         // Always mounted: `ask_human` rides the bridge, so every automation
         // turn gets the shim even when the node declares no connectors.
@@ -1542,30 +1629,38 @@ export async function startWorkflowAgentTurnImpl(
       await continueOrSettle(ctx, args, window);
     } catch (err) {
       console.error('[agent-host] turn start failed:', err);
-      // A cap refusal is the org's decision, not a fault: named as such,
-      // and never retried (the cap only moves with the period or an admin).
-      // A broker pool whose every account is cooling down says when the
-      // first is back: the stepper holds the re-kick's start until then
-      // instead of meeting the same refusal at once.
-      const budgetRefused = isTurnBudgetExceededError(err);
-      const retryAtMs = credentialRetryAtMs(err);
-      await settleWorkflowAgentTurn(ctx, args, {
-        errored: true,
-        reason: budgetRefused
-          ? `the agent turn was refused by the organization's spend cap: ${err.reason}`
-          : `the agent turn could not start: ${runFailureMessage(err)}`,
-        failureCode: budgetRefused
-          ? 'budget_exceeded'
-          : retryAtMs !== undefined
-            ? 'credential_cooldown'
-            : 'start_failed',
-        ...(retryAtMs !== undefined ? { retryAtMs } : {}),
-        text: '',
-        files: [],
-      });
+      // Refusals that are decisions or waits settle as such
+      // (`classifyWorkflowStartFailure`); the rest is `start_failed`.
+      const refusal = classifyWorkflowStartFailure(err, Date.now());
+      await settleWorkflowAgentTurn(
+        ctx,
+        args,
+        { errored: true, ...refusal, text: '', files: [] },
+        // A start that waits for sandbox room ran no harness turn: the
+        // metrics must not count each of its re-kicks as a failed one.
+        refusal.failureCode === 'sandbox_capacity'
+          ? { agentResultStatus: AWAITING_ROOM_RESULT_STATUS }
+          : {},
+      );
     }
     return null;
   }
+}
+
+/** The answer of an answered question a resume is to deliver, or undefined
+ * when the question is gone or holds no answer (the resume then opens with
+ * the retry prompt alone). */
+async function readUndeliveredAnswer(
+  ctx: ActionCtx,
+  args: { organizationId: string; askId: string },
+): Promise<string | undefined> {
+  const ask = readAskRow(
+    await ctx.runQuery(internal.automations.human_asks.getAskForResume, {
+      askId: args.askId,
+      organizationId: args.organizationId,
+    }),
+  );
+  return ask?.status === 'answered' ? ask.answer : undefined;
 }
 
 /** What `readAgentCursor` answers: the run's status and its cursor, or null
@@ -2134,9 +2229,19 @@ export async function resumeWorkflowAgentTurnWithAnswerImpl(
       await continueOrSettle(ctx, keys, window);
     } catch (err) {
       console.error('[agent-host] answered-ask resume failed:', err);
+      // A workspace being destroyed fails the step, as at a start: the
+      // conversation the answer was for is going with it.
+      const destroying = isDestroyPendingRefusal(err);
+      // No sandbox room is a wait here too: the re-kick resumes once the
+      // refusal's retry hint has passed, spending no attempt.
+      const noRoom = sandboxCapacityRefusal(err) !== null;
+      const roomWait = noRoom
+        ? classifyWorkflowStartFailure(err, Date.now())
+        : undefined;
       // A broker pool cooling down says when its first account is back: the
       // stepper's re-kick waits for it.
-      const retryAtMs = credentialRetryAtMs(err);
+      const retryAtMs =
+        roomWait !== undefined ? roomWait.retryAtMs : credentialRetryAtMs(err);
       // A death BEFORE the retarget settles under the asking exec the cursor
       // still names: its finalize claim was burned at the ask park, but the
       // dead-winner branch completes the record (cursor matches, no result),
@@ -2148,12 +2253,35 @@ export async function resumeWorkflowAgentTurnWithAnswerImpl(
         retargeted ? keys : { ...keys, execId: ask.execId },
         {
           errored: true,
-          reason: `the agent turn could not resume after the answer: ${runFailureMessage(err)}`,
-          failureCode: 'resume_failed',
+          reason:
+            roomWait !== undefined
+              ? roomWait.reason
+              : `the agent turn could not resume after the answer: ${destroying ? SANDBOX_DESTROY_PENDING_MESSAGE : runFailureMessage(err)}`,
+          failureCode: destroying
+            ? 'sandbox_destroying'
+            : noRoom
+              ? 'sandbox_capacity'
+              : 'resume_failed',
           ...(retryAtMs !== undefined ? { retryAtMs } : {}),
+          ...(roomWait?.retryAfterMs !== undefined
+            ? { retryAfterMs: roomWait.retryAfterMs }
+            : {}),
+          ...(roomWait?.roomQueued === true ? { roomQueued: true } : {}),
+          // Refused for room before anything launched, the delivery leaves
+          // the asking conversation as it was: the re-kick resumes it with
+          // this answer instead of starting the node over.
+          ...(roomWait !== undefined && !retargeted
+            ? {
+                undeliveredAskId: ask._id,
+                ...(ask.agentSessionId !== undefined
+                  ? { agentSessionId: ask.agentSessionId }
+                  : {}),
+              }
+            : {}),
           text: '',
           files: [],
         },
+        noRoom ? { agentResultStatus: AWAITING_ROOM_RESULT_STATUS } : {},
       );
     }
     return null;

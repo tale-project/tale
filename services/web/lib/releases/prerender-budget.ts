@@ -1,5 +1,8 @@
 import type { Release } from './types';
 
+/** Visible release history; the bundled snapshot needs no older bodies. */
+export const RELEASE_DISPLAY_LIMIT = 40;
+
 /**
  * How many of the newest release bodies the prerendered changelog carries.
  *

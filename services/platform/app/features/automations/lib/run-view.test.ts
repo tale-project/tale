@@ -8,6 +8,7 @@ import {
   readRunAgentRetry,
   readRunCursorNode,
   readRunStatus,
+  runReasonKey,
 } from './run-view';
 
 /**
@@ -222,5 +223,32 @@ describe('readEffects', () => {
         'nonsense',
       ]),
     ).toEqual([{ node: 'a', connector: 'x', input: 1 }]);
+  });
+});
+
+describe('runReasonKey', () => {
+  it('says a run waits for sandbox room in words, never the raw park', () => {
+    expect(
+      runReasonKey({
+        status: 'waiting',
+        detail: 'room:draft',
+        waitingFor: 'room',
+      }),
+    ).toEqual({
+      kind: 'waiting',
+      key: 'runs.waiting.room',
+      values: { node: 'draft' },
+    });
+    expect(
+      runReasonKey({
+        status: 'waiting',
+        detail: 'agent:draft',
+        waitingFor: 'agent',
+      }),
+    ).toEqual({
+      kind: 'waiting',
+      key: 'runs.waiting.agent',
+      values: { node: 'draft' },
+    });
   });
 });

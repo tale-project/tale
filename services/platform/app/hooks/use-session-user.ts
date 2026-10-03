@@ -66,12 +66,15 @@ export function useAuth() {
  * The auth shape the app's hooks gate on. It used to be Convex's — the
  * WebSocket handshake's state — and is now the session probe's: the backend
  * answers `currentUser` on the session cookie alone, so there is nothing to
- * hand-shake and nothing to wait for beyond that one request.
+ * hand-shake and nothing to wait for beyond that one request. It observes
+ * that probe alone; the Better Auth session `useAuth` also holds answers
+ * nothing returned here. A hook mounted once per read gates through
+ * `useSessionProbeSignedIn` instead, which adds no observer (#4062).
  */
 export function useSessionUser(): {
   isLoading: boolean;
   isAuthenticated: boolean;
 } {
-  const { isLoading, isAuthenticated } = useConvexAuthUser();
-  return { isLoading, isAuthenticated };
+  const { data: user, isLoading } = useQuery(currentUserQuery());
+  return { isLoading, isAuthenticated: !!user };
 }

@@ -898,6 +898,7 @@ automations:
       approval: Waiting for approval
       ask: Waiting for your answer
       agent: Agent working
+      room: Waiting for a sandbox slot
       repeat: 'Polling — step {node}'
     startedAt: 'Started {date}'
     finishedAt: 'Finished {date}'
@@ -1187,7 +1188,9 @@ chat:
     voiceOutputThreadSaveFailed: Couldn't save voice setting for this conversation
   notFound: This chat is not available.
   placeholder: Ask a question…
-  generationIncomplete: The response couldn't be completed. Try again.
+  generationIncomplete: The model returned no answer. Try again, or choose another model.
+  generationIncompleteFiltered: The model provider's content filter withheld this response. Try rephrasing your message.
+  generationIncompleteLength: The model used up its output token limit before it wrote an answer. Try a lower reasoning effort, a shorter request, or another model.
   generationIncompleteWithTools: The response couldn't be completed after running {tools}. Try again.
   stepLimitReached: Stopped here — this turn reached its step limit. Send a message to continue.
   send: Send message
@@ -2718,6 +2721,26 @@ governance:
     invalidCostLimit: Cost limit must be greater than zero.
     invalidMaxRequests: Request limit must be greater than zero.
     invalidWarningThreshold: Warning threshold must be between 0 and 100.
+    scopeLabels:
+      default: Default
+      user: User
+      team: Team
+      role: Role
+      apiKey: API key
+      org: Organization
+    periodLabels:
+      daily: Daily
+      weekly: Weekly
+      monthly: Monthly
+    apiKeyOwnerUnknown: Owner unknown
+    apiKeyInactive: This key can no longer spend in this organization, so the rule limits nothing. Choose an active key or remove the rule.
+    apiKeyStatus:
+      expired: Expired
+      disabled: Disabled
+      revoked: Revoked
+      unavailable: Unavailable
+      holder_left: Former member
+      unknown: Unknown key
   defaultModels:
     title: Default models
     description: Set default models for specific user groups or roles.
@@ -3045,22 +3068,22 @@ governance:
         retention period. Includes per-execution variable/output storage
         blobs.
       placeholder: e.g. 30
-      helper: Automation runs older than this will be deleted (1–365 days).
+      helper: Automation runs older than this will be deleted.
     auditLogs:
       title: Audit logs
       description: Automatically delete audit log entries older than the retention period. Audit logs are immutable records — keep retention long enough to satisfy your compliance requirements.
       placeholder: e.g. 90
-      helper: Audit log entries older than this will be deleted (30–365 days).
+      helper: Audit log entries older than this will be deleted.
     usageLedger:
       title: Usage ledger
       description: Automatically delete token-usage records older than the retention period. Shortening this truncates historical analytics — budgets and reports depend on these records.
       placeholder: e.g. 365
-      helper: Usage ledger rows older than this will be deleted (30–3650 days).
+      helper: Usage ledger rows older than this will be deleted.
     loginAttempts:
       title: Login attempts
       description: Automatically delete failed-login tracking records older than the retention period. These are deployment-wide — the shortest retention across all orgs applies.
       placeholder: e.g. 90
-      helper: Login attempt records older than this will be deleted (7–365 days).
+      helper: Login attempt records older than this will be deleted.
   passwordPolicy:
     title: Password policy
     description:
@@ -4380,6 +4403,13 @@ home:
       title: No conversations
       hint: Customer conversations for this status show up here.
       filtered: No conversation matches the search or filters.
+  # A read that gave up (#4093): one line per kind the view lists, joined
+  # when more than one failed, above the rows that did load.
+  failed:
+    chats: Couldn't load your chats.
+    tasks: Couldn't load your tasks.
+    conversations: Couldn't load the customer conversations.
+    retrying: Trying again…
   aria:
     panel: Home
     stream: Your chats, tasks and conversations
@@ -5251,6 +5281,19 @@ skills:
     bodyHelp: Markdown the model reads when it loads the skill — playbooks,
       conventions, reference material. Never executed.
 projects:
+  taskReview:
+    title: "Task reviews"
+    description: "Choose who reviews completed agent work in this project."
+    defaultReviewer: "Default reviewer"
+    humanDefault: "Person"
+    humanDefaultHint: "The task creator, then the project creator, if they can edit the project."
+    agentHint: "Reviews completed work independently."
+    existingReviews: "Applies when a new review starts. Reviews already waiting keep their recorded reviewer."
+    permissionRequired: "This agent needs the task review permission before it can decide."
+    unavailable: "The selected reviewer agent is unavailable. Choose another reviewer."
+    stale: "The project reviewer changed while you were editing. Discard this draft and choose again."
+    search: "Search reviewer agents"
+
   title: Projects
   entityLabel: projects
   entityLabelOne: project
@@ -5489,6 +5532,8 @@ projects:
       task_create: Create tasks
       task_comment: Comment on tasks
       task_update_status: Move tasks between columns
+      task_update_metadata: Change task priority and agent assignment
+      task_review: "Review other agents’ task results"
       task_start_agent: Start other agents on tasks
       task_upsert_by_external_ref: Sync an external item to a task
       document_find: Find documents
@@ -7406,6 +7451,7 @@ inbox:
   agentRunFailedBody: 'The agent couldn''t finish "{title}". Open the task to see why and start it again.'
   agentRunFailedBudgetBody: 'A usage limit stopped the agent on "{title}". Once an Admin raises it, start the agent again.'
   agentRunFailedSetupBody: 'The agent on "{title}" is missing something it needs. An Editor or Admin can fix it on the project''s Agents tab.'
+  agentRunFailedInputBody: 'An attachment on "{title}" is no longer in storage. Remove it from the task or upload it again, then start the agent again.'
   email:
     cta: Open in Tale
     footer: You received this email because you have notifications enabled in Tale.
@@ -7517,6 +7563,7 @@ tasks:
     failure:
       budget: A usage limit stopped this run. Ask an Admin to raise it, then start the agent again.
       setup: Something this agent needs is missing — its model, one of its skills, or the agent itself. An Editor or Admin can fix it on the project's Agents tab.
+      input: An attachment on this task is no longer in storage — Details names it. Remove it from the task or upload it again, then start the agent again.
       time_limit: The run reached its time limit before the agent finished. Start the agent again, or split the task into smaller ones.
       capacity: The run waited too long for a free sandbox. Start the agent again when fewer agents are busy.
       model: The AI model behind this agent failed before the work was done. Start the agent again — if it fails again, ask an Admin to check the AI provider.
@@ -7763,6 +7810,7 @@ tasks:
     standardAgentHint: The organization's agent for projects without their own
     standardAgentFooter: Until this project has agents of its own, the organization's standard agent takes its tasks.
   activity:
+    reviewResponded: "Review decided"
     created: Created
     updated: Updated
     claimed: Claimed
@@ -7792,6 +7840,9 @@ tasks:
       labels: No labels
       attachments: No attachments
   review:
+    decisionApproved: "Approved"
+    decisionChangesRequested: "Changes requested"
+    decisionUnavailable: "Review decision unavailable"
     needsReview: Needs review
     waitingOn: 'Waiting on {name}'
     waitingOnYou: Waiting on you
@@ -7804,9 +7855,30 @@ tasks:
   reviewer:
     none: No reviewer
     assignToMe: Review it myself
-    search: Search people
-    clear: Clear reviewer
+    search: "Search people and agents"
     editorsOnly: Only members who can edit this project can be the reviewer.
+    projectDefaultLabel: "Project default"
+    projectDefault: "Project default · {reviewer}"
+    projectDefaultHuman: "Project default · person"
+    independentAgent: "Choose a different agent from the one that did the work."
+    agentReview: "Reviews the result from its own review task."
+    routingHint: "People need edit access. Agents need the task review permission and must not review their own work."
+    pendingFor: "Current review: {reviewer}"
+    transferHint: "Choosing a reviewer also transfers this pending review."
+    agentUnavailable: "This reviewer agent is unavailable. Choose another reviewer."
+    agentPermissionRequired: "This agent needs the task review permission before it can decide."
+    saveError: "Couldn't change the reviewer"
+    loadError: "Couldn't load the current review. Try again before changing it."
+    stale: "The reviewer or result changed. Check the current review and choose again."
+    handoffRequired: "Transfer the pending review explicitly before changing its owner."
+    busy: "Wait for the active run or open question to finish before transferring review."
+    sourceRequired: "This result has no supported implementation run to review."
+    sourceChanged: "This review no longer matches the implementation run or assignee. Restore the implementation assignee if it changed, or transfer the review to an eligible person."
+    humanPolicy: "Organization policy requires a person for this review. Transfer it to an eligible member."
+    policyUnavailable: "Review policy could not be read. Restore valid organization policy before deciding."
+    notIndependent: "Choose an agent that did not produce this result."
+    agentRequired: "The assigned reviewer agent must decide this review."
+    invalid: "Choose an eligible project member or an agent in this project."
   watch:
     watch: Watch
     unwatch: Unwatch
@@ -8217,6 +8289,7 @@ websites:
       unresolved: The embedding model's credential can't be used. An admin can check it under Settings → AI providers.
       dimension: The model's vectors don't fit this knowledge database. An admin can check the embedding model under Settings → Data residency.
       upstream: The provider failed or couldn't be reached. Choose Scan now once it's back.
+      throttled: The provider's rate limit held through every retry. The next scan continues on its own; an admin can pace requests under Settings → Data residency.
       generic: An admin can check the embedding model under Settings → Data residency.
     technicalDetails: Technical details
   scanPausedBadge: Paused
@@ -8432,6 +8505,8 @@ sandboxes:
     pausedBudget: Paused (budget)
     pinned: Pinned
     deletesOn: Deleted on {date} unless used again
+    destroying: Destroying
+    destroyFailed: Destroy failed
   task:
     none: No active task
     project: '{count, plural, one {Project task} other {# project tasks}}'
@@ -8444,13 +8519,14 @@ sandboxes:
     destroy: Destroy
   destroyConfirm:
     title: Destroy sandbox?
-    description: This deletes the sandbox and its workspace. Any running task is cancelled. A fresh sandbox is created the next time the agent runs.
+    description: This deletes the sandbox and its workspace. Any running task is cancelled. Once it is gone, the agent's next run creates a fresh sandbox.
     confirm: Destroy
   toast:
     stopped: Task stopped
     pinned: Sandbox pinned
     unpinned: Sandbox unpinned
-    destroyed: Sandbox destroyed
+    destroying: Destroying sandbox
+    destroyingDescription: It leaves the list once its workspace is deleted.
     error: Action failed
   empty:
     title: No workspaces yet

@@ -8,6 +8,8 @@ import {
   storeAgentTextBlob,
   upsertAgentDocument,
 } from '../documents/agent-write.ts';
+import { readAgentTaskReviewSummaries } from '../tasks/agent-review-discovery.ts';
+import { readAgentTaskReviewFiles } from '../tasks/agent-review-files.ts';
 import { readTaskWorkState } from '../tasks/agent-work-state.ts';
 import { addTaskComment } from '../tasks/comments.ts';
 import { upsertTaskByExternalRef } from '../tasks/external-ref.ts';
@@ -118,13 +120,30 @@ export function workspaceWriteShimHandlers(sql: Sql): ShimHandlers {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the bridge passes exactly this shape
       const args = raw as Parameters<typeof listTasksForAgent>[1];
       const rows = await coded(() => listTasksForAgent(sql, args));
-      return rows.map(toAgentTaskDoc);
+      const reviews = await readAgentTaskReviewSummaries(
+        sql,
+        args.organizationId,
+        rows.map((task) => task.id),
+      );
+      return rows.map((task) =>
+        Object.assign(toAgentTaskDoc(task), {
+          pendingReview: reviews.get(task.id) ?? null,
+        }),
+      );
     },
 
     'tasks/internal_queries:getTaskWorkStateForAgent': async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the bridge passes exactly this shape, after its scope check
       const args = raw as Parameters<typeof readTaskWorkState>[1];
       return readTaskWorkState(sql, args);
+    },
+
+    'tasks/internal_queries:getTaskReviewFilesForAgent': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- internal bridge validates the current captured review and project scope before this read
+      const args = raw as Parameters<typeof readAgentTaskReviewFiles>[1];
+      return coded(() =>
+        transactSerializable(sql, (tx) => readAgentTaskReviewFiles(tx, args)),
+      );
     },
 
     'tasks/internal_mutations:agentCreateTask': async (raw) => {

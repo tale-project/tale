@@ -60,6 +60,7 @@ export async function checkAgentTaskReadTools(
   const member = `itest-read-member-${suffix}`;
   const tokens: string[] = [];
   const sessionIds = new Set<string>();
+  const discoveryApprovalIds: string[] = [];
   const ownerAuth = {
     organizationId: orgId,
     userId,
@@ -97,6 +98,7 @@ export async function checkAgentTaskReadTools(
    * for its turn. */
   const agentRun = async (args: {
     agentId: string;
+    projectId?: string;
     taskId: string;
     status: string;
     startedBy?: string;
@@ -104,6 +106,8 @@ export async function checkAgentTaskReadTools(
     startedAt?: number;
     feedback?: string;
     failureCode?: string;
+    autoRetryArmedAt?: number;
+    autoRetryRefusedAt?: number;
     grants?: string[];
   }): Promise<{ runId: string; token: string }> => {
     const execId = `exec-${randomUUID().slice(0, 12)}`;
@@ -115,16 +119,18 @@ export async function checkAgentTaskReadTools(
         org_id, project_id, task_id, agent_id, exec_id, session_id, status,
         harness, model, trigger, feedback, failure_code, error, result_text,
         started_by, started_at_ms, launched_at_ms, deadline_at_ms,
-        settled_at_ms, updated_at_ms
+        settled_at_ms, updated_at_ms, auto_retry_armed_at_ms,
+        auto_retry_refused_at_ms
       ) VALUES (
-        ${orgId}, ${projectA}, ${args.taskId}, ${args.agentId}, ${execId},
+        ${orgId}, ${args.projectId ?? projectA}, ${args.taskId}, ${args.agentId}, ${execId},
         ${sessionId}, ${args.status}, 'claude-code', 'itest-model', 'manual',
         ${args.feedback ?? null}, ${args.failureCode ?? null},
         ${args.status === 'failed' ? 'itest: harness exploded with a secret-looking trace' : null},
         ${args.status === 'settled' ? 'itest: the full report the run produced' : null},
         ${args.startedBy ?? userId}, ${startedAt}, ${startedAt + 1000},
         ${startedAt + 3_600_000}, ${terminal ? startedAt + 60_000 : null},
-        ${Date.now()}
+        ${Date.now()}, ${args.autoRetryArmedAt ?? null},
+        ${args.autoRetryRefusedAt ?? null}
       ) RETURNING id
     `;
     if (!sessionIds.has(sessionId)) {
@@ -486,9 +492,36 @@ export async function checkAgentTaskReadTools(
     const cursor = textAt(bucketPages[0], 'continueCursor');
     const outsiderRun = await agentRun({
       agentId: outsider,
+      projectId: projectB,
       taskId: foreignTask,
       status: 'running',
     });
+    // A valid neighbour run must carry its own project. A stale/malformed
+    // run identity is refused before the read tool sees any cursor or task.
+    let mismatchedProject: Body;
+    await sql`UPDATE app.project_agent_runs SET project_id = ${projectA}
+      WHERE id = ${outsiderRun.runId}`;
+    try {
+      mismatchedProject = await dispatch(outsiderRun.token, 'task_find', {
+        limit: PAGE,
+      });
+    } finally {
+      await sql`UPDATE app.project_agent_runs SET project_id = ${projectB}
+        WHERE id = ${outsiderRun.runId}`;
+    }
+    const restoredProject = await dispatch(outsiderRun.token, 'task_find', {
+      limit: PAGE,
+    });
+    record(
+      'read tools: a mismatched live run project is refused; its coherent identity restores only its own project reads',
+      mismatchedProject.status === 'unavailable' &&
+        listAt(mismatchedProject, 'blockers').some(
+          (runBlocker) => runBlocker.code === 'run_ended',
+        ) &&
+        restoredProject.status === 'ok' &&
+        sameList([...idsOf(restoredProject)].sort(), [...foreignTasks].sort()),
+      `mismatch=${String(mismatchedProject.status)} restored=${String(restoredProject.status)}/${idsOf(restoredProject).length}`,
+    );
     const mismatches = await Promise.all([
       dispatch(m1, 'task_find', { status: 'todo', cursor }),
       dispatch(m1, 'task_find', {
@@ -807,8 +840,49 @@ export async function checkAgentTaskReadTools(
         recordAt(out(restRuns), 'agentRunsPage').isDone === true &&
         newestRun?.status === 'failed' &&
         newestRun.failureCode === 'harness_error' &&
+        newestRun.retryPending === false &&
         !('error' in newestRun),
       `first=${runIds(firstRuns).join(',')} rest=${runIds(restRuns).join(',')} expected=${history.join(',')} newest=${JSON.stringify(newestRun)}`,
+    );
+
+    const pendingRetryTask = await insertTask({
+      projectId: projectA,
+      title: 'Read an armed native retry',
+      status: 'in_progress',
+      agentId: worker,
+    });
+    const pendingRetryRun = await agentRun({
+      agentId: worker,
+      taskId: pendingRetryTask,
+      status: 'failed',
+      failureCode: 'harness_error',
+      autoRetryArmedAt: now,
+    });
+    const retryBefore = await dispatch(m1, 'task_get', {
+      taskId: pendingRetryTask,
+    });
+    await sql`
+      UPDATE app.project_agent_runs
+      SET auto_retry_refused_at_ms = ${Date.now()}
+      WHERE id = ${pendingRetryRun.runId} AND org_id = ${orgId}
+    `;
+    const retryAfter = await dispatch(m1, 'task_get', {
+      taskId: pendingRetryTask,
+    });
+    const beforeRun = listAt(out(retryBefore), 'agentRuns')[0];
+    const afterRun = listAt(out(retryAfter), 'agentRuns')[0];
+    record(
+      'read tools: the latest failed run exposes an armed retry and its retirement without leaking its error or internal retry stamps',
+      beforeRun?.runId === pendingRetryRun.runId &&
+        beforeRun.retryPending === true &&
+        afterRun?.runId === pendingRetryRun.runId &&
+        afterRun.retryPending === false &&
+        [beforeRun, afterRun].every((run) =>
+          ['error', 'autoRetryArmedAt', 'autoRetryRefusedAt'].every(
+            (key) => !(key in run),
+          ),
+        ),
+      `before=${JSON.stringify(beforeRun)} after=${JSON.stringify(afterRun)}`,
     );
 
     // An automation run waiting on a native question, and one on an approval.
@@ -1115,7 +1189,226 @@ export async function checkAgentTaskReadTools(
         out(fresh).isDone === false,
       `fresh=${idsOf(fresh).length} first=${idsOf(fresh)[0] === expectedPass[0]}`,
     );
+
+    // ==== captured reviewer discovery, beyond the old global 50 cap ======
+    const capture = async (
+      taskId: string,
+      metadata: Record<string, unknown>,
+      overrides: {
+        organizationId?: string;
+        status?: string;
+        workflow?: string;
+        resourceType?: string;
+      } = {},
+    ) => {
+      const rows = await sql<{ id: string }[]>`
+        INSERT INTO app.approvals (org_id, resource_type, resource_id, status,
+          wf_execution_id, metadata, created_at_ms)
+        VALUES (${overrides.organizationId ?? orgId}, ${overrides.resourceType ?? 'task_review'},
+          ${taskId}, ${overrides.status ?? 'pending'}, ${overrides.workflow ?? null},
+          ${JSON.stringify({ projectId: projectA, ...metadata })}::jsonb, ${now})
+        RETURNING id
+      `;
+      const id = rows[0]?.id ?? '';
+      discoveryApprovalIds.push(id);
+      return id;
+    };
+    const expectedReviews = new Map<
+      string,
+      {
+        approvalId: string;
+        runId: string;
+        reviewer: { kind: string; agentId: string };
+      }
+    >();
+    for (let index = 0; index < 61; index++) {
+      const taskId = await insertTask({
+        projectId: projectA,
+        title: `Review queue ${index}`,
+        status: 'in_review',
+        rank: `review-${suffix}`,
+        createdAt: now,
+        agentId: worker,
+      });
+      const runId = `review-source-${randomUUID()}`;
+      const reviewer = { kind: 'agent', agentId: manager };
+      const approvalId = await capture(taskId, { runId, reviewer });
+      expectedReviews.set(taskId, { approvalId, runId, reviewer });
+      // Configured future ownership and the implementation owner differ.
+      await sql`UPDATE app.tasks SET reviewer_agent_id = ${worker} WHERE id = ${taskId}`;
+    }
+    const managerReviews = await walk(m2, {
+      reviewerAgentId: manager,
+      status: 'in_review',
+      limit: 20,
+    });
+    const allReviewRows = managerReviews.pages.flatMap((page) =>
+      listAt(page, 'tasks'),
+    );
+    record(
+      'review discovery: captured agent ownership pages all 61 tied reviews with exact approval and source identities, independent of the future reviewer and implementer',
+      managerReviews.ok &&
+        managerReviews.ids.length === 61 &&
+        new Set(managerReviews.ids).size === 61 &&
+        managerReviews.pages.length === 4 &&
+        allReviewRows.every(
+          (task) =>
+            JSON.stringify(task.pendingReview) ===
+            JSON.stringify(expectedReviews.get(textAt(task, 'taskId'))),
+        ),
+      `pages=${managerReviews.pages.length} rows=${managerReviews.ids.length} unique=${new Set(managerReviews.ids).size}`,
+    );
+    const firstReview = managerReviews.ids[0] ?? '';
+    const firstReviewSummary = expectedReviews.get(firstReview);
+    // Newer irrelevant approval rows must not replace the native pending one.
+    await capture(
+      firstReview,
+      { reviewer: { kind: 'agent', agentId: worker } },
+      { status: 'completed' },
+    );
+    await capture(
+      firstReview,
+      { reviewer: { kind: 'agent', agentId: worker } },
+      { workflow: 'legacy-workflow' },
+    );
+    await capture(
+      firstReview,
+      { reviewer: { kind: 'agent', agentId: worker } },
+      { resourceType: 'connector_operation' },
+    );
+    await capture(
+      firstReview,
+      { reviewer: { kind: 'agent', agentId: worker } },
+      { organizationId: `foreign-review-org-${suffix}` },
+    );
+    await capture(foreignTask, {
+      reviewer: { kind: 'agent', agentId: manager },
+    });
+    const ignored = await walk(m2, { reviewerAgentId: worker, limit: 20 });
+    const reread = await walk(m2, { reviewerAgentId: manager, limit: 20 });
+    record(
+      'review discovery: decided, workflow-bound, other-resource and foreign-org approvals never replace a captured review; foreign project tasks and configured-only reviewers do not match',
+      ignored.ok &&
+        ignored.ids.length === 0 &&
+        reread.ok &&
+        sameList(reread.ids, managerReviews.ids) &&
+        !reread.ids.includes(foreignTask) &&
+        JSON.stringify(
+          recordAt(
+            reread.pages
+              .flatMap((page) => listAt(page, 'tasks'))
+              .find((task) => task.taskId === firstReview),
+            'pendingReview',
+          ),
+        ) === JSON.stringify(firstReviewSummary),
+      `worker=${ignored.ids.length} manager=${reread.ids.length} foreign=${reread.ids.includes(foreignTask)}`,
+    );
+    const changedCursor = await dispatch(m2, 'task_find', {
+      reviewerAgentId: worker,
+      status: 'in_review',
+      limit: 20,
+      cursor: managerReviews.pages[0]?.continueCursor,
+    });
+    record(
+      'review discovery: a signed review cursor cannot continue with a different captured reviewer filter',
+      changedCursor.status === 'invalid_args' &&
+        String(changedCursor.message).includes('cursor'),
+      `status=${String(changedCursor.status)}`,
+    );
+
+    const changedApproval = await capture(firstReview, {
+      reviewer: { kind: 'agent', agentId: worker },
+      runId: 'new-source',
+    });
+    const newestReview = await dispatch(m2, 'task_find', {
+      reviewerAgentId: worker,
+    });
+    record(
+      'review discovery: the newest pending native review owns filtering and its summary when legacy duplicate pending rows exist',
+      sameList(idsOf(newestReview), [firstReview]) &&
+        recordAt(listAt(out(newestReview), 'tasks')[0], 'pendingReview')
+          .approvalId === changedApproval,
+      `ids=${idsOf(newestReview).length} approval=${textAt(recordAt(listAt(out(newestReview), 'tasks')[0], 'pendingReview'), 'approvalId')}`,
+    );
+
+    const deletedAgent = randomUUID();
+    const deletedReviewTask = await insertTask({
+      projectId: projectA,
+      title: 'Deleted captured reviewer',
+      status: 'in_review',
+    });
+    const deletedApproval = await capture(deletedReviewTask, {
+      reviewer: { kind: 'agent', agentId: deletedAgent },
+      runId: 'retained-source',
+    });
+    const deleted = await dispatch(m2, 'task_find', {
+      reviewerAgentId: deletedAgent,
+    });
+    const deletedDetail = await dispatch(m2, 'task_get', {
+      taskId: deletedReviewTask,
+    });
+    const missingGrantDetail = await dispatch(m2, 'task_get', {
+      taskId: firstReview,
+    });
+    record(
+      'review discovery: deleted captured IDs remain discoverable and task_get relays reviewer-unavailable and current missing-grant blockers',
+      sameList(idsOf(deleted), [deletedReviewTask]) &&
+        recordAt(listAt(out(deleted), 'tasks')[0], 'pendingReview')
+          .approvalId === deletedApproval &&
+        recordAt(out(deletedDetail), 'pendingReview')
+          .agentReviewBlockedReason === 'reviewer_unavailable' &&
+        recordAt(out(missingGrantDetail), 'pendingReview')
+          .agentReviewBlockedReason === 'permission_missing',
+      `deleted=${textAt(recordAt(out(deletedDetail), 'pendingReview'), 'agentReviewBlockedReason')} missingGrant=${textAt(recordAt(out(missingGrantDetail), 'pendingReview'), 'agentReviewBlockedReason')}`,
+    );
+
+    const malformedTask = await insertTask({
+      projectId: projectA,
+      title: 'Malformed typed owner',
+      status: 'in_review',
+    });
+    await capture(malformedTask, {
+      reviewer: { kind: 'agent', agentId: manager, extra: true },
+      requestedFor: userId,
+    });
+    const managerAfter = await walk(m2, {
+      reviewerAgentId: manager,
+      status: 'in_review',
+      limit: 20,
+    });
+    const allPending = await walk(m2, { status: 'in_review', limit: 20 });
+    const rowsById = new Map(
+      allPending.pages
+        .flatMap((page) => listAt(page, 'tasks'))
+        .map((task) => [task.taskId, task]),
+    );
+    record(
+      'review discovery: a manager can page all owners, a legacy person remains human, malformed typed ownership cannot fall back or match an agent',
+      allPending.ok &&
+        managerAfter.ids.length === 60 &&
+        !managerAfter.ids.includes(malformedTask) &&
+        rowsById.has(deletedReviewTask) &&
+        recordAt(rowsById.get(malformedTask), 'pendingReview').reviewer ===
+          null &&
+        JSON.stringify(
+          recordAt(
+            recordAt(rowsById.get(questionTask), 'pendingReview'),
+            'reviewer',
+          ),
+        ) === JSON.stringify({ kind: 'user', userId }),
+      `all=${allPending.ids.length} manager=${managerAfter.ids.length} deletedVisible=${rowsById.has(deletedReviewTask)}`,
+    );
+    for (const reviewerAgentId of [null, '', '  ', 3, {}, 'a'.repeat(201)]) {
+      const result = await dispatch(m2, 'task_find', { reviewerAgentId });
+      record(
+        'review discovery: malformed reviewerAgentId is refused at the native tool boundary',
+        result.status === 'invalid_args' &&
+          String(result.message).includes('reviewerAgentId'),
+        `type=${typeof reviewerAgentId} status=${String(result.status)}`,
+      );
+    }
   } finally {
+    await sql`DELETE FROM app.approvals WHERE id = ANY(${discoveryApprovalIds})`;
     await sql`DELETE FROM app.sandbox_session_tokens
               WHERE token_hash = ANY(${tokens.map((token) =>
                 createHash('sha256').update(token).digest('hex'),

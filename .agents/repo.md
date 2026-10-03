@@ -226,7 +226,9 @@ own files), then list the outside files as `$TURBO_ROOT$/<path>`:
   `Dockerfile`, entrypoint and `env.sh`, the db and sandbox-egress `Dockerfile`s, and the
   `cli.yml` and `release.yml` workflows. The runtime suites prepare, read and apply the
   release's own `compose.yml` and proxy `Caddyfile` (`REPOSITORY_RUNTIME_SOURCE` in
-  `runtime-test-helper.ts`). Its guard is `tools/cli/src/lib/config/platform-docs.test.ts`.
+  `runtime-test-helper.ts`). The package publication suite also reads the publisher, root
+  `LICENSE`, both published packages’ manifests and READMEs, and `publish-packages.yml`.
+  Its guard is `tools/cli/src/lib/config/platform-docs.test.ts`.
 
 These guards ask `turbo --dry=json` whether the files are hashed. Each also reads its
 `turbo.json` to hold the two-entry prefix, since the dry run hashes the same files with or
@@ -442,13 +444,6 @@ xlsx,odt}.ts`) still reach the catch-all as `failed` + `indexer_error` and are r
   fallback (`SECURITY_CONTACT` = `mailto:`/`https:`/`tel:`, optional `SECURITY_POLICY_URL`,
   `Expires` under a year, `Canonical`), its `.env.example` block and environment-reference row,
   a `server.test.ts` case each way, and the operator's decision on the contact.
-- **No changelog feed** — `tale.dev/changelog` prerenders a build-time snapshot and swaps in
-  `/api/releases` after hydration, so `curl` and LLM readers see the image's release; there is
-  no Atom/RSS render and a failing runtime refresh is only a `console.warn` (2026-09, round g).
-  Paying it down means `<link rel="alternate">` to `/api/releases` on the page plus an llms.txt
-  entry, `releasesFetchedAt`/`source` in the web health status reported through
-  `monitoring.capture` when the last good fetch is older than six hours, and optionally a
-  `/changelog.atom` render of the same list.
 - **No SDK, collection or per-code table** — `openapi.json` is the generator-ready contract
   and the error registry (`backend/rest/error-codes.ts`) publishes names only: no per-code
   description or status map exists, so a generated table would be a bare list (2026-09,
@@ -468,7 +463,8 @@ xlsx,odt}.ts`) still reach the catch-all as `failed` + `indexer_error` and are r
   entries' `…/{id}/versions`.
 - **The per-task circuit breaker covers project agents only** — starts of a project agent by an
   automation step or another agent stop after three per task in a rolling hour, their automatic
-  retries included
+  retries included except a single broker cooldown immediately after the same agent's HTTP 429
+  (`freeCooldownWaits`; consecutive cooldowns still count)
   (`AUTOMATED_STARTS_PER_TASK_PER_HOUR`, `backend/domains/tasks/delegated-start.ts`, refused as
   `paused` with an `agent_run.refused` timeline row, 2026-09-29), but nothing counts AUTOMATION
   runs on a task: between two automations that keep mentioning each other the one-engine rule and
@@ -555,7 +551,7 @@ xlsx,odt}.ts`) still reach the catch-all as `failed` + `indexer_error` and are r
   harness YAML declares `capabilities.resume: false`: every later kick of a task, every automatic
   retry and every answered ask starts a fresh conversation over the preserved workspace with the
   brief and the earlier rounds restated, where the other harnesses hand the exec the announced
-  handle (2026-10). Paying it down means a sandbox-runtime pin that carries the upstream fix —
-  which first needs root-owned system-settings staging in `tale-gemini-run`, as the
-  `GEMINI_CLI_VERSION` note in `services/sandbox-runtime/Dockerfile` says — then flipping the
-  flag and restoring the `resume` argv slot (the schema holds the two coherent).
+  handle (2026-10). The runtime now bakes root-owned system settings for Gemini 0.62.0;
+  the resume bug remains open. Paying it down means a sandbox-runtime pin that carries
+  the upstream fix, then flipping the flag and restoring the `resume` argv slot (the schema
+  holds the two coherent).

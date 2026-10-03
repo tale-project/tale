@@ -1,10 +1,10 @@
 seo:
-  ogImageAlt: Tale — The Orchestrator for AI Agents
+  ogImageAlt: Tale logo
   home:
-    title: 'Tale: The Orchestrator for AI Agents'
-    description: Tale connects the agents your team uses, pools their knowledge,
-      delegates work, and governs every action — self-hosted, ISO 27001 & SOC 2
-      Type II certified.
+    title: "Tale: Project Workspace for Teams and AI Agents"
+    description: Plan projects, delegate tasks to AI agents, and review results with your
+      team. An open-source workspace with agent sandboxes, shared context, and
+      workflows.
   pricing:
     title: How much does Tale cost? — Community & Enterprise
     description:
@@ -13,20 +13,19 @@ seo:
   contact:
     title: Contact the Tale team — sales, support, demos
     description:
-      Talk to the Tale team about self-hosted AI for your organization —
-      platform, pricing, hardware, or a guided demo. Replies land within one
-      business day.
+      "Talk to the Tale team about coordinating teammates and AI agents:
+      project workflows, deployment, pricing, or a guided demo."
   about:
     title: Who is behind Tale? — About Ruler GmbH
-    description: Tale is built by Ruler GmbH, a Swiss company in Spiez founded
-      in 2020 — vendor-neutral, ISO 27001 & SOC 2 Type II certified, and fully
-      open source under MIT.
+    description: Tale is built by Ruler GmbH in Spiez, Switzerland. We build an
+      MIT-licensed project workspace where teams coordinate AI agents and
+      review their work.
   requestDemo:
     title: Request a Tale demo — a guided walkthrough
     description:
-      'Book a guided Tale demo: see self-hosted AI agents, automations,
-      and governance in action. Built for data-sensitive organizations in
-      Switzerland and the EU.'
+      Bring a task your team needs to solve. See how Tale coordinates
+      teammates and AI agents through project boards, sandbox work, and
+      review.
   hardwarePricing:
     title: What does Tale AI hardware cost?
     description:
@@ -34,44 +33,42 @@ seo:
       or buy. Deploy on-site with remote maintenance, or host in secure data
       centers.
   platform:
-    title: How does the Tale platform work?
-    description: Tale connects agents, pools knowledge, runs automations, and
-      governs every action — self-hosted for data-sensitive teams in Switzerland
-      and the EU.
+    title: AI Agent Coordination and Project Management | Tale
+    description: Bring people, AI agents, tasks, and project files into one workspace.
+      See how Tale connects task boards, agent sandboxes, knowledge, and
+      repeatable workflows.
   platformAgents:
-    title: What are agents in Tale? — instructions, tools, models
+    title: AI Agents for Project Tasks | Tale
     description:
-      Tale agents combine instructions, knowledge, tools, and a model.
-      Connect Claude Code, Codex, Hermes, and OpenClaw under one orchestrator
-      you host.
+      Give project agents instructions, tools, and a runtime such as Claude
+      Code or Codex. Assign tasks, inspect sandbox files, and review what the
+      agents deliver.
   platformChat:
-    title: What is Chat in Tale? — agents, citations, approvals
-    description: 'Tale Chat is the everyday entry point: pick an agent, send a
-      message, and read a streamed reply with citations, tool calls, Arena mode,
-      and in-chat approvals.'
+    title: AI chat with sources and task handoff | Tale
+    description: Ask questions, inspect sources, compare two models in Arena, and turn a
+      conversation into a project task for an AI agent in Tale.
   platformAutomations:
-    title: What are Automations in Tale? — triggers to approvals
-    description: Tale Automations bundle connectors, agents, and typed workflow
-      steps — triggers, conditions, actions, and human approvals on
-      infrastructure you run.
+    title: Repeatable AI Agent Workflows | Tale
+    description: Turn recurring work into workflows with agent steps, conditions,
+      connectors, and configured approvals. Start runs manually or with
+      schedules and webhooks.
   platformKnowledge:
-    title: What is Knowledge in Tale? — indexed and cited sources
+    title: Shared Knowledge for AI Project Work | Tale
     description:
-      Tale Knowledge indexes documents, websites, and typed records so
-      agents retrieve and cite your reality instead of model training data
-      alone.
+      Give AI work the context it needs. Index documents, websites, and
+      knowledge entries, retrieve accessible sources, and check citations in
+      the same workspace.
   platformGovernance:
-    title: What is Governance in Tale? — approvals and audit trail
+    title: AI governance, approvals and usage controls | Tale
     description:
-      Tale Governance holds agent actions behind approval cards, writes
-      every decision to the audit log, and filters PII and unsafe content in
-      both directions.
+      Configure connector approvals, review recorded actions, set model usage
+      budgets, and apply chat guardrails for your team and AI agents in Tale.
   platformProjects:
-    title: What are Projects in Tale? — shared agent workspaces
+    title: Shared Task Boards for Teams and AI Agents | Tale
     description:
-      Tale Projects bundle chats, files, instructions, and a task board
-      into one shared workspace — assign a task to an agent and review the
-      result before it ships.
+      Plan work with teammates and AI agents on a shared project board. Keep
+      tasks, files, conversations, and reviews together from the first request
+      to the result.
   changelog:
     title: What's new in Tale? — Changelog
     description: Release notes for every Tale version, newest first — the
@@ -93,16 +90,16 @@ nav:
   product:
     hub:
       label: Platform overview
-      description: How Tale connects agents, knowledge, automations, and governance.
+      description: How people, agents, and project work fit together.
     agents:
       label: Agents
-      description: Orchestrate Claude Code, Codex, Hermes, and OpenClaw.
+      description: Delegate tasks to agents with their own tools and runtime.
     chat:
       label: Chats
       description: Everyday AI with citations, tools, and Arena.
     projects:
       label: Projects
-      description: Shared workspaces where agents pick up tasks.
+      description: Plan, assign, and review work with your team.
     automations:
       label: Automations
       description: Typed workflows with triggers and approvals.
@@ -113,6 +110,12 @@ nav:
       label: Governance
       description: Approvals, audit trail, and spend controls.
   resource:
+    compare:
+      label: Comparisons
+      description: Compare workspaces, workflows, and agent runtimes.
+    useCases:
+      label: Use cases
+      description: Real work for your team and AI agents.
     hardware:
       label: Hardware
       description: On-prem appliances sized for your agent workload.
@@ -153,8 +156,7 @@ footer:
   githubAriaLabel: GitHub
   llmsTxtLabel: llms.txt
   llmsFullTxtLabel: llms-full.txt
-  copyright: © {year} Tale by Ruler GmbH — ISO 27001 & SOC 2 Type II certified.
-    MIT licensed.
+  copyright: © {year} Tale by Ruler GmbH. MIT licensed.
   platform: Platform
   company: Company
   changelog: Changelog
@@ -163,19 +165,20 @@ address:
   country: Switzerland
 home:
   hero:
-    title: Orchestrate every AI agent on your stack
-    subtitle: Connect Claude Code, Codex, Hermes, OpenClaw, and the rest of your
-      team's agents. Pool their knowledge, delegate real work — on
-      infrastructure you run.
+    title: Your team and agents, working together.
+    subtitle: Plan projects, delegate tasks to AI agents, and review the results
+      together. Keep the brief, files, and discussion with the work.
     ctaPrimary: Request a demo
-    ctaSecondary: Contact us
+    ctaSecondary: Self-host Tale
+    eyebrow: Open-source project workspace
+    proof: Shared tasks · Agent delegation · Parallel sandbox work · MIT licensed
   demos:
     hero:
       label:
-        'Animated product demo: a task is typed into Tale, Auto routes it to the
-        Support Agent, and a reply streams in grounded in two cited sources.'
+        "Illustrative demo: a chat question about support escalations is
+        answered with two cited sources and the selected model."
       prompt: Summarize yesterday's support escalations and draft a status update.
-      routedTitle: Routed to Support Agent
+      routedTitle: Model selected
       routedDetail: Auto picked Claude Sonnet for this thread.
       reply1: Yesterday logged 7 escalations — 5 resolved, 2 still open.
       reply2: Both open cases are delayed cargo-bike deliveries in the EU region.
@@ -184,8 +187,6 @@ home:
       citation1: q3-escalations.pdf
       citation2: eu-delivery-runbook.pdf
       thought: Thought for 1s
-      composerAgent: Auto
-      composerAgentRouted: Support Agent
       composerModel: Claude Sonnet
       inputPlaceholder: Ask anything…
     connect:
@@ -265,8 +266,8 @@ home:
       duration3: 1.1s
     govern:
       label:
-        'Animated demo: an in-chat approval card asks to send 42 refund emails;
-        Approve is confirmed and the run continues.'
+        "Illustrative demo: an automation’s connector write waits for
+        approval, then records the decision and execution outcome."
       approvalTitle: Send 42 refund emails to affected contacts?
       requester: Inbox triage · Draft reply
       approve: Approve
@@ -275,7 +276,7 @@ home:
       auditTitle: Run journal
       audit1: Approved by anna@nordwind.eu
       audit2: 42 emails queued via Gmail
-      audit3: Budget check passed · CHF 412 remaining
+      audit3: Decision recorded in the audit log
       budgetLabel: Monthly budget
       budgetValue: CHF 412 / 1,000
     arena:
@@ -283,7 +284,6 @@ home:
         'Animated demo: Chat Arena splits one prompt across two models so you can
         compare Claude Sonnet and GPT-5.5 side by side.'
       prompt: Draft a contact reply for the delayed EU shipment.
-      agent: Support Agent
       modelA: Claude Sonnet
       modelB: GPT-5.5
       vs: vs
@@ -319,96 +319,104 @@ home:
       members3: '5'
       members4: '11'
     tasks:
-      windowTitle: Tasks
-      colTodo: To do
-      colInProgress: In progress
-      colInReview: In review
-      colDone: Done
+      windowTitle: "Tasks"
+      colTodo: "To do"
+      colInProgress: "In progress"
+      colInReview: "In review"
+      colDone: "Done"
       working: Working
-      label: 'Animated demo: the project task board shows To do, In progress, In
-        review, and Done lanes — an agent works a card in In progress.'
-      id1: WEB-14
-      title1: Map /docs redirects
+      label: "Animated demo: a shared project board with To do, In progress, In review, and Done columns. People and agents own tasks, and an agent is working on one card."
+      id1: TEAM-14
+      title1: Plan the campaign brief
       assignee1: Unassigned
-      id2: WEB-15
-      title2: Draft pricing page copy
+      id2: TEAM-15
+      title2: Review customer feedback
       assignee2: Mira
-      id3: WEB-12
-      title3: Write migration guide
-      assignee3: Relaunch Agent
-      id4: WEB-11
-      title4: Review staging checklist
-      assignee4: Relaunch Agent
-      id5: WEB-9
-      title5: Ship brand tokens
-      assignee5: Design Agent
+      id3: TEAM-12
+      title3: Build the customer portal
+      assignee3: Builder Agent
+      id4: TEAM-11
+      title4: Review the research report
+      assignee4: Mira
+      id5: TEAM-9
+      title5: Update the team playbook
+      assignee5: Docs Agent
     sandbox:
       filesTab: Files
       liveTab: Live
       treeRoot: workspace
       liveHint: Live browser view
       label:
-        'Animated demo: a harness turn opens the Files pane on a Python CLI,
-        then switches to the Live browser view of the running app.'
+        'Animated demo: an agent creates a web page, shows its HTML in the
+        Files pane, then opens the page in the Live browser view.'
       prompt:
-        Scaffold a small Python CLI and open it in the browser so I can click
-        through.
+        Build a small project page and open it in the browser so I can review
+        it.
       agent: Claude Code
       model: Claude Opus
       reply:
-        Created cli.py and a local preview — Files shows the tree; Live streams
-        the browser.
-      file1: cli.py
-      file2: pyproject.toml
-      file3: tests/test_cli.py
+        Created index.html and a local preview. Review the source in Files and
+        the page in Live.
+      file1: index.html
+      file2: styles.css
+      file3: tests/preview.spec.ts
       file4: README.md
-      activeFile: cli.py
-      code1: import click
-      code2: '@click.command()'
-      code3: 'def main():'
-      code4: '    click.echo("ready")'
+      activeFile: index.html
+      code1: "<main><h1>Northwind</h1><p>Customer portal</p>"
+      code2: "<section><h2>Brief</h2><p>Scope and goals</p></section>"
+      code3: "<section><h2>Files</h2><p>Source and tests</p></section>"
+      code4: "<section><h2>Review</h2><p>Ready for feedback</p></section></main>"
       browserUrl: http://127.0.0.1:5173
-      browserTitle: CLI preview · localhost
+      browserTitle: Project preview · localhost
+      previewTitle: "Northwind"
+      previewDescription: "Customer portal"
+      previewItem1: "Brief"
+      previewDetail1: "Scope and goals"
+      previewItem2: "Files"
+      previewDetail2: "Source and tests"
+      previewItem3: "Review"
+      previewDetail3: "Ready for feedback"
   tour:
-    title: How Tale orchestrates your AI agents
+    title: From a shared task to a reviewed result
     subtitle:
-      Connect what you use, pool what you know, delegate the work, govern
-      the result — then compare models and scope by project.
+      Give work an owner, give agents the context to act, and keep your
+      teammates involved as the project moves forward.
     connect:
       eyebrow: Agents & connectors
       title: |-
-        Bring the agents
-        you already trust
+        Delegate tasks
+        to your agents
       description:
-        Claude Code, Codex, Hermes, OpenClaw — plus Slack, GitHub, Outlook,
-        and the rest of your stack. Nothing gets replaced; everything gets
-        coordinated.
+        Assign tasks to specialist agents with their own instructions and
+        tools. Equip a manager agent to delegate ready work, while agents run
+        in persistent sandboxes within the capacity you configure.
     pool:
       eyebrow: Knowledge
       title: |-
-        One knowledge base,
-        every answer grounded
+        Give agents
+        the project context
       description:
-        Documents, websites, product and contact data flow into a shared
-        knowledge base. Agents answer from what your company actually knows —
-        with citations you can check.
+        Project files, standing instructions, and shared knowledge keep work
+        grounded in your company’s information. Check retrieved sources and
+        carry useful context into the next task.
     delegate:
       eyebrow: Automations
       title: |-
-        Delegate the work,
-        not the control
+        Make recurring work
+        repeatable
       description:
-        Automations chain LLM steps, conditions, and actions into workflows
-        that run on triggers — inbox triage, escalations, weekly reports. Every
-        run leaves a log.
+        Connect agent steps, conditions, and actions into workflows for
+        recurring tasks. Start them manually or through configured triggers,
+        then inspect each run.
     govern:
       eyebrow: Approvals & audit
       title: |-
-        Approve before it ships.
-        Audit after.
+        Review the result.
+        Decide what happens next.
       description:
-        Human-in-the-loop approvals gate the actions that matter. Audit
-        logs, budgets, guardrails, and SSO keep every agent inside your rules.
+        Review task deliverables with your team. Configure review policies and
+        connector approvals, inspect run history, and manage access and usage
+        as your agent fleet grows.
     arena:
       eyebrow: Chat Arena
       title: |-
@@ -420,28 +428,29 @@ home:
     projects:
       eyebrow: Projects
       title: |-
-        Scope agents
-        and knowledge by team
-      description: Projects keep agents, documents, and members in the right
-        workspace. Support stays on support; engineering keeps its own stack.
+        Plan the work
+        with your team
+      description: Bring teammates, tasks, files, and conversations into a project.
+        Assign work to a person or an agent and follow its progress on the
+        board.
     explore: Explore {module}
   tagline:
+    eyebrow: Your workspace, your choice
     title: Your Infrastructure. Your Data. Your Rules.
     subtitle:
-      Run AI on your terms — from where it's hosted to how every action is
-      governed.
+      Choose where your workspace runs and which models your agents use.
     pillars:
       selfHosted:
         title: Self-hosted by default
         description:
-          Runs entirely on your infrastructure — no cloud required. Pair it
-          with local models and no data leaves your network; either way, nothing
-          locks you to a vendor.
+          Run Tale on your own infrastructure or choose managed hosting. Local
+          models keep inference local; external providers, connectors, and
+          tools follow the connections you configure.
       security:
         title: Security built in
-        description: Single sign-on, sensitive data detection, content safety
-          guardrails, full activity logging, and budget controls — all built in,
-          not bolted on.
+        description: Manage members, roles, single sign-on, budgets, and configured
+          guardrails in the same product. Use audit records and run history to
+          investigate what happened.
       openSource:
         title: Fully open source
         description:
@@ -450,27 +459,24 @@ home:
   connectors:
     title: Plugged into the tools you already run
     subtitle:
-      Connect Gmail, Slack, GitHub, Shopify, and your model providers once
-      per organization — every agent and automation shares the same governed
-      credentials.
+      Connect the services your projects depend on. Configure credentials
+      once, then grant the access agents and workflows need for their work.
   agents:
-    title: Works with the agents you run
-    subtitle:
-      Dock Claude Code, Codex, Hermes, OpenClaw, Pi, and OpenCode under one
-      orchestrator you host.
+    title: Your agents, your choice
+    subtitle: Use your preferred runtime with your own credentials or API-billed models.
   compliance:
     eyebrow: SECURITY
-    title: Compliance you can verify
+    title: Support for your deployment
     independent:
       title: Independent & Transparent
       description: Swiss-based and vendor-neutral — no ties to a cloud or model
         provider, so your deployment answers only to you.
     certified:
-      title: Certified & Compliant
+      title: ISO 27001-certified services
       description:
-        Certified to ISO 27001 and SOC 2 Type II, and GDPR-compliant —
-        audit logs and data controls mean you always know where your data is
-        stored.
+        Ruler GmbH is ISO 27001 certified. The scope covers Tale Enterprise
+        and professional services. Ask us for the certificate and scope
+        relevant to your deployment.
   faq:
     eyebrow: FAQ
     title: Frequently Asked Questions
@@ -479,11 +485,11 @@ home:
     whatIsTale:
       q: What is Tale?
       a:
-        'Tale is an open-source, self-hosted platform that orchestrates AI agents: it
-        connects the agents and CLIs your team already uses, pools their
-        knowledge into one governed knowledge base, and runs automations with
-        human approval — on your own infrastructure or in a managed cloud in
-        Switzerland or the EU.'
+        Tale is an open-source project workspace for teams and AI agents. Plan
+        tasks with teammates, delegate work to agents, and review the results
+        in the same place. It combines task boards, agent sandboxes, shared
+        knowledge, and workflows. Self-hosting and private models are
+        available when you need them.
     openSource:
       q: Is Tale open source?
       a: Yes. Tale is MIT-licensed and the full feature set ships in the free
@@ -491,8 +497,11 @@ home:
     onPrem:
       q: Can Tale run fully on-premises or air-gapped?
       a:
-        Yes. Tale self-hosts on your VPC, on-premises hardware, or fully air-gapped
-        environments; with local models, no data ever leaves your network.
+        Tale can run on your own infrastructure with local models. An offline
+        deployment also needs local dependencies and restricted outbound
+        connections. Cloud models, external tools, and connectors can send
+        data outside your network when enabled; self-hosting alone does not
+        make them local.
     enterprisePricing:
       q: How does Enterprise pricing work?
       a:
@@ -523,17 +532,35 @@ home:
         that fits.
     ownHardwareModels:
       q: Can I use my own hardware and AI models?
-      a: Yes. Tale is hardware- and model-agnostic, so you're free to use your own.
+      a: Yes. Run Tale on your own infrastructure and connect a local model
+        server, such as Ollama or vLLM, through a supported API. Check the
+        deployment requirements and test the model with your chosen agent
+        runtime before assigning work.
     customTraining:
       q: Do you offer custom AI model training?
       a:
         Yes. Custom model training and fine-tuning are available for clients. Bring
         it up in the demo call if you need it.
+    whoFor:
+      q: Who is Tale for?
+      a: Tale is for teams that want to organize work for AI agents and
+        collaborate with them. Technical members configure agents, tools, and
+        repository access; other teammates can describe tasks, discuss
+        progress, and review results. Use it for software projects, marketing
+        campaigns, research, reports, or recurring operational work. What an
+        agent can do depends on its tools and permissions.
+    agentSubscriptions:
+      q: Can I use my existing agent subscription?
+      a: Yes, when the harness supports that subscription. Bring your own token
+        or supported login credential and choose the matching runtime. You can
+        also use API-backed models. Subscription calls follow the provider’s
+        limits and bypass Tale’s gateway metering and spending caps; check
+        that usage with the provider.
   cta:
-    title: Deploy Tale on your infrastructure.
+    title: Bring your next project to Tale
     description:
-      Orchestrate your AI agents on a sovereign stack you run yourself —
-      get in touch, or spin one up in four commands.
+      Start a self-hosted workspace or bring a real task to a demo. See how
+      your team and AI agents can work through it together.
     primary: Request a demo
     getStarted: Get started
     terminalTitle: Self-host in four commands
@@ -542,9 +569,7 @@ home:
     docsLink: Full install guide
 complianceTrust:
   certifications:
-    iso27001: ISO 27001
-    soc2: SOC 2 Type II
-    gdpr: GDPR
+    iso27001: Ruler GmbH · ISO 27001
     mit: MIT Licensed
     openSource: Open Source
 pricing:
@@ -590,8 +615,8 @@ pricing:
       maintenance, and support, in the cloud or on your hardware.
     cta: Contact us
     feature1: Self-hosted or cloud
-    feature2: Professionally maintained (ISO 27001 & SOC 2 Type II certified)
-    feature3: GDPR compliant
+    feature2: Professional operation by ISO 27001-certified Ruler GmbH
+    feature3: Data processing agreement (DPA)
     feature4: Email, phone & remote support
     feature5: Installation & ongoing maintenance
     feature7: Influence on product roadmap
@@ -621,8 +646,8 @@ pricing:
       selfHosted: Self-hosted
       cloud: Cloud
       localDataCenters: Local data centers (CH & EU)
-      gdpr: GDPR compliant
-      iso: ISO 27001 & SOC 2 Type II certified
+      dpa: Data processing agreement (DPA)
+      iso: ISO 27001-certified operation
       piiRedaction: PII redaction
       customDpa: Custom DPA
       customDpaInfo: We also accept custom Data Processing Agreements with our customers.
@@ -817,8 +842,8 @@ contact:
   eyebrow: Contact
   title: Contact us
   description:
-    Questions about self-hosting, Enterprise, hardware, or a deployment
-    you're planning? Write to the team — replies land within one business day.
+    Discuss a project your team wants to delegate to AI agents, or ask about
+    deployment, Enterprise, and support. Tell us how your team works today.
   fieldName: Name
   fieldCompany: Company
   fieldMessage: Message
@@ -850,10 +875,10 @@ about:
   hero:
     eyebrow: About us
     title: Who is behind Tale?
-    description: Tale is built by Ruler GmbH, a Swiss company based in Spiez —
-      independent, vendor-neutral, and certified ISO 27001 & SOC 2 Type II. We
-      build the orchestrator for AI agents in the open, MIT-licensed, for
-      organizations that keep their data close.
+    description: Tale is built by Ruler GmbH in Spiez, Switzerland. We build an
+      open-source project workspace where people and AI agents solve problems
+      together. Our ISO 27001 certification covers Tale Enterprise and
+      professional services.
     ctaContact: Contact us
     ctaGithub: View the code
   facts:
@@ -865,7 +890,7 @@ about:
       value: Spiez, Switzerland
     certified:
       label: Certified
-      value: ISO 27001 & SOC 2 Type II
+      value: Ruler GmbH · ISO 27001
     license:
       label: License
       value: MIT — fully open source
@@ -874,24 +899,23 @@ about:
     p1: Ruler GmbH was founded in Spiez, in the Canton of Bern, in 2020 by
       Yannick Monney. From day one the company has been Swiss-based and
       vendor-neutral — no ties to a cloud or model provider.
-    p2: We build Tale for data-sensitive organizations — teams that want AI
-      agents working across their stack without handing their data to someone
-      else's platform. That conviction has a name.
+    p2: We build Tale for companies that want AI agents to work alongside their
+      teams. Work needs owners, context, coordination, and a place to review
+      the result. A shared project workspace brings those pieces together.
     tagline: Your Infrastructure. Your Data. Your Rules.
-    p3: Today Tale connects the agents and CLIs teams already use — Claude
-      Code, Codex, Hermes, OpenClaw, and more — pools what they learn into one
-      governed knowledge base, and runs automations with a human in the
-      approval loop.
+    p3: Tale brings project boards, agent sandboxes, files, knowledge, and
+      workflows into one product. Teams can assign tasks, follow agent
+      progress, and review deliverables together, with a choice of runtimes,
+      models, and deployment.
   product:
     heading: What we build
-    description: Tale is the orchestrator for AI agents — one self-hosted
-      platform that puts every agent, and everything it does, under your
-      control.
+    description: "Tale is an open-source workspace for teams and AI agents: one place to
+      plan projects, delegate tasks, and review results."
     orchestrator:
-      title: One orchestrator for every agent
-      body: Tale connects the agents and CLIs your teams already use — Claude
-        Code, Codex, Hermes, and OpenClaw — and delegates work across them from
-        one place.
+      title: People and agents on the same project
+      body: Assign work to teammates or project agents. Give agents instructions,
+        tools, and a supported runtime, then follow their tasks and inspect
+        what they produce.
     openSource:
       title: Open source, no asterisks
       body: The entire codebase is public on GitHub under the MIT license. The
@@ -899,34 +923,33 @@ about:
         support and services at CHF 12 (EUR 14) per user/month.
     deployment:
       title: Your infrastructure or ours
-      body: Self-host on your own hardware, or use a managed cloud in
-        Switzerland or the EU. Wherever Tale runs, no customer data is used to
-        train models.
+      body: Self-host on your own infrastructure or choose managed hosting in
+        Switzerland or the EU. Choose local or cloud models and configure
+        which external services the workspace can reach.
     beyond:
       title: Beyond software
       body: We also supply AI hardware to rent, lease, or buy, and run AI
         trainings for teams adopting agents.
   work:
     heading: How we work with companies
-    description: Tale is the platform — but adopting AI inside a regulated
-      business is more than software. We work alongside teams on the data, the
-      controls, and the goals that decide whether it delivers.
+    description: Putting agents to work takes a clear process as well as software. We
+      help teams prepare their sources, define useful tasks, and establish how
+      people review the results.
     dataQuality:
       title: Data worth pointing agents at
-      body: Agents inherit the quality of what they read. We start at the
-        foundation — structure, ownership, provenance — so retrieval cites your
-        reality instead of approximating it.
+      body: We help structure sources, ownership, and provenance so people and
+        agents can find and check the relevant evidence.
     regulated:
       title: At home in regulated environments
-      body: 'Where audits, residency, and accountability set the limits, the
-        deployment is the design: self-hosted or hosted in Switzerland or the
-        EU, every action logged, human approval where it counts — GDPR-compliant
-        and certified ISO 27001 & SOC 2 Type II.'
+      body: We help teams evaluate deployment, access, and review requirements.
+        Ruler GmbH’s ISO 27001 certification covers Tale Enterprise and
+        professional services; request the scope and evidence relevant to your
+        organization.
     edge:
       title: An edge that stays yours
-      body: Advantage compounds where the data and the workflows live. Running
-        AI on your own stack keeps it inside your company instead of handing it
-        to a competitor's platform or to an AI lab.
+      body: Keep your team’s project context, workflows, and review history
+        together as you add agents. The MIT-licensed codebase and a choice of
+        runtimes and deployment let you adapt Tale to how your company works.
     tailored:
       title: Solutions shaped to your goals
       body: No two organizations adopt AI the same way. We build the agents,
@@ -936,9 +959,9 @@ about:
     heading: What we stand for
     privacy:
       title: Data stays yours
-      body: Built for data-sensitive organizations — self-hosted by default,
-        residency in Switzerland or the EU, GDPR-compliant, and no customer
-        data used for model training.
+      body: Keep deployment and model choices in your hands. Use local inference
+        when needed and review the data flows of any external services you
+        connect.
     neutrality:
       title: Independent & vendor-neutral
       body: Swiss-based and vendor-neutral — no ties to a cloud or model
@@ -949,8 +972,9 @@ about:
         the Swiss commercial register. What we ship is what you can read.
     control:
       title: Humans stay in charge
-      body: Automations run with human approval, and every action stays
-        governed — ISO 27001 & SOC 2 Type II certified.
+      body: People define the work, grant agent access, and configure review and
+        approval policies. Teams can inspect deliverables and run history
+        before deciding what comes next.
   cta:
     title: Talk to the team
     description: Questions about Tale, deployment, or working with Ruler GmbH?
@@ -959,78 +983,81 @@ featureShared:
   ctaPrimary: Request a demo
   ctaSecondary: Contact us
   ctaGetStarted: Get started
-  ctaTitle: See Tale on your stack
-  ctaDescription: Book a guided demo or talk to the team about self-hosted
-    deployment, pricing, and hardware.
+  ctaTitle: See your team’s next workflow in Tale
+  ctaDescription: Bring a task to a guided demo, or start a workspace and try it with your
+    own agents.
   relatedHeading: Related modules
   docsHeading: Read the docs
 platformHub:
   title: How does the Tale platform work?
-  description: 'Tale is the orchestrator for AI agents: one place where your
-    agents share knowledge, run automations, and answer to the same approvals —
-    self-hosted, on your terms.'
+  description: Tale brings teammates and AI agents into one project workspace. Plan work
+    on task boards, delegate to agents running in sandboxes, and review the
+    results with the context and files that produced them.
   modulesHeading: Platform modules
-  modulesDescription: Chat, Projects, Knowledge, Agents, Automations, and
-    Governance — each is useful alone; together they make one governed system.
-    Open a module for its own tour.
+  modulesDescription: Projects organize the work. Agents execute assigned tasks. Chat and
+    Knowledge supply context. Automations make recurring steps repeatable,
+    while Governance configures access and review.
   tour:
     heading: How the platform fits together
     description:
-      Every window below is one module telling its own story — ground it
-      in Knowledge, run it through Automations, hold it at Governance, compare
-      it in Arena. Open any module for the full tour.
+      Plan a project, equip agents for its tasks, and review their results.
+      Knowledge, chat and repeatable workflows support the work your team
+      coordinates.
     stages:
       - id: agents
         eyebrow: Agents
         title: |-
-          Every agent,
-          one roster
+          Agents for
+          your project tasks
         description:
-          Claude Code, Codex, Hermes, OpenClaw — docked beside in-product
-          agents so work routes to the tool your team already runs.
+          Configure project agents with a supported runtime, model and tools.
+          Assign them tasks and follow their progress with your teammates.
       - id: knowledge
         eyebrow: Knowledge
         title: |-
-          One library,
-          cited everywhere
+          Shared sources
+          for the work
         description:
-          The product manual, the docs crawl, the price list, an FAQ entry —
-          one indexed library every agent cites.
+          Keep manuals, reference files, website content and short facts
+          available for retrieval. Check the cited sources behind an answer.
       - id: automations
         eyebrow: Automations
         title: Delegate multi-step work
         description:
-          An invoice pipeline extracts line items, holds anything over CHF
-          5,000, and files the rest to the ERP — every run logged.
+          Define the steps for recurring work, configure its trigger, and
+          inspect the results of each run. Connector approval policies can
+          pause protected writes.
       - id: govern
         eyebrow: Governance
         title: |-
           Held until
           someone decides
-        description: Even a knowledge write waits for a person. Approve, and the
-          decision lands in the audit log with the budget in view.
+        description: A protected connector write can wait for approval in an automation
+          run. Review the proposed action, decide, and check its execution
+          outcome.
       - id: arena
         eyebrow: Arena
         title: |-
           Two drafts,
           one brief
         description:
-          One announcement brief, two models side by side — the stronger
-          draft ships.
+          Compare two model responses to the same brief. Read both drafts
+          before choosing which one to use.
       - id: projects
         eyebrow: Projects
         title: Scope by team
         description:
-          Every window above ran inside one workspace. Projects decide which
-          agents, libraries, and members sit together — and who sees the runs.
+          Bring tasks, agents, files and instructions into a project. Choose
+          its audience and explicitly share the chats your teammates should
+          read.
   faq:
     heading: Platform FAQ
     items:
       - q: What is the platform in Tale?
         a:
-          'Tale is a self-hosted orchestrator for AI agents: connect agents, pool
-          knowledge, run automations, and govern every action on infrastructure
-          you run.'
+          Tale is an open-source project workspace for teams and AI agents.
+          Plan tasks, delegate work, follow progress and review results, with
+          shared context and repeatable workflows.
       - q: Which modules does Tale include?
         a: Chat, Projects, Knowledge, Agents, Automations, and Governance — with
           Projects scoping work, files, and agents by team.
@@ -1040,24 +1067,23 @@ platformHub:
           and services on the same codebase.
       - q: Where should I start?
         a:
-          Open Chat to try a grounded reply, or Agents to dock Claude Code, Codex,
-          Hermes, and OpenClaw under one orchestrator.
+          Start with a project and one task whose result you can judge. Add
+          the relevant files, assign a configured agent, start it, and review
+          what it delivers.
   demos:
     hero:
       label:
-        'Animated product demo: a platform overview question is typed into Tale,
-        Auto routes it to the Orchestrator Agent, and the reply names the
-        modules that answer it with two cited sources.'
+        "Illustrative demo: a chat explains how Tale combines project tasks,
+        agents, and team review, with sources."
       prompt: Where do agents, knowledge, and approvals meet in Tale?
-      routedTitle: Routed to Orchestrator Agent
+      routedTitle: Model selected
       routedDetail: Auto picked Claude Sonnet for this overview.
-      reply1: Agents dock beside Chat; Knowledge grounds every reply.
-      reply2: Automations chain the multi-step work between them.
-      reply3: Governance holds the actions that need a person,
-      reply4: and Projects keep each team in its own workspace.
+      reply1: Tale is a shared project workspace for people and AI agents.
+      reply2: Plan tasks, assign an agent, and follow the work on a board.
+      reply3: Keep project files and context with the work,
+      reply4: then review the results with your team.
       citation1: platform-overview.pdf
       citation2: Module map
-      composerAgentRouted: Orchestrator Agent
       composerModel: Claude Sonnet
     connect:
       label:
@@ -1123,8 +1149,8 @@ platformHub:
       duration3: 1.4s
     govern:
       label:
-        'Animated demo: the hub sampler holds a cross-module publish until a
-        person approves; the journal records the decision.'
+        "Illustrative demo: an automation waits for approval before publishing
+        its morning brief, then records the decision and outcome."
       approvalTitle: 'Publish the morning brief to #platform?'
       requester: 'Hub digest · Run #902'
       audit1: Approved by lead@nordwind.eu
@@ -1136,74 +1162,79 @@ platformHub:
         'Animated demo: the hub Arena sampler compares two module-overview drafts
         so the stronger intro ships on the platform page.'
       prompt: Write a two-sentence intro for the platform hub page.
-      agent: Orchestrator Agent
       modelA: Claude Sonnet
       modelB: GPT-5.5
-      replyA1: Tale connects the agents you already run,
-      replyA2: pools their knowledge, and gates every action you care about.
+      replyA1: Tale brings people and AI agents into a shared project workspace.
+      replyA2: Plan tasks, delegate work, and review the results together.
       replyA3: Open a module below for its own tour.
-      replyB1: One orchestrator for agents, knowledge, and workflows —
-      replyB2: with approvals and budgets on the actions that leave the chat.
+      replyB1: One workspace for your team, agent tasks, and project context.
+      replyB2: with review and access controls your team configures.
       replyB3: Start with Agents or Knowledge, then wire Automations.
 platformAgents:
   eyebrow: Agents
   title: What are agents in Tale?
-  description: A Tale agent is the four-knob combination of instructions,
-    knowledge, tools, and a model. Editors build them once; the team runs them
-    in chat, automations, and projects — on harnesses like Claude Code, Codex,
-    Hermes, and OpenClaw when the work needs a coding CLI in a sandbox.
+  description: Project agents work on tasks alongside your team. Give each one
+    instructions, a supported runtime, a model and tools, then follow its
+    sandbox work and review its reports and files.
   capabilities:
     heading: What can agents do?
     description:
-      What one agent definition gives the whole team — and what it adds
-      beyond a bare model.
+      Configure reusable workers for project tasks, from research and document
+      preparation to code changes and review.
     items:
-      - title: Four knobs, one unit
+      - title: A defined role and runtime
         body:
-          Instructions, knowledge, tools, and model define how an agent behaves.
-          Change one knob without re-training anything.
+          Choose a runtime, a compatible model and provider, standing
+          instructions, and the equipment the work needs.
         docsLabel: Agent concepts
-      - title: Harnesses dock in
+      - title: Supported agent runtimes
         body:
           Bind Claude Code, Codex, Hermes, and OpenClaw as the harness a project
           agent or automation agent node runs on.
         docsLabel: Harnesses
       - title: Delegation between agents
         body:
-          Specialist agents hand work to each other when a thread leaves one domain
-          — without losing the transcript.
-        docsLabel: Agent workers
+          An equipped manager agent can start other agents on ready tasks in
+          the same project, within delegation, access and capacity limits.
+        docsLabel: Task automation
       - title: Skills as reusable bundles
         body:
-          Package a writing voice or multi-step pattern once and bind it to up to
-          ten agents.
-        docsLabel: Agent skills
-      - title: Knowledge scoped per agent
+          Give agents reusable instructions and supporting files as skills.
+          Equip them for tasks such as preparing documents or reviewing
+          changes.
+        docsLabel: Project agents
+      - title: Tools for project context
         body:
-          Each agent searches only the library slices you grant — team docs stay
-          invisible outside the team.
-        docsLabel: Agent knowledge
+          Grant the platform tools an agent needs to find tasks, read files
+          and retrieve knowledge. Access rules still apply to the sources it
+          uses.
+        docsLabel: Knowledge
   faq:
     heading: Agents FAQ
     items:
       - q: What is an agent in Tale?
         a:
-          A Tale agent combines instructions, knowledge, tools, and a model into one
-          reusable unit that Members run in chat and automations.
-      - q: Can Tale orchestrate Claude Code and Hermes?
+          A project agent is a reusable worker in one project. Its runtime,
+          model, instructions and tools determine how it approaches tasks.
+          Reports and produced files stay with the task for review.
+      - q: Can we bring our own subscriptions or API keys?
         a:
-          Yes. Claude Code, Codex, Hermes, and OpenClaw ship as harnesses — bind
-          one when you create a project agent or an automation agent node.
+          Yes. Connect your API credentials, or use a supported Anthropic
+          subscription with Claude Code or ChatGPT subscription with Codex for
+          task and automation agents. An administrator configures the
+          credentials or token broker. Chat needs API credentials;
+          subscription availability and limits depend on your provider and
+          plan.
       - q: When should I use an agent instead of a workflow?
         a:
-          Use an agent when the conversation stays in one domain and voice. Reach for
-          an automation when the work needs multiple steps, branches, schedules,
-          or approvals.
+          Use a project agent for an outcome that needs tools, files or
+          several turns of work. Use an automation when you can define
+          repeatable steps, conditions or triggers.
       - q: Can each agent use a different model?
         a:
-          Yes. Every agent binds its own primary model and fallbacks — Claude Code can
-          run on Claude Opus while a support specialist runs Claude Sonnet. Swap
-          the model without rebuilding the agent.
+          Yes. Choose a model and provider for each project agent, subject to
+          runtime compatibility and the models available in your organization.
+          Configuration changes apply to later runs.
   docs:
     - label: Agent concepts
       path: /platform/agents/concepts
@@ -1218,8 +1249,8 @@ platformAgents:
   tour:
     heading: How agents show up in Tale
     description:
-      Dock the agents you trust, ground them in knowledge, run them in
-      workflows, and scope them by project.
+      Configure agents for a project, give them the tools and context they
+      need, and follow the work through its reports and deliverables.
     stages:
       - id: projects
         eyebrow: Projects
@@ -1227,25 +1258,25 @@ platformAgents:
           Scope agents
           by team
         description:
-          Each project keeps its agents, members, and knowledge in one
-          workspace — support never sees engineering’s stack.
+          Each project has its own agent configuration. Project access
+          determines who can see the agents and their tasks.
       - id: knowledge
         eyebrow: Knowledge
         title: |-
           Ground every agent
           in what you know
         description:
-          The Support Agent gets macros, brand voice, and the help-center
-          crawl — and nothing else. Each agent searches only the slices you
-          grant.
+          Attach the task brief and reference files, and grant tools for
+          accessible company knowledge. Give the agent clear instructions on
+          which sources to use.
       - id: automations
         eyebrow: Automations
         title: |-
           Run agents
           in multi-step work
         description:
-          Workflows call agents as LLM steps with conditions and actions —
-          every run leaves an execution log.
+          An automation can run a separately configured agent step in a
+          sandbox, alongside model calls, conditions and connected actions.
       - id: chat
         eyebrow: Sandbox
         title: |-
@@ -1256,9 +1287,8 @@ platformAgents:
           browser as they click through the result.
   demos:
     knowledge:
-      label: 'Animated demo: the knowledge slices granted to one agent — support
-        macros, a brand-voice entry, the agent playbook crawl, and the returns
-        playbook.'
+      label: "Illustrative demo: reference material an agent can use when equipped
+        with the appropriate knowledge tools and access."
       source1: support-macros.pdf
       sourceType1: pdf
       source2: Brand voice
@@ -1269,9 +1299,9 @@ platformAgents:
       sourceType4: pdf
     automation:
       label:
-        'Animated demo: a nightly workflow calls the Release Agent as its LLM
-        step, checks whether anything shipped, and posts a digest to Slack; the
-        Executions table records each run.'
+        "Illustrative demo: a nightly workflow uses an agent step to prepare a
+        release digest, checks for changes and posts to Slack through a
+        connector."
       trigger: Nightly 02:00
       llm: Release Agent
       condition: New changes?
@@ -1338,63 +1368,74 @@ platformAgents:
       code4: '        raise SystemExit("missing registry")'
       browserUrl: http://127.0.0.1:8787/checklist
       browserTitle: Air-gapped install checklist
+      previewTitle: "Offline installation"
+      previewDescription: "Preparation checklist"
+      previewItem1: "Local registry"
+      previewDetail1: "Check the registry path"
+      previewItem2: "Dependencies"
+      previewDetail2: "Collect required packages"
+      previewItem3: "Installation"
+      previewDetail3: "Run without network access"
 platformChat:
   eyebrow: Chats
-  title: Chats in Tale
-  description: 'Chat is the everyday entry point: pick an agent (or none), type,
-    and a reply streams back with citations, tool calls, and optional Arena
-    comparisons — the surface every other platform module feeds.'
+  title: Ask, compare, then hand work to an agent
+  description: Use chat to understand a problem, work with project sources, and draft a
+    brief. When the work needs files, code, or tools, create a project task
+    and assign an agent.
   capabilities:
     heading: What does Chat include?
     description:
-      Everyday AI that cites its sources, calls your tools, and compares
-      models side by side.
+      Explore a question, check the sources, and prepare the next task.
     items:
-      - title: Composer with Auto routing
+      - title: Choose a model
         body:
-          The composer carries the agent picker and model picker. Auto lets Tale
-          pick the model for the thread.
+          Pick an available model and provider, or let Auto select a model for
+          each message within your organization’s rules.
         docsLabel: Chat basics
-      - title: Citations on every grounded reply
+      - title: Inspect the sources
         body:
-          Retrieved passages carry their source so readers can open the file, entry,
-          or page the answer used.
+          Open the documents and pages used in an answer. Check that the cited
+          material supports the conclusion.
         docsLabel: Chat basics
-      - title: Arena mode
+      - title: Compare two models in Arena
         body:
-          Compare models or agents side by side when you need a second opinion
-          before you commit.
-        docsLabel: Arena Mode
-      - title: Attachments and Canvas
+          Send the same prompt and starting context to two models. Read both
+          replies and choose how to continue.
+        docsLabel: Arena mode
+      - title: Bring the relevant files
         body:
-          Upload supported files; open Canvas when the reply needs a long document
-          or diagram beside the thread.
+          Attach supported documents, images, or recordings. Processing and
+          model capabilities determine what the assistant can read.
         docsLabel: Attachments
-      - title: Agents in the thread
+      - title: Move from a question to a task
         body:
-          Switch agents mid-thread, run one-shot specialists, or keep a sticky agent
-          for the conversation.
-        docsLabel: Agents in chat
+          Create a project task from the conversation when you need an agent
+          to produce files or perform work in a sandbox.
+        docsLabel: Project agents
   faq:
     heading: Chat FAQ
     items:
       - q: What is Chat in Tale?
         a:
-          Tale Chat is the everyday surface where you pick an agent, send a message,
-          and read a streamed reply with citations and tool calls.
-      - q: Does Chat work without an agent?
+          Chat is the built-in assistant for questions, source retrieval, and
+          text drafts. It can use accessible company knowledge and the current
+          project’s context.
+      - q: Do I need to configure a project agent for chat?
         a:
-          Yes. Raw chat uses the model's defaults when you are exploring; reach for an
-          agent when the same question will recur.
+          No. Chat uses Tale’s built-in assistant and your chosen model.
+          Project agents are separate workers that you assign to project
+          tasks.
       - q: What is Arena mode?
         a:
-          Arena mode runs the same prompt against more than one model or agent so you
-          can compare replies before you choose.
-      - q: Can Chat take actions, or only answer?
+          Arena sends one prompt to two models with the same starting context.
+          You compare their replies and record a verdict before continuing the
+          conversation.
+      - q: How do I turn a chat into work?
         a:
-          Both. When a reply would call a connector or start a workflow, the action
-          pauses on an in-chat approval card first — right where the work is
-          happening.
+          Create a project task from the conversation and assign an agent.
+          Chat itself does not run code, change connected systems, or produce
+          file deliverables. Task progress and results stay linked to the
+          conversation.
   docs:
     - label: Chat overview
       path: /platform/chat/overview
@@ -1402,79 +1443,80 @@ platformChat:
       path: /platform/chat/basics
     - label: Arena Mode
       path: /platform/chat/arena-mode
-    - label: Agents in chat
+    - label: Project agents
       path: /platform/agents/concepts
     - label: Attachments
       path: /platform/chat/attachments
   tour:
     heading: How Chat works in Tale
     description:
-      From a grounded reply to Arena, approvals, knowledge, and scoped
-      projects — the same surfaces you use every day.
+      Discuss the problem in chat, then use project tasks and automations for
+      the work that follows.
     stages:
       - id: govern
-        eyebrow: Approvals
+        eyebrow: Automations
         title: |-
-          Approvals live
-          in the thread
+          Review a connector write
+          in the workflow
         description:
-          When a reply would post to Slack, send mail, or change a system, an
-          approval card lands in the thread before anything ships.
+          When the next step is an external write, an automation connector
+          node can wait for approval under your policy. Its card belongs to
+          the run or its task.
       - id: projects
         eyebrow: Projects
         title: |-
-          Threads stay
-          with their team
+          Keep the discussion
+          with the work
         description:
-          A thread belongs to its workspace. The Comms Agent's drafts stay
-          with comms — engineering never has to scroll past them.
+          Use project chats for shared context and choose which conversations
+          to share with project members. Tasks, files, and instructions stay
+          in the same project.
       - id: agents
-        eyebrow: Agents
+        eyebrow: Project agents
         title: |-
-          Pick the agent
-          that owns the ask
+          Give the next task
+          to the right agent
         description:
-          Switch specialists mid-thread or let Auto route — every agent
-          carries its own instructions, knowledge, and tools.
+          Choose a project agent for the work that follows your conversation.
+          Its instructions, runtime, model, and equipped tools define how it
+          can work.
       - id: knowledge
         eyebrow: Knowledge
         title: |-
-          Ground every reply
-          in indexed sources
+          Check answers
+          against their sources
         description:
-          Chat retrieves from the libraries you grant — citation cards land
-          in the thread so readers can open the file or page the answer used.
+          Chat can retrieve accessible knowledge and project files. Open the
+          sources behind an answer and check them before using the result.
   demos:
     arena:
       label:
-        'Animated demo: Chat Arena runs one announcement prompt through Claude
-        Sonnet and GPT-5.5 side by side so the writer picks the stronger draft.'
-      prompt: Turn the 2.4 release notes into a release announcement.
-      agent: Comms Agent
+        "Illustrative demo: two models draft an announcement from the same
+        release brief in Arena."
+      prompt: Draft an announcement from the attached release brief.
       modelA: Claude Sonnet
       modelB: GPT-5.5
       replyA1:
-        'Lead with the headline: offline installs now ship as one appliance
-        image.'
-      replyA2: Follow with two lines on faster indexing and the new audit export.
-      replyA3: Close with the upgrade path and a link to the changelog.
-      replyB1: 'Open with what pilots asked for: simpler air-gapped setup, delivered.'
-      replyB2: List the three headline features as short bullets with doc links.
-      replyB3: End with a thank-you to early contacts and the upgrade command.
+        Lead with the main improvement described in the brief.
+      replyA2: Explain who it helps and cite the supporting release note.
+      replyA3: Close with the documented next step.
+      replyB1: Start with the customer problem the release addresses.
+      replyB2: List the changes and link each one to the source.
+      replyB3: End with the rollout details from the brief.
     govern:
-      label: 'Animated demo: an in-chat approval card asks to post the release
-        announcement to the #customers Slack channel; approval is granted and
-        journaled.'
+      label: "Illustrative demo: an automation run waits for approval before a
+        Slack connector posts an announcement. This action happens outside
+        chat."
       approvalTitle: 'Post the announcement to #customers in Slack?'
-      requester: Comms Agent · Connector call
+      requester: Announcement workflow · Slack connector
       audit1: Approved by comms@nordwind.eu
       audit2: 'Announcement posted to #customers'
       audit3: Decision written to the audit log
       budgetValue: CHF 862 / 2,000
     connect:
       label:
-        'Animated demo: Chat’s specialist roster — Comms Agent, Support Agent,
-        Research Agent, Docs Agent, and Release Agent.'
+        "Illustrative demo: project agents available for tasks created from a
+        conversation."
       agent1: Comms Agent
       model1: Claude Sonnet
       agent2: Support Agent
@@ -1487,8 +1529,8 @@ platformChat:
       model5: GPT-5.5
     projects:
       label:
-        'Animated demo: Projects that keep chat threads in the right workspace —
-        Comms drafts stay out of engineering chat.'
+        "Illustrative demo: projects keep related chats, tasks, files, and
+        agents together."
       project1: Support threads
       agents1: 3 agents
       members1: '8'
@@ -1517,25 +1559,26 @@ platformChat:
 platformAutomations:
   eyebrow: Automations
   title: What are Automations in Tale?
-  description: An automation bundles connectors, agents, a workflow, and the
-    views it ships — an Inbox, for example — into one installable unit. The
-    workflow inside is a graph of typed steps — LLM, Action, Condition, Loop,
-    Sandbox — with schedules, webhooks, events, and human approvals.
+  description: Automations make recurring project work repeatable. Connect model calls,
+    agent steps and actions into a versioned workflow, test it, and run it
+    manually or through a configured trigger.
   capabilities:
-    heading: What ships in an automation?
+    heading: Define and repeat the process
     description:
-      Compose multi-step work as a typed graph — LLM, action, condition,
-      loop, and sandbox steps — with approvals and versioned runs.
+      Keep the steps, saved versions, triggers and run history together so the
+      team can inspect how recurring work is performed.
     items:
-      - title: Installable bundles
+      - title: Saved versions and deployment
         body:
-          Owners and Admins install from the catalog; Members use the Inbox, agents,
-          or views it registers without assembling pieces by hand.
+          Save a new version when the workflow changes. Deploy the version
+          that future live runs should use; existing runs keep the version
+          they started with.
         docsLabel: Automation concepts
       - title: Typed workflow steps
         body:
-          LLM, Action, Condition, Loop, and Sandbox steps compose the graph. Every
-          save snapshots a version you can restore.
+          Combine model calls, sandboxed agent work, data transformations,
+          subautomations and connected actions. Add conditions or iteration
+          where supported.
         docsLabel: Workflow editor
       - title: Triggers that fit the job
         body:
@@ -1544,34 +1587,36 @@ platformAutomations:
         docsLabel: Triggers
       - title: Execution logs
         body:
-          Every run records status, timing, inputs, and a per-step journal — audit
-          trail and debugger in one place.
+          Inspect a run’s status, inputs, outputs and step trace. Review
+          recorded connector effects when checking what happened.
         docsLabel: Execution logs
       - title: Approvals in the loop
         body:
-          Proposed workflow edits, agent-started runs, and waiting-for-input pauses
-          land as approval cards before work continues.
-        docsLabel: Approvals in workflows
+          Connector policies can pause protected writes for approval. An agent
+          step can also ask a person for missing information before
+          continuing.
+        docsLabel: Automation concepts
   faq:
     heading: Automations FAQ
     items:
       - q: What is an automation in Tale?
-        a: A Tale automation is an installable bundle — connectors, agents, a
-          workflow, and ready-made views like an Inbox — that runs multi-step
-          work with triggers and approvals.
+        a: An automation defines a repeatable workflow with inputs, steps and
+          outputs. Saved versions, deployment, triggers and run history let
+          your team test and operate that process.
       - q: Is there a standalone workflow product?
         a:
           No. A workflow lives inside its automation. The automation's Editor tab is
           where you meet the graph.
       - q: When should I use an automation instead of an agent?
         a:
-          Use an automation when the job needs multiple steps, branches, schedules, or
-          approvals between them — not when a single conversational agent is
-          enough.
+          Use an automation for repeatable steps, conditions, schedules or
+          connected actions. Use a project agent when a task needs an outcome
+          that you will review. An automation can include agent work.
       - q: Can I test a workflow before it runs on a schedule?
         a:
-          Yes. The editor has a manual test run — you watch a complete execution with
-          inputs, a per-step journal, and timing before any trigger goes live.
+          Yes. Test a saved version before deploying it or enabling a trigger.
+          Mock runs simulate connector operations; live runs can affect
+          connected systems and may require approval.
   docs:
     - label: Automation concepts
       path: /platform/automations/concepts
@@ -1586,8 +1631,8 @@ platformAutomations:
   tour:
     heading: How automations run in Tale
     description:
-      Chain triggers, LLM steps, and actions — then approve what ships
-      and ground every step in knowledge.
+      Define the process, choose the steps and data it needs, and inspect each
+      run. Configure approval policies for protected connector writes.
     stages:
       - id: govern
         eyebrow: Approvals
@@ -1595,33 +1640,33 @@ platformAutomations:
           Human-in-the-loop
           before it ships
         description:
-          The run pauses where you told it to. Approve releases the held step
-          with a journal entry; reject stops the run cold.
+          When policy requires approval, a connector write waits for a person.
+          Approval lets the run attempt the action; rejection blocks it.
       - id: agents
         eyebrow: Agents
         title: |-
-          Call the right agent
-          as an LLM step
+          Give an agent
+          a workflow step
         description:
-          Workflows pick specialists the same way Chat does — instructions,
-          knowledge, and tools travel with the step.
+          Configure an agent step with its own runtime, model, instructions
+          and equipment. Use a model call when a single response is enough.
       - id: knowledge
         eyebrow: Knowledge
         title: |-
-          Ground every step
-          in indexed sources
+          Supply the sources
+          the process needs
         description:
-          The pipeline's LLM steps read from vendor contracts, the ERP field
-          map, and the supplier crawl — every classification cites the source it
-          used.
+          Add knowledge retrieval or stage reference files where the workflow
+          needs them. Pass the results to later steps and inspect their
+          outputs.
       - id: projects
         eyebrow: Projects
         title: |-
           Scope workflows
           by workspace
         description:
-          Projects keep automations, agents, and members together so ops runs
-          stay out of engineering.
+          Bind an automation to the projects where it belongs. Project access
+          and the tools granted to each step determine what it can reach.
   demos:
     automation:
       label:
@@ -1645,8 +1690,9 @@ platformAutomations:
       duration3: 1.2s
     govern:
       label:
-        'Animated demo: the invoice batch held by the workflow asks for approval
-        in chat; approving files the invoices and writes the run journal.'
+        "Illustrative demo: an invoice workflow waits for a connector write
+        approval on its run detail. After approval, the execution result is
+        recorded."
       approvalTitle: File 7 invoices totalling CHF 23,410 to the ERP?
       requester: 'Invoice pipeline · Run #1208'
       audit1: Approved by finance@nordwind.eu
@@ -1655,9 +1701,8 @@ platformAutomations:
       budgetValue: CHF 1,240 / 2,500
     knowledge:
       label:
-        "Animated demo: the sources the pipeline's LLM steps retrieve from —
-        vendor contracts, an ERP field-map entry, the supplier portal crawl, and
-        vendor records."
+        "Illustrative demo: reference sources that a workflow can retrieve or
+        stage for an agent step, including contracts and an ERP field map."
       source1: vendor-contracts.pdf
       sourceType1: pdf
       source2: ERP field map
@@ -1668,8 +1713,9 @@ platformAutomations:
       sourceType4: catalog
     connect:
       label:
-        'Animated demo: specialists workflows call as LLM steps — Invoice Agent,
-        Vendor Agent, ERP Agent, Matching Agent, and Exceptions Agent.'
+        "Illustrative demo: named agents for invoice, vendor, ERP, matching
+        and exception tasks. Workflow agent steps have their own
+        configuration."
       agent1: Invoice Agent
       model1: Claude Sonnet
       agent2: Vendor Agent
@@ -1681,8 +1727,8 @@ platformAutomations:
       agent5: Exceptions Agent
       model5: GPT-5.5
     projects:
-      label: 'Animated demo: Projects that scope automations by workspace — ops
-        pipelines stay out of engineering.'
+      label: "Illustrative demo: projects that organize the tasks and agents
+        associated with recurring workflows."
       project1: Invoice ops
       agents1: 3 agents
       members1: '6'
@@ -1698,56 +1744,62 @@ platformAutomations:
 platformKnowledge:
   eyebrow: Knowledge
   title: What is Knowledge in Tale?
-  description: Knowledge is the org's shared library — documents, knowledge
-    entries, crawled websites, and typed records — that agents retrieve and cite
-    so replies reflect your reality, not only model training data.
+  description: Keep documents, short facts, website content and structured records
+    available to your team. Chat and equipped project agents can retrieve
+    accessible sources to support answers and task work.
   capabilities:
     heading: What lives in Knowledge?
-    description: Give agents the documents, records, and crawls they need — and
-      every answer cites where it came from.
+    description: Prepare useful sources for retrieval and check the evidence behind an
+      answer or deliverable.
     items:
       - title: Documents with an indexing pipeline
         body:
-          Upload files; Tale extracts, chunks, embeds, and stores them for retrieval
-          with citations.
+          Upload supported files and check their indexing status. Indexed text
+          can be retrieved with source references.
         docsLabel: Documents
       - title: Knowledge entries
         body:
-          Small topic-keyed facts — captured from chat with approval or added by
-          hand.
+          Save a concise fact under a stable topic. Update the current entry
+          and inspect its version history when information changes.
         docsLabel: Knowledge entries
       - title: Website crawls
         body: Index pages your agents should cite without pasting them into prompts.
         docsLabel: Crawling
       - title: Typed records
         body:
-          Products, Contacts, and Vendors are exact field rows agents read as data,
-          not prose.
+          Contacts and products keep named fields together so people and
+          agents can look up specific values alongside supporting documents.
         docsLabel: Structured data
-      - title: Per-agent retrieval scope
+      - title: Access follows the source
         body:
-          An agent's Knowledge tab decides which slices it can search; team items
-          stay team-scoped.
-        docsLabel: Agent knowledge
+          Team restrictions and project access apply during retrieval. Project
+          agents need the corresponding platform tools to reach knowledge.
+        docsLabel: Knowledge overview
   faq:
     heading: Knowledge FAQ
     items:
       - q: What is Knowledge in Tale?
         a:
-          Tale Knowledge is the org's shared library of documents, facts, websites, and
-          typed records that agents retrieve and cite in replies.
-      - q: Do agents see the whole library by default?
+          Knowledge holds shared documents, entries, indexed websites,
+          contacts and products. Use it to give questions and project tasks a
+          common reference, then verify the sources used.
+      - q: What determines which sources can be retrieved?
         a:
-          No. Each agent's Knowledge tab sets retrieval scope. Team-scoped items stay
-          invisible outside the team.
+          Retrieval follows source permissions and project context. Project
+          chats can search their project’s files and accessible organization
+          knowledge. Project agents need the relevant tools in their
+          equipment.
       - q: What is the difference between documents and typed records?
         a:
-          Documents and entries are indexed for retrieval. Products, Contacts, and
-          Vendors are structured rows agents read as exact values.
-      - q: Can agents write to Knowledge, or only read?
+          Documents and entries provide text for retrieval. Contacts and
+          products store named fields for exact lookups. Check the source and
+          its freshness in either case.
+      - q: How does a useful fact become shared knowledge?
         a:
-          They can propose. Entries captured from a chat pause on an approval card; a
-          person decides what enters the library, and the decision is logged.
+          An authorized editor can add or update a knowledge entry;
+          integrations can also maintain entries through the API. Verify a
+          fact before saving it. Chat does not automatically add facts to the
+          library.
   docs:
     - label: Knowledge overview
       path: /platform/knowledge/overview
@@ -1762,33 +1814,33 @@ platformKnowledge:
   tour:
     heading: How knowledge grounds Tale
     description:
-      Index what your company knows, cite it in chat, bind it to agents,
-      and keep comparisons honest.
+      Prepare company sources, use them in questions and project tasks, and
+      inspect the references behind the result.
     stages:
       - id: chat
         eyebrow: Chat
         title: |-
-          Every grounded reply
-          carries its sources
+          Open the sources
+          behind an answer
         description:
           Retrieved passages land as citation cards so readers can open the
           file or page the answer used.
       - id: agents
         eyebrow: Agents
         title: |-
-          Grant libraries
-          per agent
+          Equip agents
+          for retrieval
         description:
-          An agent sees its grants and nothing more — what legal indexed
-          never surfaces in a support thread.
+          Give project agents the tools they need to retrieve knowledge. The
+          source’s access rules still determine what each run can read.
       - id: arena
         eyebrow: Arena
         title: |-
           Compare answers
-          on the same sources
+          and check the evidence
         description:
-          Arena runs one prompt through two models so you can see which reply
-          uses the knowledge better.
+          Send the same question to two models in Arena. Compare their
+          reasoning and inspect the sources each answer actually uses.
       - id: projects
         eyebrow: Projects
         title: |-
@@ -1810,26 +1862,23 @@ platformKnowledge:
       sourceType4: entry
     hero:
       label:
-        'Animated demo: a battery-care question is answered from the indexed
-        product manual, with the manual and the FAQ entry cited beneath the
-        reply.'
+        "Illustrative demo: a chat answers a product question using retrieved
+        passages and displays citations to a manual and an FAQ entry."
       prompt: What changed in manual v4 for winter battery care?
-      routedTitle: Routed to Product Agent
-      routedDetail: Auto picked Claude Sonnet for the product corpus.
+      routedTitle: Model selected
+      routedDetail: Claude Sonnet answers with retrieved product references.
       reply1: V4 narrows long-term storage to 10–20 °C when parked over 30 days.
       reply2: Charge to 60% before storing — a full charge ages the cells faster.
       reply3: The de-icing warning moved to the quick-start insert,
       reply4: and firmware 3.2 adds a low-temperature charging lock.
       citation1: product-manual-v4.pdf
       citation2: Onboarding FAQ
-      composerAgentRouted: Product Agent
       composerModel: Claude Sonnet
     arena:
       label:
-        'Animated demo: two models answer the same warranty question from the
-        same indexed sources, so the better-grounded reply wins.'
+        "Illustrative demo: two models answer the same warranty question. The
+        reader compares the answers and checks their source references."
       prompt: 'Answer from the manual: how long is the battery warranty?'
-      agent: Product Agent
       modelA: Claude Sonnet
       modelB: Gemini 2.5
       replyA1: Two years from delivery, per manual v4, section 8.
@@ -1839,8 +1888,9 @@ platformKnowledge:
       replyB2: The extension window closes 90 days after purchase.
       replyB3: Section 8 lists the exclusions — chargers and water damage.
     connect:
-      label: 'Animated demo: agents granted library slices — Product Agent, Docs
-        Agent, Support Agent, Research Agent, and Policy Agent.'
+      label: "Illustrative demo: project agents for product, documentation,
+        support, research and policy tasks can be equipped with knowledge
+        tools."
       agent1: Product Agent
       model1: Claude Sonnet
       agent2: Docs Agent
@@ -1869,39 +1919,41 @@ platformKnowledge:
 platformProjects:
   eyebrow: Projects
   title: What are Projects in Tale?
-  description: Projects are shared workspaces that bundle the chats, files,
-    instructions, and task board for one piece of work — so context follows the
-    work and agents pick tasks up where your team leaves them.
+  description: Bring teammates, tasks, project agents and reference files together around
+    a shared goal. Use the board to plan work, start agent tasks and review
+    the results with your team.
   capabilities:
     heading: One workspace per piece of work
     description:
-      A project keeps everything a contact, a launch, or an investigation
-      needs in one place — and puts agents to work inside it.
+      Coordinate a launch, a research project or an internal improvement with
+      a shared board, project instructions and agents equipped for the work.
     items:
       - title: Context that follows the work
         body:
-          Chats, files, instructions, and tasks live on the project's tabs, so
-          nobody re-pastes background into a fresh composer.
+          Keep tasks, instructions and reference files in one project. Project
+          chats use its instructions and can retrieve relevant files.
         docsLabel: Projects overview
       - title: A board agents work from
         body:
-          Assign a task card to an agent and the task-ops pack runs it — triage,
-          execution, review, and escalation included.
+          Assign a task to a project agent, then start it. Follow progress and
+          review the report and attached files when the agent finishes.
         docsLabel: Task automation
-      - title: A backlog with human triage
+      - title: A backlog for proposed work
         body:
-          Automations propose work; a teammate starts what is worth doing and closes
-          what is not. Nothing runs unvetted.
+          Collect ideas and agent-proposed tasks in the backlog. Clarify the
+          brief, choose an assignee and decide which tasks to start.
         docsLabel: Project backlog
       - title: Files scoped to the project
         body:
-          The Knowledge tab holds the project's folder tree — indexed for retrieval
-          inside the project, invisible outside it.
+          Organize reference files in the project’s Knowledge tab. Indexed
+          content is available in that project’s context, subject to access
+          rules.
         docsLabel: Manage files
-      - title: The right agents on call
-        body: Curate which agents and models members see in the project, so the
-          recommended specialist is one click away.
-        docsLabel: Agents and models
+      - title: Agents equipped for your project
+        body: Create project agents with a role, compatible runtime and model,
+          instructions and tools. Assign work to the agent prepared for that
+          task.
+        docsLabel: Project agents
   faq:
     heading: Projects FAQ
     items:
@@ -1911,18 +1963,22 @@ platformProjects:
           the context stays with the work.
       - q: How do agents work on project tasks?
         a:
-          'Assigning a board task to an agent starts the task-ops loop: the agent
-          executes, a human review gate checks the result, and budgets,
-          concurrency limits, and a kill switch keep runs inside guardrails.'
+          Assign a task, then start the agent or move the task to In progress.
+          The agent works in its sandbox and returns a report and files for
+          review. A person or a separately assigned reviewer agent can review
+          the result; assignment alone does not start a run.
       - q: Who sees a project's chats and files?
         a:
-          Only the project's members. Chats, files, and threads stay scoped to the
-          workspace they live in — support escalations stay out of engineering.
+          Projects are organization-wide by default. Restrict the project
+          audience to selected teams when needed; administrators retain
+          access. Chats remain personal until explicitly shared, including
+          chats created inside a project.
       - q: How is a project different from a chat?
         a:
-          'A chat answers one question and moves on. A project carries ongoing work:
-          shared history, a task board, instructions that apply to every chat,
-          and files agents can cite.'
+          A chat is a conversation with an AI assistant. A project organizes
+          ongoing work across a task board, agents, instructions, files and
+          chats. Starting a new chat uses the project instructions, but does
+          not automatically import earlier conversations.
   docs:
     - label: Projects overview
       path: /platform/projects/overview
@@ -1934,47 +1990,50 @@ platformProjects:
       path: /platform/projects/backlog
     - label: Manage files
       path: /platform/projects/manage-files
-    - label: Agents and models
+    - label: Project agents
       path: /platform/projects/project-agents
   tour:
     heading: How projects run work
-    description: Assign a task to an agent, resume the project chat with its
-      context, ground replies in project files, and keep outbound steps behind
-      review.
+    description: Plan work with your team, delegate tasks to agents and review their
+      reports. Use project instructions and reference files to support the
+      work.
     stages:
       - id: tasks
         eyebrow: Tasks
         title: |-
-          Assign a card,
-          an agent takes it
+          Assign a task,
+          then start the agent
         description:
-          Assigning a board task to an agent starts the task-ops loop —
-          execution, checks, and escalation run on workflows your organization
-          owns and can tune.
+          Give the task a clear brief and assign a project agent. Start the
+          work, follow its progress and inspect the report and files it
+          returns for review.
       - id: chat
         eyebrow: Chats
         title: |-
-          Every chat starts
-          with the context
+          Give project chats
+          a common brief
         description:
-          Project instructions and files ride along in every thread, so a new
-          chat picks up the relaunch where the last one stopped.
+          Project instructions apply to its chats, and the assistant can
+          retrieve relevant project files. Add any earlier decisions that a
+          new conversation needs.
       - id: knowledge
         eyebrow: Knowledge
         title: |-
           Files that stay
           inside the project
         description:
-          The Knowledge tab keeps the project's folder tree indexed for
-          retrieval — cited in project chats, invisible outside the project.
+          Keep reference files in the project’s Knowledge tab and check their
+          indexing status. Project chats can retrieve indexed content
+          alongside accessible organization knowledge.
       - id: govern
         eyebrow: Review
         title: |-
-          Nothing ships
-          without a decision
+          Review protected
+          workflow actions
         description:
-          When a task would publish or send, the approval card lands with the
-          project's owner — and the decision stays in the audit trail.
+          Use automation connector steps for governed writes. When a step
+          requires approval, a reviewer decides before the workflow attempts
+          the action; the decision is recorded.
   demos:
     projects:
       label:
@@ -1994,46 +2053,46 @@ platformProjects:
       members4: '6'
     hero:
       label:
-        "Animated demo: a project chat resumes the website relaunch with the
-        project's instructions and files as context; the agent answers with
-        citations."
+        "Illustrative demo: a project chat uses project instructions and
+        retrieved reference files to answer a question about a website
+        relaunch."
       prompt: What's left before the relaunch goes live?
-      routedTitle: Website relaunch · project chat
-      routedDetail: Relaunch Agent loads the project instructions and files.
+      routedTitle: Model selected
+      routedDetail: The chat assistant uses project instructions and retrieves relevant
+        files.
       reply1:
-        'Two board tasks are open: the redirect-map review and the pricing page
-        copy.'
-      reply2: The launch checklist calls for a staging pass once both close.
+        The launch checklist still lists the redirect-map review and the
+        pricing page copy.
+      reply2: It calls for a staging pass once both are ready.
       reply3: DNS cutover is booked with IT for Thursday 06:00,
-      reply4: so the only open risk is the untested /docs redirect.
+      reply4: and the checklist flags the untested /docs redirect as an open risk.
       citation1: launch-checklist.pdf
       citation2: Redirect map
-      composerAgentRouted: Relaunch Agent
       composerModel: Claude Opus
     knowledge:
-      label: "Animated demo: the project's Knowledge tab — brand guidelines, the
-        current site crawl, the redirect map, and the launch checklist."
+      label: "Illustrative demo: the project’s reference files include brand
+        guidelines, a site snapshot, the redirect map and the launch
+        checklist."
       source1: brand-guidelines.pdf
       sourceType1: pdf
-      source2: Current site crawl
-      sourceType2: website
-      source3: Redirect map
-      sourceType3: entry
+      source2: site-snapshot.pdf
+      sourceType2: pdf
+      source3: redirect-map.pdf
+      sourceType3: pdf
       source4: launch-checklist.pdf
       sourceType4: pdf
     govern:
-      label: 'Animated demo: publishing the relaunched pricing page pauses on an
-        approval card until the project owner decides.'
+      label: "Illustrative demo: a configured publishing workflow pauses for
+        connector approval before attempting to publish the new pricing page."
       approvalTitle: Publish the new pricing page to production?
-      requester: Website relaunch · Relaunch Agent
+      requester: Website relaunch · Publishing workflow
       audit1: Approved by mira@nordwind.eu
       audit2: Pricing page published
-      audit3: 'Task #212 closed on the board'
+      audit3: Decision recorded in the audit log
       budgetValue: CHF 120 / 400
     tasks:
       label:
-        'Animated demo: the Website relaunch board — Relaunch Agent works WEB-12
-        (migration guide) in In progress while WEB-11 waits in In review.'
+        "Animated demo: the Website relaunch board. Relaunch Agent works on WEB-12 in In progress while WEB-11 waits in In review."
       id1: WEB-14
       title1: Finish /docs redirect map
       assignee1: Unassigned
@@ -2051,71 +2110,76 @@ platformProjects:
       assignee5: Design Agent
 platformGovernance:
   eyebrow: Governance
-  title: What is Governance in Tale?
-  description: 'Governance is the seam between agent initiative and human
-    judgement: approval cards hold actions until someone decides, every decision
-    lands in the audit log, and spend stays visible — without a separate
-    approver inbox.'
+  title: Set the rules for your team and agents
+  description: Control access, configure connector approvals, and review recorded
+    actions. Set model usage budgets and chat filters for the work your team
+    and agents carry out.
   capabilities:
     heading: What does governance cover?
-    description: Put a human in the loop where it matters — with an audit trail,
-      budget controls, and filters that keep sensitive data out of prompts and
-      replies.
+    description: Choose which connector writes need approval, which tools agents may use,
+      and which content and usage rules apply.
     items:
-      - title: In-chat approval cards
+      - title: Approve connector writes
         body:
-          Plans, document writes, knowledge writes, connector calls, MCP tools,
-          and workflow runs pause until approve or reject.
+          Automation connector writes pause when your policy requires
+          approval. External writes require it by default; reads and internal
+          platform writes follow different rules.
         docsLabel: Approval concepts
-      - title: Suggest changes on connectors
+      - title: Inspect the proposed operation
         body:
-          Describe what is wrong; the agent revises the call instead of abandoning
-          the work.
+          Review the destination and exact input before approving. Reject an
+          incorrect operation, fix the workflow or input, and start a new run.
         docsLabel: Approval concepts
-      - title: Audit trail
+      - title: Read the audit trail
         body:
-          Each decision records actor, action, and timestamp. Resolved cards stay in
-          the transcript.
+          Inspect recorded actions and approval decisions with their actor and
+          time. Use the audit log to investigate what happened.
         docsLabel: Audit logs
-      - title: Guardrails and policies
+      - title: Set organization rules
         body:
-          Org-level guardrails and policies set the limits on what agents may
-          attempt — before a card ever appears.
+          Configure shared instructions, access policies, and agent tool
+          grants. Enforced permissions and filters complement the instructions
+          you give a model.
         docsLabel: Guardrails
-      - title: PII filtered in both directions
+      - title: Configure chat content filters
         body:
-          Every chat message passes content safety, PII detection, and an optional
-          moderation provider — on the way in and the way out. Matches block,
-          mask, or flag; the matched text itself is never stored.
+          Enable content safety, personal-data detection, and optional
+          moderation for the chat directions you choose. Test the patterns and
+          failure behavior your work needs.
         docsLabel: Guardrails
-      - title: Usage visibility
-        body: Usage analytics and budgets keep model spend visible to Admins.
+      - title: Set budgets for metered work
+        body: Track recorded model usage and set budget rules for supported paths,
+          including managed agent runs. Direct subscription calls use the
+          provider’s own controls.
         docsLabel: Usage analytics
   faq:
     heading: Governance FAQ
     items:
-      - q: What is Governance in Tale?
+      - q: What does governance control?
         a:
-          Tale Governance holds agent actions behind in-chat approval cards, writes
-          decisions to the audit log, and keeps usage visible to Admins.
-      - q: Is there a separate approval inbox?
+          Governance combines access rules, connector approval policies,
+          recorded audit events, usage budgets, and configurable chat filters.
+          Each control has its own scope.
+      - q: Where do I decide a connector approval?
         a:
-          No. Approvals are decided in the conversation they interrupt, by whoever
-          holds that chat.
-      - q: Can I choose which actions require approval?
-        a: Yes. Approvals are configurable per action type — plans, document and
-          knowledge writes, connector calls, MCP tools, and workflow runs can
-          each require a human decision before they run.
-      - q: Can agents send email without approval?
+          Open the waiting automation run. If it works on a task, the approval
+          card also appears on that task. Connector approvals are distinct
+          from reviewing an agent’s completed task.
+      - q: Can I choose which connector writes require approval?
+        a: Yes. The policy can be configured for a connector or a specific
+          action. External writes require approval by default; changing the
+          policy does not resolve an approval already waiting.
+      - q: Does every agent action wait for approval?
         a:
-          Not if you require approval for it. Outbound actions hold as in-chat cards
-          until someone decides — you choose which action types need a decision.
-      - q: How does Tale help with GDPR and PII?
-        a: Keep processing on infrastructure you control, let PII detection mask
-          personal data before it reaches or leaves a model, and point auditors
-          at the audit log. Tale is GDPR-compliant, certified to ISO 27001 and
-          SOC 2 Type II, and publishes its DPA and technical and organizational
-          measures.
+          No. The connector broker exposes read actions to agents; governed
+          connector writes run through automation nodes. Direct GitHub tooling
+          and explicitly granted secrets have separate access paths. Review
+          those grants too.
+      - q: How do content filters and data controls apply?
+        a: Chat filters can check configured input and output. Model API
+          endpoints filter input only; they do not filter model output.
+          Personal-data detection depends on configured patterns. Assess
+          deployment, providers, and operating procedures together.
   docs:
     - label: Approval concepts
       path: /platform/approvals/concepts
@@ -2128,59 +2192,60 @@ platformGovernance:
     - label: Guardrails
       path: /platform/admin/governance/guardrails
   tour:
-    heading: How governance holds the line
-    description: Approve before actions ship, audit every run, compare models
-      honestly, and keep agents inside your rules.
+    heading: See the rules in the work
+    description: Inspect workflow runs, compare answers, and check the tools and sources
+      available to agents.
     stages:
       - id: automations
         eyebrow: Automations
         title: |-
-          Every gated run
-          leaves a log
+          Follow the run
+          and its decisions
         description:
-          'A nightly access review runs on schedule and alerts #security on
-          new admin grants — every execution numbered in the same journal
-          approvals write to.'
+          A configured workflow can review an access report and prepare a
+          notification. Inspect its steps, approval decisions, and recorded
+          effects in the run detail.
       - id: arena
         eyebrow: Arena
         title: |-
-          Compare before
-          you commit
+          Compare wording
+          and check the policy
         description:
-          Policy-sensitive wording is exactly where models disagree. Arena
-          drafts the same reply twice so the safer version ships.
+          Read two model responses to the same question. Verify each against
+          your policy before using either one.
       - id: agents
         eyebrow: Agents
         title: |-
-          Agents stay inside
-          budgets and tools
+          Choose the tools
+          the work needs
         description:
-          Spend controls and tool grants travel with each agent — governance
-          is not a separate bolt-on.
+          Equip each project agent with explicit tools and credentials.
+          Managed model calls use Tale’s gateway controls; direct subscription
+          access follows a different path.
       - id: knowledge
         eyebrow: Knowledge
         title: |-
-          Cite what policy
-          allowed the reply
+          Read the source
+          behind the answer
         description:
-          Grounded answers show the policy and runbook sources so auditors
-          can follow the same trail.
+          Keep policies and runbooks in accessible knowledge. When an answer
+          uses them, inspect the source and check whether it supports the
+          result.
   demos:
     govern:
       label:
-        'Animated demo: an agent asks to publish three knowledge entries captured
-        from a thread; a person approves, and the decision lands in the audit
-        log.'
-      approvalTitle: Publish 3 knowledge entries from this thread?
-      requester: Policy Agent · Knowledge write
+        "Illustrative demo: an automation asks approval before a connector
+        sends a policy update email, then records the decision and execution."
+      approvalTitle: Send the policy update to the project team?
+      requester: Policy workflow · Mail connector
       audit1: Approved by lena@nordwind.eu
-      audit2: 3 entries added to the Policy library
+      audit2: Policy update email sent
       audit3: 'Audit entry #8841 written'
       budgetValue: CHF 220 / 800
     automation:
       label:
-        'Animated demo: a scheduled access review checks permission changes each
-        night and alerts the #security channel when new admin grants appear.'
+        "Illustrative demo: a configured scheduled workflow reviews an access
+        report and prepares a Slack notification."
       trigger: Daily 01:00
       llm: Review access
       condition: New admins?
@@ -2198,12 +2263,11 @@ platformGovernance:
       duration3: 0.6s
     arena:
       label:
-        'Animated demo: two models draft the same access-exception reply side by
-        side, so the safer wording ships.'
+        "Illustrative demo: two models draft replies to an access request for
+        a person to compare and check against the policy."
       prompt:
         A contractor asks for admin on the staging org outside the access policy
         — draft the reply.
-      agent: Access Agent
       modelA: Claude Sonnet
       modelB: GPT-5.5
       replyA1: Decline standing admin and cite the least-privilege clause.
@@ -2226,8 +2290,9 @@ platformGovernance:
       sourceType4: pdf
     connect:
       label:
-        'Animated demo: agents carrying spend controls and tool grants — Policy
-        Agent, Audit Agent, Budget Agent, Access Agent, and Exceptions Agent.'
+        "Illustrative demo: project agents with distinct responsibilities and
+        selected models; their tools and permissions are configured
+        separately."
       agent1: Policy Agent
       model1: Claude Sonnet
       agent2: Audit Agent
@@ -2266,3 +2331,12 @@ changelogPage:
   viewOnGithub: View on GitHub
   emptyBody: No release notes for this version.
   fetchedAt: Last updated {date}.
+contentPages:
+  tableScrollHint: Scroll sideways to compare
+  breadcrumb: Page path
+  reviewed: 'Reviewed {date}'
+  relatedTitle: Work you can try with your team
+  relatedDescription: Start with a clear brief, defined deliverables, and a review process.
+  nextTitle: Try it with your own project
+  nextDescription: Bring a real task and the tools your team already uses.
+  allUseCases: All use cases

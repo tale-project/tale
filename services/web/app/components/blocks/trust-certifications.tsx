@@ -14,8 +14,8 @@ interface TrustCertificationsProps {
 }
 
 /**
- * Homepage trust chips — hero inline line and compliance badge row share
- * `CERTIFICATION_KEYS` so the claim set cannot drift.
+ * Provider certification and product licence chips, using the claim order
+ * in `CERTIFICATION_KEYS`.
  */
 export function TrustCertifications({
   variant,

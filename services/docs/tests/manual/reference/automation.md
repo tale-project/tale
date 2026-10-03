@@ -14,10 +14,13 @@ Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no s
 
 | Suite | Boxes | Status | Owning spec |
 |---|---|---|---|
+| [home](../suites/home.md) | EN/DE/FR discovery headings, localized links, 320/1440px containment, skip link, search across both shells, article palette isolation, phone menu navigation and header-search focus/result selection | ✅ browser | `tests/e2e/specs/home.spec.ts`; visual hierarchy and theme contrast remain manual |
+| [home](../suites/home.md) | Every curated path resolves to localized frontmatter and remains in the published Markdown homepage | ✅ structural | `lib/content/home-guides.test.ts` |
+| [search](../suites/search.md) | Shared Mod+K controller toggles, ignores unrelated keys, mounts the dialog lazily, and cleans up on shell changes | ✅ component | `packages/ui/src/components/docs/use-docs-search.test.tsx` |
 | [navigation](../suites/navigation.md) | Every link a page renders lands — no 404, no link through a redirect, every fragment an id the target renders, translated pages keep their locale | ✅ structural | `links.test.ts` (full source corpus, the renderer's parser, judged against `scripts/link-site.ts`) |
 | [navigation](../suites/navigation.md) | Links into the docs from app code, the marketing site, the CLI and READMEs land | ✅ automated | `bun run lint:links` (`tools/lint-links`, CI Format job) |
 | [navigation](../suites/navigation.md) | `NAV-F20` — every published address still answers (`docs/published.json`), in every locale and the retired `de-CH`/`de-AT`/`fr-CH` trees; a change that retires a page without a redirect, or drops a ledger line, is refused | ✅ structural | `published.test.ts`, `redirects.test.ts`; `bun run lint:links` (`retired-page-404`, `published-line-removed`, against the change's base commit) |
-| [navigation](../suites/navigation.md) | `NAV-F18`, `NAV-F19` — retired regional trees fold onto their base locale, guessed addresses (titles turned into slugs, translated folders) land on their page, junk and missing assets stay 404 | 🔶 unit | `near-miss.test.ts` + `packages/ui/src/components/docs/near-miss.test.ts`; the answers of a running server stay manual (`curl`) |
+| [navigation](../suites/navigation.md) | `NAV-F18`, `NAV-F19`, `NAV-F21` — retired regional trees fold onto their base locale, guessed addresses (titles turned into slugs, translated folders, a sidebar group's label) land on their page or section; section labels respect a supplied folder, added label context preserves clear title/route matches, junk and missing assets stay 404 | 🔶 unit | `near-miss.test.ts` + `packages/ui/src/components/docs/near-miss.test.ts`; the answers of a running server stay manual (`curl`) |
 | [navigation](../suites/navigation.md) | The built site answers every address its pages, `llms.txt`, sitemap and Markdown exports carry | ✅ automated | `tests/prerender/links.test.ts` (`test:prerender`, real server over `dist/`, CI Build job) |
 | [navigation](../suites/navigation.md) | Optional analytics: runtime disablement, safe SPA pageviews, private route templates, DNT/GPC and collector boundary | ✅ automated | `packages/ui/src/analytics/browser.test.ts`, `packages/ui/src/analytics/server.test.ts` |
 | [accessibility](../suites/accessibility.md) | Layer | Status | Where |
@@ -27,9 +30,11 @@ Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no s
 | [accessibility](../suites/accessibility.md) | Source heading hierarchy | ✅ automated | vitest `structure-headings.test.ts` (per-page heading rules in the corpus) |
 | [accessibility](../suites/accessibility.md) | `A11Y-A6` system theme by default, a saved choice survives a reload | 🔶 partial | `smoke.spec.ts` (a dark OS renders dark with **System** checked; picking **Light** wins and persists); contrast in both themes remains manual |
 | [accessibility](../suites/accessibility.md) | Docs chrome axe (layout, rail tree, header strip, article, outline, neighbours, footer, 404, page actions) | ✅ automated | `packages/ui/src/components/docs/*.test.tsx` via the package's `tests/utils/a11y.ts` (`checkAccessibility()`) |
+| [accessibility](../suites/accessibility.md) | Shared frame at 320px and 768px: article/footer containment, untruncated neighbour titles and 44px phone menu/search/drawer targets | ✅ browser | `packages/ui/src/components/docs/docs-layout.browser.test.tsx` |
 | [accessibility](../suites/accessibility.md) | `A11Y-A12` (one page title) | ✅ automated | `page-header.spec.ts` (one `h1`, in the article; the trail leaf is a plain current marker) + `tests/prerender/seo.test.ts` |
 | [accessibility](../suites/accessibility.md) | Full-page audits (`A11Y-A1`–`A11Y-A11`) | ⛔ manual-only | — this guide (the shared `ImageZoom`/`Video` components carry `vitest-axe` in `@tale/ui`) |
 | [content](../suites/content.md) | `CONT-F1` (source shape) | ✅ automated | vitest `structure-code.test.ts` (every fence declares a language), `structure-headings.test.ts`, `links.test.ts` |
+| [content](../suites/content.md) | Self-hosted entry commands: installer verification, Docker bootstrap, read-only prerequisite checks, local origin, readiness failure and data-preserving stop | 🔶 CLI regression | `tools/cli/scripts/install-cli.test.ts`, `tools/cli/src/lib/docker/ensure-docker.test.ts`, `tools/cli/tests/doctor.test.ts`, `tools/cli/src/lib/docker/setup-checks.test.ts`, `tools/cli/src/commands/dev/index.test.ts`, `tools/cli/src/lib/config/dev-origin.test.ts`, `tools/cli/src/lib/compose/generators/generate-dev-compose.test.ts`; a real Docker startup and provider reply remain integration/manual evidence |
 | [content](../suites/content.md) | A docs-only change re-runs the structural suite and the docs build in CI instead of replaying a cached result | ✅ automated | vitest `turbo-inputs.test.ts` (asks `turbo --dry=json` that every page, `nav.json`, `redirects.json`, `published.json`, root README, `@tale/ui` i18n catalog and framework file, the docs frame's link and redirect rules and the built-site crawler these tasks read is hashed) |
 | [content](../suites/content.md) | Local preview keeps the article body after a content edit or regenerated frontmatter | 🔶 unit | `lib/content/reload-content.test.ts` checks client full reload and module invalidation for content paths; editing a visible page in the dev server remains manual |
 | [content](../suites/content.md) | `CONT-F15`–`CONT-F16` (image sources) | 🔶 partial | vitest `images.test.ts` (paths resolve, alt text, size) + `image-manifest.test.ts` (manifest entry, page reference, DPR-2 dimensions) — rendered behaviour manual |
@@ -57,12 +62,22 @@ Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no s
 | [search](../suites/search.md) | `SEARCH-F7` | 🔶 partial | vitest `redirects.test.ts` (no redirect source is still a page) — index content manual |
 | [search](../suites/search.md) | `SEARCH-B1`–`SEARCH-B3`, `SEARCH-A1`–`SEARCH-A3`, `SEARCH-P1` | ⛔ manual-only | — |
 | [seo](../suites/seo.md) | Per-route h1 / lang / canonical / JSON-LD / 404 | ✅ | `tests/prerender/seo.test.ts` (`bun run --filter @tale/docs test:prerender`, dependsOn build) |
+| [seo](../suites/seo.md) | Per-page Markdown declares its configured HTML canonical on fresh, cached and conditional responses; aggregates stay uncanonicalized; invalid header metadata is refused and old manifests still load | ✅ automated | `packages/ui/src/seo/runtime/canonical.test.ts` |
+| [seo](../suites/seo.md) | Copied and exported Markdown resolves real links and HTML resources against each source page while preserving code examples; clipboard conversion runs only on click | ✅ automated | `packages/ui/src/seo/builders/page-as-markdown.test.ts`, `packages/ui/src/seo/builders/llms-full-txt.test.ts`, `packages/ui/src/components/docs/page-actions.test.tsx` |
 | [seo](../suites/seo.md) | Sitemap exclusion + cross-sitemap robots | ✅ | `lib/seo/build.test.ts`, `lib/seo/dev-server.test.ts` |
+| [seo](../suites/seo.md) | Fresh checkouts leave sitemap dates unchanged in EN/DE/FR; pages without reliable content dates omit `lastmod` | ✅ automated | `lib/seo/build.test.ts` (changes only fixture file timestamps, then compares compiled sitemap bytes) |
 | [seo](../suites/seo.md) | Precompiled artifact server | ✅ | `lib/seo/deploy-sim.test.ts` |
 | [seo](../suites/seo.md) | A path no file can carry — a NUL or another C0 control (`/%00`, `/a%00b`, `/de/%00`), or one past the OS path limit (5000 characters) — answers the real 404, never a reported 500 | ✅ automated | `packages/ui/src/server/static-paths.integration.test.ts` (`reportError` is not called) |
 | [seo](../suites/seo.md) | Security header values (`SEO-F9`) | 🔶 | `packages/ui/src/server/security-headers.test.ts` (unit) — the served response is manual |
 
 ## Seams
+
+The self-hosted quickstart reuses those CLI regression suites for command behavior.
+Their controlled Docker responses cover failure and recovery branches without
+starting a real deployment. Judge the guide itself in EN/DE/FR at desktop and
+phone widths, including installer tabs, readable commands and startup recovery.
+A first model reply requires a separately provisioned provider and remains a live
+workflow check.
 
 The configuration release journey's command behavior belongs to
 `tools/cli/tests/config-releases.test.ts`: source and compiled CLI execution,

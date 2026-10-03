@@ -7,15 +7,23 @@
  * has been revoked") — resumes the conversation on a fresh vend for free.
  */
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { AppError } from '../../../lib/shared/errors/app-error';
 import { functionRefName } from '../../../lib/shared/handlers/function-refs';
+import { SANDBOX_DESTROY_PENDING_MESSAGE } from '../sandbox/session_constants.ts';
 import { AUTO_RETRY_MAX_ATTEMPTS } from '../tasks/task_auto_retry.ts';
-import type { AutomationAgentHost } from './agent_host.ts';
+import {
+  type AutomationAgentHost,
+  classifyWorkflowStartFailure,
+} from './agent_host.ts';
 import type { AgentCursor } from './checkpoints.ts';
 import { setAutomationAgentHostFactory, stepRunImpl } from './stepper.ts';
 
-afterEach(() => setAutomationAgentHostFactory(null));
+afterEach(() => {
+  setAutomationAgentHostFactory(null);
+  vi.restoreAllMocks();
+});
 
 type KickArgs = Parameters<AutomationAgentHost['kick']>[0];
 
@@ -36,7 +44,7 @@ function parkedAttempt(overrides: Partial<AgentCursor>): AgentCursor {
   };
 }
 
-function harness(parked: AgentCursor) {
+function harness(parked: AgentCursor, executions = 1) {
   const kicks: KickArgs[] = [];
   const suspended: Array<Record<string, unknown>> = [];
   const finished: Array<Record<string, unknown>> = [];
@@ -66,7 +74,7 @@ function harness(parked: AgentCursor) {
             input: {},
             checkpoints: {
               nodes: {},
-              executions: 1,
+              executions,
               cursor: {
                 node: 'repair',
                 index: 0,
@@ -307,6 +315,247 @@ describe('the stepper re-kicking a failed agent attempt', () => {
 
     expect(kicks).toHaveLength(1);
     expect(parkedCursor(suspended)).toMatchObject({ attempt: 2 });
+  });
+
+  it("waits for sandbox room without charging the run's execution guard", async () => {
+    // A run whose guard is spent still re-kicks: the refused start ran
+    // nothing, and a long wait must not leave later nodes without budget.
+    const { ctx, kicks, suspended } = harness(
+      parkedAttempt({
+        attempt: AUTO_RETRY_MAX_ATTEMPTS,
+        launchedAt: undefined,
+        result: {
+          errored: true,
+          reason:
+            'the agent turn is waiting for sandbox room: the sandbox host is busy',
+          failureCode: 'sandbox_capacity',
+          retryAtMs: Date.now() + 15_000,
+          text: '',
+          files: [],
+        },
+      }),
+      100,
+    );
+
+    await stepRunImpl(ctx, RUN);
+
+    expect(kicks).toHaveLength(1);
+    expect(kicks[0]?.notBefore).toBeGreaterThan(Date.now());
+    // The run says it waits for room, not that an agent works.
+    expect(suspended[0]).toMatchObject({
+      executions: 100,
+      detail: 'room:repair',
+    });
+    expect(parkedCursor(suspended)).toMatchObject({
+      attempt: AUTO_RETRY_MAX_ATTEMPTS,
+      waitingForRoomSince: expect.any(Number),
+    });
+  });
+
+  it('backs a room wait off past the retry hint, more with each refusal in a row', async () => {
+    // The top of each window: the hint doubled per refusal in a row.
+    vi.spyOn(Math, 'random').mockReturnValue(1);
+    const { ctx, kicks, suspended } = harness(
+      parkedAttempt({
+        launchedAt: undefined,
+        waitingForRoomSince: Date.now() - 5 * 60_000,
+        roomRefusals: 2,
+        result: {
+          errored: true,
+          reason:
+            'the agent turn is waiting for sandbox room: the sandbox host is busy',
+          failureCode: 'sandbox_capacity',
+          retryAtMs: Date.now() + 10_000,
+          retryAfterMs: 10_000,
+          text: '',
+          files: [],
+        },
+      }),
+    );
+    const before = Date.now();
+
+    await stepRunImpl(ctx, RUN);
+
+    // The third refusal in a row: up to eight times the hint, not the hint.
+    expect(kicks[0]?.notBefore).toBeGreaterThanOrEqual(before + 80_000);
+    expect(kicks[0]?.notBefore).toBeLessThanOrEqual(Date.now() + 80_000);
+    expect(parkedCursor(suspended)).toMatchObject({ roomRefusals: 3 });
+  });
+
+  it('comes back when its place in the spawner’s line comes up, without backing off', async () => {
+    vi.spyOn(Math, 'random').mockReturnValue(1);
+    const { ctx, kicks } = harness(
+      parkedAttempt({
+        launchedAt: undefined,
+        waitingForRoomSince: Date.now() - 5 * 60_000,
+        roomRefusals: 6,
+        result: {
+          errored: true,
+          reason:
+            'the agent turn is waiting for sandbox room: the sandbox host is busy',
+          failureCode: 'sandbox_capacity',
+          retryAtMs: Date.now() + 15_000,
+          retryAfterMs: 15_000,
+          roomQueued: true,
+          text: '',
+          files: [],
+        },
+      }),
+    );
+    const before = Date.now();
+
+    await stepRunImpl(ctx, RUN);
+
+    // The hint, and at most a second more — not the doubled window.
+    expect(kicks[0]?.notBefore).toBeGreaterThanOrEqual(before + 15_000);
+    expect(kicks[0]?.notBefore).toBeLessThanOrEqual(Date.now() + 16_000);
+  });
+
+  it('waits afresh for room when a turn that ran meets a refusal hours after its first wait', async () => {
+    // The node waited for room, then got it and ran; the agent asked a
+    // question, and the resume after a late answer found no room. That is
+    // a new wait, not the old one past its two hours.
+    const { ctx, kicks, suspended, finished } = harness(
+      parkedAttempt({
+        launchedAt: Date.now() - 3 * 60 * 60_000 + 60_000,
+        waitingForRoomSince: Date.now() - 3 * 60 * 60_000,
+        result: {
+          errored: true,
+          reason:
+            'the agent turn is waiting for sandbox room: the sandbox host is busy',
+          failureCode: 'sandbox_capacity',
+          retryAtMs: Date.now() + 15_000,
+          retryAfterMs: 15_000,
+          text: '',
+          files: [],
+        },
+      }),
+    );
+    const before = Date.now();
+
+    await stepRunImpl(ctx, RUN);
+
+    expect(finished).toEqual([]);
+    expect(kicks).toHaveLength(1);
+    expect(parkedCursor(suspended)?.waitingForRoomSince).toBeGreaterThanOrEqual(
+      before,
+    );
+  });
+
+  it('resumes the asking conversation when the delivery of an answer found no room', async () => {
+    const { ctx, kicks, suspended } = harness(
+      parkedAttempt({
+        execId: 'exec-asking',
+        result: {
+          errored: true,
+          reason:
+            "the agent turn is waiting for sandbox room: the organization's workflow sessions are all in use",
+          failureCode: 'sandbox_capacity',
+          retryAtMs: Date.now() + 15_000,
+          retryAfterMs: 15_000,
+          agentSessionId: 'conv-ask',
+          undeliveredAskId: 'ask-1',
+          text: '',
+          files: [],
+        },
+      }),
+    );
+
+    await stepRunImpl(ctx, RUN);
+
+    expect(kicks[0]?.resume).toEqual({
+      agentSessionId: 'conv-ask',
+      reason:
+        "the agent turn is waiting for sandbox room: the organization's workflow sessions are all in use",
+      askId: 'ask-1',
+    });
+    expect(parkedCursor(suspended)).toMatchObject({
+      resumedFrom: 'conv-ask',
+      resumeAskId: 'ask-1',
+    });
+  });
+
+  it('gives up on sandbox room after two hours, saying so', async () => {
+    const { ctx, kicks, finished } = harness(
+      parkedAttempt({
+        launchedAt: undefined,
+        waitingForRoomSince: Date.now() - 2 * 60 * 60_000 - 1,
+        result: {
+          errored: true,
+          reason:
+            "the agent turn is waiting for sandbox room: the organization's workflow sessions are all in use",
+          failureCode: 'sandbox_capacity',
+          retryAtMs: Date.now() + 15_000,
+          text: '',
+          files: [],
+        },
+      }),
+    );
+
+    await stepRunImpl(ctx, RUN);
+
+    expect(kicks).toEqual([]);
+    expect(finished[0]).toMatchObject({
+      status: 'failed',
+      failureCode: 'start_failed',
+    });
+    expect(String(finished[0]?.detail)).toContain(
+      "waited 120 minutes for sandbox room without getting any (the organization's workflow sessions are all in use)",
+    );
+  });
+
+  it('fails a step whose workspace an administrator is destroying at once, neither waiting for room nor retrying', async () => {
+    // What the start settles when the shim refused its session for a
+    // pending Destroy. A wait for room, or a retry that lands after the
+    // Destroy, would start the step over in a fresh, empty workspace,
+    // without what the run's earlier steps left there (#4122).
+    const refusal = classifyWorkflowStartFailure(
+      new AppError({
+        code: 'QUOTA_EXCEEDED',
+        message: SANDBOX_DESTROY_PENDING_MESSAGE,
+        reason: 'destroy_pending',
+      }),
+      Date.now(),
+    );
+    const { ctx, kicks, suspended, finished } = harness(
+      parkedAttempt({
+        launchedAt: undefined,
+        result: { errored: true, ...refusal, text: '', files: [] },
+      }),
+    );
+
+    await stepRunImpl(ctx, RUN);
+
+    expect(kicks).toEqual([]);
+    expect(suspended).toEqual([]);
+    expect(finished[0]).toMatchObject({
+      status: 'failed',
+      failureCode: 'start_failed',
+    });
+    expect(String(finished[0]?.detail)).toContain(
+      `the agent turn could not start: ${SANDBOX_DESTROY_PENDING_MESSAGE}`,
+    );
+    expect(String(finished[0]?.detail)).not.toContain('sandbox room');
+  });
+
+  it('keeps saying a step waits for room while its kicked start has not launched, and an agent works once it has', async () => {
+    const waiting = harness(
+      parkedAttempt({
+        launchedAt: undefined,
+        waitingForRoomSince: Date.now() - 60_000,
+      }),
+    );
+    await stepRunImpl(waiting.ctx, RUN);
+    expect(waiting.suspended[0]).toMatchObject({ detail: 'room:repair' });
+
+    const launched = harness(
+      parkedAttempt({
+        launchedAt: Date.now() - 1_000,
+        waitingForRoomSince: Date.now() - 60_000,
+      }),
+    );
+    await stepRunImpl(launched.ctx, RUN);
+    expect(launched.suspended[0]).toMatchObject({ detail: 'agent:repair' });
   });
 
   it('fails the run once the budget is spent on ordinary failures', async () => {

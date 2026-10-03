@@ -84,6 +84,7 @@ function createCtx(
     actionContext?: Record<string, unknown>;
     readQuery?: QueryMock;
     runMutation?: QueryMock;
+    runAction?: QueryMock;
   } = {},
 ) {
   const readQuery =
@@ -119,6 +120,7 @@ function createCtx(
     ctx: {
       runQuery,
       runMutation: overrides.runMutation ?? vi.fn(() => Promise.resolve(null)),
+      runAction: overrides.runAction ?? vi.fn(() => Promise.resolve(null)),
     },
     accessQuery,
     scopeQuery,
@@ -2219,6 +2221,12 @@ describe('dispatchWorkspaceToolImpl — task_start_agent', () => {
       // Each reason carries its own next step, never the generic fallback.
       expect(String(output.guidance)).not.toBe('');
       expect(output.guidance).not.toBe('Nothing started.');
+      if (outcome === 'in_review') {
+        expect(output.guidance).toContain('leave the decision to its reviewer');
+      }
+      if (outcome === 'stale_question') {
+        expect(output.guidance).toContain('the task was decided');
+      }
     },
   );
 
@@ -2369,6 +2377,7 @@ describe('dispatchWorkspaceToolImpl — task_start_agent', () => {
     }[];
     expect(tools[0]?.name).toBe('task_start_agent');
     expect(tools[0]?.readOnly).toBe(false);
+    expect(tools[0]?.description).toContain('the task was decided');
     for (const word of [
       'agent_busy',
       'blocked',
@@ -2461,5 +2470,225 @@ describe('workspaceToolStatusImpl', () => {
     const result = status([]);
     expect(result.tools).toEqual([]);
     expect(String(result.note)).toContain('No workspace tools');
+  });
+});
+
+describe('dispatchWorkspaceToolImpl — task_update_metadata', () => {
+  const metadata = {
+    taskId: 'task_1',
+    priority: 'p1',
+    agentId: 'agent_2',
+    expected: { priority: null, assignee: null },
+  };
+  async function call(callArgs: Record<string, unknown>, confined = false) {
+    const { dispatch } = await getActions();
+    const mutations: Record<string, unknown>[] = [];
+    const { ctx } = createCtx({
+      actionContext: {
+        allowed: true,
+        actorId: 'agent_manager',
+        scope: { kind: 'project', projectId: 'project_1' },
+        ...(confined ? { confinedToTaskId: 'own_task' } : {}),
+      },
+      runMutation: vi.fn(async (ref, args) => {
+        if (
+          fnName(ref) === 'tasks/internal_mutations:agentUpdateTaskMetadata'
+        ) {
+          mutations.push(args as Record<string, unknown>);
+          return {
+            taskId: 'task_1',
+            priority: 'p1',
+            assigneeType: 'agent',
+            assigneeId: 'agent_2',
+            changed: true,
+          };
+        }
+        return null;
+      }),
+    });
+    return {
+      result: await dispatch(ctx, {
+        ...BASE,
+        taskRunExecId: 'issuer_exec',
+        tool: 'task_update_metadata',
+        callArgs,
+      }),
+      mutations,
+    };
+  }
+
+  it('passes explicit null expectations and only token-derived authority to the mutation', async () => {
+    const { result, mutations } = await call(metadata);
+    expect(result.status).toBe('ok');
+    expect(mutations).toEqual([
+      {
+        organizationId: 'org_1',
+        sessionId: 'sid_1',
+        taskRunExecId: 'issuer_exec',
+        patch: metadata,
+      },
+    ]);
+  });
+
+  it('allows clearing priority without changing ownership', async () => {
+    const patch = {
+      taskId: 'task_1',
+      priority: null,
+      expected: { priority: 'p1' },
+    };
+    const { result, mutations } = await call(patch);
+    expect(result.status).toBe('ok');
+    expect(mutations[0]?.patch).toEqual(patch);
+  });
+
+  it.each([
+    { taskId: 'task_1', priority: 'p1', expected: {} },
+    { taskId: 'task_1', agentId: null, expected: {} },
+    { taskId: 'task_1', expected: { priority: null } },
+    { ...metadata, status: 'done' },
+    { ...metadata, reviewerUserId: 'reviewer' },
+    { ...metadata, actorId: 'forged' },
+    { ...metadata, expected: { priority: null, assignee: { type: 'agent' } } },
+  ])(
+    'refuses incomplete or widened metadata requests without reaching the mutation (%j)',
+    async (patch) => {
+      const { result, mutations } = await call(patch);
+      expect(result.status).toBe('invalid_args');
+      expect(mutations).toEqual([]);
+    },
+  );
+
+  it('refuses metadata writes by a member-confined run', async () => {
+    const { result, mutations } = await call(metadata, true);
+    expect(result.status).toBe('unavailable');
+    expect(mutations).toEqual([]);
+  });
+});
+
+describe('dispatchWorkspaceToolImpl — task_review', () => {
+  const review = {
+    taskId: 'target',
+    expected: {
+      approvalId: 'approval',
+      runId: 'source',
+      evidenceRevision: 'a'.repeat(64),
+    },
+    decision: 'approve',
+    feedback: 'Exact source and local check passed.',
+    evidence: {
+      checks: [
+        { name: 'Regression', outcome: 'passed', details: '12 tests passed.' },
+      ],
+      pullRequests: [],
+    },
+  };
+  async function call(
+    callArgs: Record<string, unknown>,
+    options: { confined?: boolean; orgScope?: boolean; noExec?: boolean } = {},
+  ) {
+    const { dispatch } = await getActions();
+    const mutations: unknown[] = [];
+    const actions: unknown[] = [];
+    const { ctx } = createCtx({
+      actionContext: {
+        allowed: true,
+        actorId: 'reviewer',
+        scope: options.orgScope
+          ? { kind: 'org' }
+          : { kind: 'project', projectId: 'project_1' },
+        ...(options.confined ? { confinedToTaskId: 'own-task' } : {}),
+      },
+      runMutation: vi.fn(async (ref, args) => {
+        if (fnName(ref) === 'tasks/internal_mutations:agentReviewTask') {
+          mutations.push(args);
+          return { decision: 'approve', status: 'done' };
+        }
+        return null;
+      }),
+      runAction: vi.fn(async (ref, args) => {
+        if (fnName(ref) === 'tasks/internal_actions:stageAgentReviewFile') {
+          actions.push(args);
+          return { path: '/agent/inputs/reviews/selected.bin', bytes: 4 };
+        }
+        return null;
+      }),
+    });
+    return {
+      result: await dispatch(ctx, {
+        ...BASE,
+        ...(options.noExec ? {} : { taskRunExecId: 'issuer-exec' }),
+        tool: 'task_review',
+        callArgs,
+      }),
+      mutations,
+      actions,
+    };
+  }
+  it('stages a selected review file with only token authority and no verdict mutation', async () => {
+    const request = {
+      operation: 'stage_file',
+      taskId: review.taskId,
+      expected: review.expected,
+      fileId: 'file',
+    };
+    const { result, mutations, actions } = await call(request);
+    expect(result.status).toBe('ok');
+    expect(mutations).toEqual([]);
+    expect(actions).toEqual([
+      {
+        organizationId: 'org_1',
+        sessionId: 'sid_1',
+        taskRunExecId: 'issuer-exec',
+        request,
+      },
+    ]);
+  });
+  it.each([
+    { path: '/agent/arbitrary' },
+    { url: 'https://other.test' },
+    { storageRef: 's3:other/file' },
+    { agentId: 'other' },
+    { fileId: '' },
+  ])('refuses widened stage_file fields %j', async (extra) => {
+    const { result, mutations, actions } = await call({
+      operation: 'stage_file',
+      taskId: review.taskId,
+      expected: review.expected,
+      fileId: 'file',
+      ...extra,
+    });
+    expect(result.status).toBe('invalid_args');
+    expect(mutations).toEqual([]);
+    expect(actions).toEqual([]);
+  });
+  it('forwards only token authority and the complete strict review', async () => {
+    const { result, mutations } = await call(review);
+    expect(result.status).toBe('ok');
+    expect(mutations).toEqual([
+      {
+        organizationId: 'org_1',
+        sessionId: 'sid_1',
+        taskRunExecId: 'issuer-exec',
+        review,
+      },
+    ]);
+  });
+  it.each([{ confined: true }, { orgScope: true }, { noExec: true }])(
+    'rejects unsupported authority before decision %j',
+    async (options) => {
+      const { result, mutations } = await call(review, options);
+      expect(result.status).toBe('unavailable');
+      expect(mutations).toEqual([]);
+    },
+  );
+  it.each([
+    { ...review, agentId: 'forged' },
+    { ...review, expected: { approvalId: 'approval', runId: 'source' } },
+    { ...review, evidence: { checks: [], pullRequests: [] } },
+    { ...review, decision: 'approve', feedback: ' ' },
+  ])('rejects widened or incomplete reviews %j', async (body) => {
+    const { result, mutations } = await call(body);
+    expect(result.status).toBe('invalid_args');
+    expect(mutations).toEqual([]);
   });
 });

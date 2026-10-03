@@ -13,9 +13,9 @@ interface JsonEnvelope<T> {
   error?: { summary: string; code: number; cause?: string };
 }
 
-/** Emit a success envelope (one line) to stdout. */
-export function emitJson<T>(command: string, data: T): void {
-  const envelope: JsonEnvelope<T> = { ok: true, command, data };
+/** Emit a report envelope (one line) to stdout; success unless specified. */
+export function emitJson<T>(command: string, data: T, ok = true): void {
+  const envelope: JsonEnvelope<T> = { ok, command, data };
   process.stdout.write(`${JSON.stringify(envelope)}\n`);
 }
 

@@ -1,5 +1,5 @@
 /**
- * Connector / provider logos for the homepage marquee. Brand names stay
+ * Connector / provider logos for the homepage logo cloud. Brand names stay
  * English; the section title/subtitle are localized under `home.connectors`.
  */
 
@@ -25,7 +25,7 @@ export interface ConnectorLogo {
   Icon: BrandIcon;
   name: string;
   /**
-   * Optional `companies.*` key in `global.json`. When set, the tooltip
+   * Optional `companies.*` key in `global.yml`. When set, the title
    * shows the full legal company name instead of the short brand label —
    * used for parent companies whose product portfolio isn't obvious from
    * the logo alone (Microsoft, Google, Atlassian).

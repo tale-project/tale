@@ -72,6 +72,8 @@ const compose = parse(readFileSync(composePath, 'utf8')) as {
       ports?: unknown[];
       environment?: Record<string, string>;
       healthcheck?: { test?: string[] };
+      pids_limit?: number;
+      ulimits?: Record<string, number | { soft: number; hard: number }>;
     }
   >;
 };
@@ -242,6 +244,35 @@ describe('SSRF egress-firewall cap parity (NET_ADMIN — R1.17 guard)', () => {
       expect(service?.cap_drop).toEqual(['ALL']);
       expect([...(service?.cap_add ?? [])].sort()).toEqual(expected);
     }
+  });
+});
+
+describe('egress connection capacity parity', () => {
+  const expected = '${SANDBOX_EGRESS_MAX_CLIENTS:-2000}';
+  const egress = createSandboxEgressService(config);
+
+  test('both pipelines hand the proxy the same connection limit', () => {
+    expect(
+      compose.services['sandbox-egress']?.environment
+        ?.SANDBOX_EGRESS_MAX_CLIENTS,
+    ).toBe(expected);
+    expect(egress.environment?.SANDBOX_EGRESS_MAX_CLIENTS).toBe(expected);
+  });
+
+  test('both pipelines size the container for the default limit', () => {
+    const connections = Number(/:-(\d+)\}$/.exec(expected)?.[1]);
+    expect(connections).toBe(2000);
+    expect(compose.services['sandbox-egress']?.pids_limit).toBe(
+      egress.pids_limit,
+    );
+    expect(compose.services['sandbox-egress']?.ulimits).toEqual(egress.ulimits);
+    // tinyproxy runs a thread and holds two descriptors (client and
+    // upstream) per connection, beside its own few.
+    expect(egress.pids_limit).toBeGreaterThan(connections + 64);
+    const nofile = egress.ulimits?.nofile;
+    expect(typeof nofile === 'object' ? nofile.soft : nofile).toBeGreaterThan(
+      2 * connections + 64,
+    );
   });
 });
 

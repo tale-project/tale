@@ -29,7 +29,7 @@ tale-project standard ([`AGENTS.md`](../../../../AGENTS.md) "Manual tests"), and
 
 ## The suites
 
-120 boxes across 8 suites. Every suite declares the ID prefix its
+121 boxes across 8 suites. Every suite declares the ID prefix its
 boxes carry, in its header blockquote; a box ID is unique across this whole
 directory and greppable as one token.
 
@@ -40,7 +40,7 @@ directory and greppable as one token.
 | [locale](suites/locale.md) | `LOC-` | locale switching, `/de` + `/fr` trees, translated content | 14 |
 | [navigation](suites/navigation.md) | `NAV-` | page inventory, header/footer nav, legal pages, changelog timeline, 404s | 20 |
 | [platform-pages](suites/platform-pages.md) | `PAGE-` | the `/platform` hub + six module pages, demo scenes/tours, `/changelog` | 19 |
-| [responsive](suites/responsive.md) | `RESP-` | mobile menu, narrow viewports, no-overflow | 10 |
+| [responsive](suites/responsive.md) | `RESP-` | mobile menu, narrow viewports, no-overflow | 11 |
 | [seo](suites/seo.md) | `SEO-` | prerendered titles/canonicals, JSON-LD, security headers, sitemap, llms.txt | 14 |
 | [theme](suites/theme.md) | `THEME-` | light/dark/system switching, persistence, no-flash, themed demo scenes | 11 |
 

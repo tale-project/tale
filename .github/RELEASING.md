@@ -13,6 +13,18 @@ whose validation and gate have passed.
 | 4. Tag | Push `vX.Y.Z` at the SHA. | `release.yml`, as for every release. |
 | 5. Verify | Check the Release run, the GitHub release and the images. | Their recorded revision. |
 
+## Write the user-facing release notes
+
+Before choosing the candidate, merge a reviewed `.github/release-notes/vX.Y.Z.md` for the intended
+version. Lead with **Highlights** describing verified user outcomes, followed by **Upgrade notes**
+with operator actions and compatibility constraints. The [authoring guide](release-notes/README.md)
+has the structure. Generated API contract notes and the PR list follow these sections.
+
+Run `bun tools/cli/scripts/release-notes.ts --version vX.Y.Z` on the checkout you intend to select.
+Only select a candidate containing that reviewed file. The existing candidate gate checks CI
+and source identity; it does not check the prose. Release Prepare independently rejects missing,
+empty or placeholder sections before any image builds. Content-only `sites_only` builds are exempt.
+
 ## 1. Choose the candidate
 
 Choose a merged, reviewed commit on `main`, with the version it becomes. Candidates move
@@ -115,7 +127,7 @@ To be `eligible`, the candidate must pass all of these:
   release's source, and the version is newer than that release. An existing version allocation
   still returns `allocated` for recovery; this rule does not ask you to replace its tag.
 - **Its newest validation.** The newest `Release candidate <sha>` attempt was dispatched from `main`
-  after the candidate reached it, used the trusted Build workflow and succeeded, with every required job successful and a complete,
+  on or after its verified canonical PR merge, used the trusted Build workflow and succeeded, with every required job successful and a complete,
   unexpired current-attempt receipt. Earlier distinct candidate runs stay in the report; each entry describes
   that run's current attempt. Each run records its attempt number, creation and current attempt
   start times, dispatch branch and workflow source SHA in the report.
@@ -143,30 +155,41 @@ a total of 1,000 or more also answers `blocked`: completeness cannot be proved a
 Do not tag from that result; the release lane must obtain complete evidence through a reviewed
 change to its query strategy.
 
-A complete list is still not proof on its own. On 2026-10-01 GitHub answered filtered lists whose
-totals matched their pages, yet the newest runs were missing, or every run was (#4055). So the gate
-also walks the repository's unfiltered run list, newest first, to where the candidate reached
-`main`, and holds every list to it.
+A complete filtered list is still not proof on its own. On 2026-10-01 GitHub answered filtered
+lists whose totals matched their pages, yet the newest runs were missing, or every run was
+(#4055). The gate also walks the repository's unfiltered list and compares each eligible run.
 
-- **Where the candidate reached `main`** comes from GitHub's own runs, never from a Git date: the
-  runs GitHub created for a push of exactly C to `main` by Checks, Commitlint and SAST, which run
-  for every push to `main`, and by Build, Security and CLI when their path filters admit it. The
-  boundary is the first of those runs in GitHub's creation order (run id). The walk reads an hour
-  of GitHub time past it, and past every run a list returned, so runs GitHub created late for the
-  same push still join it.
-- **Evidence created before that boundary never counts:** a candidate run dispatched before C
-  reached `main`, and every rerun of it, whatever its result or when it was queued. The report
-  lists such runs under `excluded`. From the boundary up, the newest attempt still decides as
-  above. If every validation predates the boundary, dispatch the same SHA again for a fresh full
-  round.
-- **The gate answers `blocked`** when the walk finds no push of C with one run each of Checks,
-  Commitlint and SAST; when one of the push workflows ran twice for a push of C to `main` (C
-  reached `main` twice, or a run was created twice, so the boundary is ambiguous); when, from the
-  boundary up, a list lacks a run the walk found, or the reverse, or the two reads describe a run
-  as different attempts or outcomes; and when the walk is out of order, ends early or does not get
-  past the boundary within 3,000 runs (about six days of this repository's runs in 2026-10). Read
-  again; do not tag from any of these results. A run still going in either read is judged as
-  still going.
+- **The fixed cutoff is C's canonical PR merge into this repository's `main`.** Associated PRs
+  supply discovery hints; direct PR reads must agree and prove one closed, merged PR whose final
+  merge commit is exactly C. The target repository's numeric identity comes from the requested
+  repository's metadata. Its non-null, valid, nonfuture `merged_at` fixes the cutoff. Deleted
+  source branches and fork heads remain valid because the target identity is what matters.
+  Missing, inaccessible, omitted, inconsistent or multiple matching records answer `blocked`.
+  Discovery is bounded to ten pages of 100 PRs and must end before that bound is exhausted.
+- **An original run counts when `created_at` is at or after that cutoff**, including timestamp
+  ties. A run created before the merge stays excluded even if rerun later; candidate runs in
+  this category appear under `excluded`. Among eligible originals, the newest current attempt
+  still decides. Delayed push workflows and later pushes never move the cutoff. The report's
+  `arrival` field names the verified PR, repository id and canonical merge time (`createdAt`).
+- **The unfiltered walk goes past the cutoff and every listed original run**, including those
+  excluded from validation. An eligible run omitted by either read, different attempts or
+  completed outcomes, a repeated push of C, or an observed push before the canonical merge
+  answers `blocked`. A run still going in either read is judged as still going. Out-of-order
+  IDs or creation times, changed repeated records, incomplete pages or failure to cross the
+  boundary within 3,000 runs also block. Read again; do not tag from an incomplete result.
+
+The accepted enumeration model is an unfiltered list in descending run-id and non-increasing
+original-creation-time order. Identical leading repeats caused by new runs shifting pagination
+are tolerated. GitHub does not document an immutable snapshot or ID/time-order guarantee; the
+gate checks observed ordering and disagreements under this model. It does not reconstruct every
+historical ref update or prove the first-ever arrival of C, and cannot detect arbitrary history
+omitted by every API read. Stronger lifetime guarantees require durable ref-update evidence.
+
+Direct, legacy or advisory-merge commits without a verifiable exact-C PR into the target
+repository's `main` are unsupported candidates and stay blocked. Select a later reviewed public
+PR merge containing the change, then validate that new candidate. Never infer a cutoff from Git
+author/committer dates, workflow cohorts, a delay margin, or an unverified PR number. If every
+validation predates a valid cutoff, dispatch the same SHA again for a fresh full round.
 
 Job and artifact metadata must be complete, with unique ids and totals matching the returned
 records (at most 100 per list). Each receipt archive is limited to 1 MiB compressed and one
@@ -192,7 +215,8 @@ A version dispatch of `release.yml` builds the head of the ref it runs on. Run o
 
 ## 5. Verify the release
 
-- The Release run for the tag concluded `success`, and the GitHub release exists.
+- The Release run for the tag concluded `success`, and the GitHub release exists. Its notes begin
+  with the reviewed Highlights and Upgrade notes, then API contract changes and the generated PR list.
 - A published image names the candidate:
 
   ```bash
@@ -229,6 +253,13 @@ A published version is not a deployment. Deployments follow their own procedure.
 - **Do not re-run an old `main` Build run** to validate a candidate. It keeps its original group,
   and the next merge cancels it again.
 - **An expired receipt** (after 90 days) makes the gate ask for a new validation.
+- **Release-note validation fails.** Before tagging, correct the notes in a reviewed PR and choose
+  the new candidate. If a tag was already pushed without valid notes, keep that tag and release
+  the corrected candidate under the next version; never repair its source by moving the tag.
+- **A release publication retry.** A published release is preserved, including its edited notes
+  and attached assets. A draft with the same tag stops publication for the release lane to
+  reconcile; do not delete or overwrite another maintainer's draft. API/authentication failures
+  remain failures instead of being reported as an existing release.
 - **A failed Release run after the tag.** Never move the tag. Re-run the Release run's failed
   jobs (its concurrency never cancels a release), or release the fix as the next version.
 

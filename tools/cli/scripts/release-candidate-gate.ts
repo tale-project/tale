@@ -111,6 +111,7 @@ export const CANDIDATE_JOBS: Record<
       'build',
       'test',
       'test-ui',
+      'performance',
       'knip',
       'test-browser',
       'integration-scope',
@@ -124,6 +125,7 @@ export const CANDIDATE_JOBS: Record<
       'Build',
       'Unit',
       'UI',
+      'Performance',
       'Knip',
       'Browser',
       'Integration scope',
@@ -180,7 +182,7 @@ const WALK_MAX_PAGES = 30;
 /** GitHub creates one run of each of these for every push to main: their push
  * triggers carry no path filter (release-candidate-workflows.test.ts holds
  * them to the workflow files). */
-export const ARRIVAL_WORKFLOWS = [
+export const ALWAYS_PUSH_WORKFLOWS = [
   '.github/workflows/checks.yml',
   '.github/workflows/commitlint.yml',
   '.github/workflows/sast.yml',
@@ -192,12 +194,9 @@ export const FILTERED_PUSH_WORKFLOWS = [
   '.github/workflows/cli.yml',
 ] as const;
 const PUSH_WORKFLOWS = new Set<string>([
-  ...ARRIVAL_WORKFLOWS,
+  ...ALWAYS_PUSH_WORKFLOWS,
   ...FILTERED_PUSH_WORKFLOWS,
 ]);
-// GitHub may create a push's runs late; the walk reads this much server time
-// past the earliest one it finds, so a run created earlier still joins it.
-const ARRIVAL_MARGIN_MS = 60 * 60 * 1000;
 
 const SHA = /^[a-f0-9]{40}$/;
 const VERSION = /^v\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
@@ -278,6 +277,126 @@ const refSchema = z.object({
   object: z.object({ sha: z.string(), type: z.string() }),
 });
 const releaseSchema = z.object({ tag_name: z.string() });
+const repositorySchema = z.object({
+  id: z.number().int().positive(),
+  full_name: z.string(),
+});
+// Association is discovery, not a merge certificate. Re-read every discovered
+// PR and require these identity/merge fields to agree with its direct record.
+const associatedPullSchema = z.object({
+  id: z.number().int().positive(),
+  number: z.number().int().positive(),
+  state: z.enum(['open', 'closed']),
+  merge_commit_sha: z.string().nullable(),
+  merged_at: z.iso.datetime().nullable(),
+  base: z.object({ ref: z.string(), repo: repositorySchema }),
+});
+const pullSchema = associatedPullSchema.extend({
+  merged: z.boolean(),
+  html_url: z.url(),
+});
+
+type CanonicalMerge = {
+  url: string;
+  createdAt: string;
+  pullRequest: number;
+  repositoryId: number;
+};
+
+/** The release policy's fixed cutoff is this exact commit's canonical PR
+ * merge into the requested repository's main. It is not a reconstruction of
+ * every ref update. Deleted/fork source branches are immaterial: target
+ * identity and the final merge commit are what bind the certificate. */
+async function canonicalMerge(
+  api: GitHubApi,
+  repo: string,
+  sha: string,
+  blocked: string[],
+): Promise<CanonicalMerge | null> {
+  const refuse = (detail: string) => {
+    blocked.push(
+      `unverified canonical main merge for ${sha}: ${detail}; read again or choose a candidate with a verifiable merged PR`,
+    );
+    return null;
+  };
+  try {
+    const metadata = repositorySchema.safeParse(await api(repo));
+    if (
+      !metadata.success ||
+      metadata.data.full_name.toLowerCase() !==
+        repo.slice('repos/'.length).toLowerCase()
+    )
+      return refuse('the requested repository identity is missing or invalid');
+    const target = metadata.data;
+    const seen = new Set<number>();
+    const matches: CanonicalMerge[] = [];
+    for (let page = 1; page <= RUNS_MAX_PAGES; page++) {
+      const discovery = z
+        .array(associatedPullSchema)
+        .max(RUNS_PAGE_SIZE)
+        .safeParse(
+          await api(
+            `${repo}/commits/${sha}/pulls?per_page=${RUNS_PAGE_SIZE}&page=${page}`,
+          ),
+        );
+      if (!discovery.success)
+        return refuse(`associated PR page ${page} is missing or invalid`);
+      for (const hint of discovery.data) {
+        if (seen.has(hint.number))
+          return refuse(`associated PR ${hint.number} is repeated`);
+        seen.add(hint.number);
+        const parsed = pullSchema.safeParse(
+          await api(`${repo}/pulls/${hint.number}`),
+        );
+        if (!parsed.success)
+          return refuse(`PR ${hint.number} is missing or invalid`);
+        const pull = parsed.data;
+        if (
+          JSON.stringify(associatedPullSchema.parse(pull)) !==
+          JSON.stringify(hint)
+        )
+          return refuse(
+            `PR ${hint.number} disagrees with its association record`,
+          );
+        if (
+          pull.base.repo.id !== target.id ||
+          pull.base.repo.full_name.toLowerCase() !==
+            target.full_name.toLowerCase()
+        )
+          return refuse(
+            `PR ${hint.number} names a different target repository`,
+          );
+        if (pull.merge_commit_sha !== sha) continue;
+        if (
+          pull.base.ref !== 'main' ||
+          pull.state !== 'closed' ||
+          !pull.merged ||
+          pull.merged_at === null ||
+          Date.parse(pull.merged_at) > Date.now()
+        )
+          return refuse(
+            `PR ${hint.number} is not a completed, nonfuture exact-candidate merge into main`,
+          );
+        matches.push({
+          url: pull.html_url,
+          createdAt: pull.merged_at,
+          pullRequest: pull.number,
+          repositoryId: target.id,
+        });
+      }
+      if (discovery.data.length < RUNS_PAGE_SIZE) {
+        if (matches.length !== 1)
+          return refuse(
+            `expected one exact-candidate merge record, found ${matches.length}`,
+          );
+        return matches[0]!;
+      }
+    }
+    return refuse('associated PR discovery exceeded its bounded page limit');
+  } catch {
+    return refuse('repository or PR evidence could not be read');
+  }
+}
 
 type Run = z.infer<typeof runSchema>;
 
@@ -302,9 +421,9 @@ export type GateReport = {
   tag: string | null;
   tagName: string | null;
   latestRelease: { tag: string; sha: string | null } | null;
-  /** The first run GitHub created for the push of C to main. Evidence
-   * created before it never counts. */
-  arrival: { url: string; createdAt: string } | null;
+  /** Verified canonical PR merge. createdAt is the server's merged_at;
+   * an original run created before it never counts, even when rerun later. */
+  arrival: CanonicalMerge | null;
   /** Candidate runs for C created before that arrival, which never count. */
   excluded: RunSummary[];
   /** Every candidate run for this SHA, newest attempt first; it decides. */
@@ -407,7 +526,7 @@ async function walkRuns(
 ): Promise<Run[] | null> {
   const path = `${repo}/actions/runs?per_page=${RUNS_PAGE_SIZE}`;
   const runs: Run[] = [];
-  const seen = new Set<number>();
+  const seen = new Map<number, Run>();
   const refuse = (detail: string) => {
     blocked.push(`incomplete workflow run evidence from ${path}: ${detail}`);
     return null;
@@ -423,14 +542,26 @@ async function walkRuns(
     let repeating = true;
     for (const run of listed) {
       if (seen.has(run.id)) {
-        if (repeating) continue;
+        if (
+          repeating &&
+          JSON.stringify(seen.get(run.id)) === JSON.stringify(run)
+        )
+          continue;
         return refuse(`page ${page} repeats run ${run.id}`);
       }
       repeating = false;
       if (runs.length > 0 && run.id >= runs.at(-1)!.id) {
         return refuse(`page ${page} lists run ${run.id} out of order`);
       }
-      seen.add(run.id);
+      if (
+        runs.length > 0 &&
+        Date.parse(run.created_at) > Date.parse(runs.at(-1)!.created_at)
+      ) {
+        return refuse(
+          `page ${page} lists run ${run.id} with creation time out of order`,
+        );
+      }
+      seen.set(run.id, run);
       runs.push(run);
     }
     if (listed.length < RUNS_PAGE_SIZE) {
@@ -446,18 +577,13 @@ async function walkRuns(
   );
 }
 
-/** Where C reached main, as GitHub recorded it: the runs the unfiltered list
- * holds for a push of exactly C to main by the trusted push workflows. The
- * boundary is the lowest run id among them, GitHub's own creation order; no
- * Git date and no filtered answer feeds it. It is a boundary only when the
- * cohort is whole, with one run of every arrival workflow, and never two runs
- * of one workflow: that would mean C reached main by more than one push, or a
- * run was created twice, and leave the boundary ambiguous. Null while the
- * runs read so far hold no whole cohort. */
-function arrivalOf(
+/** Push runs corroborate the merge policy; they never define its cutoff.
+ * Refuse observed repeated pushes and arrivals preceding the certificate. */
+function pushAmbiguity(
   runs: Run[],
   sha: string,
-): { boundary: Run } | { ambiguous: string } | null {
+  merge: CanonicalMerge,
+): string | null {
   const cohort = runs.filter(
     (run) =>
       run.event === 'push' &&
@@ -470,14 +596,13 @@ function arrivalOf(
       cohort.findIndex((other) => other.path === run.path) !== index,
   );
   if (repeated)
-    return {
-      ambiguous: `${repeated.path} ran more than once for a push of ${sha} to main (${repeated.html_url}), so where ${sha} reached main is ambiguous`,
-    };
-  if (
-    !ARRIVAL_WORKFLOWS.every((path) => cohort.some((run) => run.path === path))
-  )
-    return null;
-  return { boundary: cohort.reduce((a, b) => (b.id < a.id ? b : a)) };
+    return `${repeated.path} ran more than once for a push of ${sha} to main (${repeated.html_url}), so where ${sha} reached main is ambiguous`;
+  const earlier = cohort.find(
+    (run) => Date.parse(run.created_at) < Date.parse(merge.createdAt),
+  );
+  return earlier
+    ? `${earlier.html_url} records a push of ${sha} to main before its canonical merge; the arrival evidence is contradictory`
+    : null;
 }
 
 type Listing = {
@@ -505,24 +630,18 @@ function sameAttempt(a: Run, b: Run) {
   );
 }
 
-/** GitHub's filtered run listings have answered self-consistent subsets,
- * every total matching its pages, that left out the newest runs or all of
- * them (#4055). A complete filtered answer is therefore never proof alone.
- * The gate walks the unfiltered run list down to where C reached main
- * ({@link arrivalOf}), then an hour of server time past it and past every run
- * a listing returned. Evidence created before that boundary never counts: a
- * candidate run dispatched before C reached main, and every rerun of it, is
- * reported as excluded. From the boundary up, each listing must match the
- * walk: a run one read has and the other lacks, or describes as a different
- * attempt or outcome, sets that listing aside as incomplete. A run that
- * either read saw still going is judged as still going. */
+/** Filtered Actions pages may be self-consistent subsets (#4055). Compare
+ * them with the unfiltered creation-ordered walk past the fixed PR merge
+ * time and every listed run, including excluded originals. We accept that
+ * listing model, not a documented snapshot or lifetime first-arrival proof.
+ * Missing/different attempts refuse; a run either read saw pending waits. */
 async function crossCheck(
   api: GitHubApi,
   repo: string,
   sha: string,
   listings: Listing[],
   blocked: string[],
-): Promise<{ arrival: Run | null; excluded: Run[] }> {
+): Promise<{ arrival: CanonicalMerge | null; excluded: Run[] }> {
   const complete = listings.filter((listing) => listing.runs !== null);
   const unverified = (reason?: string) => {
     if (reason) blocked.push(reason);
@@ -530,6 +649,8 @@ async function crossCheck(
     return { arrival: null, excluded: [] };
   };
   if (complete.length === 0) return unverified();
+  const merge = await canonicalMerge(api, repo, sha, blocked);
+  if (merge === null) return unverified();
   const oldestListed = Math.min(
     ...complete.flatMap((listing) =>
       listing.runs!.filter(listing.lists).map((run) => run.id),
@@ -539,28 +660,20 @@ async function crossCheck(
     api,
     repo,
     (runs) => {
-      const arrival = arrivalOf(runs, sha);
-      if (arrival === null) return false;
-      if ('ambiguous' in arrival) return true;
       const last = runs.at(-1)!;
       return (
         last.id < oldestListed &&
-        Date.parse(last.created_at) <
-          Date.parse(arrival.boundary.created_at) - ARRIVAL_MARGIN_MS
+        Date.parse(last.created_at) < Date.parse(merge.createdAt)
       );
     },
-    `where ${sha} reached main and every run a listing returned`,
+    `the canonical merge of ${sha} and every run a listing returned`,
     blocked,
   );
   if (walked === null) return unverified();
-  const arrival = arrivalOf(walked, sha);
-  if (arrival === null)
-    return unverified(
-      `the unfiltered run list holds no push of ${sha} to main with one run each of ${ARRIVAL_WORKFLOWS.map(stemOf).join(', ')}, so nothing shows where it reached main`,
-    );
-  if ('ambiguous' in arrival) return unverified(arrival.ambiguous);
-  const { boundary } = arrival;
-  const counts = (run: Run) => run.id >= boundary.id;
+  const ambiguity = pushAmbiguity(walked, sha, merge);
+  if (ambiguity) return unverified(ambiguity);
+  const counts = (run: Run) =>
+    Date.parse(run.created_at) >= Date.parse(merge.createdAt);
   const walkedById = new Map(walked.map((run) => [run.id, run]));
   const excluded = new Map<number, Run>();
   for (const listing of complete) {
@@ -602,7 +715,7 @@ async function crossCheck(
       return other && other.status !== 'completed' ? other : run;
     });
   }
-  return { arrival: boundary, excluded: [...excluded.values()] };
+  return { arrival: merge, excluded: [...excluded.values()] };
 }
 
 /** Every run the gate may judge: each workflow's candidate-event listings,
@@ -1022,10 +1135,7 @@ export async function gate({
   // GitHub head_sha is H, so exact-C push listings cannot discover them.
   const evidence = await runEvidence(api, repo, sha, reasons.blocked);
   const candidates = evidence.candidates(CANDIDATE_WORKFLOW_PATH);
-  report.arrival = evidence.arrival && {
-    url: evidence.arrival.html_url,
-    createdAt: evidence.arrival.created_at,
-  };
+  report.arrival = evidence.arrival;
   report.excluded = evidence.excluded.map(summary);
   report.validation = candidates.runs.map(summary);
   const validation = candidates.runs[0];

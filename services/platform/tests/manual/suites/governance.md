@@ -1,6 +1,6 @@
 # Governance
 
-> **Prefix** `GOV-` · **Reset** none · **Cost** 80 boxes
+> **Prefix** `GOV-` · **Reset** none · **Cost** 81 boxes
 
 Exercise the org-wide governance controls — content/model defaults, guardrails
 (content-safety / PII / moderation), policies & limits (budgets, upload,
@@ -45,13 +45,15 @@ is sufficient. **GOV-F4b (per-API-key budget)** needs at least one API key to
 target — create one first under **Settings → API → REST**
 (`…/settings/api/rest`, see [settings.md](settings.md) SET-F9); the API-key
 select lists every member's live key, read from
-`GET /api/app/governance/api-keys` (disabled and expired keys are left out).
+`GET /api/app/governance/api-keys` (disabled and expired keys are left out;
+GOV-F48 covers a rule on such a key).
 
 **GOV-F40–GOV-F47 and GOV-B15–GOV-B17 (model endpoints for API keys)** call
 `/api/v1/openai/…` and `/api/v1/anthropic/…` with API keys minted under
 **Settings → API → REST** and need a chat model that a provider credential of
-type **API key** or **Environment variable** serves — in mode A, connect the
-`e2e-mock` provider's environment credential. Every refusal those boxes judge
+type **API key** or **Environment variable** serves — in mode A, the
+`e2e-mock` provider's environment credential, wired per
+[SETUP.md](../setup.md) §1.A. Every refusal those boxes judge
 is answered before the model gateway is reached, so they run in mode A; a
 successful answer needs mode B with the sandbox model gateway running (mode A
 ends such a call in 503 `MODEL_API_UNAVAILABLE`).
@@ -117,11 +119,12 @@ agent.
   `governance.budgets.selectApiKeyAriaLabel`) → pick a key → set **Max
   requests** (`governance.budgets.maxRequests`) → **Confirm**
   (`governance.budgets.confirm`) → reload → The rule row's **Scope** cell
-  reads **ApiKey** (CSS-capitalized `scope`) and its **Target**
-  (`governance.budgets.target`) cell shows the chosen key's name and its
-  owner, "CI Key · Dana" (falls back to the raw key id if the key is no longer
-  held by a member); the row survives reload. **Precondition:** ≥1 API key
-  exists (see Prerequisites)
+  reads **API key** (`governance.budgets.scopeLabels.apiKey`), its **Period**
+  cell the period's label (**Monthly**,
+  `governance.budgets.periodLabels.monthly`), and its **Target**
+  (`governance.budgets.target`) cell the chosen key's name, "CI Key", with its
+  owner, "Dana", on a line beneath; the row survives reload. **Precondition:**
+  ≥1 API key exists (see Prerequisites)
 - [ ] `GOV-F4c` · **API-key budget refuses REST** — with the GOV-F4b rule
   saved at **Max requests** 1 → send twice through
   `POST /api/v1/threads/{id}/messages` with that key → The second send answers
@@ -138,6 +141,20 @@ agent.
   creates a second key in their own session → it joins the select within
   seconds, no reload. `GET /api/app/governance/api-keys` as a non-admin
   answers 403, and no response carries a key secret.
+- [ ] `GOV-F48` · **A rule outlives its key** — Save GOV-F4b-style rules on
+  three members' keys, then make each key stop working: the holder revokes
+  one under **Settings → API → REST**, an Admin removes the holder of the
+  second from the organization, and the third passes its expiry → reload
+  `policies-limits` → Every row still names its key and its owner, never a
+  bare key id, each beside its status — **Revoked**, **Former member** and
+  **Expired** while the expired key is still stored. Once expiry cleanup
+  removes that key, it reads **Unavailable**, keeping its name and owner;
+  cleanup alone must never make it **Revoked**
+  (`governance.budgets.apiKeyStatus.*`). **Edit rule** on one of them: the
+  **API key** field still shows that key, with **This key can no longer spend
+  in this organization…** (`governance.budgets.apiKeyInactive`) above it, and
+  the select offers only live keys besides it. Every label reads in German
+  and French too.
 - [ ] `GOV-F6` · **Feedback metrics** — `feedback` → Read-only **Feedback
   Metrics** dashboard renders (`analytics.feedback.title`); with no feedback
   it shows the empty state **No feedback collected yet**

@@ -168,7 +168,7 @@ const TOOL_DESCRIPTIONS: Record<string, string> = {
   task_find:
     "List tasks on the organization's boards, one page at a time. Args: " +
     '{projectId?: string, status?: "backlog"|"todo"|"in_progress"|' +
-    '"in_review"|"done"|"cancelled", assigneeId?: string, includeArchived?: ' +
+    '"in_review"|"done"|"cancelled", assigneeId?: string, reviewerAgentId?: string, includeArchived?: ' +
     'boolean, order?: "board"|"created", limit?: number (≤ 50, default 20), ' +
     'cursor?: string}. Answers {tasks, isDone, continueCursor?}: while ' +
     'isDone is false, pass continueCursor as cursor, with the same other ' +
@@ -180,13 +180,18 @@ const TOOL_DESCRIPTIONS: Record<string, string> = {
     'reads the oldest first and ' +
     'a task keeps its place, so a walk lists each task at most once, as it ' +
     'stands when its page is read. On a project-bound run the listing is ' +
-    "fixed to the run's own project.",
+    "fixed to the run's own project. reviewerAgentId matches the captured " +
+    'pending native reviewer, not a future default or implementation owner. ' +
+    'Each task includes pendingReview: null or {approvalId, runId, reviewer}. ' +
+    'A manager pages in_review to discover all captured owners, including ' +
+    'deleted agents; task_get gives the current blocker and exact evidence.',
   task_get:
     'Read one task in full — description, project, subtasks and blockers ' +
     '(each with its taskId), comments, its project-agent runs, its ' +
     'automation run and a pending review. Args: {taskId: string, ' +
     'commentLimit?: number (≤ 50, default 20), commentCursor?: string, ' +
-    'runLimit?: number (≤ 20, default 5), runCursor?: string}. comments are ' +
+    'runLimit?: number (≤ 20, default 5), runCursor?: string, ' +
+    'reviewFileCursor?: string}. comments are ' +
     'the newest page, oldest first, each with its commentId (the messageId ' +
     'task_comment answered); while commentsPage.isDone is false, pass ' +
     'commentsPage.continueCursor as commentCursor for older ones. agentRuns ' +
@@ -194,8 +199,29 @@ const TOOL_DESCRIPTIONS: Record<string, string> = {
     "feedback: the first 500 characters of the start's message; " +
     'agentRunsPage pages them with runCursor. A run with live true is still ' +
     'working, and the task starts no other run until it ends. ' +
-    'workflowRun.waitingFor "ask" or "approval", and pendingReview, wait on ' +
-    'a person.',
+    'retryPending true means the latest failed run still has an armed native ' +
+    'retry with budget remaining: leave it to the platform. False means no ' +
+    'retry is pending for that run, not that restarting is safe. An absent ' +
+    'field on an older platform is unknown, never false. Re-read current ' +
+    'task, assignment, runs and review before acting; honor provider waits ' +
+    'and admission retryAfter. No provider reset time is supplied here. ' +
+    'workflowRun.waitingFor "ask" or "approval" waits on a person. ' +
+    'pendingReview.reviewer names its captured user or agent recipient; ' +
+    'implementationAgentId and evidenceRevision bind an agent decision to ' +
+    'the source. A null source or revision cannot be decided by task_review. ' +
+    'pendingReview.agentReviewBlockedReason names a current handoff blocker. ' +
+    'reviewDecision is the latest validated native verdict receipt, or null ' +
+    'when unavailable or behind a newer pending, human or workflow review. ' +
+    'It names approvalId, runId, reviewer, issuerRunId, feedbackCommentId and ' +
+    'evidence; it is historical, not the current task status. Null does not ' +
+    'prove that no decision committed. ' +
+    'reviewFiles lists attachments and outputs for a captured agent review, ' +
+    '50 entries per page; pass reviewFiles.page.continueCursor as ' +
+    'reviewFileCursor while page.isDone is false. Each entry names fileId, kind, metadata and an ' +
+    'unavailableReason when it cannot be staged. The cursor is bound to this ' +
+    'reviewer, source and evidence; a changed review requires a fresh read. ' +
+    'An available entry can be staged only by its authorized reviewer through ' +
+    'task_review operation stage_file, then read with its ordinary file tools.',
   task_create:
     `Create a task. Args: {title: string (${atMost(TASK_TITLE_MAX)}), ` +
     `description?: string (${atMost(TASK_DESCRIPTION_MAX)}), projectId?: ` +
@@ -215,7 +241,7 @@ const TOOL_DESCRIPTIONS: Record<string, string> = {
   task_update_status:
     'Move a task to another board column. Args: {taskId: string, status: ' +
     '"backlog"|"todo"|"in_progress"|"in_review"|"cancelled"}. Agents never ' +
-    'set done — finished work parks at in_review for a human.',
+    'set done through this tool — finished work parks at in_review for its reviewer.',
   task_start_agent:
     'Put a project agent of this project to work on a task: its agent ' +
     'assignee, or first assign it to agentId. Args: {taskId: string, ' +
@@ -223,24 +249,80 @@ const TOOL_DESCRIPTIONS: Record<string, string> = {
     `your answer to its question, or its brief; ${atMost(TASK_COMMENT_MAX)}), ` +
     'moveToInProgress?: boolean (default true: the card moves to ' +
     'in_progress, withdrawing a pending review, and the result waits at ' +
-    'in_review for a human; false leaves the card where it is, only under ' +
-    'backlog, todo or in_progress), resumeFrom?: {runId, approvalId} ' +
-    '(when you resume an agent with the answer to its question: the run ' +
-    'that asked and its pending review, as you read them — without agentId ' +
-    'it resumes that run’s agent, and only while that is still the task’s ' +
-    'open question)}. Answers ' +
-    '{started, runId, reason?}: reason stale_question (that question is no ' +
-    'longer open — a person decided, a newer run or review exists, or the ' +
+    'in_review for its reviewer; false leaves the card where it is, only under ' +
+    'backlog, todo or in_progress), resumeFrom?: {runId, approvalId} | ' +
+    '{kind: "review_repair", approvalId, runId}}. The untagged form resumes ' +
+    'an agent with the answer to its question: name the run that asked and ' +
+    'its pending review, as you read them. Without agentId it resumes that ' +
+    'run’s agent, only while that is still the task’s open question. ' +
+    'The tagged form repairs one recorded native request_changes decision. ' +
+    'A repair requires current ' +
+    'todo, the same implementation assignee and latest settled source, no ' +
+    'newer review or intervening status/assignment/archive decision. Omit ' +
+    'agentId, or name that exact implementer; false is refused. The server ' +
+    'derives review feedback and its comment ID; the combined feedback with ' +
+    'your optional brief must fit the same limit. Repair admission returns ' +
+    'repairReceipt; replayed:true recovers that prior run, never starts again ' +
+    'or claims it is still live. A later live run of the same manager can ' +
+    'replay; current grant and project authority are checked every time. ' +
+    'Never fall back from a refused repair to an unguarded start. Answers ' +
+    '{started, runId, reason?}: reason stale_repair (the rejected review no ' +
+    'longer authorizes this repair; reread and retire the outdated intent), ' +
+    'stale_question (that question is no ' +
+    'longer open — the task was decided, a newer run or review exists, or the ' +
     'assignee changed; nothing changed), already_running (the task is being ' +
     'worked), in_review or ' +
     'closed (false met a card awaiting review, or a done/cancelled one), ' +
-    'agent_busy (that agent is working another task — pick another or ' +
-    'wait), blocked (an open task blocks it) or paused (three automated ' +
+    'agent_busy (that agent is working another task — wait or work on ' +
+    'another task), blocked (an open task blocks it) or paused (three automated ' +
     'starts on this task within the hour, their automatic retries ' +
     'included) start nothing. The run answers to whoever your run ' +
     'answers to and names you as the agent that started it; an agent you ' +
     'start cannot start further agents. Keep the run id in your report. ' +
     LENGTH_UNIT_NOTE,
+  task_update_metadata:
+    'Change an existing task’s priority or agent assignment without starting work. ' +
+    'Args: {taskId: string, priority?: "p0"|"p1"|"p2"|"p3"|null, ' +
+    'agentId?: string|null, expected: {priority?: "p0"|"p1"|"p2"|"p3"|null, ' +
+    'assignee?: {type: "user"|"agent"|"app", id: string}|null}}. ' +
+    'Read the task first. Build expected.assignee from its assigneeType and ' +
+    'assigneeId as {type, id}; an absent priority or assignee becomes null. ' +
+    'Name the current value in expected for each field ' +
+    'you change; null clears it, omitted fields stay untouched. At least one ' +
+    'change field is required; no other fields are accepted. A stale value ' +
+    'refuses the whole request: read again before deciding. Ownership changes ' +
+    'require backlog, todo or in_progress with no live agent/automation run ' +
+    'and no pending review or question. Priority alone preserves those ' +
+    'handoffs. Answers {taskId, priority, assigneeType, assigneeId, changed}. ' +
+    'Does not change status, reviewer, questions, budgets, or start any run.',
+  task_review:
+    'Decide an independent native task review assigned to this project agent. ' +
+    'Read task_get first and copy pendingReview.approvalId, runId and evidenceRevision. ' +
+    'Args: {taskId, expected: {approvalId, runId, evidenceRevision}, ' +
+    'decision: "approve"|"request_changes", feedback: string (1–8000 characters), ' +
+    'evidence: {checks: [{name, outcome: "passed"|"failed", details}], ' +
+    'pullRequests: [{url: "https://github.com/owner/repo/pull/123", headSha, ' +
+    'checks: "passed"|"failed"|"pending"}]}}. Supply 1–20 concrete checks and ' +
+    '0–10 PRs with exact 40- or 64-character lowercase hexadecimal heads. ' +
+    'Approve only with all supplied checks passed. Evidence is your attestation; ' +
+    'the server validates the local task and source, not GitHub. Another agent ' +
+    'must have produced the latest settled run. Stale evidence refuses without ' +
+    'changing anything: read again before deciding. Approve moves the task to ' +
+    'done; request_changes posts feedback and moves it to todo, preserving its ' +
+    'implementation agent. Feedback never starts an agent, even with @mentions. ' +
+    'No workflow approval or human competence requirement can be bypassed. ' +
+    'The identical request may be retried by this same live issuer; it returns ' +
+    'the original receipt without repeating effects. ' +
+    'To inspect a listed attachment or output before deciding, instead pass ' +
+    '{operation: "stage_file", taskId, expected: {approvalId, runId, ' +
+    'evidenceRevision}, fileId} using task_get.reviewFiles. This stages one ' +
+    'available file of at most 20 MiB to a server-selected local path and ' +
+    'returns its path and byte count. No caller path, URL or storage ref is ' +
+    'accepted; document permissions and the same current review authority ' +
+    'still apply. Read the staged bytes before citing them as evidence. ' +
+    'Staging makes no decision and starts nothing. A concurrent handoff or ' +
+    'revocation refuses success, though previously authorized bytes may ' +
+    'remain in the workspace; read the current review again.',
   task_upsert_by_external_ref:
     'Idempotently sync ONE external item (an issue, a ticket, an alert) to a ' +
     'task, keyed by (externalSystem, externalId) — a re-run updates the ' +
@@ -250,7 +332,7 @@ const TOOL_DESCRIPTIONS: Record<string, string> = {
     'string (a longer one is cut to ' +
     `${taskLimitText(TASK_DESCRIPTION_MAX)}, ending in "…"), ` +
     `externalUrl?: string, ${LABELS_ARG}, ` +
-    'priority?: "p0"|"p1"|"p2"|"p3", ' +
+    'priority?: "p0"|"p1"|"p2"|"p3" (only when creating a task), ' +
     'externalState?: "open"|"closed" (closed applies the sync close policy), ' +
     'projectId?: string (as in task_create), createIfMissing?: boolean ' +
     `(default true), dedupeScope?: "org"|"project" (default org)}. ` +

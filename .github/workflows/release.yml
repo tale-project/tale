@@ -70,6 +70,22 @@ jobs:
             echo "version_number=${VERSION_NUMBER}"
           } >> "$GITHUB_OUTPUT"
 
+      - name: Checkout release notes
+        if: steps.version.outputs.sites_only != 'true'
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Setup Bun for release notes
+        if: steps.version.outputs.sites_only != 'true'
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: '1.4.2'
+
+      - name: Validate authored release notes before building
+        if: steps.version.outputs.sites_only != 'true'
+        env:
+          TAG: ${{ steps.version.outputs.version }}
+        run: bun tools/cli/scripts/release-notes.ts --version "$TAG"
+
       - name: Summary
         run: |
           {
@@ -378,7 +394,7 @@ jobs:
       # every release: generated from the contract fingerprint at the
       # previous tag and this one, never hand-written (v0.5.49–v0.5.55
       # shipped the 1.21.0 bump under a bare "What's Changed" list). The
-      # section is prepended to GitHub's generated notes.
+      # section follows authored highlights and precedes GitHub's generated notes.
       - name: Describe API contract changes
         env:
           TAG: ${{ needs.prepare.outputs.version }}
@@ -413,15 +429,28 @@ jobs:
             --changelog /tmp/contract/current-changelog.ts \
             --out /tmp/contract/release-notes.md
 
+      - name: Lead with authored release outcomes
+        env:
+          TAG: ${{ needs.prepare.outputs.version }}
+        run: |
+          bun tools/cli/scripts/release-notes.ts --version "$TAG" \
+            --contract /tmp/contract/release-notes.md --out /tmp/release-notes.md
+
       - name: Create release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ needs.prepare.outputs.version }}
         run: |
-          gh release create ${{ needs.prepare.outputs.version }} \
-            --title "Tale ${{ needs.prepare.outputs.version }}" \
-            --notes-file /tmp/contract/release-notes.md \
-            --generate-notes \
-            || echo "Release already exists, skipping creation"
+          set -euo pipefail
+          if PUBLISHED="$(gh release view "$TAG" --json isDraft --jq '.isDraft == false' 2>/dev/null)"; then
+            test "$PUBLISHED" = true || { echo '::error::A draft release already exists; reconcile it before retrying'; exit 1; }
+            echo "Published release already exists, preserving its notes and assets"
+          else
+            gh release create "$TAG" \
+              --title "Tale $TAG" \
+              --notes-file /tmp/release-notes.md \
+              --generate-notes
+          fi
 
   # ---------------------------------------------------------------------------
   # Kick off the CLI build workflow to attach binaries to the release.

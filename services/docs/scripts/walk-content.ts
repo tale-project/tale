@@ -17,7 +17,7 @@ export interface ContentRecord {
   slug: string;
   frontmatter: Record<string, string | boolean>;
   body: string;
-  /** Absolute file path on disk (used for git mtime, etc). */
+  /** Absolute file path on disk. */
   filePath: string;
 }
 

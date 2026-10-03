@@ -26,7 +26,7 @@ bun run --filter @tale/docs build:search-index
 | Page content | [`docs/en`](../../docs/en), with German and French siblings |
 | Sidebar order and groups | [`docs/nav.json`](../../docs/nav.json) |
 | Redirects for moved pages | [`docs/redirects.json`](../../docs/redirects.json); section folders without a page redirect to their first page in `nav.json`; every published slug stays in [`docs/published.json`](../../docs/published.json) and must keep answering |
-| Answers for guessed addresses | [`lib/near-miss.ts`](lib/near-miss.ts): retired `/de-CH/…` trees and title-shaped guesses land on a page before the 404 |
+| Answers for guessed addresses | [`lib/near-miss.ts`](lib/near-miss.ts): retired `/de-CH/…` trees, title-shaped guesses and sidebar group labels (`/de/verwaltung`) land on a page before the 404 |
 | Site labels | `services/docs/messages/{en,de,fr,de-CH}.yml`, merged over shared `packages/ui/src/i18n/messages/` |
 | Supported Markdown components | [`registry.tsx`](../../packages/ui/src/markdown/components/registry.tsx) |
 | Screenshots and demo data | [`docs-screenshots`](../platform/tests/docs-screenshots/README.md) |
@@ -38,14 +38,23 @@ Keep English, German, and French pages in sync. Swiss German message overrides a
 
 ## The page layout
 
-The reader follows a navigation rail, breadcrumb header, article, and section outline. The frame
+The locale roots (`/`, `/de`, `/fr`) are discovery pages built with `@tale/marketing-ui`: a
+search-led introduction, linked task progression, entry paths, tutorials, and reference guides.
+Their card copy comes from the target pages’ localized frontmatter; `docs/{en,de,fr}/index.md`
+keeps the same routes available in search and Markdown exports. Import `landing.css`, not the
+full marketing `globals.css`: only the homepage’s `.marketing-surface` changes canonical
+foreground, border, and accent tokens.
+
+On an article, the reader follows a navigation rail, breadcrumb header, article, and section outline. The frame
 is the shared `@tale/ui/docs/*` family, which the [design-system guide](../ui-docs/README.md)
 renders too, so a change to it lands on both sites. It uses the app design language; the site
 supports light and dark themes. This workspace feeds the frame its content:
 
 | Part | Responsibility |
 | --- | --- |
-| `app/routes/__root.tsx` | Mount `DocsLayout` with this site’s navigation, search index, footer copy, locale, and offline update banner. |
+| `app/routes/__root.tsx` | Keep locale, theme, and offline handling around both shells; mount `DocsLayout` for articles. |
+| `app/pages/home-page.tsx` | Render the discovery homepage with shared marketing components and the same docs search dialog. |
+| `lib/content/use-docs-search-config.ts` | Share locale-aware indexes, result breadcrumbs, and search history between the two shells. |
 | `lib/content/nav-sections.ts` | Resolve `docs/nav.json` into translated rail sections, neighboring pages, and search-result ancestors. |
 | `app/pages/docs-page.tsx` | Render `DocsHeader` with breadcrumbs and page actions, then `DocsArticle` with the single `h1`, body, outline, neighbors, and edit link. |
 | `app/pages/not-found-page.tsx` | Rank the closest pages for `DocsNotFound`. |
@@ -96,6 +105,11 @@ bun run --filter @tale/docs start
 ```
 
 The build creates the search index, client and server bundles, prerendered pages, and SEO artifacts. The Bun server serves the result. Its default port is `3002`; `PORT` overrides it. `DOCS_BASE_URL` configures the path prefix when hosting under a subpath.
+
+The sitemap omits `lastmod` because the content does not record a reliable modification
+date. A fresh checkout or rebuild must not advertise every page as newly updated. Add
+dates only from a source that tracks significant content changes; see
+[Google's sitemap guidance](https://developers.google.com/search/docs/crawling-indexing/sitemaps/build-sitemap#additional-notes-about-xml-sitemaps).
 
 ## Route the public documentation host
 

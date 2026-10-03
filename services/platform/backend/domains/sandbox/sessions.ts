@@ -10,6 +10,8 @@ import {
   type SessionBudget,
 } from '../../core/sandbox/quota_policy.ts';
 import {
+  SANDBOX_DESTROY_PENDING_MESSAGE,
+  SANDBOX_DESTROY_PENDING_REASON,
   SANDBOX_MAX_SESSIONS_PER_OWNER,
   SANDBOX_SESSION_LIVE_STATUSES,
   SANDBOX_SESSION_MAX_LIFETIME_MS,
@@ -21,6 +23,10 @@ import { toJson } from '../../db/sql.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
 import { wakeParkedAgentRuns } from '../tasks/agent-runs.ts';
 import { lockOrgAdmission } from './admission-lock.ts';
+import {
+  sessionDestroyPending,
+  type SandboxDestroyState,
+} from './destroy-schedule.ts';
 import { revokeSessionGatewayKeys } from './gateway-keys.ts';
 import {
   captureIdleReleaseTickets,
@@ -51,10 +57,36 @@ import {
 
 export class SandboxQuotaError extends Error {
   readonly code = 'QUOTA_EXCEEDED';
+  /** Set when the refusal is no want of room: the session's Destroy is
+   * pending ({@link SandboxDestroyPendingError}). The shims carry it on. */
+  readonly reason: typeof SANDBOX_DESTROY_PENDING_REASON | undefined;
 
-  constructor(message: string) {
+  constructor(message: string, reason?: typeof SANDBOX_DESTROY_PENDING_REASON) {
     super(message);
     this.name = 'SandboxQuotaError';
+    this.reason = reason;
+  }
+}
+
+/**
+ * The session's workspace is being deleted: an administrator's Destroy of
+ * its live row is queued, retrying or running (`destroy-schedule.ts`). A
+ * turn let in now would work in files the next attempt deletes, and lose
+ * its tokens and gateway keys with them, so the admission verbs refuse it
+ * before it starts. A quota refusal on purpose, marked
+ * {@link SANDBOX_DESTROY_PENDING_REASON} so no lane reads it as a full
+ * budget: a task's run parks on it and is woken when the Destroy settles
+ * (`markSessionDestroyed` is a release edge) or by the watchdog's next
+ * tick, then starts in a fresh workspace, or in this one once every attempt
+ * has failed; an automation step fails with this reason instead, at once
+ * and without a retry, since a later start of it would continue its run in
+ * a fresh, empty workspace without what its earlier steps left
+ * (`classifyWorkflowStartFailure`).
+ */
+class SandboxDestroyPendingError extends SandboxQuotaError {
+  constructor() {
+    super(SANDBOX_DESTROY_PENDING_MESSAGE, SANDBOX_DESTROY_PENDING_REASON);
+    this.name = 'SandboxDestroyPendingError';
   }
 }
 
@@ -127,7 +159,10 @@ export interface ReserveSessionArgs {
  * serialized transaction per org, so the slot count and the claim can never
  * race. Throws {@link SandboxQuotaError} on a conflict (the owner already
  * holds a live session, or the budget's cap is reached) — the task-agent
- * host parks its run on that code.
+ * host parks its run on that code — and {@link SandboxDestroyPendingError}
+ * while a live row under the id is being destroyed: a fresh incarnation
+ * beside it would be the newest row, which the Destroy's retry leaves alone
+ * and whose files the spawner still holds.
  */
 export async function reserveSessionSlot(
   sql: Sql,
@@ -135,6 +170,9 @@ export async function reserveSessionSlot(
 ): Promise<string> {
   return sql.begin(async (tx) => {
     await lockOrgAdmission(tx, args.organizationId);
+    if (await sessionDestroyPending(tx, args)) {
+      throw new SandboxDestroyPendingError();
+    }
     const now = Date.now();
 
     // One live session per workspace. A project agent owns several — its
@@ -292,13 +330,19 @@ export async function setSessionPinned(
  * row is pinned. The guard is the agent's, not the workspace's: a live turn
  * of the agent holds every workspace it owns — its standing one and one per
  * member who starts its runs — until the agent's last turn ends. A freed slot is a release edge: the org's oldest parked
- * run is woken at once instead of idling until the 2-minute watchdog tick.
- * Best-effort — a wake failure must never fail the release.
+ * run, and the oldest parked run of the other organizations (the sandbox
+ * host is shared), are woken at once instead of idling until the 2-minute
+ * watchdog tick (`wakeParkedAgentRuns`). Best-effort — a wake failure must
+ * never fail the release.
  */
 export async function releaseProjectAgentSessionSlot(
   sql: Sql,
   args: { organizationId: string; agentId: string },
   readTicket?: IdleReleaseTicketReader,
+  /** `wake: false` frees the slot without waking a parked run: the release
+   * of a run that is itself parking for room, which would otherwise wake
+   * the next parked run straight into the same refusal. */
+  opts: { wake?: boolean } = {},
 ): Promise<boolean> {
   // The runtime release tickets are read BEFORE the transaction: the
   // spawner round-trip must not run under the org's admission lock (every
@@ -340,7 +384,7 @@ export async function releaseProjectAgentSessionSlot(
     await enqueueIdleSessionReleases(tx, released, tickets);
     return released;
   });
-  if (rows.length > 0) {
+  if (rows.length > 0 && opts.wake !== false) {
     await wakeParkedAgentRuns(sql, args.organizationId).catch(
       (error: unknown) => {
         console.warn('[sandbox] capacity wake failed:', error);
@@ -355,7 +399,11 @@ export async function releaseProjectAgentSessionSlot(
  * reset the TTL window — preserving `createdAt` (same incarnation). A
  * `stopped` row freed its slot, so flipping it back RE-ADMITS through the
  * same cap check as a fresh reserve; already-active rows are an idempotent
- * refresh that never re-counts.
+ * refresh that never re-counts. A row an administrator's Destroy is
+ * removing is refused before anything changes
+ * ({@link SandboxDestroyPendingError}): the row id is all the Destroy's
+ * retry checks, and a resume keeps it. False when no live row is left to
+ * resume — none was, or one was settled while this ran.
  */
 export async function resumeSessionSlot(
   sql: Sql,
@@ -376,6 +424,9 @@ export async function resumeSessionSlot(
     `;
     const row = rows[0];
     if (!row) return false;
+    if (await sessionDestroyPending(tx, { ...args, rowId: row.id })) {
+      throw new SandboxDestroyPendingError();
+    }
     if (row.status === 'stopped' && !row.pinned) {
       const budget = requireSessionBudgetForOwnerType(row.ownerType);
       const quota = await readQuota(tx, args.organizationId);
@@ -387,14 +438,33 @@ export async function resumeSessionSlot(
         );
       }
     }
-    await tx`
+    // Against a terminal write, the write itself is the boundary. The row
+    // read above holds no lock and a settlement takes no admission lock
+    // (`markSessionDestroyed` — a Destroy attempt's under the session's
+    // lifecycle lock, a heal's or a reclaim's under none — the cleanup's
+    // claim, a watchdog's stamp), so one can commit anywhere in this
+    // transaction, also before the predicate, which then finds no live row
+    // and so no pending Destroy. The write therefore moves the row only
+    // while it is still live: moving nothing answers that the allocation is
+    // gone, as if the settlement had come first, so no caller resumes a
+    // settled incarnation, and its next start opens a fresh one. A write
+    // that lands holds the row until this commit, so nothing settles it in
+    // between. After it, an administrator's Destroy settles only from
+    // inside an attempt, while its job is unfinished: one queued before
+    // this transaction took the admission lock either refused the turn at
+    // the predicate or had settled the row already, leaving the write
+    // nothing to move; one asked for later waits for that lock, so it is
+    // ordered after this turn, which it cancels.
+    const moved = await tx<{ id: string }[]>`
       UPDATE app.sandbox_sessions SET
         status = 'active', last_activity_at_ms = ${now},
         expires_at_ms = CASE WHEN pinned THEN expires_at_ms
           ELSE ${now + SANDBOX_SESSION_MAX_LIFETIME_MS} END
       WHERE id = ${row.id}
+        AND status = ANY(${[...SANDBOX_SESSION_LIVE_STATUSES]})
+      RETURNING id
     `;
-    return true;
+    return moved.length > 0;
   });
 }
 
@@ -608,6 +678,9 @@ export interface SandboxSessionView {
   /** When the workspace is deleted for being unused, if it stays unused
    * (`unusedWorkspaceDeletions`); null when nothing will delete it. */
   deletesAt?: number | null;
+  /** An administrator's Destroy under way (`pending`) or one whose every
+   * attempt failed (`failed`); null when none is (`sessionDestroyStates`). */
+  destroyState?: SandboxDestroyState | null;
 }
 
 interface SessionOpViewRow {

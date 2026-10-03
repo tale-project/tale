@@ -938,6 +938,7 @@ automations:
       approval: Wartet auf Freigabe
       ask: Wartet auf deine Antwort
       agent: Agent arbeitet
+      room: Wartet auf einen Sandbox-Platz
       repeat: 'Pollt — Schritt {node}'
     startedAt: 'Gestartet {date}'
     finishedAt: 'Beendet {date}'
@@ -1229,7 +1230,9 @@ chat:
     voiceOutputThreadSaveFailed: Sprach-Einstellung für diesen Chat konnte nicht gespeichert werden
   notFound: Dieser Chat ist nicht verfügbar.
   placeholder: Stell eine Frage…
-  generationIncomplete: Die Antwort konnte nicht abgeschlossen werden. Versuch es erneut.
+  generationIncomplete: Das Modell hat keine Antwort geliefert. Versuch es erneut oder wähle ein anderes Modell.
+  generationIncompleteFiltered: Der Inhaltsfilter des Modellanbieters hat diese Antwort zurückgehalten. Versuch, deine Nachricht umzuformulieren.
+  generationIncompleteLength: Das Modell hat sein Limit für Ausgabe-Tokens aufgebraucht, bevor es eine Antwort geschrieben hat. Versuch es mit weniger Denkaufwand, einer kürzeren Anfrage oder einem anderen Modell.
   generationIncompleteWithTools: Die Antwort konnte nach der Ausführung von {tools} nicht abgeschlossen werden. Versuch es erneut.
   stepLimitReached: Hier gestoppt — das Schrittlimit dieses Durchgangs ist erreicht. Schreib eine Nachricht, um weiterzumachen.
   send: Nachricht senden
@@ -2816,6 +2819,26 @@ governance:
     invalidCostLimit: Das Kostenlimit muss größer als null sein.
     invalidMaxRequests: Das Anfragenlimit muss größer als null sein.
     invalidWarningThreshold: Der Warnschwellenwert muss zwischen 0 und 100 liegen.
+    scopeLabels:
+      default: Standard
+      user: Benutzer
+      team: Team
+      role: Rolle
+      apiKey: API-Schlüssel
+      org: Organisation
+    periodLabels:
+      daily: Täglich
+      weekly: Wöchentlich
+      monthly: Monatlich
+    apiKeyOwnerUnknown: Inhaber unbekannt
+    apiKeyInactive: Dieser Schlüssel kann in dieser Organisation nichts mehr verbrauchen, deshalb begrenzt die Regel nichts. Wähle einen aktiven Schlüssel oder entferne die Regel.
+    apiKeyStatus:
+      expired: Abgelaufen
+      disabled: Deaktiviert
+      revoked: Widerrufen
+      unavailable: Nicht verfügbar
+      holder_left: Ehemaliges Mitglied
+      unknown: Unbekannter Schlüssel
   defaultModels:
     title: Standardmodelle
     description: Standardmodelle für bestimmte Benutzergruppen oder Rollen festlegen.
@@ -3157,24 +3180,22 @@ governance:
         sind, automatisch löschen. Schließt pro Ausführung gespeicherte
         Variablen-/Output-Blobs ein.
       placeholder: z. B. 30
-      helper: Automatisierungsläufe, die älter sind, werden gelöscht (1–365 Tage).
+      helper: Automatisierungsläufe, die älter sind, werden gelöscht.
     auditLogs:
       title: Audit-Logs
       description: Audit-Log-Einträge, die älter als die Aufbewahrungsfrist sind, automatisch löschen. Audit-Logs sind unveränderliche Aufzeichnungen — halte die Frist lang genug, um deine Compliance-Anforderungen zu erfüllen.
       placeholder: z. B. 90
-      helper: Audit-Log-Einträge, die älter sind, werden gelöscht (30–365 Tage).
+      helper: Audit-Log-Einträge, die älter sind, werden gelöscht.
     usageLedger:
       title: Nutzungsbuch
       description: Token-Verbrauchsdaten, die älter als die Aufbewahrungsfrist sind, automatisch löschen. Eine kürzere Frist schneidet historische Auswertungen ab — Budgets und Berichte stützen sich auf diese Daten.
       placeholder: z. B. 365
-      helper: Nutzungsbuch-Zeilen, die älter sind, werden gelöscht (30–3650 Tage).
+      helper: Nutzungsbuch-Zeilen, die älter sind, werden gelöscht.
     loginAttempts:
       title: Anmeldeversuche
       description: Aufzeichnungen fehlgeschlagener Anmeldeversuche, die älter als die Aufbewahrungsfrist sind, automatisch löschen. Diese Einstellung gilt deployment-weit — der kürzeste Wert aller Organisationen greift.
       placeholder: z. B. 90
-      helper:
-        Einträge zu Anmeldeversuchen, die älter sind, werden gelöscht (7–365
-        Tage).
+      helper: Einträge zu Anmeldeversuchen, die älter sind, werden gelöscht.
   passwordPolicy:
     title: Passwort-Richtlinie
     description: Mindestlänge, Zeichenklassen-Anforderungen und Rotation für
@@ -4543,6 +4564,14 @@ home:
       title: Keine Konversationen
       hint: Kundenkonversationen mit diesem Status erscheinen hier.
       filtered: Keine Konversation passt zur Suche oder zu den Filtern.
+  # Ein Lesevorgang, der aufgegeben hat (#4093): eine Zeile pro Art, die die
+  # Ansicht listet, aneinandergereiht, wenn mehrere fehlschlugen, über den
+  # Zeilen, die geladen wurden.
+  failed:
+    chats: Deine Chats konnten nicht geladen werden.
+    tasks: Deine Aufgaben konnten nicht geladen werden.
+    conversations: Die Kundenkonversationen konnten nicht geladen werden.
+    retrying: Wird erneut versucht…
   aria:
     panel: Start
     stream: Deine Chats, Aufgaben und Konversationen
@@ -7270,6 +7299,7 @@ inbox:
   agentRunFailedBody: 'Der Agent konnte "{title}" nicht fertigstellen. In der Aufgabe siehst du, warum, und kannst ihn erneut starten.'
   agentRunFailedBudgetBody: 'Ein Nutzungslimit hat den Agenten bei "{title}" gestoppt. Sobald ein Admin es anhebt, starte den Agenten erneut.'
   agentRunFailedSetupBody: 'Dem Agenten für "{title}" fehlt etwas, das er braucht. Ein Redakteur oder Admin kann das im Tab "Agenten" des Projekts beheben.'
+  agentRunFailedInputBody: 'Ein Anhang von "{title}" ist nicht mehr im Speicher. Entferne ihn aus der Aufgabe oder lade ihn erneut hoch, und starte den Agenten dann erneut.'
   email:
     cta: In Tale öffnen
     footer:
@@ -7385,6 +7415,7 @@ tasks:
     failure:
       budget: Ein Nutzungslimit hat diesen Lauf gestoppt. Bitte einen Admin, es anzuheben, und starte den Agenten dann erneut.
       setup: 'Dem Agenten fehlt etwas, das er braucht — sein Modell, einer seiner Skills oder der Agent selbst. Ein Redakteur oder Admin kann das im Tab "Agenten" des Projekts beheben.'
+      input: 'Ein Anhang dieser Aufgabe ist nicht mehr im Speicher — unter "Details" steht, welcher. Entferne ihn aus der Aufgabe oder lade ihn erneut hoch, und starte den Agenten dann erneut.'
       time_limit: Der Lauf hat sein Zeitlimit erreicht, bevor der Agent fertig war. Starte den Agenten erneut oder teile die Aufgabe in kleinere auf.
       capacity: Der Lauf hat zu lange auf eine freie Sandbox gewartet. Starte den Agenten erneut, wenn weniger Agenten beschäftigt sind.
       model: Das KI-Modell hinter diesem Agenten ist ausgefallen, bevor die Arbeit erledigt war. Starte den Agenten erneut — schlägt er wieder fehl, bitte einen Admin, den KI-Anbieter zu prüfen.
@@ -7637,6 +7668,7 @@ tasks:
     standardAgentHint: Der Agent der Organisation für Projekte ohne eigene Agenten
     standardAgentFooter: Bis dieses Projekt eigene Agenten hat, übernimmt der Standard-Agent der Organisation seine Aufgaben.
   activity:
+    reviewResponded: "Review entschieden"
     created: Erstellt
     updated: Aktualisiert
     claimed: Übernommen
@@ -7666,6 +7698,9 @@ tasks:
       labels: Keine Labels
       attachments: Keine Anhänge
   review:
+    decisionApproved: "Freigegeben"
+    decisionChangesRequested: "Änderungen angefordert"
+    decisionUnavailable: "Review-Entscheidung nicht verfügbar"
     needsReview: Review ausstehend
     waitingOn: 'Wartet auf {name}'
     waitingOnYou: Wartet auf dein Review
@@ -7678,9 +7713,30 @@ tasks:
   reviewer:
     none: Kein Reviewer
     assignToMe: Selbst prüfen
-    search: Personen suchen
-    clear: Reviewer entfernen
+    search: "Personen und Agenten suchen"
     editorsOnly: Reviewer kann nur sein, wer dieses Projekt bearbeiten kann.
+    projectDefaultLabel: "Projektstandard"
+    projectDefault: "Projektstandard · {reviewer}"
+    projectDefaultHuman: "Projektstandard · Person"
+    independentAgent: "Wähle einen anderen Agenten als den, der die Arbeit erledigt hat."
+    agentReview: "Prüft das Ergebnis aus seiner eigenen Review-Aufgabe."
+    routingHint: "Personen brauchen Bearbeitungsrechte. Agenten brauchen die Berechtigung für Aufgabenreviews und dürfen ihre eigene Arbeit nicht prüfen."
+    pendingFor: "Aktuelles Review: {reviewer}"
+    transferHint: "Wenn du einen Reviewer wählst, überträgst du auch dieses ausstehende Review."
+    agentUnavailable: "Dieser Reviewer-Agent ist nicht verfügbar. Wähle einen anderen Reviewer."
+    agentPermissionRequired: "Dieser Agent braucht die Berechtigung für Aufgabenreviews, bevor er entscheiden kann."
+    saveError: "Reviewer konnte nicht geändert werden"
+    loadError: "Das aktuelle Review konnte nicht geladen werden. Versuche es vor einer Änderung erneut."
+    stale: "Reviewer oder Ergebnis haben sich geändert. Prüfe das aktuelle Review und wähle erneut."
+    handoffRequired: "Übertrage das ausstehende Review ausdrücklich, bevor du den Reviewer änderst."
+    busy: "Warte, bis der aktive Lauf oder die offene Frage erledigt ist, bevor du das Review überträgst."
+    sourceRequired: "Für dieses Ergebnis gibt es keinen unterstützten Umsetzungslauf für ein Review."
+    sourceChanged: "Diese Prüfung passt nicht mehr zum ausführenden Lauf oder zum zugewiesenen Agenten. Stelle bei einer geänderten Zuweisung den ursprünglichen Agenten wieder ein oder übertrage die Prüfung an eine berechtigte Person."
+    humanPolicy: "Die Organisationsrichtlinie verlangt für diese Prüfung eine Person. Übertrage sie an ein berechtigtes Mitglied."
+    policyUnavailable: "Die Prüfrichtlinie konnte nicht gelesen werden. Stelle eine gültige Organisationsrichtlinie wieder her, bevor die Prüfung entschieden wird."
+    notIndependent: "Wähle einen Agenten, der dieses Ergebnis nicht erstellt hat."
+    agentRequired: "Der zugewiesene Reviewer-Agent muss über dieses Review entscheiden."
+    invalid: "Wähle ein berechtigtes Projektmitglied oder einen Agenten dieses Projekts."
   watch:
     watch: Verfolgen
     unwatch: Nicht mehr verfolgen
@@ -8111,6 +8167,7 @@ websites:
       unresolved: Die Zugangsdaten des Embedding-Modells lassen sich nicht verwenden. Ein Admin kann sie unter Einstellungen → KI-Anbieter prüfen.
       dimension: Die Vektoren des Modells passen nicht zu dieser Wissensdatenbank. Ein Admin kann das Embedding-Modell unter Einstellungen → Datenresidenz prüfen.
       upstream: Der Anbieter ist ausgefallen oder nicht erreichbar. Wähle Jetzt scannen, sobald er wieder da ist.
+      throttled: Das Ratenlimit des Anbieters hielt über alle Wiederholungen an. Der nächste Scan macht von selbst weiter; ein Admin kann die Anfragen unter Einstellungen → Datenresidenz drosseln.
       generic: Ein Admin kann das Embedding-Modell unter Einstellungen → Datenresidenz prüfen.
     technicalDetails: Technische Details
   scanPausedBadge: Pausiert
@@ -8185,6 +8242,19 @@ websites:
     warning: Das lässt sich nicht rückgängig machen.
     title: Website löschen
 projects:
+  taskReview:
+    title: "Aufgabenreviews"
+    description: "Wähle, wer abgeschlossene Agentenarbeit in diesem Projekt prüft."
+    defaultReviewer: "Standard-Reviewer"
+    humanDefault: "Person"
+    humanDefaultHint: "Der Aufgabenersteller, dann der Projektersteller, sofern sie das Projekt bearbeiten dürfen."
+    agentHint: "Prüft abgeschlossene Arbeit unabhängig."
+    existingReviews: "Gilt für neue Reviews. Bereits ausstehende Reviews behalten ihren gespeicherten Reviewer."
+    permissionRequired: "Dieser Agent braucht die Berechtigung für Aufgabenreviews, bevor er entscheiden kann."
+    unavailable: "Der gewählte Reviewer-Agent ist nicht verfügbar. Wähle einen anderen Reviewer."
+    stale: "Der Projekt-Reviewer hat sich während deiner Bearbeitung geändert. Verwirf den Entwurf und wähle erneut."
+    search: "Reviewer-Agenten suchen"
+
   title: Projekte
   entityLabel: Projekte
   entityLabelOne: Projekt
@@ -8431,6 +8501,8 @@ projects:
       task_create: Aufgaben erstellen
       task_comment: Aufgaben kommentieren
       task_update_status: Aufgaben zwischen Spalten verschieben
+      task_update_metadata: Aufgabenpriorität und Agentenzuweisung ändern
+      task_review: "Aufgabenergebnisse anderer Agenten prüfen"
       task_start_agent: Andere Agenten auf Aufgaben starten
       task_upsert_by_external_ref: Externes Element mit einer Aufgabe abgleichen
       document_find: Dokumente finden
@@ -8752,6 +8824,8 @@ sandboxes:
     pausedBudget: Pausiert (Budget)
     pinned: Angepinnt
     deletesOn: Wird am {date} gelöscht, falls weiterhin ungenutzt
+    destroying: Wird gelöscht
+    destroyFailed: Nicht gelöscht
   task:
     none: Keine aktive Aufgabe
     project: '{count, plural, one {Projektaufgabe} other {# Projektaufgaben}}'
@@ -8764,13 +8838,14 @@ sandboxes:
     destroy: Löschen
   destroyConfirm:
     title: Sandbox löschen?
-    description: Das löscht die Sandbox und ihren Arbeitsbereich und bricht laufende Aufgaben ab. Beim nächsten Lauf des Agenten entsteht eine neue Sandbox.
+    description: Das löscht die Sandbox und ihren Arbeitsbereich und bricht laufende Aufgaben ab. Sobald sie entfernt ist, entsteht beim nächsten Lauf des Agenten eine neue Sandbox.
     confirm: Löschen
   toast:
     stopped: Aufgabe gestoppt
     pinned: Sandbox angepinnt
     unpinned: Sandbox gelöst
-    destroyed: Sandbox gelöscht
+    destroying: Sandbox wird gelöscht
+    destroyingDescription: Sie verschwindet aus der Liste, sobald ihr Arbeitsbereich gelöscht ist.
     error: Aktion fehlgeschlagen
   empty:
     title: Noch keine Arbeitsbereiche

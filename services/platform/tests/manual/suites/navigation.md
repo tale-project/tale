@@ -1,6 +1,6 @@
 # Navigation & shell
 
-> **Prefix** `NAV-` · **Reset** none · **Cost** 66 boxes
+> **Prefix** `NAV-` · **Reset** none · **Cost** 67 boxes
 
 Exercise cross-app navigation — the primary side-nav rail and the section
 panels beside the page (the Home panel with its projects and its one stream of
@@ -343,15 +343,32 @@ loaded, and reads **No teams** for an account in none.
   `/dashboard/{org}/chat?new=true`; **Tasks** offers **All projects**
   (`home.projects.allProjects`), which opens `/dashboard/{org}/projects`;
   **Inbox** offers none. No view is left blank or on an endless skeleton.
-- [ ] `NAV-F31` · **Hide and show the panel** — On a chat, a task page and an
-  open conversation, press **Hide sidebar** (`home.panel.hide`), the first
-  control of the header; reload; open another chat; press **Show sidebar**
-  (`home.panel.show`) → The panel slides shut — its rows clip at a fixed width
-  rather than rewrapping — and the page takes the room; the toggle flips its
-  name and `aria-expanded`; the fold
-  survives the reload and holds on all three kinds of page in this
-  organization (local storage key `chat-history-panel-open-{orgId}`). On a
-  project page and on the inbox with no conversation open
+- [ ] `NAV-F44` · **Views whose read fails** — With at least one open task
+  assigned to you and one open conversation, block `*/api/app/chat/threads`
+  in DevTools → Network, reload `/dashboard/{org}/projects` and pick **All**,
+  **Chats** and **Tasks**; block `*/api/app/tasks?*` as well, reload and pick
+  them again; unblock both and press **Try again**
+  (`common.actions.tryAgain`) → Once the retries give up, **All** and
+  **Chats** show an alert **Couldn't load your chats.**
+  (`home.failed.chats`) above the stream, **All** keeps listing the tasks
+  and conversations that loaded, and **Tasks** shows no alert. With both
+  blocked, **All** names both kinds (**Couldn't load your tasks.**,
+  `home.failed.tasks`), and no view shows its empty state (`home.empty.*`,
+  NAV-F30) or offers its **New chat** or **All projects** button. While the
+  retry runs the alert reads **Trying again…** (`home.failed.retrying`); the
+  rows come back without a reload. The **Chats** and **Tasks** options show
+  no dot while their read is failed.
+- [ ] `NAV-F31` · **Hide and show the panel** — On a chat, a task page, an
+  open conversation and a project's page
+  (`/dashboard/{org}/projects/{projectId}/tasks/board`), press **Hide
+  sidebar** (`home.panel.hide`), the first control of the header (before the
+  **Projects** breadcrumb on the project's page); reload; open another chat;
+  press **Show sidebar** (`home.panel.show`) → The panel slides shut — its
+  rows clip at a fixed width rather than rewrapping — and the page takes the
+  room; the toggle flips its name and `aria-expanded`; the fold survives the
+  reload and holds on all four kinds of page in this organization (local
+  storage key `chat-history-panel-open-{orgId}`). On the Projects list
+  (`/dashboard/{org}/projects`) and on the inbox with no conversation open
   (`/dashboard/{org}/conversations/open`) the panel shows even while folded,
   and no toggle is offered. Phones never show the toggle.
 - [ ] `NAV-F32` · **Knowledge tabs** — At a desktop width and at phone width
@@ -395,14 +412,15 @@ loaded, and reads **No teams** for an account in none.
   its first message does NOT fade — the composer and the sent message stay as
   they are while the URL gains the chat's id.
 - [ ] `NAV-F36` · **Fold the panel from the keyboard** — On a chat, a task
-  page and an open conversation press ⌘\ (Ctrl+\ off a Mac) twice and hover
-  the **Hide sidebar** toggle (`home.panel.hide`); then press it on a project
-  page and on `/dashboard/{org}/conversations/open` → The first press folds
-  the panel exactly as the toggle does (NAV-F31: its name flips to **Show
-  sidebar**, `home.panel.show`, and the fold survives a reload), the second
-  brings it back; the toggle's tooltip names the shortcut (⌘ \ on a Mac,
-  Ctrl + \ elsewhere); on the project page and the inbox list the keys do
-  nothing and the panel stays.
+  page, an open conversation and a project's page press ⌘\ (Ctrl+\ off a
+  Mac) twice and hover the **Hide sidebar** toggle (`home.panel.hide`); then
+  press it on the Projects list (`/dashboard/{org}/projects`) and on
+  `/dashboard/{org}/conversations/open` → The first press folds the panel
+  exactly as the toggle does (NAV-F31: its name flips to **Show sidebar**,
+  `home.panel.show`, and the fold survives a reload), the second brings it
+  back; the toggle's tooltip names the shortcut (⌘ \ on a Mac, Ctrl + \
+  elsewhere); on the Projects list and the inbox list the keys do nothing and
+  the panel stays.
 - [ ] `NAV-F37` · **Step through your work with ⌥↓ / ⌥↑** — With a chat open
   midway down the **All** view, click the transcript (so no text field holds
   focus) and press ⌥↓ (Alt+↓) a few times, then ⌥↑; repeat with the panel

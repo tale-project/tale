@@ -20,9 +20,16 @@ import {
 import { SANDBOX_AGENT_OP_KINDS } from '../../core/sandbox/session_constants.ts';
 import { invalidBodyResponse } from '../../lib/invalid-body-response.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
-import { classifyOutcome } from './external-turn-outcome.ts';
+import {
+  scheduleSessionDestroy,
+  sessionDestroyStates,
+} from './destroy-schedule.ts';
+import {
+  classifyOutcome,
+  NO_OUTCOME_RESULT_STATUSES,
+} from './external-turn-outcome.ts';
 import { getSandboxDeploymentLimits } from './limits.ts';
-import { pinSession, teardownSession } from './service.ts';
+import { pinSession } from './service.ts';
 import {
   getAgentNodeSandboxOp,
   listRunningOpsBySession,
@@ -30,6 +37,10 @@ import {
 } from './sessions.ts';
 import { reconcileOrgSessions } from './watchdogs.ts';
 import { unusedWorkspaceDeletions } from './workspace-cleanup.ts';
+
+/** The most settled agent ops the external-turn metrics read folds. */
+const EXTERNAL_TURN_METRICS_ROW_CAP = 5000;
+
 /**
  * /api/app/sandbox — the sandbox-management surface: the org's live
  * sessions (with their running ops), always-on pinning, and explicit
@@ -185,8 +196,12 @@ export function createSandboxRoutes(deps: {
         AND o.kind = ANY(${[...SANDBOX_AGENT_OP_KINDS]})
         AND o.finished_at_ms IS NOT NULL
         AND o.started_at_ms >= ${since}
+        -- Not an outcome (parked on a question, waiting for room): left
+        -- out before the cap, which their volume would otherwise fill.
+        AND (o.agent_result_status IS NULL
+          OR o.agent_result_status <> ALL(${[...NO_OUTCOME_RESULT_STATUSES]}))
       ORDER BY o.started_at_ms DESC
-      LIMIT 5000
+      LIMIT ${EXTERNAL_TURN_METRICS_ROW_CAP}
     `;
     let total = 0;
     let completed = 0;
@@ -239,7 +254,8 @@ export function createSandboxRoutes(deps: {
     };
     return c.json({
       periodDays,
-      capped: total >= 5000,
+      // The cap the read hit, whatever the fold then skipped.
+      capped: rows.length >= EXTERNAL_TURN_METRICS_ROW_CAP,
       total,
       completed,
       failed,
@@ -299,6 +315,10 @@ export function createSandboxRoutes(deps: {
         AND o.kind = ANY(${[...SANDBOX_AGENT_OP_KINDS]})
         AND o.started_at_ms >= ${since}
         AND o.status IN ('completed', 'failed')
+        -- A start that waited for room settles its op failed, but no
+        -- harness turn ran: neither a turn nor a failure of the harness.
+        AND (o.agent_result_status IS NULL
+          OR o.agent_result_status <> ALL(${[...NO_OUTCOME_RESULT_STATUSES]}))
         AND coalesce(o.harness, s.agent_kind) IS NOT NULL
       GROUP BY coalesce(o.harness, s.agent_kind)
       LIMIT 20
@@ -337,8 +357,16 @@ export function createSandboxRoutes(deps: {
         )
         .map((session) => session.sessionId),
     );
+    // A Destroy runs as a job: each row says whether one is under way, or
+    // whether the last one failed.
+    const destroys = await sessionDestroyStates(
+      deps.sql,
+      organizationId,
+      sessions.map((session) => session.sessionId),
+    );
     for (const session of sessions) {
       session.deletesAt = deletions.get(session.sessionId) ?? null;
+      session.destroyState = destroys.get(session.sessionId) ?? null;
     }
     return c.json({ sessions });
   });
@@ -398,15 +426,18 @@ export function createSandboxRoutes(deps: {
       : c.json({ error: 'session not found' }, 404);
   });
 
+  /** Queue the session's teardown and answer at once: the job waits for the
+   * session's lifecycle lock and the spawner's delete, which nobody should
+   * watch a dialog spin for (`destroy-schedule.ts`). */
   app.post('/sessions/:sessionId/destroy', async (c) => {
     const denied = requireAdmin(c);
     if (denied) return denied;
-    const destroyed = await teardownSession(deps.sql, {
+    const scheduled = await scheduleSessionDestroy(deps.sql, {
       organizationId: c.get('orgId'),
       sessionId: c.req.param('sessionId'),
     });
-    return destroyed
-      ? c.json({ destroyed: true })
+    return scheduled
+      ? c.json({ scheduled: true }, 202)
       : c.json({ error: 'session not found' }, 404);
   });
 

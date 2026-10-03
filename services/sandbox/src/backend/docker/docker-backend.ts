@@ -11,9 +11,26 @@ import {
   dockerSweepOrphans,
   releaseSpawnerLock,
 } from '../../cleanup.ts';
-import { ensureImage, runDocker } from '../../spawn-util.ts';
+import {
+  ensureImage,
+  runDocker,
+  type RunDockerResult,
+} from '../../spawn-util.ts';
 import type { SpawnerConfig } from '../../types.ts';
 import type { HostBackend, HealthResult, SweepOptions } from '../types.ts';
+
+/** What a `docker version` call says about the daemon. A call that found no
+ * docker CLI slot in time never reached it: that answer is transient, so the
+ * health cache does not report the daemon unhealthy for a minute over it. */
+export function dockerHealth(version: RunDockerResult): HealthResult {
+  if (version.exitCode === 0) {
+    return { ok: true, detail: version.stdout.trim() };
+  }
+  const error = version.stderr.trim() || version.stdout.trim();
+  return version.noSlot === true
+    ? { ok: false, error, transient: true }
+    : { ok: false, error };
+}
 
 export class DockerBackend implements HostBackend {
   readonly kind = 'docker' as const;
@@ -38,15 +55,14 @@ export class DockerBackend implements HostBackend {
     // surface across the 20.10 ↔ 29.x CLI gap (see server.ts probe note).
     // Bounded tightly: the compose healthcheck polls this every 10 s, and a
     // wedged daemon must surface as `unhealthy` in one cycle rather than pile
-    // up hung `docker version` children.
-    const info = await runDocker(
-      ['version', '--format', '{{.Server.Version}}'],
-      { timeoutMs: 5_000 },
+    // up hung `docker version` children. A short call: it never queues
+    // behind a burst of creates.
+    return dockerHealth(
+      await runDocker(['version', '--format', '{{.Server.Version}}'], {
+        timeoutMs: 5_000,
+        priority: true,
+      }),
     );
-    if (info.exitCode !== 0) {
-      return { ok: false, error: info.stderr.trim() || info.stdout.trim() };
-    }
-    return { ok: true, detail: info.stdout.trim() };
   }
 
   async warmImage(): Promise<void> {

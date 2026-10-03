@@ -5,6 +5,8 @@ import { act } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { isBackendReachable, reportBackendReachable } from './connection-state';
+import { backendKey } from './query-keys';
+import { settingsReadAdapters } from './settings';
 import { useBackendHints } from './use-backend-hints';
 
 /** A controllable EventSource double: tests dispatch named SSE events. */
@@ -92,6 +94,23 @@ function abandon(source: FakeEventSource | undefined): void {
 }
 
 describe('useBackendHints', () => {
+  it('refreshes task reviewer defaults when another session changes project settings', () => {
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
+    renderHook(() => useBackendHints('org1'), { wrapper });
+    act(() =>
+      FakeEventSource.instances[0]?.emit(
+        'hint',
+        JSON.stringify({ entity: 'project', entityId: 'p1' }),
+      ),
+    );
+    expect(invalidate.mock.calls.map(([options]) => options?.queryKey)).toEqual(
+      [
+        ['backend', 'org1', 'project'],
+        ['backend', 'org1', 'task', 'reviewer'],
+      ],
+    );
+  });
+
   it('refreshes knowledge-entry indexing when its backing document changes', () => {
     const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
     renderHook(() => useBackendHints('org1'), { wrapper });
@@ -107,6 +126,37 @@ describe('useBackendHints', () => {
         ['backend', 'org1', 'knowledge_entry'],
       ],
     );
+  });
+
+  it('refreshes the organization’s key listing when a governance policy changes', () => {
+    // The listing describes the keys the saved budget rules name. A budgets
+    // save — from this tab, another session, or a configuration import or
+    // rollback through the same door — reaches every open session as a
+    // `governance_policy` hint, and the listing is keyed under `api_key`.
+    const listingOf = (organizationId: string) => {
+      const key = settingsReadAdapters['governance/api_keys:listOrgApiKeys']?.(
+        { organizationId },
+        {},
+      )?.queryKey;
+      if (key === undefined) throw new Error('no key listing read');
+      return key;
+    };
+    const own = listingOf('org1');
+    const otherOrg = listingOf('org2');
+    const ownKeyAccess = backendKey('org1', 'api_key', 'my-access');
+    for (const key of [own, otherOrg, ownKeyAccess]) {
+      queryClient.setQueryData(key, []);
+    }
+    renderHook(() => useBackendHints('org1'), { wrapper });
+    act(() => {
+      FakeEventSource.instances[0]?.emit(
+        'hint',
+        JSON.stringify({ entity: 'governance_policy', entityId: 'budgets' }),
+      );
+    });
+    expect(queryClient.getQueryState(own)?.isInvalidated).toBe(true);
+    expect(queryClient.getQueryState(otherOrg)?.isInvalidated).toBe(false);
+    expect(queryClient.getQueryState(ownKeyAccess)?.isInvalidated).toBe(false);
   });
 
   it('subscribes the org stream and invalidates the entity prefix on a hint', () => {

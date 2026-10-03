@@ -14,7 +14,7 @@ export const RUNNERD_RING_BUFFER_BYTES = 256 * 1024;
 /** Per-consumer in-flight write ceiling. A slow/stalled (but still attached)
  * SSE consumer would otherwise let Node buffer un-drained stdout in the HTTP
  * response unboundedly — the only thing the old fixed stdout cap incidentally
- * bounded. Past this, the daemon stops writing to that ONE consumer (the others
+ * bounded. Past this, the daemon disconnects that ONE consumer (the others
  * are unaffected); it reconnects via /attach?sinceSeq= and replays from the
  * bounded ring. Not a stream cap — it bounds memory, never truncates output. */
 export const RUNNERD_CONSUMER_BUFFER_MAX_BYTES = 8 * 1024 * 1024;
@@ -60,6 +60,8 @@ export interface RunnerdHealth {
     released: boolean;
     pinned: boolean;
     reclaiming: boolean;
+    /** Supports an atomic idle-clock cutoff even for an unreleased session. */
+    idleReclaim?: boolean;
   };
 }
 

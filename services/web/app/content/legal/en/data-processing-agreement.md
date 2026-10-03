@@ -4,7 +4,7 @@ description: How Ruler GmbH processes personal data on behalf of customers using
 noindex: true
 ---
 
-**Last updated:** 11.06.2026
+**Last updated:** 03.10.2026
 
 This Data Processing Agreement ("DPA") is an addendum to the Service Agreement ("Agreement") between Ruler GmbH ("Tale", "we", "us", "our") and the entity or person accepting the Agreement ("Customer", "you", "your"). It applies whenever Tale processes Personal Data on behalf of the Customer in providing the services. By executing the Agreement, the Customer enters into this DPA on its own behalf and, where Applicable Data Protection Law requires, on behalf of its authorized users and affiliates. This DPA takes effect on the date of the Agreement.
 
@@ -132,7 +132,7 @@ g) security awareness training for personnel.
 
 ### 7.2 Certifications
 
-Tale maintains ISO 27001 and SOC 2 Type II certifications (or equivalent standards) and provides evidence of current certification on reasonable request.
+Ruler GmbH maintains ISO 27001 certification covering Tale Enterprise and professional services and provides evidence of current certification on reasonable request.
 
 ### 7.3 Updates
 
@@ -182,7 +182,7 @@ Where assistance with Data Subject requests requires significant effort beyond w
 
 ### 10.1 Audit reports
 
-Tale makes available, on reasonable request and no more than once per year, copies of relevant third-party audit reports or certifications (such as SOC 2 Type II reports and ISO 27001 certificates) to demonstrate compliance with this DPA.
+Tale makes available, on reasonable request and no more than once per year, copies of relevant third-party audit reports or certifications (such as ISO 27001 certificates) to demonstrate compliance with this DPA.
 
 ### 10.2 Additional audits
 

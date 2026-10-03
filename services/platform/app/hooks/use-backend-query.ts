@@ -1,4 +1,4 @@
-import type { UseQueryResult } from '@tanstack/react-query';
+import type { Query, UseQueryResult } from '@tanstack/react-query';
 import { useQuery } from '@tanstack/react-query';
 
 import {
@@ -6,22 +6,24 @@ import {
   READ_ADAPTERS,
   retryAdaptedRead,
   runAdapted,
+  type AdaptedReadOptions,
 } from '@/app/lib/backend/adapters';
 import type { ArgsOf, QueryName, ReturnsOf } from '@/app/lib/backend/contract';
 import { MissingBackendRowError } from '@/app/lib/backend/missing-row';
 
-import { useSessionUser } from './use-session-user';
+import { useSessionProbeSignedIn } from './use-session-probe';
 
 interface ConvexQueryOptions<TData = unknown> {
   staleTime?: number;
   gcTime?: number;
   enabled?: boolean;
   /**
-   * Gate the query on the session probe having resolved. Defaults to `true`,
+   * Gate the query on the session probe holding a user. Defaults to `true`,
    * so authenticated queries never fire during the cold-load auth gap. Set
    * `false` only for queries that MUST run before auth — the `getCurrentUser`
    * probe and genuinely public reads. Adapted reads ignore this gate entirely:
-   * they authenticate with the session cookie, which the browser sends anyway.
+   * they authenticate with the session cookie, which the browser sends anyway,
+   * and do not subscribe to the probe.
    */
   requireAuth?: boolean;
   /**
@@ -49,6 +51,17 @@ type QueryArgs<Name extends QueryName> =
         options?: ConvexQueryOptions<ReturnsOf<Name>>,
       ];
 
+/** The row's poll for react-query: one the last answer decides reads the
+ * fetched body, before any `select`. */
+function adaptedRefetchInterval(
+  adapted: AdaptedReadOptions,
+): number | ((query: Query) => number | false) | undefined {
+  const interval = adapted.refetchInterval;
+  return typeof interval === 'function'
+    ? (query) => interval(query.state.data)
+    : interval;
+}
+
 /**
  * A backend read, addressed by its contract name. The adapter row keyed by
  * that same name serves it over HTTP; a name with no row has no server left
@@ -58,7 +71,6 @@ export function useBackendQuery<Name extends QueryName>(
   name: Name,
   ...[args, options]: QueryArgs<Name>
 ): UseQueryResult<ReturnsOf<Name>> {
-  const { isAuthenticated } = useSessionUser();
   // `requireAuth` is our own gate, not a react-query option — peel it off.
   const { requireAuth = true, ...queryOpts } = options ?? {};
 
@@ -66,6 +78,12 @@ export function useBackendQuery<Name extends QueryName>(
   // options object every render never refetches.
   const adapter = READ_ADAPTERS[name];
   const skipped = args === 'skip';
+  // Only the no-row branch below reads the probe, so only it listens. One
+  // probe observer per adapted read put an observer per mounted read on the
+  // probe's shared query, and each removal scans all of them (#4062).
+  const isAuthenticated = useSessionProbeSignedIn(
+    adapter === undefined && !skipped && requireAuth,
+  );
   const organizationId =
     adapter === undefined ? undefined : activeOrganizationId();
   const adapterCtx = organizationId !== undefined ? { organizationId } : {};
@@ -86,7 +104,7 @@ export function useBackendQuery<Name extends QueryName>(
               ? { staleTime: adapted.staleTime }
               : {}),
             ...(adapted.refetchInterval !== undefined
-              ? { refetchInterval: adapted.refetchInterval }
+              ? { refetchInterval: adaptedRefetchInterval(adapted) }
               : {}),
             ...(adapted.select !== undefined ? { select: adapted.select } : {}),
             retry: retryAdaptedRead,

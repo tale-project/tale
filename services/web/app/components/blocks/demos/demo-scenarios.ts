@@ -27,8 +27,6 @@ export interface ChatScenario {
   routedDetail: string;
   replies: readonly [string, string, string, string];
   citations: readonly [string, string];
-  /** Agent chip after routing resolves (brand/agent name, unlocalized). */
-  agentRouted: string;
   model: string;
 }
 
@@ -49,7 +47,6 @@ export function useChatScenario(
       t(`${prefix}.reply4`),
     ],
     citations: [t(`${prefix}.citation1`), t(`${prefix}.citation2`)],
-    agentRouted: t(`${prefix}.composerAgentRouted`),
     model: t(`${prefix}.composerModel`),
   };
 }
@@ -172,7 +169,6 @@ export function useGovernScenario(
 export interface ArenaScenario {
   label: string;
   prompt: string;
-  agent: string;
   modelA: string;
   modelB: string;
   repliesA: readonly [string, string, string];
@@ -187,7 +183,6 @@ export function useArenaScenario(
   return {
     label: t(`${prefix}.label`),
     prompt: t(`${prefix}.prompt`),
-    agent: t(`${prefix}.agent`),
     modelA: t(`${prefix}.modelA`),
     modelB: t(`${prefix}.modelB`),
     repliesA: [
@@ -279,6 +274,9 @@ export interface SandboxScenario {
   codeLines: readonly [string, string, string, string];
   browserUrl: string;
   browserTitle: string;
+  previewTitle: string;
+  previewDescription: string;
+  previewItems: readonly { title: string; detail: string }[];
 }
 
 export function useSandboxScenario(
@@ -307,5 +305,11 @@ export function useSandboxScenario(
     ],
     browserUrl: t(`${prefix}.browserUrl`),
     browserTitle: t(`${prefix}.browserTitle`),
+    previewTitle: t(`${prefix}.previewTitle`),
+    previewDescription: t(`${prefix}.previewDescription`),
+    previewItems: [1, 2, 3].map((index) => ({
+      title: t(`${prefix}.previewItem${index}`),
+      detail: t(`${prefix}.previewDetail${index}`),
+    })),
   };
 }

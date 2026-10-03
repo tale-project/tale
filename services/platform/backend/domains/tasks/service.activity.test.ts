@@ -21,6 +21,7 @@ vi.mock('../files/upload-intents.ts', () => ({
   firstForeignUpload: vi.fn().mockResolvedValue(null),
 }));
 vi.mock('./reviews.ts', () => ({
+  getPendingReviewForTask: vi.fn(() => Promise.resolve(null)),
   closePendingTaskReviewOnStatusLeave: vi.fn(),
   collectPendingReviewsForProjects: vi.fn(() => Promise.resolve([])),
   requestTaskReview: vi.fn(),
@@ -69,6 +70,7 @@ const project: ProjectRow = {
   openTaskCount: 1,
   doneTaskCount: 0,
   projectAgentCount: 0,
+  defaultTaskReviewerAgentId: null,
   teamId: null,
   sharedWithTeamIds: [],
   teamIds: [],
@@ -96,6 +98,7 @@ function taskRow(overrides: Partial<TaskRow> = {}): TaskRow {
     assigneeType: null,
     assigneeId: null,
     reviewerUserId: 'u-alice',
+    reviewerAgentId: null,
     parentTaskId: null,
     commentCount: 0,
     rank: 'a0',

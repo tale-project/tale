@@ -1,16 +1,36 @@
+import type {
+  TaskAgentRepairReceipt,
+  TaskAgentResumeFrom,
+} from '@tale/shared/schemas/task-review';
 import type { TransactionSql } from 'postgres';
 
 import { parseRunStarter } from '../../../lib/shared/run-starter.ts';
+import { SANDBOX_SESSION_LIVE_STATUSES } from '../../core/sandbox/session_constants.ts';
 import { standingSessionIdForProjectAgent } from '../../core/sandbox/session_naming.ts';
+import {
+  freeCooldownWaits,
+  type AutoRetryRunFacts,
+} from '../../core/tasks/task_auto_retry.ts';
 import { loadProjectOrThrow } from '../projects/service.ts';
 import { kickAgentRun, type StartedVia } from './agent-runs.ts';
+import { openTaskBlockerIds } from './dependencies.ts';
 import { TaskError } from './errors.ts';
 import { markAutoRetryRetired } from './kick-plan.ts';
+import {
+  prepareRepair,
+  readRepairDecision,
+  replayRepair,
+  repairFeedback,
+  recordRepairAdmission,
+  staleRepair,
+  type RepairDecision,
+  type StaleRepair,
+} from './review-repair.ts';
 import {
   isTaskRunConfined,
   runStarterMayEditProject,
 } from './run-authority.ts';
-import { assertTaskAutomationEnabled } from './run-start.ts';
+import { assertTaskAutomationEnabled, lockTaskRunStart } from './run-start.ts';
 import {
   agentAssignTaskToAgentTrusted,
   agentHandTaskToInProgressTrusted,
@@ -54,18 +74,22 @@ import {
  *   per task, 0080): a schedule's occurrence that finds its role still
  *   working is coalesced, not queued behind it;
  * - `in_review` / `closed` — an in-place start (`moveToInProgress: false`)
- *   under a card that waits for a person's review, or one already Done or
+ *   under a card that waits for its reviewer, or one already Done or
  *   Cancelled: the card would go on presenting the previous work for
  *   judgment (or as finished) while new work runs under it, and the pending
  *   review would refer to superseded work. Nothing is assigned or started;
  *   the default start moves the card and withdraws the review instead;
  * - `stale_question` — a resumption (`resumeFrom`) whose question is no
- *   longer the task's open question: a person decided (Done, Cancelled, a
+ *   longer the task's open question: the task was decided (Done, Cancelled, a
  *   move), a newer run or review exists, the assignee changed (another
  *   agent, a person, nobody), or the task is being worked. Checked under the
  *   task's row lock before anything is assigned, withdrawn, moved or
- *   started, so a decision a person made between the requester's read and
+ *   started, so a decision made between the requester's read and
  *   this start is never undone;
+ * - `stale_repair` — a tagged settled-review repair no longer matches the
+ *   rejected native decision, latest source, assignee or untouched task
+ *   history. Its durable admission receipt admits at most one repair and
+ *   can be replayed by a later authorized live run of the same manager;
  * - `agent_busy` — the agent is working another task in its standing
  *   workspace, which every run it is started for here shares: one active
  *   piece of work per agent workspace. The automatic retry of such a run
@@ -78,10 +102,10 @@ import {
  * - `paused` — the per-task circuit breaker ({@link admitAutomatedStart}):
  *   at most {@link AUTOMATED_STARTS_PER_TASK_PER_HOUR} starts by
  *   automations and agents per task in any rolling hour, their automatic
- *   retries included, so two agents (or an agent and a schedule) cannot
- *   restart one task in a loop, and failing retries cannot stretch the
- *   budget. The refusal lands on the task's timeline (`agent_run.refused`,
- *   `task_circuit_breaker`); a person's own Start, and its retries, are
+ *   retries included (a broker cooldown after its own 429 spends no second
+ *   start), so two agents (or an agent and a schedule) cannot restart one
+ *   task in a loop, and failing retries cannot stretch the budget. The refusal
+ *   lands on the task's timeline (`agent_run.refused`, `task_circuit_breaker`); a person's own Start, and its retries, are
  *   never counted or refused by it.
  *
  * The slot receipt: an automation step starts a task at most once per
@@ -90,7 +114,7 @@ import {
  *
  * The card: `moveToInProgress` (the default) moves it to In progress, as
  * Start agent does, withdrawing a pending review (never approving one), and
- * the completion parks it at In review for a person. `false` leaves it where
+ * the completion parks it at In review for its reviewer. `false` leaves it where
  * it is — a standing task that reports on every occurrence — and the run
  * records that intent (`in_place`, 0139), so its successful completion
  * neither moves the card nor asks for a review, whatever column the card is
@@ -104,8 +128,8 @@ export const SCHEDULE_REVOKED_BEFORE_LAUNCH =
   'The schedule that started this run was paused or removed, or its automation is no longer bound to the project, before the run launched — nothing ran.';
 
 /** Starts by automations and agents one task takes in any rolling hour —
- * their automatic retries included — before the circuit breaker refuses the
- * next. */
+ * their automatic retries included, except the existing free cooldown wait
+ * after the run's own 429 — before the circuit breaker refuses the next. */
 export const AUTOMATED_STARTS_PER_TASK_PER_HOUR = 3;
 
 const HOUR_MS = 60 * 60 * 1000;
@@ -117,8 +141,10 @@ const HOUR_MS = 60 * 60 * 1000;
  * one (`task.agent_retry`: a retry inherits `started_via`, so it stays
  * automated). It admits while the task has taken fewer than
  * {@link AUTOMATED_STARTS_PER_TASK_PER_HOUR} such starts in the last hour —
- * every run row carrying `started_via`, whatever its trigger — and records a
- * refusal on the task's timeline as the refused agent (`agent_run.refused`,
+ * every run row carrying `started_via`, whatever its trigger, except the
+ * broker wait its retry budget already counts as part of the preceding 429
+ * ({@link freeCooldownWaits}) — and records a refusal on the task's timeline
+ * as the refused agent (`agent_run.refused`,
  * `task_circuit_breaker`: "<agent> could not start: agent runs are paused on
  * this task"). Runs a person started carry no `started_via`, so neither they
  * nor their retries count, and neither is ever refused here.
@@ -140,12 +166,49 @@ export async function admitAutomatedStart(
     FOR UPDATE
   `;
   const now = Date.now();
-  const recent = await tx<{ startedAt: number }[]>`
-    SELECT started_at_ms::float8 AS "startedAt" FROM app.project_agent_runs
-    WHERE task_id = ${args.task.id} AND started_via IS NOT NULL
-      AND started_at_ms > ${now - HOUR_MS}
-    ORDER BY started_at_ms
+  const since = now - HOUR_MS;
+  // The cooldown rule reads actual predecessor order. Keep human runs in
+  // that order and the row just before the hour's first run: filtering them
+  // out first could make an unrelated 429 look adjacent, or charge a wait
+  // whose own 429 just aged out. The seq index bounds this to the hour's
+  // history plus its predecessor, including any intervening clock rollback.
+  const history = await tx<
+    (Pick<AutoRetryRunFacts, 'agentId' | 'status'> & {
+      startedAt: number;
+      automated: boolean;
+      failureCode: string | null;
+      apiErrorStatus: number | null;
+    })[]
+  >`
+    WITH oldest_recent AS (
+      SELECT min(seq) AS seq FROM app.project_agent_runs
+      WHERE task_id = ${args.task.id} AND org_id = ${args.task.organizationId}
+        AND started_at_ms > ${since}
+    ), predecessor AS (
+      SELECT max(seq) AS seq FROM app.project_agent_runs
+      WHERE task_id = ${args.task.id} AND org_id = ${args.task.organizationId}
+        AND seq < (SELECT seq FROM oldest_recent)
+    )
+    SELECT started_at_ms::float8 AS "startedAt",
+           started_via IS NOT NULL AS automated,
+           agent_id AS "agentId", status, failure_code AS "failureCode",
+           api_error_status AS "apiErrorStatus"
+    FROM app.project_agent_runs
+    WHERE task_id = ${args.task.id} AND org_id = ${args.task.organizationId}
+      AND seq >= coalesce((SELECT seq FROM predecessor),
+                          (SELECT seq FROM oldest_recent))
+    ORDER BY seq DESC
   `;
+  const waits = freeCooldownWaits(
+    history.map((run) => ({
+      ...run,
+      failureCode: run.failureCode ?? undefined,
+      apiErrorStatus: run.apiErrorStatus ?? undefined,
+    })),
+  );
+  const recent = history.filter(
+    (run, index) => run.automated && run.startedAt > since && !waits[index],
+  );
   if (recent.length < AUTOMATED_STARTS_PER_TASK_PER_HOUR) {
     return { admitted: true };
   }
@@ -158,7 +221,11 @@ export async function admitAutomatedStart(
   });
   return {
     admitted: false,
-    retryAfter: (recent[0]?.startedAt ?? now) + HOUR_MS,
+    retryAfter:
+      recent.reduce(
+        (oldest, run) => Math.min(oldest, run.startedAt),
+        Infinity,
+      ) + HOUR_MS,
   };
 }
 
@@ -288,9 +355,12 @@ export interface DelegatedAgentStartArgs {
    * run's agent still the assignee, no live work — and otherwise answers
    * `stale_question` and changes nothing. Without `agentId` it resumes that
    * run's agent, never whoever holds the task now. A deliberate start leaves
-   * it out.
+   * it out. The tagged `review_repair` form instead consumes one genuine
+   * native changes-requested decision under its own guard. It derives the
+   * implementer and feedback, preserves intervening decisions, and records
+   * a replayable admission without modifying the rejected decision.
    */
-  resumeFrom?: { runId: string; approvalId: string };
+  resumeFrom?: TaskAgentResumeFrom;
 }
 
 /** Why a resumption's question is no longer the task's open question. */
@@ -301,6 +371,7 @@ export type StaleQuestionCause =
   | 'assignee_changed';
 
 export type DelegatedAgentStart =
+  | StaleRepair
   | {
       outcome: 'started';
       runId: string;
@@ -308,6 +379,8 @@ export type DelegatedAgentStart =
       agentId: string;
       /** The step's first delivery started this run; this one found it. */
       replayed?: true;
+      /** Durable source/manager binding for a guarded repair admission. */
+      repairReceipt?: TaskAgentRepairReceipt;
     }
   | {
       outcome: 'already_running';
@@ -325,7 +398,7 @@ export type DelegatedAgentStart =
       staleBecause: StaleQuestionCause;
     }
   | {
-      /** An in-place start refused: a person's review is pending. */
+      /** An in-place start refused: a review is pending. */
       outcome: 'in_review';
       taskId: string;
       agentId: string;
@@ -371,6 +444,7 @@ async function assertDelegatingRun(
   args: {
     organizationId: string;
     via: Extract<StartedVia, { kind: 'agent' }>;
+    requireCurrentGrant?: boolean;
   },
 ): Promise<void> {
   const runs = await tx<
@@ -380,14 +454,25 @@ async function assertDelegatingRun(
       sessionId: string;
       startedBy: string;
       startedVia: string | null;
+      repairAllowed: boolean;
     }[]
   >`
-    SELECT project_id AS "projectId", agent_id AS "agentId",
-           session_id AS "sessionId", started_by AS "startedBy",
-           started_via AS "startedVia"
-    FROM app.project_agent_runs
-    WHERE id = ${args.via.runId} AND org_id = ${args.organizationId}
-      AND agent_id = ${args.via.agentId} AND status IN ('queued', 'running')
+    SELECT r.project_id AS "projectId", r.agent_id AS "agentId",
+           r.session_id AS "sessionId", r.started_by AS "startedBy",
+           r.started_via AS "startedVia",
+           (${args.requireCurrentGrant !== true} OR (
+             EXISTS (SELECT 1 FROM app.project_agents a
+               WHERE a.org_id = r.org_id AND a.project_id = r.project_id AND a.id = r.agent_id
+                 AND 'task_start_agent' = ANY(a.tools))
+             AND EXISTS (SELECT 1 FROM app.sandbox_sessions s
+               WHERE s.org_id = r.org_id AND s.session_id = r.session_id
+                 AND s.owner_type = 'project_agent' AND s.owner_id = r.agent_id
+                 AND s.status IN ${tx([...SANDBOX_SESSION_LIVE_STATUSES])}
+                 AND s.expires_at_ms > ${Date.now()})
+           )) AS "repairAllowed"
+    FROM app.project_agent_runs r
+    WHERE r.id = ${args.via.runId} AND r.org_id = ${args.organizationId}
+      AND r.agent_id = ${args.via.agentId} AND r.status IN ('queued', 'running')
     LIMIT 1
   `;
   const run = runs[0];
@@ -395,6 +480,13 @@ async function assertDelegatingRun(
     throw new TaskError(
       'AGENT_START_FORBIDDEN',
       'The run asking to start an agent has ended; only a live run may put another agent to work',
+      403,
+    );
+  }
+  if (args.requireCurrentGrant === true && !run.repairAllowed) {
+    throw new TaskError(
+      'AGENT_START_FORBIDDEN',
+      'This live manager no longer has the task delegation permission',
       403,
     );
   }
@@ -512,6 +604,24 @@ export async function startDelegatedAgentRun(
   tx: TransactionSql,
   args: DelegatedAgentStartArgs,
 ): Promise<DelegatedAgentStart> {
+  const repairFrom =
+    args.resumeFrom !== undefined && 'kind' in args.resumeFrom
+      ? args.resumeFrom
+      : undefined;
+  const questionFrom =
+    args.resumeFrom !== undefined && !('kind' in args.resumeFrom)
+      ? args.resumeFrom
+      : undefined;
+  if (
+    repairFrom !== undefined &&
+    (args.via.kind !== 'agent' || args.moveToInProgress === false)
+  ) {
+    throw new TaskError(
+      'AGENT_START_FORBIDDEN',
+      'A review repair needs a live manager and the ordinary task lifecycle',
+      403,
+    );
+  }
   const trigger = args.via.kind === 'agent' ? 'delegated' : 'automation';
   let task = await loadTaskOrThrow(tx, args.taskId, args.organizationId).catch(
     (error: unknown) => {
@@ -586,12 +696,26 @@ export async function startDelegatedAgentRun(
     await assertDelegatingRun(tx, {
       organizationId: args.organizationId,
       via: args.via,
+      requireCurrentGrant: repairFrom !== undefined,
     });
   }
   await assertTaskAutomationEnabled(tx, args.organizationId);
 
+  if (repairFrom !== undefined && args.via.kind === 'agent') {
+    const record = await readRepairDecision(tx, task, repairFrom);
+    if ('outcome' in record) return record;
+    const replay = await replayRepair(
+      tx,
+      task,
+      record,
+      args.via.agentId,
+      args.agentId,
+    );
+    if (replay !== null) return replay;
+  }
+  let preparedRepair: RepairDecision | undefined;
   let agentId = args.agentId ?? task.assigneeId;
-  if (args.agentId === undefined && args.resumeFrom !== undefined) {
+  if (args.agentId === undefined && questionFrom !== undefined) {
     // A resumption resumes the agent that asked — its run's own agent, never
     // whoever holds the task now: a task handed to a person, unassigned or
     // passed to another agent since the requester's read is the question's
@@ -599,20 +723,34 @@ export async function startDelegatedAgentRun(
     agentId = await agentOfTaskRun(tx, {
       organizationId: args.organizationId,
       taskId: task.id,
-      runId: args.resumeFrom.runId,
+      runId: questionFrom.runId,
     });
-  } else if (agentId === null) {
+  } else if (repairFrom === undefined && agentId === null) {
     throw new TaskError(
       'TASK_NO_AGENT_ASSIGNEE',
       'The task has no agent assignee; name the agent to start',
       409,
     );
-  } else if (args.agentId === undefined && task.assigneeType !== 'agent') {
+  } else if (
+    repairFrom === undefined &&
+    args.agentId === undefined &&
+    task.assigneeType !== 'agent'
+  ) {
     throw new TaskError(
       'TASK_NO_AGENT_ASSIGNEE',
       'The task is assigned to someone other than an agent; name the agent to start',
       409,
     );
+  }
+  if (repairFrom !== undefined) {
+    agentId = await agentOfTaskRun(tx, {
+      organizationId: args.organizationId,
+      taskId: task.id,
+      runId: repairFrom.runId,
+    });
+    if (agentId === null) return staleRepair(task.id, 'source_unavailable');
+    if (args.agentId !== undefined && args.agentId !== agentId)
+      return staleRepair(task.id, 'assignee_changed', agentId);
   }
   // One active piece of work per agent workspace: the agent row is the
   // lock two starts of the same agent queue on (`lockAgentForStart`), taken
@@ -626,7 +764,9 @@ export async function startDelegatedAgentRun(
           projectId: task.projectId,
         });
   if (agent === null) {
-    if (args.agentId === undefined && args.resumeFrom !== undefined) {
+    if (repairFrom !== undefined)
+      return staleRepair(task.id, 'source_unavailable', agentId);
+    if (args.agentId === undefined && questionFrom !== undefined) {
       // Nobody to resume: the run named is not this task's, or its agent is
       // gone (deleting an agent unassigns its tasks). Not the open question
       // either way; the guard, under the task's row lock, says what changed.
@@ -639,7 +779,7 @@ export async function startDelegatedAgentRun(
             organizationId: args.organizationId,
             taskId: task.id,
             agentId: null,
-            resumeFrom: args.resumeFrom,
+            resumeFrom: questionFrom,
           })) ?? 'assignee_changed',
       };
     }
@@ -659,12 +799,12 @@ export async function startDelegatedAgentRun(
 
   // A resumption checks, under the task's row lock and before anything is
   // written, that it still answers the task's open question.
-  if (args.resumeFrom !== undefined) {
+  if (questionFrom !== undefined) {
     const cause = await staleQuestionCause(tx, {
       organizationId: args.organizationId,
       taskId: task.id,
       agentId: agent.id,
-      resumeFrom: args.resumeFrom,
+      resumeFrom: questionFrom,
     });
     if (cause !== null) {
       return {
@@ -674,6 +814,20 @@ export async function startDelegatedAgentRun(
         staleBecause: cause,
       };
     }
+  }
+
+  if (repairFrom !== undefined && args.via.kind === 'agent') {
+    await lockTaskRunStart(tx, args.organizationId, task.id);
+    task = await loadTaskOrThrow(tx, task.id, args.organizationId);
+    const repair = await prepareRepair(
+      tx,
+      task,
+      repairFrom,
+      agent.id,
+      args.via.agentId,
+    );
+    if ('outcome' in repair) return repair;
+    preparedRepair = repair;
   }
 
   // The task's own live run carries the work: a schedule's occurrence that
@@ -739,19 +893,13 @@ export async function startDelegatedAgentRun(
     };
   }
 
-  const blockers = await tx<{ id: string }[]>`
-    SELECT t.id FROM app.task_dependencies d
-    JOIN app.tasks t ON t.id = d.blocker_task_id
-    WHERE d.blocked_task_id = ${task.id}
-      AND t.status NOT IN ${tx([...TERMINAL_STATUSES])}
-    ORDER BY t.id
-  `;
+  const blockers = await openTaskBlockerIds(tx, task.id);
   if (blockers.length > 0) {
     return {
       outcome: 'blocked',
       taskId: task.id,
       agentId: agent.id,
-      blockedBy: blockers.map((row) => row.id),
+      blockedBy: blockers,
     };
   }
 
@@ -787,9 +935,11 @@ export async function startDelegatedAgentRun(
     trigger,
     startedVia: args.via,
     inPlace: args.moveToInProgress === false,
-    ...(args.feedback !== undefined && args.feedback.trim() !== ''
-      ? { feedback: args.feedback }
-      : {}),
+    ...(preparedRepair !== undefined
+      ? { feedback: repairFeedback(preparedRepair, args.feedback) }
+      : args.feedback !== undefined && args.feedback.trim() !== ''
+        ? { feedback: args.feedback }
+        : {}),
   });
   if (kicked.reused) {
     return {
@@ -806,10 +956,20 @@ export async function startDelegatedAgentRun(
       actorId: actorOf(args.via),
     });
   }
+  const repairReceipt =
+    preparedRepair !== undefined && args.via.kind === 'agent'
+      ? await recordRepairAdmission(tx, task, preparedRepair, {
+          runId: kicked.runId,
+          implementationAgentId: agent.id,
+          managerAgentId: args.via.agentId,
+          issuerRunId: args.via.runId,
+        })
+      : undefined;
   return {
     outcome: 'started',
     runId: kicked.runId,
     taskId: task.id,
     agentId: agent.id,
+    ...(repairReceipt !== undefined ? { repairReceipt } : {}),
   };
 }

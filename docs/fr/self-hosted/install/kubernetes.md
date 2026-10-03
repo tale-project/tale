@@ -10,7 +10,7 @@ Tale fonctionne sur Kubernetes lorsque tu transposes le [contrat de services](/f
 | Prérequis | Pourquoi il compte |
 | --- | --- |
 | Un CNI qui applique NetworkPolicy, comme Calico, Cilium ou kube-network-policies | La barrière de sortie des sandboxes et celle du backend sont des objets NetworkPolicy. Tout serveur d’API les accepte ; seul le CNI bloque réellement le trafic. |
-| Une StorageClass par défaut dont les volumes `ReadWriteOnce` se rattachent là où un Pod est planifié | La base de données, le stockage d’objets, les certificats du proxy, l’état de la passerelle et chaque workspace de sandbox vivent sur des PersistentVolumeClaims. |
+| Une StorageClass par défaut dont les volumes `ReadWriteOnce` se rattachent là où un Pod est planifié | La base de données, le stockage d’objets, les certificats du proxy, l’état de la passerelle et chaque workspace de sandbox vivent sur des PersistentVolumeClaims. Le volume d’un workspace de sandbox supprimé suit la `reclaimPolicy` de la StorageClass : avec `Delete`, ses fichiers disparaissent avec lui ; avec `Retain`, ils restent jusqu’à ce que tu supprimes le volume. |
 | Un stockage `ReadWriteMany`, ou un seul nœud, pour la configuration des organisations | Les rôles backend écrivent `config-data` ; la couche web et le spawner le lisent. Sur un nœud, `ReadWriteOnce` suffit. Plusieurs nœuds exigent `ReadWriteMany` ou l’épinglage de ces Pods sur un nœud. |
 | Des nœuds qui accordent `NET_ADMIN` et fournissent ip6tables, ou autorisent les sysctls IPv6 | Le proxy de sortie installe son pare-feu au démarrage et refuse de démarrer sans lui. |
 | Les ports 80 et 443 joignables à l’adresse publique | Caddy obtient lui-même les certificats en mode `selfsigned` et `letsencrypt`. Derrière un Ingress qui termine TLS, définis `TLS_MODE=external`. |
@@ -471,6 +471,8 @@ Deux alternatives conservent le même Pod :
 
 Le proxy de sortie a besoin du jeu de capabilities du contrat Compose et d’aucun sysctl : le script d’entrée installe le pare-feu IPv6 avec ip6tables lorsque le noyau du nœud le fournit, et désactive sinon IPv6 dans son propre espace de noms réseau. Un cluster qui refuse les deux bloque le Pod au démarrage ; autorise dans ce cas les sysctls `net.ipv6.conf.*` sur le kubelet. Le spawner crée les Pods de session, les Secrets et les claims de workspace via l’API Kubernetes ; il s’exécute donc avec une Role limitée au namespace et sans socket Docker.
 
+Le proxy sert `SANDBOX_EGRESS_MAX_CLIENTS` connexions à la fois (2000 par défaut) pour l’ensemble des sessions, chacune avec un thread et deux fichiers ouverts. Une spécification de Pod ne peut fixer ni limite de processus ni limite de fichiers ouverts : au démarrage, le proxy relève sa limite de fichiers ouverts à ce dont ses connexions ont besoin, dans la mesure où la limite stricte du runtime de conteneurs le permet, et avertit dans son journal quand elle est trop basse. Ses threads comptent dans le `podPidsLimit` du kubelet ; si tes nœuds en fixent un, garde-le au-dessus de la limite de connexions, ou abaisse `SANDBOX_EGRESS_MAX_CLIENTS` en conséquence.
+
 ```yaml
 # 40-sandbox.yaml
 apiVersion: v1
@@ -494,6 +496,8 @@ spec:
       containers:
         - name: egress
           image: ghcr.io/tale-project/tale/tale-sandbox-egress:${VERSION}
+          env:
+            - { name: SANDBOX_EGRESS_MAX_CLIENTS, value: '2000' }
           securityContext:
             runAsUser: 0
             capabilities:
@@ -638,7 +642,8 @@ spec:
 | `SANDBOX_K8S_NAMESPACE` | Le namespace où sont créés les Pods de session, les Secrets et les claims de workspace ; dans cette organisation, celui du spawner lui-même. `tale-sandbox` par défaut. |
 | `SANDBOX_RUNTIME_IMAGE` | L’image du runtime sandbox Tale correspondante, accessible à chaque nœud. |
 | `NODE_EXTRA_CA_CERTS` | Le fichier CA du cluster, généralement `/var/run/secrets/kubernetes.io/serviceaccount/ca.crt` dans le spawner. C’est le seul mécanisme de confiance CA que le spawner respecte ; garde la vérification TLS active. |
-| `SANDBOX_K8S_WORKSPACE_SIZE_LIMIT` | La taille de chaque claim de workspace `/agent`, `4Gi` par défaut ; limite aussi le stockage temporaire du Docker interne lorsqu’il est activé. |
+| `SANDBOX_K8S_WORKSPACE_SIZE_LIMIT` | La taille du claim de workspace `/agent` de chaque session d’agent, `4Gi` par défaut ; limite aussi le workspace temporaire d’un rendu du crawler, qui se passe de claim puisqu’il n’est jamais repris, et le stockage temporaire du Docker interne lorsqu’il est activé. |
+| `SANDBOX_K8S_CPU_REQUEST` / `SANDBOX_K8S_MEMORY_REQUEST` | Ce que chaque Pod de session demande au planificateur, en quantités Kubernetes. Sans valeur, un Pod d’agent demande `250m` et `512Mi` (`1Gi` avec Docker dans la sandbox) et un rendu du crawler `250m` et `512Mi` ; une demande ne dépasse jamais la limite du Pod. Augmente-les quand les agents de tes nodes lancent des builds plus lourds, pour que le planificateur ne place pas plus de sessions qu’un node ne peut en porter. |
 | `SANDBOX_K8S_CACHE_STORAGECLASS` | La StorageClass des claims de workspace ; sans valeur, celle du cluster s’applique. |
 | `SANDBOX_RUNTIME` / `SANDBOX_RUNTIME_CLASS` | Un niveau de runtime pris en charge et, si nécessaire, le nom de la RuntimeClass installée. |
 | `SANDBOX_EGRESS_PROXY` | Le Service de sortie utilisé par les sessions, `http://sandbox-egress:3128` par défaut. |

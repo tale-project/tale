@@ -139,6 +139,34 @@ export function isHollowSiteScan(
   return !pages.some((page) => page.chunks_count > 0 || page.fail_count > 0);
 }
 
+/**
+ * Whether the reason is the crawl action's tally of the pages it attempted
+ * ("No page could be stored: 2 of 2 attempted pages failed …"): the one
+ * reason the page rows explain themselves. A lost database, a sitemap that
+ * timed out or a failed registration is not theirs to explain, however many
+ * pages failed or were skipped beside it.
+ */
+export function isPageTallyReason(message: string): boolean {
+  return /no page could be stored: \d+ of \d+ attempted pages failed/i.test(
+    message,
+  );
+}
+
+/**
+ * Whether the site has a page the crawler failed or skipped, by the site's
+ * counts — those every pages answer carries, whichever state the list is
+ * narrowed to, or the row's failed count while the first read is out
+ * (null) — never by the rows one window of the list holds: a filter or
+ * "Load more" showed and hid the same scan's Alert (#4068).
+ */
+export function hasFailedOrSkippedPages(
+  website: { failedPageCount?: number },
+  counts: { failed: number; skipped: number } | null,
+): boolean {
+  if (counts !== null) return counts.failed + counts.skipped > 0;
+  return (website.failedPageCount ?? 0) > 0;
+}
+
 export type EmbeddingFailureClass = WebsiteEmbeddingFailureClass;
 
 /**
@@ -163,6 +191,7 @@ export function embeddingHintKey(
   | 'viewDialog.scanDetail.credit'
   | 'viewDialog.scanDetail.unresolved'
   | 'viewDialog.scanDetail.dimension'
+  | 'viewDialog.scanDetail.throttled'
   | 'viewDialog.scanDetail.upstream'
   | 'viewDialog.scanDetail.generic' {
   switch (failureClass) {
@@ -174,6 +203,8 @@ export function embeddingHintKey(
       return 'viewDialog.scanDetail.unresolved';
     case 'dimension':
       return 'viewDialog.scanDetail.dimension';
+    case 'throttled':
+      return 'viewDialog.scanDetail.throttled';
     case 'upstream':
       return 'viewDialog.scanDetail.upstream';
     default:

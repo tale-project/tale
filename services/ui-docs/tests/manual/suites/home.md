@@ -2,77 +2,40 @@
 
 > **Prefix** `HOME-` · **Reset** none · **Cost** ~15 min
 
-The marketing front page at `/` — the one route on this site in the
-**marketing** design language (`@tale/marketing-ui`): the `SiteHeader`, the
-hero, the product window built from the shipped `@tale/ui` components, the
-section cards, the install band and the closing call to action. Everything
-under `/docs` is a different language and has its own suite
-([docs.md](docs.md)).
+The component studio at `/` uses the **marketing** design language
+(`@tale/marketing-ui`): shared site chrome, a split hero with working controls,
+visual package choices, a guide catalog, installation commands, and a closing
+link to the introduction. Everything under `/docs` keeps the shared application
+documentation frame and has its own suite ([docs.md](docs.md)).
 
 ## Scope & routes
 
-| Surface           | Route / source                                                                 |
-| ----------------- | ------------------------------------------------------------------------------ |
-| Front page        | `{base}/`                                                                      |
-| Chrome            | `app/components/home/site-chrome.tsx` (`SiteHeader`, the compact footer bar)   |
-| Product window    | `app/components/home/home-showcase.tsx` (`DemoStage` + `DemoShell`)            |
-| Page composition  | `app/pages/home-page.tsx`                                                      |
+| Surface | Route / source |
+| --- | --- |
+| Front page | `{base}/` |
+| Chrome | `app/components/home/site-chrome.tsx` (`SiteHeader`, compact footer) |
+| Component studio | `app/components/home/home-showcase.tsx` (local state and shipped controls) |
+| Page composition | `app/pages/home-page.tsx` |
 
 ## Preconditions
 
 The dev server up per [`../setup.md`](../setup.md), a 1440×900 viewport, the OS
 in light mode, `prefers-reduced-motion` **off** unless a box says otherwise.
 
-> **Agent note**: the sections below the hero fade in when scrolled into view
-> (`Reveal`, opacity-only). A full-page screenshot taken without scrolling shows
-> them blank — that is the motion contract, not a finding (`HOME-8` judges it).
-
 ## Boxes
 
-- [ ] `HOME-1` · **Open `/`** → the header carries the logo, **Docs**,
-  **Components**, **GitHub** and the theme control; the hero reads **The Tale
-  design system** with one sentence under it, the pair **Read the docs** /
-  **View on GitHub**, and a quiet line naming the guide count, both packages
-  and the licence; the page sits on the marketing paper (`bg-surface-site`),
-  not the app's flat background.
-- [ ] `HOME-11` · **Sight down the left edge of the page** → the logo, the
-  hero heading, every section heading and every band's content start on the
-  same vertical line, and the top wash runs unbroken from behind the header
-  into the hero with no seam under the nav bar.
-- [ ] `HOME-2` · **Activate Read the docs, then the browser Back button** → the
-  first click lands on `/docs/getting-started/introduction` in the app chrome;
-  Back returns to `/` with the marketing chrome, and neither transition leaves
-  a stale header behind.
-- [ ] `HOME-3` · **Scroll to Components in a sample workspace** → the heading
-  and its sentence sit **above** the product window with no empty band between
-  them, and the stage's own rules open and close the picture; the window shows
-  **Workspace settings** with the General tab (a name field, a Data region
-  select, a Weekly digest switch) and an inert Members tab.
-- [ ] `HOME-4` · **Switch the theme to Dark from the header, then to Light** →
-  the product window follows each switch (its fields, its tab strip and its
-  chrome re-skin with the page — it reads the same tokens), and the switch
-  survives a reload.
-- [ ] `HOME-5` · **Tab through the product window** → nothing inside it takes
-  focus (it is a labelled illustration — `role="img"`, inert); focus moves from
-  the hero's second call to action straight to the section cards.
-- [ ] `HOME-6` · **Activate each of the five cards under Where to go next** →
-  Getting started, Foundations, Components, Patterns and Marketing UI each open
-  their section's first page (`introduction`, `colors`, `button`, `list-page`,
-  `overview`) in the app chrome.
-- [ ] `HOME-12` · **Read the five cards without activating them** → the panel
-  has no empty cell at any width, and each card's guide count matches the
-  number of rows its section holds in the documentation rail.
-- [ ] `HOME-7` · **Copy the package.json snippet from the install band** → the
-  copy button announces success, the clipboard holds the exact block including
-  `"@tale/ui": "github:tale-project/tale#dist/ui"`, and **Read the installation
-  guide** opens `/docs/getting-started/installation`.
-- [ ] `HOME-8` · **Reload with `prefers-reduced-motion: reduce` emulated** →
-  every section is visible immediately with no fade; without the emulation each
-  section fades in once as it scrolls into view and never fades out again.
-- [ ] `HOME-9` · **Resize to 393 px wide** → the header collapses to the logo,
-  the theme control and **Open navigation menu**; the menu lists Docs,
-  Components and GitHub; the hero, the window and the cards stack in one column
-  with no horizontal scrollbar.
-- [ ] `HOME-10` · **Read the footer** → the copyright line names the current
-  year and Ruler GmbH, the licence line is present, and **llms.txt** opens the
-  plain-text index while **GitHub** opens the repository.
+- [ ] `HOME-1` · **Open `/`** → the header carries the logo, **Docs**, **Components**, **GitHub**, and the theme control; the hero reads **React components. One shared language.** with a short explanation, **Start building** / **Browse components**, and the actual guide count and MIT licence; the component studio sits beside the copy at desktop width.
+- [ ] `HOME-11` · **Sight down the left edge of the page** → the logo, hero heading, section headings, and content share the container gutters; the hero wash continues behind the header without a seam.
+- [ ] `HOME-2` · **Activate Start building, then the browser Back button** → the link opens `/docs/getting-started/installation` in the documentation frame; Back returns to the studio with marketing chrome and no stale header.
+- [ ] `HOME-3` · **Use Component studio** → **Application UI** shows the workspace name, Weekly digest switch, a status badge, and **Reset preview**; editing the name updates the specimen heading, and the switch updates **Digest on** / **Digest off**. **Marketing UI** shows a compact website composition with a working link to its component guide.
+- [ ] `HOME-4` · **Switch the theme to Dark, then Light** → both studio panels, package specimens, catalog, and installation panel follow the theme with readable text and control outlines; the explicit theme survives a reload.
+- [ ] `HOME-5` · **Navigate the studio with the keyboard** → the tab strip is one Tab stop; Left/Right switches the selected panel; the input, switch, reset action, and marketing guide link are reachable with visible focus. Edits survive switching panels and **Reset preview** restores the initial name and enabled digest.
+- [ ] `HOME-6` · **Activate each of the five rows under Find your next building block.** → Getting started, Foundations, Components, Patterns, and Marketing UI open their first guide (`introduction`, `colors`, `button`, `list-page`, `overview`) in the documentation frame.
+- [ ] `HOME-12` · **Read the guide catalog without activating it** → each row carries a short description and the guide count from its section in the documentation rail; labels, counts, and arrows stay legible without colliding at narrow widths.
+- [ ] `HOME-7` · **Select each installation tab and copy its command** → the clipboard holds the exact visible command; the app command installs `github:tale-project/tale#dist/ui`, and the marketing command includes both `dist/ui` and `dist/marketing-ui`. Both include React 19 and Tailwind CSS 4. The nearby note explains the remaining setup, and **Read the installation guide** opens `/docs/getting-started/installation`.
+- [ ] `HOME-8` · **Reload with reduced motion enabled** → all content is readable immediately with no entrance movement; the studio controls still work. With normal motion, section entrances occur once without moving the surrounding layout.
+- [ ] `HOME-9` · **Resize to 393 px and open navigation** → the header collapses to the logo and **Open navigation menu**; the menu lists Docs, Components, and GitHub, plus three inline theme choices (44 px on touch, compact with a mouse); the hero and studio stack without horizontal page scrolling.
+- [ ] `HOME-10` · **Read the footer** → it names the current year, Ruler GmbH, and the MIT licence; **llms.txt** opens the plain-text index and **GitHub** opens the repository. There is no language switcher pointing to absent translated routes.
+- [ ] `HOME-13` · **Resize through 320, 360, 768, 1024, and 1440 px and rotate a phone** → headings, actions, controls, both studio panels, and package specimens remain readable; long workspace names wrap; code scrolls only within its frame, never the page.
+- [ ] `HOME-14` · **Reload the production build with JavaScript disabled** → the initial application specimen, name field, enabled digest state, guide catalog, and app installation command are visible; no entrance leaves the studio blank. Re-enable JavaScript and verify both studio and installation tab strips respond.
+- [ ] `HOME-15` · **Read the package choices at phone and desktop widths** → Application interfaces and Public websites have distinct visual specimens and copy, name `@tale/ui` / `@tale/marketing-ui`, and link to the correct guides; keyboard focus remains visible around the complete card in both themes.

@@ -26,6 +26,7 @@ const DEFAULT_TTL_MS = 30 * 60 * 1000;
 const DEFAULT_ERROR_TTL_MS = 5 * 60 * 1000;
 /** Shorter than the build script's: this runs on a request path. */
 const DEFAULT_TIMEOUT_MS = 10_000;
+export const RELEASES_STALE_AFTER_MS = 6 * 60 * 60 * 1000;
 
 export interface ReleaseFeedPayload {
   releases: readonly Release[];
@@ -40,6 +41,8 @@ export interface ReleaseFeedOptions {
   snapshot: readonly Release[];
   /** `RELEASES_FETCHED_AT` from the generated manifest. */
   snapshotFetchedAt: string;
+  /** Reports once per stale episode, reset by a successful refresh. */
+  reportStale?: (error: Error) => void;
   ttlMs?: number;
   errorTtlMs?: number;
   maxPages?: number;
@@ -68,6 +71,7 @@ export function createReleaseFeed(options: ReleaseFeedOptions): ReleaseFeed {
     fetchImpl,
     fetchReleases = fetchGithubReleases,
     now = Date.now,
+    reportStale,
   } = options;
 
   const fallback: ReleaseFeedPayload = {
@@ -79,6 +83,7 @@ export function createReleaseFeed(options: ReleaseFeedOptions): ReleaseFeed {
   let cached: ReleaseFeedPayload | null = null;
   let staleAt = 0;
   let inFlight: Promise<void> | null = null;
+  let staleReported = false;
 
   async function run(): Promise<void> {
     try {
@@ -99,8 +104,15 @@ export function createReleaseFeed(options: ReleaseFeedOptions): ReleaseFeed {
         source: 'live',
       };
       staleAt = now() + ttlMs;
+      staleReported = false;
     } catch (cause) {
       staleAt = now() + errorTtlMs;
+      if (!releaseFeedHealth(cached ?? fallback, now()).ok && !staleReported) {
+        staleReported = true;
+        reportStale?.(
+          new Error('Release feed has no successful refresh within six hours'),
+        );
+      }
       console.warn(
         `[releases] refresh failed — serving ${cached ? 'the last good list' : 'the build-time snapshot'}, retrying in ${Math.round(errorTtlMs / 1000)}s`,
         cause,
@@ -125,5 +137,22 @@ export function createReleaseFeed(options: ReleaseFeedOptions): ReleaseFeed {
       return cached ?? fallback;
     },
     refresh,
+  };
+}
+
+/** Advisory freshness: a GitHub outage must not restart an otherwise healthy site. */
+export function releaseFeedHealth(
+  payload: ReleaseFeedPayload,
+  now = Date.now(),
+) {
+  const ageMs = now - Date.parse(payload.fetchedAt);
+  return {
+    ok:
+      Number.isFinite(ageMs) && ageMs >= 0 && ageMs <= RELEASES_STALE_AFTER_MS,
+    releasesFetchedAt: payload.fetchedAt,
+    source: payload.source,
+    ageSeconds: Number.isFinite(ageMs)
+      ? Math.max(0, Math.floor(ageMs / 1000))
+      : null,
   };
 }

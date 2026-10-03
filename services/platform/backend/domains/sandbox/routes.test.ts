@@ -13,7 +13,8 @@ const {
   listViews,
   pin,
   reconcileOrg,
-  teardown,
+  scheduleDestroy,
+  destroyStates,
   deletions,
 } = vi.hoisted(() => ({
   caller: { role: 'admin' },
@@ -23,7 +24,8 @@ const {
   listViews: vi.fn(),
   pin: vi.fn(),
   reconcileOrg: vi.fn(),
-  teardown: vi.fn(),
+  scheduleDestroy: vi.fn(),
+  destroyStates: vi.fn(),
   deletions: vi.fn(),
 }));
 
@@ -60,7 +62,10 @@ vi.mock('../../lib/org-config.ts', () => ({
 }));
 vi.mock('./service.ts', () => ({
   pinSession: pin,
-  teardownSession: teardown,
+}));
+vi.mock('./destroy-schedule.ts', () => ({
+  scheduleSessionDestroy: scheduleDestroy,
+  sessionDestroyStates: destroyStates,
 }));
 vi.mock('./watchdogs.ts', () => ({
   reconcileOrgSessions: reconcileOrg,
@@ -99,6 +104,7 @@ beforeEach(() => {
   });
   listViews.mockResolvedValue([]);
   deletions.mockResolvedValue(new Map());
+  destroyStates.mockResolvedValue(new Map());
 });
 afterEach(() => vi.unstubAllEnvs());
 
@@ -215,7 +221,64 @@ describe('sandbox settings read and write authority', () => {
     expect(query).not.toHaveBeenCalled();
     expect(pin).not.toHaveBeenCalled();
     expect(reconcileOrg).not.toHaveBeenCalled();
-    expect(teardown).not.toHaveBeenCalled();
+    expect(scheduleDestroy).not.toHaveBeenCalled();
+  });
+
+  it('queues a Destroy for the caller organization and answers before it runs', async () => {
+    // The teardown waits for the session's lifecycle lock and the spawner's
+    // delete; the request only queues it, so nobody watches a dialog spin.
+    scheduleDestroy.mockResolvedValue(true);
+    const response = await app().request('/sessions/pa-1/destroy?orgId=x', {
+      method: 'POST',
+    });
+    expect(response.status).toBe(202);
+    expect(await response.json()).toEqual({ scheduled: true });
+    expect(scheduleDestroy).toHaveBeenCalledWith(query, {
+      organizationId: 'member-org',
+      sessionId: 'pa-1',
+    });
+  });
+
+  it('answers 404 for a session the organization holds no live row of', async () => {
+    scheduleDestroy.mockResolvedValue(false);
+    const response = await app().request('/sessions/gone/destroy', {
+      method: 'POST',
+    });
+    expect(response.status).toBe(404);
+  });
+
+  it('says on each row whether a Destroy is under way or failed', async () => {
+    const rows = [
+      { sessionId: 'a', ownerType: 'workflow_run', status: 'active' },
+      { sessionId: 'b', ownerType: 'workflow_run', status: 'active' },
+      { sessionId: 'c', ownerType: 'workflow_run', status: 'active' },
+    ];
+    listViews.mockResolvedValue(rows);
+    destroyStates.mockResolvedValue(
+      new Map([
+        ['a', 'pending'],
+        ['b', 'failed'],
+      ]),
+    );
+    const response = await app().request('/sessions/view');
+    expect(destroyStates).toHaveBeenCalledWith(query, 'member-org', [
+      'a',
+      'b',
+      'c',
+    ]);
+    const body = (await response.json()) as {
+      sessions: Array<{ sessionId: string; destroyState: string | null }>;
+    };
+    expect(
+      body.sessions.map(({ sessionId, destroyState }) => [
+        sessionId,
+        destroyState,
+      ]),
+    ).toEqual([
+      ['a', 'pending'],
+      ['b', 'failed'],
+      ['c', null],
+    ]);
   });
 
   it('runs the mount-time reconcile as the org-scoped sweep pass, never its own walk over every live row', async () => {
@@ -372,6 +435,57 @@ describe('external-turn metrics', () => {
     );
     expect(rows.reduce((sum, row) => sum + row.failed, 0)).toBe(body.failed);
     expect(rows.reduce((sum, row) => sum + row.timeout, 0)).toBe(body.timeout);
+  });
+
+  // Each start of an automation step that waits for sandbox room settles
+  // an op; hundreds an hour crowded every real turn out of a page of the
+  // newest 5000, and the cap read off the folded total said nothing.
+  it.each(['/external-turn-metrics?periodDays=7', '/harness-health'])(
+    'leaves turns that are no outcome out in SQL, before any cap (%s)',
+    async (path) => {
+      query.mockResolvedValueOnce([] as never);
+
+      const response = await app().request(path);
+
+      expect(response.status).toBe(200);
+      const [strings, ...values] = query.mock.calls[0] as unknown as [
+        TemplateStringsArray,
+        ...unknown[],
+      ];
+      const text = strings.join('?').replace(/\s+/g, ' ');
+      expect(text).toContain(
+        'AND (o.agent_result_status IS NULL OR o.agent_result_status <> ALL(?))',
+      );
+      expect(values).toContainEqual(['awaiting_human', 'awaiting_room']);
+    },
+  );
+
+  it('reports the cap the read hit, whatever the fold skipped', async () => {
+    query.mockResolvedValueOnce([
+      ...Array.from({ length: 4999 }, () => ({
+        outcome: 'completed',
+        status: 'completed',
+        harness: 'claude-code',
+        durationMs: 1000,
+        spentCents: 1,
+        recovered: false,
+      })),
+      {
+        outcome: 'awaiting_human',
+        status: 'completed',
+        harness: 'claude-code',
+        durationMs: 1000,
+        spentCents: 1,
+        recovered: false,
+      },
+    ] as never);
+
+    const response = await app().request('/external-turn-metrics?periodDays=7');
+
+    expect(await response.json()).toMatchObject({
+      capped: true,
+      total: 4999,
+    });
   });
 
   // A project agent's session is standing: created once, resumed for every

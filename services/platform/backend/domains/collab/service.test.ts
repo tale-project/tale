@@ -1086,6 +1086,7 @@ describe('the failed-run notice (agent_run_failed)', () => {
     ['budget_exceeded', 'agentRunFailedBudgetBody'],
     ['agent_model_missing', 'agentRunFailedSetupBody'],
     ['equipment_missing', 'agentRunFailedSetupBody'],
+    ['input_missing', 'agentRunFailedInputBody'],
     ['deadline', 'agentRunFailedBody'],
     ['start_failed', 'agentRunFailedBody'],
     [null, 'agentRunFailedBody'],

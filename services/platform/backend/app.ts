@@ -106,13 +106,8 @@ import { createSseAuthRoutes } from './realtime/oracle-routes.ts';
 import { createEventsHandler } from './realtime/sse.ts';
 import { mountRestV1Routes } from './rest/v1.ts';
 import { probeStores } from './store-health.ts';
-import {
-  backendMetricsResponse,
-  httpDuration,
-  httpRequests,
-  initBackendTelemetry,
-  routeClass,
-} from './telemetry.ts';
+import { backendMetricsResponse, initBackendTelemetry } from './telemetry.ts';
+import { requestTelemetry } from './tracing.ts';
 
 export interface AppDeps {
   sql: Sql;
@@ -252,22 +247,7 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
   // Request counters/histograms for everything below, labelled by a BOUNDED
   // route class (never the raw path — ids would make the label set
   // unbounded). Declared before the routes so it wraps them all.
-  app.use(async (c, next) => {
-    const started = performance.now();
-    const route = routeClass(c.req.path);
-    const method = c.req.method;
-    try {
-      await next();
-    } finally {
-      const seconds = (performance.now() - started) / 1000;
-      httpDuration.observe({ method, route }, seconds);
-      httpRequests.inc({
-        method,
-        route,
-        status: `${Math.floor(c.res.status / 100)}xx`,
-      });
-    }
-  });
+  app.use(requestTelemetry());
   // Validated reads on both JSON surfaces (lib/conditional-get.ts): every
   // 200 JSON GET/HEAD carries an ETag, a matching If-None-Match answers 304
   // without the body, and `private, no-cache` lets the client keep what it

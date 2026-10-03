@@ -33,11 +33,15 @@ La plupart des catégories utilisent les jours ; `userTempHours` et `agentTempH
 
 Les variables d’environnement sont associées explicitement dans `_metadata.envNames`, à la racine du fichier, avec un préfixe facultatif `_metadata.envPrefix`. Le fichier livré associe par exemple `TALE_RETENTION_AUDIT_MIN` à `auditLog.min`. Une variable ne peut qu’augmenter le minimum ou diminuer le maximum. Redémarre les processus backend après avoir modifié leur environnement.
 
+Deux minimums sont imposés : `auditLog.min` ne peut pas descendre sous 180 jours, ni `loginAttempt.min` sous 90 jours. Tale ne charge pas un fichier qui passe sous l’un d’eux. Tant que tu ne l’as pas corrigé, la **Politique de rétention** de l’organisation n’affiche aucune plage autorisée et ne peut pas être enregistrée ; les journaux du backend indiquent les deux minimums. Le nettoyage planifié continue d’utiliser les dernières limites appliquées.
+
+Avec le fichier livré, une organisation peut conserver les journaux d’audit de 180 à 3650 jours. Une mise à niveau de Tale ne réécrit pas le fichier d’une organisation : une organisation créée par une version antérieure peut donc encore contenir `auditLog.min: 365`. Abaisse cette valeur pour autoriser une conservation plus courte des journaux d’audit, ou augmente-la si une réglementation ou un contrat exige un historique d’audit plus long.
+
 ## Examiner et appliquer un changement
 
 Après avoir modifié les limites, demande à l’admin de l’organisation d’examiner la proposition dans [Politiques et limites](/fr/platform/admin/governance/policies-and-limits). Le nettoyage utilise les limites déjà appliquées ; une modification du fichier par l’opérateur ne les active pas silencieusement.
 
-Vérifie les catégories actives, les anciennes et nouvelles durées et les éventuels délais de grâce. `auditLogRetentionDays: 730` est une durée choisie, tandis que `auditLog.min: 365` est une limite minimale. Distingue ces deux sens pendant la revue du diff.
+Vérifie les catégories actives, les anciennes et nouvelles durées et les éventuels délais de grâce. `auditLogRetentionDays: 730` est une durée choisie, tandis que `auditLog.min: 180` est une limite minimale. Distingue ces deux sens pendant la revue du diff.
 
 <Tip>
 

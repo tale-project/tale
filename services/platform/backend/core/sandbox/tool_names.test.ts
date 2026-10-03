@@ -13,6 +13,26 @@ import {
 } from './tool_names';
 
 describe('normalizeToolGrants', () => {
+  it('grants task review only explicitly to project agents', () => {
+    expect(normalizeToolGrants(['task_review'])).toEqual(['task_review']);
+    expect(normalizeToolGrants(['task_review'], 'automation')).toEqual([]);
+    expect(normalizeToolGrants([...KNOWLEDGE_READ_TOOLS])).not.toContain(
+      'task_review',
+    );
+    expect(WRITE_EFFECT_TOOLS).toContain('task_review');
+  });
+  it('grants metadata only explicitly to project agents, never as a baseline or automation tool', () => {
+    expect(normalizeToolGrants(['task_update_metadata'])).toEqual([
+      'task_update_metadata',
+    ]);
+    expect(normalizeToolGrants(['task_update_metadata'], 'automation')).toEqual(
+      [],
+    );
+    expect(normalizeToolGrants([...KNOWLEDGE_READ_TOOLS])).not.toContain(
+      'task_update_metadata',
+    );
+    expect(WRITE_EFFECT_TOOLS).toContain('task_update_metadata');
+  });
   it('drops unknown names and dedupes to catalog order', () => {
     const result = normalizeToolGrants([
       'task_create',

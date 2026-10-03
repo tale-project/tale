@@ -116,7 +116,7 @@ Le mode **Essai** simule les opérations externes pendant la préparation. Le mo
 
 Une approbation suspend l’exécution au statut `waiting` avant une écriture protégée. Approuver autorise le moteur à tenter l’opération, sans garantir sa réussite. Rejeter empêche l’opération et fait échouer l’exécution. Une question suspend aussi le traitement, mais demande une information plutôt qu’une permission.
 
-Le statut `waiting` peut également indiquer qu’un agent travaille encore ou qu’un nœud vérifie périodiquement une condition. Consulte `waitingFor` : `approval` et `ask` nécessitent une personne ; `agent` et `repeat` reprennent normalement seuls. [Approbations dans les workflows](/fr/platform/automations/approvals-in-workflows) explique comment examiner et traiter les demandes humaines.
+Le statut `waiting` peut également indiquer qu’un agent travaille encore, qu’une étape d’agent attend une place de sandbox pour démarrer, ou qu’un nœud vérifie périodiquement une condition. Consulte `waitingFor` : `approval` et `ask` nécessitent une personne ; `agent`, `room` et `repeat` reprennent normalement seuls. [Approbations dans les workflows](/fr/platform/automations/approvals-in-workflows) explique comment examiner et traiter les demandes humaines.
 
 ## Choisir un chat, une tâche ou une automatisation
 
