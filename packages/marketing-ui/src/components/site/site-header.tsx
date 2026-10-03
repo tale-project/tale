@@ -2,7 +2,7 @@ import { cn } from '@tale/ui/cn';
 import { TaleLogo } from '@tale/ui/logo';
 import { Sheet } from '@tale/ui/sheet';
 import { useMediaQuery } from '@tale/ui/use-media-query';
-import { motion, useReducedMotion } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { Menu, X } from 'lucide-react';
 import {
   type ReactNode,
@@ -12,6 +12,7 @@ import {
   useState,
 } from 'react';
 
+import { useReducedMotion } from '../../lib/entrance';
 import { SiteContainer } from './site-container';
 
 const easeOut = [0.22, 1, 0.36, 1] as const;

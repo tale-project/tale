@@ -198,6 +198,9 @@ Also reuse:
 - `DemoStage` / `DemoShell` — product windows on atmospheric wash (no continuous float).
 - `useSkipEntrance` (`@tale/marketing-ui/entrance`) — SSR, reduced-motion, and SPA revisits skip
   entrances.
+- `useReducedMotion` (the same `entrance` export) — demo transitions render statically on the
+  server and follow live browser motion-preference changes. Use it inside demo scenes so their
+  final content remains visible before JavaScript runs.
 - `app/content/platform-pages.ts` — nav dropdown, footer Platform column, related pages.
 - `app/content/nav-menus.ts` — Resources header menu (desktop + mobile); Platform rows live in `platform-pages.ts`.
 - `app/content/site-ctas.ts` — header primary CTA (Get started → docs) + footer company CTAs; Request a demo stays footer/page-only.
@@ -230,7 +233,7 @@ Motion rules:
 
 | Template        | When                                                         | Section order                                                                                                                                                          |
 | --------------- | ------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Homepage        | `/`                                                          | Hero + demo → orchestration tour → tagline → connectors → compliance → FAQ → CTA                                                                                       |
+| Homepage        | `/`                                                          | Hero + demo → orchestration tour → tagline → agents → connectors → compliance → use cases → FAQ → CTA                                                                                       |
 | Feature         | `/platform/*`                                                | `FeaturePageLayout`: hero (+ demo) → product tour (copy + DemoShell rows, same as homepage) → capabilities (≥5 docs-traceable) → mini-FAQ → related → docs links → CTA |
 | Platform hub    | `/platform`                                                  | Hero (+ demo) → product tour (6 DemoShell rows) → module grid → CTA                                                                                                    |
 | Pricing / forms | `/pricing`, `/hardware-pricing`, `/contact`, `/request-demo` | Existing mechanics frozen; wrap with related cards + CTA / FormCard chrome                                                                                             |

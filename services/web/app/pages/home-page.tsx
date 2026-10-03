@@ -11,6 +11,7 @@ import { CtaDeploy } from '@/app/components/blocks/cta-deploy';
 import { FAQ_KEYS, FaqAccordion } from '@/app/components/blocks/faq-accordion';
 import { HeroHeadline } from '@/app/components/blocks/hero-headline';
 import { OrchestrationTour } from '@/app/components/blocks/orchestration-tour';
+import { RelatedUseCases } from '@/app/components/blocks/related-use-cases';
 import { Tagline } from '@/app/components/blocks/tagline';
 import { useT } from '@/lib/i18n/client';
 import { useCurrentLocale } from '@/lib/i18n/use-current-locale';
@@ -68,6 +69,7 @@ export function HomePage() {
       <AgentsBar />
       <ConnectorsBar />
       <ComplianceTrust />
+      <RelatedUseCases pageId="hub" />
       <FaqAccordion />
       <CtaDeploy />
     </>

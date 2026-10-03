@@ -173,6 +173,51 @@ export function HomePage() {
         </section>
 
         <PageSection surface="site" pad="lg" border="b">
+          <SectionHeading
+            size="subsection"
+            align="start"
+            title={t('packagesTitle')}
+            description={t('packagesDescription')}
+            className="mb-9 max-w-3xl md:mb-12"
+            descriptionClassName="max-w-160"
+          />
+          <Reveal>
+            <MarketingPanel className="bg-border-base grid gap-px md:grid-cols-2">
+              <MarketingCard
+                reveal={false}
+                icon={Blocks}
+                title={t('appPackageTitle')}
+                description={t('appPackageDescription')}
+                to={docPath('components/button')}
+                className="bg-surface-site-raised flex flex-col rounded-none focus-visible:-outline-offset-2"
+              >
+                <code className="text-fg-subtle mt-5 block text-xs">
+                  @tale/ui
+                </code>
+                <span className="text-fg-base mt-auto block pt-7 text-sm font-medium">
+                  {t('appPackageLink')}
+                </span>
+              </MarketingCard>
+              <MarketingCard
+                reveal={false}
+                icon={Megaphone}
+                title={t('marketingPackageTitle')}
+                description={t('marketingPackageDescription')}
+                to={docPath('marketing-ui/overview')}
+                className="bg-surface-site-raised flex flex-col rounded-none focus-visible:-outline-offset-2"
+              >
+                <code className="text-fg-subtle mt-5 block text-xs">
+                  @tale/marketing-ui
+                </code>
+                <span className="text-fg-base mt-auto block pt-7 text-sm font-medium">
+                  {t('marketingPackageLink')}
+                </span>
+              </MarketingCard>
+            </MarketingPanel>
+          </Reveal>
+        </PageSection>
+
+        <PageSection surface="site" pad="lg" border="b">
           <div className="mb-9 grid gap-5 md:mb-12 md:grid-cols-[1fr_1fr] md:items-end md:gap-16">
             <SectionHeading
               size="subsection"

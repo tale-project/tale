@@ -1,8 +1,9 @@
 import { DemoShell } from '@tale/marketing-ui/demo-shell';
 import { DemoStreamText } from '@tale/marketing-ui/demo-stream-text';
 import { DemoTypingText } from '@tale/marketing-ui/demo-typing-text';
+import { useReducedMotion } from '@tale/marketing-ui/entrance';
 import { useDemoTimeline } from '@tale/marketing-ui/use-demo-timeline';
-import { motion, useReducedMotion } from 'framer-motion';
+import { motion } from 'framer-motion';
 import {
   ArrowUp,
   Bookmark,

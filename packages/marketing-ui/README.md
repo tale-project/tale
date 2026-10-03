@@ -86,6 +86,13 @@ Keep the real information readable with animation disabled; `useDemoTimeline` an
 the shared motion entry points. Test reduced motion and the static rendered state as well as the
 animated sequence.
 
+For motion inside a demo, import `useReducedMotion` from `@tale/marketing-ui/entrance`.
+It returns `true` during server rendering and follows live browser preference changes, so
+`initial={reducedMotion ? false : ...}` preserves the visible final scene before JavaScript.
+`useDemoTimeline` completes the scene when reduced motion is enabled and does not replay it
+when the preference is restored. `Reveal` also reveals focused content immediately, so keyboard
+navigation never waits for a scroll entrance.
+
 `DemoShell domain` coordinates a theme-aware illustration palette with its surrounding `DemoStage`: mint projects/governance, coral agents, violet chat, gold automations, and sky knowledge. It defaults to `activeNav`; override it for stories such as agent workspaces inside chat. The stage stays still and has no decorative accent line.
 
 `DemoStage` is a named `demo` query container. Size the illustration's internals with container

@@ -402,17 +402,6 @@
   transform: scale(0.98);
 }
 
-/* Marquee track. The track contains the logos rendered twice; translating
-   -50% wraps the second set into the first's slot for a seamless loop. */
-@keyframes marquee {
-  from {
-    transform: translate3d(0, 0, 0);
-  }
-  to {
-    transform: translate3d(-50%, 0, 0);
-  }
-}
-
 /* Soft float on the hero product window was removed — infinite
    translateY fought compositor scroll and jittered the homepage. */
 
@@ -420,9 +409,6 @@
   .site-action {
     transition: none;
     transform: none !important;
-  }
-  .marquee-track {
-    animation: none !important;
   }
 }
 

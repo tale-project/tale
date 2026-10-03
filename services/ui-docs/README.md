@@ -2,7 +2,7 @@
 
 The design-system guide at [ui.tale.dev](https://ui.tale.dev) helps you install
 Tale’s UI packages, choose components, and compose application or marketing screens.
-Its 19 English guides include live examples with their source. The examples use local
+Its English guides include live examples with their source. The examples use local
 sample state; they do not connect to the Tale backend.
 
 For package consumption, start with [Installation](content/getting-started/installation.md).
@@ -51,6 +51,9 @@ routes, prerendered artifacts and flipping that option back to `'path'`.
 The homepage product window and nested application-layout examples are labelled,
 inert illustrations. Their explanation must remain understandable outside the frame.
 Interactive demos run inside the docs pages. A single root `Toaster` serves all of them.
+The homepage explains the choice between application components (`@tale/ui`) and public-site
+components (`@tale/marketing-ui`), with direct links to each guide. Its theme switcher uses compact
+32px choices for fine pointers and 44px choices for touch input.
 
 ## Build and inspect production output
 

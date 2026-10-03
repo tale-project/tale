@@ -27,6 +27,7 @@ import { checkRateLimit } from './lib/forms/rate-limit';
 import { MIN_SUBMIT_DELAY_MS, submitRequest } from './lib/forms/schemas';
 import { createReleaseFeed, releaseFeedHealth } from './lib/releases/feed';
 import { handleReleasesRequest, RELEASES_ROUTES } from './lib/releases/route';
+import { withLegalArtifactNoindex } from './lib/seo/legal-artifacts';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -59,9 +60,11 @@ if (!DISCORD_WEBHOOK_URL) {
 // Precompiled artifact server
 // ---------------------------------------------------------------------------
 
-const artifactsServer = await createPrecompiledServer({
-  dir: resolve(import.meta.dir, 'dist-seo'),
-});
+const artifactsServer = withLegalArtifactNoindex(
+  await createPrecompiledServer({
+    dir: resolve(import.meta.dir, 'dist-seo'),
+  }),
+);
 
 // ---------------------------------------------------------------------------
 // Form-submit handler (web-specific)

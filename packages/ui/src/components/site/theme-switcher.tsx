@@ -65,7 +65,7 @@ function SegmentedThemeSwitcher({ className }: { className?: string }) {
         if (next) setTheme(next);
       }}
       className={cn(
-        'border-border-base bg-bg-muted inline-flex shrink-0 items-center gap-1 rounded-2xl border p-1',
+        'border-border-base bg-bg-muted inline-flex shrink-0 items-center gap-0.5 rounded-xl border p-0.5',
         className,
       )}
     >
@@ -80,7 +80,7 @@ function SegmentedThemeSwitcher({ className }: { className?: string }) {
             // Selection follows the roving focus even when a quick arrow key
             // is released before Radix's deferred focus movement completes.
             onFocus={() => setTheme(option)}
-            className="text-fg-muted hover:text-fg-base focus-visible:outline-fg-base data-[state=checked]:border-border-base data-[state=checked]:bg-bg-base data-[state=checked]:text-fg-base relative inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-xl border border-transparent transition-colors duration-150 focus-visible:z-10 focus-visible:outline-2 focus-visible:outline-offset-2 data-[state=checked]:shadow-sm motion-reduce:transition-none"
+            className="text-fg-muted hover:text-fg-base focus-visible:outline-fg-base data-[state=checked]:border-border-base data-[state=checked]:bg-bg-base data-[state=checked]:text-fg-base relative inline-flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-transparent transition-colors duration-150 focus-visible:z-10 focus-visible:outline-2 focus-visible:outline-offset-2 data-[state=checked]:shadow-sm motion-reduce:transition-none pointer-coarse:size-11"
           >
             <Icon aria-hidden className="size-4" strokeWidth={1.75} />
           </RadioGroupPrimitive.Item>
@@ -174,7 +174,7 @@ function MenuThemeSwitcher({ className }: { className?: string }) {
         aria-controls={menuId}
         aria-label={t('ariaLabel')}
         onClick={() => setOpen((v) => !v)}
-        className="border-border-base bg-bg-base text-fg-muted hover:text-fg-base hover:border-border-strong focus-visible:ring-fg-base/60 focus-visible:ring-offset-bg-base inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-xl border shadow-sm transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 motion-reduce:transition-none"
+        className="border-border-base bg-bg-base text-fg-muted hover:text-fg-base hover:border-border-strong focus-visible:ring-fg-base/60 focus-visible:ring-offset-bg-base inline-flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-lg border shadow-sm transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 motion-reduce:transition-none pointer-coarse:size-11"
       >
         <ActiveIcon aria-hidden className="size-4" />
       </button>

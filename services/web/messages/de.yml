@@ -165,10 +165,10 @@ home:
   hero:
     title: Ein Arbeitsbereich für dein Team und KI-Agenten
     subtitle:
-      "Plane die Arbeit mit deinem Team, delegiere Aufgaben an KI-Agenten und
-      prüfe die Ergebnisse gemeinsam. Von Softwareprojekten bis zu
-      Marketingkampagnen: Tale bündelt deine Agentenflotte, Gespräche und
-      Ergebnisse in einem Arbeitsbereich."
+      Plane Projekte, delegiere Aufgaben an KI-Agenten und prüfe die
+      Ergebnisse gemeinsam mit deinem Team. Vom Softwareprojekt bis zur
+      Marketingkampagne bleiben Aufgabenbeschreibung, Dateien und Gespräche
+      zusammen.
     ctaPrimary: Demo anfragen
     ctaSecondary: Tale selbst hosten
     eyebrow: Gemeinsame Projektarbeit mit KI-Agenten
@@ -356,26 +356,27 @@ home:
       liveTab: Live
       treeRoot: workspace
       liveHint: Live-Browseransicht
-      label: 'Animierte Demo: Ein Harness-Turn öffnet den Files-Bereich an einer
-        Python-CLI und wechselt dann zur Live-Browseransicht der laufenden App.'
-      prompt: Baue eine kleine Python-CLI und öffne sie im Browser, damit ich
-        durchklicken kann.
+      label: 'Animierte Demo: Ein Agent erstellt eine Webseite, zeigt ihren
+        HTML-Code im Bereich Files und öffnet sie dann in der
+        Live-Browseransicht.'
+      prompt: Baue eine kleine Projektseite und öffne sie im Browser, damit ich
+        sie prüfen kann.
       agent: Claude Code
       model: Claude Opus
       reply:
-        cli.py und eine lokale Vorschau sind da — Files zeigt den Tree; Live
-        streamt den Browser.
-      file1: cli.py
-      file2: pyproject.toml
-      file3: tests/test_cli.py
+        index.html und eine lokale Vorschau sind erstellt. Prüfe den Quelltext
+        unter Files und die Seite unter Live.
+      file1: index.html
+      file2: styles.css
+      file3: tests/preview.spec.ts
       file4: README.md
-      activeFile: cli.py
-      code1: import click
-      code2: '@click.command()'
-      code3: 'def main():'
-      code4: '    click.echo("ready")'
+      activeFile: index.html
+      code1: '<main>'
+      code2: '  <h1>Northwind</h1>'
+      code3: '  <p>Project preview</p>'
+      code4: '</main>'
       browserUrl: http://127.0.0.1:5173
-      browserTitle: CLI-Vorschau · localhost
+      browserTitle: Projektvorschau · localhost
   tour:
     title: Von der gemeinsamen Aufgabe zum geprüften Ergebnis
     subtitle: Weise Aufgaben zu, gib Agenten den nötigen Kontext und arbeite mit
@@ -535,8 +536,10 @@ home:
         Kontakt, und du bekommst ein Angebot für die passende Konfiguration.
     ownHardwareModels:
       q: Kann ich meine eigene Hardware und KI-Modelle nutzen?
-      a: Ja. Tale ist hardware- und modellagnostisch — du kannst deine eigene
-        Infrastruktur und Modelle nutzen.
+      a: Ja. Betreibe Tale auf deiner eigenen Infrastruktur und verbinde einen
+        lokalen Modellserver wie Ollama oder vLLM über eine unterstützte API.
+        Prüfe die Systemanforderungen und teste das Modell mit der gewählten
+        Agentenlaufzeit, bevor du Aufgaben vergibst.
     customTraining:
       q: Bietet ihr individuelles KI-Modelltraining an?
       a:

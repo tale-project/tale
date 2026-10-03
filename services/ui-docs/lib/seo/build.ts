@@ -24,8 +24,10 @@ import { listAllContent, type ContentRecord } from '../../scripts/walk-content';
 import { DEFAULT_UI_DOCS_SITE_URL } from '../site-url';
 
 export const UI_DOCS_SITE_TITLE = 'Tale UI: React component library';
+// Config-loading tools execute this module before Vite's YAML plugin is active.
+// build.test.ts holds these defaults and index.html to the English catalog.
 export const UI_DOCS_SITE_DESCRIPTION =
-  'Build applications and websites with the MIT-licensed React components behind Tale. Explore live examples, themes, translations, and composition guides.';
+  "Use Tale's MIT-licensed components for forms, tables, navigation, and product pages. Explore live examples, shared themes, and composition guides.";
 
 /** Site-relative URL for a slug. The home page is the only route outside
  *  `/docs`, and it carries no markdown body. */

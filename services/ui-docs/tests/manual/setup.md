@@ -60,7 +60,7 @@ Or the container itself, which is what production runs:
 bun run docker:test:ui-docs               # builds the image, probes it on :13003
 ```
 
-Wait for the front page's `h1` (**Build with the React components behind Tale**) before continuing.
+Wait for the front page's `h1` (**React components for apps and websites**) before continuing.
 
 <a id="reset-choreography"></a>
 

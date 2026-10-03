@@ -1,8 +1,9 @@
 import { DemoToolbar } from '@tale/marketing-ui/demo-chrome';
 import { DemoShell } from '@tale/marketing-ui/demo-shell';
+import { useReducedMotion } from '@tale/marketing-ui/entrance';
 import { useDemoTimeline } from '@tale/marketing-ui/use-demo-timeline';
 import { cn } from '@tale/ui/cn';
-import { motion, useInView, useReducedMotion } from 'framer-motion';
+import { motion, useInView } from 'framer-motion';
 import { Bot, Folder, Users } from 'lucide-react';
 import { useRef } from 'react';
 

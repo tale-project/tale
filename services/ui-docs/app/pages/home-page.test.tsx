@@ -47,12 +47,31 @@ describe('HomePage', () => {
     const headings = container.querySelectorAll('h1');
     expect(headings).toHaveLength(1);
     expect(headings[0]).toHaveTextContent(
-      'Build with the React components behind Tale',
+      'React components for apps and websites',
     );
     expect(screen.getByRole('link', { name: 'Read the docs' })).toHaveAttribute(
       'href',
       '/docs/getting-started/introduction',
     );
+  });
+
+  it('explains both packages and links to their component guides', () => {
+    renderPage();
+    const band = screen
+      .getByRole('heading', { name: 'Two packages, one design system' })
+      .closest('section');
+    expect(band).not.toBeNull();
+    const packages = within(band as HTMLElement);
+    expect(
+      packages.getByRole('link', { name: /^Application interfaces/ }),
+    ).toHaveAttribute('href', '/docs/components/button');
+    expect(
+      packages.getByRole('link', { name: /^Public websites/ }),
+    ).toHaveAttribute('href', '/docs/marketing-ui/overview');
+    expect(packages.getByText('@tale/ui', { selector: 'code' })).toBeVisible();
+    expect(
+      packages.getByText('@tale/marketing-ui', { selector: 'code' }),
+    ).toBeVisible();
   });
 
   it('counts the guides the navigation actually lists', () => {

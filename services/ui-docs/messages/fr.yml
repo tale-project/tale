@@ -26,8 +26,9 @@ demo:
   missingBody: Aucun exemple n’est enregistré sous « {name} ». Crée
     app/demos/{name}.tsx et référence-le depuis une page.
 home:
-  heroTitle: Construis avec les composants React de Tale
-  heroDescription: Crée des applications et des sites avec les composants React de Tale sous licence MIT. Consulte les exemples interactifs, les thèmes, les traductions et les guides.
+  heroTitle: Des composants React pour tes applications et sites
+  heroDescription: Utilise les composants de Tale sous licence MIT pour tes formulaires,
+    tableaux, menus et pages produit. Consulte les exemples interactifs, thèmes et guides.
   heroPrimary: Lire la doc
   heroSecondary: Voir sur GitHub
   heroMeta: "{count, plural, one {# guide} other {# guides}} · @tale/ui et
@@ -55,6 +56,20 @@ home:
   showcaseRoleMember: Membre
   showcaseStatusActive: Actif
   showcaseStatusInvited: Invité
+  packagesTitle: Deux paquets, un système de design
+  packagesDescription: Utilise les composants applicatifs pour le travail quotidien
+    et les composants marketing pour les sites publics. Les deux sont sous
+    licence MIT et fonctionnent sans instance Tale en cours d’exécution.
+  appPackageTitle: Interfaces applicatives
+  appPackageDescription: Crée des formulaires, tableaux, boîtes de dialogue et
+    éléments de navigation avec @tale/ui. Relie les composants à tes propres
+    données et règles métier.
+  appPackageLink: Voir les composants applicatifs
+  marketingPackageTitle: Sites publics
+  marketingPackageDescription: 'Crée des pages de présentation avec
+    @tale/marketing-ui : navigation, sections, appels à l’action et
+    illustrations du produit. Le paquet s’appuie sur @tale/ui.'
+  marketingPackageLink: Voir les composants marketing
   sectionsTitle: La suite
   sectionsDescription: Choisis un guide pour configurer les paquets, prendre une décision de conception ou construire ton écran.
   sectionsGettingStarted: Installe les paquets, comprends leur articulation et configure les thèmes et les traductions.
@@ -68,7 +83,9 @@ home:
   installCodeLabel: package.json
   installDocsLink: Lire le guide d’installation
   closingTitle: Commence par l’introduction
-  closingDescription: L’introduction explique les deux langages visuels, la relation entre les paquets et les responsabilités de ton service.
+  closingDescription: Comprends comment les paquets applicatifs et marketing
+    s’articulent, essaie les exemples et relie les composants à ton propre
+    service.
   closingPrimary: Lire l’introduction
   closingSecondary: Voir la page Button
 footer:

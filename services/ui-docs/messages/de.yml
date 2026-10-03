@@ -26,8 +26,9 @@ demo:
   missingBody: Unter „{name}“ ist kein Beispiel registriert. Leg
     app/demos/{name}.tsx an und verlinke es aus einer Seite.
 home:
-  heroTitle: Baue mit den React-Komponenten von Tale
-  heroDescription: Baue Anwendungen und Websites mit den MIT-lizenzierten React-Komponenten von Tale. Nutze interaktive Beispiele, Themes, Übersetzungen und Anleitungen.
+  heroTitle: React-Komponenten für Apps und Websites
+  heroDescription: Nutze Tales MIT-lizenzierte Komponenten für Formulare, Tabellen,
+    Navigation und Produktseiten. Mit interaktiven Beispielen, Themes und Anleitungen.
   heroPrimary: Zur Doku
   heroSecondary: Auf GitHub ansehen
   heroMeta: "{count, plural, one {# Anleitung} other {# Anleitungen}} · @tale/ui
@@ -55,6 +56,20 @@ home:
   showcaseRoleMember: Mitglied
   showcaseStatusActive: Aktiv
   showcaseStatusInvited: Eingeladen
+  packagesTitle: Zwei Pakete, ein Designsystem
+  packagesDescription: Nutze Anwendungskomponenten für die tägliche Arbeit und
+    Marketing-Komponenten für öffentliche Websites. Beide stehen unter der
+    MIT-Lizenz und benötigen keine laufende Tale-Instanz.
+  appPackageTitle: Anwendungsoberflächen
+  appPackageDescription: Baue Formulare, Tabellen, Dialoge und Navigation mit
+    @tale/ui. Verbinde die Komponenten mit deinen eigenen Daten und
+    Geschäftsregeln.
+  appPackageLink: Zu den Anwendungskomponenten
+  marketingPackageTitle: Öffentliche Websites
+  marketingPackageDescription: 'Baue Landingpages mit @tale/marketing-ui:
+    Seitennavigation, Abschnitte, Handlungsaufforderungen und
+    Produktillustrationen. Das Paket baut auf @tale/ui auf.'
+  marketingPackageLink: Zu den Marketing-Komponenten
   sectionsTitle: Wie es weitergeht
   sectionsDescription: Wähle eine Anleitung für die Einrichtung, eine Gestaltungsentscheidung oder die Oberfläche, die du bauen möchtest.
   sectionsGettingStarted: Installiere die Pakete, lerne ihr Zusammenspiel kennen und richte Themes und Übersetzungen ein.
@@ -68,7 +83,9 @@ home:
   installCodeLabel: package.json
   installDocsLink: Zur Installationsanleitung
   closingTitle: Fang bei der Einführung an
-  closingDescription: Die Einführung erklärt die beiden Designsprachen, das Zusammenspiel der Pakete und die Aufgaben, die dein Service übernimmt.
+  closingDescription: Lerne das Zusammenspiel der Anwendungs- und Marketing-Pakete
+    kennen, probiere die Beispiele aus und verbinde die Komponenten mit deinem
+    eigenen Service.
   closingPrimary: Einführung lesen
   closingSecondary: Zur Button-Seite
 footer:

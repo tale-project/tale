@@ -166,10 +166,9 @@ address:
 home:
   hero:
     title: One workspace for your team and AI agents
-    subtitle: Plan work with your teammates, delegate tasks to AI agents, and review
-      the results together. From software delivery to marketing campaigns,
-      Tale keeps your agent fleet, discussions, and deliverables in one shared
-      workspace.
+    subtitle: Plan projects, delegate tasks to AI agents, and review the results
+      together. Keep the brief, files, and discussion with the work, from
+      software delivery to marketing campaigns.
     ctaPrimary: Request a demo
     ctaSecondary: Self-host Tale
     eyebrow: Collaborative project management with AI agents
@@ -349,27 +348,27 @@ home:
       treeRoot: workspace
       liveHint: Live browser view
       label:
-        'Animated demo: a harness turn opens the Files pane on a Python CLI,
-        then switches to the Live browser view of the running app.'
+        'Animated demo: an agent creates a web page, shows its HTML in the
+        Files pane, then opens the page in the Live browser view.'
       prompt:
-        Scaffold a small Python CLI and open it in the browser so I can click
-        through.
+        Build a small project page and open it in the browser so I can review
+        it.
       agent: Claude Code
       model: Claude Opus
       reply:
-        Created cli.py and a local preview — Files shows the tree; Live streams
-        the browser.
-      file1: cli.py
-      file2: pyproject.toml
-      file3: tests/test_cli.py
+        Created index.html and a local preview. Review the source in Files and
+        the page in Live.
+      file1: index.html
+      file2: styles.css
+      file3: tests/preview.spec.ts
       file4: README.md
-      activeFile: cli.py
-      code1: import click
-      code2: '@click.command()'
-      code3: 'def main():'
-      code4: '    click.echo("ready")'
+      activeFile: index.html
+      code1: '<main>'
+      code2: '  <h1>Northwind</h1>'
+      code3: '  <p>Project preview</p>'
+      code4: '</main>'
       browserUrl: http://127.0.0.1:5173
-      browserTitle: CLI preview · localhost
+      browserTitle: Project preview · localhost
   tour:
     title: From a shared task to a reviewed result
     subtitle:
@@ -528,7 +527,10 @@ home:
         that fits.
     ownHardwareModels:
       q: Can I use my own hardware and AI models?
-      a: Yes. Tale is hardware- and model-agnostic, so you're free to use your own.
+      a: Yes. Run Tale on your own infrastructure and connect a local model
+        server, such as Ollama or vLLM, through a supported API. Check the
+        deployment requirements and test the model with your chosen agent
+        runtime before assigning work.
     customTraining:
       q: Do you offer custom AI model training?
       a:

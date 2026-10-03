@@ -26,8 +26,9 @@ demo:
   missingBody: No demo is registered under "{name}". Add
     app/demos/{name}.tsx and reference it from a page.
 home:
-  heroTitle: Build with the React components behind Tale
-  heroDescription: Build applications and websites with the MIT-licensed React components behind Tale. Explore live examples, themes, translations, and composition guides.
+  heroTitle: React components for apps and websites
+  heroDescription: Use Tale's MIT-licensed components for forms, tables, navigation,
+    and product pages. Explore live examples, shared themes, and composition guides.
   heroPrimary: Read the docs
   heroSecondary: View on GitHub
   heroMeta: "{count, plural, one {# guide} other {# guides}} · @tale/ui and
@@ -55,6 +56,19 @@ home:
   showcaseRoleMember: Member
   showcaseStatusActive: Active
   showcaseStatusInvited: Invited
+  packagesTitle: Two packages, one design system
+  packagesDescription: Use application components for everyday work and marketing
+    components for public websites. Both are MIT licensed and work without a
+    running Tale instance.
+  appPackageTitle: Application interfaces
+  appPackageDescription: Build forms, tables, dialogs, and navigation with @tale/ui.
+    Connect the components to your own data and business rules.
+  appPackageLink: Explore app components
+  marketingPackageTitle: Public websites
+  marketingPackageDescription: 'Build landing pages with @tale/marketing-ui: site
+    navigation, page sections, calls to action, and product illustrations.
+    Built on @tale/ui.'
+  marketingPackageLink: Explore marketing components
   sectionsTitle: Where to go next
   sectionsDescription: Choose a guide for setup, a design decision, or the screen you are building.
   sectionsGettingStarted: Install the packages, learn how they relate, and set up
@@ -71,8 +85,8 @@ home:
   installCodeLabel: package.json
   installDocsLink: Read the installation guide
   closingTitle: Start with the introduction
-  closingDescription: It explains the two languages, how the packages relate, and
-    what belongs in a service instead.
+  closingDescription: Learn how the application and marketing packages fit together,
+    try the examples, and connect the components to your own service.
   closingPrimary: Read the introduction
   closingSecondary: See the Button page
 footer:

@@ -30,8 +30,8 @@ in light mode, `prefers-reduced-motion` **off** unless a box says otherwise.
 ## Boxes
 
 - [ ] `HOME-1` · **Open `/`** → the header carries the logo, **Docs**,
-  **Components**, **GitHub** and the theme control; the hero reads **The Tale
-  design system** with one sentence under it, the pair **Read the docs** /
+  **Components**, **GitHub** and the theme control; the hero reads **React components
+  for apps and websites** with a short explanation, the pair **Read the docs** /
   **View on GitHub**, and a quiet line naming the guide count, both packages
   and the licence; the page sits on the marketing paper (`bg-surface-site`),
   not the app's flat background.
@@ -55,7 +55,7 @@ in light mode, `prefers-reduced-motion` **off** unless a box says otherwise.
   survives a reload.
 - [ ] `HOME-5` · **Tab through the product window** → nothing inside it takes
   focus (it is a labelled illustration — `role="img"`, inert); focus moves from
-  the hero's second call to action straight to the section cards.
+  the hero's second call to action straight to the package cards.
 - [ ] `HOME-6` · **Activate each of the five cards under Where to go next** →
   Getting started, Foundations, Components, Patterns and Marketing UI each open
   their section's first page (`introduction`, `colors`, `button`, `list-page`,
@@ -73,7 +73,7 @@ in light mode, `prefers-reduced-motion` **off** unless a box says otherwise.
   section fades in once as it scrolls into view and never fades out again.
 - [ ] `HOME-9` · **Resize to 393 px wide** → the header collapses to the logo,
   **Open navigation menu**; the menu lists Docs, Components and GitHub, plus
-  **Switch theme** with three inline 44 px options; the hero, the window and the cards stack in one column
+  **Switch theme** with three inline options (44 px on touch devices, compact with a mouse); the hero, the window and the cards stack in one column
   with no horizontal scrollbar.
 - [ ] `HOME-10` · **Read the footer** → the copyright line names the current
   year and Ruler GmbH, the licence line is present, and **llms.txt** opens the
@@ -81,3 +81,4 @@ in light mode, `prefers-reduced-motion` **off** unless a box says otherwise.
 
 - [ ] `HOME-13` · **Resize `/` through 320, 360, 768, 1024 and 1440 px, then rotate a phone** → the headline, calls to action, cards and footer stay inside the viewport; the illustration presents the form alone below desktop width without a clipped member table; the package snippet scrolls inside its own frame and the page never scrolls sideways.
 - [ ] `HOME-14` · **Reload with normal motion and scroll to the sample workspace, then scroll away and back** → the fields, member table and component strip assemble once in order without moving the surrounding page or replaying; repeat with reduced motion enabled and the complete illustration is already visible without motion.
+- [ ] `HOME-15` · **Read the package choices at phone and desktop widths** → Application interfaces and Public websites explain distinct uses, name their packages, and show clear next steps; both cards fit without clipping and have visible keyboard focus in light and dark themes.

@@ -167,10 +167,9 @@ home:
   hero:
     title: Un espace de travail pour ton équipe et tes agents IA
     subtitle:
-      Planifie le travail avec ton équipe, délègue les tâches aux agents IA et
-      examine les résultats avec elle. Du développement logiciel aux campagnes
-      marketing, Tale réunit ta flotte d’agents, les échanges et les livrables
-      dans un espace partagé.
+      Planifie tes projets, délègue les tâches aux agents IA et examine les
+      résultats avec ton équipe. Consignes, fichiers et échanges restent liés
+      au travail, du développement logiciel aux campagnes marketing.
     ctaPrimary: Demander une démo
     ctaSecondary: Auto-héberger Tale
     eyebrow: Gestion de projet collaborative avec des agents IA
@@ -358,26 +357,26 @@ home:
       liveTab: Live
       treeRoot: workspace
       liveHint: Vue navigateur live
-      label: 'Démo animée : un tour de harness ouvre le volet Files sur une CLI
-        Python, puis passe à la vue Live du navigateur de l’app en cours.'
+      label: 'Démo animée : un agent crée une page web, montre son code HTML
+        dans le volet Files, puis ouvre la page dans la vue Live du navigateur.'
       prompt:
-        Scaffold une petite CLI Python et ouvre-la dans le navigateur pour que
-        je puisse cliquer.
+        Crée une petite page de projet et ouvre-la dans le navigateur pour que
+        je puisse la vérifier.
       agent: Claude Code
       model: Claude Opus
-      reply: cli.py et un aperçu local sont prêts — Files montre l’arbre ; Live
-        streame le navigateur.
-      file1: cli.py
-      file2: pyproject.toml
-      file3: tests/test_cli.py
+      reply: index.html et un aperçu local sont prêts. Vérifie le code dans Files
+        et la page dans Live.
+      file1: index.html
+      file2: styles.css
+      file3: tests/preview.spec.ts
       file4: README.md
-      activeFile: cli.py
-      code1: import click
-      code2: '@click.command()'
-      code3: 'def main():'
-      code4: '    click.echo("ready")'
+      activeFile: index.html
+      code1: '<main>'
+      code2: '  <h1>Northwind</h1>'
+      code3: '  <p>Project preview</p>'
+      code4: '</main>'
       browserUrl: http://127.0.0.1:5173
-      browserTitle: Aperçu CLI · localhost
+      browserTitle: Aperçu du projet · localhost
   tour:
     title: De la tâche partagée au résultat vérifié
     subtitle: Attribue le travail, donne aux agents le contexte nécessaire et garde
@@ -546,8 +545,10 @@ home:
     ownHardwareModels:
       q: Puis-je utiliser mon propre matériel et mes propres modèles d’IA ?
       a:
-        Oui. Tale est agnostique au matériel et aux modèles — tu peux utiliser les
-        tiens.
+        Oui. Héberge Tale sur ta propre infrastructure et connecte un serveur
+        de modèles local, comme Ollama ou vLLM, via une API compatible.
+        Vérifie les prérequis de déploiement et teste le modèle avec le moteur
+        de ton agent avant de lui confier du travail.
     customTraining:
       q: L’entraînement de modèles d’IA sur mesure est-il proposé ?
       a:

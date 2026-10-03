@@ -1,5 +1,6 @@
 import { DemoShell } from '@tale/marketing-ui/demo-shell';
 import { DemoStage } from '@tale/marketing-ui/demo-stage';
+import { useReducedMotion } from '@tale/marketing-ui/entrance';
 import { MARKETING_EASE } from '@tale/marketing-ui/reveal';
 import { useDemoTimeline } from '@tale/marketing-ui/use-demo-timeline';
 import { Badge } from '@tale/ui/badge';
@@ -10,7 +11,7 @@ import { Select } from '@tale/ui/select';
 import { Switch } from '@tale/ui/switch';
 import { Tabs } from '@tale/ui/tabs';
 import type { ColumnDef } from '@tanstack/react-table';
-import { motion, useInView, useReducedMotion } from 'framer-motion';
+import { motion, useInView } from 'framer-motion';
 import { Check, Code2 } from 'lucide-react';
 import { useMemo, useRef } from 'react';
 

@@ -82,7 +82,7 @@ export function SegmentedRadio<T extends string | number>({
             tabIndex={isActive ? 0 : -1}
             onClick={() => onChange(option)}
             onKeyDown={(e) => handleKeyDown(e, index)}
-            className={`focus-visible:ring-fg-base focus-visible:ring-offset-bg-elevated min-h-11 min-w-0 flex-1 rounded-lg px-3.5 py-2 text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 motion-reduce:transition-none sm:min-h-9 ${
+            className={`focus-visible:ring-fg-base focus-visible:ring-offset-bg-elevated min-h-11 min-w-0 flex-auto rounded-lg px-3.5 py-2 text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 motion-reduce:transition-none sm:min-h-9 ${
               isActive
                 ? 'bg-surface-site-active text-fg-base shadow-sm'
                 : 'text-fg-muted hover:text-fg-base cursor-pointer'

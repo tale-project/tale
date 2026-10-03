@@ -1,8 +1,9 @@
 import { DemoShell } from '@tale/marketing-ui/demo-shell';
+import { useReducedMotion } from '@tale/marketing-ui/entrance';
 import { useDemoTimeline } from '@tale/marketing-ui/use-demo-timeline';
 import { cn } from '@tale/ui/cn';
 import { cva } from 'class-variance-authority';
-import { motion, useInView, useReducedMotion } from 'framer-motion';
+import { motion, useInView } from 'framer-motion';
 import {
   Circle,
   CircleCheck,
