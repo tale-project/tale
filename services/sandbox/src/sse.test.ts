@@ -7,8 +7,8 @@ describe('sandbox SSE lifecycle and memory', () => {
   test('frames events and keeps the required streaming headers', async () => {
     const response = sseResponse(
       async ({ send }) => {
-        send('phase', { phase: 'running' });
-        send('stdout', { text: 'hello\nworld' });
+        await send('phase', { phase: 'running' });
+        await send('stdout', { text: 'hello\nworld' });
       },
       { 'x-test': 'kept', 'content-type': 'text/plain' },
     );
@@ -60,9 +60,10 @@ describe('sandbox SSE lifecycle and memory', () => {
     let extraSerialized = false;
     const response = sseResponse(async ({ send, signal }) => {
       producerSignal = signal;
-      send('stdout', { text });
-      send('stdout', { text });
-      send('stdout', {
+      // An uncooperative producer deliberately ignores stream backpressure.
+      void send('stdout', { text });
+      void send('stdout', { text });
+      void send('stdout', {
         toJSON() {
           extraSerialized = true;
           return 'late';
@@ -82,7 +83,7 @@ describe('sandbox SSE lifecycle and memory', () => {
     let producerSignal: AbortSignal | undefined;
     const response = sseResponse(async ({ send, signal }) => {
       producerSignal = signal;
-      send('result', { stdoutBase64: body });
+      await send('result', { stdoutBase64: body });
     });
     expect(await response.text()).toBe(
       `event: result\ndata: {"stdoutBase64":"${body}"}\n\n`,
