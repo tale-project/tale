@@ -431,5 +431,11 @@ export async function checkMessageHeldBlobs(
       AND storage_ref = ANY(${refs})`;
     await sql`DELETE FROM app.upload_intents WHERE org_id = ${orgId}
       AND s3_ref = ANY(${refs})`;
+    // And no admin behind: later lanes fan their bells and emails out to
+    // every owner and admin of this shared organization (an agent's ask
+    // escalates to them), and a lane that counts the emails would count
+    // this probe's too.
+    await sql`DELETE FROM "member" WHERE "organizationId" = ${orgId}
+      AND "userId" = ${owner.userId}`;
   }
 }
