@@ -98,6 +98,7 @@ import { extractText } from '../lib/knowledge/extraction/router';
 import { sniffDocumentExtension } from '../lib/knowledge/extraction/sniff';
 import {
   RenderCapacityError,
+  renderCapacityPollMs,
   renderUrlsInSandbox,
 } from '../node_only/sandbox/render_fetch';
 import { runFailureMessage } from '../provider_credentials/resolve_credential';
@@ -403,13 +404,14 @@ export async function scanWebsiteImpl(
             });
           } catch (error) {
             if (!(error instanceof RenderCapacityError)) throw error;
-            if (window < RENDER_MIN_WINDOW_MS + RENDER_CAPACITY_POLL_MS) {
+            const pollMs = renderCapacityPollMs(error, RENDER_CAPACITY_POLL_MS);
+            if (window < RENDER_MIN_WINDOW_MS + pollMs) {
               return null;
             }
             console.log(
-              `[crawl] ${args.domain}: render capacity is spent (${error.message}); retrying in ${RENDER_CAPACITY_POLL_MS / 1000} s`,
+              `[crawl] ${args.domain}: render capacity is spent (${error.message}); retrying in ${Math.round(pollMs / 1000)} s`,
             );
-            await sleep(RENDER_CAPACITY_POLL_MS);
+            await sleep(pollMs);
           }
         }
       };

@@ -53,8 +53,10 @@ import {
   sessionCreate,
   sessionDestroy,
   sessionDestroyIfIdle,
+  sessionIsAlive,
   sessionReadFile,
   sessionStageFiles,
+  SpawnerBusyError,
 } from './helpers/session_client';
 import { RENDERED_LAYOUT_SCRIPT } from './render_layout';
 import { runStepsInSession } from './session_exec';
@@ -115,10 +117,32 @@ export interface RenderBatchArgs {
  * had fetched (2026-09-18 evaluation, J6-3).
  */
 export class RenderCapacityError extends Error {
-  constructor(message: string) {
+  /** When to ask again, from a sandbox host that keeps a first-come line
+   * and said when this render's place comes up; undefined otherwise. */
+  readonly retryAfterMs: number | undefined;
+  constructor(message: string, retryAfterMs?: number) {
     super(message);
     this.name = 'RenderCapacityError';
+    this.retryAfterMs = retryAfterMs;
   }
+}
+
+/** A sandbox host that keeps a first-come line says when the render's
+ * place comes up; a waiting scan asks again then, within these bounds. */
+const RENDER_QUEUED_POLL_MIN_MS = 5_000;
+const RENDER_QUEUED_POLL_MAX_MS = 60_000;
+
+/** How long a render refused for room waits before asking again: its
+ * place's hint when the host gave one, else the caller's own poll. */
+export function renderCapacityPollMs(
+  error: RenderCapacityError,
+  fallbackMs: number,
+): number {
+  if (error.retryAfterMs === undefined) return fallbackMs;
+  return Math.min(
+    Math.max(error.retryAfterMs, RENDER_QUEUED_POLL_MIN_MS),
+    RENDER_QUEUED_POLL_MAX_MS,
+  );
 }
 
 /** Whether a slot-reservation failure is the quota refusal (the sessions
@@ -235,6 +259,14 @@ export async function renderUrlsInSandbox(
       created = true;
     } catch (error) {
       await settleFailedCreate(ctx, { rowId, sessionId, error });
+      // A sandbox host at capacity or short of memory is a wait like a spent
+      // render budget: the scan polls for room instead of failing the batch.
+      if (error instanceof SpawnerBusyError) {
+        throw new RenderCapacityError(
+          'the sandbox host is busy; the render waits for room',
+          error.queue !== undefined ? error.retryAfterMs : undefined,
+        );
+      }
       throw error;
     }
     await ctx.runMutation(internal.sandbox.session_mutations.setSessionStatus, {
@@ -322,24 +354,45 @@ export async function renderUrlsInSandbox(
     // the watchdog's COLLECT pass, the one pass that reaches what the create
     // may have left behind.
     if (created) {
+      let destroyed = false;
       try {
         await sessionDestroy(sessionId);
+        destroyed = true;
       } catch (error) {
         console.warn(
-          `[render] session ${sessionId} destroy failed (teardown cron will reap it):`,
+          `[render] session ${sessionId} destroy failed (the watchdog's release pass reaps it):`,
           error instanceof Error ? error.message : error,
+        );
+        // A destroy that answered badly (a timed-out request whose removal
+        // still finished, a passing 502) may still have taken the session:
+        // a definitive "gone" frees the org's render slot now, rather than
+        // after the release pass's ten-minute horizon.
+        destroyed = await sessionIsAlive(sessionId).then(
+          (alive) => !alive,
+          (probeError: unknown) => {
+            console.warn(
+              `[render] session ${sessionId} liveness after a failed destroy unknown:`,
+              probeError instanceof Error ? probeError.message : probeError,
+            );
+            return false;
+          },
         );
       }
-      try {
-        await ctx.runMutation(
-          internal.sandbox.session_mutations.markSessionRowDestroyed,
-          { organizationId: args.organizationId, sessionId },
-        );
-      } catch (error) {
-        console.warn(
-          `[render] session ${sessionId} row flip failed:`,
-          error instanceof Error ? error.message : error,
-        );
+      // A session whose destroy failed may still run: its row stays live,
+      // the one state the watchdog's release pass reaches. Settled as
+      // destroyed, its container outlived every pass, outside the budget.
+      if (destroyed) {
+        try {
+          await ctx.runMutation(
+            internal.sandbox.session_mutations.markSessionRowDestroyed,
+            { organizationId: args.organizationId, sessionId },
+          );
+        } catch (error) {
+          console.warn(
+            `[render] session ${sessionId} row flip failed:`,
+            error instanceof Error ? error.message : error,
+          );
+        }
       }
     }
   }
@@ -349,7 +402,10 @@ export async function renderUrlsInSandbox(
  * Settle the reserved row of a render create that failed: it reads `failed`
  * with `destroyed_at_ms` unset, which frees the batch's slot and leaves the
  * row to the sandbox watchdog's COLLECT pass — the only pass that reaches a
- * `failed` row. A create cut short between Docker's create and start leaves a
+ * `failed` row. A create the spawner refused for want of room (429) made
+ * nothing, so it destroys nothing and its row is settled as collected: a
+ * host that stays full refuses each of a scan's polls, and each would
+ * otherwise cost a destroy round trip now and a COLLECT visit later. A create cut short between Docker's create and start leaves a
  * container in state `created` that the spawner never adopts, and it pins its
  * runtime image through every later deploy until something destroys it.
  *
@@ -377,6 +433,14 @@ async function settleFailedCreate(
   args: { rowId: string; sessionId: string; error: unknown },
 ): Promise<void> {
   const { rowId, sessionId } = args;
+  if (args.error instanceof SpawnerBusyError) {
+    await ctx.runMutation(internal.sandbox.session_mutations.setSessionStatus, {
+      rowId,
+      status: 'failed',
+      collected: true,
+    });
+    return;
+  }
   if (args.error instanceof SessionDuplicateError) {
     console.warn(
       `[render] session ${sessionId} already exists spawner-side; this batch destroys nothing and the watchdog collects its failed row`,

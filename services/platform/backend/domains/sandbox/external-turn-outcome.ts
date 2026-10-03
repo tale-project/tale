@@ -1,3 +1,5 @@
+import { AWAITING_ROOM_RESULT_STATUS } from '../../core/sandbox/session_constants.ts';
+
 /**
  * One reading of a settled harness turn's outcome, shared by every fold of
  * the external-turn metrics (the summary cards and the per-harness rows), so
@@ -5,18 +7,28 @@
  *
  * `outcome` is the op's `agent_result_status` — the harness's own turn-ended
  * status (`completed` / `error` / `max-turns` / `cancelled`,
- * lib/harnesses/types.ts), the watchdog's `timeout`, or `awaiting_human` for
- * a turn parked on a question — with the op's `status` as the fallback when
- * the harness reported nothing.
+ * lib/harnesses/types.ts), the watchdog's `timeout`, `awaiting_human` for a
+ * turn parked on a question, or `awaiting_room` for a start that found no
+ * sandbox room — with the op's `status` as the fallback when the harness
+ * reported nothing.
  */
 export type ExternalTurnOutcome =
   | 'completed'
   | 'failed'
   | 'cancelled'
   | 'timeout'
-  /** Parked on a human question: not an outcome, so neither counted nor in
-   * any rate's denominator. */
+  /** Parked on a human question, or a start waiting for sandbox room: not an
+   * outcome, so neither counted nor in any rate's denominator. */
   | 'parked';
+
+/** The op outcomes that are no outcome — a turn parked on a question, a
+ * start waiting for sandbox room — for the reads that must leave them out
+ * in SQL, before a row cap: a long room wait settles one op per refused
+ * start, enough to crowd every real turn out of a capped page. */
+export const NO_OUTCOME_RESULT_STATUSES: readonly string[] = [
+  'awaiting_human',
+  AWAITING_ROOM_RESULT_STATUS,
+];
 
 export function classifyOutcome(
   outcome: string | null,
@@ -30,6 +42,7 @@ export function classifyOutcome(
     case 'timeout':
       return 'timeout';
     case 'awaiting_human':
+    case AWAITING_ROOM_RESULT_STATUS:
       return 'parked';
     default:
       // `failed`, the harness's `error` and `max-turns`, and anything a

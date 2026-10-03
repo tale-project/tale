@@ -437,6 +437,79 @@ describe('startWorker slot queues', () => {
   });
 });
 
+describe('startWorker agent turn slots', () => {
+  // An agent turn's start and its 90 s drive windows ran in batches: one slow
+  // start held the starts behind it, and a worker drained at most five live
+  // turns at once — the rest waited, their output piling up in the sandbox.
+  it('works agent starts and drives through slots, starts at least eight and drives sixteen at once', async () => {
+    const { boss, workOptions } = fakeBoss();
+    await startWorker({
+      boss,
+      concurrency: 5,
+      taskList: {
+        'task.agent_turn': vi.fn(),
+        'task.agent_drive': vi.fn(),
+        'automation.agent_turn': vi.fn(),
+        'automation.agent_drive': vi.fn(),
+      },
+    });
+    for (const start of ['task.agent_turn', 'automation.agent_turn']) {
+      expect(workOptions.get(start)).toMatchObject({
+        batchSize: 1,
+        localConcurrency: 8,
+      });
+    }
+    for (const drive of ['task.agent_drive', 'automation.agent_drive']) {
+      expect(workOptions.get(drive)).toMatchObject({
+        batchSize: 1,
+        localConcurrency: 16,
+        // Sixteen idle slots poll every ten seconds, not every two: a drive
+        // is enqueued with no delay, so its insert notification wakes them.
+        pollingIntervalSeconds: 10,
+        notifyPollingIntervalSeconds: 10,
+      });
+    }
+    expect(workOptions.get('task.agent_turn')).toMatchObject({
+      pollingIntervalSeconds: 2,
+    });
+  });
+
+  it('a higher worker concurrency raises the drive slots too', async () => {
+    const { boss, workOptions } = fakeBoss();
+    await startWorker({
+      boss,
+      concurrency: 32,
+      taskList: { 'task.agent_drive': vi.fn() },
+    });
+    expect(workOptions.get('task.agent_drive')?.localConcurrency).toBe(32);
+  });
+
+  it('the operator sets the start and drive slots, whatever the worker concurrency', async () => {
+    const { boss, workOptions } = fakeBoss();
+    await startWorker({
+      boss,
+      concurrency: 5,
+      agentStartSlots: 3,
+      agentDriveSlots: 48,
+      taskList: {
+        'task.agent_turn': vi.fn(),
+        'automation.agent_turn': vi.fn(),
+        'task.agent_drive': vi.fn(),
+        'automation.agent_drive': vi.fn(),
+        'websites.scan': vi.fn(),
+      },
+    });
+    expect(workOptions.get('task.agent_turn')?.localConcurrency).toBe(3);
+    expect(workOptions.get('automation.agent_turn')?.localConcurrency).toBe(3);
+    expect(workOptions.get('task.agent_drive')?.localConcurrency).toBe(48);
+    expect(workOptions.get('automation.agent_drive')?.localConcurrency).toBe(
+      48,
+    );
+    // Other slot queues keep the worker concurrency.
+    expect(workOptions.get('websites.scan')?.localConcurrency).toBe(5);
+  });
+});
+
 describe('startWorker failure reporting', () => {
   it('fails a job the database restart caught for pg-boss to retry, and reports nothing', async () => {
     const { boss, handlers } = fakeBoss();

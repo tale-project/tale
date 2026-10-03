@@ -132,6 +132,8 @@ async function main(): Promise<void> {
       boss,
       taskList: createTaskList({ sql }),
       concurrency: env.WORKER_CONCURRENCY,
+      agentStartSlots: env.AGENT_START_SLOTS,
+      agentDriveSlots: env.AGENT_DRIVE_SLOTS,
       shouldDefer: () => isBackendDraining(sql),
       sql,
     });

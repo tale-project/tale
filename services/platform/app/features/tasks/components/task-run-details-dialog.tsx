@@ -98,6 +98,7 @@ export function TaskRunDetailsDialog({
               graph={graph}
               projection={projection}
               currentNodeId={currentNodeId}
+              waitingForRoom={run.waitingFor === 'room'}
               organizationId={organizationId}
               runId={runId}
             />

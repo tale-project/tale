@@ -19558,6 +19558,109 @@ async function checkTurnReattach(
     `unreachable=${unreachable.resumed} (want 0, jobs ${jobsBefore[0]?.count}→${jobsAfterUnreachable[0]?.count}), resumed=${recovered.resumed} (want 2), abandoned=${drivenRunIds.has(abandoned.runId)} opless=${drivenRunIds.has(noOp.runId)} liveUntouched=${!drivenRunIds.has(live.runId)} rotatedUntouched=${!drivenRunIds.has(justRotated.runId)}, createdOp=${createdOp[0]?.resumedBy}/${createdOp[0]?.status}/${createdOp[0]?.kind}/${createdOp[0]?.harness} (want harness pi) runCard=${recoveredCard?.op?.execId ?? 'null'}`,
   );
 
+  // A turn whose op reads silent can still have a live chain: its next
+  // drive window waits for a worker slot, and the op's heartbeat moves only
+  // when a window ends. Re-attaching it would start a second chain beside
+  // the first. A queued window and a window that started inside the
+  // staleness window fence the re-attach; a window that started long ago
+  // with the op silent since belongs to a worker that died with it, and the
+  // turn re-attaches.
+  const fencedQueued = await mkRun('fence-queued', {
+    withOp: true,
+    heartbeatAgoMs: 10 * 60_000,
+  });
+  const fencedRunning = await mkRun('fence-running', {
+    withOp: true,
+    heartbeatAgoMs: 10 * 60_000,
+  });
+  const deadWorker = await mkRun('fence-dead-worker', {
+    withOp: true,
+    heartbeatAgoMs: 10 * 60_000,
+  });
+  const { addJobInTx: enqueueDrive } = await import('./jobs/enqueue.ts');
+  const parkDrive = async (
+    turn: { runId: string; sessionId: string; execId: string },
+    startedAgo: number | null,
+  ): Promise<string | null> => {
+    // Held far in the future, so the harness's worker never takes it.
+    const jobId = await enqueueDrive(
+      sql,
+      'task.agent_drive',
+      {
+        organizationId: orgId,
+        runId: turn.runId,
+        taskId: 'itest-fence-task',
+        agentId,
+        execId: turn.execId,
+        sessionId: turn.sessionId,
+        harness: 'claude-code',
+        deadlineAt: now + 3_600_000,
+      },
+      { startAfter: new Date(now + 24 * 3_600_000) },
+    );
+    if (startedAgo !== null && jobId !== null) {
+      await sql`
+        UPDATE pgboss.job SET state = 'active',
+          started_on = now() - make_interval(secs => ${startedAgo / 1000})
+        WHERE id = ${jobId}
+      `;
+    }
+    return jobId;
+  };
+  const fenceJobIds = [
+    await parkDrive(fencedQueued, null),
+    await parkDrive(fencedRunning, 30_000),
+    await parkDrive(deadWorker, 30 * 60_000),
+  ];
+  const drivesFor = async (execId: string): Promise<number> =>
+    Number(
+      (
+        await sql<{ count: string }[]>`
+          SELECT count(*)::text AS count FROM pgboss.job
+          WHERE name = 'task.agent_drive' AND data ->> 'execId' = ${execId}
+        `
+      )[0]?.count ?? '0',
+    );
+  const fenced = await recoverStalledTaskAgentTurns(sql, {
+    probe: () => Promise.resolve({ state: 'running' as const }),
+  });
+  const fenceDrives = {
+    queued: await drivesFor(fencedQueued.execId),
+    running: await drivesFor(fencedRunning.execId),
+    deadWorker: await drivesFor(deadWorker.execId),
+  };
+  record(
+    're-attach: a silent turn whose drive window is queued or running keeps its one chain; a window a dead worker held does not fence',
+    fenceDrives.queued === 1 &&
+      fenceDrives.running === 1 &&
+      fenceDrives.deadWorker === 2 &&
+      fenced.resumed >= 1,
+    `drives per exec queued=${fenceDrives.queued}/1 running=${fenceDrives.running}/1 deadWorker=${fenceDrives.deadWorker}/2 resumed=${fenced.resumed}`,
+  );
+  await sql`
+    DELETE FROM pgboss.job
+    WHERE name = 'task.agent_drive'
+      AND (id = ANY(${fenceJobIds.filter((id) => id !== null)})
+        OR data ->> 'execId' = ${deadWorker.execId})
+  `;
+  // The fence's turns are this check's alone: the backfill check below
+  // reads every op of the lane's sessions.
+  const fenceSessions = [fencedQueued, fencedRunning, deadWorker].map(
+    (turn) => turn.sessionId,
+  );
+  await sql`
+    UPDATE app.project_agent_runs SET status = 'cancelled'
+    WHERE session_id = ANY(${fenceSessions}) AND status IN ('queued', 'running')
+  `;
+  await sql`
+    DELETE FROM app.sandbox_session_ops WHERE session_id = ANY(${fenceSessions})
+  `;
+  await sql`
+    UPDATE app.sandbox_sessions SET status = 'destroyed',
+                                    destroyed_at_ms = ${Date.now()}
+    WHERE session_id = ANY(${fenceSessions})
+  `;
+
   // Migration 0127 names the ops written before the column existed. A
   // task-agent op takes the harness of ITS RUN — here `codex`, under a
   // session stamped `claude-code`; an op that already records one keeps it.
@@ -40959,8 +41062,8 @@ async function checkTaskAgentRuns(
     runId,
     execId,
   });
-  const woken = await agentRuns.wakeParkedAgentRuns(sql, orgId);
-  const wokenAgain = await agentRuns.wakeParkedAgentRuns(sql, orgId);
+  const woken = await agentRuns.wakeOrganizationParkedAgentRun(sql, orgId);
+  const wokenAgain = await agentRuns.wakeOrganizationParkedAgentRun(sql, orgId);
   const afterWake = await agentRuns.getAgentRun(sql, orgId, runId);
 
   // The release EDGE itself: a project-agent turn ending frees the agent's
@@ -40968,10 +41071,11 @@ async function checkTaskAgentRuns(
   // once — no watchdog tick in between. Counted org-wide (a live worker may
   // have parked a sibling), so the proof is one fewer parked run and one
   // more turn job, plus the slot really hibernated.
-  await shimRefs['tasks/agent_runs:parkTaskAgentRunForCapacity']?.({
-    runId,
-    execId,
-  });
+  // A park frees the slot its start held: a standing workspace the start
+  // resumed (`active`) before the sandbox host refused the create holds no
+  // compute, and left `active` the reconcile would heal it to destroyed and
+  // the next refused create delete its files. The release is quiet: the run
+  // stays parked and no turn is kicked into the same refusal.
   await sql`
     INSERT INTO app.sandbox_sessions (
       org_id, session_id, status, owner_type, owner_id, created_by,
@@ -40980,6 +41084,102 @@ async function checkTaskAgentRuns(
       ${orgId}, ${ledgerSessionId}, 'active', 'project_agent', ${ledgerAgentId},
       'itest:ledger', ${Date.now()}, ${Date.now() + 3_600_000}
     )
+  `;
+  const turnJobsBeforePark = Number(
+    (
+      await sql<{ count: string }[]>`
+        SELECT count(*)::text AS count FROM pgboss.job
+        WHERE name = 'task.agent_turn' AND data ->> 'organizationId' = ${orgId}
+          AND data ->> 'runId' = ${runId}
+      `
+    )[0]?.count ?? '0',
+  );
+  await shimRefs['tasks/agent_runs:parkTaskAgentRunForCapacity']?.({
+    runId,
+    execId,
+  });
+  const [parkedSlot] = await sql<{ status: string }[]>`
+    SELECT status FROM app.sandbox_sessions
+    WHERE org_id = ${orgId} AND session_id = ${ledgerSessionId}
+    ORDER BY created_at_ms DESC LIMIT 1
+  `;
+  const [parkedRun] = await sql<{ parked: boolean }[]>`
+    SELECT waiting_for_capacity_at_ms IS NOT NULL AS parked
+    FROM app.project_agent_runs WHERE id = ${runId}
+  `;
+  const turnJobsAfterPark = Number(
+    (
+      await sql<{ count: string }[]>`
+        SELECT count(*)::text AS count FROM pgboss.job
+        WHERE name = 'task.agent_turn' AND data ->> 'organizationId' = ${orgId}
+          AND data ->> 'runId' = ${runId}
+      `
+    )[0]?.count ?? '0',
+  );
+  record(
+    'a run parking for room frees its standing slot to stopped without waking a turn',
+    parkedSlot?.status === 'stopped' &&
+      (parkedRun?.parked ?? false) &&
+      turnJobsAfterPark === turnJobsBeforePark,
+    `slot=${parkedSlot?.status ?? 'MISSING'}/stopped parked=${String(parkedRun?.parked)}/true turnJobs=${turnJobsBeforePark}→${turnJobsAfterPark}`,
+  );
+  // A host that keeps a first-come line says when the run's place comes up:
+  // the park schedules ONE wake for then, which restarts the run once — a
+  // second delivery finds it un-parked and does nothing.
+  const parkWakeJobs = async (): Promise<Array<{ startAfter: Date }>> =>
+    sql<{ startAfter: Date }[]>`
+      SELECT start_after AS "startAfter" FROM pgboss.job
+      WHERE name = 'task.agent_park_wake' AND data ->> 'runId' = ${runId}
+    `;
+  const parkedAtMs = Date.now();
+  await shimRefs['tasks/agent_runs:parkTaskAgentRunForCapacity']?.({
+    runId,
+    execId,
+    wakeAfterMs: 20_000,
+  });
+  const wakeJobs = await parkWakeJobs();
+  const turnJobsBeforeTimedWake = Number(
+    (
+      await sql<{ count: string }[]>`
+        SELECT count(*)::text AS count FROM pgboss.job
+        WHERE name = 'task.agent_turn' AND data ->> 'runId' = ${runId}
+      `
+    )[0]?.count ?? '0',
+  );
+  const parkWake = createTaskList({ sql })['task.agent_park_wake'];
+  await parkWake?.({ organizationId: orgId, runId, execId });
+  await parkWake?.({ organizationId: orgId, runId, execId });
+  const [timedWoken] = await sql<{ parked: boolean }[]>`
+    SELECT waiting_for_capacity_at_ms IS NOT NULL AS parked
+    FROM app.project_agent_runs WHERE id = ${runId}
+  `;
+  const turnJobsAfterTimedWake = Number(
+    (
+      await sql<{ count: string }[]>`
+        SELECT count(*)::text AS count FROM pgboss.job
+        WHERE name = 'task.agent_turn' AND data ->> 'runId' = ${runId}
+      `
+    )[0]?.count ?? '0',
+  );
+  const wakeAt = wakeJobs[0]?.startAfter.getTime() ?? 0;
+  record(
+    'a host refusal that names its place in line wakes the parked run then, once',
+    wakeJobs.length === 1 &&
+      wakeAt >= parkedAtMs + 19_000 &&
+      wakeAt <= Date.now() + 21_000 &&
+      !(timedWoken?.parked ?? true) &&
+      turnJobsAfterTimedWake === turnJobsBeforeTimedWake + 1,
+    `wakeJobs=${wakeJobs.length}/1 at=+${wakeAt - parkedAtMs}ms(want ~20000) parked=${String(timedWoken?.parked)}/false turnJobs=${turnJobsBeforeTimedWake}→${turnJobsAfterTimedWake} (want +1)`,
+  );
+  // Parked again, for the release edge below.
+  await shimRefs['tasks/agent_runs:parkTaskAgentRunForCapacity']?.({
+    runId,
+    execId,
+  });
+  // Back to `active` for the release edge below.
+  await sql`
+    UPDATE app.sandbox_sessions SET status = 'active'
+    WHERE org_id = ${orgId} AND session_id = ${ledgerSessionId}
   `;
   const countParked = async (): Promise<number> =>
     Number(
@@ -41000,6 +41200,34 @@ async function checkTaskAgentRuns(
         `
       )[0]?.count ?? '0',
     );
+  // The sandbox host is shared: the same release wakes the oldest parked
+  // run of another organization too, one that runs nothing of its own and
+  // so has no release edge that would ever wake it. Parked first of all
+  // (stamp 1), so no other lane's leftover park is older; its agent is a
+  // phantom, so the turn job it gets is skipped.
+  const quietOrgId = `${orgId}-quiet-${randomUUID()}`;
+  const [quietTask] = await sql<{ id: string }[]>`
+    INSERT INTO app.tasks (
+      org_id, project_id, title, status, rank, created_by, created_by_type,
+      created_at_ms, updated_at_ms
+    ) VALUES (
+      ${orgId}, ${projectId}, 'Quiet organization work', 'todo', 'a0',
+      'itest:ledger', 'user', ${Date.now()}, ${Date.now()}
+    ) RETURNING id
+  `;
+  const [quietRun] = await sql<{ id: string }[]>`
+    INSERT INTO app.project_agent_runs (
+      org_id, project_id, task_id, agent_id, exec_id, session_id, status,
+      harness, model, started_by, started_at_ms, waiting_for_capacity_at_ms,
+      deadline_at_ms, updated_at_ms
+    ) VALUES (
+      ${quietOrgId}, ${projectId}, ${quietTask?.id ?? ''},
+      ${`itest-quiet-agent-${randomUUID()}`}, 'exec-quiet-1', 'pa-quiet',
+      'queued', 'claude-code', 'itest-model', 'itest:ledger', ${Date.now()},
+      1, ${Date.now() + 3_600_000}, ${Date.now()}
+    ) RETURNING id
+  `;
+  const quietRunId = quietRun?.id ?? '';
   const parkedBeforeRelease = await countParked();
   const turnJobsBeforeRelease = await countTurnJobs();
   const sessionsApi = await import('./domains/sandbox/sessions.ts');
@@ -41009,6 +41237,28 @@ async function checkTaskAgentRuns(
   });
   const parkedAfterRelease = await countParked();
   const turnJobsAfterRelease = await countTurnJobs();
+  const [quietAfterRelease] = await sql<
+    { parked: boolean; turnJobs: string }[]
+  >`
+    SELECT r.waiting_for_capacity_at_ms IS NOT NULL AS parked,
+           (SELECT count(*) FROM pgboss.job j
+            WHERE j.name = 'task.agent_turn'
+              AND j.data ->> 'organizationId' = ${quietOrgId}
+              AND j.data ->> 'runId' = ${quietRunId})::text AS "turnJobs"
+    FROM app.project_agent_runs r WHERE r.id = ${quietRunId}
+  `;
+  record(
+    'a release edge also wakes the oldest parked run of another organization',
+    released &&
+      !(quietAfterRelease?.parked ?? true) &&
+      quietAfterRelease?.turnJobs === '1',
+    `released=${released} quiet parked=${String(quietAfterRelease?.parked)}/false turnJobs=${quietAfterRelease?.turnJobs ?? 'MISSING'}/1`,
+  );
+  await sql`
+    UPDATE app.project_agent_runs SET status = 'cancelled',
+      waiting_for_capacity_at_ms = NULL, settled_at_ms = ${Date.now()}
+    WHERE id = ${quietRunId}
+  `;
   const releasedSlot = await sql<{ status: string }[]>`
     SELECT status FROM app.sandbox_sessions
     WHERE org_id = ${orgId} AND session_id = ${ledgerSessionId}
@@ -41025,7 +41275,7 @@ async function checkTaskAgentRuns(
   // instead: the wake claims the org's oldest parked run, ours included
   // (`claimParkedAgentRun` is gone — one live run per task is the schema's
   // rule and the wake is the one un-park door).
-  await agentRuns.wakeParkedAgentRuns(sql, orgId);
+  await agentRuns.wakeOrganizationParkedAgentRun(sql, orgId);
 
   // Launch (the host's running flip) + exactly-once settle through the
   // host's mark; `launchedAt` distinct from kick time. A late failure must
@@ -50378,6 +50628,19 @@ async function checkMetricsSurface(
       (${`${orgId}-other`}, 'mx-sess', 'mx-other-op', 'task-agent',
        'completed', 'other-tenant', ${now - 2000}, ${now - 1000})
   `;
+  // An automation step waiting for sandbox room settles one op per refused
+  // start: not a harness turn, and newer than every real one. Enough of
+  // them to fill the metrics read's 5000-row cap on their own, plus one
+  // inside the harness-health window under a harness the real turns name.
+  await sql`
+    INSERT INTO app.sandbox_session_ops (
+      org_id, session_id, exec_id, kind, status, agent_result_status,
+      harness, started_at_ms, finished_at_ms
+    )
+    SELECT ${orgId}, 'mx-wait', 'mx-wait-' || n, 'workflow-agent', 'failed',
+           'awaiting_room', 'codex', ${now - 500}, ${now - 400}
+    FROM generate_series(1, 5000) AS n
+  `;
 
   // ---- probes ------------------------------------------------------------
   const usage = z
@@ -50634,13 +50897,18 @@ async function checkMetricsSurface(
       harnessHealthAfter.data.health.length === 3 &&
       harnessHealthAfter.data.health.find((row) => row.harness === 'codex')
         ?.recentTotal === 1 &&
+      // The question-parked turn and the room waits are no outcome.
       harnessHealthAfter.data.health.find(
         (row) => row.harness === 'claude-code',
-      )?.recentTotal === 6,
+      )?.recentTotal === 5,
     turns.success
-      ? `total=${turns.data.total} c/f/x/t=${turns.data.completed}/${turns.data.failed}/${turns.data.cancelled}/${turns.data.timeout} rec=${turns.data.recovered} p95=${turns.data.durationP95Ms} spent=${turns.data.spentCents} byHarness=${JSON.stringify(turns.data.byHarness.map((row) => [row.harness, row.total]))} (want claude-code 6 + pi 1 + codex 1, no foreign/old rows) health.pi=${piHealth?.recentTotal ?? 'none'} (want 1)`
+      ? `total=${turns.data.total} c/f/x/t=${turns.data.completed}/${turns.data.failed}/${turns.data.cancelled}/${turns.data.timeout} rec=${turns.data.recovered} p95=${turns.data.durationP95Ms} spent=${turns.data.spentCents} byHarness=${JSON.stringify(turns.data.byHarness.map((row) => [row.harness, row.total]))} (want claude-code 6 + pi 1 + codex 1, no foreign/old rows, no room waits) health=${JSON.stringify(harnessHealthAfter.success ? harnessHealthAfter.data.health.map((row) => [row.harness, row.recentTotal]) : 'shape-fail')} (want claude-code 5, pi 1, codex 1)`
       : 'shape-fail',
   );
+  await sql`
+    DELETE FROM app.sandbox_session_ops
+    WHERE org_id = ${orgId} AND session_id = 'mx-wait'
+  `;
 
   // ---- the run dialog's execution log ---------------------------------
   const { sessionIdForWorkflowExecution } =
@@ -54698,6 +54966,46 @@ async function checkWatchdogs(
   `;
   const parkedId = parked[0]?.id ?? '';
 
+  // Lane 2b: an organization whose one run parked for host room behind
+  // another organization's backlog of sixty older parks. The tick wakes
+  // runs of every organization that has a parked one, so the quiet
+  // organization is tried this tick, not once the backlog's oldest fifty
+  // have drained. A third organization's even older park takes the
+  // cross-organization wake of the deadline lane's slot release, which
+  // would otherwise reach the quiet run without the tick. Phantom agents:
+  // the turn jobs the wakes enqueue are skipped.
+  const backlogTasks = await sql<{ id: string }[]>`
+    INSERT INTO app.tasks (
+      org_id, project_id, title, status, rank, created_by, created_by_type,
+      created_at_ms, updated_at_ms
+    )
+    SELECT ${orgId}, ${projectId}, 'Watchdog backlog ' || n, 'todo', 'a0',
+           'itest:wd', 'user', ${now}, ${now}
+    FROM generate_series(1, 62) AS n
+    RETURNING id
+  `;
+  const backlogRunIds: string[] = [];
+  for (const [index, row] of backlogTasks.entries()) {
+    const quiet = index === backlogTasks.length - 1;
+    const decoy = index === backlogTasks.length - 2;
+    const [inserted] = await sql<{ id: string }[]>`
+      INSERT INTO app.project_agent_runs (
+        org_id, project_id, task_id, agent_id, exec_id, session_id, status,
+        harness, model, started_by, started_at_ms,
+        waiting_for_capacity_at_ms, deadline_at_ms, updated_at_ms
+      ) VALUES (
+        ${quiet ? `${orgId}-wd-quiet` : decoy ? `${orgId}-wd-decoy` : orgId},
+        ${projectId}, ${row.id}, ${`wd-phantom-${randomUUID()}`},
+        ${`exec-wd-backlog-${index}`}, ${`pa-wd-backlog-${index}`}, 'queued',
+        'claude-code', 'itest-model', 'itest:wd', ${now - 3 * 3_600_000},
+        ${quiet ? now - 3_600_000 : decoy ? 2 : now - 2 * 3_600_000 + index},
+        ${now + 3_600_000}, ${now}
+      ) RETURNING id
+    `;
+    backlogRunIds.push(inserted?.id ?? '');
+  }
+  const quietParkedId = backlogRunIds.at(-1) ?? '';
+
   // The deadline sweep must stop the exec itself, not only its ledger row:
   // a fake spawner records the cancel the sweep sends for the overdue run.
   const { createServer } = await import('node:http');
@@ -54766,6 +55074,26 @@ async function checkWatchdogs(
       slotAfter[0]?.status === 'stopped',
     `overdue=${overdueAfter?.status} parked=${parkedAfter?.status} op=${opAfter[0]?.status} slot=${slotAfter[0]?.status}`,
   );
+  const [quietAfterTick] = await sql<{ parked: boolean }[]>`
+    SELECT waiting_for_capacity_at_ms IS NOT NULL AS parked
+    FROM app.project_agent_runs WHERE id = ${quietParkedId}
+  `;
+  const [backlogAfterTick] = await sql<{ parked: string }[]>`
+    SELECT count(*)::text AS parked FROM app.project_agent_runs
+    WHERE id = ANY(${backlogRunIds.slice(0, -2)})
+      AND waiting_for_capacity_at_ms IS NOT NULL
+  `;
+  const backlogStillParked = Number(backlogAfterTick?.parked ?? '60');
+  record(
+    'task-agent watchdog wakes a parked run of every organization, not only of the oldest fifty parks',
+    !(quietAfterTick?.parked ?? true) && backlogStillParked <= 56,
+    `quiet parked=${String(quietAfterTick?.parked)}/false backlog still parked=${backlogStillParked}/≤56 (four woken a tick, one more by the slot release)`,
+  );
+  await sql`
+    UPDATE app.project_agent_runs SET status = 'cancelled',
+      waiting_for_capacity_at_ms = NULL, settled_at_ms = ${Date.now()}
+    WHERE id = ANY(${backlogRunIds})
+  `;
   record(
     'task-agent watchdog stops the sandbox exec of a deadline-failed run',
     cancels.length === 1 &&
@@ -55364,6 +55692,159 @@ async function checkWatchdogs(
       collectRow('wd-collect-recent', 'failed')?.destroyedAt === null &&
       collectedTotal >= 2,
     `passes=${collectPasses} asked=${[...new Set(collectAsked)].join(',')} rows=${collectRows.map((r) => `${r.sessionId}=${r.status}/${r.destroyedAt === null ? 'unstamped' : 'stamped'}`).join(' ')} token=${reusedTokenRows[0]?.revokedAt === null ? 'live' : 'revoked'} collected=${collectedTotal}`,
+  );
+
+  // Lane 3e: a create the sandbox host refused (429) made nothing, so its
+  // row is settled as collected and the COLLECT pass never destroys its id.
+  // A standing workspace whose last row the reconcile healed to destroyed
+  // keeps its files spawner-side; a destroy of its id, once the refused
+  // row's grace had passed, deleted them. Both the turn hosts' and the
+  // render lane's settles, through their real shim handlers, with no grace
+  // left; the spy spawner answers busy for everything, so other lanes' rows
+  // are left alone.
+  const { agentTurnShimHandlers: refusedTaskShim } =
+    await import('./domains/tasks/agent-turn-shim.ts');
+  const { crawlHandlers: refusedRenderShim } =
+    await import('./domains/websites/service.ts');
+  await sql`
+    INSERT INTO app.sandbox_sessions (
+      org_id, session_id, status, owner_type, owner_id, created_by,
+      created_at_ms, expires_at_ms, last_activity_at_ms, destroyed_at_ms
+    ) VALUES (
+      ${orgId}, 'pa-wd-refused', 'destroyed', 'project_agent',
+      'itest-wd-refused-agent', 'itest:wd', ${now - 3 * 3_600_000},
+      ${now + 21 * 3_600_000}, ${now - 3 * 3_600_000}, ${now - 2 * 3_600_000}
+    )
+  `;
+  const reserveRefused = async (
+    sessionId: string,
+    ownerType: string,
+  ): Promise<string> => {
+    const [row] = await sql<{ id: string }[]>`
+      INSERT INTO app.sandbox_sessions (
+        org_id, session_id, status, owner_type, owner_id, created_by,
+        created_at_ms, expires_at_ms, last_activity_at_ms
+      ) VALUES (
+        ${orgId}, ${sessionId}, 'creating', ${ownerType}, ${sessionId},
+        'itest:wd', ${now - 60_000}, ${now + 24 * 3_600_000}, ${now - 60_000}
+      ) RETURNING id
+    `;
+    return row?.id ?? '';
+  };
+  const refusedAgentRowId = await reserveRefused(
+    'pa-wd-refused',
+    'project_agent',
+  );
+  const refusedRenderRowId = await reserveRefused(
+    'render-wd-refused',
+    'render',
+  );
+  await refusedTaskShim(sql)['sandbox/session_mutations:setSessionStatus']?.({
+    rowId: refusedAgentRowId,
+    status: 'failed',
+    collected: true,
+  });
+  await refusedRenderShim(sql)['sandbox/session_mutations:setSessionStatus']?.({
+    rowId: refusedRenderRowId,
+    status: 'failed',
+    collected: true,
+  });
+  const refusedAsked: string[] = [];
+  await sandboxWatchdogs.runSandboxWatchdog(sql, {
+    collectBatch: 50,
+    collectGraceMs: 0,
+    spawner: {
+      isAlive: (): Promise<boolean> => Promise.resolve(true),
+      setPinned: (): Promise<boolean> => Promise.resolve(true),
+      create: (): Promise<unknown> => Promise.resolve(undefined),
+      destroyIfIdle: (
+        sessionId: string,
+      ): Promise<{ destroyed: boolean; busy: boolean }> => {
+        refusedAsked.push(sessionId);
+        return Promise.resolve({ destroyed: false, busy: true });
+      },
+    },
+  });
+  const refusedAfter = await sql<
+    { id: string; status: string; destroyedAt: number | null }[]
+  >`
+    SELECT id, status, destroyed_at_ms::float8 AS "destroyedAt"
+    FROM app.sandbox_sessions
+    WHERE id = ANY(${[refusedAgentRowId, refusedRenderRowId]})
+  `;
+  record(
+    'a create the sandbox host refused leaves its row collected, and the COLLECT pass never destroys its id',
+    refusedAfter.length === 2 &&
+      refusedAfter.every(
+        (row) => row.status === 'failed' && row.destroyedAt !== null,
+      ) &&
+      !refusedAsked.includes('pa-wd-refused') &&
+      !refusedAsked.includes('render-wd-refused'),
+    `rows=${refusedAfter.map((row) => `${row.status}/${row.destroyedAt === null ? 'unstamped' : 'stamped'}`).join(' ')} asked=${refusedAsked.filter((id) => id.endsWith('-wd-refused')).join(',') || 'none'} (want both failed/stamped, neither asked)`,
+  );
+
+  // What waiting for room leaves behind goes: the op rows of refused starts
+  // an hour after they ended — the session's newest kept, the run view
+  // reads it — and failed session rows a day after they were collected.
+  const waitSession = `wf-wd-wait-${randomUUID()}`;
+  const hourAgo = now - 2 * 60 * 60 * 1000;
+  for (const [execId, startedAt] of [
+    ['wait-1', hourAgo - 3_000],
+    ['wait-2', hourAgo - 2_000],
+    ['wait-3', hourAgo - 1_000],
+  ] as const) {
+    await sql`
+      INSERT INTO app.sandbox_session_ops (
+        org_id, session_id, exec_id, kind, status, agent_result_status,
+        started_at_ms, finished_at_ms
+      ) VALUES (
+        ${orgId}, ${waitSession}, ${execId}, 'workflow-agent', 'failed',
+        'awaiting_room', ${startedAt}, ${startedAt + 500}
+      )
+    `;
+  }
+  // One that minted a key is the settlement's to finish, never this sweep's.
+  await sql`
+    INSERT INTO app.sandbox_session_ops (
+      org_id, session_id, exec_id, kind, status, agent_result_status,
+      minted_key_id, started_at_ms, finished_at_ms
+    ) VALUES (
+      ${orgId}, ${waitSession}, 'wait-keyed', 'workflow-agent', 'failed',
+      'awaiting_room', 'key-wd-wait', ${hourAgo - 4_000}, ${hourAgo - 3_500}
+    )
+  `;
+  const day = 24 * 60 * 60 * 1000;
+  const collectedRows = await sql<{ id: string; old: boolean }[]>`
+    INSERT INTO app.sandbox_sessions (
+      org_id, session_id, status, owner_type, owner_id, created_by,
+      created_at_ms, expires_at_ms, destroyed_at_ms
+    ) VALUES
+      (${orgId}, 'pa-wd-collected-old', 'failed', 'project_agent', 'agent-wd',
+       'itest', ${now - day - 120_000}, ${now}, ${now - day - 60_000}),
+      (${orgId}, 'pa-wd-collected-new', 'failed', 'project_agent', 'agent-wd',
+       'itest', ${now - 120_000}, ${now}, ${now - 60_000})
+    RETURNING id, destroyed_at_ms < ${now - day} AS old
+  `;
+  const { sweepRoomWaitLeftovers } =
+    await import('./domains/sandbox/wait-retention.ts');
+  await sweepRoomWaitLeftovers(sql, { now });
+  const waitOpsLeft = (
+    await sql<{ execId: string }[]>`
+      SELECT exec_id AS "execId" FROM app.sandbox_session_ops
+      WHERE session_id = ${waitSession} ORDER BY started_at_ms
+    `
+  ).map((row) => row.execId);
+  const collectedLeft = await sql<{ id: string }[]>`
+    SELECT id FROM app.sandbox_sessions
+    WHERE id = ANY(${collectedRows.map((row) => row.id)})
+  `;
+  const keptRecent = collectedRows.find((row) => !row.old)?.id;
+  record(
+    'what waiting for room leaves behind is deleted past its retention, the newest op and a keyed one kept',
+    waitOpsLeft.join(',') === 'wait-keyed,wait-3' &&
+      collectedLeft.length === 1 &&
+      collectedLeft[0]?.id === keptRecent,
+    `ops=${waitOpsLeft.join(',')} (want wait-keyed,wait-3) sessions=${collectedLeft.length}/1 recent kept=${String(collectedLeft[0]?.id === keptRecent)}`,
   );
 
   // Lane 4: a stale chat generation (hard-killed turn) clears; the thread

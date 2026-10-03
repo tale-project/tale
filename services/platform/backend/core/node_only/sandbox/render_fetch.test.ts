@@ -26,6 +26,7 @@ import {
   parseRenderResults,
   RENDER_WORKER_SOURCE,
   RenderCapacityError,
+  renderCapacityPollMs,
   renderUrlsInSandbox,
 } from './render_fetch';
 
@@ -35,6 +36,7 @@ const spawner = vi.hoisted(() => ({
   sessionCreate: vi.fn(),
   sessionDestroy: vi.fn(),
   sessionDestroyIfIdle: vi.fn(),
+  sessionIsAlive: vi.fn(),
   sessionStageFiles: vi.fn(),
   sessionReadFile: vi.fn(),
   runStepsInSession: vi.fn(),
@@ -44,6 +46,7 @@ vi.mock('./helpers/session_client', async (importOriginal) => ({
   sessionCreate: spawner.sessionCreate,
   sessionDestroy: spawner.sessionDestroy,
   sessionDestroyIfIdle: spawner.sessionDestroyIfIdle,
+  sessionIsAlive: spawner.sessionIsAlive,
   sessionStageFiles: spawner.sessionStageFiles,
   sessionReadFile: spawner.sessionReadFile,
 }));
@@ -299,6 +302,95 @@ describe('renderUrlsInSandbox — the session lifecycle', () => {
       'setSessionStatus',
       'destroy',
       'markSessionRowDestroyed',
+    ]);
+  });
+
+  // The regression: a failed destroy still settled the row `destroyed`,
+  // which hid it from the watchdog's release pass while its container ran
+  // on, outside the render budget.
+  it('a session whose destroy failed keeps its live row for the watchdog', async () => {
+    const run = renderRun('row_1');
+    scriptSpawner(run.events);
+    spawner.sessionDestroy.mockImplementation(async () => {
+      run.events.push('destroy');
+      throw new Error('spawner unreachable');
+    });
+    spawner.sessionIsAlive.mockRejectedValue(new Error('spawner unreachable'));
+
+    await run.render();
+
+    expect(run.events.at(-1)).toBe('destroy');
+    expect(run.events).not.toContain('markSessionRowDestroyed');
+  });
+
+  it('a failed destroy whose session is gone after all frees the render slot at once', async () => {
+    const run = renderRun('row_1');
+    scriptSpawner(run.events);
+    spawner.sessionDestroy.mockImplementation(async () => {
+      run.events.push('destroy');
+      throw new Error('sandbox session destroy failed (504)');
+    });
+    spawner.sessionIsAlive.mockResolvedValue(false);
+
+    await run.render();
+
+    expect(run.events.slice(-2)).toEqual([
+      'destroy',
+      'markSessionRowDestroyed',
+    ]);
+  });
+
+  it('a waiting scan asks again at its place’s hint, within bounds, else at its own poll', () => {
+    const wait = (hint?: number) =>
+      renderCapacityPollMs(new RenderCapacityError('busy', hint), 15_000);
+    expect(wait()).toBe(15_000);
+    expect(wait(25_000)).toBe(25_000);
+    expect(wait(1_000)).toBe(5_000);
+    expect(wait(300_000)).toBe(60_000);
+  });
+
+  it('a host that keeps a line hands its place’s hint to the wait', async () => {
+    const run = renderRun('row_1');
+    scriptSpawner(run.events);
+    const { SpawnerBusyError } = await import('./helpers/session_client');
+    spawner.sessionCreate.mockImplementationOnce(async () => {
+      throw new SpawnerBusyError(25_000, { position: 4, waiting: 6 });
+    });
+    const queued = await run.render().catch((error: unknown) => error);
+    expect(queued).toBeInstanceOf(RenderCapacityError);
+    expect(queued instanceof RenderCapacityError && queued.retryAfterMs).toBe(
+      25_000,
+    );
+    spawner.sessionCreate.mockImplementationOnce(async () => {
+      throw new SpawnerBusyError(15_000);
+    });
+    const unqueued = await renderRun('row_2')
+      .render()
+      .catch((error: unknown) => error);
+    expect(
+      unqueued instanceof RenderCapacityError && unqueued.retryAfterMs,
+    ).toBeUndefined();
+  });
+
+  it('a sandbox host at capacity is a wait for room, not a failed batch', async () => {
+    const run = renderRun('row_1');
+    scriptSpawner(run.events);
+    const { SpawnerBusyError } = await import('./helpers/session_client');
+    spawner.sessionCreate.mockImplementation(async () => {
+      run.events.push('create');
+      throw new SpawnerBusyError(15_000);
+    });
+
+    await expect(run.render()).rejects.toBeInstanceOf(RenderCapacityError);
+    // A refused create made nothing: no destroy, and its row reads failed
+    // and already collected, so the watchdog's COLLECT pass never visits it.
+    expect(run.events).toEqual([
+      'reserveSessionSlotAndInsert',
+      'create',
+      'setSessionStatus',
+    ]);
+    expect(run.mutationArgs('setSessionStatus')).toEqual([
+      { rowId: 'row_1', status: 'failed', collected: true },
     ]);
   });
 

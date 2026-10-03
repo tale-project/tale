@@ -45,28 +45,28 @@ export function isRunFinished(status: RunStatus): boolean {
   return status === 'success' || status === 'failed' || status === 'cancelled';
 }
 
-const WAITING_KINDS = new Set(['approval', 'ask', 'agent', 'repeat']);
+const WAITING_KINDS = new Set(['approval', 'ask', 'agent', 'room', 'repeat']);
 
 /** The `waitingFor` the read model answers on a parked run, or nothing. */
 function readRunWaitingFor(
   value: unknown,
-): 'approval' | 'ask' | 'agent' | 'repeat' | undefined {
+): 'approval' | 'ask' | 'agent' | 'room' | 'repeat' | undefined {
   return typeof value === 'string' && WAITING_KINDS.has(value)
     ? // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- membership checked against the union's own set
-      (value as 'approval' | 'ask' | 'agent' | 'repeat')
+      (value as 'approval' | 'ask' | 'agent' | 'room' | 'repeat')
     : undefined;
 }
 
 /**
- * The node a `repeat:<nodeId>` / `agent:<nodeId>` park names — the one
- * place the park's detail prefix is read, so the page can say "polling —
- * step {node}" instead of printing the raw `repeat:tick`.
+ * The node a `repeat:<nodeId>` / `agent:<nodeId>` / `room:<nodeId>` park
+ * names — the one place the park's detail prefix is read, so the page can
+ * say "polling — step {node}" instead of printing the raw `repeat:tick`.
  */
 function readRunParkNode(
   detail: string | null | undefined,
 ): string | undefined {
   if (typeof detail !== 'string') return undefined;
-  const match = /^(?:repeat|agent):(.+)$/.exec(detail);
+  const match = /^(?:repeat|agent|room):(.+)$/.exec(detail);
   return match?.[1];
 }
 

@@ -27,6 +27,20 @@ describe('loadEnv', () => {
     expect(env.WORKER_CONCURRENCY).toBe(2);
   });
 
+  it('reads the agent turn slots, unset by default and bounded', () => {
+    expect(loadEnv({ ...BASE }).AGENT_START_SLOTS).toBeUndefined();
+    expect(loadEnv({ ...BASE }).AGENT_DRIVE_SLOTS).toBeUndefined();
+    const env = loadEnv({
+      ...BASE,
+      AGENT_START_SLOTS: '12',
+      AGENT_DRIVE_SLOTS: '64',
+    });
+    expect(env.AGENT_START_SLOTS).toBe(12);
+    expect(env.AGENT_DRIVE_SLOTS).toBe(64);
+    expect(() => loadEnv({ ...BASE, AGENT_DRIVE_SLOTS: '0' })).toThrow();
+    expect(() => loadEnv({ ...BASE, AGENT_START_SLOTS: 'lots' })).toThrow();
+  });
+
   it('passes SENTRY_DSN through and leaves it optional', () => {
     expect(loadEnv({ ...BASE }).SENTRY_DSN).toBeUndefined();
     const env = loadEnv({

@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Tale Platform API",
-    "version": "3.13.0",
+    "version": "3.14.0",
     "contact": {
       "name": "Tale",
       "url": "https://tale.dev"
@@ -38236,7 +38236,7 @@
         "description": "The version of this contract (`info.version`) the serving instance implements — semver for the wire",
         "schema": {
           "type": "string",
-          "example": "3.13.0"
+          "example": "3.14.0"
         }
       },
       "Location": {
@@ -41787,7 +41787,7 @@
           },
           "detail": {
             "type": "string",
-            "description": "The failure or wait reason, when the run has one. While `waiting` it names the park: `approval:<approvalId>`, `agent:<nodeId>` or `repeat:<nodeId>` — `waitingFor` is the field to branch on; when `failed`, the failure sentence, and `failureCode` the stable cause — the sentence is not contractual."
+            "description": "The failure or wait reason, when the run has one. While `waiting` it names the park: `approval:<approvalId>`, `agent:<nodeId>`, `room:<nodeId>` or `repeat:<nodeId>` — `waitingFor` is the field to branch on; when `failed`, the failure sentence, and `failureCode` the stable cause — the sentence is not contractual."
           },
           "failureCode": {
             "type": "string",
@@ -41825,8 +41825,8 @@
           },
           "waitingFor": {
             "type": "string",
-            "enum": ["approval", "ask", "agent", "repeat"],
-            "description": "Present only while `status` is `waiting`: what the run is parked on. `approval` — a person’s decision on a gate; `ask` — a question a person has to answer; `agent` — an agent turn still running, no one to page; `repeat` — a node polling until its `repeatUntil` condition holds, no one to page. \"Runs that need a human\" is `waitingFor` in (`approval`, `ask`), never `status=waiting` alone."
+            "enum": ["approval", "ask", "agent", "room", "repeat"],
+            "description": "Present only while `status` is `waiting`: what the run is parked on. `approval` — a person’s decision on a gate; `ask` — a question a person has to answer; `agent` — an agent turn still running, no one to page; `room` — an agent turn whose start waits for sandbox room, no one to page; `repeat` — a node polling until its `repeatUntil` condition holds, no one to page. \"Runs that need a human\" is `waitingFor` in (`approval`, `ask`), never `status=waiting` alone."
           },
           "startedAt": {
             "type": "integer",
@@ -41919,7 +41919,7 @@
           "detail": {
             "type": "string",
             "nullable": true,
-            "description": "The failure or wait reason; null while the run has none — and null again once a cancel lands (the park it named is over). While `waiting` it names the park: `approval:<approvalId>`, `agent:<nodeId>` or `repeat:<nodeId>` — `waitingFor` is the field to branch on; when `failed`, the failure sentence, and `failureCode` the stable cause to branch on — the sentence is not contractual."
+            "description": "The failure or wait reason; null while the run has none — and null again once a cancel lands (the park it named is over). While `waiting` it names the park: `approval:<approvalId>`, `agent:<nodeId>`, `room:<nodeId>` or `repeat:<nodeId>` — `waitingFor` is the field to branch on; when `failed`, the failure sentence, and `failureCode` the stable cause to branch on — the sentence is not contractual."
           },
           "failureCode": {
             "type": "string",
@@ -41959,8 +41959,8 @@
           },
           "waitingFor": {
             "type": "string",
-            "enum": ["approval", "ask", "agent", "repeat"],
-            "description": "Present only while `status` is `waiting`: what the run is parked on. `approval` — a person’s decision on a gate; `ask` — a question a person has to answer; `agent` — an agent turn still running, no one to page; `repeat` — a node polling until its `repeatUntil` condition holds, no one to page."
+            "enum": ["approval", "ask", "agent", "room", "repeat"],
+            "description": "Present only while `status` is `waiting`: what the run is parked on. `approval` — a person’s decision on a gate; `ask` — a question a person has to answer; `agent` — an agent turn still running, no one to page; `room` — an agent turn whose start waits for sandbox room, no one to page; `repeat` — a node polling until its `repeatUntil` condition holds, no one to page."
           },
           "claimEpoch": {
             "type": "integer",
@@ -42037,7 +42037,7 @@
           "detail": {
             "type": "string",
             "nullable": true,
-            "description": "The failure or wait reason; null while the run has none — and null again once a cancel lands (the park it named is over). While `waiting` it names the park: `approval:<approvalId>`, `agent:<nodeId>` or `repeat:<nodeId>` — `waitingFor` is the field to branch on; when `failed`, the failure sentence, and `failureCode` the stable cause to branch on — the sentence is not contractual."
+            "description": "The failure or wait reason; null while the run has none — and null again once a cancel lands (the park it named is over). While `waiting` it names the park: `approval:<approvalId>`, `agent:<nodeId>`, `room:<nodeId>` or `repeat:<nodeId>` — `waitingFor` is the field to branch on; when `failed`, the failure sentence, and `failureCode` the stable cause to branch on — the sentence is not contractual."
           },
           "failureCode": {
             "type": "string",
@@ -42077,8 +42077,8 @@
           },
           "waitingFor": {
             "type": "string",
-            "enum": ["approval", "ask", "agent", "repeat"],
-            "description": "Present only while `status` is `waiting`: what the run is parked on. `approval` — a person’s decision on a gate; `ask` — a question a person has to answer; `agent` — an agent turn still running, no one to page; `repeat` — a node polling until its `repeatUntil` condition holds, no one to page."
+            "enum": ["approval", "ask", "agent", "room", "repeat"],
+            "description": "Present only while `status` is `waiting`: what the run is parked on. `approval` — a person’s decision on a gate; `ask` — a question a person has to answer; `agent` — an agent turn still running, no one to page; `room` — an agent turn whose start waits for sandbox room, no one to page; `repeat` — a node polling until its `repeatUntil` condition holds, no one to page."
           },
           "claimEpoch": {
             "type": "integer",

@@ -18,7 +18,8 @@ import {
   type AgentRunRow,
   failAgentRun,
   listOverdueAgentRuns,
-  listParkedAgentRuns,
+  listParkedAgentRunOrganizations,
+  wakeOrganizationParkedAgentRun,
 } from './agent-runs.ts';
 import { runTaskAgentWatchdog } from './watchdogs.ts';
 
@@ -31,8 +32,8 @@ vi.mock('../sandbox/sessions.ts', () => ({
 vi.mock('./agent-runs.ts', () => ({
   failAgentRun: vi.fn(),
   listOverdueAgentRuns: vi.fn(),
-  listParkedAgentRuns: vi.fn(() => Promise.resolve([])),
-  wakeParkedAgentRuns: vi.fn(() => Promise.resolve(0)),
+  listParkedAgentRunOrganizations: vi.fn(() => Promise.resolve([])),
+  wakeOrganizationParkedAgentRun: vi.fn(() => Promise.resolve(0)),
 }));
 
 const overdueRun = {
@@ -61,13 +62,41 @@ function fakeSql(
 
 beforeEach(() => {
   vi.mocked(listOverdueAgentRuns).mockResolvedValue([overdueRun]);
-  vi.mocked(listParkedAgentRuns).mockResolvedValue([]);
+  vi.mocked(listParkedAgentRunOrganizations).mockResolvedValue([]);
   vi.mocked(failAgentRun).mockResolvedValue(true);
 });
 
 afterEach(() => {
   vi.clearAllMocks();
   vi.restoreAllMocks();
+});
+
+describe('runTaskAgentWatchdog (parked runs)', () => {
+  it('wakes up to four parked runs per organization a tick, stopping when none is left', async () => {
+    vi.mocked(listOverdueAgentRuns).mockResolvedValue([]);
+    vi.mocked(listParkedAgentRunOrganizations).mockResolvedValue([
+      { organizationId: 'org-busy' },
+      { organizationId: 'org-quiet' },
+    ]);
+    const remaining = new Map([
+      ['org-busy', 6],
+      ['org-quiet', 1],
+    ]);
+    vi.mocked(wakeOrganizationParkedAgentRun).mockImplementation(
+      async (_sql, org) => {
+        const left = remaining.get(org) ?? 0;
+        if (left === 0) return 0;
+        remaining.set(org, left - 1);
+        return 1;
+      },
+    );
+
+    const result = await runTaskAgentWatchdog(fakeSql([]));
+
+    expect(result.woken).toBe(5);
+    expect(remaining.get('org-busy')).toBe(2);
+    expect(remaining.get('org-quiet')).toBe(0);
+  });
 });
 
 describe('runTaskAgentWatchdog (deadline lane)', () => {

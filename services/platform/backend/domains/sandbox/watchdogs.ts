@@ -19,6 +19,7 @@ import {
 } from './service.ts';
 import { markSessionDestroyed } from './sessions.ts';
 import { reconcilePendingSessionOpKeys } from './spend-settlement.ts';
+import { sweepRoomWaitLeftovers } from './wait-retention.ts';
 
 /**
  * The spawner verbs the sweep's spawner-facing passes use. Injectable so the
@@ -283,6 +284,24 @@ export async function runSandboxWatchdog(
   } catch (error: unknown) {
     console.error(
       '[watchdog] deleting settled model-endpoint request rows failed:',
+      error,
+    );
+  }
+
+  // What waiting for sandbox room leaves behind: the op rows of refused
+  // starts an hour after they ended (each session's newest kept, the run
+  // view reads it) and failed session rows a day after they were collected
+  // (domains/sandbox/wait-retention.ts).
+  try {
+    const pruned = await sweepRoomWaitLeftovers(sql, { now });
+    if (pruned.ops + pruned.sessions > 0) {
+      console.log(
+        `[watchdog] deleted ${pruned.ops} op row(s) of refused starts and ${pruned.sessions} collected failed session row(s)`,
+      );
+    }
+  } catch (error: unknown) {
+    console.error(
+      '[watchdog] deleting what waits for sandbox room left failed:',
       error,
     );
   }

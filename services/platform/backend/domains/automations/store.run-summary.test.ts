@@ -55,6 +55,7 @@ describe('runWaitingFor', () => {
     ['repeat:slow', true, 'repeat'],
     ['agent:review', false, 'agent'],
     ['agent:review', true, 'ask'],
+    ['room:review', false, 'room'],
   ] as const)(
     'reads %s (ask pending: %s) as %s',
     (detail, askPending, expected) => {

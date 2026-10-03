@@ -5,9 +5,12 @@ import { releaseProjectAgentSessionSlot } from '../sandbox/sessions.ts';
 import {
   failAgentRun,
   listOverdueAgentRuns,
-  listParkedAgentRuns,
-  wakeParkedAgentRuns,
+  listParkedAgentRunOrganizations,
+  wakeOrganizationParkedAgentRun,
 } from './agent-runs.ts';
+
+/** Parked runs one watchdog tick wakes per organization (see the wake). */
+const PARKED_WAKES_PER_TICK = 4;
 
 /**
  * The task-agent lane's 2-minute backstops — the 0.5 twins of
@@ -25,7 +28,8 @@ import {
  *    fails too (it never launched, so there is no exec, op or slot to
  *    settle) — under permanent capacity pressure the queue must still drain.
  *  - PARKED: the release-edge wake is best-effort; this sweep re-runs the
- *    claim per org so a lost edge costs minutes, never forever.
+ *    claim for every organization with a parked run, so a lost edge costs
+ *    minutes, never forever.
  *
  * Re-attach of a LIVE turn (stale heartbeat with the agent still working)
  * rides the drive-continuation increment — this sweep only settles what is
@@ -126,12 +130,18 @@ export async function runTaskAgentWatchdog(sql: Sql): Promise<{
     if (await releaseProjectAgentSessionSlot(sql, owner)) released += 1;
   }
 
+  // Room a run parked for can free without any edge of its own
+  // organization: the sandbox host is shared, and its capacity frees when
+  // another organization's sessions end. So each tick wakes a few parked
+  // runs of every organization that has one, not one run; a start that
+  // still finds no room parks again at no cost beyond the refused create.
   let woken = 0;
-  const parkedOrgs = new Set(
-    (await listParkedAgentRuns(sql)).map((run) => run.organizationId),
-  );
-  for (const organizationId of parkedOrgs) {
-    woken += await wakeParkedAgentRuns(sql, organizationId);
+  for (const { organizationId } of await listParkedAgentRunOrganizations(sql)) {
+    for (let wake = 0; wake < PARKED_WAKES_PER_TICK; wake += 1) {
+      const one = await wakeOrganizationParkedAgentRun(sql, organizationId);
+      if (one === 0) break;
+      woken += one;
+    }
   }
   return { failed, released, woken };
 }

@@ -24,7 +24,10 @@ import {
   scheduleSessionDestroy,
   sessionDestroyStates,
 } from './destroy-schedule.ts';
-import { classifyOutcome } from './external-turn-outcome.ts';
+import {
+  classifyOutcome,
+  NO_OUTCOME_RESULT_STATUSES,
+} from './external-turn-outcome.ts';
 import { getSandboxDeploymentLimits } from './limits.ts';
 import { pinSession } from './service.ts';
 import {
@@ -34,6 +37,10 @@ import {
 } from './sessions.ts';
 import { reconcileOrgSessions } from './watchdogs.ts';
 import { unusedWorkspaceDeletions } from './workspace-cleanup.ts';
+
+/** The most settled agent ops the external-turn metrics read folds. */
+const EXTERNAL_TURN_METRICS_ROW_CAP = 5000;
+
 /**
  * /api/app/sandbox — the sandbox-management surface: the org's live
  * sessions (with their running ops), always-on pinning, and explicit
@@ -189,8 +196,12 @@ export function createSandboxRoutes(deps: {
         AND o.kind = ANY(${[...SANDBOX_AGENT_OP_KINDS]})
         AND o.finished_at_ms IS NOT NULL
         AND o.started_at_ms >= ${since}
+        -- Not an outcome (parked on a question, waiting for room): left
+        -- out before the cap, which their volume would otherwise fill.
+        AND (o.agent_result_status IS NULL
+          OR o.agent_result_status <> ALL(${[...NO_OUTCOME_RESULT_STATUSES]}))
       ORDER BY o.started_at_ms DESC
-      LIMIT 5000
+      LIMIT ${EXTERNAL_TURN_METRICS_ROW_CAP}
     `;
     let total = 0;
     let completed = 0;
@@ -243,7 +254,8 @@ export function createSandboxRoutes(deps: {
     };
     return c.json({
       periodDays,
-      capped: total >= 5000,
+      // The cap the read hit, whatever the fold then skipped.
+      capped: rows.length >= EXTERNAL_TURN_METRICS_ROW_CAP,
       total,
       completed,
       failed,
@@ -303,6 +315,10 @@ export function createSandboxRoutes(deps: {
         AND o.kind = ANY(${[...SANDBOX_AGENT_OP_KINDS]})
         AND o.started_at_ms >= ${since}
         AND o.status IN ('completed', 'failed')
+        -- A start that waited for room settles its op failed, but no
+        -- harness turn ran: neither a turn nor a failure of the harness.
+        AND (o.agent_result_status IS NULL
+          OR o.agent_result_status <> ALL(${[...NO_OUTCOME_RESULT_STATUSES]}))
         AND coalesce(o.harness, s.agent_kind) IS NOT NULL
       GROUP BY coalesce(o.harness, s.agent_kind)
       LIMIT 20
