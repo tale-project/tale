@@ -131,6 +131,24 @@ afterEach(() => {
 });
 
 describe('ownsUploadedBlob', () => {
+  it('asks without writing when told not to stamp (#4111)', async () => {
+    const fake = fakeLedger({ stamped: [{ id: 'i-1' }] });
+
+    const owned = await ownsUploadedBlob(
+      fake.sql,
+      { ...scope, storageRef: 's3:blobs/acme/aaa' },
+      { stamp: false },
+    );
+
+    const issued = sqlStatements(fake.statements);
+    expect(issued.some((s) => s.text.startsWith('UPDATE'))).toBe(false);
+    expect(issued[0]?.text).toBe(
+      "SELECT id FROM app.upload_intents WHERE s3_ref = ? AND org_id = ? AND user_id = ? AND purpose = 'file' AND expires_at_ms > ?",
+    );
+    // The fake answers the read with no row, so the uploader arm decides.
+    expect(owned).toBe(false);
+  });
+
   it('stamps the intent it proves ownership through', async () => {
     const fake = fakeLedger({ stamped: [{ id: 'i-1' }] });
 

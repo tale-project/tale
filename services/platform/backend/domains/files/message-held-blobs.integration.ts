@@ -125,6 +125,39 @@ export async function checkMessageHeldBlobs(
     `;
     return { ref, fileId: rows[0]?.id ?? '', size: Buffer.byteLength(text) };
   };
+  /** The byte lane (`POST files/upload`): an intent of the owner's, no row. */
+  const uploadBytes = async (label: string) => {
+    const text = `message-held probe: ${label}`;
+    const response = await fetch(
+      `${base}/api/app/files/upload?orgId=${orgId}`,
+      {
+        method: 'POST',
+        headers: {
+          'content-type': 'text/plain',
+          cookie: owner.cookie,
+          origin: base,
+        },
+        body: text,
+      },
+    );
+    const parsed = z
+      .object({ storageId: z.string() })
+      .safeParse(await response.json().catch(() => null));
+    if (!parsed.success) throw new Error(`upload ${label}: ${response.status}`);
+    refs.push(parsed.data.storageId);
+    return { ref: parsed.data.storageId, size: Buffer.byteLength(text) };
+  };
+  const intentState = async (ref: string): Promise<string> => {
+    const rows = await sql<{ bound: boolean; consumed: boolean }[]>`
+      SELECT bound_at_ms IS NOT NULL AS bound,
+             consumed_at_ms IS NOT NULL AS consumed
+      FROM app.upload_intents WHERE s3_ref = ${ref}
+    `;
+    const row = rows[0];
+    return row === undefined
+      ? 'gone'
+      : `bound=${row.bound},consumed=${row.consumed}`;
+  };
   /** The reply door with the file as the reply's only attachment. */
   const reply = async (
     conversationId: string,
@@ -319,6 +352,46 @@ export async function checkMessageHeldBlobs(
       'a sent reply holds nothing: deleting its file releases the bytes',
       sentReply.status === 201 && sentDelete.status === 200 && sentGone,
       `reply=${sentReply.status} delete=${sentDelete.status} gone=${sentGone} (want 201/200/true)`,
+    );
+
+    // A send the door refuses leaves no stamp (#4111): the proof that
+    // stamps runs in the send's transaction, so the refusal rolls it back,
+    // and the upload stays the caller's to reclaim. The API app here takes
+    // no attachments, which the reply's own transaction refuses.
+    const refusingConversation = randomUUID();
+    await sql`
+      INSERT INTO app.conversations (id, org_id, subject, status, channel,
+                                     direction, connector_name, created_at_ms)
+      VALUES (${refusingConversation}, ${orgId}, 'Held blob refusing probe',
+              'open', 'api', 'inbound', ${source}, ${Date.now()})
+    `;
+    conversationIds.push(refusingConversation);
+    await sql`
+      INSERT INTO app.conversation_api_bindings (
+        conversation_id, org_id, source, external_id, external_contact_id,
+        owner_user_id, reply_constraints
+      ) VALUES (${refusingConversation}, ${orgId}, ${source},
+                ${`ext-refusing-${suffix}`}, ${`contact-${suffix}`},
+                ${owner.userId}, ${sql.json({ maxAttachments: 0 })})
+    `;
+    const staged = await uploadBytes('refused-send');
+    const refused = await reply(refusingConversation, staged);
+    const stamp = await intentState(staged.ref);
+    const reclaim = await call('POST', 'files/reject-blob', {
+      storageRef: staged.ref,
+    });
+    const reclaimed = z
+      .object({ deleted: z.boolean() })
+      .safeParse(await reclaim.json().catch(() => null));
+    const stagedGone = !(await present(staged.ref));
+    record(
+      'a refused send leaves no stamp, so its upload stays reclaimable (#4111)',
+      refused.status === 400 &&
+        stamp === 'bound=false,consumed=false' &&
+        reclaimed.success &&
+        reclaimed.data.deleted &&
+        stagedGone,
+      `reply=${refused.status} (want 400), intent ${stamp} (want bound=false,consumed=false), reject=${reclaimed.success ? String(reclaimed.data.deleted) : `ERR ${reclaim.status}`}/gone=${stagedGone} (want true/true)`,
     );
   } catch (error) {
     // Recorded, never thrown: a thrown lane truncates every later lane.

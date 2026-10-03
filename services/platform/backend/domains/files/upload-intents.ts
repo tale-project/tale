@@ -208,22 +208,35 @@ export async function releaseReclaimedIntent(
  * intent is consumed by the lane its purpose names, which deletes the
  * staged zip on every path: a task, document or mail that took the zip
  * would list bytes about to go (#4110).
+ *
+ * `stamp: false` asks the same question without the write — for a door
+ * that refuses early, before the transaction that binds proves it again
+ * and stamps (the outbound-mail route, `conversations/attachment-
+ * ownership.ts`). A refused send must leave no stamp behind (#4111).
  */
 export async function ownsUploadedBlob(
   sql: Sql | TransactionSql,
   args: UploadIntentKey,
+  options: { stamp?: boolean } = {},
 ): Promise<boolean> {
   const now = Date.now();
-  const stamped = await sql<{ id: string }[]>`
-    UPDATE app.upload_intents SET bound_at_ms = coalesce(bound_at_ms, ${now})
-    WHERE s3_ref = ${args.storageRef}
+  const minted = sql`s3_ref = ${args.storageRef}
       AND org_id = ${args.organizationId}
       AND user_id = ${args.userId}
       AND purpose = 'file'
-      AND expires_at_ms > ${now}
-    RETURNING id
-  `;
-  if (stamped.length > 0) return true;
+      AND expires_at_ms > ${now}`;
+  const intents =
+    options.stamp === false
+      ? await sql<{ id: string }[]>`
+          SELECT id FROM app.upload_intents WHERE ${minted}
+        `
+      : await sql<{ id: string }[]>`
+          UPDATE app.upload_intents
+          SET bound_at_ms = coalesce(bound_at_ms, ${now})
+          WHERE ${minted}
+          RETURNING id
+        `;
+  if (intents.length > 0) return true;
   const rows = await sql<{ owned: boolean }[]>`
     SELECT EXISTS (
       SELECT 1 FROM app.file_metadata
@@ -240,9 +253,10 @@ export async function firstForeignUpload(
   sql: Sql | TransactionSql,
   scope: { organizationId: string; userId: string },
   storageRefs: readonly string[],
+  options: { stamp?: boolean } = {},
 ): Promise<string | null> {
   for (const storageRef of new Set(storageRefs)) {
-    if (!(await ownsUploadedBlob(sql, { ...scope, storageRef }))) {
+    if (!(await ownsUploadedBlob(sql, { ...scope, storageRef }, options))) {
       return storageRef;
     }
   }
