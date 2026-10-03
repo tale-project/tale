@@ -207,12 +207,22 @@ without enqueuing any of that line; once the child drains its pipe, writes may
 resume. This bounds memory when a command stops reading stdin. Device tunnel
 streams also remove caller abort listeners on completion, reset or disconnect.
 
+The platform keeps bounded display projections separately from exact terminal
+answers. A terminal without its own final text uses the complete text/delta
+fallback under the existing 8 Mi-character answer limit, never the display tail.
+Parser usage/tool ledgers refuse more than 16,384 unique IDs, 4,096 characters
+per ID, or 1,048,576 retained ID characters instead of evicting deduplication facts.
+Malformed base64 output is a protocol failure; legacy text-only streams remain
+supported. Session gateway provisioning hands its verified provider key IDs to
+its own mint, avoiding a second lookup while each new session rechecks credentials.
+
 ### Staged inputs and output reads
 
 `POST /files/stage` accepts the existing `files` list: a destination `path`
 and either `url` or `contentBase64`. Downloads stream to a temporary file,
-with a 100 MiB cap and 25-second per-file deadline, and atomically replace the
-destination only after success. Inline files remain capped at 1 MiB. Cancelled,
+with a 100 MiB cap per file and one 25-second deadline for the whole batch,
+including cache verification and reconciliation. They atomically replace the
+destination only after success, preserving its existing executable permissions. Inline files remain capped at 1 MiB. Cancelled,
 failed and oversized transfers leave the previous destination intact and
 remove their temporary file. Parent symlinks cannot redirect staging outside
 the workspace; Linux pins the destination directory while downloading. At
@@ -223,7 +233,9 @@ not bypass the limit.
 
 A file may carry an immutable `sourceId` supplied by the platform. runnerd
 keeps up to 4,096 source/digest entries in memory and skips an unchanged source
-only after hashing the actual destination again. A source-only entry probes
+only after hashing the actual destination again and verifying that the file
+and its workspace path still refer to the same unchanged regular file.
+Named pipes are rejected without waiting for a writer. A source-only entry probes
 that cache: a verified hit is `staged`; a miss reports `no_source` and requires
 the bytes or URL. Restarting runnerd loses the cache and causes a refresh.
 This does not cache grants, credentials or source authorization: callers must
@@ -553,7 +565,10 @@ resolves to no injection rather than a placeholder identity.
 `default` uses uid 65534 with the hardened code/render profile. `agent` uses
 uid 10001, a named non-root account for git/ssh and coding CLIs. Its defaults
 are 2 CPU, 4 GiB memory (8 GiB with DinD), 512 pids, 512 MB `/dev/shm`, and
-512 MB `/tmp`; the `SANDBOX_AGENT_*` settings override these limits.
+512 MB `/tmp`; the `SANDBOX_AGENT_*` settings override these limits. The memory
+default follows each session's actual Docker capability, including a workload
+policy or request that disables Docker. An explicit `SANDBOX_AGENT_MEMORY`
+applies to both Docker and Docker-free agents.
 Non-DinD sessions keep a read-only root and drop capabilities. DinD changes
 the container security and process limits according to the selected runtime
 tier; headless Chromium remains available on demand in either profile.

@@ -25,7 +25,7 @@ import {
   SESSION_INSTANCE_LABEL,
   sessionContainerName,
 } from './session-naming.ts';
-import { sessionDindEnabled } from './session-profile.ts';
+import { sessionAgentProfile, sessionDindEnabled } from './session-profile.ts';
 
 interface DockerSessionRunInput {
   sessionId: string;
@@ -123,8 +123,9 @@ export function buildDockerSessionRunArgs(
   assertSafe('workspaceHostDir', inp.workspaceHostDir, HOST_DIR_RE);
   assertSafe('runnerdToken', inp.runnerdToken, TOKEN_RE);
 
+  const dind = sessionDindEnabled(cfg, inp.profile, inp.docker);
   const profile =
-    inp.profile === 'agent' ? cfg.session.agentProfile : DEFAULT_PROFILE;
+    inp.profile === 'agent' ? sessionAgentProfile(cfg, dind) : DEFAULT_PROFILE;
   assertSafe('profile.user', profile.user, USER_RE);
   assertSafe('profile.memory', profile.memory, MEM_RE);
   assertSafe('profile.tmpfsSize', profile.tmpfsSize, MEM_RE);
@@ -140,7 +141,6 @@ export function buildDockerSessionRunArgs(
   //     root). config.ts allows this only with a loud trusted-only warning.
   // When !dind every conditional collapses to today's hardened argv (byte-for-
   // byte, unit-tested).
-  const dind = sessionDindEnabled(cfg, inp.profile, inp.docker);
   const dindMode = dindCapabilityOf(cfg.runtimeTier);
 
   // Transparent egress for the session's OWN processes. The entrypoint installs
