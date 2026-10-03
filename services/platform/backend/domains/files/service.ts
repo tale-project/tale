@@ -25,8 +25,12 @@ import {
   s3PutObject,
 } from '../../lib/object-store.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
-import { taskHoldsBlobRef } from '../tasks/blob-holders.ts';
-import { consumeUploadIntent, type UploadPurpose } from './upload-intents.ts';
+import { blobRefHeld } from './blob-holders.ts';
+import {
+  claimRejectedUpload,
+  consumeUploadIntent,
+  type UploadPurpose,
+} from './upload-intents.ts';
 
 /**
  * Files domain core — the upload/serve/delete lanes over the S3-only object
@@ -678,20 +682,13 @@ export async function deleteFile(
   const { orgSlug } = await requireOrgStore(sql, scope.organizationId);
   const key = requireOrgScopedKey(meta.storageRef, orgSlug);
   await tx`DELETE FROM app.file_metadata WHERE id = ${fileId}`;
-  // A task lists its attachments and deliverables by ref with no row of its
-  // own (`domains/tasks/blob-holders.ts`): the bytes stay while any task
-  // still names them, or the card would keep showing a file whose every run
-  // start meets the store's 404.
+  // Another file row, a document or a task may still name the ref — a task
+  // lists its attachments and deliverables by ref with no row of its own
+  // (`blob-holders.ts`): the bytes stay while anything holds them, or the
+  // card would keep showing a file whose every run start meets the store's
+  // 404.
   const stillReferenced = await tx<{ referenced: boolean }[]>`
-    SELECT EXISTS (
-      SELECT 1 FROM app.file_metadata
-      WHERE org_id = ${scope.organizationId}
-        AND storage_ref = ${meta.storageRef}
-    ) OR EXISTS (
-      SELECT 1 FROM app.documents
-      WHERE org_id = ${scope.organizationId}
-        AND file_ref = ${meta.storageRef}
-    ) OR ${taskHoldsBlobRef(tx, scope.organizationId, tx`${meta.storageRef}`)}
+    SELECT ${blobRefHeld(tx, scope.organizationId, tx`${meta.storageRef}`)}
     AS referenced
   `;
   if (stillReferenced[0]?.referenced ?? false) {
@@ -839,9 +836,11 @@ export async function getOrgBlobBytes(
 /**
  * Reclaim a blob whose upload was REJECTED after landing (policy refusal,
  * unsupported type): the 0.4 `deleteRejectedUploadBlob` contract. Never
- * touches a blob that became a real file, and never a blob the caller did
- * not mint: the reclaim consumes the caller's own upload intent, so naming
- * another member's staged key answers `deleted: false` like a missing one.
+ * touches a blob something holds — a file row, a document, a task, or a
+ * bind that vouched for it without consuming (an outbound mail) — and never
+ * a blob the caller did not mint: the reclaim claims the caller's own
+ * upload intent (`claimRejectedUpload`), so naming another member's staged
+ * key answers `deleted: false` like a missing or a bound one.
  */
 export async function deleteRejectedUploadBlob(
   sql: Sql,
@@ -849,18 +848,12 @@ export async function deleteRejectedUploadBlob(
   storageRef: string,
 ): Promise<{ deleted: boolean }> {
   const { organizationId } = scope;
-  const linked = await sql<{ id: string }[]>`
-    SELECT id FROM app.file_metadata
-    WHERE org_id = ${organizationId} AND storage_ref = ${storageRef}
-    LIMIT 1
-  `;
-  if (linked[0]) return { deleted: false };
-  const owned = await consumeUploadIntent(sql, {
+  const claimed = await claimRejectedUpload(sql, {
     organizationId,
     userId: scope.userId,
     storageRef,
   });
-  if (!owned) return { deleted: false };
+  if (!claimed) return { deleted: false };
   const { orgSlug, store } = await requireOrgStore(sql, organizationId);
   const key = requireOrgScopedKey(storageRef, orgSlug);
   try {

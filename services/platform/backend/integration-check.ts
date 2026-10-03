@@ -76,6 +76,7 @@ import { setMailTransportForTesting } from './domains/connectors/service.ts';
 import { checkConversationApi } from './domains/conversations/api-sync.integration.ts';
 import { checkErasureReviewHandoverRaces } from './domains/erasure/review-handover.integration.ts';
 import { checkRagWatchdogBatch } from './domains/file_metadata/watchdogs.integration.ts';
+import { checkRejectedUploadReclaim } from './domains/files/reject-blob.integration.ts';
 import { checkHubFolderWriteRole } from './domains/folders/write-role.integration.ts';
 import { checkEmailedAttachments } from './domains/knowledge/attachment-mail.integration.ts';
 import { checkInboundEmailBodies } from './domains/knowledge/message-index.integration.ts';
@@ -58498,6 +58499,18 @@ async function main(): Promise<void> {
       [
         'checkTaskHeldBlobOutlivesFileRow',
         () => checkTaskHeldBlobOutlivesFileRow(sql, authCtx),
+      ],
+      [
+        'checkRejectedUploadReclaim',
+        () =>
+          checkRejectedUploadReclaim(
+            sql,
+            baseUrl,
+            authCtx,
+            (label, role) =>
+              signUpOrgMember(sql, baseUrl, authCtx.orgId, label, role),
+            record,
+          ),
       ],
       [
         'checkNotificationProjectBackfill',
