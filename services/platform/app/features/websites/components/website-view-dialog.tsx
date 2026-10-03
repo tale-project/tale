@@ -56,7 +56,9 @@ import { useScanNow } from '../hooks/use-scan-now';
 import { indexedPageCount } from '../lib/indexed-page-count';
 import {
   classifyScanError,
+  hasFailedOrSkippedPages,
   isHollowSiteScan,
+  isPageTallyReason,
   isSiteLevelScanError,
 } from '../lib/scan-error';
 import { isScanPaused } from '../lib/scan-paused';
@@ -546,7 +548,16 @@ export function WebsiteViewDialog({
       : null;
   const scanErrorKind =
     lastSyncError === null ? 'generic' : classifyScanError(lastSyncError);
-  const hollowScan = isHollowSiteScan(website, pages, paused);
+  // The row's own count stands in only while the first read is out; a read
+  // that failed leaves no page on screen, so it counts none.
+  const sitePagesFailed = hasFailedOrSkippedPages(
+    website,
+    pageCounts ?? (isFirstLoad ? null : { failed: 0, skipped: 0 }),
+  );
+  // Not while the site has a failed or skipped page to open: an empty
+  // segment, or the row's counts lagging the read, is no hollow scan.
+  const hollowScan =
+    isHollowSiteScan(website, pages, paused) && !sitePagesFailed;
 
   // Paused (repeated failures to reach the knowledge database) wins over the
   // stored `error` status — this site stopped retrying and needs a manual
@@ -731,13 +742,14 @@ export function WebsiteViewDialog({
             </>
           }
         >
-          {/* The pages' own failures explain a scan that stored nothing;
-              they do not explain one the embedding model or the crawler's
-              browser stopped, which says so above them. */}
+          {/* The pages' own failures explain a scan that stored nothing
+              because they failed; they do not explain one the embedding
+              model, the crawler's browser or a lost database stopped,
+              which says so above them. */}
           {lastSyncError !== null &&
           !paused &&
           (isSiteLevelScanError(scanErrorKind) ||
-            !pages.some((page) => pageFailureCaption(page, t) !== null)) ? (
+            !(isPageTallyReason(lastSyncError) && sitePagesFailed)) ? (
             <WebsiteScanFailureAlert
               kind={scanErrorKind}
               reason={lastSyncError}

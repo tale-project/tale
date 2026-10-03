@@ -26,6 +26,9 @@ export interface SpawnerConfig {
   // other tiers; runtime-tier.ts defines their different isolation guarantees.
   // Only agent-profile sessions receive this capability.
   dockerInContainer: boolean;
+  /** Workloads allowed to use inner Docker. Absent preserves the historical
+   * setting for all agent sessions; an empty list disables it for new ones. */
+  dockerWorkloads?: readonly ('project' | 'workflow')[];
   // Operator-selected private /16 for inner Docker on either backend. Unset
   // selects automatically; the runtime also rejects observed network overlap.
   dindInnerPool?: string;

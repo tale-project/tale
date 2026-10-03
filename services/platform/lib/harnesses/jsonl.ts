@@ -17,7 +17,22 @@ export class HarnessJsonlRecordTooLargeError extends Error {
   }
 }
 
+export const HARNESS_RECORD_MAX_CHARS = 8 * 1024 * 1024;
+
+/** Authoritative answers are never truncated to the display budget. A CLI
+ * that builds its final answer from many records gets the same explicit
+ * safety refusal as one reporting it in a single oversized record. */
+export function appendHarnessAnswer(current: string, next: string): string {
+  if (current.length + next.length > HARNESS_RECORD_MAX_CHARS) {
+    throw new Error(
+      `Harness final answer exceeds ${HARNESS_RECORD_MAX_CHARS} characters`,
+    );
+  }
+  return current + next;
+}
+
 export class LineReassembler {
+  constructor(private readonly maxBytes = MAX_HARNESS_JSONL_RECORD_BYTES) {}
   private buf = '';
   private bytes = 0;
   private lastCodeUnit = 0;
@@ -25,7 +40,7 @@ export class LineReassembler {
 
   private checkSize(bytes: number): void {
     if (this.failure !== undefined) throw this.failure;
-    if (bytes <= MAX_HARNESS_JSONL_RECORD_BYTES) return;
+    if (bytes <= this.maxBytes) return;
     this.buf = '';
     this.bytes = 0;
     this.failure = new HarnessJsonlRecordTooLargeError();

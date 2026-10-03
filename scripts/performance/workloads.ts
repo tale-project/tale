@@ -53,7 +53,7 @@ export async function prepareWorkload(
 ): Promise<Workload> {
   if (id === 'platform.agent-progress') {
     const { HarnessProjection } =
-      await import('../../services/platform/backend/core/chat/harness_projection.ts');
+      await import('../../services/platform/lib/harnesses/projection.ts');
     const payload = 'x'.repeat(100_000);
     let retainedBytes = 0;
     return {
@@ -64,15 +64,18 @@ export async function prepareWorkload(
       run() {
         const projection = new HarnessProjection();
         for (let i = 0; i < 1000; i++) {
-          projection.feed({ type: 'raw', harness: 'claude-code', payload });
-          projection.feed({ type: 'text-delta', text: 'Completed a step.\n' });
-          projection.feed({
+          projection.accept({ type: 'raw', harness: 'claude-code', payload });
+          projection.accept({
+            type: 'text-delta',
+            text: 'Completed a step.\n',
+          });
+          projection.accept({
             type: 'tool-use',
             toolName: 'Read',
             toolUseId: String(i),
             input: { payload },
           });
-          projection.feed({
+          projection.accept({
             type: 'tool-result',
             toolUseId: String(i),
             output: payload,

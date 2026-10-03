@@ -9,7 +9,14 @@ the session's own Docker image store remains disposable.
 The Docker spawner provisions the cache lazily when an agent session needs it.
 `SANDBOX_DOCKER_BUILD_CACHE` defaults to the DinD setting; set it to `false` to
 use only each session's local builder. This integration is implemented by the
-Docker backend, not the Kubernetes backend.
+Docker backend, not the Kubernetes backend. A caller waits no more than
+`SANDBOX_BUILDKITD_START_TIMEOUT_MS` (30 seconds by default), or one quarter of
+its total session startup budget if shorter, for the optional cache. After that
+it uses its own builder. Shared provisioning has its own bounded lifetime and
+remains coalesced and protected by its organization lease until completion; a late
+result never attaches a network to the session that already fell back. Registry
+mirrors are prepared concurrently under the global Docker CLI concurrency bound.
+Agents created without Docker do not start or retain these helpers.
 
 The spawner creates one daemon, one private internal bridge, and persistent
 cache volumes per organization. Container/network names include a bounded hash
@@ -86,6 +93,9 @@ no session of it may build, the idle sweep removes its helpers, network and
 cache volumes the way its teardown through `DELETE /v1/organizations/:id`
 does, and its next build starts cold. What stays open: no budget reacts to the
 free disk itself.
+
+The OCI worker limits concurrent build steps to four (`max-parallelism`), in
+addition to its cgroup limits.
 
 The builder is shared by all of its organization's agent sessions and runs
 under their CPU limit and twice their memory limit (its RUN steps execute

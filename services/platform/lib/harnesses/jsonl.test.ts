@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import {
   HarnessJsonlRecordTooLargeError,
+  appendHarnessAnswer,
+  HARNESS_RECORD_MAX_CHARS,
   LineReassembler,
   MAX_HARNESS_JSONL_RECORD_BYTES,
 } from './jsonl';
@@ -48,6 +50,34 @@ describe('bounded JSONL records', () => {
     const line = 'x'.repeat(1024 * 1024);
     expect(new LineReassembler().push((line + '\n').repeat(9))).toEqual(
       Array(9).fill(line),
+    );
+  });
+});
+
+describe('harness line bounds', () => {
+  it('preserves authoritative answers beyond display bounds and rejects excess explicitly', () => {
+    const answer = `START ${'x'.repeat(140_000)} END`;
+    expect(
+      appendHarnessAnswer(answer.slice(0, 50_000), answer.slice(50_000)),
+    ).toBe(answer);
+    expect(() =>
+      appendHarnessAnswer('x'.repeat(HARNESS_RECORD_MAX_CHARS), '!'),
+    ).toThrow('final answer exceeds');
+  });
+  it('reassembles fragmented lines and permits many short records in one chunk', () => {
+    const lines = new LineReassembler(5);
+    expect(lines.push('ab')).toEqual([]);
+    expect(lines.push('c\n12345\nx\ny\n')).toEqual(['abc', '12345', 'x', 'y']);
+    expect(lines.push('end')).toEqual([]);
+    expect(lines.flush()).toEqual(['end']);
+  });
+  it('refuses oversized complete and unterminated records without retaining their bytes', () => {
+    const lines = new LineReassembler(5);
+    lines.push('123');
+    expect(() => lines.push('456')).toThrow(HarnessJsonlRecordTooLargeError);
+    expect(() => lines.flush()).toThrow(HarnessJsonlRecordTooLargeError);
+    expect(() => lines.push('123456\n')).toThrow(
+      HarnessJsonlRecordTooLargeError,
     );
   });
 });

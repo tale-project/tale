@@ -140,6 +140,8 @@ export interface SessionInfo {
   sessionId: string;
   organizationId: string;
   profile: SandboxSessionProfile;
+  /** Whether this incarnation has inner Docker; absent on older spawners. */
+  docker?: boolean;
   state: SandboxSessionState;
   backend: 'docker' | 'kubernetes';
   createdAtMs: number;
@@ -147,6 +149,8 @@ export interface SessionInfo {
   idleTimeoutMs: number;
   /** "Always-on": exempt from the idle/TTL reaper (PATCH /pin). */
   pinned: boolean;
+  /** False while a requested pin has not been durably acknowledged. */
+  pinSynchronized?: boolean;
 }
 
 /** execId shares the sessionId alphabet; unique within its session. */

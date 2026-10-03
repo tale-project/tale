@@ -111,6 +111,7 @@ export async function ensureAgentSession(
           sessionId,
           organizationId,
           existing.profile === 'agent-light' ? 'agent-light' : 'agent',
+          args.owner.type,
         );
       }
     } catch (error) {
@@ -142,7 +143,12 @@ export async function ensureAgentSession(
     },
   );
   try {
-    await createOrAcquireSession(sessionId, organizationId, profile);
+    await createOrAcquireSession(
+      sessionId,
+      organizationId,
+      profile,
+      args.owner.type,
+    );
   } catch (error) {
     // The spawner may already hold what this create made (one cut short
     // between Docker's create and start stays `created`), and a `failed` row
@@ -195,6 +201,7 @@ async function createOrAcquireSession(
   sessionId: string,
   organizationId: string,
   profile: 'agent' | 'agent-light',
+  ownerType: AgentSessionOwner['type'],
 ): Promise<void> {
   try {
     // Agent and automation workspaces may start on one of the organization's
@@ -203,6 +210,7 @@ async function createOrAcquireSession(
       sessionId,
       organizationId,
       profile,
+      workload: ownerType === 'project_agent' ? 'project' : 'workflow',
       placement: 'device',
     });
   } catch (error) {

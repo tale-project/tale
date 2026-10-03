@@ -19,6 +19,7 @@ import { orgSlugFromIdOrNull } from '../../lib/helpers/org_slug';
 import { putBlob } from '../../lib/storage/blob_access';
 import {
   drainSessionExecResilient,
+  SessionFileTooLargeError,
   sessionIsAlive,
   sessionListFiles,
   sessionReadFile,
@@ -380,7 +381,24 @@ export async function harvestSessionOutput(
             console.warn('[session_exec] harvest lease bump failed:', err),
           );
       }
-      const read = await sessionReadFile(sessionId, absPath);
+      let read: Awaited<ReturnType<typeof sessionReadFile>>;
+      try {
+        read = await sessionReadFile(sessionId, absPath, {
+          maxBytes: HARVEST_READ_MAX_BYTES,
+        });
+      } catch (error) {
+        if (!(error instanceof SessionFileTooLargeError)) throw error;
+        // A file may grow after listing; its capped read is still a per-file
+        // refusal and must not discard the other deliverables.
+        harvestSkipped.push(
+          skippedOutput(absPath, {
+            en: `exceeds the ${formatMb(HARVEST_READ_MAX_BYTES)} per-file harvest cap — split the output or have the user download it another way`,
+            de: `Die Datei überschreitet die Dateigrößengrenze von ${formatMb(HARVEST_READ_MAX_BYTES)}. Teile die Datei auf oder stelle sie auf anderem Weg bereit.`,
+            fr: `Le fichier dépasse la limite de ${formatMb(HARVEST_READ_MAX_BYTES)} par fichier. Divise le fichier ou propose un autre moyen de le télécharger.`,
+          }),
+        );
+        continue;
+      }
       if (read === null) {
         harvestSkipped.push(
           skippedOutput(absPath, {
@@ -408,9 +426,12 @@ export async function harvestSessionOutput(
       // Backend-aware store: harvested outputs are org-user-persistent thread
       // files — a BYO-bucket org's outputs land in its own bucket. A rejected
       // store (quota, validation) leaves no blob behind to reap.
+      // The read already owns an ArrayBuffer. A view avoids a second full
+      // payload allocation while the object-store upload is in flight.
+      const harvestBytes = new Uint8Array(read.bytes);
       let storageId: string;
       try {
-        storageId = await putBlob(orgSlug, buf, contentType);
+        storageId = await putBlob(orgSlug, harvestBytes, contentType);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         console.warn(`[session_exec] harvest skipped ${absPath}: ${message}`);

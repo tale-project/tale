@@ -19,6 +19,7 @@
 import { z } from 'zod';
 
 import {
+  appendHarnessAnswer,
   asNumber,
   asString,
   isRecord,
@@ -142,7 +143,7 @@ class GeminiStreamParser implements HarnessEventParser {
     this.lines.restore(state.lines);
     this.started = state.started;
     this.sessionId = state.sessionId;
-    this.assistantText = state.assistantText;
+    this.assistantText = appendHarnessAnswer('', state.assistantText);
   }
 
   feed(chunk: string): HarnessEvent[] {
@@ -188,7 +189,7 @@ class GeminiStreamParser implements HarnessEventParser {
       if (asString(ev.role) !== 'assistant') return events;
       const text = asString(ev.content);
       if (text) {
-        this.assistantText += text;
+        this.assistantText = appendHarnessAnswer(this.assistantText, text);
         events.push(
           ev.delta === true
             ? { type: 'text-delta', text }

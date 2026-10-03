@@ -174,6 +174,7 @@ describe.each(scenarios)('ensureAgentSession ($owner.type)', (scenario) => {
       sessionId: 'session_1',
       profile: 'agent',
       placement: 'device',
+      workload: scenario.owner.type === 'workflow_run' ? 'workflow' : 'project',
     });
   });
 

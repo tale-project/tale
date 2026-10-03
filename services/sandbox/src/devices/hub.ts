@@ -60,6 +60,12 @@ export const TUNNEL_PATH = '/sandbox/tunnel';
 /** How often a device reports; three silent intervals close its tunnel. */
 const STATUS_INTERVAL_MS = 15_000;
 const TICKET_SWEEP_MS = 30_000;
+/** How long the hub waits before asking a device again whether a destroyed
+ * session's bytes are gone: the route to them stays until it says so. */
+const DELETING_RECHECK_MS = 5 * 60_000;
+/** Destroyed sessions asked about per sweep at most: a backlog is worked off
+ * over a few sweeps instead of in one burst. */
+const DELETING_RECHECKS_PER_SWEEP = 8;
 /** How long a removal outlives the device's tickets: none lives longer. */
 const REVOCATION_MEMORY_MS = 60 * 60 * 1000;
 /** How long a device that failed a create outright sits out new ones. */
@@ -81,6 +87,9 @@ export interface HubOptions {
   isLocalSession: (sessionId: string) => Promise<boolean>;
   fetch?: (input: string, init: RelayFetchInit) => Promise<Response>;
   now?: () => number;
+  /** How often the hub sweeps (tickets, silent devices, deleting
+   * placements); tests shorten it. */
+  sweepIntervalMs?: number;
 }
 
 /** A relay fetch's options: Bun's `decompress: false` keeps the upstream's
@@ -187,6 +196,9 @@ export class DeviceHub {
   /** Creates forwarded per session id — a destroy only forgets a placement
    * when no create for the same id was forwarded while it ran. */
   private readonly creates = new Map<string, number>();
+  /** When the hub last asked a device about a destroyed session's bytes. In
+   * memory: after a restart it asks again at once. */
+  private readonly deletingAskedAtMs = new Map<string, number>();
   private readonly now: () => number;
   private sweep: ReturnType<typeof setInterval> | null = null;
 
@@ -200,7 +212,67 @@ export class DeviceHub {
 
   async start(): Promise<void> {
     await this.placements.load();
-    this.sweep = setInterval(() => this.closeStale(), TICKET_SWEEP_MS);
+    this.sweep = setInterval(() => {
+      this.closeStale();
+      void this.recheckDeleting();
+    }, this.opts.sweepIntervalMs ?? TICKET_SWEEP_MS);
+  }
+
+  /**
+   * Ask the devices again about the destroyed sessions whose bytes they
+   * were still deleting — whoever destroyed them, and whether or not anyone
+   * will ask for the id again (a run's reclaim never does). The question is
+   * the platform cleanup's own conditional destroy: on a device with no
+   * session under the id it only reads its trash and has what is left
+   * attempted again, and while a create or compute is under the id it
+   * answers busy and touches nothing. `afterDestroy` then lets the route go
+   * on `done` and keeps it on anything else, so a route lasts exactly as
+   * long as the bytes it leads to.
+   */
+  async recheckDeleting(): Promise<void> {
+    const now = this.now();
+    for (const sessionId of this.deletingAskedAtMs.keys()) {
+      if (this.placements.get(sessionId)?.deleting !== true) {
+        this.deletingAskedAtMs.delete(sessionId);
+      }
+    }
+    // Least recently asked first, never asked before all: however many
+    // stay unresolved, every one is asked in its turn.
+    const askedAt = (sessionId: string) =>
+      this.deletingAskedAtMs.get(sessionId) ?? Number.NEGATIVE_INFINITY;
+    const due = this.placements
+      .deleting()
+      .filter(({ sessionId, deviceId }) => {
+        const device = this.devices.get(deviceId);
+        return (
+          device !== undefined &&
+          this.compatible(device) &&
+          now - askedAt(sessionId) >= DELETING_RECHECK_MS
+        );
+      })
+      .sort((a, b) => askedAt(a.sessionId) - askedAt(b.sessionId))
+      .slice(0, DELETING_RECHECKS_PER_SWEEP);
+    for (const { sessionId } of due) this.deletingAskedAtMs.set(sessionId, now);
+    await Promise.all(due.map(({ sessionId }) => this.askDeleting(sessionId)));
+  }
+
+  private async askDeleting(sessionId: string): Promise<void> {
+    const url = new URL(
+      `http://sandbox/v1/sessions/${sessionId}?if_idle=1&if_stopped=1&await_deletion=1`,
+    );
+    try {
+      const res = await this.maybeForward(
+        new Request(url.toString(), { method: 'DELETE' }),
+        url,
+        '',
+      );
+      await res?.text();
+    } catch (err) {
+      console.warn(
+        `[sandbox.devices] asking again whether ${sessionId}'s bytes are gone failed:`,
+        err,
+      );
+    }
   }
 
   stop(): void {
@@ -362,8 +434,12 @@ export class DeviceHub {
     for (const d of this.devices.values()) {
       if (d.organizationId !== organizationId) continue;
       for (const s of d.status?.sessions ?? d.hello?.sessions ?? []) {
-        // A device's report only describes sessions the hub placed there.
-        if (this.placements.get(s.sessionId)?.deviceId !== d.deviceId) continue;
+        // A device's report only describes sessions the hub placed there —
+        // not one destroyed since, whose bytes alone it still deletes.
+        const placement = this.placements.get(s.sessionId);
+        if (placement?.deviceId !== d.deviceId || placement.deleting === true) {
+          continue;
+        }
         runtimeSessions.push({ ...s, deviceId: d.deviceId });
       }
     }
@@ -418,9 +494,34 @@ export class DeviceHub {
         // Never 409: the platform reads that as "it exists, acquire it".
         return jsonResponse({ error: 'placement_conflict' }, 403);
       }
-      this.countCreate(create.sessionId);
-      return this.forward(existing.deviceId, req, url, body);
+      if (existing.deleting !== true) {
+        this.countCreate(create.sessionId);
+        return this.forward(existing.deviceId, req, url, body);
+      }
     }
+    // A destroyed session whose bytes a device is still deleting: a fresh
+    // session under the id is placed like any other — with every fallback a
+    // create has — but tries that device first, which keeps one place
+    // answering for both. Placed anywhere else, the route to the old bytes
+    // is let go: a new session never fails for an old workspace's bytes.
+    const deletingOn = existing?.deviceId;
+    const placed = await this.placeCreate(req, url, body, create, deletingOn);
+    if (placed === null && deletingOn !== undefined) {
+      await this.placements.delete(create.sessionId);
+    }
+    return placed;
+  }
+
+  /** Place a create on one of its organization's devices with room — most
+   * room first, `preferred` before all — and fall back on the next one,
+   * then on the server (`null`). */
+  private async placeCreate(
+    req: Request,
+    url: URL,
+    body: string,
+    create: NonNullable<ReturnType<typeof readCreate>>,
+    preferred: string | undefined,
+  ): Promise<Response | null> {
     if (create.placement !== 'device') return null;
     if (await this.opts.isLocalSession(create.sessionId)) return null;
     const now = this.now();
@@ -432,14 +533,21 @@ export class DeviceHub {
           now >= d.createFailedUntilMs &&
           this.freeSlots(d) > 0,
       )
-      .sort((a, b) => this.freeSlots(b) - this.freeSlots(a));
+      .sort(
+        (a, b) =>
+          Number(b.deviceId === preferred) - Number(a.deviceId === preferred) ||
+          this.freeSlots(b) - this.freeSlots(a),
+      );
     for (const device of candidates) {
+      // Counted before the placement is written: a destroy (the hub's own
+      // ask included) answered while the write is under way must find the
+      // id created anew and leave this session's placement alone.
+      this.countCreate(create.sessionId);
       await this.placements.set(create.sessionId, {
         deviceId: device.deviceId,
         organizationId: create.organizationId,
         placedAtMs: this.now(),
       });
-      this.countCreate(create.sessionId);
       device.inflightCreates++;
       let res: Response;
       try {
@@ -492,23 +600,34 @@ export class DeviceHub {
     if (!res.ok) return res;
     const text = await res.text();
     let busy = false;
+    let deleted = false;
     try {
       const parsed: unknown = JSON.parse(text);
-      busy =
-        parsed !== null &&
-        typeof parsed === 'object' &&
-        Reflect.get(parsed, 'busy') === true;
+      if (parsed !== null && typeof parsed === 'object') {
+        busy = Reflect.get(parsed, 'busy') === true;
+        const deletion: unknown = Reflect.get(parsed, 'deletion');
+        deleted = deletion === 'done' || deletion === 'handed_off';
+      }
     } catch (err) {
       console.warn('[sandbox.devices] unreadable destroy answer:', err);
       busy = true;
     }
-    // `?if_idle=1` on a busy session destroyed nothing; anything else leaves
-    // no workspace behind on the device — unless a create for the same id
-    // was forwarded while the destroy ran, which made the session anew there.
+    // `?if_idle=1` on a busy session destroyed nothing, and a create for the
+    // same id forwarded while the destroy ran made the session anew there:
+    // the placement stays as it is. Otherwise no session lives on the device
+    // any more, but its workspace's bytes may: only an explicit completion
+    // lets go of the route. A device still deleting (`pending`, `failed`) —
+    // or one older than the `deletion` contract, whose answer says nothing
+    // about the bytes — keeps it, marked deleting, so the destroy that asks
+    // again reaches the device holding them.
     const recreated = (this.creates.get(sessionId) ?? 0) !== createsBefore;
     if (!busy && !recreated) {
-      await this.placements.delete(sessionId);
-      this.creates.delete(sessionId);
+      if (deleted) {
+        await this.placements.delete(sessionId);
+        this.creates.delete(sessionId);
+      } else {
+        await this.placements.markDeleting(sessionId);
+      }
     }
     return new Response(text, { status: res.status, headers: res.headers });
   }

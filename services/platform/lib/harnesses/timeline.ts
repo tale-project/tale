@@ -44,7 +44,7 @@ export const TIMELINE_MAX_ENTRIES = 400;
 /** Byte budget of a stored transcript (serialized). Keeps the op row well
  * under its 1 MB document cap next to `progressText`; the merge retains more
  * history than any individual live projection. */
-const TIMELINE_MAX_JSON_BYTES = 600_000;
+export const TIMELINE_MAX_JSON_BYTES = 600_000;
 
 const encoder = new TextEncoder();
 

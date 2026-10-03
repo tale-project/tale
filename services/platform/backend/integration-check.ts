@@ -81,6 +81,7 @@ import {
   checkTaskReleaseKeepsLaneRows,
   checkVideoLinkHeldBlobs,
 } from './domains/files/held-blob-cleanups.integration.ts';
+import { checkMessageHeldBlobs } from './domains/files/message-held-blobs.integration.ts';
 import { checkRejectedUploadReclaim } from './domains/files/reject-blob.integration.ts';
 import { checkHubFolderWriteRole } from './domains/folders/write-role.integration.ts';
 import { checkEmailedAttachments } from './domains/knowledge/attachment-mail.integration.ts';
@@ -56011,6 +56012,7 @@ async function checkWatchdogs(
           sessionId: 'wd-org-pinned-gone',
           organizationId: orgId,
           profile: 'agent',
+          workload: 'project',
           placement: 'device',
         }) &&
       orgPinned.includes('wd-org-pinned-gone') &&
@@ -59467,6 +59469,18 @@ async function main(): Promise<void> {
         'checkTaskReleaseKeepsLaneRows',
         () =>
           checkTaskReleaseKeepsLaneRows(
+            sql,
+            baseUrl,
+            authCtx,
+            (label, role) =>
+              signUpOrgMember(sql, baseUrl, authCtx.orgId, label, role),
+            record,
+          ),
+      ],
+      [
+        'checkMessageHeldBlobs',
+        () =>
+          checkMessageHeldBlobs(
             sql,
             baseUrl,
             authCtx,

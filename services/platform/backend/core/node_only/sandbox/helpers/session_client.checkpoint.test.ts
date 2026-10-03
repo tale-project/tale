@@ -100,7 +100,7 @@ describe('durable exec checkpoint transport', () => {
                   '\n';
                 controller.enqueue(
                   new TextEncoder().encode(
-                    `event: stdout\ndata: ${JSON.stringify({ seq: resumed ? 8 : 7, text })}\n\n`,
+                    `event: replay-start\ndata: {}\n\nevent: stdout\ndata: ${JSON.stringify({ seq: resumed ? 8 : 7, text })}\n\nevent: replay-complete\ndata: ${JSON.stringify({ throughSeq: resumed ? 8 : 7 })}\n\n`,
                   ),
                 );
                 onAbort = () => controller.error(signal.reason);

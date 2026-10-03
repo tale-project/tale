@@ -15,11 +15,13 @@ import {
   RUNNERD_ENV_MAX_VALUE_BYTES,
   isDeniedEnvName,
 } from './runnerd-protocol.ts';
+import { sessionDockerCapability } from './session-profile.ts';
 
 interface CreateSessionRequest {
   sessionId: string;
   organizationId: string;
   profile: SandboxSessionProfile;
+  docker: boolean;
   ttlMs: number;
   idleTimeoutMs: number;
   env: Record<string, string>;
@@ -105,6 +107,17 @@ export function validateCreateSession(
     rawProfile === 'agent' || rawProfile === 'agent-light'
       ? rawProfile
       : 'default';
+  if (raw.docker !== undefined && typeof raw.docker !== 'boolean') {
+    return { ok: false, error: 'docker must be a boolean' };
+  }
+  const workload = raw.workload;
+  if (
+    workload !== undefined &&
+    workload !== 'project' &&
+    workload !== 'workflow'
+  ) {
+    return { ok: false, error: 'workload must be project|workflow' };
+  }
   // ttl/idle clamped to the configured ceilings (a caller may request less).
   const ttlMs = clampPositive(
     raw.ttlMs,
@@ -124,6 +137,7 @@ export function validateCreateSession(
       sessionId: raw.sessionId,
       organizationId: raw.organizationId,
       profile,
+      docker: sessionDockerCapability(cfg, profile, workload, raw.docker),
       ttlMs,
       idleTimeoutMs,
       env: env.value,

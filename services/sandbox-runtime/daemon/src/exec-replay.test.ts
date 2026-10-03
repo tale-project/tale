@@ -1,9 +1,24 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, spyOn, test } from 'bun:test';
+import * as fs from 'node:fs/promises';
+import { join } from 'node:path';
 
-import { ExecReplay } from './exec-replay.ts';
+import { ExecReplay, ReplayBudget } from './exec-replay.ts';
 
 function line(seq: number): string {
   return `${JSON.stringify({ t: 'stdout', b64: 'Ynl0ZXM=', seq })}\n`;
+}
+
+async function expectOutputLimit(
+  work: Promise<unknown>,
+  code = 'OUTPUT_LIMIT',
+): Promise<void> {
+  try {
+    await work;
+  } catch (error) {
+    expect(error).toMatchObject({ code });
+    return;
+  }
+  throw new Error('expected an explicit output storage limit');
 }
 
 async function collect(replay: ExecReplay, since: number, until: number) {
@@ -64,19 +79,84 @@ describe('disk exec replay', () => {
     }
   });
 
-  test('reports a precise gap when unacknowledged history exceeds the disk budget', async () => {
+  test('fails explicitly instead of discarding unacknowledged history at the disk limit', async () => {
     const replay = new ExecReplay({
       segmentBytes: 1,
       maxBytes: Buffer.byteLength(line(1)) * 2,
     });
     try {
-      for (let seq = 1; seq <= 6; seq++) await replay.append(line(seq), seq);
-      expect((await collect(replay, 0, 6)).gaps).toEqual([[1, 4]]);
-      expect((await collect(replay, 4, 6)).lines).toEqual([
-        line(5).trim(),
-        line(6).trim(),
-      ]);
+      for (let seq = 1; seq <= 2; seq++) await replay.append(line(seq), seq);
+      await expectOutputLimit(replay.append(line(3), 3));
+      await expectOutputLimit(collect(replay, 0, 3));
     } finally {
+      await replay.dispose();
+    }
+  });
+
+  test('checkpoint acknowledgements let lifetime output exceed the per-exec cap', async () => {
+    const replay = new ExecReplay({
+      segmentBytes: 1,
+      maxBytes: Buffer.byteLength(line(1)) * 2,
+    });
+    try {
+      for (let seq = 1; seq <= 10; seq++) {
+        await replay.append(line(seq), seq);
+        await replay.saveCheckpoint({ seq, state: { consumed: seq } });
+      }
+      expect(await replay.getCheckpoint()).toEqual({
+        seq: 10,
+        state: { consumed: 10 },
+      });
+      expect((await collect(replay, 10, 10)).gaps).toEqual([]);
+    } finally {
+      await replay.dispose();
+    }
+  });
+
+  test('a failed directory sync after checkpoint rename prevents stale replacement or further output', async () => {
+    const replay = new ExecReplay();
+    const originalOpen = fs.open;
+    let syncFailures = 0;
+    const opened = spyOn(fs, 'open').mockImplementation(async (...args) => {
+      const file = await originalOpen(...args);
+      if (args[1] === 'r') {
+        file.sync = async () => {
+          syncFailures += 1;
+          throw Object.assign(new Error('directory sync failed'), {
+            code: 'EIO',
+          });
+        };
+      }
+      return file;
+    });
+    try {
+      await replay.append(line(1), 1);
+      await replay.append(line(2), 2);
+      const result = await replay
+        .saveCheckpoint({ seq: 2, state: 'newer' })
+        .catch(() => undefined);
+      expect(result).toBeUndefined();
+      expect(syncFailures).toBe(1);
+      opened.mockRestore();
+      const directory: unknown = await Reflect.get(replay, 'directory');
+      if (typeof directory !== 'string')
+        throw new Error('missing spool directory');
+      const committed = await fs.readFile(
+        join(directory, 'checkpoint.json'),
+        'utf8',
+      );
+      expect(JSON.parse(committed)).toEqual({ seq: 2, state: 'newer' });
+      await expectOutputLimit(
+        replay.saveCheckpoint({ seq: 1, state: 'stale' }),
+        'REPLAY_UNAVAILABLE',
+      );
+      await expectOutputLimit(replay.getCheckpoint(), 'REPLAY_UNAVAILABLE');
+      await expectOutputLimit(replay.append(line(3), 3), 'REPLAY_UNAVAILABLE');
+      expect(
+        await fs.readFile(join(directory, 'checkpoint.json'), 'utf8'),
+      ).toBe(committed);
+    } finally {
+      opened.mockRestore();
       await replay.dispose();
     }
   });
@@ -128,6 +208,46 @@ describe('disk exec replay', () => {
       expect(count).toBe(1);
     } finally {
       await replay.dispose();
+    }
+  });
+
+  test('checkpoint pruning keeps leased physical bytes charged until a stalled reader closes', async () => {
+    const budget = new ReplayBudget(250);
+    const limits = { segmentBytes: 1, maxBytes: 1000 };
+    const replay = new ExecReplay(limits, budget);
+    const denied = new ExecReplay(limits, budget);
+    const later = new ExecReplay(limits, budget);
+    const abort = new AbortController();
+    const entered = Promise.withResolvers<void>();
+    const blocked = Promise.withResolvers<void>();
+    let reading: Promise<number> | undefined;
+    try {
+      for (let seq = 1; seq <= 3; seq++) await replay.append(line(seq), seq);
+      reading = replay.replay(
+        0,
+        3,
+        async () => {
+          entered.resolve();
+          await blocked.promise;
+        },
+        () => {
+          throw new Error('unexpected gap');
+        },
+        abort.signal,
+      );
+      await entered.promise;
+      await replay.saveCheckpoint({ seq: 3, state: null });
+      const large = `${JSON.stringify({ t: 'stdout', seq: 1, b64: 'x'.repeat(130) })}\n`;
+      await expectOutputLimit(denied.append(large, 1));
+      abort.abort();
+      await reading;
+      await later.append(large, 1);
+      expect((await collect(later, 0, 1)).lines).toEqual([large.trim()]);
+    } finally {
+      abort.abort();
+      blocked.resolve();
+      await reading;
+      await Promise.all([replay.dispose(), denied.dispose(), later.dispose()]);
     }
   });
 });

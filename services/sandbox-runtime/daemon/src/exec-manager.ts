@@ -20,7 +20,7 @@ import { accessSync, constants as fsConstants, realpathSync } from 'node:fs';
 import { Readable, type Writable } from 'node:stream';
 
 import type { EnvStore } from './env-store.ts';
-import { ExecReplay } from './exec-replay.ts';
+import { ExecReplay, ReplayBudget, ReplayError } from './exec-replay.ts';
 import {
   EXEC_TAG_ENV,
   groupMembers,
@@ -188,6 +188,8 @@ export class ExecManager {
   private pruningLeftovers = false;
   /** How many execs this session has started. */
   private started = 0;
+  private disposed = false;
+  private readonly replayBudget: ReplayBudget;
 
   constructor(
     private readonly envStore: EnvStore,
@@ -198,11 +200,15 @@ export class ExecManager {
     private readonly reaper: ReaperDeps = {},
     private readonly options: {
       holdMaxMs?: number;
+      replayMaxBytes?: number;
+      replayBudgetBytes?: number;
+      replayDirectory?: string;
       /** The subreaper shim to run execs under; unset, {@link
        * resolveExecShim}'s, and null for none. */
       execShim?: string | null;
     } = {},
   ) {
+    this.replayBudget = new ReplayBudget(options.replayBudgetBytes);
     this.execShim =
       options.execShim === undefined ? resolveExecShim() : options.execShim;
   }
@@ -251,30 +257,32 @@ export class ExecManager {
     ready?: () => Promise<void>,
   ): Promise<void> {
     let missing = false;
-    for (;;) {
-      if (signal?.aborted) return;
-      const until = rec.seq;
-      const ring = rec.ring.slice();
-      const first = ring[0] ? ringSequence(ring[0]) : undefined;
-      if (
-        first !== undefined &&
-        first <= cursor + 1 &&
-        ringSequence(ring.at(-1) ?? '') === until
-      ) {
-        for (const line of ring) {
-          if (signal?.aborted) return;
-          const seq = ringSequence(line);
-          if (seq === undefined || seq <= cursor) continue;
-          emitRingLine(line, emit);
-          cursor = seq;
-          await ready?.();
-        }
-      } else {
+    const throughSeq = rec.seq;
+    let caughtUp = false;
+    emit({ t: 'replay-start' });
+    const complete = () => {
+      if (caughtUp || signal?.aborted) return;
+      caughtUp = true;
+      emit({ t: 'replay-complete', throughSeq });
+    };
+    try {
+      rec.replay.assertAvailable();
+      if (cursor >= throughSeq) complete();
+      for (;;) {
+        if (signal?.aborted) return;
+        const until = rec.seq;
         cursor = await rec.replay.replay(
           cursor,
           until,
           async (line) => {
-            emitRingLine(line, emit);
+            const seq = ringSequence(line);
+            // Historical terminal events must be interpreted only after the
+            // replay barrier, even when they were the initial watermark.
+            emitRingLine(line, (event) => {
+              if (event.t === 'exit' && (seq ?? 0) >= throughSeq) complete();
+              emit(event);
+            });
+            if ((seq ?? 0) >= throughSeq) complete();
             await ready?.();
           },
           (fromSeq, toSeq) => {
@@ -283,25 +291,34 @@ export class ExecManager {
           },
           signal,
         );
+        if (missing || signal?.aborted) return;
+        rec.replay.assertAvailable();
+        if (cursor >= throughSeq) complete();
+        // No await between the catch-up check and subscription: output cannot
+        // slip between disk replay and live delivery on this event loop.
+        if (cursor < rec.seq) continue;
+        const live = this.live.get(execId);
+        if (live !== rec) return;
+        live.subscribers.add(emit);
+        await new Promise<void>((resolve) => {
+          const finish = () => {
+            live.subscribers.delete(emit);
+            live.completions.delete(finish);
+            signal?.removeEventListener('abort', finish);
+            resolve();
+          };
+          live.completions.add(finish);
+          signal?.addEventListener('abort', finish, { once: true });
+        });
+        return;
       }
-      if (missing || signal?.aborted) return;
-      // No await between the up-to-date check and subscription: output cannot
-      // slip between disk replay and live delivery on this event loop.
-      if (cursor < rec.seq) continue;
-      const live = this.live.get(execId);
-      if (live !== rec) return;
-      live.subscribers.add(emit);
-      await new Promise<void>((resolve) => {
-        const finish = () => {
-          live.subscribers.delete(emit);
-          live.completions.delete(finish);
-          signal?.removeEventListener('abort', finish);
-          resolve();
-        };
-        live.completions.add(finish);
-        signal?.addEventListener('abort', finish, { once: true });
-      });
-      return;
+    } catch (error) {
+      if (signal?.aborted) return;
+      const failure =
+        error instanceof ReplayError
+          ? error
+          : new ReplayError('REPLAY_UNAVAILABLE');
+      emit({ t: 'fail', code: failure.code, message: failure.message });
     }
   }
 
@@ -339,6 +356,10 @@ export class ExecManager {
     rec: LiveExec,
     exitCode: number | null,
   ): void {
+    if (this.disposed) {
+      void rec.replay.dispose().catch(logReplayError);
+      return;
+    }
     const previous = this.recent.get(execId);
     if (previous) void previous.replay.dispose().catch(logReplayError);
     void rec.replay.finish().catch(logReplayError);
@@ -385,6 +406,14 @@ export class ExecManager {
     req: RunnerdExecRequest,
     emit: (event: RunnerdExecEvent) => void,
   ): Promise<void> {
+    if (this.disposed) {
+      emit({
+        t: 'fail',
+        code: 'BAD_REQUEST',
+        message: 'exec manager is closed',
+      });
+      return;
+    }
     if (!ID_ALPHABET_RE.test(req.execId)) {
       emit({ t: 'fail', code: 'BAD_REQUEST', message: 'invalid execId' });
       return;
@@ -474,7 +503,14 @@ export class ExecManager {
       exitCode: null,
       ring: [],
       ringBytes: 0,
-      replay: new ExecReplay(),
+      replay: new ExecReplay(
+        {
+          segmentBytes: 1024 * 1024,
+          maxBytes: this.options.replayMaxBytes ?? 64 * 1024 * 1024,
+        },
+        this.replayBudget,
+        this.options.replayDirectory,
+      ),
       cancelRequested: false,
       subscribers: new Set(),
       completions: new Set(),
@@ -498,31 +534,44 @@ export class ExecManager {
     this.live.set(req.execId, record);
 
     let replayWrites = 0;
-    const ringEmit = (event: RunnerdExecEvent) => {
+    let replayFailure: ReplayError | undefined;
+    const failReplay = (error: unknown) => {
+      if (replayFailure) return;
+      replayFailure =
+        error instanceof ReplayError
+          ? error
+          : new ReplayError('REPLAY_UNAVAILABLE');
+      ringEmit(
+        { t: 'fail', code: replayFailure.code, message: replayFailure.message },
+        false,
+      );
+      record.terminate();
+      child.stdout.resume();
+      child.stderr.resume();
+    };
+    const ringEmit = (event: RunnerdExecEvent, persist = true) => {
       // Stamp a monotonic seq so a reconnecting /attach?sinceSeq= can replay
       // only events it hasn't seen — idempotent reconnect.
       record.seq += 1;
       const stamped: RunnerdExecEvent = { ...event, seq: record.seq };
       const line = `${JSON.stringify(stamped)}\n`;
-      // Pause both pipes while disk writes are outstanding. There are at most
-      // their already-delivered chunks in memory, never a queue of all output.
-      child.stdout.pause();
-      child.stderr.pause();
-      replayWrites += 1;
-      void record.replay
-        .append(line, record.seq)
-        .catch((error: unknown) => {
-          logReplayError(error);
-          // A failed spool is observable as a gap on reconnect. The current live
-          // reader can still finish; do not kill healthy work for a disk hiccup.
-        })
-        .finally(() => {
-          replayWrites -= 1;
-          if (replayWrites === 0) {
-            child.stdout.resume();
-            child.stderr.resume();
-          }
-        });
+      if (persist && !replayFailure) {
+        // Pause both pipes while disk writes are outstanding. Only already
+        // delivered chunks remain in memory, never the whole transcript.
+        child.stdout.pause();
+        child.stderr.pause();
+        replayWrites += 1;
+        void record.replay
+          .append(line, record.seq)
+          .catch(failReplay)
+          .finally(() => {
+            replayWrites -= 1;
+            if (replayWrites === 0) {
+              child.stdout.resume();
+              child.stderr.resume();
+            }
+          });
+      }
       record.ring.push(line);
       record.ringBytes += Buffer.byteLength(line, 'utf8');
       while (
@@ -616,7 +665,7 @@ export class ExecManager {
       // grace-forced finish raced a leaked-fd writer — see the 'exit'/'close'
       // handling below). Keeps the start..stdout..exit order the platform
       // adapters depend on and never mutates the already-retained ring.
-      if (settled) return;
+      if (settled || replayFailure) return;
       // stdoutMaxBytes <= 0 ⇒ UNLIMITED: never truncate (the ring + per-consumer
       // buffer ceiling bound memory). Long-lived streaming execs pass 0 so their
       // live output is never silently cut off mid-run.
@@ -645,7 +694,7 @@ export class ExecManager {
       emitOutput('stdout', chunk, stdoutBytes === req.stdoutMaxBytes);
     });
     child.stderr.on('data', (chunk: Buffer) => {
-      if (settled) return;
+      if (settled || replayFailure) return;
       if (req.stderrMaxBytes > 0) {
         const remaining = req.stderrMaxBytes - stderrBytes;
         if (remaining <= 0) {
@@ -704,7 +753,7 @@ export class ExecManager {
       let stderrClosed = false;
       let exitCode = -1;
       let drainTimer: ReturnType<typeof setTimeout> | null = null;
-      const finish = (code: number) => {
+      const finish = async (code: number) => {
         if (settled) return;
         settled = true;
         // EOF normally flushes these. A forced drain finish must preserve the
@@ -723,9 +772,8 @@ export class ExecManager {
           child.stdout.destroy();
           child.stderr.destroy();
         }
-        record.exitCode = code;
         this.onActivity();
-        ringEmit({
+        const terminal: RunnerdExecEvent = {
           t: 'exit',
           exitCode: code,
           // The canonical execution wall-clock (protocol.ts `exit.durationMs`):
@@ -736,9 +784,21 @@ export class ExecManager {
           truncated: { stdout: stdoutTrunc, stderr: stderrTrunc },
           timedOut: record.timedOut,
           cancelled: record.cancelRequested,
-        });
+        };
+        // A success cannot outrun a failed spool open/write. Wait for every
+        // prior record and the terminal record before publishing exit status.
+        if (!replayFailure)
+          await record.replay
+            .append(
+              `${JSON.stringify({ ...terminal, seq: record.seq + 1 })}\n`,
+              record.seq + 1,
+            )
+            .catch(failReplay);
+        await record.replay.finish().catch(failReplay);
+        record.exitCode = replayFailure ? -1 : code;
+        ringEmit({ ...terminal, exitCode: record.exitCode }, false);
         this.dropLive(req.execId);
-        this.retainRecent(req.execId, record, code);
+        this.retainRecent(req.execId, record, record.exitCode);
         for (const complete of record.completions) complete();
         resolve();
       };
@@ -817,9 +877,12 @@ export class ExecManager {
         }
         // stdio already closed (normal fast path) → emit now; otherwise wait a
         // bounded grace for 'close' before forcing the terminal event.
-        if (closed) finish(exitCode);
+        if (closed) void finish(exitCode);
         else
-          drainTimer = setTimeout(() => finish(exitCode), EXIT_DRAIN_GRACE_MS);
+          drainTimer = setTimeout(
+            () => void finish(exitCode),
+            EXIT_DRAIN_GRACE_MS,
+          );
       };
       if (shim !== null) {
         // The shim's status pipe: the command's pid (its group), its exit,
@@ -898,7 +961,7 @@ export class ExecManager {
         // Both output pipes closed: every 'data' event has been delivered,
         // so the terminal 'exit' event is now guaranteed last and complete.
         closed = true;
-        if (exited) finish(exitCode);
+        if (exited) void finish(exitCode);
       };
       child.stdout.on('close', () => {
         stdoutClosed = true;
@@ -1042,6 +1105,18 @@ export class ExecManager {
       targets.push(this.liveTarget(execId, rec));
     }
     await this.reap(targets);
+  }
+
+  /** Release retained storage and stop all live work when the daemon closes. */
+  [Symbol.dispose](): void {
+    if (this.disposed) return;
+    this.disposed = true;
+    for (const record of this.recent.values())
+      void record.replay.dispose().catch(logReplayError);
+    this.recent.clear();
+    void this.terminateAll().catch((error: unknown) => {
+      console.warn('[runnerd] disposing exec manager failed:', error);
+    });
   }
 
   /** How many exited or handed-over execs' leftovers wait. */

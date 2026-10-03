@@ -25,23 +25,49 @@ import {
   ensureBuildkitd,
   MIRROR_REGISTRIES,
 } from './buildkitd.ts';
-import { DOCKER_TEST_STATE_LOCK } from './docker-test-lock.ts';
 import { TEST_SESSION_CONFIG } from './session/session-test-config.ts';
 import type { SpawnerConfig } from './types.ts';
 
 // A fake Docker CLI exercises real resource orchestration, including inspect
 // failures and pre-existing resources. No network/volume on the host is touched.
 const FAKE_DOCKER = String.raw`#!/usr/bin/env bun
+import { mkdirSync as lockDir, rmdirSync as unlockDir, renameSync, readdirSync } from 'node:fs';
 import { readFileSync, writeFileSync, appendFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 const dir = dirname(process.argv[1]);
 const path = join(dir, 'state.json');
-${DOCKER_TEST_STATE_LOCK}
 const s = JSON.parse(readFileSync(path, 'utf8'));
+const before = structuredClone(s);
+// Merge only this command's mutations into the fake daemon's state. Atomic
+// rename keeps concurrent readers from observing half of the JSON file.
+function merge(old, next, live) {
+  if (JSON.stringify(old) === JSON.stringify(next)) return live;
+  if (old && next && !Array.isArray(next) && typeof old === 'object' && typeof next === 'object') {
+    const out = { ...live };
+    for (const key of Object.keys(old)) if (!(key in next)) delete out[key];
+    for (const key of Object.keys(next)) out[key] = merge(old[key], next[key], live?.[key]);
+    return out;
+  }
+  return next;
+}
+function commit() {
+  const lock = join(dir, 'state.lock');
+  while (true) {
+    try { lockDir(lock); break; }
+    catch (error) { if (error.code !== 'EEXIST') throw error; Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 1); }
+  }
+  try {
+    const live = JSON.parse(readFileSync(path, 'utf8'));
+    const temp = path + '.' + process.pid;
+    writeFileSync(temp, JSON.stringify(merge(before, s, live)));
+    renameSync(temp, path);
+  } finally { unlockDir(lock); }
+}
+
 const a = process.argv.slice(2);
 appendFileSync(join(dir, 'calls.jsonl'), JSON.stringify(a) + '\n');
 function done(value = '', observation = '') {
-  writeFileSync(path, JSON.stringify(s));
+  commit();
   let output = typeof value === 'string' ? value : JSON.stringify(value);
   if (s.oversizedStdout?.observation === observation) output = s.oversizedStdout.prefix.padEnd(2 * 1024 * 1024, '\n') + s.oversizedStdout.suffix;
   console.log(output);
@@ -124,11 +150,19 @@ if (a[0] === 'run') {
     done(JSON.stringify(s.hostRoutes ?? [{dst:'default',gateway:'172.17.0.1'},{dst:'172.17.0.0/16'}]) + '\n---tale-resolvers---\n' + (s.hostDns ?? 'nameserver 8.8.8.8\n'), 'host-routes');
   }
   const name = flag('--name');
+  if (s.requireParallelMirrors && name.startsWith('tale-buildkitd-mirror-')) {
+    writeFileSync(join(dir, 'mirror-start-' + name), '');
+    const deadline = Date.now() + 2000;
+    while (readdirSync(dir).filter(name => name.startsWith('mirror-start-')).length < 3) {
+      if (Date.now() > deadline) fail('mirrors did not start concurrently');
+      await Bun.sleep(2);
+    }
+  }
   s.containers[name] = { labels: labels(), networks: { [flag('--network')]: {} }, ports: null, running: true };
   if (s.race && s.race.name === name) {
     s.containers[name].running = s.race.running;
     if (s.race.foreign) s.containers[name].labels['tale.org'] = 'another-org';
-    writeFileSync(path, JSON.stringify(s));
+    commit();
     fail('container name already in use');
   }
   done(name);
@@ -143,6 +177,7 @@ fail('Unhandled fake docker call: ' + JSON.stringify(a));
 `;
 
 interface FakeState {
+  requireParallelMirrors?: boolean;
   hostRoutes?: object[];
   hostDns?: string;
   hostRouteFailure?: boolean;
@@ -535,6 +570,18 @@ describe('organization BuildKit provisioning', () => {
     expect(commands.findIndex((a) => a.includes('-I'))).toBeLessThan(
       commands.findIndex((a) => a[1] === 'connect'),
     );
+  });
+
+  test('starts all registry mirrors before awaiting any one mirror', async () => {
+    const initial = initialState();
+    initial.requireParallelMirrors = true;
+    await save(initial);
+    await ensureBuildkitd(cfg, 'parallel-mirrors');
+    const launched = Object.entries((await state()).containers)
+      .filter(([name]) => name.startsWith('tale-buildkitd-mirror-'))
+      .map(([, container]) => container);
+    expect(launched).toHaveLength(3);
+    expect(launched.every((container) => container.running)).toBe(true);
   });
 
   test('coalesces same-org provisioning and reuses healthy caches after restart', async () => {

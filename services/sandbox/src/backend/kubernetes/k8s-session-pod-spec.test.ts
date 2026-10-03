@@ -93,6 +93,26 @@ describe('buildSessionPod', () => {
       pod.spec?.volumes?.some((volume) => volume.name === 'docker-storage'),
     ).toBe(false);
   });
+  test('a lightweight agent keeps its uid and omits Docker storage and privilege', () => {
+    const pod = buildSessionPod(
+      { ...cfg, runtimeTier: 'sysbox', dockerInContainer: true },
+      { ...input, docker: false },
+    );
+    const runner = pod.spec?.containers[0];
+    expect(pod.metadata?.annotations?.['tale.dev/docker']).toBe('false');
+    expect(runner?.securityContext?.runAsUser).toBe(
+      cfg.session.agentProfile.uid,
+    );
+    expect(runner?.securityContext?.privileged).not.toBe(true);
+    expect(runner?.env).not.toContainEqual({
+      name: 'TALE_DOCKER_ENABLED',
+      value: '1',
+    });
+    expect(
+      pod.spec?.volumes?.some((volume) => volume.name === 'docker-storage'),
+    ).toBe(false);
+  });
+
   test('passes an operator inner pool only to DinD runners without Docker build-cache wiring or unsafe sysctls', () => {
     const configured: SpawnerConfig = {
       ...cfg,

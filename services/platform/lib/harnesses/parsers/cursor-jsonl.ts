@@ -13,6 +13,7 @@
 import { z } from 'zod';
 
 import {
+  appendHarnessAnswer,
   asNumber,
   asRecord,
   asString,
@@ -65,14 +66,14 @@ const checkpointSchema = z.object({
   lines: z.string(),
   started: z.boolean(),
   sessionId: z.string().optional(),
-  finalTextParts: z.array(z.string()),
+  finalText: z.string(),
 });
 
 class CursorJsonlParser implements HarnessEventParser {
   private readonly lines = new LineReassembler();
   private started = false;
   private sessionId: string | undefined;
-  private finalTextParts: string[] = [];
+  private finalText = '';
 
   constructor(private readonly slug: HarnessSlug) {}
 
@@ -81,7 +82,7 @@ class CursorJsonlParser implements HarnessEventParser {
       lines: this.lines.snapshot(),
       started: this.started,
       sessionId: this.sessionId,
-      finalTextParts: this.finalTextParts,
+      finalText: this.finalText,
     };
   }
 
@@ -90,7 +91,7 @@ class CursorJsonlParser implements HarnessEventParser {
     this.lines.restore(state.lines);
     this.started = state.started;
     this.sessionId = state.sessionId;
-    this.finalTextParts = state.finalTextParts;
+    this.finalText = appendHarnessAnswer('', state.finalText);
   }
 
   feed(chunk: string): HarnessEvent[] {
@@ -149,7 +150,10 @@ class CursorJsonlParser implements HarnessEventParser {
       }
       if (text) {
         events.push({ type: 'text', text });
-        this.finalTextParts.push(text);
+        this.finalText = appendHarnessAnswer(
+          this.finalText,
+          `${this.finalText === '' ? '' : '\n'}${text}`,
+        );
       }
       return events;
     }
@@ -215,7 +219,7 @@ class CursorJsonlParser implements HarnessEventParser {
         asString(ev.result) ??
         asString(ev.final_text) ??
         asString(ev.finalText) ??
-        this.finalTextParts.join('\n');
+        this.finalText;
       // The result event carries the turn's accounting as a camelCase
       // `usage` block. Cursor is bring-your-own only, so no gateway meters
       // the turn — this block is the ONLY usage signal and must not be

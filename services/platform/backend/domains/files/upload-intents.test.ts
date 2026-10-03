@@ -19,6 +19,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { deleteOrgObject } from '../../lib/object-store.ts';
 import {
   claimRejectedUpload,
+  releaseReclaimedIntent,
   ownsUploadedBlob,
   recordUploadIntent,
   sweepUploadIntents,
@@ -91,7 +92,7 @@ function fakeLedger(script: {
     if (text.startsWith('SELECT i.id, i.s3_ref')) {
       rows = script.abandoned ?? [];
     } else if (
-      text.startsWith('DELETE FROM app.upload_intents i WHERE i.s3_ref')
+      text.startsWith('UPDATE app.upload_intents i SET expires_at_ms = 0')
     ) {
       rows = script.claimed ?? [];
     } else if (text.startsWith('UPDATE app.upload_intents SET bound_at_ms')) {
@@ -122,7 +123,7 @@ const scope = { organizationId: 'org_1', userId: 'user_1' };
 
 /** `blobRefHeld` over the ledger row's ref, as the statements inline it. */
 const HELD_BY_A_ROW =
-  "(EXISTS ( SELECT 1 FROM app.file_metadata held_file WHERE held_file.org_id = ? AND held_file.storage_ref = i.s3_ref ) OR EXISTS ( SELECT 1 FROM app.documents held_doc WHERE held_doc.org_id = ? AND (held_doc.file_ref = i.s3_ref OR held_doc.history_files @> ARRAY[i.s3_ref::text]) ) OR EXISTS ( SELECT 1 FROM app.tasks held WHERE held.org_id = ? AND (coalesce(held.attachments, '[]'::jsonb) || coalesce(held.outputs, '[]'::jsonb)) @> jsonb_build_array(jsonb_build_object('fileId', i.s3_ref::text)) ))";
+  "(EXISTS ( SELECT 1 FROM app.file_metadata held_file WHERE held_file.org_id = ? AND held_file.storage_ref = i.s3_ref ) OR EXISTS ( SELECT 1 FROM app.documents held_doc WHERE held_doc.org_id = ? AND (held_doc.file_ref = i.s3_ref OR held_doc.history_files @> ARRAY[i.s3_ref::text]) ) OR (EXISTS ( SELECT 1 FROM app.tasks held WHERE held.org_id = ? AND (coalesce(held.attachments, '[]'::jsonb) || coalesce(held.outputs, '[]'::jsonb)) @> jsonb_build_array(jsonb_build_object('fileId', i.s3_ref::text)) ) OR EXISTS ( SELECT 1 FROM app.conversation_messages held_mail WHERE held_mail.org_id = ? AND held_mail.direction = 'outbound' AND held_mail.delivery_state IN ('queued', 'failed') AND held_mail.metadata->'attachments' @> jsonb_build_array(jsonb_build_object('storageId', i.s3_ref::text)) ) OR EXISTS ( SELECT 1 FROM app.messages held_chat WHERE held_chat.org_id = ? AND held_chat.role = 'user' AND held_chat.parts @> jsonb_build_array(jsonb_build_object( 'type', 'attachment', 'fileId', i.s3_ref::text )) )))";
 
 afterEach(() => {
   vi.clearAllMocks();
@@ -130,6 +131,24 @@ afterEach(() => {
 });
 
 describe('ownsUploadedBlob', () => {
+  it('asks without writing when told not to stamp (#4111)', async () => {
+    const fake = fakeLedger({ stamped: [{ id: 'i-1' }] });
+
+    const owned = await ownsUploadedBlob(
+      fake.sql,
+      { ...scope, storageRef: 's3:blobs/acme/aaa' },
+      { stamp: false },
+    );
+
+    const issued = sqlStatements(fake.statements);
+    expect(issued.some((s) => s.text.startsWith('UPDATE'))).toBe(false);
+    expect(issued[0]?.text).toBe(
+      "SELECT id FROM app.upload_intents WHERE s3_ref = ? AND org_id = ? AND user_id = ? AND purpose = 'file' AND expires_at_ms > ?",
+    );
+    // The fake answers the read with no row, so the uploader arm decides.
+    expect(owned).toBe(false);
+  });
+
   it('stamps the intent it proves ownership through', async () => {
     const fake = fakeLedger({ stamped: [{ id: 'i-1' }] });
 
@@ -315,10 +334,16 @@ describe('claimRejectedUpload', () => {
     expect(claimed).toBe(true);
     const issued = sqlStatements(fake.statements);
     expect(issued).toHaveLength(1);
-    // One statement on the intent row: the stamp a bind wrote, and every
-    // row that holds the ref, are read under the row's lock (#4104).
+    // One statement on the intent row (#4104). What serializes it against a
+    // bind is the row itself: every bind stamps or consumes it in the
+    // transaction that writes its holder, so the claim waits on that lock
+    // and re-reads `bound_at_ms` and `consumed_at_ms` on the committed row.
+    // The holder subqueries get no such re-read — under READ COMMITTED they
+    // keep the statement's snapshot — so they are the belt, not the race
+    // guard; `tests/guards/binding-doors.guard.test.ts` holds every door to
+    // the row (#4111).
     expect(issued[0]?.text).toBe(
-      `DELETE FROM app.upload_intents i WHERE i.s3_ref = ? AND i.org_id = ? AND i.user_id = ? AND i.consumed_at_ms IS NULL AND i.expires_at_ms > ? AND NOT (i.bound_at_ms IS NOT NULL OR ${HELD_BY_A_ROW}) RETURNING i.id`,
+      `UPDATE app.upload_intents i SET expires_at_ms = 0 WHERE i.s3_ref = ? AND i.org_id = ? AND i.user_id = ? AND i.consumed_at_ms IS NULL AND i.expires_at_ms > ? AND NOT (i.bound_at_ms IS NOT NULL OR ${HELD_BY_A_ROW}) RETURNING i.id`,
     );
     expect(issued[0]?.values.slice(0, 3)).toEqual([
       's3:blobs/acme/aaa',
@@ -338,6 +363,24 @@ describe('claimRejectedUpload', () => {
         storageRef: 's3:blobs/acme/held',
       }),
     ).toBe(false);
+  });
+});
+
+describe('releaseReclaimedIntent', () => {
+  it('drops only the tombstone a claim left, once the bytes are gone (#4111)', async () => {
+    const fake = fakeLedger({});
+
+    await releaseReclaimedIntent(fake.sql, {
+      organizationId: 'org_1',
+      storageRef: 's3:blobs/acme/aaa',
+    });
+
+    const issued = sqlStatements(fake.statements);
+    expect(issued).toHaveLength(1);
+    expect(issued[0]?.text).toBe(
+      'DELETE FROM app.upload_intents WHERE s3_ref = ? AND org_id = ? AND consumed_at_ms IS NULL AND expires_at_ms = 0',
+    );
+    expect(issued[0]?.values).toEqual(['s3:blobs/acme/aaa', 'org_1']);
   });
 });
 

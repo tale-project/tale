@@ -48,6 +48,17 @@ measurements remain unavailable: the namespace-scoped ServiceAccount cannot
 read node capacity or the metrics API, and the spawner Pod's own resources
 would not describe the cluster.
 
+Pending Pods count against admission even before runnerd has an address. A
+spawner restart therefore cannot admit another full set beside the Pods still
+starting. After a crashed create, maintenance can remove a Pod that remains
+Pending past its recorded `tale.dev/startup-deadline` plus 60 seconds. Legacy
+Pods without that annotation receive the longer of the current startup timeout
+and 24 hours, plus the same grace. Recovery checks the apiserver creation time,
+creation stamp, UID and resource version, so a newer incarnation or a Pod that
+became Running during the check is left alone. Its Secret is removed by UID;
+the workspace PVC stays intact. Capacity is released only after the Pod is gone.
+Running and Unknown Pods are never removed by this startup recovery.
+
 **Resource bounds:** the runner container enforces the profile's cpu/memory
 limits and requests its typical working set rather than its ceiling: an agent
 Pod `250m` / `512Mi` (`1Gi` under DinD), a crawler render `250m` / `512Mi`,

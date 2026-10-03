@@ -27,6 +27,7 @@
 import { z } from 'zod';
 
 import { resolveEffectiveWindow } from '../../../lib/chat/budget';
+import { HarnessProjection } from '../../../lib/harnesses/projection';
 import { getHarnessGlue } from '../../../lib/harnesses/registry';
 import { type TimelinePart } from '../../../lib/harnesses/timeline';
 import {
@@ -42,6 +43,7 @@ import { resolveModel } from '../lib/providers/resolve_model';
 import {
   drainSessionExecResilient,
   ExecReplayGapError,
+  ExecStreamProtocolError,
   SessionNotFoundError,
   sessionCancelExec,
   sessionGetExecCheckpoint,
@@ -56,7 +58,6 @@ import {
   gatewayRequestTimeoutSeconds,
   gatewayStreamIdleTimeoutSeconds,
 } from '../node_only/sandbox/llm_gateway_admin';
-import { HarnessProjection } from './harness_projection';
 
 /** Session-relative dir every staged skill lands in — the work lanes' org
  * skills and the per-connector skills alike, so the instructions can point
@@ -366,7 +367,7 @@ const turnCheckpointSchema = z.object({
   harness: z.string(),
   parser: z.unknown(),
   projection: z.unknown(),
-  pendingTasks: z.array(z.string()),
+  pendingTasks: z.array(z.string().max(1024)).max(4096),
   ended: turnEndSchema.optional(),
   agentSessionId: z.string().optional(),
   outputTokens: z.number(),
@@ -448,6 +449,7 @@ export async function drainHarnessWindow(args: {
   // `turn-ended` event that actually ends the turn. Cut the drain shortly
   // after the parser sees `turn-ended`; the grace lets a harness that DOES
   // exit deliver its terminal result (and exit code) first.
+  let replayComplete = args.start !== undefined;
   const turnEndedCut = new AbortController();
   let turnEndedGrace: ReturnType<typeof setTimeout> | undefined;
 
@@ -459,7 +461,7 @@ export async function drainHarnessWindow(args: {
   // carries that ledger across windows independently of display retention.
   const pendingTasks = new Set<string>();
   const armTurnEndedCut = () => {
-    if (turnEndedGrace !== undefined) return;
+    if (!replayComplete || turnEndedGrace !== undefined) return;
     turnEndedGrace = setTimeout(
       () => turnEndedCut.abort(),
       TURN_ENDED_EXIT_GRACE_MS,
@@ -475,6 +477,7 @@ export async function drainHarnessWindow(args: {
   let lastNotifiedEventCount = 0;
   let lastNotifyAt = 0;
   const notifyTextSoFar = () => {
+    if (!replayComplete) return;
     if (args.onText === undefined && args.onTimeline === undefined) return;
     const now = Date.now();
     if (now - lastNotifyAt < STREAM_TEXT_THROTTLE_MS) return;
@@ -588,27 +591,36 @@ export async function drainHarnessWindow(args: {
     checkpointWrite ??= Promise.resolve().then(writeCheckpoints);
   };
   let outputFailure: { error: unknown } | undefined;
-  const consumeStdout = (chunk: string) => {
-    for (const e of parser.feed(chunk)) {
-      projection.feed(e);
-      if (e.type === 'turn-started' && e.sessionId !== undefined)
-        agentSessionId = e.sessionId;
-      if (e.type === 'usage') outputTokens += e.outputTokens;
-      if (e.type === 'error') {
-        harnessError = e.message;
-      } else if (e.type === 'task-started') {
-        pendingTasks.add(e.taskId);
-        // A task launched inside the grace (reply in, cut armed) reopens the
-        // ledger — the cut must wait for it.
-        disarmTurnEndedCut();
-      } else if (e.type === 'task-settled') {
-        pendingTasks.delete(e.taskId);
-      } else if (e.type === 'turn-ended') {
-        ended = e;
-        agentSessionId ??= e.sessionId;
+  const acceptEvent = (e: HarnessEvent) => {
+    projection.accept(e);
+    if (e.type === 'turn-started' && e.sessionId !== undefined)
+      agentSessionId = e.sessionId;
+    if (e.type === 'usage') outputTokens += e.outputTokens;
+    if (e.type === 'error') {
+      harnessError = e.message;
+    } else if (e.type === 'task-started') {
+      if (
+        e.taskId.length > 1024 ||
+        (pendingTasks.size >= 4096 && !pendingTasks.has(e.taskId))
+      ) {
+        throw new Error(
+          'Harness background-task ledger exceeds its safety budget',
+        );
       }
-      if (ended !== undefined && pendingTasks.size === 0) armTurnEndedCut();
+      pendingTasks.add(e.taskId);
+      // A task launched inside the grace (reply in, cut armed) reopens the
+      // ledger — the cut must wait for it.
+      disarmTurnEndedCut();
+    } else if (e.type === 'task-settled') {
+      pendingTasks.delete(e.taskId);
+    } else if (e.type === 'turn-ended') {
+      ended = e;
+      agentSessionId ??= e.sessionId;
     }
+    if (ended !== undefined && pendingTasks.size === 0) armTurnEndedCut();
+  };
+  const consumeStdout = (chunk: string) => {
+    for (const e of parser.feed(chunk)) acceptEvent(e);
     notifyTextSoFar();
     maybeCheckpoint();
   };
@@ -687,7 +699,20 @@ export async function drainHarnessWindow(args: {
             args.sessionId,
             body,
             drainSignal,
-            { onStdout, onStderr },
+            {
+              onStdout,
+              onStderr,
+              onReplayStarted: () => {
+                replayComplete = false;
+                disarmTurnEndedCut();
+              },
+              onReplayComplete: () => {
+                replayComplete = true;
+                notifyTextSoFar();
+                if (ended !== undefined && pendingTasks.size === 0)
+                  armTurnEndedCut();
+              },
+            },
             {
               cursor,
               ...(resumeDrain ? { resumeSinceSeq: cursor.lastSeq } : {}),
@@ -729,6 +754,7 @@ export async function drainHarnessWindow(args: {
     // A deadline/grace can fire while recovery awaits I/O. It cannot turn a
     // known missing prefix or rejected parser record into a successful end.
     if (outputFailure !== undefined) throw outputFailure.error;
+    if (err instanceof ExecStreamProtocolError) throw err;
     if (unresolvedReplayGap !== undefined) throw unresolvedReplayGap;
     if (err instanceof SessionNotFoundError) return { kind: 'gone' };
     if (!drainSignal.aborted) throw err;
@@ -745,17 +771,8 @@ export async function drainHarnessWindow(args: {
   // into a completed turn and cut the process under it. The checkpoint keeps
   // the parser's unfinished line and held result for the next window.
   if (exited) {
-    for (const e of parser.end()) {
-      projection.feed(e);
-      if (e.type === 'turn-ended') {
-        ended = e;
-        agentSessionId ??= e.sessionId;
-      }
-      if (e.type === 'usage') outputTokens += e.outputTokens;
-      // Some families hold failures until EOF (Pi retries); retain their
-      // reason just as we do for errors emitted by feed().
-      if (e.type === 'error') harnessError = e.message;
-    }
+    for (const e of parser.end()) acceptEvent(e);
+    disarmTurnEndedCut();
   }
 
   const text = projection.text;
@@ -764,7 +781,8 @@ export async function drainHarnessWindow(args: {
   // (a deliverable may be mid-write) — keep draining, never reap.
   const lingeringOnTasks =
     !exited && ended !== undefined && pendingTasks.size > 0;
-  const terminal = exited || (ended !== undefined && !lingeringOnTasks);
+  const terminal =
+    exited || (replayComplete && ended !== undefined && !lingeringOnTasks);
   if (!terminal) {
     maybeCheckpoint(true);
     await flushCheckpoints();

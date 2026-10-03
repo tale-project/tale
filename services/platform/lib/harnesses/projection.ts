@@ -1,12 +1,11 @@
 import { z } from 'zod';
 
-import {
-  boundTimelineParts,
-  type TimelinePart,
-} from '../../../lib/harnesses/timeline';
-import type { HarnessEvent } from '../../../lib/harnesses/types';
+import { boundTimelineParts, type TimelinePart } from './timeline';
+import type { HarnessEvent } from './types';
 
-const TEXT_CHARS = 64_000;
+export const HARNESS_TEXT_MAX_CHARS = 64 * 1024;
+const TEXT_CHARS = HARNESS_TEXT_MAX_CHARS;
+const encoder = new TextEncoder();
 const BLOCK_CHARS = 4_000;
 const VALUE_CHARS = 2_000;
 // Leave space in the 1 MiB checkpoint for parser state and partial JSONL.
@@ -27,8 +26,8 @@ const projectionSchema = z.object({
   parts: z.array(partSchema),
 });
 
-function tail(text: string, limit: number): string {
-  return text.length <= limit ? text : `…${text.slice(-limit)}`;
+export function textTail(text: string, limit = HARNESS_TEXT_MAX_CHARS): string {
+  return text.length <= limit ? text : `…${text.slice(-(limit - 1))}`;
 }
 
 function boundedValue(value: unknown): unknown {
@@ -49,31 +48,46 @@ export class HarnessProjection {
   private parts: TimelinePart[] = [];
   private sizes: number[] = [];
   private bytes = 0;
+  private offset = 0;
+  private tools = new Map<string, number>();
 
   private indexSizes(): void {
-    this.sizes = this.parts.map((part) =>
-      Buffer.byteLength(JSON.stringify(part)),
+    this.offset = 0;
+    this.tools.clear();
+    this.parts.forEach((part, index) => {
+      if (part.toolCallId !== undefined) this.tools.set(part.toolCallId, index);
+    });
+    this.sizes = this.parts.map(
+      (part) => encoder.encode(JSON.stringify(part)).byteLength,
     );
     this.bytes = this.sizes.reduce((sum, size) => sum + size, 0);
   }
 
   private writePart(index: number, part: TimelinePart): void {
-    const size = Buffer.byteLength(JSON.stringify(part));
+    const size = encoder.encode(JSON.stringify(part)).byteLength;
     this.bytes += size - (this.sizes[index] ?? 0);
     this.sizes[index] = size;
     this.parts[index] = part;
+    if (part.toolCallId !== undefined)
+      this.tools.set(part.toolCallId, index + this.offset);
     while (
       this.parts.length > 1 &&
       (this.parts.length > 400 || this.bytes > TIMELINE_BYTES)
     ) {
       this.bytes -= this.sizes.shift() ?? 0;
-      this.parts.shift();
+      const dropped = this.parts.shift();
+      if (
+        dropped?.toolCallId !== undefined &&
+        this.tools.get(dropped.toolCallId) === this.offset
+      )
+        this.tools.delete(dropped.toolCallId);
+      this.offset++;
     }
   }
 
   restore(value: unknown): void {
     const state = projectionSchema.parse(value);
-    this.text = tail(state.text, TEXT_CHARS);
+    this.text = textTail(state.text, TEXT_CHARS);
     this.textTruncated =
       state.textTruncated === true || state.text.length > TEXT_CHARS;
     this.streamsDeltas = state.streamsDeltas;
@@ -98,7 +112,7 @@ export class HarnessProjection {
     return [...this.parts];
   }
 
-  feed(event: HarnessEvent): void {
+  accept(event: HarnessEvent): void {
     if (event.type === 'text' || event.type === 'text-delta') {
       if (event.type === 'text-delta' && !this.streamsDeltas) {
         this.streamsDeltas = true;
@@ -111,10 +125,10 @@ export class HarnessProjection {
       const separator = event.type === 'text' && this.text !== '' ? '\n\n' : '';
       const fullText = this.text + separator + event.text;
       this.textTruncated ||= fullText.length > TEXT_CHARS;
-      this.text = tail(fullText, TEXT_CHARS);
+      this.text = textTail(fullText, TEXT_CHARS);
       const previous = this.parts.at(-1);
       const words = previous?.type === 'text' ? (previous.text ?? '') : '';
-      const text = tail(
+      const text = textTail(
         words +
           (words !== '' && event.type === 'text' ? '\n\n' : '') +
           event.text,
@@ -127,6 +141,8 @@ export class HarnessProjection {
       );
       this.revision++;
     } else if (event.type === 'tool-use') {
+      if (event.toolUseId.length > 1024 || event.toolName.length > 256)
+        throw new Error('Harness tool identifier exceeds its safety budget');
       const input = boundedValue(event.input);
       this.writePart(this.parts.length, {
         type: `tool-${event.toolName}`,
@@ -136,9 +152,9 @@ export class HarnessProjection {
       });
       this.revision++;
     } else if (event.type === 'tool-result') {
-      const at = this.parts.findLastIndex(
-        (part) => part.toolCallId === event.toolUseId,
-      );
+      const position = this.tools.get(event.toolUseId);
+      if (position === undefined) return;
+      const at = position - this.offset;
       const previous = this.parts[at];
       if (previous === undefined) return;
       const output = boundedValue(event.output);

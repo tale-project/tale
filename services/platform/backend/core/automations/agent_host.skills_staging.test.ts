@@ -39,9 +39,24 @@ const sandboxFetch = vi.fn(async (url: string, init?: RequestInit) => {
     throw new Error('Expected a serialized staging request');
   }
   const body = JSON.parse(init.body) as {
-    files: Array<{ path: string; contentBase64: string }>;
+    files: Array<{ path: string; contentBase64?: string; sourceId?: string }>;
+    replaceRoots?: string[];
   };
-  staged.push(...body.files);
+  if (body.replaceRoots !== undefined)
+    return Response.json({ staged: [], skipped: [], reconciled: true });
+  if (body.files.every((file) => file.contentBase64 === undefined)) {
+    return Response.json({
+      staged: [],
+      skipped: body.files.map((file) => ({
+        path: file.path,
+        reason: 'no_source',
+      })),
+    });
+  }
+  for (const file of body.files) {
+    if (file.contentBase64 !== undefined)
+      staged.push({ path: file.path, contentBase64: file.contentBase64 });
+  }
   return Response.json(
     skipStage
       ? {
@@ -51,7 +66,10 @@ const sandboxFetch = vi.fn(async (url: string, init?: RequestInit) => {
             reason: 'fixture write refusal',
           })),
         }
-      : { staged: body.files.map((file) => file.path), skipped: [] },
+      : {
+          staged: body.files.map((file) => ({ path: file.path, bytes: 1 })),
+          skipped: [],
+        },
   );
 });
 
@@ -191,9 +209,7 @@ describe('equipped skill staging with real bundles', () => {
       { kind: 'project', teamIds: ['red'] },
     );
     expect(prompt).toContain('Red team report.');
-    expect(
-      sandboxFetch.mock.calls.filter(([, init]) => init?.method === 'POST'),
-    ).toHaveLength(1);
+    expect(sandboxFetch).toHaveBeenCalledTimes(3); // hash probe, missing bytes, prune
   });
 
   it.each<SkillViewer>([orgViewer, { kind: 'project', teamIds: ['blue'] }])(

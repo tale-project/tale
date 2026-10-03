@@ -22,6 +22,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { readFixture } from '../../../lib/harnesses/test-helpers';
 
 const transport = vi.hoisted(() => ({
+  replayComplete: true,
   stdout: '' as string,
   stderr: '' as string,
   cancelled: [] as string[],
@@ -48,6 +49,7 @@ const transport = vi.hoisted(() => ({
 vi.mock('../node_only/sandbox/helpers/session_client', () => ({
   SessionNotFoundError: class SessionNotFoundError extends Error {},
   ExecReplayGapError: transport.Gap,
+  ExecStreamProtocolError: class ExecStreamProtocolError extends Error {},
   sessionStageFiles: async () => ({ staged: [], skipped: [] }),
   sessionGetExecCheckpoint: async () => {
     if (transport.checkpointAfterGap !== 'none') {
@@ -78,10 +80,13 @@ vi.mock('../node_only/sandbox/helpers/session_client', () => ({
     callbacks: {
       onStdout?: (chunk: string) => void;
       onStderr?: (chunk: string) => void;
+      onReplayStarted?: () => void;
+      onReplayComplete?: () => void;
     },
     opts: { cursor: { lastSeq: number }; resumeSinceSeq?: number },
   ) => {
     if (signal.aborted) throw signal.reason;
+    callbacks.onReplayStarted?.();
     if (opts.resumeSinceSeq !== undefined)
       transport.resumedAt.push(opts.resumeSinceSeq);
     if (transport.gapCheckpoint !== null) {
@@ -98,6 +103,7 @@ vi.mock('../node_only/sandbox/helpers/session_client', () => ({
       );
     if (transport.stdout !== '') opts.cursor.lastSeq++;
     callbacks.onStdout?.(transport.stdout);
+    if (transport.replayComplete) callbacks.onReplayComplete?.();
     if (transport.gapAfterStdout) {
       transport.checkpointAfterGap = transport.checkpointRecovery;
       throw new transport.Gap('unresolved replay gap', transport.gapToSeq);
@@ -174,6 +180,7 @@ const CLAUDE_TASK_SETTLED = {
 
 describe('drainHarnessWindow end-of-turn rules', () => {
   beforeEach(() => {
+    transport.replayComplete = true;
     transport.stdout = '';
     transport.stderr = '';
     transport.cancelled = [];
@@ -324,7 +331,7 @@ describe('drainHarnessWindow end-of-turn rules', () => {
       });
       expect(result.kind).toBe('terminal');
       if (result.kind !== 'terminal') throw new Error('expected terminal');
-      expect(result.text.length).toBeLessThanOrEqual(64_001);
+      expect(result.text.length).toBeLessThanOrEqual(65_536);
       expect(result.textTruncated).toBe(true);
       if (hasFinalReport) {
         expect(result.ended?.finalText).toBe(finalText);
@@ -369,6 +376,7 @@ describe('drainHarnessWindow end-of-turn rules', () => {
   it('carries the harness’s stderr tail on a window that exited without a turn', async () => {
     // A CLI that refuses to start writes its reason to stderr and exits:
     // no event, no JSON — the tail is the only lead the crash leaves.
+    transport.replayComplete = true;
     transport.stdout = '';
     transport.stderr =
       '\u001b[31mError finding codex home\u001b[0m: CODEX_HOME points to "/agent/.runtime/home/.codex", but that path does not exist\n';
@@ -490,6 +498,137 @@ describe('drainHarnessWindow end-of-turn rules', () => {
     },
   );
 
+  it('keeps the authoritative final report intact beyond the display text budget', async () => {
+    const report = `BEGIN ${'report '.repeat(20_000)} END`;
+    transport.stdout = ndjson([
+      CLAUDE_INIT,
+      { ...CLAUDE_RESULT, result: report },
+    ]);
+    transport.exitAfterStdout = true;
+    const result = await drainHarnessWindow({
+      sessionId: 's',
+      execId: 'e',
+      harness: 'claude-code',
+      windowMs: 50,
+    });
+    expect(result.kind).toBe('terminal');
+    if (result.kind === 'terminal')
+      expect(result.ended?.finalText).toBe(report);
+    if (result.kind !== 'gone')
+      expect(result.text.length).toBeLessThanOrEqual(64 * 1024);
+  });
+
+  it('does not finalize a historical result before replay has caught up', async () => {
+    transport.stdout = ndjson([CLAUDE_INIT, CLAUDE_RESULT]);
+    transport.replayComplete = false;
+    const result = await drainHarnessWindow({
+      sessionId: 's',
+      execId: 'e',
+      harness: 'claude-code',
+      windowMs: 50,
+    });
+    expect(result.kind).toBe('running');
+    expect(transport.cancelled).toEqual([]);
+  });
+
+  it('withholds historical progress until replay reaches its live boundary', async () => {
+    transport.stdout = `${readFixture('claude-code', 'issue-to-pr')}\n`;
+    transport.replayComplete = false;
+    const onText = vi.fn();
+    const onTimeline = vi.fn();
+    await drainHarnessWindow({
+      sessionId: 's',
+      execId: 'e',
+      harness: 'claude-code',
+      windowMs: 20,
+      onText,
+      onTimeline,
+    });
+    expect(onText).not.toHaveBeenCalled();
+    expect(onTimeline).not.toHaveBeenCalled();
+    transport.replayComplete = true;
+    transport.exitAfterStdout = true;
+    await drainHarnessWindow({
+      sessionId: 's',
+      execId: 'e',
+      harness: 'claude-code',
+      windowMs: 20,
+      onText,
+      onTimeline,
+    });
+    expect(onTimeline).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(['opencode', 'pi'] as const)(
+    'reconstructs every %s call usage after replay exceeds the old ring',
+    async (harness) => {
+      const calls = Array.from({ length: 300 }, (_, i) =>
+        harness === 'opencode'
+          ? {
+              type: 'step_finish',
+              sessionID: 'long-session',
+              part: {
+                reason: i === 299 ? 'stop' : 'tool-calls',
+                cost: 0.01,
+                tokens: { input: 10, output: 3 },
+              },
+              diagnostic: 'x'.repeat(1024),
+            }
+          : {
+              type: 'message_end',
+              message: {
+                role: 'assistant',
+                stopReason: i === 299 ? 'stop' : 'toolUse',
+                content: [{ type: 'text', text: 'working' }],
+                usage: { input: 10, output: 3 },
+              },
+              diagnostic: 'x'.repeat(1024),
+            },
+      );
+      transport.stdout = ndjson(
+        harness === 'pi' ? [...calls, { type: 'agent_end' }] : calls,
+      );
+      expect(transport.stdout.length).toBeGreaterThan(256 * 1024);
+      transport.exitAfterStdout = true;
+      const result = await drainHarnessWindow({
+        sessionId: 's',
+        execId: 'e',
+        harness,
+        windowMs: 50,
+      });
+      expect(result.kind).toBe('terminal');
+      if (result.kind === 'terminal') {
+        expect(result.outputTokens).toBe(900);
+        expect(result.ended?.usageTotals).toMatchObject({
+          inputTokens: 3000,
+          outputTokens: 900,
+        });
+      }
+    },
+  );
+
+  it('rebuilds an unfinished background ledger across more than the old ring budget', async () => {
+    transport.stdout = ndjson([
+      CLAUDE_INIT,
+      CLAUDE_TASK_STARTED,
+      ...Array.from({ length: 400 }, () => ({
+        type: 'diagnostic',
+        text: 'x'.repeat(1024),
+      })),
+      CLAUDE_RESULT,
+    ]);
+    expect(transport.stdout.length).toBeGreaterThan(256 * 1024);
+    const result = await drainHarnessWindow({
+      sessionId: 's',
+      execId: 'e',
+      harness: 'claude-code',
+      windowMs: 50,
+    });
+    expect(result.kind).toBe('running');
+    expect(transport.cancelled).toEqual([]);
+    expect(result).toMatchObject({ agentSessionId: 'claude-1' });
+  });
+
   it('keeps a claude turn running while a background task is open', async () => {
     transport.stdout = ndjson([
       CLAUDE_INIT,
@@ -601,6 +740,7 @@ describe('harnessOutputTail', () => {
 
 describe('classifyHarnessEnd', () => {
   beforeEach(() => {
+    transport.replayComplete = true;
     transport.stdout = '';
     transport.cancelled = [];
     transport.exitAfterStdout = false;

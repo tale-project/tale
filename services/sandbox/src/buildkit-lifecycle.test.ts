@@ -25,7 +25,6 @@ import {
   retainBuildkitd,
   sweepIdleBuildkitd,
 } from './buildkitd.ts';
-import { DOCKER_TEST_STATE_LOCK } from './docker-test-lock.ts';
 import { withOperationBudget } from './operation-budget.ts';
 import { TEST_SESSION_CONFIG } from './session/session-test-config.ts';
 import { dockerCliLoad } from './spawn-util.ts';
@@ -34,18 +33,45 @@ import type { SpawnerConfig } from './types.ts';
 // Runs the actual orchestration against an isolated fake Docker CLI. Persistent
 // cache contents are represented independently of replaceable containers.
 const FAKE_DOCKER = String.raw`#!/usr/bin/env bun
+import { mkdirSync as lockDir, rmdirSync as unlockDir, renameSync } from 'node:fs';
 import { appendFileSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 const dir = dirname(process.argv[1]);
 const path = join(dir, 'state.json');
-${DOCKER_TEST_STATE_LOCK}
 const s = JSON.parse(readFileSync(path, 'utf8'));
+const before = structuredClone(s);
+// Merge only this command's mutations into the fake daemon's state. Atomic
+// rename keeps concurrent readers from observing half of the JSON file.
+function merge(old, next, live) {
+  if (JSON.stringify(old) === JSON.stringify(next)) return live;
+  if (old && next && !Array.isArray(next) && typeof old === 'object' && typeof next === 'object') {
+    const out = { ...live };
+    for (const key of Object.keys(old)) if (!(key in next)) delete out[key];
+    for (const key of Object.keys(next)) out[key] = merge(old[key], next[key], live?.[key]);
+    return out;
+  }
+  return next;
+}
+function commit() {
+  const lock = join(dir, 'state.lock');
+  while (true) {
+    try { lockDir(lock); break; }
+    catch (error) { if (error.code !== 'EEXIST') throw error; Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 1); }
+  }
+  try {
+    const live = JSON.parse(readFileSync(path, 'utf8'));
+    const temp = path + '.' + process.pid;
+    writeFileSync(temp, JSON.stringify(merge(before, s, live)));
+    renameSync(temp, path);
+  } finally { unlockDir(lock); }
+}
+
 const a = process.argv.slice(2);
 appendFileSync(join(dir, 'calls.jsonl'), JSON.stringify(a) + '\n');
 const flags = name => a.filter((_, i) => a[i - 1] === name);
 const flag = name => flags(name)[0];
 function done(value = '', observation = '') {
-  writeFileSync(path, JSON.stringify(s));
+  commit();
   let output = typeof value === 'string' ? value : JSON.stringify(value);
   if (s.oversized === observation && observation) output = output.padEnd(2 * 1024 * 1024, '\n');
   console.log(output); process.exit(0);
@@ -62,7 +88,7 @@ if (a[0] === 'ps') {
   s.sessionReads++;
   if (s.lateSession && s.sessionReads >= s.lateSession.afterRead) s.sessions = [s.lateSession.session];
   const orgFilter = flags('--filter').find(value => value.startsWith('label=tale.org='))?.slice('label=tale.org='.length);
-  done(s.sessions.filter(c => !orgFilter || c.org === orgFilter).map(c => [c.id, c.status, ...(flag('--format').includes('.Label') ? [c.org] : []), ...(flag('--format').includes('tale.profile') ? [c.profile || ''] : [])].join('\t')).join('\n'), 'sessions');
+  done(s.sessions.filter(c => !orgFilter || c.org === orgFilter).map(c => [c.id, c.status, ...(flag('--format').includes('.Label') ? [c.org] : []), ...(flag('--format').includes('tale.profile') ? [c.profile || ''] : []), ...(flag('--format').includes('tale.docker') ? [c.docker ?? ''] : [])].join('\t')).join('\n'), 'sessions');
 }
 if (a[0] === 'inspect') {
   if (flag('--format').includes('"id"')) done({ id: s.egressId, name: '/egress', networks: { 'tale-sandbox-net': { Aliases: ['sandbox-egress'], IPAddress: '172.22.0.2' } } });
@@ -103,7 +129,7 @@ if (a[0] === 'update') { if (!find(a.at(-1))) fail('Error: No such container'); 
 if (a[0] === 'image' && a[1] === 'inspect') { const id = (s.imageIds ?? {})[a.at(-1)]; if (!id) fail('Error: No such image: ' + a.at(-1)); done(id); }
 if (a[0] === 'run') {
   const name = flag('--name');
-  s.containers[name] = { id: (++s.nextId).toString(16).padStart(64, '0'), name, labels: Object.fromEntries(flags('--label').map(v => v.split('='))), networks: { [flag('--network')]: {} }, ports: null, running: true, image: (s.imageIds ?? {})[a.at(-1)] ?? 'sha256:' + a.at(-1) };
+  s.containers[name] = { id: new Bun.CryptoHasher('sha256').update(name + ':' + process.pid).digest('hex'), name, labels: Object.fromEntries(flags('--label').map(v => v.split('='))), networks: { [flag('--network')]: {} }, ports: null, running: true, image: (s.imageIds ?? {})[a.at(-1)] ?? 'sha256:' + a.at(-1) };
   done(s.containers[name].id);
 }
 if (a[0] === 'stop') {
@@ -125,6 +151,7 @@ interface FakeSession {
   status: string;
   org: string;
   profile?: string;
+  docker?: boolean;
 }
 
 interface FakeState {
@@ -1043,17 +1070,23 @@ describe('organization build-cache lifecycle', () => {
     ).toBe(true);
   });
 
-  test("a running session of the organization's that never builds does not keep its helpers", async () => {
-    const org = nextOrg();
-    const initial = seed(org);
-    initial.sessions = [
-      { id: 'd'.repeat(64), org, status: 'running', profile: 'default' },
-    ];
-    await save(initial);
-    const now = Date.now();
-    await sweepIdleBuildkitd(cfg, now);
-    expect((await sweepIdleBuildkitd(cfg, now + 1000)).stopped).toBe(4);
-  });
+  test.each([
+    { profile: 'default', docker: undefined },
+    { profile: 'agent', docker: false },
+  ])(
+    'a running session that never builds does not keep its helpers (%j)',
+    async (capability) => {
+      const org = nextOrg();
+      const initial = seed(org);
+      initial.sessions = [
+        { id: 'd'.repeat(64), org, status: 'running', ...capability },
+      ];
+      await save(initial);
+      const now = Date.now();
+      await sweepIdleBuildkitd(cfg, now);
+      expect((await sweepIdleBuildkitd(cfg, now + 1000)).stopped).toBe(4);
+    },
+  );
 
   test('an ensure arriving during an idle stop waits, then restores every helper', async () => {
     const org = nextOrg();

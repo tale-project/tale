@@ -4,19 +4,21 @@
 // boundary the exec cwd check enforces.
 
 import { createHash, randomUUID } from 'node:crypto';
-import { createReadStream } from 'node:fs';
+import { constants } from 'node:fs';
 import {
-  mkdir,
+  lstat,
   open,
+  rename,
+  type FileHandle,
+  mkdir,
   readdir,
   readFile,
   realpath,
-  rename,
   rm,
   stat,
-  type FileHandle,
 } from 'node:fs/promises';
-import { dirname, join, normalize } from 'node:path';
+import { basename, join, normalize } from 'node:path';
+import { Readable } from 'node:stream';
 
 import { WORKSPACE_ROOT } from './protocol.ts';
 
@@ -51,74 +53,162 @@ export interface StageItem {
   /** Workspace-relative destination path. */
   path: string;
   /** URL the daemon GETs to fetch the bytes. Exactly one of `url` /
-   * `contentBase64` must be set. */
+   * `contentBase64` must be set, except a sourceId-only cache probe. */
   url?: string;
   /** Inline bytes, base64. For small control files the platform pushes
    * directly (e.g. mid-turn steer messages) — no URL round-trip. */
   contentBase64?: string;
-  sha256?: string;
-  /** Immutable source identity; only a locally verified digest permits reuse. */
+  /** Trusted immutable source identity; reuse still verifies the actual file. */
+  sourceId?: string;
+  /** Compatibility alias for callers using the earlier immutable-source field. */
   cacheKey?: string;
+  /** Optional content attestation, checked before replacing any destination. */
+  sha256?: string;
 }
 
 interface StageResult {
+  reconciled?: boolean;
   staged: Array<{ path: string; bytes: number }>;
   skipped: Array<{ path: string; reason: string }>;
 }
 
 const FETCH_MAX_BYTES = 100 * 1024 * 1024;
 const INLINE_MAX_BYTES = 1 * 1024 * 1024;
-const stageCache = new Map<string, { cacheKey: string; sha256: string }>();
+const STAGE_FETCH_TIMEOUT_MS = 25_000;
+const STAGE_MAX_ACTIVE = 2;
+const STAGE_MANIFEST_LIMIT = 4096;
+let activeStages = 0;
+let reconcilingStage = false;
+const stagedSources = new Map<string, { sourceId: string; digest: string }>();
+
+function rememberStagedSource(
+  path: string,
+  sourceId: string | undefined,
+  digest: string,
+): void {
+  stagedSources.delete(path);
+  if (!sourceId) return;
+  stagedSources.set(path, { sourceId, digest });
+  while (stagedSources.size > STAGE_MANIFEST_LIMIT) {
+    const oldest = stagedSources.keys().next().value;
+    if (oldest !== undefined) stagedSources.delete(oldest);
+  }
+}
+
+export interface StageOptions {
+  fetchTimeoutMs?: number;
+  batchTimeoutMs?: number;
+  signal?: AbortSignal;
+  /** An explicit final reconciliation, sent only after every batch succeeded. */
+  replaceRoots?: string[];
+  keepPaths?: string[];
+}
+
+/** Linux descriptor-relative traversal pins every ancestor while creating or
+ * opening its child. The fallback is for host tests; the runtime is Linux. */
+function anchoredDirectory(file: FileHandle, path: string): string {
+  return process.platform === 'linux' ? `/proc/self/fd/${file.fd}` : path;
+}
+
+async function stageParent(
+  abs: string,
+  createDirectories = true,
+): Promise<{ handle: FileHandle; path: string }> {
+  const root = await realpath(workspaceRoot());
+  const relative = abs.slice(workspaceRoot().length + 1);
+  let path = root;
+  let handle = await open(
+    path,
+    constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW,
+  );
+  try {
+    for (const component of relative.split('/').slice(0, -1)) {
+      const anchor = anchoredDirectory(handle, path);
+      if ((await realpathUnderRoot(anchor)) === null)
+        throw new Error('unsafe_path');
+      const childPath = join(anchor, component);
+      if (createDirectories) {
+        try {
+          await mkdir(childPath);
+        } catch (error) {
+          if (
+            !(
+              error instanceof Error &&
+              'code' in error &&
+              error.code === 'EEXIST'
+            )
+          )
+            throw error;
+        }
+      }
+      if ((await lstat(childPath)).isSymbolicLink())
+        throw new Error('unsafe_path');
+      const child = await open(
+        childPath,
+        constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW,
+      );
+      await handle.close();
+      handle = child;
+      path = join(path, component);
+    }
+    if ((await realpathUnderRoot(anchoredDirectory(handle, path))) === null)
+      throw new Error('unsafe_path');
+    return { handle, path };
+  } catch (error) {
+    await handle.close();
+    throw error;
+  }
+}
 
 async function fileDigest(
   path: string,
-  signal: AbortSignal,
-): Promise<{ sha256: string; bytes: number }> {
-  const digest = createHash('sha256');
-  const stream = createReadStream(path, { signal });
-  let bytes = 0;
-  for await (const chunk of stream) {
-    bytes += chunk.length;
-    if (bytes > FETCH_MAX_BYTES) throw new Error('too_large');
-    digest.update(chunk);
-  }
-  return { sha256: digest.digest('hex'), bytes };
-}
-
-/** Both a fetch and the entire batch finish before the spawner's 30s RPC
- * deadline. A slow item cannot leave the rest running after the caller left. */
-const STAGE_FETCH_TIMEOUT_MS = 25_000;
-
-async function stageParent(abs: string): Promise<string | null> {
-  const parent = dirname(abs);
-  // Check the nearest existing ancestor before mkdir follows any symlinks.
-  let ancestor = parent;
-  for (;;) {
-    try {
-      await stat(ancestor);
-      if ((await realpathUnderRoot(ancestor)) === null) return null;
-      break;
-    } catch {
-      const next = dirname(ancestor);
-      if (next === ancestor) return null;
-      ancestor = next;
+  signal?: AbortSignal,
+): Promise<{ digest: string; bytes: number } | null> {
+  let file: FileHandle | undefined;
+  try {
+    file = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+    const info = await file.stat();
+    if (!info.isFile() || info.size > FETCH_MAX_BYTES) return null;
+    const hash = createHash('sha256');
+    let bytes = 0;
+    for await (const chunk of file.createReadStream({
+      signal,
+      autoClose: false,
+    })) {
+      bytes += chunk.length;
+      if (bytes > FETCH_MAX_BYTES) return null;
+      hash.update(chunk);
     }
+    return { digest: hash.digest('hex'), bytes };
+  } catch {
+    return null;
+  } finally {
+    await file?.close();
   }
-  await mkdir(parent, { recursive: true });
-  return realpathUnderRoot(parent);
 }
 
-/** Stage with two process-wide transfer slots and bounded memory. A destination becomes visible only
- * after all its bytes arrive; cancellation and failed uploads preserve it. */
+/** Two admitted batches share two transfer slots. One deadline covers queued
+ * work, transfer and final reconciliation; individual files publish atomically.
+ * Reconciliation is exclusive and runs only after every item succeeded. */
 export async function stageFiles(
   items: StageItem[],
-  opts: {
-    fetchTimeoutMs?: number;
-    batchTimeoutMs?: number;
-    signal?: AbortSignal;
-  } = {},
+  opts: StageOptions = {},
 ): Promise<StageResult> {
-  const fetchTimeoutMs = opts.fetchTimeoutMs ?? STAGE_FETCH_TIMEOUT_MS;
+  if (
+    activeStages >= STAGE_MAX_ACTIVE ||
+    reconcilingStage ||
+    (opts.replaceRoots?.length && activeStages > 0)
+  ) {
+    return {
+      staged: [],
+      skipped: (items.length
+        ? items.map((item) => item.path)
+        : (opts.replaceRoots ?? [])
+      ).map((path) => ({ path, reason: 'busy' })),
+    };
+  }
+  activeStages += 1;
+  if (opts.replaceRoots?.length) reconcilingStage = true;
   const batch = new AbortController();
   const deadline = setTimeout(
     () => batch.abort(),
@@ -150,12 +240,7 @@ export async function stageFiles(
       }
       const release = await takeStageSlot(signal);
       try {
-        outcomes[index] = await stageItem(
-          item,
-          signal,
-          fetchTimeoutMs,
-          opts.signal,
-        );
+        outcomes[index] = await stageItem(item, signal, opts);
       } finally {
         release?.();
       }
@@ -163,13 +248,29 @@ export async function stageFiles(
   };
   try {
     await Promise.all([worker(), worker()]);
+    const staged = outcomes.flatMap((result) => result.staged);
+    const skipped = outcomes.flatMap((result) => result.skipped);
+    if (skipped.length === 0 && opts.replaceRoots?.length) {
+      await reconcileStageRoots(
+        opts.replaceRoots,
+        opts.keepPaths ?? [],
+        signal,
+        skipped,
+      );
+    }
+    return {
+      staged,
+      skipped,
+      ...(opts.replaceRoots?.length && skipped.length === 0
+        ? { reconciled: true }
+        : {}),
+    };
   } finally {
     clearTimeout(deadline);
+    batch.abort();
+    activeStages -= 1;
+    if (opts.replaceRoots?.length) reconcilingStage = false;
   }
-  return {
-    staged: outcomes.flatMap((result) => result.staged),
-    skipped: outcomes.flatMap((result) => result.skipped),
-  };
 }
 
 let activeStageTransfers = 0;
@@ -190,7 +291,7 @@ function takeStageSlot(signal: AbortSignal): Promise<(() => void) | null> {
       if (index !== -1) stageWaiters.splice(index, 1);
       resolve(null);
     };
-    if (activeStageTransfers < 2) start();
+    if (activeStageTransfers < STAGE_MAX_ACTIVE) start();
     else {
       stageWaiters.push(start);
       signal.addEventListener('abort', aborted, { once: true });
@@ -200,199 +301,238 @@ function takeStageSlot(signal: AbortSignal): Promise<(() => void) | null> {
 
 async function stageItem(
   item: StageItem,
-  signal: AbortSignal,
-  fetchTimeoutMs: number,
-  callerSignal?: AbortSignal,
+  batchSignal: AbortSignal,
+  opts: StageOptions,
 ): Promise<StageResult> {
   const staged: StageResult['staged'] = [];
   const skipped: StageResult['skipped'] = [];
-  if (signal.aborted) {
-    skipped.push({
-      path: item.path,
-      reason: callerSignal?.aborted ? 'cancelled' : 'timeout',
-    });
-    return { staged, skipped };
-  }
   const abs = resolveUnderWorkspace(item.path);
   if (abs === null || abs === workspaceRoot()) {
-    skipped.push({ path: item.path, reason: 'unsafe_path' });
-    return { staged, skipped };
+    return { staged, skipped: [{ path: item.path, reason: 'unsafe_path' }] };
   }
   let temporary: string | undefined;
-  let file: FileHandle | undefined;
+  let parentHandle: FileHandle | undefined;
+  const controller = new AbortController();
+  const deadline = setTimeout(
+    () => controller.abort(),
+    opts.fetchTimeoutMs ?? STAGE_FETCH_TIMEOUT_MS,
+  );
+  const signal = AbortSignal.any([batchSignal, controller.signal]);
   try {
-    if (item.contentBase64 === undefined && item.url === undefined) {
-      skipped.push({ path: item.path, reason: 'no_source' });
-      return { staged, skipped };
-    }
-    const parent = await stageParent(abs);
-    if (parent === null) {
-      skipped.push({ path: item.path, reason: 'unsafe_path' });
-      return { staged, skipped };
-    }
-    const cached = stageCache.get(abs);
-    const expected =
-      item.sha256 ??
-      (item.cacheKey && cached?.cacheKey === item.cacheKey
-        ? cached.sha256
-        : undefined);
-    if (expected && (await realpathUnderRoot(abs)) !== null) {
-      const existing = await fileDigest(abs, signal).catch(() => null);
-      if (existing?.sha256 === expected) {
-        staged.push({ path: item.path, bytes: existing.bytes });
-        return { staged, skipped };
-      }
-    }
-    temporary = join(parent, `.tale-stage-${randomUUID()}`);
-    file = await open(temporary, 'wx', 0o600);
-    let bytes: number;
-    if (item.contentBase64 !== undefined) {
-      // Refuse before decoding a potentially oversized base64 string.
-      if (item.contentBase64.length > Math.ceil(INLINE_MAX_BYTES / 3) * 4) {
-        skipped.push({ path: item.path, reason: 'too_large' });
-        return { staged, skipped };
-      }
-      const buf = Buffer.from(item.contentBase64, 'base64');
-      if (buf.byteLength > INLINE_MAX_BYTES) {
-        skipped.push({ path: item.path, reason: 'too_large' });
-        return { staged, skipped };
-      }
-      await writeChunk(file, buf, signal);
-      bytes = buf.byteLength;
-    } else {
-      const timeout = new AbortController();
-      const timer = setTimeout(() => timeout.abort(), fetchTimeoutMs);
-      try {
-        const result = await fetchToFile(
-          item.url ?? '',
-          file,
-          AbortSignal.any([signal, timeout.signal]),
-        );
-        if (typeof result === 'string') {
-          skipped.push({ path: item.path, reason: result });
-          return { staged, skipped };
-        }
-        bytes = result;
-      } finally {
-        clearTimeout(timer);
-      }
-    }
-    await file.close();
-    file = undefined;
-    const verified =
-      item.sha256 || item.cacheKey
-        ? await fileDigest(temporary, signal)
-        : undefined;
-    if (item.sha256 && verified?.sha256 !== item.sha256) {
-      skipped.push({ path: item.path, reason: 'digest_mismatch' });
-      return { staged, skipped };
-    }
     signal.throwIfAborted();
-    await rename(temporary, abs);
-    stageCache.delete(abs);
-    if (item.cacheKey && verified) {
-      stageCache.set(abs, {
-        cacheKey: item.cacheKey,
-        sha256: verified.sha256,
-      });
-      while (stageCache.size > 1024) {
-        const oldest = stageCache.keys().next().value;
-        if (oldest === undefined) break;
-        stageCache.delete(oldest);
+    const parent = await stageParent(abs);
+    parentHandle = parent.handle;
+    const anchoredParent = anchoredDirectory(parentHandle, parent.path);
+    const destination = join(anchoredParent, basename(abs));
+    const sourceId = item.sourceId ?? item.cacheKey;
+    const previous = stagedSources.get(abs);
+    const expectedDigest =
+      item.sha256 ??
+      (sourceId && previous?.sourceId === sourceId
+        ? previous.digest
+        : undefined);
+    if (expectedDigest) {
+      const actual = await fileDigest(destination, signal);
+      if (actual?.digest === expectedDigest) {
+        if (sourceId) rememberStagedSource(abs, sourceId, actual.digest);
+        return { staged: [{ path: item.path, bytes: actual.bytes }], skipped };
       }
     }
+    let source: Uint8Array | ReadableStream<Uint8Array>;
+    if (item.contentBase64 !== undefined) {
+      if (item.contentBase64.length > Math.ceil(INLINE_MAX_BYTES / 3) * 4)
+        throw new Error('too_large');
+      source = Buffer.from(item.contentBase64, 'base64');
+      if (source.byteLength > INLINE_MAX_BYTES) throw new Error('too_large');
+    } else if (item.url !== undefined) {
+      const response = await fetch(item.url, { signal });
+      if (!response.ok) {
+        await response.body?.cancel();
+        throw new Error(`http_${response.status}`);
+      }
+      const declared = Number(response.headers.get('content-length') ?? '');
+      if (Number.isFinite(declared) && declared > FETCH_MAX_BYTES) {
+        await response.body?.cancel();
+        throw new Error('too_large');
+      }
+      if (response.body === null) throw new Error('no_body');
+      source = response.body;
+    } else throw new Error('no_source');
+    temporary = join(anchoredParent, `.tale-stage-${randomUUID()}`);
+    const file = await open(temporary, 'wx', 0o600);
+    const hash = createHash('sha256');
+    let bytes = 0;
+    try {
+      const write = async (chunk: Uint8Array) => {
+        signal.throwIfAborted();
+        bytes += chunk.byteLength;
+        if (bytes > FETCH_MAX_BYTES) throw new Error('too_large');
+        hash.update(chunk);
+        let offset = 0;
+        while (offset < chunk.byteLength) {
+          signal.throwIfAborted();
+          const result = await file.write(
+            chunk,
+            offset,
+            chunk.byteLength - offset,
+          );
+          if (result.bytesWritten === 0) throw new Error('file_write_stalled');
+          offset += result.bytesWritten;
+        }
+      };
+      if (source instanceof Uint8Array) await write(source);
+      else {
+        const reader = source.getReader();
+        const pending: Uint8Array[] = [];
+        let pendingBytes = 0;
+        const flush = async () => {
+          if (pendingBytes === 0) return;
+          const first = pending[0];
+          await write(
+            pending.length === 1 && first !== undefined
+              ? first
+              : Buffer.concat(pending, pendingBytes),
+          );
+          pending.length = 0;
+          pendingBytes = 0;
+        };
+        try {
+          for (;;) {
+            signal.throwIfAborted();
+            const next = await reader.read();
+            if (next.done) break;
+            if (bytes + pendingBytes + next.value.byteLength > FETCH_MAX_BYTES)
+              throw new Error('too_large');
+            let offset = 0;
+            while (offset < next.value.byteLength) {
+              const take = Math.min(
+                256 * 1024 - pendingBytes,
+                next.value.byteLength - offset,
+              );
+              pending.push(next.value.subarray(offset, offset + take));
+              pendingBytes += take;
+              offset += take;
+              if (pendingBytes === 256 * 1024) await flush();
+            }
+          }
+          await flush();
+        } finally {
+          await reader.cancel().catch(() => {});
+          reader.releaseLock();
+        }
+      }
+    } finally {
+      await file.close();
+    }
+    const digest = hash.digest('hex');
+    if (item.sha256 && item.sha256 !== digest)
+      throw new Error('digest_mismatch');
+    signal.throwIfAborted();
+    if ((await realpathUnderRoot(anchoredParent)) === null)
+      throw new Error('unsafe_path');
+    await rename(temporary, destination);
     temporary = undefined;
+    rememberStagedSource(abs, sourceId, digest);
     staged.push({ path: item.path, bytes });
-  } catch (err) {
+  } catch (error) {
     skipped.push({
       path: item.path,
-      reason: callerSignal?.aborted
-        ? 'cancelled'
-        : err instanceof Error
-          ? err.name === 'AbortError'
-            ? 'timeout'
-            : err.message
+      reason: signal.aborted
+        ? opts.signal?.aborted
+          ? 'cancelled'
+          : 'timeout'
+        : error instanceof Error
+          ? error.message
           : 'fetch_failed',
     });
   } finally {
-    await file?.close();
-    if (temporary) await rm(temporary, { force: true });
+    clearTimeout(deadline);
+    controller.abort();
+    if (temporary !== undefined)
+      await rm(temporary, { force: true }).catch(() => {});
+    await parentHandle?.close();
   }
   return { staged, skipped };
 }
 
-async function writeChunk(
-  file: FileHandle,
-  bytes: Uint8Array,
-  signal: AbortSignal,
+async function reconcileStageRoots(
+  roots: string[],
+  paths: string[],
+  signal: AbortSignal | undefined,
+  skipped: StageResult['skipped'],
 ): Promise<void> {
-  let offset = 0;
-  while (offset < bytes.byteLength) {
-    signal.throwIfAborted();
-    const { bytesWritten } = await file.write(
-      bytes,
-      offset,
-      bytes.byteLength - offset,
-    );
-    if (bytesWritten === 0) throw new Error('file_write_stalled');
-    offset += bytesWritten;
+  const invalid = paths.find((path) => resolveUnderWorkspace(path) === null);
+  if (invalid !== undefined) {
+    skipped.push({ path: invalid, reason: 'unsafe_path' });
+    return;
   }
-}
-
-async function fetchToFile(
-  url: string,
-  file: FileHandle,
-  signal: AbortSignal,
-): Promise<number | string> {
-  const res = await fetch(url, { signal });
-  if (!res.ok) {
-    await res.body?.cancel();
-    return `http_${res.status}`;
-  }
-  const declared = Number(res.headers.get('content-length') ?? '');
-  if (Number.isFinite(declared) && declared > FETCH_MAX_BYTES) {
-    await res.body?.cancel();
-    return 'too_large';
-  }
-  if (res.body === null) return 'no_body';
-  const reader = res.body.getReader();
-  let total = 0;
-  const pending: Uint8Array[] = [];
-  let pendingBytes = 0;
-  const flush = async () => {
-    while (pending.length > 0) {
-      signal.throwIfAborted();
-      const { bytesWritten } = await file.writev(pending);
-      if (bytesWritten === 0) throw new Error('file_write_stalled');
-      let consumed = bytesWritten;
-      while (pending[0] && consumed >= pending[0].byteLength) {
-        consumed -= pending[0].byteLength;
-        pending.shift();
-      }
-      if (consumed > 0 && pending[0])
-        pending[0] = pending[0].subarray(consumed);
+  const keep = new Set(paths.map(resolveUnderWorkspace));
+  for (const root of roots) {
+    const abs = resolveUnderWorkspace(root);
+    if (abs === null || abs === workspaceRoot()) {
+      skipped.push({ path: root, reason: 'unsafe_path' });
+      continue;
     }
-    pendingBytes = 0;
-  };
-  try {
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) {
-        await flush();
-        return total;
+    try {
+      try {
+        await lstat(abs);
+      } catch (error) {
+        if (
+          error instanceof Error &&
+          'code' in error &&
+          error.code === 'ENOENT'
+        )
+          continue;
+        throw error;
       }
-      total += value.byteLength;
-      if (total > FETCH_MAX_BYTES) return 'too_large';
-      pending.push(value);
-      pendingBytes += value.byteLength;
-      // Bounded scatter/gather batches avoid both a full-payload copy and a
-      // filesystem round trip per tiny network chunk. Backpressure resumes
-      // after at most 256KiB plus the current transport chunk.
-      if (pendingBytes >= 256 * 1024 || pending.length >= 64) await flush();
+      // Each directory is opened without following links and held while its
+      // children are inspected/deleted, just like the staging destination.
+      const parent = await stageParent(join(abs, '.check'));
+      const walk = async (
+        handle: FileHandle,
+        directory: string,
+      ): Promise<void> => {
+        signal?.throwIfAborted();
+        const anchor = anchoredDirectory(handle, directory);
+        if ((await realpathUnderRoot(anchor)) === null)
+          throw new Error('unsafe_path');
+        for (const entry of await readdir(anchor, { withFileTypes: true })) {
+          const path = join(anchor, entry.name);
+          const key = join(directory, entry.name);
+          if (entry.isDirectory()) {
+            const child = await open(
+              path,
+              constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW,
+            );
+            try {
+              await walk(child, key);
+            } finally {
+              await child.close();
+            }
+          } else if (!keep.has(key)) {
+            signal?.throwIfAborted();
+            if ((await realpathUnderRoot(anchor)) === null)
+              throw new Error('unsafe_path');
+            await rm(path, { force: true });
+            stagedSources.delete(key);
+          }
+        }
+      };
+      try {
+        await walk(parent.handle, abs);
+      } finally {
+        await parent.handle.close();
+      }
+    } catch (error) {
+      skipped.push({
+        path: root,
+        reason: signal?.aborted
+          ? 'cancelled'
+          : error instanceof Error
+            ? error.message
+            : 'reconcile_failed',
+      });
     }
-  } finally {
-    await reader.cancel().catch(() => {});
-    reader.releaseLock();
   }
 }
 
@@ -480,5 +620,45 @@ export async function readWorkspaceFile(
     return await readFile(abs);
   } catch {
     return null;
+  }
+}
+
+/** Read a regular file relative to its pinned workspace parent, never a
+ * followed symlink. The range is fixed by fstat, so a growing file cannot
+ * bypass the byte ceiling. Read traversal never creates directories. */
+export async function streamWorkspaceFile(
+  rel: string,
+  maxBytes: number,
+): Promise<Readable | null> {
+  const abs = resolveUnderWorkspace(rel);
+  if (abs === null || abs === workspaceRoot()) return null;
+  let file: FileHandle | undefined;
+  let parentHandle: FileHandle | undefined;
+  try {
+    const parent = await stageParent(abs, false);
+    parentHandle = parent.handle;
+    file = await open(
+      join(anchoredDirectory(parentHandle, parent.path), basename(abs)),
+      constants.O_RDONLY | constants.O_NOFOLLOW,
+    );
+    const info = await file.stat();
+    if (!info.isFile() || info.size > maxBytes) {
+      await file.close();
+      return null;
+    }
+    if (info.size === 0) {
+      await file.close();
+      return Readable.from([]);
+    }
+    return file.createReadStream({
+      start: 0,
+      end: info.size - 1,
+      autoClose: true,
+    });
+  } catch {
+    await file?.close().catch(() => {});
+    return null;
+  } finally {
+    await parentHandle?.close().catch(() => {});
   }
 }

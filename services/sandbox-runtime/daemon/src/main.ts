@@ -18,6 +18,7 @@ import {
   type ServerResponse,
 } from 'node:http';
 import { resolve } from 'node:path';
+import { pipeline } from 'node:stream/promises';
 import { fileURLToPath } from 'node:url';
 
 import { ActivityGate } from './activity-gate.ts';
@@ -29,7 +30,8 @@ import { ExecManager } from './exec-manager.ts';
 import {
   deletePaths,
   listDir,
-  readWorkspaceFile,
+  streamWorkspaceFile,
+  type StageOptions,
   stageFiles,
   type StageItem,
 } from './file-ops.ts';
@@ -195,8 +197,13 @@ function execConsumer(
         const settle = () => {
           res.removeListener('drain', settle);
           consumer.signal.removeEventListener('abort', settle);
+          clearTimeout(stalled);
           finishReady();
         };
+        const stalled = setTimeout(() => {
+          gone();
+          res.destroy();
+        }, 2_000);
         res.once('drain', settle);
         consumer.signal.addEventListener('abort', settle, { once: true });
       });
@@ -557,40 +564,79 @@ async function handleOperation(
     return;
   }
   if (req.method === 'POST' && path === '/files/stage') {
+    // Bound JSON intake as well as downloads. Refused bodies are drained
+    // without retaining bytes, preserving the keep-alive framing contract.
     if (stagingOperations >= MAX_STAGING_OPERATIONS) {
-      sendJson(res, 503, { error: 'staging_busy' });
+      await readJsonBody(req, 0);
+      sendJson(res, 503, { error: 'busy' });
       return;
     }
     stagingOperations += 1;
-    const caller = new AbortController();
-    const gone = () => caller.abort();
-    req.once('aborted', gone);
-    res.once('close', gone);
     try {
       const stageBody = await readJsonBody(req);
       if (!stageBody.ok) {
         sendJson(res, stageBody.status, { error: stageBody.error });
         return;
       }
-      if (
-        !isObject(stageBody.value) ||
-        !Array.isArray(stageBody.value.files) ||
-        !stageBody.value.files.every(isStageItem)
-      ) {
+      const body = stageBody.value;
+      if (!isObject(body)) {
         sendJson(res, 400, { error: 'bad_request' });
         return;
       }
+      const incomingFiles = body.files ?? [];
+      if (!Array.isArray(incomingFiles) || incomingFiles.length > 512) {
+        sendJson(res, 400, { error: 'bad_request' });
+        return;
+      }
+      const files: StageItem[] = [];
+      for (const item of incomingFiles) {
+        if (!isStageItem(item)) {
+          sendJson(res, 400, { error: 'bad_request' });
+          return;
+        }
+        files.push({
+          path: item.path,
+          url: item.url,
+          contentBase64: item.contentBase64,
+          sourceId: item.sourceId,
+          sha256: item.sha256,
+          cacheKey: item.cacheKey,
+        });
+      }
+      const options: StageOptions = {};
+      for (const key of ['replaceRoots', 'keepPaths'] as const) {
+        const value = body[key];
+        if (value !== undefined) {
+          if (
+            !Array.isArray(value) ||
+            value.length > 4096 ||
+            !value.every((entry): entry is string => typeof entry === 'string')
+          ) {
+            sendJson(res, 400, { error: 'bad_request' });
+            return;
+          }
+          options[key] = value;
+        }
+      }
+      const transfer = new AbortController();
+      const abort = () => transfer.abort();
+      req.once('aborted', abort);
+      res.once('close', abort);
       touch();
-      const result = await stageFiles(stageBody.value.files, {
-        signal: caller.signal,
-      });
-      if (!caller.signal.aborted) sendJson(res, 200, result);
+      try {
+        const result = await stageFiles(files, {
+          ...options,
+          signal: transfer.signal,
+        });
+        if (!res.destroyed) sendJson(res, 200, result);
+      } finally {
+        req.removeListener('aborted', abort);
+        res.removeListener('close', abort);
+      }
+      return;
     } finally {
       stagingOperations -= 1;
-      req.removeListener('aborted', gone);
-      res.removeListener('close', gone);
     }
-    return;
   }
   if (req.method === 'POST' && path === '/files/delete') {
     const deleteBody = await readJsonBody(req);
@@ -615,16 +661,16 @@ async function handleOperation(
     return;
   }
   if (req.method === 'GET' && path === '/fs/read') {
-    const bytes = await readWorkspaceFile(
+    const stream = await streamWorkspaceFile(
       url.searchParams.get('path') ?? '',
       FILE_READ_MAX_BYTES,
     );
-    if (bytes === null) {
+    if (stream === null) {
       sendJson(res, 404, { error: 'not_found' });
       return;
     }
     res.writeHead(200, { 'content-type': 'application/octet-stream' });
-    res.end(bytes);
+    await pipeline(stream, res);
     return;
   }
   sendJson(res, 404, { error: 'not_found' });
@@ -640,6 +686,8 @@ export const server = createServer((req, res) => {
     }
   });
 });
+
+server.once('close', () => execManager[Symbol.dispose]());
 
 // Bound how long a client may take to send a request (headers + body) so a
 // slow/stalled client can't pin a connection for Node's 5-min default. These
@@ -687,6 +735,9 @@ function isStageItem(value: unknown): value is StageItem {
   return (
     isObject(value) &&
     typeof value.path === 'string' &&
+    !(value.url !== undefined && value.contentBase64 !== undefined) &&
+    (value.sourceId === undefined ||
+      (typeof value.sourceId === 'string' && value.sourceId.length <= 2048)) &&
     (value.url === undefined || typeof value.url === 'string') &&
     (value.contentBase64 === undefined ||
       typeof value.contentBase64 === 'string') &&

@@ -124,6 +124,8 @@ export type RunnerdExecEvent = (
   | { t: 'stdout'; b64: string }
   | { t: 'stderr'; b64: string }
   | { t: 'gap'; fromSeq: number; toSeq: number }
+  | { t: 'replay-start' }
+  | { t: 'replay-complete'; throughSeq: number }
   | {
       t: 'exit';
       exitCode: number;
@@ -144,7 +146,13 @@ export type RunnerdExecEvent = (
     }
   | {
       t: 'fail';
-      code: 'INVALID_CWD' | 'EXEC_LIMIT' | 'DUPLICATE_EXEC' | 'BAD_REQUEST';
+      code:
+        | 'INVALID_CWD'
+        | 'EXEC_LIMIT'
+        | 'DUPLICATE_EXEC'
+        | 'BAD_REQUEST'
+        | 'OUTPUT_LIMIT'
+        | 'REPLAY_UNAVAILABLE';
       message: string;
     }
 ) & { seq?: number };

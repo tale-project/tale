@@ -1,4 +1,4 @@
-// The gemini, qwen and pi wrappers stage settings (and a context file) on
+// The gemini, qwen and pi wrappers stage settings and/or a context file on
 // disk before their CLI starts, and must remove them however the exec ends —
 // runnerd ends a cancelled, timed-out or exited exec with a SIGTERM to its
 // process group, and Python's default SIGTERM runs no `finally`. A second
@@ -19,6 +19,11 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+
+import {
+  geminiPayload,
+  installGeminiWrapper,
+} from './gemini-settings-test-helper';
 
 const hasPython = spawnSync('python3', ['-V']).status === 0;
 const pyTest = hasPython ? test : test.skip;
@@ -55,13 +60,13 @@ async function cancelMidRun(
   writeFileSync(fake, FAKE_CLI);
   chmodSync(fake, 0o755);
   const startedPath = join(root, 'started');
+  const wrapperPath =
+    wrapper.cli === 'gemini'
+      ? installGeminiWrapper(root)
+      : resolve(import.meta.dir, '../..', wrapper.name);
   const child = spawn(
     'python3',
-    [
-      resolve(import.meta.dir, '../..', wrapper.name),
-      '--workdir',
-      join(root, 'workspace'),
-    ],
+    [wrapperPath, '--workdir', join(root, 'workspace')],
     {
       detached: true,
       stdio: ['pipe', 'ignore', 'ignore'],
@@ -74,7 +79,11 @@ async function cancelMidRun(
       },
     },
   );
-  child.stdin?.end(JSON.stringify({ prompt: 'p', system_prompt: 'be brief' }));
+  child.stdin?.end(
+    wrapper.cli === 'gemini'
+      ? geminiPayload(root)
+      : JSON.stringify({ prompt: 'p', system_prompt: 'be brief' }),
+  );
   const exited = new Promise<number | null>((r) =>
     child.on('exit', (code) => r(code)),
   );
@@ -84,7 +93,7 @@ async function cancelMidRun(
   }
   expect(existsSync(startedPath)).toBe(true);
   // Staged before the CLI started.
-  expect(readdirSync(join(root, 'tmp')).length).toBeGreaterThan(0);
+  expect(leftBehind(wrapper).length).toBeGreaterThan(0);
   const group = child.pid;
   if (group === undefined) throw new Error('the wrapper never started');
   for (const signal of signals) process.kill(-group, signal);

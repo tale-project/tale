@@ -541,7 +541,7 @@ xlsx,odt}.ts`) still reach the catch-all as `failed` + `indexer_error` and are r
   harness YAML declares `capabilities.resume: false`: every later kick of a task, every automatic
   retry and every answered ask starts a fresh conversation over the preserved workspace with the
   brief and the earlier rounds restated, where the other harnesses hand the exec the announced
-  handle (2026-10). Paying it down means a sandbox-runtime pin that carries the upstream fix —
-  which first needs root-owned system-settings staging in `tale-gemini-run`, as the
-  `GEMINI_CLI_VERSION` note in `services/sandbox-runtime/Dockerfile` says — then flipping the
-  flag and restoring the `resume` argv slot (the schema holds the two coherent).
+  handle (2026-10). The runtime now bakes root-owned system settings for Gemini 0.62.0;
+  the resume bug remains open. Paying it down means a sandbox-runtime pin that carries
+  the upstream fix, then flipping the flag and restoring the `resume` argv slot (the schema
+  holds the two coherent).

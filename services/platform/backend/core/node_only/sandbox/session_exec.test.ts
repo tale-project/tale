@@ -13,7 +13,8 @@ const sessionIsAlive = vi.fn();
 const sessionListFiles = vi.fn();
 const sessionReadFile = vi.fn();
 
-vi.mock('./helpers/session_client', () => ({
+vi.mock('./helpers/session_client', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./helpers/session_client')>()),
   drainSessionExecResilient: (...args: unknown[]) =>
     drainSessionExecResilient(...args),
   sessionIsAlive: (...args: unknown[]) => sessionIsAlive(...args),
@@ -36,6 +37,7 @@ vi.mock('../../lib/helpers/org_slug', () => ({
 }));
 
 import { functionRefName } from '../../../../lib/shared/handlers/function-refs';
+import { SessionFileTooLargeError } from './helpers/session_client';
 import { harvestSessionOutput, runStepsInSession } from './session_exec';
 
 function execResult(over: Partial<Record<string, unknown>> = {}) {
@@ -171,13 +173,21 @@ describe('harvestSessionOutput — per-file harvest skips', () => {
 
   it('stores every harvested file in the org bucket', async () => {
     sessionListFiles.mockResolvedValue([outputEntry('a.txt')]);
-    sessionReadFile.mockResolvedValue(textBytes('hello'));
+    const source = textBytes('hello');
+    sessionReadFile.mockResolvedValue(source);
     const ctx = harvestCtx({});
     const { files } = await harvestSessionOutput(ctx, harvestArgs);
     expect(files).toHaveLength(1);
     expect(files[0]?.storageId).toBe('s3:acme/blob');
     expect(putBlob).toHaveBeenCalledTimes(1);
     expect(putBlob.mock.calls[0]?.[0]).toBe('acme');
+    const uploaded: unknown = putBlob.mock.calls[0]?.[1];
+    expect(uploaded).toBeInstanceOf(Uint8Array);
+    if (uploaded instanceof Uint8Array)
+      expect(uploaded.buffer).toBe(source.bytes);
+    expect(sessionReadFile).toHaveBeenCalledWith('sid', '/agent/output/a.txt', {
+      maxBytes: 20 * 1024 * 1024,
+    });
   });
 
   it('treats a subdir 404 on a LIVE session as a legitimately empty harvest', async () => {
@@ -256,6 +266,43 @@ describe('harvestSessionOutput — per-file harvest skips', () => {
     );
     // The oversize file was never pulled across the wire.
     expect(sessionReadFile).toHaveBeenCalledTimes(1);
+  });
+
+  it('skips an output that grows beyond the read cap after listing and harvests its sibling', async () => {
+    sessionListFiles.mockResolvedValue([
+      outputEntry('growing.bin'),
+      outputEntry('ok.txt'),
+    ]);
+    sessionReadFile
+      .mockRejectedValueOnce(
+        new SessionFileTooLargeError(
+          '/agent/output/growing.bin',
+          20 * 1024 * 1024,
+        ),
+      )
+      .mockResolvedValueOnce(textBytes('hello'));
+    const result = await harvestSessionOutput(harvestCtx({}), harvestArgs);
+    expect(result.files.map((file) => file.path)).toEqual([
+      '/agent/output/ok.txt',
+    ]);
+    expect(result.harvestSkipped).toHaveLength(1);
+    expect(result.harvestSkipped[0]).toMatchObject({
+      path: '/agent/output/growing.bin',
+      reason: expect.stringContaining('20.0 MB'),
+      reasonByLocale: {
+        de: expect.stringContaining('Dateigrößengrenze'),
+        fr: expect.stringContaining('dépasse la limite'),
+      },
+    });
+    expect(putBlob).toHaveBeenCalledTimes(1);
+  });
+
+  it('preserves read transport failures as harvest failures', async () => {
+    sessionListFiles.mockResolvedValue([outputEntry('a.txt')]);
+    sessionReadFile.mockRejectedValue(new Error('sandbox unavailable'));
+    await expect(
+      harvestSessionOutput(harvestCtx({}), harvestArgs),
+    ).rejects.toThrow('sandbox unavailable');
   });
 
   it('turns a store rejection into a skip, not a harvest failure', async () => {

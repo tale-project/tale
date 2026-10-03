@@ -15,7 +15,12 @@ import {
   removeBuildkitVolume,
   retireLegacyBuildkitd,
 } from './buildkit-resources.ts';
-import { operationSignal, waitWithinOperation } from './operation-budget.ts';
+import {
+  operationSignal,
+  outsideOperationBudget,
+  waitWithinOperation,
+  withOperationBudget,
+} from './operation-budget.ts';
 import { runDocker } from './spawn-util.ts';
 import type { SpawnerConfig } from './types.ts';
 
@@ -476,14 +481,14 @@ async function liveBuildkitOrganizations(
     'label=tale.sandbox-session=1',
     ...(organizationId ? ['--filter', `label=tale.org=${organizationId}`] : []),
     '--format',
-    '{{.ID}}\t{{.State}}\t{{.Label "tale.org"}}\t{{.Label "tale.profile"}}',
+    '{{.ID}}\t{{.State}}\t{{.Label "tale.org"}}\t{{.Label "tale.profile"}}\t{{.Label "tale.docker"}}',
   ]);
   if (sessions.exitCode !== 0) {
     throw new Error('buildkitd: cannot establish idle session dependencies');
   }
   const live = new Set<string>();
   for (const line of sessions.stdout.split('\n').filter(Boolean)) {
-    const [id, status, org, profile, extra] = line.split('\t');
+    const [id, status, org, profile, docker, extra] = line.split('\t');
     if (
       !id ||
       !DOCKER_ID_RE.test(id) ||
@@ -497,7 +502,12 @@ async function liveBuildkitOrganizations(
     // Only agent sessions build: a crawler render or a script session of the
     // organization kept its helpers running for nothing. A container without
     // the label predates it and counts, as before.
-    if (profile === 'default' || profile === 'agent-light') continue;
+    if (
+      profile === 'default' ||
+      profile === 'agent-light' ||
+      docker === 'false'
+    )
+      continue;
     // Created, paused, restarting, removing and unrecognized non-terminal
     // states may still use the cache. Pinned/warm runtimes are also retained.
     if (status !== 'exited' && status !== 'dead') live.add(org);
@@ -1068,14 +1078,18 @@ export async function ensureBuildkitd(
   const existing = ensureInFlight.get(name);
   if (existing) return waitWithinOperation(existing);
   const release = retainBuildkitd(organizationId);
-  const work = withBuildkitdOperation(organizationId, () =>
-    ensureBuildkitdUnlocked(cfg, organizationId, name),
+  const work = outsideOperationBudget(() =>
+    withOperationBudget(cfg.buildkitdStartTimeoutMs ?? 30_000, () =>
+      withBuildkitdOperation(organizationId, () =>
+        ensureBuildkitdUnlocked(cfg, organizationId, name),
+      ),
+    ),
   ).finally(() => {
     release();
     ensureInFlight.delete(name);
   });
   ensureInFlight.set(name, work);
-  return work;
+  return waitWithinOperation(work);
 }
 
 /**

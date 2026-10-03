@@ -10,7 +10,7 @@ Tale läuft auf Kubernetes, wenn du den [Dienstvertrag](/de/self-hosted/install/
 | Voraussetzung | Grund |
 | --- | --- |
 | Ein CNI, das NetworkPolicy durchsetzt, etwa Calico, Cilium oder kube-network-policies | Die Egress-Sperre der Sandbox und die Sperre des Backends sind NetworkPolicy-Objekte. Jeder API-Server nimmt sie an; erst das CNI blockiert damit Verkehr. |
-| Eine Standard-StorageClass, deren `ReadWriteOnce`-Volumes dort wieder eingebunden werden, wo ein Pod eingeplant wird | Datenbank, Objektspeicher, Proxy-Zertifikate, Gateway-Zustand und jeder Sandbox-Workspace liegen auf PersistentVolumeClaims. |
+| Eine Standard-StorageClass, deren `ReadWriteOnce`-Volumes dort wieder eingebunden werden, wo ein Pod eingeplant wird | Datenbank, Objektspeicher, Proxy-Zertifikate, Gateway-Zustand und jeder Sandbox-Workspace liegen auf PersistentVolumeClaims. Das Volume eines gelöschten Sandbox-Workspace folgt der `reclaimPolicy` der StorageClass: Mit `Delete` verschwinden seine Dateien mit ihm, mit `Retain` bleiben sie, bis du das Volume entfernst. |
 | `ReadWriteMany`-Speicher oder ein einzelner Node für die Organisationskonfiguration | Die Backend-Rollen schreiben `config-data`; Web-Ebene und Spawner lesen es. Auf einem Node genügt `ReadWriteOnce`. Mehrere Nodes brauchen `ReadWriteMany` oder eine Node-Bindung für diese Pods. |
 | Nodes, die `NET_ADMIN` gewähren und ip6tables bereitstellen oder die IPv6-Sysctls erlauben | Der Egress-Proxy installiert beim Start seine Firewall und verweigert den Start ohne sie. |
 | Ports 80 und 443 unter der öffentlichen Adresse erreichbar | Caddy besorgt sich im Modus `selfsigned` und `letsencrypt` die Zertifikate selbst. Hinter einem Ingress, der TLS terminiert, setzt du `TLS_MODE=external`. |
