@@ -1,6 +1,13 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import { createHash } from 'node:crypto';
-import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import {
+  mkdtemp,
+  mkdir,
+  readFile,
+  realpath,
+  rm,
+  writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { delimiter, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -43,7 +50,8 @@ afterEach(async () => {
 });
 
 async function fixture(binary = '#!/bin/sh\nprintf "tale fixture 9.8.7\\n"\n') {
-  const root = await mkdtemp(join(tmpdir(), 'tale-installer-'));
+  // Windows temp directories may use 8.3 aliases; PowerShell resolves their long names.
+  const root = await realpath(await mkdtemp(join(tmpdir(), 'tale-installer-')));
   roots.push(root);
   const file = join(root, 'download');
   await writeFile(file, binary, { mode: 0o755 });
