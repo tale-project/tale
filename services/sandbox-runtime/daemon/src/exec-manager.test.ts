@@ -875,25 +875,33 @@ describe('ExecManager', () => {
       long.emit,
     );
     const short = collect();
-    // A dev server logging to the stdout it inherited.
-    await mgr.run(
-      {
-        ...base,
-        execId: 'ewshort',
-        shell: '(while :; do echo tick; sleep 0.2; done) & echo $!',
-        cwd: ROOT,
-      },
-      short.emit,
-    );
-    const pid = Number(decode(short.events, 'stdout').split('\n')[0]);
-    expect(pid).toBeGreaterThan(1);
-    // Past the drain grace, its next lines must not hit a closed pipe.
-    await new Promise((r) => setTimeout(r, 1_000));
-    expect(isAlive(pid)).toBe(true);
-    expect(mgr.cancel('ewlong')).toBe(true);
-    await longDone;
-    await waitGone(pid);
-    expect(isAlive(pid)).toBe(false);
+    try {
+      // A dev server logging to the stdout it inherited. Keep the control PID
+      // on stderr: the background child's first tick can precede its parent's
+      // echo, so the first stdout line is not guaranteed to be the PID.
+      await mgr.run(
+        {
+          ...base,
+          execId: 'ewshort',
+          shell: '(while :; do echo tick; sleep 0.2; done) & echo $! >&2',
+          cwd: ROOT,
+        },
+        short.emit,
+      );
+      const pid = Number(decode(short.events, 'stderr').trim());
+      expect(pid).toBeGreaterThan(1);
+      expect(decode(short.events, 'stdout')).toContain('tick');
+      // Past the drain grace, its next lines must not hit a closed pipe.
+      await new Promise((r) => setTimeout(r, 1_000));
+      expect(isAlive(pid)).toBe(true);
+      expect(mgr.cancel('ewlong')).toBe(true);
+      await longDone;
+      await waitGone(pid);
+      expect(isAlive(pid)).toBe(false);
+    } finally {
+      await mgr.terminateAll();
+      await longDone;
+    }
   }, 15_000);
 
   test('a cancel during the drain of an exec whose leftovers wait ends them at once', async () => {
