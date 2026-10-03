@@ -52,10 +52,8 @@ const mockUseConvexAuth = vi.fn(() => ({
   isLoading: false,
   isAuthenticated: true,
 }));
-// The layout's auth flags come from the SESSION PROBE now (useAuth), not
-// the websocket — the same control var drives both in these scenarios.
+// The layout reads the session probe through useAuth; control its flags here.
 vi.mock('@/app/hooks/use-session-user', () => ({
-  useSessionUser: () => mockUseConvexAuth(),
   useAuth: () => mockUseConvexAuth(),
 }));
 
