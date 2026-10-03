@@ -35,6 +35,12 @@ which the history present at attachment has been delivered. Session idle and
 TTL cleanup atomically checks the current work generation and activity clock
 before freezing compute; see the [session contract](../sandbox/docs/sessions.md).
 
+Completed commands release their request and consumer data even while another
+command keeps the session active. Process cleanup retains only the ownership
+and liveness data it still needs. Held-open stdin has an 8 MiB pending-write
+ceiling: a nonreading command refuses further lines with `WRITE_FAILED` until
+its pipe drains, without partially accepting the refused line.
+
 File staging streams each URL into a temporary file beside its destination
 and replaces the destination only after a complete, bounded download. Cancelling
 or failing a download preserves the previous file. At most two stage requests

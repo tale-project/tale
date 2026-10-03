@@ -217,6 +217,18 @@ rather than treating a suffix as complete history. Complete journal replay
 requires the runtime, spawner and platform to be upgraded together; older
 runtimes retain their bounded ring replay during a rolling upgrade.
 
+The initial exec consumer releases its callback and HTTP objects on disconnect.
+Body intake drops its raw upload buffers after parsing, and completed commands
+release request and consumer data even when background descendants await a
+sibling's completion. Deferred process cleanup keeps only ownership and
+liveness information, separate from the bounded replay history.
+
+Held-open stdin accepts a whole line only while its pending writes plus that
+line fit within 8 MiB. A full queue returns the existing `WRITE_FAILED` reason
+without enqueuing any of that line; once the child drains its pipe, writes may
+resume. This bounds memory when a command stops reading stdin. Device tunnel
+streams also remove caller abort listeners on completion, reset or disconnect.
+
 ### Staged inputs and output reads
 
 `POST /files/stage` accepts the existing `files` list: a destination `path`
