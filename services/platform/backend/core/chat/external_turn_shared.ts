@@ -13,23 +13,21 @@
  * windows (a Convex action cannot be held open for a long turn — a cold or
  * slow turn would outlive its execution window and be killed mid-run). Each
  * window re-attaches to the running exec from the START of runnerd's
- * byte-identical replay buffer and re-parses the full output-so-far —
+ * byte-identical disk journal and re-parses the full output-so-far —
  * re-parsing from the start (rather than carrying a per-delta cursor across
  * windows) keeps a JSONL line that straddles a window boundary from being
  * stranded by the fresh per-window parser. This module owns the lane-neutral
  * core: exec construction (`buildExternalTurnExec`, with the model window
  * `resolveHarnessTurnContextWindow` reads), the window drain
  * (`drainHarnessWindow`), end classification (`classifyHarnessEnd`), and the
- * event→transcript projection (`timelineFromEvents`); each host wraps it
+ * event→transcript projection (`HarnessProjection`); each host wraps it
  * with its own token mint, progress sink, and settle.
  */
 
 import { resolveEffectiveWindow } from '../../../lib/chat/budget';
+import { HarnessProjection } from '../../../lib/harnesses/projection';
 import { getHarnessGlue } from '../../../lib/harnesses/registry';
-import {
-  boundTimelineParts,
-  type TimelinePart,
-} from '../../../lib/harnesses/timeline';
+import type { TimelinePart } from '../../../lib/harnesses/timeline';
 import {
   isHarnessSlug,
   type HarnessEvent,
@@ -336,149 +334,8 @@ export function buildExternalTurnExec(args: {
   return { ...exec, env: { ...args.extraEnv, ...exec.env } };
 }
 
-/** Text produced so far: the streamed deltas concatenated, or the complete
- * text blocks when a harness emits those instead of deltas. */
-function textFromEvents(events: readonly HarnessEvent[]): string {
-  const deltas = events
-    .filter(
-      (e): e is Extract<HarnessEvent, { type: 'text-delta' }> =>
-        e.type === 'text-delta',
-    )
-    .map((e) => e.text)
-    .join('');
-  if (deltas !== '') return deltas;
-  return events
-    .filter(
-      (e): e is Extract<HarnessEvent, { type: 'text' }> => e.type === 'text',
-    )
-    .map((e) => e.text)
-    .join('\n\n');
-}
-
-/** One entry of the op row's `liveTimeline` — the AI-SDK UI-part shape the
- * run views render. Canonically `TimelinePart`; the alias keeps this module's
- * historical name for its many importers. */
+/** One entry of the op row's bounded live transcript. */
 export type HarnessTimelinePart = TimelinePart;
-
-/** Per-entry payload cap — a tool that reads a whole file must not push a
- * multi-megabyte input into a reactive query. */
-const TIMELINE_VALUE_CHARS = 2000;
-/** Per-text-block cap, applied to the TAIL: a long reasoning block matters
- * for its latest lines, and the op row is a status row, not a log store. */
-const TIMELINE_TEXT_CHARS = 4000;
-
-function clampTimelineValue(value: unknown): unknown {
-  if (value === undefined) return undefined;
-  const json = JSON.stringify(value);
-  if (json === undefined) return undefined;
-  return json.length <= TIMELINE_VALUE_CHARS
-    ? value
-    : `${json.slice(0, TIMELINE_VALUE_CHARS)}…`;
-}
-
-/**
- * The harness event stream projected onto the op row's transcript shape:
- * assistant text blocks plus each tool call with its result state. Tool
- * results fold into their call (keyed by `toolUseId`) so one tool shows as
- * one entry that moves from `input-available` to `output-available`/`error`.
- */
-function timelineFromEvents(
-  events: readonly HarnessEvent[],
-): HarnessTimelinePart[] {
-  // A harness that streams deltas ALSO emits the finished block for the same
-  // words (claude-code does), so consuming both would print every sentence
-  // twice. Same rule as `textFromEvents`: deltas win when there are any.
-  const streamsDeltas = events.some((event) => event.type === 'text-delta');
-  const textKind = streamsDeltas ? 'text-delta' : 'text';
-  const parts: HarnessTimelinePart[] = [];
-  const byToolCall = new Map<string, HarnessTimelinePart>();
-  let text = '';
-  const flushText = () => {
-    if (text === '') return;
-    parts.push({
-      type: 'text',
-      text:
-        text.length <= TIMELINE_TEXT_CHARS
-          ? text
-          : `…${text.slice(-TIMELINE_TEXT_CHARS)}`,
-    });
-    text = '';
-  };
-  for (const event of events) {
-    if (event.type === 'text-delta' || event.type === 'text') {
-      if (event.type !== textKind) continue;
-      text +=
-        event.type === 'text' && text !== '' ? `\n\n${event.text}` : event.text;
-      continue;
-    }
-    if (event.type === 'tool-use') {
-      flushText();
-      const part: HarnessTimelinePart = {
-        type: `tool-${event.toolName}`,
-        state: 'input-available',
-        toolCallId: event.toolUseId,
-        ...(clampTimelineValue(event.input) !== undefined
-          ? { input: clampTimelineValue(event.input) }
-          : {}),
-      };
-      byToolCall.set(event.toolUseId, part);
-      parts.push(part);
-      continue;
-    }
-    if (event.type === 'tool-result') {
-      const part = byToolCall.get(event.toolUseId);
-      if (!part) continue;
-      part.state = event.isError === true ? 'output-error' : 'output-available';
-      const output = clampTimelineValue(event.output);
-      if (event.isError === true) {
-        part.errorText =
-          typeof output === 'string' ? output : JSON.stringify(output);
-      } else if (output !== undefined) {
-        part.output = output;
-      }
-    }
-  }
-  flushText();
-  return boundTimelineParts(parts);
-}
-
-function lastTurnEnded(
-  events: readonly HarnessEvent[],
-): Extract<HarnessEvent, { type: 'turn-ended' }> | undefined {
-  for (let i = events.length - 1; i >= 0; i -= 1) {
-    const e = events[i];
-    if (e !== undefined && e.type === 'turn-ended') return e;
-  }
-  return undefined;
-}
-
-/** The harness's OWN conversation id, announced on `turn-started` (or, for
- * harnesses that only stamp it at the end, `turn-ended`). Every drain window
- * replays the ring from seq 0, so any window past the announcement sees it.
- * This is the `--resume` handle a restart needs — the lanes persist it on
- * the op row so a mid-run restart can continue the same conversation. */
-function harnessSessionIdFromEvents(
-  events: readonly HarnessEvent[],
-): string | undefined {
-  for (const e of events) {
-    if (e.type === 'turn-started' && e.sessionId !== undefined) {
-      return e.sessionId;
-    }
-    if (e.type === 'turn-ended' && e.sessionId !== undefined) {
-      return e.sessionId;
-    }
-  }
-  return undefined;
-}
-
-/** The output tokens a window's `usage` reports add up to. */
-function outputTokensFromEvents(events: readonly HarnessEvent[]): number {
-  let total = 0;
-  for (const event of events) {
-    if (event.type === 'usage') total += event.outputTokens;
-  }
-  return total;
-}
 
 /** What one harness window observed — the lane-neutral core result. */
 export type HarnessWindowResult =
@@ -522,7 +379,7 @@ export async function drainHarnessWindow(args: {
   execId: string;
   harness: string;
   start?: HarnessExec;
-  /** Throttled full-text-so-far callback (at most ~1/s), for live display. */
+  /** Throttled bounded text-tail callback (at most 4/s), for live display. */
   onText?: (text: string) => void;
   /** Throttled transcript-so-far callback (same cadence as `onText`), in the
    * op row's `liveTimeline` shape. The chat lane renders its transcript from
@@ -540,7 +397,10 @@ export async function drainHarnessWindow(args: {
     loadHarnesses(),
   );
   const parser = glue.createParser();
-  const events: HarnessEvent[] = [];
+  const projection = new HarnessProjection();
+  let ended: Extract<HarnessEvent, { type: 'turn-ended' }> | undefined;
+  let agentSessionId: string | undefined;
+  let outputTokens = 0;
 
   // A hold-stdin harness (claude-code) lingers after its reply waiting for
   // more input, so its process exit can be a whole window away from the
@@ -550,6 +410,12 @@ export async function drainHarnessWindow(args: {
   const turnEndedCut = new AbortController();
   let turnEndedGrace: ReturnType<typeof setTimeout> | undefined;
   let turnEndedSeen = false;
+  // A large journal may take longer than the exit grace to replay. Its
+  // historical result is not actionable until we have caught up: a later
+  // record can reopen the background ledger. The transport negotiates legacy
+  // streams before accepting their first contiguous sequence; an evicted
+  // legacy prefix fails explicitly instead of rebuilding partial state.
+  let replayComplete = args.start !== undefined;
   // The background-task ledger (`types.ts` contract): a harness that
   // launched background work reports `task-started`/`task-settled` pairs,
   // and a `turn-ended` whose ledger is still open is a LINGERING turn — the
@@ -559,7 +425,7 @@ export async function drainHarnessWindow(args: {
   // window re-parses from seq 0, so the ledger is rebuilt consistently.)
   const pendingTasks = new Set<string>();
   const armTurnEndedCut = () => {
-    if (turnEndedGrace !== undefined) return;
+    if (!replayComplete || turnEndedGrace !== undefined) return;
     turnEndedGrace = setTimeout(
       () => turnEndedCut.abort(),
       TURN_ENDED_EXIT_GRACE_MS,
@@ -575,6 +441,9 @@ export async function drainHarnessWindow(args: {
   let lastNotifiedEventCount = 0;
   let lastNotifyAt = 0;
   const notifyTextSoFar = () => {
+    // A fresh parser traverses the full journal. Publishing an ancient
+    // prefix would merge evicted entries back into the persisted tail.
+    if (!replayComplete) return;
     if (args.onText === undefined && args.onTimeline === undefined) return;
     const now = Date.now();
     if (now - lastNotifyAt < STREAM_TEXT_THROTTLE_MS) return;
@@ -583,10 +452,11 @@ export async function drainHarnessWindow(args: {
     // stretch emits none), so the timeline tracks parsed events instead of
     // riding the text guard — behind it, a run's live log stalls until the
     // agent's next text block and then floods the whole backlog at once.
-    const text = textFromEvents(events);
+    const text = projection.text;
     const textAdvanced = text !== '' && text !== lastNotifiedText;
     const timelineAdvanced =
-      args.onTimeline !== undefined && events.length > lastNotifiedEventCount;
+      args.onTimeline !== undefined &&
+      projection.revision > lastNotifiedEventCount;
     if (!textAdvanced && !timelineAdvanced) return;
     lastNotifyAt = now;
     if (textAdvanced) {
@@ -594,8 +464,8 @@ export async function drainHarnessWindow(args: {
       args.onText?.(text);
     }
     if (timelineAdvanced) {
-      lastNotifiedEventCount = events.length;
-      args.onTimeline?.(timelineFromEvents(events));
+      lastNotifiedEventCount = projection.revision;
+      args.onTimeline?.(projection.timeline());
     }
   };
 
@@ -614,23 +484,39 @@ export async function drainHarnessWindow(args: {
   // were pushed and never read: a Codex turn the provider refused settled
   // with the agent's last narration sentence as its reason (2026-09-26).
   let harnessError: string | undefined;
-  const onStdout = (chunk: string) => {
-    for (const e of parser.feed(chunk)) {
-      events.push(e);
-      if (e.type === 'error') {
-        harnessError = e.message;
-      } else if (e.type === 'task-started') {
-        pendingTasks.add(e.taskId);
-        // A task launched inside the grace (reply in, cut armed) reopens the
-        // ledger — the cut must wait for it.
-        disarmTurnEndedCut();
-      } else if (e.type === 'task-settled') {
-        pendingTasks.delete(e.taskId);
-      } else if (e.type === 'turn-ended') {
-        turnEndedSeen = true;
-      }
-      if (turnEndedSeen && pendingTasks.size === 0) armTurnEndedCut();
+  const acceptEvent = (e: HarnessEvent) => {
+    projection.accept(e);
+    if (e.type === 'usage') outputTokens += e.outputTokens;
+    if (e.type === 'turn-started' || e.type === 'turn-ended') {
+      agentSessionId ??= e.sessionId;
     }
+    if (e.type === 'turn-ended') {
+      ended = e;
+    }
+    if (e.type === 'error') {
+      harnessError = e.message;
+    } else if (e.type === 'task-started') {
+      if (
+        e.taskId.length > 1024 ||
+        (pendingTasks.size >= 4096 && !pendingTasks.has(e.taskId))
+      ) {
+        throw new Error(
+          'Harness background-task ledger exceeds its safety budget',
+        );
+      }
+      pendingTasks.add(e.taskId);
+      // A task launched inside the grace (reply in, cut armed) reopens the
+      // ledger — the cut must wait for it.
+      disarmTurnEndedCut();
+    } else if (e.type === 'task-settled') {
+      pendingTasks.delete(e.taskId);
+    } else if (e.type === 'turn-ended') {
+      turnEndedSeen = true;
+    }
+    if (turnEndedSeen && pendingTasks.size === 0) armTurnEndedCut();
+  };
+  const onStdout = (chunk: string) => {
+    for (const e of parser.feed(chunk)) acceptEvent(e);
     notifyTextSoFar();
   };
 
@@ -660,7 +546,7 @@ export async function drainHarnessWindow(args: {
       };
 
   // On the start window we STAGE the exec's input files, then start it; drain
-  // windows attach from the ring-buffer start (resumeSinceSeq 0).
+  // windows attach from the durable journal start (resumeSinceSeq 0).
   if (
     args.start?.stagedFiles !== undefined &&
     args.start.stagedFiles.length > 0
@@ -692,7 +578,19 @@ export async function drainHarnessWindow(args: {
       args.sessionId,
       body,
       drainSignal,
-      { onStdout, onStderr },
+      {
+        onStdout,
+        onStderr,
+        onReplayStarted: () => {
+          replayComplete = false;
+          disarmTurnEndedCut();
+        },
+        onReplayComplete: () => {
+          replayComplete = true;
+          notifyTextSoFar();
+          if (turnEndedSeen && pendingTasks.size === 0) armTurnEndedCut();
+        },
+      },
       args.start ? {} : { resumeSinceSeq: 0 },
     );
     exited = true;
@@ -711,23 +609,18 @@ export async function drainHarnessWindow(args: {
   // into a completed turn and cut the process under it. The next window
   // re-parses from seq 0, so nothing buffered here is lost.
   if (exited) {
-    for (const e of parser.end()) {
-      events.push(e);
-      // Some families hold failures until EOF (Pi retries); retain their
-      // reason just as we do for errors emitted by feed().
-      if (e.type === 'error') harnessError = e.message;
-    }
+    for (const e of parser.end()) acceptEvent(e);
+    disarmTurnEndedCut();
   }
 
-  const text = textFromEvents(events);
-  const timeline = timelineFromEvents(events);
-  const ended = lastTurnEnded(events);
-  const agentSessionId = harnessSessionIdFromEvents(events);
+  const text = projection.text;
+  const timeline = projection.timeline();
   // Reply in, background ledger still open: the harness is still working
   // (a deliverable may be mid-write) — keep draining, never reap.
   const lingeringOnTasks =
     !exited && ended !== undefined && pendingTasks.size > 0;
-  const terminal = exited || (ended !== undefined && !lingeringOnTasks);
+  const terminal =
+    exited || (replayComplete && ended !== undefined && !lingeringOnTasks);
   if (!terminal) {
     if (lingeringOnTasks) {
       console.warn(
@@ -761,7 +654,7 @@ export async function drainHarnessWindow(args: {
     ...(agentSessionId !== undefined ? { agentSessionId } : {}),
     ...(stderrTail !== '' ? { stderrTail } : {}),
     ...(harnessError !== undefined ? { harnessError } : {}),
-    outputTokens: outputTokensFromEvents(events),
+    outputTokens,
   };
 }
 
