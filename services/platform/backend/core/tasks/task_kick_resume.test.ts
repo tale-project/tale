@@ -27,7 +27,35 @@ const kick = {
   harness: 'claude-code',
   sessionId: 'pa-agent-1',
   liveSessionCreatedAt: SESSION_CREATED_AT,
+  resumable: true,
 };
+
+describe('resolveTaskKickResume — a harness that never resumes', () => {
+  // Gemini CLI: `capabilities.resume: false` in its YAML — its `--resume`
+  // replays every tool result twice and the model refuses the conversation.
+  const geminiKick = { ...kick, harness: 'gemini', resumable: false };
+
+  it('a settled predecessor starts FRESH, box swept, no handle', () => {
+    const plan = resolveTaskKickResume({
+      previous: failedPrevious({ status: 'settled', harness: 'gemini' }),
+      kick: geminiKick,
+    });
+    expect(plan).toEqual({ sweep: true, inspectNote: false });
+  });
+
+  it('a failed predecessor starts FRESH and keeps the box for inspection', () => {
+    const plan = resolveTaskKickResume({
+      previous: failedPrevious({ harness: 'gemini' }),
+      kick: geminiKick,
+    });
+    expect(plan).toEqual({ sweep: false, inspectNote: true });
+  });
+
+  it('a first start on such a harness is a plain first start', () => {
+    const plan = resolveTaskKickResume({ previous: null, kick: geminiKick });
+    expect(plan).toEqual({ sweep: true, inspectNote: false });
+  });
+});
 
 describe('resolveTaskKickResume — provider-rejected conversations', () => {
   it('a failed predecessor without a provider status resumes its conversation', () => {

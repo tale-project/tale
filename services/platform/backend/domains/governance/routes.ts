@@ -9,12 +9,15 @@ import {
   POLICY_SCHEMAS,
   sandboxQuotaConfigSchema,
   sandboxQuotaTotal,
+  sandboxWorkspacesConfigSchema,
+  standardAgentConfigSchema,
 } from '@tale/shared/schemas/governance';
 import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
 import { PROVIDER_CREDENTIAL_HINT_ENTITY } from '../../../lib/shared/hint-entities';
+import { mayCreateApiKeys } from '../../auth/api-key-create-gate.ts';
 import type { Auth } from '../../auth/auth.ts';
 import { getUserTeamIds } from '../../auth/membership.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
@@ -34,10 +37,17 @@ import {
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { ContactError } from '../contacts/service.ts';
+import { syncRagDocumentScope } from '../knowledge/service.ts';
 import { readModelApiStanding } from '../model_api/access.ts';
 import { listModelApiModels } from '../model_api/models.ts';
+import { eligibleProjectAgentHarnesses } from '../projects/service.ts';
 import { getSandboxDeploymentLimits } from '../sandbox/limits.ts';
-import { listOrgApiKeys } from './api-keys.ts';
+import { recordUnusedWorkspaceRule } from '../sandbox/unused-rule.ts';
+import {
+  describeRuleApiKeys,
+  holdsApiKeys,
+  listOrgApiKeys,
+} from './api-keys.ts';
 import {
   findBudgetViolation,
   loadBudgetSubject,
@@ -131,7 +141,9 @@ export function createGovernanceRoutes(deps: {
       deps.sql,
       c.get('orgId'),
       policyType,
-      policyType === 'transcription_model' || policyType === 'image_generation'
+      policyType === 'transcription_model' ||
+        policyType === 'image_generation' ||
+        policyType === 'standard_agent'
         ? { strict: true }
         : {},
     );
@@ -180,6 +192,18 @@ export function createGovernanceRoutes(deps: {
         },
         400,
       );
+    }
+    if (policyType === 'standard_agent') {
+      // The runtime a project agent may run on is the managed lane's list,
+      // which only the platform knows; the shared schema cannot check it.
+      const { harness } = standardAgentConfigSchema.parse(parsed.data);
+      const harnesses = eligibleProjectAgentHarnesses();
+      if (harness !== undefined && !harnesses.includes(harness)) {
+        return c.json(
+          { error: 'STANDARD_AGENT_HARNESS_INVALID', data: { harnesses } },
+          400,
+        );
+      }
     }
     if (policyType === 'sandbox_quota') {
       const total = sandboxQuotaTotal(
@@ -275,6 +299,17 @@ export function createGovernanceRoutes(deps: {
           entity: PROVIDER_CREDENTIAL_HINT_ENTITY,
           entityId: policyType,
         });
+      }
+      if (policyType === 'sandbox_workspaces') {
+        // The unused-workspace rule takes effect with this save: a rule
+        // turned (back) on or a shorter window starts its full window now,
+        // not at the next hourly sweep.
+        await recordUnusedWorkspaceRule(
+          tx,
+          organizationId,
+          sandboxWorkspacesConfigSchema.parse(parsed.data),
+          Date.now(),
+        );
       }
       // The file LAST, inside the transaction: a write failure rolls the
       // audit row back, and a transaction failure never leaves a policy in
@@ -378,11 +413,34 @@ export function createGovernanceRoutes(deps: {
 
   /** The API keys of this organization's members, masked — the budget
    * editor's per-key picker. Admin only, like writing the budget rules; an
-   * admin's own key listing (`/api/auth/api-key/list`) shows only theirs. */
+   * admin's own key listing (`/api/auth/api-key/list`) shows only theirs.
+   * `ruleKeys` describes the keys the saved budget rules name that are no
+   * longer in that listing — expired, disabled, revoked, or held by someone
+   * who left — so the rule table names each by key and owner, never by a
+   * bare id. */
   app.get('/api-keys', async (c) => {
     const denied = requireAdmin(c);
     if (denied) return denied;
-    return c.json({ keys: await listOrgApiKeys(deps.sql, c.get('orgId')) });
+    const organizationId = c.get('orgId');
+    const keys = await listOrgApiKeys(deps.sql, organizationId);
+    const listed = new Set(keys.map((key) => key.id));
+    const budgets = await readGovernancePolicyForOrg(
+      deps.sql,
+      organizationId,
+      'budgets',
+    );
+    const ruleKeyIds = (budgets?.rules ?? []).flatMap((rule) =>
+      rule.scope === 'apiKey' &&
+      rule.apiKeyId !== undefined &&
+      rule.apiKeyId !== '' &&
+      !listed.has(rule.apiKeyId)
+        ? [rule.apiKeyId]
+        : [],
+    );
+    return c.json({
+      keys,
+      ruleKeys: await describeRuleApiKeys(deps.sql, organizationId, ruleKeyIds),
+    });
   });
 
   /** Org usage metrics (the metrics page; admin) — the 0.4 fold reused. */
@@ -532,6 +590,23 @@ export function createGovernanceRoutes(deps: {
   });
 
   /**
+   * Whether the caller may create a personal API key — the rule the create
+   * endpoint's gate holds them to (`auth/api-key-create-gate.ts`): owner,
+   * admin or developer of any organization, or a live grant of a competence
+   * that is used with a key — and whether they hold one already. The API
+   * settings open the REST tab to such a member: to create a key, or to see
+   * and revoke the ones they hold after the right lapsed.
+   */
+  app.get('/my/api-keys', async (c) => {
+    const userId = c.get('sessionBundle').user.id;
+    const [mayCreate, holdsKeys] = await Promise.all([
+      mayCreateApiKeys(deps.sql, userId),
+      holdsApiKeys(deps.sql, userId),
+    ]);
+    return c.json({ mayCreate, holdsKeys });
+  });
+
+  /**
    * The caller's standing under every budget cap that binds them — their
    * personal caps, each of their teams' shared caps and the organization's —
    * with the usage the gate measures and when each period resets. Unlike
@@ -647,6 +722,13 @@ export function createGovernanceRoutes(deps: {
           body.data,
         ),
       );
+      // A restored document can be its ref's holder again — the lowest-id
+      // active document holding a shared ref, whose scope the corpus row
+      // carries — and a restore edits no scope, so no other write re-stamps
+      // the row before the nightly reconcile. Best-effort, after commit.
+      if (body.data.resourceType === 'document') {
+        await syncRagDocumentScope(deps.sql, c.get('orgId'), body.data.id);
+      }
       return c.json({ ok: true });
     } catch (error) {
       if (error instanceof TrashError) {

@@ -5,6 +5,7 @@ import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { DefaultModelEditor } from '@/app/features/settings/governance/components/default-model-editor';
 import { ImageGenerationEditor } from '@/app/features/settings/governance/components/image-generation-editor';
 import { ModelAccessEditor } from '@/app/features/settings/governance/components/model-access-editor';
+import { StandardAgentEditor } from '@/app/features/settings/governance/components/standard-agent-editor';
 import { TranscriptionModelEditor } from '@/app/features/settings/governance/components/transcription-model-editor';
 import { VisionModelEditor } from '@/app/features/settings/governance/components/vision-model-editor';
 import { ensureGovernancePolicies } from '@/app/lib/loader-preload';
@@ -22,6 +23,7 @@ export const Route = createFileRoute(
       'model_access',
       'vision_model',
       'image_generation',
+      'standard_agent',
       'transcription_model',
     ]).catch((error: unknown) => {
       console.warn('Failed to preload content-models policies', error);
@@ -42,6 +44,7 @@ function ContentModelsRoute() {
         <ModelAccessEditor organizationId={organizationId} />
         <VisionModelEditor organizationId={organizationId} />
         <ImageGenerationEditor organizationId={organizationId} />
+        <StandardAgentEditor organizationId={organizationId} />
         <TranscriptionModelEditor organizationId={organizationId} />
       </EditorGroup>
     </SettingsPage>

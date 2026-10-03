@@ -35,11 +35,13 @@ import {
   type ProjectRow,
 } from '../projects/service.ts';
 import { listServingCredentialFacts } from '../provider_credentials/service.ts';
+import { readTaskCommentPage } from '../tasks/comments.ts';
 import {
   getChatModel,
   getEffectiveCustomInstructions,
 } from '../user_preferences/service.ts';
 import { listWebsites } from '../websites/service.ts';
+import { readTaskHandoverFacts } from './handover.ts';
 import { getThreadLineageIds, setThreadTitleIfAbsent } from './threads.ts';
 
 /**
@@ -196,6 +198,11 @@ interface TaskLegRow {
 }
 
 const OPEN_EXCLUDED = ['done', 'cancelled'];
+
+/** How many subtasks and blockers one task context read lists; past either
+ * cap it says the list was cut (`subtasksTruncated`, `blockedByTruncated`). */
+const TASK_CONTEXT_SUBTASKS_MAX = 50;
+const TASK_CONTEXT_BLOCKERS_MAX = 25;
 
 /**
  * The zero-hit listing fallback's page size — the 0.4 `LIST_CAP`.
@@ -374,6 +381,14 @@ export function chatShimHandlers(sql: Sql): ShimHandlers {
         userId: args.userId,
         orgId: args.organizationId,
       });
+    },
+    // What the chat's hand-over note is built from, for the person talking:
+    // their active projects with agent counts and edit rights, and whether
+    // agents may start at all.
+    'chat/handover:getTaskHandoverInternal': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the turn passes exactly this shape
+      const args = raw as { userId: string; organizationId: string };
+      return readTaskHandoverFacts(sql, args);
     },
     // The person's custom instructions for the prompt, already gated by
     // their toggle over the org's `custom_instructions` default; null while
@@ -902,6 +917,8 @@ export function chatShimHandlers(sql: Sql): ShimHandlers {
         taskId: string;
         organizationId: string;
         commentLimit?: number;
+        /** A message order from an earlier page's `commentsNextBefore`. */
+        commentsBefore?: number;
       };
       const tasks = await sql<
         (TaskLegRow & {
@@ -928,43 +945,61 @@ export function chatShimHandlers(sql: Sql): ShimHandlers {
         WHERE id = ${task.projectId ?? ''} LIMIT 1
       `;
       const project = projects[0];
+      // A subtask and a blocker never cross projects (the writers refuse
+      // it); the reads hold to that rather than trust it, so no other
+      // project's title reaches the agent. One row past each cap says the
+      // list was cut — a cut list must never read as the whole of it.
       const subtasks = await sql<
-        { title: string; status: string; assigneeId: string | null }[]
+        {
+          taskId: string;
+          number: number | null;
+          title: string;
+          status: string;
+          assigneeId: string | null;
+        }[]
       >`
-        SELECT title, status, assignee_id AS "assigneeId" FROM app.tasks
-        WHERE parent_task_id = ${args.taskId} AND archived_at_ms IS NULL
-        ORDER BY created_at_ms
-        LIMIT 50
+        SELECT id AS "taskId", number, title, status,
+               assignee_id AS "assigneeId"
+        FROM app.tasks
+        WHERE parent_task_id = ${args.taskId}
+          AND org_id = ${args.organizationId}
+          AND project_id = ${task.projectId ?? ''}
+          AND archived_at_ms IS NULL
+        ORDER BY created_at_ms, id
+        LIMIT ${TASK_CONTEXT_SUBTASKS_MAX + 1}
       `;
-      const blockedBy = await sql<{ title: string; status: string }[]>`
-        SELECT b.title, b.status
+      const blockedBy = await sql<
+        {
+          taskId: string;
+          number: number | null;
+          title: string;
+          status: string;
+        }[]
+      >`
+        SELECT b.id AS "taskId", b.number, b.title, b.status
         FROM app.task_dependencies dep
         JOIN app.tasks b ON b.id = dep.blocker_task_id
         WHERE dep.blocked_task_id = ${args.taskId}
+          AND b.org_id = ${args.organizationId}
+          AND b.project_id = ${task.projectId ?? ''}
           AND b.archived_at_ms IS NULL
-        LIMIT 25
+        ORDER BY b.created_at_ms, b.id
+        LIMIT ${TASK_CONTEXT_BLOCKERS_MAX + 1}
       `;
+      // The task's own comment feed (`readTaskCommentPage`, the page the
+      // app and REST read): each comment with its id, newest page first and
+      // chronological within it, `commentsBefore` continuing an earlier page.
       const commentLimit = Math.min(Math.max(args.commentLimit ?? 10, 1), 50);
-      const comments = await sql<
+      const commentPage = await readTaskCommentPage(
+        sql,
+        { id: task._id, discussionThreadId: task.discussionThreadId },
         {
-          authorType: string;
-          authorId: string;
-          body: string;
-          createdAt: number;
-        }[]
-      >`
-        SELECT * FROM (
-          SELECT meta.author_type AS "authorType",
-                 meta.author_id AS "authorId",
-                 coalesce(m.text, '') AS body,
-                 m.created_at_ms::float8 AS "createdAt"
-          FROM app.task_discussion_message_meta meta
-          JOIN app.messages m ON m.id = meta.message_id
-          WHERE meta.task_id = ${args.taskId}
-          ORDER BY m.created_at_ms DESC
-          LIMIT ${commentLimit}
-        ) recent ORDER BY "createdAt"
-      `;
+          limit: commentLimit,
+          ...(args.commentsBefore !== undefined
+            ? { before: args.commentsBefore }
+            : {}),
+        },
+      );
       // Read leniently, as the board reads it: a rule that no longer
       // validates is no rule.
       const repeat = parseTaskRepeat(task.repeat);
@@ -991,14 +1026,47 @@ export function chatShimHandlers(sql: Sql): ShimHandlers {
                 : {}),
             }
           : null,
-        subtasks: subtasks.map((row) =>
+        subtasks: subtasks
+          .slice(0, TASK_CONTEXT_SUBTASKS_MAX)
+          .map((row) =>
+            Object.assign(
+              { taskId: row.taskId },
+              row.number !== null ? { number: row.number } : {},
+              { title: row.title, status: row.status },
+              row.assigneeId !== null ? { assigneeId: row.assigneeId } : {},
+            ),
+          ),
+        ...(subtasks.length > TASK_CONTEXT_SUBTASKS_MAX
+          ? { subtasksTruncated: true }
+          : {}),
+        blockedBy: blockedBy
+          .slice(0, TASK_CONTEXT_BLOCKERS_MAX)
+          .map((row) =>
+            Object.assign(
+              { taskId: row.taskId },
+              row.number !== null ? { number: row.number } : {},
+              { title: row.title, status: row.status },
+            ),
+          ),
+        ...(blockedBy.length > TASK_CONTEXT_BLOCKERS_MAX
+          ? { blockedByTruncated: true }
+          : {}),
+        comments: commentPage.comments.map((comment) =>
           Object.assign(
-            { title: row.title, status: row.status },
-            row.assigneeId !== null ? { assigneeId: row.assigneeId } : {},
+            {
+              commentId: comment.messageId,
+              authorType: comment.authorType,
+              authorId: comment.authorId,
+              body: comment.body,
+              createdAt: comment.createdAt,
+            },
+            comment.editedAt !== null ? { editedAt: comment.editedAt } : {},
           ),
         ),
-        blockedBy: [...blockedBy],
-        comments: [...comments],
+        commentsHasMore: commentPage.hasMore,
+        ...(commentPage.nextCursor !== null
+          ? { commentsNextBefore: commentPage.nextCursor }
+          : {}),
       };
     },
 

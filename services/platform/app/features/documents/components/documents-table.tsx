@@ -1,5 +1,6 @@
 'use client';
 
+import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
 import { DataTable } from '@tale/ui/data-table/data-table';
 import type { FilterConfig } from '@tale/ui/data-table/data-table-filters';
 import { useDebounce } from '@tale/ui/use-debounce';
@@ -14,6 +15,7 @@ import {
   useTeamNames,
   useTeams,
 } from '@/app/features/settings/teams/hooks/queries';
+import { useListReadRecovery } from '@/app/hooks/use-list-read-recovery';
 import { prefetchAdaptedQuery } from '@/app/lib/backend/prefetch';
 import { useT } from '@/lib/i18n/client';
 import { scopeTeamIds } from '@/lib/knowledge/types';
@@ -70,6 +72,7 @@ export function DocumentsTable({
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { t: tDocuments } = useT('documents');
+  const { t: tKnowledge } = useT('knowledge');
 
   const { data: docCount } = useApproxDocumentCount(organizationId);
   const [query, setQuery] = useState(searchQuery ?? '');
@@ -111,6 +114,8 @@ export function DocumentsTable({
     folderId: currentFolderId,
     initialNumItems: 20,
   });
+  const { regionRef, retryRead, focusRegion } =
+    useListReadRecovery(paginatedResult);
 
   // Search and filters run client-side over `paginatedResult.results`, which
   // only holds loaded pages. The default infinite-scroll list has nothing to
@@ -296,6 +301,25 @@ export function DocumentsTable({
     ],
   );
 
+  // The level lists its folders beside its documents, from two reads. What
+  // it holds before the search and filters narrow it decides how a failed
+  // documents read shows (KNOW-F25): with nothing at all, the table's error
+  // state; with folders or earlier pages on screen, those stay and the
+  // notice names what is missing — a search that narrows them to nothing is
+  // still a search, never the error state.
+  const levelLoaded =
+    folderRows.length > 0 || paginatedResult.results.length > 0;
+  // The documents never answered beside the folders (a retry may be
+  // running), or a later page failed: the rows are not the whole level.
+  const documentsMissing =
+    levelLoaded &&
+    (paginatedResult.unavailable ||
+      (paginatedResult.error !== null &&
+        paginatedResult.status === 'CanLoadMore'));
+  const readFailed =
+    levelLoaded &&
+    (paginatedResult.unavailable || paginatedResult.error !== null);
+
   const previewDocument = useMemo(() => {
     if (!docId || !filteredResults.length) return null;
     return filteredResults.find((item) => item.id === docId) ?? null;
@@ -414,8 +438,9 @@ export function DocumentsTable({
       status: paginatedResult.status,
       loadMore: paginatedResult.loadMore,
       isLoading: paginatedResult.isLoading,
-      error: paginatedResult.error,
-      retry: paginatedResult.retry,
+      error: levelLoaded ? null : paginatedResult.error,
+      loadFailed: documentsMissing,
+      retry: retryRead,
     },
     pageSize,
     search: {
@@ -455,35 +480,62 @@ export function DocumentsTable({
         />
       )}
 
-      <DataTable
-        columns={columns}
-        caption={tDocuments('tableCaption')}
-        onRowClick={handleRowClick}
-        onRowMouseEnter={handleRowMouseEnter}
-        rowClassName={getRowClassName}
-        stickyLayout
-        actionMenu={
-          <DocumentsActionMenu
-            organizationId={organizationId}
-            currentFolderId={currentFolderId}
-            parentFolderTeamId={parentFolderTeamId}
-            oneDriveOpen={oneDriveOpen}
-            onOneDriveOpenChange={onOneDriveOpenChange}
-            googleDriveOpen={googleDriveOpen}
-            onGoogleDriveOpenChange={onGoogleDriveOpenChange}
+      {/* Rows already on screen outlive a failed read — the folders beside
+          documents that never loaded, a refresh, or a page a search asked
+          for — and the failure is named above them. */}
+      <div
+        ref={regionRef}
+        role="region"
+        aria-label={tKnowledge('documents')}
+        tabIndex={-1}
+        className="flex min-h-0 flex-1 flex-col gap-6 outline-none"
+      >
+        {readFailed && (
+          <CatalogLoadError
+            // Each failure is announced again; Try again keeps its node.
+            failureKey={paginatedResult.errorCount}
+            onFocusLost={focusRegion}
+            message={tDocuments(
+              paginatedResult.unavailable ? 'loadFailed' : 'refreshFailed',
+            )}
+            onRetry={retryRead}
+            isRetrying={paginatedResult.isRetrying}
           />
-        }
-        emptyState={{
-          icon: FileText,
-          title: tDocuments('emptyState.title'),
-          description: tDocuments('emptyState.description'),
-          // The documents table sits directly under the page `h1` ("Knowledge")
-          // with no intervening section heading, so the empty-state title is an
-          // `h2` — otherwise the heading outline skips `h1`→`h3`.
-          headingLevel: 2,
-        }}
-        {...list.tableProps}
-      />
+        )}
+        <DataTable
+          columns={columns}
+          caption={tDocuments('tableCaption')}
+          onRowClick={handleRowClick}
+          onRowMouseEnter={handleRowMouseEnter}
+          rowClassName={getRowClassName}
+          stickyLayout
+          // A refresh the reader did not start takes the table's error state
+          // away while it runs; a focused Try again hands its focus to the
+          // list, not to the page.
+          onErrorFocusLost={focusRegion}
+          actionMenu={
+            <DocumentsActionMenu
+              organizationId={organizationId}
+              currentFolderId={currentFolderId}
+              parentFolderTeamId={parentFolderTeamId}
+              oneDriveOpen={oneDriveOpen}
+              onOneDriveOpenChange={onOneDriveOpenChange}
+              googleDriveOpen={googleDriveOpen}
+              onGoogleDriveOpenChange={onGoogleDriveOpenChange}
+            />
+          }
+          emptyState={{
+            icon: FileText,
+            title: tDocuments('emptyState.title'),
+            description: tDocuments('emptyState.description'),
+            // The documents table sits directly under the page `h1` ("Knowledge")
+            // with no intervening section heading, so the empty-state title is an
+            // `h2` — otherwise the heading outline skips `h1`→`h3`.
+            headingLevel: 2,
+          }}
+          {...list.tableProps}
+        />
+      </div>
 
       <DocumentPreviewDialog
         open={!!docId}

@@ -6,7 +6,7 @@ import {
   Outlet,
   RouterProvider,
 } from '@tanstack/react-router';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { act, render, screen, waitFor } from '@/tests/utils/render';
 
@@ -15,6 +15,7 @@ import { Route } from './agents';
 vi.mock('@/app/features/projects/hooks/queries', () => ({
   useProject: () => ({ project: { canEdit: true }, isLoading: false }),
   useProjectHarnesses: () => ({ data: { harnesses: [], models: [] } }),
+  useStandardAgent: () => undefined,
   useProjectCapabilityCatalog: (organizationId: string, projectId: string) => ({
     data: {
       skills: [
@@ -61,6 +62,12 @@ vi.mock('@/app/features/projects/components/agent-secrets-field', () => ({
 }));
 
 const path = '/dashboard/$id/projects/$projectId/agents';
+
+beforeAll(async () => {
+  // The application loader warms this chunk before the tab renders. Keep
+  // scope assertions independent of the lazy chunk's cold import time.
+  await import('@/app/features/projects/components/project-agents-tab');
+});
 
 describe('project agent form scope', () => {
   it.each([

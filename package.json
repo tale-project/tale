@@ -17,9 +17,11 @@
     "lint:fix": "bunx turbo run lint:fix",
     "lint:sast": "bash tools/opengrep/run.sh",
     "lint:manual": "bun tools/lint-manual/cli.ts",
+    "lint:conflicts": "bun scripts/check-conflict-markers.ts",
+    "lint:links": "bun tools/lint-links/cli.ts",
     "format": "oxfmt && uvx ruff@0.15.0 format && bunx turbo run format",
     "format:check": "oxfmt --check && uvx ruff@0.15.0 format --check && bunx turbo run format:check",
-    "check": "bun run format:check && bunx turbo run lint typecheck test test:ui",
+    "check": "bun run format:check && bun run lint:conflicts && bun run lint:links && bunx turbo run lint typecheck test test:ui",
     "verify": "bun run check && bunx turbo run test:ui && bun run knip:check && bun run lint:sast",
     "test": "bunx turbo run test",
     "test:e2e": "bunx turbo run test:e2e",
@@ -65,7 +67,8 @@
     "gen:migration": "bun run gen migration",
     "gen:episode": "bun run gen video-episode",
     "generate:icons": "bun scripts/generate-connector-icons.ts",
-    "prepare": "bunx husky"
+    "prepare": "bunx husky",
+    "test:performance": "bun test scripts/performance/*.test.ts && bun scripts/performance/run.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "5.2.2",
@@ -126,24 +129,24 @@
   },
   "overrides": {
     "@xmldom/xmldom": "0.8.15",
-    "axios": "1.18.0",
-    "brace-expansion": "5.0.9",
+    "axios": "1.20.0",
+    "brace-expansion": "5.0.12",
     "defu": "6.1.6",
     "esbuild": "0.28.1",
-    "fast-uri": "3.1.7",
+    "fast-uri": "3.1.8",
     "follow-redirects": "1.16.0",
     "form-data": "4.0.6",
-    "hono": "4.13.5",
+    "hono": "4.13.7",
     "html-to-text": "10.0.1",
     "immutable": "5.1.9",
-    "ip-address": "10.5.1",
+    "ip-address": "10.7.1",
     "js-yaml": "4.3.2",
     "katex": "0.16.47",
     "kysely": "0.28.17",
     "lodash": "4.18.1",
     "lodash-es": "4.18.1",
     "magic-string": "0.30.21",
-    "nodemailer": "10.0.2",
+    "nodemailer": "10.0.9",
     "p-timeout": "7.0.1",
     "postcss": "8.5.23",
     "qs": "6.16.0",
@@ -157,6 +160,7 @@
     "ws": "8.21.0"
   },
   "lint-staged": {
+    "*": "bun scripts/check-conflict-markers.ts",
     "*.{ts,tsx,js,jsx,mjs,cjs,mts,cts,json,jsonc,md,mdx,css,scss,yaml,yml,html}": "oxfmt -c .oxfmtrc.json --no-error-on-unmatched-pattern",
     "*.py": "uvx ruff@0.15.0 format",
     "*.{ts,tsx,js,jsx,mjs,cjs,mts,cts,py}": "bash -c 'OPENGREP_SKIP_IF_UNCACHED=1 OPENGREP_LOCAL_ONLY=1 tools/opengrep/run.sh \"$@\"' --"
@@ -167,6 +171,9 @@
     }
   },
   "packageManager": "bun@1.4.2",
+  "patchedDependencies": {
+    "postgres@3.4.7": "patches/postgres@3.4.7.patch"
+  },
   "scarfSettings": {
     "enabled": false
   },

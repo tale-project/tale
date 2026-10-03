@@ -12,6 +12,7 @@ import { renderActionableEmailContent } from '../../core/notifications/notificat
 import { buildPersonalNotificationUrl } from '../../core/notifications/personal_notification_url.ts';
 import type { TaskPayloads } from '../../jobs/tasks.ts';
 import { runConnectorAction } from '../connectors/service.ts';
+import { taskReadersAmong } from './service.ts';
 
 /**
  * The debounced actionable-email sink — the 0.4
@@ -75,6 +76,22 @@ export async function runNotificationEmailJob(
     !notification ||
     notification.read ||
     notification.emailEpoch !== payload.epoch
+  ) {
+    return;
+  }
+  // A task's news leaves only for someone who can still open the task. The
+  // row was written for a reader, but access can end inside the debounce
+  // window (a team removal, a role change, a project moved to other teams),
+  // and an email cannot be taken back (#3631).
+  if (
+    notification.taskId !== null &&
+    (
+      await taskReadersAmong(sql, {
+        organizationId: notification.organizationId,
+        taskId: notification.taskId,
+        userIds: [notification.userId],
+      })
+    ).length === 0
   ) {
     return;
   }

@@ -44,10 +44,11 @@ export const ZERO_READING_GRACE_MS = 10 * 60_000;
  * written by a model-endpoint request when it ends (`domains/model_api/
  * metering.ts`; every other op leaves them NULL):
  *
- *  - `settleAfterMs`: no read before then — a whole answer whose caller
- *    left may still be generating, and the gateway books it only when the
- *    vendor answers;
- *  - `floorCents`: the least to book — a stream that ended early, whose
+ *  - `settleAfterMs`: no read before then — a request the watchdog closed
+ *    because its process stopped beating may still hold its gateway call
+ *    open, and the gateway books a whole answer only when the vendor
+ *    answers;
+ *  - `floorCents`: the least to book — an answer that ended early, whose
  *    partial usage the gateway drops;
  *  - `expectedCents`: a finished answer's reported usage at the catalog
  *    price — a zero reading while this is above zero is not final until
@@ -74,7 +75,7 @@ export interface SessionOpSettlementRow {
 /**
  * The gateway's reading as the op's own facts qualify it: not read yet
  * while a whole answer may still be generating, raised to the floor a
- * broken-off stream counted, held back while a priced answer reads 0 inside
+ * broken-off answer counted, held back while a priced answer reads 0 inside
  * the grace (then the relay's figure), and a key the gateway lost booked at
  * what the relay saw rather than at nothing.
  */

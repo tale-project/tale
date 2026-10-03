@@ -46,6 +46,12 @@ Si cette adresse existe déjà, retrouve la fiche et modifie-la depuis le menu d
 
 ## Créer une fiche produit
 
+<Frame caption="Connaissances > Produits : chaque produit est une fiche aux champs nommés pour le stock, le prix, la catégorie et le statut.">
+
+![L’onglet Produits de Connaissances liste trois produits : Team training workshop, 12 en stock à 950,00 dollars US dans Services, marqué comme brouillon, ainsi qu’Onboarding accelerator à 1 900,00 dollars US dans Services et Analytics Pro — annual license à 1 188,00 dollars US dans Licenses, tous deux actifs.](/images/platform/knowledge-products-list.webp)
+
+</Frame>
+
 Ouvre **Connaissances > Produits**, choisis **Ajouter un produit**, puis **Saisie manuelle**. Le formulaire comporte trois étapes.
 
 1. Dans **Bases**, saisis le **Nom du produit**. Ajoute une description et une image si elles aident à l’identifier, puis choisis **Suivant**.

@@ -7,7 +7,7 @@ Une équipe est une étiquette posée sur le travail, pas un espace dans lequel 
 
 <Frame caption="Paramètres > Équipes — chaque équipe de l’organisation avec son nombre de membres, à côté de l’action Créer une équipe.">
 
-![La page de paramètres Équipes listant trois équipes — Growth, Platform engineering et Customer success — chacune avec un membre et la date de son ajout, à côté d’un bouton Créer une équipe.](/images/platform/settings-teams.webp)
+![La page de paramètres Équipes listant trois équipes — Customer success, Growth et Platform engineering — chacune avec un membre et la date de son ajout, à côté d’un bouton Créer une équipe.](/images/platform/settings-teams.webp)
 
 </Frame>
 
@@ -26,6 +26,8 @@ Ouvre la ligne d’une équipe pour consulter ses membres. Son menu propose **Vo
 Une équipe conserve au moins un membre. Pour retirer le dernier, supprime plutôt l’équipe.
 
 Une personne peut appartenir à plusieurs équipes. Elle peut conserver un accès grâce à une autre équipe ou à une attribution directe. La retirer d’une équipe ne supprime donc pas forcément tous ses accès à une ressource. Vérifie les autres voies d’accès lorsque tu retires des droits.
+
+Les notifications suivent la même règle. Une personne qui ne peut plus ouvrir un projet ne reçoit plus de nouvelles notifications ni d’e-mails sur les tâches de ce projet, pas même sur celles qu’elle suit. Ce qu’elle a déjà reçu reste dans ses notifications. Si elle retrouve l’accès, elle est de nouveau notifiée des tâches qu’elle suit.
 
 Une équipe provisionnée par ton fournisseur d’identité porte la mention **Synchronisée** dans la liste. Son nom et ses membres appartiennent au fournisseur : le dialogue de modification les affiche en lecture seule, car la prochaine synchronisation annulerait une modification locale. Tu peux tout de même supprimer une telle équipe localement ; le fournisseur peut la recréer.
 

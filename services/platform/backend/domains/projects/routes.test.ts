@@ -38,6 +38,11 @@ vi.mock('./service.ts', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./service.ts')>();
   return { ...actual, ...service };
 });
+const standard = vi.hoisted(() => ({
+  ensureStandardAgent: vi.fn(),
+  readStandardAgentAvailability: vi.fn(),
+}));
+vi.mock('./standard-agent.ts', () => standard);
 vi.mock('./secrets.ts', () => ({
   deleteProjectSecret: vi.fn(),
   listProjectSecrets: vi.fn(),
@@ -144,6 +149,66 @@ describe('project agent session routes share REST configuration limits', () => {
       expect.anything(),
       { ...agent, projectId: 'p1' },
     );
+  });
+});
+
+describe('the standard agent’s doors — any member reads it, any reader hands it work', () => {
+  it('answers the caller’s view of the standard agent, before a project id could match', async () => {
+    standard.readStandardAgentAvailability.mockResolvedValue({
+      enabled: true,
+      available: true,
+      harness: 'claude-code',
+      model: 'claude-sonnet-5',
+    });
+
+    const res = await createProjectRoutes({
+      sql: {} as never,
+      auth: {} as never,
+    }).request('/standard-agent?orgId=o1');
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toMatchObject({ available: true });
+    expect(standard.readStandardAgentAvailability).toHaveBeenCalledWith(
+      expect.anything(),
+      { organizationId: 'o1', userId: 'u1' },
+    );
+  });
+
+  it('adds the project’s standard agent for the caller, in a transaction', async () => {
+    standard.ensureStandardAgent.mockResolvedValue({
+      agentId: 'agent-standard',
+      created: true,
+    });
+
+    const res = await send('POST', '/p1/standard-agent', {});
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toEqual({
+      agentId: 'agent-standard',
+      created: true,
+    });
+    expect(standard.ensureStandardAgent).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ organizationId: 'o1', userId: 'u1' }),
+      'p1',
+    );
+  });
+
+  it('answers a refusal with its own status, code and reason', async () => {
+    const { ProjectError } = await import('./service.ts');
+    standard.ensureStandardAgent.mockRejectedValue(
+      new ProjectError('STANDARD_AGENT_UNAVAILABLE', 'No model', 409, {
+        reason: 'no-model',
+      }),
+    );
+
+    const res = await send('POST', '/p1/standard-agent', {});
+
+    expect(res.status).toBe(409);
+    await expect(res.json()).resolves.toEqual({
+      error: 'STANDARD_AGENT_UNAVAILABLE',
+      data: { reason: 'no-model' },
+    });
   });
 });
 

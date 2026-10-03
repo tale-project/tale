@@ -72,6 +72,18 @@ Click **Failed** or **Not supported** to read the explanation. The next action d
 
 </Frame>
 
+## If the documents don't load
+
+Documents lists folders and documents from two separate reads. When the documents cannot be loaded, Tale doesn't pass the folders off as everything there is:
+
+- The folders stay listed, and you can still open them. A notice above the table says the documents couldn't be loaded and offers **Try again**, which repeats the read without reloading the page.
+- The count below the table says it shows only the first items and that the rest couldn't be loaded. A search covers only what is listed.
+- If documents were already listed when a refresh failed, they stay, and the notice says the list may be incomplete or out of date.
+- While you retry, the rows stay on screen, and your search, filters and any open dialog are kept.
+- If nothing at all can be loaded, the table shows the error and **Try again** instead of the empty state.
+
+A folder that really holds no documents lists its subfolders without a notice. If **Try again** keeps failing, ask an administrator to check that Tale's services are running.
+
 ## Choose who can read it
 
 Library documents default to **Organization-wide**. Use **Assign team** in the row menu to restrict a document to the chosen teams: members of any of those teams can read it, and Owners and Admins always can. Unless you are an Owner or Admin, you can only choose teams you belong to. A document inside a team folder takes the folder's teams and cannot name a team outside them, and moving a document into such a folder applies the folder's teams. These restrictions also apply to knowledge retrieval; an agent cannot make an inaccessible document visible through search.
@@ -98,6 +110,12 @@ Starting a folder sync can also reorganize an earlier import. If the same source
 For Microsoft 365, choose **My OneDrive** or **SharePoint Sites**. Sync is available for personal OneDrive folders; SharePoint selections import once. For Google Drive, select from My Drive. Native Google Docs, Sheets, and Slides are skipped: export them to PDF or Office formats first.
 
 If a folder is too large to list completely, Tale refuses that import. Select smaller subfolders or use sync where supported. If the selected source folder or file is deleted, its mirror is removed and the sync ends.
+
+When an import ends, a notice reports the result. **Import completed** counts the files this import brought in together with those an earlier import had already brought in unchanged. If some files could not be imported, a warning such as **Imported 3 of 4 files** appears instead. When the first file that failed has a reason to show, such as a file larger than the upload limit, the warning names that file and the reason. If no file could be imported, the notice reads **Import failed**. If the picker is still open, import again to retry the files that failed. Files already imported are skipped.
+
+If access to your Microsoft 365 or Google Drive account ends during an import, for example because the connection was removed or expired, Tale opens **Reconnect Microsoft 365** or **Reconnect Google Drive** instead of a notice while the import picker is still open. The dialog says how many files were imported before access ended; those files are kept. Reconnect your account, then import the same files or folders again to bring in the rest. Files already imported are not imported twice.
+
+Closing the picker does not cancel an import already running. Its result appears in a notice without closing a picker you opened later or changing your new selection. If access ended, open the import again to reconnect your account.
 
 A sync runs about every 15 minutes, under the account of the member who set it up. A file added at the source shows up in its folder within that window and then indexes like an upload. When a run cannot reach the source, the folder row's **Source** cell replaces the circling arrows with a red warning sign whose tooltip reads **Sync failed**, or with a red unplugged plug reading **Reconnect needed** when that member's Microsoft 365 or Google Drive connection has expired. Select the icon to see the cause, when the failures began, and whose account the sync uses; the files synced so far stay in place. That member is also notified in the bell and by email: at once for an expired connection, otherwise once the sync has been failing for an hour. Reconnecting the account, which the dialog offers to that member, resumes the sync on its next run. Any member who can import documents can instead start a new sync import of the same item to run it under their own account. The notice clears with the next successful run.
 

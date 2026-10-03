@@ -37,12 +37,14 @@ After adding a person, assign the teams they need. A role alone does not put the
 
 | Role | Typical work | Organization administration |
 | --- | --- | --- |
-| **Owner** | All product and administration work | Includes transferring ownership and deleting the organization; deleting asks you to type the organization's name before the button enables. |
+| **Owner** | All product and administration work | Includes transferring ownership and deleting the organization, which also deletes its sandboxes and their files; deleting asks you to type the organization's name before the button enables. |
 | **Admin** | Manage people, services, policies, and the team's work | Full organization settings; cannot transfer ownership. |
 | **Developer** | Build agents, automations, and integrations | Technical settings such as providers, connectors, and API access; no member administration. |
-| **Editor** | Maintain content and operate day-to-day work | Content editing; workflow and connector resources are read-only. |
+| **Editor** | Maintain content and operate day-to-day work | Content editing; no access to **Automations**; connector resources are read-only. |
 | **Member** | Use chat, read resources shared with them, and create project tasks, working their own tasks with project agents | No organization administration; can submit message feedback. |
 | **Disabled** | No active access | Retains the membership record without granting permissions. |
+
+Only Owners, Admins, and Developers see **Automations**, in the navigation and in projects; anyone else who follows a link to an automation sees **Access denied**.
 
 People who are not Owners or Admins cannot open **Settings > Members**; they see their own role under [**Settings > Account > Your role**](/platform/member/preferences#role).
 
@@ -66,6 +68,6 @@ An Owner can choose **Transfer ownership** from another member's row menu. Read 
 
 ## Remove or recover access
 
-Use **Disabled** when access should stop while the membership remains. Use the row's **Delete** action to remove the membership from this organization. Review shared work and team responsibilities first; removing membership is different from a [data subject erasure request](/platform/admin/governance/data-subject-requests).
+Use **Disabled** when access should stop while the membership remains. Use the row's **Delete** action to remove the membership from this organization. Removing it also deletes the separate sandbox workspaces of the [agent runs the person started](/platform/projects/tasks#agent-runs-a-member-starts), with their files; **Disabled** keeps them. Review shared work and team responsibilities first; removing membership is different from a [data subject erasure request](/platform/admin/governance/data-subject-requests).
 
 If a member loses an authenticator or passkey, open **Edit** and use the relevant security controls. [Two-factor authentication](/platform/admin/two-factor-authentication) explains reset, recovery, and session consequences.

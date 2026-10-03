@@ -8,22 +8,26 @@
  * cluster, which is the one real simplification against `services/docs`.
  */
 
-import { statSync } from 'node:fs';
-
 import type {
   ArtifactRoute,
   ArtifactSection,
   CompileToDiskParams,
   OptionalPage,
 } from '@tale/ui/seo';
-import { TALE_GITHUB_URL, TALE_SITE_URL } from '@tale/ui/seo/globals';
+import {
+  TALE_DOCS_URL,
+  TALE_GITHUB_URL,
+  TALE_SITE_URL,
+} from '@tale/ui/seo/globals';
 
 import { listAllContent, type ContentRecord } from '../../scripts/walk-content';
 import { DEFAULT_UI_DOCS_SITE_URL } from '../site-url';
 
-export const UI_DOCS_SITE_TITLE = 'The Tale design system';
+export const UI_DOCS_SITE_TITLE = 'Tale UI: React component library';
+// Config-loading tools execute this module before Vite's YAML plugin is active.
+// build.test.ts holds these defaults and index.html to the English catalog.
 export const UI_DOCS_SITE_DESCRIPTION =
-  'Documentation for @tale/ui and @tale/marketing-ui — the components, tokens and patterns every Tale interface is built from.';
+  'Build apps and websites with MIT-licensed React components from Tale. Try the controls, explore the guides, and compose your own interface.';
 
 /** Site-relative URL for a slug. The home page is the only route outside
  *  `/docs`, and it carries no markdown body. */
@@ -46,15 +50,6 @@ function isNoindex(page: ContentRecord): boolean {
   return page.frontmatter.noindex === true;
 }
 
-function fileMtimeIso(path: string): string {
-  try {
-    return statSync(path).mtime.toISOString();
-  } catch (error) {
-    console.warn(`[ui-docs/seo] fileMtimeIso fallback for ${path}:`, error);
-    return new Date().toISOString();
-  }
-}
-
 function getString(
   fm: Record<string, string | boolean>,
   key: string,
@@ -68,9 +63,8 @@ function toRoute(page: ContentRecord): ArtifactRoute {
     url: pathFor(page.slug),
     title: getString(page.frontmatter, 'title') ?? page.slug,
     description: getString(page.frontmatter, 'description'),
-    // Filesystem mtime — a per-file `git log` across the tree is too slow for
-    // the on-demand walk.
-    lastModified: fileMtimeIso(page.filePath),
+    // Omit lastModified until content carries a reliable change date.
+    // Checkout mtimes and the build clock do not describe page updates.
   };
 }
 
@@ -98,9 +92,25 @@ export async function buildUiDocsSeo(): Promise<BuiltUiDocsSeo> {
     sectionMap.set(heading, list);
   }
 
-  const sections: ArtifactSection[] = [...sectionMap.entries()].map(
-    ([heading, routes]) => ({ heading, routes }),
-  );
+  const sections: ArtifactSection[] = [
+    {
+      heading: 'Home',
+      // The React landing page is indexable, but has no Markdown twin.
+      // Include it in the sitemap without advertising an absent index.md.
+      hideFromIndex: true,
+      routes: [
+        {
+          url: '/',
+          title: UI_DOCS_SITE_TITLE,
+          description: UI_DOCS_SITE_DESCRIPTION,
+        },
+      ],
+    },
+    ...[...sectionMap.entries()].map(([heading, routes]) => ({
+      heading,
+      routes,
+    })),
+  ];
   if (noindexRoutes.length > 0) {
     sections.push({
       heading: 'Unlisted',
@@ -128,7 +138,7 @@ export function uiDocsSiteUrl(): string {
 
 export function uiDocsOptionalPages(): OptionalPage[] {
   return [
-    { title: 'Tale documentation', url: `${TALE_SITE_URL}/docs` },
+    { title: 'Tale documentation', url: TALE_DOCS_URL },
     { title: 'GitHub', url: TALE_GITHUB_URL },
   ];
 }

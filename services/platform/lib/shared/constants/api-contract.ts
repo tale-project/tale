@@ -299,5 +299,50 @@
  * `MODEL_API_CONCURRENCY_EXCEEDED`, `MODEL_API_UNAVAILABLE` and
  * `MODEL_API_UPSTREAM_ERROR`. `GET /api/v1/me` answers
  * `capabilities.modelApi`.
+ *
+ * 3.8.0 — 2026-09-29: the project agent `tools` vocabulary gains
+ * `task_start_agent` — an agent's live run puts another agent of the same
+ * project to work on a task (assign, start, and a message the run addresses
+ * first), answering to whoever that run answers to. Additive: agents saved
+ * without it keep their grants.
+ *
+ * 3.9.0 — 2026-10-01: project agents answer `managed` — true for the
+ * organization's standard agent, which Tale sets up in a project without
+ * agents of its own under the new `standard_agent` governance policy and
+ * keeps in line with it. Saving one answers 409 `PROJECT_AGENT_MANAGED`;
+ * deleting it works as for any agent. A review relay that moves a task the
+ * standard agent holds to `in_progress` can answer `STANDARD_AGENT_OFF`
+ * (403) or `STANDARD_AGENT_UNAVAILABLE` (409). Additive.
+ *
+ * 3.10.0 — 2026-10-01: the project agent tools vocabulary gains
+ * `task_update_metadata`, an explicit priority and agent-assignment grant
+ * that starts no work. Existing agents keep their saved grants.
+ *
+ * 3.11.0 — 2026-10-02: the project-agent tools vocabulary gains
+ * `task_review`, an explicit independent native review grant. TaskReview
+ * reads carry a typed `reviewer`, the exact `implementationAgentId` and a
+ * local `evidenceRevision`; `requestedFor` remains the nullable person
+ * compatibility field. A relayed human approval of an agent-owned review
+ * answers 409 `TASK_AGENT_REVIEW_REQUIRED` until an eligible person takes
+ * it through an explicit handoff. No public agent-verdict endpoint is added.
+ *
+ * 3.12.0 — 2026-10-02: TaskReview reads add nullable
+ * `agentReviewBlockedReason`, a current diagnosis for a captured agent review.
+ * Source-less submissions and new human-policy reviews use the existing human
+ * chain; existing captured ownership changes only through explicit handoff.
+ *
+ * 3.13.0 — 2026-10-02: native task_start_agent accepts tagged
+ * resumeFrom:{kind:'review_repair',approvalId,runId} for one guarded repair
+ * of a native changes-requested decision. Native task_get adds nullable
+ * reviewDecision for the latest validated native receipt. No public REST
+ * repair operation, grant change or automatic verdict dispatch is added.
+ *
+ * 3.14.0 — 2026-10-03: a run's `waitingFor` gains `room`, an agent step
+ * whose start waits for sandbox room (its `detail` reads `room:<nodeId>`)
+ * where it read `agent` before; no one to page. Additive.
+ *
+ * 3.15.0 — 2026-10-03: native task_get agentRuns includes explicit
+ * retryPending, reusing the task card's native retry state without exposing
+ * error text or provider reset times. No public REST endpoint is added.
  */
-export const API_CONTRACT_VERSION = '3.7.0';
+export const API_CONTRACT_VERSION = '3.15.0';

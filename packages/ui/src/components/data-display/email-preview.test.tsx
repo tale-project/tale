@@ -132,6 +132,16 @@ describe('rewriteExternalImageSrcs', () => {
     expect(result).toContain(`/api/image-proxy?url=${encoded}`);
   });
 
+  it('proxies an image URL with non-ASCII characters instead of throwing', () => {
+    const html = '<img src="https://例子.com/图片.png">';
+    const result = rewriteExternalImageSrcs(html, 'http://localhost:3000');
+    expect(result).toBe(
+      `<img src="http://localhost:3000/api/image-proxy?url=${encodeURIComponent(
+        btoa('https://xn--fsqu00a.com/%E5%9B%BE%E7%89%87.png'),
+      )}">`,
+    );
+  });
+
   it('returns html unchanged when proxyBase is invalid', () => {
     const html = '<img src="https://external.com/img.jpg">';
     const result = rewriteExternalImageSrcs(html, '');
@@ -218,19 +228,24 @@ describe('splitQuotedContent', () => {
 });
 
 describe('EmailPreview', () => {
-  it('renders inline images when cidMap is provided', () => {
-    const html = '<p>Hello</p><img src="cid:logo@company" alt="Logo">';
-    const cidMap = { 'logo@company': 'https://storage.example.com/logo.png' };
+  it('renders an inline image from the cidMap URL itself, never through the image proxy', () => {
+    // The cidMap URL is a signed link to the caller's own storage; handing it
+    // to the proxy made every inline image a broken one.
+    const signed =
+      'https://storage.example.com/blobs/logo?X-Amz-Expires=900&X-Amz-Signature=abc';
+    const html =
+      '<p>Hello</p><img src="cid:logo@company" alt="Logo"><img src="https://tracker.example.com/pixel.png" alt="Remote">';
+    const cidMap = { 'logo@company': signed };
 
     render(<EmailPreview html={html} cidMap={cidMap} />);
 
-    const img = screen.getByAltText('Logo');
-    const encoded = encodeURIComponent(
-      btoa('https://storage.example.com/logo.png'),
-    );
-    expect(img).toHaveAttribute(
+    expect(screen.getByAltText('Logo')).toHaveAttribute('src', signed);
+    // A remote image in the same body still goes through the proxy.
+    expect(screen.getByAltText('Remote')).toHaveAttribute(
       'src',
-      `http://localhost:3000/api/image-proxy?url=${encoded}`,
+      `http://localhost:3000/api/image-proxy?url=${encodeURIComponent(
+        btoa('https://tracker.example.com/pixel.png'),
+      )}`,
     );
   });
 

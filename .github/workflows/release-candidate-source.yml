@@ -1,0 +1,59 @@
+name: Release candidate source
+
+# Called by the existing workflows, never a second test pipeline. Normal
+# events keep their original checkout ref; candidates must be commits on main.
+on:
+  workflow_call:
+    inputs:
+      candidate:
+        required: true
+        type: boolean
+      candidate_sha:
+        required: false
+        type: string
+    outputs:
+      sha:
+        value: ${{ jobs.source.outputs.sha }}
+      candidate_sha:
+        value: ${{ jobs.source.outputs.candidate_sha }}
+
+jobs:
+  source:
+    name: Resolve source
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: read
+    outputs:
+      sha: ${{ steps.source.outputs.sha }}
+      candidate_sha: ${{ steps.source.outputs.candidate_sha }}
+    steps:
+      - name: Resolve source
+        id: source
+        env:
+          IS_CANDIDATE: ${{ inputs.candidate }}
+          CANDIDATE_SHA: ${{ inputs.candidate_sha }}
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          if [ "$IS_CANDIDATE" = true ]; then
+            if [[ ! "$CANDIDATE_SHA" =~ ^[a-f0-9]{40}$ ]]; then
+              echo '::error::A release candidate must be a full 40-character commit SHA'; exit 1
+            fi
+            if ! STATUS=$(gh api "repos/${REPOSITORY}/compare/${CANDIDATE_SHA}...main?per_page=1" --jq .status); then
+              echo "::error::Could not compare release candidate ${CANDIDATE_SHA} with main"; exit 1
+            fi
+            if [ "$STATUS" != ahead ] && [ "$STATUS" != identical ]; then
+              echo "::error::Release candidate ${CANDIDATE_SHA} is not a commit on main (compare: ${STATUS:-unknown})"; exit 1
+            fi
+            {
+              echo "sha=${CANDIDATE_SHA}"
+              echo "candidate_sha=${CANDIDATE_SHA}"
+            } >> "$GITHUB_OUTPUT"
+          else
+            {
+              echo "sha=${GITHUB_SHA}"
+              echo 'candidate_sha='
+            } >> "$GITHUB_OUTPUT"
+          fi

@@ -1,6 +1,6 @@
 # Automations
 
-> **Prefix** `AUTO-` · **Reset** none · **Cost** 76 boxes
+> **Prefix** `AUTO-` · **Reset** none · **Cost** 78 boxes
 
 Exercise the draft→deploy→version automation surface: each automation is one
 workflow document under a name, with an append-only version history, at most
@@ -354,6 +354,8 @@ output:
       current step badged `automations.runs.timeline.current`) and a settings
       entry opening **{name} — settings** (`automations.settings.dialogTitle`);
       saving valid values toasts `automations.settings.saved` and survives reopen.
+      Signed in as a Member who works the task, the entry is absent: saving
+      writes the project's files, which stay with the project's editors.
 - [ ] `AUTO-F33` · **Metrics redirect + page** — Navigate to
       `/dashboard/{org}/automations/metrics?period=7d` → URL is rewritten to
       `/dashboard/{org}/settings/metrics/automations` keeping the query; the page
@@ -460,7 +462,7 @@ output:
       URL carries `eval-d-agent`. Name `发票提醒` → `Saved as:
       automation-<8 hex>`, **Next** enabled, the created automation is titled
       `发票提醒`. Save a new version from the canvas (no presentation of its
-      own) → the list still shows the typed name, never "Automation <hex>".
+      own) → the list still shows the typed name, never "Automation ‹hex›".
 - [ ] `AUTO-F43` · **Deep link to a missing version** — Open an existing
       automation's editor with `?version=99` → The breadcrumb and tab strip
       stay; the editor area reads `automations.editor.versionNotFound.title`
@@ -568,32 +570,49 @@ output:
       reload, and no run starts at the next minute. Turn **Enabled** on and
       **Save** → the banner and the streak line are gone, and the next
       failure counts from one.
-- [ ] `AUTO-F53` · **What a reader's list shows** — As a Member or Editor, open
-      **Automations** (use its direct URL when the navigation entry is hidden) →
-      only deployed automations are listed (no **Not
-      deployed** rows, no **Create automation** button); with none deployed
-      the empty state reads **No live automations**
-      (`automations.list.emptyReader.title`) with
-      `automations.list.emptyReader.description`. An Owner, Admin or Developer
-      in the same organization sees every automation, and an empty list tells
-      them `automations.list.empty.description` (use **Create automation**).
-      In a project whose only bound automation is an undeployed draft, the
-      Member's project tab strip has no **Automations** tab while the author's
-      does; once that automation is deployed the tab appears for the Member
-      and lists it.
+- [ ] `AUTO-F53` · **Readers get no Automations** — In a project with a
+      deployed bound automation that has run on a task, sign in as a Member,
+      then as an Editor, and open the org list, an automation's
+      `…/{slug}/runs` and the project's `…/automations` by their URLs →
+      each shows **Access denied** (`accessDenied.title`) with
+      `accessDenied.automations`, and the browser tab never names the
+      automation; the project's tab strip has no **Automations** tab
+      (`automations.title`). On the task, the run's details show its steps
+      without **Open the full run** (`tasks.run.openFull`), and the
+      automation's name in the timeline shows no **View automation**
+      (`tasks.timeline.viewWorkflow`); choose **Home** in the rail after the
+      project URL → the project's own page or the chat opens, never the
+      denial. An Owner, Admin or Developer gets every page, the tab and both
+      links.
 - [ ] `AUTO-F54` · **An agent node creates an image into its output** — With
       **Image generation** on ([governance.md](governance.md) GOV-F38), test-run
-      an automation whose `agent` node asks for "a landscape banner saved as
+      an automation whose `agent` node asks for "a 16:9 banner saved as
       banner.png" → The run detail's **Agent log**
       (`automations.runs.agentLog.title`) shows the `generate_image` call
-      answering `ok` with a path in the run's output folder (/agent/output),
-      the node's output lists `banner.png` (or the format the model returned)
-      among its `files`, and the usage page books the image under the person
-      who started the run and the automation's name; turn image generation off
-      and run it again →
-      the agent reports it has no image tool and the node's `files` hold no
-      image — env-gated: mark **ENVIRONMENT** without a runnable harness and an
-      image-capable credential.
+      answering `ok` with a path in the run's output folder (/agent/output)
+      and the image's `width` and `height`, a 3:2 landscape such as 1248 × 832
+      or 1536 × 1024 that matches the saved file, and the agent reports that
+      size rather than 16:9; the node's output lists `banner.png` (or the
+      format the model returned) among its `files`, and the usage page books
+      the image under the person who started the run and the automation's
+      name; turn image generation off and run it again → the agent reports it
+      has no image tool and the node's `files` hold no image — env-gated: mark
+      **ENVIRONMENT** without a runnable harness and an image-capable
+      credential.
+- [ ] `AUTO-F55` · **A schedule starts a project agent** — In a project with
+      an agent assigned to a task in **To do** (`tasks.status.todo`), save and
+      deploy an automation installed in that project whose only node has
+      `type: task.start_agent`, that task's id and `moveToInProgress: false`,
+      and bind a `* * * * *` schedule with **Enabled** on → within a minute
+      the run succeeds and its output reads `started: true` with a `runId`;
+      the task's timeline lists the agent run (`tasks.timeline.runLabel`) as
+      `tasks.agentRuns.trigger.automation` beside the automation's name, which
+      opens that run; the card is still in **To do**. While that agent run is
+      live, the next minute's run reads `started: false`,
+      `reason: already_running` with the same `runId`, and no second agent run
+      appears. Turn **Enabled** off and **Save** → no run starts at the next
+      minute. (Without a runnable harness the agent run itself fails at its
+      launch; the start and the coalesced occurrence still show.)
 
 ## Boundary & error tests
 
@@ -649,6 +668,14 @@ output:
       leaves the team project bound (check as the admin). The second
       automation is missing from the Developer's automations list and
       breadcrumb switcher instead of appearing as an organization one.
+- [ ] `AUTO-B10` · **Only a schedule or a person starts an agent** — Give the
+      automation from `AUTO-F55` a **Webhook** trigger instead and post `{}`
+      to its project URL; then remove it from the project under **Projects**
+      (`automations.bindings.title`) and **Test run** it live yourself →
+      the delivered run fails at the start node with "Only a schedule or a
+      person can start a project agent; a webhook or platform-event run
+      cannot", and the unbound run fails as "Task not found"; neither adds a
+      run to the task's timeline.
 
 ## Run liveness — chaos recovery (backend, scripted)
 

@@ -63,6 +63,17 @@ shows this setup for an app service.
 `expectPageRenders(page)` for basic page checks. They complement assertions about
 the actual task; a visible body alone does not establish a working workflow.
 
+## Crawl a built site
+
+`@tale/e2e/crawl` checks a built site through its own server. `startSiteServer({ cwd })` runs the
+service's `server.ts` on a free port. `crawlSite({ origin, aliases, seeds })` then follows every
+address the prerendered HTML and the text artifacts carry (`llms.txt`, the sitemap, the per-page
+Markdown), and reports each link that answers 4xx/5xx, each page link that only redirects, and each
+`#fragment` the target page renders no id for. `aliases` names the production origin, so absolute
+production URLs in canonical links, the sitemap and `llms.txt` are judged on the server under test
+instead of being skipped as external. The docs sites run it in `test:prerender`
+(`tests/prerender/links.test.ts`).
+
 ## Run and maintain tests
 
 From the repository root:

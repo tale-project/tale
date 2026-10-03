@@ -17,11 +17,13 @@ A task keeps a piece of work together: its purpose, owner, status, files, and th
 2. Write a **Title** that names the result, such as “Review the launch brief”.
 3. Use **Description** to explain what is needed and how the result will be checked. Add supporting files under **Attachments** when the work depends on them.
 4. Choose **Status**, **Priority**, and an **Assignee** as needed. New tasks default to **To do**; use **Backlog** for a proposal the team has not committed to.
-5. Click **Create task**. Open the new card to continue adding details.
+5. Click **Create task**. Open the new card to continue adding details. When an agent is the **Assignee**, **Create and start agent** creates the task and starts the agent in one step.
 
 A title can have up to 200 characters and a description up to 20,000; most emoji count as 2. A longer description, pasted in or left on a task by an earlier import, is not cut: the field names the limit and counts the length, and **Create task** or **Save** stays unavailable until you shorten it.
 
 Tale gives the task an identifier built from the project key, such as `WEB-1`. Use that identifier when referring to the work so similarly named tasks remain distinguishable.
+
+A conversation can start a task too: **Create task** in the chat's header opens the same dialog with your request, the chat's files, and a link back to it, and the chat then follows the task above its message box. See [Turn a chat into a task](/platform/chat/basics#create-task-from-chat).
 
 An automation built for tasks can also offer a template in **Create task**: its name then appears beside **Blank task** above the form. Choose it, enter the name the automation asks for, such as a quarter, and click **Create task**; the automation becomes the task's assignee. If a task already exists for that name, Tale opens it instead of creating a second one and says **A task for this subject already exists.** A Member can read and comment on it there, but change it only if it's theirs. Templates that set up folders or settings files in the project are offered to Editors and higher roles only.
 
@@ -39,15 +41,15 @@ A useful description states the input, the requested output, and a check for com
 
 ## Who can create and change tasks
 
-Every member who can open a project can create tasks in it. Editors and higher roles can change every task in the project. A Member can change the tasks they created and the tasks assigned to them, with the same controls an Editor has there:
+Every member who can open a project can create tasks in it. Editors and higher roles can change every task in the project. On tasks they created or that are assigned to them, a Member can:
 
-- Edit the title, description, attachments, subtasks, dates, priority, labels, reviewer, and repeat.
+- Edit the title, description, attachments, subtasks, dates, priority, labels, and repeat.
 - Assign the task to themselves, to another member of the project, to one of its agents, or to an automation built for tasks.
 - Start, guide, or stop the agent, including with an @mention in a comment.
 - Move the status, including accepting a result by moving the task to **Done**.
 - Archive the task, or restore it.
 
-The same goes for the subtasks under such a task, whoever added them, for example an agent that split up the work, so they never keep the Member from closing their task.
+The same goes for the subtasks under such a task, whoever added them, for example an agent that split up the work, so they never keep the Member from closing their task. Changing **Reviewer** requires project edit access, including on a task you created or own.
 
 On other people's tasks, a Member reads and comments; mentioning an agent there leaves an ordinary mention that starts nothing. Everyone can edit and delete their own comments on any task they can read, and Owners and Admins can also delete other people's comments.
 
@@ -64,17 +66,43 @@ A run started by someone who can't edit the project, such as a Member, keeps to 
 - Its platform tools change only that task and the subtasks under it: the agent creates new tasks only as subtasks of that task, uses only labels the project already has, and can't sync items from other systems into the project.
 - It can't save documents to the project. The files it produces still arrive on the task under **Deliverables**.
 - The run gets neither the agent's **Secrets** nor the token of an equipped GitHub connection. The agent learns which credentials were held back and is asked to say so in its report when the work needs them; an Editor or higher then has to start it. Connectors equipped on the agent keep working and act for the person who started the run.
-- It works in a workspace of its own, kept for that person's runs with this agent: files from runs that Editors started aren't there, and what this run leaves behind never reaches those runs. The same person's later runs with the agent find it again.
+- It works in a workspace of its own, kept for that person's runs with this agent: files from runs that Editors started aren't there, and what this run leaves behind never reaches those runs. The same person's later runs with the agent find it again, until Tale deletes it: when the person leaves the organization or the agent is deleted, or once no run has used it for the number of days the organization sets under [**Days without use**](/platform/admin/sandboxes#delete-unused-workspaces-automatically).
 
 The run can still read the project's tasks and knowledge, and it keeps these limits when an Editor guides it later. A run that an Editor or higher starts has the agent's full equipment, on any task. A Member's comment can change that: when the agent's runtime restarts to take in the comment, as [every runtime except Claude Code](/platform/agents/harnesses) does, the rest of the run counts as the Member's, with the same limits on its tools and credentials.
 
 ## Choose an owner and a reviewer
 
-**Assignee** identifies who does the work: a person, a project agent, or an automation available to the project. **Reviewer** identifies the person to notify when an agent’s result needs review. Only members who can edit the project can be reviewers.
+**Assignee** identifies who does the work: a person, a project agent, or an automation available to the project. **Reviewer** chooses a person, a project agent, or the **Project default** for checking the result. Changing that choice requires project edit access. A human reviewer also needs project edit access; an agent reviewer belongs to this project and must be different from the agent that produced the result.
 
 Assigning an agent and starting its run are separate choices. After assigning it, click **Start agent**, or move the task to **In progress**. Read [Task automation](/platform/projects/task-automation) before starting work that can use connected services or produce files.
 
-The reviewer receives the review request, but the designation does not reserve the decision exclusively to that person. Anyone else who can change the task can also accept the result: an Editor or higher, or the Member the task belongs to. When your organization requires an independent reviewer, though, the person who started the agent run under review can't accept its result, and when no agent run produced the result, the task's creator can't. A run a Member started on their own task then waits for an Editor or higher, while the Member can still accept a run an Editor started there.
+If the project has no agent of its own, **Assignee** offers **Standard agent**, the organization's agent for such projects. Choosing it sets the agent up in the project and assigns it the task; [The standard agent](/platform/projects/project-agents#standard-agent) explains how it works. Editors and higher roles can choose **Create an agent…** instead: **New agent** opens over the task, and the agent you create is assigned to it. When the standard agent can't run for them, for example because an admin has turned it off, Members are told to ask an Editor or Admin to add an agent on the project's **Agents** tab.
+
+<Frame caption="Assignee in a project without agents of its own offers the organization's standard agent.">
+
+![The Assignee list scrolled to its Agents section: Standard agent, described as The organization's agent for projects without their own, then Create an agent…, above the footer Until this project has agents of its own, the organization's standard agent takes its tasks.](/images/platform/project-task-standard-agent.webp)
+
+</Frame>
+
+For a review assigned to a person, the named reviewer receives the request without being the only person allowed to accept it. Anyone else who can change the task can also accept the result: an Editor or higher, or the Member the task belongs to. When your organization requires an independent reviewer, the person who started the agent run under review cannot accept its result; when no agent run produced the result, the task's creator cannot. Required human competences still apply. A review assigned to an agent needs that agent's decision, or an explicit transfer to an eligible person before a human can approve it.
+
+If the organization’s review policy cannot be read or is invalid, human approval is refused, including after a review is transferred from an agent to a person. An organization administrator must restore valid policy configuration before approval can succeed. Asking for changes or withdrawing a review keeps its existing behavior.
+
+### Set a project review default {#review-default}
+
+On the project's **General** tab, open **Task reviews** and choose **Default reviewer**, then save the project changes. The initial **Person** choice uses the task creator, then the project creator, if they can edit the project. Choose an independent project agent to route new reviews to it. This setting neither starts the agent nor grants its review permission; [Set up an independent reviewer](/platform/projects/task-automation#agent-review) covers those steps.
+
+Tasks with **Project default** follow this choice when a new review starts. A task with an explicitly named person or agent keeps that choice. Reviews already waiting retain their recorded reviewer even if the project default changes. If someone changes the default while you are editing, discard the stale draft and choose again.
+
+An agent default applies only when a native project-agent run produced the result and the organization does not require human independence or competence records. A person or automation submitting work without such a run uses the human review chain. Saving an agent choice requires its task review permission; a task cannot select its own implementation agent. A captured review never changes owner automatically after a grant, assignment or policy changes.
+
+### Transfer a pending review {#transfer-review}
+
+Open the task and read **Current review** below **Reviewer**: it names who owns the waiting review, which can differ from the current project default. Choosing another reviewer also transfers that pending review, without changing the assignee or starting a run. Choose **Project default** to hand it to the project's current default. If the reviewer or result changed since the task was read, the transfer is refused; check the refreshed review before choosing again.
+
+An agent can review only a completed project-agent result from a different implementation agent. Changing the task's assignee does not change who produced that result. A live run or open question can prevent a transfer to an agent. For work without a supported completed agent run, or a review requiring human independence or competence records, choose an eligible person. If an agent is unavailable or lacks the review permission, the task shows that reason; it does not silently send the review to you.
+
+The current review also explains self-review, changed implementation ownership, and unavailable policy. Restore the indicated condition or transfer it explicitly; settlement still records the result. A repeated task retains an explicit agent reviewer even if that agent was deleted or lost its grant, so repair that choice instead of silently inheriting a different reviewer.
 
 ## Use statuses to communicate progress
 
@@ -85,8 +113,8 @@ Change **Status** in the task details, or drag a card to another column on **Boa
 | **Backlog** | Proposed work that has not been committed to. |
 | **To do** | Work ready to be picked up. |
 | **In progress** | Work is underway. Moving an agent-owned task here starts its run. |
-| **In review** | A result is waiting for a person to check it. |
-| **Done** | A person has accepted the completed work. |
+| **In review** | A result is waiting for its human or agent reviewer. |
+| **Done** | The completed work has been accepted. |
 | **Cancelled** | The work is no longer going ahead. |
 
 For an agent-owned task, changing status can start or cancel execution. Read the action hint before moving it. An agent reports back at **In review**; it cannot mark its own work **Done**.
@@ -99,7 +127,9 @@ Typing `@` in a comment opens the mention picker. A mention of an assigned agent
 
 Mentions in the task description work the same way when you save the task: the people you name are notified, and a named agent is steered or starts a run as described above. A run it starts moves the task to **In progress**, whichever column you created it in. When you edit the description later, only the mentions you add take effect. Rewording the text around an existing mention notifies no one again. The agent reads the description as it is when its run starts, so an edit you make while the run is still waiting is the version it works from.
 
-Use **Subtasks** to split work that has separately checkable results. A subtask names its parent at the top of its details (**Part of …**); click it to go back up. A parent task cannot close while its subtasks remain open. **Dependencies** shows which tasks block this task and which it blocks; circular dependencies are refused.
+Use **Subtasks** to split work that has separately checkable results. A subtask names its parent at the top of its details (**Part of …**); click it to go back up. While any of its subtasks is still open, a parent task cannot move to **Done** or **Cancelled**; every other status stays available, **To do** included. **Dependencies** shows which tasks block this task and which it blocks; circular dependencies are refused.
+
+When you change a field, the task's **Activity** shows its value before and after. A field you clear shows what is left, such as **No due date** or **Unassigned**, rather than its old value alone. Titles, descriptions, labels, and file names appear exactly as they were written, even when the text is a status name such as `done`. Statuses, priorities, dates, and the words for an empty field appear in your language.
 
 ## Repeat a task
 
@@ -114,7 +144,7 @@ Click **Repeat** below **Due date**, in the task's details or in **Create task**
 
 <Frame caption="Choose a repeat in the task's details; the preview lists its next due dates.">
 
-![The Repeat menu of the task Sign off the launch checklist lists Never, Daily, Every weekday, Weekly on Tuesday (checked), Monthly on day 29, Yearly on Sep 29 and Custom, with the next due dates and the option to create the next task on the due date.](/images/platform/project-task-repeat.webp)
+![The Repeat menu of the task Sign off the launch checklist lists Never, Daily, Every weekday, weekly, monthly and yearly options named after the due date, with the weekly one checked, and Custom, above the next due dates and the option to create the next task on the due date.](/images/platform/project-task-repeat.webp)
 
 </Frame>
 
@@ -160,7 +190,7 @@ Point at **Repeat**, or move the keyboard focus to it, to read why it is locked:
 
 ## Review the result before closing
 
-For a human-owned task, compare the work with the description’s completion check. For agent work, read the report in the task’s comments and inspect any produced files. A finished run means the agent has stopped working, not that a person has accepted the result.
+For a human-owned task, compare the work with the description’s completion check. For agent work, read the report in the task’s comments and inspect any produced files. A finished run records that the agent has stopped working. Check the recorded review decision to see whether the result was accepted.
 
 Move the task to **Done** when the result meets the requirement. If an agent needs to revise it, add specific feedback and mention that agent. [Task automation](/platform/projects/task-automation) explains retries, rework, and cancellation.
 
@@ -178,6 +208,12 @@ Move the task to **Done** when the result meets the requirement. If an agent nee
 ## Find work that needs attention
 
 Use **Filter** to narrow the board, or switch to **List** to scan rows. Keep proposals in [Backlog](/platform/projects/backlog) until they are ready to start; use labels for distinctions that do not need another status.
+
+**Search tasks** narrows the board together with **Filter**, and every task that matches both appears, however many there are. A search finds tasks whose title, description, or identifier, such as `WEB-12`, contains each word you type, and tasks with a comment that contains them all. The board holds up to 2,000 tasks. In a larger project, a note says that only the first 2,000 are shown; search to reach the others.
+
+If the tasks can't be loaded, the board says so instead of showing empty columns, and your search and filters stay as they are. Choose **Try again** to load them. When a refresh fails, the tasks already on screen stay, with a note that they are shown as they were last loaded. A note also tells you when dependencies or agent and review activity can't be loaded, because blocked tasks, running agents, open questions, and pending reviews may then not be marked. **Try again** in a note reloads only what failed.
+
+With the keyboard, press **Enter** on **Filter**: the panel opens on its first filter, **Assignee**. Press **Enter** to expand it and **Tab** to reach its options. The arrow keys choose one, and the board follows at once. **Space** chooses the option the focus is on, and clears it when it is already chosen. **Tab** moves on to the next filter, and **Escape** closes the panel.
 
 In **Board** and **List**, press **Tab** until the task title is focused, then press **Enter** to open the task.
 

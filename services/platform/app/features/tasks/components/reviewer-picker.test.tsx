@@ -1,5 +1,9 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
+import type {
+  TaskReviewer,
+  ProjectTaskReviewer,
+} from '@tale/shared/schemas/task-review';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { render, screen } from '@/tests/utils/render';
@@ -9,10 +13,10 @@ import { ReviewerPicker } from './reviewer-picker';
 
 vi.mock('@tale/ui/i18n/client', () => ({
   useT: (ns: string) => ({
-    t: (key: string) => `${ns}.${key}`,
+    t: (key: string, values?: { reviewer?: string }) =>
+      `${ns}.${key}${values?.reviewer ? ': ' + values.reviewer : ''}`,
   }),
 }));
-
 const members: AssignableActor[] = [
   {
     type: 'user',
@@ -37,122 +41,169 @@ const members: AssignableActor[] = [
   },
   { type: 'user', id: 'user-4', name: 'Dan', email: 'dan@example.com' },
 ];
-
-/** Whether the project's audience has loaded (see `useAssignableActors`). */
+const agents: AssignableActor[] = [
+  { type: 'agent', id: 'worker', name: 'Worker', tools: ['task_review'] },
+  {
+    type: 'agent',
+    id: 'reviewer',
+    name: 'Independent reviewer',
+    tools: ['task_review'],
+  },
+  { type: 'agent', id: 'drafter', name: 'Drafting agent', tools: [] },
+];
 let scopeReady = true;
-
+let agentsLoading = false;
 vi.mock('../hooks/use-actor-directory', () => ({
   useAssignableActors: () => ({
     assignableMembers: members,
+    assignableAgents: agents,
     scopeReady,
+    agentsLoading,
     currentUserId: 'user-2',
-    resolveActor: (_type: string, id: string) => ({
-      type: 'user',
+    resolveActor: (type: string, id: string) => ({
+      type,
       id,
-      name: members.find((m) => m.id === id)?.name ?? id,
-      isAgent: false,
+      name:
+        [...members, ...agents].find((actor) => actor.id === id)?.name ?? id,
+      isAgent: type === 'agent',
     }),
   }),
 }));
+const inherited: TaskReviewer = { kind: 'inherit' };
+const humanDefault: ProjectTaskReviewer = { kind: 'human_default' };
+const base = {
+  organizationId: 'org-1',
+  projectId: 'project-1',
+  reviewer: inherited,
+  projectReviewer: humanDefault,
+};
 
 describe('ReviewerPicker', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     scopeReady = true;
+    agentsLoading = false;
   });
 
-  it('lists only members holding an editor-level role, current user first', async () => {
-    const { user } = render(
-      <ReviewerPicker organizationId="org-1" onChange={vi.fn()} />,
-    );
-
+  it('offers scoped editors and agents, with a separate inherited choice', async () => {
+    const { user } = render(<ReviewerPicker {...base} onChange={vi.fn()} />);
     await user.click(
       screen.getByRole('button', { name: 'tasks.fields.reviewer' }),
     );
-
-    expect(screen.getByText('Alex')).toBeInTheDocument();
-    expect(screen.getByText('Bea')).toBeInTheDocument();
-    // Read-only member and role-less entries are not designation candidates.
+    expect(screen.getByRole('option', { name: /Alex/ })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: /Bea/ })).toBeInTheDocument();
+    expect(
+      screen.getByRole('option', { name: /Independent reviewer/ }),
+    ).toBeInTheDocument();
     expect(screen.queryByText('Cara')).not.toBeInTheDocument();
     expect(screen.queryByText('Dan')).not.toBeInTheDocument();
-    // The eligibility hint explains the shortened list.
-    expect(screen.getByText('tasks.reviewer.editorsOnly')).toBeInTheDocument();
+    expect(screen.getByText('tasks.reviewer.routingHint')).toBeInTheDocument();
   });
 
-  it('lists nobody until the project audience has loaded', async () => {
-    // Until then the members are org-wide, editors outside a team-restricted
-    // project included — the server would refuse any of them.
+  it('does not expose unscoped people or agents while project access is loading', async () => {
     scopeReady = false;
-    const { user } = render(
-      <ReviewerPicker
-        organizationId="org-1"
-        projectId="project-1"
-        onChange={vi.fn()}
-      />,
-    );
-
+    const { user } = render(<ReviewerPicker {...base} onChange={vi.fn()} />);
     await user.click(
       screen.getByRole('button', { name: 'tasks.fields.reviewer' }),
     );
-
     expect(screen.queryByText('Alex')).not.toBeInTheDocument();
-    expect(screen.queryByText('Bea')).not.toBeInTheDocument();
+    expect(screen.queryByText('Independent reviewer')).not.toBeInTheDocument();
     expect(screen.getByText('common.actions.loading')).toBeInTheDocument();
+  });
+
+  it('keeps agent choices unavailable until the project roster is loaded', async () => {
+    agentsLoading = true;
+    const { user } = render(<ReviewerPicker {...base} onChange={vi.fn()} />);
+    await user.click(
+      screen.getByRole('button', { name: 'tasks.fields.reviewer' }),
+    );
+    expect(screen.getByRole('option', { name: /Alex/ })).toBeInTheDocument();
     expect(
-      screen.queryByText('common.search.noResults'),
+      screen.queryByRole('option', { name: /Independent reviewer/ }),
     ).not.toBeInTheDocument();
   });
 
-  it('designates on select and clears via the footer action', async () => {
+  it('emits typed people, agent and inherited selections', async () => {
     const onChange = vi.fn();
-    const first = render(
-      <ReviewerPicker organizationId="org-1" onChange={onChange} />,
-    );
-    await first.user.click(
-      screen.getByRole('button', { name: 'tasks.fields.reviewer' }),
-    );
-    await first.user.click(screen.getByText('Alex'));
-    expect(onChange).toHaveBeenCalledWith('user-1');
-    first.unmount();
-
-    onChange.mockClear();
-    const second = render(
-      <ReviewerPicker
-        organizationId="org-1"
-        reviewerUserId="user-1"
-        onChange={onChange}
-      />,
-    );
-    await second.user.click(
-      screen.getByRole('button', { name: 'tasks.fields.reviewer' }),
-    );
-    await second.user.click(screen.getByText('tasks.reviewer.clear'));
-    expect(onChange).toHaveBeenCalledWith(undefined);
+    const { user } = render(<ReviewerPicker {...base} onChange={onChange} />);
+    for (const [name, expected] of [
+      [/Alex/, { kind: 'user', userId: 'user-1' }],
+      [/Independent reviewer/, { kind: 'agent', agentId: 'reviewer' }],
+      [/tasks.reviewer.projectDefaultHuman/, { kind: 'inherit' }],
+    ] as const) {
+      await user.click(
+        screen.getByRole('button', { name: 'tasks.fields.reviewer' }),
+      );
+      await user.click(screen.getByRole('option', { name }));
+      expect(onChange).toHaveBeenLastCalledWith(expected);
+    }
   });
 
-  it('keeps the clear action out of an undesignated picker', async () => {
+  it('blocks both direct and inherited self-review and supports keyboard selection', async () => {
+    const onChange = vi.fn();
     const { user } = render(
-      <ReviewerPicker organizationId="org-1" onChange={vi.fn()} />,
+      <ReviewerPicker
+        {...base}
+        projectReviewer={{ kind: 'agent', agentId: 'worker' }}
+        implementationAgentId="worker"
+        onChange={onChange}
+      />,
     );
     await user.click(
       screen.getByRole('button', { name: 'tasks.fields.reviewer' }),
     );
-    expect(screen.queryByText('tasks.reviewer.clear')).not.toBeInTheDocument();
+    expect(screen.getByRole('option', { name: /^Worker/ })).toHaveAttribute(
+      'aria-disabled',
+      'true',
+    );
+    expect(
+      screen.getByRole('option', { name: /tasks.reviewer.projectDefault:/ }),
+    ).toHaveAttribute('aria-disabled', 'true');
+    await user.type(screen.getByRole('combobox'), 'Independent');
+    await user.keyboard('{Enter}');
+    expect(onChange).toHaveBeenCalledWith({
+      kind: 'agent',
+      agentId: 'reviewer',
+    });
   });
 
-  it('renders a bare avatar without a menu when disabled', () => {
+  it('greys an agent without the review grant, directly and as the inherited default', async () => {
+    const { user } = render(
+      <ReviewerPicker
+        {...base}
+        projectReviewer={{ kind: 'agent', agentId: 'drafter' }}
+        onChange={vi.fn()}
+      />,
+    );
+    await user.click(
+      screen.getByRole('button', { name: 'tasks.fields.reviewer' }),
+    );
+    expect(
+      screen.getByRole('option', { name: /^Drafting agent/ }),
+    ).toHaveAttribute('aria-disabled', 'true');
+    expect(
+      screen.getByRole('option', { name: /tasks.reviewer.projectDefault:/ }),
+    ).toHaveAttribute('aria-disabled', 'true');
+    expect(
+      screen.getAllByText('tasks.reviewer.agentPermissionRequired'),
+    ).toHaveLength(2);
+    expect(
+      screen.getByRole('option', { name: /Independent reviewer/ }),
+    ).not.toHaveAttribute('aria-disabled', 'true');
+  });
+
+  it('names the configured reviewer without an edit button for read-only users', () => {
     render(
       <ReviewerPicker
-        organizationId="org-1"
-        reviewerUserId="user-1"
+        {...base}
+        reviewer={{ kind: 'agent', agentId: 'reviewer' }}
         onChange={vi.fn()}
         disabled
-        afterTrigger={<span>Alex</span>}
       />,
     );
     expect(
       screen.queryByRole('button', { name: 'tasks.fields.reviewer' }),
     ).not.toBeInTheDocument();
-    expect(screen.getByText('Alex')).toBeInTheDocument();
+    expect(screen.getByText('Independent reviewer')).toBeInTheDocument();
   });
 });

@@ -6,17 +6,20 @@ import { MarketingButton } from './button';
 import { MarketingExternalLink } from './external-link';
 import { MarketingLink } from './link';
 
-const ctaGroupVariants = cva('flex flex-wrap items-center gap-3', {
-  variants: {
-    align: {
-      center: 'justify-center',
-      start: 'justify-start',
+const ctaGroupVariants = cva(
+  'flex w-full flex-wrap items-center gap-3 sm:w-auto',
+  {
+    variants: {
+      align: {
+        center: 'justify-center',
+        start: 'justify-start',
+      },
+    },
+    defaultVariants: {
+      align: 'center',
     },
   },
-  defaultVariants: {
-    align: 'center',
-  },
-});
+);
 
 interface CtaGroupProps extends VariantProps<typeof ctaGroupVariants> {
   children?: ReactNode;
@@ -77,7 +80,7 @@ function CtaActionButton({
 }
 
 /**
- * Standard two-CTA pair. First action is ink primary; second is inset.
+ * Standard two-CTA pair. First action is ink primary; second is outlined.
  * Either side may be an internal `to` or external `href`.
  */
 export function CtaPair({

@@ -26,7 +26,13 @@ import {
   useCloudImportAuthorizationStatus,
   useGoogleDriveFiles,
 } from '../hooks/queries';
+import { useCloudImportInteraction } from '../hooks/use-cloud-import-interaction';
 import { useListingFailureToast } from '../hooks/use-listing-failure-toast';
+import {
+  readCloudImportAnswer,
+  type CloudImportInterruption,
+} from '../lib/cloud-import-outcome';
+import { CloudListingError } from '../lib/cloud-listing-error';
 import { GoogleDisconnectButton } from './google-disconnect-button';
 import { OneDriveFileTable } from './onedrive-import/onedrive-file-table';
 import { OneDriveSettingsStage } from './onedrive-import/onedrive-settings-stage';
@@ -39,11 +45,19 @@ import type {
 } from './onedrive-import/types';
 import { isFile, isFolder } from './onedrive-import/types';
 
+/** A lapsed grant, in the words the doors answer it with — on a listing's
+ *  error, or on an import's answer, which stopped where access ended. */
 function isCloudImportAuthError(error: unknown): boolean {
-  if (!(error instanceof Error)) return false;
+  const message =
+    typeof error === 'string'
+      ? error
+      : error instanceof Error
+        ? error.message
+        : undefined;
+  if (message === undefined) return false;
   return (
-    error.message.includes('Google Drive is not authorized') ||
-    error.message.includes('Cloud import is not authorized')
+    message.includes('Google Drive is not authorized') ||
+    message.includes('Cloud import is not authorized')
   );
 }
 
@@ -58,8 +72,9 @@ interface GoogleDriveImportDialogProps {
   restoreFocusRef?: RefObject<HTMLElement | null>;
   organizationId: string;
   onSuccess?: () => void;
-  /** Hand off to the compact connect dialog — never shrink this wide picker. */
-  onRequireConnect?: () => void;
+  /** Hand off to the compact connect dialog — never shrink this wide picker.
+   *  An import that access ended part-way passes how far it got. */
+  onRequireConnect?: (interruption?: CloudImportInterruption) => void;
 }
 
 export function GoogleDriveImportDialog({
@@ -73,6 +88,11 @@ export function GoogleDriveImportDialog({
 }: GoogleDriveImportDialogProps) {
   const { t } = useT('documents');
   const { t: tCommon } = useT('common');
+  const captureInteraction = useCloudImportInteraction(
+    open,
+    organizationId,
+    destinationFolderId,
+  );
 
   const { mutateAsync: importFilesAction, isPending: isImporting } =
     useImportGoogleDriveFiles();
@@ -177,6 +197,27 @@ export function GoogleDriveImportDialog({
     onRequireConnect?.();
   }, [t, onOpenChange, onRequireConnect]);
 
+  // A dismissed import reports without replacing a newer picker.
+  const handOffInterruptedImport = (
+    interruption: CloudImportInterruption,
+    isCurrentInteraction: boolean,
+  ) => {
+    if (isCurrentInteraction && onRequireConnect) {
+      (onOpenChange ?? noop)(false);
+      onRequireConnect(interruption);
+      return;
+    }
+    toast({
+      variant: interruption.imported > 0 ? 'warning' : 'destructive',
+      title: t('googledrive.reconnect'),
+      description: t('cloudImport.importInterrupted', {
+        provider: 'Google Drive',
+        imported: interruption.imported,
+        total: interruption.total,
+      }),
+    });
+  };
+
   const buildItemPath = (item: OneDriveApiItem): string => {
     const pathParts: string[] = [];
     folderPath.forEach((folder) => {
@@ -280,9 +321,12 @@ export function GoogleDriveImportDialog({
         });
         // A folder that cannot be listed whole cannot be imported whole:
         // stop here (the caller reports it) instead of importing the rest
-        // and calling that a success — the OneDrive picker's posture.
+        // and calling that a success — the OneDrive picker's posture. The
+        // provider's answer is for the log, never for the toast.
         if (!folderResult.success || !folderResult.items) {
-          throw new Error(folderResult.error || t('googledrive.loadFailed'));
+          throw new CloudListingError(
+            folderResult.error || 'Failed to load the folder',
+          );
         }
         if (folderResult.truncated) {
           throw new Error(
@@ -315,7 +359,9 @@ export function GoogleDriveImportDialog({
   };
 
   const handleImport = async () => {
+    const isCurrentInteraction = captureInteraction();
     setIsSubmitting(true);
+    let started: { dismiss: () => void } | undefined;
     try {
       const selectedList = Array.from(selectedItems.values());
       const directlySelectedIds = new Set(selectedList.map((i) => i.id));
@@ -344,7 +390,7 @@ export function GoogleDriveImportDialog({
         return;
       }
 
-      toast({
+      started = toast({
         title:
           importType === 'one-time'
             ? t('googledrive.importStarted')
@@ -363,7 +409,13 @@ export function GoogleDriveImportDialog({
         ...(destinationFolderId !== undefined && { destinationFolderId }),
       });
 
-      if (result.success) {
+      const outcome = readCloudImportAnswer(result, isCloudImportAuthError);
+      if (outcome.kind === 'interrupted') {
+        started.dismiss();
+        handOffInterruptedImport(outcome.interruption, isCurrentInteraction());
+        return;
+      }
+      if (outcome.kind === 'completed') {
         toast({
           variant: 'success',
           title:
@@ -373,34 +425,98 @@ export function GoogleDriveImportDialog({
           description:
             importType === 'one-time'
               ? t('googledrive.filesImportedCount', {
-                  count: result.successCount,
-                  total: result.totalFiles,
+                  count: outcome.imported,
+                  total: outcome.total,
                 })
               : t('googledrive.filesSyncedCount', {
-                  count: result.successCount,
-                  total: result.totalFiles,
+                  count: outcome.imported,
+                  total: outcome.total,
                 }),
         });
-        setSelectedItems(new Map());
-        onSuccess?.();
-      } else {
+        if (isCurrentInteraction()) {
+          setSelectedItems(new Map());
+          onSuccess?.();
+        }
+        return;
+      }
+      // What each file failed on is the backend's own English — often the
+      // provider's raw answer: the log keeps it. The toast names the first
+      // failed file only when its failure has words a person can read.
+      console.warn(
+        'Google Drive import did not complete:',
+        result.error,
+        result.results.filter((row) => row.status === 'error'),
+      );
+      const failedFile =
+        outcome.failure === undefined
+          ? undefined
+          : t('cloudImport.failedFileDetail', {
+              name: outcome.failure.name,
+              reason: outcome.failure.reason,
+            });
+      if (outcome.kind === 'partial') {
+        // Some files came in: a warning, never an error that hides them.
         toast({
+          variant: 'warning',
           title:
             importType === 'one-time'
-              ? t('googledrive.importFailed')
-              : t('googledrive.syncFailed'),
-          description: result.error || tCommon('errors.generic'),
-          variant: 'destructive',
+              ? t('cloudImport.importedPartial', {
+                  imported: outcome.imported,
+                  total: outcome.total,
+                })
+              : t('cloudImport.syncedPartial', {
+                  imported: outcome.imported,
+                  total: outcome.total,
+                }),
+          description: failedFile,
         });
+        return;
       }
+      toast({
+        variant: 'destructive',
+        title:
+          importType === 'one-time'
+            ? t('googledrive.importFailed')
+            : t('googledrive.syncFailed'),
+        description:
+          failedFile ??
+          (importType === 'one-time'
+            ? t('googledrive.filesImportedCount', {
+                count: 0,
+                total: outcome.total,
+              })
+            : t('googledrive.filesSyncedCount', {
+                count: 0,
+                total: outcome.total,
+              })),
+      });
     } catch (error) {
-      console.error('Failed to import from Google Drive:', error);
+      // Access that ended while the selected folders were listed: nothing
+      // was imported yet. Only the current picker hands off to Reconnect.
+      if (isCloudImportAuthError(error)) {
+        console.warn('Google Drive import stopped: access ended.');
+        started?.dismiss();
+        handOffInterruptedImport({ imported: 0 }, isCurrentInteraction());
+        return;
+      }
+      // A folder the provider would not list carries its raw answer, in
+      // English: the log keeps it, and the toast says only that the import
+      // failed. A refusal keeps its words, and so does a folder too large
+      // to import whole.
+      const unworded = error instanceof CloudListingError;
+      if (unworded) {
+        console.warn('Google Drive import listing failed:', error.message);
+      } else {
+        console.error('Failed to import from Google Drive:', error);
+      }
       toast({
         title:
           importType === 'one-time'
             ? t('googledrive.importFailed')
             : t('googledrive.syncFailed'),
-        description: failureDetail(error) ?? tCommon('errors.generic'),
+        description: unworded
+          ? tCommon('errors.generic')
+          : (failureDetail(error) ?? tCommon('errors.generic')),
         variant: 'destructive',
       });
     } finally {

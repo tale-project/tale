@@ -13,7 +13,7 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
-import { DOCUMENT_SKILL_SLUGS } from '@/app/features/projects/lib/document-skills';
+import { DOCUMENT_SKILL_SLUGS } from '@/lib/shared/document-skills';
 
 const BUILTIN_SKILLS = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),

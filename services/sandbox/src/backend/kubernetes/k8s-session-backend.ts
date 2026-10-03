@@ -17,12 +17,16 @@ import { waitForRunnerd } from '../../session/runnerd-client.ts';
 import { RUNNERD_PORT } from '../../session/runnerd-protocol.ts';
 import { deriveRunnerdToken } from '../../session/session-naming.ts';
 import type { SpawnerConfig } from '../../types.ts';
+import { ID_ALPHABET_RE } from '../../wire.ts';
 import {
   SessionIncarnationChangedError,
   type BackendSession,
+  type BackendWorkspace,
   type CreateSessionResult,
+  type OrganizationTeardownResult,
   type SessionBackend,
   type SessionSpec,
+  type WorkspaceDeletion,
 } from '../types.ts';
 import {
   apiTimeout,
@@ -39,6 +43,10 @@ import {
 } from './k8s-session-pod-spec.ts';
 
 const SESSION_LABEL_SELECTOR = 'tale.sandbox-session=1';
+/** Label selecting every session's workspace PVC. */
+const WORKSPACE_LABEL = 'tale.sandbox-session-ws';
+const SESSION_ID_ANNOTATION = 'tale.dev/session-id';
+const ORGANIZATION_ID_ANNOTATION = 'tale.dev/organization-id';
 /** Pod annotation carrying the durable "always-on" pin (see setPinned). */
 const PINNED_ANNOTATION = 'tale.dev/pinned';
 
@@ -50,6 +58,10 @@ function conflictError(sessionId: string, cause: unknown): Error {
     { cause },
   );
 }
+
+/** Margin past a create's budget before a Pod-less Secret counts as an
+ * orphan rather than a peer replica's create in flight. */
+const ORPHAN_SECRET_SLACK_MS = 60_000;
 
 export class KubernetesSessionBackend implements SessionBackend {
   readonly kind = 'kubernetes' as const;
@@ -72,7 +84,11 @@ export class KubernetesSessionBackend implements SessionBackend {
     // A pre-existing workspace PVC means this is a RESUME of a stopped session.
     // A failed create here must NOT delete that PVC (it holds the user's
     // preserved data) — stop instead. Fresh creates clean up fully.
-    const preexisting = await this.workspacePvcExists(spec.sessionId);
+    // Only agent sessions keep a workspace volume; a crawler render's
+    // workspace lives and dies with its Pod (k8s-session-pod-spec.ts).
+    const durable = spec.profile === 'agent';
+    const preexisting =
+      durable && (await this.workspacePvcExists(spec.sessionId));
     // On a resume (preexisting PVC) a Pod that died out-of-band can still hold
     // the deterministic Pod/Secret name and would 409 the create below — one
     // wasted, user-visible failed turn before the failed-create cleanup reaps
@@ -81,7 +97,9 @@ export class KubernetesSessionBackend implements SessionBackend {
     // failed-create cleanup envelope remains the backstop for anything this
     // misses.
     if (preexisting) await this.reapTerminalPod(spec.sessionId);
-    await this.ensureWorkspacePvc(spec.sessionId);
+    if (durable) {
+      await this.ensureWorkspacePvc(spec.sessionId, spec.organizationId);
+    }
 
     const secret: V1Secret = {
       apiVersion: 'v1',
@@ -99,13 +117,29 @@ export class KubernetesSessionBackend implements SessionBackend {
           : {}),
       },
     };
-    try {
-      await withRetry('create-session-secret', () =>
+    const createSecret = () =>
+      withRetry('create-session-secret', () =>
         this.client.core.createNamespacedSecret(
           { namespace: this.cfg.k8s.namespace, body: secret },
           apiTimeout(),
         ),
       );
+    try {
+      try {
+        await createSecret();
+      } catch (err) {
+        if (httpStatusCode(err) !== 409) throw err;
+        // A first attempt that timed out client-side can still have been
+        // stored: the Secret under the name is then this create's own, and
+        // the create goes on to its Pod.
+        if (!(await this.isOwnSecret(spec.sessionId, spec.createdAtMs))) {
+          // A Secret whose Pod is long gone (deleted under the spawner by a
+          // node drain or PodGC) would 409 every create of this session for
+          // good: remove that orphan and try once more.
+          if (!(await this.removeOrphanSecret(spec.sessionId))) throw err;
+          await createSecret();
+        }
+      }
     } catch (err) {
       // A 409 means the deterministic Secret name is TAKEN — a peer replica's
       // concurrent create (the route's `creating` set is per replica) or a
@@ -140,15 +174,21 @@ export class KubernetesSessionBackend implements SessionBackend {
       );
     } catch (err) {
       if (httpStatusCode(err) === 409) {
-        // The Pod name is taken (a peer's Pod, or one still Terminating from a
-        // stop/destroy in flight). Leave the Pod and the PVC alone — only the
-        // Secret THIS call created is ours, and leaving it behind would 409
-        // every future create of this session forever.
-        await this.deleteOwnSecret(spec.sessionId);
-        throw conflictError(spec.sessionId, err);
+        // A first attempt that timed out client-side can still have been
+        // stored: a 409 on the retry is then this create's own Pod, which
+        // needs the Secret it references. Carry on to the readiness wait.
+        if (!(await this.isThisIncarnation(spec.sessionId, spec.createdAtMs))) {
+          // The Pod name is taken (a peer's Pod, or one still Terminating
+          // from a stop/destroy in flight). Leave the Pod and the PVC alone —
+          // only the Secret THIS call created is ours, and leaving it behind
+          // would 409 every future create of this session forever.
+          await this.deleteOwnSecret(spec.sessionId);
+          throw conflictError(spec.sessionId, err);
+        }
+      } else {
+        await this.cleanupFailedCreate(spec.sessionId, preexisting);
+        throw err;
       }
-      await this.cleanupFailedCreate(spec.sessionId, preexisting);
-      throw err;
     }
 
     // Poll runnerd readiness via the Pod IP (which appears once scheduled).
@@ -168,6 +208,120 @@ export class KubernetesSessionBackend implements SessionBackend {
       throw err;
     }
     return { resumed: preexisting };
+  }
+
+  /** Is the Pod under the session's name the incarnation this create made
+   * (its creation stamp, not being deleted)? A read that fails is "no". */
+  private async isThisIncarnation(
+    sessionId: string,
+    createdAtMs: number,
+  ): Promise<boolean> {
+    try {
+      const pod = await this.readPod(sessionId);
+      return (
+        pod.metadata?.deletionTimestamp == null &&
+        pod.metadata?.annotations?.['tale.dev/created-at'] ===
+          String(createdAtMs)
+      );
+    } catch (error) {
+      console.warn(
+        `[sandbox.session] cannot tell whose pod holds ${sessionId}'s name:`,
+        error,
+      );
+      return false;
+    }
+  }
+
+  /** The session's Secret, read through `list`, which the Role grants (not
+   * `get`): undefined when there is none, null when it cannot be read. */
+  private async readSessionSecret(
+    sessionId: string,
+  ): Promise<V1Secret | undefined | null> {
+    const secretName = sessionSecretNameFor(sessionId);
+    try {
+      const secrets = await this.client.core.listNamespacedSecret(
+        {
+          namespace: this.cfg.k8s.namespace,
+          fieldSelector: `metadata.name=${secretName}`,
+        },
+        apiTimeout(),
+      );
+      return secrets.items.find((item) => item.metadata?.name === secretName);
+    } catch (error) {
+      console.warn(
+        `[sandbox.session] cannot read ${sessionId}'s secret:`,
+        error,
+      );
+      return null;
+    }
+  }
+
+  /** Is the Secret under the session's name the one this create stored (its
+   * creation stamp, not being deleted)? A read that fails is "no". */
+  private async isOwnSecret(
+    sessionId: string,
+    createdAtMs: number,
+  ): Promise<boolean> {
+    const secret = await this.readSessionSecret(sessionId);
+    return (
+      secret != null &&
+      secret.metadata?.deletionTimestamp == null &&
+      secret.metadata?.annotations?.['tale.dev/created-at'] ===
+        String(createdAtMs)
+    );
+  }
+
+  /** Remove the session's Secret when it is an orphan: no Pod holds the name,
+   * and it is older than a whole create's budget, so no create — a peer
+   * replica's included — can still be making it. Fenced by its UID. Read
+   * through `list`, which the Role grants (not `get`). Returns whether the
+   * name is free now. */
+  private async removeOrphanSecret(sessionId: string): Promise<boolean> {
+    try {
+      await this.readPod(sessionId);
+      return false;
+    } catch (error) {
+      if (httpStatusCode(error) !== 404) {
+        console.warn(
+          `[sandbox.session] cannot tell whether ${sessionId}'s secret is an orphan:`,
+          error,
+        );
+        return false;
+      }
+    }
+    const secretName = sessionSecretNameFor(sessionId);
+    const secret = await this.readSessionSecret(sessionId);
+    if (secret === null) return false;
+    if (secret === undefined) return true;
+    const uid = secret.metadata?.uid;
+    const created = secret.metadata?.creationTimestamp;
+    const ageMs =
+      created === undefined
+        ? Number.NaN
+        : Date.now() - new Date(created).getTime();
+    if (
+      !uid ||
+      !Number.isFinite(ageMs) ||
+      ageMs < this.cfg.session.createHealthTimeoutMs + ORPHAN_SECRET_SLACK_MS
+    ) {
+      return false;
+    }
+    try {
+      await this.client.core.deleteNamespacedSecret(
+        {
+          name: secretName,
+          namespace: this.cfg.k8s.namespace,
+          body: { preconditions: { uid } },
+        },
+        apiTimeout(),
+      );
+    } catch (error) {
+      if (httpStatusCode(error) !== 404) throw error;
+    }
+    console.warn(
+      `[sandbox.session] removed ${sessionId}'s orphaned secret (its pod was deleted outside the spawner)`,
+    );
+    return true;
   }
 
   /** Remove ONLY the per-session Secret this create made (a Pod-name 409
@@ -345,8 +499,20 @@ export class KubernetesSessionBackend implements SessionBackend {
 
   async destroySession(sessionId: string): Promise<boolean> {
     const existed = await this.removePodAndSecret(sessionId);
-    await this.deleteWorkspacePvc(sessionId);
-    return existed;
+    // A stopped session has no Pod, only its workspace: deleting that is the
+    // destroy too.
+    const hadWorkspace = await this.deleteWorkspacePvc(sessionId);
+    return existed || hadWorkspace;
+  }
+
+  /** The PVC delete is this backend's deletion: once the API accepted it,
+   * Kubernetes removes the claim when nothing mounts it, and the volume is
+   * its storage provisioner's to delete under the storage class's reclaim
+   * policy — bytes the spawner cannot observe. So the answer says exactly
+   * that, never `done`, and the platform records which contract it settled
+   * on. */
+  async workspaceDeletion(): Promise<WorkspaceDeletion> {
+    return 'handed_off';
   }
 
   async stopSession(
@@ -484,8 +650,13 @@ export class KubernetesSessionBackend implements SessionBackend {
 
   /** Idempotently create the per-session workspace PVC (RWO). The PVC is the
    * durable home of /agent across stop/resume; only destroySession removes
-   * it. Tolerates "already exists" (resume) and concurrent-create 409s. */
-  private async ensureWorkspacePvc(sessionId: string): Promise<void> {
+   * it. Tolerates "already exists" (resume) and concurrent-create 409s. It
+   * records its session and organization, so the workspace inventory can
+   * name both while no Pod runs. */
+  private async ensureWorkspacePvc(
+    sessionId: string,
+    organizationId: string,
+  ): Promise<void> {
     const name = sessionWorkspacePvcNameFor(sessionId);
     try {
       await this.client.core.readNamespacedPersistentVolumeClaim(
@@ -518,8 +689,11 @@ export class KubernetesSessionBackend implements SessionBackend {
             kind: 'PersistentVolumeClaim',
             metadata: {
               name,
-              labels: { 'tale.sandbox-session-ws': '1' },
-              annotations: { 'tale.dev/session-id': sessionId },
+              labels: { [WORKSPACE_LABEL]: '1' },
+              annotations: {
+                [SESSION_ID_ANNOTATION]: sessionId,
+                [ORGANIZATION_ID_ANNOTATION]: organizationId,
+              },
             },
             spec: {
               accessModes: ['ReadWriteOnce'],
@@ -544,13 +718,14 @@ export class KubernetesSessionBackend implements SessionBackend {
     }
   }
 
-  /** Delete the session's workspace PVC (data deletion — destroy path only).
+  /** Delete the session's workspace PVC (data deletion — destroy path only);
+   * false when there was none (404).
    * THROWS on any failure other than 404 (retried first for transient blips):
    * destroySession is the one data-deleting verb, and a swallowed PVC failure
    * would let the route answer destroyed:true while the user's data — and its
    * storage — survive with nothing left to reclaim it. A throw makes the route
    * answer 502 destroyed:false so the platform retries. */
-  private async deleteWorkspacePvc(sessionId: string): Promise<void> {
+  private async deleteWorkspacePvc(sessionId: string): Promise<boolean> {
     const name = sessionWorkspacePvcNameFor(sessionId);
     try {
       await withRetry('delete-session-workspace-pvc', () =>
@@ -559,8 +734,9 @@ export class KubernetesSessionBackend implements SessionBackend {
           apiTimeout(),
         ),
       );
+      return true;
     } catch (err) {
-      if (httpStatusCode(err) === 404) return; // already gone = success
+      if (httpStatusCode(err) === 404) return false; // already gone = success
       const msg = err instanceof Error ? err.message : String(err);
       throw new Error(
         `k8s session: failed to delete workspace PVC ${name} for ${sessionId}: ${msg}`,
@@ -591,7 +767,7 @@ export class KubernetesSessionBackend implements SessionBackend {
       const org = ann['tale.dev/organization-id'] ?? '';
       if (!sessionId) continue;
       if (organizationId && org !== organizationId) continue;
-      const running = pod.status?.phase === 'Running';
+      const phase = pod.status?.phase;
       out.push({
         sessionId,
         organizationId: org,
@@ -599,11 +775,63 @@ export class KubernetesSessionBackend implements SessionBackend {
         createdAtMs: Number(ann['tale.dev/created-at']) || 0,
         ttlMs: this.cfg.session.maxLifetimeMs,
         idleTimeoutMs: this.cfg.session.maxIdleMs,
-        state: running ? 'ready' : 'degraded',
+        state: phase === 'Running' ? 'ready' : 'degraded',
         pinned: ann[PINNED_ANNOTATION] === 'true',
+        ended: phase === 'Succeeded' || phase === 'Failed',
       });
     }
     return out;
+  }
+
+  /** Every session's workspace PVC, joined with the session Pods beside
+   * them. A PVC is touched at its creation (it has no mtime); one without a
+   * valid session annotation is not a workspace this spawner made. Both
+   * lists THROW after their retries, never answer `[]` for "couldn't tell". */
+  async listWorkspaces(): Promise<BackendWorkspace[]> {
+    const claims = await withRetry('list-session-workspace-pvcs', () =>
+      this.client.core.listNamespacedPersistentVolumeClaim(
+        {
+          namespace: this.cfg.k8s.namespace,
+          labelSelector: `${WORKSPACE_LABEL}=1`,
+        },
+        apiTimeout(),
+      ),
+    );
+    const pods = new Map(
+      (await this.listSessions()).map((session) => [
+        session.sessionId,
+        session,
+      ]),
+    );
+    const workspaces: BackendWorkspace[] = [];
+    for (const claim of claims.items) {
+      const annotations = claim.metadata?.annotations ?? {};
+      const sessionId = annotations[SESSION_ID_ANNOTATION];
+      if (sessionId === undefined || !ID_ALPHABET_RE.test(sessionId)) continue;
+      const created = claim.metadata?.creationTimestamp;
+      const pod = pods.get(sessionId);
+      const organizationId =
+        pod?.organizationId || annotations[ORGANIZATION_ID_ANNOTATION] || '';
+      workspaces.push({
+        sessionId,
+        touchedAtMs: created === undefined ? 0 : new Date(created).getTime(),
+        active: pod !== undefined && pod.ended !== true,
+        pinned: pod?.pinned === true,
+        ...(organizationId !== '' ? { organizationId } : {}),
+      });
+    }
+    return workspaces;
+  }
+
+  // Kubernetes sessions keep nothing per organization beyond their own
+  // workspace PVCs: DinD builds inside the Pod, and there are no shared
+  // package caches.
+  async listOrganizationResources(): Promise<string[]> {
+    return [];
+  }
+
+  async teardownOrganization(): Promise<OrganizationTeardownResult> {
+    return { containers: 0, volumes: 0, networks: 0 };
   }
 
   /**

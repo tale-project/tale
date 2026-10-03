@@ -7,7 +7,7 @@ A team is a label on work, not a place you switch into. A document, folder, or p
 
 <Frame caption="Settings > Teams — every team the org has, with its member count, beside the Create team action.">
 
-![The Teams settings page listing three teams — Growth, Platform engineering, and Customer success — each with one member and the date it was added, beside a Create team button.](/images/platform/settings-teams.webp)
+![The Teams settings page listing three teams (Customer success, Growth, and Platform engineering), each with one member and the date it was added, beside a Create team button.](/images/platform/settings-teams.webp)
 
 </Frame>
 
@@ -26,6 +26,8 @@ Open a team's row to inspect its members. The row menu offers **View**, **Edit**
 A team keeps at least one member. To remove the last one, delete the team instead.
 
 A person can belong to more than one team. Their access can come from several teams or from a direct assignment, so removing them from one team does not necessarily remove all access to a resource. Review those other routes when withdrawing access.
+
+Notifications follow the same rule. Someone who can no longer open a project gets no new notifications or emails about its tasks, not even about the tasks they follow. What they were already told stays in their notifications. If they regain access, the tasks they follow notify them again.
 
 A team your identity provider provisions shows **Synced** in the list. The provider owns its name and members: the edit dialog shows them read-only, because a local change would be undone by the next synchronization. You can still delete such a team locally; the provider may recreate it.
 

@@ -2,6 +2,7 @@ import { Link } from '@tanstack/react-router';
 import { type ComponentPropsWithoutRef } from 'react';
 import type { Components } from 'react-markdown';
 
+import { isFileHref } from './is-file-href';
 import { isHttpUrl } from './is-http-url';
 import { Markdown } from './markdown';
 
@@ -19,8 +20,10 @@ const ROUTER_LINK_CLASS =
 /**
  * SPA-aware anchor used by docs/web. External `http(s)://` and bare
  * fragment (`#anchor`) hrefs render as plain `<a>` so target=_blank still
- * works and on-page anchors don't go through the router; everything else
- * defers to TanStack Router's `<Link>` for client-side navigation.
+ * works and on-page anchors don't go through the router; so does a link to
+ * a file (`/llms.txt`, a page's `.md` export, an image), which only the
+ * server can answer. Everything else defers to TanStack Router's `<Link>`
+ * for client-side navigation.
  */
 /**
  * Match any URI scheme (http, https, mailto, tel, ftp, sms, …) and the
@@ -36,7 +39,7 @@ function RoutedAnchor({ href, children }: ComponentPropsWithoutRef<'a'>) {
   const isHttpExternal = isHttpUrl(href);
   const isHash = typeof href === 'string' && href.startsWith('#');
 
-  if (!href || isExternal || isHash) {
+  if (!href || isExternal || isHash || isFileHref(href)) {
     return (
       <a
         href={href}

@@ -72,6 +72,18 @@ Clique sur **Échoué** ou **Non pris en charge** pour lire l’explication. La 
 
 </Frame>
 
+## Si les documents ne se chargent pas
+
+**Documents** liste les dossiers et les documents à partir de deux chargements distincts. Quand les documents ne peuvent pas être chargés, Tale ne fait pas passer les dossiers pour l’ensemble du contenu :
+
+- Les dossiers restent listés et tu peux toujours les ouvrir. Un avis au-dessus du tableau indique que les documents n’ont pas pu être chargés et propose **Réessayer**, qui relance le chargement sans que tu aies à recharger la page.
+- Le décompte sous le tableau précise que seuls les premiers éléments sont affichés et que la suite n’a pas pu être chargée. Une recherche ne porte que sur ce qui est listé.
+- Si des documents étaient déjà affichés quand une actualisation a échoué, ils restent en place, et l’avis indique que la liste est peut-être incomplète ou obsolète.
+- Pendant la nouvelle tentative, les lignes restent affichées, et ta recherche, tes filtres et une boîte de dialogue ouverte sont conservés.
+- Si rien ne peut être chargé, le tableau affiche l’erreur et **Réessayer** au lieu de l’état vide.
+
+Un dossier qui ne contient vraiment aucun document affiche ses sous-dossiers sans avis. Si **Réessayer** échoue à chaque fois, demande à un administrateur de vérifier que les services de Tale fonctionnent.
+
 ## Choisir qui peut lire le document
 
 Les documents de la bibliothèque sont accessibles à **Toute l'organisation** par défaut. Utilise **Assigner une équipe** dans le menu de la ligne pour restreindre l’accès aux équipes choisies : les membres de l’une d’elles peuvent lire le document, et les propriétaires et admins le peuvent toujours. Sauf si tu es propriétaire ou admin, tu ne peux choisir que des équipes dont tu fais partie. Un document rangé dans un dossier d’équipe reprend les équipes du dossier et ne peut pas en nommer une autre ; déplacer un document dans un tel dossier lui applique les équipes du dossier. Ces restrictions s’appliquent aussi à la recherche : un agent ne peut pas y rendre visible un document inaccessible.
@@ -98,6 +110,12 @@ Démarrer la synchronisation d’un dossier peut aussi réorganiser un import an
 Pour Microsoft 365, choisis **Mon OneDrive** ou **Sites SharePoint**. La synchronisation concerne les dossiers OneDrive personnels ; SharePoint s’importe une seule fois. Pour Google Drive, sélectionne dans Mon Drive. Les Docs, Sheets et Slides natifs sont ignorés : exporte-les d’abord en PDF ou au format Office.
 
 Si un dossier est trop grand pour être listé entièrement, Tale refuse l’import. Sélectionne des sous-dossiers plus petits ou utilise la synchronisation lorsqu’elle est disponible. Si le dossier ou le fichier source sélectionné est supprimé, sa copie est retirée et la synchronisation prend fin.
+
+À la fin d’un import, un avis indique le résultat. **Importation terminée** compte les fichiers que cet import a apportés, ainsi que ceux qu’un import précédent avait déjà apportés sans changement. Si certains fichiers n’ont pas pu être importés, un avertissement comme **3 sur 4 fichiers importés** s’affiche à la place. Quand le premier fichier en échec a une raison à montrer, par exemple un fichier qui dépasse la limite de téléversement, l’avertissement nomme ce fichier et cette raison. Si aucun fichier n’a pu être importé, l’avis indique **Échec de l'importation**. Si le sélecteur est encore ouvert, relance l’import pour réessayer les fichiers en échec. Les fichiers déjà importés sont ignorés.
+
+Si l’accès à ton compte Microsoft 365 ou Google Drive prend fin pendant un import, par exemple parce que la connexion a été retirée ou a expiré, Tale ouvre **Reconnecter Microsoft 365** ou **Reconnecter Google Drive** au lieu d’un avis tant que le sélecteur d’import est encore ouvert. Le dialogue indique combien de fichiers ont été importés avant la fin de l’accès ; ces fichiers restent en place. Reconnecte ton compte, puis importe à nouveau les mêmes fichiers ou dossiers pour récupérer le reste. Les fichiers déjà importés ne sont pas importés une seconde fois.
+
+Fermer le sélecteur n’annule pas un import déjà lancé. Son résultat apparaît dans un avis. Un sélecteur ouvert entre-temps reste ouvert et ta nouvelle sélection est conservée. Si l’accès a pris fin, ouvre à nouveau l’import pour reconnecter ton compte.
 
 Une synchronisation s’exécute environ toutes les 15 minutes, avec le compte du membre qui l’a configurée. Un fichier ajouté à la source apparaît dans son dossier dans ce délai, puis est indexé comme un fichier déposé. Quand un passage n’atteint pas la source, la cellule **Source** de la ligne du dossier remplace les flèches circulaires par un panneau d’avertissement rouge dont l’infobulle indique **Sync en échec**, ou par une prise débranchée rouge indiquant **À reconnecter** si la connexion Microsoft 365 ou Google Drive de ce membre a expiré. L’icône ouvre la cause, le début des échecs et le compte utilisé par la synchronisation ; les fichiers déjà synchronisés restent en place. Ce membre est aussi prévenu par la cloche et par e-mail : immédiatement pour une connexion expirée, sinon dès que la synchronisation échoue depuis une heure. Reconnecter le compte, ce que le dialogue propose à ce membre, relance la synchronisation au passage suivant. Tout membre autorisé à importer des documents peut plutôt lancer une nouvelle importation synchronisée du même élément pour l’exécuter avec son propre compte. L’avis disparaît au passage réussi suivant.
 

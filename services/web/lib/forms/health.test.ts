@@ -53,3 +53,20 @@ describe('webHealthStatus', () => {
     expect(result.body.checks).toEqual({ forms: { ok: true } });
   });
 });
+
+test('stale releases are observable without failing site readiness', () => {
+  const releases = {
+    ok: false,
+    releasesFetchedAt: '2026-08-21T10:00:00Z',
+    source: 'snapshot' as const,
+    ageSeconds: 86400,
+  };
+  const result = webHealthStatus({
+    webhookUrl: '',
+    formsRequired: false,
+    version: 'dev',
+    releases,
+  });
+  expect(result.status).toBe(200);
+  expect(result.body.checks).toMatchObject({ releases });
+});

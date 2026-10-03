@@ -1,6 +1,7 @@
 import { cleanup } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { defineAbilityFor } from '@/lib/permissions/ability';
 import { render, screen } from '@/tests/utils/render';
 
 import { MobileBottomNav } from './mobile-bottom-nav';
@@ -13,18 +14,6 @@ const unreadCalls: (string | undefined)[] = [];
 vi.mock('@/app/features/conversations/hooks/use-inbox-availability', () => ({
   useInboxAvailability: () => inbox,
 }));
-
-// The viewer below may author automations, so the Automations tab shows
-// whatever the organization runs.
-vi.mock(
-  '@/app/features/automations/hooks/use-automations-availability',
-  () => ({
-    useAutomationsAvailability: () => ({
-      isLoading: false,
-      hasLiveOrgAutomation: false,
-    }),
-  }),
-);
 
 vi.mock('@/app/features/conversations/hooks/queries', () => ({
   useUnreadConversationCount: (organizationId: string | undefined) => {
@@ -60,8 +49,21 @@ vi.mock('@/app/components/branding/branding-provider', () => ({
   useBrandingContext: () => ({ accentColor: null, logoUrl: null }),
 }));
 
+// Who is looking: the real ability of that platform role.
+const viewer = { role: 'owner' };
 vi.mock('@/app/hooks/use-ability', () => ({
-  useAbility: () => ({ can: () => true, cannot: () => false }),
+  useAbility: () => defineAbilityFor(viewer.role),
+}));
+
+// Whatever the organization runs: here a deployed organization-wide
+// automation, which must not bring the tab back for anyone else.
+vi.mock('@/app/hooks/use-backend-query', () => ({
+  useBackendQuery: () => ({
+    data: [
+      { name: 'mail-sync', latest: 1, projectIds: [], deployedVersion: 1 },
+    ],
+    isLoading: false,
+  }),
 }));
 
 vi.mock('@/app/hooks/use-display-mode', () => ({
@@ -69,6 +71,7 @@ vi.mock('@/app/hooks/use-display-mode', () => ({
 }));
 
 beforeEach(() => {
+  viewer.role = 'owner';
   automationSlug = undefined;
   inbox.hasInbox = true;
   unread.data = undefined;
@@ -87,6 +90,16 @@ describe('the mobile tab bar', () => {
     expect(tabs).toEqual(['home', 'knowledge', 'automations', 'userSettings']);
   });
 
+  it.each(['editor', 'member'])(
+    'has no Automations tab for the %s role',
+    (role) => {
+      viewer.role = role;
+      render(<MobileBottomNav organizationId="org-1" />);
+      const tabs = screen.getAllByRole('button').map((tab) => tab.textContent);
+      expect(tabs).toEqual(['home', 'knowledge', 'userSettings']);
+    },
+  );
+
   it('keeps automation detail navigation compact even through a click', async () => {
     // The canvas floats its own Deploy/Test actions right above the bar —
     // an expand-on-tap would crowd them the instant the tap that triggered
@@ -104,6 +117,15 @@ describe('the mobile tab bar', () => {
     await user.click(screen.getByRole('button', { name: /^home/ }));
     expect(navigate).toHaveBeenCalledWith({
       to: '/dashboard/$id/home',
+      params: { id: 'org-1' },
+    });
+  });
+
+  it('opens the automations list from the Automations tab', async () => {
+    const { user } = render(<MobileBottomNav organizationId="org-1" />);
+    await user.click(screen.getByRole('button', { name: /^automations/ }));
+    expect(navigate).toHaveBeenCalledWith({
+      to: '/dashboard/$id/automations',
       params: { id: 'org-1' },
     });
   });

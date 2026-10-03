@@ -55,6 +55,18 @@ export const DEFERRED_SEND_HINT_ENTITY = 'chat_deferred';
 export const PROVIDER_CREDENTIAL_HINT_ENTITY = 'provider_credential';
 
 /**
+ * An organization's connector credentials — the Settings > Connectors table
+ * and the mailbox reads built on the same listing (the compose Inbox field,
+ * the mailbox a thread names). Every write the listing shows hints under
+ * this entity: an add or a Reconnect through the consent callback, a rename,
+ * a secret rotation, an enable or disable, a default moved or handed on by a
+ * delete, and a grant the refresh found dead. Before it existed another
+ * admin's changes never reached an open page: a deleted credential stayed
+ * listed and actionable, and a new one stayed hidden, until a reload.
+ */
+export const CONNECTOR_CREDENTIAL_HINT_ENTITY = 'connector_credential';
+
+/**
  * An organization's membership — the Members settings table, the member
  * pickers a document review or a team dialog reads, and the shell's own
  * member context. Both doors that change it must agree on the name: the app's
@@ -78,7 +90,8 @@ export const TEAM_HINT_ENTITY = 'team';
 
 /**
  * The API keys of an organization's members — the budget editor's per-key
- * picker. Keys are created, renamed and revoked through Better Auth's own
+ * picker, and each member's own API settings, which keep the REST tab open
+ * while they hold a key. Keys are created, renamed and revoked through Better Auth's own
  * api-key endpoints, never an app route, so the after-hook in `auth.ts`
  * emits this entity to every organization the key's holder belongs to (a
  * key works in each of them). Without it an admin's open picker kept its

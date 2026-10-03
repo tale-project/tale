@@ -304,7 +304,8 @@ function RunDetailBody({
         }
         // The failure sentence of a failed run; the park of a waiting one
         // in words (the ask card above already says what an ask waits on).
-        // The raw `repeat:<node>` / `agent:<node>` detail never renders.
+        // The raw `repeat:<node>` / `agent:<node>` / `room:<node>` detail
+        // never renders.
         const reason = runReasonKey(run);
         if (reason === undefined) return null;
         if (reason.kind === 'failed') {
@@ -374,7 +375,11 @@ function RunDetailBody({
       {/* What an `agent` node did inside the sandbox — the one window into a
           turn that is otherwise an opaque spinner. Renders nothing for runs
           without an agent node. */}
-      <AgentExecutionLog organizationId={organizationId} runId={runId} />
+      <AgentExecutionLog
+        organizationId={organizationId}
+        runId={runId}
+        waitingForRoom={run.waitingFor === 'room'}
+      />
 
       <section className="flex flex-col gap-2">
         <SectionHeader

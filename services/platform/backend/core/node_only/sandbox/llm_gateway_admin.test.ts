@@ -178,6 +178,24 @@ function writes(calls: RecordedCall[]): RecordedCall[] {
   return calls.filter((c) => c.method !== 'GET');
 }
 
+/** Run `call` with the client's waits between repeats of a call the gateway
+ * answered with a 5xx elapsed at once. */
+async function withRetryWaitsElapsed<T>(call: () => Promise<T>): Promise<T> {
+  vi.useFakeTimers({ toFake: ['setTimeout'] });
+  try {
+    const settled = call().then(
+      (value) => ({ ok: true as const, value }),
+      (error: unknown) => ({ ok: false as const, error }),
+    );
+    await vi.runAllTimersAsync();
+    const outcome = await settled;
+    if (!outcome.ok) throw outcome.error;
+    return outcome.value;
+  } finally {
+    vi.useRealTimers();
+  }
+}
+
 // The management plane is fail-closed on the admin password; give every test a
 // default so only the auth-specific cases below vary it.
 const DEFAULT_PW = 'pw-test';
@@ -270,7 +288,9 @@ describe('provisionProviders', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     stubGateway({ keyExists: false, writeStatus: 500 });
     const mod = await loadModule();
-    const failures = await mod.provisionProviders(ORG, [PROVIDER]);
+    const failures = await withRetryWaitsElapsed(() =>
+      mod.provisionProviders(ORG, [PROVIDER]),
+    );
     expect(failures).toHaveLength(1);
     expect(failures[0]?.name).toBe('openrouter');
     expect(String(failures[0]?.error)).toContain(
@@ -745,15 +765,17 @@ describe('provisionProviders', () => {
     );
     vi.spyOn(console, 'warn').mockImplementation(() => {});
     const mod = await loadModule();
-    await mod.provisionProviders(ORG, [
-      {
-        name: 'broken',
-        baseUrl: 'https://b.example.com/v1',
-        apiKey: 'x',
-        models: ['m'],
-      },
-      PROVIDER,
-    ]);
+    await withRetryWaitsElapsed(() =>
+      mod.provisionProviders(ORG, [
+        {
+          name: 'broken',
+          baseUrl: 'https://b.example.com/v1',
+          apiKey: 'x',
+          models: ['m'],
+        },
+        PROVIDER,
+      ]),
+    );
     const keyWrites = calls.filter(
       (c) => c.method === 'POST' && c.url.includes('openrouter/keys'),
     );
@@ -783,6 +805,21 @@ describe('provisionProviders — management-plane auth', () => {
     expect(calls.length).toBeGreaterThan(0);
     for (const call of calls) {
       expect(call.headers.authorization).toBe(basicFor('pw-1'));
+    }
+  });
+
+  it('sends the password in no header but Basic auth: the setup token rides only the bootstrap body', async () => {
+    vi.stubEnv('SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD', 'pw-1');
+    const calls = stubGateway({ keyExists: false });
+    const mod = await loadModule();
+    await mod.provisionProviders(ORG, [PROVIDER]);
+    await mod.applyGatewayConfig();
+    expect(calls.length).toBeGreaterThan(0);
+    for (const call of calls) {
+      expect(Object.keys(call.headers).sort()).toEqual([
+        'authorization',
+        'content-type',
+      ]);
     }
   });
 
@@ -831,6 +868,155 @@ describe('provisionProviders — management-plane auth', () => {
  * provision fingerprint: no keys listing in the provision, the remembered
  * key id in the mint. A sandbox session keeps listing every time.
  */
+/**
+ * The gateway's SQLite store turns away a write that collides with another
+ * one, answering 500 — with "database is locked" in the body, except a
+ * virtual key's DELETE, which says only that it failed.
+ */
+describe('management calls the gateway store turned away for a moment', () => {
+  const LOCKED = '{"error":{"message":"failed to update: database is locked"}}';
+
+  /** Stub fetch: `answer` decides each call's reply from its method and URL
+   * and how often that method+URL was called before. */
+  function stubAnswers(
+    answer: (method: string, url: string, seen: number) => Response,
+  ): RecordedCall[] {
+    const calls: RecordedCall[] = [];
+    const seen = new Map<string, number>();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string | URL, init?: RequestInit) => {
+        const method = init?.method ?? 'GET';
+        const u = String(url);
+        calls.push({ url: u, method, body: undefined, headers: {} });
+        const key = `${method} ${u}`;
+        const count = seen.get(key) ?? 0;
+        seen.set(key, count + 1);
+        return Promise.resolve(answer(method, u, count));
+      }),
+    );
+    return calls;
+  }
+
+  it('sends a write again after a locked store, and the provision lands', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const calls = stubAnswers((method, url, seen) => {
+      if (method === 'GET') {
+        return Response.json({ keys: [] });
+      }
+      if (method === 'PUT' && url.endsWith('/api/providers/openrouter')) {
+        return seen < 2
+          ? new Response(LOCKED, { status: 500 })
+          : Response.json({});
+      }
+      return Response.json({ id: 'kid-new' });
+    });
+    const mod = await loadModule();
+    const failures = await withRetryWaitsElapsed(() =>
+      mod.provisionProviders(ORG, [PROVIDER]),
+    );
+    expect(failures).toEqual([]);
+    expect(
+      calls.filter((c) => c.method === 'PUT').map((c) => c.url),
+    ).toHaveLength(3);
+  });
+
+  it('repeats a mint only when the store said it was locked, since a POST may have created the key', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const mintAnswers = (first: Response) =>
+      stubAnswers((method, url, seen) => {
+        if (method === 'GET') {
+          return Response.json({
+            keys: [{ id: 'kid-A', name: KEY_NAME, models: [] }],
+          });
+        }
+        if (method === 'POST' && url.endsWith('/api/governance/virtual-keys')) {
+          return seen === 0
+            ? first
+            : Response.json({
+                virtual_key: {
+                  id: 'vk-1',
+                  value: 'sk-bf-x',
+                  budgets: [{ id: 'budget-1' }],
+                },
+              });
+        }
+        return Response.json({});
+      });
+    const args = {
+      budgetCents: 100,
+      organizationId: ORG,
+      sessionId: 's1',
+      allowedModels: [
+        { providerSlug: 'openrouter', modelId: 'anthropic/claude-sonnet-5' },
+      ],
+    };
+
+    let calls = mintAnswers(new Response(LOCKED, { status: 500 }));
+    let mod = await loadModule();
+    await expect(
+      withRetryWaitsElapsed(() => mod.mintVirtualKey(args)),
+    ).resolves.toEqual({ key: 'sk-bf-x', keyId: 'vk-1' });
+    expect(calls.filter((c) => c.method === 'POST')).toHaveLength(2);
+
+    vi.unstubAllGlobals();
+    calls = mintAnswers(
+      new Response('{"error":{"message":"governance data is not available"}}', {
+        status: 500,
+      }),
+    );
+    mod = await loadModule();
+    await expect(
+      withRetryWaitsElapsed(() => mod.mintVirtualKey(args)),
+    ).rejects.toThrow(
+      'llm-gateway mint key failed (500): {"error":{"message":"governance data is not available"}}',
+    );
+    expect(calls.filter((c) => c.method === 'POST')).toHaveLength(1);
+  });
+
+  it('repeats an idempotent call whatever its 5xx says, waiting 250, 750 and 2000 ms, then answers the last refusal', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const calls = stubAnswers(
+      () => new Response('Failed to delete virtual key', { status: 500 }),
+    );
+    const mod = await loadModule();
+    vi.useFakeTimers({ toFake: ['setTimeout'] });
+    try {
+      const settled = mod.revokeVirtualKey('vk-1').then(
+        () => 'revoked',
+        (error: unknown) => String(error),
+      );
+      const deletes = () => calls.filter((c) => c.method === 'DELETE').length;
+      await vi.advanceTimersByTimeAsync(0);
+      expect(deletes()).toBe(1);
+      await vi.advanceTimersByTimeAsync(249);
+      expect(deletes()).toBe(1);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(deletes()).toBe(2);
+      await vi.advanceTimersByTimeAsync(750);
+      expect(deletes()).toBe(3);
+      await vi.advanceTimersByTimeAsync(2_000);
+      expect(deletes()).toBe(4);
+      await expect(settled).resolves.toContain(
+        'llm-gateway revoke key failed (500): Failed to delete virtual key',
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('never repeats a refusal below 500', async () => {
+    const calls = stubAnswers(
+      () => new Response('{"error":"bad request"}', { status: 400 }),
+    );
+    const mod = await loadModule();
+    await expect(mod.revokeVirtualKey('vk-1')).rejects.toThrow(
+      'llm-gateway revoke key failed (400)',
+    );
+    expect(calls).toHaveLength(1);
+  });
+});
+
 describe('provisionProviders + mintVirtualKey — request-scoped reuse of the org key', () => {
   const T0 = 1_790_000_000_000;
   const REUSE = { reuseRecent: true } as const;
@@ -966,7 +1152,7 @@ describe('provisionProviders + mintVirtualKey — request-scoped reuse of the or
 });
 
 describe('mintVirtualKey', () => {
-  it('binds the VK to the org key id with allow_all_keys:false, scoped allowed_models (bare + full), and a dollar budget', async () => {
+  it('binds the VK to the org key id, scoped allowed_models (bare + full), and a dollar budget', async () => {
     const calls = stubGateway({ keyExists: true });
     const mod = await loadModule();
     const minted = await mod.mintVirtualKey({
@@ -985,7 +1171,6 @@ describe('mintVirtualKey', () => {
         {
           provider: 'openrouter',
           key_ids: ['kid-A'],
-          allow_all_keys: false,
           allowed_models: [
             'anthropic/claude-sonnet-5',
             'openrouter/anthropic/claude-sonnet-5',
@@ -1163,7 +1348,6 @@ describe('mintVirtualKey', () => {
       {
         provider: 'org_1__my-vllm__llama-3',
         key_ids: ['kid-C'],
-        allow_all_keys: false,
         allowed_models: ['llama-3', 'org_1__my-vllm__llama-3/llama-3'],
       },
     ]);
@@ -1275,10 +1459,89 @@ describe('revokeVirtualKey', () => {
   });
 
   it('throws on a non-404 failure', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
     stubGateway({ writeStatus: 500 });
     const mod = await loadModule();
-    await expect(mod.revokeVirtualKey('vk-1')).rejects.toThrow(
-      'llm-gateway revoke key failed (500)',
+    await expect(
+      withRetryWaitsElapsed(() => mod.revokeVirtualKey('vk-1')),
+    ).rejects.toThrow('llm-gateway revoke key failed (500)');
+  });
+});
+
+describe('setVirtualKeyBudget', () => {
+  /** A gateway holding one key whose one budget row is `budget-1`. */
+  function stubKey(options: { getStatus?: number; putStatus?: number } = {}) {
+    const calls: { method: string; url: string; body?: unknown }[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string | URL, init?: RequestInit) => {
+        const method = init?.method ?? 'GET';
+        calls.push({
+          method,
+          url: String(url),
+          ...(typeof init?.body === 'string'
+            ? { body: JSON.parse(init.body) }
+            : {}),
+        });
+        if (method === 'GET') {
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                virtual_key: {
+                  id: 'vk-1',
+                  budgets: [
+                    { id: 'budget-1', max_limit: 5, current_usage: 1.2 },
+                  ],
+                },
+              }),
+              { status: options.getStatus ?? 200 },
+            ),
+          );
+        }
+        return Promise.resolve(
+          new Response('{"error":{"message":"refused"}}', {
+            status: options.putStatus ?? 200,
+          }),
+        );
+      }),
+    );
+    return calls;
+  }
+
+  it("moves the key's one budget row to the new cap, in dollars", async () => {
+    const calls = stubKey();
+    const mod = await loadModule();
+    await expect(mod.setVirtualKeyBudget('vk-1', 350)).resolves.toBe('ok');
+    expect(calls[1]).toEqual({
+      method: 'PUT',
+      url: expect.stringContaining('/api/governance/virtual-keys/vk-1'),
+      // The row keeps its id — and with it the usage counted against it.
+      body: {
+        budgets: [{ id: 'budget-1', max_limit: 3.5, reset_duration: '1M' }],
+      },
+    });
+  });
+
+  it('never moves a cap below the smallest the gateway takes', async () => {
+    const calls = stubKey();
+    const mod = await loadModule();
+    await mod.setVirtualKeyBudget('vk-1', -20);
+    expect(calls[1]?.body).toEqual({
+      budgets: [{ id: 'budget-1', max_limit: 0.0001, reset_duration: '1M' }],
+    });
+  });
+
+  it('answers gone for a key the gateway no longer holds', async () => {
+    stubKey({ getStatus: 404 });
+    const mod = await loadModule();
+    await expect(mod.setVirtualKeyBudget('vk-1', 100)).resolves.toBe('gone');
+  });
+
+  it("throws with the gateway's reason when it refuses the update", async () => {
+    stubKey({ putStatus: 400 });
+    const mod = await loadModule();
+    await expect(mod.setVirtualKeyBudget('vk-1', 100)).rejects.toThrow(
+      'llm-gateway update key budget failed (400): {"error":{"message":"refused"}}',
     );
   });
 });
@@ -1303,17 +1566,19 @@ describe('applyGatewayConfig', () => {
         log_retention_days: 30,
         max_request_body_size_mb: 100,
         enforce_auth_on_inference: true,
-        enforce_governance_header: true,
+        disable_content_logging: true,
       },
       // First-time bootstrap (GET reports auth not yet enabled): the plaintext
       // password is sent to establish it — the gateway hashes it on store. A
       // freshly minted secret is policy-compliant by construction, so the
-      // gateway's >= v1.6.9 strength check passes.
+      // gateway's >= v1.6.9 strength check passes. The same password is the
+      // setup token the gateway (>= v2.2) demands before it creates its first
+      // admin account; its image derives the token from it.
       auth_config: {
         is_enabled: true,
         admin_username: 'admin',
         admin_password: DEFAULT_PW,
-        disable_auth_on_inference: true,
+        setup_token: DEFAULT_PW,
       },
     });
   });
@@ -1333,17 +1598,43 @@ describe('applyGatewayConfig', () => {
     // ShouldPreserveStored) and skips the >= v1.6.9 password policy, which a
     // secret minted before the policy (e.g. a base64url one with no special
     // char) would otherwise 400 on ("must include one special character").
+    // No setup token either: the admin account it would admit exists.
     expect(put?.body?.auth_config).toEqual({
       is_enabled: true,
       admin_username: 'admin',
       admin_password: '',
-      disable_auth_on_inference: true,
     });
     // Basic auth still uses the real credential — the password is unchanged,
     // it is simply not re-asserted in the body.
     for (const call of calls) {
       expect(call.headers.authorization).toBe(basicFor('pw-2'));
     }
+  });
+
+  it('names the gateway’s own reason when it refuses the config', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((_url: string | URL, init?: RequestInit) =>
+        Promise.resolve(
+          (init?.method ?? 'GET') === 'GET'
+            ? new Response(
+                JSON.stringify({
+                  client_config: {},
+                  auth_config: { is_enabled: false },
+                }),
+                { status: 200 },
+              )
+            : new Response(
+                '{"error":{"message":"auth password must include one special character"}}',
+                { status: 400 },
+              ),
+        ),
+      ),
+    );
+    const mod = await loadModule();
+    await expect(mod.applyGatewayConfig()).rejects.toThrow(
+      'llm-gateway apply config failed (400): {"error":{"message":"auth password must include one special character"}}',
+    );
   });
 
   it('fails closed before touching the gateway when the admin password is unset', async () => {
@@ -1393,11 +1684,14 @@ describe('applyGatewayConfig — a request-scoped key reuses a recent apply', ()
   });
 
   it('never remembers a failed apply: it throws, and the next request-scoped call applies again', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
     stubGateway({ writeStatus: 503 });
     const mod = await loadModule();
-    await expect(mod.applyGatewayConfig({ reuseRecent: true })).rejects.toThrow(
-      'llm-gateway apply config failed (503)',
-    );
+    await expect(
+      withRetryWaitsElapsed(() =>
+        mod.applyGatewayConfig({ reuseRecent: true }),
+      ),
+    ).rejects.toThrow('llm-gateway apply config failed (503)');
 
     vi.unstubAllGlobals();
     const calls = stubGateway({});

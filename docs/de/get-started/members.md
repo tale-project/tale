@@ -44,7 +44,7 @@ Wähle im Bereich **Start** unter **Projekte** ein Projekt, auf das du zugreifen
 
 </Frame>
 
-Öffne eine Aufgabe und lies Beschreibung, Zuweisung und Diskussion. In jedem Projekt, das du öffnen kannst, erstellst du Aufgaben und änderst die, die du erstellt hast oder die dir zugewiesen sind, etwa um die Arbeit einem Agenten des Projekts zu übergeben. [Projektaufgaben verwalten](/de/platform/projects/tasks) erklärt die tägliche Aufgabenarbeit; [Projekte nutzen](/de/tutorials/member/use-projects) führt durch ein vollständiges Beispiel.
+Öffne eine Aufgabe und lies Beschreibung, Zuweisung und Diskussion. In jedem Projekt, das du öffnen kannst, erstellst du Aufgaben und änderst die, die du erstellt hast oder die dir zugewiesen sind, etwa um die Arbeit einem Agenten des Projekts zu übergeben oder, in einem Projekt ohne eigene Agenten, dem [Standard-Agenten](/de/platform/projects/project-agents#standard-agent) der Organisation. [Projektaufgaben verwalten](/de/platform/projects/tasks) erklärt die tägliche Aufgabenarbeit; [Projekte nutzen](/de/tutorials/member/use-projects) führt durch ein vollständiges Beispiel.
 
 ## Zur Arbeit zurückkehren
 

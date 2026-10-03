@@ -6,6 +6,10 @@
 //                                        control (control-routes.ts).
 //   POST/GET/DELETE /v1/sessions[...]  — HMAC-auth, persistent session API
 //                                        (create/get/list/destroy/exec/cancel).
+//   GET /v1/workspaces                 — HMAC-auth, workspace inventory for the
+//                                        platform's cleanup.
+//   DELETE /v1/organizations/:id       — HMAC-auth, a deleted organization's
+//                                        remaining sessions and caches.
 //
 // Every route but /health is verified against the REQUIRED shared secret
 // (request-auth.ts; loadConfig fails closed without SANDBOX_TOKEN).
@@ -24,6 +28,12 @@ import { loadDeviceConfig } from './devices/device-config.ts';
 import { DeviceAgent } from './devices/device.ts';
 import { DeviceHub, serveHub } from './devices/hub.ts';
 import { makeHealthProbe } from './health-probe.ts';
+import { HostDiskProbe } from './host-disk.ts';
+import {
+  autoSessionCapacity,
+  HostMemoryProbe,
+  memoryReserveBytes,
+} from './host-memory.ts';
 import { jsonResponse } from './http-util.ts';
 import { createRequestAuth } from './request-auth.ts';
 import { SessionRoutes } from './session/session-routes.ts';
@@ -35,6 +45,39 @@ const backend = createHostBackend(cfg);
 
 // Session lifecycle is separate from host boot/health. Construct once after
 // the deploy control routes are ready; both Docker and Kubernetes implement it.
+// The Docker host's memory, read where /proc describes it (a local Docker
+// spawner; never Kubernetes, a remote daemon or a device's own host checks).
+const hostMemory =
+  cfg.backend === 'docker' && cfg.deviceConfigPath === null
+    ? new HostMemoryProbe()
+    : null;
+// The disk the session workspaces live on (the session root, which this
+// process sees at the host's own path), on the same local Docker spawner:
+// admission keeps a floor of free space on it.
+const hostDisk =
+  cfg.backend === 'docker' && cfg.deviceConfigPath === null
+    ? new HostDiskProbe(cfg.hostSessionRoot, cfg.session.minFreeDiskBytes)
+    : null;
+// No SANDBOX_MAX_SESSIONS set: a host whose memory the spawner can read
+// gets a capacity sized from it (never below the fixed default of 8), and
+// the memory guard at admission protects the rest. A boot that cannot read
+// it yet (a busy daemon after a reboot) sizes on a later sweep.
+let capacitySized = hostMemory === null || cfg.session.autoMaxSessions !== true;
+async function sizeSessionCapacity(): Promise<void> {
+  if (capacitySized || hostMemory === null) return;
+  const memory = await hostMemory.read();
+  if (memory === null || capacitySized) return;
+  capacitySized = true;
+  cfg.session.maxSessions = autoSessionCapacity(
+    memory.totalBytes,
+    memoryReserveBytes(memory.totalBytes, cfg.session.minFreeMemoryBytes),
+    cfg.dockerInContainer,
+  );
+  console.log(
+    `[sandbox] session capacity ${cfg.session.maxSessions}, sized from the host's ${Math.round(memory.totalBytes / 1024 ** 3)} GiB (set SANDBOX_MAX_SESSIONS to fix it)`,
+  );
+}
+
 let sessionRoutes: SessionRoutes | null = null;
 let sessionBackend: SessionBackend | null = null;
 function getSessionBackend(): SessionBackend {
@@ -50,6 +93,8 @@ function getSessionRoutes(): SessionRoutes {
       cfg,
       getSessionBackend(),
       () => controlRoutes.isDraining,
+      hostMemory ?? undefined,
+      hostDisk ?? undefined,
     );
   }
   return sessionRoutes;
@@ -194,6 +239,7 @@ function isSessionRoute(method: string, path: string): boolean {
 const ORG_ID_RE = /^[a-zA-Z0-9_-]{1,128}$/;
 const DEVICE_DISCONNECT_RE =
   /^\/v1\/devices\/([a-zA-Z0-9_-]{1,64})\/disconnect$/;
+const ORGANIZATION_RE = /^\/v1\/organizations\/([a-zA-Z0-9_-]{1,128})$/;
 
 // How often the session TTL/idle reaper runs.
 const SESSION_SWEEP_INTERVAL_MS = 60_000;
@@ -236,12 +282,14 @@ async function handleSessionRoutes(
   if (req.method === 'POST' && execMatch) {
     return getSessionRoutes().handleExec(req, execMatch[1] ?? '', body);
   }
-  // POST /v1/sessions/:id/exec/:execId/cancel
+  // POST /v1/sessions/:id/exec/:execId/cancel[?leftovers=keep]
   const cancelMatch = path.match(SESSION_EXEC_CANCEL_RE);
   if (req.method === 'POST' && cancelMatch) {
+    // The query string is HMAC-covered (authorize signs pathname + search).
     return getSessionRoutes().handleExecCancel(
       cancelMatch[1] ?? '',
       cancelMatch[2] ?? '',
+      { keepLeftovers: url.searchParams.get('leftovers') === 'keep' },
     );
   }
   // GET /v1/sessions/:id/exec/:execId/attach (SSE reconnect)
@@ -318,10 +366,15 @@ async function handleSessionRoutes(
     }
     if (req.method === 'DELETE') {
       // `?if_idle=1` — conditional destroy for janitor callers: no-op with
-      // {busy:true} while the session still has a live exec. The query string
-      // is HMAC-covered (authorize signs pathname + search).
+      // {busy:true} while the session still has a live exec. `?if_stopped=1`
+      // — the workspace cleanup's: no-op while ANY compute runs under the id.
+      // `?await_deletion=1` — the cleanup's too: wait a bounded time for the
+      // workspace's bytes, and answer how far their deletion came.
+      // The query string is HMAC-covered (authorize signs pathname + search).
       return getSessionRoutes().handleDestroy(id, {
         ifIdle: url.searchParams.get('if_idle') === '1',
+        ifStopped: url.searchParams.get('if_stopped') === '1',
+        awaitDeletion: url.searchParams.get('await_deletion') === '1',
       });
     }
   }
@@ -375,6 +428,23 @@ export async function router(req: Request): Promise<Response> {
         placementsDropped: 0,
       },
       200,
+    );
+  }
+  // GET /v1/workspaces — the workspace inventory the platform's cleanup
+  // reconciles against its own records.
+  if (req.method === 'GET' && url.pathname === '/v1/workspaces') {
+    const signed = await auth.readAndAuth(req);
+    if ('error' in signed) return signed.error;
+    return getSessionRoutes().handleWorkspaces();
+  }
+  // DELETE /v1/organizations/:id — the organization was deleted: its
+  // remaining sessions, build helpers and caches go.
+  const organizationMatch = url.pathname.match(ORGANIZATION_RE);
+  if (req.method === 'DELETE' && organizationMatch) {
+    const signed = await auth.readAndAuth(req);
+    if ('error' in signed) return signed.error;
+    return getSessionRoutes().handleOrganizationTeardown(
+      organizationMatch[1] ?? '',
     );
   }
   if (req.method === 'GET' && url.pathname === '/v1/capacity') {
@@ -465,6 +535,15 @@ async function main(): Promise<void> {
     await backend.warmImage();
   }
 
+  hostMemory?.start();
+  hostDisk?.start();
+  await sizeSessionCapacity();
+  if (!capacitySized) {
+    console.warn(
+      `[sandbox] cannot read the Docker host's memory yet; session capacity stays ${cfg.session.maxSessions} until it can (set SANDBOX_MAX_SESSIONS to fix it)`,
+    );
+  }
+
   const stopPeriodic = startPeriodicSweep(backend, cfg);
 
   // Session subsystem: re-adopt running session containers into the registry
@@ -478,17 +557,17 @@ async function main(): Promise<void> {
     const sweepTimer = setInterval(() => {
       // Re-adopt before reaping so a session missed at boot (a `docker ps` /
       // apiserver blip) or created by a peer replica becomes routable and
-      // reapable within one interval instead of lingering unregistered. NOT
-      // while draining: a lingering spawner must never adopt (and later
-      // linger-reap) the sessions its replacement is creating.
-      const tick = controlRoutes.isDraining
-        ? Promise.resolve()
-        : sessions.adoptExisting();
-      void tick
-        .then(() => sessions.sweepExpired())
-        .catch((err) => {
-          console.warn('[sandbox.session] periodic sweep failed:', err);
+      // reapable within one interval instead of lingering unregistered (not
+      // while draining — see `maintain`). A pass still running joins rather
+      // than stacks.
+      void sessions.maintain().catch((err) => {
+        console.warn('[sandbox.session] periodic sweep failed:', err);
+      });
+      if (!capacitySized) {
+        void sizeSessionCapacity().catch((err: unknown) => {
+          console.warn('[sandbox] sizing the session capacity failed:', err);
         });
+      }
       // Max-linger self-reap (CLI-independent safety net): if this spawner has
       // been draining longer than the linger TTL, reclaim its session compute
       // ourselves so a deploy that died mid-roll can't pin compute forever.

@@ -3,10 +3,10 @@ import { slugLabel, suggestPages } from '@tale/ui/docs/suggest-pages';
 import { useRouterState } from '@tanstack/react-router';
 import { useMemo } from 'react';
 
-import { flattenNav } from '@/lib/content/nav';
 import { docPath } from '@/lib/content/paths';
 import { useT } from '@/lib/i18n/client';
 import type { SupportedLocale } from '@/lib/i18n/locales';
+import { docsNearMissGroups, docsNearMissPages } from '@/lib/near-miss';
 import { useDocumentMeta } from '@/lib/seo/use-document-meta';
 
 interface NotFoundPageProps {
@@ -29,7 +29,14 @@ export function NotFoundPage({ locale }: NotFoundPageProps) {
   const home = t('home');
   const suggestions = useMemo(
     () =>
-      suggestPages(requestedSlug, flattenNav()).map(({ slug }) => ({
+      // Ranked on titles and sidebar labels in every locale as well as
+      // slugs — the same pages the server scores a guessed address against.
+      suggestPages(
+        requestedSlug,
+        docsNearMissPages(),
+        undefined,
+        docsNearMissGroups(),
+      ).map(({ slug }) => ({
         href: docPath(locale, slug),
         label: slug === 'index' ? home : slugLabel(slug),
       })),

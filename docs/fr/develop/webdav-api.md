@@ -21,7 +21,7 @@ Ajoute une barre oblique finale aux dossiers, mais pas aux fichiers. Les répons
 
 ## Authentification
 
-Génère un mot de passe d'application dans **Paramètres > WebDAV** avec un compte autorisé à accéder aux paramètres développeur. Le mot de passe complet n'apparaît qu'une fois. Donne un libellé distinct à chaque client pour pouvoir révoquer son accès séparément.
+Génère un mot de passe d'application dans **Paramètres > API > WebDAV** avec un compte autorisé à accéder aux paramètres développeur. Le mot de passe complet n'apparaît qu'une fois. Donne un libellé distinct à chaque client pour pouvoir révoquer son accès séparément.
 
 | Champ | Valeur |
 | --- | --- |

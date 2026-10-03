@@ -9,12 +9,16 @@
 
 import { resolve } from 'node:path';
 
+import { createRedirectMapRoute } from '@tale/ui/docs/redirects';
 import { initServerMonitoring } from '@tale/ui/monitoring/server';
 import { createPrecompiledServer } from '@tale/ui/seo';
 import {
   defaultReactServerSecurityHeaders,
   startReactServer,
 } from '@tale/ui/server';
+
+import { createNearMissRoute } from './lib/near-miss';
+import { resolveRedirect } from './lib/redirects';
 
 const monitoring = initServerMonitoring({
   dsn: process.env.SENTRY_DSN,
@@ -43,5 +47,13 @@ startReactServer({
   localeRouting: 'none',
   shutdownMarkerPath: process.env.SHUTDOWN_MARKER_PATH,
   securityHeaders: defaultReactServerSecurityHeaders,
+  // `/docs`, section folders and moved guides answer a 301 before static
+  // serving (`lib/redirects.ts`); an address still unanswered after it is
+  // read as a guess before the 404 page (`lib/near-miss.ts`).
+  extraRoutes: createRedirectMapRoute({
+    resolve: resolveRedirect,
+    basePath: BASE_PATH,
+  }),
+  resolveNotFound: createNearMissRoute(BASE_PATH),
   artifacts,
 });

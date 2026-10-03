@@ -3,7 +3,7 @@ title: Einen Projektagenten erstellen und testen
 description: Einem Projektagenten einen klaren Auftrag geben, ihn starten und das Ergebnis prüfen.
 ---
 
-Ein Projektagent ist ein wiederverwendbarer Arbeitsauftrag für Projektaufgaben. Du legst Anweisungen, Laufzeit, Modell und Werkzeuge fest, startest ihn an einer Aufgabe und prüfst das Ergebnis.
+Erstelle einen Projektagenten für eine wiederkehrende Aufgabe, etwa das Prüfen von Dokumenten oder das Erstellen eines betrieblichen Berichts. Du legst Anweisungen, Laufzeit, Modell und Werkzeuge fest und gibst ihm dann eine Aufgabe mit einem prüfbaren Ergebnis. Diese Anleitung zeigt den Ablauf am Prüfen eines Launch-Briefings. Solange ein Projekt keinen eigenen Agenten hat, können seine Aufgaben an den [Standard-Agenten](/de/platform/projects/project-agents#standard-agent) der Organisation gehen.
 
 ## Was du brauchst
 
@@ -62,3 +62,5 @@ Teste neben einer normalen Aufgabe auch fehlende Eingaben. Ein Agent, der nach e
 ## Schrittweise verfeinern
 
 Verbessere die Anweisung, die zum schlechten Ergebnis geführt hat, und teste eine vergleichbare Aufgabe. Ergänze Werkzeuge nur bei Bedarf. Prüfe vor externen Schreibaktionen das [Genehmigungsverhalten](/de/platform/approvals/concepts). Ein längeres Beispiel findest du unter [Dein erster Agent von Anfang bis Ende](/de/tutorials/editor/first-agent-end-to-end).
+
+Sobald du das Ergebnis einer Aufgabe verlässlich beurteilen kannst, setze denselben Agenten für ähnliche Arbeit ein. Braucht der Prozess geplante Ausführungen, feste Phasen oder Genehmigungen für Connector-Aktionen, bilde diese Anforderungen in einer [Automatisierung](/de/platform/automations/concepts) ab.

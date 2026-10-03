@@ -50,6 +50,24 @@ describe('verifySnapshot', () => {
     );
   });
 
+  test('checks the model gateway archive like every other before a restore extracts it', async () => {
+    execMock.mockResolvedValue({ success: true, stdout: '', stderr: '' });
+
+    await verifySnapshot('p_', {
+      id: MANIFEST.id,
+      volumes: {
+        ...MANIFEST.volumes,
+        'llm-gateway-data': { sha256: SHA_A, sizeBytes: 30 },
+      },
+    });
+
+    const script = (execMock.mock.calls[0][1] as string[]).at(-1);
+    expect(script).toContain('test -f llm-gateway-data.tar.gz ||');
+    expect(script).toContain(
+      `echo "${SHA_A}  llm-gateway-data.tar.gz" | sha256sum -c -`,
+    );
+  });
+
   test('throws on the first mismatch or missing archive', async () => {
     execMock.mockResolvedValue({
       success: false,

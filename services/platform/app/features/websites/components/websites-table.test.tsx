@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { describe, it, vi } from 'vitest';
+import { screen } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { render } from '@/tests/utils/render';
@@ -65,9 +66,25 @@ vi.mock('./websites-action-menu', () => ({
   WebsitesActionMenu: () => <div data-testid="websites-action-menu" />,
 }));
 
+vi.mock('./website-search-notice', () => ({
+  WebsiteSearchNotice: () => <div data-testid="website-search-notice" />,
+}));
+
 import { WebsitesTable } from './websites-table';
 
 describe('WebsitesTable', () => {
+  it('stacks the search notice above the table inside the list frame', () => {
+    render(<WebsitesTable organizationId="test-org-id" />);
+    const notice = screen.getByTestId('website-search-notice');
+    const table = screen.getByRole('table');
+    expect(
+      notice.compareDocumentPosition(table) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    // One flex column holds both, so the table keeps the height that is left.
+    expect(notice.parentElement).toHaveClass('flex', 'min-h-0', 'flex-col');
+    expect(notice.parentElement).toContainElement(table);
+  });
+
   describe('accessibility', () => {
     it('passes axe audit', async () => {
       const { container } = render(

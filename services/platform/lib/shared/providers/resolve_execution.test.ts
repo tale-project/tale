@@ -28,7 +28,12 @@ function harness(
     credentialEnvKeys: ['TALE_GATEWAY_TOKEN'],
     modelIdDialect: 'vendor-native',
     promptTransport: 'stdin-ndjson',
-    capabilities: { planMode: false, steering: false, mcp: false },
+    capabilities: {
+      planMode: false,
+      steering: false,
+      mcp: false,
+      resume: false,
+    },
     // Minimal exec facts satisfying the schema's coherence refinements —
     // the case split under test reads only the policy/capability fields.
     parser: 'hermes-jsonl',
@@ -91,6 +96,49 @@ describe('resolveExecution — direct mode', () => {
       expect(result.reason).toContain('sandbox');
       expect(result.reason).toContain(MODEL.id);
     }
+  });
+});
+
+describe('resolveExecution — tool API compatibility', () => {
+  const model = { ...MODEL, toolCallingApi: 'responses' as const };
+  const codex = {
+    ...harness('codex', { managed: true, byo: true }),
+    gatewayWire: 'openai-responses' as const,
+  };
+  const table = buildHarnessTable([...HARNESSES.values(), codex]);
+
+  it('allows Responses tools on a managed or subscription Codex harness', () => {
+    for (const credential of [
+      API_KEY,
+      {
+        authMethod: 'subscription-broker' as const,
+        constraints: { execution: 'sandbox' as const, harness: 'codex' },
+      },
+    ]) {
+      expect(
+        resolveExecution(
+          { model, credential, mode: 'sandbox', harness: 'codex' },
+          table,
+        ),
+      ).toMatchObject({ mode: 'sandbox', harness: { slug: 'codex' } });
+    }
+  });
+
+  it('refuses Responses tools on a managed Chat Completions harness', () => {
+    expect(
+      resolveExecution(
+        {
+          model,
+          credential: API_KEY,
+          mode: 'sandbox',
+          harness: 'opencode',
+        },
+        table,
+      ),
+    ).toMatchObject({
+      mode: 'refused',
+      reason: expect.stringContaining('Responses'),
+    });
   });
 });
 

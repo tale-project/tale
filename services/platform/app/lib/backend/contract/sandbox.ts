@@ -111,6 +111,12 @@ export interface SandboxContract {
       /** Every op still running in this workspace, oldest first — a project
        * agent runs its tasks concurrently in the one workspace it owns. */
       runningOps: SandboxOpView[];
+      /** When the workspace is deleted for being unused, if it stays
+       * unused; null when nothing will delete it. */
+      deletesAt?: number | null;
+      /** An administrator's Destroy still under way (`pending`), or one
+       * whose every attempt failed (`failed`); null when none is. */
+      destroyState?: 'pending' | 'failed' | null;
     }>;
   };
 }

@@ -170,6 +170,25 @@ export const knowledgeEmbeddingSchema = z.object({
    * may wait its whole ceiling.
    */
   minTokensPerSecond: z.number().positive().optional(),
+  /**
+   * The most tokens Tale sends this model in any one minute — the
+   * organization's requests in each Tale process together, estimated from
+   * their characters (a conservative count, 1.2–1.5 times the real one for
+   * prose). A batch that would cross it waits until the oldest minute's
+   * worth has aged out; a sixtieth of it is kept per second as well, and
+   * no single request carries more than that, because a provider enforces
+   * its per-minute figure per second too. Set it to the provider's
+   * tokens-per-minute limit (DashScope's text-embedding-v4 allows
+   * 1,000,000) so a crawl of hundreds of pages is paced instead of refused
+   * with 429s. Absent means unpaced.
+   */
+  maxTokensPerMinute: z.number().int().positive().optional(),
+  /**
+   * The most requests Tale sends this model in any one minute, counted the
+   * same way; set it to the provider's requests-per-minute limit. Absent
+   * means unpaced.
+   */
+  maxRequestsPerMinute: z.number().int().positive().optional(),
 });
 export type KnowledgeEmbeddingConfig = z.infer<typeof knowledgeEmbeddingSchema>;
 
@@ -183,6 +202,8 @@ export const KNOWLEDGE_EMBEDDING_KEPT_KEYS = [
   'minSimilarity',
   'maxConcurrentRequests',
   'minTokensPerSecond',
+  'maxTokensPerMinute',
+  'maxRequestsPerMinute',
 ] as const;
 
 const embeddingFields = knowledgeEmbeddingSchema.shape;
@@ -199,6 +220,14 @@ export const knowledgeEmbeddingWriteSchema = knowledgeEmbeddingSchema.extend({
     .nullable()
     .optional(),
   minTokensPerSecond: embeddingFields.minTokensPerSecond
+    .unwrap()
+    .nullable()
+    .optional(),
+  maxTokensPerMinute: embeddingFields.maxTokensPerMinute
+    .unwrap()
+    .nullable()
+    .optional(),
+  maxRequestsPerMinute: embeddingFields.maxRequestsPerMinute
     .unwrap()
     .nullable()
     .optional(),

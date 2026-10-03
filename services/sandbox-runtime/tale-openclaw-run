@@ -7,7 +7,7 @@ The platform adapter (openclaw/adapter.ts) sends ONE JSON object on stdin:
 and openclaw/parse.ts normalizes the stdout lines into AgentEvent[]. All
 human-oriented OpenClaw output stays on stderr; stdout is JSONL only.
 
-The wrapper exists because (verified openclaw 2026.6.11):
+The wrapper exists because (verified openclaw 2026.9.8):
 
   - the CLI has NO streaming output headlessly: `--json` reserves stdout for
     ONE final envelope ({payloads, meta:{durationMs, agentMeta:{sessionId,
@@ -390,7 +390,7 @@ def emit_envelope_events(
     if error_message:
         run_end["error"] = error_message
     emit(run_end)
-    return exit_code if error_message else 0
+    return (exit_code or 1) if error_message else 0
 
 
 def install_cancel_handlers(swap: AgentsMdSwap) -> None:

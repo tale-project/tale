@@ -3,7 +3,7 @@ title: Understand project agents
 description: Decide what an agent should own and how its runtime, model, instructions and equipment fit together.
 ---
 
-A project agent is a named worker for tasks in one project. You configure how it runs and what it may use, then give it a task with a reviewable outcome. It can work on files and commands in a sandbox; a person reviews the result before completing the task.
+A project agent is a named worker for tasks in one project. You configure how it runs and what it may use, then give it a task with a reviewable outcome. It can work on files and commands in a sandbox. The [configured reviewer](/platform/projects/tasks#review-default), a person or an independent project agent, checks the result before completing the task. New reviews that require human independence or competence records go to the human review chain; a captured agent review needs explicit transfer to an eligible person.
 
 ## Choose the right working mode
 
@@ -19,7 +19,7 @@ A project chat still uses the built-in chat assistant. Adding a project to a cha
 
 Start with a responsibility you can evaluate, such as “Review changes for regressions and report evidence.” Keep that in the agent’s standing instructions. Put the particular repository, files, acceptance criteria and deadline in each task.
 
-An agent belongs to exactly one project. People who can read the project can see its agents; people with project edit access can manage them while the project is active. Names must be unique within the project, and a project can contain up to 50 agents. Another project needs its own configuration even if it uses the same name and instructions.
+An agent belongs to exactly one project. People who can read the project can see its agents; people with project edit access can manage them while the project is active. Names must be unique within the project, and a project can contain up to 50 agents. Another project needs its own configuration even if it uses the same name and instructions. A project without agents of its own isn't left without one: unless an admin has turned it off, the organization's [standard agent](/platform/projects/project-agents#standard-agent) takes its tasks, with settings an admin chooses for the whole organization.
 
 ## Understand the configuration
 
@@ -40,7 +40,7 @@ flowchart LR
     H[Harness and model] --> A
     I[Standing instructions] --> A
     E[Skills, connectors, tools and secrets] --> A
-    A --> R[Report and files for human review]
+    A --> R[Report and files for review]
 ```
 
 ## Check readiness before assigning work

@@ -21,6 +21,8 @@ A grant applies in this organization only. Tale records every grant and revocati
 
 Owners and Admins have all four through their role, and Developers also have **Call models over the API** through theirs. Any other member needs the capability granted here, for example a Developer account whose API key an integration uses for an export. Without it, the REST API answers an export or an `actor` with `403 ROLE_FORBIDDEN`, and the model endpoints answer `403 MODEL_API_FORBIDDEN`. The [API reference](/develop/api-reference#name-the-member-the-gesture-is-for) describes the export and `actor` requests.
 
+**Export notifications**, **Act for another member**, and **Call models over the API** are used with a personal API key, so each also lets its holder create one under **Settings > API > REST**. The key acts with the holder's own role; the competence adds only its own right.
+
 **Publish skills to the organization** matters only while the skill sharing policy reserves organization-wide skills. Under **Editors and above**, Editors and Developers already have it through their role. Without it, a member can share skills with their own teams only, and the skill editor, uploads, and the REST API refuse an organization-wide skill with `403 SKILL_PUBLISH_FORBIDDEN`.
 
 **Call models over the API** takes effect only once the organization turns on the model endpoints under [Models](/platform/admin/governance/content-models#model-endpoints). A member who holds it can open **Settings > API** with its **REST** and **Models** tabs to create a personal key and copy the setup; the **MCP** and **WebDAV** tabs stay with Owners, Admins, and Developers. Once the grant is revoked, Tale refuses the member's next model call.

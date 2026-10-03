@@ -178,6 +178,26 @@ describe('external issue task intake', () => {
     ]);
   });
 
+  it('refuses legacy externalState at the workflow batch boundary before store writes', async () => {
+    const upsertIssues = vi.fn();
+    const native = platformTaskNatives({ upsertIssues } as never)[
+      'task.upsert_issues'
+    ];
+    await expect(
+      native?.(
+        {
+          projectId: 'project-1',
+          issues: [{ ...issue, externalState: 'closed' }],
+        },
+        {
+          organizationId: 'org-1',
+          caller: { kind: 'workflow', runId: 'run-1', nodeId: 'tasks' },
+        } as never,
+      ),
+    ).rejects.toMatchObject({ code: 'INPUT_INVALID' });
+    expect(upsertIssues).not.toHaveBeenCalled();
+  });
+
   /**
    * A blank title names nothing, and every task door answers it with the
    * one empty-title sentence — the agent's upsert, the app's intake and now
@@ -339,5 +359,248 @@ describe('the task connector mocks mirror the import domain', () => {
         limits,
       ),
     ).rejects.toThrow(`issues.1: ${sentence ?? ''}`);
+  });
+});
+
+/**
+ * `task.start_agent`: an automation step puts the task's project agent to
+ * work. The rim narrows the input and insists on the workflow caller; the
+ * store (`backend/domains/connectors/task-store.ts`) decides who the run
+ * answers to and whether it may start — its lanes prove that natively.
+ */
+describe('task.start_agent', () => {
+  const caller = { kind: 'workflow', runId: 'run-1', nodeId: 'start' };
+  const started = {
+    started: true,
+    runId: 'agent-run-1',
+    taskId: 'task-1',
+    agentId: 'agent-1',
+  };
+
+  it('hands the store the step, the task and what the run addresses first', async () => {
+    const startAgent = vi.fn().mockResolvedValue(started);
+    const native = platformTaskNatives({ startAgent } as never)[
+      'task.start_agent'
+    ];
+    await expect(
+      native?.(
+        {
+          taskId: 'task-1',
+          agentId: 'agent-1',
+          feedback: 'Scheduled occurrence 2026-09-30 09:00 Europe/Zurich.',
+          moveToInProgress: false,
+        },
+        { organizationId: 'org-1', caller } as never,
+      ),
+    ).resolves.toEqual(started);
+    expect(startAgent).toHaveBeenCalledWith({
+      organizationId: 'org-1',
+      caller,
+      taskId: 'task-1',
+      agentId: 'agent-1',
+      feedback: 'Scheduled occurrence 2026-09-30 09:00 Europe/Zurich.',
+      moveToInProgress: false,
+    });
+  });
+
+  it('passes a start that started nothing through as data', async () => {
+    const busy = {
+      started: false,
+      reason: 'agent_busy',
+      runId: 'agent-run-2',
+      busyTaskId: 'task-2',
+      taskId: 'task-1',
+      agentId: 'agent-1',
+    };
+    const startAgent = vi.fn().mockResolvedValue(busy);
+    await expect(
+      platformTaskNatives({ startAgent } as never)['task.start_agent']?.(
+        { taskId: 'task-1' },
+        { organizationId: 'org-1', caller } as never,
+      ),
+    ).resolves.toEqual(busy);
+  });
+
+  it.each([
+    [{ organizationId: 'org-1' }],
+    [{ organizationId: 'org-1', caller: { kind: 'user', userId: 'user-1' } }],
+    [
+      {
+        organizationId: 'org-1',
+        caller: { kind: 'system', reason: 'itest' },
+      },
+    ],
+  ])('runs only as an automation step (%o)', async (ctx) => {
+    const startAgent = vi.fn();
+    await expect(
+      platformTaskNatives({ startAgent } as never)['task.start_agent']?.(
+        { taskId: 'task-1' },
+        ctx as never,
+      ),
+    ).rejects.toMatchObject({ code: 'INPUT_INVALID' });
+    expect(startAgent).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    {},
+    { taskId: '' },
+    { taskId: 'task-1', feedback: 'x'.repeat(10_001) },
+    { taskId: 'task-1', moveToInProgress: 'no' },
+    { taskId: 'task-1', projectId: 'project-2' },
+  ])('refuses %o before starting anything', async (input) => {
+    const startAgent = vi.fn();
+    await expect(
+      platformTaskNatives({ startAgent } as never)['task.start_agent']?.(
+        input,
+        { organizationId: 'org-1', caller } as never,
+      ),
+    ).rejects.toMatchObject({ code: 'INPUT_INVALID' });
+    expect(startAgent).not.toHaveBeenCalled();
+  });
+
+  it('answers a test run from its mock, in the shape a live run answers', async () => {
+    const connector = connectorSchema.parse(
+      parseYamlOrThrow(
+        readFileSync(
+          path.join(
+            path.dirname(new URL(import.meta.url).pathname),
+            '../../../../../configs/platform/system/connectors/task/connector.yml',
+          ),
+          'utf8',
+        ),
+        { maxBytes: 1024 * 1024 },
+      ),
+    );
+    const action = connector.actions.find(
+      (entry) => entry.name === 'start_agent',
+    );
+    expect(action?.effects).toBe('write');
+    expect(action?.backend).toEqual({
+      kind: 'native',
+      impl: 'task.start_agent',
+    });
+    await expect(
+      nodeVmRunner().runBody(
+        action?.mock ?? '',
+        { input: { taskId: 'task-1', agentId: 'agent-1' } },
+        { timeoutMs: 2000 },
+      ),
+    ).resolves.toEqual({
+      started: true,
+      runId: 'run_mock',
+      taskId: 'task-1',
+      agentId: 'agent-1',
+    });
+  });
+});
+
+/**
+ * `task.get_import_cursor` / `task.save_import_cursor`: a scheduled import's
+ * position between occurrences. The rim narrows the key and insists on the
+ * workflow caller; the store (`backend/domains/tasks/import-cursors.ts`) keeps
+ * the compare-and-set and the attempt count — its lane proves them on
+ * Postgres.
+ */
+describe('task.get_import_cursor / task.save_import_cursor', () => {
+  const caller = { kind: 'workflow', runId: 'run-1', nodeId: 'cursor' };
+  const key = {
+    projectId: 'project-1',
+    externalSystem: 'github',
+    source: 'tale-project/tale',
+  };
+
+  it('reads the position for the step, keyed by project, system and source', async () => {
+    const read = {
+      cursor: '{"page":6}',
+      revision: '41',
+      batch: 2,
+      resumed: true,
+      restarted: false,
+      passStartedAt: 1,
+      lastDrainedAt: null,
+    };
+    const getImportCursor = vi.fn().mockResolvedValue(read);
+    await expect(
+      platformTaskNatives({ getImportCursor } as never)[
+        'task.get_import_cursor'
+      ]?.({ ...key, source: ' tale-project/tale ' }, {
+        organizationId: 'org-1',
+        caller,
+      } as never),
+    ).resolves.toEqual(read);
+    expect(getImportCursor).toHaveBeenCalledWith({
+      organizationId: 'org-1',
+      caller,
+      ...key,
+    });
+  });
+
+  it('saves from the revision the batch’s read answered to the next cursor', async () => {
+    const saved = {
+      saved: true,
+      drained: false,
+      batch: 2,
+      conflict: false,
+      revision: '42',
+    };
+    const saveImportCursor = vi.fn().mockResolvedValue(saved);
+    await expect(
+      platformTaskNatives({ saveImportCursor } as never)[
+        'task.save_import_cursor'
+      ]?.({ ...key, revision: '41', next: '{"page":11}' }, {
+        organizationId: 'org-1',
+        caller,
+      } as never),
+    ).resolves.toEqual(saved);
+    expect(saveImportCursor).toHaveBeenCalledWith({
+      organizationId: 'org-1',
+      caller,
+      ...key,
+      revision: '41',
+      next: '{"page":11}',
+    });
+  });
+
+  it.each([
+    ['task.get_import_cursor', key],
+    ['task.save_import_cursor', { ...key, revision: '1', next: '' }],
+  ])('%s runs only as an automation step', async (impl, input) => {
+    const store = { getImportCursor: vi.fn(), saveImportCursor: vi.fn() };
+    for (const ctx of [
+      { organizationId: 'org-1' },
+      { organizationId: 'org-1', caller: { kind: 'user', userId: 'user-1' } },
+    ]) {
+      await expect(
+        platformTaskNatives(store as never)[impl]?.(input, ctx as never),
+      ).rejects.toMatchObject({ code: 'INPUT_INVALID' });
+    }
+    expect(store.getImportCursor).not.toHaveBeenCalled();
+    expect(store.saveImportCursor).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['task.get_import_cursor', { ...key, externalSystem: 'jira' }],
+    ['task.get_import_cursor', { ...key, source: '' }],
+    ['task.get_import_cursor', { ...key, source: 'x'.repeat(201) }],
+    ['task.get_import_cursor', { ...key, cursor: 'c' }],
+    ['task.save_import_cursor', { ...key, revision: '1' }],
+    ['task.save_import_cursor', { ...key, next: '' }],
+    ['task.save_import_cursor', { ...key, revision: '', next: '' }],
+    ['task.save_import_cursor', { ...key, from: '', next: '' }],
+    ['task.save_import_cursor', { ...key, revision: '1', next: null }],
+    [
+      'task.save_import_cursor',
+      { ...key, revision: '1', next: 'x'.repeat(12_001) },
+    ],
+  ])('%s refuses %o before touching the store', async (impl, input) => {
+    const store = { getImportCursor: vi.fn(), saveImportCursor: vi.fn() };
+    await expect(
+      platformTaskNatives(store as never)[impl]?.(input, {
+        organizationId: 'org-1',
+        caller,
+      } as never),
+    ).rejects.toMatchObject({ code: 'INPUT_INVALID' });
+    expect(store.getImportCursor).not.toHaveBeenCalled();
+    expect(store.saveImportCursor).not.toHaveBeenCalled();
   });
 });

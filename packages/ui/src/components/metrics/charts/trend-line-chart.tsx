@@ -16,6 +16,7 @@ import {
 } from 'recharts';
 
 import type { ChartRow, ChartSeries } from './types';
+import { useChartAnimation } from './use-chart-animation';
 
 interface TrendLineChartProps {
   data: ChartRow[];
@@ -50,6 +51,7 @@ export function TrendLineChart({
   valueFormatter,
   allowDecimals = true,
 }: TrendLineChartProps) {
+  const animate = useChartAnimation();
   return (
     <ResponsiveContainer width="100%" height="100%">
       <LineChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
@@ -87,6 +89,7 @@ export function TrendLineChart({
             dot={plottedPoints(data, s.key) <= 1 ? { r: 3 } : false}
             activeDot={{ r: 3 }}
             connectNulls
+            isAnimationActive={animate}
           />
         ))}
       </LineChart>

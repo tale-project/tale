@@ -4,7 +4,9 @@
  * The task comment queue's contract with the shared retry queue: the task
  * key is locked before anything else, a serialization failure inside the
  * write carries the task key in front of any key an inner write (the org's
- * audit chain head) already put on it, and other failures pass untouched.
+ * audit chain head) already put on it, and other failures pass untouched. A
+ * comment write, which always ends on the chain head, queues a loss anywhere
+ * in it on both keys.
  */
 
 import {
@@ -15,7 +17,10 @@ import {
 import type { TransactionSql } from 'postgres';
 import { describe, expect, it } from 'vitest';
 
+import { auditChainQueueKey } from '../audit_logs/service.ts';
 import {
+  addTaskComment,
+  deleteTaskComment,
   lockTaskCommentQueue,
   queuedOnTask,
   taskCommentQueueKey,
@@ -108,5 +113,72 @@ describe('lockTaskCommentQueue', () => {
       RETRY_QUEUE_LOCK_CLASS,
       taskCommentQueueKey('t_9'),
     ]);
+  });
+});
+
+describe('comment writes', () => {
+  const auth = {
+    organizationId: 'org_1',
+    userId: 'u_1',
+    role: 'owner',
+    teamIds: [],
+  };
+
+  /** A transaction whose statements answer `answers` in order, and whose
+   * next statement fails with `failure`. */
+  function scriptedTx(answers: unknown[][], failure: Error): TransactionSql {
+    let calls = 0;
+    const tag = () => {
+      const answer = answers[calls];
+      calls += 1;
+      return answer === undefined
+        ? Promise.reject(failure)
+        : Promise.resolve(answer);
+    };
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- only the tag call and `unsafe` fragments are exercised
+    return Object.assign(tag, {
+      unsafe: (text: string) => text,
+    }) as unknown as TransactionSql;
+  }
+
+  it('queue a loss before the audit write on the task and the chain head', async () => {
+    // The queue lock answers; the task read loses to another comment write.
+    const failure = await addTaskComment(
+      scriptedTx([[]], sqlstateError('40001')),
+      auth,
+      { taskId: 't_1', body: 'hello' },
+    ).catch((error: unknown) => error);
+    expect(retryQueueKeysOf(failure)).toEqual([
+      taskCommentQueueKey('t_1'),
+      auditChainQueueKey('org_1'),
+    ]);
+  });
+
+  it('queue a lost delete on the task and the chain head', async () => {
+    const meta = {
+      taskId: 't_1',
+      authorType: 'user',
+      authorId: 'u_1',
+      mentions: null,
+    };
+    const failure = await deleteTaskComment(
+      scriptedTx([[meta], []], sqlstateError('40P01')),
+      auth,
+      'm_1',
+    ).catch((error: unknown) => error);
+    expect(retryQueueKeysOf(failure)).toEqual([
+      taskCommentQueueKey('t_1'),
+      auditChainQueueKey('org_1'),
+    ]);
+  });
+
+  it('leave other failures unmarked', async () => {
+    const boom = sqlstateError('23505');
+    const failure = await addTaskComment(scriptedTx([[]], boom), auth, {
+      taskId: 't_1',
+      body: 'hello',
+    }).catch((error: unknown) => error);
+    expect(failure).toBe(boom);
+    expect(retryQueueKeysOf(failure)).toEqual([]);
   });
 });

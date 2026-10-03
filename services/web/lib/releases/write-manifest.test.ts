@@ -31,6 +31,39 @@ describe('writeReleasesManifest', () => {
     }
   });
 
+  it('caps the bundled snapshot at the 40 newest releases without changing their contents or input', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'web-releases-'));
+    dirs.push(dir);
+    const path = join(dir, 'releases-manifest.ts');
+    const releases = Object.freeze(
+      Array.from({ length: 60 }, (_, index) => {
+        const version = `1.0.${60 - index}`;
+        return Object.freeze({
+          ...SAMPLE[0],
+          tag: `v${version}`,
+          version,
+          body: `## Release ${version}\n\nKeep these complete notes.`,
+          htmlUrl: `https://github.com/tale-project/tale/releases/tag/v${version}`,
+        });
+      }),
+    );
+    const original = structuredClone(releases);
+
+    await writeReleasesManifest(path, releases, '2026-10-03T00:00:00Z', {
+      format: false,
+    });
+
+    const source = readFileSync(path, 'utf8');
+    const serialized = source.match(
+      /export const RELEASES: readonly Release\[\] = ([\s\S]*?) as const;/,
+    )?.[1];
+    expect(serialized).toBeDefined();
+    const snapshot: unknown = JSON.parse(serialized ?? 'null');
+    expect(snapshot).toHaveLength(40);
+    expect(snapshot).toEqual(original.slice(0, 40));
+    expect(releases).toEqual(original);
+  });
+
   it('raw JSON.stringify source fails oxfmt --check', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'web-releases-'));
     dirs.push(dir);

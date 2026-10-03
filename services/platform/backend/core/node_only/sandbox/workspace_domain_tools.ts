@@ -1,3 +1,12 @@
+import {
+  taskAgentResumeFromSchema,
+  taskAgentReviewInputSchema,
+  taskAgentReviewStageFileSchema,
+  type AgentReviewBlockedReason,
+  type TaskAgentReviewReceipt,
+  type PendingReviewIdentity,
+  type TaskReviewRecipient,
+} from '@tale/shared/schemas/task-review';
 /**
  * First-party DOMAIN handlers of the workspace-tool bridge: the task family
  * and `document_create`. The dispatch (`workspace_tools_bridge.ts`) resolves
@@ -31,6 +40,7 @@ import {
 import type { ActionCtx } from '../../lib/ctx';
 import { internal } from '../../lib/handler_names';
 import type { Doc, Id } from '../../lib/rows';
+import { mintCursorFor, verifyCursorFor } from '../../lib/signed_cursor';
 import {
   importedTaskTitleRefusal,
   TASK_COMMENT_MAX,
@@ -38,6 +48,7 @@ import {
   taskLimitText,
   taskTitleRefusal,
 } from '../../tasks/helpers';
+import { TASK_PRIORITIES, taskMetadataPatchSchema } from '../../tasks/metadata';
 import {
   isRecord,
   readBoolean,
@@ -53,6 +64,9 @@ export const WORKSPACE_TASK_TOOLS = [
   'task_create',
   'task_comment',
   'task_update_status',
+  'task_update_metadata',
+  'task_review',
+  'task_start_agent',
   'task_upsert_by_external_ref',
 ] as const;
 
@@ -72,7 +86,6 @@ const TASK_STATUSES = [
 ] as const;
 /** Columns an agent may CREATE into — never the review/terminal columns. */
 const TASK_CREATE_STATUSES = ['backlog', 'todo'] as const;
-const TASK_PRIORITIES = ['p0', 'p1', 'p2', 'p3'] as const;
 
 /** Labels one task tool call may name: the first ones are kept and the rest
  * dropped, before the domain's own per-name limit applies. */
@@ -169,7 +182,7 @@ type ProjectLabel = { name: string; key?: string };
  * position, the external-sync key, and the schedule and repeat rule when the
  * row carries them; `description` only on `task_get`. */
 function compactTask(
-  task: Doc<'tasks'>,
+  task: Doc<'tasks'> & { pendingReview?: PendingReviewIdentity | null },
   project?: ProjectLabel | null,
 ): Record<string, unknown> {
   return {
@@ -200,6 +213,9 @@ function compactTask(
       ? { externalUrl: task.externalUrl }
       : {}),
     commentCount: task.commentCount ?? 0,
+    ...(task.pendingReview !== undefined
+      ? { pendingReview: task.pendingReview }
+      : {}),
     // ISO 8601 UTC, not epoch milliseconds: the agent reading this result gets
     // the same date format the chat tools answer with, and the same format its
     // own `Current time:` directive carries.
@@ -217,6 +233,170 @@ function compactTask(
     // "dueDate"` when the next task also comes on the due date): closing a
     // repeating task creates its next one.
     ...(isRecord(task.repeat) ? { repeat: task.repeat } : {}),
+  };
+}
+
+/**
+ * The run half of a `task_get`, as the shim's `getTaskWorkStateForAgent`
+ * answers it (`domains/tasks/agent-work-state.ts`): epoch-ms dates and nulls,
+ * which the views below turn into what the model reads.
+ */
+interface TaskWorkStateAnswer {
+  /** Newest first; the first is the live run when the task has one. */
+  agentRuns: AgentRunAnswer[];
+  agentRunsHasMore: boolean;
+  workflowRun: WorkflowRunAnswer | null;
+  pendingReview: PendingReviewAnswer | null;
+  reviewDecision?: TaskAgentReviewReceipt | null;
+}
+
+interface AgentRunAnswer {
+  id: string;
+  /** The run's creation order — where an older page starts. */
+  seq: number;
+  agentId: string;
+  status: string;
+  trigger: string | null;
+  startedAt: number;
+  launchedAt: number | null;
+  settledAt: number | null;
+  waitingForCapacity: boolean;
+  failureCode: string | null;
+  retryPending?: boolean;
+  feedback: string | null;
+  feedbackTruncated: boolean;
+}
+
+interface WorkflowRunAnswer {
+  runId: string;
+  automation: string;
+  status: string;
+  live: boolean;
+  waitingFor?: string;
+  ask?: { askId: string; createdAt: number; expiresAt: number };
+  approvalId?: string;
+}
+
+interface PendingReviewAnswer {
+  approvalId: string;
+  round: number;
+  runId: string | null;
+  requestedFor: string | null;
+  reviewer: TaskReviewRecipient | null;
+  implementationAgentId: string | null;
+  evidenceRevision: string | null;
+  agentReviewBlockedReason: AgentReviewBlockedReason | null;
+  createdAt: number;
+}
+
+/** A page's end as the model reads it: `isDone`, and the cursor for the next
+ * page only while one follows — never an empty cursor that, passed back,
+ * would read as a request for the first page. */
+function pageOf(continueCursor: string | undefined): {
+  isDone: boolean;
+  continueCursor?: string;
+} {
+  return continueCursor === undefined
+    ? { isDone: true }
+    : { isDone: false, continueCursor };
+}
+
+/** One comment as `task_get` answers it: the `commentId` a later read or an
+ * answer can name (the `messageId` `task_comment` answered), and ISO dates
+ * like every other date the tool answers. */
+function agentComment(comment: {
+  commentId: string;
+  authorType: string;
+  authorId: string;
+  body: string;
+  createdAt: number;
+  editedAt?: number;
+}): Record<string, unknown> {
+  const createdAt = modelTimestamp(comment.createdAt);
+  const editedAt = modelTimestamp(comment.editedAt);
+  return {
+    commentId: comment.commentId,
+    authorType: comment.authorType,
+    authorId: comment.authorId,
+    body: comment.body,
+    ...(createdAt !== undefined ? { createdAt } : {}),
+    ...(editedAt !== undefined ? { editedAt } : {}),
+  };
+}
+
+/** One project-agent run of the task: `live` while it is queued or running —
+ * the platform starts no other run on the task until it is not. Terminal
+ * runs carry `settledAt`; a failed one its `failureCode` when classified. */
+function agentRunView(run: AgentRunAnswer): Record<string, unknown> {
+  const startedAt = modelTimestamp(run.startedAt);
+  const launchedAt = modelTimestamp(run.launchedAt ?? undefined);
+  const settledAt = modelTimestamp(run.settledAt ?? undefined);
+  return {
+    runId: run.id,
+    agentId: run.agentId,
+    status: run.status,
+    live: run.status === 'queued' || run.status === 'running',
+    ...(run.trigger !== null ? { trigger: run.trigger } : {}),
+    ...(startedAt !== undefined ? { startedAt } : {}),
+    ...(launchedAt !== undefined ? { launchedAt } : {}),
+    ...(settledAt !== undefined ? { settledAt } : {}),
+    ...(run.waitingForCapacity ? { waitingForCapacity: true } : {}),
+    ...(run.failureCode !== null ? { failureCode: run.failureCode } : {}),
+    ...(typeof run.retryPending === 'boolean'
+      ? { retryPending: run.retryPending }
+      : {}),
+    // What the start asked the run to address first — a person's comment,
+    // or the message of the agent that restarted it.
+    ...(run.feedback !== null ? { feedback: run.feedback } : {}),
+    ...(run.feedbackTruncated ? { feedbackTruncated: true } : {}),
+  };
+}
+
+/** The task's automation run — the live one, else the latest — with what a
+ * waiting run waits on: `ask` and `approval` wait on a person. */
+function workflowRunView(
+  run: WorkflowRunAnswer | null,
+): Record<string, unknown> | null {
+  if (run === null) return null;
+  const askedAt = modelTimestamp(run.ask?.createdAt);
+  const askExpiresAt = modelTimestamp(run.ask?.expiresAt);
+  return {
+    runId: run.runId,
+    automation: run.automation,
+    status: run.status,
+    live: run.live,
+    ...(run.waitingFor !== undefined ? { waitingFor: run.waitingFor } : {}),
+    ...(run.ask !== undefined
+      ? {
+          ask: {
+            askId: run.ask.askId,
+            ...(askedAt !== undefined ? { askedAt } : {}),
+            ...(askExpiresAt !== undefined ? { expiresAt: askExpiresAt } : {}),
+          },
+        }
+      : {}),
+    ...(run.approvalId !== undefined ? { approvalId: run.approvalId } : {}),
+  };
+}
+
+/** Captured recipient distinguishes a human response from opt-in agent review. */
+function pendingReviewView(
+  review: PendingReviewAnswer | null,
+): Record<string, unknown> | null {
+  if (review === null) return null;
+  const since = modelTimestamp(review.createdAt);
+  return {
+    approvalId: review.approvalId,
+    round: review.round,
+    reviewer: review.reviewer,
+    implementationAgentId: review.implementationAgentId ?? null,
+    evidenceRevision: review.evidenceRevision ?? null,
+    agentReviewBlockedReason: review.agentReviewBlockedReason ?? null,
+    ...(review.runId !== null ? { runId: review.runId } : {}),
+    ...(review.requestedFor !== null
+      ? { requestedFor: review.requestedFor }
+      : {}),
+    ...(since !== undefined ? { since } : {}),
   };
 }
 
@@ -239,6 +419,168 @@ async function projectLabelsById(
         : { name: row.name },
     ]),
   );
+}
+
+// ---------------------------------------------------------------------------
+// Continuation cursors
+// ---------------------------------------------------------------------------
+
+/** The most tasks one `task_find` page answers. */
+const TASK_FIND_PAGE_MAX = 50;
+/** The most comments one `task_get` page answers (the context read's cap). */
+const TASK_GET_COMMENTS_MAX = 50;
+/** The most project-agent runs one `task_get` page answers, and how many it
+ * answers when the caller names no size. */
+const TASK_GET_RUNS_MAX = 20;
+const TASK_GET_RUNS_DEFAULT = 5;
+
+/** The orders `task_find` walks in (`AgentTaskListOrder` in the domain). */
+const TASK_FIND_ORDERS = ['board', 'created'] as const;
+type TaskFindOrder = (typeof TASK_FIND_ORDERS)[number];
+
+function pickTaskFindOrder(raw: unknown): TaskFindOrder | undefined {
+  return TASK_FIND_ORDERS.find((order) => order === raw);
+}
+
+/**
+ * Where a `task_find` walk may continue: the listing's own name, which the
+ * signed cursor redeems in alone (`core/lib/signed_cursor.ts`). It holds the
+ * order, the effective scope — the run's project, its automation's bound
+ * set, or the organization — and every filter, so a cursor passed with
+ * another filter, order or scope is refused instead of silently continuing a
+ * different listing: its position would skip or repeat tasks of that one.
+ * The page size is not part of it; a walk may change it between pages.
+ */
+export function taskFindListing(args: {
+  order: TaskFindOrder;
+  target: { projectId?: string; allowedProjectIds?: string[] };
+  status?: string;
+  assigneeId?: string;
+  reviewerAgentId?: string;
+  includeArchived: boolean;
+}): string {
+  const scope =
+    args.target.projectId !== undefined
+      ? { project: args.target.projectId }
+      : args.target.allowedProjectIds !== undefined
+        ? { projects: [...args.target.allowedProjectIds].sort() }
+        : 'org';
+  return `agent:task_find:${JSON.stringify({
+    v: 1,
+    order: args.order,
+    scope,
+    status: args.status ?? null,
+    assigneeId: args.assigneeId ?? null,
+    reviewerAgentId: args.reviewerAgentId ?? null,
+    includeArchived: args.includeArchived,
+  })}`;
+}
+
+/** The comment feed and the run history of one task — a cursor from one task
+ * never pages another's. */
+const taskCommentsListing = (taskId: string): string =>
+  `agent:task_get:comments:${taskId}`;
+const taskAgentRunsListing = (taskId: string): string =>
+  `agent:task_get:agent_runs:${taskId}`;
+
+/** The last row's sort key, as the next `task_find` page's position. */
+type TaskFindPosition =
+  | { order: 'board'; status: string; rank: string; id: string }
+  | { order: 'created'; createdAt: number; id: string };
+
+function encodeTaskFindPosition(position: TaskFindPosition): string {
+  const parts =
+    position.order === 'board'
+      ? ['board', position.status, position.rank, position.id]
+      : ['created', position.createdAt, position.id];
+  return Buffer.from(JSON.stringify(parts), 'utf8').toString('base64url');
+}
+
+function decodeTaskFindPosition(raw: string): TaskFindPosition | null {
+  let parts: unknown;
+  try {
+    parts = JSON.parse(Buffer.from(raw, 'base64url').toString('utf8'));
+  } catch {
+    // Only a position this tool signed reaches here, so this is an older
+    // format — refused like any other cursor the listing cannot read.
+    return null;
+  }
+  if (!Array.isArray(parts)) return null;
+  const [order, first, second, third] = parts;
+  const status = pickTaskStatus(first);
+  if (
+    order === 'board' &&
+    parts.length === 4 &&
+    status !== undefined &&
+    typeof second === 'string' &&
+    typeof third === 'string'
+  ) {
+    return { order, status, rank: second, id: third };
+  }
+  if (
+    order === 'created' &&
+    parts.length === 3 &&
+    typeof first === 'number' &&
+    Number.isSafeInteger(first) &&
+    typeof second === 'string'
+  ) {
+    return { order, createdAt: first, id: second };
+  }
+  return null;
+}
+
+/** The row a `task_find` page ended on, as the domain's keyset position. */
+function taskFindPositionOf(
+  task: Doc<'tasks'>,
+  order: TaskFindOrder,
+): TaskFindPosition {
+  return order === 'created'
+    ? {
+        order,
+        createdAt: Number(task.createdAt),
+        id: String(task._id),
+      }
+    : {
+        order,
+        status: String(task.status),
+        rank: String(task.rank),
+        id: String(task._id),
+      };
+}
+
+/**
+ * A caller's continuation cursor: `none` for the first page (absent, null or
+ * empty), the verified position, or `refused` for anything this listing did
+ * not answer — malformed, cut short, edited, or another listing's, scope's
+ * or organization's. A refused cursor is an error the caller sees, never a
+ * silent restart at the first page: a walk that lost its place would read
+ * the same tasks again and take the repeat for the whole.
+ */
+function readContinuation(
+  organizationId: string,
+  listing: string,
+  raw: unknown,
+): { kind: 'none' } | { kind: 'position'; position: string } | 'refused' {
+  if (raw === undefined || raw === null || raw === '') return { kind: 'none' };
+  if (typeof raw !== 'string') return 'refused';
+  const position = verifyCursorFor(organizationId, listing, raw.trim());
+  return position === null ? 'refused' : { kind: 'position', position };
+}
+
+/** A whole-number position (a message order, a run's `seq`) inside a
+ * verified cursor. */
+function wholeNumberPosition(position: string): number | undefined {
+  return /^\d{1,15}$/.test(position) ? Number(position) : undefined;
+}
+
+function cursorRefusal(arg: string, from: string, restart: string): ToolResult {
+  return {
+    status: 'invalid_args',
+    message:
+      `"${arg}" is not a cursor this listing answered. Pass ${from} ` +
+      `unchanged, with the same arguments it came with, or leave "${arg}" ` +
+      `out to ${restart}.`,
+  };
 }
 
 const asTaskId = (raw: string): Id<'tasks'> => raw;
@@ -392,6 +734,157 @@ async function withinConfinedTask(
   return false;
 }
 
+/** Why a start answered without starting — what the model is told to do. */
+const START_AGENT_GUIDANCE: Record<string, string> = {
+  already_running:
+    'The task already has a live run carrying the work; nothing new started. ' +
+    'Leave it to that run.',
+  in_review:
+    'The task waits for its reviewer to judge the earlier work; nothing ' +
+    'started. Start it without moveToInProgress: false to withdraw that ' +
+    'review and resume the task, or leave the decision to its reviewer.',
+  stale_repair:
+    'This rejected review no longer authorizes a repair (staleBecause); nothing started or changed. ' +
+    'Read the current task and decision, retire superseded intents, and never fall back to an unguarded start.',
+  stale_question:
+    'The question you answered is no longer the task’s open question ' +
+    '(staleBecause: the task was decided, a newer run or review exists, the ' +
+    'assignee changed, or the task is being worked); nothing started and ' +
+    'nothing changed. Read the task again before acting.',
+  closed:
+    'The task is closed (taskStatus); nothing started. An in-place start ' +
+    'never works under a Done or Cancelled card: start it without ' +
+    'moveToInProgress: false to reopen it deliberately, or report it.',
+  agent_busy:
+    'That agent is working another task (busyTaskId) in its workspace; ' +
+    'nothing started. Wait for it to finish or work on another task.',
+  blocked:
+    'Open tasks block this one (blockedBy); nothing started. Start it once ' +
+    'they are done.',
+  paused:
+    'This task took three starts by automations and agents within the hour, ' +
+    'ordinary automatic retries included. One broker cooldown immediately ' +
+    'after that agent’s HTTP 429 adds no start; consecutive cooldowns count. ' +
+    'Do not try before retryAfter. Report the refusal and re-read the task ' +
+    'and every admission constraint before a later attempt.',
+};
+
+/** `task_start_agent`: a project agent's live run puts another agent of the
+ * project to work (`domains/tasks/delegated-start.ts`). A confined run — one
+ * a member started — never delegates; the rest is the domain's. */
+async function runTaskStartAgent(
+  ctx: ActionCtx,
+  args: {
+    organizationId: string;
+    callArgs: Record<string, unknown>;
+    authority: WorkspaceActionAuthority;
+    session?: { sessionId: string; taskRunExecId?: string };
+  },
+): Promise<ToolResult> {
+  const { callArgs } = args;
+  if (args.authority.confinedToTaskId !== undefined) {
+    return memberRunRefusal(
+      'It cannot put other agents to work. Say in your result which task ' +
+        'should be started: an editor has to start that agent.',
+    );
+  }
+  if (
+    args.authority.scope.kind !== 'project' ||
+    args.session?.taskRunExecId === undefined
+  ) {
+    return {
+      status: 'unavailable',
+      blockers: [
+        {
+          code: 'not_a_project_agent_run',
+          guidance:
+            'Only a project agent run can put another agent to work; an ' +
+            'automation starts agents with a task.start_agent step.',
+        },
+      ],
+    };
+  }
+  const taskId = readString(callArgs.taskId);
+  const agentId =
+    callArgs.agentId === undefined ? undefined : readString(callArgs.agentId);
+  const feedback =
+    typeof callArgs.feedback === 'string' && callArgs.feedback.trim() !== ''
+      ? callArgs.feedback
+      : undefined;
+  const moveToInProgress =
+    typeof callArgs.moveToInProgress === 'boolean'
+      ? callArgs.moveToInProgress
+      : undefined;
+  const resume =
+    callArgs.resumeFrom === undefined
+      ? undefined
+      : taskAgentResumeFromSchema.safeParse(callArgs.resumeFrom);
+  const resumeFrom = resume?.success === true ? resume.data : undefined;
+  const repair = resumeFrom !== undefined && 'kind' in resumeFrom;
+  if (
+    taskId === undefined ||
+    (callArgs.agentId !== undefined && agentId === undefined) ||
+    (callArgs.feedback !== undefined &&
+      typeof callArgs.feedback !== 'string') ||
+    (callArgs.moveToInProgress !== undefined &&
+      moveToInProgress === undefined) ||
+    (callArgs.resumeFrom !== undefined && resumeFrom === undefined) ||
+    (repair && moveToInProgress === false)
+  ) {
+    return {
+      status: 'invalid_args',
+      message:
+        'task_start_agent needs {taskId: string, agentId?: string, ' +
+        'feedback?: string, moveToInProgress?: boolean, ' +
+        'resumeFrom?: {runId: string, approvalId: string} | ' +
+        '{kind: "review_repair", runId: string, approvalId: string}}. ' +
+        'A review repair uses the ordinary lifecycle; moveToInProgress:false is not allowed.',
+    };
+  }
+  if (feedback !== undefined) {
+    const refusal = taskCommentRefusal(feedback);
+    if (refusal !== null) {
+      return { status: 'invalid_args', message: `feedback: ${refusal}` };
+    }
+  }
+  const scoped = await loadTaskInScope(
+    ctx,
+    args.organizationId,
+    taskId,
+    args.authority,
+  );
+  if ('refusal' in scoped) return scoped.refusal;
+  const answer = await ctx.runMutation(
+    internal.tasks.internal_mutations.agentStartTaskAgent,
+    {
+      organizationId: args.organizationId,
+      sessionId: args.session.sessionId,
+      taskRunExecId: args.session.taskRunExecId,
+      taskId,
+      ...(agentId !== undefined ? { agentId } : {}),
+      ...(feedback !== undefined ? { feedback } : {}),
+      ...(moveToInProgress !== undefined ? { moveToInProgress } : {}),
+      ...(resumeFrom !== undefined ? { resumeFrom } : {}),
+    },
+  );
+  if (!isRecord(answer) || typeof answer.outcome !== 'string') {
+    return { status: 'error', message: 'The start answered nothing usable.' };
+  }
+  const { outcome, ...rest } = answer;
+  if (outcome === 'started') {
+    return { status: 'ok', output: { started: true, ...rest } };
+  }
+  return {
+    status: 'ok',
+    output: {
+      started: false,
+      reason: outcome,
+      guidance: START_AGENT_GUIDANCE[outcome] ?? 'Nothing started.',
+      ...rest,
+    },
+  };
+}
+
 export async function runTaskTool(
   ctx: ActionCtx,
   args: {
@@ -399,6 +892,9 @@ export async function runTaskTool(
     tool: WorkspaceTaskTool;
     callArgs: Record<string, unknown>;
     authority: WorkspaceActionAuthority;
+    /** The session and the task run its token names — what a delegation
+     * proves its requesting run with (`task_start_agent`). */
+    session?: { sessionId: string; taskRunExecId?: string };
   },
 ): Promise<ToolResult> {
   const { organizationId, callArgs, authority } = args;
@@ -422,8 +918,54 @@ export async function runTaskTool(
           message: `"status" must be one of ${TASK_STATUSES.join(', ')}.`,
         };
       }
+      const order = pickTaskFindOrder(callArgs.order ?? 'board');
+      if (order === undefined) {
+        return {
+          status: 'invalid_args',
+          message: `"order" must be one of ${TASK_FIND_ORDERS.join(', ')}.`,
+        };
+      }
       const assigneeId = readString(callArgs.assigneeId);
-      const limit = readLimit(callArgs.limit, 50);
+      const reviewerAgentId = readString(callArgs.reviewerAgentId);
+      if (
+        callArgs.reviewerAgentId !== undefined &&
+        (reviewerAgentId === undefined || reviewerAgentId.length > 200)
+      ) {
+        return {
+          status: 'invalid_args',
+          message:
+            '"reviewerAgentId" must be a nonempty string of at most 200 characters.',
+        };
+      }
+      const includeArchived = readBoolean(callArgs.includeArchived) === true;
+      const limit = readLimit(callArgs.limit, TASK_FIND_PAGE_MAX);
+      const listing = taskFindListing({
+        order,
+        target,
+        ...(status !== undefined ? { status } : {}),
+        ...(assigneeId !== undefined ? { assigneeId } : {}),
+        ...(reviewerAgentId !== undefined ? { reviewerAgentId } : {}),
+        includeArchived,
+      });
+      const cursor = readContinuation(organizationId, listing, callArgs.cursor);
+      const after =
+        cursor !== 'refused' && cursor.kind === 'position'
+          ? decodeTaskFindPosition(cursor.position)
+          : undefined;
+      if (
+        cursor === 'refused' ||
+        after === null ||
+        (after !== undefined && after.order !== order)
+      ) {
+        return cursorRefusal(
+          'cursor',
+          "the previous page's continueCursor",
+          'start again from the first page',
+        );
+      }
+      // One row past the page says whether another page follows: the answer
+      // never counts what it did not read, so it never names a total it
+      // cannot know.
       const rows = await ctx.runQuery(
         internal.tasks.internal_queries.listTasksForAgent,
         {
@@ -439,27 +981,44 @@ export async function runTaskTool(
             : {}),
           ...(status !== undefined ? { status } : {}),
           ...(assigneeId !== undefined ? { assigneeId } : {}),
-          ...(readBoolean(callArgs.includeArchived) === true
-            ? { includeArchived: true }
-            : {}),
+          ...(reviewerAgentId !== undefined ? { reviewerAgentId } : {}),
+          ...(includeArchived ? { includeArchived: true } : {}),
+          order,
+          ...(after !== undefined ? { after } : {}),
+          limit: limit + 1,
         },
       );
-      const sliced = rows.slice(0, limit);
+      const page = rows.slice(0, limit);
+      const last = page.at(-1);
+      const more = rows.length > limit && last !== undefined;
       const projectsById = await projectLabelsById(
         ctx,
         organizationId,
-        sliced.map((task: Doc<'tasks'>) => String(task.projectId)),
+        page.map((task: Doc<'tasks'>) => String(task.projectId)),
       );
       return {
         status: 'ok',
         output: {
-          tasks: sliced.map((task: Doc<'tasks'>) =>
+          tasks: page.map((task: Doc<'tasks'>) =>
             compactTask(task, projectsById.get(String(task.projectId)) ?? null),
           ),
-          totalFound: rows.length,
-          ...(rows.length > limit
-            ? { note: `Showing the first ${limit} of ${rows.length}.` }
-            : {}),
+          isDone: !more,
+          ...(more
+            ? {
+                continueCursor: mintCursorFor(
+                  organizationId,
+                  listing,
+                  encodeTaskFindPosition(taskFindPositionOf(last, order)),
+                ),
+                note:
+                  'More tasks match. Pass continueCursor as cursor, with ' +
+                  'the same arguments, for the next page.',
+              }
+            : // The whole listing fits this one page, so its count is the
+              // total; a later page's count is only that page's.
+              after === undefined
+              ? { totalFound: page.length }
+              : {}),
         },
       };
     }
@@ -481,12 +1040,54 @@ export async function runTaskTool(
         authority,
       );
       if ('refusal' in scoped) return scoped.refusal;
+      // Both continuations are bound to this task and judged before the
+      // task is read: a cursor it did not answer is refused, never taken
+      // for its newest page.
+      const commentCursor = readContinuation(
+        organizationId,
+        taskCommentsListing(taskId),
+        callArgs.commentCursor,
+      );
+      const commentsBefore =
+        commentCursor !== 'refused' && commentCursor.kind === 'position'
+          ? wholeNumberPosition(commentCursor.position)
+          : undefined;
+      if (
+        commentCursor === 'refused' ||
+        (commentCursor.kind === 'position' && commentsBefore === undefined)
+      ) {
+        return cursorRefusal(
+          'commentCursor',
+          'commentsPage.continueCursor',
+          'read the newest comments',
+        );
+      }
+      const runCursor = readContinuation(
+        organizationId,
+        taskAgentRunsListing(taskId),
+        callArgs.runCursor,
+      );
+      const runsBeforeSeq =
+        runCursor !== 'refused' && runCursor.kind === 'position'
+          ? wholeNumberPosition(runCursor.position)
+          : undefined;
+      if (
+        runCursor === 'refused' ||
+        (runCursor.kind === 'position' && runsBeforeSeq === undefined)
+      ) {
+        return cursorRefusal(
+          'runCursor',
+          'agentRunsPage.continueCursor',
+          'read the newest runs',
+        );
+      }
       const context = await ctx.runQuery(
         internal.tasks.internal_queries.getTaskContextForAgent,
         {
           organizationId,
           taskId: asTaskId(taskId),
-          commentLimit: readLimit(callArgs.commentLimit, 50),
+          commentLimit: readLimit(callArgs.commentLimit, TASK_GET_COMMENTS_MAX),
+          ...(commentsBefore !== undefined ? { commentsBefore } : {}),
         },
       );
       if (context === null) {
@@ -495,6 +1096,64 @@ export async function runTaskTool(
           message: 'No task with that id in this organization.',
         };
       }
+      // What works on the task and who reviews it. A read that fails
+      // fails the call — never a task that reads as idle for want of runs.
+      const work: TaskWorkStateAnswer | null = await ctx.runQuery(
+        internal.tasks.internal_queries.getTaskWorkStateForAgent,
+        {
+          organizationId,
+          projectId: String(scoped.task.projectId),
+          taskId,
+          runLimit:
+            typeof callArgs.runLimit === 'number' && callArgs.runLimit > 0
+              ? readLimit(callArgs.runLimit, TASK_GET_RUNS_MAX)
+              : TASK_GET_RUNS_DEFAULT,
+          ...(runsBeforeSeq !== undefined ? { runsBeforeSeq } : {}),
+        },
+      );
+      if (work === null || !Array.isArray(work.agentRuns)) {
+        return {
+          status: 'error',
+          message:
+            "The task's runs could not be read, so whether work is still " +
+            'running on it is unknown. Try again; do not treat it as idle.',
+        };
+      }
+      const oldestRun = work.agentRuns.at(-1);
+      const review = work.pendingReview;
+      const hasReviewFiles =
+        review?.reviewer?.kind === 'agent' &&
+        typeof review.runId === 'string' &&
+        typeof review.evidenceRevision === 'string';
+      if (
+        !hasReviewFiles &&
+        callArgs.reviewFileCursor != null &&
+        callArgs.reviewFileCursor !== ''
+      ) {
+        return cursorRefusal(
+          'reviewFileCursor',
+          'reviewFiles.page.continueCursor',
+          'read the current review',
+        );
+      }
+      const reviewFiles =
+        hasReviewFiles && review.reviewer?.kind === 'agent'
+          ? await ctx.runQuery(
+              internal.tasks.internal_queries.getTaskReviewFilesForAgent,
+              {
+                organizationId,
+                projectId: String(scoped.task.projectId),
+                taskId,
+                expected: {
+                  approvalId: review.approvalId,
+                  runId: review.runId,
+                  evidenceRevision: review.evidenceRevision,
+                },
+                reviewerAgentId: review.reviewer.agentId,
+                cursor: callArgs.reviewFileCursor,
+              },
+            )
+          : null;
       return {
         status: 'ok',
         output: {
@@ -506,8 +1165,38 @@ export async function runTaskTool(
           },
           project: context.project,
           subtasks: context.subtasks,
+          ...(context.subtasksTruncated === true
+            ? { subtasksTruncated: true }
+            : {}),
           blockedBy: context.blockedBy,
-          comments: context.comments,
+          ...(context.blockedByTruncated === true
+            ? { blockedByTruncated: true }
+            : {}),
+          comments: context.comments.map(agentComment),
+          commentsPage: pageOf(
+            context.commentsHasMore === true &&
+              typeof context.commentsNextBefore === 'number'
+              ? mintCursorFor(
+                  organizationId,
+                  taskCommentsListing(taskId),
+                  String(context.commentsNextBefore),
+                )
+              : undefined,
+          ),
+          agentRuns: work.agentRuns.map(agentRunView),
+          agentRunsPage: pageOf(
+            work.agentRunsHasMore && oldestRun !== undefined
+              ? mintCursorFor(
+                  organizationId,
+                  taskAgentRunsListing(taskId),
+                  String(oldestRun.seq),
+                )
+              : undefined,
+          ),
+          workflowRun: workflowRunView(work.workflowRun),
+          pendingReview: pendingReviewView(work.pendingReview),
+          reviewDecision: work.reviewDecision ?? null,
+          reviewFiles,
         },
       };
     }
@@ -732,7 +1421,7 @@ export async function runTaskTool(
               guidance:
                 moved.reason === 'AGENTS_CANNOT_COMPLETE'
                   ? 'Agents never set done — move finished work to ' +
-                    'in_review; a human review completes it.'
+                    'in_review; its reviewer decides completion.'
                   : moved.reason === 'TASK_HAS_OPEN_SUBTASKS'
                     ? 'Close or cancel the open subtasks first.'
                     : 'The status change was refused.',
@@ -741,6 +1430,113 @@ export async function runTaskTool(
         };
       }
       return { status: 'ok', output: { taskId, status } };
+    }
+
+    if (args.tool === 'task_update_metadata') {
+      if (confinedTo !== undefined) {
+        return memberRunRefusal(
+          'It cannot triage task priority or ownership. An editor must start the agent for that.',
+        );
+      }
+      if (
+        authority.scope.kind !== 'project' ||
+        args.session?.taskRunExecId === undefined
+      ) {
+        return {
+          status: 'unavailable',
+          blockers: [
+            {
+              code: 'not_a_project_agent_run',
+              guidance:
+                'Only a live project agent run can triage task metadata.',
+            },
+          ],
+        };
+      }
+      const parsed = taskMetadataPatchSchema.safeParse(callArgs);
+      if (!parsed.success) {
+        return {
+          status: 'invalid_args',
+          message:
+            'task_update_metadata needs {taskId, priority?, agentId?, expected: {priority?, assignee?}}. Name the current value of each field being changed; null clears it. No other fields are accepted.',
+        };
+      }
+      const output = await ctx.runMutation(
+        internal.tasks.internal_mutations.agentUpdateTaskMetadata,
+        {
+          organizationId,
+          sessionId: args.session.sessionId,
+          taskRunExecId: args.session.taskRunExecId,
+          patch: parsed.data,
+        },
+      );
+      return { status: 'ok', output };
+    }
+
+    if (args.tool === 'task_review') {
+      if (
+        confinedTo !== undefined ||
+        authority.scope.kind !== 'project' ||
+        args.session?.taskRunExecId === undefined
+      ) {
+        return {
+          status: 'unavailable',
+          blockers: [
+            {
+              code: 'not_a_project_agent_run',
+              guidance:
+                'Only a live project agent run with project-wide authority can decide an independent task review.',
+            },
+          ],
+        };
+      }
+      if (callArgs.operation === 'stage_file') {
+        const stage = taskAgentReviewStageFileSchema.safeParse(callArgs);
+        if (!stage.success) {
+          return {
+            status: 'invalid_args',
+            message:
+              'task_review stage_file needs only {operation: "stage_file", taskId, expected: {approvalId, runId, evidenceRevision}, fileId}. Select a fileId from task_get reviewFiles; paths, URLs and blob references are not accepted.',
+          };
+        }
+        const output = await ctx.runAction(
+          internal.tasks.internal_actions.stageAgentReviewFile,
+          {
+            organizationId,
+            sessionId: args.session.sessionId,
+            taskRunExecId: args.session.taskRunExecId,
+            request: stage.data,
+          },
+        );
+        return { status: 'ok', output };
+      }
+      const parsed = taskAgentReviewInputSchema.safeParse(callArgs);
+      if (!parsed.success) {
+        return {
+          status: 'invalid_args',
+          message:
+            'task_review needs {taskId, expected: {approvalId, runId, evidenceRevision}, decision: approve|request_changes, feedback, evidence: {checks, pullRequests}}. Read the exact pending review first; provide concrete checks. No other fields are accepted.',
+        };
+      }
+      const output = await ctx.runMutation(
+        internal.tasks.internal_mutations.agentReviewTask,
+        {
+          organizationId,
+          sessionId: args.session.sessionId,
+          taskRunExecId: args.session.taskRunExecId,
+          review: parsed.data,
+        },
+      );
+      return { status: 'ok', output };
+    }
+
+    if (args.tool === 'task_start_agent') {
+      return await runTaskStartAgent(ctx, {
+        organizationId,
+        callArgs,
+        authority,
+        ...(args.session !== undefined ? { session: args.session } : {}),
+      });
     }
 
     // task_upsert_by_external_ref — the idempotent external-item sync.

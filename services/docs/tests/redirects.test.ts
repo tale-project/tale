@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { isExternalTarget } from '@tale/ui/docs/redirects';
 import { describe, expect, it } from 'vitest';
 
 import { flattenNav } from '@/lib/content/nav';
@@ -31,9 +32,21 @@ import { BASE_LOCALES, discoverLocales } from './lib/walk';
 const REDIRECTS_FILE = path.join(REPO_ROOT, 'docs', 'redirects.json');
 
 /** Dash-case segments separated by `/`, no leading slash — the same shape
- *  as `nav.json` slugs (`platform/workspace/prompt-library`). */
+ *  as `nav.json` slugs (`platform/workspace/prompt-library`). Every target
+ *  has it; a source is whatever address was published, so it may also carry
+ *  a dot, an underscore or a capital (`operate/release-notes/v0.2.34-split-convex`). */
 const SLUG_PATTERN =
   /^[a-z0-9]+(?:-[a-z0-9]+)*(?:\/[a-z0-9]+(?:-[a-z0-9]+)*)*$/;
+const SOURCE_PATTERN =
+  /^[A-Za-z0-9_]+(?:[-.][A-Za-z0-9_]+)*(?:\/[A-Za-z0-9_]+(?:[-.][A-Za-z0-9_]+)*)*$/;
+
+/** A page that moved off the docs lives on tale.dev, which shares the
+ *  locale model the redirect relies on (`/de/…` stays German there). */
+function isExternalTargetAllowed(to: string): boolean {
+  if (!isExternalTarget(to)) return false;
+  const url = new URL(to);
+  return url.hostname === 'tale.dev' && url.search === '' && url.hash === '';
+}
 
 function loadRedirects(): Record<string, string> {
   return parseRedirects(JSON.parse(fs.readFileSync(REDIRECTS_FILE, 'utf-8')));
@@ -62,12 +75,24 @@ describe('redirects', () => {
         ['target', to],
       ] as const;
       for (const [role, slug] of roles) {
-        if (!SLUG_PATTERN.test(slug)) {
+        if (role === 'target' && isExternalTarget(slug)) {
+          if (!isExternalTargetAllowed(slug)) {
+            findings.push({
+              file: 'redirects.json',
+              line: 0,
+              rule: 'redirect-target-offsite',
+              detail: `target "${slug}" leaves the docs for a site other than https://tale.dev, which is the only one sharing the /de and /fr trees the redirect keeps`,
+            });
+          }
+          continue;
+        }
+        const pattern = role === 'source' ? SOURCE_PATTERN : SLUG_PATTERN;
+        if (!pattern.test(slug)) {
           findings.push({
             file: 'redirects.json',
             line: 0,
             rule: 'redirect-slug-malformed',
-            detail: `${role} "${slug}" is not dash-case segments without a leading slash`,
+            detail: `${role} "${slug}" is not ${role === 'source' ? 'a published address' : 'dash-case segments'} without a leading slash`,
           });
         } else if (locales.includes(slug.split('/')[0])) {
           findings.push({
@@ -96,7 +121,10 @@ describe('redirects', () => {
     'every redirect target resolves to a real page under %s/',
     (locale) => {
       const findings: Finding[] = Object.entries(loadRedirects())
-        .filter(([, to]) => !pageExistsForRoute(locale, slugRoute(to)))
+        .filter(
+          ([, to]) =>
+            !isExternalTarget(to) && !pageExistsForRoute(locale, slugRoute(to)),
+        )
         .map(([from, to]) => ({
           file: `${locale}/${to}`,
           line: 0,

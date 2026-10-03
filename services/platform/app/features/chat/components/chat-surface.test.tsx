@@ -1187,6 +1187,9 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
         text: 'Hello there',
         modelId: 'deepseek-v4-flash',
         providerSlug: 'deepseek',
+        // The UI's language rides the send: the reply's default, and the
+        // words the turn's hand-over note quotes.
+        locale: 'en-US',
       });
       expect(navigateMock).toHaveBeenCalledWith({
         to: '/dashboard/$id/chat/$threadId',
@@ -1933,7 +1936,7 @@ describe('ChatSurface on a conversation shared with the project', () => {
     ).toBeDisabled();
   });
 
-  it('keeps Export in the conversation menu and leaves Share to the owner', async () => {
+  it('keeps Export and Create task in the conversation menu and leaves Share to the owner', async () => {
     const { user } = render(
       <ChatSurface organizationId="org-1" threadId="thread-shared" />,
     );
@@ -1947,7 +1950,36 @@ describe('ChatSurface on a conversation shared with the project', () => {
     expect(
       await screen.findByRole('menuitem', { name: 'Export' }),
     ).toBeInTheDocument();
+    // A reader may hand the conversation to a project agent too — without
+    // the owner's files, which a task takes only from its creator.
+    expect(
+      screen.getByRole('menuitem', { name: 'Create task from chat' }),
+    ).toBeInTheDocument();
     expect(screen.queryByRole('menuitem', { name: 'Share' })).toBeNull();
+  });
+
+  it('puts Create task in the header as its own verb, and the desktop menu does not repeat it', async () => {
+    const { user } = render(
+      <ChatSurface organizationId="org-1" threadId="thread-shared" />,
+    );
+
+    expect(
+      screen.getByRole('button', { name: 'Create task' }),
+    ).toBeInTheDocument();
+    // The phone header's menu comes first and keeps the entry; the desktop
+    // header's menu, beside the verb, leaves it out.
+    const menus = screen.getAllByRole('button', {
+      name: 'Conversation actions',
+    });
+    const desktop = menus.at(-1);
+    if (desktop === undefined || menus.length < 2) {
+      throw new Error('expected a phone and a desktop conversation menu');
+    }
+    await user.click(desktop);
+    await screen.findByRole('menuitem', { name: 'Export' });
+    expect(
+      screen.queryByRole('menuitem', { name: 'Create task from chat' }),
+    ).toBeNull();
   });
 
   it('passes an axe audit', async () => {

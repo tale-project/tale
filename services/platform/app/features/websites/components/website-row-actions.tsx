@@ -4,7 +4,7 @@ import {
   EntityRowActions,
   useEntityRowDialogs,
 } from '@tale/ui/entity/entity-row-actions';
-import { Eye, Pencil, Play, Trash2 } from 'lucide-react';
+import { Eye, Pencil, Play, RefreshCw, Trash2 } from 'lucide-react';
 import { useMemo, useRef } from 'react';
 
 import { useAbility } from '@/app/hooks/use-ability';
@@ -12,6 +12,7 @@ import type { WebsiteDoc } from '@/app/lib/backend/contract/docs';
 import { useT } from '@/lib/i18n/client';
 
 import { useResumeScanning } from '../hooks/mutations';
+import { useScanNow } from '../hooks/use-scan-now';
 import { isScanPaused } from '../lib/scan-paused';
 import { WebsiteDeleteDialog } from './website-delete-dialog';
 import { WebsiteEditDialog } from './website-edit-dialog';
@@ -32,6 +33,11 @@ export function WebsiteRowActions({ website }: WebsiteRowActionsProps) {
   const dialogs = useEntityRowDialogs(['view', 'edit', 'delete']);
   const { mutate: resumeScanning } = useResumeScanning();
   const paused = isScanPaused(website);
+  const {
+    available: canScanNow,
+    pending: scanPending,
+    scanNow,
+  } = useScanNow(website);
 
   const actions = useMemo(
     () => [
@@ -59,6 +65,16 @@ export function WebsiteRowActions({ website }: WebsiteRowActionsProps) {
         visible: canWrite && paused,
       },
       {
+        // A scan outside the interval: the retry after a failed scan, or a
+        // fresh read of a site that just changed.
+        key: 'scan',
+        label: t('scanNow'),
+        icon: RefreshCw,
+        onClick: scanNow,
+        visible: canScanNow,
+        disabled: scanPending,
+      },
+      {
         key: 'delete',
         label: tCommon('actions.delete'),
         icon: Trash2,
@@ -67,7 +83,18 @@ export function WebsiteRowActions({ website }: WebsiteRowActionsProps) {
         visible: canWrite,
       },
     ],
-    [tCommon, t, dialogs.open, canWrite, paused, resumeScanning, website._id],
+    [
+      tCommon,
+      t,
+      dialogs.open,
+      canWrite,
+      paused,
+      resumeScanning,
+      website._id,
+      canScanNow,
+      scanPending,
+      scanNow,
+    ],
   );
 
   return (

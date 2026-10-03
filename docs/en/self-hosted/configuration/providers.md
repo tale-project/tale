@@ -78,7 +78,28 @@ The backend calls the image model with the organization's credential; no key ent
 
 A custom OpenAI-compatible endpoint's `/models` response must declare an image model with `image` among `architecture.output_modalities` or `modalities.output`, and a positive `context_length` or `context_window`. Tale saves raster images only (PNG, JPEG, WebP, GIF) and refuses a model's SVG; a reference image an agent passes must be a PNG, JPEG or WebP file of at most 4 MB. Listing a model does not prove the endpoint works: turn image generation on, pin the model, have an agent create a test image, then check the request in the endpoint's logs.
 
-One agent turn creates at most 16 images and runs one generation at a time. Before each call, Tale holds USD 0.25 per image against the turn's allowance and the budget caps, then books the reported cost in place of the hold when the call ends. A turn on a vendor subscription has no gateway allowance, so its images are measured against the deployment's default turn allowance.
+One agent turn creates at most 16 images and runs one generation at a time. Before each call, Tale holds USD 0.25 per image against the turn's allowance and the budget caps, then books the reported cost in place of the hold when the call ends. The turn's gateway key gives up the same amount from its cap, so the model and the images together stay within one allowance; if the gateway cannot lower that cap, the image is refused. A turn on a vendor subscription has no gateway allowance, so its images are measured against the deployment's default turn allowance.
+
+## Configure the standard agent {#configure-the-standard-agent}
+
+The organization policy lives at `TALE_CONFIG_DIR/<org>/governance/standard-agent.yml`, with policy type `standard_agent`. The [Models page](/platform/admin/governance/content-models#standard-agent) edits the same settings. A new organization is seeded with the standard agent on, and an absent file means on too:
+
+```yaml
+enabled: true
+```
+
+Pin the runtime, the model or both, and replace the built-in instructions:
+
+```yaml
+enabled: true
+harness: claude-code
+providerSlug: anthropic
+modelId: claude-sonnet-5
+instructions: |
+  Write in the house style. Deliver every document as a Word file.
+```
+
+`harness` takes the slug of a runtime a project agent can use, such as `claude-code` or `codex`; the Models page refuses one that isn't. A model pin needs both `providerSlug` and `modelId`. A partial pin, an unknown field, or instructions longer than 20,000 characters are invalid. An invalid or unreadable file stops every standard agent from starting, and the Models page names the problem; it is never read as on. An unavailable pin never falls back to another model, and neither does a pin that a person's model access denies. The policy is read whenever a run starts, so an edit applies to the next run. With `enabled: false`, the standard agents already set up stay in their projects, but none of them starts.
 
 ## Verify sandbox model access
 

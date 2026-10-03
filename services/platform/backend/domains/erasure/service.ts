@@ -1179,6 +1179,20 @@ export async function processErasure(
     return removed.length;
   });
 
+  // The sandbox workspaces the subject's runs with the organization's agents
+  // worked in. A run a member starts works in a workspace of its own with
+  // that agent, so what those runs left there is the subject's alone: it
+  // goes whole, whatever still runs in it, and a workspace the sandbox
+  // service could not delete fails the pass (a Retry runs it again).
+  await pass('sandboxWorkspaces', async () => {
+    const { eraseMemberWorkspaces } =
+      await import('../sandbox/workspace-cleanup.ts');
+    return eraseMemberWorkspaces(sql, {
+      organizationId,
+      userId: targetUserId,
+    });
+  });
+
   // Project-agent runs the subject kicked off. `started_by` is the bare user
   // id — the retention sweep spares a custodian's runs on exactly that
   // column, so the slice already treats them as the starter's data — and
@@ -1314,6 +1328,8 @@ export async function processErasure(
       WHERE org_id = ${organizationId} AND resource_type = 'task_review'
         AND (approved_by = ${targetUserId}
              OR metadata->>'requestedFor' = ${targetUserId}
+             OR (metadata->'reviewer'->>'kind' = 'user'
+                 AND metadata->'reviewer'->>'userId' = ${targetUserId})
              OR metadata->'response'->>'respondedBy' = ${targetUserId})
     `;
     let changed = 0;
@@ -1322,6 +1338,14 @@ export async function processErasure(
       if (metadata !== undefined) {
         if (metadata.requestedFor === targetUserId) {
           metadata.requestedFor = ERASED_SUBJECT;
+        }
+        const reviewer = metadata.reviewer;
+        if (
+          isRecord(reviewer) &&
+          reviewer.kind === 'user' &&
+          reviewer.userId === targetUserId
+        ) {
+          metadata.reviewer = { kind: 'user', userId: ERASED_SUBJECT };
         }
         const response = metadata.response;
         if (isRecord(response) && response.respondedBy === targetUserId) {

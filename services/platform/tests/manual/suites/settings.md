@@ -1,6 +1,6 @@
 # Settings
 
-> **Prefix** `SET-` · **Reset** none · **Cost** 108 boxes
+> **Prefix** `SET-` · **Reset** none · **Cost** 117 boxes
 
 Exercise the settings surface along its real rail — **Personal** (Account,
 Preferences, Notifications, Usage), **Organization** (Organization, Teams, Members,
@@ -606,13 +606,15 @@ run.
   whose first section is **Email delivery**
   (`notificationPreferences.deliveryTitle`), the second section keeps its
   visible **Notifications** title (`notificationPreferences.title`).
-- [ ] `SET-F54` · **A deleted agent's workspace is named** —
+- [ ] `SET-F54` · **A deleted agent's workspace goes with it** —
   `/dashboard/{org}/settings/sandboxes` as an owner, with a project agent
   that has run at least one task (its workspace is listed under the agent's
   name) → delete that agent from the project's Agents tab → back on
-  Sandboxes → The row's **Workspace** column reads **Deleted agent**
-  (`sandboxes.deletedAgent`), never the owner id; the row's menu still
-  offers **Destroy**, and after destroying it the row is gone.
+  Sandboxes → Within a minute the row is gone on its own. While a task still
+  runs in it the row stays, its **Workspace** column reading **Deleted
+  agent** (`sandboxes.deletedAgent`), never the owner id, and it leaves once
+  that task ends. `/dashboard/{org}/settings/governance/logs` lists **Sandbox
+  workspace deleted** for it.
 - [ ] `SET-F55` · **One team name per organization** —
   `/dashboard/{org}/settings/teams` with a team named `Finance` →
   **Create team** (`settings.teams.createTeam`) → **Team name**
@@ -797,6 +799,46 @@ run.
   answered by that model; with the MCP block of
   `/dashboard/{org}/settings/api/mcp` in the same file, a `tale_get_knowledge`
   call works in the same session.
+- [ ] `SET-F69` · **An unused workspace shows when it goes** —
+  `/dashboard/{org}/settings/sandboxes` as an owner, with a project agent
+  whose last task has finished (its row **Stopped**, **Quota released**) →
+  The row's **Status** cell adds **Deleted on {date} unless used again**
+  (`sandboxes.status.deletesOn`), 30 days after that task — or later, a full
+  30 days after **Workspace cleanup** was turned on or shortened. **Pin** the
+  row → the date goes (a pinned workspace is kept); **Unpin** → it returns.
+  A running workspace and a workflow run's row carry no date.
+- [ ] `SET-F70` · **Workspace cleanup follows its setting** — Same page as
+  an owner → **Workspace cleanup** (`sandboxes.cleanup.title`) shows **Delete
+  unused workspaces** (`sandboxes.cleanup.deleteUnused`) on and **Days
+  without use** (`sandboxes.cleanup.unusedDays`) at `30` → set `60`, Save →
+  the rows' dates move 30 days later; switch **Delete unused workspaces**
+  off → **Days without use** is disabled; Save → no row shows a date; reload
+  → both settings stand. As a Developer the section is absent.
+- [ ] `SET-F71` · **A removed member's workspaces go** — With a Member who
+  started a project agent's run on their own task (`TASK-F50`), Sandboxes
+  lists a second workspace for that agent (the member's own) → **Members** →
+  that member's **Delete** → back on Sandboxes → within a minute the
+  member's workspace is gone and the agent's own stays;
+  `/dashboard/{org}/settings/governance/logs` lists **Sandbox workspace
+  deleted** for it.
+- [ ] `SET-F72` · **A deleted organization leaves no sandbox behind** —
+  Mode B on a Docker host. In a throwaway organization run a project agent's
+  task with Docker-in-Docker on (its build helpers start); note the
+  organization id → delete the organization (`SET-F13`) → within a few
+  minutes `docker ps -a --filter label=tale.org=<id>` and
+  `docker volume ls --filter label=tale.org=<id>` list nothing, no
+  `tale-sandbox-*-cache-<id>` volume remains, and the host session root
+  holds none of its `ses-pa-…` directories.
+- [ ] `SET-F73` · **Destroy answers at once** — As owner on
+  `/dashboard/{org}/settings/sandboxes` with a live workspace (env-gated; a
+  project agent's after a task that installed dependencies shows it best) →
+  row menu → **Destroy** → confirm → The dialog closes within a second with
+  the toast **Destroying sandbox** (`sandboxes.toast.destroying`); the row
+  reads **Destroying** (`sandboxes.status.destroying`) and its row menu
+  holds **Pin** and **Destroy** (**Stop task**, shown while a task runs,
+  stays available); another row can be pinned meanwhile; the row
+  leaves the list within a few seconds of the spawner finishing, without a
+  reload.
 
 ## Boundary & error tests
 
@@ -964,9 +1006,12 @@ run.
   reads the setup on `/dashboard/{org}/settings/api/models` (or its
   not-enabled state while the endpoints are off);
   `/dashboard/{org}/settings/api/mcp` and `/dashboard/{org}/settings/api/webdav`
-  by URL show the access-denied message (`accessDenied.apiKeys`). Revoke the
-  grant → the API row disappears, and `/dashboard/{org}/settings/api/models`
-  shows `accessDenied.apiKeys` too.
+  by URL show **This page is for Owners, Admins and Developers.**
+  (`accessDenied.apiTab`). Revoke the grant → **API** keeps **REST** alone
+  while the member holds the key, listing it with **Revoke key** but without
+  **Create API key**, and `/dashboard/{org}/settings/api/models` names the
+  competence it takes (`accessDenied.apiModels`); once the key is revoked too
+  the API row disappears.
 - [ ] `SET-B21` · **A custom provider's edit saves whole or not at all** —
   With a custom provider holding two credentials A and B (`SET-F43`), open
   A's **Edit credential** (`settings.credentials.edit`), change **Base URL**
@@ -980,6 +1025,38 @@ run.
   `settings.providers.custom.errors.versionConflict`; reload the second
   tab → its **Base URL** stands; reopen the first dialog → it shows that
   **Base URL**, and the rename now saves.
+- [ ] `SET-B27` · **Only a role or competence that uses a key creates one** —
+  As a Member holding no competence, the settings rail shows no **API** row;
+  in DevTools run
+  `fetch('/api/auth/api-key/create', {method: 'POST', headers: {'content-type': 'application/json'}, body: JSON.stringify({name: 'probe'})}).then((r) => r.json())`
+  → 403 with code `API_KEY_CREATE_FORBIDDEN`, and no key named `probe` exists.
+  Have an Admin grant **Export notifications** → after a reload **API** shows
+  **REST** alone, without **Models**, and **Create API key** there makes a key.
+  Revoke the grant → the key keeps working with the Member's role, and a
+  second create is refused again; **REST** stays, listing the key without
+  **Create API key**, until the Member revokes it.
+- [ ] `SET-B28` · **Workspace cleanup's bounds** — `/dashboard/{org}/settings/sandboxes`
+  → **Days without use** (`sandboxes.cleanup.unusedDays`) → `0`, `3651` or
+  `2.5` → Save is blocked with **Must be a whole number between 1 and 3650.**
+  (`sandboxes.cleanup.invalidDays`); `1` and `3650` save.
+- [ ] `SET-B29` · **A Destroy the spawner cannot finish** — Mode B. Stop
+  the sandbox service (`docker stop tale-sandbox`) → **Destroy** a
+  workspace on `/dashboard/{org}/settings/sandboxes` → The dialog still
+  closes at once and the row reads **Destroying** while the job retries;
+  start the service again within a few minutes (`docker start
+  tale-sandbox`) → the row leaves on its own. Repeat, leaving the service
+  stopped for half an hour → the row stays, unpinned, reading **Destroy
+  failed** (`sandboxes.status.destroyFailed`), and its menu offers
+  **Destroy** again, which finishes once the service is back.
+- [ ] `SET-B30` · **Nothing starts in a workspace being destroyed** — Mode
+  B. Stop the sandbox service (`docker stop tale-sandbox`) → **Destroy** a
+  project agent's **Stopped** workspace → while its row reads
+  **Destroying**, start a task with that agent, and mention the agent in a
+  chat → each run reads **Waiting for a sandbox slot**
+  (`tasks.agentRun.waitingForSlot`, `chat.taskTray.waitingForSlot`) and
+  nothing runs in the workspace; start the service again (`docker start
+  tale-sandbox`) → the row leaves, then the runs start on their own in a
+  fresh workspace, whose file list holds nothing the old one did.
 
 ## Accessibility (WCAG 2.1 AA)
 

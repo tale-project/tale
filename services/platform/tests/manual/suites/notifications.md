@@ -1,6 +1,6 @@
 # Notifications (bell)
 
-> **Prefix** `NOTIF-` · **Reset** none · **Cost** 30 boxes
+> **Prefix** `NOTIF-` · **Reset** none · **Cost** 32 boxes
 
 Exercise the notification center (the **bell** in the app sidebar's footer +
 its popover panel). Review decisions happen on the task itself (Status →
@@ -198,6 +198,19 @@ their own action, so a single account cannot generate those rows.
   itself answers 403 `COMPETENCE_FORBIDDEN`. Remove the Developer from the
   organization and add them back → the export stays 403 until an Admin
   grants the capability again.
+
+- [ ] `NOTIF-F20` · **A status change names the columns** — In German and in
+  French, move a task a member watches from **In progress** to **In review**
+  → the member's row names the board's columns
+  (`tasks.status.in_progress`, `tasks.status.in_review`) in their language,
+  never `in_progress` or `in_review`.
+- [ ] `NOTIF-F21` · **Agent escalations gate the failed-run notice** — Under
+  **Notifications** (`notificationPreferences.title`), the **Agent
+  escalations** switch (`notificationPreferences.fields.escalation.label`)
+  reads `notificationPreferences.fields.escalation.description`; turn it off
+  and let a run you started fail for good (`TASK-F57`) → no **Agent run
+  failed** (`inbox.agentRunFailed`) row arrives; turn it on and fail another →
+  the row arrives.
 
 ## Boundary & error tests
 

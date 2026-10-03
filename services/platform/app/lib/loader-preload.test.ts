@@ -31,6 +31,7 @@ import {
   ensureConvexQuery,
   ensureGovernancePolicies,
   ensureOrgSettingsQuery,
+  loaderAbility,
 } from './loader-preload';
 
 const FAKE_ROW = 'fake:adapted' as QueryName;
@@ -124,6 +125,50 @@ describe('ensureOrgSettingsQuery', () => {
     });
     expect(cachedAbility(ctx, 'org-1')).toBeNull();
     expect(queryFn).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('loaderAbility', () => {
+  it('answers from the cached member context without a read', async () => {
+    const ctx = context();
+    ctx.queryClient.setQueryData(
+      memberContextQuery('org-1').queryKey,
+      memberContext('member'),
+    );
+    const ensure = vi.spyOn(ctx.queryClient, 'ensureQueryData');
+
+    const ability = await loaderAbility(ctx, 'org-1');
+    expect(ability?.can('read', 'developerSettings')).toBe(false);
+    expect(ensure).not.toHaveBeenCalled();
+  });
+
+  // A cold deep link: the dashboard route's loader has started the
+  // member-context read but it has not settled — join it rather than guess.
+  it('joins the member-context read on a cold deep link', async () => {
+    const ctx = context();
+    const ensure = vi
+      .spyOn(ctx.queryClient, 'ensureQueryData')
+      .mockResolvedValue(memberContext('admin'));
+
+    const ability = await loaderAbility(ctx, 'org-1');
+    expect(ability?.can('read', 'developerSettings')).toBe(true);
+    expect(ensure).toHaveBeenCalledWith(
+      expect.objectContaining({
+        queryKey: memberContextQuery('org-1').queryKey,
+      }),
+    );
+  });
+
+  it('answers null when the member context cannot be read', async () => {
+    const ctx = context();
+    vi.spyOn(ctx.queryClient, 'ensureQueryData').mockRejectedValue(
+      new Error('offline'),
+    );
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    await expect(loaderAbility(ctx, 'org-1')).resolves.toBeNull();
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
   });
 });
 

@@ -321,5 +321,263 @@ describe('useListPage — failed request', () => {
     const { result } = renderListPage();
     expect(result.current.tableProps.error).toBeNull();
     expect(result.current.tableProps.onRetry).toBeUndefined();
+    expect(result.current.tableProps.infiniteScroll.loadFailed).toBe(false);
+  });
+
+  // #3777: a search drained into a page that failed, and the drain re-issued
+  // it on every render while the table showed a skeleton no request filled.
+  it('stops draining a paginated source a failed request halted', () => {
+    const loadMore = vi.fn();
+    const { result } = renderListPage({
+      dataSource: {
+        type: 'paginated',
+        results: makeItems(10),
+        status: 'CanLoadMore',
+        loadMore,
+        isLoading: false,
+        error: new Error('next page failed'),
+        retry: vi.fn(),
+      },
+      search: { fields: ['name'] },
+    });
+
+    act(() => {
+      result.current.tableProps.search?.onChange('Item 99');
+    });
+    act(() => {
+      result.current.tableProps.infiniteScroll.onLoadMore();
+    });
+
+    expect(loadMore).not.toHaveBeenCalled();
+    // The rows stay, the error is not the table's (rows exist), and the
+    // table learns that nothing is loading.
+    expect(result.current.tableProps.error).toBeNull();
+    expect(result.current.tableProps.infiniteScroll.loadFailed).toBe(true);
+    expect(result.current.tableProps.infiniteScroll.hasMore).toBe(true);
+  });
+
+  it('opens its window to every loaded row once halted, and keeps it open', () => {
+    const halted = {
+      type: 'paginated' as const,
+      results: makeItems(25),
+      status: 'CanLoadMore' as const,
+      loadMore: vi.fn(),
+      isLoading: false,
+      error: new Error('next page failed') as Error | null,
+      retry: vi.fn(),
+    };
+    const { result, rerender } = renderHook(
+      ({ source }) =>
+        useListPage<TestItem>({ dataSource: source, pageSize: 10 }),
+      { initialProps: { source: halted } },
+    );
+    // No scroll pages loaded rows in while the list is halted.
+    expect(result.current.tableProps.data).toHaveLength(25);
+
+    // Recovered: the rows on screen stay on screen.
+    rerender({ source: { ...halted, results: makeItems(35), error: null } });
+    expect(result.current.tableProps.data).toHaveLength(25);
+    expect(result.current.tableProps.infiniteScroll.loadFailed).toBe(false);
+  });
+
+  it('reads a retry in flight as loading again', () => {
+    const { result } = renderListPage({
+      dataSource: {
+        type: 'paginated',
+        results: makeItems(10),
+        status: 'LoadingMore',
+        loadMore: vi.fn(),
+        isLoading: true,
+        error: new Error('next page failed'),
+        retry: vi.fn(),
+      },
+    });
+
+    expect(result.current.tableProps.infiniteScroll.loadFailed).toBe(false);
+  });
+
+  // A documents table lists folders beside a documents read that never
+  // answered; only the host can tell the table those rows are partial.
+  describe('when the host says the rows stopped short', () => {
+    const partial = {
+      type: 'paginated' as const,
+      results: makeItems(25),
+      status: 'Exhausted' as
+        | 'LoadingFirstPage'
+        | 'CanLoadMore'
+        | 'LoadingMore'
+        | 'Exhausted',
+      loadMore: vi.fn(),
+      isLoading: false,
+      loadFailed: true,
+      retry: vi.fn(),
+    };
+
+    it('halts the list with every row on screen, though nothing more is paged', () => {
+      const { result } = renderHook(() =>
+        useListPage<TestItem>({ dataSource: partial, pageSize: 10 }),
+      );
+
+      expect(result.current.tableProps.infiniteScroll.loadFailed).toBe(true);
+      expect(result.current.tableProps.infiniteScroll.hasMore).toBe(false);
+      expect(result.current.tableProps.data).toHaveLength(25);
+      expect(result.current.tableProps.error).toBeNull();
+    });
+
+    it('keeps the rows through a retry the source reads as a first load', () => {
+      const { result } = renderHook(() =>
+        useListPage<TestItem>({
+          dataSource: { ...partial, status: 'LoadingFirstPage' },
+          pageSize: 10,
+        }),
+      );
+
+      expect(result.current.tableProps.infiniteScroll.isInitialLoading).toBe(
+        false,
+      );
+      expect(result.current.isLoading).toBe(false);
+      expect(result.current.tableProps.data).toHaveLength(25);
+    });
+
+    it('lets the host clear it, over the rule it would derive', () => {
+      const { result } = renderHook(() =>
+        useListPage<TestItem>({
+          dataSource: {
+            ...partial,
+            status: 'CanLoadMore',
+            error: new Error('next page failed'),
+            loadFailed: false,
+          },
+          pageSize: 10,
+        }),
+      );
+
+      expect(result.current.tableProps.infiniteScroll.loadFailed).toBe(false);
+    });
+  });
+
+  // #3944 review: a search resets the display window to one page, and a
+  // halted list pages nothing in — so a search that matched every loaded row
+  // (or clearing one) left the rows past the first page out of reach.
+  describe('keeps every loaded row reachable while halted, whatever resets the window', () => {
+    const halted = {
+      type: 'paginated' as const,
+      results: makeItems(35),
+      status: 'CanLoadMore' as
+        | 'LoadingFirstPage'
+        | 'CanLoadMore'
+        | 'LoadingMore'
+        | 'Exhausted',
+      loadMore: vi.fn(),
+      isLoading: false,
+      error: new Error('next page failed') as Error | null,
+      retry: vi.fn(),
+    };
+
+    it('through a managed search that matches every row, and its clearing', () => {
+      // Every render counts, not just the settled one: a window reopened a
+      // commit later would paint one page first and shift the rows below.
+      const painted: number[] = [];
+      const { result } = renderHook(() => {
+        const list = useListPage<TestItem>({
+          dataSource: halted,
+          pageSize: 20,
+          search: { fields: ['name'] },
+        });
+        painted.push(list.tableProps.data.length);
+        return list;
+      });
+      expect(result.current.tableProps.data).toHaveLength(35);
+
+      painted.length = 0;
+      act(() => result.current.tableProps.search?.onChange('Item'));
+      expect(result.current.tableProps.data).toHaveLength(35);
+      expect(Math.min(...painted)).toBe(35);
+
+      painted.length = 0;
+      act(() => result.current.tableProps.search?.onChange(''));
+      expect(result.current.tableProps.data).toHaveLength(35);
+      expect(Math.min(...painted)).toBe(35);
+    });
+
+    it('through clearing every managed search and filter at once', () => {
+      const { result } = renderHook(() =>
+        useListPage<TestItem>({
+          dataSource: halted,
+          pageSize: 20,
+          search: { fields: ['name'] },
+        }),
+      );
+      act(() => result.current.tableProps.search?.onChange('Item 3'));
+      expect(result.current.tableProps.data).toHaveLength(6);
+
+      act(() => result.current.tableProps.onClearFilters?.());
+      expect(result.current.tableProps.data).toHaveLength(35);
+    });
+
+    it('through a search the host runs itself (a controlled value)', () => {
+      // The host narrows `results` itself: a query that matches every row
+      // leaves the same 35, only the window is reset.
+      const onChange = vi.fn();
+      const { result, rerender } = renderHook(
+        ({ query, source }) =>
+          useListPage<TestItem>({
+            dataSource: source,
+            pageSize: 20,
+            search: { value: query, onChange, placeholder: 'Search' },
+          }),
+        {
+          initialProps: {
+            query: '',
+            source: { ...halted, loadFailed: true },
+          },
+        },
+      );
+      expect(result.current.tableProps.data).toHaveLength(35);
+
+      act(() => result.current.tableProps.search?.onChange('Item'));
+      rerender({ query: 'Item', source: { ...halted, loadFailed: true } });
+      expect(onChange).toHaveBeenCalledWith('Item');
+      expect(result.current.tableProps.data).toHaveLength(35);
+
+      act(() => result.current.tableProps.search?.onChange(''));
+      rerender({ query: '', source: { ...halted, loadFailed: true } });
+      expect(result.current.tableProps.data).toHaveLength(35);
+    });
+
+    it('through a host clearing its own filters', () => {
+      const onClear = vi.fn();
+      const { result } = renderHook(() =>
+        useListPage<TestItem>({
+          dataSource: { ...halted, loadFailed: true },
+          pageSize: 20,
+          filters: { configs: [], onClear },
+        }),
+      );
+
+      act(() => result.current.tableProps.onClearFilters?.());
+      expect(onClear).toHaveBeenCalledTimes(1);
+      expect(result.current.tableProps.data).toHaveLength(35);
+    });
+
+    it('and keeps those rows on screen once the retry succeeds', () => {
+      const { result, rerender } = renderHook(
+        ({ source }) =>
+          useListPage<TestItem>({
+            dataSource: source,
+            pageSize: 20,
+            search: { fields: ['name'] },
+          }),
+        { initialProps: { source: halted } },
+      );
+      act(() => result.current.tableProps.search?.onChange('Item'));
+
+      rerender({
+        source: { ...halted, results: makeItems(45), error: null },
+      });
+      expect(result.current.tableProps.infiniteScroll.loadFailed).toBe(false);
+      expect(result.current.tableProps.data).toHaveLength(35);
+      expect(result.current.tableProps.infiniteScroll.hasMore).toBe(true);
+    });
   });
 });

@@ -12,6 +12,9 @@ RUN ln -s /usr/local/bin/bun /usr/local/bin/bunx
 WORKDIR /app
 
 COPY package.json bun.lock bunfig.toml ./
+# The root package.json's `patchedDependencies` (patches/README.md): `bun install`
+# refuses to run without the patch files, and they must reach the installed packages.
+COPY patches/ ./patches/
 COPY packages/e2e/package.json ./packages/e2e/
 COPY packages/marketing-ui/package.json ./packages/marketing-ui/
 COPY packages/shared/package.json ./packages/shared/

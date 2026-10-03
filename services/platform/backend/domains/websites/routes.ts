@@ -4,11 +4,17 @@ import { z } from 'zod';
 
 import { isRecord } from '../../../lib/utils/type-utils.ts';
 import type { Auth } from '../../auth/auth.ts';
-import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
+import {
+  requireOrgAbility,
+  requireOrgMember,
+  type OrgEnv,
+} from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
+import { isWebsitePageState } from '../../core/websites/types.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { invalidBodyResponse } from '../../lib/invalid-body-response.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
+import { websiteSearchReady } from './search-readiness.ts';
 import {
   countWebsites,
   deregisterAndDeleteWebsite,
@@ -20,6 +26,7 @@ import {
   patchWebsite,
   registerWebsite,
   resumeScanning,
+  scanWebsiteNow,
   searchWebsiteContent,
   syncScanIntervalToCorpus,
   syncWebsiteStatuses,
@@ -30,9 +37,11 @@ import {
 
 /**
  * /api/app/websites — the tracked-websites surface (the 0.4
- * `websites/actions` + queries). Org-member gated like 0.4; a "create"
- * answers as soon as the row exists and the crawler registration runs as
- * the `websites.register` job (the 0.4 fire-and-forget scheduler shape).
+ * `websites/actions` + queries). Every member reads; managing a source
+ * (add, edit, delete, resume, scan now) takes `knowledgeWrite`, the ability
+ * the page's own buttons are drawn by. A "create" answers as soon as the row
+ * exists and the crawler registration runs as the `websites.register` job
+ * (the 0.4 fire-and-forget scheduler shape).
  */
 
 function handleError<E extends OrgEnv>(
@@ -86,6 +95,12 @@ export function createWebsiteRoutes(deps: {
 }): Hono<OrgEnv> {
   const app = new Hono<OrgEnv>();
   app.use(requireSession(deps.auth), requireOrgMember(deps.sql));
+  // The doors that change a source. They were open to every member: the
+  // page hides its write actions from a role without `knowledgeWrite`, and
+  // the guide asks for Editor or higher, but nothing here checked, so a
+  // read-only member could add, edit or delete a website by calling the
+  // route. The status sync and the content search stay with the readers.
+  const mayManage = requireOrgAbility<OrgEnv>('write', 'knowledgeWrite');
 
   app.get('/', async (c) => {
     const result = await listWebsites(deps.sql, c.get('orgId'), {
@@ -108,7 +123,7 @@ export function createWebsiteRoutes(deps: {
     return c.json({ count: await countWebsites(deps.sql, c.get('orgId')) });
   });
 
-  app.post('/', async (c) => {
+  app.post('/', mayManage, async (c) => {
     const body = createBodySchema.safeParse(
       await c.req.json().catch(() => null),
     );
@@ -140,6 +155,14 @@ export function createWebsiteRoutes(deps: {
     return c.json({ ok: true });
   });
 
+  // Whether the assistant can search what the crawl stores — the fact the
+  // Websites page states when it cannot (no embedding model).
+  app.get('/search-readiness', async (c) => {
+    return c.json({
+      ready: await websiteSearchReady(deps.sql, c.get('orgId')),
+    });
+  });
+
   app.get('/:websiteId', async (c) => {
     try {
       return c.json(await loadOwnedWebsite(deps.sql, c));
@@ -148,7 +171,7 @@ export function createWebsiteRoutes(deps: {
     }
   });
 
-  app.patch('/:websiteId', async (c) => {
+  app.patch('/:websiteId', mayManage, async (c) => {
     const raw: unknown = await c.req.json().catch(() => null);
     const body = updateBodySchema.safeParse(raw);
     if (!body.success) return invalidBodyResponse(c, body.error);
@@ -184,7 +207,7 @@ export function createWebsiteRoutes(deps: {
     }
   });
 
-  app.delete('/:websiteId', async (c) => {
+  app.delete('/:websiteId', mayManage, async (c) => {
     try {
       const website = await loadOwnedWebsite(deps.sql, c);
       await deregisterAndDeleteWebsite(deps.sql, website);
@@ -194,7 +217,7 @@ export function createWebsiteRoutes(deps: {
     }
   });
 
-  app.post('/:websiteId/resume', async (c) => {
+  app.post('/:websiteId/resume', mayManage, async (c) => {
     try {
       const website = await loadOwnedWebsite(deps.sql, c);
       await resumeScanning(deps.sql, website);
@@ -204,7 +227,25 @@ export function createWebsiteRoutes(deps: {
     }
   });
 
+  app.post('/:websiteId/scan', mayManage, async (c) => {
+    try {
+      const website = await loadOwnedWebsite(deps.sql, c);
+      return c.json({
+        ok: true,
+        ...(await scanWebsiteNow(deps.sql, website)),
+      });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
   app.get('/:websiteId/pages', async (c) => {
+    // `state=failed|skipped` narrows the window to the pages in that state;
+    // any other value is a typo, refused rather than read as "all".
+    const stateRaw = c.req.query('state');
+    if (stateRaw !== undefined && !isWebsitePageState(stateRaw)) {
+      return c.json({ error: 'state must be "failed" or "skipped"' }, 400);
+    }
     try {
       const website = await loadOwnedWebsite(deps.sql, c);
       // The 0.4 fetchPages debounce: at most one corpus→row sync per hour
@@ -226,6 +267,7 @@ export function createWebsiteRoutes(deps: {
         await fetchWebsitePages(deps.sql, website, {
           offset: Number(c.req.query('offset') ?? '0') || 0,
           limit: Number(c.req.query('limit') ?? '100') || 100,
+          ...(stateRaw !== undefined ? { state: stateRaw } : {}),
         }),
       );
     } catch (error) {

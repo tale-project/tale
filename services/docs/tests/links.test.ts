@@ -1,145 +1,74 @@
-import fs from 'node:fs';
-import path from 'node:path';
-
+import { judgeLink } from '@tale/ui/docs/links';
 import { describe, it } from 'vitest';
 
+import {
+  DOCS_LINK_SITE,
+  docsPageFiles,
+  readDocsPage,
+} from '@/scripts/link-site';
+
 import { assertNoFindings, type Finding } from './lib/findings';
-import { parseFrontmatter, stripFences } from './lib/markdown';
-import { CONTENT_ROOT } from './lib/paths';
-import { BASE_LOCALES, walkDocs } from './lib/walk';
+import { BASE_LOCALES } from './lib/walk';
 
 /**
- * Every internal page link in the docs corpus must resolve to a real
- * `.md`/`.mdx` file — both Markdown `[text](target)` links and `href="…"`
- * attributes on raw component tags (`<Card href="/cloud/billing">`). Catches
- * links to pages that were planned-but-not-written, removed without sweeping
- * callers, or mistyped.
+ * Every link a docs page renders must land. The links are read with the
+ * renderer's own parser (`@tale/ui/docs/links`): inline and reference links,
+ * autolinks, images, and the `href` / `src` of raw component tags such as
+ * `<Card href>` — never an example inside code. Each resolves the way a
+ * browser resolves it, against the page's own URL, and is judged against
+ * what docs.tale.dev answers (`scripts/link-site.ts`):
  *
- * Scope rules (identical for both syntaxes):
- *   - External URLs (`http(s)://`, `mailto:`) are skipped.
- *   - Anchor-only links (`#section`) are checked by `anchors.test.ts`.
- *   - Links with file extensions (e.g. `screenshots/x.png`, `foo.svg`)
- *     are skipped; this check is about docs page slugs, not arbitrary
- *     assets.
- *   - Fenced code blocks are stripped so example links in code samples
- *     don't trip the check.
+ *   - `link-target-missing` — the address is a 404 (the finding names the
+ *     closest page);
+ *   - `link-via-redirect` — the address is a moved page or a section folder:
+ *     link the page the redirect lands on;
+ *   - `fragment-missing` — the `#fragment` is no heading or id the target
+ *     renders (use the renderer's slug, or keep the old `{#id}` when
+ *     renaming a section);
+ *   - `link-locale-switch` — a German or French page links a page in
+ *     another language; keep the reader in the page's own tree.
  *
- * Unprefixed absolute paths reach English at runtime. Other locales must
- * include their prefix; resolving a target in the current locale alone
- * would hide accidental language switches.
+ * External addresses are out of scope here; links into the docs from the
+ * rest of the repository are judged by `bun run lint:links`.
  */
 
-const LINK = /\]\(([^)\s]+?)(?:#[^)\s]*)?\)/g;
-/** `href="…"` / `href='…'` on a raw tag; the backreference pins the quote. */
-const HREF = /\bhref=(["'])([^"']*)\1/g;
+/**
+ * The whole corpus is parsed with the Markdown renderer's own parser, which
+ * takes seconds, not milliseconds, on a busy CI runner — and grows with
+ * every page. Each page is parsed once (`readDocsPage`) for its links and
+ * for the ids other pages' fragments land on.
+ */
+const CORPUS_TIMEOUT_MS = 60_000;
 
-interface LinkRef {
-  file: string;
-  line: number;
-  url: string;
-  /** Which syntax carried the link — names the rule in the finding. */
-  kind: 'markdown' | 'href';
-}
+describe('links in the docs', () => {
+  const pages = docsPageFiles();
 
-function isDocsPageLink(url: string): boolean {
-  if (url.startsWith('http://') || url.startsWith('https://')) return false;
-  if (url.startsWith('mailto:')) return false;
-  if (url.startsWith('#')) return false;
-  if (/\.[a-z0-9]{1,5}$/i.test(url)) return false;
-  return true;
-}
-
-function resolveTargetFile(url: string, locale: string): string {
-  // Strip leading slash and locale prefix so `/de/cloud/billing` and
-  // `cloud/billing` both resolve to `docs/<locale>/cloud/billing`.
-  const cleaned = url.replace(/^\//, '').replace(new RegExp(`^${locale}/`), '');
-  return path.join(CONTENT_ROOT, locale, cleaned);
-}
-
-function targetExists(base: string): boolean {
-  return (
-    fs.existsSync(`${base}.md`) ||
-    fs.existsSync(`${base}.mdx`) ||
-    fs.existsSync(path.join(base, 'index.md')) ||
-    fs.existsSync(path.join(base, 'index.mdx'))
-  );
-}
-
-function extractLinks(relFile: string): LinkRef[] {
-  const abs = path.join(CONTENT_ROOT, relFile);
-  const raw = fs.readFileSync(abs, 'utf8');
-  const { body } = parseFrontmatter(raw);
-  const cleanBody = stripFences(body);
-  const out: LinkRef[] = [];
-  const lines = cleanBody.split('\n');
-  // Body starts after frontmatter; track the offset so line numbers match
-  // the raw file.
-  const frontmatterLines =
-    raw.length === body.length
-      ? 0
-      : raw.slice(0, raw.length - body.length).split('\n').length - 1;
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    LINK.lastIndex = 0;
-    let m: RegExpExecArray | null;
-    while ((m = LINK.exec(line)) !== null) {
-      const url = m[1];
-      if (!isDocsPageLink(url)) continue;
-      out.push({
-        file: relFile,
-        line: frontmatterLines + i + 1,
-        url,
-        kind: 'markdown',
-      });
-    }
-    HREF.lastIndex = 0;
-    while ((m = HREF.exec(line)) !== null) {
-      // Same anchor handling the LINK regex bakes in: check the page, not
-      // the `#section` suffix.
-      const url = m[2].replace(/#.*$/, '');
-      if (url === '' || !isDocsPageLink(url)) continue;
-      out.push({
-        file: relFile,
-        line: frontmatterLines + i + 1,
-        url,
-        kind: 'href',
-      });
-    }
-  }
-  return out;
-}
-
-describe('page link targets', () => {
   it.each(BASE_LOCALES)(
-    'every markdown link and component href under %s/ resolves to a real page',
+    'every link under %s/ lands',
     (locale) => {
-      const localePrefix = locale + path.sep;
-      const pages = walkDocs().filter((p) => p.startsWith(localePrefix));
       const findings: Finding[] = [];
-      for (const page of pages) {
-        for (const link of extractLinks(page)) {
-          if (locale !== 'en' && !link.url.startsWith(`/${locale}/`)) {
-            findings.push({
-              file: link.file,
-              line: link.line,
-              rule: 'link-locale-prefix-missing',
-              detail: `"${link.url}" must keep the reader in /${locale}/`,
-            });
-          }
-          const target = resolveTargetFile(link.url, locale);
-          if (targetExists(target)) continue;
+      for (const page of pages.filter(
+        (candidate) => candidate.locale === locale,
+      )) {
+        const { links, anchors: pageAnchors } = readDocsPage(page.file);
+        for (const link of links) {
+          const problem = judgeLink(link.url, {
+            pageUrl: page.url,
+            pageLocale: locale,
+            pageAnchors,
+            sites: [DOCS_LINK_SITE],
+          });
+          if (!problem) continue;
           findings.push({
-            file: link.file,
+            file: page.file.replace(/^docs\//, ''),
             line: link.line,
-            rule:
-              link.kind === 'href'
-                ? 'href-target-missing'
-                : 'link-target-missing',
-            detail: `${link.kind === 'href' ? 'component href' : 'link target'} "${link.url}" resolves to ${path.relative(CONTENT_ROOT, target)} which does not exist`,
+            rule: problem.rule,
+            detail: `"${link.url}": ${problem.detail}`,
           });
         }
       }
-      assertNoFindings(findings, `Broken page links under ${locale}/`);
+      assertNoFindings(findings, `Broken links under ${locale}/`);
     },
+    CORPUS_TIMEOUT_MS,
   );
 });

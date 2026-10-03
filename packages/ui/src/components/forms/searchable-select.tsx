@@ -171,9 +171,11 @@ export interface SearchableSelectProps {
 // field trigger (e.g. the install wizard's project picker) gets a full-width
 // dropdown instead of a 14.5rem one centered under it. `max()` keeps the 14.5rem
 // floor so compact toolbar triggers (agent/model pickers) still open a usable
-// width; content can grow it wider than either bound.
+// width. Cap both bounds to the available viewport width: a long footer or an
+// oversized trigger must not push the search and options off a phone's edge.
+// Match Popover's available-height scroll so a wrapped footer stays reachable.
 const CONTENT_CLASSES =
-  'z-50 min-w-[max(14.5rem,var(--radix-popover-trigger-width))] rounded-lg ring-1 ring-border bg-popover text-popover-foreground dark:bg-muted shadow-md outline-none p-0 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 origin-[var(--radix-popover-content-transform-origin)] duration-[var(--duration-short)] motion-reduce:animate-none';
+  'z-50 min-w-[min(max(14.5rem,var(--radix-popover-trigger-width)),var(--radix-popover-content-available-width))] max-w-(--radix-popover-content-available-width) max-h-(--radix-popover-content-available-height) overflow-y-auto rounded-lg ring-1 ring-border bg-popover text-popover-foreground dark:bg-muted shadow-md outline-none p-0 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 origin-[var(--radix-popover-content-transform-origin)] duration-[var(--duration-short)] motion-reduce:animate-none';
 
 function defaultFilterFn(option: SearchableSelectOption, query: string) {
   const lower = query.toLowerCase();
@@ -505,9 +507,10 @@ function SearchableSelectBase({
             align={align}
             side={side}
             sideOffset={sideOffset}
+            collisionPadding={8}
             className={cn(
               CONTENT_CLASSES,
-              isSwitcher && 'overflow-hidden',
+              isSwitcher && 'overflow-x-hidden',
               contentClassName,
             )}
             onOpenAutoFocus={(e) => {

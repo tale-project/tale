@@ -6,7 +6,11 @@ name: Checks
 # Repo-specific extra jobs append below the marked banner and never replace or
 # rename the standard six.
 
+run-name: ${{ github.event_name == 'repository_dispatch' && format('Release candidate {0}', github.event.client_payload.candidate_sha) || '' }}
+
 on:
+  repository_dispatch:
+    types: [release-candidate]
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     branches:
@@ -17,8 +21,8 @@ on:
   merge_group:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.event_name == 'repository_dispatch' && format('candidate-{0}', github.event.client_payload.candidate_sha) || github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'repository_dispatch' }}
 
 env:
   TURBO_API: 'http://127.0.0.1:9080'
@@ -26,7 +30,17 @@ env:
   TURBO_TEAM: 'tale'
 
 jobs:
+  candidate-source:
+    name: Candidate source
+    uses: ./.github/workflows/release-candidate-source.yml
+    permissions:
+      contents: read
+    with:
+      candidate: ${{ github.event_name == 'repository_dispatch' }}
+      candidate_sha: ${{ github.event.client_payload.candidate_sha }}
+
   format:
+    needs: candidate-source
     name: Format
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -36,6 +50,12 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: ${{ needs.candidate-source.outputs.candidate_sha }}
+          # lint:links compares a change with HEAD^1 (a pull request's merge
+          # commit has the base branch as its first parent), so a page it
+          # retires without a redirect, or a ledger line it drops, is caught.
+          fetch-depth: 2
 
       - name: Setup toolchain
         uses: ./.github/actions/setup-turbo
@@ -49,7 +69,20 @@ jobs:
       - name: Run format check
         run: bun run format:check
 
+      # A conflict a merge or rebase left behind parses fine in markdown and
+      # shell, so no other job would notice it.
+      - name: Refuse merge-conflict markers
+        run: bun run lint:conflicts
+
+      # Every link in the documentation sites, and every link into them from
+      # app code, READMEs and the marketing site, lands, and no page is retired
+      # without a redirect (tools/lint-links). Reads the whole tree and its
+      # history, so it runs outside turbo's cache.
+      - name: Refuse links that do not land
+        run: bun run lint:links
+
   lint:
+    needs: candidate-source
     name: Lint
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -59,6 +92,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: ${{ needs.candidate-source.outputs.candidate_sha }}
 
       - name: Setup toolchain
         uses: ./.github/actions/setup-turbo
@@ -69,25 +104,62 @@ jobs:
         run: bunx turbo run lint
 
   typecheck:
+    needs: candidate-source
     name: Type check
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
       contents: read
+    # This repo's one deviation from the standard job. The platform checks
+    # its frontend, backend and tests as ONE program (about 9,500 files, a
+    # million lines), which has outgrown V8's default heap under the image's
+    # Node: about 4 GiB on this 16 GB runner, where cold runs died with
+    # "Ineffective mark-compacts near heap limit" at ~4,015 MB retained
+    # (exit 137, #4005). A bounded budget for every Node process of this
+    # job; Turbo's strict env mode passes NODE_OPTIONS through to each
+    # task's tsc. Programs, strictness and every other gate are unchanged.
+    env:
+      NODE_OPTIONS: --max-old-space-size=6144
 
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: ${{ needs.candidate-source.outputs.candidate_sha }}
 
       - name: Setup toolchain
         uses: ./.github/actions/setup-turbo
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
+      # The budget the compiler runs under: the Node `bunx tsc` resolves (the
+      # runner image's, not pinned here) and V8's heap limit under this job's
+      # NODE_OPTIONS.
+      - name: Report the compiler's heap budget
+        run: |
+          set -euo pipefail
+          echo "node $(node --version) at $(command -v node), V8 $(node -p 'process.versions.v8')"
+          echo "NODE_OPTIONS=${NODE_OPTIONS}"
+          echo "heap_size_limit: $(node -p 'Math.round(require("node:v8").getHeapStatistics().heap_size_limit / 1048576)') MiB"
+          echo "runner: $(nproc) CPUs"
+          free -m
+
+      # --extendedDiagnostics logs each program's size, memory and check
+      # time, so the log shows how close the platform runs to its budget. As
+      # a pass-through argument it is part of every typecheck task's hash,
+      # which NODE_OPTIONS is not. GNU time (the image's `time` package) logs
+      # the peak RSS of the largest process, the platform's tsc.
       - name: Run type check
-        run: bunx turbo run typecheck
+        run: |
+          set -euo pipefail
+          if [ -x /usr/bin/time ]; then
+            /usr/bin/time --format 'Type check peak RSS: %M KiB, %e s' bunx turbo run typecheck -- --extendedDiagnostics
+          else
+            bunx turbo run typecheck -- --extendedDiagnostics
+          fi
 
   build:
+    needs: candidate-source
     name: Build
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -97,6 +169,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: ${{ needs.candidate-source.outputs.candidate_sha }}
 
       - name: Setup toolchain
         uses: ./.github/actions/setup-turbo
@@ -112,7 +186,14 @@ jobs:
           # it through (`globalPassThroughEnv`) without hashing it.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      # The built docs sites, served by their own servers and crawled through
+      # every address their pages, llms.txt, sitemap and Markdown exports
+      # carry — the links the docs frame builds, which no source check sees.
+      - name: Crawl the built docs sites
+        run: bunx turbo run test:prerender --filter=@tale/docs --filter=@tale/ui-docs
+
   test:
+    needs: candidate-source
     name: Unit
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -132,6 +213,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: ${{ needs.candidate-source.outputs.candidate_sha }}
 
       - name: Setup toolchain
         uses: ./.github/actions/setup-turbo
@@ -156,6 +239,7 @@ jobs:
         run: bunx turbo run test --concurrency=2
 
   test-ui:
+    needs: candidate-source
     name: UI
     if: github.event.pull_request.draft != true
     runs-on: ubuntu-latest
@@ -166,6 +250,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: ${{ needs.candidate-source.outputs.candidate_sha }}
 
       - name: Setup toolchain
         uses: ./.github/actions/setup-turbo
@@ -179,7 +265,63 @@ jobs:
   # Repo-specific jobs — tale's additions beyond the standard six.
   # ===========================================================================
 
+  # Always measure: timing samples must never be replayed from Turbo's cache.
+  # Failures mean workload correctness/setup failed, not that a latency budget
+  # was exceeded. The report records representative coverage and remaining gaps.
+  performance:
+    needs: candidate-source
+    name: Performance
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: ${{ needs.candidate-source.outputs.candidate_sha }}
+          persist-credentials: false
+
+      - name: Setup toolchain
+        uses: ./.github/actions/setup-turbo
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          start-turbo-cache: 'false'
+
+      - name: Resolve the platform's Node
+        id: node
+        run: |
+          set -euo pipefail
+          version=$(sed -n 's/^FROM node:\([0-9][0-9.]*\)-.* AS node-bin$/\1/p' services/platform/Dockerfile)
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo '::error::services/platform/Dockerfile names no node-bin stage version'; exit 1
+          fi
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: ${{ steps.node.outputs.version }}
+          package-manager-cache: false
+
+      - name: Generate CLI fixtures
+        run: bun run --filter @tale/cli generate
+
+      - name: Measure runtime performance
+        run: bun run test:performance --samples 20 --output "$RUNNER_TEMP/tale-performance.json"
+
+      - name: Upload performance measurements
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: tale-performance-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/tale-performance.json
+          retention-days: 14
+          if-no-files-found: warn
+
   knip:
+    needs: candidate-source
     name: Knip
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -189,6 +331,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: ${{ needs.candidate-source.outputs.candidate_sha }}
 
       - name: Setup toolchain
         uses: ./.github/actions/setup-turbo
@@ -205,6 +349,7 @@ jobs:
   # real focus/breakpoints). Boots no backend, so it is far cheaper than a
   # Playwright E2E shard. Draft PRs skip.
   test-browser:
+    needs: candidate-source
     name: Browser
     if: github.event.pull_request.draft != true
     runs-on: ubuntu-latest
@@ -215,6 +360,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: ${{ needs.candidate-source.outputs.candidate_sha }}
 
       - name: Setup toolchain
         uses: ./.github/actions/setup-turbo
@@ -247,3 +394,334 @@ jobs:
 
       - name: Run browser-mode component tests
         run: bunx turbo run test:browser
+
+  # Which runs owe the real-Postgres proof below. A pull request owes it when
+  # it touches what the suite runs: the backend and the libraries it imports,
+  # the migrations of both databases, the database image, the object-store pin,
+  # the dependencies, the toolchain or this workflow. The platform's
+  # tests/guards/integration-scope.guard.test.ts holds the list to the
+  # harness's module graph. A push to main, a merge group and a release
+  # candidate always owe it — so main catches whatever a narrower pull request
+  # slipped past this list (a newer push to main cancels an older one's run,
+  # and its tree carries every earlier commit).
+  integration-scope:
+    needs: candidate-source
+    name: Integration scope
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      run: ${{ steps.decide.outputs.run }}
+
+    steps:
+      - name: Filter paths
+        id: filter
+        if: github.event_name == 'pull_request'
+        uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4
+        with:
+          filters: |
+            integration:
+              - 'services/platform/backend/**'
+              - 'services/platform/lib/**'
+              - 'services/platform/messages/**'
+              - 'services/platform/sla-targets.ts'
+              - 'services/platform/package.json'
+              - 'services/platform/Dockerfile'
+              - 'services/db/**'
+              - 'services/sandbox-runtime/daemon/src/file-ops.ts'
+              - 'services/sandbox-runtime/daemon/src/protocol.ts'
+              - 'packages/shared/**'
+              - 'packages/ui/package.json'
+              - 'packages/ui/src/i18n/**'
+              - 'configs/platform/**'
+              - 'tools/cli/src/lib/compose/types.ts'
+              - 'package.json'
+              - 'bun.lock'
+              - '.github/workflows/checks.yml'
+              - '.github/actions/setup-turbo/**'
+
+      - name: Decide
+        id: decide
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          TOUCHED: ${{ steps.filter.outputs.integration }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" != pull_request ] || [ "$TOUCHED" = true ]; then
+            echo 'run=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'run=false' >> "$GITHUB_OUTPUT"
+            echo 'This pull request touches nothing the backend integration suite runs.'
+          fi
+
+  # The real-Postgres proof: `backend:integration` (services/platform/backend/
+  # integration-check.ts) against the database image Tale ships — built here
+  # from this commit's services/db — and the object store the CLI deploys
+  # (THIRD_PARTY_IMAGES['object-store'] in tools/cli/src/lib/compose/types.ts),
+  # on the Node the platform image ships. It runs the script itself, never
+  # through turbo, so its verdict is never a cache replay.
+  # ITEST_REQUIRE_ALL_LANES makes the harness refuse a filtered run or a
+  # missing object store, and fail any lane that cannot run: green means every
+  # lane ran and passed. On a hosted runner the suite takes about three
+  # minutes and the job about five; the budget leaves room for a cold image
+  # build and the log dump after a wedged run. Draft PRs skip. When the scope
+  # job itself fails, this job fails with it rather than reading skipped.
+  #
+  # The harness keeps the suite's HTTP on the runner: it answers its lanes'
+  # vendor calls itself and refuses any other host, a redirect's next hop
+  # included (services/platform/backend/integration-vendor-stub.ts), so no
+  # vendor outage can fail a check. The setup steps still pull from
+  # registries and mirrors: re-run one that fails on their outage.
+  backend-integration:
+    needs: [candidate-source, integration-scope]
+    name: Backend integration
+    if: >-
+      !cancelled() && github.event.pull_request.draft != true &&
+      (needs.integration-scope.result != 'success' ||
+      needs.integration-scope.outputs.run == 'true')
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: read
+    env:
+      ITEST_DB_PASSWORD: tale_itest_ci
+      ITEST_S3_ACCESS_KEY: tale-itest
+      ITEST_S3_SECRET_KEY: tale_itest_object_store
+
+    steps:
+      # A scope that never decided must not pass for "not owed".
+      - name: Require the scope decision
+        if: needs.integration-scope.result != 'success'
+        env:
+          SCOPE: ${{ needs.integration-scope.result }}
+        run: |
+          echo "::error::Integration scope ended ${SCOPE}, so nothing decided whether this change owes the backend integration proof."
+          exit 1
+
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: ${{ needs.candidate-source.outputs.candidate_sha }}
+          persist-credentials: false
+
+      - name: Prepare integration evidence
+        run: |
+          set -euo pipefail
+          PROOF_DIR="$RUNNER_TEMP/backend-integration-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          echo "PROOF_DIR=$PROOF_DIR" >> "$GITHUB_ENV"
+          mkdir -p "$PROOF_DIR"
+          checked_out_sha="$(git rev-parse HEAD)"
+          {
+            echo "source=$checked_out_sha"
+            echo "workflow-event=$GITHUB_EVENT_NAME"
+            echo "workflow-sha=$GITHUB_SHA"
+            echo "run=$GITHUB_RUN_ID attempt=$GITHUB_RUN_ATTEMPT"
+            sha256sum services/db/Dockerfile services/platform/Dockerfile \
+              services/platform/backend/integration-check.ts tools/cli/src/lib/compose/types.ts
+          } > "$PROOF_DIR/source.txt"
+
+      - name: Setup toolchain
+        uses: ./.github/actions/setup-turbo
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          start-turbo-cache: 'false'
+
+      # The platform image's own Node (its `FROM node:<version>` stage), not
+      # whatever the runner image ships.
+      - name: Resolve the platform's Node
+        id: node
+        run: |
+          set -euo pipefail
+          version=$(sed -n 's/^FROM node:\([0-9][0-9.]*\)-.* AS node-bin$/\1/p' services/platform/Dockerfile)
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo '::error::services/platform/Dockerfile names no node-bin stage version'; exit 1
+          fi
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "node-version=$version" >> "$PROOF_DIR/source.txt"
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: ${{ steps.node.outputs.version }}
+          package-manager-cache: false
+
+      # The transcription and video-link lanes run the real ffmpeg/ffprobe the
+      # platform image bakes in. Same APT bounds as the Playwright installs.
+      - name: Install ffmpeg
+        timeout-minutes: 8
+        run: |
+          sudo tee /etc/apt/apt.conf.d/99-tale-itest >/dev/null <<'APT'
+          Acquire::ForceIPv4 "true";
+          Acquire::http::Timeout "30";
+          Acquire::https::Timeout "30";
+          Acquire::Retries "1";
+          APT
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends ffmpeg
+          ffmpeg -hide_banner -version | head -n 1
+          { node --version; bun --version; ffmpeg -version; ffprobe -version; } > "$PROOF_DIR/toolchain.txt"
+
+      - name: Setup Docker builder
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
+
+      # Build's own layer cache (scope `db`) is read, never written: this job
+      # tests the image, the Build workflow publishes it.
+      - name: Build tale-db from services/db
+        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
+        with:
+          context: .
+          file: services/db/Dockerfile
+          platforms: linux/amd64
+          push: false
+          load: true
+          tags: tale-db:itest
+          cache-from: type=gha,scope=db
+          provenance: false
+
+      # The pin, read from the CLI source: a pin bump moves this job with it.
+      - name: Resolve the object-store pin
+        id: object-store
+        run: |
+          set -euo pipefail
+          image=$(bun -e "import { THIRD_PARTY_IMAGES } from './tools/cli/src/lib/compose/types.ts'; console.log(THIRD_PARTY_IMAGES['object-store'])")
+          if [ -z "$image" ]; then
+            echo '::error::THIRD_PARTY_IMAGES names no object-store image'; exit 1
+          fi
+          echo "image=${image}" >> "$GITHUB_OUTPUT"
+          echo "Object store: ${image}"
+          echo "object-store=$image" >> "$PROOF_DIR/source.txt"
+
+      # One tale-db container, in the image's default (knowledge) role, serves
+      # both databases, as the harness's own KNOWLEDGE_DATABASE_URL default
+      # expects: the init scripts create `tale_app` and `tale_knowledge`, and
+      # the role applies the corpus migrations. compose.yml runs the same
+      # image twice instead (`db` and `knowledge-db`). The object store runs
+      # as compose runs it.
+      - name: Start tale-db and the object store
+        env:
+          OBJECT_STORE_IMAGE: ${{ steps.object-store.outputs.image }}
+        run: |
+          set -euo pipefail
+          docker run -d --name tale-itest-db --shm-size 256m \
+            -p 127.0.0.1:5432:5432 -e DB_PASSWORD="$ITEST_DB_PASSWORD" tale-db:itest
+          docker run -d --name tale-itest-object-store -p 127.0.0.1:9000:9000 \
+            -e MINIO_ROOT_USER="$ITEST_S3_ACCESS_KEY" -e MINIO_ROOT_PASSWORD="$ITEST_S3_SECRET_KEY" \
+            -e MINIO_BROWSER=off "$OBJECT_STORE_IMAGE" server /data --address ':9000'
+          # The image's readiness marker, not pg_isready alone: the bootstrap
+          # server answers before the init scripts and migrations have run.
+          for _ in $(seq 1 90); do
+            if docker exec tale-itest-db test -f /tmp/.db_ready; then break; fi
+            sleep 2
+          done
+          docker exec tale-itest-db test -f /tmp/.db_ready || { echo '::error::tale-db never became ready'; exit 1; }
+          docker exec tale-itest-db psql -v ON_ERROR_STOP=1 -U tale -d tale_knowledge -Atc \
+            "SELECT string_agg(extname || ' ' || extversion, ', ' ORDER BY extname) FROM pg_extension"
+          for _ in $(seq 1 60); do
+            if curl -sf -o /dev/null http://127.0.0.1:9000/minio/health/ready; then break; fi
+            sleep 1
+          done
+          curl -sf -o /dev/null http://127.0.0.1:9000/minio/health/ready || { echo '::error::the object store never became ready'; exit 1; }
+
+      - name: Verify and record integration services
+        env:
+          OBJECT_STORE_IMAGE: ${{ steps.object-store.outputs.image }}
+        run: |
+          set -euo pipefail
+          docker exec tale-itest-db psql -v ON_ERROR_STOP=1 -U tale -d tale_knowledge -Atc \
+            "SELECT extname, extversion FROM pg_extension WHERE extname IN ('pg_search', 'vector')" \
+            > "$PROOF_DIR/extensions.txt"
+          extension_count="$(docker exec tale-itest-db psql -v ON_ERROR_STOP=1 -U tale -d tale_knowledge -Atc \
+            "SELECT count(*) FROM pg_extension WHERE extname IN ('pg_search', 'vector')")"
+          if [ "$extension_count" != 2 ]; then
+            echo '::error::tale-db must load both pg_search and vector'; exit 1
+          fi
+          docker image inspect --format '{{.Id}} {{json .RepoDigests}}' \
+            tale-db:itest "$OBJECT_STORE_IMAGE" > "$PROOF_DIR/images.txt"
+
+      - name: Run backend integration
+        working-directory: services/platform
+        timeout-minutes: 30
+        env:
+          DATABASE_URL: postgres://tale:${{ env.ITEST_DB_PASSWORD }}@127.0.0.1:5432/tale_app
+          KNOWLEDGE_DATABASE_URL: postgres://tale:${{ env.ITEST_DB_PASSWORD }}@127.0.0.1:5432/tale_knowledge
+          ITEST_S3_ENDPOINT: http://127.0.0.1:9000
+          ITEST_REQUIRE_ALL_LANES: '1'
+          TALE_CONFIG_DIR: ${{ runner.temp }}/itest-config
+          TALE_CONFIG_BUILTIN_DIR: ${{ runner.temp }}/itest-builtin
+        run: |
+          set -euo pipefail
+          trap 'echo "$?" > "$PROOF_DIR/exit-code.txt"' EXIT
+          mkdir -p "$TALE_CONFIG_DIR" "$TALE_CONFIG_BUILTIN_DIR"
+          node --version
+          bun run backend:integration 2>&1 | tee "$PROOF_DIR/backend-integration.log"
+
+      - name: Summarize
+        if: always()
+        run: |
+          log="${PROOF_DIR:-$RUNNER_TEMP/backend-integration-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT}/backend-integration.log"
+          [ -f "$log" ] || exit 0
+          {
+            echo '## Backend integration'
+            echo ''
+            grep -E '^\[itest\] (RUN TRUNCATED|[0-9]+/[0-9]+ checks passed)' "$log" || echo 'No tally: the run ended before it printed one.'
+            if grep -q '^FAIL' "$log"; then
+              echo ''
+              echo '```'
+              grep '^FAIL' "$log" | cut -c1-400
+              echo '```'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Dump service logs on failure
+        if: failure()
+        run: |
+          docker ps -a
+          docker logs --tail 200 tale-itest-db || true
+          docker exec tale-itest-db sh -c 'tail -n 200 /var/lib/postgresql/data/log/*.log' || true
+          docker logs --tail 200 tale-itest-object-store || true
+
+      - name: Retain integration service logs
+        if: always()
+        timeout-minutes: 2
+        run: |
+          PROOF_DIR="${PROOF_DIR:-$RUNNER_TEMP/backend-integration-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT}"
+          echo "PROOF_DIR=$PROOF_DIR" >> "$GITHUB_ENV"
+          mkdir -p "$PROOF_DIR"
+          docker logs tale-itest-db > "$PROOF_DIR/db.log" 2>&1 || true
+          docker logs tale-itest-object-store > "$PROOF_DIR/object-store.log" 2>&1 || true
+
+      - name: Upload integration evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: backend-integration-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ env.PROOF_DIR }}/*.txt
+            ${{ env.PROOF_DIR }}/*.log
+          if-no-files-found: error
+          retention-days: 14
+
+  candidate-gate:
+    name: Candidate gate
+    needs:
+      - candidate-source
+      - format
+      - lint
+      - typecheck
+      - build
+      - test
+      - test-ui
+      - performance
+      - knip
+      - test-browser
+      - integration-scope
+      - backend-integration
+    if: always() && github.event_name == 'repository_dispatch'
+    uses: ./.github/workflows/release-candidate-receipt.yml
+    permissions: {}
+    with:
+      candidate_sha: ${{ github.event.client_payload.candidate_sha }}
+      workflow: .github/workflows/checks.yml
+      jobs: ${{ toJSON(needs) }}

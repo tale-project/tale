@@ -11,7 +11,8 @@ export interface NodeOnlyContract {
   'node_only/sandbox/session_admin_actions:destroySandbox': {
     kind: 'action';
     args: { organizationId: string; sessionId: string };
-    returns: { destroyed: boolean };
+    /** Answered once the Destroy is queued; the list reads its progress. */
+    returns: null;
   };
   'node_only/sandbox/session_admin_actions:reconcileOrgSessions': {
     kind: 'action';

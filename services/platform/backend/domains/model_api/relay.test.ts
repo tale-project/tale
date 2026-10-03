@@ -3,10 +3,23 @@
  * request's key, the Anthropic version — nothing of the caller's headers),
  * and what comes back in the caller's wire — streams passed through event by
  * event with the model renamed and the usage read, tool calls intact, the
- * gateway's routing names never shown, a hang-up aborting the vendor.
+ * gateway's routing names never shown, a hang-up aborting the vendor, and a
+ * caller gone before the request was sent never sending it.
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { createServer, type Server, type ServerResponse } from 'node:http';
+import type { AddressInfo } from 'node:net';
+
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest';
 
 import {
   type RelayArgs,
@@ -24,7 +37,9 @@ interface Call {
 let calls: Call[] = [];
 let restore: () => void = () => undefined;
 
+/** Script the gateway call; the real one is back after each test. */
 function gateway(respond: (call: Call) => Response | Promise<Response>) {
+  restore();
   restore = setGatewayFetchForTests(async (url, init) => {
     const call = { url, init };
     calls.push(call);
@@ -107,6 +122,7 @@ beforeEach(() => {
 
 afterEach(() => {
   restore();
+  restore = () => undefined;
 });
 
 describe('relayToGateway — what goes upstream', () => {
@@ -446,6 +462,52 @@ describe('relayToGateway — whole answers', () => {
     ]);
   });
 
+  it('drops the gateway’s own fields from a whole answer', async () => {
+    gateway(() =>
+      Response.json({
+        id: 'c',
+        object: 'chat.completion',
+        model: 'org-1__deepseek__deepseek-v4-flash/deepseek-v4-flash',
+        choices: [{ index: 0, message: { role: 'assistant', content: 'hi' } }],
+        usage: { prompt_tokens: 10, completion_tokens: 3, total_tokens: 13 },
+        extra_fields: {
+          routing_info: { provider: 'org-1__deepseek', key: 'tale-org-1-key' },
+          latency: 7,
+        },
+      }),
+    );
+    const { args: relay } = args({});
+    const answer = (await (await relayToGateway(relay)).json()) as Record<
+      string,
+      unknown
+    >;
+    expect(answer).not.toHaveProperty('extra_fields');
+    expect(JSON.stringify(answer)).not.toContain('org-1');
+  });
+
+  it('drops the gateway’s own fields from every stream event', async () => {
+    const extra = {
+      routing_info: { provider: 'org-1__deepseek', key: 'tale-org-1-key' },
+      chunk_index: 0,
+    };
+    gateway(() =>
+      sse([
+        `data: ${JSON.stringify({ model: 'gw', choices: [{ index: 0, delta: { content: 'a' } }], extra_fields: extra })}\n\n`,
+        'data: [DONE]\n\n',
+      ]),
+    );
+    const { args: relay } = args({ stream: true });
+    const text = await (await relayToGateway(relay)).text();
+    expect(text).not.toContain('extra_fields');
+    expect(events(text)).toEqual([
+      {
+        model: 'deepseek/deepseek-v4-flash',
+        choices: [{ index: 0, delta: { content: 'a' } }],
+      },
+      '[DONE]',
+    ]);
+  });
+
   it('renames the model and reads the usage of an Anthropic message', async () => {
     gateway(() =>
       Response.json({
@@ -531,11 +593,34 @@ describe('relayToGateway — refusals', () => {
     expect((await relayToGateway(relay)).status).toBe(429);
   });
 
-  it('throws the 502 refusal when the gateway cannot be reached, a whole answer then possibly still generating', async () => {
+  it('throws the 502 refusal when the gateway call fails after it may have been sent, and floors the whole answer at its prompt', async () => {
     gateway(() => Promise.reject(new TypeError('fetch failed')));
     const { args: relay, outcomes } = args({});
     await expect(relayToGateway(relay)).rejects.toBeInstanceOf(ModelApiRefusal);
-    expect(outcomes).toEqual([{ status: 'failed', mayStillGenerate: true }]);
+    expect(outcomes).toEqual([{ status: 'failed', countedOutputTokens: 0 }]);
+  });
+
+  it('books nothing for a gateway that refused the connection: the request never left', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const refused = () =>
+      Promise.reject(
+        new TypeError('fetch failed', {
+          cause: Object.assign(
+            new Error('connect ECONNREFUSED 10.0.0.9:8080'),
+            {
+              code: 'ECONNREFUSED',
+            },
+          ),
+        }),
+      );
+    for (const stream of [false, true]) {
+      gateway(refused);
+      const { args: relay, outcomes } = args({ stream });
+      await expect(relayToGateway(relay)).rejects.toMatchObject({
+        status: 502,
+      });
+      expect(outcomes).toEqual([{ status: 'failed' }]);
+    }
   });
 
   it('keeps internal addresses out of a relayed refusal, answering a generic one instead', async () => {
@@ -683,7 +768,7 @@ describe('relayToGateway — endings the settlement books', () => {
     expect(outcomes).toEqual([{ status: 'failed', countedOutputTokens: 1 }]);
   });
 
-  it('stops a whole answer past its lifetime, with a 504 and the answer possibly still generating', async () => {
+  it('stops a whole answer past its lifetime, with a 504 and the answer ended early with no output', async () => {
     gateway(
       (call) =>
         new Promise<Response>((_resolve, reject) => {
@@ -700,10 +785,10 @@ describe('relayToGateway — endings the settlement books', () => {
       status: 504,
       code: 'MODEL_API_UPSTREAM_ERROR',
     });
-    expect(outcomes).toEqual([{ status: 'failed', mayStillGenerate: true }]);
+    expect(outcomes).toEqual([{ status: 'failed', countedOutputTokens: 0 }]);
   });
 
-  it('reports a whole answer the caller abandoned as possibly still generating', async () => {
+  it('reports a whole answer the caller abandoned as ended early with no output', async () => {
     const controller = new AbortController();
     gateway(
       (call) =>
@@ -716,6 +801,116 @@ describe('relayToGateway — endings the settlement books', () => {
     );
     const { args: relay, outcomes } = args({ signal: controller.signal });
     await expect(relayToGateway(relay)).rejects.toBeInstanceOf(ModelApiRefusal);
-    expect(outcomes).toEqual([{ status: 'cancelled', mayStillGenerate: true }]);
+    expect(outcomes).toEqual([{ status: 'cancelled', countedOutputTokens: 0 }]);
+  });
+});
+
+describe('relayToGateway — a caller gone before the request was sent', () => {
+  // The relay's real gateway call — Node's fetch through its own pool, not
+  // the scripted seam — against a loopback gateway that counts what reaches
+  // it and answers a whole completion, or holds the request open.
+  let server: Server;
+  let received = 0;
+  let holdRequests = false;
+  const held: ServerResponse[] = [];
+
+  beforeAll(async () => {
+    server = createServer((request, response) => {
+      received += 1;
+      request.resume();
+      if (holdRequests) {
+        held.push(response);
+        return;
+      }
+      request.on('end', () => {
+        response.setHeader('content-type', 'application/json');
+        response.end(
+          JSON.stringify({
+            id: 'c',
+            object: 'chat.completion',
+            model: 'org-1__deepseek__deepseek-v4-flash/deepseek-v4-flash',
+            choices: [
+              { index: 0, message: { role: 'assistant', content: 'hi' } },
+            ],
+            usage: { prompt_tokens: 12, completion_tokens: 1 },
+          }),
+        );
+      });
+    });
+    await new Promise<void>((resolve) => {
+      server.listen(0, '127.0.0.1', resolve);
+    });
+  });
+
+  beforeEach(() => {
+    received = 0;
+    holdRequests = false;
+    const { port } = server.address() as AddressInfo;
+    vi.stubEnv('SANDBOX_LLM_GATEWAY_URL', `http://127.0.0.1:${port}`);
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  afterAll(async () => {
+    for (const response of held) response.destroy();
+    server.closeAllConnections();
+    await new Promise<void>((resolve) => {
+      server.close(() => resolve());
+    });
+  });
+
+  it('sends nothing and reports nothing to book, whole answer or stream, when the caller left first', async () => {
+    for (const stream of [false, true]) {
+      const caller = new AbortController();
+      caller.abort();
+      const { args: relay, outcomes } = args({ stream, signal: caller.signal });
+      await expect(relayToGateway(relay)).rejects.toBeInstanceOf(
+        ModelApiRefusal,
+      );
+      // No output count: the settlement books no prompt floor for it.
+      expect(outcomes).toEqual([{ status: 'cancelled' }]);
+    }
+    // Let a request that did leave land before counting.
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(received).toBe(0);
+  });
+
+  it('sends nothing when the caller leaves while the request is still being governed', async () => {
+    const caller = new AbortController();
+    const { args: relay, outcomes } = args({ signal: caller.signal });
+    // The guardrails and the key mint run before the relay, asynchronously.
+    const governed = new Promise((resolve) => setTimeout(resolve, 20));
+    setTimeout(() => caller.abort(), 5);
+    await governed;
+    await expect(relayToGateway(relay)).rejects.toBeInstanceOf(ModelApiRefusal);
+    expect(outcomes).toEqual([{ status: 'cancelled' }]);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(received).toBe(0);
+  });
+
+  it('relays a caller who stays: the gateway receives the request once', async () => {
+    const { args: relay, outcomes } = args({});
+    const answer = (await (await relayToGateway(relay)).json()) as Record<
+      string,
+      unknown
+    >;
+    expect(answer.model).toBe('deepseek/deepseek-v4-flash');
+    expect(received).toBe(1);
+    expect(outcomes).toEqual([
+      { status: 'completed', usage: { inputTokens: 12, outputTokens: 1 } },
+    ]);
+  });
+
+  it('keeps a whole answer at its prompt floor once the gateway has received the request', async () => {
+    holdRequests = true;
+    const caller = new AbortController();
+    const { args: relay, outcomes } = args({ signal: caller.signal });
+    const pending = relayToGateway(relay);
+    await vi.waitFor(() => expect(received).toBe(1), { timeout: 10_000 });
+    caller.abort();
+    await expect(pending).rejects.toBeInstanceOf(ModelApiRefusal);
+    expect(outcomes).toEqual([{ status: 'cancelled', countedOutputTokens: 0 }]);
   });
 });

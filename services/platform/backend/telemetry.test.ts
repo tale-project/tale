@@ -1,9 +1,13 @@
+import { readFileSync } from 'node:fs';
+
 import * as client from 'prom-client';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 
 import {
+  backendMetricsResponse,
   hintStreamClosed,
   hintStreamOpened,
+  methodClass,
   openHintStreamCount,
   registerBackendCollectors,
   routeClass,
@@ -23,6 +27,28 @@ describe('routeClass', () => {
     expect(routeClass('/api/app/documents/a')).toBe(
       routeClass('/api/app/documents/b'),
     );
+  });
+
+  test('every mounted app domain has a named class', () => {
+    const source = readFileSync(new URL('./app.ts', import.meta.url), 'utf8');
+    const domains = [
+      ...source.matchAll(/app\.route\(\s*'(\/api\/app\/[^']+)'/g),
+    ].map((match) => match[1]!);
+    expect(domains.length).toBeGreaterThan(40);
+    for (const domain of domains) expect(routeClass(domain)).toBe(domain);
+  });
+
+  test('20,000 attacker-controlled paths and methods retain one label each', () => {
+    const routes = new Set<string>();
+    const methods = new Set<string>();
+    for (let i = 0; i < 20_000; i += 1) {
+      routes.add(routeClass(`/api/app/unknown-${i}/secret-${i}`));
+      methods.add(methodClass(`EXTENSION${i}`));
+    }
+    expect([...routes]).toEqual(['/api/app']);
+    expect([...methods]).toEqual(['OTHER']);
+    expect(methodClass('GET')).toBe('GET');
+    expect(methodClass('PROPFIND')).toBe('PROPFIND');
   });
 
   test('collapses the machine doors and pre-auth lanes', () => {
@@ -45,6 +71,7 @@ describe('routeClass', () => {
 
   test('keeps the fixed routes and buckets everything else', () => {
     expect(routeClass('/events')).toBe('/events');
+    expect(routeClass('/api/image-proxy')).toBe('/api/image-proxy');
     expect(routeClass('/ping')).toBe('/ping');
     expect(routeClass('/metrics')).toBe('/metrics');
     expect(routeClass('/health/stores')).toBe('/health/stores');
@@ -143,5 +170,50 @@ describe('pull-time collectors', () => {
     expect(gauges).toHaveLength(5);
     // The scrape still renders: each collector swallowed its own failure.
     await expect(client.register.metrics()).resolves.toBeTypeOf('string');
+  });
+});
+
+describe('overlapping metrics scrapes', () => {
+  test('100 simultaneous scrapes run one collection and receive independent bodies', async () => {
+    const collect = vi.fn(async function (this: client.Gauge) {
+      await Promise.resolve();
+      this.set(42);
+    });
+    const gauge = new client.Gauge({
+      name: 'test_scrape_singleflight',
+      help: 'test',
+      collect,
+    });
+    const responses = await Promise.all(
+      Array.from({ length: 100 }, () => backendMetricsResponse()),
+    );
+    expect(client.register.getSingleMetric('test_scrape_singleflight')).toBe(
+      gauge,
+    );
+    expect(collect).toHaveBeenCalledTimes(1);
+    const bodies = await Promise.all(
+      responses.map((response) => response.text()),
+    );
+    expect(new Set(bodies).size).toBe(1);
+    expect(bodies[0]).toContain('test_scrape_singleflight 42');
+    await backendMetricsResponse();
+    expect(collect).toHaveBeenCalledTimes(2);
+  });
+
+  test('a failed render clears the in-flight promise so the next scrape recovers', async () => {
+    const metrics = vi
+      .spyOn(client.register, 'metrics')
+      .mockRejectedValueOnce(new Error('failed'));
+    const error = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined);
+    try {
+      expect((await backendMetricsResponse()).status).toBe(500);
+      expect((await backendMetricsResponse()).status).toBe(200);
+      expect(metrics).toHaveBeenCalledTimes(2);
+    } finally {
+      metrics.mockRestore();
+      error.mockRestore();
+    }
   });
 });

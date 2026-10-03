@@ -11,9 +11,9 @@ Open the `+` menu beside the message field and choose **Add photos & files**. Yo
 
 Images appear as thumbnails; other files appear as named chips with their processing status. Check the filenames before sending. Use a staged attachment’s remove control to leave it out of the message.
 
-<Frame caption="A staged document shows its name and processing state before it is sent with your question.">
+<Frame caption="A staged document shows its name, then its size once it has been processed and is ready to send with your question.">
 
-![The chat composer shows an attached document above the message field, with its processing status and a control to remove it.](/images/platform/chat-document-attachment.webp)
+![The chat composer shows an attached document above the message field, with its file size and a control to remove it.](/images/platform/chat-document-attachment.webp)
 
 </Frame>
 
@@ -36,7 +36,7 @@ File upload support and text extraction are separate. A file that appears in the
 
 If documents or recordings are still processing when you send, Tale queues the message and sends it after they are ready. The queued message appears above the composer. Cancel it there if you need to change the question; its text returns to the field.
 
-Paste a supported video link into the message field to start creating an attachment. A URL entered by typing stays ordinary message text. Tale retrieves captions first and uses audio transcription when captions are unavailable, then supplies the transcript to the assistant. Pasting a link remains available without a transcription model because usable captions do not need one. If that link fails, retry it or remove it before sending.
+Paste a supported video link into the message field to start creating an attachment. A URL entered by typing stays ordinary message text. Tale retrieves captions first and uses audio transcription when captions are unavailable, then supplies the transcript to the assistant. When the captions show two people speaking at the same moment, the transcript keeps the words of both. Pasting a link remains available without a transcription model because usable captions do not need one. Pasting a link again in an existing chat before sending reuses the attachment that chat already has for it, even if you pasted the link in another chat in between; each chat keeps its own. A failed or removed attachment, or one added more than a day earlier, is not reused. If that link fails, retry it or remove it before sending. If Tale cannot remove a link, its chip comes back and a message says why; the link stays attached until a removal succeeds.
 
 A model change applies to new transcription work; completed attachments keep their existing transcript. Uploading the same bytes again reuses completed work for the same transcription target, but transcribes them again when the target provider or model differs.
 
@@ -61,5 +61,6 @@ For recurring questions about a brief or policy, put the file in the appropriate
 | The assistant knows the name but not the contents | Check the format and processing status. Convert legacy files to a supported modern format. |
 | The answer invents detail from a recording | Check the transcript against the recording and supply the corrected passage before continuing. |
 | A queued message has not sent | Inspect every attachment’s status, including video links. Remove or retry failed items. |
+| A removed video link comes back | Tale could not remove it, and the message that appears says why. The link is still attached. Remove it again once the cause is resolved, for example when your connection is back or after you sign in again. |
 
 Return to [Chat basics](/platform/chat/basics) to check sources and continue the conversation.

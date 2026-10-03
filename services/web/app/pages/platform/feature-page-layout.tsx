@@ -20,6 +20,7 @@ import {
   FeatureHero,
   RelatedPages,
 } from '@/app/components/blocks/feature';
+import { RelatedUseCases } from '@/app/components/blocks/related-use-cases';
 import {
   type PlatformPageId,
   getPlatformPage,
@@ -128,6 +129,7 @@ export function FeaturePageLayout({
         items={content.capabilities}
       />
       <FeatureFaq heading={content.faqHeading} items={content.faq} />
+      <RelatedUseCases pageId={content.pageId} />
       <RelatedPages
         currentId={content.pageId}
         relatedIds={content.relatedIds ?? page.related}

@@ -21,7 +21,7 @@ Use a trailing slash for folders and none for files. Listings return canonical U
 
 ## Authentication
 
-Generate an app password in **Settings > WebDAV** using an account with access to developer settings. The complete password appears once. Give each client its own label so you can revoke its access independently.
+Generate an app password in **Settings > API > WebDAV** using an account with access to developer settings. The complete password appears once. Give each client its own label so you can revoke its access independently.
 
 | Credential field | Value |
 | --- | --- |

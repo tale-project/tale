@@ -72,6 +72,13 @@ export function useBackendAction<Name extends ActionName>(
     },
     onError: (error, ...rest) => {
       console.error(`Action failed: ${name}`, error);
+      // A refusal that proves the cache stale refreshes it like a success.
+      if (
+        adapter?.invalidate !== undefined &&
+        adapter.refusalInvalidates?.(error) === true
+      ) {
+        adapter.invalidate(queryClient, rest[0], adapterCtx);
+      }
       if (errorToast !== false) {
         toast({
           title: errorToast?.title ?? t('error.generic.title'),

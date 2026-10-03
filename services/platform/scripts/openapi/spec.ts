@@ -451,7 +451,8 @@ const runProperties: Record<string, Json> = {
       'The failure or wait reason; null while the run has none — and null ' +
       'again once a cancel lands (the park it named is over). ' +
       'While `waiting` it names the park: `approval:<approvalId>`, ' +
-      '`agent:<nodeId>` or `repeat:<nodeId>` — `waitingFor` is the ' +
+      '`agent:<nodeId>`, `room:<nodeId>` or `repeat:<nodeId>` — ' +
+      '`waitingFor` is the ' +
       'field to branch on; when `failed`, the failure sentence, and ' +
       '`failureCode` the stable cause to branch on — the sentence is not ' +
       'contractual.',
@@ -480,13 +481,15 @@ const runProperties: Record<string, Json> = {
   },
   waitingFor: {
     type: 'string',
-    enum: ['approval', 'ask', 'agent', 'repeat'],
+    enum: ['approval', 'ask', 'agent', 'room', 'repeat'],
     description:
       'Present only while `status` is `waiting`: what the run is ' +
       'parked on. `approval` — a person’s decision on a gate; `ask` ' +
       '— a question a person has to answer; `agent` — an agent turn ' +
-      'still running, no one to page; `repeat` — a node polling ' +
-      'until its `repeatUntil` condition holds, no one to page.',
+      'still running, no one to page; `room` — an agent turn whose ' +
+      'start waits for sandbox room, no one to page; `repeat` — a ' +
+      'node polling until its `repeatUntil` condition holds, no one ' +
+      'to page.',
   },
   claimEpoch: {
     ...int,
@@ -612,7 +615,7 @@ const documentIndexing: Json = {
         'skipped',
       ],
       description:
-        '`pending` — never queued; `skipped` — the file opts out of indexing; `unsupported` — TERMINAL: the platform cannot index these bytes and a retry reproduces the answer, `errorCode` says why (`unsupported_type`, `image_no_vision`, `empty`, `not_text`, `malformed`); `failed` — see `error` / `errorCode`: the job retries `embedding_upstream`, `indexer_error` and `index_rebuilding` by itself, the rest wait for an admin (a provider account, the organization’s policy) and a `retry-indexing`',
+        '`pending` — never queued; `skipped` — the file opts out of indexing; `unsupported` — TERMINAL: the platform cannot index these bytes and a retry reproduces the answer, `errorCode` says why (`unsupported_type`, `image_no_vision`, `empty`, `not_text`, `malformed`); `failed` — see `error` / `errorCode`: the job retries `embedding_upstream`, `indexer_error` and `index_rebuilding` by itself, the rest wait for an admin (a provider account, the organization’s policy) and a `retry-indexing`; a `failed` with no `errorCode` is a failure the platform settled without classifying it, usually an indexing run that stopped before it finished (a lost job, a stopped worker) — request a `retry-indexing` rather than wait for one',
     },
     indexedAt: {
       ...epochMs,
@@ -627,7 +630,7 @@ const documentIndexing: Json = {
       type: 'string',
       enum: [...RAG_ERROR_CODES],
       description:
-        'The stable cause to branch on, present with `failed` and `unsupported`. Terminal (`unsupported`): `unsupported_type` — no extractor for the type; `image_no_vision` — an image and no OCR lane; `empty` — no text to index; `not_text` — binary bytes behind a text extension, re-export as UTF-8; `malformed` — the bytes do not parse as the format the extension claims. Retried by the job (`failed`): `embedding_upstream` — the provider was unreachable, rate-limited or 5xx; `indexer_error` — a platform-side store fault; `index_rebuilding` — the search index is being rebuilt. Waits for an admin (`failed`): `embedding_not_configured`, `embedding_provider_refused` (the provider refused the account or credential, the model answers vectors of another width than the settings state, or the platform cannot use the embedding credential — none configured, deleted, disabled or unreadable), `index_repair_failed`, `secret_detected`, `pii_blocked`. Saving corrected embedding settings, or adding or repairing the credential the embedding model uses, re-queues every document that failed on the embedding model.',
+        'The stable cause to branch on, present with `unsupported`, and with `failed` whenever the platform classified the cause — a `failed` without one was settled unclassified, usually after its indexing run stopped before it finished; request a `retry-indexing` for it. Terminal (`unsupported`): `unsupported_type` — no extractor for the type; `image_no_vision` — an image and no OCR lane; `empty` — no text to index; `not_text` — binary bytes behind a text extension, re-export as UTF-8; `malformed` — the bytes do not parse as the format the extension claims. Retried by the job (`failed`): `embedding_upstream` — the provider was unreachable, rate-limited or 5xx; `indexer_error` — a platform-side store fault; `index_rebuilding` — the search index is being rebuilt. Waits for an admin (`failed`): `embedding_not_configured`, `embedding_provider_refused` (the provider refused the account or credential, the model answers vectors of another width than the settings state, or the platform cannot use the embedding credential — none configured, deleted, disabled or unreadable), `index_repair_failed`, `secret_detected`, `pii_blocked`. Saving corrected embedding settings, or adding or repairing the credential the embedding model uses, re-queues every document that failed on the embedding model.',
     },
   },
 };
@@ -3173,9 +3176,12 @@ export function buildSpec(): Json {
         ...projectAgentErrors,
         '409': errorResponse(
           '`expectedUpdatedAt` is older than the agent’s `updatedAt` ' +
-            '(`PROJECT_AGENT_STALE`), or the new name is another agent’s ' +
+            '(`PROJECT_AGENT_STALE`), the new name is another agent’s ' +
             'in this project, compared without regard to case ' +
-            '(`PROJECT_AGENT_NAME_TAKEN`) — nothing was written',
+            '(`PROJECT_AGENT_NAME_TAKEN`), or the agent is the ' +
+            'organization’s standard agent, whose settings follow the ' +
+            '`standard_agent` policy (`PROJECT_AGENT_MANAGED`) — nothing was ' +
+            'written',
         ),
       },
     },
@@ -4271,7 +4277,7 @@ export function buildSpec(): Json {
       tags: ['Tasks'],
       summary: 'Read a task’s open review',
       description:
-        'The task’s status beside the review a person still has to decide — `review: null` when none is pending. Read access, like the task itself. A task reaches `in_review` when its workflow parks there; the decision is made with a POST to this path, or on the board.',
+        'The task’s status beside its ordinary pending review, with the captured typed reviewer and native source evidence when available. `review: null` means no ordinary review is pending; workflow-owned approvals keep their own decision gate. Read access, like the task itself. A person decides a human-owned review with a POST to this path or on the board. An agent-owned review requires its independent native reviewer or an explicit handoff to an eligible person before human approval.',
       operationId: 'getTaskReview',
       security: sec,
       parameters: taskParameters,
@@ -4384,13 +4390,13 @@ export function buildSpec(): Json {
           },
         }),
         '403': errorResponse(
-          'The key holder may not change this task (`RBAC_FORBIDDEN`), the project is archived (`PROJECT_ARCHIVED`), the task is archived (`TASK_ARCHIVED`), an `actor` sent without `capabilities.actAs` (`ROLE_FORBIDDEN`), an actor whose e-mail is unverified (`ACTOR_UNVERIFIED`), whose membership is disabled (`ACTOR_DISABLED`) or who may not change this task (`ACTOR_FORBIDDEN`), a member requesting changes through an automation not built for tasks (`RBAC_FORBIDDEN`), or a member the review policy refuses (`REVIEW_INDEPENDENT_REVIEWER_REQUIRED`, `REVIEW_COMPETENCE_REQUIRED`)',
+          'The key holder may not change this task (`RBAC_FORBIDDEN`), the project is archived (`PROJECT_ARCHIVED`), the task is archived (`TASK_ARCHIVED`), an `actor` sent without `capabilities.actAs` (`ROLE_FORBIDDEN`), an actor whose e-mail is unverified (`ACTOR_UNVERIFIED`), whose membership is disabled (`ACTOR_DISABLED`) or who may not change this task (`ACTOR_FORBIDDEN`), a member requesting changes through an automation not built for tasks (`RBAC_FORBIDDEN`), a member the review policy refuses (`REVIEW_INDEPENDENT_REVIEWER_REQUIRED`, `REVIEW_COMPETENCE_REQUIRED`), or a task held by the organization’s standard agent while its `standard_agent` policy is off (`STANDARD_AGENT_OFF`)',
         ),
         '404': errorResponse(
           'The project is missing or invisible (`PROJECT_NOT_FOUND`), the task is missing or outside this project (`TASK_NOT_FOUND`), no member carries the actor’s e-mail (`ACTOR_NOT_FOUND`), or `workflowSlug` names an automation nobody saved (`AUTOMATION_NOT_FOUND`)',
         ),
         '409': errorResponse(
-          'The task is not in review (`TASK_NOT_IN_REVIEW`); it has open subtasks (`TASK_HAS_OPEN_SUBTASKS`); two members carry the actor’s e-mail (`ACTOR_AMBIGUOUS`); the e-mail now belongs to another member than the pinned `userId` (`ACTOR_REBOUND`); `workflowSlug` is saved but not deployed (`AUTOMATION_NOT_DEPLOYED`)',
+          'The task is not in review (`TASK_NOT_IN_REVIEW`); approval belongs to an agent and needs an explicit eligible-person handoff (`TASK_AGENT_REVIEW_REQUIRED`); approval cannot read a valid current review policy (`TASK_REVIEW_POLICY_UNAVAILABLE`, including after a human handoff); it has open subtasks (`TASK_HAS_OPEN_SUBTASKS`); two members carry the actor’s e-mail (`ACTOR_AMBIGUOUS`); the e-mail now belongs to another member than the pinned `userId` (`ACTOR_REBOUND`); `workflowSlug` is saved but not deployed (`AUTOMATION_NOT_DEPLOYED`); the task is held by the organization’s standard agent, which cannot run for the member (`STANDARD_AGENT_UNAVAILABLE`, `data.reason` saying why)',
         ),
         ...standardErrors,
         '400': withDoorRefusal(
@@ -7723,7 +7729,7 @@ curl -H "Authorization: Bearer <api-key>" \\
             failedPageCount: nullable({
               ...int,
               description:
-                'Pages whose LAST attempt failed — each carries its `lastError` in the pages list; `null` until the next corpus → row sync stamps the row',
+                'Pages whose LAST attempt failed — each carries its `lastError` in the pages list. A page the crawler skipped on purpose (`lastErrorKind` `robots_noindex`, `unsupported_content` or `host_not_allowed`) keeps its reason but is not counted here; `null` until the next corpus → row sync stamps the row',
             }),
             metadata: nullable(obj),
             createdAt: epochMs,
@@ -7842,7 +7848,7 @@ curl -H "Authorization: Bearer <api-key>" \\
             failCount: {
               ...int,
               description:
-                'Failed attempts in a row since the last stored fetch (or since the operator re-listed the URL); 0 when the last attempt stored the page. A discovered page stops being fetched after 5; a listed one never does',
+                'Failed attempts in a row since the last stored fetch (or since the operator re-listed the URL); 0 when the last attempt stored the page. A discovered page stops being fetched after 5, and is probed once more after seven days; a listed one never stops. A failure of the render sandbox itself (its egress proxy refusing the connection, its browser stopping) counts nothing: the scan ends with that reason on the website',
             },
             lastError: nullable({
               ...str,
@@ -8805,12 +8811,16 @@ curl -H "Authorization: Bearer <api-key>" \\
             'taskId',
             'round',
             'requestedFor',
+            'reviewer',
             'agentSlug',
             'runId',
+            'implementationAgentId',
+            'evidenceRevision',
+            'agentReviewBlockedReason',
             'createdAt',
           ],
           description:
-            'A task’s open review: the gate a person decides at `POST …/tasks/{taskId}/review` or on the board.',
+            'A task’s ordinary pending review, owned by the captured person or agent. Native agent verdicts use task_review; the public review POST relays a person’s decision.',
           properties: {
             approvalId: str,
             taskId: str,
@@ -8822,19 +8832,72 @@ curl -H "Authorization: Bearer <api-key>" \\
             requestedFor: {
               type: 'string',
               nullable: true,
-              description: 'The reviewer the request named, if any',
+              description:
+                'Human reviewer compatibility field; null for an agent or absent recipient. Use reviewer for typed ownership.',
             },
+            reviewer: nullable({
+              anyOf: [
+                {
+                  type: 'object',
+                  additionalProperties: false,
+                  required: ['kind', 'userId'],
+                  properties: {
+                    kind: { type: 'string', enum: ['user'] },
+                    userId: str,
+                  },
+                },
+                {
+                  type: 'object',
+                  additionalProperties: false,
+                  required: ['kind', 'agentId'],
+                  properties: {
+                    kind: { type: 'string', enum: ['agent'] },
+                    agentId: str,
+                  },
+                },
+              ],
+              description: 'The recipient captured by this pending review.',
+            }),
             agentSlug: {
               type: 'string',
               nullable: true,
               description:
-                'The agent whose work is under review, if the park named one',
+                'Compatibility display text for the implementation driver, not its identity; use implementationAgentId for the actual native source agent.',
             },
             runId: {
               type: 'string',
               nullable: true,
               description:
                 'The run whose settle parked the task in review, if any',
+            },
+            implementationAgentId: {
+              type: 'string',
+              nullable: true,
+              description:
+                'The exact source run’s agent in this organization, project and task; null without a matching native source.',
+            },
+            evidenceRevision: {
+              type: 'string',
+              nullable: true,
+              pattern: '^[a-f0-9]{64}$',
+              description:
+                'Opaque compare-and-set digest of local task, source result and discussion evidence. Null without a settled native source. It does not verify external pull-request heads or checks.',
+            },
+            agentReviewBlockedReason: {
+              type: 'string',
+              nullable: true,
+              enum: [
+                'reviewer_unavailable',
+                'permission_missing',
+                'source_required',
+                'source_changed',
+                'self_review',
+                'human_policy',
+                'policy_unavailable',
+                null,
+              ],
+              description:
+                'Current reason a captured agent cannot decide; null for a human review or an eligible agent. Derived from current project scope, permission, policy and source; it never changes review ownership. Restore the indicated condition or explicitly transfer to an eligible reviewer.',
             },
             createdAt: epochMs,
           },
@@ -9205,7 +9268,8 @@ curl -H "Authorization: Bearer <api-key>" \\
               description:
                 'The failure or wait reason, when the run has one. While ' +
                 '`waiting` it names the park: `approval:<approvalId>`, ' +
-                '`agent:<nodeId>` or `repeat:<nodeId>` — `waitingFor` is the ' +
+                '`agent:<nodeId>`, `room:<nodeId>` or `repeat:<nodeId>` — ' +
+                '`waitingFor` is the ' +
                 'field to branch on; when `failed`, the failure sentence, ' +
                 'and `failureCode` the stable cause — the sentence is not ' +
                 'contractual.',
@@ -9221,13 +9285,15 @@ curl -H "Authorization: Bearer <api-key>" \\
             },
             waitingFor: {
               type: 'string',
-              enum: ['approval', 'ask', 'agent', 'repeat'],
+              enum: ['approval', 'ask', 'agent', 'room', 'repeat'],
               description:
                 'Present only while `status` is `waiting`: what the run is ' +
                 'parked on. `approval` — a person’s decision on a gate; `ask` ' +
                 '— a question a person has to answer; `agent` — an agent turn ' +
-                'still running, no one to page; `repeat` — a node polling ' +
-                'until its `repeatUntil` condition holds, no one to page. ' +
+                'still running, no one to page; `room` — an agent turn whose ' +
+                'start waits for sandbox room, no one to page; `repeat` — a ' +
+                'node polling until its `repeatUntil` condition holds, no one ' +
+                'to page. ' +
                 '"Runs that need a human" is `waitingFor` in (`approval`, ' +
                 '`ask`), never `status=waiting` alone.',
             },
@@ -9669,7 +9735,7 @@ curl -H "Authorization: Bearer <api-key>" \\
               type: 'string',
               enum: ['pending', 'complete', 'failed', 'cancelled'],
               description:
-                '`pending` is the placeholder a running turn fills in (the row GET …/generation names as messageId); `complete` is a settled reply — a reply the output cap cut short included, so read `finishReason` for that; `cancelled` is a turn stopped through DELETE …/generation — `parts` and `usage` hold what had streamed; `failed` carries `error`.',
+                '`pending` is the placeholder a running turn fills in (the row GET …/generation names as messageId); `complete` is a settled reply — a reply the output cap cut short included, so read `finishReason` for that; `cancelled` is a turn stopped through DELETE …/generation — `parts` and `usage` hold what had streamed; `failed` carries `error`, and `usage` when the turn had consumed any.',
             },
             finishReason: {
               type: 'string',
@@ -9694,7 +9760,7 @@ curl -H "Authorization: Bearer <api-key>" \\
               type: 'object',
               additionalProperties: false,
               description:
-                'The token counters the finished turn recorded and the catalog cost estimate stamped beside them; absent until the turn settles, and absent on a turn that failed before the provider reported counts. Counts are the provider’s own unless `estimated` is present.',
+                'The token counters the finished turn recorded and the catalog cost estimate stamped beside them; absent until the turn settles. A failed turn carries what it consumed — its finished model rounds and, if the provider had already accepted the request, the round that failed; a round the provider refused (an HTTP error status, or a refusal such as a rate limit reported before any answer or positive reported usage) adds nothing, so a turn refused on its first round carries none. Counts are the provider’s own unless `estimated` is present.',
               properties: {
                 inputTokens: {
                   ...int,
@@ -9725,7 +9791,7 @@ curl -H "Authorization: Bearer <api-key>" \\
                   ...bool,
                   enum: [true],
                   description:
-                    'Present when the counts are the platform’s own estimate — the provider’s usage frame was lost (a cancelled turn, typically) or never sent — so the cost is an estimate too',
+                    'Present when the counts are the platform’s own estimate — the provider’s usage frame was lost (a cancelled turn, or one that failed mid-stream, typically) or never sent — so the cost is an estimate too',
                 },
                 stepLimitHit: {
                   ...bool,
@@ -9761,6 +9827,7 @@ curl -H "Authorization: Bearer <api-key>" \\
             'tools',
             'secrets',
             'instructions',
+            'managed',
             'createdBy',
             'createdAt',
             'updatedAt',
@@ -9782,6 +9849,15 @@ curl -H "Authorization: Bearer <api-key>" \\
                 'Granted organization secret names. Secret values are never returned.',
             },
             instructions: nullable(str),
+            managed: {
+              type: 'boolean',
+              description:
+                'The organization’s standard agent: Tale created it in a ' +
+                'project that had no agents of its own, and keeps its ' +
+                'runtime, model and instructions in line with the organization’s ' +
+                '`standard_agent` governance policy, so it cannot be saved ' +
+                'here (`PROJECT_AGENT_MANAGED`). It can be deleted.',
+            },
             createdBy: str,
             createdAt: epochMs,
             updatedAt: epochMs,

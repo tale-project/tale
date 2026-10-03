@@ -7,6 +7,7 @@
 
 import { isEpochMs } from '@tale/shared/schemas/epoch-ms';
 import { taskExternalIssueSchema } from '@tale/shared/schemas/task-external-issue';
+import { setTaskReviewerInputSchema } from '@tale/shared/schemas/task-review';
 import type { QueryClient } from '@tanstack/react-query';
 
 import type { ItemOf, PageItemOf, ReturnsOf } from '@/app/lib/backend/contract';
@@ -20,7 +21,11 @@ import type {
   WriteAdapter,
 } from './adapters';
 import { backendFetch, BackendApiError } from './api-client';
-import { backendEntityPrefix, backendKey } from './query-keys';
+import {
+  backendEntityPrefix,
+  backendKey,
+  type BackendQueryKey,
+} from './query-keys';
 
 // ---------------------------------------------------------------------------
 // Wire rows + 0.4-shape projections
@@ -54,6 +59,7 @@ interface TaskWire {
   assigneeType: string | null;
   assigneeId: string | null;
   reviewerUserId: string | null;
+  reviewerAgentId?: string | null;
   parentTaskId: string | null;
   commentCount: number;
   rank: string;
@@ -118,6 +124,9 @@ function taskView(row: TaskWire): TaskItem {
     ...(row.assigneeId !== null ? { assigneeId: row.assigneeId } : {}),
     ...(row.reviewerUserId !== null
       ? { reviewerUserId: row.reviewerUserId }
+      : {}),
+    ...(typeof row.reviewerAgentId === 'string'
+      ? { reviewerAgentId: row.reviewerAgentId }
       : {}),
     ...(row.parentTaskId !== null ? { parentTaskId: row.parentTaskId } : {}),
     commentCount: row.commentCount,
@@ -204,6 +213,38 @@ function orgOf(
   return ctx.organizationId;
 }
 
+/**
+ * The key every read of one board starts with, whatever its filters: a
+ * project's board, or the all-projects board. A board that keeps its rows
+ * while another search of it loads matches on this, so it never shows
+ * another board's rows.
+ */
+export function taskBoardScope(
+  orgId: string,
+  projectId?: string,
+): BackendQueryKey {
+  return projectId === undefined
+    ? backendKey(orgId, 'task', 'across-projects')
+    : backendKey(orgId, 'task', 'by-project', projectId);
+}
+
+/**
+ * The tasks one conversation handed over, for the chat's tray — read by the
+ * task adapter below and by the chat seam's own table (`chat-backend.ts`),
+ * which routes only the names it lists. Under the task entity: every task
+ * and run write hints it, so the chat's rows move with the work.
+ */
+export function tasksFromThreadQuery(orgId: string, threadId: string) {
+  return {
+    queryKey: backendKey(orgId, 'task', 'from-thread', threadId),
+    queryFn: () =>
+      backendFetch<{ tasks: unknown[] }>(
+        `/tasks/by-thread/${encodeURIComponent(threadId)}`,
+        { orgId },
+      ).then((body) => body.tasks),
+  };
+}
+
 /** The shared board filter set → query-string + a stable key suffix. */
 function boardFilterParams(args: Record<string, unknown>): {
   search: string;
@@ -220,6 +261,9 @@ function boardFilterParams(args: Record<string, unknown>): {
   const reviewerId = typeof args.reviewerId === 'string' ? args.reviewerId : '';
   const externalSystem =
     typeof args.externalSystem === 'string' ? args.externalSystem : '';
+  // The toolbar's search is a board filter: the server matches it with the
+  // others before the board's cap, so the rows ARE the search result.
+  const query = typeof args.query === 'string' ? args.query.trim() : '';
   const params = new URLSearchParams({
     includeArchived: String(includeArchived),
     ...(status.length > 0 ? { status } : {}),
@@ -227,6 +271,7 @@ function boardFilterParams(args: Record<string, unknown>): {
     ...(assigneeId.length > 0 ? { assigneeId } : {}),
     ...(reviewerId.length > 0 ? { reviewerId } : {}),
     ...(externalSystem.length > 0 ? { externalSystem } : {}),
+    ...(query.length > 0 ? { q: query } : {}),
   });
   return {
     search: params.toString(),
@@ -237,24 +282,31 @@ function boardFilterParams(args: Record<string, unknown>): {
       assigneeId,
       reviewerId,
       externalSystem,
+      query,
     ],
   };
 }
 
 export const taskReadAdapters: Record<string, ReadAdapter> = {
+  'tasks/queries:getTaskReviewer': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    const taskId = args.taskId;
+    if (orgId === undefined || typeof taskId !== 'string') return null;
+    return {
+      queryKey: backendKey(orgId, 'task', 'reviewer', taskId),
+      queryFn: () =>
+        backendFetch(`/tasks/${encodeURIComponent(taskId)}/reviewer`, {
+          orgId,
+        }),
+    };
+  },
   'tasks/queries:listTasksByProject': (args, ctx) => {
     const orgId = orgOf(args, ctx);
     const projectId = args.projectId;
     if (orgId === undefined || typeof projectId !== 'string') return null;
     const filters = boardFilterParams(args);
     return {
-      queryKey: backendKey(
-        orgId,
-        'task',
-        'by-project',
-        projectId,
-        ...filters.key,
-      ),
+      queryKey: [...taskBoardScope(orgId, projectId), ...filters.key],
       queryFn: () =>
         backendFetch<BoardWire>(
           `/tasks/by-project/${encodeURIComponent(projectId)}?${filters.search}`,
@@ -267,7 +319,7 @@ export const taskReadAdapters: Record<string, ReadAdapter> = {
     if (orgId === undefined) return null;
     const filters = boardFilterParams(args);
     return {
-      queryKey: backendKey(orgId, 'task', 'across-projects', ...filters.key),
+      queryKey: [...taskBoardScope(orgId), ...filters.key],
       queryFn: () =>
         backendFetch<BoardWire>(`/tasks?${filters.search}`, { orgId }).then(
           boardView,
@@ -427,10 +479,15 @@ export const taskReadAdapters: Record<string, ReadAdapter> = {
             agentId: string;
             status: string;
             error: string | null;
+            failureCode: string | null;
             trigger: string | null;
             startedAt: number;
             launchedAt: number | null;
             settledAt: number | null;
+            startedVia?: 'automation' | 'agent' | null;
+            startedViaRunId?: string | null;
+            startedViaAutomation?: string | null;
+            startedViaAgentId?: string | null;
           }[];
         }>(`/tasks/${encodeURIComponent(taskId)}/agent-runs`, { orgId }).then(
           (body) =>
@@ -440,6 +497,23 @@ export const taskReadAdapters: Record<string, ReadAdapter> = {
               trigger: run.trigger ?? 'manual',
               status: run.status,
               ...(run.error !== null ? { error: run.error } : {}),
+              ...(run.failureCode !== null
+                ? { failureCode: run.failureCode }
+                : {}),
+              // A run an automation step started links to that automation
+              // run; one another agent started names that agent.
+              ...(run.startedVia === 'automation' &&
+              typeof run.startedViaAutomation === 'string' &&
+              typeof run.startedViaRunId === 'string'
+                ? {
+                    workflowSlug: run.startedViaAutomation,
+                    wfExecutionId: run.startedViaRunId,
+                  }
+                : {}),
+              ...(run.startedVia === 'agent' &&
+              typeof run.startedViaAgentId === 'string'
+                ? { delegatedByAgentId: run.startedViaAgentId }
+                : {}),
               startedAt: run.startedAt,
               ...(run.launchedAt !== null && run.settledAt !== null
                 ? { durationMs: run.settledAt - run.launchedAt }
@@ -500,6 +574,12 @@ export const taskReadAdapters: Record<string, ReadAdapter> = {
         ).then((body) => body.previews),
     };
   },
+  'tasks/queries:listTasksFromThread': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    const threadId = args.threadId;
+    if (orgId === undefined || typeof threadId !== 'string') return null;
+    return tasksFromThreadQuery(orgId, threadId);
+  },
   'tasks/queries:getLatestTaskAgentRunForTask': (args, ctx) => {
     const orgId = orgOf(args, ctx);
     const taskId = args.taskId;
@@ -511,11 +591,9 @@ export const taskReadAdapters: Record<string, ReadAdapter> = {
           `/tasks/${encodeURIComponent(taskId)}/agent-runs/latest`,
           { orgId },
         ).then((body) => body.run),
-      // The run card follows a LIVE run through queued → running → settled,
-      // and the run-lifecycle writes emit no task hint — poll while the
-      // task modal holds the card open (the WS lane pushed; the HTTP lane
-      // asks).
-      refetchInterval: 2000,
+      // No poll: every write that changes a run — queued, launched, parked,
+      // settled, failed, cancelled — hints the task, and this read keys
+      // under it.
     };
   },
   'tasks/queries:getTaskAgentRunSandboxOp': (args, ctx) => {
@@ -1040,9 +1118,12 @@ export const taskWriteAdapters: Record<string, WriteAdapter> = {
     run: async (args, ctx) => {
       const orgId = requireOrg(args, ctx);
       const taskId = requireString(args, 'taskId');
+      // The column a person moved the card to, and where in it, rides the
+      // stop; without one the task parks at Cancelled.
+      const { organizationId: _org, taskId: _task, ...body } = args;
       return backendFetch(
         `/tasks/${encodeURIComponent(taskId)}/workflow/cancel`,
-        { method: 'POST', body: {}, orgId },
+        { method: 'POST', body, orgId },
       );
     },
     invalidate: taskWriteInvalidate,
@@ -1063,14 +1144,12 @@ export const taskWriteAdapters: Record<string, WriteAdapter> = {
     run: async (args, ctx) => {
       const orgId = requireOrg(args, ctx);
       const taskId = requireString(args, 'taskId');
-      await backendFetch(`/tasks/${encodeURIComponent(taskId)}`, {
+      await backendFetch(`/tasks/${encodeURIComponent(taskId)}/reviewer`, {
         method: 'POST',
-        body: {
-          reviewerUserId:
-            typeof args.reviewerUserId === 'string'
-              ? args.reviewerUserId
-              : null,
-        },
+        body: setTaskReviewerInputSchema.parse({
+          reviewer: args.reviewer,
+          expected: args.expected,
+        }),
         orgId,
       });
       return null;

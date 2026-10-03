@@ -128,6 +128,31 @@ describe('shipped providers', () => {
 });
 
 describe('shipped static model catalogs', () => {
+  it('ships Sol 6.1 for Responses tool calls without an unsupported reasoning off value', () => {
+    const model = loadStaticCatalogs()
+      .get('openai')
+      ?.find((entry) => entry.id === 'gpt-6.1-sol');
+    expect(model).toMatchObject({
+      id: 'gpt-6.1-sol',
+      provider: 'openai',
+      tags: ['chat'],
+      supportsTools: true,
+      supportsVision: true,
+      toolCallingApi: 'responses',
+      contextWindow: 1_050_000,
+      maxOutputTokens: 128_000,
+      reasoning: { knob: 'effort' },
+      pricing: {
+        inputCentsPerMillion: 200,
+        outputCentsPerMillion: 1000,
+        cacheReadCentsPerMillion: 10,
+        cacheWriteCentsPerMillion: 250,
+      },
+    });
+    expect(model?.reasoning?.off).toBeUndefined();
+    expect(model?.reasoning?.toolsRequireOff).toBeUndefined();
+  });
+
   it('every catalog entry validates and carries its file provider', () => {
     const catalogs = loadStaticCatalogs();
     expect(catalogs.size).toBeGreaterThan(0);
@@ -436,8 +461,14 @@ describe('shipped harnesses', () => {
       planMode: true,
       steering: true,
       mcp: true,
+      resume: true,
     });
     expect(table.get('pi')?.capabilities.mcp).toBe(false);
+    // The one harness the platform never resumes (its `--resume` replays
+    // every tool result twice); every other shipped harness continues.
+    for (const harness of table.values()) {
+      expect(harness.capabilities.resume).toBe(harness.slug !== 'gemini');
+    }
   });
 
   it('carries the exec facts and parser families the registry composes', () => {

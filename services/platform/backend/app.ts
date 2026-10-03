@@ -44,6 +44,7 @@ import { createSandboxBlobRoutes } from './domains/files/sandbox-blob-routes.ts'
 import { createFolderRoutes } from './domains/folders/routes.ts';
 import { createGoogleDriveRoutes } from './domains/google_drive/routes.ts';
 import { createGovernanceRoutes } from './domains/governance/routes.ts';
+import { createImageProxyRoutes } from './domains/image_proxy/routes.ts';
 import { createKnowledgeRoutes } from './domains/knowledge/routes.ts';
 import { createKnowledgeEntryRoutes } from './domains/knowledge_entries/routes.ts';
 import { createLegalHoldRoutes } from './domains/legal_holds/routes.ts';
@@ -105,13 +106,8 @@ import { createSseAuthRoutes } from './realtime/oracle-routes.ts';
 import { createEventsHandler } from './realtime/sse.ts';
 import { mountRestV1Routes } from './rest/v1.ts';
 import { probeStores } from './store-health.ts';
-import {
-  backendMetricsResponse,
-  httpDuration,
-  httpRequests,
-  initBackendTelemetry,
-  routeClass,
-} from './telemetry.ts';
+import { backendMetricsResponse, initBackendTelemetry } from './telemetry.ts';
+import { requestTelemetry } from './tracing.ts';
 
 export interface AppDeps {
   sql: Sql;
@@ -251,22 +247,7 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
   // Request counters/histograms for everything below, labelled by a BOUNDED
   // route class (never the raw path — ids would make the label set
   // unbounded). Declared before the routes so it wraps them all.
-  app.use(async (c, next) => {
-    const started = performance.now();
-    const route = routeClass(c.req.path);
-    const method = c.req.method;
-    try {
-      await next();
-    } finally {
-      const seconds = (performance.now() - started) / 1000;
-      httpDuration.observe({ method, route }, seconds);
-      httpRequests.inc({
-        method,
-        route,
-        status: `${Math.floor(c.res.status / 100)}xx`,
-      });
-    }
-  });
+  app.use(requestTelemetry());
   // Validated reads on both JSON surfaces (lib/conditional-get.ts): every
   // 200 JSON GET/HEAD carries an ETag, a matching If-None-Match answers 304
   // without the body, and `private, no-cache` lets the client keep what it
@@ -319,6 +300,9 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
     ),
   );
   app.get('/events', requireSession(deps.auth), createEventsHandler(deps.sql));
+  // The remote images an email draws, fetched by the backend so the sender
+  // never sees the reader (`EmailPreview` rewrites every one to this door).
+  app.route('/api/image-proxy', createImageProxyRoutes(deps));
   // Oracle for the platform web tier's own browser connection — it forwards
   // the request Cookie and acts on the verdict (realtime/oracle-routes.ts).
   app.route('/api/sse', createSseAuthRoutes(deps));

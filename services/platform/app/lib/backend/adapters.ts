@@ -112,7 +112,9 @@ export interface AdaptedReadOptions {
   queryKey: readonly unknown[];
   queryFn: () => Promise<unknown>;
   staleTime?: number;
-  refetchInterval?: number;
+  /** A fixed poll, or one the last answer decides (`false` stops it): a
+   * list polls faster while one of its rows is changing. */
+  refetchInterval?: number | ((data: unknown) => number | false);
   /**
    * The caller's view of a SHARED answer: reads whose args only narrow one
    * fetched body (a status picked out of a counts map) key on the fetch and
@@ -154,6 +156,13 @@ export interface WriteAdapter {
     args: Record<string, unknown>,
     ctx: AdapterContext,
   ) => void;
+  /**
+   * Whether this refusal proves the reads the caller acted on stale — the
+   * write named a row another session already removed — so `invalidate`
+   * fires for it as well. A write whose failure says nothing about the cache
+   * leaves it out.
+   */
+  refusalInvalidates?: (error: unknown) => boolean;
 }
 
 /** One fetched page on the adapted paginated lane (the 0.4 page envelope). */

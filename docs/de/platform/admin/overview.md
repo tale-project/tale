@@ -26,6 +26,7 @@ Inhaber und Admins verwalten die Organisationseinstellungen. Entwickler erreiche
 | Nutzung, Uploads oder Aufbewahrung begrenzen | [Richtlinien und Limits](/de/platform/admin/governance/policies-and-limits) |
 | Nachrichten filtern und organisationsweite Anweisungen festlegen | [Schutzregeln](/de/platform/admin/governance/guardrails) |
 | Aktionen oder Ausgaben untersuchen | [Audit-Protokolle](/de/platform/admin/governance/audit-logs) oder [Nutzungsmetriken](/de/platform/admin/governance/usage-analytics) |
+| Fehlschlagende Chat-Antworten, Agenten-Runden oder Automatisierungsläufe finden | [Betriebsmetriken](/de/platform/admin/governance/operations-metrics) |
 | Aufbewahrte Daten wiederherstellen oder vor dem Löschen schützen | [Papierkorb](/de/platform/admin/governance/trash) oder [Aufbewahrungssperre](/de/platform/admin/governance/legal-hold) |
 | Eine Löschanfrage bearbeiten | [Betroffenenanfragen](/de/platform/admin/governance/data-subject-requests) |
 

@@ -18,8 +18,10 @@ export async function checkSandboxIdleRelease(
   record: (name: string, ok: boolean, detail: string) => void,
 ): Promise<void> {
   const { userId } = ctx;
-  // A release can wake its organization's oldest parked turn. This probe's
-  // private org scope prevents that side effect from touching another lane.
+  // A release wakes its organization's oldest parked turn, and the oldest
+  // parked turn of another organization. This probe's private org scope
+  // keeps the first off another lane's runs; the second only starts a turn
+  // that was already waiting for room.
   const orgId = `${ctx.orgId}:idle:${randomUUID()}`;
   const now = Date.now();
   const projectId = randomUUID();

@@ -7,11 +7,16 @@ import {
   isUrlDisallowed,
   MAX_CRAWL_DELAY_MS,
   publicPageError,
+  RENDER_UNFINISHED_REASON,
+  renderFailureClass,
+  renderLaneHaltMessage,
   robotsMetaNoindexDirective,
   robotsPolicyFromStored,
   robotsPolicyToStored,
   type RobotsPolicy,
   classifyContentType,
+  dispositionFilename,
+  documentExtensionFromFileType,
   documentNameForUrl,
   extractLinks,
   isDisallowed,
@@ -402,21 +407,28 @@ describe('classifyContentType', () => {
     expect(classifyContentType('application/pdf')).toEqual({
       kind: 'document',
       extension: '.pdf',
+      filename: null,
     });
     expect(
       classifyContentType(
         'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       ),
-    ).toEqual({ kind: 'document', extension: '.docx' });
+    ).toEqual({ kind: 'document', extension: '.docx', filename: null });
   });
 
-  it('skips everything the lane cannot turn into text', () => {
+  it('skips everything the lane cannot turn into text, and lets the bytes decide a generic download', () => {
     expect(classifyContentType('image/png')).toEqual({ kind: 'skip' });
-    expect(classifyContentType('application/octet-stream')).toEqual({
-      kind: 'skip',
-    });
-    expect(classifyContentType('application/zip')).toEqual({ kind: 'skip' });
     expect(classifyContentType('text/css')).toEqual({ kind: 'skip' });
+    expect(classifyContentType('application/json')).toEqual({ kind: 'skip' });
+    // A generic download says nothing about its bytes: read them first.
+    expect(classifyContentType('application/octet-stream')).toEqual({
+      kind: 'sniff',
+      filename: null,
+    });
+    expect(classifyContentType('application/zip')).toEqual({
+      kind: 'sniff',
+      filename: null,
+    });
   });
 });
 
@@ -488,6 +500,20 @@ describe('metaDescription', () => {
     expect(
       metaDescription(`<meta content="Reversed" name="description">`),
     ).toBe('Reversed');
+  });
+
+  it('reads a value that holds a quote of the other kind, or a bracket', () => {
+    expect(
+      metaDescription(`<meta name="description" content="It's a < b test">`),
+    ).toBe("It's a < b test");
+  });
+
+  it('passes over an empty description to the next tag that has one', () => {
+    expect(
+      metaDescription(
+        `<meta name="description" content=" "><meta property="og:description" content="OG one">`,
+      ),
+    ).toBe('OG one');
   });
 });
 
@@ -655,6 +681,84 @@ describe('classifyRenderReason', () => {
       message: 'blocked host',
     });
   });
+
+  it('names a page the worker was cut off in as a timeout', () => {
+    expect(classifyRenderReason(RENDER_UNFINISHED_REASON)).toEqual({
+      kind: 'timeout',
+      message: RENDER_UNFINISHED_REASON,
+    });
+  });
+});
+
+/**
+ * The render lane's own faults, told apart from a page's (2026-09-30): the
+ * egress proxy refusing a tunnel benched a whole site in five scans, and a
+ * navigation the browser lost (its network service killed under the host)
+ * was charged in runs to the end of a batch.
+ */
+describe('renderFailureClass', () => {
+  it.each([
+    'page.goto: net::ERR_TUNNEL_CONNECTION_FAILED at https://docs.example/a',
+    'page.goto: net::ERR_PROXY_CONNECTION_FAILED at https://docs.example/a',
+    'page.goto: net::ERR_PROXY_AUTH_UNSUPPORTED at https://docs.example/a',
+    'page.goto: net::ERR_NO_SUPPORTED_PROXIES at https://x/',
+    'page.goto: net::ERR_SOCKS_CONNECTION_FAILED at https://x/',
+  ])('reads a refused or failed tunnel as the proxy: %s', (reason) => {
+    expect(renderFailureClass(reason)).toBe('proxy');
+  });
+
+  it.each([
+    'page.goto: net::ERR_ABORTED; maybe frame was detached?',
+    'page.goto: net::ERR_ABORTED at https://docs.example/a',
+    'page.goto: Page crashed',
+    'page.goto: Navigation failed because page crashed!',
+    'page.content: Target crashed',
+    'page.goto: Target page, context or browser has been closed',
+    'document download broke off: net::ERR_ABORTED',
+  ])('reads a lost navigation as a crash: %s', (reason) => {
+    expect(renderFailureClass(reason)).toBe('crash');
+  });
+
+  it.each([
+    'page.goto: Timeout 20000ms exceeded.',
+    'page.goto: net::ERR_NAME_NOT_RESOLVED at https://gone.example/',
+    'page.goto: net::ERR_CONNECTION_REFUSED at https://x/',
+    'HTTP 503 at render time',
+    'redirected to a blocked host',
+    'rendered HTML exceeds the per-page bound',
+  ])("keeps the page's own failure with the page: %s", (reason) => {
+    expect(renderFailureClass(reason)).toBe('page');
+  });
+});
+
+describe('renderLaneHaltMessage', () => {
+  it('names the proxy, the domain and the browser’s one-line cause, and says no page was charged', () => {
+    const message = renderLaneHaltMessage(
+      {
+        reason: 'egress_proxy',
+        error:
+          'page.goto: net::ERR_TUNNEL_CONNECTION_FAILED at https://docs.example/a\nCall log:\n  - navigating to "https://docs.example/a"',
+      },
+      'docs.example',
+    );
+    expect(message).toBe(
+      'The render sandbox could not reach docs.example through the sandbox egress proxy (page.goto: net::ERR_TUNNEL_CONNECTION_FAILED at https://docs.example/a). The proxy refused or failed the connection — check the sandbox-egress service and SANDBOX_EGRESS_ALLOWLIST; no page was charged, and the next scan retries.',
+    );
+  });
+
+  it('names the browser when it stopped answering', () => {
+    expect(
+      renderLaneHaltMessage(
+        {
+          reason: 'browser',
+          error: 'Target page, context or browser has been closed',
+        },
+        'docs.example',
+      ),
+    ).toBe(
+      "The render sandbox's browser stopped answering (Target page, context or browser has been closed); no page was charged, and the next scan retries.",
+    );
+  });
 });
 
 /**
@@ -685,5 +789,194 @@ describe('the stored robots verdict and its sitemaps', () => {
     expect(robotsSitemapsFromStored(['/b'])).toBeNull();
     expect(robotsSitemapsFromStored(null)).toBeNull();
     expect(robotsSitemapsFromStored(undefined)).toBeNull();
+  });
+});
+
+/**
+ * A download whose declared type says nothing or the wrong thing: a TYPO3
+ * export answered `application/vnd.ms-excel` with an `.xlsx` named in its
+ * Content-Disposition and read as unsupported (2026-09-30). The bytes
+ * decide (`sniff`), and the offered filename becomes the document's name.
+ */
+describe('classifyContentType — downloads whose declared type says nothing', () => {
+  it('lets the bytes decide for a generic or legacy type, keeping the offered filename', () => {
+    expect(
+      classifyContentType(
+        'application/vnd.ms-excel',
+        'attachment;filename="admission-tables.xlsx"',
+      ),
+    ).toEqual({ kind: 'sniff', filename: 'admission-tables.xlsx' });
+    expect(classifyContentType('application/octet-stream')).toEqual({
+      kind: 'sniff',
+      filename: null,
+    });
+    expect(
+      classifyContentType(
+        'application/msword',
+        'inline; filename="brief.docx"',
+      ),
+    ).toEqual({ kind: 'sniff', filename: 'brief.docx' });
+  });
+
+  it('lets the bytes decide when only the filename names a document', () => {
+    expect(
+      classifyContentType('text/csv', 'attachment; filename="report.pdf"'),
+    ).toEqual({ kind: 'sniff', filename: 'report.pdf' });
+  });
+
+  it('still routes a declared document by its type, carrying the filename', () => {
+    expect(
+      classifyContentType('application/pdf', 'attachment; filename="a.pdf"'),
+    ).toEqual({ kind: 'document', extension: '.pdf', filename: 'a.pdf' });
+    expect(classifyContentType('application/pdf')).toEqual({
+      kind: 'document',
+      extension: '.pdf',
+      filename: null,
+    });
+  });
+
+  it('skips what is neither', () => {
+    expect(
+      classifyContentType('image/png', 'attachment; filename="a.png"'),
+    ).toEqual({ kind: 'skip' });
+    expect(classifyContentType('text/csv')).toEqual({ kind: 'skip' });
+  });
+});
+
+describe('dispositionFilename', () => {
+  it('prefers the RFC 8187 form, decodes it, and keeps the basename', () => {
+    expect(
+      dispositionFilename(
+        'attachment; filename="fallback.xlsx"; filename*=UTF-8\'\'Zulassungs%20tabellen.xlsx',
+      ),
+    ).toBe('Zulassungs tabellen.xlsx');
+    expect(
+      dispositionFilename('attachment;filename="dir\\sub/report.pdf"'),
+    ).toBe('report.pdf');
+    expect(dispositionFilename('attachment; filename=plain.docx')).toBe(
+      'plain.docx',
+    );
+  });
+
+  it('reads none from an absent, empty or pathless header', () => {
+    expect(dispositionFilename(null)).toBeNull();
+    expect(dispositionFilename('inline')).toBeNull();
+    expect(dispositionFilename('attachment; filename=""')).toBeNull();
+    expect(dispositionFilename('attachment; filename="../"')).toBeNull();
+  });
+});
+
+describe('documentExtensionFromFileType', () => {
+  it('maps the five documents the router reads and nothing else', () => {
+    expect(documentExtensionFromFileType('xlsx')).toBe('.xlsx');
+    expect(documentExtensionFromFileType('pdf')).toBe('.pdf');
+    expect(documentExtensionFromFileType('odt')).toBe('.odt');
+    expect(documentExtensionFromFileType('xls')).toBeNull();
+    expect(documentExtensionFromFileType('png')).toBeNull();
+    expect(documentExtensionFromFileType(undefined)).toBeNull();
+  });
+});
+
+describe('documentNameForUrl with an offered filename', () => {
+  it('uses the offered name, forcing the extension, and falls back to the path', () => {
+    expect(
+      documentNameForUrl(
+        'https://x.ch/page?export=1',
+        '.xlsx',
+        'admission-tables.xlsx',
+      ),
+    ).toBe('admission-tables.xlsx');
+    expect(
+      documentNameForUrl(
+        'https://x.ch/page?export=1',
+        '.xlsx',
+        'admission-tables',
+      ),
+    ).toBe('admission-tables.xlsx');
+    expect(documentNameForUrl('https://x.ch/page', '.xlsx', null)).toBe(
+      'page.xlsx',
+    );
+  });
+});
+
+/**
+ * A sitemap, a probed homepage and a rendered page are text the site
+ * chooses. The scanners looked for each tag's end, or for an attribute, to
+ * the end of the input from every opener of a run that closes nothing —
+ * megabytes read a million times over, on the one thread that serves every
+ * request (`markup-scan.ts`).
+ */
+describe('scanning markup that never closes its tags', () => {
+  const RUN = 50_000;
+  const cases: [string, () => unknown][] = [
+    [
+      'sitemap entries with no end',
+      () => parseSitemapLocs('<loc>'.repeat(RUN)),
+    ],
+    [
+      'sitemap entries whose only end is the last one',
+      () => parseSitemapLocs(`${'<loc '.repeat(RUN)}</loc>`),
+    ],
+    [
+      'CDATA openers inside one sitemap entry',
+      () => parseSitemapLocs(`<loc>${'<![CDATA['.repeat(RUN)}</loc>`),
+    ],
+    ['anchors with no target', () => extractLinks(`${'<a '.repeat(RUN)}>`)],
+    [
+      'anchors with an unquoted target',
+      () => extractLinks('<a href=x '.repeat(RUN)),
+    ],
+    [
+      'meta tags with no end (description)',
+      () => metaDescription('<meta '.repeat(RUN)),
+    ],
+    [
+      'meta tags whose only end is the last one (description)',
+      () => metaDescription(`${'<meta '.repeat(RUN)}>`),
+    ],
+    [
+      'meta tags with no end (robots)',
+      () => robotsMetaNoindexDirective('<meta '.repeat(RUN)),
+    ],
+    // One tag of repeated attributes: the description patterns spanned the
+    // name and the content and backtracked over every pair.
+    [
+      'one meta tag that repeats its name',
+      () => metaDescription(`<meta ${'name="description" '.repeat(RUN)}>`),
+    ],
+    [
+      'one meta tag that repeats its property',
+      () =>
+        metaDescription(`<meta ${'property="og:description" '.repeat(RUN)}>`),
+    ],
+  ];
+
+  it.each(cases)('reads %s in linear time', (_shape, scan) => {
+    const startedAt = performance.now();
+    scan();
+    expect(performance.now() - startedAt).toBeLessThan(2_000);
+  });
+
+  it('still reads what a well-formed document says', () => {
+    expect(
+      parseSitemapLocs(
+        '<urlset><url><loc>https://a.example/x</loc></url><url><loc><![CDATA[https://a.example/y?a=1&b=2]]></loc></url></urlset>',
+      ),
+    ).toEqual(['https://a.example/x', 'https://a.example/y?a=1&b=2']);
+    expect(
+      extractLinks(
+        '<p><a class="nav" href="/one">1</a> <a href=\'/two\'>2</a></p>',
+      ),
+    ).toEqual(['/one', '/two']);
+    expect(
+      metaDescription(
+        '<head><meta charset="utf-8"><meta name="description" content="A page."></head>',
+      ),
+    ).toBe('A page.');
+    expect(
+      robotsMetaNoindexDirective(
+        '<head><meta name="robots" content="noindex, follow"></head>',
+      ),
+    ).toBe('noindex, follow');
   });
 });

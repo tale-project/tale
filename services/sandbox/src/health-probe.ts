@@ -6,7 +6,9 @@
 //     a probe that outlives that interval used to fork one child per poll);
 //   - a failed probe is cached like a healthy one for the TTL, so a dead
 //     daemon is reported `unhealthy` once per cycle rather than re-probed on
-//     every hit.
+//     every hit — except a transient one, which never asked the backend (no
+//     docker CLI slot came free in time): the next hit probes again rather
+//     than report a healthy daemon unhealthy for the whole TTL.
 
 import type { HealthResult } from './backend/types.ts';
 
@@ -24,7 +26,9 @@ export function makeHealthProbe(
     if (inFlight !== null) return inFlight;
     inFlight = probe()
       .then((result) => {
-        cached = { result, expiresAt: now() + ttlMs };
+        if (result.ok || result.transient !== true) {
+          cached = { result, expiresAt: now() + ttlMs };
+        }
         return result;
       })
       .finally(() => {

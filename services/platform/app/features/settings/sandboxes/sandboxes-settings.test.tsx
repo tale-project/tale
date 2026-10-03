@@ -73,6 +73,22 @@ const orphanRow = {
   runningOps: [],
 };
 
+/** Bob's workspace, hibernated and unused: the cleanup will delete it on
+ * `deletesAt` unless the agent works in it again first. */
+const hibernatedRow = {
+  ...aliceRow,
+  sessionId: 'session-bob',
+  ownerId: 'agent-bob',
+  ownerLabel: 'Bob',
+  status: 'stopped',
+  busy: false,
+  totalSpentCents: 0,
+  currentOp: null,
+  runningOps: [],
+  // Noon UTC, so the day reads the same in every runner's time zone.
+  deletesAt: Date.UTC(2026, 9, 31, 12),
+};
+
 vi.mock('@/app/hooks/use-ability', () => ({
   useAbility: () => ({
     can: (action: string) =>
@@ -128,18 +144,21 @@ beforeEach(() => {
           },
           aliceRow,
           orphanRow,
+          hibernatedRow,
         ]
-      : name.endsWith(':getSandboxQuotaUsage')
-        ? [
-            { budget: 'project', used: 1, cap: 2 },
-            { budget: 'workflow', used: 0, cap: 2 },
-            { budget: 'render', used: 0, cap: 2 },
-          ]
-        : name.endsWith(':getSandboxDeploymentLimits')
-          ? { status: 'available', maxSessions: 16 }
-          : name === 'sandbox_devices/queries:list'
-            ? { devices: [], hub: 'available', serverVersion: '0.5.60' }
-            : { status: 'unavailable', reason: 'unreachable' },
+      : name === 'governance/queries:getPolicy'
+        ? null
+        : name.endsWith(':getSandboxQuotaUsage')
+          ? [
+              { budget: 'project', used: 1, cap: 2 },
+              { budget: 'workflow', used: 0, cap: 2 },
+              { budget: 'render', used: 0, cap: 2 },
+            ]
+          : name.endsWith(':getSandboxDeploymentLimits')
+            ? { status: 'available', maxSessions: 16 }
+            : name === 'sandbox_devices/queries:list'
+              ? { devices: [], hub: 'available', serverVersion: '0.5.60' }
+              : { status: 'unavailable', reason: 'unreachable' },
     isLoading: false,
     isFetching: false,
     isError: false,
@@ -207,6 +226,15 @@ describe('SandboxesSettings access', () => {
     expect(
       screen.queryByRole('heading', { name: 'Workspaces' }),
     ).not.toBeInTheDocument();
+    // The cleanup policy is an admin read: developers neither see its
+    // editor nor ask for it.
+    expect(
+      screen.queryByRole('heading', { name: 'Workspace cleanup' }),
+    ).not.toBeInTheDocument();
+    expect(query).not.toHaveBeenCalledWith(
+      'governance/queries:getPolicy',
+      expect.anything(),
+    );
     expect(screen.queryByText('Restricted project')).not.toBeInTheDocument();
     // Developers see the organization's devices, never the workspace table.
     expect(
@@ -231,6 +259,24 @@ describe('SandboxesSettings access', () => {
     ).toBeInTheDocument();
     expect(screen.getByText('Restricted project')).toBeInTheDocument();
     expect(mutate).toHaveBeenCalledWith({ organizationId: 'org-1' });
+  });
+
+  it('gives organization settings managers the workspace cleanup policy, right above the workspaces', () => {
+    state.canManage = true;
+    renderSettings();
+    expect(query).toHaveBeenCalledWith('governance/queries:getPolicy', {
+      organizationId: 'org-1',
+      policyType: 'sandbox_workspaces',
+    });
+    expect(
+      screen.getByRole('switch', { name: 'Delete unused workspaces' }),
+    ).toBeChecked();
+    const sections = screen
+      .getAllByRole('heading', { level: 2 })
+      .map((heading) => heading.textContent);
+    expect(sections.indexOf('Workspaces')).toBe(
+      sections.indexOf('Workspace cleanup') + 1,
+    );
   });
 });
 
@@ -265,6 +311,18 @@ describe('SandboxesSettings workspace rows', () => {
     ).not.toBeInTheDocument();
   });
 
+  it('dates the deletion of an unused workspace, and of no other', () => {
+    renderSettings();
+    const bob = screen.getByText('Bob').closest('tr') as HTMLElement;
+    // Dated like the Created column (the short localized date).
+    expect(
+      within(bob).getByText('Deleted on 10/31/2026 unless used again'),
+    ).toBeInTheDocument();
+    const alice = screen.getByText('Alice').closest('tr') as HTMLElement;
+    expect(within(alice).queryByText(/^Deleted on/)).not.toBeInTheDocument();
+    expect(screen.getAllByText(/^Deleted on/)).toHaveLength(1);
+  });
+
   it('shows an idle workspace without a task and without a spend', () => {
     renderSettings();
     const row = screen.getByText('Restricted project').closest('tr');
@@ -292,6 +350,93 @@ describe('SandboxesSettings workspace rows', () => {
       'Row actions',
     ]);
     expect(screen.queryByText('Actions')).not.toBeInTheDocument();
+  });
+});
+
+// A Destroy is queued and runs as a job: the page answers at once, says
+// which rows are being destroyed, and which Destroy ran out of attempts.
+describe('SandboxesSettings Destroy', () => {
+  beforeEach(() => {
+    state.canManage = true;
+  });
+
+  /** Serve these workspace rows; every other read as the default mock. */
+  function listing(rows: unknown[]) {
+    const reads = query.getMockImplementation();
+    query.mockImplementation((name: string) => {
+      const answer = reads?.(name);
+      return name.endsWith(':listSandboxesForOrg')
+        ? { ...answer, data: rows }
+        : answer;
+    });
+  }
+
+  async function openRowMenu(
+    user: ReturnType<typeof renderSettings>['user'],
+    owner: string,
+  ) {
+    const row = screen.getByText(owner).closest('tr') as HTMLElement;
+    await user.click(
+      within(row).getByRole('button', {
+        name: i18n.getFixedT('en', 'common')('actions.openMenu'),
+      }),
+    );
+    return row;
+  }
+
+  it('reads a queued Destroy on its row and holds Pin and Destroy, not Stop, meanwhile', async () => {
+    listing([{ ...aliceRow, destroyState: 'pending' }, hibernatedRow]);
+    const { user } = renderSettings();
+    const alice = await openRowMenu(user, 'Alice');
+    expect(within(alice).getByText('Destroying')).toBeInTheDocument();
+    for (const name of ['Pin', 'Destroy']) {
+      expect(await screen.findByRole('menuitem', { name })).toHaveAttribute(
+        'aria-disabled',
+        'true',
+      );
+    }
+    // A task running while the Destroy retries can still be stopped.
+    expect(
+      await screen.findByRole('menuitem', { name: 'Stop task' }),
+    ).not.toHaveAttribute('aria-disabled');
+    const bob = screen.getByText('Bob').closest('tr') as HTMLElement;
+    expect(within(bob).queryByText('Destroying')).not.toBeInTheDocument();
+  });
+
+  it('says a Destroy failed and lets it be asked for again', async () => {
+    listing([{ ...hibernatedRow, destroyState: 'failed' }]);
+    const { user } = renderSettings();
+    const bob = await openRowMenu(user, 'Bob');
+    expect(within(bob).getByText('Destroy failed')).toBeInTheDocument();
+    expect(
+      await screen.findByRole('menuitem', { name: 'Destroy' }),
+    ).not.toHaveAttribute('aria-disabled');
+  });
+
+  it('closes the confirmation as soon as the Destroy is queued', async () => {
+    mutate.mockResolvedValue(null);
+    const { user } = renderSettings();
+    await openRowMenu(user, 'Bob');
+    await user.click(await screen.findByRole('menuitem', { name: 'Destroy' }));
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Destroy sandbox?',
+    });
+    await user.click(within(dialog).getByRole('button', { name: 'Destroy' }));
+    expect(mutate).toHaveBeenCalledWith({
+      organizationId: 'org-1',
+      sessionId: 'session-bob',
+    });
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith({
+        title: 'Destroying sandbox',
+        description: 'It leaves the list once its workspace is deleted.',
+      }),
+    );
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('dialog', { name: 'Destroy sandbox?' }),
+      ).not.toBeInTheDocument(),
+    );
   });
 });
 

@@ -25,6 +25,7 @@ import {
   MY_TEAMS_AUDIENCE,
   ORG_WIDE_AUDIENCE,
 } from '@/app/features/settings/teams/lib/audience-filter';
+import { useAbility } from '@/app/hooks/use-ability';
 import { usePreloadRoute } from '@/app/hooks/use-preload-route';
 import { DEFAULT_TABLE_PAGE_SIZE } from '@/app/hooks/use-table-config-factory';
 import { firstFailureDetail } from '@/app/lib/backend/adapters';
@@ -98,6 +99,9 @@ export function ProjectsTable({
   const { t } = useT('projects');
   const navigate = useNavigate();
   const preloadRoute = usePreloadRoute();
+  // Creating a project takes the Editor role or higher; the server refuses
+  // anyone else, so a Member is not offered the door.
+  const canCreate = useAbility().can('write', 'projects');
   const [includeArchived, setIncludeArchived] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
@@ -464,15 +468,21 @@ export function ProjectsTable({
         onRowSelectionChange={setRowSelection}
         onRowClick={handleRowClick}
         onRowMouseEnter={handleRowMouseEnter}
-        addAction={{
-          label: t('list.createButton'),
-          icon: Plus,
-          onClick: () => setCreateOpen(true),
-        }}
+        addAction={
+          canCreate
+            ? {
+                label: t('list.createButton'),
+                icon: Plus,
+                onClick: () => setCreateOpen(true),
+              }
+            : undefined
+        }
         emptyState={{
           icon: Folder,
           title: t('list.emptyTitle'),
-          description: t('list.emptyDescription'),
+          description: canCreate
+            ? t('list.emptyDescription')
+            : t('list.emptyReaderDescription'),
           headingLevel: 2,
         }}
         footer={
@@ -485,11 +495,13 @@ export function ProjectsTable({
           />
         }
       />
-      <ProjectCreateDialog
-        open={createOpen}
-        onOpenChange={setCreateOpen}
-        organizationId={organizationId}
-      />
+      {canCreate && (
+        <ProjectCreateDialog
+          open={createOpen}
+          onOpenChange={setCreateOpen}
+          organizationId={organizationId}
+        />
+      )}
     </>
   );
 }

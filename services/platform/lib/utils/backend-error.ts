@@ -27,6 +27,15 @@ export function backendErrorCode(err: unknown): string | undefined {
   return stringField(err, 'code');
 }
 
+/** A string the refusal carried beside its code — the door's `data`, such
+ *  as the `reason` a standard-agent refusal names — or undefined. */
+export function backendErrorField(
+  err: unknown,
+  field: string,
+): string | undefined {
+  return stringField(err, field);
+}
+
 /** The structured `message`, falling back for an unstructured throw. */
 export function backendErrorMessage(err: unknown, fallback: string): string {
   return stringField(err, 'message') ?? fallback;

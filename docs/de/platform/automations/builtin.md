@@ -27,11 +27,23 @@ Diese Workflows übernehmen alle fünf Minuten neue Nachrichten in Konversatione
 | Outlook-E-Mails synchronisieren | Outlook | Alle 5 Minuten |
 | E-Mails über SMTP/IMAP synchronisieren | IMAP/SMTP | Alle 5 Minuten |
 
+Ein Durchlauf liest nur den Posteingangsordner des Postfachs. Die eigenen Antworten des Postfachs unterscheidet er von denen der Kundin oder des Kunden an der Postfachadresse, die der erste Durchlauf vom verbundenen Konto erfährt und als Absenderadresse an der Verbindung behält; bei IMAP stammt sie aus dem Login.
+
 Verbinde zuerst das passende Postfach. Prüfe nach dem ersten Live-Lauf das [Ausführungsprotokoll](/de/platform/automations/execution-logs) und ob die erwarteten Nachrichten im Bereich **Start** in der Ansicht **Inbox** erscheinen.
 
-## Aktuelle E-Mails zusammenfassen lassen
+Anhänge werden mit ihrer Nachricht gespeichert, du öffnest und lädst sie also direkt in der Konversation herunter. Aus Gmail übernimmt Tale jeden Anhang nur bis 3,5 MB: Ein größerer erscheint weiterhin mit Name und Größe, öffnen kannst du ihn aber nur in Gmail.
 
-Diese Workflows lesen alle sechs Stunden die neuesten Nachrichten aller verbundenen Postfächer ihrer Art. Sie liefern eine Zusammenfassung und benennen Nachrichten, die offenbar heute eine Antwort brauchen. Die Zusammenfassung ist die Ausgabe des Laufs; öffne ihn zum Lesen. Ins Postfach wird nichts zurückgeschrieben, und der Status von Konversationen bleibt unverändert.
+## Die Inbox sichten
+
+Diese Workflows arbeiten alle sechs Stunden auf der **Inbox**, die die Synchronisierungs-Automatisierungen füllen. Jeder liest die offenen Konversationen seines Mail-Connectors, deren neueste Nachricht von der Kundin oder dem Kunden stammt und die seit dem Eintreffen dieser Nachricht noch kein Durchlauf beurteilt hat – höchstens 25 pro Lauf, sofern du `limit` nicht erhöhst, und nie mehr als 100. Das Modell entscheidet für jeden Thread, ob eine Person antworten muss und wie dringend es ist.
+
+Was ein Lauf verändert:
+
+- Das Urteil wird samt Begründung am Thread festgehalten, sodass der nächste Lauf den Thread erst wieder ansieht, wenn sich die Kundin oder der Kunde erneut meldet.
+- Die **Priorität** des Threads wird auf das Urteil des Modells gesetzt – aber nur, wenn noch niemand eine gesetzt hat. Eine von einer Person gewählte Priorität bleibt bestehen.
+- Wo eine Antwort fällig ist, entwirft ein zweiter Modellaufruf eine und legt sie als **Antwortvorschlag** an den Thread: eine Karte über dem Editor, getrennt von allem, was eine Person selbst getippt hat. **In den Editor übernehmen** gibt den Text zum Anpassen und Senden in den Editor; **Verwerfen** lässt ihn fallen, und der Thread bekommt erst wieder einen Vorschlag, wenn sich die Kundin oder der Kunde erneut meldet. Die Automatisierung sendet nichts. Ein Thread, der bereits einen Vorschlag trägt, behält ihn.
+
+Die Ausgabe des Laufs zeigt, was gelesen wurde, die Zusammenfassung des Modells, die Threads, die eine Antwort brauchen, mit ihren Inbox-Links, und die abgelegten Entwürfe. Ein Lauf, bei dem nichts wartet, ruft kein Modell auf. Stelle zuerst die passende Synchronisierungs-Automatisierung bereit; ohne synchronisierte Konversationen gibt es nichts zu sichten.
 
 | Automatisierung | Benötigter Connector | Zeitplan |
 | --- | --- | --- |
@@ -46,7 +58,7 @@ Diese Workflows lesen alle sechs Stunden die neuesten Nachrichten aller verbunde
 1. Verbinde die Quelle unter **Einstellungen > Connectors** und wähle die Standard-Zugangsdaten. GitHub benötigt Repository-Zugriff mit Leserechten für Issues. GlitchTip benötigt die Instanz-URL und ein Token mit `project:read` und `event:read`. Ein Token nur für die Projekteinrichtung kann keine Issues lesen. Selbst gehostete Instanzen müssen durch die Host-Richtlinie des Connectors erlaubt sein.
 2. Öffne den Importer und wähle **Testlauf**. Wähle das **Tale-Projekt** und gib den GitHub-Inhaber samt Repository oder die Organisations- und Projektkennung von GlitchTip ein. Optionale Labels oder eine GlitchTip-Suche grenzen die Suche nach neuen Issues ein. **Maximale Anzahl an Issues** erlaubt 1–500; der Standard ist 100.
 3. Prüfe das Testergebnis, schalte die Version live und wähle **Live ausführen** mit demselben Ziel und denselben Filtern. Ein Testlauf verwendet Beispieldaten und erstellt keine Aufgaben. Erst ein Live-Durchlauf prüft die tatsächliche Verbindung.
-4. Öffne **Läufe** und wähle den Durchlauf. **Importierte Aufgaben** verlinkt die zugehörigen Tale-Aufgaben. Wenn ein weiterer Stapel verbleibt, übernimmt **Import fortsetzen** Quelle, Ziel und Fortsetzungsposition für den nächsten Durchlauf.
+4. Öffne **Läufe** und wähle den Durchlauf. **Importierte Aufgaben** verlinkt die zugehörigen Tale-Aufgaben. Wenn ein weiterer Stapel verbleibt, übernimmt **Import fortsetzen** Quelle, Ziel und Fortsetzungsposition für den nächsten Durchlauf. Um stattdessen jedes Issue nach Zeitplan zu importieren, merkt sich eine Automatisierung diese Position zwischen ihren Terminen: siehe [Jedes Issue nach Zeitplan importieren](/de/platform/automations/triggers#jedes-issue-nach-zeitplan-importieren).
 
 Jede Synchronisierung sucht neue Issues und aktualisiert bis zu 500 verknüpfte Issues, beginnend mit den am längsten nicht geprüften. Das gilt auch für verknüpfte Issues, die nicht mehr zum Suchfilter passen. Wiederhole den Durchlauf, um große Bestände aktuell zu halten. GitHub-Pull-Requests sind ausgeschlossen. Wiederholungen verwenden innerhalb eines Tale-Projekts dieselbe Quellidentität. Wird ein Repository oder Projekt umbenannt, ändert sich der Link zur Quelle, ohne eine zweite Aufgabe anzulegen. Auch nach dem Verschieben in ein anderes Repository oder Quellprojekt bleiben Issues verknüpft und werden über die bisherigen Importe aktualisiert, sofern die Verbindung auf den neuen Ort zugreifen kann.
 

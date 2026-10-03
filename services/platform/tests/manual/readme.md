@@ -29,33 +29,33 @@ tale-project standard ([`AGENTS.md`](../../../../AGENTS.md) "Manual tests"), and
 
 ## The suites
 
-984 boxes across 21 suites. Every suite declares the ID prefix its
+1087 boxes across 21 suites. Every suite declares the ID prefix its
 boxes carry, in its header blockquote; a box ID is unique across this whole
 directory and greppable as one token.
 
 | Suite | Prefix | Area | Boxes |
 |---|---|---|---|
-| [accessibility](suites/accessibility.md) | `A11Y-` | cross-cutting WCAG 2.1 AA sweep | 26 |
+| [accessibility](suites/accessibility.md) | `A11Y-` | cross-cutting WCAG 2.1 AA sweep | 28 |
 | [approvals](suites/approvals.md) | `APV-` | human-in-the-loop: run approval/ask cards, task review gate, DSAR dual-approval | 22 |
-| [auth](suites/auth.md) | `AUTH-` | login, SSO, 2FA, passkeys, password policy, first-run setup, RBAC | 50 |
-| [automations](suites/automations.md) | `AUTO-` | draft→deploy→version automations: list, builder, upload, trigger, runs, bindings | 76 |
-| [chat](suites/chat.md) | `CHAT-` | messages, attachments, tools + approvals, arena, share, reasoning, the chat header and rows | 90 |
-| [connectors](suites/connectors.md) | `CONN-` | credential table + catalog picker; mailbox (IMAP/SMTP), OAuth, MCP endpoint | 36 |
-| [conversations](suites/conversations.md) | `CONV-` | the shared Inbox: statuses, priority, search, mailbox sync | 58 |
+| [auth](suites/auth.md) | `AUTH-` | login, SSO, 2FA, passkeys, password policy, first-run setup, RBAC | 51 |
+| [automations](suites/automations.md) | `AUTO-` | draft→deploy→version automations: list, builder, upload, trigger, runs, bindings | 78 |
+| [chat](suites/chat.md) | `CHAT-` | messages, attachments, tools + approvals, arena, share, reasoning, the chat header and rows | 99 |
+| [connectors](suites/connectors.md) | `CONN-` | credential table + catalog picker; mailbox (IMAP/SMTP), OAuth, MCP endpoint | 40 |
+| [conversations](suites/conversations.md) | `CONV-` | the shared Inbox: statuses, priority, search, mailbox sync | 62 |
 | [data-residency](suites/data-residency.md) | `DATA-` | BYO knowledge database + object storage, embedding settings | 26 |
-| [governance](suites/governance.md) | `GOV-` | content models, guardrails, policies, legal hold, DSAR, logs, trash | 72 |
-| [knowledge](suites/knowledge.md) | `KNOW-` | documents, knowledge entries, products, contacts, websites | 55 |
+| [governance](suites/governance.md) | `GOV-` | content models, guardrails, policies, legal hold, DSAR, logs, trash | 81 |
+| [knowledge](suites/knowledge.md) | `KNOW-` | documents, knowledge entries, products, contacts, websites | 65 |
 | [metrics](suites/metrics.md) | `MET-` | org metrics tabs: usage, feedback, chat health, harness turns, automations, projects | 19 |
-| [navigation](suites/navigation.md) | `NAV-` | side-nav rail + the Home panel, section panels, breadcrumbs, command palette, changelog, page-loads | 66 |
-| [notifications](suites/notifications.md) | `NOTIF-` | the notification bell + panel | 30 |
+| [navigation](suites/navigation.md) | `NAV-` | side-nav rail + the Home panel, section panels, breadcrumbs, command palette, changelog, page-loads | 67 |
+| [notifications](suites/notifications.md) | `NOTIF-` | the notification bell + panel | 32 |
 | [origins](suites/origins.md) | `ORIGIN-` | one deployment on several origins: sessions, file links, sign-in doors, an external TLS terminator | 12 |
-| [performance](suites/performance.md) | `PERF-` | cold load, chat TTFT, thread switch, pagination | 18 |
-| [projects](suites/projects.md) | `PROJ-` | projects, agents, tasks (attachments, comments), files, secrets, threads, Home's projects section | 53 |
-| [responsive](suites/responsive.md) | `RESP-` | mobile viewport, bottom tab bar, the phone's Home list, mobile save bar, the narrow page column, short viewports | 32 |
-| [settings](suites/settings.md) | `SET-` | account, personalization, usage, org, teams, branding, connectors, API, providers | 108 |
-| [skills](suites/skills.md) | `SKILL-` | skill library: table + facets, create/upload bundles, visibility, equip on agents | 29 |
-| [tasks](suites/tasks.md) | `TASK-` | project task board/list: DnD lanes, task sheet, the task page, agent runs, outputs, review | 93 |
-| [video-links](suites/video-links.md) | `VID-` | YouTube/video link ingestion (backend pipeline) | 13 |
+| [performance](suites/performance.md) | `PERF-` | cold load, chat TTFT, thread switch, pagination | 20 |
+| [projects](suites/projects.md) | `PROJ-` | projects, agents, tasks (attachments, comments), files, secrets, threads, Home's projects section | 62 |
+| [responsive](suites/responsive.md) | `RESP-` | mobile viewport, bottom tab bar, the phone's Home list, mobile save bar, the narrow page column, short viewports | 34 |
+| [settings](suites/settings.md) | `SET-` | account, personalization, usage, org, teams, branding, connectors, API, providers | 117 |
+| [skills](suites/skills.md) | `SKILL-` | skill library: table + facets, create/upload bundles, visibility, equip on agents | 35 |
+| [tasks](suites/tasks.md) | `TASK-` | project task board/list: DnD lanes, task sheet, the task page, agent runs, outputs, human and agent review | 122 |
+| [video-links](suites/video-links.md) | `VID-` | YouTube/video link ingestion (backend pipeline) | 15 |
 
 ## How a round runs
 

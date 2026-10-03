@@ -478,6 +478,10 @@ export const modelCatalogEntrySchema = z
      * `embedding`, `text-to-speech`, …) — open vocabulary, additive. */
     tags: z.array(z.string().min(1).max(64)),
     supportsTools: z.boolean(),
+    /** Function tools require this API even when the model also accepts
+     * plain text through Chat Completions. Absent preserves the provider's
+     * existing tool wire. This is a model capability, not an auth method. */
+    toolCallingApi: z.literal('responses').optional(),
     supportsVision: z.boolean(),
     /** The model GENERATES media (its output modalities include audio, image,
      * or video — e.g. music or image generators). Such listings often carry a
@@ -886,6 +890,11 @@ const docValueSchema: z.ZodType<DocValue> = z.lazy(() =>
  *    is `bridgeEnv` under the CLI's field name (`env`/`environment`).
  *    `serverShape`: `command-args` = `{command, args}` objects;
  *    `opencode-local` = `{type: "local", command: [bin, …args], enabled}`.
+ *    `bridgeCallTimeout`: the field (and its unit) under which the CLI takes
+ *    one MCP call's timeout, for a CLI whose default gives up before the
+ *    bridge's longest tool can answer and whose calls are not kept alive by
+ *    the bridge's progress reports. The value is the platform's bridge call
+ *    bound, never the YAML's.
  *  - `instructionsRef`: when instructions are staged as a file
  *    (`stagedInstructions`), set `path` to `[prefix + stagedPath]` so the
  *    CLI discovers the staged file.
@@ -906,6 +915,13 @@ const docFragmentSchema = z.union([
           serverShape: z.enum(['command-args', 'opencode-local']),
           bridgeEnvField: z.enum(['env', 'environment']),
           bridgeEnv: envTemplateMapSchema,
+          bridgeCallTimeout: z
+            .object({
+              field: z.string().regex(/^[A-Za-z][A-Za-z0-9_]{0,63}$/),
+              unit: z.enum(['ms', 's']),
+            })
+            .strict()
+            .optional(),
         })
         .strict(),
     })
@@ -1268,6 +1284,14 @@ export const harnessDefinitionSchema = z
         steering: z.boolean(),
         /** Whether the harness can mount MCP servers at all. */
         mcp: z.boolean(),
+        /**
+         * Whether the platform continues a previous turn's conversation
+         * (`resume`) on the next kick of the same task or node. `false`
+         * means every kick is a FRESH conversation over the preserved
+         * workspace — declared for a CLI whose resume path is broken, so no
+         * planner ever hands the exec a handle it cannot honour.
+         */
+        resume: z.boolean(),
       })
       .strict(),
     /** The stdout stream dialect (`lib/harnesses/parsers/<family>`). */
@@ -1320,6 +1344,15 @@ export const harnessDefinitionSchema = z
     if (provider.capabilities.planMode !== (counts.get('posture') ?? 0) > 0) {
       issue(
         'capabilities.planMode must match the presence of an argv posture slot',
+      );
+    }
+
+    // Resume ⇔ a resume slot exists: a harness the platform never resumes
+    // carries no slot, so a stray handle cannot reach its argv; one it does
+    // resume must have somewhere to put the handle.
+    if (provider.capabilities.resume !== (counts.get('resume') ?? 0) > 0) {
+      issue(
+        'capabilities.resume must match the presence of an argv resume slot',
       );
     }
 

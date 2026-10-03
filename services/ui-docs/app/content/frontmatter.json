@@ -108,7 +108,7 @@
     "slug": "getting-started/introduction",
     "frontmatter": {
       "title": "Introduction",
-      "description": "Choose the Tale UI package for your screen and find a working example to build from."
+      "description": "Build with the MIT-licensed React components behind Tale. Choose a package for your screen and find a working example."
     }
   },
   "getting-started/theming": {

@@ -7,7 +7,14 @@
  * actually serve them.
  */
 
+import type { SetProjectTaskReviewerInput } from '@tale/shared/schemas/task-review';
+
 export interface ProjectsContract {
+  'projects/mutations:setProjectTaskReviewer': {
+    kind: 'mutation';
+    args: SetProjectTaskReviewerInput & { projectId: string };
+    returns: null;
+  };
   'projects/mutations:archiveProject': {
     kind: 'mutation';
     args: { projectId: string };
@@ -64,6 +71,13 @@ export interface ProjectsContract {
     kind: 'mutation';
     args: { agentId: string };
     returns: null;
+  };
+  'projects/mutations:ensureStandardAgent': {
+    kind: 'mutation';
+    /** The project's standard agent, created when the project has no agents
+     * of its own yet. */
+    args: { projectId: string };
+    returns: { agentId: string; created: boolean };
   };
   'projects/mutations:detachDocumentFromProject': {
     kind: 'mutation';
@@ -140,6 +154,7 @@ export interface ProjectsContract {
       instructions?: string;
       icon?: string;
       color?: string;
+      defaultTaskReviewerAgentId?: string;
       taskCounter?: number;
       openTaskCount?: number;
       doneTaskCount?: number;
@@ -185,7 +200,32 @@ export interface ProjectsContract {
       updatedAt: number;
       harness: string;
       _id: string;
+      /** The organization's standard agent: its settings follow the
+       * `standard_agent` policy, so it is never edited here. */
+      managed: boolean;
     }>;
+  };
+  'projects/queries:getStandardAgent': {
+    kind: 'query';
+    args: { organizationId: string };
+    /** Whether the caller can hand work to the organization's standard
+     * agent now, and what it would run on. */
+    returns: {
+      enabled: boolean;
+      available: boolean;
+      refusal?:
+        | 'off'
+        | 'unreadable'
+        | 'harness-invalid'
+        | 'no-model'
+        | 'pin-unavailable';
+      harness?: string;
+      harnessLabel?: string;
+      model?: string;
+      modelLabel?: string;
+      modelProvider?: string;
+      source?: 'pinned' | 'preferred' | 'cheapest';
+    };
   };
   'projects/queries:listProjectDocuments': {
     kind: 'query';
@@ -240,6 +280,7 @@ export interface ProjectsContract {
         instructions?: string;
         icon?: string;
         color?: string;
+        defaultTaskReviewerAgentId?: string;
         taskCounter?: number;
         openTaskCount?: number;
         doneTaskCount?: number;
@@ -277,6 +318,7 @@ export interface ProjectsContract {
           instructions?: string;
           icon?: string;
           color?: string;
+          defaultTaskReviewerAgentId?: string;
           taskCounter?: number;
           openTaskCount?: number;
           doneTaskCount?: number;

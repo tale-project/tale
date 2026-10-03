@@ -126,8 +126,11 @@ irrelevant state; capture success alone is not visual approval.
 - Preflight checks the app and gateway are reachable. A responsive app alone does not prove its
   database, object store, model, or sandbox is configured.
 - Bootstrap creates the demo owner and drives the organization wizard. Seeding uses real UI flows
-  for projects, tasks, files, settings, and conversations. The provider and embedding model are
-  configured before document uploads; failed indexing can be retried during seeding.
+  for projects, tasks, files, settings, and conversations, and starts one test run of a shipped
+  automation. It fills the Inbox the way an integration does: it creates an API key named
+  `Helpdesk sync` and mirrors three customer conversations through the REST API. The provider and
+  embedding model are configured before document uploads; failed indexing can be retried during
+  seeding.
 - Each capture uses a fresh browser context with light theme, English locale, reduced motion, and
   a default 1440 × 900 viewport at DPR 2. A shot may declare its own viewport or element crop.
 - Readiness is a UI state, not an arbitrary delay. The attachment detail waits for indexing progress to
@@ -148,7 +151,11 @@ availability.
 | File upload fails or stays in indexing                     | Check object storage, the knowledge database and corpus migrations, the embedding model, and backend logs.                     |
 | A selected shot cannot find its project or thread          | Run the seed and retain the new `.state/` IDs before using `--skip-seed`.                                                      |
 | A model identifier is absent from the visible option label | Search by the API identifier, then select the matching friendly model name.                                                    |
-| `settings-sandboxes` never reaches readiness               | Supply a connected Docker spawner with matching `SANDBOX_URL` and `SANDBOX_TOKEN`. This shot requires a real host observation. |
+| `settings-sandboxes` or `sandbox-infrastructure-capacity` never reaches readiness | Supply a connected Docker spawner with matching `SANDBOX_URL` and `SANDBOX_TOKEN`. These shots require a real host observation. |
 
 Use `E2E_BASE_URL` for another app origin and `TALE_MOCK_CONNECTORS_BASE` for another mock gateway.
+Shots that print the deployment's address replace the page's own origin, so a stack on another port
+still publishes the production-shaped host. The provider fixtures under
+`tests/e2e/fixtures/config/{default,docs-demo}/providers/e2e-mock.yml` name the gateway at
+`127.0.0.1:4141`; point them at another gateway port for the run and restore them afterwards.
 The manifest is the complete shot inventory; a subset capture does not verify all screenshots.

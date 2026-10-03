@@ -8,7 +8,7 @@ Ces guides expliquent comment travailler dans Tale, dans le Cloud ou sur ton pro
 
 ## Passer d’une section à l’autre {#navigation}
 
-Sur ordinateur, la barre de navigation à gauche présente les sections sous forme d’icônes : **Accueil**, **Connaissances** et **Automatisations**. En bas de cette barre se trouvent **Paramètres**, tes notifications et ton menu de profil. Survole une icône pour lire son nom. Sur téléphone, la barre d’onglets en bas de l’écran propose **Accueil**, **Connaissances**, **Automatisations** et **Paramètres**. Les rôles Propriétaire, Admin et Développeur, qui construisent les automatisations, voient toujours **Automatisations** ; les autres la voient dès que l’organisation a une automatisation à l’échelle de l’organisation en service. Les automatisations liées à un projet apparaissent dans l’onglet de ce projet.
+Sur ordinateur, la barre de navigation à gauche présente les sections sous forme d’icônes : **Accueil**, **Connaissances** et **Automatisations**. En bas de cette barre se trouvent **Paramètres**, tes notifications et ton menu de profil. Survole une icône pour lire son nom. Sur téléphone, la barre d’onglets en bas de l’écran propose **Accueil**, **Connaissances**, **Automatisations** et **Paramètres**. Seuls les rôles Propriétaire, Admin et Développeur, qui construisent les automatisations, voient **Automatisations** ; les Membres et les Éditeurs ne la voient pas.
 
 Sur téléphone, la navigation flotte au-dessus de la page dans une barre arrondie. Le contenu défile derrière elle, tandis que les champs de message et les actions de la page restent accessibles au-dessus. La barre disparaît quand le clavier à l’écran s’ouvre et réapparaît quand tu le fermes.
 
@@ -21,8 +21,8 @@ Une section s’ouvre toujours sur sa première page, quoi que tu y aies fait au
 | Tu souhaites… | Marche à suivre |
 | --- | --- |
 | Ouvrir une autre section | Choisis cette section dans la barre de navigation ou, sur téléphone, dans la barre d’onglets. |
-| Démarrer un nouveau chat | Choisis **Nouveau chat** dans **Accueil**, ou choisis **Accueil** alors que tu y es déjà. |
-| Ouvrir un projet | Choisis le projet sous **Projets** dans **Accueil**. |
+| Démarrer un nouveau chat | Sur ordinateur, choisis **Nouveau chat** dans **Accueil**, ou choisis **Accueil** alors que tu y es déjà. Sur téléphone, ouvre **Accueil**, choisis **Chats**, puis **Nouveau chat**. |
+| Ouvrir un projet | Sur ordinateur, choisis le projet sous **Projets** dans **Accueil**. Sur téléphone, choisis le projet, puis **Ouvrir le projet**. |
 | Revenir à la liste des projets | Choisis **Tous les projets** dans **Accueil**, ou clique sur **Projets** dans le fil d’Ariane au-dessus du projet. |
 | Revenir à la liste des documents | Choisis **Connaissances**. |
 
@@ -44,15 +44,29 @@ Sous les projets, une seule liste regroupe ton travail sous **Épinglés**, **Au
 - Les tâches ouvertes qui te sont attribuées ou qui attendent ta relecture, dans tous les projets que tu peux consulter.
 - Dans **Tout**, les conversations ouvertes de la boîte de réception que tu peux voir.
 
-Une vue **Tout** ou **Chats** vide propose **Nouveau chat**, et une vue **Tâches** vide propose **Tous les projets**, qui ouvre la liste des projets.
+Une vue **Tâches** vide propose **Tous les projets**, qui ouvre la liste des projets. Sur ordinateur, une vue **Tout** ou **Chats** vide propose aussi **Nouveau chat**. Si tes chats, tes tâches ou tes conversations ne peuvent pas être chargés, la liste garde ce qui a été chargé et indique ce qui manque, au lieu d’afficher une vue vide. **Réessayer** relance le chargement.
+
+Sur téléphone, la liste diffère sur trois points :
+
+- **Nouveau chat** se trouve en haut de la vue **Chats**, et non dans l’en-tête. **Nouveau projet** n’existe pas sur cet écran, et le menu d’un projet ne propose que **Épingler le projet**.
+- Quand tu choisis un projet sous **Projets**, **Tout**, **Chats** et **Tâches** n’affichent que les chats de ce projet et tes tâches ouvertes qui s’y trouvent. Une barre au-dessus de la liste nomme le projet. **Ouvrir le projet** mène à sa page, et **Tout afficher** lève la limite. **Réception** n’est jamais restreinte, car une conversation n’appartient à aucun projet.
+- **Tous les projets** est un lien avec libellé à côté du titre **Projets**, et non une icône.
 
 Chaque ligne commence par une bulle de chat, un cercle coloré selon le statut de la tâche ou les initiales du contact. Viennent ensuite le titre, le temps écoulé depuis la dernière modification et, en dessous, une ligne de contexte : pour un chat, son projet ; pour une tâche, son identifiant et son statut, par exemple `WEB-2` **En revue** ou **En attente de ta relecture** ; pour une conversation, le contact et son dernier message. Un point dans la couleur d’accentuation signale les chats et conversations non lus, ainsi que les tâches qui attendent ta relecture. Un crayon suivi de **Brouillon**, au début de la ligne de contexte, signale un chat, une tâche ou une conversation où tu as saisi un texte sans l’envoyer, sauf pour l’élément ouvert. Les brouillons restent dans le navigateur où tu les as saisis. Le menu d’un chat propose **Épingler le chat**, **Marquer comme lu** ou **Marquer comme non lu**, **Renommer**, **Déplacer vers un projet…**, **Partager**, **Arrêter le partage** pour un chat partagé, **Archiver** et **Supprimer**. Les chats archivés rejoignent **Archivés**, en bas de la liste.
 
 La vue **Réception** affiche les conversations d’un seul statut : choisis **Ouvert**, **Fermé**, **Spam** ou **Archivé** dans son menu de statut. Elle propose aussi **Nouvel e-mail**, un champ de recherche et un bouton **Filtre** pour **Responsable**, **Statut de lecture** et **Canal**. Pour traiter plusieurs conversations à la fois, survole les initiales d’une conversation et coche la case qui apparaît. La barre au-dessus de la liste propose alors **Envoyer les messages**, **Fermer** et **Marquer comme spam** pour les conversations ouvertes, ou **Rouvrir** pour les conversations fermées ou marquées comme spam, ainsi que **Archiver** ou **Désarchiver** et **Effacer la sélection**.
 
-La case au début de la barre sélectionne toute la liste. Tant que seules certaines conversations sont cochées, elle affiche un tiret ; coche-la alors pour sélectionner toutes les conversations que la liste affiche, sauf celles qu’une recherche ou un filtre masque. Une sélection de plus de 200 conversations est traitée en plusieurs fois, et la boîte de réception en affiche l’avancement. Le message qui suit indique combien de conversations ont été modifiées et combien ont échoué. Celles qui ont échoué restent cochées pour que tu puisses réessayer. Si la liste ne peut pas être chargée, elle affiche **Échec du chargement des conversations** avec **Réessayer**, au lieu d’une liste vide.
+La case au début de la barre sélectionne toute la liste. Tant que seules certaines conversations sont cochées, elle affiche un tiret ; coche-la alors pour sélectionner toutes les conversations que la liste affiche, sauf celles qu’une recherche ou un filtre masque. Une sélection de plus de 200 conversations est traitée en plusieurs fois, et la boîte de réception en affiche l’avancement. Le message qui suit indique combien de conversations ont été modifiées et combien ont échoué, avec la raison du premier échec lorsqu’elle est connue. Celles qui ont échoué restent cochées pour que tu puisses réessayer. Si la liste ne peut pas être chargée, elle affiche **Échec du chargement des conversations** avec **Réessayer**, au lieu d’une liste vide.
 
-Un chat, une tâche ou une conversation s’ouvre sous un en-tête qui affiche son icône, son titre, une ligne de contexte et ses actions. **Masquer le panneau latéral**, au début de cet en-tête, replie le panneau d’**Accueil** pour laisser plus de place ; **Afficher le panneau latéral** le fait revenir. L’infobulle du bouton indique le raccourci clavier. Dans une conversation, la première action, **Copier le lien**, copie un lien qui ouvre la même conversation pour un collègue. Les Propriétaires et Admins attribuent la conversation depuis son en-tête, à une personne, à une équipe ou aux deux. Choisir à nouveau la personne ou l’équipe déjà attribuée retire cette attribution, tout comme **Retirer l'attribution** et **Retirer l'équipe** en bas de la liste ; l’autre attribution reste inchangée.
+<Frame caption="La vue Réception à côté d’une conversation ouverte : menu de statut, Nouvel e-mail, recherche et filtre au-dessus des conversations, chacune avec des initiales et son dernier message.">
+
+![L’accueil en vue Réception, avec trois conversations ouvertes — Copy of the August invoice de Léa Martin, Annual discount on the team plan de Hannah Weber et Seat pricing for read-only members de Daniel Okafor — à côté de la conversation ouverte avec Hannah Weber, qui montre ses deux messages, la réponse de l’équipe entre les deux et le champ de message.](/images/platform/home-inbox.webp)
+
+</Frame>
+
+Un chat, une tâche ou une conversation s’ouvre sous un en-tête qui affiche son icône, son titre, une ligne de contexte et ses actions. **Masquer le panneau latéral**, au début de cet en-tête, replie le panneau d’**Accueil** pour laisser plus de place ; **Afficher le panneau latéral** le fait revenir. L’infobulle du bouton indique le raccourci clavier. La page d’un projet propose le même bouton au début de son en-tête. Dans une conversation, la première action, **Copier le lien**, copie un lien qui ouvre la même conversation pour un collègue. Les Propriétaires et Admins attribuent la conversation depuis son en-tête, à une personne, à une équipe ou aux deux. Choisir à nouveau la personne ou l’équipe déjà attribuée retire cette attribution, tout comme **Retirer l'attribution** et **Retirer l'équipe** en bas de la liste ; l’autre attribution reste inchangée.
+
+Les images d’un e-mail s’affichent dans le message. Tale récupère pour toi les images hébergées sur les serveurs de l’expéditeur : celui-ci ne voit ni ton adresse IP, ni le moment où tu lis le message. Une image de plus de 10 Mo ou au format SVG ne s’affiche pas.
 
 ### Raccourcis clavier {#shortcuts}
 

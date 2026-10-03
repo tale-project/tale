@@ -7,8 +7,16 @@
  */
 
 import type { LucideIcon } from 'lucide-react';
-import { BookOpen, Building2, History, Server } from 'lucide-react';
+import {
+  BookOpen,
+  Building2,
+  History,
+  Server,
+  GitCompareArrows,
+  BriefcaseBusiness,
+} from 'lucide-react';
 
+import { listMarketingContent } from '@/lib/content/client';
 import type { LocalizedRoutePath } from '@/lib/seo/route-paths';
 
 export type NavMenuId = 'platform' | 'resources';
@@ -33,6 +41,27 @@ interface NavMenuDef {
 
 /** Resources — docs (external), changelog, hardware, about. */
 const RESOURCES_MENU_ITEMS: readonly NavMenuItem[] = [
+  ...(['comparisons', 'use-cases'] as const).flatMap(
+    (category): NavMenuItem[] => {
+      if (
+        !listMarketingContent(category, 'en').some(
+          (page) => page.slug === 'index',
+        )
+      )
+        return [];
+      const compare = category === 'comparisons';
+      const key = compare ? 'compare' : 'useCases';
+      return [
+        {
+          id: key,
+          path: compare ? '/compare' : '/use-cases',
+          labelKey: `resource.${key}.label`,
+          descriptionKey: `resource.${key}.description`,
+          icon: compare ? GitCompareArrows : BriefcaseBusiness,
+        },
+      ];
+    },
+  ),
   {
     id: 'changelog',
     path: '/changelog',

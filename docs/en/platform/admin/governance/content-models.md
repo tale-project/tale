@@ -1,6 +1,6 @@
 ---
 title: Models
-description: Set default models, restrict access, and choose separate models for images and audio transcription.
+description: Set default models, restrict access, choose separate models for images and audio transcription, and set up the standard agent for projects without agents.
 ---
 
 Use **Settings > Governance > Models** as an Admin or Owner to choose the models members start with and the models they may use. Defaults guide a choice; access rules enforce a restriction. Configure [provider credentials](/platform/admin/providers) first so the intended models are available.
@@ -74,7 +74,28 @@ Pin a model if you need a stable choice. The picker offers models that can read 
 
 While image generation is on and a model is available, every agent turn that starts on a runtime with Tale's MCP channel gets an image tool. Agents on other runtimes, and every agent while image generation is off, do not see the tool at all; [Choose an agent runtime](/platform/agents/harnesses) shows which runtimes have the channel. Turning image generation off also stops a running agent's next image request. An agent saves its images among its files, so a task's images appear with its deliverables and an automation step's images with the step's output.
 
-Each image is billed to your organization and counts against the person who started the run, like the rest of the run. One agent turn creates at most 16 images, one request at a time, and its images draw on the same allowance as the turn's model use: once the turn has used it up, Tale refuses the next image. A budget limit that applies to that person refuses the image before the image model is called. Set cost or request limits for images under [Policies and limits](/platform/admin/governance/policies-and-limits); [How usage is counted](/platform/admin/governance/usage-attribution) explains who each image counts against. For the policy file and custom image endpoints, see the [self-hosted provider reference](/self-hosted/configuration/providers#configure-image-generation).
+Images come in three shapes: square, landscape at 3:2, and portrait at 2:3. An agent that asks for another shape, such as a 16:9 banner, gets the one with the same orientation. The image model decides the exact size in pixels, and the image tool tells the agent the size of each image it saved.
+
+Each image is billed to your organization and counts against the person who started the run, like the rest of the run. One agent turn creates at most 16 images, one request at a time, and its images draw on the same allowance as the turn's model use: each image's cost comes out of what the model may still spend, and once the turn has used the allowance up, Tale refuses the next image. A budget limit that applies to that person refuses the image before the image model is called. Set cost or request limits for images under [Policies and limits](/platform/admin/governance/policies-and-limits); [How usage is counted](/platform/admin/governance/usage-attribution) explains who each image counts against. For the policy file and custom image endpoints, see the [self-hosted provider reference](/self-hosted/configuration/providers#configure-image-generation).
+
+## Provide a standard agent {#standard-agent}
+
+Only Editors and higher roles can add agents to a project. So that a project without agents can still take on agent work, Tale offers the organization's **standard agent** there: anyone who can open the project can give it a task, Members included. It is on by default.
+
+<Frame caption="Governance > Models — the standard agent, on, with its agent type and model chosen automatically.">
+
+![The Standard agent section with its switch on, Agent type and Model both set to Automatic, an empty Instructions field showing Built-in instructions, and the line For you, it runs on Claude Code with Claude Haiku 4.5.](/images/platform/governance-standard-agent.webp)
+
+</Frame>
+
+- **Where it appears.** In a project without agents, **Assignee** offers **Standard agent**, and [Create task from chat](/platform/chat/basics#create-task-from-chat) assigns it for you. Tale sets it up in a project the first time someone chooses it there or hands a chat's task to that project; the project's **Agents** tab then lists it with the **Standard** badge, and [The standard agent](/platform/projects/project-agents#standard-agent) explains how it behaves there.
+- **What it runs on.** With **Agent type** and **Model** on **Automatic**, Tale picks a recommended model the person starting the task may use under your [model access](#restrict-model-access) rules, and runs it on Claude Code, or on the agent type a subscription model is bound to. The line at the end of the section names what it runs on for you. Choose an agent type or a model to use it for everyone, then save the page's pending changes in the header.
+- **What it knows.** Its built-in instructions tell it to do what the task asks with the task's files and comments, deliver a requested document, presentation, spreadsheet or PDF as a task output, write in the task's language, and ask in a comment when the task is unclear. Text under **Instructions** replaces them.
+- **What it may use.** The document skills `docx`, `pptx`, `xlsx` and `pdf` that are available to the project, and none of the connectors, platform tools or secrets an Editor can grant to other agents.
+
+Every run starts with the settings in force at that moment; a running agent keeps the ones it started with. A chosen model stays in effect even when it becomes unavailable, and so does one that a person's model access denies: the standard agent then doesn't start for them and says why, and Tale doesn't switch to another model. Choose another model or **Automatic** and save. When no model a person may use can run it, it doesn't start for them either: add a credential under [AI providers](/platform/admin/providers), or check their model access.
+
+Turn off **Provide a standard agent** to stop offering it; the change saves at once and keeps your choices. Projects without agents then offer no agent, and tasks already given to a standard agent can't start until you turn it back on. For the policy file, see the [self-hosted provider reference](/self-hosted/configuration/providers#configure-the-standard-agent).
 
 ## Choose the audio transcription model
 

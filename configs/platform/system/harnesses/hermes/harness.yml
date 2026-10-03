@@ -25,6 +25,7 @@ promptTransport: stdin-ndjson
 capabilities:
   planMode: false
   steering: false
+  resume: true
   # The wrapper accepts no MCP config and the exec facts mount none — a
   # requested browser/bridge mount would silently drop. Declared off until
   # the wrapper owns a delivery channel.

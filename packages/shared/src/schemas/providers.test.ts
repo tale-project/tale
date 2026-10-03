@@ -68,16 +68,17 @@ const VALID_HARNESS = {
   credentialEnvKeys: ['ANTHROPIC_API_KEY', 'TALE_GATEWAY_TOKEN'],
   modelIdDialect: 'vendor-native',
   promptTransport: 'stdin-ndjson',
-  capabilities: { planMode: true, steering: true, mcp: true },
+  capabilities: { planMode: true, steering: true, mcp: true, resume: true },
   parser: 'claude-stream-json',
   // A minimal exec coherent with the declared capabilities/transport: the
-  // posture slot backs planMode, the held NDJSON stdin backs steering, and
-  // the argv MCP slot backs mcp.
+  // posture slot backs planMode, the held NDJSON stdin backs steering, the
+  // argv MCP slot backs mcp, and the resume slot backs resume.
   exec: {
     bin: 'claude',
     argv: [
       { args: ['-p'] },
       { posture: { plan: ['--mode', 'plan'], act: ['--mode', 'act'] } },
+      { resume: { flag: '--resume' } },
       {
         mcp: {
           delivery: 'config-json-flag',
@@ -310,6 +311,21 @@ describe('providerDefinitionSchema', () => {
 });
 
 describe('modelCatalogEntrySchema', () => {
+  it('declares a Responses-only tool API and refuses an unknown wire', () => {
+    expect(
+      modelCatalogEntrySchema.safeParse({
+        ...VALID_MODEL,
+        toolCallingApi: 'responses',
+      }).success,
+    ).toBe(true);
+    expect(
+      modelCatalogEntrySchema.safeParse({
+        ...VALID_MODEL,
+        toolCallingApi: 'unknown',
+      }).success,
+    ).toBe(false);
+  });
+
   it('accepts a full entry', () => {
     expect(modelCatalogEntrySchema.safeParse(VALID_MODEL).success).toBe(true);
   });
@@ -752,7 +768,7 @@ describe('harnessDefinitionSchema', () => {
     expect(
       harnessDefinitionSchema.safeParse({
         ...VALID_HARNESS,
-        capabilities: { planMode: true, steering: true },
+        capabilities: { planMode: true, steering: true, mcp: true },
       }).success,
     ).toBe(false);
   });

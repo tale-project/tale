@@ -17,11 +17,13 @@ Eine Aufgabe hält zusammen, worum es bei einer Arbeit geht: Ziel, Zuständigkei
 2. Benenne unter **Titel** das gewünschte Ergebnis, etwa „Launch-Briefing prüfen“.
 3. Erkläre in der **Beschreibung**, was benötigt wird und wie das Ergebnis geprüft werden soll. Füge benötigte Dateien als Anhänge hinzu.
 4. Wähle bei Bedarf **Status**, **Priorität** und **Zuständig**. Neue Aufgaben starten mit **Zu erledigen**. Für noch nicht beschlossene Vorschläge nutze **Backlog**.
-5. Klicke auf **Aufgabe erstellen**. Öffne die neue Karte, um weitere Angaben zu ergänzen.
+5. Klicke auf **Aufgabe erstellen**. Öffne die neue Karte, um weitere Angaben zu ergänzen. Ist unter **Zuständig** ein Agent eingetragen, legt **Erstellen und Agent starten** die Aufgabe an und startet den Agenten in einem Schritt.
 
 Ein Titel darf bis zu 200 Zeichen lang sein, eine Beschreibung bis zu 20.000; die meisten Emojis zählen doppelt. Eine längere Beschreibung, ob eingefügt oder von einem früheren Import in der Aufgabe hinterlassen, wird nicht gekürzt: Das Feld nennt die Grenze und zählt die Länge, und **Aufgabe erstellen** oder **Speichern** bleibt nicht verfügbar, bis du sie kürzt.
 
 Tale vergibt eine Kennung aus dem Projektkürzel, etwa `WEB-1`. Verwende sie in Verweisen auf die Arbeit, damit ähnlich benannte Aufgaben unterscheidbar bleiben.
+
+Auch ein Gespräch kann eine Aufgabe anstoßen: **Aufgabe erstellen** im Kopf des Chats öffnet denselben Dialog mit deiner Anfrage, den Dateien des Chats und einem Link zurück, und der Chat verfolgt die Aufgabe danach über seinem Nachrichtenfeld. Siehe [Aus einem Chat eine Aufgabe machen](/de/platform/chat/basics#create-task-from-chat).
 
 Eine Automatisierung, die für Aufgaben gebaut ist, kann in **Aufgabe erstellen** auch eine Vorlage anbieten: Ihr Name steht dann über dem Formular neben **Leere Aufgabe**. Wähle sie, gib den Namen ein, den die Automatisierung verlangt, etwa ein Quartal, und klicke auf **Aufgabe erstellen**; zuständig ist dann die Automatisierung. Gibt es für diesen Namen schon eine Aufgabe, öffnet Tale diese, statt eine zweite anzulegen, und meldet **Für dieses Subjekt existiert bereits eine Aufgabe.** Mitglieder können sie dort lesen und kommentieren, ändern sie aber nur, wenn es ihre eigene ist. Vorlagen, die im Projekt Ordner oder Einstellungsdateien anlegen, stehen nur Redakteuren und höheren Rollen zur Verfügung.
 
@@ -39,15 +41,15 @@ Eine hilfreiche Beschreibung nennt Ausgangsmaterial, gewünschtes Ergebnis und A
 
 ## Wer Aufgaben erstellen und ändern darf
 
-Wer ein Projekt öffnen kann, kann darin Aufgaben erstellen. Redakteure und höhere Rollen dürfen jede Aufgabe im Projekt ändern. Mitglieder ändern die Aufgaben, die sie selbst erstellt haben oder die ihnen zugewiesen sind, und haben dort dieselben Möglichkeiten wie ein Redakteur:
+Wer ein Projekt öffnen kann, kann darin Aufgaben erstellen. Redakteure und höhere Rollen dürfen jede Aufgabe im Projekt ändern. Auf Aufgaben, die sie selbst erstellt haben oder die ihnen zugewiesen sind, können Mitglieder:
 
-- Titel, Beschreibung, Anhänge, Teilaufgaben, Termine, Priorität, Labels, Reviewer und Wiederholung bearbeiten.
+- Titel, Beschreibung, Anhänge, Teilaufgaben, Termine, Priorität, Labels und Wiederholung bearbeiten.
 - Die Aufgabe sich selbst, einem anderen Mitglied des Projekts, einem seiner Agenten oder einer für Aufgaben gebauten Automatisierung zuweisen.
 - Den Agenten starten, lenken oder stoppen, auch mit einer @-Erwähnung in einem Kommentar.
 - Den Status ändern und ein Ergebnis annehmen, indem sie die Aufgabe auf **Erledigt** setzen.
 - Die Aufgabe archivieren oder wiederherstellen.
 
-Das gilt auch für die Teilaufgaben unter einer solchen Aufgabe, egal wer sie angelegt hat, etwa ein Agent, der die Arbeit aufgeteilt hat. Sie hindern ein Mitglied also nie daran, seine Aufgabe abzuschließen.
+Das gilt auch für die Teilaufgaben unter einer solchen Aufgabe, egal wer sie angelegt hat, etwa ein Agent, der die Arbeit aufgeteilt hat. Sie hindern ein Mitglied also nie daran, seine Aufgabe abzuschließen. Um **Reviewer** zu ändern, brauchst du Bearbeitungsrechte für das Projekt, auch auf einer selbst erstellten oder dir zugewiesenen Aufgabe.
 
 Aufgaben anderer können Mitglieder lesen und kommentieren. Erwähnen sie dort einen Agenten, bleibt das eine gewöhnliche Erwähnung, die nichts startet. Eigene Kommentare kann jede Person auf jeder Aufgabe bearbeiten und löschen, die sie lesen darf; Inhaber und Admins können auch Kommentare anderer löschen.
 
@@ -64,17 +66,43 @@ Ein Lauf, den jemand ohne Bearbeitungsrecht für das Projekt startet, etwa ein M
 - Seine Plattform-Tools ändern nur diese Aufgabe und die Teilaufgaben darunter: Der Agent legt neue Aufgaben nur als Teilaufgaben dieser Aufgabe an, verwendet nur Labels, die das Projekt schon hat, und kann keine Einträge aus anderen Systemen ins Projekt synchronisieren.
 - Er kann keine Dokumente im Projekt speichern. Die Dateien, die er erzeugt, landen trotzdem unter **Ergebnisdateien** an der Aufgabe.
 - Der Lauf erhält weder die **Secrets** des Agenten noch das Token eines zugeordneten GitHub-Zugangs. Der Agent erfährt, welche Zugangsdaten zurückgehalten wurden, und soll in seinem Bericht darauf hinweisen, wenn die Arbeit sie braucht; dann muss ein Redakteur oder eine höhere Rolle ihn starten. Die Connectors des Agenten funktionieren weiter und handeln im Namen der Person, die den Lauf gestartet hat.
-- Er arbeitet in einem eigenen Arbeitsbereich, der für die Läufe dieser Person mit diesem Agenten bestehen bleibt: Dateien aus Läufen, die Redakteure gestartet haben, liegen dort nicht, und was dieser Lauf hinterlässt, erreicht jene Läufe nie. Spätere Läufe derselben Person mit dem Agenten finden es wieder.
+- Er arbeitet in einem eigenen Arbeitsbereich, der für die Läufe dieser Person mit diesem Agenten bestehen bleibt: Dateien aus Läufen, die Redakteure gestartet haben, liegen dort nicht, und was dieser Lauf hinterlässt, erreicht jene Läufe nie. Spätere Läufe derselben Person mit dem Agenten finden ihn wieder, bis Tale ihn löscht: wenn die Person die Organisation verlässt, wenn der Agent gelöscht wird oder sobald ihn so viele Tage kein Lauf genutzt hat, wie die Organisation unter [**Tage ohne Nutzung**](/de/platform/admin/sandboxes#delete-unused-workspaces-automatically) festlegt.
 
 Der Lauf kann weiterhin die Aufgaben und das Wissen des Projekts lesen und behält diese Grenzen auch, wenn ein Redakteur ihn später lenkt. Ein Lauf, den ein Redakteur oder eine höhere Rolle startet, hat auf jeder Aufgabe die volle Ausstattung des Agenten. Der Kommentar eines Mitglieds kann das ändern: Startet die Laufzeit des Agenten neu, um den Kommentar aufzunehmen, wie es [alle Laufzeiten außer Claude Code](/de/platform/agents/harnesses) tun, zählt der Rest des Laufs als Lauf des Mitglieds, mit denselben Grenzen für seine Tools und Zugangsdaten.
 
 ## Zuständigkeit und Prüfung festlegen
 
-**Zuständig** bestimmt, wer die Arbeit übernimmt: eine Person, ein Projektagent oder eine im Projekt verfügbare Automation. **Reviewer** benennt die Person, die bei einem prüfbereiten Agentenergebnis benachrichtigt wird. Reviewer können nur Mitglieder mit Bearbeitungszugriff auf das Projekt sein.
+**Zuständig** bestimmt, wer die Arbeit übernimmt: eine Person, ein Projektagent oder eine im Projekt verfügbare Automatisierung. Unter **Reviewer** wählst du eine Person, einen Projektagenten oder den **Projektstandard** für die Prüfung des Ergebnisses. Diese Auswahl ändern darf nur, wer das Projekt bearbeiten kann. Auch ein menschlicher Reviewer braucht Bearbeitungszugriff. Ein Reviewer-Agent muss zum selben Projekt gehören und ein anderer Agent sein als der, der das Ergebnis erstellt hat.
 
 Einen Agenten zuweisen und seinen Lauf starten sind zwei Entscheidungen. Klicke nach der Zuweisung auf **Agent starten** oder verschiebe die Aufgabe nach **In Bearbeitung**. Lies [Aufgaben automatisieren](/de/platform/projects/task-automation), bevor du Arbeit mit verbundenen Diensten oder Dateiergebnissen startest.
 
-Der Reviewer erhält die Prüfanfrage, hat aber kein ausschließliches Entscheidungsrecht. Auch alle anderen, die die Aufgabe ändern dürfen, können das Ergebnis annehmen: Redakteure und höhere Rollen oder das Mitglied, dem die Aufgabe gehört. Verlangt deine Organisation ein unabhängiges Review, kann allerdings die Person, die den geprüften Agentenlauf gestartet hat, sein Ergebnis nicht annehmen; stammt das Ergebnis nicht aus einem Agentenlauf, gilt das für die Person, die die Aufgabe erstellt hat. Einen Lauf, den ein Mitglied auf seiner eigenen Aufgabe gestartet hat, muss dann ein Redakteur oder eine höhere Rolle annehmen, während das Mitglied einen Lauf, den ein Redakteur dort gestartet hat, weiterhin selbst annehmen kann.
+Hat das Projekt keinen eigenen Agenten, bietet **Zuständig** die Option **Standard-Agent** an, den Agenten der Organisation für solche Projekte. Wählst du sie, richtet Tale den Agenten im Projekt ein und weist ihm die Aufgabe zu; [Der Standard-Agent](/de/platform/projects/project-agents#standard-agent) erklärt, wie er arbeitet. Redakteure und höhere Rollen können stattdessen **Agent erstellen …** wählen: **Neuer Agent** öffnet sich über der Aufgabe, und der Agent, den du erstellst, wird ihr zugewiesen. Kann der Standard-Agent für sie nicht laufen, etwa weil ein Admin ihn ausgeschaltet hat, erfahren Mitglieder, dass sie einen Redakteur oder Admin bitten können, im Tab **Agenten** des Projekts einen Agenten hinzuzufügen.
+
+<Frame caption="Zuständig bietet in einem Projekt ohne eigene Agenten den Standard-Agenten der Organisation an.">
+
+![Die Liste für Zuständig, bis zum Abschnitt Agenten gescrollt: der Standard-Agent mit der Beschreibung, dass er der Agent der Organisation für Projekte ohne eigene Agenten ist, darunter der Eintrag zum Erstellen eines Agenten und die Fußzeile, dass der Standard-Agent die Aufgaben übernimmt, bis das Projekt eigene Agenten hat.](/images/platform/project-task-standard-agent.webp)
+
+</Frame>
+
+Ist das Review einer Person zugewiesen, erhält sie die Anfrage, ohne allein über das Ergebnis entscheiden zu dürfen. Auch alle anderen, die die Aufgabe ändern dürfen, können es annehmen: Redakteure und höhere Rollen oder das Mitglied, dem die Aufgabe gehört. Verlangt deine Organisation ein unabhängiges Review, darf die Person, die den geprüften Agentenlauf gestartet hat, sein Ergebnis nicht annehmen; stammt es nicht aus einem Agentenlauf, gilt das für den Ersteller der Aufgabe. Erforderliche menschliche Kompetenzen gelten weiterhin. Ein Review, das einem Agenten zugewiesen ist, braucht dessen Entscheidung oder eine ausdrückliche Übertragung an eine berechtigte Person, bevor ein Mensch es freigeben kann.
+
+Kann die Review-Richtlinie der Organisation nicht gelesen werden oder ist sie ungültig, wird die menschliche Freigabe abgelehnt, auch nach einer Übertragung vom Agenten an eine Person. Ein Organisationsadministrator muss zuerst eine gültige Richtlinienkonfiguration wiederherstellen. Änderungen anzufordern oder ein Review zurückzuziehen funktioniert weiterhin wie bisher.
+
+### Den Standard-Reviewer des Projekts festlegen {#review-default}
+
+Öffne im Tab **Allgemein** den Abschnitt **Aufgabenreviews**, wähle unter **Standard-Reviewer** die gewünschte Option und speichere die Projektänderungen. Anfangs ist **Person** ausgewählt: Zuerst kommt der Aufgabenersteller, dann der Projektersteller zum Zug, sofern die jeweilige Person das Projekt bearbeiten darf. Wähle einen unabhängigen Projektagenten, um ihm neue Reviews zuzuweisen. Das startet den Agenten nicht und erteilt ihm keine Review-Berechtigung; [Einen unabhängigen Reviewer einrichten](/de/platform/projects/task-automation#agent-review) erklärt die weiteren Schritte.
+
+Aufgaben mit **Projektstandard** übernehmen diese Auswahl, wenn ein neues Review beginnt. Eine ausdrücklich benannte Person oder ein Agent bleibt für die jeweilige Aufgabe ausgewählt. Bereits ausstehende Reviews behalten ihren gespeicherten Reviewer, auch wenn sich der Projektstandard ändert. Hat jemand den Standard während deiner Bearbeitung geändert, verwirf deinen veralteten Entwurf und wähle erneut.
+
+Ein Agent als Standard gilt nur für Ergebnisse aus einem nativen Projektagentenlauf, wenn die Organisation weder eine unabhängige menschliche Prüfung noch Kompetenznachweise verlangt. Reicht eine Person oder Automation Arbeit ohne einen solchen Lauf ein, greift die menschliche Prüferkette. Zum Speichern einer Agentenauswahl braucht der Agent die Review-Berechtigung; eine Aufgabe kann nicht ihren ausführenden Agenten als Reviewer wählen. Ein bereits ausstehendes Review wechselt bei einer geänderten Berechtigung, Zuweisung oder Richtlinie nicht automatisch den Reviewer.
+
+### Ein ausstehendes Review übertragen {#transfer-review}
+
+Öffne die Aufgabe und lies **Aktuelles Review** unter **Reviewer**. Dort steht, wer die ausstehende Prüfung übernommen hat; das kann vom aktuellen Projektstandard abweichen. Wählst du einen anderen Reviewer, überträgst du auch dieses Review, ohne die Zuständigkeit für die Arbeit zu ändern oder einen Lauf zu starten. Mit **Projektstandard** überträgst du es an die aktuelle Standardauswahl des Projekts. Haben sich Reviewer oder Ergebnis seit dem Laden geändert, wird die Übertragung abgelehnt. Prüfe den aktualisierten Stand, bevor du erneut wählst.
+
+Ein Agent darf nur ein abgeschlossenes Ergebnis eines anderen Projektagenten prüfen. Eine neue Aufgabenzuweisung ändert nicht, welcher Agent das Ergebnis erstellt hat. Ein laufender Prozess oder eine offene Frage kann die Übertragung an einen Agenten verhindern. Gibt es keinen unterstützten abgeschlossenen Agentenlauf oder verlangt die Richtlinie eine unabhängige menschliche Prüfung oder Kompetenznachweise, wähle eine berechtigte Person. Ist ein Agent nicht verfügbar oder fehlt ihm die Review-Berechtigung, zeigt die Aufgabe den Grund an; die Prüfung geht nicht stillschweigend an dich zurück.
+
+Das aktuelle Review erklärt auch eine unzulässige Selbstprüfung, eine geänderte Zuweisung der Umsetzung und eine nicht lesbare Richtlinie. Behebe die angezeigte Ursache oder übertrage die Prüfung ausdrücklich; das Ergebnis des Laufs bleibt aufgezeichnet. Eine wiederholte Aufgabe behält einen ausdrücklich gewählten Agenten auch dann als Reviewer, wenn er gelöscht wurde oder seine Berechtigung verloren hat. Korrigiere diese Auswahl, statt unbemerkt einen anderen Reviewer zu übernehmen.
 
 ## Fortschritt mit dem Status zeigen
 
@@ -85,8 +113,8 @@ Der Reviewer erhält die Prüfanfrage, hat aber kein ausschließliches Entscheid
 | **Backlog** | Vorgeschlagene Arbeit, die noch nicht beschlossen ist. |
 | **Zu erledigen** | Arbeit, die begonnen werden kann. |
 | **In Bearbeitung** | Die Arbeit läuft. Bei einer Agentenaufgabe startet der Wechsel hierhin den Lauf. |
-| **In Prüfung** | Ein Ergebnis wartet auf die Prüfung durch eine Person. |
-| **Erledigt** | Eine Person hat die abgeschlossene Arbeit angenommen. |
+| **In Prüfung** | Ein Ergebnis wartet auf seinen menschlichen Reviewer oder Reviewer-Agenten. |
+| **Erledigt** | Die abgeschlossene Arbeit wurde angenommen. |
 | **Abgebrochen** | Die Arbeit wird nicht weitergeführt. |
 
 Bei Agentenaufgaben kann ein Statuswechsel die Ausführung starten oder abbrechen. Lies deshalb den Aktionshinweis vor dem Verschieben. Ein Agent liefert sein Ergebnis unter **In Prüfung** ab; auf **Erledigt** darf er es nicht selbst setzen.
@@ -99,7 +127,9 @@ Mit `@` im Kommentarfeld öffnest du die Erwähnungsauswahl. Eine Erwähnung des
 
 Erwähnungen in der Beschreibung der Aufgabe wirken beim Speichern genauso: Die genannten Personen werden benachrichtigt, und ein genannter Agent wird gesteuert oder startet einen Lauf, wie oben beschrieben. Startet er einen Lauf, wechselt die Aufgabe nach **In Bearbeitung**, egal in welcher Spalte du sie angelegt hast. Bearbeitest du die Beschreibung später, zählen nur die Erwähnungen, die du hinzufügst. Formulierst du den Text um eine bestehende Erwähnung herum um, wird niemand erneut benachrichtigt. Der Agent liest die Beschreibung so, wie sie beim Start seines Laufs lautet. Änderst du sie, solange der Lauf noch wartet, arbeitet er also mit deiner neuen Fassung.
 
-Nutze **Teilaufgaben** für Ergebnisse, die sich einzeln prüfen lassen. Eine Teilaufgabe nennt oben in ihren Details die übergeordnete Aufgabe (**Teil von …**); klicke darauf, um zu ihr zurückzukehren. Solange Teilaufgaben offen sind, lässt sich die übergeordnete Aufgabe nicht abschließen. Unter **Abhängigkeiten** siehst du, welche Aufgaben diese Aufgabe blockieren und welche sie selbst blockiert. Kreisförmige Abhängigkeiten sind nicht zulässig.
+Nutze **Teilaufgaben** für Ergebnisse, die sich einzeln prüfen lassen. Eine Teilaufgabe nennt oben in ihren Details die übergeordnete Aufgabe (**Teil von …**); klicke darauf, um zu ihr zurückzukehren. Solange noch eine Teilaufgabe offen ist, lässt sich die übergeordnete Aufgabe nicht nach **Erledigt** oder **Abgebrochen** verschieben. Alle anderen Status bleiben verfügbar, auch **Zu erledigen**. Unter **Abhängigkeiten** siehst du, welche Aufgaben diese Aufgabe blockieren und welche sie selbst blockiert. Kreisförmige Abhängigkeiten sind nicht zulässig.
+
+Änderst du ein Feld, zeigt die **Aktivität** der Aufgabe seinen Wert davor und danach. Leerst du ein Feld, steht dort, was übrig bleibt, etwa **Kein Fälligkeitsdatum** oder **Nicht zugewiesen**, und nicht bloß der alte Wert. Titel, Beschreibungen, Labels und Dateinamen erscheinen genau so, wie sie geschrieben wurden, auch wenn der Text einem Statusnamen wie `done` entspricht. Status, Prioritäten, Datumsangaben und die Angaben für ein leeres Feld erscheinen in deiner Sprache.
 
 ## Wiederkehrende Aufgaben einrichten
 
@@ -114,7 +144,7 @@ Klicke in den Details der Aufgabe oder im Dialog **Aufgabe erstellen** auf **Wie
 
 <Frame caption="Wähle die Wiederholung in den Aufgabendetails; die Vorschau zeigt die nächsten Fälligkeiten.">
 
-![Das Menü Repeat der Aufgabe Sign off the launch checklist listet Never, Daily, Every weekday, Weekly on Tuesday (ausgewählt), Monthly on day 29, Yearly on Sep 29 und Custom, dazu die nächsten Fälligkeiten und die Option, die nächste Aufgabe am Fälligkeitstag zu erstellen.](/images/platform/project-task-repeat.webp)
+![Das Menü Repeat der Aufgabe Sign off the launch checklist listet Never, Daily, Every weekday, nach dem Fälligkeitsdatum benannte wöchentliche, monatliche und jährliche Optionen, von denen die wöchentliche ausgewählt ist, und Custom, darunter die nächsten Fälligkeiten und die Option, die nächste Aufgabe am Fälligkeitstag zu erstellen.](/images/platform/project-task-repeat.webp)
 
 </Frame>
 
@@ -160,7 +190,7 @@ Zeige auf **Wiederholen** oder setze den Tastaturfokus darauf, um zu lesen, waru
 
 ## Das Ergebnis vor dem Abschluss prüfen
 
-Vergleiche bei menschlicher Arbeit das Ergebnis mit dem Abschlusskriterium in der Beschreibung. Lies bei Agentenarbeit den Bericht in den Kommentaren und prüfe die erzeugten Dateien. Ein beendeter Lauf bedeutet, dass der Agent nicht mehr arbeitet; die menschliche Abnahme steht noch aus.
+Vergleiche bei menschlicher Arbeit das Ergebnis mit dem Abschlusskriterium in der Beschreibung. Lies bei Agentenarbeit den Bericht in den Kommentaren und prüfe die erzeugten Dateien. Ein beendeter Lauf zeigt, dass der Agent nicht mehr arbeitet. Ob das Ergebnis angenommen wurde, siehst du an der erfassten Review-Entscheidung.
 
 Setze die Aufgabe auf **Erledigt**, sobald sie die Anforderung erfüllt. Soll ein Agent nacharbeiten, beschreibe die nötige Änderung in einem Kommentar und erwähne ihn darin. [Aufgaben automatisieren](/de/platform/projects/task-automation) erklärt Wiederholungen, Nacharbeit und Abbruch.
 
@@ -178,6 +208,12 @@ Setze die Aufgabe auf **Erledigt**, sobald sie die Anforderung erfüllt. Soll ei
 ## Aufgaben finden, die Aufmerksamkeit brauchen
 
 Grenze das Board mit **Filter** ein oder wechsle zur **Liste**, um Zeilen zu überfliegen. Lass Vorschläge im [Backlog](/de/platform/projects/backlog), bis sie begonnen werden sollen. Nutze Labels für Unterscheidungen, die keinen eigenen Status brauchen.
+
+**Tasks durchsuchen** grenzt das Board zusammen mit **Filter** ein. Jede Aufgabe, die zu beidem passt, erscheint, egal wie viele es sind. Die Suche findet Aufgaben, deren Titel, Beschreibung oder Kennung, etwa `WEB-12`, jedes eingegebene Wort enthält, und Aufgaben mit einem Kommentar, der alle diese Wörter enthält. Das Board fasst bis zu 2.000 Aufgaben. In einem größeren Projekt sagt ein Hinweis, dass nur die ersten 2.000 angezeigt werden; über die Suche erreichst du die übrigen.
+
+Können die Aufgaben nicht geladen werden, sagt das Board das, statt leere Spalten zu zeigen, und deine Suche und deine Filter bleiben, wie sie sind. Wähle **Erneut versuchen**, um sie zu laden. Schlägt eine Aktualisierung fehl, bleiben die angezeigten Aufgaben stehen, und ein Hinweis sagt, dass sie dem zuletzt geladenen Stand entsprechen. Ein Hinweis erscheint auch, wenn die Abhängigkeiten oder die Aktivität der Agenten und Reviews nicht geladen werden können, denn dann sind blockierte Aufgaben, laufende Agenten, offene Fragen und ausstehende Reviews möglicherweise nicht markiert. **Erneut versuchen** in einem Hinweis lädt nur, was fehlgeschlagen ist.
+
+Mit der Tastatur drückst du **Enter** auf **Filter**: Das Panel öffnet sich beim ersten Filter, **Zuständig**. Mit **Enter** klappst du ihn auf, mit **Tab** erreichst du seine Optionen. Die Pfeiltasten wählen eine aus, und das Board folgt sofort. Die **Leertaste** wählt die Option, auf der der Fokus steht, und hebt die Auswahl auf, wenn sie schon gewählt ist. **Tab** führt zum nächsten Filter, und **Escape** schließt das Panel.
 
 In den Ansichten **Board** und **Liste** erreichst du den Aufgabentitel mit **Tab**. Drücke dann **Enter**, um die Aufgabe zu öffnen.
 

@@ -1,5 +1,7 @@
 import type { Sql, TransactionSql } from 'postgres';
 
+import { scheduleMemberWorkspaceRetirement } from '../domains/sandbox/retirement-schedule.ts';
+
 /**
  * Org / team membership readers — direct SQL against Better Auth's own
  * tables. This replaces the ENTIRE 0.4 mirror apparatus (`memberMirror`,
@@ -215,9 +217,11 @@ export function evaluateCredentialResetAuthority(args: {
  * user's teamMember rows in the org's teams (what Better Auth's own
  * deleteMember does when teams are enabled — a raw DELETE FROM "member"
  * does not), the SSO team-sync provenance for them (migration 0071), the
- * per-org preference row, and the member's live platform-capability
- * grants. Each caller deletes the member row itself — it has its own guard
- * and audit — and runs this in the same transaction.
+ * per-org preference row, the member's live platform-capability grants,
+ * and — through a job that runs once this commits — their sandbox
+ * workspaces with the organization's agents. Each caller deletes the member
+ * row itself — it has its own guard and audit — and runs this in the same
+ * transaction.
  *
  * Without the cascade a member removed by an admin or de-provisioned by
  * SCIM kept their teamMember rows: a later re-add (or the IdP's next POST,
@@ -265,6 +269,11 @@ export async function removeMembershipCascade(
     WHERE org_id = ${organizationId} AND user_id = ${userId}
       AND revoked_at_ms IS NULL
   `;
+  // The workspaces the member's runs with the organization's agents worked
+  // in hold what those runs left behind — theirs, and reachable by nobody
+  // once they are gone. Deleted once this commits (a member re-added before
+  // the job runs keeps them).
+  await scheduleMemberWorkspaceRetirement(tx, { organizationId, userId });
   return { teamIds: [...new Set(left.map((row) => row.teamId))] };
 }
 

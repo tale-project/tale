@@ -12,10 +12,8 @@ import type { MentionSource } from '../../core/tasks/mentions.ts';
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import type { ShimHandlers, ShimScheduler } from '../../lib/ctx-shim.ts';
-import { authorizeActorRun } from '../automations/dispatch-store.ts';
 import { governanceShimHandlers } from '../governance/shim.ts';
 import { orgAdapterShimHandlers } from '../knowledge/service.ts';
-import { loadProjectOrThrow } from '../projects/service.ts';
 import { credentialShimHandlers } from '../provider_credentials/service.ts';
 import { resolveSessionOpAttribution } from '../sandbox/op-attribution.ts';
 import {
@@ -38,7 +36,9 @@ import {
   type CompleteAgentRunArgs,
 } from './agent-run-completion.ts';
 import {
+  emitTaskRunHint,
   failAgentRunFromTurn,
+  isStandardAgentRefusal,
   kickAgentRun,
   launchAgentRun,
   settleAgentRun,
@@ -46,8 +46,8 @@ import {
 import { isTaskRunConfined } from './run-authority.ts';
 import {
   agentRecordTaskOutputsTrusted,
+  deferredAgentKickRefusal,
   handTaskToInProgressForKick,
-  mayWorkTask,
 } from './service.ts';
 
 /**
@@ -57,7 +57,9 @@ import {
  * durable op-row upserts, the trusted task writers, and the session slot
  * verbs. Quota throws are re-shaped into the `AppError QUOTA_EXCEEDED`
  * the host's park branch matches on — that mapping is what makes
- * capacity parking work at all.
+ * capacity parking work at all. A refusal for a pending Destroy keeps its
+ * `reason` in the payload: no want of room, it fails an automation step
+ * where a full budget only holds it (`classifyWorkflowStartFailure`).
  *
  * The STEER lane is answered here too (`getOpSteerState`,
  * `rotateTaskAgentRunExec`, `kickMentionRunAfterSteerMiss`) — see the
@@ -66,7 +68,11 @@ import {
 
 function quotaAsAppError(error: unknown): never {
   if (error instanceof SandboxQuotaError) {
-    throw new AppError({ code: 'QUOTA_EXCEEDED', message: error.message });
+    throw new AppError({
+      code: 'QUOTA_EXCEEDED',
+      message: error.message,
+      ...(error.reason !== undefined ? { reason: error.reason } : {}),
+    });
   }
   throw error;
 }
@@ -296,51 +302,59 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
         return { started: false, reason: 'no_agent_assignee' };
       }
       // A run's starter may steer it on a task no longer theirs, but a new
-      // run is a change to the task: the work gate's, as at the comment.
-      const author = await authorizeActorRun(
-        sql,
-        args.organizationId,
-        args.authorId,
-        'membership',
-      ).catch((error: unknown) => {
-        console.warn('[task-agent] steer fallback author refused:', error);
-        return null;
-      });
-      const project = await loadProjectOrThrow(sql, task.projectId);
-      if (author === null || !(await mayWorkTask(sql, project, task, author))) {
-        return { started: false, reason: 'not_permitted' };
-      }
-      const agents = await sql<
-        { harness: string; model: string; modelProvider: string | null }[]
-      >`
-        SELECT harness, model, model_provider AS "modelProvider"
-        FROM app.project_agents
-        WHERE id = ${task.assigneeId} AND org_id = ${args.organizationId}
-        LIMIT 1
-      `;
-      const agent = agents[0];
-      if (agent === undefined) {
-        return { started: false, reason: 'agent_unavailable' };
-      }
+      // run is a change to the task: the work gate's, as at the comment —
+      // and as the project and the author's access stand when the kick
+      // lands, inside the kick's own transaction.
       const kicked = await transactSerializable(sql, async (tx) => {
-        const result = await kickAgentRun(tx, {
+        const refusal = await deferredAgentKickRefusal(tx, {
           organizationId: args.organizationId,
           projectId: task.projectId,
-          taskId: args.taskId,
-          agentId: task.assigneeId ?? '',
-          harness: agent.harness,
-          model: agent.model,
-          ...(agent.modelProvider !== null
-            ? { modelProvider: agent.modelProvider }
-            : {}),
-          trigger: 'mention',
-          // A description kick carries no copy: the run reads the
-          // description as it stands when it starts.
-          ...(args.mentionSource === 'description'
-            ? { mentionSource: 'description' as const }
-            : { feedback: args.feedback, mentionSource: 'comment' as const }),
+          task,
           startedBy: args.authorId,
         });
+        if (refusal !== null) return { refusal };
+        const agents = await tx<
+          { harness: string; model: string; modelProvider: string | null }[]
+        >`
+          SELECT harness, model, model_provider AS "modelProvider"
+          FROM app.project_agents
+          WHERE id = ${task.assigneeId} AND org_id = ${args.organizationId}
+          LIMIT 1
+        `;
+        const agent = agents[0];
+        if (agent === undefined) return { refusal: 'agent_unavailable' };
+        let result: Awaited<ReturnType<typeof kickAgentRun>>;
+        try {
+          result = await kickAgentRun(tx, {
+            organizationId: args.organizationId,
+            projectId: task.projectId,
+            taskId: args.taskId,
+            agentId: task.assigneeId ?? '',
+            harness: agent.harness,
+            model: agent.model,
+            ...(agent.modelProvider !== null
+              ? { modelProvider: agent.modelProvider }
+              : {}),
+            trigger: 'mention',
+            // A description kick carries no copy: the run reads the
+            // description as it stands when it starts.
+            ...(args.mentionSource === 'description'
+              ? { mentionSource: 'description' as const }
+              : {
+                  feedback: args.feedback,
+                  mentionSource: 'comment' as const,
+                }),
+            startedBy: args.authorId,
+          });
+        } catch (error) {
+          // The organization's standard agent no longer starts for the
+          // author. The refusal is a check made before the kick wrote
+          // anything, so this transaction stays good to end.
+          if (isStandardAgentRefusal(error)) {
+            return { refusal: 'standard_agent_unavailable' };
+          }
+          throw error;
+        }
         if (result.reused) return result;
         // The mention kick moves the card too (the 0.4 shared-core rule: the
         // board verb IS the interface): the settled predecessor parked the
@@ -354,6 +368,14 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
         });
         return result;
       });
+      if ('refusal' in kicked) {
+        if (kicked.refusal !== 'agent_unavailable') {
+          console.warn(
+            `[task-agent] steer-miss kick for task ${args.taskId} refused: ${kicked.refusal}`,
+          );
+        }
+        return { started: false, reason: kicked.refusal };
+      }
       // A reused live run means another turn is already carrying this work;
       // the comment rides that one rather than starting a second.
       return { started: !kicked.reused };
@@ -361,14 +383,60 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
 
     'tasks/agent_runs:parkTaskAgentRunForCapacity': async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
-      const args = raw as { runId: string; execId: string };
-      await sql`
-        UPDATE app.project_agent_runs SET
-          waiting_for_capacity_at_ms = ${Date.now()},
-          updated_at_ms = ${Date.now()}
-        WHERE id = ${args.runId} AND exec_id = ${args.execId}
-          AND status = 'queued'
-      `;
+      const args = raw as {
+        runId: string;
+        execId: string;
+        /** The sandbox host refused it and said when its place in line comes
+         * up: the run is woken then rather than at the watchdog's next tick. */
+        wakeAfterMs?: number;
+      };
+      const parked = await sql.begin(async (tx) => {
+        const rows = await tx<
+          { organizationId: string; taskId: string; agentId: string }[]
+        >`
+          UPDATE app.project_agent_runs SET
+            waiting_for_capacity_at_ms = ${Date.now()},
+            updated_at_ms = ${Date.now()}
+          WHERE id = ${args.runId} AND exec_id = ${args.execId}
+            AND status = 'queued'
+          RETURNING org_id AS "organizationId", task_id AS "taskId",
+            agent_id AS "agentId"
+        `;
+        // The card now reads "Waiting for a sandbox slot", not "Queued".
+        const row = rows[0];
+        if (row !== undefined) {
+          await emitTaskRunHint(tx, {
+            organizationId: row.organizationId,
+            taskId: row.taskId,
+          });
+          if (args.wakeAfterMs !== undefined && args.wakeAfterMs > 0) {
+            await addJobInTx(
+              tx,
+              'task.agent_park_wake',
+              {
+                organizationId: row.organizationId,
+                runId: args.runId,
+                execId: args.execId,
+              },
+              { startAfter: new Date(Date.now() + args.wakeAfterMs) },
+            );
+          }
+        }
+        return row;
+      });
+      // A parked run holds no slot: a standing workspace its start resumed
+      // before the sandbox host refused the create reads `active` with no
+      // compute, where the reconcile would heal it to destroyed. Free it back
+      // to `stopped` — quietly, since waking the next parked run would only
+      // send it into the same refusal.
+      if (parked !== undefined) {
+        await releaseProjectAgentSessionSlot(
+          sql,
+          { organizationId: parked.organizationId, agentId: parked.agentId },
+          undefined,
+          { wake: false },
+        );
+      }
       return null;
     },
 
@@ -737,12 +805,21 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
 
     'sandbox/session_mutations:setSessionStatus': async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
-      const args = raw as { rowId: string; status: string };
+      const args = raw as {
+        rowId: string;
+        status: string;
+        /** The spawner holds nothing under the row's id (it refused the
+         * create): the row is settled as collected, so the watchdog's
+         * COLLECT pass never destroys the id — whose preserved workspace
+         * may be another incarnation's. */
+        collected?: boolean;
+      };
       const now = Date.now();
       await sql`
         UPDATE app.sandbox_sessions SET
           status = ${args.status}, last_activity_at_ms = ${now},
-          destroyed_at_ms = CASE WHEN ${args.status} = 'destroyed'
+          destroyed_at_ms = CASE
+            WHEN ${args.status} = 'destroyed' OR ${args.collected === true}
             THEN ${now}::bigint ELSE destroyed_at_ms END
         WHERE id = ${args.rowId}
       `;
@@ -763,7 +840,7 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
       const args = raw as { organizationId: string; agentId: string };
       // Stop the agent's standing session unless a sibling turn is live —
-      // and wake the org's oldest parked run on the freed slot.
+      // and wake the oldest parked runs on the freed slot.
       return releaseProjectAgentSessionSlot(sql, args);
     },
 

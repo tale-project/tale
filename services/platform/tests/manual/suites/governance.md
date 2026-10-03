@@ -1,6 +1,6 @@
 # Governance
 
-> **Prefix** `GOV-` · **Reset** none · **Cost** 72 boxes
+> **Prefix** `GOV-` · **Reset** none · **Cost** 81 boxes
 
 Exercise the org-wide governance controls — content/model defaults, guardrails
 (content-safety / PII / moderation), policies & limits (budgets, upload,
@@ -21,7 +21,7 @@ All routes are under `/dashboard/{org}/settings/governance/…`. The bare
 | Surface               | Route (sub-path)                          | Page contents (verified)                                                                    |
 | --------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------- |
 | Index →               | ``(redirects to`content-models`)          | 307 → `content-models`                                                                      |
-| Content & Models      | `content-models`                          | Default models, Model access, Model endpoints for API keys, Vision model, Image generation, Audio transcription model |
+| Content & Models      | `content-models`                          | Default models, Model access, Model endpoints for API keys, Vision model, Image generation, Standard agent, Audio transcription model |
 | Policies & Limits     | `policies-limits`                         | Budget rules, Upload policy, Retention policy, feature flags, personalization, voice output, confidentiality notice, skill sharing, conversation routing |
 | Security & Monitoring | `security-monitoring`                     | Login attempt limits, Password policy, Two-factor policy, Session idle timeout              |
 | Competences           | `competences`                             | Competence register: grants (member, competence, status, granted, evidence); **Grant competence**, per-row **Revoke** |
@@ -45,16 +45,25 @@ is sufficient. **GOV-F4b (per-API-key budget)** needs at least one API key to
 target — create one first under **Settings → API → REST**
 (`…/settings/api/rest`, see [settings.md](settings.md) SET-F9); the API-key
 select lists every member's live key, read from
-`GET /api/app/governance/api-keys` (disabled and expired keys are left out).
+`GET /api/app/governance/api-keys` (disabled and expired keys are left out;
+GOV-F48 covers a rule on such a key).
 
-**GOV-F40–GOV-F46 and GOV-B15–GOV-B17 (model endpoints for API keys)** call
+**GOV-F40–GOV-F47 and GOV-B15–GOV-B17 (model endpoints for API keys)** call
 `/api/v1/openai/…` and `/api/v1/anthropic/…` with API keys minted under
 **Settings → API → REST** and need a chat model that a provider credential of
-type **API key** or **Environment variable** serves — in mode A, connect the
-`e2e-mock` provider's environment credential. Every refusal those boxes judge
+type **API key** or **Environment variable** serves — in mode A, the
+`e2e-mock` provider's environment credential, wired per
+[SETUP.md](../setup.md) §1.A. Every refusal those boxes judge
 is answered before the model gateway is reached, so they run in mode A; a
 successful answer needs mode B with the sandbox model gateway running (mode A
 ends such a call in 503 `MODEL_API_UNAVAILABLE`).
+
+**GOV-F50–GOV-F52 and GOV-B18–GOV-B19 (the standard agent)** need a project
+without agents of its own (the docs demo seed's **Customer onboarding
+portal**) and, for GOV-B19, a Member; their runs need a runnable harness
+(mode B, or the mock gateway with a sandbox) and are env-gated otherwise.
+[tasks.md](tasks.md) `TASK-F61` hands such a project's task to the standard
+agent.
 
 > **Agent note**: save → reload → assert the **persisted control state**,
 > never the toast. Voice output autosaves on toggle (no Save button); the
@@ -110,11 +119,12 @@ ends such a call in 503 `MODEL_API_UNAVAILABLE`).
   `governance.budgets.selectApiKeyAriaLabel`) → pick a key → set **Max
   requests** (`governance.budgets.maxRequests`) → **Confirm**
   (`governance.budgets.confirm`) → reload → The rule row's **Scope** cell
-  reads **ApiKey** (CSS-capitalized `scope`) and its **Target**
-  (`governance.budgets.target`) cell shows the chosen key's name and its
-  owner, "CI Key · Dana" (falls back to the raw key id if the key is no longer
-  held by a member); the row survives reload. **Precondition:** ≥1 API key
-  exists (see Prerequisites)
+  reads **API key** (`governance.budgets.scopeLabels.apiKey`), its **Period**
+  cell the period's label (**Monthly**,
+  `governance.budgets.periodLabels.monthly`), and its **Target**
+  (`governance.budgets.target`) cell the chosen key's name, "CI Key", with its
+  owner, "Dana", on a line beneath; the row survives reload. **Precondition:**
+  ≥1 API key exists (see Prerequisites)
 - [ ] `GOV-F4c` · **API-key budget refuses REST** — with the GOV-F4b rule
   saved at **Max requests** 1 → send twice through
   `POST /api/v1/threads/{id}/messages` with that key → The second send answers
@@ -124,13 +134,27 @@ ends such a call in 503 `MODEL_API_UNAVAILABLE`).
   cap. **Delete the rule after**
 - [ ] `GOV-F36` · **Cap a member's key** — As a Developer member, create an API
   key "opencode"; as an Admin, open the GOV-F4b dialog → the **API key**
-  select lists the Developer's key as **opencode · <their name>** beside the
+  select lists the Developer's key as **opencode · ‹their name›** beside the
   Admin's own keys, and no key of someone outside the organization; save a
   rule on it → a REST send with the Developer's key over the cap answers 429
   `BUDGET_EXCEEDED` as in GOV-F4c. With the dialog still open, the Developer
   creates a second key in their own session → it joins the select within
   seconds, no reload. `GET /api/app/governance/api-keys` as a non-admin
   answers 403, and no response carries a key secret.
+- [ ] `GOV-F48` · **A rule outlives its key** — Save GOV-F4b-style rules on
+  three members' keys, then make each key stop working: the holder revokes
+  one under **Settings → API → REST**, an Admin removes the holder of the
+  second from the organization, and the third passes its expiry → reload
+  `policies-limits` → Every row still names its key and its owner, never a
+  bare key id, each beside its status — **Revoked**, **Former member** and
+  **Expired** while the expired key is still stored. Once expiry cleanup
+  removes that key, it reads **Unavailable**, keeping its name and owner;
+  cleanup alone must never make it **Revoked**
+  (`governance.budgets.apiKeyStatus.*`). **Edit rule** on one of them: the
+  **API key** field still shows that key, with **This key can no longer spend
+  in this organization…** (`governance.budgets.apiKeyInactive`) above it, and
+  the select offers only live keys besides it. Every label reads in German
+  and French too.
 - [ ] `GOV-F6` · **Feedback metrics** — `feedback` → Read-only **Feedback
   Metrics** dashboard renders (`analytics.feedback.title`); with no feedback
   it shows the empty state **No feedback collected yet**
@@ -527,6 +551,18 @@ ends such a call in 503 `MODEL_API_UNAVAILABLE`).
   **Recent events** shows the mask, and a model asked to repeat the message
   word for word repeats the placeholder, not the word; a category that checks
   only model output leaves the answer untouched. Restore the guardrails.
+- [ ] `GOV-F47` · **A call you break off ends at the gateway and is still
+  booked** — Mode B, on a model with a catalog price. With a Developer's key,
+  start `POST /api/v1/openai/chat/completions` without `stream` on a model that
+  takes a while to answer (ask for a long essay) and stop the client after a
+  few seconds (Ctrl-C on `curl`); repeat with `"stream": true` once the first
+  chunks have arrived → Within about a second the gateway's log (`docker logs`
+  on the `sandbox-llm-gateway` container) records each call as `499`; a
+  self-hosted upstream's own log shows the request cancelled, not finished.
+  Within a minute both calls sit on the Developer's **Direct API**
+  row in `usage` (GOV-F45): the whole answer costs about its prompt, the stream
+  its prompt plus the chunks received — never nothing, and never a full answer
+  that was not delivered.
 - [ ] `GOV-F38` · **Image generation is off until an admin turns it on** — On
   `content-models` in a fresh organization, find **Image generation**
   (`governance.imageGeneration.title`), then **Start agent**
@@ -550,6 +586,49 @@ ends such a call in 503 `MODEL_API_UNAVAILABLE`).
   `governance.imageGeneration.currentModel.pinned` names it. Switch image
   generation off and on again → the same pin is still selected. Restore: pick
   **Automatic**, **Save**, and switch image generation off.
+- [ ] `GOV-F49` · **An erasure deletes the subject's workspaces** — With a
+  Member whose own run of a project agent is listed on Sandboxes
+  (`SET-F71`'s setup), file and run an erasure for them (`GOV-F8`) → the
+  receipt lists **Sandbox workspaces**
+  (`governance.dataSubjectRequests.categories.sandboxWorkspaces`) with `1`,
+  and the member's workspace is gone from Sandboxes.
+- [ ] `GOV-F50` · **The standard agent is on, and automatic** — On
+  `content-models` in a fresh organization, find **Standard agent**
+  (`governance.standardAgent.title`) → its switch
+  (`governance.standardAgent.enabledLabel`) is on; **Agent type**
+  (`governance.standardAgent.harnessLabel`) and **Model**
+  (`governance.standardAgent.modelLabel`) read **Automatic**
+  (`governance.standardAgent.automaticLabel`); **Instructions**
+  (`governance.standardAgent.instructionsLabel`) is empty, showing
+  `governance.standardAgent.instructionsPlaceholder`; and the section's last
+  line (`governance.standardAgent.current`) names the agent type and model it
+  runs on for you. **Model** lists only models the chosen agent type can run.
+  With no credential serving a model you may use, the alert
+  `governance.standardAgent.refusal.noModel` shows instead of that line, with
+  a link to **AI providers** (`governance.standardAgent.providersLink`).
+- [ ] `GOV-F51` · **Pin the standard agent's model and instructions** — Pick
+  a model under **Model** and type `Answer in one sentence.` under
+  **Instructions** → `governance.standardAgent.draftHint` shows and nothing
+  is saved yet; **Save** (`common.actions.save`) and reload → the pin and the
+  text survive, and the last line names the pinned model. Start a task given
+  to a standard agent ([tasks.md](tasks.md) `TASK-F61`) → once the run has
+  started, the standard agent's row on the project's **Agents** tab names the
+  pinned model, and the agent's closing comment is one sentence. Restore:
+  **Automatic**, empty **Instructions**, **Save** — env-gated: mark the run
+  **ENVIRONMENT** without a runnable harness.
+- [ ] `GOV-F52` · **Switching it off stops it at once and keeps the
+  choices** — With a model pinned (`GOV-F51`), turn the switch off → it
+  saves at once and still reads off after a reload; the note
+  `governance.standardAgent.offNote` shows, and **Agent type**, **Model** and
+  **Instructions** are hidden. In a project without agents, **Assignee**
+  (`tasks.fields.assignee`) offers no **Standard agent**
+  (`tasks.assignee.standardAgent`), and **Start agent**
+  (`tasks.agentRun.start`) on a task already given to a standard agent
+  answers the toast `tasks.agentRun.standardAgent.switchedOff` and queues
+  nothing. A comment there that @mentions the standard agent shows
+  `tasks.mentionPreview.standardAgentUnavailable` under the comment box and
+  saves as a plain mention: no run, the assignee and status unchanged. Turn
+  it back on → the pin is still selected, and the same task starts.
 
 ## Boundary & error tests
 
@@ -659,6 +738,34 @@ ends such a call in 503 `MODEL_API_UNAVAILABLE`).
   `governance.imageGeneration.unavailable`; the run's report lists no
   `generate_image`, and no other model stands in. Restore the credential —
   env-gated: mark the run **ENVIRONMENT** without a runnable harness.
+- [ ] `GOV-B18` · **A malformed standard agent policy is never read as on** —
+  Write `enabled: perhaps` into the organization's
+  `governance/standard-agent.yml` under `TALE_CONFIG_DIR` and reload
+  `content-models` → **Standard agent** shows the alert
+  `governance.standardAgent.invalidPolicy` with its controls enabled, and
+  **Start agent** (`tasks.agentRun.start`) on a task given to a standard
+  agent answers the toast `tasks.agentRun.standardAgent.unreadable` and
+  queues nothing. Turn the switch off and on again (each saves at once) →
+  the file parses again, the alert is gone, and the task starts.
+- [ ] `GOV-B19` · **A pinned model follows the person who starts the run** —
+  Pin a model (`GOV-F51`), then add a **Model access** rule that blocks it for
+  the Member role. As a Member, open a task given to a standard agent and
+  **Start agent** (`tasks.agentRun.start`) → the toast
+  `tasks.agentRun.standardAgent.pinUnavailable` says to ask an Admin, nothing
+  is queued, and no other model stands in; as the owner, the same task starts
+  on the pinned model. In a project without agents, the Member's
+  **Assignee** offers no **Standard agent**, its footer reading
+  `tasks.assignee.noAgentsReader`. Restore the rule and **Automatic**.
+- [ ] `GOV-B20` · **A slow switch write never undoes a Save beside it** — On
+  `security-monitoring`, throttle the network (DevTools **Network**, **Slow
+  4G**). Turn on the **Session idle timeout** switch
+  (`governance.sessionIdleTimeout.enabled`) and, while it saves, set **Idle
+  timeout (minutes)** (`governance.sessionIdleTimeout.minutes`) to `15` and
+  select **Save** (`common.actions.save`) → **Save** stays busy until the
+  switch's write has landed, then saves; a reload shows the switch on and
+  `15`. Set `20` and **Save** again → the switch stays disabled until the
+  page has read the policy back, and turning it off after that keeps `20`.
+  Restore: throttling off, the switch off.
 
 ## Accessibility (WCAG 2.1 AA)
 

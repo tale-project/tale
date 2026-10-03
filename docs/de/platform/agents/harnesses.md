@@ -31,6 +31,8 @@ Die Laufzeit braucht passende Zugangsdaten und [Sandbox-Kapazität](/de/platform
 
 Kommentiere eine Projektaufgabe und erwähne ihren Agenten, um die Arbeit zu lenken. Claude Code erhält den Hinweis beim nächsten Werkzeugübergang. Bei den anderen Laufzeiten beendet Tale den aktuellen Prozess und setzt dieselbe Unterhaltung mit dem Kommentar in einem neuen Prozess fort. Deshalb kann ein laufender Prozess nach einer neuen Anweisung neu starten.
 
+Gemini CLI ist die Ausnahme: Tale setzt eine seiner Unterhaltungen nie fort. Ein späterer Kommentar, ein automatischer neuer Versuch oder die Antwort auf eine Frage des Agenten beginnt eine neue Unterhaltung im selben Arbeitsbereich, in der die Aufgabenbeschreibung und die bisherigen Runden erneut mitgegeben werden, weil die Laufzeit eine Unterhaltung mit einem Werkzeugaufruf nicht wiederaufnehmen kann. Dateien und Ausgaben bleiben erhalten; nur die Unterhaltung beginnt von vorn.
+
 ## Zugangsdaten und Kosten verstehen
 
 Bei einem gespeicherten API-Schlüssel oder einer Deployment-Umgebungsvariable stellt Tale einen sitzungsgebundenen Gateway-Schlüssel bereit. Der ursprüngliche Modell-Provider-Schlüssel bleibt bei der Plattform. Gateway-Aufrufe werden gemessen und unterliegen den geltenden Ausgabenregeln. Bereits an andere laufende Durchläufe vergebene Beträge werden berücksichtigt.
@@ -48,6 +50,8 @@ Zugeordnete Skill-Bundles liegen als Dateien vor und werden in den Laufanweisung
 Jede Laufzeit findet außerdem den integrierten Skill `visual-aspect-analyzer` unter ihren eigenen Skills, ohne dass du ihn zuordnen musst. Er steuert einen echten Browser über eine fertige UI-Änderung und meldet Layoutverschiebungen, Flackern und andere visuelle Regressionen. Ein gleichnamiger Skill in den Ordnern `.claude/skills` und `.agents/skills` des Repositorys im Workspace ersetzt ihn in jeder Laufzeit, die Skills aus einem Repository liest.
 
 Der Connector-Broker hält gewöhnliche Connector-Zugangsdaten bei Tale und gibt Aktionsergebnisse zurück. Er bietet Agenten Leseaktionen an und lehnt Schreibaktionen über diesen Weg ab. Verwende für einen kontrollierten Connector-Schreibvorgang eine entsprechende Automatisierungs-Node. GitHub-Werkzeuge und ausdrücklich vergebene Secrets haben eigene Zugangswege. Die Lesebeschränkung des Brokers verbietet deshalb nicht allgemein Schreibzugriffe aus der Shell.
+
+Agenten mit dem MCP-Kanal von Tale können außerdem abfragen, welches Tale-Release die Plattform meldet. Neben den Plattform-Tools, die dem Agenten vergeben wurden, liefert `workspace_status` den Wert `platform.version`: die Release-Nummer, die der Build des antwortenden Backends trägt, zum Beispiel `0.5.64` für das Release mit dem Tag `v0.5.64`. Für diesen Wert liest das Backend nichts aus der Anfrage. Ein Build ohne Release-Nummer, etwa ein Entwicklungsbuild, liefert stattdessen `null` mit einem kurzen Hinweis. Behandle den Wert als Kennzeichnung, nicht als Nachweis, denn jeder Build kann eine Release-Nummer tragen. Er beschreibt zudem nur dieses Backend und zeigt nicht, ob der Rest des Deployments funktioniert. Wie es um die Dienste des Deployments steht, zeigt die [Statusseite](/de/develop/status-page).
 
 Ausgehender Netzwerkzugriff erlaubt normalerweise Paketinstallationen und das Klonen von Repositorys, blockiert aber private Adressen und Cloud-Metadatenziele. Betreiber können die erlaubten Hosts weiter begrenzen. Prüfe bei einem unerreichbaren Dienst die Netzwerkregeln, statt unmittelbar falsche Zugangsdaten anzunehmen.
 

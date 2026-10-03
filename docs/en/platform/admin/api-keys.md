@@ -3,7 +3,7 @@ title: API keys
 description: Create, verify, rotate, and revoke credentials for software that calls Tale.
 ---
 
-Create an API key when a script or service needs to call Tale's REST API. A key belongs to the person who created it, not to the organization whose settings page created it: it acts as that person, follows their current permissions, and works in every organization they are a member of. A REST call names the organization it addresses with the `X-Organization-Slug` header; a key whose holder belongs to one organization may omit it. Owners, Admins, and Developers manage their keys under **Settings > API > REST**, and so does a member who holds the competence **Call models over the API**.
+Create an API key when a script or service needs to call Tale's REST API. A key belongs to the person who created it, not to the organization whose settings page created it: it acts as that person, follows their current permissions, and works in every organization they are a member of. A REST call names the organization it addresses with the `X-Organization-Slug` header; a key whose holder belongs to one organization may omit it. Owners, Admins, and Developers manage their keys under **Settings > API > REST**, and so does a member an Admin granted a competence that is used with a key: **Call models over the API**, **Export notifications**, or **Act for another member**. Tale refuses anyone else a new key with `403 API_KEY_CREATE_FORBIDDEN`.
 
 <Frame caption="Settings > API > REST — where keys are created, rotated, and revoked.">
 
@@ -49,7 +49,7 @@ Do not use an old **Last used** date as the only reason to revoke a key. A month
 
 ## Understand permissions and limits
 
-Role changes take effect for existing keys on subsequent requests. Disabling the owner's membership removes their access; a key does not preserve the role it had when created.
+Role changes take effect for existing keys on subsequent requests. Disabling the owner's membership removes their access; a key does not preserve the role it had when created. Losing the role or competence that let you create keys leaves the ones you hold in place: **Settings > API > REST** keeps listing them for you to revoke, but offers no new one.
 
 Give an integration the narrowest access that works. A notification mirror, for example, does not need an Admin account: an Admin can grant an ordinary member the `tale:notifications.export` capability, which permits that export and none of the other rights of the Admin role. The grant applies only in that organization, can expire, and ends when the member is removed. Grant it under [Competences](/platform/admin/governance/competences), where an integration that relays people's answers and review decisions gets `tale:rest.act-as` the same way; [Delegate the export without an Admin role](/develop/api-reference#delegate-the-export-without-an-admin-role) covers the API side.
 

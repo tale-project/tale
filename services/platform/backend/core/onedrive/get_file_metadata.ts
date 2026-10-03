@@ -13,6 +13,9 @@ export interface FileMetadataResult {
   /** Graph returned 404 — the item no longer exists at the source (deleted or
    *  trashed), as opposed to a transient / permission / throttle failure. */
   notFound?: boolean;
+  /** Graph refused the token (401) — expired, or access removed at the
+   *  provider; the import refreshes the grant rather than fail the file. */
+  unauthorized?: boolean;
 }
 
 export async function getFileMetadata(
@@ -42,6 +45,7 @@ export async function getFileMetadata(
         success: false,
         error: `Failed to get file metadata: ${response.status} ${errorText}`,
         notFound: response.status === 404,
+        unauthorized: response.status === 401,
       };
     }
 

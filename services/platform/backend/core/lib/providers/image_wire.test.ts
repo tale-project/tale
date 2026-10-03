@@ -5,7 +5,7 @@
  * reply shape parsed.
  */
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
   buildImageRequest,
@@ -13,6 +13,7 @@ import {
   isReferenceMediaType,
   parseImageReply,
   providerErrorMessage,
+  rasterPixelSize,
   sniffRasterMediaType,
   type ImageWireRequest,
   type ReferenceImage,
@@ -31,6 +32,93 @@ const SVG = new TextEncoder().encode(
 
 function b64(bytes: Uint8Array): string {
   return Buffer.from(bytes).toString('base64');
+}
+
+/** A PNG's signature and header chunk — all a size reader needs. */
+function pngHeader(width: number, height: number): Uint8Array {
+  const bytes = new Uint8Array(33);
+  bytes.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  const view = new DataView(bytes.buffer);
+  view.setUint32(8, 13);
+  bytes.set(new TextEncoder().encode('IHDR'), 12);
+  view.setUint32(16, width);
+  view.setUint32(20, height);
+  bytes.set([8, 6, 0, 0, 0], 24);
+  return bytes;
+}
+
+/** A JPEG's start, its JFIF segment and a baseline frame header. */
+function jpegHeader(width: number, height: number): Uint8Array {
+  return new Uint8Array([
+    // Start of image.
+    0xff,
+    0xd8,
+    // The JFIF segment (APP0), 16 bytes long.
+    0xff,
+    0xe0,
+    0x00,
+    0x10,
+    0x4a,
+    0x46,
+    0x49,
+    0x46,
+    0x00,
+    0x01,
+    0x01,
+    0x00,
+    0x00,
+    0x01,
+    0x00,
+    0x01,
+    0x00,
+    0x00,
+    // The baseline frame header (SOF0): 8-bit samples, the height, the
+    // width, and three components.
+    0xff,
+    0xc0,
+    0x00,
+    0x11,
+    0x08,
+    height >> 8,
+    height & 0xff,
+    width >> 8,
+    width & 0xff,
+    0x03,
+    0x01,
+    0x22,
+    0x00,
+    0x02,
+    0x11,
+    0x01,
+    0x03,
+    0x11,
+    0x01,
+    // End of image.
+    0xff,
+    0xd9,
+  ]);
+}
+
+/** A JPEG whose frame header follows `segments` metadata segments of 64 KB
+ * each, the way large EXIF or ICC blocks push it back. */
+function jpegAfterMetadata(
+  width: number,
+  height: number,
+  segments: number,
+): Uint8Array {
+  const header = jpegHeader(width, height);
+  // APP1 with the largest length a segment can declare: 2 + 65535 bytes.
+  const segment = new Uint8Array(2 + 0xffff);
+  segment.set([0xff, 0xe1, 0xff, 0xff]);
+  const bytes = new Uint8Array(header.length + segments * segment.length);
+  // The start of image and the JFIF segment, the metadata, then the frame
+  // header onwards.
+  bytes.set(header.subarray(0, 20));
+  for (let index = 0; index < segments; index += 1) {
+    bytes.set(segment, 20 + index * segment.length);
+  }
+  bytes.set(header.subarray(20), 20 + segments * segment.length);
+  return bytes;
 }
 
 /** A JSON request's body, parsed — form data is the edit dialect's own. */
@@ -210,6 +298,16 @@ describe('parseImageReply', () => {
     });
   });
 
+  it('carries the pixel size each image header stores', () => {
+    const wide = pngHeader(1248, 832);
+    const reply = parseImageReply('openrouter-images', {
+      data: [{ b64_json: b64(wide), media_type: 'image/png' }],
+    });
+    expect(reply.images).toEqual([
+      { bytes: wide, mediaType: 'image/png', width: 1248, height: 832 },
+    ]);
+  });
+
   it('reads OpenAI images and their token counts', () => {
     const reply = parseImageReply('openai-images', {
       created: 1_790_000_000,
@@ -304,6 +402,56 @@ describe('parseImageReply', () => {
     expect(() => parseImageReply('openai-images', payload)).toThrow(
       ImageReplyError,
     );
+  });
+});
+
+describe('rasterPixelSize', () => {
+  it('reads the size a PNG or JPEG header stores', () => {
+    expect(rasterPixelSize(pngHeader(1248, 832))).toEqual({
+      width: 1248,
+      height: 832,
+    });
+    expect(rasterPixelSize(jpegHeader(1024, 1536))).toEqual({
+      width: 1024,
+      height: 1536,
+    });
+  });
+
+  it('reads a header followed by megabytes of image data', () => {
+    const png = new Uint8Array(5 * 1024 * 1024);
+    png.set(pngHeader(1536, 1024));
+    expect(rasterPixelSize(png)).toEqual({ width: 1536, height: 1024 });
+  });
+
+  it('finds a JPEG frame header behind its metadata, within 512 KB', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    // Four segments put the frame header 256 KB in; nine put it past the cap.
+    expect(rasterPixelSize(jpegAfterMetadata(1024, 1536, 4))).toEqual({
+      width: 1024,
+      height: 1536,
+    });
+    expect(rasterPixelSize(jpegAfterMetadata(1024, 1536, 9))).toBeUndefined();
+    warn.mockRestore();
+  });
+
+  it('gives up at once on junk after a JPEG start marker', () => {
+    // Read whole, this reply stalled image-size for minutes: it copies the
+    // rest of a plain Uint8Array for every byte it skips. The test timeout
+    // is the guard.
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const junk = new Uint8Array(8 * 1024 * 1024);
+    junk.set([0xff, 0xd8, 0xff, 0xe0]);
+    expect(rasterPixelSize(junk)).toBeUndefined();
+    warn.mockRestore();
+  });
+
+  it('answers nothing, and says so, for a header it cannot read', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    expect(rasterPixelSize(PNG)).toBeUndefined();
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining("could not read a generated image's pixel size"),
+    );
+    warn.mockRestore();
   });
 });
 

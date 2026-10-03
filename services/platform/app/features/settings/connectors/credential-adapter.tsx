@@ -93,8 +93,8 @@ export function toConnectorVendor(summary: ConnectorSummary): ConnectorVendor {
     key: summary.slug,
     displayName: summary.displayName,
     iconUrl: summary.iconUrl,
-    // Confluence and Shopify name their own instance per credential; the
-    // others talk to one fixed vendor host.
+    // Confluence, GlitchTip and Shopify name their own instance per
+    // credential; the others talk to one fixed vendor host.
     needsEndpoint: summary.endpointMode === 'per-credential',
     summary,
   };
@@ -319,6 +319,23 @@ export const connectorCredentialAdapter: CredentialAdapter<
           })
         : t('connectors.credential.needsReauthHint')
       : undefined,
+
+  // Deleting a connector's default hands it to the oldest active credential
+  // left (the server's `defaultSuccessor`), which the listing names on the
+  // default's row — so the confirm says who takes over, not the AI
+  // providers' "no default remains".
+  deleteWarning: (t, credential) => {
+    if (!credential.isDefault) return undefined;
+    const successor = credential.defaultSuccessor;
+    if (successor === undefined) {
+      return t('connectors.credential.deleteDefaultHandsOnOldest');
+    }
+    return successor === null
+      ? t('connectors.credential.deleteDefaultLeavesNone')
+      : t('connectors.credential.deleteDefaultHandsOn', {
+          name: successor.name,
+        });
+  },
 
   // Nothing resolves its key through a connector credential by reference.
   useDeleteWarning: () => undefined,

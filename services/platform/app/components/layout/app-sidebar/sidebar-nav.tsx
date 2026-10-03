@@ -11,28 +11,13 @@ import { useEffect } from 'react';
 import { useBrandingContext } from '@/app/components/branding/branding-provider';
 import { useAbility } from '@/app/hooks/use-ability';
 import {
+  isItemActive,
   useNavigationItems,
   type NavItem,
 } from '@/app/hooks/use-navigation-items';
 import { useT } from '@/lib/i18n/client';
 
 import { TOOLTIP_SHORTCUT_CLASS } from './sidebar-motion';
-
-function isPathMatch(itemHref: string, currentPath: string): boolean {
-  if (itemHref === currentPath) return true;
-  if (currentPath.startsWith(itemHref + '/')) return true;
-  return false;
-}
-
-function isItemActive(item: NavItem, pathname: string): boolean {
-  return item.isActivePath
-    ? item.isActivePath(pathname)
-    : isPathMatch(item.href, pathname) ||
-        (item.subItems?.some((subItem) =>
-          isPathMatch(subItem.href, pathname),
-        ) ??
-          false);
-}
 
 export interface SidebarNavItemProps {
   item: NavItem;
@@ -65,16 +50,18 @@ export function SidebarNavItem({
     return null;
   }
 
-  // Where this tile goes: the section's own landing page, every time. A rail
-  // click is a request for the section, not for the last place inside it, so
-  // it always lands on the same page — the first tab of a tabbed section —
-  // whatever the user did there before.
+  // Where this tile goes: the section's own landing page by default — a rail
+  // click from outside the section resets to its entry point, not the last
+  // place inside it. Home, Knowledge and Automations are the exceptions:
+  // `item.to`/`item.state` already resolve to a remembered deep link when
+  // one exists (see `useNavigationItems`), so this stays a plain pass-through.
   const linkProps = {
     to: item.to,
     params: item.params,
     ...(isActive && item.reentrySearch !== undefined
       ? { search: item.reentrySearch }
       : {}),
+    ...(item.state !== undefined ? { state: item.state } : {}),
     preload: 'render',
   } as const;
 

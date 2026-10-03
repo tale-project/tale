@@ -47,8 +47,6 @@ const EXPECTED_CHECK_IDS = [
   'glossary-coverage',
   'status-chatter',
   'prose-exclamation',
-  'markdown-anchor-parity',
-  'markdown-link-target',
   'placeholder-density',
 ] as const;
 

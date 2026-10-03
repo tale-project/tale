@@ -13,6 +13,8 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import type { HarnessDefinition } from '@tale/shared/schemas/providers';
+
 import { parseYamlOrThrow } from '../shared/config/yaml';
 import type {
   HarnessEvent,
@@ -105,6 +107,31 @@ export interface GoldenCase {
   readonly name: string;
   readonly mode: 'managed' | 'byo';
   readonly spec: HarnessRunSpec;
+}
+
+/**
+ * The battery as it applies to one harness: cases outside its credential
+ * policy drop (a cursor managed build or an opencode byo build is not a
+ * golden), and on a harness whose YAML declares `capabilities.resume: false`
+ * the builder refuses a handle, so the resume-only case drops and the
+ * combined cases pin the rest of their spec without one.
+ */
+export function batteryFor(
+  fact: Pick<HarnessDefinition, 'credentialPolicy' | 'capabilities'>,
+): readonly GoldenCase[] {
+  return goldenBattery().flatMap((goldenCase) => {
+    const inPolicy =
+      goldenCase.mode === 'managed'
+        ? fact.credentialPolicy.managed
+        : fact.credentialPolicy.byo;
+    if (!inPolicy) return [];
+    if (goldenCase.spec.resume === undefined || fact.capabilities.resume) {
+      return [goldenCase];
+    }
+    if (goldenCase.name.endsWith('-resume')) return [];
+    const { resume: _resume, ...spec } = goldenCase.spec;
+    return [{ ...goldenCase, spec }];
+  });
 }
 
 function managedSpec(overrides?: Partial<HarnessRunSpec>): HarnessRunSpec {

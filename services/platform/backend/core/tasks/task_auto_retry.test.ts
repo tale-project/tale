@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  AGENT_BUSY_RETRY_DELAY_MS,
+  AGENT_BUSY_RETRY_MAX_WAIT_MS,
+  AGENT_BUSY_RETRY_MAX_WAITS,
   AUTO_RETRY_HISTORY_LIMIT,
   AUTO_RETRY_MAX_ATTEMPTS,
   CREDENTIAL_ROTATION_FREE_RETRIES,
@@ -8,6 +11,7 @@ import {
   freeCredentialRotations,
   isAutoRetryableFailure,
   isCredentialRotation,
+  planAgentBusyWait,
   resolveAutoRetryBudget,
   type AutoRetryRunFacts,
 } from './task_auto_retry';
@@ -29,16 +33,18 @@ describe('isAutoRetryableFailure', () => {
     }
   });
 
-  it('never retries what a retry cannot change — a burned window, a gone agent, a missing skill, a cap', () => {
+  it('never retries what a retry cannot change — a burned window, a gone agent, a missing skill, a gone attachment, a cap', () => {
     // A skill the run cannot reach is the agent's configuration: the retry
     // budget used to burn three runs on it before the author could act
-    // (2026-09-26 evaluation, C-09).
+    // (2026-09-26 evaluation, C-09). An attachment whose bytes left the
+    // store is the same posture: three retries met the same 404 (2026-10-02).
     for (const code of [
       'deadline',
       'park_deadline',
       'agent_deleted',
       'agent_model_missing',
       'equipment_missing',
+      'input_missing',
       'budget_exceeded',
     ]) {
       expect(isAutoRetryableFailure(code), code).toBe(false);
@@ -343,5 +349,61 @@ describe('freeCredentialRotations', () => {
     expect(
       freeCredentialRotations([failed({ failureCode: undefined })]),
     ).toEqual([false]);
+  });
+});
+
+describe('planAgentBusyWait', () => {
+  const now = 1_800_000_000_000;
+
+  it('looks again minutes later, never at once, and counts the look', () => {
+    expect(planAgentBusyWait({ waits: 0, failedAt: now - 1_000, now })).toEqual(
+      { wait: true, waits: 1, lookAt: now + AGENT_BUSY_RETRY_DELAY_MS },
+    );
+    expect(AGENT_BUSY_RETRY_DELAY_MS).toBeGreaterThanOrEqual(60_000);
+  });
+
+  it('takes a bounded number of looks', () => {
+    expect(
+      planAgentBusyWait({
+        waits: AGENT_BUSY_RETRY_MAX_WAITS - 1,
+        failedAt: undefined,
+        now,
+      }),
+    ).toMatchObject({ wait: true, waits: AGENT_BUSY_RETRY_MAX_WAITS });
+    expect(
+      planAgentBusyWait({
+        waits: AGENT_BUSY_RETRY_MAX_WAITS,
+        failedAt: undefined,
+        now,
+      }),
+    ).toEqual({ wait: false });
+    expect(Number.isInteger(AGENT_BUSY_RETRY_MAX_WAITS)).toBe(true);
+  });
+
+  it('sends no look for past the longest wait after the failure', () => {
+    const lastLook =
+      now + AGENT_BUSY_RETRY_DELAY_MS - AGENT_BUSY_RETRY_MAX_WAIT_MS;
+    expect(
+      planAgentBusyWait({ waits: 3, failedAt: lastLook, now }),
+    ).toMatchObject({ wait: true });
+    expect(
+      planAgentBusyWait({ waits: 3, failedAt: lastLook - 1, now }),
+    ).toEqual({
+      wait: false,
+    });
+  });
+
+  it('takes as many looks as the wait’s age allows, so both bounds end it together', () => {
+    const failedAt = now;
+    let waits = 0;
+    let at = now;
+    for (;;) {
+      const next = planAgentBusyWait({ waits, failedAt, now: at });
+      if (!next.wait) break;
+      waits = next.waits;
+      at = next.lookAt;
+    }
+    expect(waits).toBe(AGENT_BUSY_RETRY_MAX_WAITS);
+    expect(at - failedAt).toBe(AGENT_BUSY_RETRY_MAX_WAIT_MS);
   });
 });

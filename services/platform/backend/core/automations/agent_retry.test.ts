@@ -12,12 +12,18 @@ import {
   CREDENTIAL_ROTATION_FREE_RETRIES,
 } from '../tasks/task_auto_retry';
 import {
+  SANDBOX_ROOM_MAX_WAIT_MS,
+  SANDBOX_ROOM_RETRY_CEILING_MS,
   isWorkflowAgentRetryable,
   planWorkflowAgentRetry,
   retryResumePrompt,
+  sandboxRoomRetryAtMs,
   workflowAgentRetryResume,
   type WorkflowAgentAttempt,
 } from './agent_retry';
+
+/** Every harness but Gemini CLI continues its conversations. */
+const RESUMES = { resumable: true };
 
 describe('workflowAgentRetryResume', () => {
   it('continues the failed conversation when the harness left a handle', () => {
@@ -25,6 +31,8 @@ describe('workflowAgentRetryResume', () => {
       workflowAgentRetryResume(
         { failureCode: 'harness_error', agentSessionId: 'conv-1' },
         'the agent turn failed: API Error: 502',
+        {},
+        RESUMES,
       ),
     ).toEqual({
       agentSessionId: 'conv-1',
@@ -32,13 +40,23 @@ describe('workflowAgentRetryResume', () => {
     });
     // A settle from before the failure code existed still resumes.
     expect(
-      workflowAgentRetryResume({ agentSessionId: 'conv-1' }, 'crashed'),
+      workflowAgentRetryResume(
+        { agentSessionId: 'conv-1' },
+        'crashed',
+        {},
+        RESUMES,
+      ),
     ).toEqual({ agentSessionId: 'conv-1', reason: 'crashed' });
   });
 
   it('starts fresh when there is no conversation to continue', () => {
     expect(
-      workflowAgentRetryResume({ failureCode: 'harness_error' }, 'no handle'),
+      workflowAgentRetryResume(
+        { failureCode: 'harness_error' },
+        'no handle',
+        {},
+        RESUMES,
+      ),
     ).toBeUndefined();
     for (const failureCode of [
       'session_gone',
@@ -49,11 +67,39 @@ describe('workflowAgentRetryResume', () => {
         workflowAgentRetryResume(
           { failureCode, agentSessionId: 'conv-1' },
           'gone',
+          {},
+          RESUMES,
         ),
       ).toBeUndefined();
       // Both stay retryable — fresh, not abandoned.
       expect(isWorkflowAgentRetryable(failureCode)).toBe(true);
     }
+  });
+});
+
+describe('workflowAgentRetryResume on a harness that never resumes', () => {
+  it('starts fresh even with a handle, a plain cut, and a cooled-down resume to pick up', () => {
+    // Gemini CLI: `capabilities.resume: false` — its `--resume` replays every
+    // tool result twice, so the conversation it names cannot be continued.
+    const gemini = { resumable: false };
+    expect(
+      workflowAgentRetryResume(
+        { failureCode: 'harness_error', agentSessionId: 'conv-1' },
+        'the agent turn failed: API Error: 502',
+        {},
+        gemini,
+      ),
+    ).toBeUndefined();
+    expect(
+      workflowAgentRetryResume(
+        { failureCode: 'credential_cooldown' },
+        'refused',
+        { resumedFrom: 'conv-1', resumeReason: 'cut' },
+        gemini,
+      ),
+    ).toBeUndefined();
+    // Still retryable — fresh, not abandoned.
+    expect(isWorkflowAgentRetryable('harness_error')).toBe(true);
   });
 });
 
@@ -69,6 +115,7 @@ describe('workflowAgentRetryResume after a start the cooling pool refused', () =
           resumedFrom: 'conv-1',
           resumeReason: 'the agent turn failed: API Error: 429',
         },
+        RESUMES,
       ),
     ).toEqual({
       agentSessionId: 'conv-1',
@@ -80,14 +127,20 @@ describe('workflowAgentRetryResume after a start the cooling pool refused', () =
         { failureCode: 'credential_cooldown' },
         'refused',
         {},
+        RESUMES,
       ),
     ).toBeUndefined();
     // Any other start failure keeps its fresh re-kick: the session itself
     // may be what failed.
     expect(
-      workflowAgentRetryResume({ failureCode: 'start_failed' }, 'refused', {
-        resumedFrom: 'conv-1',
-      }),
+      workflowAgentRetryResume(
+        { failureCode: 'start_failed' },
+        'refused',
+        {
+          resumedFrom: 'conv-1',
+        },
+        RESUMES,
+      ),
     ).toBeUndefined();
   });
 });
@@ -212,6 +265,173 @@ describe('planWorkflowAgentRetry', () => {
     expect(retries).toEqual([true, true, true, false]);
   });
 
+  it('waits for sandbox room for free, however many attempts are spent', () => {
+    expect(isWorkflowAgentRetryable('sandbox_capacity')).toBe(true);
+    expect(
+      planWorkflowAgentRetry(
+        { attempt: AUTO_RETRY_MAX_ATTEMPTS, burnedBrokerTokenHashes: ['a'] },
+        'sandbox_capacity',
+        NOW,
+      ),
+    ).toEqual({
+      retry: true,
+      attempt: AUTO_RETRY_MAX_ATTEMPTS,
+      burnedBrokerTokenHashes: ['a'],
+      credentialRotations: 0,
+      waitingForRoomSince: NOW,
+      roomRefusals: 1,
+    });
+    // The wait keeps its start, and ends after two hours of it.
+    expect(
+      planWorkflowAgentRetry(
+        { waitingForRoomSince: NOW - 60_000 },
+        'sandbox_capacity',
+        NOW,
+      ),
+    ).toMatchObject({ retry: true, waitingForRoomSince: NOW - 60_000 });
+    expect(
+      planWorkflowAgentRetry(
+        { waitingForRoomSince: NOW - SANDBOX_ROOM_MAX_WAIT_MS },
+        'sandbox_capacity',
+        NOW,
+      ).retry,
+    ).toBe(false);
+    // Nothing launched: the conversation it was to resume still stands.
+    expect(
+      workflowAgentRetryResume(
+        { failureCode: 'sandbox_capacity' },
+        'waiting for room',
+        { resumedFrom: 'conv-7', resumeReason: 'the stream broke' },
+        RESUMES,
+      ),
+    ).toEqual({ agentSessionId: 'conv-7', reason: 'the stream broke' });
+    expect(
+      workflowAgentRetryResume(
+        { failureCode: 'sandbox_capacity', agentSessionId: 'conv-new' },
+        'waiting for room',
+        {},
+        RESUMES,
+      ),
+    ).toBeUndefined();
+  });
+
+  it('resumes the asking conversation with the answer a refused delivery never brought', () => {
+    const refused = {
+      failureCode: 'sandbox_capacity',
+      agentSessionId: 'conv-ask',
+      undeliveredAskId: 'ask-1',
+    };
+    // Even over an older conversation the asking attempt itself resumed.
+    expect(
+      workflowAgentRetryResume(
+        refused,
+        'waiting for room',
+        { resumedFrom: 'conv-older', resumeReason: 'the stream broke' },
+        RESUMES,
+      ),
+    ).toEqual({
+      agentSessionId: 'conv-ask',
+      reason: 'waiting for room',
+      askId: 'ask-1',
+    });
+    // A re-kick refused again carries the undelivered answer on.
+    expect(
+      workflowAgentRetryResume(
+        { failureCode: 'sandbox_capacity' },
+        'waiting for room',
+        {
+          resumedFrom: 'conv-ask',
+          resumeReason: 'waiting for room',
+          resumeAskId: 'ask-1',
+        },
+        RESUMES,
+      ),
+    ).toEqual({
+      agentSessionId: 'conv-ask',
+      reason: 'waiting for room',
+      askId: 'ask-1',
+    });
+    // No handle to the asking conversation: the fresh start folds every
+    // answer into its prompt, as the delivery would have.
+    expect(
+      workflowAgentRetryResume(
+        { failureCode: 'sandbox_capacity', undeliveredAskId: 'ask-1' },
+        'waiting for room',
+        { resumedFrom: 'conv-older', resumeReason: 'the stream broke' },
+        RESUMES,
+      ),
+    ).toBeUndefined();
+    expect(
+      workflowAgentRetryResume(
+        refused,
+        'waiting for room',
+        {},
+        {
+          resumable: false,
+        },
+      ),
+    ).toBeUndefined();
+  });
+
+  it('begins a new room wait once a start launched after the last one began', () => {
+    // The wait ended with a start that ran; the refusal of a later start —
+    // an answered question's resume, hours on — waits on its own clock.
+    expect(
+      planWorkflowAgentRetry(
+        {
+          launchedAt: NOW - 60 * 60_000,
+          waitingForRoomSince: NOW - SANDBOX_ROOM_MAX_WAIT_MS - 30 * 60_000,
+          roomRefusals: 7,
+        },
+        'sandbox_capacity',
+        NOW,
+      ),
+    ).toMatchObject({
+      retry: true,
+      waitingForRoomSince: NOW,
+      roomRefusals: 1,
+    });
+    // A wait that began after the last launch goes on.
+    expect(
+      planWorkflowAgentRetry(
+        {
+          launchedAt: NOW - 60 * 60_000,
+          waitingForRoomSince: NOW - 30 * 60_000,
+          roomRefusals: 7,
+        },
+        'sandbox_capacity',
+        NOW,
+      ),
+    ).toMatchObject({
+      retry: true,
+      waitingForRoomSince: NOW - 30 * 60_000,
+      roomRefusals: 8,
+    });
+  });
+
+  it('counts the refusals of a room wait in a row, and starts the count with a new wait', () => {
+    expect(
+      planWorkflowAgentRetry(
+        { waitingForRoomSince: NOW - 60_000, roomRefusals: 3 },
+        'sandbox_capacity',
+        NOW,
+      ).roomRefusals,
+    ).toBe(4);
+    // A refusal count without a wait it belongs to starts over.
+    expect(
+      planWorkflowAgentRetry({ roomRefusals: 3 }, 'sandbox_capacity', NOW)
+        .roomRefusals,
+    ).toBe(1);
+    // Any other failure ends the wait.
+    expect(
+      planWorkflowAgentRetry(
+        { waitingForRoomSince: NOW - 60_000, roomRefusals: 3 },
+        'harness_error',
+        NOW,
+      ).roomRefusals,
+    ).toBeUndefined();
+  });
+
   it('waits out the cooldown of the 429 it retried for free, and counts any other refused start', () => {
     expect(
       planWorkflowAgentRetry(
@@ -276,5 +496,64 @@ describe('planWorkflowAgentRetry', () => {
         NOW,
       ),
     ).toMatchObject({ attempt: 2, credentialRotations: 0 });
+  });
+});
+
+describe('sandboxRoomRetryAtMs', () => {
+  const NOW = 1_800_000_000_000;
+  const at = (refusals: number, draw: number, retryAfterMs = 10_000) =>
+    sandboxRoomRetryAtMs({
+      now: NOW,
+      retryAfterMs,
+      refusals,
+      random: () => draw,
+    }) - NOW;
+
+  it('comes back at its place’s own hint, within a second, when the spawner keeps a line', () => {
+    const queued = (refusals: number, draw: number) =>
+      sandboxRoomRetryAtMs({
+        now: NOW,
+        retryAfterMs: 25_000,
+        refusals,
+        queued: true,
+        random: () => draw,
+      }) - NOW;
+    // No doubling however long the wait: the spawner paces its line.
+    for (const refusals of [1, 3, 40]) {
+      expect(queued(refusals, 0)).toBe(25_000);
+      expect(queued(refusals, 1)).toBe(26_000);
+    }
+  });
+
+  it('never starts before the refusal’s retry hint', () => {
+    for (const refusals of [1, 2, 5, 40]) expect(at(refusals, 0)).toBe(10_000);
+  });
+
+  it('draws from a window that doubles with each refusal in a row, up to the ceiling', () => {
+    expect([1, 2, 3, 4, 5, 40].map((refusals) => at(refusals, 1))).toEqual([
+      20_000,
+      40_000,
+      80_000,
+      SANDBOX_ROOM_RETRY_CEILING_MS,
+      SANDBOX_ROOM_RETRY_CEILING_MS,
+      SANDBOX_ROOM_RETRY_CEILING_MS,
+    ]);
+    // Waiters refused together spread across the window.
+    expect(at(3, 0.5)).toBe(45_000);
+  });
+
+  it('holds a hint past the ceiling to the ceiling, and a missing one to now', () => {
+    expect(at(1, 1, 10 * 60_000)).toBe(SANDBOX_ROOM_RETRY_CEILING_MS);
+    expect(at(3, 1, 0)).toBe(0);
+  });
+});
+
+describe('isWorkflowAgentRetryable', () => {
+  it('never retries a start refused because the run’s workspace is being destroyed', () => {
+    // A retry that lands after the Destroy would continue the run in a
+    // fresh, empty workspace (#4122); a wait for room is retried, for free.
+    expect(isWorkflowAgentRetryable('sandbox_destroying')).toBe(false);
+    expect(isWorkflowAgentRetryable('sandbox_capacity')).toBe(true);
+    expect(isWorkflowAgentRetryable('start_failed')).toBe(true);
   });
 });

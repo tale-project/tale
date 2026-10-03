@@ -21,7 +21,7 @@ Verwende für Ordner einen abschließenden Schrägstrich, für Dateien keinen. V
 
 ## Authentifizierung
 
-Erzeuge in **Einstellungen > WebDAV** ein App-Passwort mit einem Konto, das auf die Entwicklereinstellungen zugreifen darf. Das vollständige Passwort erscheint einmal. Gib jedem Client eine eigene Bezeichnung, damit du seinen Zugriff einzeln widerrufen kannst.
+Erzeuge in **Einstellungen > API > WebDAV** ein App-Passwort mit einem Konto, das auf die Entwicklereinstellungen zugreifen darf. Das vollständige Passwort erscheint einmal. Gib jedem Client eine eigene Bezeichnung, damit du seinen Zugriff einzeln widerrufen kannst.
 
 | Zugangsdaten | Wert |
 | --- | --- |

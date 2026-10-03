@@ -2,7 +2,8 @@
 # The directory path is the slug (`imap-smtp/triage-inbox`); `workflow.yml`
 # beside this file is the document that runs.
 name: Triage the IMAP inbox
-description: Reads the newest messages from every connected private IMAP mailbox on a schedule and writes one digest of what came in and what needs a reply today.
+description: >-
+  Triages the open IMAP conversations in the Inbox that are waiting on the team: sets their priority, records the verdict on each thread, and leaves a drafted reply where one is due for a person to send. Runs on a schedule and needs the IMAP/SMTP sync automation deployed.
 icon: mail
 labels:
   - Email
@@ -19,7 +20,9 @@ triggers:
 i18n:
   de:
     name: IMAP-Posteingang sichten
-    description: Liest regelmäßig die neuesten Nachrichten jedes verbundenen privaten IMAP-Postfachs und schreibt eine Zusammenfassung, was eingegangen ist und was heute eine Antwort braucht.
+    description: >-
+      Sichtet die offenen IMAP-Konversationen in der Inbox, die auf das Team warten: setzt ihre Priorität, hält das Urteil an jedem Thread fest und legt dort, wo eine Antwort fällig ist, einen Antwortentwurf ab, den eine Person abschickt. Läuft nach Zeitplan und braucht die bereitgestellte IMAP/SMTP-Synchronisierung.
   fr:
     name: Trier la boîte de réception IMAP
-    description: Lit régulièrement les nouveaux messages de chaque boîte IMAP privée connectée et rédige un résumé de ce qui est arrivé et de ce qui demande une réponse aujourd'hui.
+    description: >-
+      Trie les conversations IMAP ouvertes de la Boîte de réception qui attendent l’équipe : fixe leur priorité, note le verdict sur chaque fil et dépose un brouillon de réponse là où une réponse est due, qu’une personne enverra. S’exécute selon une planification et requiert l’automatisation de synchronisation IMAP/SMTP déployée.

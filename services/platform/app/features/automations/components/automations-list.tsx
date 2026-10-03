@@ -39,7 +39,6 @@ import {
 import { useAutomations } from '../hooks/queries';
 import { automationErrorMessage } from '../lib/errors';
 import { automationListTarget } from '../lib/list-target';
-import { isListedForViewer } from '../lib/reader-listing';
 import { AutomationRowActions } from './automation-row-actions';
 import { BlankAutomationDialog } from './blank-automation-dialog';
 import { UploadAutomationDialog } from './upload-automation-dialog';
@@ -104,12 +103,9 @@ export function AutomationsList({
   const showProjectsColumn = projectId === undefined;
 
   const rows = useMemo<AutomationListRow[]>(() => {
-    // Someone who cannot build automations sees what the organization runs:
-    // deployed automations only, not the drafts and undeployed packages
-    // they could neither edit nor start.
-    const listed = [...(automationsQuery.data ?? [])]
-      .filter((automation) => isListedForViewer(automation, canAuthor))
-      .sort((a, b) => a.name.localeCompare(b.name));
+    const listed = [...(automationsQuery.data ?? [])].sort((a, b) =>
+      a.name.localeCompare(b.name),
+    );
     return listed.map((automation) => {
       const icon = automationDisplayIcon(automation.presentation);
       const row: AutomationListRow = {
@@ -133,7 +129,7 @@ export function AutomationsList({
       }
       return row;
     });
-  }, [automationsQuery.data, locale, canAuthor]);
+  }, [automationsQuery.data, locale]);
 
   const columns = useMemo<ColumnDef<AutomationListRow>[]>(() => {
     const cols: ColumnDef<AutomationListRow>[] = [
@@ -382,12 +378,8 @@ export function AutomationsList({
           }
           emptyState={{
             icon: Workflow,
-            title: canAuthor
-              ? t('list.empty.title')
-              : t('list.emptyReader.title'),
-            description: canAuthor
-              ? t('list.empty.description')
-              : t('list.emptyReader.description'),
+            title: t('list.empty.title'),
+            description: t('list.empty.description'),
             headingLevel: 2,
           }}
           {...list.tableProps}

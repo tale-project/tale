@@ -4,6 +4,7 @@ import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
 import { EntityRowActions } from '@tale/ui/entity/entity-row-actions';
 import { Row, Stack } from '@tale/ui/layout';
 import { TableDateCell } from '@tale/ui/table-date-cell';
+import { useFormatDate } from '@tale/ui/use-format-date';
 import { useToast } from '@tale/ui/use-toast';
 import type { ColumnDef } from '@tanstack/react-table';
 import { Box, Pin, PinOff, Square, Trash2 } from 'lucide-react';
@@ -23,6 +24,7 @@ import { SandboxCapacitySection } from './sandbox-capacity';
 import { SandboxDevicesSection } from './sandbox-devices';
 import { SandboxQuotaEditor } from './sandbox-quota-editor';
 import { sandboxRuntimeState } from './sandbox-runtime-state';
+import { WorkspaceCleanupEditor } from './workspace-cleanup-editor';
 
 type SandboxList = NonNullable<
   ReturnsOf<'sandbox/session_queries_public:listSandboxesForOrg'>
@@ -117,11 +119,17 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
       sessionId: string,
       fn: () => Promise<unknown>,
       successKey: string,
+      successDescriptionKey?: string,
     ): Promise<void> => {
       setPendingId(sessionId);
       try {
         await fn();
-        toast({ title: t(successKey) });
+        toast({
+          title: t(successKey),
+          ...(successDescriptionKey !== undefined
+            ? { description: t(successDescriptionKey) }
+            : {}),
+        });
       } catch (err) {
         toast({
           title: t('toast.error'),
@@ -147,9 +155,10 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
         meta: { skeleton: { type: 'two-line' } },
         cell: ({ row }) => {
           const s = row.original;
-          // A project agent's workspace outlives the agent (it stays until
-          // destroyed): once the owner join answers nothing, say whose it
-          // was rather than print the id nobody can look up any more.
+          // A deleted agent's workspace stays listed until the cleanup has
+          // deleted it (work still running in it, or a legal hold, keeps it
+          // longer): once the owner join answers nothing, say whose it was
+          // rather than print the id nobody can look up any more.
           const ownerLabel =
             s.ownerType === 'project_agent' && s.ownerLabel == null
               ? t('deletedAgent')
@@ -209,6 +218,14 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
                   </Badge>
                 )}
                 {s.pinned && <Badge variant="blue">{t('status.pinned')}</Badge>}
+                {s.destroyState === 'pending' && (
+                  <Badge variant="yellow">{t('status.destroying')}</Badge>
+                )}
+                {s.destroyState === 'failed' && (
+                  <Badge variant="destructive">
+                    {t('status.destroyFailed')}
+                  </Badge>
+                )}
               </Row>
               <span className="text-muted-foreground text-xs">
                 {t(allocated ? 'status.quotaInUse' : 'status.quotaReleased')}
@@ -222,6 +239,7 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
                 }
                 devices={devicesView?.devices}
               />
+              <DeletesOn deletesAt={s.deletesAt} />
             </Stack>
           );
         },
@@ -294,6 +312,11 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
         cell: ({ row }) => {
           const s = row.original;
           const busy = pendingId === s.sessionId;
+          // A queued Destroy unpins and deletes the workspace whatever is
+          // asked of it meanwhile, so Pin and Destroy wait until it is gone.
+          // Stop stays: a task that runs while the Destroy retries can still
+          // be stopped.
+          const changing = busy || s.destroyState === 'pending';
           return (
             <Row gap={0} align="stretch" justify="end">
               <EntityRowActions
@@ -320,7 +343,7 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
                     key: 'pin',
                     label: s.pinned ? t('actions.unpin') : t('actions.pin'),
                     icon: s.pinned ? PinOff : Pin,
-                    disabled: busy,
+                    disabled: changing,
                     onClick: () =>
                       void run(
                         s.sessionId,
@@ -340,7 +363,7 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
                     // Auto-gets a separator above it; the confirm dialog below
                     // gates the actual teardown.
                     destructive: true,
-                    disabled: busy,
+                    disabled: changing,
                     onClick: () => setConfirmDestroy(s.sessionId),
                   },
                 ]}
@@ -383,6 +406,7 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
           onRefresh={refreshDevices}
         />
       )}
+      {canManage && <WorkspaceCleanupEditor organizationId={organizationId} />}
       {canManage && (
         <SettingsSection
           title={t('sessionsTitle')}
@@ -416,7 +440,8 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
               void run(
                 sessionId,
                 () => destroy.mutateAsync({ organizationId, sessionId }),
-                'toast.destroyed',
+                'toast.destroying',
+                'toast.destroyingDescription',
               ).finally(() => setConfirmDestroy(null));
             }}
           />
@@ -459,6 +484,22 @@ function RunsOn({
           name,
         },
       )}
+    </span>
+  );
+}
+
+/** The day the cleanup deletes a hibernated agent workspace on if nobody
+ * uses it before then — dated like the Created column. Nothing for a
+ * workspace no cleanup is due to delete. */
+function DeletesOn({ deletesAt }: { deletesAt: number | null | undefined }) {
+  const { t } = useT('sandboxes');
+  const { formatDate } = useFormatDate();
+  if (typeof deletesAt !== 'number') return null;
+  return (
+    <span className="text-muted-foreground text-xs">
+      {t('status.deletesOn', {
+        date: formatDate(new Date(deletesAt), 'short'),
+      })}
     </span>
   );
 }

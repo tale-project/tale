@@ -45,7 +45,7 @@ Erzeuge vor dem ersten Start eigene Werte und bewahre sie in deiner Geheimnisver
 | `ENCRYPTION_SECRET_HEX` | 32 Bytes als Hexwert, etwa mit `openssl rand -hex 32` erzeugt; für vorhandene verschlüsselte Datenbankwerte erhalten. |
 | `DB_PASSWORD` oder externe Datenbankzugangsdaten | Müssen zur tatsächlich verwendeten Datenbankrolle passen. |
 | `SANDBOX_TOKEN` | Dasselbe zufällige Token in Backend und Spawner. |
-| `SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD` | Stabile Gateway-Verwaltungszugangsdaten für das Backend; der Benutzername ist standardmäßig `admin`. |
+| `SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD` | Dasselbe stabile Geheimnis in Backend und Gateway; ein Gateway ohne Admin-Konto legt eines nur für einen Aufrufer an, der es vorweist. Der Benutzername ist standardmäßig `admin`. |
 | `OBJECT_STORE_ACCESS_KEY`, `OBJECT_STORE_SECRET_KEY` | Gültige Speicherzugangsdaten; bei MinIO auf `MINIO_ROOT_USER` und `MINIO_ROOT_PASSWORD` abbilden. |
 | `OBJECT_STORE_PUBLIC_ENDPOINT` | Vom Browser erreichbarer Endpunkt, meist `SITE_URL`, wenn Tales Proxy den mitgelieferten Speicher weiterleitet. |
 | SOPS-age-Identität | Zum Entschlüsseln deiner verschlüsselten Konfigurationsdateien; siehe [Geheimnisse mit SOPS](/de/self-hosted/configuration/secrets-with-sops). |

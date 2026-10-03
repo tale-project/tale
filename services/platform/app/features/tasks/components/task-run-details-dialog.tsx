@@ -14,6 +14,7 @@ import {
   useAutomation,
   useAutomationRun,
 } from '@/app/features/automations/hooks/queries';
+import { useCanUseAutomations } from '@/app/features/automations/hooks/use-can-use-automations';
 import { readDocument } from '@/app/features/automations/lib/document';
 import { buildGraph } from '@/app/features/automations/lib/graph';
 import {
@@ -30,9 +31,9 @@ import { useT } from '@/lib/i18n/client';
  * One vertical step timeline, every step compact until unfolded — the
  * {@link RunStepTimeline} owns the reading. The dialog itself only resolves
  * the run and the document version it executed, and offers the full run page
- * as the way out for a deeper audit. Nothing is fetched until it opens. The
- * subject panel opens it on the live run; the property panel's Run row opens
- * it on the latest run in any state.
+ * as the way out for a deeper audit to those who may use Automations.
+ * Nothing is fetched until it opens. The subject panel opens it on the live
+ * run; the property panel's Run row opens it on the latest run in any state.
  */
 export function TaskRunDetailsDialog({
   organizationId,
@@ -56,6 +57,7 @@ export function TaskRunDetailsDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const { t } = useT('tasks');
+  const canUseAutomations = useCanUseAutomations();
   const runQuery = useAutomationRun(organizationId, open ? runId : undefined);
   const run = runQuery.data ?? null;
   const versionQuery = useAutomation(
@@ -96,23 +98,27 @@ export function TaskRunDetailsDialog({
               graph={graph}
               projection={projection}
               currentNodeId={currentNodeId}
+              waitingForRoom={run.waitingFor === 'room'}
               organizationId={organizationId}
               runId={runId}
             />
-            {/* The dialog is the quick look; the run page is the audit. */}
-            <Link
-              to="/dashboard/$id/projects/$projectId/automations/$automationSlug/runs/$runId"
-              params={{
-                id: organizationId,
-                projectId,
-                automationSlug: automationSlugToParam(automationSlug),
-                runId,
-              }}
-              className="text-muted-foreground hover:text-foreground focus-visible:ring-ring flex w-fit items-center gap-1 rounded-sm text-xs focus-visible:ring-2 focus-visible:outline-none"
-            >
-              {t('run.openFull')}
-              <ArrowUpRight className="size-3.5" aria-hidden />
-            </Link>
+            {/* The dialog is the quick look; the run page is the audit — an
+                automation page, so only for those who may use Automations. */}
+            {canUseAutomations && (
+              <Link
+                to="/dashboard/$id/projects/$projectId/automations/$automationSlug/runs/$runId"
+                params={{
+                  id: organizationId,
+                  projectId,
+                  automationSlug: automationSlugToParam(automationSlug),
+                  runId,
+                }}
+                className="text-muted-foreground hover:text-foreground focus-visible:ring-ring flex w-fit items-center gap-1 rounded-sm text-xs focus-visible:ring-2 focus-visible:outline-none"
+              >
+                {t('run.openFull')}
+                <ArrowUpRight className="size-3.5" aria-hidden />
+              </Link>
+            )}
           </>
         )}
       </ResponsiveDialogContent>

@@ -31,7 +31,11 @@ export {
   type MarketingLinkComponentProps,
 } from './routing';
 
-export { useSkipEntrance, withinEntranceWindow } from './lib/entrance';
+export {
+  useReducedMotion,
+  useSkipEntrance,
+  withinEntranceWindow,
+} from './lib/entrance';
 
 export { DemoToolbar } from './components/demos/demo-chrome';
 export { DemoShell } from './components/demos/demo-shell';

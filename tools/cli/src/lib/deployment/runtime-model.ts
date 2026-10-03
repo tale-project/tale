@@ -123,6 +123,20 @@ export interface RuntimeResult {
   revision: string;
   changed: boolean;
   existing: boolean;
+  /**
+   * The model gateway's store as this runtime found it, before any change:
+   * whether its volume exists; the gateway image the runtime starts (`target`)
+   * and the one a container runs now (`running`, `null` when none runs); and
+   * whether the store has not run the target yet (`newImage`: no ready runtime
+   * receipt lists it and no gateway container on it has started) — the only
+   * start on which a newer gateway migrates that store forward-only.
+   */
+  gateway: {
+    volume: boolean;
+    newImage: boolean;
+    target: string | null;
+    running: string | null;
+  };
   dryRun: boolean;
 }
 
@@ -326,10 +340,12 @@ export function parseCompose(
       // The spawner's API, and since tale#3504 the device hub beside it
       // (connected machines reach it through the proxy's /sandbox/tunnel);
       // both loopback only. A runtime from before the hub publishes 8003 alone.
-      // The managed bundle keeps them as the source declares them (only the
-      // database ports are rewritten), so a managed host binds both on
-      // 127.0.0.1; the proxy itself reaches the hub over `internal`.
+      // The managed bundle publishes neither (`[]`): the backend and the proxy
+      // reach both over `internal`. The two source shapes stay allowed, for
+      // the sources this CLI prepares and the bundles earlier CLIs prepared,
+      // which kept them as the source declared them.
       sandbox: [
+        '[]',
         '["127.0.0.1:8003:8003"]',
         '["127.0.0.1:8003:8003","127.0.0.1:8004:8004"]',
       ],

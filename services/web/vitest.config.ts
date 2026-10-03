@@ -2,8 +2,10 @@ import { yamlImports } from '@tale/ui/vite/yaml';
 import viteReact from '@vitejs/plugin-react';
 import { defineConfig } from 'vitest/config';
 
+import { marketingContentImports } from './lib/content/vite';
+
 export default defineConfig({
-  plugins: [viteReact(), yamlImports()],
+  plugins: [marketingContentImports(), viteReact(), yamlImports()],
   resolve: {
     tsconfigPaths: true,
   },

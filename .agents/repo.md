@@ -25,7 +25,8 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
   in the package.
 - `tools/` — `cli` (`@tale/cli`), `plop` (generators), `opengrep` (SAST gate), `lint-manual`
   (the manual-test gate; its `src/`, `cli.ts` and `tests/` are shared bytes with every
-  tale-project repo — fix a rule in `example-project` and roll it, never here).
+  tale-project repo — fix a rule in `example-project` and roll it, never here), `lint-links`
+  (the link gate for the two documentation sites, `bun run lint:links`).
 - `configs/platform/` — the builtin, org-independent config catalog (`system/` read-only,
   `custom/` seeded per org). Each client's private repository owns its `tale/` descriptor,
   packs, release catalogue and domain tests. Client content does not belong in this catalog.
@@ -66,8 +67,9 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
   numbered `.ts` data migration in the same directory and order, which writes every statement
   itself and imports only pure rules (it runs against the schema at its number, with the newest
   image's code). The real-Postgres proof is
-  `bun run --filter @tale/platform backend:integration` (there is no separate migrations gate or
-  generated registry — filename order is the registry).
+  `bun run --filter @tale/platform backend:integration`, which CI's **Backend integration** check
+  runs against the `tale-db` image built from the change and the CLI's object-store pin (there is
+  no separate migrations gate or generated registry — filename order is the registry).
   Scaffold with `bun run gen:migration` and follow the
   [`create-migration`](skills/create-migration/SKILL.md) skill.
 - **Spend is booked under a person, never a door** — every `app.usage_ledger` write names its
@@ -130,6 +132,34 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
   code-level bug analysis in a GitHub issue, never there.
 - **Git**: branch off `main`, never commit to it; PRs squash-merge (linear history), so the PR
   title must itself be commitlint-shaped.
+- **A release tags one validated candidate** — a version tag goes only on the full `main` SHA
+  whose `build.yml` candidate run and release gate
+  (`tools/cli/scripts/release-candidate-gate.ts`) passed, and merging never freezes for it:
+  [`.github/RELEASING.md`](../.github/RELEASING.md).
+- **No conflict markers** — `bun run lint:conflicts` (`scripts/check-conflict-markers.ts`)
+  refuses a `<<<<<<<`, `|||||||` or `>>>>>>>` line in any tracked text file: the pre-commit hook
+  runs it on the staged files, CI's Format job and `bun run check` on the whole tree. Markdown and
+  shell still parse with a conflict left in them, and one was committed that way (2026-09).
+- **A published docs address never turns into a 404** — every page slug docs.tale.dev and
+  ui.tale.dev ever served is recorded in `docs/published.json` and
+  `services/ui-docs/content/published.json` (append-only; the content build records new pages), and
+  each must still answer as a page or through its site's `redirects.json`. Moving, merging or
+  deleting a page therefore needs a redirect for its old slug, or the published suites fail. Every
+  link in the two sites and every link into them from the rest of the repository (in-app help, the
+  marketing site, the CLI, READMEs) must land on a page directly: not a 404, not a redirect.
+  `bun run lint:links` (`tools/lint-links`, CI's Format job and `bun run check`) enforces this. It
+  compares a change with its base commit, and refuses a deleted or renamed page whose old address
+  now 404s or a line removed from a ledger. `test:prerender` crawls the built sites after `build`.
+  The retirement procedure is in [`docs/AGENTS.md`](../docs/AGENTS.md#retire-rename-or-merge-a-page). An address that names nothing (a guess, a
+  retired `/de-CH/…` tree) is answered by the near-miss resolver (`@tale/ui/docs/near-miss`)
+  before the 404 page: a 359-of-932 loss of published URLs and agents guessing translated slugs
+  showed why (2026-09).
+- **A patched dependency stays pinned, proven and dated** — `patches/` holds the Bun
+  `patchedDependencies` patches (today postgres.js 3.4.7, #4041), and
+  [`patches/README.md`](../patches/README.md) says for each why it exists, which test proves it and
+  when to remove it. Every Dockerfile that installs from the root manifests copies `patches/`
+  (`bun install` fails without a listed patch), and bumping a patched package regenerates or
+  deletes its patch in the same change.
 
 ## A green check is not always a run
 
@@ -143,6 +173,34 @@ beside the task; `--force` re-runs it locally. A task whose result depends on an
 declared inputs — test file ordering, wall-clock, a shared browser page — is not safely
 cacheable, and the fix is the determinism, not the cache.
 
+The **Type check** job gives every `tsc` a 6 GiB Node heap (`NODE_OPTIONS`, #4005). The
+platform checks its frontend, backend and tests as one program, which outgrew V8's default of
+about 4 GiB on the hosted runner. The job logs the Node it resolves, the heap limit, each
+program's `--extendedDiagnostics` and the largest process's peak RSS. `NODE_OPTIONS` is not
+part of a task's hash, so a budget change alone replays cached verdicts; the pass-through
+`--extendedDiagnostics` is. A job that dies with `Ineffective mark-compacts near heap limit`
+(exit 137) and no TypeScript diagnostic has run out of budget. Measure before you read it as a
+type error or raise the budget.
+
+The **Backend integration** check is always a run: it calls `backend:integration` directly,
+never through turbo, with `ITEST_REQUIRE_ALL_LANES=1`, so a lane that cannot run fails instead of
+skipping. Its **Integration scope** job owes it to every push to `main`, merge group and release
+candidate, and to a pull request that touches the backend, its libraries, either database's
+migrations, the database image, the object-store pin, the dependencies or `checks.yml`; on other
+pull requests the check reads skipped, and when the scope job itself fails the check fails. The
+path list is held to every module the harness imports and every file it reads by
+`services/platform/tests/guards/integration-scope.guard.test.ts`: a new import from outside the
+list fails that guard until the list names it.
+
+A green **Playwright** job in `e2e.yml` can still hold a failure: CI retries a failed test twice
+(`@tale/e2e/config`), and a test that passes on a retry leaves its job green. Such a job carries
+a **Playwright diagnostics** notice and uploads the same report and test results a failed job
+does, as `playwright-report-<shard|service>-attempt-<n>` for 14 days (#4013). Open that artifact
+before you call a run clean; the platform shards and the static sites share the step, and
+`tools/cli/scripts/deployment-ci.test.ts` holds both to it. When the step cannot read
+`test-results/`, it fails the job with a **Playwright diagnostics** error instead of reading
+clean, and the upload runs as for any failure.
+
 Turbo's default source inputs cover a task's own workspace. A task that reads a file outside
 it lists the file in its workspace's `turbo.json` `inputs`; otherwise an edit to that file
 alone replays the cached verdict. Open the list with `$TURBO_EXTENDS$` (keeps the root task's
@@ -151,21 +209,26 @@ own files), then list the outside files as `$TURBO_ROOT$/<path>`:
 
 - [`services/platform/turbo.json`](../services/platform/turbo.json) gives `@tale/platform`'s
   tests the catalogs under `configs/platform/`, compose files, tale-db init scripts,
-  knowledge-db migrations, `packages/ui/src` (two suites read it as text) and other outside
-  files; its `test:ui` and `test:browser` list `packages/ui/src` as well, since their
-  component suites render it. Its guard is
+  knowledge-db migrations, `packages/ui/src` (two suites read it as text), `checks.yml` (the
+  integration scope guard) and other outside files; its `test:ui` and `test:browser` list `packages/ui/src` as well, since their
+  component suites render it, and all three list `@tale/ui`'s `package.json` and every file
+  it exports from outside `src/` (`tailwind-preset.ts`). Its guard is
   `services/platform/tests/guards/turbo-inputs.guard.test.ts`.
 - [`services/docs/turbo.json`](../services/docs/turbo.json) gives `@tale/docs` the root `docs/`
   tree (test, build), its JSON maps (typecheck, lint), and the root `README*.md` plus `@tale/ui`'s
   i18n catalogs and test framework (test). Its guard is `services/docs/tests/turbo-inputs.test.ts`.
 - [`tools/cli/turbo.json`](../tools/cli/turbo.json) gives `@tale/cli`'s tests the CLI install
-  pages; the three CI files `scripts/deployment-ci.test.ts` checks: the `build.yml` and
-  `cleanup-pr-images.yml` workflows and the `setup-cli` action; the files the compose parity
+  pages; the CI files `scripts/deployment-ci.test.ts` and the candidate graph suite
+  (`scripts/release-candidate-workflows.test.ts`) check: the `build.yml`, `checks.yml`,
+  `cleanup-pr-images.yml`, `commitlint.yml`, `e2e.yml`, `sast.yml`, `security.yml` and both
+  `release-candidate-*` workflows and the `setup-cli` action; the files the compose parity
   suite reads: `compose.yml`, the proxy's `Caddyfile` and entrypoint, the platform's
   `Dockerfile`, entrypoint and `env.sh`, the db and sandbox-egress `Dockerfile`s, and the
   `cli.yml` and `release.yml` workflows. The runtime suites prepare, read and apply the
   release's own `compose.yml` and proxy `Caddyfile` (`REPOSITORY_RUNTIME_SOURCE` in
-  `runtime-test-helper.ts`). Its guard is `tools/cli/src/lib/config/platform-docs.test.ts`.
+  `runtime-test-helper.ts`). The package publication suite also reads the publisher, root
+  `LICENSE`, both published packages’ manifests and READMEs, and `publish-packages.yml`.
+  Its guard is `tools/cli/src/lib/config/platform-docs.test.ts`.
 
 These guards ask `turbo --dry=json` whether the files are hashed. Each also reads its
 `turbo.json` to hold the two-entry prefix, since the dry run hashes the same files with or
@@ -176,11 +239,14 @@ Beyond such a declared file, an edit under `packages/` leaves every dependent wo
 `test`, `typecheck` and `lint` hash unchanged, because none of those tasks depends on `^…`: a
 package change is judged only by that package's own tasks until the consumer's own files
 change. The platform's `test`, `test:ui` and `test:browser` are the exception for `@tale/ui`:
-they hash `packages/ui/src` whole, so a design-system change re-runs them — the i18n suite, and
-every component suite that renders the package or imports its test helpers
-(`@tale/ui/testing/flow`). The i18n suites of `services/web`, `services/ui-docs`,
-`services/ai-gateway` and `packages/marketing-ui` are still in that gap: they run `@tale/ui`'s
-i18n test framework (the first two also read the package catalogs) unhashed.
+they hash `packages/ui/src` whole, the package's `package.json`, whose `exports` resolve every
+`@tale/ui/*` import, and every file an export names outside `src/` — today
+`tailwind-preset.ts` alone; the guard reads that list from the manifest. So a design-system
+change re-runs them — the i18n suite, and every component suite that renders the package or
+imports its test helpers (`@tale/ui/testing/flow`). The i18n suites of `services/web`,
+`services/ui-docs`, `services/ai-gateway` and `packages/marketing-ui` are still in that gap:
+they run `@tale/ui`'s i18n test framework (the first two also read the package catalogs)
+unhashed.
 
 ## Skills index
 
@@ -189,7 +255,7 @@ Repo-dev skills live in [`.agents/skills/`](skills/); run `bun run skills:sync` 
 | Skill                                                      | Read before…                                                                                     |
 | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
 | [`create-migration`](skills/create-migration/SKILL.md)     | adding/changing/testing a versioned data migration, or a red `backend:integration` / corpus gate |
-| [`write-docs`](skills/write-docs/SKILL.md)                 | writing/editing product or component guides — follow the affected content tree’s contract |
+| [`write-docs`](skills/write-docs/SKILL.md)                 | writing/editing product or component guides — follow the affected content tree’s contract        |
 | [`write-translations`](skills/write-translations/SKILL.md) | editing any non-English locale file or doc, or touching the glossary                             |
 
 The product skills are not repo-dev workflows: they live under
@@ -261,7 +327,7 @@ default means deleting the override and fixing what surfaces:
   `attachmentRefs`). A data URI pasted into `content` reaches the model as text and is answered as
   text, billed (2026-09, round f). The surface now says so. Paying it down means an `attachments`
   field on the REST send naming staged uploads the key holder minted — `POST
-  /api/v1/projects/{id}/uploads` for a project thread, plus an organization-level upload mint the
+/api/v1/projects/{id}/uploads` for a project thread, plus an organization-level upload mint the
   unfiled `/api/v1/threads` lane lacks today — handed to `runChatTurn` as the app's
   `{fileId: <s3Ref>, fileName, fileType, fileSize}`, with the spec's send body, the `Message`
   `attachment` part on the read side, the upload allowlist (`UNSUPPORTED_FILE_TYPE`) and a
@@ -273,6 +339,16 @@ default means deleting the override and fixing what surfaces:
   backfill was shipped (the `0093`/`0098` external-key precedent). Paying it down means a
   forward-only migration that canonicalises `app.folders.name` where no twin exists and detaches
   or renames the loser where one does, documented like `0098_external_keys_canonical_twins.sql`.
+- **A long OpenCode or Pi turn books only its later calls' tokens** — every drain window
+  re-parses the exec from the start of runnerd's replay buffer (`resumeSinceSeq: 0` in
+  `drainHarnessWindow`, `backend/core/chat/external_turn_shared.ts`), and the buffer keeps only
+  the last 256 KB of output (`RUNNERD_RING_BUFFER_BYTES`). A CLI that reports its own turn totals
+  (Claude Code, Codex, Gemini, Qwen Code, OpenClaw) books them whole, but the OpenCode and Pi
+  parsers sum the model calls they see, so a turn whose output outgrew the buffer books the
+  tokens of the calls still in it (2026-09). Cost is unaffected: it comes from the turn's gateway
+  key. Paying it down means counting each call's usage once by stream position across windows
+  (the drain passing line seqs, the op row keeping the last counted seq and the running totals),
+  or reading the turn's token counts from the gateway as its cost is read.
 - **No usage or cost on a run** — `GET …/runs/{runId}` carries no `usage` block: an `llm`
   node's spend is not metered at all (`backend/core/automations/llm_call.ts` → `model_call.ts`
   parses no usage and writes no ledger row), and an `agent` node's cents settle on
@@ -338,7 +414,7 @@ default means deleting the override and fixing what surfaces:
   `POST /api/v1/websites/{id}/search` is BM25 only (`paradedb.score`), and when the knowledge
   database lacks ParadeDB it falls back to an ILIKE match stamping `score: 0` on every hit with
   nothing on the wire saying so (2026-09, round g). Paying it down means `diagnostics: {leg:
-  'keyword' | 'substring'}` on the response, and a `websiteId` filter on
+'keyword' | 'substring'}` on the response, and a `websiteId` filter on
   `POST /api/v1/knowledge/search` (`corpus: "web"`) for a per-site cosine without a second
   search stack.
 - **No `Idempotency-Key` on the task start** — `POST …/tasks/{taskId}/start` runs behind a
@@ -359,7 +435,7 @@ default means deleting the override and fixing what surfaces:
 - **A corrupt Office document still fails as a raw parse error** — a PDF that does not parse
   now lands `unsupported` with `errorCode: malformed`, but `docx`/`pptx`/`xlsx`/`odt` parse
   failures ("Invalid or corrupt file" in `backend/core/lib/knowledge/extraction/{ooxml,pptx,
-  xlsx,odt}.ts`) still reach the catch-all as `failed` + `indexer_error` and are retried five
+xlsx,odt}.ts`) still reach the catch-all as `failed` + `indexer_error` and are retried five
   times (2026-09, round g). Paying it down means wrapping those throws in
   `ExtractionError('malformed')` the way `pdf.ts` does.
 - **No `/.well-known/security.txt`** — nothing serves RFC 9116's disclosure channel; the path
@@ -368,13 +444,6 @@ default means deleting the override and fixing what surfaces:
   fallback (`SECURITY_CONTACT` = `mailto:`/`https:`/`tel:`, optional `SECURITY_POLICY_URL`,
   `Expires` under a year, `Canonical`), its `.env.example` block and environment-reference row,
   a `server.test.ts` case each way, and the operator's decision on the contact.
-- **No changelog feed** — `tale.dev/changelog` prerenders a build-time snapshot and swaps in
-  `/api/releases` after hydration, so `curl` and LLM readers see the image's release; there is
-  no Atom/RSS render and a failing runtime refresh is only a `console.warn` (2026-09, round g).
-  Paying it down means `<link rel="alternate">` to `/api/releases` on the page plus an llms.txt
-  entry, `releasesFetchedAt`/`source` in the web health status reported through
-  `monitoring.capture` when the last good fetch is older than six hours, and optionally a
-  `/changelog.atom` render of the same list.
 - **No SDK, collection or per-code table** — `openapi.json` is the generator-ready contract
   and the error registry (`backend/rest/error-codes.ts`) publishes names only: no per-code
   description or status map exists, so a generated table would be a bare list (2026-09,
@@ -392,12 +461,17 @@ default means deleting the override and fixing what surfaces:
   through `/api/v1` (2026-09, round h; the reference says so). Paying it down means
   `GET /api/v1/skills/{slug}/versions` over the app's history rows, same shape as the knowledge
   entries' `…/{id}/versions`.
-- **The per-task circuit breaker is not built** — no counter pauses automation on a task after
-  N automated runs in an hour; the one-engine rule and cancel are the only stops, and the docs
-  now say so (2026-09, round h). Paying it down means a per-task window count on
-  `app.automation_runs` (org, task subject, `started_at_ms`) checked in the task-start probe
-  (`external-ref.ts`) answering 429 `TASK_AUTOMATION_PAUSED` until a human moves the status,
-  and the guardrails bullet restored.
+- **The per-task circuit breaker covers project agents only** — starts of a project agent by an
+  automation step or another agent stop after three per task in a rolling hour, their automatic
+  retries included except a single broker cooldown immediately after the same agent's HTTP 429
+  (`freeCooldownWaits`; consecutive cooldowns still count)
+  (`AUTOMATED_STARTS_PER_TASK_PER_HOUR`, `backend/domains/tasks/delegated-start.ts`, refused as
+  `paused` with an `agent_run.refused` timeline row, 2026-09-29), but nothing counts AUTOMATION
+  runs on a task: between two automations that keep mentioning each other the one-engine rule and
+  cancel are the only stops, and the docs say so (2026-09, round h). Paying it down means a
+  per-task window count on `app.automation_runs` (org, task subject, `started_at_ms`) checked in
+  the task-start probe (`external-ref.ts`) answering 429 `TASK_AUTOMATION_PAUSED` until a human
+  moves the status, and the guardrails bullet restored.
 - **Mirrored conversation messages have no read-back** — `GET /api/v1/conversations` lists the
   mirrors, but the messages a snapshot applied are readable only in the app; a mirror cannot
   verify what landed (2026-09, round h). Paying it down means
@@ -458,20 +532,26 @@ default means deleting the override and fixing what surfaces:
   and hand them to the same predicate), or at least reporting `truncated` when a cap stopped a
   pre-pass and the answer came back short of its limit, with a case in
   `search-chat.privacy.test.ts` where 50 unreadable body matches sit ahead of the member's own.
-- **The pinned model gateway does not notice a caller leaving** — Bifrost v1.6.11
-  (`services/sandbox-llm-gateway/Dockerfile`) keeps a whole (non-streamed) answer running at the
-  vendor after the caller hangs up, and drops the partial usage of a stream that ends early, so
-  the model endpoints for API keys (`services/platform/backend/domains/model_api/`) settle a
-  broken-off call late — after the gateway's request timeout — or at a local floor (the prompt
-  and the relayed output at the catalog price) instead of the vendor's own figure (2026-09).
-  Paying it down means moving to a Bifrost release that cancels the upstream call on a client
-  disconnect and books the partial usage of a cut stream (v2.2.0 or later), then dropping the
-  deferred settle and the floor in `metering.ts` for the gateway's figure.
-- **A turn's image spend sits beside its model allowance, not inside it** — `generate_image`
-  admits an image only when its estimate fits what the turn's allowance has left after the
-  model's live spend (`services/platform/backend/domains/sandbox/image-generation.ts`), but the
-  turn's gateway key keeps its full cap, so the model may still spend the whole allowance
-  afterwards: a turn's worst case is about two allowances, and budget caps still count both
-  (2026-09). Paying it down means lowering the key's budget by the booked image spend in the
-  settle (`core/node_only/sandbox/llm_gateway_admin.ts`), once it is verified that the pinned
-  Bifrost keeps `current_usage` across a budget update.
+- **The pinned model gateway books nothing for a call cut short** — Bifrost
+  (`services/sandbox-llm-gateway/Dockerfile`) cancels the vendor call when its caller hangs up,
+  whole answer or stream, but keeps none of the usage the call had reached unless the vendor
+  reported it before the cut (an Anthropic stream's input tokens; an OpenAI-wire stream reports
+  usage only in its closing frame). It also ends an OpenAI-wire stream on two keepalive comments
+  after the finish reason, so an upstream that sends them before its usage frame is booked at
+  nothing. So the model endpoints for API keys (`services/platform/backend/domains/model_api/`)
+  book an answer that ended early at a local floor (the prompt and the relayed output at the
+  catalog price) instead of the vendor's own figure, and a sandbox turn's call cut mid-answer
+  books only what the gateway kept (2026-09). Paying it down means a gateway release that keeps
+  the usage a cancelled call had reached, then booking the gateway's figure alone in
+  `metering.ts`.
+- **Gemini CLI never continues a conversation** — the pinned CLI's `--resume` replays every tool
+  result of the recorded session twice (its `toolCalls[].result` and the user record it also
+  writes for the same response — google-gemini/gemini-cli#29365, fix PRs open), so the first
+  request of a resumed conversation that ever ran a tool is refused by the model. The gemini
+  harness YAML declares `capabilities.resume: false`: every later kick of a task, every automatic
+  retry and every answered ask starts a fresh conversation over the preserved workspace with the
+  brief and the earlier rounds restated, where the other harnesses hand the exec the announced
+  handle (2026-10). The runtime now bakes root-owned system settings for Gemini 0.62.0;
+  the resume bug remains open. Paying it down means a sandbox-runtime pin that carries
+  the upstream fix, then flipping the flag and restoring the `resume` argv slot (the schema
+  holds the two coherent).

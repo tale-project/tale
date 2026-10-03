@@ -1,3 +1,4 @@
+import { slugRoute } from '@tale/ui/docs/redirects';
 import { absoluteSitePath } from '@tale/ui/seo/urls';
 
 import type { SupportedLocale } from '@/lib/i18n/locales';
@@ -23,13 +24,7 @@ function resolveSiteUrl(): string {
 
 const SITE_URL = resolveSiteUrl();
 
-/**
- * A slug's locale-less route: `foo/index` and `foo` serve the same URL, and
- * the root `index` is the empty route.
- */
-export function slugRoute(slug: string): string {
-  return slug === 'index' ? '' : slug.replace(/\/index$/, '');
-}
+export { slugRoute };
 
 /** Path on the docs host for a given (locale, slug). */
 export function docPath(locale: SupportedLocale, slug: string): string {

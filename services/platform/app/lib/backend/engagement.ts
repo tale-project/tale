@@ -206,6 +206,19 @@ export const engagementReadAdapters: Record<string, ReadAdapter> = {
         ),
     };
   },
+  'websites/queries:searchReadiness': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    if (orgId === undefined) return null;
+    return {
+      // Under the website entity: the embedding settings hint it org-wide
+      // when the model is saved or removed.
+      queryKey: backendKey(orgId, 'website', 'search-readiness'),
+      queryFn: () =>
+        backendFetch<{ ready: boolean }>('/websites/search-readiness', {
+          orgId,
+        }),
+    };
+  },
   'contacts/search:searchContacts': (args, ctx) => {
     const orgId = orgOf(args, ctx);
     if (orgId === undefined) return null;
@@ -645,6 +658,14 @@ export const engagementWriteAdapters: Record<string, WriteAdapter> = {
       ).then(() => null),
     invalidate: invalidateWebsites,
   },
+  'websites/actions:scanNow': {
+    run: (args, ctx) =>
+      backendFetch<{ ok: boolean; queued: boolean }>(
+        `/websites/${encodeURIComponent(stringArg(args, 'websiteId'))}/scan`,
+        { orgId: requireOrg(args, ctx), body: {} },
+      ).then((body) => ({ queued: body.queued })),
+    invalidate: invalidateWebsites,
+  },
   'websites/actions:syncStatuses': {
     run: (args, ctx) =>
       backendFetch<{ ok: boolean }>('/websites/sync-statuses', {
@@ -660,8 +681,14 @@ export const engagementWriteAdapters: Record<string, WriteAdapter> = {
       const websiteId = stringArg(args, 'websiteId');
       const offset = typeof args.offset === 'number' ? args.offset : 0;
       const limit = typeof args.limit === 'number' ? args.limit : 100;
+      // The state narrows the window to the failed or the skipped pages;
+      // without one the window is the whole inventory.
+      const state =
+        typeof args.state === 'string'
+          ? `&state=${encodeURIComponent(args.state)}`
+          : '';
       return backendFetch<unknown>(
-        `/websites/${encodeURIComponent(websiteId)}/pages?offset=${offset}&limit=${limit}`,
+        `/websites/${encodeURIComponent(websiteId)}/pages?offset=${offset}&limit=${limit}${state}`,
         { orgId: requireOrg(args, ctx) },
       );
     },

@@ -93,6 +93,30 @@ export function cachedAbility(
 }
 
 /**
+ * The caller's ability for a loader that must decide even on a cold deep
+ * link: the cached member context, else the read the dashboard route's
+ * loader already started (joined, not repeated). Null only when that read
+ * fails — the page's own gate still decides what renders.
+ */
+export async function loaderAbility(
+  context: RouterContext,
+  organizationId: string,
+): Promise<AppAbility | null> {
+  const cached = cachedAbility(context, organizationId);
+  if (cached !== null) return cached;
+  try {
+    return abilityOf(
+      await context.queryClient.ensureQueryData(
+        memberContextQuery(organizationId),
+      ),
+    );
+  } catch (error) {
+    console.warn('Failed to load member context for a loader', error);
+    return null;
+  }
+}
+
+/**
  * {@link ensureConvexQuery} for a read only an organization admin may make
  * (`read orgSettings`): when the cached member context already says the
  * caller cannot, the loader resolves at once and the page paints its

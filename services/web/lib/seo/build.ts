@@ -40,7 +40,8 @@ import {
   type LegalRoute,
 } from '../../scripts/legal-routes';
 import { localizedPath, SUPPORTED_LOCALES } from '../i18n/locales';
-import { MARKETING_ROUTES } from './marketing-routes';
+import { CHANGELOG_JSON_ROUTE } from '../releases/route';
+import { marketingRoutesForLocale } from './marketing-routes';
 
 /** URL-bearing marketing locales — must mirror scripts/prerender.ts. */
 const MARKETING_LOCALES = SUPPORTED_LOCALES;
@@ -56,16 +57,17 @@ function marketingAlternates(url: string): Record<string, string> {
 
 export const WEB_SITE_TITLE = 'Tale';
 export const WEB_SITE_DESCRIPTION =
-  'Tale — the orchestrator for AI agents, built for data-sensitive organisations. Self-hosted, on your own infrastructure.';
+  'Tale is the open-source workspace for teams and AI agents. Coordinate agents on project boards, assign tasks, and review the results together.';
 
 /**
  * Product facts for `llms.txt` (Pages section intro). Keep factual and
  * aligned with visible homepage / pricing / security copy — no ratings.
  */
 export const WEB_LLMS_PAGES_INTRO = [
-  'Tale is a self-hosted orchestrator for AI agents. Connect Claude Code, Codex, Hermes, OpenClaw, and in-product agents; pool org knowledge with citations; run automations with approvals; govern spend and audit every action.',
-  'Publisher: Ruler GmbH, Seestrasse 4, 3700 Spiez, Switzerland (VAT CHE-186.532.610). License: MIT (Community free to self-host). Enterprise: CHF 12 / EUR 14 per user/month (two months free on yearly billing). Certifications: ISO 27001, SOC 2 Type II.',
-  'Deploy on your infrastructure (Docker/Linux), including air-gapped environments. Documentation: https://tale.dev/docs/llms.txt — source: https://github.com/tale-project/tale',
+  'Tale is the open-source workspace for teams and AI agents. Coordinate people and agents on project boards: assign tasks, follow progress, and review the results together. Give agents project instructions, files, and tools; use automations for repeatable workflows with configured approvals. Project agents can use runtimes including Claude Code and Codex; supported capabilities vary by runtime.',
+  'Publisher: Ruler GmbH, Spiez, Switzerland. License: MIT. Community and Enterprise include the same product features; Enterprise adds professional operation and support. Current plans and terms: https://tale.dev/pricing.',
+  'Self-host with Docker on your infrastructure or use managed Cloud. Choose local or cloud model providers. Data flows depend on the providers, connectors, and external tools you configure.',
+  `Documentation: ${TALE_DOCS_LLMS_TXT} — source: ${TALE_GITHUB_URL}`,
 ].join('\n\n');
 
 export interface SsrRenderer {
@@ -95,12 +97,14 @@ export function buildWebSections(legal: LegalRoute[]): ArtifactSection[] {
     alternatesBySlug.set(slug, withXDefault(alts));
   }
 
-  const marketingRoutes: ArtifactRoute[] = MARKETING_ROUTES.map((r) => ({
-    url: r.url,
-    title: r.title,
-    description: r.description,
-    alternates: marketingAlternates(r.url),
-  }));
+  const marketingRoutes: ArtifactRoute[] = marketingRoutesForLocale('en').map(
+    (r) => ({
+      url: r.url,
+      title: r.title,
+      description: r.description,
+      alternates: marketingAlternates(r.path),
+    }),
+  );
 
   // The prerendered /de and /fr variants belong in the sitemap (each with
   // the same alternates cluster) while llms.txt stays an English index —
@@ -108,11 +112,11 @@ export function buildWebSections(legal: LegalRoute[]): ArtifactSection[] {
   const localizedMarketingRoutes: ArtifactRoute[] = MARKETING_LOCALES.filter(
     (locale) => locale !== 'en',
   ).flatMap((locale) =>
-    MARKETING_ROUTES.map((r) => ({
-      url: localizedPath(locale, r.url),
+    marketingRoutesForLocale(locale).map((r) => ({
+      url: r.url,
       title: r.title,
       description: r.description,
-      alternates: marketingAlternates(r.url),
+      alternates: marketingAlternates(r.path),
     })),
   );
 
@@ -157,15 +161,14 @@ export function buildWebSections(legal: LegalRoute[]): ArtifactSection[] {
   ];
 }
 
-/** Site-relative paths for every legal page — fed to `robots.disallow`. */
-export function legalDisallowPaths(legal: readonly LegalRoute[]): string[] {
-  return legal.map((route) => route.url);
-}
-
 export function webOptionalPages(): OptionalPage[] {
   return [
     { title: 'Documentation', url: TALE_DOCS_LLMS_TXT },
     { title: 'GitHub', url: TALE_GITHUB_URL },
+    {
+      title: 'Current releases (JSON; includes source and fetch time)',
+      url: `${TALE_SITE_URL}${CHANGELOG_JSON_ROUTE}`,
+    },
   ];
 }
 
@@ -179,9 +182,22 @@ export function webOptionalPages(): OptionalPage[] {
 export function makeWebLoadBody(
   ssr: SsrRenderer,
 ): (url: string) => Promise<string | null> {
+  // Artifact compilation requests bodies concurrently, but this site's SSR
+  // renderer owns one i18n instance. Keep locale changes and React rendering
+  // together; a rejected render must not poison the following request.
+  let renderQueue: Promise<void> = Promise.resolve();
   return async (url) => {
-    if (MARKETING_ROUTES.some((r) => r.url === url)) {
-      const { html } = await ssr.render(url);
+    if (
+      MARKETING_LOCALES.some((locale) =>
+        marketingRoutesForLocale(locale).some((route) => route.url === url),
+      )
+    ) {
+      const rendering = renderQueue.then(() => ssr.render(url));
+      renderQueue = rendering.then(
+        () => undefined,
+        () => undefined,
+      );
+      const { html } = await rendering;
       return htmlToMarkdown(html);
     }
     const legal = await enumerateLegalRoutes();

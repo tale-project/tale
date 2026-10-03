@@ -6,10 +6,11 @@
  * so its bytes stayed in the bucket forever while the mint path dropped the
  * expired ROW — the last trace of the blob. The sweep now reclaims the blob
  * of an intent that expired unconsumed — and only of one NOTHING vouched
- * for: the non-consuming ownership proof stamps the row, and a stamped or
- * file-backed ref keeps its blob. The live MinIO round-trip rides the
- * integration check; this double locks the statement shape and the per-row
- * outcomes.
+ * for: the non-consuming ownership proof stamps the row, and a stamped ref,
+ * or one a file row, a document or a task holds, keeps its blob. The
+ * client's own reclaim of a rejected upload claims its intent under the same
+ * rule (#4104). The live MinIO round-trips ride the integration check; this
+ * double locks the statement shape and the per-row outcomes.
  */
 
 import type { Sql } from 'postgres';
@@ -17,6 +18,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { deleteOrgObject } from '../../lib/object-store.ts';
 import {
+  claimRejectedUpload,
+  releaseReclaimedIntent,
   ownsUploadedBlob,
   recordUploadIntent,
   sweepUploadIntents,
@@ -54,6 +57,7 @@ function isFragment(value: unknown): value is Fragment {
  * way postgres.js does; answers per statement from the script. */
 function fakeLedger(script: {
   abandoned?: { id: string; s3Ref: string }[];
+  claimed?: { id: string }[];
   stamped?: { id: string }[];
   uploaderRow?: boolean;
   /** Fail the sweep's first statement (the consumed-row DELETE). */
@@ -87,6 +91,10 @@ function fakeLedger(script: {
     let rows: unknown[] = [];
     if (text.startsWith('SELECT i.id, i.s3_ref')) {
       rows = script.abandoned ?? [];
+    } else if (
+      text.startsWith('UPDATE app.upload_intents i SET expires_at_ms = 0')
+    ) {
+      rows = script.claimed ?? [];
     } else if (text.startsWith('UPDATE app.upload_intents SET bound_at_ms')) {
       rows = script.stamped ?? [];
     } else if (text.startsWith('SELECT EXISTS')) {
@@ -113,12 +121,34 @@ function sqlStatements(statements: Statement[]): Statement[] {
 
 const scope = { organizationId: 'org_1', userId: 'user_1' };
 
+/** `blobRefHeld` over the ledger row's ref, as the statements inline it. */
+const HELD_BY_A_ROW =
+  "(EXISTS ( SELECT 1 FROM app.file_metadata held_file WHERE held_file.org_id = ? AND held_file.storage_ref = i.s3_ref ) OR EXISTS ( SELECT 1 FROM app.documents held_doc WHERE held_doc.org_id = ? AND (held_doc.file_ref = i.s3_ref OR held_doc.history_files @> ARRAY[i.s3_ref::text]) ) OR (EXISTS ( SELECT 1 FROM app.tasks held WHERE held.org_id = ? AND (coalesce(held.attachments, '[]'::jsonb) || coalesce(held.outputs, '[]'::jsonb)) @> jsonb_build_array(jsonb_build_object('fileId', i.s3_ref::text)) ) OR EXISTS ( SELECT 1 FROM app.conversation_messages held_mail WHERE held_mail.org_id = ? AND held_mail.direction = 'outbound' AND held_mail.delivery_state IN ('queued', 'failed') AND held_mail.metadata->'attachments' @> jsonb_build_array(jsonb_build_object('storageId', i.s3_ref::text)) ) OR EXISTS ( SELECT 1 FROM app.messages held_chat WHERE held_chat.org_id = ? AND held_chat.role = 'user' AND held_chat.parts @> jsonb_build_array(jsonb_build_object( 'type', 'attachment', 'fileId', i.s3_ref::text )) )))";
+
 afterEach(() => {
   vi.clearAllMocks();
   vi.restoreAllMocks();
 });
 
 describe('ownsUploadedBlob', () => {
+  it('asks without writing when told not to stamp (#4111)', async () => {
+    const fake = fakeLedger({ stamped: [{ id: 'i-1' }] });
+
+    const owned = await ownsUploadedBlob(
+      fake.sql,
+      { ...scope, storageRef: 's3:blobs/acme/aaa' },
+      { stamp: false },
+    );
+
+    const issued = sqlStatements(fake.statements);
+    expect(issued.some((s) => s.text.startsWith('UPDATE'))).toBe(false);
+    expect(issued[0]?.text).toBe(
+      "SELECT id FROM app.upload_intents WHERE s3_ref = ? AND org_id = ? AND user_id = ? AND purpose = 'file' AND expires_at_ms > ?",
+    );
+    // The fake answers the read with no row, so the uploader arm decides.
+    expect(owned).toBe(false);
+  });
+
   it('stamps the intent it proves ownership through', async () => {
     const fake = fakeLedger({ stamped: [{ id: 'i-1' }] });
 
@@ -156,6 +186,20 @@ describe('ownsUploadedBlob', () => {
     expect(proof?.text).toContain('uploaded_by = ?');
   });
 
+  it('proves nothing through a staged bundle’s intent, which its own lane consumes and deletes (#4110)', async () => {
+    const fake = fakeLedger({ stamped: [{ id: 'i-1' }] });
+
+    await ownsUploadedBlob(fake.sql, {
+      ...scope,
+      storageRef: 's3:blobs/acme/aaa',
+    });
+
+    const stamp = fake.statements.find((s) =>
+      s.text.startsWith('UPDATE app.upload_intents'),
+    );
+    expect(stamp?.text).toContain("AND purpose = 'file'");
+  });
+
   it('refuses a ref that is neither minted for the caller nor theirs by row', async () => {
     const fake = fakeLedger({ stamped: [], uploaderRow: false });
 
@@ -189,12 +233,13 @@ describe('sweepUploadIntents', () => {
     expect(issued[0]?.text).toBe(
       'DELETE FROM app.upload_intents WHERE org_id = ? AND consumed_at_ms IS NOT NULL',
     );
-    // Vouched-for or file-backed rows drop WITHOUT touching their blob.
+    // Vouched-for rows, and rows whose ref a file row, a document or a task
+    // holds (files/blob-holders.ts), drop WITHOUT touching their blob.
     const heldDrop = issued[1];
     expect(heldDrop?.text).toContain('DELETE FROM app.upload_intents i');
     expect(heldDrop?.text).toContain('i.expires_at_ms < ?');
     expect(heldDrop?.text).toContain(
-      '(i.bound_at_ms IS NOT NULL OR EXISTS ( SELECT 1 FROM app.file_metadata m',
+      `AND (i.bound_at_ms IS NOT NULL OR ${HELD_BY_A_ROW})`,
     );
     // Only a ref nobody holds is a reclaim candidate.
     const candidates = issued[2];
@@ -202,9 +247,8 @@ describe('sweepUploadIntents', () => {
       'SELECT i.id, i.s3_ref AS "s3Ref" FROM app.upload_intents i',
     );
     expect(candidates?.text).toContain('i.consumed_at_ms IS NULL');
-    expect(candidates?.text).toContain('NOT (i.bound_at_ms IS NOT NULL)');
     expect(candidates?.text).toContain(
-      'NOT EXISTS ( SELECT 1 FROM app.file_metadata m',
+      `AND NOT (i.bound_at_ms IS NOT NULL OR ${HELD_BY_A_ROW}) ORDER BY`,
     );
     expect(candidates?.text).toContain('ORDER BY i.expires_at_ms LIMIT ?');
     // The row goes only after its bytes did.
@@ -274,7 +318,69 @@ describe('sweepUploadIntents', () => {
       expect(statement.text).not.toContain('app.upload_intents');
       expect(statement.text).not.toContain('bound_at_ms');
     }
-    expect(issued[2]?.text).toContain('NOT (FALSE)');
+    expect(issued[2]?.text).toContain(`NOT (FALSE OR ${HELD_BY_A_ROW})`);
+  });
+});
+
+describe('claimRejectedUpload', () => {
+  it('closes the caller’s own intent only while nothing holds its blob', async () => {
+    const fake = fakeLedger({ claimed: [{ id: 'i-1' }] });
+
+    const claimed = await claimRejectedUpload(fake.sql, {
+      ...scope,
+      storageRef: 's3:blobs/acme/aaa',
+    });
+
+    expect(claimed).toBe(true);
+    const issued = sqlStatements(fake.statements);
+    expect(issued).toHaveLength(1);
+    // One statement on the intent row (#4104). What serializes it against a
+    // bind is the row itself: every bind stamps or consumes it in the
+    // transaction that writes its holder, so the claim waits on that lock
+    // and re-reads `bound_at_ms` and `consumed_at_ms` on the committed row.
+    // The holder subqueries get no such re-read — under READ COMMITTED they
+    // keep the statement's snapshot — so they are the belt, not the race
+    // guard; `tests/guards/binding-doors.guard.test.ts` holds every door to
+    // the row (#4111).
+    expect(issued[0]?.text).toBe(
+      `UPDATE app.upload_intents i SET expires_at_ms = 0 WHERE i.s3_ref = ? AND i.org_id = ? AND i.user_id = ? AND i.consumed_at_ms IS NULL AND i.expires_at_ms > ? AND NOT (i.bound_at_ms IS NOT NULL OR ${HELD_BY_A_ROW}) RETURNING i.id`,
+    );
+    expect(issued[0]?.values.slice(0, 3)).toEqual([
+      's3:blobs/acme/aaa',
+      'org_1',
+      'user_1',
+    ]);
+    // Any purpose: the reclaim only has to prove the upload was the caller's.
+    expect(issued[0]?.text).not.toContain('purpose');
+  });
+
+  it('refuses a bound, held, foreign or missing intent alike', async () => {
+    const fake = fakeLedger({ claimed: [] });
+
+    expect(
+      await claimRejectedUpload(fake.sql, {
+        ...scope,
+        storageRef: 's3:blobs/acme/held',
+      }),
+    ).toBe(false);
+  });
+});
+
+describe('releaseReclaimedIntent', () => {
+  it('drops only the tombstone a claim left, once the bytes are gone (#4111)', async () => {
+    const fake = fakeLedger({});
+
+    await releaseReclaimedIntent(fake.sql, {
+      organizationId: 'org_1',
+      storageRef: 's3:blobs/acme/aaa',
+    });
+
+    const issued = sqlStatements(fake.statements);
+    expect(issued).toHaveLength(1);
+    expect(issued[0]?.text).toBe(
+      'DELETE FROM app.upload_intents WHERE s3_ref = ? AND org_id = ? AND consumed_at_ms IS NULL AND expires_at_ms = 0',
+    );
+    expect(issued[0]?.values).toEqual(['s3:blobs/acme/aaa', 'org_1']);
   });
 });
 

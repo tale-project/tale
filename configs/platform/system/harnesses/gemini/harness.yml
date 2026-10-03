@@ -5,10 +5,12 @@
 #
 # Prompt + instructions + settings travel as ONE JSON object on stdin, never
 # argv: process lists leak argv, and a prompt starting with '-' would parse
-# as a flag. The wrapper reads to EOF, stages the settings as a per-exec
-# SYSTEM settings file (GEMINI_CLI_SYSTEM_SETTINGS_PATH — system scope wins
+# as a flag. The wrapper reads to EOF, selects immutable image settings
+# derived from this harness and the existing interpreter at image build
+# (GEMINI_CLI_SYSTEM_SETTINGS_PATH — system scope wins
 # over any repo .gemini/settings.json, so a run is reproducible regardless
-# of repo contents), stages the instructions as a per-exec context file
+# of repo contents, with the root ownership Gemini 0.60+ requires), refuses
+# an image/settings mismatch, stages the instructions as a per-exec context file
 # under ~/.gemini/ added to `context.fileName` alongside GEMINI.md (appended
 # to the model context every turn WITHOUT replacing the CLI's core system
 # prompt — GEMINI_SYSTEM_MD would replace it and drop the defaults), then
@@ -34,12 +36,24 @@ capabilities:
   planMode: false
   steering: false
   mcp: true
+  # No conversation continuity: the pinned CLI's `--resume` replays every
+  # tool result of the recorded session twice (its `toolCalls[].result`
+  # AND the user record it also writes for the same response —
+  # google-gemini/gemini-cli#29365, open), so the first request of a
+  # resumed conversation that ever ran a tool is refused by the model
+  # (Google: "number of function response parts…"; an OpenAI-wire upstream:
+  # "role 'tool' must be a response to a preceding message with
+  # 'tool_calls'"). Every later kick of a task or node therefore starts a
+  # FRESH conversation over the preserved workspace (the planners read this
+  # flag; the exec builder refuses a handle). Flip to true and restore the
+  # `resume: { flag: '--resume' }` argv slot once the pin carries the
+  # upstream fix (still open on the pinned 0.62.0).
+  resume: false
 parser: gemini-stream
 exec:
   bin: tale-gemini-run
   argv:
     - args: ['--workdir', '${workdir}']
-    - resume: { flag: '--resume' }
     # Managed: the gateway model id (the /genai route's {model:*} matcher
     # takes slashed ids). byo: the caller-resolved vendor-native id.
     - model: { flag: '--model' }
@@ -67,6 +81,28 @@ exec:
             - set:
                 privacy:
                   usageStatisticsEnabled: false
+            # The CLI must request the model id it was given. Every CLI
+            # release before 0.61.0 rewrites ANY --model ending in "flash" to its own
+            # gemini-3.5-flash on API-key auth (config/models.ts resolveModel:
+            # isFlashModel = endsWith('flash'), gated by
+            # hasGemini35FlashGAAccess(), which is unconditionally true for
+            # gemini-api-key) — a managed `…/deepseek-flash` reached the
+            # gateway as a bare gemini-3.5-flash and every run died with
+            # 400 "could not auto resolve a provider" (2026-09-30). Dynamic
+            # model configuration routes resolveModel through
+            # modelConfigService.resolveModelId, which returns an id it has
+            # no rule for unchanged — on both lanes, so a byo Google
+            # `gemini-3-flash` is not silently promoted either. Upstream
+            # narrowed the rewrite to its own aliases in 0.61.0
+            # (isPromotableFlashModel). Keep the supported setting during
+            # rolling upgrades: older platform images still send it, and
+            # the runtime verifies the complete policy before launching.
+            # The runtime image test drives the
+            # pinned CLI through the wrapper with these settings and
+            # asserts the request path keeps a flash-suffixed id.
+            - set:
+                experimental:
+                  dynamicModelConfiguration: true
             # The only real turn cap among the wrapper-driven harnesses:
             # FatalTurnLimitedError (exit 53) past this; the parser maps its
             # message to the 'max-turns' status.

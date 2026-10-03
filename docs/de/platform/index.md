@@ -8,7 +8,7 @@ Diese Anleitungen helfen dir bei der Arbeit in Tale, in der Cloud und im eigenen
 
 ## Zwischen Bereichen wechseln {#navigation}
 
-Am Computer zeigt die Navigationsleiste am linken Rand die Bereiche als Symbole: **Start**, **Wissen** und **Automatisierungen**. Am unteren Ende der Leiste liegen **Einstellungen**, deine Benachrichtigungen und dein Profilmenü. Zeigst du auf ein Symbol, erscheint sein Name. Auf dem Smartphone findest du **Start**, **Wissen**, **Automatisierungen** und **Einstellungen** in der Tab-Leiste am unteren Bildschirmrand. **Automatisierungen** sehen Inhaber, Admins und Entwickler immer, weil sie Automatisierungen bauen; alle anderen sehen den Bereich, sobald die Organisation eine organisationsweite Automatisierung live betreibt. Automatisierungen eines Projekts erscheinen im eigenen Tab dieses Projekts.
+Am Computer zeigt die Navigationsleiste am linken Rand die Bereiche als Symbole: **Start**, **Wissen** und **Automatisierungen**. Am unteren Ende der Leiste liegen **Einstellungen**, deine Benachrichtigungen und dein Profilmenü. Zeigst du auf ein Symbol, erscheint sein Name. Auf dem Smartphone findest du **Start**, **Wissen**, **Automatisierungen** und **Einstellungen** in der Tab-Leiste am unteren Bildschirmrand. **Automatisierungen** sehen nur Inhaber, Admins und Entwickler, weil sie Automatisierungen bauen; Mitglieder und Redakteure sehen den Bereich nicht.
 
 Auf dem Smartphone schwebt die Navigation als abgerundete Leiste über der Seite. Inhalte scrollen dahinter weiter; Nachrichtenfelder und Seitenaktionen bleiben darüber erreichbar. Sobald sich die Bildschirmtastatur öffnet, wird die Leiste ausgeblendet. Schließt du die Tastatur, erscheint sie wieder.
 
@@ -21,8 +21,8 @@ Die **Einstellungen** führen ihre Seiten in einer Seitenleiste neben der Seite 
 | Du möchtest … | So gehst du vor |
 | --- | --- |
 | Einen anderen Bereich öffnen | Wähle den Bereich in der Navigationsleiste oder auf dem Smartphone in der Tab-Leiste. |
-| Einen neuen Chat beginnen | Wähle **Neuer Chat** im Bereich **Start** oder wähle **Start** erneut, während du bereits dort bist. |
-| Ein Projekt öffnen | Wähle das Projekt im Bereich **Start** unter **Projekte**. |
+| Einen neuen Chat beginnen | Am Computer wählst du **Neuer Chat** im Bereich **Start** oder wählst **Start** erneut, während du bereits dort bist. Auf dem Smartphone öffnest du **Start**, wählst **Chats** und dann **Neuer Chat**. |
+| Ein Projekt öffnen | Am Computer wählst du das Projekt im Bereich **Start** unter **Projekte**. Auf dem Smartphone wählst du das Projekt und dann **Projekt öffnen**. |
 | Zur Projektliste zurückkehren | Wähle **Alle Projekte** im Bereich **Start** oder klicke oben im Projekt auf den Navigationspfad **Projekte**. |
 | Zur Dokumentenliste zurückkehren | Wähle **Wissen**. |
 
@@ -44,15 +44,29 @@ Unter den Projekten ordnet eine einzige Liste deine Arbeit nach **Angeheftet**, 
 - Die offenen Aufgaben, die dir zugewiesen sind oder auf dein Review warten, aus allen Projekten, die du lesen darfst.
 - In **Alle** außerdem die offenen Inbox-Konversationen, die du sehen darfst.
 
-Ist die Ansicht **Alle** oder **Chats** leer, bietet sie **Neuer Chat** an. Eine leere Ansicht **Aufgaben** bietet **Alle Projekte**, das die Projektliste öffnet.
+Eine leere Ansicht **Aufgaben** bietet **Alle Projekte**, das die Projektliste öffnet. Am Computer bietet auch eine leere Ansicht **Alle** oder **Chats** **Neuer Chat** an. Lassen sich deine Chats, Aufgaben oder Konversationen nicht laden, behält die Liste, was geladen wurde, und sagt, was fehlt, statt eine leere Ansicht zu zeigen. **Erneut versuchen** lädt es noch einmal.
+
+Auf dem Smartphone unterscheidet sich die Liste in drei Punkten:
+
+- **Neuer Chat** steht oben in der Ansicht **Chats**, nicht in der Kopfzeile. **Neues Projekt** gibt es dort nicht, und das Menü eines Projekts bietet nur **Projekt anheften**.
+- Wählst du unter **Projekte** ein Projekt, zeigen **Alle**, **Chats** und **Aufgaben** nur die Chats dieses Projekts und deine offenen Aufgaben darin. Eine Leiste über der Liste nennt das Projekt. **Projekt öffnen** führt zu seiner Seite, **Alle anzeigen** hebt die Einschränkung auf. **Inbox** wird nie eingeschränkt, weil eine Konversation zu keinem Projekt gehört.
+- **Alle Projekte** ist ein beschrifteter Link neben der Überschrift **Projekte**, kein Symbol.
 
 Jede Zeile beginnt mit einer Sprechblase, einem farbigen Kreis für den Status der Aufgabe oder den Initialen des Kontakts. Es folgen der Titel mit der Zeit seit der letzten Änderung und darunter eine Zeile Kontext: bei einem Chat sein Projekt, bei einer Aufgabe Kennung und Status wie `WEB-2` **In Prüfung** oder **Wartet auf dein Review**, bei einer Konversation der Kontakt mit seiner letzten Nachricht. Ein Punkt in der Akzentfarbe markiert ungelesene Chats und Konversationen sowie Aufgaben, die auf dein Review warten. Ein Stift mit **Entwurf** am Anfang der Kontextzeile zeigt dir, wo du Text geschrieben, aber noch nicht gesendet hast – bei einem Chat, einer Aufgabe oder einer Konversation, nur nicht beim gerade geöffneten Eintrag. Entwürfe bleiben in dem Browser, in dem du sie geschrieben hast. Das Menü eines Chats bietet **Chat anheften**, **Als gelesen markieren** oder **Als ungelesen markieren**, **Umbenennen**, **In Projekt verschieben…**, **Teilen**, bei einem geteilten Chat **Teilen beenden**, **Archivieren** und **Löschen**. Archivierte Chats wandern unter **Archiviert** ans Ende der Liste.
 
 Die Ansicht **Inbox** zeigt die Konversationen eines Status. Im Statusmenü wählst du **Offen**, **Geschlossen**, **Spam** oder **Archiviert**. Dazu kommen **Neue E-Mail**, ein Suchfeld und die Schaltfläche **Filter** für **Zuständig**, **Lesestatus** und **Kanal**. Willst du mehrere Konversationen auf einmal bearbeiten, zeige auf die Initialen einer Konversation und setze das Häkchen, das dort erscheint. Die Leiste über der Liste bietet dann für offene Konversationen **Nachrichten senden**, **Schließen** und **Als Spam markieren**, für geschlossene und Spam-Konversationen **Erneut öffnen**, außerdem **Archivieren** oder **Dearchivieren** und **Auswahl aufheben**.
 
-Das Kästchen am Anfang der Leiste wählt die ganze Liste aus. Solange nur einige Konversationen ein Häkchen haben, zeigt es einen Strich. Setzt du dann das Häkchen, sind alle Konversationen ausgewählt, die die Liste zeigt; was eine Suche oder ein Filter ausblendet, bleibt außen vor. Bei mehr als 200 ausgewählten Konversationen läuft die Aktion in mehreren Schritten, die die Inbox mitzählt. Die anschließende Meldung nennt, wie viele Konversationen geändert wurden und bei wie vielen es nicht geklappt hat. Diese bleiben ausgewählt, sodass du es erneut versuchen kannst. Lässt sich die Liste nicht laden, erscheint statt einer leeren Liste **Konversationen konnten nicht geladen werden** mit **Erneut versuchen**.
+Das Kästchen am Anfang der Leiste wählt die ganze Liste aus. Solange nur einige Konversationen ein Häkchen haben, zeigt es einen Strich. Setzt du dann das Häkchen, sind alle Konversationen ausgewählt, die die Liste zeigt; was eine Suche oder ein Filter ausblendet, bleibt außen vor. Bei mehr als 200 ausgewählten Konversationen läuft die Aktion in mehreren Schritten, die die Inbox mitzählt. Die anschließende Meldung nennt, wie viele Konversationen geändert wurden und bei wie vielen es nicht geklappt hat, und gibt den Grund für den ersten Fehlschlag an, wenn einer bekannt ist. Diese bleiben ausgewählt, sodass du es erneut versuchen kannst. Lässt sich die Liste nicht laden, erscheint statt einer leeren Liste **Konversationen konnten nicht geladen werden** mit **Erneut versuchen**.
 
-Ein Chat, eine Aufgabe oder eine Konversation öffnet sich unter einer Kopfzeile mit Symbol, Titel, einer Zeile Kontext und den passenden Aktionen. **Seitenleiste ausblenden** am Anfang dieser Kopfzeile blendet die Seitenleiste von **Start** aus und schafft Platz; **Seitenleiste einblenden** holt sie zurück. Der Tooltip der Schaltfläche zeigt das Tastenkürzel. Bei einer Konversation steht **Link kopieren** an erster Stelle der Aktionen und kopiert einen Link, über den deine Kollegen dieselbe Konversation öffnen. Inhaber und Admins weisen die Konversation in der Kopfzeile einer Person, einem Team oder beiden zu. Wählst du die zugewiesene Person oder das Team erneut, wird diese Zuweisung aufgehoben, ebenso mit **Zuweisung aufheben** und **Team entfernen** am Ende der Liste; die andere Zuweisung bleibt bestehen.
+<Frame caption="Die Ansicht Inbox neben einer geöffneten Konversation: Statusmenü, Neue E-Mail, Suche und Filter über den Konversationen, jede mit Initialen und letzter Nachricht.">
+
+![Start in der Ansicht Inbox mit drei offenen Konversationen — Copy of the August invoice von Léa Martin, Annual discount on the team plan von Hannah Weber und Seat pricing for read-only members von Daniel Okafor — neben der geöffneten Konversation mit Hannah Weber, die ihre zwei Nachrichten, die Antwort des Teams dazwischen und das Nachrichtenfeld zeigt.](/images/platform/home-inbox.webp)
+
+</Frame>
+
+Ein Chat, eine Aufgabe oder eine Konversation öffnet sich unter einer Kopfzeile mit Symbol, Titel, einer Zeile Kontext und den passenden Aktionen. **Seitenleiste ausblenden** am Anfang dieser Kopfzeile blendet die Seitenleiste von **Start** aus und schafft Platz; **Seitenleiste einblenden** holt sie zurück. Der Tooltip der Schaltfläche zeigt das Tastenkürzel. Auch die Seite eines Projekts bietet diese Schaltfläche am Anfang ihrer Kopfzeile. Bei einer Konversation steht **Link kopieren** an erster Stelle der Aktionen und kopiert einen Link, über den deine Kollegen dieselbe Konversation öffnen. Inhaber und Admins weisen die Konversation in der Kopfzeile einer Person, einem Team oder beiden zu. Wählst du die zugewiesene Person oder das Team erneut, wird diese Zuweisung aufgehoben, ebenso mit **Zuweisung aufheben** und **Team entfernen** am Ende der Liste; die andere Zuweisung bleibt bestehen.
+
+Bilder erscheinen direkt in der E-Mail. Bilder, die auf den Servern des Absenders liegen, lädt Tale für dich, sodass der Absender weder deine IP-Adresse sieht noch erfährt, wann du die Nachricht liest. Ein Bild über 10 MB oder im SVG-Format erscheint nicht.
 
 ### Tastenkürzel {#shortcuts}
 

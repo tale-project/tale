@@ -18,7 +18,8 @@ import {
   type AgentRunRow,
   failAgentRun,
   listOverdueAgentRuns,
-  listParkedAgentRuns,
+  listParkedAgentRunOrganizations,
+  wakeOrganizationParkedAgentRun,
 } from './agent-runs.ts';
 import { runTaskAgentWatchdog } from './watchdogs.ts';
 
@@ -31,8 +32,8 @@ vi.mock('../sandbox/sessions.ts', () => ({
 vi.mock('./agent-runs.ts', () => ({
   failAgentRun: vi.fn(),
   listOverdueAgentRuns: vi.fn(),
-  listParkedAgentRuns: vi.fn(() => Promise.resolve([])),
-  wakeParkedAgentRuns: vi.fn(() => Promise.resolve(0)),
+  listParkedAgentRunOrganizations: vi.fn(() => Promise.resolve([])),
+  wakeOrganizationParkedAgentRun: vi.fn(() => Promise.resolve(0)),
 }));
 
 const overdueRun = {
@@ -61,13 +62,41 @@ function fakeSql(
 
 beforeEach(() => {
   vi.mocked(listOverdueAgentRuns).mockResolvedValue([overdueRun]);
-  vi.mocked(listParkedAgentRuns).mockResolvedValue([]);
+  vi.mocked(listParkedAgentRunOrganizations).mockResolvedValue([]);
   vi.mocked(failAgentRun).mockResolvedValue(true);
 });
 
 afterEach(() => {
   vi.clearAllMocks();
   vi.restoreAllMocks();
+});
+
+describe('runTaskAgentWatchdog (parked runs)', () => {
+  it('wakes up to four parked runs per organization a tick, stopping when none is left', async () => {
+    vi.mocked(listOverdueAgentRuns).mockResolvedValue([]);
+    vi.mocked(listParkedAgentRunOrganizations).mockResolvedValue([
+      { organizationId: 'org-busy' },
+      { organizationId: 'org-quiet' },
+    ]);
+    const remaining = new Map([
+      ['org-busy', 6],
+      ['org-quiet', 1],
+    ]);
+    vi.mocked(wakeOrganizationParkedAgentRun).mockImplementation(
+      async (_sql, org) => {
+        const left = remaining.get(org) ?? 0;
+        if (left === 0) return 0;
+        remaining.set(org, left - 1);
+        return 1;
+      },
+    );
+
+    const result = await runTaskAgentWatchdog(fakeSql([]));
+
+    expect(result.woken).toBe(5);
+    expect(remaining.get('org-busy')).toBe(2);
+    expect(remaining.get('org-quiet')).toBe(0);
+  });
 });
 
 describe('runTaskAgentWatchdog (deadline lane)', () => {
@@ -81,6 +110,11 @@ describe('runTaskAgentWatchdog (deadline lane)', () => {
     const result = await runTaskAgentWatchdog(fakeSql(events));
 
     expect(result.failed).toBe(1);
+    // Failed as what it is, so the task says "time limit", not "failed".
+    expect(failAgentRun).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ runId: 'run-1', failureCode: 'deadline' }),
+    );
     expect(sessionCancelExec).toHaveBeenCalledTimes(1);
     expect(sessionCancelExec).toHaveBeenCalledWith('pa-agent-1', 'exec-1');
     const cancelAt = events.indexOf('cancel:pa-agent-1/exec-1');
@@ -126,6 +160,31 @@ describe('runTaskAgentWatchdog (deadline lane)', () => {
 
     expect(result.failed).toBe(0);
     expect(sessionCancelExec).not.toHaveBeenCalled();
+  });
+});
+
+describe('runTaskAgentWatchdog (parked lane)', () => {
+  it('fails a run that waited for capacity past its deadline as a capacity failure', async () => {
+    vi.mocked(listOverdueAgentRuns).mockResolvedValue([]);
+    const parked = { id: 'run-parked', organizationId: 'org-1', execId: 'e-2' };
+    const sql = ((strings: TemplateStringsArray) => {
+      const text = strings.join('?').replace(/\s+/g, ' ').trim();
+      return Promise.resolve(
+        text.includes('waiting_for_capacity_at_ms IS NOT NULL') ? [parked] : [],
+      );
+    }) as unknown as Sql;
+
+    const result = await runTaskAgentWatchdog(sql);
+
+    expect(result.failed).toBe(1);
+    expect(failAgentRun).toHaveBeenCalledWith(sql, {
+      organizationId: 'org-1',
+      runId: 'run-parked',
+      execId: 'e-2',
+      error:
+        'the agent run waited for sandbox capacity past its time limit and was stopped',
+      failureCode: 'park_deadline',
+    });
   });
 });
 

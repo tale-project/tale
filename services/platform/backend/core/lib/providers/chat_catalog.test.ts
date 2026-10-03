@@ -53,6 +53,39 @@ beforeEach(() => {
 });
 
 describe('walkChatCatalog — model allowlist', () => {
+  it('offers Responses-only tools through the subscription without enabling native chat or Auto', async () => {
+    resolveProvidersMock.mockResolvedValue([
+      providerDefinitionSchema.parse({
+        ...OPENAI,
+        auth: [
+          { method: 'api-key' },
+          { method: 'env' },
+          {
+            method: 'subscription-broker',
+            constraints: { execution: 'sandbox', harness: 'codex' },
+          },
+        ],
+      }),
+    ]);
+    catalogMock.mockResolvedValue([
+      { ...entry('gpt-6.1-sol'), toolCallingApi: 'responses' },
+      entry('gpt-5.6-sol'),
+    ]);
+    const hits = await walkChatCatalog(ctx, ORG, [
+      credential(),
+      { providerSlug: 'openai', authMethod: 'env' },
+      { providerSlug: 'openai', authMethod: 'subscription-broker' },
+    ]);
+    expect(
+      hits.map((hit) => [hit.credential.authMethod, hit.entry.id]),
+    ).toEqual([
+      ['api-key', 'gpt-5.6-sol'],
+      ['env', 'gpt-5.6-sol'],
+      ['subscription-broker', 'gpt-6.1-sol'],
+      ['subscription-broker', 'gpt-5.6-sol'],
+    ]);
+  });
+
   it('offers every catalog entry when the credential has no allowlist', async () => {
     catalogMock.mockResolvedValue([entry('gpt-5'), entry('gpt-4o-mini')]);
 

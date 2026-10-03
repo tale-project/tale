@@ -130,3 +130,74 @@ describe('the steer text — a comment or a description edit', () => {
     ).toContain('Task comment from Olive:');
   });
 });
+
+/**
+ * A run an automation step or another agent started (`delegated-start.ts`):
+ * the prompt names who put the agent to work, and a message it passed reads
+ * as that automation's or agent's — never as a person's review, which
+ * outranks it.
+ */
+describe('buildKickPrompts — a run no person started', () => {
+  const answer = 'Answer: keep the retry budget in task_auto_retry.ts.';
+
+  it.each([
+    [
+      { kind: 'automation' as const, name: 'autonomous-cycle/fleet-manager' },
+      'the automation "autonomous-cycle/fleet-manager"',
+      'an automation',
+    ],
+    [
+      { kind: 'agent' as const, name: 'Fleet manager' },
+      'Fleet manager, another agent of this project,',
+      'an agent',
+    ],
+  ])(
+    'names %o and phrases its message as theirs, in both prompts',
+    (requester, phrase, source) => {
+      const { fresh, resume } = buildKickPrompts({
+        brief: brief('Fix the retry budget'),
+        feedback: answer,
+        requester,
+        outputDir: '/agent/output/task-1',
+        inputs,
+      });
+      for (const prompt of [fresh, resume]) {
+        expect(prompt).toContain(
+          `This run was started by ${phrase} with this message — address it before anything else:\n${answer}`,
+        );
+        expect(prompt).toContain(
+          `It comes from ${source}, not from a person: where it contradicts the task description or a person's comment, those win.`,
+        );
+        expect(prompt).not.toContain(FEEDBACK_HEAD);
+        expect(prompt).not.toContain('This feedback is authoritative');
+        expect(prompt.split(answer)).toHaveLength(2);
+      }
+    },
+  );
+
+  it('still says who started a run that carried no message', () => {
+    const { fresh, resume } = buildKickPrompts({
+      brief: brief('Run the fleet manager occurrence'),
+      requester: { kind: 'automation', name: 'autonomous-cycle/local-qa' },
+      outputDir: '/agent/output/task-1',
+      inputs,
+    });
+    for (const prompt of [fresh, resume]) {
+      expect(prompt).toContain(
+        'This run was started by the automation "autonomous-cycle/local-qa" rather than by a person.',
+      );
+      expect(prompt).not.toContain(FEEDBACK_HEAD);
+    }
+  });
+
+  it("keeps a person's comment reading as a person's review", () => {
+    const { fresh } = buildKickPrompts({
+      brief: brief('Launch brief'),
+      feedback: KICKED_WITH,
+      outputDir: '/agent/output/task-1',
+      inputs,
+    });
+    expect(fresh).toContain(FEEDBACK_HEAD);
+    expect(fresh).not.toContain('This run was started by');
+  });
+});

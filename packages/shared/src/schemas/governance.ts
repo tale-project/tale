@@ -50,6 +50,10 @@ export const POLICY_TYPES = [
   // env `SANDBOX_MAX_SESSIONS`; this policy is the per-tenant slice under it an
   // org admin tunes. See `sandboxQuotaConfigSchema`.
   'sandbox_quota',
+  // When a project agent's workspace that nobody has used for a while is
+  // deleted. Missing file ⇒ after 30 days without use. See
+  // `sandboxWorkspacesConfigSchema`.
+  'sandbox_workspaces',
   // Deprecated / ignored. Conversation assignment privacy is built into RLS
   // (always on). Kept so existing org-config / configCache rows still validate.
   // See `conversationAccessConfigSchema`.
@@ -77,6 +81,10 @@ export const POLICY_TYPES = [
   // may generate images, and with which model. Missing file ⇒ off — the
   // capability is opt-in. See `imageGenerationConfigSchema`.
   'image_generation',
+  // The organization's standard agent: the project agent Tale provides in
+  // every project that has none of its own. Missing file ⇒ on, runtime and
+  // model automatic. See `standardAgentConfigSchema`.
+  'standard_agent',
   // Independent-review requirements for the task-review gate. Missing row /
   // empty config ⇒ no extra requirement — anyone with project edit access
   // may approve, exactly as today. See `reviewPolicyConfigSchema`; enforced
@@ -161,6 +169,27 @@ export const sandboxQuotaConfigSchema = z.object({
 export type SandboxQuotaConfig = z.infer<typeof sandboxQuotaConfigSchema>;
 export const DEFAULT_SANDBOX_QUOTA: SandboxQuotaConfig =
   sandboxQuotaConfigSchema.parse({});
+
+/**
+ * How long a project agent's workspace is kept once nobody uses it. A
+ * workspace is a project agent's persistent `/agent` directory (its standing
+ * one, and one per member who starts its runs); it outlives every idle stop,
+ * so without this bound it grows for as long as the agent exists. Missing
+ * file ⇒ these schema defaults: deleted 30 days after its last use. An
+ * "always-on" (pinned) workspace is never deleted for being unused, and a
+ * legal hold keeps every workspace it covers.
+ */
+export const sandboxWorkspacesConfigSchema = z.object({
+  /** Whether a workspace unused for `unusedDays` is deleted. */
+  deleteUnused: z.boolean().default(true),
+  /** Days after its last use that an unused workspace is deleted. */
+  unusedDays: z.number().int().min(1).max(3650).default(30),
+});
+export type SandboxWorkspacesConfig = z.infer<
+  typeof sandboxWorkspacesConfigSchema
+>;
+export const DEFAULT_SANDBOX_WORKSPACES: SandboxWorkspacesConfig =
+  sandboxWorkspacesConfigSchema.parse({});
 
 /** The organization total is derived from its three workload budgets. */
 export function sandboxQuotaTotal(config: SandboxQuotaConfig): number {
@@ -381,6 +410,40 @@ export const imageGenerationConfigSchema = z
     },
   );
 export type ImageGenerationConfig = z.infer<typeof imageGenerationConfigSchema>;
+
+/**
+ * The organization's standard agent — the project agent Tale provides in
+ * every project that has none of its own, so work can go to an agent before
+ * anyone sets one up (`backend/domains/projects/standard-agent.ts`).
+ *
+ * On by default: a missing file and `enabled: true` both mean ON. Off, no
+ * project offers it and a task already given to it cannot start. The
+ * runtime (`harness`) and the model are each automatic when absent: the
+ * platform picks a model the person starting the run may use, run by Claude
+ * Code (or by the runtime a subscription-served model is bound to). Pin both
+ * `providerSlug` and `modelId`, or neither; the write door checks `harness`
+ * against the runtimes a project agent may use. Pins may stay while the
+ * policy is off, so switching it back on restores them. `instructions`
+ * replaces the built-in standing instructions.
+ */
+export const standardAgentConfigSchema = z
+  .object({
+    enabled: z.boolean(),
+    harness: z.string().min(1).max(64).optional(),
+    providerSlug: z.string().min(1).max(64).optional(),
+    modelId: z.string().min(1).max(200).optional(),
+    instructions: z.string().min(1).max(20_000).optional(),
+  })
+  .strict()
+  .refine(
+    (config) =>
+      (config.providerSlug === undefined) === (config.modelId === undefined),
+    {
+      message:
+        'pin both providerSlug and modelId, or neither (neither = automatic selection)',
+    },
+  );
+export type StandardAgentConfig = z.infer<typeof standardAgentConfigSchema>;
 
 export const uploadPolicyConfigSchema = z.object({
   enabled: z.boolean(),
@@ -1190,12 +1253,14 @@ export const POLICY_SCHEMAS = {
   dsar_governance: dsarGovernanceConfigSchema,
   task_automation: taskAutomationConfigSchema,
   sandbox_quota: sandboxQuotaConfigSchema,
+  sandbox_workspaces: sandboxWorkspacesConfigSchema,
   conversation_access: conversationAccessConfigSchema,
   conversation_routing: conversationRoutingConfigSchema,
   approval_policy: approvalPolicyConfigSchema,
   vision_model: visionModelConfigSchema,
   transcription_model: transcriptionModelConfigSchema,
   image_generation: imageGenerationConfigSchema,
+  standard_agent: standardAgentConfigSchema,
   review_policy: reviewPolicyConfigSchema,
   embedding: embeddingConfigSchema,
   skill_sharing: skillSharingConfigSchema,

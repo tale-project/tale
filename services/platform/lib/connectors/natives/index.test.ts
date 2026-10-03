@@ -135,6 +135,33 @@ const NATIVE_ACTIONS: Array<{
     input: { taskId: 'tsk_1', authorTypes: ['user'], limit: 20 },
   },
   {
+    impl: 'task.start_agent',
+    connector: 'task',
+    action: 'start_agent',
+    input: {
+      taskId: 'tsk_1',
+      feedback: 'Scheduled occurrence 2026-09-30 09:00 Europe/Zurich.',
+    },
+  },
+  {
+    impl: 'task.get_import_cursor',
+    connector: 'task',
+    action: 'get_import_cursor',
+    input: { projectId: 'proj_1', externalSystem: 'github', source: 'o/r' },
+  },
+  {
+    impl: 'task.save_import_cursor',
+    connector: 'task',
+    action: 'save_import_cursor',
+    input: {
+      projectId: 'proj_1',
+      externalSystem: 'github',
+      source: 'o/r',
+      revision: '1',
+      next: '',
+    },
+  },
+  {
     impl: 'document.list',
     connector: 'document',
     action: 'list',
@@ -162,6 +189,22 @@ const NATIVE_ACTIONS: Array<{
     connector: 'conversation',
     action: 'list_mailbox_messages',
     input: { connectorSlug: 'imap-smtp', limit: 25 },
+  },
+  {
+    impl: 'conversation.list_untriaged',
+    connector: 'conversation',
+    action: 'list_untriaged',
+    input: { connectorSlug: 'gmail', limit: 25 },
+  },
+  {
+    impl: 'conversation.record_triage',
+    connector: 'conversation',
+    action: 'record_triage',
+    input: {
+      verdicts: [
+        { conversationId: 'conv_mock', action: 'reply', priority: 'high' },
+      ],
+    },
   },
   {
     impl: 'conversation.ingest_emails',
@@ -335,6 +378,31 @@ const taskStore: WorkflowTaskStore = {
       ],
       truncated: false,
     }),
+  startAgent: ({ taskId }) =>
+    Promise.resolve({
+      started: true,
+      runId: 'run_double',
+      taskId,
+      agentId: 'agent_double',
+    }),
+  getImportCursor: () =>
+    Promise.resolve({
+      cursor: '',
+      revision: '1',
+      batch: 1,
+      resumed: false,
+      restarted: false,
+      passStartedAt: null,
+      lastDrainedAt: null,
+    }),
+  saveImportCursor: ({ next }) =>
+    Promise.resolve({
+      saved: true,
+      drained: next === '',
+      batch: 1,
+      conflict: false,
+      revision: '2',
+    }),
 };
 
 const documentStore: WorkflowDocumentStore = {
@@ -363,6 +431,23 @@ const conversationStore: WorkflowConversationStore = {
       conversationIds: ['conv_mock'],
     }),
   draftReply: () => Promise.resolve({ approvalId: 'apr_1', created: true }),
+  listUntriagedConversations: () =>
+    Promise.resolve({
+      conversations: [
+        {
+          conversationId: 'conv_mock',
+          subject: 'Mock subject',
+          contact: { name: 'Mock Sender', email: 'sender@example.com' },
+          lastInboundAt: '1970-01-01T00:00:01.000Z',
+          lastInboundText: 'Mock inbound message.',
+          unreadCount: 1,
+          assigned: false,
+          url: '/dashboard/org/conversations/open?conversation=conv_mock',
+        },
+      ],
+    }),
+  recordTriage: ({ verdicts }) =>
+    Promise.resolve({ recorded: verdicts.length, prioritized: 0, unknown: [] }),
   querySyncCursor: () => Promise.resolve({ since: null, messageId: null }),
   syncMailbox: () =>
     Promise.resolve({

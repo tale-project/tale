@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   DOCS_URL,
@@ -25,4 +25,35 @@ describe('docs-url', () => {
       `${DOCS_URL}/self-hosted/install/quickstart`,
     );
   });
+});
+
+describe.each([
+  { base: 'https://example.com', mount: 'https://example.com' },
+  { base: 'https://example.com/', mount: 'https://example.com' },
+  { base: 'https://example.com/docs', mount: 'https://example.com/docs' },
+  { base: 'https://example.com/docs/', mount: 'https://example.com/docs' },
+])('docs mounted at $base', ({ base, mount }) => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+
+  it.each([
+    { locale: 'en', path: '/self-hosted/install/quickstart' },
+    { locale: 'de', path: '/de/self-hosted/install/quickstart' },
+    { locale: 'fr', path: '/fr/self-hosted/install/quickstart' },
+  ] as const)(
+    'keeps the mount before the $locale document path',
+    async ({ locale, path }) => {
+      vi.stubEnv('VITE_DOCS_URL', base);
+      vi.resetModules();
+      const urls = await import('./docs-url');
+
+      expect(urls.getSelfHostedQuickstartUrl(locale)).toBe(`${mount}${path}`);
+      if (locale === 'en') {
+        expect(urls.SELF_HOSTED_QUICKSTART_URL).toBe(`${mount}${path}`);
+        expect(urls.GET_STARTED_URL).toBe(`${mount}/get-started/quickstart`);
+      }
+    },
+  );
 });

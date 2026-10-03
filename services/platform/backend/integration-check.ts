@@ -36,13 +36,11 @@ import { serve } from '@hono/node-server';
 import { transactSerializable } from '@tale/shared/db/serializable';
 import type { PgBoss } from 'pg-boss';
 import type { Sql, TransactionSql } from 'postgres';
+import * as XLSX from 'xlsx';
 import { z } from 'zod';
 
 import { robotsPolicyFromStored } from '../lib/knowledge/crawl-parse.ts';
-import {
-  lookupHostAddresses,
-  setSafeFetchResolverForTests,
-} from '../lib/net/safe-fetch.ts';
+import { setSafeFetchResolverForTests } from '../lib/net/safe-fetch.ts';
 import { objectStorageConnectionFileSchema } from '../lib/shared/schemas/object_storage.ts';
 import { createApp } from './app.ts';
 import { createAuth, type Auth } from './auth/auth.ts';
@@ -59,6 +57,7 @@ import {
   TASK_TITLE_MAX,
   taskLimitText,
 } from './core/tasks/helpers.ts';
+import { setUrlSafetyResolverForTests } from './core/video_links/url_safety.ts';
 import { runBootMigrations } from './db/migrate.ts';
 import { createSql } from './db/sql.ts';
 import { checkApprovalDecisionResume } from './domains/approvals/decide-resume.integration.ts';
@@ -70,12 +69,22 @@ import { checkAutomationProjectVisibility } from './domains/automations/project-
 import { checkTriggerStreakLockOrder } from './domains/automations/trigger-lock-order.integration.ts';
 import { checkTriggerPauseAfterFailures } from './domains/automations/trigger-pause.integration.ts';
 import { appendMessageRow } from './domains/chat/store.ts';
+import { checkTaskNotificationAccess } from './domains/collab/notification-access.integration.ts';
+import { checkConnectorCredentialLiveListing } from './domains/connector_credentials/live-listing.integration.ts';
 import { checkTaskRunConnectorCaller } from './domains/connectors/bridge-caller.integration.ts';
 import { checkConnectorOauthIntent } from './domains/connectors/oauth-intent.integration.ts';
 import { setMailTransportForTesting } from './domains/connectors/service.ts';
 import { checkConversationApi } from './domains/conversations/api-sync.integration.ts';
 import { checkErasureReviewHandoverRaces } from './domains/erasure/review-handover.integration.ts';
 import { checkRagWatchdogBatch } from './domains/file_metadata/watchdogs.integration.ts';
+import {
+  checkStagedBundlesUnnameable,
+  checkTaskReleaseKeepsLaneRows,
+  checkVideoLinkHeldBlobs,
+} from './domains/files/held-blob-cleanups.integration.ts';
+import { checkMessageHeldBlobs } from './domains/files/message-held-blobs.integration.ts';
+import { checkRejectedUploadReclaim } from './domains/files/reject-blob.integration.ts';
+import { checkHubFolderWriteRole } from './domains/folders/write-role.integration.ts';
 import { checkEmailedAttachments } from './domains/knowledge/attachment-mail.integration.ts';
 import { checkInboundEmailBodies } from './domains/knowledge/message-index.integration.ts';
 import { checkScopeRefHolder } from './domains/knowledge/scope-holder.integration.ts';
@@ -84,6 +93,8 @@ import { checkKnowledgeEntryIndexing } from './domains/knowledge_entries/indexin
 import { writeNotificationForOrgs } from './domains/notifications/service.ts';
 import { ensureDefaultObjectStore } from './domains/object_storage/bootstrap.ts';
 import { checkOrphanedOrgRowsBackfill } from './domains/organizations/orphaned-rows.integration.ts';
+import { checkProductImageReleaseHolders } from './domains/products/image-release.integration.ts';
+import { checkStandardAgent } from './domains/projects/standard-agent.integration.ts';
 import { checkBrokerAccountSelection } from './domains/provider_credentials/broker-selection.integration.ts';
 import { checkProviderCredentialConfiguration } from './domains/provider_credentials/configuration.integration.ts';
 import { checkCustomProviderCredentialEdit } from './domains/provider_credentials/custom-provider-edit.integration.ts';
@@ -93,26 +104,66 @@ import { checkSandboxIdleRelease } from './domains/sandbox/idle-release.integrat
 import { checkImageGenerationAdmission } from './domains/sandbox/image-generation.integration.ts';
 import { checkSandboxLifecycle } from './domains/sandbox/lifecycle.integration.ts';
 import { checkSandboxRetiredTablesDropped } from './domains/sandbox/retired-tables.integration.ts';
+import { checkWorkspaceCleanup } from './domains/sandbox/workspace-cleanup.integration.ts';
 import { checkSandboxDevices } from './domains/sandbox_devices/devices.integration.ts';
 import { checkSkillUploadAudience } from './domains/skills/upload-audience.integration.ts';
+import { checkAgentTaskMetadata } from './domains/tasks/agent-metadata.integration.ts';
+import { checkAgentTaskReadTools } from './domains/tasks/agent-read-tools.integration.ts';
+import { checkAgentTaskReviewRouting } from './domains/tasks/agent-review-routing.integration.ts';
+import { checkAgentTaskReviews } from './domains/tasks/agent-review.integration.ts';
 import { checkSessionOpTranscriptMerge } from './domains/tasks/agent-turn-shim.integration.ts';
+import { checkTaskAutomationOccupancy } from './domains/tasks/automation-occupancy.integration.ts';
+import { checkTaskBoardSearch } from './domains/tasks/board-search.integration.ts';
 import {
   checkCooledStartRetry,
   checkCredentialRotationRetry,
 } from './domains/tasks/credential-rotation.integration.ts';
+import {
+  checkDelegatedAgentStartTool,
+  checkInPlaceCompletionCycle,
+  checkScheduledAgentStarts,
+} from './domains/tasks/delegated-start.integration.ts';
 import { checkTaskDescriptionMentions } from './domains/tasks/description-mentions.integration.ts';
 import { checkTaskExternalIssueSync } from './domains/tasks/external-issue.integration.ts';
+import { checkImportCursorContinuation } from './domains/tasks/import-cursors.integration.ts';
 import { checkProjectTaskMetrics } from './domains/tasks/metrics.integration.ts';
 import { checkTaskRepeatSeriesUpgrade } from './domains/tasks/repeat-series.integration.ts';
 import { checkTaskRepeat } from './domains/tasks/repeat.integration.ts';
+import { checkAutomatedRetryAgentBusy } from './domains/tasks/retry-agent-busy.integration.ts';
+import { checkTaskRetryProjectEligibility } from './domains/tasks/retry-eligibility.integration.ts';
+import { checkAgentRunFailureNotice } from './domains/tasks/run-failure-notice.integration.ts';
 import { checkTaskRunStartFence } from './domains/tasks/run-start.integration.ts';
+import { checkTaskSourceThread } from './domains/tasks/source-thread.integration.ts';
+import { checkTaskWorkflowParentMoves } from './domains/tasks/workflow-parent-moves.integration.ts';
+import { checkVideoLinkComposerChips } from './domains/video_links/composer-chips.integration.ts';
 import { checkRenderFailedCreate } from './domains/websites/render-failed-create.integration.ts';
-import { cookieHeaderFrom, signUpUser } from './integration-lane-helpers.ts';
+import { closeServerGracefully } from './http-shutdown.ts';
+import {
+  connectSse,
+  cookieHeaderFrom,
+  errorText,
+  fullCoverageBlockers,
+  isSkippedCheck,
+  itestObjectStore,
+  recordSkip,
+  requestedLanes,
+  settleTeardown,
+  signUpUser,
+  withinDeadline,
+  type SseEvent,
+} from './integration-lane-helpers.ts';
+import {
+  itestResolve,
+  routeVendorFetch,
+  startItestVendorStub,
+} from './integration-vendor-stub.ts';
 import { alignQueuePolicies, createBoss, ensureQueues } from './jobs/boss.ts';
 import { addJobInTx, setEnqueueBoss } from './jobs/enqueue.ts';
+import { checkWorkerDrainHandOff } from './jobs/runner.integration.ts';
 import { startWorker } from './jobs/runner.ts';
 import { registerSchedules } from './jobs/schedules.ts';
 import { createTaskList } from './jobs/task-list.ts';
+import type { TaskIdentifier } from './jobs/tasks.ts';
 import {
   BACKEND_SERVER_OPTIONS,
   installClientErrorEnvelope,
@@ -362,64 +413,6 @@ async function checkPickupLatency(sql: Sql, boss: PgBoss): Promise<void> {
   );
 }
 
-interface SseEvent {
-  event: string;
-  id: string | null;
-  data: string;
-}
-
-/** Minimal SSE client: collects events until aborted. */
-function connectSse(
-  url: string,
-  headers: Record<string, string>,
-): { events: SseEvent[]; abort: () => void; done: Promise<void> } {
-  const controller = new AbortController();
-  const events: SseEvent[] = [];
-
-  const done = (async () => {
-    const response = await fetch(url, { signal: controller.signal, headers });
-    const body = response.body;
-    if (!body) {
-      throw new Error('SSE response has no body');
-    }
-    const reader = body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
-    for (;;) {
-      const { done: finished, value } = await reader.read();
-      if (finished) {
-        break;
-      }
-      buffer += decoder.decode(value, { stream: true });
-      let boundary = buffer.indexOf('\n\n');
-      while (boundary !== -1) {
-        const frame = buffer.slice(0, boundary);
-        buffer = buffer.slice(boundary + 2);
-        let event = 'message';
-        let id: string | null = null;
-        const dataLines: string[] = [];
-        for (const line of frame.split('\n')) {
-          if (line.startsWith('event:')) {
-            event = line.slice(6).trim();
-          } else if (line.startsWith('id:')) {
-            id = line.slice(3).trim();
-          } else if (line.startsWith('data:')) {
-            dataLines.push(line.slice(5).trim());
-          }
-        }
-        events.push({ event, id, data: dataLines.join('\n') });
-        boundary = buffer.indexOf('\n\n');
-      }
-    }
-  })().catch((error: unknown) => {
-    if (!(error instanceof Error && error.name === 'AbortError')) {
-      throw error;
-    }
-  });
-
-  return { events, abort: () => controller.abort(), done };
-}
-
 async function waitFor(
   predicate: () => boolean | Promise<boolean>,
   timeoutMs: number,
@@ -518,6 +511,39 @@ async function signUpOrgMember(
     RETURNING "id"
   `;
   return { ...user, memberId: inserted[0]?.id ?? '' };
+}
+
+/**
+ * Run `mint` — an API-key create over HTTP — with `seat.userId` seated as a
+ * developer of `seat.orgId`, then put their role back. The create gate
+ * admits owners, admins, developers and the holders of a competence that is
+ * used with a key; a lane that proves a door refuses a lower role's key makes
+ * that key the way one arises in production, from a developer later moved
+ * to a lower role.
+ */
+async function asKeyCreator<T>(
+  sql: Sql,
+  seat: { orgId: string; userId: string },
+  mint: () => Promise<T>,
+): Promise<T> {
+  const rows = await sql<{ role: string }[]>`
+    SELECT "role" FROM "member"
+    WHERE "organizationId" = ${seat.orgId} AND "userId" = ${seat.userId}
+  `;
+  const role = rows[0]?.role;
+  if (role === undefined) return await mint();
+  await sql`
+    UPDATE "member" SET "role" = 'developer'
+    WHERE "organizationId" = ${seat.orgId} AND "userId" = ${seat.userId}
+  `;
+  try {
+    return await mint();
+  } finally {
+    await sql`
+      UPDATE "member" SET "role" = ${role}
+      WHERE "organizationId" = ${seat.orgId} AND "userId" = ${seat.userId}
+    `;
+  }
 }
 
 async function checkAuthAndSse(
@@ -622,8 +648,7 @@ async function checkAuthAndSse(
     3_000,
   );
   const lastId = [...first.events].reverse().find((e) => e.id)?.id ?? null;
-  first.abort();
-  await first.done;
+  await first.close();
 
   await sql.begin(async (tx) => {
     await emitHintInTx(tx, { orgId, entity: 'task', entityId: 't2' });
@@ -638,8 +663,7 @@ async function checkAuthAndSse(
     3_000,
   );
   const noDuplicate = !second.events.some((e) => e.data.includes('"t1"'));
-  second.abort();
-  await second.done;
+  await second.close();
 
   record(
     'authorized outbox → SSE',
@@ -686,8 +710,7 @@ async function checkAuthAndSse(
     endedWithForbidden(kickedStream),
     endedWithForbidden(revokedStream),
   ]);
-  kickedStream.abort();
-  revokedStream.abort();
+  await Promise.all([kickedStream.close(), revokedStream.close()]);
   await sql`
     DELETE FROM "member" WHERE "id" IN (${kicked.memberId}, ${revoked.memberId})
   `;
@@ -810,10 +833,7 @@ async function checkOutboxRetention(
   );
   const intactReplayed = intact.events.some((e) => e.data.includes('"skewed"'));
   const intactResynced = intact.events.some((e) => e.event === 'resync');
-  gapped.abort();
-  intact.abort();
-  await gapped.done;
-  await intact.done;
+  await Promise.all([gapped.close(), intact.close()]);
 
   record(
     'realtime outbox retention: prefix reclaim, skew-safe, resync on a reclaimed cursor',
@@ -869,8 +889,7 @@ async function checkNotifications(
       ),
     5_000,
   );
-  stream.abort();
-  await stream.done;
+  await stream.close();
 
   const countAfterCreate = z
     .object({ count: z.number() })
@@ -3252,17 +3271,16 @@ async function checkFiles(
   base: string,
   ctx: { cookie: string; orgId: string },
 ): Promise<void> {
-  const endpoint = process.env.ITEST_S3_ENDPOINT;
-  if (!endpoint) {
-    record(
-      'files upload/serve/delete (SKIPPED)',
-      true,
+  const store = itestObjectStore();
+  if (!store) {
+    recordSkip(
+      record,
+      'files upload/serve/delete',
       'no ITEST_S3_ENDPOINT — S3 lanes not exercised in this run',
     );
     return;
   }
-  const accessKeyId = process.env.ITEST_S3_ACCESS_KEY ?? 'minioadmin';
-  const secretAccessKey = process.env.ITEST_S3_SECRET_KEY ?? 'minioadmin';
+  const { endpoint, accessKeyId, secretAccessKey } = store;
 
   // The deployment default is SEEDED THE WAY THE STACK SEEDS IT — this calls
   // the same `ensureDefaultObjectStore` the backend runs at boot, rather than
@@ -3754,10 +3772,10 @@ async function checkBlobRefAuthority(
   base: string,
   ctx: { cookie: string; orgId: string; userId: string },
 ): Promise<void> {
-  if (!process.env.ITEST_S3_ENDPOINT) {
-    record(
-      'blob-ref authority (SKIPPED)',
-      true,
+  if (!itestObjectStore()) {
+    recordSkip(
+      record,
+      'blob-ref authority',
       'no ITEST_S3_ENDPOINT — S3 lanes not exercised in this run',
     );
     return;
@@ -4243,10 +4261,10 @@ async function checkDocuments(
   base: string,
   ctx: { cookie: string; orgId: string; userId: string },
 ): Promise<void> {
-  if (!process.env.ITEST_S3_ENDPOINT) {
-    record(
-      'documents + folders (SKIPPED)',
-      true,
+  if (!itestObjectStore()) {
+    recordSkip(
+      record,
+      'documents + folders',
       'no ITEST_S3_ENDPOINT — document lanes not exercised in this run',
     );
     return;
@@ -6089,10 +6107,10 @@ async function checkFolderBoundTaskFacts(
   base: string,
   ctx: { cookie: string; orgId: string },
 ): Promise<void> {
-  if (!process.env.ITEST_S3_ENDPOINT) {
-    record(
-      'folder-bound task facts + document natives (SKIPPED)',
-      true,
+  if (!itestObjectStore()) {
+    recordSkip(
+      record,
+      'folder-bound task facts + document natives',
       'no ITEST_S3_ENDPOINT — S3 lanes not exercised in this run',
     );
     return;
@@ -6303,10 +6321,10 @@ async function checkDocumentWriteGuards(
   base: string,
   ctx: { cookie: string; orgId: string; userId: string },
 ): Promise<void> {
-  if (!process.env.ITEST_S3_ENDPOINT) {
-    record(
-      'document write guards (SKIPPED)',
-      true,
+  if (!itestObjectStore()) {
+    recordSkip(
+      record,
+      'document write guards',
       'no ITEST_S3_ENDPOINT — document write-guard lanes not exercised',
     );
     return;
@@ -6400,7 +6418,9 @@ async function checkDocumentWriteGuards(
     );
     return minted.success ? minted.data.key : '';
   };
-  const memberKey = await mintKey(memberCookie, 'itest-doc-guards-member');
+  const memberKey = await asKeyCreator(sql, { orgId, userId: memberId }, () =>
+    mintKey(memberCookie, 'itest-doc-guards-member'),
+  );
   const ownerKey = await mintKey(cookie, 'itest-doc-guards-owner');
 
   // The api-key plugin has no hooks of its own: the auth after-hook audits
@@ -6853,7 +6873,9 @@ async function checkDocumentWriteGuards(
     title: 'team-scoped.txt',
     teamId,
   });
-  const editorKey = await mintKey(editorCookie, 'itest-doc-guards-editor');
+  const editorKey = await asKeyCreator(sql, { orgId, userId: editorId }, () =>
+    mintKey(editorCookie, 'itest-doc-guards-editor'),
+  );
   const foreignEditor = await v1(editorKey, 'POST', '/documents', {
     title: 'team-scoped.txt',
     teamId,
@@ -8495,10 +8517,10 @@ async function checkKnowledge(
   ctx: { cookie: string; orgId: string },
   orgSlug: string,
 ): Promise<void> {
-  if (!process.env.ITEST_S3_ENDPOINT) {
-    record(
-      'knowledge RAG loop (SKIPPED)',
-      true,
+  if (!itestObjectStore()) {
+    recordSkip(
+      record,
+      'knowledge RAG loop',
       'no ITEST_S3_ENDPOINT — RAG lanes not exercised in this run',
     );
     return;
@@ -9318,10 +9340,10 @@ async function checkIndexingReleaseRace(
   ctx: { cookie: string; orgId: string },
   orgSlug: string,
 ): Promise<void> {
-  if (!process.env.ITEST_S3_ENDPOINT) {
-    record(
-      'indexing vs release race (SKIPPED)',
-      true,
+  if (!itestObjectStore()) {
+    recordSkip(
+      record,
+      'indexing vs release race',
       'no ITEST_S3_ENDPOINT — RAG lanes not exercised in this run',
     );
     return;
@@ -9672,10 +9694,10 @@ async function checkEmbeddingCredentialRefusal(
   ctx: { cookie: string; orgId: string },
   orgSlug: string,
 ): Promise<void> {
-  if (!process.env.ITEST_S3_ENDPOINT) {
-    record(
-      'embedding credential refusal (SKIPPED)',
-      true,
+  if (!itestObjectStore()) {
+    recordSkip(
+      record,
+      'embedding credential refusal',
       'no ITEST_S3_ENDPOINT — RAG lanes not exercised in this run',
     );
     return;
@@ -9881,8 +9903,12 @@ async function checkEmbeddingCredentialRefusal(
     credentialId = created.success ? created.data.credentialId : '';
     // The door re-queues before it answers: the refusal is gone at once.
     const requeuedRow = await ragRow();
+    // pg-boss completes a job only after its handler returns, so the file
+    // reads completed a moment before its job does: wait for both.
     const indexed = await waitFor(
-      async () => (await ragRow()).status === 'completed',
+      async () =>
+        (await ragRow()).status === 'completed' &&
+        settled((await jobs())[1]?.state),
       60_000,
     );
     const laterJobs = await jobs();
@@ -9946,10 +9972,10 @@ async function checkCorpusPurgeConsistency(
   ctx: { cookie: string; orgId: string; userId: string },
   orgSlug: string,
 ): Promise<void> {
-  if (!process.env.ITEST_S3_ENDPOINT) {
-    record(
-      'corpus purge consistency (SKIPPED)',
-      true,
+  if (!itestObjectStore()) {
+    recordSkip(
+      record,
+      'corpus purge consistency',
       'no ITEST_S3_ENDPOINT — RAG lanes not exercised in this run',
     );
     return;
@@ -10735,10 +10761,10 @@ async function checkChat(
   ctx: { cookie: string; orgId: string },
   orgSlug: string,
 ): Promise<void> {
-  if (!process.env.ITEST_S3_ENDPOINT) {
-    record(
-      'chat turn engine (SKIPPED)',
-      true,
+  if (!itestObjectStore()) {
+    recordSkip(
+      record,
+      'chat turn engine',
       'no ITEST_S3_ENDPOINT — chat vertical rides the knowledge fixture',
     );
     return;
@@ -10753,6 +10779,14 @@ async function checkChat(
   // a single tick and the stream only ever sees the settled state — the
   // probe would pass or fail on scheduling luck, not on behaviour.
   const TRACE_MARKER = 'TRACE THE TOOLS';
+  // A provider that accepts the request (200), streams words and its usage,
+  // then reports a failure ON the stream; and one that refuses the request
+  // with an HTTP status before any stream.
+  const STREAM_FAILS_MARKER = 'FAIL INSIDE THE STREAM';
+  const REFUSED_MARKER = 'REFUSE BY STATUS';
+  // OpenRouter's early 200: keep-alives, then the upstream's rate limit
+  // reported on the stream before any of the answer.
+  const REFUSED_ON_STREAM_MARKER = 'REFUSE ON THE STREAM';
   const FINAL_ANSWER = 'The ledger mentions verdigris pigments.';
   const SLOW_CHUNKS = 40;
   /** Every chat-completion request body the model saw, in order — the
@@ -10840,7 +10874,63 @@ async function checkChat(
         );
         return;
       }
+      if (transcript.includes(REFUSED_MARKER)) {
+        res.statusCode = 429;
+        res.setHeader('content-type', 'application/json');
+        res.end(
+          JSON.stringify({ error: { message: 'Rate limit exceeded (itest)' } }),
+        );
+        return;
+      }
       res.setHeader('content-type', 'text/event-stream');
+      if (transcript.includes(REFUSED_ON_STREAM_MARKER)) {
+        res.write(': OPENROUTER PROCESSING\n\n');
+        res.write(
+          sse({
+            error: { code: 429, message: 'Rate limit exceeded upstream' },
+            choices: [
+              { index: 0, delta: { content: '' }, finish_reason: 'error' },
+            ],
+          }),
+        );
+        res.end();
+        return;
+      }
+      if (transcript.includes(STREAM_FAILS_MARKER)) {
+        res.write(
+          sse({
+            choices: [
+              {
+                index: 0,
+                delta: { content: 'The first half ' },
+                finish_reason: null,
+              },
+            ],
+          }),
+        );
+        res.write(
+          sse({
+            choices: [],
+            usage: {
+              prompt_tokens: 100,
+              completion_tokens: 5,
+              total_tokens: 105,
+            },
+          }),
+        );
+        // OpenRouter's mid-stream failure: an `error` beside a choice that
+        // finished in error, on a stream that already answered 200.
+        res.write(
+          sse({
+            error: { code: 502, message: 'Provider disconnected unexpectedly' },
+            choices: [
+              { index: 0, delta: { content: '' }, finish_reason: 'error' },
+            ],
+          }),
+        );
+        res.end();
+        return;
+      }
       const finish = (finishReason: string): void => {
         res.write(
           sse({
@@ -10963,6 +11053,23 @@ async function checkChat(
   const aiPort =
     aiAddress !== null && typeof aiAddress === 'object' ? aiAddress.port : 0;
   const aiBase = `http://127.0.0.1:${aiPort}/v1`;
+  // A provider whose model listing never answers — the Vercel AI Gateway
+  // without egress, but on loopback, so no check here depends on a vendor.
+  // It counts the listing requests it refuses.
+  let coldListingRequests = 0;
+  const coldServer = createServer((req, res) => {
+    if ((req.url ?? '').endsWith('/models')) coldListingRequests += 1;
+    res.statusCode = 503;
+    res.end('{}');
+  });
+  await new Promise<void>((resolve) => {
+    coldServer.listen(0, '127.0.0.1', resolve);
+  });
+  const coldAddress = coldServer.address();
+  const coldPort =
+    coldAddress !== null && typeof coldAddress === 'object'
+      ? coldAddress.port
+      : 0;
 
   try {
     // The org's chat provider: a custom provider file + an api-key
@@ -11092,6 +11199,108 @@ async function checkChat(
       `outcome=${outcome.success ? outcome.data.status : 'ERR'}${outcome.success && outcome.data.reason !== undefined ? ` (${outcome.data.reason})` : ''}, messages=${history.success ? history.data.messages.length : 'ERR'}, toolRound=${assistantRaw.includes('rag_search') && assistantRaw.includes('verdigris')}, usageRows=${usageRows[0]?.count}, genSettled=${settledGen[0]?.count === '0'}`,
     );
 
+    // A turn the provider fails INSIDE its opened stream still consumed the
+    // prompt and the words it wrote: the turn settles failed, books what
+    // the stream reported, and stamps the same figures on the failed reply.
+    // A request the provider refuses with an HTTP status consumed nothing
+    // and books nothing. Each runs on a titled thread of its own, so no
+    // title call books beside it and the ledger delta is the turn's alone.
+    const chatLedger = async () => {
+      const rows = await sql<
+        { input: number; output: number; requests: number }[]
+      >`
+        SELECT coalesce(sum(input_tokens), 0)::float8 AS input,
+               coalesce(sum(output_tokens), 0)::float8 AS output,
+               coalesce(sum(request_count), 0)::float8 AS requests
+        FROM app.usage_ledger
+        WHERE org_id = ${orgId} AND model = 'itest-chat'
+          AND granularity = 'daily'
+          AND agent_slug IS DISTINCT FROM 'thread-title'
+      `;
+      return rows[0] ?? { input: 0, output: 0, requests: 0 };
+    };
+    const failedTurn = async (marker: string) => {
+      const thread = z.object({ id: z.string() }).safeParse(
+        await (
+          await send(`/api/app/chat/threads?orgId=${orgId}`, {
+            title: `Itest ${marker.toLowerCase()}`,
+          })
+        ).json(),
+      );
+      const failThreadId = thread.success ? thread.data.id : '';
+      const before = await chatLedger();
+      const res = await send(
+        `/api/app/chat/threads/${failThreadId}/messages?orgId=${orgId}`,
+        {
+          text: `${marker}, please`,
+          modelId: 'itest-chat',
+          providerSlug: 'itestchat',
+        },
+      );
+      // Finish the response before reading final accounting or closing the server.
+      await res.text();
+      const after = await chatLedger();
+      const rows = await sql<
+        { status: string; usage: unknown; error: string | null }[]
+      >`
+        SELECT status, usage, error FROM app.messages
+        WHERE thread_id = ${failThreadId} AND role = 'assistant'
+        ORDER BY "order" DESC LIMIT 1
+      `;
+      return {
+        status: res.status,
+        row: rows[0],
+        delta: {
+          input: after.input - before.input,
+          output: after.output - before.output,
+          requests: after.requests - before.requests,
+        },
+      };
+    };
+    const inStream = await failedTurn(STREAM_FAILS_MARKER);
+    const inStreamUsage = z
+      .object({
+        inputTokens: z.number(),
+        outputTokens: z.number(),
+        totalTokens: z.number(),
+        costEstimateCents: z.number(),
+      })
+      .loose()
+      .safeParse(inStream.row?.usage);
+    const refusedByStatus = await failedTurn(REFUSED_MARKER);
+    const refusedOnStream = await failedTurn(REFUSED_ON_STREAM_MARKER);
+    record(
+      'chat turn that fails inside its stream books what it consumed; a refusal by HTTP status, or on the stream before any answer, books nothing',
+      inStream.row?.status === 'failed' &&
+        (inStream.row.error ?? '').includes(
+          'Provider disconnected unexpectedly',
+        ) &&
+        inStream.delta.input === 100 &&
+        inStream.delta.output === 5 &&
+        inStream.delta.requests === 1 &&
+        inStreamUsage.success &&
+        inStreamUsage.data.inputTokens === 100 &&
+        inStreamUsage.data.outputTokens === 5 &&
+        inStreamUsage.data.totalTokens === 105 &&
+        // 100 prompt tokens at 100 ¢/M + 5 at 200 ¢/M.
+        Math.abs(inStreamUsage.data.costEstimateCents - 0.011) < 1e-9 &&
+        refusedByStatus.row?.status === 'failed' &&
+        (refusedByStatus.row.error ?? '').includes('429') &&
+        refusedByStatus.row.usage === null &&
+        refusedByStatus.delta.input === 0 &&
+        refusedByStatus.delta.output === 0 &&
+        refusedByStatus.delta.requests === 0 &&
+        refusedOnStream.row?.status === 'failed' &&
+        (refusedOnStream.row.error ?? '').includes(
+          'Rate limit exceeded upstream',
+        ) &&
+        refusedOnStream.row.usage === null &&
+        refusedOnStream.delta.input === 0 &&
+        refusedOnStream.delta.output === 0 &&
+        refusedOnStream.delta.requests === 0,
+      `in-stream: send → ${inStream.status}, row=${inStream.row?.status ?? 'MISSING'}, booked Δ=${JSON.stringify(inStream.delta)} (want 100/5/1), stamped=${JSON.stringify(inStream.row?.usage ?? null)}; refused: send → ${refusedByStatus.status}, row=${refusedByStatus.row?.status ?? 'MISSING'}, booked Δ=${JSON.stringify(refusedByStatus.delta)} (want 0/0/0), stamped=${JSON.stringify(refusedByStatus.row?.usage ?? null)}; refused on the stream: row=${refusedOnStream.row?.status ?? 'MISSING'}, booked Δ=${JSON.stringify(refusedOnStream.delta)} (want 0/0/0), stamped=${JSON.stringify(refusedOnStream.row?.usage ?? null)}`,
+    );
+
     // A provider that ships NO catalog (Azure deployment names, Nous Portal):
     // the credential's allowlist IS its availability set, per the provider
     // files and the docs. Configured exactly that way, the deployment must
@@ -11179,6 +11388,86 @@ async function checkChat(
         deployOutcome.data.status === 'completed' &&
         Number(deployUsage[0]?.count ?? '0') >= 1,
       `picker=${deployListed ? 'lists itest-deploy-prod' : `MISSING (${deployPicker.success ? deployPicker.data.models.map((m) => `${m.providerSlug}/${m.id}`).join(',') : 'ERR'})`}, turn=${deployOutcome.success ? deployOutcome.data.status : 'ERR'}${deployOutcome.success && deployOutcome.data.reason !== undefined ? ` (${deployOutcome.data.reason})` : ''}, usageRows=${deployUsage[0]?.count}`,
+    );
+
+    // One provider's catalog that cannot be read must not decide a model
+    // another provider serves. `itest-cold`'s listing fails cold — nothing
+    // cached, no shipped defaults — and then stays failed through the
+    // remembered back-off; custom providers are walked in file-name order,
+    // so it is read before `itestdeploy`. Every lookup that walked past it
+    // used to throw its error out of the send: a bare 500 instead of the
+    // reply, or of the refusal naming the model. It stays configured through
+    // the stale send below and is removed after it.
+    await writeFile(
+      path.join(providersDir, 'itest-cold.yml'),
+      [
+        'name: itest-cold',
+        'displayName: Itest Cold Catalog',
+        'apiFormat: openai',
+        `baseUrl: http://127.0.0.1:${coldPort}/v1`,
+        'catalog:',
+        '  source: models-endpoint',
+        'auth:',
+        '  - method: api-key',
+      ].join('\n'),
+    );
+    /** One send on the deployment thread, read as text first: a failed
+     * resolution used to answer a non-JSON 500. */
+    const deploySend = async (body: {
+      text: string;
+      modelId: string;
+      providerSlug?: string;
+    }): Promise<{ status: string; reason: string }> => {
+      const raw = await (
+        await send(
+          `/api/app/chat/threads/${deployThreadId}/messages?orgId=${orgId}`,
+          body,
+        )
+      ).text();
+      let json: unknown = null;
+      try {
+        json = JSON.parse(raw);
+      } catch {
+        json = { status: `non-JSON: ${raw.slice(0, 80)}` };
+      }
+      const answer = z
+        .object({ status: z.string(), reason: z.string().optional() })
+        .safeParse(json);
+      return answer.success
+        ? { status: answer.data.status, reason: answer.data.reason ?? '' }
+        : { status: 'ERR', reason: '' };
+    };
+    const coldUnhinted = await deploySend({
+      text: 'Which ledger is this?',
+      modelId: 'itest-deploy-prod',
+    });
+    const coldRequests = coldListingRequests;
+    const rememberedUnhinted = await deploySend({
+      text: 'Which pigment does it name?',
+      modelId: 'itest-deploy-prod',
+    });
+    const coldHint = await deploySend({
+      text: 'Once more, please.',
+      modelId: 'itest-deploy-prod',
+      providerSlug: 'itest-cold',
+    });
+    const unknownModel = await deploySend({
+      text: 'Anyone there?',
+      modelId: 'itest-retired-model',
+    });
+    const rememberedRequests = coldListingRequests;
+    record(
+      'an unreadable catalog leaves the other providers resolving',
+      coldUnhinted.status === 'completed' &&
+        rememberedUnhinted.status === 'completed' &&
+        coldHint.status === 'completed' &&
+        coldRequests > 0 &&
+        rememberedRequests === coldRequests &&
+        unknownModel.status === 'refused' &&
+        unknownModel.reason.includes('"itest-retired-model"') &&
+        unknownModel.reason.includes('"itest-cold"') &&
+        !unknownModel.reason.includes('HTTP 503'),
+      `no hint: cold=${coldUnhinted.status} remembered=${rememberedUnhinted.status}, hint on the cold provider=${coldHint.status} (want completed ×3); cold listing requests ${coldRequests} → ${rememberedRequests} (want >0, then none while remembered); unknown model=${unknownModel.status} (${unknownModel.reason}) (want refused, naming the model and the unreachable catalog, not its error)`,
     );
 
     // The picker and serving must read ONE world. Serving resolves a
@@ -11289,6 +11578,7 @@ async function checkChat(
         offeredAgain,
       `defaultDisabled: picker=${offeredWhileDefaultDisabled ? 'STILL OFFERS' : 'omits'} send=${sendWhileDefaultDisabled.success ? `${sendWhileDefaultDisabled.data.status} (${sendWhileDefaultDisabled.data.reason ?? ''})` : 'ERR'} (want refused, naming the model); reenabled: picker=${offeredAgain ? 'offers' : 'MISSING'}`,
     );
+    await rm(path.join(providersDir, 'itest-cold.yml'), { force: true });
 
     // First-token UX metric. Covered because it was NOT: the statement that
     // stamps it built a `jsonb_build_object` around an uncast parameter, so
@@ -11812,6 +12102,9 @@ async function checkChat(
   } finally {
     await new Promise<void>((resolve) => {
       aiServer.close(() => resolve());
+    });
+    await new Promise<void>((resolve) => {
+      coldServer.close(() => resolve());
     });
   }
 }
@@ -13640,14 +13933,18 @@ async function checkMcp(
 
   // The developer gate: a member-role key gets the refusal as DATA (flagged
   // isError) on the persisting tools while every read tool keeps answering.
-  const { cookie: memberCookie } = await signUpOrgMember(
+  const { cookie: memberCookie, userId: memberUserId } = await signUpOrgMember(
     sql,
     base,
     orgId,
     'mcp-member',
     'member',
   );
-  const memberKey = await mintKey(memberCookie, 'itest-mcp-member');
+  const memberKey = await asKeyCreator(
+    sql,
+    { orgId, userId: memberUserId },
+    () => mintKey(memberCookie, 'itest-mcp-member'),
+  );
   const refusal = toolValue(
     (
       await rpc(
@@ -14506,10 +14803,10 @@ async function checkRestMachineJourney(
   base: string,
   ctx: { cookie: string; orgId: string },
 ): Promise<void> {
-  if (!process.env.ITEST_S3_ENDPOINT) {
-    record(
-      'REST machine journey (SKIPPED)',
-      true,
+  if (!itestObjectStore()) {
+    recordSkip(
+      record,
+      'REST machine journey',
       'no ITEST_S3_ENDPOINT — the upload lane needs blob storage',
     );
     return;
@@ -19211,6 +19508,109 @@ async function checkTurnReattach(
     `unreachable=${unreachable.resumed} (want 0, jobs ${jobsBefore[0]?.count}→${jobsAfterUnreachable[0]?.count}), resumed=${recovered.resumed} (want 2), abandoned=${drivenRunIds.has(abandoned.runId)} opless=${drivenRunIds.has(noOp.runId)} liveUntouched=${!drivenRunIds.has(live.runId)} rotatedUntouched=${!drivenRunIds.has(justRotated.runId)}, createdOp=${createdOp[0]?.resumedBy}/${createdOp[0]?.status}/${createdOp[0]?.kind}/${createdOp[0]?.harness} (want harness pi) runCard=${recoveredCard?.op?.execId ?? 'null'}`,
   );
 
+  // A turn whose op reads silent can still have a live chain: its next
+  // drive window waits for a worker slot, and the op's heartbeat moves only
+  // when a window ends. Re-attaching it would start a second chain beside
+  // the first. A queued window and a window that started inside the
+  // staleness window fence the re-attach; a window that started long ago
+  // with the op silent since belongs to a worker that died with it, and the
+  // turn re-attaches.
+  const fencedQueued = await mkRun('fence-queued', {
+    withOp: true,
+    heartbeatAgoMs: 10 * 60_000,
+  });
+  const fencedRunning = await mkRun('fence-running', {
+    withOp: true,
+    heartbeatAgoMs: 10 * 60_000,
+  });
+  const deadWorker = await mkRun('fence-dead-worker', {
+    withOp: true,
+    heartbeatAgoMs: 10 * 60_000,
+  });
+  const { addJobInTx: enqueueDrive } = await import('./jobs/enqueue.ts');
+  const parkDrive = async (
+    turn: { runId: string; sessionId: string; execId: string },
+    startedAgo: number | null,
+  ): Promise<string | null> => {
+    // Held far in the future, so the harness's worker never takes it.
+    const jobId = await enqueueDrive(
+      sql,
+      'task.agent_drive',
+      {
+        organizationId: orgId,
+        runId: turn.runId,
+        taskId: 'itest-fence-task',
+        agentId,
+        execId: turn.execId,
+        sessionId: turn.sessionId,
+        harness: 'claude-code',
+        deadlineAt: now + 3_600_000,
+      },
+      { startAfter: new Date(now + 24 * 3_600_000) },
+    );
+    if (startedAgo !== null && jobId !== null) {
+      await sql`
+        UPDATE pgboss.job SET state = 'active',
+          started_on = now() - make_interval(secs => ${startedAgo / 1000})
+        WHERE id = ${jobId}
+      `;
+    }
+    return jobId;
+  };
+  const fenceJobIds = [
+    await parkDrive(fencedQueued, null),
+    await parkDrive(fencedRunning, 30_000),
+    await parkDrive(deadWorker, 30 * 60_000),
+  ];
+  const drivesFor = async (execId: string): Promise<number> =>
+    Number(
+      (
+        await sql<{ count: string }[]>`
+          SELECT count(*)::text AS count FROM pgboss.job
+          WHERE name = 'task.agent_drive' AND data ->> 'execId' = ${execId}
+        `
+      )[0]?.count ?? '0',
+    );
+  const fenced = await recoverStalledTaskAgentTurns(sql, {
+    probe: () => Promise.resolve({ state: 'running' as const }),
+  });
+  const fenceDrives = {
+    queued: await drivesFor(fencedQueued.execId),
+    running: await drivesFor(fencedRunning.execId),
+    deadWorker: await drivesFor(deadWorker.execId),
+  };
+  record(
+    're-attach: a silent turn whose drive window is queued or running keeps its one chain; a window a dead worker held does not fence',
+    fenceDrives.queued === 1 &&
+      fenceDrives.running === 1 &&
+      fenceDrives.deadWorker === 2 &&
+      fenced.resumed >= 1,
+    `drives per exec queued=${fenceDrives.queued}/1 running=${fenceDrives.running}/1 deadWorker=${fenceDrives.deadWorker}/2 resumed=${fenced.resumed}`,
+  );
+  await sql`
+    DELETE FROM pgboss.job
+    WHERE name = 'task.agent_drive'
+      AND (id = ANY(${fenceJobIds.filter((id) => id !== null)})
+        OR data ->> 'execId' = ${deadWorker.execId})
+  `;
+  // The fence's turns are this check's alone: the backfill check below
+  // reads every op of the lane's sessions.
+  const fenceSessions = [fencedQueued, fencedRunning, deadWorker].map(
+    (turn) => turn.sessionId,
+  );
+  await sql`
+    UPDATE app.project_agent_runs SET status = 'cancelled'
+    WHERE session_id = ANY(${fenceSessions}) AND status IN ('queued', 'running')
+  `;
+  await sql`
+    DELETE FROM app.sandbox_session_ops WHERE session_id = ANY(${fenceSessions})
+  `;
+  await sql`
+    UPDATE app.sandbox_sessions SET status = 'destroyed',
+                                    destroyed_at_ms = ${Date.now()}
+    WHERE session_id = ANY(${fenceSessions})
+  `;
+
   // Migration 0127 names the ops written before the column existed. A
   // task-agent op takes the harness of ITS RUN — here `codex`, under a
   // session stamped `claude-code`; an op that already records one keeps it.
@@ -19952,10 +20352,10 @@ async function checkSandboxBlobDoor(
   base: string,
   ctx: { orgId: string },
 ): Promise<void> {
-  if (!process.env.ITEST_S3_ENDPOINT) {
-    record(
-      'sandbox-blob staging door (SKIPPED)',
-      true,
+  if (!itestObjectStore()) {
+    recordSkip(
+      record,
+      'sandbox-blob staging door',
       'no ITEST_S3_ENDPOINT — S3 lanes not exercised in this run',
     );
     return;
@@ -19983,7 +20383,15 @@ async function checkSandboxBlobDoor(
     ref: encodeS3Ref('some-other-org/deadbeef'),
     org: ctx.orgId,
   });
-  if (token === null || foreignToken === null) {
+  // A validly SIGNED token for an in-namespace key the store never held: the
+  // store's 404 must pass through as 404 — it used to collapse into the 502
+  // that also says "store down", and a task whose attachment's bytes were
+  // gone read as an infra fault to retry (2026-10-02).
+  const goneToken = await signStageToken({
+    ref: encodeS3Ref(buildObjectKey(store, orgSlug)),
+    org: ctx.orgId,
+  });
+  if (token === null || foreignToken === null || goneToken === null) {
     record(
       'sandbox-blob: a stage token streams the org blob through the door',
       false,
@@ -19999,14 +20407,136 @@ async function checkSandboxBlobDoor(
   const foreign = await fetch(
     `${base}/api/sandbox-blob?token=${encodeURIComponent(foreignToken)}`,
   );
+  const gone = await fetch(
+    `${base}/api/sandbox-blob?token=${encodeURIComponent(goneToken)}`,
+  );
   record(
     'sandbox-blob: a stage token streams the org blob through the door',
     served.status === 200 &&
       servedBody === payload &&
       forged.status === 403 &&
-      foreign.status === 404,
-    `served=${served.status} bodyOk=${servedBody === payload}, forged=${forged.status} (want 403), foreignKey=${foreign.status} (want 404)`,
+      foreign.status === 404 &&
+      gone.status === 404,
+    `served=${served.status} bodyOk=${servedBody === payload}, forged=${forged.status} (want 403), foreignKey=${foreign.status} (want 404), goneKey=${gone.status} (want 404, not 502)`,
   );
+}
+
+/**
+ * A task lists its attachments and deliverables by blob ref with no file
+ * row of its own (`domains/tasks/blob-holders.ts`): deleting the file row
+ * that minted the ref used to delete the bytes too — the card kept showing
+ * the file, and every run start met the store's 404 (2026-10-02). The bytes
+ * now outlive the row while any task lists the ref, and go through the
+ * shared release seam once no task does. Gated on ITEST_S3_ENDPOINT like
+ * the other blob lanes.
+ */
+async function checkTaskHeldBlobOutlivesFileRow(
+  sql: Sql,
+  ctx: { orgId: string; userId: string },
+): Promise<void> {
+  if (!itestObjectStore()) {
+    recordSkip(
+      record,
+      'task-held blob outlives its file row',
+      'no ITEST_S3_ENDPOINT — S3 lanes not exercised in this run',
+    );
+    return;
+  }
+  const { resolveOrgSlug } = await import('./lib/org-config.ts');
+  const {
+    buildObjectKey,
+    resolveObjectStore,
+    s3DeleteObject,
+    s3HeadObject,
+    s3PutObject,
+  } = await import('./lib/object-store.ts');
+  const { encodeS3Ref } = await import('./core/lib/storage/blob_ref.ts');
+  const { deleteFile } = await import('./domains/files/service.ts');
+  const { releaseUnlistedTaskBlobRefs } =
+    await import('./domains/tasks/retire.ts');
+  const { orgId, userId } = ctx;
+  const orgSlug = (await resolveOrgSlug(sql, orgId)) ?? '';
+  const store = await resolveObjectStore(orgSlug);
+  const key = buildObjectKey(store, orgSlug);
+  const ref = encodeS3Ref(key);
+  const payload = new TextEncoder().encode('held by a task');
+  await s3PutObject(store, key, payload, 'text/plain');
+  const now = Date.now();
+  const fileRows = await sql<{ id: string }[]>`
+    INSERT INTO app.file_metadata (
+      org_id, file_name, content_type, size, storage_ref, uploaded_by,
+      created_at_ms
+    ) VALUES (
+      ${orgId}, 'held.txt', 'text/plain', ${payload.byteLength}, ${ref},
+      ${userId}, ${now}
+    ) RETURNING id
+  `;
+  const fileId = fileRows[0]?.id ?? '';
+  const projectRows = await sql<{ id: string }[]>`
+    INSERT INTO app.projects (org_id, name, created_by, created_at_ms,
+                              updated_at_ms)
+    VALUES (${orgId}, 'Held blob probe', ${userId}, ${now}, ${now})
+    RETURNING id
+  `;
+  const projectId = projectRows[0]?.id ?? '';
+  const taskRows = await sql<{ id: string }[]>`
+    INSERT INTO app.tasks (
+      org_id, project_id, title, status, rank, created_by, created_by_type,
+      attachments, created_at_ms, updated_at_ms
+    ) VALUES (
+      ${orgId}, ${projectId}, 'Task holding a blob', 'todo', 'a0', ${userId},
+      'user',
+      ${sql.json([
+        {
+          fileId: ref,
+          fileName: 'held.txt',
+          fileType: 'text/plain',
+          fileSize: payload.byteLength,
+        },
+      ])},
+      ${now}, ${now}
+    ) RETURNING id
+  `;
+  const taskId = taskRows[0]?.id ?? '';
+  let deleteError = '';
+  try {
+    await sql.begin((tx) =>
+      deleteFile(sql, tx, { organizationId: orgId }, fileId),
+    );
+  } catch (error) {
+    deleteError = error instanceof Error ? error.message : String(error);
+  }
+  const rowCount = await sql<{ n: string }[]>`
+    SELECT count(*)::text AS n FROM app.file_metadata WHERE id = ${fileId}
+  `;
+  const rowGone = rowCount[0]?.n === '0';
+  const bytesKept = (await s3HeadObject(store, key)) !== null;
+  // The task lets go: no task lists the ref any more, so the task door hands
+  // it to the shared release seam, which deletes the bytes after commit.
+  await sql.begin(async (tx) => {
+    await tx`UPDATE app.tasks SET attachments = NULL WHERE id = ${taskId}`;
+    await releaseUnlistedTaskBlobRefs(tx, orgId, [ref]);
+  });
+  const released = await sql<{ n: string }[]>`
+    SELECT count(*)::text AS n FROM pgboss.job
+    WHERE name = 'knowledge.release_refs' AND data->'refs' ? ${ref}
+  `;
+  record(
+    'task-held blob outlives its file row, and is released once no task lists it',
+    deleteError === '' &&
+      rowGone &&
+      bytesKept &&
+      Number(released[0]?.n ?? '0') >= 1,
+    `delete=${deleteError === '' ? 'ok' : deleteError} rowGone=${rowGone} (want true) bytesKept=${bytesKept} (want true) releaseJobs=${released[0]?.n ?? '0'} (want ≥1)`,
+  );
+  // Tidy: the release job may already have taken the bytes; S3 DELETE is
+  // idempotent, and the project cascades the task.
+  try {
+    await s3DeleteObject(store, key);
+  } catch (error) {
+    console.warn('[itest] held-blob cleanup failed:', error);
+  }
+  await sql`DELETE FROM app.projects WHERE id = ${projectId}`;
 }
 
 /**
@@ -21913,7 +22443,7 @@ async function checkTasksCollabIntegrity(
     ) RETURNING id
   `;
   const doomedAutomationId = doomedAutomation[0]?.id ?? '';
-  const blobLane = process.env.ITEST_S3_ENDPOINT !== undefined;
+  const blobLane = itestObjectStore() !== null;
   let deliverableRef = '';
   let blobBefore: number | null = null;
   if (blobLane) {
@@ -21982,8 +22512,15 @@ async function checkTasksCollabIntegrity(
     // by the delete — never left as a live row pointing at leaked bytes.
     fileRowDead = fileRows.every((row) => row.lifecycleStatus === 'trashed');
   }
+  if (!blobLane) {
+    recordSkip(
+      record,
+      "tasks/collab: hard delete reclaims the subtree's blobs",
+      'no ITEST_S3_ENDPOINT — the blob half needs an object store',
+    );
+  }
   record(
-    `tasks/collab: hard delete stops the subtree's live runs and reclaims its blobs${blobLane ? '' : ' (blob lane SKIPPED: no ITEST_S3_ENDPOINT)'}`,
+    `tasks/collab: hard delete stops the subtree's live runs${blobLane ? ' and reclaims its blobs' : ''}`,
     deletion.ok &&
       deletionBody.success &&
       deletionBody.data.deletedChildCount === 1 &&
@@ -23034,7 +23571,13 @@ async function checkRecoverySweeps(
   //      whose transcription already COMPLETED must not clobber the file
   //      row to 'skipped' (the cleanup would then delete the org's donor
   //      transcript). Blob cleanup runs, so this needs the S3 lane. ------
-  if (process.env.ITEST_S3_ENDPOINT) {
+  if (!itestObjectStore()) {
+    recordSkip(
+      record,
+      'watchdog: dismissing a Ready whisper chip keeps the settled donor',
+      'no ITEST_S3_ENDPOINT — the dismissal runs blob cleanup',
+    );
+  } else {
     const donorKeepFile = await sql<{ id: string }[]>`
       INSERT INTO app.file_metadata (
         org_id, file_name, content_type, size, storage_ref, uploaded_by,
@@ -23101,7 +23644,10 @@ async function checkRecoverySweeps(
   `;
   const { getKnowledgePoolForOrg, PRIVATE_KNOWLEDGE_SCHEMA } =
     await import('./core/knowledge/pool.ts');
-  let corpusSeeded = false;
+  // The adoption half needs this corpus row. tale-db ships the corpus and
+  // other lanes write to it with no fallback, so a seed that fails fails the
+  // check below: it must never quietly drop the half it cannot prove.
+  let corpusSeedError: string | null = null;
   try {
     const pool = await getKnowledgePoolForOrg(orgSlugRow[0]?.slug ?? '');
     await pool.unsafe(
@@ -23111,9 +23657,8 @@ async function checkRecoverySweeps(
        ON CONFLICT DO NOTHING`,
       [orgSlugRow[0]?.slug ?? '', 's3:rag-done-1', 'rag-done.pdf'],
     );
-    corpusSeeded = true;
   } catch (error) {
-    console.warn('[itest] corpus seed skipped:', error);
+    corpusSeedError = errorText(error);
   }
 
   const { recoverStuckRagIndexing, RAG_INTERRUPTED_MESSAGE } =
@@ -23140,9 +23685,10 @@ async function checkRecoverySweeps(
       // Still inside the window → untouched.
       ragFresh?.status === 'running' &&
       // Corpus says completed → ADOPTED, never failed.
-      (!corpusSeeded || ragDone?.status === 'completed') &&
+      corpusSeedError === null &&
+      ragDone?.status === 'completed' &&
       ragOutcome.failed >= 1,
-    `outcome=${JSON.stringify(ragOutcome)}, stale=${ragStale?.status} fresh=${ragFresh?.status} done=${ragDone?.status} (corpusSeeded=${corpusSeeded})`,
+    `outcome=${JSON.stringify(ragOutcome)}, stale=${ragStale?.status} fresh=${ragFresh?.status} done=${ragDone?.status}${corpusSeedError === null ? '' : ` (corpus seed failed: ${corpusSeedError})`}`,
   );
 
   // ---- erasure: a stuck run fails and becomes non-retriable -------------
@@ -24107,7 +24653,7 @@ async function checkConnectorOauth(
     // the org's store, a file_metadata row names the connector as source, and
     // the body gets the blob ref back. Needs the object store, like every
     // blob lane.
-    if (process.env.ITEST_S3_ENDPOINT) {
+    if (itestObjectStore()) {
       const files = await import('./domains/files/service.ts');
       const { credentialId: confluenceId } =
         await credentialService.createCredential(sql, {
@@ -24231,10 +24777,10 @@ async function checkConnectorOauth(
         `error=${storedError || '-'} file=${storedParsed.success ? `${storedParsed.data.file.fileName}/${storedParsed.data.file.contentType}/${storedParsed.data.file.size}B` : JSON.stringify(storedOut).slice(0, 200)} wikiCalls=${wikiCalls.length} text=${JSON.stringify(storedText)} row=${fileRow.length ? `${fileRow[0]?.source}/${fileRow[0]?.fileName}/${fileRow[0]?.size}B/by=${fileRow[0]?.uploadedBy === userId}/skipRag=${fileRow[0]?.skipRag}` : 'none'} foreignRefused=${foreignRefused}`,
       );
     } else {
-      record(
+      recordSkip(
+        record,
         'connector live: ctx.files stores into the org blob store and returns the ref',
-        true,
-        'SKIPPED, no ITEST_S3_ENDPOINT',
+        'no ITEST_S3_ENDPOINT — ctx.files stores into the object store',
       );
     }
   } finally {
@@ -25364,19 +25910,29 @@ async function checkConversations(
   // and that failure deliberately fails OPEN — a store it cannot reach is not
   // evidence the blob is gone.
   const goneChip = attChips.find((attachment) => attachment.id === 'att-gone');
+  const goneProbed = itestObjectStore() !== null;
+  if (!goneProbed) {
+    recordSkip(
+      record,
+      'conversations: a vanished attachment offers no download',
+      'no ITEST_S3_ENDPOINT — only a store can tell a vanished blob from one out of reach',
+    );
+  }
   const goneMarked =
-    !process.env.ITEST_S3_ENDPOINT ||
+    !goneProbed ||
     (goneChip !== undefined &&
       goneChip.unavailable === true &&
       !('url' in goneChip));
   record(
-    'conversations: connectorName filters the Inbox; a bytesless and a vanished attachment both offer no download',
+    goneProbed
+      ? 'conversations: connectorName filters the Inbox; a bytesless and a vanished attachment both offer no download'
+      : 'conversations: connectorName filters the Inbox; a bytesless attachment offers no download',
     matchedFilter.includes(conversationId) &&
       !wrongFilter.includes(conversationId) &&
       bytelessChip !== undefined &&
       !('url' in bytelessChip) &&
       goneMarked,
-    `imapFilter=${matchedFilter.includes(conversationId)} gmailExcluded=${!wrongFilter.includes(conversationId)} bytelessChipNoUrl=${bytelessChip !== undefined && !('url' in bytelessChip)} goneMarked=${goneMarked}${process.env.ITEST_S3_ENDPOINT ? ` (unavailableFlag=${goneChip?.unavailable === true} url=${goneChip !== undefined && 'url' in goneChip})` : ' (SKIPPED, no ITEST_S3_ENDPOINT)'}`,
+    `imapFilter=${matchedFilter.includes(conversationId)} gmailExcluded=${!wrongFilter.includes(conversationId)} bytelessChipNoUrl=${bytelessChip !== undefined && !('url' in bytelessChip)}${goneProbed ? ` goneMarked=${goneMarked} (unavailableFlag=${goneChip?.unavailable === true} url=${goneChip !== undefined && 'url' in goneChip})` : ''}`,
   );
 
   const closed = z
@@ -26419,6 +26975,197 @@ async function checkUndatedMailIngest(
 }
 
 /**
+ * The triage packs' Inbox lane (domains/conversations/triage.ts) on the real
+ * schema: a thread is listed when its newest message is the customer's and
+ * newer — by message `seq`, not by date — than the thread's triage stamp; the
+ * stamp sets the priority only where no person set one; and a message that
+ * lands after the stamp surfaces the thread again however old its own Date
+ * header is (a sync pass ingests mail minutes after it was sent).
+ */
+async function checkInboxTriageLane(
+  sql: Sql,
+  ctx: { orgId: string },
+): Promise<void> {
+  const { orgId } = ctx;
+  const { createConversation, addMessageToConversation } =
+    await import('./domains/conversations/service.ts');
+  const { listUntriagedConversations, recordConversationTriage } =
+    await import('./domains/conversations/triage.ts');
+  // A connector name of this lane's own, so the mailbox lanes' threads in the
+  // shared org never land in its listing whatever the lane order.
+  const connector = 'itest-triage-mail';
+  const now = Date.now();
+  const contactRows = await sql<{ id: string }[]>`
+    INSERT INTO app.contacts (org_id, name, email, source, created_at_ms,
+                              updated_at_ms)
+    VALUES (${orgId}, 'Triage Contact', 'triage@ext.test', 'api_import',
+            ${now}, ${now})
+    RETURNING id
+  `;
+  const contactId = contactRows[0]?.id ?? '';
+  const seed = async (
+    subject: string,
+    opts: {
+      priority?: string;
+      status?: 'open' | 'closed';
+      content: string;
+      teamRepliedLast?: boolean;
+    },
+  ): Promise<string> => {
+    const conversationId = await sql.begin((tx) =>
+      createConversation(tx, {
+        organizationId: orgId,
+        contactId,
+        subject,
+        channel: 'email',
+        direction: 'inbound',
+        connectorName: connector,
+        ...(opts.priority !== undefined ? { priority: opts.priority } : {}),
+        ...(opts.status !== undefined ? { status: opts.status } : {}),
+      }),
+    );
+    await sql.begin((tx) =>
+      addMessageToConversation(tx, {
+        conversationId,
+        organizationId: orgId,
+        sender: 'triage@ext.test',
+        content: opts.content,
+        isCustomer: true,
+        sentAt: now - 300_000,
+        connectorName: connector,
+      }),
+    );
+    if (opts.teamRepliedLast) {
+      await sql.begin((tx) =>
+        addMessageToConversation(tx, {
+          conversationId,
+          organizationId: orgId,
+          sender: 'team@door.test',
+          content: 'We are on it.',
+          isCustomer: false,
+          sentAt: now - 240_000,
+          connectorName: connector,
+        }),
+      );
+    }
+    return conversationId;
+  };
+  const waiting = await seed('When does it ship?', {
+    content: '<p>Hello <b>team</b>,<br>when does order 42 ship?</p>',
+  });
+  const answered = await seed('Already answered', {
+    content: 'Thanks for the quote.',
+    teamRepliedLast: true,
+  });
+  const prioritized = await seed('Site is down', {
+    priority: 'urgent',
+    content: 'Our site is down since 9:00.',
+  });
+  const closed = await seed('Closed thread', {
+    status: 'closed',
+    content: 'Closing this.',
+  });
+
+  const first = await listUntriagedConversations(sql, {
+    organizationId: orgId,
+    connectorSlug: connector,
+    limit: 25,
+  });
+  const firstIds = first.conversations.map((row) => row.conversationId);
+  const waitingRow = first.conversations.find(
+    (row) => row.conversationId === waiting,
+  );
+  record(
+    "inbox triage: the listing is the open threads whose newest message is the customer's, none judged yet",
+    firstIds.length === 2 &&
+      firstIds.includes(waiting) &&
+      firstIds.includes(prioritized) &&
+      !firstIds.includes(answered) &&
+      !firstIds.includes(closed) &&
+      // The stripper's exact spacing is its own contract; the lane holds the
+      // text to "readable, no markup".
+      waitingRow !== undefined &&
+      waitingRow.lastInboundText.includes('when does order 42 ship?') &&
+      !waitingRow.lastInboundText.includes('<') &&
+      waitingRow.contact.email === 'triage@ext.test' &&
+      !waitingRow.assigned &&
+      waitingRow.url ===
+        `/dashboard/${orgId}/conversations/open?conversation=${waiting}`,
+    `listed=${firstIds.length} (want 2: waiting+prioritized; not answered/closed) text=${JSON.stringify(waitingRow?.lastInboundText)} url=${waitingRow?.url}`,
+  );
+
+  const recorded = await recordConversationTriage(sql, {
+    organizationId: orgId,
+    runId: 'run_itest_triage',
+    verdicts: [
+      {
+        conversationId: waiting,
+        action: 'reply',
+        priority: 'high',
+        reason: 'Asks for a ship date.',
+      },
+      { conversationId: prioritized, action: 'no_reply', priority: 'low' },
+      { conversationId: 'conv_never_existed', action: 'reply' },
+    ],
+  });
+  const stamped = await sql<
+    { id: string; priority: string | null; triage: Record<string, unknown> }[]
+  >`
+    SELECT id, priority, metadata->'triage' AS triage FROM app.conversations
+    WHERE id IN (${waiting}, ${prioritized})
+  `;
+  const waitingStamp = stamped.find((row) => row.id === waiting);
+  const prioritizedStamp = stamped.find((row) => row.id === prioritized);
+  record(
+    'inbox triage: the stamp carries the verdict and sets the priority only where none was set',
+    recorded.recorded === 2 &&
+      recorded.prioritized === 1 &&
+      recorded.unknown.length === 1 &&
+      recorded.unknown[0] === 'conv_never_existed' &&
+      waitingStamp?.priority === 'high' &&
+      waitingStamp.triage.action === 'reply' &&
+      waitingStamp.triage.reason === 'Asks for a ship date.' &&
+      waitingStamp.triage.runId === 'run_itest_triage' &&
+      typeof waitingStamp.triage.seq === 'number' &&
+      waitingStamp.triage.seq > 0 &&
+      prioritizedStamp?.priority === 'urgent' &&
+      prioritizedStamp.triage.action === 'no_reply',
+    `recorded=${recorded.recorded} prioritized=${recorded.prioritized} unknown=${recorded.unknown.join(',')} waiting.priority=${waitingStamp?.priority} (want high) prioritized.priority=${prioritizedStamp?.priority} (want urgent, kept) stamp=${JSON.stringify(waitingStamp?.triage)}`,
+  );
+
+  const second = await listUntriagedConversations(sql, {
+    organizationId: orgId,
+    connectorSlug: connector,
+    limit: 25,
+  });
+  // A customer message that lands AFTER the stamp but was SENT before it — the
+  // sync's own lag — must surface the thread again: the cursor is seq, not date.
+  await sql.begin((tx) =>
+    addMessageToConversation(tx, {
+      conversationId: waiting,
+      organizationId: orgId,
+      sender: 'triage@ext.test',
+      content: 'Any news?',
+      isCustomer: true,
+      sentAt: now - 3_600_000,
+      connectorName: connector,
+    }),
+  );
+  const third = await listUntriagedConversations(sql, {
+    organizationId: orgId,
+    connectorSlug: connector,
+    limit: 25,
+  });
+  record(
+    'inbox triage: a judged thread is not listed again until a customer message lands after the stamp, however old its date',
+    second.conversations.length === 0 &&
+      third.conversations.length === 1 &&
+      third.conversations[0]?.conversationId === waiting,
+    `afterStamp=${second.conversations.length} (want 0) afterLateMail=${third.conversations.map((row) => row.conversationId).join(',')} (want ${waiting})`,
+  );
+}
+
+/**
  * Ingest idempotency is the DATABASE's rule now, not the lookup's. Two passes
  * of one mailbox can overlap (the schedule claims the occurrence, not the run)
  * and both miss `checkMessageExists`; migration 0077's partial unique index
@@ -27331,6 +28078,32 @@ async function checkNotificationEmailSink(
         ...(undoes === true ? { undoes: true } : {}),
       });
 
+    // The rows are about real tasks of an organization-wide project: a
+    // task-bound row is written only for someone who can open its task.
+    await sql`
+      INSERT INTO app.projects (id, org_id, name, created_by, created_at_ms,
+                                updated_at_ms)
+      VALUES ('p-email-sink', ${orgId}, 'Email sink', ${userId}, ${Date.now()},
+              ${Date.now()})
+    `;
+    for (const [index, taskId] of [
+      'email-task-a',
+      'email-task-b',
+      'email-task-c',
+      'email-task-d',
+    ].entries()) {
+      await sql`
+        INSERT INTO app.tasks (
+          id, org_id, project_id, title, status, rank, number, created_by,
+          created_by_type, created_at_ms, updated_at_ms
+        ) VALUES (
+          ${taskId}, ${orgId}, 'p-email-sink', ${taskId}, 'todo',
+          ${`e${index}`}, ${index + 1}, ${userId}, 'user', ${Date.now()},
+          ${Date.now()}
+        )
+      `;
+    }
+
     // A) Burst on one dimension: write then rewrite before the window fires
     // → the stale-epoch job skips, ONE email carries the final state.
     const first = await bell('email-task-a', 'Email me A');
@@ -27357,12 +28130,25 @@ async function checkNotificationEmailSink(
       RETURNING "id"
     `;
     const prefUserId = prefUsers[0]?.id ?? '';
+    // A member, so the row is written and the preference alone keeps the
+    // email in.
+    await sql`
+      INSERT INTO "member" ("id", "organizationId", "userId", "role",
+                            "createdAt")
+      VALUES (${`m-email-pref-${prefUserId}`}, ${orgId}, ${prefUserId},
+              'member', ${new Date()})
+    `;
     await sql`
       INSERT INTO app.notification_preferences (
         user_id, org_id, actionable_email, updated_at_ms
       ) VALUES (${prefUserId}, ${orgId}, false, ${Date.now()})
     `;
-    await bell('email-task-d', 'Pref is off', undefined, prefUserId);
+    const prefWrite = await bell(
+      'email-task-d',
+      'Pref is off',
+      undefined,
+      prefUserId,
+    );
 
     const drained = await drainNotificationEmails(sql);
     const delivered = smtpSends[0];
@@ -27380,6 +28166,7 @@ async function checkNotificationEmailSink(
       first === 'inserted' &&
         rewritten === 'rewritten' &&
         undone === 'cancelled' &&
+        prefWrite === 'inserted' &&
         drained &&
         smtpSends.length === 1 &&
         delivered?.subject === 'Task assigned to you' &&
@@ -27390,7 +28177,7 @@ async function checkNotificationEmailSink(
         ) &&
         (delivered?.from ?? '').startsWith('notification@') &&
         !rowsLeft.some((row) => row.resourceId === 'email-task-c'),
-      `write=${first}/${rewritten}/undo=${undone}, drained=${drained}, emails=${smtpSends.length} (want 1) subject=${delivered?.subject} to=${delivered?.to}==${adminEmail} from=${delivered?.from} finalBody=${(delivered?.text ?? '').includes('Email me B (final)')} deepLink=${(delivered?.html ?? '').includes(`/projects/p-email-sink/tasks?task=email-task-a`)}, undoneRowGone=${!rowsLeft.some((row) => row.resourceId === 'email-task-c')} rows=${rowsLeft
+      `write=${first}/${rewritten}/undo=${undone}/pref=${prefWrite}, drained=${drained}, emails=${smtpSends.length} (want 1) subject=${delivered?.subject} to=${delivered?.to}==${adminEmail} from=${delivered?.from} finalBody=${(delivered?.text ?? '').includes('Email me B (final)')} deepLink=${(delivered?.html ?? '').includes(`/projects/p-email-sink/tasks?task=email-task-a`)}, undoneRowGone=${!rowsLeft.some((row) => row.resourceId === 'email-task-c')} rows=${rowsLeft
         .map((r) => r.resourceId)
         .sort()
         .join('|')}`,
@@ -27463,6 +28250,14 @@ async function checkNotificationEmailSink(
     );
   } finally {
     setMailTransportForTesting(DEFAULT_MAIL_FAKE);
+    // Later lanes count the organization's members and projects.
+    await sql`
+      DELETE FROM "member"
+      WHERE "organizationId" = ${orgId} AND "id" LIKE 'm-email-pref-%'
+    `;
+    await sql`
+      DELETE FROM app.projects WHERE id = 'p-email-sink' AND org_id = ${orgId}
+    `;
   }
 }
 
@@ -29876,10 +30671,10 @@ async function checkTts(
   ctx: { cookie: string; orgId: string },
   orgSlug: string,
 ): Promise<void> {
-  if (!process.env.ITEST_S3_ENDPOINT) {
-    record(
-      'tts (SKIPPED)',
-      true,
+  if (!itestObjectStore()) {
+    recordSkip(
+      record,
+      'tts',
       'no ITEST_S3_ENDPOINT — audio needs a blob store',
     );
     return;
@@ -32760,6 +33555,10 @@ async function checkWebsitesCrawl(
       type: 'text/plain',
     });
   }
+  // A whole-site row whose corpus registration never landed (step 3b): one
+  // page, no robots.txt and no sitemap, so the scan that restores the
+  // registration finishes on the homepage.
+  const HEAL_DOMAIN = 'itest-heal.example';
   const FAKE_HOSTS = new Set([
     DOMAIN,
     `www.${DOMAIN}`,
@@ -32771,7 +33570,7 @@ async function checkWebsitesCrawl(
   const site = new Map<
     string,
     {
-      body: string;
+      body: string | Uint8Array<ArrayBuffer>;
       type: string;
       status?: number;
       headers?: Record<string, string>;
@@ -32827,6 +33626,17 @@ async function checkWebsitesCrawl(
         headers: {
           'content-type': page.type,
           'content-length': String(page.body.length),
+        },
+      });
+    }
+    if (url.hostname === HEAL_DOMAIN || url.hostname === `www.${HEAL_DOMAIN}`) {
+      if (url.pathname !== '/') return new Response('gone', { status: 404 });
+      const body =
+        'Heal fixture home page. Enough words about the restored registration to survive the chunking thresholds of the pipeline.';
+      return new Response(body, {
+        headers: {
+          'content-type': 'text/plain',
+          'content-length': String(body.length),
         },
       });
     }
@@ -33127,6 +33937,65 @@ async function checkWebsitesCrawl(
       `b=${bRevived[0]?.status ?? 'MISSING'}/active fail=${bRevived[0]?.failCount ?? '?'}/0 chunks=${bRevived[0]?.chunks ?? '0'}>=1, pages=${pagesAfterRevival.success ? pagesAfterRevival.data.total : 'ERR'}/3`,
     );
 
+    // 2c. The bench expires (2026-09-30). A discovered page that failed five
+    //     scans in a row is left alone — for a week; then one scan probes it
+    //     again, and a page that is back re-indexes with its row cleared.
+    //     Before, five scans with the render sandbox's proxy refusing every
+    //     tunnel benched a whole site for good, and fixing the proxy revived
+    //     nothing short of deleting and re-adding the website.
+    const benchedUrl = `https://${DOMAIN}/docs/b.txt`;
+    await pool`
+      UPDATE public_web.website_urls
+         SET fail_count = 5, last_crawled_at = now() - interval '2 days',
+             last_error = 'itest: benched', last_error_kind = 'render_failed',
+             last_error_at = now() - interval '2 days'
+       WHERE domain = ${DOMAIN} AND url = ${benchedUrl}
+    `;
+    await websites.runWebsitesScan(sql, {
+      domain: DOMAIN,
+      orgSlug,
+      organizationId: orgId,
+    });
+    await drainCrawlJobs();
+    const benchedRowQuery = () => pool<
+      {
+        status: string;
+        failCount: number;
+        lastError: string | null;
+        crawledDaysAgo: number;
+      }[]
+    >`
+      SELECT status, fail_count AS "failCount", last_error AS "lastError",
+             (extract(epoch FROM now() - last_crawled_at) / 86400)::float8
+               AS "crawledDaysAgo"
+      FROM public_web.website_urls
+      WHERE domain = ${DOMAIN} AND url = ${benchedUrl}
+    `;
+    const stillBenched = await benchedRowQuery();
+    await pool`
+      UPDATE public_web.website_urls
+         SET last_crawled_at = now() - interval '8 days'
+       WHERE domain = ${DOMAIN} AND url = ${benchedUrl}
+    `;
+    await websites.runWebsitesScan(sql, {
+      domain: DOMAIN,
+      orgSlug,
+      organizationId: orgId,
+    });
+    await drainCrawlJobs();
+    const amnestied = await benchedRowQuery();
+    record(
+      'websites revival: a page benched after five failures waits a week, then one scan probes it again',
+      stillBenched[0]?.failCount === 5 &&
+        stillBenched[0].lastError === 'itest: benched' &&
+        stillBenched[0].crawledDaysAgo > 1.5 &&
+        amnestied[0]?.status === 'active' &&
+        amnestied[0].failCount === 0 &&
+        amnestied[0].lastError === null &&
+        amnestied[0].crawledDaysAgo < 0.5,
+      `benched 2 days ago: fail=${stillBenched[0]?.failCount ?? '?'}/5 error=${stillBenched[0]?.lastError ?? 'null'} probed=${stillBenched[0] ? stillBenched[0].crawledDaysAgo < 0.5 : '?'}/false; benched 8 days ago: ${amnestied[0]?.status ?? 'MISSING'}/active fail=${amnestied[0]?.failCount ?? '?'}/0 error=${amnestied[0]?.lastError ?? 'null'}/null probed=${amnestied[0] ? amnestied[0].crawledDaysAgo < 0.5 : '?'}/true`,
+    );
+
     // 3. The failure ledger: attempts advance the scheduler clock, repeated
     //    connection failures pause the site + notify admins ONCE, resume
     //    clears the bookkeeping and re-kicks a scan.
@@ -33196,14 +34065,17 @@ async function checkWebsitesCrawl(
     );
 
     // 3b. A row whose domain has NO corpus registration (the register job
-    //     never landed, or the registration was released): the scan must
-    //     record the failure on the row — attempt clock + `error` status
-    //     with the delete-and-re-add message — instead of logging "already
-    //     running" and letting the scheduler re-pick it every tick forever.
+    //     never landed, or the registration was released). A URL list
+    //     cannot be registered again from its row — its URLs were the
+    //     registration — so its scan must record the failure on the row:
+    //     attempt clock + `error` status with the delete-and-re-add message,
+    //     instead of logging "already running" and letting the scheduler
+    //     re-pick it every tick forever.
     const UNREGISTERED_DOMAIN = 'itest-unregistered.example';
     const unregisteredId = await websites.createWebsiteRow(sql, {
       organizationId: orgId,
       domain: UNREGISTERED_DOMAIN,
+      kind: 'list',
       scanInterval: '6h',
       status: 'active',
     });
@@ -33222,13 +34094,276 @@ async function checkWebsitesCrawl(
       : true;
     await sql`DELETE FROM app.websites WHERE id = ${unregisteredId}`;
     record(
-      'websites scan of an unregistered domain records the failure',
+      'websites scan of an unregistered URL list records the failure',
       unregisteredRow?.status === 'error' &&
         typeof unregisteredMeta.lastScanAttemptAt === 'number' &&
         unregisteredMeta.lastSyncError ===
           scheduling.WEBSITE_NOT_IN_CORPUS_MESSAGE &&
         !unregisteredDueNow,
       `status=${unregisteredRow?.status}/error attemptStamped=${typeof unregisteredMeta.lastScanAttemptAt === 'number'} error=${String(unregisteredMeta.lastSyncError)} dueAgainNow=${unregisteredDueNow}(want false)`,
+    );
+
+    // 3c. The same gap on a WHOLE-SITE row heals: a site needs only its
+    //     domain and interval to register, so the scan that finds the
+    //     membership missing writes it and crawls. Before this the row read
+    //     "delete it and add it again" for good — one failed registration
+    //     (the knowledge database unreachable while the site was added) was
+    //     permanent.
+    const healId = await websites.createWebsiteRow(sql, {
+      organizationId: orgId,
+      domain: HEAL_DOMAIN,
+      scanInterval: '6h',
+      status: 'error',
+    });
+    const healMemberBefore = await pool<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM public_web.website_org_memberships
+      WHERE domain = ${HEAL_DOMAIN}
+    `;
+    await websites.runWebsitesScan(sql, {
+      domain: HEAL_DOMAIN,
+      orgSlug,
+      organizationId: orgId,
+    });
+    await drainCrawlJobs();
+    await websites.runWebsitesRowSync(sql, { orgSlug, domain: HEAL_DOMAIN });
+    const healMemberAfter = await pool<{ orgSlug: string }[]>`
+      SELECT org_slug AS "orgSlug" FROM public_web.website_org_memberships
+      WHERE domain = ${HEAL_DOMAIN}
+    `;
+    const healCorpus = await pool<{ status: string; interval: number }[]>`
+      SELECT status, scan_interval AS interval FROM public_web.websites
+      WHERE domain = ${HEAL_DOMAIN}
+    `;
+    const healRow = await websites.getWebsite(sql, healId);
+    const healError = healRow?.metadata?.lastSyncError;
+    if (healRow) await websites.deregisterAndDeleteWebsite(sql, healRow);
+    const healGone = await pool<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM public_web.websites
+      WHERE domain = ${HEAL_DOMAIN}
+    `;
+    record(
+      'websites scan of an unregistered whole site restores the registration and crawls',
+      healMemberBefore[0]?.count === '0' &&
+        healMemberAfter.length === 1 &&
+        healMemberAfter[0]?.orgSlug === orgSlug &&
+        healCorpus[0]?.status === 'completed' &&
+        healCorpus[0].interval === 21_600 &&
+        healRow?.status === 'active' &&
+        healRow.crawledPageCount === 1 &&
+        healRow.failedPageCount === 0 &&
+        healError == null &&
+        healGone[0]?.count === '0',
+      `membersBefore=${healMemberBefore[0]?.count ?? '?'}/0 membersAfter=${healMemberAfter.map((row) => row.orgSlug).join(',')}/${orgSlug} corpus=${healCorpus[0]?.status ?? 'MISSING'}/completed interval=${healCorpus[0]?.interval ?? '?'}/21600 row=${healRow?.status ?? 'MISSING'}/active crawled=${healRow?.crawledPageCount ?? '?'}/1 failed=${healRow?.failedPageCount ?? '?'}/0 error=${String(healError)} corpusAfterDelete=${healGone[0]?.count ?? '?'}/0`,
+    );
+
+    // 3d. A scan cut off mid-link — a restart, a deploy, a crash — ends
+    //     nowhere: the corpus claim stays held, the row reads `scanning` and
+    //     no scan job is left. The claim turned every new scan away for its
+    //     two-hour takeover window, and the scan that then replaced it
+    //     began again from the first page. The scheduler now resumes it: a
+    //     first link that takes exactly that claim over, by its heartbeat,
+    //     and counts its pages from where the interrupted scan began — here
+    //     one page is still due, and the two crawled since stay done.
+    const scanQueue = await import('./domains/websites/scan-queue.ts');
+    const aUrl = `https://${DOMAIN}/a.txt`;
+    const bUrl = `https://${DOMAIN}/docs/b.txt`;
+    const bBody = site.get('/docs/b.txt');
+    site.set('/a.txt', {
+      body: 'Alpha content v3 — the page the interrupted scan had not reached, rewritten so the resumed scan can be told by what it stores.',
+      type: 'text/plain',
+    });
+    site.set('/docs/b.txt', {
+      body: 'Bravo content v9 — changed at the origin after the interrupted scan crawled it; a resumed scan must not come back to it.',
+      type: 'text/plain',
+    });
+    await pool`
+      UPDATE public_web.website_urls
+      SET last_crawled_at = CASE WHEN url = ${aUrl}
+        THEN NOW() - INTERVAL '1 hour' ELSE NOW() END
+      WHERE domain = ${DOMAIN}
+    `;
+    const heldClaim = await pool<{ heartbeat: string }[]>`
+      UPDATE public_web.websites
+      SET status = 'scanning', updated_at = NOW(),
+          last_scanned_at = NOW() - INTERVAL '3 hours'
+      WHERE domain = ${DOMAIN}
+      RETURNING updated_at::text AS heartbeat
+    `;
+    await websites.runWebsitesRowSync(sql, { orgSlug, domain: DOMAIN });
+    const claimHeartbeat = async (): Promise<string | undefined> =>
+      (
+        await pool<{ heartbeat: string }[]>`
+          SELECT updated_at::text AS heartbeat FROM public_web.websites
+          WHERE domain = ${DOMAIN} AND status = 'scanning'
+        `
+      )[0]?.heartbeat;
+    // A scan that is not a resume is turned away by the held claim.
+    await websites.runWebsitesScan(sql, {
+      domain: DOMAIN,
+      orgSlug,
+      organizationId: orgId,
+    });
+    const heartbeatAfterPlain = await claimHeartbeat();
+    // The interrupted scan's last link, as the queue would hold it. First a
+    // job that ran out its whole expiry half a minute ago: its link may
+    // still be working, so the scan is left alone for the grace.
+    const lastLink = await sql<{ id: string }[]>`
+      UPDATE pgboss.job
+      SET state = 'failed', started_on = now() - interval '16 minutes',
+          completed_on = now() - interval '30 seconds'
+      WHERE name = 'websites.scan' AND id = (
+        SELECT id FROM pgboss.job
+        WHERE name = 'websites.scan' AND data->>'domain' = ${DOMAIN}
+        ORDER BY created_on DESC LIMIT 1
+      )
+      RETURNING id
+    `;
+    const lastLinkId = lastLink[0]?.id ?? '';
+    const candidates = await scanQueue.listScanningRowsWithoutJob(sql, 50);
+    const ranOut = await scanQueue.lastFailedScanJob(sql, DOMAIN);
+    const resumedInGrace = await websites.resumeInterruptedScans(sql);
+    // The claim's age is the database's reckoning of its last refresh. A
+    // resume that has no job to go by takes only a claim older than a link
+    // can hold it.
+    const crawlStore = await import('./core/knowledge/crawl.ts');
+    const freshClaim = await crawlStore.readScanClaim(pool, DOMAIN);
+    const agedClaim = await pool<{ heartbeat: string }[]>`
+      UPDATE public_web.websites
+      SET updated_at = now() - interval '16 minutes'
+      WHERE domain = ${DOMAIN}
+      RETURNING updated_at::text AS heartbeat
+    `;
+    const agedRead = await crawlStore.readScanClaim(pool, DOMAIN);
+    // Then the link a killed worker leaves: its heartbeat stopped a minute
+    // into its run and the supervisor failed the job. A link still running
+    // after its job ended queues no successor (the fence below), so the
+    // scan is resumed at once.
+    const cutShortAt = await sql<{ startedAt: number }[]>`
+      UPDATE pgboss.job
+      SET started_on = now() - interval '10 minutes',
+          completed_on = now() - interval '9 minutes',
+          output = ${sql.json({ value: { message: 'job heartbeat timeout' } })}
+      WHERE name = 'websites.scan' AND id = ${lastLinkId}
+      RETURNING (EXTRACT(EPOCH FROM started_on) * 1000)::float8 AS "startedAt"
+    `;
+    const cutShort = await scanQueue.lastFailedScanJob(sql, DOMAIN);
+    const jobEnded = await scanQueue.scanJobEnded(sql, lastLinkId);
+    const unknownJobEnded = await scanQueue.scanJobEnded(sql, randomUUID());
+    const resumedScans = await websites.resumeInterruptedScans(sql);
+    const resumeJob = await sql<{ data: unknown }[]>`
+      SELECT data FROM pgboss.job
+      WHERE name = 'websites.scan' AND data->>'domain' = ${DOMAIN}
+      ORDER BY created_on DESC LIMIT 1
+    `;
+    const resumePayload = z
+      .object({ takeover: z.string(), scanStartedAt: z.string() })
+      .safeParse(resumeJob[0]?.data);
+    await drainCrawlJobs();
+    await websites.runWebsitesRowSync(sql, { orgSlug, domain: DOMAIN });
+    const resumedCorpus = await pool<{ status: string }[]>`
+      SELECT status FROM public_web.websites WHERE domain = ${DOMAIN}
+    `;
+    const chunkTexts = async (url: string): Promise<string[]> =>
+      (
+        await pool<{ content: string }[]>`
+          SELECT chunk_content AS content FROM public_web.chunks
+          WHERE domain = ${DOMAIN} AND url = ${url}
+        `
+      ).map((chunk) => chunk.content);
+    const aResumed = await chunkTexts(aUrl);
+    const bResumed = await chunkTexts(bUrl);
+    const rowAfterResume = await websites.getWebsite(sql, websiteId);
+    if (bBody) site.set('/docs/b.txt', bBody);
+    const epochDrift = resumePayload.success
+      ? Math.abs(
+          Date.parse(resumePayload.data.scanStartedAt) -
+            (cutShortAt[0]?.startedAt ?? 0),
+        )
+      : -1;
+    record(
+      'websites resume: a scan cut off by a restart is taken over on the next tick and continues where it stopped',
+      heldClaim.length === 1 &&
+        heartbeatAfterPlain === heldClaim[0]?.heartbeat &&
+        candidates.some((row) => row.id === websiteId) &&
+        ranOut?.ranOutItsExpiry === true &&
+        resumedInGrace === 0 &&
+        freshClaim !== null &&
+        freshClaim.ageMs < scheduling.LINK_LIFETIME_MS &&
+        agedRead?.heartbeat === agedClaim[0]?.heartbeat &&
+        agedRead.ageMs >= scheduling.LINK_LIFETIME_MS &&
+        cutShort?.ranOutItsExpiry === false &&
+        jobEnded &&
+        !unknownJobEnded &&
+        resumedScans === 1 &&
+        resumePayload.success &&
+        resumePayload.data.takeover === agedClaim[0]?.heartbeat &&
+        epochDrift >= 0 &&
+        epochDrift < 5 &&
+        resumedCorpus[0]?.status === 'completed' &&
+        aResumed.length >= 1 &&
+        aResumed.every((text) => text.includes('v3')) &&
+        bResumed.length >= 1 &&
+        bResumed.every((text) => !text.includes('v9')) &&
+        rowAfterResume?.status === 'active' &&
+        rowAfterResume.metadata?.scanResumes == null &&
+        rowAfterResume.metadata?.scanHeartbeatAt == null,
+      `claim=${heldClaim[0]?.heartbeat ?? 'NONE'} afterPlainScan=${heartbeatAfterPlain === heldClaim[0]?.heartbeat ? 'unchanged' : `CHANGED(${heartbeatAfterPlain ?? 'released'})`} candidate=${candidates.some((row) => row.id === websiteId)} ranOut=${String(ranOut?.ranOutItsExpiry)}/true resumedInGrace=${resumedInGrace}/0 claimAge=${Math.round((freshClaim?.ageMs ?? -1) / 1000)}s→${Math.round((agedRead?.ageMs ?? -1) / 1000)}s cutShort=${String(cutShort?.ranOutItsExpiry)}/false jobEnded=${jobEnded}/true unknownJobEnded=${unknownJobEnded}/false resumedScans=${resumedScans}/1 payload=${resumePayload.success ? `takeover ${resumePayload.data.takeover === agedClaim[0]?.heartbeat ? 'matches' : 'DIFFERS'}, epoch drift ${epochDrift}ms` : 'BAD SHAPE'} corpus=${resumedCorpus[0]?.status ?? 'MISSING'}/completed a=${aResumed.length} allV3=${aResumed.every((text) => text.includes('v3'))} b=${bResumed.length} noneV9=${bResumed.every((text) => !text.includes('v9'))} row=${rowAfterResume?.status ?? 'MISSING'}/active resumes=${String(rowAfterResume?.metadata?.scanResumes)} heartbeat=${String(rowAfterResume?.metadata?.scanHeartbeatAt)}`,
+    );
+
+    // 3e. A site that was just added reads `scanning` before its first scan
+    //     job exists: the register job registers the domain, reads the
+    //     homepage and only then queues the scan. A scheduler tick in that
+    //     window took the row for an interrupted scan, found no claim and
+    //     queued a row sync — the new site read idle, or "not found in
+    //     crawler" when the registration had not landed yet, until its scan
+    //     began. The register job stands for the scan it is about to queue;
+    //     once it is gone with no scan behind it, the row is a candidate.
+    const REGISTERING_DOMAIN = 'itest-registering.example';
+    const registeringId = await websites.createWebsiteRow(sql, {
+      organizationId: orgId,
+      domain: REGISTERING_DOMAIN,
+      scanInterval: '6h',
+      status: 'scanning',
+    });
+    // Deferred, so the worker leaves it queued for the length of this step.
+    const registerJobId = await addJobInTx(
+      sql,
+      'websites.register',
+      {
+        websiteId: registeringId,
+        domain: REGISTERING_DOMAIN,
+        scanInterval: '6h',
+        organizationId: orgId,
+      },
+      { startAfter: new Date(Date.now() + 3_600_000) },
+    );
+    const whileRegistering = await scanQueue.listScanningRowsWithoutJob(
+      sql,
+      50,
+    );
+    await websites.resumeInterruptedScans(sql);
+    const syncsWhileRegistering = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM pgboss.job
+      WHERE name = 'websites.row_sync'
+        AND data->>'domain' = ${REGISTERING_DOMAIN}
+    `;
+    const rowWhileRegistering = await websites.getWebsite(sql, registeringId);
+    await sql`
+      DELETE FROM pgboss.job
+      WHERE name = 'websites.register'
+        AND data->>'domain' = ${REGISTERING_DOMAIN}
+    `;
+    const afterRegister = await scanQueue.listScanningRowsWithoutJob(sql, 50);
+    await sql`DELETE FROM app.websites WHERE id = ${registeringId}`;
+    record(
+      'websites resume: a new site whose register job is still queued is not taken for an interrupted scan',
+      registerJobId !== null &&
+        !whileRegistering.some((row) => row.id === registeringId) &&
+        syncsWhileRegistering[0]?.count === '0' &&
+        rowWhileRegistering?.status === 'scanning' &&
+        rowWhileRegistering.metadata?.lastSyncError == null &&
+        afterRegister.some((row) => row.id === registeringId),
+      `registerJob=${registerJobId === null ? 'NOT QUEUED' : 'queued'} candidateWhileRegistering=${whileRegistering.some((row) => row.id === registeringId)}/false rowSyncs=${syncsWhileRegistering[0]?.count ?? '?'}/0 row=${rowWhileRegistering?.status ?? 'MISSING'}/scanning error=${String(rowWhileRegistering?.metadata?.lastSyncError)} candidateAfterRegister=${afterRegister.some((row) => row.id === registeringId)}/true`,
     );
 
     // 4. The REST /websites family (the 0.4 rest_api contract) + a URL-list
@@ -33405,6 +34540,7 @@ async function checkWebsitesCrawl(
     const listWebsiteId = listCreated.success ? listCreated.data.id : '';
     const failurePage = z.looseObject({
       url: z.string(),
+      title: z.string().nullable(),
       status: z.string(),
       indexed: z.boolean(),
       wordCount: z.number(),
@@ -33575,7 +34711,7 @@ async function checkWebsitesCrawl(
       `;
       const listRowSkipped = await websites.getWebsite(sql, listWebsiteId);
       record(
-        'websites page failure: a JSON page and a noindex page store nothing and say why (unsupported_content, robots_noindex)',
+        'websites page failure: a JSON page and a noindex page store nothing and say why (unsupported_content, robots_noindex), skipped rather than failed',
         listSkipped.status === 200 &&
           jsonPage !== undefined &&
           jsonPage.status === 'discovered' &&
@@ -33591,9 +34727,74 @@ async function checkWebsitesCrawl(
           noindexPage.lastErrorKind === 'robots_noindex' &&
           Number(noindexChunks[0]?.count ?? '-1') === 0 &&
           listRowSkipped?.status === 'active' &&
-          listRowSkipped.failedPageCount === 2 &&
+          // Skips are the crawler's choice, not failures: the site does
+          // not count them among its failed pages (2026-09-30).
+          listRowSkipped.failedPageCount === 0 &&
           listRowSkipped.crawledPageCount === 4,
-        `relist=${listSkipped.status}/200 json=${jsonPage ? `${jsonPage.status}/${jsonPage.indexed}/${jsonPage.wordCount}w fail=${jsonPage.failCount} kind=${jsonPage.lastErrorKind} err=${jsonPage.lastError}` : 'MISSING'} (want discovered/false/0w fail=1 kind=unsupported_content), noindex=${noindexPage ? `${noindexPage.status}/${noindexPage.indexed} fail=${noindexPage.failCount} kind=${noindexPage.lastErrorKind}` : 'MISSING'} (want discovered/false fail=1 kind=robots_noindex) chunks=${noindexChunks[0]?.count}/0, row=${listRowSkipped?.status}/active failed=${listRowSkipped?.failedPageCount}/2 attempted=${listRowSkipped?.crawledPageCount}/4`,
+        `relist=${listSkipped.status}/200 json=${jsonPage ? `${jsonPage.status}/${jsonPage.indexed}/${jsonPage.wordCount}w fail=${jsonPage.failCount} kind=${jsonPage.lastErrorKind} err=${jsonPage.lastError}` : 'MISSING'} (want discovered/false/0w fail=1 kind=unsupported_content), noindex=${noindexPage ? `${noindexPage.status}/${noindexPage.indexed} fail=${noindexPage.failCount} kind=${noindexPage.lastErrorKind}` : 'MISSING'} (want discovered/false fail=1 kind=robots_noindex) chunks=${noindexChunks[0]?.count}/0, row=${listRowSkipped?.status}/active failed=${listRowSkipped?.failedPageCount}/0 attempted=${listRowSkipped?.crawledPageCount}/4`,
+      );
+
+      // 4f. A download whose declared type says nothing or the wrong thing
+      //     (2026-09-30): a TYPO3 export answered `application/vnd.ms-excel`
+      //     with an `.xlsx` named in its Content-Disposition, and read as
+      //     unsupported. The bytes decide, and the offered name is the
+      //     document's.
+      // The fixture serves by path; the listed URL keeps its query string
+      // (an export action), which the crawler dials as is.
+      const exportPath = '/tables';
+      const exportUrl = `https://${LIST_DOMAIN}${exportPath}?export=1`;
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(
+        workbook,
+        XLSX.utils.aoa_to_sheet([
+          ['Component', 'Admission status'],
+          [
+            'Security module card',
+            'admitted for the telematics infrastructure since spring',
+          ],
+          ['Card terminal', 'admission pending a firmware review'],
+        ]),
+        'Admissions',
+      );
+      // The same way the extraction tests build a workbook: `array` output,
+      // copied into a fresh buffer.
+      const workbookBytes: ArrayLike<number> = XLSX.write(workbook, {
+        type: 'array',
+        bookType: 'xlsx',
+      });
+      site.set(exportPath, {
+        body: new Uint8Array(workbookBytes),
+        type: 'application/vnd.ms-excel',
+        headers: {
+          'content-disposition': 'attachment;filename="admission-tables.xlsx"',
+        },
+      });
+      const listExport = await v1('/websites', {
+        body: {
+          domain: LIST_DOMAIN,
+          scanInterval: '1d',
+          urls: [listUrl, redirectUrl, jsonUrl, noindexUrl, exportUrl],
+        },
+      });
+      await drainCrawlJobs();
+      await websites.runWebsitesRowSync(sql, { orgSlug, domain: LIST_DOMAIN });
+      const exportPages = z
+        .object({ pages: z.array(failurePage) })
+        .loose()
+        .safeParse(await (await v1(`/websites/${listWebsiteId}/pages`)).json());
+      const exportPage = exportPages.success
+        ? exportPages.data.pages.find((page) => page.url === exportUrl)
+        : undefined;
+      record(
+        'websites documents: a download served as a generic or legacy type is read by its bytes and named by its Content-Disposition',
+        listExport.status === 200 &&
+          exportPage !== undefined &&
+          exportPage.status === 'active' &&
+          exportPage.wordCount >= 8 &&
+          exportPage.title === 'admission-tables.xlsx' &&
+          exportPage.failCount === 0 &&
+          exportPage.lastError === null,
+        `relist=${listExport.status}/200 page=${exportPage ? `${exportPage.status} words=${exportPage.wordCount} title=${exportPage.title} fail=${exportPage.failCount} err=${exportPage.lastError}` : 'MISSING'} (want active words>=8 title=admission-tables.xlsx fail=0 err=null)`,
       );
     } finally {
       await new Promise<void>((resolve) => {
@@ -33758,6 +34959,39 @@ async function checkWebsitesCrawl(
       .loose()
       .safeParse(await (await v1('/websites?status=error')).json());
     const downBadFilter = await v1('/websites?status=broken');
+    // The page list narrowed to one state: the failed home page alone under
+    // `state=failed`, nothing under `state=skipped`, the counts beside
+    // either, and a state the list does not know refused.
+    const pagesStateWindow = z.looseObject({
+      pages: z.array(failurePage),
+      total: z.number(),
+      state: z.string().nullable(),
+      counts: z.object({ failed: z.number(), skipped: z.number() }),
+    });
+    const downFailedOnly = pagesStateWindow.safeParse(
+      await (await v1(`/websites/${downId}/pages?state=failed`)).json(),
+    );
+    const downSkippedOnly = pagesStateWindow.safeParse(
+      await (await v1(`/websites/${downId}/pages?state=skipped`)).json(),
+    );
+    const downBadState = await v1(`/websites/${downId}/pages?state=broken`);
+    record(
+      'websites pages: the list narrows to the failed or the skipped pages and counts both',
+      downFailedOnly.success &&
+        downFailedOnly.data.state === 'failed' &&
+        downFailedOnly.data.total === 1 &&
+        downFailedOnly.data.pages.length === 1 &&
+        downFailedOnly.data.pages[0]?.url === `https://${DOWN_DOMAIN}/` &&
+        downFailedOnly.data.counts.failed === 1 &&
+        downFailedOnly.data.counts.skipped === 0 &&
+        downSkippedOnly.success &&
+        downSkippedOnly.data.state === 'skipped' &&
+        downSkippedOnly.data.total === 0 &&
+        downSkippedOnly.data.pages.length === 0 &&
+        downSkippedOnly.data.counts.failed === 1 &&
+        downBadState.status === 400,
+      `failed=${downFailedOnly.success ? `${downFailedOnly.data.state ?? 'null'}/${downFailedOnly.data.total}/${downFailedOnly.data.pages[0]?.url ?? '-'}/counts ${JSON.stringify(downFailedOnly.data.counts)}` : 'PARSE'} (want failed/1/https://${DOWN_DOMAIN}//{failed:1,skipped:0}) skipped=${downSkippedOnly.success ? `${downSkippedOnly.data.state ?? 'null'}/${downSkippedOnly.data.total}/${downSkippedOnly.data.pages.length}` : 'PARSE'} (want skipped/0/0) badState=${downBadState.status} (want 400)`,
+    );
     const downDeleted = await v1(`/websites/${downId}`, { method: 'DELETE' });
     record(
       'websites scan end: a site whose every page failed reads error with the reason, never active',
@@ -33973,10 +35207,10 @@ async function checkTranscription(
   base: string,
   ctx: { cookie: string; orgId: string; userId: string },
 ): Promise<void> {
-  if (!process.env.ITEST_S3_ENDPOINT) {
-    record(
-      'transcription (SKIPPED)',
-      true,
+  if (!itestObjectStore()) {
+    recordSkip(
+      record,
+      'transcription',
       'no ITEST_S3_ENDPOINT — audio needs a blob store',
     );
     return;
@@ -34532,10 +35766,10 @@ async function checkVideoLinks(
   base: string,
   ctx: { cookie: string; orgId: string; userId: string },
 ): Promise<void> {
-  if (!process.env.ITEST_S3_ENDPOINT) {
-    record(
-      'video links (SKIPPED)',
-      true,
+  if (!itestObjectStore()) {
+    recordSkip(
+      record,
+      'video links',
       'no ITEST_S3_ENDPOINT — transcripts need a blob store',
     );
     return;
@@ -35676,10 +36910,10 @@ async function checkTaskAgentTurnDrive(
   ctx: { cookie: string; orgId: string },
   orgSlug: string,
 ): Promise<void> {
-  if (!process.env.ITEST_S3_ENDPOINT) {
-    record(
-      'task-agent turn drive (SKIPPED)',
-      true,
+  if (!itestObjectStore()) {
+    recordSkip(
+      record,
+      'task-agent turn drive',
       'no ITEST_S3_ENDPOINT — the harvest lane needs blob storage',
     );
     return;
@@ -36496,10 +37730,10 @@ async function checkAutomationAgentNode(
   ctx: { cookie: string; orgId: string },
   _orgSlug: string,
 ): Promise<void> {
-  if (!process.env.ITEST_S3_ENDPOINT) {
-    record(
-      'automation agent node (SKIPPED)',
-      true,
+  if (!itestObjectStore()) {
+    recordSkip(
+      record,
+      'automation agent node',
       'no ITEST_S3_ENDPOINT — the harvest lane needs blob storage',
     );
     return;
@@ -37249,6 +38483,466 @@ async function checkAutomationAgentNode(
     await new Promise<void>((resolve) => {
       gateway.close(() => resolve());
     });
+  }
+}
+
+/**
+ * An automation step whose run's workspace an administrator is destroying
+ * fails with the reason at once, #4122. While the Destroy of a workflow
+ * run's session is queued, retrying or running, its admission refuses the
+ * run's next start (#4095). That refusal was read as a spent budget: the
+ * step waited up to two hours for room, and once the Destroy had settled it
+ * started over in a fresh, empty workspace, without what the run's earlier
+ * steps left there. A real two-step run on a fake spawner: the first step's
+ * turn is held while the run's session is destroyed through the Sandboxes
+ * page's route, the spawner refusing the delete so the Destroy stays
+ * pending between attempts; then the turn ends. The second step's start
+ * must fail the run with the Destroy's reason while the Destroy is still
+ * pending, and once it has settled nothing may start in the run again.
+ */
+async function checkAutomationStepDestroyPending(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string },
+): Promise<void> {
+  const { cookie, orgId } = ctx;
+  const { createServer } = await import('node:http');
+  const { sessionIdForWorkflowExecution } =
+    await import('./core/sandbox/session_naming.ts');
+  const { SANDBOX_DESTROY_PENDING_MESSAGE } =
+    await import('./core/sandbox/session_constants.ts');
+  const sessions = await import('./domains/sandbox/sessions.ts');
+
+  // The steps run on `itestagent`: the provider the turn-drive lane left in
+  // the suite org, or one of this lane's own when it runs alone.
+  const [orgRow] = await sql<{ slug: string }[]>`
+    SELECT "slug" FROM "organization" WHERE "id" = ${orgId}
+  `;
+  const orgSlug = orgRow?.slug ?? '';
+  const providerSeeded = await stat(
+    path.join(
+      process.env.TALE_CONFIG_DIR ?? '',
+      orgSlug,
+      'providers',
+      'itestagent.yml',
+    ),
+  ).then(
+    () => true,
+    () => false,
+  );
+  const agentProvider = providerSeeded
+    ? null
+    : await seedItestAgentProvider({
+        base,
+        cookie,
+        orgId,
+        orgSlug,
+        displayName: 'Itest Agent Destroy',
+        credentialName: 'Agent destroy key',
+        secret: 'sk-itest-agent-destroy',
+      });
+
+  // The spawner: every create and exec counted; the first exec (the first
+  // step's turn) held until the lane lets it end; a delete refused while
+  // `failDeletes` holds.
+  const spawned = { creates: 0, execs: 0, deletes: 0 };
+  let failDeletes = false;
+  let firstExecStarted = (): void => {};
+  const firstExec = new Promise<void>((resolve) => {
+    firstExecStarted = resolve;
+  });
+  let releaseFirstExec = (): void => {};
+  const firstExecGate = new Promise<void>((resolve) => {
+    releaseFirstExec = resolve;
+  });
+  const writeExecStream = (res: ServerResponse): void => {
+    res.setHeader('content-type', 'text/event-stream');
+    const lines = [
+      { type: 'system', subtype: 'init', session_id: 'wfconv-destroy' },
+      {
+        type: 'assistant',
+        message: {
+          id: 'wd1',
+          model: 'itest-agent-model',
+          content: [{ type: 'text', text: 'Drafted the notes.' }],
+          usage: { input_tokens: 40, output_tokens: 10 },
+        },
+      },
+      {
+        type: 'result',
+        subtype: 'success',
+        session_id: 'wfconv-destroy',
+        result: 'Drafted the notes into the workspace.',
+        duration_ms: 200,
+      },
+    ];
+    lines.forEach((line, index) => {
+      res.write(
+        `event: stdout\ndata: ${JSON.stringify({ text: `${JSON.stringify(line)}\n`, seq: index + 1 })}\n\n`,
+      );
+    });
+    res.write(
+      `event: result\ndata: ${JSON.stringify({ exitCode: 0, stdoutBase64: '', stderrBase64: '' })}\n\n`,
+    );
+    res.end();
+  };
+  const spawner = createServer((req, res) => {
+    let body = '';
+    req.on('data', (chunk: unknown) => {
+      body += String(chunk);
+    });
+    req.on('end', () => {
+      const url = new URL(req.url ?? '', 'http://x');
+      const method = req.method ?? 'GET';
+      res.setHeader('content-type', 'application/json');
+      if (method === 'POST' && url.pathname === '/v1/sessions') {
+        spawned.creates += 1;
+        const parsed = z
+          .object({ sessionId: z.string() })
+          .loose()
+          .safeParse(JSON.parse(body || '{}'));
+        res.end(
+          JSON.stringify({
+            session: {
+              sessionId: parsed.success ? parsed.data.sessionId : '',
+              organizationId: orgId,
+              profile: 'agent',
+              state: 'ready',
+              backend: 'itest',
+              createdAtMs: Date.now(),
+              expiresAtMs: Date.now() + 3_600_000,
+              idleTimeoutMs: 600_000,
+            },
+          }),
+        );
+        return;
+      }
+      if (method === 'POST' && url.pathname.endsWith('/exec')) {
+        spawned.execs += 1;
+        if (spawned.execs === 1) {
+          firstExecStarted();
+          void firstExecGate.then(() => writeExecStream(res));
+          return;
+        }
+        writeExecStream(res);
+        return;
+      }
+      if (url.pathname.endsWith('/files/stage')) {
+        res.end(JSON.stringify({ staged: [], skipped: [] }));
+        return;
+      }
+      if (url.pathname.endsWith('/files/delete')) {
+        res.end(JSON.stringify({ deleted: [], skipped: [] }));
+        return;
+      }
+      if (/\/v1\/sessions\/[^/]+\/files$/.test(url.pathname)) {
+        res.end(JSON.stringify({ entries: [] }));
+        return;
+      }
+      if (/\/exec\/[^/]+\/cancel$/.test(url.pathname)) {
+        res.end('{"cancelled":true}');
+        return;
+      }
+      if (method === 'PATCH' && url.pathname.endsWith('/pin')) {
+        res.end('{"pinned":false}');
+        return;
+      }
+      if (method === 'GET' && /^\/v1\/sessions\/[^/]+$/.test(url.pathname)) {
+        res.end('{"session":{"state":"ready"}}');
+        return;
+      }
+      if (method === 'DELETE') {
+        spawned.deletes += 1;
+        if (failDeletes) {
+          res.statusCode = 500;
+          res.end('{"error":"itest delete failure"}');
+          return;
+        }
+        res.end('{"destroyed":true}');
+        return;
+      }
+      res.statusCode = 404;
+      res.end('{}');
+    });
+  });
+  await new Promise<void>((resolve) => {
+    spawner.listen(0, '127.0.0.1', resolve);
+  });
+  const spawnerAddress = spawner.address();
+  const spawnerPort =
+    spawnerAddress !== null && typeof spawnerAddress === 'object'
+      ? spawnerAddress.port
+      : 0;
+  // The gateway: the provider keys the platform syncs, each turn's key
+  // minted and revoked, nothing spent.
+  const providerKeys = new Map<string, Array<{ id: string; name: string }>>();
+  const gateway = createServer((req, res) => {
+    let gatewayBody = '';
+    req.on('data', (chunk: unknown) => {
+      gatewayBody += String(chunk);
+    });
+    req.on('end', () => {
+      const url = req.url ?? '';
+      const method = req.method ?? 'GET';
+      res.setHeader('content-type', 'application/json');
+      if (url === '/api/config') {
+        res.end(JSON.stringify({ client_config: {} }));
+        return;
+      }
+      const keysMatch = /^\/api\/providers\/([^/]+)\/keys/.exec(url);
+      if (keysMatch) {
+        const provider = decodeURIComponent(keysMatch[1] ?? '');
+        const list = providerKeys.get(provider) ?? [];
+        if (method !== 'GET') {
+          const parsed = z
+            .looseObject({ name: z.string() })
+            .safeParse(JSON.parse(gatewayBody || '{}'));
+          if (
+            parsed.success &&
+            !list.some((k) => k.name === parsed.data.name)
+          ) {
+            list.push({ id: `key-${list.length + 1}`, name: parsed.data.name });
+          }
+          providerKeys.set(provider, list);
+          res.end('{}');
+          return;
+        }
+        res.end(JSON.stringify({ keys: list }));
+        return;
+      }
+      if (url.startsWith('/api/governance/pricing-overrides')) {
+        res.end(
+          method === 'GET'
+            ? JSON.stringify({ pricing_overrides: [], total_count: 0 })
+            : '{}',
+        );
+        return;
+      }
+      if (url === '/api/governance/virtual-keys' && method === 'POST') {
+        const id = `vk-destroy-${randomUUID()}`;
+        res.end(
+          JSON.stringify({
+            virtual_key: {
+              id,
+              value: `sk-bf-${id}`,
+              budgets: [{ id: `budget-${id}`, max_limit: 5, current_usage: 0 }],
+            },
+          }),
+        );
+        return;
+      }
+      if (url.startsWith('/api/governance/virtual-keys/')) {
+        res.end(
+          method === 'DELETE'
+            ? '{}'
+            : JSON.stringify({
+                virtual_key: { budgets: [{ current_usage: 0 }] },
+              }),
+        );
+        return;
+      }
+      if (url.startsWith('/api/providers')) {
+        res.end('{}');
+        return;
+      }
+      res.statusCode = 404;
+      res.end('{}');
+    });
+  });
+  await new Promise<void>((resolve) => {
+    gateway.listen(0, '127.0.0.1', resolve);
+  });
+  const gatewayAddress = gateway.address();
+  const gatewayPort =
+    gatewayAddress !== null && typeof gatewayAddress === 'object'
+      ? gatewayAddress.port
+      : 0;
+  const restoreEnv = overrideEnv({
+    SANDBOX_URL: `http://127.0.0.1:${spawnerPort}`,
+    SANDBOX_TOKEN: 'itest-destroy-spawner',
+    SANDBOX_LLM_GATEWAY_URL: `http://127.0.0.1:${gatewayPort}`,
+    TALE_ALLOW_PRIVATE_PROVIDER_HOSTS: '1',
+  });
+
+  let sessionId = '';
+  try {
+    const post = (route: string, payload?: unknown): Promise<Response> =>
+      fetch(`${base}${route}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', cookie, origin: base },
+        ...(payload !== undefined ? { body: JSON.stringify(payload) } : {}),
+      });
+    const name = `ops/destroy-pending-${randomUUID().slice(0, 8)}`;
+    const saved = z.object({ version: z.number() }).safeParse(
+      await (
+        await post(`/api/app/automations/${name}/save?orgId=${orgId}`, {
+          document: {
+            version: 1,
+            name,
+            nodes: [
+              {
+                id: 'draft',
+                type: 'agent',
+                model: 'itest-agent-model',
+                prompt:
+                  'Draft notes on {{ input.subject }} into the workspace.',
+              },
+              {
+                id: 'publish',
+                type: 'agent',
+                model: 'itest-agent-model',
+                prompt:
+                  'Publish the notes you drafted: {{ nodes.draft.output.text }}',
+              },
+            ],
+            output: '{{ nodes.publish.output }}',
+          },
+        })
+      ).json(),
+    );
+    const deployed = await post(
+      `/api/app/automations/${name}/deploy?orgId=${orgId}`,
+      { version: saved.success ? saved.data.version : 0 },
+    );
+    const started = z.object({ runId: z.string() }).safeParse(
+      await (
+        await post(`/api/app/automations/${name}/start?orgId=${orgId}`, {
+          input: { subject: 'the quarter' },
+          mode: 'live',
+        })
+      ).json(),
+    );
+    const runId = started.success ? started.data.runId : '';
+    sessionId = sessionIdForWorkflowExecution(runId);
+    const runRow = async () =>
+      (
+        await sql<
+          {
+            status: string;
+            detail: string | null;
+            failureCode: string | null;
+          }[]
+        >`
+          SELECT status, detail, failure_code AS "failureCode"
+          FROM app.automation_runs WHERE id = ${runId}
+        `
+      )[0];
+    const destroyJobStates = async () =>
+      (
+        await sql<{ state: string }[]>`
+          SELECT state::text AS state FROM pgboss.job
+          WHERE name = 'sandbox.destroy_session'
+            AND data ->> 'organizationId' = ${orgId}
+            AND data ->> 'sessionId' = ${sessionId}
+          ORDER BY created_on
+        `
+      ).map((job) => job.state);
+
+    // The first step's turn runs in the run's workspace...
+    const firstStepRunning = await Promise.race([
+      firstExec.then(() => true),
+      sleep(30_000).then(() => false),
+    ]);
+    // ...when an administrator destroys it. The spawner refuses the delete,
+    // so the Destroy waits for its next attempt: pending.
+    failDeletes = true;
+    const destroyRes = await post(
+      `/api/app/sandbox/sessions/${sessionId}/destroy?orgId=${orgId}`,
+    );
+    const destroyPending = await waitFor(
+      async () => (await destroyJobStates()).includes('retry'),
+      15_000,
+    );
+    // The first step's turn ends; the run moves on to the second step.
+    const releasedAt = Date.now();
+    releaseFirstExec();
+    await waitFor(async () => {
+      const row = await runRow();
+      return (
+        row !== undefined &&
+        (['success', 'failed', 'cancelled'].includes(row.status) ||
+          row.detail === 'room:publish')
+      );
+    }, 30_000);
+    const atRefusal = await runRow();
+    const refusedAfterMs = Date.now() - releasedAt;
+    const destroyStillPending = (await destroyJobStates()).includes('retry');
+
+    // The Destroy settles: the spawner deletes, the retry runs now.
+    failDeletes = false;
+    await sql`
+      UPDATE pgboss.job SET start_after = now()
+      WHERE name = 'sandbox.destroy_session'
+        AND data ->> 'organizationId' = ${orgId}
+        AND data ->> 'sessionId' = ${sessionId} AND state = 'retry'
+    `;
+    const destroySettled = await waitFor(
+      async () =>
+        (await destroyJobStates()).every((state) => state === 'completed') &&
+        (await sessions.getSessionBySessionId(sql, orgId, sessionId))
+          ?.status === 'destroyed',
+      15_000,
+    );
+    // Whatever was still waiting comes back within its backoff, at most
+    // half a minute after a first refusal: give it that long to show.
+    await waitFor(async () => {
+      const row = await runRow();
+      return (
+        row !== undefined &&
+        ['success', 'failed', 'cancelled'].includes(row.status)
+      );
+    }, 40_000);
+    const afterwards = await runRow();
+    const rows = await sql<{ status: string }[]>`
+      SELECT status FROM app.sandbox_sessions
+      WHERE org_id = ${orgId} AND session_id = ${sessionId}
+      ORDER BY created_at_ms
+    `;
+    record(
+      'automation step: a pending Destroy of the run’s workspace fails the next step with its reason, never a wait for room or a fresh, empty workspace',
+      saved.success &&
+        deployed.status === 200 &&
+        firstStepRunning &&
+        destroyRes.status === 202 &&
+        destroyPending &&
+        atRefusal?.status === 'failed' &&
+        atRefusal.failureCode === 'start_failed' &&
+        (atRefusal.detail ?? '').startsWith('publish: ') &&
+        (atRefusal.detail ?? '').includes(SANDBOX_DESTROY_PENDING_MESSAGE) &&
+        !(atRefusal.detail ?? '').includes('sandbox room') &&
+        destroyStillPending &&
+        destroySettled &&
+        afterwards?.status === 'failed' &&
+        rows.length === 1 &&
+        rows[0]?.status === 'destroyed' &&
+        spawned.creates === 1 &&
+        spawned.execs === 1,
+      `deploy=${deployed.status}, first step running=${firstStepRunning}, destroy=${destroyRes.status}, pending=${destroyPending}; ${refusedAfterMs} ms after the first step ended: run=${atRefusal?.status ?? 'missing'}/${atRefusal?.failureCode ?? '-'} (want failed/start_failed) "${(atRefusal?.detail ?? '').slice(0, 160)}", Destroy still pending then=${destroyStillPending}; Destroy settled=${destroySettled}, then run=${afterwards?.status ?? 'missing'} (want failed), session rows=${rows.map((row) => row.status).join(',')} (want destroyed: no fresh incarnation), spawner creates=${spawned.creates} execs=${spawned.execs} (want 1/1: the second step never ran)`,
+    );
+  } finally {
+    releaseFirstExec();
+    failDeletes = false;
+    restoreEnv();
+    if (sessionId !== '') {
+      // Hand back the workflow budget whatever happened above.
+      await sql`
+        DELETE FROM pgboss.job WHERE name = 'sandbox.destroy_session'
+          AND data ->> 'organizationId' = ${orgId}
+          AND data ->> 'sessionId' = ${sessionId}
+          AND state::text IN ('created', 'retry')
+      `;
+      await sessions.markSessionDestroyed(sql, {
+        organizationId: orgId,
+        sessionId,
+      });
+    }
+    await new Promise<void>((resolve) => {
+      spawner.close(() => resolve());
+    });
+    await new Promise<void>((resolve) => {
+      gateway.close(() => resolve());
+    });
+    await agentProvider?.cleanup();
   }
 }
 
@@ -38885,6 +40579,10 @@ async function checkSandboxSpawner(
   const SPAWNER_TOKEN = 'itest-spawner-token';
   const live = new Map<string, { pinned: boolean }>();
   let badSignatures = 0;
+  // The admin Destroy runs as a job: a held delete shows the request
+  // answering before the spawner has, a failing one the retry and its end.
+  let deleteHold: Promise<void> | null = null;
+  let failDeletes = false;
   const spawner = createServer((req, res) => {
     let body = '';
     req.on('data', (chunk: unknown) => {
@@ -38946,8 +40644,16 @@ async function checkSandboxSpawner(
         return;
       }
       if (method === 'DELETE' && idMatch) {
-        live.delete(sessionId);
-        res.end('{"destroyed":true}');
+        void (async () => {
+          await deleteHold;
+          if (failDeletes) {
+            res.statusCode = 500;
+            res.end('{"error":"itest delete failure"}');
+            return;
+          }
+          live.delete(sessionId);
+          res.end('{"destroyed":true}');
+        })();
         return;
       }
       if (method === 'PATCH' && idMatch && idMatch[2] === '/pin') {
@@ -39016,20 +40722,44 @@ async function checkSandboxSpawner(
     );
 
     // Admin surface over HTTP: list + pin + destroy.
-    const listed = z
-      .object({
-        sessions: z.array(
-          z.looseObject({ sessionId: z.string(), status: z.string() }),
-        ),
-      })
-      .loose()
-      .safeParse(
-        await (
-          await fetch(`${base}/api/app/sandbox/sessions/view?orgId=${orgId}`, {
-            headers: { cookie },
-          })
-        ).json(),
-      );
+    const view = async () =>
+      z
+        .object({
+          sessions: z.array(
+            z.looseObject({
+              sessionId: z.string(),
+              status: z.string(),
+              destroyState: z.enum(['pending', 'failed']).nullish(),
+            }),
+          ),
+        })
+        .loose()
+        .safeParse(
+          await (
+            await fetch(
+              `${base}/api/app/sandbox/sessions/view?orgId=${orgId}`,
+              { headers: { cookie } },
+            )
+          ).json(),
+        );
+    const viewRow = async (sessionId: string) => {
+      const parsed = await view();
+      return parsed.success
+        ? parsed.data.sessions.find((row) => row.sessionId === sessionId)
+        : undefined;
+    };
+    const rowStatus = async (sessionId: string) =>
+      (await sessions.getSessionBySessionId(sql, orgId, sessionId))?.status;
+    const destroyJobStates = async (sessionId: string) =>
+      (
+        await sql<{ state: string }[]>`
+          SELECT state::text AS state FROM pgboss.job
+          WHERE name = 'sandbox.destroy_session'
+            AND data ->> 'sessionId' = ${sessionId}
+          ORDER BY created_on
+        `
+      ).map((job) => job.state);
+    const listed = await view();
     const pinRes = await fetch(
       `${base}/api/app/sandbox/sessions/itest-spawn-1/pin?orgId=${orgId}`,
       {
@@ -39038,27 +40768,359 @@ async function checkSandboxSpawner(
         body: JSON.stringify({ pinned: true }),
       },
     );
-    const destroyRes = await fetch(
-      `${base}/api/app/sandbox/sessions/itest-spawn-1/destroy?orgId=${orgId}`,
-      {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', cookie, origin: base },
-      },
+    const destroy = (sessionId: string) =>
+      fetch(
+        `${base}/api/app/sandbox/sessions/${sessionId}/destroy?orgId=${orgId}`,
+        {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            cookie,
+            origin: base,
+          },
+        },
+      );
+    // The spawner holds its delete: the request answers anyway, the row
+    // reads the Destroy as under way, and the queued teardown finishes it
+    // once the spawner does.
+    let releaseDeletes = () => {};
+    deleteHold = new Promise<void>((resolve) => {
+      releaseDeletes = resolve;
+    });
+    const destroyRes = await destroy('itest-spawn-1');
+    const whileHeld = await viewRow('itest-spawn-1');
+    const liveWhileHeld = live.has('itest-spawn-1');
+    releaseDeletes();
+    deleteHold = null;
+    const settled = await waitFor(
+      async () =>
+        !live.has('itest-spawn-1') &&
+        (await rowStatus('itest-spawn-1')) === 'destroyed',
+      15_000,
     );
+    const afterDestroy = await viewRow('itest-spawn-1');
 
     record(
       'sandbox spawner dispatch (reused HMAC client + admin surface)',
       badSignatures === 0 &&
         rowAfterCreate?.status === 'active' &&
-        !live.has('itest-spawn-1') &&
         listed.success &&
         listed.data.sessions.some(
           (row) => row.sessionId === 'itest-spawn-1' && row.status === 'active',
         ) &&
         pinRes.ok &&
-        destroyRes.ok,
-      `signatures ok=${badSignatures === 0}, active=${rowAfterCreate?.status === 'active'}, admin(list=${listed.success ? listed.data.sessions.length : 'ERR'}, pin=${pinRes.status}, destroy=${destroyRes.status}), containerGone=${live.get('itest-spawn-1') === undefined}`,
+        destroyRes.status === 202 &&
+        whileHeld?.destroyState === 'pending' &&
+        liveWhileHeld &&
+        settled &&
+        afterDestroy === undefined,
+      `signatures ok=${badSignatures === 0}, active=${rowAfterCreate?.status === 'active'}, admin(list=${listed.success ? listed.data.sessions.length : 'ERR'}, pin=${pinRes.status}, destroy=${destroyRes.status}), whileHeld(destroyState=${whileHeld?.destroyState}, live=${liveWhileHeld}), settled=${settled}, listedAfter=${afterDestroy !== undefined}, containerGone=${live.get('itest-spawn-1') === undefined}`,
     );
+
+    // A spawner that refuses the delete: the job retries while the row reads
+    // pending, a Destroy whose ladder ran out reads failed, and asking again
+    // queues a fresh one that finishes the work.
+    await provision('itest-spawn-2', {
+      ownerType: 'workflow_run',
+      ownerId: 'wf-21',
+    });
+    failDeletes = true;
+    const refusedRes = await destroy('itest-spawn-2');
+    const retrying = await waitFor(
+      async () => (await destroyJobStates('itest-spawn-2')).includes('retry'),
+      15_000,
+    );
+    const whileRetrying = await viewRow('itest-spawn-2');
+    const duplicateRes = await destroy('itest-spawn-2');
+    const jobsWhileRetrying = await destroyJobStates('itest-spawn-2');
+    // Stand in for the end of the ladder (a quarter to half an hour).
+    await sql`
+      UPDATE pgboss.job SET state = 'failed', completed_on = now()
+      WHERE name = 'sandbox.destroy_session'
+        AND data ->> 'sessionId' = 'itest-spawn-2' AND state = 'retry'
+    `;
+    const afterFailure = await viewRow('itest-spawn-2');
+    failDeletes = false;
+    const retryRes = await destroy('itest-spawn-2');
+    const retried = await waitFor(
+      async () =>
+        !live.has('itest-spawn-2') &&
+        (await rowStatus('itest-spawn-2')) === 'destroyed',
+      15_000,
+    );
+    record(
+      'sandbox Destroy retries in the background, reads failed when it gives up, and finishes when asked again',
+      refusedRes.status === 202 &&
+        retrying &&
+        whileRetrying?.destroyState === 'pending' &&
+        duplicateRes.status === 202 &&
+        jobsWhileRetrying.length === 1 &&
+        afterFailure?.destroyState === 'failed' &&
+        afterFailure.status === 'active' &&
+        retryRes.status === 202 &&
+        retried,
+      `refused=${refusedRes.status}, retrying=${retrying}, whileRetrying=${whileRetrying?.destroyState}, duplicate=${duplicateRes.status} (jobs=${jobsWhileRetrying.join('/')}), afterFailure=${afterFailure?.destroyState}/${afterFailure?.status}, retry=${retryRes.status}, destroyed=${retried}`,
+    );
+
+    // A retry outlives the row it was asked for: the spawner did delete the
+    // workspace but the answer was lost, the reconcile heals the row, and a
+    // turn opens a fresh incarnation under the same id. The retry leaves that
+    // one alone, the list never reads it as being destroyed, and a Destroy
+    // asked for it is queued on its own rather than absorbed.
+    await provision('itest-spawn-3', {
+      ownerType: 'workflow_run',
+      ownerId: 'wf-22',
+    });
+    const firstRowId = (
+      await sessions.getSessionBySessionId(sql, orgId, 'itest-spawn-3')
+    )?.id;
+    failDeletes = true;
+    const staleRes = await destroy('itest-spawn-3');
+    const staleRetrying = await waitFor(
+      async () => (await destroyJobStates('itest-spawn-3')).includes('retry'),
+      15_000,
+    );
+    live.delete('itest-spawn-3');
+    await sessions.markSessionDestroyed(sql, {
+      organizationId: orgId,
+      sessionId: 'itest-spawn-3',
+    });
+    await provision('itest-spawn-3', {
+      ownerType: 'workflow_run',
+      ownerId: 'wf-22',
+    });
+    const freshRowId = (
+      await sessions.getSessionBySessionId(sql, orgId, 'itest-spawn-3')
+    )?.id;
+    const freshWhileStale = await viewRow('itest-spawn-3');
+    failDeletes = false;
+    await sql`
+      UPDATE pgboss.job SET start_after = now()
+      WHERE name = 'sandbox.destroy_session'
+        AND data ->> 'rowId' = ${firstRowId ?? ''} AND state = 'retry'
+    `;
+    const staleSettled = await waitFor(
+      async () =>
+        (await destroyJobStates('itest-spawn-3')).every(
+          (state) => state === 'completed',
+        ),
+      15_000,
+    );
+    const freshKept =
+      live.has('itest-spawn-3') &&
+      (await rowStatus('itest-spawn-3')) === 'active';
+    const freshRes = await destroy('itest-spawn-3');
+    const freshDestroyed = await waitFor(
+      async () =>
+        !live.has('itest-spawn-3') &&
+        (await rowStatus('itest-spawn-3')) === 'destroyed',
+      15_000,
+    );
+    record(
+      'sandbox Destroy retry leaves a fresh incarnation under the reused id alone',
+      staleRes.status === 202 &&
+        staleRetrying &&
+        firstRowId !== undefined &&
+        freshRowId !== undefined &&
+        freshRowId !== firstRowId &&
+        freshWhileStale !== undefined &&
+        (freshWhileStale.destroyState ?? null) === null &&
+        staleSettled &&
+        freshKept &&
+        freshRes.status === 202 &&
+        freshDestroyed,
+      `stale=${staleRes.status}, retrying=${staleRetrying}, rows=${firstRowId === freshRowId ? 'same' : 'distinct'}, freshWhileStale=${freshWhileStale?.destroyState ?? 'none'}, staleSettled=${staleSettled}, freshKept=${freshKept}, fresh=${freshRes.status}, freshDestroyed=${freshDestroyed}`,
+    );
+
+    // The first attempt failed, and before its retry a turn asks for the
+    // same row: a member's chat run, an agent's next task, an automation's
+    // next step — each through its lane's shim to the hosts' one admission
+    // (`ensureAgentSession`). A resume keeps the row id, the one thing the
+    // retry checks, so a turn let in here would be killed by the next
+    // attempt, its workspace deleted and its tokens revoked. It is refused
+    // before anything starts, the row keeps reading Destroying, and once the
+    // Destroy has finished the same start opens a fresh incarnation. In an
+    // organization of their own: the lane's organization may already hold
+    // as many project sessions as its budget allows. The Destroy is asked
+    // for through the route's own scheduler and read back through the
+    // page's own reader; the real worker runs it against this spawner.
+    const { ensureAgentSession } =
+      await import('./core/node_only/sandbox/agent_session.ts');
+    const { agentTurnShimHandlers, taskAgentShimScheduler } =
+      await import('./domains/tasks/agent-turn-shim.ts');
+    const { automationShimHandlers, automationShimScheduler } =
+      await import('./domains/automations/shim.ts');
+    const { scheduleSessionDestroy, sessionDestroyStates } =
+      await import('./domains/sandbox/destroy-schedule.ts');
+    const { createCtxShim } = await import('./lib/ctx-shim.ts');
+    const naming = await import('./core/sandbox/session_naming.ts');
+    const taskShim = createCtxShim(agentTurnShimHandlers(sql), {
+      scheduler: taskAgentShimScheduler(sql),
+    });
+    const automationShim = createCtxShim(automationShimHandlers(sql), {
+      scheduler: automationShimScheduler(sql),
+    });
+    const resumeOrgId = `${orgId}:destroy-resume:${randomUUID()}`;
+    const resumeAgentId = `itest-resume-${randomUUID()}`;
+    const resumeRunId = `itest-resume-run-${randomUUID()}`;
+    const resumePaths = [
+      {
+        lane: "a member's chat run",
+        shim: taskShim,
+        sessionId: naming.memberSessionIdForProjectAgent(resumeAgentId, userId),
+        owner: { type: 'project_agent' as const, agentId: resumeAgentId },
+        ownerId: naming.projectAgentOwnerId(resumeAgentId),
+      },
+      {
+        lane: "an agent's next task",
+        shim: taskShim,
+        sessionId: naming.standingSessionIdForProjectAgent(resumeAgentId),
+        owner: { type: 'project_agent' as const, agentId: resumeAgentId },
+        ownerId: naming.projectAgentOwnerId(resumeAgentId),
+      },
+      {
+        lane: "an automation's next step",
+        shim: automationShim,
+        sessionId: naming.sessionIdForWorkflowExecution(resumeRunId),
+        owner: { type: 'workflow_run' as const, runId: resumeRunId },
+        ownerId: naming.workflowExecutionOwnerId(resumeRunId),
+      },
+    ];
+    const resumeRowStatus = async (sessionId: string) =>
+      (await sessions.getSessionBySessionId(sql, resumeOrgId, sessionId))
+        ?.status;
+    try {
+      for (const resumePath of resumePaths) {
+        const resumeArgs = {
+          organizationId: resumeOrgId,
+          sessionId: resumePath.sessionId,
+        };
+        // The hosts' choreography, then the idle release: compute
+        // stopped, files kept.
+        await sessions.reserveSessionSlot(sql, {
+          ...resumeArgs,
+          profile: 'agent',
+          ownerType: resumePath.owner.type,
+          ownerId: resumePath.ownerId,
+          createdBy: userId,
+        });
+        await sessionCreate({
+          sessionId: resumePath.sessionId,
+          organizationId: resumeOrgId,
+          profile: 'agent',
+        });
+        await sql`
+          UPDATE app.sandbox_sessions SET status = 'stopped'
+          WHERE org_id = ${resumeOrgId}
+            AND session_id = ${resumePath.sessionId}
+        `;
+        live.delete(resumePath.sessionId);
+        const askedRowId = (
+          await sessions.getSessionBySessionId(
+            sql,
+            resumeOrgId,
+            resumePath.sessionId,
+          )
+        )?.id;
+        failDeletes = true;
+        const queued = await scheduleSessionDestroy(sql, resumeArgs);
+        const firstFailed = await waitFor(
+          async () =>
+            (await destroyJobStates(resumePath.sessionId)).includes('retry'),
+          15_000,
+        );
+        const start = () =>
+          ensureAgentSession(
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the hosts' admission on its lane's shim, as the job wires it
+            resumePath.shim as unknown as Parameters<
+              typeof ensureAgentSession
+            >[0],
+            {
+              ...resumeArgs,
+              owner: resumePath.owner,
+              agentKind: 'claude-code',
+            },
+          ).then(
+            (started) =>
+              started.liveCreatedAt === undefined ? 'fresh' : 'resumed',
+            (error: unknown) =>
+              String(error).includes('is deleting this sandbox workspace')
+                ? 'refused'
+                : `error: ${String(error)}`,
+          );
+        const asked = await start();
+        // What the turn would hold had it been let in: its session token.
+        if (asked === 'resumed') {
+          await sql`
+            INSERT INTO app.sandbox_session_tokens (
+              org_id, session_id, token_hash, scope, created_at_ms,
+              expires_at_ms
+            ) VALUES (${resumeOrgId}, ${resumePath.sessionId}, ${randomUUID()},
+              '{}'::jsonb, ${Date.now()}, ${Date.now() + 3_600_000})
+          `;
+        }
+        const containerAfterAsk = live.has(resumePath.sessionId);
+        const rowAfterAsk = await resumeRowStatus(resumePath.sessionId);
+        const pageAfterAsk = (
+          await sessionDestroyStates(sql, resumeOrgId, [resumePath.sessionId])
+        ).get(resumePath.sessionId);
+        failDeletes = false;
+        await sql`
+          UPDATE pgboss.job SET start_after = now()
+          WHERE name = 'sandbox.destroy_session'
+            AND data ->> 'rowId' = ${askedRowId ?? ''} AND state = 'retry'
+        `;
+        const resumeRetried = await waitFor(
+          async () =>
+            (await destroyJobStates(resumePath.sessionId)).every(
+              (state) => state === 'completed',
+            ) && (await resumeRowStatus(resumePath.sessionId)) === 'destroyed',
+          15_000,
+        );
+        const containerAfterRetry = live.has(resumePath.sessionId);
+        const tokens = await sql<{ revoked: boolean }[]>`
+          SELECT revoked_at_ms IS NOT NULL AS revoked
+          FROM app.sandbox_session_tokens
+          WHERE org_id = ${resumeOrgId} AND session_id = ${resumePath.sessionId}
+        `;
+        const afterwards = await start();
+        const startedRowId = (
+          await sessions.getSessionBySessionId(
+            sql,
+            resumeOrgId,
+            resumePath.sessionId,
+          )
+        )?.id;
+        record(
+          `sandbox Destroy retry never deletes work resumed after the request: ${resumePath.lane}`,
+          queued &&
+            firstFailed &&
+            asked === 'refused' &&
+            !containerAfterAsk &&
+            rowAfterAsk === 'stopped' &&
+            pageAfterAsk === 'pending' &&
+            resumeRetried &&
+            tokens.length === 0 &&
+            afterwards === 'fresh' &&
+            startedRowId !== undefined &&
+            startedRowId !== askedRowId &&
+            live.has(resumePath.sessionId) &&
+            (await resumeRowStatus(resumePath.sessionId)) === 'active',
+          `queued=${queued}, first attempt failed=${firstFailed}, start between attempts=${asked} (want refused), container after it=${containerAfterAsk ? 'running' : 'none'}, row=${rowAfterAsk}, page=${pageAfterAsk ?? 'none'} (want pending), retry settled=${resumeRetried}, container after the retry=${containerAfterRetry ? 'running' : 'none'}, turn tokens revoked=${tokens.filter((token) => token.revoked).length}/${tokens.length}, start after the Destroy=${afterwards} (want fresh), rows=${startedRowId === askedRowId ? 'same' : 'distinct'}`,
+        );
+        // The fresh session holds one of the organization's project slots.
+        await sessions.markSessionDestroyed(sql, resumeArgs);
+        live.delete(resumePath.sessionId);
+      }
+    } finally {
+      failDeletes = false;
+      await sql`
+        DELETE FROM pgboss.job WHERE name = 'sandbox.destroy_session'
+          AND data ->> 'organizationId' = ${resumeOrgId}
+      `;
+      await sql`DELETE FROM app.sandbox_session_tokens WHERE org_id = ${resumeOrgId}`;
+      await sql`DELETE FROM app.sandbox_sessions WHERE org_id = ${resumeOrgId}`;
+    }
 
     // --- the in-sandbox workspace-tool door (the REUSED bridge on the shim).
     const post = (route: string, body?: unknown): Promise<Response> =>
@@ -39094,7 +41156,12 @@ async function checkSandboxSpawner(
         sessionId: leftover,
       });
     }
-    await provision('itest-spawn-tools', {
+    // The agent's standing session: a project agent's session that serves
+    // no task run acts for the project only when it is that one (#3810).
+    const { standingSessionIdForProjectAgent } =
+      await import('./core/sandbox/session_naming.ts');
+    const toolSessionId = standingSessionIdForProjectAgent(toolAgentId);
+    await provision(toolSessionId, {
       ownerType: 'project_agent',
       ownerId: toolAgentId,
     });
@@ -39102,7 +41169,7 @@ async function checkSandboxSpawner(
     const vk = 'itest-vk-tools-1';
     await sessions.insertSessionToken(sql, {
       organizationId: orgId,
-      sessionId: 'itest-spawn-tools',
+      sessionId: toolSessionId,
       tokenHash: hashFn('sha256').update(vk).digest('hex'),
       llmGatewayKeyId: 'vk-id-1',
       scope: {
@@ -39160,7 +41227,7 @@ async function checkSandboxSpawner(
     );
     const ledger = await sql<{ tool: string; outcome: string }[]>`
       SELECT tool, outcome FROM app.sandbox_tool_calls
-      WHERE session_id = 'itest-spawn-tools'
+      WHERE session_id = ${toolSessionId}
       ORDER BY created_at_ms
     `;
     record(
@@ -39178,6 +41245,102 @@ async function checkSandboxSpawner(
           (row) => row.tool === 'product_find' && row.outcome === 'ok',
         ),
       `status=${statusListing.success ? statusListing.data.tools.length : 'ERR'} tools, product_find=${productFind.success ? productFind.data.status : 'ERR'} (hit=${productRaw.includes('Widget')}), ungranted=${ungranted.success ? ungranted.data.status : 'ERR'}, badToken → ${badToken.status} (want 401), ledger=${ledger.map((r) => `${r.tool}:${r.outcome}`).join('/')}`,
+    );
+
+    // The same status answer names the release this backend serves, from its
+    // own build stamp (`TALE_VERSION`) — never from the request, and never a
+    // build label that is not a release.
+    const vkNoGrants = 'itest-vk-tools-none';
+    const vkExpired = 'itest-vk-tools-expired';
+    for (const [token, ttlMs] of [
+      [vkNoGrants, 60_000],
+      [vkExpired, -1_000],
+    ] as const) {
+      await sessions.insertSessionToken(sql, {
+        organizationId: orgId,
+        sessionId: toolSessionId,
+        tokenHash: hashFn('sha256').update(token).digest('hex'),
+        scope: {
+          agentKind: 'claude-code',
+          allowedModels: [],
+          connectorGrants: [],
+          budgetCents: 100,
+          toolGrants: [],
+        },
+        ttlMs,
+      });
+    }
+    const statusAnswer = z
+      .object({
+        tools: z.array(z.object({ name: z.string() })),
+        note: z.string().optional(),
+        platform: z.object({
+          version: z.string().nullable(),
+          note: z.string().optional(),
+        }),
+      })
+      .loose();
+    const readStatus = async (token: string, body = '{}') => {
+      const res = await fetch(`${base}/api/tools/status`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${token}`,
+        },
+        body,
+      });
+      const text = await res.text();
+      let json: unknown = null;
+      try {
+        json = JSON.parse(text);
+      } catch (err) {
+        console.warn('[itest] status answer is not JSON:', err);
+      }
+      return { code: res.status, text, answer: statusAnswer.safeParse(json) };
+    };
+    const restoreVersion = overrideEnv({ TALE_VERSION: '0.5.99' });
+    let released: Awaited<ReturnType<typeof readStatus>>;
+    let noGrants: Awaited<ReturnType<typeof readStatus>>;
+    let forged: Awaited<ReturnType<typeof readStatus>>;
+    let expired: Awaited<ReturnType<typeof readStatus>>;
+    let candidate: Awaited<ReturnType<typeof readStatus>>;
+    try {
+      released = await readStatus(vk);
+      noGrants = await readStatus(vkNoGrants);
+      forged = await readStatus(
+        vk,
+        JSON.stringify({
+          platform: { version: '9.9.9' },
+          version: '9.9.9',
+          toolGrants: ['contact_find'],
+        }),
+      );
+      expired = await readStatus(vkExpired);
+      process.env.TALE_VERSION = `candidate-sha-${'e'.repeat(40)}`;
+      candidate = await readStatus(vk);
+    } finally {
+      restoreVersion();
+    }
+    record(
+      'workspace status names the serving release (own build, token grants)',
+      released.code === 200 &&
+        released.answer.success &&
+        released.answer.data.tools.map((t) => t.name).join(',') ===
+          'product_find,document_find' &&
+        released.answer.data.platform.version === '0.5.99' &&
+        released.answer.data.platform.note === undefined &&
+        noGrants.answer.success &&
+        noGrants.answer.data.tools.length === 0 &&
+        noGrants.answer.data.note ===
+          'No workspace tools are granted to this agent.' &&
+        noGrants.answer.data.platform.version === '0.5.99' &&
+        forged.text === released.text &&
+        expired.code === 401 &&
+        expired.text === '{"status":"error","message":"Unauthorized."}' &&
+        candidate.answer.success &&
+        candidate.answer.data.platform.version === null &&
+        !candidate.text.includes('candidate-sha'),
+      `release=${released.answer.success ? released.answer.data.platform.version : 'ERR'} (${released.code}), noGrants=${noGrants.answer.success ? `${noGrants.answer.data.tools.length} tools/${noGrants.answer.data.platform.version}` : 'ERR'}, forged answer identical=${forged.text === released.text}, expired → ${expired.code} ${expired.text}, candidate=${candidate.answer.success ? String(candidate.answer.data.platform.version) : 'ERR'} (label echoed=${candidate.text.includes('candidate-sha')})`,
     );
   } finally {
     restoreEnv();
@@ -39309,8 +41472,8 @@ async function checkTaskAgentRuns(
     runId,
     execId,
   });
-  const woken = await agentRuns.wakeParkedAgentRuns(sql, orgId);
-  const wokenAgain = await agentRuns.wakeParkedAgentRuns(sql, orgId);
+  const woken = await agentRuns.wakeOrganizationParkedAgentRun(sql, orgId);
+  const wokenAgain = await agentRuns.wakeOrganizationParkedAgentRun(sql, orgId);
   const afterWake = await agentRuns.getAgentRun(sql, orgId, runId);
 
   // The release EDGE itself: a project-agent turn ending frees the agent's
@@ -39318,10 +41481,11 @@ async function checkTaskAgentRuns(
   // once — no watchdog tick in between. Counted org-wide (a live worker may
   // have parked a sibling), so the proof is one fewer parked run and one
   // more turn job, plus the slot really hibernated.
-  await shimRefs['tasks/agent_runs:parkTaskAgentRunForCapacity']?.({
-    runId,
-    execId,
-  });
+  // A park frees the slot its start held: a standing workspace the start
+  // resumed (`active`) before the sandbox host refused the create holds no
+  // compute, and left `active` the reconcile would heal it to destroyed and
+  // the next refused create delete its files. The release is quiet: the run
+  // stays parked and no turn is kicked into the same refusal.
   await sql`
     INSERT INTO app.sandbox_sessions (
       org_id, session_id, status, owner_type, owner_id, created_by,
@@ -39330,6 +41494,102 @@ async function checkTaskAgentRuns(
       ${orgId}, ${ledgerSessionId}, 'active', 'project_agent', ${ledgerAgentId},
       'itest:ledger', ${Date.now()}, ${Date.now() + 3_600_000}
     )
+  `;
+  const turnJobsBeforePark = Number(
+    (
+      await sql<{ count: string }[]>`
+        SELECT count(*)::text AS count FROM pgboss.job
+        WHERE name = 'task.agent_turn' AND data ->> 'organizationId' = ${orgId}
+          AND data ->> 'runId' = ${runId}
+      `
+    )[0]?.count ?? '0',
+  );
+  await shimRefs['tasks/agent_runs:parkTaskAgentRunForCapacity']?.({
+    runId,
+    execId,
+  });
+  const [parkedSlot] = await sql<{ status: string }[]>`
+    SELECT status FROM app.sandbox_sessions
+    WHERE org_id = ${orgId} AND session_id = ${ledgerSessionId}
+    ORDER BY created_at_ms DESC LIMIT 1
+  `;
+  const [parkedRun] = await sql<{ parked: boolean }[]>`
+    SELECT waiting_for_capacity_at_ms IS NOT NULL AS parked
+    FROM app.project_agent_runs WHERE id = ${runId}
+  `;
+  const turnJobsAfterPark = Number(
+    (
+      await sql<{ count: string }[]>`
+        SELECT count(*)::text AS count FROM pgboss.job
+        WHERE name = 'task.agent_turn' AND data ->> 'organizationId' = ${orgId}
+          AND data ->> 'runId' = ${runId}
+      `
+    )[0]?.count ?? '0',
+  );
+  record(
+    'a run parking for room frees its standing slot to stopped without waking a turn',
+    parkedSlot?.status === 'stopped' &&
+      (parkedRun?.parked ?? false) &&
+      turnJobsAfterPark === turnJobsBeforePark,
+    `slot=${parkedSlot?.status ?? 'MISSING'}/stopped parked=${String(parkedRun?.parked)}/true turnJobs=${turnJobsBeforePark}→${turnJobsAfterPark}`,
+  );
+  // A host that keeps a first-come line says when the run's place comes up:
+  // the park schedules ONE wake for then, which restarts the run once — a
+  // second delivery finds it un-parked and does nothing.
+  const parkWakeJobs = async (): Promise<Array<{ startAfter: Date }>> =>
+    sql<{ startAfter: Date }[]>`
+      SELECT start_after AS "startAfter" FROM pgboss.job
+      WHERE name = 'task.agent_park_wake' AND data ->> 'runId' = ${runId}
+    `;
+  const parkedAtMs = Date.now();
+  await shimRefs['tasks/agent_runs:parkTaskAgentRunForCapacity']?.({
+    runId,
+    execId,
+    wakeAfterMs: 20_000,
+  });
+  const wakeJobs = await parkWakeJobs();
+  const turnJobsBeforeTimedWake = Number(
+    (
+      await sql<{ count: string }[]>`
+        SELECT count(*)::text AS count FROM pgboss.job
+        WHERE name = 'task.agent_turn' AND data ->> 'runId' = ${runId}
+      `
+    )[0]?.count ?? '0',
+  );
+  const parkWake = createTaskList({ sql })['task.agent_park_wake'];
+  await parkWake?.({ organizationId: orgId, runId, execId });
+  await parkWake?.({ organizationId: orgId, runId, execId });
+  const [timedWoken] = await sql<{ parked: boolean }[]>`
+    SELECT waiting_for_capacity_at_ms IS NOT NULL AS parked
+    FROM app.project_agent_runs WHERE id = ${runId}
+  `;
+  const turnJobsAfterTimedWake = Number(
+    (
+      await sql<{ count: string }[]>`
+        SELECT count(*)::text AS count FROM pgboss.job
+        WHERE name = 'task.agent_turn' AND data ->> 'runId' = ${runId}
+      `
+    )[0]?.count ?? '0',
+  );
+  const wakeAt = wakeJobs[0]?.startAfter.getTime() ?? 0;
+  record(
+    'a host refusal that names its place in line wakes the parked run then, once',
+    wakeJobs.length === 1 &&
+      wakeAt >= parkedAtMs + 19_000 &&
+      wakeAt <= Date.now() + 21_000 &&
+      !(timedWoken?.parked ?? true) &&
+      turnJobsAfterTimedWake === turnJobsBeforeTimedWake + 1,
+    `wakeJobs=${wakeJobs.length}/1 at=+${wakeAt - parkedAtMs}ms(want ~20000) parked=${String(timedWoken?.parked)}/false turnJobs=${turnJobsBeforeTimedWake}→${turnJobsAfterTimedWake} (want +1)`,
+  );
+  // Parked again, for the release edge below.
+  await shimRefs['tasks/agent_runs:parkTaskAgentRunForCapacity']?.({
+    runId,
+    execId,
+  });
+  // Back to `active` for the release edge below.
+  await sql`
+    UPDATE app.sandbox_sessions SET status = 'active'
+    WHERE org_id = ${orgId} AND session_id = ${ledgerSessionId}
   `;
   const countParked = async (): Promise<number> =>
     Number(
@@ -39350,6 +41610,34 @@ async function checkTaskAgentRuns(
         `
       )[0]?.count ?? '0',
     );
+  // The sandbox host is shared: the same release wakes the oldest parked
+  // run of another organization too, one that runs nothing of its own and
+  // so has no release edge that would ever wake it. Parked first of all
+  // (stamp 1), so no other lane's leftover park is older; its agent is a
+  // phantom, so the turn job it gets is skipped.
+  const quietOrgId = `${orgId}-quiet-${randomUUID()}`;
+  const [quietTask] = await sql<{ id: string }[]>`
+    INSERT INTO app.tasks (
+      org_id, project_id, title, status, rank, created_by, created_by_type,
+      created_at_ms, updated_at_ms
+    ) VALUES (
+      ${orgId}, ${projectId}, 'Quiet organization work', 'todo', 'a0',
+      'itest:ledger', 'user', ${Date.now()}, ${Date.now()}
+    ) RETURNING id
+  `;
+  const [quietRun] = await sql<{ id: string }[]>`
+    INSERT INTO app.project_agent_runs (
+      org_id, project_id, task_id, agent_id, exec_id, session_id, status,
+      harness, model, started_by, started_at_ms, waiting_for_capacity_at_ms,
+      deadline_at_ms, updated_at_ms
+    ) VALUES (
+      ${quietOrgId}, ${projectId}, ${quietTask?.id ?? ''},
+      ${`itest-quiet-agent-${randomUUID()}`}, 'exec-quiet-1', 'pa-quiet',
+      'queued', 'claude-code', 'itest-model', 'itest:ledger', ${Date.now()},
+      1, ${Date.now() + 3_600_000}, ${Date.now()}
+    ) RETURNING id
+  `;
+  const quietRunId = quietRun?.id ?? '';
   const parkedBeforeRelease = await countParked();
   const turnJobsBeforeRelease = await countTurnJobs();
   const sessionsApi = await import('./domains/sandbox/sessions.ts');
@@ -39359,6 +41647,28 @@ async function checkTaskAgentRuns(
   });
   const parkedAfterRelease = await countParked();
   const turnJobsAfterRelease = await countTurnJobs();
+  const [quietAfterRelease] = await sql<
+    { parked: boolean; turnJobs: string }[]
+  >`
+    SELECT r.waiting_for_capacity_at_ms IS NOT NULL AS parked,
+           (SELECT count(*) FROM pgboss.job j
+            WHERE j.name = 'task.agent_turn'
+              AND j.data ->> 'organizationId' = ${quietOrgId}
+              AND j.data ->> 'runId' = ${quietRunId})::text AS "turnJobs"
+    FROM app.project_agent_runs r WHERE r.id = ${quietRunId}
+  `;
+  record(
+    'a release edge also wakes the oldest parked run of another organization',
+    released &&
+      !(quietAfterRelease?.parked ?? true) &&
+      quietAfterRelease?.turnJobs === '1',
+    `released=${released} quiet parked=${String(quietAfterRelease?.parked)}/false turnJobs=${quietAfterRelease?.turnJobs ?? 'MISSING'}/1`,
+  );
+  await sql`
+    UPDATE app.project_agent_runs SET status = 'cancelled',
+      waiting_for_capacity_at_ms = NULL, settled_at_ms = ${Date.now()}
+    WHERE id = ${quietRunId}
+  `;
   const releasedSlot = await sql<{ status: string }[]>`
     SELECT status FROM app.sandbox_sessions
     WHERE org_id = ${orgId} AND session_id = ${ledgerSessionId}
@@ -39375,7 +41685,7 @@ async function checkTaskAgentRuns(
   // instead: the wake claims the org's oldest parked run, ours included
   // (`claimParkedAgentRun` is gone — one live run per task is the schema's
   // rule and the wake is the one un-park door).
-  await agentRuns.wakeParkedAgentRuns(sql, orgId);
+  await agentRuns.wakeOrganizationParkedAgentRun(sql, orgId);
 
   // Launch (the host's running flip) + exactly-once settle through the
   // host's mark; `launchedAt` distinct from kick time. A late failure must
@@ -39575,7 +41885,15 @@ async function checkLoginThrottleAndAuditChain(
   );
 
   // The chain: failure rows + a lockout row + a success row, hash-linked.
-  const rows = await sql<AuditLogRow[]>`
+  // Rows and head come from ONE snapshot: an audit write commits its row
+  // and the head together, but a job of another lane (or this lane's own
+  // lockout bell) appending a row between two autocommit reads leaves the
+  // head one row ahead of the tail just read — seen as `chain=true,
+  // head=false` on an otherwise intact chain.
+  const { rows, headRows } = await sql.begin(
+    'isolation level repeatable read read only',
+    async (tx) => {
+      const chain = await tx<AuditLogRow[]>`
     SELECT id, org_id AS "organizationId", actor_id AS "actorId",
            actor_email AS "actorEmail", actor_email_hash AS "actorEmailHash",
            actor_role AS "actorRole", actor_type AS "actorType",
@@ -39593,6 +41911,13 @@ async function checkLoginThrottleAndAuditChain(
     WHERE org_id = ${orgId}
     ORDER BY ts ASC
   `;
+      const heads = await tx<{ lastHash: string }[]>`
+    SELECT last_hash AS "lastHash" FROM app.audit_chain_heads
+    WHERE org_id = ${orgId}
+  `;
+      return { rows: chain, headRows: heads };
+    },
+  );
   // Anchor on the first REMAINING row's stored previous_hash: retention
   // deletes the chain's oldest PREFIX, so genesis ('') only holds until the
   // first sweep — each surviving row still links to its predecessor's hash.
@@ -39620,10 +41945,6 @@ async function checkLoginThrottleAndAuditChain(
     }
     previousHash = row.integrityHash;
   }
-  const headRows = await sql<{ lastHash: string }[]>`
-    SELECT last_hash AS "lastHash" FROM app.audit_chain_heads
-    WHERE org_id = ${orgId}
-  `;
   const headOk = headRows[0]?.lastHash === rows[rows.length - 1]?.integrityHash;
   record(
     'audit chain verifies',
@@ -40075,16 +42396,81 @@ async function checkAskAnswer(
   );
 
   // The ask BELLS: creating an ask through the tool door's handler fans out
-  // agent_escalation rows to the project audience (org admins here — the
-  // run has no project), a FOLD rewrites the unread row in place, and the
-  // answer dismisses it transactionally.
+  // agent_escalation rows to the org's owners and admins (the run has no
+  // project) who have not turned escalations off, a FOLD writes each of them
+  // a row carrying the merged question, and the answer dismisses them all
+  // transactionally. It runs in an organization of its own, whose members
+  // this lane sets, so the recipients are known exactly, never read back
+  // from the bells or from the audience rule itself: the owner, an admin and
+  // an admin whose other preferences are off (an unset escalation is on) —
+  // and never a plain member, a disabled member or an admin who turned
+  // escalations off.
+  const bellOrgId = randomUUID();
+  await sql`
+    INSERT INTO "organization" ("id", "name", "slug", "createdAt")
+    VALUES (${bellOrgId}, 'Ask bells', ${`itest-ask-bells-${bellOrgId}`}, now())
+  `;
+  const bellOwner = await signUpUser(base, 'ask-bell-owner');
+  const bellFixture = {
+    admin: `ask-bell-admin-${bellOrgId}`,
+    quietAdmin: `ask-bell-quiet-admin-${bellOrgId}`,
+    member: `ask-bell-member-${bellOrgId}`,
+    disabled: `ask-bell-disabled-${bellOrgId}`,
+    mutedAdmin: `ask-bell-muted-admin-${bellOrgId}`,
+  };
+  for (const id of Object.values(bellFixture)) {
+    await sql`
+      INSERT INTO "user" ("id", "name", "email", "emailVerified", "createdAt", "updatedAt")
+      VALUES (${id}, 'Ask bell fixture', ${`${id}@example.com`}, true, now(), now())
+    `;
+  }
+  for (const [id, role] of [
+    [bellOwner.userId, 'owner'],
+    [bellFixture.admin, 'admin'],
+    [bellFixture.quietAdmin, 'admin'],
+    [bellFixture.member, 'member'],
+    [bellFixture.disabled, 'disabled'],
+    [bellFixture.mutedAdmin, 'admin'],
+  ] as const) {
+    await sql`
+      INSERT INTO "member" ("id", "organizationId", "userId", "role", "createdAt")
+      VALUES (${randomUUID()}, ${bellOrgId}, ${id}, ${role}, now())
+    `;
+  }
+  await sql`
+    INSERT INTO app.notification_preferences (
+      user_id, org_id, task_commented, escalation, updated_at_ms
+    ) VALUES
+      (${bellFixture.quietAdmin}, ${bellOrgId}, false, NULL, ${now}),
+      (${bellFixture.mutedAdmin}, ${bellOrgId}, NULL, false, ${now})
+  `;
+  const expectedBellRecipients = [
+    bellOwner.userId,
+    bellFixture.admin,
+    bellFixture.quietAdmin,
+  ].toSorted();
+  const bellWho = (id: string): string =>
+    id === bellOwner.userId
+      ? 'owner'
+      : (Object.entries(bellFixture).find(
+          ([, fixtureId]) => fixtureId === id,
+        )?.[0] ?? `stranger:${id}`);
+  const bellRun = await sql<{ id: string }[]>`
+    INSERT INTO app.automation_runs (
+      org_id, name, version, status, mode, started_by, checkpoints,
+      started_at_ms
+    ) VALUES (
+      ${bellOrgId}, 'itest/ask-bells', 1, 'waiting', 'live', 'itest:ask',
+      ${sql.json(toJson(checkpointsA))}, ${now}
+    ) RETURNING id
+  `;
   await sql`
     INSERT INTO app.sandbox_sessions (
       org_id, session_id, status, owner_type, owner_id, created_by,
       created_at_ms, expires_at_ms
     ) VALUES (
-      ${orgId}, 'wf-ask-bell', 'active', 'workflow_run', ${runAId},
-      'itest:ask', ${now}, ${now + 3_600_000}
+      ${bellOrgId}, 'wf-ask-bell', 'active', 'workflow_run',
+      ${bellRun[0]?.id ?? ''}, 'itest:ask', ${now}, ${now + 3_600_000}
     )
   `;
   const createAsk = shim['automations/human_asks:createAskForExec'];
@@ -40093,31 +42479,46 @@ async function checkAskAnswer(
     .loose()
     .safeParse(
       await createAsk?.({
-        organizationId: orgId,
+        organizationId: bellOrgId,
         sessionId: 'wf-ask-bell',
         question: 'Which ledger account applies?',
       }),
     );
   const bellAskId = bellAsk.success ? bellAsk.data.askId : '';
-  const bellAfterCreate = await sql<
-    { read: boolean; params: Record<string, unknown> | null }[]
-  >`
-    SELECT read, params FROM app.user_notifications
-    WHERE org_id = ${orgId} AND type = 'agent_escalation'
-      AND params ->> 'askId' = ${bellAskId}
-  `;
+  const bellRows = () =>
+    sql<
+      {
+        userId: string;
+        read: boolean;
+        params: Record<string, unknown> | null;
+      }[]
+    >`
+      SELECT user_id AS "userId", read, params FROM app.user_notifications
+      WHERE org_id = ${bellOrgId} AND type = 'agent_escalation'
+        AND params ->> 'askId' = ${bellAskId}
+    `;
+  /** Exactly the expected people, one row each: a missing, a doubled or an
+   * unexpected recipient all fail it. */
+  const exactlyExpected = (rows: readonly { userId: string }[]): boolean =>
+    JSON.stringify(rows.map((row) => row.userId).toSorted()) ===
+    JSON.stringify(expectedBellRecipients);
+  const recipientsOf = (rows: readonly { userId: string }[]): string =>
+    rows
+      .map((row) => bellWho(row.userId))
+      .toSorted()
+      .join('+');
+  const bellAfterCreate = await bellRows();
   await createAsk?.({
-    organizationId: orgId,
+    organizationId: bellOrgId,
     sessionId: 'wf-ask-bell',
     question: 'And which VAT box?',
   });
-  const bellAfterFold = await sql<
-    { read: boolean; params: Record<string, unknown> | null }[]
-  >`
-    SELECT read, params FROM app.user_notifications
-    WHERE org_id = ${orgId} AND type = 'agent_escalation'
-      AND params ->> 'askId' = ${bellAskId}
-  `;
+  const bellAfterFold = await bellRows();
+  // A no-task ask has no collapse subject (the 0.4 posture): the fold writes
+  // each recipient a row of its own carrying the MERGED question.
+  const foldRows = bellAfterFold.filter((row) =>
+    JSON.stringify(row.params?.question ?? '').includes('And which VAT box'),
+  );
   // Two ask_human calls RACING inside one turn (an at-least-once tool lane)
   // converge on ONE pending row carrying both questions — the partial unique
   // index (0082) plus the single INSERT … ON CONFLICT fold; the former
@@ -40262,12 +42663,19 @@ async function checkAskAnswer(
     );
   }
 
-  await answerRoute(bellAskId, 'Account 4400, box 81.');
-  const bellAfterAnswer = await sql<{ read: boolean }[]>`
-    SELECT read FROM app.user_notifications
-    WHERE org_id = ${orgId} AND type = 'agent_escalation'
-      AND params ->> 'askId' = ${bellAskId}
-  `;
+  const bellAnswer = await fetch(
+    `${base}/api/app/automations/asks/${bellAskId}/answer?orgId=${bellOrgId}`,
+    {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        cookie: bellOwner.cookie,
+        origin: base,
+      },
+      body: JSON.stringify({ answer: 'Account 4400, box 81.' }),
+    },
+  );
+  const bellAfterAnswer = await bellRows();
   // A TASK-BOUND run: the ask must hang off the card the person is being
   // asked about — otherwise the bell lands on the bare dashboard and the
   // task panel cannot say which question is waiting.
@@ -40385,21 +42793,22 @@ async function checkAskAnswer(
     UPDATE app.sandbox_sessions SET status = 'destroyed'
     WHERE session_id IN ('wf-ask-bell', 'wf-ask-task', 'wf-ask-race')
   `;
+  const wantRecipients = expectedBellRecipients
+    .map(bellWho)
+    .toSorted()
+    .join('+');
   record(
     'ask bells: fan-out on create, fold carries the merged question, answer dismisses',
     bellAsk.success &&
-      bellAfterCreate.length === 1 &&
-      !(bellAfterCreate[0]?.read ?? true) &&
-      // A no-task ask has no collapse subject (the 0.4 posture): the fold
-      // writes its own row carrying the MERGED question.
-      bellAfterFold.some((row) =>
-        JSON.stringify(row.params?.question ?? '').includes(
-          'And which VAT box',
-        ),
-      ) &&
-      bellAfterAnswer.length >= 1 &&
+      exactlyExpected(bellAfterCreate) &&
+      bellAfterCreate.every((row) => !row.read) &&
+      exactlyExpected(foldRows) &&
+      bellAnswer.status === 200 &&
+      JSON.stringify(
+        [...new Set(bellAfterAnswer.map((row) => row.userId))].toSorted(),
+      ) === JSON.stringify(expectedBellRecipients) &&
       bellAfterAnswer.every((row) => row.read),
-    `created=${bellAfterCreate.length}/${bellAfterCreate[0]?.read} (want 1/false), folded=${bellAfterFold.length}, answeredAllRead=${bellAfterAnswer.every((row) => row.read)}`,
+    `created=${recipientsOf(bellAfterCreate)} unread=${bellAfterCreate.every((row) => !row.read)}, folded=${recipientsOf(foldRows)} (want ${wantRecipients} each time: never the member, the disabled member or the admin who turned escalations off), answer=${bellAnswer.status} (want 200), answeredAllRead=${bellAfterAnswer.length}/${bellAfterAnswer.every((row) => row.read)}`,
   );
 }
 
@@ -43278,81 +45687,107 @@ async function checkBellHintWire(
   const mateStream = connectSse(`${base}/events?orgId=${orgId}`, {
     cookie: mateCookie,
   });
-  await sleep(500); // both tails established
-  const startId = await latestOutboxId(sql);
+  try {
+    await sleep(500); // both tails established
+    const startId = await latestOutboxId(sql);
 
-  const { writeCoalescedNotification } =
-    await import('./domains/collab/service.ts');
-  await sql.begin((tx) =>
-    writeCoalescedNotification(tx, {
-      userId: mateId,
-      organizationId: orgId,
-      type: 'task_status_changed',
-      titleKey: 'taskStatusChanged',
-      bodyKey: 'taskStatusChangedBody',
-      params: {
-        title: 'Bell wire',
-        from: 'todo',
-        to: 'in_progress',
-        projectId: 'p-bell-wire',
-      },
-      resourceType: 'task',
-      resourceId: 'itest-bell-wire',
-      taskId: 'itest-bell-wire',
-      actorType: 'user',
-      actorId: userId,
-    }),
-  );
-  const bellHint = JSON.stringify({ entity: 'notification', entityId: null });
-  const isBellHint = (e: SseEvent): boolean =>
-    e.event === 'hint' && e.data === bellHint;
-  const mateGotIt = await waitFor(
-    () => mateStream.events.some(isBellHint),
-    5_000,
-  );
-  await sleep(700); // two poll cycles — the owner's stream had every chance
-  const ownerSpared = !ownerStream.events.some(isBellHint);
-  const outboxRows = await sql<{ userId: string | null; entity: string }[]>`
-    SELECT user_id AS "userId", entity FROM app_realtime.outbox
-    WHERE org_id = ${orgId} AND id > ${startId}::bigint
-      AND entity IN ('notification', 'user_notification')
-  `;
-  const narrowed =
-    outboxRows.length === 1 &&
-    outboxRows[0]?.entity === 'notification' &&
-    outboxRows[0].userId === mateId;
+    // The row is about a real task of an organization-wide project, which the
+    // teammate can open: a task-bound row is written only for its readers.
+    await sql`
+      INSERT INTO app.projects (id, org_id, name, created_by, created_at_ms,
+                                updated_at_ms)
+      VALUES ('p-bell-wire', ${orgId}, 'Bell wire', ${userId}, ${Date.now()},
+              ${Date.now()})
+    `;
+    await sql`
+      INSERT INTO app.tasks (
+        id, org_id, project_id, title, status, rank, number, created_by,
+        created_by_type, created_at_ms, updated_at_ms
+      ) VALUES (
+        'itest-bell-wire', ${orgId}, 'p-bell-wire', 'Bell wire', 'todo', 'b0', 1,
+        ${userId}, 'user', ${Date.now()}, ${Date.now()}
+      )
+    `;
+    const { writeCoalescedNotification } =
+      await import('./domains/collab/service.ts');
+    await sql.begin((tx) =>
+      writeCoalescedNotification(tx, {
+        userId: mateId,
+        organizationId: orgId,
+        type: 'task_status_changed',
+        titleKey: 'taskStatusChanged',
+        bodyKey: 'taskStatusChangedBody',
+        params: {
+          title: 'Bell wire',
+          from: 'todo',
+          to: 'in_progress',
+          projectId: 'p-bell-wire',
+        },
+        resourceType: 'task',
+        resourceId: 'itest-bell-wire',
+        taskId: 'itest-bell-wire',
+        actorType: 'user',
+        actorId: userId,
+      }),
+    );
+    const bellHint = JSON.stringify({ entity: 'notification', entityId: null });
+    const isBellHint = (e: SseEvent): boolean =>
+      e.event === 'hint' && e.data === bellHint;
+    const mateGotIt = await waitFor(
+      () => mateStream.events.some(isBellHint),
+      5_000,
+    );
+    await sleep(700); // two poll cycles — the owner's stream had every chance
+    const ownerSpared = !ownerStream.events.some(isBellHint);
+    const outboxRows = await sql<{ userId: string | null; entity: string }[]>`
+      SELECT user_id AS "userId", entity FROM app_realtime.outbox
+      WHERE org_id = ${orgId} AND id > ${startId}::bigint
+        AND entity IN ('notification', 'user_notification')
+    `;
+    const narrowed =
+      outboxRows.length === 1 &&
+      outboxRows[0]?.entity === 'notification' &&
+      outboxRows[0].userId === mateId;
 
-  // The recipient reads everything → their own streams are told as well.
-  const hintsBeforeRead = mateStream.events.filter(isBellHint).length;
-  const markAll = await post(
-    `/api/app/collab/notifications/read-all?orgId=${orgId}`,
-    undefined,
-    mateCookie,
-  );
-  const mateToldOfRead = await waitFor(
-    () => mateStream.events.filter(isBellHint).length > hintsBeforeRead,
-    5_000,
-  );
-  ownerStream.abort();
-  mateStream.abort();
-  await ownerStream.done;
-  await mateStream.done;
-  const row = await sql<{ read: boolean }[]>`
-    SELECT read FROM app.user_notifications
-    WHERE org_id = ${orgId} AND user_id = ${mateId}
-      AND resource_id = 'itest-bell-wire'
-  `;
-  record(
-    'personal bell hint wire: app entity, recipient-only, read-all hints',
-    joined.ok &&
-      mateGotIt &&
-      ownerSpared &&
-      narrowed &&
-      markAll.ok &&
-      mateToldOfRead &&
-      (row[0]?.read ?? false),
-    `joined=${joined.status}, recipientHint=${mateGotIt}, otherMemberSpared=${ownerSpared}, outbox=${outboxRows.map((r) => `${r.entity}→${r.userId === mateId ? 'recipient' : (r.userId ?? 'org-wide')}`).join(',') || 'none'} (want notification→recipient), readAll=${markAll.status}/hint=${mateToldOfRead}, read=${row[0]?.read}`,
-  );
+    // The recipient reads everything → their own streams are told as well.
+    const hintsBeforeRead = mateStream.events.filter(isBellHint).length;
+    const markAll = await post(
+      `/api/app/collab/notifications/read-all?orgId=${orgId}`,
+      undefined,
+      mateCookie,
+    );
+    const mateToldOfRead = await waitFor(
+      () => mateStream.events.filter(isBellHint).length > hintsBeforeRead,
+      5_000,
+    );
+    const row = await sql<{ read: boolean }[]>`
+      SELECT read FROM app.user_notifications
+      WHERE org_id = ${orgId} AND user_id = ${mateId}
+        AND resource_id = 'itest-bell-wire'
+    `;
+    record(
+      'personal bell hint wire: app entity, recipient-only, read-all hints',
+      joined.ok &&
+        mateGotIt &&
+        ownerSpared &&
+        narrowed &&
+        markAll.ok &&
+        mateToldOfRead &&
+        (row[0]?.read ?? false),
+      `joined=${joined.status}, recipientHint=${mateGotIt}, otherMemberSpared=${ownerSpared}, outbox=${outboxRows.map((r) => `${r.entity}→${r.userId === mateId ? 'recipient' : (r.userId ?? 'org-wide')}`).join(',') || 'none'} (want notification→recipient), readAll=${markAll.status}/hint=${mateToldOfRead}, read=${row[0]?.read}`,
+    );
+  } finally {
+    // On every path: both tails end (a tail that will not fails the lane in
+    // seconds, naming it, instead of holding it to the lane deadline), and
+    // the project goes, since later lanes count the organization's projects.
+    try {
+      await Promise.all([ownerStream.close(), mateStream.close()]);
+    } finally {
+      await sql`
+        DELETE FROM app.projects WHERE id = 'p-bell-wire' AND org_id = ${orgId}
+      `;
+    }
+  }
 }
 
 /**
@@ -43999,7 +46434,7 @@ async function checkRetention(
   const governanceDir = path.join(configRoot, orgSlug, 'governance');
   await mkdir(governanceDir, { recursive: true });
   // Every category must be declared (the env-tightening walk throws on a
-  // gap), and the compliance floors bind (auditLog ≥ 365, loginAttempt ≥ 90).
+  // gap), and the compliance floors bind (auditLog ≥ 180, loginAttempt ≥ 90).
   const bound = (min: number, unit = 'days') =>
     [
       `  min: ${min}`,
@@ -47156,12 +49591,14 @@ async function checkDataResidencyConfig(
   );
 
   // --- Object storage: connection files + probe + blob backfill ---------
-  const endpoint = process.env.ITEST_S3_ENDPOINT ?? '';
-  // Same defaults as checkFiles — a run that only sets ITEST_S3_ENDPOINT
-  // (the documented minimum) must reach MinIO here too, not sign with an
-  // empty key and fail the bucket create.
-  const accessKeyId = process.env.ITEST_S3_ACCESS_KEY ?? 'minioadmin';
-  const secretAccessKey = process.env.ITEST_S3_SECRET_KEY ?? 'minioadmin';
+  // Without a store this section fails rather than skips: its bucket create
+  // cannot succeed. The credentials carry checkFiles' defaults, so a run that
+  // only sets ITEST_S3_ENDPOINT (the documented minimum) reaches MinIO here
+  // too, instead of signing with an empty key and failing the bucket create.
+  const store = itestObjectStore();
+  const endpoint = store?.endpoint ?? '';
+  const accessKeyId = store?.accessKeyId ?? 'minioadmin';
+  const secretAccessKey = store?.secretAccessKey ?? 'minioadmin';
   const byoBucket = 'itest-byo';
   // Create the BYO bucket directly (MinIO: signed PUT on the bucket URL).
   const { buildS3ObjectStore } =
@@ -48606,6 +51043,19 @@ async function checkMetricsSurface(
       (${`${orgId}-other`}, 'mx-sess', 'mx-other-op', 'task-agent',
        'completed', 'other-tenant', ${now - 2000}, ${now - 1000})
   `;
+  // An automation step waiting for sandbox room settles one op per refused
+  // start: not a harness turn, and newer than every real one. Enough of
+  // them to fill the metrics read's 5000-row cap on their own, plus one
+  // inside the harness-health window under a harness the real turns name.
+  await sql`
+    INSERT INTO app.sandbox_session_ops (
+      org_id, session_id, exec_id, kind, status, agent_result_status,
+      harness, started_at_ms, finished_at_ms
+    )
+    SELECT ${orgId}, 'mx-wait', 'mx-wait-' || n, 'workflow-agent', 'failed',
+           'awaiting_room', 'codex', ${now - 500}, ${now - 400}
+    FROM generate_series(1, 5000) AS n
+  `;
 
   // ---- probes ------------------------------------------------------------
   const usage = z
@@ -48862,13 +51312,18 @@ async function checkMetricsSurface(
       harnessHealthAfter.data.health.length === 3 &&
       harnessHealthAfter.data.health.find((row) => row.harness === 'codex')
         ?.recentTotal === 1 &&
+      // The question-parked turn and the room waits are no outcome.
       harnessHealthAfter.data.health.find(
         (row) => row.harness === 'claude-code',
-      )?.recentTotal === 6,
+      )?.recentTotal === 5,
     turns.success
-      ? `total=${turns.data.total} c/f/x/t=${turns.data.completed}/${turns.data.failed}/${turns.data.cancelled}/${turns.data.timeout} rec=${turns.data.recovered} p95=${turns.data.durationP95Ms} spent=${turns.data.spentCents} byHarness=${JSON.stringify(turns.data.byHarness.map((row) => [row.harness, row.total]))} (want claude-code 6 + pi 1 + codex 1, no foreign/old rows) health.pi=${piHealth?.recentTotal ?? 'none'} (want 1)`
+      ? `total=${turns.data.total} c/f/x/t=${turns.data.completed}/${turns.data.failed}/${turns.data.cancelled}/${turns.data.timeout} rec=${turns.data.recovered} p95=${turns.data.durationP95Ms} spent=${turns.data.spentCents} byHarness=${JSON.stringify(turns.data.byHarness.map((row) => [row.harness, row.total]))} (want claude-code 6 + pi 1 + codex 1, no foreign/old rows, no room waits) health=${JSON.stringify(harnessHealthAfter.success ? harnessHealthAfter.data.health.map((row) => [row.harness, row.recentTotal]) : 'shape-fail')} (want claude-code 5, pi 1, codex 1)`
       : 'shape-fail',
   );
+  await sql`
+    DELETE FROM app.sandbox_session_ops
+    WHERE org_id = ${orgId} AND session_id = 'mx-wait'
+  `;
 
   // ---- the run dialog's execution log ---------------------------------
   const { sessionIdForWorkflowExecution } =
@@ -50193,15 +52648,121 @@ async function checkAccountAuthzHardening(
 }
 
 /**
+ * The API-key create gate (`auth/api-key-create-gate.ts`) against the real
+ * member, competence and key tables: a Member holding no competence is
+ * refused `403 API_KEY_CREATE_FORBIDDEN` before a key exists, and the
+ * settings read (`GET /api/app/governance/my/api-keys`) says so; a live
+ * `tale:notifications.export` grant admits the next create and the read; a
+ * revoked grant refuses again; a Developer creates without any grant.
+ */
+async function checkApiKeyCreateGate(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string; userId: string },
+  suffix: string,
+): Promise<void> {
+  const member = await signUpOrgMember(
+    sql,
+    base,
+    ctx.orgId,
+    `keygate-member-${suffix}`,
+    'member',
+  );
+  const developer = await signUpOrgMember(
+    sql,
+    base,
+    ctx.orgId,
+    `keygate-developer-${suffix}`,
+    'developer',
+  );
+  const create = async (cookie: string, name: string) => {
+    const res = await fetch(`${base}/api/auth/api-key/create`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      body: JSON.stringify({ name }),
+    });
+    const body = z
+      .object({ code: z.string().optional() })
+      .loose()
+      .safeParse(await res.json().catch(() => ({})));
+    return {
+      status: res.status,
+      code: body.success ? (body.data.code ?? 'none') : 'unparsed',
+    };
+  };
+  const standing = async (cookie: string) => {
+    const res = await fetch(
+      `${base}/api/app/governance/my/api-keys?orgId=${ctx.orgId}`,
+      { headers: { cookie } },
+    );
+    const body = z
+      .object({ mayCreate: z.boolean() })
+      .safeParse(await res.json().catch(() => null));
+    return body.success ? body.data.mayCreate : null;
+  };
+  const keyCount = async (userId: string): Promise<number> =>
+    (
+      await sql<{ n: number }[]>`
+        SELECT count(*)::int AS n FROM "apikey" WHERE "referenceId" = ${userId}
+      `
+    )[0]?.n ?? -1;
+
+  const refused = await create(member.cookie, `keygate-refused-${suffix}`);
+  const refusedStanding = await standing(member.cookie);
+  const refusedKeys = await keyCount(member.userId);
+
+  const grant = await sql<{ id: string }[]>`
+    INSERT INTO app.competence_records (
+      org_id, user_id, competence, granted_by, granted_at_ms
+    ) VALUES (
+      ${ctx.orgId}, ${member.userId}, 'tale:notifications.export',
+      ${ctx.userId}, ${Date.now()}
+    )
+    RETURNING id
+  `;
+  const granted = await create(member.cookie, `keygate-granted-${suffix}`);
+  const grantedStanding = await standing(member.cookie);
+
+  await sql`
+    UPDATE app.competence_records
+    SET revoked_at_ms = ${Date.now()}, revoked_by = ${ctx.userId}
+    WHERE id = ${grant[0]?.id ?? ''}
+  `;
+  const revoked = await create(member.cookie, `keygate-revoked-${suffix}`);
+  const byDeveloper = await create(
+    developer.cookie,
+    `keygate-developer-${suffix}`,
+  );
+
+  record(
+    'API keys: a Member holding no key-using competence is refused, a live grant admits the next create, a revoked one refuses again, a Developer needs none',
+    refused.status === 403 &&
+      refused.code === 'API_KEY_CREATE_FORBIDDEN' &&
+      refusedStanding === false &&
+      refusedKeys === 0 &&
+      granted.status === 200 &&
+      grantedStanding === true &&
+      revoked.status === 403 &&
+      revoked.code === 'API_KEY_CREATE_FORBIDDEN' &&
+      byDeveloper.status === 200,
+    `member: ${refused.status}/${refused.code} mayCreate=${String(refusedStanding)} keys=${refusedKeys} (want 403/API_KEY_CREATE_FORBIDDEN false 0); granted: ${granted.status} mayCreate=${String(grantedStanding)} (want 200 true); revoked: ${revoked.status}/${revoked.code} (want 403/API_KEY_CREATE_FORBIDDEN); developer: ${byDeveloper.status} (want 200)`,
+  );
+}
+
+/**
  * The budget editor's per-key picker (`GET /api/app/governance/api-keys`):
  * an admin lists every live key held by a member of the organization — never
  * a non-member's, never an expired one, never a secret — and a non-admin is
- * refused. Run against the real auth tables, so a wrong column name in the
- * listing's query fails here rather than leaving the picker silently empty.
+ * refused. Beside it, the keys the saved budget rules name that are no
+ * longer live, described as far as this organization's own evidence goes.
+ * Run against the real auth and audit tables, so a wrong column name in
+ * either query fails here rather than leaving the picker silently empty or
+ * a rule's key unnamed.
  */
 async function checkOrgApiKeyListing(
   sql: Sql,
   base: string,
+  auth: Auth,
   ctx: { cookie: string; orgId: string },
   suffix: string,
 ): Promise<void> {
@@ -50230,9 +52791,39 @@ async function checkOrgApiKeyListing(
     'developer',
   );
   const outsider = await signUpUser(base, `keylist-outsider-${suffix}`);
+  // A key holder from another organization — its owner, which the create
+  // gate admits — whose key this organization's listing must never show.
+  const outsiderOrgId = randomUUID();
+  await sql`
+    INSERT INTO "organization" ("id", "name", "slug", "createdAt")
+    VALUES (${outsiderOrgId}, ${`Key listing outsider ${suffix}`},
+            ${`keylist-outsider-${suffix}`}, ${new Date()})
+  `;
+  await sql`
+    INSERT INTO "member" ("id", "organizationId", "userId", "role", "createdAt")
+    VALUES (${randomUUID()}, ${outsiderOrgId}, ${outsider.userId}, 'owner',
+            ${new Date()})
+  `;
   const memberKey = await mint(member.cookie, `keylist-live-${suffix}`);
   const expiredKey = await mint(member.cookie, `keylist-expired-${suffix}`);
   const outsiderKey = await mint(outsider.cookie, `keylist-out-${suffix}`);
+  const revokedKey = await mint(member.cookie, `keylist-revoked-${suffix}`);
+  if (revokedKey !== null) {
+    const revoked = await fetch(`${base}/api/auth/api-key/delete`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        cookie: member.cookie,
+        origin: base,
+      },
+      body: JSON.stringify({ keyId: revokedKey.id }),
+    });
+    await revoked.text();
+  }
+  // Creating a key can start Better Auth's expiry sweep without awaiting
+  // it. Finish that work before aging this fixture, then use only the
+  // governance read until its still-present Expired state has been observed.
+  await auth.api.deleteAllExpiredApiKeys({});
   if (expiredKey !== null) {
     await sql`
       UPDATE "apikey" SET "expiresAt" = now() - interval '1 day'
@@ -50270,6 +52861,7 @@ async function checkOrgApiKeyListing(
     (minted) => minted !== null && adminText.includes(minted.key),
   );
   const memberRes = await list(member.cookie);
+  await memberRes.text();
   record(
     "org api-key listing: an admin sees members' live keys, masked; a non-admin is refused",
     adminRes.status === 200 &&
@@ -50283,6 +52875,372 @@ async function checkOrgApiKeyListing(
       !leaked &&
       memberRes.status === 403,
     `admin → ${adminRes.status}, member key listed=${memberRow !== undefined} (owner ${memberRow?.ownerEmail ?? 'MISSING'}), expired listed=${expiredKey !== null && ids.includes(expiredKey.id)}, outsider listed=${outsiderKey !== null && ids.includes(outsiderKey.id)}, secret leaked=${leaked}, non-admin → ${memberRes.status} (want 403)`,
+  );
+
+  // A budget rule stores its key's bare id and outlives the key. The listing
+  // therefore also describes the keys the saved rules name that are no
+  // longer live, so the rule table reads as a key and an owner instead of a
+  // string of random characters: an expired key from the auth tables, a
+  // deleted one from the audit trail its creation left. A key this
+  // organization has no evidence of — another organization's, or an id that
+  // names nothing — answers `unknown` either way, so a saved rule cannot be
+  // used to ask whose key an id is.
+  const noSuchKeyId = `keylist-none-${suffix}`;
+  const policyUrl = `${base}/api/app/governance/policies/budgets?orgId=${ctx.orgId}`;
+  const priorBudgets = z
+    .object({
+      policy: z
+        .object({ config: z.record(z.string(), z.unknown()) })
+        .nullable(),
+    })
+    .safeParse(
+      await fetch(policyUrl, { headers: { cookie: ctx.cookie } })
+        .then((res) => res.json())
+        .catch(() => null),
+    );
+  const savePolicy = async (config: unknown) => {
+    const res = await fetch(policyUrl, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        cookie: ctx.cookie,
+        origin: base,
+      },
+      body: JSON.stringify({ config }),
+    });
+    await res.text();
+    return res;
+  };
+  const ruleKeyIds = [
+    memberKey?.id,
+    expiredKey?.id,
+    revokedKey?.id,
+    outsiderKey?.id,
+    noSuchKeyId,
+  ].filter((id) => id !== undefined);
+  const saved = await savePolicy({
+    enabled: true,
+    // A cap no probe reaches: the rules are here to be read, not to bind.
+    rules: ruleKeyIds.map((apiKeyId) => ({
+      scope: 'apiKey',
+      apiKeyId,
+      period: 'monthly',
+      maxRequests: 1_000_000_000,
+    })),
+  });
+  const describedRes = await list(ctx.cookie);
+  const describedText = await describedRes.text();
+  let describedBody: unknown = null;
+  try {
+    describedBody = JSON.parse(describedText);
+  } catch (error) {
+    console.warn(
+      '[org api-key listing] the rule-key read answered no JSON',
+      error instanceof Error ? error.message : error,
+    );
+  }
+  const ruleKeyListingSchema = z.object({
+    ruleKeys: z.array(
+      z.object({
+        id: z.string(),
+        name: z.string().nullable(),
+        userId: z.string().nullable(),
+        ownerEmail: z.string().nullable(),
+        status: z.string(),
+      }),
+    ),
+  });
+  const described = ruleKeyListingSchema.safeParse(describedBody);
+  const ruleKey = (id: string | undefined) =>
+    described.success
+      ? described.data.ruleKeys.find((key) => key.id === id)
+      : undefined;
+  const expiredRule = ruleKey(expiredKey?.id);
+  const revokedRule = ruleKey(revokedKey?.id);
+  const outsiderRule = ruleKey(outsiderKey?.id);
+  const noSuchRule = ruleKey(noSuchKeyId);
+  const ruleKeySecretLeaked = [expiredKey, revokedKey, outsiderKey].some(
+    (minted) => minted !== null && describedText.includes(minted.key),
+  );
+  record(
+    'org api-key listing: a rule on a key that is no longer live still names the key and its owner; a key of another organization stays unknown',
+    saved.status === 200 &&
+      describedRes.status === 200 &&
+      // The live key is in the listing proper, never described twice.
+      ruleKey(memberKey?.id) === undefined &&
+      expiredRule?.status === 'expired' &&
+      expiredRule.name === `keylist-expired-${suffix}` &&
+      expiredRule.ownerEmail === member.email &&
+      revokedRule?.status === 'revoked' &&
+      revokedRule.name === `keylist-revoked-${suffix}` &&
+      revokedRule.userId === member.userId &&
+      revokedRule.ownerEmail === member.email &&
+      outsiderRule?.status === 'unknown' &&
+      outsiderRule.name === null &&
+      outsiderRule.userId === null &&
+      outsiderRule.ownerEmail === null &&
+      noSuchRule?.status === 'unknown' &&
+      !describedText.includes(outsider.email) &&
+      !ruleKeySecretLeaked,
+    `save → ${saved.status}, read → ${describedRes.status}, live described=${ruleKey(memberKey?.id) !== undefined}, expired=${expiredRule?.status ?? 'MISSING'}/${expiredRule?.ownerEmail ?? 'no owner'}, revoked=${revokedRule?.status ?? 'MISSING'}/${revokedRule?.name ?? 'no name'}/${revokedRule?.ownerEmail ?? 'no owner'}, outsider=${outsiderRule?.status ?? 'MISSING'}/${outsiderRule?.name ?? 'no name'}, none=${noSuchRule?.status ?? 'MISSING'}, outsider named=${describedText.includes(outsider.email)}, secret leaked=${ruleKeySecretLeaked}`,
+  );
+
+  // Exercise the real plugin cleanup, not a hand-deleted auth row or a
+  // sleep that races its throttle. Cleanup catches adapter errors, so its
+  // success response alone does not prove that the expired row was removed.
+  await auth.api.deleteAllExpiredApiKeys({});
+  const expiredRowsLeft =
+    expiredKey === null
+      ? []
+      : await sql`SELECT "id" FROM "apikey" WHERE "id" = ${expiredKey.id}`;
+  const expiredRevokeReceipts =
+    expiredKey === null
+      ? []
+      : await sql`
+          SELECT id FROM app.audit_logs
+          WHERE org_id = ${ctx.orgId} AND resource_type = 'api_key'
+            AND resource_id = ${expiredKey.id} AND action = 'api_key.revoked'
+        `;
+  const sweptRes = await list(ctx.cookie);
+  const sweptText = await sweptRes.text();
+  let sweptBody: unknown = null;
+  try {
+    sweptBody = JSON.parse(sweptText);
+  } catch (error) {
+    console.warn(
+      '[org api-key listing] the post-cleanup read answered no JSON',
+      error instanceof Error ? error.message : error,
+    );
+  }
+  const swept = ruleKeyListingSchema.safeParse(sweptBody);
+  const sweptKey = (id: string | undefined) =>
+    swept.success
+      ? swept.data.ruleKeys.find((key) => key.id === id)
+      : undefined;
+  const unavailableRule = sweptKey(expiredKey?.id);
+  const sweptSecretLeaked = [
+    memberKey,
+    expiredKey,
+    revokedKey,
+    outsiderKey,
+  ].some((minted) => minted !== null && sweptText.includes(minted.key));
+  record(
+    'org api-key listing: real expiry cleanup removes the row without a revoke receipt; the known key becomes unavailable',
+    expiredKey !== null &&
+      expiredRule?.status === 'expired' &&
+      expiredRowsLeft.length === 0 &&
+      expiredRevokeReceipts.length === 0 &&
+      sweptRes.status === 200 &&
+      unavailableRule?.status === 'unavailable' &&
+      unavailableRule.name === `keylist-expired-${suffix}` &&
+      unavailableRule.userId === member.userId &&
+      unavailableRule.ownerEmail === member.email &&
+      sweptKey(revokedKey?.id)?.status === 'revoked' &&
+      sweptKey(outsiderKey?.id)?.status === 'unknown' &&
+      sweptKey(noSuchKeyId)?.status === 'unknown' &&
+      !sweptText.includes(outsider.email) &&
+      !sweptSecretLeaked,
+    `read → ${sweptRes.status}, before=${expiredRule?.status ?? 'MISSING'}, auth rows=${expiredRowsLeft.length}, revoke receipts=${expiredRevokeReceipts.length}, after=${unavailableRule?.status ?? 'MISSING'}/${unavailableRule?.name ?? 'no name'}/${unavailableRule?.ownerEmail ?? 'no owner'}, explicit revoke=${sweptKey(revokedKey?.id)?.status ?? 'MISSING'}, secret leaked=${sweptSecretLeaked}`,
+  );
+  await savePolicy(
+    priorBudgets.success && priorBudgets.data.policy !== null
+      ? priorBudgets.data.policy.config
+      : { enabled: false, rules: [] },
+  );
+
+  // A key whose holder LEFT is described from what this organization
+  // recorded while they were a member, and nothing else. What they do with
+  // the key afterwards happens elsewhere: deleting it writes its
+  // `api_key.revoked` row into the organizations they belong to NOW, so the
+  // former organization's answer must not move when they do. A key they
+  // revoked while still a member reads `revoked` from that record, before
+  // and after they leave.
+  const leaver = await signUpOrgMember(
+    sql,
+    base,
+    ctx.orgId,
+    `keylist-leaver-${suffix}`,
+    'developer',
+  );
+  const deleteKey = async (cookie: string, keyId: string) => {
+    const res = await fetch(`${base}/api/auth/api-key/delete`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      body: JSON.stringify({ keyId }),
+    });
+    await res.text();
+    return res;
+  };
+  const leftKey = await mint(leaver.cookie, `keylist-left-${suffix}`);
+  const leftRevokedKey = await mint(
+    leaver.cookie,
+    `keylist-left-revoked-${suffix}`,
+  );
+  const revokedWhileMember =
+    leftRevokedKey === null
+      ? null
+      : await deleteKey(leaver.cookie, leftRevokedKey.id);
+  await sql`
+    DELETE FROM "member"
+    WHERE "organizationId" = ${ctx.orgId} AND "userId" = ${leaver.userId}
+  `;
+  const savedForLeaver = await savePolicy({
+    enabled: true,
+    rules: [leftKey?.id, leftRevokedKey?.id]
+      .filter((id) => id !== undefined)
+      .map((apiKeyId) => ({
+        scope: 'apiKey',
+        apiKeyId,
+        period: 'monthly',
+        maxRequests: 1_000_000_000,
+      })),
+  });
+  /** The whole description of each key the rules name, as the admin reads it. */
+  const readRuleKeys = async () => {
+    const res = await list(ctx.cookie);
+    let body: unknown = null;
+    try {
+      body = JSON.parse(await res.text());
+    } catch (error) {
+      console.warn(
+        '[org api-key listing] the departed-holder read answered no JSON',
+        error instanceof Error ? error.message : error,
+      );
+    }
+    const parsed = z
+      .object({
+        ruleKeys: z.array(
+          z.object({ id: z.string(), status: z.string() }).loose(),
+        ),
+      })
+      .safeParse(body);
+    const find = (id: string | undefined) =>
+      parsed.success
+        ? parsed.data.ruleKeys.find((key) => key.id === id)
+        : undefined;
+    return {
+      status: res.status,
+      left: find(leftKey?.id),
+      leftRevoked: find(leftRevokedKey?.id),
+    };
+  };
+  const beforeDeletion = await readRuleKeys();
+  const deletedElsewhere =
+    leftKey === null ? null : await deleteKey(leaver.cookie, leftKey.id);
+  const keyRowsLeft =
+    leftKey === null
+      ? []
+      : await sql`SELECT "id" FROM "apikey" WHERE "id" = ${leftKey.id}`;
+  const afterDeletion = await readRuleKeys();
+  await savePolicy(
+    priorBudgets.success && priorBudgets.data.policy !== null
+      ? priorBudgets.data.policy.config
+      : { enabled: false, rules: [] },
+  );
+  const sameAnswer = (
+    a: Record<string, unknown> | undefined,
+    b: Record<string, unknown> | undefined,
+  ) => a !== undefined && JSON.stringify(a) === JSON.stringify(b);
+  record(
+    'org api-key listing: a holder who left is described from this organization’s record alone — deleting the key elsewhere afterwards changes nothing',
+    savedForLeaver.status === 200 &&
+      revokedWhileMember?.status === 200 &&
+      deletedElsewhere?.status === 200 &&
+      // The deletion really happened: the key is gone from the auth store.
+      keyRowsLeft.length === 0 &&
+      beforeDeletion.status === 200 &&
+      afterDeletion.status === 200 &&
+      beforeDeletion.left?.status === 'holder_left' &&
+      beforeDeletion.left.name === `keylist-left-${suffix}` &&
+      beforeDeletion.left.userId === leaver.userId &&
+      beforeDeletion.left.ownerEmail === leaver.email &&
+      beforeDeletion.left.ownerName === null &&
+      beforeDeletion.left.expiresAt === null &&
+      sameAnswer(afterDeletion.left, beforeDeletion.left) &&
+      beforeDeletion.leftRevoked?.status === 'revoked' &&
+      beforeDeletion.leftRevoked.name === `keylist-left-revoked-${suffix}` &&
+      sameAnswer(afterDeletion.leftRevoked, beforeDeletion.leftRevoked),
+    `save → ${savedForLeaver.status}, revoke while a member → ${revokedWhileMember?.status ?? 'not minted'}, delete after leaving → ${deletedElsewhere?.status ?? 'not minted'} (rows left ${keyRowsLeft.length}), before=${JSON.stringify(beforeDeletion.left ?? null)}, after=${JSON.stringify(afterDeletion.left ?? null)}, revoked before=${beforeDeletion.leftRevoked?.status ?? 'MISSING'} after=${afterDeletion.leftRevoked?.status ?? 'MISSING'}`,
+  );
+
+  // A key made BEFORE its holder joined has no creation row here, but a
+  // revoke while they are a member lands here as it does in each of their
+  // organizations: this organization recorded the key's end, and reads it
+  // as revoked and whose, not as a key it has no record of.
+  const joiner = await signUpUser(base, `keylist-joiner-${suffix}`);
+  const joinerOrgId = randomUUID();
+  await sql`
+    INSERT INTO "organization" ("id", "name", "slug", "createdAt")
+    VALUES (${joinerOrgId}, ${`Key listing joiner ${suffix}`},
+            ${`keylist-joiner-${suffix}`}, ${new Date()})
+  `;
+  await sql`
+    INSERT INTO "member" ("id", "organizationId", "userId", "role", "createdAt")
+    VALUES (${randomUUID()}, ${joinerOrgId}, ${joiner.userId}, 'owner',
+            ${new Date()})
+  `;
+  const joinerKey = await mint(joiner.cookie, `keylist-joiner-key-${suffix}`);
+  await sql`
+    INSERT INTO "member" ("id", "organizationId", "userId", "role", "createdAt")
+    VALUES (${randomUUID()}, ${ctx.orgId}, ${joiner.userId}, 'developer',
+            ${new Date()})
+  `;
+  const joinerRevoked =
+    joinerKey === null ? null : await deleteKey(joiner.cookie, joinerKey.id);
+  const savedForJoiner = await savePolicy({
+    enabled: true,
+    rules:
+      joinerKey === null
+        ? []
+        : [
+            {
+              scope: 'apiKey',
+              apiKeyId: joinerKey.id,
+              period: 'monthly',
+              maxRequests: 1_000_000_000,
+            },
+          ],
+  });
+  const joinerRes = await list(ctx.cookie);
+  let joinerBody: unknown = null;
+  try {
+    joinerBody = JSON.parse(await joinerRes.text());
+  } catch (error) {
+    console.warn(
+      '[org api-key listing] the joiner read answered no JSON',
+      error instanceof Error ? error.message : error,
+    );
+  }
+  await savePolicy(
+    priorBudgets.success && priorBudgets.data.policy !== null
+      ? priorBudgets.data.policy.config
+      : { enabled: false, rules: [] },
+  );
+  // The shared organization's member count is as the lane found it.
+  await sql`
+    DELETE FROM "member"
+    WHERE "organizationId" = ${ctx.orgId} AND "userId" = ${joiner.userId}
+  `;
+  const joinerParsed = z
+    .object({
+      ruleKeys: z.array(
+        z.object({ id: z.string(), status: z.string() }).loose(),
+      ),
+    })
+    .safeParse(joinerBody);
+  const joinerRule = joinerParsed.success
+    ? joinerParsed.data.ruleKeys.find((key) => key.id === joinerKey?.id)
+    : undefined;
+  record(
+    'org api-key listing: a key made before its holder joined and revoked while a member reads revoked, with its holder',
+    savedForJoiner.status === 200 &&
+      joinerRevoked?.status === 200 &&
+      joinerRes.status === 200 &&
+      joinerRule?.status === 'revoked' &&
+      joinerRule.userId === joiner.userId &&
+      joinerRule.ownerEmail === joiner.email &&
+      joinerRule.name === null,
+    `save → ${savedForJoiner.status}, revoke → ${joinerRevoked?.status ?? 'not minted'}, read → ${joinerRes.status}, described=${JSON.stringify(joinerRule ?? null)}`,
   );
 }
 
@@ -51473,10 +54431,10 @@ async function checkAbandonedUploadReclaim(
   sql: Sql,
   ctx: { orgId: string; userId: string },
 ): Promise<void> {
-  if (!process.env.ITEST_S3_ENDPOINT) {
-    record(
-      'abandoned upload reclaim (SKIPPED)',
-      true,
+  if (!itestObjectStore()) {
+    recordSkip(
+      record,
+      'abandoned upload reclaim',
       'no ITEST_S3_ENDPOINT — S3 lanes not exercised in this run',
     );
     return;
@@ -51621,10 +54579,10 @@ async function checkVideoFinalizerCas(
   sql: Sql,
   ctx: { orgId: string; userId: string },
 ): Promise<void> {
-  if (!process.env.ITEST_S3_ENDPOINT) {
-    record(
-      'video finalizer CAS (SKIPPED)',
-      true,
+  if (!itestObjectStore()) {
+    recordSkip(
+      record,
+      'video finalizer CAS',
       'no ITEST_S3_ENDPOINT — S3 lanes not exercised in this run',
     );
     return;
@@ -51839,10 +54797,10 @@ async function checkProjectTextConvergence(
   base: string,
   ctx: { cookie: string; orgId: string },
 ): Promise<void> {
-  if (!process.env.ITEST_S3_ENDPOINT) {
-    record(
-      'project-text convergence (SKIPPED)',
-      true,
+  if (!itestObjectStore()) {
+    recordSkip(
+      record,
+      'project-text convergence',
       'no ITEST_S3_ENDPOINT — document lanes not exercised in this run',
     );
     return;
@@ -52056,9 +55014,11 @@ async function checkRetentionHeldRowsProgress(
 
 /**
  * Cloud-sync scan: every syncable config gets its job — a keyset walk over
- * the whole table, not the first thousand. The probe rows are removed right
- * after the scan: each enqueued per-config job then finds no row to claim
- * and returns.
+ * the whole table, not the first thousand. The probe rows are held by a live
+ * run (`running`, stamped now) and removed right after the scan, so each
+ * enqueued per-config job finds no row to claim and returns. Unheld, the
+ * in-process worker claimed hundreds of them before the cleanup and synced
+ * each against Microsoft Graph on the OneDrive lane's grant.
  */
 async function checkSyncScanFairness(
   sql: Sql,
@@ -52076,6 +55036,7 @@ async function checkSyncScanFairness(
     item_name: `scan-${index}.txt`,
     target_bucket: 'itest',
     status: 'active',
+    last_sync_status: 'running',
     created_at_ms: now - 2000 + index,
     updated_at_ms: now,
   }));
@@ -52420,6 +55381,46 @@ async function checkWatchdogs(
   `;
   const parkedId = parked[0]?.id ?? '';
 
+  // Lane 2b: an organization whose one run parked for host room behind
+  // another organization's backlog of sixty older parks. The tick wakes
+  // runs of every organization that has a parked one, so the quiet
+  // organization is tried this tick, not once the backlog's oldest fifty
+  // have drained. A third organization's even older park takes the
+  // cross-organization wake of the deadline lane's slot release, which
+  // would otherwise reach the quiet run without the tick. Phantom agents:
+  // the turn jobs the wakes enqueue are skipped.
+  const backlogTasks = await sql<{ id: string }[]>`
+    INSERT INTO app.tasks (
+      org_id, project_id, title, status, rank, created_by, created_by_type,
+      created_at_ms, updated_at_ms
+    )
+    SELECT ${orgId}, ${projectId}, 'Watchdog backlog ' || n, 'todo', 'a0',
+           'itest:wd', 'user', ${now}, ${now}
+    FROM generate_series(1, 62) AS n
+    RETURNING id
+  `;
+  const backlogRunIds: string[] = [];
+  for (const [index, row] of backlogTasks.entries()) {
+    const quiet = index === backlogTasks.length - 1;
+    const decoy = index === backlogTasks.length - 2;
+    const [inserted] = await sql<{ id: string }[]>`
+      INSERT INTO app.project_agent_runs (
+        org_id, project_id, task_id, agent_id, exec_id, session_id, status,
+        harness, model, started_by, started_at_ms,
+        waiting_for_capacity_at_ms, deadline_at_ms, updated_at_ms
+      ) VALUES (
+        ${quiet ? `${orgId}-wd-quiet` : decoy ? `${orgId}-wd-decoy` : orgId},
+        ${projectId}, ${row.id}, ${`wd-phantom-${randomUUID()}`},
+        ${`exec-wd-backlog-${index}`}, ${`pa-wd-backlog-${index}`}, 'queued',
+        'claude-code', 'itest-model', 'itest:wd', ${now - 3 * 3_600_000},
+        ${quiet ? now - 3_600_000 : decoy ? 2 : now - 2 * 3_600_000 + index},
+        ${now + 3_600_000}, ${now}
+      ) RETURNING id
+    `;
+    backlogRunIds.push(inserted?.id ?? '');
+  }
+  const quietParkedId = backlogRunIds.at(-1) ?? '';
+
   // The deadline sweep must stop the exec itself, not only its ledger row:
   // a fake spawner records the cancel the sweep sends for the overdue run.
   const { createServer } = await import('node:http');
@@ -52488,6 +55489,26 @@ async function checkWatchdogs(
       slotAfter[0]?.status === 'stopped',
     `overdue=${overdueAfter?.status} parked=${parkedAfter?.status} op=${opAfter[0]?.status} slot=${slotAfter[0]?.status}`,
   );
+  const [quietAfterTick] = await sql<{ parked: boolean }[]>`
+    SELECT waiting_for_capacity_at_ms IS NOT NULL AS parked
+    FROM app.project_agent_runs WHERE id = ${quietParkedId}
+  `;
+  const [backlogAfterTick] = await sql<{ parked: string }[]>`
+    SELECT count(*)::text AS parked FROM app.project_agent_runs
+    WHERE id = ANY(${backlogRunIds.slice(0, -2)})
+      AND waiting_for_capacity_at_ms IS NOT NULL
+  `;
+  const backlogStillParked = Number(backlogAfterTick?.parked ?? '60');
+  record(
+    'task-agent watchdog wakes a parked run of every organization, not only of the oldest fifty parks',
+    !(quietAfterTick?.parked ?? true) && backlogStillParked <= 56,
+    `quiet parked=${String(quietAfterTick?.parked)}/false backlog still parked=${backlogStillParked}/≤56 (four woken a tick, one more by the slot release)`,
+  );
+  await sql`
+    UPDATE app.project_agent_runs SET status = 'cancelled',
+      waiting_for_capacity_at_ms = NULL, settled_at_ms = ${Date.now()}
+    WHERE id = ANY(${backlogRunIds})
+  `;
   record(
     'task-agent watchdog stops the sandbox exec of a deadline-failed run',
     cancels.length === 1 &&
@@ -52614,7 +55635,9 @@ async function checkWatchdogs(
   // table, a batch of TWO. The old `ORDER BY created_at_ms LIMIT n` probed the
   // same two oldest rows every tick and never reached the third; the fair walk
   // (least-recently-visited first, visited rows stamped) reaches it on the
-  // second tick.
+  // second tick. They are project rows, not render ones: a render row this
+  // old is an abandoned batch, which the release pass takes on the first
+  // tick (proved below).
   const oldest = await sql<{ min: number | null }[]>`
     SELECT min(created_at_ms)::float8 AS min FROM app.sandbox_sessions
     WHERE status IN ('creating', 'active', 'degraded')
@@ -52625,17 +55648,19 @@ async function checkWatchdogs(
       org_id, session_id, status, owner_type, owner_id, created_by,
       created_at_ms, expires_at_ms
     ) VALUES
-      (${orgId}, 'wd-fair-1', 'active', 'render', 'wd-fair-1', 'itest:wd',
+      (${orgId}, 'wd-fair-1', 'active', 'project', 'wd-fair-1', 'itest:wd',
        ${ancient}, ${now + 24 * 3_600_000}),
-      (${orgId}, 'wd-fair-2', 'active', 'render', 'wd-fair-2', 'itest:wd',
+      (${orgId}, 'wd-fair-2', 'active', 'project', 'wd-fair-2', 'itest:wd',
        ${ancient + 1}, ${now + 24 * 3_600_000}),
-      (${orgId}, 'wd-fair-3', 'active', 'render', 'wd-fair-3', 'itest:wd',
+      (${orgId}, 'wd-fair-3', 'active', 'project', 'wd-fair-3', 'itest:wd',
        ${ancient + 2}, ${now + 24 * 3_600_000})
   `;
   // Reclaim: an ENDED run's hibernated session (reclaimed), an expired
   // session whose run the retention purge deleted (reclaimed), a LIVE run's
   // active AND hibernated sessions (both survive — a resume is coming), and
   // an ended run whose session the spawner reports busy (waits a tick).
+  // An unrelated lane's old orphan is also reclaimable: the scripted
+  // spawner must leave it alone, even when a full run exceeds the grace.
   const wdRun = async (
     name: string,
     status: 'success' | 'running' | 'cancelled',
@@ -52674,6 +55699,9 @@ async function checkWatchdogs(
        ${now + 24 * 3_600_000}),
       (${orgId}, 'wd-reclaim-busy', 'stopped', 'workflow_run',
        ${`${busyRunId}:@workflow`}, 'itest:wd', ${now - 2 * 3_600_000},
+       ${now + 24 * 3_600_000}),
+      (${orgId}, 'wd-unrelated-reclaim', 'stopped', 'workflow_run',
+       'itest-wd-unrelated-run:@workflow', 'itest:wd', ${now - 2 * 3_600_000},
        ${now + 24 * 3_600_000})
   `;
   const probed: string[] = [];
@@ -52690,9 +55718,9 @@ async function checkWatchdogs(
     ): Promise<{ destroyed: boolean; busy: boolean }> => {
       destroyAsked.push(sessionId);
       return Promise.resolve(
-        sessionId === 'wd-reclaim-busy'
-          ? { destroyed: false, busy: true }
-          : { destroyed: true, busy: false },
+        sessionId === 'wd-reclaim-ended' || sessionId === 'wd-reclaim-purged'
+          ? { destroyed: true, busy: false }
+          : { destroyed: false, busy: true },
       );
     },
   };
@@ -52717,6 +55745,7 @@ async function checkWatchdogs(
   const reclaimRows = await sql<{ sessionId: string; status: string }[]>`
     SELECT session_id AS "sessionId", status FROM app.sandbox_sessions
     WHERE session_id LIKE 'wd-reclaim-%'
+      OR session_id = 'wd-unrelated-reclaim'
   `;
   const statusOf = (sessionId: string): string | undefined =>
     reclaimRows.find((r) => r.sessionId === sessionId)?.status;
@@ -52743,10 +55772,101 @@ async function checkWatchdogs(
       // …and the busy one was asked, refused, and left for a later tick.
       destroyAskedSet.has('wd-reclaim-busy') &&
       statusOf('wd-reclaim-busy') === 'stopped' &&
+      // Other lanes' reclaimable fixtures must not affect these counters.
+      destroyAskedSet.has('wd-unrelated-reclaim') &&
+      statusOf('wd-unrelated-reclaim') === 'stopped' &&
       tick1.reclaimed === 2 &&
       tick2.reclaimed === 0,
     `fair(tick1=${probedTick1.join(',')} all=${[...probedFair].join(',')} stamped=${fairRows.filter((r) => r.lastReconciledAt !== null).length}/3) reclaim(${reclaimRows.map((r) => `${r.sessionId}=${r.status}`).join(' ')} asked=${[...destroyAskedSet].join(',')} reclaimed=${tick1.reclaimed}/${tick2.reclaimed})`,
   );
+
+  // Lane 3d: the render sessions of cut-off scan links. A link destroys its
+  // render session when its batch ends; one cut off mid-batch (a restart, a
+  // deploy, a crash) left the row compute-holding and the container running,
+  // and no pass reached either — each held one of the organization's two
+  // render slots until the spawner's idle reaper took the container half an
+  // hour later. A render row older than a link can keep one is destroyed
+  // when idle and settled; a worker still rendering in it waits a tick, and
+  // neither a batch that is rendering now nor another owner's session is
+  // asked about.
+  const renderAge = sandboxWatchdogs.SANDBOX_RENDER_SESSION_MAX_AGE_MS;
+  await sql`
+    INSERT INTO app.sandbox_sessions (
+      org_id, session_id, status, owner_type, owner_id, created_by,
+      created_at_ms, expires_at_ms
+    ) VALUES
+      (${orgId}, 'wd-release-abandoned', 'active', 'render',
+       'wd-release-abandoned', 'itest:wd', ${now - renderAge - 60_000},
+       ${now + 24 * 3_600_000}),
+      (${orgId}, 'wd-release-creating', 'creating', 'render',
+       'wd-release-creating', 'itest:wd', ${now - renderAge - 60_000},
+       ${now + 24 * 3_600_000}),
+      (${orgId}, 'wd-release-rendering', 'active', 'render',
+       'wd-release-rendering', 'itest:wd', ${now - renderAge - 60_000},
+       ${now + 24 * 3_600_000}),
+      (${orgId}, 'wd-release-fresh', 'active', 'render',
+       'wd-release-fresh', 'itest:wd', ${now - 60_000},
+       ${now + 24 * 3_600_000}),
+      (${orgId}, 'wd-release-project', 'active', 'project',
+       'wd-release-project', 'itest:wd', ${now - renderAge - 60_000},
+       ${now + 24 * 3_600_000})
+  `;
+  const releaseAsked: string[] = [];
+  const releaseTick = await sandboxWatchdogs.runSandboxWatchdog(sql, {
+    releaseBatch: 50,
+    spawner: {
+      isAlive: (): Promise<boolean> => Promise.resolve(true),
+      setPinned: (): Promise<boolean> => Promise.resolve(true),
+      create: (): Promise<unknown> => Promise.resolve(undefined),
+      destroyIfIdle: (
+        sessionId: string,
+      ): Promise<{ destroyed: boolean; busy: boolean }> => {
+        releaseAsked.push(sessionId);
+        return Promise.resolve(
+          sessionId === 'wd-release-rendering' ||
+            !sessionId.startsWith('wd-release-')
+            ? { destroyed: false, busy: true }
+            : { destroyed: true, busy: false },
+        );
+      },
+    },
+  });
+  const releaseRows = await sql<
+    { sessionId: string; status: string; destroyedAt: number | null }[]
+  >`
+    SELECT session_id AS "sessionId", status,
+           destroyed_at_ms::float8 AS "destroyedAt"
+    FROM app.sandbox_sessions
+    WHERE session_id LIKE 'wd-release-%'
+    ORDER BY session_id
+  `;
+  const released = (sessionId: string): boolean =>
+    releaseRows.some(
+      (row) =>
+        row.sessionId === sessionId &&
+        row.status === 'destroyed' &&
+        row.destroyedAt !== null,
+    );
+  const stillActive = (sessionId: string): boolean =>
+    releaseRows.some(
+      (row) => row.sessionId === sessionId && row.status === 'active',
+    );
+  record(
+    'sandbox watchdog releases the render sessions a cut-off scan link left behind: idle ones are destroyed and settled, a busy one waits, a fresh batch and other owners are never asked',
+    released('wd-release-abandoned') &&
+      released('wd-release-creating') &&
+      releaseAsked.includes('wd-release-rendering') &&
+      stillActive('wd-release-rendering') &&
+      !releaseAsked.includes('wd-release-fresh') &&
+      stillActive('wd-release-fresh') &&
+      !releaseAsked.includes('wd-release-project') &&
+      stillActive('wd-release-project') &&
+      releaseTick.released >= 2,
+    `rows=${releaseRows.map((row) => `${row.sessionId.replace('wd-release-', '')}=${row.status}`).join(' ')} asked=${releaseAsked.filter((id) => id.startsWith('wd-release-')).join(',')} released=${releaseTick.released} (want abandoned+creating destroyed, rendering asked and active, fresh and project never asked)`,
+  );
+  await sql`
+    DELETE FROM app.sandbox_sessions WHERE session_id LIKE 'wd-release-%'
+  `;
 
   // Lane 3b: the Sandboxes page's mount-time probe is the SAME pass scoped
   // to the org. A hibernated (`stopped`) project workspace is never a
@@ -52996,6 +56116,159 @@ async function checkWatchdogs(
       collectRow('wd-collect-recent', 'failed')?.destroyedAt === null &&
       collectedTotal >= 2,
     `passes=${collectPasses} asked=${[...new Set(collectAsked)].join(',')} rows=${collectRows.map((r) => `${r.sessionId}=${r.status}/${r.destroyedAt === null ? 'unstamped' : 'stamped'}`).join(' ')} token=${reusedTokenRows[0]?.revokedAt === null ? 'live' : 'revoked'} collected=${collectedTotal}`,
+  );
+
+  // Lane 3e: a create the sandbox host refused (429) made nothing, so its
+  // row is settled as collected and the COLLECT pass never destroys its id.
+  // A standing workspace whose last row the reconcile healed to destroyed
+  // keeps its files spawner-side; a destroy of its id, once the refused
+  // row's grace had passed, deleted them. Both the turn hosts' and the
+  // render lane's settles, through their real shim handlers, with no grace
+  // left; the spy spawner answers busy for everything, so other lanes' rows
+  // are left alone.
+  const { agentTurnShimHandlers: refusedTaskShim } =
+    await import('./domains/tasks/agent-turn-shim.ts');
+  const { crawlHandlers: refusedRenderShim } =
+    await import('./domains/websites/service.ts');
+  await sql`
+    INSERT INTO app.sandbox_sessions (
+      org_id, session_id, status, owner_type, owner_id, created_by,
+      created_at_ms, expires_at_ms, last_activity_at_ms, destroyed_at_ms
+    ) VALUES (
+      ${orgId}, 'pa-wd-refused', 'destroyed', 'project_agent',
+      'itest-wd-refused-agent', 'itest:wd', ${now - 3 * 3_600_000},
+      ${now + 21 * 3_600_000}, ${now - 3 * 3_600_000}, ${now - 2 * 3_600_000}
+    )
+  `;
+  const reserveRefused = async (
+    sessionId: string,
+    ownerType: string,
+  ): Promise<string> => {
+    const [row] = await sql<{ id: string }[]>`
+      INSERT INTO app.sandbox_sessions (
+        org_id, session_id, status, owner_type, owner_id, created_by,
+        created_at_ms, expires_at_ms, last_activity_at_ms
+      ) VALUES (
+        ${orgId}, ${sessionId}, 'creating', ${ownerType}, ${sessionId},
+        'itest:wd', ${now - 60_000}, ${now + 24 * 3_600_000}, ${now - 60_000}
+      ) RETURNING id
+    `;
+    return row?.id ?? '';
+  };
+  const refusedAgentRowId = await reserveRefused(
+    'pa-wd-refused',
+    'project_agent',
+  );
+  const refusedRenderRowId = await reserveRefused(
+    'render-wd-refused',
+    'render',
+  );
+  await refusedTaskShim(sql)['sandbox/session_mutations:setSessionStatus']?.({
+    rowId: refusedAgentRowId,
+    status: 'failed',
+    collected: true,
+  });
+  await refusedRenderShim(sql)['sandbox/session_mutations:setSessionStatus']?.({
+    rowId: refusedRenderRowId,
+    status: 'failed',
+    collected: true,
+  });
+  const refusedAsked: string[] = [];
+  await sandboxWatchdogs.runSandboxWatchdog(sql, {
+    collectBatch: 50,
+    collectGraceMs: 0,
+    spawner: {
+      isAlive: (): Promise<boolean> => Promise.resolve(true),
+      setPinned: (): Promise<boolean> => Promise.resolve(true),
+      create: (): Promise<unknown> => Promise.resolve(undefined),
+      destroyIfIdle: (
+        sessionId: string,
+      ): Promise<{ destroyed: boolean; busy: boolean }> => {
+        refusedAsked.push(sessionId);
+        return Promise.resolve({ destroyed: false, busy: true });
+      },
+    },
+  });
+  const refusedAfter = await sql<
+    { id: string; status: string; destroyedAt: number | null }[]
+  >`
+    SELECT id, status, destroyed_at_ms::float8 AS "destroyedAt"
+    FROM app.sandbox_sessions
+    WHERE id = ANY(${[refusedAgentRowId, refusedRenderRowId]})
+  `;
+  record(
+    'a create the sandbox host refused leaves its row collected, and the COLLECT pass never destroys its id',
+    refusedAfter.length === 2 &&
+      refusedAfter.every(
+        (row) => row.status === 'failed' && row.destroyedAt !== null,
+      ) &&
+      !refusedAsked.includes('pa-wd-refused') &&
+      !refusedAsked.includes('render-wd-refused'),
+    `rows=${refusedAfter.map((row) => `${row.status}/${row.destroyedAt === null ? 'unstamped' : 'stamped'}`).join(' ')} asked=${refusedAsked.filter((id) => id.endsWith('-wd-refused')).join(',') || 'none'} (want both failed/stamped, neither asked)`,
+  );
+
+  // What waiting for room leaves behind goes: the op rows of refused starts
+  // an hour after they ended — the session's newest kept, the run view
+  // reads it — and failed session rows a day after they were collected.
+  const waitSession = `wf-wd-wait-${randomUUID()}`;
+  const hourAgo = now - 2 * 60 * 60 * 1000;
+  for (const [execId, startedAt] of [
+    ['wait-1', hourAgo - 3_000],
+    ['wait-2', hourAgo - 2_000],
+    ['wait-3', hourAgo - 1_000],
+  ] as const) {
+    await sql`
+      INSERT INTO app.sandbox_session_ops (
+        org_id, session_id, exec_id, kind, status, agent_result_status,
+        started_at_ms, finished_at_ms
+      ) VALUES (
+        ${orgId}, ${waitSession}, ${execId}, 'workflow-agent', 'failed',
+        'awaiting_room', ${startedAt}, ${startedAt + 500}
+      )
+    `;
+  }
+  // One that minted a key is the settlement's to finish, never this sweep's.
+  await sql`
+    INSERT INTO app.sandbox_session_ops (
+      org_id, session_id, exec_id, kind, status, agent_result_status,
+      minted_key_id, started_at_ms, finished_at_ms
+    ) VALUES (
+      ${orgId}, ${waitSession}, 'wait-keyed', 'workflow-agent', 'failed',
+      'awaiting_room', 'key-wd-wait', ${hourAgo - 4_000}, ${hourAgo - 3_500}
+    )
+  `;
+  const day = 24 * 60 * 60 * 1000;
+  const collectedRows = await sql<{ id: string; old: boolean }[]>`
+    INSERT INTO app.sandbox_sessions (
+      org_id, session_id, status, owner_type, owner_id, created_by,
+      created_at_ms, expires_at_ms, destroyed_at_ms
+    ) VALUES
+      (${orgId}, 'pa-wd-collected-old', 'failed', 'project_agent', 'agent-wd',
+       'itest', ${now - day - 120_000}, ${now}, ${now - day - 60_000}),
+      (${orgId}, 'pa-wd-collected-new', 'failed', 'project_agent', 'agent-wd',
+       'itest', ${now - 120_000}, ${now}, ${now - 60_000})
+    RETURNING id, destroyed_at_ms < ${now - day} AS old
+  `;
+  const { sweepRoomWaitLeftovers } =
+    await import('./domains/sandbox/wait-retention.ts');
+  await sweepRoomWaitLeftovers(sql, { now });
+  const waitOpsLeft = (
+    await sql<{ execId: string }[]>`
+      SELECT exec_id AS "execId" FROM app.sandbox_session_ops
+      WHERE session_id = ${waitSession} ORDER BY started_at_ms
+    `
+  ).map((row) => row.execId);
+  const collectedLeft = await sql<{ id: string }[]>`
+    SELECT id FROM app.sandbox_sessions
+    WHERE id = ANY(${collectedRows.map((row) => row.id)})
+  `;
+  const keptRecent = collectedRows.find((row) => !row.old)?.id;
+  record(
+    'what waiting for room leaves behind is deleted past its retention, the newest op and a keyed one kept',
+    waitOpsLeft.join(',') === 'wait-keyed,wait-3' &&
+      collectedLeft.length === 1 &&
+      collectedLeft[0]?.id === keptRecent,
+    `ops=${waitOpsLeft.join(',')} (want wait-keyed,wait-3) sessions=${collectedLeft.length}/1 recent kept=${String(collectedLeft[0]?.id === keptRecent)}`,
   );
 
   // Lane 4: a stale chat generation (hard-killed turn) clears; the thread
@@ -54046,7 +57319,11 @@ async function checkTeamScopeRetirement(
     );
     return minted.success ? minted.data.key : '';
   };
-  const editorKey = await mintKey(editor.cookie, 'itest-teamscope-editor');
+  const editorKey = await asKeyCreator(
+    sql,
+    { orgId, userId: editor.userId },
+    () => mintKey(editor.cookie, 'itest-teamscope-editor'),
+  );
   const v1 = (
     key: string,
     method: 'GET' | 'POST',
@@ -54606,10 +57883,16 @@ async function checkOrganizationLifecycle(
     }
   }
   const storage = await import('./core/lib/storage/object_store.ts');
-  const lifeStore = process.env.ITEST_S3_ENDPOINT
+  const lifeStore = itestObjectStore()
     ? await storage.resolveOrgObjectStore(slugA)
     : null;
-  if (lifeStore) {
+  if (!lifeStore) {
+    recordSkip(
+      record,
+      "org lifecycle: the teardown job removes the organization's blobs",
+      'no ITEST_S3_ENDPOINT — the blob half needs an object store',
+    );
+  } else {
     await storage.s3PutObject(
       lifeStore,
       storage.buildObjectKey(lifeStore, slugA),
@@ -55119,11 +58402,11 @@ interface LaneSummary {
   filter: string | null;
 }
 
-function errorText(error: unknown): string {
-  return error instanceof Error
-    ? `${error.name}: ${error.message}`
-    : String(error);
-}
+/** The longest a single lane may run — the slowest lanes take well under
+ * two minutes, and a lane that passes this is not slow but stuck. */
+const LANE_DEADLINE_MS = 10 * 60_000;
+/** The post-lane probes are one request and one query each. */
+const PROBE_DEADLINE_MS = 2 * 60_000;
 
 /** Does the suite's shared session still resolve to its user? Better Auth's
  * own door, outside every org-scoped gate, so a policy probe (2FA
@@ -55140,6 +58423,24 @@ async function sharedSessionAlive(
     .loose()
     .safeParse(await res.json().catch(() => null));
   return res.ok && parsed.success && parsed.data.user.id === ctx.userId;
+}
+
+/**
+ * The organizations the suite's shared user belongs to, with the role in
+ * each, as one comparable string. A lane that leaves the shared user in an
+ * organization of its own breaks lanes far away from it: the /api/v1 door
+ * answers ORG_SLUG_REQUIRED to every key whose holder belongs to more than
+ * one organization, and those refusals still spend the holder's `rest:api`
+ * budget. The erasure race lane once did, and ten REST checks forty lanes
+ * later failed on it, the last ones on 429.
+ */
+async function sharedMemberships(sql: Sql, userId: string): Promise<string> {
+  const rows = await sql<{ organizationId: string; role: string }[]>`
+    SELECT "organizationId", role FROM member
+    WHERE "userId" = ${userId}
+    ORDER BY "organizationId"
+  `;
+  return rows.map((row) => `${row.organizationId}:${row.role}`).join(',');
 }
 
 /**
@@ -55209,14 +58510,8 @@ function selectLanes(lanes: readonly Lane[]): {
   selected: readonly Lane[];
   filter: string | null;
 } {
-  const raw = process.env.ITEST_LANES?.trim();
-  if (!raw) return { selected: lanes, filter: null };
-  const wanted = new Set(
-    raw
-      .split(',')
-      .map((name) => name.trim())
-      .filter((name) => name.length > 0),
-  );
+  const wanted = requestedLanes();
+  if (wanted === null) return { selected: lanes, filter: null };
   const unknown = [...wanted].filter(
     (name) => !lanes.some(([laneName]) => laneName === name),
   );
@@ -55233,8 +58528,10 @@ function selectLanes(lanes: readonly Lane[]): {
 }
 
 async function runLanes(
+  sql: Sql,
   base: string,
   ctx: { cookie: string; userId: string },
+  boundary: typeof globalThis.fetch,
   registered: readonly Lane[],
 ): Promise<LaneSummary> {
   const { selected: lanes, filter } = selectLanes(registered);
@@ -55242,8 +58539,15 @@ async function runLanes(
     const position = `lane ${index + 1} of ${lanes.length} (${name})`;
     const notRun = lanes.length - index - 1;
     const envBefore = new Map(Object.entries(process.env));
+    const membershipsBefore = await withinDeadline(
+      sharedMemberships(sql, ctx.userId),
+      PROBE_DEADLINE_MS,
+      `the membership probe before ${position}`,
+    );
     try {
-      await run();
+      // A lane that never settles used to hold the job until CI's 30-minute
+      // wall, which names no lane; the deadline truncates the run with it.
+      await withinDeadline(run(), LANE_DEADLINE_MS, position);
     } catch (error) {
       record(
         `harness: ${name} runs to completion`,
@@ -55267,7 +58571,39 @@ async function runLanes(
           `instead. Wrap the override in overrideEnv().`,
       );
     }
-    if (!(await sharedSessionAlive(base, ctx))) {
+    if (globalThis.fetch !== boundary) {
+      record(
+        `harness: ${name} puts the outbound boundary back`,
+        false,
+        `globalThis.fetch is not the harness's boundary after the lane, so ` +
+          `every later lane's requests went to what the lane left (a stub ` +
+          `that passes a request on to the real fetch reaches off the box). ` +
+          `Restore the saved fetch in the lane's finally.`,
+      );
+      globalThis.fetch = boundary;
+    }
+    const membershipsAfter = await withinDeadline(
+      sharedMemberships(sql, ctx.userId),
+      PROBE_DEADLINE_MS,
+      `the membership probe after ${position}`,
+    );
+    if (membershipsAfter !== membershipsBefore) {
+      record(
+        `harness: ${name} leaves the shared user's organizations as it found them`,
+        false,
+        `before=[${membershipsBefore}] after=[${membershipsAfter}] — every ` +
+          `later lane that resolves the shared user's organization reads ` +
+          `the change. A lane that needs another organization gives it an ` +
+          `owner of its own.`,
+      );
+    }
+    if (
+      !(await withinDeadline(
+        sharedSessionAlive(base, ctx),
+        PROBE_DEADLINE_MS,
+        `the shared-session probe after ${position}`,
+      ))
+    ) {
       record(
         `harness: the shared session survives ${name}`,
         false,
@@ -55290,21 +58626,6 @@ async function runLanes(
 }
 
 async function main(): Promise<void> {
-  // The lanes stub `fetch` for fixture hosts no resolver knows
-  // (`itest-crawl.example`, `itest.atlassian.net`); `safeFetch` resolves
-  // and pins every host before it dials, so a name DNS cannot answer reads
-  // as one documentation-range public address here. Real names keep their
-  // real answers, and the guard itself is proven by its unit suite.
-  setSafeFetchResolverForTests(async (hostname) => {
-    try {
-      return await lookupHostAddresses(hostname);
-    } catch (error) {
-      console.info(
-        `[itest] ${hostname} has no DNS answer; resolving it to a fixture address (${error instanceof Error ? error.message : String(error)})`,
-      );
-      return [{ address: '203.0.113.10', family: 4 }];
-    }
-  });
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) {
     console.error(
@@ -55312,6 +58633,41 @@ async function main(): Promise<void> {
     );
     process.exit(2);
   }
+  const blockers = fullCoverageBlockers();
+  if (blockers.length > 0) {
+    console.error(
+      `[itest] ITEST_REQUIRE_ALL_LANES=1 needs every lane to run, and this run cannot: ${blockers.join('; ')}.`,
+    );
+    process.exit(2);
+  }
+
+  // The suite's HTTP stays on the box (`integration-vendor-stub.ts`). The
+  // lanes stub `fetch` for their own fixture hosts (`itest-crawl.example`,
+  // `itest.atlassian.net`); the shipped vendor origins the model catalogs
+  // and the title lane call are answered by the vendor stub; the object
+  // store passes wherever it runs; any other host is refused and named at
+  // the end. `safeFetch` resolves and pins every host before it dials, and
+  // the video-link pre-resolution checks every name: both read the fixture
+  // address, never a real resolver.
+  const vendorStub = await startItestVendorStub();
+  const offBox = new Map<string, number>();
+  const objectStore = itestObjectStore();
+  const boundary = routeVendorFetch(globalThis.fetch, {
+    stubOrigin: vendorStub.origin,
+    onTheBox:
+      objectStore === null ? [] : [new URL(objectStore.endpoint).origin],
+    onOffBox: ({ method, origin }) => {
+      const key = `${method} ${origin}`;
+      const seen = offBox.get(key) ?? 0;
+      offBox.set(key, seen + 1);
+      if (seen === 0) {
+        console.warn(`[itest] refused ${key}: no stub answers that host`);
+      }
+    },
+  });
+  globalThis.fetch = boundary;
+  setSafeFetchResolverForTests(itestResolve);
+  setUrlSafetyResolverForTests(itestResolve);
 
   // Give the scaffold job real (empty) config roots so org creation's
   // `org.scaffold` job runs to success instead of retrying on misconfig.
@@ -55389,21 +58745,37 @@ async function main(): Promise<void> {
     triggerSchedules.length === 1 && triggerSchedules[0]?.cron === '* * * * *',
     `schedules=${triggerSchedules.length}, cron=${triggerSchedules[0]?.cron}`,
   );
-  // The delivery lanes drive the real scan explicitly, including overlapping
-  // workers and fleets across pages. A wall-clock tick competing with those
-  // calls makes their per-scan counts depend on the host's minute boundary.
-  // Disable only that recurring clock, before starting any worker; any tick
+  // Lanes drive the work of these recurring jobs explicitly, and a wall-clock
+  // tick competing with those calls makes their outcome depend on the host's
+  // minute boundary:
+  //
+  //  - `automation.trigger_scan`: the delivery lanes drive the real scan,
+  //    including overlapping workers and fleets across pages, and count what
+  //    each scan fired;
+  //  - `watchdog.rag_indexing`: the RAG watchdog lanes drive the real sweep,
+  //    whose candidate read is global and led by their rows. A tick in its
+  //    slot (2-59/5) settled those rows too: it queued behind the row the
+  //    lock lane holds and failed it as soon as the lane let go, before the
+  //    lane read back the row its own tick had deferred (#4113).
+  //
+  // Disable only those recurring clocks, before starting any worker; any tick
   // queued during schedule registration is cancelled as well.
-  await boss.unschedule('automation.trigger_scan');
-  const queuedScans = await sql<{ id: string }[]>`
-    SELECT id FROM pgboss.job WHERE name = 'automation.trigger_scan'
-      AND state IN ('created', 'retry')
-  `;
-  if (queuedScans.length > 0) {
-    await boss.cancel(
-      'automation.trigger_scan',
-      queuedScans.map((job) => job.id),
-    );
+  const laneDrivenSchedules: readonly TaskIdentifier[] = [
+    'automation.trigger_scan',
+    'watchdog.rag_indexing',
+  ];
+  for (const name of laneDrivenSchedules) {
+    await boss.unschedule(name);
+    const queued = await sql<{ id: string }[]>`
+      SELECT id FROM pgboss.job WHERE name = ${name}
+        AND state IN ('created', 'retry')
+    `;
+    if (queued.length > 0) {
+      await boss.cancel(
+        name,
+        queued.map((job) => job.id),
+      );
+    }
   }
   setEnqueueBoss(boss);
   // No itest job may ever open a real IMAP/SMTP connection.
@@ -55595,7 +58967,7 @@ async function main(): Promise<void> {
     // session dead, ends the run as a recorded FAIL naming the lane and the
     // lanes that never ran — the tally can never read green for a run that
     // executed fewer checks than it contains.
-    lanes = await runLanes(baseUrl, authCtx, [
+    lanes = await runLanes(sql, baseUrl, authCtx, boundary, [
       ['checkNotifications', () => checkNotifications(sql, baseUrl, authCtx)],
       [
         'checkOutboxRetention',
@@ -55752,6 +59124,10 @@ async function main(): Promise<void> {
       ['checkTranscription', () => checkTranscription(sql, baseUrl, authCtx)],
       ['checkVideoLinks', () => checkVideoLinks(sql, baseUrl, authCtx)],
       [
+        'checkVideoLinkComposerChips',
+        () => checkVideoLinkComposerChips(sql, baseUrl, authCtx, record),
+      ],
+      [
         'checkBrowserSessions',
         () => checkBrowserSessions(sql, baseUrl, authCtx),
       ],
@@ -55793,7 +59169,11 @@ async function main(): Promise<void> {
       ],
       [
         'checkOrgApiKeyListing',
-        () => checkOrgApiKeyListing(sql, baseUrl, authCtx, orgSuffix),
+        () => checkOrgApiKeyListing(sql, baseUrl, auth, authCtx, orgSuffix),
+      ],
+      [
+        'checkApiKeyCreateGate',
+        () => checkApiKeyCreateGate(sql, baseUrl, authCtx, orgSuffix),
       ],
       ['checkLegalHolds', () => checkLegalHolds(sql, baseUrl, authCtx)],
       [
@@ -55814,7 +59194,7 @@ async function main(): Promise<void> {
       ],
       [
         'checkErasureReviewHandoverRaces',
-        () => checkErasureReviewHandoverRaces(sql, authCtx, record),
+        () => checkErasureReviewHandoverRaces(sql, record),
       ],
       // Reliability batch probes (self-contained; each seeds and cleans its
       // own rows).
@@ -55964,6 +59344,10 @@ async function main(): Promise<void> {
         'checkConnectorOauthIntent',
         () => checkConnectorOauthIntent(sql, baseUrl, record),
       ],
+      [
+        'checkConnectorCredentialLiveListing',
+        () => checkConnectorCredentialLiveListing(sql, baseUrl, record),
+      ],
       ['checkSlackInbound', () => checkSlackInbound(sql, baseUrl, authCtx)],
       ['checkRecoverySweeps', () => checkRecoverySweeps(sql, authCtx)],
       ['checkRagStatusHintScope', () => checkRagStatusHintScope(sql, record)],
@@ -56000,6 +59384,82 @@ async function main(): Promise<void> {
         () => checkSandboxBlobDoor(sql, baseUrl, authCtx),
       ],
       [
+        'checkTaskHeldBlobOutlivesFileRow',
+        () => checkTaskHeldBlobOutlivesFileRow(sql, authCtx),
+      ],
+      [
+        'checkRejectedUploadReclaim',
+        () =>
+          checkRejectedUploadReclaim(
+            sql,
+            baseUrl,
+            authCtx,
+            (label, role) =>
+              signUpOrgMember(sql, baseUrl, authCtx.orgId, label, role),
+            record,
+          ),
+      ],
+      [
+        'checkProductImageReleaseHolders',
+        () =>
+          checkProductImageReleaseHolders(
+            sql,
+            baseUrl,
+            authCtx,
+            (label, role) =>
+              signUpOrgMember(sql, baseUrl, authCtx.orgId, label, role),
+            record,
+          ),
+      ],
+      [
+        'checkVideoLinkHeldBlobs',
+        () =>
+          checkVideoLinkHeldBlobs(
+            sql,
+            baseUrl,
+            authCtx,
+            (label, role) =>
+              signUpOrgMember(sql, baseUrl, authCtx.orgId, label, role),
+            record,
+          ),
+      ],
+      [
+        'checkStagedBundlesUnnameable',
+        () =>
+          checkStagedBundlesUnnameable(
+            sql,
+            baseUrl,
+            authCtx,
+            (label, role) =>
+              signUpOrgMember(sql, baseUrl, authCtx.orgId, label, role),
+            record,
+          ),
+      ],
+      [
+        'checkTaskReleaseKeepsLaneRows',
+        () =>
+          checkTaskReleaseKeepsLaneRows(
+            sql,
+            baseUrl,
+            authCtx,
+            (label, role) =>
+              signUpOrgMember(sql, baseUrl, authCtx.orgId, label, role),
+            record,
+          ),
+      ],
+      [
+        'checkMessageHeldBlobs',
+        () =>
+          checkMessageHeldBlobs(
+            sql,
+            baseUrl,
+            authCtx,
+            (label, role) =>
+              signUpOrgMember(sql, baseUrl, authCtx.orgId, label, role),
+            record,
+          ),
+      ],
+      [
         'checkNotificationProjectBackfill',
         () => checkNotificationProjectBackfill(sql, authCtx),
       ],
@@ -56009,6 +59469,64 @@ async function main(): Promise<void> {
       [
         'checkTaskRunStartFence',
         () => checkTaskRunStartFence(sql, authCtx, record),
+      ],
+      [
+        'checkTaskRetryProjectEligibility',
+        () => checkTaskRetryProjectEligibility(sql, baseUrl, authCtx, record),
+      ],
+      [
+        'checkAgentRunFailureNotice',
+        () => checkAgentRunFailureNotice(sql, authCtx, record),
+      ],
+      [
+        'checkTaskNotificationAccess',
+        () => checkTaskNotificationAccess(sql, baseUrl, authCtx, record),
+      ],
+      [
+        'checkTaskSourceThread',
+        () => checkTaskSourceThread(sql, authCtx, record),
+      ],
+      ['checkStandardAgent', () => checkStandardAgent(sql, authCtx, record)],
+      [
+        'checkScheduledAgentStarts',
+        () => checkScheduledAgentStarts(sql, baseUrl, authCtx, record),
+      ],
+      [
+        'checkDelegatedAgentStartTool',
+        () => checkDelegatedAgentStartTool(sql, baseUrl, authCtx, record),
+      ],
+      [
+        'checkInPlaceCompletionCycle',
+        () => checkInPlaceCompletionCycle(sql, authCtx, record),
+      ],
+      [
+        'checkAutomatedRetryAgentBusy',
+        () => checkAutomatedRetryAgentBusy(sql, baseUrl, authCtx, record),
+      ],
+      [
+        'checkWorkerDrainHandOff',
+        () => checkWorkerDrainHandOff(sql, boss, record),
+      ],
+      [
+        'checkImportCursorContinuation',
+        () => checkImportCursorContinuation(sql, authCtx, record),
+      ],
+      [
+        'checkTaskWorkflowParentMoves',
+        async () =>
+          checkTaskWorkflowParentMoves(
+            sql,
+            baseUrl,
+            authCtx,
+            await signUpOrgMember(
+              sql,
+              baseUrl,
+              authCtx.orgId,
+              'workflow-parent-reader',
+              'member',
+            ),
+            record,
+          ),
       ],
       [
         'checkCredentialRotationRetry',
@@ -56033,6 +59551,37 @@ async function main(): Promise<void> {
       [
         'checkProjectTaskMetrics',
         () => checkProjectTaskMetrics(sql, authCtx, record),
+      ],
+      [
+        'checkTaskBoardSearch',
+        () => checkTaskBoardSearch(sql, baseUrl, authCtx, record),
+      ],
+      [
+        'checkAgentTaskReadTools',
+        () => checkAgentTaskReadTools(sql, baseUrl, authCtx, record),
+      ],
+      [
+        'checkAgentTaskReviewRouting',
+        () => checkAgentTaskReviewRouting(sql, baseUrl, authCtx, record),
+      ],
+      [
+        'checkAgentTaskReviews',
+        () =>
+          checkAgentTaskReviews(
+            sql,
+            baseUrl,
+            authCtx,
+            `itest-${orgSuffix}`,
+            record,
+          ),
+      ],
+      [
+        'checkAgentTaskMetadata',
+        () => checkAgentTaskMetadata(sql, baseUrl, authCtx, record),
+      ],
+      [
+        'checkTaskAutomationOccupancy',
+        () => checkTaskAutomationOccupancy(sql, baseUrl, authCtx, record),
       ],
       ['checkTaskRepeat', () => checkTaskRepeat(sql, authCtx, record)],
       [
@@ -56102,6 +59651,7 @@ async function main(): Promise<void> {
         'checkOutboundSendLane',
         () => checkOutboundSendLane(sql, baseUrl, authCtx),
       ],
+      ['checkInboxTriageLane', () => checkInboxTriageLane(sql, authCtx)],
       [
         'checkNotificationEmailSink',
         () => checkNotificationEmailSink(sql, authCtx),
@@ -56216,6 +59766,10 @@ async function main(): Promise<void> {
         () =>
           checkAutomationAgentNode(sql, baseUrl, authCtx, `itest-${orgSuffix}`),
       ],
+      [
+        'checkAutomationStepDestroyPending',
+        () => checkAutomationStepDestroyPending(sql, baseUrl, authCtx),
+      ],
       ['checkAskAnswer', () => checkAskAnswer(sql, baseUrl, authCtx)],
       [
         'checkAnsweredAskRecovery',
@@ -56264,6 +59818,10 @@ async function main(): Promise<void> {
         () => checkSandboxIdleRelease(sql, authCtx, record),
       ],
       [
+        'checkWorkspaceCleanup',
+        () => checkWorkspaceCleanup(sql, authCtx, record),
+      ],
+      [
         'checkImageGenerationAdmission',
         () => checkImageGenerationAdmission(sql, authCtx, record),
       ],
@@ -56304,6 +59862,10 @@ async function main(): Promise<void> {
         () => checkDocumentWriteGuards(sql, baseUrl, authCtx),
       ],
       [
+        'checkHubFolderWriteRole',
+        () => checkHubFolderWriteRole(sql, baseUrl, record),
+      ],
+      [
         'checkLoginThrottleAndAuditChain',
         () =>
           checkLoginThrottleAndAuditChain(
@@ -56337,22 +59899,44 @@ async function main(): Promise<void> {
       `RUN TRUNCATED before the lanes: ${errorText(error)}`,
     );
   } finally {
-    await boss.stop({ graceful: false });
-    await new Promise<void>((resolve) => {
-      server.close(() => resolve());
-    });
-    await sql`DROP TABLE IF EXISTS itest_counter`;
-    await sql.end({ timeout: 5 });
+    // Bounded step by step, so a run a lane left hanging still prints its
+    // tally and exits with its code. The backend closes the way the
+    // deployment does: a bare `server.close()` waits for every connection,
+    // and an `/events` tail a stuck lane still holds never ends on its own.
+    await settleTeardown(
+      [
+        ['stops pg-boss', () => boss.stop({ graceful: false })],
+        ['closes the backend', () => closeServerGracefully(server)],
+        ['closes the vendor stub', () => vendorStub.close()],
+        ['drops itest_counter', () => sql`DROP TABLE IF EXISTS itest_counter`],
+        ['ends the database pool', () => sql.end({ timeout: 5 })],
+      ],
+      record,
+    );
   }
 
+  // The run's traffic off the box, as evidence in the log. A refused
+  // request fails the way it fails without egress, so no verdict can hang on
+  // a host off the box; one a background job makes after its lane's cleanup
+  // (a sync run the lane outpaced) is named here rather than turning a check
+  // red on timing.
+  const answered = new Map<string, number>();
+  for (const request of vendorStub.requests) {
+    answered.set(request.host, (answered.get(request.host) ?? 0) + 1);
+  }
+  console.log(
+    `\n[itest] off the box: the vendor stub answered ${[...answered].map(([host, count]) => `${host}×${count}`).join(', ') || 'nothing'}, ${vendorStub.unexpected.length} of them on a path it does not serve (404); refused ${[...offBox].map(([request, count]) => `${request}×${count}`).join(', ') || 'nothing'}`,
+  );
+
   const failed = results.filter((r) => !r.ok);
+  const skipped = results.filter((r) => isSkippedCheck(r.name)).length;
   if (lanes === null || lanes.truncatedAt !== null) {
     console.log(
       `\n[itest] RUN TRUNCATED${lanes === null ? ' before the lanes' : ` at ${lanes.truncatedAt}`} — ${lanes?.ran ?? 0}/${lanes?.total ?? '?'} lanes ran; the tally below covers only those`,
     );
   }
   console.log(
-    `\n[itest] ${results.length - failed.length}/${results.length} checks passed across ${lanes?.ran ?? 0}/${lanes?.total ?? '?'} lanes${lanes?.filter ? ` — ITEST_LANES=${lanes.filter}: a filtered run, not full coverage` : ''}`,
+    `\n[itest] ${results.length - failed.length}/${results.length} checks passed across ${lanes?.ran ?? 0}/${lanes?.total ?? '?'} lanes${skipped > 0 ? `, ${skipped} of them skipped: not full coverage` : ''}${lanes?.filter ? ` — ITEST_LANES=${lanes.filter}: a filtered run, not full coverage` : ''}`,
   );
   process.exit(failed.length === 0 ? 0 : 1);
 }

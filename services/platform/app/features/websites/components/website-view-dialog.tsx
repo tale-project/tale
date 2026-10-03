@@ -13,6 +13,7 @@ import {
 import { Heading } from '@tale/ui/heading';
 import { Row, Stack } from '@tale/ui/layout';
 import { SearchInput } from '@tale/ui/search-input';
+import { SegmentedControl } from '@tale/ui/segmented-control';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Spinner } from '@tale/ui/spinner';
@@ -20,7 +21,13 @@ import type { StatGridItem } from '@tale/ui/stat-grid';
 import { Text } from '@tale/ui/text';
 import { useFormatDate } from '@tale/ui/use-format-date';
 import { toast } from '@tale/ui/use-toast';
-import { FileText, Globe, Play, Search as SearchIcon } from 'lucide-react';
+import {
+  FileText,
+  Globe,
+  Play,
+  RefreshCw,
+  Search as SearchIcon,
+} from 'lucide-react';
 import {
   type RefObject,
   type ChangeEvent,
@@ -28,6 +35,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 
@@ -39,21 +47,39 @@ import {
   type CrawlerChunk,
   type CrawlerPage,
   type CrawlerSearchResult,
+  isSkippedPageKind,
 } from '@/backend/core/websites/types';
 import { useT } from '@/lib/i18n/client';
 
 import { useResumeScanning } from '../hooks/mutations';
+import { useScanNow } from '../hooks/use-scan-now';
 import { indexedPageCount } from '../lib/indexed-page-count';
 import {
   classifyScanError,
+  hasFailedOrSkippedPages,
   isHollowSiteScan,
-  scanEmptyMessageKey,
-  scanErrorMessageKey,
+  isPageTallyReason,
+  isSiteLevelScanError,
 } from '../lib/scan-error';
 import { isScanPaused } from '../lib/scan-paused';
 import { WebsiteEditDialog } from './website-edit-dialog';
+import { WebsiteScanFailureAlert } from './website-scan-failure-alert';
 
 const PAGE_SIZE = 20;
+
+/** What the page list shows: every page, or only the ones in one state. */
+type PageStateFilter = 'all' | 'failed' | 'skipped';
+
+function isPageStateFilter(value: string): value is PageStateFilter {
+  return value === 'all' || value === 'failed' || value === 'skipped';
+}
+
+/** The `state` argument a filter sends the pages read: none for all. */
+function pageStateArg(filter: PageStateFilter): {
+  state?: 'failed' | 'skipped';
+} {
+  return filter === 'all' ? {} : { state: filter };
+}
 
 const FAILURE_KIND_KEYS = {
   dns_failed: 'pagesDialog.errorKind.dnsFailed',
@@ -88,13 +114,18 @@ function pageFailureCaption(
   page: CrawlerPage,
   t: (key: string, values?: Record<string, unknown>) => string,
 ): string | null {
-  if (page.fail_count <= 0) return null;
+  // A reason without a strike — a failure charged to the render lane, not
+  // the page — still says why the page is not indexed; it is counted among
+  // the failed pages, so it reads as one.
   if (page.last_error === null && page.last_error_kind === null) return null;
   const kind = page.last_error_kind;
   const reason =
     kind !== null && isFailureKind(kind)
       ? t(FAILURE_KIND_KEYS[kind])
       : (page.last_error ?? t('pagesDialog.errorKind.fallback'));
+  // A page the crawler skipped on purpose: the reason alone — its attempts
+  // are not failures to count up.
+  if (kind !== null && isSkippedPageKind(kind)) return reason;
   if (page.fail_count > 1) {
     return t('pagesDialog.lastError', {
       count: page.fail_count,
@@ -168,6 +199,8 @@ function PageRow({
   );
 
   const failedCaption = pageFailureCaption(page, t);
+  const skipped =
+    page.last_error_kind !== null && isSkippedPageKind(page.last_error_kind);
   const label = page.title || page.url;
 
   const summary = (
@@ -187,8 +220,15 @@ function PageRow({
           </SkeletonBox>
         </Text>
         {failedCaption !== null ? (
-          <Text variant="caption" className="text-destructive shrink-0">
-            {t('pagesDialog.failed')}
+          <Text
+            variant="caption"
+            className={
+              skipped
+                ? 'text-muted-foreground shrink-0'
+                : 'text-destructive shrink-0'
+            }
+          >
+            {skipped ? t('pagesDialog.skipped') : t('pagesDialog.failed')}
           </Text>
         ) : null}
       </Row>
@@ -302,6 +342,11 @@ export function WebsiteViewDialog({
   const canWrite = ability.can('write', 'knowledgeWrite');
   const { mutate: resumeScanning } = useResumeScanning();
   const paused = isScanPaused(website);
+  const {
+    available: canScanNow,
+    pending: scanPending,
+    scanNow,
+  } = useScanNow(website);
 
   const [pages, setPages] = useState<CrawlerPage[]>([]);
   const [hasMore, setHasMore] = useState(false);
@@ -311,18 +356,39 @@ export function WebsiteViewDialog({
   const [activeQuery, setActiveQuery] = useState('');
   const [searchResults, setSearchResults] = useState<CrawlerSearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  // The list narrowed to the failed or the skipped pages: a reader reaches
+  // the five that failed without walking the five hundred that did not.
+  // The counts come with every pages answer, whichever state is open.
+  const [pageState, setPageState] = useState<PageStateFilter>('all');
+  const pageStateRef = useRef<PageStateFilter>('all');
+  const [pageCounts, setPageCounts] = useState<{
+    failed: number;
+    skipped: number;
+  } | null>(null);
 
   const isSearchMode = activeQuery.length > 0;
 
+  // How many pages the list holds, as the answers arrive. A refresh reads
+  // the shown pages again from the top, so a "Load more" answer that comes
+  // after it no longer continues the list: its rows are already there, and
+  // appended they showed twice.
+  const shownPages = useRef(0);
   const { mutate: fetchPages, isPending } = useBackendAction(
     'websites/actions:fetchPages',
     {
       errorToast: false,
       onSuccess: (data) => {
+        setPageCounts(data.counts);
+        // An answer for another state arrived after the reader moved on.
+        if ((data.state ?? 'all') !== pageStateRef.current) return;
         if (data.offset === 0) {
+          shownPages.current = data.pages.length;
           setPages(data.pages);
-        } else {
+        } else if (data.offset === shownPages.current) {
+          shownPages.current += data.pages.length;
           setPages((prev) => [...prev, ...data.pages]);
+        } else {
+          return;
         }
         setHasMore(data.hasMore);
         setIsFirstLoad(false);
@@ -351,6 +417,7 @@ export function WebsiteViewDialog({
 
   useEffect(() => {
     if (isOpen) {
+      shownPages.current = 0;
       setPages([]);
       setOffset(0);
       setHasMore(false);
@@ -358,9 +425,37 @@ export function WebsiteViewDialog({
       setSearchQuery('');
       setActiveQuery('');
       setSearchResults([]);
+      setPageState('all');
+      pageStateRef.current = 'all';
+      setPageCounts(null);
       fetchPages({ websiteId: website._id, offset: 0, limit: PAGE_SIZE });
     }
   }, [isOpen, website._id, fetchPages]);
+
+  // The row follows the scan through realtime hints; the pages below are
+  // read on open, so they follow the row: whenever a scan moves what the row
+  // counts, the pages already shown are read again in place.
+  const scanProgress = [
+    website.status,
+    website.pageCount,
+    website.crawledPageCount,
+    website.failedPageCount,
+    website.lastScannedAt,
+  ].join(':');
+  const shownProgress = useRef(scanProgress);
+  useEffect(() => {
+    if (!isOpen || shownProgress.current === scanProgress) {
+      shownProgress.current = scanProgress;
+      return;
+    }
+    shownProgress.current = scanProgress;
+    fetchPages({
+      websiteId: website._id,
+      offset: 0,
+      limit: offset + PAGE_SIZE,
+      ...pageStateArg(pageState),
+    });
+  }, [isOpen, scanProgress, offset, pageState, website._id, fetchPages]);
 
   const triggerSearch = useCallback(() => {
     const query = searchQuery.trim();
@@ -377,8 +472,30 @@ export function WebsiteViewDialog({
       websiteId: website._id,
       offset: nextOffset,
       limit: PAGE_SIZE,
+      ...pageStateArg(pageState),
     });
-  }, [offset, website._id, fetchPages]);
+  }, [offset, pageState, website._id, fetchPages]);
+
+  // Another state: the list starts over from its first window.
+  const selectPageState = useCallback(
+    (next: PageStateFilter) => {
+      if (next === pageStateRef.current) return;
+      pageStateRef.current = next;
+      setPageState(next);
+      shownPages.current = 0;
+      setPages([]);
+      setOffset(0);
+      setHasMore(false);
+      setIsFirstLoad(true);
+      fetchPages({
+        websiteId: website._id,
+        offset: 0,
+        limit: PAGE_SIZE,
+        ...pageStateArg(next),
+      });
+    },
+    [website._id, fetchPages],
+  );
 
   const handleSearchChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
     setSearchQuery(e.target.value);
@@ -431,7 +548,16 @@ export function WebsiteViewDialog({
       : null;
   const scanErrorKind =
     lastSyncError === null ? 'generic' : classifyScanError(lastSyncError);
-  const hollowScan = isHollowSiteScan(website, pages, paused);
+  // The row's own count stands in only while the first read is out; a read
+  // that failed leaves no page on screen, so it counts none.
+  const sitePagesFailed = hasFailedOrSkippedPages(
+    website,
+    pageCounts ?? (isFirstLoad ? null : { failed: 0, skipped: 0 }),
+  );
+  // Not while the site has a failed or skipped page to open: an empty
+  // segment, or the row's counts lagging the read, is no hollow scan.
+  const hollowScan =
+    isHollowSiteScan(website, pages, paused) && !sitePagesFailed;
 
   // Paused (repeated failures to reach the knowledge database) wins over the
   // stored `error` status — this site stopped retrying and needs a manual
@@ -573,42 +699,62 @@ export function WebsiteViewDialog({
           onClick: () => resumeScanning({ websiteId: website._id }),
           visible: canWrite && paused,
         },
+        {
+          // A scan outside the interval, as the row menu offers it.
+          key: 'scan',
+          label: t('scanNow'),
+          icon: RefreshCw,
+          onClick: scanNow,
+          visible: canScanNow,
+          disabled: scanPending,
+        },
       ]}
       facts={facts}
       restoreFocusRef={restoreFocusRef}
     >
       {hollowScan ? (
-        <Stack
-          gap={1}
-          className="bg-muted/50 rounded-lg p-3"
-          title={lastSyncError ?? undefined}
-        >
-          <Heading level={3} size="sm" weight="medium">
-            {t(scanErrorMessageKey(scanErrorKind))}
-          </Heading>
-          <Text variant="muted">{t(scanEmptyMessageKey(scanErrorKind))}</Text>
-        </Stack>
+        <WebsiteScanFailureAlert
+          kind={scanErrorKind}
+          reason={lastSyncError}
+          sourceKind={website.kind}
+          empty
+        />
       ) : (
         <EntityViewSection
           title={t('pagesDialog.title')}
           meta={
             <>
               {indexedPageCount(website)} {t('indexed').toLowerCase()}
-              {failedPageCount > 0 &&
-                ` · ${t('pagesDialog.failedPages', { count: failedPageCount })}`}
+              {failedPageCount > 0 ? (
+                <>
+                  {' · '}
+                  {/* The count is the door to the pages it counts. */}
+                  <Button
+                    variant="link"
+                    size="sm"
+                    className="h-auto py-0 text-xs"
+                    onClick={() => selectPageState('failed')}
+                  >
+                    {t('pagesDialog.failedPages', { count: failedPageCount })}
+                  </Button>
+                </>
+              ) : null}
             </>
           }
         >
+          {/* The pages' own failures explain a scan that stored nothing
+              because they failed; they do not explain one the embedding
+              model, the crawler's browser or a lost database stopped,
+              which says so above them. */}
           {lastSyncError !== null &&
           !paused &&
-          !pages.some((page) => pageFailureCaption(page, t) !== null) ? (
-            <Text
-              variant="caption"
-              className="text-muted-foreground"
-              title={lastSyncError}
-            >
-              {t(scanErrorMessageKey(scanErrorKind))}
-            </Text>
+          (isSiteLevelScanError(scanErrorKind) ||
+            !(isPageTallyReason(lastSyncError) && sitePagesFailed)) ? (
+            <WebsiteScanFailureAlert
+              kind={scanErrorKind}
+              reason={lastSyncError}
+              sourceKind={website.kind}
+            />
           ) : null}
           {indexedPageCount(website) > 0 ? (
             <SearchInput
@@ -647,8 +793,43 @@ export function WebsiteViewDialog({
             </Stack>
           ) : (
             <Stack gap={2}>
+              {pageState !== 'all' ||
+              (pageCounts !== null &&
+                pageCounts.failed + pageCounts.skipped > 0) ? (
+                <SegmentedControl
+                  aria-label={t('pagesDialog.filter.label')}
+                  value={pageState}
+                  onValueChange={(next) => {
+                    if (isPageStateFilter(next)) selectPageState(next);
+                  }}
+                  options={[
+                    { value: 'all', label: t('pagesDialog.filter.all') },
+                    {
+                      value: 'failed',
+                      label: t('pagesDialog.filter.failed', {
+                        count: pageCounts?.failed ?? 0,
+                      }),
+                    },
+                    {
+                      value: 'skipped',
+                      label: t('pagesDialog.filter.skipped', {
+                        count: pageCounts?.skipped ?? 0,
+                      }),
+                    },
+                  ]}
+                />
+              ) : null}
               {!isFirstLoad && pages.length === 0 && (
-                <EmptyState icon={FileText} title={t('pagesDialog.noPages')} />
+                <EmptyState
+                  icon={FileText}
+                  title={
+                    pageState === 'failed'
+                      ? t('pagesDialog.noFailedPages')
+                      : pageState === 'skipped'
+                        ? t('pagesDialog.noSkippedPages')
+                        : t('pagesDialog.noPages')
+                  }
+                />
               )}
 
               <Skeletonize loading={isFirstLoad && isPending}>

@@ -29,6 +29,8 @@ import type {
   ResolvedRoutes,
   RobotsConfig,
 } from '../types';
+import { absoluteSitePath } from '../urls';
+import { normalizeCanonicalUrl } from './canonical-url';
 import { etagOf } from './etag';
 import { type Manifest, MANIFEST_VERSION, writeManifest } from './manifest';
 import type { ArtifactPlugin, BuildContext } from './plugin';
@@ -51,6 +53,12 @@ export interface CompileArtifactsParams {
   siteTitle: string;
   /** llms.txt blockquote shown right under the title. */
   siteDescription: string;
+  /**
+   * llms.txt paragraphs between the blockquote and the first section — the
+   * spec's place for how to read the index (for docs: how the locale trees
+   * are addressed, so an agent never has to guess).
+   */
+  preamble?: string;
   /** Page groups. Flattened into both the sitemap and the llms.txt index. */
   sections: readonly ArtifactSection[];
   /** Cross-link entries listed under llms.txt's trailing `## Optional`. */
@@ -86,6 +94,7 @@ export function compileArtifacts(
   const {
     siteTitle,
     siteDescription,
+    preamble,
     sections,
     optionalPages,
     robots,
@@ -108,6 +117,7 @@ export function compileArtifacts(
     buildLlmsTxt({
       siteTitle,
       siteDescription,
+      preamble,
       sections: sections
         .filter((s) => !s.hideFromIndex)
         .map((s) => ({
@@ -132,6 +142,7 @@ export function compileArtifacts(
           url: `${siteUrl}${r.url}`,
           body: r.body,
         })),
+        siteUrl,
       ),
     );
   }
@@ -174,6 +185,7 @@ export function compileArtifacts(
           },
           body: r.body,
           siteUrl,
+          pageUrl: normalizeCanonicalUrl(absoluteSitePath(siteUrl, r.url)),
         }),
       );
     }
@@ -214,10 +226,12 @@ export async function compileToMemory(params: CompileToMemoryParams): Promise<
       contentType: string;
       cacheControl: string;
       pluginId: string;
+      canonicalUrl?: string;
     }
   >
 > {
-  const { siteUrl, siteTitle, siteDescription, robots, loadBody } = params;
+  const { siteUrl, siteTitle, siteDescription, preamble, robots, loadBody } =
+    params;
   const plugins = params.plugins ?? defaultPlugins();
 
   const resolved: ResolvedRoutes = {
@@ -247,6 +261,7 @@ export async function compileToMemory(params: CompileToMemoryParams): Promise<
     siteUrl,
     siteTitle,
     siteDescription,
+    preamble,
     robots,
     routes: async () => resolved,
     body: bodyFor,
@@ -259,6 +274,7 @@ export async function compileToMemory(params: CompileToMemoryParams): Promise<
       contentType: string;
       cacheControl: string;
       pluginId: string;
+      canonicalUrl?: string;
     }
   >();
   for (const plugin of plugins) {
@@ -277,6 +293,9 @@ export async function compileToMemory(params: CompileToMemoryParams): Promise<
         contentType: response.contentType,
         cacheControl: response.cacheControl,
         pluginId: plugin.id,
+        ...(response.canonicalUrl !== undefined
+          ? { canonicalUrl: normalizeCanonicalUrl(response.canonicalUrl) }
+          : {}),
       });
     }
   }
@@ -354,6 +373,9 @@ export async function compileToDisk(
       contentType: value.contentType,
       cacheControl: value.cacheControl,
       byteLength: Buffer.byteLength(value.body, 'utf-8'),
+      ...(value.canonicalUrl !== undefined
+        ? { canonicalUrl: value.canonicalUrl }
+        : {}),
     });
 
     if (pathname.endsWith('.md')) knownMdPaths.push(pathname);

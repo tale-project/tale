@@ -2,13 +2,15 @@ accessDenied:
   title: Accès refusé
   connectors: Tu dois disposer des permissions Admin ou Développeur pour accéder
     aux paramètres de connectors.
-  apiKeys: Tu dois disposer des permissions Admin ou Développeur pour gérer les
-    clés API.
+  apiKeys: Utiliser des clés API demande le rôle Propriétaire, Admin ou Développeur, ou une compétence qu’un admin attribue pour cela.
+  apiTab: Cette page est réservée aux propriétaires, admins et développeurs.
+  apiModels: La configuration des endpoints de modèles est réservée aux propriétaires, admins et développeurs, et aux membres qui ont la compétence « Appeler les modèles par l'API ».
   organization:
     Tu dois disposer des permissions Admin pour accéder aux paramètres
     de l'organisation.
   branding: Tu dois disposer des permissions Admin pour accéder aux paramètres de marque.
   knowledge: Ton compte n'a pas l'autorisation d'accéder à la base de connaissances.
+  automations: Les automatisations sont réservées aux propriétaires, admins et développeurs.
   workspaceNotFound: L'espace de travail que tu recherches n'existe pas ou a été supprimé.
   disabled: Ton compte a été désactivé. Contacte le support pour obtenir de l'aide.
   noMembership: Tu n'es pas membre de cet espace de travail. Contacte un administrateur pour obtenir l'accès.
@@ -358,6 +360,9 @@ auth:
     stayHere: Rester ici
     signIn: Se reconnecter
     checkFailed: Ta session n'a pas pu être vérifiée. Reste ici et réessaie quand la connexion sera rétablie.
+  accountUnavailable:
+    description: Ton compte n'a pas pu être chargé.
+    signInAgain: Se reconnecter
   oauth:
     title: 'Continuer avec Tale'
     request: '{application} souhaite te connecter avec Tale.'
@@ -606,9 +611,6 @@ automations:
     empty:
       title: Aucune automatisation pour l’instant
       description: Choisis « Créer une automatisation » pour partir d’un déclencheur et d’un agent, ou pour téléverser un paquet.
-    emptyReader:
-      title: Aucune automatisation en service
-      description: Une automatisation apparaît ici dès qu’une personne ayant le rôle Propriétaire, Admin ou Développeur la met en service.
   createMenu:
     blank: Vierge (trigger + agent)
   blank:
@@ -949,6 +951,7 @@ automations:
       approval: En attente d’approbation
       ask: En attente de ta réponse
       agent: Agent au travail
+      room: En attente d’une place de sandbox
       repeat: 'Interrogation — étape {node}'
     startedAt: 'Lancée {date}'
     finishedAt: 'Terminée {date}'
@@ -1093,6 +1096,40 @@ chat:
   markAsRead: Marquer comme lu
   markAsUnread: Marquer comme non lu
   readOnlyShared: Partagé avec le projet — lecture seule
+  createTask:
+    button: Créer une tâche depuis le chat
+    projectTitle: Créer une tâche à partir de ce chat
+    projectDescription: Choisis le projet auquel la tâche appartient. Dans un projet avec un agent, l’agent peut s’y mettre tout de suite et livrer les fichiers.
+    projectLabel: Projet
+    projectPlaceholder: Choisir un projet
+    projectEmpty: Aucun projet ne correspond
+    noProjects: Il n’y a encore aucun projet où créer la tâche. Demande à un éditeur ou à un admin d’en créer un.
+    continue: Continuer
+    fromChat: 'Depuis le chat : {title}'
+    fromChatUntitled: Depuis le chat
+    created: Tâche créée dans {project}
+    openTask: Ouvrir la tâche
+    openTaskAltText: Ouvrir la tâche que tu viens de créer sur le tableau de son projet
+    readFailed: 'Tale n’a pas pu lire cette conversation : la tâche ne peut pas encore reprendre ta demande et tes fichiers. Réessaie, ou crée la tâche depuis le tableau du projet.'
+    headerButton: Créer une tâche
+    withAgents: Avec un agent
+    withoutAgents: Sans agent pour l’instant
+    agentCount: '{count, plural, one {# agent} other {# agents}}'
+    noAgentEditor: Tu peux en ajouter un dans la tâche
+    noAgentReader: Un éditeur ou un admin peut en ajouter un
+    standardAgent: Agent standard
+  taskTray:
+    label: Tâches issues de ce chat
+    working: L’agent travaille
+    waitingForSlot: En attente d’une place de sandbox
+    retrying: Nouvelle tentative…
+    failed: L’agent n’a pas pu la terminer
+    ready: Prête pour la revue
+    readyWithFiles: '{count, plural, one {Prête pour la revue · # fichier} other {Prête pour la revue · # fichiers}}'
+    notStarted: En attente de démarrage
+    open: Ouvrir
+    openAria: 'Ouvrir la tâche {title}'
+    more: '{count, plural, one {et # autre tâche} other {et # autres tâches}}'
   export:
     button: Exporter
     title: Exporter le chat
@@ -1209,7 +1246,9 @@ chat:
     voiceOutputThreadSaveFailed: Impossible d'enregistrer le paramètre vocal pour ce chat
   notFound: Ce chat n'est pas disponible.
   placeholder: Pose une question…
-  generationIncomplete: La réponse n'a pas pu être terminée. Réessaie.
+  generationIncomplete: Le modèle n'a renvoyé aucune réponse. Réessaie ou choisis un autre modèle.
+  generationIncompleteFiltered: Le filtre de contenu du fournisseur du modèle a retenu cette réponse. Essaie de reformuler ton message.
+  generationIncompleteLength: Le modèle a épuisé sa limite de tokens en sortie avant d'écrire une réponse. Essaie un effort de raisonnement plus faible, une demande plus courte ou un autre modèle.
   generationIncompleteWithTools: La réponse n'a pas pu être terminée après l'exécution de {tools}. Réessaie.
   stepLimitReached: Arrêt ici — ce tour a atteint sa limite d'étapes. Envoie un message pour continuer.
   send: Envoyer le message
@@ -1315,6 +1354,7 @@ chat:
       notFound: Lien vidéo introuvable — il a peut-être été supprimé
       notUploader: Seule la personne qui a ajouté cette vidéo peut la modifier
       notRetryable: Nouvelle tentative impossible pour le moment — la vidéo est peut-être déjà en cours de traitement
+      threadNotFound: Ce chat n'est plus disponible
     actions:
       removeLink: Retirer
       retry: Réessayer
@@ -1325,6 +1365,8 @@ chat:
     toast:
       ingestFailedTitle: Impossible d'ajouter cette vidéo
       retryFailedTitle: Impossible de réessayer cette vidéo
+      removeFailedTitle: Impossible de retirer cette vidéo
+      removeFailedDescription: Elle est toujours jointe à ton message — réessaie de la retirer
   fallback:
     image: Image
   loadingConversation: Chargement de la conversation…
@@ -1821,6 +1863,7 @@ conversations:
   updating: Mise à jour des conversations...
   bulk:
     progress: 'Mise à jour des conversations... {settled} sur {total}'
+    outcomeWithReason: '{outcome} — {reason}'
     sendMessages: Envoyer les messages
     close: Fermer
     reopen: Rouvrir
@@ -1936,6 +1979,13 @@ conversations:
     undoSendFailed: Impossible d'annuler l'envoi — le message est peut-être déjà parti.
     retrySendFailed: Impossible de relancer l'envoi.
     discardMessageFailed: Impossible de supprimer le message.
+  suggestedReply:
+    title: Réponse suggérée
+    description: Rédigée par une automatisation et en attente de ta décision — rien n’a été envoyé.
+    use: Mettre dans l’éditeur
+    discard: Ignorer
+    used: La suggestion est dans l’éditeur. Modifie-la à ta guise ; l’envoi la clôt.
+    discardFailed: Impossible d’ignorer la suggestion.
   message:
     sendingIn: Envoi dans {seconds}s
     undoSend: Annuler
@@ -2095,6 +2145,8 @@ documents:
   entityLabelOne: document
   tableCaption: Documents et dossiers
   searchPlaceholder: Rechercher des documents
+  refreshFailed: Impossible de charger les derniers documents. La liste est peut-être incomplète ou obsolète.
+  loadFailed: Impossible de charger les documents ici. Seuls les dossiers sont affichés tant que les documents ne sont pas chargés.
   record:
     badge: 'v{version} · {state}'
     state:
@@ -2376,6 +2428,9 @@ documents:
     storedButNotIndexed:
       Stocké et téléchargeable, mais non indexé pour la recherche
       (ancien format).
+    storedButNotIndexedNoExtension:
+      "Stocké et téléchargeable, mais non indexé pour la recherche : le nom
+      du fichier n'est qu'une extension."
     filesCompletedSummary: '{completed} sur {total} fichiers terminés'
     filesCompletedWithFailures: '{completed} sur {total} fichiers terminés · {failed} échoués'
     selectTeams: Assigner aux équipes
@@ -2434,6 +2489,18 @@ documents:
       Configure-la dans Paramètres > Connectors > Apps OAuth, puis reviens te
       connecter.
     openConnectorSettings: Ouvrir les paramètres des connectors
+    importedPartial: '{imported} sur {total} fichiers importés'
+    syncedPartial: '{imported} sur {total} fichiers synchronisés'
+    failedFileDetail: '{name} : {reason}'
+    importInterrupted: >-
+      L’accès à ton compte {provider} a pris fin pendant l’importation.
+      {imported, plural, =0 {Aucun fichier n’a été importé.} one {# fichier
+      sur {total} a été importé et reste en place.} other {# fichiers sur
+      {total} ont été importés et restent en place.}}
+    reconnectToImportRest: >-
+      Reconnecte ton compte, puis importe à nouveau les mêmes fichiers ou
+      dossiers pour récupérer le reste. Les fichiers déjà importés ne sont
+      pas importés une seconde fois.
   onedrive:
     importSettings: Paramètres d'importation
     settingsDescription:
@@ -2452,6 +2519,7 @@ documents:
     redirecting: Redirection…
     folderEmpty: Ce dossier est vide.
     loadFailed: Échec du chargement des éléments
+    noFilesSelected: Aucun fichier importable dans la sélection
     listingTruncated: >-
       Affiche les {count} premiers éléments — ce dossier en contient
       davantage. Ouvre un sous-dossier ou lance une recherche pour atteindre
@@ -2710,6 +2778,7 @@ emptyStates:
   apiKeys:
     title: Aucune clé API pour l'instant
     description: Génère une clé pour connecter des outils et scripts externes.
+    descriptionNoCreate: Créer une clé demande le rôle Propriétaire, Admin ou Développeur, ou une compétence qu’un admin attribue pour cela.
 governance:
   title: Gouvernance
   toastSavedTitle: Modifications enregistrées
@@ -2786,6 +2855,26 @@ governance:
     invalidCostLimit: La limite de coût doit être supérieure à zéro.
     invalidMaxRequests: La limite de requêtes doit être supérieure à zéro.
     invalidWarningThreshold: Le seuil d'alerte doit être compris entre 0 et 100.
+    scopeLabels:
+      default: Par défaut
+      user: Utilisateur
+      team: Équipe
+      role: Rôle
+      apiKey: Clé API
+      org: Organisation
+    periodLabels:
+      daily: Quotidienne
+      weekly: Hebdomadaire
+      monthly: Mensuelle
+    apiKeyOwnerUnknown: Propriétaire inconnu
+    apiKeyInactive: Cette clé ne peut plus rien dépenser dans cette organisation, la règle ne limite donc rien. Choisis une clé active ou supprime la règle.
+    apiKeyStatus:
+      expired: Expirée
+      disabled: Désactivée
+      revoked: Révoquée
+      unavailable: Indisponible
+      holder_left: Ancien membre
+      unknown: Clé inconnue
   defaultModels:
     title: Modèles par défaut
     description:
@@ -3139,9 +3228,7 @@ governance:
         d'automatisation plus anciens que la période de rétention. Inclut les blobs de
         stockage de variables/sorties par exécution.
       placeholder: ex. 30
-      helper:
-        Les exécutions d'automatisation plus anciennes seront supprimées (1 à 365
-        jours).
+      helper: Les exécutions d'automatisation plus anciennes seront supprimées.
     auditLogs:
       title: Journaux d'audit
       description: "Supprime automatiquement les entrées du journal d'audit plus
@@ -3150,9 +3237,7 @@ governance:
         conformité ; garde une rétention suffisamment longue pour satisfaire tes
         exigences d'audit ou de conformité."
       placeholder: ex. 90
-      helper:
-        Les entrées du journal d'audit plus anciennes seront supprimées (30 à
-        365 jours).
+      helper: Les entrées du journal d'audit plus anciennes seront supprimées.
     usageLedger:
       title: Registre d'utilisation
       description:
@@ -3161,9 +3246,7 @@ governance:
         raccourcir cette rétention tronque les analyses historiques (les budgets
         et les rapports s'appuient sur ces lignes)."
       placeholder: ex. 365
-      helper:
-        Les lignes du registre d'utilisation plus anciennes seront supprimées
-        (30 à 3650 jours).
+      helper: Les lignes du registre d'utilisation plus anciennes seront supprimées.
     loginAttempts:
       title: Tentatives de connexion
       description: "Supprime automatiquement les enregistrements de suivi des
@@ -3172,8 +3255,7 @@ governance:
         à l'ensemble du déploiement — la valeur la plus stricte (la plus courte)
         parmi toutes les organisations est utilisée."
       placeholder: ex. 90
-      helper: Les enregistrements de tentatives de connexion plus anciens seront
-        supprimés (7 à 365 jours).
+      helper: Les enregistrements de tentatives de connexion plus anciens seront supprimés.
   passwordPolicy:
     title: Politique de mot de passe
     description:
@@ -4246,6 +4328,7 @@ governance:
       notifications: Notifications de sécurité
       wfExecutions: Exécutions d'automatisation
       promptTemplates: Prompts personnels
+      sandboxWorkspaces: Espaces de travail de sandbox
     legalHoldBlock:
       title: Effacement bloqué par une rétention légale
       orgHeld: Une rétention organisationnelle préserve toutes les entités de ce
@@ -4434,6 +4517,40 @@ governance:
     removedMailbox: Boîte supprimée
     duplicateRule: Une règle existe déjà pour cette boîte et cette adresse
     precedence: 'La règle la plus précise l''emporte : une boîte avec son adresse exacte, puis une boîte avec l''adresse de base, puis une adresse sur n''importe quelle boîte, enfin une boîte seule.'
+  standardAgent:
+    title: Agent standard
+    description: L'agent que Tale fournit dans chaque projet qui n'en a pas, pour que toute personne qui peut ouvrir le projet puisse lui confier une tâche, membres compris.
+    enabledLabel: Fournir un agent standard
+    harnessLabel: Harness
+    harnessHint: Automatique utilise Claude Code, ou le harness auquel un modèle d'abonnement est lié.
+    modelLabel: Modèle
+    modelHint: Automatique choisit un modèle recommandé que la personne qui lance la tâche peut utiliser. Un modèle choisi reste en vigueur jusqu'à ce que tu le changes, même s'il devient indisponible.
+    automaticLabel: Automatique
+    automaticHarnessHint: Laisse Tale choisir le harness.
+    automaticModelHint: Laisse Tale choisir un modèle pour chaque personne.
+    instructionsLabel: Instructions
+    instructionsHint: Ce que l'agent standard garde toujours en tête. Laisse ce champ vide pour utiliser les instructions intégrées.
+    instructionsPlaceholder: Instructions intégrées
+    current: Pour toi, il fonctionne avec {harness} et {model}.
+    refusal:
+      switchedOff: L'agent standard est désactivé.
+      unreadable: Les réglages enregistrés sont illisibles. Réessaie, ou enregistre-les à nouveau pour les réparer.
+      harnessInvalid: Le harness choisi n'est pas disponible, l'agent standard ne peut donc pas démarrer. Choisis un autre harness ou Automatique.
+      noModel: Aucun modèle que tu peux utiliser ne peut faire fonctionner l'agent standard. Ajoute un accès dans Fournisseurs IA, ou vérifie l'accès aux modèles.
+      pinUnavailable: Le modèle choisi ne t'est pas accessible, l'agent standard ne peut donc pas démarrer pour toi. Choisis un autre modèle ou Automatique. Tale ne passe pas à un autre modèle tant que ce choix est enregistré.
+    invalidPolicy: Les réglages enregistrés de l'agent standard ne sont pas valides. Enregistre-les à nouveau pour les réparer.
+    savedUnavailable: La sélection enregistrée est actuellement indisponible
+    searchHarnesses: Rechercher un harness
+    noHarnessesFound: Aucun harness correspondant
+    searchModels: Rechercher un modèle
+    noModelsFound: Aucun modèle correspondant
+    draftHint: Enregistre pour appliquer ces réglages.
+    saveFailed: Impossible d'enregistrer les réglages de l'agent standard
+    loadFailed: Impossible de charger les réglages de l'agent standard. Réessaie de les charger.
+    remoteUpdate: Ces réglages ont changé dans une autre session. Abandonne tes modifications pour les charger, ou enregistre pour les remplacer.
+    offNote: Tant que ce réglage est désactivé, les projets sans agents propres ne proposent aucun agent, et les tâches déjà confiées à un agent standard ne peuvent pas démarrer.
+    providersLink: Fournisseurs IA
+    retry: Réessayer
 metrics:
   title: Métriques
   groups:
@@ -4468,12 +4585,22 @@ home:
     yesterday: Hier
     thisWeek: 7 derniers jours
     earlier: Plus ancien
+    searchPlaceholderAll: Tout rechercher...
+    searchPlaceholderChats: Rechercher des chats...
+    searchPlaceholderTasks: Rechercher des tâches...
+    newChatInProject: 'Nouveau chat dans {project}'
   projects:
     title: Projets
     newProject: Nouveau projet
     allProjects: Tous les projets
     actions: 'Actions pour {project}'
     empty: Aucun projet pour le moment
+  scope:
+    open: Ouvrir le projet
+    emptyChatsTitle: Aucun chat dans ce projet
+    emptyChatsHint: Les chats classés dans ce projet apparaissent ici.
+    emptyTasksTitle: Aucune tâche ouverte vous étant attribuée dans ce projet
+    emptyTasksHint: Les tâches qui vous sont attribuées dans ce projet apparaissent ici.
   inbox:
     statusLabel: '{status}, statut de la conversation'
     compose: Nouvel e-mail
@@ -4504,6 +4631,13 @@ home:
       title: Aucune conversation
       hint: Les conversations clients de ce statut apparaissent ici.
       filtered: Aucune conversation ne correspond à la recherche ou aux filtres.
+  # Une lecture abandonnée (#4093) : une ligne par type que la vue liste,
+  # mises bout à bout si plusieurs ont échoué, au-dessus des lignes chargées.
+  failed:
+    chats: Impossible de charger tes chats.
+    tasks: Impossible de charger tes tâches.
+    conversations: Impossible de charger les conversations clients.
+    retrying: Nouvelle tentative…
   aria:
     panel: Accueil
     stream: Tes chats, tâches et conversations
@@ -4520,6 +4654,7 @@ knowledgeEntries:
   title: Entrées de connaissances
   entityLabelOne: entrée de connaissance
   searchPlaceholder: Rechercher des entrées de connaissances
+  refreshFailed: Impossible de charger les dernières entrées de connaissances. La liste est peut-être incomplète ou obsolète.
   addButton: Ajouter une entrée
   addEntry: Ajouter une entrée de connaissances
   addDescription: Choisis un sujet, puis rédige la connaissance pour qu'elle soit compréhensible seule.
@@ -4568,6 +4703,10 @@ knowledgeEntries:
       précédentes}}'
     superseded: Remplacée
     supersededOn: Remplacée le {date}
+    historyLoading: "Chargement de l'historique des versions…"
+    historyEmpty: "Aucune version précédente pour l'instant — chaque modification conserve ici le texte qu'elle remplace."
+    historyLoadFailed: "Impossible de charger l'historique des versions."
+    historyRefreshFailed: "Impossible d'actualiser l'historique des versions. Les versions affichées ne sont peut-être plus à jour."
 metadata:
   suffix: Tale
   default:
@@ -4836,8 +4975,7 @@ notificationPreferences:
       lockedHint: Toujours actif — c'est un signal de sécurité.
     escalation:
       label: Escalades d'agent
-      description: Quand un agent te pose une question ou escalade une tâche
-        vers un humain.
+      description: Quand un agent te pose une question, escalade une tâche vers un humain ou ne parvient pas à terminer une tâche.
     automationAlerts:
       label: Alertes d'automatisation
       description: Quand la planification d'une automatisation se met en pause parce que ses exécutions échouent sans cesse.
@@ -5236,7 +5374,16 @@ skills:
     notFound:
       Ce fichier n'est plus dans le bundle. Choisis un autre fichier dans
       l'arborescence.
+    loadFailed: Impossible de charger ce fichier.
+    refreshFailed:
+      Impossible d'actualiser ce fichier. Tu vois la version chargée
+      précédemment.
+    empty: Ce fichier est vide.
   detail:
+    loadFailed: Impossible de charger ce skill.
+    refreshFailed:
+      Impossible d'actualiser ce skill. Tu vois la version chargée
+      précédemment.
     tree:
       heading: Bundle
       empty: Seulement SKILL.md — les assets du bundle vivent sous scripts/,
@@ -5379,6 +5526,12 @@ skills:
     labels: Libellés
     labelsPlaceholder: recherche, pdf, finance
     labelsHelp: Séparés par des virgules, jusqu'à 8 — pour parcourir, pas pour le modèle.
+    labelsTooMany:
+      "Un skill accepte au plus {max} libellés. Retire {excess, plural, one {#
+      libellé} other {# libellés}} pour pouvoir enregistrer."
+    labelTooLong:
+      "Le libellé « {label} » dépasse {max} caractères. Raccourcis-le pour
+      pouvoir enregistrer."
     bodyHelp:
       Le markdown que le modèle lit quand il charge le skill — playbooks,
       conventions, référence. Jamais exécuté.
@@ -5816,6 +5969,17 @@ settings:
         accorder le consentement à nouveau.
       needsReauthDetail: '{detail} Reconnecte-toi pour accorder le consentement à nouveau.'
       reconnect: Reconnecter
+      deleteDefaultHandsOn: >-
+        Ce sont les identifiants par défaut. Si tu les supprimes, « {name} »
+        devient le choix par défaut des appels qui n'en nomment aucun.
+      deleteDefaultLeavesNone: >-
+        Ce sont les identifiants par défaut, et aucun autre identifiant actif
+        ne peut prendre le relais : les appels qui n'en nomment aucun échouent
+        jusqu'à ce que tu en définisses d'autres par défaut.
+      deleteDefaultHandsOnOldest: >-
+        Ce sont les identifiants par défaut. Si tu les supprimes, les plus
+        anciens identifiants actifs de ce connecteur deviennent le choix par
+        défaut, s'il y en a.
     replace:
       apiKeyTitle: Remplacer la clé API
       tokenTitle: Remplacer le jeton
@@ -5891,6 +6055,10 @@ settings:
       endpointHelpShopify:
         L'adresse myshopify.com de ta boutique — l'adresse d'administration,
         pas le domaine de la vitrine.
+      endpointHelpGlitchtip:
+        L'adresse de ton instance GlitchTip, par exemple
+        https://app.glitchtip.com. Une instance auto-hébergée fonctionne dès
+        que le déploiement autorise son hôte.
       endpointHelpGeneric: L'origine https de l'instance à laquelle appartiennent ces identifiants.
   enterpriseSso:
     connected: La connexion est activée.
@@ -6725,6 +6893,7 @@ settings:
         notification.retention_deleted: Notification supprimée (rétention)
         file_metadata.retention_deleted: Fichier supprimé (rétention)
         sandbox_ledger.retention_deleted: Journal du sandbox supprimé (rétention)
+        sandbox_workspace.deleted: Espace de travail de sandbox supprimé
         chat_filter_event.retention_deleted: Événement de filtre de chat supprimé (rétention)
         policy_acknowledged: Politique reconnue
         login_attempt: Tentative de connexion
@@ -6895,6 +7064,7 @@ settings:
         openai_compat_request: Requête compatible OpenAI
         provider: Fournisseur
         video_link_job: Tâche de lien vidéo
+        sandbox_workspace: Espace de travail de sandbox
   branding:
     logo: Logo
     logoDescription: Téléverse le logo de ton organisation (SVG de préférence ; images matricielles d'au moins 64×64 pixels)
@@ -7001,8 +7171,8 @@ settings:
       banner:
         title: La recherche de connaissances est coupée
         body: Cette organisation a un fournisseur IA mais aucun modèle
-          d'embedding, donc les documents ne peuvent être ni indexés ni
-          cherchés.
+          d'embedding, donc les documents ne peuvent pas être indexés, et ni
+          les documents ni les sites web ne peuvent être cherchés.
         link: Choisir un modèle d'embedding
       recommendationBody:
         Ton identifiant {provider} peut servir {model} (vecteurs à {dimensions}
@@ -7235,6 +7405,11 @@ inbox:
   usageCreditsRequestedBody: '{name} a atteint une limite d’utilisation et demande plus de crédits.'
   automationTriggerPaused: Planification en pause
   automationTriggerPausedBody: '« {name} » a échoué {failures} fois de suite ({code}), sa planification est donc en pause. Corrige l’automatisation, puis réactive son déclencheur.'
+  agentRunFailed: Échec de l’exécution de l’agent
+  agentRunFailedBody: 'L’agent n’a pas pu terminer « {title} ». Ouvre la tâche pour voir pourquoi et le relancer.'
+  agentRunFailedBudgetBody: 'Une limite d’utilisation a arrêté l’agent sur « {title} ». Relance-le dès qu’un admin l’aura relevée.'
+  agentRunFailedSetupBody: 'Il manque quelque chose à l’agent de « {title} ». Un éditeur ou un admin peut corriger cela dans l’onglet Agents du projet.'
+  agentRunFailedInputBody: 'Une pièce jointe de « {title} » n’est plus dans le stockage. Retire-la de la tâche ou téléverse-la à nouveau, puis relance l’agent.'
   email:
     cta: Ouvrir dans Tale
     footer: Tu reçois cet e-mail parce que tu as activé les notifications dans Tale.
@@ -7343,6 +7518,26 @@ tasks:
     resumedAfterTokenRefresh: Reprise après l'actualisation du jeton
     retry: Relancer
     cancel: Annuler l'exécution
+    notStartedYet: L’agent attend que tu le démarres.
+    failureTitle: L’agent n’a pas pu terminer cette tâche
+    reported: Ce que l’exécution a signalé
+    failure:
+      budget: Une limite d’utilisation a arrêté cette exécution. Demande à un admin de la relever, puis relance l’agent.
+      setup: Il manque quelque chose à cet agent — son modèle, l’un de ses skills ou l’agent lui-même. Un éditeur ou un admin peut corriger cela dans l’onglet Agents du projet.
+      input: Une pièce jointe de cette tâche n’est plus dans le stockage — « Détails » indique laquelle. Retire-la de la tâche ou téléverse-la à nouveau, puis relance l’agent.
+      time_limit: L’exécution a atteint sa limite de temps avant que l’agent ait terminé. Relance l’agent, ou découpe la tâche en tâches plus petites.
+      capacity: L’exécution a attendu trop longtemps une sandbox libre. Relance l’agent quand moins d’agents seront occupés.
+      model: Le modèle d’IA derrière cet agent a échoué avant la fin du travail. Relance l’agent — s’il échoue encore, demande à un admin de vérifier le fournisseur d’IA.
+      start: L’exécution n’a pas pu démarrer. Réessaie — si elle échoue encore, montre à un admin ce que l’exécution a signalé dans « Détails ».
+      interrupted: L’exécution a été interrompue avant que l’agent ait terminé. Relance l’agent.
+      unknown: L’exécution a échoué. Relance l’agent — si elle échoue encore, montre à un admin ce que l’exécution a signalé dans « Détails ».
+    standardAgent:
+      switchedOff: L'agent standard de l'organisation est désactivé. Demande à un admin de l'activer dans Gouvernance.
+      noModel: Aucun modèle que tu peux utiliser ne peut faire fonctionner l'agent standard. Demande à un admin de configurer un fournisseur IA ou de te donner accès à un modèle.
+      pinUnavailable: Le modèle choisi pour l'agent standard ne t'est pas accessible. Demande à un admin d'en choisir un autre dans Gouvernance.
+      harnessInvalid: Le harness choisi pour l'agent standard n'est pas disponible. Demande à un admin d'en choisir un autre dans Gouvernance.
+      unreadable: Les réglages de l'agent standard sont illisibles. Demande à un admin de les vérifier dans Gouvernance.
+      notNeeded: Ce projet a ses propres agents. Assigne plutôt l'un d'eux.
   automation:
     hint: '{name} opère cette tâche et la fait avancer dans ses étapes.'
     chipReady: Prête à démarrer
@@ -7443,6 +7638,8 @@ tasks:
       deleteFailed: Impossible de supprimer l'étiquette.
   actions:
     create: Créer une tâche
+    createAndStart: Créer et démarrer l'agent
+    createOnly: Créer seulement
     created: Tâche créée
     comment: Commenter
     commentPlaceholder: Écris un commentaire — tape @ pour mentionner une personne ou un agent
@@ -7460,6 +7657,21 @@ tasks:
     noTasks: Aucune tâche
   list:
     showArchived: Afficher les archivées
+  # Une lecture du tableau qui a échoué après toutes ses tentatives (#3747) :
+  # ce qui n’a pas été chargé et ce que la personne voit entre-temps — jamais
+  # un tableau vide. Chaque alerte porte « Réessayer »
+  # (common.actions.tryAgain) pour cette seule lecture.
+  read:
+    tasksFailed: Impossible de charger les tâches, aucune n’est donc affichée. Ta recherche et tes filtres restent tels quels.
+    tasksStale: Impossible d’actualiser les tâches. Elles s’affichent telles qu’elles ont été chargées la dernière fois.
+    dependenciesFailed: Impossible de charger les dépendances, les tâches bloquées ne sont donc peut-être pas signalées comme bloquées.
+    activityFailed: Impossible de charger l’activité des agents et des relectures. Les agents en cours, les questions ouvertes et les relectures en attente ne sont donc peut-être pas signalés.
+    activityFailedReviewFilter: Impossible de charger l’activité des agents et des relectures. Les agents en cours, les questions ouvertes et les relectures en attente ne sont donc peut-être pas signalés, et « En attente de ma relecture » peut omettre des tâches qui t’attendent.
+    retrying: Nouvelle tentative…
+    # La lecture du tableau s’arrête à son plafond ; la recherche restreint la
+    # lecture elle-même et atteint donc chaque tâche. {count} est le nombre de
+    # tâches affichées.
+    truncated: '{count, plural, one {Seule la première tâche est affichée.} other {Seules les # premières tâches sont affichées.}} Utilise la recherche pour trouver les autres.'
   # Glisser au clavier dans le tableau et la liste : les instructions du
   # titre, puis les annonces en direct. {task} vaut `KEY-12, Titre` à la
   # saisie, puis `KEY-12` (le titre si le projet n'a pas de clé). Un dépôt
@@ -7556,11 +7768,13 @@ tasks:
     liveAgentsOnly:
       Seuls les agents de ce projet apparaissent ici — crée-les dans
       l'onglet Agents du projet.
-    nonCodeWarning:
-      Cet agent tourne sur un harness de code optimisé pour le travail sur
-      dépôt. Pour la recherche, la rédaction ou des livrables personnels,
-      assigne plutôt une personne.
+    noAgentsReader: Ce projet n’a pas encore d’agent — demande à un éditeur ou à un admin d’en ajouter un dans l’onglet Agents du projet.
+    liveAgentsOnlyReader: Seuls les agents de ce projet apparaissent ici — les éditeurs et les admins les ajoutent dans l’onglet Agents du projet.
+    standardAgent: Agent standard
+    standardAgentHint: L'agent de l'organisation pour les projets sans agent propre
+    standardAgentFooter: Tant que ce projet n'a pas d'agents propres, l'agent standard de l'organisation prend en charge ses tâches.
   activity:
+    reviewResponded: "Décision de relecture"
     created: Créé
     updated: Mis à jour
     claimed: Pris en charge
@@ -7583,7 +7797,16 @@ tasks:
     agentRunRefused: Exécution refusée
     repeatChanged: Répétition modifiée
     repeatNext: Tâche suivante créée
+    empty:
+      startDate: Aucune date de début
+      dueDate: Aucune échéance
+      description: Aucune description
+      labels: Aucune étiquette
+      attachments: Aucune pièce jointe
   review:
+    decisionApproved: "Approuvé"
+    decisionChangesRequested: "Modifications demandées"
+    decisionUnavailable: "Décision de relecture indisponible"
     needsReview: Revue requise
     waitingOn: 'En attente de {name}'
     waitingOnYou: En attente de ta relecture
@@ -7596,9 +7819,30 @@ tasks:
   reviewer:
     none: Aucun relecteur
     assignToMe: Relire moi-même
-    search: Rechercher des personnes
-    clear: Retirer le relecteur
+    search: "Rechercher des personnes et des agents"
     editorsOnly: Seuls les membres qui peuvent modifier ce projet peuvent être relecteurs.
+    projectDefaultLabel: "Choix par défaut du projet"
+    projectDefault: "Choix du projet · {reviewer}"
+    projectDefaultHuman: "Choix du projet · personne"
+    independentAgent: "Choisis un autre agent que celui qui a effectué le travail."
+    agentReview: "Examine le résultat depuis sa propre tâche de relecture."
+    routingHint: "Les personnes doivent pouvoir modifier le projet. Les agents doivent avoir la permission de relire les tâches et ne peuvent pas relire leur propre travail."
+    pendingFor: "Relecture en cours : {reviewer}"
+    transferHint: "Choisir un relecteur lui transfère aussi cette relecture en attente."
+    agentUnavailable: "Cet agent relecteur est indisponible. Choisis un autre relecteur."
+    agentPermissionRequired: "Cet agent doit avoir la permission de relire les tâches avant de pouvoir décider."
+    saveError: "Impossible de changer le relecteur"
+    loadError: "Impossible de charger la relecture en cours. Réessaie avant de la modifier."
+    stale: "Le relecteur ou le résultat a changé. Vérifie la relecture en cours et choisis à nouveau."
+    handoffRequired: "Transfère explicitement la relecture en attente avant de changer de relecteur."
+    busy: "Attends la fin de l’exécution ou la réponse à la question ouverte avant de transférer la relecture."
+    sourceRequired: "Ce résultat ne comporte aucune exécution d’agent compatible avec la relecture."
+    sourceChanged: "Cette relecture ne correspond plus à l’exécution ou à l’agent chargé du travail. Si l’affectation a changé, rétablis l’agent d’origine ou transfère la relecture à une personne autorisée."
+    humanPolicy: "La politique de l’organisation exige une personne pour cette relecture. Transfère-la à un membre autorisé."
+    policyUnavailable: "La politique de relecture n’a pas pu être lue. Rétablis une politique d’organisation valide avant toute décision."
+    notIndependent: "Choisis un agent qui n’a pas produit ce résultat."
+    agentRequired: "L’agent chargé de la relecture doit se prononcer sur ce résultat."
+    invalid: "Choisis un membre autorisé ou un agent de ce projet."
   watch:
     watch: Suivre
     unwatch: Ne plus suivre
@@ -7631,7 +7875,10 @@ tasks:
       decomposition: décomposition
       manual: manuel
       auto_retry: relance automatique
+      automation: automatisation
+      delegated: délégué
     refused:
+      agent_busy: l'agent travaille sur une autre tâche
       agent_disabled: l'agent n'est pas installé ou est désactivé
       agent_not_found: agent introuvable ou mal configuré
       automation_disabled: l'automatisation des tâches est désactivée
@@ -7645,6 +7892,7 @@ tasks:
       noLiveDetail: Aucun transcript en direct n'est disponible pour cette exécution.
   timeline:
     runLabel: Exécution d'agent
+    startedByAgent: lancé par
     systemActor: Système
     unresolvedWorkflow: Automatisation
     deletedAgent: Agent supprimé
@@ -7704,6 +7952,7 @@ tasks:
     budgetPaused: '{slug} ne répondra pas — budget mensuel épuisé'
     agentNotLive: "{slug} ne répondra pas — l'agent n'est pas installé ou est désactivé"
     notPermitted: "{slug} ne répondra pas — tu ne peux pas lancer d'agents sur cette tâche"
+    standardAgentUnavailable: "{slug} ne répondra pas — il n'est pas disponible pour toi"
   mentionPicker:
     title: Mentionner un membre, un agent ou une automatisation
     empty: Aucun résultat
@@ -7984,6 +8233,8 @@ websites:
     fetchPagesError: Échec du chargement des pages
     searchError: La recherche a échoué
     deleteError: Échec de la suppression du site web
+    scanStarted: Analyse lancée
+    scanAlreadyRunning: Une analyse est déjà en cours
   adding: Ajout en cours...
   viewDialog:
     title: Détails du site web
@@ -8001,17 +8252,38 @@ websites:
       Résidence des données, puis reprends l'analyse.
     scanError:
       runtime: L'analyse n'a pas eu lieu.
-      notInCorpus: Ce site n'est pas dans le crawler. Supprime-le et ajoute-le
-        à nouveau.
+      notInCorpus: Cette liste d'URL n'est pas dans le crawler. Supprime-la et
+        ajoute-la à nouveau.
+      notInCorpusSite: Ce site n'est pas dans le crawler. La prochaine analyse
+        l'ajoutera à nouveau.
+      embedding: Le modèle d'embedding n'a pas pu traiter les pages.
       generic: Le dernier scan ne s'est pas terminé.
     scanEmpty:
       runtime: Rien n'a été indexé. L'URL n'est pas le problème.
       dns: Rien n'a été indexé. Change l'URL si l'hôte est incorrect.
-      notInCorpus: Rien n'a été indexé. Supprime le site et ajoute-le à nouveau.
+      notInCorpus: Rien n'a été indexé. Supprime la liste d'URL et ajoute-la à
+        nouveau.
+      notInCorpusSite: Rien n'a été indexé. La prochaine analyse ajoutera le site
+        à nouveau.
       generic: Rien n'a été indexé.
+    scanDetail:
+      credential: Le fournisseur a rejeté les identifiants du modèle d'embedding. Un administrateur peut les réparer sous Paramètres → Fournisseurs IA.
+      credit: Le fournisseur a refusé la requête à cause du solde ou du forfait du compte. Un administrateur peut vérifier le compte chez le fournisseur.
+      unresolved: Les identifiants du modèle d'embedding ne peuvent pas être utilisés. Un administrateur peut les vérifier sous Paramètres → Fournisseurs IA.
+      dimension: Les vecteurs du modèle ne correspondent pas à cette base de connaissances. Un administrateur peut vérifier le modèle d'embedding sous Paramètres → Résidence des données.
+      upstream: Le fournisseur est en panne ou injoignable. Choisis Analyser maintenant dès qu'il est de retour.
+      throttled: La limite de débit du fournisseur a tenu malgré toutes les tentatives. La prochaine analyse reprend d'elle-même ; un administrateur peut espacer les requêtes sous Paramètres → Résidence des données.
+      generic: Un administrateur peut vérifier le modèle d'embedding sous Paramètres → Résidence des données.
+    technicalDetails: Détails techniques
   scanPausedBadge: Suspendu
   resumeScanning: Reprendre l'analyse
+  scanNow: Analyser maintenant
   indexed: Indexé
+  searchNotice:
+    title: Le chat ne peut pas encore chercher dans ces sites web
+    description: Les pages sont explorées et enregistrées, mais la recherche de connaissances a besoin d'un modèle d'embedding qui fonctionne, et cette organisation n'en a pas encore.
+    configureCta: Configurer le modèle d'embedding
+    askAdmin: Demande à un administrateur de ton organisation d'en configurer un sous Paramètres → Résidence des données.
   pagesDialog:
     title: Pages du site web
     noPages: Aucune page explorée pour le moment
@@ -8026,7 +8298,15 @@ websites:
     chunkIndex: Fragment {index}
     lastError: '{count, plural, one {{count} tentative échouée} other {{count} tentatives échouées de suite}} — {message}'
     failed: Échec
+    skipped: Ignorée
     failedPages: '{count, plural, one {{count} page en échec} other {{count} pages en échec}}'
+    filter:
+      label: Pages à afficher
+      all: Toutes
+      failed: 'En échec ({count})'
+      skipped: 'Ignorées ({count})'
+    noFailedPages: Aucune page en échec
+    noSkippedPages: Aucune page ignorée
     errorKind:
       dnsFailed: Impossible de résoudre l'hôte.
       timeout: La page n'a pas répondu à temps.
@@ -8067,6 +8347,18 @@ websites:
     warning: Cette action est irréversible.
     title: Supprimer le site web
 projects:
+  taskReview:
+    title: "Relecture des tâches"
+    description: "Choisis qui relit le travail terminé des agents dans ce projet."
+    defaultReviewer: "Relecteur par défaut"
+    humanDefault: "Personne"
+    humanDefaultHint: "La personne qui a créé la tâche, puis celle qui a créé le projet, si elle peut le modifier."
+    agentHint: "Relit le travail terminé de façon indépendante."
+    existingReviews: "S’applique aux nouvelles relectures. Les relectures déjà en attente conservent leur relecteur enregistré."
+    permissionRequired: "Cet agent doit avoir la permission de relire les tâches avant de pouvoir décider."
+    unavailable: "L’agent relecteur sélectionné est indisponible. Choisis un autre relecteur."
+    stale: "Le relecteur par défaut du projet a changé pendant ta modification. Abandonne ce brouillon et choisis à nouveau."
+    search: "Rechercher des agents relecteurs"
   title: Projets
   entityLabel: projets
   entityLabelOne: projet
@@ -8087,6 +8379,7 @@ projects:
     emptyDescription:
       Crée un projet pour partager fichiers, instructions et chats
       avec ton équipe.
+    emptyReaderDescription: Un projet apparaît ici dès qu’une personne le partage avec toi ou l’une de tes équipes.
     searchPlaceholder: Rechercher des projets
     showArchived: Afficher les archivés
     columnName: Nom
@@ -8242,6 +8535,11 @@ projects:
     newSubfolderAction: Nouveau sous-dossier
     uploadingIndicator: Envoi en cours…
     historyAction: Historique des versions
+    loadFailed: Impossible de charger les fichiers de ce projet.
+    foldersLoadFailed: "Impossible de charger les dossiers de ce projet. Les fichiers placés dans des dossiers sont listés à part jusqu'au chargement des dossiers."
+    treeLoadFailed: Impossible de charger les fichiers et les dossiers de ce projet.
+    refreshFailed: "Impossible d'actualiser les fichiers de ce projet. L'affichage n'est peut-être plus à jour."
+    unplacedGroup: Fichiers dans des dossiers
   threads:
     yourChats: Tes chats
     subtitle: Les chats que tu as démarrés dans ce projet.
@@ -8261,6 +8559,9 @@ projects:
     newAgent: Nouvel agent
     emptyTitle: Ajouter un agent à ce projet
     emptyBody: Les agents exécutent des tâches en ton nom — donne-en un avec un modèle, des skills et des instructions pour commencer.
+    sectionDescriptionReader: Les agents qui travaillent sur les tâches de ce projet, chacun avec son propre modèle, ses skills et ses instructions. Les éditeurs et les admins les ajoutent et les modifient.
+    emptyReaderTitle: Aucun agent dans ce projet pour l’instant
+    emptyReaderBody: Les agents exécutent des tâches en ton nom. Demande à un éditeur ou à un admin d’en ajouter un à ce projet.
     equippedCount: '{count, plural, one {# équipé} other {# équipés}}'
     rowEdit: Modifier l'agent
     rowDelete: Supprimer l'agent
@@ -8303,6 +8604,9 @@ projects:
       task_create: Créer des tâches
       task_comment: Commenter des tâches
       task_update_status: Déplacer des tâches entre colonnes
+      task_update_metadata: Modifier la priorité et l'agent assigné aux tâches
+      task_review: "Revoir les résultats des tâches d’autres agents"
+      task_start_agent: Lancer d'autres agents sur des tâches
       task_upsert_by_external_ref: Synchroniser un élément externe vers une tâche
       document_find: Trouver des documents
       knowledge_entry_find: Trouver des entrées de connaissances
@@ -8350,6 +8654,13 @@ projects:
     mutationError: Impossible d'enregistrer l'agent
     deleteTitle: Supprimer l'agent
     deleteBody: 'Supprimer « {name} » ? Les tâches qui y faisaient référence gardent leur historique.'
+    standard:
+      name: Agent standard
+      badge: Standard
+      managedNote: Mis en place par Tale pour ce projet. Son harness, son modèle et ses instructions suivent les réglages de l'organisation dans Gouvernance.
+      emptyTitle: L'agent standard prend en charge les tâches de ce projet
+      emptyBody: Tant que ce projet n'a pas d'agents propres, ses tâches peuvent aller à l'agent standard de l'organisation. Ajoutes-en un avec Nouvel agent pour donner à ce projet son propre harness, son propre modèle et ses propres instructions.
+      emptyReaderBody: Tant que ce projet n'a pas d'agents propres, tu peux confier ses tâches à l'agent standard de l'organisation. Un éditeur ou un admin peut ajouter des agents propres au projet.
   settings:
     name: Nom
     nameHint: Affiché dans la liste des projets et dans le panneau latéral d’Accueil.
@@ -8512,7 +8823,10 @@ sandboxes:
   sessionsTitle: Espaces de travail
   description: >-
     Les agents de projet réutilisent leur espace entre les tâches. Les étapes
-    d'un workflow partagent le même espace. L'état d'exécution et l'allocation
+    d'un workflow partagent le même espace. L'espace d'un agent de projet est
+    conservé jusqu'au retrait de son agent, de son projet ou du membre concerné,
+    ou jusqu'à ce que le nettoyage des espaces de travail le supprime faute
+    d'utilisation. L'état d'exécution et l'allocation
     du quota sont distincts : un conteneur peut rester actif après la libération
     de son allocation.
   limits:
@@ -8543,6 +8857,20 @@ sandboxes:
       project: Les agents de projet réutilisent une sandbox entre leurs tâches.
       workflow: Les étapes agent et script partagent une sandbox par exécution de workflow.
       render: Des sandboxes temporaires rendent les pages pendant l'exploration des sites.
+  cleanup:
+    title: Nettoyage des espaces de travail
+    description:
+      Les agents de projet gardent leurs fichiers dans des espaces de travail
+      entre deux exécutions. Un espace de travail est supprimé immédiatement quand
+      son agent, son projet ou le membre concerné est retiré. Les espaces de
+      travail sous conservation légale ne sont pas supprimés.
+    deleteUnused: Supprimer les espaces de travail inutilisés
+    deleteUnusedHint: Supprime un espace de travail après le nombre de jours sans utilisation indiqué ci-dessous. Les espaces de travail épinglés sont conservés.
+    unusedDays: Jours sans utilisation
+    unusedDaysHint: Les jours se comptent à partir de la dernière fois que l'agent a travaillé dans l'espace de travail. Quand tu actives la suppression ou que tu raccourcis la période, aucun espace de travail n'est supprimé avant que ce nombre de jours ne se soit entièrement écoulé.
+    invalidDays: Saisis un nombre entier entre 1 et 3650.
+    loadFailed: Impossible de charger les paramètres de nettoyage des espaces de travail. Recharge la page pour réessayer.
+    saveFailed: Impossible d'enregistrer les paramètres de nettoyage des espaces de travail
   capacity:
     title: Capacité de l'infrastructure
     description: >-
@@ -8590,6 +8918,9 @@ sandboxes:
     quotaReleased: Quota libéré
     pausedBudget: En pause (budget)
     pinned: Épinglée
+    deletesOn: Suppression prévue le {date}, sauf nouvelle utilisation
+    destroying: Suppression…
+    destroyFailed: Non supprimée
   task:
     none: Aucune tâche active
     project: '{count, plural, one {Tâche de projet} other {# tâches de projet}}'
@@ -8602,21 +8933,24 @@ sandboxes:
     destroy: Supprimer
   destroyConfirm:
     title: Supprimer la sandbox ?
-    description: Cela supprime la sandbox et son espace de travail et annule les tâches en cours. Le prochain lancement de l'agent crée une nouvelle sandbox.
+    description: Cela supprime la sandbox et son espace de travail et annule les tâches en cours. Une fois la sandbox supprimée, le prochain lancement de l'agent en crée une nouvelle.
     confirm: Supprimer
   toast:
     stopped: Tâche arrêtée
     pinned: Sandbox épinglée
     unpinned: Sandbox détachée
-    destroyed: Sandbox supprimée
+    destroying: Suppression de la sandbox en cours
+    destroyingDescription: Elle disparaît de la liste dès que son espace de travail est supprimé.
     error: Échec de l'action
   empty:
     title: Aucun espace de travail pour le moment
     description:
-      L'espace de travail d'un agent de projet apparaît après sa première tâche et
-      reste affiché tant que l'agent est inactif. L'espace d'une exécution de
-      workflow est récupéré à la fin de l'exécution. Les chiffres de capacité
-      ci-dessus incluent les sessions temporaires d'exploration.
+      L'espace de travail d'un agent de projet apparaît après sa première tâche. Il
+      est conservé jusqu'au retrait de son agent, de son projet ou du membre
+      concerné, ou jusqu'à ce que le nettoyage des espaces de travail le supprime
+      faute d'utilisation. L'espace d'une exécution de workflow est récupéré à la
+      fin de l'exécution. Les chiffres de capacité ci-dessus incluent les sessions
+      temporaires d'exploration.
   accessDenied: Tu as besoin d'un accès développeur ou admin pour gérer les sandboxes.
   deletedAgent: Agent supprimé
   devices:

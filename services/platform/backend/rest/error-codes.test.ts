@@ -225,7 +225,8 @@ const APP_ONLY_CODES: ReadonlySet<string> = new Set<string>([
   // and deletes (REST posts and lists), and the label catalog's own verbs
   // (the intake creates a missing label for an editor and refuses it to
   // anyone else with `TASK_LABEL_UNKNOWN`, which the registry lists; the
-  // catalog's rename and delete refusals never fire).
+  // catalog's rename and delete refusals never fire), and the chat a task
+  // was handed over from (`sourceThreadId`, the app's hand-over only).
   'AGENT_NOT_ALLOWED_IN_PROJECT',
   'ASSIGNEE_NO_PROJECT_ACCESS',
   'TASK_ASSIGNEE_INVALID',
@@ -245,7 +246,33 @@ const APP_ONLY_CODES: ReadonlySet<string> = new Set<string>([
   'TASK_REPEAT_INVALID',
   'TASK_REVIEWER_INVALID',
   'TASK_REVIEWER_NO_EDIT_ACCESS',
+  // Explicit reviewer routing has app doors only. REST neither saves a
+  // project default nor changes the captured reviewer or reviewer fields.
+  'PROJECT_REVIEWER_INVALID',
+  'PROJECT_REVIEWER_PERMISSION_MISSING',
+  'PROJECT_REVIEWER_STALE',
+  'TASK_REVIEWER_BUSY',
+  'TASK_REVIEWER_HANDOFF_REQUIRED',
+  'TASK_REVIEWER_HUMAN_REQUIRED',
+  'TASK_REVIEWER_NOT_INDEPENDENT',
+  'TASK_REVIEWER_PERMISSION_MISSING',
+  'TASK_REVIEWER_STALE',
+  'TASK_REVIEW_SOURCE_REQUIRED',
+  'TASK_REVIEW_SOURCE_CHANGED',
+  // The trusted agent verdict status seam is reached only by task_review
+  // through a native project-agent token, never the human REST review door.
+  'TASK_REVIEW_BLOCKED',
+  'TASK_REVIEW_BUSY',
+  'TASK_REVIEW_STALE',
+  'TASK_REVIEW_FILE_UNAVAILABLE',
+  // Guarded repair admission is native-only; REST exposes no repair start.
+  'TASK_REPAIR_STALE',
   'TASK_SCHEDULE_INVALID',
+  'TASK_SOURCE_THREAD_NOT_FOUND',
+  // The organization's standard agent is set up only through the app's
+  // hand-over door (`POST /api/app/projects/{id}/standard-agent`); REST
+  // takes no agent assignee, so it never asks for one.
+  'STANDARD_AGENT_NOT_NEEDED',
   // Tasks: the door's schemas trim and cap the title, description, labels
   // and comment body at the domain's own constants and canonicalize the
   // external reference (`externalKeySchema`) before the intake runs, so
@@ -442,6 +469,10 @@ const APP_ONLY_CODES: ReadonlySet<string> = new Set<string>([
   // list (TALE_ORGANIZATION_CREATORS) is judged in the before-hook of
   // `/organization/create`, which the REST door never mounts either.
   'ORGANIZATION_CREATION_FORBIDDEN',
+  // Personal API-key creation is another Better Auth-only door:
+  // `/api/auth/api-key/create` judges the holder's roles and grants;
+  // REST authenticates existing keys and mounts no key-creation route.
+  'API_KEY_CREATE_FORBIDDEN',
   // The same door's team-name rule (one name per organization, judged in
   // the before-hooks of `/organization/create-team` and `/update-team`);
   // REST has no team write, and SCIM answers its own 409 `uniqueness`.

@@ -5,7 +5,7 @@
   <img alt="Tale" src=".github/assets/logo-light.svg" width="150">
 </picture>
 
-[![Build](https://github.com/tale-project/tale/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/tale-project/tale/actions/workflows/build.yml)
+[![Build](https://github.com/tale-project/tale/actions/workflows/build.yml/badge.svg?branch=main&event=push)](https://github.com/tale-project/tale/actions/workflows/build.yml)
 [![Tests](https://github.com/tale-project/tale/actions/workflows/checks.yml/badge.svg?branch=main)](https://github.com/tale-project/tale/actions/workflows/checks.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
@@ -13,31 +13,37 @@
 
 </div>
 
-# Tale
+# Tale — Der Open-Source-Arbeitsbereich für Teams und KI-Agenten
 
-Tale verbindet KI-Chat, Projektarbeit, Wissen und Automatisierungen in einem Arbeitsbereich. Stelle Fragen zu deinen Dokumenten, gib einem Agenten eine konkrete Aufgabe und prüfe das Ergebnis mit deinem Team. Du wählst die Modellanbieter und betreibst Tale auf eigener Infrastruktur oder nutzt den verwalteten Cloud-Dienst.
+**Mache aus Problemen im Unternehmen Aufgaben, die dein Team gemeinsam mit KI-Agenten lösen kann.**
 
-Der Code steht unter der MIT-Lizenz. Community und Enterprise enthalten dieselben Produktfunktionen; Enterprise ergänzt professionellen Betrieb und Support. Das aktuelle Angebot findest du unter [Tarife und Preise](https://tale.dev/pricing).
+Tale gibt Teammitgliedern und KI-Agenten einen gemeinsamen Projektarbeitsbereich. Erstelle Aufgaben auf dem Board, weise sie Personen oder Agenten zu, verfolge die Arbeit und prüfe Berichte und gelieferte Dateien. Auftrag, Diskussionen, Projektwissen und Ergebnisse bleiben zusammen. Lass Agenten recherchieren, Dokumente prüfen, Berichte und Marketingmaterial erstellen oder eine Website, App oder ein internes Werkzeug entwickeln.
+
+Wähle für jeden Agenten Laufzeit, Modell, Skills und Werkzeuge. Statte einen koordinierenden Agenten so aus, dass er bereite Aufgaben delegieren und Folgearbeiten abstimmen kann. Agenten arbeiten in dauerhaften Sandbox-Arbeitsbereichen; deine eingerichtete Kapazität begrenzt die gleichzeitige Ausführung.
+
+Nutze eigene API-Schlüssel der Anbieter oder unterstützte Abonnements mit kompatiblen Agentenlaufzeiten. Die [Übersicht der Laufzeiten und Zugangsdaten](https://docs.tale.dev/de/platform/agents/harnesses) zeigt die verfügbaren Kombinationen.
+
+Betreibe Tale auf eigener Infrastruktur oder nutze den verwalteten Cloud-Dienst. Der Code steht unter der MIT-Lizenz. Community und Enterprise enthalten dieselben Produktfunktionen; Enterprise ergänzt professionellen Betrieb und Support. Das aktuelle Angebot findest du unter [Tarife und Preise](https://tale.dev/pricing).
 
 <table>
   <tr>
     <td width="50%" valign="top">
-      <a href="services/docs/public/images/platform/chat-arena-split.webp"><img src=".github/assets/readme-gallery-chat-arena.webp" alt="Arena zeigt zwei Antworten auf denselben Prompt und die Bewertungsaktionen." width="100%"></a>
-      <br><a href="https://docs.tale.dev/de/platform/chat/arena-mode"><b>Chat und Arena</b></a><br><sub>Vergleiche zwei Modellantworten nebeneinander.</sub>
-    </td>
-    <td width="50%" valign="top">
       <a href="services/docs/public/images/platform/projects-task-board.webp"><img src=".github/assets/readme-gallery-tasks.webp" alt="Das Task-Board des Projekts Website relaunch gruppiert Karten nach Status." width="100%"></a>
       <br><a href="https://docs.tale.dev/de/platform/projects/tasks"><b>Projektaufgaben</b></a><br><sub>Organisiere die Arbeit und prüfe ihren Fortschritt.</sub>
     </td>
-  </tr>
-  <tr>
     <td width="50%" valign="top">
       <a href="services/docs/public/images/platform/project-agents-models.webp"><img src=".github/assets/readme-gallery-project-agents.webp" alt="Der Agents-Tab des Projekts zeigt benannte Agents mit Laufzeit und Modell." width="100%"></a>
       <br><a href="https://docs.tale.dev/de/platform/projects/project-agents"><b>Projekt-Agents</b></a><br><sub>Wähle Anweisungen, Laufzeit, Modell und Tools.</sub>
     </td>
+  </tr>
+  <tr>
     <td width="50%" valign="top">
       <a href="services/docs/public/images/platform/automation-editor-canvas.webp"><img src=".github/assets/readme-gallery-workflow-editor.webp" alt="Der Automatisierungseditor zeigt verbundene Schritte und die Einstellungen des ausgewählten Knotens." width="100%"></a>
       <br><a href="https://docs.tale.dev/de/platform/automations/editor"><b>Workflow-Editor</b></a><br><sub>Prüfe Schritte, Testeingaben und Laufprotokolle.</sub>
+    </td>
+    <td width="50%" valign="top">
+      <a href="services/docs/public/images/platform/chat-arena-split.webp"><img src=".github/assets/readme-gallery-chat-arena.webp" alt="Arena zeigt zwei Antworten auf denselben Prompt und die Bewertungsaktionen." width="100%"></a>
+      <br><a href="https://docs.tale.dev/de/platform/chat/arena-mode"><b>Chat und Arena</b></a><br><sub>Vergleiche zwei Modellantworten nebeneinander.</sub>
     </td>
   </tr>
   <tr>
@@ -54,6 +60,33 @@ Der Code steht unter der MIT-Lizenz. Community und Enterprise enthalten dieselbe
 
 Öffne einen Screenshot, um ihn in voller Größe anzusehen. Die Aufnahmen zeigen die englische Oberfläche.
 
+## Von der Aufgabe zum geprüften Ergebnis
+
+1. **Die Arbeit beschreiben.** Erstelle eine [Projektaufgabe](https://docs.tale.dev/de/platform/projects/tasks) mit dem Problem, den Quelldateien und den Abnahmekriterien.
+2. **Personen und Agenten zuweisen.** Richte [Projektagenten](https://docs.tale.dev/de/platform/projects/project-agents) für die Arbeit ein, wähle ihre Werkzeuge und starte die Aufgaben, die sie übernehmen sollen.
+3. **Koordinieren und prüfen.** Verfolge den Fortschritt auf dem Board, steuere Agenten mit @Erwähnungen in Aufgabenkommentaren und prüfe Berichte und Dateien. Ein [koordinierender Agent](https://docs.tale.dev/de/platform/projects/task-automation) kann bereite Aufgaben delegieren, wenn er die nötigen Werkzeuge hat.
+4. **Einen festen Prozess wiederholen.** Nutze eine versionierte [Automatisierung](https://docs.tale.dev/de/platform/automations/concepts), wenn die Arbeit geplante Starts, festgelegte Schritte oder Genehmigungen für Connector-Aktionen braucht.
+
+### Beispiel: ein Briefing zum Produktstart prüfen
+
+Wenn ein Projektagent und passende Zugangsdaten für das Modell eingerichtet sind, passe diese beispielhafte Aufgabenbeschreibung an deine Quelldateien an:
+
+> Vergleiche das angehängte Briefing zum Produktstart mit den Besprechungsnotizen. Erstelle einen Markdown-Bericht mit widersprüchlichen Terminen, fehlenden Verantwortlichen und offenen Entscheidungen. Nenne zu jedem Fund die Quelldatei und Textstelle. Trenne gesicherte Fakten von offenen Fragen und lasse die Quelldateien unverändert.
+
+Öffne vor der Abnahme den gelieferten Bericht, gleiche seine Belege mit beiden Dateien ab und prüfe, ob er alle verlangten Kategorien abdeckt. Bitte in der Aufgabe um Korrekturen, wenn Belege fehlen. Die [Anleitung zur Aufgabenprüfung](https://docs.tale.dev/de/platform/projects/task-automation) erklärt, wie du Änderungen anforderst oder fertige Arbeit annimmst.
+
+## Tale für dein Team prüfen
+
+**Welche Agenten-Laufzeiten kann ich verwenden?** Tale enthält Claude Code, Codex, Cursor, Gemini CLI, Hermes, OpenClaw, OpenCode, Pi und Qwen Code. Was verfügbar ist, hängt von deiner Bereitstellung, den Zugangsdaten und der Sandbox-Kapazität ab. Die [Kompatibilitätsübersicht](https://docs.tale.dev/de/platform/agents/harnesses) beschreibt Zugangsdaten, Werkzeuge und Einschränkungen bei der Fortsetzung von Gesprächen.
+
+**Kann ich einen API-Schlüssel oder ein vorhandenes Abonnement nutzen?** Gespeicherte API-Schlüssel von Modellanbietern nutzen Tales Modell-Gateway. Unterstützte Anbieterabonnements funktionieren nur mit passenden Laufzeiten, sind nicht für den normalen Chat nutzbar und umgehen die Verbrauchserfassung und Ausgabenlimits des Gateways. Lies vor der Auswahl die [Hinweise zu Zugangsdaten und Kosten](https://docs.tale.dev/de/platform/agents/harnesses).
+
+**Was brauche ich für den Eigenbetrieb?** Für den Einstieg brauchst du Docker mit Compose, Speicherplatz für Images und persistente Daten sowie Zugangsdaten für einen unterstützten Modellanbieter. Im Produktivbetrieb kommen DNS, TLS, Backups und Zugriffskontrollen hinzu. Der [Schnellstart für den Eigenbetrieb](https://docs.tale.dev/de/self-hosted/install/quickstart) beschreibt die lokale Einrichtung und verlinkt die Vorbereitung für den Produktivbetrieb.
+
+**Wohin gehen meine Daten?** Anwendungsdaten, durchsuchbares Wissen und Originaldateien haben getrennte Speichereinstellungen. Modellanbieter, Konnektoren und externe Werkzeuge können Daten außerhalb dieser Speicher verarbeiten; Eigenbetrieb allein hält nicht jede Anfrage lokal. Prüfe die [Datenresidenz](https://docs.tale.dev/de/self-hosted/configuration/data-residency) und den [Umgang der Laufzeit mit Zugangsdaten und Netzwerkzugriffen](https://docs.tale.dev/de/platform/agents/harnesses).
+
+**Was unterscheidet Community und Enterprise?** Beide enthalten dieselben Produktfunktionen unter der MIT-Lizenz. Enterprise ergänzt professionelle Betriebsführung und Support. Die aktuellen Leistungsbedingungen findest du unter [Angebote und Preise](https://tale.dev/pricing).
+
 ## Finde deinen Einstieg
 
 | Dein Ziel | Passende Anleitung |
@@ -68,7 +101,7 @@ Der Code steht unter der MIT-Lizenz. Community und Enterprise enthalten dieselbe
 
 ### Eine lokale Instanz starten
 
-Installiere die Tale-CLI, lege ein Projekt an und starte die Entwicklungsumgebung:
+Verwende unter macOS oder Linux die veröffentlichte CLI. Du brauchst weder einen Repository-Klon noch eine Bun-Installation:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/tale-project/tale/main/scripts/install-cli.sh | bash
@@ -77,9 +110,13 @@ cd my-project
 tale dev
 ```
 
-Die Umgebung benötigt Docker. Folge den Einrichtungshinweisen der CLI und warte, bis Docker läuft, bevor du Tale startest. Beim ersten Start lädt die CLI Container-Images herunter und zeigt anschließend die Adresse an. Erstelle im Einrichtungsassistenten das erste Konto und die Organisation. Verbinde danach einen KI-Anbieter, damit Modelle antworten können.
+Du brauchst Docker mit Compose, Platz für mehrere GB an Images und deine Daten sowie Zugangsdaten für einen Modellanbieter, um die erste Antwort zu testen. Docker Desktop enthält die amd64-Emulation, die der mitgelieferte Objektspeicher auf Apple Silicon benötigt. Richte die Emulation unter ARM64 Linux vor dem Start ein.
 
-Die [Installationsanleitung](https://docs.tale.dev/de/self-hosted/install/quickstart) beschreibt Windows, Voraussetzungen und die Fehlersuche beim Start. Befehle und Optionen stehen in der [CLI-Referenz](tools/cli/README.md). Lies vor dem Umzug auf einen Server die [Bereitstellungsanleitung](https://docs.tale.dev/de/self-hosted/install/cli-install).
+Die CLI kann bei der Installation oder beim Start von Docker helfen. Öffne nach dem Start die angezeigte URL und erstelle das erste Konto und die Organisation. Füge unter **Einstellungen > KI-Anbieter** Zugangsdaten hinzu und [sende deine erste Nachricht](https://docs.tale.dev/de/get-started/quickstart).
+
+Mit `Ctrl-C` stoppst du die Instanz. Starte `tale dev` im selben Verzeichnis erneut, um mit deinen Daten fortzufahren.
+
+Der [Installations-Schnellstart](https://docs.tale.dev/de/self-hosted/install/quickstart) beschreibt Windows, Zertifikate, Architekturanforderungen und Fehlerbehebung. Befehle findest du im [CLI-Leitfaden](tools/cli/README.md). Folge vor dem Teambetrieb der [Produktionsvorbereitung](https://docs.tale.dev/de/self-hosted/install/quickstart#eine-produktive-bereitstellung-vorbereiten): `tale deploy` verwendet andere Datenvolumes als die lokale Entwicklungsinstanz.
 
 ### Aus dem Quellcode entwickeln
 

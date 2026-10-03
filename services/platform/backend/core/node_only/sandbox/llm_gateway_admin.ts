@@ -2,7 +2,7 @@
 
 // Sandbox LLM-gateway management client. The platform is the source of truth
 // for provider credentials + model catalogs; the gateway (pinned
-// maximhq/bifrost, management API verified against v1.5.13) is a derived
+// maximhq/bifrost, management API verified against v2.2.4) is a derived
 // cache. This module:
 //   - provisions/reconciles an org's providers + upstream keys into the
 //     gateway,
@@ -15,23 +15,24 @@
 //   - reads per-key spend for the usage ledger.
 //
 // Raw provider API keys + the admin password are Tier-0 secrets — they live
-// only here (Convex) and in the gateway, never in the sandbox.
+// only in the platform and in the gateway, never in the sandbox.
 //
-// v1.5.13 wire facts this module encodes (each verified against the pinned
-// gateway; do not "simplify" them away without re-verifying):
+// Wire facts this module encodes (each verified against the pinned gateway;
+// do not "simplify" them away without re-verifying):
 //   - upstream KEYS are a provider SUB-RESOURCE (`/api/providers/:p/keys`,
-//     CRUD), NOT embedded in the provider PUT (a keys[] there is ignored).
+//     CRUD), NOT embedded in the provider PUT (a keys[] there is refused).
 //     Per-org keys coexist under one shared STANDARD provider record; a
 //     custom connector gets one record per (org, model) — see
 //     customGatewayProviderName.
 //   - VK create takes `provider_configs[]` where each config carries
 //     `key_ids: [<id>]` (the WRITE field — sending `keys:[id]` is silently
-//     ignored, leaving an empty binding that denies everything) +
-//     `allow_all_keys:false` (binds the VK to THIS org's upstream key only)
-//     + `allowed_models` (deny-by-default, enforced on inference incl. the
-//     /anthropic route; an EMPTY list denies all) + `budget` (singular;
-//     `reset_duration` must parse — 'never' is rejected). The response wraps
-//     the key as `{ virtual_key: { id, value } }`.
+//     ignored, leaving an empty binding that denies everything; the binding
+//     keeps the VK on THIS org's upstream key only) + `allowed_models`
+//     (deny-by-default, enforced on inference incl. the /anthropic route; an
+//     EMPTY list denies all) + `budgets[]` (`reset_duration` must parse —
+//     'never' is rejected). The response wraps the key as
+//     `{ virtual_key: { id, value } }`. The VK enforces its binding and
+//     allowlist whenever it is presented; no gateway-wide flag switches that.
 //   - `base_provider_type` / the presence of `custom_provider_config` are
 //     immutable per record; changing them requires delete + recreate.
 
@@ -48,7 +49,7 @@ import { resolveHostAddresses } from '../../../../lib/net/safe-fetch';
 import { AppError } from '../../../../lib/shared/errors/app-error';
 import { providerAttributionHeaders } from '../../../../lib/shared/providers/attribution';
 import { isStandardGatewayProvider } from '../../../../lib/shared/providers/gateway_standard_providers';
-import { isRecord } from '../../../../lib/utils/type-utils';
+import { getString, isRecord } from '../../../../lib/utils/type-utils';
 import { sanitizeError } from '../../lib/utils/sanitize_secrets';
 import type { GatewaySpendReading } from './gateway_key_settlement';
 
@@ -115,10 +116,10 @@ const REQUEST_TIMEOUT_SECONDS = 600;
 
 /** Per-stream IDLE timeout (gateway `stream_idle_timeout_in_seconds`): how
  * long the gateway waits for ANY byte from the upstream mid-stream before
- * aborting with `ErrStreamIdleTimeout`. The gateway defaults this to 60s,
+ * aborting with `ErrStreamIdleTimeout`. The gateway defaults this to 120s,
  * which is fine for a native Anthropic upstream (it pings every ~15-30s) —
  * but a CUSTOM OpenAI-compatible upstream sends NO keepalive during a long
- * prefill or a silent reasoning gap, so a large-context turn trips the 60s
+ * prefill or a silent reasoning gap, so a large-context turn trips that
  * window and the agent's stream dies mid-run with no retry (harness CLIs do
  * not auto-retry a mid-stream failure). Default it to the request timeout's
  * floor so a silent gap is never a premature idle abort. Operator-tunable
@@ -138,13 +139,13 @@ export function gatewayStreamIdleTimeoutSeconds(): number {
 }
 
 /** Per-request timeout (gateway `default_request_timeout_in_seconds`): how
- * long the gateway waits for a whole non-streaming answer. The gateway's
- * streaming client has no such bound, but a harness falls back to a
- * NON-streaming request when a stream breaks (Claude Code does after a
- * stream ends without its first event), and that request then carries the
- * full prefill: an operator who raised the stream idle budget for a slow
- * local model would still see it cut at 600 s. So the timeout follows a
- * raised budget, and never drops below 600 s.
+ * long the gateway waits for a whole non-streaming answer, and for a
+ * stream's response headers (past them, the idle timeout bounds the gaps).
+ * A harness falls back to a NON-streaming request when a stream breaks
+ * (Claude Code does after a stream ends without its first event), and that
+ * request then carries the full prefill: an operator who raised the stream
+ * idle budget for a slow local model would still see it cut at 600 s. So the
+ * timeout follows a raised budget, and never drops below 600 s.
  *
  * A managed harness turn waits at least this long for an answer
  * (`buildExternalTurnExec`), so the client never gives up on a request the
@@ -159,13 +160,77 @@ function managementHeaders(): Record<string, string> {
   // harmless before auth_config is enabled (the first applyGatewayConfig on a
   // fresh gateway), required after — and requireGatewayAdminPassword() fails
   // closed, so there is no anonymous management call at all.
-  const basic = Buffer.from(
-    `${adminUsername()}:${requireGatewayAdminPassword()}`,
-  ).toString('base64');
+  const password = requireGatewayAdminPassword();
+  const basic = Buffer.from(`${adminUsername()}:${password}`).toString(
+    'base64',
+  );
+  // The gateway's setup token is this same password (the gateway image sets
+  // it so: services/sandbox-llm-gateway/docker-entrypoint.sh). The pinned
+  // gateway reads the token only from the body of the request that creates
+  // its first admin (applyGatewayConfig), so no header carries a second copy.
   return {
     'content-type': 'application/json',
     authorization: `Basic ${basic}`,
   };
+}
+
+/** The waits before each repeat of a management call the gateway's store
+ * turned away for a moment — about three seconds in all. */
+const STORE_BUSY_RETRY_DELAYS_MS = [250, 750, 2_000] as const;
+
+/** How the gateway names its SQLite store refusing a write that collided
+ * with another one; the write's transaction rolled back, nothing changed. */
+const STORE_BUSY = /database is locked/i;
+
+type ManagementMethod = 'GET' | 'POST' | 'PUT' | 'DELETE';
+
+/**
+ * One call to the gateway's management API: `path` under its base URL, with
+ * the admin credentials and a 15 s bound per attempt, `json` as the body.
+ *
+ * The gateway keeps its config in SQLite, which turns away a write that
+ * collides with another one — right after the gateway starts, while it syncs
+ * its own catalogs, and under the platform's concurrent writes (a revoke
+ * beside a budget move). It answers those with a 500 that names the locked
+ * store, except a virtual key's DELETE, which says only that it failed. So a
+ * call answered with a 5xx is sent again after a short wait, up to three
+ * times, when that is safe: always when the answer names the locked store,
+ * and for the idempotent methods whatever it says. A POST answered otherwise
+ * comes back at once — it may have created what it asked for. The last
+ * answer is returned either way, for the caller to read as before.
+ */
+async function managementFetch(
+  path: string,
+  init: { method?: ManagementMethod; json?: unknown } = {},
+): Promise<Response> {
+  const method = init.method ?? 'GET';
+  const request = (): Promise<Response> =>
+    fetch(`${llmGatewayUrl()}${path}`, {
+      method,
+      headers: managementHeaders(),
+      ...(init.json !== undefined ? { body: JSON.stringify(init.json) } : {}),
+      signal: AbortSignal.timeout(15_000),
+    });
+  for (const delayMs of STORE_BUSY_RETRY_DELAYS_MS) {
+    const res = await request();
+    if (res.status < 500) return res;
+    const text = await res.text().catch((error: unknown) => {
+      console.warn(
+        `[llm-gateway] ${method} ${path} answered ${res.status} with an unreadable body:`,
+        error,
+      );
+      return '';
+    });
+    if (method === 'POST' && !STORE_BUSY.test(text)) {
+      return new Response(text, { status: res.status, headers: res.headers });
+    }
+    const said = sanitizeError(text).replace(/\s+/g, ' ').trim().slice(0, 200);
+    console.warn(
+      `[llm-gateway] ${method} ${path} answered ${res.status} (${said}); sending it again in ${delayMs} ms`,
+    );
+    await new Promise((resolve) => setTimeout(resolve, delayMs));
+  }
+  return request();
 }
 
 // The gateway's built-in provider set lives in lib/shared/providers (the
@@ -315,9 +380,9 @@ export interface MintedVirtualKey {
 }
 
 /** The gateway keeps a virtual key's name in a `varchar(255)` column under a
- * unique index (`governance_virtual_keys.name`, Bifrost v1.6.11): a longer
- * name fails the create on a Postgres-backed store, a repeated one answers
- * 409. Its handler checks nothing but presence. */
+ * unique index (`governance_virtual_keys.name`): a longer name fails the
+ * create on a Postgres-backed store, a repeated one answers 409. Its
+ * handler checks nothing but presence. */
 const VIRTUAL_KEY_NAME_MAX_LENGTH = 255;
 
 /** `tale-<org>-<session>-<mint time>[-<request id>]`. The tail makes the
@@ -335,10 +400,9 @@ function virtualKeyName(args: MintVirtualKeyArgs): string {
 /** POST /api/governance/virtual-keys — mint a session-scoped key.
  *
  * The gateway enforces both axes on the inference path:
- *   - `key_ids: [<this org's key id>]` + `allow_all_keys:false` binds the VK
- *     to THIS org's upstream key only — a request can never be served by
- *     another org's key under the same shared provider record (cross-org
- *     isolation).
+ *   - `key_ids: [<this org's key id>]` binds the VK to THIS org's upstream
+ *     key only — a request can never be served by another org's key under
+ *     the same shared provider record (cross-org isolation).
  *   - `allowed_models` is deny-by-default (an EMPTY list denies all), so an
  *     empty resolution fails closed here — throw, never mint a deny-all key.
  *
@@ -406,7 +470,6 @@ async function postVirtualKey(
   const providerConfigs: Array<{
     provider: string;
     key_ids: string[];
-    allow_all_keys: boolean;
     allowed_models: string[];
   }> = [];
   for (const [provider, allowedModels] of byProvider) {
@@ -424,7 +487,6 @@ async function postVirtualKey(
     providerConfigs.push({
       provider,
       key_ids: [keyId],
-      allow_all_keys: false,
       allowed_models: [...allowedModels],
     });
   }
@@ -449,11 +511,9 @@ async function postVirtualKey(
     ],
     is_active: true,
   };
-  const res = await fetch(`${llmGatewayUrl()}/api/governance/virtual-keys`, {
+  const res = await managementFetch('/api/governance/virtual-keys', {
     method: 'POST',
-    headers: managementHeaders(),
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(15_000),
+    json: body,
   });
   if (!res.ok) {
     // The gateway names what it refused (a field it did not accept, a
@@ -500,17 +560,69 @@ async function postVirtualKey(
 /** DELETE /api/governance/virtual-keys/:id — instant revoke (session destroy
  * / teardown). A 404 means it is already gone. */
 export async function revokeVirtualKey(keyId: string): Promise<void> {
-  const res = await fetch(
-    `${llmGatewayUrl()}/api/governance/virtual-keys/${encodeURIComponent(keyId)}`,
-    {
-      method: 'DELETE',
-      headers: managementHeaders(),
-      signal: AbortSignal.timeout(15_000),
-    },
+  const res = await managementFetch(
+    `/api/governance/virtual-keys/${encodeURIComponent(keyId)}`,
+    { method: 'DELETE' },
   );
   if (!res.ok && res.status !== 404) {
-    throw new Error(`llm-gateway revoke key failed (${res.status})`);
+    throw new Error(
+      `llm-gateway revoke key failed (${res.status}): ${sanitizeError(await res.text())}`,
+    );
   }
+}
+
+/** The lowest cap a key is moved to: a turn whose allowance is spent keeps
+ * a key that refuses its next call, not one the gateway's validator refuses. */
+const MIN_KEY_BUDGET_CENTS = 0.01;
+
+/**
+ * Move a key's spend cap, in cents, through `PUT
+ * /api/governance/virtual-keys/:id`. The key keeps its budget row and the
+ * usage already counted against it: on the pinned gateway `current_usage`
+ * survives the update, and a cap moved below it refuses the next call (402).
+ * A turn's generated images are paid outside its key but from the same
+ * allowance, so the cap gives up their cost as they are admitted and booked.
+ * A key the gateway no longer holds answers `gone`; any other failure throws.
+ */
+export async function setVirtualKeyBudget(
+  keyId: string,
+  budgetCents: number,
+): Promise<'ok' | 'gone'> {
+  const path = `/api/governance/virtual-keys/${encodeURIComponent(keyId)}`;
+  // The budget row's id, so the update names the row whose usage it keeps.
+  const current = await managementFetch(path);
+  if (current.status === 404) return 'gone';
+  if (!current.ok) {
+    throw new Error(
+      `llm-gateway read key failed (${current.status}): ${sanitizeError(await current.text())}`,
+    );
+  }
+  // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+  const parsed = (await current.json()) as {
+    virtual_key?: { budgets?: unknown };
+  };
+  const budgets = parsed.virtual_key?.budgets;
+  const first: unknown = Array.isArray(budgets) ? budgets[0] : undefined;
+  const budgetId = isRecord(first) ? getString(first, 'id') : undefined;
+  const res = await managementFetch(path, {
+    method: 'PUT',
+    json: {
+      budgets: [
+        {
+          ...(budgetId !== undefined ? { id: budgetId } : {}),
+          max_limit: Math.max(budgetCents, MIN_KEY_BUDGET_CENTS) / 100,
+          reset_duration: '1M',
+        },
+      ],
+    },
+  });
+  if (res.status === 404) return 'gone';
+  if (!res.ok) {
+    throw new Error(
+      `llm-gateway update key budget failed (${res.status}): ${sanitizeError(await res.text())}`,
+    );
+  }
+  return 'ok';
 }
 
 /**
@@ -537,13 +649,9 @@ export async function revokeVirtualKey(keyId: string): Promise<void> {
 export async function readVirtualKeySpend(
   keyId: string,
 ): Promise<GatewaySpendReading> {
-  const url = `${llmGatewayUrl()}/api/governance/virtual-keys/${encodeURIComponent(keyId)}`;
+  const path = `/api/governance/virtual-keys/${encodeURIComponent(keyId)}`;
   const read = (fromMemory: boolean) =>
-    fetch(fromMemory ? `${url}?from_memory=true` : url, {
-      method: 'GET',
-      headers: managementHeaders(),
-      signal: AbortSignal.timeout(15_000),
-    });
+    managementFetch(fromMemory ? `${path}?from_memory=true` : path);
   let res = await read(true);
   if (res.status === 404) res = await read(false);
   if (res.status === 404) return { status: 'gone' };
@@ -715,13 +823,8 @@ async function listPricingOverrides(
   // Advance by what the gateway actually returned, not the requested page
   // size — a server-side cap below it would otherwise skip a stride.
   for (let offset = 0; ; offset = overrides.length) {
-    const res = await fetch(
-      `${llmGatewayUrl()}/api/governance/pricing-overrides?provider_id=${encodeURIComponent(gatewayProvider)}&limit=${PRICING_OVERRIDE_PAGE}&offset=${offset}`,
-      {
-        method: 'GET',
-        headers: managementHeaders(),
-        signal: AbortSignal.timeout(15_000),
-      },
+    const res = await managementFetch(
+      `/api/governance/pricing-overrides?provider_id=${encodeURIComponent(gatewayProvider)}&limit=${PRICING_OVERRIDE_PAGE}&offset=${offset}`,
     );
     if (!res.ok) {
       throw new Error(
@@ -791,15 +894,13 @@ export async function ensureModelPricingOverride(
     request_types: requestTypes,
     patch,
   };
-  const res = await fetch(
+  const res = await managementFetch(
     existing
-      ? `${llmGatewayUrl()}/api/governance/pricing-overrides/${encodeURIComponent(existing.id)}`
-      : `${llmGatewayUrl()}/api/governance/pricing-overrides`,
+      ? `/api/governance/pricing-overrides/${encodeURIComponent(existing.id)}`
+      : '/api/governance/pricing-overrides',
     {
       method: existing ? 'PUT' : 'POST',
-      headers: managementHeaders(),
-      body: JSON.stringify(existing ? desired : { name, ...desired }),
-      signal: AbortSignal.timeout(15_000),
+      json: existing ? desired : { name, ...desired },
     },
   );
   if (!res.ok) {
@@ -983,13 +1084,8 @@ interface GatewayKey {
 /** GET /api/providers/:provider/keys — the provider's key sub-resources
  * (values are masked). Empty when the provider has no keys / is absent. */
 async function listProviderKeys(provider: string): Promise<GatewayKey[]> {
-  const res = await fetch(
-    `${llmGatewayUrl()}/api/providers/${encodeURIComponent(provider)}/keys`,
-    {
-      method: 'GET',
-      headers: managementHeaders(),
-      signal: AbortSignal.timeout(15_000),
-    },
+  const res = await managementFetch(
+    `/api/providers/${encodeURIComponent(provider)}/keys`,
   );
   if (!res.ok) {
     // Treat as "no keys" but log: a transient gateway failure here would
@@ -1022,13 +1118,9 @@ async function resolveOrgProviderKeyId(
  * (openai↔anthropic) — the gateway forbids mutating it in place. Tolerates
  * 404 (already gone). */
 async function deleteGatewayProvider(name: string): Promise<void> {
-  const res = await fetch(
-    `${llmGatewayUrl()}/api/providers/${encodeURIComponent(name)}`,
-    {
-      method: 'DELETE',
-      headers: managementHeaders(),
-      signal: AbortSignal.timeout(15_000),
-    },
+  const res = await managementFetch(
+    `/api/providers/${encodeURIComponent(name)}`,
+    { method: 'DELETE' },
   );
   if (!res.ok && res.status !== 404) {
     throw new Error(
@@ -1038,7 +1130,7 @@ async function deleteGatewayProvider(name: string): Promise<void> {
 }
 
 /** PUT /api/providers/:name — provider RECORD config only (network +
- * concurrency; keys are a sub-resource, a keys[] in this body is ignored;
+ * concurrency; keys are a sub-resource, a keys[] in this body is refused;
  * concurrency must be > 0 or the config validator 400s). Idempotent.
  *
  * A STANDARD gateway provider carries its own base URL — overriding it
@@ -1113,11 +1205,9 @@ async function ensureProviderConfig(
       : {}),
   };
   const putConfig = () =>
-    fetch(`${llmGatewayUrl()}/api/providers/${encodeURIComponent(p.name)}`, {
+    managementFetch(`/api/providers/${encodeURIComponent(p.name)}`, {
       method: 'PUT',
-      headers: managementHeaders(),
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(15_000),
+      json: body,
     });
 
   const res = await putConfig();
@@ -1165,14 +1255,12 @@ async function writeProviderKey(
     models: p.models,
     weight: 1,
   };
-  const url = existing
-    ? `${llmGatewayUrl()}/api/providers/${encodeURIComponent(p.name)}/keys/${encodeURIComponent(existing.id)}`
-    : `${llmGatewayUrl()}/api/providers/${encodeURIComponent(p.name)}/keys`;
-  const res = await fetch(url, {
+  const path = existing
+    ? `/api/providers/${encodeURIComponent(p.name)}/keys/${encodeURIComponent(existing.id)}`
+    : `/api/providers/${encodeURIComponent(p.name)}/keys`;
+  const res = await managementFetch(path, {
     method: existing ? 'PUT' : 'POST',
-    headers: managementHeaders(),
-    body: JSON.stringify(keyBody),
-    signal: AbortSignal.timeout(15_000),
+    json: keyBody,
   });
   if (!res.ok) {
     throw new Error(
@@ -1318,10 +1406,8 @@ let gatewayConfigAppliedAt: number | undefined;
  * Harden the gateway's auth posture (idempotent; safe to call every
  * provision):
  *   - `client_config.enforce_auth_on_inference` → inference REQUIRES a
- *     minted virtual key (closes open inference).
- *   - `enforce_governance_header` → allowed_models / key binding is actually
- *     enforced on that VK (without it the gateway stores allowed_models but
- *     does not enforce it on the inference path).
+ *     minted virtual key (closes open inference); the key itself then holds
+ *     its call to its allowed_models and bound upstream key.
  *   - `auth_config` (admin Basic auth over /api/*) from the REQUIRED
  *     SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD → the management plane is never
  *     anonymous (it shares the gateway's single port on the sandbox network).
@@ -1354,13 +1440,11 @@ export async function applyGatewayConfig(
   ) {
     return;
   }
-  const getRes = await fetch(`${llmGatewayUrl()}/api/config`, {
-    method: 'GET',
-    headers: managementHeaders(),
-    signal: AbortSignal.timeout(15_000),
-  });
+  const getRes = await managementFetch('/api/config');
   if (!getRes.ok) {
-    throw new Error(`llm-gateway get config failed (${getRes.status})`);
+    throw new Error(
+      `llm-gateway get config failed (${getRes.status}): ${sanitizeError(await getRes.text())}`,
+    );
   }
   // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
   const cfg = (await getRes.json()) as {
@@ -1381,7 +1465,12 @@ export async function applyGatewayConfig(
     ...current,
     log_retention_days: logRetention,
     enforce_auth_on_inference: true,
-    enforce_governance_header: true,
+    // The gateway's request log would otherwise keep every prompt and
+    // answer — agent turns and model-endpoint calls alike — for its
+    // retention window, outside the organization's retention policy and
+    // erasure. Tale never reads that log: spend is read from each virtual
+    // key's usage, which the governance plugin keeps without content.
+    disable_content_logging: true,
   };
   // The gateway (Bifrost >= v1.6.9) enforces an admin-password strength policy
   // (>=12 chars, an upper, a lower, a digit and a non-alphanumeric special
@@ -1397,26 +1486,35 @@ export async function applyGatewayConfig(
   // compliant by construction (the ensure-env / dev-secret generators). The
   // gateway hashes the stored password itself (bcrypt); managementHeaders()
   // sends the plaintext as Basic.
+  //
+  // That bootstrap also carries the gateway's setup token (Bifrost >= v2.2
+  // refuses to create its first admin account without it, 403). The gateway
+  // image always sets the token to this same password (a BIFROST_SETUP_TOKEN
+  // given to the container is replaced), so the one secret proves the
+  // platform may claim a fresh gateway; once the account exists the gateway
+  // ignores the field, and the preserve-stored apply leaves it out.
   const authAlreadyEnabled = cfg.auth_config?.is_enabled === true;
+  const password = requireGatewayAdminPassword();
   const body: Record<string, unknown> = {
     client_config: clientConfig,
     auth_config: {
       is_enabled: true,
       admin_username: adminUsername(),
-      admin_password: authAlreadyEnabled ? '' : requireGatewayAdminPassword(),
-      // Inference is gated by enforce_auth_on_inference (VK), not admin
-      // login.
-      disable_auth_on_inference: true,
+      ...(authAlreadyEnabled
+        ? { admin_password: '' }
+        : { admin_password: password, setup_token: password }),
     },
   };
-  const putRes = await fetch(`${llmGatewayUrl()}/api/config`, {
+  const putRes = await managementFetch('/api/config', {
     method: 'PUT',
-    headers: managementHeaders(),
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(15_000),
+    json: body,
   });
   if (!putRes.ok) {
-    throw new Error(`llm-gateway apply config failed (${putRes.status})`);
+    // The gateway says why it refused (e.g. its admin-password policy on the
+    // first bootstrap); without its words an operator sees a bare 400.
+    throw new Error(
+      `llm-gateway apply config failed (${putRes.status}): ${sanitizeError(await putRes.text())}`,
+    );
   }
   gatewayConfigAppliedAt = Date.now();
 }

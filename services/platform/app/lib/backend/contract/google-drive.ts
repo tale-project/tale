@@ -32,12 +32,18 @@ export interface GoogleDriveContract {
         fileName: string;
         status: 'success' | 'error' | 'skipped';
         documentId?: string;
+        /** What failed, for the log — often the provider's own answer. */
         error?: string;
+        /** Why the file was refused, in words a person can read; only a
+         *  refusal Tale wrote for people carries one. */
+        reason?: { code: string; message: string };
       }>;
       totalFiles: number;
       successCount: number;
       failedCount: number;
       skippedCount: number;
+      /** The grant check's sentence when access ended (the import stopped
+       *  there); the backend's English, never shown. */
       error?: string;
     };
   };

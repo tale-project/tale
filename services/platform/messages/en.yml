@@ -1,10 +1,13 @@
 accessDenied:
   title: Access denied
   connectors: You need Admin or Developer permissions to access connectors settings.
-  apiKeys: You need Admin or Developer permissions to manage API keys.
+  apiKeys: Using API keys takes the Owner, Admin or Developer role, or a competence an Admin grants for one.
+  apiTab: This page is for Owners, Admins and Developers.
+  apiModels: Setting up the model endpoints takes the Owner, Admin or Developer role, or the Call models over the API competence.
   organization: You need Admin permissions to access organization settings.
   branding: You need Admin permissions to access branding settings.
   knowledge: You don't have permission to access knowledge.
+  automations: Automations are for Owners, Admins and Developers.
   workspaceNotFound: That workspace doesn't exist or was removed.
   disabled: Your account is disabled. Contact support for help.
   noMembership: You're not a member of this workspace. Contact an administrator for access.
@@ -342,6 +345,9 @@ auth:
     stayHere: Stay here
     signIn: Sign in
     checkFailed: Your session could not be checked. Stay here and try again when your connection is restored.
+  accountUnavailable:
+    description: Your account could not be loaded.
+    signInAgain: Sign in again
   oauth:
     title: 'Continue with Tale'
     request: '{application} wants to sign you in with Tale.'
@@ -568,9 +574,6 @@ automations:
     empty:
       title: No automations yet
       description: Choose Create automation to start from a trigger and an agent, or to upload a package.
-    emptyReader:
-      title: No live automations
-      description: An automation appears here once an Owner, Admin, or Developer deploys it.
   createMenu:
     blank: Blank (trigger + agent)
   blank:
@@ -899,6 +902,7 @@ automations:
       approval: Waiting for approval
       ask: Waiting for your answer
       agent: Agent working
+      room: Waiting for a sandbox slot
       repeat: 'Polling — step {node}'
     startedAt: 'Started {date}'
     finishedAt: 'Finished {date}'
@@ -1038,6 +1042,40 @@ chat:
   markAsRead: Mark as read
   markAsUnread: Mark as unread
   readOnlyShared: Shared with the project — read-only
+  createTask:
+    button: Create task from chat
+    projectTitle: Create a task from this chat
+    projectDescription: Choose the project the task belongs to. In a project with an agent, the agent can start on it right away and deliver the files.
+    projectLabel: Project
+    projectPlaceholder: Choose a project
+    projectEmpty: No project matches
+    noProjects: There's no project to create the task in yet. Ask an Editor or Admin to create one.
+    continue: Continue
+    fromChat: 'From the chat: {title}'
+    fromChatUntitled: From the chat
+    created: Task created in {project}
+    openTask: Open task
+    openTaskAltText: Open the task you just created on its project's board
+    readFailed: Tale couldn't read this conversation, so the task can't carry your request and files yet. Try again, or create the task on the project's board.
+    headerButton: Create task
+    withAgents: With an agent
+    withoutAgents: No agent yet
+    agentCount: '{count, plural, one {# agent} other {# agents}}'
+    noAgentEditor: You can add one in the task
+    noAgentReader: An Editor or Admin can add one
+    standardAgent: Standard agent
+  taskTray:
+    label: Tasks from this chat
+    working: The agent is working
+    waitingForSlot: Waiting for a sandbox slot
+    retrying: Trying again…
+    failed: The agent couldn't finish
+    ready: Ready for review
+    readyWithFiles: '{count, plural, one {Ready for review · # file} other {Ready for review · # files}}'
+    notStarted: Waiting to be started
+    open: Open
+    openAria: 'Open task {title}'
+    more: '{count, plural, one {and # more task} other {and # more tasks}}'
   export:
     button: Export
     title: Export chat
@@ -1154,7 +1192,9 @@ chat:
     voiceOutputThreadSaveFailed: Couldn't save voice setting for this conversation
   notFound: This chat is not available.
   placeholder: Ask a question…
-  generationIncomplete: The response couldn't be completed. Try again.
+  generationIncomplete: The model returned no answer. Try again, or choose another model.
+  generationIncompleteFiltered: The model provider's content filter withheld this response. Try rephrasing your message.
+  generationIncompleteLength: The model used up its output token limit before it wrote an answer. Try a lower reasoning effort, a shorter request, or another model.
   generationIncompleteWithTools: The response couldn't be completed after running {tools}. Try again.
   stepLimitReached: Stopped here — this turn reached its step limit. Send a message to continue.
   send: Send message
@@ -1259,6 +1299,7 @@ chat:
       notFound: Video link not found — it may have been removed
       notUploader: Only the person who added this video can change it
       notRetryable: Can't retry right now — the video may already be processing again
+      threadNotFound: This chat is no longer available
     actions:
       removeLink: Remove
       retry: Try again
@@ -1269,6 +1310,8 @@ chat:
     toast:
       ingestFailedTitle: Couldn't add this video
       retryFailedTitle: Couldn't retry this video
+      removeFailedTitle: Couldn't remove this video
+      removeFailedDescription: It's still attached to your message — try removing it again
   fallback:
     image: Image
   loadingConversation: Loading conversation…
@@ -1754,6 +1797,7 @@ conversations:
   updating: Updating conversations...
   bulk:
     progress: 'Updating conversations... {settled} of {total}'
+    outcomeWithReason: '{outcome} — {reason}'
     sendMessages: Send messages
     close: Close
     reopen: Reopen
@@ -1858,6 +1902,13 @@ conversations:
     undoSendFailed: Couldn't undo the send — the message may already be on its way.
     retrySendFailed: Couldn't retry the send.
     discardMessageFailed: Couldn't delete the message.
+  suggestedReply:
+    title: Suggested reply
+    description: Drafted by an automation and waiting for you — nothing has been sent.
+    use: Put in editor
+    discard: Discard
+    used: The suggestion is in the editor. Edit it as you like; sending it completes the suggestion.
+    discardFailed: Couldn't discard the suggestion.
   message:
     sendingIn: Sending in {seconds}s
     undoSend: Undo
@@ -2012,6 +2063,8 @@ documents:
   entityLabelOne: document
   tableCaption: Documents and folders
   searchPlaceholder: Search documents
+  refreshFailed: "Couldn't load the latest documents. What's listed may be incomplete or out of date."
+  loadFailed: "Couldn't load the documents here. Only the folders are listed until the documents load."
   record:
     badge: 'v{version} · {state}'
     state:
@@ -2278,6 +2331,7 @@ documents:
     fileTooLargeLimit: File exceeds the {limit} limit.
     uploadTimedOut: Upload timed out. Check your connection and try again.
     storedButNotIndexed: Stored and downloadable, but not indexed for search (legacy format).
+    storedButNotIndexedNoExtension: 'Stored and downloadable, but not indexed for search: the file name is only an extension.'
     filesCompletedSummary: '{completed} of {total} files completed'
     filesCompletedWithFailures: '{completed} of {total} files completed · {failed} failed'
     selectTeams: Assign to teams
@@ -2328,6 +2382,17 @@ documents:
       Importing from this provider needs an OAuth app first. Configure one
       under Settings > Connectors > OAuth apps, then come back to connect.
     openConnectorSettings: Open connector settings
+    importedPartial: 'Imported {imported} of {total} files'
+    syncedPartial: 'Synced {imported} of {total} files'
+    failedFileDetail: '{name}: {reason}'
+    importInterrupted: >-
+      Access to your {provider} account ended during the import. {imported,
+      plural, =0 {No files were imported.} one {# of {total} files was
+      imported and is kept.} other {# of {total} files were imported and are
+      kept.}}
+    reconnectToImportRest: >-
+      Reconnect your account, then import the same files or folders again to
+      bring in the rest. The files already imported aren't imported twice.
   onedrive:
     importSettings: Import settings
     settingsDescription:
@@ -2346,6 +2411,7 @@ documents:
     redirecting: Redirecting...
     folderEmpty: This folder is empty.
     loadFailed: Couldn't load items
+    noFilesSelected: No importable files in the selection
     listingTruncated: >-
       Showing the first {count} items — this folder holds more. Open a
       subfolder or search to reach the rest.
@@ -2587,6 +2653,7 @@ emptyStates:
   apiKeys:
     title: No API keys yet
     description: Generate a key to connect external tools and scripts.
+    descriptionNoCreate: Creating a key takes the Owner, Admin or Developer role, or a competence an Admin grants for one.
 governance:
   title: Governance
   toastSavedTitle: Changes saved
@@ -2658,6 +2725,26 @@ governance:
     invalidCostLimit: Cost limit must be greater than zero.
     invalidMaxRequests: Request limit must be greater than zero.
     invalidWarningThreshold: Warning threshold must be between 0 and 100.
+    scopeLabels:
+      default: Default
+      user: User
+      team: Team
+      role: Role
+      apiKey: API key
+      org: Organization
+    periodLabels:
+      daily: Daily
+      weekly: Weekly
+      monthly: Monthly
+    apiKeyOwnerUnknown: Owner unknown
+    apiKeyInactive: This key can no longer spend in this organization, so the rule limits nothing. Choose an active key or remove the rule.
+    apiKeyStatus:
+      expired: Expired
+      disabled: Disabled
+      revoked: Revoked
+      unavailable: Unavailable
+      holder_left: Former member
+      unknown: Unknown key
   defaultModels:
     title: Default models
     description: Set default models for specific user groups or roles.
@@ -2985,22 +3072,22 @@ governance:
         retention period. Includes per-execution variable/output storage
         blobs.
       placeholder: e.g. 30
-      helper: Automation runs older than this will be deleted (1–365 days).
+      helper: Automation runs older than this will be deleted.
     auditLogs:
       title: Audit logs
       description: Automatically delete audit log entries older than the retention period. Audit logs are immutable records — keep retention long enough to satisfy your compliance requirements.
       placeholder: e.g. 90
-      helper: Audit log entries older than this will be deleted (30–365 days).
+      helper: Audit log entries older than this will be deleted.
     usageLedger:
       title: Usage ledger
       description: Automatically delete token-usage records older than the retention period. Shortening this truncates historical analytics — budgets and reports depend on these records.
       placeholder: e.g. 365
-      helper: Usage ledger rows older than this will be deleted (30–3650 days).
+      helper: Usage ledger rows older than this will be deleted.
     loginAttempts:
       title: Login attempts
       description: Automatically delete failed-login tracking records older than the retention period. These are deployment-wide — the shortest retention across all orgs applies.
       placeholder: e.g. 90
-      helper: Login attempt records older than this will be deleted (7–365 days).
+      helper: Login attempt records older than this will be deleted.
   passwordPolicy:
     title: Password policy
     description:
@@ -4021,6 +4108,7 @@ governance:
       notifications: Security notifications
       wfExecutions: Automation runs
       promptTemplates: Personal prompts
+      sandboxWorkspaces: Sandbox workspaces
     legalHoldBlock:
       title: Erasure blocked by legal hold
       orgHeld:
@@ -4205,6 +4293,40 @@ governance:
     removedMailbox: Removed mailbox
     duplicateRule: A rule for this mailbox and address already exists
     precedence: 'The most specific rule wins: a mailbox with its exact address, then a mailbox with the base address, then an address on any mailbox, then a mailbox alone.'
+  standardAgent:
+    title: Standard agent
+    description: The agent Tale provides in every project that has none of its own, so anyone who can open the project can hand it a task, Members included.
+    enabledLabel: Provide a standard agent
+    harnessLabel: Agent type
+    harnessHint: Automatic runs Claude Code, or the agent type a subscription model is bound to.
+    modelLabel: Model
+    modelHint: Automatic picks a recommended model the person starting the task may use. A chosen model stays in effect until you change it, even if it becomes unavailable.
+    automaticLabel: Automatic
+    automaticHarnessHint: Let Tale choose the agent type.
+    automaticModelHint: Let Tale choose a model for each person.
+    instructionsLabel: Instructions
+    instructionsHint: What the standard agent always keeps in mind. Leave this empty to use the built-in instructions.
+    instructionsPlaceholder: Built-in instructions
+    current: For you, it runs on {harness} with {model}.
+    refusal:
+      switchedOff: The standard agent is switched off.
+      unreadable: The saved settings can't be read. Retry, or save them again to repair them.
+      harnessInvalid: The chosen agent type isn't available, so the standard agent can't start. Choose another agent type or Automatic.
+      noModel: No model you can use can run the standard agent. Add a credential under AI providers, or check model access.
+      pinUnavailable: The chosen model isn't available to you, so the standard agent can't start for you. Choose another model or Automatic. Tale won't switch to another model while this choice is saved.
+    invalidPolicy: The saved standard agent settings are invalid. Save them again to repair them.
+    savedUnavailable: Saved selection is not currently available
+    searchHarnesses: Search agent types
+    noHarnessesFound: No matching agent type
+    searchModels: Search models
+    noModelsFound: No matching model
+    draftHint: Save to apply these settings.
+    saveFailed: Couldn't save the standard agent settings
+    loadFailed: Couldn't load the standard agent settings. Retry to load them.
+    remoteUpdate: These settings changed in another session. Discard your draft to load them, or save to replace them.
+    offNote: While this is off, projects without agents of their own offer no agent, and tasks already given to a standard agent can't start.
+    providersLink: AI providers
+    retry: Retry
 metrics:
   title: Metrics
   groups:
@@ -4239,12 +4361,22 @@ home:
     yesterday: Yesterday
     thisWeek: Previous 7 days
     earlier: Earlier
+    searchPlaceholderAll: Search all...
+    searchPlaceholderChats: Search chats...
+    searchPlaceholderTasks: Search tasks...
+    newChatInProject: 'New chat in {project}'
   projects:
     title: Projects
     newProject: New project
     allProjects: All projects
     actions: 'Actions for {project}'
     empty: No projects yet
+  scope:
+    open: Open project
+    emptyChatsTitle: No chats in this project
+    emptyChatsHint: Chats filed in this project show up here.
+    emptyTasksTitle: No open tasks assigned to you in this project
+    emptyTasksHint: Tasks assigned to you in this project show up here.
   inbox:
     statusLabel: '{status}, conversation status'
     compose: New email
@@ -4275,6 +4407,13 @@ home:
       title: No conversations
       hint: Customer conversations for this status show up here.
       filtered: No conversation matches the search or filters.
+  # A read that gave up (#4093): one line per kind the view lists, joined
+  # when more than one failed, above the rows that did load.
+  failed:
+    chats: Couldn't load your chats.
+    tasks: Couldn't load your tasks.
+    conversations: Couldn't load the customer conversations.
+    retrying: Trying again…
   aria:
     panel: Home
     stream: Your chats, tasks and conversations
@@ -4291,6 +4430,7 @@ knowledgeEntries:
   title: Knowledge entries
   entityLabelOne: knowledge entry
   searchPlaceholder: Search knowledge entries
+  refreshFailed: "Couldn't load the latest knowledge entries. What's listed may be incomplete or out of date."
   addButton: Add entry
   addEntry: Add knowledge entry
   addDescription: Name a topic, then write the knowledge so it makes sense on its own.
@@ -4338,6 +4478,10 @@ knowledgeEntries:
     versionCount: '{count, plural, one {# previous version} other {# previous versions}}'
     superseded: Superseded
     supersededOn: Replaced on {date}
+    historyLoading: Loading version history…
+    historyEmpty: No earlier versions yet — each edit keeps the text it replaces here.
+    historyLoadFailed: "Couldn't load the version history."
+    historyRefreshFailed: "Couldn't refresh the version history. The versions shown may be out of date."
 metadata:
   suffix: Tale
   default:
@@ -4600,7 +4744,7 @@ notificationPreferences:
       lockedHint: Always on — it's a safety signal.
     escalation:
       label: Agent escalations
-      description: When an agent asks you a question or escalates a task to a human.
+      description: When an agent asks you a question, escalates a task to a human, or can't finish a task.
     automationAlerts:
       label: Automation alerts
       description: When an automation's schedule pauses itself because its runs keep failing.
@@ -4990,7 +5134,14 @@ skills:
     binaryNotice: This file type is not previewable in the browser.
     largeFile: Large file — syntax highlighting disabled for performance.
     notFound: This file is no longer in the bundle. Pick another file from the tree.
+    loadFailed: Couldn't load this file.
+    refreshFailed: Couldn't refresh this file. You're seeing the version loaded
+      earlier.
+    empty: This file is empty.
   detail:
+    loadFailed: Couldn't load this skill.
+    refreshFailed: Couldn't refresh this skill. You're seeing the version loaded
+      earlier.
     tree:
       heading: Bundle
       empty: Only SKILL.md — bundle assets live under scripts/, references/, or
@@ -5126,9 +5277,27 @@ skills:
     labels: Labels
     labelsPlaceholder: research, pdf, finance
     labelsHelp: Comma-separated, up to 8 — for browsing, not for the model.
+    labelsTooMany:
+      'A skill takes up to {max} labels. Remove {excess, plural, one {# label}
+      other {# labels}} to save.'
+    labelTooLong:
+      'The label "{label}" is longer than {max} characters. Shorten it to save.'
     bodyHelp: Markdown the model reads when it loads the skill — playbooks,
       conventions, reference material. Never executed.
 projects:
+  taskReview:
+    title: "Task reviews"
+    description: "Choose who reviews completed agent work in this project."
+    defaultReviewer: "Default reviewer"
+    humanDefault: "Person"
+    humanDefaultHint: "The task creator, then the project creator, if they can edit the project."
+    agentHint: "Reviews completed work independently."
+    existingReviews: "Applies when a new review starts. Reviews already waiting keep their recorded reviewer."
+    permissionRequired: "This agent needs the task review permission before it can decide."
+    unavailable: "The selected reviewer agent is unavailable. Choose another reviewer."
+    stale: "The project reviewer changed while you were editing. Discard this draft and choose again."
+    search: "Search reviewer agents"
+
   title: Projects
   entityLabel: projects
   entityLabelOne: project
@@ -5147,6 +5316,7 @@ projects:
     createButton: Create project
     emptyTitle: No projects yet
     emptyDescription: Create one to share files, instructions, and chats
+    emptyReaderDescription: A project appears here once someone shares it with you or one of your teams.
     searchPlaceholder: Search projects
     showArchived: Show archived
     columnName: Name
@@ -5302,6 +5472,11 @@ projects:
     newSubfolderAction: New folder inside
     uploadingIndicator: Uploading…
     historyAction: Version history
+    loadFailed: "Couldn't load this project's files."
+    foldersLoadFailed: "Couldn't load this project's folders. Files inside folders are listed separately until the folders load."
+    treeLoadFailed: "Couldn't load this project's files and folders."
+    refreshFailed: "Couldn't refresh this project's files. What's shown may be out of date."
+    unplacedGroup: Files inside folders
   threads:
     yourChats: Your chats
     subtitle: Chats you've started in this project.
@@ -5319,6 +5494,9 @@ projects:
     newAgent: New agent
     emptyTitle: Add an agent to this project
     emptyBody: Agents run tasks on your behalf — give one a model, skills, and instructions to get started.
+    sectionDescriptionReader: The agents that work this project's tasks, each with their own model, skills, and instructions. Editors and Admins add and change them.
+    emptyReaderTitle: No agents in this project yet
+    emptyReaderBody: Agents work tasks on your behalf. Ask an Editor or Admin to add one to this project.
     equippedCount: '{count} equipped'
     rowEdit: Edit agent
     rowDelete: Delete agent
@@ -5358,6 +5536,9 @@ projects:
       task_create: Create tasks
       task_comment: Comment on tasks
       task_update_status: Move tasks between columns
+      task_update_metadata: Change task priority and agent assignment
+      task_review: "Review other agents’ task results"
+      task_start_agent: Start other agents on tasks
       task_upsert_by_external_ref: Sync an external item to a task
       document_find: Find documents
       knowledge_entry_find: Find knowledge entries
@@ -5403,6 +5584,13 @@ projects:
     mutationError: Couldn't save the agent
     deleteTitle: Delete agent
     deleteBody: 'Delete "{name}"? Tasks that referenced it keep their history.'
+    standard:
+      name: Standard agent
+      badge: Standard
+      managedNote: Set up by Tale for this project. Its agent type, model and instructions follow the organization's settings under Governance.
+      emptyTitle: The standard agent takes this project's tasks
+      emptyBody: Until this project has agents of its own, its tasks can go to the organization's standard agent. Add one with New agent to give this project its own agent type, model and instructions.
+      emptyReaderBody: Until this project has agents of its own, you can hand its tasks to the organization's standard agent. An Editor or Admin can add agents of its own.
   settings:
     name: Name
     nameHint: Shown in the projects list and the Home panel.
@@ -5907,6 +6095,16 @@ settings:
       needsReauthHint: Authorization expired or revoked. Reconnect to restore access.
       needsReauthDetail: '{detail} Reconnect to grant consent again.'
       reconnect: Reconnect
+      deleteDefaultHandsOn: >-
+        This is the default credential. Deleting it makes "{name}" the default
+        for calls that name no credential.
+      deleteDefaultLeavesNone: >-
+        This is the default credential, and no other active credential can
+        take over: calls that name no credential fail until you make one the
+        default.
+      deleteDefaultHandsOnOldest: >-
+        This is the default credential. Deleting it makes the oldest active
+        credential of this connector the default, if there is one.
     replace:
       apiKeyTitle: Replace API key
       tokenTitle: Replace token
@@ -5976,6 +6174,9 @@ settings:
       endpointHelpShopify:
         Your store's myshopify.com origin — the admin address, not the
         storefront domain.
+      endpointHelpGlitchtip:
+        Your GlitchTip instance origin, such as https://app.glitchtip.com. A
+        self-hosted instance works once the deployment allows its host.
       endpointHelpGeneric: The https origin of the instance this credential belongs to.
   enterpriseSso:
     connected: Sign-in is enabled.
@@ -6760,6 +6961,7 @@ settings:
         notification.retention_deleted: Notification retention deleted
         file_metadata.retention_deleted: File retention deleted
         sandbox_ledger.retention_deleted: Sandbox ledger retention deleted
+        sandbox_workspace.deleted: Sandbox workspace deleted
         chat_filter_event.retention_deleted: Chat filter event retention deleted
         policy_acknowledged: Policy acknowledged
         login_attempt: Login attempt
@@ -6930,6 +7132,7 @@ settings:
         openai_compat_request: OpenAI-compatible request
         provider: Provider
         video_link_job: Video link job
+        sandbox_workspace: Sandbox workspace
   branding:
     logo: Logo
     logoDescription: Upload your organization logo (SVG preferred; raster images at least 64×64 pixels)
@@ -7036,7 +7239,8 @@ settings:
       banner:
         title: Knowledge search is off
         body: This organization has an AI provider but no embedding model, so
-          documents cannot be indexed or searched.
+          documents cannot be indexed and neither documents nor websites can
+          be searched.
         link: Choose an embedding model
       recommendationBody:
         Your {provider} credential can serve {model} ({dimensions}-dimensional
@@ -7247,6 +7451,11 @@ inbox:
   usageCreditsRequestedBody: '{name} reached a usage limit and asked for more credits.'
   automationTriggerPaused: Schedule paused
   automationTriggerPausedBody: '"{name}" failed {failures} runs in a row ({code}), so its schedule is paused. Fix the automation, then turn its trigger back on.'
+  agentRunFailed: Agent run failed
+  agentRunFailedBody: 'The agent couldn''t finish "{title}". Open the task to see why and start it again.'
+  agentRunFailedBudgetBody: 'A usage limit stopped the agent on "{title}". Once an Admin raises it, start the agent again.'
+  agentRunFailedSetupBody: 'The agent on "{title}" is missing something it needs. An Editor or Admin can fix it on the project''s Agents tab.'
+  agentRunFailedInputBody: 'An attachment on "{title}" is no longer in storage. Remove it from the task or upload it again, then start the agent again.'
   email:
     cta: Open in Tale
     footer: You received this email because you have notifications enabled in Tale.
@@ -7352,6 +7561,26 @@ tasks:
     resumedAfterTokenRefresh: Resumed after a token refresh
     retry: Retry
     cancel: Cancel run
+    notStartedYet: The agent waits until you start it.
+    failureTitle: The agent couldn't finish this task
+    reported: What the run reported
+    failure:
+      budget: A usage limit stopped this run. Ask an Admin to raise it, then start the agent again.
+      setup: Something this agent needs is missing — its model, one of its skills, or the agent itself. An Editor or Admin can fix it on the project's Agents tab.
+      input: An attachment on this task is no longer in storage — Details names it. Remove it from the task or upload it again, then start the agent again.
+      time_limit: The run reached its time limit before the agent finished. Start the agent again, or split the task into smaller ones.
+      capacity: The run waited too long for a free sandbox. Start the agent again when fewer agents are busy.
+      model: The AI model behind this agent failed before the work was done. Start the agent again — if it fails again, ask an Admin to check the AI provider.
+      start: The run couldn't start. Try again — if it fails again, show an Admin what the run reported under Details.
+      interrupted: The run was interrupted before the agent finished. Start the agent again.
+      unknown: The run failed. Start the agent again — if it fails again, show an Admin what the run reported under Details.
+    standardAgent:
+      switchedOff: The organization's standard agent is switched off. Ask an Admin to switch it on under Governance.
+      noModel: No model you can use can run the standard agent. Ask an Admin to set up an AI provider or to give you access to a model.
+      pinUnavailable: The model chosen for the standard agent isn't one you can use. Ask an Admin to choose another under Governance.
+      harnessInvalid: The agent type chosen for the standard agent isn't available. Ask an Admin to choose another under Governance.
+      unreadable: The standard agent's settings can't be read. Ask an Admin to check them under Governance.
+      notNeeded: This project has agents of its own. Assign one of them instead.
   automation:
     hint: 'Operated by {name} — it drives this task through its steps.'
     chipReady: Ready to start
@@ -7450,6 +7679,8 @@ tasks:
       deleteFailed: Couldn't delete the label.
   actions:
     create: Create task
+    createAndStart: Create and start agent
+    createOnly: Create only
     created: Task created
     comment: Comment
     commentPlaceholder: Write a comment — type @ to mention a person or an agent
@@ -7467,6 +7698,19 @@ tasks:
     noTasks: No tasks
   list:
     showArchived: Show archived
+  # A board read that failed once its retries gave up (#3747): what did not
+  # load and what the reader sees meanwhile — never an empty board. Each
+  # alert carries Try again (common.actions.tryAgain) for that read alone.
+  read:
+    tasksFailed: Couldn't load the tasks, so none are shown. Your search and filters stay as they are.
+    tasksStale: Couldn't refresh the tasks. They are shown as they were last loaded.
+    dependenciesFailed: Couldn't load the dependencies, so blocked tasks may not be marked as blocked.
+    activityFailed: Couldn't load agent and review activity. Running agents, open questions and pending reviews may not be marked.
+    activityFailedReviewFilter: 'Couldn''t load agent and review activity. Running agents, open questions and pending reviews may not be marked, and "Needs my review" may leave out tasks that wait on you.'
+    retrying: Trying again…
+    # The board's read stops at its cap; the search narrows the read itself,
+    # so it reaches every task. {count} is the number of tasks shown.
+    truncated: 'Showing the first {count, plural, one {# task} other {# tasks}}. Search to find the others.'
   # A keyboard drag on the Board or List: the title's instructions (they
   # name the keys the title handles), then the live announcements. {task} is
   # `KEY-12, Title` on pickup and `KEY-12` after it (the title when the
@@ -7564,10 +7808,13 @@ tasks:
     search: Search people
     liveAgentsOnly: Only this project's agents appear here — create them on
       the project's Agents tab.
-    nonCodeWarning:
-      This agent runs on a coding harness optimized for repo work. For
-      research, writing, or personal deliverables, assign a person instead.
+    noAgentsReader: This project has no agents yet — ask an Editor or Admin to add one on the project's Agents tab.
+    liveAgentsOnlyReader: Only this project's agents appear here — Editors and Admins add them on the project's Agents tab.
+    standardAgent: Standard agent
+    standardAgentHint: The organization's agent for projects without their own
+    standardAgentFooter: Until this project has agents of its own, the organization's standard agent takes its tasks.
   activity:
+    reviewResponded: "Review decided"
     created: Created
     updated: Updated
     claimed: Claimed
@@ -7590,7 +7837,16 @@ tasks:
     agentRunRefused: Run refused
     repeatChanged: Repeat changed
     repeatNext: Next task created
+    empty:
+      startDate: No start date
+      dueDate: No due date
+      description: No description
+      labels: No labels
+      attachments: No attachments
   review:
+    decisionApproved: "Approved"
+    decisionChangesRequested: "Changes requested"
+    decisionUnavailable: "Review decision unavailable"
     needsReview: Needs review
     waitingOn: 'Waiting on {name}'
     waitingOnYou: Waiting on you
@@ -7603,9 +7859,30 @@ tasks:
   reviewer:
     none: No reviewer
     assignToMe: Review it myself
-    search: Search people
-    clear: Clear reviewer
+    search: "Search people and agents"
     editorsOnly: Only members who can edit this project can be the reviewer.
+    projectDefaultLabel: "Project default"
+    projectDefault: "Project default · {reviewer}"
+    projectDefaultHuman: "Project default · person"
+    independentAgent: "Choose a different agent from the one that did the work."
+    agentReview: "Reviews the result from its own review task."
+    routingHint: "People need edit access. Agents need the task review permission and must not review their own work."
+    pendingFor: "Current review: {reviewer}"
+    transferHint: "Choosing a reviewer also transfers this pending review."
+    agentUnavailable: "This reviewer agent is unavailable. Choose another reviewer."
+    agentPermissionRequired: "This agent needs the task review permission before it can decide."
+    saveError: "Couldn't change the reviewer"
+    loadError: "Couldn't load the current review. Try again before changing it."
+    stale: "The reviewer or result changed. Check the current review and choose again."
+    handoffRequired: "Transfer the pending review explicitly before changing its owner."
+    busy: "Wait for the active run or open question to finish before transferring review."
+    sourceRequired: "This result has no supported implementation run to review."
+    sourceChanged: "This review no longer matches the implementation run or assignee. Restore the implementation assignee if it changed, or transfer the review to an eligible person."
+    humanPolicy: "Organization policy requires a person for this review. Transfer it to an eligible member."
+    policyUnavailable: "Review policy could not be read. Restore valid organization policy before deciding."
+    notIndependent: "Choose an agent that did not produce this result."
+    agentRequired: "The assigned reviewer agent must decide this review."
+    invalid: "Choose an eligible project member or an agent in this project."
   watch:
     watch: Watch
     unwatch: Unwatch
@@ -7637,7 +7914,10 @@ tasks:
       decomposition: decomposition
       manual: manual
       auto_retry: auto retry
+      automation: automation
+      delegated: delegated
     refused:
+      agent_busy: agent is working on another task
       agent_disabled: agent is not installed or is disabled
       agent_not_found: agent not found or misconfigured
       automation_disabled: task automation is off
@@ -7651,6 +7931,7 @@ tasks:
       noLiveDetail: No live transcript is available for this run.
   timeline:
     runLabel: Agent run
+    startedByAgent: started by
     systemActor: System
     unresolvedWorkflow: Automation
     deletedAgent: Deleted agent
@@ -7708,6 +7989,7 @@ tasks:
     budgetPaused: "{slug} won't respond — monthly budget exhausted"
     agentNotLive: "{slug} won't respond — agent is not installed or is disabled"
     notPermitted: "{slug} won't respond — you can't start agents on this task"
+    standardAgentUnavailable: "{slug} won't respond — it isn't available to you"
   mentionPicker:
     title: Mention a member, agent, or automation
     empty: No matches
@@ -7976,6 +8258,8 @@ websites:
     fetchPagesError: Couldn't load pages
     searchError: Search failed
     deleteError: Couldn't delete website
+    scanStarted: Scan started
+    scanAlreadyRunning: A scan is already running
   adding: Adding...
   viewDialog:
     title: Website details
@@ -7993,16 +8277,34 @@ websites:
       then resume scanning.
     scanError:
       runtime: Scanning didn't run.
-      notInCorpus: This site isn't in the crawler. Delete it and add it again.
+      notInCorpus: This URL list isn't in the crawler. Delete it and add it again.
+      notInCorpusSite: This site isn't in the crawler. The next scan adds it again.
+      embedding: The embedding model couldn't process the pages.
       generic: The last scan didn't finish.
     scanEmpty:
       runtime: Nothing was indexed. The URL isn't the problem.
       dns: Nothing was indexed. Change the URL if the host is wrong.
-      notInCorpus: Nothing was indexed. Delete the site and add it again.
+      notInCorpus: Nothing was indexed. Delete the URL list and add it again.
+      notInCorpusSite: Nothing was indexed. The next scan adds the site again.
       generic: Nothing was indexed.
+    scanDetail:
+      credential: The provider rejected the embedding model's credential. An admin can repair it under Settings → AI providers.
+      credit: The provider refused the request over the account's balance or plan. An admin can check the account at the provider.
+      unresolved: The embedding model's credential can't be used. An admin can check it under Settings → AI providers.
+      dimension: The model's vectors don't fit this knowledge database. An admin can check the embedding model under Settings → Data residency.
+      upstream: The provider failed or couldn't be reached. Choose Scan now once it's back.
+      throttled: The provider's rate limit held through every retry. The next scan continues on its own; an admin can pace requests under Settings → Data residency.
+      generic: An admin can check the embedding model under Settings → Data residency.
+    technicalDetails: Technical details
   scanPausedBadge: Paused
   resumeScanning: Resume scanning
+  scanNow: Scan now
   indexed: Indexed
+  searchNotice:
+    title: Chat can't search these websites yet
+    description: Pages are crawled and stored, but knowledge search needs a working embedding model, and this organization doesn't have one yet.
+    configureCta: Configure embedding model
+    askAdmin: Ask an organization admin to set one up under Settings → Data residency.
   pagesDialog:
     title: Website pages
     noPages: No pages crawled yet
@@ -8017,7 +8319,15 @@ websites:
     chunkIndex: Chunk {index}
     lastError: '{count, plural, one {{count} failed attempt} other {{count} failed attempts in a row}} — {message}'
     failed: Failed
+    skipped: Skipped
     failedPages: '{count, plural, one {{count} page failed} other {{count} pages failed}}'
+    filter:
+      label: Which pages to show
+      all: All
+      failed: 'Failed ({count})'
+      skipped: 'Skipped ({count})'
+    noFailedPages: No page failed
+    noSkippedPages: No page was skipped
     errorKind:
       dnsFailed: Couldn't resolve the host.
       timeout: The page didn't answer in time.
@@ -8107,8 +8417,10 @@ sandboxes:
   sessionsTitle: Workspaces
   description:
     Project agents reuse their workspaces across tasks. Workflow runs share one
-    workspace across their steps. Runtime status and organization quota allocation
-    are shown separately; a released allocation can still have a running container.
+    workspace across their steps. A project agent's workspace stays until it goes
+    unused for longer than Workspace cleanup allows, or until its agent, project
+    or member is removed. Runtime status and organization quota allocation are
+    shown separately; a released allocation can still have a running container.
   limits:
     title: Organization limits
     description:
@@ -8136,6 +8448,19 @@ sandboxes:
       project: Project agents reuse one sandbox across their tasks.
       workflow: Agent and script steps share one sandbox per workflow run.
       render: Temporary sandboxes render web pages during website crawling.
+  cleanup:
+    title: Workspace cleanup
+    description:
+      Project agents keep their files in workspaces between runs. A workspace is
+      deleted right away when its agent, project or member is removed. Workspaces
+      under a legal hold are kept.
+    deleteUnused: Delete unused workspaces
+    deleteUnusedHint: Deletes a workspace after the number of days without use set below. Pinned workspaces are kept.
+    unusedDays: Days without use
+    unusedDaysHint: Counted from the last time the agent worked in the workspace. After you turn deletion on or shorten the period, no workspace is deleted until the full number of days has passed.
+    invalidDays: Must be a whole number between 1 and 3650.
+    loadFailed: Couldn't load the workspace cleanup settings. Reload the page to try again.
+    saveFailed: Couldn't save the workspace cleanup settings
   capacity:
     title: Infrastructure capacity
     description:
@@ -8183,6 +8508,9 @@ sandboxes:
     quotaReleased: Quota released
     pausedBudget: Paused (budget)
     pinned: Pinned
+    deletesOn: Deleted on {date} unless used again
+    destroying: Destroying
+    destroyFailed: Destroy failed
   task:
     none: No active task
     project: '{count, plural, one {Project task} other {# project tasks}}'
@@ -8195,20 +8523,23 @@ sandboxes:
     destroy: Destroy
   destroyConfirm:
     title: Destroy sandbox?
-    description: This deletes the sandbox and its workspace. Any running task is cancelled. A fresh sandbox is created the next time the agent runs.
+    description: This deletes the sandbox and its workspace. Any running task is cancelled. Once it is gone, the agent's next run creates a fresh sandbox.
     confirm: Destroy
   toast:
     stopped: Task stopped
     pinned: Sandbox pinned
     unpinned: Sandbox unpinned
-    destroyed: Sandbox destroyed
+    destroying: Destroying sandbox
+    destroyingDescription: It leaves the list once its workspace is deleted.
     error: Action failed
   empty:
     title: No workspaces yet
     description:
-      A project agent's workspace appears after its first task and stays listed
-      while the agent is idle. A workflow run's workspace is reclaimed once the
-      run ends. Temporary crawler sessions are included in capacity counts above.
+      A project agent's workspace appears after its first task and stays until it
+      goes unused for longer than Workspace cleanup allows, or until its agent,
+      project or member is removed. A workflow run's workspace is reclaimed once
+      the run ends. Temporary crawler sessions are included in capacity counts
+      above.
   accessDenied: You need developer or admin access to manage sandboxes.
   deletedAgent: Deleted agent
   devices:

@@ -2,8 +2,8 @@
 # Tale CLI installer for Linux and macOS.
 #
 # Usage:           curl -fsSL https://raw.githubusercontent.com/tale-project/tale/main/scripts/install-cli.sh | bash
-# Pin a version:   VERSION=0.9.0 curl -fsSL ... | bash
-# Install dir:     INSTALL_DIR=~/.local/bin curl -fsSL ... | bash
+# Pin a version:   curl -fsSL ... | VERSION=0.9.0 bash
+# Install dir:     curl -fsSL ... | INSTALL_DIR="$HOME/.local/bin" bash
 #
 # GITHUB_TOKEN, when set, authenticates the GitHub API lookup of the latest
 # release — useful in CI, where the anonymous rate limit is easily exhausted.
@@ -76,28 +76,40 @@ download_file() {
     success "Download complete"
 }
 
-# Verify the downloaded binary against the release's SHA256SUMS file. Releases
-# that predate checksum publishing won't have one — warn and continue rather
-# than hard-fail, so the installer keeps working against older tags.
+# Verify the downloaded binary against the release's SHA256SUMS file. Only a
+# missing file (404) is a legacy release; network failures and invalid checksum
+# files must not silently turn a verified installation into an unverified one.
 verify_checksum() {
     local file=$1 tag=$2 asset="$ASSET_NAME"
     local sums_url="https://github.com/${REPO}/releases/download/${tag}/tale_checksums.txt"
-    local sums expected actual
+    local sums expected actual response http_code download_ok=true
 
     if [ "$DOWNLOADER" = "curl" ]; then
-        sums=$(curl -fsSL "$sums_url" 2>/dev/null || true)
+        if ! response=$(curl -sSL -w '\n%{http_code}' "$sums_url" 2>/dev/null); then
+            error "Could not fetch the checksum file for ${tag} (network error). Aborting rather than installing an unverified binary."
+        fi
+        http_code=$(printf '%s\n' "$response" | tail -n 1)
+        sums=$(printf '%s\n' "$response" | sed '$d')
     else
-        sums=$(wget -qO- "$sums_url" 2>/dev/null || true)
+        local headers="${file}.headers"
+        sums=$(wget -O- --server-response "$sums_url" 2>"$headers") || download_ok=false
+        http_code=$(awk '/^[[:space:]]*HTTP\// {code=$2} END {print (code==""?"000":code)}' "$headers")
+        rm -f "$headers"
     fi
-    if [ -z "$sums" ]; then
+    if [ "$http_code" = "404" ]; then
         info "No checksum file published for ${tag}; skipping verification."
         return
     fi
+    if [ "$http_code" != "200" ] || [ "$download_ok" = false ]; then
+        error "Could not fetch the checksum file for ${tag} (HTTP ${http_code}). Aborting rather than installing an unverified binary."
+    fi
 
-    expected=$(printf '%s\n' "$sums" | awk -v n="$asset" '$2==n {print $1}')
+    expected=$(printf '%s\n' "$sums" | awk -v n="$asset" '$2==n {print tolower($1)}')
     if [ -z "$expected" ]; then
-        info "No checksum entry for ${asset}; skipping verification."
-        return
+        error "No checksum entry for ${asset}. Aborting rather than installing an unverified binary."
+    fi
+    if [[ ! "$expected" =~ ^[[:xdigit:]]{64}$ ]]; then
+        error "Invalid checksum entry for ${asset}. Aborting."
     fi
 
     if command -v sha256sum &>/dev/null; then
@@ -105,8 +117,7 @@ verify_checksum() {
     elif command -v shasum &>/dev/null; then
         actual=$(shasum -a 256 "$file" | awk '{print $1}')
     else
-        info "No sha256 tool found; skipping verification."
-        return
+        error "sha256sum or shasum is required to verify the download. Install one and run this installer again."
     fi
 
     if [ "$actual" != "$expected" ]; then
@@ -275,6 +286,9 @@ install_binary() {
         fi
     fi
 
+    # Keep verification and the printed PATH command usable for relative overrides.
+    INSTALL_DIR=$(cd "$INSTALL_DIR" && pwd)
+
     if [ -w "$INSTALL_DIR" ]; then
         mv "$tmp_file" "${INSTALL_DIR}/${BINARY_NAME}"
     else
@@ -288,12 +302,12 @@ install_binary() {
 # must fail the install here — reporting success for a dead binary strands the
 # user at the very next command with no explanation.
 verify_installation() {
-    if ! command -v "$BINARY_NAME" &>/dev/null; then
-        error "Installation failed. ${BINARY_NAME} not found in PATH"
+    local binary_path="${INSTALL_DIR}/${BINARY_NAME}" version
+    if [ ! -x "$binary_path" ]; then
+        error "Installation failed. ${BINARY_NAME} not found at ${binary_path}"
     fi
 
-    local version
-    if version=$("$BINARY_NAME" --version 2>/dev/null) && [ -n "$version" ]; then
+    if version=$("$binary_path" --version 2>/dev/null) && [ -n "$version" ]; then
         success "Successfully installed ${BINARY_NAME} (${version})"
         return
     fi
@@ -301,11 +315,27 @@ verify_installation() {
     info "The installed binary did not run. Common causes:"
     if [ "$PLATFORM" = "macos" ]; then
         info "  - macOS refused the binary's code signature ('Killed: 9')."
-        info "    Repair it with: codesign --remove-signature \"$(command -v ${BINARY_NAME})\" && codesign -s - \"$(command -v ${BINARY_NAME})\""
-        info "  - Gatekeeper quarantine: xattr -d com.apple.quarantine \"$(command -v ${BINARY_NAME})\""
+        info "    Repair it with: codesign --remove-signature \"${binary_path}\" && codesign -s - \"${binary_path}\""
+        info "  - Gatekeeper quarantine: xattr -d com.apple.quarantine \"${binary_path}\""
     fi
     info "  - A corrupt download: re-run this installer to fetch it again."
     error "Installation failed. '${BINARY_NAME} --version' did not succeed."
+}
+
+# A piped installer cannot change the parent shell's PATH. Give an exact,
+# shell-escaped command when Tale is missing or another installation wins.
+# Leave shell startup files under the user's control.
+explain_path() {
+    local existing path_command
+    existing=$(command -v "$BINARY_NAME" 2>/dev/null || true)
+    if [ -n "$existing" ] && [ "$existing" -ef "${INSTALL_DIR}/${BINARY_NAME}" ]; then
+        return
+    fi
+
+    printf -v path_command 'export PATH=%q:"$PATH"' "$INSTALL_DIR"
+    info "Add this installation to PATH in your terminal before continuing:"
+    info "  ${path_command}"
+    info "Add the same line to your shell profile to keep Tale available in new terminals."
 }
 
 main() {
@@ -318,6 +348,7 @@ main() {
     detect_install_dir
     install_binary
     verify_installation
+    explain_path
 
     # Hand off to the CLI: `tale init` scaffolds a project (no prerequisites);
     # `tale dev` then installs/starts Docker on demand and launches locally.

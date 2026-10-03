@@ -19,11 +19,15 @@
 import type { Sql, TransactionSql } from 'postgres';
 
 import { PUBLIC_WEB_SCHEMA } from '../../../lib/knowledge/types';
-import type {
-  CrawlerChunk,
-  CrawlerPage,
-  CrawlerSearchResult,
-  CrawlerWebsiteInfo,
+import {
+  type CrawlerChunk,
+  type CrawlerPage,
+  type CrawlerSearchResult,
+  type CrawlerWebsiteInfo,
+  FAILED_PAGE_SQL,
+  PAGE_STATE_SQL,
+  SKIPPED_PAGE_SQL,
+  type WebsitePageState,
 } from '../websites/types';
 
 /** How many URLs one scan tracks per domain: discovery stops admitting here,
@@ -54,10 +58,23 @@ export const URL_INSERT_BATCH = 500;
  * attempt rewrites or clears it). `RETURNING url` names the rows the
  * statement inserted or changed, so a caller can count what it newly tracks.
  *
+ * `fenced` keeps a row the running scan retired itself: the revival then
+ * takes only rows retired before `$count+2`, the scan's start. The links of
+ * the next rendered page used to bring back the alias or the 404 the scan
+ * had just retired, as an empty `discovered` row counted among the site's
+ * pages and not due again until the next scan.
+ *
  * `count` is how many URL placeholders follow the domain (`$2..$count+1`).
  */
-export function admitUrlsStatement(count: number, listed: boolean): string {
+export function admitUrlsStatement(
+  count: number,
+  listed: boolean,
+  fenced = false,
+): string {
   const flag = listed ? 'TRUE' : 'FALSE';
+  const revivable = fenced
+    ? `u.status = 'deleted' AND (u.last_crawled_at IS NULL OR u.last_crawled_at < $${count + 2}::timestamptz)`
+    : `u.status = 'deleted'`;
   const rows = Array.from(
     { length: count },
     (_, index) => `($1, $${index + 2}, 'discovered', NOW(), ${flag})`,
@@ -72,7 +89,7 @@ export function admitUrlsStatement(count: number, listed: boolean): string {
        last_error_at = CASE WHEN u.status = 'deleted' THEN NULL ELSE u.last_error_at END,
        discovered_at = CASE WHEN u.status = 'deleted' THEN NOW() ELSE u.discovered_at END,
        listed = u.listed OR EXCLUDED.listed
-     WHERE u.status = 'deleted'
+     WHERE (${revivable})
         OR (EXCLUDED.listed AND (NOT u.listed OR u.fail_count > 0))
      RETURNING u.url`;
 }
@@ -81,21 +98,23 @@ export function admitUrlsStatement(count: number, listed: boolean): string {
  * Admit URLs to a domain's frontier (see {@link admitUrlsStatement}), in
  * batches. Returns how many rows were newly tracked or changed — inserted,
  * revived from `deleted`, or newly marked listed. Duplicates are collapsed
- * first: a multi-row upsert cannot touch the same key twice.
+ * first: a multi-row upsert cannot touch the same key twice. A scan passes
+ * its start as `retiredBefore`, so what it retired itself stays retired.
  */
 export async function admitUrls(
   sql: Sql | TransactionSql,
   domain: string,
   urls: readonly string[],
-  options: { listed: boolean },
+  options: { listed: boolean; retiredBefore?: string },
 ): Promise<number> {
   const unique = [...new Set(urls)];
+  const fence = options.retiredBefore;
   let admitted = 0;
   for (let start = 0; start < unique.length; start += URL_INSERT_BATCH) {
     const batch = unique.slice(start, start + URL_INSERT_BATCH);
     const rows = await sql.unsafe<{ url: string }[]>(
-      admitUrlsStatement(batch.length, options.listed),
-      [domain, ...batch],
+      admitUrlsStatement(batch.length, options.listed, fence !== undefined),
+      fence === undefined ? [domain, ...batch] : [domain, ...batch, fence],
     );
     admitted += rows.length;
   }
@@ -237,6 +256,24 @@ export async function registerUrlList(
   });
 }
 
+/**
+ * The organization's domains holding chunks without a vector — pages indexed
+ * while it had no embedding model, which a scan embeds once it has one.
+ */
+export async function listVectorlessDomains(
+  sql: Sql,
+  orgSlug: string,
+): Promise<string[]> {
+  const rows = await sql.unsafe<{ domain: string }[]>(
+    `SELECT DISTINCT c.domain
+       FROM ${PUBLIC_WEB_SCHEMA}.chunks c
+       JOIN ${PUBLIC_WEB_SCHEMA}.website_org_memberships m ON m.domain = c.domain
+      WHERE m.org_slug = $1 AND c.embedding IS NULL`,
+    [orgSlug],
+  );
+  return rows.map((row) => row.domain);
+}
+
 /** Update the scan cadence on the domain row. */
 export async function setScanInterval(
   sql: Sql,
@@ -286,6 +323,37 @@ export async function deregisterDomain(
   });
 }
 
+/**
+ * The scan claim a domain's corpus row holds, or null when none is held (no
+ * row, or a row that is not scanning). `heartbeat` is the claim's own clock
+ * exactly as stored — what a takeover names, so that it takes this claim and
+ * no later one; `ageMs` how long ago it was last refreshed, by the
+ * database's clock; and `lastScannedAt` the end of the last scan that
+ * finished (epoch ms), which bounds the scan the claim belongs to.
+ */
+export async function readScanClaim(
+  sql: Sql,
+  domain: string,
+): Promise<{
+  heartbeat: string;
+  ageMs: number;
+  lastScannedAt: number | null;
+} | null> {
+  const rows = await sql.unsafe<
+    { heartbeat: string; ageMs: number; lastScannedAt: number | null }[]
+  >(
+    `SELECT updated_at::text AS heartbeat,
+            (EXTRACT(EPOCH FROM (NOW() - updated_at)) * 1000)::float8
+              AS "ageMs",
+            (EXTRACT(EPOCH FROM last_scanned_at) * 1000)::float8
+              AS "lastScannedAt"
+       FROM ${PUBLIC_WEB_SCHEMA}.websites
+      WHERE domain = $1 AND status = 'scanning'`,
+    [domain],
+  );
+  return rows[0] ?? null;
+}
+
 /** True when the organization registered this domain — the guard every
  * org-scoped read runs before answering from a domain-keyed table. */
 export async function isMemberDomain(
@@ -316,6 +384,7 @@ export async function fetchWebsiteInfoFromCorpus(
       description: string | null;
       status: string;
       last_scanned_at: Date | null;
+      updated_at: Date | null;
       error: string | null;
       page_count: string;
       crawled_count: string;
@@ -323,7 +392,7 @@ export async function fetchWebsiteInfoFromCorpus(
     }>
   >(
     `SELECT w.domain, w.kind, w.title, w.description, w.status, w.last_scanned_at,
-            w.error,
+            w.updated_at, w.error,
             (SELECT count(*) FROM ${PUBLIC_WEB_SCHEMA}.website_urls u
               WHERE u.domain = w.domain AND u.status <> 'deleted')::text AS page_count,
             (SELECT count(*) FROM ${PUBLIC_WEB_SCHEMA}.website_urls u
@@ -331,7 +400,7 @@ export async function fetchWebsiteInfoFromCorpus(
                 AND u.last_crawled_at IS NOT NULL)::text AS crawled_count,
             (SELECT count(*) FROM ${PUBLIC_WEB_SCHEMA}.website_urls u
               WHERE u.domain = w.domain AND u.status <> 'deleted'
-                AND u.fail_count > 0)::text AS failed_count
+                AND ${FAILED_PAGE_SQL})::text AS failed_count
        FROM ${PUBLIC_WEB_SCHEMA}.websites w
        JOIN ${PUBLIC_WEB_SCHEMA}.website_org_memberships m
          ON m.domain = w.domain AND m.org_slug = $2
@@ -353,19 +422,26 @@ export async function fetchWebsiteInfoFromCorpus(
       ? row.last_scanned_at.toISOString()
       : null,
     error: row.error,
+    updated_at: row.updated_at ? row.updated_at.toISOString() : null,
   };
 }
 
-/** One page of a domain's URL inventory, crawl-order newest-known first. */
+/** One page of a domain's URL inventory, crawl-order newest-known first —
+ * the whole inventory, or only the pages in one state (`failed`, `skipped`),
+ * so a reader reaches the five that failed without walking the five
+ * hundred that did not. */
 export async function listWebsitePages(
   sql: Sql,
   domain: string,
   offset: number,
   limit: number,
+  state?: WebsitePageState,
 ): Promise<{ pages: CrawlerPage[]; total: number }> {
+  const stateClause =
+    state === undefined ? '' : ` AND ${PAGE_STATE_SQL[state]}`;
   const totalRows = await sql.unsafe<{ n: string }[]>(
-    `SELECT count(*)::text AS n FROM ${PUBLIC_WEB_SCHEMA}.website_urls
-      WHERE domain = $1 AND status <> 'deleted'`,
+    `SELECT count(*)::text AS n FROM ${PUBLIC_WEB_SCHEMA}.website_urls u
+      WHERE u.domain = $1 AND u.status <> 'deleted'${stateClause}`,
     [domain],
   );
   const rows = await sql.unsafe<
@@ -390,7 +466,7 @@ export async function listWebsitePages(
             (SELECT count(*) FROM ${PUBLIC_WEB_SCHEMA}.chunks c
               WHERE c.domain = u.domain AND c.url = u.url)::text AS chunks_count
        FROM ${PUBLIC_WEB_SCHEMA}.website_urls u
-      WHERE u.domain = $1 AND u.status <> 'deleted'
+      WHERE u.domain = $1 AND u.status <> 'deleted'${stateClause}
       ORDER BY u.last_crawled_at DESC NULLS LAST, u.url ASC
       OFFSET $2 LIMIT $3`,
     [domain, offset, limit],
@@ -414,6 +490,26 @@ export async function listWebsitePages(
       last_error_kind: row.last_error_kind,
       last_error_at: row.last_error_at ? row.last_error_at.toISOString() : null,
     })),
+  };
+}
+
+/** How many of a domain's pages are in each state the list can be
+ * narrowed to — the numbers the filter's segments carry, whichever segment
+ * is open. */
+export async function countWebsitePagesByState(
+  sql: Sql,
+  domain: string,
+): Promise<Record<WebsitePageState, number>> {
+  const rows = await sql.unsafe<{ failed: string; skipped: string }[]>(
+    `SELECT count(*) FILTER (WHERE ${FAILED_PAGE_SQL})::text AS failed,
+            count(*) FILTER (WHERE ${SKIPPED_PAGE_SQL})::text AS skipped
+       FROM ${PUBLIC_WEB_SCHEMA}.website_urls u
+      WHERE u.domain = $1 AND u.status <> 'deleted'`,
+    [domain],
+  );
+  return {
+    failed: Number(rows[0]?.failed ?? 0),
+    skipped: Number(rows[0]?.skipped ?? 0),
   };
 }
 

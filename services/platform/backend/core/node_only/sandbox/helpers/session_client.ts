@@ -88,17 +88,60 @@ export class SessionDuplicateError extends Error {
   }
 }
 
-/** The spawner is at its global host capacity (HTTP 429, `session_quota`).
- * Distinct from the platform's per-workload `QUOTA_EXCEEDED`: the host is
- * shared across organizations. The retry hint lets each workload apply its
- * own failure/retry policy; an earlier capacity read reserves no compute. */
-class SpawnerBusyError extends Error {
+/** Where a refused create stands in the spawner's first-come line for host
+ * room: its place, and how many creates wait in the line. */
+export interface SpawnerQueuePlace {
+  position: number;
+  waiting: number;
+}
+
+/** The spawner is at its global host capacity (HTTP 429: `session_quota`,
+ * `host_memory` when the host is short of memory, or `host_disk` when the
+ * disk the workspaces live on is short of space), or a destroy of the id
+ * is still under way. Distinct from the platform's per-workload
+ * `QUOTA_EXCEEDED`: the host is shared across organizations. The retry hint
+ * lets each workload apply its own wait; an earlier capacity read reserves
+ * no compute. A spawner that keeps a first-come line for host room says
+ * where the create stands in it (`queue`), and its hint is then the moment
+ * that place comes up: a waiter that asks later loses its turn to the ones
+ * behind it, so it comes back exactly then. */
+export class SpawnerBusyError extends Error {
   readonly retryAfterMs: number | undefined;
-  constructor(retryAfterMs: number | undefined) {
+  readonly queue: SpawnerQueuePlace | undefined;
+  constructor(retryAfterMs: number | undefined, queue?: SpawnerQueuePlace) {
     super('sandbox spawner at host capacity (429)');
     this.name = 'SpawnerBusyError';
     this.retryAfterMs = retryAfterMs;
+    this.queue = queue;
   }
+}
+
+/** The `queue` field of a 429 body, as a boundary: a body that is not JSON,
+ * names no line or names one out of shape is an older spawner's answer, and
+ * the create waits as it always did. */
+const spawnerQueueBodySchema = z.object({
+  queue: z.object({
+    position: z.number().int().nonnegative(),
+    waiting: z.number().int().nonnegative(),
+  }),
+});
+
+/** The refusal a 429 to a create is, with its place in the spawner's line
+ * when the body names one. */
+async function spawnerBusyErrorOf(res: Response): Promise<SpawnerBusyError> {
+  const retryAfterMs = parseRetryAfterMs(res);
+  const text = await safeText(res);
+  let body: unknown;
+  try {
+    body = JSON.parse(text);
+  } catch {
+    return new SpawnerBusyError(retryAfterMs);
+  }
+  const parsed = spawnerQueueBodySchema.safeParse(body);
+  return new SpawnerBusyError(
+    retryAfterMs,
+    parsed.success ? parsed.data.queue : undefined,
+  );
 }
 
 /**
@@ -515,7 +558,7 @@ export async function sessionCreate(
       signal: AbortSignal.timeout(CREATE_TIMEOUT_MS),
     });
     if (res.status === 409) throw new SessionDuplicateError(body.sessionId);
-    if (res.status === 429) throw new SpawnerBusyError(parseRetryAfterMs(res));
+    if (res.status === 429) throw await spawnerBusyErrorOf(res);
     // 503 "draining": the targeted colour is mid-flip. Re-POST so the bare
     // `sandbox` alias re-resolves onto the now-active colour. A 503 for an
     // offline device is final for this create: the session's workspace lives
@@ -565,12 +608,14 @@ export async function sessionIsAlive(sessionId: string): Promise<boolean> {
  * nothing under that id (both mean "backend is gone"). THROWS on any non-2xx
  * so callers can't mistake a failed teardown for a clean one — flipping the
  * platform row while the backend survives leaves the deterministic sessionId
- * 409ing on every future create. */
+ * 409ing on every future create. A session on a device that is not connected
+ * throws {@link SandboxDeviceOfflineError}: its workspace is still there. */
 export async function sessionDestroy(sessionId: string): Promise<boolean> {
   const path = `/v1/sessions/${encodeURIComponent(sessionId)}`;
   const res = await spawnerFetch('DELETE', path, {
     signal: AbortSignal.timeout(30_000),
   });
+  await throwIfDeviceOffline(res);
   if (!res.ok) {
     throw new Error(`sandbox session destroy failed (${res.status})`);
   }
@@ -591,12 +636,137 @@ export async function sessionDestroyIfIdle(
   const res = await spawnerFetch('DELETE', path, {
     signal: AbortSignal.timeout(30_000),
   });
+  await throwIfDeviceOffline(res);
   if (!res.ok) {
     throw new Error(`sandbox session destroy failed (${res.status})`);
   }
   // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
   const parsed = (await res.json()) as { destroyed?: boolean; busy?: boolean };
   return { destroyed: parsed.destroyed === true, busy: parsed.busy === true };
+}
+
+/** How far deleting a destroyed workspace's bytes has come, as the spawner
+ * answers a destroy: `done` (Docker: no trash entry of the id is left),
+ * `pending` (still being deleted in the background), `failed` (the last
+ * attempt failed; the next destroy has it tried again) or `handed_off`
+ * (Kubernetes: the PVC delete was accepted, and the volume is its storage
+ * provisioner's to delete under the storage class's reclaim policy). */
+export type WorkspaceDeletion = 'done' | 'pending' | 'failed' | 'handed_off';
+
+/** What a destroy answers the workspace cleanup. */
+export interface WorkspaceDestroyAnswer {
+  /** Something under the id was taken out of use. */
+  destroyed: boolean;
+  /** A condition refused the destroy: nothing was touched. */
+  busy: boolean;
+  /** Absent only from a spawner or device older than the deletion contract,
+   * whose answer says nothing about the bytes (19776cf18 already deleted in
+   * the background): the cleanup reads it as unconfirmed, never as done. */
+  deletion?: WorkspaceDeletion;
+}
+
+const workspaceDestroyAnswerSchema = z.object({
+  destroyed: z.boolean(),
+  busy: z.boolean().default(false),
+  deletion: z.enum(['done', 'pending', 'failed', 'handed_off']).optional(),
+});
+
+/** The workspace cleanup's destroy — its erasures, retirements and sweeps.
+ * `ifStopped` deletes only the preserved workspace of a STOPPED session: the
+ * spawner answers `{busy:true}` while any compute runs under the id (a turn
+ * that just resumed it, before its first exec) or a create is in flight, and
+ * `if_idle=1` rides along so a spawner or device that predates `if_stopped`
+ * still refuses a session with a live exec. `ifIdle` alone refuses only a
+ * live exec; neither (an erasure) deletes whatever runs.
+ *
+ * A destroy answers once the workspace is out of use, before its bytes are
+ * gone; `?await_deletion=1` has the spawner wait a bounded time for them and
+ * answer how far they came, so the cleanup settles a deletion only on
+ * `done`. Same non-2xx THROW contract as sessionDestroy; a device that is
+ * not connected throws {@link SandboxDeviceOfflineError}. */
+export async function sessionDestroyWorkspace(
+  sessionId: string,
+  conditions: { ifIdle?: boolean; ifStopped?: boolean } = {},
+): Promise<WorkspaceDestroyAnswer> {
+  const query = new URLSearchParams();
+  if (conditions.ifIdle === true || conditions.ifStopped === true) {
+    query.set('if_idle', '1');
+  }
+  if (conditions.ifStopped === true) query.set('if_stopped', '1');
+  query.set('await_deletion', '1');
+  const path = `/v1/sessions/${encodeURIComponent(sessionId)}?${query}`;
+  const res = await spawnerFetch('DELETE', path, {
+    signal: AbortSignal.timeout(60_000),
+  });
+  await throwIfDeviceOffline(res);
+  if (!res.ok) {
+    throw new Error(`sandbox session destroy failed (${res.status})`);
+  }
+  return workspaceDestroyAnswerSchema.parse(await res.json());
+}
+
+const workspaceInventorySchema = z.object({
+  backend: z.enum(['docker', 'kubernetes']),
+  workspaces: z.array(
+    z.object({
+      sessionId: z.string().regex(/^[a-zA-Z0-9_-]{1,64}$/),
+      touchedAtMs: z.number(),
+      active: z.boolean(),
+      pinned: z.boolean(),
+      organizationId: z.string().optional(),
+    }),
+  ),
+  organizations: z.array(z.string().regex(/^[a-zA-Z0-9_-]{1,128}$/)),
+});
+
+export type SandboxWorkspaceInventory = z.infer<
+  typeof workspaceInventorySchema
+>;
+
+/** GET /v1/workspaces — every workspace the spawner holds (stopped sessions'
+ * preserved data included) and the organizations holding resources beyond
+ * them. `null` from a spawner that predates the route; THROWS when the
+ * spawner could not read its inventory. */
+export async function sandboxWorkspaceInventory(): Promise<SandboxWorkspaceInventory | null> {
+  const res = await spawnerFetch('GET', '/v1/workspaces', {
+    signal: AbortSignal.timeout(60_000),
+  });
+  if (res.status === 404) return null;
+  if (!res.ok) {
+    throw new Error(`sandbox workspace inventory unavailable (${res.status})`);
+  }
+  return workspaceInventorySchema.parse(await res.json());
+}
+
+/** DELETE /v1/organizations/:id — a deleted organization's remaining
+ * sessions and its resources beyond them (build helpers, networks, caches).
+ * `null` from a spawner that predates the route; THROWS on any other
+ * failure, including 409 while a create of the organization is in flight. */
+export async function sandboxOrganizationTeardown(
+  organizationId: string,
+): Promise<{
+  sessions: number;
+  containers: number;
+  volumes: number;
+  networks: number;
+} | null> {
+  const res = await spawnerFetch(
+    'DELETE',
+    `/v1/organizations/${encodeURIComponent(organizationId)}`,
+    { signal: AbortSignal.timeout(300_000) },
+  );
+  if (res.status === 404) return null;
+  if (!res.ok) {
+    throw new Error(`sandbox organization teardown failed (${res.status})`);
+  }
+  return z
+    .object({
+      sessions: z.number().int().nonnegative(),
+      containers: z.number().int().nonnegative(),
+      volumes: z.number().int().nonnegative(),
+      networks: z.number().int().nonnegative(),
+    })
+    .parse(await res.json());
 }
 
 /** PATCH /v1/sessions/:id/pin — toggle the spawner-side "always-on" reaper
@@ -622,14 +792,23 @@ export async function sessionSetPinned(
 }
 
 /** POST /v1/sessions/:id/exec/:execId/cancel — SIGTERM→SIGKILL the exec's
- * process group in the sandbox. Idempotent (false if the exec/session is gone).
+ * processes in the sandbox. Idempotent (false if the exec/session is gone).
  * The Stop-button path for external-agent turns; the run's own finalize then
- * persists the partial timeline + marks the message failed. */
+ * persists the partial timeline + marks the message failed.
+ *
+ * `keepLeftovers` is a rotation's cancel (a steer's restart, which continues
+ * the conversation in a new exec over the same workspace): only the exec's
+ * own process group ends, and what the turn started outside it — a dev
+ * server its shell tool backgrounded — is kept for the exec that takes over.
+ * A spawner or runtime that predates the flag ignores it and ends
+ * everything. */
 export async function sessionCancelExec(
   sessionId: string,
   execId: string,
+  opts: { keepLeftovers?: boolean } = {},
 ): Promise<boolean> {
-  const path = `/v1/sessions/${encodeURIComponent(sessionId)}/exec/${encodeURIComponent(execId)}/cancel`;
+  const query = opts.keepLeftovers === true ? '?leftovers=keep' : '';
+  const path = `/v1/sessions/${encodeURIComponent(sessionId)}/exec/${encodeURIComponent(execId)}/cancel${query}`;
   const res = await spawnerFetch('POST', path, {
     body: '',
     signal: AbortSignal.timeout(30_000),

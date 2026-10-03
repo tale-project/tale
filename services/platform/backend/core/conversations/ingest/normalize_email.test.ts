@@ -97,6 +97,36 @@ describe('normalizeEmail', () => {
     expect(result.text).toBe('Hello world');
   });
 
+  it('decodes a non-ASCII Gmail body as UTF-8, not one character per byte', () => {
+    // Gmail transcodes body.data to UTF-8 but keeps the part's original
+    // charset label, so the label must not steer the decode.
+    const toBase64Url = (value: string) =>
+      Buffer.from(value, 'utf8').toString('base64url');
+    const msg = {
+      ...RAW_GMAIL_MESSAGE,
+      payload: {
+        ...RAW_GMAIL_MESSAGE.payload,
+        parts: [
+          {
+            mimeType: 'text/plain',
+            headers: [
+              { name: 'Content-Type', value: 'text/plain; charset="GB18030"' },
+            ],
+            body: { data: toBase64Url('你今天怎么样') },
+          },
+          {
+            mimeType: 'text/html',
+            body: { data: toBase64Url('<div>Grüße, 你好 👋</div>') },
+          },
+        ],
+      },
+    };
+
+    const result = normalizeEmail(msg);
+    expect(result.text).toBe('你今天怎么样');
+    expect(result.html).toBe('<div>Grüße, 你好 👋</div>');
+  });
+
   it('sets flags to Seen when UNREAD is not in labelIds', () => {
     const result = normalizeEmail(RAW_GMAIL_MESSAGE);
     expect(result.flags).toEqual(['\\Seen']);

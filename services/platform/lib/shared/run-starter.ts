@@ -8,9 +8,12 @@
  *   `api-key:<userId>`    a start through the REST API or the MCP endpoint;
  *                         `<userId>` is the key's owner or, on an act-as
  *                         request, the member acted for
- *   `trigger:<triggerId>` a schedule, a webhook or an event firing
- *   `<userId>`            a bare id: every project-agent run, and automation
- *                         runs the builder recorded before it prefixed them
+ *   `trigger:<triggerId>` a schedule, a webhook or an event firing — and a
+ *                         project-agent run a schedule began, directly or
+ *                         through a delegation (`domains/tasks/delegated-start.ts`)
+ *   `<userId>`            a bare id: every project-agent run a person's door
+ *                         started, and automation runs the builder recorded
+ *                         before it prefixed them
  *
  * The door is not the billing subject. Every reader that needs the PERSON
  * behind a starter — the usage ledger, the budget gate, the member a task

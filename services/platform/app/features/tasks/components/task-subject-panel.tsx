@@ -1,9 +1,11 @@
 'use client';
 
+import type { PendingReviewIdentity } from '@tale/shared/schemas/task-review';
 import { Button } from '@tale/ui/button';
 import { cn } from '@tale/ui/cn';
 import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
 import { Row } from '@tale/ui/layout';
+import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { Textarea } from '@tale/ui/textarea';
 import { toast } from '@tale/ui/use-toast';
@@ -20,14 +22,31 @@ import { useBackendAction } from '@/app/hooks/use-backend-action';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { failureDetail } from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
-import { AppError } from '@/lib/shared/errors/app-error';
 
 import { useAddTaskComment, useUpdateTaskStatus } from '../hooks/mutations';
 import { useActorDirectory } from '../hooks/use-actor-directory';
 import type { ResolvedTaskSubjectContract } from '../hooks/use-task-subject-contract';
+import { parentCloseRefusal } from '../lib/parent-close-refusal';
 import { reviewPolicyErrorMessage } from '../lib/review-policy-error';
+import { reviewerBlockedMessage } from '../lib/reviewer-refusal';
 import { deriveSubjectState } from '../lib/subject-state';
 import { TaskRunDetailsDialog } from './task-run-details-dialog';
+
+function reviewConfirmationIdentity(
+  taskId: string,
+  review: PendingReviewIdentity | null,
+): string {
+  const recipient = review?.reviewer;
+  return JSON.stringify([
+    taskId,
+    review?.approvalId ?? null,
+    review?.runId ?? null,
+    recipient?.kind ?? null,
+    recipient?.kind === 'agent'
+      ? recipient.agentId
+      : (recipient?.userId ?? null),
+  ]);
+}
 
 /**
  * The automation-ownership work panel of the task modal — the read-side twin
@@ -100,12 +119,29 @@ function TaskSubjectPanelBody({
     approveConfirmation,
     contract,
   } = ownedBy;
-  // Names the review gate's waiting-on human: "Operated by X · Waiting on Y".
-  const { resolveActor } = useActorDirectory(organizationId);
+  // Share the reviewer field's cached read: a captured review can belong to
+  // an agent even when a deployed automation currently owns the task.
+  const reviewerQuery = useBackendQuery(
+    'tasks/queries:getTaskReviewer',
+    task.status === 'in_review' ? { organizationId, taskId: task._id } : 'skip',
+  );
+  const reviewReady =
+    reviewerQuery.data !== undefined && !reviewerQuery.isError;
+  const pendingReview = reviewerQuery.data?.pendingReview;
+  const recipient = pendingReview?.reviewer;
+  const agentReview = recipient?.kind === 'agent';
+  const { resolveActor } = useActorDirectory(organizationId, task.projectId);
   const reviewerName =
-    task.reviewerUserId !== undefined
-      ? resolveActor('user', task.reviewerUserId).name
-      : undefined;
+    recipient !== undefined && recipient !== null
+      ? resolveActor(
+          recipient.kind,
+          recipient.kind === 'user' ? recipient.userId : recipient.agentId,
+        ).name
+      : reviewReady &&
+          pendingReview === null &&
+          task.reviewerUserId !== undefined
+        ? resolveActor('user', task.reviewerUserId).name
+        : undefined;
 
   const runQuery = useBackendQuery('automations/queries:getLiveRunForTask', {
     organizationId,
@@ -139,15 +175,31 @@ function TaskSubjectPanelBody({
   const updateStatus = useUpdateTaskStatus();
   const addComment = useAddTaskComment();
 
+  const state =
+    runQuery.data === undefined
+      ? null
+      : deriveSubjectState(contract, {
+          status: task.status,
+          runActive: run !== null,
+          hasFiles,
+        });
+  const canReview =
+    canEdit && state?.kind === 'review' && reviewReady && !agentReview;
+  const reviewIdentity = reviewConfirmationIdentity(
+    task._id,
+    pendingReview ?? null,
+  );
+  const [lastReviewIdentity, setLastReviewIdentity] = useState(reviewIdentity);
+  const reviewChanged = lastReviewIdentity !== reviewIdentity;
+  if (reviewChanged) setLastReviewIdentity(reviewIdentity);
+  // Losing the gate or replacing its captured review closes the confirmation
+  // itself. The draft stays, but a new review needs a fresh user gesture.
+  if ((!canReview || reviewChanged) && (approveOpen || changesOpen)) {
+    setApproveOpen(false);
+    setChangesOpen(false);
+  }
   // Facts still loading — render nothing rather than a state that flips.
-  if (runQuery.data === undefined) return null;
-
-  const state = deriveSubjectState(contract, {
-    status: task.status,
-    runActive: run !== null,
-    hasFiles,
-  });
-  if (state.kind === 'idle') return null;
+  if (state === null || state.kind === 'idle') return null;
   // A folder-input contract on a task with NO bound folder has no upload
   // surface to point at — "waiting for input" would be a dead end. The
   // ownership badge still marks the task; the panel stays quiet.
@@ -158,7 +210,6 @@ function TaskSubjectPanelBody({
   ) {
     return null;
   }
-
   const start = async (successTitle: string) => {
     setBusy(true);
     try {
@@ -197,7 +248,14 @@ function TaskSubjectPanelBody({
       toast({ title: t('run.cancelled') });
     } catch (error) {
       console.error('[tasks] subject-panel cancel failed', error);
-      toast({ title: tCommon('errors.generic'), variant: 'destructive' });
+      // Cancel parks the task at Cancelled, which closes it: open subtasks
+      // refuse that, and the run keeps running. Say so, not "went wrong".
+      const refusal = parentCloseRefusal(error, t);
+      toast({
+        title: refusal ?? tCommon('errors.generic'),
+        description: refusal === undefined ? failureDetail(error) : undefined,
+        variant: 'destructive',
+      });
     } finally {
       setBusy(false);
       setCancelOpen(false);
@@ -205,6 +263,7 @@ function TaskSubjectPanelBody({
   };
 
   const approve = async () => {
+    if (!canReview) return;
     setBusy(true);
     try {
       await updateStatus.mutateAsync({ taskId: task._id, status: 'done' });
@@ -215,11 +274,9 @@ function TaskSubjectPanelBody({
       // review, so the org's review_policy can refuse it too. The user should
       // hear the reason, not a generic error.
       const reviewRefusal = reviewPolicyErrorMessage(error, t);
-      if (
-        error instanceof AppError &&
-        error.data?.code === 'TASK_HAS_OPEN_SUBTASKS'
-      ) {
-        toast({ title: t('detail.parentCloseGuard'), variant: 'destructive' });
+      const closeRefusal = parentCloseRefusal(error, t);
+      if (closeRefusal !== undefined) {
+        toast({ title: closeRefusal, variant: 'destructive' });
       } else if (reviewRefusal !== undefined) {
         toast({ title: reviewRefusal, variant: 'destructive' });
       } else {
@@ -246,6 +303,7 @@ function TaskSubjectPanelBody({
    * workflow's next pass always reads this feedback.
    */
   const requestChanges = async () => {
+    if (!canReview) return;
     const body = feedback.trim();
     if (body === '') return;
     setBusy(true);
@@ -285,12 +343,16 @@ function TaskSubjectPanelBody({
         ? t('run.waitingAnswer', { name: displayName })
         : t('run.working', { name: displayName })
       : state.kind === 'review'
-        ? reviewerName !== undefined
-          ? t('subject.reviewWaitingOn', {
-              name: displayName,
-              reviewer: reviewerName,
+        ? pendingReview !== undefined && pendingReview !== null
+          ? t('reviewer.pendingFor', {
+              reviewer: reviewerName ?? t('reviewer.none'),
             })
-          : t('subject.review', { name: displayName })
+          : reviewerName !== undefined
+            ? t('subject.reviewWaitingOn', {
+                name: displayName,
+                reviewer: reviewerName,
+              })
+            : t('subject.review', { name: displayName })
         : state.kind === 'ready'
           ? t('subject.ready', { name: displayName })
           : state.kind === 'waiting_input'
@@ -345,17 +407,46 @@ function TaskSubjectPanelBody({
         </Text>
       )}
 
-      <Row gap={2} align="center">
-        {state.kind === 'running' && pendingAsk === null && (
-          <Loader2
-            className="text-muted-foreground size-4 shrink-0 animate-spin"
-            aria-hidden
-          />
-        )}
-        <Text as="p" className="min-w-0 flex-1 text-pretty">
-          {stateLine}
+      <Skeletonize
+        loading={
+          state.kind === 'review' && !reviewReady && !reviewerQuery.isError
+        }
+      >
+        <Row gap={2} align="center">
+          {state.kind === 'running' && pendingAsk === null && (
+            <Loader2
+              className="text-muted-foreground size-4 shrink-0 animate-spin"
+              aria-hidden
+            />
+          )}
+          <Text as="p" className="min-w-0 flex-1 text-pretty">
+            {stateLine}
+          </Text>
+        </Row>
+      </Skeletonize>
+
+      {state.kind === 'review' && reviewerQuery.isError && (
+        <Row gap={2} align="center">
+          <Text as="p" variant="caption" role="status">
+            {t('reviewer.loadError')}
+          </Text>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => void reviewerQuery.refetch()}
+          >
+            {tCommon('actions.tryAgain')}
+          </Button>
+        </Row>
+      )}
+      {state.kind === 'review' && reviewReady && agentReview && (
+        <Text as="p" variant="caption">
+          {reviewerBlockedMessage(
+            pendingReview?.agentReviewBlockedReason ?? null,
+            t,
+          ) ?? t('reviewer.agentRequired')}
         </Text>
-      </Row>
+      )}
 
       {pendingAsk !== null && (
         <RunAskCard
@@ -369,7 +460,7 @@ function TaskSubjectPanelBody({
         />
       )}
 
-      {canEdit && (
+      {canEdit && (state.kind !== 'review' || canReview) && (
         <Row gap={2} wrap className="mt-1">
           {(state.kind === 'ready' ||
             state.kind === 'stalled' ||
@@ -465,7 +556,7 @@ function TaskSubjectPanelBody({
         onConfirm={() => void cancel()}
       />
       <ConfirmDialog
-        open={approveOpen}
+        open={approveOpen && canReview}
         onOpenChange={(next) => {
           if (!next && !busy) setApproveOpen(false);
         }}
@@ -476,7 +567,7 @@ function TaskSubjectPanelBody({
         onConfirm={() => void approve()}
       />
       <ConfirmDialog
-        open={changesOpen}
+        open={changesOpen && canReview}
         onOpenChange={(next) => {
           if (!next && !busy) setChangesOpen(false);
         }}

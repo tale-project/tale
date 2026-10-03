@@ -23,10 +23,19 @@ const TRANSIENT_NODE_CODES = new Set([
 ]);
 
 export interface RetryOptions {
-  /** Maximum number of attempts (including the first). */
+  /**
+   * Maximum number of attempts (including the first). `Infinity` leaves
+   * `timeoutMs` alone to end the retries.
+   */
   attempts?: number;
   /** Base delay in milliseconds for exponential backoff. */
   baseDelayMs?: number;
+  /**
+   * Ceiling for one backoff delay, in milliseconds: the delay stops doubling
+   * there, so a long budget keeps retrying at that interval instead of
+   * sleeping through most of it. Unbounded by default.
+   */
+  maxDelayMs?: number;
   /** Total wall-clock budget in milliseconds across all attempts. */
   timeoutMs?: number;
   /** Override for the transient-error classifier (primarily for tests). */
@@ -72,6 +81,7 @@ export async function withRetry<T>(
 ): Promise<T> {
   const attempts = options.attempts ?? 5;
   const baseDelayMs = options.baseDelayMs ?? 200;
+  const maxDelayMs = options.maxDelayMs ?? Number.POSITIVE_INFINITY;
   const timeoutMs = options.timeoutMs ?? 30_000;
   const isTransient = options.isTransient ?? isTransientDbError;
   const sleep = options.sleep ?? defaultSleep;
@@ -87,12 +97,13 @@ export async function withRetry<T>(
       if (!isTransient(error) || attempt === attempts - 1) {
         throw error;
       }
-      const delay = baseDelayMs * 2 ** attempt;
+      const delay = Math.min(baseDelayMs * 2 ** attempt, maxDelayMs);
       if (Date.now() + delay > deadline) {
         throw error;
       }
+      const of = Number.isFinite(attempts) ? `/${attempts}` : '';
       console.warn(
-        `[db] transient error on attempt ${attempt + 1}/${attempts}, ` +
+        `[db] transient error on attempt ${attempt + 1}${of}, ` +
           `retrying in ${delay}ms: ${error instanceof Error ? error.message : String(error)}`,
       );
       await sleep(delay);

@@ -10,6 +10,7 @@
 
 import { stripRuntimeLocations } from '../net/error-message-hygiene';
 import { decodeHtmlEntities } from './html-to-text';
+import { replaceUpToLast, upToLast } from './markup-scan';
 
 /**
  * The robots.txt rules that bind THIS crawler — the group that names its
@@ -238,9 +239,19 @@ export function isDisallowed(pathname: string, policy: RobotsPolicy): boolean {
  * CDATA content is literal by spec and passes through undecoded. */
 export function parseSitemapLocs(xml: string): string[] {
   const locs: string[] = [];
-  for (const match of xml.matchAll(/<loc[^>]*>([\s\S]*?)<\/loc>/gi)) {
+  // Up to the last closing tag only, as every scan of markup here
+  // (`markup-scan.ts`): a sitemap is megabytes the site chooses, and a run
+  // of `<loc>` with no `</loc>` behind it is otherwise read to its end from
+  // each one.
+  const entries = upToLast(xml, /<\/loc>/gi);
+  for (const match of entries.matchAll(/<loc[^<>]*>([\s\S]*?)<\/loc>/gi)) {
     const raw = (match[1] ?? '').trim();
-    const unwrapped = raw.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1').trim();
+    const unwrapped = replaceUpToLast(
+      raw,
+      ']]>',
+      /<!\[CDATA\[([\s\S]*?)\]\]>/g,
+      '$1',
+    ).trim();
     const value = raw.includes('<![CDATA[')
       ? unwrapped
       : decodeHtmlEntities(unwrapped);
@@ -259,8 +270,11 @@ export function isSitemapIndex(xml: string): boolean {
  * `?a=1&b=2` to the browser and must mean the same to the crawler. */
 export function extractLinks(html: string): string[] {
   const links: string[] = [];
+  // The attributes before `href` stop at the next `<`: across a run of
+  // anchors that are never closed, `[^>]*` looked for `href` in the whole
+  // run from each of them (`markup-scan.ts`).
   for (const match of html.matchAll(
-    /<a\s[^>]*href\s*=\s*("([^"]*)"|'([^']*)')/gi,
+    /<a\s[^<>]*href\s*=\s*("([^"]*)"|'([^']*)')/gi,
   )) {
     const href = decodeHtmlEntities((match[2] ?? match[3] ?? '').trim());
     if (href.length > 0) links.push(href);
@@ -310,15 +324,25 @@ export function normalizeCandidateUrl(
 }
 
 /** Where the fetch loop routes a response, decided by its `Content-Type`
- * alone — an explicit whitelist, never a heuristic. `document` carries the
- * canonical extension the extraction router keys on (the server's declared
- * type wins over whatever the URL path claims). Types the crawl lane cannot
- * turn into text — images (vision-dependent), feeds, binaries — are `skip`:
- * the scan remembers it looked and stores nothing, exactly as before. */
+ * first — an explicit whitelist, never a heuristic — and, for a download
+ * whose declared type says nothing (`application/octet-stream`) or the
+ * wrong thing (`application/vnd.ms-excel` on an `.xlsx`, what a TYPO3
+ * export answers), by what the response carries: `sniff` asks the caller to
+ * read the body and let its bytes decide. `document` carries the canonical
+ * extension the extraction router keys on (the server's declared type wins
+ * over whatever the URL path claims) and the filename `Content-Disposition`
+ * offered, when it did. Types the crawl lane cannot turn into text — images
+ * (vision-dependent), feeds, binaries — are `skip`: the scan remembers it
+ * looked and stores nothing, exactly as before. */
 export type CrawlDispatch =
   | { readonly kind: 'html' }
   | { readonly kind: 'text' }
-  | { readonly kind: 'document'; readonly extension: string }
+  | {
+      readonly kind: 'document';
+      readonly extension: string;
+      readonly filename: string | null;
+    }
+  | { readonly kind: 'sniff'; readonly filename: string | null }
   | { readonly kind: 'skip' };
 
 const DOCUMENT_MIME_EXTENSIONS: ReadonlyMap<string, string> = new Map([
@@ -338,7 +362,41 @@ const DOCUMENT_MIME_EXTENSIONS: ReadonlyMap<string, string> = new Map([
   ['application/vnd.oasis.opendocument.text', '.odt'],
 ]);
 
-export function classifyContentType(contentType: string): CrawlDispatch {
+/** The extensions the extraction router reads. */
+const DOCUMENT_EXTENSIONS: ReadonlySet<string> = new Set(
+  DOCUMENT_MIME_EXTENSIONS.values(),
+);
+
+/** Declared types that say nothing about the bytes (a generic download), or
+ * name a legacy format servers hand out as the catch-all for its modern
+ * successor (`application/vnd.ms-excel` on an `.xlsx`, `application/msword`
+ * on a `.docx`). The bytes decide; a true legacy `.xls` or `.doc` stays
+ * unsupported. */
+const SNIFFED_MIMES: ReadonlySet<string> = new Set([
+  'application/octet-stream',
+  'binary/octet-stream',
+  'application/x-octet-stream',
+  'application/download',
+  'application/x-download',
+  'application/force-download',
+  'application/zip',
+  'application/x-zip-compressed',
+  'application/vnd.ms-excel',
+  'application/msword',
+  'application/vnd.ms-powerpoint',
+  'application/x-pdf',
+  'application/acrobat',
+]);
+
+function extensionOf(name: string): string {
+  const dot = name.lastIndexOf('.');
+  return dot < 0 ? '' : name.slice(dot).toLowerCase();
+}
+
+export function classifyContentType(
+  contentType: string,
+  contentDisposition: string | null = null,
+): CrawlDispatch {
   const mime = (contentType.split(';')[0] ?? '').trim().toLowerCase();
   // No Content-Type header: treat as a text page, the pre-dispatch behavior.
   if (mime === '') return { kind: 'html' };
@@ -348,27 +406,88 @@ export function classifyContentType(contentType: string): CrawlDispatch {
   if (mime === 'text/plain' || mime === 'text/markdown') {
     return { kind: 'text' };
   }
+  const filename = dispositionFilename(contentDisposition);
   const extension = DOCUMENT_MIME_EXTENSIONS.get(mime);
-  if (extension) return { kind: 'document', extension };
+  if (extension) return { kind: 'document', extension, filename };
+  if (
+    SNIFFED_MIMES.has(mime) ||
+    (filename !== null && DOCUMENT_EXTENSIONS.has(extensionOf(filename)))
+  ) {
+    return { kind: 'sniff', filename };
+  }
   return { kind: 'skip' };
 }
 
-/** A display/router filename for a document URL: the decoded basename of its
- * path with the mime-derived extension forced on — the extraction router
- * routes by extension, so the declared type must win over the path's. */
-export function documentNameForUrl(url: string, extension: string): string {
-  let basename = '';
-  try {
-    const segments = new URL(url).pathname.split('/');
-    basename = segments.findLast((segment) => segment.length > 0) ?? '';
+/** The filename a `Content-Disposition` header offers (RFC 6266): the
+ * `filename*` form (RFC 8187, `UTF-8''…` percent-encoded) wins over the
+ * quoted or bare `filename`; only its basename is kept, and an empty or
+ * undecodable one reads as none. */
+export function dispositionFilename(header: string | null): string | null {
+  if (header === null || header.trim() === '') return null;
+  let name: string | null = null;
+  const extended = /filename\*\s*=\s*(?:utf-8|iso-8859-1)'[^']*'([^;]+)/i.exec(
+    header,
+  );
+  if (extended?.[1]) {
     try {
-      basename = decodeURIComponent(basename);
+      name = decodeURIComponent(extended[1].trim());
     } catch {
-      // Keep the raw segment; a bad escape sequence is display noise, not
-      // an error worth failing the page over.
+      // A bad escape sequence in the extended form: fall back to the plain
+      // one, or to none.
+      name = null;
     }
-  } catch {
-    basename = '';
+  }
+  if (name === null) {
+    const plain = /filename\s*=\s*(?:"((?:[^"\\]|\\.)*)"|([^;]+))/i.exec(
+      header,
+    );
+    name = (plain?.[1] ?? plain?.[2] ?? '').replace(/\\(.)/g, '$1').trim();
+  }
+  // A path is the server's business; the basename is the name.
+  const base = name.split(/[\\/]/).pop() ?? '';
+  return base === '' || base === '.' || base === '..' ? null : base;
+}
+
+/** file-type's short names → the extraction router's extensions; anything
+ * else (an image, an archive, a legacy `.xls`) is none. */
+const FILE_TYPE_EXTENSIONS: ReadonlyMap<string, string> = new Map([
+  ['pdf', '.pdf'],
+  ['docx', '.docx'],
+  ['xlsx', '.xlsx'],
+  ['pptx', '.pptx'],
+  ['odt', '.odt'],
+]);
+
+export function documentExtensionFromFileType(
+  ext: string | undefined,
+): string | null {
+  return ext === undefined ? null : (FILE_TYPE_EXTENSIONS.get(ext) ?? null);
+}
+
+/** A display/router filename for a document URL: the name the response
+ * offered (`Content-Disposition`), else the decoded basename of the URL's
+ * path — with the mime- or byte-derived extension forced on, since the
+ * extraction router routes by extension and the declared type must win over
+ * the path's. */
+export function documentNameForUrl(
+  url: string,
+  extension: string,
+  filename: string | null = null,
+): string {
+  let basename = filename ?? '';
+  if (basename === '') {
+    try {
+      const segments = new URL(url).pathname.split('/');
+      basename = segments.findLast((segment) => segment.length > 0) ?? '';
+      try {
+        basename = decodeURIComponent(basename);
+      } catch {
+        // Keep the raw segment; a bad escape sequence is display noise, not
+        // an error worth failing the page over.
+      }
+    } catch {
+      basename = '';
+    }
   }
   if (basename === '') basename = 'document';
   const lower = basename.toLowerCase();
@@ -441,20 +560,42 @@ export function stripBoilerplate(
     .join('\n\n');
 }
 
+/** One attribute's value in a single tag, quoted or bare, or null. Looked
+ * for inside the tag it is given only, so the cost is that tag's length. */
+function tagAttribute(tag: string, name: string): string | null {
+  const match = new RegExp(
+    `\\b${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s"'>]+))`,
+    'i',
+  ).exec(tag);
+  if (match === null) return null;
+  return match[1] ?? match[2] ?? match[3] ?? '';
+}
+
+/** The page's `<meta>` tags, each read on its own. Up to the last `>` only,
+ * as every scan of markup here (`markup-scan.ts`); a value may hold a `<`. */
+function metaTags(html: string): IterableIterator<RegExpMatchArray> {
+  return upToLast(html, '>').matchAll(/<meta\s[^>]*>/gi);
+}
+
 /** The page's meta description — `name="description"` first, Open Graph as
- * the fallback — truncated to a summary-sized length. */
+ * the fallback — truncated to a summary-sized length. Each tag's attributes
+ * are read on their own, whatever their order: four patterns spanning the
+ * name and the content used to be run over the whole page, and a tag that
+ * repeated one attribute took them quadratic time (8,000 repeats, two
+ * seconds; a homepage may be two megabytes). */
 export function metaDescription(html: string): string | null {
-  const patterns = [
-    /<meta[^>]*name\s*=\s*["']description["'][^>]*content\s*=\s*["']([^"']*)["']/i,
-    /<meta[^>]*content\s*=\s*["']([^"']*)["'][^>]*name\s*=\s*["']description["']/i,
-    /<meta[^>]*property\s*=\s*["']og:description["'][^>]*content\s*=\s*["']([^"']*)["']/i,
-    /<meta[^>]*content\s*=\s*["']([^"']*)["'][^>]*property\s*=\s*["']og:description["']/i,
-  ];
-  for (const pattern of patterns) {
-    const value = (pattern.exec(html)?.[1] ?? '').trim();
-    if (value.length > 0) return value.slice(0, 500);
+  let openGraph: string | null = null;
+  for (const [tag] of metaTags(html)) {
+    const content = (tagAttribute(tag, 'content') ?? '').trim();
+    if (content.length === 0) continue;
+    const name = (tagAttribute(tag, 'name') ?? '').trim().toLowerCase();
+    if (name === 'description') return content.slice(0, 500);
+    const property = (tagAttribute(tag, 'property') ?? '').trim().toLowerCase();
+    if (openGraph === null && property === 'og:description') {
+      openGraph = content.slice(0, 500);
+    }
   }
-  return null;
+  return openGraph;
 }
 
 /** Whether an `X-Robots-Tag` field forbids indexing: `noindex` or `none`
@@ -521,18 +662,11 @@ export function discoverableLinks(
  * header form (`X-Robots-Tag`) was honoured while
  * the tag, the form most sites use, was not (2026-09-14 evaluation, h5). */
 export function robotsMetaNoindexDirective(html: string): string | null {
-  for (const match of html.matchAll(/<meta\s[^>]*>/gi)) {
-    const tag = match[0];
-    const name = /\bname\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))/i.exec(tag);
-    const nameValue = (name?.[1] ?? name?.[2] ?? name?.[3] ?? '')
-      .trim()
-      .toLowerCase();
+  for (const [tag] of metaTags(html)) {
+    const nameValue = (tagAttribute(tag, 'name') ?? '').trim().toLowerCase();
     if (nameValue !== 'robots') continue;
-    const content = /\bcontent\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))/i.exec(
-      tag,
-    );
     const directives = decodeHtmlEntities(
-      (content?.[1] ?? content?.[2] ?? content?.[3] ?? '').trim(),
+      (tagAttribute(tag, 'content') ?? '').trim(),
     );
     const forbids = directives
       .split(',')
@@ -552,6 +686,11 @@ export function publicPageError(message: string): string {
   return stripRuntimeLocations(firstLine);
 }
 
+/** What the render worker leaves on a page it started and never finished:
+ * its exec was cut while that page held the browser. */
+export const RENDER_UNFINISHED_REASON =
+  'The browser did not finish rendering the page before the batch ran out of time';
+
 /** How a rendered page's failure reads on its row: the browser's own load
  * budget expiring is the `timeout` the contract names, not a generic render
  * failure, and the message names the budget instead of the call log. */
@@ -559,6 +698,9 @@ export function classifyRenderReason(reason: string): {
   readonly kind: 'timeout' | 'render_failed';
   readonly message: string;
 } {
+  if (reason === RENDER_UNFINISHED_REASON) {
+    return { kind: 'timeout', message: reason };
+  }
   const timeout = /^page\.goto: Timeout (\d+)ms exceeded/i.exec(reason);
   if (timeout) {
     const seconds = Math.round(Number(timeout[1]) / 1000);
@@ -568,4 +710,60 @@ export function classifyRenderReason(reason: string): {
     };
   }
   return { kind: 'render_failed', message: publicPageError(reason) };
+}
+
+/**
+ * Navigation failures that are the render LANE's, never the page's.
+ *
+ * `proxy`: Chromium got no tunnel through the sandbox egress proxy — the
+ * proxy answered the CONNECT with an error (a default-deny allowlist that
+ * omits the host, a client it does not admit, no route out) or was not
+ * reachable at all. The probe leg fetched this very page over the host's own
+ * network seconds earlier, so a refused CONNECT is the lane, not the site.
+ * Charging it benched every page of a site whose host an operator's
+ * `SANDBOX_EGRESS_ALLOWLIST` omitted (2026-09-30).
+ *
+ * `crash`: the browser lost the navigation — a helper process killed under
+ * it (`net::ERR_ABORTED` once its network service died), a renderer crash, a
+ * frame detached, the browser gone. The worker retries such a page once in a
+ * fresh context; a second failure is recorded on the row without a strike.
+ *
+ * The worker runs inside the sandbox with no import path to this module, so
+ * the host hands it the pattern SOURCES with the batch: one definition.
+ */
+export const RENDER_PROXY_ERROR_PATTERN =
+  /net::ERR_(?:TUNNEL_CONNECTION_FAILED|PROXY_[A-Z_]+|NO_SUPPORTED_PROXIES|MANDATORY_PROXY_CONFIGURATION_FAILED|SOCKS_[A-Z_]+)\b/i;
+export const RENDER_CRASH_ERROR_PATTERN =
+  /net::ERR_ABORTED\b|frame was detached|page crashed|target crashed|browser has been closed|document download broke off/i;
+
+export type RenderFailureClass = 'proxy' | 'crash' | 'page';
+
+/** Which of the three the worker's reason for a failed page names. */
+export function renderFailureClass(reason: string): RenderFailureClass {
+  if (RENDER_PROXY_ERROR_PATTERN.test(reason)) return 'proxy';
+  if (RENDER_CRASH_ERROR_PATTERN.test(reason)) return 'crash';
+  return 'page';
+}
+
+/** Why a render batch stopped early: what the scan's row says. */
+export interface RenderLaneHalt {
+  readonly reason: 'egress_proxy' | 'browser';
+  /** The worker's own words for the failure that stopped it. */
+  readonly error: string;
+}
+
+/**
+ * The sentence a halted render lane leaves on the website row. It names the
+ * lane (the operator's proxy, or the browser) and the browser's error, and
+ * says that no page was charged — the next scan retries every one of them.
+ */
+export function renderLaneHaltMessage(
+  halt: RenderLaneHalt,
+  domain: string,
+): string {
+  const cause = publicPageError(halt.error);
+  if (halt.reason === 'egress_proxy') {
+    return `The render sandbox could not reach ${domain} through the sandbox egress proxy (${cause}). The proxy refused or failed the connection — check the sandbox-egress service and SANDBOX_EGRESS_ALLOWLIST; no page was charged, and the next scan retries.`;
+  }
+  return `The render sandbox's browser stopped answering (${cause}); no page was charged, and the next scan retries.`;
 }

@@ -9,7 +9,7 @@ Use a project when several questions or tasks depend on the same reference mater
 
 | Area | What belongs here |
 | --- | --- |
-| **General** | Name, description, standing instructions, and sharing settings. |
+| **General** | Name, description, standing instructions, sharing, and the default task reviewer. |
 | **Chats** | Your project conversations and the conversations explicitly shared with the project. |
 | **Knowledge** | Reference files organized into folders and scoped to this project. |
 | **Tasks** | Work with an owner, status, comments, and a result to review. |

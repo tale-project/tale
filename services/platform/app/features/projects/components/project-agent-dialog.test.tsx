@@ -8,13 +8,14 @@ import { render, screen, waitFor } from '@/tests/utils/render';
 import type { ProjectAgentRow } from '../hooks/queries';
 import { ProjectAgentDialog } from './project-agent-dialog';
 
-const { updateAgent, previewState } = vi.hoisted(() => ({
+const { createAgent, updateAgent, previewState } = vi.hoisted(() => ({
+  createAgent: vi.fn().mockResolvedValue('agent-new'),
   updateAgent: vi.fn().mockResolvedValue(undefined),
   previewState: { data: undefined as unknown },
 }));
 
 vi.mock('../hooks/mutations', () => ({
-  useCreateProjectAgent: () => ({ mutateAsync: vi.fn() }),
+  useCreateProjectAgent: () => ({ mutateAsync: createAgent }),
   useUpdateProjectAgent: () => ({ mutateAsync: updateAgent }),
 }));
 
@@ -86,8 +87,48 @@ function renderDialog(agent: ProjectAgentRow, models = MODELS) {
 }
 
 beforeEach(() => {
+  createAgent.mockClear();
   updateAgent.mockClear();
   previewState.data = undefined;
+});
+
+describe('ProjectAgentDialog create', () => {
+  it('hands the new agent to a caller that goes on to use it', async () => {
+    const onCreated = vi.fn();
+    const { user } = render(
+      <ProjectAgentDialog
+        open
+        onOpenChange={() => undefined}
+        projectId={'p1' as string}
+        organizationId="org-1"
+        harnesses={[{ harness: 'claude-code', label: 'Claude Code' }]}
+        models={MODELS}
+        skills={[]}
+        connectors={[]}
+        onCreated={onCreated}
+      />,
+    );
+
+    await user.type(screen.getByRole('textbox', { name: /Name/ }), 'Analyst');
+    await user.click(screen.getByRole('combobox', { name: /Agent type/ }));
+    await user.click(
+      await screen.findByRole('option', { name: 'Claude Code' }),
+    );
+    await user.click(screen.getByRole('button', { name: /^Model/ }));
+    await user.click(
+      await screen.findByRole('option', { name: /anthropic\/claude-fable-5/ }),
+    );
+    await user.click(screen.getByRole('button', { name: 'Create agent' }));
+
+    await waitFor(() => expect(onCreated).toHaveBeenCalledWith('agent-new'));
+    expect(createAgent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        projectId: 'p1',
+        name: 'Analyst',
+        harness: 'claude-code',
+      }),
+    );
+  });
 });
 
 describe('ProjectAgentDialog model pin', () => {
@@ -212,6 +253,16 @@ describe('ProjectAgentDialog document skills', () => {
     await user.keyboard('{Escape}');
     return state;
   }
+
+  it('offers the delegation tool to a project agent, unticked', async () => {
+    const { user } = renderWithSkills();
+    await user.click(screen.getByRole('button', { name: /skills/i }));
+    const item = await screen.findByRole('menuitemcheckbox', {
+      name: /Start other agents on tasks/,
+    });
+    expect(item).toHaveAttribute('aria-checked', 'false');
+    await user.keyboard('{Escape}');
+  });
 
   it('ticks the document skills the project can see on a new agent', async () => {
     const { user } = renderWithSkills();

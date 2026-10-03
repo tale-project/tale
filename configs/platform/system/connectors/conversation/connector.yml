@@ -86,6 +86,99 @@ actions:
       kind: native
       impl: conversation.list_mailbox_messages
     exampleInput: { connectorSlug: 'imap-smtp', limit: 25 }
+  - name: list_untriaged
+    description: >-
+      List the open Inbox conversations of one mail connector that are waiting
+      on the team — the newest message is the customer's — and that no triage
+      pass has judged since that message arrived. Newest first. Each row
+      carries the customer's newest message as text (at most 4000 characters)
+      and the Inbox link to the thread.
+    effects: read
+    input:
+      type: object
+      required: [connectorSlug]
+      additionalProperties: false
+      properties:
+        connectorSlug:
+          type: string
+          description: The mail connector whose conversations to read (gmail, outlook, or imap-smtp).
+        limit:
+          type: number
+          description: Max conversations to hand out in one pass (default 25, at most 100).
+    output: '{ conversations: Array<{ conversationId: string, subject: string, contact: { name: string, email: string }, lastInboundAt: string, lastInboundText: string, unreadCount: number, assigned: boolean, url: string }> }'
+    mock: |
+      const limit = typeof input.limit === 'number' ? input.limit : 25;
+      if (limit <= 0) return { conversations: [] };
+      return {
+        conversations: [
+          {
+            conversationId: 'mock',
+            subject: 'Mock subject',
+            contact: { name: 'Mock Sender', email: 'sender@example.com' },
+            lastInboundAt: '1970-01-01T00:00:01.000Z',
+            lastInboundText: 'Mock inbound message asking for an answer.',
+            unreadCount: 1,
+            assigned: false,
+            url: '/dashboard/org/conversations/open?conversation=mock',
+          },
+        ],
+      };
+    backend:
+      kind: native
+      impl: conversation.list_untriaged
+    exampleInput: { connectorSlug: 'gmail', limit: 25 }
+  - name: record_triage
+    description: >-
+      Record a triage pass on Inbox conversations: the verdict is stamped on
+      each conversation, and its priority is set where no person has set one.
+      A stamped conversation is not listed again until the customer writes
+      again. Nothing is sent; a drafted reply is a separate draft_reply call.
+    effects: write
+    input:
+      type: object
+      required: [verdicts]
+      additionalProperties: false
+      properties:
+        verdicts:
+          type: array
+          description: One verdict per conversation, at most 100.
+          items:
+            type: object
+            required: [conversationId, action]
+            additionalProperties: false
+            properties:
+              conversationId:
+                type: string
+              action:
+                type: string
+                enum: [reply, no_reply]
+                description: Whether the team has to reply.
+              priority:
+                type: string
+                enum: [low, medium, high, urgent]
+                description: The Inbox priority to set when none is set yet.
+              reason:
+                type: string
+                description: One sentence for the person who opens the thread (at most 500 characters).
+    output: '{ recorded: number, prioritized: number, unknown: Array<string> }'
+    mock: |
+      const verdicts = Array.isArray(input.verdicts) ? input.verdicts : [];
+      return { recorded: verdicts.length, prioritized: verdicts.filter((v) => v && v.priority).length, unknown: [] };
+    backend:
+      kind: native
+      impl: conversation.record_triage
+    exampleInput:
+      {
+        verdicts:
+          [
+            {
+              conversationId: 'conv_1',
+              action: 'reply',
+              priority: 'high',
+              reason: 'The customer asks for a delivery date.',
+            },
+          ],
+      }
   - name: ingest_emails
     description: Ingest already-fetched inbound emails into conversations.
     effects: write

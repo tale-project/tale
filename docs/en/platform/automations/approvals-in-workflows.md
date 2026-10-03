@@ -27,7 +27,7 @@ You cannot revise parameters on the approval card. Reject an incorrect request, 
 
 When an agent node uses `ask_human`, the run detail displays **The agent needs your answer to continue**. If choices are offered, answer the questions on the card. For an open question, enter text under **Your answer**, then choose **Send answer & resume**.
 
-Give the missing information directly. If the agent asks which document to use, name the document or provide its identifier rather than a general instruction to continue. The waiting node resumes with your answer, and the run may later need another answer or an operation approval. Organization members can answer these questions.
+Give the missing information directly. If the agent asks which document to use, name the document or provide its identifier rather than a general instruction to continue. The waiting node resumes with your answer, and the run may later need another answer or an operation approval. Owners, Admins, and Developers answer on the run detail. When the run works a task, the question also appears on the task, where anyone who can open the task answers it.
 
 ## Correct and test the workflow
 

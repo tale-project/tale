@@ -105,6 +105,58 @@ export const PAGE_FAILURE_KINDS = [
 
 export type PageFailureKind = (typeof PAGE_FAILURE_KINDS)[number];
 
+/**
+ * The kinds that are the crawler's own choice, not a failure: the origin
+ * asked not to be indexed, the content is of a type this lane cannot turn
+ * into text, or a redirect left the registered site and was not followed.
+ * Such a row keeps its reason (and its strikes, which stop the re-probing),
+ * but reads **Skipped** in the page list and does not count among the
+ * website's failed pages (2026-09-30).
+ */
+export const PAGE_SKIP_KINDS = [
+  'robots_noindex',
+  'unsupported_content',
+  'host_not_allowed',
+] as const satisfies readonly PageFailureKind[];
+
+export type PageSkipKind = (typeof PAGE_SKIP_KINDS)[number];
+
+export function isSkippedPageKind(kind: string): kind is PageSkipKind {
+  return (PAGE_SKIP_KINDS as readonly string[]).includes(kind);
+}
+
+/** The skip kinds as a SQL list, for a `NOT IN (…)` against
+ * `last_error_kind` — the identifiers are this module's own literals. */
+export const PAGE_SKIP_KINDS_SQL = PAGE_SKIP_KINDS.map(
+  (kind) => `'${kind}'`,
+).join(', ');
+
+/**
+ * The two states a page list can be narrowed to, and what each means on a
+ * `website_urls` row aliased `u`: **failed** — the last attempt stored
+ * nothing for a reason that was the page's or the origin's (a kind outside
+ * the skip kinds, or a reason recorded before kinds were); **skipped** —
+ * the crawler looked and chose not to index. The website's `failedPageCount`
+ * is the first fragment counted, so the number a reader sees and the list
+ * it opens agree.
+ */
+export const WEBSITE_PAGE_STATES = ['failed', 'skipped'] as const;
+
+export type WebsitePageState = (typeof WEBSITE_PAGE_STATES)[number];
+
+export function isWebsitePageState(value: string): value is WebsitePageState {
+  return (WEBSITE_PAGE_STATES as readonly string[]).includes(value);
+}
+
+export const FAILED_PAGE_SQL = `u.last_error IS NOT NULL AND (u.last_error_kind IS NULL OR u.last_error_kind NOT IN (${PAGE_SKIP_KINDS_SQL}))`;
+
+export const SKIPPED_PAGE_SQL = `u.last_error IS NOT NULL AND u.last_error_kind IN (${PAGE_SKIP_KINDS_SQL})`;
+
+export const PAGE_STATE_SQL: Record<WebsitePageState, string> = {
+  failed: FAILED_PAGE_SQL,
+  skipped: SKIPPED_PAGE_SQL,
+};
+
 export interface CrawlerPage {
   url: string;
   title: string | null;
@@ -135,13 +187,17 @@ export interface CrawlerWebsiteInfo {
   page_count: number;
   /** Pages the crawler ATTEMPTED — stored or not (`last_crawled_at` set). */
   crawled_count: number;
-  /** Pages whose last attempt failed (`fail_count > 0`). */
+  /** Pages whose last attempt failed (`last_error` set — a strike, or a
+   * render sandbox fault recorded without one). */
   failed_count: number;
   status: WebsiteStatus;
   last_scanned_at: string | null;
   /** Why the last scan failed — set with status 'error', cleared on the next
    * scan start. */
   error: string | null;
+  /** When the corpus row was last written. A running scan rewrites it at
+   * every link, so while the status is `scanning` this is its heartbeat. */
+  updated_at: string | null;
 }
 
 export interface CrawlerChunk {

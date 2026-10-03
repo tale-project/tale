@@ -4,7 +4,7 @@ description: How Ruler GmbH collects, uses, stores, and protects your personal d
 noindex: true
 ---
 
-**Last updated:** 01.04.2026
+**Last updated:** 03.10.2026
 
 ## 1. Introduction
 
@@ -117,7 +117,7 @@ If we introduce any cookies or third-party services in the future that require c
 
 ## 10. Data Security
 
-We take appropriate technical and organizational measures to protect your personal data against unauthorized access, loss, misuse, or destruction. These measures include encryption of data in transit (TLS/SSL), access controls, and hardened, self-operated hosting infrastructure. Ruler GmbH is ISO 27001 and SOC 2 certified.
+We take appropriate technical and organizational measures to protect your personal data against unauthorized access, loss, misuse, or destruction. These measures include encryption of data in transit (TLS/SSL), access controls, and hardened, self-operated hosting infrastructure. Ruler GmbH is ISO 27001 certified, covering Tale Enterprise and professional services.
 
 ## 11. Children's Privacy
 

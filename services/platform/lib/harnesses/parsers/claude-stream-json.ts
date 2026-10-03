@@ -93,6 +93,21 @@ class ClaudeStreamJsonParser implements HarnessEventParser {
     return this.lines.flush().flatMap((line) => this.line(line));
   }
 
+  /** Every input token a result's `usage` counts. Claude Code reports
+   * Anthropic's split — `input_tokens` is only the uncached remainder, and
+   * cache reads and writes are counted apart — so the three add up. Qwen
+   * Code's `input_tokens` is its whole prompt count already, its cache reads
+   * a share of it. */
+  private allInputTokens(usage: Record<string, unknown> | undefined): number {
+    const input = asNumber(usage?.input_tokens) ?? 0;
+    if (this.slug === 'qwen-code') return input;
+    return (
+      input +
+      (asNumber(usage?.cache_read_input_tokens) ?? 0) +
+      (asNumber(usage?.cache_creation_input_tokens) ?? 0)
+    );
+  }
+
   private line(line: string): HarnessEvent[] {
     const ev = parseJsonLine(line);
     if (!ev) {
@@ -301,7 +316,7 @@ class ClaudeStreamJsonParser implements HarnessEventParser {
       const cost = asNumber(ev.total_cost_usd);
       if (usage !== undefined || cost !== undefined) {
         out.usageTotals = {
-          inputTokens: asNumber(usage?.input_tokens) ?? 0,
+          inputTokens: this.allInputTokens(usage),
           outputTokens: asNumber(usage?.output_tokens) ?? 0,
           ...(cost !== undefined ? { costEstimateUsd: cost } : {}),
         };

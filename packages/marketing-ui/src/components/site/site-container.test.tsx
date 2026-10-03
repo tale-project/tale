@@ -17,9 +17,10 @@ describe('SiteContainer', () => {
       </SiteContainer>,
     );
     const el = screen.getByTestId('container');
-    expect(el.className).toContain('max-w-[1280px]');
-    expect(el.className).toContain('px-6');
-    expect(el.className).toContain('md:px-20');
+    expect(el.className).toContain('max-w-[1360px]');
+    expect(el.className).toContain('px-5');
+    expect(el.className).toContain('sm:px-8');
+    expect(el.className).toContain('lg:px-12');
     expect(el.className).toContain('mx-auto');
     expect(el.className).toContain('w-full');
   });

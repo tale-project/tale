@@ -23,7 +23,14 @@ vi.mock('../jobs/enqueue.ts', () => ({
 vi.mock('../domains/websites/service.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../domains/websites/service.ts')>()),
   fetchWebsitePages: vi.fn(() =>
-    Promise.resolve({ pages: [], total: 0, offset: 0, hasMore: false }),
+    Promise.resolve({
+      pages: [],
+      total: 0,
+      offset: 0,
+      hasMore: false,
+      state: null,
+      counts: { failed: 0, skipped: 0 },
+    }),
   ),
   listWebsites: vi.fn(() =>
     Promise.resolve({ page: [], isDone: true, continueCursor: '' }),
@@ -80,6 +87,8 @@ function fakeSql(
   const queries: Captured[] = [];
   const txs: unknown[] = [];
   const unsafe = (text: string) => ({ unsafe: text });
+  // A patch that writes metadata serializes it through the driver.
+  const json = (value: unknown) => value;
   const handle = (via: 'pool' | 'tx') => {
     const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
       const text = strings.join('$?').replace(/\s+/g, ' ').trim();
@@ -105,7 +114,7 @@ function fakeSql(
       }
       return Promise.resolve([]);
     };
-    return Object.assign(tag, { unsafe });
+    return Object.assign(tag, { unsafe, json });
   };
   const pool = Object.assign(handle('pool'), {
     begin: async (callback: (tx: unknown) => Promise<unknown>) => {
@@ -477,6 +486,8 @@ describe('website corpus views', () => {
       total: 2,
       offset: 0,
       hasMore: false,
+      state: null,
+      counts: { failed: 0, skipped: 0 },
     });
     const { sql } = fakeSql();
     const res = await mount(sql).request('http://localhost/websites/w-1/pages');
@@ -517,6 +528,8 @@ describe('website corpus views', () => {
       total: 2,
       offset: 0,
       hasMore: false,
+      state: null,
+      counts: { failed: 0, skipped: 0 },
       isDone: true,
       continueCursor: '',
     });
@@ -534,6 +547,8 @@ describe('website corpus views', () => {
       total: 2,
       offset: 0,
       hasMore: false,
+      state: null,
+      counts: { failed: 0, skipped: 0 },
     });
     const { sql } = fakeSql();
     const res = await mount(sql).request('http://localhost/websites/w-1/pages');
@@ -562,6 +577,8 @@ describe('website corpus views', () => {
       total: 3,
       offset: 0,
       hasMore: true,
+      state: null,
+      counts: { failed: 0, skipped: 0 },
     });
     const { sql } = fakeSql();
     const first = await mount(sql).request(
@@ -581,6 +598,8 @@ describe('website corpus views', () => {
       total: 3,
       offset: 2,
       hasMore: false,
+      state: null,
+      counts: { failed: 0, skipped: 0 },
     });
     const next = await mount(sql).request(
       `http://localhost/websites/w-1/pages?limit=2&cursor=${encodeURIComponent(token)}`,
@@ -596,6 +615,51 @@ describe('website corpus views', () => {
       isDone: true,
       continueCursor: '',
     });
+  });
+
+  // The failed pages alone: the filter reaches the corpus read, the cursor
+  // is minted under the filtered list, and a cursor of one list is refused
+  // on another — a reader walking the failed pages never lands in all of
+  // them. `counts` carries every state's number whichever is open.
+  it('narrows the window to one state and binds the cursor to it', async () => {
+    vi.mocked(fetchWebsitePages).mockResolvedValueOnce({
+      pages: [{ url: 'https://docs.example/broken' }],
+      total: 2,
+      offset: 0,
+      hasMore: true,
+      state: 'failed',
+      counts: { failed: 2, skipped: 1 },
+    });
+    const { sql } = fakeSql();
+    const first = await mount(sql).request(
+      'http://localhost/websites/w-1/pages?limit=1&state=failed',
+    );
+    expect(first.status).toBe(200);
+    expect(vi.mocked(fetchWebsitePages).mock.calls.at(-1)?.[2]).toEqual({
+      offset: 0,
+      limit: 1,
+      state: 'failed',
+    });
+    const token = mintCursorFor('org-1', 'website-pages:w-1:failed', '1');
+    expect(await first.json()).toMatchObject({
+      state: 'failed',
+      counts: { failed: 2, skipped: 1 },
+      hasMore: true,
+      continueCursor: token,
+    });
+    const crossed = await mount(sql).request(
+      `http://localhost/websites/w-1/pages?cursor=${encodeURIComponent(token)}`,
+    );
+    expect(crossed.status).toBe(400);
+  });
+
+  it('refuses a page state it does not know', async () => {
+    const { sql } = fakeSql();
+    const res = await mount(sql).request(
+      'http://localhost/websites/w-1/pages?state=broken',
+    );
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ code: 'INVALID_QUERY' });
   });
 
   it('refuses cursor beside offset, another website’s cursor, and a blank one, before the corpus is read', async () => {

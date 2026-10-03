@@ -81,11 +81,41 @@ export function createGoogleDriveRoutes(deps: {
     requireOrgAbility('write', 'knowledgeWrite'),
   );
 
-  const tokenFor = async (c: Context<OrgEnv>) =>
-    resolveDriveTokenForUser(deps.sql, {
-      organizationId: c.get('orgId'),
-      userId: c.get('sessionBundle').user.id,
-    });
+  const tokenFor = async (
+    c: Context<OrgEnv>,
+    options: { forceRefresh?: boolean } = {},
+  ) =>
+    resolveDriveTokenForUser(
+      deps.sql,
+      {
+        organizationId: c.get('orgId'),
+        userId: c.get('sessionBundle').user.id,
+      },
+      options,
+    );
+
+  /**
+   * A listing under the member's grant. When the provider refuses the token
+   * (401) — access removed at the provider ends it while the stored expiry
+   * still counts it live — the grant is refreshed once: a grant that cannot
+   * be refreshed answers its own sentence, which the picker (and an
+   * import's folder walk) hands to the connect dialog; one that can is
+   * listed again with the new token.
+   */
+  const listUnderGrant = async <
+    T extends { success: boolean; unauthorized?: boolean },
+  >(
+    c: Context<OrgEnv>,
+    list: (token: string) => Promise<T>,
+  ): Promise<T | { success: false; error: string }> => {
+    const token = await tokenFor(c);
+    if (!token.success) return { success: false, error: token.error };
+    const listed = await list(token.token);
+    if (listed.success || listed.unauthorized !== true) return listed;
+    const renewed = await tokenFor(c, { forceRefresh: true });
+    if (!renewed.success) return { success: false, error: renewed.error };
+    return list(renewed.token);
+  };
 
   app.post('/list-files', async (c) => {
     const body = z
@@ -102,12 +132,10 @@ export function createGoogleDriveRoutes(deps: {
       c.get('orgId'),
     );
     if (limited !== null) return limited;
-    const token = await tokenFor(c);
-    if (!token.success) {
-      return c.json({ success: false, error: token.error });
-    }
     return c.json(
-      await listFiles(token.token, body.data.folderId, body.data.search),
+      await listUnderGrant(c, (token) =>
+        listFiles(token, body.data.folderId, body.data.search),
+      ),
     );
   });
 
@@ -130,7 +158,7 @@ export function createGoogleDriveRoutes(deps: {
       return c.json({
         success: false,
         results: [],
-        totalFiles: 0,
+        totalFiles: body.data.items.length,
         successCount: 0,
         failedCount: 0,
         skippedCount: 0,
@@ -197,7 +225,13 @@ export function createGoogleDriveRoutes(deps: {
         token: token.token,
         userId: c.get('sessionBundle').user.id,
       },
-      createGoogleDriveImportDeps(deps.sql, c.get('orgId')),
+      {
+        ...createGoogleDriveImportDeps(deps.sql, c.get('orgId')),
+        // The grant again before each file, the check each listing makes,
+        // so a grant revoked or expired mid-import stops the import there
+        // and answers the grant's own sentence with the files done so far.
+        resolveToken: ({ forceRefresh }) => tokenFor(c, { forceRefresh }),
+      },
     );
     return c.json(result);
   });

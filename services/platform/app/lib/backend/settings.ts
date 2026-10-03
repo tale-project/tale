@@ -9,10 +9,12 @@
 import type { ItemOf, ReturnsOf } from '@/app/lib/backend/contract';
 import {
   API_KEY_HINT_ENTITY,
+  CONNECTOR_CREDENTIAL_HINT_ENTITY,
   MEMBER_HINT_ENTITY,
   PROVIDER_CREDENTIAL_HINT_ENTITY,
   TEAM_HINT_ENTITY,
 } from '@/lib/shared/hint-entities';
+import { backendErrorCode } from '@/lib/utils/backend-error';
 
 import { invalidateMyPasswordPolicy } from './account';
 import type {
@@ -23,7 +25,12 @@ import type {
   WriteAdapter,
 } from './adapters';
 import { backendFetch } from './api-client';
-import { backendEntityPrefix, backendKey } from './query-keys';
+import { inPolicyWriteOrder, settleUntilRead } from './policy-write-order';
+import {
+  backendEntityPrefix,
+  backendKey,
+  orgApiKeyListKey,
+} from './query-keys';
 
 type OrgTeamItem = ItemOf<'members/queries:listOrgTeams'>;
 type TeamMemberItem = ItemOf<'team_members/queries:listByTeam'>;
@@ -79,6 +86,7 @@ type MyBudgetStatusResult = ReturnsOf<'governance/queries:getMyBudgetStatus'>;
 type MyBudgetUsageResult = ReturnsOf<'governance/queries:getMyBudgetUsage'>;
 type MyModelApiAccessResult =
   ReturnsOf<'governance/queries:getMyModelApiAccess'>;
+type MyApiKeyAccessResult = ReturnsOf<'governance/queries:getMyApiKeyAccess'>;
 type TrashListResult = ReturnsOf<'governance/queries:listTrashedRows'>;
 type LegalHoldItem = ItemOf<'governance/legal_hold_queries:listLegalHolds'>;
 type LegalMatterItem = ItemOf<'governance/legal_hold_queries:listLegalMatters'>;
@@ -350,6 +358,22 @@ export const settingsReadAdapters: Record<string, ReadAdapter> = {
       staleTime: 30_000,
     };
   },
+  'governance/queries:getMyApiKeyAccess': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    if (orgId === undefined) return null;
+    return {
+      // Keyed under the API-key entity: creating or revoking a key hints it
+      // to every organization of the holder and the key dialogs invalidate
+      // it, so the REST tab follows the keys held at once. A role change or
+      // a grant arrives on the next read.
+      queryKey: backendKey(orgId, API_KEY_HINT_ENTITY, 'my-access'),
+      queryFn: () =>
+        backendFetch<MyApiKeyAccessResult>('/governance/my/api-keys', {
+          orgId,
+        }),
+      staleTime: 30_000,
+    };
+  },
   'governance/queries:getMyBudgetUsage': (args, ctx) => {
     const orgId = orgOf(args, ctx);
     if (orgId === undefined) return null;
@@ -497,7 +521,7 @@ export const settingsReadAdapters: Record<string, ReadAdapter> = {
     return {
       queryKey: backendKey(
         orgId,
-        'connector_credential',
+        CONNECTOR_CREDENTIAL_HINT_ENTITY,
         'list',
         connectorSlug ?? null,
       ),
@@ -597,7 +621,7 @@ export const settingsReadAdapters: Record<string, ReadAdapter> = {
             orgId,
           },
         ).then((body) => body.sessions),
-      refetchInterval: 15_000,
+      refetchInterval: sandboxListPollInterval,
     };
   },
   'sandbox_devices/queries:list': (args, ctx) => {
@@ -659,11 +683,23 @@ export const settingsReadAdapters: Record<string, ReadAdapter> = {
     const orgId = orgOf(args, ctx);
     if (orgId === undefined) return null;
     return {
-      queryKey: backendKey(orgId, API_KEY_HINT_ENTITY, 'org-list'),
+      queryKey: orgApiKeyListKey(orgId),
+      // One list for the editor: every live key (what the picker offers),
+      // then the keys the saved rules still name. A backend from before
+      // `ruleKeys` answers the live keys alone.
       queryFn: () =>
-        backendFetch<{ keys: OrgApiKeyItem[] }>('/governance/api-keys', {
-          orgId,
-        }).then((body) => body.keys),
+        backendFetch<{
+          keys: Omit<OrgApiKeyItem, 'status'>[];
+          ruleKeys?: Omit<OrgApiKeyItem, 'createdAt'>[];
+        }>('/governance/api-keys', { orgId }).then((body): OrgApiKeyItem[] => [
+          // The parsed rows are this read's own: stamp them in place.
+          ...body.keys.map((key) =>
+            Object.assign(key, { status: 'active' as const }),
+          ),
+          ...(body.ruleKeys ?? []).map((key) =>
+            Object.assign(key, { createdAt: null }),
+          ),
+        ]),
     };
   },
   'governance/competences:listCompetences': (args, ctx) => {
@@ -1042,8 +1078,34 @@ function invalidateConnectorCredentials(
   const orgId = orgOf(args, ctx);
   if (orgId === undefined) return;
   void client.invalidateQueries({
-    queryKey: backendEntityPrefix(orgId, 'connector_credential'),
+    queryKey: backendEntityPrefix(orgId, CONNECTOR_CREDENTIAL_HINT_ENTITY),
   });
+}
+
+/**
+ * A credential write refused because its credential is gone — another
+ * session deleted it, and this tab missed the hint (its stream was down).
+ * The listing the reader acted on is stale, so the same reads refetch: the
+ * row drops, and its menu or confirm with it, instead of failing the same
+ * way on every click.
+ */
+function credentialGone(error: unknown): boolean {
+  return backendErrorCode(error) === 'CREDENTIAL_NOT_FOUND';
+}
+
+/** The Sandboxes list polls every 15 s, and every 2 s while a row's
+ * Destroy is under way: the row leaves soon after its job settles. */
+function sandboxListPollInterval(sessions: unknown): number {
+  const rows: unknown[] = Array.isArray(sessions) ? sessions : [];
+  return rows.some(
+    (row) =>
+      typeof row === 'object' &&
+      row !== null &&
+      'destroyState' in row &&
+      row.destroyState === 'pending',
+  )
+    ? 2_000
+    : 15_000;
 }
 
 function invalidateSandboxSessions(
@@ -1348,6 +1410,7 @@ export const settingsWriteAdapters: Record<string, WriteAdapter> = {
         },
       ).then(() => null),
     invalidate: invalidateProviderReads,
+    refusalInvalidates: credentialGone,
   },
   'provider_credentials/actions:updateCredentialWithDefinition': {
     run: (args, ctx) =>
@@ -1385,6 +1448,7 @@ export const settingsWriteAdapters: Record<string, WriteAdapter> = {
         { orgId: requireOrg(args, ctx), method: 'DELETE' },
       ).then(() => null),
     invalidate: invalidateProviderReads,
+    refusalInvalidates: credentialGone,
   },
   'provider_credentials/mutations:setDefaultCredential': {
     run: (args, ctx) =>
@@ -1393,6 +1457,7 @@ export const settingsWriteAdapters: Record<string, WriteAdapter> = {
         { orgId: requireOrg(args, ctx), body: { isDefault: true } },
       ).then(() => null),
     invalidate: invalidateProviderReads,
+    refusalInvalidates: credentialGone,
   },
   'connector_credentials/actions:createCredential': {
     run: (args, ctx) =>
@@ -1433,6 +1498,7 @@ export const settingsWriteAdapters: Record<string, WriteAdapter> = {
       ).then(() => null);
     },
     invalidate: invalidateConnectorCredentials,
+    refusalInvalidates: credentialGone,
   },
   'connector_credentials/mutations:deleteCredential': {
     run: (args, ctx) =>
@@ -1441,6 +1507,7 @@ export const settingsWriteAdapters: Record<string, WriteAdapter> = {
         { orgId: requireOrg(args, ctx), method: 'DELETE' },
       ).then(() => null),
     invalidate: invalidateConnectorCredentials,
+    refusalInvalidates: credentialGone,
   },
   'connector_credentials/mutations:setDefaultCredential': {
     run: (args, ctx) =>
@@ -1449,6 +1516,7 @@ export const settingsWriteAdapters: Record<string, WriteAdapter> = {
         { orgId: requireOrg(args, ctx), body: {} },
       ).then(() => null),
     invalidate: invalidateConnectorCredentials,
+    refusalInvalidates: credentialGone,
   },
   'connector_oauth_apps/actions:upsert': {
     run: (args, ctx) =>
@@ -1488,21 +1556,47 @@ export const settingsWriteAdapters: Record<string, WriteAdapter> = {
     invalidate: invalidateConnectorOauthApps,
   },
   'governance/file_actions:saveGovernancePolicy': {
-    run: (args, ctx) =>
-      backendFetch<{ ok: boolean }>(
-        `/governance/policies/${encodeURIComponent(stringArg(args, 'policyType'))}`,
-        { orgId: requireOrg(args, ctx), body: { config: args.config } },
-      ).then(() => null),
+    // Each write carries the whole file, so a policy's writes go out one at
+    // a time, in the order they were made (`policy-write-order.ts`).
+    run: (args, ctx) => {
+      const orgId = requireOrg(args, ctx);
+      const policyType = stringArg(args, 'policyType');
+      return inPolicyWriteOrder(orgId, policyType, () =>
+        backendFetch<{ ok: boolean }>(
+          `/governance/policies/${encodeURIComponent(policyType)}`,
+          { orgId, body: { config: args.config } },
+        ),
+      ).then(() => null);
+    },
     invalidate: (client, args, ctx) => {
       const orgId = orgOf(args, ctx);
       if (orgId === undefined) return;
       void client.invalidateQueries({
         queryKey: backendEntityPrefix(orgId, 'governance_policy'),
       });
+      // The key listing describes the keys the budget rules name.
+      if (args.policyType === 'budgets') {
+        void client.invalidateQueries({ queryKey: orgApiKeyListKey(orgId) });
+      }
+      // The policy settles once its own read, which the invalidation above
+      // is fetching again, shows this write.
+      if (typeof args.policyType === 'string') {
+        settleUntilRead(
+          client,
+          orgId,
+          args.policyType,
+          backendKey(orgId, 'governance_policy', args.policyType),
+        );
+      }
       if (args.policyType === 'sandbox_quota') {
         void client.invalidateQueries({
           queryKey: backendKey(orgId, 'sandbox_session', 'quota-usage'),
         });
+      }
+      // The workspace list dates each unused workspace's deletion by this
+      // policy's window.
+      if (args.policyType === 'sandbox_workspaces') {
+        invalidateSandboxSessions(client, args, ctx);
       }
       if (args.policyType === 'password_policy') {
         invalidateMyPasswordPolicy(client);
@@ -1603,7 +1697,7 @@ export const settingsWriteAdapters: Record<string, WriteAdapter> = {
   },
   'node_only/sandbox/session_admin_actions:destroySandbox': {
     run: (args, ctx) =>
-      backendFetch<{ ok: boolean }>(
+      backendFetch<{ scheduled: boolean }>(
         `/sandbox/sessions/${encodeURIComponent(stringArg(args, 'sessionId'))}/destroy`,
         { orgId: requireOrg(args, ctx), body: {} },
       ).then(() => null),

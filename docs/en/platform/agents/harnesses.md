@@ -31,6 +31,8 @@ A runtime needs both compatible credentials and [sandbox capacity](/platform/adm
 
 To guide project work, comment on the task and mention its agent. Claude Code receives that guidance at a tool boundary. For the other runtimes, Tale stops the current process and continues the conversation in a new process with the comment. This is why a running task may restart its process after you give it direction.
 
+Gemini CLI is the exception: Tale never continues one of its conversations. A later comment, an automatic retry, or an answer to a question it asked starts a fresh conversation over the same workspace, with the task brief and the earlier rounds restated, because the runtime cannot resume a conversation in which it ran a tool. Its files and output are preserved; only the conversation starts over.
+
 ## Understand credential exposure and cost
 
 With a stored API key or deployment-environment credential, Tale supplies a session-scoped gateway key. The original model-provider key stays at the platform. Calls through this gateway are metered and subject to the applicable spending rules, including allowance already assigned to other running turns.
@@ -48,6 +50,8 @@ Equipped skill bundles are staged as files and named in the run’s instructions
 Every runtime also finds Tale’s built-in `visual-aspect-analyzer` skill among its own skills, without equipping it. It drives a real browser over a finished UI change and reports layout shifts, flicker and other visual regressions. A skill of the same name in the workspace repository’s `.claude/skills` and `.agents/skills` folders takes its place in every runtime that reads a repository’s skills.
 
 Tale’s connector broker keeps ordinary connector credentials at the platform and returns action results. It exposes read actions to agents, and refuses writes through that broker. Use an automation connector node for a governed connector write. GitHub tooling and explicitly granted secrets have their own access paths, so the broker’s read-only rule is not a general ban on all shell writes.
+
+Agents with Tale’s MCP channel can also look up which Tale release the platform reports. Along with the platform tools granted to the agent, `workspace_status` returns `platform.version`, the release number that the answering backend’s build is labelled with: for example `0.5.64` for the release whose tag is `v0.5.64`. The backend reads nothing from the request for this value. A build without a release number, such as a development build, returns `null` with a short note instead. Treat the value as a label rather than proof, because any build can carry a release number. It also describes that backend only and does not show whether the rest of the deployment is healthy; the deployment’s [status page](/develop/status-page) reports on its services.
 
 Outbound access normally permits package installation and repository cloning while blocking private addresses and cloud metadata targets. Operators can restrict permitted hosts further. If a command cannot reach a site, check the network policy instead of assuming the credential is wrong.
 

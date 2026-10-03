@@ -85,6 +85,30 @@
       "height": 1800
     },
     {
+      "file": "images/platform/automation-general-trigger.webp",
+      "shot": "automation-general-trigger",
+      "route": "/dashboard/:orgId/automations/gmail-triage-inbox/general",
+      "viewport": {
+        "width": 1440,
+        "height": 640
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1280
+    },
+    {
+      "file": "images/platform/automation-run-detail.webp",
+      "shot": "automation-run-detail",
+      "route": "/dashboard/:orgId/automations/github-triage-issues/runs",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800
+    },
+    {
       "file": "images/platform/automation-run-input.webp",
       "shot": "automation-run-input",
       "route": "/dashboard/:orgId/automations/github-triage-issues/editor",
@@ -145,6 +169,18 @@
       "height": 348
     },
     {
+      "file": "images/platform/chat-create-task.webp",
+      "shot": "chat-create-task",
+      "route": "/dashboard/:orgId/chat",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 1536,
+      "height": 1000
+    },
+    {
       "file": "images/platform/chat-document-attachment.webp",
       "shot": "chat-document-attachment",
       "route": "/dashboard/:orgId/chat?new=true",
@@ -179,6 +215,18 @@
       "dpr": 2,
       "width": 2880,
       "height": 1800
+    },
+    {
+      "file": "images/platform/chat-task-tray.webp",
+      "shot": "chat-task-tray",
+      "route": "/dashboard/:orgId/chat",
+      "viewport": {
+        "width": 1140,
+        "height": 800
+      },
+      "dpr": 2,
+      "width": 1614,
+      "height": 488
     },
     {
       "file": "images/platform/chat-thread-reply.webp",
@@ -229,6 +277,18 @@
       "height": 440
     },
     {
+      "file": "images/platform/governance-audit-logs.webp",
+      "shot": "governance-audit-logs",
+      "route": "/dashboard/:orgId/settings/governance/logs?category=member",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800
+    },
+    {
       "file": "images/platform/governance-confidentiality-notice.webp",
       "shot": "governance-confidentiality-notice",
       "route": "/dashboard/:orgId/settings/governance/policies-limits",
@@ -237,7 +297,7 @@
         "height": 900
       },
       "dpr": 2,
-      "width": 1536,
+      "width": 1538,
       "height": 660
     },
     {
@@ -249,7 +309,7 @@
         "height": 900
       },
       "dpr": 2,
-      "width": 1536,
+      "width": 1538,
       "height": 384
     },
     {
@@ -345,13 +405,73 @@
         "height": 900
       },
       "dpr": 2,
-      "width": 1536,
+      "width": 1538,
       "height": 356
+    },
+    {
+      "file": "images/platform/governance-standard-agent.webp",
+      "shot": "governance-standard-agent",
+      "route": "/dashboard/:orgId/settings/governance/content-models",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 1538,
+      "height": 954
+    },
+    {
+      "file": "images/platform/home-inbox.webp",
+      "shot": "home-inbox",
+      "route": "/dashboard/:orgId/conversations/open",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800
     },
     {
       "file": "images/platform/knowledge-entries-list.webp",
       "shot": "knowledge-entries-list",
       "route": "/dashboard/:orgId/knowledge-entries",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800
+    },
+    {
+      "file": "images/platform/knowledge-products-list.webp",
+      "shot": "knowledge-products-list",
+      "route": "/dashboard/:orgId/products",
+      "viewport": {
+        "width": 1440,
+        "height": 540
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1080
+    },
+    {
+      "file": "images/platform/metrics-chat-health.webp",
+      "shot": "metrics-chat-health",
+      "route": "/dashboard/:orgId/settings/metrics/chat-health",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800
+    },
+    {
+      "file": "images/platform/metrics-usage.webp",
+      "shot": "metrics-usage",
+      "route": "/dashboard/:orgId/settings/metrics/usage",
       "viewport": {
         "width": 1440,
         "height": 900
@@ -385,16 +505,28 @@
       "height": 1800
     },
     {
+      "file": "images/platform/project-agents-standard.webp",
+      "shot": "project-agents-standard",
+      "route": "/dashboard/:orgId/projects",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800
+    },
+    {
       "file": "images/platform/project-general-tab.webp",
       "shot": "project-general-tab",
       "route": "/dashboard/:orgId/projects",
       "viewport": {
         "width": 1440,
-        "height": 1200
+        "height": 1110
       },
       "dpr": 2,
       "width": 2880,
-      "height": 2400
+      "height": 2220
     },
     {
       "file": "images/platform/project-knowledge-files.webp",
@@ -433,6 +565,18 @@
       "height": 1800
     },
     {
+      "file": "images/platform/project-task-standard-agent.webp",
+      "shot": "project-task-standard-agent",
+      "route": "/dashboard/:orgId/projects",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 1056,
+      "height": 798
+    },
+    {
       "file": "images/platform/projects-task-board.webp",
       "shot": "projects-task-board",
       "route": "/dashboard/:orgId/projects",
@@ -445,6 +589,18 @@
       "height": 2800
     },
     {
+      "file": "images/platform/sandbox-add-device.webp",
+      "shot": "sandbox-add-device",
+      "route": "/dashboard/:orgId/settings/sandboxes",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 1024,
+      "height": 1132
+    },
+    {
       "file": "images/platform/sandbox-infrastructure-capacity.webp",
       "shot": "sandbox-infrastructure-capacity",
       "route": "/dashboard/:orgId/settings/sandboxes",
@@ -453,8 +609,20 @@
         "height": 900
       },
       "dpr": 2,
-      "width": 1536,
+      "width": 1538,
       "height": 928
+    },
+    {
+      "file": "images/platform/sandbox-workspace-cleanup.webp",
+      "shot": "sandbox-workspace-cleanup",
+      "route": "/dashboard/:orgId/settings/sandboxes",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 1538,
+      "height": 550
     },
     {
       "file": "images/platform/settings-branding.webp",
@@ -513,7 +681,7 @@
         "height": 900
       },
       "dpr": 2,
-      "width": 1536,
+      "width": 1538,
       "height": 1048
     },
     {

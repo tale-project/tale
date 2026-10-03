@@ -5,6 +5,12 @@ description: Investigate token consumption, request volume, and recorded cost by
 
 Open **Settings > Metrics > Usage** as an Admin or Owner to understand which workloads consume AI resources. Start with the reporting period, then use the breakdowns to investigate a change in cost or volume.
 
+<Frame caption="Settings > Metrics > Usage: the totals, the token chart, and the top assistants for the last 30 days.">
+
+![The Usage metrics page for the last 30 days, reporting 14 requests, 448 tokens, a recorded cost of $0.00, and one active user, with a token chart whose only bar is the current day split into input and output, above a Top assistants table that lists the assistant and chat-title generation.](/images/platform/metrics-usage.webp)
+
+</Frame>
+
 ## Investigate a usage increase
 
 1. Open **Filter** and choose a **Period** of 7, 30, or 90 days. The initial view covers 30 days.
@@ -18,7 +24,7 @@ Assistant names can include supporting work such as chat-title generation. A req
 
 ## Read cost alongside tokens
 
-The dashboard uses recorded usage and metering information. Input and output tokens are separate, and services such as voice output or image generation may have different billing units. A token total alone cannot explain every cost.
+The dashboard uses recorded usage and metering information. Input and output tokens are separate, and services such as voice output or image generation may have different billing units. A token total alone cannot explain every cost. Input tokens include the part of a prompt that a provider read from or wrote to its cache. That part is priced differently from other input, so a run that reuses a long prompt can show many input tokens for a small cost.
 
 An image an agent generated appears under its image model in **Top models** and under the agent or automation in **Top assistants**, as one request per image and without tokens. Its cost is the charge OpenRouter reported, or for OpenAI the list price of the image tokens OpenAI reported. A request the provider billed without returning a usable image counts the same way.
 

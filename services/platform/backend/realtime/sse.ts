@@ -10,6 +10,7 @@ import type { AuthEnv } from '../auth/session.ts';
 import {
   describeDatabaseError,
   isDatabaseUnavailable,
+  ROUTINE_RESTART_MS,
 } from '../db/unavailable.ts';
 import { reportError } from '../error-reporting.ts';
 import { hintStreamClosed, hintStreamOpened } from '../telemetry.ts';
@@ -49,7 +50,7 @@ const UNAVAILABLE_BACKOFF_MAX_MS = 10_000;
  * recreates `db` on every release; a restart shorter than this is routine
  * and only logged.
  */
-const OUTAGE_REPORT_AFTER_MS = 60_000;
+const OUTAGE_REPORT_AFTER_MS = ROUTINE_RESTART_MS;
 
 export interface EventsHandlerOptions {
   pollIntervalMs?: number;

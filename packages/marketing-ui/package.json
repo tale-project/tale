@@ -3,6 +3,16 @@
   "version": "0.1.0",
   "private": true,
   "description": "Tale marketing design language — site chrome, marketing primitives and product-demo frames",
+  "homepage": "https://ui.tale.dev",
+  "bugs": {
+    "url": "https://github.com/tale-project/tale/issues"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tale-project/tale.git",
+    "directory": "packages/marketing-ui"
+  },
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
@@ -27,6 +37,7 @@
     "./feature-steps": "./src/components/feature/feature-steps.tsx",
     "./globals.css": "./src/globals.css",
     "./i18n/messages": "./src/i18n/messages.ts",
+    "./landing.css": "./src/landing.css",
     "./link": "./src/components/marketing/link.tsx",
     "./logo-cloud-section": "./src/components/blocks/logo-cloud-section.tsx",
     "./marketing": "./src/components/marketing/index.ts",

@@ -31,6 +31,8 @@ Il faut des identifiants compatibles et de la [capacité de sandbox](/fr/platfor
 
 Pour guider le travail, commente la tâche et mentionne son agent. Claude Code reçoit le message entre deux appels d’outils. Pour les autres environnements, Tale arrête le processus et poursuit la même conversation dans un nouveau processus avec ton commentaire. Cela explique un redémarrage du processus après une nouvelle consigne.
 
+Gemini CLI fait exception : Tale ne poursuit jamais une de ses conversations. Un commentaire ultérieur, une nouvelle tentative automatique ou la réponse à une question posée par l’agent démarre une nouvelle conversation dans le même espace de travail, en rappelant la consigne de la tâche et les échanges précédents, parce que l’environnement ne peut pas reprendre une conversation dans laquelle il a appelé un outil. Les fichiers et les résultats sont conservés ; seule la conversation repart de zéro.
+
 ## Comprendre les identifiants et les coûts
 
 Avec une clé API stockée ou fournie par l’environnement du déploiement, Tale remet une clé de passerelle limitée à la session. La clé d’origine du fournisseur de modèle reste dans la plateforme. Les appels de passerelle sont mesurés et soumis aux règles de dépense applicables, en tenant compte des montants déjà attribués aux autres échanges en cours.
@@ -48,6 +50,8 @@ Les bundles de skills sont préparés sous forme de fichiers et cités dans les 
 Chaque programme trouve aussi le skill intégré `visual-aspect-analyzer` parmi ses propres skills, sans que tu aies à l’équiper. Il pilote un vrai navigateur sur une modification d’interface terminée et signale les décalages de mise en page, le scintillement et les autres régressions visuelles. Un skill du même nom dans les dossiers `.claude/skills` et `.agents/skills` du dépôt de l’espace de travail le remplace dans chaque programme qui lit les skills d’un dépôt.
 
 Le broker de connectors garde les identifiants ordinaires dans Tale et renvoie les résultats des actions. Il propose les lectures aux agents et refuse les écritures par cette voie. Utilise un nœud connector d’automatisation pour une écriture soumise aux règles de Tale. Les outils GitHub et les secrets explicitement accordés suivent d’autres voies : la restriction du broker n’interdit donc pas toutes les écritures depuis le shell.
+
+Les agents qui disposent du canal MCP de Tale peuvent aussi consulter la release de Tale que signale la plateforme. En plus des outils de la plateforme accordés à l’agent, `workspace_status` renvoie `platform.version`, le numéro de release que porte le build du backend qui répond : par exemple `0.5.64` pour la release dont le tag est `v0.5.64`. Pour cette valeur, le backend ne lit rien dans la requête. Un build sans numéro de release, comme un build de développement, renvoie à la place `null` avec une courte note. Considère cette valeur comme une indication et non comme une preuve, car n’importe quel build peut porter un numéro de release. Elle ne décrit en outre que ce backend et n’indique pas si le reste du déploiement fonctionne ; la [page de statut](/fr/develop/status-page) du déploiement rend compte de ses services.
 
 L’accès sortant autorise normalement l’installation de paquets et le clonage de dépôts, tout en bloquant les adresses privées et les services de métadonnées cloud. Les opérateurs peuvent restreindre davantage les hôtes permis. Lorsqu’un service est inaccessible, examine les règles réseau avant de conclure que les identifiants sont incorrects.
 

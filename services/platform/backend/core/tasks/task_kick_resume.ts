@@ -43,6 +43,12 @@ export interface KickResumeContext {
    * absent when none exists — a fresh incarnation will be created and no
    * prior conversation can live in it. */
   liveSessionCreatedAt?: number;
+  /** Whether `harness` continues conversations at all
+   * (`capabilities.resume` in its YAML, read through
+   * `harnessResumesConversations`). False means every kick is a fresh
+   * conversation over the preserved workspace, whatever the predecessor
+   * left — the exec builder refuses a handle on such a harness. */
+  resumable: boolean;
 }
 
 /**
@@ -128,6 +134,11 @@ export function resolveTaskKickResume(args: {
     previous.status === 'settled'
       ? { sweep: true, inspectNote: false }
       : { sweep: false, inspectNote: true };
+
+  // A harness the platform never resumes starts fresh whatever handle the
+  // predecessor announced: the handle is real, but the CLI cannot continue
+  // the conversation it names, and the exec builder refuses it.
+  if (!kick.resumable) return fresh;
 
   // A predecessor the PROVIDER rejected at the conversation level must not
   // be resumed: the transcript itself is what the model refuses, so every

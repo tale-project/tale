@@ -18,11 +18,16 @@ export type TaskAgentRunRow = {
   trigger: string;
   status: string;
   error?: string;
+  /** The producer's classification of a failed run (see
+   * `lib/shared/task-run-failure.ts`). */
+  failureCode?: string;
   startedAt: number;
   durationMs?: number;
   costCents: number;
   workflowSlug?: string;
   wfExecutionId?: string;
+  /** The project agent whose run started this one (`task_start_agent`). */
+  delegatedByAgentId?: string;
 };
 
 export type TaskTimelineEntry =

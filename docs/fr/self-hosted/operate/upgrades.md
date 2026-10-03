@@ -83,6 +83,30 @@ tale rollback
 
 `--yes` supprime la confirmation pour une opération sans surveillance déjà approuvée. La vérification de ligne de version est un garde-fou, pas une preuve indépendante de compatibilité de chaque intégration externe ou configuration personnalisée. Une liste d’anciennes migrations qui forme le préfixe de la nouvelle ne suffit pas à rendre un retour arrière sûr.
 
+`tale rollback` remplace uniquement les images applicatives de `platform`, `backend-api` et `backend-worker`. Il ne restaure aucun volume et laisse la base de données, les stockages, le proxy, les services de sandbox et la passerelle de modèles tels quels. Aucune étape de déploiement ne restaure non plus de données d’elle-même : un déploiement ordinaire (sans `--services`) qui échoue à ses contrôles de santé laisse la couleur applicative précédente en service, mais les services qu’il a déjà remplacés sur place le restent. Seul `tale restore` remet en place les volumes d’un snapshot.
+
+## Bifrost 1.6 → 2.2 : le stockage de la passerelle de modèles est migré
+
+Une version postérieure à 0.5.64 fait passer la passerelle de modèles (`sandbox-llm-gateway`) de Bifrost 1.6 à Bifrost 2.2 ; ses notes de version signalent ce changement. À son premier démarrage, la nouvelle passerelle migre sur place son stockage dans `llm-gateway-data` et conserve ses fournisseurs, clés, budgets et compte d’administration ; rien n’est à faire à la main. La migration indexe aussi le journal des requêtes de la passerelle, si bien que ce démarrage peut durer plus longtemps sur une instance à long historique de requêtes.
+
+`tale deploy` remplace la passerelle avant de démarrer la nouvelle couleur applicative : si le déploiement échoue ensuite, le stockage peut donc déjà être migré. Le snapshot qu’un `tale deploy` avec changement de version prend auparavant contient `llm-gateway-data` avec les autres volumes et sert donc aussi de point de reprise pour la passerelle. Les snapshots pris avant que la CLI capture le stockage de la passerelle ne contiennent pas cette archive ; `tale restore` les signale comme `without gateway`. Si tu déploies avec `--skip-backup`, copie d’abord le volume toi-même. Arrête la passerelle, ce qui termine les tours d’agent et les appels de modèle en cours, copie le volume, puis déploie. `<id>` est l’`id` de `tale.json` :
+
+```bash
+docker stop <id>-sandbox-llm-gateway
+docker run --rm -v <id>_llm-gateway-data:/from:ro -v "$PWD/llm-gateway-data-backup:/to" alpine:3.22 cp -a /from/. /to/
+```
+
+La passerelle d’une version antérieure à ce changement démarre sur le stockage migré et sert Tale, mais elle journalise des erreurs `no such column: oauth_configs.token_id`, et Bifrost ne prend pas en charge ce retour en arrière. `tale rollback` ne démarre pas cette passerelle : il laisse la passerelle sur l’image et le stockage plus récents. Elle démarre quand une version antérieure au changement est de nouveau déployée, par exemple avec `tale update --version` et `tale deploy` après la restauration d’un snapshot. Remets donc d’abord le stockage en place. Restaurer le snapshot pris avant la mise à niveau remet `llm-gateway-data` en place avec les autres volumes. Si `tale restore` signale ce snapshot comme `without gateway`, arrête la passerelle et remets ta copie en place avant de déployer la version antérieure :
+
+```bash
+docker stop <id>-sandbox-llm-gateway
+docker run --rm -v "$PWD/llm-gateway-data-backup:/from:ro" -v <id>_llm-gateway-data:/to alpine:3.22 sh -c 'find /to -mindepth 1 -delete && cp -a /from/. /to/'
+```
+
+Une passerelle sans compte d’administration, sur une nouvelle installation ou après le remplacement de son volume, ne crée désormais ce compte que pour un appelant qui présente son jeton de configuration, que l’image tire de `SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD`. `tale deploy`, le fichier Compose du dépôt et les manifestes Kubernetes de cette documentation donnent déjà cette variable à la passerelle. Un fichier Compose ou un manifeste écrit à la main qui ne la passe qu’au backend doit aussi la passer à la passerelle.
+
+Deux comportements changent. Quand un appelant raccroche, la passerelle met désormais fin à l’appel de modèle, qu’il ait demandé une réponse entière ou un flux : une requête abandonnée n’occupe donc plus un modèle auto-hébergé, et les endpoints de modèles imputent un tel appel pour son prompt et la sortie qui avait atteint l’appelant. Et un modèle en amont qui retient les en-têtes de réponse d’une réponse en flux, comme un routeur qui met les requêtes en file d’attente jusqu’à ce qu’un modèle se libère, doit commencer sa réponse dans le délai de requête de la passerelle : 600 secondes, ou davantage quand `SANDBOX_LLM_GATEWAY_STREAM_IDLE_TIMEOUT_SECONDS` le relève.
+
 ## 0.4 → 0.5 : une installation séparée
 
 En 0.5, Postgres a remplacé l’ancien stockage applicatif Convex. Aucun importeur ne permet une mise à niveau directe entre ces bases. Garde l’ancienne instance et ses sauvegardes intactes pendant que tu prépares un déploiement neuf, avec un workspace et des données séparés.

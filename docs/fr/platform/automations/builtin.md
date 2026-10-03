@@ -27,11 +27,23 @@ Ces workflows importent les nouveaux messages dans des conversations toutes les 
 | Synchroniser les e-mails Outlook | Outlook | Toutes les 5 minutes |
 | Synchroniser les e-mails via SMTP/IMAP | IMAP/SMTP | Toutes les 5 minutes |
 
+Une passe ne lit que le dossier Boîte de réception de la boîte. Elle distingue les réponses de la boîte elle-même de celles du client grâce à l’adresse de la boîte, que la première passe apprend du compte connecté et conserve sur la connexion comme adresse d’expéditeur ; pour IMAP, elle vient de l’identifiant de connexion.
+
 Connecte d’abord la boîte correspondante. Après la première exécution réelle, examine son [journal](/fr/platform/automations/execution-logs) et vérifie que les messages attendus apparaissent dans la vue **Réception** d’**Accueil**.
 
-## Lire un résumé des messages récents
+Les pièces jointes sont enregistrées avec leur message : tu les ouvres et les télécharges depuis la conversation. Depuis Gmail, Tale ne récupère chaque pièce jointe que jusqu’à 3,5 Mo : une pièce plus lourde reste listée avec son nom et sa taille, mais tu l’ouvres dans Gmail.
 
-Ces workflows lisent toutes les six heures les messages récents de chaque boîte connectée de leur type. Ils produisent un résumé et repèrent les messages qui semblent demander une réponse aujourd’hui. Le résumé constitue la sortie de l’exécution : ouvre celle-ci pour le lire. Ils n’écrivent rien dans la boîte et ne changent pas le statut des conversations.
+## Trier la Boîte de réception
+
+Ces workflows travaillent toutes les six heures sur la **Boîte de réception** que les automatisations de synchronisation alimentent. Chacun lit les conversations ouvertes de son connector de messagerie dont le dernier message vient du client et qu’aucune exécution précédente n’a jugées depuis l’arrivée de ce message – au plus 25 par exécution si tu ne relèves pas `limit`, et jamais plus de 100. Le modèle décide pour chaque fil si une personne doit répondre, et avec quelle urgence.
+
+Ce qu’une exécution change :
+
+- Le verdict est noté sur chaque fil, avec sa raison, de sorte que l’exécution suivante ne réexamine le fil que lorsque le client écrit de nouveau.
+- La **priorité** du fil prend la valeur du verdict du modèle – mais seulement si personne n’en a fixé une. Une priorité choisie par une personne reste telle quelle.
+- Là où une réponse est due, un second appel au modèle en rédige une et la dépose sur le fil comme **Réponse suggérée** : une carte au-dessus de l’éditeur, à l’écart de ce qu’une personne a tapé. **Mettre dans l’éditeur** confie le texte à l’éditeur pour le retoucher et l’envoyer ; **Ignorer** l’abandonne, et le fil ne reçoit plus de suggestion tant que le client n’écrit pas de nouveau. L’automatisation n’envoie rien. Un fil qui porte déjà une suggestion la conserve.
+
+La sortie de l’exécution liste ce qui a été lu, le résumé du modèle, les fils qui demandent une réponse avec leurs liens vers la Boîte de réception, et les brouillons déposés. Une exécution sans rien en attente n’appelle pas le modèle. Déploie d’abord l’automatisation de synchronisation correspondante ; sans conversations synchronisées, il n’y a rien à trier.
 
 | Automatisation | Connector requis | Planification |
 | --- | --- | --- |
@@ -46,7 +58,7 @@ Ces workflows lisent toutes les six heures les messages récents de chaque boît
 1. Connecte la source dans **Paramètres > Connectors** et choisis ses identifiants par défaut. GitHub nécessite un accès au dépôt avec le droit de lire les issues. GlitchTip nécessite l’URL de l’instance et un token disposant de `project:read` et `event:read`. Un token réservé à la configuration des projets ne peut pas lire les issues. Une instance auto-hébergée doit être autorisée par la politique des hôtes du connecteur.
 2. Ouvre l’import et choisis **Essai**. Sélectionne le **Projet Tale**, puis saisis le propriétaire et le dépôt GitHub ou les identifiants de l’organisation et du projet GlitchTip. Des labels facultatifs ou une recherche GlitchTip permettent de filtrer les nouvelles issues. **Nombre maximal d'issues** accepte 1–500, avec 100 par défaut.
 3. Vérifie le résultat du test, mets la version en service, puis choisis **Exécuter en réel** avec la même destination et les mêmes filtres. Un test utilise des données d’exemple et ne crée aucune tâche. Seule une exécution réelle vérifie la connexion.
-4. Ouvre **Exécutions** et sélectionne l’exécution. **Tâches importées** contient les liens vers les tâches Tale correspondantes. S’il reste un lot, **Poursuivre l'import** reprend la source, la destination et la position de continuation pour l’exécution suivante.
+4. Ouvre **Exécutions** et sélectionne l’exécution. **Tâches importées** contient les liens vers les tâches Tale correspondantes. S’il reste un lot, **Poursuivre l'import** reprend la source, la destination et la position de continuation pour l’exécution suivante. Pour importer plutôt chaque issue selon une planification, une automatisation conserve cette position entre ses occurrences : voir [Importer chaque issue selon une planification](/fr/platform/automations/triggers#importer-chaque-issue-selon-une-planification).
 
 Chaque synchronisation recherche de nouvelles issues et actualise jusqu’à 500 issues déjà liées, en commençant par celles dont la vérification est la plus ancienne, même lorsqu’elles ne correspondent plus au filtre. Relance la synchronisation pour maintenir les grandes collections à jour. Les pull requests GitHub sont exclues. Un nouvel import réutilise la même identité source dans un projet Tale. Renommer un dépôt ou un projet actualise le lien vers la source sans créer une deuxième tâche. Une issue déplacée vers un autre dépôt ou projet source reste liée et continue d’être actualisée par les imports précédents, si la connexion peut accéder à son nouvel emplacement.
 

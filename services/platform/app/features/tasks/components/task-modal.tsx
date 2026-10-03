@@ -32,6 +32,7 @@ import { Link } from '@tanstack/react-router';
 import {
   Archive,
   ArchiveRestore,
+  Play,
   Plus,
   Settings2,
   Trash2,
@@ -69,7 +70,6 @@ import type { TaskRepeat } from '@/lib/shared/task-repeat';
 import {
   useAssignTask,
   useCreateTask,
-  useSetTaskReviewer,
   useUpdateTask,
   useUpdateTaskStatus,
 } from '../hooks/mutations';
@@ -92,6 +92,7 @@ import {
   type TaskPriority,
   type TaskStatus,
 } from '../lib/display';
+import { parentCloseRefusal } from '../lib/parent-close-refusal';
 import { reviewPolicyErrorMessage } from '../lib/review-policy-error';
 import { reviewerRefusalMessage } from '../lib/reviewer-refusal';
 import { subtaskProgress } from '../lib/subtasks';
@@ -101,6 +102,7 @@ import {
   taskAutomationOwned,
   taskRepeatFieldState,
 } from '../lib/task-repeat-edit';
+import { taskRunErrorMessage } from '../lib/task-run-error';
 import { AssigneeAvatar } from './assignee-avatar';
 import { AssigneePicker } from './assignee-picker';
 import { EditableDescription } from './editable-description';
@@ -110,10 +112,10 @@ import { MentionText } from './mention-text';
 import { MentionTextarea } from './mention-textarea';
 import { MentionTriggerChips } from './mention-trigger-chips';
 import { PriorityPicker } from './priority-picker';
-import { ReviewerPicker } from './reviewer-picker';
 import { useRunCancelConfirm } from './run-cancel-confirm';
 import { StatusPicker } from './status-picker';
 import { TaskAgentRunEntry } from './task-agent-run-entry';
+import { TaskAgentRunFailureNotice } from './task-agent-run-failure-notice';
 import { TaskArchiveDialog } from './task-archive-dialog';
 import { TaskArchivedBadge } from './task-archived-badge';
 import { TaskAttachments } from './task-attachments';
@@ -137,7 +139,11 @@ import { TaskParentLink } from './task-parent-link';
 import { TaskRepeatField } from './task-repeat-field';
 import { TaskRepeatNextLink } from './task-repeat-next-link';
 import { TaskRepeatStopButton } from './task-repeat-stop-button';
-import { TaskRunFailureBanner } from './task-run-failure-banner';
+import { TaskReviewerField } from './task-reviewer-field';
+import {
+  TaskRunFailureBanner,
+  useLatestRunRefusal,
+} from './task-run-failure-banner';
 import { TaskStatusBadge } from './task-status-badge';
 import { TaskStatusGlyph } from './task-status-glyph';
 import { TaskSubjectPanel } from './task-subject-panel';
@@ -154,6 +160,28 @@ function stripPreviews(attachments: FileAttachment[]) {
     fileType,
     fileSize,
   }));
+}
+
+/** What a create starts with instead of a blank form (see `TaskModal`). */
+export interface TaskDraft {
+  title: string;
+  description: string;
+  /** Files already uploaded by the person creating the task. */
+  attachments: readonly {
+    fileId: string;
+    fileName: string;
+    fileType: string;
+    fileSize: number;
+  }[];
+  /** Who takes it, picked for the person when the choice is obvious (the
+   * project's one agent). */
+  assignee?: { type: TaskActorType; id: string };
+  /** The conversation the task is handed over from — its root thread; the
+   * chat then shows the task (`tasks.source_thread_id`). */
+  sourceThreadId?: string;
+  /** The hand-over's main verb starts the agent: work handed over from a
+   * chat is meant to begin, while the board keeps Create as its verb. */
+  startAgent?: boolean;
 }
 
 /**
@@ -175,6 +203,8 @@ export function TaskModal({
   projectId,
   taskId,
   defaultStatus,
+  draft,
+  onTaskCreated,
   onOpenTask,
   showProjectLink = false,
 }: {
@@ -182,10 +212,17 @@ export function TaskModal({
   onOpenChange: (open: boolean) => void;
   organizationId: string;
   projectId: string;
-  /** Present → edit/view an existing task; absent → create a new one. */
+  /** Present → edit/view an existing task; absent → create a new one. Read
+   *  while open: a closing dialog keeps the body it was open with. */
   taskId?: string | null;
   /** Initial status for create mode (e.g. the "+" of a list section). */
   defaultStatus?: TaskStatus;
+  /** What create mode starts with instead of a blank form — a task drafted
+   * from a chat. Read once, when the form mounts. */
+  draft?: TaskDraft;
+  /** Create mode: the caller reports the created task itself (with a way to
+   * open it) in place of the plain "Task created" toast. */
+  onTaskCreated?: (taskId: string) => void;
   /** Navigate to another task (subtasks / dependency links). */
   onOpenTask?: (taskId: string) => void;
   /** All-projects board: show a link to the task's project in the detail. */
@@ -193,6 +230,14 @@ export function TaskModal({
 }) {
   const { t } = useT('tasks');
   const contentRef = useRef<HTMLDivElement>(null);
+  // The dialog plays its exit animation with the body it had while open. The
+  // board clears `taskId` in the same render that closes it, so a body read
+  // off the prop turned the closing task into the empty create form, at the
+  // create form's height, and mounted that form's reads on every close
+  // (#3939) — render-time state adjustment, no effect.
+  const [openTaskId, setOpenTaskId] = useState(taskId);
+  if (open && taskId !== openTaskId) setOpenTaskId(taskId);
+  const bodyTaskId = open ? taskId : openTaskId;
   return (
     <ResponsiveDialog open={open} onOpenChange={onOpenChange}>
       <ResponsiveDialogContent
@@ -201,14 +246,14 @@ export function TaskModal({
           'max-w-3xl',
           // Edit mode: pin the dialog height so it never jumps as comments /
           // activity / agent runs load; the columns scroll internally instead.
-          taskId && 'flex h-[85dvh] flex-col overflow-hidden',
+          bodyTaskId && 'flex h-[85dvh] flex-col overflow-hidden',
         )}
         // Edit mode: Radix would focus (and text-select) the first tabbable —
         // the inline-editable title. Focus the dialog explicitly: cancelling
         // alone also skips Radix's container fallback and leaves the opener
         // focused behind the overlay. Create mode keeps its title autofocus.
         onOpenAutoFocus={
-          taskId
+          bodyTaskId
             ? (event) => {
                 event.preventDefault();
                 contentRef.current?.focus({ preventScroll: true });
@@ -219,9 +264,9 @@ export function TaskModal({
         <ResponsiveDialogDescription className="sr-only">
           {t('detail.overview')}
         </ResponsiveDialogDescription>
-        {taskId ? (
+        {bodyTaskId ? (
           <EditTaskBody
-            taskId={taskId}
+            taskId={bodyTaskId}
             onOpenTask={onOpenTask}
             onClose={() => onOpenChange(false)}
             showProjectLink={showProjectLink}
@@ -232,8 +277,10 @@ export function TaskModal({
             projectId={projectId}
             // Board creates default to `todo` so new tasks land in a visible lane.
             defaultStatus={defaultStatus ?? 'todo'}
+            draft={draft}
             onClose={() => onOpenChange(false)}
             onCreated={onOpenTask}
+            onTaskCreated={onTaskCreated}
           />
         )}
       </ResponsiveDialogContent>
@@ -796,16 +843,22 @@ function CreateTaskBody({
   organizationId,
   projectId,
   defaultStatus,
+  draft,
   onClose,
   onCreated,
+  onTaskCreated,
 }: {
   organizationId: string;
   projectId: string;
   defaultStatus: TaskStatus;
+  draft?: TaskDraft;
   onClose: () => void;
   /** Open the created (or re-picked) task — the template flow lands the user
    * inside the task modal where the subject panel names the next step. */
   onCreated?: (taskId: string) => void;
+  /** The blank form's create, reported by the caller instead of the plain
+   * toast. */
+  onTaskCreated?: (taskId: string) => void;
 }) {
   const { t } = useT('tasks');
   const { t: tCommon } = useT('common');
@@ -828,17 +881,18 @@ function CreateTaskBody({
     useFileUpload({
       organizationId,
       allowedTypes: [...TASK_UPLOAD_ALLOWED_TYPES],
+      ...(draft !== undefined && { initialAttachments: draft.attachments }),
     });
 
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
+  const [title, setTitle] = useState(draft?.title ?? '');
+  const [description, setDescription] = useState(draft?.description ?? '');
   const [status, setStatus] = useState<TaskStatus>(defaultStatus);
   const pasteCounterRef = useRef(1);
   const [priority, setPriority] = useState<TaskPriority | null>(null);
   const [assignee, setAssignee] = useState<{
     type: TaskActorType;
     id: string;
-  } | null>(null);
+  } | null>(draft?.assignee ?? null);
   const [dueDate, setDueDate] = useState<number | undefined>(undefined);
   const [startDate, setStartDate] = useState<number | undefined>(undefined);
   const [repeat, setRepeat] = useState<TaskRepeat | null>(null);
@@ -871,12 +925,21 @@ function CreateTaskBody({
     ? resolveActor(assignee.type, assignee.id).name
     : t('assignee.unassigned');
 
-  const submit = async () => {
+  // An agent-owned card created at In progress gets its run at once (the
+  // server's own rule), so the verb says so; one created in Backlog or To do
+  // waits for a Start, so it can be created started instead.
+  const agentAssigned = assignee?.type === 'agent';
+  const startsOnCreate = agentAssigned && status === 'in_progress';
+  const offerStart =
+    agentAssigned && (status === 'backlog' || status === 'todo');
+  const startFirst = offerStart && draft?.startAgent === true;
+
+  const submit = async (options: { start?: boolean } = {}) => {
     const trimmed = title.trim();
     if (!trimmed || submitting || descriptionOverCap) return;
     setSubmitting(true);
     try {
-      await createTask.mutateAsync({
+      const taskId = await createTask.mutateAsync({
         organizationId,
         projectId,
         title: trimmed,
@@ -884,7 +947,7 @@ function CreateTaskBody({
         attachments: attachments.length
           ? stripPreviews(attachments)
           : undefined,
-        status,
+        status: options.start === true ? 'in_progress' : status,
         priority: priority ?? undefined,
         labels: labels.length ? labels : undefined,
         assigneeType: assignee?.type,
@@ -895,13 +958,23 @@ function CreateTaskBody({
           repeatState.kind === 'editable' && repeat !== null
             ? repeat
             : undefined,
+        ...(draft?.sourceThreadId !== undefined
+          ? { sourceThreadId: draft.sourceThreadId }
+          : {}),
       });
-      toast({ title: t('actions.created'), variant: 'success' });
+      if (onTaskCreated === undefined) {
+        toast({ title: t('actions.created'), variant: 'success' });
+      }
       onClose();
+      onTaskCreated?.(taskId);
     } catch (error) {
       console.error('Create task error:', error);
       const code = error instanceof AppError ? error.data?.code : undefined;
       const limitRefusal = taskLimitRefusalMessage(error, t, formatNumber);
+      // A start the organization's policy refuses takes the create with it
+      // (one transaction): say which, so Create without starting is the
+      // obvious way on.
+      const runRefusal = taskRunErrorMessage(error, t);
       if (code === 'TASK_SCHEDULE_INVALID') {
         toast({ title: t('startDate.afterDue'), variant: 'destructive' });
       } else if (code === 'PROJECT_ARCHIVED') {
@@ -910,6 +983,8 @@ function CreateTaskBody({
         toast({ title: t('errors.PROJECT_ARCHIVED'), variant: 'destructive' });
       } else if (limitRefusal !== undefined) {
         toast({ title: limitRefusal, variant: 'destructive' });
+      } else if (runRefusal !== undefined) {
+        toast({ title: runRefusal, variant: 'destructive' });
       } else {
         toast({
           title: tCommon('errors.generic'),
@@ -986,10 +1061,11 @@ function CreateTaskBody({
               // behind a generic error toast.
               maxLength={TASK_TITLE_MAX}
               onKeyDown={(e) => {
-                // Cmd/Ctrl+Enter submits from the title (fast path).
+                // Cmd/Ctrl+Enter submits from the title (fast path) — the
+                // footer's main verb.
                 if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
                   e.preventDefault();
-                  void submit();
+                  void submit({ start: startFirst });
                 }
               }}
             />
@@ -1050,9 +1126,6 @@ function CreateTaskBody({
                 projectId={projectId}
                 assigneeType={assignee?.type}
                 assigneeId={assignee?.id}
-                taskTitle={title}
-                taskDescription={description}
-                taskLabels={labels}
                 align="end"
                 afterTrigger={
                   <span
@@ -1132,16 +1205,42 @@ function CreateTaskBody({
           </>
         }
         footer={
-          <Row gap={2} justify="end">
+          <Row gap={2} justify="end" className="flex-wrap">
             <Button variant="secondary" onClick={onClose} disabled={submitting}>
               {tCommon('actions.cancel')}
             </Button>
+            {offerStart && startFirst && (
+              <Button
+                variant="secondary"
+                onClick={() => void submit()}
+                disabled={
+                  title.trim().length === 0 || descriptionOverCap || submitting
+                }
+              >
+                {t('actions.createOnly')}
+              </Button>
+            )}
+            {offerStart && !startFirst && (
+              <Button
+                variant="secondary"
+                icon={Play}
+                onClick={() => void submit({ start: true })}
+                disabled={
+                  title.trim().length === 0 || descriptionOverCap || submitting
+                }
+              >
+                {t('actions.createAndStart')}
+              </Button>
+            )}
             <Button
-              onClick={() => void submit()}
+              {...(startFirst || startsOnCreate ? { icon: Play } : {})}
+              onClick={() => void submit({ start: startFirst })}
               disabled={title.trim().length === 0 || descriptionOverCap}
               isLoading={submitting}
             >
-              {t('actions.create')}
+              {startFirst || startsOnCreate
+                ? t('actions.createAndStart')
+                : t('actions.create')}
             </Button>
           </Row>
         }
@@ -1196,6 +1295,9 @@ export function EditTaskBody({
     { canEdit, canCreate },
   );
   const { project } = useProject(task?.projectId);
+  // The refused start the banner shows, if one is the latest thing that
+  // happened to the task.
+  const latestRefusal = useLatestRunRefusal(taskId);
   const identifier = formatTaskIdentifier(project?.key, task?.number);
   const { copy } = useCopy();
   const copyIdentifier = () => {
@@ -1277,7 +1379,6 @@ export function EditTaskBody({
       ? null
       : resolveSettingsFolder(ownedBy.settings, ownedBy.contract);
   const assignTask = useAssignTask();
-  const setTaskReviewer = useSetTaskReviewer();
   const createTask = useCreateTask();
   const { uploadingFiles, uploadFiles, clearAttachments } = useFileUpload({
     organizationId: task?.organizationId ?? '',
@@ -1290,11 +1391,9 @@ export function EditTaskBody({
   const pasteCounterRef = useRef(1);
 
   const onMutationError = (error: unknown) => {
-    if (
-      error instanceof AppError &&
-      error.data?.code === 'TASK_HAS_OPEN_SUBTASKS'
-    ) {
-      toast({ title: t('detail.parentCloseGuard'), variant: 'destructive' });
+    const closeRefusal = parentCloseRefusal(error, t);
+    if (closeRefusal !== undefined) {
+      toast({ title: closeRefusal, variant: 'destructive' });
       return;
     }
     // Setting In review → Done IS the review approve, so the org's
@@ -1485,10 +1584,6 @@ export function EditTaskBody({
     task.assigneeType && task.assigneeId
       ? resolveActor(task.assigneeType, task.assigneeId).name
       : t('assignee.unassigned');
-  const reviewerName =
-    task.reviewerUserId !== undefined
-      ? resolveActor('user', task.reviewerUserId).name
-      : t('reviewer.none');
   const author = resolveActor(task.createdByType, task.createdBy);
   const { done: subtasksDone, total: subtasksTotal } =
     subtaskProgress(subtasks);
@@ -1734,6 +1829,19 @@ export function EditTaskBody({
         organizationId={task.organizationId}
         projectId={task.projectId}
       />
+      {/* The agent's run failed and the task still waits on it — unless a
+          refused start is the newer account of why, said just above. */}
+      {task.assigneeType === 'agent' &&
+        task.assigneeId &&
+        task.status === 'in_progress' &&
+        latestRefusal === null && (
+          <TaskAgentRunFailureNotice
+            organizationId={task.organizationId}
+            taskId={task._id}
+            assigneeId={task.assigneeId}
+            canRetry={canMutate && assigneeLive}
+          />
+        )}
 
       {/* A plain task's description IS its body, so it stays first. An
                 automation-owned task leads with the work instead — who owns it,
@@ -1950,19 +2058,22 @@ export function EditTaskBody({
           />
           {/* The operator-owned configuration of the automation that
                     drives THIS task — reachable from the task, not only from
-                    the create dialog it was first set up in. */}
-          {ownedBy.settings !== null && settingsFolder !== null && (
-            <IconButton
-              icon={Settings2}
-              size="sm"
-              variant="ghost"
-              className="ml-auto shrink-0"
-              aria-label={tAutomations('settings.dialogTitle', {
-                name: ownedBy.displayName,
-              })}
-              onClick={() => setSettingsOpen(true)}
-            />
-          )}
+                    the create dialog it was first set up in. Saving writes
+                    the project's files, so only its editors see the door. */}
+          {ownedBy.settings !== null &&
+            settingsFolder !== null &&
+            canEditProject && (
+              <IconButton
+                icon={Settings2}
+                size="sm"
+                variant="ghost"
+                className="ml-auto shrink-0"
+                aria-label={tAutomations('settings.dialogTitle', {
+                  name: ownedBy.displayName,
+                })}
+                onClick={() => setSettingsOpen(true)}
+              />
+            )}
         </Row>
       )}
       {showProjectLink && project !== null && (
@@ -2038,9 +2149,6 @@ export function EditTaskBody({
           taskId={task._id}
           assigneeType={task.assigneeType}
           assigneeId={task.assigneeId}
-          taskTitle={task.title}
-          taskDescription={task.description}
-          taskLabels={labelNames}
           disabled={!canMutate}
           align="end"
           afterTrigger={
@@ -2098,34 +2206,8 @@ export function EditTaskBody({
           />
         </PropertyField>
       )}
-      {/* The named human the review gate waits on — soft designation
-                (notify + Needs-my-review), so unlike the assignee it may
-                change while a run is live. */}
       <PropertyField label={t('fields.reviewer')}>
-        <ReviewerPicker
-          organizationId={task.organizationId}
-          projectId={task.projectId}
-          reviewerUserId={task.reviewerUserId}
-          disabled={!canMutate}
-          align="end"
-          afterTrigger={
-            <span
-              className={cn(
-                'min-w-0 truncate text-sm',
-                task.reviewerUserId !== undefined
-                  ? 'text-foreground'
-                  : 'text-muted-foreground',
-              )}
-            >
-              {reviewerName}
-            </span>
-          }
-          onChange={(reviewerUserId) =>
-            void setTaskReviewer
-              .mutateAsync({ taskId: task._id, reviewerUserId })
-              .catch(onMutationError)
-          }
-        />
+        <TaskReviewerField task={task} canEdit={canEditProject} />
       </PropertyField>
       <PropertyField label={t('startDate.label')}>
         <DatePicker

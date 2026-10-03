@@ -27,6 +27,7 @@ import {
 } from '../conversations/message-corpus.ts';
 import { emitDocumentChangeHints } from '../documents/hints.ts';
 import { releaseRefs, type ReleaseFailure } from '../knowledge/release.ts';
+import { syncRagRefHolderScopes } from '../knowledge/service.ts';
 import {
   markEntryChainDeletedForDocument,
   markEntryChainsDeletedForDocuments,
@@ -77,7 +78,10 @@ export class RetentionError extends Error {
 const MAX_RETENTION_FILE_BYTES = 256 * 1024;
 
 /** The org's retention DEFAULTS/BOUNDS file (its OWN file only — every org
- * is seeded from the catalog at create; no cross-org fallback). */
+ * is seeded from the catalog at create; no cross-org fallback). A file that
+ * exists but does not parse — a bound below its compliance floor, say —
+ * reads as no file, so its reason goes to the log: the editor shows only
+ * that the bounds are missing. */
 export async function loadOrgRetentionConfig(orgSlug: string) {
   const path = await import('node:path');
   const dir = path.join(getConfigRoot('retention'), orgSlug, 'governance');
@@ -87,7 +91,13 @@ export async function loadOrgRetentionConfig(orgSlug: string) {
     MAX_RETENTION_FILE_BYTES,
     (data) => retentionDefaultsConfigSchema.parse(data),
   );
-  return result.ok ? result.data : null;
+  if (result.ok) return result.data;
+  if (result.error !== 'not_found') {
+    console.warn(
+      `[retention] bounds file unreadable for org ${orgSlug}: ${result.message}`,
+    );
+  }
+  return null;
 }
 
 export type AppliedBounds = Partial<
@@ -859,7 +869,10 @@ export class PurgeIncompleteError extends Error {
  * funnels here (user delete, folder cascade, REST, retention sweep, erasure
  * cascade, sync prune), and each retries from its own loop: the daily
  * sweep re-selects the row, an erasure lands `partial` and can be re-armed,
- * a user sees the failure instead of a false receipt. Idempotent. */
+ * a user sees the failure instead of a false receipt. Idempotent. Once the
+ * row is gone, a ref a twin keeps is re-stamped with its holder's scope:
+ * the deleted document may have been that holder (`syncRagRefHolderScopes`,
+ * best-effort). */
 export async function purgeDocument(
   sql: Sql,
   orgSlug: string | null,
@@ -890,6 +903,9 @@ export async function purgeDocument(
     `;
     await tx`DELETE FROM app.documents WHERE id = ${doc.id}`;
   });
+  if (orgSlug !== null && doc.fileRef !== null) {
+    await syncRagRefHolderScopes(sql, doc.organizationId, [doc.fileRef]);
+  }
 }
 
 async function sweepDocuments(

@@ -1,4 +1,3 @@
-import { Button } from '@tale/ui/button';
 import { Checkbox } from '@tale/ui/checkbox';
 import { cn } from '@tale/ui/cn';
 import { Field } from '@tale/ui/field';
@@ -11,6 +10,7 @@ import {
 } from 'react-hook-form';
 
 import {
+  MarketingButton,
   MarketingStack,
   PageSection,
   Reveal,
@@ -95,7 +95,7 @@ export function FormCard<T extends BasePayload>({
 
   return (
     <PageSection pad="xl" border="b" className="relative overflow-hidden">
-      <div className="grid gap-10 md:grid-cols-2 md:gap-20">
+      <div className="grid min-w-0 gap-10 lg:grid-cols-2 lg:gap-20">
         <Reveal onMount>
           <MarketingStack max="full" gap="sm" align="start">
             <SectionHeading
@@ -131,19 +131,20 @@ export function FormCard<T extends BasePayload>({
               <p className="text-fg-muted text-sm">
                 {t('success.description')}
               </p>
-              <Button
-                variant="ghost"
+              <MarketingButton
+                tone="secondary"
+                size="lg"
                 onClick={() => setSubmitted(false)}
                 className="mt-2"
               >
                 {t('success.sendAnother')}
-              </Button>
+              </MarketingButton>
             </div>
           ) : (
             <FormProvider {...form}>
               <form
                 onSubmit={onSubmit}
-                className="border-border-base bg-surface-site-raised flex flex-col gap-8 rounded-2xl border p-6 md:p-8"
+                className="border-border-base bg-surface-site-raised flex min-w-0 flex-col gap-8 rounded-2xl border p-6 md:p-8 [&_input:not([type=checkbox])]:min-h-11"
                 noValidate
               >
                 {/* Honeypot field — hidden from real users. */}
@@ -168,7 +169,7 @@ export function FormCard<T extends BasePayload>({
                       : undefined
                   }
                 >
-                  <label className="text-fg-muted flex items-center gap-2 text-sm">
+                  <label className="text-fg-muted flex min-h-11 items-center gap-2 text-sm">
                     <Checkbox
                       checked={Boolean(form.watch('privacy'))}
                       onCheckedChange={(checked) =>
@@ -201,13 +202,14 @@ export function FormCard<T extends BasePayload>({
                   </p>
                 ) : null}
 
-                <Button
+                <MarketingButton
                   type="submit"
+                  size="lg"
                   isLoading={form.formState.isSubmitting}
                   fullWidth
                 >
                   {submitLabel}
-                </Button>
+                </MarketingButton>
               </form>
             </FormProvider>
           )}

@@ -1,21 +1,23 @@
 'use client';
 
+import { Alert } from '@tale/ui/alert';
+import { cn } from '@tale/ui/cn';
 import { ContentArea } from '@tale/ui/content-area';
 import { DataTableActionMenu } from '@tale/ui/data-table/data-table-action-menu';
 import {
   DataTableFilters,
   DataTableToolbar,
 } from '@tale/ui/data-table/data-table-filters';
+import { isFilterAffordanceDisabled } from '@tale/ui/filters/filter-panel';
 import { Row } from '@tale/ui/layout';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Tabs } from '@tale/ui/tabs';
 import { useDebounce } from '@tale/ui/use-debounce';
 import { Plus } from 'lucide-react';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import { useProject } from '@/app/features/projects/hooks/queries';
 import { asProjectId } from '@/app/features/projects/hooks/use-project-id-param';
-import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useT } from '@/lib/i18n/client';
 
 import {
@@ -37,11 +39,13 @@ import {
   resolveAssigneeQueryFilter,
   type TaskPriorityFilter,
 } from '../lib/filter-tasks';
+import { readFailed, readRetrying } from '../lib/read-state';
 import { isTaskView, type TaskView } from '../lib/view';
 import { KanbanBoard } from './kanban-board';
 import { TaskBoardProvider } from './task-board-context';
 import type { TaskRow } from './task-card';
 import { TaskModal } from './task-modal';
+import { TaskReadAlert } from './task-read-alert';
 import { TasksList } from './tasks-list';
 import { TasksSkeleton } from './tasks-skeleton';
 
@@ -95,10 +99,14 @@ export function TasksWorkspace({
     assigneeFilter,
     currentUserId,
   );
+  // The search is a board filter: the server matches it with the others
+  // before the board's cap, so every matching task is reachable (#3745).
   const listOptions = {
     statuses: BOARD_TASK_STATUSES,
     includeArchived,
     assigneeId: assigneeQueryFilter,
+    query: trimmedSearchQuery,
+    keepRowsWhileNarrowing: true,
   };
   const projectList = useTasksByProject(
     allProjects ? undefined : typedProjectId,
@@ -108,8 +116,9 @@ export function TasksWorkspace({
     ...listOptions,
     enabled: allProjects,
   });
-  const loadedTasks = allProjects ? acrossList.tasks : projectList.tasks;
   const list = allProjects ? acrossList : projectList;
+  const loadedTasks = list.tasks;
+  const tasksRead = list.read;
   // A subtask's parents are looked up among the loaded cards: work rights
   // run down the subtask tree.
   const loadedById = useMemo(
@@ -128,45 +137,42 @@ export function TasksWorkspace({
     resolveLoadedTask,
   );
   const { canCreate } = access;
-  const isLoading = allProjects ? acrossList.isLoading : projectList.isLoading;
-  const { edges } = useProjectDependencies(
+  const dependencies = useProjectDependencies(
     allProjects ? undefined : typedProjectId,
   );
+  const { edges } = dependencies;
   const projectOps = useTaskOpsIndicators(
     allProjects ? undefined : typedProjectId,
   );
   const acrossOps = useTaskOpsIndicatorsAcrossProjects(allProjects);
-  const runningTaskIds = allProjects
-    ? acrossOps.runningTaskIds
-    : projectOps.runningTaskIds;
-  const askingTaskIds = allProjects
-    ? acrossOps.askingTaskIds
-    : projectOps.askingTaskIds;
-  const pendingReviews = allProjects
-    ? acrossOps.pendingReviews
-    : projectOps.pendingReviews;
+  const ops = allProjects ? acrossOps : projectOps;
+  const { runningTaskIds, askingTaskIds, pendingReviews } = ops;
   const reviewRequestedFor = useMemo(
     () =>
       new Map(
-        pendingReviews.map((review) => [review.taskId, review.requestedFor]),
+        pendingReviews.map((review) => [
+          review.taskId,
+          review.reviewer === undefined
+            ? review.requestedFor
+            : review.reviewer?.kind === 'user'
+              ? review.reviewer.userId
+              : undefined,
+        ]),
       ),
     [pendingReviews],
   );
-  const searchHits = useBackendQuery(
-    'tasks/search:searchTasks',
-    trimmedSearchQuery.length > 0
-      ? {
-          organizationId,
-          query: trimmedSearchQuery,
-          ...(allProjects ? {} : { projectId: typedProjectId }),
-        }
-      : 'skip',
+  // One array per answer: a new one each render would rebuild the board's
+  // context and re-render every card that reads it.
+  const pendingReviewRefs = useMemo(
+    () =>
+      pendingReviews.map((review) => ({
+        taskId: review.taskId,
+        requestedFor: review.requestedFor,
+        reviewer: review.reviewer,
+      })),
+    [pendingReviews],
   );
-  const searchMatchedIds = useMemo(() => {
-    if (trimmedSearchQuery.length === 0 || !searchHits.data) return null;
-    return new Set(searchHits.data.map((hit) => hit.taskId));
-  }, [searchHits.data, trimmedSearchQuery]);
-  const facetFilteredTasks = useMemo(
+  const tasks = useMemo(
     () =>
       filterTasksByFacets(loadedTasks, {
         assignee: assigneeFilter,
@@ -184,12 +190,19 @@ export function TasksWorkspace({
       reviewRequestedFor,
     ],
   );
-  const tasks = useMemo(() => {
-    if (!searchMatchedIds) return facetFilteredTasks;
-    return facetFilteredTasks.filter((task) => searchMatchedIds.has(task._id));
-  }, [facetFilteredTasks, searchMatchedIds]);
   const { project } = useProject(typedProjectId);
   const projectKey = allProjects ? null : (project?.key ?? null);
+  // A board read with no answer — pending, or failed — says nothing about
+  // the viewer's rights; the project layout's own read does, so Create and
+  // the archived filter stay put while the tasks load or fail to: every
+  // reader of an active project may create a task there.
+  const answered = tasksRead.kind === 'ready' || tasksRead.kind === 'stale';
+  const controlsCanCreate =
+    canCreate ||
+    (!answered &&
+      !allProjects &&
+      project != null &&
+      project.archivedAt === undefined);
 
   const [createOpen, setCreateOpen] = useState(false);
   const [openTaskId, setOpenTaskIdState] = useState(
@@ -210,14 +223,29 @@ export function TasksWorkspace({
       if (fromRow) setOpenTaskProjectId(fromRow.projectId);
     }
   }
-  const setOpenTaskId = (taskId: string | null, taskProjectId?: string) => {
-    setOpenTaskIdState(taskId);
-    if (taskProjectId) setOpenTaskProjectId(taskProjectId);
-    onOpenTaskParamChange?.(taskId);
-  };
+  // The route hands a new callback on every render, and a `?task=` change is
+  // one. The open handler reads the latest one through a ref so it keeps one
+  // identity: the memoized board and list then skip every render the dialog
+  // causes, where each open and close re-rendered all cards twice (#3939).
+  // The ref follows the committed props, as `useFocusHandoff` does: a render
+  // React discards never hands its callback to a later click.
+  const onOpenTaskParamChangeRef = useRef(onOpenTaskParamChange);
+  useLayoutEffect(() => {
+    onOpenTaskParamChangeRef.current = onOpenTaskParamChange;
+  });
+  const setOpenTaskId = useCallback(
+    (taskId: string | null, taskProjectId?: string) => {
+      setOpenTaskIdState(taskId);
+      if (taskProjectId) setOpenTaskProjectId(taskProjectId);
+      onOpenTaskParamChangeRef.current?.(taskId);
+    },
+    [],
+  );
 
-  const handleOpenTask = (task: TaskRow) =>
-    setOpenTaskId(task._id, task.projectId);
+  const handleOpenTask = useCallback(
+    (task: TaskRow) => setOpenTaskId(task._id, task.projectId),
+    [setOpenTaskId],
+  );
 
   const handleAssigneeFilterChange = useCallback((values: string[]) => {
     setAssigneeFilter(values[0] ?? ALL_ASSIGNEE_FILTER);
@@ -310,8 +338,9 @@ export function TasksWorkspace({
         : []),
       // Archived tasks are only actionable for someone who may restore one —
       // an editor, or a member their own — so the filter shows for whoever
-      // may create (and so archive) a task here.
-      ...(canCreate
+      // may create (and so archive) a task here, and stays while it is on,
+      // so it can always be turned off.
+      ...(controlsCanCreate || includeArchived
         ? [
             {
               key: 'archived',
@@ -328,7 +357,7 @@ export function TasksWorkspace({
     [
       agents,
       assigneeFilter,
-      canCreate,
+      controlsCanCreate,
       currentUserId,
       handleArchivedFilterChange,
       handleAssigneeFilterChange,
@@ -343,17 +372,24 @@ export function TasksWorkspace({
   );
 
   // Only skeletonize the genuine first load (no cached tasks yet). A background
-  // refetch with rows already present keeps showing them instead of flashing.
-  const isFirstLoad = isLoading && loadedTasks.length === 0;
+  // refetch keeps showing its rows, and a new search or filter keeps the
+  // previous ones — dimmed and busy — until its answer lands.
+  const isFirstLoad = tasksRead.kind === 'loading';
+  const updating = tasksRead.kind === 'ready' && tasksRead.updating;
   // The project layout already knows its permission while the task read is
-  // pending. Reserve those control footprints without enabling the actions:
-  // the pickers an editor gets on every card, and the create action every
-  // reader of an active project gets.
+  // pending. Reserve the pickers' footprint an editor gets on every card.
   const skeletonCanEdit =
     list.canEdit || (!allProjects && project?.canEdit === true);
-  const skeletonCanCreate =
-    canCreate ||
-    (!allProjects && project != null && project.archivedAt === undefined);
+  // Where a retry that worked hands the focus: the board it brought back.
+  const boardRegionRef = useRef<HTMLDivElement>(null);
+  const focusBoard = useCallback(() => boardRegionRef.current?.focus(), []);
+  // While the tasks fail, their alert stands for every failed board read,
+  // so its Try again re-issues each of them.
+  const retryTasks = () => {
+    list.retry();
+    if (readFailed(dependencies.read)) dependencies.retry();
+    if (readFailed(ops.read)) ops.retry();
+  };
 
   return (
     <ContentArea gap={4} className="flex h-full flex-col">
@@ -367,7 +403,7 @@ export function TasksWorkspace({
           // archived one the server refuses, so the action is hidden rather
           // than a doomed button. All-projects mode has no single write
           // target — Create stays off there (drag / pickers still work).
-          (canCreate || (isFirstLoad && skeletonCanCreate)) && !allProjects ? (
+          controlsCanCreate && !allProjects ? (
             <Skeletonize loading={isFirstLoad} className="contents">
               <DataTableActionMenu
                 label={t('actions.create')}
@@ -399,51 +435,115 @@ export function TasksWorkspace({
             filters={taskFilterConfigs}
             onClearAll={handleClearFilters}
             // Whoever may create gets the widening archived filter, so the
-            // button must stay reachable even over an empty default view (an
-            // all-archived project is re-opened through it).
-            disabled={
-              !canCreate && loadedTasks.length === 0 && !hasActiveFilters
-            }
+            // button stays reachable over an empty default view (an
+            // all-archived project is re-opened through it); a failed or
+            // pending read is an unknown set, never an empty one.
+            disabled={isFilterAffordanceDisabled({
+              isLoading: isFirstLoad,
+              isError: readFailed(tasksRead),
+              itemCount: loadedTasks.length,
+              hasActiveFilters,
+              filters: taskFilterConfigs,
+            })}
             className="w-auto"
           />
         </Row>
       </DataTableToolbar>
 
-      {isFirstLoad ? (
+      {tasksRead.kind === 'failed' ? (
+        // No lanes over a failed read: six "No tasks" would claim an empty
+        // board the server never answered (#3747).
+        <TaskReadAlert
+          message={t('read.tasksFailed')}
+          retrying={tasksRead.retrying}
+          onRetry={retryTasks}
+          onFocusLost={focusBoard}
+        />
+      ) : isFirstLoad ? (
         <TasksSkeleton view={view} canEdit={skeletonCanEdit} />
       ) : (
-        // An empty project still renders every lane / section (with its empty
-        // hint) so the page keeps its shape instead of swapping to an island.
-        <TaskBoardProvider
-          tasks={tasks}
-          dependencyEdges={edges}
-          runningTaskIds={runningTaskIds}
-          askingTaskIds={askingTaskIds}
-          pendingReviews={pendingReviews.map((review) => ({
-            taskId: review.taskId,
-            requestedFor: review.requestedFor,
-          }))}
-        >
-          {view === 'board' ? (
-            <div className="min-h-0 flex-1">
-              <KanbanBoard
-                tasks={tasks}
-                onOpenTask={handleOpenTask}
-                projectKey={projectKey}
-                canWorkTask={access.canWorkTask}
-              />
-            </div>
+        <>
+          {tasksRead.kind === 'stale' ? (
+            <TaskReadAlert
+              message={t('read.tasksStale')}
+              retrying={tasksRead.retrying}
+              onRetry={retryTasks}
+              onFocusLost={focusBoard}
+            />
           ) : (
-            <div className="min-h-0 flex-1">
-              <TasksList
-                tasks={tasks}
-                onOpenTask={handleOpenTask}
-                projectKey={projectKey}
-                canWorkTask={access.canWorkTask}
-              />
-            </div>
+            <>
+              {readFailed(dependencies.read) && (
+                <TaskReadAlert
+                  variant="warning"
+                  message={t('read.dependenciesFailed')}
+                  retrying={readRetrying(dependencies.read)}
+                  onRetry={dependencies.retry}
+                  onFocusLost={focusBoard}
+                />
+              )}
+              {readFailed(ops.read) && (
+                <TaskReadAlert
+                  variant="warning"
+                  message={
+                    needsMyReviewFilter
+                      ? t('read.activityFailedReviewFilter')
+                      : t('read.activityFailed')
+                  }
+                  retrying={readRetrying(ops.read)}
+                  onRetry={ops.retry}
+                  onFocusLost={focusBoard}
+                />
+              )}
+            </>
           )}
-        </TaskBoardProvider>
+          {list.truncated && (
+            <Alert
+              variant="info"
+              live="off"
+              description={t('read.truncated', { count: loadedTasks.length })}
+            />
+          )}
+          {/* An empty project still renders every lane / section (with its
+              empty hint) so the page keeps its shape instead of swapping to
+              an island. */}
+          <TaskBoardProvider
+            tasks={tasks}
+            dependencyEdges={edges}
+            runningTaskIds={runningTaskIds}
+            askingTaskIds={askingTaskIds}
+            pendingReviews={pendingReviewRefs}
+          >
+            <div
+              ref={boardRegionRef}
+              role="region"
+              aria-label={view === 'board' ? t('views.board') : t('views.list')}
+              aria-busy={updating || undefined}
+              tabIndex={-1}
+              className={cn(
+                'focus-visible:ring-ring min-h-0 flex-1 rounded-lg transition-opacity duration-200 outline-none focus-visible:ring-2 motion-reduce:transition-none',
+                // Dimmed only once an answer is slow, so a quick one never
+                // flickers the board.
+                updating && 'opacity-60 delay-300',
+              )}
+            >
+              {view === 'board' ? (
+                <KanbanBoard
+                  tasks={tasks}
+                  onOpenTask={handleOpenTask}
+                  projectKey={projectKey}
+                  canWorkTask={access.canWorkTask}
+                />
+              ) : (
+                <TasksList
+                  tasks={tasks}
+                  onOpenTask={handleOpenTask}
+                  projectKey={projectKey}
+                  canWorkTask={access.canWorkTask}
+                />
+              )}
+            </div>
+          </TaskBoardProvider>
+        </>
       )}
 
       {!allProjects && (

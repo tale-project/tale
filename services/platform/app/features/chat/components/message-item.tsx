@@ -435,12 +435,18 @@ function AssistantBody({
     message.status === 'failed' ||
     message.status === 'cancelled' ||
     message.blockedReason !== undefined;
+  // A reply that settled without an answer — the model returned nothing,
+  // spent its output limit thinking, or only ran tools. Nothing will ever
+  // paint a first glyph for it, so it ends the shell like a failure does and
+  // the notice below says why; left to the shell, a finished turn kept its
+  // dots and its ticking timer for as long as the conversation stayed open.
+  const unanswered = isGenerationIncomplete(message);
   const inGapShell =
     watchingAnswer &&
     !firstPainted &&
     !turnEnded &&
     !timelineHasContent &&
-    !isGenerationIncomplete(message);
+    !unanswered;
 
   // Whether THIS mount watched the reply stream in: only then does the
   // toolbar earn its entrance animation — a settled row remounted by a
@@ -566,8 +572,16 @@ function AssistantBody({
             )}
           </span>
         )}
-        {isGenerationIncomplete(message) && !inGapShell ? (
-          <GenerationIncompleteNotice parts={message.parts} />
+        {unanswered ? (
+          <GenerationIncompleteNotice
+            parts={message.parts}
+            {...(message.usage?.finishReason !== undefined
+              ? { finishReason: message.usage.finishReason }
+              : {})}
+            {...(isLast && onRegenerate !== undefined
+              ? { onRetry: () => onRegenerate(message) }
+              : {})}
+          />
         ) : (
           (text.length > 0 || !inGapShell) && (
             <div hidden={inGapShell}>
@@ -593,8 +607,9 @@ function AssistantBody({
       {/* The toolbar arrives when the REVEAL settles — the live region below
           the transcript narrates the in-flight states — and, when this mount
           watched the reply stream in, enters with the same fade+lift the
-          stream segments used. */}
-      {!isStreaming && revealDone && (
+          stream segments used. A reply that settled without text — failed,
+          stopped or unanswered — has no reveal to wait for. */}
+      {!isStreaming && (revealDone || text.length === 0) && (
         <MessageToolbar
           message={message}
           alwaysVisible={isLast}

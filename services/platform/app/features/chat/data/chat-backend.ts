@@ -66,6 +66,7 @@ import {
 } from '@/app/lib/backend/chat';
 import type { ArgsOf, QueryName, ReturnsOf } from '@/app/lib/backend/contract';
 import { backendKey } from '@/app/lib/backend/query-keys';
+import { tasksFromThreadQuery } from '@/app/lib/backend/tasks';
 import type { ReasoningEffort } from '@/lib/chat/effort';
 import { PROVIDER_CREDENTIAL_HINT_ENTITY } from '@/lib/shared/hint-entities';
 import { isRecord } from '@/lib/utils/type-utils';
@@ -167,6 +168,8 @@ const HTTP_READS: Record<
     myPreferencesQuery(String(args.organizationId)),
   'projects/queries:listProjects': (args) =>
     chatProjectsQuery(String(args.organizationId)),
+  'tasks/queries:listTasksFromThread': (args) =>
+    tasksFromThreadQuery(String(args.organizationId), String(args.threadId)),
   'governance/legal_hold_queries:listActiveHoldTargetIds': (args) =>
     holdTargetsQuery(String(args.organizationId), String(args.targetType)),
   'file_metadata/queries:getByStorageIds': (args) => ({
@@ -327,6 +330,13 @@ export function useChatProjects(
         ...(project.pinnedAt !== undefined
           ? { pinnedAt: project.pinnedAt }
           : {}),
+        ...(project.projectAgentCount !== undefined
+          ? { agentCount: project.projectAgentCount }
+          : {}),
+        // The chat's own projects read carries it when the backend does.
+        ...(typeof project.canEdit === 'boolean'
+          ? { canEdit: project.canEdit }
+          : {}),
       })),
     };
   }, [projects]);
@@ -397,6 +407,38 @@ export function useArchivedThreads(
           ...(options.cursor !== undefined ? { cursor: options.cursor } : {}),
         }
       : 'skip',
+  );
+}
+
+/**
+ * Asks again for the chat list reads that came back `unavailable` — the
+ * caller's chats (`useChatThreads`), the first archived page
+ * (`useArchivedThreads` with no cursor), or both — and for those alone: the
+ * Home stream's **Try again** (#4093). Resolves once they have settled,
+ * answered or failed again.
+ */
+export function useChatThreadsRetry(
+  organizationId: string,
+): (reads: {
+  readonly threads: boolean;
+  readonly archived: boolean;
+}) => Promise<void> {
+  const queryClient = useChatQueryClient();
+  return useCallback(
+    async (reads) => {
+      const keys = [
+        ...(reads.threads ? [chatThreadsQuery(organizationId).queryKey] : []),
+        ...(reads.archived
+          ? [archivedThreadsQuery(organizationId).queryKey]
+          : []),
+      ];
+      await Promise.all(
+        keys.map((queryKey) =>
+          queryClient.refetchQueries({ queryKey, exact: true }),
+        ),
+      );
+    },
+    [queryClient, organizationId],
   );
 }
 
@@ -787,6 +829,9 @@ export interface ChatTurnRequest {
    * transcript payloads join `attachments` and their pasted URLs leave the
    * outgoing text. The handle reports the bound job ids for rollback. */
   readonly bindVideoJobs?: boolean;
+  /** The UI's language: the reply's default (the language the user writes
+   * in still wins) and the words the turn's hand-over note quotes. */
+  readonly locale?: string;
 }
 
 /** A started turn: the thread it runs in (existing or just created), and an
@@ -913,6 +958,7 @@ export function useChatSend(organizationId: string): {
         ...(request.reasoningEffort !== undefined
           ? { reasoningEffort: request.reasoningEffort }
           : {}),
+        ...(request.locale !== undefined ? { locale: request.locale } : {}),
       })
         .then((settled) => {
           if (isBudgetRefusalCode(settled.code)) {

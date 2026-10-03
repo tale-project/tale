@@ -1,9 +1,31 @@
 import { expect, test } from '@playwright/test';
 import { createI18n } from '@tale/e2e/i18n';
 
+import {
+  RELEASES,
+  RELEASES_FETCHED_AT,
+} from '../../../app/generated/releases-manifest';
+
 const { t } = createI18n(new URL('../../../messages/en.yml', import.meta.url));
 
 test.describe('changelog timeline', () => {
+  // Once the preview server's first refresh lands, `/api/releases` answers
+  // GitHub's live list. The E2E build embeds the committed snapshot, which may
+  // share no tag with that list; the page's swap then replaces every nav link
+  // while a test still holds one. Answer what a cold server answers, the
+  // snapshot the page already renders; the feed itself is tested below.
+  test.beforeEach(async ({ page }) => {
+    await page.route('**/api/releases', (route) =>
+      route.fulfill({
+        json: {
+          releases: RELEASES,
+          fetchedAt: RELEASES_FETCHED_AT,
+          source: 'snapshot',
+        },
+      }),
+    );
+  });
+
   test('sticky nav scrolls so late versions stay clickable', async ({
     page,
   }) => {
@@ -40,6 +62,35 @@ test.describe('changelog timeline', () => {
     expect(articleTop ?? 999).toBeLessThan(200);
     expect(articleTop ?? -1).toBeGreaterThan(0);
   });
+
+  for (const width of [390, 1440]) {
+    test(`timeline updates do not pull the document away from the footer at ${width}px`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 844 });
+      await page.goto('/changelog');
+      await expect(page.locator('article').last()).toBeAttached();
+      await page.evaluate(() => document.fonts.ready);
+
+      // Changing the active release used to scroll every ancestor of its
+      // timeline link, pulling the viewport back up by hundreds of pixels.
+      const samples = await page.evaluate(async () => {
+        document.documentElement.scrollTop =
+          document.documentElement.scrollHeight - innerHeight - 100;
+        const positions = [scrollY];
+        for (let frame = 0; frame < 40; frame += 1) {
+          await new Promise<void>((resolve) =>
+            requestAnimationFrame(() => resolve()),
+          );
+          positions.push(scrollY);
+        }
+        return positions;
+      });
+      expect(Math.max(...samples) - Math.min(...samples)).toBeLessThanOrEqual(
+        1,
+      );
+    });
+  }
 
   test('clicking a mid timeline link updates aria-current', async ({
     page,

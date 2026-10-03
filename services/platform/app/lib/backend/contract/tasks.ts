@@ -1,5 +1,12 @@
 import type { TaskExternalIssue } from '@tale/shared/schemas/task-external-issue';
+import type {
+  ProjectTaskReviewer,
+  SetTaskReviewerInput,
+  TaskReviewer,
+  TaskReviewRecipient,
+} from '@tale/shared/schemas/task-review';
 
+import type { PendingTaskReview } from '@/backend/domains/tasks/reviews';
 import type { TaskRepeat } from '@/lib/shared/task-repeat';
 
 /**
@@ -53,7 +60,26 @@ export type TaskStatusWriteResult = {
   nextTask?: { id: string; number?: number; dueDate?: number };
 } | null;
 
+export interface TaskReviewerState {
+  reviewer: TaskReviewer;
+  projectReviewer: ProjectTaskReviewer;
+  pendingReview: PendingTaskReview | null;
+}
+
+export interface TaskPendingReviewIndicator {
+  taskId: string;
+  approvalId: string;
+  requestedFor?: string;
+  /** Captured recipient; an agent never falls back to a human designation. */
+  reviewer?: TaskReviewRecipient | null;
+}
+
 export interface TasksContract {
+  'tasks/queries:getTaskReviewer': {
+    kind: 'query';
+    args: { organizationId: string; taskId: string };
+    returns: TaskReviewerState;
+  };
   'tasks/mutations:addTaskComment': {
     kind: 'mutation';
     args: { taskId: string; body: string };
@@ -113,6 +139,8 @@ export interface TasksContract {
       parentTaskId?: string;
       startDate?: number;
       repeat?: TaskRepeat;
+      /** The conversation the task is handed over from (its root thread). */
+      sourceThreadId?: string;
       organizationId: string;
       projectId: string;
       title: string;
@@ -232,8 +260,17 @@ export interface TasksContract {
   };
   'tasks/public_actions:cancelTaskWorkflow': {
     kind: 'action';
-    args: { organizationId: string; taskId: string };
+    args: {
+      organizationId: string;
+      taskId: string;
+      /** Where the task lands once its run stops, in the same write; absent
+       * parks it at Cancelled. In progress is the column a stop leaves. */
+      status?: 'cancelled' | 'done' | 'in_review' | 'backlog' | 'todo';
+      beforeTaskId?: string;
+      afterTaskId?: string;
+    };
     returns: {
+      /** Whether the task now sits at Cancelled. */
       taskCancelled: boolean;
       executionCancelled: boolean;
       executionId: null | string;
@@ -270,6 +307,34 @@ export interface TasksContract {
       reason?: 'already_running' | 'not_started';
     };
   };
+  /** The tasks made from one conversation that the reader can open, newest
+   * first — the chat's own row of them. */
+  'tasks/queries:listTasksFromThread': {
+    kind: 'query';
+    args: { organizationId: string; threadId: string };
+    returns: Array<{
+      id: string;
+      projectId: string;
+      projectName: string;
+      title: string;
+      status:
+        | 'cancelled'
+        | 'done'
+        | 'in_review'
+        | 'backlog'
+        | 'todo'
+        | 'in_progress';
+      assigneeType: 'user' | 'agent' | 'app' | null;
+      assigneeId: string | null;
+      outputCount: number;
+      run?: {
+        status: 'queued' | 'running' | 'settled' | 'failed' | 'cancelled';
+        failureCode?: string;
+        retryPending?: boolean;
+        waitingForCapacity?: boolean;
+      };
+    }>;
+  };
   'tasks/queries:getLatestTaskAgentRunForTask': {
     kind: 'query';
     args: { organizationId: string; taskId: string };
@@ -285,6 +350,11 @@ export interface TasksContract {
       waitingForCapacity?: boolean;
       resultText?: string;
       error?: string;
+      /** The producer's classification of a failed run; the card words its
+       * reason by it (`lib/shared/task-run-failure.ts`). */
+      failureCode?: string;
+      /** A failed run the platform is about to retry by itself. */
+      retryPending?: boolean;
       harness: string;
       model: string;
       agentName?: string;
@@ -341,6 +411,7 @@ export interface TasksContract {
         completedAt?: number;
         externalId?: string;
         reviewerUserId?: string;
+        reviewerAgentId?: string;
         archivedAt?: number;
         createdByType: 'user' | 'agent' | 'app';
         outputs?: Array<{
@@ -454,12 +525,7 @@ export interface TasksContract {
     returns: {
       runningTaskIds: string[];
       askingTaskIds: string[];
-      pendingReviews: Array<
-        | ({ taskId: string; approvalId: string } & { requestedFor: string })
-        | ({ taskId: string; approvalId: string } & {
-            requestedFor?: undefined;
-          })
-      >;
+      pendingReviews: TaskPendingReviewIndicator[];
     };
   };
   'tasks/queries:getTaskOpsIndicatorsForAccessibleProjects': {
@@ -468,12 +534,7 @@ export interface TasksContract {
     returns: {
       runningTaskIds: string[];
       askingTaskIds: never[];
-      pendingReviews: Array<
-        | ({ taskId: string; approvalId: string } & { requestedFor: string })
-        | ({ taskId: string; approvalId: string } & {
-            requestedFor?: undefined;
-          })
-      >;
+      pendingReviews: TaskPendingReviewIndicator[];
     };
   };
   'tasks/queries:listProjectDependencies': {
@@ -517,6 +578,7 @@ export interface TasksContract {
         completedAt?: number;
         externalId?: string;
         reviewerUserId?: string;
+        reviewerAgentId?: string;
         archivedAt?: number;
         createdByType: 'user' | 'agent' | 'app';
         outputs?: Array<{
@@ -580,6 +642,9 @@ export interface TasksContract {
       trigger:
         | 'manual'
         | 'mention'
+        | 'auto_retry'
+        | 'automation'
+        | 'delegated'
         | 'assignment'
         | 'revision'
         | 'sla_escalation'
@@ -587,11 +652,14 @@ export interface TasksContract {
         | 'decomposition';
       status: 'running' | 'failed' | 'completed' | 'timed_out';
       error: undefined | string;
+      failureCode: undefined | string;
       startedAt: number;
       durationMs: undefined | number;
       costCents: number;
       workflowSlug: undefined | string;
       wfExecutionId: undefined | string;
+      /** The project agent whose run started this one (`task_start_agent`). */
+      delegatedByAgentId: undefined | string;
     }>;
   };
   'tasks/queries:listTaskDependencies': {
@@ -631,6 +699,7 @@ export interface TasksContract {
           completedAt?: number;
           externalId?: string;
           reviewerUserId?: string;
+          reviewerAgentId?: string;
           archivedAt?: number;
           createdByType: 'user' | 'agent' | 'app';
           outputs?: Array<{
@@ -699,6 +768,7 @@ export interface TasksContract {
           completedAt?: number;
           externalId?: string;
           reviewerUserId?: string;
+          reviewerAgentId?: string;
           archivedAt?: number;
           createdByType: 'user' | 'agent' | 'app';
           outputs?: Array<{
@@ -757,6 +827,8 @@ export interface TasksContract {
         'cancelled' | 'done' | 'in_review' | 'backlog' | 'todo' | 'in_progress'
       >;
       includeArchived?: boolean;
+      /** The toolbar's search, applied with the other filters (`q`). */
+      query?: string;
       organizationId: string;
       projectId: string;
     };
@@ -794,6 +866,7 @@ export interface TasksContract {
           completedAt?: number;
           externalId?: string;
           reviewerUserId?: string;
+          reviewerAgentId?: string;
           archivedAt?: number;
           createdByType: 'user' | 'agent' | 'app';
           outputs?: Array<{
@@ -856,6 +929,8 @@ export interface TasksContract {
         'cancelled' | 'done' | 'in_review' | 'backlog' | 'todo' | 'in_progress'
       >;
       includeArchived?: boolean;
+      /** The toolbar's search, applied with the other filters (`q`). */
+      query?: string;
       organizationId: string;
     };
     returns: {
@@ -892,6 +967,7 @@ export interface TasksContract {
           completedAt?: number;
           externalId?: string;
           reviewerUserId?: string;
+          reviewerAgentId?: string;
           archivedAt?: number;
           createdByType: 'user' | 'agent' | 'app';
           outputs?: Array<{
@@ -956,12 +1032,13 @@ export interface TasksContract {
         | 'pack_disabled'
         | 'breaker_paused'
         | 'budget_paused'
-        | 'not_permitted';
+        | 'not_permitted'
+        | 'standard_agent_unavailable';
     }>;
   };
   'tasks/review_mutations:setTaskReviewer': {
     kind: 'mutation';
-    args: { reviewerUserId?: string; taskId: string };
+    args: SetTaskReviewerInput & { taskId: string };
     returns: null;
   };
   'tasks/search:searchTasks': {

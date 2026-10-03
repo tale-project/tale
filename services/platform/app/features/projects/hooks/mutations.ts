@@ -26,6 +26,12 @@ export function useUpdateProjectInstructions() {
   });
 }
 
+export function useSetProjectTaskReviewer() {
+  return useBackendMutation('projects/mutations:setProjectTaskReviewer', {
+    errorToast: false,
+  });
+}
+
 export function useUpdateProjectSharing() {
   return useBackendMutation('projects/mutations:updateProjectSharing', {
     errorToast: false,
@@ -46,6 +52,14 @@ export function useUpdateProjectAgent() {
 
 export function useDeleteProjectAgent() {
   return useBackendMutation('projects/mutations:deleteProjectAgent', {
+    errorToast: false,
+  });
+}
+
+/** The project's standard agent, created when the project has no agents of
+ * its own — what picking it, or handing a chat to such a project, calls. */
+export function useEnsureStandardAgent() {
+  return useBackendMutation('projects/mutations:ensureStandardAgent', {
     errorToast: false,
   });
 }

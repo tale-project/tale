@@ -1,0 +1,14 @@
+{
+  "$schema": "https://turbo.build/schema.v2.json",
+  "extends": ["//"],
+  "tasks": {
+    "test": {
+      "inputs": [
+        "$TURBO_EXTENDS$",
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/packages/ui/src/components/docs/*.ts",
+        "$TURBO_ROOT$/packages/ui/src/markdown/heading-id.ts"
+      ]
+    }
+  }
+}

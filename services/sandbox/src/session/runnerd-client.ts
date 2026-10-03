@@ -29,8 +29,8 @@ function authHeaders(token: string): Record<string, string> {
  * short deadline would kill it. Without a timeout a hung daemon ties up the
  * spawner's connection pool until Bun's (long) default fires. */
 const RUNNERD_RPC_TIMEOUT_MS = 30_000;
-/** Health-probe timeout. The idle reaper hits /healthz once per session in a
- * sequential sweep, so a single hung daemon must not stall the whole pass. */
+/** Health-probe timeout. The idle reaper probes a bounded set of sessions at
+ * once, so hung daemons must not hold those lanes for the whole pass. */
 const RUNNERD_HEALTH_TIMEOUT_MS = 5_000;
 /** Upper bound on the inter-newline NDJSON residual. A well-behaved runnerd
  * emits newline-terminated lines (≤ a few hundred KB each); an unbounded
@@ -75,7 +75,7 @@ export async function runnerdActivity(
   action: 'ticket' | 'acquire' | 'release' | 'reclaim' | 'pin',
   body?:
     | { generation: string }
-    | { claimId: string; generation: string }
+    | { claimId: string; generation: string; idleBeforeMs?: number }
     | { pinned: boolean },
 ): Promise<Record<string, unknown>> {
   const path = action === 'ticket' ? 'release' : action;
@@ -117,8 +117,8 @@ export async function waitForRunnerd(
 /**
  * POST /execs and stream the NDJSON response, invoking `onEvent` per parsed
  * daemon event in order. Resolves when the stream ends. The caller's abort
- * signal (SSE-client disconnect) aborts the fetch, which closes the daemon's
- * request and cancels the exec daemon-side.
+ * signal (SSE-client disconnect) aborts the fetch, which detaches the daemon's
+ * response consumer. The exec keeps running for a later attach.
  */
 export async function runnerdExec(
   opts: RunnerdClientOptions,
@@ -190,9 +190,13 @@ async function pumpNdjson(
 export async function runnerdCancelExec(
   opts: RunnerdClientOptions,
   execId: string,
+  mode: { keepLeftovers?: boolean } = {},
 ): Promise<boolean> {
+  // `leftovers=keep`: a rotation — runnerd ends the exec's own process group
+  // and holds what it left outside it for the exec that takes over.
+  const query = mode.keepLeftovers === true ? '?leftovers=keep' : '';
   const res = await fetch(
-    `${opts.baseUrl}/execs/${encodeURIComponent(execId)}/cancel`,
+    `${opts.baseUrl}/execs/${encodeURIComponent(execId)}/cancel${query}`,
     {
       method: 'POST',
       headers: authHeaders(opts.token),

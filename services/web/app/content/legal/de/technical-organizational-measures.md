@@ -4,7 +4,7 @@ description: Die technischen und organisatorischen Maßnahmen, die die Ruler Gmb
 noindex: true
 ---
 
-**Letzte Aktualisierung:** 01.05.2026
+**Letzte Aktualisierung:** 03.10.2026
 
 Dieses Dokument beschreibt die technischen und organisatorischen Maßnahmen ("TOM"), die die Ruler GmbH ("Tale") zum Schutz personenbezogener Daten umsetzt, die im Auftrag ihrer Kunden verarbeitet werden, wie in Abschnitt 7 der [Auftragsverarbeitungsvereinbarung](/de/legal/data-processing-agreement) referenziert. Es gilt für Tale Cloud. Self-Hosted-Deployments werden vom Kunden betrieben; dort bestimmt und setzt der Kunde eigene Maßnahmen um, während Tale gehärtete Defaults und dokumentierte Kontrollen bereitstellt.
 
@@ -114,9 +114,9 @@ a) Tale beauftragt mindestens jährlich einen externen Penetrationstest. Befunde
 
 ### 4.3 Audits und Zertifizierungen
 
-a) Tale unterhält für Tale Cloud Zertifizierungen nach ISO/IEC 27001 und SOC 2 Type II (oder gleichwertige Standards).
+a) Ruler GmbH unterhält eine Zertifizierung nach ISO/IEC 27001, deren Geltungsbereich Tale Enterprise und professionelle Dienstleistungen umfasst.
 
-b) Kunden können Kopien des aktuellen SOC-2-Type-II-Berichts und des ISO-27001-Zertifikats beim Support anfordern; beide werden unter NDA ausgehändigt.
+b) Kunden können das aktuelle ISO-27001-Zertifikat und dessen Geltungsbereich beim Support anfordern; diese werden unter NDA ausgehändigt.
 
 ### 4.4 Interne Überprüfung
 

@@ -11,9 +11,9 @@ Ouvre le menu `+` près du champ de message et choisis **Ajouter photos et fichi
 
 Les images apparaissent en miniature. Les autres fichiers apparaissent sous forme de pastilles avec leur nom et l’état du traitement. Vérifie les noms avant l’envoi. Retire une pièce jointe préparée avec sa commande de suppression si elle ne doit pas accompagner le message.
 
-<Frame caption="Un document préparé affiche son nom et l’état du traitement avant l’envoi de la question.">
+<Frame caption="Un document préparé affiche son nom, puis sa taille une fois traité et prêt à partir avec ta question.">
 
-![Le champ de saisie affiche un document joint au-dessus du message, avec son état de traitement et une commande pour le retirer.](/images/platform/chat-document-attachment.webp)
+![Le champ de saisie affiche un document joint au-dessus du message, avec sa taille et une commande pour le retirer.](/images/platform/chat-document-attachment.webp)
 
 </Frame>
 
@@ -36,7 +36,7 @@ Accepter un fichier à l’import et en extraire le texte sont deux opérations 
 
 Si des documents ou enregistrements sont encore en traitement au moment de l’envoi, Tale met le message en attente, puis l’envoie lorsqu’ils sont prêts. Le message en attente apparaît au-dessus du champ. Annule-le à cet endroit pour modifier la question ; son texte revient dans le champ.
 
-Colle un lien vidéo compatible dans le champ du message pour lancer la création d’une pièce jointe. Une URL saisie au clavier reste du texte ordinaire. Tale récupère d’abord les sous-titres et transcrit l’audio si aucun n’est disponible, puis fournit le texte à l’assistant. Tu peux toujours coller un lien sans modèle de transcription, car les sous-titres utilisables n’en ont pas besoin. Si ce lien échoue, réessaie ou retire-le avant d’envoyer.
+Colle un lien vidéo compatible dans le champ du message pour lancer la création d’une pièce jointe. Une URL saisie au clavier reste du texte ordinaire. Tale récupère d’abord les sous-titres et transcrit l’audio si aucun n’est disponible, puis fournit le texte à l’assistant. Si les sous-titres montrent deux personnes qui parlent au même moment, la transcription conserve les paroles de chacune. Tu peux toujours coller un lien sans modèle de transcription, car les sous-titres utilisables n’en ont pas besoin. Si tu colles de nouveau un lien dans un chat existant avant l’envoi, ce chat réutilise la pièce jointe qu’il a déjà pour ce lien, même si tu l’as collé entre-temps dans un autre chat ; chaque chat garde la sienne. Une pièce jointe en échec, retirée ou ajoutée il y a plus d’un jour n’est pas réutilisée. Si ce lien échoue, réessaie ou retire-le avant d’envoyer. Si Tale ne parvient pas à retirer un lien, sa pastille réapparaît et un message en donne la raison ; le lien reste joint tant que le retrait n’a pas abouti.
 
 Un changement de modèle s’applique aux nouvelles transcriptions ; les pièces jointes déjà traitées conservent leur texte. Importer à nouveau les mêmes octets réutilise le travail terminé pour la même cible de transcription, mais relance la transcription si le fournisseur ou le modèle cible diffère.
 
@@ -61,5 +61,6 @@ Pour des questions récurrentes sur un brief ou une politique, ajoute le fichier
 | L’assistant connaît le nom, mais pas le contenu | Vérifie le format et l’état du traitement. Convertis les anciens fichiers dans un format récent compatible. |
 | La réponse invente des détails d’un enregistrement | Compare la transcription à l’enregistrement et fournis le passage corrigé avant de continuer. |
 | Un message reste en attente | Vérifie chaque pièce jointe, y compris les liens vidéo. Retire les éléments en échec ou relance leur traitement. |
+| Un lien vidéo retiré réapparaît | Tale n’a pas pu le retirer, et le message affiché en donne la raison. Le lien reste joint. Retire-le de nouveau une fois la cause réglée, par exemple quand ta connexion est rétablie ou après t’être reconnecté. |
 
 Reviens à [Poser des questions dans le chat](/fr/platform/chat/basics) pour vérifier les sources et poursuivre l’échange.

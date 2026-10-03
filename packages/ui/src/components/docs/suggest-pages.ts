@@ -1,58 +1,59 @@
 /**
- * "Did you mean" for a documentation 404: rank a site's pages by how close
- * their slug is to the path a reader asked for. Slugs, not routes — a locale
- * or mount prefix would otherwise make every page look equally similar.
+ * "Did you mean" for a documentation 404: the site's pages ranked by how
+ * close they are to the path a reader asked for. Slugs, not routes — a
+ * locale or mount prefix would otherwise make every page look equally
+ * similar. The ranking is the near-miss scorer's (`./near-miss`), the same
+ * one a docs server uses for fuzzy guesses. The server also resolves exact
+ * page and section aliases before scoring; a suggestion need not be an
+ * unambiguous redirect target.
  */
+
+import {
+  buildNearMissIndex,
+  rankNearMisses,
+  type NearMissNavGroup,
+} from './near-miss';
+import { slugRoute } from './redirects';
 
 export interface SuggestionCandidate {
   /** Path relative to the site's content root, e.g. `platform/chat/basics`. */
   slug: string;
-}
-
-/** Iterative Levenshtein distance between two short strings. */
-function levenshtein(a: string, b: string): number {
-  if (a === b) return 0;
-  if (a.length === 0) return b.length;
-  if (b.length === 0) return a.length;
-  let prev = Array.from({ length: b.length + 1 }, (_, i) => i);
-  for (let i = 1; i <= a.length; i++) {
-    const curr = [i];
-    for (let j = 1; j <= b.length; j++) {
-      const cost = a.charCodeAt(i - 1) === b.charCodeAt(j - 1) ? 0 : 1;
-      curr.push(Math.min(curr[j - 1] + 1, prev[j] + 1, prev[j - 1] + cost));
-    }
-    prev = curr;
-  }
-  return prev[b.length];
-}
-
-/** Score how similar `candidate` is to `query` (lower is closer). */
-function score(query: string, candidate: string): number {
-  if (candidate.includes(query) || query.includes(candidate)) return 0;
-  // Compare the last path segment first — usually the most discriminating.
-  const queryLeaf = query.split('/').pop() ?? query;
-  const candidateLeaf = candidate.split('/').pop() ?? candidate;
-  return Math.min(
-    levenshtein(queryLeaf, candidateLeaf),
-    levenshtein(query, candidate),
-  );
+  /** The page's titles in every locale it ships: a translated or
+   *  title-shaped guess (`mitglieder-und-rollen`) finds the page by them. */
+  titles?: readonly string[];
 }
 
 /**
  * The `max` candidates closest to `query`, closest first. An empty query —
  * the reader landed on the site root's 404 — keeps the navigation order.
+ * `groups` is the site's sidebar, so a folder the reader spelled as a group
+ * label (`verwaltung/…`) ranks the pages under that group first.
  */
 export function suggestPages<T extends SuggestionCandidate>(
   query: string,
   candidates: readonly T[],
   max = 4,
+  groups: readonly NearMissNavGroup[] = [],
 ): T[] {
   if (!query) return candidates.slice(0, max);
-  return candidates
-    .map((candidate) => ({ candidate, s: score(query, candidate.slug) }))
-    .sort((a, b) => a.s - b.s)
+  const byRoute = new Map<string, T>();
+  for (const candidate of candidates) {
+    const route = slugRoute(candidate.slug);
+    if (!byRoute.has(route)) byRoute.set(route, candidate);
+  }
+  const index = buildNearMissIndex(
+    [...byRoute].map(([route, candidate]) => ({
+      route,
+      titles: candidate.titles ?? [],
+    })),
+    groups,
+  );
+  return rankNearMisses(query, index)
     .slice(0, max)
-    .map((entry) => entry.candidate);
+    .flatMap(({ route }) => {
+      const candidate = byRoute.get(route);
+      return candidate ? [candidate] : [];
+    });
 }
 
 /**

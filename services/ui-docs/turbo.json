@@ -1,0 +1,29 @@
+{
+  "$schema": "https://turbo.build/schema.v2.json",
+  "extends": ["//"],
+  "tasks": {
+    "test": {
+      "inputs": [
+        "$TURBO_EXTENDS$",
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/packages/ui/src/components/docs/*.ts",
+        "$TURBO_ROOT$/packages/ui/src/markdown/heading-id.ts"
+      ]
+    },
+    "build": {
+      "inputs": [
+        "$TURBO_EXTENDS$",
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/packages/ui/src/components/docs/*.ts"
+      ],
+      "outputs": ["$TURBO_EXTENDS$", "dist-seo/**"]
+    },
+    "test:prerender": {
+      "inputs": [
+        "$TURBO_EXTENDS$",
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/packages/e2e/src/crawl.ts"
+      ]
+    }
+  }
+}

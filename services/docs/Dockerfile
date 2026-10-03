@@ -12,6 +12,9 @@ RUN ln -s /usr/local/bin/bun /usr/local/bin/bunx
 WORKDIR /app
 
 COPY package.json bun.lock bunfig.toml ./
+# The root package.json's `patchedDependencies` (patches/README.md): `bun install`
+# refuses to run without the patch files, and they must reach the installed packages.
+COPY patches/ ./patches/
 COPY packages/e2e/package.json ./packages/e2e/
 COPY packages/shared/package.json ./packages/shared/
 COPY packages/ui/package.json ./packages/ui/
@@ -41,6 +44,7 @@ COPY tsconfig.base.json ./
 COPY tsconfig.dom.json ./
 COPY tsconfig.vite.json ./
 COPY packages/ui ./packages/ui
+COPY packages/marketing-ui ./packages/marketing-ui
 COPY services/docs ./services/docs
 COPY docs ./docs
 

@@ -10,11 +10,23 @@
  *    kept;
  *  - a row lock another transaction holds costs the tick its lock timeout
  *    and no more: the tick comes back with that row deferred and the row
- *    after it settled.
+ *    after it settled;
+ *  - the failed rows are read in rotation: with more settled failures than a
+ *    tick reads queued ahead of it, a false failure — a failed row whose
+ *    corpus row completed — is adopted within two ticks, the stamps that
+ *    rotate the batch move no settled row's status clock and tell no list,
+ *    and a file parked while the search index rebuilds is never read;
+ *  - a failure the tick writes itself carries no code: the interrupted text
+ *    on a retried row that kept its previous failure's code, and a corpus
+ *    copy on a row without one. A row the app classified keeps its sentence
+ *    and code whatever its corpus copy says: a lost retry fails with it, a
+ *    failed row stays as it is.
  *
  * Each on organizations of its own. The candidate read is global, so the
  * rows here are queued before the epoch (negative queue times) and lead
- * every batch, whatever other rows the database holds.
+ * every batch, whatever other rows the database holds. For the same reason
+ * every tick here must be the only sweep running: the harness takes the
+ * sweep's own clock off, and the first check reads that it is off.
  */
 import { randomUUID } from 'node:crypto';
 
@@ -41,8 +53,37 @@ export async function checkRagWatchdogBatch(
   sql: Sql,
   record: Record,
 ): Promise<void> {
+  await checkNoScheduledSweep(sql, record);
   await checkSettledFailures(sql, record);
   await checkHeldRowLock(sql, record);
+  await checkFailedRotation(sql, record);
+  await checkErrorCodePairs(sql, record);
+}
+
+/**
+ * The checks below count what their own ticks did, so no other sweep may run
+ * beside them: one the job runner starts reads the same rows, which lead its
+ * batch too. The harness takes the `watchdog.rag_indexing` clock off at boot.
+ * Its tick in the 2-59/5 slot once queued behind the row the lock check
+ * holds, and failed it as soon as the check let go, before the check read
+ * back the row its own tick had deferred (#4113). A clock that comes back
+ * fails here by name, not as a row another sweep settled. pg-boss's tables
+ * are internal; these reads are pinned to v12 like the harness's own.
+ */
+async function checkNoScheduledSweep(sql: Sql, record: Record): Promise<void> {
+  const [clock] = await sql<{ schedules: string; ticks: string }[]>`
+    SELECT
+      (SELECT count(*) FROM pgboss.schedule
+        WHERE name = 'watchdog.rag_indexing')::text AS schedules,
+      (SELECT count(*) FROM pgboss.job
+        WHERE name = 'watchdog.rag_indexing'
+          AND state IN ('created', 'retry', 'active'))::text AS ticks
+  `;
+  record(
+    'rag watchdog: no scheduled sweep runs beside the ticks these checks count',
+    clock?.schedules === '0' && clock.ticks === '0',
+    `watchdog.rag_indexing schedules=${clock?.schedules} (want 0), queued or running ticks=${clock?.ticks} (want 0)`,
+  );
 }
 
 async function insertOrganization(
@@ -266,7 +307,12 @@ async function checkHeldRowLock(sql: Sql, record: Record): Promise<void> {
     const lockTaken = new Promise<void>((resolve) => {
       taken = resolve;
     });
+    let holderPid = -1;
     holder = sql.begin(async (tx) => {
+      const [self] = await tx<{ pid: number }[]>`
+        SELECT pg_backend_pid() AS pid
+      `;
+      holderPid = self?.pid ?? -1;
       await tx`
         SELECT id FROM app.file_metadata WHERE id = ${locked?.id ?? ''}
         FOR UPDATE
@@ -285,6 +331,13 @@ async function checkHeldRowLock(sql: Sql, record: Record): Promise<void> {
       }),
     ]);
     const elapsedMs = Date.now() - started;
+    // Nothing may wait on the row once the tick is back: a write left queued
+    // behind the lock lands as soon as the lock is let go, and the read below
+    // would race it.
+    const [waiting] = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM pg_stat_activity
+      WHERE ${holderPid}::int = ANY(pg_blocking_pids(pid))
+    `;
     release();
     await holder;
     const outcome = await sweep;
@@ -298,16 +351,281 @@ async function checkHeldRowLock(sql: Sql, record: Record): Promise<void> {
       'rag watchdog: a row lock held past the settle lock timeout defers that row alone',
       returned &&
         elapsedMs < 10_000 &&
+        waiting?.count === '0' &&
         statusOf('first.pdf') === 'failed' &&
         statusOf('locked.pdf') === 'running' &&
         statusOf('after.pdf') === 'failed',
-      `returned while the lock was held=${returned} after ${elapsedMs} ms (want < 10000), first=${statusOf('first.pdf')} locked=${statusOf('locked.pdf')} (want running) after=${statusOf('after.pdf')}, tick=${JSON.stringify(outcome)}`,
+      `returned while the lock was held=${returned} after ${elapsedMs} ms (want < 10000), still waiting on the lock=${waiting?.count} (want 0), first=${statusOf('first.pdf')} locked=${statusOf('locked.pdf')} (want running) after=${statusOf('after.pdf')}, tick=${JSON.stringify(outcome)}`,
     );
   } finally {
     release();
     await holder.catch((error: unknown) => {
       console.warn('[itest] rag watchdog lock holder failed:', error);
     });
+    await removeOrganizations(sql, [org]);
+  }
+}
+
+async function checkFailedRotation(sql: Sql, record: Record): Promise<void> {
+  const org = await insertOrganization(sql, 'rotation');
+  const failedAt = Date.now() - 60_000;
+  const queuedBefore = -Date.now();
+  try {
+    // More settled failures than a tick reads, all queued before the false
+    // failure below: a batch read by queue time holds none but them.
+    const settled = await sql<{ id: string; ref: string }[]>`
+      INSERT INTO app.file_metadata (
+        org_id, storage_ref, file_name, content_type, size, rag_status,
+        rag_error, rag_queued_at_ms, status_changed_at_ms, created_at_ms
+      )
+      SELECT ${org.id},
+             ${`s3:itest/${org.slug}/settled-`}::text || i,
+             'settled-' || i || '.pdf', 'application/pdf', 1, 'failed',
+             ${SETTLED_ERROR}, ${queuedBefore - 10_000}::bigint + i,
+             ${failedAt}::bigint, ${failedAt}::bigint
+      FROM generate_series(1, ${SETTLED_ROWS}) AS i
+      RETURNING id, storage_ref AS ref
+    `;
+    const pool = await getKnowledgePoolForOrg(org.slug);
+    await pool.unsafe(
+      `INSERT INTO ${PRIVATE_KNOWLEDGE_SCHEMA}.documents
+         (org_slug, file_id, filename, status, error)
+       SELECT $1, ref, 'settled.pdf', 'failed', $3
+       FROM unnest($2::text[]) AS ref`,
+      [org.slug, settled.map((row) => row.ref), SETTLED_ERROR],
+    );
+    for (const index of [0, 100, SETTLED_ROWS - 1]) {
+      const row = settled[index];
+      if (row !== undefined) await holdByDocument(sql, org.id, row.ref);
+    }
+    // The false failure: its corpus row completed after all, and a listed
+    // document holds it. Queued after every settled row.
+    const falseRef = `s3:itest/${org.slug}/false-failure`;
+    const [falseFailure] = await sql<{ id: string }[]>`
+      INSERT INTO app.file_metadata (
+        org_id, storage_ref, file_name, content_type, size, rag_status,
+        rag_error, rag_queued_at_ms, status_changed_at_ms, created_at_ms
+      ) VALUES (
+        ${org.id}, ${falseRef}, 'false-failure.pdf', 'application/pdf', 1,
+        'failed', ${RAG_INTERRUPTED_MESSAGE}, ${queuedBefore - 5_000},
+        ${failedAt}, ${failedAt}
+      )
+      RETURNING id
+    `;
+    await pool.unsafe(
+      `INSERT INTO ${PRIVATE_KNOWLEDGE_SCHEMA}.documents
+         (org_slug, file_id, filename, status)
+       VALUES ($1, $2, 'false-failure.pdf', 'completed')`,
+      [org.slug, falseRef],
+    );
+    await holdByDocument(sql, org.id, falseRef);
+    // A file parked while the corpus's index rebuilds, queued ahead of all of
+    // them: index health re-queues it, and the sweep never reads, nor stamps,
+    // it.
+    const parkedRef = `s3:itest/${org.slug}/parked`;
+    const [parked] = await sql<{ id: string }[]>`
+      INSERT INTO app.file_metadata (
+        org_id, storage_ref, file_name, content_type, size, rag_status,
+        rag_error, rag_error_code, rag_queued_at_ms, status_changed_at_ms,
+        created_at_ms
+      ) VALUES (
+        ${org.id}, ${parkedRef}, 'parked.pdf', 'application/pdf', 1,
+        'failed', 'The search index is being rebuilt.', 'index_rebuilding',
+        ${queuedBefore - 20_000}, ${failedAt}, ${failedAt}
+      )
+      RETURNING id
+    `;
+    await pool.unsafe(
+      `INSERT INTO ${PRIVATE_KNOWLEDGE_SCHEMA}.documents
+         (org_slug, file_id, filename, status, error)
+       VALUES ($1, $2, 'parked.pdf', 'failed', 'The search index is being rebuilt.')`,
+      [org.slug, parkedRef],
+    );
+
+    const tail = await outboxTail(sql);
+    const statusOf = async (): Promise<string | null | undefined> => {
+      const [row] = await sql<{ status: string | null }[]>`
+        SELECT rag_status AS status FROM app.file_metadata
+        WHERE id = ${falseFailure?.id ?? ''}
+      `;
+      return row?.status;
+    };
+    const ticks: string[] = [];
+    let adoptedAfter: number | null = null;
+    for (let tick = 1; tick <= 3 && adoptedAfter === null; tick += 1) {
+      ticks.push(JSON.stringify(await recoverStuckRagIndexing(sql)));
+      if ((await statusOf()) === 'completed') adoptedAfter = tick;
+    }
+    record(
+      `rag watchdog: a false failure queued after ${SETTLED_ROWS} settled failures is adopted within two ticks`,
+      adoptedAfter !== null && adoptedAfter <= 2,
+      `adopted after tick ${adoptedAfter ?? 'none of 3'} (want ≤ 2), ticks=${ticks.join(' ')}`,
+    );
+
+    const [kept] = await sql<
+      { kept: string; stamped: string; total: string }[]
+    >`
+      SELECT count(*) FILTER (
+               WHERE rag_status = 'failed' AND rag_error = ${SETTLED_ERROR}
+                 AND status_changed_at_ms = ${failedAt}
+             )::text AS kept,
+             count(*) FILTER (
+               WHERE rag_reconciled_at_ms IS NOT NULL
+             )::text AS stamped,
+             count(*)::text AS total
+      FROM app.file_metadata
+      WHERE org_id = ${org.id}
+        AND id <> ALL(${[falseFailure?.id ?? '', parked?.id ?? '']})
+    `;
+    const hints = await documentHintsSince(sql, tail, org.id);
+    const [parkedAfter] = await sql<{ stamp: string | null }[]>`
+      SELECT rag_reconciled_at_ms::text AS stamp FROM app.file_metadata
+      WHERE id = ${parked?.id ?? ''}
+    `;
+    const parkedStamp =
+      parkedAfter === undefined ? 'missing' : parkedAfter.stamp;
+    record(
+      'rag watchdog: the rotation stamps move no settled row’s status clock and tell no list, and a file parked by a bad search index is never read',
+      kept?.kept === String(SETTLED_ROWS) &&
+        kept.stamped === String(SETTLED_ROWS) &&
+        parkedStamp === null &&
+        hints === 1,
+      `unchanged=${kept?.kept}/${kept?.total} (want ${SETTLED_ROWS}), stamped=${kept?.stamped} (want ${SETTLED_ROWS}), document hints=${hints} (want 1: the adoption), parked row stamped=${String(parkedStamp)} (want null: left to index health)`,
+    );
+  } finally {
+    await removeOrganizations(sql, [org]);
+  }
+}
+
+const NO_MODEL_ERROR =
+  'No embedding model is configured for this organization. An admin can set one under Settings → Data residency → Embedding model, then retry indexing.';
+const UPSTREAM_ERROR =
+  'The embedding provider could not serve the call; indexing is retried automatically.';
+
+async function checkErrorCodePairs(sql: Sql, record: Record): Promise<void> {
+  const org = await insertOrganization(sql, 'codes');
+  const failedAt = Date.now() - 60_000;
+  const queuedBefore = -Date.now();
+  try {
+    // Three rows Retry indexing re-queued after a failure for want of an
+    // embedding model — `markRagQueued` kept that failure's sentence and code
+    // — whose jobs were lost before pickup: one the corpus never saw, one
+    // whose corpus row reads the same sentence (the shape the failure's own
+    // upsert leaves), and one whose corpus row reads an earlier attempt's.
+    // A running row with no pair whose corpus row failed. And a failed row
+    // the app classified, whose corpus copy of the sentence is an earlier
+    // attempt's.
+    const names = [
+      'lost.pdf',
+      'copied.pdf',
+      'stale-copy.pdf',
+      'classified.pdf',
+    ];
+    const statuses = ['queued', 'queued', 'queued', 'failed'];
+    const errors = [
+      NO_MODEL_ERROR,
+      NO_MODEL_ERROR,
+      NO_MODEL_ERROR,
+      UPSTREAM_ERROR,
+    ];
+    const codes = [
+      'embedding_not_configured',
+      'embedding_not_configured',
+      'embedding_not_configured',
+      'embedding_upstream',
+    ];
+    await sql`
+      INSERT INTO app.file_metadata (
+        org_id, storage_ref, file_name, content_type, size, rag_status,
+        rag_error, rag_error_code, rag_queued_at_ms, status_changed_at_ms,
+        created_at_ms
+      )
+      SELECT ${org.id}, ${`s3:itest/${org.slug}/`}::text || name, name,
+             'application/pdf', 1, status, error, code,
+             ${queuedBefore}::bigint + i, ${failedAt}::bigint,
+             ${failedAt}::bigint
+      FROM unnest(${names}::text[], ${statuses}::text[], ${errors}::text[],
+                  ${codes}::text[])
+           WITH ORDINALITY AS t(name, status, error, code, i)
+    `;
+    await sql`
+      INSERT INTO app.file_metadata (
+        org_id, storage_ref, file_name, content_type, size, rag_status,
+        rag_queued_at_ms, created_at_ms
+      ) VALUES (
+        ${org.id}, ${`s3:itest/${org.slug}/codeless.pdf`}, 'codeless.pdf',
+        'application/pdf', 1, 'running', ${queuedBefore}, ${failedAt}
+      )
+    `;
+    const pool = await getKnowledgePoolForOrg(org.slug);
+    const refOf = (name: string) => `s3:itest/${org.slug}/${name}`;
+    await pool.unsafe(
+      `INSERT INTO ${PRIVATE_KNOWLEDGE_SCHEMA}.documents
+         (org_slug, file_id, filename, status, error)
+       SELECT $1, file_id, 'moved.pdf', 'failed', error
+       FROM unnest($2::text[], $3::text[]) AS t(file_id, error)`,
+      [
+        org.slug,
+        [
+          refOf('copied.pdf'),
+          refOf('stale-copy.pdf'),
+          refOf('codeless.pdf'),
+          refOf('classified.pdf'),
+        ],
+        [NO_MODEL_ERROR, CORPUS_ERROR, CORPUS_ERROR, SETTLED_ERROR],
+      ],
+    );
+
+    const tick = await recoverStuckRagIndexing(sql);
+    const after = await sql<
+      {
+        name: string;
+        status: string | null;
+        error: string | null;
+        code: string | null;
+      }[]
+    >`
+      SELECT file_name AS name, rag_status AS status, rag_error AS error,
+             rag_error_code AS code
+      FROM app.file_metadata WHERE org_id = ${org.id}
+    `;
+    const rowOf = (name: string) => after.find((row) => row.name === name);
+    const lost = rowOf('lost.pdf');
+    const codeless = rowOf('codeless.pdf');
+    record(
+      'rag watchdog: a failure it writes itself carries no code — a retried row’s previous code never stays under the interrupted text, and a corpus copy goes on a row without one',
+      lost?.status === 'failed' &&
+        lost.error === RAG_INTERRUPTED_MESSAGE &&
+        lost.code === null &&
+        codeless?.status === 'failed' &&
+        codeless.error === CORPUS_ERROR &&
+        codeless.code === null,
+      `lost=${lost?.status}/${lost?.code} (want failed, interrupted text: ${lost?.error === RAG_INTERRUPTED_MESSAGE}, no code), codeless=${codeless?.status}/${codeless?.code} (want failed, the corpus error: ${codeless?.error === CORPUS_ERROR}, no code), tick=${JSON.stringify(tick)}`,
+    );
+    const pairKept = (name: string, error: string, code: string) => {
+      const row = rowOf(name);
+      return (
+        row?.status === 'failed' && row.error === error && row.code === code
+      );
+    };
+    record(
+      'rag watchdog: a row the app classified keeps its sentence and code whatever its corpus copy says — a lost retry fails with its pair, a failed row stays as it is',
+      pairKept('copied.pdf', NO_MODEL_ERROR, 'embedding_not_configured') &&
+        pairKept(
+          'stale-copy.pdf',
+          NO_MODEL_ERROR,
+          'embedding_not_configured',
+        ) &&
+        pairKept('classified.pdf', UPSTREAM_ERROR, 'embedding_upstream'),
+      ['copied.pdf', 'stale-copy.pdf', 'classified.pdf']
+        .map((name) => {
+          const row = rowOf(name);
+          return `${name}=${row?.status}/${row?.code} (own sentence: ${row?.error === (name === 'classified.pdf' ? UPSTREAM_ERROR : NO_MODEL_ERROR)})`;
+        })
+        .join(', ') +
+        ' (want failed with the pair it carried: embedding_not_configured, embedding_not_configured, embedding_upstream)',
+    );
+  } finally {
     await removeOrganizations(sql, [org]);
   }
 }

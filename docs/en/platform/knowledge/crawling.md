@@ -24,17 +24,23 @@ Choose **Scan interval** and **Save**. The default interval is six hours; the av
 
 </Frame>
 
+## Make the pages searchable in chat
+
+Crawling stores a page's text. Chat and knowledge search reach it only once your organization has a working embedding model, because every search first turns the question into a vector. Without one, a source can read **Active** with all its pages indexed while the assistant answers that web-page search is not set up.
+
+**Knowledge > Websites** then shows the notice **Chat can't search these websites yet**; an administrator may see the banner **Knowledge search is off** in its place, above every page. An administrator sets the model under **Settings > Data residency**; operators find the setup details in [Data residency](/self-hosted/configuration/data-residency). Saving a model starts a scan of every source that was crawled without one and of every source whose last scan failed, so you do not add them again.
+
 ## Keep a URL list focused
 
 A URL list fetches only the addresses you provide and follows no additional links. It can contain pages from several websites; Tale groups them into one source per website. A listed `http://` address is accepted and fetched as `https://`, unlike a whole-website `http://` domain, which is refused; a page that serves plaintext only stays out of reach either way. Adding another list for an existing URL-list source adds addresses without dropping the existing ones and updates its scan interval.
 
-Use complete public URLs. Linked PDF and modern Office documents can be indexed when they contain readable text. Images and scans without extractable text do not become searchable content.
+Use complete public URLs. Linked PDF and modern Office documents can be indexed when they contain readable text. A download served under a generic or legacy type (`application/octet-stream`, `application/vnd.ms-excel` on an `.xlsx` export) is recognised by its filename and its bytes. Images and scans without extractable text do not become searchable content.
 
 ## Understand discovery and refresh
 
 For a whole website, the crawler uses the homepage and published sitemaps, including sitemap indexes and sitemaps declared in `robots.txt`. If usable sitemaps are missing, it follows links within the domain from the homepage. A page absent from both sitemaps and reachable links may be missed; use a URL list when specific coverage matters.
 
-Scans are incremental. Unchanged content is skipped, changed content is indexed again, new pages are added, and removed pages leave the index — and so do pages `robots.txt` has come to disallow. The row's page counts follow the scan as pages land, after discovery and after every stored batch, so the table moves while a scan runs. A URL list follows the same refresh schedule with its fixed selection. There is no separate publish step after successful indexing.
+Scans are incremental. Unchanged content is skipped, changed content is indexed again, new pages are added, and removed pages leave the index — and so do pages `robots.txt` has come to disallow. A page that redirects to another address of the same site is indexed once, under the address it lands on. The row's page counts follow the scan as pages land, after discovery and after every stored batch, so the table moves while a scan runs. A URL list follows the same refresh schedule with its fixed selection. There is no separate publish step after successful indexing.
 
 The crawler visits as an anonymous reader. Content that depends on a private session is not made accessible by adding its URL. It identifies itself on every request as `TaleBot/<version> (+https://docs.tale.dev/platform/knowledge/crawling)`, so a `robots.txt` group can address it by name — `User-agent: TaleBot` — to allow, throttle or refuse it alone.
 
@@ -48,15 +54,15 @@ Use HTTPS on the standard port, and register a hostname: addresses with a non-de
 | --- | --- |
 | 10,000 tracked URLs per website | A larger site can have undiscovered pages. Use a focused URL list for the material you need. |
 | Three minutes for discovery, at most 50 sitemap fetches | Large or slow sitemap collections can be incomplete. |
-| 25 MiB and 30 seconds per content fetch | Oversized downloads and slow responses fail (`timeout` for the download and the 20-second browser-render budgets); so does a page behind more than five redirects (`redirect_limit_exceeded`). |
+| 100 MiB (`KNOWLEDGE_CRAWL_DOCUMENT_MAX_BYTES`) and 30 seconds per content fetch | Oversized downloads and slow responses fail (`timeout` for the download and the 20-second browser-render budgets); so does a page behind more than five redirects (`redirect_limit_exceeded`). |
 | Five-minute processing budget per batch, up to 200 continuations | Long scans continue in batches. Work already being fetched or rendered can outlast a batch's budget; this is not a guaranteed total scan duration. |
-| Five consecutive failures for an automatically discovered URL | The crawler stops scheduling that URL. Listed URLs remain eligible on each scan, and a listed page the site answers 404 for stays in the list with that answer on it. |
+| Five consecutive failures for an automatically discovered URL | The crawler stops scheduling that URL for seven days, then probes it once more. A failure of the render sandbox itself is not counted: when its egress proxy refuses the connection or its browser stops answering, the scan ends with that reason on the source and the next scan retries every page. Listed URLs remain eligible on each scan, and a listed page the site answers 404 for stays in the list with that answer on it. |
 
 There is no configurable page cap, include/exclude path filter, or stop-scan button. A URL list narrows what you request; it does not remove these limits.
 
 ## Check what was indexed
 
-The table shows **Status**, the **Indexed** page count, **Scanned**, and **Interval**. Open the source row to inspect its page list, word and chunk counts, and last-crawled times. Expand a page to read its stored text chunks. A failed fetch shows its reason and number of consecutive failures.
+The table shows **Status**, the **Indexed** page count, **Scanned**, and **Interval**. Open the source row to inspect its page list, word and chunk counts, and last-crawled times. Expand a page to read its stored text chunks. A failed fetch shows its reason and number of consecutive failures. A page the crawler skipped on purpose — the source asked not to be indexed, the content type has no readable text, or a redirect left the site — reads **Skipped** with its reason and does not count as failed.
 
 | Status | Meaning |
 | --- | --- |
@@ -65,21 +71,28 @@ The table shows **Status**, the **Indexed** page count, **Scanned**, and **Inter
 | **Error** | The scan failed, or attempted pages left the source with no stored content. Open the source for its reason. |
 | **Deleting** | The source is being removed. |
 
+A scan that was under way when Tale restarted, was updated or stopped without warning continues on its own within a few minutes, with the pages it had not reached yet. Pages that need the browser can follow up to a quarter of an hour later. The source reads **Scanning** throughout.
+
+To scan outside the interval, open the source's row menu or its details and choose **Scan now**. Use it after the site changed, or after a failed scan, which otherwise retries on its own within two hours. The action is offered while the source is neither scanning nor being deleted.
+
 The page view also offers search over indexed content. Try a distinctive phrase from a page before relying on it in chat, then ask a specific question and inspect the citation.
 
 ## Resolve a missing page
 
-First check the address, source type, and latest scan time. Then open the source and read the affected page's error.
+First check the address, source type, and latest scan time. Then open the source, narrow its page list to **Failed** or **Skipped**, and read the affected page's error.
 
 | Reported issue | What to check or change |
 | --- | --- |
 | Certificate not trusted | The website operator must fix an expired, self-signed, mismatched, or otherwise untrusted TLS certificate. Repeated scans do not repair it. |
 | Private address, refused redirect, or invalid URL | Use the intended public HTTPS address. Ask your operator about approved internal sources if needed. |
 | HTTP error, network failure, or timeout | Open the original page and check availability. A later scan can recover after the source service is repaired. |
-| Response too large | Publish a smaller document or split the source; the fetch limit is 25 MiB. |
+| Response too large | Publish a smaller document or split the source; the fetch limit is 100 MiB unless your operator set `KNOWLEDGE_CRAWL_DOCUMENT_MAX_BYTES`. |
 | Source requests no indexing | The response sends `X-Robots-Tag: noindex` or `none`, or the page carries `<meta name="robots" content="noindex">`. The source owner must change that directive before Tale can index it. |
 | Unsupported content or no readable text | JSON/XML endpoints, binary downloads, images, or scans may provide no supported page text. Supply an HTML page or a supported document with extractable text. |
 | Rendering or document extraction failed | Check that the public page loads and the original document opens. Repair or re-export the source if it is damaged. |
+| The assistant says web-page search is not set up | The organization has no working embedding model. An administrator sets one under **Settings > Data residency**; Tale then scans the affected sources again. |
+| **Error** with "The embedding model couldn't process the pages." | The embedding provider refused or failed the request: a rejected credential, an exhausted balance, a rate limit that held through every retry, or an outage. The source's details say which, with the provider's own reply beneath. An administrator repairs the model under **Settings > Data residency** or its credential under **Settings > AI providers**; saving either one scans the affected sources again. After an outage on the provider's side, choose **Scan now** once it is back. |
+| **Error** with "Scanning didn't run." | The crawler's browser could not start, so no page was rendered; its report is under **Technical details** in the source's details. The address is not the cause: ask your operator to check the sandbox service, then choose **Scan now**. |
 
 A successful later fetch clears the previous error. A failed refresh can leave an earlier indexed copy available: **Active** and an indexed count do not prove every page is up to date. Compare the stored chunks and last-crawled information with the original before relying on a recent change.
 

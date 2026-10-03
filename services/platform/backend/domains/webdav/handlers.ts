@@ -52,6 +52,7 @@ import {
   markRagQueued,
   syncRagDocumentScope,
   syncRagFolderSubtree,
+  syncRagRefHolderScopes,
 } from '../knowledge/service.ts';
 import { markEntryChainDeletedForDocument } from '../knowledge_entries/service.ts';
 import {
@@ -471,12 +472,26 @@ async function assertWebdavDocNotHeld(
   );
 }
 
+/**
+ * The refs whose set of ACTIVE holders a WebDAV write moved: a copy
+ * inserted beside its source, a document trashed (by a folder cascade, and
+ * as an overwritten destination, too), a PUT that moved a document off its
+ * old bytes. A shared ref's corpus row carries its holder's scope — the
+ * lowest-id active document holding it — and none of these writes edits a
+ * document's scope, so no per-edit sync follows them: the handler that ran
+ * the write re-stamps these refs' holders once its transaction commits
+ * (`syncRagRefHolderScopes`), rather than leaving the row to the nightly
+ * reconcile.
+ */
+type HolderRefs = Set<string>;
+
 async function softDeleteDocumentInner(
   tx: TransactionSql,
   organizationId: string,
   documentId: string,
   viewer: AudienceGrant,
   actor: DocumentAuditActor,
+  holderRefs: HolderRefs,
 ): Promise<void> {
   const doc = await loadDoc(tx, organizationId, documentId);
   // A project-scoped doc is not a WebDAV resource (#2545), and neither is a
@@ -498,6 +513,7 @@ async function softDeleteDocumentInner(
       updated_at_ms = ${Date.now()}
     WHERE id = ${documentId}
   `;
+  if (doc.fileRef !== null) holderRefs.add(doc.fileRef);
   // A knowledge entry's backing document is an ordinary hub row here; the
   // entry must not outlive it (listed, counted, served, while its corpus
   // rows are dark).
@@ -565,6 +581,7 @@ async function cascadeDeleteFolderRecursive(
   folderId: string,
   viewer: AudienceGrant,
   actor: DocumentAuditActor,
+  holderRefs: HolderRefs,
   depth = 0,
   budget: ReadBudget = newReadBudget(),
 ): Promise<number> {
@@ -595,6 +612,7 @@ async function cascadeDeleteFolderRecursive(
       c.id,
       viewer,
       actor,
+      holderRefs,
       depth + 1,
       budget,
     );
@@ -624,6 +642,7 @@ async function cascadeDeleteFolderRecursive(
         updated_at_ms = ${Date.now()}
       WHERE id = ${d.id}
     `;
+    if (d.fileRef !== null) holderRefs.add(d.fileRef);
     await markEntryChainDeletedForDocument(tx, organizationId, d.id);
     trashed += 1;
   }
@@ -778,6 +797,7 @@ async function copyFolderRecursive(
    * destination is org-wide and every row keeps its own — the MOVE rule.
    */
   audience: string[] | null,
+  holderRefs: HolderRefs,
   depth: number,
   budget: ReadBudget = newReadBudget(),
 ): Promise<string> {
@@ -819,6 +839,7 @@ async function copyFolderRecursive(
       userId,
       viewer,
       audience,
+      holderRefs,
       depth + 1,
       budget,
     );
@@ -859,6 +880,7 @@ async function copyFolderRecursive(
     `;
     const copiedId = copied[0]?.id;
     if (!copiedId) throw new Error('document copy failed');
+    if (d.fileRef !== null) holderRefs.add(d.fileRef);
     await auditDocumentCreated(tx, actor, {
       documentId: copiedId,
       title,
@@ -1278,7 +1300,8 @@ export function webdavHandlers(
         resolvedContentType = 'text/plain';
       }
 
-      return sql.begin(async (tx) => {
+      const holderRefs: HolderRefs = new Set();
+      const ingested = await sql.begin(async (tx) => {
         // RFC 4918 §9.7.1: a PUT may not auto-vivify intermediate
         // collections.
         let folderId: string | null = null;
@@ -1342,6 +1365,7 @@ export function webdavHandlers(
             WHERE id = ${fileId}
           `;
           if (oldFileRef && oldFileRef !== args.storageId) {
+            holderRefs.add(oldFileRef);
             await purgeOldBlob(tx, args.organizationId, oldFileRef);
           }
           // The bytes were replaced in place — the row the UI's replace
@@ -1396,6 +1420,10 @@ export function webdavHandlers(
         });
         return { created: true, documentId };
       });
+      // An overwrite moved the document off its old bytes: a COPY twin
+      // still holding them is their holder now.
+      await syncRagRefHolderScopes(sql, args.organizationId, [...holderRefs]);
+      return ingested;
     },
 
     'webdav/tree_mutations:softDeleteDocument': async (raw) => {
@@ -1404,6 +1432,7 @@ export function webdavHandlers(
         userId?: string;
         documentId: string;
       }>(raw);
+      const holderRefs: HolderRefs = new Set();
       await sql.begin(async (tx) =>
         softDeleteDocumentInner(
           tx,
@@ -1411,8 +1440,10 @@ export function webdavHandlers(
           args.documentId,
           await grantFor(tx, args.organizationId, args.userId),
           webdavActor(args.organizationId, args.userId),
+          holderRefs,
         ),
       );
+      await syncRagRefHolderScopes(sql, args.organizationId, [...holderRefs]);
       return null;
     },
 
@@ -1422,6 +1453,7 @@ export function webdavHandlers(
         userId?: string;
         folderId: string;
       }>(raw);
+      const holderRefs: HolderRefs = new Set();
       await sql.begin(async (tx) => {
         const viewer = await grantFor(tx, args.organizationId, args.userId);
         await assertVisibleFolderSrc(
@@ -1436,8 +1468,10 @@ export function webdavHandlers(
           args.folderId,
           viewer,
           webdavActor(args.organizationId, args.userId),
+          holderRefs,
         );
       });
+      await syncRagRefHolderScopes(sql, args.organizationId, [...holderRefs]);
       return null;
     },
 
@@ -1510,6 +1544,7 @@ export function webdavHandlers(
       const destName = nfc(args.destName);
       const destParentSegments = args.destParentSegments.map(nfc);
       const srcSegments = args.srcSegments.map(nfc);
+      const holderRefs: HolderRefs = new Set();
       const moved = await sql.begin(async (tx) => {
         const viewer = await grantFor(tx, args.organizationId, args.userId);
         if (args.src.kind === 'folder') {
@@ -1580,6 +1615,7 @@ export function webdavHandlers(
               collision.id,
               viewer,
               actor,
+              holderRefs,
             );
           } else {
             await cascadeDeleteFolderRecursive(
@@ -1588,6 +1624,7 @@ export function webdavHandlers(
               collision.id,
               viewer,
               actor,
+              holderRefs,
             );
           }
         }
@@ -1647,12 +1684,14 @@ export function webdavHandlers(
         return { created: collision === null };
       });
       // The corpus copies each document's folder path (folder-scoped search
-      // matches on it) — re-stamp what the MOVE re-filed, after commit.
+      // matches on it) — re-stamp what the MOVE re-filed, after commit, and
+      // the holders of what an overwrite trashed.
       if (args.src.kind === 'document') {
         await syncRagDocumentScope(sql, args.organizationId, args.src.id);
       } else {
         await syncRagFolderSubtree(sql, args.organizationId, args.src.id);
       }
+      await syncRagRefHolderScopes(sql, args.organizationId, [...holderRefs]);
       return moved;
     },
 
@@ -1667,7 +1706,8 @@ export function webdavHandlers(
       }>(raw);
       const destName = nfc(args.destName);
       const destParentSegments = args.destParentSegments.map(nfc);
-      return sql.begin(async (tx) => {
+      const holderRefs: HolderRefs = new Set();
+      const outcome = await sql.begin(async (tx) => {
         const viewer = await grantFor(tx, args.organizationId, args.userId);
         if (args.src.kind === 'folder') {
           await assertVisibleFolderSrc(
@@ -1732,6 +1772,7 @@ export function webdavHandlers(
               collision.id,
               viewer,
               actor,
+              holderRefs,
             );
           } else {
             await cascadeDeleteFolderRecursive(
@@ -1740,6 +1781,7 @@ export function webdavHandlers(
               collision.id,
               viewer,
               actor,
+              holderRefs,
             );
           }
         }
@@ -1770,6 +1812,7 @@ export function webdavHandlers(
           `;
           const copiedId = copied[0]?.id;
           if (!copiedId) throw new Error('document copy failed');
+          if (src.fileRef !== null) holderRefs.add(src.fileRef);
           await auditDocumentCreated(
             tx,
             webdavActor(args.organizationId, args.userId),
@@ -1803,10 +1846,17 @@ export function webdavHandlers(
           args.userId,
           viewer,
           destAudience.length > 0 ? destAudience : null,
+          holderRefs,
           0,
         );
         return { created: collision === null };
       });
+      // A copy shares its source's bytes, and its random id sorts below the
+      // source's about half the time: the copy is then the ref's holder, and
+      // the corpus row takes its scope now rather than at the nightly
+      // reconcile. An overwrite's trashed destination moved holders too.
+      await syncRagRefHolderScopes(sql, args.organizationId, [...holderRefs]);
+      return outcome;
     },
 
     // ------------------------------------------------------------ locks

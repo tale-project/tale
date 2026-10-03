@@ -71,7 +71,10 @@ class PiJsonlParser implements HarnessEventParser {
   /** Terminal state of the most recent assistant message. */
   private lastStopReason: string | undefined;
   private lastError: string | undefined;
-  /** Turn totals across cycles — retried cycles consumed real tokens too. */
+  /** Turn totals across cycles — retried cycles consumed real tokens too.
+   * pi-ai's `input` is only the uncached remainder (it subtracts cached
+   * tokens from an OpenAI prompt count and keeps Anthropic's split), so
+   * the input total adds each message's cache reads and writes back. */
   private totalInput = 0;
   private totalOutput = 0;
 
@@ -149,8 +152,6 @@ class PiJsonlParser implements HarnessEventParser {
     // emit NO usage event — a zero row would only pollute metering (the
     // gateway meters authoritatively either way).
     if (usage && inputTokens + outputTokens > 0) {
-      this.totalInput += inputTokens;
-      this.totalOutput += outputTokens;
       const out: HarnessEvent = { type: 'usage', inputTokens, outputTokens };
       const model = asString(message.model);
       if (model) out.model = model;
@@ -162,6 +163,8 @@ class PiJsonlParser implements HarnessEventParser {
       if (cacheWrite !== undefined && cacheWrite > 0) {
         out.cacheWriteTokens = cacheWrite;
       }
+      this.totalInput += inputTokens + (cacheRead ?? 0) + (cacheWrite ?? 0);
+      this.totalOutput += outputTokens;
       const cost = isRecord(usage.cost)
         ? asNumber(usage.cost.total)
         : undefined;

@@ -5,12 +5,19 @@
 // `SessionBackend` owns the long-lived session container/Pod lifecycle. Both are
 // chosen once at boot from `SANDBOX_BACKEND` (see backend/index.ts).
 
+import type { SessionDiskState } from '../host-disk.ts';
 import type { SpawnerConfig } from '../types.ts';
 import type { SandboxSessionProfile, SandboxSessionState } from '../wire.ts';
 
 export type HealthResult =
   | { ok: true; detail: string }
-  | { ok: false; error: string };
+  | {
+      ok: false;
+      error: string;
+      /** The probe could not ask the backend at all (no docker CLI slot came
+       * free in time): answered as unhealthy, never cached. */
+      transient?: boolean;
+    };
 
 /** A fenced stop found a DIFFERENT incarnation under the session's
  * deterministic name than the one it was asked to stop (`expectedCreatedAtMs`
@@ -105,6 +112,35 @@ export interface BackendSession {
    * exemption a re-adopting spawner must carry over, or a restart (deploy,
    * crash) TTL/idle-reaps the user's pinned session on its first sweep. */
   pinned?: boolean;
+  /** The object's process has ended for good (a Docker container exited or
+   * dead, a Pod Succeeded or Failed) — nothing runs or will run in it. Unlike
+   * `degraded`, which also covers one still starting. */
+  ended?: boolean;
+}
+
+/** One workspace a backend holds (host dir / PVC), whatever its compute
+ * state — the physical half of the platform's workspace cleanup, which
+ * decides from its own ownership records which of these may go. */
+export interface BackendWorkspace {
+  sessionId: string;
+  /** When the backend last saw the workspace change: a Docker workspace
+   * dir's newest mtime/ctime (a resume re-chowns it), a PVC's creation.
+   * The platform leaves a recently touched workspace alone whatever its
+   * records say, so a create racing its own row is never taken. */
+  touchedAtMs: number;
+  /** A container/Pod exists for the session (running or not). */
+  active: boolean;
+  /** The durable "always-on" record (see {@link SessionBackend.setPinned}). */
+  pinned: boolean;
+  /** The owning organization, where the backend object records it. */
+  organizationId?: string;
+}
+
+/** What {@link SessionBackend.teardownOrganization} removed. */
+export interface OrganizationTeardownResult {
+  containers: number;
+  volumes: number;
+  networks: number;
 }
 
 /** What `createSession()` reports back once the session is `ready`. */
@@ -117,6 +153,29 @@ export interface CreateSessionResult {
    * the half-made workspace it provisioned itself.
    */
   resumed: boolean;
+}
+
+/**
+ * How far deleting a destroyed workspace's bytes has come, as every destroy
+ * answers it — the one completion signal the platform settles on:
+ *  - `done` — nothing of it is left (Docker: no trash entry of the id);
+ *  - `pending` — it waits in the trash or is being deleted;
+ *  - `failed` — the last attempt at it failed, and the next one tries again;
+ *  - `handed_off` — Kubernetes: the PVC delete was accepted, and the volume
+ *    is its storage provisioner's to delete under the storage class's reclaim
+ *    policy, which the spawner cannot observe. Never presented as `done`.
+ * A destroy answer without it comes from a spawner or device older than this
+ * contract — one that already deleted in the background (19776cf18) — and
+ * proves nothing about the bytes.
+ */
+export type WorkspaceDeletion = 'done' | 'pending' | 'failed' | 'handed_off';
+
+/** What the build-cache upkeep is told about the host. */
+export interface BuildCacheUpkeep {
+  /** The disk the workspaces live on, read now (null when it cannot be):
+   * while it is below its floor, the caches of organizations that are not
+   * building go first. */
+  sessionDisk?: () => Promise<SessionDiskState | null>;
 }
 
 export interface SessionBackend {
@@ -144,9 +203,27 @@ export interface SessionBackend {
    */
   sessionExists(sessionId: string): Promise<boolean>;
   /** Tear down container/Pod (+ Secret on K8s) and DELETE the workspace
-   * (host dir / PVC). The ONLY data-deleting verb — reached only via the
-   * explicit Destroy path. Idempotent; returns false when nothing existed. */
+   * (host dir / PVC). The ONLY data-deleting verb — reached through the
+   * DELETE route (the explicit Destroy, and the platform's workspace cleanup)
+   * and a deleted organization's teardown. Resolves without waiting for the
+   * data itself to go, so a large workspace answers as fast as a small one:
+   * Docker renames the dir into the session root's trash, emptied in the
+   * background (session/workspace-trash.ts), and deletes in place only where
+   * that rename cannot happen; the PVC delete hands the volume to its
+   * provisioner. Idempotent; returns false when nothing existed. */
   destroySession(sessionId: string): Promise<boolean>;
+  /**
+   * How far deleting the workspaces destroyed under the id has come — what
+   * an erasure or a retirement waits for, since a destroy answers once the
+   * workspace is out of use. With `waitMs`, what is left is attempted now (a
+   * failed removal again) and waited for that long. Required: every backend
+   * states its own contract (Docker reads its trash; Kubernetes answers
+   * `handed_off`), because an answer without one reads as unconfirmed.
+   */
+  workspaceDeletion(
+    sessionId: string,
+    waitMs?: number,
+  ): Promise<WorkspaceDeletion>;
   /**
    * Stop the container/Pod (+ Secret on K8s) to release compute, but PRESERVE
    * the workspace (host dir / PVC) so a later createSession with the same
@@ -192,7 +269,10 @@ export interface SessionBackend {
    * a failure is never fatal. A no-op on backends without a shared build cache
    * (Kubernetes) or when the cache is disabled.
    */
-  reconcileBuildCache(orgIds: readonly string[]): Promise<void>;
+  reconcileBuildCache(
+    orgIds: readonly string[],
+    upkeep?: BuildCacheUpkeep,
+  ): Promise<void>;
   /**
    * Does this backend hold a workspace for the session — a running container
    * or a stopped one's preserved data? The device hub asks before placing a
@@ -200,6 +280,29 @@ export interface SessionBackend {
    * Absent on backends the hub never runs beside (Kubernetes).
    */
   hasWorkspace?(sessionId: string): Promise<boolean>;
+  /**
+   * Every workspace this backend holds — stopped sessions' preserved data
+   * included, which `listSessions` never shows. The platform destroys only
+   * a workspace this list NAMES and its records disown, so leaving one out
+   * is safe; a wrong `active` is not. THROWS when the workspaces or the
+   * containers/Pods beside them cannot be listed at all.
+   */
+  listWorkspaces(): Promise<BackendWorkspace[]>;
+  /**
+   * The organizations holding resources beyond their sessions' workspaces
+   * (Docker: the organization's build helpers, their network and cache
+   * volumes, and its package caches). THROWS when it cannot be read.
+   */
+  listOrganizationResources(): Promise<string[]>;
+  /**
+   * Remove an organization's resources beyond its sessions' workspaces —
+   * called for an organization that no longer exists, once its sessions are
+   * destroyed. Idempotent: a second call finds nothing and reports zeros.
+   * THROWS when a resource could not be removed, so the caller retries.
+   */
+  teardownOrganization(
+    organizationId: string,
+  ): Promise<OrganizationTeardownResult>;
 }
 
 export type { SpawnerConfig };

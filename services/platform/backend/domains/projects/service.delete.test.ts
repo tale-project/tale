@@ -15,6 +15,7 @@ import type { TransactionSql } from 'postgres';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createAuditLog } from '../audit_logs/service.ts';
+import { scheduleAgentWorkspaceRetirement } from '../sandbox/retirement-schedule.ts';
 import { retireTasksInTx } from '../tasks/retire.ts';
 import { deleteProject, ProjectError } from './service.ts';
 
@@ -28,6 +29,9 @@ vi.mock('../tasks/retire.ts', () => ({
     .mockResolvedValue({ cancelledRunCount: 0, releasedRefs: [] }),
 }));
 vi.mock('../../realtime/outbox.ts', () => ({ emitHintInTx: vi.fn() }));
+vi.mock('../sandbox/retirement-schedule.ts', () => ({
+  scheduleAgentWorkspaceRetirement: vi.fn().mockResolvedValue(undefined),
+}));
 vi.mock('../events/emit.ts', () => ({ emitEvent: vi.fn() }));
 // The documents domain imports this one back; a factory without
 // `importOriginal` keeps the cycle out of the test. The predicate below is a
@@ -72,6 +76,7 @@ function fakeTx(
   docs: DocRow[],
   taskIds: string[] = [],
   boundAutomations: string[] = [],
+  agentIds: string[] = [],
 ): {
   tx: TransactionSql;
   statements: Statement[];
@@ -90,6 +95,9 @@ function fakeTx(
     }
     if (text.startsWith('SELECT id FROM app.tasks')) {
       return Promise.resolve(taskIds.map((id) => ({ id })));
+    }
+    if (text.startsWith('SELECT id FROM app.project_agents')) {
+      return Promise.resolve(agentIds.map((id) => ({ id })));
     }
     if (text.includes('FROM app.documents')) {
       return Promise.resolve(docs);
@@ -229,6 +237,31 @@ describe('deleteProject (cascade)', () => {
       expect(vi.mocked(createAuditLog).mock.calls[0]?.[1]).toMatchObject({
         metadata: { deletedTaskCount: 2, cancelledRunCount: 0 },
       });
+    },
+  );
+
+  it.each(['detach', 'cascade'] as const)(
+    "queues its agents' workspaces for deletion before the row takes the agents with it (%s)",
+    async (mode) => {
+      const { tx, statements } = fakeTx([], [], [], ['agent-1', 'agent-2']);
+      await deleteProject(tx, auth, {
+        projectId: 'project-1',
+        mode,
+        confirmPhrase: 'Q2 Sales',
+      });
+      expect(scheduleAgentWorkspaceRetirement).toHaveBeenCalledWith(tx, {
+        organizationId: 'org_1',
+        agentIds: ['agent-1', 'agent-2'],
+      });
+      const agentRead = statements.findIndex((s) =>
+        s.text.startsWith('SELECT id FROM app.project_agents'),
+      );
+      expect(agentRead).toBeGreaterThanOrEqual(0);
+      expect(agentRead).toBeLessThan(
+        statements.findIndex((s) =>
+          s.text.startsWith('DELETE FROM app.projects'),
+        ),
+      );
     },
   );
 

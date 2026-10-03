@@ -12,7 +12,13 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { cronMatches, dueOccurrence, parseCron, wallClockIn } from './cron.ts';
+import {
+  cronMatches,
+  dueOccurrence,
+  firstOccurrenceBetween,
+  parseCron,
+  wallClockIn,
+} from './cron.ts';
 
 describe('parseCron feasibility', () => {
   it.each([
@@ -110,5 +116,166 @@ describe('dueOccurrence', () => {
     expect(
       dueOccurrence('* * * * *', 'UTC', Date.UTC(2026, 8, 12, 10, 0), now),
     ).toBeNull();
+  });
+});
+
+/**
+ * The five Europe/Zurich cadences a team of project agents runs on
+ * (`task.start_agent` schedules): a minute scanner fires each slot once per
+ * local day — across the October fall-back, when 02:00–02:59 happens twice,
+ * and the March spring-forward, when it never happens — because none of
+ * them names the 02:00 hour; and a scanner back from an outage fires the
+ * latest missed slot once, never the backlog.
+ */
+describe('dueOccurrence — Europe/Zurich cadences across daylight-saving changes', () => {
+  const ZONE = 'Europe/Zurich';
+  const MINUTE = 60_000;
+  const cadences: Array<[string, string, string[]]> = [
+    [
+      'fleet manager',
+      '0 0,3,6,9,12,15,18,21 * * *',
+      ['00:00', '03:00', '06:00', '09:00', '12:00', '15:00', '18:00', '21:00'],
+    ],
+    [
+      'local QA',
+      '15 0,4,8,12,16,20 * * *',
+      ['00:15', '04:15', '08:15', '12:15', '16:15', '20:15'],
+    ],
+    [
+      'review and merge',
+      '45 0,3,6,9,12,15,18,21 * * *',
+      ['00:45', '03:45', '06:45', '09:45', '12:45', '15:45', '18:45', '21:45'],
+    ],
+    [
+      'release and verification',
+      '30 1,5,9,13,17,21 * * *',
+      ['01:30', '05:30', '09:30', '13:30', '17:30', '21:30'],
+    ],
+    ['performance', '15 3,11,19 * * *', ['03:15', '11:15', '19:15']],
+  ];
+  /** Local wall-clock label of an instant in Zurich. */
+  const local = (at: number): { day: string; time: string } => {
+    const clock = wallClockIn(at, ZONE);
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: ZONE,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(new Date(at));
+    const pad = (value: number) => String(value).padStart(2, '0');
+    return { day: parts, time: `${pad(clock.hour)}:${pad(clock.minute)}` };
+  };
+  /** Run a scanner every minute from `from` to `to`; collect the fires. */
+  const scan = (expression: string, from: number, to: number): number[] => {
+    const fired: number[] = [];
+    let since = from - MINUTE;
+    for (let now = from; now < to; now += MINUTE) {
+      const due = dueOccurrence(expression, ZONE, since, now + 30_000);
+      if (due !== null) {
+        fired.push(due);
+        since = due;
+      }
+    }
+    return fired;
+  };
+  // Midnight-to-midnight local days, as UTC instants: an ordinary day, the
+  // fall-back day (25 hours) and the spring-forward day (23 hours).
+  const days: Array<[string, number, number]> = [
+    [
+      'an ordinary day',
+      Date.UTC(2026, 9, 19, 22, 0),
+      Date.UTC(2026, 9, 20, 22, 0),
+    ],
+    [
+      'the fall-back day',
+      Date.UTC(2026, 9, 24, 22, 0),
+      Date.UTC(2026, 9, 25, 23, 0),
+    ],
+    [
+      'the spring-forward day',
+      Date.UTC(2027, 2, 27, 23, 0),
+      Date.UTC(2027, 2, 28, 22, 0),
+    ],
+  ];
+
+  it.each(
+    cadences.flatMap(([role, expression, slots]) =>
+      days.map(
+        ([label, from, to]) =>
+          [role, label, expression, slots, from, to] as const,
+      ),
+    ),
+  )(
+    'the %s cadence fires each slot once on %s',
+    (_role, _label, expression, slots, from, to) => {
+      const fired = scan(expression, from, to);
+      const times = fired.map((at) => local(at).time);
+      expect(times).toEqual(slots);
+      expect(new Set(fired.map((at) => local(at).day)).size).toBe(1);
+      expect(times.some((time) => time.startsWith('02:'))).toBe(false);
+    },
+  );
+
+  it('fires only the latest missed slot after an outage, never the backlog', () => {
+    // The scanner is down from 20:50 to 22:20 local on an ordinary day: the
+    // fleet manager's 21:00 slot lies inside the catch-up hour of the first
+    // scan back only when that scan comes within the hour; at 22:20 it does
+    // not, so nothing fires until the next slot.
+    const expression = '0 0,3,6,9,12,15,18,21 * * *';
+    const before = Date.UTC(2026, 9, 20, 18, 50); // 20:50 Zurich (CEST)
+    const back = Date.UTC(2026, 9, 20, 20, 20); // 22:20 Zurich
+    expect(dueOccurrence(expression, ZONE, before, back)).toBeNull();
+    // Back at 21:40 instead: one fire, for 21:00, and none again after it.
+    const soon = Date.UTC(2026, 9, 20, 19, 40);
+    const due = dueOccurrence(expression, ZONE, before, soon);
+    expect(due).toBe(Date.UTC(2026, 9, 20, 19, 0));
+    expect(dueOccurrence(expression, ZONE, due ?? 0, soon + MINUTE)).toBeNull();
+    // A QA scanner that was away for five hours fires once, for the latest
+    // slot within the hour, never for the 16:15 it also missed.
+    const qa = '15 0,4,8,12,16,20 * * *';
+    expect(
+      dueOccurrence(
+        qa,
+        ZONE,
+        Date.UTC(2026, 9, 20, 13, 0),
+        Date.UTC(2026, 9, 20, 18, 30),
+      ),
+    ).toBe(Date.UTC(2026, 9, 20, 18, 15));
+  });
+});
+
+describe('firstOccurrenceBetween', () => {
+  const ZONE = 'Europe/Zurich';
+
+  it('finds the slot right after a spring-forward gap, as the scan fires it', () => {
+    // 01:59 CET on 28 March 2027; 02:00 jumps to 03:00 CEST.
+    const from = Date.UTC(2027, 2, 28, 0, 59);
+    const schedule = parseCron('0 0,3,6,9,12,15,18,21 * * *');
+    const next = firstOccurrenceBetween(
+      schedule,
+      ZONE,
+      from,
+      from + 86_400_000,
+    );
+    expect(next).toBe(Date.UTC(2027, 2, 28, 1, 0)); // 03:00 CEST
+    expect(next !== null && cronMatches(schedule, next, ZONE)).toBe(true);
+  });
+
+  it('skips days and hours no field admits, and answers null past the window', () => {
+    const schedule = parseCron('30 8 1 * *'); // 08:30 on the 1st
+    const from = Date.UTC(2026, 9, 2, 12, 0); // 2 October
+    expect(
+      firstOccurrenceBetween(schedule, 'UTC', from, from + 40 * 86_400_000),
+    ).toBe(Date.UTC(2026, 10, 1, 8, 30));
+    expect(
+      firstOccurrenceBetween(schedule, 'UTC', from, from + 20 * 86_400_000),
+    ).toBeNull();
+  });
+
+  it('never answers the minute it starts from', () => {
+    const at = Date.UTC(2026, 8, 12, 10, 0);
+    expect(
+      firstOccurrenceBetween(parseCron('* * * * *'), 'UTC', at, at + 60_000),
+    ).toBe(at + 60_000);
   });
 });

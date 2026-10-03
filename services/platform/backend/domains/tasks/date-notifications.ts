@@ -1,7 +1,7 @@
 import type { Sql, TransactionSql } from 'postgres';
 
 import { resolveDateNotifyAudience } from '../../core/tasks/date_notification_recipients.ts';
-import { notifyUser } from '../collab/service.ts';
+import { notifyUser, taskReadersAmong } from '../collab/service.ts';
 import { addTaskComment, lockTaskCommentQueue } from './comments.ts';
 
 /**
@@ -77,27 +77,43 @@ async function notifyDateAlert(
     bodyKey: string;
   },
 ): Promise<boolean> {
+  // Only people who can open the task stand in line: an assignee or creator
+  // who lost the project hands the alert to the next one (#3631), rather
+  // than spending the date on a row the writer withholds.
+  const readers = new Set(
+    await taskReadersAmong(sql, {
+      organizationId: args.organizationId,
+      taskId: args.row.taskId,
+      userIds: [
+        args.row.assigneeType === 'user' ? args.row.assigneeId : null,
+        args.row.taskCreatorId,
+        args.row.projectCreatorId,
+      ].filter((id): id is string => id !== null),
+    }),
+  );
+  const reader = (id: string | null) =>
+    id !== null && readers.has(id) ? id : null;
+  const assigneeId =
+    args.row.assigneeType === 'user'
+      ? reader(args.row.assigneeId)
+      : args.row.assigneeId;
+  const taskCreatorId = reader(args.row.taskCreatorId);
+  const projectCreatorId = reader(args.row.projectCreatorId);
   const audience = resolveDateNotifyAudience({
     ...(args.row.assigneeType !== null
       ? { assigneeType: args.row.assigneeType }
       : {}),
-    ...(args.row.assigneeId !== null
-      ? { assigneeId: args.row.assigneeId }
-      : {}),
-    ...(args.row.taskCreatorId !== null
-      ? { taskCreatorId: args.row.taskCreatorId }
-      : {}),
-    ...(args.row.projectCreatorId !== null
-      ? { projectCreatorId: args.row.projectCreatorId }
-      : {}),
+    ...(assigneeId !== null ? { assigneeId } : {}),
+    ...(taskCreatorId !== null ? { taskCreatorId } : {}),
+    ...(projectCreatorId !== null ? { projectCreatorId } : {}),
   });
   if (audience === null) return false;
   const userId =
     audience === 'task_assignee'
-      ? args.row.assigneeId
+      ? assigneeId
       : audience === 'task_creator'
-        ? args.row.taskCreatorId
-        : args.row.projectCreatorId;
+        ? taskCreatorId
+        : projectCreatorId;
   if (userId === null) return false;
   await notifyUser(sql, {
     userId,
@@ -355,11 +371,21 @@ export async function enforceTaskDatesForOrg(
           return true;
         }
         const escalationTargets = new Set<string>();
-        if (row.taskCreatorId !== null) {
-          escalationTargets.add(row.taskCreatorId);
-        } else if (row.projectCreatorId !== null) {
-          escalationTargets.add(row.projectCreatorId);
-        }
+        // The first creator who can still open the task (#3631).
+        const creators = [row.taskCreatorId, row.projectCreatorId].filter(
+          (candidate): candidate is string => candidate !== null,
+        );
+        const creatorReaders = new Set(
+          await taskReadersAmong(tx, {
+            organizationId,
+            taskId: row.taskId,
+            userIds: creators,
+          }),
+        );
+        const creator = creators.find((candidate) =>
+          creatorReaders.has(candidate),
+        );
+        if (creator !== undefined) escalationTargets.add(creator);
         for (const adminId of await orgAdminUserIds(tx, organizationId)) {
           escalationTargets.add(adminId);
         }

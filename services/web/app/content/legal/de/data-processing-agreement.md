@@ -4,7 +4,7 @@ description: Wie die Ruler GmbH personenbezogene Daten im Auftrag von Kunden der
 noindex: true
 ---
 
-**Letzte Aktualisierung:** 11.06.2026
+**Letzte Aktualisierung:** 03.10.2026
 
 Diese Auftragsverarbeitungsvereinbarung ("AVV") ist ein Zusatz zum Service Agreement ("Vereinbarung") zwischen der Ruler GmbH ("Tale", "wir", "uns", "unsere") und der Entität oder Person, die die Vereinbarung akzeptiert ("Kunde", "du", "dein"). Sie gilt, soweit Tale personenbezogene Daten im Auftrag des Kunden im Rahmen der Leistungserbringung verarbeitet. Mit Abschluss der Vereinbarung schließt der Kunde diese AVV im eigenen Namen und, soweit nach anwendbarem Datenschutzrecht erforderlich, im Namen seiner autorisierten Nutzer und verbundenen Unternehmen ab. Diese AVV tritt mit dem Datum der Vereinbarung in Kraft.
 
@@ -96,7 +96,7 @@ Die Abschnitte 5.1 und 5.2 können nur durch eine **gesonderte, beidseitig schri
 
 ### 6.1 Allgemeine Genehmigung
 
-Der Kunde erteilt Tale eine allgemeine schriftliche Genehmigung zum Einsatz von Unterauftragsverarbeitern. Die aktuelle Liste steht in **Anhang A** und wird unter [/de/legal/subprocessors](/de/legal/subprocessors) gespiegelt.
+Der Kunde erteilt Tale eine allgemeine schriftliche Genehmigung zum Einsatz von Unterauftragsverarbeitern. Die aktuelle Liste steht in **Anhang A** und wird unter [docs.tale.dev/de/legal/subprocessors](https://docs.tale.dev/de/legal/subprocessors) gespiegelt.
 
 ### 6.2 Benachrichtigung bei Änderungen
 
@@ -132,7 +132,7 @@ g) Security-Awareness-Schulungen der Mitarbeitenden.
 
 ### 7.2 Zertifizierungen
 
-Tale hält ISO-27001- und SOC-2-Type-II-Zertifizierungen (oder gleichwertige Standards) aufrecht und weist diese auf zumutbare Anfrage nach.
+Ruler GmbH hält eine ISO-27001-Zertifizierung aufrecht, deren Geltungsbereich Tale Enterprise und professionelle Dienstleistungen umfasst, und weist diese auf zumutbare Anfrage nach.
 
 ### 7.3 Aktualisierungen
 
@@ -182,7 +182,7 @@ Erfordert die Unterstützung bei Anfragen Betroffener einen erheblichen Aufwand,
 
 ### 10.1 Audit-Berichte
 
-Tale stellt dem Kunden auf zumutbare Anfrage und nicht mehr als einmal jährlich Kopien relevanter Dritt-Audit-Berichte oder Zertifizierungen (z. B. SOC-2-Type-II-Berichte, ISO-27001-Zertifikate) zur Verfügung, um die Einhaltung dieser AVV zu belegen.
+Tale stellt dem Kunden auf zumutbare Anfrage und nicht mehr als einmal jährlich Kopien relevanter Dritt-Audit-Berichte oder Zertifizierungen (z. B. ISO-27001-Zertifikate) zur Verfügung, um die Einhaltung dieser AVV zu belegen.
 
 ### 10.2 Zusätzliche Audits
 

@@ -46,10 +46,48 @@ test.describe('front page', () => {
     await expect(cta).toBeVisible();
     await expect(cta).toHaveAttribute(
       'href',
-      '/docs/getting-started/introduction',
+      '/docs/getting-started/installation',
     );
 
     expect(errors).toEqual([]);
+  });
+
+  test('the component studio supports edits, keyboard tabs, and reset', async ({
+    page,
+  }) => {
+    await page.goto('/');
+    const studio = page.getByRole('region', { name: t('home.showcaseTitle') });
+    const name = studio.getByRole('textbox', {
+      name: t('home.showcaseNameLabel'),
+    });
+    await name.fill('Design team');
+    await studio
+      .getByRole('switch', { name: t('home.showcaseDigestLabel') })
+      .click();
+    await expect(
+      studio.getByRole('heading', { name: 'Design team' }),
+    ).toBeVisible();
+    await expect(studio.getByText(t('home.showcaseDigestOff'))).toBeVisible();
+    await studio
+      .getByRole('tab', { name: t('home.showcaseAppTab'), exact: true })
+      .focus();
+    await page.keyboard.press('ArrowRight');
+    await expect(
+      studio.getByRole('tab', {
+        name: t('home.showcaseMarketingTab'),
+        exact: true,
+      }),
+    ).toBeFocused();
+    await expect(
+      studio.getByRole('link', { name: t('home.showcaseSiteAction') }),
+    ).toBeVisible();
+    await page.keyboard.press('ArrowLeft');
+    await expect(name).toHaveValue('Design team');
+    await studio.getByRole('button', { name: t('home.showcaseReset') }).click();
+    await expect(name).toHaveValue(t('home.showcaseNameValue'));
+    await expect(
+      studio.getByRole('switch', { name: t('home.showcaseDigestLabel') }),
+    ).toBeChecked();
   });
 });
 

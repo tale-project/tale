@@ -447,6 +447,90 @@ describe('MessageThread transcript contract', () => {
     expect(within(stopped).queryByTestId('thinking-gap-shell')).toBeNull();
     expect(within(stopped).getByText('Generation stopped')).toBeInTheDocument();
   });
+
+  it('drops the gap shell when the reply settled with no answer', async () => {
+    // The turn finished `complete` with nothing in it — the model returned
+    // an empty reply. Nothing ever paints a first glyph, so the shell kept
+    // its dots and its ticking "Thinking · Ns" for as long as the
+    // conversation stayed open, over a turn that was already over.
+    const onRegenerate = vi.fn();
+    render(
+      <MessageThread
+        messages={[
+          ...toSettledItems(CONVERSATION),
+          {
+            id: 'm9',
+            key: 'm9',
+            role: 'assistant',
+            sequence: 9,
+            createdAt: 9,
+            parts: [],
+            text: '',
+            isStreaming: false,
+            isFinalReveal: true,
+            status: 'complete',
+            usage: { inputTokens: 120, outputTokens: 0, finishReason: 'stop' },
+          },
+        ]}
+        onRegenerate={onRegenerate}
+      />,
+    );
+
+    const unanswered = screen.getAllByTestId('chat-message').at(-1);
+    if (!unanswered) throw new Error('expected an unanswered item');
+    expect(within(unanswered).queryByTestId('thinking-gap-shell')).toBeNull();
+    expect(within(unanswered).getByRole('status')).toHaveTextContent(
+      'The model returned no answer. Try again, or choose another model.',
+    );
+    // No reveal to wait for: the toolbar is there at once.
+    expect(
+      within(unanswered).getByTestId('message-info-button'),
+    ).toBeInTheDocument();
+    within(unanswered).getByRole('button', { name: 'Try again' }).click();
+    await waitFor(() => expect(onRegenerate).toHaveBeenCalledTimes(1));
+  });
+
+  it('says the output limit was spent when only reasoning came back', () => {
+    // A thinks-by-default model used its whole output limit reasoning: the
+    // thought timeline stands, and the body used to be blank beneath it.
+    render(
+      <MessageThread
+        messages={[
+          ...toSettledItems(CONVERSATION),
+          {
+            id: 'm9',
+            key: 'm9',
+            role: 'assistant',
+            sequence: 9,
+            createdAt: 9,
+            parts: [{ type: 'reasoning', text: 'Weighing three approaches…' }],
+            text: '',
+            reasoningText: 'Weighing three approaches…',
+            isStreaming: false,
+            isFinalReveal: true,
+            status: 'complete',
+            usage: {
+              inputTokens: 120,
+              outputTokens: 4096,
+              reasoningTokens: 4096,
+              finishReason: 'length',
+            },
+          },
+        ]}
+      />,
+    );
+
+    const unanswered = screen.getAllByTestId('chat-message').at(-1);
+    if (!unanswered) throw new Error('expected an unanswered item');
+    expect(within(unanswered).queryByTestId('thinking-gap-shell')).toBeNull();
+    expect(within(unanswered).getByRole('status')).toHaveTextContent(
+      'The model used up its output token limit before it wrote an answer.',
+    );
+    // A read-only surface offers no retry.
+    expect(
+      within(unanswered).queryByRole('button', { name: 'Try again' }),
+    ).toBeNull();
+  });
 });
 
 describe('MessageThread accessibility', () => {

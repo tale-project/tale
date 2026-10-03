@@ -1,6 +1,6 @@
 # Responsive (cross-cutting)
 
-> **Prefix** `RESP-` · **Reset** none · **Cost** 32 boxes
+> **Prefix** `RESP-` · **Reset** none · **Cost** 34 boxes
 
 Verify the app adapts across viewports — the mobile in-flow bottom tab bar,
 the phone's Home list and its way back, the mobile floating Save cluster, and
@@ -115,10 +115,11 @@ if you want to keep a write.
   in the tab bar → The URL is `/dashboard/{org}/home` and the tab stays active;
   the header reads **Home** (`home.title`) with **Search**
   (`navigation.sidebar.search`), which opens the search palette the desktop
-  rail opens, and a **New chat** button (`home.newChat`) that opens
-  `/chat?new=true`; below it the list the desktop
+  rail opens, and no **New chat** button; below it the list the desktop
   panel holds — the **Show** switcher (`home.views.label`), the **Projects**
-  section (`home.projects.title`), the banded list and the **Archived** drawer
+  section (`home.projects.title`) with **All projects**
+  (`home.projects.allProjects`) as a text link and no **New project** button,
+  the banded list and the **Archived** drawer
   (`chat.archived.title`) — fills the screen above the tab bar and scrolls on
   its own. Tapping a chat, a task or a conversation opens it full-screen; the
   browser tab's title starts with **Home** (`metadata.home.title`). Widen the
@@ -183,6 +184,26 @@ if you want to keep a write.
   e-mail, no lone "·"). At 1280 px the labels return, the task's line leads
   with its project, and the conversation's reads name · time · e-mail ·
   source.
+- [ ] `RESP-F23` · **Narrow Home to a project** — At 390 px, in an
+  organization with a project that holds a chat and a task assigned to you,
+  and with at least one chat or task outside it, open the Home list, choose **Chats** or **Tasks**,
+  and choose the project under **Projects** (`home.projects.title`) → The project row reads as
+  pressed and the URL stays `/dashboard/{org}/home`. **Chats** or **Tasks** lists only that
+  project's chats or open tasks in it, and the **Archived** drawer is hidden. A narrowed view with
+  nothing in it reads **Nothing in this project yet** (`home.scope.emptyTitle`). **Open project**
+  (`home.scope.open`) in the project row's **...** menu opens the project's page. Choosing the row
+  again brings all chats/tasks back. **All** and **Inbox** show all items without narrowing.
+  Open a chat and go back → the narrowing is still on when viewing **Chats**. Delete the project in
+  another browser tab and reload → the list shows everything.
+  **Inbox** lists the same conversations narrowed or not, and carries no
+  **Projects** section.
+- [ ] `RESP-F24` · **New chat starts from the Chats view** — At 390 px open the
+  Home list → There is no **New chat** (`home.newChat`) in the header, in
+  **All**, **Tasks** or **Inbox**, and an empty **All** offers none. Choose
+  **Chats** → a **New chat** button leads the list and opens the fresh
+  composer at `/chat?new=true`. Narrow to a project first → it opens that
+  project's fresh composer at `/chat?projectId={id}`. A project's menu
+  (`home.projects.actions`) offers **Pin project** and nothing else.
 
 ## Boundary & error tests
 

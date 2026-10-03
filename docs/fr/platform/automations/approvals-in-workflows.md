@@ -27,7 +27,7 @@ Tu ne peux pas modifier les paramètres sur la carte. Rejette une demande incorr
 
 Quand un nœud agent utilise `ask_human`, le détail affiche **L'agent a besoin de ta réponse pour continuer**. S’il propose des choix, réponds aux questions sur la carte. Pour une réponse libre, saisis du texte sous **Ta réponse**, puis choisis **Envoyer la réponse & reprendre**.
 
-Fournis directement l’information manquante. Si l’agent demande quel document utiliser, donne son nom ou son identifiant plutôt qu’une simple instruction de continuer. Le nœud en attente reprend avec ta réponse. L’exécution peut ensuite demander une autre réponse ou une approbation d’action. Les membres de l’organisation peuvent répondre à ces questions.
+Fournis directement l’information manquante. Si l’agent demande quel document utiliser, donne son nom ou son identifiant plutôt qu’une simple instruction de continuer. Le nœud en attente reprend avec ta réponse. L’exécution peut ensuite demander une autre réponse ou une approbation d’action. Les propriétaires, les admins et les développeurs répondent dans le détail de l’exécution. Quand l’exécution traite une tâche, la question apparaît aussi dans la tâche, où toute personne qui peut ouvrir la tâche y répond.
 
 ## Corriger et tester le workflow
 

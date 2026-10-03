@@ -13,7 +13,9 @@ Choose the layer that proves your change. Run workspace scripts from the reposit
 | Manual review | Layout, focus, live interactions, and exploratory behavior | [Manual test guide](manual/readme.md) |
 | Documentation images | Repeatable captures of real UI with demo data | [Screenshot runbook](docs-screenshots/README.md) |
 
-The [backend README](../backend/README.md) explains integration prerequisites. Use a dedicated test
+CI runs the backend integration layer in the **Backend integration** check, against the
+`tale-db` image built from the change and the CLI's object-store pin. The
+[backend README](../backend/README.md) explains its prerequisites and when CI runs it. Use a dedicated test
 database and configuration directory. A separate Git checkout alone does not isolate Postgres,
 object storage, or other backing services.
 

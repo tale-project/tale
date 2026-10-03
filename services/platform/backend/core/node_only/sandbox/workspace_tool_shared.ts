@@ -49,10 +49,12 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
-/** A caller-supplied `limit`, floored to a positive int and capped. */
+/** A caller-supplied `limit`, floored to a positive int and capped. A
+ * fraction below one reads as one row: floored to zero it asked for an empty
+ * page, which a paged list answered as its end. */
 export function readLimit(raw: unknown, cap: number): number {
   return typeof raw === 'number' && raw > 0
-    ? Math.min(Math.floor(raw), cap)
+    ? Math.min(Math.max(Math.floor(raw), 1), cap)
     : Math.min(20, cap);
 }
 

@@ -13,10 +13,18 @@ import { parsePlatformConfiguration } from './platform-model';
 const REPO_ROOT = fileURLToPath(new URL('../../../../../', import.meta.url));
 const CLI_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 const LOCALES = ['en', 'de', 'fr'];
-/** The CI files `scripts/deployment-ci.test.ts` reads, from the repo root. */
+/** The CI files `scripts/deployment-ci.test.ts` and
+ * `scripts/release-candidate-workflows.test.ts` read, from the repo root. */
 const CHECKED_CI_FILES = [
   '.github/workflows/build.yml',
+  '.github/workflows/checks.yml',
   '.github/workflows/cleanup-pr-images.yml',
+  '.github/workflows/commitlint.yml',
+  '.github/workflows/e2e.yml',
+  '.github/workflows/release-candidate-receipt.yml',
+  '.github/workflows/release-candidate-source.yml',
+  '.github/workflows/sast.yml',
+  '.github/workflows/security.yml',
   '.github/actions/setup-cli/action.yml',
 ];
 /**
@@ -36,6 +44,17 @@ const PARITY_FILES = [
   'services/platform/env.sh',
   'services/db/Dockerfile',
   'services/sandbox-egress/Dockerfile',
+];
+
+/** Inputs to the real local package publication in publish-package.test.ts. */
+const PACKAGE_PUBLICATION_FILES = [
+  'scripts/publish-package.ts',
+  'LICENSE',
+  'packages/ui/package.json',
+  'packages/ui/README.md',
+  'packages/marketing-ui/package.json',
+  'packages/marketing-ui/README.md',
+  '.github/workflows/publish-packages.yml',
 ];
 
 /** The slice of `turbo run --dry=json` this suite reads. */
@@ -98,8 +117,9 @@ describe('documented general platform configuration', () => {
 /** The pages sit outside this workspace, which is all turbo hashes by default:
  * without them as `test` inputs (`tools/cli/turbo.json`) a docs-only edit
  * replays this suite's cached verdict instead of parsing the new examples.
- * The CI files `scripts/deployment-ci.test.ts` checks sit outside it too: an
- * edit to a workflow or the setup action alone must re-run that suite as well.
+ * The CI files `scripts/deployment-ci.test.ts` and the candidate graph suite
+ * check sit outside it too: an edit to a workflow or the setup action alone
+ * must re-run those suites as well.
  * So do the files the compose parity suite reads and the release's own runtime
  * source the runtime suites prepare: an edit to `compose.yml` alone must not
  * replay a verdict that says this CLI accepts it. */
@@ -146,7 +166,10 @@ test('turbo re-runs the suites when an install page or another outside file they
     ...[
       ...new Set([
         ...CHECKED_CI_FILES,
+        'scripts/install-cli.sh',
+        'scripts/install-cli.ps1',
         ...PARITY_FILES,
+        ...PACKAGE_PUBLICATION_FILES,
         ...REPOSITORY_RUNTIME_SOURCE,
       ]),
     ].map((path) => resolve(REPO_ROOT, path)),

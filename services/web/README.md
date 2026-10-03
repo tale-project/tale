@@ -1,6 +1,6 @@
 # @tale/web
 
-The public marketing site, including product pages, pricing, contact forms, and the changelog.
+The public marketing site, including product pages, comparisons, use cases, pricing, contact forms, and the changelog.
 Run these commands from the repository root after installing dependencies:
 
 ```bash
@@ -18,6 +18,16 @@ Page copy, routes, calls to action, product registries, and demo scenarios stay 
 `app/components/marketing/index.ts` binds shared components to the typed route table;
 `app/routes/__root.tsx` mounts `MarketingRouterProvider`; `lib/i18n/i18n.ts` merges both package
 catalogs beneath the service’s labels. Reuse those components when changing a page.
+
+The homepage pairs its introduction with a task board, then presents three product chapters:
+planning, agent sandbox work, and review. Compact cards link to knowledge, automations, and
+chat; a contrasting deployment section explains hosting, security, and the MIT license.
+`RelatedUseCases` uses the same localized editorial selections as the platform overview.
+Agent and connector names remain visible without an animated marquee. Marketing entrances
+and demo timelines respond to reduced-motion preference changes without a reload.
+
+Legal pages are excluded from the sitemap and emit `noindex,nofollow`. Keep them crawlable in
+`robots.txt` so search engines can read that instruction; API and search endpoints remain blocked.
 
 ## Configuration
 
@@ -42,15 +52,24 @@ of the box. Set these at deploy time (compose, systemd, K8s), or via a local
 `/changelog` renders two layers of the same GitHub Releases list:
 
 - **Build-time snapshot** — `fetch-releases` writes
-  `app/generated/releases-manifest.ts`, which the prerendered HTML and the
-  SEO/LLM artifacts embed. This is also the offline fallback.
+  the newest 40 releases to `app/generated/releases-manifest.ts`, matching
+  the page's visible history. The prerendered HTML and SEO/LLM artifacts use
+  this snapshot; it also provides the cold-start and offline feed fallback.
 - **Runtime feed** — `GET /api/releases` (`lib/releases/feed.ts`) re-fetches
-  the list on a 30-minute TTL and the page swaps it in after hydration.
+  the full two-page list on a 30-minute TTL and the page swaps it in after
+  hydration, still displaying only the newest 40 releases. `GET /changelog.json` serves the same
+  cache outside the `/api/` robots exclusion, with complete release bodies, `source` and `fetchedAt`.
+  Each localized changelog advertises it as an alternate representation; `llms.txt` links to it.
+  Readers that do not run JavaScript can use this endpoint for current notes.
 
 Both layers are needed: release images are built _before_ the release workflow
 publishes the GitHub release, so a snapshot alone is always at least one
 release behind. Reads never block on GitHub — a failed refresh keeps the last
-good list (or the snapshot) and backs off.
+good list (or the snapshot) and backs off. Both JSON routes cache responses for five minutes.
+`/api/health` exposes `checks.releases` with the source, fetch time and age in seconds. After six
+hours without fresh data its `ok` becomes false, and a failed refresh reports one monitoring
+error per stale episode. Release freshness is advisory: it does not make site readiness fail.
+A successful refresh resets the report so a later outage can be detected.
 
 ## Optional error reporting
 
@@ -92,6 +111,19 @@ bun run --filter @tale/web test:e2e
 
 Use the [manual test guide](tests/manual/readme.md) for layout, keyboard, responsive, and degraded
 mode checks. A successful build does not verify that production contact forms can deliver a message.
+
+## Comparison and use-case guides
+
+Localized Markdown lives in `app/content/comparisons/{en,de,fr}` and
+`app/content/use-cases/{en,de,fr}`. The shared content registry validates frontmatter, pairs locales,
+and feeds route discovery, prerendering, canonicals, language alternates, sitemap and LLM artifacts.
+A page appears publicly only when all three locale variants are published.
+
+New content starts with `draft: true`. Set the build-time variable
+`VITE_MARKETING_CONTENT_PREVIEW=true` when running `dev` to inspect drafts with noindex metadata;
+production builds ignore this preview flag. Follow the
+[content contract](app/content/comparisons/README.md) before publishing. Bodies load individually
+as Markdown assets, while navigation and related cards use metadata only.
 
 ## Optional aggregate analytics
 

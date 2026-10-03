@@ -15,8 +15,10 @@ const mockUseConvexAuth = vi.fn(() => ({
   isAuthenticated: true,
   isLoading: false,
 }));
-vi.mock('./use-session-user', () => ({
-  useSessionUser: () => mockUseConvexAuth(),
+// The gate's probe read, answering only for the branch that asks for it.
+vi.mock('./use-session-probe', () => ({
+  useSessionProbeSignedIn: (when: boolean) =>
+    when && mockUseConvexAuth().isAuthenticated,
 }));
 
 // The adapter seam resolves the function name on every call; the plain mock
@@ -258,6 +260,39 @@ describe('useBackendQuery adapter lane', () => {
     useBackendQuery(FAKE_ROW, {});
 
     expect(lastEnabled()).toBe(false);
+  });
+
+  it("hands a row's fixed poll to react-query as it is", () => {
+    mockAdapterRow.mockReturnValue({
+      queryKey: ['k'],
+      queryFn: () => Promise.resolve(null),
+      refetchInterval: 15_000,
+    });
+
+    useBackendQuery(FAKE_ROW, {});
+
+    const passed = mockUseQuery.mock.calls[0]?.[0] as {
+      refetchInterval?: unknown;
+    };
+    expect(passed.refetchInterval).toBe(15_000);
+  });
+
+  it('lets the last answer decide a poll that depends on it', () => {
+    const decide = vi.fn((data: unknown) => (data === 'busy' ? 2_000 : false));
+    mockAdapterRow.mockReturnValue({
+      queryKey: ['k'],
+      queryFn: () => Promise.resolve(null),
+      refetchInterval: decide,
+    });
+
+    useBackendQuery(FAKE_ROW, {});
+
+    const passed = mockUseQuery.mock.calls[0]?.[0] as {
+      refetchInterval?: (query: { state: { data: unknown } }) => unknown;
+    };
+    expect(passed.refetchInterval?.({ state: { data: 'busy' } })).toBe(2_000);
+    expect(passed.refetchInterval?.({ state: { data: 'idle' } })).toBe(false);
+    expect(decide).toHaveBeenLastCalledWith('idle');
   });
 
   it('caller options still merge on the adapted lane', () => {

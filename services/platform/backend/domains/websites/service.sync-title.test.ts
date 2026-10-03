@@ -81,6 +81,59 @@ beforeEach(() => {
 const patchValues = (queries: Captured[]) =>
   queries.find((q) => q.text.startsWith('UPDATE app.websites'))?.values ?? [];
 
+describe('syncSingleWebsite — the scan heartbeat', () => {
+  const metadataOf = (queries: Captured[]) =>
+    patchValues(queries).find(
+      (value): value is Record<string, unknown> =>
+        typeof value === 'object' &&
+        value !== null &&
+        'lastStatusSyncAt' in value,
+    );
+  const sync = (sql: Sql) =>
+    syncSingleWebsite(sql, {
+      websiteId: 'w-1',
+      domain: 'example.com',
+      organizationId: 'org-1',
+    });
+
+  it('copies the corpus claim clock onto a scanning row and clears it otherwise', async () => {
+    const claimedAt = '2026-09-30T12:00:00.000Z';
+    vi.mocked(fetchWebsiteInfoFromCorpus).mockResolvedValue({
+      status: 'scanning',
+      kind: 'site',
+      page_count: 3,
+      crawled_count: 1,
+      failed_count: 0,
+      title: null,
+      description: null,
+      last_scanned_at: null,
+      error: null,
+      updated_at: claimedAt,
+    } as never);
+    const scanning = fakeSql(row(null));
+    await sync(scanning.sql);
+    expect(metadataOf(scanning.queries)?.scanHeartbeatAt).toBe(
+      Date.parse(claimedAt),
+    );
+
+    vi.mocked(fetchWebsiteInfoFromCorpus).mockResolvedValue({
+      status: 'active',
+      kind: 'site',
+      page_count: 3,
+      crawled_count: 3,
+      failed_count: 0,
+      title: null,
+      description: null,
+      last_scanned_at: claimedAt,
+      error: null,
+      updated_at: claimedAt,
+    } as never);
+    const finished = fakeSql(row(null));
+    await sync(finished.sql);
+    expect(metadataOf(finished.queries)?.scanHeartbeatAt).toBeNull();
+  });
+});
+
 describe('syncSingleWebsite — discovered title and description', () => {
   it('fills a row that has none', async () => {
     const { sql, queries } = fakeSql(row(null));

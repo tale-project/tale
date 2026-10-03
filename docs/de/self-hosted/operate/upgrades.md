@@ -83,6 +83,30 @@ tale rollback
 
 `--yes` überspringt die Bestätigung für einen bereits genehmigten unbeaufsichtigten Lauf. Die Prüfung derselben Versionslinie ist eine Schranke, kein eigenständiger Nachweis der Kompatibilität aller externen Integrationen und lokalen Anpassungen. Eine ältere Migrationsliste als Präfix der neuen macht ein Downgrade allein nicht sicher.
 
+`tale rollback` tauscht nur die Anwendungs-Images von `platform`, `backend-api` und `backend-worker` aus. Es stellt kein Volume wieder her und lässt Datenbank, Speicher, Proxy, Sandbox-Dienste und Modell-Gateway, wie sie sind. Auch sonst stellt kein Bereitstellungsschritt von selbst Daten wieder her: Scheitert ein gewöhnlicher Deploy (ohne `--services`) an seinen Zustandsprüfungen, bleibt die bisherige Anwendungsfarbe in Betrieb, doch was er bereits an Ort und Stelle ersetzt hat, bleibt ersetzt. Nur `tale restore` spielt die Volumes eines Snapshots zurück.
+
+## Bifrost 1.6 → 2.2: Der Speicher des Modell-Gateways wird migriert
+
+Ein Release nach 0.5.64 stellt das Modell-Gateway (`sandbox-llm-gateway`) von Bifrost 1.6 auf Bifrost 2.2 um; seine Release Notes nennen den Wechsel. Beim ersten Start migriert das neue Gateway seinen Speicher in `llm-gateway-data` an Ort und Stelle und behält Anbieter, Schlüssel, Budgets und Admin-Konto; von Hand ist nichts zu tun. Die Migration indiziert auch das Anfrageprotokoll des Gateways, daher kann dieser Start bei einer Instanz mit langer Anfragehistorie länger dauern.
+
+`tale deploy` ersetzt das Gateway, bevor es die neue Anwendungsfarbe startet. Scheitert die Bereitstellung danach, kann der Speicher also schon migriert sein. Der Snapshot, den ein `tale deploy` mit Versionswechsel vorher erstellt, enthält `llm-gateway-data` zusammen mit den anderen Volumes und ist damit auch der Wiederherstellungspunkt des Gateways. Snapshots, die entstanden sind, bevor die CLI den Speicher des Gateways erfasste, enthalten kein solches Archiv; `tale restore` führt sie als `without gateway`. Stellst du mit `--skip-backup` bereit, kopiere das Volume vorher selbst: Stoppe das Gateway, was laufende Agent-Turns und Modellaufrufe beendet, kopiere das Volume und stelle dann bereit. `<id>` ist die `id` in `tale.json`:
+
+```bash
+docker stop <id>-sandbox-llm-gateway
+docker run --rm -v <id>_llm-gateway-data:/from:ro -v "$PWD/llm-gateway-data-backup:/to" alpine:3.22 cp -a /from/. /to/
+```
+
+Das Gateway eines Releases vor dem Wechsel startet auf dem migrierten Speicher und bedient Tale, protokolliert aber Fehler `no such column: oauth_configs.token_id`, und Bifrost unterstützt dieses Downgrade nicht. `tale rollback` startet dieses Gateway nicht: Das Gateway bleibt bei dem neueren Image und seinem Speicher. Gestartet wird es, sobald wieder ein Release vor dem Wechsel bereitgestellt wird, etwa mit `tale update --version` und `tale deploy` nach einer Snapshot-Wiederherstellung. Bring deshalb zuerst den Speicher zurück. Stellst du den Snapshot von vor dem Upgrade wieder her, kommt `llm-gateway-data` mit den anderen Volumes zurück. Führt `tale restore` diesen Snapshot als `without gateway`, stoppe das Gateway und spiele deine Kopie zurück, bevor du das ältere Release bereitstellst:
+
+```bash
+docker stop <id>-sandbox-llm-gateway
+docker run --rm -v "$PWD/llm-gateway-data-backup:/from:ro" -v <id>_llm-gateway-data:/to alpine:3.22 sh -c 'find /to -mindepth 1 -delete && cp -a /from/. /to/'
+```
+
+Ein Gateway ohne Admin-Konto, bei einer neuen Installation oder nachdem sein Volume ersetzt wurde, legt das Konto jetzt nur für einen Aufrufer an, der sein Setup-Token vorweist; das Image übernimmt es aus `SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD`. `tale deploy`, die Compose-Datei im Repository und die Kubernetes-Manifeste dieser Dokumentation geben dem Gateway diese Variable bereits. Eine selbst geschriebene Compose-Datei oder ein Manifest, das sie nur dem Backend gibt, muss sie auch dem Gateway geben.
+
+Zwei Verhaltensweisen ändern sich. Legt ein Aufrufer auf, beendet das Gateway jetzt den Modellaufruf, ob er eine ganze Antwort oder einen Stream angefordert hat. Eine abgebrochene Anfrage hält ein selbst betriebenes Modell also nicht mehr beschäftigt; die Modell-Endpunkte verbuchen einen solchen Aufruf mit seinem Prompt und der Ausgabe, die den Aufrufer erreicht hatte. Und ein Upstream, der die Antwort-Header einer gestreamten Antwort zurückhält, etwa ein Router, der Anfragen bis zu einem freien Modell in eine Warteschlange stellt, muss seine Antwort innerhalb des Anfrage-Timeouts des Gateways beginnen: 600 Sekunden, oder länger, wenn `SANDBOX_LLM_GATEWAY_STREAM_IDLE_TIMEOUT_SECONDS` es anhebt.
+
 ## 0.4 → 0.5: eine separate Installation
 
 Mit 0.5 ersetzte Postgres den früheren Convex-Anwendungsspeicher. Es gibt keinen Importer für einen direkten Wechsel dieser Datenbanken. Halte alte Instanz und Backups intakt, während du eine neue Bereitstellung mit separatem Workspace und Datenbestand vorbereitest.

@@ -6,10 +6,12 @@ import { useBackendMutation } from '@/app/hooks/use-backend-mutation';
 /**
  * Save a governance policy to its per-org JSON file over HTTP. The backend
  * adapter invalidates policy reads after success, and also quota usage when
- * sandbox limits change. A caller that reports a failure itself passes
- * `errorToast: false`, so the failure raises one toast: a toggle's or a
- * section's own toast, or the shared Save/Discard cluster's for an editor
- * whose `save` rethrows it. A caller that only logs keeps the default toast.
+ * sandbox limits change and the sandbox workspace list (whose deletion dates
+ * follow it) when the workspace cleanup changes. A caller that reports a
+ * failure itself passes `errorToast: false`, so the failure raises one toast:
+ * a toggle's or a section's own toast, or the shared Save/Discard cluster's
+ * for an editor whose `save` rethrows it. A caller that only logs keeps the
+ * default toast.
  *
  * Refuses `retention_policy` and `dsar_governance` — those route through
  * `useUpsertRetentionPolicy` / `useProposeDsarPolicy` (bounds / loosen-grace).

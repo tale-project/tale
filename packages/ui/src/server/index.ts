@@ -132,6 +132,18 @@ export interface ReactServerOptions {
     url: URL,
   ) => Promise<Response | null | undefined> | Response | null | undefined;
   /**
+   * The last answer before the 404 page, for an address inside the site that
+   * matched no route, artifact or file: return a `Response` (a redirect to
+   * the page a guessed address meant) or `null` to answer the 404. A
+   * malformed or escaping path answers the 404 without asking. The resolver
+   * must leave asset-like paths alone — a stale script chunk has to stay a
+   * 404 so the client can recover from a deploy.
+   */
+  resolveNotFound?: (
+    request: Request,
+    url: URL,
+  ) => Promise<Response | null | undefined> | Response | null | undefined;
+  /**
    * Optional on-demand SEO + LLM artifact server (built via
    * `createArtifactsServer` from `@tale/seo`). When set, requests for
    * `/llms.txt`, `/llms-full.txt`, `/sitemap.xml`, `/robots.txt`, and
@@ -237,6 +249,7 @@ export function startReactServer(opts: ReactServerOptions) {
     securityHeaders,
     buildHealthResponse,
     extraRoutes,
+    resolveNotFound,
     artifacts,
     reportError,
   } = opts;
@@ -336,9 +349,11 @@ export function startReactServer(opts: ReactServerOptions) {
   }
 
   async function serveStatic(
-    pathname: string,
+    request: Request,
+    url: URL,
     rangeHeader: string | null,
   ): Promise<Response> {
+    const { pathname } = url;
     // Malformed percent-encodings (e.g. `/%E0%A4%A`) make decodeURIComponent
     // throw — treat them as not-found instead of crashing the request.
     let rel: string;
@@ -397,6 +412,8 @@ export function startReactServer(opts: ReactServerOptions) {
           headers: { 'cache-control': 'no-cache' },
         });
       }
+      const answer = await resolveNotFound?.(request, url);
+      if (answer) return answer;
     }
     return notFoundOrShell();
   }
@@ -494,7 +511,8 @@ export function startReactServer(opts: ReactServerOptions) {
         }
         return finalize(
           await serveStatic(
-            url.pathname,
+            request,
+            url,
             request.method === 'GET' ? request.headers.get('range') : null,
           ),
         );
@@ -526,7 +544,8 @@ export function startReactServer(opts: ReactServerOptions) {
 
       // Range applies to GET only (RFC 9110 §14.2); HEAD gets full-size headers.
       const response = await serveStatic(
-        url.pathname,
+        request,
+        url,
         request.method === 'GET' ? request.headers.get('range') : null,
       );
       return finalize(

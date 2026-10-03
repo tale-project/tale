@@ -6,6 +6,8 @@
 
 interface RunDockerOptions {
   timeoutMs?: number;
+  // Cancellation also removes a call still waiting for a CLI slot, so it
+  // cannot start later. Before spawn it resolves with exitCode -1.
   signal?: AbortSignal;
   // When set, on host-side timeout the CLI process is killed AND
   // `docker kill <killOnTimeoutContainer>` is invoked so the actual
@@ -30,6 +32,11 @@ interface RunDockerOptions {
   stdoutMaxBytes?: number;
   // Same as `stdoutMaxBytes`, applied to stderr.
   stderrMaxBytes?: number;
+  // A short call that must not queue behind long ones (the health probe's
+  // `docker version`, an identity inspect before a stop): it takes a slot of
+  // the shared pool when one is free, else one of a small pool of its own
+  // (DOCKER_CLI_PRIORITY_CONCURRENCY), never waiting behind the shared queue.
+  priority?: boolean;
 }
 
 export interface RunDockerResult {
@@ -41,6 +48,9 @@ export interface RunDockerResult {
   // the wire.
   stdoutTruncated: boolean;
   stderrTruncated: boolean;
+  // True when no docker CLI slot came free within the call's budget: the
+  // command never ran, so the answer says nothing about the daemon.
+  noSlot?: boolean;
 }
 
 // Read lazily so tests can override DOCKER_BIN (e.g. to /bin/bash) after
@@ -147,9 +157,159 @@ export function resolveDockerTimeoutMs(
   return Number.isFinite(budget) ? budget : null;
 }
 
+/** Docker CLI processes the spawner runs at once. Each one costs ~28 MB and a
+ * dozen threads inside the spawner's own cgroup (1 GB and 1024 pids in the
+ * shipped compose file): a burst of creates at a raised session capacity
+ * used to fork enough of them to exhaust it. Past this, calls wait their
+ * turn — within their own budget, so a cheap probe queued behind long pulls
+ * still answers (as a timeout) when its time is up. */
+export const DOCKER_CLI_CONCURRENCY = 12;
+
+/** The slots reserved for short calls (RunDockerOptions.priority) beyond the
+ * shared pool. In a burst of creates the shared queue holds one call per
+ * operation in flight, each `docker run` or `rm -f` taking seconds: a 5 s
+ * health probe or identity inspect queued behind it timed out, the health
+ * failure was reported for a minute and the stop it fenced did not happen. */
+export const DOCKER_CLI_PRIORITY_CONCURRENCY = 4;
+
+type DockerCliSlot = (() => void) | null | 'aborted';
+
+/** A pool of docker CLI slots, handed out first come, first served. */
+class DockerCliSlots {
+  private running = 0;
+  private readonly waiting: Array<() => void> = [];
+
+  constructor(private readonly size: number) {}
+
+  /** A slot if one is free now, else null. */
+  takeFree(): (() => void) | null {
+    // A free slot means nobody waits: a waiter inherits each released one.
+    if (this.running >= this.size) return null;
+    this.running += 1;
+    return this.release();
+  }
+
+  /** A slot, null when the wait expired, or 'aborted' on cancellation. */
+  take(waitMs: number | null, signal?: AbortSignal): Promise<DockerCliSlot> {
+    if (signal?.aborted) return Promise.resolve('aborted');
+    const free = this.takeFree();
+    if (free !== null) return Promise.resolve(free);
+    return new Promise((resolve) => {
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const cleanup = () => {
+        if (timer !== undefined) clearTimeout(timer);
+        signal?.removeEventListener('abort', aborted);
+      };
+      const granted = () => {
+        cleanup();
+        resolve(this.release());
+      };
+      const leave = (result: null | 'aborted') => {
+        const at = this.waiting.indexOf(granted);
+        if (at === -1) return;
+        this.waiting.splice(at, 1);
+        cleanup();
+        resolve(result);
+      };
+      const aborted = () => leave('aborted');
+      this.waiting.push(granted);
+      signal?.addEventListener('abort', aborted, { once: true });
+      if (waitMs !== null) timer = setTimeout(() => leave(null), waitMs);
+    });
+  }
+
+  load(): { running: number; waiting: number } {
+    return { running: this.running, waiting: this.waiting.length };
+  }
+
+  private release(): () => void {
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      // A waiter inherits the slot rather than racing a newcomer for it.
+      const next = this.waiting.shift();
+      if (next !== undefined) next();
+      else this.running -= 1;
+    };
+  }
+}
+
+const sharedSlots = new DockerCliSlots(DOCKER_CLI_CONCURRENCY);
+const prioritySlots = new DockerCliSlots(DOCKER_CLI_PRIORITY_CONCURRENCY);
+
+/** A docker CLI slot, null when the wait expired, or 'aborted'. */
+function dockerCliSlot(
+  waitMs: number | null,
+  priority: boolean,
+  signal?: AbortSignal,
+): Promise<DockerCliSlot> {
+  if (signal?.aborted) return Promise.resolve('aborted');
+  if (!priority) return sharedSlots.take(waitMs, signal);
+  const free = sharedSlots.takeFree();
+  return free !== null
+    ? Promise.resolve(free)
+    : prioritySlots.take(waitMs, signal);
+}
+
+/** How many docker CLI calls are running, and waiting for a slot, in the
+ * shared pool or the one reserved for short calls. */
+export function dockerCliLoad(lane: 'shared' | 'priority' = 'shared'): {
+  running: number;
+  waiting: number;
+} {
+  return (lane === 'shared' ? sharedSlots : prioritySlots).load();
+}
+
+function abortedDockerResult(args: string[]): RunDockerResult {
+  return {
+    exitCode: -1,
+    stdout: '',
+    stderr: `docker ${args[0] ?? ''}: aborted before command started`,
+    stdoutTruncated: false,
+    stderrTruncated: false,
+  };
+}
+
 export async function runDocker(
   args: string[],
   opts: RunDockerOptions = {},
+): Promise<RunDockerResult> {
+  const budgetMs = resolveDockerTimeoutMs(opts.timeoutMs);
+  const queuedAtMs = Date.now();
+  const release = await dockerCliSlot(
+    budgetMs,
+    opts.priority === true,
+    opts.signal,
+  );
+  if (release === 'aborted') return abortedDockerResult(args);
+  if (release === null) {
+    return {
+      exitCode: 124,
+      stdout: '',
+      stderr: `docker ${args[0] ?? ''}: no docker CLI slot came free within ${budgetMs} ms`,
+      stdoutTruncated: false,
+      stderrTruncated: false,
+      noSlot: true,
+    };
+  }
+  try {
+    // A slot can be granted just before the caller aborts. Bun.spawn's
+    // already-aborted behavior differs across versions; never invoke it.
+    if (opts.signal?.aborted) return abortedDockerResult(args);
+    const leftMs =
+      budgetMs === null
+        ? opts.timeoutMs
+        : Math.max(1, budgetMs - (Date.now() - queuedAtMs));
+    return await runDockerNow(args, { ...opts, timeoutMs: leftMs });
+  } finally {
+    release();
+  }
+}
+
+async function runDockerNow(
+  args: string[],
+  opts: RunDockerOptions,
 ): Promise<RunDockerResult> {
   const proc = Bun.spawn([dockerBin(), ...args], {
     stdin: 'ignore',

@@ -7,7 +7,7 @@ import { checkAccessibility } from '@/tests/utils/a11y';
 import { render, screen } from '@/tests/utils/render';
 
 import { CatalogCard } from './catalog-grid';
-import { CatalogView } from './catalog-view';
+import { CatalogLoadError, CatalogView } from './catalog-view';
 
 interface Row {
   slug: string;
@@ -67,6 +67,126 @@ describe('CatalogView', () => {
     });
     screen.getByRole('button', { name: 'Try again' }).click();
     expect(onRetry).toHaveBeenCalledTimes(1);
+  });
+
+  // A refresh of rows that stay on screen keeps its alert up while the retry
+  // runs: the retry reads busy there, and a focused one keeps focus.
+  it('marks a running retry busy without dropping its focus', () => {
+    const onRetry = vi.fn();
+    const { rerender } = render(
+      <CatalogLoadError message="Couldn't refresh." onRetry={onRetry} />,
+    );
+    const retry = screen.getByRole('button', { name: 'Try again' });
+    retry.focus();
+
+    rerender(
+      <CatalogLoadError
+        message="Couldn't refresh."
+        onRetry={onRetry}
+        isRetrying
+      />,
+    );
+    const busy = screen.getByRole('button', { name: 'Try again' });
+    expect(busy).toHaveAttribute('aria-busy', 'true');
+    expect(busy).toHaveAttribute('aria-disabled', 'true');
+    expect(busy).not.toBeDisabled();
+    expect(busy).toHaveFocus();
+    busy.click();
+    expect(onRetry).not.toHaveBeenCalled();
+  });
+
+  // #3814 review: keying the whole alert per failure re-created Try again,
+  // so a focused retry lost its focus when a background refresh failed again.
+  it('announces a new failure afresh without re-creating a focused Try again', () => {
+    const { rerender } = render(
+      <CatalogLoadError
+        message="Couldn't refresh."
+        onRetry={vi.fn()}
+        failureKey={1}
+      />,
+    );
+    const retry = screen.getByRole('button', { name: 'Try again' });
+    const firstMessage = screen.getByText("Couldn't refresh.");
+    retry.focus();
+
+    rerender(
+      <CatalogLoadError
+        message="Couldn't refresh."
+        onRetry={vi.fn()}
+        failureKey={1}
+        isRetrying
+      />,
+    );
+    rerender(
+      <CatalogLoadError
+        message="Couldn't refresh."
+        onRetry={vi.fn()}
+        failureKey={2}
+      />,
+    );
+
+    // The message is a new node inside the same live region — read again —
+    // while the button is the same element and still holds focus.
+    expect(screen.getByText("Couldn't refresh.")).not.toBe(firstMessage);
+    expect(screen.getByRole('alert')).toContainElement(
+      screen.getByText("Couldn't refresh."),
+    );
+    expect(screen.getByRole('button', { name: 'Try again' })).toBe(retry);
+    expect(retry).toHaveFocus();
+  });
+
+  it('hands the focus it held to onFocusLost when it leaves', async () => {
+    const onFocusLost = vi.fn();
+    const { rerender } = render(
+      <CatalogLoadError
+        message="Couldn't refresh."
+        onRetry={vi.fn()}
+        onFocusLost={onFocusLost}
+      />,
+    );
+    screen.getByRole('button', { name: 'Try again' }).focus();
+    // A new callback on re-render is not the alert leaving.
+    const next = vi.fn();
+    rerender(
+      <CatalogLoadError
+        message="Couldn't refresh."
+        onRetry={vi.fn()}
+        onFocusLost={next}
+      />,
+    );
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    expect(onFocusLost).not.toHaveBeenCalled();
+    expect(next).not.toHaveBeenCalled();
+
+    rerender(<></>);
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    expect(next).toHaveBeenCalledTimes(1);
+  });
+
+  it('leaves focus the reader moved elsewhere where it is', async () => {
+    const onFocusLost = vi.fn();
+    const { rerender } = render(
+      <>
+        <button type="button">Elsewhere</button>
+        <CatalogLoadError
+          message="Couldn't refresh."
+          onRetry={vi.fn()}
+          onFocusLost={onFocusLost}
+        />
+      </>,
+    );
+    screen.getByRole('button', { name: 'Try again' }).focus();
+    screen.getByRole('button', { name: 'Elsewhere' }).focus();
+
+    rerender(
+      <>
+        <button type="button">Elsewhere</button>
+        {null}
+      </>,
+    );
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    expect(onFocusLost).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Elsewhere' })).toHaveFocus();
   });
 
   it('offers the create CTA only when nothing exists yet', () => {

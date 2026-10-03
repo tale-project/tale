@@ -1,7 +1,14 @@
 import { isEpochMs } from '@tale/shared/schemas/epoch-ms';
 import type { TaskExternalIssue } from '@tale/shared/schemas/task-external-issue';
+import {
+  projectTaskReviewerFromId,
+  taskReviewerFromIds,
+  type SetTaskReviewerInput,
+  type TaskReviewRecipient,
+} from '@tale/shared/schemas/task-review';
 import type { Sql, TransactionSql } from 'postgres';
 
+import { parseRunStarter } from '../../../lib/shared/run-starter.ts';
 import {
   defaultTaskLabelColor,
   PREDEFINED_TASK_LABELS,
@@ -11,6 +18,7 @@ import {
   sameTaskRepeat,
   type TaskRepeat,
 } from '../../../lib/shared/task-repeat.ts';
+import { findOrganizationMember } from '../../auth/membership.ts';
 import {
   checkProjectAccess,
   EDITOR_ROLES,
@@ -37,6 +45,7 @@ import {
   type MentionSource,
   parseMentionTokens,
 } from '../../core/tasks/mentions.ts';
+import { TASK_PRIORITIES } from '../../core/tasks/metadata.ts';
 import { initialRank, rankBetween } from '../../core/tasks/rank.ts';
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
@@ -55,13 +64,20 @@ import {
 import { emitEvent } from '../events/emit.ts';
 import { firstForeignUpload } from '../files/upload-intents.ts';
 import {
+  getProjectAuthContext,
   listProjects,
   loadProjectOrThrow,
   type ProjectAuthContext,
   type ProjectRow,
 } from '../projects/service.ts';
-import { cancelAgentRunInTx, kickAgentRun } from './agent-runs.ts';
+import { readStandardAgentAvailability } from '../projects/standard-agent.ts';
+import {
+  cancelAgentRunInTx,
+  isStandardAgentRefusal,
+  kickAgentRun,
+} from './agent-runs.ts';
 import { assertAutomationForTask } from './automation-access.ts';
+import { openTaskBlockerIds } from './dependencies.ts';
 import { TaskError } from './errors.ts';
 import {
   assertTaskCanRepeat,
@@ -72,14 +88,19 @@ import {
 } from './repeat.ts';
 import { releaseUnlistedTaskBlobRefs, retireTasksInTx } from './retire.ts';
 import {
+  agentReviewerEligibility,
   closePendingTaskReviewOnStatusLeave,
   collectPendingReviewsForProjects,
+  getPendingReviewForTask,
+  replacePendingTaskReviewer,
   requestTaskReview,
   retargetPendingTaskReview,
   reviewerEligibility,
   type TaskReviewTrigger,
 } from './reviews.ts';
-import { mentionAutomationEnabled } from './run-start.ts';
+import { scheduleMayActInProject } from './run-authority.ts';
+import { lockTaskRunStart, mentionAutomationEnabled } from './run-start.ts';
+import { assertTaskSourceThreadReadable } from './source-thread.ts';
 
 /**
  * Tasks domain, Tier A — the task board core: CRUD, status choreography
@@ -109,7 +130,7 @@ export const TASK_STATUSES = [
 ] as const;
 export type TaskStatus = (typeof TASK_STATUSES)[number];
 
-export const TASK_PRIORITIES = ['p0', 'p1', 'p2', 'p3'] as const;
+export { TASK_PRIORITIES };
 export type TaskPriority = (typeof TASK_PRIORITIES)[number];
 
 export type TaskAssigneeType = 'user' | 'agent' | 'app';
@@ -139,6 +160,7 @@ export interface TaskRow {
   assigneeType: TaskAssigneeType | null;
   assigneeId: string | null;
   reviewerUserId: string | null;
+  reviewerAgentId: string | null;
   parentTaskId: string | null;
   commentCount: number;
   rank: string;
@@ -190,6 +212,7 @@ export const TASK_COLUMNS = `
   description, attachments, outputs, number, status, priority,
   label_ids AS "labelIds", assignee_type AS "assigneeType",
   assignee_id AS "assigneeId", reviewer_user_id AS "reviewerUserId",
+  reviewer_agent_id AS "reviewerAgentId",
   parent_task_id AS "parentTaskId", comment_count AS "commentCount", rank,
   external_system AS "externalSystem", external_id AS "externalId",
   external_url AS "externalUrl", external_source_id AS "externalSourceId",
@@ -1248,6 +1271,9 @@ export interface CreateTaskArgs {
   dueDate?: number;
   /** The rule the task repeats on: closing it creates the next copy. */
   repeat?: TaskRepeat;
+  /** The conversation the task was handed over from — its root thread, one
+   * the creator can read (`source-thread.ts`). */
+  sourceThreadId?: string;
 }
 
 export async function createTask(
@@ -1298,6 +1324,13 @@ export async function createTask(
     auth,
     attachments.map((entry) => entry.fileId),
   );
+  if (args.sourceThreadId !== undefined) {
+    await assertTaskSourceThreadReadable(tx, {
+      organizationId: auth.organizationId,
+      userId: auth.userId,
+      threadId: args.sourceThreadId,
+    });
+  }
 
   if (args.parentTaskId) {
     const parent = await loadTaskOrThrow(
@@ -1325,7 +1358,7 @@ export async function createTask(
       org_id, project_id, title, description, attachments, status, priority,
       label_ids, assignee_type, assignee_id, parent_task_id, start_date_ms,
       due_date_ms, repeat_rule, rank, number, created_by, created_by_type,
-      created_at_ms, updated_at_ms, status_changed_at_ms
+      created_at_ms, updated_at_ms, status_changed_at_ms, source_thread_id
     ) VALUES (
       ${auth.organizationId}, ${args.projectId}, ${title},
       ${description ?? null},
@@ -1335,7 +1368,8 @@ export async function createTask(
       ${assignee?.assigneeId ?? null}, ${args.parentTaskId ?? null},
       ${args.startDate ?? null}, ${args.dueDate ?? null},
       ${repeat !== null ? tx.json(toJson(repeat)) : null}, ${rank}, ${number},
-      ${auth.userId}, 'user', ${now}, ${now}, ${now}
+      ${auth.userId}, 'user', ${now}, ${now}, ${now},
+      ${args.sourceThreadId ?? null}
     )
     RETURNING id
   `;
@@ -1519,10 +1553,30 @@ export async function updateTask(
   auth: ProjectAuthContext,
   args: UpdateTaskArgs,
 ): Promise<void> {
+  await updateTaskFields(tx, auth, args);
+}
+
+/** Only the trusted metadata door may supply an agent actor, and that door
+ * passes priority alone. Human edits keep their existing authority and trail. */
+async function updateTaskFields(
+  tx: TransactionSql,
+  auth: ProjectAuthContext,
+  args: UpdateTaskArgs,
+  agentId?: string,
+): Promise<void> {
   const task = await loadTaskOrThrow(tx, args.taskId, auth.organizationId);
   const project = await loadProjectOrThrow(tx, task.projectId);
   await assertTaskWorkable(tx, project, task, auth);
   assertTaskNotArchived(task);
+
+  // Working one's own task does not confer project review administration.
+  // An unchanged field sent with an ordinary edit remains a no-op.
+  if (
+    args.reviewerUserId !== undefined &&
+    args.reviewerUserId !== task.reviewerUserId
+  ) {
+    assertTaskLabelsEditable(project, auth);
+  }
 
   const previousState: Record<string, unknown> = {};
   const newState: Record<string, unknown> = {};
@@ -1655,6 +1709,27 @@ export async function updateTask(
       newState.repeat = repeat;
     }
   }
+  if (
+    args.reviewerUserId !== undefined &&
+    reviewerUserId !== task.reviewerUserId
+  ) {
+    const pending = await getPendingReviewForTask(
+      tx,
+      auth.organizationId,
+      task.id,
+    );
+    if (
+      task.reviewerAgentId != null ||
+      pending?.reviewer?.kind === 'agent' ||
+      (reviewerUserId === null && project.defaultTaskReviewerAgentId != null)
+    ) {
+      throw new TaskError(
+        'TASK_REVIEWER_HANDOFF_REQUIRED',
+        'Use an explicit reviewer handoff for agent-owned review',
+        409,
+      );
+    }
+  }
   // A NEW designee (not a clear, not a re-select) is about to be subscribed
   // and belled, so they must be someone the gate would actually hand the
   // review to — the one rule `reviewerEligibility` holds the gate to. A
@@ -1761,20 +1836,26 @@ export async function updateTask(
     if (fromValue === toValue) continue;
     await recordActivity(tx, {
       task,
-      actorType: 'user',
-      actorId: auth.userId,
+      actorType: agentId === undefined ? 'user' : 'agent',
+      actorId: agentId ?? auth.userId,
       action,
       fromValue,
       toValue,
     });
   }
-  await createAuditLog(
-    tx,
-    taskAudit(auth, { id: task.id, title }, TASK_AUDIT_ACTIONS.updated, {
+  await createAuditLog(tx, {
+    ...taskAudit(auth, { id: task.id, title }, TASK_AUDIT_ACTIONS.updated, {
       previousState,
       newState,
     }),
-  );
+    ...(agentId !== undefined
+      ? {
+          actorType: 'api' as const,
+          actorId: agentId,
+          metadata: { viaAgent: true, projectId: task.projectId },
+        }
+      : {}),
+  });
   // A review already open follows the designation in this transaction: the
   // board chip, "Needs my review" and the request bell all read its
   // `requestedFor`, which the mint stamped once — without this a change
@@ -1786,12 +1867,44 @@ export async function updateTask(
           actorUserId: auth.userId,
         })
       : undefined;
+  await notifyReviewerDesignation(tx, {
+    task: { ...task, title },
+    reviewerUserId,
+    openReviewer,
+    actorUserId: auth.userId,
+  });
+  // An edit fans out only the mentions it ADDS: prose reworded around an
+  // existing `@handle` must not ring the bell or start the agent again.
+  if (newState.description !== undefined && description !== null) {
+    await fanOutDescriptionMentions(tx, auth, {
+      taskId: task.id,
+      project,
+      description,
+      previousDescription: task.description ?? '',
+    });
+  }
+}
+
+async function notifyReviewerDesignation(
+  tx: TransactionSql,
+  args: {
+    task: TaskRow;
+    reviewerUserId: string | null;
+    openReviewer: string | undefined;
+    actorUserId: string;
+  },
+): Promise<void> {
+  const { task, reviewerUserId, openReviewer, actorUserId } = args;
+  const designatedReviewer =
+    reviewerUserId !== null && reviewerUserId !== task.reviewerUserId
+      ? reviewerUserId
+      : null;
   // The previous designee is off the hook: an unread "You're the reviewer"
   // heads-up would keep telling them otherwise. Their request bell, when the
   // review was open, went with the retarget above.
   if (task.reviewerUserId !== null && reviewerUserId !== task.reviewerUserId) {
     await dismissReviewerAssignedNotifications(tx, {
-      organizationId: auth.organizationId,
+      organizationId: task.organizationId,
       taskId: task.id,
       userId: task.reviewerUserId,
     });
@@ -1803,7 +1916,7 @@ export async function updateTask(
     // follow when the card reaches In review. Before this, the column was
     // written and nobody was told.
     await autoSubscribe(tx, {
-      organizationId: auth.organizationId,
+      organizationId: task.organizationId,
       taskId: task.id,
       subscriberType: 'user',
       subscriberId: designatedReviewer,
@@ -1813,23 +1926,182 @@ export async function updateTask(
     // its collapse identity and would rewrite the actionable row in place.
     if (openReviewer !== designatedReviewer) {
       await notifyTaskReviewerAssigned(tx, {
-        organizationId: auth.organizationId,
-        task: { id: task.id, projectId: task.projectId, title },
+        organizationId: task.organizationId,
+        task: { id: task.id, projectId: task.projectId, title: task.title },
         reviewerUserId: designatedReviewer,
-        actorUserId: auth.userId,
+        actorUserId,
       });
     }
   }
-  // An edit fans out only the mentions it ADDS: prose reworded around an
-  // existing `@handle` must not ring the bell or start the agent again.
-  if (newState.description !== undefined && description !== null) {
-    await fanOutDescriptionMentions(tx, auth, {
-      taskId: task.id,
-      project,
-      description,
-      previousDescription: task.description ?? '',
-    });
+}
+
+/** Read both the future routing choice and the captured current gate. */
+export async function getTaskReviewer(
+  sql: Sql | TransactionSql,
+  auth: ProjectAuthContext,
+  taskId: string,
+) {
+  const task = await loadTaskOrThrow(sql, taskId, auth.organizationId);
+  const project = await loadProjectOrThrow(sql, task.projectId);
+  assertTaskReadable(project, auth);
+  return {
+    reviewer: taskReviewerFromIds(task),
+    projectReviewer: projectTaskReviewerFromId(
+      project.defaultTaskReviewerAgentId,
+    ),
+    pendingReview: await getPendingReviewForTask(
+      sql,
+      auth.organizationId,
+      task.id,
+    ),
+  };
+}
+
+/** The editor-only handoff changes routing, never the implementation owner,
+ * status, outputs, execution or tool grants. Every expected field is CAS. */
+export async function setTaskReviewer(
+  tx: TransactionSql,
+  auth: ProjectAuthContext,
+  taskId: string,
+  args: SetTaskReviewerInput,
+) {
+  const initial = await loadTaskOrThrow(tx, taskId, auth.organizationId);
+  const project = await loadProjectOrThrow(tx, initial.projectId);
+  assertTaskLabelsEditable(project, auth);
+  assertTaskNotArchived(initial);
+  await lockTaskRunStart(tx, auth.organizationId, taskId);
+  const task = await loadTaskOrThrow(tx, taskId, auth.organizationId);
+  assertTaskNotArchived(task);
+  const expectedUserId =
+    args.expected.reviewer.kind === 'user'
+      ? args.expected.reviewer.userId
+      : null;
+  const expectedAgentId =
+    args.expected.reviewer.kind === 'agent'
+      ? args.expected.reviewer.agentId
+      : null;
+  if (
+    task.reviewerUserId !== expectedUserId ||
+    (task.reviewerAgentId ?? null) !== expectedAgentId
+  ) {
+    throw new TaskError(
+      'TASK_REVIEWER_STALE',
+      'Task reviewer changed; read it again',
+      409,
+    );
   }
+  const reviewerUserId =
+    args.reviewer.kind === 'user' ? args.reviewer.userId : null;
+  const reviewerAgentId =
+    args.reviewer.kind === 'agent' ? args.reviewer.agentId : null;
+  if (reviewerUserId !== null && reviewerUserId !== task.reviewerUserId) {
+    const eligibility = await reviewerEligibility(tx, {
+      organizationId: auth.organizationId,
+      projectTeamIds: project.teamIds,
+      userId: reviewerUserId,
+    });
+    if (eligibility !== 'eligible') {
+      throw new TaskError(
+        'TASK_REVIEWER_INVALID',
+        'Choose an active member with project edit access',
+      );
+    }
+  }
+  const effectiveAgentId =
+    reviewerAgentId ??
+    (reviewerUserId === null ? project.defaultTaskReviewerAgentId : null);
+  if (effectiveAgentId != null) {
+    // The picker greys an agent without the review grant and says why; the
+    // door keeps that reason apart from "not an agent of this project", so
+    // a stale list or a hand-built request is told what to fix.
+    const agentEligibility = await agentReviewerEligibility(tx, {
+      organizationId: auth.organizationId,
+      projectId: task.projectId,
+      agentId: effectiveAgentId,
+    });
+    if (agentEligibility === 'permission_missing')
+      throw new TaskError(
+        'TASK_REVIEWER_PERMISSION_MISSING',
+        'Grant this agent the task review permission before choosing it',
+      );
+    if (agentEligibility !== 'eligible')
+      throw new TaskError(
+        'TASK_REVIEWER_INVALID',
+        'Choose an agent in this project',
+      );
+    if (task.assigneeType === 'agent' && task.assigneeId === effectiveAgentId) {
+      throw new TaskError(
+        'TASK_REVIEWER_NOT_INDEPENDENT',
+        'Choose an agent other than the implementation agent',
+        409,
+      );
+    }
+  }
+  const resolvesToAgent = effectiveAgentId != null;
+  if (
+    resolvesToAgent &&
+    args.expected.pendingReview !== null &&
+    (await taskHasLiveRun(tx, task))
+  ) {
+    throw new TaskError(
+      'TASK_REVIEWER_BUSY',
+      'The task still has active work or a protected question',
+      409,
+    );
+  }
+  const next = { ...task, reviewerUserId, reviewerAgentId };
+  await replacePendingTaskReviewer(tx, {
+    task: next,
+    expected: args.expected.pendingReview,
+    actorUserId: auth.userId,
+  });
+  const pendingReview = await getPendingReviewForTask(
+    tx,
+    auth.organizationId,
+    taskId,
+  );
+  const changed =
+    task.reviewerUserId !== reviewerUserId ||
+    (task.reviewerAgentId ?? null) !== reviewerAgentId ||
+    (pendingReview?.approvalId ?? null) !==
+      (args.expected.pendingReview?.approvalId ?? null);
+  if (!changed) return { reviewer: args.reviewer, pendingReview };
+  await tx`
+    UPDATE app.tasks SET reviewer_user_id = ${reviewerUserId},
+      reviewer_agent_id = ${reviewerAgentId}, updated_at_ms = ${Date.now()}
+    WHERE id = ${taskId} AND org_id = ${auth.organizationId}
+  `;
+  await recordActivity(tx, {
+    task,
+    actorType: 'user',
+    actorId: auth.userId,
+    action: 'reviewer.changed',
+    fromValue: JSON.stringify(taskReviewerFromIds(task)),
+    toValue: JSON.stringify(args.reviewer),
+  });
+  await createAuditLog(
+    tx,
+    taskAudit(auth, task, TASK_AUDIT_ACTIONS.updated, {
+      previousState: {
+        reviewer: taskReviewerFromIds(task),
+        approvalId: args.expected.pendingReview?.approvalId ?? null,
+      },
+      newState: {
+        reviewer: args.reviewer,
+        approvalId: pendingReview?.approvalId ?? null,
+      },
+    }),
+  );
+  await notifyReviewerDesignation(tx, {
+    task,
+    reviewerUserId,
+    actorUserId: auth.userId,
+    openReviewer:
+      pendingReview?.reviewer?.kind === 'user'
+        ? pendingReview.reviewer.userId
+        : undefined,
+  });
+  return { reviewer: args.reviewer, pendingReview };
 }
 
 async function hasOpenChildren(
@@ -2250,6 +2522,66 @@ export async function agentUpdateTaskStatusTrusted(
   return { ok: true };
 }
 
+/** Lower half of the separately authorized, source-bound native review.
+ * The review domain closes its exact approval in this same transaction.
+ * Generic agent status tools still cannot complete tasks. This uses the
+ * existing settle so rollups, bells and repeating copies cannot drift. */
+export async function applyAgentTaskReviewStatusTrusted(
+  tx: TransactionSql,
+  args: { task: TaskRow; agentId: string; status: 'done' | 'todo' },
+): Promise<void> {
+  const { task, status } = args;
+  const project = await loadProjectOrThrow(tx, task.projectId);
+  assertTaskCreatable(project, {
+    organizationId: task.organizationId,
+    userId: args.agentId,
+    role: 'admin',
+    teamIds: [],
+  });
+  assertTaskNotArchived(task);
+  if (task.status !== 'in_review') {
+    throw new TaskError(
+      'TASK_REVIEW_STALE',
+      'The task is no longer in review',
+      409,
+    );
+  }
+  if (await taskHasLiveRun(tx, task)) {
+    throw new TaskError(
+      'TASK_REVIEW_BUSY',
+      'A live run or question still holds this task',
+      409,
+    );
+  }
+  if (status === 'done') {
+    if (await hasOpenChildren(tx, task.id)) {
+      throw new TaskError('TASK_HAS_OPEN_SUBTASKS', 'Open subtasks remain');
+    }
+    if ((await openTaskBlockerIds(tx, task.id)).length > 0) {
+      throw new TaskError(
+        'TASK_REVIEW_BLOCKED',
+        'An open dependency still blocks this task',
+        409,
+      );
+    }
+  }
+  const now = Date.now();
+  const rank = await computeEndRank(tx, task.projectId, status);
+  await tx`
+    UPDATE app.tasks SET
+      status = ${status}, rank = ${rank},
+      completed_at_ms = ${status === 'done' ? (task.completedAt ?? now) : null},
+      updated_at_ms = ${now}, status_changed_at_ms = ${now}
+    WHERE id = ${task.id} AND org_id = ${task.organizationId}
+  `;
+  await settleTaskStatusChange(tx, {
+    task,
+    toStatus: status,
+    actorType: 'agent',
+    actorId: args.agentId,
+  });
+}
+
 /**
  * Hand the card to In progress as the lower half of a KICK — the shared
  * write for every "kicking a run moves the card" lane that cannot route
@@ -2287,6 +2619,146 @@ export async function handTaskToInProgressForKick(
     toStatus: 'in_progress',
     actorType: 'user',
     actorId: args.userId,
+  });
+  return true;
+}
+
+/** Priority-only reuse of the normal edit writer. The caller has resolved
+ * live project authority; the synthetic access context is never recorded as
+ * a human actor, and cannot carry reviewer, description or other edit fields. */
+export async function agentUpdateTaskPriorityTrusted(
+  tx: TransactionSql,
+  args: {
+    organizationId: string;
+    actorId: string;
+    taskId: string;
+    priority: TaskPriority | null;
+  },
+): Promise<void> {
+  await updateTaskFields(
+    tx,
+    {
+      organizationId: args.organizationId,
+      userId: args.actorId,
+      role: 'admin',
+      teamIds: [],
+    },
+    { taskId: args.taskId, priority: args.priority },
+    args.actorId,
+  );
+}
+
+/**
+ * TRUSTED agent-side hand-off to a project agent, or unassignment — the assignment half of a
+ * start another agent or an automation asked for (`delegated-start.ts`), also
+ * used by the guarded metadata tool without a start. The
+ * caller resolved who may ask and checked the agent belongs to the task's
+ * project; this is the picker's write with the asking agent (or the
+ * `workflow` sentinel) as the actor: the assignee, the activity line, the
+ * audit row (`viaAgent`, as the agent's other writes) and the assignment
+ * bells. A live run holds the task for its current worker, so a transfer
+ * under one is refused exactly as the picker refuses it.
+ */
+export async function agentAssignTaskToAgentTrusted(
+  tx: TransactionSql,
+  args: { task: TaskRow; agentId: string | null; actorId: string },
+): Promise<void> {
+  const { task } = args;
+  const assignee: AssigneeRef | null =
+    args.agentId === null
+      ? null
+      : {
+          assigneeType: 'agent',
+          assigneeId: args.agentId,
+        };
+  if (!assigneeChanges(task, assignee)) return;
+  if (await taskHasLiveRun(tx, task)) {
+    throw new TaskError(
+      'TASK_HAS_LIVE_RUN',
+      'A live run holds this task; it cannot pass to another agent until that run ends',
+      409,
+    );
+  }
+  await tx`
+    UPDATE app.tasks SET
+      assignee_type = ${assignee?.assigneeType ?? null}, assignee_id = ${args.agentId},
+      updated_at_ms = ${Date.now()}
+    WHERE id = ${task.id}
+  `;
+  await recordActivity(tx, {
+    task,
+    actorType: 'agent',
+    actorId: args.actorId,
+    action: 'assignee.changed',
+    ...(task.assigneeId !== null ? { fromValue: task.assigneeId } : {}),
+    ...(args.agentId !== null ? { toValue: args.agentId } : {}),
+  });
+  await createAuditLog(tx, {
+    organizationId: task.organizationId,
+    actorId: args.actorId,
+    actorType: 'api',
+    action:
+      assignee === null
+        ? TASK_AUDIT_ACTIONS.unassigned
+        : TASK_AUDIT_ACTIONS.assigned,
+    category: 'data',
+    resourceType: TASK_RESOURCE_TYPE,
+    resourceId: task.id,
+    resourceName: task.title,
+    previousState: {
+      assigneeType: task.assigneeType,
+      assigneeId: task.assigneeId,
+    },
+    newState: {
+      assigneeType: assignee?.assigneeType ?? null,
+      assigneeId: args.agentId,
+    },
+    metadata: { viaAgent: true, projectId: task.projectId },
+    status: 'success',
+  });
+  await notifyTaskAssigned(tx, {
+    task,
+    assigneeType: assignee?.assigneeType ?? null,
+    assigneeId: args.agentId,
+    actorType: 'agent',
+    actorId: args.actorId,
+    previousAssigneeType: task.assigneeType,
+    previousAssigneeId: task.assigneeId,
+  });
+}
+
+/**
+ * Hand the card to In progress as the lower half of a start another agent
+ * asked for — {@link handTaskToInProgressForKick}'s write with the asking
+ * agent as the actor instead of a person: the move is recorded as the
+ * agent's (event-less, like every agent-lane move), and a pending review is
+ * WITHDRAWN, never approved — no person decided. Returns whether the card
+ * actually moved.
+ */
+export async function agentHandTaskToInProgressTrusted(
+  tx: TransactionSql,
+  args: { organizationId: string; taskId: string; actorId: string },
+): Promise<boolean> {
+  const fresh = await loadTaskOrThrow(tx, args.taskId, args.organizationId);
+  if (fresh.status === 'in_progress') return false;
+  await closePendingTaskReviewOnStatusLeave(tx, {
+    task: fresh,
+    toStatus: 'in_progress',
+    actor: { kind: 'system', actorId: args.actorId },
+  });
+  const now = Date.now();
+  const rank = await computeEndRank(tx, fresh.projectId, 'in_progress');
+  await tx`
+    UPDATE app.tasks SET
+      status = 'in_progress', rank = ${rank}, completed_at_ms = NULL,
+      status_changed_at_ms = ${now}, updated_at_ms = ${now}
+    WHERE id = ${fresh.id}
+  `;
+  await settleTaskStatusChange(tx, {
+    task: fresh,
+    toStatus: 'in_progress',
+    actorType: 'agent',
+    actorId: args.actorId,
   });
   return true;
 }
@@ -2819,6 +3291,10 @@ export interface TaskListFilters {
   /** The person named to review the task's result (`reviewer_user_id`). */
   reviewerId?: string;
   externalSystem?: string;
+  /** The toolbar's search: the palette's token-AND match, applied with the
+   * other filters before the board's cap rather than after a capped search
+   * (#3745). Blank matches everything. */
+  query?: string;
 }
 
 /** Batch-resolve the page's label ids to catalog DTOs (color derived, the
@@ -2922,7 +3398,12 @@ async function decorateProjectPage(
   return tasks.map((task) => decorateTaskRow(task, labelMap, facts));
 }
 
-/** The shared board filter clause (each filter optional, ANDed). */
+/**
+ * The shared board filter clause over `t`, the `app.tasks` row (each filter
+ * optional, ANDed). A search is one of these filters, so it narrows the same
+ * statement that carries the board's `LIMIT`: every match stays reachable,
+ * whatever the other filters leave.
+ */
 function boardFilterClause(sql: Sql, filters: TaskListFilters) {
   const includeArchived = filters.includeArchived ?? false;
   const status = filters.status ?? null;
@@ -2930,13 +3411,31 @@ function boardFilterClause(sql: Sql, filters: TaskListFilters) {
   const assigneeId = filters.assigneeId ?? null;
   const reviewerId = filters.reviewerId ?? null;
   const externalSystem = filters.externalSystem ?? null;
+  const patterns = taskSearchPatterns(filters.query ?? '');
   return sql`
-    (${includeArchived} OR archived_at_ms IS NULL)
-    AND (${status}::text IS NULL OR status = ${status})
-    AND (${statuses === null} OR status = ANY(${statuses ?? []}))
-    AND (${assigneeId}::text IS NULL OR assignee_id = ${assigneeId})
-    AND (${reviewerId}::text IS NULL OR reviewer_user_id = ${reviewerId})
-    AND (${externalSystem}::text IS NULL OR external_system = ${externalSystem})
+    (${includeArchived} OR t.archived_at_ms IS NULL)
+    AND (${status}::text IS NULL OR t.status = ${status})
+    AND (${statuses === null} OR t.status = ANY(${statuses ?? []}))
+    AND (${assigneeId}::text IS NULL OR t.assignee_id = ${assigneeId})
+    AND (${reviewerId}::text IS NULL OR EXISTS (
+      SELECT 1 FROM app.approvals r
+      WHERE r.org_id = t.org_id AND r.resource_type = 'task_review'
+        AND r.resource_id = t.id AND r.status = 'pending'
+        AND r.wf_execution_id IS NULL
+        AND CASE WHEN r.metadata ? 'reviewer' THEN
+          CASE WHEN r.metadata -> 'reviewer' ->> 'kind' = 'user'
+            THEN r.metadata -> 'reviewer' ->> 'userId' ELSE NULL END
+          ELSE r.metadata ->> 'requestedFor' END = ${reviewerId}
+    ) OR (
+      t.reviewer_user_id = ${reviewerId} AND NOT EXISTS (
+        SELECT 1 FROM app.approvals r
+        WHERE r.org_id = t.org_id AND r.resource_type = 'task_review'
+          AND r.resource_id = t.id AND r.status = 'pending'
+          AND r.wf_execution_id IS NULL
+      )
+    ))
+    AND (${externalSystem}::text IS NULL OR t.external_system = ${externalSystem})
+    ${patterns.length > 0 ? sql`AND ${taskSearchMatch(sql, patterns)}` : sql``}
   `;
 }
 
@@ -2955,7 +3454,7 @@ export async function listTasksByProject(
   assertTaskReadable(project, auth);
   const access = boardTaskAccess(project, auth);
   const rows = await sql<TaskRow[]>`
-    SELECT ${sql.unsafe(TASK_COLUMNS)} FROM app.tasks
+    SELECT ${sql.unsafe(TASK_COLUMNS)} FROM app.tasks t
     WHERE project_id = ${projectId}
       AND ${boardFilterClause(sql, filters)}
     ORDER BY status ASC, rank ASC
@@ -2970,9 +3469,27 @@ export async function listTasksByProject(
   };
 }
 
-/** How many cards one `task_find` may walk. The tool answers a working set,
- * not a board: an agent that needs more should filter harder. */
+/** The most rows one `task_find` read returns. The tool pages its answer
+ * (`workspace_domain_tools.ts` asks for a page and one row more), so this
+ * only bounds a single statement. */
 const AGENT_TASK_LIST_CAP = 200;
+
+/**
+ * The orders `task_find` walks in. `board` groups the tasks by status, in
+ * the order of the status names (backlog, cancelled, done, in_progress,
+ * in_review, todo), and keeps each column's own order (its rank) within a
+ * status; `created` is the order the tasks were made in, oldest first, and a
+ * task's place in it never changes. Both end on the task id, so tasks tied on
+ * rank or on their creation millisecond still have exactly one order, and a
+ * page that ends inside a tie resumes after the row it ended on.
+ */
+export type AgentTaskListOrder = 'board' | 'created';
+
+/** The sort key of the last row a `task_find` page answered — where the next
+ * page starts, exclusive. */
+export type AgentTaskListPosition =
+  | { order: 'board'; status: TaskStatus; rank: string; id: string }
+  | { order: 'created'; createdAt: number; id: string };
 
 /**
  * The `task_find` read — undecorated rows for an agent, NOT a board page.
@@ -2981,6 +3498,11 @@ const AGENT_TASK_LIST_CAP = 200;
  * its automation's bound set for an org-wide one, and nothing at all for a
  * truly org-level run, which reads the whole organization. Labels and folder
  * facts are skipped — the model reads titles and status, not chips.
+ *
+ * A keyset page: the rows strictly after `after` in `order`, at most `limit`
+ * of them. Each page reads the board as it stands, never a snapshot of the
+ * first one — see {@link AgentTaskListOrder} for what a move between pages
+ * does to a walk.
  */
 export async function listTasksForAgent(
   sql: Sql,
@@ -2990,7 +3512,11 @@ export async function listTasksForAgent(
     projectIds?: string[];
     status?: TaskStatus;
     assigneeId?: string;
+    reviewerAgentId?: string;
     includeArchived?: boolean;
+    order?: AgentTaskListOrder;
+    after?: AgentTaskListPosition;
+    limit?: number;
   },
 ): Promise<TaskRow[]> {
   // One named project wins over the bound set — the caller already checked it
@@ -3002,13 +3528,45 @@ export async function listTasksForAgent(
     ...(args.status !== undefined ? { status: args.status } : {}),
     ...(args.assigneeId !== undefined ? { assigneeId: args.assigneeId } : {}),
   };
+  // A position carries the order it was taken in, so a later page always
+  // continues the order its first page was read in.
+  const after = args.after;
+  const order = after?.order ?? args.order ?? 'board';
+  const limit =
+    args.limit !== undefined && Number.isFinite(args.limit)
+      ? Math.min(Math.max(Math.floor(args.limit), 1), AGENT_TASK_LIST_CAP)
+      : AGENT_TASK_LIST_CAP;
   const rows = await sql<TaskRow[]>`
-    SELECT ${sql.unsafe(TASK_COLUMNS)} FROM app.tasks
+    SELECT ${sql.unsafe(TASK_COLUMNS)} FROM app.tasks t
     WHERE org_id = ${args.organizationId}
       AND (${scoped === null} OR project_id = ANY(${scoped ?? []}))
       AND ${boardFilterClause(sql, filters)}
-    ORDER BY status ASC, rank ASC
-    LIMIT ${AGENT_TASK_LIST_CAP}
+      AND ${
+        args.reviewerAgentId === undefined
+          ? sql`TRUE`
+          : sql`(
+              SELECT a.metadata -> 'reviewer' FROM app.approvals a
+              WHERE a.resource_id = t.id AND a.org_id = t.org_id
+                AND a.resource_type = 'task_review' AND a.status = 'pending'
+                AND a.wf_execution_id IS NULL
+              ORDER BY a.seq DESC LIMIT 1
+            ) = jsonb_build_object('kind', 'agent', 'agentId', ${args.reviewerAgentId}::text)`
+      }
+      AND ${
+        after === undefined
+          ? sql`TRUE`
+          : after.order === 'created'
+            ? sql`(t.created_at_ms, t.id)
+                  > (${after.createdAt}::bigint, ${after.id}::text)`
+            : sql`(t.status, t.rank, t.id)
+                  > (${after.status}::text, ${after.rank}::text, ${after.id}::text)`
+      }
+    ORDER BY ${
+      order === 'created'
+        ? sql`t.created_at_ms ASC, t.id ASC`
+        : sql`t.status ASC, t.rank ASC, t.id ASC`
+    }
+    LIMIT ${limit}
   `;
   return [...rows];
 }
@@ -3044,7 +3602,7 @@ export async function listTasksForAccessibleProjects(
     projects.map((project) => [project.id, project.key]),
   );
   const rows = await sql<TaskRow[]>`
-    SELECT ${sql.unsafe(TASK_COLUMNS)} FROM app.tasks
+    SELECT ${sql.unsafe(TASK_COLUMNS)} FROM app.tasks t
     WHERE org_id = ${auth.organizationId}
       AND project_id = ANY(${[...projectKeys.keys()]})
       AND ${boardFilterClause(sql, filters)}
@@ -3186,11 +3744,63 @@ export async function listTaskActivity(
 }
 
 // ---------------------------------------------------------------------------
-// Search (the palette + the tasks toolbar)
+// Search (the palette, and the board's `query` filter)
 // ---------------------------------------------------------------------------
 
 const SEARCH_MAX_RESULTS = 25;
 const SEARCH_SNIPPET_MAX = 600;
+
+/**
+ * A search query's `LIKE ALL` patterns: its whitespace-separated tokens,
+ * lowercased, each one's `LIKE` metacharacters escaped. None for a blank
+ * query. The palette and the board search with the same patterns, so one
+ * query finds the same tasks through either.
+ */
+export function taskSearchPatterns(query: string): string[] {
+  return query
+    .toLowerCase()
+    .split(/\s+/)
+    .filter((token) => token.length > 0)
+    .map((token) => `%${token.replaceAll(/([%_\\])/g, String.raw`\$1`)}%`);
+}
+
+/**
+ * A task's own fields hold every token: title, description, external id and
+ * `KEY-number`, read together. `t` is the `app.tasks` row.
+ */
+function taskFieldsSearchMatch(sql: Sql, patterns: string[]) {
+  return sql`lower(
+    t.title || ' ' || coalesce(t.description, '') || ' ' ||
+    coalesce(t.external_id, '') || ' ' ||
+    coalesce(
+      (SELECT p.key FROM app.projects p WHERE p.id = t.project_id) || '-' ||
+        t.number::text,
+      ''
+    )
+  ) LIKE ALL(${patterns})`;
+}
+
+/** One discussion comment holds every token; `m` is its `app.messages` row. */
+function commentSearchMatch(sql: Sql, patterns: string[]) {
+  return sql`lower(coalesce(m.text, '')) LIKE ALL(${patterns})`;
+}
+
+/**
+ * The board's search filter on `t`: the task's own fields hold every token,
+ * or one comment on it does — the palette's two legs, judged row by row and
+ * never capped, so the board's filters and `LIMIT` see every match.
+ */
+function taskSearchMatch(sql: Sql, patterns: string[]) {
+  return sql`(
+    ${taskFieldsSearchMatch(sql, patterns)}
+    OR EXISTS (
+      SELECT 1 FROM app.task_discussion_message_meta meta
+      JOIN app.messages m ON m.id = meta.message_id
+      WHERE meta.task_id = t.id AND meta.org_id = t.org_id
+        AND ${commentSearchMatch(sql, patterns)}
+    )
+  )`;
+}
 
 export interface TaskSearchHit {
   taskId: string;
@@ -3209,24 +3819,20 @@ export interface TaskSearchHit {
 }
 
 /**
- * Token-AND search over the field haystack (title + description +
- * externalId + `KEY-number`), with a comment-body fallback for tasks whose
- * fields don't match (the 0.4 walk; unbounded here — SQL searches the whole
- * visible set instead of the newest-80 window Convex's read limits forced).
+ * The palette's search: token-AND over the field haystack (title +
+ * description + externalId + `KEY-number`), with a comment-body fallback for
+ * tasks whose fields don't match (the 0.4 walk; unbounded here — SQL searches
+ * the whole visible set instead of the newest-80 window Convex's read limits
+ * forced), answering the first page of hits. The board filters by the same
+ * two legs uncapped (`TaskListFilters.query`).
  */
 export async function searchTasks(
   sql: Sql,
   auth: ProjectAuthContext,
   args: { query: string; projectId?: string },
 ): Promise<TaskSearchHit[]> {
-  const tokens = args.query
-    .toLowerCase()
-    .split(/\s+/)
-    .filter((token) => token.length > 0);
-  if (tokens.length === 0) return [];
-  const patterns = tokens.map(
-    (token) => `%${token.replaceAll(/([%_\\])/g, String.raw`\$1`)}%`,
-  );
+  const patterns = taskSearchPatterns(args.query);
+  if (patterns.length === 0) return [];
 
   let projectIds: string[];
   const projectKeys = new Map<string, string | null>();
@@ -3265,14 +3871,9 @@ export async function searchTasks(
            t.description, t.updated_at_ms::float8 AS "updatedAt", t.number,
            t.archived_at_ms::float8 AS "archivedAt"
     FROM app.tasks t
-    JOIN app.projects p ON p.id = t.project_id
     WHERE t.org_id = ${auth.organizationId}
       AND t.project_id = ANY(${projectIds})
-      AND lower(
-        t.title || ' ' || coalesce(t.description, '') || ' ' ||
-        coalesce(t.external_id, '') || ' ' ||
-        coalesce(p.key || '-' || t.number::text, '')
-      ) LIKE ALL(${patterns})
+      AND ${taskFieldsSearchMatch(sql, patterns)}
     ORDER BY (t.archived_at_ms IS NOT NULL), t.updated_at_ms DESC
     LIMIT ${SEARCH_MAX_RESULTS}
   `;
@@ -3310,7 +3911,7 @@ export async function searchTasks(
       JOIN app.tasks t ON t.id = meta.task_id
       WHERE meta.org_id = ${auth.organizationId}
         AND t.project_id = ANY(${projectIds})
-        AND lower(coalesce(m.text, '')) LIKE ALL(${patterns})
+        AND ${commentSearchMatch(sql, patterns)}
       ORDER BY (t.archived_at_ms IS NOT NULL), t.updated_at_ms DESC, t.id,
                m.created_at_ms DESC
       LIMIT ${SEARCH_MAX_RESULTS}
@@ -3337,7 +3938,12 @@ export async function searchTasks(
 export interface MentionTriggerPreviewRow {
   slug: string;
   willTrigger: boolean;
-  reason: 'ok' | 'pack_disabled' | 'breaker_paused' | 'not_permitted';
+  reason:
+    | 'ok'
+    | 'pack_disabled'
+    | 'breaker_paused'
+    | 'not_permitted'
+    | 'standard_agent_unavailable';
 }
 
 /**
@@ -3387,6 +3993,29 @@ export async function mentionTriggerPreview(
     'task_automation',
   );
   const packEnabled = automationPolicy?.enabled !== false;
+  // The organization's standard agent answers only while it can start for
+  // the person mentioning it — switched on, with a model they may use — as
+  // the mention lane itself decides (`isStandardAgentRefusal`).
+  const standardAgents = await sql<{ id: string }[]>`
+    SELECT id FROM app.project_agents
+    WHERE project_id = ${project.id} AND managed AND id IN ${sql(slugs)}
+  `;
+  const standardAgentRuns =
+    standardAgents.length === 0 ||
+    (await readStandardAgentAvailability(sql, {
+      organizationId: auth.organizationId,
+      userId: auth.userId,
+    }).then(
+      (availability) => availability.available,
+      (error: unknown) => {
+        console.warn(
+          '[tasks] mention preview could not read the standard agent',
+          error,
+        );
+        return false;
+      },
+    ));
+  const standardAgentIds = new Set(standardAgents.map((agent) => agent.id));
 
   return slugs.map((slug) => {
     if (restricted && slug !== steerableAgentId) {
@@ -3394,6 +4023,13 @@ export async function mentionTriggerPreview(
     }
     if (!packEnabled) {
       return { slug, willTrigger: false, reason: 'pack_disabled' as const };
+    }
+    if (standardAgentIds.has(slug) && !standardAgentRuns) {
+      return {
+        slug,
+        willTrigger: false,
+        reason: 'standard_agent_unavailable' as const,
+      };
     }
     return { slug, willTrigger: true, reason: 'ok' as const };
   });
@@ -3437,14 +4073,16 @@ async function taskHasLiveRun(
  * `findLiveAutomationRunForTask` probe) — the automation half of
  * `taskHasLiveRun`, for lanes that treat the two families differently (the
  * mention dispatcher steers an agent run but yields entirely to an
- * automation). */
+ * automation). An org-level run may carry this same task subject without a
+ * project binding; a different non-NULL project never holds it here. */
 async function taskHasLiveAutomationRun(
   tx: TransactionSql,
   task: Pick<TaskRow, 'id' | 'organizationId' | 'projectId'>,
 ): Promise<boolean> {
   const automation = await tx<{ id: string }[]>`
     SELECT id FROM app.automation_runs
-    WHERE org_id = ${task.organizationId} AND project_id = ${task.projectId}
+    WHERE org_id = ${task.organizationId}
+      AND (project_id = ${task.projectId} OR project_id IS NULL)
       AND status IN ('queued', 'running', 'waiting')
       AND input -> 'task' ->> 'id' = ${task.id}
     LIMIT 1
@@ -3712,45 +4350,59 @@ export async function dispatchMentionedProjectAgent(
     );
     return;
   }
-  if (
-    args.task.assigneeType !== 'agent' ||
-    args.task.assigneeId !== instance.id
-  ) {
-    // (Re)assign exactly like the picker — activity, audit, notify.
-    await assignTask(tx, args.auth, {
-      taskId: args.task.id,
-      assigneeType: 'agent',
-      assigneeId: instance.id,
+  const agent = instance;
+  try {
+    // A savepoint, so a start the organization's standard agent refuses for
+    // this author (switched off, or no model they may use) takes the
+    // reassignment with it: the text stays a plain mention, as with the
+    // lane's other refusals, and the comment or task still saves.
+    await tx.savepoint(async (sp) => {
+      if (
+        args.task.assigneeType !== 'agent' ||
+        args.task.assigneeId !== agent.id
+      ) {
+        // (Re)assign exactly like the picker — activity, audit, notify.
+        await assignTask(sp, args.auth, {
+          taskId: args.task.id,
+          assigneeType: 'agent',
+          assigneeId: agent.id,
+        });
+      }
+      const kicked = await kickAgentRun(sp, {
+        organizationId: args.auth.organizationId,
+        projectId: args.task.projectId,
+        taskId: args.task.id,
+        agentId: agent.id,
+        harness: agent.harness,
+        model: agent.model,
+        ...(agent.modelProvider !== null
+          ? { modelProvider: agent.modelProvider }
+          : {}),
+        startedBy: args.auth.userId,
+        trigger: 'mention',
+        mentionSource: args.source,
+        ...(args.source === 'comment' ? { feedback: args.text } : {}),
+      });
+      if (kicked.reused) {
+        // A racing kick landed between this transaction's live-run probe
+        // and here — the text rides the standing run instead.
+        console.warn(
+          `[tasks] mention kick for agent ${agent.id} reused the standing run`,
+        );
+        return;
+      }
+      await handTaskToInProgressForKick(sp, {
+        organizationId: args.auth.organizationId,
+        taskId: args.task.id,
+        userId: args.auth.userId,
+      });
     });
-  }
-  const kicked = await kickAgentRun(tx, {
-    organizationId: args.auth.organizationId,
-    projectId: args.task.projectId,
-    taskId: args.task.id,
-    agentId: instance.id,
-    harness: instance.harness,
-    model: instance.model,
-    ...(instance.modelProvider !== null
-      ? { modelProvider: instance.modelProvider }
-      : {}),
-    startedBy: args.auth.userId,
-    trigger: 'mention',
-    mentionSource: args.source,
-    ...(args.source === 'comment' ? { feedback: args.text } : {}),
-  });
-  if (kicked.reused) {
-    // A racing kick landed between this transaction's live-run probe and
-    // here — the text rides the standing run instead.
+  } catch (error) {
+    if (!isStandardAgentRefusal(error)) throw error;
     console.warn(
-      `[tasks] mention kick for agent ${instance.id} reused the standing run`,
+      `[tasks] agent mention on ${args.task.id} stays a plain mention (${error.code})`,
     );
-    return;
   }
-  await handTaskToInProgressForKick(tx, {
-    organizationId: args.auth.organizationId,
-    taskId: args.task.id,
-    userId: args.auth.userId,
-  });
 }
 
 /**
@@ -3825,6 +4477,74 @@ export async function startTaskAgentRunManual(
   return { started: true };
 }
 
+/** Why a deferred agent kick may no longer start work. */
+export type DeferredAgentKickRefusal =
+  | 'project_unavailable'
+  | 'project_archived'
+  | 'not_permitted';
+
+/**
+ * The admission a DEFERRED agent kick passes before it creates a run: the
+ * auto-retry job continuing a failed run's kick, and the steer that missed
+ * its run and starts a fresh one. Both act long after the person asked, so
+ * they answer to the manual Start's gate ({@link assertTaskWorkable}) as it
+ * stands NOW, for the person whose kick they continue: the project still
+ * exists and is active, and that person may still work the task — an
+ * editor of the project, or a member whose own task it is. A start a
+ * schedule began names no person: it continues only while that schedule
+ * may still act in the project (`scheduleMayActInProject` — enabled, and its
+ * automation still bound there).
+ *
+ * Archiving, a sharing change and a delete all update the project row, so
+ * it stays share-locked until the caller's transaction commits: they order
+ * around the admission, and none lands between this check and the run.
+ * `null` admits. A refusal is final, so callers skip rather than throw — a
+ * retried job would only meet it again.
+ */
+export async function deferredAgentKickRefusal(
+  tx: TransactionSql,
+  args: {
+    organizationId: string;
+    projectId: string;
+    task: WorkableTask;
+    startedBy: string;
+  },
+): Promise<DeferredAgentKickRefusal | null> {
+  const locked = await tx<{ id: string }[]>`
+    SELECT id FROM app.projects
+    WHERE id = ${args.projectId} AND org_id = ${args.organizationId}
+    FOR SHARE
+  `;
+  if (locked.length === 0) return 'project_unavailable';
+  const project = await loadProjectOrThrow(tx, args.projectId);
+  if (project.archivedAt !== null) return 'project_archived';
+  const starter = parseRunStarter(args.startedBy);
+  if (starter.kind === 'trigger') {
+    return (await scheduleMayActInProject(tx, {
+      organizationId: args.organizationId,
+      projectId: args.projectId,
+      triggerId: starter.triggerId,
+    }))
+      ? null
+      : 'not_permitted';
+  }
+  if (starter.kind === 'unknown') return 'not_permitted';
+  const member = await findOrganizationMember(
+    tx,
+    args.organizationId,
+    starter.userId,
+  );
+  if (member === null) return 'not_permitted';
+  const auth = await getProjectAuthContext(tx, {
+    organizationId: args.organizationId,
+    userId: starter.userId,
+    role: member.role,
+  });
+  return (await mayWorkTask(tx, project, args.task, auth))
+    ? null
+    : 'not_permitted';
+}
+
 // ---------------------------------------------------------------------------
 // Ops indicators (the board's working pulse / needs-answer / review chips)
 // ---------------------------------------------------------------------------
@@ -3839,6 +4559,7 @@ export interface TaskOpsIndicators {
     taskId: string;
     approvalId: string;
     requestedFor?: string;
+    reviewer: TaskReviewRecipient | null;
   }[];
 }
 
@@ -3847,11 +4568,13 @@ function projectPendingReviews(
     taskId: string;
     approvalId: string;
     requestedFor: string | null;
+    reviewer: TaskReviewRecipient | null;
   }[],
 ): TaskOpsIndicators['pendingReviews'] {
   return rows.map((row) => ({
     taskId: row.taskId,
     approvalId: row.approvalId,
+    reviewer: row.reviewer,
     ...(row.requestedFor !== null ? { requestedFor: row.requestedFor } : {}),
   }));
 }
@@ -3890,7 +4613,10 @@ export async function getTaskOpsIndicators(
                AND a.expires_at_ms >= ${Date.now()}
            ) AS "hasPendingAsk"
     FROM app.automation_runs r
-    WHERE r.org_id = ${auth.organizationId} AND r.project_id = ${projectId}
+    JOIN app.tasks t ON t.id = r.input -> 'task' ->> 'id'
+      AND t.org_id = r.org_id AND t.project_id = ${projectId}
+    WHERE r.org_id = ${auth.organizationId}
+      AND (r.project_id = ${projectId} OR r.project_id IS NULL)
       AND r.status IN ('queued', 'running', 'waiting')
     ORDER BY r.started_at_ms DESC
     LIMIT ${TASK_OPS_RUN_SCAN_CAP}

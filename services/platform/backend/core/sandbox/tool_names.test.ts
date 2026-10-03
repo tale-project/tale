@@ -6,12 +6,33 @@ import {
   imageGenerationGuidance,
   KNOWLEDGE_READ_TOOLS,
   normalizeToolGrants,
+  PROJECT_AGENT_ONLY_TOOLS,
   readTurnOpRef,
   secretsGuidance,
   WRITE_EFFECT_TOOLS,
 } from './tool_names';
 
 describe('normalizeToolGrants', () => {
+  it('grants task review only explicitly to project agents', () => {
+    expect(normalizeToolGrants(['task_review'])).toEqual(['task_review']);
+    expect(normalizeToolGrants(['task_review'], 'automation')).toEqual([]);
+    expect(normalizeToolGrants([...KNOWLEDGE_READ_TOOLS])).not.toContain(
+      'task_review',
+    );
+    expect(WRITE_EFFECT_TOOLS).toContain('task_review');
+  });
+  it('grants metadata only explicitly to project agents, never as a baseline or automation tool', () => {
+    expect(normalizeToolGrants(['task_update_metadata'])).toEqual([
+      'task_update_metadata',
+    ]);
+    expect(normalizeToolGrants(['task_update_metadata'], 'automation')).toEqual(
+      [],
+    );
+    expect(normalizeToolGrants([...KNOWLEDGE_READ_TOOLS])).not.toContain(
+      'task_update_metadata',
+    );
+    expect(WRITE_EFFECT_TOOLS).toContain('task_update_metadata');
+  });
   it('drops unknown names and dedupes to catalog order', () => {
     const result = normalizeToolGrants([
       'task_create',
@@ -33,6 +54,25 @@ describe('normalizeToolGrants', () => {
     const result = normalizeToolGrants([...KNOWLEDGE_READ_TOOLS, 'ask_human']);
     expect(result).toEqual([]);
   });
+
+  it('keeps the delegation tool for a project agent and drops it for an automation', () => {
+    const grants = ['task_find', 'task_start_agent', 'task_comment'];
+    expect(normalizeToolGrants(grants)).toEqual([
+      'task_find',
+      'task_comment',
+      'task_start_agent',
+    ]);
+    expect(normalizeToolGrants(grants, 'project_agent')).toEqual(
+      normalizeToolGrants(grants),
+    );
+    expect(normalizeToolGrants(grants, 'automation')).toEqual([
+      'task_find',
+      'task_comment',
+    ]);
+    for (const name of PROJECT_AGENT_ONLY_TOOLS) {
+      expect(normalizeToolGrants([name], 'automation')).toEqual([]);
+    }
+  });
 });
 
 describe('the catalog', () => {
@@ -41,6 +81,7 @@ describe('the catalog', () => {
       'task_create',
       'task_comment',
       'task_update_status',
+      'task_start_agent',
       'task_upsert_by_external_ref',
       'document_create',
     ]) {

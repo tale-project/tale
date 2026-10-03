@@ -2,7 +2,7 @@
 
 The design-system guide at [ui.tale.dev](https://ui.tale.dev) helps you install
 Tale’s UI packages, choose components, and compose application or marketing screens.
-Its 19 English guides include live examples with their source. The examples use local
+Its English guides include live examples with their source. The examples use local
 sample state; they do not connect to the Tale backend.
 
 For package consumption, start with [Installation](content/getting-started/installation.md).
@@ -48,9 +48,17 @@ to the shared server: no locale negotiation, no `tale_locale` cookie, and a stal
 locale-prefixed URL 301s back onto the English tree. Adding a translated tree means
 routes, prerendered artifacts and flipping that option back to `'path'`.
 
-The homepage product window and nested application-layout examples are labelled,
-inert illustrations. Their explanation must remain understandable outside the frame.
-Interactive demos run inside the docs pages. A single root `Toaster` serves all of them.
+The homepage component studio uses real controls with local state. Edit its workspace name,
+toggle the digest, switch between application and marketing previews, or reset the sample.
+Nothing is sent to a backend. Its initial application panel renders completely before
+JavaScript loads. Nested application-layout examples in the guides remain labelled, inert
+illustrations; other guide demos are interactive. A single root `Toaster` serves the site.
+
+The homepage shows the distinction between `@tale/ui` and `@tale/marketing-ui`, links to the
+five guide sections with counts derived from navigation, and offers source installation
+commands for each package. The marketing command includes its `@tale/ui` dependency;
+the installation guide covers the remaining Vite, stylesheet, and AppShell setup. The
+header theme switcher uses 32px choices for fine pointers and 44px choices for touch input.
 
 ## Build and inspect production output
 
@@ -73,6 +81,11 @@ content generation, client and SSR compilation, prerendering, and SEO compilatio
 The Bun server serves the built files through `@tale/ui/server` and `@tale/ui/seo`.
 Check `/api/health`, a deep-linked guide, `/docs/components/button.md`, and an unknown
 route after a deployment. The unknown route must return HTTP 404 with a usable page.
+
+The sitemap omits `lastmod` because the content does not record a reliable modification
+date. A fresh checkout or rebuild must not advertise every page as newly updated. Add
+dates only from a source that tracks significant content changes; see
+[Google's sitemap guidance](https://developers.google.com/search/docs/crawling-indexing/sitemaps/build-sitemap#additional-notes-about-xml-sitemaps).
 
 ## Configure the deployment
 
@@ -122,12 +135,17 @@ service’s Docker build is covered by `bun run docker:test:ui-docs` from the ro
 bun run --filter @tale/ui-docs test
 bun run --filter @tale/ui-docs typecheck
 bun run --filter @tale/ui-docs lint
+bun run --filter @tale/ui-docs build && bun run --filter @tale/ui-docs test:prerender
 UI_DOCS_E2E_PORT=3007 bun run --filter @tale/ui-docs test:e2e
+bun run lint:links
 bun run lint:manual
 ```
 
 Unit tests cover navigation/file parity, frontmatter, demo registration, loader
-behavior, the pageview path a route reports, and the 404. The shared frame’s own tests live with it in `packages/ui`
+behavior, the pageview path a route reports, and the 404. They also cover every
+link a guide renders, the published-address ledger, and the server's redirects for
+`/docs`, section folders and guessed addresses. `test:prerender` serves the built
+site with its own server and crawls every address its pages and artifacts carry. The shared frame’s own tests live with it in `packages/ui`
 (`bun run --filter @tale/ui test` and `test:browser`). Browser tests cover the homepage,
 docs, the header strip’s line with the rail, Code panel, search, theme, redirects, and
 404. The [manual layer](tests/manual/readme.md) adds

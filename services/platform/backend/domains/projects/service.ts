@@ -9,6 +9,10 @@ import {
   PROJECT_SHARED_TEAMS_MAX,
 } from '@tale/shared/schemas/projects';
 import {
+  projectTaskReviewerFromId,
+  type SetProjectTaskReviewerInput,
+} from '@tale/shared/schemas/task-review';
+import {
   deriveProjectKey,
   isValidProjectKey,
   normalizeProjectKey,
@@ -48,7 +52,9 @@ import {
   LegalHoldError,
   loadActiveHolds,
 } from '../legal_holds/service.ts';
+import { scheduleAgentWorkspaceRetirement } from '../sandbox/retirement-schedule.ts';
 import { retireTasksInTx } from '../tasks/retire.ts';
+import { agentReviewerEligibility } from '../tasks/reviews.ts';
 import { clearAgentAssignmentsInTx } from '../tasks/unassign.ts';
 import {
   AGENT_TOOL_GRANT_NAMES,
@@ -88,7 +94,7 @@ const MAX_PROJECT_AGENTS = 50;
  * `GET /api/v1/models` lists under `harnesses`. A hard-coded set once stood
  * beside it, and the refusal named nothing (2026-09-14 evaluation, h9).
  */
-function eligibleProjectAgentHarnesses(): string[] {
+export function eligibleProjectAgentHarnesses(): string[] {
   return loadHarnesses()
     .filter((harness) => harness.credentialPolicy.managed)
     .map((harness) => harness.slug)
@@ -155,6 +161,7 @@ export interface ProjectRow {
   openTaskCount: number;
   doneTaskCount: number;
   projectAgentCount: number;
+  defaultTaskReviewerAgentId: string | null;
   /** The audience — team ids; empty = organization-wide. */
   teamIds: string[];
   /** @deprecated Derived: `teamIds[0]`; kept while the previous image reads it. */
@@ -174,6 +181,7 @@ const PROJECT_COLUMNS = `
   external_item_id AS "externalItemId", task_counter AS "taskCounter",
   open_task_count AS "openTaskCount", done_task_count AS "doneTaskCount",
   project_agent_count AS "projectAgentCount",
+  default_task_reviewer_agent_id AS "defaultTaskReviewerAgentId",
   ${PROJECT_TEAM_IDS_SQL} AS "teamIds",
   (${PROJECT_TEAM_IDS_SQL})[1] AS "teamId",
   (${PROJECT_TEAM_IDS_SQL})[2:] AS "sharedWithTeamIds", instructions,
@@ -928,6 +936,63 @@ export async function setProjectPinned(
   await hintProject(tx, auth.organizationId, projectId);
 }
 
+/** Explicit opt-in for future review mints. Pending reviews keep their
+ * captured owner until a separate task handoff; this setting grants no tool. */
+export async function setProjectTaskReviewer(
+  tx: TransactionSql,
+  auth: ProjectAuthContext,
+  projectId: string,
+  args: SetProjectTaskReviewerInput,
+) {
+  const project = await loadProjectOrThrow(tx, projectId);
+  assertActiveWritable(project, auth);
+  const expectedId =
+    args.expected.kind === 'agent' ? args.expected.agentId : null;
+  if ((project.defaultTaskReviewerAgentId ?? null) !== expectedId) {
+    throw new ProjectError(
+      'PROJECT_REVIEWER_STALE',
+      'Project reviewer changed; read it again',
+      409,
+    );
+  }
+  const agentId = args.reviewer.kind === 'agent' ? args.reviewer.agentId : null;
+  if (agentId !== null) {
+    const eligibility = await agentReviewerEligibility(tx, {
+      organizationId: auth.organizationId,
+      projectId,
+      agentId,
+    });
+    if (eligibility === 'permission_missing') {
+      throw new ProjectError(
+        'PROJECT_REVIEWER_PERMISSION_MISSING',
+        'Grant this agent the task review permission before choosing it',
+      );
+    }
+    if (eligibility !== 'eligible') {
+      throw new ProjectError(
+        'PROJECT_REVIEWER_INVALID',
+        'Choose an agent in this project',
+      );
+    }
+  }
+  if (agentId === expectedId)
+    return { reviewer: projectTaskReviewerFromId(agentId) };
+  await tx`
+    UPDATE app.projects SET default_task_reviewer_agent_id = ${agentId},
+      updated_at_ms = ${Date.now()}
+    WHERE id = ${projectId} AND org_id = ${auth.organizationId}
+  `;
+  await createAuditLog(
+    tx,
+    projectAudit(auth, project, PROJECT_AUDIT_ACTIONS.updated, {
+      previousState: { taskReviewer: projectTaskReviewerFromId(expectedId) },
+      newState: { taskReviewer: args.reviewer },
+    }),
+  );
+  await hintProject(tx, auth.organizationId, projectId);
+  return { reviewer: args.reviewer };
+}
+
 export async function updateProjectInstructions(
   tx: TransactionSql,
   auth: ProjectAuthContext,
@@ -1237,6 +1302,16 @@ export async function deleteProject(
     closedReason: 'project_deleted',
   });
 
+  // The project's agents die with its row (FK cascade), and their
+  // workspaces with them once this commits.
+  const agents = await tx<{ id: string }[]>`
+    SELECT id FROM app.project_agents
+    WHERE org_id = ${auth.organizationId} AND project_id = ${args.projectId}
+  `;
+  await scheduleAgentWorkspaceRetirement(tx, {
+    organizationId: auth.organizationId,
+    agentIds: agents.map((agent) => agent.id),
+  });
   await tx`DELETE FROM app.projects WHERE id = ${args.projectId}`;
 
   await createAuditLog(
@@ -1328,6 +1403,10 @@ export interface ProjectAgentRow {
   tools: string[];
   secrets: string[];
   instructions: string | null;
+  /** The organization's standard agent (migration 0146): Tale created it
+   * and keeps its runtime, model and instructions in line with the
+   * `standard_agent` policy (`standard-agent.ts`), so nobody edits it here. */
+  managed: boolean;
   createdBy: string;
   createdAt: number;
   updatedAt: number;
@@ -1336,7 +1415,7 @@ export interface ProjectAgentRow {
 const PROJECT_AGENT_COLUMNS = `
   id, org_id AS "organizationId", project_id AS "projectId", name, harness,
   model, model_provider AS "modelProvider", skills, connectors, tools,
-  secrets, instructions, created_by AS "createdBy",
+  secrets, instructions, managed, created_by AS "createdBy",
   created_at_ms::float8 AS "createdAt", updated_at_ms::float8 AS "updatedAt"
 `;
 
@@ -1708,6 +1787,132 @@ export async function createProjectAgent(
   return agentId;
 }
 
+/** What the standard agent is made of (`standard-agent.ts` decides it). */
+export interface ManagedProjectAgentFields {
+  name: string;
+  harness: string;
+  model: string;
+  modelProvider: string;
+  skills: string[];
+  instructions: string;
+}
+
+/**
+ * Write the organization's standard agent into a project: the managed row,
+ * the project's agent count, the audit row and the hint, as
+ * `createProjectAgent` writes a person's agent. The gates are the caller's
+ * (`ensureStandardAgent`): it may be a Member handing work to a project, so
+ * no edit right is asked here. Two people handing work to the same project
+ * at once create one agent — the partial unique index (migration 0146)
+ * answers the second insert with nothing, and this answers the first's row.
+ */
+export async function insertManagedProjectAgent(
+  tx: TransactionSql,
+  auth: ProjectAuthContext,
+  project: { id: string; name: string },
+  fields: ManagedProjectAgentFields,
+): Promise<{ agentId: string; created: boolean }> {
+  const now = Date.now();
+  const inserted = await tx<{ id: string }[]>`
+    INSERT INTO app.project_agents (
+      org_id, project_id, name, harness, model, model_provider, skills,
+      connectors, tools, secrets, instructions, managed, created_by,
+      created_at_ms, updated_at_ms
+    ) VALUES (
+      ${auth.organizationId}, ${project.id}, ${fields.name},
+      ${fields.harness}, ${fields.model}, ${fields.modelProvider},
+      ${fields.skills}, ${[]}, ${[]}, ${[]}, ${fields.instructions}, true,
+      ${auth.userId}, ${now}, ${now}
+    )
+    ON CONFLICT (project_id) WHERE managed DO NOTHING
+    RETURNING id
+  `;
+  const agentId = inserted[0]?.id;
+  if (agentId === undefined) {
+    const standing = await tx<{ id: string }[]>`
+      SELECT id FROM app.project_agents
+      WHERE project_id = ${project.id} AND managed
+      LIMIT 1
+    `;
+    const existing = standing[0]?.id;
+    if (existing === undefined) {
+      throw new Error(
+        'PROJECT_AGENT_CREATE_FAILED: the standard agent insert answered no row and none stands',
+      );
+    }
+    return { agentId: existing, created: false };
+  }
+  await tx`
+    UPDATE app.projects SET
+      project_agent_count = project_agent_count + 1, updated_at_ms = ${now}
+    WHERE id = ${project.id}
+  `;
+  await createAuditLog(
+    tx,
+    projectAudit(auth, project, PROJECT_AUDIT_ACTIONS.agentsChanged, {
+      newState: {
+        name: fields.name,
+        harness: fields.harness,
+        model: fields.model,
+        skills: fields.skills,
+      },
+      metadata: { op: 'create', projectAgentId: agentId, managed: true },
+    }),
+  );
+  await hintProject(tx, auth.organizationId, project.id);
+  return { agentId, created: true };
+}
+
+/**
+ * Bring a standard agent's stored settings in line with what the policy
+ * resolved for a run (`standard-agent.ts`) and with the document skills its
+ * project can equip now, so its row — the Agents tab, the run card, the
+ * next run's resume plan, the launch's skill staging — says what actually
+ * runs: a skill an admin since disabled is dropped rather than failing
+ * every start of an agent nobody can edit. Writes
+ * only on a difference, and no audit row: this is the organization's own
+ * setting applied, not a person's edit (the policy save audits that).
+ *
+ * Never waits for the row. The kick calling this already holds the task's
+ * lock, while a delegated start takes the agent's before the task's
+ * (`delegated-start.ts`): waiting here could close that circle. A row
+ * another start holds is skipped; the run itself carries what resolved, and
+ * the next start writes the row.
+ */
+export async function alignManagedProjectAgent(
+  tx: TransactionSql,
+  agent: {
+    id: string;
+    organizationId: string;
+    projectId: string;
+  },
+  fields: Pick<
+    ManagedProjectAgentFields,
+    'harness' | 'model' | 'modelProvider' | 'skills' | 'instructions'
+  >,
+): Promise<boolean> {
+  const changed = await tx<{ id: string }[]>`
+    UPDATE app.project_agents SET
+      harness = ${fields.harness}, model = ${fields.model},
+      model_provider = ${fields.modelProvider}, skills = ${fields.skills},
+      instructions = ${fields.instructions}, updated_at_ms = ${Date.now()}
+    WHERE id = (
+      SELECT id FROM app.project_agents
+      WHERE id = ${agent.id} AND managed
+        AND (harness IS DISTINCT FROM ${fields.harness}
+          OR model IS DISTINCT FROM ${fields.model}
+          OR model_provider IS DISTINCT FROM ${fields.modelProvider}
+          OR skills IS DISTINCT FROM ${fields.skills}
+          OR instructions IS DISTINCT FROM ${fields.instructions})
+      FOR UPDATE SKIP LOCKED
+    )
+    RETURNING id
+  `;
+  if (changed.length === 0) return false;
+  await hintProject(tx, agent.organizationId, agent.projectId);
+  return true;
+}
+
 export async function updateProjectAgent(
   tx: TransactionSql,
   auth: ProjectAuthContext,
@@ -1752,6 +1957,16 @@ export async function updateProjectAgent(
   }
   const project = await loadProjectOrThrow(tx, agent.projectId);
   assertAgentWritable(project, auth);
+  if (agent.managed) {
+    // Its settings are the organization's: a hand edit would be undone at
+    // the next start (`standard-agent.ts`), so it is refused instead — to
+    // whoever may edit the project's agents; anyone else hears the gate.
+    throw new ProjectError(
+      'PROJECT_AGENT_MANAGED',
+      "This is the organization's standard agent: its runtime, model and instructions follow the organization's settings, which an Owner or Admin changes under Governance",
+      409,
+    );
+  }
   const fields = validateProjectAgentFields(args);
   await assertAgentEquipment(tx, auth, agent.projectId, fields, {
     skills: agent.skills,
@@ -1857,6 +2072,12 @@ export async function deleteProjectAgent(
   assertAgentWritable(project, auth);
 
   await tx`DELETE FROM app.project_agents WHERE id = ${agentId}`;
+  // Its workspaces — the standing one and every member's — go once this
+  // commits: nothing can run the agent again to use them.
+  await scheduleAgentWorkspaceRetirement(tx, {
+    organizationId: auth.organizationId,
+    agentIds: [agentId],
+  });
   // The docs' promise, kept in the same transaction: no task stays "assigned"
   // to a row that is gone (the board showed the raw id, Retry re-kicked an
   // agent that could not exist). History — runs, comments, activity — stays.

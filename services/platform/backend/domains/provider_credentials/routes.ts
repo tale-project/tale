@@ -20,6 +20,7 @@ import { parseNativeJsonBody } from '../../lib/native-json-body.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { requeueEmbeddingBlockedDocuments } from '../knowledge/service.ts';
 import { deleteProviderDefinition } from '../providers/config.ts';
+import { websitesAfterEmbeddingChange } from '../websites/service.ts';
 import { updateCredentialWithDefinition } from './custom-provider-edit.ts';
 import {
   CredentialAdminError,
@@ -144,11 +145,17 @@ export function createProviderCredentialRoutes(deps: {
    * until someone retried each one by hand. After the credential's own
    * commit, and best-effort: the save stands either way, and a document
    * left behind keeps its Retry.
+   *
+   * The websites follow the same way: a scan that ended on "the embedding
+   * model couldn't process the pages" names this credential too, so the
+   * sites whose scan failed or whose pages still lack vectors are scanned
+   * again, and the Websites page reads again whether search reaches them.
    */
   async function requeueEmbeddingBlocked(
     scope: CredentialScope,
     credentialId: string,
   ): Promise<void> {
+    let resolvedByEmbedding = false;
     try {
       const { usedBy } = await credentialDependents(
         deps.sql,
@@ -156,6 +163,7 @@ export function createProviderCredentialRoutes(deps: {
         credentialId,
       );
       if (!usedBy.includes('embedding')) return;
+      resolvedByEmbedding = true;
       const { requeued } = await requeueEmbeddingBlockedDocuments(deps.sql, {
         organizationId: scope.organizationId,
       });
@@ -167,6 +175,25 @@ export function createProviderCredentialRoutes(deps: {
     } catch (error) {
       console.warn(
         '[provider-credentials] could not re-queue the documents that failed on the embedding model:',
+        error instanceof Error ? error.message : error,
+      );
+    }
+    // The documents' trouble is not the websites': they follow either way.
+    if (!resolvedByEmbedding) return;
+    try {
+      const { queued } = await websitesAfterEmbeddingChange(
+        deps.sql,
+        scope.organizationId,
+        'saved',
+      );
+      if (queued > 0) {
+        console.info(
+          `[provider-credentials] the embedding model's credential changed: queued a scan of ${queued} website(s)`,
+        );
+      }
+    } catch (error) {
+      console.warn(
+        '[provider-credentials] the websites could not follow the embedding credential:',
         error instanceof Error ? error.message : error,
       );
     }

@@ -72,6 +72,18 @@ Bei **Nicht unterstützt** gibt es keine Wiederholungsaktion: Dieselben Dateiinh
 
 </Frame>
 
+## Wenn die Dokumente nicht geladen werden
+
+**Dokumente** listet Ordner und Dokumente aus zwei getrennten Abrufen auf. Lassen sich die Dokumente nicht laden, gibt Tale die Ordner nicht als den ganzen Inhalt aus:
+
+- Die Ordner bleiben in der Liste, und du kannst sie weiter öffnen. Ein Hinweis über der Tabelle sagt, dass die Dokumente nicht geladen werden konnten, und bietet **Erneut versuchen** an. Das wiederholt den Abruf, ohne dass du die Seite neu laden musst.
+- Die Anzahl unter der Tabelle sagt, dass nur die ersten Einträge angezeigt werden und der Rest nicht geladen werden konnte. Eine Suche umfasst nur, was aufgelistet ist.
+- Waren bereits Dokumente zu sehen, als eine Aktualisierung fehlschlug, bleiben sie stehen, und der Hinweis sagt, dass die Liste unvollständig oder veraltet sein kann.
+- Während du es erneut versuchst, bleiben die Zeilen sichtbar, und deine Suche, deine Filter und ein geöffneter Dialog bleiben erhalten.
+- Lässt sich gar nichts laden, zeigt die Tabelle statt des leeren Zustands den Fehler mit **Erneut versuchen**.
+
+Ein Ordner, der wirklich keine Dokumente enthält, zeigt seine Unterordner ohne Hinweis. Scheitert **Erneut versuchen** immer wieder, bitte einen Administrator zu prüfen, ob die Dienste von Tale laufen.
+
 ## Festlegen, wer das Dokument lesen kann
 
 Bibliotheksdokumente sind standardmäßig **Organisationsweit** zugänglich. Begrenze den Zugriff über **Team zuweisen** im Zeilenmenü auf die gewählten Teams: Die Mitglieder eines dieser Teams können das Dokument lesen, Inhaber und Admins immer. Sofern du nicht Inhaber oder Admin bist, kannst du nur Teams wählen, denen du selbst angehörst. Ein Dokument in einem Team-Ordner übernimmt die Teams des Ordners und kann kein Team außerhalb davon nennen; wird ein Dokument in einen solchen Ordner verschoben, gelten die Teams des Ordners. Diese Beschränkungen gelten auch bei der Wissenssuche. Ein Agent kann unzugängliche Dokumente nicht über die Suche sichtbar machen.
@@ -98,6 +110,12 @@ Ein neuer Ordnerabgleich kann auch einen früheren Import umordnen. Ist dieselbe
 Bei Microsoft 365 stehen **Mein OneDrive** und **SharePoint-Websites** zur Wahl. Die Synchronisierung unterstützt persönliche OneDrive-Ordner; SharePoint wird einmalig importiert. Wähle bei Google Drive aus Mein Drive. Native Google Docs, Tabellen und Präsentationen werden übersprungen. Exportiere sie zuerst als PDF oder Office-Dateien.
 
 Ist ein Ordner zu groß für eine vollständige Auflistung, lehnt Tale den Import ab. Wähle kleinere Unterordner oder nutze die Synchronisierung, soweit unterstützt. Wird der ausgewählte Quellordner oder die Quelldatei gelöscht, entfernt Tale das Abbild und beendet die Synchronisierung.
+
+Am Ende eines Imports meldet ein Hinweis das Ergebnis. **Import abgeschlossen** zählt die Dateien, die dieser Import übernommen hat, zusammen mit denen, die ein früherer Import schon unverändert übernommen hatte. Konnten nicht alle Dateien importiert werden, erscheint stattdessen eine Warnung wie **3 von 4 Dateien importiert**. Hat die erste fehlgeschlagene Datei einen Grund, den Tale anzeigen kann, etwa eine Datei über der Upload-Grenze, nennt die Warnung diese Datei und den Grund. Konnte keine Datei importiert werden, lautet der Hinweis **Import fehlgeschlagen**. Wenn die Dateiauswahl noch offen ist, importiere erneut, um die fehlgeschlagenen Dateien noch einmal zu versuchen. Bereits importierte Dateien werden übersprungen.
+
+Endet der Zugriff auf dein Microsoft-365- oder Google-Drive-Konto während eines Imports, etwa weil die Verbindung getrennt wurde oder abgelaufen ist, öffnet Tale statt eines Hinweises **Microsoft 365 erneut verbinden** oder **Google Drive erneut verbinden**, solange die Dateiauswahl noch offen ist. Der Dialog sagt, wie viele Dateien bis dahin importiert wurden; diese Dateien bleiben erhalten. Verbinde dein Konto erneut und importiere dann dieselben Dateien oder Ordner noch einmal, um den Rest zu holen. Bereits importierte Dateien werden nicht doppelt importiert.
+
+Wenn du die Dateiauswahl schließt, läuft ein bereits gestarteter Import weiter. Sein Ergebnis erscheint als Hinweis. Eine später geöffnete Dateiauswahl bleibt mit deiner neuen Auswahl erhalten. Ist der Zugriff abgelaufen, öffne den Import erneut, um dein Konto wieder zu verbinden.
 
 Eine Synchronisierung läuft etwa alle 15 Minuten über das Konto des Mitglieds, das sie eingerichtet hat. Eine an der Quelle hinzugefügte Datei erscheint innerhalb dieses Zeitfensters in ihrem Ordner und wird dann wie ein Upload indexiert. Erreicht ein Durchlauf die Quelle nicht, ersetzt die Zelle **Quelle** der Ordnerzeile die Kreispfeile durch ein rotes Warnzeichen mit dem Hinweis **Sync-Fehler** — oder durch einen roten gezogenen Stecker mit dem Hinweis **Neu verbinden**, wenn die Microsoft-365- oder Google-Drive-Verbindung dieses Mitglieds abgelaufen ist. Das Symbol öffnet die Ursache, den Beginn der Fehlschläge und das Konto, über das die Synchronisierung läuft; die bisher synchronisierten Dateien bleiben erhalten. Das Mitglied wird außerdem über die Glocke und per E-Mail benachrichtigt: bei einer abgelaufenen Verbindung sofort, sonst sobald die Synchronisierung eine Stunde lang fehlschlägt. Verbindet es das Konto erneut — der Dialog bietet das diesem Mitglied an —, läuft die Synchronisierung beim nächsten Durchlauf weiter. Jedes Mitglied, das Dokumente importieren darf, kann stattdessen einen neuen Synchronisierungsimport desselben Elements starten und die Synchronisierung über das eigene Konto übernehmen. Der Hinweis verschwindet mit dem nächsten erfolgreichen Durchlauf.
 

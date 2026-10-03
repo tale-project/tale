@@ -84,8 +84,11 @@ async function lifecycleLocked<T>(
   return outcome;
 }
 
-/** Wait for the session's lifecycle lock, then run `work` under it. */
-async function withSessionLifecycleLock<T>(
+/** Wait for the session's lifecycle lock, then run `work` under it. Every
+ * spawner-facing transition of one session — Destroy, pin, the reconcile's
+ * recreate, the workspace cleanup's retire — holds it through its remote
+ * call and row commit. */
+export async function withSessionLifecycleLock<T>(
   sql: Sql,
   args: SessionArgs,
   work: (sessionSql: Sql) => Promise<T>,
@@ -97,32 +100,49 @@ async function withSessionLifecycleLock<T>(
   return locked.value;
 }
 
-/** Authorize before contacting the spawner; settle the row only after it
- * confirms destruction or absence. Failures leave it retryable, and unpinned
- * on both sides. */
+/** The Sandboxes page's Destroy, as its `sandbox.destroy_session` job runs
+ * it (`destroy-schedule.ts`). Authorize before contacting the spawner;
+ * settle the row only after it confirms destruction or absence. Failures
+ * throw, for the job's retry, and leave the row unpinned on both sides.
+ *
+ * `rowId` names the incarnation the Destroy was asked for. A retry can run
+ * long after the request: by then that row may have been settled another
+ * way (the reconcile heals a row whose container is gone) and a turn may
+ * have opened a fresh incarnation under the same deterministic id. That one
+ * is not this Destroy's to remove, so the teardown leaves it alone. A turn
+ * cannot have resumed the row it names in between: a pending Destroy closes
+ * its row to admission (`destroy-schedule.ts`), since a resume keeps the
+ * row id this check reads. */
 export async function teardownSession(
   sql: Sql,
-  args: SessionArgs,
+  args: SessionArgs & { rowId?: string },
   destroy: (sessionId: string) => Promise<boolean> = sessionDestroy,
   setPinned: (
     sessionId: string,
     pinned: boolean,
   ) => Promise<boolean> = sessionSetPinned,
 ): Promise<boolean> {
-  return withSessionLifecycleLock(sql, args, async (sessionSql) => {
+  const { rowId, ...sessionArgs } = args;
+  return withSessionLifecycleLock(sql, sessionArgs, async (sessionSql) => {
     const session = await getSessionBySessionId(
       sessionSql,
-      args.organizationId,
-      args.sessionId,
+      sessionArgs.organizationId,
+      sessionArgs.sessionId,
     );
     if (session === null) return false;
+    if (
+      rowId !== undefined &&
+      (session.id !== rowId || session.status === 'destroyed')
+    ) {
+      return false;
+    }
     // Persist the no-recreate intent BEFORE an irreversible remote delete.
     // A lost response or a later database failure leaves a visible unpinned
     // row to retry/heal, never authority to recreate a wiped workspace. Only
     // a pinned row is written: an unpin restarts the row's lifetime, which a
     // failed Destroy must not hand an unpinned session.
     if (session.pinned) {
-      await setSessionPinned(sessionSql, { ...args, pinned: false });
+      await setSessionPinned(sessionSql, { ...sessionArgs, pinned: false });
     }
     // Drop the spawner's own pin as well, best-effort. The reconcile only
     // ever pushes a pin, never an unpin, so a pin left on a container that
@@ -131,15 +151,15 @@ export async function teardownSession(
     // every row: a failed Unpin can leave the spawner pinned under an
     // unpinned one.
     try {
-      await setPinned(args.sessionId, false);
+      await setPinned(sessionArgs.sessionId, false);
     } catch (error) {
       console.warn(
-        `[sandbox] spawner unpin before destroying ${args.sessionId} failed:`,
+        `[sandbox] spawner unpin before destroying ${sessionArgs.sessionId} failed:`,
         error,
       );
     }
-    await destroy(args.sessionId);
-    return markSessionDestroyed(sessionSql, args);
+    await destroy(sessionArgs.sessionId);
+    return markSessionDestroyed(sessionSql, sessionArgs);
   });
 }
 

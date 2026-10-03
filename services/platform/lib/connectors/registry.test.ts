@@ -39,6 +39,9 @@ describe('connector registry', () => {
     // Platform capabilities are connectors too — the mail packs call this one.
     expect(loaded.nodeTypes).toContain('conversation.sync_mailbox');
     expect(loaded.nodeTypes).toContain('conversation.list_mailbox_messages');
+    // The triage packs read the Inbox and stamp their verdicts on it.
+    expect(loaded.nodeTypes).toContain('conversation.list_untriaged');
+    expect(loaded.nodeTypes).toContain('conversation.record_triage');
     // A drafted reply is a platform capability too, and a decision is one call.
     expect(loaded.nodeTypes).toContain('conversation.draft_reply');
     expect(loaded.nodeTypes).toContain('jev.decide');

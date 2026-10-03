@@ -6,7 +6,9 @@ import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
 import { resolveSurfaceMentions } from '../collab/mention-directory.ts';
 import { notifyTaskMentions } from '../collab/service.ts';
 import { loadProjectOrThrow, type ProjectRow } from '../projects/service.ts';
+import { readStandardAgentAvailability } from '../projects/standard-agent.ts';
 import { kickAgentRun } from './agent-runs.ts';
+import { TaskError } from './errors.ts';
 import { requestTaskReview } from './reviews.ts';
 import {
   createTask,
@@ -42,13 +44,26 @@ vi.mock('./reviews.ts', () => ({
   requestTaskReview: vi.fn(),
   retargetPendingTaskReview: vi.fn(),
 }));
-vi.mock('./agent-runs.ts', () => ({
-  cancelAgentRunInTx: vi.fn(),
-  kickAgentRun: vi.fn(),
-}));
+vi.mock('./agent-runs.ts', async () => {
+  const errors = await import('./errors.ts');
+  return {
+    cancelAgentRunInTx: vi.fn(),
+    kickAgentRun: vi.fn(),
+    isStandardAgentRefusal: (error: unknown) =>
+      error instanceof errors.TaskError &&
+      (error.code === 'STANDARD_AGENT_OFF' ||
+        error.code === 'STANDARD_AGENT_UNAVAILABLE'),
+  };
+});
 vi.mock('../projects/service.ts', () => ({
   listProjects: vi.fn(),
   loadProjectOrThrow: vi.fn(),
+}));
+vi.mock('../projects/standard-agent.ts', () => ({
+  readStandardAgentAvailability: vi.fn(async () => ({
+    enabled: true,
+    available: true,
+  })),
 }));
 
 /**
@@ -86,6 +101,7 @@ const project: ProjectRow = {
   openTaskCount: 1,
   doneTaskCount: 0,
   projectAgentCount: 1,
+  defaultTaskReviewerAgentId: null,
   teamId: null,
   sharedWithTeamIds: [],
   teamIds: [],
@@ -123,6 +139,7 @@ function taskRow(overrides: Partial<TaskRow> = {}): TaskRow {
     assigneeType: null,
     assigneeId: null,
     reviewerUserId: null,
+    reviewerAgentId: null,
     parentTaskId: null,
     commentCount: 0,
     rank: 'a0',
@@ -229,9 +246,19 @@ function fakeTx(task: TaskRow, state: { liveRun?: LiveRun } = {}) {
   const tx = Object.assign(tag, {
     json: (value: unknown) => ({ json: value }),
     unsafe: (text: string): unknown => text,
+    // A savepoint that throws takes back what it wrote, as Postgres does.
+    savepoint: async (body: (sp: typeof tag) => Promise<unknown>) => {
+      const mark = statements.length;
+      try {
+        return await body(tag);
+      } catch (error) {
+        statements.length = mark;
+        throw error;
+      }
+    },
   });
   return {
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a three-member stand-in for the postgres.js transaction function
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a four-member stand-in for the postgres.js transaction function
     tx: tx as unknown as TransactionSql,
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the same stand-in for a read outside a transaction
     sql: tx as unknown as Sql,
@@ -333,6 +360,40 @@ describe('createTask — description @mentions fan out', () => {
       'feedback',
     );
     expect(movedToInProgress(statements)).toHaveLength(1);
+  });
+
+  it('creates the task with a plain mention when the standard agent refuses its author', async () => {
+    resolvesTo([WRITER_MENTION]);
+    vi.mocked(kickAgentRun).mockRejectedValueOnce(
+      new TaskError(
+        'STANDARD_AGENT_OFF',
+        'The standard agent is switched off',
+        403,
+      ),
+    );
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { tx, statements } = fakeTx(taskRow({ id: 't-new' }));
+
+    await createTask(tx, auth, {
+      projectId: 'p-1',
+      title: 'Draft the overview',
+      description: '@writer: draft a one-page overview',
+    });
+
+    // The task is written; the reassignment went back with the refused
+    // kick, and the card was not moved.
+    expect(
+      statements.some((statement) =>
+        statement.text.startsWith('INSERT INTO app.tasks'),
+      ),
+    ).toBe(true);
+    expect(kickAgentRun).toHaveBeenCalledTimes(1);
+    expect(assigned(statements)).toHaveLength(0);
+    expect(movedToInProgress(statements)).toHaveLength(0);
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('stays a plain mention (STANDARD_AGENT_OFF)'),
+    );
+    warn.mockRestore();
   });
 
   it('leaves a card born In progress with the run its assignee was given', async () => {
@@ -579,6 +640,31 @@ describe('updateTask — only the mentions an edit adds fan out', () => {
     expect(kickAgentRun).not.toHaveBeenCalled();
     expect(assigned(statements)).toEqual([]);
     expect(movedToInProgress(statements)).toEqual([]);
+  });
+
+  it('previews that the standard agent will not answer someone it cannot start for', async () => {
+    // The fake answers every agent lookup with the writer: here it stands
+    // for the project's standard agent, which cannot start for this person.
+    vi.mocked(readStandardAgentAvailability).mockResolvedValueOnce({
+      enabled: true,
+      available: false,
+      refusal: 'pin-unavailable',
+    });
+    const { sql } = fakeTx(taskRow({ id: 't-1' }));
+
+    await expect(
+      mentionTriggerPreview(sql, auth, { taskId: 't-1', slugs: [WRITER.id] }),
+    ).resolves.toEqual([
+      {
+        slug: WRITER.id,
+        willTrigger: false,
+        reason: 'standard_agent_unavailable',
+      },
+    ]);
+    expect(readStandardAgentAvailability).toHaveBeenCalledWith(sql, {
+      organizationId: 'org-1',
+      userId: 'u-owner',
+    });
   });
 
   it('steers the running agent it newly names with the edited description', async () => {

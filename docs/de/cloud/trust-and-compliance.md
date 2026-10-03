@@ -3,7 +3,7 @@ title: Sicherheit und Compliance
 description: Zertifizierungen einordnen, Zuständigkeiten klären und Nachweise für eine Sicherheitsprüfung sammeln.
 ---
 
-Tale verfügt über Zertifizierungen nach ISO/IEC 27001 und SOC 2 Type II. Fordere für eine Sicherheitsprüfung die passenden Zertifikate, den Geltungsbereich der Berichte und ergänzende Unterlagen bei deinem Tale-Kontakt an. Verwende die Nachweise für den Dienst, den deine Organisation bezieht.
+Ruler GmbH, das Unternehmen hinter Tale, ist nach ISO/IEC 27001 zertifiziert. Die Zertifizierung umfasst das Tale-Enterprise-Angebot und die Dienstleistungen des Unternehmens. Fordere für eine Sicherheitsprüfung das gültige Zertifikat, seinen Geltungsbereich und die Nachweise für den von deiner Organisation bezogenen Dienst bei deinem Tale-Kontakt an.
 
 Die Produktkontrollen unterstützen eure Prozesse. Ob ein Einsatz eure Anforderungen erfüllt, hängt auch von der Konfiguration, den angebundenen Anbietern und den betrieblichen Abläufen ab.
 

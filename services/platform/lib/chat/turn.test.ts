@@ -26,6 +26,7 @@ import {
   TURN_STEPS,
   type ModelCall,
   type ModelCallRequest,
+  type ModelStreamChunk,
   type TurnDeps,
   type TurnRequest,
   type TurnStore,
@@ -33,6 +34,7 @@ import {
 } from './turn';
 import {
   estimateJsonTokens,
+  estimateTokens,
   type ChatMessage,
   type MessagePart,
 } from './types';
@@ -56,7 +58,12 @@ function harness(
     credentialEnvKeys: ['TALE_GATEWAY_TOKEN'],
     modelIdDialect: 'vendor-native',
     promptTransport: 'stdin-ndjson',
-    capabilities: { planMode: false, steering: false, mcp: false },
+    capabilities: {
+      planMode: false,
+      steering: false,
+      mcp: false,
+      resume: false,
+    },
     parser: 'hermes-jsonl',
     exec: {
       bin: 'test-harness',
@@ -881,6 +888,30 @@ describe('runTurn — input guardrails', () => {
 });
 
 describe('runTurn — execution resolution', () => {
+  it('refuses a Responses-only tool model before native chat calls the provider', async () => {
+    const model = vi.fn();
+    const d = deps({ model: model as unknown as ModelCall });
+    const outcome = await runTurn(
+      request({
+        model: { ...MODEL, toolCallingApi: 'responses' },
+        executionMode: 'direct',
+      }),
+      d.deps,
+    );
+    expect(outcome).toMatchObject({
+      status: 'refused',
+      step: 'resolve-execution',
+      reason: expect.stringContaining('Responses'),
+    });
+    expect(model).not.toHaveBeenCalled();
+    expect(d.store.ops).toEqual(['appendMessage', 'appendMessage']);
+    expect(d.store.appended.at(-1)).toMatchObject({
+      role: 'assistant',
+      blockedReason: expect.stringContaining('Responses'),
+    });
+    expect(d.usage).toEqual([]);
+  });
+
   it('refuses before the model call when the credential forbids the mode', async () => {
     const model = vi.fn();
     const d = deps({ model: model as unknown as ModelCall });
@@ -2214,5 +2245,274 @@ describe('a reply with no text settles without a text part', () => {
     const d = deps({ model: nothing });
     await runTurn(request(), d.deps);
     expect(d.store.finalized[0]?.parts).toEqual([]);
+  });
+});
+
+/**
+ * A failure does not undo what a turn consumed. A provider that fails INSIDE
+ * a stream it opened (an error event, a stall, a dropped connection) had read
+ * the prompt and written part of an answer; the rounds before it finished
+ * whole. Both are booked, once, and stamped on the failed reply. A request
+ * the provider turned away before its stream opened consumed nothing.
+ */
+describe('runTurn — a failed turn books what it consumed', () => {
+  const OVERLOADED =
+    'The model provider ended the reply with an error: Overloaded';
+
+  /** A provider that accepts the request, streams, then fails. */
+  function failingAfter(
+    chunks: readonly ModelStreamChunk[],
+    options: { accept?: boolean } = {},
+  ): ModelCall {
+    return async function* stream(call) {
+      if (options.accept !== false) call.onAccepted?.();
+      for (const chunk of chunks) yield chunk;
+      throw new Error(OVERLOADED);
+    };
+  }
+
+  it('books the usage a round reported before the provider failed', async () => {
+    // The healthy control first: 100 in, 5 out books 105.
+    const healthy = deps({
+      model: async function* stream(call) {
+        call.onAccepted?.();
+        yield { text: 'Return it within ' };
+        yield {
+          text: '',
+          usage: { inputTokens: 100, outputTokens: 5, totalTokens: 105 },
+        };
+      },
+    });
+    await runTurn(request(), healthy.deps);
+    expect(healthy.usage).toMatchObject([
+      { inputTokens: 100, outputTokens: 5, totalTokens: 105 },
+    ]);
+
+    // The same text and usage, then an error on the stream: still 105.
+    const d = deps({
+      model: failingAfter([
+        { text: 'Return it within ' },
+        {
+          text: '',
+          usage: { inputTokens: 100, outputTokens: 5, totalTokens: 105 },
+        },
+      ]),
+    });
+    const outcome = await runTurn(request(), d.deps);
+    expect(outcome).toMatchObject({ status: 'refused', step: 'stream' });
+    expect(d.usage).toEqual([
+      expect.objectContaining({
+        organizationId: ORG,
+        userId: 'user_1',
+        inputTokens: 100,
+        outputTokens: 5,
+        totalTokens: 105,
+      }),
+    ]);
+    // The failed reply carries the same figures, reported, not estimated.
+    const settled = d.store.finalized.at(-1);
+    expect(decodeChatError(settled?.error as string).raw).toBe(OVERLOADED);
+    expect(settled?.usage).toEqual({
+      inputTokens: 100,
+      outputTokens: 5,
+      totalTokens: 105,
+    });
+  });
+
+  it('estimates the side a failed round never reported', async () => {
+    // An Anthropic stream reports its input on `message_start`; output
+    // arrives only on the closing delta the failure cut off.
+    const d = deps({
+      model: failingAfter([
+        {
+          text: '',
+          usage: { inputTokens: 100, outputTokens: 0, totalTokens: 100 },
+        },
+        { text: 'x'.repeat(40) },
+      ]),
+    });
+    await runTurn(request(), d.deps);
+    const output = estimateTokens('x'.repeat(40));
+    expect(output).toBeGreaterThan(0);
+    expect(d.usage).toMatchObject([
+      { inputTokens: 100, outputTokens: output, totalTokens: 100 + output },
+    ]);
+    expect(d.store.finalized.at(-1)?.usage).toMatchObject({
+      inputTokens: 100,
+      outputTokens: output,
+      estimated: true,
+    });
+  });
+
+  it('books the prompt of a round the provider accepted and failed before any word', async () => {
+    const d = deps({ model: failingAfter([]) });
+    await runTurn(request(), d.deps);
+    expect(d.usage).toHaveLength(1);
+    const [booked] = d.usage;
+    expect(booked?.inputTokens).toBeGreaterThan(0);
+    expect(booked?.outputTokens).toBe(0);
+    expect(d.store.finalized.at(-1)?.usage).toMatchObject({
+      inputTokens: booked?.inputTokens,
+      outputTokens: 0,
+      estimated: true,
+    });
+  });
+
+  it('books nothing for a refusal the provider reports on its stream before any answer', async () => {
+    // OpenRouter commits its 200 early, while it waits on the upstream; the
+    // upstream's 429 then arrives on the stream. It turned the request away
+    // exactly like the same status sent as an HTTP answer.
+    const refusedOnStream: ModelCall = async function* stream(call) {
+      call.onAccepted?.();
+      yield* [];
+      throw Object.assign(
+        new Error(
+          'The model provider ended the reply with an error: Rate limit exceeded upstream (429)',
+        ),
+        { status: 429 },
+      );
+    };
+    const d = deps({ model: refusedOnStream });
+    const outcome = await runTurn(request(), d.deps);
+    expect(outcome).toMatchObject({ status: 'refused', step: 'stream' });
+    expect(d.usage).toEqual([]);
+    expect(d.store.finalized.at(-1)).not.toHaveProperty('usage');
+  });
+
+  it('books a stream failure that is no refusal, and a refusal that came after words', async () => {
+    // A provider fault on the stream (502) after it accepted the request:
+    // the prompt was read.
+    const broke = deps({
+      model: async function* stream(call) {
+        call.onAccepted?.();
+        yield* [];
+        throw Object.assign(new Error(OVERLOADED), { status: 502 });
+      },
+    });
+    await runTurn(request(), broke.deps);
+    expect(broke.usage).toHaveLength(1);
+    expect(broke.usage[0]?.inputTokens).toBeGreaterThan(0);
+    // A refusal status after the model had already written: consumed.
+    const late = deps({
+      model: async function* stream(call) {
+        call.onAccepted?.();
+        yield { text: 'x'.repeat(40) };
+        throw Object.assign(new Error(OVERLOADED), { status: 429 });
+      },
+    });
+    await runTurn(request(), late.deps);
+    expect(late.usage).toMatchObject([
+      { outputTokens: estimateTokens('x'.repeat(40)) },
+    ]);
+  });
+
+  it('books nothing for a request refused before its stream opened', async () => {
+    // An HTTP status refusal (a 429 before the stream) never accepts.
+    const refused: ModelCall = (call) => {
+      void call;
+      return (async function* stream() {
+        yield* [];
+        throw Object.assign(
+          new Error('The model provider answered 429: slow down'),
+          { status: 429 },
+        );
+      })();
+    };
+    const d = deps({ model: refused });
+    const outcome = await runTurn(request(), d.deps);
+    expect(outcome).toMatchObject({ status: 'refused', step: 'stream' });
+    expect(d.usage).toEqual([]);
+    expect(d.store.finalized.at(-1)).not.toHaveProperty('usage');
+  });
+
+  describe('after a finished tool round', () => {
+    const TOOL_ROUND_USAGE = {
+      inputTokens: 100,
+      outputTokens: 10,
+      totalTokens: 110,
+    };
+    const executor: ChatToolExecutor = {
+      wireTools: [
+        {
+          name: 'rag_search',
+          description: 'Search the knowledge.',
+          parameters: { type: 'object' },
+        },
+      ],
+      execute: () => Promise.resolve({ status: 'ok', results: [] }),
+    };
+    /** Round 1 finishes with a tool call; round 2 runs `second`. */
+    function toolRoundThen(second: ModelCall): ModelCall {
+      let round = 0;
+      return (call) => {
+        round += 1;
+        if (round > 1) return second(call);
+        return (async function* stream() {
+          call.onAccepted?.();
+          yield { text: 'Let me check. ' };
+          yield {
+            text: '',
+            usage: TOOL_ROUND_USAGE,
+            toolCalls: [
+              { id: 'call_1', name: 'rag_search', input: { query: 'returns' } },
+            ],
+          };
+        })();
+      };
+    }
+
+    it('keeps the finished round and the failed one', async () => {
+      const d = deps({
+        tools: executor,
+        model: toolRoundThen(
+          failingAfter([
+            { text: 'Found ' },
+            {
+              text: '',
+              usage: { inputTokens: 150, outputTokens: 8, totalTokens: 158 },
+            },
+          ]),
+        ),
+      });
+      await runTurn(request(), d.deps);
+      expect(d.usage).toMatchObject([
+        { inputTokens: 250, outputTokens: 18, totalTokens: 268 },
+      ]);
+    });
+
+    it('keeps the finished round when the next request is refused before its stream', async () => {
+      const d = deps({
+        tools: executor,
+        model: toolRoundThen(failingAfter([], { accept: false })),
+      });
+      await runTurn(request(), d.deps);
+      expect(d.usage).toEqual([
+        expect.objectContaining({
+          inputTokens: 100,
+          outputTokens: 10,
+          totalTokens: 110,
+        }),
+      ]);
+      expect(d.store.finalized.at(-1)?.usage).toEqual(TOOL_ROUND_USAGE);
+    });
+  });
+
+  it('books a turn once when its settle fails after the ledger', async () => {
+    const { store, calls } = fakeStore();
+    let settles = 0;
+    const flaky: TurnStore = {
+      ...store,
+      finalizeAssistantMessage(message) {
+        settles += 1;
+        if (settles === 1) return Promise.reject(new Error('settle lost'));
+        return store.finalizeAssistantMessage(message);
+      },
+    };
+    const d = deps({ store: flaky });
+    const outcome = await runTurn(request(), d.deps);
+    // The completion's own booking stands; the failure settle adds none.
+    expect(outcome).toMatchObject({ status: 'refused', reason: 'settle lost' });
+    expect(d.usage).toHaveLength(1);
+    expect(calls.finalized.at(-1)).not.toHaveProperty('usage');
   });
 });

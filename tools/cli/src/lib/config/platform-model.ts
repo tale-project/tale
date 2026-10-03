@@ -57,7 +57,8 @@ export const platformResourceSchema = z.union([
   z.strictObject({
     kind: z.literal('knowledge-embedding'),
     // The platform keeps a stored similarity floor or serving limit
-    // (`minSimilarity`, `maxConcurrentRequests`, `minTokensPerSecond`) when
+    // (`minSimilarity`, `maxConcurrentRequests`, `minTokensPerSecond`,
+    // `maxTokensPerMinute`, `maxRequestsPerMinute`) when
     // a save omits it and clears it only on an explicit null (the Settings
     // form never carries them) — so the declaration speaks the same three
     // ways: a value sets it, `null` clears it, omitted leaves what is stored.
@@ -326,7 +327,8 @@ export function sameEmbeddingModel(declared: object, current: unknown) {
  * platform's own terms rather than never at all.
  *
  * Every resource compares whole, except the embedding's kept settings
- * (`minSimilarity`, `maxConcurrentRequests`, `minTokensPerSecond`): the
+ * (`minSimilarity`, `maxConcurrentRequests`, `minTokensPerSecond`,
+ * `maxTokensPerMinute`, `maxRequestsPerMinute`): the
  * platform keeps a stored one when the write omits it and clears it on an
  * explicit null, so a declaration that omits one converges with ANY stored
  * value, one that declares `null` converges only once none is stored, and a

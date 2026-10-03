@@ -1,6 +1,6 @@
 # Knowledge
 
-> **Prefix** `KNOW-` · **Reset** none · **Cost** 55 boxes
+> **Prefix** `KNOW-` · **Reset** none · **Cost** 65 boxes
 
 Exercise the knowledge surfaces — documents (upload + RAG indexing + preview +
 controlled revisions), manual knowledge entries, and the structured catalogs
@@ -303,20 +303,32 @@ records and delete them after.
   whose table badge is **Error** (`websites.filter.status.error`) after a
   scan that never started (sandbox/runtime missing, or the crawler refused
   the host) and that has nothing indexed (`crawledPageCount` 0, no failed
-  pages) → the view keeps that **Error** badge in the header; the body is a
-  teaching empty (`websites.viewDialog.scanError.runtime` +
+  or skipped pages) → the view keeps that **Error** badge in the header; the body is a
+  red (destructive) Alert with its icon, titled by the reason
+  (`websites.viewDialog.scanError.runtime` +
   `websites.viewDialog.scanEmpty.runtime` for a missing crawler runtime,
   `websites.pagesDialog.errorKind.dnsFailed` +
   `websites.viewDialog.scanEmpty.dns` for a host that does not resolve,
-  `websites.viewDialog.scanError.generic` +
-  `websites.viewDialog.scanEmpty.generic` otherwise) — never the raw sandbox
-  JSON, `tale-sandbox-runtime`, or `getaddrinfo` dump, and never a hollow
-  page row (`0 words` / `0 chunks`), search field, or `0 indexed` count.
-  Hover the empty → the dump is on `title`. A site that already has indexed
-  or failed pages keeps the list and a muted caption
-  (`websites.viewDialog.scanError.*`) instead of the empty. Reload
-  `/dashboard/{org}/websites` and reopen → the empty or caption is still
-  the human line.
+  `websites.viewDialog.scanError.embedding` +
+  `websites.viewDialog.scanEmpty.generic` + the class hint
+  `websites.viewDialog.scanDetail.*` for an embedding provider that refused
+  or failed the pages, `websites.viewDialog.scanError.generic` +
+  `websites.viewDialog.scanEmpty.generic` otherwise) — never a hollow page
+  row (`0 words` / `0 chunks`), search field, or `0 indexed` count. The
+  embedding provider's own sentence (`401 User not found.`) reads beneath the
+  hint; any other dump (sandbox JSON, `tale-sandbox-runtime`, `getaddrinfo`)
+  is folded under **Technical details**
+  (`websites.viewDialog.technicalDetails`), never inline and never only on
+  hover. A site that already has indexed or failed pages keeps the list with
+  the same Alert above it. It stays away only when the reason is the scan's
+  own tally of the pages it attempted (`No page could be stored: … attempted
+  pages failed`) and the site has failed or skipped pages, whose rows say
+  why; any other reason (a lost database, a sitemap that timed out, the
+  crawler runtime or its browser, the embedding model, a missing
+  registration) always shows, and so does any reason after the page list
+  failed to load. The Alert stands, or stays away, alike under **All**,
+  **Failed** and **Skipped** (KNOW-F36) and after **Load more**. Reload
+  `/dashboard/{org}/websites` and reopen → the Alert is still there.
 - [ ] `KNOW-F19` · **Source reads as icons** — Documents with an upload, a
   Microsoft 365 **One-time import** (`documents.onedrive.oneTimeImport`) and
   a synced folder (KNOW-F2), in German (`de`), with the window narrowed until
@@ -389,12 +401,26 @@ records and delete them after.
   field the record has.
 
 
-- [ ] `KNOW-F25` · **A failed documents read is an error, not one folder** —
-  Block `GET /api/app/documents/*` (or answer it 500) and open
-  `/dashboard/{org}/documents` → The table shows the error state
-  **Something went wrong** with **Try again** — never a table of the one
-  folder row with **Showing all 1 document**. Unblock and **Try again** →
-  the documents appear without navigating away.
+- [ ] `KNOW-F25` · **A failed documents read keeps the folders and says so** —
+  With folders at the root, block `*/api/app/documents/paginated*` in
+  DevTools (or answer it 500) and open `/dashboard/{org}/documents` → after
+  the retries the folders stay listed under one notice **Couldn't load the
+  documents here. Only the folders are listed until the documents load.**
+  (`documents.loadFailed`) with **Try again**, and the count reads
+  **Showing the first N documents — the rest couldn't be loaded**
+  (`common.pagination.showingLoadedFailed`), never **Showing all N
+  documents**. A search that matches no folder reads **No results among the
+  loaded items** and keeps its search box. With more than 20 folders, a
+  search that matches them all, and clearing it, keep every folder listed.
+  A folder that holds only a
+  subfolder, read with the documents unblocked, lists it with no notice and
+  **Showing all 1 document**; an empty folder read with them blocked shows
+  the table's error state **Something went wrong** with **Try again**.
+  Unblock → **Try again** from the keyboard: focus moves to the
+  **Documents** region, the documents appear without navigating away, and
+  the count is exact. A search, a filter and a **Rename folder** draft left
+  open survive a background retry that fails and one that heals (switch to
+  another window and back). No toast.
 - [ ] `KNOW-F26` · **Entry content renders as Markdown** — Knowledge entries →
   **Add entry** (`knowledgeEntries.addButton`) with content
   `Open **only on Thursdays**`, a `- ` bullet list and
@@ -417,8 +443,73 @@ records and delete them after.
   teams**, a row's **Assign team**, **New folder** → **Team**, and the
   OneDrive / Google Drive import dialogs' team picker → Each lists every team
   of the organization, synced ones included, as the documents guide says. As
-  a plain Member of one team → the same pickers list that team only. Assign a
+  an Editor of one team → the same pickers list that team only. Assign a
   document to a team you are not in → its preview sidebar names that team.
+- [ ] `KNOW-F32` · **Scan now** — Websites → a site whose badge is **Error**
+  (`websites.filter.status.error`) or **Active** → row **Open menu** →
+  **Scan now** (`websites.scanNow`) → toast **Scan started**
+  (`websites.toast.scanStarted`); the badge turns **Scanning**
+  (`websites.filter.status.scanning`) without a reload, and **Scan now**
+  leaves the menu while the scan runs. The details dialog offers the same
+  **Scan now** beside **Edit**. A paused site offers **Resume scanning**
+  (`websites.resumeScanning`) in its place; a Member (no knowledge write)
+  sees neither.
+- [ ] `KNOW-F33` · **The table follows a scan** — Websites → **Add website**
+  for a site with a few dozen pages, then leave the page open and do not
+  reload → the row appears **Scanning**; within a minute or two the
+  **Indexed** (`websites.indexed`) count starts moving and keeps moving as
+  pages land, and the badge turns **Active** (or **Error**) by itself when
+  the scan ends. Open the row's details while it still scans → the
+  **Website pages** list (`websites.pagesDialog.title`) grows with the count,
+  without closing and reopening. Add a second site while the first still
+  scans → its count starts moving within seconds too, not only once the
+  first site's step has ended.
+- [ ] `KNOW-F34` · **Notice when chat cannot search websites** — With no
+  embedding model (Settings › Data residency → **Embedding model** off): as
+  an Editor open Websites → a warning above the table reads **Chat can't
+  search these websites yet** (`websites.searchNotice.title`) and points at
+  an admin (`websites.searchNotice.askAdmin`), with no link. As an Owner of
+  an organization that has an AI provider → the dashboard banner **Knowledge
+  search is off** (`settings.dataResidency.orgEmbedding.banner.title`) names
+  documents and websites, and the page shows no second notice; with no AI
+  provider yet → the page notice carries **Configure embedding model**
+  (`websites.searchNotice.configureCta`), which opens Settings › Data
+  residency. As the Editor, keep Websites open while an admin saves an
+  embedding model in another session → the notice disappears without a
+  reload, and every site crawled before the model turns **Scanning** by
+  itself. (The Owner's banner follows in the tab that saved the model; in
+  another tab it reads the setting on the next load.)
+- [ ] `KNOW-F35` · **A scan survives a restart** — Websites → add a site
+  with a few hundred pages and wait until **Indexed** (`websites.indexed`)
+  shows a few dozen. While the badge reads **Scanning**
+  (`websites.filter.status.scanning`), restart the platform (the backend
+  process, or the platform container) → once it is back the badge still
+  reads **Scanning**, never **Error** and never **Paused**
+  (`websites.scanPausedBadge`), and the row menu offers no **Scan now**.
+  Within about five minutes the count moves again by itself; on a site
+  whose pages need the browser it can take up to a quarter of an hour. Open
+  the details → the pages crawled before the restart keep their earlier
+  crawled time: the scan continued, it did not begin again. Restart once
+  more while it still scans → the same again. Then stop the backend without
+  warning (`kill -9`, or `docker kill` on the backend worker) → the same,
+  a couple of minutes later.
+- [ ] `KNOW-F36` · **Failed and skipped pages have a door** — Websites → open
+  a site with indexed pages beside failed and skipped ones (a URL list with a
+  `noindex` page and a 404 page next to working ones) → the pages header
+  reads `websites.indexed` and `websites.pagesDialog.failedPages`, and that
+  count is a link-styled button; above the list a segmented control
+  (`websites.pagesDialog.filter.label`) offers
+  `websites.pagesDialog.filter.all`, `websites.pagesDialog.filter.failed` and
+  `websites.pagesDialog.filter.skipped` with their counts, and is absent while
+  no page failed or was skipped. Click the count → the **Failed** segment is
+  checked and the list holds only rows labelled `websites.pagesDialog.failed`,
+  from the top, with its own **Load more**; **Skipped** holds only
+  `websites.pagesDialog.skipped` rows; a segment at 0 shows
+  `websites.pagesDialog.noFailedPages` or
+  `websites.pagesDialog.noSkippedPages`; **All** restores the whole list. A
+  scan that moves the row while **Failed** is open re-reads the failed pages,
+  not all of them; the content search ignores the filter. Keyboard: Tab
+  reaches the segments and the arrow keys switch them.
 
 ## Boundary & error tests
 
@@ -573,7 +664,78 @@ records and delete them after.
   picker stays open. Unblock and reopen → the files list. The same with
   Google Drive connected, `*/api/app/google-drive/list-files*` and **From
   Google Drive** (`documents.upload.fromGoogleDrive`) →
-  `documents.googledrive.loadFailed`.
+  `documents.googledrive.loadFailed`. With the picker open, remove Tale's
+  access in the Google Account's third-party access settings, then open
+  another folder → the picker closes and **Connect Google Drive**
+  (`documents.googledrive.notConnected`) opens, with no toast — never
+  **Couldn't load items**.
+- [ ] `KNOW-B17` · **A library that cannot load says so** — With more than
+  20 knowledge entries, block `*/api/app/knowledge-entries?limit=*` in
+  DevTools (Network → request blocking) and reload **Knowledge entries** →
+  after the retries (a few seconds) the table shows the error state with
+  **Try again** (`common.errors.tryAgain`), never **No knowledge entries
+  yet** (`emptyStates.knowledgeEntries.title`); unblock → **Try again** → the
+  rows return without a reload. Then block only
+  `*/api/app/knowledge-entries?limit=20&cursor=*`, search for an entry on the
+  second page → one notice above the table
+  (`knowledgeEntries.refreshFailed`) with **Try again**, the body reads **No
+  results among the loaded items** (`common.search.noLoadedResults`) — no
+  skeleton — and Network shows one run of four requests for that page, not a
+  stream; a search the first page matches keeps its rows over **the rest
+  couldn't be loaded** (`common.pagination.showingLoadedFailed`); unblock →
+  **Try again** → the match appears with the search text and any selected
+  rows kept. No toast in either case.
+- [ ] `KNOW-B18` · **A version history that cannot load says so** — Open an
+  entry edited at least once with `*/api/app/knowledge-entries/*/versions*`
+  blocked → **Version history** (`knowledgeEntries.viewDialog.history`)
+  reads **Couldn't load the version history.**
+  (`knowledgeEntries.viewDialog.historyLoadFailed`) with **Try again**, the
+  current content stays readable, and the disabled **Retry indexing** badge
+  is not the history's retry; unblock → **Try again** → the replaced version
+  appears. An entry never edited reads
+  `knowledgeEntries.viewDialog.historyEmpty`; while the read runs, the
+  section reads `knowledgeEntries.viewDialog.historyLoading`.
+- [ ] `KNOW-B19` · **Access that ends mid-import lands in the connect
+  dialog** — With Microsoft 365 connected and a OneDrive folder of 40 or so
+  small files: **Documents** → **Upload documents** → **From Microsoft 365**
+  (`documents.upload.fromMicrosoft365`) → select the folder → **Import (1)**
+  (`documents.onedrive.importCount`) → **Import 1 item**
+  (`documents.onedrive.importItems`); while **Import started**
+  (`documents.onedrive.importStarted`) shows, open the same picker in a
+  second tab and choose **Disconnect Microsoft 365**
+  (`documents.onedrive.disconnect`) → back in the first tab the picker closes
+  and **Reconnect Microsoft 365** (`documents.onedrive.reconnect`) opens:
+  its first line (`documents.cloudImport.importInterrupted`) says that
+  access ended during the import and how many of the files were imported
+  (**N of M files were imported and are kept.**), the second
+  (`documents.cloudImport.reconnectToImportRest`) says to reconnect and
+  import the same files again; no toast — the **Import started** notice is
+  gone and no **Import failed** follows. Close it → the library shows those
+  N files. Reconnect, select the same folder again and import → **Import
+  completed** (`documents.onedrive.importCompleted`) reads **M of M files
+  imported**, and each file is in the library once. Disconnect again after
+  selecting the folder but before choosing **Import 1 item** → the same
+  dialog reads **No files were imported.** The same with Google Drive
+  (**Disconnect Google Drive**, **Reconnect Google Drive**). Repeat in German
+  and French: both sentences read in the page's language.
+- [ ] `KNOW-B20` · **A partial import says so in one warning** — With
+  Microsoft 365 connected and a OneDrive folder holding two small files and
+  one over 512 MiB (a video, a disk image): import the folder → after
+  **Import started**, one amber warning toast, not a red one, titled
+  **Imported 2 of 3 files** (`documents.cloudImport.importedPartial`) whose
+  line names the large file beside the size cap's sentence
+  (`documents.cloudImport.failedFileDetail`: `<name>: The file is … bytes;
+  the limit is 512 MiB`, or `The file exceeds the 512 MiB limit`);
+  the picker stays on its settings step and the two small files are in the
+  library. Replace the large file with an empty one and import again → the
+  same title with no second line (an empty file fails as a fault, which
+  has no words), and never a provider's text such as `Failed to download
+  file: …`. A folder holding only the large file → a red **Import failed**
+  (`documents.onedrive.importFailed`) with the size line; one holding only
+  the empty file → **Import failed** with **0 of 1 files imported**
+  (`documents.onedrive.filesImportedCount`). The same with Google Drive, and
+  in German and French: the titles read in the page's language, the size
+  sentence stays the door's own.
 
 ## Accessibility (WCAG 2.1 AA)
 
@@ -601,6 +763,21 @@ records and delete them after.
   the record is editable; Escape closes them and returns focus to that row's
   **Open menu** button — also after **Edit** → **Cancel** has brought the
   details back, and after a document preview opened from **View** closes.
+- [ ] `KNOW-A7` · **Retry from the keyboard** → In the `KNOW-B17` and
+  `KNOW-B18` states, Tab reaches **Try again** with a visible focus ring;
+  Enter or Space runs it and focus moves to the **Knowledge entries** region
+  or the **Version history** section — never to the page body; a screen
+  reader announces each failure once (the notice is an alert), reads the
+  retry as busy while it runs, and announces the notice again when a retry
+  fails again. Tab to **Try again** without pressing it and let a background
+  refresh fail again (keep the read blocked, then make any write that
+  refreshes the list, or a hub upload for an open history) → focus stays on
+  that **Try again**; unblock and let the next refresh work → focus lands on
+  the region or the section, never on the page or the dialog frame. In the
+  first `KNOW-B17` state (nothing loaded), focus **Try again** without
+  pressing it, switch to another window and back → while the refresh runs,
+  and after the error state returns, focus is on the **Knowledge entries**
+  region, never on the page.
 
 ## Performance
 

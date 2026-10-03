@@ -40,7 +40,13 @@ export interface WebsitesContract {
   };
   'websites/actions:fetchPages': {
     kind: 'action';
-    args: { limit?: number; offset?: number; websiteId: string };
+    args: {
+      limit?: number;
+      offset?: number;
+      /** Only the pages in this state; every page without one. */
+      state?: 'failed' | 'skipped';
+      websiteId: string;
+    };
     returns: {
       pages: Array<{
         url: string;
@@ -57,15 +63,25 @@ export interface WebsitesContract {
         last_error_kind: null | string;
         last_error_at: null | string;
       }>;
+      /** How many pages the window's state holds — all of them without one. */
       total: number;
       offset: number;
       hasMore: boolean;
+      /** The state the window was narrowed to; null for the whole inventory. */
+      state: 'failed' | 'skipped' | null;
+      /** How many pages are in each state, whichever the window shows. */
+      counts: { failed: number; skipped: number };
     };
   };
   'websites/actions:resumeScanning': {
     kind: 'action';
     args: { websiteId: string };
     returns: null;
+  };
+  'websites/actions:scanNow': {
+    kind: 'action';
+    args: { websiteId: string };
+    returns: { queued: boolean };
   };
   'websites/actions:searchContent': {
     kind: 'action';
@@ -102,6 +118,11 @@ export interface WebsitesContract {
     kind: 'query';
     args: { organizationId: string };
     returns: number;
+  };
+  'websites/queries:searchReadiness': {
+    kind: 'query';
+    args: { organizationId: string };
+    returns: { ready: boolean };
   };
   'websites/queries:listWebsites': {
     kind: 'query';

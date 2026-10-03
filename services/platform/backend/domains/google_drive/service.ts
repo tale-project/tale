@@ -30,12 +30,17 @@ const GOOGLE_DRIVE_CONFIG_TABLE = 'app.google_drive_sync_configs';
 export async function resolveDriveTokenForUser(
   sql: Sql,
   args: { organizationId: string; userId: string },
+  options: { forceRefresh?: boolean } = {},
 ): Promise<GraphTokenResult> {
-  const cloud = await resolveCloudAccessToken(sql, {
-    organizationId: args.organizationId,
-    userId: args.userId,
-    provider: 'google-drive',
-  });
+  const cloud = await resolveCloudAccessToken(
+    sql,
+    {
+      organizationId: args.organizationId,
+      userId: args.userId,
+      provider: 'google-drive',
+    },
+    options,
+  );
   if (cloud.success) return { success: true, token: cloud.accessToken };
   // Only a missing/dead grant is fixed by reconnecting; a vendor outage or a
   // deployment misconfiguration is named as itself.

@@ -5,6 +5,12 @@ description: Untersuche Tokenverbrauch, Anfragevolumen und erfasste Kosten nach 
 
 Öffne als Admin oder Inhaber **Einstellungen > Metriken > Nutzung**, um zu sehen, welche Aufgaben KI-Ressourcen verbrauchen. Wähle zuerst den Zeitraum und untersuche dann die Aufschlüsselungen, um veränderte Kosten oder Mengen zu erklären.
 
+<Frame caption="Einstellungen > Metriken > Nutzung: Summen, Token-Diagramm und die meistgenutzten Assistenten der letzten 30 Tage.">
+
+![Die Seite Nutzungs-Metriken für die letzten 30 Tage meldet 14 Anfragen, 448 Tokens, erfasste Kosten von 0,00 US-Dollar und eine aktive Person. Das Token-Diagramm hat nur für den aktuellen Tag einen Balken, aufgeteilt in Eingabe und Ausgabe; darunter listet die Tabelle der Top-Assistenten den Assistenten und die Titelerstellung für Chats.](/images/platform/metrics-usage.webp)
+
+</Frame>
+
 ## Einen Nutzungsanstieg untersuchen
 
 1. Öffne **Filter** und wähle unter **Zeitraum** 7, 30 oder 90 Tage. Die erste Ansicht zeigt 30 Tage.
@@ -18,7 +24,7 @@ Unter den Assistentennamen können auch Hilfsaufgaben wie die Erzeugung von Chat
 
 ## Kosten zusammen mit Tokens lesen
 
-Das Dashboard verwendet erfasste Nutzungs- und Verbrauchsdaten. Eingabe- und Ausgabetokens sind getrennt. Dienste wie die Sprachausgabe oder die Bildgenerierung können andere Abrechnungseinheiten haben. Die Tokenzahl allein erklärt deshalb nicht alle Kosten.
+Das Dashboard verwendet erfasste Nutzungs- und Verbrauchsdaten. Eingabe- und Ausgabetokens sind getrennt. Dienste wie die Sprachausgabe oder die Bildgenerierung können andere Abrechnungseinheiten haben. Die Tokenzahl allein erklärt deshalb nicht alle Kosten. Zu den Eingabetokens zählt auch der Teil eines Prompts, den ein Anbieter aus seinem Cache gelesen oder dort abgelegt hat. Dieser Teil wird anders berechnet als die übrige Eingabe, deshalb kann ein Lauf, der einen langen Prompt wiederverwendet, viele Eingabetokens bei geringen Kosten zeigen.
 
 Ein Bild, das ein Agent erstellt hat, erscheint unter seinem Bildmodell in **Top-Modelle** und unter dem Agenten oder der Automatisierung in **Top-Assistenten**, mit einer Anfrage pro Bild und ohne Tokens. Als Kosten gilt der Betrag, den OpenRouter gemeldet hat, bei OpenAI der Listenpreis der Bild-Tokens, die OpenAI gemeldet hat. Eine Anfrage, die der Anbieter berechnet hat, ohne ein brauchbares Bild zu liefern, zählt ebenso.
 

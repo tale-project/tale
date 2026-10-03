@@ -24,17 +24,23 @@ Choisis l’**Intervalle d'analyse**, puis **Enregistrer**. La valeur par défau
 
 </Frame>
 
+## Permettre au chat de chercher dans les pages
+
+Le crawl enregistre le texte d’une page. Le chat et la recherche dans les connaissances n’y accèdent que lorsque ton organisation dispose d’un modèle d’embedding qui fonctionne, car chaque recherche transforme d’abord la question en vecteur. Sans modèle, une source peut afficher **Actif** avec toutes ses pages indexées pendant que l’assistant répond que la recherche dans les pages web n’est pas configurée.
+
+**Connaissances > Sites web** affiche alors l’avis **Le chat ne peut pas encore chercher dans ces sites web** ; un administrateur peut voir à sa place la bannière **La recherche de connaissances est coupée**, au-dessus de chaque page. Un administrateur définit le modèle dans **Paramètres > Résidence des données** ; les détails destinés aux exploitants figurent dans [Résidence des données](/fr/self-hosted/configuration/data-residency). Dès qu’un modèle est enregistré, Tale relance un scan de chaque source explorée sans modèle et de chaque source dont le dernier scan a échoué. Tu n’as pas à les ajouter de nouveau.
+
 ## Garder une liste d’URL ciblée
 
 Une liste récupère uniquement les adresses fournies et ne suit aucun autre lien. Elle peut couvrir plusieurs sites ; Tale les regroupe en une source par site. Une adresse listée en `http://` est acceptée et récupérée en `https://`, contrairement à un domaine `http://` en mode site entier, qui est refusé ; une page qui ne répond qu’en clair reste inaccessible dans les deux cas. Ajouter une liste à une source de type liste d’URL existante complète les adresses sans retirer les précédentes et actualise son intervalle de scan.
 
-Utilise des URL publiques complètes. Les PDF et documents Office modernes liés peuvent être indexés s’ils contiennent du texte lisible. Les images et scans sans texte extractible ne deviennent pas des contenus recherchables.
+Utilise des URL publiques complètes. Les PDF et documents Office modernes liés peuvent être indexés s’ils contiennent du texte lisible. Un téléchargement servi sous un type générique ou ancien (`application/octet-stream`, `application/vnd.ms-excel` pour un export `.xlsx`) est reconnu à son nom de fichier et à son contenu. Les images et scans sans texte extractible ne deviennent pas des contenus recherchables.
 
 ## Comprendre la découverte et l’actualisation
 
 Pour un site entier, le crawler utilise l’accueil et les sitemaps publiés, y compris les index de sitemaps et ceux déclarés dans `robots.txt`. Sans sitemap exploitable, il suit les liens du domaine depuis l’accueil. Une page absente des sitemaps et inaccessible par ces liens peut manquer. Utilise une liste d’URL si des pages précises sont indispensables.
 
-Les scans sont incrémentaux : les contenus inchangés sont ignorés, les contenus modifiés réindexés, les nouvelles pages ajoutées et les pages retirées supprimées de l’index — comme les pages que le `robots.txt` en est venu à interdire. Les compteurs de pages de la ligne suivent le scan à mesure que les pages arrivent, après la découverte et après chaque lot stocké, la table bouge donc pendant qu’un scan tourne. Une liste d’URL actualise sa sélection fixe au même rythme. Aucune publication séparée n’est nécessaire après l’indexation.
+Les scans sont incrémentaux : les contenus inchangés sont ignorés, les contenus modifiés réindexés, les nouvelles pages ajoutées et les pages retirées supprimées de l’index — comme les pages que le `robots.txt` en est venu à interdire. Une page qui redirige vers une autre adresse du même site n’est indexée qu’une fois, sous l’adresse où elle aboutit. Les compteurs de pages de la ligne suivent le scan à mesure que les pages arrivent, après la découverte et après chaque lot stocké, la table bouge donc pendant qu’un scan tourne. Une liste d’URL actualise sa sélection fixe au même rythme. Aucune publication séparée n’est nécessaire après l’indexation.
 
 Le crawler visite en lecteur anonyme. Ajouter une URL ne rend pas accessible un contenu privé. À chaque requête il se présente comme `TaleBot/<version> (+https://docs.tale.dev/platform/knowledge/crawling)`, si bien qu’un groupe de `robots.txt` peut le désigner par son nom — `User-agent: TaleBot` — pour l’autoriser, le ralentir ou le refuser seul.
 
@@ -48,15 +54,15 @@ Utilise HTTPS sur le port standard et enregistre un nom d’hôte : une adresse 
 | --- | --- |
 | 10 000 URL suivies par site | Certaines pages d’un grand site peuvent rester inconnues. Fournis une liste ciblée pour le contenu nécessaire. |
 | Trois minutes de découverte, au plus 50 récupérations de sitemaps | Les ensembles de sitemaps volumineux ou lents peuvent rester incomplets. |
-| 25 Mio et 30 secondes par récupération de contenu | Les téléchargements trop volumineux et les réponses lentes échouent (`timeout` pour le budget de téléchargement et celui de 20 secondes du rendu) ; une page derrière plus de cinq redirections aussi (`redirect_limit_exceeded`). |
+| 100 Mio (`KNOWLEDGE_CRAWL_DOCUMENT_MAX_BYTES`) et 30 secondes par récupération de contenu | Les téléchargements trop volumineux et les réponses lentes échouent (`timeout` pour le budget de téléchargement et celui de 20 secondes du rendu) ; une page derrière plus de cinq redirections aussi (`redirect_limit_exceeded`). |
 | Cinq minutes de traitement par lot, jusqu’à 200 reprises | Un long scan se poursuit par lots. Une récupération ou un rendu déjà engagé peut dépasser le budget du lot ; il ne s’agit pas d’une durée totale garantie. |
-| Cinq échecs consécutifs pour une URL découverte automatiquement | Le crawler cesse de programmer cette URL. Les URL fournies explicitement restent candidates à chaque scan, et une page listée que le site répond en 404 reste dans la liste avec cette réponse. |
+| Cinq échecs consécutifs pour une URL découverte automatiquement | Le crawler cesse de programmer cette URL pendant sept jours, puis la sonde une fois de plus. Un échec de la sandbox qui effectue le rendu ne compte pas : si son proxy de sortie refuse la connexion ou si son navigateur ne répond plus, le scan se termine avec cette cause sur la source, et le scan suivant réessaie chaque page. Les URL fournies explicitement restent candidates à chaque scan, et une page listée que le site répond en 404 reste dans la liste avec cette réponse. |
 
 Tu ne peux pas fixer ton propre plafond de pages, filtrer les chemins à inclure ou exclure, ni arrêter un scan avec un bouton. Une liste d’URL réduit la sélection demandée ; ces limites continuent de s’appliquer.
 
 ## Vérifier le contenu indexé
 
-Le tableau affiche **Statut**, **Indexé**, **Analysé** et **Intervalle**. La colonne **Indexé** indique un nombre de pages. Ouvre la ligne du site pour examiner la liste des pages, le nombre de mots et de fragments et la date du dernier passage. Déplie une page pour lire ses fragments de texte enregistrés. Un échec de récupération affiche sa cause et le nombre d’échecs consécutifs.
+Le tableau affiche **Statut**, **Indexé**, **Analysé** et **Intervalle**. La colonne **Indexé** indique un nombre de pages. Ouvre la ligne du site pour examiner la liste des pages, le nombre de mots et de fragments et la date du dernier passage. Déplie une page pour lire ses fragments de texte enregistrés. Un échec de récupération affiche sa cause et le nombre d’échecs consécutifs. Une page que le crawler laisse volontairement de côté — la source refuse l’indexation, le type de contenu ne fournit aucun texte lisible, ou une redirection quitte le site — apparaît comme **Ignorée** avec sa cause et ne compte pas comme un échec.
 
 | Statut | Signification |
 | --- | --- |
@@ -65,21 +71,28 @@ Le tableau affiche **Statut**, **Indexé**, **Analysé** et **Intervalle**. La c
 | **Erreur** | Le scan a échoué ou les tentatives de récupération n’ont laissé aucun contenu stocké. Ouvre la source pour connaître la cause. |
 | **Suppression en cours** | La source est en cours de retrait. |
 
+Un scan en cours au moment où Tale a été redémarré, mis à jour ou arrêté brutalement reprend de lui-même en quelques minutes, avec les pages qu’il n’avait pas encore atteintes. Les pages qui ont besoin du navigateur peuvent suivre jusqu’à un quart d’heure plus tard. La source affiche **En cours d'analyse** pendant tout ce temps.
+
+Pour lancer un scan en dehors de l’intervalle, ouvre le menu de la ligne ou les détails de la source et choisis **Analyser maintenant**. C’est utile quand le site a changé ou après un scan en échec, qui sinon est relancé automatiquement dans les deux heures. L’action est proposée tant que la source n’est ni en cours d’analyse ni en cours de suppression.
+
 La vue des pages permet aussi de rechercher dans le contenu indexé. Essaie une expression distinctive de la page avant de t’appuyer dessus dans Chat, puis pose une question précise et vérifie la citation.
 
 ## Examiner une page absente
 
-Vérifie d’abord l’adresse, le type de source et la date du dernier scan. Ouvre ensuite le site et lis l’erreur de la page concernée.
+Vérifie d’abord l’adresse, le type de source et la date du dernier scan. Ouvre ensuite le site, limite la liste des pages à **En échec** ou **Ignorées**, puis lis l’erreur de la page concernée.
 
 | Problème signalé | Vérification ou correction |
 | --- | --- |
 | Certificat non approuvé | L’administrateur du site doit corriger un certificat TLS expiré, autosigné, associé au mauvais hôte ou non approuvé pour une autre raison. Répéter les scans ne le répare pas. |
 | Adresse privée, redirection refusée ou URL invalide | Utilise l’adresse HTTPS publique prévue. Demande à ton exploitant quelles sources internes sont autorisées si nécessaire. |
 | Erreur HTTP, échec réseau ou délai dépassé | Ouvre la page d’origine et vérifie sa disponibilité. Un scan ultérieur peut réussir après réparation du service source. |
-| Réponse trop volumineuse | Publie un document plus petit ou divise la source. La limite de récupération est de 25 Mio. |
+| Réponse trop volumineuse | Publie un document plus petit ou divise la source. La limite de récupération est de 100 Mio, sauf si ton opérateur a défini `KNOWLEDGE_CRAWL_DOCUMENT_MAX_BYTES`. |
 | La source refuse l’indexation | La réponse contient `X-Robots-Tag: noindex` ou `none`, ou la page porte `<meta name="robots" content="noindex">`. Le responsable du site doit modifier cette consigne pour que Tale puisse indexer le contenu. |
 | Contenu non pris en charge ou sans texte lisible | Les points d’accès JSON/XML, téléchargements binaires, images ou scans peuvent ne fournir aucun texte exploitable. Fournis une page HTML ou un document pris en charge dont le texte peut être extrait. |
 | Échec du rendu ou de l’extraction | Vérifie que la page publique se charge et que le document d’origine s’ouvre. Répare ou exporte à nouveau une source endommagée. |
+| L’assistant répond que la recherche dans les pages web n’est pas configurée | L’organisation n’a pas de modèle d’embedding qui fonctionne. Un administrateur le définit dans **Paramètres > Résidence des données** ; Tale relance ensuite un scan des sources concernées. |
+| **Erreur** avec « Le modèle d'embedding n'a pas pu traiter les pages. » | Le fournisseur d’embedding a refusé la requête ou n’a pas pu y répondre : identifiants rejetés, solde épuisé, limite de débit maintenue malgré toutes les tentatives, ou panne. Les détails de la source précisent lequel, avec la réponse du fournisseur en dessous. Un administrateur corrige le modèle dans **Paramètres > Résidence des données** ou ses identifiants dans **Paramètres > Fournisseurs IA** ; l’enregistrement relance le scan des sources concernées. Après une panne chez le fournisseur, choisis **Analyser maintenant** dès qu’il est de nouveau disponible. |
+| **Erreur** avec « L'analyse n'a pas eu lieu. » | Le navigateur du crawler n’a pas pu démarrer, aucune page n’a donc été rendue ; son rapport se trouve sous **Détails techniques** dans les détails de la source. L’adresse n’est pas en cause : demande à ton exploitant de vérifier le service de sandbox, puis choisis **Analyser maintenant**. |
 
 Une récupération réussie efface l’erreur précédente. Si une actualisation échoue, la copie déjà indexée peut rester disponible : **Actif** et le nombre de pages indexées ne prouvent pas que chaque page est à jour. Compare les fragments enregistrés et la date du passage avec l’original avant de t’appuyer sur une modification récente.
 

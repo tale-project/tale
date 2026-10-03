@@ -4,6 +4,7 @@ import { z } from 'zod';
 
 import {
   SCAN_INTERVAL_VALUES,
+  WEBSITE_PAGE_STATES,
   WEBSITE_STATUS_VALUES,
 } from '../core/websites/types.ts';
 import {
@@ -246,6 +247,10 @@ export function createRestWebsiteRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     // offset in the pager every other list takes — so the loop written
     // for the keyset lists walks this one too. Both at once contradict
     // each other and are refused rather than one silently winning.
+    //
+    // `state` narrows the window to the pages in one state (`failed`,
+    // `skipped`); `total`, `hasMore` and the cursor then count and walk
+    // that state alone, while `counts` carries every state's number.
     const query = readQuery(c, {
       limit: PAGE_QUERY.limit,
       cursor: PAGE_QUERY.cursor,
@@ -253,6 +258,7 @@ export function createRestWebsiteRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         .string()
         .regex(/^-?\d{1,15}$/, 'must be a whole number of rows to skip')
         .optional(),
+      state: z.enum(WEBSITE_PAGE_STATES).optional(),
     });
     if (query instanceof Response) return query;
     if (query.cursor !== undefined && query.offset !== undefined) {
@@ -265,7 +271,13 @@ export function createRestWebsiteRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     }
     const website = await loadOwned(c.get('organizationId'), c.req.param('id'));
     if (!website) return websiteNotFound(c);
-    const list = `website-pages:${website.id}`;
+    // A cursor minted over the failed pages names that list: redeemed
+    // without the filter, or under the other one, it is refused as any
+    // cursor of another list is.
+    const list =
+      query.state === undefined
+        ? `website-pages:${website.id}`
+        : `website-pages:${website.id}:${query.state}`;
     const position = readIntegerCursor(c, list);
     if (position instanceof Response) return position;
     const offset = position ?? Math.max(0, Number(query.offset ?? 0));
@@ -274,6 +286,7 @@ export function createRestWebsiteRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     const result = await fetchWebsitePages(deps.sql, website, {
       offset,
       limit,
+      ...(query.state !== undefined ? { state: query.state } : {}),
     });
     // `total`/`offset`/`hasMore` stay; `isDone` + `continueCursor` (the
     // next offset, signed under this website) are the keyset pair beside

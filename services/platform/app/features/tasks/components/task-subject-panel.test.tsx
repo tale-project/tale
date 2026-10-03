@@ -1,9 +1,12 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import type { TaskSubjectContract } from '@tale/shared/schemas/task-contract';
+import { toast } from '@tale/ui/use-toast';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { render, screen } from '@/tests/utils/render';
+import type { TaskReviewerState } from '@/app/lib/backend/contract/tasks';
+import { AppError } from '@/lib/shared/errors/app-error';
+import { render, screen, waitFor } from '@/tests/utils/render';
 
 import {
   type ResolvedTaskSubjectContract,
@@ -18,15 +21,34 @@ import {
 
 const mocks = vi.hoisted(() => ({
   run: null as unknown,
+  pendingAsk: null as unknown,
+  reviewer: undefined as TaskReviewerState | undefined,
+  reviewerError: false,
+  refetchReviewer: vi.fn(),
   start: vi.fn(),
   cancel: vi.fn(),
   updateStatus: vi.fn(),
+  addComment: vi.fn(),
+  answerAsk: vi.fn(),
 }));
 
 vi.mock('@/app/hooks/use-backend-query', () => ({
-  useBackendQuery: (_query: unknown, args: unknown) => {
+  useBackendQuery: (query: unknown, args: unknown) => {
     if (args === 'skip') return { data: undefined };
-    return { data: mocks.run };
+    if (query === 'tasks/queries:getTaskReviewer') {
+      return {
+        data: mocks.reviewer,
+        isError: mocks.reviewerError,
+        refetch: mocks.refetchReviewer,
+      };
+    }
+    if (query === 'automations/human_asks:getPendingAskForRun') {
+      return { data: mocks.pendingAsk };
+    }
+    return {
+      data:
+        query === 'automations/queries:getLiveRunForTask' ? mocks.run : null,
+    };
   },
 }));
 
@@ -43,20 +65,30 @@ vi.mock('@/app/hooks/use-backend-action', () => {
 
 vi.mock('../hooks/mutations', () => ({
   useUpdateTaskStatus: () => ({ mutateAsync: mocks.updateStatus }),
-  useAddTaskComment: () => ({ mutateAsync: vi.fn() }),
+  useAddTaskComment: () => ({ mutateAsync: mocks.addComment }),
+}));
+
+vi.mock('@/app/features/automations/hooks/mutations', () => ({
+  useAnswerHumanAsk: () => ({ mutateAsync: mocks.answerAsk }),
 }));
 
 vi.mock('@tale/ui/use-toast', () => ({ toast: vi.fn() }));
 
-// The reviewer name line rides the actor directory (org members via router
-// params) — stub the seam; these tests exercise the subject verbs, not names.
+const actorNames: Record<string, string> = {
+  alice: 'Alice',
+  future: 'Future reviewer',
+  reviewer: 'Review agent',
+};
 vi.mock('../hooks/use-actor-directory', () => ({
-  useActorDirectory: () => ({
-    resolveActor: (_type: string, id: string) => ({
-      type: 'user',
+  useActorDirectory: (_organizationId: string, projectId?: string) => ({
+    resolveActor: (type: string, id: string) => ({
+      type,
       id,
-      name: id,
-      isAgent: false,
+      name:
+        type !== 'agent' || projectId === 'project_1'
+          ? (actorNames[id] ?? id)
+          : id,
+      isAgent: type === 'agent',
     }),
   }),
 }));
@@ -90,34 +122,399 @@ function ownedBy(
 // `hasFiles` is the server-stamped subtree fact (`getTask` shares one
 // predicate with the board chip and staging) — the panel consumes it, never
 // re-derives it from a document listing.
-function renderPanel(
+function panel(
   resolved = ownedBy(),
   hasFiles = false,
   status = 'backlog',
+  reviewerUserId?: string,
+  taskId = 'task_1',
 ) {
-  return render(
+  return (
     <TaskSubjectPanel
       organizationId="org_1"
       task={{
-        _id: 'task_1' as string,
+        _id: taskId,
         projectId: 'project_1' as string,
         status,
         externalId: FOLDER,
         hasFiles,
+        reviewerUserId,
       }}
       ownedBy={resolved}
       canEdit
-    />,
+    />
   );
+}
+
+function renderPanel(...args: Parameters<typeof panel>) {
+  return render(panel(...args));
+}
+
+function capturedReview(
+  reviewer: NonNullable<TaskReviewerState['pendingReview']>['reviewer'],
+  agentReviewBlockedReason: NonNullable<
+    TaskReviewerState['pendingReview']
+  >['agentReviewBlockedReason'] = null,
+  round = 1,
+): TaskReviewerState {
+  return {
+    reviewer: { kind: 'user', userId: 'future' },
+    projectReviewer: { kind: 'agent', agentId: 'reviewer' },
+    pendingReview: {
+      approvalId: `approval_${round}`,
+      taskId: 'task_1',
+      round,
+      requestedFor: reviewer?.kind === 'user' ? reviewer.userId : null,
+      reviewer,
+      runId: `implementation_run_${round}`,
+      agentSlug: 'Implementation agent',
+      implementationAgentId: 'worker',
+      evidenceRevision: 'a'.repeat(64),
+      agentReviewBlockedReason,
+      createdAt: round,
+    },
+  };
 }
 
 describe('TaskSubjectPanel', () => {
   beforeEach(() => {
     mocks.run = null;
+    mocks.pendingAsk = null;
+    mocks.reviewer = {
+      reviewer: { kind: 'inherit' },
+      projectReviewer: { kind: 'human_default' },
+      pendingReview: null,
+    };
+    mocks.reviewerError = false;
+    mocks.refetchReviewer.mockReset();
+    mocks.addComment.mockReset();
+    mocks.addComment.mockResolvedValue({ automationTriggered: true });
+    mocks.answerAsk.mockReset();
+    mocks.answerAsk.mockResolvedValue(null);
     mocks.start.mockReset();
     mocks.start.mockResolvedValue({ started: true });
     mocks.updateStatus.mockReset();
     mocks.updateStatus.mockResolvedValue(undefined);
+    mocks.cancel.mockReset();
+    vi.mocked(toast).mockClear();
+  });
+
+  it('shows the captured agent review without human verdict actions on an automation-owned task', () => {
+    mocks.reviewer = capturedReview({ kind: 'agent', agentId: 'reviewer' });
+    const resolved = resolveTaskSubjectContract(
+      {
+        createdBy: 'creator',
+        createdByType: 'user',
+        assigneeType: 'app',
+        assigneeId: 'document-verify-desk',
+      },
+      [
+        {
+          name: 'document-verify-desk',
+          deployedVersion: 1,
+          taskContract: contract,
+        },
+      ],
+      'en',
+    );
+    if (resolved === null)
+      throw new Error('the assigned automation must resolve');
+    renderPanel(resolved, true, 'in_review', 'future');
+
+    expect(
+      screen.getByText('Current review: Review agent'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('The assigned reviewer agent must decide this review.'),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/waiting on Future reviewer/),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Approve' }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Request changes' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('explains the server-derived blocker for the captured agent review', () => {
+    mocks.reviewer = capturedReview(
+      { kind: 'agent', agentId: 'reviewer' },
+      'source_required',
+    );
+    renderPanel(ownedBy(), true, 'in_review', 'future');
+
+    expect(
+      screen.getByText('Current review: Review agent'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'This result has no supported implementation run to review.',
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(
+        'The assigned reviewer agent must decide this review.',
+      ),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Approve' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('keeps a captured human reviewer and the ordinary workflow approval usable', async () => {
+    mocks.reviewer = capturedReview({ kind: 'user', userId: 'alice' });
+    const { user } = renderPanel(ownedBy(), true, 'in_review', 'future');
+
+    expect(screen.getByText('Current review: Alice')).toBeInTheDocument();
+    expect(
+      screen.queryByText(/waiting on Future reviewer/),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Request changes' }),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Request changes' }));
+    await user.type(
+      screen.getByRole('textbox', { name: 'What should change' }),
+      'Check the last document.',
+    );
+    await user.click(screen.getByRole('button', { name: 'Send back' }));
+    expect(mocks.addComment).toHaveBeenCalledExactlyOnceWith({
+      taskId: 'task_1',
+      body: '@document-verify-desk Check the last document.',
+    });
+    await user.click(screen.getByRole('button', { name: 'Approve' }));
+    expect(mocks.updateStatus).toHaveBeenCalledExactlyOnceWith({
+      taskId: 'task_1',
+      status: 'done',
+    });
+  });
+
+  it('does not offer a human verdict or name a future reviewer before the captured review loads', () => {
+    mocks.reviewer = undefined;
+    renderPanel(ownedBy(), true, 'in_review', 'future');
+
+    expect(screen.getByRole('status')).toHaveAttribute('aria-busy', 'true');
+    expect(
+      screen.queryByText(/waiting on Future reviewer/),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Approve' }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Request changes' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('offers a retry instead of a verdict when the captured review refresh fails', async () => {
+    mocks.reviewerError = true;
+    const { user } = renderPanel(ownedBy(), true, 'in_review', 'future');
+
+    expect(screen.getByRole('status')).toHaveTextContent(
+      "Couldn't load the current review. Try again before changing it.",
+    );
+    expect(
+      screen.queryByRole('button', { name: 'Approve' }),
+    ).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(mocks.refetchReviewer).toHaveBeenCalledOnce();
+    expect(mocks.updateStatus).not.toHaveBeenCalled();
+  });
+
+  it.each(['Approve', 'Request changes'])(
+    'closes an open %s confirmation when the captured reviewer becomes an agent',
+    async (action) => {
+      mocks.reviewer = capturedReview({ kind: 'user', userId: 'alice' });
+      const resolved = ownedBy({
+        approveConfirmation: 'Approve these documents for processing.',
+      });
+      const { user, rerender } = renderPanel(
+        resolved,
+        true,
+        'in_review',
+        'future',
+      );
+      await user.click(screen.getByRole('button', { name: action }));
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+
+      mocks.reviewer = capturedReview({ kind: 'agent', agentId: 'reviewer' });
+      rerender(panel(resolved, true, 'in_review', 'future'));
+
+      await waitFor(() =>
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument(),
+      );
+      expect(
+        screen.queryByRole('button', { name: 'Approve' }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', { name: 'Send back' }),
+      ).not.toBeInTheDocument();
+      expect(mocks.updateStatus).not.toHaveBeenCalled();
+      expect(mocks.addComment).not.toHaveBeenCalled();
+
+      mocks.reviewer = capturedReview({ kind: 'user', userId: 'alice' });
+      rerender(panel(resolved, true, 'in_review', 'future'));
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      await waitFor(() =>
+        expect(
+          screen.getByRole('button', { name: action }),
+        ).toBeInTheDocument(),
+      );
+      expect(mocks.updateStatus).not.toHaveBeenCalled();
+      expect(mocks.addComment).not.toHaveBeenCalled();
+
+      await user.click(screen.getByRole('button', { name: action }));
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+      expect(mocks.updateStatus).not.toHaveBeenCalled();
+      expect(mocks.addComment).not.toHaveBeenCalled();
+    },
+  );
+
+  for (const transition of [
+    'done',
+    'todo',
+    'loading',
+    'replacement',
+  ] as const) {
+    it.each(['Approve', 'Request changes'])(
+      `requires a fresh %s gesture after ${transition} replaces the review`,
+      async (action) => {
+        mocks.reviewer = capturedReview({ kind: 'user', userId: 'alice' });
+        const resolved = ownedBy({
+          approveConfirmation: 'Approve these documents for processing.',
+        });
+        const { user, rerender } = renderPanel(
+          resolved,
+          true,
+          'in_review',
+          'alice',
+        );
+        await user.click(screen.getByRole('button', { name: action }));
+        if (action === 'Request changes') {
+          await user.type(
+            screen.getByRole('textbox', { name: 'What should change' }),
+            'Keep this feedback draft',
+          );
+        }
+        expect(screen.getByRole('dialog')).toBeInTheDocument();
+
+        if (transition !== 'replacement') {
+          if (transition === 'loading') mocks.run = undefined;
+          rerender(
+            panel(
+              resolved,
+              true,
+              transition === 'loading' ? 'in_review' : transition,
+              'alice',
+            ),
+          );
+          expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+          mocks.run = null;
+        }
+        mocks.reviewer = capturedReview(
+          { kind: 'user', userId: 'alice' },
+          null,
+          2,
+        );
+        rerender(panel(resolved, true, 'in_review', 'alice'));
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+        expect(mocks.updateStatus).not.toHaveBeenCalled();
+        expect(mocks.addComment).not.toHaveBeenCalled();
+
+        await user.click(screen.getByRole('button', { name: action }));
+        expect(screen.getByRole('dialog')).toBeInTheDocument();
+        if (action === 'Request changes') {
+          expect(
+            screen.getByRole('textbox', { name: 'What should change' }),
+          ).toHaveValue('Keep this feedback draft');
+        }
+        expect(mocks.updateStatus).not.toHaveBeenCalled();
+        expect(mocks.addComment).not.toHaveBeenCalled();
+      },
+    );
+  }
+
+  it.each(['Approve', 'Request changes'])(
+    'closes an open %s confirmation when another task uses the same workflow',
+    async (action) => {
+      const resolved = ownedBy({
+        approveConfirmation: 'Approve these documents for processing.',
+      });
+      const { user, rerender } = renderPanel(
+        resolved,
+        true,
+        'in_review',
+        'alice',
+      );
+      await user.click(screen.getByRole('button', { name: action }));
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+      rerender(panel(resolved, true, 'in_review', 'alice', 'task_2'));
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      expect(mocks.updateStatus).not.toHaveBeenCalled();
+      expect(mocks.addComment).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(['Approve', 'Request changes'])(
+    'keeps an open %s confirmation when the same review refreshes',
+    async (action) => {
+      mocks.reviewer = capturedReview({ kind: 'user', userId: 'alice' });
+      const resolved = ownedBy({
+        approveConfirmation: 'Approve these documents for processing.',
+      });
+      const { user, rerender } = renderPanel(
+        resolved,
+        true,
+        'in_review',
+        'alice',
+      );
+      await user.click(screen.getByRole('button', { name: action }));
+      mocks.reviewer = capturedReview({ kind: 'user', userId: 'alice' });
+      rerender(panel(resolved, true, 'in_review', 'alice'));
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+      expect(mocks.updateStatus).not.toHaveBeenCalled();
+      expect(mocks.addComment).not.toHaveBeenCalled();
+    },
+  );
+
+  it('keeps the running workflow question answerable when a captured agent review exists', async () => {
+    mocks.reviewer = capturedReview({ kind: 'agent', agentId: 'reviewer' });
+    mocks.run = {
+      runId: 'run_1',
+      name: 'document-verify-desk',
+      status: 'waiting',
+      version: 1,
+      detail: null,
+    };
+    mocks.pendingAsk = {
+      askId: 'ask_1',
+      question: 'Which batch should I inspect?',
+    };
+    const { user } = renderPanel(ownedBy(), true, 'in_review');
+
+    expect(
+      screen.getByText(
+        'Document verification desk paused with a question — it continues as soon as you answer below.',
+      ),
+    ).toBeInTheDocument();
+    await user.type(
+      screen.getByRole('textbox', { name: 'Your answer' }),
+      'Inspect batch A.',
+    );
+    await user.click(
+      screen.getByRole('button', { name: 'Send answer & resume' }),
+    );
+    expect(mocks.addComment).toHaveBeenCalledExactlyOnceWith({
+      taskId: 'task_1',
+      body: 'Inspect batch A.',
+    });
+    expect(mocks.answerAsk).toHaveBeenCalledExactlyOnceWith({
+      organizationId: 'org_1',
+      askId: 'ask_1',
+      answer: 'Inspect batch A.',
+    });
+    expect(mocks.updateStatus).not.toHaveBeenCalled();
   });
 
   it('names the automation and shows the automation s own description', () => {
@@ -316,5 +713,44 @@ describe('TaskSubjectPanel', () => {
     expect(
       await screen.findByRole('textbox', { name: 'What should change' }),
     ).toHaveValue('');
+  });
+
+  // Cancel run parks the task at Cancelled, which closes it: a parent whose
+  // subtasks are still open is refused, and the run keeps running. The
+  // reader hears that reason once, not "something went wrong".
+  it('names the open subtasks when Cancel run is refused for them', async () => {
+    mocks.run = {
+      runId: 'run_1',
+      name: 'document-verify-desk',
+      status: 'waiting',
+      version: 1,
+      detail: null,
+    };
+    mocks.cancel.mockRejectedValue(
+      new AppError({
+        code: 'TASK_HAS_OPEN_SUBTASKS',
+        message: 'Open subtasks remain',
+      }),
+    );
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { user } = renderPanel(ownedBy(), true, 'in_progress');
+
+    await user.click(screen.getByRole('button', { name: 'Cancel run' }));
+    await screen.findByText('Cancel this run?');
+    const confirm = screen
+      .getAllByRole('button', { name: 'Cancel run' })
+      .at(-1);
+    if (confirm === undefined) throw new Error('the dialog has no Cancel run');
+    await user.click(confirm);
+
+    expect(mocks.cancel).toHaveBeenCalledWith({
+      organizationId: 'org_1',
+      taskId: 'task_1',
+    });
+    expect(toast).toHaveBeenCalledExactlyOnceWith({
+      title: 'Finish all subtasks before closing this task.',
+      description: undefined,
+      variant: 'destructive',
+    });
   });
 });

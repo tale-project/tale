@@ -1,8 +1,10 @@
 import { DemoToolbar } from '@tale/marketing-ui/demo-chrome';
 import { DemoShell } from '@tale/marketing-ui/demo-shell';
+import { useReducedMotion } from '@tale/marketing-ui/entrance';
 import { useDemoTimeline } from '@tale/marketing-ui/use-demo-timeline';
 import { cn } from '@tale/ui/cn';
-import { motion, useInView, useReducedMotion } from 'framer-motion';
+import { cva } from 'class-variance-authority';
+import { motion, useInView } from 'framer-motion';
 import {
   BookOpen,
   FileText,
@@ -46,7 +48,19 @@ const TYPE_LABEL_KEY: Record<KnowledgeRowType, string> = {
   entry: 'demos.knowledge.typeEntry',
 };
 
-const COLS = '1.6fr 0.9fr 0.9fr';
+const documentMark = cva(
+  'demo-document flex size-7 shrink-0 items-center justify-center',
+  {
+    variants: {
+      kind: {
+        pdf: 'bg-demo-coral-soft text-demo-coral',
+        website: 'bg-demo-sky-soft text-demo-sky',
+        catalog: 'bg-demo-gold-soft text-demo-gold',
+        entry: 'bg-demo-violet-soft text-demo-violet',
+      },
+    },
+  },
+);
 
 /**
  * D3 — Knowledge documents table. Shared DemoToolbar chrome.
@@ -71,19 +85,16 @@ export function KnowledgePool({
         label={scene.label}
         title={t('demos.knowledge.windowTitle')}
         activeNav="knowledge"
-        className="mx-auto aspect-[7/10] max-w-4xl sm:aspect-[16/10]"
+        className="mx-auto min-h-144 max-w-4xl @2xl/demo:aspect-[16/10] @2xl/demo:min-h-120"
       >
-        <div className="flex h-full flex-col gap-3 p-3 md:gap-4 md:p-4">
+        <div className="demo-surface flex h-full flex-col gap-3 p-3 @2xl/demo:gap-4 @2xl/demo:p-4">
           <DemoToolbar
             searchPlaceholder={t('demos.knowledge.searchPlaceholder')}
             addLabel={t('demos.knowledge.addLabel')}
           />
 
           <div className="border-border-base bg-surface-site-raised flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border">
-            <div
-              className="text-fg-subtle border-border-base grid gap-2 border-b px-3 py-2 text-[10px] font-medium tracking-wide uppercase md:px-4"
-              style={{ gridTemplateColumns: COLS }}
-            >
+            <div className="text-fg-subtle border-border-base bg-demo-sky-soft/45 hidden grid-cols-[minmax(0,1.6fr)_minmax(0,0.9fr)_auto] gap-2 border-b px-3 py-2 text-[10px] font-medium tracking-wide uppercase @2xl/demo:grid @2xl/demo:px-4">
               <span>{t('demos.knowledge.colName')}</span>
               <span>{t('demos.knowledge.colType')}</span>
               <span className="text-right">
@@ -101,20 +112,19 @@ export function KnowledgePool({
                     initial={reduceMotion ? false : { opacity: 0, y: 6 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.3, ease: easeOut }}
-                    className="border-border-base/60 grid items-center gap-2 border-b px-3 py-2.5 last:border-b-0 md:px-4"
-                    style={{ gridTemplateColumns: COLS }}
+                    className="border-border-base/60 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-1.5 border-b px-2 py-3 last:border-b-0 @sm/demo:gap-2 @sm/demo:px-3 @2xl/demo:grid-cols-[minmax(0,1.6fr)_minmax(0,0.9fr)_auto] @2xl/demo:px-4"
                   >
-                    <span className="text-fg-base flex min-w-0 items-center gap-2 text-xs font-medium md:text-[13px]">
-                      <span className="bg-surface-site-inset text-fg-muted flex size-7 shrink-0 items-center justify-center rounded-md">
+                    <span className="text-fg-base col-span-2 flex min-w-0 items-center gap-2 text-xs font-medium @2xl/demo:col-span-1 @2xl/demo:text-[13px]">
+                      <span className={documentMark({ kind: row.type })}>
                         <Icon
                           aria-hidden
                           className="size-3.5"
                           strokeWidth={1.75}
                         />
                       </span>
-                      <span className="truncate">{row.name}</span>
+                      <span className="min-w-0 wrap-anywhere">{row.name}</span>
                     </span>
-                    <span className="text-fg-muted truncate text-xs">
+                    <span className="text-fg-muted ml-9 min-w-0 text-[10px] wrap-anywhere @2xl/demo:ml-0 @2xl/demo:text-xs">
                       {t(TYPE_LABEL_KEY[row.type])}
                     </span>
                     <span className="flex justify-end">

@@ -43,8 +43,6 @@ export type CheckId =
   | 'glossary-coverage'
   | 'status-chatter'
   | 'prose-exclamation'
-  | 'markdown-anchor-parity'
-  | 'markdown-link-target'
   | 'placeholder-density';
 
 export type CheckMode = 'enforce' | 'report' | 'off';
@@ -123,15 +121,12 @@ export interface I18nTestsConfig {
 /**
  * Config for `defineDocsTests` — used by `services/docs/tests/docs.test.ts`.
  * Walks the markdown content tree at `docsRoot` (typically `<repo>/docs`).
- * The optional `navPath` is used by `markdown-anchor-parity` to resolve
- * link targets.
+ * Links are not this framework's concern: the docs sites judge them with
+ * `@tale/ui/docs/links` against what each site answers.
  */
 export interface DocsTestsConfig {
   /** Absolute path to the markdown content root (e.g. `<repo>/docs`). */
   docsRoot: string;
-
-  /** Path to the nav.json file. Defaults to `<docsRoot>/nav.json`. */
-  navPath?: string;
 
   /**
    * Path to the glossary JSON. Defaults to the framework-bundled

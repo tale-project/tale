@@ -1,4 +1,5 @@
 import {
+  isSerializationFailure,
   markRetryQueueKey,
   RETRY_QUEUE_LOCK_CLASS,
 } from '@tale/shared/db/serializable';
@@ -21,7 +22,7 @@ import type { CommentEventComment } from '../../core/tasks/types.ts';
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
-import { createAuditLog } from '../audit_logs/service.ts';
+import { auditChainQueueKey, createAuditLog } from '../audit_logs/service.ts';
 import { resolveSurfaceMentions } from '../collab/mention-directory.ts';
 import { notifyTaskComment } from '../collab/service.ts';
 import { emitEvent } from '../events/emit.ts';
@@ -135,7 +136,9 @@ export async function lockTaskCommentQueue(
  * task AND the chain head, in that order (the retry-queue note in
  * `@tale/shared/db/serializable`). Under contention on this task's rows a
  * writer wastes at most one attempt. Plain READ COMMITTED callers pay only
- * the lock, which orders the task's comments and marks nothing.
+ * the lock, which orders the task's comments and marks nothing. A comment
+ * write adds the chain head's key whatever it lost on
+ * (`queuedCommentWrite`).
  */
 export async function queuedOnTask<T>(
   tx: TransactionSql,
@@ -163,23 +166,85 @@ interface AddTaskCommentArgs {
   author?: CommentAuthor;
 }
 
+/**
+ * A comment write, queued on its task (`queuedOnTask`), that ends on the
+ * org's audit chain head. A loss anywhere in it queues the retry on the head
+ * too. A loss before the head (a read/write dependency on the org's other
+ * comment writes, which serializable isolation reports wherever it finds
+ * one) used to carry the task's key alone, so the retry lost again at the
+ * head: a burst of commenters across one org's tasks spent up to three
+ * attempts a writer, and now and then one ran out of attempts.
+ */
+function queuedCommentWrite<T>(
+  tx: TransactionSql,
+  organizationId: string,
+  taskId: string,
+  work: () => Promise<T>,
+): Promise<T> {
+  return queuedOnTask(tx, taskId, async () => {
+    try {
+      return await work();
+    } catch (error) {
+      if (isSerializationFailure(error)) {
+        throw markRetryQueueKey(error, auditChainQueueKey(organizationId));
+      }
+      throw error;
+    }
+  });
+}
+
 /** Append one comment (message + lockstep meta + count + activity + audit),
- * queued on its task (`queuedOnTask`). `bodyByLocale` is the same text
- * written natively per language (the workflow `task.comment` native and the
- * automated date nudge carry it); the reader picks their locale and falls
- * back to `body`. */
+ * queued on its task and the org's audit chain (`queuedCommentWrite`).
+ * `bodyByLocale` is the same text written natively per language (the
+ * workflow `task.comment` native and the automated date nudge carry it);
+ * the reader picks their locale and falls back to `body`. */
 export function addTaskComment(
   tx: TransactionSql,
   auth: ProjectAuthContext,
   args: AddTaskCommentArgs,
 ): Promise<AddedTaskComment> {
-  return queuedOnTask(tx, args.taskId, () => appendTaskComment(tx, auth, args));
+  return queuedCommentWrite(tx, auth.organizationId, args.taskId, () =>
+    appendTaskComment(tx, auth, args),
+  );
+}
+
+/** The native review decision owns authorization and the task queue before
+ * calling. Persist ordinary visible feedback with its normal notifications,
+ * but neither mentions nor platform events may admit another run. */
+export function addTaskReviewFeedback(
+  tx: TransactionSql,
+  args: {
+    organizationId: string;
+    taskId: string;
+    agentId: string;
+    body: string;
+  },
+): Promise<AddedTaskComment> {
+  const auth: ProjectAuthContext = {
+    organizationId: args.organizationId,
+    userId: args.agentId,
+    role: 'admin',
+    teamIds: [],
+  };
+  return queuedCommentWrite(tx, args.organizationId, args.taskId, () =>
+    appendTaskComment(
+      tx,
+      auth,
+      {
+        taskId: args.taskId,
+        body: args.body,
+        author: { actorType: 'agent', actorId: args.agentId },
+      },
+      false,
+    ),
+  );
 }
 
 async function appendTaskComment(
   tx: TransactionSql,
   auth: ProjectAuthContext,
   args: AddTaskCommentArgs,
+  dispatch = true,
 ): Promise<AddedTaskComment> {
   const task = await loadTaskOrThrow(tx, args.taskId, auth.organizationId);
   const project = await loadProjectOrThrow(tx, task.projectId);
@@ -240,18 +305,20 @@ async function appendTaskComment(
   // @-ing the automation that OWNS this task starts its task workflow — the
   // counterpart of the agent lane's steer. Runs before the steer check so a
   // task can only ever have one engine start per comment.
-  const automationStarted = await maybeTriggerOwningAutomation(tx, {
-    auth,
-    task,
-    mentions,
-    authorType: author.actorType,
-  });
+  const automationStarted =
+    dispatch &&
+    (await maybeTriggerOwningAutomation(tx, {
+      auth,
+      task,
+      mentions,
+      authorType: author.actorType,
+    }));
   // A comment that @-mentions one of the project's agent INSTANCES puts it
   // to work: steering its RUNNING turn, or — when the task is idle —
   // (re)assigning the task to it and kicking a fresh 'mention' run with
   // this comment as feedback (the 0.4 wire). Runs after the automation
   // check so a task can only ever have one engine start per comment.
-  if (!automationStarted) {
+  if (dispatch && !automationStarted) {
     await dispatchMentionedProjectAgent(tx, {
       auth,
       task,
@@ -299,11 +366,13 @@ async function appendTaskComment(
     taskId: args.taskId,
     mentions,
   };
-  await emitEvent(tx, {
-    organizationId: auth.organizationId,
-    eventType: 'comment.created',
-    eventData: { comment },
-  });
+  if (dispatch) {
+    await emitEvent(tx, {
+      organizationId: auth.organizationId,
+      eventType: 'comment.created',
+      eventData: { comment },
+    });
+  }
   await emitHintInTx(tx, {
     orgId: auth.organizationId,
     entity: 'task',
@@ -380,6 +449,21 @@ export async function listTaskComments(
   const task = await loadTaskOrThrow(sql, taskId, auth.organizationId);
   const project = await loadProjectOrThrow(sql, task.projectId);
   assertTaskReadable(project, auth);
+  return readTaskCommentPage(sql, task, options);
+}
+
+/**
+ * {@link listTaskComments}'s page for a task the caller has ALREADY judged
+ * readable — the agent read (`task_get`, through the shim's
+ * `getTaskContextForAgent`), whose scope check runs at the workspace-tool
+ * door before any read. The page, its order and its cursor are the feed's.
+ */
+export async function readTaskCommentPage(
+  sql: Sql,
+  task: Pick<TaskRow, 'id' | 'discussionThreadId'>,
+  options: { limit?: number; before?: number } = {},
+): Promise<TaskCommentPage> {
+  const taskId = task.id;
   if (!task.discussionThreadId) {
     return { comments: [], hasMore: false, nextCursor: null };
   }
@@ -596,15 +680,16 @@ export async function editTaskComment(
   });
 }
 
-/** Delete one comment, queued on its task (`queuedOnTask`): the count it
- * decrements is the same hot row every append bumps. */
+/** Delete one comment, queued on its task and the org's audit chain
+ * (`queuedCommentWrite`): the count it decrements is the same hot row every
+ * append bumps. */
 export async function deleteTaskComment(
   tx: TransactionSql,
   auth: ProjectAuthContext,
   messageId: string,
 ): Promise<void> {
   const meta = await loadCommentMeta(tx, messageId);
-  await queuedOnTask(tx, meta.taskId, () =>
+  await queuedCommentWrite(tx, auth.organizationId, meta.taskId, () =>
     removeTaskComment(tx, auth, messageId, meta),
   );
 }

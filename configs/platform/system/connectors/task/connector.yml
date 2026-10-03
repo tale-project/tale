@@ -6,8 +6,9 @@
 name: task
 displayName: Tasks
 description: >-
-  Read a task, move its status, and write or read its discussion comments —
-  the platform's own task board as automation steps.
+  Read a task, move its status, write or read its discussion comments, put
+  its project agent to work, and keep a scheduled issue import's position
+  between occurrences — the platform's own task board as automation steps.
 tags:
   - Platform
 auth:
@@ -122,6 +123,58 @@ actions:
       kind: native
       impl: task.list_comments
     exampleInput: { taskId: 'tsk_1', authorTypes: [user], limit: 20 }
+  - name: start_agent
+    description: >-
+      Put the task's project agent to work, or first assign it to the agent
+      named by agentId (an agent of the same project), and answer the run it
+      started. The automation must be bound to the task's project, and its
+      run must be started by a person who can edit that project or by an
+      enabled schedule; webhook and event runs cannot start agents. The run
+      answers to that person, or to the schedule (booked as automation spend,
+      with no person's connector access). feedback is what the run addresses
+      first. moveToInProgress (default true) moves the card to In progress and
+      the finished work waits at In review, withdrawing a review still pending
+      on earlier work; false leaves the card where it is and asks for no
+      review, for a standing task in To do that reports on every occurrence.
+      Starts nothing, without failing, when the task's live run already
+      carries the work (already_running), an in-place start meets a card
+      waiting for a person's review (in_review) or one already Done or
+      Cancelled (closed), the agent is working another task (agent_busy), an
+      open task blocks this one (blocked), or the task took three starts by
+      automations and agents, ordinary automatic retries included, in the last
+      hour (paused). One broker cooldown immediately after the same agent's
+      HTTP 429 adds no start; consecutive cooldowns still count. Honor the
+      returned retryAfter and every other admission check. A step delivered
+      again answers the run its first delivery started.
+    effects: write
+    input:
+      type: object
+      required: [taskId]
+      additionalProperties: false
+      properties:
+        taskId: { type: string, description: The task to work on. }
+        agentId:
+          type: string
+          description: The project agent to assign and start; the task's agent assignee when omitted.
+        feedback:
+          type: string
+          maxLength: 10000
+          description: What the run addresses first, such as the occurrence it serves or the receipts of earlier steps.
+        moveToInProgress:
+          type: boolean
+          description: Move the card to In progress and park the result at In review (default), or leave it where it is — only under open work (Backlog, To do, In progress).
+    output: '{ started: boolean, runId: string | null, taskId: string, agentId: string, reason?: "already_running" | "in_review" | "closed" | "agent_busy" | "blocked" | "paused", replayed?: boolean, taskStatus?: string, busyTaskId?: string, blockedBy?: string[], retryAfter?: number }'
+    mock: |
+      return {
+        started: true,
+        runId: 'run_mock',
+        taskId: String(input.taskId),
+        agentId: String(input.agentId ?? 'agent_mock'),
+      };
+    backend:
+      kind: native
+      impl: task.start_agent
+    exampleInput: { taskId: 'tsk_1', feedback: 'Scheduled occurrence 2026-09-30 09:00 Europe/Zurich.' }
   - name: upsert
     description: Import an external issue into a project's backlog, reusing its existing task on repeat imports. Keeps local status, assignee, and non-empty description. A title over 200 or a description over 20,000 UTF-16 code units is cut to that length, ending in "…"; a blank title is refused. Returns the title the task carries. Does not start an agent.
     effects: write
@@ -176,6 +229,66 @@ actions:
       kind: native
       impl: task.list_external_issues
     exampleInput: { projectId: proj_mock, externalSystem: github, repositoryId: 1 }
+  - name: get_import_cursor
+    description: >-
+      Where a scheduled issue import of this project's source resumes: the
+      cursor its last saved batch left, so each occurrence imports one bounded
+      batch from where the previous one stopped until the listing is drained.
+      Pass cursor to the importer, and hand revision back to
+      save_import_cursor: it is the position's opaque compare token, new after
+      every saved batch, drain and restart, so it never repeats even when the
+      cursor text does. Answers '' for the first batch of a pass. Reading a
+      stored cursor counts an attempt; after three reads without a save (the
+      batch keeps failing) the next read starts the pass over (restarted).
+      Runs only as an automation step.
+    effects: read
+    input:
+      type: object
+      required: [projectId, externalSystem, source]
+      additionalProperties: false
+      properties:
+        projectId: { type: string, minLength: 1 }
+        externalSystem: { type: string, enum: [github, glitchtip] }
+        source:
+          type: string
+          minLength: 1
+          maxLength: 200
+          description: Your name for the listing, such as owner/repo; automations naming the same source share one pass.
+    output: '{ cursor: string, revision: string, batch: number, resumed: boolean, restarted: boolean, passStartedAt: number | null, lastDrainedAt: number | null }'
+    mock: |
+      return { cursor: '', revision: '1', batch: 1, resumed: false, restarted: false, passStartedAt: null, lastDrainedAt: null };
+    backend:
+      kind: native
+      impl: task.get_import_cursor
+    exampleInput: { projectId: proj_mock, externalSystem: github, source: example/web }
+  - name: save_import_cursor
+    description: >-
+      Record how far a scheduled issue import got: revision is the one
+      get_import_cursor answered for this batch, and next the importer's
+      nextCursor, or '' once the listing is drained, which completes the pass.
+      Saves only while the position is still at that revision, so a failed
+      import (whose run saves nothing) retries its batch next occurrence, and a
+      save from any earlier revision (an overlapping run, a delayed run of a
+      completed pass, a stale end of the listing) is refused and writes nothing
+      (saved false, conflict true). Runs only as an automation step.
+    effects: write
+    input:
+      type: object
+      required: [projectId, externalSystem, source, revision, next]
+      additionalProperties: false
+      properties:
+        projectId: { type: string, minLength: 1 }
+        externalSystem: { type: string, enum: [github, glitchtip] }
+        source: { type: string, minLength: 1, maxLength: 200 }
+        revision: { type: string, minLength: 1, maxLength: 40, description: The revision get_import_cursor answered for this batch. }
+        next: { type: string, maxLength: 12000, description: "The importer's nextCursor; '' once the listing is drained." }
+    output: '{ saved: boolean, drained: boolean, batch: number, conflict: boolean, revision: string }'
+    mock: |
+      return { saved: true, drained: String(input.next ?? '') === '', batch: 1, conflict: false, revision: '2' };
+    backend:
+      kind: native
+      impl: task.save_import_cursor
+    exampleInput: { projectId: proj_mock, externalSystem: github, source: example/web, revision: '1', next: '' }
   - name: upsert_issues
     description: Atomically import or refresh a batch of issue snapshots. New tasks require an open source; repeat sync keeps Tale edits and status. Titles and descriptions are cut to 200 and 20,000 UTF-16 code units, ending in "…"; a blank title refuses the batch, naming the item. Returns one result per source with the title its task carries, and taskId null when a closed source has no task.
     effects: write

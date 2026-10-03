@@ -91,3 +91,24 @@ export function isStandingProjectAgentSession(
 ): boolean {
   return sessionId === standingSessionIdForProjectAgent(agentId);
 }
+
+/** Whether a session id is one of a project agent's: its standing session,
+ * or the workspace of any member's runs with it — the inverse of the two
+ * derivations above, for a session no row names any more. */
+export function isProjectAgentSession(
+  agentId: string,
+  sessionId: string,
+): boolean {
+  if (isStandingProjectAgentSession(agentId, sessionId)) return true;
+  // `memberSessionIdForProjectAgent`: the member suffix is `-m` + 16 hex.
+  const suffixLength = 18;
+  const standing = standingSessionIdForProjectAgent(agentId);
+  const prefix =
+    standing.length + suffixLength <= 64
+      ? standing
+      : `pa-${fnv1a64Hex(agentId)}`;
+  return (
+    sessionId.length === prefix.length + suffixLength &&
+    sessionId.startsWith(`${prefix}-m`)
+  );
+}

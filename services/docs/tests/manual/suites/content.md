@@ -22,7 +22,7 @@ Representative pages for each component family:
 | Steps | `{base}/get-started/quickstart` |
 | Callouts (Info, Tip)          | `{base}/platform/models`                                                       |
 | Callout (Warning) + Frame     | `{base}/platform/connectors/webdav`                                            |
-| Cards / CardGroup             | `{base}/` (landing card groups)                                                |
+| Cards / CardGroup             | `{base}/tutorials/overview` (article card groups)                                                |
 | Frame with caption            | `{base}/platform/chat/overview`                                                |
 | CodeGroup (corpus's only one) | `{base}/self-hosted/configuration/providers`                                   |
 | Images                        | `{base}/platform/chat/basics` (chat screenshot)                                  |

@@ -27,7 +27,7 @@ Auf der Freigabekarte kannst du keine Parameter ändern. Lehne eine falsche Anfr
 
 Nutzt ein Agent-Knoten `ask_human`, zeigen die Laufdetails **Der Agent braucht deine Antwort, um weiterzumachen**. Beantworte vorgegebene Auswahlfragen direkt auf der Karte. Bei einer offenen Frage schreibst du unter **Deine Antwort** einen Text und klickst auf **Antwort senden & fortsetzen**.
 
-Gib die fehlende Information möglichst konkret an. Fragt der Agent nach einem Dokument, nenne das Dokument oder seine Kennung, statt ihn nur zum Fortfahren aufzufordern. Der wartende Knoten wird mit deiner Antwort fortgesetzt. Später kann der Lauf eine weitere Antwort oder eine Freigabe benötigen. Organisationsmitglieder können diese Rückfragen beantworten.
+Gib die fehlende Information möglichst konkret an. Fragt der Agent nach einem Dokument, nenne das Dokument oder seine Kennung, statt ihn nur zum Fortfahren aufzufordern. Der wartende Knoten wird mit deiner Antwort fortgesetzt. Später kann der Lauf eine weitere Antwort oder eine Freigabe benötigen. Inhaber, Admins und Entwickler antworten in den Laufdetails. Bearbeitet der Lauf eine Aufgabe, erscheint die Rückfrage auch in der Aufgabe, und dort antwortet jede Person, die die Aufgabe öffnen kann.
 
 ## Den Workflow korrigieren und testen
 

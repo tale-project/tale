@@ -685,6 +685,20 @@ services:
       - path: .env
         required: false
     restart: unless-stopped
+    environment:
+      # Connections the proxy serves at once for the whole fleet (tinyproxy
+      # MaxClients). Mirrors the CLI compose generator.
+      SANDBOX_EGRESS_MAX_CLIENTS: ${SANDBOX_EGRESS_MAX_CLIENTS:-2000}
+    # Mirrors the CLI compose generator (create-sandbox-egress-service.ts):
+    # tinyproxy runs a thread and holds two descriptors per connection
+    # (SANDBOX_EGRESS_MAX_CLIENTS, 2000 by default), and threads count
+    # against the pids limit. A raised connection limit needs these raised.
+    mem_limit: 512m
+    pids_limit: 4096
+    ulimits:
+      nofile:
+        soft: 8192
+        hard: 16384
     # IPv4-only proxy networks: disable current and future-interface IPv6 so
     # the fail-closed firewall also boots on kernels without ip6_tables.
     sysctls:
@@ -846,8 +860,8 @@ services:
     # operational posture; previously this file shipped without caps, so
     # operators running `docker compose up` directly got an uncapped
     # spawner — audit finding R2-B11.
-    mem_limit: 512m
-    pids_limit: 512
+    mem_limit: 1g
+    pids_limit: 1024
     ulimits:
       nofile:
         soft: 4096
@@ -911,17 +925,19 @@ services:
       # always writes a real .env, so production is unaffected.
       - path: .env
         required: false
-    # No gateway-read env knobs: auth + VK enforcement are config-store fields
-    # the platform pushes via applyGatewayConfig() (admin creds come from the
-    # platform's SANDBOX_LLM_GATEWAY_ADMIN_USERNAME / SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD
-    # — required on the backend, never set on the gateway container itself;
-    # compose.dev.yml carries an insecure dev default for the backend tier).
+    # Auth + VK enforcement are config-store fields the platform pushes via
+    # applyGatewayConfig() with its SANDBOX_LLM_GATEWAY_ADMIN_USERNAME /
+    # SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD. The one env value the gateway reads
+    # is that password, from the .env above: its image turns it into the setup
+    # token a fresh gateway demands before it creates the admin account
+    # (services/sandbox-llm-gateway/docker-entrypoint.sh). compose.dev.yml
+    # carries the insecure dev default for both sides.
     volumes:
-      # SQLite config/log store (providers + minted keys + auth config survive
-      # restarts). Wipe this volume to re-bootstrap auth from scratch. Volume name
-      # predates the service rename (was `llm-gateway`); kept as-is to avoid an
-      # otherwise-pointless data migration (the store is a derived cache the
-      # platform re-provisions per session anyway).
+      # SQLite config/log store: the admin account, providers and their keys,
+      # minted virtual keys with their budgets and spend, and the request log. A
+      # newer gateway migrates it forward-only, so CLI snapshots capture it; it
+      # is not a cache to wipe. Volume name predates the service rename (was
+      # `llm-gateway`); kept as-is to avoid a data migration.
       - llm-gateway-data:/app/data
     restart: unless-stopped
     mem_limit: 512m
@@ -1021,10 +1037,11 @@ volumes:
   caddy-config:
     driver: local
 
-  # LLM gateway SQLite store (provisioned providers + minted session virtual
-  # keys). Survives restarts so in-flight sessions keep working. Name predates
-  # the `llm-gateway`→`sandbox-llm-gateway` service rename; kept to avoid a
-  # pointless data migration (derived cache, re-provisioned per session).
+  # LLM gateway SQLite store (admin account, provisioned providers, minted
+  # session virtual keys with their spend, request log). Survives restarts so
+  # in-flight sessions keep working, and CLI snapshots capture it. Name
+  # predates the `llm-gateway`→`sandbox-llm-gateway` service rename; kept to
+  # avoid a data migration.
   llm-gateway-data:
     driver: local
 

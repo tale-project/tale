@@ -8,7 +8,7 @@ Use these guides to work in Tale, whether your organization uses Cloud or runs i
 
 ## Move between sections {#navigation}
 
-On a computer, the rail along the left edge shows the sections as icons: **Home**, **Knowledge**, and **Automations**, with **Settings**, your notifications, and your profile menu at its foot. Point to an icon to see its name. On a phone, the tab bar at the bottom offers **Home**, **Knowledge**, **Automations**, and **Settings**. **Automations** always shows for Owners, Admins, and Developers, who build automations; everyone else sees it once the organization runs a live organization-wide automation. Automations bound to a project show on that project's own tab.
+On a computer, the rail along the left edge shows the sections as icons: **Home**, **Knowledge**, and **Automations**, with **Settings**, your notifications, and your profile menu at its foot. Point to an icon to see its name. On a phone, the tab bar at the bottom offers **Home**, **Knowledge**, **Automations**, and **Settings**. **Automations** shows only for Owners, Admins, and Developers, who build automations; Members and Editors don't see it.
 
 On a phone, navigation sits in a rounded capsule floating above the page. Content scrolls behind it, while message fields and page actions stay above it. The capsule hides when the on-screen keyboard opens and returns when you close the keyboard.
 
@@ -21,8 +21,8 @@ A section always opens on its own first page, whatever you did there last, so th
 | You want to… | Do this |
 | --- | --- |
 | Open another section | Choose that section in the rail or, on a phone, in the tab bar. |
-| Start a new chat | Choose **New chat** in Home, or choose **Home** while you are already there. |
-| Open a project | Choose the project under **Projects** in Home. |
+| Start a new chat | On a computer, choose **New chat** in Home, or choose **Home** while you are already there. On a phone, open **Home**, choose **Chats**, then **New chat**. |
+| Open a project | On a computer, choose the project under **Projects** in Home. On a phone, choose the project, or choose **Open project** from its menu. |
 | Return to the project list | Choose **All projects** in Home, or use the **Projects** breadcrumb above the project. |
 | Return to the Documents list | Choose **Knowledge**. |
 
@@ -44,15 +44,29 @@ Below the projects, one list groups your work under **Pinned**, **Today**, **Yes
 - The open tasks assigned to you or waiting for your review, from every project you can read.
 - In **All**, the open inbox conversations you can see.
 
-An empty **All** or **Chats** view offers **New chat**, and an empty **Tasks** view offers **All projects**, which opens the project list.
+An empty **Tasks** view offers **All projects**, which opens the project list. On a computer, an empty **All** or **Chats** view also offers **New chat**. If your chats, tasks, or conversations cannot be loaded, the list keeps what did load and says what is missing, instead of showing an empty view. **Try again** asks for it again.
 
-Each row starts with a chat bubble, a colored circle for the task's status, or the customer's initials. The title follows with how long ago the item last changed, and one line of context below: the chat's project, the task's key and status such as `WEB-2` **In review** or **Waiting for your review**, or the customer and their latest message. A dot in the accent color marks an unread chat or conversation and a task waiting for your review. **Draft** with a pencil at the start of the context line marks a chat, task, or conversation holding text you typed but have not sent, except the one you have open. Drafts stay in the browser you typed them in. A chat's menu offers **Pin chat**, **Mark as read** or **Mark as unread**, **Rename**, **Move to project…**, **Share**, **Stop sharing** for a shared chat, **Archive**, and **Delete**. Archived chats move to **Archived** at the bottom of the list.
+On a phone, the same list differs in three ways:
+
+- **New chat** is at the top of the **Chats** view, not in the header. Home has no **New project** button, and a project's menu offers **Open project** and **Pin project**.
+- Choosing a project under **Projects** in **Chats** or **Tasks** narrows the view to that project's chats or open tasks, highlighting the selected project row. Tapping the project row again removes the filter. **All** and **Inbox** show all items without narrowing.
+- **All projects** is a labelled link beside the **Projects** heading, not an icon.
+
+Each row starts with a chat bubble, a colored circle for the task's status, or the customer's initials. The title follows with how long ago the item last changed, and one line of context below: the chat's project, the task's key and status such as `WEB-2` **In review** or **Waiting for your review**, or the customer and their latest message. A dot in the accent color marks an unread chat or conversation and a task waiting for your review. **Draft** with a pencil at the start of the context line marks a chat, task, or conversation holding text you typed but have not sent, except the one you have open. Drafts stay in the browser you typed them in. A chat's menu offers **Pin chat**, **Mark as read** or **Mark as unread**, **Rename**, **Move to project…**, **Share**, **Stop sharing** for a shared chat, **Archive**, and **Delete**. Archived chats move to **Archived** at the bottom of the Chats view.
 
 The **Inbox** view lists the conversations of one status: choose **Open**, **Closed**, **Spam**, or **Archived** in its status menu. It also offers **New email**, a search field, and a **Filter** button for **Assignee**, **Read status**, and **Channel**. To act on several conversations at once, point to a conversation's initials and tick the checkbox that appears. The bar above the list then offers **Send messages**, **Close**, and **Mark as spam** for open conversations, or **Reopen** for closed and spam ones, together with **Archive** or **Unarchive** and **Clear selection**.
 
-The checkbox at the start of the bar ticks the whole list. While only some conversations are ticked it shows a dash, and ticking it then selects every conversation the list shows, apart from those a search or filter hides. A selection of more than 200 conversations goes out in parts, and the Inbox counts them off as they go. The message that follows says how many conversations changed and how many failed. Those that failed stay ticked, so you can try again. If the list cannot be loaded, it reads **Couldn't load conversations** with **Try again**, rather than showing an empty status.
+The checkbox at the start of the bar ticks the whole list. While only some conversations are ticked it shows a dash, and ticking it then selects every conversation the list shows, apart from those a search or filter hides. A selection of more than 200 conversations goes out in parts, and the Inbox counts them off as they go. The message that follows says how many conversations changed and how many failed, with the reason for the first failure when there is one. Those that failed stay ticked, so you can try again. If the list cannot be loaded, it reads **Couldn't load conversations** with **Try again**, rather than showing an empty status.
 
-A chat, task, or conversation opens under a header with its icon, its title, one line of context, and its actions. **Hide sidebar** at the start of that header folds the Home panel away for more room, and **Show sidebar** brings it back; the button's tooltip shows the shortcut. In a conversation, the first action, **Copy link**, copies a link that opens the same conversation for a teammate. Owners and Admins assign the conversation from its header, to a person, a team, or one of each. Choosing the current person or team again clears it, as do **Unassign** and **Remove team** at the end of the list; the other assignment stays as it is.
+<Frame caption="Home's Inbox view beside an open conversation: the status menu, New email, search, and Filter above the conversations, each with its customer's initials and latest message.">
+
+![Home in its Inbox view lists three open conversations: Copy of the August invoice from Léa Martin, Annual discount on the team plan from Hannah Weber, and Seat pricing for read-only members from Daniel Okafor. Beside the list, the conversation with Hannah Weber is open, showing her two messages, the team's reply between them, and the message field.](/images/platform/home-inbox.webp)
+
+</Frame>
+
+A chat, task, or conversation opens under a header with its icon, its title, one line of context, and its actions. **Hide sidebar** at the start of that header folds the Home panel away for more room, and **Show sidebar** brings it back; the button's tooltip shows the shortcut. A project's page offers the same button at the start of its header. In a conversation, the first action, **Copy link**, copies a link that opens the same conversation for a teammate. Owners and Admins assign the conversation from its header, to a person, a team, or one of each. Choosing the current person or team again clears it, as do **Unassign** and **Remove team** at the end of the list; the other assignment stays as it is.
+
+Images in an email appear inside the message. Tale fetches the pictures hosted on the sender's servers for you, so the sender sees neither your IP address nor when you read the message. A picture larger than 10 MB, or one in SVG format, does not appear.
 
 ### Keyboard shortcuts {#shortcuts}
 

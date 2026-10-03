@@ -46,6 +46,7 @@ export interface HomeChatItem extends HomeItemBase {
   /** A reply is being written right now. */
   readonly generating: boolean;
   readonly shared: boolean;
+  readonly archived?: boolean;
 }
 
 export interface HomeTaskItem extends HomeItemBase {
@@ -53,6 +54,7 @@ export interface HomeTaskItem extends HomeItemBase {
   /** `WEB-12`, when the project has a key and the task a number. */
   readonly identifier?: string | undefined;
   readonly status: TaskStatus;
+  readonly priority?: string | undefined;
   /** The task waits on the caller's review. */
   readonly awaitingMyReview: boolean;
 }

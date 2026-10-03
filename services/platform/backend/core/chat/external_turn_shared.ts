@@ -119,6 +119,19 @@ export function harnessMountsMcp(harness: string): boolean {
   return def?.capabilities.mcp === true;
 }
 
+/** Whether the platform continues a previous turn's conversation on this
+ * harness — the next kick of a task, an automation node's retry or its
+ * answered ask hand the exec the announced handle. A harness whose YAML
+ * declares `capabilities.resume: false` (Gemini CLI, whose `--resume`
+ * replays every tool result twice) starts every such kick as a FRESH
+ * conversation over the preserved workspace instead; the exec builder
+ * refuses a handle on it, so the planners must read this first. */
+export function harnessResumesConversations(harness: string): boolean {
+  if (!isHarnessSlug(harness)) return false;
+  const def = loadHarnesses().find((h) => h.slug === harness);
+  return def?.capabilities.resume === true;
+}
+
 /** How a managed external turn authenticates: the session gateway virtual
  * key, or a redeemed vendor-subscription token the harness's YAML
  * `subscription` section injects (the vendor CLI authenticates directly).

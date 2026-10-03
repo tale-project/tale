@@ -5,6 +5,12 @@ description: Examine la consommation de tokens, les requêtes et les coûts enre
 
 En tant qu’admin ou propriétaire, ouvre **Paramètres > Métriques > Utilisation** pour comprendre quelles tâches consomment des ressources d’IA. Choisis d’abord la période, puis les répartitions utiles pour expliquer une variation de coût ou de volume.
 
+<Frame caption="Paramètres > Métriques > Utilisation : les totaux, le graphique des tokens et les assistants les plus sollicités sur les 30 derniers jours.">
+
+![La page Métriques d’utilisation sur les 30 derniers jours indique 14 requêtes, 448 tokens, un coût enregistré de 0,00 dollar US et une personne active. Le graphique des tokens n’a de barre que pour le jour en cours, répartie entre entrée et sortie ; en dessous, le tableau des assistants les plus sollicités liste l’assistant et la génération des titres de chat.](/images/platform/metrics-usage.webp)
+
+</Frame>
+
 ## Examiner une hausse d’usage
 
 1. Ouvre **Filtre** et choisis une **Période** de 7, 30 ou 90 jours. La vue initiale couvre 30 jours.
@@ -18,7 +24,7 @@ Les noms d’assistants peuvent inclure des tâches auxiliaires, comme la créat
 
 ## Lire les coûts avec les tokens
 
-Le tableau de bord utilise les données d’usage et de consommation enregistrées. Les tokens d’entrée et de sortie sont séparés. Des services comme la sortie vocale ou la génération d’images peuvent utiliser d’autres unités de facturation. Le total de tokens ne suffit donc pas à expliquer tous les coûts.
+Le tableau de bord utilise les données d’usage et de consommation enregistrées. Les tokens d’entrée et de sortie sont séparés. Des services comme la sortie vocale ou la génération d’images peuvent utiliser d’autres unités de facturation. Le total de tokens ne suffit donc pas à expliquer tous les coûts. Les tokens d’entrée comprennent aussi la partie d’un prompt qu’un fournisseur a lue dans son cache ou y a écrite. Cette partie est facturée autrement que le reste de l’entrée : une exécution qui réutilise un long prompt peut donc afficher beaucoup de tokens d’entrée pour un coût faible.
 
 Une image créée par un agent apparaît sous son modèle d’images dans **Principaux modèles** et sous l’agent ou l’automatisation dans **Principaux assistants**, à raison d’une requête par image et sans tokens. Son coût est le montant indiqué par OpenRouter ou, pour OpenAI, le tarif public des tokens d’image indiqués par OpenAI. Une requête facturée par le fournisseur sans image exploitable compte de la même façon.
 

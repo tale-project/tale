@@ -43,9 +43,14 @@ export function ProjectFilesFrame({
 
 export function ProjectAgentsFrame({
   action,
+  reader = false,
   children,
 }: {
   action?: ReactNode;
+  /** The viewer reads the project's agents but may not change them: the
+   * header says who may, so a list without verbs is not mistaken for a
+   * page that failed to load them. */
+  reader?: boolean;
   children: ReactNode;
 }) {
   const { t } = useT('projects');
@@ -53,7 +58,11 @@ export function ProjectAgentsFrame({
     <ContentArea variant="narrow" gap={6} className="min-h-0 flex-1">
       <StickySectionHeader
         title={t('agents.agentsHeading')}
-        description={t('agents.sectionDescription')}
+        description={t(
+          reader
+            ? 'agents.sectionDescriptionReader'
+            : 'agents.sectionDescription',
+        )}
         action={action}
       />
       {children}

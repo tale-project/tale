@@ -19,6 +19,7 @@ import {
 } from './service.ts';
 import { markSessionDestroyed } from './sessions.ts';
 import { reconcilePendingSessionOpKeys } from './spend-settlement.ts';
+import { sweepRoomWaitLeftovers } from './wait-retention.ts';
 
 /**
  * The spawner verbs the sweep's spawner-facing passes use. Injectable so the
@@ -58,6 +59,14 @@ export const SANDBOX_RUN_SESSION_RECLAIM_GRACE_MS = 10 * 60_000;
  */
 export const SANDBOX_FAILED_SESSION_COLLECT_GRACE_MS = 10 * 60_000;
 
+/**
+ * How long a crawler render session may hold its slot. It lives for one
+ * batch: a scan link creates it, renders the batch and destroys it, inside a
+ * window that closes nine minutes after the link started. A render row still
+ * holding compute past this belongs to a link that was cut off.
+ */
+export const SANDBOX_RENDER_SESSION_MAX_AGE_MS = 10 * 60_000;
+
 export interface SandboxWatchdogOptions {
   /** Rows probed against the spawner per tick (reconcile). */
   reconcileBatch?: number;
@@ -67,11 +76,14 @@ export interface SandboxWatchdogOptions {
   /** Failed creates whose leftovers are collected per tick. */
   collectBatch?: number;
   collectGraceMs?: number;
+  /** Abandoned render sessions released per tick. */
+  releaseBatch?: number;
+  renderMaxAgeMs?: number;
   /** Finalized ops whose gateway-key settlement is still open, settled per
    * tick. */
   settleBatch?: number;
-  /** Skip EVERY spawner-facing pass (reconcile, reclaim, collect) — for
-   * callers with no spawner to ask. */
+  /** Skip EVERY spawner-facing pass (reconcile, reclaim, collect, release)
+   * — for callers with no spawner to ask. */
   skipReconcile?: boolean;
   spawner?: WatchdogSpawner;
   /** Where the reconcile queues a pinned session's recreate — the
@@ -94,6 +106,9 @@ export interface SandboxWatchdogResult {
   /** Failed creates the sweep settled this tick: their spawner session
    * destroyed or confirmed absent, or already owned by a newer incarnation. */
   collected: number;
+  /** Render sessions a cut-off scan link left behind, destroyed and settled
+   * this tick. */
+  released: number;
   /** Finalized ops whose gateway-key settlement (spend booked, key revoked)
    * the sweep closed this tick. */
   settled: number;
@@ -144,6 +159,18 @@ export interface SandboxWatchdogResult {
  *    id may be another run's live session); this pass collects what that
  *    destroy could not, past a grace, behind the same `if_idle` guard as
  *    RECLAIM, and stamps `destroyed_at_ms` on the row.
+ *  - RELEASE: the crawler's render sessions a stopped process left behind.
+ *    A scan link destroys its render session when the batch ends; a link
+ *    cut off mid-batch (a restart, a deploy, a crash) leaves the row
+ *    `active` and the container running, and no pass above reached either:
+ *    the row is unpinned but its TTL is a day, the container answers the
+ *    reconcile probe, and it has no run that could end. Each held one of
+ *    the organization's render slots (two by default) until the spawner's
+ *    own idle reaper took the container half an hour later, so two of them
+ *    left every website scan of the organization unable to render a page
+ *    for that long. A render row still holding compute past
+ *    `SANDBOX_RENDER_SESSION_MAX_AGE_MS` is destroyed when idle and
+ *    settled; a worker still rendering in it is left for the next tick.
  */
 export async function runSandboxWatchdog(
   sql: Sql,
@@ -199,6 +226,7 @@ export async function runSandboxWatchdog(
   let recreating = 0;
   let reclaimed = 0;
   let collected = 0;
+  let released = 0;
   if (options.skipReconcile !== true) {
     const spawner = options.spawner ?? DEFAULT_SPAWNER;
     const signal = options.signal;
@@ -220,6 +248,12 @@ export async function runSandboxWatchdog(
       batch: options.collectBatch ?? 25,
       graceMs:
         options.collectGraceMs ?? SANDBOX_FAILED_SESSION_COLLECT_GRACE_MS,
+      now,
+      ...(signal !== undefined ? { signal } : {}),
+    });
+    released = await releaseAbandonedRenderSessions(sql, spawner, {
+      batch: options.releaseBatch ?? 25,
+      maxAgeMs: options.renderMaxAgeMs ?? SANDBOX_RENDER_SESSION_MAX_AGE_MS,
       now,
       ...(signal !== undefined ? { signal } : {}),
     });
@@ -254,6 +288,24 @@ export async function runSandboxWatchdog(
     );
   }
 
+  // What waiting for sandbox room leaves behind: the op rows of refused
+  // starts an hour after they ended (each session's newest kept, the run
+  // view reads it) and failed session rows a day after they were collected
+  // (domains/sandbox/wait-retention.ts).
+  try {
+    const pruned = await sweepRoomWaitLeftovers(sql, { now });
+    if (pruned.ops + pruned.sessions > 0) {
+      console.log(
+        `[watchdog] deleted ${pruned.ops} op row(s) of refused starts and ${pruned.sessions} collected failed session row(s)`,
+      );
+    }
+  } catch (error: unknown) {
+    console.error(
+      '[watchdog] deleting what waits for sandbox room left failed:',
+      error,
+    );
+  }
+
   // SETTLE: finalized ops whose gateway-key settlement is still open past
   // the grace — the backstop behind the settle's own retry ladder (a
   // backend restart between retries, a gateway down for longer than it).
@@ -274,6 +326,7 @@ export async function runSandboxWatchdog(
     recreating,
     reclaimed,
     collected,
+    released,
     settled,
   };
 }
@@ -441,6 +494,57 @@ async function reclaimEndedRunSessions(
   }
   await stampVisited(sql, visited, args.now);
   return reclaimed;
+}
+
+/**
+ * Release the render sessions of cut-off scan links — see the RELEASE lane
+ * above. Only a compute-holding `render` row older than a link can keep one
+ * is a candidate, and the spawner destroys its session only when idle
+ * (`if_idle`), as the reclaim does: busy and errors leave the row for a
+ * later tick.
+ */
+async function releaseAbandonedRenderSessions(
+  sql: Sql,
+  spawner: WatchdogSpawner,
+  args: { batch: number; maxAgeMs: number; now: number; signal?: AbortSignal },
+): Promise<number> {
+  const horizon = args.now - args.maxAgeMs;
+  const candidates = await sql<Candidate[]>`
+    SELECT id, session_id AS "sessionId", org_id AS "orgId"
+    FROM app.sandbox_sessions
+    WHERE owner_type = 'render' AND status IN ('creating', 'active')
+      AND created_at_ms < ${horizon}
+    ORDER BY last_reconciled_at_ms ASC NULLS FIRST, created_at_ms ASC, id ASC
+    LIMIT ${args.batch}
+  `;
+  let released = 0;
+  const visited: Candidate[] = [];
+  for (const candidate of candidates) {
+    if (args.signal?.aborted === true) break;
+    visited.push(candidate);
+    let outcome: { destroyed: boolean; busy: boolean };
+    try {
+      outcome = await spawner.destroyIfIdle(candidate.sessionId);
+    } catch (error) {
+      // Spawner unreachable or refusing ⇒ the container may survive; the row
+      // must not settle ahead of it. Next tick retries.
+      console.warn(
+        `[watchdog] render-session release failed for ${candidate.sessionId}:`,
+        error,
+      );
+      continue;
+    }
+    // The worker the dead link started is still rendering: nobody reads its
+    // output, but it ends on its own budget — the next tick takes it.
+    if (outcome.busy) continue;
+    await markSessionDestroyed(sql, {
+      organizationId: candidate.orgId,
+      sessionId: candidate.sessionId,
+    });
+    released += 1;
+  }
+  await stampVisited(sql, visited, args.now);
+  return released;
 }
 
 /**

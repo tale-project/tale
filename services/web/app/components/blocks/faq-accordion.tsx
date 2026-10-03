@@ -17,6 +17,8 @@ import { useT } from '@/lib/i18n/client';
  */
 export const FAQ_KEYS = [
   'whatIsTale',
+  'whoFor',
+  'agentSubscriptions',
   'openSource',
   'onPrem',
   'enterprisePricing',

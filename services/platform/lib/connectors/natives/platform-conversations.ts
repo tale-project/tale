@@ -66,6 +66,28 @@ const listMailboxInput = z
   })
   .strict();
 
+const listUntriagedInput = z
+  .object({
+    connectorSlug: z.string().min(1),
+    limit: z.number().int().nonnegative().max(100).optional(),
+  })
+  .strict();
+
+const triageVerdict = z
+  .object({
+    conversationId: z.string().min(1),
+    action: z.enum(['reply', 'no_reply']),
+    priority: z.enum(['low', 'medium', 'high', 'urgent']).optional(),
+    reason: z.string().max(500).optional(),
+  })
+  .strict();
+
+const recordTriageInput = z
+  .object({
+    verdicts: z.array(triageVerdict).max(100),
+  })
+  .strict();
+
 const draftReplyInput = z
   .object({
     conversationId: z.string().min(1),
@@ -111,6 +133,35 @@ export interface ConversationDraftReplyResult {
   created: boolean;
 }
 
+/** One open thread waiting on the team, as the triage packs read it. */
+export interface ConversationUntriagedItem {
+  conversationId: string;
+  subject: string;
+  contact: { name: string; email: string };
+  lastInboundAt: string;
+  lastInboundText: string;
+  unreadCount: number;
+  assigned: boolean;
+  url: string;
+}
+
+export interface ConversationListUntriagedResult {
+  conversations: ConversationUntriagedItem[];
+}
+
+export interface ConversationTriageVerdict {
+  conversationId: string;
+  action: 'reply' | 'no_reply';
+  priority?: 'low' | 'medium' | 'high' | 'urgent';
+  reason?: string;
+}
+
+export interface ConversationRecordTriageResult {
+  recorded: number;
+  prioritized: number;
+  unknown: string[];
+}
+
 /** What the rim needs from the conversation domain. */
 export interface WorkflowConversationStore {
   ingestEmails(args: {
@@ -145,6 +196,16 @@ export interface WorkflowConversationStore {
     limit: number;
     mode: 'mock' | 'live';
   }): Promise<ConversationListMailboxResult>;
+  listUntriagedConversations(args: {
+    organizationId: string;
+    connectorSlug: string;
+    limit: number;
+  }): Promise<ConversationListUntriagedResult>;
+  recordTriage(args: {
+    organizationId: string;
+    verdicts: ConversationTriageVerdict[];
+    runId?: string;
+  }): Promise<ConversationRecordTriageResult>;
   draftReply(args: {
     organizationId: string;
     conversationId: string;
@@ -246,6 +307,33 @@ export function platformConversationNatives(
     });
   };
 
+  const list_untriaged: NativeConnectorImpl = async (
+    raw: unknown,
+    ctx: NativeConnectorContext,
+  ) => {
+    const parsed = listUntriagedInput.safeParse(raw);
+    if (!parsed.success) refuse('list_untriaged', parsed.error);
+    return await store.listUntriagedConversations({
+      organizationId: ctx.organizationId,
+      connectorSlug: parsed.data.connectorSlug,
+      limit: parsed.data.limit ?? 25,
+    });
+  };
+
+  const record_triage: NativeConnectorImpl = async (
+    raw: unknown,
+    ctx: NativeConnectorContext,
+  ) => {
+    const parsed = recordTriageInput.safeParse(raw);
+    if (!parsed.success) refuse('record_triage', parsed.error);
+    return await store.recordTriage({
+      organizationId: ctx.organizationId,
+      verdicts: parsed.data.verdicts,
+      // The stamp names the run that judged, when a workflow is the caller.
+      ...(ctx.caller?.kind === 'workflow' ? { runId: ctx.caller.runId } : {}),
+    });
+  };
+
   const draft_reply: NativeConnectorImpl = async (
     raw: unknown,
     ctx: NativeConnectorContext,
@@ -269,5 +357,7 @@ export function platformConversationNatives(
     'conversation.query_sync_cursor': query_sync_cursor,
     'conversation.sync_mailbox': sync_mailbox,
     'conversation.list_mailbox_messages': list_mailbox_messages,
+    'conversation.list_untriaged': list_untriaged,
+    'conversation.record_triage': record_triage,
   };
 }

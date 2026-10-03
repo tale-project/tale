@@ -57,7 +57,33 @@ Au-dessus de la réponse, le déroulé montre les recherches et les lectures. Un
 
 La zone **Sources** sous la réponse liste les documents et pages chargés. Ouvre une source et vérifie qu’elle appuie l’affirmation concernée. Une citation indique le contenu utilisé, sans garantir toutes les conclusions. Une réponse sans étape de consultation peut reposer sur les connaissances préalables du modèle.
 
-L’assistant peut rechercher des documents, entrées de connaissances, sites, contacts, produits, tâches accessibles et conversations de la boîte de réception que tu peux voir, y compris le texte des e-mails qu’elles ont reçus et de leurs pièces jointes. Une tâche peut être désignée par sa clé, par exemple `DOCS-12`, telle que le tableau l’affiche. Il peut lire le détail d’un résultat et une page web publique. Le chat n’exécute pas de code, ne modifie pas de systèmes connectés, ne crée pas d’images, ne produit pas de fichiers livrables et n’utilise pas de [skills](/fr/platform/workspace/skills). Confie ce travail à une [tâche de projet](/fr/platform/projects/tasks). Toute personne qui peut ouvrir le projet peut en créer une et la confier à l’un des agents du projet. Un agent de projet qui traite la tâche peut créer des images si un admin a activé la [génération d’images](/fr/platform/admin/governance/content-models#let-agents-generate-images).
+L’assistant peut rechercher des documents, entrées de connaissances, sites, contacts, produits, tâches accessibles et conversations de la boîte de réception que tu peux voir, y compris le texte des e-mails qu’elles ont reçus et de leurs pièces jointes. Une tâche peut être désignée par sa clé, par exemple `DOCS-12`, telle que le tableau l’affiche. Il peut lire le détail d’un résultat et une page web publique. Le chat n’exécute pas de code, ne modifie pas de systèmes connectés, ne crée pas d’images, ne produit pas de fichiers livrables et n’utilise pas de [skills](/fr/platform/workspace/skills). Confie ce travail à une [tâche de projet](/fr/platform/projects/tasks). Toute personne qui peut ouvrir le projet peut en créer une et la confier à l’un des agents du projet ; [Transformer un chat en tâche](#create-task-from-chat) montre comment la créer depuis la conversation. Un agent de projet qui traite la tâche peut créer des images si un admin a activé la [génération d’images](/fr/platform/admin/governance/content-models#let-agents-generate-images).
+
+## Transformer un chat en tâche {#create-task-from-chat}
+
+Quand une conversation aboutit à un travail qui demande un fichier, par exemple une présentation, un rapport ou un tableur, confie-le à un agent de projet. Sélectionne **Créer une tâche** dans l’en-tête de la conversation ; sur un écran étroit, choisis **Créer une tâche depuis le chat** dans le menu **⋯**. Si le chat est classé dans un projet, la tâche y est créée. Sinon, choisis d’abord le projet : **Avec un agent** liste les projets que tu peux ouvrir qui ont des agents, avec leur nombre. Un projet sans agents propres y figure avec **Agent standard** : sa tâche va à l’[agent standard](/fr/platform/projects/project-agents#standard-agent) de l’organisation. Quand l’agent standard ne peut pas fonctionner pour toi, par exemple parce qu’un Admin l’a désactivé, ces projets figurent plutôt sous **Sans agent pour l’instant**, chacun indiquant qui peut en ajouter un.
+
+La boîte de dialogue de la tâche s’ouvre avec ta dernière demande comme description, un lien vers le chat et les fichiers que tu as joints dans la conversation. Si le projet a un seul agent, ou s’il utilise l’agent standard, celui-ci figure déjà sous **Assigné à** ; sinon, choisis-en un. Modifie ce que tu veux, puis sélectionne **Créer et démarrer l'agent** : la tâche est créée et l’agent s’y met aussitôt. **Créer seulement** la crée sans démarrer l’agent ; **Démarrer l'agent**, dans la tâche, le lance plus tard.
+
+<Frame caption="Créer une tâche ouvre la boîte de dialogue de la tâche avec la demande, un lien vers le chat et l’agent à démarrer.">
+
+![La boîte de dialogue de création de tâche contient comme titre et description « Plan the quarterly business review agenda for Friday », sous la demande un lien intitulé From the chat, Content editor comme agent assigné et les boutons Create only et Create and start agent.](/images/platform/chat-create-task.webp)
+
+</Frame>
+
+La tâche apparaît ensuite au-dessus du champ de message du chat, avec ce qu’elle fait en ce moment : **L’agent travaille**, **En attente d’une place de sandbox**, **Nouvelle tentative…**, **Prête pour la revue** avec le nombre de fichiers livrés, ou **L’agent n’a pas pu la terminer**. **Ouvrir** te mène à la tâche. Tu reçois aussi une notification quand elle est prête pour la revue et quand l’agent ne peut pas terminer ; [Quand l’agent ne peut pas terminer](/fr/platform/projects/task-automation#quand-lagent-ne-peut-pas-terminer) explique la suite.
+
+<Frame caption="La tâche qu’un chat a confiée affiche sa progression au-dessus du champ de message.">
+
+![Au-dessus du champ de message, une ligne nomme la tâche « Plan the quarterly business review agenda for Friday » avec Ready for review · Website relaunch et un lien Open.](/images/platform/chat-task-tray.webp)
+
+</Frame>
+
+Demande un tel fichier à l’assistant : il répond ce qui tient dans une réponse, puis te guide dans ces étapes pour tes propres projets, en nommant les boutons tels que tu les vois.
+
+Aucun projet que tu peux ouvrir ne propose d’agent ? Alors l’agent standard ne peut pas fonctionner pour toi : un Admin l’a peut-être désactivé dans [Gouvernance > Modèles](/fr/platform/admin/governance/content-models#standard-agent), ou aucun modèle que tu peux utiliser ne peut le faire fonctionner. Demande à un Admin ce qu’il en est, ou demande à un Éditeur ou à un Admin d’ajouter un agent dans l’onglet **Agents** du projet. En tant qu’Éditeur, tu peux aussi en ajouter un depuis la tâche : sous **Assigné à**, choisis **Créer un agent…**.
+
+Seuls les fichiers de ta propre conversation suivent. Une tâche n’accepte que les fichiers téléversés par la personne qui la crée ; une tâche créée depuis un chat qu’une autre personne a partagé dans un projet commence donc sans eux.
 
 ## Continuer ou conserver la conversation
 
@@ -75,5 +101,6 @@ Une conversation très longue peut dépasser la fenêtre de contexte du modèle.
 | Un fichier n’a pas été utilisé | Vérifie le projet du chat, l’indexation du fichier et les étapes de consultation. Nomme le fichier. |
 | La recherche signale une source indisponible | Demande à un admin de vérifier le service indiqué ou la configuration d’embedding. Un résultat vide ne prouve pas que l’information n’existe pas. |
 | Une réponse s’arrête sur une erreur | Lis l’erreur, vérifie le modèle choisi et réessaie après correction. Tale ne change pas de fournisseur en silence. |
+| Une réponse reste vide | La mention affichée à sa place en donne la raison : le modèle n’a rien renvoyé, il a épuisé sa limite de tokens en sortie avant d’écrire, ou le filtre de contenu du fournisseur a retenu la réponse. Choisis **Réessayer**, ou réduis d’abord l’effort de raisonnement, raccourcis la demande ou choisis un autre modèle. |
 
 Pour un exemple guidé avec vérification des sources, suis [Mieux dialoguer avec le chat](/fr/tutorials/member/chat-effectively).

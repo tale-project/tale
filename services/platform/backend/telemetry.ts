@@ -66,6 +66,86 @@ export const httpDuration = new client.Histogram({
   registers: [],
 });
 
+/** Mounted app domains only. Unknown paths share one series; an arbitrary
+ * first path segment is just as unbounded as a document id further down. */
+const APP_ROUTE_DOMAINS: ReadonlySet<string> = new Set([
+  'agent-secrets',
+  'approvals',
+  'audit-logs',
+  'automations',
+  'branding',
+  'changelog',
+  'chat',
+  'cloud-import',
+  'collab',
+  'connector-credentials',
+  'connector-oauth-apps',
+  'contacts',
+  'conversations',
+  'deployment',
+  'documents',
+  'erasure',
+  'feedback',
+  'files',
+  'folders',
+  'google-drive',
+  'governance',
+  'identity',
+  'knowledge',
+  'knowledge-entries',
+  'legal-holds',
+  'members',
+  'notifications',
+  'object-storage',
+  'onedrive',
+  'organizations',
+  'products',
+  'projects',
+  'provider-credentials',
+  'providers',
+  'retention',
+  'sandbox',
+  'sandbox-devices',
+  'scim',
+  'skills',
+  'sso',
+  'tasks',
+  'teams',
+  'trusted-headers',
+  'tts',
+  'two-factor',
+  'user-preferences',
+  'users',
+  'video-links',
+  'webdav',
+  'websites',
+]);
+
+const HTTP_METHODS: ReadonlySet<string> = new Set([
+  'GET',
+  'HEAD',
+  'POST',
+  'PUT',
+  'PATCH',
+  'DELETE',
+  'OPTIONS',
+  'CONNECT',
+  'TRACE',
+  // WebDAV's finite extension vocabulary.
+  'PROPFIND',
+  'PROPPATCH',
+  'MKCOL',
+  'COPY',
+  'MOVE',
+  'LOCK',
+  'UNLOCK',
+]);
+
+/** HTTP extension methods are caller-controlled too. */
+export function methodClass(method: string): string {
+  return HTTP_METHODS.has(method) ? method : 'OTHER';
+}
+
 /**
  * The route LABEL for a request path — a bounded vocabulary, never the raw
  * path. Ids in a path would make the label set unbounded (one series per
@@ -73,8 +153,12 @@ export const httpDuration = new client.Histogram({
  */
 export function routeClass(path: string): string {
   if (path.startsWith('/api/app/')) {
-    const segment = path.slice('/api/app/'.length).split('/')[0] ?? '';
-    return segment === '' ? '/api/app' : `/api/app/${segment}`;
+    const end = path.indexOf('/', '/api/app/'.length);
+    const segment = path.slice(
+      '/api/app/'.length,
+      end === -1 ? undefined : end,
+    );
+    return APP_ROUTE_DOMAINS.has(segment) ? `/api/app/${segment}` : '/api/app';
   }
   if (path.startsWith('/api/auth/')) return '/api/auth';
   if (path.startsWith('/api/tools')) return '/api/tools';
@@ -94,6 +178,7 @@ export function routeClass(path: string): string {
   }
   if (path.startsWith('/dav')) return '/dav';
   if (path === '/events') return '/events';
+  if (path === '/api/image-proxy') return '/api/image-proxy';
   if (
     path === '/ping' ||
     path === '/ready' ||
@@ -208,9 +293,16 @@ export function initBackendTelemetry(sql: Sql): void {
   initialized = true;
 }
 
+// Concurrent scrapes share the aggregate reads and rendering, but not the
+// Response body (each reader must be able to consume its own stream).
+let metricsInFlight: Promise<string> | undefined;
+
 export async function backendMetricsResponse(): Promise<Response> {
   try {
-    return new Response(await client.register.metrics(), {
+    metricsInFlight ??= client.register.metrics().finally(() => {
+      metricsInFlight = undefined;
+    });
+    return new Response(await metricsInFlight, {
       headers: { 'Content-Type': client.register.contentType },
     });
   } catch (error) {

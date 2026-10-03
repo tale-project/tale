@@ -5,6 +5,10 @@
 // injection safety, error paths). Byte-exact construction is
 // golden-exec.test.ts.
 
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import type { HarnessDefinition } from '@tale/shared/schemas/providers';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -13,8 +17,9 @@ import {
   buildHarnessExec,
   CACHE_AFFINITY_GATEWAY_HEADER,
   isClaudeModelRef,
+  PLAYWRIGHT_MCP_ARG_SETS,
 } from './exec-builder';
-import { GOLDEN_BYO_ENV, GOLDEN_GATEWAY, goldenBattery } from './test-helpers';
+import { batteryFor, GOLDEN_BYO_ENV, GOLDEN_GATEWAY } from './test-helpers';
 import type { HarnessExec, HarnessRunSpec } from './types';
 
 const BYO_SECRET = GOLDEN_BYO_ENV.GOLDEN_BYO_KEY;
@@ -64,9 +69,7 @@ describe('secret hygiene over every shipped YAML', () => {
   it.each(facts.map((f) => [f.slug, f] as const))(
     '%s keeps credentials in env, never argv/stdin/staged payloads',
     (slug, harness) => {
-      for (const { mode, spec } of goldenBattery()) {
-        if (mode === 'managed' && !harness.credentialPolicy.managed) continue;
-        if (mode === 'byo' && !harness.credentialPolicy.byo) continue;
+      for (const { mode, spec } of batteryFor(harness)) {
         const exec = buildHarnessExec(harness, spec);
 
         if (mode === 'managed') {
@@ -149,6 +152,19 @@ describe('secret hygiene over every shipped YAML', () => {
         workdir: '/agent/workspace',
       }),
     ).toThrow(/managed gateway/);
+  });
+
+  it('refuses a resume handle on a harness that never resumes (gemini)', () => {
+    // The planners start such a harness fresh; a handle here is a planner
+    // that bypassed `capabilities.resume`, never a process that quietly
+    // believes it is mid-conversation.
+    expect(fact('gemini').capabilities.resume).toBe(false);
+    expect(() =>
+      buildHarnessExec(fact('gemini'), managedSpec({ resume: 'ses_golden' })),
+    ).toThrow(/does not resume conversations/);
+    expect(buildHarnessExec(fact('gemini'), managedSpec()).argv).not.toContain(
+      '--resume',
+    );
   });
 });
 
@@ -271,6 +287,67 @@ describe('optional headless browser execution', () => {
       expect(execCarries(withBrowser, '--cdp-endpoint')).toBe(false);
     },
   );
+});
+
+describe("a CLI waits for the bridge's longest tool", () => {
+  const BRIDGE = { bridgeUrl: 'http://platform.internal/bridge' };
+
+  // Codex, OpenClaw and OpenCode give up on an MCP call after 60 s, and no
+  // progress report from the bridge keeps the call alive (OpenCode would
+  // count one, but sends no progress token to report against); an image
+  // generation may take up to 300 s. Every other MCP-capable CLI already
+  // waits longer, or counts progress.
+  const BOUNDED: Readonly<Record<string, string>> = {
+    codex: 'mcp_servers.connectors.tool_timeout_sec=330',
+    openclaw: '"requestTimeoutMs":330000',
+    opencode: '"timeout":330000',
+  };
+
+  it.each(Object.entries(BOUNDED))(
+    '%s is told to wait past the bridge bound',
+    (slug, needle) => {
+      const exec = buildHarnessExec(fact(slug), managedSpec({ mcp: BRIDGE }));
+      expect(execCarries(exec, needle)).toBe(true);
+    },
+  );
+
+  it('adds no timeout to a CLI whose own default already waits', () => {
+    for (const harness of loadHarnesses()) {
+      if (!harness.capabilities.mcp) continue;
+      if (harness.slug in BOUNDED) continue;
+      const exec = buildHarnessExec(harness, managedSpec({ mcp: BRIDGE }));
+      for (const form of [
+        'tool_timeout_sec',
+        'requestTimeoutMs',
+        '"timeout":330',
+      ]) {
+        expect(execCarries(exec, form), `${harness.slug} ${form}`).toBe(false);
+      }
+    }
+  });
+
+  it('writes the bound in the unit the CLI names, and only for the bridge', () => {
+    const inSeconds = structuredClone(fact('openclaw'));
+    const swap = (node: unknown): void => {
+      if (node === null || typeof node !== 'object') return;
+      for (const value of Object.values(node)) swap(value);
+      if ('bridgeCallTimeout' in node) {
+        Object.assign(node, {
+          bridgeCallTimeout: { field: 'timeout', unit: 's' },
+        });
+      }
+    };
+    swap(inSeconds);
+    const exec = buildHarnessExec(inSeconds, managedSpec({ mcp: BRIDGE }));
+    expect(execCarries(exec, '"timeout":330}')).toBe(true);
+    expect(execCarries(exec, 'requestTimeoutMs')).toBe(false);
+    // Without the bridge (a byo run), nothing is written.
+    const withoutBridge = buildHarnessExec(
+      fact('openclaw'),
+      managedSpec({ mcp: { browser: 'headless' } }),
+    );
+    expect(execCarries(withoutBridge, 'requestTimeoutMs')).toBe(false);
+  });
 });
 
 describe('subscription delivery', () => {
@@ -703,7 +780,7 @@ describe('a managed CLI waits for a silent stream as long as the gateway', () =>
   it.each(others.map((h) => [h.slug, h] as const))(
     '%s builds the same execs whatever the budget',
     (_slug, harness) => {
-      for (const { spec } of goldenBattery()) {
+      for (const { spec } of batteryFor(harness)) {
         if (spec.credential.mode !== 'managed') continue;
         const { gateway } = spec.credential;
         const withBudget = (budgetMs: number): HarnessRunSpec => ({
@@ -787,8 +864,7 @@ describe('a managed Claude Code exec compacts inside the model window', () => {
   it.each(others.map((h) => [h.slug, h] as const))(
     '%s builds the same execs whatever the window',
     (_slug, harness) => {
-      for (const { mode, spec } of goldenBattery()) {
-        if (!harness.credentialPolicy[mode]) continue;
+      for (const { spec } of batteryFor(harness)) {
         const withWindow = (window: number | undefined): HarnessRunSpec => {
           const { contextWindow: _ignored, ...rest } = spec;
           return window === undefined
@@ -801,4 +877,52 @@ describe('a managed Claude Code exec compacts inside the model window', () => {
       }
     },
   );
+});
+
+describe('gemini requests the model it was given', () => {
+  // Every Gemini CLI before 0.61.0 rewrites any `--model` ending in
+  // "flash" to its own gemini-3.5-flash on API-key auth; the harness YAML
+  // turns on dynamic model configuration so the CLI requests the id the
+  // platform resolved — on both lanes (a byo Google `gemini-3-flash` is
+  // not silently promoted either). The runtime image test proves the
+  // pinned CLI honours the setting; this pins the exec that carries it.
+  it('a flash-suffixed id rides --model verbatim, with the CLI told to keep it', () => {
+    const managed = buildHarnessExec(
+      fact('gemini'),
+      managedSpec({ model: 'golden__deepseek__deepseek-flash/deepseek-flash' }),
+    );
+    expect(managed.argv).toContain(
+      'golden__deepseek__deepseek-flash/deepseek-flash',
+    );
+    const byo = buildHarnessExec(fact('gemini'), {
+      prompt: 'hygiene probe prompt',
+      credential: { mode: 'byo', env: GOLDEN_BYO_ENV },
+      workdir: '/agent/workspace',
+      model: 'gemini-3-flash',
+    });
+    expect(byo.argv).toContain('gemini-3-flash');
+    for (const exec of [managed, byo]) {
+      const settings = JSON.parse(exec.stdin ?? '{}').settings;
+      expect(settings.experimental).toEqual({
+        dynamicModelConfiguration: true,
+      });
+    }
+  });
+});
+
+describe('the Playwright MCP server the runtime image prepares for', () => {
+  it('has a record for every argument set a turn may start it with', () => {
+    // The image records the server's answers for these sets; a set missing
+    // there starts the server (~100 MB) with every turn again.
+    const recorded: unknown = JSON.parse(
+      readFileSync(
+        path.resolve(
+          path.dirname(fileURLToPath(import.meta.url)),
+          '../../../sandbox-runtime/playwright-mcp-args.json',
+        ),
+        'utf8',
+      ),
+    );
+    expect(recorded).toEqual(PLAYWRIGHT_MCP_ARG_SETS);
+  });
 });

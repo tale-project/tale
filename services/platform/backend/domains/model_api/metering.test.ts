@@ -443,7 +443,7 @@ describe('spendFactsOf', () => {
 
   it('records a finished answer’s reported usage and its catalog price', () => {
     expect(
-      spendFactsOf(LEASE, {
+      spendFactsOf({
         ...ending,
         outcome: {
           status: 'completed',
@@ -451,7 +451,6 @@ describe('spendFactsOf', () => {
         },
       }),
     ).toEqual({
-      settleAfterMs: null,
       floorCents: null,
       // 30c + 12c.
       expectedCents: 42,
@@ -461,7 +460,7 @@ describe('spendFactsOf', () => {
   });
 
   it('prices a cache read at the cache rate', () => {
-    const cached = spendFactsOf(LEASE, {
+    const cached = spendFactsOf({
       model: {
         ...MODEL,
         pricing: { ...MODEL.pricing, cacheReadCentsPerMillion: 3 },
@@ -481,9 +480,8 @@ describe('spendFactsOf', () => {
 
   it('records nothing for a finished answer that reported no usage', () => {
     expect(
-      spendFactsOf(LEASE, { ...ending, outcome: { status: 'completed' } }),
+      spendFactsOf({ ...ending, outcome: { status: 'completed' } }),
     ).toEqual({
-      settleAfterMs: null,
       floorCents: null,
       expectedCents: null,
       inputTokens: null,
@@ -491,23 +489,27 @@ describe('spendFactsOf', () => {
     });
   });
 
-  it('defers a whole answer that may still be generating to its lifetime’s end', () => {
+  it('floors a whole answer that ended early at its prompt: the gateway cancelled it and booked none of it', () => {
+    // The prompt estimate: 1M at 30c/M = 30c; a whole answer relays no output
+    // before it is complete.
     expect(
-      spendFactsOf(
-        LEASE,
-        {
-          ...ending,
-          outcome: { status: 'cancelled', mayStillGenerate: true },
-        },
-        660_000,
-      ).settleAfterMs,
-    ).toBe(LEASE.startedAtMs + 660_000);
+      spendFactsOf({
+        ...ending,
+        promptTokens: 1_000_000,
+        outcome: { status: 'cancelled', countedOutputTokens: 0 },
+      }),
+    ).toEqual({
+      floorCents: 30,
+      expectedCents: null,
+      inputTokens: 1_000_000,
+      outputTokens: 0,
+    });
   });
 
   it('floors a stream that ended early at its prompt and the output counted', () => {
     // The prompt estimate: 1M at 30c/M = 30c; 50k counted at 120c/M = 6c.
     expect(
-      spendFactsOf(LEASE, {
+      spendFactsOf({
         ...ending,
         promptTokens: 1_000_000,
         outcome: { status: 'cancelled', countedOutputTokens: 50_000 },
@@ -519,7 +521,7 @@ describe('spendFactsOf', () => {
     });
     // The vendor's own prompt count wins over the estimate.
     expect(
-      spendFactsOf(LEASE, {
+      spendFactsOf({
         ...ending,
         promptTokens: 1_000_000,
         outcome: {
@@ -529,13 +531,51 @@ describe('spendFactsOf', () => {
         },
       }).floorCents,
     ).toBe(15);
+    // A prompt the vendor served from its cache floors at the cache rate:
+    // 500k at 3c/M plus 500k at 30c/M = 1.5c + 15c.
+    expect(
+      spendFactsOf({
+        ...ending,
+        model: {
+          ...MODEL,
+          pricing: { ...MODEL.pricing, cacheReadCentsPerMillion: 3 },
+        },
+        promptTokens: 1_000_000,
+        outcome: {
+          status: 'cancelled',
+          usage: {
+            inputTokens: 1_000_000,
+            outputTokens: 0,
+            cachedInputTokens: 500_000,
+          },
+          countedOutputTokens: 0,
+        },
+      }).floorCents,
+    ).toBe(16.5);
   });
 
   it('records nothing for a refusal the gateway answered', () => {
     expect(
-      spendFactsOf(LEASE, { ...ending, outcome: { status: 'failed' } })
-        .floorCents,
+      spendFactsOf({ ...ending, outcome: { status: 'failed' } }).floorCents,
     ).toBeNull();
+  });
+
+  it('records nothing for a request the caller left before it was sent', () => {
+    // The relay reports a request that never left the process without an
+    // output count; the same 1M-token prompt ended early after it was sent
+    // floors at 30c (above).
+    expect(
+      spendFactsOf({
+        ...ending,
+        promptTokens: 1_000_000,
+        outcome: { status: 'cancelled' },
+      }),
+    ).toEqual({
+      floorCents: null,
+      expectedCents: null,
+      inputTokens: null,
+      outputTokens: null,
+    });
   });
 });
 
@@ -697,7 +737,7 @@ describe('settleModelApiOp', () => {
     );
   });
 
-  it('does not read a whole answer’s spend before its lifetime has passed', async () => {
+  it('does not read the spend before the moment the op row names (a stale close waits out a whole answer)', async () => {
     const { sql } = settlingSql({ settleAfter: Date.now() + 60_000 });
 
     await settleModelApiOp(sql, LEASE);
@@ -739,41 +779,43 @@ describe('closeModelApiLease', () => {
       },
     });
     await vi.advanceTimersByTimeAsync(0);
-    const close = statements.find((s) =>
-      s.text.includes('settle_after_ms = ?'),
-    );
+    const close = statements.find((s) => s.text.includes('floor_cents = ?'));
     expect(close?.values).toEqual(expect.arrayContaining(['completed', 10, 5]));
+    expect(close?.text).not.toContain('settle_after_ms');
     expect(gatewayAdmin.readVirtualKeySpend).not.toHaveBeenCalled();
 
     await vi.advanceTimersByTimeAsync(2_000);
     expect(gatewayAdmin.readVirtualKeySpend).toHaveBeenCalledWith('vk-1');
   });
 
-  it('leaves a whole answer that may still be generating to the reconcile job, at its lifetime’s end', async () => {
+  it('settles a whole answer the caller abandoned just as soon, at its floor: the gateway cancelled the vendor call', async () => {
     vi.useFakeTimers();
-    const { sql } = settlingSql({});
+    gatewayAdmin.readVirtualKeySpend.mockResolvedValue({
+      status: 'ok',
+      cents: 0,
+    });
+    gatewayAdmin.revokeVirtualKey.mockResolvedValue(undefined);
+    const { sql, statements } = settlingSql({ floorCents: 30 });
 
     closeModelApiLease(sql, LEASE, {
       model: MODEL,
-      promptTokens: 10,
-      outcome: { status: 'cancelled', mayStillGenerate: true },
+      promptTokens: 1_000_000,
+      outcome: { status: 'cancelled', countedOutputTokens: 0 },
     });
-    await vi.advanceTimersByTimeAsync(5_000);
-
-    expect(gatewayAdmin.readVirtualKeySpend).not.toHaveBeenCalled();
-    expect(jobs.addJobInTx).toHaveBeenCalledWith(
-      sql,
-      'sandbox.gateway_key_reconcile',
-      {
-        organizationId: 'org-1',
-        sessionId: 'model-api:key-1',
-        execId: 'req-1',
-      },
-      {
-        // The gateway's 600 s request timeout, the 60 s margin, the slack.
-        startAfter: new Date(LEASE.startedAtMs + 660_000 + 5_000),
-      },
+    await vi.advanceTimersByTimeAsync(0);
+    const close = statements.find((s) => s.text.includes('floor_cents = ?'));
+    // 1M prompt tokens at 30c/M, no output relayed.
+    expect(close?.values).toEqual(
+      expect.arrayContaining(['cancelled', 30, 1_000_000, 0]),
     );
+
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(gatewayAdmin.readVirtualKeySpend).toHaveBeenCalledWith('vk-1');
+    // The gateway read 0; the floor is what lands in the ledger.
+    expect(ledgerRows(statements)[0]?.values).toEqual(
+      expect.arrayContaining([30]),
+    );
+    expect(jobs.addJobInTx).not.toHaveBeenCalled();
   });
 });
 

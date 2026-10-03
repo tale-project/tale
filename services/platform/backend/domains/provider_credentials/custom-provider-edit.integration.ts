@@ -9,6 +9,10 @@ import type { Sql, TransactionSql } from 'postgres';
 import { z } from 'zod';
 
 import { resolveProvidersDir } from '../../core/lib/providers/org_providers.ts';
+import {
+  type RecordCheck,
+  recordSkip,
+} from '../../integration-lane-helpers.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { updateCredentialWithDefinition } from './custom-provider-edit.ts';
 
@@ -45,7 +49,7 @@ export async function checkCustomProviderCredentialEdit(
   sql: Sql,
   base: string,
   ctx: { cookie: string; orgId: string; userId: string },
-  record: (name: string, ok: boolean, detail: string) => void,
+  record: RecordCheck,
 ): Promise<void> {
   const send = (
     method: 'GET' | 'PUT' | 'POST',
@@ -280,9 +284,9 @@ export async function checkCustomProviderCredentialEdit(
   // 5. The file is written last, in the same transaction: when it cannot be
   // written, the credential row that transaction already updated goes back.
   if (process.getuid?.() === 0) {
-    record(
-      'custom provider edit: an unwritable definition takes the credential edit back (SKIPPED)',
-      true,
+    recordSkip(
+      record,
+      'custom provider edit: an unwritable definition takes the credential edit back',
       'running as root: a read-only directory does not refuse the write',
     );
     return;

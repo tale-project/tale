@@ -1,6 +1,6 @@
 # Navigation
 
-> **Prefix** `NAV-` · **Reset** none · **Cost** 24 boxes
+> **Prefix** `NAV-` · **Reset** none · **Cost** 28 boxes
 
 Exercise every way a reader moves through the docs — the navigation rail
 (`docs/nav.json`), collapsible sub-groups, the header strip's breadcrumb trail,
@@ -16,7 +16,7 @@ guide ([search.md](search.md)).
 
 | Surface        | Route                                                                                                                                     |
 | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| Landing        | `{base}/`                                                                                                                                 |
+| Landing        | `{base}/` — discovery page; see [home](home.md)                                                                                                                                 |
 | Content page   | any slug, e.g. `{base}/self-hosted/install/quickstart`                                                                                    |
 | Nested group   | `{base}/platform/chat/…` (sub-groups inside **Platform**)                                                                                 |
 | Unknown URL    | `{base}/nope-not-a-page` → styled 404                                                                                                     |
@@ -27,7 +27,7 @@ guide ([search.md](search.md)).
 ## Preconditions
 
 Bring the site up per [SETUP.md](../setup.md) — either mode for
-NAV-F1–NAV-F8/NAV-B1–NAV-B3. The redirect rows (NAV-F9/NAV-F10/NAV-F16/NAV-F17) and the PWA
+NAV-F1–NAV-F8/NAV-B1–NAV-B3. The redirect rows (NAV-F9/NAV-F10/NAV-F16–NAV-F21) and the PWA
 rows (NAV-F11/NAV-F12) need the **built** server (mode A, or `build` + `start`
 per SETUP.md) — the vite dev server serves no 301s, no prerendered stubs, and
 registers no service worker. The rail tree is build-time static;
@@ -48,7 +48,7 @@ this guide focuses on **behaviour**, not link rot.
 
 ## Functional tests
 
-- [ ] `NAV-F1` · **Rail tree** — On `{base}/`, read the rail → The six top
+- [ ] `NAV-F1` · **Rail tree** — On `{base}/self-hosted/install/quickstart`, read the rail → The six top
   groups render in `nav.json` order as uppercase section labels: **Start
   here**, **Cloud**, **Self-hosted**, **Platform**, **Tutorials**,
   **Development** (`nav.groups.*`); clicking a page row commits its slug URL
@@ -65,8 +65,8 @@ this guide focuses on **behaviour**, not link rot.
   aria-label>` = **Breadcrumbs** (`docs.breadcrumbs`) in the header strip →
   Trail = **Home** (`docs.home`, links to `{base}/`) → group labels → current
   page (marked `aria-current="page"`, not a link, and **not** a heading — the
-  page's only `<h1>` is the article title below); on the landing page the trail
-  is **Home** alone, as its own current leaf; clicking a crumb navigates there.
+  page's only `<h1>` is the article title below); clicking a crumb navigates there.
+  The locale-root discovery page has its own marketing header, without an article trail.
   Below 1024 px only the immediate parent precedes the current page; at any
   width a long trail truncates its crumbs with an ellipsis (Home keeps its
   width) and never runs past the strip or pushes the page actions away.
@@ -96,7 +96,8 @@ this guide focuses on **behaviour**, not link rot.
   `{base}/platform/workflows/triggers`,
   `{base}/platform/conversations/overview` → Each answers **HTTP 301** with
   `Location:` on the new slug — `…/platform/connectors/overview`,
-  `…/platform/automations/triggers`, `…/platform/automations/builtin`;
+  `…/platform/automations/triggers`, `…/platform` (where Home documents the
+  Inbox);
   locale-preserving: `{base}/de/platform/integrations/overview` 301s to
   `{base}/de/platform/connectors/overview` (map: `docs/redirects.json`, served
   by `server.ts` before static files)
@@ -150,14 +151,52 @@ this guide focuses on **behaviour**, not link rot.
   `{base}/en/platform/workspace/skills` → The **English** Skills page renders at
   `{base}/platform/workspace/skills` and the language switcher shows English;
   opening `{base}/platform/automations/concepts` afterwards stays English too.
+- [ ] `NAV-F18` · **Retired regional trees** — Built server only — `curl -sIL`
+  `{base}/de-CH/platform/admin/members-and-roles`, `{base}/de-AT/use/chat/basics`
+  and `{base}/fr-CH/cloud/billing` → Each ends on **HTTP 200** at the base
+  locale's page — `…/de/platform/admin/members-and-roles`,
+  `…/de/platform/chat/basics`, `…/fr/cloud/billing` — through **301**s, never a
+  404 (the regional trees were published until 2026; `lib/near-miss.ts` folds
+  them).
+- [ ] `NAV-F19` · **Guessed addresses land** — Built server only — `curl -sI`
+  the addresses a language model guessed from page titles:
+  `{base}/de/verwaltung/mitglieder-und-rollen`,
+  `{base}/de/platform/automations/automation-concepts`,
+  `{base}/de/self-hosted/configuration/retention-limits`,
+  `{base}/platform/chat/basicz` → Each answers **HTTP 302** to the page it
+  means — `…/de/platform/admin/members-and-roles`,
+  `…/de/platform/automations/concepts`,
+  `…/de/self-hosted/configuration/retention`, `…/platform/chat/basics`; an
+  address no page is clearly closest to (`{base}/de/foo/bar-baz`) still answers
+  **404**, and so does a missing script (`{base}/assets/missing.js`).
+- [ ] `NAV-F20` · **Addresses from earlier docs** — Built server only —
+  `curl -sI` `{base}/quickstart`, `{base}/use/chat/basics` and
+  `{base}/de/legal/privacy-policy` → **HTTP 301** to
+  `…/self-hosted/install/quickstart`, `…/platform/chat/basics` and
+  `https://tale.dev/de/legal/privacy-policy` (every slug in `docs/published.json`
+  keeps answering; `tests/published.test.ts` proves all of them).
+- [ ] `NAV-F21` · **Sidebar labels as addresses** — Built server only —
+  `curl -sI` the rail's group labels spelled as addresses:
+  `{base}/de/verwaltung`, `{base}/de/plattform/automatisierungen`,
+  `{base}/de/verwaltung/governance`, `{base}/de/tutorials/verwaltung` and
+  `{base}/fr/plateforme/automatisations` → Each answers **HTTP 302** to the
+  first page of the group the label names — `…/de/platform/admin/overview`,
+  `…/de/platform/automations/concepts`,
+  `…/de/platform/admin/governance/audit-logs`,
+  `…/de/tutorials/admin/connect-local-provider`,
+  `…/fr/platform/automations/concepts`. **Verwaltung** labels two groups: on
+  its own it lands in **Platform**, under `tutorials/` in the tutorials. A
+  label with an unknown page under it (`{base}/de/verwaltung/xyz`) still
+  answers **404**.
 
 ## Boundary & error tests
 
-- [ ] `NAV-B1` · **Unknown URL** — Open `{base}/platform/chat/basicz` (typo) →
+- [ ] `NAV-B1` · **Unknown URL** — Open `{base}/platform/chat/zzzz` (no page is
+  close; a near miss like `…/basicz` lands on its page instead, `NAV-F19`) →
   The styled 404 renders **inside the docs shell**: heading **Page not found**
   (`docs.notFound.title`), body `docs.notFound.body`, a **Did you mean** list
-  (`docs.notFound.suggestions`) whose Levenshtein-closest suggestion includes
-  `platform/chat/basics`, and a **Back to docs home** button
+  (`docs.notFound.suggestions`) ranked by the server's near-miss scorer — the
+  Chat pages, `platform/chat/basics` among them — and a **Back to docs home** button
   (`docs.notFound.backHome`)
 - [ ] `NAV-B2` · **Deep garbage URL** — Open `{base}/x/y/z/deep/garbage` →
   Same 404 page; suggestions still render (fallback list); no crash, no blank

@@ -135,13 +135,17 @@ Zitiere Belege und kennzeichne fehlende Informationen mit „Nicht angegeben“.
 | `license` | Die vom Autor angegebenen Nutzungsbedingungen. |
 | `recommended-packages` | Empfohlene Abhängigkeiten; der Import installiert sie nicht. |
 | `disable-model-invocation` | Bittet um ausdrückliche Verwendung. Diese Metadaten sind eine Anweisung, keine Zugriffsbeschränkung. |
-| `icon` / `labels` | Darstellung in der Bibliothek; bis zu acht Labels. |
+| `icon` / `labels` | Darstellung in der Bibliothek; bis zu acht Labels mit je höchstens 40 Zeichen. |
 
 Unbekannte Frontmatter-Schlüssel bleiben erhalten. Die Frontmatter darf bis zu 16 KB groß sein, die gesamte `SKILL.md` bis zu 512 KB. Häufig gelesene Anweisungen sollten deutlich kürzer bleiben.
 
 ## Aktualisieren und Probleme lösen
 
 Öffne eine Zeile, um Beschreibung, Anweisungen, Labels und Sichtbarkeit zu ändern. Unter **Bundle** kannst du ergänzende Dateien prüfen. Agenten sind nicht an eine bestimmte Fassung gebunden: Beim nächsten Bereitstellen wird das aktuelle Bundle verwendet. Teste gemeinsame Änderungen deshalb mit einer typischen Aufgabe.
+
+Unter **Labels** trägst du bis zu acht Labels mit je höchstens 40 Zeichen ein, durch Kommas getrennt. Ist die Liste länger oder ein Label zu lang, sagt dir das Feld, was du entfernen oder kürzen musst, und **Speichern** bleibt gesperrt. Von deiner Eingabe geht dabei nichts verloren. Der Baum unter **Bundle** merkt sich für jeden Skill in deinem Browser, welche Ordner du eingeklappt hast.
+
+Kann Tale einen Skill oder eine seiner Dateien nicht laden, sagt der Dialog das und bietet **Erneut versuchen** an. Schlägt eine Aktualisierung fehl, bleibt der bereits angezeigte Stand stehen, ungespeicherte Änderungen eingeschlossen. Eine entfernte Datei meldet der Dialog als nicht mehr im Bundle, eine leere Datei als leer.
 
 Findet ein Agent den Skill nicht, prüfe seine Ausstattung und die Sichtbarkeit für das Projekt. Tale zeigt ihm einen Beschreibungsauszug von bis zu 300 Zeichen als Auswahlhilfe. Beschreibe deshalb zuerst, wann der Skill passt. Ignoriert er einen zugeordneten Skill, nenne ihn in der Aufgabe und prüfe das Ergebnis anhand seiner Anweisungen. [Skills für Agenten](/de/platform/agents/skills) erklärt, wie das zugeordnete Bundle bereitgestellt und dem Agenten genannt wird.
 

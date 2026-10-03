@@ -4,15 +4,15 @@ import { describe, expect, it } from 'vitest';
 import { DemoStage } from './demo-stage';
 
 describe('DemoStage', () => {
-  it('uses full-bleed edges for the homepage hero band (no radius)', () => {
+  it('frames the hero inside the shared page gutters', () => {
     const { container } = render(
       <DemoStage variant="hero">
         <span>demo</span>
       </DemoStage>,
     );
     const stage = container.firstElementChild;
-    expect(stage?.className).toMatch(/border-y/);
-    expect(stage?.className).not.toMatch(/rounded-/);
+    expect(stage?.className).toMatch(/\bborder\b/);
+    expect(stage?.className).toMatch(/sm:rounded-3xl/);
   });
 
   it('rounds the inset section stage used under tour rows and feature heroes', () => {
@@ -23,7 +23,6 @@ describe('DemoStage', () => {
     );
     const stage = container.firstElementChild;
     expect(stage?.className).toMatch(/rounded-2xl/);
-    expect(stage?.className).toMatch(/md:rounded-3xl/);
     expect(stage?.className).toMatch(/\bborder\b/);
   });
 });

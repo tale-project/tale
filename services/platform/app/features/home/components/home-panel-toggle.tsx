@@ -12,10 +12,11 @@ import { useHomePanel } from './home-panel-context';
 
 /**
  * Hides or shows the Home panel — the first control of every conversation
- * header (a chat, a task, a customer conversation), in the same place on
- * each, so the panel folds away for focus and comes back from wherever you
- * are. Desktop only (a phone has no panel beside the page), and only inside
- * a Home frame; it names the panel element while one is on screen.
+ * header (a chat, a task, a customer conversation) and of a project's
+ * header, in the same place on each, so the panel folds away for focus and
+ * comes back from wherever you are. Desktop only (a phone has no panel
+ * beside the page), and only inside a Home frame; it names the panel element
+ * while one is on screen.
  */
 export function HomePanelToggle() {
   const { t } = useT('home');

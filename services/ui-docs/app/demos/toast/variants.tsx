@@ -19,6 +19,18 @@ export default function ToastVariants() {
           variant="secondary"
           onClick={() =>
             toast({
+              variant: 'warning',
+              title: 'Imported 3 of 4 files',
+              description: 'report.mov: The file exceeds the 512 MiB limit',
+            })
+          }
+        >
+          Warning
+        </Button>
+        <Button
+          variant="secondary"
+          onClick={() =>
+            toast({
               variant: 'destructive',
               title: 'Could not reach the provider',
               description: 'Check the base URL and the API key.',

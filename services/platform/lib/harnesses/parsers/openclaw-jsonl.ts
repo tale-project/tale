@@ -36,6 +36,13 @@ class OpenClawJsonlParser implements HarnessEventParser {
   private readonly lines = new LineReassembler();
   private started = false;
   private sessionId: string | undefined;
+  /** The run's token totals, from its usage record: the wrapper relays
+   * OpenClaw's whole-run `agentMeta.usage`, whose `input` is only the
+   * uncached remainder (OpenClaw subtracts cached tokens from an OpenAI
+   * prompt count and keeps Anthropic's split), so cache reads and writes
+   * are added back. */
+  private runInput = 0;
+  private runOutput = 0;
 
   constructor(private readonly slug: HarnessSlug) {}
 
@@ -105,6 +112,8 @@ class OpenClawJsonlParser implements HarnessEventParser {
           usage.cacheWriteTokens = cacheWrite;
         }
         events.push(usage);
+        this.runInput += inputTokens + (cacheRead ?? 0) + (cacheWrite ?? 0);
+        this.runOutput += outputTokens;
       }
       return events;
     }
@@ -123,6 +132,12 @@ class OpenClawJsonlParser implements HarnessEventParser {
       if (finalText) result.finalText = finalText;
       const durationMs = asNumber(ev.duration_ms);
       if (durationMs !== undefined) result.durationMs = durationMs;
+      if (this.runInput + this.runOutput > 0) {
+        result.usageTotals = {
+          inputTokens: this.runInput,
+          outputTokens: this.runOutput,
+        };
+      }
       if (err) {
         result.isError = true;
         events.push({ type: 'error', message: err, raw: ev });

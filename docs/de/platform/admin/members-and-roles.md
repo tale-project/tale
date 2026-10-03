@@ -37,12 +37,14 @@ Ordne die Person nach dem Hinzufügen den benötigten Teams zu. Eine Rolle allei
 
 | Rolle | Typische Aufgaben | Organisationsverwaltung |
 | --- | --- | --- |
-| **Inhaber** | Alle Produkt- und Verwaltungsaufgaben | Darf auch die Inhaberschaft übertragen und die Organisation löschen; beim Löschen musst du zuerst den Namen der Organisation eintippen, bevor die Schaltfläche aktiv wird. |
+| **Inhaber** | Alle Produkt- und Verwaltungsaufgaben | Darf auch die Inhaberschaft übertragen und die Organisation löschen, wobei ihre Sandboxes samt Dateien mitgelöscht werden; beim Löschen musst du zuerst den Namen der Organisation eintippen, bevor die Schaltfläche aktiv wird. |
 | **Admin** | Personen, Dienste, Richtlinien und die Arbeit des Teams verwalten | Voller Zugriff auf Organisationseinstellungen; keine Übertragung der Inhaberschaft. |
 | **Entwickler** | Agenten, Automatisierungen und Integrationen erstellen | Technische Einstellungen wie Anbieter, Connectors und API-Zugriff; keine Mitgliederverwaltung. |
-| **Redakteur** | Inhalte pflegen und die tägliche Arbeit bearbeiten | Inhalte bearbeiten; Workflow- und Connector-Ressourcen nur lesen. |
+| **Redakteur** | Inhalte pflegen und die tägliche Arbeit bearbeiten | Inhalte bearbeiten; kein Zugriff auf **Automatisierungen**; Connector-Ressourcen nur lesen. |
 | **Mitglied** | Chat nutzen, freigegebene Ressourcen lesen und Projektaufgaben erstellen, die eigenen auch mit Projektagenten bearbeiten | Keine Organisationsverwaltung; darf Nachrichtenfeedback abgeben. |
 | **Deaktiviert** | Kein aktiver Zugriff | Der Mitgliedschaftseintrag bleibt bestehen, ohne Rechte zu gewähren. |
+
+**Automatisierungen** sehen nur Inhaber, Admins und Entwickler, in der Navigation wie in Projekten; alle anderen sehen über einen Link zu einer Automatisierung **Zugriff verweigert**.
 
 Wer weder Inhaber noch Admin ist, kann **Einstellungen > Mitglieder** nicht öffnen und sieht die eigene Rolle unter [**Einstellungen > Konto > Deine Rolle**](/de/platform/member/preferences#role).
 
@@ -66,6 +68,6 @@ Als Inhaber kannst du im Zeilenmenü eines anderen Mitglieds **Inhaberschaft üb
 
 ## Zugriff entziehen oder wiederherstellen
 
-Wähle **Deaktiviert**, wenn der Zugriff enden, die Mitgliedschaft aber bestehen bleiben soll. **Löschen** im Zeilenmenü entfernt die Mitgliedschaft aus dieser Organisation. Prüfe vorher geteilte Arbeit und Teamverantwortungen. Eine Mitgliedschaft zu entfernen ist keine [Löschanfrage einer betroffenen Person](/de/platform/admin/governance/data-subject-requests).
+Wähle **Deaktiviert**, wenn der Zugriff enden, die Mitgliedschaft aber bestehen bleiben soll. **Löschen** im Zeilenmenü entfernt die Mitgliedschaft aus dieser Organisation und löscht dabei auch die getrennten Sandbox-Arbeitsbereiche der [Agentenläufe, die die Person gestartet hat](/de/platform/projects/tasks#agentenlaeufe-die-ein-mitglied-startet), samt Dateien; mit **Deaktiviert** bleiben diese Arbeitsbereiche erhalten. Prüfe vorher geteilte Arbeit und Teamverantwortungen. Eine Mitgliedschaft zu entfernen ist keine [Löschanfrage einer betroffenen Person](/de/platform/admin/governance/data-subject-requests).
 
 Hat ein Mitglied seinen Authenticator oder Passkey verloren, öffne **Bearbeiten** und nutze die jeweiligen Sicherheitsfunktionen. [Zwei-Faktor-Authentifizierung](/de/platform/admin/two-factor-authentication) erklärt Wiederherstellung, Zurücksetzen und die Folgen für aktive Sitzungen.

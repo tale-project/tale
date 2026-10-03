@@ -199,7 +199,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Tale-Dokumentation",
-      "description": "Tale nutzen, Projektagenten erstellen, Anwendungen anbinden und eine Instanz betreiben.",
+      "description": "Koordiniere Teammitglieder und KI-Agenten in Tales Open-Source-Arbeitsbereich mit Projektaufgaben, Delegation, Sandboxes und prüfbaren Ergebnissen.",
       "kind": "index"
     }
   },
@@ -290,7 +290,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Modelle",
-      "description": "Lege Standardmodelle fest, begrenze den Zugriff und wähle getrennte Modelle für Bilder und Audiotranskription."
+      "description": "Lege Standardmodelle fest, begrenze den Zugriff, wähle getrennte Modelle für Bilder und Audiotranskription und richte den Standard-Agenten für Projekte ohne Agenten ein."
     }
   },
   "de:platform/admin/governance/data-subject-requests": {
@@ -323,6 +323,14 @@
     "frontmatter": {
       "title": "Legal Hold",
       "description": "Bewahre Daten einer Person oder Organisation, ordne Sperren einem Fall zu und prüfe Freigabeanträge."
+    }
+  },
+  "de:platform/admin/governance/operations-metrics": {
+    "slug": "platform/admin/governance/operations-metrics",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Betriebsmetriken",
+      "description": "Prüfe fehlgeschlagene und blockierte Chat-Antworten, Agentenarbeit in der Sandbox, die Ergebnisse von Automatisierungsläufen und den Fortschritt eines Projekts unter Einstellungen > Metriken."
     }
   },
   "de:platform/admin/governance/policies-and-limits": {
@@ -893,7 +901,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Deine erste selbst gehostete Instanz starten",
-      "description": "Installiere die CLI, starte ein lokales Tale-Projekt und prüfe eine erste Modellantwort."
+      "description": "Installiere die CLI, starte Tale lokal, erstelle dein Inhaberkonto und prüfe die erste Chatantwort."
     }
   },
   "de:self-hosted/operate/backups-and-restore": {
@@ -1053,7 +1061,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Ein Projekt für gemeinsamen Kontext nutzen",
-      "description": "Erstelle ein Projekt, hinterlege Dateien und Anweisungen und stelle eine Frage zum Projektwissen."
+      "description": "Stelle eine Frage, die die Dateien eines Projekts beantworten, teile das Gespräch und übergib die Folgearbeit einem Projekt-Agenten."
     }
   },
   "de:tutorials/overview": {
@@ -1352,7 +1360,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Tale documentation",
-      "description": "Learn to use Tale, build project agents, connect applications, and operate an instance.",
+      "description": "Coordinate teammates and AI agents in Tale’s open-source workspace with project tasks, delegation, sandboxes, and reviewable results.",
       "kind": "index"
     }
   },
@@ -1443,7 +1451,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Models",
-      "description": "Set default models, restrict access, and choose separate models for images and audio transcription."
+      "description": "Set default models, restrict access, choose separate models for images and audio transcription, and set up the standard agent for projects without agents."
     }
   },
   "en:platform/admin/governance/data-subject-requests": {
@@ -1476,6 +1484,14 @@
     "frontmatter": {
       "title": "Legal hold",
       "description": "Preserve a person's or organization's data, organize holds by matter, and review release requests."
+    }
+  },
+  "en:platform/admin/governance/operations-metrics": {
+    "slug": "platform/admin/governance/operations-metrics",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Operations metrics",
+      "description": "Check failed and blocked chat replies, agent turns in the sandbox, automation run outcomes, and project delivery under Settings > Metrics."
     }
   },
   "en:platform/admin/governance/policies-and-limits": {
@@ -2046,7 +2062,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Run your first self-hosted instance",
-      "description": "Install the CLI, start a local Tale project and verify a first model reply."
+      "description": "Install the CLI, start Tale locally, create your owner account and verify a first chat reply."
     }
   },
   "en:self-hosted/operate/backups-and-restore": {
@@ -2206,7 +2222,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Use a project for shared context",
-      "description": "Create a project, add reference files and instructions, then ask a question that uses the project’s knowledge."
+      "description": "Ask a question that a project's files answer, share the conversation, and hand the follow-up work to a project agent."
     }
   },
   "en:tutorials/overview": {
@@ -2505,7 +2521,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Documentation Tale",
-      "description": "Utilise Tale, crée des agents de projet, connecte des applications et exploite ton instance.",
+      "description": "Coordonne ton équipe et tes agents IA dans l’espace open source de Tale avec des tâches de projet, la délégation, des sandboxes et la revue des résultats.",
       "kind": "index"
     }
   },
@@ -2596,7 +2612,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Modèles",
-      "description": "Définis les modèles par défaut, limite leur accès et choisis des modèles distincts pour les images et la transcription audio."
+      "description": "Définis les modèles par défaut, limite leur accès, choisis des modèles distincts pour les images et la transcription audio, et mets en place l’agent standard des projets sans agents."
     }
   },
   "fr:platform/admin/governance/data-subject-requests": {
@@ -2629,6 +2645,14 @@
     "frontmatter": {
       "title": "Conservation juridique",
       "description": "Préserve les données d’une personne ou de l’organisation, regroupe les gels par dossier et examine les demandes de libération."
+    }
+  },
+  "fr:platform/admin/governance/operations-metrics": {
+    "slug": "platform/admin/governance/operations-metrics",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Métriques d’exploitation",
+      "description": "Surveille les réponses de chat en échec ou bloquées, le travail des agents dans la sandbox, l’issue des exécutions d’automatisation et l’avancement d’un projet sous Paramètres > Métriques."
     }
   },
   "fr:platform/admin/governance/policies-and-limits": {
@@ -3199,7 +3223,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Démarrer ta première instance auto-hébergée",
-      "description": "Installe la CLI, démarre un projet Tale local et vérifie une première réponse de modèle."
+      "description": "Installe la CLI, démarre Tale localement, crée ton compte propriétaire et vérifie une première réponse dans le chat."
     }
   },
   "fr:self-hosted/operate/backups-and-restore": {
@@ -3359,7 +3383,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Utiliser un projet pour partager le contexte",
-      "description": "Crée un projet, ajoute des fichiers et des instructions, puis pose une question sur ses connaissances."
+      "description": "Pose une question à laquelle répondent les fichiers d’un projet, partage la conversation et confie la suite à un agent du projet."
     }
   },
   "fr:tutorials/overview": {

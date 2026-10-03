@@ -13,8 +13,8 @@
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
-import { localizedPath, type SupportedLocale } from '../lib/i18n/locales';
-import { MARKETING_ROUTES } from '../lib/seo/marketing-routes';
+import { SUPPORTED_LOCALES, type SupportedLocale } from '../lib/i18n/locales';
+import { marketingRoutesForLocale } from '../lib/seo/marketing-routes';
 import { enumerateLegalRoutes } from './legal-routes';
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
@@ -24,7 +24,7 @@ const SSR_BUNDLE = resolve(ROOT, 'dist-ssr', 'entry-server.js');
 
 // English (root, no prefix) + the URL-prefixed locales. Marketing pages reuse
 // one component tree across all three; the SSR entry aligns i18n to the URL.
-const BASE_LOCALES: readonly SupportedLocale[] = ['en', 'de', 'fr'];
+const BASE_LOCALES = SUPPORTED_LOCALES;
 
 interface PrerenderRoute {
   url: string;
@@ -53,8 +53,8 @@ function setHtmlLang(template: string, locale: string): string {
 function collectRoutes(legalUrls: PrerenderRoute[]): PrerenderRoute[] {
   const marketing: PrerenderRoute[] = [];
   for (const locale of BASE_LOCALES) {
-    for (const route of MARKETING_ROUTES) {
-      marketing.push({ url: localizedPath(locale, route.url), locale });
+    for (const route of marketingRoutesForLocale(locale)) {
+      marketing.push({ url: route.url, locale });
     }
   }
   // The 404 artifact (English; the client re-localizes after mount). The

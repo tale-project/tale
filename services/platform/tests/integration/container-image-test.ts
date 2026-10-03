@@ -62,8 +62,12 @@ const SIZE_BUDGETS: Record<string, number> = {
   //     markitdown's file-type model, reportlab, pdfplumber/pypdfium2) and the
   //     Node lock ~130 MB (react-icons alone ~85 MB, docx, pptxgenjs, sharp),
   //     taking amd64 from ~4.87 GB to an estimated ~5.3 GB.
-  // ~10% headroom over the ~5.3 GB amd64 image.
-  'sandbox-runtime': 5900,
+  //   - the October refresh of all nine harnesses: upstream bundles grew
+  //     (OpenClaw ~730 MB, Codex ~380 MB, Pi ~160 MB). CI measured 6166 MB
+  //     before keeping ~120 MB of Bun/node-gyp build caches out of layers.
+  // ~10% headroom over the refreshed ~6.0 GB amd64 image. Runtime binaries
+  // and diagnostics stay intact; the image is shared by concurrent sessions.
+  'sandbox-runtime': 6600,
 };
 
 const SERVICES = [

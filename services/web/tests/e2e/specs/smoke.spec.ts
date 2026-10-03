@@ -60,6 +60,34 @@ test.describe('web marketing smoke', () => {
     expect(errors).toEqual([]);
   });
 
+  for (const menuKey of ['platform', 'resources'] as const) {
+    test(`desktop ${menuKey} disclosure restores only its own focus on Escape`, async ({
+      page,
+    }) => {
+      await page.goto('/');
+      const trigger = page.getByRole('button', { name: t(`nav.${menuKey}`) });
+      const panel = page.getByRole('region', { name: t(`nav.${menuKey}`) });
+      await trigger.focus();
+      await page.keyboard.press('Enter');
+      await expect(panel).toBeVisible();
+      await page.keyboard.press('Tab');
+      await expect(panel.getByRole('link').first()).toBeFocused();
+      await page.keyboard.press('Escape');
+      await expect(panel).not.toBeVisible();
+      await expect(trigger).toBeFocused();
+
+      await page.keyboard.press('Enter');
+      await expect(panel).toBeVisible();
+      const pricing = page
+        .getByRole('link', { name: t('nav.pricing') })
+        .first();
+      await pricing.focus();
+      await page.keyboard.press('Escape');
+      await expect(panel).not.toBeVisible();
+      await expect(pricing).toBeFocused();
+    });
+  }
+
   for (const path of MARKETING_PATHS) {
     if (path === '/') continue;
     test(`${path} renders`, async ({ page }) => {
@@ -90,6 +118,37 @@ test.describe('web marketing smoke', () => {
     await page.goto('/de');
     await expectPageRenders(page);
   });
+
+  for (const locale of ['en', 'de', 'fr'] as const) {
+    const { t: tLocale } = createI18n(
+      new URL(`../../../messages/${locale}.yml`, import.meta.url),
+    );
+    const prefix = locale === 'en' ? '' : `/${locale}`;
+    test(`${locale} hero links to self-hosting in the same language on desktop and phone`, async ({
+      page,
+    }) => {
+      await page.emulateMedia({ reducedMotion: 'reduce' });
+      for (const width of [1440, 390]) {
+        await page.setViewportSize({ width, height: 900 });
+        await page.goto(prefix || '/');
+        const install = page
+          .locator('main section')
+          .first()
+          .getByRole('link', {
+            name: tLocale('home.hero.ctaSecondary'),
+            exact: true,
+          });
+        await expect(install).toBeVisible();
+        await expect(install).toHaveAttribute(
+          'href',
+          `https://docs.tale.dev${prefix}/self-hosted/install/quickstart`,
+        );
+        await expect(page.getByRole('heading', { level: 1 })).toHaveText(
+          tLocale('home.hero.title'),
+        );
+      }
+    });
+  }
 
   test('German platform + pricing routes render', async ({ page }) => {
     await page.goto('/de/platform');

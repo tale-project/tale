@@ -7,6 +7,7 @@ import { ensureAgentSession, type AgentSessionOwner } from './agent_session';
 import {
   SessionDuplicateError,
   SessionNotFoundError,
+  SpawnerBusyError,
 } from './helpers/session_client';
 
 const runtime = vi.hoisted(() => ({
@@ -283,6 +284,34 @@ describe.each(scenarios)('ensureAgentSession ($owner.type)', (scenario) => {
       'destroy',
       'setSessionStatus',
     ]);
+  });
+
+  // A refused create (429: the host is full, or short of memory) made
+  // nothing — and a destroy of an id with no compute deletes the preserved
+  // workspace a stopped standing session keeps under it.
+  it('a create the sandbox host refused destroys nothing, and the row reads failed', async () => {
+    const f = fixture(scenario, null);
+    const error = new SpawnerBusyError(15_000);
+    runtime.sessionCreate.mockImplementation(async () => {
+      f.events.push('create');
+      throw error;
+    });
+
+    await expect(f.ensure()).rejects.toBe(error);
+
+    expect(runtime.sessionDestroyIfIdle).not.toHaveBeenCalled();
+    expect(f.events).toEqual([
+      'reserveSessionSlotAndInsert',
+      'create',
+      'setSessionStatus',
+    ]);
+    // Settled as collected: the COLLECT pass would otherwise run the very
+    // destroy this skipped once the row's grace had passed.
+    expect(f.ctx.runMutation).toHaveBeenLastCalledWith(expect.anything(), {
+      rowId: 'row_1',
+      status: 'failed',
+      collected: true,
+    });
   });
 
   // The regression (#3494): a create the spawner had started, then failed —

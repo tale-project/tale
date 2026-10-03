@@ -16,6 +16,12 @@ bun run --filter @tale/sandbox dev    # bun --hot src/server.ts (local session r
 bun run --filter @tale/sandbox test   # bun test
 ```
 
+Exec and attach streams bound their pending output to 8 MiB plus at most one
+event (a collected terminal result can be larger). A consumer that stays
+behind is disconnected; cancelling its response also stops the upstream read
+and keepalive immediately. The exec keeps running and can be reattached through
+the session API. Late output is discarded without repeated log messages.
+
 ## Authentication
 
 Every route except `GET /health` is HMAC-signed with the shared `SANDBOX_TOKEN`
@@ -38,8 +44,31 @@ docker exec tale-sandbox bun /app/src/control-cli.ts drain-status   # {draining,
 
 `GET /v1/limits` uses the same HMAC authentication as session operations and
 returns the configured `maxSessions` without requiring a Docker or Kubernetes
-inventory. `SANDBOX_MAX_SESSIONS` defaults to 8 and is the one deployment
-capacity shared by all organizations. Platform adds an organization's three
+inventory. `SANDBOX_MAX_SESSIONS` is the one deployment capacity shared by all
+organizations; unset, a Docker spawner that can read its host's memory sizes
+it from that memory (one session per 768 MiB beyond the reserve, or per
+1.5 GiB where agent sessions run Docker inside, at least 8, at most 256; at
+boot, or at the first sweep that can read it), and 8 applies elsewhere. On
+such a host admission also keeps `SANDBOX_MIN_FREE_MEMORY` free (a tenth of
+the host, at least 1 GiB), counting creates still starting at their planned
+working set and sessions started in the last 90 seconds at what they are
+still growing into: a create that would cut into it reclaims a released idle
+session or answers 429 `host_memory`. Admission also keeps
+`SANDBOX_MIN_FREE_DISK` free on the disk the session workspaces live on (a
+twentieth of it, at least 2 GiB, at most 20 GiB; `0` turns it off): below
+that floor every create answers 429 `host_disk`, and the build-cache upkeep
+removes the caches of organizations whose helpers are all stopped, the
+longest-stopped first. Creates refused for room wait in a
+first-come line: freed room goes to the oldest waiter still asking, and each
+429 names the create's place (`queue: { position, waiting }`) with a
+`retry-after` for when it comes up (docs/sessions.md). At most 12 Docker CLI processes run at
+once, each within its own time budget, the wait for a slot included; short
+calls (the health probe's `docker version`, the identity and liveness
+inspects, the build helper and host memory checks) take a free one of those
+or one of 4 more kept for them, and never queue behind long calls. A health
+probe that found no slot in time answers unhealthy without caching it.
+Cancelling a queued call removes its waiter immediately; it consumes no slot
+and never starts the Docker command. Platform adds an organization's three
 `sandbox_quota` workload limits (defaults 2/2/2) and refuses a save if the sum
 exceeds the current deployment capacity or that capacity cannot be read.
 There is no independently configured organization runtime ceiling. With
@@ -82,6 +111,29 @@ sessions stay protected; stopping compute preserves the workspace. See the
 [session lifecycle contract](docs/sessions.md#capacity-and-idle-reclamation)
 for release ordering and failure handling.
 
+## Workspace cleanup
+
+Stopping keeps a workspace; the platform decides when one goes — its owner
+(agent, member, organization) was deleted, nobody used it for the
+organization's window, or nothing owns it any more — and the spawner reports
+and enforces: `GET /v1/workspaces` lists every workspace it holds (stopped
+sessions' data included) and the organizations holding build helpers or
+package caches, `DELETE /v1/sessions/:id?if_idle=1&if_stopped=1` deletes a
+workspace only while no compute runs under it, and `DELETE /v1/organizations/:id`
+removes what is left of a deleted organization. All three use the same HMAC
+authentication as the session routes. See the
+[workspace cleanup contract](docs/sessions.md#workspace-cleanup).
+
+On Docker a destroy moves the workspace into the session root's `.trash/` and
+deletes it in the background, so it answers at once however much the workspace
+holds; the next start empties whatever a restart or crash left there. Every answer
+says how far the bytes came (`deletion`: `done`, `pending` or `failed`; on
+Kubernetes `handed_off`), and `?await_deletion=1` waits a bounded time for
+them: the platform's cleanup and erasure settle a deletion only on an explicit
+`done` or `handed_off`, never on an answer without it (a spawner or device
+older than the contract). See
+[stop vs destroy](docs/sessions.md#stop-vs-destroy--the-data-preservation-contract).
+
 Docker admission serializes creates through the host's single spawner.
 Concurrent Kubernetes replicas enforce the namespace capacity on a best-effort
 basis; use ResourceQuota for hard namespace resource bounds.
@@ -115,10 +167,11 @@ An unused invalid owned network is recreated; an in-use or foreign network is
 never removed. If host observation fails or no safe subnet is available,
 sessions build locally.
 
-After no session may still depend on an organization's cache helpers, the
-`SANDBOX_SESSION_MAX_IDLE_MS` window (30 minutes by default) starts. The helpers
-then stop; their network and volumes remain intact and the next build restarts
-them. Legacy global cache helpers retire once their remaining sessions drain,
+After no agent session may still depend on an organization's cache helpers
+(only agent sessions build), the `SANDBOX_SESSION_MAX_IDLE_MS` window (30
+minutes by default) starts. The helpers then stop, the builder pruning its cache
+to `SANDBOX_BUILDKITD_IDLE_CACHE` (5 GB by default) first; their network and
+volumes remain intact and the next build restarts them. Legacy global cache helpers retire once their remaining sessions drain,
 with their cache volumes retained.
 
 Kubernetes sessions use their inner Docker builder. The Kubernetes backend

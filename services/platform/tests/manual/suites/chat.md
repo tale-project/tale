@@ -1,6 +1,6 @@
 # Chat
 
-> **Prefix** `CHAT-` · **Reset** none · **Cost** 90 boxes
+> **Prefix** `CHAT-` · **Reset** none · **Cost** 99 boxes
 
 Exercise the AI chat surface — the welcome view, messaging and the composer
 (model + reasoning-effort picker, attachments, dictation, voice output),
@@ -28,9 +28,10 @@ message / enabling sharing — there is no static URL for them.)
 ## Preconditions
 
 Stack up + signed in per [SETUP.md](../setup.md), with a provider configured
-(or mode A's mock). In **mode A** any prompt returns the canned reply and the
-keyword triggers (`e2e:reasoning` / `e2e:error`) drive CHAT-F16, CHAT-F17
-and CHAT-F19. Rows marked **mode B** need a live provider; CHAT-F25
+(or mode A's mock, wired per SETUP.md §1.A). In **mode A** any prompt returns the canned reply and the
+keyword triggers (`e2e:reasoning` / `e2e:error` / `e2e:empty` /
+`e2e:length` / `e2e:stream-error`) drive CHAT-F16, CHAT-F17, CHAT-F19,
+CHAT-F57 and CHAT-F58. Rows marked **mode B** need a live provider; CHAT-F25
 additionally needs a TTS-capable model,
 CHAT-F26/CHAT-AT7 an available organization audio transcription model, and CHAT-F32–CHAT-F33 a
 successfully indexed document (RAG indexing needs the full Docker stack — it
@@ -147,6 +148,28 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   details** disclosure (`chat.errorDetailsSummary`) and **Try again**
   (`chat.retryGeneration`) renders — the app does not crash (the console's
   induced-provider-error line is expected)
+- [ ] `CHAT-F57` · **Reply without an answer** — Mode A: in a new chat send
+  `e2e:empty`, then `e2e:length` → Each reply settles at once: no thinking
+  dots and no ticking **Thinking** seconds (`chat.thinking.label`) stay
+  behind. In the answer's place a warning line explains it — **The model
+  returned no answer. Try again, or choose another model.**
+  (`chat.generationIncomplete`) for `e2e:empty`; **The model used up its
+  output token limit before it wrote an answer.**
+  (`chat.generationIncompleteLength`) under a settled **Thought for
+  {seconds}s** header (`chat.thinking.done`) for `e2e:length` — with
+  **Try again** (`chat.retryGeneration`) on the conversation's last reply, and
+  the reply toolbar under it at once. Reload: the same line and no dots. (A
+  provider's content filter reads `chat.generationIncompleteFiltered`, mode B
+  only.)
+- [ ] `CHAT-F58` · **Provider error inside the stream** — Mode A: send
+  `e2e:stream-error` (the mock opens the stream with a `200`, then reports a
+  `502` on it) → The reply fails like CHAT-F19: **Couldn't generate a reply.
+  Try again.** (`chat.errorGenerating`), the provider hint
+  (`chat.errorHintProviderError`) and **Try again**
+  (`chat.retryGeneration`); **Technical details**
+  (`chat.errorDetailsSummary`) reads **The model provider ended the reply with
+  an error: E2E induced provider error inside the stream (502)** — never a
+  completed, empty reply with thinking dots.
 - [ ] `CHAT-F20` · **Export** — Thread header **Conversation actions**
   (`chat.aria.threadActions`) → **Export** (`chat.export.button`) → The
   **Export chat** dialog (`chat.export.title`) opens; **Deselect all**
@@ -155,6 +178,87 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   (`chat.export.downloadMarkdown`) saves a file; **Print to PDF**
   (`chat.export.downloadPdf`) opens the print flow; with none selected both
   are disabled.
+- [ ] `CHAT-F52` · **Create task from chat** — As a Member, in a chat of
+  your own that is filed in no project, attach a file, ask for a
+  deliverable, then **Create task** in the chat header
+  (`chat.createTask.headerButton`; below `md`, **Conversation actions** →
+  **Create task from chat**, `chat.createTask.button`) → **Create a task from
+  this chat** (`chat.createTask.projectTitle`) asks for the **Project**: its
+  list shows **With an agent** (`chat.createTask.withAgents`, each row
+  counting its agents, `chat.createTask.agentCount`) above **No agent yet**
+  (`chat.createTask.withoutAgents`, each row reading **An Editor or Admin can
+  add one**, `chat.createTask.noAgentReader`) — with the organization's
+  standard agent switched off ([governance.md](governance.md) `GOV-F52`);
+  while it is on, those projects are startable too (`CHAT-F56`); with exactly
+  one project that has agents it is picked already, otherwise **Continue**
+  stays off until one is picked; **Continue** → **Create task** opens holding
+  your last request as the description, a link back to the chat
+  (`chat.createTask.fromChat`, or `chat.createTask.fromChatUntitled` while
+  the model has not named the chat) and the attached file; a project with a
+  single agent has it under **Assignee** already, and with an agent there
+  the footer reads **Create only** (`tasks.actions.createOnly`) beside the
+  primary **Create and start agent** (`tasks.actions.createAndStart`) →
+  **Create and start agent** → the toast **Task created in {project}**
+  (`chat.createTask.created`) offers **Open task**
+  (`chat.createTask.openTask`), which opens the task on the project's board
+  with the file under **Attachments** and its run queued or working;
+  **Create only** instead creates it with the run waiting for **Start
+  agent**. A chat filed in a project, or a person who can open only one
+  project, skips the project step; opened by a reader of someone else's
+  project-shared chat, the dialog starts without their files.
+  With `*/chat/threads/*/messages` blocked in DevTools, the flow opens no task
+  form: it says the conversation couldn't be read
+  (`chat.createTask.readFailed`) and offers **Try again** (`chat.tryAgain`);
+  unblock → **Try again** opens the form with the request and files.
+- [ ] `CHAT-F53` · **The hand-over, live in the chat** — After `CHAT-F52`'s
+  **Create and start agent**, stay in the chat without reloading → above the
+  message box, the region **Tasks from this chat** (`chat.taskTray.label`)
+  holds a row naming the task and its project that reads **The agent is
+  working** (`chat.taskTray.working`) and then **Ready for review**
+  (`chat.taskTray.ready`; **Ready for review · N files**,
+  `chat.taskTray.readyWithFiles`, when the agent delivered files), each
+  change arriving without a reload; **Open** (`chat.taskTray.open`) opens
+  the task on its project's board. In a second session, move the task to
+  **Done** → the first session's row reads **Done** without a reload. A chat
+  that handed nothing over shows no such region.
+- [ ] `CHAT-F54` · **Every state of a handed-over task** — From one chat,
+  hand over tasks that end each way → a run queued while the organization's
+  sandbox slots are full reads **Waiting for a sandbox slot**
+  (`chat.taskTray.waitingForSlot`); a failed run the platform retries by
+  itself reads **Trying again…** (`chat.taskTray.retrying`), and one that
+  stopped for good reads **The agent couldn't finish**
+  (`chat.taskTray.failed`) on an amber-edged row; a task made with **Create
+  only** reads **Waiting to be started** (`chat.taskTray.notStarted`); a
+  task given to a person reads its column (**To do**). With four or more,
+  the newest three show above **and N more tasks** (`chat.taskTray.more`).
+  Share the chat into a project and open it as a Member of a team that
+  cannot open one of the tasks' projects → that task has no row.
+- [ ] `CHAT-F55` · **The reply walks a person through the hand-over** —
+  With a real model, as a Member whose interface is in **Deutsch**, ask in a
+  chat for a Word file built from attached documents → the reply gives what
+  fits in a reply, then says the file is task work and gives the steps in
+  the interface's own words: **Aufgabe erstellen** in the chat header, the
+  projects you can open that have an agent, by name, and **Erstellen und
+  Agent starten**; it names no menu, project or role that does not exist.
+  As a Member whose projects have no agent, the reply says the
+  organization's standard agent takes the task (`CHAT-F56`), or, with it
+  switched off ([governance.md](governance.md) `GOV-F52`), that an Editor or
+  Admin adds one on the project's Agents tab; with task automation switched
+  off for the organization, it says agents cannot be started right now.
+- [ ] `CHAT-F56` · **The hand-over offers the standard agent** — With the
+  standard agent on (the default), as a Member, **Create task** in the
+  header of a chat filed in no project (`chat.createTask.headerButton`) → a
+  project without agents of its own sits under **With an agent**
+  (`chat.createTask.withAgents`) marked **Standard agent**
+  (`chat.createTask.standardAgent`), and **No agent yet**
+  (`chat.createTask.withoutAgents`) is gone. Pick it and **Continue** → the
+  task dialog opens with **Standard agent** as the **Assignee** and **Create
+  and start agent** (`tasks.actions.createAndStart`) as its verb; it creates
+  the task and starts the agent, and the tray above the message box follows
+  the run (`CHAT-F53`). With a real model, ask for a spreadsheet in a chat:
+  the reply's steps say that in projects without agents of their own the
+  organization's standard agent, named as the interface names it, takes the
+  task.
 - [ ] `CHAT-F21` · **Share link** — **Share** (`chat.share.button`) → dialog
   **Share chat** (`chat.share.title`) → under **Who can view this chat**
   (`chat.share.accessPickerLabel`) pick **Share with organization**
@@ -652,6 +756,21 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   `<origin>/app/dashboard/{org}/chat/shared/{shareToken}`, one slash between
   each part, and the link opens the snapshot in another member's session; on a
   root deployment the same link has no prefix.
+- [ ] `CHAT-B20` · **A hand-over where no project has an agent** — With the
+  organization's standard agent switched off ([governance.md](governance.md)
+  `GOV-F52`), as a Member whose projects all lack agents, **Create task** in
+  the chat header
+  (`chat.createTask.headerButton`) → every project sits under **No agent
+  yet** (`chat.createTask.withoutAgents`) reading **An Editor or Admin can
+  add one** (`chat.createTask.noAgentReader`), and **Continue** stays off
+  until one is picked; **Continue** → in **Create task**, the **Assignee**
+  list says only the project's agents appear there and Editors and Admins
+  add them on its **Agents** tab (`tasks.assignee.noAgentsReader`), and the
+  footer offers only **Create task**. As an Editor, the rows read **You can
+  add one in the task** (`chat.createTask.noAgentEditor`); **Assignee** →
+  **Create an agent…** (`tasks.assignee.createAgent`) opens **New agent**
+  over the task, and once it is created and assigned the footer reads
+  **Create and start agent** (`tasks.actions.createAndStart`).
 
 ## Accessibility (WCAG 2.1 AA)
 
@@ -691,6 +810,16 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   `chat.share.unshareFailed` appears, the check returns to **Share
   with organization** (`chat.share.organizationLink`), focus stays on **Keep
   private**, and Space there tries again.
+- [ ] `CHAT-A8` · **The hand-over for a keyboard and a screen reader** →
+  **Create task** in the chat header keeps its accessible name
+  (`chat.createTask.headerButton`) when a narrow header hides its label,
+  and Tab reaches it with a visible focus ring. With a task handed over, the
+  region **Tasks from this chat** (`chat.taskTray.label`) is announced as a
+  list; a state change (**The agent is working** → **Ready for review**) is
+  read once, politely, without moving focus; each **Open** is named **Open
+  task {title}** (`chat.taskTray.openAria`) and reachable by keyboard; the
+  amber edge of a stopped task is not its only signal — the row's text says
+  **The agent couldn't finish**.
 
 ## Performance
 

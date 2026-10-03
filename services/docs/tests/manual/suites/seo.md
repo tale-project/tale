@@ -57,11 +57,12 @@ security headers, and none of the precompiled artifacts.
   `robots` → `<meta name="robots" content="noindex,nofollow">` present; absent
   on normal docs pages.
 - [ ] `SEO-F7` · **Content pre-JS** — View-source of `/` — do not execute JS →
-  The index H1 from frontmatter is present in the served HTML.
+  The discovery H1 (`home.heroTitle`) is present in the served HTML in the requested locale.
 - [ ] `SEO-F8` · **JSON-LD** — Same fetch of a content page; grep
-  `application/ld+json` → The prerendered head declares **Article +
-  BreadcrumbList + WebSite** JSON-LD (asserted per route by
-  `tests/prerender/seo.test.ts` — spot-check the served copy matches the page)
+  `application/ld+json` → Article pages declare **Article + BreadcrumbList**;
+  localized discovery homepages declare **WebSite + BreadcrumbList**.
+  Spot-check that the structured data describes the served page
+  (`tests/prerender/seo.test.ts` owns the homepage assertions).
 - [ ] `SEO-F9` · **Security headers** — `curl -sI {base}/` (built server or
   live — vite dev sends none) → `Content-Security-Policy` (`default-src
   'self'`; `media-src 'self'` for the tutorial mp4/vtt; `frame-ancestors

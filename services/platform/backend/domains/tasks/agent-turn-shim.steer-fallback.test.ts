@@ -1,16 +1,27 @@
 import type { Sql } from 'postgres';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
+import { kickAgentRun } from './agent-runs.ts';
 import { agentTurnShimHandlers } from './agent-turn-shim.ts';
+import { TaskError } from './errors.ts';
+
+vi.mock('./agent-runs.ts', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./agent-runs.ts')>();
+  return { ...actual, kickAgentRun: vi.fn() };
+});
 
 /**
  * A steer that reaches a run which has settled meanwhile becomes a fresh
  * mention run. The run's starter may steer it on a task that is no longer
  * theirs, but that exception is for a live run: a NEW run is a change to
- * the task, so the fallback kicks only for an author who may work it.
+ * the task, so the fallback kicks only for an author who may work it — as
+ * the project stands when the kick lands, inside the kick's transaction.
  */
 
-function fakeSql(authorRole: string): { sql: Sql; statements: string[] } {
+function fakeSql(
+  authorRole: string,
+  project: { archivedAt: number | null } = { archivedAt: null },
+): { sql: Sql; statements: string[] } {
   const statements: string[] = [];
   const tag = (strings: TemplateStringsArray) => {
     const text = strings.join('?').replace(/\s+/g, ' ').trim();
@@ -32,6 +43,14 @@ function fakeSql(authorRole: string): { sql: Sql; statements: string[] } {
     if (text.includes('FROM "member"')) {
       return Promise.resolve([{ role: authorRole }]);
     }
+    if (text.includes('FROM app.project_agents')) {
+      return Promise.resolve([
+        { harness: 'claude-code', model: 'model-1', modelProvider: null },
+      ]);
+    }
+    if (text.includes('FROM app.projects') && text.includes('FOR SHARE')) {
+      return Promise.resolve([{ id: 'p-1' }]);
+    }
     if (text.startsWith('SELECT ? FROM app.projects WHERE id = ?')) {
       return Promise.resolve([
         {
@@ -40,13 +59,21 @@ function fakeSql(authorRole: string): { sql: Sql; statements: string[] } {
           teamId: null,
           sharedWithTeamIds: [],
           teamIds: [],
-          archivedAt: null,
+          archivedAt: project.archivedAt,
         },
       ]);
     }
     return Promise.resolve([]);
   };
-  const sql = Object.assign(tag, { unsafe: (text: string) => text });
+  const begin = async (
+    first: unknown,
+    second?: (tx: unknown) => Promise<unknown>,
+  ) => {
+    const body = typeof first === 'function' ? first : second;
+    if (typeof body !== 'function') throw new Error('begin without a body');
+    return body(sql);
+  };
+  const sql = Object.assign(tag, { unsafe: (text: string) => text, begin });
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the members the fallback's reads reach
   return { sql: sql as unknown as Sql, statements };
 }
@@ -74,5 +101,68 @@ describe('the settled-run fallback of a steer', () => {
         text.startsWith('INSERT INTO app.project_agent_runs'),
       ),
     ).toBe(false);
+  });
+
+  it('starts no new run once the project is archived, for an editor too', async () => {
+    const { sql, statements } = fakeSql('editor', {
+      archivedAt: 1_700_000_000_000,
+    });
+    const kick =
+      agentTurnShimHandlers(sql)[
+        'tasks/mutations:kickMentionRunAfterSteerMiss'
+      ];
+    if (kick === undefined) throw new Error('no handler');
+
+    expect(
+      await kick({
+        organizationId: 'org-1',
+        taskId: 't-1',
+        authorId: 'u-editor',
+        feedback: '@agent use the signed copies only',
+        mentionSource: 'comment',
+      }),
+    ).toEqual({ started: false, reason: 'project_archived' });
+    // The project was held, and read, inside the kick's transaction.
+    expect(
+      statements.findIndex((text) => text.includes('FOR SHARE')),
+    ).toBeGreaterThan(-1);
+    expect(
+      statements.some((text) =>
+        text.startsWith('INSERT INTO app.project_agent_runs'),
+      ),
+    ).toBe(false);
+  });
+
+  it('answers a refusal, never a throw, when the standard agent no longer starts for the author', async () => {
+    vi.mocked(kickAgentRun).mockRejectedValueOnce(
+      new TaskError(
+        'STANDARD_AGENT_UNAVAILABLE',
+        'No model you can use can run the standard agent',
+        409,
+        { reason: 'no-model' },
+      ),
+    );
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { sql } = fakeSql('editor');
+    const kick =
+      agentTurnShimHandlers(sql)[
+        'tasks/mutations:kickMentionRunAfterSteerMiss'
+      ];
+    if (kick === undefined) throw new Error('no handler');
+
+    expect(
+      await kick({
+        organizationId: 'org-1',
+        taskId: 't-1',
+        authorId: 'u-editor',
+        feedback: '@agent use the signed copies only',
+        mentionSource: 'comment',
+      }),
+    ).toEqual({ started: false, reason: 'standard_agent_unavailable' });
+    expect(kickAgentRun).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('refused: standard_agent_unavailable'),
+    );
+    warn.mockRestore();
   });
 });

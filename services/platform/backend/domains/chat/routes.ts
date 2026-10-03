@@ -10,6 +10,7 @@ import {
   encodeChatError,
 } from '../../../lib/shared/chat-errors.ts';
 import { AppError } from '../../../lib/shared/errors/app-error.ts';
+import { localeTagSchema } from '../../../lib/shared/utils/locale-tag.ts';
 import type { Auth } from '../../auth/auth.ts';
 import { isAdminOrDeveloperRole } from '../../auth/membership.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
@@ -146,7 +147,7 @@ const arenaTurnSchema = z.object({
   /** One pick for the whole comparison — BOTH columns run with it, so the
    * two replies differ by model alone. */
   reasoningEffort: z.enum(['low', 'medium', 'high', 'extra', 'max']).optional(),
-  locale: z.string().max(35).optional(),
+  locale: localeTagSchema.optional(),
 });
 
 const sendSchema = z.object({
@@ -169,6 +170,10 @@ const sendSchema = z.object({
     .max(20)
     .optional(),
   resend: z.boolean().optional(),
+  /** The UI's language: the reply's default — the language the user writes
+   * in still wins, this lane never fixes it — and the catalog the turn's
+   * hand-over note quotes the interface's controls from. */
+  locale: localeTagSchema.optional(),
 });
 
 /** The stream lane wakes at the store's write throttle — polling faster
@@ -978,7 +983,7 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
         reasoningEffort: z
           .enum(['low', 'medium', 'high', 'extra', 'max'])
           .optional(),
-        locale: z.string().max(20).optional(),
+        locale: localeTagSchema.optional(),
       })
       .safeParse(await c.req.json());
     if (!body.success) return invalidBodyResponse(c, body.error);
@@ -1392,6 +1397,7 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
           ? { attachments: body.data.attachments }
           : {}),
         ...(body.data.resend === true ? { resend: true } : {}),
+        ...(body.data.locale !== undefined ? { locale: body.data.locale } : {}),
       });
     } catch (error) {
       // The claim loser of two racing sends: nothing was appended, the

@@ -26,6 +26,7 @@ Owners and Admins manage organization settings. Developers can reach the technic
 | Limit usage, uploads, or retention | [Policies and limits](/platform/admin/governance/policies-and-limits) |
 | Filter messages and set organization instructions | [Guardrails](/platform/admin/governance/guardrails) |
 | Investigate actions or spending | [Audit logs](/platform/admin/governance/audit-logs) or [usage metrics](/platform/admin/governance/usage-analytics) |
+| Find failing chat replies, agent turns, or automation runs | [Operations metrics](/platform/admin/governance/operations-metrics) |
 | Recover retained data or preserve it against deletion | [Trash](/platform/admin/governance/trash) or [legal hold](/platform/admin/governance/legal-hold) |
 | Review an erasure request | [Data subject requests](/platform/admin/governance/data-subject-requests) |
 

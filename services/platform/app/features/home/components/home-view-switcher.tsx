@@ -10,8 +10,9 @@ import type { HomeView } from '../lib/home-items';
 
 export interface HomeViewOption {
   readonly view: HomeView;
-  /** Items in this view waiting on the caller — shown as a quiet dot. */
-  readonly attention: number;
+  /** Items in this view waiting on the caller — shown as a quiet dot.
+   * `null` when the read behind them failed: no dot claims a count. */
+  readonly attention: number | null;
 }
 
 /**
@@ -91,7 +92,7 @@ export function HomeViewSwitcher({
             )}
           >
             <span className="truncate">{t(`views.${option.view}`)}</span>
-            {option.attention > 0 && (
+            {option.attention !== null && option.attention > 0 && (
               <>
                 <span className="sr-only">
                   {`, ${t('aria.attention', { count: option.attention })}`}

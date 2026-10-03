@@ -3,8 +3,16 @@ import '@testing-library/jest-dom/vitest';
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { AbilityContext } from '@/app/context/ability-context';
+import { defineAbilityFor } from '@/lib/permissions/ability';
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { fireEvent, render, screen, within } from '@/tests/utils/render';
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@/tests/utils/render';
 
 import type { HomeData } from '../hooks/use-home-data';
 
@@ -20,7 +28,7 @@ vi.mock('@tanstack/react-router', () => ({
     children,
     to,
     params,
-    search: _search,
+    search,
     ...rest
   }: {
     children: React.ReactNode;
@@ -35,7 +43,13 @@ vi.mock('@tanstack/react-router', () => ({
       href = href.replace(`$${key}`, value);
     }
     return (
-      <a href={href} {...rest}>
+      <a
+        href={href}
+        {...(search !== undefined
+          ? { 'data-search': JSON.stringify(search) }
+          : {})}
+        {...rest}
+      >
         {children}
       </a>
     );
@@ -77,6 +91,9 @@ vi.mock('@/app/features/chat/data/chat-backend', async (importOriginal) => {
 });
 
 const { HomeNavigator, HomePanel } = await import('./home-panel');
+
+const EDITOR = defineAbilityFor('editor');
+const MEMBER = defineAbilityFor('member');
 const { HomePanelProvider } = await import('./home-panel-context');
 
 // Noon today — the rows below land in Today and Yesterday.
@@ -141,6 +158,9 @@ function data(overrides: Partial<HomeData> = {}): HomeData {
       conversations: false,
       projects: false,
     },
+    failed: { chats: false, tasks: false, conversations: false },
+    retrying: false,
+    retry: vi.fn(),
     hasInbox: true,
     attention: { chats: 0, tasks: 1, inbox: 1 },
     ...overrides,
@@ -229,6 +249,31 @@ describe('HomeNavigator', () => {
     ).toHaveAttribute('href', '/dashboard/org-1/projects/p1');
   });
 
+  it('offers New project only to a role that may create one', () => {
+    // The server refuses a project create below the Editor role.
+    const { unmount } = render(
+      <AbilityContext.Provider value={EDITOR}>
+        <HomeNavigator organizationId="org-1" />
+      </AbilityContext.Provider>,
+    );
+    expect(
+      screen.getByRole('button', { name: 'New project' }),
+    ).toBeInTheDocument();
+    unmount();
+
+    render(
+      <AbilityContext.Provider value={MEMBER}>
+        <HomeNavigator organizationId="org-1" />
+      </AbilityContext.Provider>,
+    );
+    expect(
+      screen.getByRole('region', { name: 'Projects' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'New project' }),
+    ).not.toBeInTheDocument();
+  });
+
   it('shows a draft row while a fresh chat is being written', () => {
     location.current = { pathname: '/dashboard/org-1/chat', search: {} };
     render(<HomeNavigator organizationId="org-1" />);
@@ -308,8 +353,407 @@ describe('HomeNavigator', () => {
     ).not.toHaveTextContent('Draft');
   });
 
+  it('updates task rows when the priority facet changes without new source data', async () => {
+    const base = data();
+    homeData.current = data({
+      items: base.items.map((item) =>
+        item.kind === 'task'
+          ? Object.assign({}, item, { priority: 'p0' as const })
+          : item,
+      ),
+    });
+    const { user } = render(<HomeNavigator organizationId="org-1" />);
+    await user.click(screen.getByRole('radio', { name: /Tasks/ }));
+    await user.click(screen.getByRole('button', { name: 'Filter' }));
+    await user.click(screen.getByRole('button', { name: /Priority/ }));
+    await user.click(screen.getByRole('checkbox', { name: 'High' }));
+    expect(
+      screen.queryByRole('link', { name: /Review the launch checklist/ }),
+    ).not.toBeInTheDocument();
+    await user.click(screen.getByRole('checkbox', { name: 'Urgent' }));
+    expect(
+      screen.getByRole('link', { name: /Review the launch checklist/ }),
+    ).toBeInTheDocument();
+  });
+
   it('passes an axe audit', async () => {
     const { container } = render(<HomeNavigator organizationId="org-1" />);
+    await checkAccessibility(container);
+  });
+});
+
+/**
+ * A read that gave up is unknown, never "none" (#4093): the views that list
+ * its kind say it did not load, with Try again, above the rows that did —
+ * and never offer the empty view's way forward for a list nobody read.
+ */
+describe('HomeNavigator when a read fails', () => {
+  function failed(sources: Partial<HomeData['failed']>): HomeData['failed'] {
+    return { chats: false, tasks: false, conversations: false, ...sources };
+  }
+
+  const hrefs = () =>
+    within(stream())
+      .getAllByRole('link')
+      .map((link) => link.getAttribute('href'));
+
+  it('keeps the rows that loaded and names the kind that did not, with Try again', async () => {
+    const retry = vi.fn();
+    homeData.current = data({
+      items: data().items.filter((item) => item.kind !== 'chat'),
+      failed: failed({ chats: true }),
+      attention: { chats: null, tasks: 1, inbox: 1 },
+      retry,
+    });
+    const { user } = render(<HomeNavigator organizationId="org-1" />);
+
+    const alert = screen.getByRole('alert');
+    expect(alert).toHaveTextContent("Couldn't load your chats.");
+    expect(hrefs()).toEqual([
+      '/dashboard/org-1/tasks/k1',
+      '/dashboard/org-1/conversations/open',
+    ]);
+    // An unknown count is no count: the Chats option claims nothing.
+    expect(
+      screen.getByRole('radio', { name: 'Chats' }),
+    ).not.toHaveAccessibleName(/needs you/);
+
+    await user.click(within(alert).getByRole('button', { name: 'Try again' }));
+    expect(retry).toHaveBeenCalledTimes(1);
+
+    // The Tasks view lists no chats, so it has nothing to say about them.
+    await user.click(screen.getByRole('radio', { name: /Tasks/ }));
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(hrefs()).toEqual(['/dashboard/org-1/tasks/k1']);
+  });
+
+  it('says the reads failed instead of that the view is empty, and offers no way forward from an empty list', async () => {
+    homeData.current = data({
+      items: [],
+      threadsById: new Map(),
+      failed: failed({ chats: true, tasks: true, conversations: true }),
+      attention: { chats: null, tasks: null, inbox: null },
+    });
+    location.current = { pathname: '/dashboard/org-1/projects', search: {} };
+    const { user } = render(<HomeNavigator organizationId="org-1" />);
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      "Couldn't load your chats. Couldn't load your tasks. Couldn't load the customer conversations.",
+    );
+    expect(screen.queryByText('Nothing here yet')).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('link', { name: 'New chat' }),
+    ).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('radio', { name: /Chats/ }));
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      /^Couldn't load your chats\.\s*Try again$/,
+    );
+    expect(screen.queryByText('No chats yet')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('radio', { name: /Tasks/ }));
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      /^Couldn't load your tasks\.\s*Try again$/,
+    );
+    expect(
+      screen.queryByText('Nothing assigned to you'),
+    ).not.toBeInTheDocument();
+    // The only way to every project left is the Projects section's own.
+    const projects = screen.getByRole('region', { name: 'Projects' });
+    expect(screen.getAllByRole('link', { name: 'All projects' })).toHaveLength(
+      within(projects).getAllByRole('link', { name: 'All projects' }).length,
+    );
+  });
+
+  it('says it is trying again while the retry runs, and keeps Try again in place', async () => {
+    const retry = vi.fn();
+    homeData.current = data({
+      items: [],
+      threadsById: new Map(),
+      failed: failed({ chats: true, tasks: true, conversations: true }),
+      retrying: true,
+      retry,
+    });
+    const { user } = render(<HomeNavigator organizationId="org-1" />);
+
+    const alert = screen.getByRole('alert');
+    expect(alert).toHaveTextContent('Trying again…');
+    const button = within(alert).getByRole('button', { name: 'Try again' });
+    expect(button).toHaveAttribute('aria-busy', 'true');
+    await user.click(button);
+    expect(retry).not.toHaveBeenCalled();
+  });
+
+  it('hands the focus to the search box when a retry that worked takes Try again away', async () => {
+    homeData.current = data({
+      items: data().items.filter((item) => item.kind !== 'chat'),
+      failed: failed({ chats: true }),
+    });
+    const { rerender } = render(<HomeNavigator organizationId="org-1" />);
+    within(screen.getByRole('alert'))
+      .getByRole('button', { name: 'Try again' })
+      .focus();
+
+    homeData.current = data();
+    rerender(<HomeNavigator organizationId="org-1" />);
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByPlaceholderText('Search all...')).toHaveFocus(),
+    );
+  });
+
+  it('says so on the phone screen too, where Chats keeps its own New chat', async () => {
+    homeData.current = data({
+      items: data().items.filter((item) => item.kind !== 'chat'),
+      failed: failed({ chats: true }),
+      attention: { chats: null, tasks: 1, inbox: 1 },
+    });
+    location.current = { pathname: '/dashboard/org-1/home', search: {} };
+    const { user } = render(
+      <HomeNavigator organizationId="org-1" variant="screen" />,
+    );
+
+    await user.click(screen.getByRole('radio', { name: /Chats/ }));
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      "Couldn't load your chats.",
+    );
+    expect(screen.queryByText('No chats yet')).not.toBeInTheDocument();
+    // The view's own way to a new chat stays: it claims nothing about the
+    // list, unlike an empty state's offer.
+    expect(screen.getByRole('link', { name: 'New chat' })).toHaveAttribute(
+      'href',
+      '/dashboard/org-1/chat',
+    );
+  });
+
+  it('passes an axe audit, with a read failed beside rows and with nothing loaded', async () => {
+    homeData.current = data({
+      items: data().items.filter((item) => item.kind !== 'task'),
+      failed: failed({ tasks: true }),
+      attention: { chats: 0, tasks: null, inbox: 1 },
+    });
+    const { container, unmount } = render(
+      <HomeNavigator organizationId="org-1" />,
+    );
+    await checkAccessibility(container);
+    unmount();
+
+    homeData.current = data({
+      items: [],
+      threadsById: new Map(),
+      failed: failed({ chats: true, tasks: true, conversations: true }),
+      attention: { chats: null, tasks: null, inbox: null },
+    });
+    const again = render(<HomeNavigator organizationId="org-1" />);
+    await checkAccessibility(again.container);
+  });
+});
+
+describe('HomeNavigator on the phone screen', () => {
+  const hrefs = () =>
+    within(stream())
+      .getAllByRole('link')
+      .map((link) => link.getAttribute('href'));
+
+  beforeEach(() => {
+    location.current = { pathname: '/dashboard/org-1/home', search: {} };
+    const base = data();
+    homeData.current = data({
+      items: [
+        ...base.items,
+        {
+          kind: 'task',
+          id: 'k2',
+          title: 'Draft the press release',
+          activityAt: TODAY - 2000,
+          unread: false,
+          identifier: 'WEB-3',
+          status: 'todo',
+          awaitingMyReview: false,
+          projectId: 'p1',
+        },
+        {
+          kind: 'chat',
+          id: 't2',
+          title: 'Unfiled chat',
+          activityAt: TODAY - 3000,
+          unread: false,
+          generating: false,
+          shared: false,
+        },
+      ],
+      threadsById: new Map([
+        ...base.threadsById,
+        [
+          't2',
+          {
+            id: 't2',
+            title: 'Unfiled chat',
+            kind: 'direct',
+            archived: false,
+            createdAt: TODAY,
+            updatedAt: TODAY,
+            generating: false,
+          },
+        ],
+      ]),
+    });
+  });
+
+  function projectRow() {
+    return within(screen.getByRole('region', { name: 'Projects' })).getByRole(
+      'button',
+      // Not the row's "Actions for Website relaunch" menu, which the plain
+      // name would also match.
+      { name: /^(?!Actions for).*Website relaunch/ },
+    );
+  }
+
+  it('turns a project row into a toggle on project views (Chats/Tasks) instead of a link', async () => {
+    const { user } = render(
+      <HomeNavigator organizationId="org-1" variant="screen" />,
+    );
+    await user.click(screen.getByRole('radio', { name: /Chats/ }));
+    const projects = screen.getByRole('region', { name: 'Projects' });
+    expect(
+      within(projects).queryByRole('link', { name: /Website relaunch/ }),
+    ).not.toBeInTheDocument();
+    expect(projectRow()).toHaveAttribute('aria-pressed', 'false');
+
+    await user.click(projectRow());
+    expect(projectRow()).toHaveAttribute('aria-pressed', 'true');
+    // Only the project's chat stays.
+    expect(hrefs()).toEqual(['/dashboard/org-1/chat/t1']);
+
+    await user.click(projectRow());
+    expect(projectRow()).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('offers Open project in project actions menu without showing redundant scope bars', async () => {
+    const { user } = render(
+      <HomeNavigator organizationId="org-1" variant="screen" />,
+    );
+    await user.click(screen.getByRole('radio', { name: /Chats/ }));
+    expect(screen.queryByText(/^Showing /)).not.toBeInTheDocument();
+
+    await user.click(projectRow());
+    expect(screen.queryByText(/^Showing /)).not.toBeInTheDocument();
+
+    const projects = screen.getByRole('region', { name: 'Projects' });
+    await user.click(
+      within(projects).getByRole('button', {
+        name: 'Actions for Website relaunch',
+      }),
+    );
+    expect(
+      screen.getByRole('menuitem', { name: 'Open project' }),
+    ).toBeInTheDocument();
+  });
+
+  it('narrows the Tasks view to the project too', async () => {
+    const { user } = render(
+      <HomeNavigator organizationId="org-1" variant="screen" />,
+    );
+    await user.click(screen.getByRole('radio', { name: /Tasks/ }));
+    expect(hrefs()).toEqual([
+      '/dashboard/org-1/tasks/k1',
+      '/dashboard/org-1/tasks/k2',
+    ]);
+    await user.click(projectRow());
+    expect(hrefs()).toEqual(['/dashboard/org-1/tasks/k2']);
+  });
+
+  it('remembers the narrowing, and drops it once the project is gone', async () => {
+    const { user, unmount } = render(
+      <HomeNavigator organizationId="org-1" variant="screen" />,
+    );
+    await user.click(screen.getByRole('radio', { name: /Chats/ }));
+    await user.click(projectRow());
+    unmount();
+
+    const again = render(
+      <HomeNavigator organizationId="org-1" variant="screen" />,
+    );
+    await again.user.click(screen.getByRole('radio', { name: /Chats/ }));
+    expect(projectRow()).toHaveAttribute('aria-pressed', 'true');
+    expect(hrefs()).toEqual(['/dashboard/org-1/chat/t1']);
+    again.unmount();
+
+    homeData.current = data({ projects: [] });
+    render(<HomeNavigator organizationId="org-1" variant="screen" />);
+    expect(screen.queryByText(/^Showing /)).not.toBeInTheDocument();
+  });
+
+  it('says the project is empty instead of "nothing yet"', async () => {
+    homeData.current = data({
+      items: data().items.filter((item) => item.kind === 'conversation'),
+    });
+    const { user } = render(
+      <HomeNavigator organizationId="org-1" variant="screen" />,
+    );
+    await user.click(screen.getByRole('radio', { name: /Chats/ }));
+    await user.click(projectRow());
+    expect(screen.getByText('No chats in this project')).toBeInTheDocument();
+    expect(screen.queryByText('Nothing here yet')).not.toBeInTheDocument();
+  });
+
+  it('holds back the archived chats while narrowed', async () => {
+    const { user } = render(
+      <HomeNavigator organizationId="org-1" variant="screen" />,
+    );
+    await user.click(screen.getByRole('radio', { name: /Chats/ }));
+    expect(screen.getByRole('button', { name: /Archived/ })).toBeVisible();
+    await user.click(projectRow());
+    expect(
+      screen.queryByRole('button', { name: /Archived/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('starts a chat only from the Chats view, under the narrowed project', async () => {
+    const { user } = render(
+      <HomeNavigator organizationId="org-1" variant="screen" />,
+    );
+    const newChat = () => screen.queryByRole('link', { name: 'New chat' });
+    expect(newChat()).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('radio', { name: /Tasks/ }));
+    expect(newChat()).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('radio', { name: /Chats/ }));
+    expect(newChat()).toHaveAttribute('href', '/dashboard/org-1/chat');
+    expect(newChat()).toHaveAttribute('data-search', '{"new":true}');
+
+    await user.click(projectRow());
+    expect(newChat()).toHaveAttribute('data-search', '{"projectId":"p1"}');
+  });
+
+  it('creates nothing else, and labels the way to every project', async () => {
+    homeData.current = data({ items: [] });
+    const { user } = render(
+      <HomeNavigator organizationId="org-1" variant="screen" />,
+    );
+    expect(
+      screen.queryByRole('button', { name: 'New project' }),
+    ).not.toBeInTheDocument();
+    // The empty All view offers no first chat: that lives in Chats.
+    expect(screen.getByText('Nothing here yet')).toBeInTheDocument();
+    expect(
+      screen.queryByRole('link', { name: 'New chat' }),
+    ).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('radio', { name: /Chats/ }));
+    const projects = screen.getByRole('region', { name: 'Projects' });
+    const all = within(projects).getByRole('link', { name: 'All projects' });
+    expect(all).toHaveAttribute('href', '/dashboard/org-1/projects');
+    expect(all).toHaveTextContent('All projects');
+  });
+
+  it('passes an axe audit, narrowed', async () => {
+    const { user, container } = render(
+      <HomeNavigator organizationId="org-1" variant="screen" />,
+    );
+    await user.click(screen.getByRole('radio', { name: /Chats/ }));
+    await user.click(projectRow());
     await checkAccessibility(container);
   });
 });
@@ -358,8 +802,22 @@ describe('HomePanel', () => {
     );
   });
 
-  it('ignores ⌘\\ where the panel stays open', () => {
+  it("folds with ⌘\\ on a project's page, whose header carries the toggle", () => {
     location.current = { pathname: '/dashboard/org-1/projects/p1', search: {} };
+    render(
+      <HomePanelProvider organizationId="org-1">
+        <HomePanel organizationId="org-1" />
+      </HomePanelProvider>,
+    );
+    backslash();
+    expect(window.localStorage.getItem('chat-history-panel-open-org-1')).toBe(
+      'false',
+    );
+  });
+
+  it('ignores ⌘\\ where the panel stays open', () => {
+    // The projects list has no toggle to bring the panel back.
+    location.current = { pathname: '/dashboard/org-1/projects', search: {} };
     render(
       <HomePanelProvider organizationId="org-1">
         <HomePanel organizationId="org-1" />

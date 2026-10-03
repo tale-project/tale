@@ -1,0 +1,414 @@
+diff --git a/cf/src/connection.js b/cf/src/connection.js
+index 203af80d072552c32d5f748b8245c0052e2998bc..6fd0eaa6d89206c259583962a8cb935756599d6d 100644
+--- a/cf/src/connection.js
++++ b/cf/src/connection.js
+@@ -249,6 +249,16 @@ function Connection(options, queues = {}, { onopen = noop, onend = noop, onclose
+   }
+ 
+   function nextWrite(fn) {
++    if (!socket) {
++      // closed() nulls the socket and reconnect() only recreates it on a later
++      // timer. write() is also reached from the 'data' handler, so a throw here
++      // has no query to reject and escapes as an uncaughtException. Settle the
++      // pending queries rather than dropping the write, or the caller hangs.
++      nextWriteTimer !== null && clearImmediate(nextWriteTimer)
++      chunk = nextWriteTimer = null
++      error(Errors.connection('CONNECTION_CLOSED', options, socket))
++      return false
++    }
+     const x = socket.write(chunk, fn)
+     nextWriteTimer !== null && clearImmediate(nextWriteTimer)
+     chunk = nextWriteTimer = null
+@@ -431,6 +441,9 @@ function Connection(options, queues = {}, { onopen = noop, onend = noop, onclose
+     remaining = 0
+     incomings = null
+     clearImmediate(nextWriteTimer)
++    // Tale: drop the cancelled write with its timer: a timer left set here never
++    // flushes the next connection's StartupMessage, and stale bytes would lead it.
++    nextWriteTimer = chunk = null
+     socket.removeListener('data', data)
+     socket.removeListener('connect', connected)
+     idleTimer.cancel()
+@@ -443,7 +456,13 @@ function Connection(options, queues = {}, { onopen = noop, onend = noop, onclose
+     if (initial)
+       return reconnect()
+ 
+-    !hadError && (query || sent.length) && error(Errors.connection('CONNECTION_CLOSED', options, socket))
++    // Tale: settle what is pending after a socket error too. The error event only
++    // rejected what was pending then; a statement written since (begin()'s ROLLBACK)
++    // would stay in `sent` and take the next connection's first answer. Nor may the
++    // settled statement linger in `query`, where it would hold end() open forever.
++    if (query || sent.length)
++      error(Errors.connection('CONNECTION_CLOSED', options, socket))
++    query = null
+     closedDate = performance.now()
+     hadError && options.shared.retries++
+     delay = (typeof backoff === 'function' ? backoff(options.shared.retries) : backoff) * 1000
+diff --git a/cf/src/index.js b/cf/src/index.js
+index 3ffb7e65a477928e543617dad15201c4ed656bf3..9df2fa18c621ea9b1ef79a5e3c3345e310831463 100644
+--- a/cf/src/index.js
++++ b/cf/src/index.js
+@@ -212,20 +212,32 @@ function Postgres(a, b) {
+       })
+ 
+     move(c, reserved)
+-    c.reserved = () => queue.length
++    const owner = c.reserved = () => queue.length
+       ? c.execute(queue.shift())
+       : move(c, reserved)
+     c.reserved.release = true
++    // Tale: statements queued behind a busy connection settle when it closes.
++    c.onclose = e => { while (queue.length) queue.shift().reject(e) }
+ 
+     const sql = Sql(handler)
+     sql.release = () => {
+-      c.reserved = null
++      // Tale: onclose() already handed back a reservation whose connection closed
++      // (it nulls c.reserved, and the pool reconnects the connection for others);
++      // reopening it, or clearing c.reserved, would then disturb its next holder.
++      if (c.reserved !== owner)
++        return
++      c.reserved = c.onclose = null
+       onopen(c)
+     }
+ 
+     return sql
+ 
+     function handler(q) {
++      // Tale: once the reservation no longer holds its connection (closed, then
++      // maybe reconnected for another caller), its statements must not run on it.
++      if (c.reserved !== owner)
++        return q.reject(connectionClosed())
++
+       c.queue === full
+         ? queue.push(q)
+         : c.execute(q) || move(c, full)
+@@ -237,13 +249,18 @@ function Postgres(a, b) {
+     const queries = Queue()
+     let savepoints = 0
+       , connection
++      , owner
+       , prepare = null
+ 
+     try {
+       await sql.unsafe('begin ' + options.replace(/[^a-z ]/ig, ''), [], { onexecute }).execute()
+       return await Promise.race([
+         scope(connection, fn),
+-        new Promise((_, reject) => connection.onclose = reject)
++        // Tale: statements queued behind a busy connection settle when it closes.
++        new Promise((_, reject) => connection.onclose = e => {
++          while (queries.length) queries.shift().reject(e)
++          reject(e)
++        })
+       ])
+     } catch (error) {
+       throw error
+@@ -291,6 +308,12 @@ function Postgres(a, b) {
+ 
+       function handler(q) {
+         q.catch(e => uncaughtError || (uncaughtError = e))
++        // Tale: once the transaction no longer holds its connection (closed, then
++        // maybe reconnected for another caller), a statement must not run there:
++        // outside the transaction, it would commit on its own.
++        if (c.reserved !== owner)
++          return q.reject(connectionClosed())
++
+         c.queue === full
+           ? queries.push(q)
+           : c.execute(q) || move(c, full)
+@@ -300,12 +323,18 @@ function Postgres(a, b) {
+     function onexecute(c) {
+       connection = c
+       move(c, reserved)
+-      c.reserved = () => queries.length
++      owner = c.reserved = () => queries.length
+         ? c.execute(queries.shift())
+         : move(c, reserved)
+     }
+   }
+ 
++  // Tale: what a transaction's or a reservation's statement gets once its connection
++  // is gone; begin()'s own `options` parameter shadows the pool's options there.
++  function connectionClosed() {
++    return Errors.connection('CONNECTION_CLOSED', options, options)
++  }
++
+   function move(c, queue) {
+     c.queue.remove(c)
+     queue.push(c)
+diff --git a/cjs/src/connection.js b/cjs/src/connection.js
+index 589d36382ca943c90679dbe22aaff06d252f6532..0b9b444af901087f8af896559cba9480bcbaafd1 100644
+--- a/cjs/src/connection.js
++++ b/cjs/src/connection.js
+@@ -247,6 +247,16 @@ function Connection(options, queues = {}, { onopen = noop, onend = noop, onclose
+   }
+ 
+   function nextWrite(fn) {
++    if (!socket) {
++      // closed() nulls the socket and reconnect() only recreates it on a later
++      // timer. write() is also reached from the 'data' handler, so a throw here
++      // has no query to reject and escapes as an uncaughtException. Settle the
++      // pending queries rather than dropping the write, or the caller hangs.
++      nextWriteTimer !== null && clearImmediate(nextWriteTimer)
++      chunk = nextWriteTimer = null
++      error(Errors.connection('CONNECTION_CLOSED', options, socket))
++      return false
++    }
+     const x = socket.write(chunk, fn)
+     nextWriteTimer !== null && clearImmediate(nextWriteTimer)
+     chunk = nextWriteTimer = null
+@@ -429,6 +439,9 @@ function Connection(options, queues = {}, { onopen = noop, onend = noop, onclose
+     remaining = 0
+     incomings = null
+     clearImmediate(nextWriteTimer)
++    // Tale: drop the cancelled write with its timer: a timer left set here never
++    // flushes the next connection's StartupMessage, and stale bytes would lead it.
++    nextWriteTimer = chunk = null
+     socket.removeListener('data', data)
+     socket.removeListener('connect', connected)
+     idleTimer.cancel()
+@@ -441,7 +454,13 @@ function Connection(options, queues = {}, { onopen = noop, onend = noop, onclose
+     if (initial)
+       return reconnect()
+ 
+-    !hadError && (query || sent.length) && error(Errors.connection('CONNECTION_CLOSED', options, socket))
++    // Tale: settle what is pending after a socket error too. The error event only
++    // rejected what was pending then; a statement written since (begin()'s ROLLBACK)
++    // would stay in `sent` and take the next connection's first answer. Nor may the
++    // settled statement linger in `query`, where it would hold end() open forever.
++    if (query || sent.length)
++      error(Errors.connection('CONNECTION_CLOSED', options, socket))
++    query = null
+     closedDate = performance.now()
+     hadError && options.shared.retries++
+     delay = (typeof backoff === 'function' ? backoff(options.shared.retries) : backoff) * 1000
+diff --git a/cjs/src/index.js b/cjs/src/index.js
+index baf7e60a860afb3418908e9c27cff6d9abd0ced0..f87a8c794e9896c9463d3d33a38688b499126625 100644
+--- a/cjs/src/index.js
++++ b/cjs/src/index.js
+@@ -211,20 +211,32 @@ function Postgres(a, b) {
+       })
+ 
+     move(c, reserved)
+-    c.reserved = () => queue.length
++    const owner = c.reserved = () => queue.length
+       ? c.execute(queue.shift())
+       : move(c, reserved)
+     c.reserved.release = true
++    // Tale: statements queued behind a busy connection settle when it closes.
++    c.onclose = e => { while (queue.length) queue.shift().reject(e) }
+ 
+     const sql = Sql(handler)
+     sql.release = () => {
+-      c.reserved = null
++      // Tale: onclose() already handed back a reservation whose connection closed
++      // (it nulls c.reserved, and the pool reconnects the connection for others);
++      // reopening it, or clearing c.reserved, would then disturb its next holder.
++      if (c.reserved !== owner)
++        return
++      c.reserved = c.onclose = null
+       onopen(c)
+     }
+ 
+     return sql
+ 
+     function handler(q) {
++      // Tale: once the reservation no longer holds its connection (closed, then
++      // maybe reconnected for another caller), its statements must not run on it.
++      if (c.reserved !== owner)
++        return q.reject(connectionClosed())
++
+       c.queue === full
+         ? queue.push(q)
+         : c.execute(q) || move(c, full)
+@@ -236,13 +248,18 @@ function Postgres(a, b) {
+     const queries = Queue()
+     let savepoints = 0
+       , connection
++      , owner
+       , prepare = null
+ 
+     try {
+       await sql.unsafe('begin ' + options.replace(/[^a-z ]/ig, ''), [], { onexecute }).execute()
+       return await Promise.race([
+         scope(connection, fn),
+-        new Promise((_, reject) => connection.onclose = reject)
++        // Tale: statements queued behind a busy connection settle when it closes.
++        new Promise((_, reject) => connection.onclose = e => {
++          while (queries.length) queries.shift().reject(e)
++          reject(e)
++        })
+       ])
+     } catch (error) {
+       throw error
+@@ -290,6 +307,12 @@ function Postgres(a, b) {
+ 
+       function handler(q) {
+         q.catch(e => uncaughtError || (uncaughtError = e))
++        // Tale: once the transaction no longer holds its connection (closed, then
++        // maybe reconnected for another caller), a statement must not run there:
++        // outside the transaction, it would commit on its own.
++        if (c.reserved !== owner)
++          return q.reject(connectionClosed())
++
+         c.queue === full
+           ? queries.push(q)
+           : c.execute(q) || move(c, full)
+@@ -299,12 +322,18 @@ function Postgres(a, b) {
+     function onexecute(c) {
+       connection = c
+       move(c, reserved)
+-      c.reserved = () => queries.length
++      owner = c.reserved = () => queries.length
+         ? c.execute(queries.shift())
+         : move(c, reserved)
+     }
+   }
+ 
++  // Tale: what a transaction's or a reservation's statement gets once its connection
++  // is gone; begin()'s own `options` parameter shadows the pool's options there.
++  function connectionClosed() {
++    return Errors.connection('CONNECTION_CLOSED', options, options)
++  }
++
+   function move(c, queue) {
+     c.queue.remove(c)
+     queue.push(c)
+diff --git a/src/connection.js b/src/connection.js
+index c3f554aada71a79dc3c3cb489b722e9cf53961f3..d8e6c9f70b99410ac6c91304c2b888a84621498d 100644
+--- a/src/connection.js
++++ b/src/connection.js
+@@ -247,6 +247,16 @@ function Connection(options, queues = {}, { onopen = noop, onend = noop, onclose
+   }
+ 
+   function nextWrite(fn) {
++    if (!socket) {
++      // closed() nulls the socket and reconnect() only recreates it on a later
++      // timer. write() is also reached from the 'data' handler, so a throw here
++      // has no query to reject and escapes as an uncaughtException. Settle the
++      // pending queries rather than dropping the write, or the caller hangs.
++      nextWriteTimer !== null && clearImmediate(nextWriteTimer)
++      chunk = nextWriteTimer = null
++      error(Errors.connection('CONNECTION_CLOSED', options, socket))
++      return false
++    }
+     const x = socket.write(chunk, fn)
+     nextWriteTimer !== null && clearImmediate(nextWriteTimer)
+     chunk = nextWriteTimer = null
+@@ -429,6 +439,9 @@ function Connection(options, queues = {}, { onopen = noop, onend = noop, onclose
+     remaining = 0
+     incomings = null
+     clearImmediate(nextWriteTimer)
++    // Tale: drop the cancelled write with its timer: a timer left set here never
++    // flushes the next connection's StartupMessage, and stale bytes would lead it.
++    nextWriteTimer = chunk = null
+     socket.removeListener('data', data)
+     socket.removeListener('connect', connected)
+     idleTimer.cancel()
+@@ -441,7 +454,13 @@ function Connection(options, queues = {}, { onopen = noop, onend = noop, onclose
+     if (initial)
+       return reconnect()
+ 
+-    !hadError && (query || sent.length) && error(Errors.connection('CONNECTION_CLOSED', options, socket))
++    // Tale: settle what is pending after a socket error too. The error event only
++    // rejected what was pending then; a statement written since (begin()'s ROLLBACK)
++    // would stay in `sent` and take the next connection's first answer. Nor may the
++    // settled statement linger in `query`, where it would hold end() open forever.
++    if (query || sent.length)
++      error(Errors.connection('CONNECTION_CLOSED', options, socket))
++    query = null
+     closedDate = performance.now()
+     hadError && options.shared.retries++
+     delay = (typeof backoff === 'function' ? backoff(options.shared.retries) : backoff) * 1000
+diff --git a/src/index.js b/src/index.js
+index 944d50cf2b599ee84c750e8530b5433caa6d8a4a..6045a69ab8e1f958f74df07419d0c1729ba7afbb 100644
+--- a/src/index.js
++++ b/src/index.js
+@@ -211,20 +211,32 @@ function Postgres(a, b) {
+       })
+ 
+     move(c, reserved)
+-    c.reserved = () => queue.length
++    const owner = c.reserved = () => queue.length
+       ? c.execute(queue.shift())
+       : move(c, reserved)
+     c.reserved.release = true
++    // Tale: statements queued behind a busy connection settle when it closes.
++    c.onclose = e => { while (queue.length) queue.shift().reject(e) }
+ 
+     const sql = Sql(handler)
+     sql.release = () => {
+-      c.reserved = null
++      // Tale: onclose() already handed back a reservation whose connection closed
++      // (it nulls c.reserved, and the pool reconnects the connection for others);
++      // reopening it, or clearing c.reserved, would then disturb its next holder.
++      if (c.reserved !== owner)
++        return
++      c.reserved = c.onclose = null
+       onopen(c)
+     }
+ 
+     return sql
+ 
+     function handler(q) {
++      // Tale: once the reservation no longer holds its connection (closed, then
++      // maybe reconnected for another caller), its statements must not run on it.
++      if (c.reserved !== owner)
++        return q.reject(connectionClosed())
++
+       c.queue === full
+         ? queue.push(q)
+         : c.execute(q) || move(c, full)
+@@ -236,13 +248,18 @@ function Postgres(a, b) {
+     const queries = Queue()
+     let savepoints = 0
+       , connection
++      , owner
+       , prepare = null
+ 
+     try {
+       await sql.unsafe('begin ' + options.replace(/[^a-z ]/ig, ''), [], { onexecute }).execute()
+       return await Promise.race([
+         scope(connection, fn),
+-        new Promise((_, reject) => connection.onclose = reject)
++        // Tale: statements queued behind a busy connection settle when it closes.
++        new Promise((_, reject) => connection.onclose = e => {
++          while (queries.length) queries.shift().reject(e)
++          reject(e)
++        })
+       ])
+     } catch (error) {
+       throw error
+@@ -290,6 +307,12 @@ function Postgres(a, b) {
+ 
+       function handler(q) {
+         q.catch(e => uncaughtError || (uncaughtError = e))
++        // Tale: once the transaction no longer holds its connection (closed, then
++        // maybe reconnected for another caller), a statement must not run there:
++        // outside the transaction, it would commit on its own.
++        if (c.reserved !== owner)
++          return q.reject(connectionClosed())
++
+         c.queue === full
+           ? queries.push(q)
+           : c.execute(q) || move(c, full)
+@@ -299,12 +322,18 @@ function Postgres(a, b) {
+     function onexecute(c) {
+       connection = c
+       move(c, reserved)
+-      c.reserved = () => queries.length
++      owner = c.reserved = () => queries.length
+         ? c.execute(queries.shift())
+         : move(c, reserved)
+     }
+   }
+ 
++  // Tale: what a transaction's or a reservation's statement gets once its connection
++  // is gone; begin()'s own `options` parameter shadows the pool's options there.
++  function connectionClosed() {
++    return Errors.connection('CONNECTION_CLOSED', options, options)
++  }
++
+   function move(c, queue) {
+     c.queue.remove(c)
+     queue.push(c)

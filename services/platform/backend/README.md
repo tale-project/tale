@@ -53,9 +53,12 @@ can fail before the application starts.
 | `BETTER_AUTH_SECRET` | Required when the process serves APIs (`api` or `all`) |
 | `SITE_URL` | Public origin used by authentication; non-loopback origins require HTTPS |
 | `TALE_CONFIG_DIR` / `TALE_CONFIG_BUILTIN_DIR` | Writable deployment configuration and shipped catalog |
-| `WORKER_CONCURRENCY` | Jobs one worker process runs at once, default `5` (1–64); raise `KNOWLEDGE_DB_POOL_MAX` with it |
+| `WORKER_CONCURRENCY` | Jobs one worker process runs at once per queue, default `5` (1–64); agent turn starts get at least 8 and drive windows at least 16 per queue (`slotQueueSlots`); raise `KNOWLEDGE_DB_POOL_MAX` with it |
+| `AGENT_START_SLOTS` | Agent turn starts one worker runs at once per lane, default `WORKER_CONCURRENCY` and at least 8 (1–256) |
+| `AGENT_DRIVE_SLOTS` | Live agent turns' drive windows one worker runs at once per lane, default `WORKER_CONCURRENCY` and at least 16 (1–256); a worker drains about 2.5× this many live turns per lane before their windows wait past the recovery horizon |
 | `KNOWLEDGE_DB_POOL_MAX` | Connections one process opens to the knowledge corpus, default `10`; an indexing job holds one per slice commit, so keep it at or above `WORKER_CONCURRENCY` |
 | `SENTRY_DSN` | Optional error reporting |
+| `BACKEND_SENTRY_TRACES_SAMPLE_RATE` | Manual HTTP and worker trace sample rate, `0` (disabled) by default, `0`–`1`; requires `SENTRY_DSN` and transaction support at the destination |
 
 An `api` process serves HTTP/SSE and can enqueue work; a `worker` consumes jobs
 and runs schedules. `all` combines both for local development. Every role runs
@@ -126,7 +129,8 @@ The ID token's `email`/`profile` claims come from Tale's own
 `customIdTokenClaims` hook (`oidcScopeClaims` in [`auth/oidc.ts`](auth/oidc.ts)):
 from Better Auth 1.7 the library itself delivers them at userinfo only.
 [`auth/oidc.id-token.test.ts`](auth/oidc.id-token.test.ts) verifies the minted
-token in the CI `test` lane; `backend:integration` is not a CI job.
+token in the CI `test` lane, without a database; the **Backend integration** check
+runs `oidc-integration.ts` over real HTTP and Postgres.
 
 ## Verify a backend change
 
@@ -134,6 +138,37 @@ token in the CI `test` lane; `backend:integration` is not a CI job.
 bun run --filter @tale/platform test
 bun run --filter @tale/platform backend:integration
 ```
+
+CI runs the second command in the **Backend integration** check
+(`.github/workflows/checks.yml`): on every push to `main`, merge group and release
+candidate, and on every pull request that touches the backend, its libraries,
+either database's migrations, `services/db`, the object-store pin, the
+dependencies or the workflow. It builds `tale-db` from the commit's own
+`services/db`, starts the object store the CLI pins
+(`THIRD_PARTY_IMAGES['object-store']`) and runs the suite on the platform image's
+Node with `ITEST_REQUIRE_ALL_LANES=1`. It calls the script directly, so its verdict is
+never a turbo replay; the job's summary lists the failed checks. A lane that starts
+importing a file outside that path list fails
+[`tests/guards/integration-scope.guard.test.ts`](../tests/guards/integration-scope.guard.test.ts)
+until the list names it. The suite's HTTP stays on the box:
+[`integration-vendor-stub.ts`](integration-vendor-stub.ts) answers the shipped
+vendor origins the lanes call (the OpenRouter and Vercel AI Gateway catalogs, the
+AI title lane's Anthropic call), lets the object store through wherever
+`ITEST_S3_ENDPOINT` points, and refuses any other host the way a network without
+egress does, a redirect's next hop included. `safeFetch` and the video-link
+pre-resolution read every name as a documentation-range address and never ask a
+real resolver. A lane that needs a new vendor surface extends the stub, and a lane
+that leaves its own `fetch` stub installed fails `harness: <lane> puts the
+outbound boundary back`. The run's `[itest] off the box:` line names what the stub
+answered and what was refused.
+
+The job requires both `pg_search` and `vector` to be loaded. Its
+`backend-integration-<run>-<attempt>` artifact retains the raw suite and service
+logs, checked-out source and workflow identity, runtime versions, image identity,
+extensions and suite-step exit code for 14 days, including failed runs. Configuration
+trees are excluded. A setup failure can leave a partial bundle; the artifact's
+presence alone is not a passing proof. The database build output remains in the
+existing Buildx step's Actions log.
 
 The second command requires a **fresh, disposable application database** and its
 own configuration directory. Never point it at a development or customer database
@@ -150,11 +185,54 @@ isolated test tree. Blob-backed probes also need a fresh S3-compatible service
 through `ITEST_S3_ENDPOINT`; its test credentials default to `minioadmin` and can
 be overridden by `ITEST_S3_ACCESS_KEY` / `ITEST_S3_SECRET_KEY`. Without that
 endpoint the affected probes report skips, so do not describe the result as full
-storage coverage. Supply a working `VIDEO_INGEST_FFMPEG_LOCATION` when the host's
-ffmpeg is not at the path expected by the probe.
+storage coverage. The transcription probe runs the real `ffmpeg` and `ffprobe`
+from `PATH`. The video-link probe does not look at `PATH`: it hands yt-dlp an
+explicit `--ffmpeg-location`, which is `VIDEO_INGEST_FFMPEG_LOCATION` or else
+`/usr/bin/ffmpeg`. Set it whenever ffmpeg lives elsewhere, for example
+`VIDEO_INGEST_FFMPEG_LOCATION="$(command -v ffmpeg)"` on Homebrew.
+
+`ITEST_REQUIRE_ALL_LANES=1` asks for full coverage. The harness then refuses to
+start with a lane filter or without all three `ITEST_S3_*` variables, and a check
+that cannot run fails instead of reporting a skip. Every skip goes through
+`recordSkip` in [`integration-lane-helpers.ts`](integration-lane-helpers.ts), and
+lanes read the harness's own variables only through that module
+(`tests/guards/integration-skips.guard.test.ts`). Without the flag a skip is a pass
+whose name ends in `(SKIPPED)`, and the tally counts those apart.
 
 Use the [database image's readiness check](../../db/README.md) before starting the
 suite. A bootstrap PostgreSQL process can accept a connection before initialization
 finishes. `integration-check.ts` registers the proof lanes; a thrown lane or lost
 shared session truncates the run as a failure. Identity-destructive probes must
-create their own throwaway account instead of invalidating the shared one.
+create their own throwaway account instead of invalidating the shared one. A lane
+must also leave the shared user's organization memberships as it found them, or
+it fails: every later `/api/v1` call on that user's keys would answer
+`ORG_SLUG_REQUIRED`. A probe that needs another organization gives it an owner of
+its own.
+
+A lane that does not settle within 10 minutes truncates the run the same way, and
+a truncated run still prints its tally and exits: the teardown closes the backend
+the way the deployment does (ending every live `/events` stream, then any
+connection a stuck lane still holds), and bounds each of its steps. A lane reads
+`/events` through `connectSse` in
+[`integration-lane-helpers.ts`](integration-lane-helpers.ts), whose `close()`
+ends the tail within seconds or fails the lane naming it. The harness's outbound
+boundary hands fetch the caller's own abort signal: a signal that only followed it
+through an intermediate `Request` was lost to garbage collection, and a closed
+tail then read on forever (#4112).
+
+## Measure backend work
+
+Prometheus request labels use a finite vocabulary of HTTP methods and mounted app
+domains. Unknown methods and paths share fallback labels. Concurrent `/metrics`
+scrapes share one render and one round of collectors; the next scrape reads afresh.
+
+Set `BACKEND_SENTRY_TRACES_SAMPLE_RATE` above `0` to sample backend operations
+independently of browser tracing. HTTP spans measure handler completion, excluding
+response-body streaming and health/metrics probes. Worker spans measure each job
+and its drain check, handler or handover. Jobs in a batch have independent traces.
+Trace data contains bounded operation names, HTTP method/route class/status,
+process role and release, without request/job payloads, raw SQL, identifiers,
+URLs, inherited user context or breadcrumbs. Automatic performance integrations
+stay disabled and outgoing requests receive no trace headers. See the
+[operator guide](https://docs.tale.dev/self-hosted/configuration/observability-config)
+for configuration and sampling limits.

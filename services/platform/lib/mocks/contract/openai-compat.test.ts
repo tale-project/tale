@@ -14,6 +14,7 @@ import { startGateway, type GatewayHandle } from '../gateway';
 import {
   CANNED_ERROR_MESSAGE,
   CANNED_REPLY,
+  CANNED_STREAM_ERROR_MESSAGE,
   MOCK_TRIGGERS,
 } from '../overrides/canned';
 import { DOCS_REPLIES } from '../overrides/docs-replies';
@@ -99,6 +100,51 @@ describe('chat/completions override', () => {
       messages: [{ role: 'user', content: 'e2e:reasoning please' }],
     });
     expect(await res.text()).toContain('reasoning_content');
+  });
+
+  /** The `data:` payloads of an SSE body, `[DONE]` left out. */
+  const events = (text: string): Array<Record<string, unknown>> =>
+    text
+      .split('\n')
+      .filter((line) => line.startsWith('data: ') && line !== 'data: [DONE]')
+      .map((line) => JSON.parse(line.slice('data: '.length)));
+  const streamed = (content: string) =>
+    post('/v1/chat/completions', {
+      model: 'm',
+      stream: true,
+      messages: [{ role: 'user', content }],
+    }).then((res) => res.text());
+
+  test('empty trigger finishes with stop and writes no content', async () => {
+    const text = await streamed(`${MOCK_TRIGGERS.empty} hello`);
+    expect(text).not.toMatch(/"content":"[^"]/);
+    expect(text).toContain('"finish_reason":"stop"');
+    expect(text.trimEnd().endsWith('data: [DONE]')).toBe(true);
+  });
+
+  test('length trigger reasons, then finishes with length and no content', async () => {
+    const text = await streamed(`${MOCK_TRIGGERS.length} hello`);
+    expect(text).toContain('reasoning_content');
+    expect(text).not.toMatch(/"content":"[^"]/);
+    expect(text).toContain('"finish_reason":"length"');
+  });
+
+  test('stream-error trigger opens a 200 stream and ends it on an error event', async () => {
+    const res = await post('/v1/chat/completions', {
+      model: 'm',
+      stream: true,
+      messages: [{ role: 'user', content: `${MOCK_TRIGGERS.streamError} hi` }],
+    });
+    expect(res.status).toBe(200);
+    const text = await res.text();
+    const last = events(text).at(-1);
+    expect(last?.error).toMatchObject({
+      code: 502,
+      message: CANNED_STREAM_ERROR_MESSAGE,
+    });
+    expect(last?.choices).toMatchObject([{ finish_reason: 'error' }]);
+    // The stream ends on the failure: no [DONE] after it.
+    expect(text).not.toContain('[DONE]');
   });
 
   test('docs phrase streams its scripted reply (reasoning first)', async () => {
@@ -236,6 +282,9 @@ describe('chat/completions override', () => {
     // by the prompt's first 40 characters, so that prefix must survive.
     expect(title.startsWith(prompt.slice(0, 40))).toBe(true);
     expect(title.length).toBeLessThanOrEqual(60);
+    // A model titles in whole words; the 60th character falls inside
+    // "customer", so the title stops before it instead of reading "custom".
+    expect(title).toBe('Summarize the onboarding feedback from our last three');
     expect(title).not.toContain('Across the three onboarding calls');
   });
 

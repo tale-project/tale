@@ -23,6 +23,7 @@ import type {
   Automation,
 } from '../../../lib/engine/core/types';
 import { nodeVmRunner } from '../../../lib/engine/runners/node-vm';
+import { harnessResumesConversations } from '../chat/external_turn_shared';
 import type { ActionCtx } from '../lib/ctx';
 import { internal } from '../lib/handler_names';
 import type { Id } from '../lib/rows';
@@ -33,8 +34,11 @@ import {
   type WorkflowAgentRequest,
 } from './agent_host';
 import {
+  SANDBOX_ROOM_MAX_WAIT_MS,
   isWorkflowAgentRetryable,
   planWorkflowAgentRetry,
+  roomWaitSince,
+  sandboxRoomRetryAtMs,
   workflowAgentRetryResume,
 } from './agent_retry';
 import { boundCheckpointTrace, boundNodeTrace } from './bound_run_payload';
@@ -1035,6 +1039,19 @@ interface AgentStepArgs {
 }
 
 /**
+ * The park detail of an agent node's turn: `room:<node>` while its start
+ * waits for sandbox room and has not launched since — the run's read model
+ * says so (`waitingFor: room`) instead of an agent at work — and
+ * `agent:<node>` otherwise. The launch stamp turns a `room:` park into an
+ * `agent:` one the moment the start launches (`stampAgentTurnLaunch`).
+ */
+function agentParkDetail(nodeId: string, agent: AgentCursor): string {
+  return roomWaitSince(agent) !== undefined
+    ? `room:${nodeId}`
+    : `agent:${nodeId}`;
+}
+
+/**
  * Advance a LIVE agent node: kick the sandbox turn and park the run, keep
  * parking while it runs, and consume the settled result the agent host wrote
  * into the cursor. The turn spans suspensions, so this is stepNode's async
@@ -1217,7 +1234,7 @@ async function stepAgentNode(args: AgentStepArgs): Promise<StepOutcome> {
       throw new Error('the agent turn ran past its time limit and was stopped');
     }
     const waited = await sink.wait({
-      detail: `agent:${node.id}`,
+      detail: agentParkDetail(node.id, parked),
       cursor: checkpoints.cursor ?? {
         node: node.id,
         index: 0,
@@ -1256,21 +1273,44 @@ async function stepAgentNode(args: AgentStepArgs): Promise<StepOutcome> {
       settled.failureCode,
       Date.now(),
     );
+    // A start refused for want of sandbox room ran nothing: its re-kicks
+    // wait under their own wall-clock bound instead of charging the run's
+    // execution guard, which a long wait would exhaust for later nodes.
+    const waitingForRoom = settled.failureCode === 'sandbox_capacity';
     if (
       isWorkflowAgentRetryable(settled.failureCode) &&
       plan.retry &&
       // The runaway guard charges only executions that happen: a trip here
       // falls through to the exhaust throw carrying the settle's reason.
-      checkpoints.executions < DEFAULT_MAX_NODE_EXECUTIONS
+      (waitingForRoom || checkpoints.executions < DEFAULT_MAX_NODE_EXECUTIONS)
     ) {
-      checkpoints.executions++;
+      if (!waitingForRoom) checkpoints.executions++;
       const burned = plan.burnedBrokerTokenHashes;
       // The retry CONTINUES the failed conversation when the harness left a
       // handle — the agent's reasoning and the operator's answers stand,
       // only the cut is repaired. No handle (or a session that is gone)
       // means a fresh conversation over the preserved workspace, as before.
       // A start refused while the pool cooled down resumes what it was to.
-      const resume = workflowAgentRetryResume(settled, reason, parked);
+      // A harness the platform never resumes (Gemini CLI) starts fresh
+      // whatever the settle left.
+      const resume = workflowAgentRetryResume(settled, reason, parked, {
+        resumable: harnessResumesConversations(parked.harness),
+      });
+      // A node waiting for sandbox room comes back when its place in the
+      // spawner's line comes up, or else backs off past the refusal's hint,
+      // more with each refusal in a row; any other refusal with a hint (a
+      // broker pool cooling down) waits for exactly that.
+      const now = Date.now();
+      const notBefore = waitingForRoom
+        ? sandboxRoomRetryAtMs({
+            now,
+            retryAfterMs:
+              settled.retryAfterMs ??
+              Math.max((settled.retryAtMs ?? now) - now, 0),
+            refusals: plan.roomRefusals ?? 1,
+            queued: settled.roomQueued === true,
+          })
+        : settled.retryAtMs;
       const kicked = await run.agent.kick({
         runId: run.runId,
         nodeId: node.id,
@@ -1283,9 +1323,7 @@ async function stepAgentNode(args: AgentStepArgs): Promise<StepOutcome> {
         // A start refused while every broker account cooled down: the
         // re-kick's start waits for the first one back instead of meeting
         // the same refusal at once and spending the budget in seconds.
-        ...(settled.retryAtMs !== undefined
-          ? { notBefore: settled.retryAtMs }
-          : {}),
+        ...(notBefore !== undefined ? { notBefore } : {}),
       });
       const agent: AgentCursor = {
         execId: kicked.execId,
@@ -1301,9 +1339,21 @@ async function stepAgentNode(args: AgentStepArgs): Promise<StepOutcome> {
           ? { credentialRotations: plan.credentialRotations }
           : {}),
         ...(resume !== undefined
-          ? { resumedFrom: resume.agentSessionId, resumeReason: resume.reason }
+          ? {
+              resumedFrom: resume.agentSessionId,
+              resumeReason: resume.reason,
+              ...(resume.askId !== undefined
+                ? { resumeAskId: resume.askId }
+                : {}),
+            }
           : {}),
         ...(settled.apiErrorStatus === 429 ? { retriedRateLimit: true } : {}),
+        ...(plan.waitingForRoomSince !== undefined
+          ? { waitingForRoomSince: plan.waitingForRoomSince }
+          : {}),
+        ...(plan.roomRefusals !== undefined
+          ? { roomRefusals: plan.roomRefusals }
+          : {}),
       };
       const cursor: NodeCursor = {
         node: node.id,
@@ -1313,7 +1363,7 @@ async function stepAgentNode(args: AgentStepArgs): Promise<StepOutcome> {
         agent,
       };
       const waited = await sink.wait({
-        detail: `agent:${node.id}`,
+        detail: agentParkDetail(node.id, agent),
         cursor,
         executions: checkpoints.executions,
         resumeInMs: AGENT_POLL_MS,
@@ -1330,6 +1380,12 @@ async function stepAgentNode(args: AgentStepArgs): Promise<StepOutcome> {
     // The settle's own code (`turn_crashed`, `deadline`, `budget_exceeded`,
     // …) used to be dropped here, so the run said only "the agent turn
     // failed" — it is the run's `failureCode` now.
+    if (settled.failureCode === 'sandbox_capacity') {
+      throw new NodeFailure(
+        agentFailureCodeOf(settled.failureCode),
+        `the agent turn waited ${Math.round(SANDBOX_ROOM_MAX_WAIT_MS / 60_000)} minutes for sandbox room without getting any (${reason.replace(/^the agent turn is waiting for sandbox room: /, '')})`,
+      );
+    }
     throw new NodeFailure(
       agentFailureCodeOf(settled.failureCode),
       attempt > 0 ? `${reason} (after ${attempt + 1} attempts)` : reason,

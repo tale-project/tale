@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
 import { toBackendError } from '@/app/lib/backend/adapters';
-import { BackendApiError } from '@/app/lib/backend/api-client';
+import {
+  BackendApiError,
+  backendApiErrorFromBody,
+} from '@/app/lib/backend/api-client';
 import { AppError } from '@/lib/shared/errors/app-error';
 
 import {
@@ -350,15 +353,15 @@ describe('prepareSentryEvent', () => {
     it('keeps a 5xx, even one carrying structured data', () => {
       const fault = new BackendApiError(
         503,
-        'Database unavailable',
-        'DATABASE_UNAVAILABLE',
+        'Object store unavailable',
+        'OBJECT_STORE_UNAVAILABLE',
         { retryAfterMs: 5000 },
       );
       // The adapter lane passes a 5xx through untouched.
       expect(toBackendError(fault)).toBe(fault);
       expect(
         prepareSentryEvent(
-          thrown('BackendApiError', 'Database unavailable', APP_SCRIPT),
+          thrown('BackendApiError', 'Object store unavailable', APP_SCRIPT),
           { originalException: fault },
         ),
       ).not.toBeNull();
@@ -406,6 +409,75 @@ describe('prepareSentryEvent', () => {
       ).not.toBeNull();
       expect(
         prepareSentryEvent(thrown('Error', 'Failed to fetch', APP_SCRIPT)),
+      ).not.toBeNull();
+    });
+  });
+
+  describe('an unavailable platform', () => {
+    // What the mutation hooks and the error boundaries log while the platform
+    // restarts — one event per failed request, from every open tab (GlitchTip
+    // tale/tale #109).
+    const EDGE =
+      'The platform is not answering right now — a deployment may be rolling; retry with backoff';
+    const DATABASE =
+      'The platform’s database is not answering right now — it may be restarting; retry with backoff';
+
+    it.each([502, 503, 504])(
+      "drops the edge's UPSTREAM_UNAVAILABLE at %i",
+      (status) => {
+        expect(
+          prepareSentryEvent(thrown('BackendApiError', EDGE, APP_SCRIPT), {
+            originalException: backendApiErrorFromBody(status, {
+              error: EDGE,
+              code: 'UPSTREAM_UNAVAILABLE',
+              requestId: 'edge-1',
+            }),
+          }),
+        ).toBeNull();
+      },
+    );
+
+    it("drops the platform's DATABASE_UNAVAILABLE", () => {
+      expect(
+        prepareSentryEvent(thrown('BackendApiError', DATABASE, APP_SCRIPT), {
+          originalException: backendApiErrorFromBody(503, {
+            error: DATABASE,
+            code: 'DATABASE_UNAVAILABLE',
+            requestId: 'req-1',
+          }),
+        }),
+      ).toBeNull();
+    });
+
+    it('keeps the backend’s own fault and a 502 the edge did not word', () => {
+      expect(
+        prepareSentryEvent(
+          thrown(
+            'BackendApiError',
+            'Request failed with status 500',
+            APP_SCRIPT,
+          ),
+          { originalException: backendApiErrorFromBody(500, null) },
+        ),
+      ).not.toBeNull();
+      expect(
+        prepareSentryEvent(
+          thrown(
+            'BackendApiError',
+            'Request failed with status 502',
+            APP_SCRIPT,
+          ),
+          { originalException: backendApiErrorFromBody(502, null) },
+        ),
+      ).not.toBeNull();
+    });
+
+    it('judges the thrown value, never the text an event carries', () => {
+      expect(
+        prepareSentryEvent(thrown('BackendApiError', EDGE, APP_SCRIPT)),
+      ).not.toBeNull();
+      expect(
+        prepareSentryEvent({ message: `Mutation failed: ${EDGE}` }),
       ).not.toBeNull();
     });
   });

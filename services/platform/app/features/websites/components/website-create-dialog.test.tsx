@@ -187,6 +187,95 @@ describe('WebsiteCreateDialog', () => {
     });
   });
 
+  // Regression: the scheme check was case-sensitive and ran on the untrimmed
+  // value, so a pasted URL with a leading space or an uppercase scheme got a
+  // second `https://` prepended and was refused as an invalid domain — input
+  // the server itself accepts.
+  describe('a pasted URL with surrounding spaces or an uppercase scheme', () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+    });
+
+    it.each([
+      [' https://example.com ', 'https://example.com'],
+      ['HTTPS://example.com', 'HTTPS://example.com'],
+      ['  example.com', 'example.com'],
+    ])('adds the whole website %j', async (pasted, sent) => {
+      createWebsiteAsyncMock.mockResolvedValue('site-id');
+      const { user } = render(
+        <WebsiteCreateDialog
+          isOpen={true}
+          onClose={vi.fn()}
+          organizationId="test-org-id"
+        />,
+      );
+      const domain = screen.getByLabelText('Domain');
+      await user.click(domain);
+      await user.paste(pasted);
+      await user.click(
+        document.querySelector('button[type="submit"]') as HTMLButtonElement,
+      );
+
+      await waitFor(() =>
+        expect(createWebsiteAsyncMock).toHaveBeenCalledWith({
+          organizationId: 'test-org-id',
+          domain: sent,
+          scanInterval: '6h',
+        }),
+      );
+      expect(domain).not.toHaveAttribute('aria-invalid', 'true');
+    });
+
+    it('accepts an uppercase scheme in a URL list', async () => {
+      createWebsiteAsyncMock.mockResolvedValue('site-id');
+      const { user } = render(
+        <WebsiteCreateDialog
+          isOpen={true}
+          onClose={vi.fn()}
+          organizationId="test-org-id"
+        />,
+      );
+      await user.click(screen.getByRole('radio', { name: 'URL list' }));
+      await user.click(screen.getByLabelText('URLs'));
+      await user.paste('HTTPS://example.com/policy');
+      await user.click(
+        document.querySelector('button[type="submit"]') as HTMLButtonElement,
+      );
+
+      await waitFor(() =>
+        expect(createWebsiteAsyncMock).toHaveBeenCalledWith({
+          organizationId: 'test-org-id',
+          domain: 'example.com',
+          scanInterval: '6h',
+          urls: ['https://example.com/policy'],
+        }),
+      );
+    });
+
+    it('still refuses an uppercase HTTP:// domain inline', async () => {
+      const { user } = render(
+        <WebsiteCreateDialog
+          isOpen={true}
+          onClose={vi.fn()}
+          organizationId="test-org-id"
+        />,
+      );
+      const domain = screen.getByLabelText('Domain');
+      await user.click(domain);
+      await user.paste(' HTTP://example.net');
+      await user.click(
+        document.querySelector('button[type="submit"]') as HTMLButtonElement,
+      );
+
+      await waitFor(() =>
+        expect(domain).toHaveAccessibleDescription(
+          /http:\/\/ addresses are not crawled/,
+        ),
+      );
+      expect(createWebsiteAsyncMock).not.toHaveBeenCalled();
+    });
+  });
+
   // Regression (2026-09-26 evaluation, B-04): every policy refusal read
   // "Couldn't add website" while the server's answer named the reason.
   describe('refusal reasons', () => {

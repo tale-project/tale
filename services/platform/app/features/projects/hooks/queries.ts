@@ -5,6 +5,7 @@ import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import type { ItemOf, ReturnsOf } from '@/app/lib/backend/contract';
 import { backendKey } from '@/app/lib/backend/query-keys';
+import { readStateOf } from '@/app/lib/backend/read-state';
 import { PROVIDER_CREDENTIAL_HINT_ENTITY } from '@/lib/shared/hint-entities';
 
 /**
@@ -57,7 +58,8 @@ export type AgentSecretSummary =
 
 export type ProjectAgentRow = ItemOf<'projects/queries:listProjectAgents'>;
 
-/** The project's user-created agents (name-sorted). */
+/** The project's agents, oldest first — its standard agent among them once
+ * someone handed it work (`managed`). */
 export function useProjectAgents(projectId: string | undefined) {
   const organizationId = useOrganizationId();
   const { data, isLoading } = useBackendQuery(
@@ -65,6 +67,30 @@ export function useProjectAgents(projectId: string | undefined) {
     projectId && organizationId ? { projectId, organizationId } : 'skip',
   );
   return { agents: data ?? [], isLoading };
+}
+
+export type StandardAgentAvailability =
+  ReturnsOf<'projects/queries:getStandardAgent'>;
+
+/**
+ * Whether the signed-in person can hand work to the organization's standard
+ * agent — the agent Tale provides in a project with none of its own — and
+ * what it would run on. `undefined` while it loads or when the read failed:
+ * callers then offer nothing rather than a choice that may not work.
+ */
+export function useStandardAgent(
+  organizationId: string | undefined,
+): StandardAgentAvailability | undefined {
+  return useStandardAgentQuery(organizationId).data;
+}
+
+/** The read behind {@link useStandardAgent}, with its loading state and
+ * refetch — for a surface that waits for the answer or retries it. */
+export function useStandardAgentQuery(organizationId: string | undefined) {
+  return useBackendQuery(
+    'projects/queries:getStandardAgent',
+    organizationId !== undefined ? { organizationId } : 'skip',
+  );
 }
 
 export type ProjectOverviewRow =
@@ -148,22 +174,48 @@ export function useProject(projectId: string | undefined) {
   return { project: data ?? null, isLoading };
 }
 
+/**
+ * A project list read's rows, with how the read stands (`readStateOf`): a
+ * failed read is the screen's to name and retry, never an empty list
+ * (#3736).
+ */
+function projectListRead<Row>(query: {
+  data: Row[] | undefined;
+  isLoading: boolean;
+  isError: boolean;
+  isFetching: boolean;
+  errorUpdateCount: number;
+  refetch: () => Promise<unknown>;
+}) {
+  const { refetch } = query;
+  return {
+    rows: query.data ?? [],
+    isLoading: query.isLoading,
+    ...readStateOf(query),
+    retry: () => void refetch(),
+  };
+}
+
 export function useProjectDocuments(projectId: string | undefined) {
   const organizationId = useOrganizationId();
-  const { data, isLoading } = useBackendQuery(
-    'projects/queries:listProjectDocuments',
-    projectId && organizationId ? { projectId, organizationId } : 'skip',
+  const { rows, ...read } = projectListRead(
+    useBackendQuery(
+      'projects/queries:listProjectDocuments',
+      projectId && organizationId ? { projectId, organizationId } : 'skip',
+    ),
   );
-  return { documents: data ?? [], isLoading };
+  return { documents: rows, ...read };
 }
 
 export function useProjectFolders(projectId: string | undefined) {
   const organizationId = useOrganizationId();
-  const { data, isLoading } = useBackendQuery(
-    'projects/queries:listProjectFolders',
-    projectId && organizationId ? { projectId, organizationId } : 'skip',
+  const { rows, ...read } = projectListRead(
+    useBackendQuery(
+      'projects/queries:listProjectFolders',
+      projectId && organizationId ? { projectId, organizationId } : 'skip',
+    ),
   );
-  return { folders: data ?? [], isLoading };
+  return { folders: rows, ...read };
 }
 
 /** The Chats tab's data: the caller's own conversations in the project and

@@ -45,6 +45,8 @@ vi.mock('@/app/features/settings/organization/hooks/queries', () => ({
   }),
 }));
 
+let standardAgent: { enabled: boolean; available: boolean } | undefined;
+
 vi.mock('@/app/features/projects/hooks/queries', () => ({
   // Arg-sensitive like the real hook: no project id → the query skips and the
   // list is empty.
@@ -52,17 +54,27 @@ vi.mock('@/app/features/projects/hooks/queries', () => ({
     agents: projectId ? PROJECT_AGENTS : [],
     isLoading: false,
   }),
+  // Skipped (undefined) without an organization, like the real read.
+  useStandardAgent: (organizationId?: string) =>
+    organizationId === undefined ? undefined : standardAgent,
 }));
 
 /** What `listAccessibleUserIds` answers — undefined while it loads. */
 let accessScope: { orgWide: boolean; userIds: string[] } | undefined;
+/** What `getProject` answers — undefined while it loads, null when the
+ * project is gone or out of reach. */
+let projectRead: { canEdit: boolean } | null | undefined;
 
 vi.mock('@/app/hooks/use-backend-query', () => ({
   useBackendQuery: (name: string, args: unknown) => ({
     data:
-      name === 'projects/queries:listAccessibleUserIds' && args !== 'skip'
-        ? accessScope
-        : undefined,
+      args === 'skip'
+        ? undefined
+        : name === 'projects/queries:listAccessibleUserIds'
+          ? accessScope
+          : name === 'projects/queries:getProject'
+            ? projectRead
+            : undefined,
   }),
 }));
 
@@ -99,21 +111,11 @@ describe('useActorDirectory — members + project-agent instances', () => {
     expect(result.current.agents).toEqual([]);
   });
 
-  it("lists the project's instances as assignable coding agents", () => {
+  it("lists the project's instances as assignable agents", () => {
     const { result } = renderHook(() => useActorDirectory('org-1', 'proj-1'));
     expect(result.current.agents).toEqual([
-      {
-        type: 'agent',
-        id: 'pa_1',
-        name: 'PR Reviewer',
-        displayCategory: 'coding-agent',
-      },
-      {
-        type: 'agent',
-        id: 'pa_2',
-        name: 'Docs Writer',
-        displayCategory: 'coding-agent',
-      },
+      { type: 'agent', id: 'pa_1', name: 'PR Reviewer' },
+      { type: 'agent', id: 'pa_2', name: 'Docs Writer' },
     ]);
   });
 
@@ -183,5 +185,59 @@ describe('useAssignableActors — the project audience', () => {
   it('is ready at once without a project — the org is the audience', () => {
     const { result } = renderHook(() => useAssignableActors('org-1'));
     expect(result.current.scopeReady).toBe(true);
+  });
+});
+
+describe('useAssignableActors — who may add an agent', () => {
+  beforeEach(() => {
+    projectRead = undefined;
+    standardAgent = undefined;
+  });
+
+  it('knows whether the organization’s standard agent would take work here', () => {
+    standardAgent = { enabled: true, available: true };
+    const on = renderHook(() => useAssignableActors('org-1', 'proj-1'));
+    expect(on.result.current.standardAgentAvailable).toBe(true);
+
+    standardAgent = { enabled: false, available: false };
+    const off = renderHook(() => useAssignableActors('org-1', 'proj-1'));
+    expect(off.result.current.standardAgentAvailable).toBe(false);
+
+    // Unknown while it loads, and without a project to hand work in.
+    standardAgent = undefined;
+    const loading = renderHook(() => useAssignableActors('org-1', 'proj-1'));
+    expect(loading.result.current.standardAgentAvailable).toBe(false);
+    standardAgent = { enabled: true, available: true };
+    const none = renderHook(() => useAssignableActors('org-1'));
+    expect(none.result.current.standardAgentAvailable).toBe(false);
+  });
+
+  it('lets the project’s editors add one', () => {
+    projectRead = { canEdit: true };
+    const { result } = renderHook(() => useAssignableActors('org-1', 'proj-1'));
+    expect(result.current.projectResolved).toBe(true);
+    expect(result.current.canAddAgents).toBe(true);
+  });
+
+  it('lets a reader add none', () => {
+    projectRead = { canEdit: false };
+    const { result } = renderHook(() => useAssignableActors('org-1', 'proj-1'));
+    expect(result.current.projectResolved).toBe(true);
+    expect(result.current.canAddAgents).toBe(false);
+  });
+
+  it('knows nothing while the project loads, when it is out of reach, or without one', () => {
+    const loading = renderHook(() => useAssignableActors('org-1', 'proj-1'));
+    expect(loading.result.current.projectResolved).toBe(false);
+    expect(loading.result.current.canAddAgents).toBe(false);
+
+    projectRead = null;
+    const gone = renderHook(() => useAssignableActors('org-1', 'proj-1'));
+    expect(gone.result.current.projectResolved).toBe(false);
+
+    projectRead = { canEdit: true };
+    const none = renderHook(() => useAssignableActors('org-1'));
+    expect(none.result.current.projectResolved).toBe(false);
+    expect(none.result.current.canAddAgents).toBe(false);
   });
 });

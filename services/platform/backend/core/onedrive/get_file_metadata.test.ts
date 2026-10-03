@@ -72,4 +72,20 @@ describe('onedrive getFileMetadata', () => {
       notFound: false,
     });
   });
+
+  // A refused token (expired, or access removed at Microsoft) is the import's
+  // cue to refresh the grant; a refused ITEM (403) is the file's own failure.
+  it('reports a 401 as a refused token, and only a 401', async () => {
+    stubGraph(401, { error: { code: 'InvalidAuthenticationToken' } });
+    expect(await getFileMetadata('i1', 'tok')).toMatchObject({
+      success: false,
+      unauthorized: true,
+    });
+
+    stubGraph(403, { error: { code: 'accessDenied' } });
+    expect(await getFileMetadata('i1', 'tok')).toMatchObject({
+      success: false,
+      unauthorized: false,
+    });
+  });
 });

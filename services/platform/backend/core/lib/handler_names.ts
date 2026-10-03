@@ -94,6 +94,9 @@ interface HandlerNames {
     capabilities_action: FunctionRef & {
       dispatchCapabilityAs: FunctionRef;
     };
+    handover: FunctionRef & {
+      getTaskHandoverInternal: FunctionRef;
+    };
     messages: FunctionRef & {
       listRecentForTurnInternal: FunctionRef;
     };
@@ -328,6 +331,9 @@ interface HandlerNames {
     };
   };
   tasks: FunctionRef & {
+    internal_actions: FunctionRef & {
+      stageAgentReviewFile: FunctionRef;
+    };
     agent_run_host: FunctionRef & {
       driveTaskAgentTurn: FunctionRef;
       steerTaskAgentTurn: FunctionRef;
@@ -349,12 +355,17 @@ interface HandlerNames {
       agentAddComment: FunctionRef;
       agentCreateTask: FunctionRef;
       agentRecordTaskOutputs: FunctionRef;
+      agentReviewTask: FunctionRef;
+      agentStartTaskAgent: FunctionRef;
+      agentUpdateTaskMetadata: FunctionRef;
       agentUpdateTaskStatus: FunctionRef;
       agentUpsertTaskByExternalRef: FunctionRef;
     };
     internal_queries: FunctionRef & {
       getTaskByIdInternal: FunctionRef;
       getTaskContextForAgent: FunctionRef;
+      getTaskWorkStateForAgent: FunctionRef;
+      getTaskReviewFilesForAgent: FunctionRef;
       listTasksForAgent: FunctionRef;
     };
     mutations: FunctionRef & {

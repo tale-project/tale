@@ -8,11 +8,12 @@ import { AppSidebarPlaceholder } from './app-sidebar/app-sidebar-placeholder';
 import { ChatComposerPlaceholder } from './chat-composer-placeholder';
 import { HomePanelPlaceholder } from './home-panel-placeholder';
 import { MobileBottomNavPlaceholder } from './mobile-bottom-nav-placeholder';
+import { ShellNotch } from './shell-notch';
 
 /**
  * KEEP THIS MODULE LEAN. It is the boot-shell prerender root (rendered under
  * plain `bun` at build time) — imports must stay framework-free: @tale/ui
- * layout/skeleton primitives and the placeholder only.
+ * layout/skeleton primitives, the placeholders and the notch strip only.
  */
 
 /**
@@ -26,19 +27,16 @@ import { MobileBottomNavPlaceholder } from './mobile-bottom-nav-placeholder';
 export function DashboardShellFrame() {
   return (
     <div className="mobile-nav-shell flex h-dvh w-full flex-col overflow-hidden md:flex-row">
+      {/* The notch clearance, as the resolved shell heads itself with it,
+          above the bar or, on a thread page, above the page's own header. */}
+      <ShellNotch />
       {/* Mobile top bar — mirrors the resolved chat header (the default
           landing): a leading cluster of action icons + the trailing account
           avatar, so the real header slots in without reflow. Matches the
           DashboardLayout header geometry (px-4, min-h-12). */}
-      {/* The notch clearance a thread page keeps without the bar (zero where
-          there is no notch, so harmless on desktop). */}
-      <div
-        aria-hidden
-        className="hidden h-(--safe-top) shrink-0 [.boot-thread-page_&]:block"
-      />
       {/* Hidden on a chat, a task or an open conversation, which carry their
           own header on a phone (`boot-thread-page`, set before first paint). */}
-      <div className="bg-background border-border border-b px-4 pt-(--safe-top) md:hidden [.boot-thread-page_&]:hidden">
+      <div className="bg-background border-border border-b px-4 md:hidden [.boot-thread-page_&]:hidden">
         <Skeletonize loading>
           <Row gap={2} className="min-h-12">
             {/* Leading action icons (sidebar menu / search). */}

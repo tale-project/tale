@@ -13,7 +13,8 @@
  * only when the spawner confirmed the session is gone or idle (busy and
  * errors leave it for the next tick), and the failed-create collect destroys
  * a session only when no newer or live incarnation carries its id, then
- * stamps that one row. Every tick also deletes the settled model-endpoint
+ * stamps that one row, and the render release destroys the idle session of
+ * a render row older than a scan link can keep one. Every tick also deletes the settled model-endpoint
  * request rows a week old, between closing the lost requests and the
  * settlement sweep, and a failure there stops neither. The real-Postgres
  * probe (`integration-check.ts`)
@@ -41,6 +42,7 @@ import {
   reconcileOrgSessions,
   runSandboxWatchdog,
   SANDBOX_FAILED_SESSION_COLLECT_GRACE_MS,
+  SANDBOX_RENDER_SESSION_MAX_AGE_MS,
   SANDBOX_RUN_SESSION_RECLAIM_GRACE_MS,
   type WatchdogSpawner,
 } from './watchdogs.ts';
@@ -76,8 +78,8 @@ interface Candidate {
 }
 
 /**
- * Scripted `sql`: the EXPIRE update and the reconcile, reclaim and collect
- * SELECTs pop from their scripts; the supersession probe answers from
+ * Scripted `sql`: the EXPIRE update and the reconcile, reclaim, collect and
+ * release SELECTs pop from their scripts; the supersession probe answers from
  * `superseded` (row ids) and a collected row's stamp settles it; the sweep
  * of settled model-endpoint rows pops from `sweep` (or fails with
  * `sweepError`); the visit stamps answer with no rows. Every statement is
@@ -88,6 +90,7 @@ function fakeSql(script: {
   reconcile?: Candidate[][];
   reclaim?: Candidate[][];
   collect?: Candidate[][];
+  release?: Candidate[][];
   superseded?: string[];
   sweep?: { id: string }[][];
   sweepError?: Error;
@@ -116,6 +119,9 @@ function fakeSql(script: {
     }
     if (text.includes("WHERE status = 'failed' AND destroyed_at_ms IS NULL")) {
       return Promise.resolve(script.collect?.shift() ?? []);
+    }
+    if (text.includes("WHERE owner_type = 'render'")) {
+      return Promise.resolve(script.release?.shift() ?? []);
     }
     if (text.includes('AS superseded')) {
       const rowId = String(values[0]);
@@ -488,6 +494,7 @@ describe('runSandboxWatchdog — reclaim of ended runs', () => {
       recreating: 0,
       reclaimed: 0,
       collected: 0,
+      released: 0,
       settled: 0,
     });
     expect(reconcileSession).not.toHaveBeenCalled();
@@ -496,7 +503,9 @@ describe('runSandboxWatchdog — reclaim of ended runs', () => {
       statements.some((s) => s.text.includes("s.owner_type = 'workflow_run'")),
     ).toBe(false);
     expect(
-      statements.some((s) => s.text.includes("WHERE status = 'failed'")),
+      statements.some((s) =>
+        s.text.includes("status = 'failed' AND destroyed_at_ms IS NULL"),
+      ),
     ).toBe(false);
     expect(stampsOf(statements)).toHaveLength(0);
     expect(collectStampsOf(statements)).toHaveLength(0);
@@ -640,6 +649,103 @@ describe('runSandboxWatchdog — collect of failed creates', () => {
   });
 });
 
+/**
+ * A scan link destroys its render session when its batch ends. A link cut
+ * off mid-batch (a restart, a deploy, a crash) left the row `active` and the
+ * container running, and no pass reached either; each held one of the
+ * organization's two render slots until the spawner's idle reaper took the
+ * container half an hour later.
+ */
+describe('runSandboxWatchdog — release of abandoned render sessions', () => {
+  it('settles the row only when the spawner destroyed (or lacked) the session; a worker still rendering and an error wait for the next tick', async () => {
+    const abandoned = candidate('abandoned');
+    const rendering = candidate('rendering');
+    const broken = candidate('broken');
+    const { sql, statements } = fakeSql({
+      release: [[abandoned, rendering, broken]],
+    });
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const destroyIfIdle = vi.fn((sessionId: string) => {
+      if (sessionId === rendering.sessionId) {
+        return Promise.resolve({ destroyed: false, busy: true });
+      }
+      if (sessionId === broken.sessionId) {
+        return Promise.reject(new Error('spawner 502'));
+      }
+      return Promise.resolve({ destroyed: true, busy: false });
+    });
+
+    const result = await runSandboxWatchdog(sql, {
+      spawner: scriptedSpawner({ destroyIfIdle }),
+    });
+
+    expect(result.released).toBe(1);
+    expect(destroyIfIdle).toHaveBeenCalledTimes(3);
+    expect(markSessionDestroyed).toHaveBeenCalledTimes(1);
+    expect(markSessionDestroyed).toHaveBeenCalledWith(sql, {
+      organizationId: 'org_1',
+      sessionId: abandoned.sessionId,
+    });
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('render-session release failed'),
+      expect.any(Error),
+    );
+    // All three were visited: stamped so the rotation moves on.
+    const stamps = stampsOf(statements);
+    expect(stamps).toHaveLength(1);
+    expect(stamps[0]?.values).toContainEqual([
+      'abandoned',
+      'rendering',
+      'broken',
+    ]);
+  });
+
+  it('targets only compute-holding render rows older than a link can keep one', async () => {
+    const { sql, statements } = fakeSql({});
+    const before = Date.now();
+
+    await runSandboxWatchdog(sql, { spawner: scriptedSpawner() });
+
+    const select = statements.find((s) =>
+      s.text.includes("WHERE owner_type = 'render'"),
+    );
+    expect(select).toBeDefined();
+    // A destroyed, failed or expired row holds no slot; nothing to release.
+    expect(select?.text).toContain("status IN ('creating', 'active')");
+    // A batch that is rendering now is younger than this.
+    expect(select?.text).toContain('created_at_ms <');
+    const horizon = select?.values.find(
+      (value): value is number =>
+        typeof value === 'number' && value > 1_000_000_000_000,
+    );
+    expect(horizon).toBeLessThanOrEqual(
+      Date.now() - SANDBOX_RENDER_SESSION_MAX_AGE_MS,
+    );
+    expect(horizon).toBeGreaterThanOrEqual(
+      before - SANDBOX_RENDER_SESSION_MAX_AGE_MS,
+    );
+    expect(select?.text).toContain(
+      'ORDER BY last_reconciled_at_ms ASC NULLS FIRST, created_at_ms ASC',
+    );
+  });
+
+  it('is skipped with the other spawner-facing passes', async () => {
+    const { sql, statements } = fakeSql({ release: [[candidate('never')]] });
+    const spawner = scriptedSpawner();
+
+    const result = await runSandboxWatchdog(sql, {
+      skipReconcile: true,
+      spawner,
+    });
+
+    expect(result.released).toBe(0);
+    expect(spawner.destroyIfIdle).not.toHaveBeenCalled();
+    expect(
+      statements.some((s) => s.text.includes("WHERE owner_type = 'render'")),
+    ).toBe(false);
+  });
+});
+
 describe('runSandboxWatchdog — settled model-endpoint request rows', () => {
   const NOW = 1_790_000_000_000;
   const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
@@ -664,14 +770,16 @@ describe('runSandboxWatchdog — settled model-endpoint request rows', () => {
 
     const result = await runSandboxWatchdog(sql, { skipReconcile: true });
 
-    const sweeps = statements.filter((s) =>
-      s.text.includes('DELETE FROM app.sandbox_session_ops'),
+    const sweeps = statements.filter(
+      (s) =>
+        s.text.includes('DELETE FROM app.sandbox_session_ops') &&
+        s.text.includes("kind = 'model-api'"),
     );
     // Two rows came back from a batch of 1,000: one statement drained it.
     expect(sweeps).toHaveLength(1);
     expect(sweeps[0]?.values).toEqual([NOW - WEEK_MS, 1_000]);
     const close = indexOf(statements, "status = 'failed', finished_at_ms");
-    const sweep = indexOf(statements, 'DELETE FROM app.sandbox_session_ops');
+    const sweep = indexOf(statements, "WHERE kind = 'model-api'");
     const settle = indexOf(statements, 'WHERE finalized_at_ms IS NOT NULL');
     expect(close).toBeGreaterThanOrEqual(0);
     expect(sweep).toBeGreaterThan(close);
@@ -686,6 +794,7 @@ describe('runSandboxWatchdog — settled model-endpoint request rows', () => {
       recreating: 0,
       reclaimed: 0,
       collected: 0,
+      released: 0,
       settled: 0,
     });
   });

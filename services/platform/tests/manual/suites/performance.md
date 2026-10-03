@@ -1,6 +1,6 @@
 # Performance (cross-cutting)
 
-> **Prefix** `PERF-` · **Reset** none · **Cost** 18 boxes
+> **Prefix** `PERF-` · **Reset** none · **Cost** 20 boxes
 
 Spot-check the load and interaction budgets — cold load to first paint, chat
 time-to-first-token (TTFT), thread/route switching, warm-transition prefetch,
@@ -26,50 +26,56 @@ dashboard URL.
 ## Preconditions
 
 Bring the stack up and sign in per [SETUP.md](../setup.md). Decide and
-**record two axes** for every number, because both move it by an order of
+**record three axes** for every number, because each moves it by an order of
 magnitude:
 
 - **Mode** — `mockA` (the `lib/mocks` gateway on :4141, deterministic) or
-`live`
-  (a real provider configured in Settings → Providers).
-- **Backend** — `local` (self-hosted Convex at `:3210`, what dev/SETUP.md
-gives
-  you) or `hosted` (a cloud Convex deployment).
+  `live` (a real provider configured in Settings → Providers).
+- **Backend** — `local` (the platform's own backend on this machine: the
+  process `bun scripts/dev.ts` starts on `:3005` behind the app's proxy, or
+  the containers of `docker:dev`) or `hosted` (a deployed instance).
+- **Build** — `dev` (the Vite dev server) or `prod` (a production build). For
+  `prod` on a local stack, add `TALE_E2E_SERVE_BUILD=1` to the environment of
+  mode A's or B's `bun scripts/dev.ts`: it serves `dist/` through
+  `vite preview`, which proxies the backend like the dev server, and runs
+  `bun --bun vite build` first when `dist/` is missing. Delete `dist/` to
+  build again; the build alone needs about 3 GB of memory.
 
-> **Agent / measurement note**:  - The app emits a **dev-only cold-load
-> trace** to the browser console: `[cold-load] <label>: <ms>` for
-> `module-load`, `convex-authenticated`, `member-context`, `account-bootstrap`
-> (source: `app/lib/perf/cold-load-trace.ts`). One hard refresh prints all
-> four; the deltas localise the cost (bundle vs. auth handshake vs. gate
-> queries). On a **warm reload** (same tab, previous sign-in) a fifth label,
-> `convex-preauth`, prints when the persisted last-known token
-> pre-authenticated the websocket (epic #2386) — `convex-authenticated` should
-> then land within a round trip of `module-load`. Every mark is also
-> machine-readable: `performance.getEntriesByType('mark')` returns them as
-> `cold-load:<label>` entries, and `getColdLoadTrace()` exposes them to
-> tests/tooling. In a **production** build enable it with
-> `localStorage.tale_perf = '1'` then hard-refresh. - **The dev server is NOT
-> a perf target.** Under `bun scripts/dev.ts` the first hit on a cold route
-> triggers a Vite transform, so `module-load` alone is multiple seconds
-> (measured 5.5–9.6 s here) and is pure dev tooling, not the product. Treat
-> dev numbers as **relative** (compare deltas / warm-vs-cold) and reserve
-> absolute pass/fail to a **production build** (`bun run build` + serve) —
-> note which you used. - A chat turn reaches a terminal state when the chat
-> input toggles **Stop generating** (`chat.stopGenerating`) back to **Send
-> message** (`chat.send`). Time/await on that toggle, never on streamed text.
-> "TTFT ≈ 150 ms" describes only the mock gateway's SSE first byte — the
-> **observed turn round-trip** in `mockA` + `local` is far longer (~14 s here)
-> because the Auto classifier hop plus the local self-hosted backend amplify
-> per-query latency ~5–10×.
+> **Agent / measurement note**:
+>
+> - The app records a **cold-load trace**, `[cold-load] <label>: <ms>` in the
+>   console, for `module-load` (the bundle has run), `router-loaded` (the
+>   first route's matches are resolved), `session-resolved` (the session
+>   check answered), `member-context` (the membership gate query) and
+>   `account-bootstrap` (the 2FA / password-expiry gate query); source:
+>   `app/lib/perf/cold-load-trace.ts`. One hard refresh prints all five; the
+>   deltas localise the cost (bundle vs. session vs. gate queries). Every mark
+>   is also machine-readable: `performance.getEntriesByType('mark')` returns
+>   them as `cold-load:<label>` entries, and `getColdLoadTrace()` exposes them
+>   to tests/tooling. The dev server always records it; in a **production**
+>   build enable it with `localStorage.tale_perf = '1'` then hard-refresh.
+> - **The dev server is NOT a perf target.** Under `bun scripts/dev.ts` the
+>   first hit on a cold route triggers a Vite transform, so `module-load`
+>   alone is multiple seconds (measured 5.5–9.6 s here) and is pure dev
+>   tooling, not the product. Treat dev numbers as **relative** (compare
+>   deltas / warm-vs-cold) and reserve absolute pass/fail to a **production
+>   build** — note which you used.
+> - A chat turn reaches a terminal state when the chat input toggles **Stop
+>   generating** (`chat.stopGenerating`) back to **Send message**
+>   (`chat.send`). Time/await on that toggle, never on streamed text. "TTFT ≈
+>   150 ms" describes only the mock gateway's SSE first byte — the **observed
+>   turn round-trip** in `mockA` + `local` is far longer (~14 s here) because
+>   the Auto classifier hop plus the local self-hosted backend amplify
+>   per-query latency ~5–10×.
 
 ## Functional / performance tests
 
 - [ ] `PERF-P1` · **Cold load → first paint** — Clear cache, hard-reload
-  `/dashboard/{org}`. Watch the console for `[cold-load]` lines. → All four
-  `[cold-load]` labels print (`module-load`, `convex-authenticated`,
-  `member-context`, `account-bootstrap`); the **Send message** button
-  (`chat.send`) becomes visible. Prod build: usable < 3 s (`mockA`/`live`,
-  `hosted`). Dev/local: record absolute + note it's dev.
+  `/dashboard/{org}`. Watch the console for `[cold-load]` lines. → All five
+  `[cold-load]` labels print (`module-load`, `router-loaded`,
+  `session-resolved`, `member-context`, `account-bootstrap`); the **Send
+  message** button (`chat.send`) becomes visible. Prod build: usable < 3 s
+  (`mockA`/`live`, `hosted`). Dev/local: record absolute + note it's dev.
 - [ ] `PERF-P2` · **Chat TTFT / turn** — On `/dashboard/{org}/chat` type
   `hello`, click **Send message** (`chat.send`). → **Stop generating**
   (`chat.stopGenerating`) appears, then disappears (turn done) and the URL
@@ -187,6 +193,31 @@ single warm sample.
   fail quietly until one succeeds: …` warning per container, and no
   `pg-boss error:` dump at all; the second restart adds its own line.
   Afterwards jobs run again: a new chat gets its generated title.
+- [ ] `PERF-B7` · **Backend start during a database restart** — Follow
+  `docker compose logs -f backend-api`, run `docker compose stop db`, restart
+  the api while the database is down (`docker restart $(docker compose ps -q
+  backend-api)`) and note its `docker inspect --format '{{.RestartCount}}'`,
+  then `docker compose start db` within half a minute. → The api does not
+  exit: while the database is away its log shows `[db] transient error on
+  attempt …, retrying in …ms: …` lines, and once `db` answers, the boot
+  carries on to `api listening on :3005`. The restart count has not moved
+  since you noted it, and with `SENTRY_DSN` set no event arrives. Leave `db`
+  stopped for more than a minute instead → about a minute after the first
+  refusal the api logs one `fatal startup error`, sends one error-level event
+  tagged `tale.lane: boot` and exits; Docker starts it again, and that start
+  waits another minute.
+- [ ] `PERF-B8` · **A write and a list while the app tier is away** — With
+  `SENTRY_DSN` pointing at a project you can read, open a project's task
+  board, open **Create task** and type a title, then run `docker compose stop
+  backend-api`. Click **Create task**, open **All projects** from the Home
+  panel, and after about ten seconds run `docker compose start backend-api`.
+  → The create fails with one toast, the dialog stays open with the title as
+  typed, and no task appears; **Create task** again, once the backend
+  answers, creates it once. The projects list shows its error state with
+  **Try again** — never an empty list — and fills in on its own within a
+  minute of the start, or at once on **Try again**. Neither failure sends an
+  event to `SENTRY_DSN`: the edge's `UPSTREAM_UNAVAILABLE` is an operational
+  answer, like `DATABASE_UNAVAILABLE` in `PERF-B5`.
 
 ## Accessibility (WCAG 2.1 AA)
 

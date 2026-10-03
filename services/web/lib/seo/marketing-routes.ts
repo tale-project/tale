@@ -4,9 +4,14 @@ import { fileURLToPath } from 'node:url';
 
 import { parse } from 'yaml';
 
+import { publishedMarketingContent } from '../content/server';
+import { localizedPath, type SupportedLocale } from '../i18n/locales';
+
 interface MarketingRoute {
   /** Site-relative URL, e.g. `/`, `/pricing`. */
   url: string;
+  /** English canonical path used by the alternate cluster. */
+  path: string;
   title: string;
   description: string;
 }
@@ -59,13 +64,15 @@ type RouteSeoKey = (typeof ROUTE_SEO_KEYS)[number]['key'];
 /** The `seo` namespace of the English catalog, shape-checked at load: a
  * missing or malformed entry throws HERE (build/prerender time), never as an
  * undefined title in a shipped sitemap. */
-function loadSeoNamespace(): Record<RouteSeoKey, MarketingSeoEntry> {
+function loadSeoNamespace(
+  locale: SupportedLocale,
+): Record<RouteSeoKey, MarketingSeoEntry> {
   const catalogPath = join(
     dirname(fileURLToPath(import.meta.url)),
     '..',
     '..',
     'messages',
-    'en.yml',
+    `${locale}.yml`,
   );
   const catalog: unknown = parse(readFileSync(catalogPath, 'utf8'));
   const seo =
@@ -73,7 +80,9 @@ function loadSeoNamespace(): Record<RouteSeoKey, MarketingSeoEntry> {
       ? catalog.seo
       : undefined;
   if (seo === null || typeof seo !== 'object') {
-    throw new Error(`messages/en.yml has no "seo" namespace (${catalogPath})`);
+    throw new Error(
+      `messages/${locale}.yml has no "seo" namespace (${catalogPath})`,
+    );
   }
   const entries = {} as Record<RouteSeoKey, MarketingSeoEntry>;
   for (const { key } of ROUTE_SEO_KEYS) {
@@ -87,22 +96,41 @@ function loadSeoNamespace(): Record<RouteSeoKey, MarketingSeoEntry> {
         ? entry.description
         : undefined;
     if (typeof title !== 'string' || typeof description !== 'string') {
-      throw new Error(`messages/en.yml seo.${key} needs title + description`);
+      throw new Error(
+        `messages/${locale}.yml seo.${key} needs title + description`,
+      );
     }
     entries[key] = { title, description };
   }
   return entries;
 }
 
-const seo = loadSeoNamespace();
+/** Static catalog pages and published Markdown pages share one discovery API.
+ * The file-backed registry validates publication across all three locales. */
+export function marketingRoutesForLocale(
+  locale: SupportedLocale,
+): MarketingRoute[] {
+  const seo = loadSeoNamespace(locale);
+  return [
+    ...ROUTE_SEO_KEYS.map(({ url, key }) => ({
+      url: localizedPath(locale, url),
+      path: url,
+      title: seo[key].title,
+      description: seo[key].description,
+    })),
+    ...publishedMarketingContent()
+      .filter((page) => page.locale === locale)
+      .map((page) => ({
+        url: page.url,
+        path: page.path,
+        title: page.frontmatter.title,
+        description: page.frontmatter.description,
+      })),
+  ];
+}
 
-export const MARKETING_ROUTES: readonly MarketingRoute[] = ROUTE_SEO_KEYS.map(
-  ({ url, key }) => ({
-    url,
-    title: seo[key].title,
-    description: seo[key].description,
-  }),
-);
+const MARKETING_ROUTES: readonly MarketingRoute[] =
+  marketingRoutesForLocale('en');
 
-/** Exported for the registry bijection test. */
-export const MARKETING_ROUTE_URLS = ROUTE_SEO_KEYS.map((r) => r.url);
+/** English route discovery; includes published content, never draft routes. */
+export const MARKETING_ROUTE_URLS = MARKETING_ROUTES.map((route) => route.url);

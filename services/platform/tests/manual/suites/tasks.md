@@ -1,6 +1,7 @@
 # Tasks
 
-> **Prefix** `TASK-` · **Reset** none · **Cost** 93 boxes
+> **Prefix** `TASK-` · **Reset** none · **Cost** 122 boxes
+
 
 Exercise a project's task workspace — the board and list views with
 drag-and-drop across status lanes, the task sheet (description, comments with
@@ -44,8 +45,8 @@ TASK-B24 an organization owner or admin, who alone may delete a task.
 TASK-B14 and TASK-B22 set due dates in the past, which the date picker
 accepts. The due-date scan runs every five minutes, so TASK-F40, TASK-F44,
 TASK-B22 and TASK-B24 wait up to five minutes for each next task it creates.
-TASK-B17 alone needs a deployed automation with a task contract bound to the
-project (as in AUTO-F32). TASK-F47 needs a project agent on Claude Code
+TASK-B17 and TASK-B29 need a deployed automation with a task contract bound to
+the project (as in AUTO-F32). TASK-F47 needs a project agent on Claude Code
 whose credential is a subscription broker on a local Tale AI gateway
 (`services/ai-gateway`) holding one Claude account. The member boxes
 (TASK-F49, TASK-F50, TASK-B26, TASK-B27) need a second account whose role is
@@ -94,9 +95,20 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
 - [ ] `TASK-F18` · **Show archived survives a search** — With **Show archived**
   on and an archived task visible, type part of its title into **Search tasks**
   (`tasks.searchPlaceholder`) → The archived task stays in the results. Clear
-  the search, turn **Show archived** off, search again → it is gone. The page
-  renders the board read narrowed by the search read, so the toggle has to
-  govern both or typing silently drops rows the toggle just revealed.
+  the search, turn **Show archived** off, search again → it is gone. The
+  search narrows the board read itself, so **Show archived** governs it like
+  every other filter and typing never drops rows the toggle just revealed.
+- [ ] `TASK-F52` · **A search reaches every match** — In a project with more
+  than 25 tasks whose titles share one word, where the only **Urgent**
+  (`tasks.priority.p0`) one is the oldest: **Filter** → **Priority** →
+  **Urgent**, then type the word into **Search tasks**
+  (`tasks.searchPlaceholder`); clear the priority; pick **Assignee** → **You**
+  (`tasks.assignee.you`); last, type a word no task holds → The Urgent task
+  stays, alone; without the priority every match shows, a task whose only match
+  is a comment included, and the lane counts add up to the number of matches;
+  **You** keeps exactly your matches; the unmatched word leaves six **No
+  tasks** (`tasks.board.noTasks`) lanes and no alert. DevTools → Network shows
+  the query on the board read (`q=`) and no `/tasks/search` request.
 - [ ] `TASK-F6` · **Backlog lane semantics** — **Create task** → open the
   **Status** picker (`tasks.fields.status`) in the dialog → **Backlog**; later
   open the task and promote it to **To do** → The task lands in the Backlog
@@ -111,6 +123,14 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   render on the card; More fields reveals read-only **Author** / **Created**
   (`tasks.fields.author` / `tasks.fields.created`); an overdue due date badges
   **Overdue** (`tasks.dueDate.overdue`)
+- [ ] `TASK-F54` · **Close a task, every way** — Open a task from the board
+  and close it with the dialog's **X**, then **Escape**, a click on the
+  backdrop and the browser's **Back**; open one of its subtasks from the
+  dialog and close that; repeat 390 px wide, where the task is a drawer → Each
+  close fades out the task that was open, at the height it had, and hands the
+  focus back to its card; the empty **Create task** (`tasks.actions.create`)
+  form never shows on the way out, and **Create task** in the header still
+  opens it.
 - [ ] `TASK-F8` · **Comments & mentions** — In the sheet: write a comment
   (**Comment**, `tasks.actions.comment`) containing `@` → the mention listbox
   (`tasks.mentionPicker.title`) → pick a member; edit then delete a comment →
@@ -212,6 +232,22 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   their trigger and cost; archiving toasts `tasks.archive.success` and removes
   the card from the default views; restoring (`tasks.archive.restoreSuccess`)
   returns it — both persisted across reload.
+- [ ] `TASK-F51` · **History names what a change left** — On a task you can
+  edit that has no due date, set **Due date** to 1 October 2026 and clear it
+  with its ✕ (`common.datePicker.clear`); assign a member and choose
+  **Unassign** (`tasks.assignee.unassign`); write a **Description** and clear
+  it; rename the task to `todo` and then to `done`; move it from **To do** to
+  **Done**. Meanwhile a second member keeps the same task open (its **Copy
+  link** link, pasted in their own session). Then read **Activity**
+  (`tasks.detail.activity`) in English, **Deutsch** and **Français** → Setting
+  the date reads **due date changed: No due date → 10/01/2026**, and each clear
+  reads as the old value and then its absence: **due date changed: 10/01/2026
+  → No due date** (`tasks.activity.empty.dueDate`), **Unassigned**
+  (`tasks.assignee.unassigned`), **No description**
+  (`tasks.activity.empty.description`); the renames read `todo → done` in
+  every language, while the move reads **To do → Done** (`tasks.status.*`),
+  **Zu erledigen → Erledigt** and **À faire → Terminé**; the second member's
+  view shows each new line without a reload, and a reload shows the same lines.
 - [ ] `TASK-F33` · **Delete a task** — As an organization owner or admin, open
   a task that has a subtask → **Delete** (`tasks.actions.delete`) under
   **Details** → confirm (`tasks.delete.confirmTitle`) → The toast reads
@@ -232,7 +268,7 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   a project agent with a skill, then narrow that skill's visibility so the
   project no longer sees it (do not delete it); start a task with the agent
   → The run fails at once with **the agent run could not start: the skill
-  "<slug>" is not available to this run …**, stays at one run — no
+  "‹slug›" is not available to this run …**, stays at one run — no
   **Auto-retry 1 of 3** — and the task's runs list shows a single failed row;
   after unticking the unavailable skill in the agent dialog, **Retry**
   starts a run that reaches the harness.
@@ -623,6 +659,100 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   member moves it to **Done** (`tasks.status.done`) and it stays there after a
   reload, and the member's **Usage** page (`navigation.usage`) counts the
   run's spend.
+- [ ] `TASK-F53` · **One agent puts another to work** — As an editor, give a
+  manager agent **Start other agents on tasks**
+  (`projects.agents.tool.task_start_agent`) under **Skills, connectors &
+  tools**, leave a second task unassigned in **To do**, and start the manager
+  on a task whose description asks it to start the second agent on that task
+  with a one-line answer as its message → the second task is assigned to the
+  second agent and sits in **In progress** (`tasks.status.in_progress`), its
+  history names the manager for both changes, and its timeline lists the run
+  (`tasks.timeline.runLabel`) as `tasks.agentRuns.trigger.delegated`, **started
+  by** (`tasks.timeline.startedByAgent`) the manager; the manager's own report
+  keeps the run id. An automation agent node's picker does not offer the tool.
+
+- [ ] `TASK-F55` · **A project with no agent, in Assignee** — With the
+  organization's standard agent switched off ([governance.md](governance.md)
+  `GOV-F52`), as the member, on a task of theirs in a project with no agent,
+  open **Assignee**
+  (`tasks.fields.assignee`) → there is no **Agents** section
+  (`tasks.assignee.agents`), the footer reads `tasks.assignee.noAgentsReader`,
+  and nothing navigates away. As an editor of the same project, open **Create
+  task** (`tasks.actions.create`), type a title and a description, then open
+  **Assignee** → **Create an agent…** (`tasks.assignee.createAgent`) with
+  `tasks.assignee.createAgentHint`; choose it → **New agent**
+  (`projects.agents.dialogCreateTitle`) opens over the form; fill it and press
+  **Create agent** (`projects.agents.createSubmit`) → the form still holds its
+  title and description and **Assignee** names the new agent; after **Create
+  task** and a reload, the task is assigned to that agent.
+- [ ] `TASK-F56` · **Assigning an agent does not start it, and says so** — As
+  the member, assign a project agent to a task of theirs in **To do**
+  (`tasks.status.todo`) → the Run field offers **Start agent**
+  (`tasks.agentRun.start`) above **The agent waits until you start it.**
+  (`tasks.agentRun.notStartedYet`), no run starts, and the task is still in
+  **To do** after a reload. A second member who opens the task sees neither.
+- [ ] `TASK-F57` · **A run that fails for good says so, in the task and the
+  bell** — As an admin, add a monthly cost rule on
+  `/dashboard/{org}/settings/governance/policies-limits` (**Budget rules**,
+  `governance.budgets.title`) that caps the member below what they have spent;
+  as the member, press **Start agent** on a task of theirs → the task shows
+  **The agent couldn't finish this task** (`tasks.agentRun.failureTitle`) with
+  `tasks.agentRun.failure.budget` and **Retry** (`tasks.agentRun.retry`); the
+  Run field's **Details** (`tasks.run.details`) opens the same sentence above
+  **What the run reported** (`tasks.agentRun.reported`) and the cap's own
+  reason; the member's bell holds **Agent run failed**
+  (`inbox.agentRunFailed`) with `inbox.agentRunFailedBudgetBody`, which opens
+  the task (and an email arrives when actionable email is on). Delete the rule
+  and press **Retry** → the notice leaves the task and the bell row turns read
+  without a click or a reload.
+- [ ] `TASK-F58` · **An open task follows its run** — Keep a task open while
+  its agent starts and works → the Run field moves from **Queued**
+  (`tasks.agentRun.status.queued`) to **Working…**
+  (`tasks.agentRun.status.running`) to its end, and the run's row under
+  **Activity** changes with it, without a reload.
+- [ ] `TASK-F59` · **A Gemini CLI task continues after a tool turn** — Set a
+  project agent's **Agent type** (`projects.agents.harnessLabel`) to Gemini
+  CLI and **Start agent** (`tasks.agentRun.start`) on a task that asks it to
+  run `echo hello` with its shell tool and report; once it settles
+  **Completed** (`tasks.agentRuns.status.completed`), comment on the task
+  mentioning the agent with a follow-up question, then **Retry**
+  (`tasks.agentRun.retry`) a later run you cancelled mid-work → Both later
+  runs settle, each as a fresh conversation over the preserved workspace
+  (the run re-reads the task brief and the earlier rounds; no
+  `--resume` launch, the backend logs no resume), and neither fails with a
+  provider refusal about a `tool` message or function response parts; the
+  gateway log shows one `tool` message per tool call on every request —
+  env-gated: mark **ENVIRONMENT** without a credential that serves Gemini
+  CLI.
+- [ ] `TASK-F60` · **Create a task and start its agent in one step** — On
+  a project board, **Create task** (`tasks.actions.create`) with a project
+  agent under **Assignee** and **Status** **To do** → the footer adds
+  **Create and start agent** (`tasks.actions.createAndStart`, with a play
+  icon) beside **Create task**; clicking it closes the dialog, and the new
+  card's run is queued or working without a reload. **Create task** instead
+  leaves the run waiting for **Start agent** (`tasks.agentRun.start`). With
+  **Status** set to **In progress**, the primary button itself reads
+  **Create and start agent** — an agent's task created in progress starts
+  at once; with a person as the assignee, only **Create task** is offered.
+  With task automation switched off for the organization, **Create and start
+  agent** creates nothing: the dialog stays open with a toast saying why the
+  agent cannot start, and **Create task** still creates the task.
+- [ ] `TASK-F61` · **A Member hands a task to the standard agent** — As the
+  member, in a project without agents of its own (the docs demo seed's
+  **Customer onboarding portal**), open **Assignee** (`tasks.fields.assignee`)
+  on a task of theirs → under **Agents** (`tasks.assignee.agents`) it offers
+  **Standard agent** (`tasks.assignee.standardAgent`) with
+  `tasks.assignee.standardAgentHint`, the footer reads
+  `tasks.assignee.standardAgentFooter`, and there is no **Create an agent…**
+  (`tasks.assignee.createAgent`), which an editor sees beside it. Choose it →
+  the assignee reads **Standard agent** at once and after a reload, and the
+  project's **Agents** tab lists it ([projects.md](projects.md) `PROJ-F37`);
+  **Start agent** (`tasks.agentRun.start`) runs it to **In review**
+  (`tasks.status.in_review`), with a requested Word, PowerPoint, Excel or PDF
+  file under the task's deliverables — env-gated: mark the run
+  **ENVIRONMENT** without a runnable harness.
+
+- [ ] `TASK-F62` · **Let a manager triage without starting work** — As an editor, enable **Change task priority and agent assignment** (`projects.agents.tool.task_update_metadata`) on a project agent, using the keyboard in **Skills, connectors & tools**; save and reopen it → the named option remains checked with its **Writes data** badge and visible focus, fits at desktop and phone widths in EN/DE/FR, and an automation agent node never offers it. Let that manager change an idle task’s priority and agent assignment, then watch the task from a second browser session → both values refresh, the activity names the manager, status and run history stay unchanged, and a reload keeps the values.
 
 ## Boundary & error tests
 
@@ -638,7 +768,8 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   alive; confirming (or Cancel run) toasts `tasks.agentRun.cancelled`, the Run
   row shows **Cancelled**, and **Retry** (`tasks.agentRun.retry`) appears
   (also on **Failed**); Retry of a run whose turn had started **resumes the
-  same harness conversation** — the agent picks up mid-work without redoing
+  same harness conversation** (every harness but Gemini CLI, which starts
+  fresh — `TASK-F59`) — the agent picks up mid-work without redoing
   environment setup or finished steps (prompts never render in the transcript;
   judge by behavior) — and keeps the unpublished delivery box; a
   failed-at-launch or foreign-incarnation predecessor falls back to the full
@@ -657,9 +788,10 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
 - [ ] `TASK-B5` · **Spend cap refuses a run** — Under **Settings > Governance
   > Policies & Limits**, add an org-scoped monthly budget rule whose max cost
   is below the org's spend so far this month; then **Start agent** on a task
-  of a managed-credential agent → The Run row flips to **Failed** with the
-  banner **Agent couldn't start this task** (`tasks.runFailure.title`) naming
-  the cap (`Cost limit reached for this monthly period …`); **Retry** is
+  of a managed-credential agent → The Run row flips to **Failed** and the task
+  shows **The agent couldn't finish this task** (`tasks.agentRun.failureTitle`)
+  with `tasks.agentRun.failure.budget`; **Details** (`tasks.run.details`)
+  names the cap (`Cost limit reached for this monthly period …`); **Retry** is
   offered but no automatic retry follows (the run stays failed); raising the
   rule and retrying starts the run, and the run's cost then appears under
   **Governance > Usage** for the person who started it.
@@ -921,6 +1053,86 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   **Cancel**; open another automation-owned task in review in the same sheet (a
   subtask, or **Part of**) and open its **Request changes** → the box is empty:
   feedback written for one task never waits, pre-filled, on another.
+- [ ] `TASK-B32` · **A failed board read** — DevTools → Network → block the
+  request URL `*/api/app/tasks/by-project/*`, open **Board**, then **List**;
+  unblock and press **Try again** (`common.actions.tryAgain`) → Once the
+  retries settle, an alert **Couldn't load the tasks, so none are shown. Your
+  search and filters stay as they are.** (`tasks.read.tasksFailed`) takes the
+  lanes' place — never six **No tasks** (`tasks.board.noTasks`); **Filter** and,
+  for an editor, **Create task** (`tasks.actions.create`) stay usable; while
+  the retry runs the alert reads **Trying again…** (`tasks.read.retrying`), and
+  the tasks come back without a reload, the search and filters as they were.
+- [ ] `TASK-B33` · **A failed refresh, a failed search** — With the board
+  loaded, block `*/api/app/tasks/by-project/*` and rename a task from a second
+  session; then type a search; unblock, press **Try again**, and while it runs
+  type another search → The tasks stay on screen under **Couldn't refresh the
+  tasks. They are shown as they were last loaded.** (`tasks.read.tasksStale`);
+  the failed search replaces the rows with the failed-read alert — never the
+  unsearched tasks — and the search box keeps the query; the board ends on the
+  last search's matches, and a late answer for the earlier one never replaces
+  them.
+- [ ] `TASK-B30` · **Failed dependencies and activity** — On a project where
+  one task blocks another, block `*/api/app/tasks/dependencies/by-project/*`
+  and reload; then unblock it, block `*/api/app/tasks/ops-indicators/*`,
+  reload, and turn on **Needs my review** (`tasks.review.needsMyReview`) → The
+  board stands under a warning **Couldn't load the dependencies, so blocked
+  tasks may not be marked as blocked.** (`tasks.read.dependenciesFailed`), and
+  its **Try again** brings the **Blocked** (`tasks.detail.blocked`) mark back
+  with no new board read in the Network panel; the activity warning
+  (`tasks.read.activityFailed`) says **Needs my review** may leave tasks out
+  (`tasks.read.activityFailedReviewFilter`) once that filter is on.
+- [ ] `TASK-B31` · **Past the board's cap** — Open a project with more than
+  2,000 tasks, then search for a task past the first 2,000 → A note **Showing
+  the first 2,000 tasks. Search to find the others.** (`tasks.read.truncated`)
+  stands above the board; the search finds the task and the note goes.
+- [ ] `TASK-B29` · **Moving a live automation's parent task** — (env-gated
+  like TASK-B17; without one mark **ENVIRONMENT**) Give two tasks that
+  automation owns an open subtask each (`tasks.detail.addSubtask`) and start
+  their runs so they work, or wait on a question, at **In progress**; drag the
+  first to **Done** (`tasks.status.done`) and confirm the dialog
+  (`tasks.subject.cancelConfirmTitle`); drag it again, now between two cards in
+  **To do** (`tasks.status.todo`), and confirm; last, on the second, press
+  **Cancel run** (`tasks.subject.cancel`) in its automation panel and confirm →
+  The move to **Done** is refused with **Finish all subtasks before closing this
+  task.** (`tasks.detail.parentCloseGuard`): the card snaps back to **In
+  progress** and the run keeps working (its question still takes an answer);
+  the move to **To do** toasts **The run was cancelled.** (`tasks.run.cancelled`),
+  the card stays where it was dropped, its subtask stays open, and its history
+  shows one status change, In progress to To do, never Cancelled in between;
+  **Cancel run** is refused with the same sentence and stops nothing — each also
+  after a reload, and the same through the **Status** picker
+  (`tasks.fields.status`) in German and French.
+- [ ] `TASK-B34` · **Automated restarts stop at three an hour** — With the
+  manager from `TASK-F53`, have it start, cancel and start the second agent on
+  the same task until it has been started three times within the hour, then
+  ask for a fourth → the fourth answers `paused` with a time, nothing starts,
+  and the task's history shows **Run refused**
+  (`tasks.activity.agentRunRefused`): **agent runs are paused on this task**
+  (`tasks.agentRuns.refused.task_circuit_breaker`); **Start agent**
+  (`tasks.agentRun.start`) pressed by a person still starts it.
+
+- [ ] `TASK-B35` · **A retry is not a failure** — Make a run fail on a
+  recoverable fault, such as stopping its sandbox mid-run → while the caption
+  reads `tasks.agentRun.autoRetrying`, the task shows no
+  `tasks.agentRun.failureTitle` notice and no bell row arrives; only once the
+  automatic retries are used up does the notice appear, with **Agent run
+  failed** (`inbox.agentRunFailed`) in the starter's bell.
+- [ ] `TASK-B36` · **Only people who can still open the project are told** —
+  Have a second member watch the member's task (**Watch**,
+  `tasks.watch.watch`), remove that member from the organization, then let
+  the member's run fail for good (`TASK-F57`) → the member's bell gets
+  **Agent run failed** (`inbox.agentRunFailed`); the removed member gets no
+  row and no email.
+- [ ] `TASK-B37` · **A standard agent that can't run for you says why** —
+  Under **Model access**, block every model for the Member role, with the
+  standard agent's **Model** on **Automatic**. As the member, open
+  **Assignee** (`tasks.fields.assignee`) on a task of theirs in a project
+  without agents → it offers no **Standard agent**
+  (`tasks.assignee.standardAgent`), and its footer reads
+  `tasks.assignee.noAgentsReader`. As the owner, give that task to
+  **Standard agent**; as the member, **Start agent** (`tasks.agentRun.start`)
+  → the toast `tasks.agentRun.standardAgent.noModel` says to ask an Admin,
+  and no run appears under **Activity**. Restore the rule.
 
 ## Accessibility (WCAG 2.1 AA)
 
@@ -1041,6 +1253,26 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   the ✕ goes away and focus is back on the date button, now **Pick a date**
   (`common.datePicker.placeholder`), with no calendar opening; a screen
   reader names the ✕ in German and French too; the read-only task shows no ✕.
+- [ ] `TASK-A13` · **Recover a failed board from the keyboard** — Block
+  `*/api/app/tasks/by-project/*`, load **Board** with a screen reader on, Tab
+  to **Try again**, unblock and press **Enter**; repeat 390 px wide → The alert
+  is announced when it appears; **Try again** is a named button with a visible
+  focus ring; while it retries it keeps the focus, marked busy, and the alert
+  reads **Trying again…**; when the tasks arrive the focus lands on the board,
+  announced as **Board** (`tasks.views.board`), with a visible ring, and
+  **Tab** moves on into the first card; 390 px wide the alert and its button
+  fit without horizontal scrolling.
+
+- [ ] `TASK-A14` · **The failure notice by keyboard and screen reader** —
+  With a screen reader on, open the task from `TASK-F57` → the notice's title
+  and sentence are read as one warning; **Tab** reaches **Retry**
+  (`tasks.agentRun.retry`) with a visible focus ring, and **Enter** starts the
+  agent. In a project with no agent and the standard agent switched off, the
+  member's **Assignee** list is followed by its footer,
+  `tasks.assignee.noAgentsReader`, read as text rather than skipped as a
+  disabled option; with the standard agent on, **Standard agent**
+  (`tasks.assignee.standardAgent`) is read as an option with its description,
+  and the footer `tasks.assignee.standardAgentFooter` as text.
 
 ## Performance
 
@@ -1057,3 +1289,21 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   arrives nothing moves. Open `…/tasks/board?task={taskId}` the same way →
   the dialog shows the key, the title, the brief and the details masked in
   place, never an empty panel, and no focus ring frames the dialog itself.
+- [ ] `TASK-P4` · **A big board keeps its dialog quick** — On a production
+  build (see [performance.md](performance.md) Preconditions), in a project
+  with 2,000 tasks (the board's cap), record DevTools → Performance while you
+  open a task from the board, then close it with **Escape** → Neither the
+  click nor the key re-renders the cards (a dev build's React Profiler shows
+  the dialog, the route and the Home panel in the commits, never a card).
+  Target: the task shows < 1 s after the click, and the close ends with its
+  exit animation.
+
+## Independent agent reviews
+
+Use a disposable local project with two different agents: A produced a completed native task run; B has **Review other agents’ task results** (`projects.agents.tool.task_review`) and an authorized live run on its own review task. Keep the implementation task, its source run and pending review intact. Do not start a new run on the implementation task to obtain reviewer authority. A synthetic local integration fixture may provide these states without a model call; record which mode the round used.
+
+- [ ] `TASK-F63` · **Hand the recorded review to an independent agent** — With a human-owned pending review open in two editor sessions, change **Reviewer** (`tasks.fields.reviewer`) to B → the task names B under **Current review** (`tasks.reviewer.pendingFor`), both open task views update, and the former human review drops from **Needs my review** (`tasks.review.needsMyReview`) and Home without a reload. Reload the task → B remains the reviewer, the assignee and status are unchanged, and no new implementation run appears. The actual source agent A is unavailable as a choice with the independence explanation (`tasks.reviewer.independentAgent`), even if the current assignee no longer names A.
+- [ ] `TASK-F64` · **Read an agent verdict and its feedback live** — Keep the implementation task open while B decides its assigned review from B's own task, once with approval and on a separate result with a request for changes → the first task becomes **Done** (`tasks.status.done`), the second **To do** (`tasks.status.todo`), and Activity shows B with **Review decided** (`tasks.activity.reviewResponded`) and **Approved** or **Changes requested** (`tasks.review.decisionApproved`, `tasks.review.decisionChangesRequested`). Feedback appears once with B's identity, the pending review clears, and the result survives reload. Include an agent mention in the request-for-changes feedback → it remains feedback; neither task starts a new run until a separate authorized start.
+- [ ] `TASK-B38` · **Read a review without project edit access** — As a Member who owns the task but cannot edit the project, open its task page and board dialog → **Reviewer** (`tasks.fields.reviewer`) and **Current review** (`tasks.reviewer.pendingFor`) remain readable, but the reviewer cannot be changed by pointer or keyboard. An editor opening the same task can reach the picker. Existing task-edit rights do not imply reviewer-handoff rights.
+- [ ] `TASK-B39` · **Recover from a stale review handoff** — Open the same pending result in two editor sessions; transfer its review in one, then choose another reviewer from the first session's still-open choice list → one localized stale-review refusal (`tasks.reviewer.stale`) is shown, not a raw payload, and the refreshed **Current review** (`tasks.reviewer.pendingFor`) names the saved reviewer. Reload before choosing again → the successful handoff remains, and no unrelated result or run was changed.
+- [ ] `TASK-A15` · **Read and choose reviewers at narrow widths** — In EN/DE/FR, use the keyboard on the project's **Default reviewer** (`projects.taskReview.defaultReviewer`), the task's **Reviewer** (`tasks.fields.reviewer`), and **Review other agents’ task results** (`projects.agents.tool.task_review`) in the agent equipment menu, at desktop and phone widths → labels, human/agent choices, the write caption, pending-review name, and missing-permission hint (`tasks.reviewer.agentPermissionRequired`) remain readable without clipping or horizontal page overflow; focused controls have visible focus, Escape returns focus to their trigger, and saved choices persist after reopening.

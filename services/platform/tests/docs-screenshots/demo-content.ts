@@ -280,7 +280,9 @@ export const DEMO_PRODUCTS: readonly DemoProduct[] = [
  */
 export const DEMO_CHAT_PROMPTS: readonly string[] = [
   'Summarize the onboarding feedback from our last three customer calls',
-  'Draft a launch checklist for the website relaunch project',
+  // Not the launch checklist: `chat-arena-split` asks that one in a chat of
+  // its own, and a seeded twin would list the same title twice in Home.
+  'Which customers mentioned pricing concerns?',
   'What changed in the brand guidelines this year?',
   'Plan the quarterly business review agenda for Friday',
   'Write a Python script to deduplicate our CRM export',
@@ -406,6 +408,114 @@ export const DEMO_ERASURE_REQUEST = {
  * sanitizes that rig name out of the published frame); the credential's NAME
  * is what a customer's row shows, so it reads like one.
  */
+/** A customer and one conversation with them, mirrored into the Inbox. */
+interface DemoConversation {
+  readonly contact: {
+    /** The CRM's id for the contact — the conversation names it. */
+    readonly externalId: string;
+    readonly name: string;
+    readonly email: string;
+  };
+  readonly externalId: string;
+  readonly subject: string;
+  readonly messages: readonly {
+    readonly isCustomer: boolean;
+    readonly authorName: string;
+    readonly content: string;
+    /** How long before the seed the message was written. */
+    readonly hoursAgo: number;
+  }[];
+}
+
+/**
+ * The Inbox, filled the way a helpdesk integration fills it: an API key
+ * named for the integration mirrors each conversation through
+ * `POST /api/v1/conversations/sync` after creating its contact. Home then
+ * offers its Inbox view, and the open conversations join the All list.
+ */
+export const DEMO_INBOX_SOURCE = 'helpdesk';
+export const DEMO_INBOX_KEY_NAME = 'Helpdesk sync';
+export const DEMO_INBOX: readonly DemoConversation[] = [
+  {
+    contact: {
+      externalId: 'crm-1042',
+      name: 'Hannah Weber',
+      email: 'hannah.weber@bergmann-logistics.example',
+    },
+    externalId: 'ticket-2291',
+    subject: 'Annual discount on the team plan',
+    messages: [
+      {
+        isCustomer: true,
+        authorName: 'Hannah Weber',
+        content:
+          'Hi, we are comparing your team plan with another quote for 40 seats. Is there a discount if we pay annually? We would like to decide before the end of the month.',
+        hoursAgo: 27,
+      },
+      {
+        isCustomer: false,
+        authorName: 'Sam Okonkwo',
+        content:
+          'Hi Hannah, annual billing includes two months free on the team plan. I have asked our sales lead to send you a written offer for 40 seats today.',
+        hoursAgo: 26,
+      },
+      {
+        isCustomer: true,
+        authorName: 'Hannah Weber',
+        content:
+          'Thanks, Sam. Could the offer also cover onboarding for our two regional offices?',
+        hoursAgo: 3,
+      },
+    ],
+  },
+  {
+    contact: {
+      externalId: 'crm-1057',
+      name: 'Daniel Okafor',
+      email: 'daniel.okafor@northwind-mfg.example',
+    },
+    externalId: 'ticket-2297',
+    subject: 'Seat pricing for read-only members',
+    messages: [
+      {
+        isCustomer: true,
+        authorName: 'Daniel Okafor',
+        content:
+          'Do read-only members count as paid seats? About twenty people at our plant only need to read the shared projects.',
+        hoursAgo: 5,
+      },
+    ],
+  },
+  {
+    contact: {
+      externalId: 'crm-1063',
+      name: 'Léa Martin',
+      email: 'lea.martin@atelier-lumen.example',
+    },
+    externalId: 'ticket-2302',
+    subject: 'Copy of the August invoice',
+    messages: [
+      {
+        isCustomer: true,
+        authorName: 'Léa Martin',
+        content:
+          'Could you send me a copy of the August invoice? Our accountant needs it for the quarterly close.',
+        hoursAgo: 1,
+      },
+    ],
+  },
+] as const;
+
+/**
+ * The automation run the docs show (Runs tab, run page): a TEST run of the
+ * shipped GitHub triage pack with this input. A test run answers every
+ * connector and model call with mock data, so it needs no GitHub account.
+ */
+export const DEMO_TEST_RUN = {
+  automation: 'github-triage-issues',
+  input: { owner: 'tale-project', repo: 'tale' },
+} as const;
+
 export const DEMO_PROVIDER_CREDENTIAL = 'Production key';
 export const MOCK_PROVIDER_DISPLAY_NAME = 'E2E Mock Gateway';
 /** The mock provider's slug — the `name` in `docs-demo/providers/e2e-mock.yml`. */

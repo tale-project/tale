@@ -18,10 +18,12 @@
  *     rather than being pasted into the prompt
  *  — cache breakpoint —
  *  5. Timestamp + response-language directive
- *  6. The person's own standing instructions (Settings > Preferences), when
+ *  6. How this person hands work to an agent (`handover.ts`) — their
+ *     projects with an agent, the controls as their interface names them
+ *  7. The person's own standing instructions (Settings > Preferences), when
  *     their toggle has them on — per person, so they can never join the
  *     prefix that is shared by every user of the agent
- *  7. Full message history: tool messages, approval cards, and attachments as
+ *  8. Full message history: tool messages, approval cards, and attachments as
  *     content parts
  *
  * On overflow the OLDEST messages are dropped and a visible notice takes their
@@ -46,6 +48,7 @@ import { boundJson } from '../shared/utils/bound-json';
 import { languageDisplayName } from '../shared/utils/language-name';
 import { narrowBcp47 } from '../shared/utils/narrow-bcp47';
 import { pickField } from '../shared/utils/pick-field';
+import { renderTaskHandover, type TaskHandover } from './handover';
 import {
   estimateMessageTokens,
   estimateTokens,
@@ -66,6 +69,9 @@ export const CONTEXT_BLOCK_ORDER = [
   'project-context',
   'cache-breakpoint',
   'runtime-directives',
+  // Per person, like the custom instructions below: which of their projects
+  // have an agent, and the controls as their interface names them.
+  'task-handover',
   // After the breakpoint on purpose: the block is per person, and the prefix
   // above must stay byte-identical for every user of the agent.
   'custom-instructions',
@@ -159,6 +165,12 @@ export interface ContextInput {
    * way the org's instructions are.
    */
   readonly customInstructions?: string;
+  /**
+   * How this person hands work to an agent (`handover.ts`), resolved by the
+   * host for the app's chat. Absent on a REST turn — no header to point at —
+   * and skipped on a sub-agent turn, as the custom instructions are.
+   */
+  readonly taskHandover?: TaskHandover;
   /** The turn's wall clock, injected so assembly is deterministic in tests. */
   readonly now: Date;
   readonly history: readonly ChatMessage[];
@@ -481,6 +493,14 @@ export function assembleContext(input: ContextInput): AssembledContext {
   );
   blocks.push({ id: 'runtime-directives', text: runtimeDirectives });
 
+  const taskHandover =
+    input.isSubAgentTurn || input.taskHandover === undefined
+      ? undefined
+      : renderTaskHandover(input.taskHandover);
+  if (taskHandover) {
+    blocks.push({ id: 'task-handover', text: taskHandover });
+  }
+
   // AFTER the breakpoint on purpose: the block is per person, and the prefix
   // above must stay byte-identical for every user of the agent to be served
   // from the provider's cache. The suffix is re-sent every turn regardless
@@ -492,7 +512,7 @@ export function assembleContext(input: ContextInput): AssembledContext {
     blocks.push({ id: 'custom-instructions', text: customInstructions });
   }
 
-  const volatileSuffix = [runtimeDirectives, customInstructions]
+  const volatileSuffix = [runtimeDirectives, taskHandover, customInstructions]
     .filter((text): text is string => text !== undefined && text.length > 0)
     .join(BLOCK_SEPARATOR);
 

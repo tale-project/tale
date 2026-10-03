@@ -20,6 +20,7 @@ import type {
 import { isRecord } from '../../../lib/utils/type-utils';
 import {
   looksLikeEmailAddress,
+  withFromAddress,
   withImapFromAddress,
 } from '../connector_credentials/imap_from_address';
 import { resolveConnectorCredential } from '../connector_credentials/resolve_credential';
@@ -28,11 +29,17 @@ import { internal } from '../lib/handler_names';
 import type { Id } from '../lib/rows';
 import { createConversationFromEmail } from './ingest/create_conversation_from_email';
 import { createConversationFromSentEmail } from './ingest/create_conversation_from_sent_email';
+import { emailEpochMs } from './ingest/email_epoch';
 import { materializeEmailAttachments } from './ingest/materialize_email_attachments';
+import { normalizeEmail } from './ingest/normalize_email';
 import { queryLatestMessageByDeliveryState } from './ingest/query_latest_message_by_delivery_state';
 import { queryLatestOutboundMessageForEmailSync } from './ingest/query_latest_outbound_message_for_sync';
 import { resolveConnectorAccountEmail } from './ingest/resolve_connector_account_email';
-import { reuseStoredAttachments } from './ingest/reuse_stored_attachments';
+import {
+  reuseStoredAttachments,
+  settledAttachmentsOfIngested,
+} from './ingest/reuse_stored_attachments';
+import type { EmailType } from './ingest/types';
 
 const EMAIL_CONNECTORS = new Set(['gmail', 'outlook', 'imap-smtp']);
 
@@ -248,7 +255,145 @@ async function fetchOneBody(
       credentialRef: args.credentialRef,
     }),
   });
-  return { email: unwrapFetchedMessage(output) };
+  return {
+    email: await withConnectorStoredAttachments(ctx, {
+      ...args,
+      messageId,
+      fetched: unwrapFetchedMessage(output),
+    }),
+  };
+}
+
+type EmailAttachment = NonNullable<EmailType['attachments']>[number];
+
+/** Whether a fetched message has attachments: Gmail lists its parts, Graph
+ *  lists none on the message and only raises `hasAttachments`. */
+function announcesAttachments(fetched: unknown, email: unknown): boolean {
+  if (!isRecord(email)) return false;
+  return (
+    (Array.isArray(email.attachments) && email.attachments.length > 0) ||
+    (isRecord(fetched) && fetched.hasAttachments === true)
+  );
+}
+
+/** The attachments a connector's `get_message` stored, as wire attachments:
+ *  its `fileId` is the org blob ref ingest calls `storageId`, and a part it
+ *  could not carry comes back `truncated`. */
+function connectorStoredAttachments(output: unknown): EmailAttachment[] {
+  if (!isRecord(output) || !Array.isArray(output.attachments)) return [];
+  const attachments: EmailAttachment[] = [];
+  for (const raw of output.attachments) {
+    if (!isRecord(raw) || typeof raw.id !== 'string') continue;
+    const filename =
+      typeof raw.filename === 'string'
+        ? raw.filename
+        : typeof raw.name === 'string'
+          ? raw.name
+          : 'attachment';
+    attachments.push({
+      id: raw.id,
+      filename,
+      contentType:
+        typeof raw.contentType === 'string'
+          ? raw.contentType
+          : 'application/octet-stream',
+      size: typeof raw.size === 'number' ? raw.size : 0,
+      ...(typeof raw.contentId === 'string' && { contentId: raw.contentId }),
+      ...(typeof raw.fileId === 'string'
+        ? { storageId: raw.fileId }
+        : raw.truncated === true
+          ? { truncated: true }
+          : {}),
+    });
+  }
+  return attachments;
+}
+
+/** The message's parts with the connector's stored references laid on by id;
+ *  a stored attachment the message never listed (all of Outlook's) is kept. */
+function withStoredReferences(
+  parts: EmailAttachment[],
+  stored: EmailAttachment[],
+): EmailAttachment[] {
+  const byId = new Map(stored.map((attachment) => [attachment.id, attachment]));
+  const merged = parts.map((part) => {
+    const match = byId.get(part.id);
+    if (match === undefined) return part;
+    byId.delete(part.id);
+    return {
+      ...part,
+      ...(match.storageId !== undefined && { storageId: match.storageId }),
+      ...(match.truncated === true && { truncated: true }),
+    };
+  });
+  return [...merged, ...byId.values()];
+}
+
+/**
+ * Gmail and Outlook hand attachments over as vendor handles: their
+ * `get_message` downloads the bytes into org storage only when asked
+ * (`includeAttachments`), returning each stored reference as `fileId`.
+ * Without that ask every chip is metadata-only — listed, never openable.
+ *
+ * The ask is gated. Every poll re-fetches the message on the cursor and
+ * storing is not idempotent, so a message already ingested with its
+ * attachments settled keeps the references it has; only one still missing
+ * bytes is fetched a second time, with them. That response is used whole:
+ * Gmail's attachment ids are per-fetch, so its references only match the
+ * parts of the same response.
+ *
+ * A failed download keeps the first fetch's metadata-only chips — the mail
+ * itself must still land, and the next re-fetch may store them.
+ */
+async function withConnectorStoredAttachments(
+  ctx: ActionCtx,
+  args: {
+    organizationId: string;
+    connectorSlug: string;
+    messageId: string;
+    fetched: unknown;
+    mode: 'mock' | 'live';
+    credentialRef?: string;
+  },
+): Promise<EmailType> {
+  const email = normalizeEmail(args.fetched);
+  if (!announcesAttachments(args.fetched, email)) return email;
+  if (typeof email.messageId === 'string' && email.messageId !== '') {
+    const settled = await settledAttachmentsOfIngested(
+      ctx,
+      args.organizationId,
+      email.messageId,
+    );
+    if (settled !== null) return { ...email, attachments: settled };
+  }
+
+  let output: unknown;
+  try {
+    output = await runMailAction(ctx, {
+      organizationId: args.organizationId,
+      connectorSlug: args.connectorSlug,
+      action: 'get_message',
+      input: { messageId: args.messageId, includeAttachments: true },
+      mode: args.mode,
+      ...(args.credentialRef !== undefined && {
+        credentialRef: args.credentialRef,
+      }),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn(
+      `[syncMailbox] ${args.connectorSlug} message ${args.messageId}: attachments not stored, keeping metadata only: ${message}`,
+    );
+    return email;
+  }
+  const withBytes = normalizeEmail(unwrapFetchedMessage(output));
+  return {
+    ...withBytes,
+    attachments: withStoredReferences(
+      withBytes.attachments ?? [],
+      connectorStoredAttachments(output),
+    ),
+  };
 }
 
 /**
@@ -323,9 +468,10 @@ async function listFolder(
     if (args.since !== null) {
       input.q = `after:${Math.floor(args.since / 1000)}`;
     }
-    if (args.mailbox === 'sent') {
-      input.labelIds = 'SENT';
-    }
+    // Always a label: without one `users.messages.list` answers EVERY message
+    // — Sent included — and the mailbox's own mail opened conversations with
+    // the mailbox as the customer.
+    input.labelIds = args.mailbox === 'sent' ? 'SENT' : 'INBOX';
   } else if (args.connectorSlug === 'outlook') {
     input.top = args.limit;
     // Graph stamps Sent Items with `sentDateTime` and the Inbox with
@@ -333,9 +479,9 @@ async function listFolder(
     // the cursor field and the sort follow the folder.
     const dateField =
       args.mailbox === 'sent' ? 'sentDateTime' : 'receivedDateTime';
-    if (args.mailbox === 'sent') {
-      input.folder = 'sentitems';
-    }
+    // Always a folder: `/me/messages` spans every folder, Sent Items
+    // included (the same hole as Gmail's unlabelled listing).
+    input.folder = args.mailbox === 'sent' ? 'sentitems' : 'inbox';
     // Oldest-first: with the watermark advancing over the INGESTED set, a
     // backlog larger than one page must drain FORWARD from the cursor. Newest-
     // first (Graph's default) would re-read the newest page every pass while the
@@ -545,6 +691,90 @@ async function healImapFromAddress(
   }
 }
 
+/**
+ * Gmail and Outlook twins of the IMAP heal. An OAuth credential carries no
+ * login to mirror, so the first pass asks the provider who the mailbox is
+ * (`get_profile`) and keeps the answer on public `config.fromAddress` — the
+ * Inbox header, the composer and every later pass read it from there.
+ * Without it the ingest cannot tell the mailbox's own mail from the
+ * customer's, and a thread the mailbox started opened with the mailbox as
+ * the contact and every direction inverted.
+ *
+ * Backfill only, like the IMAP heal: the caller skips it once the public
+ * config resolves an address. A provider that cannot answer leaves the
+ * pass to run as before.
+ */
+async function healOAuthFromAddress(
+  ctx: ActionCtx,
+  args: {
+    organizationId: string;
+    connectorSlug: string;
+    mode: 'mock' | 'live';
+    credentialRef?: string;
+  },
+): Promise<string | undefined> {
+  if (args.connectorSlug !== 'gmail' && args.connectorSlug !== 'outlook') {
+    return undefined;
+  }
+  try {
+    const row: unknown = await ctx.runQuery(
+      internal.connector_credentials.queries.resolveCredentialRefInternal,
+      {
+        organizationId: args.organizationId,
+        connectorSlug: args.connectorSlug,
+        ...(args.credentialRef !== undefined && {
+          credentialRef: args.credentialRef,
+        }),
+      },
+    );
+    if (!isRecord(row) || typeof row._id !== 'string') return undefined;
+    const output = await runMailAction(ctx, {
+      organizationId: args.organizationId,
+      connectorSlug: args.connectorSlug,
+      action: 'get_profile',
+      input: {},
+      mode: args.mode,
+      ...(args.credentialRef !== undefined && {
+        credentialRef: args.credentialRef,
+      }),
+    });
+    const address =
+      isRecord(output) && typeof output.emailAddress === 'string'
+        ? output.emailAddress.trim()
+        : '';
+    if (!looksLikeEmailAddress(address)) return undefined;
+    const config = isRecord(row.config) ? row.config : undefined;
+    const nextConfig = withFromAddress(
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the shim serves config as the credential's public scalar map
+      config as Record<string, string | number | boolean> | undefined,
+      address,
+    );
+    if (
+      nextConfig !== undefined &&
+      nextConfig.fromAddress !== config?.fromAddress
+    ) {
+      await ctx.runMutation(
+        internal.connector_credentials.mutations.patchCredentialInternal,
+        {
+          organizationId: args.organizationId,
+          credentialId: row._id,
+          config: nextConfig,
+        },
+      );
+      console.info(
+        `[syncMailbox] learned the ${args.connectorSlug} mailbox address for credential ${row._id}`,
+      );
+    }
+    return address;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn(
+      `[syncMailbox] ${args.connectorSlug} mailbox address heal failed (${args.credentialRef ?? 'default'}): ${message}`,
+    );
+    return undefined;
+  }
+}
+
 async function syncOneMailbox(
   ctx: ActionCtx,
   args: {
@@ -576,11 +806,19 @@ async function syncOneMailbox(
     ...credentialRefArg,
   });
   if (accountEmail === undefined) {
-    accountEmail = await healImapFromAddress(ctx, {
-      organizationId: args.organizationId,
-      connectorSlug: args.connectorSlug,
-      ...credentialRefArg,
-    });
+    accountEmail =
+      args.connectorSlug === 'imap-smtp'
+        ? await healImapFromAddress(ctx, {
+            organizationId: args.organizationId,
+            connectorSlug: args.connectorSlug,
+            ...credentialRefArg,
+          })
+        : await healOAuthFromAddress(ctx, {
+            organizationId: args.organizationId,
+            connectorSlug: args.connectorSlug,
+            mode: args.mode,
+            ...credentialRefArg,
+          });
   }
 
   const inboundListed = await listFolder(ctx, {
@@ -903,7 +1141,85 @@ async function listInbox(
       credentialRef: args.credentialRef,
     }),
   });
-  return listedMessages(output);
+  const listed = listedMessages(output);
+  if (args.connectorSlug !== 'gmail') return listed;
+  return await fetchGmailEnvelopes(ctx, {
+    organizationId: args.organizationId,
+    listed,
+    mode: args.mode,
+    ...(args.credentialRef !== undefined && {
+      credentialRef: args.credentialRef,
+    }),
+  });
+}
+
+/**
+ * Gmail's `list_messages` is `users.messages.list`: bare `{id, threadId}`
+ * pairs, no envelope. Outlook and IMAP list subject, sender and date in the
+ * same call, so the digest reads them off the listing; Gmail needs one
+ * metadata fetch per id (headers + snippet — no body, no attachment bytes) to
+ * carry the same fields, in the shape the IMAP listing already has. A message
+ * gone between the list and the fetch is skipped; every fetch failing fails
+ * the mailbox, so a dead token cannot read as an empty inbox.
+ */
+async function fetchGmailEnvelopes(
+  ctx: ActionCtx,
+  args: {
+    organizationId: string;
+    listed: Array<Record<string, unknown>>;
+    mode: 'mock' | 'live';
+    credentialRef?: string;
+  },
+): Promise<Array<Record<string, unknown>>> {
+  const rows: Array<Record<string, unknown>> = [];
+  const failures: string[] = [];
+  for (const summary of args.listed) {
+    const messageId = typeof summary.id === 'string' ? summary.id : null;
+    if (!messageId) continue;
+    let output: unknown;
+    try {
+      output = await runMailAction(ctx, {
+        organizationId: args.organizationId,
+        connectorSlug: 'gmail',
+        action: 'get_message',
+        input: { messageId, format: 'metadata' },
+        mode: args.mode,
+        ...(args.credentialRef !== undefined && {
+          credentialRef: args.credentialRef,
+        }),
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn(
+        `[listMailboxMessages] gmail message ${messageId} skipped: ${message}`,
+      );
+      failures.push(`${messageId}: ${message}`);
+      continue;
+    }
+    const fetched = unwrapFetchedMessage(output);
+    // A connector answer that is not a raw Gmail message normalizes to itself,
+    // so every envelope field is read as possibly absent.
+    const email: Partial<EmailType> = normalizeEmail(fetched);
+    const sender = email.from?.[0];
+    const sentAt = emailEpochMs(email.date);
+    rows.push({
+      ...summary,
+      id: messageId,
+      from: sender?.address ?? sender?.name ?? '',
+      subject: email.subject ?? '',
+      ...(sentAt !== null && { sentAt }),
+      snippet:
+        isRecord(fetched) && typeof fetched.snippet === 'string'
+          ? fetched.snippet
+          : '',
+    });
+  }
+  if (rows.length === 0 && failures.length > 0) {
+    throw new Error(
+      `conversation.list_mailbox_messages: every gmail message fetch failed (${failures.join('; ')})`,
+    );
+  }
+  return rows;
 }
 
 function stampCredentialMessage(

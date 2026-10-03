@@ -35,13 +35,7 @@ export { STATUS_CHATTER } from './data/status-chatter';
 export type { StatusChatterEntry } from './data/status-chatter';
 
 // Scanner helpers (used by external scripts like `glossary-audit.ts`).
-export {
-  walkDocsRoot,
-  walkMessagesDir,
-  lexIcu,
-  slugifyHeading,
-  extractHeadingSlugs,
-} from './scanner';
+export { walkDocsRoot, walkMessagesDir, lexIcu } from './scanner';
 export type { Fragment, Source, JsonSource, MarkdownSource } from './scanner';
 
 // Internal regex helpers (used by `glossary-audit.ts`).

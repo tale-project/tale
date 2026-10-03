@@ -78,7 +78,28 @@ Das Backend ruft das Bildmodell mit dem Zugang der Organisation auf; kein Schlü
 
 Die Antwort eines eigenen OpenAI-kompatiblen Endpunkts auf `/models` muss ein Bildmodell mit `image` unter `architecture.output_modalities` oder `modalities.output` und einem positiven `context_length` oder `context_window` ausweisen. Tale speichert nur Rasterbilder (PNG, JPEG, WebP, GIF) und lehnt SVG-Ausgaben eines Modells ab; ein Referenzbild, das ein Agent mitgibt, muss eine PNG-, JPEG- oder WebP-Datei von höchstens 4 MB sein. Ein Katalogeintrag beweist nicht, dass der Endpunkt funktioniert: Schalte die Bildgenerierung ein, lege das Modell fest, lass einen Agenten ein Testbild erstellen und prüfe die Anfrage in den Logs des Endpunkts.
 
-Ein Zug eines Agenten erstellt höchstens 16 Bilder und führt jeweils nur eine Generierung aus. Vor jedem Aufruf hält Tale 0,25 USD pro Bild gegen den Rahmen des Zugs und die Budgetgrenzen fest und bucht nach dem Aufruf die gemeldeten Kosten an ihrer Stelle. Ein Zug über ein Anbieter-Abonnement hat keinen Gateway-Rahmen; seine Bilder werden an dem Rahmen gemessen, den die Installation einem Zug standardmäßig gibt.
+Ein Zug eines Agenten erstellt höchstens 16 Bilder und führt jeweils nur eine Generierung aus. Vor jedem Aufruf hält Tale 0,25 USD pro Bild gegen den Rahmen des Zugs und die Budgetgrenzen fest und bucht nach dem Aufruf die gemeldeten Kosten an ihrer Stelle. Der Gateway-Schlüssel des Zugs gibt denselben Betrag von seiner Grenze ab, sodass Modell und Bilder zusammen in einem Rahmen bleiben; kann das Gateway diese Grenze nicht senken, wird das Bild abgelehnt. Ein Zug über ein Anbieter-Abonnement hat keinen Gateway-Rahmen; seine Bilder werden an dem Rahmen gemessen, den die Installation einem Zug standardmäßig gibt.
+
+## Den Standard-Agenten konfigurieren {#configure-the-standard-agent}
+
+Die Richtlinie der Organisation liegt unter `TALE_CONFIG_DIR/<org>/governance/standard-agent.yml`, mit dem Richtlinientyp `standard_agent`. Die [Seite Modelle](/de/platform/admin/governance/content-models#standard-agent) bearbeitet dieselben Einstellungen. Eine neue Organisation erhält den Standard-Agenten eingeschaltet, und eine fehlende Datei bedeutet ebenfalls eingeschaltet:
+
+```yaml
+enabled: true
+```
+
+Lege die Laufzeit, das Modell oder beides fest und ersetze die eingebauten Anweisungen:
+
+```yaml
+enabled: true
+harness: claude-code
+providerSlug: anthropic
+modelId: claude-sonnet-5
+instructions: |
+  Schreibe im Stil unseres Hauses. Liefere jedes Dokument als Word-Datei.
+```
+
+`harness` nimmt den Slug einer Laufzeit, die ein Projektagent nutzen kann, etwa `claude-code` oder `codex`; eine andere lehnt die Seite Modelle ab. Ein festgelegtes Modell braucht `providerSlug` und `modelId`. Ungültig sind eine halbe Festlegung, ein unbekanntes Feld und Anweisungen mit mehr als 20.000 Zeichen. Eine ungültige oder unlesbare Datei hält jeden Standard-Agenten vom Start ab, und die Seite Modelle nennt das Problem; als eingeschaltet gilt sie nie. Ein nicht verfügbares Modell weicht nie auf ein anderes aus, ebenso wenig eines, das der Modellzugriff einer Person nicht erlaubt. Tale liest die Richtlinie bei jedem Start eines Laufs, eine Änderung gilt also ab dem nächsten Lauf. Mit `enabled: false` bleiben die schon eingerichteten Standard-Agenten in ihren Projekten, aber keiner von ihnen startet.
 
 ## Modellzugriff aus der Sandbox prüfen
 

@@ -18,16 +18,16 @@ Der Connector bestimmt die Felder. Verwende die tatsächlichen Zugangsdaten des 
 
 | Methode | Benötigte Angaben |
 | --- | --- |
-| API-Schlüssel | Der vom Dienst ausgegebene Schlüssel, etwa für Tavily oder Shopify. |
-| Token | Ein Dienst-Token, etwa ein persönlicher GitHub-Zugangstoken oder ein Discord-Bot-Token. |
+| API-Schlüssel | Der vom Dienst ausgegebene Schlüssel, etwa für Tavily oder Shopify. Jev decisions braucht einen OpenRouter-API-Schlüssel. |
+| Token | Ein Dienst-Token, etwa ein persönlicher GitHub-Zugangstoken, ein Discord-Bot-Token oder ein GlitchTip-API-Token mit `project:read` und `event:read`. |
 | Benutzername und Passwort | Das vom Dienst erwartete Paar, etwa Anmeldung und App-Passwort oder eine anbieterspezifische ID mit Token. |
 | OAuth | Die Freigabe im Browser beim Anbieter. Tale speichert die zurückgegebene Berechtigung. |
 
-Manche Connectors benötigen zusätzlich die Adresse der Instanz. Für Confluence ist das die Basisadresse der Atlassian-Site. Für Shopify verwendest du die `myshopify.com`-Adresse des Shops, nicht die öffentliche Shop-Domain.
+Manche Connectors benötigen zusätzlich die Adresse der Instanz. Für Confluence ist das die Basisadresse der Atlassian-Site. Für GlitchTip ist das der Ursprung der Instanz, etwa `https://app.glitchtip.com`; eine selbst gehostete Instanz muss zusätzlich durch die Host-Richtlinie des Connectors erlaubt sein. Für Shopify verwendest du die `myshopify.com`-Adresse des Shops, nicht die öffentliche Shop-Domain.
 
 ## Einen Standard wählen
 
-Die Tabelle zeigt eine Zeile je Zugangsdaten-Eintrag. **Standard** kennzeichnet den Eintrag für Aktionen ohne ausdrückliche Auswahl. Mit **Zum Standard machen** im Zeilenmenü änderst du ihn. Pro Connector ist ein Standard möglich.
+Die Tabelle zeigt eine Zeile je Zugangsdaten-Eintrag und aktualisiert sich ohne Neuladen, solange sie geöffnet ist: Was andere Admins hinzufügen, ändern oder löschen, siehst du sofort. **Standard** kennzeichnet den Eintrag für Aktionen ohne ausdrückliche Auswahl. Mit **Zum Standard machen** im Zeilenmenü änderst du ihn. Pro Connector ist ein Standard möglich.
 
 Ein Connector mit mehreren Einträgen, aber ohne Standard funktioniert weiterhin für Aufrufer, die Zugangsdaten benennen. Ohne einen solchen Namen braucht der Aufruf einen Standard. Benenne Konten eindeutig, bevor du sie in Automatisierungen verwendest, damit später erkennbar bleibt, welches Konto gemeint ist.
 
@@ -41,7 +41,7 @@ Nutze die Ersetzen-Aktion der jeweiligen Methode, etwa **API-Schlüssel ersetzen
 
 <Warning>
 
-Das Löschen von Zugangsdaten entzieht abhängigen Automatisierungen und Agenten den Zugriff. Stelle die Aufrufer vorher um und wähle bei Bedarf einen neuen Standard. Ein gelöschter Eintrag lässt sich nicht durch erneutes Öffnen wiederherstellen.
+Das Löschen von Zugangsdaten entzieht abhängigen Automatisierungen und Agenten den Zugriff. Stelle die Aufrufer vorher um. Löschst du den Standard eines Connectors, wird sein ältester verbleibender aktiver Eintrag zum Standard; die Bestätigung nennt diesen Eintrag, bevor du löschst. Ein deaktivierter Eintrag oder einer, der neu verbunden werden muss, übernimmt nie. Bleibt kein aktiver Eintrag übrig, hat der Connector keinen Standard, bis du einen wählst. Ein gelöschter Eintrag lässt sich nicht durch erneutes Öffnen wiederherstellen.
 
 </Warning>
 

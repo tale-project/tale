@@ -27,18 +27,39 @@ export interface CompetenceRecordWire {
   evidence: string | null;
 }
 
-/** One member's API key as the budget editor's picker lists it
- * (`GET /governance/api-keys`, admin only) — masked: the name and the first
- * characters the owner saw, never the secret. */
+/**
+ * What the organization can say about a key a budget rule names: `active`
+ * can still spend and is offered by the picker; every other state is a key
+ * a saved rule still points at — expired, disabled, explicitly revoked,
+ * absent without a recorded cause (`unavailable`), held by someone who
+ * left (`holder_left`), or one this organization knows nothing about
+ * (`unknown`).
+ */
+export type OrgApiKeyStatus =
+  | 'active'
+  | 'expired'
+  | 'disabled'
+  | 'holder_left'
+  | 'revoked'
+  | 'unavailable'
+  | 'unknown';
+
+/** One API key as the budget editor reads it (`GET /governance/api-keys`,
+ * admin only) — masked: the name and the first characters the owner saw,
+ * never the secret. The listing carries every member's live key, and the
+ * keys the saved rules name that are no longer live, each with its state. */
 export interface OrgApiKeyWire {
   id: string;
   name: string | null;
   start: string | null;
-  userId: string;
+  /** The holder, when the organization knows who that is. */
+  userId: string | null;
   ownerName: string | null;
   ownerEmail: string | null;
-  createdAt: number;
+  /** Absent on a key only a rule still names. */
+  createdAt: number | null;
   expiresAt: number | null;
+  status: OrgApiKeyStatus;
 }
 
 export interface GovernanceContract {
@@ -699,6 +720,19 @@ export interface GovernanceContract {
       /** The models the reader may call there, by the id both wires take —
        * empty unless `enabled` and `allowed` both hold. */
       models: Array<{ id: string; label: string }>;
+    };
+  };
+  'governance/queries:getMyApiKeyAccess': {
+    kind: 'query';
+    args: { organizationId: string };
+    returns: {
+      /** The reader may create a personal API key: owner, admin or
+       * developer of any organization, or a live grant of a competence that
+       * is used with a key. */
+      mayCreate: boolean;
+      /** The reader holds an API key of any state — theirs to see and
+       * revoke whether or not they may create another. */
+      holdsKeys: boolean;
     };
   };
   'governance/queries:getOrgUsageMetrics': {

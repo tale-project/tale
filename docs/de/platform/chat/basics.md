@@ -57,7 +57,33 @@ Für Fragen zu Tale selbst musst du nichts hochladen: Der Assistent schlägt in 
 
 Unter **Quellen** stehen die geladenen Dokumente und Seiten. Öffne eine Quelle und prüfe, ob sie die jeweilige Aussage stützt. Eine Quellenangabe zeigt verwendetes Material, garantiert aber keine richtige Schlussfolgerung. Ohne Abrufschritt kann eine Antwort auf dem Vorwissen des Modells beruhen.
 
-Der Assistent durchsucht unter anderem Dokumente, Wissenseinträge, Websites, Kontakte, Produkte, zugängliche Aufgaben und die Inbox-Konversationen, die du sehen darfst. Dabei findet er auch den Text der E-Mails, die in diesen Konversationen eingegangen sind, und den ihrer Anhänge. Eine Aufgabe lässt sich über ihren Schlüssel nennen, etwa `DOCS-12`, wie das Board ihn anzeigt. Er kann Details zu einem Ergebnis abrufen und öffentliche Webseiten lesen. Code ausführen, verbundene Systeme ändern, Bilder erzeugen, Dateiergebnisse erstellen oder [Skills](/de/platform/workspace/skills) nutzen gehört nicht zum Chat. Lege dafür eine [Projektaufgabe](/de/platform/projects/tasks) an. Jeder, der das Projekt öffnen kann, kann sie anlegen und einem der Agenten des Projekts übergeben. Ein Projektagent, der an der Aufgabe arbeitet, kann Bilder erstellen, wenn ein Admin die [Bildgenerierung](/de/platform/admin/governance/content-models#let-agents-generate-images) eingeschaltet hat.
+Der Assistent durchsucht unter anderem Dokumente, Wissenseinträge, Websites, Kontakte, Produkte, zugängliche Aufgaben und die Inbox-Konversationen, die du sehen darfst. Dabei findet er auch den Text der E-Mails, die in diesen Konversationen eingegangen sind, und den ihrer Anhänge. Eine Aufgabe lässt sich über ihren Schlüssel nennen, etwa `DOCS-12`, wie das Board ihn anzeigt. Er kann Details zu einem Ergebnis abrufen und öffentliche Webseiten lesen. Code ausführen, verbundene Systeme ändern, Bilder erzeugen, Dateiergebnisse erstellen oder [Skills](/de/platform/workspace/skills) nutzen gehört nicht zum Chat. Lege dafür eine [Projektaufgabe](/de/platform/projects/tasks) an. Jeder, der das Projekt öffnen kann, kann sie anlegen und einem der Agenten des Projekts übergeben; [Aus einem Chat eine Aufgabe machen](#create-task-from-chat) zeigt, wie du sie direkt aus dem Gespräch anlegst. Ein Projektagent, der an der Aufgabe arbeitet, kann Bilder erstellen, wenn ein Admin die [Bildgenerierung](/de/platform/admin/governance/content-models#let-agents-generate-images) eingeschaltet hat.
+
+## Aus einem Chat eine Aufgabe machen {#create-task-from-chat}
+
+Endet ein Gespräch in Arbeit, die eine Datei braucht, etwa eine Präsentation, einen Bericht oder eine Tabelle, übergib sie einem Projekt-Agenten. Wähle im Kopf des Gesprächs **Aufgabe erstellen**; auf einem schmalen Bildschirm findest du **Aufgabe aus Chat erstellen** im Menü **⋯**. Liegt der Chat in einem Projekt, entsteht die Aufgabe dort. Sonst wählst du zuerst das Projekt: Unter **Mit Agent** stehen die Projekte, die du öffnen kannst und die Agenten haben, samt ihrer Anzahl. Ein Projekt ohne eigene Agenten steht dort mit **Standard-Agent**: Seine Aufgabe geht an den [Standard-Agenten](/de/platform/projects/project-agents#standard-agent) der Organisation. Kann der Standard-Agent für dich nicht laufen, etwa weil ein Admin ihn ausgeschaltet hat, stehen solche Projekte stattdessen unter **Noch ohne Agent**, jeweils mit dem Hinweis, wer einen hinzufügen kann.
+
+Der Aufgabendialog öffnet sich mit deiner letzten Anfrage als Beschreibung, einem Link zurück zum Chat und den Dateien, die du im Gespräch angehängt hast. Hat das Projekt genau einen Agenten oder nutzt es den Standard-Agenten, ist er unter **Zuständig** schon eingetragen; sonst wählst du einen. Passe alles nach Bedarf an und wähle dann **Erstellen und Agent starten**: Die Aufgabe entsteht, und der Agent beginnt sofort damit. **Nur erstellen** legt sie an, ohne den Agenten zu starten; das holst du später mit **Agent starten** in der Aufgabe nach.
+
+<Frame caption="Aufgabe erstellen öffnet den Aufgabendialog mit der Anfrage, einem Link zurück zum Chat und dem Agenten, der sie übernimmt.">
+
+![Der Dialog zum Erstellen einer Aufgabe enthält als Titel und Beschreibung „Plan the quarterly business review agenda for Friday“, unter der Anfrage einen Link mit der Beschriftung From the chat, Content editor als zuständigen Agenten und die Schaltflächen Create only und Create and start agent.](/images/platform/chat-create-task.webp)
+
+</Frame>
+
+Danach steht die Aufgabe über dem Nachrichtenfeld des Chats, mit dem, was sie gerade tut: **Der Agent arbeitet**, **Wartet auf einen Sandbox-Platz**, **Wird erneut versucht…**, **Bereit zur Prüfung** mit der Zahl der gelieferten Dateien oder **Der Agent konnte sie nicht fertigstellen**. **Öffnen** führt dich zur Aufgabe. Du wirst außerdem benachrichtigt, wenn sie zur Prüfung bereit ist und wenn der Agent nicht fertig wird; [Wenn der Agent nicht fertig wird](/de/platform/projects/task-automation#wenn-der-agent-nicht-fertig-wird) erklärt, wie es weitergeht.
+
+<Frame caption="Die Aufgabe, die ein Chat übergeben hat, zeigt ihren Fortschritt über dem Nachrichtenfeld.">
+
+![Über dem Nachrichtenfeld nennt eine Zeile die Aufgabe „Plan the quarterly business review agenda for Friday“ mit Ready for review · Website relaunch und einem Link Open.](/images/platform/chat-task-tray.webp)
+
+</Frame>
+
+Bittest du den Assistenten um eine solche Datei, beantwortet er, was in eine Antwort passt, und führt dich dann für deine eigenen Projekte durch diese Schritte, mit den Beschriftungen, die du siehst.
+
+Bietet kein Projekt, das du öffnen kannst, einen Agenten an? Dann kann der Standard-Agent für dich nicht laufen: Ein Admin hat ihn vielleicht unter [Richtlinien > Modelle](/de/platform/admin/governance/content-models#standard-agent) ausgeschaltet, oder kein Modell, das du nutzen darfst, kann ihn ausführen. Frag einen Admin danach, oder bitte einen Redakteur oder Admin, im Tab **Agenten** des Projekts einen Agenten hinzuzufügen. Als Redakteur kannst du auch direkt in der Aufgabe einen hinzufügen: Wähle unter **Zuständig** **Agent erstellen …**.
+
+Dateien kommen nur aus deinem eigenen Gespräch mit. Eine Aufgabe nimmt nur die Uploads der Person an, die sie erstellt; eine Aufgabe aus einem Chat, den jemand in ein Projekt geteilt hat, beginnt deshalb ohne sie.
 
 ## Ein Gespräch fortsetzen oder aufbewahren
 
@@ -75,5 +101,6 @@ Sehr lange Gespräche können das Kontextfenster des Modells überschreiten. Tal
 | Eine Datei wurde nicht verwendet | Prüfe Projektzuordnung, Indexierungsstatus und Abrufschritte. Nenne die Datei ausdrücklich. |
 | Die Suche meldet eine nicht verfügbare Quelle | Bitte einen Admin, den genannten Dienst oder die Embedding-Konfiguration zu prüfen. Ein leeres Ergebnis beweist nicht, dass die Information fehlt. |
 | Eine Antwort endet mit einem Fehler | Lies die Fehlermeldung, prüfe das gewählte Modell und versuche es nach Behebung erneut. Tale wechselt nicht still den Anbieter. |
+| Eine Antwort bleibt leer | Der Hinweis an ihrer Stelle nennt den Grund: Das Modell hat nichts geliefert, es hat sein Limit für Ausgabe-Tokens vor dem Schreiben aufgebraucht, oder der Inhaltsfilter des Anbieters hat die Antwort zurückgehalten. Wähle **Erneut versuchen**, oder verringere vorher den Denkaufwand, kürze die Anfrage oder wähle ein anderes Modell. |
 
 Ein angeleitetes Beispiel mit Quellenprüfung findest du unter [Bessere Fragen im Chat](/de/tutorials/member/chat-effectively).

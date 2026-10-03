@@ -1,8 +1,11 @@
 import { describe, it, expect } from 'vitest';
 
 import {
+  isProjectAgentSession,
+  memberSessionIdForProjectAgent,
   sessionIdForRender,
   sessionIdForWorkflowExecution,
+  standingSessionIdForProjectAgent,
   workflowExecutionOwnerId,
 } from './session_naming';
 
@@ -33,5 +36,34 @@ describe('render sessions', () => {
     expect(a).toMatch(ID_ALPHABET_RE);
     expect(sessionIdForRender('batch-a')).toBe(a);
     expect(sessionIdForRender('batch-b')).not.toBe(a);
+  });
+});
+
+describe('project agent sessions', () => {
+  it('isProjectAgentSession recognizes every session of the agent and no other', () => {
+    for (const agentId of [
+      '6f1c2a9e-3b4d-4e5f-8a7b-9c0d1e2f3a4b',
+      // Too long to keep verbatim in a member's session id: folded.
+      `agent-${'x'.repeat(60)}`,
+    ]) {
+      const member = memberSessionIdForProjectAgent(agentId, 'user-1');
+      expect(member).toMatch(ID_ALPHABET_RE);
+      expect(isProjectAgentSession(agentId, member)).toBe(true);
+      expect(
+        isProjectAgentSession(
+          agentId,
+          standingSessionIdForProjectAgent(agentId),
+        ),
+      ).toBe(true);
+      expect(isProjectAgentSession(`${agentId}0`, member)).toBe(false);
+      expect(isProjectAgentSession(agentId, `${member}0`)).toBe(false);
+    }
+    // One agent's id prefixing another's never claims its sessions.
+    expect(
+      isProjectAgentSession(
+        'agent-1',
+        memberSessionIdForProjectAgent('agent-12', 'user-1'),
+      ),
+    ).toBe(false);
   });
 });

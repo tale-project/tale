@@ -46,6 +46,19 @@ export interface SpawnerConfig {
   // pulls resolve by name on the internal net (buildkit can't resolve external
   // registry names through docker's embedded DNS).
   buildkitdMirrorImage: string;
+  // The bounds of each organization's builder (env SANDBOX_BUILDKITD_CPUS and
+  // SANDBOX_BUILDKITD_MEMORY): unset, an agent session's CPUs and twice its
+  // memory (buildkitd.ts buildkitHelperLimits).
+  buildkitdCpus?: number;
+  buildkitdMemoryBytes?: number;
+  // The build cache an organization's builder keeps when it stops for want of
+  // agent sessions (env SANDBOX_BUILDKITD_IDLE_CACHE): unset, 5 GiB
+  // (buildkitd.ts DEFAULT_IDLE_CACHE_BYTES).
+  buildkitdIdleCacheBytes?: number;
+  // How long an organization's stopped build helpers keep their caches
+  // (env SANDBOX_BUILDKITD_CACHE_RETENTION): unset, 14 days; 0 keeps them
+  // until the organization is deleted (buildkitd.ts sweepIdleBuildkitd).
+  buildkitdCacheRetentionMs?: number;
   // Transparent egress for the session container's OWN processes (env
   // SANDBOX_TRANSPARENT_EGRESS; default true). When true the entrypoint installs
   // an iptables OUTPUT REDIRECT → redsocks → the egress proxy, so ANY client
@@ -74,6 +87,11 @@ export interface SpawnerConfig {
     // bound a runaway session can fill the node disk; the K8s analogue of
     // docker's fsize ulimit.
     workspaceSizeLimit: string;
+    // What every session Pod requests from the scheduler, overriding the
+    // per-profile defaults (env SANDBOX_K8S_CPU_REQUEST /
+    // SANDBOX_K8S_MEMORY_REQUEST, K8s quantities). Never above the limit.
+    cpuRequest?: string;
+    memoryRequest?: string;
   };
   maxTimeoutMs: number;
   // Single flat host session root. The sandbox tier is one container that rolls
@@ -125,10 +143,25 @@ export interface HubConfig {
 export interface SessionConfig {
   /** Spawner-wide concurrent session cap (replica-local on Docker). */
   maxSessions: number;
+  /** No SANDBOX_MAX_SESSIONS was set: a Docker spawner that can read its
+   * host's memory sizes {@link maxSessions} from it at boot. */
+  autoMaxSessions?: boolean;
+  /** Memory admission always leaves free on the host (SANDBOX_MIN_FREE_MEMORY);
+   * unset is a tenth of the host, at least 1 GiB. */
+  minFreeMemoryBytes?: number;
+  /** Free space admission keeps on the disk the workspaces live on
+   * (SANDBOX_MIN_FREE_DISK; 0 turns the floor off); unset is a twentieth of
+   * the disk, at least 2 GiB and at most 20 GiB (host-disk.ts). */
+  minFreeDiskBytes?: number;
   /** Hard wall-clock ceiling on a session's lifetime. */
   maxLifetimeMs: number;
   /** Idle ceiling — sessions with no runnerd activity past this are reaped. */
   maxIdleMs: number;
+  /** Idle window for a session the platform has RELEASED (its turn or run
+   * settled, nothing holds it): stopped once idle this long instead of after
+   * the full {@link maxIdleMs}. Docker-in-sandbox sessions keep the full
+   * window, since their resume rebuilds an empty inner image store. */
+  releasedIdleMs: number;
   /** Max time the spawner will LINGER (keep serving its sessions) after a deploy
    * put it into drain mode before it reclaims that compute itself
    * (CLI-independent safety net). Workspaces are preserved for resume. See

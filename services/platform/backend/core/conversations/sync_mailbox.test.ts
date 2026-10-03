@@ -8,6 +8,7 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { functionRefName } from '../../../lib/shared/handlers/function-refs';
 import { isRecord } from '../../../lib/utils/type-utils';
 import type { ActionCtx } from '../lib/ctx';
 
@@ -81,6 +82,11 @@ interface HarnessOptions {
   }>;
   /** Credential ids whose connector calls fail — one unreachable mailbox. */
   failCredentials?: Record<string, string>;
+  /** Message ids whose `get_message` fails — one message gone since the list. */
+  failMessages?: Record<string, string>;
+  /** The credential row `resolveCredentialRefInternal` serves the OAuth
+   * from-address heal (default: none, so the heal finds nothing to patch). */
+  credentialRow?: Record<string, unknown>;
   /**
    * Already-ingested messages, by normalized external id — what
    * `getMessageByExternalId` finds. Lets a test re-fetch a message the org
@@ -102,6 +108,7 @@ function harness(
   const outcome = options.outcome ?? { status: 'ok' };
   const credentials = options.credentials ?? [];
   const failCredentials = options.failCredentials ?? {};
+  const failMessages = options.failMessages ?? {};
   const existingMessages = options.existingMessages ?? {};
   const calls: ConnectorCall[] = [];
   const cursorPatches: Array<Record<string, unknown>> = [];
@@ -140,15 +147,24 @@ function harness(
         ? failCredentials[call.credentialRef]
         : undefined;
     if (failure !== undefined) return { status: 'error', message: failure };
+    const gone =
+      call.action === 'get_message'
+        ? failMessages[String(call.input.uid ?? call.input.messageId)]
+        : undefined;
+    if (gone !== undefined) return { status: 'error', message: gone };
     return { status: 'ok', output: reply(call) };
   };
   const runQuery = async (
-    _ref: unknown,
+    ref: unknown,
     args?: Record<string, unknown>,
   ): Promise<unknown> => {
     // `getMessageByExternalId` shares this seam with the credential list.
     if (args !== undefined && typeof args.externalMessageId === 'string') {
       return existingMessages[args.externalMessageId] ?? null;
+    }
+    // The OAuth from-address heal reads one credential row by ref.
+    if (functionRefName(ref).endsWith('resolveCredentialRefInternal')) {
+      return options.credentialRow ?? null;
     }
     return credentials;
   };
@@ -317,7 +333,7 @@ describe('syncMailbox over IMAP', () => {
 });
 
 describe('syncMailbox over Gmail', () => {
-  it('turns the cursor into an epoch-second search and reads Sent by label', async () => {
+  it('turns the cursor into an epoch-second search and reads each folder by label', async () => {
     const { ctx, calls } = harness(
       mailbox([{ id: 'g1', threadId: 't1' }], [{ id: 'g2', threadId: 't1' }]),
     );
@@ -330,8 +346,11 @@ describe('syncMailbox over Gmail', () => {
       mode: 'live',
     });
 
+    // INBOX is named, never implied: an unlabelled `users.messages.list`
+    // answers Sent too, and the mailbox's own mail opened conversations with
+    // the mailbox as the customer.
     expect(inputsFor(calls, 'list_messages')).toEqual([
-      { maxResults: 50, q: 'after:5' },
+      { maxResults: 50, q: 'after:5', labelIds: 'INBOX' },
       { maxResults: 50, q: 'after:7', labelIds: 'SENT' },
     ]);
     expect(inputsFor(calls, 'get_message')).toEqual([
@@ -349,7 +368,7 @@ describe('syncMailbox over Gmail', () => {
 });
 
 describe('syncMailbox over Outlook', () => {
-  it('addresses Sent Items as a folder and filters it by sentDateTime', async () => {
+  it('addresses each folder by name and filters Sent Items by sentDateTime', async () => {
     const { ctx, calls } = harness(mailbox([{ id: 'o1' }], [{ id: 'o2' }]));
 
     await syncMailbox(ctx, {
@@ -364,9 +383,12 @@ describe('syncMailbox over Outlook', () => {
     // on one date field ordered by another — so the folder rides `folder` while
     // the cursor and the sort both switch to sentDateTime. Both folders sort
     // ASC so a backlog drains forward from the watermark.
+    // The Inbox is a folder too: `/me/messages` spans every folder, Sent
+    // Items included — the same hole as Gmail's unlabelled listing.
     expect(inputsFor(calls, 'list_messages')).toEqual([
       {
         top: 25,
+        folder: 'inbox',
         orderby: 'receivedDateTime asc',
         filter: 'receivedDateTime ge 1970-01-01T00:00:05.000Z',
       },
@@ -583,6 +605,274 @@ describe('syncMailbox attachment handling', () => {
       storageId: 'storage-1',
     });
     expect(attachment).not.toHaveProperty('contentBase64');
+  });
+});
+
+/**
+ * A raw Gmail `format=full` message with one attachment part. Gmail mints a
+ * fresh attachment id on every fetch, so each response names its own.
+ */
+function gmailMessage(attachmentId: string, size = 3) {
+  return {
+    id: 'g1',
+    payload: {
+      mimeType: 'multipart/mixed',
+      headers: [
+        { name: 'Message-ID', value: '<g1@example.com>' },
+        { name: 'From', value: 'Ada <ada@example.com>' },
+        { name: 'Date', value: 'Fri, 04 Apr 2025 00:00:00 +0000' },
+      ],
+      parts: [
+        {
+          mimeType: 'text/plain',
+          body: { data: Buffer.from('See attached').toString('base64url') },
+        },
+        {
+          mimeType: 'application/pdf',
+          filename: 'report.pdf',
+          headers: [],
+          body: { attachmentId, size },
+        },
+      ],
+    },
+  };
+}
+
+/** One Gmail envelope; the plain fetch lists the part, and `withBytes`
+ *  answers the fetch that asks for the attachments. */
+function gmailMailbox(withBytes: (call: ConnectorCall) => unknown): Reply {
+  return (call) => {
+    if (call.action === 'list_messages') {
+      return { messages: [{ id: 'g1', threadId: 't1' }] };
+    }
+    if (call.input.includeAttachments !== true) {
+      return { message: gmailMessage('att-first-fetch'), attachments: [] };
+    }
+    return withBytes(call);
+  };
+}
+
+function ingestedAttachments(): unknown {
+  const ingested = createConversationFromEmail.mock.calls[0]?.[1] as {
+    emails: Array<{ attachments?: unknown }>;
+  };
+  return ingested.emails[0]?.attachments;
+}
+
+async function syncOnce(ctx: ActionCtx, connectorSlug: string): Promise<void> {
+  await syncMailbox(ctx, {
+    organizationId: 'org',
+    connectorSlug,
+    limit: 25,
+    includeSent: false,
+    mode: 'live',
+  });
+}
+
+describe('syncMailbox connector-stored attachments (Gmail, Outlook)', () => {
+  it('asks Gmail for the bytes of a new message and ingests the stored reference', async () => {
+    const { ctx, calls } = harness(
+      gmailMailbox(() => ({
+        message: gmailMessage('att-second-fetch'),
+        attachments: [
+          {
+            id: 'att-second-fetch',
+            filename: 'report.pdf',
+            contentType: 'application/pdf',
+            size: 3,
+            fileId: 's3:org/report',
+          },
+        ],
+      })),
+    );
+
+    await syncOnce(ctx, 'gmail');
+
+    expect(inputsFor(calls, 'get_message')).toEqual([
+      { messageId: 'g1' },
+      { messageId: 'g1', includeAttachments: true },
+    ]);
+    // The reference matches the part of the SAME response — the first fetch's
+    // attachment id is already stale.
+    expect(ingestedAttachments()).toEqual([
+      {
+        id: 'att-second-fetch',
+        filename: 'report.pdf',
+        contentType: 'application/pdf',
+        size: 3,
+        storageId: 's3:org/report',
+      },
+    ]);
+  });
+
+  // The cursor message is re-fetched on every poll; asking again would store
+  // another copy of every attachment each time.
+  it('keeps the stored references of a message already ingested', async () => {
+    const stored = {
+      id: 'att-old',
+      filename: 'report.pdf',
+      contentType: 'application/pdf',
+      size: 3,
+      storageId: 's3:org/report',
+    };
+    const { ctx, calls } = harness(
+      gmailMailbox(() => {
+        throw new Error('must not ask for the bytes again');
+      }),
+      {
+        existingMessages: {
+          'g1@example.com': { metadata: { attachments: [stored] } },
+        },
+      },
+    );
+
+    await syncOnce(ctx, 'gmail');
+
+    expect(inputsFor(calls, 'get_message')).toEqual([{ messageId: 'g1' }]);
+    expect(ingestedAttachments()).toEqual([stored]);
+  });
+
+  it('asks again for a message ingested before its attachments were stored', async () => {
+    const { ctx, calls } = harness(
+      gmailMailbox(() => ({
+        message: gmailMessage('att-second-fetch'),
+        attachments: [
+          {
+            id: 'att-second-fetch',
+            filename: 'report.pdf',
+            contentType: 'application/pdf',
+            size: 3,
+            fileId: 's3:org/report',
+          },
+        ],
+      })),
+      {
+        existingMessages: {
+          'g1@example.com': {
+            metadata: {
+              attachments: [
+                {
+                  id: 'att-old',
+                  filename: 'report.pdf',
+                  contentType: 'application/pdf',
+                  size: 3,
+                },
+              ],
+            },
+          },
+        },
+      },
+    );
+
+    await syncOnce(ctx, 'gmail');
+
+    expect(inputsFor(calls, 'get_message')).toEqual([
+      { messageId: 'g1' },
+      { messageId: 'g1', includeAttachments: true },
+    ]);
+    expect(ingestedAttachments()).toEqual([
+      expect.objectContaining({ storageId: 's3:org/report' }),
+    ]);
+  });
+
+  it('records a part the connector could not carry as truncated', async () => {
+    const { ctx } = harness(
+      gmailMailbox(() => ({
+        message: gmailMessage('att-second-fetch', 9_000_000),
+        attachments: [
+          {
+            id: 'att-second-fetch',
+            filename: 'report.pdf',
+            contentType: 'application/pdf',
+            size: 9_000_000,
+            truncated: true,
+          },
+        ],
+      })),
+    );
+
+    await syncOnce(ctx, 'gmail');
+
+    expect(ingestedAttachments()).toEqual([
+      {
+        id: 'att-second-fetch',
+        filename: 'report.pdf',
+        contentType: 'application/pdf',
+        size: 9_000_000,
+        truncated: true,
+      },
+    ]);
+  });
+
+  it('still ingests the mail with metadata-only chips when the download fails', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { ctx } = harness(
+      gmailMailbox(() => {
+        throw new Error('vendor unavailable');
+      }),
+    );
+
+    await syncOnce(ctx, 'gmail');
+
+    expect(ingestedAttachments()).toEqual([
+      {
+        id: 'att-first-fetch',
+        filename: 'report.pdf',
+        contentType: 'application/pdf',
+        size: 3,
+      },
+    ]);
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('attachments not stored'),
+    );
+    warn.mockRestore();
+  });
+
+  it('takes Outlook attachments from the connector, the only place Graph lists them', async () => {
+    const outlookMessage = {
+      id: 'o1',
+      internetMessageId: '<o1@example.com>',
+      hasAttachments: true,
+      from: { emailAddress: { name: 'Ada', address: 'ada@example.com' } },
+      receivedDateTime: '2025-04-04T00:00:00Z',
+      body: { contentType: 'text', content: 'See attached' },
+    };
+    const { ctx, calls } = harness((call) => {
+      if (call.action === 'list_messages') return { messages: [{ id: 'o1' }] };
+      if (call.input.includeAttachments !== true) {
+        return { message: outlookMessage, attachments: [] };
+      }
+      return {
+        message: outlookMessage,
+        attachments: [
+          {
+            id: 'o-att',
+            name: 'invoice.pdf',
+            contentType: 'application/pdf',
+            size: 5,
+            fileId: 's3:org/invoice',
+            contentId: 'logo',
+          },
+        ],
+      };
+    });
+
+    await syncOnce(ctx, 'outlook');
+
+    expect(inputsFor(calls, 'get_message')).toEqual([
+      { messageId: 'o1' },
+      { messageId: 'o1', includeAttachments: true },
+    ]);
+    expect(ingestedAttachments()).toEqual([
+      {
+        id: 'o-att',
+        filename: 'invoice.pdf',
+        contentType: 'application/pdf',
+        size: 5,
+        contentId: 'logo',
+        storageId: 's3:org/invoice',
+      },
+    ]);
   });
 });
 
@@ -1010,8 +1300,70 @@ describe('listMailboxMessages', () => {
     ).rejects.toThrow(/every imap-smtp mailbox failed/);
   });
 
-  it('uses the Gmail inbox query when no credentials are configured yet', async () => {
-    const { ctx, calls } = harness(mailbox([{ id: 'g1', subject: 'hi' }]));
+  it('reads Outlook envelopes off the listing alone', async () => {
+    const { ctx, calls } = harness(
+      mailbox([
+        {
+          id: 'o1',
+          subject: 'hi',
+          from: { emailAddress: { address: 'a@example.com' } },
+          receivedDateTime: '2026-10-01T08:00:00Z',
+        },
+      ]),
+    );
+
+    const result = await listMailboxMessages(ctx, {
+      organizationId: 'org',
+      connectorSlug: 'outlook',
+      limit: 5,
+      mode: 'live',
+    });
+
+    expect(calls.map((call) => call.action)).toEqual(['list_messages']);
+    expect(result.messages).toEqual([
+      expect.objectContaining({ id: 'o1', subject: 'hi' }),
+    ]);
+  });
+
+  // Gmail's `users.messages.list` answers bare ids — the envelope is one
+  // metadata fetch away. Before the fetch landed, every digest row read
+  // `subject: ''`, `from: ''`, `receivedAt: ''` for a live Gmail inbox.
+  const GMAIL_DATE = 'Wed, 15 Nov 2023 10:13:20 +0000';
+
+  /** The Gmail dialect: a list of ids, then the raw API message per id. */
+  function gmailInbox(ids: string[]): Reply {
+    return (call) => {
+      if (call.action === 'list_messages') {
+        return {
+          messages: ids.map((id) => ({ id, threadId: `t-${id}` })),
+          nextPageToken: '',
+        };
+      }
+      const id = String(call.input.messageId);
+      return {
+        message: {
+          id,
+          threadId: `t-${id}`,
+          labelIds: ['INBOX', 'UNREAD'],
+          snippet: `Snippet of ${id}`,
+          internalDate: '1700043200000',
+          payload: {
+            mimeType: 'text/plain',
+            headers: [
+              { name: 'Subject', value: `Subject of ${id}` },
+              { name: 'From', value: `Alice <alice-${id}@example.com>` },
+              { name: 'Date', value: GMAIL_DATE },
+              { name: 'Message-ID', value: `<${id}@mail.example.com>` },
+            ],
+          },
+        },
+        attachments: [],
+      };
+    };
+  }
+
+  it('reads Gmail envelopes with one metadata fetch per listed id', async () => {
+    const { ctx, calls } = harness(gmailInbox(['g1', 'g2']));
 
     const result = await listMailboxMessages(ctx, {
       organizationId: 'org',
@@ -1023,9 +1375,227 @@ describe('listMailboxMessages', () => {
     expect(inputsFor(calls, 'list_messages')).toEqual([
       { maxResults: 5, q: 'in:inbox' },
     ]);
-    expect(result.messages).toEqual([
-      expect.objectContaining({ id: 'g1', subject: 'hi' }),
+    // Headers and snippet only: no body, no attachment bytes.
+    expect(inputsFor(calls, 'get_message')).toEqual([
+      { messageId: 'g1', format: 'metadata' },
+      { messageId: 'g2', format: 'metadata' },
     ]);
+    expect(result.messages).toEqual([
+      {
+        id: 'g1',
+        threadId: 't-g1',
+        subject: 'Subject of g1',
+        from: 'alice-g1@example.com',
+        sentAt: Date.parse(GMAIL_DATE),
+        snippet: 'Snippet of g1',
+      },
+      {
+        id: 'g2',
+        threadId: 't-g2',
+        subject: 'Subject of g2',
+        from: 'alice-g2@example.com',
+        sentAt: Date.parse(GMAIL_DATE),
+        snippet: 'Snippet of g2',
+      },
+    ]);
+  });
+
+  it('fetches Gmail envelopes with the credential that listed them', async () => {
+    const { ctx, calls } = harness(gmailInbox(['g1']), {
+      credentials: [
+        { id: 'cred_a', name: 'Alpha', isDefault: true },
+        { id: 'cred_b', name: 'Beta', isDefault: false },
+      ],
+    });
+
+    const result = await listMailboxMessages(ctx, {
+      organizationId: 'org',
+      connectorSlug: 'gmail',
+      limit: 5,
+      mode: 'live',
+    });
+
+    expect(calls.map((call) => [call.credentialRef, call.action])).toEqual([
+      ['cred_a', 'list_messages'],
+      ['cred_a', 'get_message'],
+      ['cred_b', 'list_messages'],
+      ['cred_b', 'get_message'],
+    ]);
+    expect(result.messages).toEqual([
+      expect.objectContaining({
+        id: 'g1',
+        credentialName: 'Alpha',
+        subject: 'Subject of g1',
+      }),
+      expect.objectContaining({
+        id: 'g1',
+        credentialName: 'Beta',
+        subject: 'Subject of g1',
+      }),
+    ]);
+  });
+
+  it('skips a Gmail message gone between the list and the fetch', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      const { ctx } = harness(gmailInbox(['g1', 'g2', 'g3']), {
+        failMessages: { g2: 'Gmail get_message failed (404)' },
+      });
+
+      const result = await listMailboxMessages(ctx, {
+        organizationId: 'org',
+        connectorSlug: 'gmail',
+        limit: 5,
+        mode: 'live',
+      });
+
+      expect(result.messages.map((row) => row.id)).toEqual(['g1', 'g3']);
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('gmail message g2 skipped'),
+      );
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('fails a Gmail mailbox when every envelope fetch fails', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      const { ctx } = harness(gmailInbox(['g1', 'g2']), {
+        failMessages: { g1: 'invalid_grant', g2: 'invalid_grant' },
+      });
+
+      await expect(
+        listMailboxMessages(ctx, {
+          organizationId: 'org',
+          connectorSlug: 'gmail',
+          limit: 5,
+          mode: 'live',
+        }),
+      ).rejects.toThrow(/every gmail message fetch failed/);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+});
+
+describe("syncMailbox learns an OAuth mailbox's own address", () => {
+  /**
+   * Gmail and Outlook credentials carry no login to mirror, so the ingest
+   * had no account address: every root message counted as the customer's,
+   * and a thread the mailbox itself started opened with the mailbox as the
+   * contact and every direction inverted. The first pass now asks the
+   * provider (`get_profile`), keeps the answer on `config.fromAddress`, and
+   * hands it to the ingest as `accountEmail`.
+   */
+  it('asks Gmail who the mailbox is once, keeps it on the credential and hands it to the ingest', async () => {
+    resolveConnectorAccountEmail.mockResolvedValue(undefined);
+    const info = vi.spyOn(console, 'info').mockImplementation(() => undefined);
+    try {
+      const inbox = mailbox([{ id: 'g1', threadId: 't1' }]);
+      const { ctx, calls, cursorPatches } = harness(
+        (call) =>
+          call.action === 'get_profile'
+            ? { emailAddress: 'Desk@Example.com' }
+            : inbox(call),
+        {
+          credentials: [{ id: 'cred_g', name: 'Gmail', isDefault: true }],
+          credentialRow: { _id: 'cred_g', config: { label: 'Support' } },
+        },
+      );
+
+      await syncMailbox(ctx, {
+        organizationId: 'org',
+        connectorSlug: 'gmail',
+        limit: 25,
+        includeSent: false,
+        mode: 'live',
+      });
+
+      // The profile is read with the credential that lists, before the list.
+      expect(calls.map((call) => [call.action, call.credentialRef])).toEqual([
+        ['get_profile', 'cred_g'],
+        ['list_messages', 'cred_g'],
+        ['get_message', 'cred_g'],
+      ]);
+      expect(cursorPatches).toContainEqual({
+        organizationId: 'org',
+        credentialId: 'cred_g',
+        config: { label: 'Support', fromAddress: 'Desk@Example.com' },
+      });
+      expect(createConversationFromEmail).toHaveBeenCalledWith(
+        ctx,
+        expect.objectContaining({
+          connectorName: 'gmail',
+          accountEmail: 'Desk@Example.com',
+        }),
+      );
+      expect(info).toHaveBeenCalledWith(
+        expect.stringContaining('learned the gmail mailbox address'),
+      );
+    } finally {
+      info.mockRestore();
+    }
+  });
+
+  it('runs the pass as before when Outlook cannot say who the mailbox is', async () => {
+    resolveConnectorAccountEmail.mockResolvedValue(undefined);
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      const inbox = mailbox([{ id: 'o1' }]);
+      const { ctx, calls, cursorPatches } = harness(
+        (call) => {
+          if (call.action === 'get_profile') {
+            throw new Error('Outlook get_profile failed (403)');
+          }
+          return inbox(call);
+        },
+        {
+          credentials: [{ id: 'cred_o', name: 'Outlook', isDefault: true }],
+          credentialRow: { _id: 'cred_o', config: {} },
+        },
+      );
+
+      await syncMailbox(ctx, {
+        organizationId: 'org',
+        connectorSlug: 'outlook',
+        limit: 25,
+        includeSent: false,
+        mode: 'live',
+      });
+
+      expect(calls.map((call) => call.action)).toEqual([
+        'get_profile',
+        'list_messages',
+        'get_message',
+      ]);
+      expect(cursorPatches.some((patch) => 'config' in patch)).toBe(false);
+      expect(createConversationFromEmail).toHaveBeenCalledWith(
+        ctx,
+        expect.not.objectContaining({ accountEmail: expect.anything() }),
+      );
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('outlook mailbox address heal failed'),
+      );
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('does not ask again once the public config resolves the address', async () => {
+    const { ctx, calls } = harness(mailbox([{ id: 'g1', threadId: 't1' }]), {
+      credentials: [{ id: 'cred_g', name: 'Gmail', isDefault: true }],
+    });
+
+    await syncMailbox(ctx, {
+      organizationId: 'org',
+      connectorSlug: 'gmail',
+      limit: 25,
+      includeSent: false,
+      mode: 'live',
+    });
+
+    expect(calls.map((call) => call.action)).not.toContain('get_profile');
   });
 });
 
