@@ -250,15 +250,25 @@ const powershellSource = (
   .replace(/\r\n/g, '\n')
   .replace(/\nMain\s*$/, '\n');
 
-function runPowerShell(code: string, environment: Record<string, string> = {}) {
-  const script = `${powershellSource}\n${code}`;
+async function runPowerShell(
+  code: string,
+  environment: Record<string, string> = {},
+) {
+  const root = await mkdtemp(join(tmpdir(), 'tale-installer-powershell-'));
+  roots.push(root);
+  const script = join(root, 'installer-test.ps1');
+  // Keep the installer out of Windows' command-line length limit. Windows
+  // PowerShell 5 needs a BOM to recognize the script's UTF-8 characters.
+  await writeFile(script, `\uFEFF${powershellSource}\n${code}`, 'utf8');
   const run = Bun.spawnSync(
     [
       powershell!,
       '-NoProfile',
       '-NonInteractive',
-      '-EncodedCommand',
-      Buffer.from(script, 'utf16le').toString('base64'),
+      '-ExecutionPolicy',
+      'Bypass',
+      '-File',
+      script,
     ],
     {
       env: { ...process.env, ...environment },
@@ -271,7 +281,7 @@ function runPowerShell(code: string, environment: Record<string, string> = {}) {
 describe.skipIf(!powershell)('PowerShell CLI installer', () => {
   test('resolves relative install directories from the current PowerShell location', async () => {
     const setup = await fixture();
-    const result = runPowerShell(
+    const result = await runPowerShell(
       'Set-Location -LiteralPath $env:TEST_ROOT; Resolve-InstallDir "relative tools"',
       { TEST_ROOT: setup.root },
     );
@@ -297,8 +307,8 @@ describe.skipIf(!powershell)('PowerShell CLI installer', () => {
       after: 'C:\\Tools\\tale;C:\\Windows',
     },
   ]) {
-    test(`prepends the install directory with ${scenario.name}`, () => {
-      const result = runPowerShell(
+    test(`prepends the install directory with ${scenario.name}`, async () => {
+      const result = await runPowerShell(
         'Get-PathWithInstallDir $env:TEST_PATH $env:TEST_DIRECTORY',
         { TEST_PATH: scenario.before, TEST_DIRECTORY: 'C:\\Tools\\tale' },
       );
@@ -342,7 +352,7 @@ describe.skipIf(!powershell)('PowerShell CLI installer', () => {
     test(scenario.name, async () => {
       const setup = await fixture();
       const digest = createHash('sha256').update(setup.binary).digest('hex');
-      const result = runPowerShell(
+      const result = await runPowerShell(
         `
 function Invoke-WebRequest { return @{ Content = $env:CHECKSUM_BODY } }
 Verify-Checksum $env:FIXTURE_BINARY v9.8.7
