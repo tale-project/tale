@@ -67,6 +67,26 @@ Betreibe Tale auf eigener Infrastruktur oder nutze den verwalteten Cloud-Dienst.
 3. **Koordinieren und prüfen.** Verfolge den Fortschritt auf dem Board, steuere Agenten mit @Erwähnungen in Aufgabenkommentaren und prüfe Berichte und Dateien. Ein [koordinierender Agent](https://docs.tale.dev/de/platform/projects/task-automation) kann bereite Aufgaben delegieren, wenn er die nötigen Werkzeuge hat.
 4. **Einen festen Prozess wiederholen.** Nutze eine versionierte [Automatisierung](https://docs.tale.dev/de/platform/automations/concepts), wenn die Arbeit geplante Starts, festgelegte Schritte oder Genehmigungen für Connector-Aktionen braucht.
 
+### Beispiel: ein Briefing zum Produktstart prüfen
+
+Wenn ein Projektagent und passende Zugangsdaten für das Modell eingerichtet sind, passe diese beispielhafte Aufgabenbeschreibung an deine Quelldateien an:
+
+> Vergleiche das angehängte Briefing zum Produktstart mit den Besprechungsnotizen. Erstelle einen Markdown-Bericht mit widersprüchlichen Terminen, fehlenden Verantwortlichen und offenen Entscheidungen. Nenne zu jedem Fund die Quelldatei und Textstelle. Trenne gesicherte Fakten von offenen Fragen und lasse die Quelldateien unverändert.
+
+Öffne vor der Abnahme den gelieferten Bericht, gleiche seine Belege mit beiden Dateien ab und prüfe, ob er alle verlangten Kategorien abdeckt. Bitte in der Aufgabe um Korrekturen, wenn Belege fehlen. Die [Anleitung zur Aufgabenprüfung](https://docs.tale.dev/de/platform/projects/task-automation) erklärt, wie du Änderungen anforderst oder fertige Arbeit annimmst.
+
+## Tale für dein Team prüfen
+
+**Welche Agenten-Laufzeiten kann ich verwenden?** Tale enthält Claude Code, Codex, Cursor, Gemini CLI, Hermes, OpenClaw, OpenCode, Pi und Qwen Code. Was verfügbar ist, hängt von deiner Bereitstellung, den Zugangsdaten und der Sandbox-Kapazität ab. Die [Kompatibilitätsübersicht](https://docs.tale.dev/de/platform/agents/harnesses) beschreibt Zugangsdaten, Werkzeuge und Einschränkungen bei der Fortsetzung von Gesprächen.
+
+**Kann ich einen API-Schlüssel oder ein vorhandenes Abonnement nutzen?** Gespeicherte API-Schlüssel von Modellanbietern nutzen Tales Modell-Gateway. Unterstützte Anbieterabonnements funktionieren nur mit passenden Laufzeiten, sind nicht für den normalen Chat nutzbar und umgehen die Verbrauchserfassung und Ausgabenlimits des Gateways. Lies vor der Auswahl die [Hinweise zu Zugangsdaten und Kosten](https://docs.tale.dev/de/platform/agents/harnesses).
+
+**Was brauche ich für den Eigenbetrieb?** Für den Einstieg brauchst du Docker mit Compose, Speicherplatz für Images und persistente Daten sowie Zugangsdaten für einen unterstützten Modellanbieter. Im Produktivbetrieb kommen DNS, TLS, Backups und Zugriffskontrollen hinzu. Der [Schnellstart für den Eigenbetrieb](https://docs.tale.dev/de/self-hosted/install/quickstart) beschreibt die lokale Einrichtung und verlinkt die Vorbereitung für den Produktivbetrieb.
+
+**Wohin gehen meine Daten?** Anwendungsdaten, durchsuchbares Wissen und Originaldateien haben getrennte Speichereinstellungen. Modellanbieter, Konnektoren und externe Werkzeuge können Daten außerhalb dieser Speicher verarbeiten; Eigenbetrieb allein hält nicht jede Anfrage lokal. Prüfe die [Datenresidenz](https://docs.tale.dev/de/self-hosted/configuration/data-residency) und den [Umgang der Laufzeit mit Zugangsdaten und Netzwerkzugriffen](https://docs.tale.dev/de/platform/agents/harnesses).
+
+**Was unterscheidet Community und Enterprise?** Beide enthalten dieselben Produktfunktionen unter der MIT-Lizenz. Enterprise ergänzt professionelle Betriebsführung und Support. Die aktuellen Leistungsbedingungen findest du unter [Angebote und Preise](https://tale.dev/pricing).
+
 ## Finde deinen Einstieg
 
 | Dein Ziel | Passende Anleitung |

@@ -67,6 +67,26 @@ Ouvre une capture pour la voir en taille réelle. Les images montrent l’interf
 3. **Coordonner et examiner.** Suis l’avancement sur le tableau, guide les agents avec des @mentions dans les commentaires des tâches et vérifie leurs rapports et fichiers. Un [agent coordinateur](https://docs.tale.dev/fr/platform/projects/task-automation) peut déléguer les tâches prêtes s’il dispose des outils nécessaires.
 4. **Répéter un processus défini.** Utilise une [automatisation](https://docs.tale.dev/fr/platform/automations/concepts) versionnée lorsque le travail nécessite des démarrages planifiés, des étapes définies ou des approbations pour les actions des connecteurs.
 
+### Exemple : examiner un brief de lancement
+
+Une fois un agent de projet et des identifiants de modèle compatibles configurés, adapte cet exemple de consigne à tes fichiers sources :
+
+> Compare les pièces jointes : le brief de lancement et les notes de réunion. Produis un rapport Markdown qui relève les dates contradictoires, les responsabilités non attribuées et les décisions en suspens. Cite le fichier source et le passage pour chaque constat. Distingue les faits confirmés des questions ouvertes et laisse les fichiers sources inchangés.
+
+Avant d’accepter le résultat, ouvre le rapport livré, vérifie ses citations dans les deux fichiers et assure-toi qu’il couvre chaque catégorie demandée. Demande des corrections dans la tâche si des éléments ne sont pas étayés. Le [guide de révision des tâches](https://docs.tale.dev/fr/platform/projects/task-automation) explique comment demander des modifications ou accepter le travail terminé.
+
+## Évaluer Tale pour ton équipe
+
+**Quels environnements d’exécution puis-je utiliser ?** Tale inclut Claude Code, Codex, Cursor, Gemini CLI, Hermes, OpenClaw, OpenCode, Pi et Qwen Code. Leur disponibilité dépend de ton déploiement, de tes identifiants et de la capacité des sandbox. Le [tableau de compatibilité](https://docs.tale.dev/fr/platform/agents/harnesses) détaille les modes d’authentification, les outils et les limites de reprise des conversations.
+
+**Puis-je utiliser une clé API ou un abonnement existant ?** Les clés API de fournisseurs enregistrées passent par la passerelle de modèles de Tale. Les abonnements pris en charge fonctionnent uniquement avec les environnements compatibles, ne peuvent pas alimenter le Chat ordinaire et contournent la mesure de consommation et les plafonds de dépenses de la passerelle. Consulte les [précisions sur les identifiants et les coûts](https://docs.tale.dev/fr/platform/agents/harnesses) avant de choisir une connexion.
+
+**Que faut-il pour l’auto-hébergement ?** Pour commencer, il te faut Docker avec Compose, du stockage pour les images et les données persistantes, ainsi que les identifiants d’un fournisseur de modèles pris en charge. En production, prévois aussi le DNS, TLS, les sauvegardes et les contrôles d’accès. Le [guide de démarrage en auto-hébergement](https://docs.tale.dev/fr/self-hosted/install/quickstart) couvre l’installation locale et renvoie vers la préparation à la production.
+
+**Où vont mes données ?** Les données de l’application, les connaissances consultables et les fichiers originaux ont des réglages de stockage distincts. Les fournisseurs de modèles, les connecteurs et les outils externes peuvent traiter des données ailleurs ; l’auto-hébergement seul ne garde pas toutes les requêtes en local. Examine la [résidence des données](https://docs.tale.dev/fr/self-hosted/configuration/data-residency) et la [gestion des identifiants et des accès réseau par l’environnement d’exécution](https://docs.tale.dev/fr/platform/agents/harnesses).
+
+**Qu’est-ce qui distingue Community d’Enterprise ?** Les deux comprennent les mêmes fonctions sous licence MIT. Enterprise ajoute l’exploitation et l’assistance professionnelles. Consulte [les offres et les tarifs](https://tale.dev/pricing) pour connaître les conditions de service actuelles.
+
 ## Choisir ton point de départ
 
 | Ton objectif | Guide à suivre |
