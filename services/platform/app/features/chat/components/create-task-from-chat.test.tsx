@@ -276,6 +276,44 @@ describe('CreateTaskFromChat', () => {
     ).toBeInTheDocument();
   });
 
+  it('treats an unavailable managed-only project as having no agent', async () => {
+    state.standardAgent = { enabled: false, available: false };
+    state.projects = [
+      {
+        ...WEBSITE,
+        agentCount: 1,
+        managedAgentCount: 1,
+        canEdit: false,
+      },
+      { ...HANDBOOK, agentCount: 0, canEdit: false },
+    ];
+    const { user } = open();
+
+    await user.click(screen.getByRole('button', { name: /^Project/ }));
+
+    expect(screen.queryByText('With an agent')).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('option', {
+        name: /Website relaunch.*An Editor or Admin can add one/,
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it('keeps an available managed-only project under with-agent projects', async () => {
+    state.standardAgent = { enabled: true, available: true };
+    state.projects = [
+      { ...WEBSITE, agentCount: 1, managedAgentCount: 1, canEdit: false },
+      { ...HANDBOOK, agentCount: 0, canEdit: false },
+    ];
+    const { user } = open();
+
+    await user.click(screen.getByRole('button', { name: /^Project/ }));
+
+    expect(
+      screen.getByRole('option', { name: /Website relaunch.*1 agent/ }),
+    ).toBeInTheDocument();
+  });
+
   it('lists a project without agents as one the standard agent takes, while the organization provides it', async () => {
     state.standardAgent = { enabled: true, available: true };
     state.projects = [
