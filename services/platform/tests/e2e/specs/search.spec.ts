@@ -19,10 +19,11 @@ import { t } from '../helpers/i18n';
  * disables Send until a model is available — which under the AI-backend
  * rewrite requires an org provider credential (`chat/composer.ts` lists only
  * credentialed connectors). The hermetic suite has no provider harness yet:
- * the interim scaffolder no longer seeds org-custom connectors (the
- * `providers` config domain is unregistered), the connector schema is
- * https-only (the mock gateway is loopback http), and no credential bootstrap
- * exists. Un-fixme when the e2e provider harness lands.
+ * the interim scaffolder seeds no org-custom provider (the `providers` config
+ * domain has no scaffold kind) and no credential bootstrap exists. A harness
+ * makes the two moves `tests/manual/setup.md` §1.A documents: copy
+ * `default/providers/e2e-mock.yml` into the worker org's config dir, then add
+ * an env credential. Un-fixme when the e2e provider harness lands.
  */
 
 test.fixme('opens the chat command palette, finds a thread, and closes', async ({

@@ -63,10 +63,10 @@ variable redirects; a `providers/*.yml` in an org's config dir adds a provider
 beside them.)
 
 **Wire the mock provider — once per org, before any chat box.** Chat answers
-only through a provider that has both a definition the org can see and a
-credential. A new mode-A org has neither, so chat opens on **No AI provider
-connected yet** (`chat.providerSetup.title`). Make the two moves the
-docs-screenshot seed makes (`ensureMockProvider` in
+only through a provider the org holds a credential for. A new mode-A org sees
+the shipped vendors but not the mock, and holds no credential, so chat opens
+on **No AI provider connected yet** (`chat.providerSetup.title`). Make the
+two moves the docs-screenshot seed makes (`ensureMockProvider` in
 `tests/docs-screenshots/seed-demo-org.ts`):
 
 1. **Wait for the scaffold.** Create the org (the create-org wizard below, or
@@ -92,21 +92,27 @@ docs-screenshot seed makes (`ensureMockProvider` in
    (`navigation.providers`) → **Add credential**
    (`settings.credentials.addCredential`) → **E2E Mock Gateway**. Set
    **Authentication method** (`settings.credentials.method`) to **Environment
-   variable** (`settings.providers.authMethod.env`), give it any **Name**
-   (`settings.credentials.name`), and enter `E2E_MOCK` as the **Environment
-   variable** (`settings.providers.dialog.envName`). The field takes the
-   suffix: `TALE_PROVIDER_KEY_` is fixed beside it, and the boot command above
-   sets `TALE_PROVIDER_KEY_E2E_MOCK`. Then **Add credential**
+   variable** (`settings.providers.authMethod.env`), keep the suggested
+   **Provider name** (`settings.providers.custom.nameLabel`), and enter
+   `E2E_MOCK` as the **Environment variable**
+   (`settings.providers.dialog.envName`). The field takes the suffix:
+   `TALE_PROVIDER_KEY_` is fixed beside it, and the boot command above sets
+   `TALE_PROVIDER_KEY_E2E_MOCK`. Then **Add credential**
    (`settings.credentials.create`).
 
-The catalog offers **E2E Mock Gateway** only once step 3's file is in place;
-no restart is needed, just reopen **Add credential**. A prompt with no trigger
-in a new chat then returns the canned reply (§3): the wiring works.
+The catalog offers **E2E Mock Gateway** only once step 3's file is in place.
+The backend reads the file on every request, but the page keeps the vendor
+list it first loaded: if **AI providers** was open before step 3, reload it
+(or press **Refresh catalogs**, `settings.providers.catalogs.refresh`) before
+**Add credential**. A prompt with no trigger in a new chat then returns the
+canned reply (§3): the wiring works. If chat still shows **No AI provider
+connected yet**, check that Terminal 1's gateway is up, then press **Refresh
+catalogs**.
 
 The org's live config lands under `tests/e2e/fixtures/config/<org-slug>/` —
 **pick an org name whose slug doesn't collide with a tracked fixture org**
-(e.g. `qa-guides-org` is tracked; a colliding wizard org overwrites those
-files in your working tree).
+(`qa-guides-org`, `docs-demo`): the create-time scaffold deletes that org's
+whole dir in your working tree.
 
 ### B. Full local dev (real provider, full feature set)
 
@@ -120,7 +126,7 @@ bun run dev          # repo root: turbo dev for platform + backing services (exc
 bun run --filter @tale/platform dev:fast
 ```
 
-Then configure a model provider in **Settings → Providers** (an OpenRouter key)
+Then configure a model provider in **Settings → AI providers** (an OpenRouter key)
 so the AI can respond. Without a provider, chat and tool tests fail with a
 provider error — that's environment, not a chat bug; note the distinction.
 
@@ -149,15 +155,18 @@ bun run docker:dev:down   # tear down when finished
   default-on via `TALE_DEV_SEED_USER=1` in `compose.dev.yml`, loopback-only by
   design — [`lib/utils/dev-seed-config.ts`](../../lib/utils/dev-seed-config.ts)).
   Skip the wizard and sign in at `/log-in`.
-- **Real chat needs a key and a credential**: export
-  `TALE_PROVIDER_KEY_OPENROUTER=<key>` in the shell that invokes `docker:dev`.
-  The invoker's environment is forwarded into the platform container
+- **Real chat needs an OpenRouter credential**, and the seed creates none.
+  Add one under **Settings → AI providers** for the shipped OpenRouter
+  provider
+  ([`configs/platform/system/providers/openrouter/provider.yml`](../../../../configs/platform/system/providers/openrouter/provider.yml))
+  with the **API key** method. To keep the key out of the database instead,
+  put `TALE_PROVIDER_KEY_OPENROUTER=<key>` in the repo-root `.env`, which
+  `backend-api` and `backend-worker` read (`env_file` in `compose.yml`), and
+  add an **Environment variable** credential naming `OPENROUTER` as in mode
+  A's step 4. A variable exported in the shell that runs `docker:dev` reaches
+  only the web-tier `platform` container
   ([`scripts/docker-dev-env-override.ts`](../../../../scripts/docker-dev-env-override.ts)),
-  where an **Environment variable** credential naming `OPENROUTER` reads it
-  for the shipped OpenRouter provider
-  ([`configs/platform/system/providers/openrouter/provider.yml`](../../../../configs/platform/system/providers/openrouter/provider.yml)).
-  The seed creates no credential, so add it under **Settings → AI providers**
-  as in mode A's step 4.
+  not the backends that resolve credentials.
   This is **operator prep, not a tester step** — a tester session starts with
   the environment already configured, so "No API key configured" during a run
   is a reportable defect, not an environment note.

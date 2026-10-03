@@ -58,8 +58,8 @@ const workers = process.env.E2E_WORKERS
     : 4;
 
 // Fixed port — must match the provider fixture's `baseUrl`
-// (`tests/e2e/fixtures/config/default/providers/e2e-mock.json`), which is loaded
-// verbatim and cannot interpolate env. The `lib/mocks` gateway defaults to
+// (`tests/e2e/fixtures/config/default/providers/e2e-mock.yml`), which is copied
+// verbatim into an org's config dir and cannot interpolate env. The `lib/mocks` gateway defaults to
 // this port (`MOCKS_PORT`); keep the three in sync.
 const MOCK_LLM_PORT = 4141;
 
@@ -179,15 +179,15 @@ export default createPlaywrightConfig({
               // Pin the built-in catalog to the fixture's domain-root so the
               // dev default (the repo's configs/platform/custom) can't leak
               // the real catalog into hermetic test orgs. The seeder reads
-              // <builtin>/<domain>;
-              // the fixture is org-shaped, so point at its `default/` org dir.
+              // <builtin>/<domain>; the fixture is org-shaped, so point at
+              // its `default/` org dir.
               TALE_CONFIG_BUILTIN_DIR: path.join(
                 dirname,
                 'tests/e2e/fixtures/config/default',
               ),
-              // Read at call time by an env credential naming `E2E_MOCK` on
-              // the mock provider (backend/core/provider_credentials/
-              // resolve_credential.ts).
+              // Read at call time by the mock provider's env credential, whose
+              // variable this is (the dialog takes the `E2E_MOCK` suffix;
+              // backend/core/provider_credentials/resolve_credential.ts).
               TALE_PROVIDER_KEY_E2E_MOCK: 'tale-e2e-mock-key',
               // The mock gateway lives on 127.0.0.1, which the provider host
               // policy blocks by default (SSRF defence) — opt in for the E2E
