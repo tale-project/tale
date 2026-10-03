@@ -153,9 +153,15 @@ single warm sample.
 
 ## Boundary & error tests
 
-- [ ] `PERF-B1` · **Large thread** — Open a chat thread with many messages. →
-  Scroll stays responsive; no `pageerror`/console error; DOM node count does
-  not grow unbounded (older messages are recycled).
+- [ ] `PERF-B1` · **Large thread** — Open a chat thread of 300 messages or
+  more, scroll it to the top with the wheel or the keyboard, then send a
+  message in it. → It opens on its last turn about as fast as a short thread,
+  every message in the log: the newest rows render in full, the older ones
+  dormant (`data-dormant` on the row, the message's words only) until they
+  near the view. Scrolling up reaches every row in full and never jumps the
+  rows in view; **Ctrl+F** finds a word of the first message; the send shows
+  its first words without a freeze. Under 6,000 DOM elements with the thread
+  open; no `pageerror`/console error.
 - [ ] `PERF-B2` · **Large list** — A DataTable with hundreds of rows
   (`/contacts`), with no search, filter or sort active. → First page renders
   quickly and only one page of rows is fetched and in the DOM; scrolling
