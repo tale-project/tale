@@ -9,6 +9,9 @@ import { createI18n } from '@tale/e2e/i18n';
  */
 
 const { t } = createI18n(new URL('../../../messages/en.yml', import.meta.url));
+const { t: tFrench } = createI18n(
+  new URL('../../../messages/fr.yml', import.meta.url),
+);
 // The demo window's own chrome (the Share label) ships with the marketing
 // design language, not the site catalog.
 const { t: tMarketing } = createI18n(
@@ -19,6 +22,36 @@ const { t: tMarketing } = createI18n(
 );
 
 test.use({ contextOptions: { reducedMotion: 'reduce' } });
+
+for (const { path, namespace } of [
+  { path: '/', namespace: 'home' },
+  { path: '/platform/agents', namespace: 'platformAgents' },
+] as const) {
+  test(`French sandbox reserves its final height on ${path} at 320px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 320, height: 900 });
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
+    await page.goto(`/fr${path}`);
+    await page.evaluate(() => document.fonts.ready);
+    const demo = page.getByRole('img', {
+      name: tFrench(`${namespace}.demos.sandbox.label`),
+      exact: true,
+    });
+    const reply = tFrench(`${namespace}.demos.sandbox.reply`);
+    // Wait for the browser's unplayed scene, rather than measuring the
+    // complete prerendered HTML before the client mounts.
+    await expect(demo).not.toContainText(reply);
+    const before = await demo.boundingBox();
+    expect(before).not.toBeNull();
+    await demo.scrollIntoViewIfNeeded();
+    await expect(demo).toContainText(reply, { timeout: 10_000 });
+    await expect(demo).toContainText(
+      tFrench(`${namespace}.demos.sandbox.previewDetail3`),
+    );
+    expect((await demo.boundingBox())?.height).toBe(before?.height);
+  });
+}
 
 test.describe('homepage demos', () => {
   test('hero demo renders its complete end state under reduced motion', async ({

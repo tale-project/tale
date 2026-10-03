@@ -65,7 +65,7 @@ export function SandboxWorkspace({
         label={scene.label}
         activeNav="chat"
         domain="agents"
-        className="mx-auto min-h-192 max-w-4xl @sm/demo:min-h-176 @4xl/demo:aspect-[16/10] @4xl/demo:min-h-136"
+        className="mx-auto min-h-208 max-w-4xl @sm/demo:min-h-176 @4xl/demo:aspect-[16/10] @4xl/demo:min-h-136"
       >
         <div className="flex h-full min-h-0 flex-col @4xl/demo:flex-row">
           <div className="border-border-base flex min-w-0 flex-col border-b @4xl/demo:flex-[0.95] @4xl/demo:border-r @4xl/demo:border-b-0">
