@@ -63,14 +63,14 @@ screen, and no console error. Deep coverage lives in the per-area guides.
 
 | Route                                      | Verify                                                                  |
 | ------------------------------------------ | ----------------------------------------------------------------------- |
-| `/`                                        | hero **Orchestrate every AI agent on your stack** (`home.hero.title`)   |
-| `/platform`                                | heading **How does the Tale platform work?** (`platformHub.title`)      |
-| `/platform/chat`                           | heading **Chats in Tale** (`platformChat.title`)                        |
-| `/platform/projects`                       | heading **What are Projects in Tale?** (`platformProjects.title`)       |
-| `/platform/knowledge`                      | heading **What is Knowledge in Tale?** (`platformKnowledge.title`)      |
-| `/platform/agents`                         | heading **What are agents in Tale?** (`platformAgents.title`)           |
-| `/platform/automations`                    | heading **What are Automations in Tale?** (`platformAutomations.title`) |
-| `/platform/governance`                     | heading **What is Governance in Tale?** (`platformGovernance.title`)    |
+| `/`                                        | hero matching `home.hero.title` in `messages/en.yml`   |
+| `/platform`                                | heading matching `platformHub.title`      |
+| `/platform/chat`                           | heading matching `platformChat.title`                        |
+| `/platform/projects`                       | heading matching `platformProjects.title`       |
+| `/platform/knowledge`                      | heading matching `platformKnowledge.title`      |
+| `/platform/agents`                         | heading matching `platformAgents.title`           |
+| `/platform/automations`                    | heading matching `platformAutomations.title` |
+| `/platform/governance`                     | heading matching `platformGovernance.title`    |
 | `/pricing`                                 | heading **How much does Tale cost?** (`pricing.title`)                  |
 | `/hardware-pricing`                        | heading **What does Tale AI hardware cost?** (`hardwarePricing.title`)  |
 | `/changelog`                               | heading **What's new in Tale?** (`changelogPage.title`) + timeline      |
@@ -81,8 +81,8 @@ screen, and no console error. Deep coverage lives in the per-area guides.
 | `/legal/data-processing-agreement`         | document + **DPA**/**TOM** tabs (`legal.tabs.*`)                        |
 | `/legal/technical-organizational-measures` | document + tabs                                                         |
 | `/legal/personalization`                   | legal document renders                                                  |
-| `/de`                                      | German hero **Orchestriere jeden KI-Agent auf deinem Stack**            |
-| `/fr`                                      | French hero **Orchestre chaque agent IA de ta stack**                   |
+| `/de`                                      | German hero matching `home.hero.title` in `messages/de.yml`            |
+| `/fr`                                      | French hero matching `home.hero.title` in `messages/fr.yml`                   |
 
 ```
 Smoke: ___/20 routes load   Console errors: ___   Status: PASS / FAIL

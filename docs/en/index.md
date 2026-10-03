@@ -1,18 +1,24 @@
 ---
 title: Tale documentation
-description: Learn to use Tale, build project agents, connect applications, and operate an instance.
+description: Coordinate teammates and AI agents in Tale’s open-source workspace with project tasks, delegation, sandboxes, and reviewable results.
 kind: index
 ---
 
-Tale brings conversations, projects, knowledge, and automations into one workspace. Start with the task you want to complete; you do not need to understand every feature first.
+Tale is an open-source workspace for teams and AI agents. Plan work on a shared task board, assign people or agents, coordinate the next steps, and review reports and delivered files. Project knowledge and instructions give the work its context.
+
+## From a task to a reviewed result
+
+Start with a problem, such as building a website, researching a decision, or preparing a marketing campaign. Create a [project task](/platform/projects/tasks) with the expected outcome and source material, assign a [project agent](/get-started/editors), start the task, then follow its progress and [review the result](/platform/projects/task-automation). A manager agent can delegate ready work when granted the required tools. Use an [automation](/platform/automations/concepts) when the process needs scheduled starts or defined workflow steps.
+
+Choose the guide for your next step. You can run Tale on your own infrastructure or use the managed Cloud service.
 
 ## Get started
 
 <CardGroup cols="2">
 
-<Card title="Send your first message" icon="message-circle" href="/get-started/quickstart">
+<Card title="Build a project agent" icon="bot" href="/get-started/editors">
 
-Sign in, choose a model, and get an answer.
+Give an agent a clear job and review its first result.
 
 </Card>
 
@@ -22,9 +28,9 @@ Find your chats, work with sources, and join a project.
 
 </Card>
 
-<Card title="Build a project agent" icon="bot" href="/get-started/editors">
+<Card title="Send your first message" icon="message-circle" href="/get-started/quickstart">
 
-Give an agent a clear job and review its first result.
+Sign in, choose a model, and get an answer.
 
 </Card>
 

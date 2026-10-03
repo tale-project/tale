@@ -29,6 +29,7 @@ Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no s
 | [locale](../suites/locale.md) | — | ✅ automated | vitest `lib/i18n/messages.test.ts` (locale files stay key-compatible) |
 | [locale](../suites/locale.md) | `LOC-F1`, `LOC-F4`–`LOC-F8`, `LOC-B1`–`LOC-B2` | ⛔ manual-only | — |
 | [navigation](../suites/navigation.md) | `NAV-F1` | 🔶 partial | `smoke.spec.ts` (home renders; Platform / Resources triggers + Pricing link; Platform menu opens and lists **Chat**) |
+| [navigation](../suites/navigation.md) | Hero self-hosting CTA stays in EN/DE/FR at desktop and phone widths | ✅ | `smoke.spec.ts` (localized label, destination, and heading) |
 | [navigation](../suites/navigation.md) | `NAV-F2` | 🔶 partial | `smoke.spec.ts` (header **Get started** visible; no header **Request a demo** — no click-through) |
 | [navigation](../suites/navigation.md) | `NAV-F9` | 🔶 partial | `smoke.spec.ts` (`/pricing` renders + heading-order check — no control interaction) |
 | [navigation](../suites/navigation.md) | `NAV-F12` | 🔶 partial | `changelog.spec.ts` (sticky timeline reachability + `aria-current` on click) |

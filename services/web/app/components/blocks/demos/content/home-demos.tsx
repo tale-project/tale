@@ -5,20 +5,20 @@ import {
   useAgentsScenario,
   useArenaScenario,
   useAutomationScenario,
-  useChatScenario,
   useGovernScenario,
   useKnowledgeScenario,
   useProjectsScenario,
+  useTaskBoardScenario,
 } from '@/app/components/blocks/demos/demo-scenarios';
 import { GovernGate } from '@/app/components/blocks/demos/govern-gate';
-import { HeroOrchestration } from '@/app/components/blocks/demos/hero-orchestration';
 import { KnowledgePool } from '@/app/components/blocks/demos/knowledge-pool';
 import { ProjectsBoard } from '@/app/components/blocks/demos/projects-board';
+import { TaskBoard } from '@/app/components/blocks/demos/task-board';
 
-/** Homepage hero — support-escalation chat on the full-bleed stage. */
+/** Homepage hero — shared project tasks on the full-bleed stage. */
 export function HomeHeroDemo() {
-  const scenario = useChatScenario('home');
-  return <HeroOrchestration scenario={scenario} elevation="hero" />;
+  const scenario = useTaskBoardScenario('home');
+  return <TaskBoard scenario={scenario} elevation="hero" />;
 }
 
 export function HomeConnectDemo() {

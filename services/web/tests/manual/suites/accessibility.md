@@ -72,7 +72,7 @@ their own `vitest-axe` coverage.
   keeps moving.
 - [ ] `A11Y-A8` · **Demo names + icon controls** — On `/`, query
   `[role="img"]` and icon-only controls → Every demo scene exposes a
-  descriptive aria-label (`home.demos.hero.label`, `home.demos.connect.label`,
+  descriptive aria-label (`home.demos.tasks.label`, `home.demos.connect.label`,
   …) that names what the animation shows; decorative icons inside are hidden
   from AT; icon-only buttons/links (GitHub, hamburger) expose labels
   (`footer.githubAriaLabel`, `nav.openMenu`). There are no `<img>` elements to

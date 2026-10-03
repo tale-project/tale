@@ -4,7 +4,7 @@ description: Comment la couche de personnalisation de Tale (instructions personn
 noindex: true
 ---
 
-**Dernière mise à jour :** 27.09.2026
+**Dernière mise à jour :** 03.10.2026
 
 ## 1. L’engagement
 
@@ -33,7 +33,7 @@ Une fois tes instructions envoyées, **Tale ne peut pas annuler cet envoi**. Si 
 
 ### 2.2 Déploiements auto-hébergés : l’opérateur du déploiement peut lire les lignes brutes
 
-Tale stocke tes instructions personnalisées dans la base de données Postgres de ton déploiement, dans la table `app.user_preferences`. Toute personne ayant accès à cette base ou à ses sauvegardes peut lire ces lignes directement — la restriction de Tale fondée sur les rôles (« un administrateur ne peut pas lire les contenus ») **ne s’étend pas à la couche base de données**. En auto-hébergement, considère les opérateurs de ta base de données comme ayant accès à tout le contenu de personnalisation. Les contrôles SOC 2 / ISO sur l’accès BDD relèvent de ta responsabilité.
+Tale stocke tes instructions personnalisées dans la base de données Postgres de ton déploiement, dans la table `app.user_preferences`. Toute personne ayant accès à cette base ou à ses sauvegardes peut lire ces lignes directement — la restriction de Tale fondée sur les rôles (« un administrateur ne peut pas lire les contenus ») **ne s’étend pas à la couche base de données**. En auto-hébergement, considère les opérateurs de ta base de données comme ayant accès à tout le contenu de personnalisation. Les contrôles d’accès à la base de données relèvent de ta responsabilité.
 
 ### 2.3 Les réponses de l’assistant peuvent citer ou paraphraser tes instructions personnalisées
 

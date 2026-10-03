@@ -3,6 +3,8 @@
  * stay out of sitemap.xml while remaining in robots.disallow and llms.txt.
  */
 
+import { readFileSync } from 'node:fs';
+
 import { describe, expect, it } from 'vitest';
 
 import { buildDocsCompileParams, buildDocsSeo, docsSiteUrl } from './build';
@@ -14,6 +16,18 @@ describe('docsSiteUrl', () => {
   it('is the docs subdomain, with no trailing slash', () => {
     expect(docsSiteUrl()).toBe('https://docs.tale.dev');
     expect(docsSiteUrl()).not.toMatch(/\/$/);
+  });
+
+  it('uses the canonical docs host in the pre-hydration HTML shell', () => {
+    const shell = readFileSync(
+      new URL('../../index.html', import.meta.url),
+      'utf8',
+    );
+    expect(shell).toContain('rel="canonical" href="https://docs.tale.dev/"');
+    expect(shell).toContain(
+      'property="og:url" content="https://docs.tale.dev/"',
+    );
+    expect(shell).not.toContain('https://tale.dev/docs');
   });
 });
 

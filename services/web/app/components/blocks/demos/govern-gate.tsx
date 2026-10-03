@@ -25,8 +25,8 @@ const BEAT = {
 const BUDGET_PERCENT = 41;
 
 /**
- * D5 — in-chat approval card (ApprovalCard / WorkflowRunApprovalCard idiom)
- * with a short run journal — not a Settings governance split-panel.
+ * D5 — automation run approval card (WorkflowRunApprovalCard idiom)
+ * with a short run journal.
  */
 export function GovernGate({
   scenario,
@@ -46,7 +46,8 @@ export function GovernGate({
     <div ref={ref}>
       <DemoShell
         label={scene.label}
-        activeNav="chat"
+        title={t('demos.automation.windowTitle')}
+        activeNav="automations"
         className="mx-auto aspect-[7/10] max-w-4xl sm:aspect-[16/9]"
       >
         <div className="flex h-full flex-col gap-4 p-4 md:gap-5 md:p-6">

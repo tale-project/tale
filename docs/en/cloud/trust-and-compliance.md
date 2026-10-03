@@ -3,7 +3,7 @@ title: Security and compliance
 description: Find certification information, understand responsibilities, and collect evidence for a security review.
 ---
 
-Tale holds ISO/IEC 27001 and SOC 2 Type II certifications. For a security review, ask your Tale contact for the applicable certificates, report scope, and supporting documents; use the evidence relevant to the service your organization has purchased.
+Ruler GmbH, the company behind Tale, is ISO/IEC 27001 certified. The certification covers its Tale Enterprise offering and services. For a security review, ask your Tale contact for the applicable certificate, its scope, and supporting documents for the service your organization has purchased.
 
 Product controls support your organization’s processes. Whether a particular use meets your obligations also depends on your configuration, connected providers, and operating procedures.
 

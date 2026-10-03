@@ -91,6 +91,34 @@ test.describe('web marketing smoke', () => {
     await expectPageRenders(page);
   });
 
+  for (const locale of ['en', 'de', 'fr'] as const) {
+    const { t: tLocale } = createI18n(
+      new URL(`../../../messages/${locale}.yml`, import.meta.url),
+    );
+    const prefix = locale === 'en' ? '' : `/${locale}`;
+    test(`${locale} hero links to self-hosting in the same language on desktop and phone`, async ({
+      page,
+    }) => {
+      await page.emulateMedia({ reducedMotion: 'reduce' });
+      for (const width of [1440, 390]) {
+        await page.setViewportSize({ width, height: 900 });
+        await page.goto(prefix || '/');
+        const install = page.getByRole('link', {
+          name: tLocale('home.hero.ctaSecondary'),
+          exact: true,
+        });
+        await expect(install).toBeVisible();
+        await expect(install).toHaveAttribute(
+          'href',
+          `https://docs.tale.dev${prefix}/self-hosted/install/quickstart`,
+        );
+        await expect(page.getByRole('heading', { level: 1 })).toHaveText(
+          tLocale('home.hero.title'),
+        );
+      }
+    });
+  }
+
   test('German platform + pricing routes render', async ({ page }) => {
     await page.goto('/de/platform');
     await expectPageRenders(page);

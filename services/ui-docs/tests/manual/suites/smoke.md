@@ -17,7 +17,7 @@ The dev server up per [`../setup.md`](../setup.md), devtools open, a 1440×900
 viewport, the theme at **System** with the OS in light mode.
 
 > **Agent note**: wait on the route's own heading, never on a timeout — the
-> front page's `h1` is **The Tale design system** (`home.heroTitle`), a docs page's
+> front page's `h1` is **Build with the React components behind Tale** (`home.heroTitle`), a docs page's
 > `h1` is its frontmatter `title` (Button, Input, …).
 
 ## Boxes

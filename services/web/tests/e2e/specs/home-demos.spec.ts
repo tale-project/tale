@@ -26,13 +26,14 @@ test.describe('homepage demos', () => {
   }) => {
     await page.goto('/');
 
-    const demo = page.getByRole('img', { name: t('home.demos.hero.label') });
+    const demo = page.getByRole('img', { name: t('home.demos.tasks.label') });
     await expect(demo).toBeVisible();
-    await expect(demo).toContainText(t('home.demos.hero.prompt'));
-    await expect(demo).toContainText(t('home.demos.hero.routedTitle'));
-    await expect(demo).toContainText(t('home.demos.hero.reply4'));
-    await expect(demo).toContainText(t('home.demos.hero.citation2'));
-    await expect(demo).toContainText(tMarketing('demo.chrome.share'));
+    await expect(demo).toContainText(t('home.demos.tasks.windowTitle'));
+    await expect(demo).toContainText(t('home.demos.tasks.colInReview'));
+    await expect(demo).toContainText(t('home.demos.tasks.title3'));
+    await expect(demo).toContainText(t('home.demos.tasks.assignee3'));
+    await expect(demo).toContainText(t('home.demos.tasks.title5'));
+    await expect(demo).not.toContainText(tMarketing('demo.chrome.share'));
   });
 
   test('tour demos render their complete end states under reduced motion', async ({
@@ -81,6 +82,8 @@ test.describe('homepage demos', () => {
     await govern.scrollIntoViewIfNeeded();
     await expect(govern).toContainText(t('home.demos.govern.approved'));
     await expect(govern).toContainText(t('home.demos.govern.audit2'));
+    await expect(govern).toContainText(t('home.demos.automation.windowTitle'));
+    await expect(govern).not.toContainText(tMarketing('demo.chrome.share'));
 
     const arena = page.getByRole('img', {
       name: t('home.demos.arena.label'),
@@ -88,6 +91,9 @@ test.describe('homepage demos', () => {
     await arena.scrollIntoViewIfNeeded();
     await expect(arena).toContainText(t('home.demos.arena.prompt'));
     await expect(arena).toContainText(t('home.demos.arena.replyB2'));
+    await expect(arena).toContainText(t('home.demos.arena.modelA'));
+    await expect(arena).toContainText(t('home.demos.arena.modelB'));
+    await expect(arena.locator('.lucide-bot')).toHaveCount(0);
 
     const projects = page.getByRole('img', {
       name: t('home.demos.projects.label'),
@@ -102,12 +108,12 @@ test.describe('homepage demos', () => {
   test('tour headings carry the six-stage journey', async ({ page }) => {
     await page.goto('/');
     for (const stage of [
+      'projects',
       'connect',
       'pool',
       'delegate',
       'govern',
       'arena',
-      'projects',
     ] as const) {
       await expect(
         page.getByRole('heading', {
@@ -182,6 +188,11 @@ test.describe('feature page demo scenarios', () => {
     await expect(chat).toContainText(
       t('platformKnowledge.demos.hero.citation1'),
     );
+    // Ordinary chat has one model selector; project-agent selection belongs
+    // on task assignment, not beside the model in this composer.
+    await expect(chat.locator('.lucide-cpu')).toHaveCount(1);
+    await expect(chat.locator('.lucide-chevron-down')).toHaveCount(1);
+    await expect(chat.locator('.lucide-bot')).toHaveCount(0);
 
     const projects = page.getByRole('img', {
       name: t('platformKnowledge.demos.projects.label'),
@@ -351,6 +362,13 @@ test.describe('feature page demo scenarios', () => {
     await expect(
       page.getByRole('link', { name: exploreAutomations }),
     ).toBeVisible();
+    const exploreProjects = t('home.tour.explore').replace(
+      '{module}',
+      t('nav.product.projects.label'),
+    );
+    await expect(
+      page.getByRole('link', { name: exploreProjects }),
+    ).toHaveAttribute('href', '/platform/projects');
 
     await page.goto('/platform');
     await expect(

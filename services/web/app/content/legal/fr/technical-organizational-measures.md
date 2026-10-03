@@ -4,7 +4,7 @@ description: Les mesures techniques et organisationnelles que Ruler GmbH met en 
 noindex: true
 ---
 
-**Dernière mise à jour :** 01.05.2026
+**Dernière mise à jour :** 03.10.2026
 
 Ce document décrit les mesures techniques et organisationnelles (« MTO ») que Ruler GmbH (« Tale ») met en œuvre pour protéger les données personnelles traitées pour le compte de ses clients, telles que référencées à la Section 7 de l'[Accord de traitement des données](/fr/legal/data-processing-agreement). Il s'applique à Tale Cloud. Les déploiements auto-hébergés sont exploités par le Client ; dans ce cas, le Client détermine et applique ses propres mesures, tandis que Tale fournit des paramètres durcis par défaut et des contrôles documentés.
 
@@ -114,9 +114,9 @@ a) Tale commande un test d'intrusion externe au moins une fois par an. Les const
 
 ### 4.3 Audits et certifications
 
-a) Tale maintient des certifications ISO/IEC 27001 et SOC 2 Type II (ou normes équivalentes) pour Tale Cloud.
+a) Ruler GmbH maintient une certification ISO/IEC 27001 dont le périmètre couvre Tale Enterprise et les services professionnels.
 
-b) Les clients peuvent demander des copies du rapport SOC 2 Type II en cours et du certificat ISO 27001 en contactant le support ; les deux sont fournis sous NDA.
+b) Les clients peuvent demander le certificat ISO 27001 en cours et son périmètre en contactant le support ; ces documents sont fournis sous NDA.
 
 ### 4.4 Revue interne
 
