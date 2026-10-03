@@ -54,6 +54,9 @@ const ROW_LINK_CLASS =
 /** How a row that just joined a list arrives: it drops into place. */
 const ROW_ENTER_CLASS = 'animate-row-enter motion-reduce:animate-none';
 
+export const HOME_ROW_AGE_CLASS =
+  'text-muted-foreground shrink-0 text-[11px] leading-5 tabular-nums transition-opacity duration-150';
+
 /**
  * A row's own treatment. The open row's fill is the list's one gliding
  * highlight (`SlidingHighlight`), so the row itself only changes colour and
@@ -106,7 +109,7 @@ function RowText({
         {age !== null && (
           <span
             className={cn(
-              'text-muted-foreground/80 shrink-0 text-[11px] leading-5 tabular-nums transition-opacity duration-150',
+              HOME_ROW_AGE_CLASS,
               // Steps aside while the row's actions show (desktop) — they
               // land on this edge and the age would show through them.
               actions &&
