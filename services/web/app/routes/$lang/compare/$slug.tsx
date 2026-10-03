@@ -1,6 +1,7 @@
 import { createFileRoute, notFound } from '@tanstack/react-router';
 
 import { MarketingContentPage } from '@/app/pages/marketing-content-page';
+import { NotFoundPage } from '@/app/pages/not-found-page';
 import { loadMarketingContent } from '@/lib/content/client';
 
 export const Route = createFileRoute('/$lang/compare/$slug')({
@@ -15,6 +16,7 @@ export const Route = createFileRoute('/$lang/compare/$slug')({
     return { document };
   },
   component: ContentRoute,
+  notFoundComponent: NotFoundPage,
 });
 
 function ContentRoute() {
