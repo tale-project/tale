@@ -408,7 +408,8 @@ describe('captured independent-agent review routing', () => {
   });
 
   it.each([
-    { agentTools: [], code: 'TASK_REVIEWER_INVALID' },
+    { agentTools: [], code: 'TASK_REVIEWER_PERMISSION_MISSING' },
+    { agentTools: null, code: 'TASK_REVIEWER_INVALID' },
     {
       currentTask: { assigneeId: 'other' },
       code: 'TASK_REVIEW_SOURCE_CHANGED',

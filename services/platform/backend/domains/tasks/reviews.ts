@@ -821,7 +821,9 @@ export async function replacePendingTaskReviewer(
               ? 'TASK_REVIEW_SOURCE_CHANGED'
               : block === 'source_required'
                 ? 'TASK_REVIEW_SOURCE_REQUIRED'
-                : 'TASK_REVIEWER_INVALID',
+                : block === 'permission_missing'
+                  ? 'TASK_REVIEWER_PERMISSION_MISSING'
+                  : 'TASK_REVIEWER_INVALID',
         'Agent review is blocked; restore its source and permission or hand the review to an eligible person',
         409,
       );

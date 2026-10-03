@@ -77,19 +77,31 @@ export function ReviewerPicker({
     const choiceMap = new Map<string, TaskReviewer>([
       ['inherit', { kind: 'inherit' }],
     ]);
+    // An agent the server would refuse — the implementation agent, or one
+    // without the `task_review` grant (`agentReviewerEligibility`) — stays
+    // listed but greyed, with the reason as its description; the same rule
+    // judges the project default the inherited choice resolves to.
+    const refusal = (agentId: string): string | undefined => {
+      if (agentId === implementationAgentId)
+        return t('reviewer.independentAgent');
+      const agent = assignableAgents.find(
+        (candidate) => candidate.id === agentId,
+      );
+      return agent !== undefined && !agent.tools?.includes('task_review')
+        ? t('reviewer.agentPermissionRequired')
+        : undefined;
+    };
+    const inheritRefusal =
+      projectReviewer.kind === 'agent'
+        ? refusal(projectReviewer.agentId)
+        : undefined;
     const selectOptions: SearchableSelectOption[] = [
       {
         value: 'inherit',
         label: inheritLabel,
         group: 'default',
-        disabled:
-          projectReviewer.kind === 'agent' &&
-          projectReviewer.agentId === implementationAgentId,
-        description:
-          projectReviewer.kind === 'agent' &&
-          projectReviewer.agentId === implementationAgentId
-            ? t('reviewer.independentAgent')
-            : undefined,
+        disabled: inheritRefusal !== undefined,
+        description: inheritRefusal,
       },
     ];
     if (scopeReady) {
@@ -123,15 +135,13 @@ export function ReviewerPicker({
       for (const agent of assignableAgents) {
         const value = 'agent:' + agent.id;
         choiceMap.set(value, { kind: 'agent', agentId: agent.id });
+        const agentRefusal = refusal(agent.id);
         selectOptions.push({
           value,
           label: agent.name,
           group: 'agents',
-          disabled: agent.id === implementationAgentId,
-          description:
-            agent.id === implementationAgentId
-              ? t('reviewer.independentAgent')
-              : t('reviewer.agentReview'),
+          disabled: agentRefusal !== undefined,
+          description: agentRefusal ?? t('reviewer.agentReview'),
         });
       }
     }
