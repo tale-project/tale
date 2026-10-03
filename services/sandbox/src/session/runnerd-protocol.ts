@@ -164,6 +164,8 @@ export interface RunnerdStdinWriteResponse {
  * idempotent (no missed or double-counted lines). Optional only because the
  * pre-spawn `fail` lines (which can never be reconnected to) skip the counter. */
 export type RunnerdExecEvent = (
+  | { t: 'replay-start' }
+  | { t: 'replay-complete'; throughSeq: number }
   | { t: 'start'; execId: string; startedAtMs: number }
   | { t: 'stdout'; b64: string }
   | { t: 'stderr'; b64: string }
@@ -188,8 +190,14 @@ export type RunnerdExecEvent = (
     }
   | {
       t: 'fail';
-      /** Structured pre-spawn failures (the process never ran). */
-      code: 'INVALID_CWD' | 'EXEC_LIMIT' | 'DUPLICATE_EXEC' | 'BAD_REQUEST';
+      /** Structured start, replay and output-budget failures. */
+      code:
+        | 'INVALID_CWD'
+        | 'EXEC_LIMIT'
+        | 'DUPLICATE_EXEC'
+        | 'BAD_REQUEST'
+        | 'OUTPUT_LIMIT'
+        | 'REPLAY_UNAVAILABLE';
       message: string;
     }
 ) & { seq?: number };

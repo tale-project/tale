@@ -98,6 +98,11 @@ export interface ComposerModelOption {
   vision?: boolean;
   /** The model accepts function tools (catalog `supportsTools`). */
   tools: boolean;
+  /** Its function tools work only on the Responses API (catalog
+   * `toolCallingApi`): direct chat calls it there, an agent harness only
+   * when it speaks that wire, and the Chat Completions model endpoints not
+   * at all. */
+  toolCallingApi?: 'responses';
   /** Total context window in tokens (catalog `contextWindow`). */
   contextWindow: number;
   maxOutputTokens?: number;
@@ -164,6 +169,9 @@ export function collectComposerOptions(
         : {}),
       ...(entry.supportsVision ? { vision: true } : {}),
       tools: entry.supportsTools,
+      ...(entry.toolCallingApi !== undefined
+        ? { toolCallingApi: entry.toolCallingApi }
+        : {}),
       contextWindow: entry.contextWindow,
       ...(entry.maxOutputTokens !== undefined
         ? { maxOutputTokens: entry.maxOutputTokens }

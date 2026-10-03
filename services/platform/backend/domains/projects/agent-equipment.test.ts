@@ -123,6 +123,61 @@ describe('agentModelRefusal', () => {
     expect(refusal).toMatchObject({ code: 'PROJECT_AGENT_MODEL_INVALID' });
     expect(refusal?.message).toContain('claude-code');
   });
+
+  it('holds a Responses-only model to a harness that speaks the Responses API', async () => {
+    composer.listComposerModels.mockResolvedValue({
+      models: [
+        {
+          id: 'gpt-6.1-sol',
+          label: 'GPT 6.1 Sol',
+          providerSlug: 'openai',
+          providerLabel: 'OpenAI',
+          credential: { authMethod: 'api-key' },
+          tools: true,
+          toolCallingApi: 'responses',
+          contextWindow: 1_050_000,
+          tags: ['chat'],
+        },
+      ],
+      harnesses: [
+        {
+          harness: 'claude-code',
+          label: 'Claude Code',
+          toolCallingWire: 'anthropic',
+        },
+        {
+          harness: 'codex',
+          label: 'Codex',
+          toolCallingWire: 'openai-responses',
+        },
+        {
+          harness: 'opencode',
+          label: 'OpenCode',
+          toolCallingWire: 'openai-chat',
+        },
+      ],
+      voice: { ttsAvailable: false, transcriptionAvailable: false },
+    });
+    await expect(
+      agentModelRefusal(sql, {
+        ...org,
+        harness: 'codex',
+        model: 'gpt-6.1-sol',
+        modelProvider: 'openai',
+      }),
+    ).resolves.toBeNull();
+    const refusal = await agentModelRefusal(sql, {
+      ...org,
+      harness: 'opencode',
+      model: 'gpt-6.1-sol',
+      modelProvider: 'openai',
+    });
+    expect(refusal).toEqual({
+      code: 'PROJECT_AGENT_MODEL_INVALID',
+      message:
+        'Model "gpt-6.1-sol" takes tools only through the Responses API, which the opencode harness does not speak. Run it on codex, or pick another model. GET /api/v1/models lists the models and providers this organization can call.',
+    });
+  });
 });
 
 describe('agentEquipmentRefusal', () => {

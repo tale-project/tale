@@ -469,14 +469,14 @@ async function liveBuildkitOrganizations(
     'label=tale.sandbox-session=1',
     ...(organizationId ? ['--filter', `label=tale.org=${organizationId}`] : []),
     '--format',
-    '{{.ID}}\t{{.State}}\t{{.Label "tale.org"}}\t{{.Label "tale.profile"}}',
+    '{{.ID}}\t{{.State}}\t{{.Label "tale.org"}}\t{{.Label "tale.profile"}}\t{{.Label "tale.docker"}}',
   ]);
   if (sessions.exitCode !== 0) {
     throw new Error('buildkitd: cannot establish idle session dependencies');
   }
   const live = new Set<string>();
   for (const line of sessions.stdout.split('\n').filter(Boolean)) {
-    const [id, status, org, profile, extra] = line.split('\t');
+    const [id, status, org, profile, docker, extra] = line.split('\t');
     if (
       !id ||
       !DOCKER_ID_RE.test(id) ||
@@ -490,7 +490,7 @@ async function liveBuildkitOrganizations(
     // Only agent sessions build: a crawler render or a script session of the
     // organization kept its helpers running for nothing. A container without
     // the label predates it and counts, as before.
-    if (profile === 'default') continue;
+    if (profile === 'default' || docker === 'false') continue;
     // Created, paused, restarting, removing and unrecognized non-terminal
     // states may still use the cache. Pinned/warm runtimes are also retained.
     if (status !== 'exited' && status !== 'dead') live.add(org);
@@ -913,20 +913,24 @@ async function ensureBuildkitdMirrors(
    * then: the pulls through it come from that builder's builds. */
   idle: () => Promise<boolean>,
 ): Promise<string> {
-  const pairs: string[] = [];
-  for (const registry of MIRROR_REGISTRIES) {
-    try {
-      await ensureOneMirror(cfg, organizationId, registry, idle);
-      pairs.push(`${registry}=${buildkitdMirrorRef(organizationId, registry)}`);
-    } catch (err) {
-      console.warn(
-        `[sandbox.buildkitd] mirror for ${registry} unavailable; ` +
-          `${registry} base images won't be pullable in builds:`,
-        err,
-      );
-    }
-  }
-  return pairs.join(';');
+  // Three independent resources, still inside the per-organization lease and
+  // global Docker CLI bound. A slow registry must not serialize the others.
+  const pairs = await Promise.all(
+    MIRROR_REGISTRIES.map(async (registry) => {
+      try {
+        await ensureOneMirror(cfg, organizationId, registry, idle);
+        return `${registry}=${buildkitdMirrorRef(organizationId, registry)}`;
+      } catch (err) {
+        console.warn(
+          `[sandbox.buildkitd] mirror for ${registry} unavailable; ` +
+            `${registry} base images won't be pullable in builds:`,
+          err,
+        );
+        return undefined;
+      }
+    }),
+  );
+  return pairs.filter((pair) => pair !== undefined).join(';');
 }
 
 async function ensureOneMirror(
