@@ -608,6 +608,14 @@ describe('ExecManager', () => {
       await new Promise((r) => setTimeout(r, 200));
       expect(sent.some(([pid]) => pid === 99992)).toBe(false);
       expect(mgr.leftoverCount()).toBe(1);
+      const second = mgr.run(
+        { ...base, execId: 'erot-middle', shell: 'sleep 30', cwd: ROOT },
+        () => {},
+      );
+      expect(mgr.cancel('erot-middle', { keepLeftovers: true })).toBe(true);
+      await second;
+      expect(mgr.leftoverCount()).toBe(2);
+      expect(sent.some(([pid]) => pid === 99992)).toBe(false);
       // The exec that takes over ends: what the cancelled one held ends too.
       await mgr.run(
         { ...base, execId: 'erot-next', command: ['true'], cwd: ROOT },
@@ -623,6 +631,57 @@ describe('ExecManager', () => {
       rmSync(procRoot, { recursive: true, force: true });
     }
   });
+
+  test('a rotation snapshot that outlives its leader cannot certify a reused group', async () => {
+    const procRoot = mkdtempSync(`${tmpdir()}/runnerd-proc-`);
+    const listing = Promise.withResolvers<string[]>();
+    const sent: Array<[number, NodeJS.Signals]> = [];
+    const mgr = new ExecManager(
+      new EnvStore(),
+      () => {},
+      undefined,
+      {
+        procRoot,
+        listDir: () => listing.promise,
+        kill: (pid, signal) => {
+          sent.push([pid, signal]);
+        },
+      },
+      { execShim: null },
+    );
+    const seen = collect();
+    let leader = 0;
+    const done = mgr.run(
+      {
+        ...base,
+        execId: 'snapshot-reuse',
+        shell: 'echo $$; exec sleep 30',
+        cwd: ROOT,
+      },
+      seen.emit,
+    );
+    try {
+      leader = await stdoutPid(seen.events);
+      expect(mgr.cancel('snapshot-reuse', { keepLeftovers: true })).toBe(true);
+      expect(sent).toEqual([]);
+      process.kill(leader, 'SIGTERM');
+      await done;
+      mkdirSync(`${procRoot}/99994`);
+      writeFileSync(
+        `${procRoot}/99994/stat`,
+        `99994 (unrelated) S 1 ${leader} ${leader} 0 -1 0 0 0 0 0 0 0 0 0 20 0 1 0 999999 0 0\n`,
+      );
+      listing.resolve(['99994']);
+      await new Promise((resolve) => setTimeout(resolve, 5_300));
+      expect(sent).not.toContainEqual([-leader, 'SIGKILL']);
+    } finally {
+      listing.resolve([]);
+      if (leader > 1 && isAlive(leader)) process.kill(leader, 'SIGKILL');
+      await mgr.terminateAll();
+      await done;
+      rmSync(procRoot, { recursive: true, force: true });
+    }
+  }, 10_000);
 
   test('what a hand-over holds ends when no successor comes within its window', async () => {
     const procRoot = mkdtempSync(`${tmpdir()}/runnerd-proc-`);
@@ -1003,7 +1062,13 @@ describe('ExecManager', () => {
     try {
       const long = collect();
       const longDone = mgr.run(
-        { ...base, execId: 'prune-long', shell: 'sleep 30', cwd: ROOT },
+        {
+          ...base,
+          execId: 'prune-long',
+          shell: 'sleep 120',
+          timeoutMs: 60_000,
+          cwd: ROOT,
+        },
         long.emit,
       );
       while (mgr.status('prune-long')?.state !== 'running') {

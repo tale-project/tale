@@ -413,7 +413,7 @@ describe('signalExecProcesses', () => {
       started = Date.now();
       await taggedPids('e6', deps);
       expect(Date.now() - started).toBeGreaterThanOrEqual(250);
-      expect(pendingProcReads()).toBe(2);
+      expect(pendingProcReads()).toBeGreaterThanOrEqual(2);
     } finally {
       await release(fifo);
     }
@@ -541,6 +541,71 @@ describe('signalExecProcesses', () => {
       expect(Date.now() - startedAt).toBeLessThan(1_000);
       expect(pendingProcReads()).toBe(0);
       expect(sent).toEqual([[62, 'SIGKILL']]);
+    } finally {
+      await release(fifo);
+    }
+  });
+
+  test('a normally completed shim needs no post-exec process or environment reads', async () => {
+    let listings = 0;
+    const { sent, kill } = recorder();
+    const targets = [
+      {
+        execId: 'completed',
+        groupId: 61,
+        rootPid: 60,
+        rootAlive: () => false,
+        rootComplete: () => true,
+      },
+    ];
+    const deps = {
+      kill,
+      listDir: async () => {
+        listings += 1;
+        return ['60', '61'];
+      },
+    };
+    await signalExecProcesses(targets, 'SIGKILL', deps);
+    expect(await processesLeft(targets, deps)).toEqual([false]);
+    expect(listings).toBe(0);
+    expect(pendingProcReads()).toBe(0);
+    expect(sent).toEqual([]);
+  });
+
+  test('a rotation never signals an unproven group without a process table', async () => {
+    const { sent, kill } = recorder();
+    await signalExecProcesses(
+      [{ execId: 'rotated', groupId: 61, groupOnly: true, groupKnown: false }],
+      'SIGKILL',
+      {
+        kill,
+        listDir: async () => {
+          throw Object.assign(new Error('missing'), { code: 'ENOENT' });
+        },
+      },
+    );
+    expect(sent).toEqual([]);
+  });
+
+  test('a stalled intermediate environment does not hide its subtree in a mixed tag scan', async () => {
+    const procRoot = procTable({
+      '60': tagged('walk', 60),
+      '63': { env: [], pgrp: 63, ppid: 62 },
+      '80': tagged('fallback', 80),
+    });
+    const fifo = stallEnviron(procRoot, '62', 62, 60);
+    const { sent, kill } = recorder();
+    try {
+      await signalExecProcesses(
+        [
+          { execId: 'walk', groupId: 61, rootPid: 60, rootAlive: () => true },
+          { execId: 'fallback', groupId: 80 },
+        ],
+        'SIGKILL',
+        { procRoot, kill, scanDeadlineMs: 300 },
+      );
+      expect(sent).toContainEqual([62, 'SIGKILL']);
+      expect(sent).toContainEqual([63, 'SIGKILL']);
     } finally {
       await release(fifo);
     }

@@ -120,6 +120,7 @@ interface LiveExec {
   /** The shim exited: no descendant of it is left, and its pid may name
    * another process now. */
   rootExited: boolean;
+  rootCompleted: boolean;
   /** The shim has yet to name the command's group on its status pipe. */
   groupPending: boolean;
   /** What waits for the shim to name the command's group: a cancel that
@@ -397,6 +398,7 @@ export class ExecManager {
       groupId: shim !== null ? undefined : child.pid,
       rootPid: shim !== null ? child.pid : undefined,
       rootExited: false,
+      rootCompleted: false,
       groupPending: shim !== null,
       awaitingGroup: [],
       exitCode: null,
@@ -715,6 +717,8 @@ export class ExecManager {
         } | null = null;
         const shimOver = () => {
           if (!statusEnded || shimExit === null) return;
+          record.rootCompleted =
+            shimExit.signal === null && record.rootPid !== undefined;
           this.groupSettled(record);
           commandExit(shimExit.code, shimExit.signal);
         };
@@ -813,12 +817,25 @@ export class ExecManager {
    * Ending those too would leave the restarted turn, which goes on where
    * this one stopped, with the servers it started gone. */
   private handOver(execId: string, rec: LiveExec): void {
+    if (rec.handedOver) return;
     const waiting = rec.deferred;
     if (waiting !== null) {
       // Its leader already exited: what it left waits on, for the
       // successor as well.
       rec.handedOver = true;
       this.holdForSuccessor(waiting);
+      const round = (signal: NodeJS.Signals) =>
+        signalExecProcesses(
+          [{ ...waiting, groupOnly: true }],
+          signal,
+          this.reaper,
+        ).catch((error: unknown) => {
+          console.warn('[runnerd] rotation group round failed:', error);
+        });
+      void round('SIGTERM');
+      setTimeout(() => {
+        void round('SIGKILL');
+      }, SIGKILL_GRACE_MS).unref();
       return;
     }
     if (rec.terminated) return;
@@ -837,10 +854,22 @@ export class ExecManager {
     this.withGroup(rec, () => {
       const group = rec.groupId;
       held.groupId = group;
-      signalGroup(group, 'SIGTERM', this.reaper);
-      setTimeout(() => {
-        if (!rec.leaderExited) signalGroup(group, 'SIGKILL', this.reaper);
-      }, SIGKILL_GRACE_MS).unref();
+      held.members = this.recordGroup(execId, group).then((members) =>
+        rec.leaderExited ? [] : members,
+      );
+      void held.members.then(() => {
+        if (!rec.leaderExited) signalGroup(group, 'SIGTERM', this.reaper);
+        setTimeout(() => {
+          void signalExecProcesses(
+            [{ ...held, groupOnly: true, groupKnown: !rec.leaderExited }],
+            'SIGKILL',
+            this.reaper,
+          ).catch((error: unknown) => {
+            console.warn('[runnerd] rotation group SIGKILL failed:', error);
+          });
+        }, SIGKILL_GRACE_MS).unref();
+        return undefined;
+      });
     });
   }
 
@@ -906,9 +935,16 @@ export class ExecManager {
   }
 
   /** The exec's subreaper shim as a reaping root, while it runs. */
-  private rootOf(rec: LiveExec): Pick<ReapTarget, 'rootPid' | 'rootAlive'> {
+  private rootOf(
+    rec: LiveExec,
+  ): Pick<ReapTarget, 'rootPid' | 'rootAlive' | 'rootComplete'> {
     if (rec.rootPid === undefined) return {};
-    return { rootPid: rec.rootPid, rootAlive: () => !rec.rootExited };
+    return {
+      rootPid: rec.rootPid,
+      rootAlive: () => !rec.rootExited,
+      rootComplete: () =>
+        rec.rootCompleted && rec.rootPid !== undefined && !rec.groupPending,
+    };
   }
 
   /** The daemon is going down: every live exec, and what exited execs left
@@ -934,7 +970,7 @@ export class ExecManager {
   private dropLive(execId: string): void {
     const rec = this.live.get(execId);
     this.live.delete(execId);
-    if (rec !== undefined) this.liftHolds(rec.ordinal);
+    if (rec !== undefined && !rec.handedOver) this.liftHolds(rec.ordinal);
     if (this.live.size === 0) void this.reap(this.takeUnheldLeftovers());
   }
 
@@ -1012,13 +1048,22 @@ export class ExecManager {
     const term = round(
       'SIGTERM',
       targets.map(
-        ({ execId, groupId, groupKnown, members, rootPid, rootAlive }) => ({
+        ({
           execId,
           groupId,
           groupKnown,
           members,
           rootPid,
           rootAlive,
+          rootComplete,
+        }) => ({
+          execId,
+          groupId,
+          groupKnown,
+          members,
+          rootPid,
+          rootAlive,
+          rootComplete,
         }),
       ),
     );
@@ -1027,7 +1072,15 @@ export class ExecManager {
         'SIGKILL',
         targets.map(
           (
-            { execId, groupId, leaderRunning, members, rootPid, rootAlive },
+            {
+              execId,
+              groupId,
+              leaderRunning,
+              members,
+              rootPid,
+              rootAlive,
+              rootComplete,
+            },
             index,
           ) => ({
             execId,
@@ -1039,6 +1092,7 @@ export class ExecManager {
             ]),
             rootPid,
             rootAlive,
+            rootComplete,
           }),
         ),
       );
