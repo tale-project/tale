@@ -78,7 +78,7 @@ describe('on-demand server: performance + cache shape', () => {
       ),
     );
     const bodies = await Promise.all(
-      responses.map((response) => response?.text()),
+      responses.map(async (response) => response?.text()),
     );
     expect(new Set(bodies).size).toBe(1);
     expect(bodies[0]).toContain('Body for /pricing.');
