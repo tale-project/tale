@@ -1089,6 +1089,10 @@ export interface TaskAgentRunSummary {
   settledAt: number | null;
   waitingForCapacity: boolean;
   failureCode: string | null;
+  /** The same pending native retry the task card reads. A finished run is
+   * not idle work while its automatic retry is still armed. False is an
+   * observed fact, not permission to restart or a provider reset time. */
+  retryPending: boolean;
   feedback: string | null;
   feedbackTruncated: boolean;
 }
@@ -1109,7 +1113,9 @@ export async function listTaskAgentRunSummaries(
     beforeSeq?: number;
   },
 ): Promise<TaskAgentRunSummary[]> {
-  return sql<TaskAgentRunSummary[]>`
+  const rows = await sql<
+    (Omit<TaskAgentRunSummary, 'retryPending'> & { agentExists: boolean })[]
+  >`
     SELECT id, seq::float8 AS seq, agent_id AS "agentId", status, trigger,
            started_at_ms::float8 AS "startedAt",
            launched_at_ms::float8 AS "launchedAt",
@@ -1117,6 +1123,11 @@ export async function listTaskAgentRunSummaries(
            (status = 'queued' AND waiting_for_capacity_at_ms IS NOT NULL)
              AS "waitingForCapacity",
            failure_code AS "failureCode",
+           EXISTS (
+             SELECT 1 FROM app.project_agents a
+             WHERE a.id = project_agent_runs.agent_id
+               AND a.org_id = project_agent_runs.org_id
+           ) AS "agentExists",
            left(feedback, ${AGENT_RUN_FEEDBACK_EXCERPT_CHARS}) AS feedback,
            coalesce(char_length(feedback) > ${AGENT_RUN_FEEDBACK_EXCERPT_CHARS},
                     false) AS "feedbackTruncated"
@@ -1127,6 +1138,17 @@ export async function listTaskAgentRunSummaries(
     ORDER BY seq DESC
     LIMIT ${Math.min(Math.max(Math.floor(args.limit), 1), 100)}
   `;
+  const newest = rows[0];
+  // One history read at most. The shared helper also verifies the global
+  // newest run, so a page of older failures cannot claim a pending retry.
+  // Like the task card, an agent that no longer exists cannot be retried.
+  const retryPending =
+    newest?.status === 'failed' && newest.agentExists
+      ? await failedRunRetryPending(sql, args.taskId, newest.id)
+      : false;
+  return rows.map(({ agentExists: _agentExists, ...run }, index) =>
+    Object.assign(run, { retryPending: index === 0 && retryPending }),
+  );
 }
 
 /** The 0.4 sandbox-op wire for one run's live transcript. */

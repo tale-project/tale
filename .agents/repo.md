@@ -461,7 +461,8 @@ xlsx,odt}.ts`) still reach the catch-all as `failed` + `indexer_error` and are r
   entries' `…/{id}/versions`.
 - **The per-task circuit breaker covers project agents only** — starts of a project agent by an
   automation step or another agent stop after three per task in a rolling hour, their automatic
-  retries included
+  retries included except a single broker cooldown immediately after the same agent's HTTP 429
+  (`freeCooldownWaits`; consecutive cooldowns still count)
   (`AUTOMATED_STARTS_PER_TASK_PER_HOUR`, `backend/domains/tasks/delegated-start.ts`, refused as
   `paused` with an `agent_run.refused` timeline row, 2026-09-29), but nothing counts AUTOMATION
   runs on a task: between two automations that keep mentioning each other the one-engine rule and

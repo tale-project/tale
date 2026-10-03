@@ -141,9 +141,11 @@ actions:
       waiting for a person's review (in_review) or one already Done or
       Cancelled (closed), the agent is working another task (agent_busy), an
       open task blocks this one (blocked), or the task took three starts by
-      automations and agents, their automatic retries included, in the last
-      hour (paused). A step delivered again answers the run its first delivery
-      started.
+      automations and agents, ordinary automatic retries included, in the last
+      hour (paused). One broker cooldown immediately after the same agent's
+      HTTP 429 adds no start; consecutive cooldowns still count. Honor the
+      returned retryAfter and every other admission check. A step delivered
+      again answers the run its first delivery started.
     effects: write
     input:
       type: object

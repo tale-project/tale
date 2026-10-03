@@ -340,5 +340,9 @@
  * 3.14.0 — 2026-10-03: a run's `waitingFor` gains `room`, an agent step
  * whose start waits for sandbox room (its `detail` reads `room:<nodeId>`)
  * where it read `agent` before; no one to page. Additive.
+ *
+ * 3.15.0 — 2026-10-03: native task_get agentRuns includes explicit
+ * retryPending, reusing the task card's native retry state without exposing
+ * error text or provider reset times. No public REST endpoint is added.
  */
-export const API_CONTRACT_VERSION = '3.14.0';
+export const API_CONTRACT_VERSION = '3.15.0';

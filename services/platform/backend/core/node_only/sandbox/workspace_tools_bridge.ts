@@ -199,6 +199,12 @@ const TOOL_DESCRIPTIONS: Record<string, string> = {
     "feedback: the first 500 characters of the start's message; " +
     'agentRunsPage pages them with runCursor. A run with live true is still ' +
     'working, and the task starts no other run until it ends. ' +
+    'retryPending true means the latest failed run still has an armed native ' +
+    'retry with budget remaining: leave it to the platform. False means no ' +
+    'retry is pending for that run, not that restarting is safe. An absent ' +
+    'field on an older platform is unknown, never false. Re-read current ' +
+    'task, assignment, runs and review before acting; honor provider waits ' +
+    'and admission retryAfter. No provider reset time is supplied here. ' +
     'workflowRun.waitingFor "ask" or "approval" waits on a person. ' +
     'pendingReview.reviewer names its captured user or agent recipient; ' +
     'implementationAgentId and evidenceRevision bind an agent decision to ' +
