@@ -7,7 +7,7 @@ Mit der `tale`-CLI installierst und betreibst du Tale und stellst neue Versionen
 
 Dieselbe CLI übernimmt Container-Operationen im Workspace, verwaltete Deployments aus exakten Quell-Commits und Client-Konfigurations-Releases. Deine Deployment-Automatisierung wählt Ziel, Referenzen und Zugangsdatenverweise und ruft die CLI auf. [Client-Konfigurationen veröffentlichen](/de/self-hosted/configuration/config-releases) behandelt die Inhalte im eigenen Repository des Clients.
 
-Für deine erste Instanz nutze den [Schnellstart](/de/self-hosted/install/quickstart). Der übliche Ablauf ist `tale init` und danach `tale dev`; mit `tale doctor` prüfst du vorher deinen Rechner. Eine Spezifikation für verwaltete Deployments brauchst du erst, wenn deine Automatisierung exakte Quell-Commits für Laufzeit und Client festlegen muss.
+Für deine erste Instanz nutze den [Schnellstart](/de/self-hosted/install/quickstart). Der übliche Ablauf ist `tale init` und danach `tale dev`. Eine Spezifikation für verwaltete Deployments brauchst du erst, wenn deine Automatisierung exakte Quell-Commits für Laufzeit und Client festlegen muss.
 
 ## Bevor du beginnst
 
@@ -53,7 +53,7 @@ Mit `VERSION` legst du eine Release-Version fest, mit `INSTALL_DIR` ein anderes 
 tale --version
 ```
 
-Die CLI zeigt die installierte Version. Falls der Befehl nicht gefunden wird, prüfe das Zielverzeichnis in der Installer-Ausgabe und ergänze es im `PATH`. Öffne unter Windows nach der Installation ein neues Terminal. Schlägt der Download fehl, prüfe die oben genannten Netzwerkziele. Mit der optionalen Umgebungsvariable `GITHUB_TOKEN` authentifizierst du die Release-Abfrage, falls GitHub anonyme API-Anfragen begrenzt.
+Die CLI zeigt die installierte Version. Falls der Befehl nicht gefunden wird, prüfe das Zielverzeichnis in der Installer-Ausgabe und ergänze es im `PATH`. Falls ein bereits geöffnetes Windows-Terminal `tale` weiterhin nicht findet, öffne es neu. Schlägt der Download fehl, prüfe die oben genannten Netzwerkziele. Mit der optionalen Umgebungsvariable `GITHUB_TOKEN` authentifizierst du die Release-Abfrage, falls GitHub anonyme API-Anfragen begrenzt.
 
 ## Konfiguration prüfen
 
@@ -84,7 +84,7 @@ Die CLI gruppiert ihre Befehle danach, was du gerade tust — genau wie `tale --
 - Ein Flag der Form `--flag <wert>` **erfordert einen Wert**, wenn du es nutzt (z. B. `--port 8443`); ein bloßes Flag wie `--detach` ist ein boolescher Schalter.
 - **Standardwerte** stehen in Klammern hinter der Beschreibung. Kein Standard bedeutet, das Flag ist aus oder der Wert wird aus `.env` / Kontext aufgelöst.
 
-Führe `tale <befehl> --help` für die maßgebliche Liste deiner installierten Version aus.
+Diese Referenz beschreibt auch Befehle aus dem aktuellen Quellcode. Die veröffentlichte CLI-Version v0.5.70 enthält weder `tale doctor` noch `tale dev --stop`. Mit `tale --help` und `tale <befehl> --help` prüfst du, welche Befehle und Optionen deine installierte Version unterstützt.
 
 **Globale Flags** funktionieren bei jedem Befehl:
 

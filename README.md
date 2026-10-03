@@ -112,9 +112,9 @@ tale dev
 
 You need Docker with Compose, space for several GB of images and your data, and a model provider credential for your first reply. Docker Desktop includes the amd64 emulation needed by the bundled object store on Apple Silicon. On ARM64 Linux, configure emulation before starting.
 
-The CLI can help install or start Docker. Use `tale doctor` to check prerequisites without changing your machine. On startup, open the printed URL, create the first account and organization, then add a credential under **Settings > AI providers** and [send your first message](https://docs.tale.dev/get-started/quickstart).
+The CLI can help install or start Docker. On startup, open the printed URL, create the first account and organization, then add a credential under **Settings > AI providers** and [send your first message](https://docs.tale.dev/get-started/quickstart).
 
-Press `Ctrl-C` to stop; run `tale dev` in the same directory to resume with your data. For background use, start with `tale dev --detach` and stop with `tale dev --stop`.
+Press `Ctrl-C` to stop; run `tale dev` in the same directory to resume with your data.
 
 The [installation quickstart](https://docs.tale.dev/self-hosted/install/quickstart) covers Windows, certificates, architecture requirements and recovery. Use the [CLI guide](tools/cli/README.md) for commands. Before serving a team, follow [production preparation](https://docs.tale.dev/self-hosted/install/quickstart#prepare-a-production-deployment); `tale deploy` uses separate data volumes from the local development instance.
 

@@ -7,7 +7,7 @@ The `tale` CLI installs, deploys and operates Tale. Install it on the machine wh
 
 The same CLI owns workspace container operations, managed deployments from exact source commits, and client configuration releases. Your deployment automation selects destination, pins and credential references, then calls the CLI. [Release client configurations](/self-hosted/configuration/config-releases) covers content from the client's own repository.
 
-For your first instance, use the [quickstart](/self-hosted/install/quickstart). The ordinary path is `tale init` followed by `tale dev`; `tale doctor` checks the machine before you start. You only need a managed deployment specification when your automation must pin exact runtime and client source commits.
+For your first instance, use the [quickstart](/self-hosted/install/quickstart). The ordinary path is `tale init` followed by `tale dev`. You only need a managed deployment specification when your automation must pin exact runtime and client source commits.
 
 ## Before you begin
 
@@ -53,7 +53,7 @@ Set `VERSION` to a release version to pin the install, and `INSTALL_DIR` to choo
 tale --version
 ```
 
-The CLI prints its installed version. If the command is not found, check the destination in the installer output and ensure that directory is on `PATH`. On Windows, open a new terminal after installation. If the download fails, check the network destinations above; an optional `GITHUB_TOKEN` environment variable authenticates the release lookup when anonymous GitHub API requests are rate limited.
+The CLI prints its installed version. If the command is not found, check the destination in the installer output and ensure that directory is on `PATH`. If an existing Windows terminal still cannot find `tale`, reopen it. If the download fails, check the network destinations above; an optional `GITHUB_TOKEN` environment variable authenticates the release lookup when anonymous GitHub API requests are rate limited.
 
 ## Confirm configuration
 
@@ -84,7 +84,7 @@ The CLI groups its commands by what you are doing, the same way `tale --help` do
 - A flag written `--flag <value>` **requires a value** when you use it (e.g. `--port 8443`); a bare flag like `--detach` is a boolean switch.
 - **Defaults** are shown in parentheses after the description. No default means the flag is off, or the command resolves the value from `.env` / context.
 
-Run `tale <command> --help` for the authoritative list at your installed version.
+This reference includes commands in the current source code. The published v0.5.70 CLI does not include `tale doctor` or `tale dev --stop`. Run `tale --help` and `tale <command> --help` for the commands and options available in your installed version.
 
 **Global flags** work on every command:
 
