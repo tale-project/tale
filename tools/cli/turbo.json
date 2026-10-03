@@ -7,6 +7,8 @@
         "$TURBO_EXTENDS$",
         "$TURBO_DEFAULT$",
         "$TURBO_ROOT$/docs/*/self-hosted/install/cli-install.md",
+        "$TURBO_ROOT$/scripts/install-cli.sh",
+        "$TURBO_ROOT$/scripts/install-cli.ps1",
         "$TURBO_ROOT$/.github/workflows/build.yml",
         "$TURBO_ROOT$/.github/workflows/checks.yml",
         "$TURBO_ROOT$/.github/workflows/cleanup-pr-images.yml",

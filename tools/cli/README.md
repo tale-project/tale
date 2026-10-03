@@ -9,6 +9,7 @@ options and deployment specifications.
 
 | Task | Start here |
 | --- | --- |
+| Check the machine before installing an instance | `tale doctor` (read-only; no project needed). |
 | Try Tale locally | [Quickstart](../../docs/en/self-hosted/install/quickstart.md): `tale init`, then `tale dev`. |
 | Deploy a workspace | `tale deploy`; use `tale status` to inspect the result. |
 | Upgrade an existing workspace | [Upgrades](../../docs/en/self-hosted/operate/upgrades.md): `tale update`, then `tale deploy`. |
@@ -32,6 +33,7 @@ installed version and available commands before using a runbook:
 
 ```bash
 tale --version
+tale doctor
 tale --help
 tale deploy --help
 tale config --help
@@ -41,6 +43,34 @@ The workspace instance commands align to the version recorded by `tale.json`.
 Managed bundle and configuration commands use an independently pinned CLI revision
 and explicit inputs. Do not assume that updating your workstation binary upgrades
 running containers.
+
+## Start and stop a local instance
+
+The release binary needs no Bun installation or repository checkout. Have Docker
+with Compose ready, then create the project in the directory where you want to
+keep its configuration:
+
+```bash
+tale init my-project
+cd my-project
+tale dev
+```
+
+Open the printed URL, create the owner account and organization, then connect a
+credential under **Settings > AI providers**. Verify a finished reply with
+[Send your first message](../../docs/en/get-started/quickstart.md).
+
+`Ctrl-C` stops the foreground run. `tale dev --detach` runs in the background;
+`tale dev --stop` stops that project's local containers while preserving their
+volumes. Run `tale dev` from the same directory to resume. The production deployment
+uses separate data volumes and does not import the local instance's data.
+
+`doctor` checks Docker, Compose, daemon architecture and local port availability
+without installing dependencies or changing files. Use `tale doctor --port 8443`
+when selecting another HTTPS port, or `tale doctor --json` for structured output.
+Its warnings include limitations such as ARM64 emulation; a successful check is
+not evidence that image pulls or model requests will succeed. Remote Docker
+contexts skip local port checks.
 
 ## Operate a workspace
 

@@ -6,6 +6,8 @@ kind: index
 
 Mit selbst gehostetem Tale bestimmt deine Organisation, wo die Anwendung läuft, wo Daten gespeichert werden und welche Modelle sie nutzt. Die Open-Source-Plattform bietet dieselben Produktfunktionen wie die Enterprise-Ausgabe. Dein Team betreibt die Infrastruktur und legt fest, welche externen Dienste sie erreichen darf.
 
+Für deine erste Installation folge dem [lokalen Schnellstart](/de/self-hosted/install/quickstart): Installiere die veröffentlichte CLI und führe `tale init` und danach `tale dev` aus. Der Leitfaden führt dich vom Inhaberkonto über die Anbieterverbindung bis zur ersten Chatantwort. Docker führt die fertigen Dienste aus; du brauchst weder einen Quellcode-Klon noch Build-Werkzeuge. Mit `tale doctor` kannst du deinen Rechner vor dem Anlegen des Projekts prüfen.
+
 ## Den passenden Einstieg wählen
 
 | Dein Vorhaben | Einstieg |

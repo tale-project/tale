@@ -101,7 +101,7 @@ Wenn ein Projektagent und passende Zugangsdaten für das Modell eingerichtet sin
 
 ### Eine lokale Instanz starten
 
-Installiere die Tale-CLI, lege ein Projekt an und starte die Entwicklungsumgebung:
+Verwende unter macOS oder Linux die veröffentlichte CLI. Du brauchst weder einen Repository-Klon noch eine Bun-Installation:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/tale-project/tale/main/scripts/install-cli.sh | bash
@@ -110,9 +110,13 @@ cd my-project
 tale dev
 ```
 
-Die Umgebung benötigt Docker. Folge den Einrichtungshinweisen der CLI und warte, bis Docker läuft, bevor du Tale startest. Beim ersten Start lädt die CLI Container-Images herunter und zeigt anschließend die Adresse an. Erstelle im Einrichtungsassistenten das erste Konto und die Organisation. Verbinde danach einen KI-Anbieter, damit Modelle antworten können.
+Du brauchst Docker mit Compose, Platz für mehrere GB an Images und deine Daten sowie Zugangsdaten für einen Modellanbieter, um die erste Antwort zu testen. Docker Desktop enthält die amd64-Emulation, die der mitgelieferte Objektspeicher auf Apple Silicon benötigt. Richte die Emulation unter ARM64 Linux vor dem Start ein.
 
-Die [Installationsanleitung](https://docs.tale.dev/de/self-hosted/install/quickstart) beschreibt Windows, Voraussetzungen und die Fehlersuche beim Start. Befehle und Optionen stehen in der [CLI-Referenz](tools/cli/README.md). Lies vor dem Umzug auf einen Server die [Bereitstellungsanleitung](https://docs.tale.dev/de/self-hosted/install/cli-install).
+Die CLI kann bei der Installation oder beim Start von Docker helfen. Mit `tale doctor` prüfst du die Voraussetzungen, ohne deinen Rechner zu verändern. Öffne nach dem Start die angezeigte URL und erstelle das erste Konto und die Organisation. Füge unter **Einstellungen > KI-Anbieter** Zugangsdaten hinzu und [sende deine erste Nachricht](https://docs.tale.dev/de/get-started/quickstart).
+
+Mit `Ctrl-C` stoppst du die Instanz. Starte `tale dev` im selben Verzeichnis erneut, um mit deinen Daten fortzufahren. Für den Hintergrundbetrieb nutze `tale dev --detach`; mit `tale dev --stop` beendest du ihn.
+
+Der [Installations-Schnellstart](https://docs.tale.dev/de/self-hosted/install/quickstart) beschreibt Windows, Zertifikate, Architekturanforderungen und Fehlerbehebung. Befehle findest du im [CLI-Leitfaden](tools/cli/README.md). Folge vor dem Teambetrieb der [Produktionsvorbereitung](https://docs.tale.dev/de/self-hosted/install/quickstart#eine-produktive-bereitstellung-vorbereiten): `tale deploy` verwendet andere Datenvolumes als die lokale Entwicklungsinstanz.
 
 ### Aus dem Quellcode entwickeln
 

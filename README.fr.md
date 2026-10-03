@@ -101,7 +101,7 @@ Avant d’accepter le résultat, ouvre le rapport livré, vérifie ses citations
 
 ### Lancer une instance locale
 
-Installe la CLI Tale, crée un projet, puis démarre son environnement de développement :
+Utilise la CLI publiée sur macOS ou Linux. Tu n’as besoin ni de cloner le dépôt ni d’installer Bun :
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/tale-project/tale/main/scripts/install-cli.sh | bash
@@ -110,9 +110,13 @@ cd my-project
 tale dev
 ```
 
-Cet environnement nécessite Docker. Suis les indications de la CLI et attends que Docker soit prêt avant de lancer Tale. Au premier démarrage, la CLI télécharge les images des conteneurs, puis affiche l’adresse à ouvrir. Crée le premier compte et l’organisation dans l’assistant de configuration. Connecte ensuite un fournisseur IA pour obtenir des réponses des modèles.
+Il te faut Docker avec Compose, de la place pour plusieurs Go d’images et tes données, ainsi que les identifiants d’un fournisseur de modèles pour tester la première réponse. Docker Desktop inclut l’émulation amd64 nécessaire au stockage objet fourni sur Apple Silicon. Sur ARM64 Linux, configure l’émulation avant de démarrer.
 
-Le [guide d’installation](https://docs.tale.dev/fr/self-hosted/install/quickstart) couvre Windows, les prérequis et les problèmes de démarrage. La [référence CLI](tools/cli/README.md) décrit les commandes et les options. Avant de passer sur un serveur, consulte le [guide de déploiement](https://docs.tale.dev/fr/self-hosted/install/cli-install).
+La CLI peut aider à installer ou démarrer Docker. Utilise `tale doctor` pour vérifier les prérequis sans modifier ta machine. Au démarrage, ouvre l’URL affichée, crée le premier compte et l’organisation, puis ajoute des identifiants sous **Paramètres > Fournisseurs IA** et [envoie ton premier message](https://docs.tale.dev/fr/get-started/quickstart).
+
+Appuie sur `Ctrl-C` pour arrêter l’instance ; relance `tale dev` dans le même répertoire pour reprendre avec tes données. Pour fonctionner en arrière-plan, démarre avec `tale dev --detach` et arrête avec `tale dev --stop`.
+
+Le [guide de démarrage](https://docs.tale.dev/fr/self-hosted/install/quickstart) couvre Windows, les certificats, les prérequis d’architecture et le dépannage. Le [guide CLI](tools/cli/README.md) présente les commandes. Avant d’ouvrir l’accès à ton équipe, suis la [préparation de la production](https://docs.tale.dev/fr/self-hosted/install/quickstart#preparer-la-production) : `tale deploy` utilise des volumes distincts de l’instance locale de développement.
 
 ### Développer depuis le code source
 
