@@ -126,12 +126,19 @@ always verifies; there is no unsigned mode.
 The in-memory session registry is a **cache, not the source of truth**: the
 backend objects (container/Pod labels + annotations) plus runnerd's activity
 clock are authoritative. On boot the spawner re-adopts running sessions
-(`SessionRoutes.adoptExisting`); a maintenance pass every minute
+(`SessionRoutes.adoptExisting`), resolving at most eight endpoints at once so
+Kubernetes recovery does not wait for each Pod read in turn. If draining begins
+during recovery, no further peer session is adopted, including one whose
+endpoint read was already in flight. A maintenance pass every minute
 (`SessionRoutes.maintain`: adoption, then the reaper `sweepExpired`; a pass
 still running is joined, never stacked) **stops**:
 
 - sessions past their TTL (registry check) or idle timeout (runnerd `/healthz`
-  `lastActivityAtMs`);
+  `lastActivityAtMs`). Runtimes advertising `activity.idleReclaim` atomically
+  check the observed generation and activity cutoff before freezing the
+  session, so an acquire or completed write after the probe prevents a stale
+  stop. Older runtimes retain the previous expiry checks during a mixed-image
+  rollout;
 - a **released** session — one the platform released after its turn or run
   settled, with no work holding it — once it has been idle for
   `SANDBOX_SESSION_RELEASED_IDLE_MS` (5 minutes by default), through runnerd's
@@ -161,6 +168,14 @@ still running is joined, never stacked) **stops**:
 Every such stop is fenced to the incarnation the registry or listing
 describes, and keeps the workspace. The pass probes at most eight daemons at a
 time, so a few hung ones bound it rather than the sum of every probe.
+
+Exec and attach output consumers each have an 8 MiB pending-write ceiling.
+When a reader falls behind that ceiling, runnerd disconnects that reader and
+releases its socket, buffered writes, subscription and request activity. The
+exec continues under its existing deadline; reconnect through
+`/execs/:id/attach?sinceSeq=<last-seen-seq>` to replay the retained output from
+the 256 KiB ring. Other readers continue receiving output. A dropped consumer
+does not cancel the command or keep an idle session busy after the command ends.
 
 The build-cache upkeep — the reconcile for the organizations whose agent
 sessions adoption just registered, the retirement of legacy helpers and the

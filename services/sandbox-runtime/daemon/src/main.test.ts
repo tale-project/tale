@@ -7,8 +7,9 @@ import {
   readFileSync,
   realpathSync,
   rmSync,
+  writeFileSync,
 } from 'node:fs';
-import { request, type Server } from 'node:http';
+import { request, type Server, type ServerResponse } from 'node:http';
 import { tmpdir } from 'node:os';
 
 const workspace = realpathSync(mkdtempSync(`${tmpdir()}/runnerd-http-`));
@@ -83,6 +84,21 @@ async function releaseTicket(): Promise<Record<string, unknown>> {
   return record(await (await fetch(`${baseUrl}/release`, { headers })).json());
 }
 
+async function waitUntil(predicate: () => boolean): Promise<void> {
+  const deadline = Date.now() + 5_000;
+  while (!predicate() && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  expect(predicate()).toBe(true);
+}
+
+async function currentActiveOperations(): Promise<number> {
+  const health = record(
+    await (await fetch(`${baseUrl}/healthz`, { headers })).json(),
+  );
+  return Number(record(health.activity).activeOperations);
+}
+
 describe('runnerd HTTP service', () => {
   test('rejects unauthenticated execution', async () => {
     const response = await fetch(`${baseUrl}/execs`, {
@@ -118,6 +134,7 @@ describe('runnerd HTTP service', () => {
         released: false,
         pinned: false,
         reclaiming: false,
+        idleReclaim: true,
       },
     });
   });
@@ -227,6 +244,98 @@ describe('runnerd HTTP service', () => {
     }
   });
 
+  for (const mode of ['exec', 'attach'] as const) {
+    test(`a stalled ${mode} consumer disconnects while its exec remains attachable`, async () => {
+      const execId = `stalled-${mode}`;
+      const path = mode === 'exec' ? '/execs' : `/execs/${execId}/attach`;
+      let stalled: ServerResponse | undefined;
+      const observe = (req: { url?: string }, res: ServerResponse) => {
+        if (req.url === path) stalled = res;
+      };
+      server.on('request', observe);
+      const body = JSON.stringify({
+        execId,
+        // Release the output only after the slow consumer has received its
+        // headers and paused. Keep the command live after its 32 MiB burst.
+        shell: `echo $$ > ${execId}.pid; while [ ! -f ${execId}.emit ]; do sleep 0.02; done; head -c 33554432 /dev/zero; exec sleep 30`,
+        cwd: workspace,
+        timeoutMs: 30_000,
+        stdoutMaxBytes: 0,
+        stderrMaxBytes: 0,
+      });
+      const primaryReceived = Promise.withResolvers<void>();
+      const primary = request(
+        `${baseUrl}/execs`,
+        { method: 'POST', headers },
+        (response) => {
+          response.on('error', () => {});
+          if (mode === 'exec') response.pause();
+          else response.resume();
+          primaryReceived.resolve();
+        },
+      );
+      primary.on('error', primaryReceived.reject);
+      let attachment: ReturnType<typeof request> | undefined;
+      let terminal: Promise<string> | undefined;
+      try {
+        primary.end(body);
+        await primaryReceived.promise;
+        if (mode === 'attach') {
+          const received = Promise.withResolvers<void>();
+          attachment = request(`${baseUrl}${path}`, { headers }, (response) => {
+            response.on('error', () => {});
+            response.pause();
+            received.resolve();
+          });
+          attachment.on('error', received.reject);
+          attachment.end();
+          await received.promise;
+        }
+        expect(stalled).toBeDefined();
+        writeFileSync(`${workspace}/${execId}.emit`, 'go');
+        await waitUntil(() => stalled?.destroyed === true);
+        expect(
+          await (await fetch(`${baseUrl}/execs/${execId}`, { headers })).json(),
+        ).toMatchObject({ state: 'running' });
+        expect(
+          alive(Number(readFileSync(`${workspace}/${execId}.pid`, 'utf8'))),
+        ).toBe(true);
+        // The healthy primary in the attach case also leaves now, so no
+        // disconnected consumer keeps an activity operation open.
+        primary.destroy();
+        const deadline = Date.now() + 5_000;
+        while ((await currentActiveOperations()) > 0 && Date.now() < deadline) {
+          await new Promise((resolve) => setTimeout(resolve, 10));
+        }
+        expect(await currentActiveOperations()).toBe(0);
+        const reattach = await fetch(`${baseUrl}/execs/${execId}/attach`, {
+          headers,
+        });
+        expect(reattach.status).toBe(200);
+        terminal = reattach.text();
+        const cancel = await fetch(`${baseUrl}/execs/${execId}/cancel`, {
+          method: 'POST',
+          headers,
+        });
+        expect(await cancel.json()).toEqual({ killed: true });
+        const stream = await terminal;
+        expect(stream).toContain('"t":"stdout"');
+        expect(stream).toContain('"t":"exit"');
+        expect(stream).toContain('"timedOut":false');
+        expect(stream).toContain('"cancelled":true');
+      } finally {
+        server.removeListener('request', observe);
+        primary.destroy();
+        attachment?.destroy();
+        await fetch(`${baseUrl}/execs/${execId}/cancel`, {
+          method: 'POST',
+          headers,
+        });
+        await terminal;
+      }
+    }, 15_000);
+  }
+
   test.skipIf(!existsSync('/proc/self/environ'))(
     'a cancel with leftovers=keep leaves what the exec started outside its group to the next exec',
     async () => {
@@ -288,6 +397,24 @@ describe('runnerd HTTP service', () => {
       released: false,
     });
     const current = await releaseTicket();
+    for (const idleBeforeMs of [null, '0', -1, 1.5]) {
+      expect(
+        (
+          await activityPost('/reclaim', {
+            claimId: 'invalid-idle-cutoff',
+            idleBeforeMs,
+          })
+        ).status,
+      ).toBe(400);
+    }
+    expect(
+      (
+        await activityPost('/reclaim', {
+          claimId: 'stale-idle-cutoff',
+          idleBeforeMs: 0,
+        })
+      ).value,
+    ).toEqual({ claimed: false });
     expect((await activityPost('/release', current)).value).toEqual({
       released: true,
     });

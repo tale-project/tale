@@ -12,6 +12,13 @@ Tale sandbox runtime image — the Python/Node/coding-agent environment that
 
 Any other argument exits 65 (there is no per-call language lane).
 
+runnerd disconnects an exec or attach output reader once its pending writes
+would exceed 8 MiB, releasing the connection and its request activity while
+the command continues. A reader can reconnect through attach using its last
+sequence number and the retained 256 KiB output ring. Session idle and TTL
+cleanup atomically checks the current work generation and activity clock
+before freezing compute; see the [session contract](../sandbox/docs/sessions.md).
+
 Headless Chromium and Playwright are available on demand for automation,
 rendering and screenshots. The runtime starts no display server, managed
 browser or viewing tunnel. Configured transparent egress redirects external
