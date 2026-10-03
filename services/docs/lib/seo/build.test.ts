@@ -4,9 +4,14 @@
  */
 
 import { readFileSync } from 'node:fs';
+import { mkdir, mkdtemp, rm, utimes, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
-import { describe, expect, it } from 'vitest';
+import { compileToMemory } from '@tale/ui/seo';
+import { describe, expect, it, vi } from 'vitest';
 
+import * as content from '../../scripts/walk-content';
 import { buildDocsCompileParams, buildDocsSeo, docsSiteUrl } from './build';
 
 describe('docsSiteUrl', () => {
@@ -32,6 +37,42 @@ describe('docsSiteUrl', () => {
 });
 
 describe('docs SEO build', () => {
+  it('keeps the sitemap unchanged when a checkout changes only file timestamps', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'tale-docs-sitemap-'));
+    const paths = ['en', 'de', 'fr'].map((locale) =>
+      join(dir, locale, 'index.md'),
+    );
+    try {
+      for (const path of paths) {
+        await mkdir(join(path, '..'), { recursive: true });
+        await writeFile(path, '---\ntitle: Guide\n---\nStable content.\n');
+        await utimes(path, new Date('2020-01-01'), new Date('2020-01-01'));
+      }
+      const records = await content.listAllContent(dir);
+      const walk = vi
+        .spyOn(content, 'listAllContent')
+        .mockResolvedValue(records);
+      try {
+        const before = await compileToMemory(await buildDocsCompileParams());
+        for (const path of paths) {
+          await utimes(path, new Date('2026-10-01'), new Date('2026-10-01'));
+        }
+        const after = await compileToMemory(await buildDocsCompileParams());
+        const sitemap = after.get('/sitemap.xml')?.body;
+
+        expect(sitemap).toContain('<loc>https://docs.tale.dev/</loc>');
+        expect(sitemap).toContain('<loc>https://docs.tale.dev/de</loc>');
+        expect(sitemap).toContain('<loc>https://docs.tale.dev/fr</loc>');
+        expect(sitemap).not.toContain('<lastmod>');
+        expect(sitemap).toBe(before.get('/sitemap.xml')?.body);
+      } finally {
+        walk.mockRestore();
+      }
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   it('excludes noindex routes from sitemap sections', async () => {
     const { sections, noindexPaths } = await buildDocsSeo(docsSiteUrl());
 

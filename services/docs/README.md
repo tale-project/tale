@@ -97,6 +97,11 @@ bun run --filter @tale/docs start
 
 The build creates the search index, client and server bundles, prerendered pages, and SEO artifacts. The Bun server serves the result. Its default port is `3002`; `PORT` overrides it. `DOCS_BASE_URL` configures the path prefix when hosting under a subpath.
 
+The sitemap omits `lastmod` because the content does not record a reliable modification
+date. A fresh checkout or rebuild must not advertise every page as newly updated. Add
+dates only from a source that tracks significant content changes; see
+[Google's sitemap guidance](https://developers.google.com/search/docs/crawling-indexing/sitemaps/build-sitemap#additional-notes-about-xml-sitemaps).
+
 ## Route the public documentation host
 
 The bundled proxy serves prose documentation on its own host. `DOCS_URL` chooses

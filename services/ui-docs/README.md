@@ -74,6 +74,11 @@ The Bun server serves the built files through `@tale/ui/server` and `@tale/ui/se
 Check `/api/health`, a deep-linked guide, `/docs/components/button.md`, and an unknown
 route after a deployment. The unknown route must return HTTP 404 with a usable page.
 
+The sitemap omits `lastmod` because the content does not record a reliable modification
+date. A fresh checkout or rebuild must not advertise every page as newly updated. Add
+dates only from a source that tracks significant content changes; see
+[Google's sitemap guidance](https://developers.google.com/search/docs/crawling-indexing/sitemaps/build-sitemap#additional-notes-about-xml-sitemaps).
+
 ## Configure the deployment
 
 | Variable | Read by | Default | Purpose |
