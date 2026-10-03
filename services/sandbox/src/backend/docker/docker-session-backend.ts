@@ -165,7 +165,7 @@ export class DockerSessionBackend implements SessionBackend {
     const inspected = await this.inspectWorkspaceMount(sessionId);
     if (inspected && (await this.workspaceDirExists(inspected))) {
       console.warn(
-        `[sandbox.session] resuming ${sessionId} from its existing mount ${inspected} (legacy colour-rooted path)`,
+        `[sandbox.session] using ${sessionId}'s existing mount ${inspected} (a colour-rooted or moved session root)`,
       );
       return inspected;
     }

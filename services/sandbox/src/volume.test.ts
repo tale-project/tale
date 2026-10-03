@@ -18,6 +18,7 @@ import {
   chmod,
   mkdir,
   mkdtemp,
+  readdir,
   readFile,
   rm,
   stat,
@@ -37,6 +38,8 @@ import {
 // `hold-<call>` makes the first such call wait until the test removes
 // `holding-<call>`; an inspect has read the volume by then, as a daemon
 // answering late would have. `fail-<call>` makes the first such call fail.
+// `exists-on-create` makes the next create find the volume another caller
+// has just made, labelled or not, and refuse as Podman does.
 const FAKE_DOCKER = `#!/usr/bin/env bash
 dir="$(dirname "$0")"
 printf '%s\\n' "$*" >> "$dir/calls.log"
@@ -63,6 +66,11 @@ case "$1 $2" in
     hold inspect
     echo "Error response from daemon: get $name: no such volume" >&2; exit 1 ;;
   "volume create")
+    if mv "$dir/exists-on-create" "$dir/existed-on-create" 2>/dev/null; then
+      mkdir "$volumes/$name"; echo 0755 > "$volumes/$name/mode"
+      if [ "$(cat "$dir/existed-on-create")" = labelled ]; then touch "$volumes/$name/labelled"; fi
+      echo "Error: volume with name $name already exists: volume already exists" >&2; exit 125
+    fi
     if [ ! -d "$volumes/$name" ]; then
       mkdir "$volumes/$name"; echo 0755 > "$volumes/$name/mode"
       if [ "$3" = "--label" ]; then touch "$volumes/$name/labelled"; fi
@@ -101,6 +109,12 @@ beforeAll(async () => {
 });
 beforeEach(async () => {
   await writeFile(join(root, 'calls.log'), '');
+  // A gate one failing test left behind would hold or fail the next.
+  for (const entry of await readdir(root)) {
+    if (/^(hold|holding|fail|failed|exists-on|existed-on)-/.test(entry)) {
+      await rm(join(root, entry));
+    }
+  }
 });
 afterAll(async () => {
   if (originalDockerBin === undefined) delete process.env.DOCKER_BIN;
@@ -305,6 +319,44 @@ describe('a cache volume Docker made itself', () => {
     await ensureCacheVolume(name, now + 5 * 60_000);
     expect(await volume(name)).toEqual({ labelled: true, mode: '1777' });
   });
+
+  test('one a session holds that cannot be made writable either is reported, and the create goes on', async () => {
+    const name = npmCacheVolumeName(cfg, nextOrg());
+    await plantUnlabelled(name, true);
+    await writeFile(join(root, 'fail-run'), '');
+    const warn = spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      await ensureCacheVolume(name, 6_500_000);
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(String(warn.mock.calls[0]?.[0])).toContain(
+        `${name} lacks the tale.sandbox-cache label and could not be replaced`,
+      );
+      expect(String(warn.mock.calls[0]?.[0])).toContain('nor made writable');
+    } finally {
+      warn.mockRestore();
+    }
+    expect(await volume(name)).toEqual({ labelled: false, mode: '0755' });
+  });
+
+  test('one another caller made between the inspect and the create is taken only with its label', async () => {
+    const labelledName = npmCacheVolumeName(cfg, nextOrg());
+    await writeFile(join(root, 'exists-on-create'), 'labelled');
+    await ensureCacheVolume(labelledName, 6_600_000);
+    expect(await calls()).toEqual([
+      inspectCall(labelledName),
+      `volume create --label tale.sandbox-cache=1 ${labelledName}`,
+      inspectCall(labelledName),
+    ]);
+
+    const name = npmCacheVolumeName(cfg, nextOrg());
+    await writeFile(join(root, 'exists-on-create'), 'unlabelled');
+    expect((await rejection(ensureCacheVolume(name, 6_600_000)))?.message).toBe(
+      `volume: failed to create cache volume ${name}: Error: volume with name ${name} already exists: volume already exists`,
+    );
+    // Not taken as ready: the next create replaces it.
+    await ensureCacheVolume(name, 6_600_000);
+    expect(await volume(name)).toEqual({ labelled: true, mode: '1777' });
+  });
 });
 
 describe('a cache volume that is not ready yet', () => {
@@ -319,18 +371,6 @@ describe('a cache volume that is not ready yet', () => {
     await writeFile(join(root, 'calls.log'), '');
     await ensureCacheVolume(name, now);
     expect((await calls())[0]).toBe(inspectCall(name));
-    expect(await volume(name)).toEqual({ labelled: true, mode: '1777' });
-  });
-
-  test('one made without its mode is removed, so the next ensure makes it whole', async () => {
-    const name = npmCacheVolumeName(cfg, nextOrg());
-    const now = 8_000_000;
-    await writeFile(join(root, 'fail-run'), '');
-    expect((await rejection(ensureCacheVolume(name, now)))?.message).toBe(
-      `volume: failed to set perms on cache volume ${name}: docker: Error response from daemon: pull access denied for busybox`,
-    );
-    expect(await volume(name)).toBeNull();
-    await ensureCacheVolume(name, now);
     expect(await volume(name)).toEqual({ labelled: true, mode: '1777' });
   });
 });

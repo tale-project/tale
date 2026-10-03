@@ -18,7 +18,10 @@ const dir = dirname(process.argv[1]);
 // at a time.
 const lock = join(dir, 'state.lock');
 for (;;) {
-  try { mkdirSync(lock); break; } catch { Bun.sleepSync(2); }
+  try { mkdirSync(lock); break; } catch (error) {
+    if (error.code !== 'EEXIST') throw error;
+    Bun.sleepSync(2);
+  }
 }
 process.on('exit', () => rmdirSync(lock));
 const path = join(dir, 'state.json');

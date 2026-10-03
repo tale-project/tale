@@ -219,9 +219,16 @@ async function ensureCacheVolumeUnlocked(name: string): Promise<void> {
     // writable; a later check replaces it once it is free.
     const rm = await runDocker(['volume', 'rm', name], { timeoutMs: 30_000 });
     if (rm.exitCode !== 0 && !/no such volume/i.test(rm.stderr)) {
-      await setCacheVolumeMode(name);
+      const unreplaced = `[sandbox.volume] cache volume ${name} lacks the ${CACHE_LABEL} label and could not be replaced (${rm.stderr.trim()})`;
+      try {
+        await setCacheVolumeMode(name);
+      } catch (err) {
+        // The sessions it is mounted in run on as before, without the cache.
+        console.warn(`${unreplaced}, nor made writable:`, err);
+        return;
+      }
       console.warn(
-        `[sandbox.volume] cache volume ${name} lacks the ${CACHE_LABEL} label and could not be replaced (${rm.stderr.trim()}); made it writable, and a later check replaces it once no session holds it`,
+        `${unreplaced}; made it writable, and a later check replaces it once no session holds it`,
       );
       return;
     }
@@ -249,19 +256,7 @@ async function ensureCacheVolumeUnlocked(name: string): Promise<void> {
     );
   }
 
-  try {
-    await setCacheVolumeMode(name);
-  } catch (err) {
-    // A labelled volume reads as ready: never leave one the sessions cannot
-    // write. The next ensure makes it again.
-    const rm = await runDocker(['volume', 'rm', name], { timeoutMs: 30_000 });
-    if (rm.exitCode !== 0 && !/no such volume/i.test(rm.stderr)) {
-      console.warn(
-        `[sandbox.volume] cannot remove cache volume ${name} after setting its mode failed: ${rm.stderr.trim()}`,
-      );
-    }
-    throw err;
-  }
+  await setCacheVolumeMode(name);
 }
 
 /** One-shot perms fix so EITHER profile's uid can write the shared cache.
