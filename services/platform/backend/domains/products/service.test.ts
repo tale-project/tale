@@ -11,14 +11,16 @@
 import type { Sql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { createAuditLog, emitHintInTx, loadActiveHolds } = vi.hoisted(() => ({
-  createAuditLog: vi.fn(async (..._args: unknown[]) => 'audit-1'),
-  emitHintInTx: vi.fn(async () => undefined),
-  loadActiveHolds: vi.fn(async () => ({
-    orgHeld: false,
-    userMembershipIds: new Set<string>(),
-  })),
-}));
+const { blobRefHeld, createAuditLog, emitHintInTx, loadActiveHolds } =
+  vi.hoisted(() => ({
+    blobRefHeld: vi.fn(),
+    createAuditLog: vi.fn(async (..._args: unknown[]) => 'audit-1'),
+    emitHintInTx: vi.fn(async () => undefined),
+    loadActiveHolds: vi.fn(async () => ({
+      orgHeld: false,
+      userMembershipIds: new Set<string>(),
+    })),
+  }));
 
 vi.mock('../audit_logs/service.ts', () => ({ createAuditLog }));
 vi.mock('../../realtime/outbox.ts', () => ({ emitHintInTx }));
@@ -26,6 +28,13 @@ vi.mock('../legal_holds/service.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../legal_holds/service.ts')>()),
   loadActiveHolds,
 }));
+// The real rule, watched: the release must ask it rather than a copy.
+vi.mock('../files/blob-holders.ts', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('../files/blob-holders.ts')>();
+  blobRefHeld.mockImplementation(actual.blobRefHeld);
+  return { blobRefHeld };
+});
 
 import { productImageUrl } from './image-url.ts';
 import {
@@ -379,6 +388,20 @@ describe('product delete and image release', () => {
     const { sql } = harness({ referenced: true });
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the tag stands in for a transaction
     expect(await deleteProduct(sql as never, scope, 'p-1')).toEqual([]);
+  });
+
+  it('asks the files domain holder rule, so a task or a retained version keeps the bytes (#4110)', async () => {
+    const { sql, statements } = harness({});
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the tag stands in for a transaction
+    await deleteProduct(sql as never, scope, 'p-1');
+    // Its own copy knew file rows and a document's current file only, and
+    // deleted the bytes of an image a task listed as an attachment.
+    expect(blobRefHeld).toHaveBeenCalledTimes(1);
+    expect(blobRefHeld).toHaveBeenCalledWith(sql, 'org-1', expect.anything());
+    expect(statements).toContainEqual({ text: '?', values: ['s3:org-1/img'] });
+    const texts = statements.map((s) => s.text);
+    expect(texts.some((t) => t.includes('history_files @> ARRAY['))).toBe(true);
+    expect(texts.some((t) => t.includes('FROM app.tasks held'))).toBe(true);
   });
 
   it('releases nothing for an external image URL', async () => {
