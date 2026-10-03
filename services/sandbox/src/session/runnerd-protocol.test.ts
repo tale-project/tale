@@ -11,8 +11,10 @@
 
 import { describe, expect, test } from 'bun:test';
 
+import type { RunnerdExecEvent as MirroredRunnerdExecEvent } from '../../../sandbox-runtime/daemon/src/protocol.ts';
 import * as mirror from '../../../sandbox-runtime/daemon/src/protocol.ts';
 import { ID_ALPHABET_RE } from '../wire.ts';
+import type { RunnerdExecEvent } from './runnerd-protocol.ts';
 import * as canonical from './runnerd-protocol.ts';
 
 /** Daemon-local values the mirror carries whose canonical home is elsewhere
@@ -53,8 +55,8 @@ describe('runnerd protocol mirror', () => {
     const markers = [
       { t: 'replay-start' },
       { t: 'replay-end' },
-    ] satisfies canonical.RunnerdExecEvent[];
-    const mirrored: mirror.RunnerdExecEvent[] = markers;
+    ] satisfies RunnerdExecEvent[];
+    const mirrored: MirroredRunnerdExecEvent[] = markers;
     expect(mirrored).toEqual([{ t: 'replay-start' }, { t: 'replay-end' }]);
     expect(markers.every((event) => !('seq' in event))).toBe(true);
   });
