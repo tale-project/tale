@@ -6375,6 +6375,11 @@ settings:
       noDirectCredential:
         Noch keine direkt nutzbaren Anbieter-Zugangsdaten — füge oben einen
         API-Schlüssel oder eine Umgebungsvariable hinzu.
+      noCompatibleModel:
+        Eine Laufzeit ohne Modell kann keines der direkt bereitgestellten
+        Modelle ausführen — diese rufen Tools nur über die Responses-API auf,
+        die nur Codex spricht. Erlaube für diese Laufzeiten ein anderes Modell
+        oder führe den Agenten auf Codex aus.
       noModel: Noch kein Modell
       degraded: Zuletzt fehlerhaft
       subscriptionVia: Abo · {provider}

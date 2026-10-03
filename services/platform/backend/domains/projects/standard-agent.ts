@@ -138,7 +138,7 @@ export function chooseStandardAgentServing(
   options: readonly ComposerModelOption[],
   config: Pick<StandardAgentConfig, 'harness' | 'providerSlug' | 'modelId'>,
   eligibleHarnesses: readonly string[],
-  responsesHarnesses: ReadonlySet<string> = new Set(),
+  responsesHarnesses: ReadonlySet<string>,
 ): StandardAgentServing {
   if (
     config.harness !== undefined &&
@@ -257,6 +257,19 @@ export function chooseStandardAgentServing(
   };
 }
 
+/** The shipped harnesses that speak the Responses API — the only ones a
+ * model whose tools need it can run on. One set for the run and for the
+ * availability every picker reads, so the two never disagree. */
+function responsesSpeakingHarnesses(): ReadonlySet<string> {
+  return new Set(
+    loadHarnesses()
+      .filter(
+        (harness) => harnessToolCallingWire(harness) === 'openai-responses',
+      )
+      .map((harness) => harness.slug),
+  );
+}
+
 /** What runs the standard agent for this person, under this policy. */
 async function resolveStandardAgentServing(
   sql: Sql | TransactionSql,
@@ -277,18 +290,11 @@ async function resolveStandardAgentServing(
     organizationId: args.organizationId,
     userId: args.userId,
   });
-  const responsesHarnesses = new Set(
-    loadHarnesses()
-      .filter(
-        (harness) => harnessToolCallingWire(harness) === 'openai-responses',
-      )
-      .map((harness) => harness.slug),
-  );
   return chooseStandardAgentServing(
     options,
     args.config,
     eligible,
-    responsesHarnesses,
+    responsesSpeakingHarnesses(),
   );
 }
 
@@ -323,7 +329,12 @@ export async function readStandardAgentAvailability(
     config.harness !== undefined && !eligible.includes(config.harness)
       ? []
       : await listGovernedChatModels(sql, args);
-  const serving = chooseStandardAgentServing(options, config, eligible);
+  const serving = chooseStandardAgentServing(
+    options,
+    config,
+    eligible,
+    responsesSpeakingHarnesses(),
+  );
   if (!serving.ok) {
     return { enabled: true, available: false, refusal: serving.refusal };
   }

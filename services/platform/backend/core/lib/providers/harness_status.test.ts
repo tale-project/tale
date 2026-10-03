@@ -76,6 +76,24 @@ describe('deriveHarnessStatus — against the real shipped harness facts', () =>
     });
   });
 
+  it('says a harness has no model it can carry, not no credential, when every direct model needs Responses', () => {
+    const rows = deriveHarnessStatus({
+      harnesses: HARNESSES,
+      directModels: [{ id: 'gpt-6.1-sol', toolCallingApi: 'responses' }],
+      subscriptions: [],
+    });
+
+    expect(entryOf(rows, 'codex').managed).toEqual({
+      available: true,
+      modelCount: 1,
+      defaultModelId: 'gpt-6.1-sol',
+    });
+    expect(entryOf(rows, 'claude-code').managed).toEqual({
+      available: false,
+      reason: 'no-compatible-model',
+    });
+  });
+
   it('omits byo-only harnesses (cursor) from the status list', () => {
     const rows = deriveHarnessStatus({
       harnesses: HARNESSES,

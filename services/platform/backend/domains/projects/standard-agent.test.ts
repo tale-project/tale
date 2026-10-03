@@ -57,11 +57,14 @@ import { ProjectError } from './service.ts';
 import {
   chooseStandardAgentServing,
   ensureStandardAgent,
+  readStandardAgentAvailability,
   STANDARD_AGENT_DEFAULT_INSTRUCTIONS,
   standardAgentServingForKick,
 } from './standard-agent.ts';
 
 const ELIGIBLE = ['claude-code', 'codex', 'opencode'];
+// The shipped harness that speaks the Responses API.
+const RESPONSES_SPEAKERS: ReadonlySet<string> = new Set(['codex']);
 
 function option(
   id: string,
@@ -106,6 +109,7 @@ describe('chooseStandardAgentServing — what runs the standard agent', () => {
       ],
       {},
       ELIGIBLE,
+      RESPONSES_SPEAKERS,
     );
 
     expect(serving).toEqual({
@@ -129,6 +133,7 @@ describe('chooseStandardAgentServing — what runs the standard agent', () => {
       ],
       {},
       ELIGIBLE,
+      RESPONSES_SPEAKERS,
     );
 
     expect(serving).toMatchObject({
@@ -143,6 +148,7 @@ describe('chooseStandardAgentServing — what runs the standard agent', () => {
       [subscription('gpt-5.5', 'openai', 'codex')],
       {},
       ELIGIBLE,
+      RESPONSES_SPEAKERS,
     );
 
     expect(serving).toMatchObject({
@@ -161,6 +167,7 @@ describe('chooseStandardAgentServing — what runs the standard agent', () => {
       ],
       { harness: 'codex' },
       ELIGIBLE,
+      RESPONSES_SPEAKERS,
     );
 
     expect(serving).toMatchObject({
@@ -176,6 +183,7 @@ describe('chooseStandardAgentServing — what runs the standard agent', () => {
         [option('gpt-5.5', 'openai'), option('claude-sonnet-5', 'anthropic')],
         { providerSlug: 'openai', modelId: 'gpt-5.5' },
         ELIGIBLE,
+        RESPONSES_SPEAKERS,
       ),
     ).toEqual({
       ok: true,
@@ -189,6 +197,7 @@ describe('chooseStandardAgentServing — what runs the standard agent', () => {
         [subscription('gpt-5.5', 'openai', 'codex')],
         { providerSlug: 'openai', modelId: 'gpt-5.5' },
         ELIGIBLE,
+        RESPONSES_SPEAKERS,
       ),
     ).toMatchObject({ ok: true, harness: 'codex', source: 'pinned' });
   });
@@ -240,6 +249,7 @@ describe('chooseStandardAgentServing — what runs the standard agent', () => {
         [responsesOnly],
         { providerSlug: 'openai', modelId: 'gpt-6.1-sol' },
         ELIGIBLE,
+        new Set(),
       ),
     ).toEqual({ ok: false, refusal: 'pin-unavailable' });
   });
@@ -250,6 +260,7 @@ describe('chooseStandardAgentServing — what runs the standard agent', () => {
         [option('claude-sonnet-5', 'anthropic')],
         { providerSlug: 'openai', modelId: 'gpt-5.5' },
         ELIGIBLE,
+        RESPONSES_SPEAKERS,
       ),
     ).toEqual({ ok: false, refusal: 'pin-unavailable' });
     expect(
@@ -261,6 +272,7 @@ describe('chooseStandardAgentServing — what runs the standard agent', () => {
           modelId: 'claude-sonnet-5',
         },
         ELIGIBLE,
+        RESPONSES_SPEAKERS,
       ),
     ).toEqual({ ok: false, refusal: 'pin-unavailable' });
   });
@@ -271,9 +283,12 @@ describe('chooseStandardAgentServing — what runs the standard agent', () => {
         [option('gpt-5.5', 'openai')],
         { harness: 'cursor' },
         ELIGIBLE,
+        RESPONSES_SPEAKERS,
       ),
     ).toEqual({ ok: false, refusal: 'harness-invalid' });
-    expect(chooseStandardAgentServing([], {}, ELIGIBLE)).toEqual({
+    expect(
+      chooseStandardAgentServing([], {}, ELIGIBLE, RESPONSES_SPEAKERS),
+    ).toEqual({
       ok: false,
       refusal: 'no-model',
     });
@@ -282,6 +297,7 @@ describe('chooseStandardAgentServing — what runs the standard agent', () => {
         [subscription('claude-sonnet-5', 'anthropic', 'claude-code')],
         { harness: 'codex' },
         ELIGIBLE,
+        RESPONSES_SPEAKERS,
       ),
     ).toEqual({ ok: false, refusal: 'no-model' });
   });
@@ -303,6 +319,42 @@ beforeEach(() => {
   listGovernedChatModels.mockResolvedValue([
     option('claude-sonnet-5', 'anthropic'),
   ]);
+});
+
+// The availability every picker reads and the kick a start runs choose with
+// the same runtimes: a ChatGPT subscription's Responses-only model, pinned,
+// runs on Codex in both, never available in one and refused by the other.
+describe('readStandardAgentAvailability — agrees with the kick', () => {
+  it('reports a Responses-only subscription pin as available on Codex', async () => {
+    readGovernancePolicyForOrg.mockResolvedValue({
+      enabled: true,
+      providerSlug: 'openai',
+      modelId: 'gpt-6.1-sol',
+    });
+    listGovernedChatModels.mockResolvedValue([
+      option('gpt-6.1-sol', 'openai', {
+        toolCallingApi: 'responses',
+        credential: {
+          authMethod: 'subscription-broker',
+          constraints: { harness: 'codex', execution: 'sandbox' },
+        },
+      }),
+    ]);
+
+    await expect(
+      readStandardAgentAvailability({} as never, {
+        organizationId: 'org-1',
+        userId: 'member-1',
+      }),
+    ).resolves.toMatchObject({
+      enabled: true,
+      available: true,
+      harness: 'codex',
+      model: 'gpt-6.1-sol',
+      modelProvider: 'openai',
+      source: 'pinned',
+    });
+  });
 });
 
 describe('standardAgentServingForKick — the policy, at every start', () => {

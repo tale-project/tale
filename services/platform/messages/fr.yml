@@ -6472,6 +6472,11 @@ settings:
       noDirectCredential:
         Aucun identifiant de fournisseur directement utilisable — ajoute une
         clé API ou une variable d'environnement ci-dessus.
+      noCompatibleModel:
+        Un harness sans modèle ne peut exécuter aucun des modèles servis
+        directement — ils n'appellent des outils que via l'API Responses, que
+        seul Codex parle. Autorise un autre modèle pour ces harnesses, ou
+        exécute l'agent sur Codex.
       noModel: Pas encore de modèle
       degraded: En échec récemment
       subscriptionVia: Abonnement · {provider}

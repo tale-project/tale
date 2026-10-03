@@ -6550,6 +6550,11 @@ settings:
       noDirectCredential:
         No directly usable provider credential yet — add an API key or an
         environment credential above.
+      noCompatibleModel:
+        A runtime without a model can run none of the directly served models
+        — they take tools only through the Responses API, which only Codex
+        speaks. Allow another model for those runtimes, or run the agent on
+        Codex.
       noModel: No model yet
       degraded: Recently failing
       subscriptionVia: Subscription · {provider}

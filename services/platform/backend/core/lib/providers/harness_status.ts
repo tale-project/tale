@@ -44,7 +44,10 @@ export type HarnessManagedStatus =
     }
   | {
       available: false;
-      reason: 'no-direct-credential';
+      /** `no-direct-credential`: nothing is direct-served at all.
+       * `no-compatible-model`: models are, but none this harness's wire can
+       * carry (their tools need the Responses API). */
+      reason: 'no-direct-credential' | 'no-compatible-model';
     };
 
 export interface HarnessStatusEntry {
@@ -109,7 +112,13 @@ export function deriveHarnessStatus(inputs: {
       const firstDirect = pool[0];
       const managed: HarnessStatusEntry['managed'] =
         firstDirect === undefined
-          ? { available: false, reason: 'no-direct-credential' }
+          ? {
+              available: false,
+              reason:
+                inputs.directModels.length === 0
+                  ? 'no-direct-credential'
+                  : 'no-compatible-model',
+            }
           : {
               available: true,
               modelCount: pool.length,
