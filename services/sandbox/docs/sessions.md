@@ -424,7 +424,14 @@ The spawner's part:
   Kubernetes keeps nothing per organization beyond PVCs). A workspace list
   that cannot be read leaves the stopped ones to the platform, which names
   every workspace its rows knew. 409 while a create of the organization is in
-  flight, 502 on a failure; idempotent.
+  flight, 502 on a failure; idempotent. A package cache is the spawner's by its
+  `tale.sandbox-cache` label, and the teardown refuses a volume under a cache
+  name without it. Docker makes such a volume itself when a session mounts a
+  cache that was pruned while the spawner still took it to be ready (for up
+  to five minutes after it last checked): root-owned and unwritable to the
+  sessions. The organization's next create past that window replaces it with
+  a labelled, writable one, or makes it writable while a session still holds
+  it and replaces it at a later check.
 
 ## Secret-management model (tiered — the security invariant)
 
