@@ -230,6 +230,13 @@ await assertOk('claude --version runs', 10001, 'claude --version');
 await assertOk('opencode --version runs', 10001, 'opencode --version');
 await assertOk('hermes --version runs', 10001, 'hermes --version');
 await assertOk('codex --version runs', 10001, 'codex --version');
+// The npm launcher is a Node process that would stay the binary's parent for
+// the whole run; `codex` on PATH execs the native binary directly.
+await assertOk(
+  'codex runs its native binary without a Node parent',
+  10001,
+  'head -n1 "$(command -v codex)" | grep -qx "#!/bin/sh"',
+);
 await assertOk('gemini --version runs', 10001, 'gemini --version');
 await assertOk('pi --version runs', 10001, 'pi --version');
 await assertOk('openclaw --version runs', 10001, 'openclaw --version');

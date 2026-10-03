@@ -1,0 +1,10 @@
+#!/bin/sh
+# codex — the Codex CLI's native binary, run directly. The npm package's own
+# launcher (bin/codex.js) is a Node process that spawns this binary and stays
+# its parent for the whole run, about 40 MB that only relay signals and the
+# exit status. This execs the binary with the environment that launcher sets;
+# the image build fills in both paths (Dockerfile).
+CODEX_MANAGED_BY_NPM=1
+CODEX_MANAGED_PACKAGE_ROOT='@CODEX_ROOT@'
+export CODEX_MANAGED_BY_NPM CODEX_MANAGED_PACKAGE_ROOT
+exec '@CODEX_BIN@' "$@"

@@ -361,9 +361,30 @@ RUN chmod +x /usr/local/bin/tale-gemini-run
 
 # OpenAI Codex CLI (pinned npm). Driven headlessly by the platform's codex
 # adapter (`codex exec --json`, config via -c overrides) — no wrapper needed;
-# the CLI's native JSONL is the parse contract.
+# the CLI's native JSONL is the parse contract. Its npm launcher is a Node
+# process that stays the native binary's parent for the whole run; `codex` on
+# PATH execs the binary directly instead (codex-launcher.in), resolved the way
+# that launcher resolves it.
+COPY services/sandbox-runtime/codex-launcher.in /tmp/codex-launcher.in
 RUN npm install -g --prefix /opt/agents "@openai/codex@${CODEX_VERSION}" \
     && npm cache clean --force \
+    && codex_root="$(realpath /opt/agents/lib/node_modules/@openai/codex)" \
+    && codex_bin="$(node -e ' \
+         const path = require("path"); \
+         const root = process.argv[1]; \
+         const req = require("module").createRequire(path.join(root, "bin", "codex.js")); \
+         const triple = { x64: "x86_64-unknown-linux-musl", arm64: "aarch64-unknown-linux-musl" }[process.arch]; \
+         const pkg = { x64: "@openai/codex-linux-x64", arm64: "@openai/codex-linux-arm64" }[process.arch]; \
+         let vendor; \
+         try { vendor = path.join(path.dirname(req.resolve(pkg + "/package.json")), "vendor"); } \
+         catch { vendor = path.join(root, "vendor"); } \
+         console.log(path.join(vendor, triple, "bin", "codex"));' "$codex_root")" \
+    && test -x "$codex_bin" \
+    && sed -e "s|@CODEX_ROOT@|$codex_root|" -e "s|@CODEX_BIN@|$codex_bin|" \
+         /tmp/codex-launcher.in > /opt/agents/bin/codex.direct \
+    && chmod 755 /opt/agents/bin/codex.direct \
+    && mv -f /opt/agents/bin/codex.direct /opt/agents/bin/codex \
+    && rm /tmp/codex-launcher.in \
     && codex --version
 
 # Pi (pinned npm, into /opt/agents like Claude Code) + Tale wrapper that
