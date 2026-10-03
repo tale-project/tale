@@ -524,6 +524,14 @@ describe('signalExecProcesses', () => {
     // Below the shim, a process whose environment read would hang.
     const fifo = stallEnviron(procRoot, '62', 62, 60);
     const { sent, kill } = recorder();
+    // Another exec's cleanup may still be reading /proc in this Bun process.
+    // Keep one unrelated read pending to make that isolation explicit.
+    const unrelatedListing = Promise.withResolvers<string[]>();
+    const unrelatedScan = taggedPids('unrelated', {
+      procRoot: '/unrelated-process-table',
+      listDir: () => unrelatedListing.promise,
+      scanDeadlineMs: 2_000,
+    });
     try {
       const startedAt = Date.now();
       await signalExecProcesses(
@@ -539,9 +547,20 @@ describe('signalExecProcesses', () => {
         { procRoot, kill, scanDeadlineMs: 2_000 },
       );
       expect(Date.now() - startedAt).toBeLessThan(1_000);
-      expect(pendingProcReads()).toBe(0);
+      // Observe this FIFO, not the process-wide counter: unrelated scans can
+      // legitimately remain pending while this shim-only walk has finished.
+      let fifoError: unknown;
+      try {
+        const fd = openSync(fifo, constants.O_WRONLY | constants.O_NONBLOCK);
+        closeSync(fd);
+      } catch (error) {
+        fifoError = error;
+      }
+      expect(fifoError).toMatchObject({ code: 'ENXIO' });
       expect(sent).toEqual([[62, 'SIGKILL']]);
     } finally {
+      unrelatedListing.resolve([]);
+      await unrelatedScan;
       await release(fifo);
     }
   });
