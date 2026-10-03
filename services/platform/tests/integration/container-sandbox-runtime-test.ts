@@ -21,6 +21,7 @@ import { join } from 'node:path';
 
 import { parse as parseYaml } from 'yaml';
 
+import { checkCodexRoundTrip } from './lib/codex-round-trip';
 import { sleep } from './lib/docker';
 import { capture, ok, projectRoot, stdoutOf, stream } from './lib/exec';
 import { BOLD, GREEN, NC, RED } from './lib/log';
@@ -336,33 +337,15 @@ await assertOk(
   10001,
   'test -x /usr/local/bin/tale-qwen-run',
 );
-// The pinned Codex accepts the managed argv shape and gets as far as its
-// own protocol: with its state root present it announces the thread before
-// it ever reaches a model (the provider here is unreachable on purpose).
-// Without the root it dies on stderr with "Error finding codex home", exit
-// 1 and no JSON at all — what every managed Codex run hit while the
-// entrypoint never created the directory (2026-09-26 evaluation, C-08).
-await assertContains(
-  'codex exec starts against its state root and speaks its protocol',
-  10001,
-  '"type":"thread.started"',
-  // The managed argv of `lib/harnesses/fixtures/exec/codex.yml` (TOML values
-  // quoted, the prompt on stdin), pointed at a port nothing listens on.
-  [
-    'mkdir -p /workspace/.codex && cd /workspace && echo ping |',
-    'CODEX_HOME=/workspace/.codex TALE_GATEWAY_TOKEN=unused codex exec',
-    '--json --skip-git-repo-check',
-    `-c 'approval_policy="never"' -c 'sandbox_mode="danger-full-access"'`,
-    `-c 'web_search="disabled"' -c 'model_provider="tale"'`,
-    `-c 'model_providers.tale.name="Tale Gateway"'`,
-    `-c 'model_providers.tale.base_url="http://127.0.0.1:9/openai/v1"'`,
-    `-c 'model_providers.tale.env_key="TALE_GATEWAY_TOKEN"'`,
-    `-c 'model_providers.tale.wire_api="responses"'`,
-    `-c 'model_providers.tale.request_max_retries=0'`,
-    `-c 'model_providers.tale.stream_max_retries=0'`,
-    '-m probe - 2>&1 || true',
-  ].join(' '),
-);
+// Exercise startup, native tool execution and completion against a bounded
+// loopback Responses server. Codex now waits for network recovery on a refused
+// connection, so an unreachable port cannot serve as a terminating probe.
+try {
+  await checkCodexRoundTrip(IMAGE);
+  pass('codex completes a native tool round trip with parsed text and usage');
+} catch (error) {
+  fail(`codex native tool round trip: ${String(error)}`);
+}
 // The entrypoint creates every harness state root a harness.yml points at
 // under HOME, or the harness refuses to start (Codex above). Registry and
 // entrypoint are pinned to each other here, in the lane that cannot run
