@@ -26,6 +26,7 @@ import {
   type OrganizationTeardownResult,
   type SessionBackend,
   type SessionSpec,
+  type WorkspaceDeletion,
 } from '../types.ts';
 import {
   apiTimeout,
@@ -356,6 +357,16 @@ export class KubernetesSessionBackend implements SessionBackend {
     // destroy too.
     const hadWorkspace = await this.deleteWorkspacePvc(sessionId);
     return existed || hadWorkspace;
+  }
+
+  /** The PVC delete is this backend's deletion: once the API accepted it,
+   * Kubernetes removes the claim when nothing mounts it, and the volume is
+   * its storage provisioner's to delete under the storage class's reclaim
+   * policy — bytes the spawner cannot observe. So the answer says exactly
+   * that, never `done`, and the platform records which contract it settled
+   * on. */
+  async workspaceDeletion(): Promise<WorkspaceDeletion> {
+    return 'handed_off';
   }
 
   async stopSession(

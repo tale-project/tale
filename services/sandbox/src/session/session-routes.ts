@@ -1143,21 +1143,16 @@ export class SessionRoutes {
       }
     }
     // Out of use is not deleted: `deletion` says how far the workspace's
-    // bytes came, and an erasure or retirement settles only on `done`. The
-    // wait comes after the destroy settled — the id is free once the
-    // workspace is out of use, so a create of it never waits for the bytes.
+    // bytes came, on every answer that is not busy — an erasure or a
+    // retirement settles only on an explicit `done` (or Kubernetes'
+    // `handed_off`), and reads an answer without it as unconfirmed. The wait
+    // comes after the destroy settled — the id is free once the workspace is
+    // out of use, so a create of it never waits for the bytes.
     const deletion = await this.deletionOf(
       sessionId,
       opts.awaitDeletion === true,
     );
-    return jsonResponse(
-      {
-        destroyed,
-        busy: false,
-        ...(deletion === undefined ? {} : { deletion }),
-      },
-      200,
-    );
+    return jsonResponse({ destroyed, busy: false, deletion }, 200);
   }
 
   /** Is there compute under the id — a registered session, a stop still
@@ -1218,12 +1213,11 @@ export class SessionRoutes {
 
   /** How far deleting the destroyed workspace has come, waited for up to
    * {@link DESTROY_AWAITS_DELETION_MS} when the caller asked. Unknown reads
-   * `pending`, never `done`; `undefined` from a backend that reports none. */
+   * `pending`, never `done`. */
   private async deletionOf(
     sessionId: string,
     awaitDeletion: boolean,
-  ): Promise<WorkspaceDeletion | undefined> {
-    if (this.backend.workspaceDeletion === undefined) return undefined;
+  ): Promise<WorkspaceDeletion> {
     try {
       return await this.backend.workspaceDeletion(
         sessionId,

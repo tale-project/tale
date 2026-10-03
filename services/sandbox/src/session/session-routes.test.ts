@@ -296,6 +296,11 @@ const fakeBackend: SessionBackend = {
     // need the runnerd hop to fail at the transport level.
     return sessionId.startsWith('dead-') ? 'http://127.0.0.1:9' : fakeBaseUrl;
   },
+  // Every backend states how far a destroyed workspace's deletion came; this
+  // one deletes at once.
+  async workspaceDeletion() {
+    return 'done' as const;
+  },
   async destroySession(sessionId: string) {
     if (backendDestroyThrows.has(sessionId)) {
       throw new Error('backend destroy failed (wedged dockerd)');
@@ -987,7 +992,11 @@ describe('SessionRoutes (fake runnerd)', () => {
       // Exec finished → the same conditional destroy proceeds.
       fakeHealth.liveExecs = 0;
       const idleRes = await routes.handleDestroy('cond1', { ifIdle: true });
-      expect(await idleRes.json()).toEqual({ destroyed: true, busy: false });
+      expect(await idleRes.json()).toEqual({
+        destroyed: true,
+        busy: false,
+        deletion: 'done',
+      });
       expect(destroyed.has('cond1')).toBe(true);
       expect((await routes.handleGet('cond1')).status).toBe(404);
     });
@@ -999,7 +1008,11 @@ describe('SessionRoutes (fake runnerd)', () => {
       );
       fakeHealth.liveExecs = 1;
       const res = await routes.handleDestroy('cond2');
-      expect(await res.json()).toEqual({ destroyed: true, busy: false });
+      expect(await res.json()).toEqual({
+        destroyed: true,
+        busy: false,
+        deletion: 'done',
+      });
       expect(destroyed.has('cond2')).toBe(true);
     });
 
@@ -1020,7 +1033,11 @@ describe('SessionRoutes (fake runnerd)', () => {
       );
       backendGone.add('dead-cond4');
       const res = await routes.handleDestroy('dead-cond4', { ifIdle: true });
-      expect(await res.json()).toEqual({ destroyed: true, busy: false });
+      expect(await res.json()).toEqual({
+        destroyed: true,
+        busy: false,
+        deletion: 'done',
+      });
       expect(destroyed.has('dead-cond4')).toBe(true);
     });
 
@@ -1043,7 +1060,11 @@ describe('SessionRoutes (fake runnerd)', () => {
       backendDestroyThrows.delete('wedge1');
       const retry = await routes.handleDestroy('wedge1');
       expect(retry.status).toBe(200);
-      expect(await retry.json()).toEqual({ destroyed: true, busy: false });
+      expect(await retry.json()).toEqual({
+        destroyed: true,
+        busy: false,
+        deletion: 'done',
+      });
     });
   });
 
@@ -1883,7 +1904,11 @@ describe('workspace cleanup routes', () => {
 
     // Nothing runs under the id: the preserved workspace goes.
     const idle = await routes.handleDestroy('stopped-1', { ifStopped: true });
-    expect(await idle.json()).toEqual({ destroyed: false, busy: false });
+    expect(await idle.json()).toEqual({
+      destroyed: false,
+      busy: false,
+      deletion: 'done',
+    });
     expect(destroyed.has('stopped-1')).toBe(true);
 
     // A container still starting (on a peer replica): kept.

@@ -78,9 +78,17 @@ The proxy publishes the door at `<site>/sandbox/tunnel` (`services/proxy/Caddyfi
   with `x-tale-sandbox-device: <id>`, never a 404 — the platform reads 404 as
   "gone" and would create a fresh workspace elsewhere. The platform surfaces
   this as `SandboxDeviceOfflineError`.
-- A destroy the device confirms (not `busy`) forgets the placement — unless
-  a create for the same id was forwarded while it ran (the next turn), which
-  made the session anew there.
+- A destroy whose answer confirms the workspace's bytes are gone
+  (`deletion: done`, not `busy`) forgets the placement — unless a create for
+  the same id was forwarded while it ran (the next turn), which made the
+  session anew there. Any other answer — the device still deleting
+  (`pending`, `failed`), or a device older than the `deletion` contract, whose
+  answer says nothing about the bytes — keeps the placement, marked deleting
+  in `placements.json`: no session lives there (the capacity overlay leaves it
+  out), but the platform's next destroy of the id, an erasure's Retry
+  included, still reaches the device that holds them. A fresh create under the
+  id goes back to that device while it is connected with room, and is placed
+  anew otherwise, letting go of that route.
 - Only placements the hub made route anywhere: a device's report of what it
   holds never claims a session id (another organization's included), and the
   capacity overlay only shows reported sessions the hub placed there. If the

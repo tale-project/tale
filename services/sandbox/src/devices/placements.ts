@@ -19,6 +19,10 @@ export interface Placement {
   deviceId: string;
   organizationId: string;
   placedAtMs: number;
+  /** The session was destroyed, and its device has not confirmed that the
+   * workspace's bytes are gone: no session lives there any more, but the
+   * destroy that asks again must still reach the device that holds them. */
+  deleting?: true;
 }
 
 interface PlacementFile {
@@ -31,10 +35,12 @@ function isPlacement(value: unknown): value is Placement {
   const deviceId: unknown = Reflect.get(value, 'deviceId');
   const organizationId: unknown = Reflect.get(value, 'organizationId');
   const placedAtMs: unknown = Reflect.get(value, 'placedAtMs');
+  const deleting: unknown = Reflect.get(value, 'deleting');
   return (
     typeof deviceId === 'string' &&
     typeof organizationId === 'string' &&
-    typeof placedAtMs === 'number'
+    typeof placedAtMs === 'number' &&
+    (deleting === undefined || deleting === true)
   );
 }
 
@@ -89,13 +95,14 @@ export class PlacementStore {
     return this.placements.get(sessionId);
   }
 
-  /** Every session placed on devices of one organization. */
+  /** Every session placed on devices of one organization — not a destroyed
+   * one whose bytes a device is still deleting. */
   forOrganization(
     organizationId: string,
   ): Array<{ sessionId: string; deviceId: string }> {
     const out: Array<{ sessionId: string; deviceId: string }> = [];
     for (const [sessionId, p] of this.placements) {
-      if (p.organizationId === organizationId) {
+      if (p.organizationId === organizationId && p.deleting !== true) {
         out.push({ sessionId, deviceId: p.deviceId });
       }
     }
@@ -104,6 +111,15 @@ export class PlacementStore {
 
   async set(sessionId: string, placement: Placement): Promise<void> {
     this.placements.set(sessionId, placement);
+    await this.persist();
+  }
+
+  /** Keep a destroyed session's route to its device until the device
+   * confirms the workspace's bytes are gone. */
+  async markDeleting(sessionId: string): Promise<void> {
+    const placement = this.placements.get(sessionId);
+    if (placement === undefined || placement.deleting === true) return;
+    this.placements.set(sessionId, { ...placement, deleting: true });
     await this.persist();
   }
 

@@ -148,10 +148,20 @@ export interface CreateSessionResult {
   resumed: boolean;
 }
 
-/** How far deleting a destroyed workspace's bytes has come: `done` — nothing
- * of it is left; `pending` — it waits in the trash or is being deleted;
- * `failed` — the last attempt at it failed, and the next one tries again. */
-export type WorkspaceDeletion = 'done' | 'pending' | 'failed';
+/**
+ * How far deleting a destroyed workspace's bytes has come, as every destroy
+ * answers it — the one completion signal the platform settles on:
+ *  - `done` — nothing of it is left (Docker: no trash entry of the id);
+ *  - `pending` — it waits in the trash or is being deleted;
+ *  - `failed` — the last attempt at it failed, and the next one tries again;
+ *  - `handed_off` — Kubernetes: the PVC delete was accepted, and the volume
+ *    is its storage provisioner's to delete under the storage class's reclaim
+ *    policy, which the spawner cannot observe. Never presented as `done`.
+ * A destroy answer without it comes from a spawner or device older than this
+ * contract — one that already deleted in the background (19776cf18) — and
+ * proves nothing about the bytes.
+ */
+export type WorkspaceDeletion = 'done' | 'pending' | 'failed' | 'handed_off';
 
 export interface SessionBackend {
   readonly kind: 'docker' | 'kubernetes';
@@ -191,11 +201,11 @@ export interface SessionBackend {
    * How far deleting the workspaces destroyed under the id has come — what
    * an erasure or a retirement waits for, since a destroy answers once the
    * workspace is out of use. With `waitMs`, what is left is attempted now (a
-   * failed removal again) and waited for that long. Optional: a backend
-   * without it reports nothing, and its destroy is complete when it answers
-   * (Kubernetes: the PVC delete hands the volume to its provisioner).
+   * failed removal again) and waited for that long. Required: every backend
+   * states its own contract (Docker reads its trash; Kubernetes answers
+   * `handed_off`), because an answer without one reads as unconfirmed.
    */
-  workspaceDeletion?(
+  workspaceDeletion(
     sessionId: string,
     waitMs?: number,
   ): Promise<WorkspaceDeletion>;

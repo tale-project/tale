@@ -39,6 +39,29 @@ describe('PlacementStore', () => {
     expect(JSON.parse(await readFile(file, 'utf8')).version).toBe(1);
   });
 
+  test("a destroyed session's route to the device still deleting its bytes survives a restart, and is no session", async () => {
+    const file = await fileIn();
+    const store = new PlacementStore(file);
+    await store.load();
+    await store.set('pa-1', {
+      deviceId: 'd1',
+      organizationId: 'o',
+      placedAtMs: 1,
+    });
+    await store.markDeleting('pa-1');
+    await store.markDeleting('missing');
+    const again = new PlacementStore(file);
+    await again.load();
+    expect(again.get('pa-1')).toEqual({
+      deviceId: 'd1',
+      organizationId: 'o',
+      placedAtMs: 1,
+      deleting: true,
+    });
+    expect(again.get('missing')).toBeUndefined();
+    expect(again.forOrganization('o')).toEqual([]);
+  });
+
   test('an unreadable file is moved aside, not trusted and not fatal', async () => {
     const file = await fileIn();
     const seed = new PlacementStore(file);

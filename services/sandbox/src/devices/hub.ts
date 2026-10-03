@@ -362,8 +362,12 @@ export class DeviceHub {
     for (const d of this.devices.values()) {
       if (d.organizationId !== organizationId) continue;
       for (const s of d.status?.sessions ?? d.hello?.sessions ?? []) {
-        // A device's report only describes sessions the hub placed there.
-        if (this.placements.get(s.sessionId)?.deviceId !== d.deviceId) continue;
+        // A device's report only describes sessions the hub placed there —
+        // not one destroyed since, whose bytes alone it still deletes.
+        const placement = this.placements.get(s.sessionId);
+        if (placement?.deviceId !== d.deviceId || placement.deleting === true) {
+          continue;
+        }
         runtimeSessions.push({ ...s, deviceId: d.deviceId });
       }
     }
@@ -417,6 +421,30 @@ export class DeviceHub {
       if (existing.organizationId !== create.organizationId) {
         // Never 409: the platform reads that as "it exists, acquire it".
         return jsonResponse({ error: 'placement_conflict' }, 403);
+      }
+      // A destroyed session whose bytes the device is still deleting: a
+      // fresh session under the id goes back to that device while it can
+      // take one, which keeps one place answering for both. A new session
+      // never fails for an old workspace's bytes, though: elsewhere, the
+      // route to them is let go.
+      if (existing.deleting === true) {
+        const device = this.devices.get(existing.deviceId);
+        const usable =
+          create.placement === 'device' &&
+          device !== undefined &&
+          this.compatible(device) &&
+          this.now() >= device.createFailedUntilMs &&
+          this.freeSlots(device) > 0;
+        if (usable) {
+          await this.placements.set(create.sessionId, {
+            deviceId: existing.deviceId,
+            organizationId: existing.organizationId,
+            placedAtMs: this.now(),
+          });
+        } else {
+          await this.placements.delete(create.sessionId);
+          return this.routeCreate(req, url, body);
+        }
       }
       this.countCreate(create.sessionId);
       return this.forward(existing.deviceId, req, url, body);
@@ -492,27 +520,34 @@ export class DeviceHub {
     if (!res.ok) return res;
     const text = await res.text();
     let busy = false;
-    let deleting = false;
+    let deleted = false;
     try {
       const parsed: unknown = JSON.parse(text);
       if (parsed !== null && typeof parsed === 'object') {
         busy = Reflect.get(parsed, 'busy') === true;
         const deletion: unknown = Reflect.get(parsed, 'deletion');
-        deleting = deletion === 'pending' || deletion === 'failed';
+        deleted = deletion === 'done' || deletion === 'handed_off';
       }
     } catch (err) {
       console.warn('[sandbox.devices] unreadable destroy answer:', err);
       busy = true;
     }
-    // `?if_idle=1` on a busy session destroyed nothing; anything else leaves
-    // no workspace behind on the device — unless a create for the same id
-    // was forwarded while the destroy ran, which made the session anew there,
-    // or the device is still deleting the workspace's bytes: the placement
-    // stays, so the destroy that asks again reaches the device holding them.
+    // `?if_idle=1` on a busy session destroyed nothing, and a create for the
+    // same id forwarded while the destroy ran made the session anew there:
+    // the placement stays as it is. Otherwise no session lives on the device
+    // any more, but its workspace's bytes may: only an explicit completion
+    // lets go of the route. A device still deleting (`pending`, `failed`) —
+    // or one older than the `deletion` contract, whose answer says nothing
+    // about the bytes — keeps it, marked deleting, so the destroy that asks
+    // again reaches the device holding them.
     const recreated = (this.creates.get(sessionId) ?? 0) !== createsBefore;
-    if (!busy && !deleting && !recreated) {
-      await this.placements.delete(sessionId);
-      this.creates.delete(sessionId);
+    if (!busy && !recreated) {
+      if (deleted) {
+        await this.placements.delete(sessionId);
+        this.creates.delete(sessionId);
+      } else {
+        await this.placements.markDeleting(sessionId);
+      }
     }
     return new Response(text, { status: res.status, headers: res.headers });
   }
