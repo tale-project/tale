@@ -28,6 +28,7 @@ import { loadDeviceConfig } from './devices/device-config.ts';
 import { DeviceAgent } from './devices/device.ts';
 import { DeviceHub, serveHub } from './devices/hub.ts';
 import { makeHealthProbe } from './health-probe.ts';
+import { HostDiskProbe } from './host-disk.ts';
 import {
   autoSessionCapacity,
   HostMemoryProbe,
@@ -49,6 +50,13 @@ const backend = createHostBackend(cfg);
 const hostMemory =
   cfg.backend === 'docker' && cfg.deviceConfigPath === null
     ? new HostMemoryProbe()
+    : null;
+// The disk the session workspaces live on (the session root, which this
+// process sees at the host's own path), on the same local Docker spawner:
+// admission keeps a floor of free space on it.
+const hostDisk =
+  cfg.backend === 'docker' && cfg.deviceConfigPath === null
+    ? new HostDiskProbe(cfg.hostSessionRoot, cfg.session.minFreeDiskBytes)
     : null;
 // No SANDBOX_MAX_SESSIONS set: a host whose memory the spawner can read
 // gets a capacity sized from it (never below the fixed default of 8), and
@@ -85,7 +93,8 @@ function getSessionRoutes(): SessionRoutes {
       cfg,
       getSessionBackend(),
       () => controlRoutes.isDraining,
-      ...(hostMemory !== null ? [hostMemory] : []),
+      hostMemory ?? undefined,
+      hostDisk ?? undefined,
     );
   }
   return sessionRoutes;
@@ -522,6 +531,7 @@ async function main(): Promise<void> {
   }
 
   hostMemory?.start();
+  hostDisk?.start();
   await sizeSessionCapacity();
   if (!capacitySized) {
     console.warn(

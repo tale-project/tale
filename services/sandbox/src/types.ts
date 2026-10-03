@@ -149,6 +149,10 @@ export interface SessionConfig {
   /** Memory admission always leaves free on the host (SANDBOX_MIN_FREE_MEMORY);
    * unset is a tenth of the host, at least 1 GiB. */
   minFreeMemoryBytes?: number;
+  /** Free space admission keeps on the disk the workspaces live on
+   * (SANDBOX_MIN_FREE_DISK; 0 turns the floor off); unset is a twentieth of
+   * the disk, at least 2 GiB and at most 20 GiB (host-disk.ts). */
+  minFreeDiskBytes?: number;
   /** Hard wall-clock ceiling on a session's lifetime. */
   maxLifetimeMs: number;
   /** Idle ceiling — sessions with no runnerd activity past this are reaped. */

@@ -251,6 +251,7 @@ export function loadConfig(): SpawnerConfig {
     MEMORY_QUANTITY_RE,
   );
   const minFreeMemoryBytes = sizeEnv('SANDBOX_MIN_FREE_MEMORY');
+  const minFreeDiskBytes = sizeEnv('SANDBOX_MIN_FREE_DISK');
   const buildkitdMemoryBytes = sizeEnv('SANDBOX_BUILDKITD_MEMORY');
   const buildkitdIdleCacheBytes = sizeEnv('SANDBOX_BUILDKITD_IDLE_CACHE');
   const buildkitdCacheRetentionMs = retentionEnv(
@@ -529,6 +530,7 @@ export function loadConfig(): SpawnerConfig {
       maxSessions: numEnv('SANDBOX_MAX_SESSIONS', 8, { min: 1 }),
       autoMaxSessions: (process.env.SANDBOX_MAX_SESSIONS ?? '').trim() === '',
       ...(minFreeMemoryBytes !== undefined ? { minFreeMemoryBytes } : {}),
+      ...(minFreeDiskBytes !== undefined ? { minFreeDiskBytes } : {}),
       maxLifetimeMs: numEnv(
         'SANDBOX_SESSION_MAX_LIFETIME_MS',
         24 * 60 * 60 * 1000,

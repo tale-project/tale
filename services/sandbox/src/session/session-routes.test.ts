@@ -2919,6 +2919,116 @@ describe('memory-aware admission', () => {
   });
 });
 
+describe('disk-aware admission', () => {
+  const GIB = 1024 ** 3;
+  const create = (routes: SessionRoutes, id: string) =>
+    routes.handleCreate(
+      JSON.stringify({
+        sessionId: id,
+        organizationId: 'org_disk',
+        profile: 'agent',
+      }),
+    );
+  /** A 100 GiB session disk (a 5 GiB floor) with `available()` GiB free. */
+  const disk = (available: () => number) => {
+    const reading = () => ({
+      totalBytes: 100 * GIB,
+      availableBytes: available() * GIB,
+    });
+    return { latest: reading, read: () => Promise.resolve(reading()) };
+  };
+
+  test('below its floor, the session disk takes no session: the create waits in line with host_disk', async () => {
+    let available = 4;
+    const routes = new SessionRoutes(
+      cfg,
+      fakeBackend,
+      undefined,
+      undefined,
+      disk(() => available),
+    );
+    // A released idle session: stopping it would free no disk.
+    available = 50;
+    expect((await create(routes, 'warm-disk')).status).toBe(201);
+    const ticket: unknown = await (
+      await routes.handleActivity('warm-disk', 'ticket')
+    ).json();
+    await routes.handleActivity('warm-disk', 'release', JSON.stringify(ticket));
+    available = 4;
+    const refused = await create(routes, 'disk-wait');
+    expect(refused.status).toBe(429);
+    expect(refused.headers.get('retry-after')).toBe('5');
+    expect(await refused.json()).toMatchObject({
+      error: 'host_disk',
+      queue: { position: 0, waiting: 1 },
+    });
+    expect(stopped.has('warm-disk')).toBe(false);
+    expect(created.has('disk-wait')).toBe(false);
+    // Space freed: the waiter gets in.
+    available = 6;
+    expect((await create(routes, 'disk-wait')).status).toBe(201);
+    expect(routes.roomQueueLength()).toBe(0);
+  });
+
+  test('an operator floor of 0 turns the disk check off', async () => {
+    const off = { ...cfg, session: { ...cfg.session, minFreeDiskBytes: 0 } };
+    const routes = new SessionRoutes(
+      off,
+      fakeBackend,
+      undefined,
+      undefined,
+      disk(() => 0.5),
+    );
+    expect((await create(routes, 'no-floor')).status).toBe(201);
+  });
+
+  test('an unknown session disk never refuses a create', async () => {
+    const unreadable = new SessionRoutes(
+      cfg,
+      fakeBackend,
+      undefined,
+      undefined,
+      {
+        latest: () => {
+          throw new Error('statfs failed');
+        },
+        read: () => Promise.reject(new Error('statfs failed')),
+      },
+    );
+    expect((await create(unreadable, 'disk-unknown-1')).status).toBe(201);
+    const unread = new SessionRoutes(cfg, fakeBackend, undefined, undefined, {
+      latest: () => null,
+      read: () => Promise.resolve(null),
+    });
+    expect((await create(unread, 'disk-unknown-2')).status).toBe(201);
+  });
+
+  test('the build-cache upkeep reads the session disk afresh', async () => {
+    let available = 3;
+    const seen: Array<{ availableBytes: number; short: boolean } | null> = [];
+    const routes = new SessionRoutes(
+      cfg,
+      {
+        ...fakeBackend,
+        async reconcileBuildCache(_orgIds, upkeep) {
+          seen.push((await upkeep?.sessionDisk?.()) ?? null);
+          available = 8;
+          seen.push((await upkeep?.sessionDisk?.()) ?? null);
+        },
+      },
+      undefined,
+      undefined,
+      disk(() => available),
+    );
+    await routes.maintain();
+    await routes.buildCacheSettled();
+    expect(seen).toEqual([
+      { availableBytes: 3 * GIB, short: true },
+      { availableBytes: 8 * GIB, short: false },
+    ]);
+  });
+});
+
 describe('settlesWithin', () => {
   test('answers whether a promise settled, either way, in time', async () => {
     expect(await settlesWithin(Promise.resolve(), 1_000)).toBe(true);

@@ -4,6 +4,7 @@
 
 import { createHash } from 'node:crypto';
 
+import type { BuildCacheUpkeep } from './backend/types.ts';
 import {
   ensureBuildkitNetwork,
   ensureBuildkitVolume,
@@ -189,6 +190,8 @@ let idleSweepInFlight: Promise<BuildkitIdleSweepResult> | undefined;
 interface BuildkitIdleSweepResult {
   stopped: number;
   organizations: number;
+  /** Organizations whose caches went because the session disk was short. */
+  relieved?: number;
 }
 
 /** Keep helpers available across the gap between ensure and docker run. The
@@ -540,25 +543,41 @@ async function expireStoppedBuildCache(
   );
 }
 
+/** At most this many organizations' caches go in one sweep for want of
+ * disk: each removal is measured before the next. */
+const PRESSURE_REMOVALS_PER_SWEEP = 3;
+/** How long removals stay paused once one freed nothing on the session disk
+ * (the build caches live on another disk than the workspaces). */
+const PRESSURE_PAUSE_MS = 6 * 60 * 60 * 1000;
+/** Until when removals for want of disk are paused (epoch ms). */
+let pressurePausedUntilMs = 0;
+
 /** Release only compute after an org has had no live session for the normal
  * session idle grace. A fresh spawner observes a full grace before reclaiming
  * anything. Persistent volumes, private networks and container configuration
- * survive; the next ensure recreates stopped helpers from their caches. */
+ * survive; the next ensure recreates stopped helpers from their caches. While
+ * the disk the workspaces live on is below its floor, the caches of
+ * organizations whose helpers are all stopped go too, the longest-stopped
+ * first (`upkeep.sessionDisk`). */
 export function sweepIdleBuildkitd(
   cfg: SpawnerConfig,
   nowMs = Date.now(),
+  upkeep: BuildCacheUpkeep = {},
 ): Promise<BuildkitIdleSweepResult> {
   if (cfg.backend !== 'docker')
     return Promise.resolve({ stopped: 0, organizations: 0 });
-  idleSweepInFlight ??= sweepIdleBuildkitdUnlocked(cfg, nowMs).finally(() => {
-    idleSweepInFlight = undefined;
-  });
+  idleSweepInFlight ??= sweepIdleBuildkitdUnlocked(cfg, nowMs, upkeep).finally(
+    () => {
+      idleSweepInFlight = undefined;
+    },
+  );
   return idleSweepInFlight;
 }
 
 async function sweepIdleBuildkitdUnlocked(
   cfg: SpawnerConfig,
   nowMs: number,
+  upkeep: BuildCacheUpkeep,
 ): Promise<BuildkitIdleSweepResult> {
   const helpers = await readDockerMetadata([
     'ps',
@@ -599,7 +618,7 @@ async function sweepIdleBuildkitdUnlocked(
   for (const org of idleSince.keys()) {
     if (!byOrg.has(org)) idleSince.delete(org);
   }
-  const result = { stopped: 0, organizations: 0 };
+  const result: BuildkitIdleSweepResult = { stopped: 0, organizations: 0 };
   for (const [org, names] of byOrg) {
     // One organization's helpers that cannot be judged or stopped (a wedged
     // container, a stranger under a helper name) must not keep every other
@@ -678,7 +697,122 @@ async function sweepIdleBuildkitdUnlocked(
       result.organizations++;
     }
   }
+  if (upkeep.sessionDisk !== undefined && nowMs >= pressurePausedUntilMs) {
+    const relieved = await relieveDiskPressure(
+      byOrg,
+      live,
+      upkeep.sessionDisk,
+      nowMs,
+    );
+    if (relieved > 0) result.relieved = relieved;
+  }
   return result;
+}
+
+/** The session disk is below its floor: give back the caches of the
+ * organizations whose helpers are all stopped and that nothing may use now,
+ * the longest-stopped first, retention or not, until the disk is above its
+ * floor again or {@link PRESSURE_REMOVALS_PER_SWEEP} have gone. A removal
+ * that frees no space there means the caches live on another disk: no more
+ * go for {@link PRESSURE_PAUSE_MS}. Returns how many organizations' caches
+ * went. */
+async function relieveDiskPressure(
+  byOrg: ReadonlyMap<string, ReadonlyMap<string, string>>,
+  live: ReadonlySet<string>,
+  sessionDisk: NonNullable<BuildCacheUpkeep['sessionDisk']>,
+  nowMs: number,
+): Promise<number> {
+  let disk = await sessionDisk();
+  if (disk === null || !disk.short) return 0;
+  const candidates: Array<{
+    org: string;
+    builderId: string;
+    finishedAtMs: number;
+  }> = [];
+  for (const [org, names] of byOrg) {
+    if (live.has(org) || createLeases.has(org)) continue;
+    const builderId = names.get(buildkitdContainerName(org));
+    if (builderId === undefined) continue;
+    try {
+      const network = buildkitdNetworkName(org);
+      let anyRunning = false;
+      for (const name of organizationHelperNames(org)) {
+        const id = names.get(name);
+        if (
+          id !== undefined &&
+          id !== builderId &&
+          (await inspectBuildkitContainer(id, org, network)) === 'running'
+        ) {
+          anyRunning = true;
+          break;
+        }
+      }
+      const builder = await inspectBuildkitHelper(builderId, org, network);
+      if (
+        anyRunning ||
+        builder === null ||
+        builder.running ||
+        builder.finishedAtMs === undefined
+      ) {
+        continue;
+      }
+      candidates.push({ org, builderId, finishedAtMs: builder.finishedAtMs });
+    } catch (error) {
+      console.warn(
+        `[sandbox.buildkitd] cannot judge ${org}'s stopped helpers for the short session disk (next sweep retries):`,
+        error,
+      );
+    }
+  }
+  candidates.sort((a, b) => a.finishedAtMs - b.finishedAtMs);
+  let relieved = 0;
+  for (const candidate of candidates) {
+    if (relieved >= PRESSURE_REMOVALS_PER_SWEEP) break;
+    const before = disk.availableBytes;
+    const removed = await withBuildkitdOperation(candidate.org, async () => {
+      // Judged again under the organization's lock: a session or a create
+      // that came since keeps the caches.
+      const latestLive = await liveBuildkitOrganizations(candidate.org);
+      if (latestLive.has(candidate.org) || createLeases.has(candidate.org)) {
+        return null;
+      }
+      const builder = await inspectBuildkitHelper(
+        candidate.builderId,
+        candidate.org,
+        buildkitdNetworkName(candidate.org),
+      );
+      if (builder === null || builder.running) return null;
+      return removeOrganizationBuildkitUnlocked(candidate.org);
+    }).catch((error: unknown) => {
+      console.warn(
+        `[sandbox.buildkitd] could not remove ${candidate.org}'s build caches for the short session disk (next sweep retries):`,
+        error,
+      );
+      return null;
+    });
+    if (removed === null) continue;
+    relieved++;
+    const after = await sessionDisk();
+    console.log(
+      `[sandbox.buildkitd] the session disk is short: removed ${candidate.org}'s build helpers and caches, stopped since ${new Date(candidate.finishedAtMs).toISOString()} (${removed.containers} containers, ${removed.volumes} volumes); its next build starts cold`,
+    );
+    if (after === null) break;
+    if (after.availableBytes <= before) {
+      pressurePausedUntilMs = nowMs + PRESSURE_PAUSE_MS;
+      console.warn(
+        `[sandbox.buildkitd] removing ${candidate.org}'s build caches freed no space on the session disk: the caches live on another disk, and no more are removed for want of it for ${PRESSURE_PAUSE_MS / 3_600_000} h`,
+      );
+      break;
+    }
+    disk = after;
+    if (!disk.short) break;
+  }
+  return relieved;
+}
+
+/** Forget a pause of the removals for want of disk (tests). */
+export function resetDiskPressurePause(): void {
+  pressurePausedUntilMs = 0;
 }
 
 /**

@@ -73,6 +73,7 @@ import {
   SessionIncarnationChangedError,
   type BackendSession,
   type BackendWorkspace,
+  type BuildCacheUpkeep,
   type CreateSessionResult,
   type OrganizationTeardownResult,
   type SessionBackend,
@@ -976,19 +977,24 @@ export class DockerSessionBackend implements SessionBackend {
    * flag (no daemon otherwise); per-org best-effort — the cache is an
    * optimization, so a failure is logged, never thrown.
    */
-  async reconcileBuildCache(orgIds: readonly string[]): Promise<void> {
+  async reconcileBuildCache(
+    orgIds: readonly string[],
+    upkeep: BuildCacheUpkeep = {},
+  ): Promise<void> {
     await retireLegacyBuildkitd().catch((error: unknown) => {
       console.warn(
         '[sandbox.session] legacy build-cache retirement deferred:',
         error,
       );
     });
-    await sweepIdleBuildkitd(this.cfg).catch((error: unknown) => {
-      console.warn(
-        '[sandbox.session] idle build-cache cleanup deferred:',
-        error,
-      );
-    });
+    await sweepIdleBuildkitd(this.cfg, Date.now(), upkeep).catch(
+      (error: unknown) => {
+        console.warn(
+          '[sandbox.session] idle build-cache cleanup deferred:',
+          error,
+        );
+      },
+    );
     if (!(this.cfg.dockerInContainer && this.cfg.dockerBuildCache)) return;
     for (const organizationId of new Set(orgIds)) {
       try {

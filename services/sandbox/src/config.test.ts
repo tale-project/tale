@@ -28,6 +28,7 @@ const KEYS = [
   'SANDBOX_BUILDKITD_MEMORY',
   'SANDBOX_BUILDKITD_IDLE_CACHE',
   'SANDBOX_BUILDKITD_CACHE_RETENTION',
+  'SANDBOX_MIN_FREE_DISK',
   'TALE_PLATFORM_SHARED_CONFIG_DIR',
 ] as const;
 
@@ -111,6 +112,17 @@ test("an idle builder's cache budget is optional and validated", () => {
   expect(loadConfig().buildkitdIdleCacheBytes).toBe(0);
   process.env.SANDBOX_BUILDKITD_IDLE_CACHE = 'small';
   expect(() => loadConfig()).toThrow(/SANDBOX_BUILDKITD_IDLE_CACHE/);
+});
+
+test('the free space kept on the session disk is optional and validated', () => {
+  expect(loadConfig().session).not.toHaveProperty('minFreeDiskBytes');
+  process.env.SANDBOX_MIN_FREE_DISK = '10g';
+  expect(loadConfig().session.minFreeDiskBytes).toBe(10 * 1024 ** 3);
+  // 0 turns the floor off.
+  process.env.SANDBOX_MIN_FREE_DISK = '0';
+  expect(loadConfig().session.minFreeDiskBytes).toBe(0);
+  process.env.SANDBOX_MIN_FREE_DISK = 'plenty';
+  expect(() => loadConfig()).toThrow(/SANDBOX_MIN_FREE_DISK/);
 });
 
 test('how long stopped build caches are kept is optional and validated', () => {

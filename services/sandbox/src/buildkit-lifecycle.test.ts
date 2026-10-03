@@ -21,6 +21,7 @@ import {
   ensureBuildkitd,
   helperStamp,
   MIRROR_REGISTRIES,
+  resetDiskPressurePause,
   retainBuildkitd,
   sweepIdleBuildkitd,
 } from './buildkitd.ts';
@@ -471,6 +472,212 @@ describe('organization build-cache lifecycle', () => {
       initial.sessions = [{ id: 'd'.repeat(64), org, status: 'running' }];
       await save(initial);
       await sweepTwice(cfg, now);
+      expect((await state()).volumes).toEqual(initial.volumes);
+    });
+  });
+
+  describe('a session disk below its floor', () => {
+    const DAY = 24 * 60 * 60 * 1000;
+    const GIB = 1024 ** 3;
+    beforeEach(() => {
+      resetDiskPressurePause();
+    });
+    /** Organizations whose helpers all stopped the given time ago, in one
+     * daemon. */
+    async function stoppedOrgs(
+      orgs: ReadonlyArray<readonly [string, number]>,
+      now: number,
+    ): Promise<FakeState> {
+      let merged: FakeState | null = null;
+      for (const [index, [org, stoppedForMs]] of orgs.entries()) {
+        const one = seed(org);
+        for (const container of Object.values(one.containers)) {
+          container.running = false;
+          container.finishedAt = new Date(now - stoppedForMs).toISOString();
+          // Unique per organization: the daemon finds containers by id.
+          container.id = `${(index + 1).toString(16)}${container.id.slice(1)}`;
+        }
+        if (merged === null) merged = one;
+        else {
+          Object.assign(merged.containers, one.containers);
+          Object.assign(merged.networks, one.networks);
+          Object.assign(merged.volumes, one.volumes);
+        }
+      }
+      if (merged === null) throw new Error('no organization seeded');
+      await save(merged);
+      return merged;
+    }
+    const cacheVolumes = (org: string) => [
+      buildkitdCacheVolumeName(org),
+      ...MIRROR_REGISTRIES.map((registry) =>
+        buildkitdMirrorVolumeName(org, registry),
+      ),
+    ];
+    /** A session disk with `startGiB` free and a 5 GiB floor, freeing
+     * `perVolumeGiB` with each cache volume removed. */
+    function sessionDisk(
+      initial: FakeState,
+      startGiB: number,
+      perVolumeGiB: number,
+    ) {
+      const volumes = Object.keys(initial.volumes).length;
+      return async () => {
+        const removed = volumes - Object.keys((await state()).volumes).length;
+        const availableBytes = (startGiB + removed * perVolumeGiB) * GIB;
+        return { availableBytes, short: availableBytes < 5 * GIB };
+      };
+    }
+    const quiet = async <T>(work: () => Promise<T>): Promise<T> => {
+      const log = console.log;
+      const warn = console.warn;
+      console.log = () => {};
+      console.warn = () => {};
+      try {
+        return await work();
+      } finally {
+        console.log = log;
+        console.warn = warn;
+      }
+    };
+
+    test('gives back the longest-stopped organization’s caches first, until the disk is above its floor', async () => {
+      const now = Date.now();
+      const [day1, day3, day2] = [nextOrg(), nextOrg(), nextOrg()];
+      const initial = await stoppedOrgs(
+        [
+          [day1, DAY],
+          [day3, 3 * DAY],
+          [day2, 2 * DAY],
+        ],
+        now,
+      );
+      const result = await quiet(() =>
+        sweepIdleBuildkitd(cfg, now, {
+          sessionDisk: sessionDisk(initial, 4, 1),
+        }),
+      );
+      expect(result.relieved).toBe(1);
+      const after = await state();
+      for (const volume of cacheVolumes(day3)) {
+        expect(after.volumes[volume]).toBeUndefined();
+      }
+      for (const volume of [...cacheVolumes(day1), ...cacheVolumes(day2)]) {
+        expect(after.volumes[volume]).toEqual(initial.volumes[volume]);
+      }
+    });
+
+    test('keeps going while the disk stays short, at most three organizations a sweep', async () => {
+      const now = Date.now();
+      const orgs = [nextOrg(), nextOrg(), nextOrg(), nextOrg(), nextOrg()];
+      const initial = await stoppedOrgs(
+        orgs.map((org, index) => [org, (index + 1) * DAY] as const),
+        now,
+      );
+      const result = await quiet(() =>
+        sweepIdleBuildkitd(cfg, now, {
+          sessionDisk: sessionDisk(initial, 0, 0.25),
+        }),
+      );
+      expect(result.relieved).toBe(3);
+      const after = await state();
+      // The three stopped longest went; the two most recent stay.
+      for (const org of orgs.slice(2)) {
+        expect(after.volumes[buildkitdCacheVolumeName(org)]).toBeUndefined();
+      }
+      for (const org of orgs.slice(0, 2)) {
+        expect(after.volumes[buildkitdCacheVolumeName(org)]).toBeDefined();
+      }
+    });
+
+    test('never an organization that may build: one with a live session, or a helper still running', async () => {
+      const now = Date.now();
+      const [inUse, mirrorUp, idle] = [nextOrg(), nextOrg(), nextOrg()];
+      const initial = await stoppedOrgs(
+        [
+          [inUse, 30 * DAY],
+          [mirrorUp, 20 * DAY],
+          [idle, DAY],
+        ],
+        now,
+      );
+      initial.sessions = [
+        { id: 'f'.repeat(64), org: inUse, status: 'running' },
+      ];
+      const mirror =
+        initial.containers[
+          buildkitdMirrorContainerName(mirrorUp, MIRROR_REGISTRIES[0] ?? '')
+        ];
+      if (mirror === undefined) throw new Error('no mirror seeded');
+      mirror.running = true;
+      await save(initial);
+      const result = await quiet(() =>
+        sweepIdleBuildkitd(cfg, now, {
+          sessionDisk: sessionDisk(initial, 0, 0.25),
+        }),
+      );
+      expect(result.relieved).toBe(1);
+      const after = await state();
+      expect(after.volumes[buildkitdCacheVolumeName(idle)]).toBeUndefined();
+      expect(after.volumes[buildkitdCacheVolumeName(inUse)]).toBeDefined();
+      expect(after.volumes[buildkitdCacheVolumeName(mirrorUp)]).toBeDefined();
+    });
+
+    test('a removal that frees nothing on the session disk pauses the removals for hours', async () => {
+      const now = Date.now();
+      const orgs = [nextOrg(), nextOrg(), nextOrg()];
+      const initial = await stoppedOrgs(
+        orgs.map((org, index) => [org, (index + 1) * DAY] as const),
+        now,
+      );
+      // The caches live on another disk: removing them frees nothing here.
+      const elsewhere = sessionDisk(initial, 1, 0);
+      const warnings: string[] = [];
+      const warn = console.warn;
+      const log = console.log;
+      console.warn = (...args: unknown[]) => {
+        warnings.push(args.map(String).join(' '));
+      };
+      console.log = () => {};
+      try {
+        const first = await sweepIdleBuildkitd(cfg, now, {
+          sessionDisk: elsewhere,
+        });
+        expect(first.relieved).toBe(1);
+        const second = await sweepIdleBuildkitd(cfg, now + 60_000, {
+          sessionDisk: elsewhere,
+        });
+        expect(second.relieved).toBeUndefined();
+        // Past the pause, a sweep tries again.
+        const later = await sweepIdleBuildkitd(cfg, now + 6 * 60 * 60_000 + 1, {
+          sessionDisk: elsewhere,
+        });
+        expect(later.relieved).toBe(1);
+      } finally {
+        console.warn = warn;
+        console.log = log;
+      }
+      expect(
+        warnings.filter((line) => line.includes('freed no space')),
+      ).toHaveLength(2);
+      expect(
+        (await state()).volumes[buildkitdCacheVolumeName(orgs[0] ?? '')],
+      ).toBeDefined();
+    });
+
+    test('nothing goes while the disk is above its floor, or cannot be read', async () => {
+      const now = Date.now();
+      const org = nextOrg();
+      const initial = await stoppedOrgs([[org, 10 * DAY]], now);
+      for (const reading of [
+        async () => ({ availableBytes: 50 * GIB, short: false }),
+        async () => null,
+      ]) {
+        const result = await sweepIdleBuildkitd(cfg, now, {
+          sessionDisk: reading,
+        });
+        expect(result.relieved).toBeUndefined();
+      }
       expect((await state()).volumes).toEqual(initial.volumes);
     });
   });

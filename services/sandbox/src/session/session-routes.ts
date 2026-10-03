@@ -10,6 +10,11 @@ import {
   type SessionBackend,
 } from '../backend/types.ts';
 import {
+  belowDiskFloor,
+  type HostDiskSource,
+  type SessionDiskState,
+} from '../host-disk.ts';
+import {
   memoryReserveBytes,
   sessionWorkingSetBytes,
   type HostMemory,
@@ -178,6 +183,11 @@ const NO_HOST_MEMORY: HostMemorySource = {
   read: () => Promise.resolve(null),
 };
 
+const NO_HOST_DISK: HostDiskSource = {
+  latest: () => null,
+  read: () => Promise.resolve(null),
+};
+
 /** Whether `promise` settles, either way, within `ms`. */
 export async function settlesWithin(
   promise: Promise<unknown>,
@@ -330,6 +340,10 @@ export class SessionRoutes {
      * with it inside its lock), `read` afresh. Null where it cannot be read
      * (a remote daemon, Kubernetes): admission then counts sessions only. */
     private readonly hostMemory: HostMemorySource = NO_HOST_MEMORY,
+    /** The disk the workspaces live on: `latest` without waiting, `read`
+     * afresh. Null where it cannot be read (Kubernetes, whose workspaces
+     * are volumes of a fixed size): admission then ignores disk. */
+    private readonly hostDisk: HostDiskSource = NO_HOST_DISK,
   ) {}
 
   /** Number of live sessions this spawner currently manages (drain readiness). */
@@ -405,16 +419,17 @@ export class SessionRoutes {
     );
   }
 
-  /** The admission decision for one create: a duplicate id → 409, a full
-   * host → `'full'`, a host whose memory would drop below its reserve with
-   * every create in flight at its planned working set → `'short'`, else the
-   * id is reserved in `creating`. Synchronous, under the admission lock: each
+  /** The admission decision for one create: a duplicate id → 409, a disk
+   * the workspaces live on below its floor → `'disk'`, a full host →
+   * `'full'`, a host whose memory would drop below its reserve with every
+   * create in flight at its planned working set → `'short'`, else the id is
+   * reserved in `creating`. Synchronous, under the admission lock: each
    * create sees exactly the ones admitted before it. */
   private admit(
     sessionId: string,
     organizationId: string,
     workingSetBytes: number,
-  ): Response | 'full' | 'short' | null {
+  ): Response | 'disk' | 'full' | 'short' | null {
     if (this.registry.has(sessionId) || this.creating.has(sessionId)) {
       return jsonResponse(
         {
@@ -424,6 +439,9 @@ export class SessionRoutes {
         409,
       );
     }
+    // A disk below its floor takes no session: every running one's next
+    // write may be the one that fails.
+    if (this.diskShort()) return 'disk';
     // Room that frees is the oldest waiters' first: a create gets in ahead
     // of them only where there is room for them as well.
     const ahead = this.waitersAhead(sessionId, Date.now());
@@ -469,6 +487,36 @@ export class SessionRoutes {
       memory.totalBytes -
       memoryReserveBytes(memory.totalBytes, this.cfg.session.minFreeMemoryBytes)
     );
+  }
+
+  /** Is the disk the workspaces live on below its floor (the probe's last
+   * reading)? An unknown disk never refuses. */
+  private diskShort(): boolean {
+    try {
+      return belowDiskFloor(
+        this.hostDisk.latest(),
+        this.cfg.session.minFreeDiskBytes,
+      );
+    } catch (error) {
+      console.warn('[sandbox.session] session disk unreadable:', error);
+      return false;
+    }
+  }
+
+  /** The disk read now, for upkeep that frees space on it and goes on only
+   * while it is still short. */
+  private async sessionDiskNow(): Promise<SessionDiskState | null> {
+    try {
+      const disk = await this.hostDisk.read(true);
+      if (disk === null) return null;
+      return {
+        availableBytes: disk.availableBytes,
+        short: belowDiskFloor(disk, this.cfg.session.minFreeDiskBytes),
+      };
+    } catch (error) {
+      console.warn('[sandbox.session] session disk unreadable:', error);
+      return null;
+    }
   }
 
   /** Would starting a session of this working set, beside every create in
@@ -526,10 +574,24 @@ export class SessionRoutes {
         this.admit(sessionId, organizationId, workingSet),
       );
     }
-    if (decision === 'full' || decision === 'short') {
+    if (decision === 'full' || decision === 'short' || decision === 'disk') {
       const place = this.waitInLine(sessionId, workingSet, Date.now());
       const retryAfter = String(Math.ceil(place.hintMs / 1000));
       const queue = { position: place.position, waiting: place.waiting };
+      if (decision === 'disk') {
+        // Stopping an idle session frees no disk (its workspace stays for
+        // its resume): the build-cache upkeep gives back what it can.
+        return jsonResponse(
+          {
+            error: 'host_disk',
+            message:
+              'the sandbox host is short of disk space; the session starts once some is freed',
+            queue,
+          },
+          429,
+          { 'retry-after': retryAfter },
+        );
+      }
       if (decision === 'full') {
         return jsonResponse(
           {
@@ -911,7 +973,9 @@ export class SessionRoutes {
         // With no organization named, the backend retires drained legacy
         // helpers and stops idle ones without provisioning anything: the last
         // legacy session may just have stopped, letting its global helpers go.
-        await this.backend.reconcileBuildCache(organizationIds);
+        await this.backend.reconcileBuildCache(organizationIds, {
+          sessionDisk: () => this.sessionDiskNow(),
+        });
       } catch (error) {
         console.warn(
           organizationIds.length > 0
