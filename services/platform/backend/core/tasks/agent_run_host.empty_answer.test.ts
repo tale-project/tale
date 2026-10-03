@@ -194,6 +194,41 @@ beforeEach(() => {
 });
 
 describe('a task agent turn whose model answered nothing', () => {
+  it('still requires an explicit final report after a long assistant draft', async () => {
+    const report = `BEGIN ${'draft '.repeat(20_000)} END`;
+    io.stdout = `${[
+      { type: 'system', subtype: 'init', session_id: CONVERSATION },
+      {
+        type: 'assistant',
+        message: { content: [{ type: 'text', text: report }] },
+      },
+      {
+        type: 'result',
+        subtype: 'success',
+        result: '',
+        session_id: CONVERSATION,
+      },
+    ]
+      .map((event) => JSON.stringify(event))
+      .join('\n')}\n`;
+    const { ctx, mutations } = makeCtx({ status: 'running', execId: 'exec-1' });
+
+    await driveTaskAgentTurnImpl(ctx, KEYS);
+
+    expect(failedMarks(mutations)[0]?.args).toMatchObject({
+      failureCode: 'empty_turn',
+      agentSessionId: CONVERSATION,
+    });
+    expect(
+      mutations.some((m) => m.name.endsWith(':completeTaskAgentRun')),
+    ).toBe(false);
+    const progress = mutations
+      .map((mutation) => mutation.args.progressText)
+      .filter((text): text is string => typeof text === 'string');
+    expect(progress.length).toBeGreaterThan(0);
+    expect(progress.every((text) => text.length <= 64 * 1024)).toBe(true);
+  });
+
   it('fails retryably, naming the empty answer and keeping the conversation', async () => {
     const run: RunState = { status: 'running', execId: 'exec-1' };
     const { ctx, mutations } = makeCtx(run);

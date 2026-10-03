@@ -53,10 +53,25 @@ const goodInput = {
 
 describe('buildDockerSessionRunArgs', () => {
   test('a lightweight agent keeps agent ownership but starts no Docker daemon', () => {
-    const args = buildDockerSessionRunArgs(
-      { ...cfg, runtimeTier: 'sysbox', dockerInContainer: true },
-      { ...goodInput, docker: false },
-    );
+    const configured = {
+      ...cfg,
+      runtimeTier: 'sysbox' as const,
+      dockerInContainer: true,
+      session: {
+        ...cfg.session,
+        agentProfile: {
+          ...cfg.session.agentProfile,
+          memory: '8g',
+          memoryWithoutDocker: '4g',
+        },
+      },
+    };
+    const args = buildDockerSessionRunArgs(configured, {
+      ...goodInput,
+      docker: false,
+    });
+    expect(args).toContain('--memory=4g');
+    expect(args).toContain('--memory-swap=4g');
     expect(args).toContain('tale.docker=false');
     expect(args).not.toContain('TALE_DOCKER_ENABLED=1');
     expect(args).not.toContain('--privileged');
@@ -64,6 +79,12 @@ describe('buildDockerSessionRunArgs', () => {
       `${cfg.session.agentProfile.uid}:${cfg.session.agentProfile.gid}`,
     );
     expect(args.some((arg) => arg.includes('/var/lib/docker'))).toBe(false);
+    const dind = buildDockerSessionRunArgs(configured, {
+      ...goodInput,
+      dockerStorageVolume: 'tale-dind-test',
+    });
+    expect(dind).toContain('--memory=8g');
+    expect(dind).toContain('--memory-swap=8g');
   });
 
   test('passes a validated operator inner pool only to DinD agent containers', () => {
