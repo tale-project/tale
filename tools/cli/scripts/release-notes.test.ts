@@ -214,6 +214,72 @@ describe('authored release notes', () => {
   );
 
   test.skipIf(process.platform === 'win32')(
+    'Publish packages pins no package tag for a version Release would refuse',
+    async () => {
+      const steps = (
+        await readWorkflow('.github/workflows/publish-packages.yml')
+      ).jobs.publish.steps;
+      const at = (name: string) =>
+        steps.findIndex((step) => step.name === name);
+      const resolveTag = steps[at('Resolve snapshot tag')]!;
+      const validate =
+        steps[at('Validate authored release notes before pinning')];
+      const publish = steps[at('Publish snapshot')]!;
+      // The check stops the job before the only step that pushes.
+      expect(
+        at('Validate authored release notes before pinning'),
+      ).toBeGreaterThan(at('Resolve snapshot tag'));
+      expect(at('Validate authored release notes before pinning')).toBeLessThan(
+        at('Publish snapshot'),
+      );
+      expect(validate?.['continue-on-error']).toBeUndefined();
+      expect(publish.if).toBeUndefined();
+      // The same validator and version spelling as Release's Prepare.
+      const prepare = (await releaseWorkflow()).jobs.prepare.steps.find(
+        (step) =>
+          step.name === 'Validate authored release notes before building',
+      );
+      expect(validate?.run).toBe(prepare?.run);
+      expect(validate?.if).toBe("steps.tag.outputs.version != ''");
+      expect(validate?.env?.TAG).toBe('${{ steps.tag.outputs.version }}');
+
+      const tree = await validatorCheckout();
+      const resolved = async (env: Record<string, string>) => {
+        const result = await runStep(resolveTag.run!, tree.directory, {
+          PACKAGE: 'ui',
+          REF_NAME: 'main',
+          INPUT_VERSION: '',
+          ...env,
+        });
+        expect(result.exitCode, result.stderr).toBe(0);
+        return result.outputs;
+      };
+      // A plain push to main pins nothing, so the check is skipped.
+      expect(await resolved({ REF_TYPE: 'branch' })).toEqual({
+        value: '',
+        version: '',
+      });
+      expect(
+        await resolved({ REF_TYPE: 'branch', INPUT_VERSION: '1.2.3' }),
+      ).toEqual({ value: 'ui-v1.2.3', version: 'v1.2.3' });
+      const tag = await resolved({ REF_TYPE: 'tag', REF_NAME: 'v1.2.3' });
+      expect(tag).toEqual({ value: 'ui-v1.2.3', version: 'v1.2.3' });
+
+      const pin = () =>
+        runStep(validate!.run!, tree.directory, { TAG: tag.version! });
+      expect((await pin()).exitCode).not.toBe(0);
+      await tree.notes(
+        'v1.2.3',
+        authored.replace('Restart the service after updating.', 'TODO'),
+      );
+      expect((await pin()).exitCode).not.toBe(0);
+      await tree.notes('v1.2.3', authored);
+      const valid = await pin();
+      expect(valid.exitCode, valid.stderr).toBe(0);
+    },
+  );
+
+  test.skipIf(process.platform === 'win32')(
     'publication retries preserve published releases and surface drafts or API failures',
     async () => {
       const directory = await mkdtemp(join(tmpdir(), 'tale-release-notes-'));

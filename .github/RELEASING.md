@@ -173,7 +173,9 @@ git push origin refs/tags/vX.Y.Z
 
 The tag starts `release.yml` and `publish-packages.yml`. `release.yml` builds both
 architectures from the tag, runs its container test gate, then publishes the manifests, the
-GitHub release and the CLI binaries.
+GitHub release and the CLI binaries. Both validate the version's authored notes before they
+publish anything: Release in Prepare, and Publish packages before it pins `ui-vX.Y.Z` and
+`marketing-ui-vX.Y.Z`, so a version Release refuses gets no package tags.
 
 A version dispatch of `release.yml` builds the head of the ref it runs on. Run one only with
 `--ref vX.Y.Z` on the pushed tag, never on `main`.
@@ -221,6 +223,7 @@ A published version is not a deployment. Deployments follow their own procedure.
 - **Release-note validation fails.** Before tagging, correct the notes in a reviewed PR and choose
   the new candidate. If a tag was already pushed without valid notes, keep that tag and release
   the corrected candidate under the next version; never repair its source by moving the tag.
+  Publish packages refuses that tag as well, so no package tag names the skipped version.
 - **A release publication retry.** A published release is preserved, including its edited notes
   and attached assets. A draft with the same tag stops publication for the release lane to
   reconcile; do not delete or overwrite another maintainer's draft. API/authentication failures

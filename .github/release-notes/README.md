@@ -29,7 +29,8 @@ Run from the repository root before recording the candidate SHA:
 bun tools/cli/scripts/release-notes.ts --version vX.Y.Z
 ```
 
-The release workflow validates the same file again in Prepare, before building images. At
+The release workflow validates the same file again in Prepare, before building images, and the
+package workflow validates it before pinning `ui-vX.Y.Z` and `marketing-ui-vX.Y.Z`. At
 publication it puts the authored sections first, then generated API contract notes and GitHub's
 PR list. Release names remain version-based. Follow [Releasing Tale](../RELEASING.md) for candidate
 validation, tagging and recovery.
