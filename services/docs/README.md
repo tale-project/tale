@@ -38,14 +38,23 @@ Keep English, German, and French pages in sync. Swiss German message overrides a
 
 ## The page layout
 
-The reader follows a navigation rail, breadcrumb header, article, and section outline. The frame
+The locale roots (`/`, `/de`, `/fr`) are discovery pages built with `@tale/marketing-ui`: a
+search-led introduction, linked task progression, entry paths, tutorials, and reference guides.
+Their card copy comes from the target pages’ localized frontmatter; `docs/{en,de,fr}/index.md`
+keeps the same routes available in search and Markdown exports. Import `landing.css`, not the
+full marketing `globals.css`: only the homepage’s `.marketing-surface` changes canonical
+foreground, border, and accent tokens.
+
+On an article, the reader follows a navigation rail, breadcrumb header, article, and section outline. The frame
 is the shared `@tale/ui/docs/*` family, which the [design-system guide](../ui-docs/README.md)
 renders too, so a change to it lands on both sites. It uses the app design language; the site
 supports light and dark themes. This workspace feeds the frame its content:
 
 | Part | Responsibility |
 | --- | --- |
-| `app/routes/__root.tsx` | Mount `DocsLayout` with this site’s navigation, search index, footer copy, locale, and offline update banner. |
+| `app/routes/__root.tsx` | Keep locale, theme, and offline handling around both shells; mount `DocsLayout` for articles. |
+| `app/pages/home-page.tsx` | Render the discovery homepage with shared marketing components and the same docs search dialog. |
+| `lib/content/use-docs-search-config.ts` | Share locale-aware indexes, result breadcrumbs, and search history between the two shells. |
 | `lib/content/nav-sections.ts` | Resolve `docs/nav.json` into translated rail sections, neighboring pages, and search-result ancestors. |
 | `app/pages/docs-page.tsx` | Render `DocsHeader` with breadcrumbs and page actions, then `DocsArticle` with the single `h1`, body, outline, neighbors, and edit link. |
 | `app/pages/not-found-page.tsx` | Rank the closest pages for `DocsNotFound`. |

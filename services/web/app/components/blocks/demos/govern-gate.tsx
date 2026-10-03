@@ -1,7 +1,8 @@
 import { DemoShell } from '@tale/marketing-ui/demo-shell';
+import { useReducedMotion } from '@tale/marketing-ui/entrance';
 import { useDemoTimeline } from '@tale/marketing-ui/use-demo-timeline';
 import { cn } from '@tale/ui/cn';
-import { motion, useInView, useReducedMotion } from 'framer-motion';
+import { motion, useInView } from 'framer-motion';
 import { Check, Workflow } from 'lucide-react';
 import { useRef } from 'react';
 
@@ -112,18 +113,18 @@ export function GovernGate({
                   <div className="flex flex-col gap-1.5">
                     <JournalLine
                       text={scene.journal[0]}
-                      reduceMotion={reduceMotion ?? false}
+                      reduceMotion={reduceMotion}
                     />
                     {beat >= BEAT.journal2 ? (
                       <JournalLine
                         text={scene.journal[1]}
-                        reduceMotion={reduceMotion ?? false}
+                        reduceMotion={reduceMotion}
                       />
                     ) : null}
                     {beat >= BEAT.journal3 ? (
                       <JournalLine
                         text={scene.journal[2]}
-                        reduceMotion={reduceMotion ?? false}
+                        reduceMotion={reduceMotion}
                       />
                     ) : null}
                   </div>

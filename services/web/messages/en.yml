@@ -165,14 +165,12 @@ address:
   country: Switzerland
 home:
   hero:
-    title: One workspace for your team and AI agents
-    subtitle: Plan work with your teammates, delegate tasks to AI agents, and review
-      the results together. From software delivery to marketing campaigns,
-      Tale keeps your agent fleet, discussions, and deliverables in one shared
-      workspace.
+    title: Your team and agents, working together.
+    subtitle: Plan projects, delegate tasks to AI agents, and review the results
+      together. Keep the brief, files, and discussion with the work.
     ctaPrimary: Request a demo
     ctaSecondary: Self-host Tale
-    eyebrow: Collaborative project management with AI agents
+    eyebrow: Open-source project workspace
     proof: Shared tasks · Agent delegation · Parallel sandbox work · MIT licensed
   demos:
     hero:
@@ -349,27 +347,35 @@ home:
       treeRoot: workspace
       liveHint: Live browser view
       label:
-        'Animated demo: a harness turn opens the Files pane on a Python CLI,
-        then switches to the Live browser view of the running app.'
+        'Animated demo: an agent creates a web page, shows its HTML in the
+        Files pane, then opens the page in the Live browser view.'
       prompt:
-        Scaffold a small Python CLI and open it in the browser so I can click
-        through.
+        Build a small project page and open it in the browser so I can review
+        it.
       agent: Claude Code
       model: Claude Opus
       reply:
-        Created cli.py and a local preview — Files shows the tree; Live streams
-        the browser.
-      file1: cli.py
-      file2: pyproject.toml
-      file3: tests/test_cli.py
+        Created index.html and a local preview. Review the source in Files and
+        the page in Live.
+      file1: index.html
+      file2: styles.css
+      file3: tests/preview.spec.ts
       file4: README.md
-      activeFile: cli.py
-      code1: import click
-      code2: '@click.command()'
-      code3: 'def main():'
-      code4: '    click.echo("ready")'
+      activeFile: index.html
+      code1: "<main><h1>Northwind</h1><p>Customer portal</p>"
+      code2: "<section><h2>Brief</h2><p>Scope and goals</p></section>"
+      code3: "<section><h2>Files</h2><p>Source and tests</p></section>"
+      code4: "<section><h2>Review</h2><p>Ready for feedback</p></section></main>"
       browserUrl: http://127.0.0.1:5173
-      browserTitle: CLI preview · localhost
+      browserTitle: Project preview · localhost
+      previewTitle: "Northwind"
+      previewDescription: "Customer portal"
+      previewItem1: "Brief"
+      previewDetail1: "Scope and goals"
+      previewItem2: "Files"
+      previewDetail2: "Source and tests"
+      previewItem3: "Review"
+      previewDetail3: "Ready for feedback"
   tour:
     title: From a shared task to a reviewed result
     subtitle:
@@ -429,6 +435,7 @@ home:
         board.
     explore: Explore {module}
   tagline:
+    eyebrow: Your workspace, your choice
     title: Your Infrastructure. Your Data. Your Rules.
     subtitle:
       Choose where your workspace runs and which models your agents use.
@@ -455,11 +462,8 @@ home:
       Connect the services your projects depend on. Configure credentials
       once, then grant the access agents and workflows need for their work.
   agents:
-    title: Choose the runtime for each agent
-    subtitle:
-      Use Claude Code, Codex, Hermes, OpenClaw, and other supported runtimes.
-      Bring your own harness credentials to use a supported agent
-      subscription, or choose models billed through an API.
+    title: Your agents, your choice
+    subtitle: Use your preferred runtime with your own credentials or API-billed models.
   compliance:
     eyebrow: SECURITY
     title: Support for your deployment
@@ -528,7 +532,10 @@ home:
         that fits.
     ownHardwareModels:
       q: Can I use my own hardware and AI models?
-      a: Yes. Tale is hardware- and model-agnostic, so you're free to use your own.
+      a: Yes. Run Tale on your own infrastructure and connect a local model
+        server, such as Ollama or vLLM, through a supported API. Check the
+        deployment requirements and test the model with your chosen agent
+        runtime before assigning work.
     customTraining:
       q: Do you offer custom AI model training?
       a:
@@ -1361,6 +1368,14 @@ platformAgents:
       code4: '        raise SystemExit("missing registry")'
       browserUrl: http://127.0.0.1:8787/checklist
       browserTitle: Air-gapped install checklist
+      previewTitle: "Offline installation"
+      previewDescription: "Preparation checklist"
+      previewItem1: "Local registry"
+      previewDetail1: "Check the registry path"
+      previewItem2: "Dependencies"
+      previewDetail2: "Collect required packages"
+      previewItem3: "Installation"
+      previewDetail3: "Run without network access"
 platformChat:
   eyebrow: Chats
   title: Ask, compare, then hand work to an agent

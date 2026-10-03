@@ -11,6 +11,7 @@ import {
 } from '@/app/content/content-relationships';
 import type { PlatformPageId } from '@/app/content/platform-pages';
 import { listMarketingContent } from '@/lib/content/client';
+import { marketingContentHeading } from '@/lib/content/model';
 import { useT } from '@/lib/i18n/client';
 import { useCurrentLocale } from '@/lib/i18n/use-current-locale';
 
@@ -73,7 +74,7 @@ export function RelatedUseCases({
           <MarketingCard
             key={page.slug}
             to={page.path}
-            title={page.frontmatter.title}
+            title={<h3>{marketingContentHeading(page.frontmatter.title)}</h3>}
             description={page.frontmatter.description}
             surface="raised"
           />

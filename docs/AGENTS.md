@@ -26,7 +26,9 @@ reference lives in [`services/docs/tests/AGENTS.md`](../services/docs/tests/AGEN
   as `/de/verwaltung`) are answered by the server's near-miss resolver (`lib/near-miss.ts`), not by
   entries here.
 - The site: `services/docs/` (Vite + React + TanStack Router, prerendered static HTML). Its
-  chrome follows the **platform app** design language — a `SubPanel` navigation rail, one sticky
+  locale-root landing pages use the shared **marketing** language for search and guide discovery.
+  Their text companions remain `docs/{en,de,fr}/index.md`, including the published Markdown
+  exports. Guide pages keep the **platform app** design language — a `SubPanel` navigation rail, one sticky
   `h-13` header strip carrying the breadcrumb trail and the page actions, the article column, and
   the "On this page" outline (a rail from `xl`, a disclosure below it). That chrome is the shared
   `@tale/ui/docs/*` frame the design-system guide renders too; change it in `packages/ui`, never

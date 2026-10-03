@@ -19,6 +19,7 @@ defineI18nTests({
   serviceRoot: path.resolve(HERE, '../..'),
   packageCatalogs: [
     path.resolve(HERE, '../../../../packages/ui/src/i18n/messages'),
+    path.resolve(HERE, '../../../../packages/marketing-ui/src/i18n/messages'),
   ],
   modes: {
     'usage-missing': 'enforce',

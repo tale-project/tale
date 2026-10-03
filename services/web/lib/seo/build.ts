@@ -161,11 +161,6 @@ export function buildWebSections(legal: LegalRoute[]): ArtifactSection[] {
   ];
 }
 
-/** Site-relative paths for every legal page — fed to `robots.disallow`. */
-export function legalDisallowPaths(legal: readonly LegalRoute[]): string[] {
-  return legal.map((route) => route.url);
-}
-
 export function webOptionalPages(): OptionalPage[] {
   return [
     { title: 'Documentation', url: TALE_DOCS_LLMS_TXT },

@@ -38,7 +38,7 @@ test.describe('docs smoke', () => {
   });
 
   test('the rail is the labelled navigation landmark', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/self-hosted/install/quickstart');
     const rail = page.getByRole('navigation', {
       name: t('nav.sidebarAriaLabel'),
     });
@@ -141,7 +141,7 @@ test.describe('docs smoke', () => {
     page,
   }) => {
     await page.setViewportSize(PHONE);
-    await page.goto('/');
+    await page.goto('/self-hosted/install/quickstart');
     const menu = page.getByRole('button', { name: t('docs.openMenu') });
     await expect(menu).toHaveAttribute('aria-expanded', 'false');
     await menu.click();
@@ -172,7 +172,7 @@ test.describe('docs smoke', () => {
     page,
   }) => {
     await page.setViewportSize(PHONE);
-    await page.goto('/');
+    await page.goto('/self-hosted/install/quickstart');
     await page.getByRole('button', { name: t('docs.openMenu') }).click();
     await expect(page.getByRole('dialog')).toBeVisible();
     // The panel is `md:hidden`, but the overlay Radix portals is not: left

@@ -25,6 +25,8 @@ Install both packages and follow [Installation](/docs/getting-started/installati
 
 That file imports `@tale/ui/globals.css` and adds the marketing vocabulary. Include both `uiMessages` and `marketingUiMessages` in `initServiceI18n.packages` so shared controls and demo-window labels resolve.
 
+If only the front page uses marketing components, keep `@tale/ui/globals.css` and add `@tale/marketing-ui/landing.css` after it. Put `className="marketing-surface"` on the front page's wrapper. The marketing foreground, border, and action palette then stays inside that wrapper; documentation articles and application screens retain their own theme.
+
 ## Choose a building block
 
 | Area | Exported subpaths |
@@ -34,7 +36,7 @@ That file imports `@tale/ui/globals.css` and adds the marketing vocabulary. Incl
 | Feature sections | `feature-hero`, `feature-capability`, `feature-steps`, `feature-faq`, `feature-cta`, `related-pages`, `docs-links` |
 | Comparison and discovery | `marketing-section`, `tier-card`, `compare-table`, `segmented-radio`, `logo-cloud-section`, `progress-bar` |
 | Product illustrations | `demo-shell`, `demo-chrome`, `demo-stage`, `demo-tour-row`, `demo-tour-section`, `demo-typing-text`, `demo-stream-text`, `use-demo-timeline` |
-| Setup | `globals.css`, `routing`, `entrance`, `i18n/messages`, `tailwind-preset` |
+| Setup | `globals.css`, `landing.css`, `routing`, `entrance`, `i18n/messages`, `tailwind-preset` |
 
 Import from the named package subpaths. Keep page-specific claims, translated titles, destinations, and scenarios in the host. A reusable feature section should not learn your service's pricing or permissions.
 
@@ -45,6 +47,16 @@ Import from the named package subpaths. Keep page-specific claims, translated ti
 `MarketingButton` offers `tone="primary"` or `secondary` and `size="default"` or `lg`. Use `asChild` around an appropriate link when the action navigates.
 
 `MarketingCard` is static without `to` and becomes an internal link with it. Its surface is `plain` by default, with `raised` and `inset` alternatives. Do not put nested competing links inside a card that is itself a link.
+
+Use `surface="featured"` for the main destination in a section and `surface="quiet"` for supporting links in a list. These variants use the shared `Card` surface and keep the complete card a single link. Keep the destination's action clear in its title.
+
+## Compose an introduction and section rhythm
+
+`FeatureHero` accepts a title, description, optional eyebrow, actions, visual, and `proof` content. Its default `layout="stacked"` places the heading and supporting copy above the visual. Choose `layout="split"` to put the introduction and actions beside the visual on desktop; phones keep that same reading order vertically. Use the proof slot for established facts or a short explanation of the next step.
+
+The visual receives a `DemoStage` by default. Set `visualTreatment="plain"` when it already owns its frame or is an interactive composition. If a plain visual uses `@lg/demo:` and other container variants, provide its own `@container/demo` ancestor. Keep required actions outside inert illustrations.
+
+Use `SectionHeading layout="editorial"` when a section's description should sit beside its heading on desktop. `PageSection pad="compact"` provides shorter spacing for a proof strip or a small group of destinations. `surface="contrast"` creates an ink band with locally scoped foreground and action colors; neighboring sections keep their original palette. Reserve that change of pace for an important section rather than alternating every band.
 
 ## Connect host routing
 

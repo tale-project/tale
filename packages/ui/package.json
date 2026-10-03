@@ -88,6 +88,7 @@
     "./docs/docs-prev-next": "./src/components/docs/docs-prev-next.tsx",
     "./docs/docs-search-dialog": "./src/components/docs/docs-search-dialog.tsx",
     "./docs/docs-search-trigger": "./src/components/docs/docs-search-trigger.tsx",
+    "./docs/use-docs-search": "./src/components/docs/use-docs-search.ts",
     "./docs/docs-toc": "./src/components/docs/docs-toc.tsx",
     "./docs/edit-on-github": "./src/components/docs/edit-on-github.tsx",
     "./docs/links": "./src/components/docs/links.ts",

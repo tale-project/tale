@@ -1,7 +1,8 @@
 import { DemoShell } from '@tale/marketing-ui/demo-shell';
+import { useReducedMotion } from '@tale/marketing-ui/entrance';
 import { useDemoTimeline } from '@tale/marketing-ui/use-demo-timeline';
 import { cn } from '@tale/ui/cn';
-import { motion, useInView, useReducedMotion } from 'framer-motion';
+import { motion, useInView } from 'framer-motion';
 import {
   Check,
   Cpu,
@@ -141,7 +142,7 @@ export function AutomationRun({
                     status={t(TONE_STATUS_KEY[row.tone])}
                     duration={row.duration}
                     tone={row.tone}
-                    reduceMotion={reduceMotion ?? false}
+                    reduceMotion={reduceMotion}
                   />
                 ) : null,
               )}

@@ -9,6 +9,9 @@ import { createI18n } from '@tale/e2e/i18n';
  */
 
 const { t } = createI18n(new URL('../../../messages/en.yml', import.meta.url));
+const { t: tFrench } = createI18n(
+  new URL('../../../messages/fr.yml', import.meta.url),
+);
 // The demo window's own chrome (the Share label) ships with the marketing
 // design language, not the site catalog.
 const { t: tMarketing } = createI18n(
@@ -19,6 +22,36 @@ const { t: tMarketing } = createI18n(
 );
 
 test.use({ contextOptions: { reducedMotion: 'reduce' } });
+
+for (const { path, namespace } of [
+  { path: '/', namespace: 'home' },
+  { path: '/platform/agents', namespace: 'platformAgents' },
+] as const) {
+  test(`French sandbox reserves its final height on ${path} at 320px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 320, height: 900 });
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
+    await page.goto(`/fr${path}`);
+    await page.evaluate(() => document.fonts.ready);
+    const demo = page.getByRole('img', {
+      name: tFrench(`${namespace}.demos.sandbox.label`),
+      exact: true,
+    });
+    const reply = tFrench(`${namespace}.demos.sandbox.reply`);
+    // Wait for the browser's unplayed scene, rather than measuring the
+    // complete prerendered HTML before the client mounts.
+    await expect(demo).not.toContainText(reply);
+    const before = await demo.boundingBox();
+    expect(before).not.toBeNull();
+    await demo.scrollIntoViewIfNeeded();
+    await expect(demo).toContainText(reply, { timeout: 10_000 });
+    await expect(demo).toContainText(
+      tFrench(`${namespace}.demos.sandbox.previewDetail3`),
+    );
+    expect((await demo.boundingBox())?.height).toBe(before?.height);
+  });
+}
 
 test.describe('homepage demos', () => {
   test('hero demo renders its complete end state under reduced motion', async ({
@@ -41,40 +74,23 @@ test.describe('homepage demos', () => {
   }) => {
     await page.goto('/');
 
-    const connect = page.getByRole('img', {
-      name: t('home.demos.connect.label'),
+    const sandbox = page.getByRole('img', {
+      name: t('home.demos.sandbox.label'),
     });
-    await connect.scrollIntoViewIfNeeded();
-    await expect(connect).toContainText(t('home.demos.connect.windowTitle'));
-    await expect(connect).toContainText(t('home.demos.connect.agent1'));
-    await expect(connect).toContainText(t('home.demos.connect.statusReady'));
-    await expect(connect).not.toContainText(tMarketing('demo.chrome.share'));
-
-    const knowledge = page.getByRole('img', {
-      name: t('home.demos.knowledge.label'),
-    });
-    await knowledge.scrollIntoViewIfNeeded();
-    await expect(knowledge).toContainText(
-      t('home.demos.knowledge.windowTitle'),
-    );
-    await expect(knowledge).toContainText(t('home.demos.knowledge.source3'));
-    await expect(knowledge).toContainText(
-      t('home.demos.knowledge.statusIndexed'),
-    );
-    await expect(knowledge).not.toContainText(tMarketing('demo.chrome.share'));
-
-    const automation = page.getByRole('img', {
-      name: t('home.demos.automation.label'),
-    });
-    await automation.scrollIntoViewIfNeeded();
-    await expect(automation).toContainText(
-      t('home.demos.automation.windowTitle'),
-    );
-    await expect(automation).toContainText(t('home.demos.automation.trigger'));
-    await expect(automation).toContainText(
-      t('home.demos.automation.statusAwaiting'),
-    );
-    await expect(automation).not.toContainText(tMarketing('demo.chrome.share'));
+    await sandbox.scrollIntoViewIfNeeded();
+    await expect(sandbox).toContainText(t('home.demos.sandbox.prompt'));
+    await expect(sandbox).toContainText(t('home.demos.sandbox.reply'));
+    await expect(sandbox).toContainText(t('home.demos.sandbox.file1'));
+    await expect(sandbox).toContainText(t('home.demos.sandbox.browserTitle'));
+    await expect(sandbox).toContainText(t('home.demos.sandbox.previewTitle'));
+    for (const index of [1, 2, 3]) {
+      await expect(sandbox).toContainText(
+        t(`home.demos.sandbox.previewItem${index}`),
+      );
+      await expect(sandbox).toContainText(
+        t(`home.demos.sandbox.previewDetail${index}`),
+      );
+    }
 
     const govern = page.getByRole('img', {
       name: t('home.demos.govern.label'),
@@ -84,16 +100,6 @@ test.describe('homepage demos', () => {
     await expect(govern).toContainText(t('home.demos.govern.audit2'));
     await expect(govern).toContainText(t('home.demos.automation.windowTitle'));
     await expect(govern).not.toContainText(tMarketing('demo.chrome.share'));
-
-    const arena = page.getByRole('img', {
-      name: t('home.demos.arena.label'),
-    });
-    await arena.scrollIntoViewIfNeeded();
-    await expect(arena).toContainText(t('home.demos.arena.prompt'));
-    await expect(arena).toContainText(t('home.demos.arena.replyB2'));
-    await expect(arena).toContainText(t('home.demos.arena.modelA'));
-    await expect(arena).toContainText(t('home.demos.arena.modelB'));
-    await expect(arena.locator('.lucide-bot')).toHaveCount(0);
 
     const projects = page.getByRole('img', {
       name: t('home.demos.projects.label'),
@@ -105,7 +111,9 @@ test.describe('homepage demos', () => {
     await expect(projects).not.toContainText(tMarketing('demo.chrome.share'));
   });
 
-  test('tour headings carry the six-stage journey', async ({ page }) => {
+  test('three chapters and supporting capabilities link to every module', async ({
+    page,
+  }) => {
     await page.goto('/');
     for (const stage of [
       'projects',
@@ -121,6 +129,20 @@ test.describe('homepage demos', () => {
         }),
       ).toBeVisible();
     }
+    const features = page.locator('#features');
+    for (const module of [
+      'projects',
+      'agents',
+      'governance',
+      'knowledge',
+      'automations',
+      'chat',
+    ]) {
+      await expect(
+        features.locator(`a[href="/platform/${module}"]`),
+      ).toHaveCount(1);
+    }
+    await expect(features.getByRole('img')).toHaveCount(3);
   });
 });
 
@@ -233,6 +255,17 @@ test.describe('feature page demo scenarios', () => {
     await expect(sandbox).toContainText(
       t('platformAgents.demos.sandbox.activeFile'),
     );
+    await expect(sandbox).toContainText(
+      t('platformAgents.demos.sandbox.previewTitle'),
+    );
+    for (const index of [1, 2, 3]) {
+      await expect(sandbox).toContainText(
+        t(`platformAgents.demos.sandbox.previewItem${index}`),
+      );
+      await expect(sandbox).toContainText(
+        t(`platformAgents.demos.sandbox.previewDetail${index}`),
+      );
+    }
     await expect(sandbox).not.toContainText(t('home.demos.sandbox.prompt'));
   });
 
@@ -359,9 +392,16 @@ test.describe('feature page demo scenarios', () => {
     );
 
     await page.goto('/');
-    await expect(
-      page.getByRole('link', { name: exploreAutomations }),
-    ).toBeVisible();
+    const automationCard = page.locator(
+      '#features a[href="/platform/automations"]',
+    );
+    await expect(automationCard).toBeVisible();
+    await automationCard.click();
+    await expect(page).toHaveURL(/\/platform\/automations$/);
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText(
+      t('platformAutomations.title'),
+    );
+    await page.goto('/');
     const exploreProjects = t('home.tour.explore').replace(
       '{module}',
       t('nav.product.projects.label'),

@@ -1,11 +1,12 @@
 import { TALE_DOCS_LLMS_TXT } from '@tale/ui/seo/globals';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import * as contentRegistry from '../content/server';
+import { localizedPath, SUPPORTED_LOCALES } from '../i18n/locales';
+import { createMarketingArtifactsServer } from './artifacts-server';
 import {
   WEB_LLMS_PAGES_INTRO,
   buildWebSections,
-  legalDisallowPaths,
   webOptionalPages,
   makeWebLoadBody,
 } from './build';
@@ -100,6 +101,58 @@ describe('llms.txt product facts', () => {
 });
 
 describe('legal SEO contract', () => {
+  beforeEach(() => {
+    // Legal directives do not depend on the growing marketing content tree.
+    vi.spyOn(contentRegistry, 'publishedMarketingContent').mockReturnValue([]);
+  });
+
+  for (const locale of SUPPORTED_LOCALES) {
+    it(`keeps ${locale} legal Markdown out of the index for GET, HEAD and conditional requests`, async () => {
+      const server = createMarketingArtifactsServer({
+        ssr: { render: vi.fn() },
+      });
+      const url = `https://tale.dev${localizedPath(locale, '/legal/privacy-policy.md')}`;
+      const response = await server.handle(new Request(url));
+      expect(response?.status).toBe(200);
+      expect(response?.headers.get('x-robots-tag')).toBe('noindex, nofollow');
+      expect(response?.headers.get('content-type')).toContain('text/markdown');
+      expect((await response?.text())?.length).toBeGreaterThan(100);
+      const head = await server.handle(new Request(url, { method: 'HEAD' }));
+      expect(head?.status).toBe(200);
+      expect(head?.headers.get('x-robots-tag')).toBe('noindex, nofollow');
+      const etag = response?.headers.get('etag');
+      expect(etag).toBeTruthy();
+      const conditional = await server.handle(
+        new Request(url, {
+          headers: { 'if-none-match': etag ?? '' },
+        }),
+      );
+      expect(conditional?.status).toBe(304);
+      expect(conditional?.headers.get('x-robots-tag')).toBe(
+        'noindex, nofollow',
+      );
+      expect(conditional?.headers.get('etag')).toBe(etag);
+      expect(await conditional?.text()).toBe('');
+    });
+  }
+
+  it('lets crawlers read legal noindex tags while retaining private endpoint exclusions', async () => {
+    const render = vi.fn();
+    const server = createMarketingArtifactsServer({ ssr: { render } });
+    const response = await server.handle(
+      new Request('https://tale.dev/robots.txt'),
+    );
+    expect(response?.status).toBe(200);
+    const robots = await response?.text();
+    expect(robots).toContain('Allow: /');
+    expect(robots).toContain('Disallow: /api/');
+    expect(robots).toContain('Disallow: /_search/');
+    expect(robots).not.toMatch(/^Disallow:.*\/legal\//m);
+    expect(robots).toContain('Sitemap: https://tale.dev/sitemap.xml');
+    expect(robots).toContain('Sitemap: https://docs.tale.dev/sitemap.xml');
+    expect(render).not.toHaveBeenCalled();
+  });
+
   it('excludes legal routes from sitemap sections', () => {
     const legal = [
       {
@@ -123,10 +176,6 @@ describe('legal SEO contract', () => {
       .flatMap((s) => s.routes.map((r) => r.url));
     expect(sitemapUrls).not.toContain('/legal/privacy-policy');
     expect(sitemapUrls).not.toContain('/de/legal/privacy-policy');
-    expect(legalDisallowPaths(legal)).toEqual([
-      '/legal/privacy-policy',
-      '/de/legal/privacy-policy',
-    ]);
   });
 });
 

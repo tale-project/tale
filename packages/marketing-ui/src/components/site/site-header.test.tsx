@@ -195,4 +195,33 @@ describe('SiteHeader', () => {
     expect(document.body.style.paddingRight).toBe('7px');
     document.body.style.paddingRight = '';
   });
+
+  it('renders mobile actions outside the navigation drawer', async () => {
+    const onSearch = vi.fn();
+    const { user } = render(
+      <SiteHeader
+        openMenuLabel="Open menu"
+        closeMenuLabel="Close menu"
+        logo={<a href="/">Tale</a>}
+        mobileNav={<a href="#docs">Documentation</a>}
+        mobileActions={
+          <button type="button" onClick={onSearch}>
+            Search documentation
+          </button>
+        }
+      />,
+    );
+    await user.click(
+      screen.getByRole('button', { name: 'Search documentation' }),
+    );
+    expect(onSearch).toHaveBeenCalledOnce();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(getComputedStyle(document.body).overflow).not.toBe('hidden');
+    await user.click(screen.getByRole('button', { name: 'Open menu' }));
+    expect(
+      within(screen.getByRole('dialog')).queryByRole('button', {
+        name: 'Search documentation',
+      }),
+    ).toBeNull();
+  });
 });

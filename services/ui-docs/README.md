@@ -2,7 +2,7 @@
 
 The design-system guide at [ui.tale.dev](https://ui.tale.dev) helps you install
 Tale’s UI packages, choose components, and compose application or marketing screens.
-Its 19 English guides include live examples with their source. The examples use local
+Its English guides include live examples with their source. The examples use local
 sample state; they do not connect to the Tale backend.
 
 For package consumption, start with [Installation](content/getting-started/installation.md).
@@ -48,9 +48,17 @@ to the shared server: no locale negotiation, no `tale_locale` cookie, and a stal
 locale-prefixed URL 301s back onto the English tree. Adding a translated tree means
 routes, prerendered artifacts and flipping that option back to `'path'`.
 
-The homepage product window and nested application-layout examples are labelled,
-inert illustrations. Their explanation must remain understandable outside the frame.
-Interactive demos run inside the docs pages. A single root `Toaster` serves all of them.
+The homepage component studio uses real controls with local state. Edit its workspace name,
+toggle the digest, switch between application and marketing previews, or reset the sample.
+Nothing is sent to a backend. Its initial application panel renders completely before
+JavaScript loads. Nested application-layout examples in the guides remain labelled, inert
+illustrations; other guide demos are interactive. A single root `Toaster` serves the site.
+
+The homepage shows the distinction between `@tale/ui` and `@tale/marketing-ui`, links to the
+five guide sections with counts derived from navigation, and offers source installation
+commands for each package. The marketing command includes its `@tale/ui` dependency;
+the installation guide covers the remaining Vite, stylesheet, and AppShell setup. The
+header theme switcher uses 32px choices for fine pointers and 44px choices for touch input.
 
 ## Build and inspect production output
 

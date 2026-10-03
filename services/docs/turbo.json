@@ -9,6 +9,7 @@
         "$TURBO_ROOT$/docs/**",
         "$TURBO_ROOT$/README*.md",
         "$TURBO_ROOT$/packages/ui/src/i18n/messages/*.yml",
+        "$TURBO_ROOT$/packages/marketing-ui/src/i18n/messages/*.yml",
         "$TURBO_ROOT$/packages/ui/src/i18n/tests/**",
         "$TURBO_ROOT$/packages/ui/src/components/docs/*.ts",
         "$TURBO_ROOT$/packages/ui/src/markdown/heading-id.ts"

@@ -6,6 +6,26 @@ const content = readMarketingContent();
 test.use({ contextOptions: { reducedMotion: 'reduce' } });
 
 for (const locale of ['en', 'de', 'fr'] as const) {
+  test(`${locale} homepage introduces relevant use cases`, async ({ page }) => {
+    const prefix = locale === 'en' ? '' : `/${locale}`;
+    await page.goto(prefix || '/');
+    for (const slug of [
+      'marketing-campaigns',
+      'software-development',
+      'operations',
+    ]) {
+      const link = page.locator(`main a[href="${prefix}/use-cases/${slug}"]`);
+      await expect(link).toHaveCount(1);
+      await link.scrollIntoViewIfNeeded();
+      await expect(link).toBeVisible();
+    }
+    await page
+      .locator(`main a[href="${prefix}/use-cases/marketing-campaigns"]`)
+      .click();
+    await expect(page).toHaveURL(`${prefix}/use-cases/marketing-campaigns`);
+    await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1);
+  });
+
   for (const width of [320, 1440]) {
     test(`${locale} marketing guides remain readable and correctly indexed at ${width}px`, async ({
       page,
