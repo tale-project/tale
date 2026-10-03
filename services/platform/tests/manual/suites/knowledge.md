@@ -320,8 +320,12 @@ records and delete them after.
   is folded under **Technical details**
   (`websites.viewDialog.technicalDetails`), never inline and never only on
   hover. A site that already has indexed or failed pages keeps the list with
-  the same Alert above it. Reload `/dashboard/{org}/websites` and reopen →
-  the Alert is still there.
+  the same Alert above it, unless the site's failed or skipped pages say why
+  (a reason that stopped the scan as a whole — the crawler runtime or its
+  browser, the embedding model, a missing registration — always shows); the
+  Alert stands, or stays away, alike under **All**, **Failed** and
+  **Skipped** (KNOW-F36) and after **Load more**. Reload
+  `/dashboard/{org}/websites` and reopen → the Alert is still there.
 - [ ] `KNOW-F19` · **Source reads as icons** — Documents with an upload, a
   Microsoft 365 **One-time import** (`documents.onedrive.oneTimeImport`) and
   a synced folder (KNOW-F2), in German (`de`), with the window narrowed until

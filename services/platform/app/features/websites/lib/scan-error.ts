@@ -139,6 +139,22 @@ export function isHollowSiteScan(
   return !pages.some((page) => page.chunks_count > 0 || page.fail_count > 0);
 }
 
+/**
+ * Whether the site's own pages say why its scan failed: a page the crawler
+ * failed or skipped carries its reason on its row. The site's counts decide
+ * it — those every pages answer carries, whichever state the list is
+ * narrowed to, and the row's failed count until the first answer comes —
+ * never the rows one window of the list holds: a filter or "Load more"
+ * showed and hid the same scan's Alert (#4068).
+ */
+export function pagesExplainScanFailure(
+  website: { failedPageCount?: number },
+  counts: { failed: number; skipped: number } | null,
+): boolean {
+  if (counts !== null) return counts.failed + counts.skipped > 0;
+  return (website.failedPageCount ?? 0) > 0;
+}
+
 export type EmbeddingFailureClass = WebsiteEmbeddingFailureClass;
 
 /**

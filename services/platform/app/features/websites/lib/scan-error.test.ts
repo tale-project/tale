@@ -12,6 +12,7 @@ import {
   embeddingHintKey,
   isHollowSiteScan,
   isSiteLevelScanError,
+  pagesExplainScanFailure,
   scanEmptyMessageKey,
   scanErrorDetail,
   scanErrorMessageKey,
@@ -235,5 +236,34 @@ describe('isHollowSiteScan', () => {
     expect(
       isHollowSiteScan({ ...errorSite, crawledPageCount: 1 }, [], false),
     ).toBe(false);
+  });
+});
+
+describe('pagesExplainScanFailure', () => {
+  it('reads the counts a pages answer carries, skipped pages among them', () => {
+    expect(
+      pagesExplainScanFailure(
+        { failedPageCount: 0 },
+        { failed: 2, skipped: 0 },
+      ),
+    ).toBe(true);
+    expect(
+      pagesExplainScanFailure(
+        { failedPageCount: 0 },
+        { failed: 0, skipped: 3 },
+      ),
+    ).toBe(true);
+    expect(
+      pagesExplainScanFailure(
+        { failedPageCount: 1 },
+        { failed: 0, skipped: 0 },
+      ),
+    ).toBe(false);
+  });
+
+  it("stands on the row's failed count until a pages answer comes", () => {
+    expect(pagesExplainScanFailure({ failedPageCount: 1 }, null)).toBe(true);
+    expect(pagesExplainScanFailure({ failedPageCount: 0 }, null)).toBe(false);
+    expect(pagesExplainScanFailure({}, null)).toBe(false);
   });
 });

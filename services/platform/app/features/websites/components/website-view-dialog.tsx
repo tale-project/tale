@@ -58,6 +58,7 @@ import {
   classifyScanError,
   isHollowSiteScan,
   isSiteLevelScanError,
+  pagesExplainScanFailure,
 } from '../lib/scan-error';
 import { isScanPaused } from '../lib/scan-paused';
 import { WebsiteEditDialog } from './website-edit-dialog';
@@ -546,7 +547,11 @@ export function WebsiteViewDialog({
       : null;
   const scanErrorKind =
     lastSyncError === null ? 'generic' : classifyScanError(lastSyncError);
-  const hollowScan = isHollowSiteScan(website, pages, paused);
+  // Not while the site has a failed or skipped page to open: an empty
+  // segment, or the row's counts lagging the read, is no hollow scan.
+  const hollowScan =
+    isHollowSiteScan(website, pages, paused) &&
+    !pagesExplainScanFailure(website, pageCounts);
 
   // Paused (repeated failures to reach the knowledge database) wins over the
   // stored `error` status — this site stopped retrying and needs a manual
@@ -737,7 +742,7 @@ export function WebsiteViewDialog({
           {lastSyncError !== null &&
           !paused &&
           (isSiteLevelScanError(scanErrorKind) ||
-            !pages.some((page) => pageFailureCaption(page, t) !== null)) ? (
+            !pagesExplainScanFailure(website, pageCounts)) ? (
             <WebsiteScanFailureAlert
               kind={scanErrorKind}
               reason={lastSyncError}

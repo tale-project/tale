@@ -3,7 +3,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useBackendAction } from '@/app/hooks/use-backend-action';
 import type { WebsiteDoc } from '@/app/lib/backend/contract/docs';
 import { WEBSITE_NOT_IN_CORPUS_MESSAGE } from '@/backend/core/websites/scan_scheduling';
-import type { CrawlerPage } from '@/backend/core/websites/types';
+import {
+  type CrawlerPage,
+  isSkippedPageKind,
+} from '@/backend/core/websites/types';
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { render, screen, waitFor, within } from '@/tests/utils/render';
 
@@ -40,6 +43,18 @@ const pagesAnswer = (
   counts: { failed: 0, skipped: 0 },
   ...payload,
 });
+interface PagesArgs {
+  offset: number;
+  limit: number;
+  state?: 'failed' | 'skipped';
+}
+/** A pages read answered by what it asks, as the backend answers it: the
+ * window of the state it names. Ahead of `pagesPayload` when set. */
+const pagesRead = {
+  current: null as
+    | null
+    | ((args: PagesArgs) => NonNullable<typeof pagesPayload.current>),
+};
 
 vi.mock('@/app/hooks/use-organization-id', () => ({
   useOrganizationId: () => 'org-1',
@@ -64,11 +79,10 @@ vi.mock('@/app/hooks/use-backend-action', () => {
       let mutate = mutateByName.get(name);
       if (!mutate) {
         mutate = vi.fn((args: unknown) => {
-          if (name === 'websites/actions:fetchPages' && pagesPayload.current) {
-            onSuccessByName.get(name)?.(
-              pagesAnswer(pagesPayload.current, args),
-            );
-          }
+          if (name !== 'websites/actions:fetchPages') return;
+          const payload =
+            pagesRead.current?.(args as PagesArgs) ?? pagesPayload.current;
+          if (payload) onSuccessByName.get(name)?.(pagesAnswer(payload, args));
         });
         mutateByName.set(name, mutate);
       }
@@ -101,6 +115,7 @@ describe('WebsiteViewDialog', () => {
   beforeEach(() => {
     canWrite.current = true;
     pagesPayload.current = null;
+    pagesRead.current = null;
     scanNowMutate.mockClear();
   });
 
@@ -461,6 +476,8 @@ describe('WebsiteViewDialog', () => {
     pagesPayload.current = {
       offset: 0,
       hasMore: false,
+      // The read counts the failed page it lists.
+      counts: { failed: 1, skipped: 0 },
       pages: [
         {
           url: 'https://docs.example.com/',
@@ -685,6 +702,227 @@ describe('WebsiteViewDialog', () => {
       within(dialog).getByRole('radio', { name: 'Skipped (0)' }),
     );
     expect(within(dialog).getByText('No page was skipped')).toBeInTheDocument();
+  });
+
+  // The scan-failure Alert was decided from the rows the open window held:
+  // one DNS-failed site showed it over twenty indexed rows, hid it once
+  // "Load more" reached a failed page, hid it under Failed and showed it
+  // again under an empty Skipped (#4068). It speaks for the site's scan, so
+  // it stays put whichever state and window the list shows.
+  describe("the scan failure's Alert across the page list", () => {
+    const crawled = '2026-10-02T08:15:00.000Z';
+    const indexedPage = (index: number): CrawlerPage => ({
+      url: `https://docs.example.com/indexed-${index}`,
+      title: null,
+      word_count: 10,
+      status: 'active',
+      content_hash: 'h',
+      last_crawled_at: crawled,
+      discovered_at: crawled,
+      chunks_count: 1,
+      indexed: true,
+      fail_count: 0,
+      last_error: null,
+      last_error_kind: null,
+      last_error_at: null,
+    });
+    const unstoredPage = (
+      path: string,
+      lastError: string,
+      lastErrorKind: string,
+    ): CrawlerPage => ({
+      url: `https://docs.example.com/${path}`,
+      title: null,
+      word_count: 0,
+      status: 'discovered',
+      content_hash: null,
+      last_crawled_at: crawled,
+      discovered_at: crawled,
+      chunks_count: 0,
+      indexed: false,
+      fail_count: 1,
+      last_error: lastError,
+      last_error_kind: lastErrorKind,
+      last_error_at: crawled,
+    });
+    const homePage = unstoredPage(
+      '',
+      'Host does not resolve: docs.example.com',
+      'dns_failed',
+    );
+    const times = (count: number, page: (index: number) => CrawlerPage) =>
+      Array.from({ length: count }, (_, index) => page(index));
+    // The seeded site of #4068: the indexed pages were crawled last, so
+    // they lead the list, and the failed and skipped ones follow.
+    const seeded = [
+      ...times(25, indexedPage),
+      homePage,
+      ...times(25, (index) =>
+        unstoredPage(`gone-${index}`, 'HTTP 404', 'http_error'),
+      ),
+      ...times(3, (index) =>
+        unstoredPage(
+          `private-${index}`,
+          'The page asks not to be indexed',
+          'robots_noindex',
+        ),
+      ),
+    ];
+    const dnsFailedSite: WebsiteDoc = {
+      ...WEBSITE,
+      status: 'error',
+      crawledPageCount: 51,
+      failedPageCount: 26,
+      metadata: {
+        lastSyncError:
+          'No page could be stored: 1 of 1 attempted pages failed (dns_failed)',
+      },
+    };
+
+    /** Answers every read with its state's window of `inventory` and the
+     * counts of the whole inventory, as the backend does. */
+    const listPages = (inventory: CrawlerPage[]) => {
+      const stateOf = (page: CrawlerPage) =>
+        page.last_error === null
+          ? null
+          : page.last_error_kind !== null &&
+              isSkippedPageKind(page.last_error_kind)
+            ? 'skipped'
+            : 'failed';
+      const counts = {
+        failed: inventory.filter((page) => stateOf(page) === 'failed').length,
+        skipped: inventory.filter((page) => stateOf(page) === 'skipped').length,
+      };
+      pagesRead.current = ({ offset, limit, state }) => {
+        const rows = inventory.filter(
+          (page) => state === undefined || stateOf(page) === state,
+        );
+        return {
+          offset,
+          hasMore: offset + limit < rows.length,
+          counts,
+          pages: rows.slice(offset, offset + limit),
+        };
+      };
+    };
+
+    /** Opens the site, walks every state and every window a reader can
+     * reach, and notes in each whether the Alert stands above the list. */
+    const alertPerView = async (website: WebsiteDoc) => {
+      const { user } = render(
+        <WebsiteViewDialog isOpen onClose={vi.fn()} website={website} />,
+      );
+      const dialog = screen.getByRole('dialog', { name: 'Website details' });
+      const seen: Record<string, boolean> = {};
+      const readAll = async (view: string) => {
+        seen[view] = within(dialog).queryByRole('alert') !== null;
+        for (let more = 1; ; more += 1) {
+          const loadMore = within(dialog).queryByRole('button', {
+            name: 'Load more',
+          });
+          if (loadMore === null) return;
+          await user.click(loadMore);
+          seen[`${view} + Load more ${more}`] =
+            within(dialog).queryByRole('alert') !== null;
+        }
+      };
+      await readAll('All');
+      const filter = within(dialog).queryByRole('radiogroup', {
+        name: 'Which pages to show',
+      });
+      for (const radio of filter === null
+        ? []
+        : within(filter).getAllByRole('radio').slice(1)) {
+        await user.click(radio);
+        await readAll(radio.textContent ?? '');
+      }
+      return seen;
+    };
+
+    it('leaves it out in every view when the failed pages say why', async () => {
+      listPages(seeded);
+      expect(await alertPerView(dnsFailedSite)).toEqual({
+        All: false,
+        'All + Load more 1': false,
+        'All + Load more 2': false,
+        'Failed (26)': false,
+        'Failed (26) + Load more 1': false,
+        'Skipped (3)': false,
+      });
+    });
+
+    it('leaves it out under an empty Skipped when the one failed page says why', async () => {
+      listPages([homePage]);
+      expect(
+        await alertPerView({
+          ...dnsFailedSite,
+          crawledPageCount: 1,
+          failedPageCount: 1,
+        }),
+      ).toEqual({ All: false, 'Failed (1)': false, 'Skipped (0)': false });
+    });
+
+    it('keeps a site-level reason in every view', async () => {
+      listPages(seeded);
+      expect(
+        await alertPerView({
+          ...dnsFailedSite,
+          metadata: {
+            lastSyncError:
+              'The embedding model could not embed the pages: 401 User not found.',
+          },
+        }),
+      ).toEqual({
+        All: true,
+        'All + Load more 1': true,
+        'All + Load more 2': true,
+        'Failed (26)': true,
+        'Failed (26) + Load more 1': true,
+        'Skipped (3)': true,
+      });
+    });
+
+    // The row counts a scan's pages after the scan; until it has, an empty
+    // segment read as a hollow scan and took the list and its segments.
+    it('keeps the list in an empty segment the row has not counted yet', async () => {
+      listPages([homePage]);
+      const { user } = render(
+        <WebsiteViewDialog
+          isOpen
+          onClose={vi.fn()}
+          website={{
+            ...dnsFailedSite,
+            crawledPageCount: 0,
+            failedPageCount: 0,
+          }}
+        />,
+      );
+      const dialog = screen.getByRole('dialog', { name: 'Website details' });
+
+      await user.click(
+        within(dialog).getByRole('radio', { name: 'Skipped (0)' }),
+      );
+
+      expect(
+        within(dialog).getByText('No page was skipped'),
+      ).toBeInTheDocument();
+      expect(
+        within(dialog).getByRole('radio', { name: 'Failed (1)' }),
+      ).toBeInTheDocument();
+      expect(within(dialog).queryByRole('alert')).toBeNull();
+    });
+
+    it('keeps it however far the list is read when no page says why', async () => {
+      listPages(times(25, indexedPage));
+      expect(
+        await alertPerView({
+          ...dnsFailedSite,
+          crawledPageCount: 25,
+          failedPageCount: 0,
+          metadata: { lastSyncError: 'Reading the sitemap timed out' },
+        }),
+      ).toEqual({ All: true, 'All + Load more 1': true });
+    });
   });
 
   // A failure charged to the render lane, not the page, leaves the reason
