@@ -57,6 +57,109 @@ function paramsWithFakes(): FakeParams {
 }
 
 describe('on-demand server: performance + cache shape', () => {
+  it('keeps concurrent development requests fresh when caching is disabled', async () => {
+    const fakes = paramsWithFakes();
+    const server = createOnDemandServer({ ...fakes.params, cache: false });
+    await Promise.all(
+      Array.from({ length: 5 }, () =>
+        server.handle(new Request('https://tale.dev/llms-full.txt')),
+      ),
+    );
+    expect(fakes.loadRoutes).toHaveBeenCalledTimes(5);
+    expect(fakes.loadBody).toHaveBeenCalledTimes(15);
+  });
+
+  it('coalesces a cold burst into one build and returns independent bodies', async () => {
+    const fakes = paramsWithFakes();
+    const server = createOnDemandServer(fakes.params);
+    const responses = await Promise.all(
+      Array.from({ length: 100 }, () =>
+        server.handle(new Request('https://tale.dev/llms-full.txt')),
+      ),
+    );
+    const bodies = await Promise.all(
+      responses.map((response) => response?.text()),
+    );
+    expect(new Set(bodies).size).toBe(1);
+    expect(bodies[0]).toContain('Body for /pricing.');
+    expect(fakes.loadRoutes).toHaveBeenCalledTimes(1);
+    expect(fakes.loadBody).toHaveBeenCalledTimes(3);
+  });
+
+  it('enumerates routes once across different artifacts and unknown probes', async () => {
+    const fakes = paramsWithFakes();
+    const server = createOnDemandServer(fakes.params);
+    await Promise.all(
+      [
+        '/llms.txt',
+        '/sitemap.xml',
+        '/pricing.md',
+        '/missing-a.md',
+        '/missing-b.md',
+      ].map((pathname) =>
+        server.handle(new Request(`https://tale.dev${pathname}`)),
+      ),
+    );
+    expect(fakes.loadRoutes).toHaveBeenCalledTimes(1);
+    server.invalidate();
+    await server.handle(new Request('https://tale.dev/llms.txt'));
+    expect(fakes.loadRoutes).toHaveBeenCalledTimes(2);
+  });
+
+  it('retries a failed build without retaining its rejected route lookup', async () => {
+    const fakes = paramsWithFakes();
+    fakes.loadRoutes.mockRejectedValueOnce(new Error('temporary read failure'));
+    const server = createOnDemandServer(fakes.params);
+    await expect(
+      server.handle(new Request('https://tale.dev/llms.txt')),
+    ).rejects.toThrow('temporary read failure');
+    expect(
+      await (
+        await server.handle(new Request('https://tale.dev/llms.txt'))
+      )?.text(),
+    ).toContain('# Tale');
+    expect(fakes.loadRoutes).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not let a build finishing after invalidation replace fresh content', async () => {
+    const fakes = paramsWithFakes();
+    const oldRoutes =
+      Promise.withResolvers<Awaited<ReturnType<LoadRoutesFn>>>();
+    fakes.loadRoutes.mockReturnValueOnce(oldRoutes.promise);
+    const server = createOnDemandServer(fakes.params);
+    const oldRequest = server.handle(new Request('https://tale.dev/llms.txt'));
+    server.invalidate();
+    const fresh = await server.handle(new Request('https://tale.dev/llms.txt'));
+    const freshBody = await fresh?.text();
+    oldRoutes.resolve({ sections: [{ heading: 'Obsolete', routes: [] }] });
+    await oldRequest;
+    const cached = await server.handle(
+      new Request('https://tale.dev/llms.txt'),
+    );
+    expect(await cached?.text()).toBe(freshBody);
+    expect(fakes.loadRoutes).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not retain an obsolete missing-page result after invalidation', async () => {
+    const fakes = paramsWithFakes();
+    const oldRoutes =
+      Promise.withResolvers<Awaited<ReturnType<LoadRoutesFn>>>();
+    fakes.loadRoutes.mockReturnValueOnce(oldRoutes.promise);
+    const server = createOnDemandServer(fakes.params);
+    const oldRequest = server.handle(
+      new Request('https://tale.dev/pricing.md'),
+    );
+    server.invalidate();
+    expect(
+      (await server.handle(new Request('https://tale.dev/pricing.md')))?.status,
+    ).toBe(200);
+    oldRoutes.resolve({ sections: [] });
+    expect(await oldRequest).toBeNull();
+    expect(
+      (await server.handle(new Request('https://tale.dev/pricing.md')))?.status,
+    ).toBe(200);
+  });
+
   it('llms-full.txt calls loadBody at most once per route', async () => {
     const fakes = paramsWithFakes();
     const server = createOnDemandServer(fakes.params);
