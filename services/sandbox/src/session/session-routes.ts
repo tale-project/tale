@@ -1967,7 +1967,7 @@ export class SessionRoutes {
     // accumulation (no unbounded growth for a never-exiting exec) and tell
     // runnerd the cap is unlimited (0) so its output is never silently cut off.
     const collect = execReq.collectOutput ?? true;
-    return sseResponse(async ({ send }) => {
+    return sseResponse(async ({ send, signal }) => {
       // Terminal-state accumulation so the SSE `result` event matches the
       // one-shot ExecuteResponse contract (the runnerd `exit` carries
       // truncation/timeout; stdout/stderr are summed here for the buffers).
@@ -2055,7 +2055,7 @@ export class SessionRoutes {
             stderrMaxBytes: collect ? this.cfg.stderrMaxBytes : 0,
           },
           onEvent,
-          ac.signal,
+          AbortSignal.any([ac.signal, signal]),
         );
         if (result) {
           send('result', result);
@@ -2081,7 +2081,7 @@ export class SessionRoutes {
       } catch (err) {
         // The caller hung up (the platform ends its stream at every drain
         // window): nobody reads an error, and the backend is not suspect.
-        if (req.signal.aborted) return;
+        if (req.signal.aborted || signal.aborted) return;
         send('error', {
           message: err instanceof Error ? err.message : String(err),
         });
@@ -2226,19 +2226,19 @@ export class SessionRoutes {
     const sinceSeq =
       Number(new URL(req.url).searchParams.get('sinceSeq') ?? '0') || 0;
     const token = this.tokenFor(sessionId);
-    return sseResponse(async ({ send }) => {
+    return sseResponse(async ({ send, signal }) => {
       try {
         const found = await runnerdAttach(
           { baseUrl: session.endpoint, token },
           execId,
           (e) => forwardExecEvent(e, send),
-          ac.signal,
+          AbortSignal.any([ac.signal, signal]),
           sinceSeq,
         );
         if (!found) send('error', { message: `exec ${execId} not found` });
       } catch (err) {
         // The caller hung up: see handleExec.
-        if (req.signal.aborted) return;
+        if (req.signal.aborted || signal.aborted) return;
         send('error', {
           message: err instanceof Error ? err.message : String(err),
         });

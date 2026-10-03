@@ -5,6 +5,7 @@
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { spawnSync } from 'node:child_process';
+import { getEventListeners } from 'node:events';
 import {
   closeSync,
   constants,
@@ -1051,6 +1052,57 @@ describe('ExecManager', () => {
     await done;
     // The exit event went to the live consumer only, not to the one gone.
     expect(follower.events.length).toBe(seen);
+  });
+
+  test('repeated disconnected consumers leave no abort listeners or live subscriptions', async () => {
+    const mgr = new ExecManager(new EnvStore(), () => {});
+    const done = mgr.run(
+      { ...base, execId: 'ereconnect', shell: 'sleep 30', cwd: ROOT },
+      () => {},
+    );
+    let followed = 0;
+    try {
+      for (let i = 0; i < 1000; i++) {
+        const consumer = new AbortController();
+        const stream = mgr.attach(
+          'ereconnect',
+          () => {
+            followed++;
+          },
+          0,
+          consumer.signal,
+        );
+        expect(stream).not.toBeNull();
+        consumer.abort();
+        await stream;
+        expect(getEventListeners(consumer.signal, 'abort')).toHaveLength(0);
+      }
+      const replayed = followed;
+      expect(mgr.cancel('ereconnect')).toBe(true);
+      await done;
+      expect(followed).toBe(replayed);
+    } finally {
+      mgr.cancel('ereconnect');
+      await done;
+    }
+  });
+
+  test('an exec finishing releases its attached consumers from their abort signals', async () => {
+    const mgr = new ExecManager(new EnvStore(), () => {});
+    const done = mgr.run(
+      { ...base, execId: 'eattachcleanup', shell: 'sleep 30', cwd: ROOT },
+      () => {},
+    );
+    const consumers = Array.from({ length: 10 }, () => new AbortController());
+    const streams = consumers.map((consumer) =>
+      mgr.attach('eattachcleanup', () => {}, 0, consumer.signal),
+    );
+    expect(streams.every((stream) => stream !== null)).toBe(true);
+    expect(mgr.cancel('eattachcleanup')).toBe(true);
+    await Promise.all([done, ...streams]);
+    for (const consumer of consumers) {
+      expect(getEventListeners(consumer.signal, 'abort')).toHaveLength(0);
+    }
   });
 
   test('attach replays the ring of a just-finished exec', async () => {

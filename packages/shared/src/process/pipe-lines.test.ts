@@ -1,6 +1,6 @@
 import { PassThrough } from 'node:stream';
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { pipeLines, pipeNodeStream } from './pipe-lines.ts';
 
@@ -81,6 +81,69 @@ describe('pipeLines (web ReadableStream)', () => {
       long,
     ]);
   });
+
+  it('drains a huge unterminated line with bounded capture and resumes after newline', async () => {
+    const chunk = new TextEncoder().encode('x'.repeat(4096));
+    let remaining = 1024;
+    const out: string[] = [];
+    await pipeLines(
+      new ReadableStream<Uint8Array>({
+        pull(controller) {
+          if (remaining-- > 0) controller.enqueue(chunk);
+          else {
+            controller.enqueue(new TextEncoder().encode('\nnext\n\n'));
+            controller.close();
+          }
+        },
+      }),
+      (line) => out.push(line),
+    );
+    expect(out).toEqual(['x'.repeat(8192) + ' …[truncated]', 'next', '']);
+  });
+
+  it('keeps exact-cap astral text and strips a CR split into the next chunk', async () => {
+    expect(await collect(['🚀🚀', '\r', '\n'], 2)).toEqual(['🚀🚀']);
+    expect(await collect(['🚀🚀', '🚀', '\r', '\n'], 2)).toEqual([
+      '🚀🚀 …[truncated]',
+    ]);
+  });
+
+  it('flushes a decoder tail and releases its reader after EOF', async () => {
+    const stream = webStream([new Uint8Array([0xe4, 0xbd])]);
+    const out: string[] = [];
+    await pipeLines(stream, (line) => out.push(line));
+    expect(out).toEqual(['�']);
+    expect(stream.locked).toBe(false);
+  });
+
+  it('cancels the source and releases its reader when the consumer throws', async () => {
+    const cancel = vi.fn();
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode('line\n'));
+      },
+      cancel,
+    });
+    const error = new Error('consumer failed');
+    await expect(
+      pipeLines(stream, () => {
+        throw error;
+      }),
+    ).rejects.toBe(error);
+    expect(cancel).toHaveBeenCalledOnce();
+    expect(stream.locked).toBe(false);
+  });
+
+  it('releases its reader when the source fails', async () => {
+    const error = new Error('source failed');
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.error(error);
+      },
+    });
+    await expect(pipeLines(stream, () => {})).rejects.toBe(error);
+    expect(stream.locked).toBe(false);
+  });
 });
 
 describe('pipeNodeStream (node Readable)', () => {
@@ -113,4 +176,44 @@ describe('pipeNodeStream (node Readable)', () => {
     await done;
     expect(lines).toEqual(['only']); // not ['only', 'only']
   });
+
+  it('drains a huge unterminated line and releases every owned listener on end', async () => {
+    const stream = new PassThrough();
+    const lines: string[] = [];
+    const done = pipeNodeStream(stream, (line) => lines.push(line), 16);
+    for (let i = 0; i < 1024; i++) stream.write('x'.repeat(4096));
+    stream.end('\nnext');
+    await done;
+    expect(lines).toEqual(['x'.repeat(16) + ' …[truncated]', 'next']);
+    for (const event of ['data', 'end', 'close', 'error']) {
+      expect(stream.listenerCount(event)).toBe(0);
+    }
+  });
+
+  it('rejects and releases every owned listener after a source error', async () => {
+    const stream = new PassThrough();
+    const done = pipeNodeStream(stream, () => {});
+    const error = new Error('source failed');
+    stream.destroy(error);
+    await expect(done).rejects.toBe(error);
+    for (const event of ['data', 'end', 'close', 'error']) {
+      expect(stream.listenerCount(event)).toBe(0);
+    }
+  });
+
+  it.each(['line\n', 'tail'])(
+    'rejects instead of throwing from a consumer of %s',
+    async (text) => {
+      const stream = new PassThrough();
+      const error = new Error('consumer failed');
+      const done = pipeNodeStream(stream, () => {
+        throw error;
+      });
+      stream.end(text);
+      await expect(done).rejects.toBe(error);
+      for (const event of ['data', 'end', 'close', 'error']) {
+        expect(stream.listenerCount(event)).toBe(0);
+      }
+    },
+  );
 });

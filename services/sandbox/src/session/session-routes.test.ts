@@ -13,6 +13,7 @@ import {
   setSystemTime,
   test,
 } from 'bun:test';
+import { getEventListeners } from 'node:events';
 
 import { ActivityGate } from '../../../sandbox-runtime/daemon/src/activity-gate.ts';
 import type {
@@ -96,6 +97,24 @@ function ndjson(lines: object[]): string {
   return lines.map((l) => JSON.stringify(l)).join('\n') + '\n';
 }
 
+/** A quiet live exec: one event, then it waits for its reader to detach. */
+function hangingExecResponse(): Response {
+  return new Response(
+    new ReadableStream({
+      start(controller) {
+        controller.enqueue(
+          new TextEncoder().encode(
+            ndjson([
+              { t: 'stdout', b64: Buffer.from('live').toString('base64') },
+            ]),
+          ),
+        );
+      },
+    }),
+    { headers: { 'content-type': 'application/x-ndjson' } },
+  );
+}
+
 beforeAll(() => {
   fakeServer = Bun.serve({
     port: 0,
@@ -170,6 +189,7 @@ beforeAll(() => {
           stderrMaxBytes?: number;
         };
         execRequests.push(body);
+        if (body.execId?.startsWith('hang-')) return hangingExecResponse();
         // Echo-style script: a start, one stdout chunk, then exit 0.
         const text: string =
           body.command?.slice(1).join(' ') ?? body.shell ?? '';
@@ -250,24 +270,7 @@ beforeAll(() => {
       }
       if (url.pathname.endsWith('/attach')) {
         if (url.pathname.includes('/hang-')) {
-          // A live exec whose output is quiet: the attach stays open.
-          return new Response(
-            new ReadableStream({
-              start(controller) {
-                controller.enqueue(
-                  new TextEncoder().encode(
-                    ndjson([
-                      {
-                        t: 'stdout',
-                        b64: Buffer.from('live').toString('base64'),
-                      },
-                    ]),
-                  ),
-                );
-              },
-            }),
-            { headers: { 'content-type': 'application/x-ndjson' } },
-          );
+          return hangingExecResponse();
         }
         return new Response(
           ndjson([
@@ -2685,6 +2688,54 @@ describe('sweep and adoption hygiene', () => {
     await new Promise((resolve) => setTimeout(resolve, 100));
     expect(existsChecks).toBe(0);
   });
+
+  test.each(['exec', 'attach'])(
+    'cancelling the %s response detaches its upstream read and releases the request listener',
+    async (lane) => {
+      const cancelsBefore = cancelRequests.length;
+      let existsChecks = 0;
+      const routes = new SessionRoutes(cfg, {
+        ...fakeBackend,
+        async sessionExists(sessionId: string) {
+          existsChecks += 1;
+          return fakeBackend.sessionExists(sessionId);
+        },
+      });
+      await create(routes, `cancel-${lane}`);
+      existsChecks = 0;
+      const request = new Request('http://spawner/exec', { method: 'POST' });
+      const response =
+        lane === 'exec'
+          ? await routes.handleExec(
+              request,
+              `cancel-${lane}`,
+              JSON.stringify({
+                execId: 'hang-cancel',
+                command: ['echo', 'live'],
+              }),
+            )
+          : await routes.handleExecAttach(
+              request,
+              `cancel-${lane}`,
+              'hang-cancel',
+            );
+      const reader = response.body?.getReader();
+      await reader?.read();
+      expect(getEventListeners(request.signal, 'abort')).toHaveLength(1);
+      await reader?.cancel();
+      const deadline = Date.now() + 1000;
+      while (
+        getEventListeners(request.signal, 'abort').length > 0 &&
+        Date.now() < deadline
+      ) {
+        await Bun.sleep(10);
+      }
+      expect(getEventListeners(request.signal, 'abort')).toHaveLength(0);
+      expect(request.signal.aborted).toBe(false);
+      expect(existsChecks).toBe(0);
+      expect(cancelRequests).toHaveLength(cancelsBefore);
+    },
+  );
 });
 
 describe('the first-come line for host room', () => {
