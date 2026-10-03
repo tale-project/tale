@@ -100,32 +100,32 @@ describe('pageAsMarkdown', () => {
     const out = pageAsMarkdown({
       frontmatter: null,
       body,
-      siteUrl: 'https://docs.tale.dev/',
-      pageUrl: 'https://docs.tale.dev/de/start/install',
+      siteUrl: 'https://docs.example.test/',
+      pageUrl: 'https://docs.example.test/de/start/install',
     });
 
     expect(out).toBe(
       body
         .replace(
           '../next?tab=setup#install',
-          'https://docs.tale.dev/de/next?tab=setup#install',
+          'https://docs.example.test/de/next?tab=setup#install',
         )
         .replace(
           './images/flow.svg',
-          'https://docs.tale.dev/de/start/images/flow.svg',
+          'https://docs.example.test/de/start/images/flow.svg',
         )
         .replace(
           '](#limits)',
-          '](https://docs.tale.dev/de/start/install#limits)',
+          '](https://docs.example.test/de/start/install#limits)',
         )
         .replace(
           '](?view=all)',
-          '](https://docs.tale.dev/de/start/install?view=all)',
+          '](https://docs.example.test/de/start/install?view=all)',
         )
         .replace('](//cdn.example/logo.svg)', '](https://cdn.example/logo.svg)')
         .replace(
           '</get-started/white paper>',
-          '<https://docs.tale.dev/get-started/white%20paper>',
+          '<https://docs.example.test/get-started/white%20paper>',
         ) + '\n',
     );
   });
@@ -153,40 +153,45 @@ describe('pageAsMarkdown', () => {
     const out = pageAsMarkdown({
       frontmatter: null,
       body,
-      siteUrl: 'https://docs.tale.dev',
-      pageUrl: 'https://docs.tale.dev/get-started/install',
+      siteUrl: 'https://docs.example.test',
+      pageUrl: 'https://docs.example.test/get-started/install',
     });
 
     expect(out).toBe(
       body
         .replace(
           'href="/get-started/editors"',
-          'href="https://docs.tale.dev/get-started/editors"',
+          'href="https://docs.example.test/get-started/editors"',
         )
         .replace(
           'src=flow.svg',
-          'src="https://docs.tale.dev/get-started/flow.svg"',
+          'src="https://docs.example.test/get-started/flow.svg"',
         )
         .replace(
           "src='../walkthrough.webm'",
-          "src='https://docs.tale.dev/walkthrough.webm'",
+          "src='https://docs.example.test/walkthrough.webm'",
         )
         .replace(
           'poster="/poster.png"',
-          'poster="https://docs.tale.dev/poster.png"',
+          'poster="https://docs.example.test/poster.png"',
         )
         .replace(
           'captions="/captions.vtt"',
-          'captions="https://docs.tale.dev/captions.vtt"',
+          'captions="https://docs.example.test/captions.vtt"',
         )
         .replace(
           'href="?q=&quot;x&quot;&amp;copy=1#top"',
-          'href="https://docs.tale.dev/get-started/install?q=%22x%22&amp;copy=1#top"',
+          'href="https://docs.example.test/get-started/install?q=%22x%22&amp;copy=1#top"',
         )
-        .replace('src="/script.js"', 'src="https://docs.tale.dev/script.js"')
-        .replace('src="/embed"', 'src="https://docs.tale.dev/embed"')
-        .replace('[guide](/guide)', '[guide](https://docs.tale.dev/guide)') +
-        '\n',
+        .replace(
+          'src="/script.js"',
+          'src="https://docs.example.test/script.js"',
+        )
+        .replace('src="/embed"', 'src="https://docs.example.test/embed"')
+        .replace(
+          '[guide](/guide)',
+          '[guide](https://docs.example.test/guide)',
+        ) + '\n',
     );
   });
 
@@ -222,9 +227,11 @@ describe('pageAsMarkdown', () => {
       pageAsMarkdown({
         frontmatter: null,
         body,
-        siteUrl: 'https://docs.tale.dev',
+        siteUrl: 'https://docs.example.test',
       }),
-    ).toBe(body.replace('"/start"', '"https://docs.tale.dev/start"') + '\n');
+    ).toBe(
+      body.replace('"/start"', '"https://docs.example.test/start"') + '\n',
+    );
   });
 
   it('edits each source attribute once when HTML recovery clones its element', () => {

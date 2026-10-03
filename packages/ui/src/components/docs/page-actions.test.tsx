@@ -39,8 +39,8 @@ describe('PageActions', () => {
       pageAsMarkdown({
         frontmatter: null,
         body: 'See [settings](./settings#scope).\n\n`[sample](/unchanged)`',
-        siteUrl: 'https://docs.tale.dev',
-        pageUrl: 'https://docs.tale.dev/platform/chat/basics',
+        siteUrl: 'https://docs.example.test',
+        pageUrl: 'https://docs.example.test/platform/chat/basics',
       }),
     );
     const { user } = render(
@@ -50,7 +50,7 @@ describe('PageActions', () => {
     await user.click(screen.getByRole('button', { name: 'Copy page' }));
     expect(markdown).toHaveBeenCalledTimes(1);
     expect(await navigator.clipboard.readText()).toBe(
-      'See [settings](https://docs.tale.dev/platform/chat/settings#scope).\n\n`[sample](/unchanged)`\n',
+      'See [settings](https://docs.example.test/platform/chat/settings#scope).\n\n`[sample](/unchanged)`\n',
     );
   });
 

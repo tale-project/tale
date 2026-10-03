@@ -56,25 +56,27 @@ describe('buildLlmsFullTxt', () => {
     const out = buildLlmsFullTxt([
       {
         title: 'Product docs',
-        url: 'https://docs.tale.dev/fr/get-started/install',
+        url: 'https://docs.example.test/fr/get-started/install',
         body: '[next](./next#setup) <Card href="/platform/tasks">\n\n`[sample](/unchanged)`',
       },
       {
         title: 'UI docs',
-        url: 'https://ui.tale.dev/docs/components/button',
+        url: 'https://ui.example.test/docs/components/button',
         body: '![diagram](../images/button.svg) [section](#examples)',
       },
     ]);
     expect(out).toContain(
-      '[next](https://docs.tale.dev/fr/get-started/next#setup)',
+      '[next](https://docs.example.test/fr/get-started/next#setup)',
     );
-    expect(out).toContain('<Card href="https://docs.tale.dev/platform/tasks">');
+    expect(out).toContain(
+      '<Card href="https://docs.example.test/platform/tasks">',
+    );
     expect(out).toContain('`[sample](/unchanged)`');
     expect(out).toContain(
-      '![diagram](https://ui.tale.dev/docs/images/button.svg)',
+      '![diagram](https://ui.example.test/docs/images/button.svg)',
     );
     expect(out).toContain(
-      '[section](https://ui.tale.dev/docs/components/button#examples)',
+      '[section](https://ui.example.test/docs/components/button#examples)',
     );
   });
 });
