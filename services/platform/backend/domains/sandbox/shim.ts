@@ -1,4 +1,5 @@
 import { transactSerializable } from '@tale/shared/db/serializable';
+import type { TaskAgentResumeFrom } from '@tale/shared/schemas/task-review';
 import type { Sql, TransactionSql } from 'postgres';
 
 import { parseRunStarter } from '../../../lib/shared/run-starter.ts';
@@ -684,7 +685,7 @@ export function sandboxToolShimHandlers(sql: Sql): ShimHandlers {
         agentId?: string;
         feedback?: string;
         moveToInProgress?: boolean;
-        resumeFrom?: { runId: string; approvalId: string };
+        resumeFrom?: TaskAgentResumeFrom;
       };
       // A project agent's live run delegates on behalf of whoever it answers
       // to (`delegated-start.ts`); the session proves the agent and the

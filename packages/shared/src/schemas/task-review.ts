@@ -173,6 +173,39 @@ export type TaskAgentReviewReceipt = z.infer<
   typeof taskAgentReviewReceiptSchema
 >;
 
+/** The tagged repair form is refused by older two-key question parsers. */
+const resumeIdentity = {
+  approvalId: z.string().trim().min(1).max(200),
+  runId: z.string().trim().min(1).max(200),
+};
+export const taskAgentResumeFromSchema = z.union([
+  z.object(resumeIdentity).strict(),
+  z.object({ kind: z.literal('review_repair'), ...resumeIdentity }).strict(),
+]);
+export type TaskAgentResumeFrom = z.infer<typeof taskAgentResumeFromSchema>;
+export type TaskAgentRepairFrom = Extract<
+  TaskAgentResumeFrom,
+  { kind: 'review_repair' }
+>;
+
+/** One admission owned by the rejected approval; replay never starts again. */
+export const taskAgentRepairReceiptSchema = z
+  .object({
+    taskId: reviewerIdSchema,
+    approvalId: reviewerIdSchema,
+    sourceRunId: reviewerIdSchema,
+    feedbackCommentId: reviewerIdSchema,
+    implementationAgentId: reviewerIdSchema,
+    runId: reviewerIdSchema,
+    managerAgentId: reviewerIdSchema,
+    issuerRunId: reviewerIdSchema,
+    admittedAt: z.number().int().nonnegative(),
+  })
+  .strict();
+export type TaskAgentRepairReceipt = z.infer<
+  typeof taskAgentRepairReceiptSchema
+>;
+
 /** Accept omitted nullable fields from older read adapters during rollout. */
 export function taskReviewerFromIds(row: {
   reviewerUserId?: string | null;

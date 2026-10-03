@@ -76,6 +76,7 @@ import { setMailTransportForTesting } from './domains/connectors/service.ts';
 import { checkConversationApi } from './domains/conversations/api-sync.integration.ts';
 import { checkErasureReviewHandoverRaces } from './domains/erasure/review-handover.integration.ts';
 import { checkRagWatchdogBatch } from './domains/file_metadata/watchdogs.integration.ts';
+import { checkRejectedUploadReclaim } from './domains/files/reject-blob.integration.ts';
 import { checkHubFolderWriteRole } from './domains/folders/write-role.integration.ts';
 import { checkEmailedAttachments } from './domains/knowledge/attachment-mail.integration.ts';
 import { checkInboundEmailBodies } from './domains/knowledge/message-index.integration.ts';
@@ -10828,6 +10829,14 @@ async function checkChat(
   // a single tick and the stream only ever sees the settled state — the
   // probe would pass or fail on scheduling luck, not on behaviour.
   const TRACE_MARKER = 'TRACE THE TOOLS';
+  // A provider that accepts the request (200), streams words and its usage,
+  // then reports a failure ON the stream; and one that refuses the request
+  // with an HTTP status before any stream.
+  const STREAM_FAILS_MARKER = 'FAIL INSIDE THE STREAM';
+  const REFUSED_MARKER = 'REFUSE BY STATUS';
+  // OpenRouter's early 200: keep-alives, then the upstream's rate limit
+  // reported on the stream before any of the answer.
+  const REFUSED_ON_STREAM_MARKER = 'REFUSE ON THE STREAM';
   const FINAL_ANSWER = 'The ledger mentions verdigris pigments.';
   const SLOW_CHUNKS = 40;
   /** Every chat-completion request body the model saw, in order — the
@@ -10915,7 +10924,63 @@ async function checkChat(
         );
         return;
       }
+      if (transcript.includes(REFUSED_MARKER)) {
+        res.statusCode = 429;
+        res.setHeader('content-type', 'application/json');
+        res.end(
+          JSON.stringify({ error: { message: 'Rate limit exceeded (itest)' } }),
+        );
+        return;
+      }
       res.setHeader('content-type', 'text/event-stream');
+      if (transcript.includes(REFUSED_ON_STREAM_MARKER)) {
+        res.write(': OPENROUTER PROCESSING\n\n');
+        res.write(
+          sse({
+            error: { code: 429, message: 'Rate limit exceeded upstream' },
+            choices: [
+              { index: 0, delta: { content: '' }, finish_reason: 'error' },
+            ],
+          }),
+        );
+        res.end();
+        return;
+      }
+      if (transcript.includes(STREAM_FAILS_MARKER)) {
+        res.write(
+          sse({
+            choices: [
+              {
+                index: 0,
+                delta: { content: 'The first half ' },
+                finish_reason: null,
+              },
+            ],
+          }),
+        );
+        res.write(
+          sse({
+            choices: [],
+            usage: {
+              prompt_tokens: 100,
+              completion_tokens: 5,
+              total_tokens: 105,
+            },
+          }),
+        );
+        // OpenRouter's mid-stream failure: an `error` beside a choice that
+        // finished in error, on a stream that already answered 200.
+        res.write(
+          sse({
+            error: { code: 502, message: 'Provider disconnected unexpectedly' },
+            choices: [
+              { index: 0, delta: { content: '' }, finish_reason: 'error' },
+            ],
+          }),
+        );
+        res.end();
+        return;
+      }
       const finish = (finishReason: string): void => {
         res.write(
           sse({
@@ -11182,6 +11247,108 @@ async function checkChat(
         Number(usageRows[0]?.count ?? '0') >= 1 &&
         settledGen[0]?.count === '0',
       `outcome=${outcome.success ? outcome.data.status : 'ERR'}${outcome.success && outcome.data.reason !== undefined ? ` (${outcome.data.reason})` : ''}, messages=${history.success ? history.data.messages.length : 'ERR'}, toolRound=${assistantRaw.includes('rag_search') && assistantRaw.includes('verdigris')}, usageRows=${usageRows[0]?.count}, genSettled=${settledGen[0]?.count === '0'}`,
+    );
+
+    // A turn the provider fails INSIDE its opened stream still consumed the
+    // prompt and the words it wrote: the turn settles failed, books what
+    // the stream reported, and stamps the same figures on the failed reply.
+    // A request the provider refuses with an HTTP status consumed nothing
+    // and books nothing. Each runs on a titled thread of its own, so no
+    // title call books beside it and the ledger delta is the turn's alone.
+    const chatLedger = async () => {
+      const rows = await sql<
+        { input: number; output: number; requests: number }[]
+      >`
+        SELECT coalesce(sum(input_tokens), 0)::float8 AS input,
+               coalesce(sum(output_tokens), 0)::float8 AS output,
+               coalesce(sum(request_count), 0)::float8 AS requests
+        FROM app.usage_ledger
+        WHERE org_id = ${orgId} AND model = 'itest-chat'
+          AND granularity = 'daily'
+          AND agent_slug IS DISTINCT FROM 'thread-title'
+      `;
+      return rows[0] ?? { input: 0, output: 0, requests: 0 };
+    };
+    const failedTurn = async (marker: string) => {
+      const thread = z.object({ id: z.string() }).safeParse(
+        await (
+          await send(`/api/app/chat/threads?orgId=${orgId}`, {
+            title: `Itest ${marker.toLowerCase()}`,
+          })
+        ).json(),
+      );
+      const failThreadId = thread.success ? thread.data.id : '';
+      const before = await chatLedger();
+      const res = await send(
+        `/api/app/chat/threads/${failThreadId}/messages?orgId=${orgId}`,
+        {
+          text: `${marker}, please`,
+          modelId: 'itest-chat',
+          providerSlug: 'itestchat',
+        },
+      );
+      // Finish the response before reading final accounting or closing the server.
+      await res.text();
+      const after = await chatLedger();
+      const rows = await sql<
+        { status: string; usage: unknown; error: string | null }[]
+      >`
+        SELECT status, usage, error FROM app.messages
+        WHERE thread_id = ${failThreadId} AND role = 'assistant'
+        ORDER BY "order" DESC LIMIT 1
+      `;
+      return {
+        status: res.status,
+        row: rows[0],
+        delta: {
+          input: after.input - before.input,
+          output: after.output - before.output,
+          requests: after.requests - before.requests,
+        },
+      };
+    };
+    const inStream = await failedTurn(STREAM_FAILS_MARKER);
+    const inStreamUsage = z
+      .object({
+        inputTokens: z.number(),
+        outputTokens: z.number(),
+        totalTokens: z.number(),
+        costEstimateCents: z.number(),
+      })
+      .loose()
+      .safeParse(inStream.row?.usage);
+    const refusedByStatus = await failedTurn(REFUSED_MARKER);
+    const refusedOnStream = await failedTurn(REFUSED_ON_STREAM_MARKER);
+    record(
+      'chat turn that fails inside its stream books what it consumed; a refusal by HTTP status, or on the stream before any answer, books nothing',
+      inStream.row?.status === 'failed' &&
+        (inStream.row.error ?? '').includes(
+          'Provider disconnected unexpectedly',
+        ) &&
+        inStream.delta.input === 100 &&
+        inStream.delta.output === 5 &&
+        inStream.delta.requests === 1 &&
+        inStreamUsage.success &&
+        inStreamUsage.data.inputTokens === 100 &&
+        inStreamUsage.data.outputTokens === 5 &&
+        inStreamUsage.data.totalTokens === 105 &&
+        // 100 prompt tokens at 100 ¢/M + 5 at 200 ¢/M.
+        Math.abs(inStreamUsage.data.costEstimateCents - 0.011) < 1e-9 &&
+        refusedByStatus.row?.status === 'failed' &&
+        (refusedByStatus.row.error ?? '').includes('429') &&
+        refusedByStatus.row.usage === null &&
+        refusedByStatus.delta.input === 0 &&
+        refusedByStatus.delta.output === 0 &&
+        refusedByStatus.delta.requests === 0 &&
+        refusedOnStream.row?.status === 'failed' &&
+        (refusedOnStream.row.error ?? '').includes(
+          'Rate limit exceeded upstream',
+        ) &&
+        refusedOnStream.row.usage === null &&
+        refusedOnStream.delta.input === 0 &&
+        refusedOnStream.delta.output === 0 &&
+        refusedOnStream.delta.requests === 0,
+      `in-stream: send → ${inStream.status}, row=${inStream.row?.status ?? 'MISSING'}, booked Δ=${JSON.stringify(inStream.delta)} (want 100/5/1), stamped=${JSON.stringify(inStream.row?.usage ?? null)}; refused: send → ${refusedByStatus.status}, row=${refusedByStatus.row?.status ?? 'MISSING'}, booked Δ=${JSON.stringify(refusedByStatus.delta)} (want 0/0/0), stamped=${JSON.stringify(refusedByStatus.row?.usage ?? null)}; refused on the stream: row=${refusedOnStream.row?.status ?? 'MISSING'}, booked Δ=${JSON.stringify(refusedOnStream.delta)} (want 0/0/0), stamped=${JSON.stringify(refusedOnStream.row?.usage ?? null)}`,
     );
 
     // A provider that ships NO catalog (Azure deployment names, Nous Portal):
@@ -40252,6 +40419,196 @@ async function checkSandboxSpawner(
       `stale=${staleRes.status}, retrying=${staleRetrying}, rows=${firstRowId === freshRowId ? 'same' : 'distinct'}, freshWhileStale=${freshWhileStale?.destroyState ?? 'none'}, staleSettled=${staleSettled}, freshKept=${freshKept}, fresh=${freshRes.status}, freshDestroyed=${freshDestroyed}`,
     );
 
+    // The first attempt failed, and before its retry a turn asks for the
+    // same row: a member's chat run, an agent's next task, an automation's
+    // next step — each through its lane's shim to the hosts' one admission
+    // (`ensureAgentSession`). A resume keeps the row id, the one thing the
+    // retry checks, so a turn let in here would be killed by the next
+    // attempt, its workspace deleted and its tokens revoked. It is refused
+    // before anything starts, the row keeps reading Destroying, and once the
+    // Destroy has finished the same start opens a fresh incarnation. In an
+    // organization of their own: the lane's organization may already hold
+    // as many project sessions as its budget allows. The Destroy is asked
+    // for through the route's own scheduler and read back through the
+    // page's own reader; the real worker runs it against this spawner.
+    const { ensureAgentSession } =
+      await import('./core/node_only/sandbox/agent_session.ts');
+    const { agentTurnShimHandlers, taskAgentShimScheduler } =
+      await import('./domains/tasks/agent-turn-shim.ts');
+    const { automationShimHandlers, automationShimScheduler } =
+      await import('./domains/automations/shim.ts');
+    const { scheduleSessionDestroy, sessionDestroyStates } =
+      await import('./domains/sandbox/destroy-schedule.ts');
+    const { createCtxShim } = await import('./lib/ctx-shim.ts');
+    const naming = await import('./core/sandbox/session_naming.ts');
+    const taskShim = createCtxShim(agentTurnShimHandlers(sql), {
+      scheduler: taskAgentShimScheduler(sql),
+    });
+    const automationShim = createCtxShim(automationShimHandlers(sql), {
+      scheduler: automationShimScheduler(sql),
+    });
+    const resumeOrgId = `${orgId}:destroy-resume:${randomUUID()}`;
+    const resumeAgentId = `itest-resume-${randomUUID()}`;
+    const resumeRunId = `itest-resume-run-${randomUUID()}`;
+    const resumePaths = [
+      {
+        lane: "a member's chat run",
+        shim: taskShim,
+        sessionId: naming.memberSessionIdForProjectAgent(resumeAgentId, userId),
+        owner: { type: 'project_agent' as const, agentId: resumeAgentId },
+        ownerId: naming.projectAgentOwnerId(resumeAgentId),
+      },
+      {
+        lane: "an agent's next task",
+        shim: taskShim,
+        sessionId: naming.standingSessionIdForProjectAgent(resumeAgentId),
+        owner: { type: 'project_agent' as const, agentId: resumeAgentId },
+        ownerId: naming.projectAgentOwnerId(resumeAgentId),
+      },
+      {
+        lane: "an automation's next step",
+        shim: automationShim,
+        sessionId: naming.sessionIdForWorkflowExecution(resumeRunId),
+        owner: { type: 'workflow_run' as const, runId: resumeRunId },
+        ownerId: naming.workflowExecutionOwnerId(resumeRunId),
+      },
+    ];
+    const resumeRowStatus = async (sessionId: string) =>
+      (await sessions.getSessionBySessionId(sql, resumeOrgId, sessionId))
+        ?.status;
+    try {
+      for (const resumePath of resumePaths) {
+        const resumeArgs = {
+          organizationId: resumeOrgId,
+          sessionId: resumePath.sessionId,
+        };
+        // The hosts' choreography, then the idle release: compute
+        // stopped, files kept.
+        await sessions.reserveSessionSlot(sql, {
+          ...resumeArgs,
+          profile: 'agent',
+          ownerType: resumePath.owner.type,
+          ownerId: resumePath.ownerId,
+          createdBy: userId,
+        });
+        await sessionCreate({
+          sessionId: resumePath.sessionId,
+          organizationId: resumeOrgId,
+          profile: 'agent',
+        });
+        await sql`
+          UPDATE app.sandbox_sessions SET status = 'stopped'
+          WHERE org_id = ${resumeOrgId}
+            AND session_id = ${resumePath.sessionId}
+        `;
+        live.delete(resumePath.sessionId);
+        const askedRowId = (
+          await sessions.getSessionBySessionId(
+            sql,
+            resumeOrgId,
+            resumePath.sessionId,
+          )
+        )?.id;
+        failDeletes = true;
+        const queued = await scheduleSessionDestroy(sql, resumeArgs);
+        const firstFailed = await waitFor(
+          async () =>
+            (await destroyJobStates(resumePath.sessionId)).includes('retry'),
+          15_000,
+        );
+        const start = () =>
+          ensureAgentSession(
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the hosts' admission on its lane's shim, as the job wires it
+            resumePath.shim as unknown as Parameters<
+              typeof ensureAgentSession
+            >[0],
+            {
+              ...resumeArgs,
+              owner: resumePath.owner,
+              agentKind: 'claude-code',
+            },
+          ).then(
+            (started) =>
+              started.liveCreatedAt === undefined ? 'fresh' : 'resumed',
+            (error: unknown) =>
+              String(error).includes('is deleting this sandbox workspace')
+                ? 'refused'
+                : `error: ${String(error)}`,
+          );
+        const asked = await start();
+        // What the turn would hold had it been let in: its session token.
+        if (asked === 'resumed') {
+          await sql`
+            INSERT INTO app.sandbox_session_tokens (
+              org_id, session_id, token_hash, scope, created_at_ms,
+              expires_at_ms
+            ) VALUES (${resumeOrgId}, ${resumePath.sessionId}, ${randomUUID()},
+              '{}'::jsonb, ${Date.now()}, ${Date.now() + 3_600_000})
+          `;
+        }
+        const containerAfterAsk = live.has(resumePath.sessionId);
+        const rowAfterAsk = await resumeRowStatus(resumePath.sessionId);
+        const pageAfterAsk = (
+          await sessionDestroyStates(sql, resumeOrgId, [resumePath.sessionId])
+        ).get(resumePath.sessionId);
+        failDeletes = false;
+        await sql`
+          UPDATE pgboss.job SET start_after = now()
+          WHERE name = 'sandbox.destroy_session'
+            AND data ->> 'rowId' = ${askedRowId ?? ''} AND state = 'retry'
+        `;
+        const resumeRetried = await waitFor(
+          async () =>
+            (await destroyJobStates(resumePath.sessionId)).every(
+              (state) => state === 'completed',
+            ) && (await resumeRowStatus(resumePath.sessionId)) === 'destroyed',
+          15_000,
+        );
+        const containerAfterRetry = live.has(resumePath.sessionId);
+        const tokens = await sql<{ revoked: boolean }[]>`
+          SELECT revoked_at_ms IS NOT NULL AS revoked
+          FROM app.sandbox_session_tokens
+          WHERE org_id = ${resumeOrgId} AND session_id = ${resumePath.sessionId}
+        `;
+        const afterwards = await start();
+        const startedRowId = (
+          await sessions.getSessionBySessionId(
+            sql,
+            resumeOrgId,
+            resumePath.sessionId,
+          )
+        )?.id;
+        record(
+          `sandbox Destroy retry never deletes work resumed after the request: ${resumePath.lane}`,
+          queued &&
+            firstFailed &&
+            asked === 'refused' &&
+            !containerAfterAsk &&
+            rowAfterAsk === 'stopped' &&
+            pageAfterAsk === 'pending' &&
+            resumeRetried &&
+            tokens.length === 0 &&
+            afterwards === 'fresh' &&
+            startedRowId !== undefined &&
+            startedRowId !== askedRowId &&
+            live.has(resumePath.sessionId) &&
+            (await resumeRowStatus(resumePath.sessionId)) === 'active',
+          `queued=${queued}, first attempt failed=${firstFailed}, start between attempts=${asked} (want refused), container after it=${containerAfterAsk ? 'running' : 'none'}, row=${rowAfterAsk}, page=${pageAfterAsk ?? 'none'} (want pending), retry settled=${resumeRetried}, container after the retry=${containerAfterRetry ? 'running' : 'none'}, turn tokens revoked=${tokens.filter((token) => token.revoked).length}/${tokens.length}, start after the Destroy=${afterwards} (want fresh), rows=${startedRowId === askedRowId ? 'same' : 'distinct'}`,
+        );
+        // The fresh session holds one of the organization's project slots.
+        await sessions.markSessionDestroyed(sql, resumeArgs);
+        live.delete(resumePath.sessionId);
+      }
+    } finally {
+      failDeletes = false;
+      await sql`
+        DELETE FROM pgboss.job WHERE name = 'sandbox.destroy_session'
+          AND data ->> 'organizationId' = ${resumeOrgId}
+      `;
+      await sql`DELETE FROM app.sandbox_session_tokens WHERE org_id = ${resumeOrgId}`;
+      await sql`DELETE FROM app.sandbox_sessions WHERE org_id = ${resumeOrgId}`;
+    }
+
     // --- the in-sandbox workspace-tool door (the REUSED bridge on the shim).
     const post = (route: string, body?: unknown): Promise<Response> =>
       fetch(`${base}${route}`, {
@@ -51713,12 +52070,16 @@ async function checkApiKeyCreateGate(
  * The budget editor's per-key picker (`GET /api/app/governance/api-keys`):
  * an admin lists every live key held by a member of the organization — never
  * a non-member's, never an expired one, never a secret — and a non-admin is
- * refused. Run against the real auth tables, so a wrong column name in the
- * listing's query fails here rather than leaving the picker silently empty.
+ * refused. Beside it, the keys the saved budget rules name that are no
+ * longer live, described as far as this organization's own evidence goes.
+ * Run against the real auth and audit tables, so a wrong column name in
+ * either query fails here rather than leaving the picker silently empty or
+ * a rule's key unnamed.
  */
 async function checkOrgApiKeyListing(
   sql: Sql,
   base: string,
+  auth: Auth,
   ctx: { cookie: string; orgId: string },
   suffix: string,
 ): Promise<void> {
@@ -51763,6 +52124,23 @@ async function checkOrgApiKeyListing(
   const memberKey = await mint(member.cookie, `keylist-live-${suffix}`);
   const expiredKey = await mint(member.cookie, `keylist-expired-${suffix}`);
   const outsiderKey = await mint(outsider.cookie, `keylist-out-${suffix}`);
+  const revokedKey = await mint(member.cookie, `keylist-revoked-${suffix}`);
+  if (revokedKey !== null) {
+    const revoked = await fetch(`${base}/api/auth/api-key/delete`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        cookie: member.cookie,
+        origin: base,
+      },
+      body: JSON.stringify({ keyId: revokedKey.id }),
+    });
+    await revoked.text();
+  }
+  // Creating a key can start Better Auth's expiry sweep without awaiting
+  // it. Finish that work before aging this fixture, then use only the
+  // governance read until its still-present Expired state has been observed.
+  await auth.api.deleteAllExpiredApiKeys({});
   if (expiredKey !== null) {
     await sql`
       UPDATE "apikey" SET "expiresAt" = now() - interval '1 day'
@@ -51800,6 +52178,7 @@ async function checkOrgApiKeyListing(
     (minted) => minted !== null && adminText.includes(minted.key),
   );
   const memberRes = await list(member.cookie);
+  await memberRes.text();
   record(
     "org api-key listing: an admin sees members' live keys, masked; a non-admin is refused",
     adminRes.status === 200 &&
@@ -51813,6 +52192,372 @@ async function checkOrgApiKeyListing(
       !leaked &&
       memberRes.status === 403,
     `admin → ${adminRes.status}, member key listed=${memberRow !== undefined} (owner ${memberRow?.ownerEmail ?? 'MISSING'}), expired listed=${expiredKey !== null && ids.includes(expiredKey.id)}, outsider listed=${outsiderKey !== null && ids.includes(outsiderKey.id)}, secret leaked=${leaked}, non-admin → ${memberRes.status} (want 403)`,
+  );
+
+  // A budget rule stores its key's bare id and outlives the key. The listing
+  // therefore also describes the keys the saved rules name that are no
+  // longer live, so the rule table reads as a key and an owner instead of a
+  // string of random characters: an expired key from the auth tables, a
+  // deleted one from the audit trail its creation left. A key this
+  // organization has no evidence of — another organization's, or an id that
+  // names nothing — answers `unknown` either way, so a saved rule cannot be
+  // used to ask whose key an id is.
+  const noSuchKeyId = `keylist-none-${suffix}`;
+  const policyUrl = `${base}/api/app/governance/policies/budgets?orgId=${ctx.orgId}`;
+  const priorBudgets = z
+    .object({
+      policy: z
+        .object({ config: z.record(z.string(), z.unknown()) })
+        .nullable(),
+    })
+    .safeParse(
+      await fetch(policyUrl, { headers: { cookie: ctx.cookie } })
+        .then((res) => res.json())
+        .catch(() => null),
+    );
+  const savePolicy = async (config: unknown) => {
+    const res = await fetch(policyUrl, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        cookie: ctx.cookie,
+        origin: base,
+      },
+      body: JSON.stringify({ config }),
+    });
+    await res.text();
+    return res;
+  };
+  const ruleKeyIds = [
+    memberKey?.id,
+    expiredKey?.id,
+    revokedKey?.id,
+    outsiderKey?.id,
+    noSuchKeyId,
+  ].filter((id) => id !== undefined);
+  const saved = await savePolicy({
+    enabled: true,
+    // A cap no probe reaches: the rules are here to be read, not to bind.
+    rules: ruleKeyIds.map((apiKeyId) => ({
+      scope: 'apiKey',
+      apiKeyId,
+      period: 'monthly',
+      maxRequests: 1_000_000_000,
+    })),
+  });
+  const describedRes = await list(ctx.cookie);
+  const describedText = await describedRes.text();
+  let describedBody: unknown = null;
+  try {
+    describedBody = JSON.parse(describedText);
+  } catch (error) {
+    console.warn(
+      '[org api-key listing] the rule-key read answered no JSON',
+      error instanceof Error ? error.message : error,
+    );
+  }
+  const ruleKeyListingSchema = z.object({
+    ruleKeys: z.array(
+      z.object({
+        id: z.string(),
+        name: z.string().nullable(),
+        userId: z.string().nullable(),
+        ownerEmail: z.string().nullable(),
+        status: z.string(),
+      }),
+    ),
+  });
+  const described = ruleKeyListingSchema.safeParse(describedBody);
+  const ruleKey = (id: string | undefined) =>
+    described.success
+      ? described.data.ruleKeys.find((key) => key.id === id)
+      : undefined;
+  const expiredRule = ruleKey(expiredKey?.id);
+  const revokedRule = ruleKey(revokedKey?.id);
+  const outsiderRule = ruleKey(outsiderKey?.id);
+  const noSuchRule = ruleKey(noSuchKeyId);
+  const ruleKeySecretLeaked = [expiredKey, revokedKey, outsiderKey].some(
+    (minted) => minted !== null && describedText.includes(minted.key),
+  );
+  record(
+    'org api-key listing: a rule on a key that is no longer live still names the key and its owner; a key of another organization stays unknown',
+    saved.status === 200 &&
+      describedRes.status === 200 &&
+      // The live key is in the listing proper, never described twice.
+      ruleKey(memberKey?.id) === undefined &&
+      expiredRule?.status === 'expired' &&
+      expiredRule.name === `keylist-expired-${suffix}` &&
+      expiredRule.ownerEmail === member.email &&
+      revokedRule?.status === 'revoked' &&
+      revokedRule.name === `keylist-revoked-${suffix}` &&
+      revokedRule.userId === member.userId &&
+      revokedRule.ownerEmail === member.email &&
+      outsiderRule?.status === 'unknown' &&
+      outsiderRule.name === null &&
+      outsiderRule.userId === null &&
+      outsiderRule.ownerEmail === null &&
+      noSuchRule?.status === 'unknown' &&
+      !describedText.includes(outsider.email) &&
+      !ruleKeySecretLeaked,
+    `save → ${saved.status}, read → ${describedRes.status}, live described=${ruleKey(memberKey?.id) !== undefined}, expired=${expiredRule?.status ?? 'MISSING'}/${expiredRule?.ownerEmail ?? 'no owner'}, revoked=${revokedRule?.status ?? 'MISSING'}/${revokedRule?.name ?? 'no name'}/${revokedRule?.ownerEmail ?? 'no owner'}, outsider=${outsiderRule?.status ?? 'MISSING'}/${outsiderRule?.name ?? 'no name'}, none=${noSuchRule?.status ?? 'MISSING'}, outsider named=${describedText.includes(outsider.email)}, secret leaked=${ruleKeySecretLeaked}`,
+  );
+
+  // Exercise the real plugin cleanup, not a hand-deleted auth row or a
+  // sleep that races its throttle. Cleanup catches adapter errors, so its
+  // success response alone does not prove that the expired row was removed.
+  await auth.api.deleteAllExpiredApiKeys({});
+  const expiredRowsLeft =
+    expiredKey === null
+      ? []
+      : await sql`SELECT "id" FROM "apikey" WHERE "id" = ${expiredKey.id}`;
+  const expiredRevokeReceipts =
+    expiredKey === null
+      ? []
+      : await sql`
+          SELECT id FROM app.audit_logs
+          WHERE org_id = ${ctx.orgId} AND resource_type = 'api_key'
+            AND resource_id = ${expiredKey.id} AND action = 'api_key.revoked'
+        `;
+  const sweptRes = await list(ctx.cookie);
+  const sweptText = await sweptRes.text();
+  let sweptBody: unknown = null;
+  try {
+    sweptBody = JSON.parse(sweptText);
+  } catch (error) {
+    console.warn(
+      '[org api-key listing] the post-cleanup read answered no JSON',
+      error instanceof Error ? error.message : error,
+    );
+  }
+  const swept = ruleKeyListingSchema.safeParse(sweptBody);
+  const sweptKey = (id: string | undefined) =>
+    swept.success
+      ? swept.data.ruleKeys.find((key) => key.id === id)
+      : undefined;
+  const unavailableRule = sweptKey(expiredKey?.id);
+  const sweptSecretLeaked = [
+    memberKey,
+    expiredKey,
+    revokedKey,
+    outsiderKey,
+  ].some((minted) => minted !== null && sweptText.includes(minted.key));
+  record(
+    'org api-key listing: real expiry cleanup removes the row without a revoke receipt; the known key becomes unavailable',
+    expiredKey !== null &&
+      expiredRule?.status === 'expired' &&
+      expiredRowsLeft.length === 0 &&
+      expiredRevokeReceipts.length === 0 &&
+      sweptRes.status === 200 &&
+      unavailableRule?.status === 'unavailable' &&
+      unavailableRule.name === `keylist-expired-${suffix}` &&
+      unavailableRule.userId === member.userId &&
+      unavailableRule.ownerEmail === member.email &&
+      sweptKey(revokedKey?.id)?.status === 'revoked' &&
+      sweptKey(outsiderKey?.id)?.status === 'unknown' &&
+      sweptKey(noSuchKeyId)?.status === 'unknown' &&
+      !sweptText.includes(outsider.email) &&
+      !sweptSecretLeaked,
+    `read → ${sweptRes.status}, before=${expiredRule?.status ?? 'MISSING'}, auth rows=${expiredRowsLeft.length}, revoke receipts=${expiredRevokeReceipts.length}, after=${unavailableRule?.status ?? 'MISSING'}/${unavailableRule?.name ?? 'no name'}/${unavailableRule?.ownerEmail ?? 'no owner'}, explicit revoke=${sweptKey(revokedKey?.id)?.status ?? 'MISSING'}, secret leaked=${sweptSecretLeaked}`,
+  );
+  await savePolicy(
+    priorBudgets.success && priorBudgets.data.policy !== null
+      ? priorBudgets.data.policy.config
+      : { enabled: false, rules: [] },
+  );
+
+  // A key whose holder LEFT is described from what this organization
+  // recorded while they were a member, and nothing else. What they do with
+  // the key afterwards happens elsewhere: deleting it writes its
+  // `api_key.revoked` row into the organizations they belong to NOW, so the
+  // former organization's answer must not move when they do. A key they
+  // revoked while still a member reads `revoked` from that record, before
+  // and after they leave.
+  const leaver = await signUpOrgMember(
+    sql,
+    base,
+    ctx.orgId,
+    `keylist-leaver-${suffix}`,
+    'developer',
+  );
+  const deleteKey = async (cookie: string, keyId: string) => {
+    const res = await fetch(`${base}/api/auth/api-key/delete`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      body: JSON.stringify({ keyId }),
+    });
+    await res.text();
+    return res;
+  };
+  const leftKey = await mint(leaver.cookie, `keylist-left-${suffix}`);
+  const leftRevokedKey = await mint(
+    leaver.cookie,
+    `keylist-left-revoked-${suffix}`,
+  );
+  const revokedWhileMember =
+    leftRevokedKey === null
+      ? null
+      : await deleteKey(leaver.cookie, leftRevokedKey.id);
+  await sql`
+    DELETE FROM "member"
+    WHERE "organizationId" = ${ctx.orgId} AND "userId" = ${leaver.userId}
+  `;
+  const savedForLeaver = await savePolicy({
+    enabled: true,
+    rules: [leftKey?.id, leftRevokedKey?.id]
+      .filter((id) => id !== undefined)
+      .map((apiKeyId) => ({
+        scope: 'apiKey',
+        apiKeyId,
+        period: 'monthly',
+        maxRequests: 1_000_000_000,
+      })),
+  });
+  /** The whole description of each key the rules name, as the admin reads it. */
+  const readRuleKeys = async () => {
+    const res = await list(ctx.cookie);
+    let body: unknown = null;
+    try {
+      body = JSON.parse(await res.text());
+    } catch (error) {
+      console.warn(
+        '[org api-key listing] the departed-holder read answered no JSON',
+        error instanceof Error ? error.message : error,
+      );
+    }
+    const parsed = z
+      .object({
+        ruleKeys: z.array(
+          z.object({ id: z.string(), status: z.string() }).loose(),
+        ),
+      })
+      .safeParse(body);
+    const find = (id: string | undefined) =>
+      parsed.success
+        ? parsed.data.ruleKeys.find((key) => key.id === id)
+        : undefined;
+    return {
+      status: res.status,
+      left: find(leftKey?.id),
+      leftRevoked: find(leftRevokedKey?.id),
+    };
+  };
+  const beforeDeletion = await readRuleKeys();
+  const deletedElsewhere =
+    leftKey === null ? null : await deleteKey(leaver.cookie, leftKey.id);
+  const keyRowsLeft =
+    leftKey === null
+      ? []
+      : await sql`SELECT "id" FROM "apikey" WHERE "id" = ${leftKey.id}`;
+  const afterDeletion = await readRuleKeys();
+  await savePolicy(
+    priorBudgets.success && priorBudgets.data.policy !== null
+      ? priorBudgets.data.policy.config
+      : { enabled: false, rules: [] },
+  );
+  const sameAnswer = (
+    a: Record<string, unknown> | undefined,
+    b: Record<string, unknown> | undefined,
+  ) => a !== undefined && JSON.stringify(a) === JSON.stringify(b);
+  record(
+    'org api-key listing: a holder who left is described from this organization’s record alone — deleting the key elsewhere afterwards changes nothing',
+    savedForLeaver.status === 200 &&
+      revokedWhileMember?.status === 200 &&
+      deletedElsewhere?.status === 200 &&
+      // The deletion really happened: the key is gone from the auth store.
+      keyRowsLeft.length === 0 &&
+      beforeDeletion.status === 200 &&
+      afterDeletion.status === 200 &&
+      beforeDeletion.left?.status === 'holder_left' &&
+      beforeDeletion.left.name === `keylist-left-${suffix}` &&
+      beforeDeletion.left.userId === leaver.userId &&
+      beforeDeletion.left.ownerEmail === leaver.email &&
+      beforeDeletion.left.ownerName === null &&
+      beforeDeletion.left.expiresAt === null &&
+      sameAnswer(afterDeletion.left, beforeDeletion.left) &&
+      beforeDeletion.leftRevoked?.status === 'revoked' &&
+      beforeDeletion.leftRevoked.name === `keylist-left-revoked-${suffix}` &&
+      sameAnswer(afterDeletion.leftRevoked, beforeDeletion.leftRevoked),
+    `save → ${savedForLeaver.status}, revoke while a member → ${revokedWhileMember?.status ?? 'not minted'}, delete after leaving → ${deletedElsewhere?.status ?? 'not minted'} (rows left ${keyRowsLeft.length}), before=${JSON.stringify(beforeDeletion.left ?? null)}, after=${JSON.stringify(afterDeletion.left ?? null)}, revoked before=${beforeDeletion.leftRevoked?.status ?? 'MISSING'} after=${afterDeletion.leftRevoked?.status ?? 'MISSING'}`,
+  );
+
+  // A key made BEFORE its holder joined has no creation row here, but a
+  // revoke while they are a member lands here as it does in each of their
+  // organizations: this organization recorded the key's end, and reads it
+  // as revoked and whose, not as a key it has no record of.
+  const joiner = await signUpUser(base, `keylist-joiner-${suffix}`);
+  const joinerOrgId = randomUUID();
+  await sql`
+    INSERT INTO "organization" ("id", "name", "slug", "createdAt")
+    VALUES (${joinerOrgId}, ${`Key listing joiner ${suffix}`},
+            ${`keylist-joiner-${suffix}`}, ${new Date()})
+  `;
+  await sql`
+    INSERT INTO "member" ("id", "organizationId", "userId", "role", "createdAt")
+    VALUES (${randomUUID()}, ${joinerOrgId}, ${joiner.userId}, 'owner',
+            ${new Date()})
+  `;
+  const joinerKey = await mint(joiner.cookie, `keylist-joiner-key-${suffix}`);
+  await sql`
+    INSERT INTO "member" ("id", "organizationId", "userId", "role", "createdAt")
+    VALUES (${randomUUID()}, ${ctx.orgId}, ${joiner.userId}, 'developer',
+            ${new Date()})
+  `;
+  const joinerRevoked =
+    joinerKey === null ? null : await deleteKey(joiner.cookie, joinerKey.id);
+  const savedForJoiner = await savePolicy({
+    enabled: true,
+    rules:
+      joinerKey === null
+        ? []
+        : [
+            {
+              scope: 'apiKey',
+              apiKeyId: joinerKey.id,
+              period: 'monthly',
+              maxRequests: 1_000_000_000,
+            },
+          ],
+  });
+  const joinerRes = await list(ctx.cookie);
+  let joinerBody: unknown = null;
+  try {
+    joinerBody = JSON.parse(await joinerRes.text());
+  } catch (error) {
+    console.warn(
+      '[org api-key listing] the joiner read answered no JSON',
+      error instanceof Error ? error.message : error,
+    );
+  }
+  await savePolicy(
+    priorBudgets.success && priorBudgets.data.policy !== null
+      ? priorBudgets.data.policy.config
+      : { enabled: false, rules: [] },
+  );
+  // The shared organization's member count is as the lane found it.
+  await sql`
+    DELETE FROM "member"
+    WHERE "organizationId" = ${ctx.orgId} AND "userId" = ${joiner.userId}
+  `;
+  const joinerParsed = z
+    .object({
+      ruleKeys: z.array(
+        z.object({ id: z.string(), status: z.string() }).loose(),
+      ),
+    })
+    .safeParse(joinerBody);
+  const joinerRule = joinerParsed.success
+    ? joinerParsed.data.ruleKeys.find((key) => key.id === joinerKey?.id)
+    : undefined;
+  record(
+    'org api-key listing: a key made before its holder joined and revoked while a member reads revoked, with its holder',
+    savedForJoiner.status === 200 &&
+      joinerRevoked?.status === 200 &&
+      joinerRes.status === 200 &&
+      joinerRule?.status === 'revoked' &&
+      joinerRule.userId === joiner.userId &&
+      joinerRule.ownerEmail === joiner.email &&
+      joinerRule.name === null,
+    `save → ${savedForJoiner.status}, revoke → ${joinerRevoked?.status ?? 'not minted'}, read → ${joinerRes.status}, described=${JSON.stringify(joinerRule ?? null)}`,
   );
 }
 
@@ -57537,7 +58282,7 @@ async function main(): Promise<void> {
       ],
       [
         'checkOrgApiKeyListing',
-        () => checkOrgApiKeyListing(sql, baseUrl, authCtx, orgSuffix),
+        () => checkOrgApiKeyListing(sql, baseUrl, auth, authCtx, orgSuffix),
       ],
       [
         'checkApiKeyCreateGate',
@@ -57754,6 +58499,18 @@ async function main(): Promise<void> {
       [
         'checkTaskHeldBlobOutlivesFileRow',
         () => checkTaskHeldBlobOutlivesFileRow(sql, authCtx),
+      ],
+      [
+        'checkRejectedUploadReclaim',
+        () =>
+          checkRejectedUploadReclaim(
+            sql,
+            baseUrl,
+            authCtx,
+            (label, role) =>
+              signUpOrgMember(sql, baseUrl, authCtx.orgId, label, role),
+            record,
+          ),
       ],
       [
         'checkNotificationProjectBackfill',

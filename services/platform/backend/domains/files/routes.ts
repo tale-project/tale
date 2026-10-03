@@ -197,9 +197,9 @@ export function createFileRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     }
   });
 
-  /** Reclaim a landed-but-rejected upload blob (never a registered file,
-   * never another member's staged key — the reclaim consumes the caller's
-   * own upload intent). */
+  /** Reclaim a landed-but-rejected upload blob (never bytes a file row, a
+   * document, a task or another bind holds, never another member's staged
+   * key — the reclaim claims the caller's own unbound upload intent). */
   app.post('/reject-blob', async (c) => {
     const body = z
       .object({ storageRef: z.string().min(1).max(1024) })

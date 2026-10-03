@@ -330,5 +330,11 @@
  * `agentReviewBlockedReason`, a current diagnosis for a captured agent review.
  * Source-less submissions and new human-policy reviews use the existing human
  * chain; existing captured ownership changes only through explicit handoff.
+ *
+ * 3.13.0 — 2026-10-02: native task_start_agent accepts tagged
+ * resumeFrom:{kind:'review_repair',approvalId,runId} for one guarded repair
+ * of a native changes-requested decision. Native task_get adds nullable
+ * reviewDecision for the latest validated native receipt. No public REST
+ * repair operation, grant change or automatic verdict dispatch is added.
  */
-export const API_CONTRACT_VERSION = '3.12.0';
+export const API_CONTRACT_VERSION = '3.13.0';

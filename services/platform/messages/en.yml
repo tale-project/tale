@@ -1187,7 +1187,9 @@ chat:
     voiceOutputThreadSaveFailed: Couldn't save voice setting for this conversation
   notFound: This chat is not available.
   placeholder: Ask a question…
-  generationIncomplete: The response couldn't be completed. Try again.
+  generationIncomplete: The model returned no answer. Try again, or choose another model.
+  generationIncompleteFiltered: The model provider's content filter withheld this response. Try rephrasing your message.
+  generationIncompleteLength: The model used up its output token limit before it wrote an answer. Try a lower reasoning effort, a shorter request, or another model.
   generationIncompleteWithTools: The response couldn't be completed after running {tools}. Try again.
   stepLimitReached: Stopped here — this turn reached its step limit. Send a message to continue.
   send: Send message
@@ -2718,6 +2720,26 @@ governance:
     invalidCostLimit: Cost limit must be greater than zero.
     invalidMaxRequests: Request limit must be greater than zero.
     invalidWarningThreshold: Warning threshold must be between 0 and 100.
+    scopeLabels:
+      default: Default
+      user: User
+      team: Team
+      role: Role
+      apiKey: API key
+      org: Organization
+    periodLabels:
+      daily: Daily
+      weekly: Weekly
+      monthly: Monthly
+    apiKeyOwnerUnknown: Owner unknown
+    apiKeyInactive: This key can no longer spend in this organization, so the rule limits nothing. Choose an active key or remove the rule.
+    apiKeyStatus:
+      expired: Expired
+      disabled: Disabled
+      revoked: Revoked
+      unavailable: Unavailable
+      holder_left: Former member
+      unknown: Unknown key
   defaultModels:
     title: Default models
     description: Set default models for specific user groups or roles.

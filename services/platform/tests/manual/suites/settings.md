@@ -1,6 +1,6 @@
 # Settings
 
-> **Prefix** `SET-` · **Reset** none · **Cost** 116 boxes
+> **Prefix** `SET-` · **Reset** none · **Cost** 117 boxes
 
 Exercise the settings surface along its real rail — **Personal** (Account,
 Preferences, Notifications, Usage), **Organization** (Organization, Teams, Members,
@@ -1048,6 +1048,15 @@ run.
   stopped for half an hour → the row stays, unpinned, reading **Destroy
   failed** (`sandboxes.status.destroyFailed`), and its menu offers
   **Destroy** again, which finishes once the service is back.
+- [ ] `SET-B30` · **Nothing starts in a workspace being destroyed** — Mode
+  B. Stop the sandbox service (`docker stop tale-sandbox`) → **Destroy** a
+  project agent's **Stopped** workspace → while its row reads
+  **Destroying**, start a task with that agent, and mention the agent in a
+  chat → each run reads **Waiting for a sandbox slot**
+  (`tasks.agentRun.waitingForSlot`, `chat.taskTray.waitingForSlot`) and
+  nothing runs in the workspace; start the service again (`docker start
+  tale-sandbox`) → the row leaves, then the runs start on their own in a
+  fresh workspace, whose file list holds nothing the old one did.
 
 ## Accessibility (WCAG 2.1 AA)
 

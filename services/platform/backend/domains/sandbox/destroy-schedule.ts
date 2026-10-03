@@ -1,7 +1,8 @@
-import type { Sql } from 'postgres';
+import type { Sql, TransactionSql } from 'postgres';
 
 import { SANDBOX_SESSION_LIVE_STATUSES } from '../../core/sandbox/session_constants.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
+import { lockOrgAdmission } from './admission-lock.ts';
 
 /**
  * The Sandboxes page's Destroy, scheduled. The request queues a
@@ -23,6 +24,13 @@ import { addJobInTx } from '../../jobs/enqueue.ts';
  * The page reads the queue back for each row: a Destroy of that row still
  * queued, retrying or running reads `pending`, and one whose every attempt
  * failed reads `failed` until the next one is asked for.
+ *
+ * A pending Destroy also closes its row to new work: the admission verbs
+ * (`reserveSessionSlot`, `resumeSessionSlot`) refuse the session while
+ * {@link sessionDestroyPending} holds. A turn let in between two attempts
+ * would resume the very incarnation the next attempt deletes, over files a
+ * failed attempt may already have removed. Once the Destroy has settled —
+ * the row destroyed, or every attempt failed — admission opens again.
  */
 
 export type SandboxDestroyState = 'pending' | 'failed';
@@ -47,12 +55,17 @@ interface SessionArgs {
  * no such row, or it is already destroyed, so nothing is queued for another
  * organization's session or for one already gone. A Destroy of the same row
  * already queued or running absorbs this one.
+ *
+ * Under the organization's admission lock, which every reserve and resume
+ * takes: a turn admitted before the request is a turn the Destroy cancels,
+ * and every one after it is refused until the Destroy has settled.
  */
 export async function scheduleSessionDestroy(
   sql: Sql,
   args: SessionArgs,
 ): Promise<boolean> {
   return sql.begin(async (tx) => {
+    await lockOrgAdmission(tx, args.organizationId);
     const rows = await tx<{ id: string; status: string }[]>`
       SELECT id, status FROM app.sandbox_sessions
       WHERE org_id = ${args.organizationId} AND session_id = ${args.sessionId}
@@ -79,6 +92,35 @@ export async function scheduleSessionDestroy(
     );
     return true;
   });
+}
+
+/**
+ * Whether a Destroy is queued, retrying or running for a live row under the
+ * session id — the `pending` the page reads. With `rowId`, only a Destroy of
+ * that row counts. The admission verbs read it under the organization's
+ * admission lock: a Destroy for an incarnation already settled says nothing
+ * about a fresh one under the same id, and one whose every attempt failed
+ * no longer holds the row.
+ */
+export async function sessionDestroyPending(
+  tx: TransactionSql | Sql,
+  args: SessionArgs & { rowId?: string },
+): Promise<boolean> {
+  const rowId = args.rowId ?? null;
+  const rows = await tx<{ pending: boolean }[]>`
+    SELECT EXISTS (
+      SELECT 1 FROM pgboss.job j
+      JOIN app.sandbox_sessions s
+        ON s.id::text = j.data ->> 'rowId' AND s.org_id = ${args.organizationId}
+      WHERE j.name = ${DESTROY_JOB}
+        AND j.state::text = ANY(${[...UNFINISHED_JOB_STATES]})
+        AND j.data ->> 'organizationId' = ${args.organizationId}
+        AND s.session_id = ${args.sessionId}
+        AND s.status = ANY(${[...SANDBOX_SESSION_LIVE_STATUSES]})
+        AND (${rowId}::text IS NULL OR s.id::text = ${rowId})
+    ) AS pending
+  `;
+  return rows[0]?.pending ?? false;
 }
 
 /**

@@ -109,7 +109,10 @@ export async function withSessionLifecycleLock<T>(
  * long after the request: by then that row may have been settled another
  * way (the reconcile heals a row whose container is gone) and a turn may
  * have opened a fresh incarnation under the same deterministic id. That one
- * is not this Destroy's to remove, so the teardown leaves it alone. */
+ * is not this Destroy's to remove, so the teardown leaves it alone. A turn
+ * cannot have resumed the row it names in between: a pending Destroy closes
+ * its row to admission (`destroy-schedule.ts`), since a resume keeps the
+ * row id this check reads. */
 export async function teardownSession(
   sql: Sql,
   args: SessionArgs & { rowId?: string },

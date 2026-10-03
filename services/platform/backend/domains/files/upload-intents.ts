@@ -1,4 +1,4 @@
-import type { Sql, TransactionSql } from 'postgres';
+import type { Fragment, Sql, TransactionSql } from 'postgres';
 import { z } from 'zod';
 
 import {
@@ -7,7 +7,7 @@ import {
 } from '../../core/lib/storage/blob_ref.ts';
 import { deleteOrgObject } from '../../lib/object-store.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
-import { taskHoldsBlobRef } from '../tasks/blob-holders.ts';
+import { blobRefHeld } from './blob-holders.ts';
 
 /**
  * The app upload-intent ledger (`app.upload_intents`, migration 0067) — the
@@ -26,7 +26,9 @@ import { taskHoldsBlobRef } from '../tasks/blob-holders.ts';
  * The row is also the only record that the blob EXISTS: a key the browser
  * never PUT to, or PUT to and never bound, has no file row for the row-
  * driven sweeps to find. `sweepUploadIntents` reclaims those bytes lazily
- * from the mint path (lazy cleanup over cron, the house rule).
+ * from the mint path (lazy cleanup over cron, the house rule), and
+ * `claimRejectedUpload` hands them to the client's own reclaim of an upload
+ * it gave up on — both only while nothing holds the blob.
  */
 
 export const UPLOAD_PURPOSES = [
@@ -106,13 +108,11 @@ export async function recordUploadIntent(
  * Consume the single-use intent for `storageRef`: true when a matching
  * unconsumed, unexpired row existed for this org, user and purpose (and is
  * now consumed), false otherwise — a foreign ref, a re-used ref and an
- * expired handshake are indistinguishable by design. `purpose` `undefined`
- * accepts any purpose: the reclaim lane only has to prove the upload was
- * the caller's.
+ * expired handshake are indistinguishable by design.
  */
 export async function consumeUploadIntent(
   sql: Sql | TransactionSql,
-  args: UploadIntentKey & { purpose?: UploadPurpose },
+  args: UploadIntentKey & { purpose: UploadPurpose },
 ): Promise<boolean> {
   const now = Date.now();
   const rows = await sql<{ id: string }[]>`
@@ -120,12 +120,47 @@ export async function consumeUploadIntent(
     WHERE s3_ref = ${args.storageRef}
       AND org_id = ${args.organizationId}
       AND user_id = ${args.userId}
-      AND ${
-        args.purpose === undefined ? sql`TRUE` : sql`purpose = ${args.purpose}`
-      }
+      AND purpose = ${args.purpose}
       AND consumed_at_ms IS NULL
       AND expires_at_ms > ${now}
     RETURNING id
+  `;
+  return rows.length > 0;
+}
+
+/**
+ * Claim the caller's own upload for the rejected-upload reclaim: true when
+ * the intent for `storageRef` is the caller's, unconsumed and inside its TTL,
+ * and nothing holds its blob — no non-consuming bind vouched for it and no
+ * file row, document or task names it ({@link intentBlobHeld}); the row is
+ * gone and the bytes may go. False otherwise, for any purpose: a foreign
+ * ref, a bound one and a missing one are indistinguishable by design.
+ *
+ * "Unconsumed" alone never meant "unbound": the task door, the document
+ * multi-bind and the outbound-mail door prove ownership without consuming
+ * ({@link ownsUploadedBlob}), so the reclaim used to delete the bytes of an
+ * upload a task listed (#4104).
+ *
+ * One statement on the intent row, which every bind writes: a bind whose
+ * transaction stamped the row and has not committed yet holds its lock, so
+ * the claim waits and re-reads the stamp once the bind commits; a bind that
+ * comes after the claim finds no intent and is refused as not owned instead
+ * of binding bytes on their way out. Hence DELETE, not consume: a consumed
+ * intent still proves ownership for the rest of its TTL.
+ */
+export async function claimRejectedUpload(
+  sql: Sql | TransactionSql,
+  args: UploadIntentKey,
+): Promise<boolean> {
+  const rows = await sql<{ id: string }[]>`
+    DELETE FROM app.upload_intents i
+    WHERE i.s3_ref = ${args.storageRef}
+      AND i.org_id = ${args.organizationId}
+      AND i.user_id = ${args.userId}
+      AND i.consumed_at_ms IS NULL
+      AND i.expires_at_ms > ${Date.now()}
+      AND NOT ${intentBlobHeld(sql, args.organizationId, 'app.upload_intents')}
+    RETURNING i.id
   `;
   return rows.length > 0;
 }
@@ -140,8 +175,9 @@ export async function consumeUploadIntent(
  *
  * The intent arm STAMPS the row (`bound_at_ms`): this proof does not
  * consume, so the stamp is the only trace that somebody bound or sent the
- * blob — and the abandoned-upload sweep must never reclaim a ref that was
- * vouched for. A stamp inside a bind transaction rolls back with a refusal.
+ * blob — and neither the abandoned-upload sweep nor the rejected-upload
+ * reclaim may take the bytes of a ref that was vouched for. A stamp inside a
+ * bind transaction rolls back with a refusal.
  */
 export async function ownsUploadedBlob(
   sql: Sql | TransactionSql,
@@ -183,19 +219,39 @@ export async function firstForeignUpload(
 }
 
 /**
+ * Is the blob of ledger row `i` held: vouched for by a non-consuming proof
+ * (the session ledger's `bound_at_ms` — the REST bind always consumes, so
+ * there a row is either consumed or nobody's), or named by a file row, a
+ * document or a task ({@link blobRefHeld})? What every lane that reclaims an
+ * upload's bytes from this ledger asks first.
+ */
+function intentBlobHeld(
+  sql: Sql | TransactionSql,
+  organizationId: string,
+  ledger: UploadIntentLedger,
+): Fragment {
+  const vouchedFor =
+    ledger === 'app.upload_intents'
+      ? sql`i.bound_at_ms IS NOT NULL`
+      : sql`FALSE`;
+  return sql`(${vouchedFor} OR ${blobRefHeld(sql, organizationId, sql`i.s3_ref`)})`;
+}
+
+/**
  * The mint path's lazy sweep of one org's ledger:
  *
  *  1. consumed rows are dead handshakes — the bind lane owns the blob now;
- *  2. rows expired past the grace whose blob SOMEBODY holds (a file row, or
- *     a non-consuming proof stamped `bound_at_ms`) drop the same way: the
- *     blob's lifecycle belongs to whatever holds it;
+ *  2. rows expired past the grace whose blob SOMEBODY holds (a non-consuming
+ *     proof stamped `bound_at_ms`, or a file row, a document or a task that
+ *     names it) drop the same way: the blob's lifecycle belongs to whatever
+ *     holds it;
  *  3. what is left past the grace is ABANDONED — minted, maybe PUT, never
  *     bound, never vouched for — and nothing else will ever find it: the
  *     bytes are reclaimed, then the row. A failed delete keeps the row, so
  *     a later sweep retries; a bounded batch keeps the mint request cheap.
  *
  * Never reclaims a blob that got bound: a bound blob is either consumed (1),
- * vouched for (2), or carried by a file row (2).
+ * vouched for (2), or held by a row (2).
  */
 export async function sweepUploadIntents(
   sql: Sql | TransactionSql,
@@ -203,10 +259,7 @@ export async function sweepUploadIntents(
 ): Promise<{ reclaimed: number }> {
   const ledgerName: UploadIntentLedger = args.ledger ?? 'app.upload_intents';
   const ledger = sql.unsafe(ledgerName);
-  const vouchedFor =
-    ledgerName === 'app.upload_intents'
-      ? sql`i.bound_at_ms IS NOT NULL`
-      : sql`FALSE`;
+  const held = intentBlobHeld(sql, args.organizationId, ledgerName);
   const now = Date.now();
   const horizon = now - ABANDONED_UPLOAD_GRACE_MS;
 
@@ -219,25 +272,17 @@ export async function sweepUploadIntents(
     WHERE i.org_id = ${args.organizationId}
       AND i.consumed_at_ms IS NULL
       AND i.expires_at_ms < ${horizon}
-      AND (${vouchedFor} OR EXISTS (
-        SELECT 1 FROM app.file_metadata m
-        WHERE m.org_id = i.org_id AND m.storage_ref = i.s3_ref
-      ) OR ${taskHoldsBlobRef(sql, args.organizationId, sql`i.s3_ref`)})
+      AND ${held}
   `;
-  // A task that lists the ref holds the blob the same way a file row does
-  // (`tasks/blob-holders.ts`): its bind always vouches for the intent, so
-  // this is the belt to that brace.
+  // A row that holds the ref keeps the blob even where no bind stamped the
+  // intent (a task's bind always does, so there it is the belt to that
+  // brace).
   const abandoned = await sql<{ id: string; s3Ref: string }[]>`
     SELECT i.id, i.s3_ref AS "s3Ref" FROM ${ledger} i
     WHERE i.org_id = ${args.organizationId}
       AND i.consumed_at_ms IS NULL
       AND i.expires_at_ms < ${horizon}
-      AND NOT (${vouchedFor})
-      AND NOT EXISTS (
-        SELECT 1 FROM app.file_metadata m
-        WHERE m.org_id = i.org_id AND m.storage_ref = i.s3_ref
-      )
-      AND NOT ${taskHoldsBlobRef(sql, args.organizationId, sql`i.s3_ref`)}
+      AND NOT ${held}
     ORDER BY i.expires_at_ms
     LIMIT ${RECLAIM_BATCH}
   `;

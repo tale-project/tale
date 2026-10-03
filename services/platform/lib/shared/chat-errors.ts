@@ -105,6 +105,7 @@ export const CHAT_ERROR_I18N_KEY_NAMED: Readonly<
 interface ErrorFacts {
   status?: number;
   code?: string;
+  structuredCode?: string;
   message: string;
 }
 
@@ -142,7 +143,7 @@ function extractErrorFacts(error: unknown): ErrorFacts {
       ? (err.error as Record<string, unknown>)
       : undefined;
   const embedded = /"code"\s*:\s*"?([A-Za-z0-9_.-]+)"?/.exec(message);
-  const code =
+  const structuredCode =
     typeof err.code === 'string'
       ? err.code
       : typeof data?.code === 'string'
@@ -151,8 +152,47 @@ function extractErrorFacts(error: unknown): ErrorFacts {
           ? nested.code
           : typeof nested?.code === 'number'
             ? String(nested.code)
-            : embedded?.[1];
-  return { status, code, message: message.toLowerCase() };
+            : undefined;
+  return {
+    status,
+    code: structuredCode ?? embedded?.[1],
+    structuredCode,
+    message: message.toLowerCase(),
+  };
+}
+
+/** Documented request refusals that a provider can report after opening SSE. */
+const PROVIDER_REQUEST_REFUSALS = new Set([
+  'invalid_request_error',
+  'authentication_error',
+  'billing_error',
+  'permission_error',
+  'not_found_error',
+  'conflict_error',
+  'request_too_large',
+  'rate_limit_error',
+  'rate_limit_exceeded',
+  'slow_down',
+  'insufficient_quota',
+  'credit_balance_exhausted',
+  'organization_spend_limit_exceeded',
+  'project_spend_limit_exceeded',
+  'organization_usage_limit_exceeded',
+]);
+
+/**
+ * Whether a provider turned a request away, for accounting before any answer
+ * or positive usage. A real status takes precedence; otherwise only a known
+ * structured refusal counts. Human wording and JSON embedded in a sentence
+ * can help classify a message, but cannot waive consumed usage.
+ */
+export function isProviderRequestRefusal(error: unknown): boolean {
+  const { status, structuredCode } = extractErrorFacts(error);
+  if (status !== undefined) return status >= 400 && status < 500;
+  return (
+    structuredCode !== undefined &&
+    PROVIDER_REQUEST_REFUSALS.has(structuredCode)
+  );
 }
 
 /**
@@ -299,19 +339,25 @@ export function classifyChatErrorCode(error: unknown): ChatErrorCode {
     return 'output_cap_too_high';
   }
 
+  // A rate limit — must precede token_limit, whose broad `token.*limit`
+  // match otherwise reads OpenAI's most common refusal ("Rate limit reached
+  // for … on tokens per min (TPM): Limit 30000 …") as an output cap the
+  // reader should shorten their request for. One 429 is not about waiting:
+  // a single request larger than the per-minute allowance ("Request too
+  // large … must be reduced") is the size problem token_limit names.
+  if (
+    !/request too large|must be reduced/i.test(message) &&
+    (status === 429 || /rate.?limit|too many requests|\b429\b/i.test(message))
+  ) {
+    return 'rate_limited';
+  }
+
   if (/fewer max_tokens|token.*limit|max_tokens/i.test(message)) {
     return 'token_limit';
   }
 
   if (/context.?length|context.?window|maximum context/i.test(message)) {
     return 'context_length';
-  }
-
-  if (
-    status === 429 ||
-    /rate.?limit|too many requests|\b429\b/i.test(message)
-  ) {
-    return 'rate_limited';
   }
 
   if (/content.?filter|content.?policy|moderation/i.test(message)) {

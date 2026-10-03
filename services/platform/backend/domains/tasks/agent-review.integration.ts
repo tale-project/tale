@@ -25,6 +25,7 @@ import {
   type Recorder,
 } from './delegated-start.integration.ts';
 import { getProjectTaskMetrics } from './metrics.ts';
+import { checkReviewRepair } from './review-repair.integration.ts';
 import { getPendingReviewForTask, requestTaskReview } from './reviews.ts';
 import {
   agentUpdateTaskStatusTrusted,
@@ -813,6 +814,23 @@ export async function checkAgentTaskReviews(
         `loser=${results[1]} status=${final.status}`,
       );
     }
+    await checkReviewRepair({
+      sql,
+      orgId,
+      projectId: project,
+      implementerId: author,
+      editorId: editor,
+      auth,
+      fx,
+      sessions,
+      reviewerToken: token,
+      record,
+      submit: submitted,
+      inputFor,
+      dispatch,
+      tokenFor,
+      addRun,
+    });
     await checkAgentReviewFiles({
       sql,
       base,

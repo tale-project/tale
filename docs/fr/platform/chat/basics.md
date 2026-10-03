@@ -101,5 +101,6 @@ Une conversation très longue peut dépasser la fenêtre de contexte du modèle.
 | Un fichier n’a pas été utilisé | Vérifie le projet du chat, l’indexation du fichier et les étapes de consultation. Nomme le fichier. |
 | La recherche signale une source indisponible | Demande à un admin de vérifier le service indiqué ou la configuration d’embedding. Un résultat vide ne prouve pas que l’information n’existe pas. |
 | Une réponse s’arrête sur une erreur | Lis l’erreur, vérifie le modèle choisi et réessaie après correction. Tale ne change pas de fournisseur en silence. |
+| Une réponse reste vide | La mention affichée à sa place en donne la raison : le modèle n’a rien renvoyé, il a épuisé sa limite de tokens en sortie avant d’écrire, ou le filtre de contenu du fournisseur a retenu la réponse. Choisis **Réessayer**, ou réduis d’abord l’effort de raisonnement, raccourcis la demande ou choisis un autre modèle. |
 
 Pour un exemple guidé avec vérification des sources, suis [Mieux dialoguer avec le chat](/fr/tutorials/member/chat-effectively).

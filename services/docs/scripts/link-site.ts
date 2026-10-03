@@ -22,11 +22,10 @@ import {
   type PageAddress,
   type SitePage,
 } from '@tale/ui/docs/links';
-import { buildNearMissIndex } from '@tale/ui/docs/near-miss';
 import { slugRoute } from '@tale/ui/docs/redirects';
 
 import { docPath } from '../lib/content/paths';
-import { docsNearMissPages } from '../lib/near-miss';
+import { docsNearMissIndex } from '../lib/near-miss';
 import { buildRedirectPathMap, resolveRedirect } from '../lib/redirects';
 
 const SERVICE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -136,7 +135,7 @@ export const DOCS_LINK_SITE: LinkSite = {
   origins: [DOCS_ORIGIN],
   answer: answerDocsPath,
   nearMiss: {
-    index: buildNearMissIndex(docsNearMissPages()),
+    index: docsNearMissIndex(),
     routeOf: (pathname) => split(pathname.replace(/\.md$/, '')).route,
     pathFor: (route, pathname) =>
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- `split` only answers the three base locales

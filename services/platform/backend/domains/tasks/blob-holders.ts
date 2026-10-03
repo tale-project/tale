@@ -14,7 +14,9 @@ import type { Fragment, Sql, TransactionSql } from 'postgres';
  *
  * ONE predicate, used by every such lane and by the task door's own release
  * (`retire.ts`): some task of the organization lists `ref` in either
- * column. `ref` is a fragment, so a caller passes a parameter
+ * column. The lanes that delete bytes outside the release seam ask it as
+ * one arm of `files/blob-holders.ts`' `blobRefHeld`, beside file rows and
+ * documents. `ref` is a fragment, so a caller passes a parameter
  * (``sql`${ref}` ``) or a column of its own query (``sql`r.ref` ``). The
  * containment test is JSONB `@>` over `[{"fileId": <ref>}]`, which matches
  * an element however many other keys it carries; the two columns are

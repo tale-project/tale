@@ -5,9 +5,11 @@
  *
  * Guides are scored by slug and title, so `/docs/button`, `/components/button`
  * (the `/docs` mount forgotten) and `/docs/components/buton` all land on the
- * button guide. A stray `/DE/…` or `/fr/…` prefix is dropped — the site is
+ * button guide. A sidebar group is found by its label in any of the chrome's
+ * languages (`/docs/komponenten`, `/docs/foundations`) and answers with its
+ * first guide. A stray `/DE/…` or `/fr/…` prefix is dropped — the site is
  * one English tree. The 404 page ranks its "did you mean" list with the same
- * guides.
+ * guides and labels.
  */
 
 import {
@@ -16,6 +18,7 @@ import {
   resolveMissingAddress,
   type MissingAddressAnswer,
   type NearMissIndex,
+  type NearMissNavGroup,
   type NearMissPage,
 } from '@tale/ui/docs/near-miss';
 import { lookupRedirect } from '@tale/ui/docs/redirects';
@@ -23,7 +26,15 @@ import { lookupRedirect } from '@tale/ui/docs/redirects';
 // Relative, not `@/`: the Bun-run server imports this module, and Bun does
 // not resolve the root tsconfig's `${configDir}` paths.
 import frontmatterManifest from '../app/content/frontmatter.json';
-import { flattenNav } from './content/nav';
+import deMessages from '../messages/de.yml';
+import enMessages from '../messages/en.yml';
+import frMessages from '../messages/fr.yml';
+import {
+  flattenNav,
+  isNavGroup,
+  UI_DOCS_NAV,
+  type UiDocsNavGroup,
+} from './content/nav';
 import { guidePath, REDIRECT_PATHS } from './redirects';
 
 interface ManifestEntry {
@@ -45,12 +56,46 @@ export function uiDocsNearMissPages(): (NearMissPage & { slug: string })[] {
   });
 }
 
+/** The catalogs the sidebar reads its group labels from, one per language. */
+const CATALOGS: readonly unknown[] = [enMessages, deMessages, frMessages];
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+/** A group's sidebar label in every language (`nav.groups.components`). */
+function groupLabels(labelKey: string): string[] {
+  const labels: string[] = [];
+  for (const catalog of CATALOGS) {
+    let node: unknown = catalog;
+    for (const key of labelKey.split('.')) {
+      node = isRecord(node) ? node[key] : undefined;
+    }
+    if (typeof node === 'string' && !labels.includes(node)) labels.push(node);
+  }
+  return labels;
+}
+
+function toNearMissGroup(group: UiDocsNavGroup): NearMissNavGroup {
+  return {
+    labels: groupLabels(group.labelKey),
+    entries: group.pages.map((entry) =>
+      isNavGroup(entry) ? toNearMissGroup(entry) : entry.slug,
+    ),
+  };
+}
+
+/** The sidebar's groups, each with its label in every language. */
+export function uiDocsNearMissGroups(): NearMissNavGroup[] {
+  return UI_DOCS_NAV.map(toNearMissGroup);
+}
+
 const PAGES: ReadonlySet<string> = new Set(Object.keys(MANIFEST));
 let index: NearMissIndex | undefined;
 
 /** Built on the first guess, not on every page load that imports this. */
-function nearMissIndex(): NearMissIndex {
-  index ??= buildNearMissIndex(uiDocsNearMissPages());
+export function uiDocsNearMissIndex(): NearMissIndex {
+  index ??= buildNearMissIndex(uiDocsNearMissPages(), uiDocsNearMissGroups());
   return index;
 }
 
@@ -69,7 +114,7 @@ export function resolveMissingUiDocsPath(
     pagePath: (_locale, route) => guidePath(route),
     isPage: (_locale, route) => PAGES.has(route),
     redirectFor: (path) => lookupRedirect(path, REDIRECT_PATHS),
-    index: nearMissIndex(),
+    index: uiDocsNearMissIndex(),
   });
 }
 

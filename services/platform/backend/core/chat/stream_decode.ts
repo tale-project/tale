@@ -2,11 +2,12 @@
  * How a streamed model answer is read, event by event, in the two dialects
  * the platform's chat speaks — OpenAI-compatible chat completions and
  * Anthropic Messages: the incremental text, the reasoning, the tool-call
- * fragments, the finish reason, and the usage the provider reports. The chat
- * turn's stream reader (`turn_action.ts` `streamSse`) folds a whole answer
- * through it; the model endpoints for API keys (`domains/model_api`) read the
- * usage of the stream they relay through the same decoder, so a relayed
- * request books the counts a chat turn would.
+ * fragments, the finish reason, the usage the provider reports, and a
+ * failure it reports after the stream opened. The chat turn's stream reader
+ * (`turn_action.ts` `streamSse`) folds a whole answer through it; the model
+ * endpoints for API keys (`domains/model_api`) read the usage of the stream
+ * they relay through the same decoder, so a relayed request books the counts
+ * a chat turn would.
  *
  * Pure: no I/O.
  */
@@ -274,6 +275,76 @@ export function readEvent(
     text,
     ...(reasoningDelta ? { reasoning: reasoningDelta } : {}),
     ...(finishReason !== undefined ? { finishReason } : {}),
+  };
+}
+
+/** A failure a provider reported INSIDE a stream it had already opened. */
+export interface StreamFailure {
+  /** The provider's own sentence, or '' when it sent none. */
+  readonly message: string;
+  /** The provider's error code or type (`rate_limit_exceeded`,
+   * `overloaded_error`), when it named one. */
+  readonly code?: string;
+  /** The HTTP status the failure stands for, when the provider's code is
+   * one (OpenRouter reports the upstream's status as the code). */
+  readonly status?: number;
+}
+
+/**
+ * The failure one streamed event carries, or undefined for an ordinary
+ * event.
+ *
+ * A stream's HTTP status is sent before the model writes its first token, so
+ * everything that goes wrong afterwards — an upstream rate limit, an
+ * overloaded or disconnected provider — arrives as an EVENT on a `200`
+ * stream. OpenAI-compatible servers send `{"error": {…}}` (OpenRouter beside
+ * a choice whose `finish_reason` is `error`); the Anthropic wire sends
+ * `{"type": "error", "error": {…}}`. Read as an ordinary event it carries no
+ * text and no usage, so the round used to end as a completed, empty reply:
+ * the provider's words were dropped and the reader was shown nothing at all.
+ */
+export function readStreamFailure(
+  apiFormat: ApiFormat,
+  event: Record<string, unknown>,
+): StreamFailure | undefined {
+  const raw = event.error;
+  const error = asRecord(raw);
+  // An error that says something. Some servers stamp `"error": null` (or an
+  // empty object) on every ordinary chunk, and that is no failure.
+  const reported =
+    (typeof raw === 'string' && raw.length > 0) ||
+    (error !== null &&
+      (typeof error.message === 'string' ||
+        error.code != null ||
+        error.type != null));
+  const failed =
+    apiFormat === 'anthropic'
+      ? event.type === 'error'
+      : reported ||
+        (Array.isArray(event.choices) &&
+          asRecord(event.choices[0])?.finish_reason === 'error');
+  if (!failed) return undefined;
+  if (typeof raw === 'string') return { message: raw };
+  // The failure was announced with no body to go with it.
+  if (!error) return { message: '' };
+  const message = typeof error.message === 'string' ? error.message : '';
+  const named = error.code ?? error.type;
+  const code =
+    typeof named === 'string' && named.length > 0
+      ? named
+      : typeof named === 'number'
+        ? String(named)
+        : undefined;
+  const numeric =
+    typeof error.code === 'number' ? error.code : Number(error.code);
+  const status =
+    Number.isInteger(numeric) && numeric >= 400 && numeric <= 599
+      ? numeric
+      : undefined;
+  return {
+    message,
+    ...(code !== undefined ? { code } : {}),
+    ...(status !== undefined ? { status } : {}),
   };
 }
 
