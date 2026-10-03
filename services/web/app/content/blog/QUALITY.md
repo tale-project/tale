@@ -1,181 +1,98 @@
-# Tale blog quality guidelines
+# Writing useful Tale blog posts
 
-Version 1 · 3 October 2026 · Applies to the ten AI articles and future Tale editorial work.
+Version 2 · 3 October 2026
 
-**Publish when the article helps a specific reader make a better decision and supplies something they can inspect, apply, or challenge.** A fluent overview, a long bibliography, an attractive cover, and a downloadable blank checklist do not establish that value.
+A post earns its place when a reader arrives with a question and leaves able to do something about it. Good prose, sources and images support that purpose. None can rescue an article that has no clear answer.
 
-This is Tale's proposed editorial standard, requested for this content programme. It is not a Google scoring model, a legal standard, or a promise of search performance. The content owner should use the review record below and preserve the evidence behind the decision.
+## Start with the question someone would actually ask
 
-## 1. Commission a decision, not a keyword
+Write a short brief before drafting:
 
-Before writing, complete this brief in ordinary language:
+- Who is reading, and what has just happened at work?
+- What are they trying to decide or fix?
+- What is our answer, and when would it change?
+- What can they do after reading that they could not do before?
 
-- **Reader and situation:** who is encountering which concrete problem, with what starting knowledge?
-- **Decision:** what should they be able to choose, diagnose, or do after reading?
-- **Thesis:** our answer, including the main condition that makes it true.
-- **Consequence:** what goes wrong if they make the familiar but mistaken choice?
-- **Contribution:** the reasoning, example, artifact, observation, or synthesis this page adds.
-- **Boundary:** what the page will not settle, and which existing Tale page owns that question.
+“Enterprise RAG” is a topic. “Our assistant cites a document but still gives the wrong answer. What should I check?” is a useful question. The second gives the article a starting point and a stopping point.
 
-A query is a discovery clue. It cannot replace the brief. Keep one clear reader decision per page. Inspect relevant existing explanations and record what your article adds beyond that sample. This is a comparative editorial judgement, not proof that no one has ever made the point or that the page will outrank them. Do not create separate pages for close keyword variants when one explanation would satisfy the same need. Keep conceptual guides separate from named-product comparisons, product landing pages, and configuration reference.
+Use actual support questions, customer conversations, search data or observed product problems when available. Record the evidence. A plausible question invented during planning is still a hypothesis; do not claim that customers asked it or that a keyword has measured demand.
 
-For example, “multi-agent orchestration explained” is a subject. “Decide whether independent investigations justify another agent after accounting for reconciliation work” is a useful article job.
+Read existing explanations to understand what the reader can already find. Identify the practical gap this article fills. If another Tale page answers the same question, improve that page or link to it instead of publishing a close variation.
 
-## 2. Make an original contribution readers can examine
+## Give the answer before the background
 
-Every article must have a substantive centre: a worked analysis, a demonstrated method, a reproducible observation, a decision model, or a careful synthesis that resolves a real disagreement. It must influence the article's conclusion. Calling a familiar checklist a framework does not make it original.
+Put the useful recommendation near the beginning. A reader should not need to pass through definitions, a history of AI and a list of business benefits to reach it.
 
-A worked example includes inputs, assumptions, the decision process, the resulting artifact, and an interpretation. Fill at least one meaningful portion of a supplied template so readers see what a good answer looks like. Put that labelled excerpt in the standalone download or link directly to the exact worked section; retain the reusable blank version. Explain an alternative that initially looks reasonable and why you reject it under these conditions. Show what change in the conditions would reverse that choice.
+Then explain why the answer works. Use the detail a reader needs to follow it: an example, the relevant source, the failure to look for, and what to try next. Define an unfamiliar term where it becomes necessary. Keep exceptions beside the advice they change.
 
-Three valid forms of contribution have different evidence duties:
+A post about choosing between an agent and a workflow needs to explain that choice. It does not also need a complete guide to evaluation, permissions, multi-agent coordination and deployment. Link to those questions when they arise.
 
-| Article form | What the reader should get | What supports it |
-|---|---|---|
-| Explanation or decision guide | A useful distinction applied to a concrete choice | Primary evidence, explicit reasoning, counterexample, bounded recommendation |
-| Worked method or tutorial | A procedure another person can follow and check | Complete inputs and outputs; real execution for actual product instructions; recovery path |
-| Experiment or case study | An observation that could change a decision | Recorded method, configuration, sample, failures, outcome evidence, and limits |
+**Depth means resolving the difficult part of the reader’s question.** It does not mean covering every nearby subject. There is no required word count, heading count, number of papers or compulsory FAQ.
 
-Do not imply that every guide needs a benchmark. Equally, do not disguise an imagined scenario as firsthand experience. A synthetic worked calculation can teach a method; it cannot establish Tale's performance or customer results.
+## Make the example do some work
 
-**Removal test:** if the example, table, diagram, or download disappeared, what useful understanding would the reader lose? If the answer is “none,” improve it or remove it.
+Use an example when the advice would otherwise be hard to apply. Show enough of the input and result for a reader to follow the reasoning. A filled handoff, a corrected claim or a small comparison can be more useful than several paragraphs telling people to establish clear processes.
 
-## 3. Research the disputed part
+Introduce imagined examples plainly: “Suppose your team…” or “Here is an illustrative comparison.” Do not write them as customer stories or product experiments. Keep that distinction clear without interrupting every paragraph to repeat it.
 
-Start from unanswered questions in the draft, not a target number of sources. Seek the evidence most likely to change the recommendation. For a multi-agent guide, investigate tasks where coordination hurts; for RAG, inspect failures despite relevant-looking citations; for marketing, distinguish plausible ideas from validated audience response.
+If the example uses numbers, show the units and denominator, check the arithmetic, and include the work needed to repair failures. Do not turn assumed inputs into observed savings or reliability estimates. Detailed exercises can live in a worksheet; the article must still answer its question without a download.
 
-Use primary research and official specifications for technical claims. Vendor documentation establishes what that vendor documents; a vendor case study establishes its reported setting. Neither automatically generalizes to Tale or proves superiority. Strong independent research can test the broader idea, but its population, tasks, model versions, and measurement still matter.
+Ask whether a reader could use the example on their next task. If they must invent the difficult fields themselves, make the example more concrete. If removing it loses no understanding, cut it.
 
-Read the relevant methods, results, and limitations—not only an abstract or search snippet. Record whether access was full text, an abstract, documentation, or a secondary account. If only an abstract was accessible, restrict the claim accordingly and mark the missing detail. Trace repeated claims to the original study; five articles citing one experiment are one evidence line.
+## Write as a colleague explaining the problem
 
-For consequential or disputed recommendations, look for an independent perspective or an alternative explanation. Record how it changes the advice. If convincing contrary evidence was not found, say what was searched; never manufacture disagreement to fill a section.
+Prefer ordinary words, concrete verbs and connected paragraphs. Read the draft aloud. A sentence can be technically correct and still sound like a committee wrote it.
 
-Stop when the decision-relevant uncertainties are answered well enough for the chosen article type. More papers that repeat the same point are not automatically more depth. Older evidence may still support a durable mechanism. Current provider support, pricing, permissions, and SEO policies require fresh checks against the actual version being discussed.
+| Wording that gets in the way | More useful direction |
+| --- | --- |
+| “Make a bounded rollout decision” | Say which questions the assistant can answer now and which still need a person. |
+| “Preserve evidence through the publishing handoff” | Give the writer the approved claim, its source and the wording that must stay out. |
+| “Evaluate the operating process you intend to use” | Count the time spent checking and correcting the agent’s work. |
+| “Enterprise RAG: permissions, freshness, citations” | “Why your company AI gets answers wrong with citations” |
 
-## 4. Keep a claim-to-evidence ledger
+These are examples of editing decisions, not phrases to paste into every article. Titles should name the actual question or useful outcome. They need not all be questions or start with “How to”. Avoid keyword lists, inflated promises and invented terminology.
 
-The writer maintains a short ledger outside public prose:
+Use headings that help a reader find the part they need. Use tables for genuine comparisons and lists for steps or parallel choices. Keep the explanation in prose. An endless sequence of checklists is as tiring as an unbroken wall of text.
 
-| Claim | Type | Supporting source or artifact | What it establishes | What it does not establish | Verified date/version |
-|---|---|---|---|---|---|
-| Exact sentence or bounded proposition | Documented fact / empirical result / observed behavior / illustrative assumption / editorial inference | Direct URL, section, artifact, or run record | Relevant evidence | Transfer limits or unresolved mismatch | Actual check |
+Delete generic scene-setting, repeated cautions, research summaries that do not change the advice, and conclusions that repeat the opening. Do not add a sales paragraph just because the article is ending. Mention Tale where its documented behavior helps with the task; the page already provides a product call to action.
 
-Cite material external claims beside the sentence or paragraph they support. A source at the end of a mixed paragraph does not support every assertion in it. Quote sparingly; synthesize in your own reasoning. Follow source quotation and reuse limits across the whole package, not just each file.
+## Keep the evidence honest
 
-Use precise attribution: “the authors observed this in these tasks” is different from “agents do this.” Name preprints as preprints when relying on tentative findings. Inspect sample selection, baseline, comparator, test conditions, and uncertainty before importing a number. Record changes, corrections, or withdrawn evidence when discovered.
+Use primary papers or official documentation for technical claims. Read the part that supports the claim, including the conditions and limits. Put the link where the reader needs to verify it. Remove an unused citation when cutting the claim it supported.
 
-Do not make the research ledger's internal status chatter the article's voice. Tell readers the limitation that changes their decision; keep routine link-check details in the editorial record.
+Distinguish what a source establishes from your interpretation. A provider’s documentation describes its own system. An experiment on short stories does not establish marketing conversion. A successful example does not establish reliability. When only an abstract was accessible, do not imply a full methods review.
 
-## 5. Show arithmetic and measurement boundaries
+Keep a small claim ledger in the research handoff: claim, source or observed result, relevant version/date, limitation. The reader should see the limitations that affect their decision; routine verification notes belong in that ledger.
 
-When numbers help, provide enough inputs for a reader to reproduce them. Label assumptions before the example. Keep currencies, time units, cohort definitions, denominators, and cost coverage consistent. Check arithmetic independently.
+For Tale claims, check current source, docs and the relevant product behavior. Do not invent features, UI labels, human authors, reviewers, certifications, customers or results. A click-by-click tutorial needs an observed run. A conceptual guide may cite documentation without pretending it was a product test.
 
-For evaluations, include valid failed and timed-out trials. Separate initial acceptance from acceptance after repair. Count review and correction effort. Do not sum overlapping durations as elapsed time, treat missing costs as zero, or divide by zero. Where categories are estimated, label the resulting total as estimated. Where coverage is incomplete, label the scope.
+If public docs and local behavior differ, resolve or narrow the affected claim before publication. Final product wording still needs an accountable product/editorial owner; an AI review is not evidence of that person’s approval.
 
-A single successful run is an example, not a reliability estimate. Correlation between a setup and an outcome is not proof that the model or runtime caused the difference. Do not rank configurations tested on different inputs, permissions, tools, or acceptance rules without explaining the confounders. A result on coding or short-fiction tasks does not establish business-team or campaign performance.
+## Review the page, not only the Markdown
 
-## 6. Make Tale's role accurate and useful
+Read the rendered article from its title onward, as someone entering from search. Check whether the opening delivers the title’s promise and whether each section helps answer the same question.
 
-Keep the general method useful before the reader becomes a customer. Introduce Tale where its documented behavior helps carry out the method; connect the capability to the decision. Avoid ending every section with a sales claim.
+Covers establish tone; diagrams should explain a relationship or decision. Neither is evidence of product performance. Preserve useful alternative text, dimensions and a full-size option for detailed diagrams. Check actual text bounds, consistent box padding and arrow placement in every locale, including at article width. Do not shrink important text merely to fit a translation.
 
-Before describing product behavior, verify the relevant deployment, runtime, starter role, tools, credentials, and scope. Source code and local docs can expose limits, but do not prove the public deployment matches them. Actual click-by-click tutorials require observed UI behavior. Conceptual guides may cite scoped documentation without claiming a run was performed.
+Review EN, DE and FR as writing in their own languages. Preserve the answer, useful detail, evidence and conditions; do not reproduce English grammar mechanically. Keep URLs and topic identities stable. Use the existing metadata, canonical, localization and discovery pipeline.
 
-A mismatch between local behavior and the linked public guide is a publication issue for the affected claim. Resolve it by verifying deployment and correcting the public source, or by narrowing/removing the unsupported assertion. Do not silently choose whichever source makes the product look stronger.
+A source-review date is not a publication date. Update it only after checking the sources. Search performance can be evaluated after launch with real data; this editorial process cannot promise indexing, ranking or conversion gains.
 
-Known boundaries to preserve in this series:
+## Final review
 
-- Persisted files, resumed conversations, and active model context are different things.
-- Work review, questions, and permission for a specific operation are different decisions.
-- An independent equipped agent reviewer is not automatically an authorized human approver.
-- Connector-broker limits do not describe every sandbox, direct-tool, or secret-bearing path.
-- Self-hosted application storage does not determine all external destinations.
-- Application usage records do not imply complete task costs or coverage of direct subscription calls.
+A reviewer other than the writer should answer these questions from the page itself:
 
-Do not invent customers, bylines, reviewer identities, certifications, results, or product screenshots. The accountable editor must approve the final product wording; an AI author's confidence is not approval evidence.
+1. What question does this answer, and what is the answer?
+2. What can I now do? Point to the useful example or instructions.
+3. Which paragraph could disappear without losing anything?
+4. What is the strongest claim, and does its source support it?
+5. When would the recommendation change?
+6. Does the title, description, diagram or download promise anything the article does not deliver?
 
-## 7. Write an argument people want to finish
+Return the draft when the answer is vague, the useful step is buried, the prose sounds unnatural, or a material claim is unsupported. A high score elsewhere does not cancel a defect. Structural tests cannot judge whether the article was worth reading.
 
-Open with the problem, useful answer, or consequential distinction. Avoid a generic “AI is transforming business” preamble. Give the reader a reason to care before presenting terminology. Use headings that expose the argument or help find an answer.
+Record the reader question, the substantive edits, source checks, independent review, unresolved issues and publication owner in the handoff. Run the checks in [README.md](README.md), and keep unresolved release gates visible.
 
-Develop paragraphs in a logical order: claim, reason, concrete example, implication. Explain technical terms at the point of use. Prefer specific nouns and verbs. Remove repeated advice such as “define clear goals,” “ensure oversight,” or “evaluate regularly” unless the next sentence tells the reader exactly what to inspect and how it changes the decision.
+## Guidance used for this revision
 
-Use prose for reasoning, tables for comparisons, and lists for parallel items or actual steps. An article made of interchangeable checklists usually lacks an argument. Do not repeat the same template shape across ten topics regardless of what they need. A conclusion is optional; an actionable final decision may be enough.
-
-Avoid exaggerated certainty and the opposite problem: so many caveats that no recommendation remains. State the best-supported answer, its conditions, and the main exception. Consolidate routine disclaimers into a short method note; keep decision-critical caveats beside the claim.
-
-No word-count target, keyword-density target, citation quota, compulsory FAQ, or “ultimate guide” label substitutes for completeness. Cut a section when it does not advance the reader's decision.
-
-### Examples of the editorial judgement required
-
-These are illustrative rewrites, not empirical claims:
-
-| Weak draft | Why it fails | Direction that earns its place |
-|---|---|---|
-| “Human oversight ensures safe outcomes.” | Neither the decision nor the reviewer’s evidence is named | Show a reviewer rejecting an accurate announcement because the proposed recipient group is wrong; identify the audience evidence required for a new decision |
-| “RAG makes company answers accurate and current.” | Retrieval, source authority, and answer correctness are collapsed | Work through a newer draft announcement that contradicts an effective policy; explain why a valid citation to the draft does not establish an approved commitment |
-| “The cheapest model is best for routine work.” | Unit price stands in for the accepted outcome | Compare covered charges and checking/repair effort, then show the assumption under which the preferred configuration changes |
-
-A stronger sentence is only the start. The surrounding article must supply the example, evidence, and reasoning it promises.
-
-## 8. Give visuals an explanatory job
-
-A cover may establish tone. It is not evidence or the article's original contribution. Use diagrams to explain a dependency, boundary, comparison, or decision; use screenshots to show a real state; use charts to display real data or clearly labelled assumptions.
-
-Every explanatory visual must agree with the body text and include a useful caption and text alternative. Label synthetic examples and generated concepts. Avoid seals, shields, graphs, or trophy imagery that implies certification, invulnerability, or measured superiority. Preserve source data and instructions for reproducing an empirical chart or product capture.
-
-Inspect legibility at article and mobile sizes. Offer a full-size diagram when needed, while keeping the explanation understandable in text. Avoid putting essential instructions solely in images. The UI owner must check chosen crops, dimensions, loading, and responsive exports. Related guidance: [Google image best practices](https://developers.google.com/search/docs/appearance/google-images).
-
-## 9. Treat search packaging as a separate responsibility
-
-Use accurate titles, descriptions, bylines, dates, and alt text. Titles must deliver the actual promise of the article. Link to relevant existing destinations; do not register unfinished pages or invent authority through manufactured citations. Add related articles only when their targets exist.
-
-Use Tale's existing canonical, localization, discovery, and structured-data mechanisms. The publication contract includes native EN/DE/FR, appropriate metadata, accessible media/tables, and real built-page verification. Do not claim a source review date is a publication date. Change the public update date only for a substantive revision.
-
-Search performance must be measured after launch against the available baseline. Topic selection and editorial review here do not prove demand, indexing, ranking, AI citations, or conversion lift.
-
-## 10. Apply publication gates without averaging away defects
-
-An article passes only when every applicable gate passes. A good image cannot offset an unsupported claim. A high rubric total cannot offset a broken tutorial. Mark a gate **pass**, **revise**, or **not applicable with a reason**; record evidence for the decision.
-
-| Gate | Pass evidence | Return for revision when… |
-|---|---|---|
-| Reader value | The reader and decision are explicit; the article answers it | The purpose is mostly “rank for this keyword” |
-| Distinct contribution | The editor can point to the worked analysis or useful new synthesis | Removing the brand leaves a generic summary of other pages |
-| Depth and judgement | Reasoning covers the main tradeoff, exception, and alternative | Sources decorate a conclusion chosen in advance |
-| Evidence | Material claims trace to appropriate evidence with transfer limits | Citation does not support the claim, or a number lacks a method |
-| Example integrity | Inputs, result, assumptions, and interpretation fit the article type | A fictional output is written as an observed result |
-| Product accuracy | Scope is correct and public/deployed contradictions are resolved | The cited public capability is missing, obsolete, or broader than verified |
-| Usefulness | A reader can apply the method; each standalone download includes a labelled filled excerpt or a direct link to its exact worked section, followed by the reusable blank version | A download leaves readers to infer the difficult fields or lacks an accessible worked example |
-| Writing | The argument progresses; each section earns its place | Repetition, vague advice, forced keywords, or padding dominates |
-| Visuals and access | Media explains accurately; narrow-screen and keyboard paths work | A visual overclaims, labels clip, or content needs an image to be understood |
-| Release integrity | Real ownership, locales, URLs, metadata, links, and checks are complete | Draft assets or unverified destinations are advertised as published |
-
-Reviewers must try to defeat the central recommendation with a plausible case, trace the strongest empirical claim to its method, and reproduce any worked arithmetic. A different reviewer checks the topic from the writer; use qualified product/editorial ownership for final publication. Automated checks catch structure and links. They cannot prove an article is interesting, fair, or true.
-
-## Review record to copy into the handoff
-
-```text
-Topic ID / article / revision:
-Reader and decision:
-One-sentence thesis and main exception:
-Most useful original contribution (section/artifact):
-Strongest evidence and its transfer limit:
-Best counterargument; what it changed:
-Worked example type: observed / synthetic / analytical
-Arithmetic or procedure verification:
-Product version and public-source parity:
-Gate verdicts with evidence:
-Writer / independent reviewer / accountable publication owner:
-Open defects and exact next action:
-Verdict: revise / editorial review complete / ready to publish
-Review date and trigger for the next review:
-```
-
-“Editorial review complete” does not mean “ready to publish.” Keep unresolved source/deployment, ownership, locale, and integration work visible. If publication is postponed, retain the stable topic ID and check changing facts again before release.
-
-## Basis and maintenance
-
-These detailed gates are our editorial judgement. Google's guidance supports useful original work and accurate authorship; it does not prescribe a word count, and E-E-A-T is not a single ranking factor. [People-first content guidance](https://developers.google.com/search/docs/fundamentals/creating-helpful-content), reviewed 3 October 2026.
-
-Google's current AI-content guidance explicitly calls for manual fact-checking and review before publication, including metadata. Its spam policy addresses large-scale low-value content created to manipulate rankings regardless of how it was produced. [AI-content guidance](https://developers.google.com/search/docs/fundamentals/using-gen-ai-content), [scaled content policy](https://developers.google.com/search/docs/essentials/spam-policies#scaled-content-abuse), reviewed 3 October 2026.
-
-Revisit the standard when a published article misleads a reader, when product behavior changes, or when reviewers repeatedly miss the same defect. Add the concrete failure to the review process; do not accumulate rules that nobody uses. Keep the editorial guidelines separate from machine-enforced repository guards, which still apply to the eventual implementation.
+[Google’s people-first content guidance](https://developers.google.com/search/docs/fundamentals/creating-helpful-content) emphasizes a satisfying answer, useful original contribution and honest authorship; it prescribes no preferred word count. [GOV.UK’s user-needs guidance](https://guidance.publishing.service.gov.uk/writing-to-gov-uk-standards/plan-manage-content/identify-user-needs/) starts from what readers need to do. [Nielsen Norman Group’s writing study](https://www.nngroup.com/articles/applying-writing-guidelines-web-pages/) supports concise, scannable, factual presentation. Its 1998 results are context-specific, not a forecast for this blog. Sources checked 3 October 2026.

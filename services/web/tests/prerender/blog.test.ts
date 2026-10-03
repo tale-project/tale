@@ -60,9 +60,20 @@ describe('prerendered blog', () => {
           ).toBe(
             `/blog/diagrams/${page.locale}/${page.frontmatter.topicId}-diagram.svg`,
           );
-          expect(
-            document.querySelectorAll('article table').length,
-          ).toBeGreaterThan(0);
+          // Render a table when the argument needs one; do not force every
+          // article into the same editorial structure.
+          const source = readFileSync(
+            join(
+              HERE,
+              '../../app/content/blog',
+              page.locale,
+              `${page.slug}.md`,
+            ),
+            'utf8',
+          );
+          expect(document.querySelectorAll('article table').length > 0).toBe(
+            /^\|(?:\s*:?-+:?\s*\|)+\s*$/m.test(source),
+          );
           expect(
             document.querySelectorAll(
               `article a[href^="/blog/worksheets/${page.locale}/"]`,

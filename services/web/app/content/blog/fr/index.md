@@ -1,15 +1,15 @@
 ---
-title: "Guides pratiques pour les équipes et leurs agents IA"
-description: "Prends des décisions éclairées sur les agents IA, les processus, les connaissances et leur déploiement grâce à des exemples et des guides sourcés."
+title: "Des réponses concrètes pour travailler avec des agents IA"
+description: "Choisis un workflow, vérifie une réponse IA ou évalue ton projet pilote. Des guides avec des exemples, des sources et des fiches pour ton équipe."
 slug: blog
 reviewed: '2026-10-03'
 draft: false
 ---
 
-Commence par la décision que ton équipe doit prendre. Ces guides expliquent les choix à faire pour coordonner des agents IA, vérifier leur travail et choisir les outils et le mode de déploiement adaptés. Chacun propose un exemple détaillé, des sources et une fiche réutilisable.
+Cette tâche a-t-elle besoin d’un agent ? Pourquoi une réponse est-elle fausse malgré sa citation ? Le projet pilote fait-il gagner du temps ? Ces guides abordent les questions qui se posent quand une équipe utilise l’IA pour son travail.
 
-## Quelle décision dois-tu prendre ?
+## Trouve la réponse à ton problème
 
-Commence par [le choix entre agents et processus fixes](/fr/blog/ai-agents-vs-workflow-automation). La sélection ci-dessous aborde ensuite la coordination, la vérification, les connaissances et le déploiement. Pour configurer le produit, consulte la [documentation de Tale](https://docs.tale.dev/fr/platform).
+Commence par [le choix entre agent et workflow](/fr/blog/ai-agents-vs-workflow-automation) pour choisir une approche. Consulte [le diagnostic d’une réponse erronée](/fr/blog/enterprise-rag-project-knowledge) si ton équipe utilise déjà une base de connaissances, ou [l’évaluation d’un projet pilote](/fr/blog/evaluate-ai-agents-business-tasks) pour décider de poursuivre ou non.
 
-Les exemples sont fictifs. Leurs calculs expliquent une méthode ; ils ne présentent ni mesures de performance de Tale ni résultats obtenus par des clients.
+Les articles proposent des exemples à adapter et des fiches facultatives pour approfondir. Pour configurer le produit, consulte la [documentation de Tale](https://docs.tale.dev/fr/platform).

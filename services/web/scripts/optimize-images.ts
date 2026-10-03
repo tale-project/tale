@@ -165,7 +165,7 @@ export interface ImageManifestEntry {
 
 export const ${exportName} = ${JSON.stringify(entries, null, 2)} as const satisfies readonly ImageManifestEntry[];
 
-export type ${exportName === 'BLOG_IMAGE_MANIFEST' ? 'BlogImageManifestId' : 'ImageManifestId'} = (typeof ${exportName})[number]['id'];
+${exportName === 'IMAGE_MANIFEST' ? "export type ImageManifestId = (typeof IMAGE_MANIFEST)[number]['id'];\n" : ''}
 `;
   await Bun.write(manifest, body);
   // Match house style so `oxfmt --check` stays green when entries are non-empty.

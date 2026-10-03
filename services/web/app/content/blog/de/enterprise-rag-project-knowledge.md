@@ -1,6 +1,6 @@
 ---
-title: "RAG im Unternehmen: Zugriff, Aktualität und Belege"
-description: "Prüfe gemeinsame KI-Wissensbestände auf Zugriff, Quellenstand und belastbare Zitate. Ein Beispiel zeigt Fehlerdiagnose, Korrektur und begrenzte Einführung."
+title: "Warum die Firmen-KI trotz Quellen falsche Antworten gibt"
+description: "Verfolge eine falsche KI-Antwort bis zur Quelle. Prüfe veraltete Dokumente, fehlenden Text und unbelegte Aussagen, bevor du das Modell wechselst."
 slug: "enterprise-rag-project-knowledge"
 topicId: "T05"
 reviewed: "2026-10-03"
@@ -8,97 +8,62 @@ draft: false
 coverAlt: "Eine ausgewählte Quellenpassage verbindet eine Dokumentbibliothek mit einem geöffneten Bericht."
 ---
 
-Eine gemeinsame KI-Wissensdatenbank sollte ihre Eignung für eine klar definierte Gruppe von Arbeitsfragen nachweisen, bevor sie dafür eingesetzt wird. Das ist eine nützlichere Einführungsentscheidung als die Frage, ob ihre Antworten gut klingen. Bei Retrieval-Augmented Generation, kurz RAG, kann eine flüssige Antwort sauber zitiert sein und trotzdem eine überholte Richtlinie verwenden, einen Vorschlag zur Zusage machen oder eine Quelle offenlegen, auf die der Fragende keinen Zugriff hat.
+Eine Quellenangabe zeigt dir, wo du eine Antwort überprüfen kannst. Sie sagt noch nicht, ob das Dokument aktuell oder freigegeben ist und ob die Antwort seinen Inhalt richtig wiedergibt.
 
-Wir empfehlen, diese Fehler getrennt zu bewerten und danach zu entscheiden, welche Fragen die Sammlung bereits unterstützt. Verbessere die Suche, wenn Belege vorhanden sind, aber im Antwortkontext fehlen. Korrigiere die Quelle oder begrenze den Auftrag, wenn die Belege nicht existieren. Eine größere Sammlung kann keine Entscheidung genehmigen, die die Organisation nicht getroffen hat.
+Wenn eure Firmen-KI falsch antwortet, nimm zunächst eine konkrete Frage und die zitierte Textstelle. Gehe von dort zurück: Ist die Quelle falsch, hat die Suche die richtige Quelle übersehen oder hat das Modell den gefundenen Text missverstanden? Je nach Ursache hilft eine andere Korrektur. Ein Modellwechsel kann das eigentliche Problem bestehen lassen.
 
-## Fünf Fragen trennen, die eine überzeugende Antwort verdeckt
+## Ein Entwurf kann wie eine verbindliche Antwort wirken
 
-RAG findet Material und stellt es einem Modell bereit, das daraus eine Antwort erzeugt. Zwischen Originalquelle und letztem Satz liegen Extraktion, Indexierung, Zugriffsfilterung, Auswahl und Interpretation. Eine Gesamtbewertung kann zeigen, dass etwas schiefging, ohne den richtigen Ansatzpunkt für eine Korrektur zu nennen.
+Angenommen, jemand fragt: „Können wir für diesen Launch Support am Wochenende zusagen?“ In eurer Wissensdatenbank liegen drei Dokumente:
 
-| Frage | Was sie klärt | Was sie nicht klärt |
-| --- | --- | --- |
-| Ist das gefundene Material relevant? | Es betrifft die Frage | Es enthält genügend Belege für die Antwort |
-| Reicht der Kontext aus? | Die nötigen Fakten sind vorhanden | Die Fakten sind aktuell oder maßgeblich |
-| Ist die Antwort quellentreu? | Ihre Aussagen folgen aus dem bereitgestellten Material | Das Material beschreibt die tatsächliche Entscheidung der Organisation |
-| Ist die Quelle maßgeblich und aktuell? | Sie ist die vorgesehene Grundlage dieser Entscheidung | Dieser Nutzer darf darauf zugreifen |
-| Ist der Zugriff erlaubt? | Die Quelle ist im Kontext dieses Nutzers zulässig | Ihre Antwort ist richtig |
+- Die gültige Support-Richtlinie sieht Montag bis Freitag vor. Wochenenden brauchen eine genehmigte Ausnahme.
+- Ein neuerer Launch-Vorschlag beantragt Wochenend-Support; die Genehmigung steht noch aus.
+- Im Entwurf der Ankündigung steht: „Wir bieten Support am Wochenende.“
 
-Das ist eine Unterscheidung zur Fehlerdiagnose, kein vorgeschlagener allgemeiner Bewertungsstandard. Eine fehlende Genehmigung ist ein Belegproblem; ein Genehmigungsnachweis, der in den gefundenen Passagen fehlt, ist ein Suchproblem. Beide können dieselbe unbelegte Antwort erzeugen, verlangen aber unterschiedliche Abhilfe.
+Eine Antwort, die die Ankündigung zitiert, wirkt zunächst gut belegt. Der Entwurf wiederholt aber genau die Zusage, die ihr erst überprüfen wollt. Er kann sie nicht genehmigen.
 
-Die Forschung stützt diese Trennung. Die Studie *Sufficient Context* unterscheidet, ob der Kontext eine Frage beantworten kann und ob das Modell ihn korrekt nutzt. In ihren Frage-Antwort-Experimenten verbesserte die Suche die Gesamtleistung, während Modelle häufig falsch antworteten, statt auf eine Antwort zu verzichten. Ausreichender Kontext beseitigte Fehler ebenfalls nicht. Manche Antworten waren trotz unzureichenden Kontexts richtig, darunter Fälle mit Modellwissen oder Mehrdeutigkeit. Diese Benchmark-Ergebnisse belegen keine Fehlerquote für interne Richtlinienfragen. [Joren und Kollegen, ICLR 2025](https://arxiv.org/html/2411.06037v3).
+Hilfreich wäre: **„Der reguläre Support läuft Montag bis Freitag. Für das Wochenende braucht der vorliegende Vorschlag noch eine Genehmigung. Prüfe die genehmigte Ausnahme, bevor du Wochenend-Support zusagst.“** Damit bleibt auch offen, ob die Genehmigung anderswo vorliegt und in dieser Sammlung fehlt.
 
-Bei internen Zusagen ist eine plausible Antwort aus Modellwissen ein besonders schwacher Nachweis. Ein Modell mag übliche Supportpraktiken kennen. Es kann nicht belegen, dass eure Ausnahme zum Produktstart gestern genehmigt wurde.
+Kennzeichne Vorschlag und Ankündigung als Entwürfe und mache die gültige Richtlinie eindeutig erkennbar, bevor du den Prompt änderst. Das letzte Änderungsdatum sagt dem System nicht, welches Dokument verbindlich ist.
 
-![Der Zugriffskontext begrenzt zulässige Quellen, die Suche findet Passagen, und ein Prüfer kontrolliert, ob Zitate den Entwurf stützen. Dokumentaktualität und aktuelle Berechtigungen werden getrennt geprüft.](/blog/diagrams/de/T05-diagram.svg)
+## Finde heraus, wo die Antwort falsch wurde
 
-## Eine Entscheidung zum Produktstart durchspielen
+Retrieval-Augmented Generation, kurz RAG, durchsucht eure Inhalte und gibt passende Textstellen an ein Modell weiter. Ein Dokument kann in der Antwort fehlen, weil sein Text nie indexiert wurde, die Suche es übersehen hat oder die falschen Abschnitte ausgewählt wurden. Das Modell kann auch eine Textstelle missverstehen, die ihm tatsächlich vorlag.
 
-Das folgende Quellenpaket und die Antwortvorschläge sind erfunden. Sie zeigen, wie eine Entscheidung bewertet werden kann, und behaupten weder eine Tale-Ausführung noch ein gemessenes Ergebnis.
+Prüfe die konkrete falsche Antwort mit dieser Tabelle:
 
-Eine projektverantwortliche Person fragt: „Welche Supportzeiten dürfen wir in der Ankündigung zum Produktstart zusagen?“ Die Sammlung enthält:
+| Was du feststellst | Was du als Nächstes tun kannst |
+| --- | --- |
+| Das zitierte Dokument ist veraltet oder noch ein Entwurf | Benenne die gültige Quelle und kennzeichne die alte oder nicht freigegebene Fassung eindeutig. |
+| Das richtige Dokument ist hochgeladen, sein Text aber nicht durchsuchbar | Prüfe Textextraktion und Indexierung. Ein gescanntes PDF braucht gegebenenfalls eine Fassung mit lesbarem Text. |
+| Der richtige Text ist durchsuchbar, fehlt aber im übergebenen Kontext | Untersuche Suche und Auswahl anhand genau der Frage, die fehlgeschlagen ist. |
+| Die richtige Textstelle liegt vor, aber die Antwort verändert ihren Sinn | Prüfe die Interpretation des Modells an dieser Stelle, einschließlich Bedingungen und Ausnahmen. |
+| Keine vorhandene Quelle klärt die Frage | Frage die verantwortliche Person. Eine flüssigere Formulierung ersetzt die fehlende Entscheidung nicht. |
 
-| Quelle | Inhalt und Verbindlichkeit | Zugriff |
-| --- | --- | --- |
-| SRC-01 | Gültig ab 1. Oktober: regulärer Support von Montag bis Freitag; Wochenenden erfordern eine genehmigte Ausnahme | Gemeinsame Referenz |
-| SRC-02 | Vorschlag zum Produktstart vom 2. Oktober: Wochenendsupport vorgeschlagen; Genehmigung ausstehend | Einführungsprojekt |
-| SRC-03 | Ankündigungsentwurf vom 2. Oktober: „Wir bieten Wochenendsupport“ | Einführungsprojekt |
-| SRC-05 | Alte Richtlinie, seit 1. Oktober ersetzt: regulärer Support schließt Samstage ein | Gemeinsames Archiv |
+Halte Frage, Quellenstand, zitierte Textstelle und Antwort zusammen fest. Wenn du die an das Modell übergebenen Abschnitte einsehen kannst, speichere sie ebenfalls. Sichtbare Quellenangaben zeigen nicht alles, was das Modell gesehen hat. Deshalb lässt sich ein Suchfehler möglicherweise noch nicht von einem Interpretationsfehler unterscheiden.
 
-Auf dieser Grundlage ist es richtig, keine Wochenendzusage zu machen und nach dem Ausnahmenachweis zu fragen. Das ist enger als die Behauptung, nirgendwo existiere eine Genehmigung. Die Sammlung belegt einen offenen Vorschlag und enthält keine spätere Genehmigung.
+Quellenangaben und sachliche Richtigkeit brauchen jeweils eine Prüfung. Der [Forschungsbenchmark ALCE](https://arxiv.org/abs/2305.14627) bewertet beides; eine vorhandene Quellenangabe gilt dort nicht schon als Beweis für eine richtige Antwort.
 
-Betrachte nun drei konstruierte Antworten:
+In Tale sind Speichern und Indexieren getrennte Zustände. Prüfe den Indexierungsstatus, bevor du die Antwort testest. Eine weitere Datei mit demselben Namen erzeugt außerdem einen eigenen Eintrag und ersetzt die alte nicht. Details stehen im [Dokumente-Leitfaden](https://docs.tale.dev/de/platform/knowledge/documents).
 
-| Antwortvorschlag | Diagnose | Besserer nächster Schritt |
-| --- | --- | --- |
-| „Wochenendsupport ist bestätigt“, mit SRC-03 | Wiederholt die Entwurfsformulierung, behandelt den Entwurf aber als maßgebliche Entscheidung | Quellenrangfolge korrigieren und die unbelegte Zusage kennzeichnen |
-| „Support umfasst Samstage“, mit SRC-05 | Das Zitat stützt die Worte, aber die Richtlinie ist überholt | Gültige Richtlinie auffindbar machen und Revisionsauswahl testen |
-| „Support von Montag bis Freitag ist belegt. Wochenendsupport ist vorgeschlagen; vor einer Zusage wird die genehmigte Ausnahme benötigt“, mit SRC-01 und SRC-02 | Belegt bekannte Fakten und benennt die fehlende Entscheidung | Die Ausnahmefrage der zuständigen Person zuweisen |
+![Die Zugriffsprüfung bestimmt, welche Quellen verwendet werden dürfen. Die gefundenen Textstellen und ihre Fassungen müssen anschließend die Antwort belegen. Änderungen an Inhalten und Rechten brauchen getrennte Prüfungen.](/blog/diagrams/de/T05-diagram.svg)
 
-Eine reine Prüfung der Zitatqualität würde einen Teil dieses Problems übersehen. Der ALCE-Benchmark bewertet Antwortkorrektheit und Zitatqualität getrennt und fand in getesteten Systemen unvollständige Belege. Seine Ergebnisse rechtfertigen die Prüfung jeder Aussage; sie machen ein Zitat nicht zur Garantie einer gültigen Richtlinie. [Gao und Kollegen: ALCE](https://arxiv.org/abs/2305.14627).
+## Teste die Entscheidung erneut, nicht nur den Wortlaut
 
-Bewahre drei kleine Nachweise auf, damit die Antwort überprüfbar wird: die genaue Frage, soweit einsehbar die zur Generierung bereitgestellten Passagen und die endgültigen Aussagen mit Zitaten. Zeigt das Produkt nicht den gesamten gefundenen Kontext, kennzeichne die Suchdiagnose als unsicher. Sichtbare Zitate belegen nicht alles, was das Modell gesehen hat.
+Stelle die ursprüngliche Frage nach der Korrektur in einem neuen Gespräch. Formuliere sie dann anders. Im Support-Beispiel sollten „Gehört Samstag dazu?“ und „Können wir Wochenend-Support anbieten?“ derselben Richtlinie folgen.
 
-## Die fehlerhafte Ebene korrigieren
+Ändere anschließend die Belege: Ergänze eine genehmigte Wochenend-Ausnahme für diesen Launch. Jetzt sollte sich die Antwort ändern. Ein Assistent, der Wochenend-Support immer ablehnt, hat das Problem ebenfalls nicht gelöst.
 
-Angenommen, die erfundene Antwort verspricht fälschlich Wochenendsupport. Beginne mit dem Quelleneintrag, nicht mit einem neuen Prompt.
+Bewahre diese Fälle als kleinen wiederholbaren Test auf. Ergänze Fragen, die im Team tatsächlich gestellt wurden, darunter eine, die die Dokumente nicht beantworten können. Notiere vor dem Test die erwartete Antwort und die zugehörige Quelle. So kannst du mehr vergleichen als nur den Eindruck, dass die nächste Antwort besser klingt.
 
-Wurde SRC-01 wegen eines unlesbaren Scans nie indexiert, ersetze oder repariere die Quelle und prüfe die Indexierung. War sie indexiert, fehlte aber in den bereitgestellten Passagen, untersuche Suche oder Kontextauswahl. Waren Richtlinie und Vorschlag vorhanden und lautete die Antwort trotzdem „genehmigt“, teste den Umgang des Modells mit diesem ausdrücklichen Widerspruch. Alle drei Ebenen gleichzeitig zu ändern kann ein Beispiel verbessern, ohne dass der Grund erkennbar bleibt.
+Bei häufig geänderten Quellen solltest du auch eine Aktualisierung testen: Ändere ein unkritisches Detail, warte den normalen Import und die Indexierung ab und frage in einem neuen Gespräch danach. Prüfe, ob die Antwort die neue Fassung verwendet. Gehe nicht davon aus, dass eine hochgeladene Kopie automatisch ihrem Original folgt.
 
-Stelle nach der Korrektur die ursprüngliche Frage in einem neuen Gespräch und danach eine Umformulierung. Ergänze einen Gegenfall: eine genehmigte, datierte Wochenendausnahme für diesen Produktstart. Die erwartete Antwort muss sich nun ändern. Ein System, das Wochenendsupport immer verweigert, hat die Testformulierung statt der Entscheidungsregel gelernt.
+## Prüfe den Zugriff, bevor du weitere Dokumente hinzufügst
 
-Tale unterscheidet herunterladbare von indexierten Dateien. Der [Dokumentenleitfaden](https://docs.tale.dev/de/platform/knowledge/documents) beschreibt unterstützte Formate und die Notwendigkeit lesbaren Texts in gescannten PDFs. Ein weiterer Upload mit demselben Dateinamen erzeugt einen separaten Eintrag. Erfasse Quellenkennungen und Revisionen, damit eine Reparatur nicht unbemerkt eine weitere widersprüchliche Kopie hinzufügt.
+Fehlt eine Quelle, wirken großzügigere Zugriffsrechte vielleicht wie eine schnelle Lösung. Kläre zuerst, ob die fragende Person diese Quelle überhaupt verwenden darf.
 
-## Zugriff als Voraussetzung behandeln, nicht als Durchschnittswert
+In Tale kann der Projektchat die Dateien seines Projekts und zugängliches Organisationswissen durchsuchen. Der Organisationschat durchsucht keine Projektdateien. Ein Projektagent braucht zusätzlich die passenden Tools. Diese Grenzen beschreiben die [Wissensübersicht](https://docs.tale.dev/de/platform/knowledge/overview) und der [Leitfaden zu Projektdateien](https://docs.tale.dev/de/platform/projects/manage-files).
 
-Eine gute Antwort für neun Nutzer gleicht die Offenlegung einer eingeschränkten Quelle gegenüber dem zehnten nicht aus. Halte Berechtigungsfehler von Qualitätsdurchschnitten getrennt und untersuche sie, bevor du diesen Einsatzbereich erweiterst.
+Teste mit einem gewöhnlichen Mitgliedskonto, nicht nur als Administrator. Prüfe neben der Antwort auch Quellentitel, Vorschau, Quellenangabe und Download. Teste nach einem Rechteentzug erneut in einem frischen Gespräch. Sieh dir bestehende Gespräche und Ergebnisse gesondert an: Dort können bereits kopierte Informationen stehen.
 
-Verwende zwei gewöhnliche Nutzer mit unterschiedlichen Zugriffsrechten. Teste Titel, Ausschnitte, Zitate, Downloads und Antworten, nicht nur das wörtliche Erscheinen des geschützten Satzes. Wiederhole das nach Mitgliedschaftsänderungen sowohl in einem neuen als auch in einem bestehenden Gespräch. Entzogener Zugriff für künftige Suchabfragen löscht keine früher im Gespräch offengelegten oder in Ergebnisse kopierten Informationen. Diese erhaltenen Artefakte sind gesondert zu prüfen.
-
-Berechtigungsprüfungen hängen außerdem von aktuellen Eingaben ab. Microsoft beschreibt für Azure AI Search die Durchsetzung bei der Abfrage anhand indexierter Berechtigungsmetadaten und deren notwendige Aktualisierung bei geänderten Quellrechten. Die nativen Berechtigungsmechanismen enthalten Vorschaufunktionen und unterscheiden sich nach Quelle. Übertragbar ist die Empfehlung, die Aktualität von Berechtigungen ebenso wie die von Inhalten zu messen. [Microsoft: Zugriffskontrolle auf Dokumentebene](https://learn.microsoft.com/en-us/azure/search/search-document-level-access-overview).
-
-In Tale kann der Projektchat Projektdateien und zugängliches Organisationswissen durchsuchen; der Organisationschat durchsucht keine Projektdateien. Projektagenten benötigen die entsprechenden eingerichteten Tools. Bibliotheksdokumente sind standardmäßig organisationsweit zugänglich und können auf Teams beschränkt werden; Inhaber und Admins haben weitergehenden Zugriff. Prüfe deshalb die Zielgruppe einer importierten Kopie, statt eine automatische Übernahme der Berechtigungen aus dem Quellsystem anzunehmen. [Wissensumfang](https://docs.tale.dev/de/platform/knowledge/overview), [Dokumentzugriff](https://docs.tale.dev/de/platform/knowledge/documents) und [Projektdateien](https://docs.tale.dev/de/platform/projects/manage-files) erläutern die Grenzen.
-
-## Aktualität an der geschäftlichen Entscheidung ausrichten
-
-Ein aktueller Zeitstempel genügt nicht. Im Einführungsbeispiel ist ein heute Morgen bearbeiteter Vorschlag weiterhin weniger verbindlich als eine gestern genehmigte Ausnahme. Erfasse Verantwortliche, Verbindlichkeit, Gültigkeitsdatum und ersetzte Quelle getrennt vom letzten Bearbeitungszeitpunkt.
-
-Beobachte dann die Verzögerung zwischen einer Quellenänderung und einer Antwort, die sie verwendet. Erfasse Änderungszeit, Abschluss von Einlesen und Indexierung sowie die erste Abfrage in einem neuen Gespräch, die die gewünschte Revision nutzt. AWS weist darauf hin, dass manche Bedrock-Vektorspeicher auch nach abgeschlossenem Einlesen erst verzögert für Abfragen verfügbar sein können. Auf den hilfreichen Nachweis eines abgeschlossenen Vorgangs sollte daher eine Abfrage folgen. [Synchronisierung in Amazon Bedrock](https://docs.aws.amazon.com/bedrock/latest/userguide/kb-data-source-sync-ingest.html).
-
-Tale unterscheidet einmalige Importe von unterstützten Synchronisierungsimporten. Persönliche OneDrive-Ordner unterstützen Synchronisierung; ausgewählte SharePoint-Inhalte werden einmalig importiert. Native Google Docs, Sheets und Slides müssen in unterstützte Dateien exportiert werden. Prüfe das Verhalten der gewählten Inhalte im [Importleitfaden](https://docs.tale.dev/de/platform/knowledge/documents). Ändert sich eine zeitkritische Entscheidung schneller als euer nachgewiesener Aktualisierungsweg, nutze die maßgebliche Quelle direkt, bis die neue Revision durchsuchbar ist.
-
-## Entscheiden, ob bessere Suche die nächste sinnvolle Investition ist
-
-Der stärkste Einwand lautet, dass dieses Verfahren für ein kleines Team mit sechs Dokumenten übertrieben wirkt. Das trifft häufig zu. Ein kurzes, stabiles, genehmigtes Paket, auf das alle Beteiligten zugreifen dürfen, lässt sich möglicherweise leichter direkt prüfen als ein Projekt zur Suchbewertung pflegen. Vergleiche die Antwort trotzdem mit dem Paket; das Modell kann auch vollständigen Kontext falsch verstehen.
-
-Bei exaktem Betriebszustand ändert sich die Empfehlung erneut. „Welche Bestellung ist gerade blockiert?“ benötigt möglicherweise einen aktuellen strukturierten Datensatz statt eines indexierten Absatzes aus dem gestrigen Export. Tales [Wissensleitfaden](https://docs.tale.dev/de/platform/knowledge/overview) unterscheidet Dokumente von Kontakten und Produkten, die als Datensätze gepflegt werden. Wähle die Darstellung, die den entscheidungsrelevanten Fakt erhält.
-
-RAG rechtfertigt seinen Betriebsaufwand, wenn Menschen wiederholt relevante Ausschnitte aus einer größeren, veränderlichen Sammlung brauchen und der Suchweg ihre Zugriffsrechte beachten kann. Auch dann sollte ein nur vom Quellenverantwortlichen lösbarer Widerspruch zu einer zugewiesenen Frage werden, statt eine weitere Suchrunde auszulösen.
-
-## Eine begrenzte Einführungsentscheidung treffen
-
-Kopiere das [Arbeitsblatt zur Wissensabnahme](/blog/worksheets/de/T05-knowledge-acceptance.md). Es enthält das erfundene Quellenpaket, ein ausgefülltes Bewertungsbeispiel, einen Korrekturweg und Fälle zu eingeschränktem Zugriff, veralteten Vorgaben, fehlenden Belegen und geänderten Schlussfolgerungen.
-
-Berichte Antwortqualität bei beantwortbaren Fällen getrennt vom angemessenen Verzicht auf unbeantwortbare Aussagen. Ein System, das alles verweigert, sollte nicht als nützlicher Assistent bestehen. Halte Fehler und nicht eindeutig bewertbare Versuche sichtbar. Ein Fall ist nicht bestanden, wenn Zugriffskontext oder Quellenstand nie geprüft wurden.
-
-Die Entscheidung kann konkret lauten: „Nutze diese Sammlung für reguläre Supportfragen; Ausnahmen zum Produktstart benötigen weiterhin die Bestätigung der quellenverantwortlichen Person.“ Damit erhalten Teammitglieder jetzt nützliches Wissen und einen klaren Verbesserungsauftrag. Bring einen solchen Quellenbestand mit der zugehörigen Entscheidung in eine [Tale-Demo](/de/request-demo) mit.
+Mit der [Vorlage zur Wissensprüfung](/blog/worksheets/de/T05-knowledge-acceptance.md) kannst du die fehlerhafte Frage, Quelle, Korrektur und den erneuten Test festhalten. Beginne mit einer falschen Antwort aus eurem Alltag. Einen nachvollziehbaren Fehler zu beheben hilft mehr, als hundert weitere Dokumente hinzuzufügen, ohne zu wissen, was gefehlt hat.

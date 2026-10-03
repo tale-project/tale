@@ -1,113 +1,63 @@
 ---
-title: "KI-Agenten oder Workflow-Automatisierung?"
-description: "Wähle feste Abläufe, einen Modellschritt oder KI-Agenten anhand eines konkreten Berichts. Mit Entscheidungsmatrix, Belegen und Abnahmekriterien."
-slug: "ai-agents-vs-workflow-automation"
-topicId: "T03"
-reviewed: "2026-10-03"
+title: "KI-Agent oder Workflow: Was braucht diese Aufgabe?"
+description: "Wähle feste Schritte, einen Modellaufruf oder einen Agenten für deinen Bericht. Rechne nach klaren Regeln und untersuche nur, was offenbleibt."
+slug: ai-agents-vs-workflow-automation
+topicId: T03
+reviewed: '2026-10-03'
 draft: false
 coverAlt: "Ein fester und ein verzweigter Weg führen zu einem gemeinsamen Arbeitsergebnis."
 ---
 
-Ein Monatsbericht kann die richtigen Schritte durchlaufen, jede Summe korrekt berechnen und trotzdem die falsche Geschichte erzählen. Acht Rückmeldungen erwähnen Einrichtungsprobleme. Ein Agent macht daraus: „40 % der Kunden haben Schwierigkeiten beim Einstieg.“ Für die bereitgestellten Rückmeldungen mag die Rechnung stimmen; die Aussage über Kunden ist damit nicht belegt.
+Nutze einen festen Workflow, wenn du Schritte und Entscheidungsregeln im Voraus festlegen kannst. Ein Agent ist sinnvoll, wenn er ein Ergebnis untersuchen und dann entscheiden muss, was er als Nächstes prüft oder tut. Für eine Zusammenfassung mitgelieferter Texte kann ein einziger Modellaufruf reichen.
 
-Die Entscheidung zwischen KI-Agenten und Workflow-Automatisierung legt fest, wo das System urteilen darf. Workflow-Automatisierung eignet sich für Schritte, deren Regeln vorab definierbar sind. Ein Agent wird nützlich, wenn Beobachtungen bestimmen, welche erlaubte Aktion als Nächstes sinnvoll ist. Viele Geschäftsprozesse brauchen beides, aber jeweils mit einem präzisen Auftrag.
+Diese Ansätze lassen sich im selben Prozess verbinden. Ein Monatsbericht kann feste Schritte zur Berechnung von Summen, ein Modell zur Zusammenfassung von Kommentaren und einen Agenten zur Untersuchung einer unerklärten Veränderung nutzen. Kläre zuerst, was jeder Teil leisten soll, und wähle danach den Aufbau.
 
-**Halte Zählregeln und erforderliche Kontrollen ausdrücklich fest. Gib einem Agenten Entscheidungsspielraum für eine begrenzte Untersuchung, deren Schlussfolgerungen überprüfbar sind.** Prüfe vor dieser zusätzlichen Komplexität, ob ein einzelner Modellschritt oder die Bearbeitung von Ausnahmen durch eine Person ausreicht.
+## Wer entscheidet über den nächsten Schritt?
 
-## Ablaufsteuerung und erzeugten Inhalt trennen
+Ein Workflow folgt den Schritten und Verzweigungen, die du vorgibst. Ein Agent wählt seine nächste Aktion aus den Möglichkeiten, die ihm zur Verfügung stehen. Der Unterschied liegt darin, wer den Ablauf steuert, nicht darin, ob überhaupt KI beteiligt ist. So unterscheidet auch [Anthropics Leitfaden zum Aufbau von Agenten](https://www.anthropic.com/engineering/building-effective-agents) die beiden Ansätze.
 
-Ein Workflow legt eine Folge von Schritten oder Verzweigungen fest. Er kann gewöhnlichen Code, einen Sprachmodellaufruf, menschliche Eingaben oder einen Agenten enthalten. Ein Agent kann Aktionen auswählen, ihre Ergebnisse prüfen und seinen nächsten Schritt am Ziel ausrichten.
+Ein Workflow kann einen Sprachmodellschritt enthalten. „Ordne diese Kommentare Kategorien zu und fasse sie dann zusammen“ bleibt eine vorgegebene Abfolge, auch wenn die Zuordnungen variieren oder falsch sein können. Ein fester Ablauf macht generierte Inhalte nicht automatisch richtig.
 
-Anthropics Architekturleitfaden unterscheidet vorgegebene Workflows von Agenten, die ihren Ablauf und ihre Tools selbst steuern. Dabei geht es um die Kontrolle über die Arbeit; nicht jeder Modellaufruf ist deshalb ein Agent. [Lies Building effective agents](https://www.anthropic.com/engineering/building-effective-agents).
+Ein Agent muss auch nicht die ganze Aufgabe steuern. Du kannst ihn eine Frage untersuchen lassen und Berechnungen, Datenänderungen und Versand weiterhin in festgelegten Schritten ausführen.
 
-Zwei Eigenschaften werden leicht verwechselt. Eine Steuerung kann immer zuerst klassifizieren und anschließend zusammenfassen. Die Klassifizierung selbst kann trotzdem variieren oder falsch sein. Googles ADK-Beispiel verdeutlicht das mit einer sequenziellen Steuerung von KI-Unteragenten; die Dokumentation weist zugleich auf Änderungen an neueren ADK-Workflow-Strukturen hin. [Mehr zur sequenziellen Steuerung](https://adk.dev/agents/workflow-agents/sequential-agents/).
+![Ein fester Workflow folgt vorgegebenen Schritten, ein Agent wählt Aktionen anhand seiner Beobachtungen. Ein kombinierter Ablauf setzt eine begrenzte Untersuchung durch einen Agenten zwischen Validierung und Prüfung.](/blog/diagrams/de/T03-diagram.svg)
 
-Ebenso braucht ein Agent keine Befugnis über den gesamten Prozess. Er kann eine Auffälligkeit untersuchen und Belege zurückgeben, während feste Schritte für Validierung, Summen, Datensatzänderungen und Verteilung zuständig bleiben. Die Architektur sollte zeigen, wo Unsicherheit entsteht, wo Handlungsspielraum nützt und wo eine falsche Antwort erkannt wird.
+## Geh einen monatlichen Feedbackbericht durch
 
-![Ein Workflow folgt festen Schritten. Ein Agent beobachtet, entscheidet und verwendet Tools in einer Schleife. Ein hybrider Ablauf validiert Eingaben, führt eine begrenzte Agentenaufgabe aus und prüft das Ergebnis.](/blog/diagrams/de/T03-diagram.svg)
+Ein Beispiel: Ein Team erhält 22 Feedbackzeilen. Zwei wiederholen eine bereits vorhandene Feedback-ID. Nach der vereinbarten Regel, je ID eine Zeile zu behalten, bleiben 20 verschiedene Rückmeldungen.
 
-## Veranschaulichendes Beispiel: mit einem abgestimmten Feedbackbericht beginnen
+Acht sind bereits der Kategorie Einrichtung zugeordnet. Im Vormonat waren es vier von 20. Der Anteil dieser Kategorie am erfassten Feedback ist damit von 20 % auf 40 % gestiegen, also um 20 Prozentpunkte.
 
-Angenommen, ein Team erhält einen monatlichen Export und möchte wissen, ob Einrichtungsprobleme näher untersucht werden sollten. Alle Datensätze und Zahlen in diesem Beispiel sind erfunden.
+Das sind Berechnungen, für die ein Agent keinen Entscheidungsspielraum braucht. Ein definierter Schritt kann die IDs prüfen, die Dublettenregel anwenden, die Kategorien zählen und ausgeschlossene Zeilen aufbewahren. Widersprechen sich zwei Versionen derselben ID, geht dieser Fall an den Berichtsverantwortlichen, statt stillschweigend eine Version zu wählen.
 
-Der Export enthält 22 Zeilen. Zwei wiederholen eine bereits enthaltene Feedbackkennung. Nach der vereinbarten Regel des Teams bleibt pro Kennung eine Zeile, also 20 unterschiedliche Rückmeldungen. Jede verbleibende Rückmeldung hat eine bestehende Hauptkategorie. Der Vormonatsvergleich umfasst nach denselben Regeln ebenfalls 20 unterschiedliche Rückmeldungen.
+Was danach sinnvoll ist, hängt von der eigentlichen Frage ab:
 
-| Hauptkategorie | Vormonat | Aktueller Monat |
-| --- | ---: | ---: |
-| Einrichtung | 4 | 8 |
-| Abrechnung | 6 | 5 |
-| Zuverlässigkeit | 5 | 4 |
-| Sonstiges | 5 | 3 |
-| Gesamt | 20 | 20 |
-
-Die Rechnung ist eindeutig. Der Anteil der Einrichtungsthemen an den erfassten Rückmeldungen steigt von `4 / 20 = 20 %` auf `8 / 20 = 40 %`, also um 20 Prozentpunkte. Die Anzahl verdoppelt sich. Keine der beiden Aussagen belegt, dass doppelt so viele Kunden ein Einrichtungsproblem hatten: Ein Kunde könnte mehrere unterschiedliche Rückmeldungen abgeben, oder das Erfassungsverfahren könnte sich geändert haben.
-
-Ein festgelegter Workflow kann Kennungen validieren, die vereinbarte Duplikatregel anwenden, Kategorien prüfen, Zahlen berechnen und ausgeschlossene Zeilen dokumentieren. Ein Agent sollte nicht stillschweigend entscheiden, dass zwei unterschiedliche Kennungen „wie Duplikate aussehen“, Kategorien ändern oder Kunden als Nenner einsetzen. Solche Änderungen verändern die Messung.
-
-Auch die vereinbarten Regeln können unzureichend sein. Haben zwei Zeilen dieselbe Kennung, aber widersprüchlichen Text, braucht der Workflow einen ausdrücklichen Ausnahmeweg. Die deterministische Ausführung einer schlechten Regel liefert weiterhin ein schlechtes Ergebnis. Die verantwortliche Person muss vor der Abnahme der Zahlen festlegen, wie widersprüchliche Versionen behandelt werden.
-
-## Entscheiden, ob eine Untersuchung wirklich nötig ist
-
-Die berichtsverantwortliche Person hat nun drei mögliche Anliegen. Jedes verlangt einen anderen Aufbau.
-
-| Tatsächliches Anliegen | Kleinster plausibler Aufbau | Was würde mehr Handlungsspielraum rechtfertigen? |
-| --- | --- | --- |
-| Vereinbarte Kategorien zählen | Festgelegte Validierung, Berechnung und Vorlage | Dieses Anliegen erfordert keine offene Untersuchung |
-| Die acht bereitgestellten Einrichtungsmeldungen zusammenfassen | Ein Modellschritt mit Quellenverweisen und Prüfung | Das Paket beantwortet die Frage nicht, und weitere Belege sind verfügbar |
-| Mögliche Gründe für die Veränderung untersuchen | Begrenzte Agentenuntersuchung oder menschliche Untersuchung | Jede Erkenntnis bestimmt, welche erlaubte Quelle als Nächstes geprüft wird |
-
-Beim dritten Anliegen findet eine erste Sichtung beispielsweise drei Meldungen zu Einladungen, zwei zu Single Sign-on (SSO), zwei zu Importen und eine unklare Meldung. Das sind vorgeschlagene Anmerkungen zu den acht Datensätzen, keine neuen offiziellen Berichtskategorien.
-
-Die Einladungsthemen führen zur bereitgestellten Berechtigungsreferenz. Die Anmeldethemen verweisen auf einen genehmigten Versionshinweis. Die Importbeschwerden betreffen unterschiedliche Dateiformate. Innerhalb einer breiten Kategorie könnten mehrere unabhängige Gründe vorliegen. Ein Agent könnte nützen, weil die ersten Belege bestimmen, was als Nächstes zu prüfen ist. Wäre sämtliches Material bereits in einem kurzen Paket enthalten, könnte ein einzelner Analyseaufruf mit anschließender Prüfung dasselbe leisten.
-
-Erlaube keine externen Änderungen allein deshalb, weil die Untersuchung mehrere Tools braucht. Die erlaubte Referenzsammlung zu lesen und Erklärungen vorzuschlagen, ist ein vollständiger, nützlicher Auftrag. Kundendatensätze zu ändern oder eine Ursachenmeldung zu veröffentlichen, ist eine separate Entscheidung.
-
-## Eine Erklärung verlangen, die Gegenbelegen standhält
-
-Eine vorgeschlagene Erklärung sollte Belege enthalten, die sie widerlegen könnten. So könnte ein ausgefüllter Teil des Untersuchungsergebnisses aussehen:
-
-| Vorgeschlagene Erkenntnis | Unterstützende Belege | Einschränkung oder Gegenbeleg | Entscheidung |
+| Gewünschtes Ergebnis | Verfügbare Eingaben | Erster Ansatz | Grund |
 | --- | --- | --- | --- |
-| Die Einladungsanleitung sollte geprüft werden | Drei bereitgestellte Meldungen betreffen die Frage, wer Teammitglieder einladen darf | Bisher keine bestätigte Änderung an Berechtigungen oder Dokumentation | Eine begrenzte Anleitungsprüfung anlegen |
-| Eine Änderung der Anmeldung verursachte den Anstieg | Zwei Meldungen erwähnen die Anmeldung; ein Versionshinweis stammt aus demselben Monat | Zeitliche Nähe belegt keine Ursache; die Umgebungen der Meldungen sind ungeprüft | Die Ursache nicht als erwiesen darstellen |
-| Alle Einrichtungsrückmeldungen beschreiben ein Problem | Gemeinsame Hauptkategorie | Import-, Einladungs- und Anmeldethemen unterscheiden sich | Die Zusammenfassung mit einer einzigen Ursache verwerfen |
+| Anzahl je Kategorie melden | Geprüfte Zeilen und vereinbarte Zählregeln | Fester Workflow | Die Rechenschritte stehen bereits fest |
+| Die acht Einrichtungskommentare zusammenfassen | Alle zugehörigen Kommentare | Ein Modellaufruf mit anschließender Prüfung | Weitere Quellen müssen nicht ausgewählt werden |
+| Mögliche Gründe für den Anstieg untersuchen | Kommentare und Erlaubnis, Produktreferenzen hinzuzuziehen | Ein klar begrenzter Agentenauftrag oder eine Person | Die Erkenntnisse bestimmen, welche Quelle als Nächstes geprüft wird |
 
-Ein begründeter Bericht kann nun lauten: „Einrichtungsthemen betreffen diesen Monat acht von 20 erfassten Rückmeldungen, im Vormonat vier von 20. Die Kommentare weisen auf mehrere Themen hin. Die Einladungsanleitung verdient eine gezielte Prüfung; die bereitgestellten Belege zeigen keine gemeinsame Ursache.“
+Die dritte Variante hilft nur, wenn weitere Recherche die Antwort verändern kann. Passt das relevante Material bereits in ein kurzes Dokument, bringt eine zusätzliche Schleife mit Tool-Aufrufen womöglich wenig.
 
-Diese Formulierung nennt einen nächsten Schritt, ohne so zu tun, als beantworte der Export eine andere Frage. Die Untersuchung verbessert die Entscheidung, indem sie Unsicherheit eingrenzt, obwohl sie keine spektakuläre Diagnose liefert.
+## Gib der Untersuchung einen engen Auftrag
 
-Bewahre Originalzeilen und abgenommene Zähltabelle auf. Lege Anmerkungen mit Quellenkennungen separat ab. Genehmigt die verantwortliche Person später neue Kategorien, wiederhole den betroffenen Vergleich nach der neuen Regel und kennzeichne ihn als überarbeitete Analyse. Vermische alte und neue Definitionen nicht in einem Trend.
+Angenommen, beim ersten Lesen fallen drei Beschwerden zu Einladungen auf, zwei zur Einmalanmeldung (SSO), zwei zum Import und eine unklare Rückmeldung. Die Einladungskommentare legen einen Blick in die Berechtigungsreferenz nahe. Die Kommentare zur Anmeldung sprechen dafür, eine Versionsnotiz zu prüfen. Unterschiedliche Befunde führen zu unterschiedlichen nächsten Quellen.
 
-## Die Grenze im Prozessauftrag festhalten
+Das ist eine plausible Aufgabe für einen Agenten. Ein Auftrag könnte lauten:
 
-Für dieses Beispiel wird ein hybrider Ablauf gewählt: Feste Schritte erstellen die Zähltabelle, eine begrenzte Untersuchung analysiert die Einrichtungsrückmeldungen und eine Person prüft die vorgeschlagene Interpretation. Diese Wahl folgt den genannten Anforderungen und ist kein gemessener Überlegenheitsnachweis.
+> Untersuche die acht Einrichtungskommentare anhand der bereitgestellten Produktreferenzen und Versionsnotizen. Liefere mögliche Erklärungen mit Feedback-IDs, belegenden Textstellen und noch fehlenden Fakten. Behalte die bestätigten Zählwerte bei. Frage den Berichtsverantwortlichen, wenn du nicht verfügbare Kontodaten brauchst. Ändere keine Datensätze und veröffentliche den Bericht nicht.
 
-Die Grenze lässt sich in einem kurzen Auftrag festhalten:
+Der Agent kann empfehlen, die Einladungsanleitung zu prüfen, ohne allen acht Kommentaren dieselbe Ursache zuzuschreiben. Zwei Beschwerden zur Anmeldung und eine Veröffentlichung im selben Monat belegen nicht, dass die Veröffentlichung den Anstieg verursacht hat.
 
-> Untersuche die acht bereitgestellten Einrichtungsrückmeldungen anhand der erlaubten Produktreferenzen und Versionshinweise. Liefere vorgeschlagene Erklärungen mit Datensatzkennungen, unterstützenden Passagen, Gegenbelegen und fehlenden Fakten. Bewahre die abgenommene Zähltabelle. Frage die verantwortliche Person, wenn die Antwort nicht verfügbare Kontodaten erfordert. Ändere keine Datensätze und verteile keine Schlussfolgerungen.
+Ebenso darf aus „40 % des erfassten Feedbacks betreffen die Einrichtung“ nicht „40 % der Kunden haben Probleme mit der Einrichtung“ werden. Der Export liefert diese Gesamtzahl der Kunden nicht. Prüfe die vorgeschlagene Erklärung an den ursprünglichen Datensätzen, nicht nur an ihrer sauberen Darstellung.
 
-Der Workflow prüft, ob jede zitierte Rückmeldung zu den erlaubten Eingaben gehört und ob alle Pflichtfelder vorhanden sind. Der Prüfer kontrolliert, ob die Belege die Interpretation tatsächlich tragen. Eine gültige strukturierte Antwort belegt, dass sich die Ausgabe verarbeiten lässt; sie belegt nicht, dass die Erklärung stimmt.
+## Teste den einfachsten Ansatz, der die Frage beantwortet
 
-Begrenze die Untersuchung durch verfügbare Tools, Fragen, Zeit oder Versuche und ein nützliches Ergebnis für unvollständige Arbeit. Ist ein benötigter Versionshinweis unzugänglich, kann „Versionshypothese nicht überprüfbar“ akzeptabel sein, sofern die fehlende Quelle und ihre Folgen ausdrücklich genannt werden. Eine erfundene Referenz ist ein Fehler.
+Probiere ein kleines Beispiel aus, bevor du den ganzen Prozess aufbaust. Nimm eine gewöhnliche Eingabe, eine widersprüchliche Dublette und eine fehlende Referenz dazu. Prüfe, ob die Zählwerte stimmen, offene Fragen sichtbar bleiben und das Ergebnis die gestellte Frage beantwortet.
 
-Das [Arbeitsblatt zur Prozessentscheidung](/blog/worksheets/de/T03-process-decision.md) hält diese unveränderlichen Regeln fest und trennt bekannte Vorgaben, vorgeschlagene Interpretationen und genehmigte Wirkungen. Es fragt auch, welche Bedingung die Architekturentscheidung umkehren würde. Eine stabile wiederkehrende Analyse ohne adaptive Untersuchung könnte hier zu einem einfacheren Workflow werden. Ist eine Erklärung praktisch nicht überprüfbar, braucht die Aufgabe möglicherweise menschliche Untersuchung statt eines aufwendigeren Agenten.
+Wenn ein einzelner Modellaufruf aus dem vorliegenden Material eine ausreichende Erklärung liefert, bleib dabei. Findet ein Agent zusätzliche nützliche Belege, vergleiche diesen Gewinn mit den weiteren Tool-Aufrufen und dem Prüfaufwand. Eine Person kann für die Untersuchung weiterhin besser geeignet sein, wenn wesentliche Belege unzugänglich sind oder sich nicht prüfen lassen.
 
-## Wiederholte Abnahme statt bloß irgendwann Erfolg prüfen
+Bei wiederkehrenden Prozessen solltest du typische Fälle mehrfach testen, statt dich auf einen gelungenen Durchlauf zu verlassen. Halte Fehler und notwendige Korrekturen fest. Die [Entscheidungsvorlage für den Prozess](/blog/worksheets/de/T03-process-decision.md) hilft dir, deine Wahl und den Anlass für eine spätere Neubewertung zu notieren.
 
-Eine gelungene Vorführung beantwortet nicht, ob das System konsistent arbeitet. Die ursprüngliche τ-bench-Forschung bewertet Agenten mit Tools anhand simulierter Kundenservicegespräche und unterscheidet mindestens einen Erfolg von Erfolg bei wiederholten Versuchen. Simulierte Nutzer und vereinfachte Fachgebiete begrenzen die Übertragbarkeit auf reale Berichtsprozesse. Die Unterscheidung bleibt dennoch hilfreich. [Lies Methodik und Einschränkungen des Benchmarks](https://arxiv.org/html/2406.12045v1).
-
-Die Studie weist außerdem darauf hin, dass ein korrekter Endzustand der Datenbank einen Richtlinienverstoß wie Handeln ohne Bestätigung verbergen kann. Erforderliche Kontrollen brauchen deshalb eigene Prüfungen.
-
-Behalte für den Feedbackprozess gewöhnliche Fälle bei und ergänze gezielt schwierige: doppelte Kennungen mit widersprüchlichem Inhalt, eine fehlende Kategorie, eine nicht verfügbare Referenz und Text mit mehreren möglichen Erklärungen. Lege die Abnahme vor dem Test fest. Zahlen müssen aufgehen, der Umfang muss unverändert bleiben, Unsicherheit muss den Bericht erreichen und verbotene Änderungen dürfen nicht stattfinden.
-
-Wiederhole ausgewählte Fälle vom selben zurückgesetzten Ausgangszustand mit denselben Abnahmeregeln. Erfasse jeden gültigen Versuch einschließlich Fehlern und Zeitüberschreitungen. Trenne die Abnahme im ersten Anlauf von der Abnahme nach Korrektur. „Einer von fünf Versuchen lieferte einen brauchbaren Bericht“ und „Alle fünf lieferten brauchbare Berichte“ sind unterschiedliche Beobachtungen. Keine dieser kleinen Stichproben ist eine Verlässlichkeitsgarantie für den Betrieb.
-
-Vergleiche Workflow, einzelnen Modellschritt und Agent nur dort, wo sie das tatsächliche Anliegen erfüllen können. Eine reine Zählvariante beantwortet keine Untersuchungsfrage; eine Untersuchung verdient keinen Vorteil, nur weil sie mehr Text produziert. Bewerte das entscheidungsrelevante Ergebnis und erfasse die zusätzliche Arbeit bis zur Abnahme.
-
-## Nach Gesamtaufwand wählen und den Aufbau auf Tale übertragen
-
-Berücksichtige menschliche Vorbereitung, Prüfung, Korrektur und Pflege neben Maschinenzeit und gemessenen Kosten. Muss der Agent jeden Monatsbericht umfangreich manuell nachbessern lassen, gehört das in den Vergleich. Liefert er verlässlich eine wertvolle Untersuchung, die der feste Bericht nicht bietet, kann der Zusatzaufwand gerechtfertigt sein. Fehlende Kostenbestandteile bleiben ungemessen und sind nicht null.
-
-Tales Automationskonzepte unterscheiden einmalige `llm`-Knoten von `agent`-Knoten für Arbeit mit Tools, Dateien oder mehreren Gesprächsschritten. Projektaufgaben bieten einen Ort für zugeordnete Ergebnisse und deren Prüfung. Damit können Berichtsschritte und Untersuchung unterschiedliche Grenzen haben. [Lies die Automationskonzepte](https://docs.tale.dev/de/platform/automations/concepts).
-
-Bring zur [Tale-Demo](/de/request-demo) den kleinen Export, die abgenommenen Zählregeln und die unbelegte Ursachenerklärung mit. Lass zeigen, wie der gewählte Aufbau die Tabelle erhält, die Erklärung hinterfragt und ein abnehmbares Ergebnis zurückgibt. Diese Beobachtungen sagen mehr aus als der Name der Architektur.
+Tale bietet einen `llm`-Schritt für einen einzelnen Modellaufruf und einen `agent`-Schritt für Arbeit mit Tools, Dateien oder mehreren Gesprächsschritten. Die [Automationskonzepte](https://docs.tale.dev/de/platform/automations/concepts) beschreiben ihr aktuelles Verhalten.

@@ -1,15 +1,15 @@
 ---
-title: "Praktische Leitfäden für Teams mit KI-Agenten"
-description: "Triff fundierte Entscheidungen zu KI-Agenten, Abläufen, Wissen, Prüfung und Betrieb mit belegten Leitfäden, Beispielen und wiederverwendbaren Vorlagen."
+title: "Praktische Antworten zur Arbeit mit KI-Agenten"
+description: "Wähle den passenden Ablauf, prüfe eine KI-Antwort oder bewerte euren Pilotversuch. Leitfäden mit konkreten Beispielen, Quellen und Vorlagen fürs Team."
 slug: blog
 reviewed: '2026-10-03'
 draft: false
 ---
 
-Beginne mit der Entscheidung, die dein Team treffen muss. Diese Leitfäden erklären, worauf es bei der Koordination von KI-Agenten, der Prüfung ihrer Ergebnisse und der Wahl von Werkzeugen und Betriebsmodellen ankommt. Jeder enthält ein ausgearbeitetes Beispiel, verlinkte Quellen und eine wiederverwendbare Vorlage.
+Braucht diese Aufgabe einen Agenten? Warum ist eine Antwort trotz Quellenangabe falsch? Spart der Pilotversuch überhaupt Zeit? Diese Leitfäden greifen Fragen auf, die entstehen, wenn ein Team KI für seine Arbeit einsetzt.
 
-## Welche Entscheidung steht als Nächstes an?
+## Finde die Antwort auf dein Problem
 
-Beginne mit [Agenten und festen Abläufen](/de/blog/ai-agents-vs-workflow-automation). Die Artikelsammlung führt dich anschließend zu Koordination, Prüfung, Wissen und Betrieb. Die Einrichtung des Produkts beschreibt die [Tale-Dokumentation](https://docs.tale.dev/de/platform).
+Beginne mit [Agenten und festen Abläufen](/de/blog/ai-agents-vs-workflow-automation), wenn du einen Ansatz suchst. Lies [die Hilfe bei falschen Antworten](/de/blog/enterprise-rag-project-knowledge), wenn ihr bereits eine Wissensdatenbank nutzt, oder [die Bewertung eines Pilotversuchs](/de/blog/evaluate-ai-agents-business-tasks), wenn ihr über die Fortsetzung entscheiden wollt.
 
-Die Beispiele sind fiktiv. Ihre Berechnungen erläutern eine Methode und zeigen keine gemessene Leistung von Tale oder Ergebnisse von Kunden.
+Die Artikel enthalten Beispiele zum Anpassen und ergänzende Vorlagen für die Details. Anleitungen zur Einrichtung findest du in der [Tale-Dokumentation](https://docs.tale.dev/de/platform).

@@ -16,7 +16,7 @@ export const BLOG_IMAGE_MANIFEST = [
     width: 1672,
     height: 941,
     blurDataURL:
-      'data:image/webp;base64,UklGRooAAABXRUJQVlA4IH4AAABQBACdASoYAA4APu1iqU2ppaOiMAgBMB2JaQAD5LIGyrt4nvkYyAhvicIAAP7V6zNFcy2rSYXihgcrzUr4KswwpLzBmRioASAILmzit1c9IiYwQfD4OZT5qvUymwAgs+6D4FYGi0LTo+19ySrpI6RdlSs6Bh0gZQSeWi6AgAA=',
+      'data:image/webp;base64,UklGRowAAABXRUJQVlA4IIAAAABQBACdASoYAA4APu1iqU2ppaOiMAgBMB2JaQAD5RIGyrt4z1mm9Q1gf63gAP7V6zS/MhWy/Aaf7mPwb8NdQNqev5vvZCsONQ11edtJDsVRqgrWkH1qnspiAP1AYuU2GCAZ90HwKwNFoWw6iWYktLSR7n0mi+t3dqYM08IYR5wIAA==',
     variants: {
       avif: {
         '480': '/blog/covers/T01-480.avif',
@@ -37,7 +37,7 @@ export const BLOG_IMAGE_MANIFEST = [
     width: 1672,
     height: 941,
     blurDataURL:
-      'data:image/webp;base64,UklGRpQAAABXRUJQVlA4IIgAAAAQBACdASoYAA4APu1iqU2ppaQiMAgBMB2JZwDA3CHvZoX8lekq3ax1YAD+6CFOniZn48p8xZcNsjy61wsAuP9rGv1SYjAdbMwYaB+afvlqXNl/IDZKYZeL5JI+FPfbc7ZKW0WIC3/wUDmye+g+USf2OktJY9wdd2ZZqBN0JU0y3wqn1gQUwCgA',
+      'data:image/webp;base64,UklGRpQAAABXRUJQVlA4IIgAAAAQBACdASoYAA4APu1iqU2ppaOiMAgBMB2JZwDDNCHvZoX8lekq3ax7gAD+6CFOniZn48p8xZcNsjy61wsAuP9rGv1SYjAdbMwYaB+afvls5HPBPzQ0DECr4fGhDG/O8mvBVTH0d3/wUDmye+g+USf2OktJY9wcXroyu9nPj481YWBRffBFNHQA',
     variants: {
       avif: {
         '480': '/blog/covers/T02-480.avif',
@@ -58,7 +58,7 @@ export const BLOG_IMAGE_MANIFEST = [
     width: 1672,
     height: 941,
     blurDataURL:
-      'data:image/webp;base64,UklGRo4AAABXRUJQVlA4IIIAAAAwBACdASoYAA4APu1iqk2ppaQiMAgBMB2JZwC/OdwA23nv7N4pdM/UfeAA/gi51THHcLJ7N4nQh9GQ+H7d821aYiHAnGK6MlaKtJyJJGI3R5oaTugplT+9C3Ae/pUk6oGc6QzSPKyAn7woHlrmLpVG76RBXRbMFufqVVsQ4i5L38gA',
+      'data:image/webp;base64,UklGRo4AAABXRUJQVlA4IIIAAAAwBACdASoYAA4APu1iqk2ppaQiMAgBMB2JZwC/OdwA23nvA4+BLM6NS0AA/gi51TGniqBR349ks9r4/V+u+batMRDgTjFdGNIvjGX7ZYlGhSaGk7oKZKCsu+bvkPwJIYwuHozX1TaaQ3nIfjg9NWooCCPqAqhPyfMNetKhrB7xAwAA',
     variants: {
       avif: {
         '480': '/blog/covers/T03-480.avif',
@@ -79,7 +79,7 @@ export const BLOG_IMAGE_MANIFEST = [
     width: 1672,
     height: 941,
     blurDataURL:
-      'data:image/webp;base64,UklGRpQAAABXRUJQVlA4IIgAAADQAwCdASoYAA4APu1kqU2ppaOiMAgBMB2JZwDDNBS6WgtFmBvQbgAA/t9osE824ebMTLcQ/pqLHinqKlHm505TDw0SLg8b9cDLbGgbyi47/x+GQKqxmTtUmvIGKBZRZrBuoiM87Ipjg9EvbMLvGF8gV/YUMhzf+R+CpeNp8LVl2bQtMj1G+gAA',
+      'data:image/webp;base64,UklGRpQAAABXRUJQVlA4IIgAAADQAwCdASoYAA4APu1kqU2ppaOiMAgBMB2JZwDA3BS6Wgs2cXF9ywAA/t9osE824ebMTLcQ/pqLHinqKlHm505TDw0SLg8b9cDLbGgbyi47/x+GQ/H0MvMBqmQCrykEYmx9//ioSAjlApFHr0qWrMXQPf3Kc+c5PQBW6cZmEWh3HK7ZDci0sAAA',
     variants: {
       avif: {
         '480': '/blog/covers/T04-480.avif',
@@ -100,7 +100,7 @@ export const BLOG_IMAGE_MANIFEST = [
     width: 1672,
     height: 941,
     blurDataURL:
-      'data:image/webp;base64,UklGRpIAAABXRUJQVlA4IIYAAABQBACdASoYAA4APu1iqU2ppaOiMAgBMB2JaQDDNCHgP1mdV9w8kWWsKitcAP7U8j9x70iQprr5FyXHnFFnm1l9Yu0ZoJNjn7KfOo51RJxt2eJNdOfKWLcT0GNa3UqzU+o8Eob6vaODqYB7hwFR2mB4LJeTSwcOoVfQOctZK1wrHo+Io0AAAA==',
+      'data:image/webp;base64,UklGRo4AAABXRUJQVlA4IIIAAABwBACdASoYAA4APu1iqU2ppaOiMAgBMB2JaQDKACHgPkKHEDT1hAsNhX7yAAD+1PI/ce9IkKYYuLhQwiTWrwNXGOsAHSU3KgNsNZ+ay4napc+po2Vx9se2wH9SMfoDREKbEcmqAtA7yNupEPs3t8DJUOMO+13ZqE845L9BeDskQAAA',
     variants: {
       avif: {
         '480': '/blog/covers/T05-480.avif',
@@ -121,7 +121,7 @@ export const BLOG_IMAGE_MANIFEST = [
     width: 1672,
     height: 941,
     blurDataURL:
-      'data:image/webp;base64,UklGRpQAAABXRUJQVlA4IIgAAADwAwCdASoYAA4APu1iqk2ppaQiMAgBMB2JaQAAUlix360/fFMPZv6AAP5hUY7V3tZnqDWJ+MwMYZ+RPnbkSRkN/Ift3PQ4fMTXSqKBmoDV55jtWTaNGLbNKpgNfC7ESSH3dvxq4XXXxutMh+aRlb+AEQlygHHnBcycq+fsWL2cErVmNV6qSGAA',
+      'data:image/webp;base64,UklGRpQAAABXRUJQVlA4IIgAAAAQBACdASoYAA4APu1kqk4ppaQiMAgBMB2JaQAAUl++hkI5PHaTAFXRAAD+YVGO1d7WZ6g1ifjMDGGfkT525EkZDgk5gHcLu9PDriulUUDNnMVNHI6nKofDEEM/4FCwaQ4Dw9tNQkYG+Dd0hh1ezk/RQJlX7KPWx3DHv831fSD5zrZchLYVgAAA',
     variants: {
       avif: {
         '480': '/blog/covers/T06-480.avif',
@@ -142,7 +142,7 @@ export const BLOG_IMAGE_MANIFEST = [
     width: 1672,
     height: 941,
     blurDataURL:
-      'data:image/webp;base64,UklGRpQAAABXRUJQVlA4IIgAAAAwBACdASoYAA4APu1iqU2ppaQiMAgBMB2JZwDImCLumoIhBuZIQyPxC4AA/uslj1AaFzNd1YkC4Q1XCnDdEfJW8LYrhivFvNo+Gmng2bOgkpUi3gBqGmSlcWGrggwAP3Iiir1783bPAN/OFuV1U/VUp/dSQNZKYChkKnMHj4/nrFURiIN0gAAA',
+      'data:image/webp;base64,UklGRpIAAABXRUJQVlA4IIYAAAAwBACdASoYAA4APu1iqU2ppaOiMAgBMB2JZwC+SCLus3NV7PxyHBxwGQAA/ufr4AY61zMnpp3ys6mZQlZ4FRJaRIJgzV/DeA/iLuKfFcLedbOSMFYCsYQtJh+rVWC6zNTIffEPv3WYZH8V2ZFKCNjg2Vi9d0exfOXsYvifilAW9tBOc5EAAA==',
     variants: {
       avif: {
         '480': '/blog/covers/T07-480.avif',
@@ -163,7 +163,7 @@ export const BLOG_IMAGE_MANIFEST = [
     width: 1672,
     height: 941,
     blurDataURL:
-      'data:image/webp;base64,UklGRpoAAABXRUJQVlA4II4AAABQBACdASoYAA4APu1iqU2ppaQiMAgBMB2JaQAD5botNn8H5ks11+qKnCgAAP6UNztdnVpKTq1lox8CIJNtPYIlN3sB3ZIsJ9bW2Do2nqEbJ+1aVPzh/9xAvtIQEs1+90LalpAUVvmx3DkvcDcHnNGiWmwOu7Vg+fA3fluHg8jAFDfP9IKERu2iFdfRwAAA',
+      'data:image/webp;base64,UklGRpoAAABXRUJQVlA4II4AAADwAwCdASoYAA4APu1iqU2ppaOiMAgBMB2JaQAAVJjzXIYsEMnwDwBAAP6UNz9cgz3PaSdao9jDUFVM+UEpCPAh4RtF0XTBBG5tdYFJBGrBuYRvQ0+HrAGt0XenoyPjAGofvKX+7Ojr2MG2F/LiIvc/C8xTiLaNmX/BInM1dM6SY/vpI0nChAhETo8o4AAA',
     variants: {
       avif: {
         '480': '/blog/covers/T08-480.avif',
@@ -184,7 +184,7 @@ export const BLOG_IMAGE_MANIFEST = [
     width: 1672,
     height: 941,
     blurDataURL:
-      'data:image/webp;base64,UklGRoAAAABXRUJQVlA4IHQAAAAwBACdASoYAA4APu1iqU2ppaOiMAgBMB2JZwDG9CIO25rpDAsubBKKoIAA/tfOiONLtRHLS8RuXP3Je0t1Srt/tqaEookNF6+dkLXvaKPPa11S0SuYZvWxxcAZDVP5rpRMEDRgE/CsR466L85f0f8eTzuIAA==',
+      'data:image/webp;base64,UklGRoIAAABXRUJQVlA4IHYAAABwBACdASoYAA4APu1iqU2ppaQiMAgBMB2JZwDG9B+F1zMbGx5A5fwpiJPjMAD+186OpfnOl1DE6ZwCZ4whdPJkdJLGfwq6q9WOB6+dkLXvYuxYnNWdi5hm9bGwSqhELj5EKetDrP4q9GJXPJHTcYeT2rqQ2AAA',
     variants: {
       avif: {
         '480': '/blog/covers/T09-480.avif',
@@ -205,7 +205,7 @@ export const BLOG_IMAGE_MANIFEST = [
     width: 1672,
     height: 941,
     blurDataURL:
-      'data:image/webp;base64,UklGRqQAAABXRUJQVlA4IJgAAABQBACdASoYAA4APu1iqU2ppaOiMAgBMB2JZwAD5XGsWx0lHJBMfy6kB5AAAP7gqz/K9om1VzGWk4FCbW74d1wbdXnIW32rFBh+QClpwRMz0zC5zzTH8Z5b+ZP7H+ZFeacC1kHRVhtJ/hBW2+JgCFGRqErXD+2HM8Tif0b3FLAU8DC4n3hbSK0OsTQmzyA6cScevi6ALIAAAA==',
+      'data:image/webp;base64,UklGRqQAAABXRUJQVlA4IJgAAABQBACdASoYAA4APu1iqU2ppaOiMAgBMB2JZwAD5dGsWx0lHJBMfy6kA5QAAP7gq0DG49PXTUHpPK+bkmPt3n9XZi+gfzXmZJXFQfc1rx5wCm1RA93FWJS2mb/2x/mRXueh9ZB0imMzZ+tsEUkYAj4dNLGY+fzjYUv289Z055jRu2FUqVzJDkNfcUnkZsmFmRuL5B4gBJAAAA==',
     variants: {
       avif: {
         '480': '/blog/covers/T10-480.avif',
@@ -222,5 +222,3 @@ export const BLOG_IMAGE_MANIFEST = [
     },
   },
 ] as const satisfies readonly ImageManifestEntry[];
-
-export type BlogImageManifestId = (typeof BLOG_IMAGE_MANIFEST)[number]['id'];

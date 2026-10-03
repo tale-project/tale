@@ -1,15 +1,15 @@
 ---
-title: "Practical guides for teams working with AI agents"
-description: "Make better decisions about AI agents, workflows, knowledge, review, and deployment with sourced guides, worked examples, and reusable worksheets."
+title: "Practical answers for teams using AI agents"
+description: "Choose a workflow, check an AI answer, or make your pilot useful. Practical guides with clear examples, sources, and worksheets for your team."
 slug: blog
 reviewed: '2026-10-03'
 draft: false
 ---
 
-Start with the decision your team needs to make. These guides explain the tradeoffs behind coordinating AI agents, checking their work, and choosing the right tools and deployment. Each includes a worked example, linked sources, and a reusable worksheet.
+Does this task need an agent? Why is a cited answer still wrong? Is the pilot saving anyone time? These guides tackle the questions that come up when a team starts using AI for real work.
 
-## Choose the next decision
+## Find the problem you want to solve
 
-Start with [agents versus workflows](/blog/ai-agents-vs-workflow-automation), then use the article collection below to explore coordination, review, knowledge, or deployment. For product setup, use the [Tale documentation](https://docs.tale.dev/platform).
+Start with [agents versus workflows](/blog/ai-agents-vs-workflow-automation) if you are choosing an approach, [checking a wrong answer](/blog/enterprise-rag-project-knowledge) if you already have a knowledge base, or [evaluating a pilot](/blog/evaluate-ai-agents-business-tasks) if you need to decide whether to keep going.
 
-The examples are illustrative. Their calculations explain a method; they do not report Tale benchmarks or customer results.
+The articles include examples you can adapt and optional worksheets for the details. Product setup instructions live in the [Tale documentation](https://docs.tale.dev/platform).

@@ -1,106 +1,61 @@
 ---
-title: "KI-Agenten selbst hosten: Datenflüsse prüfen"
-description: "Prüfe Modelle, Speicher, Tools, Telemetrie und Backups vor dem Selbsthosting von KI-Agenten. Vergleiche Datenwege, Kosten und Betriebsverantwortung."
-slug: "self-hosted-ai-agent-platform-data-flow"
-topicId: "T06"
-reviewed: "2026-10-03"
+title: "Bleiben deine KI-Daten beim Selbsthosting intern?"
+description: "Eine selbst gehostete KI kann Daten nach außen senden. Verfolge eine Aufgabe durch Modelle, Tools, Speicher und Protokolle und prüfe ihre Datenwege."
+slug: self-hosted-ai-agent-platform-data-flow
+topicId: T06
+reviewed: '2026-10-03'
 draft: false
 coverAlt: "Ein offener Arbeitsbereich ist mit getrennten externen Diensten verbunden."
 ---
 
-Wähle eine selbst gehostete Plattform für KI-Agenten, wenn die gewonnene Kontrolle die übernommene Betriebsverantwortung rechtfertigt. Für diese Entscheidung brauchst du drei Arten von Belegen: Wohin gelangen die Daten einer Aufgabe? Was kostet ein brauchbares Ergebnis bei der erwarteten Auslastung? Und kann das Team den Dienst samt Arbeitsergebnissen wiederherstellen?
+Beim Selbsthosting entscheidest du, wo die Anwendung läuft. Ob ihre Daten im Unternehmen bleiben, hängt davon ab, welche Dienste sie aufruft. Auch ein Agent auf deinem Server kann ein vertrauliches Dokument an ein externes Modell schicken, seinen Inhalt in eine Websuche übernehmen oder in ein externes Fehlerprotokoll schreiben.
 
-Der Hostingort der Anwendung beantwortet keine dieser Fragen allein. Du kannst den Arbeitsbereich selbst betreiben und gehostete Modelle nutzen, Texte lokal erzeugen und Embeddings extern berechnen lassen oder beides lokal halten, während ein Tool Projektinhalte an einen anderen Dienst sendet. Beschreibe die geplante Konfiguration genau, bevor du sie mit einem verwalteten Angebot vergleichst.
+Die entscheidende Frage lautet: **Welche Teile dieser Aufgabe dürfen unsere Umgebung verlassen, und über welche Verbindungen?** Das lässt sich klären, bevor du Hardware kaufst oder eine Betriebsform wählst. Verfolge eine typische Aufgabe vom Ausgangsmaterial bis zum Ergebnis und beziehe die Dienste ein, die sie dabei nutzt.
 
-## Beginne mit einer Aufgabe und einer Datenregel
+## Verfolge ein Dokument durch die Aufgabe
 
-Betrachten wir ein fiktives Projekt zum Lieferantenvergleich. Ein Agent liest ein internes Anforderungsbriefing, recherchiert öffentliche Lieferantenseiten und erstellt einen Bericht zur Prüfung durch ein Teammitglied. Für dieses Beispiel gilt: Das interne Briefing und daraus extrahierte Passagen müssen in der kontrollierten Umgebung bleiben; öffentliche Lieferanteninformationen dürfen aus dem Web abgerufen werden.
+Stell dir vor, dein Einkauf lässt einen Agenten drei Anbieter mit einem internen Anforderungskatalog vergleichen. Darin stehen ein Budget und ein noch nicht veröffentlichter Einführungstermin. Die Websites der Anbieter sind öffentlich; der Anforderungskatalog muss in der kontrollierten Umgebung des Unternehmens bleiben.
 
-Diese Regel erlaubt eine hybride Architektur. Sie erlaubt jedoch nicht, den gesamten Berichtskontext an ein gehostetes Modell zu senden. Beim Vergleich vermischt der Agent interne und öffentliche Informationen. Klassifiziere die zusammengesetzte Anfrage, nicht nur die Herkunft jeder einzelnen Datei.
+Der Agent braucht beide Arten von Informationen, muss sie aber nicht gemeinsam versenden. Er könnte öffentliche Produktseiten anhand der Anbieternamen abrufen und sie anschließend mit einem internen Modell gegen die Anforderungen prüfen. Beide Quellen zusammen an ein externes Modell zu schicken, würde die Regel dieses Beispiels verletzen. Dasselbe gilt für eine öffentliche Suchanfrage, die den Einführungstermin enthält.
 
-Die Regel dient der Veranschaulichung. Sie ist weder eine rechtliche Empfehlung noch die Beschreibung einer beobachteten Tale-Installation. Ersetze sie durch die tatsächlichen Vorgaben und zulässigen Ausnahmen deiner Organisation.
+Halte fest, was jeder Schritt tatsächlich überträgt. „Läuft in unserer privaten Cloud“ sagt noch zu wenig über eine Modellanfrage oder eine Websuche aus.
 
-![Eine gewählte Infrastrukturgrenze umfasst Speicher und Agentenausführung. Konfigurierte Verbindungen können zu Modelldiensten, verbundenen Tools und Betriebsdiensten führen. Jede Verbindung braucht einen Eintrag im Datenflussverzeichnis.](/blog/diagrams/de/T06-diagram.svg)
-
-Ein brauchbares Verzeichnis erfasst für jeden Datenfluss den Prozess, das Ziel, die übertragenen Inhalte und den Zweck. Ein Anbietername ist zu ungenau: Modellendpunkt, Analyseendpunkt und Backup-Speicherort sind unterschiedliche Ziele, selbst wenn sie demselben Unternehmen gehören.
-
-| Datenfluss in der Beispielaufgabe | Warum die Grenze relevant ist | Entscheidung nach der Beispielregel |
+| Schritt | Was du prüfst | Was im Beispiel erlaubt ist |
 | --- | --- | --- |
-| Briefing → Speicherung und Textextraktion | Original und extrahierte Kopien enthalten interne Anforderungen | Beides innerhalb der kontrollierten Umgebung halten |
-| Extrahierte Passagen → Embedding-Dienst | Text kann bereits vor der Generierung offengelegt werden | Einen genehmigten internen Endpunkt verwenden |
-| Gemischter Kontext → Generierungsmodell | Öffentliche Fakten machen interne Passagen nicht öffentlich | Diese Anfrage intern halten |
-| Agent → öffentliche Lieferantenseite | Suchanfragen und Formularfelder können interne Details enthalten | Nur die nötigen öffentlichen Suchinformationen übermitteln |
-| Fehlerbericht → Monitoringdienst | Eine Fehlermeldung kann Aufgabeninhalte enthalten | Tatsächliche Felder prüfen oder den externen Weg deaktivieren |
-| Speicher und Schlüssel → Backup-System | Wiederherstellungskopien enthalten dieselben sensiblen Informationen | Vorgesehene Zugriffs- und Standortregeln auch auf Kopien anwenden |
+| Anforderungskatalog hochladen und Text extrahieren | Originaldatei, extrahierter Text, temporäre Kopien | Alles bleibt in der kontrollierten Umgebung |
+| Anforderungen durchsuchbar machen | Text, den der Embedding-Dienst erhält | Für diesen Text einen internen Dienst nutzen |
+| Anbieter recherchieren | Suchanfragen, abgerufene Seiten, Formulareingaben | Anbieternamen und öffentliche Suchbegriffe senden |
+| Vergleich entwerfen | Vollständige Anfrage an das generierende Modell | Internen und öffentlichen Kontext zusammen intern verarbeiten |
+| Ergebnis speichern | Bericht, Gesprächsverlauf, Protokolle und Backups | Dieselbe Regel auf Kopien mit internen Angaben anwenden |
 
-Dieses ausgefüllte Beispiel schließt einige Architekturen aus, bevor der Preis eine Rolle spielt. Erlaubt die Vorgabe später einen ausdrücklich benannten gehosteten Verarbeiter, wird die Generierung wieder zu einer Frage von Kosten, Qualität und Zuverlässigkeit. Dokumentiere diese Änderung; verstecke sie nicht in einer Konfigurationseinstellung.
+Dabei wird eine häufige Lücke sichtbar: Ein selbst betriebenes Modell für die Texterzeugung klärt noch nicht, wo die Embeddings entstehen. Ein Embedding-Dienst wandelt Text für die Suche in Vektoren um. Läuft er extern, erreicht ihn der Text bereits, bevor jemand eine Frage dazu stellt.
 
-## Prüfe Ziele und Zugriff getrennt
+![Anwendung und Arbeitsbereich liegen innerhalb der gewählten Infrastruktur. Die Verbindungen zu Modellen, Tools und Betriebsdiensten müssen jeweils auf ihre Datenflüsse geprüft werden.](/blog/diagrams/de/T06-diagram.svg)
 
-Eine lokale Adresse beweist keine lokale Inferenz. Ollama dokumentiert sowohl lokale als auch in der Cloud gehostete Modelle; die lokale API verlangt standardmäßig keine Authentifizierung. Eine lokale API kann Anfragen an ein Cloud-Modell weiterleiten. Prüfe deshalb Modellauswahl und Endpunktverhalten ebenso wie die URL. Das sind Beispiele aus Ollama, keine Aussagen über Tales Inferenzimplementierung. [Ollama-FAQ](https://docs.ollama.com/faq) und [Dokumentation zur Authentifizierung](https://docs.ollama.com/api/authentication).
+## Prüfe die Verbindungen hinter dem Hosting-Begriff
 
-Ebenso sagt eine private Anwendungsadresse wenig darüber aus, ob ein Datenbank- oder Modellport anderswo versehentlich veröffentlicht wurde. Teste die Erreichbarkeit von außerhalb des vorgesehenen Netzwerks. Docker dokumentiert, dass Datenverkehr an veröffentlichte Container die üblichen ufw-Ketten umgehen kann. Die Konfiguration der Host-Firewall allein belegt daher nicht, welche Container erreichbar sind. [Dockers Firewall-Hinweise](https://docs.docker.com/engine/network/packet-filtering-firewalls/).
+Bitte die Person, die das System betreibt, für jede Tabellenzeile das tatsächliche Ziel zu bestimmen. Bei Modellaufrufen gehören dazu der Endpunkt, der Anbieter dahinter und ein möglicher Ausweichdienst. Prüfe bei Tools die Suchanfrage oder die übertragenen Felder. Zum Speicher gehören neben hochgeladenen Dateien auch extrahierte Texte und Backups.
 
-Ermittle bei ausgehenden Verbindungen den aufrufenden Prozess. Eine Sandbox-Beschränkung belegt nicht, welche Ziele ein separater Backend-Connector oder ein Modell-Gateway erreichen kann. Beobachte eine erfolgreiche Aufgabe und einen kontrollierten Fehler: Optionale Fehlerberichte bleiben im Erfolgsfall möglicherweise unsichtbar. Kennzeichne unbeobachtete Wege als ungeprüft, nicht als nicht vorhanden.
+In Tale haben Anwendungsdaten, durchsuchbares Wissen und Originaldateien getrennte Speichereinstellungen. Der Umzug eines Speichers verschiebt weder die anderen noch deren bestehende Inhalte. Der [Leitfaden zu Datenspeichern](https://docs.tale.dev/de/self-hosted/configuration/data-residency) erklärt diese Grenzen.
 
-## Vergleiche die Kosten abgenommener Arbeit
+Auch Netzwerkregeln gelten nur für bestimmte Verbindungen. Tales ausgehende Sandbox-Verbindungen und der Modell-Gateway sind getrennte Wege. Eine Einschränkung der Websites, die ein Agent abrufen darf, legt deshalb nicht fest, wo das Modell seine Anfragen verarbeitet. Prüfe im [Leitfaden zur Absicherung](https://docs.tale.dev/de/self-hosted/operate/security/hardening), welche Verbindung eine Regel tatsächlich erfasst. Berücksichtige außerdem die direkten Anbieterzugänge im [Leitfaden zu Laufzeitumgebungen](https://docs.tale.dev/de/platform/agents/harnesses).
 
-Lokale Inferenz kann variable Anbieterkosten durch feste Kapazität und Betriebsaufwand ersetzen. Ob sich das lohnt, hängt von Volumen, Modelleignung, Parallelität und dem Anteil tatsächlich nutzbarer Ergebnisse ab.
+Beziehe Fehlermeldungen ein. Ein erfolgreicher Lauf löst womöglich keine aus. Scheitert eine Anfrage, kann die Meldung dagegen Teile der Aufgabe enthalten. Die Ziele für Tales optionale Überwachung hängen von der Konfiguration ab; das Maskieren von Headern entfernt nicht automatisch vertraulichen Text aus jeder Fehlermeldung. Siehe [Überwachung konfigurieren](https://docs.tale.dev/de/self-hosted/configuration/observability-config).
 
-Die folgende Rechnung ist vollständig hypothetisch und verwendet US-Dollar. Es sind erfundene Planungswerte, keine Anbieterpreise, Hardwareempfehlungen, Tale-Kosten oder gemessenen Abnahmequoten. Beide Optionen bearbeiten dieselben Lieferantenberichte nach denselben Abnahmeregeln. Für diesen Kostenvergleich nehmen wir an, dass die Organisation einen bestimmten gehosteten Verarbeiter für die internen Inhalte genehmigt hat. Damit sind beide Optionen zulässig. Gilt weiterhin die vorherige Regel „nur intern“, scheidet die gehostete Option unabhängig vom Preis aus.
+## Prüfe das Verhalten mit harmlosen Daten
 
-| Monatliche Annahme | Selbst betriebene Inferenz | Gehostete Inferenz |
-| --- | ---: | ---: |
-| Zusätzliche Fixkosten F | 2.600 USD | 200 USD |
-| Angenommene Verarbeitung und Wiederholungen je gestarteter Aufgabe | 0,10 USD | 0,80 USD |
-| Angenommene Prüfung/Korrektur je gestarteter Aufgabe | 2,00 USD | 2,00 USD |
-| Gesamte variable Kosten je gestarteter Aufgabe v | 2,10 USD | 2,80 USD |
-| Gestartete Aufgaben N | 5.000 | 5.000 |
-| Nach erlaubten Wiederholungen abgenommener Anteil a | 90 % | 90 % |
-| Geschätzte erfasste Kosten F + v × N | 13.100 USD | 14.200 USD |
-| Abgenommene Ergebnisse a × N | 4.500 | 4.500 |
-| Geschätzte erfasste Kosten je abgenommenem Ergebnis | 2,91 USD | 3,16 USD |
+Eine Konfigurationsdatei beschreibt das vorgesehene Verhalten. Ein kontrollierter Lauf hilft dir zu prüfen, was tatsächlich passiert. Nutze einen erfundenen Anforderungskatalog mit einer auffälligen, harmlosen Formulierung. Bitte die zuständige Person, die zugehörigen Modellanfragen, Tool-Aufrufe und gemeldeten Ereignisse zu prüfen. Übernimm die Formulierung nicht in öffentliche Suchanfragen, es sei denn, genau diesen Weg willst du ausdrücklich testen.
 
-Die Fixkosten stehen für die der jeweiligen Option zugerechnete zusätzliche Kapazität, Betriebsarbeit und Wiederherstellungsvorsorge. Der Ansatz von 2 USD für Prüfung und Korrektur entspricht zwei Minuten je gestarteter Aufgabe bei 60 USD pro Stunde, einschließlich des durchschnittlichen Aufwands für erfolglose Aufgaben. Ersetze diese Planungsannahme später durch Beobachtungen. Die variablen Verarbeitungskosten umfassen erlaubte Wiederholungen; feste Betriebsarbeit und variable Prüfarbeit sind getrennte Posten. Gemeinsame Anwendungskosten bleiben in diesem Beispiel außen vor. Echte Budgets müssen abweichende Lizenz-, Speicher-, Netzwerk-, Support- und Personalkosten ergänzen. Zähle jedes eigenständige abgenommene Ergebnis genau einmal.
+Prüfe einen normalen Lauf und einen kontrolliert ausgelösten Fehler. Gibt es einen externen Ausweichdienst, teste diesen Weg gesondert. Prüfe auch ein gesperrtes Ziel: Eine Aufgabe, deren Daten intern bleiben müssen, sollte bei Ausfall ihres erlaubten Modells anhalten und nicht unbemerkt auf ein externes Modell wechseln.
 
-Bei gleicher Abnahmequote liegt der monatliche Kostenschnittpunkt bei `(2600 − 200) / (2.80 − 2.10)`, also ungefähr 3.429 Aufgaben. Unterhalb dieses Volumens ist die gehostete Option nach diesen Annahmen günstiger. Bei 1.000 Aufgaben betragen die erfassten Gesamtkosten 4.700 beziehungsweise 3.000 USD.
+Ein beobachteter Lauf beweist nicht, dass es keine weiteren Wege gibt. Gleiche die Beobachtung mit den konfigurierten Zielen und den durchgesetzten Netzwerkregeln ab. Kennzeichne Verbindungen, die du nicht prüfen konntest, als ungeklärt. So kann die zuständige Person über konkrete offene Punkte entscheiden.
 
-Stelle nun das günstige lokale Ergebnis infrage. Sinkt dessen Abnahmequote bei sonst gleichen Annahmen auf 65 %, entstehen 3.250 abgenommene Ergebnisse. Die Kosten steigen auf rund 4,03 USD je Ergebnis und liegen damit über den 3,16 USD der gehosteten Option. Zusätzliche Korrekturarbeit würde den Abstand vergrößern. Diese Änderung beweist keine Überlegenheit gehosteter Modelle. Sie zeigt, weshalb gleiche Qualität eine zu prüfende Annahme ist und keine bereits nachgewiesene Einsparung.
+## Beschreibe die gewählte Betriebsform genau
 
-Die Rechnung setzt außerdem voraus, dass die lokale Kapazität die Arbeit rechtzeitig bewältigt. Brauchst du für 5.000 Aufgaben einen weiteren Server, ändern sich die Fixkosten und du musst den Schnittpunkt neu berechnen. Eine geschätzte Einsparung jenseits der nutzbaren Maschinenkapazität rechtfertigt keine Anschaffung.
+Für den Anbietervergleich könnte eine brauchbare Entscheidung so lauten:
 
-## Teste Lastspitzen, die den Durchschnitt entwerten
+> Anforderungskatalog, extrahierter Text, Modellanfragen und Bericht bleiben in unserer kontrollierten Umgebung. Öffentliche Anbieternamen gehen an den Websuchdienst. Fehlermeldungen werden nicht an externe Dienste gesendet. Backups liegen in unserem freigegebenen Speicher.
 
-Fünftausend über einen Monat verteilte Aufgaben sind etwas anderes als Hunderte unmittelbar vor einer Frist. Teste mit repräsentativen Eingabe- und Ausgabelängen, Tools und gleichzeitig laufenden Aufgaben. Erfasse Wartezeit, Fertigstellungszeit, fehlgeschlagene Aufgaben oder Zeitüberschreitungen sowie abgenommene Ergebnisse. Tokens pro Sekunde allein sagen Projektverantwortlichen nicht, wann der Bericht fertig ist.
+Das ist ein Beispiel für eine zu prüfende Entscheidung, keine Beschreibung jedes selbst gehosteten Systems. Deine Entscheidung kann durchaus einen benannten externen Modellanbieter zulassen. Entscheidend ist, dass diese Ausnahme sichtbar und genehmigt ist, bevor vertrauliche Arbeit beginnt.
 
-vLLM zeigt einen konkreten Kapazitätskonflikt: Reicht der Attention-Cache nicht aus, kann das System Anfragen unterbrechen und später neu berechnen, was die Gesamtlatenz erhöht. Die Optimierungshinweise beschreiben außerdem Abwägungen zwischen Batching, Latenz und Parallelisierungsaufwand. Das begründet Lasttests der gewählten Inferenzumgebung; es belegt weder, dass Tale vLLM nutzt, noch einen bestimmten Tale-Durchsatz. [vLLM: Optimierung und Abstimmung, Version 0.21.0](https://docs.vllm.ai/en/v0.21.0/configuration/optimization/).
-
-Auch verwaltete Kapazität hat Grenzen. Hugging Face dokumentiert, dass das Herunterskalieren eines Endpunkts auf null ungenutzte Ressourcen spart, aber einen Kaltstart verursacht. Während eine Replik initialisiert wird, können Anfragen eine 503-Antwort erhalten. Bei einem gelegentlichen Nachtbericht ist Warten möglicherweise akzeptabel; für eine interaktive Prüfung kann vorgehaltene Kapazität ihren Preis wert sein. [Hugging Face: automatische Skalierung](https://huggingface.co/docs/inference-endpoints/guides/autoscaling).
-
-Wird eine Frist unter Spitzenlast verfehlt, entscheide, welche Bedingung sich ändern darf: Parallelität, Modell- oder Kontextgröße, Kapazität oder Liefertermin. Prüfe nach einer Kontextverkleinerung oder einem Modellwechsel die Qualität erneut. Leite interne Inhalte nicht unbemerkt an einen externen Ersatzdienst weiter, der die Datenregel verletzt.
-
-## Plane die Wiederherstellung entlang der Abhängigkeiten
-
-Betrachten wir einen weiteren fiktiven Fehler. Die Datenbank lässt sich auf 10:05 Uhr wiederherstellen, das verfügbare Datei-Backup stammt jedoch von 10:00 Uhr. Ein um 10:03 Uhr hochgeladener Bericht erscheint im wiederhergestellten Aufgabeneintrag, während seine Dateiinhalte fehlen. Die Anwendung startet, besteht aber die Wiederherstellungsprüfung aus Nutzersicht trotzdem nicht.
-
-Lass Datenverkehr und geplante Aktionen in der isolierten Wiederherstellungsumgebung angehalten. Sichere den beschädigten Zustand und ermittle die passende Dateiversion oder einen vollständigen, aufeinander abgestimmten Wiederherstellungssatz. Ist der letzte brauchbare Satz von 10:00 Uhr, bedeutet dessen Auswahl, den Verlust späterer Arbeit ausdrücklich zu akzeptieren oder sie in einem dokumentierten Verfahren zu rekonstruieren. Neuere Anwendungsversionen oder eine Neuindizierung können fehlende Quelldateien nicht erzeugen.
-
-Auch die Datenbankwiederherstellung hat Voraussetzungen. PostgreSQL benötigt für die zeitpunktbezogene Wiederherstellung ein Basis-Backup und das lückenlose erforderliche WAL-Archiv. Manuell bearbeitete Konfigurationsdateien werden durch WAL nicht wiederhergestellt. Das ist eine Aussage zur Datenbankwiederherstellung, nicht zur vollständigen Abdeckung aller Anwendungsspeicher. [PostgreSQL 18: kontinuierliche Archivierung](https://www.postgresql.org/docs/18/continuous-archiving.html).
-
-Definiere Erfolg über nutzbare Arbeit: anmelden, ein altes Projekt öffnen, eine bekannte Datei herunterladen, eine bekannte Quelle abrufen und auf die benötigten Zugangsdaten zugreifen, ohne Produktionsbenachrichtigungen zu versenden. Miss das verlorene Datenintervall und die Zeit bis zum nutzbaren Dienst. Ein Datenbank-Gesundheitscheck beantwortet nur einen Teil davon.
-
-## Übertrage diese Entscheidungen auf Tales tatsächliche Grenzen
-
-Tales [Architektur für das Selbsthosting](https://docs.tale.dev/de/self-hosted/overview) trennt die Verantwortlichkeiten für persistente Speicher, Ausführung, ausgehende Verbindungen und Modell-Gateway. Der [Leitfaden zu Datenspeichern](https://docs.tale.dev/de/self-hosted/configuration/data-residency) unterscheidet Anwendungseinträge, Wissen und Originaldateien. Eine geänderte Verbindung migriert keine Historie; berücksichtige vorhandene Daten deshalb im Umstellungsplan.
-
-Der Egress-Proxy der Sandbox erlaubt standardmäßig öffentliche HTTPS-Ziele und beschränkt private sowie Metadatenadressen. Betreiber können die erlaubten Hostnamen weiter eingrenzen. Modellaufrufe über Tales Gateway nutzen einen vom Sandbox-Egress getrennten Weg. Unterstützte Laufzeitumgebungen mit direkter Abonnementanbindung können ihren Anbieter stattdessen außerhalb der Erfassung und Kontrollen des Gateways aufrufen; nimm auch diese Ziele in das Verzeichnis auf. [Zugangsdaten der Laufzeitumgebungen](https://docs.tale.dev/de/platform/agents/harnesses). Prüfe die konfigurierten Wege anhand von [Härtung](https://docs.tale.dev/de/self-hosted/operate/security/hardening) und [Anbieter](https://docs.tale.dev/de/self-hosted/configuration/providers). Optionale Fehlerberichte und Analysen brauchen eine eigene Prüfung: Das Maskieren ausgewählter Header macht nicht jede Fehlermeldung frei von Inhalten. Siehe [Observability](https://docs.tale.dev/de/self-hosted/configuration/observability-config).
-
-Tales CLI-Snapshots sind absturzkonsistente Archive auf Volume-Ebene, kein atomarer Schnappschuss sämtlicher Speicher. Externe Datenbanken und Buckets brauchen abgestimmte Backups; Sandbox-Arbeitsbereiche liegen außerhalb dieses Snapshot-Umfangs. Bewahre die passende Version, Bereitstellungskonfiguration und Entschlüsselungsschlüssel auf und kopiere fertige Backups auf einen anderen Host. Diese Details verändern den Wiederherstellungsplan wesentlich. [Tale: Backups und Wiederherstellung](https://docs.tale.dev/de/self-hosted/operate/backups-and-restore).
-
-## Wähle eine Verantwortung, die du dauerhaft tragen kannst
-
-Ein Selbsthosting-Pilot zeigt, dass eine Konfiguration eine Aufgabe ausführen kann. Er belegt weder bezahlbare Kapazität noch Wiederherstellbarkeit. Das KI-Starterkit von n8n zieht eine ähnliche Grenze: Es beschreibt sich als Ausgangspunkt für einen Machbarkeitsnachweis und nicht als vollständig für den Produktivbetrieb optimierte Installation. [n8n-Starterkit](https://github.com/n8n-io/self-hosted-ai-starter-kit).
-
-Selbst betriebene Inferenz wird attraktiv, wenn ein getestetes Modell die Qualitätsanforderungen erfüllt, die Auslastung die Wirtschaftlichkeit trägt und das Team die erforderliche Umgebung betreiben kann. Gehostete oder verwaltete Komponenten werden interessanter, wenn schwankende Nachfrage, Modellqualität oder begrenzte Betriebskapazität stärker wiegen als die zusätzliche Kontrolle – vorausgesetzt, ihr Umgang mit Daten ist zulässig. Erfüllt keine Option die Anforderungen, verkleinere den Arbeitsumfang oder stelle diesen Anwendungsfall zurück.
-
-Mit dem [Arbeitsblatt für Datenflüsse und Bereitstellungsentscheidungen](/blog/worksheets/de/T06-data-flow-inventory.md) dokumentierst du die Grenze, rechnest die Kostensensitivität nach und planst die Wiederherstellungsübung mit nicht zueinander passenden Speicherständen. Bring den ausgefüllten Entscheidungsnachweis zu einer [Tale-Demo](/de/request-demo) mit. So beginnt das Gespräch mit der Arbeit und den Betriebsbedingungen deines Teams.
+Nutze das [Arbeitsblatt zu Datenflüssen](/blog/worksheets/de/T06-data-flow-inventory.md), um Ziele und ungeklärte Verbindungen gemeinsam mit dem Betrieb festzuhalten. Wenn du erklären kannst, wohin eine echte Aufgabe ihre Daten sendet, kannst du Hosting-Optionen an der Anforderung messen, die dich überhaupt zum Selbsthosting gebracht hat.

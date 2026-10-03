@@ -53,5 +53,9 @@ records each locale, URL, and viewBox dimensions so pages can reserve the right 
 
 When editing a diagram, preserve its accessible title/description and update all three locales.
 Check the rendered text for clipping and overlap, including line breaks inside SVG text spans.
+Use at least 16 SVG units of visible text clearance inside boxes. Headings with body text use a
+consistent heading-to-body gap; standalone labels are vertically centered. Arrowheads use explicit
+user-space dimensions so stroke width cannot enlarge them into the neighboring box.
+`tests/e2e/specs/blog-diagrams.spec.ts` checks rendered text bounds across all thirty diagrams.
 If viewBox dimensions change, update the diagram manifest in the same change. Localized article
 alternative text explains the diagram's relationships independently of its visible labels.

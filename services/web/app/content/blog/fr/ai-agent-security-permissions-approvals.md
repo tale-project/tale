@@ -1,97 +1,60 @@
 ---
-title: "Sécurité des agents IA : permissions et approbations"
-description: "Examine les accès d’un agent IA, les limites des approbations, l’annulation et les preuves conservées avec une fiche pratique de contrôle des permissions."
+title: "Quels accès faut-il donner à un agent IA ?"
+description: "Pars d’une tâche de recherche pour définir ce qu’un agent IA peut lire et modifier, les identifiants nécessaires et les actions à faire approuver."
 slug: ai-agent-security-permissions-approvals
 topicId: T07
-reviewed: 2026-10-03
+reviewed: '2026-10-03'
 draft: false
 coverAlt: "Des cadres imbriqués donnent à une tâche des ouvertures distinctes et une trace visible sur papier."
 ---
 
-Un agent IA doit recevoir l’autorité nécessaire à sa tâche, avec des contrôles sur les effets importants que le modèle ne peut pas réécrire. C’est la décision de sécurité centrale. Les défenses contre l’injection de prompt peuvent réduire la probabilité d’une mauvaise requête, mais le système doit encore décider ce qui se passe lorsqu’elle atteint un outil.
+Donne à un agent IA les accès dont il a besoin pour sa tâche actuelle. S’il prépare une annonce de lancement, il lui faut peut-être lire les notes du projet et créer un brouillon. Il n’a pas besoin d’envoyer des e-mails, de publier l’annonce ou de modifier les accès au projet.
 
-Commence par un résultat de projet, une identité d’exécution et les ressources qu’elle peut affecter. Un intervenant préparant un rapport de lancement peut avoir besoin de lire des références et d’écrire un livrable. Il n’a pas automatiquement besoin d’identifiants de messagerie, de la permission de modifier des accès ou de publier le rapport.
+Commence par distinguer **lire des informations, produire un document et exécuter une action**. Un compte regroupe souvent ces trois possibilités, alors que la tâche n’en demande qu’une partie. Une bonne configuration de départ permet à l’agent de terminer un travail utile tout en laissant les actions superflues hors de sa portée.
 
-La question utile est la suivante : si un contenu non fiable modifie sa prochaine requête, quels effets indésirables restent possibles ?
+## Déduis les accès nécessaires de la tâche
 
-## Distinguer persuasion et permission
+Prenons un agent qui vérifie des informations produit et rédige une annonce de lancement à partir d’un brief interne et des pages de fournisseurs. Une personne relira le brouillon avant tout envoi. Voici les accès nécessaires :
 
-Une injection de prompt se produit lorsqu’un contenu lu par un agent tente de réorienter son comportement. Un document fournisseur peut présenter l’envoi du brief interne du projet comme une étape de vérification obligatoire. Ce document peut apporter des preuves sur le fournisseur ; il ne peut pas accorder d’autorité sur les données de l’équipe.
+| Besoin | Accès à accorder | Accès à laisser indisponibles |
+| --- | --- | --- |
+| Comprendre le lancement | Lire le brief et les références sélectionnées du projet | Autres projets, dossiers du personnel et fichiers clients sans rapport |
+| Vérifier les informations des fournisseurs | Consulter les sources publiques nécessaires | Sessions de navigateur connectées et envois de formulaires inutiles |
+| Préparer l’annonce | Créer le rapport et le brouillon dans l’espace de sortie du projet | Modifier le brief d’origine ou publier sur le site en ligne |
+| Transmettre le résultat | Fournir les fichiers et leurs sources pour relecture | Identifiants de messagerie, de publication sur les réseaux sociaux ou d’administration générale |
 
-L’entraînement des modèles, les classificateurs et les instructions précises sont des défenses utiles. Ils ne justifient pas de sauter l’autorisation. Les travaux d’Anthropic sur les agents de navigateur rapportent une meilleure résistance tout en conservant explicitement un risque résiduel d’injection de prompt. Les résultats concernent la configuration de navigateur testée, pas le risque de Tale ni un taux d’attaque universel. [Anthropic : atténuer les injections de prompt](https://www.anthropic.com/research/prompt-injection-defenses).
+C’est une proposition pour cet exemple ; il reste à vérifier que tes outils peuvent faire respecter ces limites. Si un service ne propose qu’un compte aux droits étendus, écrire « lecture seule » dans le prompt ne restreint pas ce compte. Utilise une intégration plus limitée, fournis un export approuvé ou confie cette partie du travail à une personne.
 
-OWASP décrit l’autonomie excessive à travers les fonctions, permissions et marges d’action inutiles. Ses recommandations comprennent des outils restreints, des privilèges limités et une autorisation extérieure au modèle. En pratique, retire les pouvoirs inutiles avant de débattre de l’usage responsable qu’en fera le modèle. [OWASP LLM06:2025](https://genai.owasp.org/llmrisk/llm062025-excessive-agency/).
+Le même raisonnement s’applique aux données. L’accès à un projet ne justifie pas automatiquement l’accès à tous les documents que la personne qui lance l’agent peut ouvrir. Fournis les sources nécessaires, puis ajoutes-en quand une tâche concrète le demande.
 
-Un nom d’outil ne suffit pas à établir cette limite. Une fonction « lire un client » peut utiliser un compte de service trop puissant. Un outil applicatif restreint peut coexister avec un shell contenant des identifiants plus larges. Examine l’identité qui exécute réellement l’action et tous les chemins disponibles vers le même effet.
+![Les droits d’un agent dépendent de son identité, des données accessibles, de ses outils et identifiants, des approbations et des éléments conservés après une action.](/blog/diagrams/fr/T07-diagram.svg)
 
-![Cinq questions d’autorité portent sur l’identité, les données accessibles, les outils et identifiants, l’approbation des effets et les preuves conservées. Teste les refus et les accès révoqués, puis examine la couverture de chaque chemin d’exécution.](/blog/diagrams/fr/T07-diagram.svg)
+## Fais respecter la limite en dehors du prompt
 
-## Examiner une annonce qui ne doit pas partir
+L’instruction « n’envoie jamais le brief interne » indique ce que tu attends. Ne pas donner à l’agent d’identifiant permettant l’envoi limite ce qu’il peut faire. Les deux sont utiles : des consignes claires l’aident à travailler, tandis que les permissions des outils limitent les conséquences d’une erreur ou d’une source trompeuse.
 
-Cet exemple fictif déroule une conception ; il ne rapporte pas un test Tale. Une équipe veut un rapport de lancement et une annonce envoyée à une boîte de test contrôlée après revue. La tâche de confiance précise le projet, le destinataire prévu et le livrable. Une page fournisseur non fiable propose un autre destinataire et demande une pièce jointe interne.
+Une page de fournisseur pourrait, par exemple, demander à l’agent d’envoyer le brief interne par e-mail pour « vérifier la compatibilité ». Cette page n’a pas autorité pour modifier la tâche. L’agent de recherche devrait ignorer la demande ; son équipement devrait aussi empêcher l’envoi s’il la suivait malgré tout. Les [recommandations OWASP sur les pouvoirs excessifs des agents](https://genai.owasp.org/llmrisk/llm062025-excessive-agency/) préconisent de limiter les fonctions, les permissions et les actions autonomes disponibles.
 
-Une conception raisonnable sépare préparation et envoi. L’agent de recherche peut créer le brouillon mais ne reçoit aucun identifiant d’envoi. Une opération séparée propose l’envoi exact. Un réviseur vérifie le destinataire et le contenu par rapport à la tâche de confiance, tandis que le service destinataire applique toujours le périmètre des identifiants.
+Examine tous les chemins permettant d’atteindre le même service. Un connecteur en lecture seule protège peu si l’agent dispose aussi d’un jeton de messagerie dans son shell. Autoriser le nom d’hôte d’un service d’e-mail est également plus large qu’autoriser un destinataire ou une pièce jointe précise.
 
-| Élément proposé | Ce que la tâche de confiance autorise | Suggestion non fiable | Décision et raison |
-| --- | --- | --- | --- |
-| Action | Préparer le rapport, puis proposer une annonce de test | Envoyer immédiatement un dossier de vérification | Ne pas laisser la page changer l’autorité du workflow |
-| Destinataire | Boîte de test contrôlée par l’équipe, choisie dans la tâche | Adresse figurant sur la page fournisseur | Refuser la destination substituée ; son origine compte |
-| Contenu | Annonce revue | Annonce et brief interne d’exigences | Refuser la divulgation supplémentaire |
-| Identifiants | Chemin d’envoi limité à l’opération prévue | Accès large à la messagerie pour l’agent de recherche | Garder les identifiants plus larges indisponibles |
-| Preuves | Proposition, décision, résultat d’exécution, réception | L’agent dit « envoyé avec succès » | Vérifier aussi le système destinataire |
+Dans Tale, le relais de connecteurs propose uniquement des actions de lecture aux agents. Les outils d’écriture de la plateforme, les outils GitHub directs et les secrets explicitement accordés ont leurs propres règles d’accès. Vérifie l’équipement réel de l’agent avec le [guide des agents de projet](https://docs.tale.dev/fr/platform/projects/project-agents). Les restrictions d’un connecteur ne décrivent pas tous ses pouvoirs.
 
-L’observation importante est qu’une attaque n’a pas besoin d’inventer un nouvel appel d’outil. Si `send_email` est déjà autorisé, changer seulement le destinataire ou la pièce jointe peut produire l’effet indésirable. Une liste d’hôtes autorisés contenant le fournisseur de messagerie n’établit pas quelle boîte, quel destinataire ou quel document peut passer par cet hôte. Les limites réseau et l’autorisation d’action répondent à des questions différentes.
+## Décide séparément de l’envoi
 
-La séparation proposée est une recommandation d’architecture. Son application doit être démontrée dans le produit et le service destinataire choisis ; placer ce tableau dans les instructions d’un agent ne la met pas en œuvre.
+Si la tâche doit ensuite inclure l’envoi de l’annonce, ajoute cette étape délibérément. Conserve les accès de l’agent de recherche et utilise un chemin d’envoi séparé et limité. La personne qui décide devrait voir le destinataire exact, l’objet, le message et les pièces jointes.
 
-## Autoriser l’opération réelle
+Dans Tale, les écritures de connecteurs dans les automatisations réelles peuvent nécessiter une approbation selon la politique de l’organisation. Cela ne soumet pas chaque commande shell à une carte d’approbation. Vérifie les [règles d’approbation](https://docs.tale.dev/fr/platform/approvals/configure) applicables.
 
-Pour une action importante, demande si l’identité d’exécution peut effectuer cette opération sur cette ressource, avec ces entrées, pour cette tâche. Demande ensuite qui peut autoriser une exception. « L’utilisateur a approuvé l’accès aux e-mails » est trop large pour décider si cette pièce jointe précise peut aller à ce destinataire précis.
+Une carte Tale permet d’approuver ou de rejeter les données proposées, pas de les modifier. Toute personne pouvant ouvrir la tâche peut décider sur une carte qui y apparaît ; la carte ne désigne pas un groupe d’approbateurs. Vérifie que ce cercle de personnes convient à ton besoin. [Détails des approbations d’opérations](https://docs.tale.dev/fr/platform/approvals/concepts)
 
-Privilégie un chemin d’envoi qui évalue l’entrée exacte proposée et vérifie l’accès actuel à l’exécution. Si l’entrée change après la revue, exige une nouvelle décision au lieu de considérer l’ancienne approbation comme transférable. Pour un système sur mesure, rattacher une décision à une opération et une ressource précises est une exigence à mettre en œuvre et à tester, pas une fonction de Tale affirmée ici.
+Accepter un brouillon et autoriser son envoi sont deux décisions distinctes. Une annonce correcte peut encore être adressée au mauvais destinataire. Le guide sur [la place des approbations humaines dans un workflow IA](/fr/blog/human-in-the-loop-ai-agent-workflows) t’aide à choisir le point de contrôle et les informations à présenter.
 
-Garder les identifiants hors du système de fichiers d’un agent peut réduire l’exposition de leurs valeurs brutes. Cela ne supprime pas la nécessité de limiter ce que l’outil authentifié peut faire pour l’agent. De même, ajouter MCP n’achève pas l’autorisation : son guide de sécurité interdit d’accepter des tokens qui n’ont pas été émis pour le serveur MCP et signale les risques de mandataire confus liés au consentement. [Bonnes pratiques de sécurité MCP](https://modelcontextprotocol.io/docs/2025-11-25/tutorials/security/security_best_practices).
+## Teste ce que l’agent doit être incapable de faire
 
-## Tirer parti de défenses plus fortes sans exagérer leur portée
+Exécute une tâche sans conséquence avec le rôle, les outils et les types d’identifiants que l’équipe utilisera réellement. Un essai réussi avec un compte administrateur ne montre pas ce qu’un autre utilisateur peut faire.
 
-Le système de recherche CaMeL dépasse la simple consigne d’ignorer le texte malveillant : il sépare les flux de contrôle et de données et vérifie les capacités à l’exécution des outils. Ses auteurs décrivent aussi des compromis d’utilité, un travail de maintenance des politiques, des interventions utilisateur et des limites liées aux canaux auxiliaires. Son modèle de menace ne couvre pas toutes les attaques contre l’intégrité du texte ; une synthèse trompeuse peut rester nuisible sans violer un flux protégé. C’est une preuve de recherche en faveur de limites appliquées, pas l’affirmation que l’injection de prompt est résolue ou que Tale implémente CaMeL. [Debenedetti et ses collègues, prépublication CaMeL, révision de juin 2025](https://arxiv.org/html/2503.18813v2).
+En plus de la tâche normale, essaie de lire un document de test non autorisé et d’envoyer un message sans approbation vers une boîte de test que tu contrôles. Vérifie le refus d’accès, le journal des actions du service d’envoi et la boîte de test ; aucune demande d’envoi ne doit avoir été acceptée. Utilise du contenu fictif et des comptes que tu contrôles. Tu cherches à obtenir un brouillon utile tout en gardant les actions exclues indisponibles.
 
-Pour l’annonce, cette distinction change la revue. Empêcher un envoi non autorisé n’établit pas l’exactitude du brouillon. Une page fournisseur manipulée peut encore pousser le rapport à exagérer une capacité du produit. Conserve la revue des sources et du résultat même lorsque les permissions d’action sont restreintes.
+Si tu ajoutes une étape d’approbation, essaie-la lors d’une exécution réelle et contrôlée. Le test avec réponses simulées de Tale n’effectue pas d’écritures externes et n’affiche pas de cartes d’approbation réelles. Rejette une opération proposée et vérifie qu’elle n’a pas eu lieu, puis teste l’approbation dans une autre exécution corrigée. Le [guide des approbations d’opérations](https://docs.tale.dev/fr/platform/approvals/concepts) explique cette distinction.
 
-À l’inverse, faire attendre chaque lecture pour une approbation gênerait la recherche courante sans nécessairement contrôler la divulgation finale. Place un contrôle là où l’autorité ou l’exposition change : ajout d’un nouveau périmètre de ressources, export de contenu interne ou réalisation d’un effet externe. C’est un jugement propre à la tâche, pas une règle selon laquelle toutes les écritures auraient les mêmes conséquences.
-
-## Appliquer la conception aux chemins d’exécution distincts de Tale
-
-Les agents de projet Tale reçoivent des outils, Connectors, skills et secrets autorisés configurés. Le libellé **Écrit des données** identifie les outils de plateforme capables d’opérations réelles dans leurs règles d’accès. Le broker de Connectors de l’agent expose des actions de lecture ; les outils GitHub directs et les secrets explicitement accordés suivent des chemins distincts. Une exécution démarrée par un Membre est limitée à la tâche et ne reçoit ni les secrets accordés à l’agent ni le token GitHub équipé. Teste l’identité de démarrage que tu utiliseras réellement. [Agents de projet](https://docs.tale.dev/fr/platform/projects/project-agents) et [runtimes des agents](https://docs.tale.dev/fr/platform/agents/harnesses).
-
-La revue du résultat d’une tâche et la permission d’une opération sont deux décisions distinctes. Accepter un rapport n’autorise pas en soi un envoi via Connector ; répondre à une demande d’information constitue encore une autre interaction. Utilise le [guide d’automatisation des tâches](https://docs.tale.dev/fr/platform/projects/task-automation) pour le parcours de revue et les règles applicables aux réviseurs.
-
-Les approbations d’opérations de Tale couvrent les écritures de Connector concernées dans les automatisations réelles. Les écritures externes exigent une approbation par défaut ; les écritures internes authentifiées par la plateforme ne l’exigent pas par défaut, et une politique d’organisation peut modifier la règle d’un Connector ou d’une action. Cela n’établit pas l’interception de toutes les commandes shell ou de tous les outils disposant de secrets. [Configurer les approbations](https://docs.tale.dev/fr/platform/approvals/configure).
-
-La carte d’approbation affiche l’entrée exacte et permet d’approuver ou de refuser, sans modification. Refuse une entrée incorrecte, corrige-la et démarre une nouvelle exécution. Vérifie qui peut décider : toute personne pouvant ouvrir une tâche peut décider sur sa carte ; l’accès au détail d’exécution est limité aux propriétaires, admins et développeurs. Les cartes ne sont pas acheminées vers un groupe d’approbateurs nommé. Une équipe exigeant un approbateur précis ne peut pas déduire cette restriction de la présence d’une carte. [Concepts d’approbation d’opérations](https://docs.tale.dev/fr/platform/approvals/concepts).
-
-## Tester un refus et un résultat ambigu
-
-Utilise du contenu fictif et des destinations que tu contrôles. Remplace d’abord le destinataire dans la proposition d’envoi de test et refuse-la. Vérifie la décision consignée et l’absence de livraison. Dans une exécution corrigée distincte, approuve l’envoi sans conséquence et examine la boîte destinataire. Le **Essai** simulé de Tale n’effectue pas l’écriture externe et n’exerce pas la carte d’approbation réelle ; il ne peut donc pas établir ces résultats. [Concepts d’approbation d’opérations](https://docs.tale.dev/fr/platform/approvals/concepts).
-
-Considère maintenant un échec construit : le service d’envoi accepte l’e-mail, mais l’appelant perd sa connexion avant d’enregistrer la réponse. La tâche paraît échouée ou incertaine. Relancer toute la tâche peut envoyer un doublon.
-
-Suspends les envois supplémentaires et conserve l’entrée de l’opération, ses identifiants et ses horodatages. Cherche l’effet dans le système destinataire ou le relevé de livraison du fournisseur. Si la livraison est confirmée, consigne ce fait et poursuis uniquement le travail restant. Ne réessaie que si une preuve faisant autorité établit que la demande originale n’a pas eu d’effet et ne peut plus aboutir, ou si le contrat d’idempotence documenté du service destinataire couvre la répétition de façon sûre. Une boîte vide ou l’absence actuelle de relevé de livraison n’établit pas cette condition. Si le résultat reste inconnu, garde-le inconnu et fais-le remonter ; une nouvelle tentative automatique transformerait une preuve manquante en possible deuxième effet.
-
-Lorsqu’une API destinataire prend en charge l’idempotence, utilise sa clé et ses règles documentées de répétition pour éviter les effets en double dans les limites de ce mécanisme. Sinon, prévois une étape de vérification ou une décision manuelle. Ce conseil de reprise est général ; il n’affirme pas que chaque Connector Tale fournit l’idempotence.
-
-L’annulation est également distincte de l’inversion. Le moteur d’automatisation de Tale arrête le travail suivant à ses limites d’exécution ; les effets déjà réalisés ne sont pas annulés. Examine ce qui s’est passé avant de redémarrer. [Journaux d’exécution](https://docs.tale.dev/fr/platform/automations/execution-logs).
-
-## Conserver les preuves nécessaires pour reconstituer la décision
-
-Dans cet exemple, conserve ensemble quatre éléments : la proposition, la personne qui l’a autorisée ou refusée, le compte rendu d’exécution et ce qu’indique le système destinataire. Ils établissent des faits différents. L’approbation prouve qu’une permission a été donnée ; elle ne prouve ni la livraison ni l’exactitude.
-
-Le journal d’audit de Tale n’est pas une transcription complète de chaque conversation ou service externe. Les exports sont filtrés et plafonnés, et la conservation modifie l’historique disponible. Les contrôles par chaîne de hachage ne prouvent pas que chaque événement a été capturé et ne fournissent pas de signature indépendante ; la vérification à la demande couvre au maximum 1 000 entrées conservées. Utilise le [journal d’audit](https://docs.tale.dev/fr/platform/admin/governance/audit-logs) et le [guide d’intégrité](https://docs.tale.dev/fr/self-hosted/operate/security/audit-log-integrity) pour comprendre ce que les preuves de plateforme peuvent établir, puis conserve les preuves externes manquantes si nécessaire.
-
-## Changer la conception quand le travail change
-
-Pour une rédaction à faible impact sans données sensibles ni autorité d’écriture externe, une décision humaine obligatoire à chaque appel d’outil peut apporter peu de valeur. Autorise le travail délimité et examine le livrable. Pour des écritures répétées et prévisibles, une opération API strictement limitée avec validation déterministe peut être plus facile à encadrer qu’un agent choisissant des cibles arbitraires.
-
-La recommandation devient plus stricte lorsque l’intervenant peut lire des informations sensibles et écrire vers de nombreuses destinations, ou lorsque les erreurs sont difficiles à inverser. Réduis son autorité, sépare préparation et exécution ou confie l’action finale à une personne. Un réviseur doit disposer d’assez de contexte et d’un point de décision effectivement appliqué ; le mot « approbation » seul ne fournit ni l’un ni l’autre.
-
-La [fiche d’autorité d’action](/blog/worksheets/fr/T07-action-authority.md) contient la décision fictive remplie, un relevé d’autorité compact et l’exercice de reprise d’une livraison ambiguë. Apporte une tâche réelle et ses chemins d’action disponibles à une [démo Tale](/fr/request-demo), après avoir identifié les effets qui doivent rester impossibles.
+Conserve la liste d’accès avec la configuration de l’agent. La [fiche des autorisations d’action](/blog/worksheets/fr/T07-action-authority.md) permet de noter les outils, les références d’identifiants et les tests de refus. Revois-la quand la tâche reçoit une nouvelle destination ou une nouvelle action, notamment lorsqu’un agent jusque-là chargé de rédiger commence à publier ou à envoyer.

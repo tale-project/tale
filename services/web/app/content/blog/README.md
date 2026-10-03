@@ -66,5 +66,7 @@ reproduction commands.
 - `bun run --filter @tale/web test:e2e tests/e2e/specs/blog.spec.ts` covers the index, articles,
   media, worksheet responses, keyboard tables, metadata, and unknown slugs across EN/DE/FR,
   light/dark, and phone-to-desktop widths.
+- `bun run --filter @tale/web test:e2e tests/e2e/specs/blog-diagrams.spec.ts` measures rendered
+  text padding, text overlap, and horizontal arrowhead clearance in all 30 localized SVGs.
 - The [blog manual suite](../../../tests/manual/suites/blog.md) covers visual judgement and
   narrative quality that these checks cannot establish.

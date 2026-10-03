@@ -1,6 +1,6 @@
 ---
-title: "IA et contrôle humain : revues et approbations"
-description: "Place des contrôles utiles dans le travail des agents IA. Distingue questions, revue des résultats et approbation des actions, avec une fiche pratique."
+title: "Quand un workflow IA doit-il demander ton accord ?"
+description: "Choisis où une personne doit intervenir dans un workflow IA, ce qu’elle doit vérifier et pourquoi un texte correct ne suffit pas à autoriser son envoi."
 slug: human-in-the-loop-ai-agent-workflows
 topicId: T02
 reviewed: '2026-10-03'
@@ -8,114 +8,64 @@ draft: false
 coverAlt: "Trois objets distincts représentent une question, un résultat examiné et un contrôle avant action."
 ---
 
-Un agent prépare une annonce pour le support et quelqu’un clique sur « approuver ». Qu’a établi l’équipe ? Peut-être que le message est exact. Peut-être seulement que la personne avait accès au bouton. Peut-être qu’un message correct peut être envoyé à la mauvaise audience.
+Prévois une intervention humaine lorsqu’une personne doit fournir une information manquante, juger un résultat ou autoriser une action. Chaque intervention doit répondre à une question précise. « Approuver le travail de l’agent » laisse trop de place à l’interprétation : quelqu’un peut accepter le texte d’un message sans remarquer à qui il sera envoyé.
 
-Un workflow d’IA avec intervention humaine place des personnes à certains points de décision. La difficulté consiste à choisir ces points et à leur confier une décision qu’elles peuvent réellement améliorer. **Un contrôle mérite l’attention d’une personne lorsqu’elle apporte une autorité manquante, des connaissances pertinentes ou un jugement que le processus ne peut pas fournir correctement autrement.** Exiger un clic ne prouve aucun de ces apports.
+Commence par lister ce que l’agent produira et ce qu’il pourra modifier. Détermine ensuite les étapes qui ont besoin de tes connaissances ou de ton autorisation. Rédiger une note interne et l’envoyer à des clients n’ont pas les mêmes conséquences, même si le texte est identique.
 
-Ce guide examine une annonce à corriger, une proposition d’envoi à refuser et une file de revue qui n’arrive pas à suivre. Chaque échec demande une réponse différente.
+## Précise ce que la personne approuve
 
-## Donner un seul sens à chaque contrôle
+Trois échanges méritent d’être distingués :
 
-Trois décisions portent souvent la même étiquette « approbation », alors que leurs conséquences diffèrent.
-
-| Interaction | Décision | Conséquence |
+| Intervention | La question à laquelle elle répond | Ce qui suit |
 | --- | --- | --- |
-| Question | Quel fait ou quelle préférence manquante s’applique ? | L’intervenant peut utiliser cette information |
-| Revue du résultat | Ce livrable précis respecte-t-il ses critères ? | Accepter le travail ou demander des modifications |
-| Approbation d’action | Cette opération précise peut-elle avoir lieu ? | Permettre une tentative ou l’empêcher |
+| Question | Quelle règle, quel public ou quelle préférence s’applique ? | L’agent poursuit avec l’information qui lui manquait |
+| Examen du résultat | Cette version répond-elle au brief ? | Accepter le résultat ou demander des corrections |
+| Approbation d’une action | Cette opération précise peut-elle avoir lieu ? | Autoriser la tentative ou l’empêcher |
 
-La distinction a un effet concret. Répondre « utilise le processus du support régional » n’accepte pas la description que l’agent en produira. Accepter une annonce n’approuve pas tous ses destinataires possibles. La permission d’envoyer ne prouve pas la livraison.
+Pose une question avant le travail qui dépend de sa réponse. Examine le résultat lorsqu’il y a quelque chose de concret à vérifier. Demande l’approbation d’une action avant l’effet que tu veux contrôler, en montrant à la personne le contenu et la destination réels.
 
-Les frameworks mettent ces décisions en œuvre différemment. Le middleware d’intervention humaine de LangChain documente par exemple des décisions configurables autour d’appels d’outils interrompus. Les réponses disponibles sont des détails d’implémentation à vérifier, pas des significations universelles du bouton d’approbation. [Consulte la documentation du middleware](https://docs.langchain.com/oss/python/langchain/human-in-the-loop).
+![Les questions apportent les informations manquantes. L’examen des résultats permet de les accepter ou de demander des corrections. L’approbation autorise ou refuse une opération précise.](/blog/diagrams/fr/T02-diagram.svg)
 
-Écris la décision en une phrase avant de concevoir l’interface : « Ce workflow peut-il envoyer la révision 3 de l’annonce au groupe de test du support régional ? » Si cette phrase ne peut pas nommer le contenu et la conséquence, le contrôle est trop vague pour être examiné de façon fiable.
+Ces décisions peuvent être prises au cours du même échange. Elles doivent tout de même recevoir des réponses distinctes. Si tu approuves à la fois une annonce et sa diffusion, consigne la version et le public concernés.
 
-![Trois contrôles distincts : les questions apportent des informations, la revue des résultats accepte le travail ou demande des modifications, et l’approbation d’action permet ou refuse une opération précise. La permission ne prouve pas la réussite de l’exécution.](/blog/diagrams/fr/T02-diagram.svg)
+## Un message correct peut arriver aux mauvaises personnes
 
-## Exemple illustratif : refuser le bon élément
+Prenons une annonce de support fictive. La note de référence P-17 indique qu’**à partir de lundi, l’équipe de support régionale doit transmettre les problèmes d’accès non résolus au responsable de permanence**. Le premier envoi est destiné à un groupe de test interne.
 
-Le scénario de mise à jour de service suivant utilise des documents et des destinations inventés. Il illustre une méthode de revue, pas un déploiement mesuré.
+Le brouillon de l’agent, version 2, dit : « Toutes les équipes de support doivent immédiatement transmettre les problèmes d’accès au niveau supérieur. » La phrase paraît claire, mais elle change trois éléments : les équipes concernées, les problèmes à transmettre et la date d’application.
 
-Un responsable de processus a approuvé la note P-17 : à partir de lundi, l’équipe de support régional doit transmettre au responsable de permanence les problèmes d’accès non résolus. Un agent rédige la révision 2 de l’annonce. L’équipe prévoit de tester la diffusion en interne avant d’envisager une audience plus large.
+La personne qui vérifie le contenu doit demander ces corrections. La version 3 rétablit le périmètre régional, la condition « non résolus » et le début le lundi. Son texte peut maintenant être accepté.
 
-Voici la partie substantielle du premier dossier de revue :
+Le workflow propose ensuite d’envoyer r3 à `all-support`. C’est la mauvaise destination ; la tâche n’autorise que `regional-support-test`. Refuser cet envoi ne signifie pas qu’il faut réécrire le texte. Il faut corriger le destinataire de l’opération, puis demander une nouvelle approbation. Avant de l’accorder, vérifie l’identité du groupe ou la liste de ses membres, pas seulement son nom rassurant.
 
-| Champ du dossier | Exemple rempli |
-| --- | --- |
-| Décision demandée | Accepter l’annonce r2 comme mise à jour exacte du processus régional |
-| Affirmation proposée | « Toutes les équipes de support doivent transmettre immédiatement les problèmes d’accès » |
-| Preuve faisant référence | P-17 : équipe régionale ; problèmes d’accès non résolus ; application lundi |
-| Critères | Préserver l’audience, la condition de transmission et la date d’application |
-| Constat du réviseur | Périmètre élargi ; condition « non résolus » supprimée ; date omise |
-| Décision | Demander la correction de ces trois éléments |
+Après la tentative, vérifie que le message a bien été livré. Une approbation donne la permission d’essayer ; elle ne prouve pas ce qui s’est passé ensuite.
 
-Le réviseur n’a pas besoin d’un score de confiance du modèle pour repérer le problème. Comparer la phrase proposée à la note de référence le révèle. Les changements comptent : le brouillon élargit les personnes concernées, les cas admissibles et la date de début du processus.
+## Donne à la personne de quoi contester la proposition
 
-La révision 3 rétablit les trois conditions. Le réviseur peut maintenant accepter son exactitude. Il reste toutefois une décision de diffusion distincte. Supposons que la proposition d’envoi désigne `all-support` au lieu du groupe prévu `regional-support-test`. La bonne réponse consiste à refuser cette opération. Réexaminer le texte accepté ne corrigerait pas la destination.
+La personne chargée de vérifier ne devrait pas avoir à reconstituer la tâche à partir d’un historique de discussion. Pour décider de l’envoi, cette demande concise donnerait déjà les éléments essentiels :
 
-Après correction, la nouvelle proposition identifie la révision 3 et le groupe de test prévu. La personne vérifie l’identité réelle du groupe ou les preuves de sa composition auxquelles elle a accès, plutôt que de se fier au mot rassurant « test ». L’approbation permet alors la tentative. Une erreur de livraison est consignée comme un échec d’exécution, pas comme la preuve que la décision précédente de la personne a été refusée.
+> - **Décision :** Peut-on envoyer l’annonce r3 à `regional-support-test` ?
+> - **Contenu :** Lien vers le texte exact de r3, vérifié par rapport à P-17.
+> - **Destination :** Lien vers la liste actuelle des membres du groupe.
+> - **Changement :** La proposition précédente indiquait par erreur `all-support`.
+> - **En cas de refus :** Arrêter cet envoi et transmettre le motif à la personne responsable de la tâche.
 
-Cette séquence donne un but à chaque intervention. La question précise le périmètre ; la revue corrige le sens ; la décision d’action limite la diffusion ; la vérification du résultat constate l’exécution.
+Place la source originale à côté de la proposition. Le résumé d’une règle par l’agent peut contenir la même erreur que son brouillon. Pour vérifier l’annonce, il faut lire P-17, et non une autre explication de P-17 formulée avec assurance.
 
-## Une personne peut apporter une autorité sans améliorer l’exactitude
+Choisis la personne en fonction de la décision : quelqu’un qui comprend la règle pour le contenu, et quelqu’un qui a l’autorité nécessaire pour la diffusion. Une même personne peut assurer les deux rôles. Pouvoir ouvrir un écran d’approbation ne suffit pas à établir l’une ou l’autre de ces responsabilités.
 
-Certaines décisions nécessitent une personne parce que l’organisation lui réserve l’autorité. D’autres contrôles existent parce qu’on attend d’elle qu’elle détecte des erreurs. Ces justifications diffèrent et demandent des preuves différentes.
+## Évite les approbations sans jugement utile à apporter
 
-Une méta-analyse de 2024 couvrant 106 expériences constate qu’en moyenne, les combinaisons humain–IA font mieux que les humains seuls, mais moins bien que la meilleure des deux conditions humain seul ou IA seule. Elle inclut des études publiées jusqu’en juin 2023 et exige les trois conditions de comparaison. Elle ne permet donc pas d’établir les performances d’un workflow actuel de revue d’agents, ni de décider si une autorisation obligatoire doit être supprimée. [Lis l’article final et sa méthode](https://www.nature.com/articles/s41562-024-02024-1).
+Des règles de validation explicites conviennent généralement mieux aux champs manquants, aux adresses invalides et aux identifiants de destination interdits. Exécute ces contrôles avant de demander à quelqu’un de lire la proposition. Réserve l’attention humaine au sens, aux exceptions et aux décisions qui exigent une autorité.
 
-La difficulté pratique est de nommer la contribution humaine. Dans l’exemple de l’annonce, le responsable du processus sait quelle règle fait référence. Le réviseur factuel compare le brouillon à cette règle. La personne qui autorise la diffusion contrôle l’audience prévue. Attribuer les trois fonctions à la première personne disponible laisserait ces contributions sans fondement.
+Pour un travail interne réversible, vérifier un échantillon de résultats terminés peut suffire. Pour un nouvel engagement envers un client, un paiement ou une publication au nom de l’entreprise, une personne responsable peut devoir examiner chaque proposition. Conserve les approbations imposées par ton organisation.
 
-Quand l’exactitude est l’objectif, donne au réviseur des preuves qui lui permettent de contester. Un raisonnement généré par l’agent peut aider à parcourir le dossier, mais ne remplace pas les documents sous-jacents. Pour les affirmations à conséquences, demande au réviseur d’identifier la condition pertinente dans la source avant d’accepter la formulation proposée. C’est notre recommandation de conception, pas l’affirmation qu’une interface donnée a été validée.
+Pendant le pilote, observe ce que font les personnes chargées de vérifier. Si la plupart des demandes sont renvoyées parce que la source manque, améliore leur présentation. Si l’équipe ne suit pas, limite le workflow ou prévois un relais compétent. Une file d’attente qui s’allonge doit conduire à revoir le processus, pas à traiter le silence comme un accord.
 
-Une étude de Buçinca et ses collègues constate qu’une interaction plus réfléchie peut réduire la confiance excessive tout en recevant des évaluations moins favorables des utilisateurs. Ce résultat invite à examiner la qualité des décisions et la charge de revue ; il ne justifie pas d’ajouter des obstacles partout. [Lis l’expérience de 2021](https://arxiv.org/abs/2102.09692).
+## Rattache l’approbation à ce qui a été vérifié
 
-## Consacrer l’attention là où elle peut changer le résultat
+Modifier le message, son destinataire ou la règle sur laquelle il repose peut invalider une décision antérieure. Consigne la version et le périmètre pour que la personne suivante sache ce qui reste valable. Si la source ou la destination ne peut pas être vérifiée, laisse l’action en attente et précise qui peut fournir les éléments manquants.
 
-L’absence d’une date obligatoire peut souvent être détectée automatiquement. Déterminer si « non résolu » garde le même sens dans une règle révisée exige une interprétation. Déterminer si un message peut être envoyé à une audience donnée nécessite l’autorité appropriée et des preuves actuelles sur la destination.
+Dans Tale, les résultats des tâches sont soumis à examen. Les workflows en attente distinguent les questions des approbations d’écriture par un connecteur. Une opération incorrecte ne peut pas être modifiée sur sa carte d’approbation : refuse-la, corrige l’entrée ou le workflow, puis lance une nouvelle exécution. [Examen des tâches](https://docs.tale.dev/fr/platform/projects/task-automation), [workflows en attente](https://docs.tale.dev/fr/platform/automations/approvals-in-workflows).
 
-Utilise des vérifications automatiques pour éliminer le travail de revue évitable avant l’arrivée du dossier. Elles peuvent refuser des champs manquants, détecter une révision modifiée ou vérifier un identifiant de destination autorisé lorsque les règles sont explicites. Elles ne peuvent pas établir que chaque phrase valide préserve le sens voulu.
-
-Dans cet exemple, une répartition utile serait :
-
-| Vérification | Approche de départ | Raison |
-| --- | --- | --- |
-| Présence des champs obligatoires du dossier | Validation définie | La structure requise est connue |
-| Préservation des conditions de P-17 dans l’annonce | Revue du fond | Une reformulation fluide peut changer le sens |
-| Destination conforme à l’audience autorisée | Vérification de l’identifiant exact et autorisation appropriée | Un contenu correct ne règle pas la question de la diffusion |
-| Livraison effectivement réalisée | Preuve d’exécution | L’approbation seule ne peut pas établir un effet |
-
-Ce choix doit évoluer avec la tâche. Un changement réversible de mise en forme interne peut demander un contrôle par échantillonnage et une correction facile plutôt qu’une approbation individuelle. Un message créant un nouvel engagement de service peut nécessiter un responsable qualifié, même si sa grammaire, ses références et sa destination sont correctes. Les approbations obligatoires de l’organisation restent obligatoires ; réduire le volume de revue n’autorise pas en soi leur suppression.
-
-## Vérifier si la capacité de revue suffit
-
-Un fonctionnement qui attribue chaque proposition à une personne déjà occupée risque simplement de déplacer le goulot d’étranglement.
-
-Prenons un calcul de capacité illustratif. Supposons que 24 nouvelles propositions arrivent chaque jour ouvré, que chaque revue dure quatre minutes et que le réviseur dispose de 60 minutes par jour pour ce travail. Ignorons d’abord les reprises et la variabilité.
-
-Le travail entrant demande `24 × 4 = 96 minutes`. Le temps disponible couvre `60 ÷ 4 = 15 revues`. Selon ces hypothèses, neuf propositions restent non examinées chaque jour ; après cinq jours, le retard supplémentaire atteint 45 propositions. C’est un calcul sur des entrées inventées, pas une prévision des délais d’attente réels. Des arrivées variables, des cas plus complexes et des revues répétées exigeraient des mesures supplémentaires.
-
-L’organisation doit prévoir une réponse avant que la file ne devienne urgente. L’équipe peut réduire les propositions inutiles, corriger les défauts récurrents des dossiers, prévoir des personnes qualifiées supplémentaires ou réduire le pilote. Regrouper quelques décisions similaires peut réduire le temps de préparation répété, mais le dossier doit préserver les exceptions et le périmètre de chaque décision. Accepter automatiquement les demandes en retard changerait la politique d’autorisation ; cela ne remédie pas à un manque de capacité.
-
-Mesure le rythme d’arrivée et le temps réel de traitement pendant le pilote. Suis les demandes de modification autant que les approbations : une proposition qui revient trois fois consomme de la capacité trois fois. L’objectif est un processus de revue que les personnes peuvent exécuter attentivement avec la charge attendue.
-
-## Rattacher les décisions aux versions et prévoir la reprise
-
-Un compte rendu de revue doit identifier exactement ce qui a été examiné. « Approuvé mardi » ne suffit pas si quelqu’un a changé l’audience mercredi.
-
-Pour l’annonce, une correction ultérieure de formulation peut nécessiter une nouvelle revue du contenu tout en conservant l’audience vérifiée. Un changement de destination exige une nouvelle décision d’action, même si le contenu reste accepté. Une nouvelle note de processus peut invalider la revue factuelle. Consigne la décision concernée et la raison de son réexamen ; évite à la fois la réutilisation générale d’une approbation et la répétition inutile de contrôles sans rapport.
-
-L’absence de preuves est un résultat valable. Le réviseur peut répondre « impossible de décider : composition du groupe indisponible », en désignant un responsable de l’entrée manquante. L’opération doit alors rester non approuvée. De même, un réviseur qui n’a pas l’expertise nécessaire doit transmettre la décision à une personne qualifiée plutôt que de confondre accès au système et compétence.
-
-Le [modèle de dossier de revue](/blog/worksheets/fr/T02-review-packet.md) sépare la décision demandée, les preuves susceptibles de la modifier, la révision, l’autorité et l’effet observé. Ses champs de capacité aident à vérifier si le fonctionnement prévu est soutenable.
-
-## Appliquer cette distinction dans Tale
-
-La documentation de Tale distingue les résultats de tâches soumis à revue, les questions des workflows et les approbations d’écriture des Connectors. Pour une tâche de projet, place les critères d’acceptation à côté du livrable afin que le réviseur puisse examiner le travail. Une exécution réussie ne suffit pas à décider de l’acceptation. [Lis la documentation sur la délégation et la revue](https://docs.tale.dev/fr/platform/projects/task-automation).
-
-Pour une écriture proposée via un Connector, la carte d’approbation documentée affiche l’entrée sans permettre de la modifier. Un refus empêche l’opération et fait échouer l’exécution ; corriger le workflow ou l’entrée demande une nouvelle exécution. [Consulte les workflows en attente](https://docs.tale.dev/fr/platform/automations/approvals-in-workflows).
-
-La personne désignée par le métier pour approuver est également distincte des accès à la plateforme. Le guide public de Tale indique que les approbations de Connector ne sont pas acheminées vers un groupe d’approbateurs nommé. Les propriétaires, admins et développeurs peuvent ouvrir le détail d’une exécution ; toute personne pouvant ouvrir une tâche peut décider sur les cartes qui lui sont rattachées. Fais correspondre le comportement d’accès documenté à la responsabilité exigée par ton processus. [Lis les concepts d’approbation d’opérations](https://docs.tale.dev/fr/platform/approvals/concepts).
-
-L’approbation de Connector suit un chemin de contrôle défini. Ne suppose pas qu’elle intercepte toutes les actions possibles via les outils directs de la sandbox ou les identifiants accordés. Examine ces chemins d’accès lors de la configuration du processus. [Consulte les limites des runtimes et des identifiants](https://docs.tale.dev/fr/platform/agents/harnesses).
-
-Pour une [démo Tale](/fr/request-demo), apporte l’annonce incorrecte, sa révision corrigée et la proposition avec la mauvaise destination. Une démonstration utile doit rendre les trois décisions distinctes et conserver assez de preuves pour expliquer ce qui s’est passé après chacune.
+Utilise le [modèle de demande de décision](/blog/worksheets/fr/T02-review-packet.md) avec un workflow existant. Pars de sa prochaine action importante et rédige la phrase à laquelle la personne devra répondre. Si cette phrase reste imprécise, le workflow n’est pas encore prêt pour un bouton d’approbation.
