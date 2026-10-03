@@ -16,7 +16,16 @@ Headless Chromium and Playwright are available on demand for automation,
 rendering and screenshots. The runtime starts no display server, managed
 browser or viewing tunnel. Configured transparent egress redirects external
 network access through `@tale/sandbox-egress`; Playwright MCP also receives
-the proxy settings through its launcher.
+the proxy settings through its launcher (`tale-playwright-mcp`). Every managed
+agent turn lists the Playwright MCP server, but most never open a browser, and
+the server — a Node process that loads Playwright — holds about 100 MB while it
+runs. So the launcher answers the start of a turn itself (`initialize`,
+`tools/list`, `ping`) from manifests of the real server's answers, recorded at
+image build for the argument sets the platform passes
+([`playwright-mcp-args.json`](playwright-mcp-args.json)), and starts the server
+only on the turn's first tool call, replaying the start to it. Unknown
+arguments or protocol versions, and `TALE_PLAYWRIGHT_MCP_EAGER=1`, start the
+server at once.
 
 Python document libraries are baked into the shared Python 3.12 environment:
 openpyxl and xlrd for spreadsheets, pypdf for PDFs, PyYAML for safe YAML

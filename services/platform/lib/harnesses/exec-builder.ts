@@ -187,6 +187,16 @@ const PLAYWRIGHT_MCP_ARGS = [
  * the path, so the agent reads it as usual. */
 const PLAYWRIGHT_VISION_ARGS = ['--image-responses', 'omit'] as const;
 
+/** Every argument set a turn may start the Playwright MCP server with. The
+ * runtime image records the server's answers to the start of a turn for each
+ * of them (services/sandbox-runtime/playwright-mcp-args.json, held equal by
+ * this module's test), so a turn that never opens a browser never starts the
+ * server; a set it has no record for starts the server at once. */
+export const PLAYWRIGHT_MCP_ARG_SETS: readonly (readonly string[])[] = [
+  PLAYWRIGHT_MCP_ARGS,
+  [...PLAYWRIGHT_MCP_ARGS, ...PLAYWRIGHT_VISION_ARGS],
+];
+
 /** The capability-dispatch bridge — lets the agent use the org's connected
  * connectors. The credential stays server-side; the bridge only relays
  * dispatch requests to the platform, authed by the session key. Because it

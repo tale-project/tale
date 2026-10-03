@@ -5,6 +5,10 @@
 // injection safety, error paths). Byte-exact construction is
 // golden-exec.test.ts.
 
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import type { HarnessDefinition } from '@tale/shared/schemas/providers';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -13,6 +17,7 @@ import {
   buildHarnessExec,
   CACHE_AFFINITY_GATEWAY_HEADER,
   isClaudeModelRef,
+  PLAYWRIGHT_MCP_ARG_SETS,
 } from './exec-builder';
 import { batteryFor, GOLDEN_BYO_ENV, GOLDEN_GATEWAY } from './test-helpers';
 import type { HarnessExec, HarnessRunSpec } from './types';
@@ -902,5 +907,22 @@ describe('gemini requests the model it was given', () => {
         dynamicModelConfiguration: true,
       });
     }
+  });
+});
+
+describe('the Playwright MCP server the runtime image prepares for', () => {
+  it('has a record for every argument set a turn may start it with', () => {
+    // The image records the server's answers for these sets; a set missing
+    // there starts the server (~100 MB) with every turn again.
+    const recorded: unknown = JSON.parse(
+      readFileSync(
+        path.resolve(
+          path.dirname(fileURLToPath(import.meta.url)),
+          '../../../sandbox-runtime/playwright-mcp-args.json',
+        ),
+        'utf8',
+      ),
+    );
+    expect(recorded).toEqual(PLAYWRIGHT_MCP_ARG_SETS);
   });
 });
