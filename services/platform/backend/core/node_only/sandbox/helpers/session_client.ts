@@ -603,10 +603,12 @@ export async function sessionDestroyIfIdle(
 }
 
 /** How far deleting a destroyed workspace's bytes has come, as the spawner
- * answers a destroy: `done`, `pending` (still being deleted in the
- * background) or `failed` (the last attempt failed; the next destroy has it
- * tried again). */
-export type WorkspaceDeletion = 'done' | 'pending' | 'failed';
+ * answers a destroy: `done` (Docker: no trash entry of the id is left),
+ * `pending` (still being deleted in the background), `failed` (the last
+ * attempt failed; the next destroy has it tried again) or `handed_off`
+ * (Kubernetes: the PVC delete was accepted, and the volume is its storage
+ * provisioner's to delete under the storage class's reclaim policy). */
+export type WorkspaceDeletion = 'done' | 'pending' | 'failed' | 'handed_off';
 
 /** What a destroy answers the workspace cleanup. */
 export interface WorkspaceDestroyAnswer {
@@ -614,15 +616,16 @@ export interface WorkspaceDestroyAnswer {
   destroyed: boolean;
   /** A condition refused the destroy: nothing was touched. */
   busy: boolean;
-  /** Absent from a spawner or device that predates it, and from Kubernetes:
-   * there the destroy is complete when it answers. */
+  /** Absent only from a spawner or device older than the deletion contract,
+   * whose answer says nothing about the bytes (19776cf18 already deleted in
+   * the background): the cleanup reads it as unconfirmed, never as done. */
   deletion?: WorkspaceDeletion;
 }
 
 const workspaceDestroyAnswerSchema = z.object({
   destroyed: z.boolean(),
   busy: z.boolean().default(false),
-  deletion: z.enum(['done', 'pending', 'failed']).optional(),
+  deletion: z.enum(['done', 'pending', 'failed', 'handed_off']).optional(),
 });
 
 /** The workspace cleanup's destroy — its erasures, retirements and sweeps.

@@ -411,6 +411,12 @@ describe('sessionDestroyWorkspace', () => {
       busy: false,
       deletion: 'pending',
     });
+    answer({ destroyed: true, busy: false, deletion: 'handed_off' });
+    expect(await sessionDestroyWorkspace('pa-1')).toMatchObject({
+      deletion: 'handed_off',
+    });
+    // A spawner older than the contract: no state, which the cleanup reads
+    // as unconfirmed, never as done.
     answer({ destroyed: true, busy: false });
     expect(await sessionDestroyWorkspace('pa-1')).toEqual({
       destroyed: true,

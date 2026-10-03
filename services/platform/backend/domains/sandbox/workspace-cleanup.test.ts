@@ -185,8 +185,13 @@ describe('leftoverVerdict', () => {
 function scriptedSpawner(script: {
   offline?: ReadonlySet<string>;
   failKeys?: ReadonlySet<string>;
-  /** How far each workspace's deletion has come, as the spawner answers. */
-  deletion?: ReadonlyMap<string, 'done' | 'pending' | 'failed'>;
+  /** How far each workspace's deletion has come, as the spawner answers —
+   * `done` unless scripted; `legacy` is a spawner older than the contract,
+   * whose answer carries no deletion state at all. */
+  deletion?: ReadonlyMap<
+    string,
+    'done' | 'pending' | 'failed' | 'handed_off' | 'legacy'
+  >;
 }) {
   const calls: string[] = [];
   const spawner: WorkspaceSpawner = {
@@ -195,11 +200,11 @@ function scriptedSpawner(script: {
       if (script.offline?.has(sessionId)) {
         throw new SandboxDeviceOfflineError('device-1');
       }
-      const deletion = script.deletion?.get(sessionId);
+      const deletion = script.deletion?.get(sessionId) ?? 'done';
       return {
         destroyed: true,
         busy: false,
-        ...(deletion === undefined ? {} : { deletion }),
+        ...(deletion === 'legacy' ? {} : { deletion }),
       };
     },
     inventory: async () => null,
@@ -272,7 +277,10 @@ describe('retireOrganizationSandboxes', () => {
   });
 
   it('is not done while a workspace is out of use but its bytes are still on disk', async () => {
-    const deletion = new Map<string, 'done' | 'pending' | 'failed'>([
+    const deletion = new Map<
+      string,
+      'done' | 'pending' | 'failed' | 'handed_off' | 'legacy'
+    >([
       ['pa-1', 'pending'],
       ['wf-2', 'failed'],
     ]);
@@ -295,6 +303,38 @@ describe('retireOrganizationSandboxes', () => {
       'disconnect device-1',
       'teardown org-gone',
     ]);
+  });
+
+  it("settles only on an explicit completion — Docker's done or Kubernetes' hand-off — never on an older spawner's answer without one", async () => {
+    // pa-1: 19776cf18's answer, given once the workspace was renamed into
+    // the trash while its bytes were deleted in the background — or not.
+    // wf-2: Kubernetes, whose PVC delete hands the volume to its
+    // provisioner: its own contract, stated as such.
+    const deletion = new Map<
+      string,
+      'done' | 'pending' | 'failed' | 'handed_off' | 'legacy'
+    >([
+      ['pa-1', 'legacy'],
+      ['wf-2', 'handed_off'],
+    ]);
+    const { spawner, calls } = scriptedSpawner({ deletion });
+    const last = { ...payload, gatewayKeyIds: [] };
+    const refused = await retireOrganizationSandboxes(last, {
+      ...alone,
+      spawner,
+    }).then(
+      () => 'resolved',
+      (error: unknown) => (error instanceof Error ? error.message : 'threw'),
+    );
+    expect(refused).toMatch(/: pa-1 \(deletion_unconfirmed\)$/);
+    // Its devices stay connected: one may hold those bytes.
+    expect(calls).toEqual(['destroy pa-1 force', 'destroy wf-2 force']);
+
+    // The spawner is updated, and answers how far the deletion came.
+    deletion.set('pa-1', 'done');
+    calls.length = 0;
+    await retireOrganizationSandboxes(last, { ...alone, spawner });
+    expect(calls).toContain('teardown org-gone');
   });
 
   it('lets go of the devices only once every other slice has finished', async () => {

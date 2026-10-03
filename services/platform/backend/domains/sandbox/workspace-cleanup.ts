@@ -67,8 +67,10 @@ import {
  * Nothing here claims a deletion on a guess either. A destroy answers once
  * the workspace is out of use, and the spawner deletes its bytes in the
  * background; a deletion settles — rows destroyed, audited, counted by an
- * erasure — only once the spawner reports them gone. Until then, and while
- * their deletion keeps failing, the workspace waits for the next attempt.
+ * erasure — only once the spawner reports them gone (on Kubernetes: the
+ * volume handed to its provisioner). Until then, while their deletion keeps
+ * failing, and for a spawner too old to say, the workspace waits for the
+ * next attempt.
  */
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -144,6 +146,10 @@ export type WorkspaceRetireOutcome =
   /** The spawner took it out of use, but deleting its bytes keeps failing —
    * the next attempt has it tried again. */
   | 'deletion_failed'
+  /** The spawner took it out of use, but is older than the deletion
+   * contract: its answer says nothing about the bytes, so the next attempt
+   * asks again — and settles once an updated spawner answers. */
+  | 'deletion_unconfirmed'
   /** Decided again, and still wanted (a turn came back to it meanwhile). */
   | 'kept'
   /** Work runs in it — the next attempt tries again. */
@@ -158,7 +164,8 @@ type PendingOutcome =
   | 'offline'
   | 'failed'
   | 'deleting'
-  | 'deletion_failed';
+  | 'deletion_failed'
+  | 'deletion_unconfirmed';
 
 /** Outcomes that leave the workspace for a later attempt. */
 function pending(outcome: WorkspaceRetireOutcome): outcome is PendingOutcome {
@@ -167,7 +174,8 @@ function pending(outcome: WorkspaceRetireOutcome): outcome is PendingOutcome {
     outcome === 'offline' ||
     outcome === 'failed' ||
     outcome === 'deleting' ||
-    outcome === 'deletion_failed'
+    outcome === 'deletion_failed' ||
+    outcome === 'deletion_unconfirmed'
   );
 }
 
@@ -252,7 +260,7 @@ export async function retireWorkspace(
 ): Promise<WorkspaceRetireOutcome> {
   const organizationId = args.organizationId;
   if (organizationId === null) {
-    return destroyOnSpawner(args.sessionId, args.mode, spawner);
+    return (await destroyOnSpawner(args.sessionId, args.mode, spawner)).outcome;
   }
   const session = { organizationId, sessionId: args.sessionId };
   return withSessionLifecycleLock(sql, session, async (sessionSql) => {
@@ -277,7 +285,11 @@ export async function retireWorkspace(
         );
       });
     }
-    const outcome = await destroyOnSpawner(args.sessionId, args.mode, spawner);
+    const { outcome, confirmed } = await destroyOnSpawner(
+      args.sessionId,
+      args.mode,
+      spawner,
+    );
     if (outcome === 'deletion_failed') {
       await auditRetired(sessionSql, organizationId, args, outcome);
     }
@@ -290,7 +302,7 @@ export async function retireWorkspace(
           AND status <> 'destroyed'
       `;
     }
-    await auditRetired(sessionSql, organizationId, args, outcome);
+    await auditRetired(sessionSql, organizationId, args, outcome, confirmed);
     return outcome;
   });
 }
@@ -339,28 +351,53 @@ async function claimWorkspace(
   });
 }
 
+/** What one destroy settled: the outcome, and for a settled deletion the
+ * completion the spawner confirmed. */
+interface DestroyVerdict {
+  outcome: Exclude<WorkspaceRetireOutcome, 'kept'>;
+  confirmed?: 'done' | 'handed_off';
+}
+
 async function destroyOnSpawner(
   sessionId: string,
   mode: WorkspaceDestroyMode,
   spawner: WorkspaceSpawner,
-): Promise<Exclude<WorkspaceRetireOutcome, 'kept'>> {
+): Promise<DestroyVerdict> {
   try {
     const result = await spawner.destroy(sessionId, mode);
-    if (result.busy) return 'busy';
-    // Out of use is not deleted. A spawner that reports no `deletion`
-    // predates it, and its destroy is complete when it answers.
-    if (result.deletion === 'pending') return 'deleting';
+    if (result.busy) return { outcome: 'busy' };
+    // The rule at this boundary: out of use is not deleted, and a deletion
+    // settles only on an explicit completion. `done` is Docker's (no trash
+    // entry of the id is left); `handed_off` is Kubernetes' (the PVC delete
+    // was accepted, and the volume is its provisioner's to delete under the
+    // storage class's reclaim policy) and is recorded as such. An answer
+    // without `deletion` comes from a spawner or device older than this
+    // contract — 19776cf18 already answered once the workspace was renamed
+    // into its trash, with the bytes deleted in the background, or failing
+    // to be — so it proves nothing: it stays pending, the hub keeps the
+    // route to such a device, and the attempt after an update settles it.
+    if (result.deletion === 'done' || result.deletion === 'handed_off') {
+      return {
+        outcome: result.destroyed ? 'destroyed' : 'absent',
+        confirmed: result.deletion,
+      };
+    }
+    if (result.deletion === 'pending') return { outcome: 'deleting' };
     if (result.deletion === 'failed') {
       console.warn(
         `[sandbox.cleanup] deleting ${sessionId}'s workspace keeps failing on the spawner; the next attempt retries it`,
       );
-      return 'deletion_failed';
+      return { outcome: 'deletion_failed' };
     }
-    return result.destroyed ? 'destroyed' : 'absent';
+    console.warn(
+      `[sandbox.cleanup] the spawner answered the destroy of ${sessionId} without a deletion state (it predates this platform); the deletion stays unconfirmed until it is updated`,
+    );
+    return { outcome: 'deletion_unconfirmed' };
   } catch (error) {
-    if (error instanceof SandboxDeviceOfflineError) return 'offline';
+    if (error instanceof SandboxDeviceOfflineError)
+      return { outcome: 'offline' };
     console.warn(`[sandbox.cleanup] destroying ${sessionId} failed:`, error);
-    return 'failed';
+    return { outcome: 'failed' };
   }
 }
 
@@ -372,6 +409,7 @@ async function auditRetired(
   organizationId: string,
   args: RetireWorkspaceArgs,
   outcome: 'destroyed' | 'absent' | 'deletion_failed',
+  confirmed?: DestroyVerdict['confirmed'],
 ): Promise<void> {
   const failed = outcome === 'deletion_failed';
   try {
@@ -392,6 +430,9 @@ async function auditRetired(
           // when an earlier attempt took the workspace out of use and its
           // deletion has finished since.
           workspaceFound: outcome !== 'absent',
+          // Which completion settled it: the files gone (`done`), or on
+          // Kubernetes the volume handed to its provisioner (`handed_off`).
+          ...(confirmed === undefined ? {} : { deletion: confirmed }),
           ...args.detail,
         },
       }),
@@ -1261,7 +1302,7 @@ export async function retireOwnerWorkspaces(
   }
   if (waiting > 0) {
     throw new Error(
-      `${waiting} workspace(s) of ${organizationId} could not be deleted yet (busy, offline, unreachable, or their files still being deleted); retrying`,
+      `${waiting} workspace(s) of ${organizationId} could not be deleted yet (busy, offline, unreachable, or their files' deletion not yet confirmed); retrying`,
     );
   }
   return { retired, kept };
@@ -1355,9 +1396,10 @@ async function agentWorkspaceHeld(
  * an agent worked in, whatever runs there — the data is theirs, and the
  * erasure receipt must be true. THROWS when one could not be deleted, which
  * the cascade records as a failed pass (the receipt reads partial and a
- * Retry runs it again) — and while one's files are still being deleted, or
- * their deletion keeps failing: a workspace out of use whose bytes are still
- * on disk is not erased.
+ * Retry runs it again) — and while one's files are still being deleted,
+ * their deletion keeps failing, or a spawner too old to say has not
+ * confirmed it: a workspace out of use whose bytes may still be on disk is
+ * not erased.
  */
 export async function eraseMemberWorkspaces(
   sql: Sql,
@@ -1432,7 +1474,7 @@ export async function retireOrganizationSandboxes(
     }
   }
   for (const sessionId of payload.sessionIds) {
-    const outcome = await destroyOnSpawner(sessionId, 'force', spawner);
+    const { outcome } = await destroyOnSpawner(sessionId, 'force', spawner);
     if (pending(outcome)) failures.push(`${sessionId} (${outcome})`);
   }
   const finishing = payload.teardown || payload.deviceIds.length > 0;
