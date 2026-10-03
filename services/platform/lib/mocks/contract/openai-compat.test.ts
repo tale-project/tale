@@ -485,8 +485,12 @@ describe('Prism-served AI endpoints (deterministic examples)', () => {
     });
     const body = await readJson(res);
     expect(typeof body.data[0].embedding).toBe('string');
+    const bytes = Buffer.from(body.data[0].embedding, 'base64');
+    // A decoded Buffer can occupy only a slice of Node's allocation pool.
     const floats = new Float32Array(
-      Buffer.from(body.data[0].embedding, 'base64').buffer,
+      bytes.buffer,
+      bytes.byteOffset,
+      bytes.byteLength / Float32Array.BYTES_PER_ELEMENT,
     );
     expect(floats).toHaveLength(1536);
   });
