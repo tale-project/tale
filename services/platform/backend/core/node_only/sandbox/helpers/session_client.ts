@@ -673,10 +673,14 @@ export async function sessionDestroy(sessionId: string): Promise<boolean> {
  * non-2xx THROW contract as sessionDestroy. */
 export async function sessionDestroyIfIdle(
   sessionId: string,
+  options: { signal?: AbortSignal } = {},
 ): Promise<{ destroyed: boolean; busy: boolean }> {
   const path = `/v1/sessions/${encodeURIComponent(sessionId)}?if_idle=1`;
   const res = await spawnerFetch('DELETE', path, {
-    signal: AbortSignal.timeout(30_000),
+    signal: AbortSignal.any([
+      AbortSignal.timeout(30_000),
+      ...(options.signal ? [options.signal] : []),
+    ]),
   });
   await throwIfDeviceOffline(res);
   if (!res.ok) {
@@ -1059,14 +1063,12 @@ export async function sessionStageFiles(
 ): Promise<SessionStageResult> {
   options.signal?.throwIfAborted();
   // A previous node (or the agent) can replace a managed directory with a
-  // file/link. Prepare only those roots before writing children. Intact
+  // file/link. Prepare directory roots even for an empty desired manifest. Intact
   // directory contents stay available for current-byte verification; the
   // daemon prunes stale children only after every transfer succeeds.
   for (const root of new Set(options.replaceRoots ?? [])) {
-    if (
-      !files.some((file) => file.path.startsWith(`${root.replace(/\/$/, '')}/`))
-    )
-      continue;
+    // An explicitly staged root file is not a directory to prepare.
+    if (files.some((file) => file.path === root.replace(/\/$/, ''))) continue;
     if (
       (await sessionListFiles(sessionId, root, { signal: options.signal })) !==
       null

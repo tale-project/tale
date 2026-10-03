@@ -31,12 +31,10 @@ beforeEach(() => {
 
 describe('workflow file staging authority and reuse', () => {
   it('passes an organization-scoped authorized manifest without clearing unchanged folders', async () => {
-    const runQuery = vi
-      .fn()
-      .mockResolvedValue({
-        files: [{ fileId: 'blob', name: 'report.txt' }],
-        truncated: false,
-      });
+    const runQuery = vi.fn().mockResolvedValue({
+      files: [{ fileId: 'blob', name: 'report.txt' }],
+      truncated: false,
+    });
     const ctx = { runQuery } as unknown as ActionCtx;
     const result = await stageWorkflowFiles(
       ctx,

@@ -14,6 +14,7 @@ import {
   spyOn,
   test,
 } from 'bun:test';
+import { createHash } from 'node:crypto';
 import { getEventListeners } from 'node:events';
 
 import { ActivityGate } from '../../../sandbox-runtime/daemon/src/activity-gate.ts';
@@ -64,6 +65,7 @@ const cfg: SpawnerConfig = {
 
 let fakeServer: ReturnType<typeof Bun.serve>;
 let fakeBaseUrl = '';
+let largeReplayCancelled = false;
 const created = new Set<string>();
 const destroyed = new Set<string>();
 const stopped = new Set<string>();
@@ -372,6 +374,49 @@ beforeAll(() => {
       }
       if (url.pathname.endsWith('/attach') && url.pathname.includes('/gap-')) {
         return new Response(ndjson([{ t: 'stdout', b64: 'eA==', seq: 19 }]));
+      }
+      if (
+        url.pathname.endsWith('/attach') &&
+        /\/large-(replay|live)\//.test(url.pathname)
+      ) {
+        const live = url.pathname.includes('/large-live/');
+        let next = 0;
+        const count = 1536;
+        const encoder = new TextEncoder();
+        return new Response(
+          new ReadableStream<Uint8Array>({
+            pull(controller) {
+              let event: Record<string, unknown>;
+              if (next === 0) event = { t: 'replay-start' };
+              else if (next <= count || live)
+                event = {
+                  t: 'stdout',
+                  b64: Buffer.alloc(16384, next % 251).toString('base64'),
+                  seq: next,
+                };
+              else if (next === count + 1)
+                event = { t: 'replay-complete', throughSeq: count };
+              else {
+                event = {
+                  t: 'exit',
+                  seq: count + 1,
+                  exitCode: 0,
+                  durationMs: 5,
+                  truncated: { stdout: false, stderr: false },
+                  timedOut: false,
+                  cancelled: false,
+                };
+              }
+              controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`));
+              if (!live && next === count + 2) controller.close();
+              next++;
+            },
+            cancel() {
+              largeReplayCancelled = true;
+            },
+          }),
+          { headers: { 'content-type': 'application/x-ndjson' } },
+        );
       }
       if (url.pathname.endsWith('/attach')) {
         if (url.pathname.includes('/gap/')) return replayGapResponse();
@@ -6034,3 +6079,105 @@ test('busy replay admission stays nonterminal and preserves invalid cursor valid
     await upstream.stop(true);
   }
 });
+
+test('HTTP replay larger than the SSE ceiling preserves every byte and terminal event under backpressure', async () => {
+  const routes = new SessionRoutes(cfg, fakeBackend);
+  await routes.handleCreate(
+    JSON.stringify({ sessionId: 'large-http', organizationId: 'org_http' }),
+  );
+  const proxy = Bun.serve({
+    port: 0,
+    fetch: (req) => routes.handleExecAttach(req, 'large-http', 'large-replay'),
+  });
+  try {
+    const response = await fetch(proxy.url, {
+      headers: { accept: 'text/event-stream; tale-output=base64' },
+    });
+    // Exercise downstream network/HTTP queues before consuming the response.
+    await Bun.sleep(100);
+    const reader = response.body!.getReader();
+    const decoder = new TextDecoder();
+    const actual = createHash('sha256');
+    const expected = createHash('sha256');
+    for (let seq = 1; seq <= 1536; seq++)
+      expected.update(Buffer.alloc(16384, seq % 251));
+    let pending = '';
+    let bytes = 0;
+    let frames = 0;
+    const controls: string[] = [];
+    for (;;) {
+      const next = await reader.read();
+      if (next.done) break;
+      pending += decoder.decode(next.value, { stream: true });
+      for (
+        let end = pending.indexOf('\n\n');
+        end !== -1;
+        end = pending.indexOf('\n\n')
+      ) {
+        const block = pending.slice(0, end);
+        pending = pending.slice(end + 2);
+        const event = block
+          .split('\n')
+          .find((line) => line.startsWith('event: '))
+          ?.slice(7);
+        const data = block
+          .split('\n')
+          .find((line) => line.startsWith('data: '))
+          ?.slice(6);
+        if (!event || !data) continue;
+        const parsed: Record<string, unknown> = JSON.parse(data);
+        if (event === 'stdout') {
+          const chunk = Buffer.from(String(parsed.b64), 'base64');
+          actual.update(chunk);
+          bytes += chunk.length;
+          expect(parsed.seq).toBe(++frames);
+        } else {
+          controls.push(event);
+          if (event === 'result')
+            expect(parsed).toMatchObject({ status: 'completed', exitCode: 0 });
+        }
+      }
+    }
+    reader.releaseLock();
+    expect(pending).toBe('');
+    expect(bytes).toBe(24 * 1024 * 1024);
+    expect(actual.digest('hex')).toBe(expected.digest('hex'));
+    expect(controls).toEqual(['replay-start', 'replay-complete', 'result']);
+  } finally {
+    await proxy.stop(true);
+  }
+}, 15000);
+
+test('cancelling a backpressured HTTP replay detaches its upstream producer', async () => {
+  largeReplayCancelled = false;
+  const routes = new SessionRoutes(cfg, fakeBackend);
+  await routes.handleCreate(
+    JSON.stringify({
+      sessionId: 'cancel-large-http',
+      organizationId: 'org_http',
+    }),
+  );
+  const proxy = Bun.serve({
+    port: 0,
+    fetch: (req) =>
+      routes.handleExecAttach(req, 'cancel-large-http', 'large-live'),
+  });
+  try {
+    const controller = new AbortController();
+    const response = await fetch(proxy.url, {
+      signal: controller.signal,
+      headers: { accept: 'text/event-stream; tale-output=base64' },
+    });
+    await Bun.sleep(100);
+    controller.abort();
+    await response.body?.cancel().catch(() => {});
+    const deadline = Date.now() + 3000;
+    while (Date.now() < deadline) {
+      if (largeReplayCancelled) break;
+      await Bun.sleep(10);
+    }
+    expect(largeReplayCancelled).toBe(true);
+  } finally {
+    await proxy.stop(true);
+  }
+}, 10000);

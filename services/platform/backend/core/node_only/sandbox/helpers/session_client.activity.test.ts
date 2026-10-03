@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   sessionAcquire,
   sessionExecStatus,
+  sessionDestroyIfIdle,
   sessionObserve,
   sessionReleaseIdle,
   sessionReleaseTicket,
@@ -21,6 +22,25 @@ afterEach(() => {
 });
 
 describe('runtime acquisition and release transport', () => {
+  it('forwards watchdog cancellation into the signed cleanup request', async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(Response.json({ destroyed: false, busy: true }));
+    vi.stubGlobal('fetch', fetcher);
+    const controller = new AbortController();
+    await expect(
+      sessionDestroyIfIdle('session-1', { signal: controller.signal }),
+    ).resolves.toEqual({ destroyed: false, busy: true });
+    const signal = fetcher.mock.calls[0]?.[1]?.signal;
+    expect(signal).toBeInstanceOf(AbortSignal);
+    expect(signal?.aborted).toBe(false);
+    const reason = new Error('watchdog pass deadline');
+    controller.abort(reason);
+    expect(signal?.aborted).toBe(true);
+    expect(signal?.reason).toBe(reason);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
   it('parks a warm acquisition refused for capacity instead of treating it as gone', async () => {
     const fetcher = vi
       .fn<typeof fetch>()
