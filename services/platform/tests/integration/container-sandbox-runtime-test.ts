@@ -700,13 +700,15 @@ send({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '
 console.log('');
 console.log('--- playwright MCP starts only when a turn uses the browser ---');
 // The launcher answers the start of a turn from the manifests the image build
-// recorded for the platform's argument sets (playwright-mcp-args.json): the
-// real server, a Node process holding ~100 MB, must not run until the first
-// tool call, its tool list must be the server's own, and a tool call must
-// reach a server started then.
+// recorded for the platform's argument sets (playwright-mcp-args.json): for
+// each set, the real server, a Node process holding ~100 MB, must not run
+// until the first tool call, even after Qwen Code's discovery (the prompt and
+// resource lists, asked whatever the server advertised), and the tool list and
+// those lists must be answered as the server's own; a tool call must reach a
+// server started then.
 {
   const nodeScript = `const { spawn, execFileSync } = require('child_process');
-const args = JSON.parse(require('fs').readFileSync('/opt/tale/playwright-mcp/args.json', 'utf8'))[0];
+const argSets = JSON.parse(require('fs').readFileSync('/opt/tale/playwright-mcp/args.json', 'utf8'));
 const serverRunning = () => {
   try { execFileSync('pgrep', ['-f', 'bin/mcp-server-playwright']); return true; } catch { return false; }
 };
@@ -732,19 +734,31 @@ function session(command, argv) {
   return { srv, ask, tell };
 }
 const init = { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'conformance', version: '1.0' } };
+const lists = ['prompts/list', 'resources/list', 'resources/templates/list'];
+const ended = (srv) => new Promise((done) => { srv.on('exit', done); srv.kill(); });
 (async () => {
   const deadline = setTimeout(() => { console.error('LAZY_TIMEOUT'); process.exit(1); }, 90000);
-  const lazy = session('tale-playwright-mcp', args);
-  await lazy.ask(1, 'initialize', init);
-  lazy.tell('notifications/initialized');
-  const listed = await lazy.ask(2, 'tools/list');
-  if (serverRunning()) { console.error('LAZY_SERVER_STARTED_EARLY'); process.exit(1); }
-  const direct = session('mcp-server-playwright', args);
-  await direct.ask(1, 'initialize', init);
-  direct.tell('notifications/initialized');
-  const own = await direct.ask(2, 'tools/list');
-  direct.srv.kill();
-  if (JSON.stringify(listed.result) !== JSON.stringify(own.result)) { console.error('LAZY_TOOLS_DIFFER'); process.exit(1); }
+  let lazy;
+  let listed;
+  for (const [n, args] of argSets.entries()) {
+    const turn = session('tale-playwright-mcp', args);
+    await turn.ask(1, 'initialize', init);
+    turn.tell('notifications/initialized');
+    const turnListed = await turn.ask(2, 'tools/list');
+    const unlisted = [];
+    for (const [i, method] of lists.entries()) unlisted.push(await turn.ask(10 + i, method, {}));
+    if (serverRunning()) { console.error('LAZY_SERVER_STARTED_EARLY ' + n); process.exit(1); }
+    const direct = session('mcp-server-playwright', args);
+    await direct.ask(1, 'initialize', init);
+    direct.tell('notifications/initialized');
+    const own = await direct.ask(2, 'tools/list');
+    const ownUnlisted = [];
+    for (const [i, method] of lists.entries()) ownUnlisted.push(await direct.ask(10 + i, method, {}));
+    await ended(direct.srv);
+    if (JSON.stringify(turnListed.result) !== JSON.stringify(own.result)) { console.error('LAZY_TOOLS_DIFFER ' + n); process.exit(1); }
+    if (JSON.stringify(unlisted) !== JSON.stringify(ownUnlisted)) { console.error('LAZY_LISTS_DIFFER ' + n + ' ' + JSON.stringify(unlisted) + ' ' + JSON.stringify(ownUnlisted)); process.exit(1); }
+    if (n === 0) { lazy = turn; listed = turnListed; } else await ended(turn.srv);
+  }
   const called = await lazy.ask(3, 'tools/call', { name: 'browser_navigate', arguments: { url: 'about:blank' } });
   if (called.error || (called.result && called.result.isError)) { console.error('LAZY_NAVIGATE_FAILED ' + JSON.stringify(called)); process.exit(1); }
   clearTimeout(deadline);
@@ -781,7 +795,7 @@ const init = { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { na
   );
   if (combined.includes('MCP_LAZY_OK')) {
     pass(
-      'playwright MCP answers the start itself and starts the server on the first tool call',
+      'playwright MCP answers the start itself (Qwen Code discovery included) for every argument set and starts the server on the first tool call',
     );
   } else {
     fail(`playwright MCP lazy start failed (got: ${combined.slice(0, 400)})`);
