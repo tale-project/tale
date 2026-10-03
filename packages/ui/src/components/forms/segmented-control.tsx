@@ -2,7 +2,7 @@
 
 import * as ToggleGroupPrimitive from '@radix-ui/react-toggle-group';
 import { cn } from '@tale/ui/cn';
-import { useId } from 'react';
+import { useId, useRef } from 'react';
 
 import { FieldShell } from './field-shell';
 import { Label } from './label';
@@ -10,6 +10,7 @@ import { Label } from './label';
 interface SegmentedControlOption {
   value: string;
   label: string;
+  disabled?: boolean;
 }
 
 interface SegmentedControlProps {
@@ -49,6 +50,7 @@ export function SegmentedControl({
 }: SegmentedControlProps) {
   const generatedId = useId();
   const id = providedId ?? generatedId;
+  const isNavigationKeyPressed = useRef(false);
 
   const handleValueChange = (next: string) => {
     // Radix calls this with '' when the user re-clicks the active item.
@@ -73,6 +75,21 @@ export function SegmentedControl({
         value={value}
         onValueChange={handleValueChange}
         disabled={disabled}
+        onKeyDown={(event) => {
+          isNavigationKeyPressed.current = [
+            'ArrowRight',
+            'ArrowLeft',
+            'ArrowDown',
+            'ArrowUp',
+            'Home',
+            'End',
+          ].includes(event.key);
+          if (isNavigationKeyPressed.current) {
+            setTimeout(() => {
+              isNavigationKeyPressed.current = false;
+            });
+          }
+        }}
         aria-label={label ? undefined : ariaLabel}
         aria-labelledby={label ? `${id}-label` : ariaLabelledBy}
         className={cn(
@@ -84,6 +101,12 @@ export function SegmentedControl({
           <ToggleGroupPrimitive.Item
             key={option.value}
             value={option.value}
+            disabled={option.disabled}
+            onFocus={() => {
+              if (isNavigationKeyPressed.current && option.value !== value) {
+                onValueChange(option.value);
+              }
+            }}
             className={cn(
               'flex-1 cursor-pointer rounded-sm px-3 py-1.5 text-xs font-medium transition-all duration-150',
               'text-muted-foreground',
