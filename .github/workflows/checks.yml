@@ -265,6 +265,61 @@ jobs:
   # Repo-specific jobs — tale's additions beyond the standard six.
   # ===========================================================================
 
+  # Always measure: timing samples must never be replayed from Turbo's cache.
+  # Failures mean workload correctness/setup failed, not that a latency budget
+  # was exceeded. The report records representative coverage and remaining gaps.
+  performance:
+    needs: candidate-source
+    name: Performance
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: ${{ needs.candidate-source.outputs.candidate_sha }}
+          persist-credentials: false
+
+      - name: Setup toolchain
+        uses: ./.github/actions/setup-turbo
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          start-turbo-cache: 'false'
+
+      - name: Resolve the platform's Node
+        id: node
+        run: |
+          set -euo pipefail
+          version=$(sed -n 's/^FROM node:\([0-9][0-9.]*\)-.* AS node-bin$/\1/p' services/platform/Dockerfile)
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo '::error::services/platform/Dockerfile names no node-bin stage version'; exit 1
+          fi
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: ${{ steps.node.outputs.version }}
+          package-manager-cache: false
+
+      - name: Generate CLI fixtures
+        run: bun run --filter @tale/cli generate
+
+      - name: Measure runtime performance
+        run: bun run test:performance --samples 20 --output "$RUNNER_TEMP/tale-performance.json"
+
+      - name: Upload performance measurements
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: tale-performance-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/tale-performance.json
+          retention-days: 14
+          if-no-files-found: warn
+
   knip:
     needs: candidate-source
     name: Knip
@@ -658,6 +713,7 @@ jobs:
       - build
       - test
       - test-ui
+      - performance
       - knip
       - test-browser
       - integration-scope

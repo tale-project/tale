@@ -46,6 +46,10 @@ export default {
   // types nothing references at all.
   ignoreExportsUsedInFile: { interface: true, type: true },
   workspaces: {
+    '.': {
+      // The performance runner launches this worker by path in a fresh process.
+      entry: ['scripts/performance/worker.ts'],
+    },
     'services/platform': {
       vite: { config: ['vite.config.ts'] },
       entry: [
