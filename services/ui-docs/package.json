@@ -26,8 +26,7 @@
   "dependencies": {
     "@tale/marketing-ui": "workspace:*",
     "@tale/ui": "workspace:*",
-    "@tanstack/react-table": "8.21.3",
-    "framer-motion": "12.38.0"
+    "@tanstack/react-table": "8.21.3"
   },
   "devDependencies": {
     "@playwright/test": "1.58.2",
