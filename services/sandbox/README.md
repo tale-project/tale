@@ -134,7 +134,7 @@ them: the platform's cleanup and erasure settle a deletion only on an explicit
 older than the contract). See
 [stop vs destroy](docs/sessions.md#stop-vs-destroy--the-data-preservation-contract).
 
-Docker admission serializes creates through the host's single spawner.
+Docker admission serializes creates and released-to-active acquisitions through the host's single spawner. Each idle-to-active transition reserves its expected working-set growth once.
 Concurrent Kubernetes replicas enforce the namespace capacity on a best-effort
 basis; use ResourceQuota for hard namespace resource bounds.
 
@@ -150,6 +150,21 @@ the session (503 `device_offline` while it is away) and relays the device's
 sessions' calls to the backend and the model gateway along an allowlist.
 `device-apply` lays out and updates a device's containers. See
 [the device contract](docs/devices.md).
+
+## Agent Docker capabilities
+
+`SANDBOX_DOCKER_WORKLOADS` narrows the deployment's DinD capability to
+`project`, `workflow`, both (the default), or `none`. The platform tags session
+creation with its owner workload; an untagged legacy request receives Docker
+only when both workloads are allowed. An authenticated create request may also
+set `docker: false`. Neither a workload nor `docker: true` enables Docker when
+the deployment disables it. The `default` profile never receives Docker.
+
+The actual capability is recorded on each container or Pod and recovered after
+a spawner restart. New settings apply to new compute; running sessions retain
+their capability. Lightweight agents keep their normal agent uid and tool
+permissions, skip Docker storage and build-cache setup, and use the shorter
+released-session idle window. Their configured memory ceiling is unchanged.
 
 ## Organization build caches
 
@@ -168,7 +183,7 @@ never removed. If host observation fails or no safe subnet is available,
 sessions build locally.
 
 After no agent session may still depend on an organization's cache helpers
-(only agent sessions build), the `SANDBOX_SESSION_MAX_IDLE_MS` window (30
+(only Docker-enabled agent sessions build), the `SANDBOX_SESSION_MAX_IDLE_MS` window (30
 minutes by default) starts. The helpers then stop, the builder pruning its cache
 to `SANDBOX_BUILDKITD_IDLE_CACHE` (5 GB by default) first; their network and
 volumes remain intact and the next build restarts them. Legacy global cache helpers retire once their remaining sessions drain,
