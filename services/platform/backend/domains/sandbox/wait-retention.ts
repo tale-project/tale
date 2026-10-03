@@ -51,7 +51,7 @@ export async function sweepRoomWaitLeftovers(
     // literal, never a bound parameter: the planner matches the partial
     // index `sandbox_session_ops_awaiting_room_finished` only against a
     // predicate it can prove.
-    const deleted = await sql`
+    const deleted = await sql<{ id: string }[]>`
       DELETE FROM app.sandbox_session_ops
       WHERE id IN (
         SELECT o.id FROM app.sandbox_session_ops o
@@ -67,13 +67,14 @@ export async function sweepRoomWaitLeftovers(
         ORDER BY o.finished_at_ms
         LIMIT ${batch}
       )
+      RETURNING id
     `;
-    ops += deleted.count;
-    if (deleted.count < batch) break;
+    ops += deleted.length;
+    if (deleted.length < batch) break;
   }
   let sessions = 0;
   for (let round = 0; round < maxBatches; round += 1) {
-    const deleted = await sql`
+    const deleted = await sql<{ id: string }[]>`
       DELETE FROM app.sandbox_sessions
       WHERE id IN (
         SELECT id FROM app.sandbox_sessions
@@ -83,9 +84,10 @@ export async function sweepRoomWaitLeftovers(
         ORDER BY destroyed_at_ms
         LIMIT ${batch}
       )
+      RETURNING id
     `;
-    sessions += deleted.count;
-    if (deleted.count < batch) break;
+    sessions += deleted.length;
+    if (deleted.length < batch) break;
   }
   return { ops, sessions };
 }

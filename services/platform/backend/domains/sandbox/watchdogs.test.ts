@@ -503,7 +503,9 @@ describe('runSandboxWatchdog — reclaim of ended runs', () => {
       statements.some((s) => s.text.includes("s.owner_type = 'workflow_run'")),
     ).toBe(false);
     expect(
-      statements.some((s) => s.text.includes("WHERE status = 'failed'")),
+      statements.some((s) =>
+        s.text.includes("status = 'failed' AND destroyed_at_ms IS NULL"),
+      ),
     ).toBe(false);
     expect(stampsOf(statements)).toHaveLength(0);
     expect(collectStampsOf(statements)).toHaveLength(0);
@@ -768,14 +770,16 @@ describe('runSandboxWatchdog — settled model-endpoint request rows', () => {
 
     const result = await runSandboxWatchdog(sql, { skipReconcile: true });
 
-    const sweeps = statements.filter((s) =>
-      s.text.includes('DELETE FROM app.sandbox_session_ops'),
+    const sweeps = statements.filter(
+      (s) =>
+        s.text.includes('DELETE FROM app.sandbox_session_ops') &&
+        s.text.includes("kind = 'model-api'"),
     );
     // Two rows came back from a batch of 1,000: one statement drained it.
     expect(sweeps).toHaveLength(1);
     expect(sweeps[0]?.values).toEqual([NOW - WEEK_MS, 1_000]);
     const close = indexOf(statements, "status = 'failed', finished_at_ms");
-    const sweep = indexOf(statements, 'DELETE FROM app.sandbox_session_ops');
+    const sweep = indexOf(statements, "WHERE kind = 'model-api'");
     const settle = indexOf(statements, 'WHERE finalized_at_ms IS NOT NULL');
     expect(close).toBeGreaterThanOrEqual(0);
     expect(sweep).toBeGreaterThan(close);
