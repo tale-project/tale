@@ -126,7 +126,8 @@ Siehe [Audit-Log-Integrität](/de/self-hosted/operate/security/audit-log-integri
 | Name                        | Default | Beschreibung                                                                                                                                 |
 | --------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
 | `SENTRY_DSN`                | unset   | Sentry-DSN für Error-Tracking. Unset zum Deaktivieren. Kompatibel mit selbst gehostetem GlitchTip und Bugsink.                               |
-| `SENTRY_TRACES_SAMPLE_RATE` | unset   | Optionale Sample-Rate für Performance-Traces im Browser (`0.0`–`1.0`). Nur Browser — das Backend meldet Fehler, nie Traces.                  |
+| `SENTRY_TRACES_SAMPLE_RATE` | unset | Optionale Abtastrate für Leistungstraces im Browser (`0.0`–`1.0`), unabhängig von der Backend-Abtastrate. |
+| `BACKEND_SENTRY_TRACES_SAMPLE_RATE` | `0` | Abtastrate für HTTP- und Worker-Spans im Backend (`0.0`–`1.0`). Erfordert `SENTRY_DSN` und ein Ziel, das Sentry-Transaktionen annimmt; `0` deaktiviert Spans. |
 | `METRICS_BEARER_TOKEN` | unset | Bearer-Token für die Proxy-Routen `/metrics/*`. Ohne konfigurierten Token antworten sie mit 401. Den Netzwerkzugriff auf interne Prozessendpunkte musst du gesondert beschränken. |
 | `UMAMI_URL` | nicht gesetzt | HTTPS-Origin des authentifizierten Erfassungs-Gateways. HTTP ist nur für lokale Tests mit `localhost`, `127.0.0.1` oder `[::1]` zulässig. Erfordert gültige Website-ID und Proxy-Token; die URL enthält weder Pfad noch Suchparameter oder Zugangsdaten. |
 | `UMAMI_WEBSITE_ID` | nicht gesetzt | Website-UUID von Umami. Fehlt sie oder ist sie ungültig, bleibt die Erfassung aus. Verwende je Deployment eine eigene ID. |

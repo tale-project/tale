@@ -87,6 +87,16 @@ export interface ArtifactsServer {
   invalidate(): void;
 }
 
+function newGeneration() {
+  return {
+    cache: new ArtifactCache(),
+    builds: new Map<string, Promise<CachedEntry | null>>(),
+    routes: null as Promise<ResolvedRoutes> | null,
+  };
+}
+
+type Generation = ReturnType<typeof newGeneration>;
+
 export function createOnDemandServer(
   params: ArtifactsServerParams,
 ): ArtifactsServer {
@@ -102,21 +112,30 @@ export function createOnDemandServer(
     plugins = defaultPlugins(),
   } = params;
 
-  const cache = new ArtifactCache();
+  let generation = newGeneration();
 
   function clear(): void {
-    cache.clear();
+    // Pending callers may finish reading the previous generation, but their
+    // builds and misses must never refill the cache after invalidation.
+    generation = newGeneration();
   }
 
   /**
    * Build a per-request context. `routes()` and `body()` are memoised so
    * the multiple plugins involved in one request don't pay duplicate IO.
    */
-  function makeContext(): BuildContext {
+  function makeContext(state: Generation): BuildContext {
     let routesPromise: Promise<ResolvedRoutes> | null = null;
     const bodyMemo = new Map<string, Promise<string | null>>();
 
     const routes = (): Promise<ResolvedRoutes> => {
+      if (cacheEnabled) {
+        state.routes ??= loadRoutes().catch((error: unknown) => {
+          state.routes = null;
+          throw error;
+        });
+        return state.routes;
+      }
       if (!routesPromise) routesPromise = loadRoutes();
       return routesPromise;
     };
@@ -172,23 +191,37 @@ export function createOnDemandServer(
     plugin: ArtifactPlugin,
     pathname: string,
     ctx: BuildContext,
+    state: Generation,
   ): Promise<CachedEntry | null> {
     const cacheKey = `${plugin.id}:${plugin.cacheKey(pathname)}`;
 
     if (cacheEnabled) {
-      const hit = cache.get(cacheKey);
+      const hit = state.cache.get(cacheKey);
       if (hit) return hit;
+      const pending = state.builds.get(cacheKey);
+      if (pending) return pending;
     }
 
-    const response = await plugin.build(pathname, ctx);
-    if (response == null) return null;
-    const entry = entryFor(response);
-    if (cacheEnabled) cache.set(cacheKey, entry);
-    return entry;
+    const build = (async () => {
+      const response = await plugin.build(pathname, ctx);
+      if (response == null) return null;
+      const entry = entryFor(response);
+      if (cacheEnabled) state.cache.set(cacheKey, entry);
+      return entry;
+    })();
+    if (!cacheEnabled) return build;
+    state.builds.set(cacheKey, build);
+    try {
+      return await build;
+    } finally {
+      // Retain only the artifact, never its build context or rejected promise.
+      state.builds.delete(cacheKey);
+    }
   }
 
   return {
     async handle(request) {
+      const state = generation;
       const url = new URL(request.url);
       const pathname = url.pathname;
 
@@ -197,22 +230,22 @@ export function createOnDemandServer(
       // a fixed set and can be re-checked cheaply if they happen to
       // legitimately return null (e.g. platform's empty sitemap).
       const isMdProbe = pathname.endsWith('.md');
-      if (cacheEnabled && isMdProbe && cache.isKnownMiss(pathname)) {
+      if (cacheEnabled && isMdProbe && state.cache.isKnownMiss(pathname)) {
         return null;
       }
 
       let ctx: BuildContext | null = null;
       for (const plugin of plugins) {
         if (!pluginMatches(plugin, pathname)) continue;
-        if (!ctx) ctx = makeContext();
-        const entry = await buildForPlugin(plugin, pathname, ctx);
+        if (!ctx) ctx = makeContext(state);
+        const entry = await buildForPlugin(plugin, pathname, ctx, state);
         if (entry) return respondWithEtag(request, entry);
       }
 
       // Only flag the miss after every candidate plugin has been
       // tried, and only for `.md` paths so the cap-and-clear logic in
       // `ArtifactCache` shields us from hostile floods.
-      if (cacheEnabled && isMdProbe) cache.rememberMiss(pathname);
+      if (cacheEnabled && isMdProbe) state.cache.rememberMiss(pathname);
       return null;
     },
     invalidate: clear,

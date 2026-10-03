@@ -131,6 +131,12 @@ comes from the configured site URL and registered route, including its language 
 prefix. Cached and conditional responses preserve the same target. Aggregate `llms.txt` and
 `llms-full.txt` files have no equivalent HTML page and receive no canonical header.
 
+With caching enabled, the on-demand server shares route enumeration and coalesces concurrent
+builds of the same artifact. `invalidate()` starts a fresh cache generation: older requests may
+finish, but cannot replace fresh content or mark a newly available page missing. Failed builds
+can retry; `cache: false` keeps development requests independent. The concurrency and invalidation
+regressions live in [`on-demand-server.perf.test.ts`](src/seo/runtime/on-demand-server.perf.test.ts).
+
 The optional `canonicalUrl` artifact metadata survives compilation in the v1 manifest; older
 manifests still load without it. Only absolute HTTP(S) URLs without credentials, fragments or
 control characters are accepted, and URLs are serialized before entering headers. The runtime

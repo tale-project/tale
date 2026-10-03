@@ -50,6 +50,22 @@ describe('loadEnv', () => {
     expect(env.SENTRY_DSN).toBe('https://key@sentry.example/1');
   });
 
+  it('defaults backend tracing off and validates its independent sample rate', () => {
+    expect(
+      loadEnv({ ...BASE, SENTRY_TRACES_SAMPLE_RATE: '1' })
+        .BACKEND_SENTRY_TRACES_SAMPLE_RATE,
+    ).toBe(0);
+    expect(
+      loadEnv({ ...BASE, BACKEND_SENTRY_TRACES_SAMPLE_RATE: '0.1' })
+        .BACKEND_SENTRY_TRACES_SAMPLE_RATE,
+    ).toBe(0.1);
+    for (const bad of ['-1', '1.01', 'NaN', 'Infinity', 'all']) {
+      expect(() =>
+        loadEnv({ ...BASE, BACKEND_SENTRY_TRACES_SAMPLE_RATE: bad }),
+      ).toThrow();
+    }
+  });
+
   it('rejects a missing DATABASE_URL and an unknown role', () => {
     expect(() => loadEnv({ ENCRYPTION_SECRET_HEX: KEY_HEX })).toThrow();
     expect(() => loadEnv({ ...BASE, ROLE: 'ui' })).toThrow();

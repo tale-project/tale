@@ -16,6 +16,12 @@ bun run --filter @tale/sandbox dev    # bun --hot src/server.ts (local session r
 bun run --filter @tale/sandbox test   # bun test
 ```
 
+Exec and attach streams bound their pending output to 8 MiB plus at most one
+event (a collected terminal result can be larger). A consumer that stays
+behind is disconnected; cancelling its response also stops the upstream read
+and keepalive immediately. The exec keeps running and can be reattached through
+the session API. Late output is discarded without repeated log messages.
+
 ## Authentication
 
 Every route except `GET /health` is HMAC-signed with the shared `SANDBOX_TOKEN`

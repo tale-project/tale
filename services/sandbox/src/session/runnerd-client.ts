@@ -117,8 +117,8 @@ export async function waitForRunnerd(
 /**
  * POST /execs and stream the NDJSON response, invoking `onEvent` per parsed
  * daemon event in order. Resolves when the stream ends. The caller's abort
- * signal (SSE-client disconnect) aborts the fetch, which closes the daemon's
- * request and cancels the exec daemon-side.
+ * signal (SSE-client disconnect) aborts the fetch, which detaches the daemon's
+ * response consumer. The exec keeps running for a later attach.
  */
 export async function runnerdExec(
   opts: RunnerdClientOptions,

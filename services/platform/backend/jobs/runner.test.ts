@@ -101,6 +101,25 @@ const job = {
 } as unknown as Job;
 
 describe('startWorker shouldDefer', () => {
+  it('preserves the drain callback receiver through its timing span', async () => {
+    const { boss, handlers, calls } = fakeBoss();
+    const handler = vi.fn();
+    const options = {
+      boss,
+      taskList: { noop: handler },
+      sql: fakeSql(calls),
+      shouldDefer() {
+        expect(this).toBe(options);
+        return Promise.resolve(false);
+      },
+    };
+    await startWorker(options);
+    expect(await handlers.get('noop')?.([job])).toEqual([
+      { id: 'job-1', status: 'completed' },
+    ]);
+    expect(handler).toHaveBeenCalledOnce();
+  });
+
   it('hands a keyless job over — completed and re-queued five seconds out in one transaction — without running the handler', async () => {
     const { boss, send, complete, getQueue, calls, handlers, workOptions } =
       fakeBoss();
