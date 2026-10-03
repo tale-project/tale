@@ -19,6 +19,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { deleteOrgObject } from '../../lib/object-store.ts';
 import {
   claimRejectedUpload,
+  releaseReclaimedIntent,
   ownsUploadedBlob,
   recordUploadIntent,
   sweepUploadIntents,
@@ -91,7 +92,7 @@ function fakeLedger(script: {
     if (text.startsWith('SELECT i.id, i.s3_ref')) {
       rows = script.abandoned ?? [];
     } else if (
-      text.startsWith('DELETE FROM app.upload_intents i WHERE i.s3_ref')
+      text.startsWith('UPDATE app.upload_intents i SET expires_at_ms = 0')
     ) {
       rows = script.claimed ?? [];
     } else if (text.startsWith('UPDATE app.upload_intents SET bound_at_ms')) {
@@ -318,7 +319,7 @@ describe('claimRejectedUpload', () => {
     // One statement on the intent row: the stamp a bind wrote, and every
     // row that holds the ref, are read under the row's lock (#4104).
     expect(issued[0]?.text).toBe(
-      `DELETE FROM app.upload_intents i WHERE i.s3_ref = ? AND i.org_id = ? AND i.user_id = ? AND i.consumed_at_ms IS NULL AND i.expires_at_ms > ? AND NOT (i.bound_at_ms IS NOT NULL OR ${HELD_BY_A_ROW}) RETURNING i.id`,
+      `UPDATE app.upload_intents i SET expires_at_ms = 0 WHERE i.s3_ref = ? AND i.org_id = ? AND i.user_id = ? AND i.consumed_at_ms IS NULL AND i.expires_at_ms > ? AND NOT (i.bound_at_ms IS NOT NULL OR ${HELD_BY_A_ROW}) RETURNING i.id`,
     );
     expect(issued[0]?.values.slice(0, 3)).toEqual([
       's3:blobs/acme/aaa',
@@ -338,6 +339,24 @@ describe('claimRejectedUpload', () => {
         storageRef: 's3:blobs/acme/held',
       }),
     ).toBe(false);
+  });
+});
+
+describe('releaseReclaimedIntent', () => {
+  it('drops only the tombstone a claim left, once the bytes are gone (#4111)', async () => {
+    const fake = fakeLedger({});
+
+    await releaseReclaimedIntent(fake.sql, {
+      organizationId: 'org_1',
+      storageRef: 's3:blobs/acme/aaa',
+    });
+
+    const issued = sqlStatements(fake.statements);
+    expect(issued).toHaveLength(1);
+    expect(issued[0]?.text).toBe(
+      'DELETE FROM app.upload_intents WHERE s3_ref = ? AND org_id = ? AND consumed_at_ms IS NULL AND expires_at_ms = 0',
+    );
+    expect(issued[0]?.values).toEqual(['s3:blobs/acme/aaa', 'org_1']);
   });
 });
 

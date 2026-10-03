@@ -144,16 +144,22 @@ export async function consumeUploadIntent(
  * One statement on the intent row, which every bind writes: a bind whose
  * transaction stamped the row and has not committed yet holds its lock, so
  * the claim waits and re-reads the stamp once the bind commits; a bind that
- * comes after the claim finds no intent and is refused as not owned instead
- * of binding bytes on their way out. Hence DELETE, not consume: a consumed
- * intent still proves ownership for the rest of its TTL.
+ * comes after the claim finds the intent expired and is refused as not owned
+ * instead of binding bytes on their way out. Hence a tombstone, not consume:
+ * a consumed intent still proves ownership for the rest of its TTL, while a
+ * tombstoned one (`expires_at_ms = 0`) proves nothing and stays the record
+ * that the bytes exist until they are gone. The reclaim drops it once the
+ * store confirmed the delete ({@link releaseReclaimedIntent}); a delete that
+ * failed leaves it to {@link sweepUploadIntents}, whose abandoned arm takes
+ * it on the org's next mint and retries (#4111) — before, the row went with
+ * the claim and a failed delete orphaned the bytes for good.
  */
 export async function claimRejectedUpload(
   sql: Sql | TransactionSql,
   args: UploadIntentKey,
 ): Promise<boolean> {
   const rows = await sql<{ id: string }[]>`
-    DELETE FROM app.upload_intents i
+    UPDATE app.upload_intents i SET expires_at_ms = 0
     WHERE i.s3_ref = ${args.storageRef}
       AND i.org_id = ${args.organizationId}
       AND i.user_id = ${args.userId}
@@ -163,6 +169,25 @@ export async function claimRejectedUpload(
     RETURNING i.id
   `;
   return rows.length > 0;
+}
+
+/**
+ * Drop the tombstone {@link claimRejectedUpload} left, once the store
+ * confirmed the bytes are gone — the reclaim's last step. Only the
+ * tombstone matches: an intent minted again for the same key (never — keys
+ * are fresh UUIDs) or bound since could not carry `expires_at_ms = 0`.
+ */
+export async function releaseReclaimedIntent(
+  sql: Sql | TransactionSql,
+  args: { organizationId: string; storageRef: string },
+): Promise<void> {
+  await sql`
+    DELETE FROM app.upload_intents
+    WHERE s3_ref = ${args.storageRef}
+      AND org_id = ${args.organizationId}
+      AND consumed_at_ms IS NULL
+      AND expires_at_ms = 0
+  `;
 }
 
 /**
@@ -253,7 +278,9 @@ function intentBlobHeld(
  *     holds it;
  *  3. what is left past the grace is ABANDONED — minted, maybe PUT, never
  *     bound, never vouched for — and nothing else will ever find it: the
- *     bytes are reclaimed, then the row. A failed delete keeps the row, so
+ *     bytes are reclaimed, then the row. A rejected upload whose reclaim
+ *     could not delete its bytes lands here at once: its tombstone expired
+ *     at 0 ({@link claimRejectedUpload}). A failed delete keeps the row, so
  *     a later sweep retries; a bounded batch keeps the mint request cheap.
  *
  * Never reclaims a blob that got bound: a bound blob is either consumed (1),

@@ -27,9 +27,11 @@ import {
 } from '../../lib/object-store.ts';
 import { ensureDefaultObjectStore } from '../object_storage/bootstrap.ts';
 import {
+  claimRejectedUpload,
   consumeUploadIntent,
   firstForeignUpload,
   ownsUploadedBlob,
+  sweepUploadIntents,
 } from './upload-intents.ts';
 
 interface Actor {
@@ -376,6 +378,33 @@ export async function checkRejectedUploadReclaim(
       'a reclaimed upload can no longer be attached to a task',
       reclaimedAnswer === 'true' && reclaimedAttach.status === 403,
       `reject=${reclaimedAnswer} (want true), intent ${reclaimedIntent}, attach=${reclaimedAttach.status} (want 403)`,
+    );
+
+    // A reclaim whose store delete failed after the claim (#4111): the claim
+    // leaves a tombstone, not nothing, so the bytes are not orphaned — no
+    // bind can take the ref, and the abandoned-upload sweep (the org's next
+    // mint runs it) deletes the bytes and then the row. The claim runs
+    // alone here, as the door's would before a delete that failed.
+    const orphan = await upload('reclaim-delete-failed');
+    const orphanClaimed = await claimRejectedUpload(sql, {
+      organizationId: orgId,
+      userId: owner.userId,
+      storageRef: orphan,
+    });
+    const tombstone = await intentState(orphan);
+    const orphanAttach = await attach(orphan, 'tombstoned');
+    const swept = await sweepUploadIntents(sql, { organizationId: orgId });
+    const orphanGone = !(await present(orphan));
+    const orphanRow = await intentState(orphan);
+    record(
+      'a reclaim whose delete failed leaves the bytes to the abandoned-upload sweep (#4111)',
+      orphanClaimed &&
+        tombstone === 'bound=false,consumed=false' &&
+        orphanAttach.status === 403 &&
+        swept.reclaimed >= 1 &&
+        orphanGone &&
+        orphanRow === 'gone',
+      `claim=${orphanClaimed} (want true), intent after the claim ${tombstone} (want bound=false,consumed=false), attach=${orphanAttach.status} (want 403), sweep reclaimed=${swept.reclaimed} (want ≥1), gone=${orphanGone} (want true), intent after the sweep ${orphanRow} (want gone)`,
     );
 
     // A bind whose transaction stamped the intent and is still open (a
