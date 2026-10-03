@@ -482,6 +482,7 @@ export class SessionRoutes {
   /** The most memory a session could ever be given here: the host's total
    * beside its reserve, or null when the host's memory is unknown. */
   private memoryCeiling(): number | null {
+    if (this.cfg.session.autoMaxSessions === false) return null;
     let memory: HostMemory | null;
     try {
       memory = this.hostMemory.latest();
@@ -531,6 +532,7 @@ export class SessionRoutes {
    * growing into, leave the host less than its reserve? Unknown memory never
    * refuses. */
   private memoryShort(workingSetBytes: number): boolean {
+    if (this.cfg.session.autoMaxSessions === false) return false;
     let memory: HostMemory | null;
     try {
       memory = this.hostMemory.latest();
@@ -610,6 +612,9 @@ export class SessionRoutes {
           { 'retry-after': retryAfter },
         );
       }
+      console.warn(
+        `[sandbox.session] refusing ${sessionId}: host_memory (queue position ${place.position})`,
+      );
       return jsonResponse(
         {
           error: 'host_memory',

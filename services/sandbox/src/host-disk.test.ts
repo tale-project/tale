@@ -8,6 +8,13 @@ import {
 
 const GIB = 1024 ** 3;
 
+test('the real Bun node:fs statfs source reads a disk without injection', async () => {
+  const disk = await new HostDiskProbe(import.meta.dir).read(true);
+  expect(disk).not.toBeNull();
+  expect(disk?.totalBytes).toBeGreaterThan(0);
+  expect(disk?.availableBytes).toBeGreaterThanOrEqual(0);
+});
+
 describe('diskReserveBytes', () => {
   test('keeps a twentieth of the disk free, at least 2 GiB and at most 20 GiB', () => {
     expect(diskReserveBytes(20 * GIB)).toBe(2 * GIB);

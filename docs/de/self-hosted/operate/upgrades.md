@@ -85,6 +85,12 @@ tale rollback
 
 `tale rollback` tauscht nur die Anwendungs-Images von `platform`, `backend-api` und `backend-worker` aus. Es stellt kein Volume wieder her und lässt Datenbank, Speicher, Proxy, Sandbox-Dienste und Modell-Gateway, wie sie sind. Auch sonst stellt kein Bereitstellungsschritt von selbst Daten wieder her: Scheitert ein gewöhnlicher Deploy (ohne `--services`) an seinen Zustandsprüfungen, bleibt die bisherige Anwendungsfarbe in Betrieb, doch was er bereits an Ort und Stelle ersetzt hat, bleibt ersetzt. Nur `tale restore` spielt die Volumes eines Snapshots zurück.
 
+## Prüfe vor dem Upgrade den freien Sandbox-Speicherplatz
+
+Der Docker-Spawner verweigert jetzt jede neue Session mit HTTP 429 `host_disk`, wenn der Datenträger mit den Arbeitsverzeichnissen der Sessions unter `SANDBOX_MIN_FREE_DISK` liegt. Das gilt auch für einen Host, der schon beim Upgrade unter diesem Wert liegt, und auch bei explizitem `SANDBOX_MAX_SESSIONS`. Bestehende Sessions laufen weiter, aber neue Arbeit wartet, bis Platz frei wird. Das Stoppen inaktiver Sessions gibt ihre erhaltenen Arbeitsverzeichnisse nicht frei.
+
+Prüfe den freien Speicherplatz vor der Bereitstellung. Standardmäßig bleibt ein Zwanzigstel dieses Datenträgers frei, mindestens 2 GiB und höchstens 20 GiB. Gib Speicherplatz sicher frei oder konfiguriere bewusst einen anderen Mindestwert. `SANDBOX_MIN_FREE_DISK=0` schaltet diesen Schutz ab; du bist dann selbst dafür verantwortlich, dass der Datenträger nicht vollläuft. Der Spawner kann ungenutzte Build-Caches gestoppter Organisationen entfernen, pausiert aber nach drei aufeinanderfolgenden Entfernungen mit jeweils weniger als 1 MiB Gewinn für sechs Stunden. Verlasse dich bei einem vollen Host nicht auf diese Entfernung. Konfiguration und Grenzen der Wiederherstellung stehen in der [Umgebungsreferenz](/de/self-hosted/configuration/environment-reference).
+
 ## Bifrost 1.6 → 2.2: Der Speicher des Modell-Gateways wird migriert
 
 Ein Release nach 0.5.64 stellt das Modell-Gateway (`sandbox-llm-gateway`) von Bifrost 1.6 auf Bifrost 2.2 um; seine Release Notes nennen den Wechsel. Beim ersten Start migriert das neue Gateway seinen Speicher in `llm-gateway-data` an Ort und Stelle und behält Anbieter, Schlüssel, Budgets und Admin-Konto; von Hand ist nichts zu tun. Die Migration indiziert auch das Anfrageprotokoll des Gateways, daher kann dieser Start bei einer Instanz mit langer Anfragehistorie länger dauern.

@@ -11,6 +11,7 @@ import {
   describe,
   expect,
   setSystemTime,
+  spyOn,
   test,
 } from 'bun:test';
 import { getEventListeners } from 'node:events';
@@ -3193,6 +3194,47 @@ describe('memory-aware admission', () => {
     });
     return { latest: reading, read: () => Promise.resolve(reading()) };
   };
+
+  test('an explicit session cap overrides memory admission, but still enforces the cap', async () => {
+    const explicit = {
+      ...cfg,
+      session: { ...cfg.session, autoMaxSessions: false, maxSessions: 1 },
+    };
+    const routes = new SessionRoutes(
+      explicit,
+      fakeBackend,
+      undefined,
+      host(() => 0),
+    );
+    expect((await create(routes, 'explicit-1')).status).toBe(201);
+    expect(await (await create(routes, 'explicit-2')).json()).toMatchObject({
+      error: 'session_quota',
+    });
+  });
+
+  test('adaptive memory admission remains enabled by default', async () => {
+    const adaptive = {
+      ...cfg,
+      session: { ...cfg.session, autoMaxSessions: true },
+    };
+    const routes = new SessionRoutes(
+      adaptive,
+      fakeBackend,
+      undefined,
+      host(() => 0),
+    );
+    const warning = spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      expect(await (await create(routes, 'adaptive-1')).json()).toMatchObject({
+        error: 'host_memory',
+      });
+      expect(warning).toHaveBeenCalledWith(
+        expect.stringContaining('host_memory'),
+      );
+    } finally {
+      warning.mockRestore();
+    }
+  });
 
   test('a create that would leave the host under its reserve is refused with host_memory', async () => {
     // 16 GiB host: the reserve is 1.6 GiB; an agent session is planned at
