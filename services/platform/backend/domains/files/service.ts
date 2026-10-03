@@ -735,6 +735,38 @@ export async function deleteOrgBlobRefs(
 }
 
 /**
+ * Reclaim the bytes of `refs` that nothing holds any more — no file row, no
+ * document (current or retained version) and no task names them
+ * ({@link blobRefHeld}) — and keep the rest: the reclaim for a lane whose
+ * ref another row may have come to name, such as a video link's transcript,
+ * which its paster can attach to a task or take over as a document. Drop
+ * the lane's own rows first, as `deleteFile` does, or they keep the bytes.
+ * Best-effort like {@link deleteOrgBlobRefs}: a holder check that fails
+ * keeps every byte (orphaned bytes are reclaimable later, a held ref's are
+ * not), and a failed delete logs. Answers the refs it judged unheld.
+ */
+export async function deleteUnheldOrgBlobRefs(
+  db: Sql | TransactionSql,
+  organizationId: string,
+  refs: readonly string[],
+): Promise<string[]> {
+  if (refs.length === 0) return [];
+  let unheld: { ref: string }[];
+  try {
+    unheld = await db<{ ref: string }[]>`
+      SELECT r.ref FROM unnest(${[...refs]}::text[]) AS r(ref)
+      WHERE NOT ${blobRefHeld(db, organizationId, db`r.ref`)}
+    `;
+  } catch (error) {
+    console.warn('[files] blob reclaim skipped (holder check failed):', error);
+    return [];
+  }
+  const doomed = unheld.map((row) => row.ref);
+  await deleteOrgBlobRefs(db, organizationId, doomed);
+  return doomed;
+}
+
+/**
  * Store RAW BYTES into the org's store and answer the blob ref — the mail-
  * attachments write lane (the 0.4 `storeOrgBlob` contract): the bytes are
  * already in hand, so there is no presign/verify handshake.

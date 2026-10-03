@@ -167,6 +167,20 @@ describe('ownsUploadedBlob', () => {
     expect(proof?.text).toContain('uploaded_by = ?');
   });
 
+  it('proves nothing through a staged bundle’s intent, which its own lane consumes and deletes (#4110)', async () => {
+    const fake = fakeLedger({ stamped: [{ id: 'i-1' }] });
+
+    await ownsUploadedBlob(fake.sql, {
+      ...scope,
+      storageRef: 's3:blobs/acme/aaa',
+    });
+
+    const stamp = fake.statements.find((s) =>
+      s.text.startsWith('UPDATE app.upload_intents'),
+    );
+    expect(stamp?.text).toContain("AND purpose = 'file'");
+  });
+
   it('refuses a ref that is neither minted for the caller nor theirs by row', async () => {
     const fake = fakeLedger({ stamped: [], uploaderRow: false });
 

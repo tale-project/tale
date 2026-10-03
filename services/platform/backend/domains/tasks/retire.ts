@@ -185,6 +185,12 @@ export async function releaseUnlistedTaskBlobRefs(
   `;
   const releasedRefs = orphaned.map((row) => row.ref);
   if (releasedRefs.length > 0) {
+    // A row another lane binds outside these columns is that lane's, not
+    // the task's: a product's image (the product domain ends it,
+    // `releaseManagedImage`) and a video link's file row (its job's cleanup
+    // and GC end it). Trashed here, the release took the bytes and the row
+    // of an image a product still showed, or a transcript a chip was about
+    // to send (#4110).
     await tx`
       UPDATE app.file_metadata SET
         lifecycle_status = 'trashed', status_changed_at_ms = ${Date.now()}
@@ -192,6 +198,12 @@ export async function releaseUnlistedTaskBlobRefs(
         AND storage_ref = ANY(${releasedRefs})
         AND document_id IS NULL AND thread_id IS NULL
         AND conversation_id IS NULL
+        AND source IS DISTINCT FROM 'product-image'
+        AND NOT EXISTS (
+          SELECT 1 FROM app.video_link_jobs job
+          WHERE job.org_id = file_metadata.org_id
+            AND job.file_metadata_id = file_metadata.id
+        )
         AND (lifecycle_status IS NULL OR lifecycle_status = 'active')
     `;
     await queueRefRelease(tx, organizationId, releasedRefs);
