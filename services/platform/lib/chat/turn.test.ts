@@ -888,6 +888,30 @@ describe('runTurn — input guardrails', () => {
 });
 
 describe('runTurn — execution resolution', () => {
+  it('refuses a Responses-only tool model before native chat calls the provider', async () => {
+    const model = vi.fn();
+    const d = deps({ model: model as unknown as ModelCall });
+    const outcome = await runTurn(
+      request({
+        model: { ...MODEL, toolCallingApi: 'responses' },
+        executionMode: 'direct',
+      }),
+      d.deps,
+    );
+    expect(outcome).toMatchObject({
+      status: 'refused',
+      step: 'resolve-execution',
+      reason: expect.stringContaining('Responses'),
+    });
+    expect(model).not.toHaveBeenCalled();
+    expect(d.store.ops).toEqual(['appendMessage', 'appendMessage']);
+    expect(d.store.appended.at(-1)).toMatchObject({
+      role: 'assistant',
+      blockedReason: expect.stringContaining('Responses'),
+    });
+    expect(d.usage).toEqual([]);
+  });
+
   it('refuses before the model call when the credential forbids the mode', async () => {
     const model = vi.fn();
     const d = deps({ model: model as unknown as ModelCall });
