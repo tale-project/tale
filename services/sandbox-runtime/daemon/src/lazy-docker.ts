@@ -11,7 +11,6 @@ import {
 } from 'node:fs/promises';
 import { createServer as createHttpServer, request } from 'node:http';
 import { createConnection, createServer, type Socket } from 'node:net';
-import { pathToFileURL } from 'node:url';
 
 import {
   InnerDockerHealth,
@@ -500,7 +499,7 @@ async function removeStaleSocket(path: string) {
   }
 }
 
-async function main() {
+export async function runLazyDockerSupervisor() {
   if (process.getuid?.() !== 0)
     throw new Error('Docker supervisor requires root');
   const boot = Object.freeze({ ...process.env });
@@ -583,17 +582,4 @@ async function main() {
     process.off('SIGTERM', shutdown);
     process.off('SIGINT', shutdown);
   }
-}
-
-if (
-  process.argv[1] &&
-  import.meta.url === pathToFileURL(process.argv[1]).href
-) {
-  void main().catch((error: unknown) => {
-    console.error(
-      '[lazy-docker] supervisor failed:',
-      error instanceof Error ? error.message : 'unknown error',
-    );
-    process.exitCode = 1;
-  });
 }

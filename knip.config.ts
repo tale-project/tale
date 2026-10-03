@@ -170,7 +170,7 @@ export default {
       entry: [
         'src/main.ts',
         'src/**/*.test.ts',
-        'src/lazy-docker.ts',
+        'src/lazy-docker-entry.ts',
         'src/lazy-docker.node-fixture.ts',
       ],
     },
