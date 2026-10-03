@@ -163,8 +163,20 @@ admission lock from a reading the probe refreshes every second, so a burst
 sees each create admitted before it. Unknown memory never refuses a create,
 and the check cannot stop sessions already running from growing past it.
 
+On the Docker backend, admission also keeps a floor of free space on the disk
+the workspaces live on — the session root, read with `statfs` every five
+seconds (`host-disk.ts`): `SANDBOX_MIN_FREE_DISK`, a twentieth of the disk,
+at least 2 GiB and at most 20 GiB (`0` turns it off). Below it every create
+answers 429 `host_disk`; no idle session is reclaimed for it, since a stopped
+session keeps its workspace. The spawner logs the disk going below its floor
+and coming back. Meanwhile each build-cache upkeep removes the helpers and
+caches of organizations whose helpers are all stopped and that no session or
+create may use, the longest-stopped first, at most three a run and only while
+the disk stays short; a removal that frees nothing on that disk (the caches
+live on another one) pauses the removals for six hours.
+
 **Room goes first come, first served.** A create refused for room (429
-`session_quota` or `host_memory`) waits in a line, by session id, in the
+`session_quota`, `host_memory` or `host_disk`) waits in a line, by session id, in the
 order of its first refusal; asking again keeps its place. Room that frees
 next is the oldest waiters': a create gets in ahead of them only where there
 is a free slot for each of them as well, and memory for their planned

@@ -47,7 +47,12 @@ such a host admission also keeps `SANDBOX_MIN_FREE_MEMORY` free (a tenth of
 the host, at least 1 GiB), counting creates still starting at their planned
 working set and sessions started in the last 90 seconds at what they are
 still growing into: a create that would cut into it reclaims a released idle
-session or answers 429 `host_memory`. Creates refused for room wait in a
+session or answers 429 `host_memory`. Admission also keeps
+`SANDBOX_MIN_FREE_DISK` free on the disk the session workspaces live on (a
+twentieth of it, at least 2 GiB, at most 20 GiB; `0` turns it off): below
+that floor every create answers 429 `host_disk`, and the build-cache upkeep
+removes the caches of organizations whose helpers are all stopped, the
+longest-stopped first. Creates refused for room wait in a
 first-come line: freed room goes to the oldest waiter still asking, and each
 429 names the create's place (`queue: { position, waiting }`) with a
 `retry-after` for when it comes up (docs/sessions.md). At most 12 Docker CLI processes run at
