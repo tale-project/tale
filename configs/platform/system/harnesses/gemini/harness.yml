@@ -5,10 +5,12 @@
 #
 # Prompt + instructions + settings travel as ONE JSON object on stdin, never
 # argv: process lists leak argv, and a prompt starting with '-' would parse
-# as a flag. The wrapper reads to EOF, stages the settings as a per-exec
-# SYSTEM settings file (GEMINI_CLI_SYSTEM_SETTINGS_PATH — system scope wins
+# as a flag. The wrapper reads to EOF, selects immutable image settings
+# derived from this harness and the existing interpreter at image build
+# (GEMINI_CLI_SYSTEM_SETTINGS_PATH — system scope wins
 # over any repo .gemini/settings.json, so a run is reproducible regardless
-# of repo contents), stages the instructions as a per-exec context file
+# of repo contents, with the root ownership Gemini 0.60+ requires), refuses
+# an image/settings mismatch, stages the instructions as a per-exec context file
 # under ~/.gemini/ added to `context.fileName` alongside GEMINI.md (appended
 # to the model context every turn WITHOUT replacing the CLI's core system
 # prompt — GEMINI_SYSTEM_MD would replace it and drop the defaults), then
@@ -45,8 +47,7 @@ capabilities:
   # FRESH conversation over the preserved workspace (the planners read this
   # flag; the exec builder refuses a handle). Flip to true and restore the
   # `resume: { flag: '--resume' }` argv slot once the pin carries the
-  # upstream fix — see the GEMINI_CLI_VERSION note in the sandbox-runtime
-  # Dockerfile for what a bump past 0.59.0 needs first.
+  # upstream fix (still open on the pinned 0.62.0).
   resume: false
 parser: gemini-stream
 exec:
@@ -93,7 +94,10 @@ exec:
             # no rule for unchanged — on both lanes, so a byo Google
             # `gemini-3-flash` is not silently promoted either. Upstream
             # narrowed the rewrite to its own aliases in 0.61.0
-            # (isPromotableFlashModel). The runtime image test drives the
+            # (isPromotableFlashModel). Keep the supported setting during
+            # rolling upgrades: older platform images still send it, and
+            # the runtime verifies the complete policy before launching.
+            # The runtime image test drives the
             # pinned CLI through the wrapper with these settings and
             # asserts the request path keeps a flash-suffixed id.
             - set:

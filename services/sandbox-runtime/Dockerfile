@@ -23,6 +23,15 @@ WORKDIR /build
 COPY services/sandbox-runtime/daemon/ ./
 RUN bun build --target=node src/main.ts --outfile /runnerd.mjs
 
+# Gemini's system settings must be immutable and root-owned. Derive them
+# from the platform's existing harness interpreter, without a package install.
+FROM oven/bun:1 AS gemini-settings-build
+WORKDIR /build
+COPY services/platform/lib/harnesses/ services/platform/lib/harnesses/
+COPY configs/platform/system/harnesses/gemini/harness.yml configs/platform/system/harnesses/gemini/harness.yml
+COPY services/sandbox-runtime/build-gemini-settings.ts services/sandbox-runtime/build-gemini-settings.ts
+RUN bun services/sandbox-runtime/build-gemini-settings.ts /gemini-settings
+
 # --- exec shim build stage: the subreaper runnerd runs every exec under -----
 # Everything an exec starts stays the shim's descendant, so runnerd ends what
 # the exec left even after it moved to a session of its own and dropped the
@@ -42,22 +51,21 @@ FROM python:3.12-slim-bookworm
 # 2.x required: the claude_code adapter passes --include-partial-messages,
 # which 1.0.x rejects (exit 1 before the agent even starts). 2.1.280 is the
 # first release that knows Claude Opus 5.5 (2.1.257: Claude Fable 5.1).
-ARG CLAUDE_CODE_VERSION=2.1.283
-ARG OPENCODE_VERSION=1.17.3
-ARG CURSOR_AGENT_VERSION=2026.03.20-44cb435
-ARG HERMES_AGENT_VERSION=0.18.0
-# 0.59.0 is the last release tale-gemini-run can drive unchanged: from
-# 0.60.0 the CLI refuses a system settings file (and every ancestor
-# directory) that is not root-owned and free of group/other write, while
-# the wrapper stages that file per exec as `agent` under a temp dir. A bump
-# needs root-owned staging first. The harness YAML also keeps
+ARG CLAUDE_CODE_VERSION=2.1.285
+ARG OPENCODE_VERSION=1.18.34
+ARG CURSOR_AGENT_VERSION=2026.10.01-e373342
+ARG HERMES_AGENT_VERSION=0.19.0
+# Since 0.60.0 the CLI requires root-owned system settings and ancestors.
+# The build stage derives immutable policy files; the non-root wrapper
+# selects one by its settings hash and supplies only per-exec string values
+# through env expansion. The harness YAML keeps
 # `capabilities.resume: false` until a release carries the resume fix
 # (google-gemini/gemini-cli#29365).
-ARG GEMINI_CLI_VERSION=0.59.0
-ARG CODEX_VERSION=0.142.5
-ARG PI_CODING_AGENT_VERSION=0.80.3
-ARG OPENCLAW_VERSION=2026.6.11
-ARG QWEN_CODE_VERSION=0.23.3
+ARG GEMINI_CLI_VERSION=0.62.0
+ARG CODEX_VERSION=0.160.0
+ARG PI_CODING_AGENT_VERSION=1.0.1
+ARG OPENCLAW_VERSION=2026.9.8
+ARG QWEN_CODE_VERSION=0.24.7
 ARG PLAYWRIGHT_MCP_VERSION=0.0.41
 ARG GH_VERSION=2.62.0
 ARG PILLOW_VERSION=12.3.0
@@ -159,8 +167,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # uv — fast Python package installer/resolver. See https://github.com/astral-sh/uv
 COPY --from=ghcr.io/astral-sh/uv:0.5 /uv /usr/local/bin/uv
 
-# Node 24 LTS. Copy /usr/local from node:24-bookworm-slim into /opt/node.
-COPY --from=node:24-bookworm-slim /usr/local /opt/node
+# Node 24 LTS. OpenClaw requires at least 24.16.0; pin the verified LTS patch
+# so a cached floating image cannot silently leave the upgraded CLI unusable.
+COPY --from=node:24.21.0-bookworm-slim /usr/local /opt/node
 
 # bun — many JS/TS projects (Tale included) use it for install/test/scripts, so
 # an in-sandbox coding agent needs it on PATH. Reuse the daemon-build stage's
@@ -357,6 +366,7 @@ RUN npm install -g --prefix /opt/agents "@google/gemini-cli@${GEMINI_CLI_VERSION
     && npm cache clean --force \
     && gemini --version
 COPY services/sandbox-runtime/tale-gemini-run /usr/local/bin/tale-gemini-run
+COPY --from=gemini-settings-build /gemini-settings/ /usr/local/share/tale/gemini-settings/
 RUN chmod +x /usr/local/bin/tale-gemini-run
 
 # OpenAI Codex CLI (pinned npm). Driven headlessly by the platform's codex
