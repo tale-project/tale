@@ -2,9 +2,9 @@
 // runnerd-protocol.ts is the canonical copy and the daemon's
 // services/sandbox-runtime/daemon/src/protocol.ts is a hand-kept mirror (the
 // daemon is bundled into the runtime image and cannot import across the
-// service boundary). Each side consumes a different subset, so knip excludes
-// both from the dead-export sweep — which means nothing else keeps them
-// aligned. This test does: every exported constant must exist on BOTH sides
+// service boundary). Each side consumes a different subset, so Knip treats
+// the canonical public contract as an entry and excludes the daemon mirror.
+// This test keeps them aligned: every exported constant must exist on BOTH sides
 // with the same value, so a cap changed on one side (a daemon-enforced limit
 // vs the spawner's request-side validation of the same field) fails here
 // instead of drifting silently.
