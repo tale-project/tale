@@ -104,6 +104,14 @@ if (process.env.SKIP_BUILD !== 'true' && !process.env.IMAGE_PREBUILT) {
 }
 
 console.log('');
+console.log('--- build-only caches stay outside runtime layers ---');
+await assertOk(
+  'Bun package and node-gyp header caches are not baked into the image',
+  0,
+  `python3 -c 'from pathlib import Path; assert not any(p.is_file() for root in ("/root/.bun/install/cache", "/root/.cache/node-gyp") for p in Path(root).rglob("*"))'`,
+);
+
+console.log('');
 console.log('--- default session profile (uid 65534) ---');
 await assertContains('python3 present', 65534, 'Python 3', 'python3 --version');
 await assertContains('node present', 65534, 'v', 'node --version');

@@ -234,7 +234,10 @@ ENV CLAUDE_CODE_MAX_OUTPUT_TOKENS=64000
 
 # --- coding-agent CLIs (pinned) ---------------------------------------------
 # Claude Code + Playwright MCP via npm into /opt/agents (on PATH above).
-RUN npm install -g --prefix /opt/agents \
+# Native-addon build headers stay in BuildKit's cache, never in runtime layers.
+# Share by architecture; node-gyp already separates Node versions within it.
+RUN --mount=type=cache,id=tale-sandbox-node-gyp-${TARGETARCH},target=/root/.cache/node-gyp,sharing=locked \
+    npm install -g --prefix /opt/agents \
       @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION} \
       @playwright/mcp@${PLAYWRIGHT_MCP_VERSION} \
     && npm cache clean --force
@@ -275,7 +278,8 @@ RUN PLAYWRIGHT_DOWNLOAD_HOST="${PLAYWRIGHT_DOWNLOAD_HOST}" \
 # hoisting, and reusing that install means the skill reuses the MCP's
 # already-downloaded Chromium revision (no second ~150 MB browser).
 COPY configs/platform/custom/skills/visual-aspect-analyzer /opt/agents/skills/visual-aspect-analyzer
-RUN cd /opt/agents/skills/visual-aspect-analyzer \
+RUN --mount=type=cache,id=tale-sandbox-skill-bun-${TARGETARCH},target=/root/.bun/install/cache,sharing=locked \
+    cd /opt/agents/skills/visual-aspect-analyzer \
     && bun install --production \
     && MCP=/opt/agents/lib/node_modules/@playwright/mcp \
     && ln -sfn "$(node -p "require('path').dirname(require.resolve('playwright/package.json',{paths:['$MCP']}))")" node_modules/playwright \
@@ -362,7 +366,8 @@ RUN chmod +x /usr/local/bin/tale-hermes-run
 
 # Gemini CLI (pinned npm, into /opt/agents like Claude Code) + Tale wrapper
 # that stages per-exec settings/context before the headless run.
-RUN npm install -g --prefix /opt/agents "@google/gemini-cli@${GEMINI_CLI_VERSION}" \
+RUN --mount=type=cache,id=tale-sandbox-node-gyp-${TARGETARCH},target=/root/.cache/node-gyp,sharing=locked \
+    npm install -g --prefix /opt/agents "@google/gemini-cli@${GEMINI_CLI_VERSION}" \
     && npm cache clean --force \
     && gemini --version
 COPY services/sandbox-runtime/tale-gemini-run /usr/local/bin/tale-gemini-run
@@ -376,7 +381,8 @@ RUN chmod +x /usr/local/bin/tale-gemini-run
 # PATH execs the binary directly instead (codex-launcher.in), resolved the way
 # that launcher resolves it.
 COPY services/sandbox-runtime/codex-launcher.in /tmp/codex-launcher.in
-RUN npm install -g --prefix /opt/agents "@openai/codex@${CODEX_VERSION}" \
+RUN --mount=type=cache,id=tale-sandbox-node-gyp-${TARGETARCH},target=/root/.cache/node-gyp,sharing=locked \
+    npm install -g --prefix /opt/agents "@openai/codex@${CODEX_VERSION}" \
     && npm cache clean --force \
     && codex_root="$(realpath /opt/agents/lib/node_modules/@openai/codex)" \
     && codex_bin="$(node -e ' \
@@ -400,7 +406,8 @@ RUN npm install -g --prefix /opt/agents "@openai/codex@${CODEX_VERSION}" \
 # Pi (pinned npm, into /opt/agents like Claude Code) + Tale wrapper that
 # stages the per-exec config dir (models.json/settings/APPEND_SYSTEM.md)
 # before the headless run.
-RUN npm install -g --prefix /opt/agents "@earendil-works/pi-coding-agent@${PI_CODING_AGENT_VERSION}" \
+RUN --mount=type=cache,id=tale-sandbox-node-gyp-${TARGETARCH},target=/root/.cache/node-gyp,sharing=locked \
+    npm install -g --prefix /opt/agents "@earendil-works/pi-coding-agent@${PI_CODING_AGENT_VERSION}" \
     && npm cache clean --force \
     && pi --version
 COPY services/sandbox-runtime/tale-pi-run /usr/local/bin/tale-pi-run
@@ -409,7 +416,8 @@ RUN chmod +x /usr/local/bin/tale-pi-run
 # OpenClaw (pinned npm, into /opt/agents like Claude Code) + Tale wrapper
 # that stages per-exec config/prompt/AGENTS.md and translates the CLI's
 # single --json envelope into Tale NDJSON lifecycle events.
-RUN npm install -g --prefix /opt/agents "openclaw@${OPENCLAW_VERSION}" \
+RUN --mount=type=cache,id=tale-sandbox-node-gyp-${TARGETARCH},target=/root/.cache/node-gyp,sharing=locked \
+    npm install -g --prefix /opt/agents "openclaw@${OPENCLAW_VERSION}" \
     && npm cache clean --force \
     && openclaw --version
 COPY services/sandbox-runtime/tale-openclaw-run /usr/local/bin/tale-openclaw-run
@@ -419,7 +427,8 @@ RUN chmod +x /usr/local/bin/tale-openclaw-run
 # that stages per-exec settings/context before the headless run — the
 # gemini-cli fork with OpenAI-compatible auth; its headless stream is the
 # Claude-style stream-json dialect.
-RUN npm install -g --prefix /opt/agents "@qwen-code/qwen-code@${QWEN_CODE_VERSION}" \
+RUN --mount=type=cache,id=tale-sandbox-node-gyp-${TARGETARCH},target=/root/.cache/node-gyp,sharing=locked \
+    npm install -g --prefix /opt/agents "@qwen-code/qwen-code@${QWEN_CODE_VERSION}" \
     && npm cache clean --force \
     && qwen --version
 COPY services/sandbox-runtime/tale-qwen-run /usr/local/bin/tale-qwen-run

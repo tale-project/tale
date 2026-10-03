@@ -156,6 +156,13 @@ installs at image build time so a new agent never downloads or updates its CLI
 during startup. An image update does not add models to the platform catalog;
 deploy the matching platform release before selecting newly supported models.
 
+BuildKit keeps native-addon headers and the built-in skill's Bun package cache
+outside runtime layers. The October harness refresh grows the amd64 image to
+about 6.0 GB; its image-validation budget is 6,600 MB (roughly 10% headroom).
+The complete upstream runtimes and diagnostics ship in the image, which is
+shared by concurrent sessions. This increases image pull and base-image disk
+cost; it does not duplicate the base image for every worker.
+
 Run the wrapper regression tests and the real image conformance suite before
 shipping a refresh:
 
