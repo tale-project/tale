@@ -112,9 +112,10 @@ export interface RunnerdStdinWriteResponse {
 
 export type RunnerdExecEvent = (
   | { t: 'start'; execId: string; startedAtMs: number }
-  | { t: 'replay-start' | 'replay-end' }
   | { t: 'stdout'; b64: string }
   | { t: 'stderr'; b64: string }
+  | { t: 'replay-start' }
+  | { t: 'replay-complete'; throughSeq: number }
   | {
       t: 'exit';
       exitCode: number;
@@ -140,7 +141,8 @@ export type RunnerdExecEvent = (
         | 'EXEC_LIMIT'
         | 'DUPLICATE_EXEC'
         | 'BAD_REQUEST'
-        | 'REPLAY_GAP';
+        | 'OUTPUT_LIMIT'
+        | 'REPLAY_UNAVAILABLE';
       message: string;
     }
 ) & { seq?: number };

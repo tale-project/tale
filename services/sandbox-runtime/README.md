@@ -12,30 +12,42 @@ Tale sandbox runtime image — the Python/Node/coding-agent environment that
 
 Any other argument exits 65 (there is no per-call language lane).
 
-runnerd disconnects an exec or attach output reader once its pending writes
-would exceed 8 MiB, releasing the connection and its request activity while
-the command continues. A reader can reconnect through attach using its last
-sequence number. Recent output comes from a 256 KiB memory ring; older output
-is replayed from a workspace-backed journal, limited to 64 MiB of encoded
-events per live exec. The last 16 completed execs retain at most 64 MiB of
-journals in total. Eviction removes their journal files; restarting the
-container clears all journals with its exec temporary directory. At most eight
-attach readers run at once, and disk replay waits for each reader's writable
-buffer to drain. If a cursor needs output lost to the journal limit, a disk
-failure or missing history, attach reports `REPLAY_GAP`; it never passes a
-partial history off as a complete replay. The original live stream continues
-past the journal limit.
+runnerd keeps the complete exec protocol in a disk-backed journal for
+reconnection during the runtime's lifetime. Each journal is limited to 64 MiB
+of encoded NDJSON, with a 256 MiB session budget; stdout/stderr's base64
+encoding counts toward those limits. Completed journals are evicted oldest
+first when space is needed. The 256 KiB in-memory ring is diagnostic only.
+Exceeding the remaining storage budget ends the writer with `OUTPUT_LIMIT`;
+an evicted or unreadable transcript reports `REPLAY_UNAVAILABLE`, never a
+partial replay presented as complete. Journals are unlinked after opening and
+held through file descriptors: stopping or restarting the runtime loses them,
+while the workspace remains persistent.
 
-File staging admits two concurrent requests. URL inputs stream to temporary
-files under a 100 MiB per-file cap and replace their destination atomically
-only after a successful download. Inline files retain their 1 MiB cap. The
-whole staging batch has a 25-second deadline; caller disconnect cancels its
-fetches and removes partial files, preserving an existing destination. A full
-staging pool returns `503 staging_busy`; the spawner retries that explicit refusal
-within the same 30-second RPC deadline.
-
-Session idle and TTL cleanup atomically checks the current work generation and activity clock
+An exec output reader is disconnected before its pending writes exceed 8 MiB.
+At most eight attach readers are admitted at once. Excess attaches receive a
+retryable busy response without changing the exec; invalid or future replay
+cursors fail explicitly. Attach replay waits for socket drain, disconnecting a reader stalled for two
+seconds, so historical output cannot fill memory faster than the client reads.
+The command continues under its existing deadline. Reconnect through attach
+with the last sequence number. `replay-start` precedes journal history;
+`replay-complete` names the sequence through
+which the history present at attachment has been delivered. Session idle and
+TTL cleanup atomically checks the current work generation and activity clock
 before freezing compute; see the [session contract](../sandbox/docs/sessions.md).
+
+File staging streams each URL into a temporary file beside its destination
+and replaces the destination only after a complete, bounded download. Cancelling
+or failing a download preserves the previous file. At most two stage requests
+are admitted at once, including their JSON intake; excess requests report
+`busy`. The whole batch has a 25-second deadline, and cancellation propagates
+through the platform and spawner to the active transfer. URL inputs retain
+their 100 MiB limit and 25-second per-file deadline;
+inline inputs retain their 1 MiB limit. Output reads also stream, within their
+20 MiB file limit. Immutable source identities can skip a transfer only after
+rehashing the current destination; a changed file is repaired. Explicit final
+manifests remove stale files only within the named managed roots after all
+transfer batches succeeded. The
+[session contract](../sandbox/docs/sessions.md) describes that internal API.
 
 Headless Chromium and Playwright are available on demand for automation,
 rendering and screenshots. The runtime starts no display server, managed

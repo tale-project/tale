@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 import {
   chunkStageFiles,
   drainSessionExecResilient,
+  ExecStreamProtocolError,
   SandboxDeviceOfflineError,
   sandboxDeploymentLimits,
   sandboxDeviceDisconnect,
@@ -99,31 +100,271 @@ function restoreEnv(name: string, value: string | undefined): void {
 }
 
 describe('drainSessionExecResilient', () => {
-  test('reports the replay boundary between historical and live output', async () => {
-    globalThis.fetch = Object.assign(async () =>
-      sseResponse([
-        'event: phase\ndata: {"phase":"replay-start"}\n\n',
-        'event: stdout\ndata: {"text":"past","seq":2}\n\n',
-        'event: phase\ndata: {"phase":"replay-complete"}\n\n',
-        'event: stdout\ndata: {"text":"live","seq":3}\n\n',
-        RESULT_OK,
-      ]),
+  test('reader admission keeps retrying the same attach beyond the transport failure budget', async () => {
+    const requests: Array<{ url: string; method: string | undefined }> = [];
+    globalThis.fetch = (async (url: string, init?: RequestInit) => {
+      requests.push({ url, method: init?.method });
+      return requests.length <= 6
+        ? sseResponse([
+            'event: error\ndata: {"code":"ATTACH_BUSY","message":"busy"}\n\n',
+          ])
+        : sseResponse([RESULT_OK]);
+    }) as typeof fetch;
+    const result = await drainSessionExecResilient(
+      's',
+      { execId: 'e' },
+      new AbortController().signal,
+      {},
+      { resumeSinceSeq: 3 },
     );
-    const events: string[] = [];
+    expect(result.status).toBe('completed');
+    expect(requests).toHaveLength(7);
+    expect(
+      requests.every(
+        (request) =>
+          request.method === 'GET' &&
+          request.url.endsWith('/exec/e/attach?sinceSeq=3'),
+      ),
+    ).toBe(true);
+  });
+
+  test('cancellation ends reader admission retries without restarting the exec', async () => {
+    const controller = new AbortController();
+    let calls = 0;
+    globalThis.fetch = (async () => {
+      calls += 1;
+      controller.abort();
+      return sseResponse([
+        'event: error\ndata: {"code":"ATTACH_BUSY","message":"busy"}\n\n',
+      ]);
+    }) as typeof fetch;
+    await expect(
+      drainSessionExecResilient(
+        's',
+        { execId: 'e' },
+        controller.signal,
+        {},
+        { resumeSinceSeq: 3 },
+      ),
+    ).rejects.toThrow();
+    expect(calls).toBe(1);
+  });
+
+  test('enables contiguous legacy replay without waiting for a marker', async () => {
+    const phases: string[] = [];
+    globalThis.fetch = (async () =>
+      sseResponse([
+        'event: phase\ndata: {"phase":"running"}\n\n',
+        'event: stdout\ndata: {"seq":2,"text":"legacy"}\n\n',
+        RESULT_OK,
+      ])) as unknown as typeof fetch;
     await drainSessionExecResilient(
-      'ses-1',
-      { execId: 'exec-1' },
+      's',
+      { execId: 'e' },
       new AbortController().signal,
       {
-        onStdout: (text) => events.push(text),
-        onReplayStart: () => events.push('replaying'),
-        onReplayComplete: () => events.push('caught-up'),
+        onReplayStarted: () => {
+          phases.push('start');
+        },
+        onReplayComplete: () => {
+          phases.push('complete');
+        },
+        onStdout: (text) => {
+          phases.push(text);
+        },
       },
       { resumeSinceSeq: 0 },
     );
-    expect(events).toEqual(['replaying', 'past', 'caught-up', 'live']);
+    expect(phases).toEqual(['start', 'complete', 'legacy']);
   });
 
+  test('keeps journal history gated until its explicit completion marker', async () => {
+    const phases: string[] = [];
+    globalThis.fetch = (async () =>
+      sseResponse([
+        'event: replay-start\ndata: {}\n\n',
+        'event: stdout\ndata: {"seq":2,"text":"history"}\n\n',
+        'event: replay-complete\ndata: {"throughSeq":2}\n\n',
+        RESULT_OK,
+      ])) as unknown as typeof fetch;
+    await drainSessionExecResilient(
+      's',
+      { execId: 'e' },
+      new AbortController().signal,
+      {
+        onReplayStarted: () => {
+          phases.push('start');
+        },
+        onReplayComplete: () => {
+          phases.push('complete');
+        },
+        onStdout: (text) => {
+          phases.push(text);
+        },
+      },
+      { resumeSinceSeq: 0 },
+    );
+    expect(phases).toEqual(['start', 'history', 'complete']);
+  });
+
+  test('fails a legacy ring rollover before consuming its partial history', async () => {
+    let calls = 0;
+    let text = '';
+    globalThis.fetch = (async () => {
+      calls += 1;
+      return sseResponse([
+        'event: stdout\ndata: {"seq":40,"text":"incomplete"}\n\n',
+        RESULT_OK,
+      ]);
+    }) as unknown as typeof fetch;
+    await expect(
+      drainSessionExecResilient(
+        's',
+        { execId: 'e' },
+        new AbortController().signal,
+        {
+          onStdout: (chunk) => {
+            text += chunk;
+          },
+        },
+        { resumeSinceSeq: 0 },
+      ),
+    ).rejects.toThrow('Legacy sandbox replay is incomplete');
+    expect(calls).toBe(1);
+    expect(text).toBe('');
+  });
+
+  test('decodes exact UTF-8 bytes across stdout/stderr frames and reconnects without duplicates', async () => {
+    const stdout = Buffer.from('A😀Z');
+    const stderr = Buffer.from('é');
+    const frame = (event: string, seq: number, bytes: Uint8Array) =>
+      `event: ${event}\ndata: ${JSON.stringify({ seq, b64: Buffer.from(bytes).toString('base64'), text: 'legacy replacement' })}\n\n`;
+    let calls = 0;
+    globalThis.fetch = (async () => {
+      calls += 1;
+      return calls === 1
+        ? sseResponse([
+            frame('stdout', 2, stdout.subarray(0, 3)),
+            frame('stderr', 3, stderr.subarray(0, 1)),
+          ])
+        : sseResponse([
+            frame('stdout', 2, stdout.subarray(0, 3)),
+            frame('stderr', 4, stderr.subarray(1)),
+            frame('stdout', 5, stdout.subarray(3)),
+            RESULT_OK,
+          ]);
+    }) as unknown as typeof fetch;
+    let out = '';
+    let err = '';
+    const cursor = { lastSeq: 0 };
+    await drainSessionExecResilient(
+      's',
+      { execId: 'e', command: ['fixture'] },
+      new AbortController().signal,
+      {
+        onStdout: (chunk) => {
+          out += chunk;
+        },
+        onStderr: (chunk) => {
+          err += chunk;
+        },
+      },
+      { cursor },
+    );
+    expect(out).toBe('A😀Z');
+    expect(err).toBe('é');
+    expect(cursor.lastSeq).toBe(5);
+    expect(calls).toBe(2);
+  });
+
+  test('flushes a final incomplete UTF-8 character only at authoritative EOF', async () => {
+    globalThis.fetch = (async () =>
+      sseResponse([
+        'event: stdout\ndata: {"seq":2,"b64":"ww=="}\n\n',
+        RESULT_OK,
+      ])) as unknown as typeof fetch;
+    let text = '';
+    await drainSessionExecResilient(
+      's',
+      { execId: 'e', command: ['fixture'] },
+      new AbortController().signal,
+      {
+        onStdout: (chunk) => {
+          text += chunk;
+        },
+      },
+    );
+    expect(text).toBe('�');
+  });
+
+  test('marks replay boundaries and fails a journal gap without reconnecting', async () => {
+    let requests = 0;
+    const phases: string[] = [];
+    globalThis.fetch = (async () => {
+      requests += 1;
+      return sseResponse([
+        'event: replay-complete\ndata: {"throughSeq":2}\n\n',
+        'event: error\ndata: {"code":"REPLAY_GAP","message":"replay unavailable"}\n\n',
+      ]);
+    }) as unknown as typeof fetch;
+    await expect(
+      drainSessionExecResilient(
+        's',
+        { execId: 'e' },
+        new AbortController().signal,
+        {
+          onReplayStarted: () => {
+            phases.push('started');
+          },
+          onReplayComplete: () => {
+            phases.push('complete');
+          },
+        },
+        { resumeSinceSeq: 0 },
+      ),
+    ).rejects.toBeInstanceOf(ExecStreamProtocolError);
+    expect(phases).toEqual(['started', 'complete']);
+    expect(requests).toBe(1);
+  });
+
+  test('does not advance past a refused harness record and cancels its reader', async () => {
+    let cancelled = false;
+    let requests = 0;
+    globalThis.fetch = (async () => {
+      requests += 1;
+      return new Response(
+        new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(
+              enc.encode(
+                'event: stdout\ndata: {"text":"oversized record","seq":2}\n\n',
+              ),
+            );
+          },
+          cancel() {
+            cancelled = true;
+          },
+        }),
+      );
+    }) as unknown as typeof fetch;
+    const cursor = { lastSeq: 0 };
+    await expect(
+      drainSessionExecResilient(
+        's',
+        { execId: 'e' },
+        new AbortController().signal,
+        {
+          onStdout: () => {
+            throw new Error('protocol record exceeds budget');
+          },
+        },
+        { cursor },
+      ),
+    ).rejects.toThrow('protocol record exceeds budget');
+    expect(cursor.lastSeq).toBe(0);
+    expect(cancelled).toBe(true);
+    expect(requests).toBe(1);
+  });
   test('re-attaches after a mid-turn drop and feeds each delta once', async () => {
     const calls: string[] = [];
     let n = 0;

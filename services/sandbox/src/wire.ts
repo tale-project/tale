@@ -52,7 +52,6 @@ export const sandboxErrorCodeLiterals = [
   // fails the runnerd realpath-under-/agent check (no silent mkdir).
   'SESSION_LOST',
   'INVALID_CWD',
-  'REPLAY_GAP',
 ] as const;
 
 export type SandboxErrorCode = (typeof sandboxErrorCodeLiterals)[number];
@@ -137,8 +136,8 @@ export interface SessionInfo {
   sessionId: string;
   organizationId: string;
   profile: SandboxSessionProfile;
-  /** Actual inner-Docker capability of this runtime, including explicit opt-out. */
-  dockerInContainer: boolean;
+  /** Whether this incarnation has inner Docker; absent on older spawners. */
+  docker?: boolean;
   state: SandboxSessionState;
   backend: 'docker' | 'kubernetes';
   createdAtMs: number;
@@ -146,6 +145,8 @@ export interface SessionInfo {
   idleTimeoutMs: number;
   /** "Always-on": exempt from the idle/TTL reaper (PATCH /pin). */
   pinned: boolean;
+  /** False while a requested pin has not been durably acknowledged. */
+  pinSynchronized?: boolean;
 }
 
 /** execId shares the sessionId alphabet; unique within its session. */

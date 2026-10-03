@@ -5,8 +5,6 @@
 // layer forwards to the platform. No kubectl exec anywhere — this is ordinary
 // fetch, which is what keeps the K8s backend exec-free.
 
-import { setTimeout as delay } from 'node:timers/promises';
-
 import {
   RUNNERD_TOKEN_HEADER,
   type RunnerdExecEvent,
@@ -219,12 +217,16 @@ export async function runnerdCancelExec(
 export async function runnerdExecStatus(
   opts: RunnerdClientOptions,
   execId: string,
+  signal?: AbortSignal,
 ): Promise<RunnerdExecStatus> {
   const res = await fetch(
     `${opts.baseUrl}/execs/${encodeURIComponent(execId)}`,
     {
       headers: authHeaders(opts.token),
-      signal: AbortSignal.timeout(RUNNERD_RPC_TIMEOUT_MS),
+      signal: AbortSignal.any([
+        AbortSignal.timeout(RUNNERD_RPC_TIMEOUT_MS),
+        ...(signal ? [signal] : []),
+      ]),
     },
   );
   if (res.status === 404) return { execId, state: 'gone' };
@@ -258,6 +260,13 @@ export async function runnerdWriteStdin(
   return (await res.json()) as { ok: boolean; reason?: string };
 }
 
+/** Reader admission refused without changing the exec's lifecycle. */
+export class RunnerdAttachBusyError extends Error {
+  constructor() {
+    super('runnerd replay readers are busy');
+  }
+}
+
 /** GET /execs/:id/attach — reconnect to a live/recent exec; same NDJSON event
  * stream as runnerdExec. Returns false with no events if the exec is unknown
  * (404). */
@@ -268,12 +277,22 @@ export async function runnerdAttach(
   signal?: AbortSignal,
   sinceSeq = 0,
 ): Promise<boolean> {
-  const q = sinceSeq > 0 ? `?sinceSeq=${sinceSeq}` : '';
+  const q = sinceSeq !== 0 ? `?sinceSeq=${sinceSeq}` : '';
   const res = await fetch(
     `${opts.baseUrl}/execs/${encodeURIComponent(execId)}/attach${q}`,
     { headers: authHeaders(opts.token), ...(signal ? { signal } : {}) },
   );
   if (res.status === 404) return false;
+  if (res.status === 503) {
+    const body: unknown = await res.json().catch(() => null);
+    if (
+      body !== null &&
+      typeof body === 'object' &&
+      'error' in body &&
+      body.error === 'busy'
+    )
+      throw new RunnerdAttachBusyError();
+  }
   if (!res.ok || !res.body) throw new Error(`runnerd /attach ${res.status}`);
   await pumpNdjson(res.body, onEvent);
   return true;
@@ -290,9 +309,10 @@ export async function runnerdEnvPatch(
     method: 'POST',
     headers: { ...authHeaders(opts.token), 'content-type': 'application/json' },
     body: JSON.stringify(patch),
-    signal: signal
-      ? AbortSignal.any([signal, AbortSignal.timeout(RUNNERD_RPC_TIMEOUT_MS)])
-      : AbortSignal.timeout(RUNNERD_RPC_TIMEOUT_MS),
+    signal: AbortSignal.any([
+      AbortSignal.timeout(RUNNERD_RPC_TIMEOUT_MS),
+      ...(signal ? [signal] : []),
+    ]),
   });
   if (!res.ok) throw new Error(`runnerd /env ${res.status}`);
   // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
@@ -300,57 +320,54 @@ export async function runnerdEnvPatch(
   return body.denied ?? [];
 }
 
+/** A stage request refused before any file mutation; callers may retry it. */
+export class RunnerdStageBusyError extends Error {
+  constructor() {
+    super('runnerd staging is busy');
+  }
+}
+
 interface RunnerdStageResult {
   staged: Array<{ path: string; bytes: number }>;
   skipped: Array<{ path: string; reason: string }>;
+  reconciled?: true;
 }
 
 /** POST /files/stage — write each item into the workspace (inline base64
  * bytes, or fetched by the daemon from its URL). */
 export async function runnerdStageFiles(
   opts: RunnerdClientOptions,
-  files: Array<{ path: string; url?: string; contentBase64?: string }>,
+  files: Array<{
+    path: string;
+    url?: string;
+    contentBase64?: string;
+    sourceId?: string;
+  }>,
+  reconcile: { replaceRoots?: string[]; keepPaths?: string[] } = {},
   request: { signal?: AbortSignal; timeoutMs?: number } = {},
 ): Promise<RunnerdStageResult> {
-  const timeout = AbortSignal.timeout(
-    request.timeoutMs ?? RUNNERD_RPC_TIMEOUT_MS,
-  );
-  const signal = request.signal
-    ? AbortSignal.any([request.signal, timeout])
-    : timeout;
-  const body = JSON.stringify({ files });
-  for (;;) {
-    const res = await fetch(`${opts.baseUrl}/files/stage`, {
-      method: 'POST',
-      headers: {
-        ...authHeaders(opts.token),
-        'content-type': 'application/json',
-      },
-      body,
-      signal,
-    });
-    if (res.ok) {
-      // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
-      return (await res.json()) as RunnerdStageResult;
-    }
-    if (res.status === 503) {
-      const refusal: unknown = await res.json().catch(() => null);
-      if (
-        refusal !== null &&
-        typeof refusal === 'object' &&
-        'error' in refusal &&
-        refusal.error === 'staging_busy'
-      ) {
-        // No file was attempted. Retry admission under the SAME deadline;
-        // generic errors may follow a partial write and must not be replayed.
-        await delay(100, undefined, { signal });
-        continue;
-      }
-    } else {
-      await res.body?.cancel();
-    }
-    throw new Error(`runnerd /files/stage ${res.status}`);
+  const res = await fetch(`${opts.baseUrl}/files/stage`, {
+    method: 'POST',
+    headers: { ...authHeaders(opts.token), 'content-type': 'application/json' },
+    body: JSON.stringify({ files, ...reconcile }),
+    signal: AbortSignal.any([
+      AbortSignal.timeout(request.timeoutMs ?? RUNNERD_RPC_TIMEOUT_MS),
+      ...(request.signal ? [request.signal] : []),
+    ]),
+  });
+  if (res.status === 503) {
+    const body: unknown = await res.json().catch(() => null);
+    if (
+      body !== null &&
+      typeof body === 'object' &&
+      'error' in body &&
+      body.error === 'busy'
+    )
+      throw new RunnerdStageBusyError();
   }
+  if (!res.ok) throw new Error(`runnerd /files/stage ${res.status}`);
+  // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+  return (await res.json()) as RunnerdStageResult;
 }
 
 interface RunnerdDeleteResult {
@@ -405,15 +422,22 @@ export async function runnerdListDir(
 export async function runnerdReadFile(
   opts: RunnerdClientOptions,
   path: string,
-): Promise<ArrayBuffer | null> {
+  signal?: AbortSignal,
+): Promise<Response | null> {
   const res = await fetch(
     `${opts.baseUrl}/fs/read?path=${encodeURIComponent(path)}`,
     {
       headers: authHeaders(opts.token),
-      signal: AbortSignal.timeout(RUNNERD_RPC_TIMEOUT_MS),
+      signal: AbortSignal.any([
+        AbortSignal.timeout(RUNNERD_RPC_TIMEOUT_MS),
+        ...(signal === undefined ? [] : [signal]),
+      ]),
     },
   );
-  if (res.status === 404) return null;
-  if (!res.ok) throw new Error(`runnerd /fs/read ${res.status}`);
-  return res.arrayBuffer();
+  if (!res.ok) {
+    await res.body?.cancel();
+    if (res.status === 404) return null;
+    throw new Error(`runnerd /fs/read ${res.status}`);
+  }
+  return res;
 }

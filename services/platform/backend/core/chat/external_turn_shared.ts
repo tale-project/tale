@@ -13,18 +13,19 @@
  * windows (a Convex action cannot be held open for a long turn — a cold or
  * slow turn would outlive its execution window and be killed mid-run). Each
  * window re-attaches to the running exec from the START of runnerd's
- * byte-identical output journal and re-parses the full output-so-far —
+ * byte-identical disk journal and re-parses the full output-so-far —
  * re-parsing from the start (rather than carrying a per-delta cursor across
  * windows) keeps a JSONL line that straddles a window boundary from being
  * stranded by the fresh per-window parser. This module owns the lane-neutral
  * core: exec construction (`buildExternalTurnExec`, with the model window
  * `resolveHarnessTurnContextWindow` reads), the window drain
  * (`drainHarnessWindow`), end classification (`classifyHarnessEnd`), and the
- * incremental event→transcript projection (`HarnessProjection`); each host wraps it
+ * event→transcript projection (`HarnessProjection`); each host wraps it
  * with its own token mint, progress sink, and settle.
  */
 
 import { resolveEffectiveWindow } from '../../../lib/chat/budget';
+import { HarnessProjection } from '../../../lib/harnesses/projection';
 import { getHarnessGlue } from '../../../lib/harnesses/registry';
 import type { TimelinePart } from '../../../lib/harnesses/timeline';
 import {
@@ -38,6 +39,7 @@ import { loadHarnesses } from '../lib/providers/load_system_config';
 import { resolveModel } from '../lib/providers/resolve_model';
 import {
   drainSessionExecResilient,
+  ExecStreamProtocolError,
   SessionNotFoundError,
   sessionCancelExec,
   sessionStageFiles,
@@ -48,7 +50,6 @@ import {
   gatewayRequestTimeoutSeconds,
   gatewayStreamIdleTimeoutSeconds,
 } from '../node_only/sandbox/llm_gateway_admin';
-import { HarnessProjection } from './harness_projection';
 
 /** Session-relative dir every staged skill lands in — the work lanes' org
  * skills and the per-connector skills alike, so the instructions can point
@@ -334,7 +335,7 @@ export function buildExternalTurnExec(args: {
   return { ...exec, env: { ...args.extraEnv, ...exec.env } };
 }
 
-/** The op row's transcript shape, shared with the incremental projection. */
+/** One entry of the op row's bounded live transcript. */
 export type HarnessTimelinePart = TimelinePart;
 
 /** What one harness window observed — the lane-neutral core result. */
@@ -379,7 +380,7 @@ export async function drainHarnessWindow(args: {
   execId: string;
   harness: string;
   start?: HarnessExec;
-  /** Throttled full-text-so-far callback (at most ~1/s), for live display. */
+  /** Throttled bounded text-tail callback (at most 4/s), for live display. */
   onText?: (text: string) => void;
   /** Throttled transcript-so-far callback (same cadence as `onText`), in the
    * op row's `liveTimeline` shape. The chat lane renders its transcript from
@@ -398,12 +399,9 @@ export async function drainHarnessWindow(args: {
   );
   const parser = glue.createParser();
   const projection = new HarnessProjection();
-  // Replaying an old prefix must not append already-evicted tool entries to
-  // the newest stored transcript, or settle a historical result before its
-  // later background-task events arrive. New runtimes announce replay before
-  // its first byte, then become live at the explicit replay boundary (or exit).
-  // Older runtimes keep their baseline behavior through a rolling upgrade.
-  let replayComplete = true;
+  let ended: Extract<HarnessEvent, { type: 'turn-ended' }> | undefined;
+  let agentSessionId: string | undefined;
+  let outputTokens = 0;
 
   // A hold-stdin harness (claude-code) lingers after its reply waiting for
   // more input, so its process exit can be a whole window away from the
@@ -413,6 +411,12 @@ export async function drainHarnessWindow(args: {
   const turnEndedCut = new AbortController();
   let turnEndedGrace: ReturnType<typeof setTimeout> | undefined;
   let turnEndedSeen = false;
+  // A large journal may take longer than the exit grace to replay. Its
+  // historical result is not actionable until we have caught up: a later
+  // record can reopen the background ledger. The transport negotiates legacy
+  // streams before accepting their first contiguous sequence; an evicted
+  // legacy prefix fails explicitly instead of rebuilding partial state.
+  let replayComplete = args.start !== undefined;
   // The background-task ledger (`types.ts` contract): a harness that
   // launched background work reports `task-started`/`task-settled` pairs,
   // and a `turn-ended` whose ledger is still open is a LINGERING turn — the
@@ -422,7 +426,7 @@ export async function drainHarnessWindow(args: {
   // window re-parses from seq 0, so the ledger is rebuilt consistently.)
   const pendingTasks = new Set<string>();
   const armTurnEndedCut = () => {
-    if (turnEndedGrace !== undefined) return;
+    if (!replayComplete || turnEndedGrace !== undefined) return;
     turnEndedGrace = setTimeout(
       () => turnEndedCut.abort(),
       TURN_ENDED_EXIT_GRACE_MS,
@@ -438,6 +442,8 @@ export async function drainHarnessWindow(args: {
   let lastNotifiedEventCount = 0;
   let lastNotifyAt = 0;
   const notifyTextSoFar = () => {
+    // A fresh parser traverses the full journal. Publishing an ancient
+    // prefix would merge evicted entries back into the persisted tail.
     if (!replayComplete) return;
     if (args.onText === undefined && args.onTimeline === undefined) return;
     const now = Date.now();
@@ -451,7 +457,7 @@ export async function drainHarnessWindow(args: {
     const textAdvanced = text !== '' && text !== lastNotifiedText;
     const timelineAdvanced =
       args.onTimeline !== undefined &&
-      projection.eventCount > lastNotifiedEventCount;
+      projection.revision > lastNotifiedEventCount;
     if (!textAdvanced && !timelineAdvanced) return;
     lastNotifyAt = now;
     if (textAdvanced) {
@@ -459,7 +465,7 @@ export async function drainHarnessWindow(args: {
       args.onText?.(text);
     }
     if (timelineAdvanced) {
-      lastNotifiedEventCount = projection.eventCount;
+      lastNotifiedEventCount = projection.revision;
       args.onTimeline?.(projection.timeline());
     }
   };
@@ -479,24 +485,39 @@ export async function drainHarnessWindow(args: {
   // were pushed and never read: a Codex turn the provider refused settled
   // with the agent's last narration sentence as its reason (2026-09-26).
   let harnessError: string | undefined;
-  const onStdout = (chunk: string) => {
-    for (const e of parser.feed(chunk)) {
-      projection.feed(e);
-      if (e.type === 'error') {
-        harnessError = e.message;
-      } else if (e.type === 'task-started') {
-        pendingTasks.add(e.taskId);
-        // A task launched inside the grace (reply in, cut armed) reopens the
-        // ledger — the cut must wait for it.
-        disarmTurnEndedCut();
-      } else if (e.type === 'task-settled') {
-        pendingTasks.delete(e.taskId);
-      } else if (e.type === 'turn-ended') {
-        turnEndedSeen = true;
-      }
-      if (replayComplete && turnEndedSeen && pendingTasks.size === 0)
-        armTurnEndedCut();
+  const acceptEvent = (e: HarnessEvent) => {
+    projection.accept(e);
+    if (e.type === 'usage') outputTokens += e.outputTokens;
+    if (e.type === 'turn-started' || e.type === 'turn-ended') {
+      agentSessionId ??= e.sessionId;
     }
+    if (e.type === 'turn-ended') {
+      ended = e;
+    }
+    if (e.type === 'error') {
+      harnessError = e.message;
+    } else if (e.type === 'task-started') {
+      if (
+        e.taskId.length > 1024 ||
+        (pendingTasks.size >= 4096 && !pendingTasks.has(e.taskId))
+      ) {
+        throw new Error(
+          'Harness background-task ledger exceeds its safety budget',
+        );
+      }
+      pendingTasks.add(e.taskId);
+      // A task launched inside the grace (reply in, cut armed) reopens the
+      // ledger — the cut must wait for it.
+      disarmTurnEndedCut();
+    } else if (e.type === 'task-settled') {
+      pendingTasks.delete(e.taskId);
+    } else if (e.type === 'turn-ended') {
+      turnEndedSeen = true;
+    }
+    if (turnEndedSeen && pendingTasks.size === 0) armTurnEndedCut();
+  };
+  const onStdout = (chunk: string) => {
+    for (const e of parser.feed(chunk)) acceptEvent(e);
     notifyTextSoFar();
   };
 
@@ -526,7 +547,7 @@ export async function drainHarnessWindow(args: {
       };
 
   // On the start window we STAGE the exec's input files, then start it; drain
-  // windows attach from the journal start (resumeSinceSeq 0).
+  // windows attach from the durable journal start (resumeSinceSeq 0).
   if (
     args.start?.stagedFiles !== undefined &&
     args.start.stagedFiles.length > 0
@@ -561,7 +582,7 @@ export async function drainHarnessWindow(args: {
       {
         onStdout,
         onStderr,
-        onReplayStart: () => {
+        onReplayStarted: () => {
           replayComplete = false;
           disarmTurnEndedCut();
         },
@@ -574,15 +595,21 @@ export async function drainHarnessWindow(args: {
       args.start ? {} : { resumeSinceSeq: 0 },
     );
     exited = true;
-    if (execResult.errorCode === 'REPLAY_GAP') {
-      // The stream failed, not necessarily the process. Never leave an agent
-      // writing after refusing to reconstruct its incomplete task ledger.
+    if (unreplayableExecResult(execResult)) {
+      // A refused stream does not prove that its process has stopped. Never
+      // leave an agent writing after losing the ledger that fences its end.
       await sessionCancelExec(args.sessionId, args.execId).catch((err) =>
         console.warn('[harness-window] replay-gap reap failed:', err),
       );
     }
   } catch (err) {
     if (err instanceof SessionNotFoundError) return { kind: 'gone' };
+    if (err instanceof ExecStreamProtocolError) {
+      await sessionCancelExec(args.sessionId, args.execId).catch((cancelErr) =>
+        console.warn('[harness-window] invalid-stream reap failed:', cancelErr),
+      );
+      throw err;
+    }
     if (!drainSignal.aborted) throw err;
     // Window elapsed with the exec still live, or the turn ended under a
     // lingering exec — either way not a drain failure.
@@ -595,23 +622,17 @@ export async function drainHarnessWindow(args: {
   // live exec is not an EOF: flushing it would turn a mid-tool assistant stop
   // into a completed turn and cut the process under it. The next window
   // re-parses from seq 0, so nothing buffered here is lost.
-  if (exited) {
-    for (const e of parser.end()) {
-      projection.feed(e);
-      // Some families hold failures until EOF (Pi retries); retain their
-      // reason just as we do for errors emitted by feed().
-      if (e.type === 'error') harnessError = e.message;
-    }
+  const replayGap = unreplayableExecResult(execResult);
+  if (exited && !replayGap) {
+    for (const e of parser.end()) acceptEvent(e);
+    disarmTurnEndedCut();
   }
 
-  // A corrupt or unavailable replay can fail after a historical prefix. Keep
-  // the previously persisted transcript; that prefix cannot replace its tail
-  // or supply a trustworthy turn result/accounting total.
-  const replayGap = execResult?.errorCode === 'REPLAY_GAP';
+  // A partial historical prefix cannot replace the persisted transcript or
+  // supply a trustworthy final result/accounting total after replay fails.
   const text = replayGap ? '' : projection.text;
   const timeline = replayGap ? [] : projection.timeline();
-  const ended = replayGap ? undefined : projection.ended;
-  const agentSessionId = projection.agentSessionId;
+  if (replayGap) ended = undefined;
   // Reply in, background ledger still open: the harness is still working
   // (a deliverable may be mid-write) — keep draining, never reap.
   const lingeringOnTasks =
@@ -651,8 +672,20 @@ export async function drainHarnessWindow(args: {
     ...(agentSessionId !== undefined ? { agentSessionId } : {}),
     ...(stderrTail !== '' ? { stderrTail } : {}),
     ...(harnessError !== undefined ? { harnessError } : {}),
-    ...(!replayGap ? { outputTokens: projection.outputTokens } : {}),
+    ...(!replayGap ? { outputTokens } : {}),
   };
+}
+
+/** Older spawners return protocol failures as result records; the current
+ * transport raises ExecStreamProtocolError for their named error events. */
+function unreplayableExecResult(
+  result: SessionExecResult | undefined,
+): boolean {
+  return (
+    result?.errorCode === 'REPLAY_GAP' ||
+    result?.errorCode === 'REPLAY_UNAVAILABLE' ||
+    result?.errorCode === 'OUTPUT_LIMIT'
+  );
 }
 
 /** How much of the harness's stderr a window keeps. */
@@ -772,7 +805,7 @@ export function classifyHarnessEnd(window: HarnessEndWindow): {
   emptyAnswer: boolean;
 } {
   const { ended, execResult } = window;
-  if (execResult?.errorCode === 'REPLAY_GAP') {
+  if (unreplayableExecResult(execResult)) {
     return {
       errored: true,
       emptyAnswer: false,
@@ -780,7 +813,6 @@ export function classifyHarnessEnd(window: HarnessEndWindow): {
         'The sandbox could not replay the complete agent output. Retry the run to continue from the preserved workspace.',
     };
   }
-
   if (ended === undefined) {
     if (!window.exited) return { errored: false, emptyAnswer: false };
     const crashed =

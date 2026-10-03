@@ -34,7 +34,12 @@ import {
 import { useAgentSecrets, type AgentSecretSummary } from '../hooks/queries';
 import type { ProjectAgentRow } from '../hooks/queries';
 import { useUnpinnedServingPreview } from '../hooks/use-unpinned-serving-preview';
-import { findSelectedModel, type ModelOption } from '../lib/model-options';
+import {
+  findSelectedModel,
+  offeredToHarness,
+  type HarnessToolWire,
+  type ModelOption,
+} from '../lib/model-options';
 import { AgentSecretsField } from './agent-secrets-field';
 
 /** One harness the agent can run on (the composer's managed roster entry). */
@@ -42,6 +47,9 @@ export interface HarnessOption {
   harness: string;
   label: string;
   iconUrl?: string;
+  /** The wire it speaks to the gateway — decides whether a Responses-only
+   * model is offered. */
+  toolCallingWire?: HarnessToolWire;
 }
 
 interface ProjectAgentDialogProps {
@@ -161,17 +169,16 @@ export function ProjectAgentDialog({
 
   const canSubmit = name.trim().length > 0 && harness !== '' && model !== '';
 
-  // Subscription-served entries are bound to their forced harness — offer
-  // them only when that harness is the one selected. Direct-served entries
-  // are offered to every harness.
+  // Subscription-served entries are bound to their forced harness, and a
+  // Responses-only model needs a harness that speaks that API — offer each
+  // only where it can run. Other direct-served entries fit every harness.
+  const harnessWire = harnesses.find(
+    (option) => option.harness === harness,
+  )?.toolCallingWire;
   const offeredModels = useMemo(
     () =>
-      models.filter(
-        (option) =>
-          option.subscription === undefined ||
-          option.subscription.harness === harness,
-      ),
-    [models, harness],
+      models.filter((option) => offeredToHarness(option, harness, harnessWire)),
+    [models, harness, harnessWire],
   );
   const selectedModel = findSelectedModel(offeredModels, model, modelProvider);
   // A pick saved before providers were part of it names a model but no

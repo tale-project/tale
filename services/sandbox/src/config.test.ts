@@ -11,6 +11,7 @@ import { RUNNERD_MAX_REQUEST_BODY_BYTES } from './session/runnerd-protocol.ts';
 const KEYS = [
   'SANDBOX_RUNTIME',
   'SANDBOX_DOCKER_IN_CONTAINER',
+  'SANDBOX_DOCKER_WORKLOADS',
   'SANDBOX_DOCKER_BUILD_CACHE',
   'SANDBOX_DIND_INNER_POOL',
   'SANDBOX_BUILDKITD_IMAGE',
@@ -425,4 +426,16 @@ test('optional build cache has a bounded whole-operation budget', () => {
   expect(loadConfig().buildkitdProvisionTimeoutMs).toBe(500);
   process.env.SANDBOX_BUILDKITD_PROVISION_TIMEOUT_MS = '60001';
   expect(() => loadConfig()).toThrow(/SANDBOX_BUILDKITD_PROVISION_TIMEOUT_MS/);
+});
+
+test('Docker workloads inherit by default and validate an explicit allowlist', () => {
+  expect(loadConfig().dockerWorkloads).toBeUndefined();
+  process.env.SANDBOX_DOCKER_WORKLOADS = ' project, project ';
+  expect(loadConfig().dockerWorkloads).toEqual(['project']);
+  process.env.SANDBOX_DOCKER_WORKLOADS = 'none';
+  expect(loadConfig().dockerWorkloads).toEqual([]);
+  process.env.SANDBOX_DOCKER_WORKLOADS = 'workflow,project';
+  expect(loadConfig().dockerWorkloads).toEqual(['workflow', 'project']);
+  process.env.SANDBOX_DOCKER_WORKLOADS = 'browser';
+  expect(() => loadConfig()).toThrow(/SANDBOX_DOCKER_WORKLOADS/);
 });

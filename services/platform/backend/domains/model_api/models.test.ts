@@ -115,6 +115,24 @@ describe('listModelApiModels', () => {
       },
     ]);
   });
+
+  it('leaves out a model whose tools work only on the Responses API, which these endpoints do not relay', async () => {
+    providers.resolveProvidersForOrg.mockReturnValue([{ name: 'openai' }]);
+    composer.listGovernedChatModels.mockResolvedValue([
+      option('openai', 'gpt-6.1-sol', 'api-key', {
+        toolCallingApi: 'responses',
+      }),
+      option('openai', 'gpt-6-luna', 'api-key'),
+    ]);
+
+    const models = await listModelApiModels({} as never, {
+      organizationId: 'org-1',
+      orgSlug: 'acme',
+      userId: 'user-1',
+    });
+
+    expect(models.map((model) => model.id)).toEqual(['openai/gpt-6-luna']);
+  });
 });
 
 describe('model ids', () => {

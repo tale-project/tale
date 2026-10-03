@@ -26,6 +26,8 @@ import type { SpawnerConfig } from '../types.ts';
 import type { SessionExecResponse, SessionInfo } from '../wire.ts';
 import {
   RunnerdActivityError,
+  RunnerdAttachBusyError,
+  RunnerdStageBusyError,
   runnerdActivity,
   runnerdAttach,
   runnerdCancelExec,
@@ -41,7 +43,6 @@ import {
 } from './runnerd-client.ts';
 import type { RunnerdExecEvent, RunnerdHealth } from './runnerd-protocol.ts';
 import { deriveRunnerdToken } from './session-naming.ts';
-import { sessionDindEnabled } from './session-profile.ts';
 import { SessionRegistry, type RegistrySession } from './session-registry.ts';
 import {
   validateCreateSession,
@@ -61,6 +62,7 @@ function unavailableSessionResponse(): Response {
 /** Namespace compute occupancy is independent of runnerd routability. */
 interface BackendOccupancy {
   sessionIds: ReadonlySet<string>;
+  degradedSessionIds: ReadonlySet<string>;
   startedAtMs: number;
   creatingWhenListed: ReadonlySet<string>;
 }
@@ -153,6 +155,8 @@ interface RoomWaiter {
   hintMs: number;
   /** The working set it is planned with, held for it while it is ahead. */
   workingSetBytes: number;
+  /** A warm activation already holds a runtime slot; only creates need one. */
+  needsSlot: boolean;
 }
 
 /** A sweep's idle decision, checked again atomically by runnerd before it
@@ -240,6 +244,18 @@ export async function settlesWithin(
 
 export class SessionRoutes {
   private readonly registry = new SessionRegistry();
+  /** Existing nonterminal backend objects without a routable daemon still
+   * occupy capacity (notably Pending Pods after a spawner restart). */
+  private unregistered = new Map<string, BackendSession>();
+  private readonly activityOperations = new Map<string, Promise<void>>();
+  private readonly activating = new Set<string>();
+  private readonly pinOperations = new Map<string, Promise<void>>();
+  /** A failed durable pin is unpublished, but keeps its incarnation safe until retry. */
+  private readonly pinProtection = new Map<string, RegistrySession>();
+  private readonly activeGenerations = new Map<
+    string,
+    { generation: string; admittedAtMs: number }
+  >();
   // Session ids with a createSession in flight → their organization. The
   // registry is only populated AFTER the backend create resolves (up to
   // createHealthTimeoutMs later, through an image pull), so this map closes
@@ -441,7 +457,14 @@ export class SessionRoutes {
   }
 
   private occupiedSlots(occupancy: BackendOccupancy | null): number {
-    if (occupancy === null) return this.registry.size() + this.creating.size;
+    if (occupancy === null) {
+      const ids = new Set([
+        ...this.registry.list().map((s) => s.sessionId),
+        ...this.creating.keys(),
+        ...this.unregistered.keys(),
+      ]);
+      return ids.size;
+    }
     const ids = new Set(occupancy.sessionIds);
     for (const id of this.creating.keys()) ids.add(id);
     // A local create can finish after the API sampled its list. It still
@@ -467,6 +490,11 @@ export class SessionRoutes {
       return {
         startedAtMs,
         creatingWhenListed,
+        degradedSessionIds: new Set(
+          sessions
+            .filter((s) => s.ended !== true && s.state === 'degraded')
+            .map((s) => s.sessionId),
+        ),
         sessionIds: new Set(
           sessions.filter((s) => s.ended !== true).map((s) => s.sessionId),
         ),
@@ -492,11 +520,30 @@ export class SessionRoutes {
     workingSetBytes: number,
     occupancy: BackendOccupancy | null,
   ): Response | 'disk' | 'full' | 'short' | null {
+    if (this.registry.has(sessionId) || this.creating.has(sessionId)) {
+      return jsonResponse(
+        {
+          error: 'duplicate',
+          message: `session ${sessionId} exists or is being created`,
+        },
+        409,
+      );
+    }
     if (
-      this.registry.has(sessionId) ||
-      this.creating.has(sessionId) ||
-      occupancy?.sessionIds.has(sessionId)
+      occupancy !== null
+        ? occupancy.degradedSessionIds.has(sessionId)
+        : this.unregistered.get(sessionId)?.state === 'degraded'
     ) {
+      return jsonResponse(
+        {
+          error: 'busy',
+          message: `session ${sessionId} is still starting or recovering`,
+        },
+        429,
+        { 'retry-after': '5' },
+      );
+    }
+    if (occupancy?.sessionIds.has(sessionId)) {
       return jsonResponse(
         {
           error: 'duplicate',
@@ -514,7 +561,8 @@ export class SessionRoutes {
     const ahead = this.waitersAhead(sessionId, Date.now());
     if (ahead.length > 0) {
       const free = this.cfg.session.maxSessions - occupied;
-      if (free <= ahead.length) return 'full';
+      if (free <= ahead.filter((waiter) => waiter.needsSlot).length)
+        return 'full';
       // Memory is held only for waiters this host could ever fit: one that
       // asks for more than the host has beside its reserve must not keep
       // every create behind it out for as long as it keeps asking.
@@ -615,9 +663,12 @@ export class SessionRoutes {
     sessionId: string,
     organizationId: string,
     profile: 'agent' | 'default',
-    dockerInContainer: boolean,
+    docker?: boolean,
   ): Promise<Response | null> {
-    const workingSet = sessionWorkingSetBytes(profile, dockerInContainer);
+    const workingSet = sessionWorkingSetBytes(
+      profile,
+      docker ?? this.cfg.dockerInContainer,
+    );
     const observed =
       this.backend.kind === 'kubernetes'
         ? await this.admissionOccupancy()
@@ -711,12 +762,13 @@ export class SessionRoutes {
     return ahead;
   }
 
-  /** Put a refused create in line (keeping its place when it was in line
+  /** Put a refused create or activation in line (keeping its place when it was in line
    * already) and say where it stands and when to ask again. */
   private waitInLine(
     sessionId: string,
     workingSetBytes: number,
     now: number,
+    needsSlot = true,
   ): { position: number; waiting: number; hintMs: number } {
     const position = this.waitersAhead(sessionId, now).length;
     const hintMs = Math.min(
@@ -728,12 +780,14 @@ export class SessionRoutes {
       known.lastAtMs = now;
       known.hintMs = hintMs;
       known.workingSetBytes = workingSetBytes;
+      known.needsSlot = needsSlot;
     } else {
       if (this.waiters.size >= QUEUE_CAP) this.dropStalestWaiter();
       this.waiters.set(sessionId, {
         lastAtMs: now,
         hintMs,
         workingSetBytes,
+        needsSlot,
       });
     }
     return { position, waiting: this.waiters.size, hintMs };
@@ -751,7 +805,7 @@ export class SessionRoutes {
     if (stalest !== undefined) this.waiters.delete(stalest);
   }
 
-  /** How many creates wait in the line for host room. */
+  /** How many creates or activations wait in the line for host room. */
   roomQueueLength(): number {
     return this.waiters.size;
   }
@@ -784,7 +838,14 @@ export class SessionRoutes {
       this.reclaimSeen.get(session.sessionId)?.reclaimable === true ? 0 : 1;
     const candidates = this.registry
       .list()
-      .filter((session) => !session.pinned && session.liveExecs.size === 0)
+      .filter(
+        (session) =>
+          !session.pinned &&
+          (this.pinProtection.get(session.sessionId) !== session ||
+            this.reclaimClaims.has(session.sessionId)) &&
+          session.liveExecs.size === 0 &&
+          !this.activating.has(session.sessionId),
+      )
       .sort(
         (a, b) =>
           seenReclaimable(a) - seenReclaimable(b) ||
@@ -843,6 +904,8 @@ export class SessionRoutes {
     if (pending !== undefined) return pending;
     if (
       session.pinned ||
+      (this.pinProtection.get(session.sessionId) === session &&
+        !this.reclaimClaims.has(session.sessionId)) ||
       session.liveExecs.size > 0 ||
       this.creating.has(session.sessionId)
     ) {
@@ -961,6 +1024,11 @@ export class SessionRoutes {
     if (this.registry.get(session.sessionId) === session) {
       this.registry.delete(session.sessionId);
     }
+    if (
+      this.unregistered.get(session.sessionId)?.createdAtMs ===
+      session.createdAtMs
+    )
+      this.unregistered.delete(session.sessionId);
     this.forgetReclaimMarks(session.sessionId);
   }
 
@@ -971,6 +1039,8 @@ export class SessionRoutes {
     this.probeFailures.delete(sessionId);
     // Its memory is the host's again: no reservation for it either.
     this.youngBytes.delete(sessionId);
+    this.activeGenerations.delete(sessionId);
+    this.pinProtection.delete(sessionId);
   }
 
   /**
@@ -996,6 +1066,11 @@ export class SessionRoutes {
     if (this.isDraining()) return;
     const candidates: BackendSession[] = [];
     const ended: BackendSession[] = [];
+    this.unregistered = new Map(
+      sessions
+        .filter((session) => session.ended !== true)
+        .map((session) => [session.sessionId, session]),
+    );
     const seen = new Set<string>();
     for (const s of sessions) {
       // A create in flight on this replica registers itself when it completes;
@@ -1012,7 +1087,10 @@ export class SessionRoutes {
         ended.push(s);
         continue;
       }
-      if (s.state !== 'ready') continue;
+      if (s.state !== 'ready') {
+        if (this.backend.reapStaleSession !== undefined) ended.push(s);
+        continue;
+      }
       seen.add(s.sessionId);
       candidates.push(s);
     }
@@ -1057,7 +1135,7 @@ export class SessionRoutes {
     // API instead of ahead of it: a recreate per organization takes seconds to
     // minutes, and the sessions are routable as soon as they are registered.
     const builders = adopted
-      .filter((s) => s.profile === 'agent' && s.dockerInContainer !== false)
+      .filter((s) => s.profile === 'agent' && s.docker !== false)
       .map((s) => s.organizationId);
     if (builders.length > 0) void this.maintainBuildCache(builders);
   }
@@ -1132,12 +1210,21 @@ export class SessionRoutes {
       ) {
         return;
       }
-      const stop = this.backend
-        .stopSession(id, s.createdAtMs)
+      const removal =
+        s.ended === true
+          ? this.backend.stopSession(id, s.createdAtMs).then(() => true)
+          : (this.backend.reapStaleSession?.(id, s.createdAtMs) ??
+            Promise.resolve(false));
+      const stop = removal
         .then(
-          () => {
+          (removed) => {
             this.endedReapFailedAtMs.delete(id);
-            return true;
+            if (
+              removed &&
+              this.unregistered.get(id)?.createdAtMs === s.createdAtMs
+            )
+              this.unregistered.delete(id);
+            return removed;
           },
           (error: unknown) => {
             if (error instanceof SessionIncarnationChangedError) {
@@ -1216,8 +1303,7 @@ export class SessionRoutes {
       sessionId: s.sessionId,
       organizationId: s.organizationId,
       profile: s.profile,
-      dockerInContainer:
-        s.dockerInContainer ?? sessionDindEnabled(this.cfg, s.profile),
+      ...(s.docker === undefined ? {} : { docker: s.docker }),
       state: s.state,
       createdAtMs: s.createdAtMs,
       expiresAtMs: s.createdAtMs + s.ttlMs,
@@ -1337,7 +1423,10 @@ export class SessionRoutes {
    * Docker-in-sandbox session's resume starts its inner daemon on an empty
    * image store, so stopping it early would cost every turn a re-pull. */
   private keepsFullIdleWindow(session: RegistrySession): boolean {
-    return session.dockerInContainer;
+    return (
+      (session.docker ?? this.cfg.dockerInContainer) &&
+      session.profile === 'agent'
+    );
   }
 
   /** Count a failed health probe of this incarnation; returns the streak. */
@@ -1363,10 +1452,13 @@ export class SessionRoutes {
     // Pinned ("always-on") sessions are exempt from BOTH idle and TTL reap.
     // Unprobed, a streak of failed probes from before no longer describes
     // the daemon, so it starts over.
-    if (s.pinned) {
+    if (s.pinned || this.pinProtection.get(s.sessionId) === s) {
       this.probeFailures.delete(s.sessionId);
-      return false;
+      // Always-on exempts live compute from idle stops, not confirmed-dead
+      // backend objects from reconciliation. Unknown still stays held.
+      return this.evictIfBackendGone(s.sessionId);
     }
+    if (this.activating.has(s.sessionId)) return false;
     // A session with a live exec is NEVER reaped — a long, QUIET tool (no
     // stdout for >idleTimeout) would otherwise be idle-killed mid-task, and a
     // running task shouldn't be cut at the hard TTL either. The registry
@@ -1511,7 +1603,7 @@ export class SessionRoutes {
       sessionId: s.sessionId,
       organizationId: s.organizationId,
       profile: s.profile,
-      dockerInContainer: s.dockerInContainer,
+      ...(s.docker === undefined ? {} : { docker: s.docker }),
       // Sourced from the registry (set at create, refreshed by adoptExisting
       // from the backend) rather than a hardcoded literal, so the wire state
       // tracks the one field that records it instead of always saying 'ready'.
@@ -1521,6 +1613,9 @@ export class SessionRoutes {
       expiresAtMs: s.expiresAtMs,
       idleTimeoutMs: s.idleTimeoutMs,
       pinned: s.pinned === true,
+      ...(this.pinProtection.get(sessionId) === s
+        ? { pinSynchronized: false }
+        : {}),
     };
   }
 
@@ -1564,6 +1659,8 @@ export class SessionRoutes {
       `[sandbox.session] ${sessionId} backend object gone; evicting stale registry entry (workspace preserved for resume)`,
     );
     this.registry.delete(sessionId);
+    if (this.unregistered.get(sessionId)?.state !== 'degraded')
+      this.unregistered.delete(sessionId);
     this.forgetReclaimMarks(sessionId);
     return true;
   }
@@ -1584,7 +1681,7 @@ export class SessionRoutes {
       req.sessionId,
       req.organizationId,
       req.profile,
-      req.dockerInContainer,
+      req.docker,
     );
     if (refused !== null) return refused;
     try {
@@ -1625,6 +1722,20 @@ export class SessionRoutes {
           { 'retry-after': '10' },
         );
       }
+      const pinning = this.pinOperations.get(req.sessionId);
+      if (
+        pinning !== undefined &&
+        !(await settlesWithin(pinning, CREATE_WAITS_FOR_DESTROY_MS))
+      ) {
+        return jsonResponse(
+          {
+            error: 'busy',
+            message: 'previous pin persistence is still under way',
+          },
+          429,
+          { 'retry-after': '5' },
+        );
+      }
       const createdAtMs = Date.now();
       let created: CreateSessionResult;
       try {
@@ -1632,7 +1743,7 @@ export class SessionRoutes {
           sessionId: req.sessionId,
           organizationId: req.organizationId,
           profile: req.profile,
-          dockerInContainer: req.dockerInContainer,
+          docker: req.docker,
           ttlMs: req.ttlMs,
           idleTimeoutMs: req.idleTimeoutMs,
           env: req.env,
@@ -1683,7 +1794,7 @@ export class SessionRoutes {
         sessionId: req.sessionId,
         organizationId: req.organizationId,
         profile: req.profile,
-        dockerInContainer: req.dockerInContainer,
+        docker: req.docker,
         state: 'ready',
         createdAtMs,
         expiresAtMs: createdAtMs + req.ttlMs,
@@ -1837,6 +1948,32 @@ export class SessionRoutes {
     action: 'ticket' | 'acquire' | 'release',
     body = '',
   ): Promise<Response> {
+    // Runnerd's generation remains the cross-replica authority. Serializing
+    // this spawner's requests also keeps an old completion from clearing the
+    // growth reservation belonging to the acquire that overtook it.
+    const previous =
+      this.activityOperations.get(sessionId) ?? Promise.resolve();
+    const work = previous.then(() =>
+      this.handleActivityUnlocked(sessionId, action, body),
+    );
+    const settled = work.then(
+      () => undefined,
+      () => undefined,
+    );
+    this.activityOperations.set(sessionId, settled);
+    try {
+      return await work;
+    } finally {
+      if (this.activityOperations.get(sessionId) === settled)
+        this.activityOperations.delete(sessionId);
+    }
+  }
+
+  private async handleActivityUnlocked(
+    sessionId: string,
+    action: 'ticket' | 'acquire' | 'release',
+    body: string,
+  ): Promise<Response> {
     let generation: string | undefined;
     if (action === 'release') {
       try {
@@ -1890,6 +2027,11 @@ export class SessionRoutes {
     }
     const opts = { baseUrl: session.endpoint, token: this.tokenFor(sessionId) };
     try {
+      if (action === 'acquire') {
+        this.activating.add(sessionId);
+        const refused = await this.reserveActivation(session);
+        if (refused !== null) return refused;
+      }
       const result = await runnerdActivity(
         opts,
         action,
@@ -1899,6 +2041,8 @@ export class SessionRoutes {
         if (typeof result.released !== 'boolean')
           throw new Error('invalid runnerd release response');
         if (result.released) {
+          this.youngBytes.delete(sessionId);
+          this.activeGenerations.delete(sessionId);
           // A reclaim candidate now: the next create at capacity may take it.
           this.noteReclaimable(sessionId, true);
           this.nothingToReclaimUntilMs = 0;
@@ -1912,7 +2056,16 @@ export class SessionRoutes {
         throw new Error('invalid runnerd generation');
       }
       // Held by the caller's work from now on: no reclaim candidate.
-      if (action === 'acquire') this.noteReclaimable(sessionId, false);
+      if (action === 'acquire') {
+        this.activeGenerations.set(sessionId, {
+          generation: result.generation,
+          admittedAtMs:
+            this.youngBytes.get(sessionId)?.sinceMs ??
+            this.activeGenerations.get(sessionId)?.admittedAtMs ??
+            Date.now(),
+        });
+        this.noteReclaimable(sessionId, false);
+      }
       return jsonResponse({ generation: result.generation }, 200);
     } catch (error) {
       if (await this.evictIfBackendGone(sessionId))
@@ -1938,7 +2091,82 @@ export class SessionRoutes {
       return jsonResponse({ error: 'session_unavailable' }, 503, {
         'retry-after': '1',
       });
+    } finally {
+      if (action === 'acquire') this.activating.delete(sessionId);
     }
+  }
+
+  /** Renew the growth reservation when idle compute becomes working compute.
+   * Repeated acquires of an already-held generation spend no second budget.
+   * An ambiguous RPC retains the bounded reservation: it may have run. */
+  private async reserveActivation(
+    session: RegistrySession,
+  ): Promise<Response | null> {
+    if (this.memoryCeiling() === null) return null;
+    const sessionId = session.sessionId;
+    const health = await runnerdHealth({
+      baseUrl: session.endpoint,
+      token: this.tokenFor(sessionId),
+    });
+    const previous = this.activeGenerations.get(sessionId);
+    if (
+      health.liveExecs > 0 ||
+      (health.activity?.activeOperations ?? 0) > 0 ||
+      (health.activity?.released === false &&
+        previous?.generation === health.activity.generation &&
+        Date.now() - Math.max(previous.admittedAtMs, health.lastActivityAtMs) <
+          YOUNG_SESSION_RESERVE_MS)
+    ) {
+      this.waiters.delete(sessionId);
+      return null;
+    }
+    const workingSet = sessionWorkingSetBytes(
+      session.profile,
+      session.docker ?? this.cfg.dockerInContainer,
+    );
+    const admit = () => {
+      const now = Date.now();
+      const existing = this.youngBytes.get(sessionId);
+      const remaining =
+        existing === undefined
+          ? 0
+          : Math.max(
+              0,
+              Math.round(
+                existing.bytes *
+                  (1 - (now - existing.sinceMs) / YOUNG_SESSION_RESERVE_MS),
+              ),
+            );
+      const fits = this.memoryCeiling();
+      const held = this.waitersAhead(sessionId, now).reduce(
+        (bytes, waiter) =>
+          bytes +
+          (fits === null || waiter.workingSetBytes <= fits
+            ? waiter.workingSetBytes
+            : 0),
+        0,
+      );
+      if (this.memoryShort(Math.max(0, workingSet - remaining) + held))
+        return false;
+      this.youngBytes.set(sessionId, { bytes: workingSet, sinceMs: now });
+      this.waiters.delete(sessionId);
+      return true;
+    };
+    if (await this.withAdmission(admit)) return null;
+    await this.reclaimOneIdle();
+    await this.readHostMemory();
+    if (await this.withAdmission(admit)) return null;
+    const place = this.waitInLine(sessionId, workingSet, Date.now(), false);
+    return jsonResponse(
+      {
+        error: 'host_memory',
+        message:
+          'the sandbox host is short of memory; work resumes once running sessions free some',
+        queue: { position: place.position, waiting: place.waiting },
+      },
+      429,
+      { 'retry-after': String(Math.ceil(place.hintMs / 1000)) },
+    );
   }
 
   async handleDestroy(
@@ -1977,6 +2205,7 @@ export class SessionRoutes {
     let destroyed: boolean;
     try {
       await previous?.promise;
+      await this.pinOperations.get(sessionId);
       if (opts.ifIdle || opts.ifStopped) {
         const busy =
           this.creating.has(sessionId) ||
@@ -2051,6 +2280,7 @@ export class SessionRoutes {
     this.forgetReclaimMarks(sessionId);
     try {
       const backendExisted = await this.backend.destroySession(sessionId);
+      this.unregistered.delete(sessionId);
       return { destroyed: had || backendExisted };
     } catch (err) {
       // The backend destroy FAILED (a wedged dockerd, an apiserver blip). Do
@@ -2139,6 +2369,18 @@ export class SessionRoutes {
       return jsonResponse({ error: 'bad_request', message: v.error }, 400);
     const execReq = v.value;
 
+    // Direct API exec callers use the same admission as platform acquisition.
+    // A turn already admitted during this growth window incurs no extra RPC.
+    const active = this.activeGenerations.get(sessionId);
+    if (
+      this.memoryCeiling() !== null &&
+      (active === undefined ||
+        Date.now() - active.admittedAtMs >= YOUNG_SESSION_RESERVE_MS)
+    ) {
+      const admission = await this.handleActivity(sessionId, 'acquire');
+      if (!admission.ok) return admission;
+    }
+
     const ac = new AbortController();
     const abortHandler = () => ac.abort();
     req.signal.addEventListener('abort', abortHandler, { once: true });
@@ -2162,7 +2404,10 @@ export class SessionRoutes {
       const onEvent = (e: RunnerdExecEvent) => {
         switch (e.t) {
           case 'replay-start':
-          case 'replay-end':
+            send('replay-start', {});
+            break;
+          case 'replay-complete':
+            send('replay-complete', { throughSeq: e.throughSeq });
             break;
           case 'start':
             send('phase', { phase: 'running' });
@@ -2172,6 +2417,7 @@ export class SessionRoutes {
             if (collect) stdoutChunks.push(bytes);
             send('stdout', {
               text: new TextDecoder().decode(bytes),
+              b64: e.b64,
               seq: e.seq,
             });
             break;
@@ -2181,6 +2427,7 @@ export class SessionRoutes {
             if (collect) stderrChunks.push(bytes);
             send('stderr', {
               text: new TextDecoder().decode(bytes),
+              b64: e.b64,
               seq: e.seq,
             });
             break;
@@ -2206,6 +2453,7 @@ export class SessionRoutes {
             };
             break;
           case 'fail':
+            forwardReplayFailure(e, send);
             result = {
               status: 'failed',
               exitCode: null,
@@ -2215,10 +2463,7 @@ export class SessionRoutes {
               stdoutBase64: '',
               stderrBase64: '',
               truncated: { stdout: false, stderr: false },
-              errorCode:
-                e.code === 'INVALID_CWD' || e.code === 'REPLAY_GAP'
-                  ? e.code
-                  : 'RUNTIME_ERROR',
+              errorCode: e.code === 'INVALID_CWD' ? e.code : 'RUNTIME_ERROR',
               errorMessage: e.message,
             };
             break;
@@ -2327,7 +2572,12 @@ export class SessionRoutes {
    * evicted past the recent window). A transport blip with a live backend
    * returns 502 so the platform's restorative watchdog treats it as "unknown"
    * and skips (never finalizes a turn on a daemon hiccup). */
-  async handleExecStatus(sessionId: string, execId: string): Promise<Response> {
+  async handleExecStatus(
+    sessionId: string,
+    execId: string,
+    signal?: AbortSignal,
+  ): Promise<Response> {
+    if (signal?.aborted) return jsonResponse({ error: 'cancelled' }, 502);
     const session = await this.ensureRegistered(sessionId);
     if (session instanceof Response) return session;
     if (!session) return jsonResponse({ execId, state: 'gone' }, 404);
@@ -2335,9 +2585,11 @@ export class SessionRoutes {
       const status = await runnerdExecStatus(
         { baseUrl: session.endpoint, token: this.tokenFor(sessionId) },
         execId,
+        signal,
       );
       return jsonResponse(status, status.state === 'gone' ? 404 : 200);
     } catch (err) {
+      if (signal?.aborted) return jsonResponse({ error: 'cancelled' }, 502);
       if (await this.evictIfBackendGone(sessionId)) {
         return jsonResponse({ execId, state: 'gone' }, 404);
       }
@@ -2416,8 +2668,9 @@ export class SessionRoutes {
     req.signal.addEventListener('abort', onAbort, { once: true });
     // Resume cursor: the platform passes the highest seq it already consumed so
     // runnerd replays only newer events (idempotent reconnect).
-    const sinceSeq =
-      Number(new URL(req.url).searchParams.get('sinceSeq') ?? '0') || 0;
+    const sinceSeq = Number(
+      new URL(req.url).searchParams.get('sinceSeq') ?? '0',
+    );
     const token = this.tokenFor(sessionId);
     return sseResponse(async ({ send, signal }) => {
       try {
@@ -2432,6 +2685,10 @@ export class SessionRoutes {
       } catch (err) {
         // The caller hung up: see handleExec.
         if (req.signal.aborted || signal.aborted) return;
+        if (err instanceof RunnerdAttachBusyError) {
+          send('error', { code: 'ATTACH_BUSY', message: err.message });
+          return;
+        }
         send('error', {
           message: err instanceof Error ? err.message : String(err),
         });
@@ -2481,54 +2738,97 @@ export class SessionRoutes {
     return jsonResponse({ ok: true, denied }, 200);
   }
 
-  /** PATCH /v1/sessions/:id/pin — toggle "always-on". Pinned sessions are
-   * exempt from the idle/TTL reaper; unpinning restores a fresh normal TTL.
-   * The flag takes effect in the registry at once and is then recorded on
-   * the backend object's durable state (see SessionBackend.setPinned) so a
-   * spawner restart re-adopts it — the platform row is the durable truth
-   * platform-side, but nothing re-pushes it at spawner boot. */
+  /** A pin is published only after runnerd and durable storage agree. Serial
+   * requests cannot overtake one another or write into a local replacement. */
   async handleSetPinned(sessionId: string, body: string): Promise<Response> {
+    const previous = this.pinOperations.get(sessionId) ?? Promise.resolve();
+    const work = previous.then(() => this.setPinned(sessionId, body));
+    const settled = work.then(
+      () => undefined,
+      () => undefined,
+    );
+    this.pinOperations.set(sessionId, settled);
+    try {
+      return await work;
+    } finally {
+      if (this.pinOperations.get(sessionId) === settled)
+        this.pinOperations.delete(sessionId);
+    }
+  }
+
+  private async setPinned(sessionId: string, body: string): Promise<Response> {
+    if (this.destroySettled.has(sessionId) || this.creating.has(sessionId)) {
+      return jsonResponse({ error: 'session_unavailable' }, 503, {
+        'retry-after': '1',
+      });
+    }
+    await this.stopping.get(sessionId);
     const session = await this.ensureRegistered(sessionId);
     if (session instanceof Response) return session;
     if (!session) return jsonResponse({ error: 'not_found' }, 404);
-    let parsed: { pinned?: boolean };
+    let pinned: boolean;
     try {
-      // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
-      parsed = JSON.parse(body) as { pinned?: boolean };
+      const parsed: unknown = JSON.parse(body);
+      if (
+        parsed === null ||
+        typeof parsed !== 'object' ||
+        !('pinned' in parsed) ||
+        typeof parsed.pinned !== 'boolean'
+      ) {
+        return jsonResponse(
+          { error: 'bad_request', message: 'pinned must be a boolean' },
+          400,
+        );
+      }
+      pinned = parsed.pinned;
     } catch (err) {
       return jsonResponse({ error: 'bad_request', message: String(err) }, 400);
     }
-    const pinned = parsed.pinned === true;
+    // Protect even a legacy runnerd while persistence retries; report only the
+    // acknowledged value so platform reconciliation can still see the drift.
+    this.pinProtection.set(sessionId, session);
     try {
-      await runnerdActivity(
-        { baseUrl: session.endpoint, token: this.tokenFor(sessionId) },
-        'pin',
-        { pinned },
-      );
-    } catch (error) {
-      // An old image has no pressure gate, so the durable backend pin remains
-      // sufficient. Other failures must not acknowledge an unapplied pin.
-      if (!(error instanceof RunnerdActivityError && error.status === 404)) {
-        return jsonResponse({ error: 'session_unavailable' }, 503);
+      try {
+        const applied = await runnerdActivity(
+          { baseUrl: session.endpoint, token: this.tokenFor(sessionId) },
+          'pin',
+          { pinned },
+        );
+        if (applied.ok !== true)
+          throw new Error('runnerd did not acknowledge the pin');
+      } catch (error) {
+        if (!(error instanceof RunnerdActivityError && error.status === 404))
+          throw error;
       }
-    }
-    session.pinned = pinned;
-    if (!pinned) {
-      // Give an unpinned session a fresh lifetime so it isn't reaped instantly.
-      session.expiresAtMs = Date.now() + this.cfg.session.maxLifetimeMs;
-    }
-    // Best-effort durability: the in-memory pin already protects this process;
-    // a failed record means the pin would not survive a RESTART, which is
-    // worth an operator-visible line, not a failed toggle.
-    try {
-      await this.backend.setPinned(sessionId, pinned);
-    } catch (err) {
+      if (this.registry.get(sessionId) !== session)
+        return jsonResponse({ error: 'session_unavailable' }, 503);
+      await this.backend.setPinned(sessionId, pinned, session.createdAtMs);
+      if (this.registry.get(sessionId) !== session)
+        return jsonResponse({ error: 'session_unavailable' }, 503);
+      const wasPinned = session.pinned === true;
+      session.pinned = pinned;
+      if (wasPinned && !pinned)
+        session.expiresAtMs = Date.now() + this.cfg.session.maxLifetimeMs;
+      if (this.pinProtection.get(sessionId) === session)
+        this.pinProtection.delete(sessionId);
+      return jsonResponse({ ok: true, pinned }, 200);
+    } catch (error) {
       console.warn(
-        `[sandbox.session] recording pin=${pinned} for ${sessionId} on the backend failed (in-memory pin applied; will not survive a spawner restart):`,
-        err,
+        `[sandbox.session] pin=${pinned} for ${sessionId} was not durably acknowledged:`,
+        error,
       );
+      if (error instanceof SessionIncarnationChangedError) {
+        this.forgetReclaimed(session);
+        return jsonResponse({ error: 'session_unavailable' }, 503, {
+          'retry-after': '1',
+        });
+      }
+      if (await this.evictIfBackendGone(sessionId))
+        return jsonResponse({ error: 'not_found' }, 404);
+      return jsonResponse({ error: 'session_unavailable' }, 503, {
+        'retry-after': '1',
+      });
     }
-    return jsonResponse({ ok: true, pinned }, 200);
   }
 
   /** POST /v1/sessions/:id/files/stage — write files into /agent (inline
@@ -2542,13 +2842,55 @@ export class SessionRoutes {
     if (session instanceof Response) return session;
     if (!session) return jsonResponse({ error: 'not_found' }, 404);
     let parsed: {
-      files?: Array<{ path: string; url?: string; contentBase64?: string }>;
+      files?: Array<{
+        path: string;
+        url?: string;
+        contentBase64?: string;
+        sourceId?: string;
+      }>;
+      replaceRoots?: string[];
+      keepPaths?: string[];
     };
     try {
       // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
-      parsed = JSON.parse(body) as {
-        files?: Array<{ path: string; url?: string; contentBase64?: string }>;
-      };
+      parsed = JSON.parse(body) as typeof parsed;
+      if (
+        parsed === null ||
+        typeof parsed !== 'object' ||
+        Array.isArray(parsed) ||
+        (parsed.files !== undefined &&
+          (!Array.isArray(parsed.files) ||
+            parsed.files.some(
+              (file) =>
+                file === null ||
+                typeof file !== 'object' ||
+                typeof file.path !== 'string' ||
+                (file.url === undefined &&
+                  file.contentBase64 === undefined &&
+                  file.sourceId === undefined) ||
+                (file.url !== undefined && typeof file.url !== 'string') ||
+                (file.contentBase64 !== undefined &&
+                  typeof file.contentBase64 !== 'string') ||
+                (file.sourceId !== undefined &&
+                  (typeof file.sourceId !== 'string' ||
+                    file.sourceId.length === 0 ||
+                    file.sourceId.length > 2048)),
+            ))) ||
+        [parsed.replaceRoots, parsed.keepPaths].some(
+          (paths) =>
+            paths !== undefined &&
+            (!Array.isArray(paths) ||
+              paths.some((path) => typeof path !== 'string')),
+        )
+      ) {
+        return jsonResponse(
+          {
+            error: 'bad_request',
+            message: 'invalid staging files or reconciliation paths',
+          },
+          400,
+        );
+      }
     } catch (err) {
       return jsonResponse({ error: 'bad_request', message: String(err) }, 400);
     }
@@ -2557,9 +2899,12 @@ export class SessionRoutes {
       result = await runnerdStageFiles(
         { baseUrl: session.endpoint, token: this.tokenFor(sessionId) },
         parsed.files ?? [],
+        { replaceRoots: parsed.replaceRoots, keepPaths: parsed.keepPaths },
         { signal },
       );
     } catch (err) {
+      if (err instanceof RunnerdStageBusyError)
+        return jsonResponse({ error: 'busy' }, 503, { 'retry-after': '1' });
       // Evict a zombie but answer 502, NOT 404 — the file routes' 404 already
       // means "path not found" platform-side; a session-gone 404 here would
       // be misread. The eviction makes the next aliveness probe 404 instead.
@@ -2636,7 +2981,11 @@ export class SessionRoutes {
 
   /** GET /v1/sessions/:id/files/content?path= — raw file bytes streamed
    * through the spawner. */
-  async handleFileContent(sessionId: string, path: string): Promise<Response> {
+  async handleFileContent(
+    sessionId: string,
+    path: string,
+    signal?: AbortSignal,
+  ): Promise<Response> {
     const session = await this.ensureRegistered(sessionId);
     if (session instanceof Response) return session;
     if (!session) return jsonResponse({ error: 'not_found' }, 404);
@@ -2645,6 +2994,7 @@ export class SessionRoutes {
       bytes = await runnerdReadFile(
         { baseUrl: session.endpoint, token: this.tokenFor(sessionId) },
         path,
+        signal,
       );
     } catch (err) {
       // 502 not 404 — see handleFilesStage.
@@ -2658,7 +3008,7 @@ export class SessionRoutes {
       );
     }
     if (bytes === null) return jsonResponse({ error: 'not_found' }, 404);
-    return new Response(bytes, {
+    return new Response(bytes.body, {
       status: 200,
       headers: { 'content-type': 'application/octet-stream' },
     });
@@ -2673,10 +3023,10 @@ function forwardExecEvent(
 ): void {
   switch (e.t) {
     case 'replay-start':
-      send('phase', { phase: 'replay-start' });
+      send('replay-start', {});
       break;
-    case 'replay-end':
-      send('phase', { phase: 'replay-complete' });
+    case 'replay-complete':
+      send('replay-complete', { throughSeq: e.throughSeq });
       break;
     case 'start':
       send('phase', { phase: 'running' });
@@ -2684,12 +3034,14 @@ function forwardExecEvent(
     case 'stdout':
       send('stdout', {
         text: new TextDecoder().decode(b64decode(e.b64)),
+        b64: e.b64,
         seq: e.seq,
       });
       break;
     case 'stderr':
       send('stderr', {
         text: new TextDecoder().decode(b64decode(e.b64)),
+        b64: e.b64,
         seq: e.seq,
       });
       break;
@@ -2713,6 +3065,7 @@ function forwardExecEvent(
       } satisfies SessionExecResponse);
       break;
     case 'fail':
+      forwardReplayFailure(e, send);
       send('result', {
         status: 'failed',
         exitCode: null,
@@ -2722,13 +3075,21 @@ function forwardExecEvent(
         stdoutBase64: '',
         stderrBase64: '',
         truncated: { stdout: false, stderr: false },
-        errorCode:
-          e.code === 'INVALID_CWD' || e.code === 'REPLAY_GAP'
-            ? e.code
-            : 'RUNTIME_ERROR',
+        errorCode: e.code === 'INVALID_CWD' ? e.code : 'RUNTIME_ERROR',
         errorMessage: e.message,
       } satisfies SessionExecResponse);
       break;
+  }
+}
+
+/** Incomplete replay is not a reconnectable transport failure. New clients
+ * stop here; the ordinary terminal result remains for older consumers. */
+function forwardReplayFailure(
+  event: Extract<RunnerdExecEvent, { t: 'fail' }>,
+  send: (event: string, data: unknown) => void,
+): void {
+  if (event.code === 'REPLAY_UNAVAILABLE' || event.code === 'OUTPUT_LIMIT') {
+    send('error', { code: event.code, message: event.message });
   }
 }
 

@@ -263,7 +263,7 @@ export class DockerSessionBackend implements SessionBackend {
 
   async createSession(spec: SessionSpec): Promise<CreateSessionResult> {
     const release =
-      sessionDindEnabled(this.cfg, spec.profile, spec.dockerInContainer) &&
+      sessionDindEnabled(this.cfg, spec.profile, spec.docker) &&
       this.cfg.dockerBuildCache
         ? retainBuildkitd(spec.organizationId)
         : undefined;
@@ -294,11 +294,7 @@ export class DockerSessionBackend implements SessionBackend {
     // Agent-profile only — see sessionDindEnabled. Every DinD side-effect below
     // (inner-docker volume, shared buildkitd, cache-volume skip) keys off this,
     // not the raw cfg flag, so a `default`-profile session never gets them.
-    const dind = sessionDindEnabled(
-      this.cfg,
-      spec.profile,
-      spec.dockerInContainer,
-    );
+    const dind = sessionDindEnabled(this.cfg, spec.profile, spec.docker);
     // uid/gid for the workspace chown. The agent profile carries validated
     // numerics (config.ts userEnv); the default profile is the fixed nobody
     // (65534). Both are real integers >= 1, so the chown can never silently
@@ -364,7 +360,10 @@ export class DockerSessionBackend implements SessionBackend {
     if (dind && this.cfg.dockerBuildCache) {
       try {
         await withDockerDeadline(
-          this.cfg.buildkitdProvisionTimeoutMs ?? 15_000,
+          Math.min(
+            this.cfg.buildkitdProvisionTimeoutMs ?? 15_000,
+            this.cfg.session.createHealthTimeoutMs / 4,
+          ),
           async (cacheSignal) => {
             const endpoint = await ensureBuildkitd(
               this.cfg,
@@ -385,12 +384,13 @@ export class DockerSessionBackend implements SessionBackend {
       }
     }
 
+    signal.throwIfAborted();
     const token = this.tokenFor(spec.sessionId);
     const argv = buildDockerSessionRunArgs(this.cfg, {
       sessionId: spec.sessionId,
       organizationId: spec.organizationId,
       profile: spec.profile,
-      dockerInContainer: spec.dockerInContainer,
+      docker: spec.docker,
       createAttemptId,
       workspaceHostDir,
       pipCacheVolume: pip,
@@ -409,7 +409,17 @@ export class DockerSessionBackend implements SessionBackend {
     // via `docker inspect`, and the seed env can carry secrets. It is instead
     // pushed to runnerd over POST /env after readiness (below), mirroring the
     // K8s backend, which routes it through a Secret rather than a visible arg.
-    let run = await runDocker(argv, { timeoutMs: 30_000 });
+    const launch = async () => {
+      try {
+        return await runDocker(argv, { timeoutMs: 30_000 });
+      } catch (error) {
+        // A transport rejection does not prove the daemon refused the run.
+        // Remove only this attempt if it launched before the reply was lost.
+        await this.cleanupCreateAttempt(spec.sessionId, createAttemptId);
+        throw error;
+      }
+    };
+    let run = await launch();
 
     // Reconcile a stale name conflict. A container with our DETERMINISTIC name
     // already exists. Within a single spawner the route serializes creates (the
@@ -437,7 +447,7 @@ export class DockerSessionBackend implements SessionBackend {
         if (dind) {
           await this.ensureFreshDindVolume(spec.sessionId);
         }
-        run = await runDocker(argv, { timeoutMs: 30_000 });
+        run = await launch();
       }
     }
 
@@ -661,75 +671,107 @@ export class DockerSessionBackend implements SessionBackend {
    * it. Throwing is the stop/destroy contract (types.ts): the reaper keeps the
    * entry and retries next sweep; destroy leaves the workspace intact.
    */
+  private async incarnationContainerId(
+    sessionId: string,
+    expectedCreatedAtMs: number | undefined,
+    expectedCreateAttemptId?: string,
+  ): Promise<string | null> {
+    const containerName = sessionContainerName(sessionId);
+    const observed = await runDocker(
+      [
+        'inspect',
+        '--format',
+        // `with`: a missing label prints nothing; a bare `index` prints
+        // `<no value>`.
+        '{{.Id}}\t{{with index .Config.Labels "tale.created"}}{{.}}{{end}}' +
+          (expectedCreateAttemptId === undefined
+            ? ''
+            : '\t{{with index .Config.Labels "tale.create-attempt"}}{{.}}{{end}}'),
+        containerName,
+      ],
+      // Short calls: a stop must not miss its fence behind a burst of
+      // creates holding every shared docker CLI slot.
+      { timeoutMs: 5_000, priority: true },
+    );
+    if (observed.exitCode !== 0) {
+      if (isDockerNoSuchObject(observed.stderr)) return null;
+      throw new Error(
+        `cannot identify session ${sessionId} for lifecycle transition`,
+      );
+    }
+    // Strip only the line break: a `trim()` would eat the tab in front of
+    // an EMPTY label, and a label-less container adopted with
+    // `createdAtMs: 0` must still match its stamp (`Number('') === 0`).
+    const [containerId, created, createAttempt] = observed.stdout
+      .replace(/\r?\n$/, '')
+      .split('\t');
+    if (!containerId || !/^[a-f0-9]{12,64}$/.test(containerId)) {
+      throw new Error(
+        `cannot identify session ${sessionId} for lifecycle transition`,
+      );
+    }
+    if (
+      expectedCreatedAtMs !== undefined &&
+      Number(created) !== expectedCreatedAtMs
+    ) {
+      throw new SessionIncarnationChangedError(
+        sessionId,
+        'container creation stamp moved',
+      );
+    }
+    if (
+      expectedCreateAttemptId !== undefined &&
+      createAttempt !== expectedCreateAttemptId
+    ) {
+      throw new SessionIncarnationChangedError(
+        sessionId,
+        'container create attempt moved',
+      );
+    }
+    return containerId;
+  }
+
   private async removeContainer(
     sessionId: string,
     expectedCreatedAtMs?: number,
     expectedCreateAttemptId?: string,
-  ): Promise<boolean> {
+  ): Promise<{ existed: boolean; docker: boolean }> {
     const containerName = sessionContainerName(sessionId);
     let removalTarget = containerName;
     if (
       expectedCreatedAtMs !== undefined ||
       expectedCreateAttemptId !== undefined
     ) {
-      const observed = await runDocker(
-        [
-          'inspect',
-          '--format',
-          // `with`: a missing label prints nothing; a bare `index` prints
-          // `<no value>`.
-          '{{.Id}}\t{{with index .Config.Labels "tale.created"}}{{.}}{{end}}' +
-            (expectedCreateAttemptId === undefined
-              ? ''
-              : '\t{{with index .Config.Labels "tale.create-attempt"}}{{.}}{{end}}'),
-          containerName,
-        ],
-        // Short calls: a stop must not miss its fence behind a burst of
-        // creates holding every shared docker CLI slot.
-        { timeoutMs: 5_000, priority: true },
+      const containerId = await this.incarnationContainerId(
+        sessionId,
+        expectedCreatedAtMs,
+        expectedCreateAttemptId,
       );
-      if (observed.exitCode !== 0) {
-        if (isDockerNoSuchObject(observed.stderr)) return false;
-        throw new Error(`cannot identify session ${sessionId} for idle stop`);
-      }
-      // Strip only the line break: a `trim()` would eat the tab in front of
-      // an EMPTY label, and a label-less container adopted with
-      // `createdAtMs: 0` must still match its stamp (`Number('') === 0`).
-      const [containerId, created, createAttempt] = observed.stdout
-        .replace(/\r?\n$/, '')
-        .split('\t');
-      if (!containerId || !/^[a-f0-9]{12,64}$/.test(containerId)) {
-        throw new Error(`cannot identify session ${sessionId} for idle stop`);
-      }
-      if (
-        expectedCreatedAtMs !== undefined &&
-        Number(created) !== expectedCreatedAtMs
-      ) {
-        throw new SessionIncarnationChangedError(
-          sessionId,
-          'container creation stamp moved',
-        );
-      }
-      if (
-        expectedCreateAttemptId !== undefined &&
-        createAttempt !== expectedCreateAttemptId
-      ) {
-        throw new SessionIncarnationChangedError(
-          sessionId,
-          'container create attempt moved',
-        );
-      }
+      if (containerId === null) return { existed: false, docker: false };
       // The immutable container id fences a late rm against any replacement
       // that reuses the deterministic session name after a timeout/retry.
       removalTarget = containerId;
     }
     let existed = false;
+    let docker = this.cfg.dockerInContainer;
     try {
       const inspect = await runDocker(
-        ['inspect', '--format', '{{.Id}}', containerName],
+        [
+          'inspect',
+          '--format',
+          '{{.Id}}\t{{with index .Config.Labels "tale.docker"}}{{.}}{{end}}\t{{range .Mounts}}{{if eq .Destination "/var/lib/docker"}}true{{end}}{{end}}',
+          removalTarget,
+        ],
         { timeoutMs: 5_000, priority: true },
       );
       existed = inspect.exitCode === 0;
+      if (existed) {
+        const [, capability, mounted] = inspect.stdout.trim().split('\t');
+        docker =
+          capability === 'true' ||
+          (capability !== 'false' &&
+            (mounted === 'true' || this.cfg.dockerInContainer));
+      }
     } catch {
       existed = false;
     }
@@ -740,7 +782,7 @@ export class DockerSessionBackend implements SessionBackend {
           `${removal.stderr.trim() || removal.stdout.trim() || 'no output'} — container may still be running`,
       );
     }
-    return existed;
+    return { existed, docker };
   }
 
   /** A cleanup-path `docker rm` whose failure must not mask the error being
@@ -816,7 +858,7 @@ export class DockerSessionBackend implements SessionBackend {
     // A stopped session has no container, only its workspace: deleting that
     // is the destroy too, and the answer says so.
     const hadWorkspace = await this.workspaceDirExists(workspaceHostDir);
-    const existed = await this.removeContainer(sessionId);
+    const { existed, docker } = await this.removeContainer(sessionId);
     // CONFIRM the container is gone before deleting the workspace. A wedged
     // dockerd that ignored the rm would otherwise leave a gutted-but-running
     // container (a hybrid neither stop nor destroy defines). sessionExists
@@ -828,7 +870,7 @@ export class DockerSessionBackend implements SessionBackend {
         `destroy ${sessionId}: container still present after removal — workspace left intact`,
       );
     }
-    if (this.cfg.dockerInContainer) await this.removeDindVolume(sessionId);
+    if (docker) await this.removeDindVolume(sessionId);
     await this.clearPinMarker(sessionId);
     // The data-deleting half of the ONLY data-deleting verb. The workspace is
     // renamed into the session root's trash, which a background pass empties:
@@ -875,8 +917,11 @@ export class DockerSessionBackend implements SessionBackend {
     // Release compute but PRESERVE the host workspace dir — a later
     // createSession with the same sessionId re-mounts it (resume). The inner
     // docker store is ephemeral, so reap it (resume rebuilds the image cache).
-    const existed = await this.removeContainer(sessionId, expectedCreatedAtMs);
-    if (this.cfg.dockerInContainer) await this.removeDindVolume(sessionId);
+    const { existed, docker } = await this.removeContainer(
+      sessionId,
+      expectedCreatedAtMs,
+    );
+    if (docker) await this.removeDindVolume(sessionId);
     // The pin belongs to the container that just went away; the resume's
     // create starts unpinned and the platform re-pushes.
     await this.clearPinMarker(sessionId);
@@ -899,9 +944,22 @@ export class DockerSessionBackend implements SessionBackend {
     return join(this.cfg.hostSessionRoot, '.pins', `${sessionId}.pinned`);
   }
 
-  async setPinned(sessionId: string, pinned: boolean): Promise<void> {
+  async setPinned(
+    sessionId: string,
+    pinned: boolean,
+    expectedCreatedAtMs?: number,
+  ): Promise<void> {
+    if (
+      expectedCreatedAtMs !== undefined &&
+      (await this.incarnationContainerId(sessionId, expectedCreatedAtMs)) ===
+        null
+    ) {
+      throw new SessionIncarnationChangedError(sessionId, 'container is gone');
+    }
     if (!pinned) {
-      await this.clearPinMarker(sessionId);
+      // Unlike stop's best-effort cleanup, a toggle must acknowledge durable
+      // removal. A failed unlink leaves observable drift for reconciliation.
+      await rm(this.pinMarkerPath(sessionId), { force: true });
       return;
     }
     const marker = this.pinMarkerPath(sessionId);
@@ -1004,7 +1062,7 @@ export class DockerSessionBackend implements SessionBackend {
         '--all',
         ...filters,
         '--format',
-        `{{.Label "tale.session"}}\t{{.Label "tale.org"}}\t{{.Label "tale.profile"}}\t{{.Label "tale.created"}}\t{{.State}}\t{{.Label "${SESSION_INSTANCE_LABEL}"}}\t{{.Label "tale.dind"}}`,
+        `{{.Label "tale.session"}}\t{{.Label "tale.org"}}\t{{.Label "tale.profile"}}\t{{.Label "tale.created"}}\t{{.State}}\t{{.Label "${SESSION_INSTANCE_LABEL}"}}\t{{.Label "tale.docker"}}`,
       ],
       { timeoutMs: 10_000 },
     );
@@ -1022,7 +1080,7 @@ export class DockerSessionBackend implements SessionBackend {
     for (const line of res.stdout.split('\n')) {
       const trimmed = line.trim();
       if (!trimmed) continue;
-      const [sessionId, org, profile, created, state, instance, dind] =
+      const [sessionId, org, profile, created, state, instance, docker] =
         trimmed.split('\t');
       if (!sessionId) continue;
       // Another spawner on this Docker daemon (a connected device beside a
@@ -1032,8 +1090,8 @@ export class DockerSessionBackend implements SessionBackend {
         sessionId,
         organizationId: org ?? '',
         profile: profile === 'agent' ? 'agent' : 'default',
-        ...(dind === 'true' || dind === 'false'
-          ? { dockerInContainer: dind === 'true' }
+        ...(docker === 'true' || docker === 'false'
+          ? { docker: docker === 'true' }
           : {}),
         createdAtMs: Number(created) || 0,
         ttlMs: this.cfg.session.maxLifetimeMs,

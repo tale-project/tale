@@ -189,38 +189,63 @@ Every such stop is fenced to the incarnation the registry or listing
 describes, and keeps the workspace. The pass probes at most eight daemons at a
 time, so a few hung ones bound it rather than the sum of every probe.
 
-Exec and attach output consumers each have an 8 MiB pending-write ceiling.
-When a reader falls behind that ceiling, runnerd disconnects that reader and
-releases its socket, buffered writes, subscription and request activity. The
-exec continues under its existing deadline; reconnect through
-`/execs/:id/attach?sinceSeq=<last-seen-seq>` to replay retained output. The
-256 KiB memory ring handles recent cursors; a disk journal retains up to 64 MiB
-of encoded events per live exec. Completed execs share a 64 MiB journal budget
-and the existing 16-exec retention limit. Evicted journal files are removed,
-and container restart clears the temporary journal directory. At most eight
-attach readers can run concurrently, and disk replay honors each reader's
-backpressure. A cursor outside available history receives `REPLAY_GAP`, not a
-silently incomplete stream; the platform treats it as a terminal output failure.
-Other readers continue receiving output. A dropped consumer does not cancel
-the command or keep an idle session busy after the command ends.
+Exec output consumers have an 8 MiB pending-write ceiling. When a reader
+falls behind, runnerd disconnects it and releases its socket, buffered writes
+and request activity. Attach replay observes socket backpressure directly and
+disconnects a reader that has not drained for two seconds. Other readers and
+the command continue under the existing exec deadline. A dropped consumer does
+not keep an idle session busy after the command ends.
 
-Complete journal replay requires the runtime image, spawner and platform to all
-be updated. An updated runtime brackets attach history with unsequenced
-`replay-start` and `replay-end` markers; the spawner forwards these as SSE phases
-`replay-start` and `replay-complete`. The platform pauses progress publication
-only after the start marker and resumes when caught up, so historical turns
-cannot temporarily replace newer progress. During a rolling upgrade, an older
-runtime retains its earlier ring-only replay behavior. Missing markers preserve
-the platform's earlier streaming behavior and do not block held-stdin turn
-completion while waiting for a marker an older runtime cannot send.
+Reconnect through `/execs/:id/attach?sinceSeq=<last-seen-seq>`. The complete
+protocol lives in an unlinked, disk-backed journal, limited to **64 MiB of
+encoded NDJSON per exec** and **256 MiB per session**, including base64 output.
+Completed journals are evicted oldest first under the session budget, and at
+most 16 completed execs are retained. An active writer that exhausts its budget
+ends with `OUTPUT_LIMIT`; unavailable or evicted history reports
+`REPLAY_UNAVAILABLE`. The 256 KiB diagnostic ring is never used as incomplete
+protocol history. A runtime restart loses its journals and execs; these files
+do not extend the persistent workspace's lifecycle.
 
-The staging endpoint admits two concurrent requests and returns
-`503 staging_busy` when both slots are occupied. URL files stream under the
-100 MiB file limit; inline inputs retain their 1 MiB limit. A successful input
-atomically replaces its target, while a failed, oversized or cancelled input
-removes only its own partial file. One 25-second deadline covers the whole
-batch, below the spawner's 30-second RPC deadline. Caller disconnect cancels
-outstanding downloads and releases the staging slot.
+An attach sends `replay-start` before journal history and `replay-complete`
+with `throughSeq` after delivering the historical prefix that existed when
+attachment began. Clients must reconstruct
+protocol state through that boundary before treating a historical turn result
+as completion; a process `exit` is authoritative independently. Older runtimes
+omit these markers. Consumers retain their legacy completion behavior only
+while replay sequence continuity is verified; an observed gap fails the replay
+rather than treating a suffix as complete history. Complete journal replay
+requires the runtime, spawner and platform to be upgraded together; older
+runtimes retain their bounded ring replay during a rolling upgrade.
+
+### Staged inputs and output reads
+
+`POST /files/stage` accepts the existing `files` list: a destination `path`
+and either `url` or `contentBase64`. Downloads stream to a temporary file,
+with a 100 MiB cap and 25-second per-file deadline, and atomically replace the
+destination only after success. Inline files remain capped at 1 MiB. Cancelled,
+failed and oversized transfers leave the previous destination intact and
+remove their temporary file. Parent symlinks cannot redirect staging outside
+the workspace; Linux pins the destination directory while downloading. At
+most two stage requests, including body intake, are admitted at once; a busy
+request must be retried. `/fs/read` streams an opened regular file within the
+20 MiB read cap and fixes its range before sending bytes, so later growth does
+not bypass the limit.
+
+A file may carry an immutable `sourceId` supplied by the platform. runnerd
+keeps up to 4,096 source/digest entries in memory and skips an unchanged source
+only after hashing the actual destination again. A source-only entry probes
+that cache: a verified hit is `staged`; a miss reports `no_source` and requires
+the bytes or URL. Restarting runnerd loses the cache and causes a refresh.
+This does not cache grants, credentials or source authorization: callers must
+resolve those for the current turn.
+
+After every transfer batch succeeds, a final empty `files` request may supply
+`replaceRoots` and `keepPaths`. This explicitly reconciles fully managed input,
+skill or mount directories, removing files absent from the final list while
+preserving paths elsewhere. The workspace root itself cannot be reconciled.
+A successful response includes `reconciled: true`; older runtimes omit it, so
+the platform uses its prior clear-and-restage behavior during a mixed rollout.
+Never send a final manifest for a failed or unfinished transfer batch.
 
 The build-cache upkeep — the reconcile for the organizations whose agent
 sessions adoption just registered, the retirement of legacy helpers and the
@@ -295,6 +320,18 @@ admission lock from a reading the probe refreshes every second, so a burst
 sees each create admitted before it. Unknown memory never refuses a create,
 and the check cannot stop sessions already running from growing past it.
 
+Warm idle-to-active acquisitions use the same memory guard and FIFO as new
+creates. They renew the 90-second growth reservation for the actual Docker
+capability of that incarnation; repeated acquisition of already active work
+shares the reservation. Only a release acknowledged by runnerd's current
+generation gives it back early. An old release cannot free newer work's budget.
+Direct exec requests also enter admission when no recent activation is held.
+A refused activation returns 429 `host_memory` with queue position and
+`retry-after`, preserving its workspace and compute for retry. Warm waiters
+hold memory in the line, but consume no additional session slot. These checks
+apply only where the Docker host's memory can be verified, and do not impose a
+hard aggregate memory limit on already-running work.
+
 On the Docker backend, admission also keeps a floor of free space on the disk
 the workspaces live on — the session root, read with `statfs` every five
 seconds (`host-disk.ts`): `SANDBOX_MIN_FREE_DISK`, a twentieth of the disk,
@@ -348,6 +385,15 @@ continue (the platform keeps the same incarnation `createdAt`). Only
 workspace. Pinned ("always-on") and live-exec sessions are exempt from the
 reaper entirely, except that compute which has already ended is removed (the
 pin's own reconcile recreates a pinned session).
+
+A pin change succeeds only after runnerd and the backend's durable record
+acknowledge it. Failure returns 503 and keeps the last acknowledged `pinned`
+value visible with `pinSynchronized: false`, so platform reconciliation retries
+even when a canceled toggle happens to match that old value. The affected
+incarnation remains protected while the pin is uncertain. Pin writes serialize
+with each other and local replacement; backend incarnation fences reject a late
+write to a replacement container or Pod. Only an acknowledged true-to-false
+transition renews the normal TTL; repeating an unpin does not extend it.
 
 A destroy does not wait for the workspace's data to go. On Docker, once the
 container is confirmed gone, the `ses-<id>` dir is renamed into
@@ -519,11 +565,12 @@ resolves to no injection rather than a placeholder identity.
 
 ## Resource profiles
 
-The create body accepts `dockerInContainer: false` for an `agent` session
+The create body accepts `docker: false` for an `agent` session
 that does not need to build or run containers. Omitting the field keeps the
-deployment's current profile default. Explicit `true` is accepted only when
-the deployment supports inner Docker and the profile is `agent`; a request
-cannot grant itself a capability the deployment disabled.
+deployment's profile and workload policy. The optional `workload` field is
+`project` or `workflow`; `SANDBOX_DOCKER_WORKLOADS` controls which workloads
+may use inner Docker. An explicit `true` cannot grant a capability the
+deployment or workload policy disabled.
 
 An opt-out keeps the hardened runner, skips inner-daemon and build-helper
 provisioning, and uses the shared per-organization dependency caches on Docker.
@@ -531,7 +578,7 @@ Its admission estimate is 512 MiB, and its released idle window is the normal
 five-minute default. An agent with inner Docker uses the 1.5 GiB admission
 estimate and retains the full idle window. These estimates are admission
 headroom, not memory limits. The actual capability is returned as
-`session.dockerInContainer` and recorded on the container or Pod so a spawner
+`session.docker` and recorded on the container or Pod so a spawner
 restart preserves that session's behavior.
 
 `default` uses uid 65534 with the hardened code/render profile. `agent` uses

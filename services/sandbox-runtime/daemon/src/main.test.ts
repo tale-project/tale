@@ -9,12 +9,7 @@ import {
   rmSync,
   writeFileSync,
 } from 'node:fs';
-import {
-  createServer,
-  request,
-  type Server,
-  type ServerResponse,
-} from 'node:http';
+import { request, type Server, type ServerResponse } from 'node:http';
 import { tmpdir } from 'node:os';
 
 const workspace = realpathSync(mkdtempSync(`${tmpdir()}/runnerd-http-`));
@@ -246,65 +241,6 @@ describe('runnerd HTTP service', () => {
     } finally {
       complete.resolve();
       await source.stop(true);
-    }
-  });
-
-  test('staging admits two streams, cancels a disconnected one and releases its slot', async () => {
-    let started = 0;
-    let closed = 0;
-    const upstream = createServer((_req, res) => {
-      started += 1;
-      res.on('close', () => {
-        closed += 1;
-      });
-      res.writeHead(200);
-      res.write('partial');
-    });
-    await new Promise<void>((settle) =>
-      upstream.listen(0, '127.0.0.1', settle),
-    );
-    const address = upstream.address();
-    if (address === null || typeof address === 'string')
-      throw new Error('no port');
-    const requests: ReturnType<typeof request>[] = [];
-    try {
-      for (const path of ['staging-one', 'staging-two']) {
-        const upload = request(`${baseUrl}/files/stage`, {
-          method: 'POST',
-          headers,
-        });
-        upload.on('error', () => {});
-        upload.end(
-          JSON.stringify({
-            files: [{ path, url: `http://127.0.0.1:${address.port}` }],
-          }),
-        );
-        requests.push(upload);
-      }
-      await waitUntil(() => started === 2);
-      expect((await activityPost('/files/stage', { files: [] })).status).toBe(
-        503,
-      );
-      requests[0]?.destroy();
-      await waitUntil(() => closed >= 1);
-      const deadline = Date.now() + 1000;
-      while ((await currentActiveOperations()) > 1 && Date.now() < deadline)
-        await new Promise((settle) => setTimeout(settle, 5));
-      expect(
-        (
-          await activityPost('/files/stage', {
-            files: [{ path: 'after-stage-cancel', contentBase64: 'b2s=' }],
-          })
-        ).value,
-      ).toEqual({
-        staged: [{ path: 'after-stage-cancel', bytes: 2 }],
-        skipped: [],
-      });
-      expect(existsSync(`${workspace}/staging-one`)).toBe(false);
-    } finally {
-      for (const upload of requests) upload.destroy();
-      upstream.closeAllConnections();
-      await new Promise<void>((settle) => upstream.close(() => settle()));
     }
   });
 

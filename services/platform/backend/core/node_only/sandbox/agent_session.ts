@@ -13,7 +13,6 @@ import {
   sessionAcquire,
   sessionCreate,
   sessionDestroyIfIdle,
-  sessionInfo,
 } from './helpers/session_client';
 
 type SessionContext = Pick<ActionCtx, 'runQuery' | 'runMutation'>;
@@ -77,8 +76,6 @@ export async function ensureAgentSession(
      * row's `agent_kind`, which names the session in the harness-turn
      * metrics; absent for a session no harness turn opens. */
     agentKind?: string;
-    /** Explicit per-session build capability; absent uses the deployment default. */
-    dockerInContainer?: boolean;
   },
 ): Promise<{ liveCreatedAt: number | undefined }> {
   const { organizationId, sessionId } = args;
@@ -110,10 +107,8 @@ export async function ensureAgentSession(
         await createOrAcquireSession(
           sessionId,
           organizationId,
-          args.dockerInContainer,
+          args.owner.type,
         );
-      } else {
-        await assertBuildCapability(sessionId, args.dockerInContainer);
       }
     } catch (error) {
       await policy.releaseSlot().catch((releaseError: unknown) => {
@@ -140,11 +135,7 @@ export async function ensureAgentSession(
     },
   );
   try {
-    await createOrAcquireSession(
-      sessionId,
-      organizationId,
-      args.dockerInContainer,
-    );
+    await createOrAcquireSession(sessionId, organizationId, args.owner.type);
   } catch (error) {
     // The spawner may already hold what this create made (one cut short
     // between Docker's create and start stays `created`), and a `failed` row
@@ -160,10 +151,7 @@ export async function ensureAgentSession(
     // a stopped standing session's id still names. Its row is settled as
     // collected, too: the watchdog's COLLECT pass would otherwise run that
     // very destroy once the row's grace had passed.
-    if (
-      error instanceof SpawnerBusyError ||
-      error instanceof SessionCapabilityMismatchError
-    ) {
+    if (error instanceof SpawnerBusyError) {
       await ctx.runMutation(
         internal.sandbox.session_mutations.setSessionStatus,
         { rowId, status: 'failed', collected: true },
@@ -199,7 +187,7 @@ export async function ensureAgentSession(
 async function createOrAcquireSession(
   sessionId: string,
   organizationId: string,
-  dockerInContainer?: boolean,
+  ownerType: AgentSessionOwner['type'],
 ): Promise<void> {
   try {
     // Agent and automation workspaces may start on one of the organization's
@@ -208,8 +196,8 @@ async function createOrAcquireSession(
       sessionId,
       organizationId,
       profile: 'agent',
+      workload: ownerType === 'project_agent' ? 'project' : 'workflow',
       placement: 'device',
-      ...(dockerInContainer !== undefined ? { dockerInContainer } : {}),
     });
   } catch (error) {
     if (!(error instanceof SessionDuplicateError)) throw error;
@@ -219,25 +207,6 @@ async function createOrAcquireSession(
       throw new SessionNotFoundError(sessionId);
     console.warn(
       `[sandbox.session] adopting existing runtime for ${sessionId}`,
-    );
-  }
-  await assertBuildCapability(sessionId, dockerInContainer);
-}
-
-class SessionCapabilityMismatchError extends Error {}
-
-async function assertBuildCapability(
-  sessionId: string,
-  requested?: boolean,
-): Promise<void> {
-  if (requested === undefined) return;
-  const info = await sessionInfo(sessionId);
-  if (info === null) throw new SessionNotFoundError(sessionId);
-  if (info.dockerInContainer !== requested) {
-    // Never destroy an adopted orphan or a standing workspace merely to
-    // change its capability. Refuse reuse; the caller may choose a fresh id.
-    throw new SessionCapabilityMismatchError(
-      `Sandbox ${sessionId} cannot satisfy the requested build capability; choose a new session.`,
     );
   }
 }

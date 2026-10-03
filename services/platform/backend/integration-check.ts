@@ -56111,6 +56111,7 @@ async function checkWatchdogs(
           sessionId: 'wd-org-pinned-gone',
           organizationId: orgId,
           profile: 'agent',
+          workload: 'project',
           placement: 'device',
         }) &&
       orgPinned.includes('wd-org-pinned-gone') &&

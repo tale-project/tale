@@ -11,11 +11,11 @@
 
 import { describe, expect, test } from 'bun:test';
 
-import type { RunnerdExecEvent as MirroredRunnerdExecEvent } from '../../../sandbox-runtime/daemon/src/protocol.ts';
 import * as mirror from '../../../sandbox-runtime/daemon/src/protocol.ts';
+import type { RunnerdExecEvent as MirrorEvent } from '../../../sandbox-runtime/daemon/src/protocol.ts';
 import { ID_ALPHABET_RE } from '../wire.ts';
-import type { RunnerdExecEvent } from './runnerd-protocol.ts';
 import * as canonical from './runnerd-protocol.ts';
+import type { RunnerdExecEvent as CanonicalEvent } from './runnerd-protocol.ts';
 
 /** Daemon-local values the mirror carries whose canonical home is elsewhere
  * in the spawner: the id alphabet lives in wire.ts, the workspace mount in
@@ -37,6 +37,18 @@ describe('runnerd protocol mirror', () => {
   const canon = constantsOf(canonical);
   const mirr = constantsOf(mirror);
 
+  test('both declarations accept the canonical replay markers and terminal storage failures', () => {
+    const events: CanonicalEvent[] = [
+      { t: 'replay-start' },
+      { t: 'replay-complete', throughSeq: 42 },
+      { t: 'fail', code: 'OUTPUT_LIMIT', message: 'limit' },
+      { t: 'fail', code: 'REPLAY_UNAVAILABLE', message: 'unavailable' },
+    ];
+    const mirrored: MirrorEvent[] = events;
+    const roundTrip: CanonicalEvent[] = mirrored;
+    expect(roundTrip).toEqual(events);
+  });
+
   test('every canonical constant is mirrored with the same value', () => {
     for (const [name, value] of canon) {
       expect(mirr.has(name)).toBe(true);
@@ -49,16 +61,6 @@ describe('runnerd protocol mirror', () => {
       .filter((k) => !canon.has(k) && !DAEMON_LOCAL.has(k))
       .sort();
     expect(extra).toEqual([]);
-  });
-
-  test('both copies carry unsequenced replay boundary markers', () => {
-    const markers = [
-      { t: 'replay-start' },
-      { t: 'replay-end' },
-    ] satisfies RunnerdExecEvent[];
-    const mirrored: MirroredRunnerdExecEvent[] = markers;
-    expect(mirrored).toEqual([{ t: 'replay-start' }, { t: 'replay-end' }]);
-    expect(markers.every((event) => !('seq' in event))).toBe(true);
   });
 
   test('the daemon-local values match their spawner-side homes', () => {

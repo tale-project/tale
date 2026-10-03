@@ -3,22 +3,53 @@
 // tale-*-run wrapper); chunks off the wire can split mid-line, so the
 // reassembler buffers the trailing partial and only surfaces complete lines.
 
+export const HARNESS_RECORD_MAX_CHARS = 8 * 1024 * 1024;
+
+/** Authoritative answers are never truncated to the display budget. A CLI
+ * that builds its final answer from many records gets the same explicit
+ * safety refusal as one reporting it in a single oversized record. */
+export function appendHarnessAnswer(current: string, next: string): string {
+  if (current.length + next.length > HARNESS_RECORD_MAX_CHARS) {
+    throw new Error(
+      `Harness final answer exceeds ${HARNESS_RECORD_MAX_CHARS} characters`,
+    );
+  }
+  return current + next;
+}
+
 export class LineReassembler {
   private buf = '';
+
+  /** A malformed/no-newline harness cannot retain an unbounded protocol
+   * record. Refuse explicitly instead of truncating JSON or losing a result. */
+  constructor(private readonly maxChars = HARNESS_RECORD_MAX_CHARS) {}
 
   /** Append a chunk; return the complete lines it completed (trimmed, empties
    * dropped). The trailing partial stays buffered. */
   push(chunk: string): string[] {
-    this.buf += chunk;
     const lines: string[] = [];
-    let nl = this.buf.indexOf('\n');
+    let offset = 0;
+    let nl = chunk.indexOf('\n');
     while (nl !== -1) {
-      const line = this.buf.slice(0, nl).trim();
-      this.buf = this.buf.slice(nl + 1);
+      this.append(chunk.slice(offset, nl));
+      const line = this.buf.trim();
+      this.buf = '';
       if (line) lines.push(line);
-      nl = this.buf.indexOf('\n');
+      offset = nl + 1;
+      nl = chunk.indexOf('\n', offset);
     }
+    this.append(chunk.slice(offset));
     return lines;
+  }
+
+  private append(part: string): void {
+    if (this.buf.length + part.length > this.maxChars) {
+      this.buf = '';
+      throw new Error(
+        `Harness protocol record exceeds ${this.maxChars} characters`,
+      );
+    }
+    this.buf += part;
   }
 
   /** Flush any final unterminated line (some CLIs don't newline the last

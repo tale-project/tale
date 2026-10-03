@@ -100,6 +100,38 @@ describe('session HTTP routes', () => {
     }
   });
 
+  test('exec status forwards the incoming recovery cancellation signal', async () => {
+    const status = spyOn(
+      SessionRoutes.prototype,
+      'handleExecStatus',
+    ).mockImplementation(async () => Response.json({ state: 'running' }));
+    const path = '/v1/sessions/sess1/exec/exec1';
+    const timestamp = String(Date.now());
+    const nonce = crypto.randomUUID();
+    const abort = new AbortController();
+    const request = new Request(`http://sandbox${path}`, {
+      signal: abort.signal,
+      headers: {
+        [SIGNATURE_HEADER]: sign(
+          'GET',
+          path,
+          timestamp,
+          '',
+          'route-test-secret',
+          nonce,
+        ),
+        [TIMESTAMP_HEADER]: timestamp,
+        [NONCE_HEADER]: nonce,
+      },
+    });
+    try {
+      expect((await router(request)).status).toBe(200);
+      expect(status).toHaveBeenCalledWith('sess1', 'exec1', request.signal);
+    } finally {
+      status.mockRestore();
+    }
+  });
+
   test('staging forwards the incoming cancellation signal', async () => {
     const stage = spyOn(
       SessionRoutes.prototype,

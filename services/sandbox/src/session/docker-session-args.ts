@@ -31,7 +31,7 @@ interface DockerSessionRunInput {
   sessionId: string;
   organizationId: string;
   profile: SandboxSessionProfile;
-  dockerInContainer?: boolean;
+  docker?: boolean;
   /** Internal ownership fence for failed-create cleanup; never caller supplied. */
   createAttemptId?: string;
   /** Host dir bind-mounted 1:1 at /agent (survives container death). */
@@ -144,7 +144,7 @@ export function buildDockerSessionRunArgs(
   //     root). config.ts allows this only with a loud trusted-only warning.
   // When !dind every conditional collapses to today's hardened argv (byte-for-
   // byte, unit-tested).
-  const dind = sessionDindEnabled(cfg, inp.profile, inp.dockerInContainer);
+  const dind = sessionDindEnabled(cfg, inp.profile, inp.docker);
   const dindMode = dindCapabilityOf(cfg.runtimeTier);
 
   // Transparent egress for the session's OWN processes. The entrypoint installs
@@ -393,7 +393,7 @@ export function buildDockerSessionRunArgs(
     '--label',
     `tale.profile=${inp.profile}`,
     '--label',
-    `tale.dind=${String(dind)}`,
+    `tale.docker=${dind}`,
     '--label',
     `tale.created=${inp.createdAtMs}`,
     ...(inp.createAttemptId === undefined

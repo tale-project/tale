@@ -1,17 +1,30 @@
-import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
+import { afterAll, beforeAll, describe, expect, spyOn, test } from 'bun:test';
+import { spawnSync } from 'node:child_process';
 import {
+  closeSync,
+  constants,
+  openSync,
   mkdtempSync,
   realpathSync,
+  renameSync,
   rmSync,
-  symlinkSync,
   writeFileSync,
+  readFileSync,
+  readdirSync,
+  symlinkSync,
+  mkdirSync,
 } from 'node:fs';
-import { readFile, readdir } from 'node:fs/promises';
+import * as fsPromises from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { listDir, readWorkspaceFile, stageFiles } from './file-ops.ts';
+import {
+  listDir,
+  readWorkspaceFile,
+  stageFiles,
+  streamWorkspaceFile,
+} from './file-ops.ts';
 
 const ROOT = realpathSync(mkdtempSync(`${tmpdir()}/runnerd-fs-`));
 
@@ -106,6 +119,84 @@ describe('file-ops', () => {
     }
   });
 
+  test('one batch deadline stops later files and leaves the staging slot reusable', async () => {
+    let requests = 0;
+    const stalled = Bun.serve({
+      port: 0,
+      fetch: () => {
+        requests += 1;
+        return new Promise<Response>(() => {});
+      },
+    });
+    try {
+      const result = await stageFiles(
+        [
+          { path: 'batch-first', url: stalled.url.href },
+          { path: 'batch-second', url: stalled.url.href },
+          { path: 'batch-inline', contentBase64: 'YQ==' },
+        ],
+        { batchTimeoutMs: 50, fetchTimeoutMs: 150 },
+      );
+      expect(requests).toBe(1);
+      expect(result.staged).toEqual([]);
+      expect(result.skipped).toEqual([
+        { path: 'batch-first', reason: 'timeout' },
+        { path: 'batch-second', reason: 'timeout' },
+        { path: 'batch-inline', reason: 'timeout' },
+      ]);
+      expect(
+        (await stageFiles([{ path: 'batch-recovered', contentBase64: 'YQ==' }]))
+          .staged,
+      ).toEqual([{ path: 'batch-recovered', bytes: 1 }]);
+    } finally {
+      await stalled.stop(true);
+    }
+  });
+
+  test('a cached destination replaced by a FIFO cannot block source verification or its deadline', async () => {
+    const path = 'cached-fifo';
+    const sourceId = 'cached-fifo-source';
+    await stageFiles([{ path, sourceId, contentBase64: 'YQ==' }]);
+    rmSync(join(ROOT, path));
+    expect(spawnSync('mkfifo', [join(ROOT, path)]).status).toBe(0);
+    const pending = stageFiles([{ path, sourceId }], { batchTimeoutMs: 50 });
+    try {
+      const result = await Promise.race([
+        pending,
+        Bun.sleep(300).then(() => 'blocked'),
+      ]);
+      expect(result).toEqual({
+        staged: [],
+        skipped: [{ path, reason: 'no_source' }],
+      });
+    } finally {
+      // Release the baseline's blocking open even when the regression fails.
+      const release = openSync(
+        join(ROOT, path),
+        constants.O_RDWR | constants.O_NONBLOCK,
+      );
+      await pending;
+      closeSync(release);
+      rmSync(join(ROOT, path));
+    }
+  });
+
+  test('streamed reads reject a FIFO without waiting for a writer', async () => {
+    const path = join(ROOT, 'stream-fifo');
+    expect(spawnSync('mkfifo', [path]).status).toBe(0);
+    const pending = streamWorkspaceFile('stream-fifo', 1024);
+    try {
+      expect(
+        await Promise.race([pending, Bun.sleep(300).then(() => 'blocked')]),
+      ).toBeNull();
+    } finally {
+      const release = openSync(path, constants.O_RDWR | constants.O_NONBLOCK);
+      await pending;
+      closeSync(release);
+      rmSync(path);
+    }
+  });
+
   test('stageFiles fetches a URL and writes under the workspace', async () => {
     // Stand up a tiny server serving the file bytes.
     const server = Bun.serve({
@@ -131,137 +222,332 @@ describe('file-ops', () => {
   });
 });
 
-describe('atomic bounded staging', () => {
-  test('a cancelled download preserves the old target and removes its partial file', async () => {
-    const sent = Promise.withResolvers<void>();
-    const source = createServer((_req, res) => {
-      res.writeHead(200);
-      res.write('partial replacement');
-      sent.resolve();
+describe('bounded atomic staging', () => {
+  test('a streamed transfer preserves the old destination until complete and cancels cleanly', async () => {
+    const release = Promise.withResolvers<void>();
+    const seen = Promise.withResolvers<void>();
+    const server = Bun.serve({
+      port: 0,
+      fetch() {
+        return new Response(
+          new ReadableStream({
+            start(controller) {
+              controller.enqueue(new Uint8Array(32 * 1024).fill(65));
+              seen.resolve();
+              void release.promise.then(() => {
+                try {
+                  controller.enqueue(new TextEncoder().encode('END'));
+                  controller.close();
+                } catch {}
+                return undefined;
+              });
+            },
+          }),
+        );
+      },
     });
-    await new Promise<void>((resolve) =>
-      source.listen(0, '127.0.0.1', resolve),
-    );
-    const address = source.address();
-    if (address === null || typeof address === 'string')
-      throw new Error('no port');
-    writeFileSync(join(ROOT, 'atomic.txt'), 'original');
+    const destination = join(ROOT, 'atomic.txt');
+    writeFileSync(destination, 'previous');
     const controller = new AbortController();
     try {
-      const staging = stageFiles(
-        [{ path: 'atomic.txt', url: `http://127.0.0.1:${address.port}` }],
+      const transfer = stageFiles(
+        [{ path: 'atomic.txt', url: `http://127.0.0.1:${server.port}/file` }],
         { signal: controller.signal },
       );
-      await sent.promise;
+      await seen.promise;
+      expect(readFileSync(destination, 'utf8')).toBe('previous');
       controller.abort();
-      expect((await staging).skipped).toEqual([
+      expect((await transfer).skipped).toEqual([
         { path: 'atomic.txt', reason: 'cancelled' },
       ]);
-      expect(await readFile(join(ROOT, 'atomic.txt'), 'utf8')).toBe('original');
+      expect(readFileSync(destination, 'utf8')).toBe('previous');
       expect(
-        (await readdir(ROOT)).filter((name) => name.startsWith('.tale-stage-')),
-      ).toEqual([]);
+        readdirSync(ROOT).some((name) => name.startsWith('.tale-stage-')),
+      ).toBe(false);
+      release.resolve();
+      const complete = await stageFiles([
+        { path: 'atomic.txt', url: `http://127.0.0.1:${server.port}/file` },
+      ]);
+      expect(complete.staged).toEqual([
+        { path: 'atomic.txt', bytes: 32 * 1024 + 3 },
+      ]);
+      expect(readFileSync(destination, 'utf8')).toEndWith('END');
     } finally {
-      source.closeAllConnections();
-      await new Promise<void>((resolve) => source.close(() => resolve()));
+      release.resolve();
+      await server.stop(true);
     }
   });
 
-  test('a batch deadline stops later downloads as well as its current item', async () => {
-    let requests = 0;
-    const source = createServer((_req, _res) => {
-      requests += 1;
+  test('oversized downloads preserve files and release upstream bodies', async () => {
+    const cancelled = Promise.withResolvers<void>();
+    const server = createServer((_req, res) => {
+      res.writeHead(200, { 'content-length': String(101 * 1024 * 1024) });
+      res.flushHeaders();
+      res.write(Buffer.alloc(64 * 1024));
+      res.once('close', () => cancelled.resolve());
     });
     await new Promise<void>((resolve) =>
-      source.listen(0, '127.0.0.1', resolve),
+      server.listen(0, '127.0.0.1', resolve),
     );
-    const address = source.address();
+    const address = server.address();
     if (address === null || typeof address === 'string')
-      throw new Error('no port');
-    const url = `http://127.0.0.1:${address.port}`;
+      throw new Error('missing port');
+    writeFileSync(join(ROOT, 'too-large.txt'), 'previous');
     try {
       const result = await stageFiles(
         [
-          { path: 'slow-a', url },
-          { path: 'slow-b', url },
+          {
+            path: 'too-large.txt',
+            url: `http://127.0.0.1:${address.port}/file`,
+          },
         ],
-        { fetchTimeoutMs: 1_000, batchTimeoutMs: 50 },
+        { fetchTimeoutMs: 2_000 },
       );
       expect(result.skipped).toEqual([
-        { path: 'slow-a', reason: 'timeout' },
-        { path: 'slow-b', reason: 'timeout' },
+        { path: 'too-large.txt', reason: 'too_large' },
       ]);
-      expect(requests).toBe(1);
+      expect(readFileSync(join(ROOT, 'too-large.txt'), 'utf8')).toBe(
+        'previous',
+      );
+      await Promise.race([
+        cancelled.promise,
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('upstream not cancelled')), 1_000),
+        ),
+      ]);
     } finally {
-      source.closeAllConnections();
-      await new Promise<void>((resolve) => source.close(() => resolve()));
+      server.closeAllConnections();
+      await new Promise<void>((resolve) => server.close(() => resolve()));
     }
   });
 
-  test('streaming oversize rejection preserves the target and releases the upstream', async () => {
-    let closed = false;
-    const source = createServer((_req, res) => {
-      res.on('close', () => {
-        closed = true;
-      });
-      res.writeHead(200);
-      res.write('x'.repeat(4096));
+  test('chunked bodies cannot bypass the byte limit without content-length', async () => {
+    const chunk = Buffer.alloc(64 * 1024);
+    const server = createServer((_req, res) => {
+      let sent = 0;
+      const pump = () => {
+        while (!res.destroyed && sent < 101 * 1024 * 1024) {
+          sent += chunk.length;
+          if (!res.write(chunk)) return;
+        }
+        if (!res.destroyed) res.end();
+      };
+      res.on('drain', pump);
+      pump();
     });
     await new Promise<void>((resolve) =>
-      source.listen(0, '127.0.0.1', resolve),
+      server.listen(0, '127.0.0.1', resolve),
     );
-    const address = source.address();
+    const address = server.address();
     if (address === null || typeof address === 'string')
-      throw new Error('no port');
-    writeFileSync(join(ROOT, 'oversize.txt'), 'original');
-    try {
-      const result = await stageFiles(
-        [{ path: 'oversize.txt', url: `http://127.0.0.1:${address.port}` }],
-        { fetchMaxBytes: 1024 },
-      );
-      expect(result.skipped).toEqual([
-        { path: 'oversize.txt', reason: 'too_large' },
-      ]);
-      expect(await readFile(join(ROOT, 'oversize.txt'), 'utf8')).toBe(
-        'original',
-      );
-      const deadline = Date.now() + 1000;
-      while (Date.now() < deadline) {
-        if (closed) break;
-        await new Promise((resolve) => setTimeout(resolve, 5));
-      }
-      expect(closed).toBe(true);
-    } finally {
-      source.closeAllConnections();
-      await new Promise<void>((resolve) => source.close(() => resolve()));
-    }
-  });
-  test('rejects an escaping parent symlink and replaces a destination symlink without following it', async () => {
-    const outside = realpathSync(
-      mkdtempSync(`${tmpdir()}/runnerd-stage-outside-`),
-    );
-    writeFileSync(join(outside, 'target'), 'outside original');
-    symlinkSync(outside, join(ROOT, 'outside-parent'));
-    symlinkSync(join(outside, 'target'), join(ROOT, 'destination-link'));
+      throw new Error('missing port');
+    writeFileSync(join(ROOT, 'chunked-too-large.txt'), 'previous');
     try {
       const result = await stageFiles([
-        { path: 'outside-parent/new-file', contentBase64: 'bmV3' },
-        { path: 'destination-link', contentBase64: 'bmV3' },
+        {
+          path: 'chunked-too-large.txt',
+          url: `http://127.0.0.1:${address.port}/file`,
+        },
       ]);
       expect(result.skipped).toEqual([
-        { path: 'outside-parent/new-file', reason: 'unsafe_path' },
+        { path: 'chunked-too-large.txt', reason: 'too_large' },
       ]);
-      expect(result.staged).toEqual([{ path: 'destination-link', bytes: 3 }]);
-      expect(await readFile(join(outside, 'target'), 'utf8')).toBe(
-        'outside original',
+      expect(readFileSync(join(ROOT, 'chunked-too-large.txt'), 'utf8')).toBe(
+        'previous',
       );
-      expect(await readdir(outside)).toEqual(['target']);
-      expect(await readFile(join(ROOT, 'destination-link'), 'utf8')).toBe(
-        'new',
-      );
+      expect(
+        readdirSync(ROOT).some((name) => name.startsWith('.tale-stage-')),
+      ).toBe(false);
     } finally {
-      rmSync(join(ROOT, 'outside-parent'));
+      server.closeAllConnections();
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  }, 15_000);
+
+  test('concurrent staging has an aggregate ceiling and a cancelled slot is reusable', async () => {
+    let requested = 0;
+    const server = Bun.serve({
+      port: 0,
+      fetch() {
+        requested++;
+        return new Promise<Response>(() => {});
+      },
+    });
+    const controllers = [new AbortController(), new AbortController()];
+    try {
+      const transfers = controllers.map((controller, index) =>
+        stageFiles(
+          [
+            {
+              path: `parallel-${index}`,
+              url: `http://127.0.0.1:${server.port}/file`,
+            },
+          ],
+          { signal: controller.signal },
+        ),
+      );
+      const deadline = Date.now() + 2000;
+      const ready = () => requested === 2;
+      while (Date.now() < deadline && !ready())
+        await new Promise((resolve) => setTimeout(resolve, 5));
+      expect(requested).toBe(2);
+      expect(
+        (
+          await stageFiles([
+            { path: 'parallel-refused', contentBase64: 'YQ==' },
+          ])
+        ).skipped,
+      ).toEqual([{ path: 'parallel-refused', reason: 'busy' }]);
+      controllers.forEach((controller) => controller.abort());
+      await Promise.all(transfers);
+      expect(
+        (await stageFiles([{ path: 'parallel-after', contentBase64: 'YQ==' }]))
+          .staged,
+      ).toEqual([{ path: 'parallel-after', bytes: 1 }]);
+    } finally {
+      controllers.forEach((controller) => controller.abort());
+      await server.stop(true);
+    }
+  });
+
+  test('parent symlinks cannot stage or reconcile outside the workspace', async () => {
+    const outside = realpathSync(mkdtempSync(`${tmpdir()}/runnerd-outside-`));
+    try {
+      writeFileSync(join(outside, 'keep.txt'), 'outside');
+      symlinkSync(outside, join(ROOT, 'outside-link'));
+      const result = await stageFiles([
+        { path: 'outside-link/keep.txt', contentBase64: 'YQ==' },
+      ]);
+      expect(result.skipped).toEqual([
+        { path: 'outside-link/keep.txt', reason: 'unsafe_path' },
+      ]);
+      const reconciled = await stageFiles([], {
+        replaceRoots: ['outside-link'],
+        keepPaths: [],
+      });
+      expect(reconciled.reconciled).toBeUndefined();
+      expect(readFileSync(join(outside, 'keep.txt'), 'utf8')).toBe('outside');
+    } finally {
+      rmSync(join(ROOT, 'outside-link'), { force: true });
       rmSync(outside, { recursive: true, force: true });
     }
+  });
+
+  test('immutable source reuse rehashes the actual file and repairs tampering', async () => {
+    let fetched = 0;
+    const server = Bun.serve({
+      port: 0,
+      fetch() {
+        fetched++;
+        return new Response('trusted');
+      },
+    });
+    const source = {
+      path: 'source.txt',
+      url: `http://127.0.0.1:${server.port}/file`,
+      sourceId: 'blob:immutable',
+    };
+    try {
+      await stageFiles([source]);
+      expect(
+        (await stageFiles([{ path: source.path, sourceId: source.sourceId }]))
+          .staged,
+      ).toEqual([{ path: 'source.txt', bytes: 7 }]);
+      expect(fetched).toBe(1);
+      writeFileSync(join(ROOT, 'source.txt'), 'changed');
+      expect(
+        (await stageFiles([{ path: source.path, sourceId: source.sourceId }]))
+          .skipped,
+      ).toEqual([{ path: 'source.txt', reason: 'no_source' }]);
+      await stageFiles([source]);
+      expect(fetched).toBe(2);
+      expect(readFileSync(join(ROOT, 'source.txt'), 'utf8')).toBe('trusted');
+    } finally {
+      await server.stop(true);
+    }
+  });
+
+  test('only a successful explicit final manifest removes stale managed files', async () => {
+    mkdirSync(join(ROOT, 'managed'), { recursive: true });
+    writeFileSync(join(ROOT, 'managed', 'stale'), 'stale');
+    writeFileSync(join(ROOT, 'managed', 'current'), 'current');
+    writeFileSync(join(ROOT, 'unrelated'), 'unrelated');
+    const failed = await stageFiles([{ path: 'managed/missing' }], {
+      replaceRoots: ['managed'],
+      keepPaths: ['managed/current'],
+    });
+    expect(failed.reconciled).toBeUndefined();
+    expect(readFileSync(join(ROOT, 'managed', 'stale'), 'utf8')).toBe('stale');
+    const final = await stageFiles([], {
+      replaceRoots: ['managed'],
+      keepPaths: ['managed/current'],
+    });
+    expect(final.reconciled).toBe(true);
+    expect(readdirSync(join(ROOT, 'managed'))).toEqual(['current']);
+    expect(readFileSync(join(ROOT, 'unrelated'), 'utf8')).toBe('unrelated');
+    expect(
+      (await stageFiles([], { replaceRoots: ['.'], keepPaths: [] })).reconciled,
+    ).toBeUndefined();
+  });
+
+  test.skipIf(process.platform !== 'linux')(
+    'streamed reads keep the opened parent when its pathname becomes an outside symlink',
+    async () => {
+      const parent = join(ROOT, 'read-parent');
+      const parked = join(ROOT, 'read-parent-parked');
+      const outside = realpathSync(
+        mkdtempSync(`${tmpdir()}/runnerd-read-outside-`),
+      );
+      mkdirSync(parent);
+      writeFileSync(join(parent, 'anchored-leaf.txt'), 'inside');
+      writeFileSync(join(outside, 'anchored-leaf.txt'), 'outside');
+      const originalOpen = fsPromises.open;
+      let swapped = false;
+      // Swap at the exact final-file open boundary, after any containment check
+      // and ancestor traversal. Both trees are this test's temporary fixtures.
+      const open = spyOn(fsPromises, 'open').mockImplementation(
+        async (...args) => {
+          if (String(args[0]).endsWith('/anchored-leaf.txt') && !swapped) {
+            renameSync(parent, parked);
+            symlinkSync(outside, parent);
+            swapped = true;
+          }
+          return originalOpen(...args);
+        },
+      );
+      try {
+        const stream = await streamWorkspaceFile(
+          'read-parent/anchored-leaf.txt',
+          100,
+        );
+        let text = '';
+        if (stream) for await (const chunk of stream) text += chunk.toString();
+        expect(swapped).toBe(true);
+        expect(text).toBe('inside');
+      } finally {
+        open.mockRestore();
+        rmSync(parent, { force: true });
+        rmSync(parked, { recursive: true, force: true });
+        rmSync(outside, { recursive: true, force: true });
+      }
+    },
+  );
+
+  test('a streamed read never creates missing ancestor directories', async () => {
+    expect(
+      await streamWorkspaceFile('not-created/missing.txt', 100),
+    ).toBeNull();
+    expect(readdirSync(ROOT)).not.toContain('not-created');
+  });
+
+  test('streamed reads retain their opened file range and reject oversize', async () => {
+    writeFileSync(join(ROOT, 'range.txt'), 'original');
+    const stream = await streamWorkspaceFile('range.txt', 8);
+    expect(stream).not.toBeNull();
+    writeFileSync(join(ROOT, 'range.txt'), 'original-appended');
+    let text = '';
+    if (stream) for await (const chunk of stream) text += chunk.toString();
+    expect(text).toBe('original');
+    expect(await streamWorkspaceFile('range.txt', 8)).toBeNull();
   });
 });

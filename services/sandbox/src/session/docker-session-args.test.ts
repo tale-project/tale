@@ -70,13 +70,27 @@ describe('buildDockerSessionRunArgs', () => {
   test('an agent can opt out of inner Docker while the deployment supports it', () => {
     const args = buildDockerSessionRunArgs(
       { ...cfg, dockerInContainer: true },
-      { ...goodInput, dockerInContainer: false },
+      { ...goodInput, docker: false },
     );
     expect(args).toContain('--read-only');
     expect(args).not.toContain('--privileged');
     expect(args.some((arg) => arg === 'TALE_DIND=1')).toBe(false);
     expect(args.some((arg) => arg.includes('pip-org_456'))).toBe(true);
-    expect(args).toContain('tale.dind=false');
+    expect(args).toContain('tale.docker=false');
+  });
+
+  test('a lightweight agent keeps agent ownership but starts no Docker daemon', () => {
+    const args = buildDockerSessionRunArgs(
+      { ...cfg, runtimeTier: 'sysbox', dockerInContainer: true },
+      { ...goodInput, docker: false },
+    );
+    expect(args).toContain('tale.docker=false');
+    expect(args).not.toContain('TALE_DOCKER_ENABLED=1');
+    expect(args).not.toContain('--privileged');
+    expect(args).toContain(
+      `${cfg.session.agentProfile.uid}:${cfg.session.agentProfile.gid}`,
+    );
+    expect(args.some((arg) => arg.includes('/var/lib/docker'))).toBe(false);
   });
 
   test('passes a validated operator inner pool only to DinD agent containers', () => {

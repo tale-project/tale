@@ -170,6 +170,7 @@ describe('buildkitd cache garbage collection', () => {
     const toml = await Bun.file(
       new URL('../../sandbox-buildkitd/buildkitd.toml', import.meta.url),
     ).text();
+    expect(toml).toMatch(/^max-parallelism = 2$/m);
     const rules = toml
       .split('[[worker.oci.gcpolicy]]')
       .slice(1)

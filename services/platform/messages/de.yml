@@ -1172,6 +1172,10 @@ chat:
     auto: Auto
     autoDescription: Tale wählt für jede Nachricht das passende Modell — abgewogen zwischen Qualität, Geschwindigkeit und Kosten.
     noModelsAvailable: Keine Modelle verfügbar
+    subscriptionsTasksOnly:
+      Abos von {providers} laufen nur in Aufgaben und Automatisierungen.
+      Um mit ihren Modellen zu chatten, füge Zugangsdaten per
+      API-Schlüssel oder Umgebungsvariable hinzu.
     viewProvider: Anbietereinstellungen anzeigen
     viewInfo: Modelldetails
     info:
@@ -6371,6 +6375,11 @@ settings:
       noDirectCredential:
         Noch keine direkt nutzbaren Anbieter-Zugangsdaten — füge oben einen
         API-Schlüssel oder eine Umgebungsvariable hinzu.
+      noCompatibleModel:
+        Eine Laufzeit ohne Modell kann keines der direkt bereitgestellten
+        Modelle ausführen — diese rufen Tools nur über die Responses-API auf,
+        die nur Codex spricht. Erlaube für diese Laufzeiten ein anderes Modell
+        oder führe den Agenten auf Codex aus.
       noModel: Noch kein Modell
       degraded: Zuletzt fehlerhaft
       subscriptionVia: Abo · {provider}
@@ -6391,6 +6400,9 @@ settings:
       catalogUnavailable: 'Modellkatalog nicht verfügbar: {error}'
     credential:
       disabled: Deaktiviert
+      tasksOnly:
+        Nur für Aufgaben und Automatisierungen — für den Chat brauchst du
+        einen API-Schlüssel oder eine Umgebungsvariable
       deleteEmbeddingWarning: >-
         Das Embedding-Modell der Wissenssuche verwendet diese Zugangsdaten:
         Nach dem Löschen stehen Dokumentindexierung und Suche für die ganze
@@ -6414,7 +6426,6 @@ settings:
     dialog:
       secret: API-Schlüssel
       subscriptionSecret: Abo-Schlüssel
-      sandboxedExplainer: Läuft in der Sandbox auf dem Harness des Anbieters.
       envName: Umgebungsvariable
       envNameHelp:
         Name der Deployment-Variable mit dem Schlüssel — das Präfix ist
@@ -6434,11 +6445,20 @@ settings:
         deiner Ressource; ohne sie ist kein Modell verfügbar.
       allowlistFreeTextPlaceholder: gpt-4o, o4-mini
       removeModel: '{model} entfernen'
+    subscriptionScope:
+      title: Nur für Aufgaben und Automatisierungen
+      description: >-
+        Ein Abo-Token läuft nur in der Agent-Laufzeit, die sein Anbieter
+        unterstützt, etwa Claude Code oder Codex, in einer Sandbox: Die
+        Anbieter erlauben diese Tokens nicht in anderen Anwendungen, und
+        Anthropic weist sie bei jedem Client außer Claude Code ab. Im Chat
+        lassen sich diese Zugangsdaten nicht verwenden. Um mit diesen Modellen
+        zu chatten, füge für den Anbieter Zugangsdaten per API-Schlüssel oder
+        Umgebungsvariable hinzu.
     broker:
       explainer:
         Ein Abo-Broker liefert wechselnde OAuth-Tokens für Claude- oder
-        ChatGPT-Abonnements. Damit nutzen Aufgaben- und Automatisierungsagenten
-        die Sandbox-Laufzeit des Anbieters.
+        ChatGPT-Abonnements.
       invalid: 'Ungültige Broker-Konfiguration: {error}'
       endpoint: Broker-Endpunkt
       httpMethod: HTTP-Methode

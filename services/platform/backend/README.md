@@ -241,8 +241,9 @@ Agent progress keeps one active database write and one combined pending text/
 timeline snapshot. Slow storage therefore drops superseded progress snapshots
 without retaining a growing promise chain. Drain windows rebuild bounded UI
 projections from the runtime journal, publishing resumed progress only after
-replay catches up. Missing journal history is an explicit `REPLAY_GAP` failure;
-it must not be booked as a successful turn with incomplete usage or tools.
+replay catches up. Missing journal history is an explicit `REPLAY_UNAVAILABLE`
+failure, and output beyond the journal budget fails with `OUTPUT_LIMIT`;
+neither can be booked as a successful turn with incomplete usage or tools.
 
 Task and workflow recovery claim candidates with `FOR UPDATE SKIP LOCKED` and a
 separate recovery timestamp. Unreachable sandboxes rotate behind other runs

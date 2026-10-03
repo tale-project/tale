@@ -9,7 +9,13 @@ the session's own Docker image store remains disposable.
 The Docker spawner provisions the cache lazily when an agent session needs it.
 `SANDBOX_DOCKER_BUILD_CACHE` defaults to the DinD setting; set it to `false` to
 use only each session's local builder. This integration is implemented by the
-Docker backend, not the Kubernetes backend.
+Docker backend, not the Kubernetes backend. A caller waits no more than 15
+seconds (or one quarter of its runner readiness timeout, if shorter) for the
+optional cache. After that it uses its own builder. Shared provisioning remains
+coalesced and protected by its organization lease until completion; a late
+result never attaches a network to the session that already fell back. Registry
+mirrors are prepared concurrently under the global Docker CLI concurrency bound.
+Agents created without Docker do not start or retain these helpers.
 
 The spawner creates one daemon, one private internal bridge, and persistent
 cache volumes per organization. Container/network names include a bounded hash
@@ -114,13 +120,14 @@ Resource creation, refusal, reuse, and guarded legacy retirement are covered by
 [the provisioning tests](../sandbox/src/buildkit-resources.test.ts).
 
 Solver parallelism is bounded to the builder CPU limit rounded down, with a
-minimum of one. The spawner passes this as `TALE_BUILDKITD_MAX_PARALLELISM`; the
+minimum of one (two by default). The spawner passes this as `TALE_BUILDKITD_MAX_PARALLELISM`; the
 entrypoint regenerates `max-parallelism` on each start. It is part of the helper
 configuration stamp, so busy helpers finish their builds before recreation
 applies a changed setting. The existing memory limit still bounds the entire
 builder, including its build steps.
 
 Optional provisioning shares a 15-second budget across Docker calls and mirror
-setup (`SANDBOX_BUILDKITD_PROVISION_TIMEOUT_MS`, 100–60000 ms). Independent
+setup (`SANDBOX_BUILDKITD_PROVISION_TIMEOUT_MS`, 100–60000 ms), capped at one
+quarter of the session create budget to preserve time for readiness. Independent
 registry mirrors initialize concurrently. Expiry falls back to the session's
 local builder; any queued expired setup is skipped before it can mutate Docker.

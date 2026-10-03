@@ -14,7 +14,6 @@ const runtime = vi.hoisted(() => ({
   sessionCreate: vi.fn(),
   sessionAcquire: vi.fn(),
   sessionDestroyIfIdle: vi.fn(),
-  sessionInfo: vi.fn(),
 }));
 vi.mock('./helpers/session_client', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./helpers/session_client')>()),
@@ -80,12 +79,11 @@ function fixture(
     ctx,
     events,
     mutationError,
-    ensure: (dockerInContainer?: boolean) =>
+    ensure: () =>
       ensureAgentSession(ctx, {
         organizationId: 'org_1',
         sessionId: 'session_1',
         owner: scenario.owner,
-        ...(dockerInContainer !== undefined ? { dockerInContainer } : {}),
       }),
   };
 }
@@ -148,6 +146,7 @@ describe.each(scenarios)('ensureAgentSession ($owner.type)', (scenario) => {
       sessionId: 'session_1',
       profile: 'agent',
       placement: 'device',
+      workload: scenario.owner.type === 'workflow_run' ? 'workflow' : 'project',
     });
   });
 
@@ -436,43 +435,3 @@ describe('ensureAgentSession — the harness names the session', () => {
     expect(reserve?.[1]).not.toHaveProperty('agentKind');
   });
 });
-
-describe.each(scenarios)(
-  'explicit build capability ($owner.type)',
-  (scenario) => {
-    it('forwards an explicit opt-out when creating a session', async () => {
-      const f = fixture(scenario, null);
-      runtime.sessionInfo.mockResolvedValue({ dockerInContainer: false });
-      await f.ensure(false);
-      expect(runtime.sessionCreate).toHaveBeenCalledWith(
-        expect.objectContaining({ dockerInContainer: false }),
-      );
-    });
-
-    it.each([true, undefined])(
-      'refuses a warm session whose capability is %s without deleting workspace data',
-      async (actual) => {
-        const f = fixture(scenario, { status: 'active', createdAt: 123 });
-        runtime.sessionInfo.mockResolvedValue({ dockerInContainer: actual });
-        await expect(f.ensure(false)).rejects.toThrow('capability');
-        expect(runtime.sessionDestroyIfIdle).not.toHaveBeenCalled();
-        expect(f.events).toContain(scenario.release);
-      },
-    );
-
-    it('does not destroy an adopted orphan with an incompatible capability', async () => {
-      const f = fixture(scenario, null);
-      runtime.sessionCreate.mockRejectedValue(
-        new SessionDuplicateError('session_1'),
-      );
-      runtime.sessionInfo.mockResolvedValue({ dockerInContainer: true });
-      await expect(f.ensure(false)).rejects.toThrow('capability');
-      expect(runtime.sessionDestroyIfIdle).not.toHaveBeenCalled();
-      expect(f.ctx.runMutation).toHaveBeenLastCalledWith(expect.anything(), {
-        rowId: 'row_1',
-        status: 'failed',
-        collected: true,
-      });
-    });
-  },
-);

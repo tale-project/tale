@@ -45,6 +45,10 @@ const spawnPath = join(source,'spawn-util.ts');
 const realSpawn = await import(spawnPath);
 mock.module(spawnPath, () => ({...realSpawn,
   runDocker: async (args) => {
+    if (scenario === 'expired-setup' && args[0] === 'volume') {
+      events.push('volume-' + args[1]);
+      if (args[1] === 'create') await Bun.sleep(70);
+    }
     if (scenario.startsWith('volume-failure')) {
       if (args[0] === 'volume' && args[1] === 'create') {
         if (scenario === 'volume-failure-peer-empty-fresh') await installPeer(true);
@@ -64,6 +68,14 @@ mock.module(spawnPath, () => ({...realSpawn,
         await Bun.sleep(70);
         await installPeer();
         return {...success,exitCode:124,stderr:'Docker operation deadline exceeded'};
+      }
+      if (scenario === 'launch-reject-fresh') {
+        await writeFile(join(workspace,'sentinel'),'new workspace data');
+        throw new Error('launch transport lost');
+      }
+      if (scenario === 'peer-launch-reject-fresh') {
+        await installPeer();
+        throw new Error('launch transport lost');
       }
       if (scenario === 'startup-failure') return {...success,exitCode:1,stderr:'image unavailable'};
     }
@@ -134,7 +146,7 @@ const cfg = {
  buildkitdProvisionTimeoutMs:scenario==='cache-deadline'?20:1000,
  transparentEgress:false,hostSessionRoot:root,cacheVolumePrefix:{pip:'pip',npm:'npm',bun:'bun'},
  egressNetwork:'control',egressProxy:'http://egress:3128',
- session:{...TEST_SESSION_CONFIG,createHealthTimeoutMs:['create-deadline','peer-after-run-fresh'].includes(scenario)?40:1000,agentProfile:{...TEST_SESSION_CONFIG.agentProfile,uid:process.getuid() || 10001,gid:process.getgid() || 10001}},
+ session:{...TEST_SESSION_CONFIG,createHealthTimeoutMs:['create-deadline','peer-after-run-fresh','expired-setup'].includes(scenario)?40:1000,agentProfile:{...TEST_SESSION_CONFIG.agentProfile,uid:process.getuid() || 10001,gid:process.getgid() || 10001}},
 };
 let error = null;
 try {
@@ -234,11 +246,12 @@ test('optional cache timeout falls back without a late provisioning continuation
   ]);
 });
 
-test('cache setup consumes the create budget; expired creates clean up and retain workspace', async () => {
+test('cache setup consumes the create budget; expired creates never launch and retain workspace', async () => {
   const result = await create('create-deadline');
   expect(result.error).toContain('deadline');
   expect(result.events).not.toContain('env');
-  expect(result.events).toContain('cleanup');
+  expect(result.events).not.toContain('run');
+  expect(result.removalTargets).toEqual([]);
   expect(result.retained).toBe('saved workspace');
 });
 
@@ -256,6 +269,24 @@ test.each(['volume-failure', 'volume-failure-fresh'])(
 );
 
 describe('failed creates preserve a concurrent winner', () => {
+  test('a rejected launch cleans up its immutable attempt and retains written data', async () => {
+    const result = await create('launch-reject-fresh');
+    expect(result.error).toBe('launch transport lost');
+    expect(result.removalTargets).toEqual(['a'.repeat(64)]);
+    expect(result.retained).toBe('new workspace data');
+    expect(result.workspaceExists).toBe(true);
+    expect(result.removedVolumesAfterRun).toEqual([]);
+  });
+
+  test('a rejected launch never removes a peer that won the same name', async () => {
+    const result = await create('peer-launch-reject-fresh');
+    expect(result.error).toBe('launch transport lost');
+    expect(result.removalTargets).toEqual([]);
+    expect(result.peerAlive).toBe(true);
+    expect(result.retained).toBe('peer workspace');
+    expect(result.removedVolumesAfterRun).toEqual([]);
+  });
+
   test.each(['volume-failure-peer-empty-fresh', 'peer-after-absence-fresh'])(
     'stale container absence never deletes an empty workspace mounted by a peer: %s',
     async (scenario) => {
@@ -312,4 +343,16 @@ describe('failed creates preserve a concurrent winner', () => {
     expect(result.retained).toBe('peer workspace');
     expect(result.removalTargets).toEqual(['a'.repeat(64)]);
   });
+});
+
+test('expired setup never launches a container or deletes its workspace', async () => {
+  const result = await create('expired-setup');
+  expect(result.error).toContain('deadline');
+  expect(result.events).not.toContain('run');
+  expect(result.removalTargets).toEqual([]);
+  expect(result.events.filter((event) => event === 'volume-rm')).toHaveLength(
+    1,
+  );
+  expect(result.retained).toBe('saved workspace');
+  expect(result.owner).toBe('org-a\n');
 });

@@ -84,8 +84,8 @@ export interface SessionSpec {
   sessionId: string;
   organizationId: string;
   profile: SandboxSessionProfile;
-  /** Optional opt-out of the deployment's agent-only inner Docker capability. */
-  dockerInContainer?: boolean;
+  /** Resolved capability for this incarnation; absent uses the deployment default. */
+  docker?: boolean;
   /** Clamped by the route layer to cfg.session.maxLifetimeMs / maxIdleMs. */
   ttlMs: number;
   idleTimeoutMs: number;
@@ -103,8 +103,8 @@ export interface BackendSession {
   sessionId: string;
   organizationId: string;
   profile: SandboxSessionProfile;
-  /** Actual capability; absent only on objects created before it was recorded. */
-  dockerInContainer?: boolean;
+  /** Durable capability label; absent only on older runtime objects. */
+  docker?: boolean;
   createdAtMs: number;
   ttlMs: number;
   idleTimeoutMs: number;
@@ -243,6 +243,14 @@ export interface SessionBackend {
     sessionId: string,
     expectedCreatedAtMs?: number,
   ): Promise<boolean>;
+  /** Recover an abandoned startup only when its durable age and current
+   * backend state prove no peer is still starting it. Fenced to the original
+   * incarnation and observed state; preserves the workspace. False means
+   * still starting/unknown, never permission to release its capacity. */
+  reapStaleSession?(
+    sessionId: string,
+    expectedCreatedAtMs: number,
+  ): Promise<boolean>;
   /** List session objects (label-selected), for boot + periodic re-adoption
    * and the route layer's registry-miss re-resolve. THROWS when the backend
    * cannot list (daemon/API hiccup) — never returns `[]` for "couldn't tell":
@@ -257,10 +265,15 @@ export interface SessionBackend {
    * without this a spawner restart forgets every pin and the next sweep reaps
    * the user's always-on session. A new create always starts unpinned (the
    * platform row is the truth and re-pushes); stop/destroy clear the record.
-   * THROWS when the backend cannot record it — the caller keeps the in-memory
-   * pin and warns, so the current process still honours it.
+   * THROWS when the backend cannot record it. The caller keeps the previous
+   * published value for reconciliation and protects the pending incarnation.
+   * An expected creation stamp fences writes away from a same-name replacement.
    */
-  setPinned(sessionId: string, pinned: boolean): Promise<void>;
+  setPinned(
+    sessionId: string,
+    pinned: boolean,
+    expectedCreatedAtMs?: number,
+  ): Promise<void>;
   /**
    * Reconcile the shared cross-session build cache (the per-org buildkitd) at
    * spawner startup, after running sessions are re-adopted. The daemon is

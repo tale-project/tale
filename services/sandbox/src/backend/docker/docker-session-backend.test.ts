@@ -132,6 +132,7 @@ case "$cmd" in
         *tale.created*) printf 'abcdef123456\\t1700000000000\\n' ;;
         *State.Running*) echo "true" ;;
         *State.Status*) echo "running" ;;
+        *tale.docker*) printf 'abc123\\t%s\\t\\n' "$(cat "$here/docker-capability" 2>/dev/null || true)" ;;
         *Mounts*) sed -n 5p "$here/mode" ;;
         *) echo "abc123" ;;
       esac
@@ -446,6 +447,37 @@ describe('DockerSessionBackend stop/destroy honour the rm result', () => {
       ),
     ).toBe(true);
   });
+
+  test.each(['true', 'legacy-mount'])(
+    'stopping an adopted DinD session cleans its store after Docker is disabled (%s)',
+    async (capability) => {
+      await fakeDocker({ present: true, rm: 'ok' });
+      await writeFile(
+        join(fakeRoot, 'docker-capability'),
+        capability === 'legacy-mount' ? '\ttrue' : 'true',
+      );
+      const warn = console.warn;
+      const warnings: string[] = [];
+      console.warn = (...args: unknown[]) => {
+        warnings.push(args.map(String).join(' '));
+      };
+      try {
+        expect(
+          await new DockerSessionBackend(backendConfig()).stopSession(
+            'old-dind',
+          ),
+        ).toBe(true);
+        expect(
+          warnings.some((line) =>
+            line.includes('dind volume rm tale-dind-old-dind'),
+          ),
+        ).toBe(true);
+      } finally {
+        console.warn = warn;
+        await rm(join(fakeRoot, 'docker-capability'));
+      }
+    },
+  );
 
   test('stopSession is idempotent: an already-gone container resolves false without throwing', async () => {
     await fakeDocker({ present: false, rm: 'nosuch' });
@@ -839,7 +871,7 @@ describe('DockerSessionBackend.listSessions', () => {
         ...backendConfig(),
         dockerInContainer: true,
       });
-      expect((await backend.listSessions())[0]?.dockerInContainer).toBe(dind);
+      expect((await backend.listSessions())[0]?.docker).toBe(dind);
     },
   );
 
@@ -874,6 +906,35 @@ describe('DockerSessionBackend durable pin (survives a spawner restart)', () => 
     expect(await exists(join(hostSessionRoot, '.pins', 'pin-a.pinned'))).toBe(
       false,
     );
+  });
+
+  test('a pin change refuses a replacement incarnation and preserves its marker', async () => {
+    await fakeDocker({ present: true, rm: 'ok' });
+    const backend = new DockerSessionBackend(backendConfig());
+    await backend.setPinned('pin-fenced', true, 1_700_000_000_000);
+    const error = await rejection(
+      backend.setPinned('pin-fenced', false, 1_699_999_999_999),
+    );
+    expect(error?.message).toContain('container creation stamp moved');
+    expect(
+      await exists(join(hostSessionRoot, '.pins', 'pin-fenced.pinned')),
+    ).toBe(true);
+    await backend.setPinned('pin-fenced', false, 1_700_000_000_000);
+  });
+
+  test('unpin rejects when durable removal fails', async () => {
+    await fakeDocker({ present: true, rm: 'ok' });
+    const marker = join(hostSessionRoot, '.pins', 'pin-directory.pinned');
+    await mkdir(marker, { recursive: true });
+    const error = await rejection(
+      new DockerSessionBackend(backendConfig()).setPinned(
+        'pin-directory',
+        false,
+      ),
+    );
+    expect(error).not.toBeNull();
+    expect(await exists(marker)).toBe(true);
+    await rm(marker, { recursive: true });
   });
 
   test('stop and destroy clear the pin — a later incarnation starts unpinned', async () => {

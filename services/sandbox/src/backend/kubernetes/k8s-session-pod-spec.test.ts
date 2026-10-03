@@ -55,16 +55,34 @@ describe('buildSessionPod', () => {
   test('an agent opt-out retains the hardened runner and lighter memory request', () => {
     const pod = buildSessionPod(
       { ...cfg, dockerInContainer: true },
-      { ...input, dockerInContainer: false },
+      { ...input, docker: false },
     );
     const runner = pod.spec?.containers[0];
     expect(runner?.securityContext?.readOnlyRootFilesystem).toBe(true);
     expect(runner?.securityContext?.runAsNonRoot).toBe(true);
     expect(runner?.resources?.requests?.memory).toBe('512Mi');
     expect(runner?.env?.some((env) => env.name === 'TALE_DIND')).toBe(false);
-    expect(pod.metadata?.annotations?.['tale.dev/docker-in-container']).toBe(
-      'false',
+    expect(pod.metadata?.annotations?.['tale.dev/docker']).toBe('false');
+  });
+
+  test('a lightweight agent keeps its uid and omits Docker storage and privilege', () => {
+    const pod = buildSessionPod(
+      { ...cfg, runtimeTier: 'sysbox', dockerInContainer: true },
+      { ...input, docker: false },
     );
+    const runner = pod.spec?.containers[0];
+    expect(pod.metadata?.annotations?.['tale.dev/docker']).toBe('false');
+    expect(runner?.securityContext?.runAsUser).toBe(
+      cfg.session.agentProfile.uid,
+    );
+    expect(runner?.securityContext?.privileged).not.toBe(true);
+    expect(runner?.env).not.toContainEqual({
+      name: 'TALE_DOCKER_ENABLED',
+      value: '1',
+    });
+    expect(
+      pod.spec?.volumes?.some((volume) => volume.name === 'docker-storage'),
+    ).toBe(false);
   });
 
   test('passes an operator inner pool only to DinD runners without Docker build-cache wiring or unsafe sysctls', () => {

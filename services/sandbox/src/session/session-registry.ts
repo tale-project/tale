@@ -15,7 +15,8 @@ export interface RegistrySession {
   sessionId: string;
   organizationId: string;
   profile: SandboxSessionProfile;
-  dockerInContainer: boolean;
+  /** Actual capability of the running incarnation, independent of new defaults. */
+  docker?: boolean;
   state: SandboxSessionState;
   createdAtMs: number;
   expiresAtMs: number;
