@@ -74,12 +74,8 @@ export function SiteHeaderBar() {
           </MarketingExternalLink>
           <div className="border-border-base mt-3 flex items-center justify-between gap-4 border-t pt-4">
             <span className="text-fg-muted text-sm">{tTheme('ariaLabel')}</span>
-            {/* Inline choices share the drawer's Escape boundary. At touch
-                size, each button owns its fill instead of the compact marker. */}
-            <ThemeSwitcher
-              variant="segmented"
-              className="[&_[aria-checked=true]]:bg-surface-site-raised [&_[aria-checked=true]]:shadow-sm [&_[role=radio]]:size-11 [&>span]:hidden"
-            />
+            {/* Inline choices share the drawer's Escape boundary. */}
+            <ThemeSwitcher variant="segmented" />
           </div>
         </>
       }

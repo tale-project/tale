@@ -1,6 +1,6 @@
 import { ThemeProvider } from '@tale/ui/theme';
 import { TooltipProvider } from '@tale/ui/tooltip';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -120,11 +120,13 @@ describe('HomePage', () => {
       menu.getByRole('radiogroup', { name: 'Switch theme' }),
     );
     const dark = themes.getByRole('radio', { name: 'Dark' });
-    // The close control receives initial focus; all links and theme options
-    // remain inside the drawer's single keyboard path.
-    for (let step = 0; step < 6; step += 1) await user.tab();
+    // The close control receives initial focus; the theme group is one tab
+    // stop, with arrow keys selecting an option inside the drawer.
+    for (let step = 0; step < 4; step += 1) await user.tab();
+    expect(themes.getByRole('radio', { name: 'System' })).toHaveFocus();
+    await user.keyboard('{ArrowLeft}');
+    await waitFor(() => expect(dark).toHaveAttribute('aria-checked', 'true'));
     expect(dark).toHaveFocus();
-    await user.keyboard(' ');
     expect(dark).toHaveAttribute('aria-checked', 'true');
     expect(dialog).toBeVisible();
     expect(menu.queryByRole('menu')).not.toBeInTheDocument();

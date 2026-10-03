@@ -100,7 +100,7 @@ export function SiteFooter({
   const llmLinkClass =
     'text-fg-muted hover:text-fg-base focus-visible:ring-fg-base/60 focus-visible:ring-offset-bg-base rounded-sm px-2 py-1 text-sm transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none';
   const switcherRow = (
-    <div className="flex flex-wrap items-center gap-2 [&_button]:min-h-11 [&_button]:min-w-11 sm:[&_button]:min-h-9 sm:[&_button]:min-w-9">
+    <div className="flex flex-wrap items-center gap-2">
       {llmsTxtUrl ? (
         <a href={llmsTxtUrl} className={llmLinkClass}>
           {llmsTxtLabel}
@@ -111,7 +111,10 @@ export function SiteFooter({
           {llmsFullTxtLabel}
         </a>
       ) : null}
-      <LanguageSwitcher showFlag={languageSwitcherShowFlag} />
+      <LanguageSwitcher
+        showFlag={languageSwitcherShowFlag}
+        className="[&_button]:min-h-11 [&_button]:min-w-11 sm:[&_button]:min-h-9 sm:[&_button]:min-w-9"
+      />
       <ThemeSwitcher variant={themeSwitcherVariant} />
       {bottomTrailing}
     </div>

@@ -21,7 +21,7 @@ Try the theme control in this page's header. Choose **Dark**, then **Light**, an
 
 <Demo name="foundations/color-tokens" />
 
-`ThemeSwitcher` defaults to a menu. Its `segmented` variant presents the choices inline. Both must live inside the provider tree.
+`ThemeSwitcher` defaults to a menu. Its `segmented` variant presents the choices inline as one keyboard tab stop: use the left and right arrow keys to select **System**, **Light**, or **Dark**. Both variants provide 44px touch targets and must live inside the provider tree. The selected segment owns its background and border, so its highlight stays aligned if a host enlarges the controls. Use the component’s own sizing and colors rather than overriding its internal buttons or adding a separate selection marker.
 
 ## Read the choice or the displayed result
 
