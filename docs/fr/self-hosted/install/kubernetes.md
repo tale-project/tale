@@ -471,6 +471,8 @@ Deux alternatives conservent le même Pod :
 
 Le proxy de sortie a besoin du jeu de capabilities du contrat Compose et d’aucun sysctl : le script d’entrée installe le pare-feu IPv6 avec ip6tables lorsque le noyau du nœud le fournit, et désactive sinon IPv6 dans son propre espace de noms réseau. Un cluster qui refuse les deux bloque le Pod au démarrage ; autorise dans ce cas les sysctls `net.ipv6.conf.*` sur le kubelet. Le spawner crée les Pods de session, les Secrets et les claims de workspace via l’API Kubernetes ; il s’exécute donc avec une Role limitée au namespace et sans socket Docker.
 
+Le proxy sert `SANDBOX_EGRESS_MAX_CLIENTS` connexions à la fois (2000 par défaut) pour l’ensemble des sessions, chacune avec un thread et deux fichiers ouverts. Une spécification de Pod ne peut fixer ni limite de processus ni limite de fichiers ouverts : au démarrage, le proxy relève sa limite de fichiers ouverts à ce dont ses connexions ont besoin, dans la mesure où la limite stricte du runtime de conteneurs le permet, et avertit dans son journal quand elle est trop basse. Ses threads comptent dans le `podPidsLimit` du kubelet ; si tes nœuds en fixent un, garde-le au-dessus de la limite de connexions, ou abaisse `SANDBOX_EGRESS_MAX_CLIENTS` en conséquence.
+
 ```yaml
 # 40-sandbox.yaml
 apiVersion: v1
@@ -494,6 +496,8 @@ spec:
       containers:
         - name: egress
           image: ghcr.io/tale-project/tale/tale-sandbox-egress:${VERSION}
+          env:
+            - { name: SANDBOX_EGRESS_MAX_CLIENTS, value: '2000' }
           securityContext:
             runAsUser: 0
             capabilities:

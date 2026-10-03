@@ -471,6 +471,8 @@ Zwei Alternativen behalten denselben Pod:
 
 Der Egress-Proxy braucht den Capability-Satz aus dem Compose-Vertrag und keine Sysctls: Der Entrypoint installiert die IPv6-Firewall mit ip6tables, wenn der Node-Kernel sie anbietet, und deaktiviert IPv6 andernfalls im eigenen Netzwerk-Namespace. Ein Cluster, der beides verweigert, blockiert den Pod beim Start; erlaube in dem Fall die Sysctls `net.ipv6.conf.*` auf dem Kubelet. Der Spawner legt Sitzungs-Pods, Secrets und Workspace-Claims über die Kubernetes-API an und läuft deshalb mit einer namespacegebundenen Role und ohne Docker-Socket.
 
+Der Proxy bedient `SANDBOX_EGRESS_MAX_CLIENTS` Verbindungen gleichzeitig (standardmäßig 2000) für alle Sessions zusammen, jede mit einem Thread und zwei offenen Dateien. Eine Pod-Spezifikation kann keine Grenzen für Prozesse oder offene Dateien setzen: Beim Start hebt der Proxy seine Grenze für offene Dateien auf das an, was seine Verbindungen brauchen, so weit die harte Grenze der Container-Runtime es erlaubt, und warnt in seinem Log, wenn sie zu niedrig ist. Seine Threads zählen gegen das `podPidsLimit` des Kubelets; setzen deine Nodes eines, halte es über der Verbindungsgrenze oder senke `SANDBOX_EGRESS_MAX_CLIENTS` passend.
+
 ```yaml
 # 40-sandbox.yaml
 apiVersion: v1
@@ -494,6 +496,8 @@ spec:
       containers:
         - name: egress
           image: ghcr.io/tale-project/tale/tale-sandbox-egress:${VERSION}
+          env:
+            - { name: SANDBOX_EGRESS_MAX_CLIENTS, value: '2000' }
           securityContext:
             runAsUser: 0
             capabilities:
