@@ -1174,21 +1174,67 @@ const execCheckpointSchema = z.object({
 export type SessionExecCheckpoint = z.infer<typeof execCheckpointSchema>;
 
 /** The daemon stores parser state beside its replay spool. A 404 is the
- * rolling-upgrade fallback; attaching still determines whether the exec lives. */
+ * rolling-upgrade fallback; attaching still determines whether the exec lives.
+ * A transient read must get the same recovery opportunity as the following
+ * attach: five retries, each bounded to 5s, with the reconnect backoff. */
 export async function sessionGetExecCheckpoint(
   sessionId: string,
   execId: string,
 ): Promise<SessionExecCheckpoint | null> {
+  // fetch reports malformed URL configuration as TypeError too. Refuse it
+  // before classifying transport errors, without exposing URL credentials.
+  let target: URL;
+  try {
+    target = new URL(getSpawnerUrl());
+  } catch {
+    throw new Error('Invalid SANDBOX_URL configuration');
+  }
+  if (
+    !['http:', 'https:'].includes(target.protocol) ||
+    target.username ||
+    target.password
+  )
+    throw new Error('Invalid SANDBOX_URL configuration');
   const path = `/v1/sessions/${encodeURIComponent(sessionId)}/exec/${encodeURIComponent(execId)}/checkpoint`;
-  const response = await spawnerFetch('GET', path, {
-    signal: AbortSignal.timeout(5_000),
-  });
-  if (response.status === 404) return null;
-  if (!response.ok)
-    throw new Error(`sandbox exec checkpoint read failed (${response.status})`);
-  return z
-    .object({ checkpoint: execCheckpointSchema.nullable() })
-    .parse(await response.json()).checkpoint;
+  for (let attempt = 0; ; attempt += 1) {
+    let transientStatus = false;
+    try {
+      const response = await spawnerFetch('GET', path, {
+        signal: AbortSignal.timeout(5_000),
+      });
+      if (!response.ok) {
+        // No error body is needed for recovery. Release it rather than
+        // leaving a failed attempt's connection alive through the backoff.
+        void response.body?.cancel().catch(() => {
+          // A failed transport may already have closed its response body.
+        });
+        if (response.status === 404) return null;
+        transientStatus = [408, 429, 500, 502, 503, 504].includes(
+          response.status,
+        );
+        throw new Error(
+          `sandbox exec checkpoint read failed (${response.status})`,
+        );
+      }
+      return z
+        .object({ checkpoint: execCheckpointSchema.nullable() })
+        .parse(await response.json()).checkpoint;
+    } catch (error) {
+      const transient =
+        transientStatus ||
+        error instanceof SpawnerUnreachableError ||
+        error instanceof TypeError ||
+        (error instanceof Error &&
+          (error.name === 'TimeoutError' || error.name === 'AbortError'));
+      if (!transient || attempt >= MAX_RECONNECT_ATTEMPTS) throw error;
+      await new Promise((resolve) =>
+        setTimeout(
+          resolve,
+          Math.min(RECONNECT_BACKOFF_MS * (attempt + 1), MAX_BACKOFF_MS),
+        ),
+      );
+    }
+  }
 }
 
 /** Acknowledge only a complete cursor + parser snapshot. Oversized partial

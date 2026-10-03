@@ -20135,6 +20135,41 @@ async function checkSteerFallbackRecovery(
 async function checkWorkflowTurnReattach(
   sql: Sql,
   ctx: { orgId: string; userId: string },
+  boss: PgBoss,
+): Promise<void> {
+  const queue = 'automation.agent_drive';
+  const handler = createTaskList({ sql })[queue];
+  if (handler === undefined)
+    throw new Error('Missing automation drive handler');
+  // This lane proves recovery's queued work and op lease, without a real
+  // sandbox. A notify-driven consumer can otherwise settle the fake turn
+  // before the assertion reads it (missing SANDBOX_TOKEN fails immediately).
+  // Stop only this queue, using the worker-drain integration's offWork fence;
+  // every other real worker stays available throughout the lane.
+  await boss.offWork(queue, { wait: true });
+  try {
+    await checkWorkflowTurnReattachRows(sql, ctx);
+  } finally {
+    try {
+      // Never unleash an external drive for a fixture, even if a probe threw.
+      await sql`
+        DELETE FROM pgboss.job
+        WHERE name = 'automation.agent_drive'
+          AND data ->> 'execId' LIKE 'wf-reattach-exec-%'
+      `;
+    } finally {
+      await startWorker({
+        boss,
+        concurrency: 4,
+        taskList: { [queue]: handler },
+      });
+    }
+  }
+}
+
+async function checkWorkflowTurnReattachRows(
+  sql: Sql,
+  ctx: { orgId: string; userId: string },
 ): Promise<void> {
   const { orgId, userId } = ctx;
   const now = Date.now();
@@ -20308,15 +20343,10 @@ async function checkWorkflowTurnReattach(
       // The harness of the NODE's turn (the run cursor), not the one the
       // run's session was opened with.
       createdOp[0]?.harness === 'codex',
-    `unreachable=${unreachable.resumed} (want 0), resumed=${recovered.resumed}/${recovered.examined} (want 2), driven={stale:${drivenRunIds.has(abandoned.runId)}, noop:${drivenRunIds.has(noOp.runId)}, live:${drivenRunIds.has(live.runId)}, asked:${drivenRunIds.has(asked.runId)}}, keys=${String(driveKeys?.nodeId)}/${String(driveKeys?.providerSlug)}, createdOp=${createdOp[0]?.resumedBy ?? 'missing'}/${createdOp[0]?.kind ?? '-'}/${createdOp[0]?.harness ?? '-'} (want harness codex)`,
+    `unreachable=${unreachable.resumed} (want 0), resumed=${recovered.resumed}/${recovered.examined} (want 2), driven={stale:${drivenRunIds.has(abandoned.runId)}, noop:${drivenRunIds.has(noOp.runId)}, live:${drivenRunIds.has(live.runId)}, asked:${drivenRunIds.has(asked.runId)}}, keys=${String(driveKeys?.nodeId)}/${String(driveKeys?.providerSlug)}, createdOp=${createdOp[0]?.resumedBy ?? 'missing'}/${createdOp[0]?.status ?? '-'}/${createdOp[0]?.kind ?? '-'}/${createdOp[0]?.harness ?? '-'} (want watchdog/running/workflow-agent/codex)`,
   );
 
   // Leave nothing for later sweeps or metrics folds to trip over.
-  await sql`
-    DELETE FROM pgboss.job
-    WHERE name = 'automation.agent_drive'
-      AND data ->> 'execId' LIKE 'wf-reattach-exec-%'
-  `;
   await sql`
     UPDATE app.automation_runs SET status = 'cancelled',
                                    finished_at_ms = ${Date.now()}
@@ -59580,7 +59610,7 @@ async function main(): Promise<void> {
       ],
       [
         'checkWorkflowTurnReattach',
-        () => checkWorkflowTurnReattach(sql, authCtx),
+        () => checkWorkflowTurnReattach(sql, authCtx, boss),
       ],
       [
         'checkConversationReplyMailbox',
