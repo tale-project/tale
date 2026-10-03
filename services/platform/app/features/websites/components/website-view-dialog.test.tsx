@@ -1195,6 +1195,87 @@ describe('WebsiteViewDialog', () => {
   });
 
   describe('accessibility', () => {
+    beforeEach(() => {
+      pagesPayload.current = {
+        offset: 0,
+        hasMore: false,
+        pages: Array.from({ length: 20 }, (_, index): CrawlerPage => ({
+          url: `https://docs.example.com/page-${index}`,
+          title: index % 4 === 3 ? null : `Page ${index}`,
+          word_count: 10,
+          status: 'active',
+          content_hash: null,
+          last_crawled_at: '2026-09-14T11:11:00.000Z',
+          discovered_at: '2026-09-14T11:11:00.000Z',
+          chunks_count: 0,
+          indexed: index % 4 === 0 || index % 4 === 3,
+          fail_count: index % 4 === 1 ? 1 : 0,
+          last_error: index % 4 === 1 ? 'HTTP 503' : null,
+          last_error_kind:
+            index % 4 === 1
+              ? 'http_error'
+              : index % 4 === 2
+                ? 'robots_noindex'
+                : null,
+          last_error_at: null,
+        })),
+      };
+    });
+
+    it('keeps focusable controls out of every page disclosure summary', () => {
+      render(<WebsiteViewDialog isOpen onClose={vi.fn()} website={WEBSITE} />);
+
+      const dialog = screen.getByRole('dialog', { name: 'Website details' });
+      const summaries = dialog.querySelectorAll('details > summary');
+      expect(summaries).toHaveLength(20);
+      for (const summary of summaries) {
+        expect(
+          summary.querySelector(
+            'a[href], button, input, select, textarea, [tabindex], [contenteditable="true"], audio[controls], video[controls], iframe, summary',
+          ),
+        ).toBeNull();
+      }
+    });
+
+    it('keeps named page links in the expanded body, after the disclosure', async () => {
+      const { user } = render(
+        <WebsiteViewDialog isOpen onClose={vi.fn()} website={WEBSITE} />,
+      );
+
+      const dialog = screen.getByRole('dialog', { name: 'Website details' });
+      const summaries = dialog.querySelectorAll('details > summary');
+      expect(summaries).toHaveLength(20);
+      for (const [index, summary] of summaries.entries()) {
+        const page = pagesPayload.current?.pages[index];
+        const details = summary.parentElement;
+        if (!page || !details) throw new Error('Missing page disclosure');
+        expect(details).not.toHaveAttribute('open');
+        await user.click(summary);
+        expect(details).toHaveAttribute('open');
+        const link = within(details).getByRole('link', {
+          name: page.title || page.url,
+        });
+        expect(summary).not.toContainElement(link);
+        expect(link).toHaveAttribute('href', page.url);
+        expect(link).toHaveAttribute('target', '_blank');
+        expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+        expect(link).toBeVisible();
+        link.focus();
+        expect(link).toHaveFocus();
+        await user.click(summary);
+        expect(details).not.toHaveAttribute('open');
+      }
+    });
+
+    it('passes the nested-interactive axe rule with twenty loaded page rows', async () => {
+      render(<WebsiteViewDialog isOpen onClose={vi.fn()} website={WEBSITE} />);
+
+      await checkAccessibility(
+        screen.getByRole('dialog', { name: 'Website details' }),
+        { runOnly: ['nested-interactive'] },
+      );
+    });
+
     it('passes axe audit', async () => {
       const { container } = render(
         <WebsiteViewDialog isOpen onClose={vi.fn()} website={WEBSITE} />,

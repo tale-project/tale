@@ -779,6 +779,18 @@ records and delete them after.
   and after the error state returns, focus is on the **Knowledge entries**
   region, never on the page.
 
+- [ ] `KNOW-A8` · **Website page disclosures from the keyboard** → On
+  `/dashboard/{org}/websites`, open a source with twenty loaded pages, including
+  indexed, failed and skipped pages. Tab through the collapsed list: each
+  page has one stop, its named disclosure, not an additional link. Enter or
+  Space opens and closes that disclosure; when open, Tab reaches a visibly
+  focused link named for the page title (or URL when untitled), which opens
+  the page in a new tab. Shift+Tab returns to the disclosure; close it and
+  Tab reaches the next page disclosure. Repeat in **Failed**
+  (`websites.pagesDialog.failed`) and **Skipped**
+  (`websites.pagesDialog.skipped`) windows. axe `nested-interactive` reports
+  no violations in the loaded website details dialog.
+
 ## Performance
 
 - [ ] `KNOW-P1` · **List first paint** → First page of any list route renders

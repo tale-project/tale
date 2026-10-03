@@ -207,17 +207,7 @@ function PageRow({
     <Stack gap={1} className="min-w-0 flex-1">
       <Row gap={2} justify="between" align="start">
         <Text className="min-w-0 wrap-anywhere">
-          <SkeletonBox>
-            <a
-              href={page.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hover:underline"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {label}
-            </a>
-          </SkeletonBox>
+          <SkeletonBox>{label}</SkeletonBox>
         </Text>
         {failedCaption !== null ? (
           <Text
@@ -255,6 +245,16 @@ function PageRow({
       className="border-border border-b py-3 last:border-0 last:pb-0"
     >
       <Stack gap={2} className="mt-3 pl-5">
+        <Text className="wrap-anywhere">
+          <a
+            href={page.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:underline"
+          >
+            {label}
+          </a>
+        </Text>
         <Row gap={3} wrap className="text-muted-foreground text-xs">
           {failedCaption === null ? (
             <>
