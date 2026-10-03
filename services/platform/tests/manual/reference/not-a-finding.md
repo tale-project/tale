@@ -39,10 +39,11 @@ here the first time a round re-files it.
   intentionally loads the remaining pages so the result is complete (#2054) —
   eleven list responses after typing a query are that drain, not eager
   paging. PERF-B2 measures the resting page only.
-- **A wizard-created org in mode A is not provider-wired.** It lands on chat's
-  **No AI provider connected yet** empty state with zero credentials; add the
-  mock provider under Settings → AI providers, or mint the org through
-  `save-auth-state.ts`. Observed live 2026-08-04.
+- **A new org in mode A is not provider-wired.** Wizard-created or minted by
+  `save-auth-state.ts`, it lands on chat's **No AI provider connected yet**
+  empty state with zero credentials until the mock provider is wired per
+  [setup.md](../setup.md) §1.A (the provider file, then its environment
+  credential). Observed live 2026-08-04 and 2026-10-03.
 - **"Tale is ready to work offline." fires once on first service-worker
   install.** Benign, and it will photobomb an unrelated screenshot.
 - **A chunked body past a route's cap is read to the cap before the 413.** A

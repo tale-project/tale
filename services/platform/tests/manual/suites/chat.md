@@ -28,7 +28,7 @@ message / enabling sharing — there is no static URL for them.)
 ## Preconditions
 
 Stack up + signed in per [SETUP.md](../setup.md), with a provider configured
-(or mode A's mock). In **mode A** any prompt returns the canned reply and the
+(or mode A's mock, wired per SETUP.md §1.A). In **mode A** any prompt returns the canned reply and the
 keyword triggers (`e2e:reasoning` / `e2e:error` / `e2e:empty` /
 `e2e:length` / `e2e:stream-error`) drive CHAT-F16, CHAT-F17, CHAT-F19,
 CHAT-F57 and CHAT-F58. Rows marked **mode B** need a live provider; CHAT-F25

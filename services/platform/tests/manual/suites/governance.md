@@ -51,8 +51,9 @@ GOV-F48 covers a rule on such a key).
 **GOV-F40–GOV-F47 and GOV-B15–GOV-B17 (model endpoints for API keys)** call
 `/api/v1/openai/…` and `/api/v1/anthropic/…` with API keys minted under
 **Settings → API → REST** and need a chat model that a provider credential of
-type **API key** or **Environment variable** serves — in mode A, connect the
-`e2e-mock` provider's environment credential. Every refusal those boxes judge
+type **API key** or **Environment variable** serves — in mode A, the
+`e2e-mock` provider's environment credential, wired per
+[SETUP.md](../setup.md) §1.A. Every refusal those boxes judge
 is answered before the model gateway is reached, so they run in mode A; a
 successful answer needs mode B with the sandbox model gateway running (mode A
 ends such a call in 503 `MODEL_API_UNAVAILABLE`).
