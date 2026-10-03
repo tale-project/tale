@@ -37,12 +37,10 @@ describe('marketing route registries', () => {
     const expected = publishedMarketingContent()
       .filter((page) => page.locale === 'en')
       .map((page) => page.url);
-    const actual = MARKETING_ROUTE_URLS.filter(
-      (url) =>
-        url === '/compare' ||
-        url.startsWith('/compare/') ||
-        url === '/use-cases' ||
-        url.startsWith('/use-cases/'),
+    const actual = MARKETING_ROUTE_URLS.filter((url) =>
+      Object.values(MARKETING_CONTENT_PATHS).some(
+        (hub) => url === hub || url.startsWith(`${hub}/`),
+      ),
     );
     expect(actual).toEqual(expected);
   });

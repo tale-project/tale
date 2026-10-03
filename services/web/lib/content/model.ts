@@ -3,6 +3,7 @@ import { SUPPORTED_LOCALES, type SupportedLocale } from '@tale/ui/i18n/locales';
 export const MARKETING_CONTENT_CATEGORIES = [
   'comparisons',
   'use-cases',
+  'blog',
 ] as const;
 export type MarketingContentCategory =
   (typeof MARKETING_CONTENT_CATEGORIES)[number];
@@ -10,6 +11,13 @@ export type MarketingContentCategory =
 export const MARKETING_CONTENT_PATHS = {
   comparisons: '/compare',
   'use-cases': '/use-cases',
+  blog: '/blog',
+} as const;
+
+export const MARKETING_CONTENT_NAV_KEYS = {
+  comparisons: 'compare',
+  'use-cases': 'useCases',
+  blog: 'blog',
 } as const;
 
 export interface MarketingContentFrontmatter {
@@ -18,6 +26,9 @@ export interface MarketingContentFrontmatter {
   slug: string;
   reviewed: string;
   draft: boolean;
+  /** Stable identity for a blog article and its illustrative media. */
+  topicId?: string;
+  coverAlt?: string;
   competitor?: string;
   relationship?: 'direct' | 'adjacent' | 'framework' | 'runtime';
 }

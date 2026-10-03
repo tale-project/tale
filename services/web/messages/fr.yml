@@ -110,6 +110,9 @@ nav:
       label: Gouvernance
       description: Approbations, journal d’audit et contrôle des dépenses.
   resource:
+    blog:
+      label: Blog
+      description: Des guides pratiques pour travailler avec des agents IA.
     compare:
       label: Comparatifs
       description: Compare les espaces de travail, les workflows et les environnements des agents.
@@ -2436,3 +2439,11 @@ contentPages:
   nextTitle: Essaie avec ton propre projet
   nextDescription: Apporte une tâche concrète et les outils que ton équipe utilise déjà.
   allUseCases: Tous les cas d’usage
+
+blog:
+  allArticles: "Tous les articles"
+  relatedTitle: "Pour poursuivre la lecture"
+  coverCaption: "Illustration conceptuelle générée par IA, pas une capture de l'interface de Tale."
+  openDiagram: "Ouvrir le schéma en pleine taille"
+  byline: "Par Tale"
+  reviewed: "Sources vérifiées le {date}"

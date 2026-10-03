@@ -19,11 +19,11 @@ export const MARKETING_CONTENT_PREVIEW =
   import.meta.env.VITE_MARKETING_CONTENT_PREVIEW === 'true';
 
 const metadata = import.meta.glob<MarketingContentMetadata>(
-  '../../app/content/{comparisons,use-cases}/{en,de,fr}/*.md',
+  '../../app/content/{comparisons,use-cases,blog}/{en,de,fr}/*.md',
   { query: '?marketing-meta', import: 'default', eager: true },
 );
 const bodies = import.meta.glob<string>(
-  '../../app/content/{comparisons,use-cases}/{en,de,fr}/*.md',
+  '../../app/content/{comparisons,use-cases,blog}/{en,de,fr}/*.md',
   { query: '?marketing-body', import: 'default' },
 );
 const pages = visibleMarketingContent(Object.values(metadata), {

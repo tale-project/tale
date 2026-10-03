@@ -102,10 +102,10 @@ bun run --filter @tale/web test:e2e
 Use the [manual test guide](tests/manual/readme.md) for layout, keyboard, responsive, and degraded
 mode checks. A successful build does not verify that production contact forms can deliver a message.
 
-## Comparison and use-case guides
+## Comparison, use-case, and blog guides
 
 Localized Markdown lives in `app/content/comparisons/{en,de,fr}` and
-`app/content/use-cases/{en,de,fr}`. The shared content registry validates frontmatter, pairs locales,
+`app/content/use-cases/{en,de,fr}`, and `app/content/blog/{en,de,fr}`. The shared content registry validates frontmatter, pairs locales,
 and feeds route discovery, prerendering, canonicals, language alternates, sitemap and LLM artifacts.
 A page appears publicly only when all three locale variants are published.
 
@@ -114,6 +114,11 @@ New content starts with `draft: true`. Set the build-time variable
 production builds ignore this preview flag. Follow the
 [content contract](app/content/comparisons/README.md) before publishing. Bodies load individually
 as Markdown assets, while navigation and related cards use metadata only.
+
+The [blog contract](app/content/blog/README.md) and [quality guidelines](app/content/blog/QUALITY.md)
+cover the ten sourced guides, localized worksheets and diagrams, responsive covers, organization
+byline, and source-review dates. Blog pages share the reading surface and SEO pipeline; they do
+not invent publication dates or observed results.
 
 ## Optional aggregate analytics
 

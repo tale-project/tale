@@ -1,3 +1,7 @@
+import { existsSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import { localizedPath, SUPPORTED_LOCALES } from '@tale/ui/i18n/locales';
 import { TALE_SITE_URL } from '@tale/ui/seo/globals';
 import { createElement } from 'react';
@@ -16,6 +20,7 @@ import { LEGAL_SLUGS } from '../legal/slugs';
 import { LOCALIZED_ROUTE_PATHS } from '../seo/route-paths';
 import { readMarketingContent } from './server';
 
+const HERE = dirname(fileURLToPath(import.meta.url));
 const pages = readMarketingContent();
 const knownUrls = new Set([
   ...pages.map((page) => page.url),
@@ -58,6 +63,18 @@ describe('marketing content source graph', () => {
       const links = internalLinks(page.content, page.url);
       expect(links.length, `${page.url} needs a next step`).toBeGreaterThan(0);
       for (const target of links) {
+        const worksheet =
+          /^\/blog\/worksheets\/(en|de|fr)\/[A-Za-z0-9-]+\.md$/.exec(target);
+        if (worksheet) {
+          expect(worksheet[1], `${page.url} worksheet locale`).toBe(
+            page.locale,
+          );
+          expect(
+            existsSync(join(HERE, '../../public', target.slice(1))),
+            target,
+          ).toBe(true);
+          continue;
+        }
         if (!knownUrls.has(target))
           failures.push(`${page.url} → unknown ${target}`);
         const targetLocale = /^\/(de|fr)(?:\/|$)/.exec(target)?.[1] ?? 'en';
@@ -70,6 +87,9 @@ describe('marketing content source graph', () => {
 
   it('makes every localized comparison and use case reachable from its own hub', () => {
     for (const hub of pages.filter((page) => page.slug === 'index')) {
+      // Blog cards are generated from validated metadata; blog.test.tsx and
+      // the blog browser suite verify their rendered destinations.
+      if (hub.category === 'blog') continue;
       const linked = new Set(internalLinks(hub.content, hub.url));
       const leaves = pages.filter(
         (page) =>

@@ -110,6 +110,9 @@ nav:
       label: Governance
       description: Approvals, audit trail, and spend controls.
   resource:
+    blog:
+      label: Blog
+      description: Practical guides to working with AI agents.
     compare:
       label: Comparisons
       description: Compare workspaces, workflows, and agent runtimes.
@@ -2325,3 +2328,11 @@ contentPages:
   nextTitle: Try it with your own project
   nextDescription: Bring a real task and the tools your team already uses.
   allUseCases: All use cases
+
+blog:
+  allArticles: "All articles"
+  relatedTitle: "Continue reading"
+  coverCaption: "AI-generated conceptual illustration; not a Tale interface screenshot."
+  openDiagram: "Open diagram at full size"
+  byline: "By Tale"
+  reviewed: "Sources checked {date}"

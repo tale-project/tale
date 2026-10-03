@@ -2,10 +2,14 @@ import { localizedPath } from '@tale/ui/i18n/locales';
 import { parse } from 'yaml';
 import { z } from 'zod';
 
-import { marketingContentPath, type MarketingContentDocument } from './model';
+import {
+  MARKETING_CONTENT_CATEGORIES,
+  marketingContentPath,
+  type MarketingContentDocument,
+} from './model';
 
 const identitySchema = z.object({
-  category: z.enum(['comparisons', 'use-cases']),
+  category: z.enum(MARKETING_CONTENT_CATEGORIES),
   locale: z.enum(['en', 'de', 'fr']),
   slug: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
 });
@@ -16,6 +20,11 @@ const frontmatterSchema = z.strictObject({
   slug: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
   reviewed: z.iso.date(),
   draft: z.boolean().default(false),
+  topicId: z
+    .string()
+    .regex(/^T[0-9]{2}$/)
+    .optional(),
+  coverAlt: z.string().min(1).optional(),
   competitor: z.string().min(1).optional(),
   relationship: z
     .enum(['direct', 'adjacent', 'framework', 'runtime'])
@@ -28,7 +37,7 @@ export function parseMarketingContent(
   raw: string,
   sourcePath: string,
 ): MarketingContentDocument {
-  const source = /\/(comparisons|use-cases)\/([^/]+)\/([^/]+)\.md$/.exec(
+  const source = /\/(comparisons|use-cases|blog)\/([^/]+)\/([^/]+)\.md$/.exec(
     sourcePath.replaceAll('\\', '/'),
   );
   if (!source) throw new Error(`Invalid marketing content path: ${sourcePath}`);
@@ -53,6 +62,13 @@ export function parseMarketingContent(
     throw new Error(
       `Comparison needs competitor and relationship: ${sourcePath}`,
     );
+  }
+  if (
+    identity.category === 'blog' &&
+    identity.slug !== 'index' &&
+    (!frontmatter.topicId || !frontmatter.coverAlt)
+  ) {
+    throw new Error(`Blog article needs topicId and coverAlt: ${sourcePath}`);
   }
   const content = match[2].trim();
   if (!content || /^#\s/m.test(content))

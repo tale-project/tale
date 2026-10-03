@@ -61,6 +61,7 @@ Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no s
 | [seo](../suites/seo.md) | Lighthouse targets (Perf ≥95, SEO 100, a11y ≥95, BP 100, CLS 0) | 🔶 | Local Lighthouse 13.4 on built `start` (2026-07-09): desktop unthrottled `/` **99/100/100/100** CLS≈0; `/pricing` **100/100/100/100**; mobile default throttle `/` Perf **58** (FCP/LCP on Slow 4G), A11y/BP/SEO **100**. Re-run PSI on production after deploy. |
 | [theme](../suites/theme.md) | `THEME-F1`, `THEME-A1`–`THEME-A2` | `packages/ui/src/components/site/theme-switcher.test.tsx`, `theme-switcher.browser.test.tsx` | Theme persistence, radio keyboard selection, active surface alignment at 44/52px targets; visual focus remains manual. |
 | [theme](../suites/theme.md) | `THEME-F2`–`THEME-F6`, `THEME-B1`, `THEME-A3` | ⛔ manual-only | — |
+| [blog](../suites/blog.md) | Index/article routing, localized media and worksheets, keyboard table scrolling, metadata, unknown slugs, EN/DE/FR at five widths in both themes | ✅ automated | `tests/e2e/specs/blog.spec.ts`, `lib/content/blog.test.tsx`, `tests/prerender/blog.test.ts` |
 
 ## Seams
 

@@ -15,10 +15,38 @@ import {
 import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
-const TableCopyContext = createContext<{
+const ProseContext = createContext<{
   label: string;
   scrollHint?: string;
+  imageLinkLabel?: string;
+  images?: Readonly<Record<string, { width: number; height: number }>>;
 }>({ label: '' });
+
+function ProseImage({ src, alt }: ComponentPropsWithoutRef<'img'>) {
+  const { imageLinkLabel, images } = useContext(ProseContext);
+  const dimensions = typeof src === 'string' ? images?.[src] : undefined;
+  return (
+    <span className="my-8 block">
+      <img
+        src={src}
+        alt={alt ?? ''}
+        width={dimensions?.width}
+        height={dimensions?.height}
+        loading="lazy"
+        decoding="async"
+        className="border-border-base block h-auto w-full rounded-xl border"
+      />
+      {imageLinkLabel && typeof src === 'string' ? (
+        <a
+          href={src}
+          className="text-fg-muted mt-3 inline-flex min-h-11 items-center text-sm underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-4"
+        >
+          {imageLinkLabel}
+        </a>
+      ) : null}
+    </span>
+  );
+}
 
 /** Safari does not consistently pan a focused overflow region with arrow keys. */
 function scrollTableWithKeyboard(event: KeyboardEvent<HTMLDivElement>) {
@@ -43,7 +71,7 @@ function scrollTableWithKeyboard(event: KeyboardEvent<HTMLDivElement>) {
 }
 
 function ProseTable({ children }: { children?: ReactNode }) {
-  const { label, scrollHint } = useContext(TableCopyContext);
+  const { label, scrollHint } = useContext(ProseContext);
   const [region, setRegion] = useState<HTMLDivElement | null>(null);
   const hintId = useId();
   const [overflows, setOverflows] = useState(false);
@@ -86,6 +114,7 @@ function ProseTable({ children }: { children?: ReactNode }) {
 }
 
 const markdownComponents: Components = {
+  img: ProseImage,
   h1: ({ children }: { children?: ReactNode }) => (
     <AnchoredHeading
       level="h2"
@@ -192,27 +221,36 @@ export function MarketingProse({
   className,
   tableLabel,
   tableScrollHint,
+  imageLinkLabel,
+  images,
 }: {
   children: string;
   className?: string;
   /** Localized page title names both the table and its keyboard scroll region. */
   tableLabel: string;
   tableScrollHint?: string;
+  imageLinkLabel?: string;
+  images?: Readonly<Record<string, { width: number; height: number }>>;
 }) {
-  const tableCopy = useMemo(
-    () => ({ label: tableLabel, scrollHint: tableScrollHint }),
-    [tableLabel, tableScrollHint],
+  const proseContext = useMemo(
+    () => ({
+      label: tableLabel,
+      scrollHint: tableScrollHint,
+      imageLinkLabel,
+      images,
+    }),
+    [tableLabel, tableScrollHint, imageLinkLabel, images],
   );
   return (
     <div className={cn('min-w-0 [overflow-wrap:anywhere]', className)}>
-      <TableCopyContext.Provider value={tableCopy}>
+      <ProseContext.Provider value={proseContext}>
         <ReactMarkdown
           remarkPlugins={[remarkGfm]}
           components={markdownComponents}
         >
           {children}
         </ReactMarkdown>
-      </TableCopyContext.Provider>
+      </ProseContext.Provider>
     </div>
   );
 }

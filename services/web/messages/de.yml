@@ -108,6 +108,9 @@ nav:
       label: Governance
       description: Freigaben, Audit-Trail und Ausgabenkontrolle.
   resource:
+    blog:
+      label: Blog
+      description: Praktische Leitfäden für die Arbeit mit KI-Agenten.
     compare:
       label: Vergleiche
       description: Vergleiche Arbeitsräume, Workflows und Agent-Laufzeiten.
@@ -2397,3 +2400,11 @@ contentPages:
   nextTitle: Probiere es mit deinem eigenen Projekt aus
   nextDescription: Bring eine konkrete Aufgabe und die Werkzeuge mit, die dein Team bereits nutzt.
   allUseCases: Alle Anwendungsfälle
+
+blog:
+  allArticles: "Alle Artikel"
+  relatedTitle: "Weiterlesen"
+  coverCaption: "KI-generierte Illustration eines Konzepts, kein Bildschirmfoto von Tale."
+  openDiagram: "Diagramm in voller Größe öffnen"
+  byline: "Von Tale"
+  reviewed: "Quellen geprüft am {date}"

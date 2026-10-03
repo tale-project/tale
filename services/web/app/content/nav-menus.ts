@@ -17,6 +17,11 @@ import {
 } from 'lucide-react';
 
 import { listMarketingContent } from '@/lib/content/client';
+import {
+  MARKETING_CONTENT_CATEGORIES,
+  MARKETING_CONTENT_PATHS,
+  MARKETING_CONTENT_NAV_KEYS,
+} from '@/lib/content/model';
 import type { LocalizedRoutePath } from '@/lib/seo/route-paths';
 
 export type NavMenuId = 'platform' | 'resources';
@@ -41,27 +46,29 @@ interface NavMenuDef {
 
 /** Resources — docs (external), changelog, hardware, about. */
 const RESOURCES_MENU_ITEMS: readonly NavMenuItem[] = [
-  ...(['comparisons', 'use-cases'] as const).flatMap(
-    (category): NavMenuItem[] => {
-      if (
-        !listMarketingContent(category, 'en').some(
-          (page) => page.slug === 'index',
-        )
+  ...MARKETING_CONTENT_CATEGORIES.flatMap((category): NavMenuItem[] => {
+    if (
+      !listMarketingContent(category, 'en').some(
+        (page) => page.slug === 'index',
       )
-        return [];
-      const compare = category === 'comparisons';
-      const key = compare ? 'compare' : 'useCases';
-      return [
-        {
-          id: key,
-          path: compare ? '/compare' : '/use-cases',
-          labelKey: `resource.${key}.label`,
-          descriptionKey: `resource.${key}.description`,
-          icon: compare ? GitCompareArrows : BriefcaseBusiness,
-        },
-      ];
-    },
-  ),
+    )
+      return [];
+    const key = MARKETING_CONTENT_NAV_KEYS[category];
+    return [
+      {
+        id: key,
+        path: MARKETING_CONTENT_PATHS[category],
+        labelKey: `resource.${key}.label`,
+        descriptionKey: `resource.${key}.description`,
+        icon:
+          category === 'comparisons'
+            ? GitCompareArrows
+            : category === 'blog'
+              ? BookOpen
+              : BriefcaseBusiness,
+      },
+    ];
+  }),
   {
     id: 'changelog',
     path: '/changelog',

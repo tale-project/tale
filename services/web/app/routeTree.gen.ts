@@ -20,6 +20,7 @@ import { Route as IndexRouteImport } from './routes/index';
 import { Route as UseCasesIndexRouteImport } from './routes/use-cases/index';
 import { Route as PlatformIndexRouteImport } from './routes/platform/index';
 import { Route as CompareIndexRouteImport } from './routes/compare/index';
+import { Route as BlogIndexRouteImport } from './routes/blog/index';
 import { Route as LangIndexRouteImport } from './routes/$lang/index';
 import { Route as UseCasesSlugRouteImport } from './routes/use-cases/$slug';
 import { Route as PlatformProjectsRouteImport } from './routes/platform/projects';
@@ -30,6 +31,7 @@ import { Route as PlatformAutomationsRouteImport } from './routes/platform/autom
 import { Route as PlatformAgentsRouteImport } from './routes/platform/agents';
 import { Route as LegalSlugRouteImport } from './routes/legal/$slug';
 import { Route as CompareSlugRouteImport } from './routes/compare/$slug';
+import { Route as BlogSlugRouteImport } from './routes/blog/$slug';
 import { Route as LangRequestDemoRouteImport } from './routes/$lang/request-demo';
 import { Route as LangPricingRouteImport } from './routes/$lang/pricing';
 import { Route as LangHardwarePricingRouteImport } from './routes/$lang/hardware-pricing';
@@ -39,6 +41,7 @@ import { Route as LangAboutRouteImport } from './routes/$lang/about';
 import { Route as LangUseCasesIndexRouteImport } from './routes/$lang/use-cases/index';
 import { Route as LangPlatformIndexRouteImport } from './routes/$lang/platform/index';
 import { Route as LangCompareIndexRouteImport } from './routes/$lang/compare/index';
+import { Route as LangBlogIndexRouteImport } from './routes/$lang/blog/index';
 import { Route as LangUseCasesSlugRouteImport } from './routes/$lang/use-cases/$slug';
 import { Route as LangPlatformProjectsRouteImport } from './routes/$lang/platform/projects';
 import { Route as LangPlatformKnowledgeRouteImport } from './routes/$lang/platform/knowledge';
@@ -48,6 +51,7 @@ import { Route as LangPlatformAutomationsRouteImport } from './routes/$lang/plat
 import { Route as LangPlatformAgentsRouteImport } from './routes/$lang/platform/agents';
 import { Route as LangLegalSlugRouteImport } from './routes/$lang/legal/$slug';
 import { Route as LangCompareSlugRouteImport } from './routes/$lang/compare/$slug';
+import { Route as LangBlogSlugRouteImport } from './routes/$lang/blog/$slug';
 
 const RequestDemoRoute = RequestDemoRouteImport.update({
   id: '/request-demo',
@@ -104,6 +108,11 @@ const CompareIndexRoute = CompareIndexRouteImport.update({
   path: '/compare/',
   getParentRoute: () => rootRouteImport,
 } as any);
+const BlogIndexRoute = BlogIndexRouteImport.update({
+  id: '/blog/',
+  path: '/blog/',
+  getParentRoute: () => rootRouteImport,
+} as any);
 const LangIndexRoute = LangIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -154,6 +163,11 @@ const CompareSlugRoute = CompareSlugRouteImport.update({
   path: '/compare/$slug',
   getParentRoute: () => rootRouteImport,
 } as any);
+const BlogSlugRoute = BlogSlugRouteImport.update({
+  id: '/blog/$slug',
+  path: '/blog/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any);
 const LangRequestDemoRoute = LangRequestDemoRouteImport.update({
   id: '/request-demo',
   path: '/request-demo',
@@ -197,6 +211,11 @@ const LangPlatformIndexRoute = LangPlatformIndexRouteImport.update({
 const LangCompareIndexRoute = LangCompareIndexRouteImport.update({
   id: '/compare/',
   path: '/compare/',
+  getParentRoute: () => LangRoute,
+} as any);
+const LangBlogIndexRoute = LangBlogIndexRouteImport.update({
+  id: '/blog/',
+  path: '/blog/',
   getParentRoute: () => LangRoute,
 } as any);
 const LangUseCasesSlugRoute = LangUseCasesSlugRouteImport.update({
@@ -244,6 +263,11 @@ const LangCompareSlugRoute = LangCompareSlugRouteImport.update({
   path: '/compare/$slug',
   getParentRoute: () => LangRoute,
 } as any);
+const LangBlogSlugRoute = LangBlogSlugRouteImport.update({
+  id: '/blog/$slug',
+  path: '/blog/$slug',
+  getParentRoute: () => LangRoute,
+} as any);
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute;
@@ -260,6 +284,7 @@ export interface FileRoutesByFullPath {
   '/$lang/hardware-pricing': typeof LangHardwarePricingRoute;
   '/$lang/pricing': typeof LangPricingRoute;
   '/$lang/request-demo': typeof LangRequestDemoRoute;
+  '/blog/$slug': typeof BlogSlugRoute;
   '/compare/$slug': typeof CompareSlugRoute;
   '/legal/$slug': typeof LegalSlugRoute;
   '/platform/agents': typeof PlatformAgentsRoute;
@@ -270,9 +295,11 @@ export interface FileRoutesByFullPath {
   '/platform/projects': typeof PlatformProjectsRoute;
   '/use-cases/$slug': typeof UseCasesSlugRoute;
   '/$lang/': typeof LangIndexRoute;
+  '/blog/': typeof BlogIndexRoute;
   '/compare/': typeof CompareIndexRoute;
   '/platform/': typeof PlatformIndexRoute;
   '/use-cases/': typeof UseCasesIndexRoute;
+  '/$lang/blog/$slug': typeof LangBlogSlugRoute;
   '/$lang/compare/$slug': typeof LangCompareSlugRoute;
   '/$lang/legal/$slug': typeof LangLegalSlugRoute;
   '/$lang/platform/agents': typeof LangPlatformAgentsRoute;
@@ -282,6 +309,7 @@ export interface FileRoutesByFullPath {
   '/$lang/platform/knowledge': typeof LangPlatformKnowledgeRoute;
   '/$lang/platform/projects': typeof LangPlatformProjectsRoute;
   '/$lang/use-cases/$slug': typeof LangUseCasesSlugRoute;
+  '/$lang/blog/': typeof LangBlogIndexRoute;
   '/$lang/compare/': typeof LangCompareIndexRoute;
   '/$lang/platform/': typeof LangPlatformIndexRoute;
   '/$lang/use-cases/': typeof LangUseCasesIndexRoute;
@@ -300,6 +328,7 @@ export interface FileRoutesByTo {
   '/$lang/hardware-pricing': typeof LangHardwarePricingRoute;
   '/$lang/pricing': typeof LangPricingRoute;
   '/$lang/request-demo': typeof LangRequestDemoRoute;
+  '/blog/$slug': typeof BlogSlugRoute;
   '/compare/$slug': typeof CompareSlugRoute;
   '/legal/$slug': typeof LegalSlugRoute;
   '/platform/agents': typeof PlatformAgentsRoute;
@@ -310,9 +339,11 @@ export interface FileRoutesByTo {
   '/platform/projects': typeof PlatformProjectsRoute;
   '/use-cases/$slug': typeof UseCasesSlugRoute;
   '/$lang': typeof LangIndexRoute;
+  '/blog': typeof BlogIndexRoute;
   '/compare': typeof CompareIndexRoute;
   '/platform': typeof PlatformIndexRoute;
   '/use-cases': typeof UseCasesIndexRoute;
+  '/$lang/blog/$slug': typeof LangBlogSlugRoute;
   '/$lang/compare/$slug': typeof LangCompareSlugRoute;
   '/$lang/legal/$slug': typeof LangLegalSlugRoute;
   '/$lang/platform/agents': typeof LangPlatformAgentsRoute;
@@ -322,6 +353,7 @@ export interface FileRoutesByTo {
   '/$lang/platform/knowledge': typeof LangPlatformKnowledgeRoute;
   '/$lang/platform/projects': typeof LangPlatformProjectsRoute;
   '/$lang/use-cases/$slug': typeof LangUseCasesSlugRoute;
+  '/$lang/blog': typeof LangBlogIndexRoute;
   '/$lang/compare': typeof LangCompareIndexRoute;
   '/$lang/platform': typeof LangPlatformIndexRoute;
   '/$lang/use-cases': typeof LangUseCasesIndexRoute;
@@ -342,6 +374,7 @@ export interface FileRoutesById {
   '/$lang/hardware-pricing': typeof LangHardwarePricingRoute;
   '/$lang/pricing': typeof LangPricingRoute;
   '/$lang/request-demo': typeof LangRequestDemoRoute;
+  '/blog/$slug': typeof BlogSlugRoute;
   '/compare/$slug': typeof CompareSlugRoute;
   '/legal/$slug': typeof LegalSlugRoute;
   '/platform/agents': typeof PlatformAgentsRoute;
@@ -352,9 +385,11 @@ export interface FileRoutesById {
   '/platform/projects': typeof PlatformProjectsRoute;
   '/use-cases/$slug': typeof UseCasesSlugRoute;
   '/$lang/': typeof LangIndexRoute;
+  '/blog/': typeof BlogIndexRoute;
   '/compare/': typeof CompareIndexRoute;
   '/platform/': typeof PlatformIndexRoute;
   '/use-cases/': typeof UseCasesIndexRoute;
+  '/$lang/blog/$slug': typeof LangBlogSlugRoute;
   '/$lang/compare/$slug': typeof LangCompareSlugRoute;
   '/$lang/legal/$slug': typeof LangLegalSlugRoute;
   '/$lang/platform/agents': typeof LangPlatformAgentsRoute;
@@ -364,6 +399,7 @@ export interface FileRoutesById {
   '/$lang/platform/knowledge': typeof LangPlatformKnowledgeRoute;
   '/$lang/platform/projects': typeof LangPlatformProjectsRoute;
   '/$lang/use-cases/$slug': typeof LangUseCasesSlugRoute;
+  '/$lang/blog/': typeof LangBlogIndexRoute;
   '/$lang/compare/': typeof LangCompareIndexRoute;
   '/$lang/platform/': typeof LangPlatformIndexRoute;
   '/$lang/use-cases/': typeof LangUseCasesIndexRoute;
@@ -385,6 +421,7 @@ export interface FileRouteTypes {
     | '/$lang/hardware-pricing'
     | '/$lang/pricing'
     | '/$lang/request-demo'
+    | '/blog/$slug'
     | '/compare/$slug'
     | '/legal/$slug'
     | '/platform/agents'
@@ -395,9 +432,11 @@ export interface FileRouteTypes {
     | '/platform/projects'
     | '/use-cases/$slug'
     | '/$lang/'
+    | '/blog/'
     | '/compare/'
     | '/platform/'
     | '/use-cases/'
+    | '/$lang/blog/$slug'
     | '/$lang/compare/$slug'
     | '/$lang/legal/$slug'
     | '/$lang/platform/agents'
@@ -407,6 +446,7 @@ export interface FileRouteTypes {
     | '/$lang/platform/knowledge'
     | '/$lang/platform/projects'
     | '/$lang/use-cases/$slug'
+    | '/$lang/blog/'
     | '/$lang/compare/'
     | '/$lang/platform/'
     | '/$lang/use-cases/';
@@ -425,6 +465,7 @@ export interface FileRouteTypes {
     | '/$lang/hardware-pricing'
     | '/$lang/pricing'
     | '/$lang/request-demo'
+    | '/blog/$slug'
     | '/compare/$slug'
     | '/legal/$slug'
     | '/platform/agents'
@@ -435,9 +476,11 @@ export interface FileRouteTypes {
     | '/platform/projects'
     | '/use-cases/$slug'
     | '/$lang'
+    | '/blog'
     | '/compare'
     | '/platform'
     | '/use-cases'
+    | '/$lang/blog/$slug'
     | '/$lang/compare/$slug'
     | '/$lang/legal/$slug'
     | '/$lang/platform/agents'
@@ -447,6 +490,7 @@ export interface FileRouteTypes {
     | '/$lang/platform/knowledge'
     | '/$lang/platform/projects'
     | '/$lang/use-cases/$slug'
+    | '/$lang/blog'
     | '/$lang/compare'
     | '/$lang/platform'
     | '/$lang/use-cases';
@@ -466,6 +510,7 @@ export interface FileRouteTypes {
     | '/$lang/hardware-pricing'
     | '/$lang/pricing'
     | '/$lang/request-demo'
+    | '/blog/$slug'
     | '/compare/$slug'
     | '/legal/$slug'
     | '/platform/agents'
@@ -476,9 +521,11 @@ export interface FileRouteTypes {
     | '/platform/projects'
     | '/use-cases/$slug'
     | '/$lang/'
+    | '/blog/'
     | '/compare/'
     | '/platform/'
     | '/use-cases/'
+    | '/$lang/blog/$slug'
     | '/$lang/compare/$slug'
     | '/$lang/legal/$slug'
     | '/$lang/platform/agents'
@@ -488,6 +535,7 @@ export interface FileRouteTypes {
     | '/$lang/platform/knowledge'
     | '/$lang/platform/projects'
     | '/$lang/use-cases/$slug'
+    | '/$lang/blog/'
     | '/$lang/compare/'
     | '/$lang/platform/'
     | '/$lang/use-cases/';
@@ -502,6 +550,7 @@ export interface RootRouteChildren {
   HardwarePricingRoute: typeof HardwarePricingRoute;
   PricingRoute: typeof PricingRoute;
   RequestDemoRoute: typeof RequestDemoRoute;
+  BlogSlugRoute: typeof BlogSlugRoute;
   CompareSlugRoute: typeof CompareSlugRoute;
   LegalSlugRoute: typeof LegalSlugRoute;
   PlatformAgentsRoute: typeof PlatformAgentsRoute;
@@ -511,6 +560,7 @@ export interface RootRouteChildren {
   PlatformKnowledgeRoute: typeof PlatformKnowledgeRoute;
   PlatformProjectsRoute: typeof PlatformProjectsRoute;
   UseCasesSlugRoute: typeof UseCasesSlugRoute;
+  BlogIndexRoute: typeof BlogIndexRoute;
   CompareIndexRoute: typeof CompareIndexRoute;
   PlatformIndexRoute: typeof PlatformIndexRoute;
   UseCasesIndexRoute: typeof UseCasesIndexRoute;
@@ -595,6 +645,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CompareIndexRouteImport;
       parentRoute: typeof rootRouteImport;
     };
+    '/blog/': {
+      id: '/blog/';
+      path: '/blog';
+      fullPath: '/blog/';
+      preLoaderRoute: typeof BlogIndexRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
     '/$lang/': {
       id: '/$lang/';
       path: '/';
@@ -665,6 +722,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CompareSlugRouteImport;
       parentRoute: typeof rootRouteImport;
     };
+    '/blog/$slug': {
+      id: '/blog/$slug';
+      path: '/blog/$slug';
+      fullPath: '/blog/$slug';
+      preLoaderRoute: typeof BlogSlugRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
     '/$lang/request-demo': {
       id: '/$lang/request-demo';
       path: '/request-demo';
@@ -726,6 +790,13 @@ declare module '@tanstack/react-router' {
       path: '/compare';
       fullPath: '/$lang/compare/';
       preLoaderRoute: typeof LangCompareIndexRouteImport;
+      parentRoute: typeof LangRoute;
+    };
+    '/$lang/blog/': {
+      id: '/$lang/blog/';
+      path: '/blog';
+      fullPath: '/$lang/blog/';
+      preLoaderRoute: typeof LangBlogIndexRouteImport;
       parentRoute: typeof LangRoute;
     };
     '/$lang/use-cases/$slug': {
@@ -791,6 +862,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LangCompareSlugRouteImport;
       parentRoute: typeof LangRoute;
     };
+    '/$lang/blog/$slug': {
+      id: '/$lang/blog/$slug';
+      path: '/blog/$slug';
+      fullPath: '/$lang/blog/$slug';
+      preLoaderRoute: typeof LangBlogSlugRouteImport;
+      parentRoute: typeof LangRoute;
+    };
   }
 }
 
@@ -802,6 +880,7 @@ interface LangRouteChildren {
   LangPricingRoute: typeof LangPricingRoute;
   LangRequestDemoRoute: typeof LangRequestDemoRoute;
   LangIndexRoute: typeof LangIndexRoute;
+  LangBlogSlugRoute: typeof LangBlogSlugRoute;
   LangCompareSlugRoute: typeof LangCompareSlugRoute;
   LangLegalSlugRoute: typeof LangLegalSlugRoute;
   LangPlatformAgentsRoute: typeof LangPlatformAgentsRoute;
@@ -811,6 +890,7 @@ interface LangRouteChildren {
   LangPlatformKnowledgeRoute: typeof LangPlatformKnowledgeRoute;
   LangPlatformProjectsRoute: typeof LangPlatformProjectsRoute;
   LangUseCasesSlugRoute: typeof LangUseCasesSlugRoute;
+  LangBlogIndexRoute: typeof LangBlogIndexRoute;
   LangCompareIndexRoute: typeof LangCompareIndexRoute;
   LangPlatformIndexRoute: typeof LangPlatformIndexRoute;
   LangUseCasesIndexRoute: typeof LangUseCasesIndexRoute;
@@ -824,6 +904,7 @@ const LangRouteChildren: LangRouteChildren = {
   LangPricingRoute: LangPricingRoute,
   LangRequestDemoRoute: LangRequestDemoRoute,
   LangIndexRoute: LangIndexRoute,
+  LangBlogSlugRoute: LangBlogSlugRoute,
   LangCompareSlugRoute: LangCompareSlugRoute,
   LangLegalSlugRoute: LangLegalSlugRoute,
   LangPlatformAgentsRoute: LangPlatformAgentsRoute,
@@ -833,6 +914,7 @@ const LangRouteChildren: LangRouteChildren = {
   LangPlatformKnowledgeRoute: LangPlatformKnowledgeRoute,
   LangPlatformProjectsRoute: LangPlatformProjectsRoute,
   LangUseCasesSlugRoute: LangUseCasesSlugRoute,
+  LangBlogIndexRoute: LangBlogIndexRoute,
   LangCompareIndexRoute: LangCompareIndexRoute,
   LangPlatformIndexRoute: LangPlatformIndexRoute,
   LangUseCasesIndexRoute: LangUseCasesIndexRoute,
@@ -849,6 +931,7 @@ const rootRouteChildren: RootRouteChildren = {
   HardwarePricingRoute: HardwarePricingRoute,
   PricingRoute: PricingRoute,
   RequestDemoRoute: RequestDemoRoute,
+  BlogSlugRoute: BlogSlugRoute,
   CompareSlugRoute: CompareSlugRoute,
   LegalSlugRoute: LegalSlugRoute,
   PlatformAgentsRoute: PlatformAgentsRoute,
@@ -858,6 +941,7 @@ const rootRouteChildren: RootRouteChildren = {
   PlatformKnowledgeRoute: PlatformKnowledgeRoute,
   PlatformProjectsRoute: PlatformProjectsRoute,
   UseCasesSlugRoute: UseCasesSlugRoute,
+  BlogIndexRoute: BlogIndexRoute,
   CompareIndexRoute: CompareIndexRoute,
   PlatformIndexRoute: PlatformIndexRoute,
   UseCasesIndexRoute: UseCasesIndexRoute,

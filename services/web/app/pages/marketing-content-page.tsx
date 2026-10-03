@@ -12,11 +12,17 @@ import { absoluteSitePath } from '@tale/ui/seo/urls';
 import { ChevronRight } from 'lucide-react';
 import { useMemo } from 'react';
 
+import { BlogCollection } from '@/app/components/blocks/blog-articles';
+import { BlogCover, blogCover } from '@/app/components/blocks/blog-cover';
 import { RelatedUseCases } from '@/app/components/blocks/related-use-cases';
 import { UseCaseIllustration } from '@/app/components/blocks/use-case-illustration';
 import { MarketingProse } from '@/app/components/marketing/marketing-prose';
+import { BLOG_DIAGRAM_MANIFEST } from '@/app/generated/blog-diagram-manifest';
 import type { MarketingContentDocument } from '@/lib/content/model';
-import { MARKETING_CONTENT_PATHS } from '@/lib/content/model';
+import {
+  MARKETING_CONTENT_NAV_KEYS,
+  MARKETING_CONTENT_PATHS,
+} from '@/lib/content/model';
 import { useT } from '@/lib/i18n/client';
 import { SUPPORTED_LOCALES, type SupportedLocale } from '@/lib/i18n/locales';
 import { absoluteLocalizedUrl } from '@/lib/seo/absolute-url';
@@ -29,6 +35,13 @@ const REVIEW_DATE_FORMATTERS = Object.fromEntries(
   ]),
 ) as Record<SupportedLocale, Intl.DateTimeFormat>;
 
+const DIAGRAM_DIMENSIONS = Object.fromEntries(
+  BLOG_DIAGRAM_MANIFEST.map((diagram) => [
+    diagram.path,
+    { width: diagram.width, height: diagram.height },
+  ]),
+);
+
 /** One editorial reading surface for sourced comparisons and practical work guides. */
 export function MarketingContentPage({
   document,
@@ -37,12 +50,15 @@ export function MarketingContentPage({
 }) {
   const { t } = useT('contentPages');
   const { t: tNav } = useT('nav');
+  const { t: tBlog } = useT('blog');
   const { frontmatter, category, locale, path, content, slug } = document;
   const hubPath = MARKETING_CONTENT_PATHS[category];
   const hubLabel = tNav(
-    `resource.${category === 'comparisons' ? 'compare' : 'useCases'}.label`,
+    `resource.${MARKETING_CONTENT_NAV_KEYS[category]}.label`,
   );
   const isHub = slug === 'index';
+  const isBlog = category === 'blog';
+  const cover = isBlog && !isHub ? blogCover(frontmatter.topicId) : undefined;
   const hasIllustration = category === 'use-cases' && !isHub;
   const toc = useMemo(() => extractToc(content), [content]);
   const jsonLd = useMemo(() => {
@@ -66,8 +82,27 @@ export function MarketingContentPage({
         inLanguage: locale,
         lastReviewed: frontmatter.reviewed,
       }),
+      ...(cover
+        ? [
+            JSON.stringify({
+              '@context': 'https://schema.org',
+              '@type': 'BlogPosting',
+              '@id': `${url}#article`,
+              mainEntityOfPage: url,
+              headline: frontmatter.title,
+              description: frontmatter.description,
+              inLanguage: locale,
+              image: absoluteSitePath(TALE_SITE_URL, cover.variants.webp[1200]),
+              author: {
+                '@type': 'Organization',
+                name: 'Tale',
+                url: TALE_SITE_URL,
+              },
+            }),
+          ]
+        : []),
     ];
-  }, [document.url, frontmatter, hubLabel, hubPath, isHub, locale]);
+  }, [document.url, frontmatter, hubLabel, hubPath, isHub, locale, cover]);
 
   useDocumentMeta({
     title: frontmatter.title,
@@ -107,10 +142,12 @@ export function MarketingContentPage({
               {hubLabel}
             </MarketingLink>
           )}
-          {!isHub && frontmatter.competitor ? (
+          {!isHub ? (
             <>
               <ChevronRight aria-hidden className="size-3" />
-              <span aria-current="page">{frontmatter.competitor}</span>
+              <span aria-current="page">
+                {frontmatter.competitor ?? frontmatter.title}
+              </span>
             </>
           ) : null}
         </nav>
@@ -133,13 +170,33 @@ export function MarketingContentPage({
               descriptionClassName="max-w-3xl"
             />
             <p className="text-fg-subtle mt-7 font-mono text-xs">
+              {isBlog && !isHub ? (
+                <span>
+                  {tBlog('byline')}
+                  {' · '}
+                </span>
+              ) : null}
               <time dateTime={frontmatter.reviewed}>
-                {t('reviewed', { date: reviewedDate })}
+                {isBlog
+                  ? tBlog('reviewed', { date: reviewedDate })
+                  : t('reviewed', { date: reviewedDate })}
               </time>
             </p>
           </div>
           {hasIllustration ? <UseCaseIllustration slug={slug} /> : null}
         </div>
+        {cover ? (
+          <figure className="mt-10 sm:mt-14">
+            <BlogCover
+              topicId={frontmatter.topicId}
+              alt={frontmatter.coverAlt ?? ''}
+              priority
+            />
+            <figcaption className="text-fg-subtle mt-3 text-xs">
+              {tBlog('coverCaption')}
+            </figcaption>
+          </figure>
+        ) : null}
       </PageSection>
       <SiteContainer>
         <div className="mx-auto flex max-w-6xl items-start justify-between gap-16 py-10 sm:py-16 xl:gap-24">
@@ -148,6 +205,8 @@ export function MarketingContentPage({
             <MarketingProse
               tableLabel={frontmatter.title}
               tableScrollHint={t('tableScrollHint')}
+              imageLinkLabel={isBlog ? tBlog('openDiagram') : undefined}
+              images={isBlog ? DIAGRAM_DIMENSIONS : undefined}
               className="text-base leading-relaxed [&_h2]:mt-12 [&_h2]:mb-5 [&_h2]:text-2xl [&_h2]:leading-tight [&_h2]:font-medium [&_h2]:tracking-[-0.03em] [&_h2]:text-balance sm:[&_h2]:text-3xl [&_p]:my-5 [&_p]:leading-[1.8]"
             >
               {content}
@@ -156,7 +215,10 @@ export function MarketingContentPage({
           <DocsToc entries={toc} className="top-24 max-h-[calc(100dvh-6rem)]" />
         </div>
       </SiteContainer>
-      {!isHub ? (
+      {isBlog ? (
+        <BlogCollection locale={locale} topicId={frontmatter.topicId} />
+      ) : null}
+      {!isHub && !isBlog ? (
         <RelatedUseCases
           comparisonSlug={category === 'comparisons' ? slug : undefined}
           excludeSlug={category === 'use-cases' ? slug : undefined}
