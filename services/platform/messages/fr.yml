@@ -4627,6 +4627,13 @@ home:
       title: Aucune conversation
       hint: Les conversations clients de ce statut apparaissent ici.
       filtered: Aucune conversation ne correspond à la recherche ou aux filtres.
+  # Une lecture abandonnée (#4093) : une ligne par type que la vue liste,
+  # mises bout à bout si plusieurs ont échoué, au-dessus des lignes chargées.
+  failed:
+    chats: Impossible de charger tes chats.
+    tasks: Impossible de charger tes tâches.
+    conversations: Impossible de charger les conversations clients.
+    retrying: Nouvelle tentative…
   aria:
     panel: Accueil
     stream: Tes chats, tâches et conversations

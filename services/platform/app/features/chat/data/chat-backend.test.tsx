@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -10,6 +11,7 @@ import {
   useChatQuery,
   useChatSend,
   useChatThreads,
+  useChatThreadsRetry,
   useComposerModels,
 } from './chat-backend';
 import { storeComposerCatalog } from './composer-catalog-store';
@@ -131,6 +133,65 @@ describe('useChatQuery HTTP lane (migrated thread family)', () => {
       expect(typeof firstUrl === 'string' ? firstUrl : '').toContain(
         '/api/app/tasks/by-thread/thread-1',
       );
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+});
+
+describe('useChatThreadsRetry', () => {
+  // The Home stream's Try again (#4093): a list read that came back
+  // `unavailable` is asked for again on the seam's own client, and the
+  // reads that answered are left alone.
+  it('asks again for the chat list read that failed, and for it alone', async () => {
+    let status = 503;
+    const fetchSpy = vi
+      .spyOn(window, 'fetch')
+      .mockImplementation(() =>
+        Promise.resolve(
+          new Response(
+            JSON.stringify(
+              status === 200 ? { threads: [] } : { error: 'Unavailable' },
+            ),
+            { status, headers: { 'content-type': 'application/json' } },
+          ),
+        ),
+      );
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    function RetryProbe() {
+      const threads = useChatThreads('org-retry');
+      const retry = useChatThreadsRetry('org-retry');
+      return (
+        <button
+          type="button"
+          onClick={() => void retry({ threads: true, archived: false })}
+        >
+          {threads.status}
+        </button>
+      );
+    }
+    try {
+      const { user } = render(
+        <QueryClientProvider client={client}>
+          <RetryProbe />
+        </QueryClientProvider>,
+      );
+      await screen.findByText('unavailable');
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+
+      status = 200;
+      await user.click(screen.getByRole('button'));
+      await screen.findByText('ready');
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
+      const urls = fetchSpy.mock.calls.map(([input]) =>
+        typeof input === 'string' ? input : '',
+      );
+      expect(urls.every((url) => url.includes('/api/app/chat/threads'))).toBe(
+        true,
+      );
+      expect(urls.some((url) => url.includes('/archived'))).toBe(false);
     } finally {
       fetchSpy.mockRestore();
     }

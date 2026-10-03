@@ -1,6 +1,6 @@
 # Navigation & shell
 
-> **Prefix** `NAV-` · **Reset** none · **Cost** 66 boxes
+> **Prefix** `NAV-` · **Reset** none · **Cost** 67 boxes
 
 Exercise cross-app navigation — the primary side-nav rail and the section
 panels beside the page (the Home panel with its projects and its one stream of
@@ -343,6 +343,21 @@ loaded, and reads **No teams** for an account in none.
   `/dashboard/{org}/chat?new=true`; **Tasks** offers **All projects**
   (`home.projects.allProjects`), which opens `/dashboard/{org}/projects`;
   **Inbox** offers none. No view is left blank or on an endless skeleton.
+- [ ] `NAV-F44` · **Views whose read fails** — With at least one open task
+  assigned to you and one open conversation, block `*/api/app/chat/threads`
+  in DevTools → Network, reload `/dashboard/{org}/projects` and pick **All**,
+  **Chats** and **Tasks**; block `*/api/app/tasks?*` as well, reload and pick
+  them again; unblock both and press **Try again**
+  (`common.actions.tryAgain`) → Once the retries give up, **All** and
+  **Chats** show an alert **Couldn't load your chats.**
+  (`home.failed.chats`) above the stream, **All** keeps listing the tasks
+  and conversations that loaded, and **Tasks** shows no alert. With both
+  blocked, **All** names both kinds (**Couldn't load your tasks.**,
+  `home.failed.tasks`), and no view shows its empty state (`home.empty.*`,
+  NAV-F30) or offers its **New chat** or **All projects** button. While the
+  retry runs the alert reads **Trying again…** (`home.failed.retrying`); the
+  rows come back without a reload. The **Chats** and **Tasks** options show
+  no dot while their read is failed.
 - [ ] `NAV-F31` · **Hide and show the panel** — On a chat, a task page, an
   open conversation and a project's page
   (`/dashboard/{org}/projects/{projectId}/tasks/board`), press **Hide

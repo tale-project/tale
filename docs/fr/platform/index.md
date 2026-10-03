@@ -44,7 +44,7 @@ Sous les projets, une seule liste regroupe ton travail sous **Épinglés**, **Au
 - Les tâches ouvertes qui te sont attribuées ou qui attendent ta relecture, dans tous les projets que tu peux consulter.
 - Dans **Tout**, les conversations ouvertes de la boîte de réception que tu peux voir.
 
-Une vue **Tâches** vide propose **Tous les projets**, qui ouvre la liste des projets. Sur ordinateur, une vue **Tout** ou **Chats** vide propose aussi **Nouveau chat**.
+Une vue **Tâches** vide propose **Tous les projets**, qui ouvre la liste des projets. Sur ordinateur, une vue **Tout** ou **Chats** vide propose aussi **Nouveau chat**. Si tes chats, tes tâches ou tes conversations ne peuvent pas être chargés, la liste garde ce qui a été chargé et indique ce qui manque, au lieu d’afficher une vue vide. **Réessayer** relance le chargement.
 
 Sur téléphone, la liste diffère sur trois points :
 
