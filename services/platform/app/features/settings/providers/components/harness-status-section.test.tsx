@@ -125,6 +125,32 @@ describe('HarnessStatusSection', () => {
     expect(screen.getAllByText('No model yet')).toHaveLength(2);
   });
 
+  it('says why a runtime has no model when models exist but need the Responses API', () => {
+    const [available] = ROWS;
+    fixtures.status = [
+      ...(available ? [available] : []),
+      {
+        slug: 'opencode',
+        label: 'OpenCode',
+        managed: { available: false, reason: 'no-compatible-model' },
+        subscriptions: [],
+      },
+    ];
+    fixtures.health = [];
+    fixtures.statusError = null;
+
+    renderSection();
+
+    expect(
+      screen.getByText(/only Codex speaks\. Allow another model/),
+    ).toBeInTheDocument();
+    // Adding a credential would not help, so the credential note stays away.
+    expect(
+      screen.queryByText(/No directly usable provider credential yet/),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText('No model yet')).toBeInTheDocument();
+  });
+
   it('adds no credential note when every runtime has a model', () => {
     fixtures.status = ROWS.filter((row) => row.managed.available);
     fixtures.health = [];

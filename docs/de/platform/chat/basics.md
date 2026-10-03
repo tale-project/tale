@@ -33,7 +33,7 @@ Wähle ein bestimmtes Modell, wenn du Antworten vergleichen möchtest oder weiß
 
 </Frame>
 
-Sind keine Modelle verfügbar, bitte einen Admin, aktive Zugangsdaten und den Modellzugriff zu prüfen. Unter [Modelle](/de/platform/models) steht, wie der Katalog entsteht.
+Sind keine Modelle verfügbar, bitte einen Admin, aktive Zugangsdaten und den Modellzugriff zu prüfen. Der Chat bietet nur Modelle an, die Zugangsdaten per API-Schlüssel oder Umgebungsvariable bereitstellen: Ein Abo läuft nur in Aufgaben und Automatisierungen, und die Modellliste nennt die Abos, die sie auslässt. Unter [Modelle](/de/platform/models) steht, wie der Katalog entsteht.
 
 ## Die passenden Quellen bereitstellen
 

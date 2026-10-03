@@ -6,15 +6,22 @@
  * pure data mapping and deserves to be tested without a network, a
  * credential, or a Node runtime. Two formats exist because provider
  * connectors declare exactly two: OpenAI-compatible chat completions and
- * Anthropic messages.
+ * Anthropic messages. An OpenAI-compatible connector speaks a third body for
+ * a model whose catalog entry says its function tools work only on the
+ * Responses API (`toolCallingApi: responses`).
  *
  * Two shape rules matter and are easy to get wrong:
  *  - Anthropic takes the system prompt as a top-level parameter, not as a
- *    message. Consecutive messages of the same role are merged here.
+ *    message (the Responses API too, as `instructions`). Consecutive
+ *    Anthropic messages of the same role are merged here.
  *  - `max_tokens` is mandatory for Anthropic and caps the reply on OpenAI.
  */
 
-import type { ApiFormat, WireDialect } from '@tale/shared/schemas/providers';
+import type {
+  ApiFormat,
+  ModelCatalogEntry,
+  WireDialect,
+} from '@tale/shared/schemas/providers';
 
 import type { TurnSampling } from '../../../lib/chat/effort';
 import type { WireTool } from '../../../lib/chat/tools';
@@ -74,6 +81,14 @@ export interface ChatWireArgs {
    * model after Claude Opus 4.6 does (and an older one does while it thinks).
    */
   reasoningModel?: boolean;
+  /**
+   * The model's tool API, from its catalog entry. `responses` builds the
+   * OpenAI Responses API body (`POST <base>/responses`) instead of Chat
+   * Completions — the one wire on which such a model's function tools work.
+   * Only an OpenAI-compatible connector can spell it. Absent keeps the
+   * connector's own format.
+   */
+  toolCallingApi?: ModelCatalogEntry['toolCallingApi'];
   /** The connector's API origin, with or without a trailing slash. */
   baseUrl: string;
   modelId: string;
@@ -88,11 +103,12 @@ export interface ChatWireArgs {
   temperature?: number;
   maxTokens: number;
   /**
-   * The turn's reasoning control, when one was resolved. BOTH dialects spell
-   * an effort level — `reasoning_effort` on the OpenAI surface,
-   * `output_config.effort` on the Anthropic one — each folding the step to
-   * its own vocabulary. A thinking-token budget is an Anthropic-wire control
-   * alone; an OpenAI body cannot spell it and drops it loudly.
+   * The turn's reasoning control, when one was resolved. EVERY body spells
+   * an effort level — `reasoning_effort` on Chat Completions,
+   * `reasoning.effort` on the Responses API, `output_config.effort` on the
+   * Anthropic wire — each folding the step to its own vocabulary. A
+   * thinking-token budget is an Anthropic-wire control alone; an OpenAI body
+   * cannot spell it and drops it loudly.
    */
   reasoning?: TurnSampling['reasoning'];
   /** Provider attribution headers the platform sends where they apply. */
@@ -120,7 +136,9 @@ type EffortValue = Extract<
  * them. Anthropic's `output_config.effort` takes all five, spelling the
  * fourth `xhigh` — but has no off literal at all, so an `off` declaration on
  * an Anthropic-wire model resolves to `undefined` and the parameter is left
- * off the body rather than guessed at.
+ * off the body rather than guessed at. The Responses API takes all five too
+ * (`xhigh`, `max`: the vendor's pages for the models that need this wire
+ * list both) and passes the off literals through.
  */
 const OPENAI_EFFORT_LEVELS = {
   none: 'none',
@@ -130,6 +148,16 @@ const OPENAI_EFFORT_LEVELS = {
   high: 'high',
   extra: 'high',
   max: 'high',
+} as const satisfies Record<EffortValue, string>;
+
+const RESPONSES_EFFORT_LEVELS = {
+  none: 'none',
+  minimal: 'minimal',
+  low: 'low',
+  medium: 'medium',
+  high: 'high',
+  extra: 'xhigh',
+  max: 'max',
 } as const satisfies Record<EffortValue, string>;
 
 const ANTHROPIC_EFFORT_LEVELS = {
@@ -155,12 +183,12 @@ const ANTHROPIC_EFFORT_LEVELS = {
  * is exactly how both shipped mismatches went unnoticed.
  */
 function reasoningParameter(
-  apiFormat: ApiFormat,
+  body: ApiFormat | 'responses',
   reasoning: TurnSampling['reasoning'],
   modelId: string,
 ): Record<string, unknown> {
   if (reasoning === undefined) return {};
-  if (apiFormat === 'anthropic') {
+  if (body === 'anthropic') {
     if (reasoning.kind === 'thinking') {
       return {
         thinking: { type: 'enabled', budget_tokens: reasoning.budgetTokens },
@@ -180,6 +208,9 @@ function reasoningParameter(
       `[chat-wire] model "${modelId}" declares the budget-tokens knob, which an OpenAI-compatible wire cannot spell — the turn runs at the endpoint's own default; the catalog entry should declare the effort knob for this connector`,
     );
     return {};
+  }
+  if (body === 'responses') {
+    return { reasoning: { effort: RESPONSES_EFFORT_LEVELS[reasoning.value] } };
   }
   return { reasoning_effort: OPENAI_EFFORT_LEVELS[reasoning.value] };
 }
@@ -303,6 +334,115 @@ function anthropicBlockTurns(
   return turns;
 }
 
+/** The transcript as Responses API `input` items. System turns are left to
+ * `instructions`. A user turn is a message (its images `input_image` parts),
+ * an assistant turn its text as a message followed by one `function_call`
+ * item per call, and each tool result a `function_call_output` item, paired
+ * by `call_id`. No item carries a stored id: the request is `store: false`,
+ * so each round sends the whole transcript, as Chat Completions does. */
+function responsesInput(
+  messages: ChatWireMessage[],
+): Array<Record<string, unknown>> {
+  const input: Array<Record<string, unknown>> = [];
+  for (const message of messages) {
+    if (message.role === 'system') continue;
+    if (message.role === 'tool') {
+      for (const result of message.toolResults ?? []) {
+        input.push({
+          type: 'function_call_output',
+          call_id: result.callId,
+          output: result.content,
+        });
+      }
+      continue;
+    }
+    if (message.role === 'user') {
+      // Images force the content-parts array; a text-only turn keeps the
+      // plain string, as on Chat Completions.
+      const images = message.images ?? [];
+      input.push({
+        role: 'user',
+        content:
+          images.length > 0
+            ? [
+                ...(message.content.length > 0
+                  ? [{ type: 'input_text', text: message.content }]
+                  : []),
+                ...images.map((image) => ({
+                  type: 'input_image',
+                  image_url: `data:${image.mediaType};base64,${image.dataBase64}`,
+                })),
+              ]
+            : message.content,
+      });
+      continue;
+    }
+    if (message.content.length > 0) {
+      input.push({ role: 'assistant', content: message.content });
+    }
+    for (const call of message.toolCalls ?? []) {
+      input.push({
+        type: 'function_call',
+        call_id: call.id,
+        name: call.name,
+        arguments: JSON.stringify(call.input ?? {}),
+      });
+    }
+  }
+  return input;
+}
+
+/**
+ * The OpenAI Responses API request, for a model whose function tools work
+ * only there. The system prompt rides `instructions`; the output cap is
+ * `max_output_tokens`, the surface's only spelling; a custom temperature
+ * rides only a model KNOWN not to reason, as on the `openai-modern` dialect.
+ * Function tools are declared flat and NOT strict: the Responses API
+ * validates strictly unless told otherwise, and the chat's tool schemas were
+ * written for Chat Completions, which does not. `store: false` keeps the
+ * conversation off the vendor's side.
+ */
+function buildResponsesRequest(
+  args: ChatWireArgs,
+  base: string,
+  extra: Record<string, string>,
+): ChatWireRequest {
+  const instructions = args.messages
+    .filter((message) => message.role === 'system')
+    .map((message) => message.content)
+    .join('\n\n');
+  const sendTemperature =
+    args.temperature !== undefined && args.reasoningModel === false;
+  return {
+    url: `${base}/responses`,
+    headers: {
+      'content-type': 'application/json',
+      authorization: `Bearer ${args.apiKey}`,
+      ...extra,
+    },
+    body: JSON.stringify({
+      model: args.modelId,
+      ...(instructions ? { instructions } : {}),
+      max_output_tokens: args.maxTokens,
+      ...(sendTemperature ? { temperature: args.temperature } : {}),
+      ...reasoningParameter('responses', args.reasoning, args.modelId),
+      ...(args.tools !== undefined && args.tools.length > 0
+        ? {
+            tools: args.tools.map((tool) => ({
+              type: 'function',
+              name: tool.name,
+              description: tool.description,
+              parameters: tool.parameters,
+              strict: false,
+            })),
+          }
+        : {}),
+      input: responsesInput(args.messages),
+      store: false,
+    }),
+  };
+}
+
 export function buildChatRequest(args: ChatWireArgs): ChatWireRequest {
   const base = stripTrailingSlash(args.baseUrl);
   const extra = args.extraHeaders ?? {};
@@ -310,6 +450,18 @@ export function buildChatRequest(args: ChatWireArgs): ChatWireRequest {
   // keeps the exact string-content shape it had before either existed, so
   // prompt caches and golden tests never move.
   const toolMode = carriesToolMaterial(args) || carriesImages(args);
+
+  if (args.toolCallingApi === 'responses') {
+    // The Responses API is an OpenAI surface; an Anthropic-format connector
+    // has nothing to send such a model's tools on. The chat host refuses
+    // that pairing before the turn starts — this is the last line.
+    if (args.apiFormat !== 'openai') {
+      throw new Error(
+        `model "${args.modelId}" needs the Responses API for its tools, which an ${args.apiFormat} connector cannot speak`,
+      );
+    }
+    return buildResponsesRequest(args, base, extra);
+  }
 
   if (args.apiFormat === 'anthropic') {
     const system = args.messages
