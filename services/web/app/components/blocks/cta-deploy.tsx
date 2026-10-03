@@ -18,19 +18,20 @@ export function CtaDeploy() {
       border="t"
       className="bg-gradient-site-cta relative overflow-hidden"
     >
-      <Reveal className="mx-auto flex max-w-150 flex-col items-start gap-8 text-left md:gap-10">
-        <SectionHeading
-          bare
-          align="start"
-          title={t('cta.title')}
-          description={t('cta.description')}
-        />
-        <CtaPair
-          align="start"
-          primary={{ label: t('cta.getStarted'), href: GET_STARTED_HREF }}
-          secondary={{ label: t('cta.primary'), to: REQUEST_DEMO_PATH }}
-        />
-
+      <Reveal className="grid items-center gap-10 text-left lg:grid-cols-2 lg:gap-20">
+        <div className="flex min-w-0 flex-col items-start gap-8">
+          <SectionHeading
+            bare
+            align="start"
+            title={t('cta.title')}
+            description={t('cta.description')}
+          />
+          <CtaPair
+            align="start"
+            primary={{ label: t('cta.getStarted'), href: GET_STARTED_HREF }}
+            secondary={{ label: t('cta.primary'), to: REQUEST_DEMO_PATH }}
+          />
+        </div>
         <QuickstartTerminal
           title={t('cta.terminalTitle')}
           copyLabel={t('cta.copy')}

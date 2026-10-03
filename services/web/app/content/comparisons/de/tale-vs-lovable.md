@@ -5,10 +5,18 @@ competitor: "Lovable"
 slug: "tale-vs-lovable"
 relationship: "adjacent"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 Wenn ein Operations-Team ein Anfrageportal plant, braucht es eine funktionierende App und eine gemeinsame Organisation der Arbeit. Lovable und Tale können Teile davon unterstützen. Entscheidend ist, wo dein Team die Lösung entwickelt, die Aufgaben koordiniert und das Ergebnis weiterbetreut.
+
+## Vergleich auf einen Blick
+
+| Kriterium | Tale | Lovable |
+| --- | --- | --- |
+| Arbeitsbereich | Gemeinsame Aufgaben für Software, Recherche, Dokumente und weitere Projektergebnisse. | Erstellung von Full-Stack-Apps, Dokumenten und Dateien per natürlicher Sprache. |
+| Zusammenarbeit | Zugewiesene Aufgaben, Diskussionen und Ergebnisprüfung im gemeinsamen Projekt. | Gemeinsame Projekte, Workspace-Rollen und getrennte Entwürfe zur Übernahme ins Projekt. |
+| Veröffentlichung | Eine Bereitstellung braucht passende Tools, Hosting und autorisierten Zugriff. | Verwaltete HTTPS-Veröffentlichung; Zugriffsoptionen hängen vom Tarif ab. |
 
 ## Welche Arbeit steht im Mittelpunkt?
 

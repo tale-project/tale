@@ -5,10 +5,18 @@ competitor: "Replit"
 slug: "tale-vs-replit"
 relationship: "adjacent"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 An operations team that needs an internal app may evaluate both Replit and Tale. Replit brings creation and publishing into its product. Tale organizes the wider project through tasks, agent assignments and review. Start with the outcome: a running application, or a coordinated body of work whose outputs may also include research and documents.
+
+## Compare at a glance
+
+| Criterion | Tale | Replit |
+| --- | --- | --- |
+| Work surface | Shared project tasks for software, research, documents and reviewed deliverables. | Natural-language creation of apps, designs and slides, with integrated publishing. |
+| Collaboration | Task ownership, instructions, files and agent reports stay in the shared project. | Shared board and separate agent threads; isolated background tasks reviewed before applying changes. |
+| Deployment | Requires prepared runtime credentials, tools, capacity and deployment access. | Publishing creates a deployment distinct from the development preview. |
 
 ## Account for the real overlap
 

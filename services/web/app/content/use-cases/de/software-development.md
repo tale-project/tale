@@ -3,7 +3,7 @@ title: Softwareentwicklung mit KI im Team | Tale
 description: Aus Softwareideen werden Aufgaben für Menschen und KI-Agenten. Koordiniere Umsetzung, Tests, Review und Dokumentation in einem gemeinsamen Tale-Projekt.
 slug: software-development
 reviewed: '2026-10-03'
-draft: true
+draft: false
 ---
 
 Beschreibe die Website, App oder das interne Werkzeug, das dein Team braucht. Organisiere dann die Arbeit vom Briefing über Umsetzung, Tests und Review bis zur Release-Vorbereitung. In Tale arbeiten technische und nichttechnische Teammitglieder über Projektaufgaben und Diskussionen mit Agenten zusammen.

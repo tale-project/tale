@@ -5,10 +5,18 @@ competitor: "Lindy"
 slug: "tale-vs-lindy"
 relationship: "direct"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 Where should a request become shared work: in the channels your team already uses, or on a project board that tracks the assignment through delivery? Tale and Lindy both address collaboration, so the answer depends on your team's working habits.
+
+## Compare at a glance
+
+| Criterion | Tale | Lindy |
+| --- | --- | --- |
+| Work surface | Shared projects with assigned tasks, discussions and files. | AI teammate in Slack and company tools, including shared channels. |
+| Recurring work | Configured agents and automations support project work. | Recurring tasks and reusable skills support ongoing assistance. |
+| External actions | Connector writes run through automations with configured approval rules. | Documents approval controls for actions in external tools. |
 
 ## Compare the collaboration setting
 

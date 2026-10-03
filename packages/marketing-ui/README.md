@@ -86,6 +86,18 @@ Keep the real information readable with animation disabled; `useDemoTimeline` an
 the shared motion entry points. Test reduced motion and the static rendered state as well as the
 animated sequence.
 
+`DemoShell domain` coordinates a theme-aware illustration palette with its surrounding `DemoStage`: mint projects/governance, coral agents, violet chat, gold automations, and sky knowledge. It defaults to `activeNav`; override it for stories such as agent workspaces inside chat. The stage stays still and has no decorative accent line.
+
+`DemoStage` is a named `demo` query container. Size the illustration's internals with container
+variants such as `@lg/demo:` instead of viewport variants: a window beside copy can be narrow on
+a wide screen. Reserve a minimum height along with its aspect ratio so the final translated
+content fits before playback starts. Keep the complete story visible at 320px and at the
+1024px transition to split tour rows.
+
+`SiteContainer` grows from 20px phone gutters to 32px on tablets and 48px on desktop, within a
+1360px frame. `SectionHeading` uses fluid type sizes. Let these shared components own the page
+rhythm; avoid adding fixed desktop padding or duplicate heading scales in the host.
+
 ## Verify a change
 
 ```bash

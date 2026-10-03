@@ -14,9 +14,9 @@ const pageSectionVariants = cva('', {
       transparent: 'bg-transparent',
     },
     pad: {
-      md: 'py-12 md:py-16',
-      lg: 'py-16 md:py-20',
-      xl: 'py-20 md:py-28',
+      md: 'py-12 sm:py-16',
+      lg: 'py-16 sm:py-20 lg:py-24',
+      xl: 'py-20 sm:py-24 lg:py-32',
     },
     border: {
       none: '',

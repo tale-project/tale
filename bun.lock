@@ -459,6 +459,7 @@
         "@tale/marketing-ui": "workspace:*",
         "@tale/ui": "workspace:*",
         "@tanstack/react-table": "8.21.3",
+        "framer-motion": "12.38.0",
       },
       "devDependencies": {
         "@playwright/test": "1.58.2",
@@ -473,6 +474,7 @@
       "dependencies": {
         "@tale/marketing-ui": "workspace:*",
         "@tale/ui": "workspace:*",
+        "class-variance-authority": "0.7.1",
         "framer-motion": "12.38.0",
         "react-markdown": "10.1.0",
         "remark-gfm": "4.0.1",

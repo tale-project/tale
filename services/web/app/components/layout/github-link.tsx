@@ -36,7 +36,7 @@ export function GithubLink({
         'text-fg-muted hover:text-fg-base transition-colors',
         focusRing,
         labeled
-          ? 'inline-flex items-center gap-2 text-lg'
+          ? 'inline-flex min-h-11 items-center gap-2 text-lg'
           : 'hover:bg-surface-site-inset inline-flex size-9 shrink-0 items-center justify-center rounded-full',
         className,
       )}

@@ -110,6 +110,12 @@ nav:
       label: Gouvernance
       description: Approbations, journal d’audit et contrôle des dépenses.
   resource:
+    compare:
+      label: Comparatifs
+      description: Compare les espaces de travail, les workflows et les environnements des agents.
+    useCases:
+      label: Cas d’usage
+      description: Des tâches concrètes pour ton équipe et tes agents IA.
     hardware:
       label: Matériel
       description: Appliances on-prem dimensionnées pour ta charge d’agents.
@@ -159,7 +165,7 @@ address:
   country: Suisse
 home:
   hero:
-    title: Un tableau de projet pour ton équipe et tes agents IA
+    title: Un espace de travail pour ton équipe et tes agents IA
     subtitle:
       Planifie le travail avec ton équipe, délègue les tâches aux agents IA et
       examine les résultats avec elle. Du développement logiciel aux campagnes
@@ -324,16 +330,14 @@ home:
       members3: '5'
       members4: '11'
     tasks:
-      windowTitle: Tâches
-      colTodo: À faire
-      colInProgress: En cours
-      colInReview: En revue
-      colDone: Terminé
+      windowTitle: "Tâches"
+      colTodo: "À faire"
+      colInProgress: "En cours"
+      colInReview: "En revue"
+      colDone: "Terminé"
       working: En cours
       label:
-        "Démo animée : un tableau de projet partagé avec À faire, En cours, En
-        revue et Terminé. Personnes et agents prennent des tâches ; un agent
-        travaille sur une carte."
+        "Démo animée : un tableau de projet partagé avec À faire, En cours, En revue et Terminé. Personnes et agents prennent des tâches ; un agent travaille sur une carte."
       id1: TEAM-14
       title1: Planifier le brief de campagne
       assignee1: Non assigné
@@ -2376,9 +2380,7 @@ platformProjects:
       audit3: Décision enregistrée dans le journal d’audit
       budgetValue: CHF 120 / 400
     tasks:
-      label: "Démo animée : le tableau de refonte du site. L’agent de refonte
-        travaille sur WEB-12 dans En cours, tandis que WEB-11 attend dans En
-        revue."
+      label: "Démo animée : le tableau de refonte du site. L’agent de refonte travaille sur WEB-12 dans En cours, tandis que WEB-11 attend dans En revue."
       id1: WEB-14
       title1: Finir la carte de redirections /docs
       assignee1: Non assigné
@@ -2425,3 +2427,12 @@ changelogPage:
   viewOnGithub: Voir sur GitHub
   emptyBody: Pas de notes pour cette version.
   fetchedAt: Dernière mise à jour le {date}.
+contentPages:
+  tableScrollHint: Fais défiler horizontalement pour comparer
+  breadcrumb: Chemin de la page
+  reviewed: 'Vérifié le {date}'
+  relatedTitle: Des tâches à essayer avec ton équipe
+  relatedDescription: Commence par un brief clair, des livrables définis et un processus de révision.
+  nextTitle: Essaie avec ton propre projet
+  nextDescription: Apporte une tâche concrète et les outils que ton équipe utilise déjà.
+  allUseCases: Tous les cas d’usage

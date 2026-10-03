@@ -5,10 +5,18 @@ competitor: "Dify"
 slug: "tale-vs-dify"
 relationship: "adjacent"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 Une application IA que d'autres utilisent et un espace où une équipe réalise son travail sont deux livrables différents. Dify et Tale se recoupent sur les agents et les workflows. Commence par choisir le résultat dont ton équipe doit être responsable.
+
+## Comparaison en bref
+
+| Critère | Tale | Dify |
+| --- | --- | --- |
+| Livrables | Un projet partagé pour produire et vérifier les livrables de l’équipe | Applications IA réutilisables, API, intégrations et outils compatibles MCP |
+| Mode de contrôle | Tâches attribuées, échanges partagés et agents de projet configurés | Processus visuels, pipelines de connaissances et intégrations de modèles et d’outils |
+| Travail récurrent | Automatisations de processus récurrents définis, en complément des projets | Publier et exploiter des applications IA réutilisables dans le cloud ou en auto-hébergement |
 
 ## Livrer une application ou un projet
 

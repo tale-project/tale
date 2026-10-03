@@ -5,10 +5,18 @@ competitor: "Cursor"
 slug: "tale-vs-cursor"
 relationship: "adjacent"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 Cursor est pertinent si ton équipe veut écrire, tester et vérifier du logiciel avec des agents. Tale mérite une évaluation si elle souhaite aussi coordonner des recherches, du marketing et des documents. Le choix dépend de l’espace de travail dont ton équipe a besoin. Les deux produits peuvent coexister.
+
+## Comparaison en bref
+
+| Critère | Tale | Cursor |
+| --- | --- | --- |
+| Espace de travail | Projets partagés avec tâches attribuées, fichiers et vérification | Éditeur de code, processus partagés et agents cloud |
+| Coordination | Tâches d’agents et responsables de vérification pour code, recherche et documents | Accès au dépôt pour les exécutions partagées ; messages de suivi activables par un administrateur |
+| Exécution | Cursor CLI avec identifiants directs, sans canal MCP Tale ; nouvelles instructions dans un nouveau processus | Agents cloud dans des environnements de développement isolés, avec exécution parallèle |
 
 ## Distingue le produit de son runtime
 

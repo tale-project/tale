@@ -3,7 +3,7 @@ title: Dokumentenarbeit mit KI und Teamreview | Tale
 description: Koordiniere Berichte, Präsentationen, Tabellen und Überarbeitungen mit KI-Agenten. Briefing, Dateien, Feedback und Review bleiben in Tale zusammen.
 slug: document-work
 reviewed: '2026-10-03'
-draft: true
+draft: false
 ---
 
 Berichte, Präsentationen und Tabellen gehen meist durch mehrere Hände, bevor sie fertig sind. In Tale definiert dein Team den Auftrag an einem gemeinsamen Ort, delegiert die Dateiarbeit an einen Agenten und prüft die Ergebnisse.

@@ -3,7 +3,7 @@ title: Operative Arbeit mit KI-Agenten koordinieren | Tale
 description: Organisiere interne Anfragen, Untersuchungen und wiederkehrende Arbeit mit Menschen und KI-Agenten. Verfolge Zuständigkeiten, Ergebnisse und Reviews in Tale.
 slug: operations
 reviewed: '2026-10-03'
-draft: true
+draft: false
 ---
 
 Im operativen Alltag treffen feste Abläufe auf Anfragen, die Recherche und Urteilsvermögen brauchen. Tale bietet deinem Team ein Projektboard für beides: Menschen definieren die Arbeit, Agenten übernehmen passende Aufgaben und Reviewer prüfen das Ergebnis.

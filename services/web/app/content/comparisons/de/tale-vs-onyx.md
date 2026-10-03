@@ -5,10 +5,18 @@ competitor: "Onyx"
 slug: "tale-vs-onyx"
 relationship: "adjacent"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 Wenn Informationen über viele Anwendungen verteilt sind, gehören Wissenssuche und die Organisation der Folgearbeit zusammen. Trotzdem sind es unterschiedliche Kaufkriterien. Prüfe Onyx und Tale an beiden Teilen, bevor du dich für einen Arbeitsbereich entscheidest.
+
+## Vergleich auf einen Blick
+
+| Kriterium | Tale | Onyx |
+| --- | --- | --- |
+| Ausgangspunkt | Verantwortete Projektaufgaben mit Briefings, Dateien, Diskussionen und geprüften Ergebnissen. | Eine Wissensebene für Unternehmen mit berechtigungsabhängiger Indexierung über Anwendungen hinweg. |
+| Agentenarbeit | Agenten erstellen Berichte, Dokumente oder Software in persistenten Arbeitsbereichen. | Eigene Agenten, Deep Research, MCP-Aktionen und Sandbox-Ausführung mit Artefakten. |
+| Fokus des Tests | Verantwortung und Übergabe vom Quellenmaterial bis zum akzeptierten Projektergebnis testen. | Quellenrecherche und Berechtigungen zusammen mit Ausführung und Übergabe testen. |
 
 ## Kontext und Ausführung zählen
 

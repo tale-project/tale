@@ -5,10 +5,18 @@ competitor: "Onyx"
 slug: "tale-vs-onyx"
 relationship: "adjacent"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 Quand les informations sont réparties entre plusieurs applications, retrouver le contexte et organiser le travail qui en découle sont deux besoins liés. Compare Onyx et Tale sur ces deux dimensions avant de choisir l'espace de travail de ton équipe.
+
+## Comparaison en bref
+
+| Critère | Tale | Onyx |
+| --- | --- | --- |
+| Point de départ | Tâches de projet avec responsables, briefs, fichiers, discussions et livrables à valider. | Une couche de contexte d’entreprise avec indexation respectant les permissions entre applications. |
+| Travail des agents | Les agents préparent rapports, documents ou logiciels dans des espaces persistants. | Agents personnalisés, recherche approfondie, actions MCP et exécution en sandbox produisant des fichiers. |
+| Point à tester | Tester la responsabilité et le passage des sources au résultat de projet accepté. | Tester la recherche de sources et les permissions avec l’exécution et le passage de relais. |
 
 ## Le contexte et l'exécution comptent
 

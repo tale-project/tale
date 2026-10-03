@@ -5,10 +5,18 @@ competitor: "Dust"
 slug: "tale-vs-dust"
 relationship: "direct"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 Tale and Dust both put people and agents in shared work, including assigned tasks. The useful comparison is how the task lifecycle, runtime choices, and deployment model fit your team. A project board alone does not separate these products.
+
+## Compare at a glance
+
+| Criterion | Tale | Dust |
+| --- | --- | --- |
+| Working surface | Shared projects with assigned tasks, files, and review | Pods combine conversations, files, and tasks for people and agents |
+| Shared context | Project briefs, files, discussion, and reviewed outputs | Shared agents connected to company sources and tools |
+| Execution | Persistent sandbox workspaces; concurrency depends on configured capacity | Task-linked conversations let teammates follow and redirect work |
 
 ## Two approaches to shared AI work
 

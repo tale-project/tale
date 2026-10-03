@@ -58,7 +58,7 @@ export function ChatArena({
       <DemoShell
         label={scene.label}
         activeNav="chat"
-        className="mx-auto aspect-[7/10] max-w-4xl sm:aspect-[16/9]"
+        className="mx-auto aspect-[7/10] min-h-200 max-w-4xl @lg/demo:aspect-[16/9] @lg/demo:min-h-144"
       >
         <div className="flex h-full flex-col">
           {beat >= BEAT.prompt ? (
@@ -66,15 +66,15 @@ export function ChatArena({
               initial={reduceMotion ? false : { opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.35, ease: easeOut }}
-              className="border-border-base/70 shrink-0 border-b px-3 py-2.5 md:px-4"
+              className="border-border-base/70 shrink-0 border-b px-3 py-2.5 @2xl/demo:px-4"
             >
-              <div className="bg-surface-site-inset text-fg-base ml-auto max-w-[85%] rounded-2xl px-3 py-2 text-xs md:text-sm">
+              <div className="demo-soft text-fg-base ml-auto max-w-[85%] rounded-2xl px-3 py-2 text-xs @2xl/demo:text-sm">
                 {scene.prompt}
               </div>
             </motion.div>
           ) : null}
 
-          <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden sm:grid-cols-2">
+          <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden @lg/demo:grid-cols-2">
             <ArenaPane
               show={beat >= BEAT.paneA}
               model={scene.modelA}
@@ -127,7 +127,9 @@ function ArenaPane({
   const reduceMotion = useReducedMotion();
   if (!show) {
     return (
-      <div className={cn(border && 'border-border-base/70 sm:border-r')} />
+      <div
+        className={cn(border && 'border-border-base/70 @lg/demo:border-r')}
+      />
     );
   }
 
@@ -137,12 +139,22 @@ function ArenaPane({
       animate={{ opacity: 1 }}
       transition={{ duration: 0.35, ease: easeOut }}
       className={cn(
-        'flex min-h-0 flex-col overflow-hidden p-3 md:p-4',
-        border && 'border-border-base/70 sm:border-r',
+        'flex min-h-0 flex-col overflow-hidden p-3 @2xl/demo:p-4',
+        border ? 'bg-demo-violet-soft/40' : 'bg-demo-coral-soft/40',
+        border && 'border-border-base/70 @lg/demo:border-r',
       )}
     >
       <div className="text-fg-muted mb-2 flex shrink-0 items-center gap-1.5 text-[11px] font-medium">
-        <Cpu className="size-3.5" strokeWidth={1.75} />
+        <span
+          className={cn(
+            'flex size-6 shrink-0 items-center justify-center rounded-lg',
+            border
+              ? 'bg-demo-violet-soft text-demo-violet'
+              : 'bg-demo-coral-soft text-demo-coral',
+          )}
+        >
+          <Cpu className="size-3.5" strokeWidth={1.75} />
+        </span>
         <span className="truncate">{model}</span>
         <ChevronDown className="size-3 opacity-70" />
       </div>
@@ -151,7 +163,7 @@ function ArenaPane({
           segments={segments}
           visible={visible}
           streaming={streaming}
-          className="text-fg-base text-xs leading-relaxed md:text-[13px]"
+          className="text-fg-base text-xs leading-relaxed @2xl/demo:text-[13px]"
         />
       ) : null}
     </motion.div>

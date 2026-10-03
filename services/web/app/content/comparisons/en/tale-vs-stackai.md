@@ -5,7 +5,7 @@ competitor: "StackAI"
 slug: "tale-vs-stackai"
 relationship: "adjacent"
 reviewed: '2026-10-03'
-draft: true
+draft: false
 ---
 
 ## Are you shipping an agent or running a project?
@@ -13,6 +13,14 @@ draft: true
 An internal AI initiative can have two different deliverables: a reusable application that colleagues invoke, or a completed piece of work that several people and agents contribute to. Start with the deliverable your team actually owns. That distinction is more useful than counting how often a product mentions agents.
 
 [StackAI’s overview](https://docs.stackai.com/welcome-to-stackai/overview) describes a visual builder connected to knowledge bases, tools, and business systems. It supports deployment to chat, forms, APIs, and internal teams, alongside governance, access controls, and observability. Its documented emphasis is building, deploying, and operating enterprise agents.
+
+## Compare at a glance
+
+| Criterion | Tale | StackAI |
+| --- | --- | --- |
+| Starting point | Project tasks with equipped agents and reviewed outputs. | A visual builder connecting knowledge, tools and business systems. |
+| Team delivery | Task discussions and shared files connect research, drafts and review. | Deploys agent experiences through chat, forms and APIs for internal teams. |
+| Operating setup | Prepare runtime access, instructions, tools and an owner for review. | Documents governance, access controls and observability for deployed systems. |
 
 ## Match the product to its owner
 

@@ -1,3 +1,4 @@
+import * as RadioGroupPrimitive from '@radix-ui/react-radio-group';
 import { cn } from '@tale/ui/cn';
 import { useT } from '@tale/ui/i18n/client';
 import { useTheme } from '@tale/ui/theme';
@@ -7,9 +8,8 @@ import { useEffect, useId, useRef, useState } from 'react';
 
 import { useDropdownPlacement } from '../../hooks/use-dropdown-placement';
 
-// 3 menu items × ~40px row + ~8px padding ≈ 130px; round up so the flip
-// trigger fires a hair early rather than late.
-const THEME_MENU_HEIGHT = 144;
+// Three 44px rows, padding, border and the 8px trigger gap; round up.
+const THEME_MENU_HEIGHT = 152;
 
 type Theme = 'light' | 'dark' | 'system';
 
@@ -25,7 +25,7 @@ const ICONS = {
 interface ThemeSwitcherProps {
   className?: string;
   /** `'menu'` (default) renders an icon button + dropdown picker. `'segmented'`
-   *  renders the three options inline as a pill with the active option
+   *  renders the three options inline with the active option
    *  highlighted — used by the marketing footer per design. */
   variant?: 'menu' | 'segmented';
 }
@@ -34,7 +34,7 @@ interface ThemeSwitcherProps {
  * Three-way theme switcher (light / dark / system). Two visual variants
  * sharing the same `useTheme` wiring:
  *  - `menu`: icon button that opens a dropdown of options.
- *  - `segmented`: pill-style segmented control with all three icons
+ *  - `segmented`: a segmented radio group with all three icons
  *    visible at once.
  *
  * Translatable labels live under the `themeSwitcher` namespace:
@@ -51,51 +51,42 @@ export function ThemeSwitcher({
   );
 }
 
-// Pill geometry: each option button is 26×26 with a 3px gap and 3px outer
-// padding. The sliding indicator translates by (button + gap) per step.
-const SEGMENT_STEP_PX = 26 + 3;
-
 function SegmentedThemeSwitcher({ className }: { className?: string }) {
   const { t } = useT('themeSwitcher');
   const { theme, setTheme } = useTheme();
-  const activeIndex = Math.max(0, SEGMENTED_ORDER.indexOf(theme));
   return (
-    <div
-      role="radiogroup"
+    <RadioGroupPrimitive.Root
       aria-label={t('ariaLabel')}
+      orientation="horizontal"
+      loop
+      value={theme}
+      onValueChange={(value) => {
+        const next = SEGMENTED_ORDER.find((option) => option === value);
+        if (next) setTheme(next);
+      }}
       className={cn(
-        'bg-bg-muted relative inline-flex items-center gap-[3px] rounded-full p-[3px]',
+        'border-border-base bg-bg-muted inline-flex shrink-0 items-center gap-1 rounded-2xl border p-1',
         className,
       )}
     >
-      <span
-        aria-hidden
-        className="bg-bg-base pointer-events-none absolute top-[3px] left-[3px] size-[26px] rounded-full shadow-[0_1px_2px_rgba(0,0,0,0.05)] transition-transform duration-300 ease-out will-change-transform motion-reduce:transition-none dark:bg-[#404045] dark:shadow-[0_1px_4px_rgba(0,0,0,0.25)]"
-        style={{ transform: `translateX(${activeIndex * SEGMENT_STEP_PX}px)` }}
-      />
       {SEGMENTED_ORDER.map((option) => {
         const Icon = ICONS[option];
-        const isActive = theme === option;
         return (
-          <button
+          <RadioGroupPrimitive.Item
             key={option}
-            type="button"
-            role="radio"
-            aria-checked={isActive}
+            value={option}
             aria-label={t(option)}
-            onClick={() => setTheme(option)}
-            className={cn(
-              'focus-visible:ring-fg-base/60 focus-visible:ring-offset-bg-muted relative inline-flex size-[26px] cursor-pointer items-center justify-center rounded-full transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 motion-reduce:transition-none',
-              isActive
-                ? 'text-fg-base'
-                : 'text-fg-muted hover:text-fg-base dark:hover:text-fg-base dark:text-[#6b7280]',
-            )}
+            title={t(option)}
+            // Selection follows the roving focus even when a quick arrow key
+            // is released before Radix's deferred focus movement completes.
+            onFocus={() => setTheme(option)}
+            className="text-fg-muted hover:text-fg-base focus-visible:outline-fg-base data-[state=checked]:border-border-base data-[state=checked]:bg-bg-base data-[state=checked]:text-fg-base relative inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-xl border border-transparent transition-colors duration-150 focus-visible:z-10 focus-visible:outline-2 focus-visible:outline-offset-2 data-[state=checked]:shadow-sm motion-reduce:transition-none"
           >
-            <Icon aria-hidden className="size-3.5" />
-          </button>
+            <Icon aria-hidden className="size-4" strokeWidth={1.75} />
+          </RadioGroupPrimitive.Item>
         );
       })}
-    </div>
+    </RadioGroupPrimitive.Root>
   );
 }
 
@@ -183,7 +174,7 @@ function MenuThemeSwitcher({ className }: { className?: string }) {
         aria-controls={menuId}
         aria-label={t('ariaLabel')}
         onClick={() => setOpen((v) => !v)}
-        className="border-border-base bg-bg-base text-fg-muted hover:text-fg-base hover:border-border-strong focus-visible:ring-fg-base/60 focus-visible:ring-offset-bg-base inline-flex size-9 cursor-pointer items-center justify-center rounded-md border transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+        className="border-border-base bg-bg-base text-fg-muted hover:text-fg-base hover:border-border-strong focus-visible:ring-fg-base/60 focus-visible:ring-offset-bg-base inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-xl border shadow-sm transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 motion-reduce:transition-none"
       >
         <ActiveIcon aria-hidden className="size-4" />
       </button>
@@ -195,7 +186,7 @@ function MenuThemeSwitcher({ className }: { className?: string }) {
           aria-label={t('ariaLabel')}
           onKeyDown={onMenuKeyDown}
           className={cn(
-            'border-border-base bg-bg-base absolute right-0 z-30 flex min-w-40 flex-col overflow-hidden rounded-md border py-1 shadow-lg',
+            'border-border-base bg-bg-base absolute right-0 z-30 flex min-w-40 flex-col rounded-xl border p-1 shadow-lg',
             placement === 'up' ? 'bottom-full mb-2' : 'top-full mt-2',
           )}
         >
@@ -217,8 +208,10 @@ function MenuThemeSwitcher({ className }: { className?: string }) {
                     buttonRef.current?.focus();
                   }}
                   className={cn(
-                    'hover:bg-bg-elevated focus-visible:ring-fg-base/60 focus-visible:ring-offset-bg-base flex w-full cursor-pointer items-center gap-2.5 px-3 py-2 text-left text-sm transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2',
-                    isActive ? 'text-fg-base font-medium' : 'text-fg-muted',
+                    'hover:bg-bg-elevated focus-visible:bg-bg-muted focus-visible:outline-fg-base flex min-h-11 w-full cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm transition-colors duration-150 focus-visible:outline-2 focus-visible:-outline-offset-2 motion-reduce:transition-none',
+                    isActive
+                      ? 'bg-bg-muted text-fg-base font-medium'
+                      : 'text-fg-muted',
                   )}
                 >
                   <Icon aria-hidden className="size-3.5 shrink-0" />

@@ -5,10 +5,18 @@ competitor: "Agent Zero"
 slug: "tale-vs-agent-zero"
 relationship: "framework"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 Si ton besoin principal est un agent capable d’utiliser un ordinateur, Agent Zero mérite un essai. Si plusieurs personnes doivent planifier, déléguer et vérifier ce travail ensemble, teste aussi le processus de projet qui l’entoure. L’accès à un ordinateur ne suffit pas à trancher.
+
+## Comparaison en bref
+
+| Critère | Tale | Agent Zero |
+| --- | --- | --- |
+| Espace de travail | Projets partagés avec tâches attribuées, fichiers et vérification | Environnement d’agent avec projets, skills et accès à un ordinateur |
+| Exécution | Agents de projet avec environnements, outils et autorisations configurés | Bureau Linux sous Docker, navigateur et connexion à la machine hôte |
+| Coordination | Tableau d’équipe ; délégation selon les autorisations et la capacité | Délégation à des sous-agents documentée |
 
 ## Souplesse d’exécution et coordination
 

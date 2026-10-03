@@ -99,10 +99,10 @@ export interface DocsHeaderProps {
  */
 export function DocsHeader({ crumbs, actions }: DocsHeaderProps) {
   return (
-    <div className="border-border bg-background/95 z-20 flex shrink-0 flex-col gap-2 border-b px-4 py-2.5 backdrop-blur-md md:sticky md:top-0 md:h-13 md:flex-row md:items-center md:gap-4 md:py-0 lg:px-6">
+    <div className="border-border/70 bg-background/90 z-20 flex shrink-0 flex-col gap-2 border-b px-5 py-3 backdrop-blur-md md:sticky md:top-0 md:h-13 md:flex-row md:items-center md:gap-4 md:py-0 lg:px-8">
       <DocsBreadcrumbTrail crumbs={crumbs} />
       {actions ? (
-        <div className="flex shrink-0 items-center gap-1 md:ml-auto print:hidden">
+        <div className="flex max-w-full shrink-0 flex-wrap items-center gap-1 md:ml-auto print:hidden">
           {actions}
         </div>
       ) : null}

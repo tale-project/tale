@@ -5,10 +5,18 @@ competitor: "n8n"
 slug: "tale-vs-n8n"
 relationship: "adjacent"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 Some work is best described as a repeatable flow between systems. Other work starts as a brief that people and agents refine together. Tale and n8n can both automate work; compare the operating model your team needs most often.
+
+## Compare at a glance
+
+| Criterion | Tale | n8n |
+| --- | --- | --- |
+| Work surface | A shared project board for assigned, open-ended work and deliverable review. | Visual workflows with code, application integrations, AI agents and execution inspection. |
+| Repeatable work | Versioned automations provide defined steps, triggers and connector approval rules. | Workflow automation includes AI work and documented human approval steps. |
+| Pilot focus | Follow the owner, discussion and reviewed output when a request becomes an exception. | Build and inspect the routine flow; verify retries and approvals in the chosen deployment. |
 
 ## A workflow canvas and a project board
 

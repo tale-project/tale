@@ -3,7 +3,7 @@ title: Comparer les espaces pour agents IA et Tale
 description: Compare Tale aux espaces de projet, assistants IA, plateformes de workflows et frameworks d’agents. Choisis selon la délégation et la revue dans ton équipe.
 slug: compare
 reviewed: '2026-10-03'
-draft: true
+draft: false
 ---
 
 Un comparatif utile part du travail que ton équipe doit coordonner. Tale est un espace de projet open source où les personnes attribuent des tâches aux agents, donnent des indications et examinent les livrables ensemble.

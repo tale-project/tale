@@ -5,7 +5,7 @@ competitor: "LlamaIndex"
 slug: "tale-vs-llamaindex"
 relationship: "framework"
 reviewed: '2026-10-03'
-draft: true
+draft: false
 ---
 
 ## Ist das Ergebnis ein Dokumentensystem oder eine Teamentscheidung?
@@ -13,6 +13,14 @@ draft: true
 Dokumentenarbeit umfasst mehrere Probleme: Informationen extrahieren, sie Agenten zugänglich machen und entscheiden, was das Team damit tun soll. Eine gute Extraktionspipeline und ein klarer Projektprozess lösen unterschiedliche Teile dieser Aufgabe. Bestimme vor der Produktauswahl, welchen Teil du selbst verantworten musst.
 
 [LlamaIndex](https://www.llamaindex.ai/) betont aktuell Dokumentenverarbeitung mit KI, darunter LlamaParse, strukturierte Extraktion, Retrieval und Werkzeuge für Dokumentenagenten. Das Angebot reicht von Entwicklerinfrastruktur bis zu verwalteten Produkten. Dieser Vergleich betrachtet es als Grundlage für Dokumentensysteme und setzt das gesamte Angebot nicht mit einem einzelnen Framework-Paket gleich.
+
+## Vergleich auf einen Blick
+
+| Kriterium | Tale | LlamaIndex |
+| --- | --- | --- |
+| Ausgangspunkt | Ein Projektarbeitsbereich für zugewiesene Agentenarbeit und geprüfte Ergebnisse. | Dokumentenverarbeitung, Retrieval und Tools für Dokumentenagenten. |
+| Dokumentenarbeit | Agenten analysieren Dateien und erstellen Projektergebnisse mit konfigurierten Tools. | LlamaParse, strukturierte Extraktion und Retrieval sind zentrale Funktionen. |
+| Zu prüfende Einrichtung | Benötigte Runtime, Dokumententools und Prüfprozess abklären. | Passende Entwickler-Infrastruktur oder verwaltetes Produkt auswählen. |
 
 ## Vergleiche das vollständige Ergebnis
 

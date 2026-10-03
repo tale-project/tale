@@ -42,10 +42,41 @@ if (!root) throw new Error('Missing #root element');
 // `<AppShell>` is mounted without `locale` because the marketing site reads
 // its locale from the URL — `__root.tsx` calls `<LocaleSync>` directly with
 // `useCurrentLocale()`. Mirror any change here in `app/entry-server.tsx`.
-createRoot(root, { onUncaughtError: reportBrowserError }).render(
-  <StrictMode>
-    <AppShell i18n={i18n} theme>
-      <RouterProvider router={router} />
-    </AppShell>
-  </StrictMode>,
-);
+// Keep the prerendered page in place until the route and its chunks are ready.
+// Mounting an unresolved router first clears the document, clamps scrollY to
+// zero, then grows it again — a visible jump if the reader has started scrolling.
+// This is the same cold-load contract as docs and ui-docs.
+async function loadInitialRoute() {
+  await router.load();
+  if (window.location.hash && window.scrollY > 0) {
+    // The reader (or native fragment navigation) has already positioned the
+    // prerendered page. Transitioner also handles hashes independently of
+    // resetNextScroll, so suppress its duplicate initial anchor scroll.
+    // Replace through the typed history API, then resolve that same location
+    // before mounting. Future navigations set their own hash-scroll option.
+    router.history.replace(router.history.location.href, {
+      ...router.history.location.state,
+      __hashScrollIntoViewOptions: false,
+    });
+    await router.load();
+  }
+}
+
+void loadInitialRoute()
+  .catch((error: unknown) => {
+    console.error('[web] initial route load failed', error);
+    reportBrowserError(error);
+  })
+  .then(() => {
+    // The browser already positioned this prerendered document, and the reader
+    // may have scrolled while chunks loaded. Consume only TanStack's initial
+    // reset; subsequent navigation sets resetNextScroll normally.
+    router.resetNextScroll = false;
+    createRoot(root, { onUncaughtError: reportBrowserError }).render(
+      <StrictMode>
+        <AppShell i18n={i18n} theme>
+          <RouterProvider router={router} />
+        </AppShell>
+      </StrictMode>,
+    );
+  });

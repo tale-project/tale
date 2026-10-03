@@ -5,7 +5,7 @@ competitor: "LangGraph"
 slug: "tale-vs-langgraph"
 relationship: "framework"
 reviewed: '2026-10-03'
-draft: true
+draft: false
 ---
 
 ## Ist Orchestrierung dein Produkt oder dein Arbeitsmittel?
@@ -13,6 +13,14 @@ draft: true
 Wenn du eine Agentenanwendung entwickelst, kann ihr Ausführungsgraph ein wesentlicher Teil deines Produkts sein. Wenn dein Team eine Kampagne, Untersuchung oder Lieferung abschließen will, braucht es möglicherweise vor allem einen verlässlichen Ort zum Zuweisen und Prüfen von Arbeit. Das sind unterschiedliche Gründe, Agentenorchestrierung zu untersuchen.
 
 [LangGraph](https://www.langchain.com/langgraph) ist ein Framework und eine Laufzeitumgebung für Orchestrierung auf niedriger Abstraktionsebene. Die Produktdokumentation beschreibt anpassbare Abläufe für einzelne und mehrere Agenten, Gedächtnis, Streaming und menschliche Eingriffe. Es liefert Bausteine für eine Anwendung. Dieser Vergleich stellt daher Framework und Workspace gegenüber, ohne Reviews oder Koordination als Alleinstellungsmerkmal von Tale auszugeben.
+
+## Vergleich auf einen Blick
+
+| Kriterium | Tale | LangGraph |
+| --- | --- | --- |
+| Einführung | Einen bestehenden gemeinsamen Projektarbeitsbereich einführen | Auf einem grundlegenden Orchestrierungsframework mit Laufzeit aufbauen |
+| Steuerung | Aufgabenablauf und Delegationsmodell des Produkts konfigurieren | Zustände, Verzweigungen und Abläufe mit einem oder mehreren Agenten anpassen |
+| Prüfung | Richtlinien zur Aufgabenprüfung im gemeinsamen Projektablauf | Menschliches Eingreifen, Speicher und Streaming sind dokumentierte Bausteine |
 
 ## Vergleiche die Anwendung, die du betreiben wirst
 

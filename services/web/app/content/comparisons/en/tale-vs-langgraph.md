@@ -5,7 +5,7 @@ competitor: "LangGraph"
 slug: "tale-vs-langgraph"
 relationship: "framework"
 reviewed: '2026-10-03'
-draft: true
+draft: false
 ---
 
 ## Is orchestration your product or your team's tool?
@@ -13,6 +13,14 @@ draft: true
 If you are designing an agent application, the execution graph may be essential intellectual property. If your team needs to finish a campaign, investigation, or delivery project, it may simply need a dependable place to assign and review work. These are different reasons to evaluate agent orchestration.
 
 [LangGraph](https://www.langchain.com/langgraph) is a low-level orchestration framework and runtime. Its product documentation describes customizable single-agent and multi-agent control flows, memory, streaming, and human intervention. It supplies building blocks for an application; this comparison is therefore a framework-versus-workspace decision, not a claim that review or coordination exists only in Tale.
+
+## Compare at a glance
+
+| Criterion | Tale | LangGraph |
+| --- | --- | --- |
+| Adoption | Adopt an existing shared project workspace | Build on a low-level orchestration framework and runtime |
+| Control model | Configure the product's task lifecycle and delegation model | Customize state, branching, and single-agent or multi-agent control flows |
+| Review | Task review policies within the shared project workflow | Human intervention, memory, and streaming are documented building blocks |
 
 ## Compare the application you will operate
 

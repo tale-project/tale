@@ -5,10 +5,18 @@ competitor: "v0"
 slug: "tale-vs-v0"
 relationship: "adjacent"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 A team improving a customer dashboard needs to agree on the change, build it, and coordinate the surrounding work. v0 and Tale address overlapping parts of this process. Compare the application development workflow with the way your team wants to assign and review work.
+
+## Compare at a glance
+
+| Criterion | Tale | v0 |
+| --- | --- | --- |
+| Work surface | Project tasks for code, research, documents and team review. | Prompt-based full-stack apps and agents using team components, tokens and conventions. |
+| Collaboration | Shared task ownership, discussions and persistent agent workspaces. | Shared chats, projects and templates, with GitHub branch and review controls. |
+| Release workflow | Publishing needs configured hosting, release tooling and access. | Vercel-backed previews and production deployment. |
 
 ## Compare the development and team workflows
 

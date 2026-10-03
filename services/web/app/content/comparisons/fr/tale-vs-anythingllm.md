@@ -5,10 +5,18 @@ competitor: "AnythingLLM"
 slug: "tale-vs-anythingllm"
 relationship: "adjacent"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 Détermine d'abord si tu veux équiper une personne d'un assistant ou organiser un projet partagé. AnythingLLM et Tale travaillent tous deux avec des documents et des agents. Ton essai doit donc inclure la transmission entre collègues que tu prévois au quotidien.
+
+## Comparaison en bref
+
+| Critère | Tale | AnythingLLM |
+| --- | --- | --- |
+| Espace de travail | Projets partagés avec tâches attribuées, fichiers et vérification | Assistant documentaire avec éditions de bureau et serveur multi-utilisateur |
+| Contexte partagé | Briefs, fichiers, échanges et résultats dans le même projet | Connaissances documentaires, tâches en arrière-plan et skills d’agent personnalisés |
+| Adoption | Évaluer l’attribution aux agents et la vérification entre collègues | Inclure l’édition serveur pour évaluer l’accès partagé |
 
 ## Regarder au-delà de l'application de bureau
 

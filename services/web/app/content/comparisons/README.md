@@ -1,8 +1,9 @@
 # Competitor comparison content
 
-Content handoff for **Marketing UI Redesign**. These are page drafts, not registered routes.
-The design agent owns page composition, routing, navigation, and publication. Reuse the existing
-marketing components, metadata adapter, and SEO compiler when integrating them.
+The 49 competitor guides and comparison hub share the marketing reading surface with the
+use-case pages. `app/pages/marketing-content-page.tsx` composes the existing marketing primitives,
+Markdown treatment, outline, related links, and metadata adapter; `lib/content/` owns validation
+and publication. Resources navigation and the footer link to the published hub.
 
 ## Product message
 
@@ -33,8 +34,8 @@ reviewed: '2026-10-03'
 draft: true
 ```
 
-Proposed routes are `/compare/<slug>`, `/de/compare/<slug>`, and `/fr/compare/<slug>`.
-The renderer should use the frontmatter title as its sole H1; body headings begin at H2.
+Routes are `/compare/<slug>`, `/de/compare/<slug>`, and `/fr/compare/<slug>`.
+The renderer uses the frontmatter title as its sole H1; body headings begin at H2.
 Titles target 30–60 characters and descriptions 110–160, matching the existing marketing tests.
 Relationship is `direct`, `adjacent`, `framework`, or `runtime`; explain the distinction in the
 page instead of pretending a framework or compatible runtime is the same kind of product.
@@ -50,6 +51,13 @@ Read each language naturally using Tale's `you` / `du` / `tu` voice. Preserve fa
 source links, and equivalent outcomes. Bodies use ordinary Markdown so the design agent can
 compose prose, comparison tables, and calls to action with the existing primitives.
 
+Every competitor article includes one three-column GFM comparison table after its introduction:
+localized criterion, Tale, and the competitor's name. Include at least three substantive rows
+grounded in the article's linked sources, preserve qualifications and genuine overlaps, and keep
+the dimensions equivalent across locales. The hub remains an index rather than a comparison.
+The shared Markdown renderer supplies column headers, a localized caption and a keyboard-accessible
+horizontal scroll region, keeping the columns readable on narrow screens without widening the page.
+
 ## Integration handoff
 
 - Lead each page with the real decision, then give Tale's relevant project-work example.
@@ -64,10 +72,18 @@ compose prose, comparison tables, and calls to action with the existing primitiv
 - Check live competitor sources again before publication, especially licensing, maintenance
   status, and subscription support. Retired Relay.app is excluded from the 49-product
   set; Vibe Kanban's maintenance transition is explained in its own draft. Flowise's official end-of-life notice is treated as a dated migration comparison, not an active-product recommendation.
-- Remove `draft: true` only when the design agent has integrated and verified the page.
+- Set `draft: false` in all three locale variants only after integrating and verifying the page.
 - Run locale/content/link checks, the marketing production build, prerender SEO checks, and
   real-browser desktop/mobile checks before publishing. No draft URL is advertised as live.
 
-Existing homepage copy and task-board/demo corrections from the positioning work are also
-available in this branch. Treat those components as handoff material for the redesign; this
-content task adds no comparison layout or second design system.
+## Publication and preview
+
+Keep new files `draft: true` while reviewing. Set `VITE_MARKETING_CONTENT_PREVIEW=true` for the
+Vite development server to preview drafts; preview pages are `noindex,nofollow` and advertise no
+language alternates. Production ignores this flag and excludes draft bodies and URLs.
+
+Publish all three locale files together after the checks above pass. The shared registry requires
+complete EN/DE/FR publication before exposing a route, its sitemap entry, or navigation links.
+Production emits lazy Markdown assets, so listing cards does not load every article body.
+`lib/content/*.test.ts`, `tests/prerender/seo.test.ts`, and
+`tests/e2e/specs/marketing-content.spec.ts` cover the publication and rendering contracts.

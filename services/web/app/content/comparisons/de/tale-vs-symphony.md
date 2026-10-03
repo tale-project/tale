@@ -5,10 +5,18 @@ competitor: "OpenAI Symphony"
 slug: "tale-vs-symphony"
 relationship: "framework"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 Symphony und Tale treffen sich bei der Übergabe von Aufgaben an Agenten, sind aber unterschiedliche Arten von Lösung. Du entscheidest zwischen einer gemeinsamen Projektanwendung und einem Orchestrierungsdienst rund um euren bestehenden Entwicklungsprozess.
+
+## Vergleich auf einen Blick
+
+| Kriterium | Tale | OpenAI Symphony |
+| --- | --- | --- |
+| Produktebene | Eine bestehende Projektanwendung für gemeinsame Aufgaben, Agenten und Prüfung. | Eine OpenAI-Spezifikation mit experimenteller Referenzimplementierung für erfasste Entwicklungsarbeit. |
+| Koordination | Ausgestattete Manager-Agenten können geeignete Arbeit innerhalb der Delegations- und Kapazitätsgrenzen starten; Ergebnisse gehen zur Prüfung zurück. | Überführt erfasste Arbeit in isolierte Agentenläufe; das Beispiel nutzt Linear, CI und Review-Feedback. |
+| Grenze der Bewertung | Konfigurierte Tools und Zugangsdaten bei Übergaben von Code, Recherche und Dokumenten testen. | Eine technische Vorschau für vertrauenswürdige Umgebungen. |
 
 ## Die Anwendungsebene mitbewerten
 

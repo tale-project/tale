@@ -3,7 +3,7 @@ title: Compare AI agent workspaces and alternatives | Tale
 description: Compare Tale with project workspaces, AI assistants, workflow platforms, and agent frameworks. Find the right fit for how your team delegates and reviews work.
 slug: compare
 reviewed: '2026-10-03'
-draft: true
+draft: false
 ---
 
 The useful comparison starts with the work your team needs to coordinate. Tale is an open-source project workspace where people assign tasks to agents, give direction, and review deliverables together.

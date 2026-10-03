@@ -5,7 +5,7 @@ competitor: "Manus"
 slug: "tale-vs-manus"
 relationship: "adjacent"
 reviewed: '2026-10-03'
-draft: true
+draft: false
 ---
 
 ## Commandes-tu un livrable ou coordonnes-tu sa réalisation ?
@@ -13,6 +13,14 @@ draft: true
 Un agent capable de transformer un brief en livrable utile peut prendre en charge une part importante du travail. Un projet collectif demande aussi un accord sur le brief, une répartition des responsabilités et une décision sur l’acceptation du résultat. Compare le parcours complet avant de choisir où faire travailler les agents.
 
 [Manus](https://manus.im/) met en avant la création de présentations, sites web, jeux, vidéos et contenus graphiques. Son site officiel mentionne aussi recherche, navigation, intégration Slack, API et offre pour les équipes. C’est donc une alternative pour le travail délégué dont le périmètre ne se limite pas à l’usage individuel.
+
+## Comparaison en bref
+
+| Critère | Tale | Manus |
+| --- | --- | --- |
+| Périmètre documenté | Tâches de recherche, de documentation et de logiciel avec des agents configurés. | Recherche et travail dans le navigateur, mais aussi présentations, sites, jeux, vidéo et design. |
+| Travail en équipe | Responsabilités par tâche, discussions, fichiers partagés et validation des livrables. | Une offre d’équipe avec des points d’entrée via Slack et l’API. |
+| Livrables à vérifier | Vérifier les outils et formats nécessaires à chaque livrable demandé. | Essayer le processus de création requis et examiner les fichiers produits. |
 
 ## Définis la partie du travail que tu veux couvrir
 

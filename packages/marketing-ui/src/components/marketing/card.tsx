@@ -7,16 +7,16 @@ import { useMarketingLink } from '../../routing';
 import { Reveal } from './reveal';
 
 const marketingCardVariants = cva(
-  'group block transition-colors duration-200',
+  'group focus-visible:outline-fg-base block min-w-0 rounded-xl transition-[background-color,box-shadow] duration-200 focus-visible:outline-2 focus-visible:outline-offset-4 motion-reduce:transition-none',
   {
     variants: {
       surface: {
         /** Quiet cell for framed divider panels. */
         plain:
-          'hover:bg-surface-site-inset/70 h-full px-5 py-6 md:px-6 md:py-7',
+          'hover:bg-surface-site-inset/60 h-full px-5 py-7 md:px-8 md:py-9',
         /** Soft raised tile — prefer sparingly (standalone discovery). */
         raised:
-          'border-border-base bg-surface-site-raised shadow-site-card hover:shadow-site-card-hover rounded-xl border p-5',
+          'border-border-base bg-surface-site-raised shadow-site-card hover:shadow-site-card-hover border p-6',
         inset:
           'border-border-base bg-surface-site-inset hover:bg-surface-site-deep rounded-xl border p-5',
       },
@@ -67,18 +67,18 @@ export function MarketingCard({
   const inner = (
     <>
       {Icon ? (
-        <span className="border-border-base bg-surface-site-deep text-fg-base shadow-site-inset mb-4 flex size-10 items-center justify-center rounded-xl border">
+        <span className="border-border-base bg-surface-site-raised text-fg-base mb-6 flex size-10 items-center justify-center rounded-xl border">
           <Icon aria-hidden className="size-4.5" strokeWidth={1.75} />
         </span>
       ) : null}
       <span className="flex items-start justify-between gap-3">
-        <span className="text-fg-base block text-lg font-normal tracking-tight">
+        <span className="text-fg-base block text-lg font-medium tracking-tight">
           {title}
         </span>
         {arrow ? (
           <ArrowRight
             aria-hidden
-            className="text-fg-muted group-hover:text-fg-base mt-1 size-4 shrink-0 transition-transform duration-200 group-hover:translate-x-0.5"
+            className="text-fg-muted group-hover:text-fg-base mt-1 size-4 shrink-0 transition-transform duration-200 motion-safe:group-hover:translate-x-1 motion-safe:group-focus-visible:translate-x-1 motion-reduce:transition-none"
           />
         ) : null}
       </span>

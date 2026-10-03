@@ -5,7 +5,7 @@ competitor: "Google Workspace with Gemini"
 slug: "tale-vs-google-workspace"
 relationship: "adjacent"
 reviewed: '2026-10-03'
-draft: true
+draft: false
 ---
 
 ## Should AI follow your apps or your project board?
@@ -13,6 +13,14 @@ draft: true
 For a company already working in Google Workspace, the first AI purchase may be an extension of familiar documents, email, and meetings. A separate project workspace needs a clear purpose: coordinating work that several people and agents contribute to over time. Start with that operating decision, not a list of AI features.
 
 [Google Workspace with Gemini](https://workspace.google.com/solutions/ai/) places AI in applications including Gmail, Docs, Sheets, and Meet. Its current offering also describes Workspace Studio for creating workflows across Workspace apps. The suite is therefore relevant to both everyday assistance and automation, not just document drafting.
+
+## Compare at a glance
+
+| Criterion | Tale | Google Workspace with Gemini |
+| --- | --- | --- |
+| Working surface | Shared projects with assigned tasks, files, and review | AI within Gmail, Docs, Sheets, and Meet |
+| Coordination | People and configured agents share tasks, files, and conversations | Collaboration within the productivity apps and edition your team uses |
+| Workflows | Project structure for delegation, review, and follow-up tasks | Workspace Studio creates workflows across Workspace apps |
 
 ## Evaluate where colleagues already work
 

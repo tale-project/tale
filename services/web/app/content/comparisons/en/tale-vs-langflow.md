@@ -5,7 +5,7 @@ competitor: "Langflow"
 slug: "tale-vs-langflow"
 relationship: "framework"
 reviewed: '2026-10-03'
-draft: true
+draft: false
 ---
 
 ## Are you assembling a flow or coordinating its users?
@@ -13,6 +13,14 @@ draft: true
 A visual canvas helps a builder express how an AI application works. A project workspace helps a team decide what needs doing and follow the resulting work. Before choosing, identify whether the immediate user is an application builder or the colleague accountable for a deliverable.
 
 [Langflow](https://www.langflow.org/) provides visual flows, reusable components, Python customization, and agent tools for AI applications. It also describes API delivery and self-managed or cloud deployment. Its builder can be a serious application development choice; treating it as a simple chat demo would miss that scope.
+
+## Compare at a glance
+
+| Criterion | Tale | Langflow |
+| --- | --- | --- |
+| Delivery | An existing workspace for assigned and reviewed project work | Build AI applications from visual flows and reusable components |
+| Control model | Project context, task assignments, agent execution, and review | Python customization and agent tools within the flow builder |
+| Adoption | Configure the team process inside the existing project application | API delivery with self-managed or cloud deployment options |
 
 ## Decide what should already exist
 

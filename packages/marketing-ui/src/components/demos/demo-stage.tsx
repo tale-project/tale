@@ -5,17 +5,16 @@ interface DemoStageProps {
   children: ReactNode;
   className?: string;
   /**
-   * `hero` is the full-bleed homepage stage with a deeper glow.
+   * `hero` is the inset homepage stage with more breathing room.
    * `section` is the quieter inset used under tour rows.
    */
   variant?: 'hero' | 'section';
 }
 
 /**
- * Atmospheric stage under product demo windows — stone wash, soft radial
- * glow, and a faint grid so the shell reads as a product surface on a
- * band. Layers live in globals.css (`bg-demo-stage-*`). No continuous
- * transform animation — that fights scroll.
+ * Inset product stage with a domain-specific palette and technical texture.
+ * The named query container lets scenes adapt to the stage's available
+ * width. Layers live in globals.css; the window itself stays still.
  */
 export function DemoStage({
   children,
@@ -27,41 +26,17 @@ export function DemoStage({
   return (
     <div
       className={cn(
-        'bg-surface-wash relative overflow-hidden',
+        'demo-stage border-border-base @container/demo relative isolate overflow-hidden border',
         isHero
-          ? 'border-border-base/50 border-y px-3 py-12 sm:px-10 sm:py-16 md:px-16 md:py-24'
-          : 'border-border-base/70 rounded-2xl border p-3 sm:p-5 md:rounded-3xl md:p-8',
+          ? 'rounded-2xl px-2.5 py-8 sm:rounded-3xl sm:px-8 sm:py-12 lg:px-14 lg:py-16'
+          : 'rounded-2xl p-2.5 sm:p-5 lg:p-7',
         className,
       )}
     >
-      {/* Soft stone bloom — keeps the stage alive without a photo. */}
+      {/* A quiet drafting texture, shaped by the product scene inside. */}
       <div
         aria-hidden
-        className={cn(
-          'pointer-events-none absolute inset-0',
-          isHero ? 'bg-demo-stage-bloom-hero' : 'bg-demo-stage-bloom-section',
-        )}
-      />
-      {/* Secondary stone bloom for depth. */}
-      <div
-        aria-hidden
-        className={cn(
-          'pointer-events-none absolute inset-0 opacity-70',
-          isHero ? 'bg-demo-stage-warm-hero' : 'bg-demo-stage-warm-section',
-        )}
-      />
-      {/* Warm vignette so the window edges fall off into the wash. */}
-      <div
-        aria-hidden
-        className="bg-demo-stage-vignette pointer-events-none absolute inset-0"
-      />
-      {/* Fine grid — editorial-technical texture, not a dashboard. */}
-      <div
-        aria-hidden
-        className={cn(
-          'bg-demo-stage-grid pointer-events-none absolute inset-0',
-          isHero ? 'bg-demo-stage-grid-hero' : 'bg-demo-stage-grid-section',
-        )}
+        className="demo-stage-texture pointer-events-none absolute inset-0"
       />
       <div
         className={cn(

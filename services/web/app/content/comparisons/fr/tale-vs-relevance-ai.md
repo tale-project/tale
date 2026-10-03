@@ -5,10 +5,18 @@ competitor: "Relevance AI"
 slug: "tale-vs-relevance-ai"
 relationship: "direct"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 Une équipe d'agents a besoin de plus que d'une collection de prompts. Il faut définir qui organise le travail, qui exploite les processus et où les personnes interviennent. Tale et Relevance AI proposent des approches différentes pour répartir cette responsabilité.
+
+## Comparaison en bref
+
+| Critère | Tale | Relevance AI |
+| --- | --- | --- |
+| Point de départ | Un tableau de projet partagé avec tâches, responsables, consignes, fichiers et validation. | Transformer l’expertise des équipes en systèmes automatisés et équipes d’agents. |
+| Coordination | Agents spécialisés, agents de coordination équipés et automatisations versionnées pour le travail reproductible. | Accompagnement au déploiement et à la formation, avec évaluations, suivi et gouvernance. |
+| Point à tester | Tester comment les collègues changent les priorités et valident les résultats de chaque tâche. | Tester qui modifie le processus récurrent et traite les exceptions après la formation. |
 
 ## Partir du processus à maîtriser
 

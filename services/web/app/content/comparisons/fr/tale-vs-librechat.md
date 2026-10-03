@@ -5,10 +5,18 @@ competitor: "LibreChat"
 slug: "tale-vs-librechat"
 relationship: "adjacent"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 Ton équipe peut avoir besoin d'un espace de conversation avec l'IA, d'un espace pour gérer le travail délégué, ou des deux. Tale et LibreChat ont des capacités communes. Compare donc le processus autour du résultat plutôt que le nombre de fonctions de chat.
+
+## Comparaison en bref
+
+| Critère | Tale | LibreChat |
+| --- | --- | --- |
+| Espace de travail | Projets partagés avec tâches attribuées, fichiers et vérification | Conversations personnalisables entre fournisseurs de modèles, agents et outils |
+| Exécution | Les agents de projet utilisent des espaces persistants entre les exécutions | Agents avec gestion de fichiers, actions API, interprétation de code et outils MCP |
+| Livrables | Résultats rattachés à une tâche, un responsable, des échanges et une vérification | Les conversations peuvent inclure des artefacts et d’autres résultats que du texte |
 
 ## Partir d'une conversation ou d'une tâche
 

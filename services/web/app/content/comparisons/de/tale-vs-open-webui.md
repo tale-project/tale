@@ -5,10 +5,18 @@ competitor: "Open WebUI"
 slug: "tale-vs-open-webui"
 relationship: "adjacent"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 Eine gemeinsame Oberfläche für Modelle und ein gemeinsamer Ort für Agentenarbeit lösen unterschiedliche Teile der KI-Einführung. Vergleiche Tale und Open WebUI daran, welche Arbeit dein Team nach dem Gespräch weiterverfolgen muss.
+
+## Vergleich auf einen Blick
+
+| Kriterium | Tale | Open WebUI |
+| --- | --- | --- |
+| Ausgangspunkt | Projektaufgaben mit Agentenzuweisung, Diskussionen und Ergebnisprüfung. | Eine selbst gehostete KI-Plattform für lokale und Cloud-Modelle. |
+| Ausführung | Konfigurierte Agenten bearbeiten Dateien in persistenten Arbeitsbereichen. | Retrieval, Tools, Python-Erweiterungen, Tool-Aufruf-Freigaben und Dateiarbeit im Terminal. |
+| Was du betreibst | Einen Projektablauf mit vorbereiteten Runtimes, Tools und Ausführungskapazität. | Eine gemeinsame Modelloberfläche mit gewählten Erweiterungen und Zugriffskontrollen. |
 
 ## Modellzugang oder Projektkoordination als Ausgangspunkt
 

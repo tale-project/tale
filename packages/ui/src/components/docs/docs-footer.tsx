@@ -36,15 +36,15 @@ export function DocsFooter({
       // `pr-16` keeps a lane clear on the right for the floating back-to-top
       // control (`fixed right-6 bottom-6`), which otherwise covers the last
       // button in the row once the reader reaches the end of a long page.
-      className="border-border mt-auto border-t px-4 py-4 pr-16 lg:px-6 lg:pr-16 print:hidden"
+      className="border-border/70 mt-auto border-t px-5 py-6 pr-16 lg:px-8 lg:pr-16 print:hidden"
     >
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="text-muted-foreground min-w-0 text-xs leading-relaxed">
+      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-4">
+        <div className="text-muted-foreground min-w-0 text-xs leading-relaxed [overflow-wrap:anywhere]">
           {legalLines.map((line) => (
             <p key={line}>{line}</p>
           ))}
         </div>
-        <div className="flex shrink-0 flex-wrap items-center justify-end gap-1">
+        <div className="flex min-w-0 flex-wrap items-center gap-1">
           <Button asChild variant="ghost" size="sm">
             <a href={`${base}llms.txt`}>{t('footer.llmsTxt')}</a>
           </Button>

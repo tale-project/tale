@@ -5,7 +5,7 @@ competitor: "Mastra"
 slug: "tale-vs-mastra"
 relationship: "framework"
 reviewed: '2026-10-03'
-draft: true
+draft: false
 ---
 
 ## Do you need an internal workspace or an application feature?
@@ -13,6 +13,14 @@ draft: true
 For a TypeScript team, building agents into an existing product can be a sensible choice. For the colleagues using those agents, the immediate need may instead be a shared project with clear owners and reviewable deliverables. Decide which of those outcomes your initiative is funded to deliver.
 
 [Mastra](https://mastra.ai/) is a TypeScript framework for AI agents and applications. It provides agents, workflows, memory, workspaces, observability, and evaluation tools, with integration into frontend or backend applications. It is a development foundation, so this comparison concerns building an application versus adopting Tale's project workspace.
+
+## Compare at a glance
+
+| Criterion | Tale | Mastra |
+| --- | --- | --- |
+| Product layer | An existing team workspace for project tasks and agent execution. | A TypeScript framework for building agents and applications. |
+| Core building blocks | Tasks, instructions, project files, equipped agents and review. | Agents, workflows, memory, workspaces, observability and evaluations. |
+| Operating work | Configure runtimes, tools and deployment access for the team. | Integrate the framework into the application your team builds. |
 
 ## Put maintenance in the decision
 
