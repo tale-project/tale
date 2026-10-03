@@ -334,8 +334,14 @@ describe('claimRejectedUpload', () => {
     expect(claimed).toBe(true);
     const issued = sqlStatements(fake.statements);
     expect(issued).toHaveLength(1);
-    // One statement on the intent row: the stamp a bind wrote, and every
-    // row that holds the ref, are read under the row's lock (#4104).
+    // One statement on the intent row (#4104). What serializes it against a
+    // bind is the row itself: every bind stamps or consumes it in the
+    // transaction that writes its holder, so the claim waits on that lock
+    // and re-reads `bound_at_ms` and `consumed_at_ms` on the committed row.
+    // The holder subqueries get no such re-read — under READ COMMITTED they
+    // keep the statement's snapshot — so they are the belt, not the race
+    // guard; `tests/guards/binding-doors.guard.test.ts` holds every door to
+    // the row (#4111).
     expect(issued[0]?.text).toBe(
       `UPDATE app.upload_intents i SET expires_at_ms = 0 WHERE i.s3_ref = ? AND i.org_id = ? AND i.user_id = ? AND i.consumed_at_ms IS NULL AND i.expires_at_ms > ? AND NOT (i.bound_at_ms IS NOT NULL OR ${HELD_BY_A_ROW}) RETURNING i.id`,
     );
