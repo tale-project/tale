@@ -47,9 +47,24 @@ case "$MAX_CLIENTS" in
     exit 1 ;;
 esac
 export MAX_CLIENTS
+# A Kubernetes Pod spec sets no open-file limit, and a container runtime's
+# default soft limit can be as low as 1024: raise the soft limit to what the
+# connections need, as far as the hard limit allows (no privilege needed).
+_need_files=$((MAX_CLIENTS * 2 + 64))
 _open_files="$(ulimit -n)"
-if [ "$_open_files" != unlimited ] && [ $((MAX_CLIENTS * 2 + 64)) -gt "$_open_files" ]; then
-  echo "[sandbox-egress] WARN: ${MAX_CLIENTS} connections need about $((MAX_CLIENTS * 2 + 64)) open files, more than this container's limit of ${_open_files}; raise its nofile ulimit or lower SANDBOX_EGRESS_MAX_CLIENTS"
+if [ "$_open_files" != unlimited ] && [ "$_need_files" -gt "$_open_files" ]; then
+  _hard_files="$(ulimit -H -n 2>/dev/null || echo unknown)"
+  _want_files="$_need_files"
+  if [ "$_hard_files" != unlimited ] && [ "$_hard_files" -lt "$_want_files" ] 2>/dev/null; then
+    _want_files="$_hard_files"
+  fi
+  if [ "$_want_files" -gt "$_open_files" ] && ulimit -S -n "$_want_files" 2>/dev/null; then
+    echo "[sandbox-egress] raised the open-file limit from ${_open_files} to ${_want_files} for ${MAX_CLIENTS} connections"
+    _open_files="$(ulimit -n)"
+  fi
+fi
+if [ "$_open_files" != unlimited ] && [ "$_need_files" -gt "$_open_files" ]; then
+  echo "[sandbox-egress] WARN: ${MAX_CLIENTS} connections need about ${_need_files} open files, more than this container's limit of ${_open_files} allows; raise its nofile ulimit or lower SANDBOX_EGRESS_MAX_CLIENTS"
 fi
 
 # Explicit SHELL-FORMAT so envsubst only ever substitutes ${FILTER_BLOCK}

@@ -29,9 +29,16 @@ writeFileSync(
   join(etc, 'tinyproxy.conf.template'),
   readFileSync(join(egressDir, 'tinyproxy.conf.template'), 'utf8'),
 );
-// The supervised daemons and the root-only chown exit at once.
-for (const name of ['tinyproxy', 'dnsmasq', 'tail', 'chown'])
+// The supervised daemons and the root-only chown exit at once; tinyproxy
+// first says the open-file limit it was started with.
+for (const name of ['dnsmasq', 'tail', 'chown'])
   writeFileSync(join(bin, name), '#!/bin/sh\nexit 0\n', { mode: 0o755 });
+const tinyproxyFiles = join(root, 'tinyproxy-nofile');
+writeFileSync(
+  join(bin, 'tinyproxy'),
+  `#!/bin/sh\nulimit -n > '${tinyproxyFiles}'\nexit 0\n`,
+  { mode: 0o755 },
+);
 const envsubst = Bun.which('envsubst');
 if (envsubst !== null) symlinkSync(envsubst, join(bin, 'envsubst'));
 else
@@ -50,8 +57,11 @@ const entrypoint = readFileSync(join(egressDir, 'entrypoint.sh'), 'utf8')
   .replaceAll('/var/log/tinyproxy', log)
   .replace('\nsleep 1\n', '\n');
 
-function boot(maxClients?: string) {
+/** Run the entrypoint; `before` runs first in the same shell (a lower
+ * open-file limit, say). */
+function boot(maxClients?: string, before = '') {
   rmSync(join(etc, 'tinyproxy.conf'), { force: true });
+  rmSync(tinyproxyFiles, { force: true });
   const env: Record<string, string | undefined> = {
     ...process.env,
     PATH: `${bin}:/usr/bin:/bin`,
@@ -59,7 +69,7 @@ function boot(maxClients?: string) {
   };
   if (maxClients === undefined) delete env.SANDBOX_EGRESS_MAX_CLIENTS;
   else env.SANDBOX_EGRESS_MAX_CLIENTS = maxClients;
-  const result = spawnSync('/bin/sh', ['-c', entrypoint], {
+  const result = spawnSync('/bin/sh', ['-c', `${before}\n${entrypoint}`], {
     env,
     encoding: 'utf8',
   });
@@ -106,6 +116,30 @@ describe('egress proxy connection limit', () => {
       expect(config).toBeNull();
     },
   );
+
+  test('raises its open-file limit to what the connections need, as far as the hard limit allows', () => {
+    const hard = spawnSync('/bin/sh', ['-c', 'ulimit -H -n'], {
+      encoding: 'utf8',
+    }).stdout.trim();
+    // 1000 connections need 2064 descriptors; a runtime's soft limit of 256
+    // would hold about a hundred.
+    const { result } = boot('1000', 'ulimit -S -n 256');
+    expect(result.status).toBe(0);
+    if (hard === 'unlimited' || Number(hard) >= 2064) {
+      expect(result.stdout).toContain(
+        'raised the open-file limit from 256 to 2064 for 1000 connections',
+      );
+      expect(readFileSync(tinyproxyFiles, 'utf8').trim()).toBe('2064');
+      expect(result.stdout).not.toContain('WARN');
+    }
+  });
+
+  test('leaves a limit that already holds the connections alone', () => {
+    const { result } = boot('100', 'ulimit -S -n 1024');
+    expect(result.status).toBe(0);
+    expect(result.stdout).not.toContain('raised the open-file limit');
+    expect(readFileSync(tinyproxyFiles, 'utf8').trim()).toBe('1024');
+  });
 
   test('warns when the open-file limit cannot hold the connections', () => {
     const limit = spawnSync('/bin/sh', ['-c', 'ulimit -n'], {
