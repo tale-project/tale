@@ -4564,6 +4564,14 @@ home:
       title: Keine Konversationen
       hint: Kundenkonversationen mit diesem Status erscheinen hier.
       filtered: Keine Konversation passt zur Suche oder zu den Filtern.
+  # Ein Lesevorgang, der aufgegeben hat (#4093): eine Zeile pro Art, die die
+  # Ansicht listet, aneinandergereiht, wenn mehrere fehlschlugen, über den
+  # Zeilen, die geladen wurden.
+  failed:
+    chats: Deine Chats konnten nicht geladen werden.
+    tasks: Deine Aufgaben konnten nicht geladen werden.
+    conversations: Die Kundenkonversationen konnten nicht geladen werden.
+    retrying: Wird erneut versucht…
   aria:
     panel: Start
     stream: Deine Chats, Aufgaben und Konversationen

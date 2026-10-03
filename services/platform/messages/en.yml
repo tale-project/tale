@@ -4403,6 +4403,13 @@ home:
       title: No conversations
       hint: Customer conversations for this status show up here.
       filtered: No conversation matches the search or filters.
+  # A read that gave up (#4093): one line per kind the view lists, joined
+  # when more than one failed, above the rows that did load.
+  failed:
+    chats: Couldn't load your chats.
+    tasks: Couldn't load your tasks.
+    conversations: Couldn't load the customer conversations.
+    retrying: Trying again…
   aria:
     panel: Home
     stream: Your chats, tasks and conversations

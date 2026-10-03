@@ -6,7 +6,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AbilityContext } from '@/app/context/ability-context';
 import { defineAbilityFor } from '@/lib/permissions/ability';
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { fireEvent, render, screen, within } from '@/tests/utils/render';
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@/tests/utils/render';
 
 import type { HomeData } from '../hooks/use-home-data';
 
@@ -152,6 +158,9 @@ function data(overrides: Partial<HomeData> = {}): HomeData {
       conversations: false,
       projects: false,
     },
+    failed: { chats: false, tasks: false, conversations: false },
+    retrying: false,
+    retry: vi.fn(),
     hasInbox: true,
     attention: { chats: 0, tasks: 1, inbox: 1 },
     ...overrides,
@@ -370,6 +379,173 @@ describe('HomeNavigator', () => {
   it('passes an axe audit', async () => {
     const { container } = render(<HomeNavigator organizationId="org-1" />);
     await checkAccessibility(container);
+  });
+});
+
+/**
+ * A read that gave up is unknown, never "none" (#4093): the views that list
+ * its kind say it did not load, with Try again, above the rows that did —
+ * and never offer the empty view's way forward for a list nobody read.
+ */
+describe('HomeNavigator when a read fails', () => {
+  function failed(sources: Partial<HomeData['failed']>): HomeData['failed'] {
+    return { chats: false, tasks: false, conversations: false, ...sources };
+  }
+
+  const hrefs = () =>
+    within(stream())
+      .getAllByRole('link')
+      .map((link) => link.getAttribute('href'));
+
+  it('keeps the rows that loaded and names the kind that did not, with Try again', async () => {
+    const retry = vi.fn();
+    homeData.current = data({
+      items: data().items.filter((item) => item.kind !== 'chat'),
+      failed: failed({ chats: true }),
+      attention: { chats: null, tasks: 1, inbox: 1 },
+      retry,
+    });
+    const { user } = render(<HomeNavigator organizationId="org-1" />);
+
+    const alert = screen.getByRole('alert');
+    expect(alert).toHaveTextContent("Couldn't load your chats.");
+    expect(hrefs()).toEqual([
+      '/dashboard/org-1/tasks/k1',
+      '/dashboard/org-1/conversations/open',
+    ]);
+    // An unknown count is no count: the Chats option claims nothing.
+    expect(
+      screen.getByRole('radio', { name: 'Chats' }),
+    ).not.toHaveAccessibleName(/needs you/);
+
+    await user.click(within(alert).getByRole('button', { name: 'Try again' }));
+    expect(retry).toHaveBeenCalledTimes(1);
+
+    // The Tasks view lists no chats, so it has nothing to say about them.
+    await user.click(screen.getByRole('radio', { name: /Tasks/ }));
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(hrefs()).toEqual(['/dashboard/org-1/tasks/k1']);
+  });
+
+  it('says the reads failed instead of that the view is empty, and offers no way forward from an empty list', async () => {
+    homeData.current = data({
+      items: [],
+      threadsById: new Map(),
+      failed: failed({ chats: true, tasks: true, conversations: true }),
+      attention: { chats: null, tasks: null, inbox: null },
+    });
+    location.current = { pathname: '/dashboard/org-1/projects', search: {} };
+    const { user } = render(<HomeNavigator organizationId="org-1" />);
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      "Couldn't load your chats. Couldn't load your tasks. Couldn't load the customer conversations.",
+    );
+    expect(screen.queryByText('Nothing here yet')).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('link', { name: 'New chat' }),
+    ).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('radio', { name: /Chats/ }));
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      /^Couldn't load your chats\.\s*Try again$/,
+    );
+    expect(screen.queryByText('No chats yet')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('radio', { name: /Tasks/ }));
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      /^Couldn't load your tasks\.\s*Try again$/,
+    );
+    expect(
+      screen.queryByText('Nothing assigned to you'),
+    ).not.toBeInTheDocument();
+    // The only way to every project left is the Projects section's own.
+    const projects = screen.getByRole('region', { name: 'Projects' });
+    expect(screen.getAllByRole('link', { name: 'All projects' })).toHaveLength(
+      within(projects).getAllByRole('link', { name: 'All projects' }).length,
+    );
+  });
+
+  it('says it is trying again while the retry runs, and keeps Try again in place', async () => {
+    const retry = vi.fn();
+    homeData.current = data({
+      items: [],
+      threadsById: new Map(),
+      failed: failed({ chats: true, tasks: true, conversations: true }),
+      retrying: true,
+      retry,
+    });
+    const { user } = render(<HomeNavigator organizationId="org-1" />);
+
+    const alert = screen.getByRole('alert');
+    expect(alert).toHaveTextContent('Trying again…');
+    const button = within(alert).getByRole('button', { name: 'Try again' });
+    expect(button).toHaveAttribute('aria-busy', 'true');
+    await user.click(button);
+    expect(retry).not.toHaveBeenCalled();
+  });
+
+  it('hands the focus to the search box when a retry that worked takes Try again away', async () => {
+    homeData.current = data({
+      items: data().items.filter((item) => item.kind !== 'chat'),
+      failed: failed({ chats: true }),
+    });
+    const { rerender } = render(<HomeNavigator organizationId="org-1" />);
+    within(screen.getByRole('alert'))
+      .getByRole('button', { name: 'Try again' })
+      .focus();
+
+    homeData.current = data();
+    rerender(<HomeNavigator organizationId="org-1" />);
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByPlaceholderText('Search all...')).toHaveFocus(),
+    );
+  });
+
+  it('says so on the phone screen too, where Chats keeps its own New chat', async () => {
+    homeData.current = data({
+      items: data().items.filter((item) => item.kind !== 'chat'),
+      failed: failed({ chats: true }),
+      attention: { chats: null, tasks: 1, inbox: 1 },
+    });
+    location.current = { pathname: '/dashboard/org-1/home', search: {} };
+    const { user } = render(
+      <HomeNavigator organizationId="org-1" variant="screen" />,
+    );
+
+    await user.click(screen.getByRole('radio', { name: /Chats/ }));
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      "Couldn't load your chats.",
+    );
+    expect(screen.queryByText('No chats yet')).not.toBeInTheDocument();
+    // The view's own way to a new chat stays: it claims nothing about the
+    // list, unlike an empty state's offer.
+    expect(screen.getByRole('link', { name: 'New chat' })).toHaveAttribute(
+      'href',
+      '/dashboard/org-1/chat',
+    );
+  });
+
+  it('passes an axe audit, with a read failed beside rows and with nothing loaded', async () => {
+    homeData.current = data({
+      items: data().items.filter((item) => item.kind !== 'task'),
+      failed: failed({ tasks: true }),
+      attention: { chats: 0, tasks: null, inbox: 1 },
+    });
+    const { container, unmount } = render(
+      <HomeNavigator organizationId="org-1" />,
+    );
+    await checkAccessibility(container);
+    unmount();
+
+    homeData.current = data({
+      items: [],
+      threadsById: new Map(),
+      failed: failed({ chats: true, tasks: true, conversations: true }),
+      attention: { chats: null, tasks: null, inbox: null },
+    });
+    const again = render(<HomeNavigator organizationId="org-1" />);
+    await checkAccessibility(again.container);
   });
 });
 
