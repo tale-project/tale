@@ -609,7 +609,7 @@ pricing:
     cta: Contact us
     feature1: Self-hosted or cloud
     feature2: Professional operation by ISO 27001-certified Ruler GmbH
-    feature3: Controls to support your data-protection processes
+    feature3: Data processing agreement (DPA)
     feature4: Email, phone & remote support
     feature5: Installation & ongoing maintenance
     feature7: Influence on product roadmap
@@ -639,7 +639,7 @@ pricing:
       selfHosted: Self-hosted
       cloud: Cloud
       localDataCenters: Local data centers (CH & EU)
-      gdpr: Data-protection controls
+      dpa: Data processing agreement (DPA)
       iso: ISO 27001-certified operation
       piiRedaction: PII redaction
       customDpa: Custom DPA

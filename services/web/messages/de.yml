@@ -621,7 +621,7 @@ pricing:
     cta: Kontakt aufnehmen
     feature1: Selbst gehostet oder Cloud
     feature2: Professioneller Betrieb durch die ISO-27001-zertifizierte Ruler GmbH
-    feature3: Kontrollen für deine Datenschutzprozesse
+    feature3: Vertrag zur Auftragsverarbeitung (AVV)
     feature4: E-Mail-, Telefon- und Remote-Support
     feature5: Installation und laufende Wartung
     feature7: Einfluss auf die Produkt-Roadmap
@@ -651,7 +651,7 @@ pricing:
       selfHosted: Selbst gehostet
       cloud: Cloud
       localDataCenters: Lokale Rechenzentren (CH & EU)
-      gdpr: Datenschutzkontrollen
+      dpa: Vertrag zur Auftragsverarbeitung (AVV)
       iso: ISO-27001-zertifizierter Betrieb
       piiRedaction: PII-Schwärzung
       customDpa: Individueller AVV
