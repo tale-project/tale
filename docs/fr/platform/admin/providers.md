@@ -47,6 +47,8 @@ Renseigne `$.tokens` dans **Chemin du tableau de jetons**, `access_token` dans *
 
 Pour OpenAI, limite **Modèles autorisés** aux identifiants de modèles pris en charge par ton abonnement ChatGPT. Le catalogue de l’API OpenAI peut inclure des modèles auxquels cet abonnement ne donne pas accès.
 
+Pour utiliser Sol 6.1 (`gpt-6.1-sol`), enregistre les identifiants du courtier OpenAI, puis configure un [agent de projet](/fr/platform/projects/project-agents) en choisissant **Codex** sous **Harness**. Sous **Modèle**, recherche `gpt-6.1-sol` et sélectionne l’entrée **OpenAI · Abonnement**. Codex utilise l’API Responses, requise par les appels aux tools de ce modèle. Le chat direct de Tale utilise Chat Completions ; il ne propose donc pas ce modèle via OpenAI, y compris avec la sélection automatique du modèle.
+
 Choisis **Sélection du jeton** selon la répartition souhaitée pour les nouveaux tours d’agent :
 
 - **Aléatoire**, le choix initial, donne à chaque compte utilisable la même probabilité à chaque sélection.

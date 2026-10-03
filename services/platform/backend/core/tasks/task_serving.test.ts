@@ -166,6 +166,7 @@ describe('resolveTaskServing — gateway lane', () => {
       ctx,
       ORG,
       'anthropic/claude-sonnet-4.6',
+      'openai-chat',
     );
   });
 
