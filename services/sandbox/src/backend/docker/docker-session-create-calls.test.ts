@@ -3,18 +3,21 @@ import { resolve } from 'node:path';
 
 // What session creates ask the docker daemon. Module mocks run in a separate
 // Bun process so they cannot replace the real exports other suites use.
-async function createTwo(legacyRoot: boolean): Promise<{
+async function createTwo(plant: {
+  dirs?: string[];
+  files?: string[];
+}): Promise<{
   calls: string[][][];
   error: string | null;
 }> {
   const sourceRoot = resolve(import.meta.dir, '../..');
   const script = `
 import { mock } from 'bun:test';
-import { mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 const source = ${JSON.stringify(sourceRoot)};
-const legacyRoot = ${JSON.stringify(legacyRoot)};
+const planted = ${JSON.stringify(plant)};
 const success = {exitCode:0, stdout:'', stderr:'', stdoutTruncated:false, stderrTruncated:false};
 let calls = [];
 const spawnPath = join(source,'spawn-util.ts');
@@ -34,8 +37,8 @@ mock.module(join(source,'session/runnerd-client.ts'), () => ({
 const {DockerSessionBackend} = await import(join(source,'backend/docker/docker-session-backend.ts'));
 const {TEST_SESSION_CONFIG} = await import(join(source,'session/session-test-config.ts'));
 const root = await mkdtemp(join(tmpdir(),'tale-create-calls-'));
-// A colour subdir from before the session root was flattened.
-if (legacyRoot) await mkdir(join(root,'blue'));
+for (const dir of planted.dirs ?? []) await mkdir(join(root,dir));
+for (const file of planted.files ?? []) await writeFile(join(root,file),'');
 const cfg = {
  backend:'docker', sandboxToken:'test',runtimeImage:'runtime:test',runtimeTier:'runc',dockerInContainer:false,dockerBuildCache:false,
  transparentEgress:false,hostSessionRoot:root,cacheVolumePrefix:{pip:'pip',npm:'npm',bun:'bun'},
@@ -75,7 +78,7 @@ const volumeInspect = (args: string[]) =>
 
 describe('what a session create asks the docker daemon', () => {
   test('the cache volumes once per organization, and no legacy mount lookup on a flat root', async () => {
-    const { calls, error } = await createTwo(false);
+    const { calls, error } = await createTwo({});
     expect(error).toBeNull();
     const [first = [], second = []] = calls;
     expect(first.filter(volumeInspect)).toHaveLength(3);
@@ -86,8 +89,18 @@ describe('what a session create asks the docker daemon', () => {
   });
 
   test('a root that still holds a legacy colour directory keeps the mount lookup', async () => {
-    const { calls, error } = await createTwo(true);
+    // A colour subdir from before the session root was flattened.
+    const { calls, error } = await createTwo({ dirs: ['blue'] });
     expect(error).toBeNull();
     expect((calls[0] ?? []).filter(mountLookup)).toHaveLength(1);
+  });
+
+  test('bookkeeping, lost+found, workspaces and files are no colour directory', async () => {
+    const { calls, error } = await createTwo({
+      dirs: ['.pins', '.owners', '.trash', 'lost+found', 'ses-calls-old'],
+      files: ['blue', '.spawner.lock'],
+    });
+    expect(error).toBeNull();
+    expect((calls[0] ?? []).filter(mountLookup)).toHaveLength(0);
   });
 });

@@ -99,11 +99,13 @@ describe('isReapableContainerStatus', () => {
 // ---------------------------------------------------------------------------
 
 const FAKE_DOCKER = `#!/usr/bin/env bash
-# Fake docker CLI for tests. Reads four lines from ./mode next to this script:
+# Fake docker CLI for tests. Reads five lines from ./mode next to this script:
 #   line 1: 1 when the container exists, else 0
-#   line 2: rm outcome — ok | nosuch | busy
+#   line 2: rm outcome — ok | removes (ok, and the container is gone after) |
+#           nosuch | busy
 #   line 3: comma-separated session ids \`docker ps\` lists (may be empty)
 #   line 4: ps outcome — ok | fail (a daemon hiccup: non-zero exit + stderr)
+#   line 5: the host source of the container's /agent mount (may be empty)
 here="$(cd "$(dirname "$0")" && pwd)"
 present="$(sed -n 1p "$here/mode")"
 rm_mode="$(sed -n 2p "$here/mode")"
@@ -128,7 +130,7 @@ case "$cmd" in
         *tale.created*) printf 'abcdef123456\\t1700000000000\\n' ;;
         *State.Running*) echo "true" ;;
         *State.Status*) echo "running" ;;
-        *Mounts*) echo "" ;;
+        *Mounts*) sed -n 5p "$here/mode" ;;
         *) echo "abc123" ;;
       esac
       exit 0
@@ -145,6 +147,9 @@ case "$cmd" in
     printf '%s\\n' "$@" > "$here/last-rm"
     case "$rm_mode" in
       ok) exit 0 ;;
+      removes)
+        sed -i '1s/.*/0/' "$here/mode"
+        exit 0 ;;
       nosuch)
         echo "Error response from daemon: No such container: $2" >&2
         exit 1 ;;
@@ -167,13 +172,14 @@ const ORIGINAL_DOCKER_BIN = process.env.DOCKER_BIN;
  * does `docker rm` answer. */
 async function fakeDocker(scenario: {
   present: boolean;
-  rm: 'ok' | 'nosuch' | 'busy';
+  rm: 'ok' | 'removes' | 'nosuch' | 'busy';
   listed?: string[];
   ps?: 'ok' | 'fail';
+  mount?: string;
 }): Promise<void> {
   await writeFile(
     join(fakeRoot, 'mode'),
-    `${scenario.present ? '1' : '0'}\n${scenario.rm}\n${(scenario.listed ?? []).join(',')}\n${scenario.ps ?? 'ok'}\n`,
+    `${scenario.present ? '1' : '0'}\n${scenario.rm}\n${(scenario.listed ?? []).join(',')}\n${scenario.ps ?? 'ok'}\n${scenario.mount ?? ''}\n`,
   );
 }
 
@@ -672,6 +678,19 @@ describe('DockerSessionBackend.destroySession hands the workspace to the trash',
     } finally {
       await host.shutdown();
     }
+  });
+});
+
+describe('DockerSessionBackend.destroySession after the session root moved', () => {
+  test('deletes the workspace a live session still mounts from the old root', async () => {
+    const oldRoot = await freshRoot();
+    const mounted = join(oldRoot, 'ses-moved-root');
+    expect(await plantWorkspace(mounted, 2, 3)).toBe(6);
+    // The new root holds no colour directory.
+    await fakeDocker({ present: true, rm: 'removes', mount: mounted });
+    const backend = new DockerSessionBackend(rootedConfig(await freshRoot()));
+    expect(await backend.destroySession('moved-root')).toBe(true);
+    expect(await exists(mounted)).toBe(false);
   });
 });
 

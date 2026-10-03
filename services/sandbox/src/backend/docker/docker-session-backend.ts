@@ -144,13 +144,20 @@ export class DockerSessionBackend implements SessionBackend {
    *
    * The legacy branches are one-time compat for live data from before the colour
    * drop; once those sessions are destroyed nothing lands on the old paths again.
-   * A root without a colour subdir skips them: a fresh create then costs no
-   * `docker inspect` and no scan of the root.
+   * With `flatRootShortcut` (a create, a placement check), a root without a
+   * colour subdir skips them: a fresh create then costs no `docker inspect` and
+   * no scan of the root. A destroy always asks the container: a session that
+   * outlived a move of the session root (`SANDBOX_HOST_SESSION_ROOT`, a
+   * device's state directory) is still mounted from the old one, and its data
+   * must not stay behind.
    */
-  private async resolveWorkspaceDir(sessionId: string): Promise<string> {
+  private async resolveWorkspaceDir(
+    sessionId: string,
+    { flatRootShortcut = false }: { flatRootShortcut?: boolean } = {},
+  ): Promise<string> {
     const flat = this.workspaceDir(sessionId);
     if (await this.workspaceDirExists(flat)) return flat;
-    if (!(await this.hasLegacyRoots())) return flat;
+    if (flatRootShortcut && !(await this.hasLegacyRoots())) return flat;
 
     const dirName = sessionWorkspaceDirName(sessionId);
 
@@ -272,7 +279,9 @@ export class DockerSessionBackend implements SessionBackend {
     // its pin; a stale marker would exempt a container the platform believes
     // is reapable. Cleared before anything else so a failed create leaves none.
     await this.clearPinMarker(spec.sessionId);
-    const workspaceHostDir = await this.resolveWorkspaceDir(spec.sessionId);
+    const workspaceHostDir = await this.resolveWorkspaceDir(spec.sessionId, {
+      flatRootShortcut: true,
+    });
     // Agent-profile only — see sessionDindEnabled. Every DinD side-effect below
     // (inner-docker volume, shared buildkitd, cache-volume skip) keys off this,
     // not the raw cfg flag, so a `default`-profile session never gets them.
@@ -540,7 +549,9 @@ export class DockerSessionBackend implements SessionBackend {
   }
 
   async hasWorkspace(sessionId: string): Promise<boolean> {
-    return this.workspaceDirExists(await this.resolveWorkspaceDir(sessionId));
+    return this.workspaceDirExists(
+      await this.resolveWorkspaceDir(sessionId, { flatRootShortcut: true }),
+    );
   }
 
   async sessionExists(sessionId: string): Promise<boolean> {
