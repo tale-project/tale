@@ -171,21 +171,23 @@ export default createPlaywrightConfig({
         // the same change (#2633 was a drift here).
         ...(useMockLlm
           ? {
-              // Hermetic config dir: seeds every new org with the single E2E
-              // agent + the mock provider + the trivial `test` workflow.
+              // Hermetic config dir: each org's live config lands under it.
+              // No org gets the mock provider on its own: a chat spec must
+              // copy `default/providers/e2e-mock.yml` into the org's dir and
+              // add an env credential (see that file's header).
               TALE_CONFIG_DIR: path.join(dirname, 'tests/e2e/fixtures/config'),
               // Pin the built-in catalog to the fixture's domain-root so the
-              // dev default (repo/builtin-configs) can't leak the real catalog
-              // into hermetic test orgs. The seeder reads <builtin>/<domain>;
+              // dev default (the repo's configs/platform/custom) can't leak
+              // the real catalog into hermetic test orgs. The seeder reads
+              // <builtin>/<domain>;
               // the fixture is org-shaped, so point at its `default/` org dir.
               TALE_CONFIG_BUILTIN_DIR: path.join(
                 dirname,
                 'tests/e2e/fixtures/config/default',
               ),
-              // Resolved by the fixture provider's `secretsEnv`; pushed into
-              // the Convex deployment env by
-              // scripts/sync-convex-env-from-dotenv.ts (TALE_PROVIDER_KEY_*
-              // passthrough).
+              // Read at call time by an env credential naming `E2E_MOCK` on
+              // the mock provider (backend/core/provider_credentials/
+              // resolve_credential.ts).
               TALE_PROVIDER_KEY_E2E_MOCK: 'tale-e2e-mock-key',
               // The mock gateway lives on 127.0.0.1, which the provider host
               // policy blocks by default (SSRF defence) — opt in for the E2E

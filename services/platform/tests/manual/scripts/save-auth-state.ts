@@ -3,16 +3,17 @@
  * MCP) can start signed in instead of driving login every session.
  *
  * Two modes:
- * - Default: mint an authenticated owner + fully-seeded organization (reuses
- *   the e2e auth helpers — the canonical, i18n-safe wizard driver — see
- *   `services/platform/tests/e2e/helpers/auth.ts`).
+ * - Default: mint an authenticated owner + organization and wait for its
+ *   starter project (reuses the e2e auth helpers — the canonical, i18n-safe
+ *   wizard driver — see `services/platform/tests/e2e/helpers/auth.ts`). It
+ *   wires no AI provider: in mode A, wire the mock afterwards (setup.md §1.A).
  * - `QA_AUTH_EMAIL` + `QA_AUTH_PASSWORD`: sign in as an EXISTING account
  *   instead, e.g. the `docker:dev` seeded dev login (SETUP.md mode C).
  *
  * Usage (stack already up — see services/platform/tests/manual/setup.md):
  *
  *   bunx playwright install chromium            # once
- *   # Mint a fresh owner + seeded org (modes A/B):
+ *   # Mint a fresh owner + org (modes A/B):
  *   bun services/platform/tests/manual/scripts/save-auth-state.ts
  *   # Sign in as an existing account (mode C's seeded dev login):
  *   E2E_BASE_URL=https://localhost \
@@ -72,9 +73,9 @@ async function postAuthViaPageFetch(
 
 /**
  * Sign in an existing account and resolve its org id from the dashboard
- * redirect. No `waitForSeededOrg`: that gate waits for the e2e fixture agent,
- * which only exists in mode A orgs — an existing account (e.g. the docker:dev
- * seeded `dev@tale.test`) already owns a fully-provisioned org.
+ * redirect. No `waitForSeededOrg`: that gate waits for a fresh org's starter
+ * project — an existing account (e.g. the docker:dev seeded `dev@tale.test`)
+ * already owns a provisioned org, whose starter project may since be gone.
  */
 async function signInExisting(
   page: Page,
