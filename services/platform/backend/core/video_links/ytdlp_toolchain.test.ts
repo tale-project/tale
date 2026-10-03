@@ -26,9 +26,10 @@ import {
 } from './ytdlp_toolchain';
 
 /**
- * Short bounds for the synthetic stalls. A stalled child gets 2 s, so even a
- * loaded runner has started it (and it has written its pid file) before the
- * deadline stops it.
+ * Short bounds for the synthetic stalls. A stalled child gets 2 s, which a
+ * loaded runner can spend before the child has even started: a test that
+ * needs the child's processes running holds the module's timers
+ * (`holdDeadlines`) until they have recorded themselves (`started`).
  */
 const FAST = {
   ...VIDEO_TOOLCHAIN_DEADLINES,
@@ -79,24 +80,199 @@ async function waitUntilGone(pids: number[], ms = 3_000): Promise<number[]> {
   return alive;
 }
 
+/** A process as `/proc/<pid>/stat` shows it: undefined once it is gone, or without `/proc`. */
+function procStat(
+  pid: number,
+): { comm: string; state: string; sid: number; startTime: string } | undefined {
+  let stat: string;
+  try {
+    stat = readFileSync(`/proc/${pid}/stat`, 'utf8');
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code === 'ENOENT' || code === 'ESRCH') return undefined;
+    throw err;
+  }
+  // `comm` is parenthesised and may itself hold spaces or parentheses.
+  const close = stat.lastIndexOf(')');
+  const fields = stat.slice(close + 2).split(' ');
+  return {
+    comm: stat.slice(stat.indexOf('(') + 1, close),
+    state: fields[0] ?? '',
+    sid: Number(fields[3]),
+    startTime: fields[19] ?? '',
+  };
+}
+
+/**
+ * A pid the cleanup may signal: a whole number above 1. To `kill`, 0 is this
+ * worker's own process group and -1 every process it may signal; 1 is init.
+ * An empty or blank marker reads as `Number('') === 0`.
+ */
+function isPid(value: number): boolean {
+  return Number.isSafeInteger(value) && value > 1;
+}
+
+/**
+ * The pids a marker file names. Each fake process appends its own pid as its
+ * first command, before any trap, fork or `setsid`, so a process missing from
+ * the file never started. Only a complete line holding a pid counts; one still
+ * being written, an empty or blank one, or anything else names nothing.
+ */
+function markerPids(text: string): number[] {
+  return (
+    text
+      .split('\n')
+      // What follows the last newline: a line still being written, or nothing.
+      .slice(0, -1)
+      .filter((line) => /^\d+$/.test(line))
+      .map(Number)
+      .filter(isPid)
+  );
+}
+
+/** The pids `file` names so far: none before its first process has started. */
+async function recorded(file: string): Promise<number[]> {
+  try {
+    return markerPids(await readFile(file, 'utf8'));
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return [];
+    throw err;
+  }
+}
+
 let scratch: string;
 const servers: Server[] = [];
-const strays: number[] = [];
+
+/** A process a test started, and the start time that tells it from a later one. */
+interface Stray {
+  pid: number;
+  startTime: string;
+}
+
+/**
+ * Processes a test started, each pinned to its start time: the cleanup
+ * SIGKILLs one only while its pid still names that same process, never a pid
+ * since handed to another. Without `/proc` (macOS) nothing pins a pid, so
+ * nothing is signalled there; a leftover `sleep 30` ends by itself.
+ */
+const strays: Stray[] = [];
+
+/** Leave `pid` to the cleanup, pinned to the process it names now. */
+function own(pid: number): void {
+  if (!isPid(pid)) throw new Error(`not a pid a test started: ${pid}`);
+  const stat = procStat(pid);
+  // Already gone: nothing to stop.
+  if (stat !== undefined && stat.state !== 'Z') {
+    strays.push({ pid, startTime: stat.startTime });
+  }
+}
+
+/** True while `stray`'s pid still names the process it was pinned to. */
+function stillOwned({ pid, startTime }: Stray): boolean {
+  if (!isPid(pid)) return false;
+  const stat = procStat(pid);
+  return (
+    stat !== undefined && stat.state !== 'Z' && stat.startTime === startTime
+  );
+}
+
+/** The real `setTimeout`, to wait on a fixture while the module's timers are held. */
+const realSetTimeout = globalThis.setTimeout;
+
+function pause(ms: number): Promise<void> {
+  return new Promise((resolve) => realSetTimeout(resolve, ms));
+}
+
+/**
+ * Fake the module's own timers alone (its deadlines, its kill graces and the
+ * poll that waits out an escaped process), so a stage's deadline runs only
+ * when `expire` says. The fixture's processes, their I/O and
+ * `performance.now()` keep real time.
+ */
+function holdDeadlines(): void {
+  vi.useFakeTimers({
+    toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'],
+  });
+}
+
+/**
+ * Wait, on real time, until `count` fake processes have recorded themselves in
+ * `file` and the last of them has exec'd its `sleep` (its trap and `setsid`
+ * done) or is already gone. Each is left to the cleanup as soon as it is seen:
+ * with the deadlines held, no signal of the stage has reached it yet, so its
+ * pid still names it. `boundBy` names a process that bounds them on a real
+ * clock of its own (GNU `timeout`): once it has ended, so have they, recorded
+ * or not.
+ */
+async function startedIn(
+  file: string,
+  count: number,
+  boundBy?: string,
+): Promise<number[]> {
+  const seen = new Set<number>();
+  const until = performance.now() + 20_000;
+  let ids: number[] = [];
+  while (performance.now() < until) {
+    ids = await recorded(file);
+    for (const pid of ids) {
+      if (!seen.has(pid)) {
+        seen.add(pid);
+        own(pid);
+      }
+    }
+    if (ids.length >= count) {
+      // Undefined once it is gone, or without `/proc` to tell.
+      const last = procStat(ids[count - 1]);
+      if (last === undefined || last.state === 'Z' || last.comm === 'sleep') {
+        return ids;
+      }
+    }
+    if (boundBy !== undefined) {
+      const [bound] = await recorded(boundBy);
+      const stat = bound === undefined ? undefined : procStat(bound);
+      if (bound !== undefined && (stat === undefined || stat.state === 'Z')) {
+        return ids;
+      }
+    }
+    await pause(10);
+  }
+  throw new Error(`${file}: ${ids.length} of ${count} processes ready in 20 s`);
+}
+
+/**
+ * Run the stage's deadline now (`deadlineMs` reaches it, not the grace after
+ * it), then let the held timers follow real time until `pending` settles: the
+ * kill graces take as long as they would unheld.
+ */
+async function expire<T>(pending: Promise<T>, deadlineMs: number): Promise<T> {
+  await vi.advanceTimersByTimeAsync(deadlineMs);
+  vi.setTimerTickMode('interval', 10);
+  try {
+    return await pending;
+  } finally {
+    vi.useRealTimers();
+  }
+}
 
 beforeEach(async () => {
   scratch = await mkdtemp(join(tmpdir(), 'video-toolchain-'));
 });
 
 afterEach(async () => {
+  vi.useRealTimers();
   for (const server of servers.splice(0)) {
     server.closeAllConnections();
     server.close();
   }
-  for (const pid of strays.splice(0)) {
+  for (const stray of strays.splice(0)) {
+    if (!stillOwned(stray)) continue;
     try {
-      process.kill(pid, 'SIGKILL');
-    } catch {
-      // Already gone — the expected case.
+      process.kill(stray.pid, 'SIGKILL');
+    } catch (err) {
+      // ESRCH: it ended after the check.
+      if ((err as NodeJS.ErrnoException).code !== 'ESRCH') {
+        console.warn(`[test cleanup] could not stop pid ${stray.pid}:`, err);
+      }
     }
   }
 });
@@ -128,40 +304,50 @@ type Stall =
   | 'escapes-its-group';
 
 /**
- * A fake child that records its own pid and a background child's, then waits.
- * `ignores-term`: both shrug off SIGTERM, so only the SIGKILL escalation stops
- * them. `leaves-a-term-proof-child`: the child dies on SIGTERM but its own
- * child ignores it, so only a group kill after the child's exit stops that.
- * `escapes-its-group`: that child also moves into a session of its own
- * (`setsid`), so no signal to the group reaches it.
+ * A fake child that waits on a background child of its own; each appends its
+ * pid to a marker file as its first command, and the background child ends in
+ * `sleep 30`. `ignores-term`: both shrug off SIGTERM, so only the SIGKILL
+ * escalation stops them. `leaves-a-term-proof-child`: the child dies on
+ * SIGTERM but its own child ignores it, so only a group kill after the child's
+ * exit stops that. `escapes-its-group`: that child also moves into a session
+ * of its own (`setsid`), so no signal to the group reaches it.
+ * `startsAfterSeconds`: a host too loaded to start the fake child in time.
  */
-async function stallingScript(name: string, stall: Stall = 'plain') {
+async function stallingScript(
+  name: string,
+  stall: Stall = 'plain',
+  startsAfterSeconds = 0,
+) {
   const pidFile = join(scratch, `${name}.pids`);
   const script = join(scratch, name);
-  const termProof = `sh -c "trap '' TERM; exec sleep 30" &`;
-  const background =
-    stall === 'leaves-a-term-proof-child'
-      ? termProof
-      : stall === 'escapes-its-group'
-        ? `setsid ${termProof}`
-        : 'sleep 30 &';
+  const termProof =
+    stall === 'leaves-a-term-proof-child' || stall === 'escapes-its-group'
+      ? 'trap "" TERM; '
+      : '';
+  const setsid = stall === 'escapes-its-group' ? 'setsid ' : '';
   await writeFile(
     script,
     [
       '#!/bin/sh',
+      startsAfterSeconds > 0 ? `sleep ${startsAfterSeconds}` : '',
+      `echo $$ >> '${pidFile}'`,
       stall === 'ignores-term' ? "trap '' TERM" : '',
-      background,
-      `echo "$$ $!" > '${pidFile}'`,
+      `sh -c 'echo $$ >> "${pidFile}"; ${termProof}exec ${setsid}sleep 30' &`,
       'wait',
     ].join('\n'),
   );
   await chmod(script, 0o755);
-  const pids = async (): Promise<number[]> => {
-    const ids = (await readFile(pidFile, 'utf8')).trim().split(' ').map(Number);
-    strays.push(...ids);
-    return ids;
+  return {
+    script,
+    /** Both of them, once started (`startedIn`). */
+    started: () => startedIn(pidFile, 2),
+    /** Those that have started, read once the run has settled. */
+    pids: async (): Promise<number[]> => {
+      const ids = await recorded(pidFile);
+      ids.forEach(own);
+      return ids;
+    },
   };
-  return { script, pids };
 }
 
 describe('downloadTo bounds', () => {
@@ -238,48 +424,66 @@ describe('downloadTo bounds', () => {
 
 describe('bounded children', () => {
   it('stops a stalled child and everything it started, then names the stage', async () => {
-    const { script, pids } = await stallingScript('stall');
+    const { script, started } = await stallingScript('stall');
     const clock = new ProvisioningClock(FAST);
-    const err = await run(
+    holdDeadlines();
+    const pending = run(
       'deno unzip',
       script,
       [],
       clock.stage(FAST.unzipMs),
       clock,
     ).catch((e: unknown) => e);
+    const pids = await started();
+    const err = await expire(pending, FAST.unzipMs);
     expect(err).toBeInstanceOf(VideoToolchainError);
     expect(err).toMatchObject({ stage: 'deno unzip' });
     expect((err as Error).message).toMatch(
       /^\[video-toolchain\] deno unzip: timed out after \d+ ms \(deadline 2000 ms\)$/,
     );
-    expect(await waitUntilGone(await pids())).toEqual([]);
+    expect(await waitUntilGone(pids)).toEqual([]);
   });
 
   it('escalates to SIGKILL when the child ignores SIGTERM', async () => {
-    const { script, pids } = await stallingScript('stubborn', 'ignores-term');
+    const { script, started } = await stallingScript(
+      'stubborn',
+      'ignores-term',
+    );
     const clock = new ProvisioningClock(FAST);
-    await expect(
-      run(
-        'ffmpeg install (apt-get)',
-        script,
-        [],
-        clock.stage(FAST.packageInstallMs),
-        clock,
-      ),
-    ).rejects.toMatchObject({ stage: 'ffmpeg install (apt-get)' });
-    expect(await waitUntilGone(await pids())).toEqual([]);
+    holdDeadlines();
+    const pending = run(
+      'ffmpeg install (apt-get)',
+      script,
+      [],
+      clock.stage(FAST.packageInstallMs),
+      clock,
+    ).catch((e: unknown) => e);
+    const pids = await started();
+    expect(await expire(pending, FAST.packageInstallMs)).toMatchObject({
+      stage: 'ffmpeg install (apt-get)',
+    });
+    expect(await waitUntilGone(pids)).toEqual([]);
   });
 
   it('stops what a stopped child left behind in its group', async () => {
-    const { script, pids } = await stallingScript(
+    const { script, started } = await stallingScript(
       'orphaning',
       'leaves-a-term-proof-child',
     );
     const clock = new ProvisioningClock(FAST);
-    await expect(
-      run('deno unzip', script, [], clock.stage(FAST.unzipMs), clock),
-    ).rejects.toMatchObject({ stage: 'deno unzip' });
-    expect(await waitUntilGone(await pids())).toEqual([]);
+    holdDeadlines();
+    const pending = run(
+      'deno unzip',
+      script,
+      [],
+      clock.stage(FAST.unzipMs),
+      clock,
+    ).catch((e: unknown) => e);
+    const pids = await started();
+    expect(await expire(pending, FAST.unzipMs)).toMatchObject({
+      stage: 'deno unzip',
+    });
+    expect(await waitUntilGone(pids)).toEqual([]);
   });
 
   it('leaves processes it did not start alone', async () => {
@@ -288,35 +492,49 @@ describe('bounded children', () => {
       spawn('sleep', ['30'], { stdio: 'ignore' }),
       spawn('sleep', ['30'], { detached: true, stdio: 'ignore' }),
     ].map((child) => child.pid as number);
-    strays.push(...bystanders);
-    const { script, pids } = await stallingScript('stall');
+    bystanders.forEach(own);
+    const { script, started } = await stallingScript('stall');
     const clock = new ProvisioningClock(FAST);
-    await expect(
-      run('deno unzip', script, [], clock.stage(FAST.unzipMs), clock),
-    ).rejects.toThrow(/timed out/);
-    expect(await waitUntilGone(await pids())).toEqual([]);
+    holdDeadlines();
+    const pending = run(
+      'deno unzip',
+      script,
+      [],
+      clock.stage(FAST.unzipMs),
+      clock,
+    ).catch((e: unknown) => e);
+    const pids = await started();
+    const err = await expire(pending, FAST.unzipMs);
+    expect((err as Error).message).toMatch(/timed out/);
+    expect(await waitUntilGone(pids)).toEqual([]);
     expect(bystanders.filter(isAlive)).toEqual(bystanders);
   });
 
   it.skipIf(!ON_LINUX)(
     'stops what the child started outside its process group',
     async () => {
-      const { script, pids } = await stallingScript(
+      const { script, started } = await stallingScript(
         'escaping',
         'escapes-its-group',
       );
       const clock = new ProvisioningClock(FAST);
-      const err = await run(
+      holdDeadlines();
+      const pending = run(
         'deno unzip',
         script,
         [],
         clock.stage(FAST.unzipMs),
         clock,
       ).catch((e: unknown) => e);
+      const pids = await started();
+      const [, escaped] = pids;
+      // Readiness control: it has left the group before the deadline runs.
+      expect(procStat(escaped)).toMatchObject({ sid: escaped });
+      const err = await expire(pending, FAST.unzipMs);
       expect((err as Error).message).toMatch(
         /^\[video-toolchain\] deno unzip: timed out after \d+ ms \(deadline 2000 ms\)$/,
       );
-      expect(await waitUntilGone(await pids())).toEqual([]);
+      expect(await waitUntilGone(pids)).toEqual([]);
     },
   );
 
@@ -329,17 +547,68 @@ describe('bounded children', () => {
         spawn('sleep', ['30'], { stdio: 'ignore' }),
         spawn('sleep', ['30'], { detached: true, stdio: 'ignore' }),
       ].map((child) => child.pid as number);
-      strays.push(...bystanders);
-      const { script, pids } = await stallingScript(
+      bystanders.forEach(own);
+      const { script, started } = await stallingScript(
         'escaping',
         'escapes-its-group',
       );
       const clock = new ProvisioningClock(FAST);
-      await expect(
-        run('deno unzip', script, [], clock.stage(FAST.unzipMs), clock),
-      ).rejects.toThrow(/timed out/);
-      expect(await waitUntilGone(await pids())).toEqual([]);
+      holdDeadlines();
+      const pending = run(
+        'deno unzip',
+        script,
+        [],
+        clock.stage(FAST.unzipMs),
+        clock,
+      ).catch((e: unknown) => e);
+      const pids = await started();
+      const [, escaped] = pids;
+      expect(procStat(escaped)).toMatchObject({ sid: escaped });
+      const err = await expire(pending, FAST.unzipMs);
+      expect((err as Error).message).toMatch(/timed out/);
+      expect(await waitUntilGone(pids)).toEqual([]);
       expect(bystanders.filter(isAlive)).toEqual(bystanders);
+    },
+  );
+
+  it.skipIf(!ON_LINUX)(
+    'holds the deadline for a child that starts late, then stops it outside the group',
+    async () => {
+      // A runner too loaded to start the fake child within its 2 s deadline:
+      // its first line sleeps 3 s. On real timers the stage stops it before it
+      // has recorded anything (ENOENT), and the escape goes untested.
+      const { script, started } = await stallingScript(
+        'late',
+        'escapes-its-group',
+        3,
+      );
+      const clock = new ProvisioningClock(FAST);
+      holdDeadlines();
+      let settled = false;
+      const spawnedAt = performance.now();
+      const pending = run(
+        'deno unzip',
+        script,
+        [],
+        clock.stage(FAST.unzipMs),
+        clock,
+      )
+        .catch((e: unknown) => e)
+        .finally(() => {
+          settled = true;
+        });
+      const pids = await started();
+      const [, escaped] = pids;
+      // Readiness controls: past the deadline in real time, the stage has
+      // not settled, and the escaped child has a session of its own.
+      expect(performance.now() - spawnedAt).toBeGreaterThan(FAST.unzipMs);
+      expect(settled).toBe(false);
+      expect(procStat(escaped)).toMatchObject({ sid: escaped });
+      const err = await expire(pending, FAST.unzipMs);
+      expect((err as Error).message).toMatch(
+        /^\[video-toolchain\] deno unzip: timed out after \d+ ms \(deadline 2000 ms\)$/,
+      );
+      expect(await waitUntilGone(pids)).toEqual([]);
     },
   );
 
@@ -440,26 +709,34 @@ describe('provisionToolchain bounds', () => {
 
   it('rejects a stalled ffmpeg lookup by its stage and stops the lookup', async () => {
     const cacheDir = await warmCache();
-    const { script, pids } = await stallingScript('which-stall');
+    const { script, started } = await stallingScript('which-stall');
     await fakeOnPath('which', `exec '${script}'`);
-    await expect(
-      provisionToolchain({ cacheDir, deadlines: FAST }),
-    ).rejects.toMatchObject({ stage: 'ffmpeg lookup' });
-    expect(await waitUntilGone(await pids())).toEqual([]);
+    holdDeadlines();
+    const pending = provisionToolchain({ cacheDir, deadlines: FAST }).catch(
+      (e: unknown) => e,
+    );
+    const pids = await started();
+    expect(await expire(pending, FAST.lookupMs)).toMatchObject({
+      stage: 'ffmpeg lookup',
+    });
+    expect(await waitUntilGone(pids)).toEqual([]);
   });
 
   it('caps every stage by the rest of the provisioning budget', async () => {
     const cacheDir = await warmCache();
-    const { script, pids } = await stallingScript('which-stall');
+    const { script, started } = await stallingScript('which-stall');
     await fakeOnPath('which', `exec '${script}'`);
-    const err = await provisionToolchain({
-      cacheDir,
-      deadlines: { ...FAST, totalMs: 1_500, lookupMs: 60_000 },
-    }).catch((e: unknown) => e);
+    const deadlines = { ...FAST, totalMs: 1_500, lookupMs: 60_000 };
+    holdDeadlines();
+    const pending = provisionToolchain({ cacheDir, deadlines }).catch(
+      (e: unknown) => e,
+    );
+    const pids = await started();
+    const err = await expire(pending, deadlines.totalMs);
     expect((err as Error).message).toMatch(
       /ffmpeg lookup: timed out after \d+ ms \(the rest of the 1500 ms provisioning budget, \d+ ms\)$/,
     );
-    expect(await waitUntilGone(await pids())).toEqual([]);
+    expect(await waitUntilGone(pids)).toEqual([]);
   });
 
   it.skipIf(!ON_LINUX)(
@@ -471,27 +748,29 @@ describe('provisionToolchain bounds', () => {
       // own, holding the captured stdout — and waits on it.
       await fakeOnPath(
         'which',
-        `setsid sleep 30 &\necho "$$ $!" > '${pidFile}'\nwait`,
+        [
+          `echo $$ >> '${pidFile}'`,
+          `sh -c 'echo $$ >> "${pidFile}"; exec setsid sleep 30' &`,
+          'wait',
+        ].join('\n'),
       );
       const handles = liveChildHandles();
-      const startedAt = performance.now();
-      const err = await provisionToolchain({
+      holdDeadlines();
+      const pending = provisionToolchain({
         cacheDir,
         deadlines: FAST,
       }).catch((e: unknown) => e);
-      const settledMs = performance.now() - startedAt;
-      const ids = (await readFile(pidFile, 'utf8'))
-        .trim()
-        .split(' ')
-        .map(Number);
-      strays.push(...ids);
+      const ids = await startedIn(pidFile, 2);
+      const [, escaped] = ids;
+      expect(procStat(escaped)).toMatchObject({ sid: escaped });
+      const expiredAt = performance.now();
+      const err = await expire(pending, FAST.lookupMs);
+      const settledMs = performance.now() - expiredAt;
       expect((err as Error).message).toMatch(
         /^\[video-toolchain\] ffmpeg lookup: timed out after \d+ ms \(deadline 2000 ms\)$/,
       );
-      // Within the deadline and its two kill graces, plus scheduling slack.
-      expect(settledMs).toBeLessThan(
-        FAST.lookupMs + 2 * FAST.killGraceMs + 2_000,
-      );
+      // Within the deadline's two kill graces, plus scheduling slack.
+      expect(settledMs).toBeLessThan(2 * FAST.killGraceMs + 2_000);
       expect(await waitUntilGone(ids)).toEqual([]);
       await expect.poll(liveChildHandles).toBeLessThanOrEqual(handles);
     },
@@ -502,18 +781,21 @@ describe('provisionToolchain bounds', () => {
     async () => {
       const cacheDir = await warmCache();
       const holder = join(scratch, 'holder.pid');
-      // The lookup hands its stdout to a process in a session of its own,
-      // re-parented away at once (`setsid -f`), and exits 0.
+      // The lookup hands its stdout to a process that moves into a session of
+      // its own (`setsid`), re-parented away as the lookup exits 0 at once.
       await fakeOnPath(
         'which',
-        `setsid -f sh -c 'echo $$ > "${holder}"; exec sleep 30'\nexit 0`,
+        `sh -c 'echo $$ >> "${holder}"; exec setsid sleep 30' &\nexit 0`,
       );
       const handles = liveChildHandles();
-      const err = await provisionToolchain({
+      holdDeadlines();
+      const pending = provisionToolchain({
         cacheDir,
         deadlines: FAST,
       }).catch((e: unknown) => e);
-      strays.push(Number(await readFile(holder, 'utf8')));
+      const [held] = await startedIn(holder, 1);
+      expect(procStat(held)).toMatchObject({ sid: held });
+      const err = await expire(pending, FAST.lookupMs);
       expect(err).toMatchObject({ stage: 'ffmpeg lookup' });
       expect((err as Error).message).toMatch(
         /^\[video-toolchain\] ffmpeg lookup: timed out after \d+ ms \(deadline 2000 ms\); cleanup incomplete: pid \d+ exited with code 0, but a process it started still holds its stdout after the group SIGKILL$/,
@@ -551,21 +833,24 @@ describe('provisionToolchain bounds', () => {
       // A stalled apt-get that ignores SIGTERM.
       await fakeOnPath(
         'apt-get',
-        `trap '' TERM\necho $$ > '${aptPid}'\nexec sleep 30`,
+        `echo $$ >> '${aptPid}'\ntrap '' TERM\nexec sleep 30`,
       );
-      const err = await provisionToolchain({
+      holdDeadlines();
+      const pending = provisionToolchain({
         cacheDir,
         deadlines: FAST,
       }).catch((e: unknown) => e);
-      const apt = Number(await readFile(aptPid, 'utf8'));
-      strays.push(apt);
+      // `timeout` (its pid in `hidden`) keeps real time: on a runner too
+      // loaded to start apt-get within its 2 s, it ends apt-get unrecorded.
+      const pids = await startedIn(aptPid, 1, hidden);
+      const err = await expire(pending, FAST.packageInstallMs);
       expect(await readFile(argv, 'utf8')).toBe(
         'timeout -k 0.2s 2s apt-get install -y ffmpeg\n',
       );
       expect((err as Error).message).toMatch(
         /^\[video-toolchain\] ffmpeg not found and could not be auto-installed \(\[video-toolchain\] ffmpeg install \(apt-get\): timed out after \d+ ms \(deadline 2000 ms\)\)/,
       );
-      expect(await waitUntilGone([apt])).toEqual([]);
+      expect(await waitUntilGone(pids)).toEqual([]);
     },
   );
 
@@ -580,4 +865,48 @@ describe('provisionToolchain bounds', () => {
       pluginDir: join(cacheDir, 'plugins'),
     });
   });
+});
+
+describe('fixture pids', () => {
+  // The cleanup SIGKILLs what these name. A marker read while its process was
+  // still writing it once parsed as pid 0: to `kill`, this worker's own group.
+  it('reads no pid from an empty, blank or unfinished marker, or a line that is not one', () => {
+    for (const text of [
+      '',
+      ' ',
+      '\n',
+      ' \n',
+      '123',
+      '0\n',
+      '1\n',
+      '-1\n',
+      '12 34\n',
+      '1.5\n',
+      'x\n',
+    ]) {
+      expect(markerPids(text), JSON.stringify(text)).toEqual([]);
+    }
+    expect(markerPids('123\n4567\n89')).toEqual([123, 4567]);
+  });
+
+  it('leaves the cleanup only whole pids above 1', () => {
+    for (const value of [0, 1, -1, 1.5, Number.NaN, Number(''), Number(' ')]) {
+      expect(isPid(value), String(value)).toBe(false);
+    }
+    expect(isPid(process.pid)).toBe(true);
+  });
+
+  it.skipIf(!ON_LINUX)(
+    'leaves the cleanup a pid only while it names the process it was pinned to',
+    () => {
+      own(spawn('sleep', ['30'], { stdio: 'ignore' }).pid as number);
+      const pinned = strays[strays.length - 1];
+      expect(stillOwned(pinned)).toBe(true);
+      // The same pid, handed to a process that started at another time.
+      expect(
+        stillOwned({ pid: pinned.pid, startTime: `${pinned.startTime}0` }),
+      ).toBe(false);
+      expect(stillOwned({ pid: 0, startTime: pinned.startTime })).toBe(false);
+    },
+  );
 });
