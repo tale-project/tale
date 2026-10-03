@@ -39,6 +39,15 @@ describe('reviewerRefusalMessage', () => {
     ).toBe('tasks.reviewer.invalid');
   });
 
+  it('explains an agent the project has not granted the review tool', () => {
+    expect(
+      reviewerRefusalMessage(
+        new AppError({ code: 'TASK_REVIEWER_PERMISSION_MISSING' }),
+        t,
+      ),
+    ).toBe('tasks.reviewer.agentPermissionRequired');
+  });
+
   it('leaves every other failure to the caller', () => {
     expect(
       reviewerRefusalMessage(new AppError({ code: 'TASK_NOT_FOUND' }), t),

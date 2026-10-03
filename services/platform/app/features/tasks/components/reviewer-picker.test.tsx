@@ -42,8 +42,14 @@ const members: AssignableActor[] = [
   { type: 'user', id: 'user-4', name: 'Dan', email: 'dan@example.com' },
 ];
 const agents: AssignableActor[] = [
-  { type: 'agent', id: 'worker', name: 'Worker' },
-  { type: 'agent', id: 'reviewer', name: 'Independent reviewer' },
+  { type: 'agent', id: 'worker', name: 'Worker', tools: ['task_review'] },
+  {
+    type: 'agent',
+    id: 'reviewer',
+    name: 'Independent reviewer',
+    tools: ['task_review'],
+  },
+  { type: 'agent', id: 'drafter', name: 'Drafting agent', tools: [] },
 ];
 let scopeReady = true;
 let agentsLoading = false;
@@ -159,6 +165,31 @@ describe('ReviewerPicker', () => {
       kind: 'agent',
       agentId: 'reviewer',
     });
+  });
+
+  it('greys an agent without the review grant, directly and as the inherited default', async () => {
+    const { user } = render(
+      <ReviewerPicker
+        {...base}
+        projectReviewer={{ kind: 'agent', agentId: 'drafter' }}
+        onChange={vi.fn()}
+      />,
+    );
+    await user.click(
+      screen.getByRole('button', { name: 'tasks.fields.reviewer' }),
+    );
+    expect(
+      screen.getByRole('option', { name: /^Drafting agent/ }),
+    ).toHaveAttribute('aria-disabled', 'true');
+    expect(
+      screen.getByRole('option', { name: /tasks.reviewer.projectDefault:/ }),
+    ).toHaveAttribute('aria-disabled', 'true');
+    expect(
+      screen.getAllByText('tasks.reviewer.agentPermissionRequired'),
+    ).toHaveLength(2);
+    expect(
+      screen.getByRole('option', { name: /Independent reviewer/ }),
+    ).not.toHaveAttribute('aria-disabled', 'true');
   });
 
   it('names the configured reviewer without an edit button for read-only users', () => {

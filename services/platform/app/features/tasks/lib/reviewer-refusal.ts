@@ -53,6 +53,8 @@ export function reviewerRefusalMessage(
       return t('reviewer.notIndependent');
     case 'TASK_AGENT_REVIEW_REQUIRED':
       return t('reviewer.agentRequired');
+    case 'TASK_REVIEWER_PERMISSION_MISSING':
+      return t('reviewer.agentPermissionRequired');
     case 'TASK_REVIEWER_INVALID':
       return t('reviewer.invalid');
     case 'TASK_REVIEWER_NO_EDIT_ACCESS':

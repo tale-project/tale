@@ -62,9 +62,11 @@ export function ProjectTaskReviewerSection({
           t(
             code === 'PROJECT_REVIEWER_STALE'
               ? 'taskReview.stale'
-              : code === 'PROJECT_REVIEWER_INVALID'
-                ? 'taskReview.unavailable'
-                : 'settings.saveError',
+              : code === 'PROJECT_REVIEWER_PERMISSION_MISSING'
+                ? 'taskReview.permissionRequired'
+                : code === 'PROJECT_REVIEWER_INVALID'
+                  ? 'taskReview.unavailable'
+                  : 'settings.saveError',
           ),
           { cause: error },
         );

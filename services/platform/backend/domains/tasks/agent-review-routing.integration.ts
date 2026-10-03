@@ -224,7 +224,7 @@ export async function checkAgentTaskReviewRouting(
     record(
       'review routing: project selection refuses a current missing grant',
       ungrantedProject.status === 400 &&
-        ungrantedProject.body.error === 'PROJECT_REVIEWER_INVALID',
+        ungrantedProject.body.error === 'PROJECT_REVIEWER_PERMISSION_MISSING',
       `HTTP ${ungrantedProject.status}`,
     );
     await sql`UPDATE app.project_agents SET tools = ARRAY['task_review']::text[] WHERE id IN ${sql([author, reviewer])}`;
@@ -416,8 +416,10 @@ export async function checkAgentTaskReviewRouting(
       (await state(revoked.taskId)).pendingReview?.agentReviewBlockedReason ===
         'permission_missing' &&
         revokedChoice.status === 400 &&
-        revokedDefault.status === 400,
-      `task=${revokedChoice.status}, project=${revokedDefault.status}`,
+        revokedChoice.body.error === 'TASK_REVIEWER_PERMISSION_MISSING' &&
+        revokedDefault.status === 400 &&
+        revokedDefault.body.error === 'PROJECT_REVIEWER_PERMISSION_MISSING',
+      `task=${revokedChoice.status}/${String(revokedChoice.body.error)}, project=${revokedDefault.status}/${String(revokedDefault.body.error)}`,
     );
     await sql`UPDATE app.project_agents SET tools = ARRAY['task_review']::text[] WHERE id = ${reviewer}`;
     record(

@@ -957,16 +957,21 @@ export async function setProjectTaskReviewer(
   }
   const agentId = args.reviewer.kind === 'agent' ? args.reviewer.agentId : null;
   if (agentId !== null) {
-    if (
-      (await agentReviewerEligibility(tx, {
-        organizationId: auth.organizationId,
-        projectId,
-        agentId,
-      })) !== 'eligible'
-    ) {
+    const eligibility = await agentReviewerEligibility(tx, {
+      organizationId: auth.organizationId,
+      projectId,
+      agentId,
+    });
+    if (eligibility === 'permission_missing') {
+      throw new ProjectError(
+        'PROJECT_REVIEWER_PERMISSION_MISSING',
+        'Grant this agent the task review permission before choosing it',
+      );
+    }
+    if (eligibility !== 'eligible') {
       throw new ProjectError(
         'PROJECT_REVIEWER_INVALID',
-        'Choose an agent in this project with permission to review tasks',
+        'Choose an agent in this project',
       );
     }
   }

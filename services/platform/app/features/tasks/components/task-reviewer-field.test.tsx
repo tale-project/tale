@@ -54,8 +54,13 @@ vi.mock('../hooks/use-actor-directory', () => ({
       { type: 'user', id: 'alice', name: 'Alice', role: 'editor' },
     ],
     assignableAgents: [
-      { type: 'agent', id: 'reviewer', name: 'Review agent' },
-      { type: 'agent', id: 'worker', name: 'Worker' },
+      {
+        type: 'agent',
+        id: 'reviewer',
+        name: 'Review agent',
+        tools: ['task_review'],
+      },
+      { type: 'agent', id: 'worker', name: 'Worker', tools: ['task_review'] },
     ],
   }),
 }));

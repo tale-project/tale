@@ -2011,16 +2011,23 @@ export async function setTaskReviewer(
     reviewerAgentId ??
     (reviewerUserId === null ? project.defaultTaskReviewerAgentId : null);
   if (effectiveAgentId != null) {
-    if (
-      (await agentReviewerEligibility(tx, {
-        organizationId: auth.organizationId,
-        projectId: task.projectId,
-        agentId: effectiveAgentId,
-      })) !== 'eligible'
-    )
+    // The picker greys an agent without the review grant and says why; the
+    // door keeps that reason apart from "not an agent of this project", so
+    // a stale list or a hand-built request is told what to fix.
+    const agentEligibility = await agentReviewerEligibility(tx, {
+      organizationId: auth.organizationId,
+      projectId: task.projectId,
+      agentId: effectiveAgentId,
+    });
+    if (agentEligibility === 'permission_missing')
+      throw new TaskError(
+        'TASK_REVIEWER_PERMISSION_MISSING',
+        'Grant this agent the task review permission before choosing it',
+      );
+    if (agentEligibility !== 'eligible')
       throw new TaskError(
         'TASK_REVIEWER_INVALID',
-        'Choose an agent in this project with permission to review tasks',
+        'Choose an agent in this project',
       );
     if (task.assigneeType === 'agent' && task.assigneeId === effectiveAgentId) {
       throw new TaskError(

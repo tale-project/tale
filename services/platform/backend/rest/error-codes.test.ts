@@ -249,11 +249,13 @@ const APP_ONLY_CODES: ReadonlySet<string> = new Set<string>([
   // Explicit reviewer routing has app doors only. REST neither saves a
   // project default nor changes the captured reviewer or reviewer fields.
   'PROJECT_REVIEWER_INVALID',
+  'PROJECT_REVIEWER_PERMISSION_MISSING',
   'PROJECT_REVIEWER_STALE',
   'TASK_REVIEWER_BUSY',
   'TASK_REVIEWER_HANDOFF_REQUIRED',
   'TASK_REVIEWER_HUMAN_REQUIRED',
   'TASK_REVIEWER_NOT_INDEPENDENT',
+  'TASK_REVIEWER_PERMISSION_MISSING',
   'TASK_REVIEWER_STALE',
   'TASK_REVIEW_SOURCE_REQUIRED',
   'TASK_REVIEW_SOURCE_CHANGED',
