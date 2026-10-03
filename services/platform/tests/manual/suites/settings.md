@@ -264,7 +264,7 @@ run.
   catalog pane (`settings.credentials.catalog.title`) lists configured
   providers first with a **Configured** badge
   (`settings.credentials.catalog.configured`), then the rest alphabetically →
-  pick a vendor → **Name** (`settings.credentials.name`) arrives filled with
+  While the catalog is loading, the picker shows an accessible loading state instead of the empty-catalog warning; the warning remains for a successfully empty catalog. Then pick a vendor → **Name** (`settings.credentials.name`) arrives filled with
   the vendor's name; keep it, fill **API key**
   (`settings.providers.dialog.secret`), optionally narrow the **Model
   allowlist** (`settings.providers.dialog.allowlist`) → **Add credential**
@@ -325,8 +325,7 @@ run.
 - [ ] `SET-F24` · **Connectors page** — `/dashboard/{org}/settings/connectors`
   → The credential table renders under the description
   (`settings.connectors.sectionDescription`) — or the empty state
-  (`emptyStates.connectors.title`) on a fresh org — with **Add credential**
-  opening the same two-step catalog picker; connector auth methods render from
+  (`emptyStates.connectors.title`) on a fresh org — with **Add credential** opening the same two-step catalog picker; while the connector catalog is loading, the picker shows a loading state rather than the empty-catalog warning; connector auth methods render from
   `settings.connectors.authMethod.*` (API key / Token / Username & password /
   OAuth)
 - [ ] `SET-F25` · **Connector add-credential smoke** — Mode A. **Add
