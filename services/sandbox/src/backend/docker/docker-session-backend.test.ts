@@ -149,7 +149,8 @@ case "$cmd" in
     case "$rm_mode" in
       ok) exit 0 ;;
       removes)
-        sed -i '1s/.*/0/' "$here/mode"
+        sed '1s/.*/0/' "$here/mode" > "$here/mode.next" &&
+          mv "$here/mode.next" "$here/mode"
         exit 0 ;;
       nosuch)
         echo "Error response from daemon: No such container: $2" >&2
