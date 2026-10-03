@@ -10,6 +10,7 @@ import {
   mkdtempSync,
   readdirSync,
   readFileSync,
+  realpathSync,
   rmSync,
   writeFileSync,
 } from 'node:fs';
@@ -78,6 +79,8 @@ describe('headless Playwright MCP launcher', () => {
       env: {
         ...process.env,
         PATH: `${bin}:${process.env.PATH ?? ''}`,
+        HTTPS_PROXY: '',
+        NO_PROXY: '',
         TALE_PLAYWRIGHT_MCP_MANIFESTS: join(dir, 'no-manifests'),
       },
       encoding: 'utf8',
@@ -87,14 +90,16 @@ describe('headless Playwright MCP launcher', () => {
   });
 });
 
-// A stand-in MCP server: it speaks two protocol versions, lists one tool,
-// asks the client for its roots on a tool call when the client offered them,
-// and writes every message it receives to its log, behind a `started` line.
+// A stand-in MCP server: it speaks two protocol versions (others when
+// STAND_IN_VERSIONS names them), lists one tool, asks the client for its roots
+// on a tool call when the client offered them, answers any other request as
+// the real server's SDK does, and writes every message it receives to its
+// log, behind a `started` line.
 const STAND_IN = String.raw`#!/usr/bin/env python3
 import json, os, sys
 log = open(os.environ['STAND_IN_LOG'], 'a')
 log.write('started ' + ' '.join(sys.argv[1:]) + '\n'); log.flush()
-SUPPORTED = ['2025-06-18', '2024-11-05']
+SUPPORTED = os.environ.get('STAND_IN_VERSIONS', '2025-06-18,2024-11-05').split(',')
 def send(obj):
     sys.stdout.write(json.dumps(obj) + '\n'); sys.stdout.flush()
 roots = False
@@ -122,6 +127,8 @@ for line in sys.stdin:
         send({'jsonrpc': '2.0', 'id': id_, 'result': {'content': [{'type': 'text', 'text': text}]}})
     elif method == 'ping':
         send({'jsonrpc': '2.0', 'id': id_, 'result': {}})
+    elif method is not None and id_ is not None:
+        send({'jsonrpc': '2.0', 'id': id_, 'error': {'code': -32601, 'message': 'Method not found'}})
 sys.exit(int(os.environ.get('STAND_IN_EXIT', '0')))
 `;
 
@@ -183,6 +190,13 @@ describe('the start of a turn without the server', () => {
     const exited = new Promise<number | null>((done) => {
       proc.on('exit', (code) => done(code));
     });
+    let errors = '';
+    proc.stderr.on('data', (chunk: Buffer) => {
+      errors += chunk.toString();
+    });
+    const errorsEnded = new Promise<void>((done) => {
+      proc.stderr.on('end', () => done());
+    });
     return {
       send(obj: Record<string, unknown>) {
         proc.stdin.write(`${JSON.stringify(obj)}\n`);
@@ -205,6 +219,11 @@ describe('the start of a turn without the server', () => {
         proc.stdin.end();
         return exited;
       },
+      /** What the launcher logged, once it has exited. */
+      async stderr(): Promise<string> {
+        await errorsEnded;
+        return errors;
+      },
     };
   }
 
@@ -219,6 +238,22 @@ describe('the start of a turn without the server', () => {
     },
   });
 
+  const toolCall = (id: number) => ({
+    jsonrpc: '2.0',
+    id,
+    method: 'tools/call',
+    params: { name: 'browser_navigate', arguments: { url: 'about:blank' } },
+  });
+
+  // What the real server's SDK answers a request it has no handler for (the
+  // pinned Playwright's mcpBundleImpl.js; it may register none for a list
+  // whose capability it does not advertise).
+  const methodNotFound = (id: number) => ({
+    jsonrpc: '2.0',
+    id,
+    error: { code: -32601, message: 'Method not found' },
+  });
+
   test('the image build records the server’s answer to each protocol version', () => {
     expect(written.status).toBe(0);
     const files = readdirSync(manifests).filter((name) =>
@@ -229,6 +264,10 @@ describe('the start of a turn without the server', () => {
       readFileSync(join(manifests, files[0] ?? ''), 'utf8'),
     );
     expect(manifest.args).toEqual(ARGS);
+    // The server it recorded them from: another one gets no manifest.
+    expect(manifest.server).toBe(
+      realpathSync(join(bin, 'mcp-server-playwright')),
+    );
     const spoken = Object.fromEntries(
       Object.entries(manifest.initialize).map(([asked, result]) => [
         asked,
@@ -280,6 +319,58 @@ describe('the start of a turn without the server', () => {
     expect(await mcp.answer(3)).toMatchObject({ result: {} });
     expect(await mcp.close()).toBe(0);
     expect(received()).toEqual([]);
+  });
+
+  test('Qwen Code’s discovery is answered as the server would, still without it', async () => {
+    // Qwen Code 0.23.3 asks for the latest protocol version its SDK knows,
+    // then, at the start of every turn, asks every server for its prompts and
+    // resources beside its tools, whatever it advertised, and reads `Method
+    // not found` as an empty list.
+    const mcp = client();
+    mcp.send(initialize('2025-11-25'));
+    await mcp.answer(1);
+    mcp.send({ jsonrpc: '2.0', method: 'notifications/initialized' });
+    mcp.send({ jsonrpc: '2.0', id: 2, method: 'prompts/list', params: {} });
+    mcp.send({ jsonrpc: '2.0', id: 3, method: 'resources/list', params: {} });
+    mcp.send({ jsonrpc: '2.0', id: 4, method: 'tools/list', params: {} });
+    mcp.send({
+      jsonrpc: '2.0',
+      id: 5,
+      method: 'resources/templates/list',
+      params: {},
+    });
+    expect(await mcp.answer(2)).toEqual(methodNotFound(2));
+    expect(await mcp.answer(3)).toEqual(methodNotFound(3));
+    expect(await mcp.answer(4)).toMatchObject({
+      result: { tools: [{ name: 'browser_navigate' }] },
+    });
+    expect(await mcp.answer(5)).toEqual(methodNotFound(5));
+    expect(await mcp.close()).toBe(0);
+    expect(received()).toEqual([]);
+  });
+
+  test('a list the server advertises is the server’s to answer', async () => {
+    const advertised = join(dir, 'manifests-advertised');
+    mkdirSync(advertised, { recursive: true });
+    for (const name of readdirSync(manifests)) {
+      const manifest = JSON.parse(readFileSync(join(manifests, name), 'utf8'));
+      for (const version of Object.keys(manifest.initialize)) {
+        manifest.initialize[version].capabilities.prompts = {};
+        manifest.initialize[version].capabilities.resources = {};
+      }
+      writeFileSync(join(advertised, name), JSON.stringify(manifest));
+    }
+    const mcp = client({ TALE_PLAYWRIGHT_MCP_MANIFESTS: advertised });
+    mcp.send(initialize('2025-06-18'));
+    expect(await mcp.answer(1)).toMatchObject({
+      result: { capabilities: { prompts: {}, resources: {} } },
+    });
+    mcp.send({ jsonrpc: '2.0', id: 2, method: 'resources/list', params: {} });
+    await mcp.answer(2);
+    await mcp.close();
+    const log = received();
+    expect(log[0]).toBe(`started ${ARGS.join(' ')}`);
+    expect(JSON.parse(log.at(-1) ?? '{}').method).toBe('resources/list');
   });
 
   test('starts the server on the first tool call, replaying the start to it', async () => {
@@ -337,6 +428,63 @@ describe('the start of a turn without the server', () => {
       result: { content: [{ text: 'navigated with 1 roots' }] },
     });
     await mcp.close();
+  });
+
+  test('a started server answering the version the client was told logs nothing', async () => {
+    // A version the server does not speak: the manifest's answer, and the
+    // started server's, is its latest.
+    const mcp = client();
+    mcp.send(initialize('2025-11-25'));
+    expect(await mcp.answer(1)).toMatchObject({
+      result: { protocolVersion: '2025-06-18' },
+    });
+    mcp.send(toolCall(2));
+    await mcp.answer(2);
+    expect(await mcp.close()).toBe(0);
+    expect(received()[0]).toBe(`started ${ARGS.join(' ')}`);
+    expect(await mcp.stderr()).toBe('');
+  });
+
+  test('a started server answering another version than the client was told is logged', async () => {
+    // The server now speaks the version the client asked for, while the
+    // client was told the recorded answer.
+    const mcp = client({ STAND_IN_VERSIONS: '2025-11-25,2025-06-18' });
+    mcp.send(initialize('2025-11-25'));
+    expect(await mcp.answer(1)).toMatchObject({
+      result: { protocolVersion: '2025-06-18' },
+    });
+    mcp.send(toolCall(2));
+    await mcp.answer(2);
+    expect(await mcp.close()).toBe(0);
+    expect(await mcp.stderr()).toBe(
+      '[tale-playwright-mcp] the server speaks 2025-11-25, the client was told 2025-06-18\n',
+    );
+  });
+
+  test('a server configured through PLAYWRIGHT_MCP_* starts at once', async () => {
+    // Its tool list then depends on more than the arguments the manifest is
+    // keyed by (PLAYWRIGHT_MCP_CAPS adds tools, PLAYWRIGHT_MCP_CONFIG names a
+    // file of settings).
+    const mcp = client({ PLAYWRIGHT_MCP_CAPS: 'vision' });
+    mcp.send(initialize('2025-06-18'));
+    await mcp.answer(1);
+    await mcp.close();
+    expect(received()[0]).toBe(`started ${ARGS.join(' ')}`);
+    expect(JSON.parse(received()[1] ?? '{}').id).toBe(1);
+  });
+
+  test('a server the session put ahead of the image’s on PATH starts at once', async () => {
+    const own = join(dir, 'session-bin');
+    mkdirSync(own, { recursive: true });
+    writeFileSync(join(own, 'mcp-server-playwright'), STAND_IN, {
+      mode: 0o755,
+    });
+    const mcp = client({ PATH: `${own}:${baseEnv.PATH}` });
+    mcp.send(initialize('2025-06-18'));
+    await mcp.answer(1);
+    await mcp.close();
+    expect(received()[0]).toBe(`started ${ARGS.join(' ')}`);
+    expect(JSON.parse(received()[1] ?? '{}').id).toBe(1);
   });
 
   test('a protocol version the manifest has no answer for gets the server at once', async () => {

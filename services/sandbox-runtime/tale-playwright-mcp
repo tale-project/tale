@@ -5,13 +5,17 @@ Every managed agent turn lists the Playwright MCP server among its tools, but
 most turns never open a browser, and the server is a Node process that loads
 Playwright as it starts: about 100 MB and a third of a second of CPU, held for
 the whole turn. So this launcher answers the start of the conversation itself
-— `initialize`, `tools/list`, `ping` — from a manifest recorded from the real
-server when the image was built, and starts the real server only when the turn
-first asks for anything else (a tool call). It then replays the client's
-`initialize` to it and passes every message through, both ways. Where no
-manifest matches the server arguments, or the client asks for a protocol
-version the manifest has no answer for, the real server starts at once, as it
-always did; TALE_PLAYWRIGHT_MCP_EAGER=1 always starts it at once.
+— `initialize`, `tools/list`, `ping`, and the prompt and resource lists of a
+server that advertises neither (Qwen Code asks for them at the start of every
+turn) — from a manifest recorded from the real server when the image was
+built, and starts the real server only when the turn first asks for anything
+else (a tool call). It then replays the client's `initialize` to it and passes
+every message through, both ways. Where no manifest matches the server
+arguments, the server on PATH is not the one the manifest was recorded from,
+PLAYWRIGHT_MCP_* settings in the environment may change its tools, or the
+client asks for a protocol version the manifest has no answer for, the real
+server starts at once, as it always did; TALE_PLAYWRIGHT_MCP_EAGER=1 always
+starts it at once.
 
 It also bridges the container's egress env to Chromium flags: Chromium ignores
 HTTPS_PROXY/NO_PROXY, and the sandbox network is internal-only, so without an
@@ -30,6 +34,7 @@ agent adapters.
 import hashlib
 import json
 import os
+import shutil
 import signal
 import subprocess
 import sys
@@ -49,6 +54,15 @@ PROBED_VERSIONS = (
     '2024-11-05',
     '2024-10-07',
 )
+# The lists a client may ask for at the start of a turn, by the capability a
+# server must advertise to answer them: without it the server has no handler,
+# and its SDK answers METHOD_NOT_FOUND.
+LISTS_BY_CAPABILITY = {
+    'prompts/list': 'prompts',
+    'resources/list': 'resources',
+    'resources/templates/list': 'resources',
+}
+METHOD_NOT_FOUND = {'code': -32601, 'message': 'Method not found'}
 # The id of the replayed `initialize`: the client's own ids never reach it.
 REPLAYED_INIT_ID = 'tale-playwright-mcp-initialize'
 # How long the image build waits for the real server to answer.
@@ -73,6 +87,23 @@ def server_argv(args, env):
     if env.get('NO_PROXY'):
         argv += ['--proxy-bypass', env['NO_PROXY']]
     return argv
+
+
+def installed_server(env):
+    """The real server as the PATH in `env` finds it, or None."""
+    return shutil.which(REAL_SERVER, path=env.get('PATH'))
+
+
+def server_file(path):
+    """The file a server path names, links resolved: what a manifest records."""
+    return os.path.realpath(path) if path is not None else None
+
+
+def configured_in_env(env):
+    """Whether the environment holds server settings the manifest, keyed by
+    the arguments, did not see: PLAYWRIGHT_MCP_CAPS adds tools,
+    PLAYWRIGHT_MCP_CONFIG names a file of settings, and so on."""
+    return any(key.startswith('PLAYWRIGHT_MCP_') and value for key, value in env.items())
 
 
 def manifest_path(args):
@@ -165,6 +196,7 @@ def write_manifests(arg_sets_file):
     with open(arg_sets_file, encoding='utf-8') as handle:
         arg_sets = json.load(handle)
     env = server_env()
+    server = server_file(installed_server(env))
     os.makedirs(MANIFEST_DIR, exist_ok=True)
     for args in arg_sets:
         argv = server_argv(args, env)
@@ -175,7 +207,12 @@ def write_manifests(arg_sets_file):
         path = manifest_path(args)
         with open(f'{path}.tmp', 'w', encoding='utf-8') as handle:
             json.dump(
-                {'args': args, 'initialize': initialize, 'tools': tools},
+                {
+                    'args': args,
+                    'server': server,
+                    'initialize': initialize,
+                    'tools': tools,
+                },
                 handle,
             )
         os.replace(f'{path}.tmp', path)
@@ -195,8 +232,13 @@ class LazyServer:
         self.pump = None
         self.out = sys.stdout.buffer
         self.out_lock = threading.Lock()
-        # The protocol version answered to the client, once it was.
+        # The protocol version the client asked for, once it was answered: the
+        # manifest's key for its answers.
         self.version = None
+        # What it was answered: the protocol version it was told, and the
+        # capabilities the server advertised.
+        self.told = None
+        self.capabilities = None
         self.init_params = None
         self.client_initialized = False
         # Notifications that came before the server: replayed to it.
@@ -216,6 +258,9 @@ class LazyServer:
     def reply(self, id_, result):
         self.write(encode({'jsonrpc': '2.0', 'id': id_, 'result': result}))
 
+    def refuse(self, id_, error):
+        self.write(encode({'jsonrpc': '2.0', 'id': id_, 'error': error}))
+
     def answered(self, msg, line):
         """Answer `msg` without the server; False when it needs the server."""
         method = msg.get('method')
@@ -224,9 +269,11 @@ class LazyServer:
             params = msg.get('params')
             version = params.get('protocolVersion') if isinstance(params, dict) else None
             result = self.manifest['initialize'].get(version) if isinstance(version, str) else None
-            if result is None:
+            if not isinstance(result, dict):
                 return False
             self.version = version
+            self.told = result.get('protocolVersion')
+            self.capabilities = result.get('capabilities')
             self.init_params = params
             self.reply(msg['id'], result)
             return True
@@ -242,6 +289,12 @@ class LazyServer:
             params = msg.get('params')
             if not (isinstance(params, dict) and params.get('cursor')):
                 self.reply(msg['id'], self.manifest['tools'][self.version])
+                return True
+            return False
+        if isinstance(method, str) and method in LISTS_BY_CAPABILITY and has_id:
+            capabilities = self.capabilities
+            if isinstance(capabilities, dict) and LISTS_BY_CAPABILITY[method] not in capabilities:
+                self.refuse(msg['id'], METHOD_NOT_FOUND)
                 return True
             return False
         if isinstance(method, str) and not has_id:
@@ -265,8 +318,8 @@ class LazyServer:
                 if msg is not None and msg.get('id') == REPLAYED_INIT_ID:
                     result = msg.get('result')
                     spoken = result.get('protocolVersion') if isinstance(result, dict) else None
-                    if spoken != self.version:
-                        log(f'the server speaks {spoken}, the client was told {self.version}')
+                    if spoken != self.told:
+                        log(f'the server speaks {spoken}, the client was told {self.told}')
                     break
                 self.write(line)
             else:
@@ -331,11 +384,17 @@ def main():
     env = server_env()
     argv = server_argv(args, env)
     manifest = None
-    if env.get('TALE_PLAYWRIGHT_MCP_EAGER') != '1':
+    if env.get('TALE_PLAYWRIGHT_MCP_EAGER') != '1' and not configured_in_env(env):
         manifest = load_manifest(args)
+    # A server the session installed ahead of the image's on PATH is not the
+    # one the manifest was recorded from; the one that is starts by the path
+    # checked here.
+    server = installed_server(env)
+    if manifest is not None and (server is None or server_file(server) != manifest.get('server')):
+        manifest = None
     if manifest is None:
         os.execvpe(REAL_SERVER, argv, env)
-    lazy = LazyServer(argv, env, manifest)
+    lazy = LazyServer([server, *argv[1:]], env, manifest)
     signal.signal(signal.SIGTERM, lazy.stop)
     signal.signal(signal.SIGINT, lazy.stop)
     signal.signal(signal.SIGHUP, lazy.stop)
