@@ -1,7 +1,15 @@
 import { afterEach, describe, expect, test } from 'bun:test';
-import { chmod, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import {
+  chmod,
+  copyFile,
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { delimiter, join, resolve } from 'node:path';
+import { delimiter, dirname, join, resolve } from 'node:path';
 
 import { parse } from 'yaml';
 import { z } from 'zod';
@@ -21,7 +29,9 @@ afterEach(async () => {
     await rm(directory, { recursive: true, force: true });
 });
 
-async function releaseWorkflow() {
+const scalar = z.union([z.string(), z.number(), z.boolean()]);
+
+async function readWorkflow(path: string) {
   return z
     .object({
       jobs: z.record(
@@ -31,18 +41,74 @@ async function releaseWorkflow() {
           steps: z.array(
             z.object({
               name: z.string().optional(),
+              uses: z.string().optional(),
+              with: z.record(z.string(), scalar).optional(),
+              env: z.record(z.string(), scalar).optional(),
               run: z.string().optional(),
               if: z.string().optional(),
+              'continue-on-error': z.unknown().optional(),
             }),
           ),
         }),
       ),
     })
-    .parse(
-      parse(
-        await readFile(join(root, '.github/workflows/release.yml'), 'utf8'),
-      ),
-    );
+    .parse(parse(await readFile(join(root, path), 'utf8')));
+}
+
+const releaseWorkflow = () => readWorkflow('.github/workflows/release.yml');
+
+/** A checkout holding only the validator; notes are written per case. */
+async function validatorCheckout() {
+  const directory = await mkdtemp(join(tmpdir(), 'tale-release-notes-'));
+  temporary.push(directory);
+  const script = 'tools/cli/scripts/release-notes.ts';
+  await mkdir(join(directory, dirname(script)), { recursive: true });
+  await copyFile(join(root, script), join(directory, script));
+  return {
+    directory,
+    async notes(version: string, text: string) {
+      await mkdir(join(directory, '.github/release-notes'), {
+        recursive: true,
+      });
+      await writeFile(
+        join(directory, `.github/release-notes/${version}.md`),
+        text,
+      );
+    },
+  };
+}
+
+/** One workflow `run:` under bash, as the runner would; returns its outputs. */
+async function runStep(
+  command: string,
+  cwd: string,
+  env: Record<string, string>,
+) {
+  const outputs = join(
+    await mkdtemp(join(tmpdir(), 'tale-step-output-')),
+    'output',
+  );
+  temporary.push(dirname(outputs));
+  await writeFile(outputs, '');
+  const result = Bun.spawnSync(['bash', '-c', command], {
+    cwd,
+    env: {
+      ...process.env,
+      PATH: `${dirname(process.execPath)}${delimiter}${process.env.PATH}`,
+      GITHUB_OUTPUT: outputs,
+      ...env,
+    },
+  });
+  return {
+    exitCode: result.exitCode,
+    stderr: result.stderr.toString(),
+    outputs: Object.fromEntries(
+      (await readFile(outputs, 'utf8'))
+        .split('\n')
+        .filter(Boolean)
+        .map((line) => [line.split('=')[0], line.slice(line.indexOf('=') + 1)]),
+    ),
+  };
 }
 
 describe('authored release notes', () => {
@@ -104,6 +170,48 @@ describe('authored release notes', () => {
       publish.find((step) => step.name === 'Create release')?.run,
     ).toContain('--notes-file /tmp/release-notes.md');
   });
+
+  test.skipIf(process.platform === 'win32')(
+    'Prepare validates from a sparse checkout of the notes and their validator',
+    async () => {
+      const steps = (await releaseWorkflow()).jobs.prepare.steps;
+      const checkout = steps.find(
+        (step) => step.name === 'Checkout release notes',
+      );
+      expect(checkout?.uses).toStartWith('actions/checkout@');
+      // Exact paths, not cones: nothing else of the tree is fetched.
+      expect(checkout?.with?.['sparse-checkout-cone-mode']).toBe(false);
+      expect(checkout?.with?.['fetch-depth']).toBeUndefined();
+      expect(
+        String(checkout?.with?.['sparse-checkout']).trim().split('\n'),
+      ).toEqual([
+        '.github/release-notes',
+        'tools/cli/scripts/release-notes.ts',
+      ]);
+      // Node built-ins only, so those two paths are all the validator reads.
+      const source = await readFile(
+        join(root, 'tools/cli/scripts/release-notes.ts'),
+        'utf8',
+      );
+      const imports = new Bun.Transpiler({ loader: 'ts' })
+        .scanImports(source)
+        .map((entry) => entry.path);
+      expect(imports.length).toBeGreaterThan(0);
+      for (const specifier of imports) expect(specifier).toStartWith('node:');
+
+      const validate = steps.find(
+        (step) =>
+          step.name === 'Validate authored release notes before building',
+      )!.run!;
+      const tree = await validatorCheckout();
+      expect(
+        (await runStep(validate, tree.directory, { TAG: 'v1.2.3' })).exitCode,
+      ).not.toBe(0);
+      await tree.notes('v1.2.3', authored);
+      const valid = await runStep(validate, tree.directory, { TAG: 'v1.2.3' });
+      expect(valid.exitCode, valid.stderr).toBe(0);
+    },
+  );
 
   test.skipIf(process.platform === 'win32')(
     'publication retries preserve published releases and surface drafts or API failures',
