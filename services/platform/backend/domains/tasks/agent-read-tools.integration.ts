@@ -106,6 +106,8 @@ export async function checkAgentTaskReadTools(
     startedAt?: number;
     feedback?: string;
     failureCode?: string;
+    autoRetryArmedAt?: number;
+    autoRetryRefusedAt?: number;
     grants?: string[];
   }): Promise<{ runId: string; token: string }> => {
     const execId = `exec-${randomUUID().slice(0, 12)}`;
@@ -117,7 +119,8 @@ export async function checkAgentTaskReadTools(
         org_id, project_id, task_id, agent_id, exec_id, session_id, status,
         harness, model, trigger, feedback, failure_code, error, result_text,
         started_by, started_at_ms, launched_at_ms, deadline_at_ms,
-        settled_at_ms, updated_at_ms
+        settled_at_ms, updated_at_ms, auto_retry_armed_at_ms,
+        auto_retry_refused_at_ms
       ) VALUES (
         ${orgId}, ${args.projectId ?? projectA}, ${args.taskId}, ${args.agentId}, ${execId},
         ${sessionId}, ${args.status}, 'claude-code', 'itest-model', 'manual',
@@ -126,7 +129,8 @@ export async function checkAgentTaskReadTools(
         ${args.status === 'settled' ? 'itest: the full report the run produced' : null},
         ${args.startedBy ?? userId}, ${startedAt}, ${startedAt + 1000},
         ${startedAt + 3_600_000}, ${terminal ? startedAt + 60_000 : null},
-        ${Date.now()}
+        ${Date.now()}, ${args.autoRetryArmedAt ?? null},
+        ${args.autoRetryRefusedAt ?? null}
       ) RETURNING id
     `;
     if (!sessionIds.has(sessionId)) {
@@ -836,8 +840,49 @@ export async function checkAgentTaskReadTools(
         recordAt(out(restRuns), 'agentRunsPage').isDone === true &&
         newestRun?.status === 'failed' &&
         newestRun.failureCode === 'harness_error' &&
+        newestRun.retryPending === false &&
         !('error' in newestRun),
       `first=${runIds(firstRuns).join(',')} rest=${runIds(restRuns).join(',')} expected=${history.join(',')} newest=${JSON.stringify(newestRun)}`,
+    );
+
+    const pendingRetryTask = await insertTask({
+      projectId: projectA,
+      title: 'Read an armed native retry',
+      status: 'in_progress',
+      agentId: worker,
+    });
+    const pendingRetryRun = await agentRun({
+      agentId: worker,
+      taskId: pendingRetryTask,
+      status: 'failed',
+      failureCode: 'harness_error',
+      autoRetryArmedAt: now,
+    });
+    const retryBefore = await dispatch(m1, 'task_get', {
+      taskId: pendingRetryTask,
+    });
+    await sql`
+      UPDATE app.project_agent_runs
+      SET auto_retry_refused_at_ms = ${Date.now()}
+      WHERE id = ${pendingRetryRun.runId} AND org_id = ${orgId}
+    `;
+    const retryAfter = await dispatch(m1, 'task_get', {
+      taskId: pendingRetryTask,
+    });
+    const beforeRun = listAt(out(retryBefore), 'agentRuns')[0];
+    const afterRun = listAt(out(retryAfter), 'agentRuns')[0];
+    record(
+      'read tools: the latest failed run exposes an armed retry and its retirement without leaking its error or internal retry stamps',
+      beforeRun?.runId === pendingRetryRun.runId &&
+        beforeRun.retryPending === true &&
+        afterRun?.runId === pendingRetryRun.runId &&
+        afterRun.retryPending === false &&
+        [beforeRun, afterRun].every((run) =>
+          ['error', 'autoRetryArmedAt', 'autoRetryRefusedAt'].every(
+            (key) => !(key in run),
+          ),
+        ),
+      `before=${JSON.stringify(beforeRun)} after=${JSON.stringify(afterRun)}`,
     );
 
     // An automation run waiting on a native question, and one on an approval.

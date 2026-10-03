@@ -111,7 +111,7 @@ The step answers the run it started, and the task's timeline lists that run as *
 | `closed` | With `moveToInProgress: false`, the card is **Done** or **Cancelled** (`taskStatus`). Nothing is assigned or started. |
 | `agent_busy` | The agent is working another task (`busyTaskId`). An agent works one task at a time in its workspace. |
 | `blocked` | A task this one depends on is still open (`blockedBy`). |
-| `paused` | The task took three starts by automations and agents within the last hour, their automatic retries included. `retryAfter` says when the next one is admitted. |
+| `paused` | The task took three starts by automations and agents within the last hour, ordinary automatic retries included. One broker cooldown immediately after the same agent’s HTTP 429 adds no start; consecutive cooldowns still count. `retryAfter` says when the hourly count permits another start; other admission checks still apply. |
 
 A run a schedule starts answers to no person. It works with the agent's configured instructions, secrets and tools, and its spend counts as automation spend against the organization's limits. Connector actions it asks the platform to run act for nobody, so they are refused. It keeps that authority only while the schedule may act in the project: turning the schedule off, removing it, or uninstalling the automation from the project stops the next start, fails a run that has not launched yet, and ends the workspace tools of a run in progress. A run a person starts from the automation answers to that person instead, as long as they can edit the project. A run a webhook or a platform event started cannot start agents, and an automation that is not installed in the task's project cannot reach its agents.
 

@@ -91,6 +91,7 @@ A pass can outlast one run. Before its run ends, the manager saves a checkpoint 
 
 - A run with `live: true` is queued or running, and nothing else starts on the task until it ends.
 - A run that has settled, failed or been cancelled is finished; `settledAt` says when.
+- `retryPending: true` means the newest failed run still has an armed automatic retry with budget remaining. Leave that retry to Tale. `false` means no retry is pending for that run; a missing field on an older platform means unknown. It supplies no provider reset time or permission to restart: first read the current task, assignee, runs and review, then honor any provider wait and admission `retryAfter`.
 - A `workflowRun` waiting for an `ask` or an `approval` waits on a person. A `pendingReview` records its human or agent reviewer; a manager leaves the decision to that reviewer unless it is itself the assigned independent reviewer with the review grant.
 
 The answer leaves out transcripts, error texts and results, and anything from another project.
@@ -117,7 +118,7 @@ Answering an automation's question and deciding a workflow approval stay with pe
 | Automatic retry is shown | Tale is retrying a recoverable failure. Read the attempt count and avoid starting another run. |
 | **The agent couldn't finish this task** | No automatic retry follows. The notice says what went wrong and who can fix it, and **Details** beside the run shows what the run itself reported; [When the agent can't finish](#when-the-agent-cant-finish) lists the cases. Resolve the cause, then use **Retry** to continue the conversation. |
 | Reassignment is refused | Cancel the live run before choosing another assignee. |
-| Agents or automations keep restarting one task | A task takes at most three starts of its agent by automations and other agents in any hour, their automatic retries included; the next start is refused, a retry past the limit is not started, and the timeline says **Run refused: agent runs are paused on this task**. Starts by people, and their retries, are never counted. Automation runs have no such cap: between two automations that keep mentioning each other, the one-engine rule is what stops a loop. Cancel the live run, then read the timeline before letting either start again. |
+| Agents or automations keep restarting one task | A task takes at most three starts of its agent by automations and other agents in any hour, ordinary automatic retries included; the cooldown exception below applies. The next start is refused, a retry past the limit is not started, and the timeline says **Run refused: agent runs are paused on this task**. Starts by people, and their retries, are never counted. Automation runs have no such cap: between two automations that keep mentioning each other, the one-engine rule is what stops a loop. Cancel the live run, then read the timeline before letting either start again. |
 | **Run refused: agent is working on another task** | An automatic retry waited two hours for its agent, which is still working on another task. Nothing waits behind the refusal: start the task again once the agent is free, or leave it to the manager agent or automation that hands out the work. |
 | The task cannot close | Finish its open subtasks first. |
 
@@ -127,7 +128,7 @@ An automatic retry continues the work of the person who started the run, so it s
 
 An agent served by a subscription broker can lose its token while it works, when the broker refreshes the account. The retry then continues the conversation on a fresh token, and the attempt count does not advance: the retry shows the same count as the run it replaces, or **Resumed after a token refresh** when that run showed none or had worked for at least fifteen minutes, which earned it a fresh retry allowance. After two such interruptions in a row, a further one counts like any other failure.
 
-A run can also fail to start because every account of its subscription broker is cooling down after a rate limit. Its retry is queued at once but starts only when the first account is available again, at most a minute later. The wait uses no attempt when the refused run was itself retrying a rate-limit failure; otherwise the refused start counts as one.
+A run can also fail to start because every account of its subscription broker is cooling down after a rate limit. Its retry is queued at once but starts only when the first account is available again, at most a minute later. The wait uses no attempt when the refused run immediately follows the same agent’s HTTP 429 failure. That single wait also adds no start to the task’s hourly automated-start count: the rate-limit failure already counted. A consecutive cooldown refusal, or one following any other failure, counts toward both limits.
 
 ### When the agent can't finish
 

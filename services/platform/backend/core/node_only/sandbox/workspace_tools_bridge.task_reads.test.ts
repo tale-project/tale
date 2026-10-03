@@ -880,6 +880,42 @@ describe('task_get reads what a manager decides with', () => {
     });
   });
 
+  it.each([true, false, undefined])(
+    'preserves native retry state %s without treating an older reader as a final failure',
+    async (retryPending) => {
+      const { call } = createHarness({
+        workState: () => ({
+          agentRuns: [
+            run({
+              status: 'failed',
+              retryPending,
+              error: 'private error payload',
+              autoRetryArmedAt: 1_790_000_500_000,
+              autoRetryRefusedAt: null,
+            }),
+          ],
+          agentRunsHasMore: false,
+          workflowRun: null,
+          pendingReview: null,
+        }),
+      });
+      const result = await call('task_get', { taskId: 't-0000' });
+      const [view] = outputOf(result).agentRuns as Record<string, unknown>[];
+      if (retryPending === undefined) {
+        expect(view).not.toHaveProperty('retryPending');
+      } else {
+        expect(view).toHaveProperty('retryPending', retryPending);
+      }
+      for (const hidden of [
+        'error',
+        'autoRetryArmedAt',
+        'autoRetryRefusedAt',
+      ]) {
+        expect(view).not.toHaveProperty(hidden);
+      }
+    },
+  );
+
   it('answers a failed run-state read as an error, never as an idle task', async () => {
     const { harness, call } = createHarness();
     harness.workState = () => {

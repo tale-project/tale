@@ -730,6 +730,116 @@ describe('listTaskAgentRunSummaries — the runs an agent reading its task sees'
       1, 100,
     ]);
   });
+
+  const summary = (overrides: Row = {}) => ({
+    id: 'run-1',
+    seq: 4,
+    agentId: 'agent-1',
+    agentExists: true,
+    status: 'failed',
+    trigger: 'auto_retry',
+    startedAt: 1,
+    launchedAt: 2,
+    settledAt: 3,
+    waitingForCapacity: false,
+    failureCode: 'harness_error',
+    feedback: null,
+    feedbackTruncated: false,
+    ...overrides,
+  });
+
+  const history = (overrides: Row = {}) => ({
+    ...summary(),
+    startedBy: 'user-1',
+    apiErrorStatus: null,
+    autoRetryAttempt: null,
+    autoRetryArmedAt: 3,
+    autoRetryRefusedAt: null,
+    ...overrides,
+  });
+
+  async function readRetryState(
+    rows: Row[],
+    retryHistory: Row[],
+    beforeSeq?: number,
+  ) {
+    const { sql, statements } = fakeSql((text) =>
+      text.includes('auto_retry_refused_at_ms::float8') ? retryHistory : rows,
+    );
+    const runs = await listTaskAgentRunSummaries(sql, {
+      organizationId: 'org-1',
+      taskId: 'task-1',
+      limit: 5,
+      ...(beforeSeq !== undefined ? { beforeSeq } : {}),
+    });
+    return { runs, statements };
+  }
+
+  it('exposes an armed native retry without exposing the internal agent check', async () => {
+    const { runs, statements } = await readRetryState([summary()], [history()]);
+    expect(runs[0]).toMatchObject({ status: 'failed', retryPending: true });
+    expect(runs[0]).not.toHaveProperty('agentExists');
+    expect(runs[0]).not.toHaveProperty('error');
+    expect(statements).toHaveLength(2);
+  });
+
+  it.each([
+    ['unarmed', { autoRetryArmedAt: null }],
+    ['retired', { autoRetryRefusedAt: 4 }],
+    ['superseded', { id: 'newer-run' }],
+  ])('exposes a %s retry as explicitly not pending', async (_kind, change) => {
+    const { runs } = await readRetryState([summary()], [history(change)]);
+    expect(runs[0]?.retryPending).toBe(false);
+  });
+
+  it('uses the same exhausted failure budget as the run card', async () => {
+    const { runs } = await readRetryState(
+      [summary()],
+      Array.from({ length: 4 }, (_, index) =>
+        history({ id: index === 0 ? 'run-1' : `older-${index}` }),
+      ),
+    );
+    expect(runs[0]?.retryPending).toBe(false);
+  });
+
+  it('does not mistake the first failed run of a history page for the latest run', async () => {
+    const { runs } = await readRetryState(
+      [summary({ id: 'older-run', seq: 2 })],
+      [history()],
+      3,
+    );
+    expect(runs[0]?.retryPending).toBe(false);
+  });
+
+  it('only the newest row can have a pending retry, with one budget read per page', async () => {
+    const { runs, statements } = await readRetryState(
+      [summary(), summary({ id: 'older-run', seq: 3 })],
+      [history(), history({ id: 'older-run' })],
+    );
+    expect(runs.map((run) => run.retryPending)).toEqual([true, false]);
+    expect(statements).toHaveLength(2);
+  });
+
+  it.each(['queued', 'running', 'settled', 'cancelled'])(
+    'a %s run has no pending failure retry',
+    async (status) => {
+      const { runs, statements } = await readRetryState(
+        [summary({ status })],
+        [history()],
+      );
+      expect(runs[0]?.retryPending).toBe(false);
+      expect(statements).toHaveLength(1);
+    },
+  );
+
+  it('does not promise a retry for a deleted agent', async () => {
+    const { runs, statements } = await readRetryState(
+      [summary({ agentExists: false })],
+      [history()],
+    );
+    expect(runs[0]?.retryPending).toBe(false);
+    expect(statements).toHaveLength(1);
+  });
 });
 
 describe('an open task follows its run: every run write hints the task', () => {

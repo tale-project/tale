@@ -262,6 +262,7 @@ interface AgentRunAnswer {
   settledAt: number | null;
   waitingForCapacity: boolean;
   failureCode: string | null;
+  retryPending?: boolean;
   feedback: string | null;
   feedbackTruncated: boolean;
 }
@@ -341,6 +342,9 @@ function agentRunView(run: AgentRunAnswer): Record<string, unknown> {
     ...(settledAt !== undefined ? { settledAt } : {}),
     ...(run.waitingForCapacity ? { waitingForCapacity: true } : {}),
     ...(run.failureCode !== null ? { failureCode: run.failureCode } : {}),
+    ...(typeof run.retryPending === 'boolean'
+      ? { retryPending: run.retryPending }
+      : {}),
     // What the start asked the run to address first — a person's comment,
     // or the message of the agent that restarted it.
     ...(run.feedback !== null ? { feedback: run.feedback } : {}),
@@ -759,9 +763,10 @@ const START_AGENT_GUIDANCE: Record<string, string> = {
     'they are done.',
   paused:
     'This task took three starts by automations and agents within the hour, ' +
-    'their automatic retries included; ' +
-    'its circuit breaker admits the next one at retryAfter. Report the task ' +
-    'instead of restarting it.',
+    'ordinary automatic retries included. One broker cooldown immediately ' +
+    'after that agent’s HTTP 429 adds no start; consecutive cooldowns count. ' +
+    'Do not try before retryAfter. Report the refusal and re-read the task ' +
+    'and every admission constraint before a later attempt.',
 };
 
 /** `task_start_agent`: a project agent's live run puts another agent of the
