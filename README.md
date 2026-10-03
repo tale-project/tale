@@ -101,7 +101,7 @@ Before accepting the result, open the delivered report, verify its citations aga
 
 ### Run a local instance
 
-Install the Tale CLI, create a project, and start its development stack:
+Use the published CLI on macOS or Linux; no repository clone or Bun installation is needed:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/tale-project/tale/main/scripts/install-cli.sh | bash
@@ -110,9 +110,13 @@ cd my-project
 tale dev
 ```
 
-The stack needs Docker. Follow the CLI’s setup prompts and wait for Docker to be running before starting Tale. The first start downloads container images; the CLI reports the address to open. Follow the setup wizard to create the first account and organization, then connect an AI provider to get model responses.
+You need Docker with Compose, space for several GB of images and your data, and a model provider credential for your first reply. Docker Desktop includes the amd64 emulation needed by the bundled object store on Apple Silicon. On ARM64 Linux, configure emulation before starting.
 
-For Windows installation, platform prerequisites, and recovery when startup fails, follow the [installation guide](https://docs.tale.dev/self-hosted/install/quickstart). Use the [CLI reference](tools/cli/README.md) for commands and flags, and the [deployment guide](https://docs.tale.dev/self-hosted/install/cli-install) before moving to a server.
+The CLI can help install or start Docker. Use `tale doctor` to check prerequisites without changing your machine. On startup, open the printed URL, create the first account and organization, then add a credential under **Settings > AI providers** and [send your first message](https://docs.tale.dev/get-started/quickstart).
+
+Press `Ctrl-C` to stop; run `tale dev` in the same directory to resume with your data. For background use, start with `tale dev --detach` and stop with `tale dev --stop`.
+
+The [installation quickstart](https://docs.tale.dev/self-hosted/install/quickstart) covers Windows, certificates, architecture requirements and recovery. Use the [CLI guide](tools/cli/README.md) for commands. Before serving a team, follow [production preparation](https://docs.tale.dev/self-hosted/install/quickstart#prepare-a-production-deployment); `tale deploy` uses separate data volumes from the local development instance.
 
 ### Develop from source
 

@@ -6,6 +6,8 @@ kind: index
 
 En hébergeant Tale, ton organisation choisit où l’application s’exécute, où les données sont stockées et quels modèles elle utilise. La plateforme open source offre les mêmes fonctionnalités que la version Enterprise. Ton équipe exploite l’infrastructure et décide quels services externes elle peut contacter.
 
+Pour une première installation, suis le [démarrage local](/fr/self-hosted/install/quickstart) : installe la CLI publiée, lance `tale init`, puis `tale dev`. Le guide t’accompagne de la création du compte propriétaire à la première réponse dans le chat, en passant par la connexion du fournisseur. Docker exécute les services fournis ; aucun dépôt source ni outil de compilation n’est nécessaire. Utilise `tale doctor` si tu souhaites vérifier ta machine avant de créer le projet.
+
 ## Choisir ton point de départ
 
 | Ton objectif | Guide |

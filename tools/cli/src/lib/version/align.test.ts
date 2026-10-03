@@ -33,6 +33,13 @@ afterEach(() => {
 });
 
 describe('ensureAligned', () => {
+  test('doctor is read-only even inside a project pinned to another version', async () => {
+    const deps = makeDeps();
+    await ensureAligned('doctor', deps);
+    expect(deps.findProject).not.toHaveBeenCalled();
+    expect(deps.resolveRelease).not.toHaveBeenCalled();
+    expect(deps.installBinary).not.toHaveBeenCalled();
+  });
   test('mismatch: installs the workspace version and re-execs', async () => {
     const deps = makeDeps({ currentVersion: '0.8.0' }); // workspace = 0.9.0
     await ensureAligned('status', deps);

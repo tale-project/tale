@@ -155,6 +155,8 @@ test('turbo re-runs the suites when an install page or another outside file they
     ...[
       ...new Set([
         ...CHECKED_CI_FILES,
+        'scripts/install-cli.sh',
+        'scripts/install-cli.ps1',
         ...PARITY_FILES,
         ...REPOSITORY_RUNTIME_SOURCE,
       ]),

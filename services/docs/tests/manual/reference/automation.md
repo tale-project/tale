@@ -31,6 +31,7 @@ Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no s
 | [accessibility](../suites/accessibility.md) | `A11Y-A12` (one page title) | ✅ automated | `page-header.spec.ts` (one `h1`, in the article; the trail leaf is a plain current marker) + `tests/prerender/seo.test.ts` |
 | [accessibility](../suites/accessibility.md) | Full-page audits (`A11Y-A1`–`A11Y-A11`) | ⛔ manual-only | — this guide (the shared `ImageZoom`/`Video` components carry `vitest-axe` in `@tale/ui`) |
 | [content](../suites/content.md) | `CONT-F1` (source shape) | ✅ automated | vitest `structure-code.test.ts` (every fence declares a language), `structure-headings.test.ts`, `links.test.ts` |
+| [content](../suites/content.md) | Self-hosted entry commands: installer verification, Docker bootstrap, read-only prerequisite checks, local origin, readiness failure and data-preserving stop | 🔶 CLI regression | `tools/cli/scripts/install-cli.test.ts`, `tools/cli/src/lib/docker/ensure-docker.test.ts`, `tools/cli/tests/doctor.test.ts`, `tools/cli/src/lib/docker/setup-checks.test.ts`, `tools/cli/src/commands/dev/index.test.ts`, `tools/cli/src/lib/config/dev-origin.test.ts`, `tools/cli/src/lib/compose/generators/generate-dev-compose.test.ts`; a real Docker startup and provider reply remain integration/manual evidence |
 | [content](../suites/content.md) | A docs-only change re-runs the structural suite and the docs build in CI instead of replaying a cached result | ✅ automated | vitest `turbo-inputs.test.ts` (asks `turbo --dry=json` that every page, `nav.json`, `redirects.json`, `published.json`, root README, `@tale/ui` i18n catalog and framework file, the docs frame's link and redirect rules and the built-site crawler these tasks read is hashed) |
 | [content](../suites/content.md) | Local preview keeps the article body after a content edit or regenerated frontmatter | 🔶 unit | `lib/content/reload-content.test.ts` checks client full reload and module invalidation for content paths; editing a visible page in the dev server remains manual |
 | [content](../suites/content.md) | `CONT-F15`–`CONT-F16` (image sources) | 🔶 partial | vitest `images.test.ts` (paths resolve, alt text, size) + `image-manifest.test.ts` (manifest entry, page reference, DPR-2 dimensions) — rendered behaviour manual |
@@ -65,6 +66,13 @@ Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no s
 | [seo](../suites/seo.md) | Security header values (`SEO-F9`) | 🔶 | `packages/ui/src/server/security-headers.test.ts` (unit) — the served response is manual |
 
 ## Seams
+
+The self-hosted quickstart reuses those CLI regression suites for command behavior.
+Their controlled Docker responses cover failure and recovery branches without
+starting a real deployment. Judge the guide itself in EN/DE/FR at desktop and
+phone widths, including installer tabs, readable commands and startup recovery.
+A first model reply requires a separately provisioned provider and remains a live
+workflow check.
 
 The configuration release journey's command behavior belongs to
 `tools/cli/tests/config-releases.test.ts`: source and compiled CLI execution,

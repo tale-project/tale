@@ -6,6 +6,8 @@ kind: index
 
 Self-hosted Tale gives your organization control of the deployment, storage, and model connections. The open-source platform provides the same product functionality used in the enterprise edition. Your team operates the infrastructure and decides which external services it may contact.
 
+For a first installation, follow the [local quickstart](/self-hosted/install/quickstart): install the published CLI, run `tale init`, then `tale dev`. The guide takes you through the owner account, provider connection and first chat reply. Docker runs the packaged services; no source checkout or build toolchain is required. Use `tale doctor` if you want to check your machine before creating the project.
+
 ## Choose your starting point
 
 | What you need | Start here |
