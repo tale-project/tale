@@ -18,6 +18,7 @@ import { functionRefName } from '../../../lib/shared/handlers/function-refs';
 import type { ActionCtx } from '../lib/ctx';
 import { resolveModel } from '../lib/providers/resolve_model';
 import { resolveProviderCredential } from '../provider_credentials/resolve_credential';
+import { SANDBOX_DESTROY_PENDING_MESSAGE } from '../sandbox/session_constants';
 
 const io = vi.hoisted(() => ({
   /** The serving the resolver answers; the local gateway model when unset. */
@@ -497,6 +498,82 @@ describe('an automation agent turn', () => {
         retryAfterMs: 15_000,
       },
     });
+  });
+
+  it('fails a start whose workspace an administrator is destroying with the reason, waiting for no room', async () => {
+    // What the shim throws for a session whose Destroy is pending (#4122).
+    io.sessionRefusal = new AppError({
+      code: 'QUOTA_EXCEEDED',
+      message: SANDBOX_DESTROY_PENDING_MESSAGE,
+      reason: 'destroy_pending',
+    });
+    const { ctx, mutations } = makeCtx({
+      status: 'running',
+      cursor: {
+        node: 'book',
+        agent: { ...WAITING_CURSOR.cursor.agent, execId: 'exec-1' },
+      },
+    });
+
+    await startWorkflowAgentTurnImpl(ctx, {
+      organizationId: 'org-1',
+      runId: 'run-1',
+      nodeId: 'book',
+      execId: 'exec-1',
+      sessionId: 'wf-run-1',
+      harness: 'claude-code',
+      lane: 'gateway',
+      providerSlug: 'local-inference',
+      modelId: 'qwen3-32b',
+      gatewayModel: 'local-inference-org-1/qwen3-32b',
+      deadlineAt: Date.now() + 60_000,
+      request: { model: 'qwen3-32b', prompt: 'Book the synthetic invoice.' },
+    } as never);
+
+    expect(io.starts).toHaveLength(0);
+    const settled = mutations.find(
+      (m) => m.name === 'automations/mutations:recordAgentTurnSettled',
+    )?.args.result;
+    expect(settled).toMatchObject({
+      errored: true,
+      failureCode: 'sandbox_destroying',
+      reason: `the agent turn could not start: ${SANDBOX_DESTROY_PENDING_MESSAGE}`,
+    });
+    expect(settled).not.toHaveProperty('retryAtMs');
+    expect(settled).not.toHaveProperty('retryAfterMs');
+    // A refused start, not a wait for room: the op row reads failed.
+    expect(
+      mutations.some((m) => m.args.agentResultStatus === 'awaiting_room'),
+    ).toBe(false);
+  });
+
+  it('fails an answered-ask resume whose workspace an administrator is destroying, leaving no answer to deliver', async () => {
+    io.sessionRefusal = new AppError({
+      code: 'QUOTA_EXCEEDED',
+      message: SANDBOX_DESTROY_PENDING_MESSAGE,
+      reason: 'destroy_pending',
+    });
+    const { ctx, mutations } = makeCtx(WAITING_CURSOR);
+
+    await resumeWorkflowAgentTurnWithAnswerImpl(ctx, {
+      organizationId: 'org-1',
+      askId: 'ask-1',
+    } as never);
+
+    expect(io.starts).toHaveLength(0);
+    const settled = mutations.find(
+      (m) => m.name === 'automations/mutations:recordAgentTurnSettled',
+    )?.args;
+    expect(settled).toMatchObject({
+      execId: 'exec-asking',
+      result: {
+        errored: true,
+        failureCode: 'sandbox_destroying',
+        reason: `the agent turn could not resume after the answer: ${SANDBOX_DESTROY_PENDING_MESSAGE}`,
+      },
+    });
+    expect(settled?.result).not.toHaveProperty('undeliveredAskId');
+    expect(settled?.result).not.toHaveProperty('retryAfterMs');
   });
 
   it('resumes the asking conversation with an answer its refused delivery never brought', async () => {

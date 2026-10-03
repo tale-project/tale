@@ -87,6 +87,9 @@ describe('agentFailureCodeOf', () => {
     // launched either.
     expect(agentFailureCodeOf('sandbox_capacity')).toBe('start_failed');
     expect(RUN_FAILURE_CODES).not.toContain('sandbox_capacity');
+    // Nor did one refused while the run's workspace was being destroyed.
+    expect(agentFailureCodeOf('sandbox_destroying')).toBe('start_failed');
+    expect(RUN_FAILURE_CODES).not.toContain('sandbox_destroying');
   });
 
   it('files anything else, or nothing, under the harness', () => {

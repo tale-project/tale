@@ -14,9 +14,11 @@
 
 import { describe, expect, it } from 'vitest';
 
+import { AppError } from '../../../lib/shared/errors/app-error.ts';
 import { functionRefName } from '../../../lib/shared/handlers/function-refs.ts';
 import type { ActionCtx } from '../lib/ctx.ts';
 import { SpawnerBusyError } from '../node_only/sandbox/helpers/session_client.ts';
+import { SANDBOX_DESTROY_PENDING_MESSAGE } from '../sandbox/session_constants.ts';
 import {
   classifyWorkflowStartFailure,
   isWorkflowTurnLive,
@@ -258,6 +260,26 @@ describe('classifyWorkflowStartFailure', () => {
     ).toMatchObject({
       failureCode: 'sandbox_capacity',
       retryAtMs: NOW + 15_000,
+    });
+  });
+
+  it('fails a start whose workspace an administrator is destroying with the reason, never waiting for room', () => {
+    // The shim's refusal of a session whose Destroy is pending: a room wait
+    // would start the step over in the fresh, empty workspace the Destroy
+    // leaves (#4122).
+    expect(
+      classifyWorkflowStartFailure(
+        new AppError({
+          code: 'QUOTA_EXCEEDED',
+          message: SANDBOX_DESTROY_PENDING_MESSAGE,
+          reason: 'destroy_pending',
+        }),
+        NOW,
+      ),
+    ).toEqual({
+      reason:
+        'the agent turn could not start: An administrator is deleting this sandbox workspace. No new work starts in it until the deletion has finished.',
+      failureCode: 'sandbox_destroying',
     });
   });
 

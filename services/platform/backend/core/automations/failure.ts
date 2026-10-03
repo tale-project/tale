@@ -67,6 +67,9 @@ const AGENT_RETRY_ONLY_CODES: Record<
   // Waited for sandbox room past the node's execution guard: it never
   // launched, as every refused start before it.
   sandbox_capacity: 'start_failed',
+  // Refused while the run's workspace was being destroyed: a refused start,
+  // as it read before the code was named.
+  sandbox_destroying: 'start_failed',
 };
 
 const AGENT_RETRY_ONLY_CODE_MAP: ReadonlyMap<string, RunFailureCode> = new Map(
