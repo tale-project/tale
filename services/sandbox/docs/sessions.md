@@ -127,8 +127,11 @@ predates the flag ignores it and does the same.
 Without a shim, a rotation snapshots the group before SIGTERM, while the
 leader still proves ownership. That stat-only scan is bounded to two seconds;
 if the leader exits before it completes, its snapshot is discarded. The
-delayed group-only SIGKILL uses those recorded pid/start-time pairs, not an
-unverified group number, and never signals held processes outside the group.
+group-only rounds use recorded pid/start-time pairs or an exec tag still in
+the group, not an unverified group number, and never signal held processes
+outside the group. When the leader exits during the snapshot, tag fallback
+still reaches tagged survivors; without a live subreaper, those fallback
+rounds may read environments.
 A survivor that removes its tag and leaves the group remains out of reach
 without a working subreaper. So does a group whose entire recorded membership
 has been replaced by newly forked, untagged processes after the leader exits.

@@ -858,7 +858,13 @@ export class ExecManager {
         rec.leaderExited ? [] : members,
       );
       void held.members.then(() => {
-        if (!rec.leaderExited) signalGroup(group, 'SIGTERM', this.reaper);
+        void signalExecProcesses(
+          [{ ...held, groupOnly: true, groupKnown: !rec.leaderExited }],
+          'SIGTERM',
+          this.reaper,
+        ).catch((error: unknown) => {
+          console.warn('[runnerd] rotation group SIGTERM failed:', error);
+        });
         setTimeout(() => {
           void signalExecProcesses(
             [{ ...held, groupOnly: true, groupKnown: !rec.leaderExited }],

@@ -258,6 +258,9 @@ async function scanProcessTable(
         if (!VANISHED.has(code)) {
           console.warn(`[runnerd] cannot read process ${pid}:`, err);
         }
+        if (code !== 'EACCES' && code !== 'EPERM') {
+          found.splice(found.indexOf(entry), 1);
+        }
         // One whose environment is not ours to read still stands in its
         // parent's line: a shim's descendants are walked through it.
         return;
@@ -402,10 +405,7 @@ function processesOf(
  * alone and takes no process's memory lock. */
 function rootsSuffice(targets: readonly ReapTarget[]): boolean {
   return targets.every(
-    (target) =>
-      target.rootComplete?.() === true ||
-      target.groupOnly === true ||
-      rootOf(target) !== null,
+    (target) => target.rootComplete?.() === true || rootOf(target) !== null,
   );
 }
 

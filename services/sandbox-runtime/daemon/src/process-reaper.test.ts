@@ -611,6 +611,25 @@ describe('signalExecProcesses', () => {
     }
   });
 
+  test('a process that vanished during its environment read is not an ancestry bridge', async () => {
+    const procRoot = procTable({
+      '60': tagged('walk', 60),
+      '62': { env: null, pgrp: 62, ppid: 60 },
+      '63': { env: [], pgrp: 63, ppid: 62 },
+      '80': tagged('fallback', 80),
+    });
+    const { sent, kill } = recorder();
+    await signalExecProcesses(
+      [
+        { execId: 'walk', groupId: 61, rootPid: 60, rootAlive: () => true },
+        { execId: 'fallback', groupId: 80 },
+      ],
+      'SIGKILL',
+      { procRoot, kill },
+    );
+    expect(sent).toEqual([[-80, 'SIGKILL']]);
+  });
+
   test('once its shim has exited, a target is found by its tag again', async () => {
     const procRoot = procTable({
       // The pid the shim had, someone else's now, with a child of its own.

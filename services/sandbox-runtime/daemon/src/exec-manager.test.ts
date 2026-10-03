@@ -683,6 +683,63 @@ describe('ExecManager', () => {
     }
   }, 10_000);
 
+  test('a tagged original survivor is reached when the leader exits during the rotation snapshot', async () => {
+    const procRoot = mkdtempSync(`${tmpdir()}/runnerd-proc-`);
+    const listing = Promise.withResolvers<string[]>();
+    const sent: Array<[number, NodeJS.Signals]> = [];
+    const mgr = new ExecManager(
+      new EnvStore(),
+      () => {},
+      undefined,
+      {
+        procRoot,
+        listDir: () => listing.promise,
+        kill: (pid, signal) => {
+          sent.push([pid, signal]);
+        },
+      },
+      { execShim: null },
+    );
+    const seen = collect();
+    let leader = 0;
+    const done = mgr.run(
+      {
+        ...base,
+        execId: 'snapshot-survivor',
+        shell: 'echo $$; exec sleep 30',
+        cwd: ROOT,
+      },
+      seen.emit,
+    );
+    try {
+      leader = await stdoutPid(seen.events);
+      expect(mgr.cancel('snapshot-survivor', { keepLeftovers: true })).toBe(
+        true,
+      );
+      process.kill(leader, 'SIGTERM');
+      await done;
+      mkdirSync(`${procRoot}/99995`);
+      writeFileSync(
+        `${procRoot}/99995/stat`,
+        `99995 (survivor) S 1 ${leader} ${leader} 0 -1 0 0 0 0 0 0 0 0 0 20 0 1 0 55555 0 0\n`,
+      );
+      writeFileSync(
+        `${procRoot}/99995/environ`,
+        'TALE_EXEC_ID=snapshot-survivor\0',
+      );
+      listing.resolve(['99995']);
+      await new Promise((resolve) => setTimeout(resolve, 5_300));
+      expect(sent).toContainEqual([-leader, 'SIGTERM']);
+      expect(sent).toContainEqual([-leader, 'SIGKILL']);
+    } finally {
+      listing.resolve([]);
+      if (leader > 1 && isAlive(leader)) process.kill(leader, 'SIGKILL');
+      await mgr.terminateAll();
+      await done;
+      rmSync(procRoot, { recursive: true, force: true });
+    }
+  }, 10_000);
+
   test('what a hand-over holds ends when no successor comes within its window', async () => {
     const procRoot = mkdtempSync(`${tmpdir()}/runnerd-proc-`);
     mkdirSync(`${procRoot}/99993`);
