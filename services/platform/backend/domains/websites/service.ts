@@ -278,6 +278,14 @@ async function getWebsiteCoveringDomain(
   return rows[0] ?? null;
 }
 
+function websiteRegistrationLockKey(
+  organizationId: string,
+  domain: string,
+): string {
+  const apex = domain.startsWith('www.') ? domain.slice(4) : domain;
+  return `website-registration:${organizationId}:${apex}`;
+}
+
 /** Newest-first keyset listing with the 0.4 filters (status, scanInterval)
  * and the palette's substring search over domain/title/description. */
 export async function listWebsites(
@@ -950,6 +958,7 @@ export async function registerWebsite(
     ? normalizeListUrls(domain, listEntries)
     : undefined;
   return sql.begin(async (tx) => {
+    await tx`SELECT pg_advisory_xact_lock(hashtextextended(${websiteRegistrationLockKey(args.organizationId, domain)}, 0))`;
     const existing = await getWebsiteCoveringDomain(
       tx,
       args.organizationId,
