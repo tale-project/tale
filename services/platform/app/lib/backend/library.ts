@@ -132,6 +132,9 @@ export const libraryWriteAdapters: Record<string, WriteAdapter> = {
               : {}),
             ...(Array.isArray(args.labels) ? { labels: args.labels } : {}),
           },
+          ...(typeof args.etag === 'string'
+            ? { headers: { 'if-match': args.etag } }
+            : {}),
         },
       ).then((body) => body.skill),
   },
