@@ -14,6 +14,8 @@ Un appareil est une machine que tu connectes à ton organisation pour que ses sa
 
 Par défaut, un appareil exécute une sandbox pour deux processeurs et pour 4 Gio de mémoire que Docker peut utiliser, jusqu’à 16 à la fois, car chaque sandbox d’agent reçoit 2 processeurs et 4 Gio. Tu peux choisir un autre nombre au moment de connecter la machine.
 
+Ce nombre est un plafond. Avant de démarrer une sandbox, l’appareil vérifie aussi la mémoire disponible sur l’hôte et l’espace disque libre pour les espaces de travail. Une place libre ne suffit donc pas toujours à accueillir une sandbox de plus.
+
 <Warning>
 
 Un appareil exécute le travail de ton organisation. Les espaces de travail des agents, les fichiers qu’ils traitent et les identifiants de courte durée qu’une tâche utilise passent par la machine, et toute personne disposant d’un accès administrateur à celle-ci peut les lire. Ne connecte que des machines que tu contrôles et auxquelles tu fais autant confiance qu’au serveur Tale. À l’inverse, le site Tale décide de ce qui s’exécute sur l’appareil, y compris les mises à jour qu’il installe de lui-même : ne connecte une machine qu’à un site Tale auquel tu la confies.
@@ -64,6 +66,8 @@ L’appareil continue de fonctionner après un redémarrage de la machine, tant 
 ## Comprendre où s’exécutent les sandboxes
 
 Les nouveaux espaces de travail des agents et des automatisations démarrent sur un appareil connecté qui a de la place. S’il n’y en a aucun, ils démarrent sur le serveur Tale. Un espace de travail reste, avec ses fichiers, sur la machine où il a démarré : un agent qui a déjà un espace de travail sur le serveur continue donc de l’utiliser. Les pages rendues pour l’exploration des sites web restent toujours sur le serveur.
+
+Quand plusieurs appareils ont de la place, Tale tient compte à la fois des places libres et de la marge de mémoire mesurée. Si un appareil refuse un démarrage faute de capacité, un autre appareil ou le serveur peut le prendre en charge. Si la réponse est perdue ou si l’appareil renvoie une erreur serveur, les nouvelles tentatives restent sur cet appareil : il a peut-être déjà créé l’espace de travail.
 
 Dès que ton organisation a un appareil, la liste **Espaces de travail** indique où s’exécute chaque espace de travail : **Sur le serveur** ou sur un appareil désigné par son nom. Tant qu’un appareil est hors ligne, le travail qui a besoin d’un de ses espaces de travail échoue avec un message indiquant que l’appareil n’est pas connecté. Relance-le quand l’appareil est de nouveau en ligne ; un espace de travail ne passe jamais tout seul sur une autre machine.
 
