@@ -1,6 +1,6 @@
 # Knowledge
 
-> **Prefix** `KNOW-` · **Reset** none · **Cost** 65 boxes
+> **Prefix** `KNOW-` · **Reset** none · **Cost** 66 boxes
 
 Exercise the knowledge surfaces — documents (upload + RAG indexing + preview +
 controlled revisions), manual knowledge entries, and the structured catalogs
@@ -36,7 +36,8 @@ records and delete them after.
 > not a direct dialog. Each row's **Open menu** (`common.actions.openMenu`)
 > 3-dot button starts with **View** (`common.actions.view`) for every member;
 > edit/delete follow for writers — contacts expose them only on manually-created
-> rows. A row click opens the same details dialog. Verify every write by reloading the route and reading the row back,
+> rows, and only those rows carry a checkbox for **Delete selected**. A row
+> click opens the same details dialog. Verify every write by reloading the route and reading the row back,
 > never by the toast. Document **indexing** needs the RAG service, which is
 > NOT in the hermetic mock stack, so an uploaded doc lands **Queued** then
 > flips to **Failed** (terminal here) — both are valid hermetic landing
@@ -736,6 +737,24 @@ records and delete them after.
   (`documents.onedrive.filesImportedCount`). The same with Google Drive, and
   in German and French: the titles read in the page's language, the size
   sentence stays the door's own.
+- [ ] `KNOW-B21` · **Bulk delete takes only what the row menu would** — As
+  an Editor, add one contact by **Manual entry**
+  (`contacts.importMenu.manualEntry`), one **From your device**
+  (`contacts.importMenu.fromDevice`), and one a sync owns:
+  `POST /api/v1/contacts` with `"source": "salesforce"` (any source but
+  `manual_import` / `file_upload`) → the synced row's **Open menu**
+  (`common.actions.openMenu`) offers **View** but no **Edit** or **Delete**,
+  and the row has no **Select row** checkbox (`common.aria.selectRow`) — not
+  even a disabled one. Tick **Select all** (`common.aria.selectAll`) → the
+  bar reads **2 items selected** (`common.bulkActions.itemsSelected`) →
+  **Delete selected** (`common.actions.deleteSelected`) → **Delete** →
+  reload `/dashboard/{org}/contacts`: the two own contacts are gone, the
+  synced one stays, and `GET /api/v1/contacts/{id}` still answers it. Tick a
+  manually entered contact, then `PATCH /api/v1/contacts/{id}` it to
+  `"source": "hubspot"` → its checkbox and the bar go, and nothing deletes
+  it. A list of synced contacts only, or a Member's view, shows no checkbox
+  and no **Select all**; a screen reader names the first column **Select
+  row**.
 
 ## Accessibility (WCAG 2.1 AA)
 

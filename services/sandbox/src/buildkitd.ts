@@ -839,6 +839,10 @@ async function relieveDiskPressure(
       `[sandbox.buildkitd] the session disk is short: removed ${candidate.org}'s build helpers and caches, stopped since ${new Date(candidate.finishedAtMs).toISOString()} (${removed.containers} containers, ${removed.volumes} volumes); its next build starts cold`,
     );
     if (after === null) break;
+    // The most constrained filesystem can change after a removal. A smaller
+    // free-byte count on the next one is not evidence of no benefit on the
+    // first; re-evaluate it next sweep instead of suppressing upkeep for hours.
+    if (after.filesystem !== disk.filesystem) break;
     if (after.availableBytes <= before) {
       pressurePausedUntilMs = nowMs + PRESSURE_PAUSE_MS;
       console.warn(

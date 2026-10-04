@@ -857,6 +857,10 @@ automations:
       input: The step would call with
       approve: Approve
       reject: Reject
+      loading: Loading the approval…
+      loadFailed: "Couldn't load this approval."
+      retry: Try again
+      decideFailed: "Couldn't record your decision."
     ask:
       title: The agent needs your answer to continue
       answerLabel: Your answer

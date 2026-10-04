@@ -579,8 +579,10 @@ export class DockerSessionBackend implements SessionBackend {
     const start = Date.now();
     for (let miss = 1; ; miss += 1) {
       try {
-        await runnerdHealth(opts, signal);
+        const health = await runnerdHealth(opts, signal);
         signal?.throwIfAborted();
+        if (health.dockerReady === false)
+          throw new Error('runnerd is live but inner Docker is not ready');
         return;
       } catch {
         signal?.throwIfAborted();

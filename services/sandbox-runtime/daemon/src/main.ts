@@ -36,6 +36,7 @@ import {
   type StageItem,
 } from './file-ops.ts';
 import { readJsonBody } from './http-body.ts';
+import { InnerDockerHealth } from './inner-docker-health.ts';
 import {
   RUNNERD_CONSUMER_BUFFER_MAX_BYTES,
   RUNNERD_MAX_LIVE_EXECS,
@@ -51,6 +52,7 @@ const MAX_EXEC_CONSUMERS = 8;
 const FILE_READ_MAX_BYTES = 20 * 1024 * 1024;
 
 const TOKEN = process.env.TALE_RUNNERD_TOKEN ?? '';
+const innerDocker = new InnerDockerHealth(process.env.TALE_DIND === '1');
 const bootedAtMs = Date.now();
 let lastActivityAtMs = bootedAtMs;
 const touch = () => {
@@ -264,6 +266,10 @@ async function handleExec(
     sendJson(res, body.status, { error: body.error });
     return;
   }
+  if ((await innerDocker.snapshot()).dockerReady === false) {
+    sendJson(res, 503, { error: 'docker_unavailable' });
+    return;
+  }
   // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
   const parsed = body.value as RunnerdExecRequest;
   if (execManager.liveCount() >= RUNNERD_MAX_LIVE_EXECS) {
@@ -358,7 +364,8 @@ async function router(
 
   // Unauthenticated kubelet probe — returns no session data.
   if (req.method === 'GET' && path === '/readyz') {
-    sendJson(res, 200, { ok: true });
+    const ok = (await innerDocker.snapshot()).dockerReady !== false;
+    sendJson(res, ok ? 200 : 503, { ok });
     return;
   }
 
@@ -374,6 +381,7 @@ async function router(
       lastActivityAtMs,
       liveExecs: execManager.liveCount(),
       activity: activity.snapshot(),
+      ...(await innerDocker.snapshot()),
     };
     sendJson(res, 200, body);
     return;
@@ -383,6 +391,10 @@ async function router(
     return;
   }
   if (req.method === 'POST' && path === '/acquire') {
+    if ((await innerDocker.snapshot()).dockerReady === false) {
+      sendJson(res, 503, { error: 'docker_unavailable' });
+      return;
+    }
     const generation = activity.acquire();
     sendJson(
       res,

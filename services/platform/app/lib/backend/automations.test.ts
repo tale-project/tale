@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
+import { QueryClient } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { automationReadAdapters, automationWriteAdapters } from './automations';
+import { backendKey } from './query-keys';
 
 /**
  * The save adapter carries the wizard's whole contract to the store door:
@@ -110,5 +112,30 @@ describe('saveAutomation adapter', () => {
     const [, init] = fetchSpy.mock.calls[0] ?? [];
     expect(jsonBody(init)).not.toHaveProperty('create');
     expect(jsonBody(init)).not.toHaveProperty('projectId');
+  });
+});
+
+describe('approval decision adapter', () => {
+  // The card that pressed Approve reads the recorded decision back from the
+  // approval itself; before, only the run lists refreshed, so the card kept
+  // offering the decision until the approval hint arrived.
+  it('refreshes the decided approval of this organization only', () => {
+    const client = new QueryClient();
+    const own = backendKey('org-a', 'approval', 'detail', 'approval-a');
+    const other = backendKey('org-b', 'approval', 'detail', 'approval-b');
+    client.setQueryData(own, { status: 'pending' });
+    client.setQueryData(other, { status: 'pending' });
+    automationWriteAdapters[
+      'approvals/mutations:updateApprovalStatus'
+    ]?.invalidate?.(
+      client,
+      { approvalId: 'approval-a' },
+      {
+        organizationId: 'org-a',
+      },
+    );
+    expect(client.getQueryState(own)?.isInvalidated).toBe(true);
+    expect(client.getQueryState(other)?.isInvalidated).toBe(false);
+    client.clear();
   });
 });
