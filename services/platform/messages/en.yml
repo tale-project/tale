@@ -8153,6 +8153,7 @@ twoFactor:
     unnamed: Passkey
     registered: Passkey registered
     revoked: Passkey removed
+    empty: You haven't added a passkey yet.
     namePromptDescription:
       Give this passkey a name so you can recognize it later
       (e.g. "MacBook Touch ID").
@@ -8166,6 +8167,8 @@ twoFactor:
     errors:
       registerFailed: Couldn't register the passkey. Try again.
       revokeFailed: Couldn't remove the passkey. Try again.
+      listFailed: Couldn't load your passkeys.
+      refreshFailed: Couldn't refresh your passkeys. The list shown may be out of date.
   setup:
     title: Set up two-factor authentication
     qrInstructions: Scan the QR code with an authenticator app (Google

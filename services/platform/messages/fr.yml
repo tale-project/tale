@@ -8119,6 +8119,7 @@ twoFactor:
     unnamed: Passkey
     registered: Passkey enregistré
     revoked: Passkey supprimé
+    empty: Tu n'as pas encore ajouté de passkey.
     namePromptDescription:
       Donne un nom à ce passkey pour le reconnaître plus tard
       (p. ex. "Touch ID du MacBook").
@@ -8132,6 +8133,8 @@ twoFactor:
     errors:
       registerFailed: Impossible d'enregistrer le passkey. Réessaie.
       revokeFailed: Impossible de supprimer le passkey. Réessaie.
+      listFailed: Impossible de charger tes passkeys.
+      refreshFailed: Impossible d'actualiser tes passkeys. La liste affichée n'est peut-être plus à jour.
   setup:
     title: Configurer l'authentification à double facteur
     qrInstructions: Scanne le code QR avec une application d'authentification

@@ -8019,6 +8019,7 @@ twoFactor:
     unnamed: Passkey
     registered: Passkey registriert
     revoked: Passkey entfernt
+    empty: Du hast noch keinen Passkey hinzugefügt.
     namePromptDescription: Gib diesem Passkey einen Namen, damit du ihn später
       wiedererkennst (z. B. "MacBook Touch ID").
     nameLabel: Passkey-Name
@@ -8031,6 +8032,8 @@ twoFactor:
     errors:
       registerFailed: Passkey konnte nicht registriert werden. Versuch es nochmal.
       revokeFailed: Passkey konnte nicht entfernt werden. Versuch es nochmal.
+      listFailed: Deine Passkeys konnten nicht geladen werden.
+      refreshFailed: Deine Passkeys konnten nicht aktualisiert werden. Die angezeigte Liste ist womöglich veraltet.
   setup:
     title: Zwei-Faktor-Authentifizierung einrichten
     qrInstructions: Scanne den QR-Code mit einer Authenticator-App (Google
