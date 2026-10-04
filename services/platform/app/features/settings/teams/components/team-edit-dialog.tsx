@@ -94,11 +94,7 @@ export function TeamEditDialog({
           Array.from(selectedMemberIdsRef.current).some(
             (id) => !initial.has(id),
           );
-        const rosterChanged =
-          initial.size !== memberIds.size ||
-          Array.from(memberIds).some((id) => !initial.has(id));
-
-        if (hasLocalChanges && rosterChanged) {
+        if (hasLocalChanges) {
           setHasRemoteMemberConflict(true);
           return;
         }
