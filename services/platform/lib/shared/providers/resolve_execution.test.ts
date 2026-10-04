@@ -95,6 +95,21 @@ describe('resolveExecution — direct mode', () => {
       expect(result.reason).toContain('claude-code');
       expect(result.reason).toContain('sandbox');
       expect(result.reason).toContain(MODEL.id);
+      // Why, not only what: the vendor's terms bind the token to its runtime.
+      expect(result.reason).toContain(
+        'the vendor permits subscription tokens only in its own agent runtime',
+      );
+    }
+  });
+
+  // Native chat calls such a model on the Responses API itself, so a direct
+  // credential runs it directly; the harness check stays the sandbox's.
+  it('runs a Responses-only model directly on an api-key or env credential', () => {
+    const model = { ...MODEL, toolCallingApi: 'responses' as const };
+    for (const credential of [API_KEY, ENV]) {
+      expect(
+        resolveExecution({ model, credential, mode: 'direct' }, HARNESSES),
+      ).toEqual({ mode: 'direct' });
     }
   });
 });

@@ -39,6 +39,12 @@ those indexes throughout the cleanup pass instead of rescanning the complete
 table for every execution. The indexes expire with the pass; later passes
 still check process identity and ownership from a fresh snapshot.
 
+Completed commands release their request and consumer data even while another
+command keeps the session active. Process cleanup retains only the ownership
+and liveness data it still needs. Held-open stdin has an 8 MiB pending-write
+ceiling: a nonreading command refuses further lines with `WRITE_FAILED` until
+its pipe drains, without partially accepting the refused line.
+
 File staging streams each URL into a temporary file beside its destination
 and replaces the destination only after a complete, bounded download. Cancelling
 or failing a download preserves the previous file. At most two stage requests
@@ -172,6 +178,18 @@ exec starts its descendant, so runnerd can end what the exec left
 ([sessions](../sandbox/docs/sessions.md)). `install-playwright-browsers.sh`
 bakes the browser bundles at build time. See the script headers for the split
 rationale.
+
+Inner Docker defaults to `json-file` logs rotating at 10 MB per nested container,
+with one file and compression disabled, matching the outer session's log cap.
+`docker logs` and Compose logs keep working. These daemon defaults apply to
+new nested containers; existing ones keep their original logging configuration
+until recreated, and an explicit per-container logging configuration takes
+precedence. Images, volumes and workspace files are not part of this log budget.
+
+Inner Docker and redsocks diagnostics go to container stderr, where the outer
+Docker logger or Kubernetes node owns rotation. They no longer accumulate in
+unbounded `/var/log/dockerd.log`, `/var/log/redsocks.log` or `/tmp/redsocks.log`
+files. Existing files are left intact; this change does not reclaim old logs.
 
 ```bash
 # from repo root

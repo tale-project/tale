@@ -110,6 +110,10 @@ export async function listModelApiModels(
   const models: ModelApiModel[] = [];
   for (const option of options) {
     if (!servedByDirectCredential(option)) continue;
+    // These endpoints relay Chat Completions and Anthropic Messages; a model
+    // whose tools work only on the Responses API would answer an editor's
+    // tool call with a 400.
+    if (option.toolCallingApi === 'responses') continue;
     const connector = connectors.get(option.providerSlug);
     if (connector === undefined || !gatewayServable(connector)) continue;
     models.push(toModel(option, connector));

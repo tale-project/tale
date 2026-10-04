@@ -206,6 +206,18 @@ omit these markers. Consumers retain their legacy completion behavior only
 while replay sequence continuity is verified; an observed gap fails the replay
 rather than treating a suffix as complete history.
 
+The initial exec consumer releases its callback and HTTP objects on disconnect.
+Body intake drops its raw upload buffers after parsing, and completed commands
+release request and consumer data even when background descendants await a
+sibling's completion. Deferred process cleanup keeps only ownership and
+liveness information, separate from the bounded replay history.
+
+Held-open stdin accepts a whole line only while its pending writes plus that
+line fit within 8 MiB. A full queue returns the existing `WRITE_FAILED` reason
+without enqueuing any of that line; once the child drains its pipe, writes may
+resume. This bounds memory when a command stops reading stdin. Device tunnel
+streams also remove caller abort listeners on completion, reset or disconnect.
+
 ### Staged inputs and output reads
 
 `POST /files/stage` accepts the existing `files` list: a destination `path`
@@ -496,7 +508,13 @@ The spawner's part:
   run one after another, and a create of an id waits for a destroy of it under way —
   up to two minutes; past that it answers 429 busy (`retry-after`), so a
   destroy wedged on its filesystem never holds the create and its capacity
-  slot for ever.
+  slot for ever. On Docker, destroying an id discards every flat and legacy
+  workspace copy plus the workspace its container actually mounts, even if
+  the configured session root moved. The organization marker stays until all
+  copies are discarded; an unreadable directory or an unknown container mount
+  defers the destroy. A failed create uses the same verified cleanup: existing
+  workspaces survive a failed resume, and failed removal retains ownership so
+  the platform can retry cleanup.
 - `DELETE /v1/organizations/:id` — for an organization the platform deleted:
   destroys every session the backend still holds for it (containers/Pods with
   their workspaces) and every stopped workspace attributed to it, then its
