@@ -16,7 +16,7 @@ import {
 } from '@/lib/shared/hint-entities';
 import { backendErrorCode } from '@/lib/utils/backend-error';
 
-import { invalidateMyPasswordPolicy } from './account';
+import { currentUserQuery, invalidateMyPasswordPolicy } from './account';
 import type {
   ActionQueryAdapter,
   AdapterContext,
@@ -1310,6 +1310,9 @@ export const settingsWriteAdapters: Record<string, WriteAdapter> = {
         orgId: requireOrg(args, ctx),
         body: { name: stringArg(args, 'name') },
       }).then(() => null),
+    invalidate: (client) => {
+      void client.invalidateQueries({ queryKey: currentUserQuery().queryKey });
+    },
   },
   'users/mutations:updateUserPassword': {
     // User-scoped: the forced-change page sits outside `/dashboard/$id` and
