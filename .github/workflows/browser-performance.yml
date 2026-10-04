@@ -31,7 +31,6 @@ jobs:
     env:
       BASELINE_SHA: ${{ inputs.baseline || github.event.pull_request.base.sha }}
       CANDIDATE_SHA: ${{ inputs.candidate || github.event.pull_request.head.sha }}
-      BENCH_OUTPUT: ${{ runner.temp }}/browser-performance
       DO_NOT_TRACK: '1'
     steps:
       - name: Checkout exact candidate

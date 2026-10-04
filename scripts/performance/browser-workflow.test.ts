@@ -1,7 +1,11 @@
 import { expect, test } from 'bun:test';
-import { readFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 import { parse } from 'yaml';
+
+import { prepareSources } from './browser/prepare-sources.mjs';
 
 const root = new URL('../../', import.meta.url);
 const workflow = parse(
@@ -94,4 +98,32 @@ test('the coordinator polls the real backend readiness door before synthetic see
   expect(
     coordinator.indexOf("await ready('http://127.0.0.1:43838/ready', backend)"),
   ).toBeLessThan(coordinator.indexOf("join(scripts, 'seed-http.mjs')"));
+});
+
+test('runner paths are initialized at runtime and exported before any source refusal', async () => {
+  const job = workflow.jobs['task-board'];
+  expect(JSON.stringify(job.env)).not.toContain('runner.');
+  const temporary = await mkdtemp(join(tmpdir(), 'tale-browser-bootstrap-'));
+  const environment = join(temporary, 'github-env');
+  const output = join(temporary, 'browser-performance');
+  try {
+    await expect(
+      prepareSources({
+        RUNNER_TEMP: temporary,
+        GITHUB_ENV: environment,
+        BASELINE_SHA: 'invalid',
+      }),
+    ).rejects.toThrow('Expected a full lowercase commit SHA');
+    const exported = await readFile(environment, 'utf8');
+    expect(exported).toContain(`BENCH_OUTPUT=${output}\n`);
+    expect(exported).toMatch(/BENCH_DEADLINE_MS=\d+\n/);
+    const receipt = JSON.parse(
+      await readFile(join(output, 'sources.json'), 'utf8'),
+    );
+    expect(receipt.status).toBe('failed');
+    expect(receipt.output).toBe(output);
+    expect(receipt.error).toContain('Expected a full lowercase commit SHA');
+  } finally {
+    await rm(temporary, { recursive: true, force: true });
+  }
 });

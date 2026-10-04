@@ -62,17 +62,22 @@ export function platformNode(source) {
 }
 
 export async function prepareSources(env = process.env, cwd = process.cwd()) {
-  const output = resolve(env.BENCH_OUTPUT ?? '');
   const temporary = resolve(env.RUNNER_TEMP ?? '');
+  const output = resolve(temporary, 'browser-performance');
   assert(
-    env.BENCH_OUTPUT && env.RUNNER_TEMP && output.startsWith(`${temporary}/`),
+    env.RUNNER_TEMP &&
+      output.startsWith(`${temporary}/`) &&
+      !/[\r\n]/.test(output),
     'Evidence must be under RUNNER_TEMP',
   );
   await mkdir(output, { mode: 0o700 });
   const deadline = Date.now() + 32 * 60_000;
   const receipt = { status: 'preparing', output, deadline };
   assert(env.GITHUB_ENV, 'Actions environment path is required');
-  await appendFile(env.GITHUB_ENV, `BENCH_DEADLINE_MS=${deadline}\n`);
+  await appendFile(
+    env.GITHUB_ENV,
+    `BENCH_OUTPUT=${output}\nBENCH_DEADLINE_MS=${deadline}\n`,
+  );
   const save = () =>
     writeFile(`${output}/sources.json`, JSON.stringify(receipt, null, 2));
   await save();
