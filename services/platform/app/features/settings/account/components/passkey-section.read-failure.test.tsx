@@ -254,10 +254,19 @@ describe(
       await renderSection();
       const alert = await within(section()).findByRole('alert');
       const retry = within(alert).getByRole('button', { name: tryAgain() });
+      const firstMessage = within(alert).getByText(
+        t('passkeys.errors.listFailed'),
+      );
       retry.focus();
 
       void client.invalidateQueries();
       await waitFor(() => expect(listUserPasskeys).toHaveBeenCalledTimes(8));
+      // The new message is the refresh's failure settling, not its start.
+      await waitFor(() =>
+        expect(
+          within(alert).getByText(t('passkeys.errors.listFailed')),
+        ).not.toBe(firstMessage),
+      );
       await waitFor(() => expect(retry).not.toHaveAttribute('aria-busy'));
 
       expect(within(section()).getByRole('alert')).toBe(alert);
@@ -293,6 +302,7 @@ describe(
         expect(within(section()).queryByRole('alert')).not.toBeInTheDocument(),
       );
       expect(within(section()).getByText('YubiKey 5C')).toBeVisible();
+      await waitFor(() => expect(section()).toHaveFocus());
     });
 
     it('passes an axe audit with the failure shown', async () => {
