@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
 import { DataTable } from '@tale/ui/data-table/data-table';
 import type { FilterConfig } from '@tale/ui/data-table/data-table-filters';
 import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
@@ -18,6 +19,7 @@ import { SettingsSection } from '@/app/features/settings/components/settings-sec
 import { useRestoreSoftDeletedRow } from '@/app/features/settings/governance/hooks/mutations';
 import { useListTrashedRows } from '@/app/features/settings/governance/hooks/queries';
 import { useAbility } from '@/app/hooks/use-ability';
+import { useListReadRecovery } from '@/app/hooks/use-list-read-recovery';
 import {
   TRASH_LISTED_RESOURCE_TYPES,
   type SoftDeleteResourceType,
@@ -106,6 +108,7 @@ export function TrashPage({ organizationId }: Props) {
     [selectedTypes, cursor],
   );
   const trash = useListTrashedRows(organizationId, queryArgs, true);
+  const { refetch: refetchTrash } = trash;
   const restoreMutation = useRestoreSoftDeletedRow();
 
   const resetPagination = useCallback(() => {
@@ -163,6 +166,21 @@ export function TrashPage({ organizationId }: Props) {
     () => [...loadedPages.flat(), ...(trash.data?.rows ?? [])],
     [loadedPages, trash.data],
   );
+
+  // A failed read is named, never passed off as an empty trash (#3641).
+  // With nothing on screen it is the table's error state; rows already on
+  // screen — earlier pages, or the page a refresh failed to renew — stay,
+  // and the failure is named above them.
+  const retry = useCallback(() => void refetchTrash(), [refetchTrash]);
+  const { regionRef, retryRead, focusRegion, failedWithRows } =
+    useListReadRecovery({
+      error: trash.error,
+      results: visibleRows,
+      retry,
+    });
+  // The page after the loaded ones never answered: the rows end there, not
+  // because the trash does.
+  const nextPageFailed = failedWithRows && trash.data === undefined;
 
   const handleRestore = async () => {
     if (!restoreTarget) return;
@@ -365,18 +383,43 @@ export function TrashPage({ organizationId }: Props) {
           page — the same fixed frame the Logs table renders in. */}
       <SettingsPage fitToContainer fullWidth>
         <SettingsSection
+          // The list's region: a retry that takes its control away hands the
+          // focus here, not to the page.
+          ref={regionRef}
+          tabIndex={-1}
           title={t('trash.title', 'Trash')}
           description={t(
             'trash.description',
             'Recover retention-trashed records before they are permanently deleted at the end of the grace window.',
           )}
-          className="min-h-0 flex-1"
+          className="min-h-0 flex-1 outline-none"
         >
+          {failedWithRows && (
+            <CatalogLoadError
+              // Each failure is announced again; Try again keeps its node.
+              failureKey={trash.errorUpdateCount}
+              onFocusLost={focusRegion}
+              message={t(
+                'trash.refreshFailed',
+                "Couldn't load the latest records. What's listed may be incomplete or out of date.",
+              )}
+              onRetry={retryRead}
+              isRetrying={trash.isFetching}
+            />
+          )}
           <DataTable<TrashRow>
             columns={columns}
             stickyLayout
             data={visibleRows}
             isLoading={isFirstPageLoading}
+            // A first page that failed is the table's error state with its
+            // retry, never "Trash is empty".
+            error={visibleRows.length === 0 ? trash.error : null}
+            onRetry={retryRead}
+            // A refresh the reader did not start takes the error state away
+            // while it runs; a focused Try again hands its focus to the
+            // list, not to the page.
+            onErrorFocusLost={focusRegion}
             // `undefined` while the first page (or a filter change) is in
             // flight — DataTable shows its standard skeleton instead of
             // flashing the empty state before the count is known.
@@ -393,6 +436,9 @@ export function TrashPage({ organizationId }: Props) {
               onLoadMore: handleLoadMore,
               isLoadingMore,
               isInitialLoading: isFirstPageLoading,
+              // Scrolling asks for nothing until Try again, and the footer
+              // says the rest could not be loaded instead of "Showing all".
+              loadFailed: nextPageFailed,
               entityLabel: {
                 one: t('trash.entityLabelOne', 'record'),
                 other: t('trash.entityLabel', 'records'),

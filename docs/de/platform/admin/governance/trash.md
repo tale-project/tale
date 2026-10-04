@@ -31,6 +31,8 @@ Die Aufbewahrungsrichtlinie der Organisation legt die Schonfrist fest. Bei einer
 
 Ein leerer Papierkorb bedeutet, dass es in dieser Ansicht keine wiederherstellbaren Datensätze gibt. Er beweist nicht, dass nie etwas gelöscht wurde. Entferne Kategoriefilter, bevor du einen Datensatz als fehlend einstufst.
 
+Ein fehlgeschlagener Abruf erscheint im Papierkorb nie als leer. Lässt sich die Liste nicht laden, zeigt die Tabelle statt des leeren Zustands den Fehler mit **Erneut versuchen**. Sind bereits Datensätze aufgeführt, aber die nächsten oder eine Aktualisierung lassen sich nicht laden, sagt ein Hinweis über der Liste das und bietet **Erneut versuchen** an. Die Zählung unter der Liste behauptet dann nicht mehr, alle Datensätze zu zeigen.
+
 ## Aufbewahrungssperren berücksichtigen
 
 Ein [Legal Hold](/de/platform/admin/governance/legal-hold) schützt betroffene Daten vor Löschung durch Aufbewahrung oder Löschanfragen. Er bewahrt noch vorhandene Daten, kann aber endgültig gelöschte Daten nicht zurückholen. Prüfe Sperren und Aufbewahrungshistorie, wenn du klärst, warum ein Datensatz im Papierkorb gelandet ist oder dort fehlt.
