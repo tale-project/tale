@@ -1,18 +1,13 @@
 // Functional health-only requests: no Tale page, module, font or task warming.
 import assert from 'node:assert/strict';
-import { createHash, X509Certificate } from 'node:crypto';
-import {
-  access,
-  copyFile,
-  mkdir,
-  readFile,
-  readdir,
-  stat,
-} from 'node:fs/promises';
-import { join } from 'node:path';
+import { X509Certificate } from 'node:crypto';
+import { readFile, readdir } from 'node:fs/promises';
+
+import { z } from 'zod';
 
 import { browserIdentity, launchBrowser } from './browser-identity.ts';
 import { childEnvironment, json, outputPath, runLogged } from './common.ts';
+import { claimNssTarget } from './nss-trust.ts';
 import { browserOrigins } from './origins.mjs';
 
 const identity = await browserIdentity();
@@ -33,14 +28,15 @@ const receipt: Record<string, unknown> = {
 };
 await json('tls-proof.json', receipt);
 try {
-  await access(target).then(
-    () => {
-      throw new Error('Refuse preexisting NSS trust');
-    },
-    (error: NodeJS.ErrnoException) => {
-      if (error.code !== 'ENOENT') throw error;
-    },
-  );
+  const claim = await claimNssTarget(target);
+  const publicTrust = z
+    .object({
+      nss: z.object({
+        privateKeys: z.literal(false),
+        files: z.array(z.object({ name: z.string(), sha256: z.string() })),
+      }),
+    })
+    .parse(JSON.parse(await readFile(outputPath('tls-runtime.json'), 'utf8')));
   for (const executable of [process.execPath, '/tools/bun']) {
     for (const expected of ['untrusted', 'trusted']) {
       const name = `${executable === '/tools/bun' ? 'bun' : 'node'}-${expected}`;
@@ -82,23 +78,7 @@ try {
   } finally {
     await untrusted.close();
   }
-  await mkdir('/tmp/.pki', { recursive: true, mode: 0o700 });
-  await mkdir(target, { mode: 0o700 });
-  const copied = [];
-  for (const name of ['cert9.db', 'key4.db']) {
-    const from = join(source, name);
-    const to = join(target, name);
-    await copyFile(from, to);
-    const bytes = await readFile(to);
-    assert.deepEqual(bytes, await readFile(from));
-    copied.push({
-      name,
-      sha256: createHash('sha256').update(bytes).digest('hex'),
-      uid: (await stat(to)).uid,
-    });
-    assert.equal((await stat(to)).uid, process.getuid!());
-  }
-  receipt.nssCopy = copied;
+  receipt.nssInstallation = await claim.install(source, publicTrust.nss.files);
   const trusted = await launchBrowser(identity);
   try {
     const results = [];
