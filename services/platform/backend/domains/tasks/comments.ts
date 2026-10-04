@@ -42,6 +42,7 @@ import {
 import { taskOwnedByAutomation } from './automation-access.ts';
 import { mentionAutomationEnabled } from './run-start.ts';
 import {
+  assertTaskNotArchived,
   assertTaskReadable,
   assertTaskWorkable,
   dispatchMentionedProjectAgent,
@@ -258,15 +259,23 @@ async function appendTaskComment(
   if (project.archivedAt !== null) {
     throw new TaskError('PROJECT_ARCHIVED', 'Project is archived', 403);
   }
+  const author: CommentAuthor = args.author ?? {
+    actorType: 'user',
+    actorId: auth.userId,
+  };
+  // An archived task's discussion is read-only to people the same way: the
+  // app door refuses a stale client exactly as the REST door does. A run
+  // still working the task is not refused, since archiving cancels nothing
+  // and its report lands beside its status park, which ignores the archive
+  // too.
+  if (author.actorType === 'user') {
+    assertTaskNotArchived(task);
+  }
   const body = args.body.trim();
   const refusal = taskCommentRefusal(body);
   if (refusal !== null) {
     throw new TaskError('TASK_COMMENT_INVALID', refusal);
   }
-  const author: CommentAuthor = args.author ?? {
-    actorType: 'user',
-    actorId: auth.userId,
-  };
 
   const threadId = await ensureTaskDiscussionThread(tx, task);
   // Who this comment names. The directory is project-scoped, so only people
@@ -559,7 +568,8 @@ async function loadCommentMeta(
  * Who may edit or delete a comment: its author, with the read access posting
  * it took — a member fixes their own comment on anyone's task — or an
  * admin, whose moderation of someone else's words is a change to the task
- * and so passes its work gate. An archived project is read-only for both.
+ * and so passes its work gate. An archived project or task is read-only for
+ * both.
  */
 async function assertCommentModifiable(
   tx: TransactionSql,
@@ -574,17 +584,18 @@ async function assertCommentModifiable(
     if (project.archivedAt !== null) {
       throw new TaskError('PROJECT_ARCHIVED', 'Project is archived', 403);
     }
-    return;
+  } else {
+    await assertTaskWorkable(tx, project, task, auth);
+    const isAdmin = auth.role === 'owner' || auth.role === 'admin';
+    if (!isAdmin) {
+      throw new TaskError(
+        'TASK_COMMENT_FORBIDDEN',
+        'Only the author or an admin may modify a comment',
+        403,
+      );
+    }
   }
-  await assertTaskWorkable(tx, project, task, auth);
-  const isAdmin = auth.role === 'owner' || auth.role === 'admin';
-  if (!isAdmin) {
-    throw new TaskError(
-      'TASK_COMMENT_FORBIDDEN',
-      'Only the author or an admin may modify a comment',
-      403,
-    );
-  }
+  assertTaskNotArchived(task);
 }
 
 /**
