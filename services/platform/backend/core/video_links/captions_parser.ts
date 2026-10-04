@@ -380,7 +380,9 @@ function captionSeparator(previous: string, next: string): string {
     /[-‐‑]$/u.test(previous) ||
     /^[-‐‑]/u.test(next) ||
     /^'(?:s|t|re|ve|ll|d|m)\b/iu.test(next) ||
-    (/['’]$/u.test(previous) && /^(?:s|t|re|ve|ll|d|m)\b/iu.test(next))
+    (/[\p{L}\p{N}]['’]$/u.test(previous) &&
+      /^[\p{L}\p{N}]/u.test(next) &&
+      !/(?:^|[^\p{L}\p{N}])["'‘“][\p{L}\p{N}]/u.test(previous))
   ) {
     return '';
   }
