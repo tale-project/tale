@@ -25,19 +25,18 @@ export function homeDraftKey(
  * marks the conversation you were typing in. Markup alone (an emptied rich
  * text field) is not a draft.
  */
-export function hasDraft(key: string): boolean {
+export function hasDraft(key: string, kind: HomeItem['kind']): boolean {
   if (typeof window === 'undefined') return false;
   try {
     const raw = window.localStorage.getItem(key);
     if (raw === null) return false;
     const value: unknown = JSON.parse(raw);
-    return (
-      typeof value === 'string' &&
-      value
-        .replaceAll(/<[^>]*>/g, '')
-        .replaceAll('&nbsp;', ' ')
-        .trim().length > 0
-    );
+    if (typeof value !== 'string') return false;
+    const text =
+      kind === 'conversation'
+        ? value.replaceAll(/<[^>]*>/g, '').replaceAll('&nbsp;', ' ')
+        : value;
+    return text.trim().length > 0;
   } catch (error) {
     console.warn(`Could not read the draft stored under "${key}"`, error);
     return false;

@@ -420,20 +420,28 @@ describe('TaskCommentComposer draft', () => {
     window.localStorage.clear();
   });
 
-  it('brings back the unsent comment of its own task', () => {
-    window.localStorage.setItem(
-      taskCommentDraftKey('u1', 'org-1', 'task-1'),
-      JSON.stringify('Half a thought'),
-    );
-    render(
-      <TaskCommentComposer
-        taskId="task-1"
-        organizationId="org-1"
-        projectId="project-1"
-      />,
-    );
-    expect(screen.getByRole('textbox')).toHaveValue('Half a thought');
-  });
+  it.each(['Half a thought', '<Button />', '<tag>'])(
+    'brings back the unsent comment %s of its own task',
+    (text) => {
+      window.localStorage.setItem(
+        taskCommentDraftKey('u1', 'org-1', 'task-1'),
+        JSON.stringify(text),
+      );
+      render(
+        <TaskCommentComposer
+          taskId="task-1"
+          organizationId="org-1"
+          projectId="project-1"
+        />,
+      );
+      expect(screen.getByRole('textbox')).toHaveValue(text);
+      expect(
+        window.localStorage.getItem(
+          taskCommentDraftKey('u1', 'org-1', 'task-1'),
+        ),
+      ).toBe(JSON.stringify(text));
+    },
+  );
 
   it('starts empty on a task with nothing unsent', () => {
     window.localStorage.setItem(

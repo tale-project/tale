@@ -18,7 +18,7 @@ const { state, resolveApproval, readApproval } = vi.hoisted(() => ({
     versionError: undefined as unknown,
     versionPending: false,
   },
-  resolveApproval: vi.fn(),
+  resolveApproval: vi.fn(() => Promise.resolve(null)),
   readApproval: vi.fn(),
 }));
 
@@ -62,7 +62,10 @@ vi.mock('../hooks/queries', () => ({
 const cancelRun = vi.hoisted(() => vi.fn());
 vi.mock('../hooks/mutations', () => ({
   useCancelAutomationRun: () => ({ mutate: cancelRun, isPending: false }),
-  useResolveRunApproval: () => ({ mutate: resolveApproval, isPending: false }),
+  useResolveRunApproval: () => ({
+    mutateAsync: resolveApproval,
+    isPending: false,
+  }),
 }));
 vi.mock('@/app/features/settings/organization/hooks/queries', () => ({
   useMembers: () => ({
@@ -140,13 +143,10 @@ describe('RunDetail native run state', () => {
     );
     expect(resolveApproval).not.toHaveBeenCalled();
     await user.click(screen.getByRole('button', { name: 'Reject' }));
-    expect(resolveApproval).toHaveBeenCalledWith(
-      {
-        approvalId: '250a93eb-9413-4699-94e8-ee3164e5e545',
-        status: 'rejected',
-      },
-      expect.any(Object),
-    );
+    expect(resolveApproval).toHaveBeenCalledWith({
+      approvalId: '250a93eb-9413-4699-94e8-ee3164e5e545',
+      status: 'rejected',
+    });
   });
 
   it('does not invent a finish date for a waiting run with a null timestamp', () => {
@@ -250,6 +250,37 @@ describe('RunDetail stop', () => {
       { organizationId: 'org-proof', runId: 'run-proof' },
       expect.any(Object),
     );
+  });
+
+  // The run page keeps RunDetail mounted when it moves to another run on the
+  // same route (a continuation, back/forward). A refused stop belongs to the
+  // run it was asked for, never to the next one.
+  it('keeps a refused stop with the run it was asked for', async () => {
+    cancelRun.mockImplementationOnce(
+      (_args: unknown, options: { onError?: (error: Error) => void }) => {
+        options.onError?.(new Error('run-proof could not be stopped'));
+      },
+    );
+    const { user, rerender } = renderRun();
+    await user.click(screen.getByRole('button', { name: 'Stop the run' }));
+    const confirm = (
+      await screen.findAllByRole('button', { name: 'Stop the run' })
+    ).at(-1);
+    if (confirm === undefined) throw new Error('no confirm button');
+    await user.click(confirm);
+    expect(
+      await screen.findByText('run-proof could not be stopped'),
+    ).toBeVisible();
+
+    rerender(
+      <RunDetail
+        organizationId="org-proof"
+        automationSlug="docs-approval-proof"
+        runId="run-next"
+      />,
+    );
+
+    expect(screen.queryByText('run-proof could not be stopped')).toBeNull();
   });
 
   it('offers no stop on a finished run', () => {
