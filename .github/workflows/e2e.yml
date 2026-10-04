@@ -159,10 +159,9 @@ jobs:
           echo "static_services=$services" >> "$GITHUB_OUTPUT"
 
   # Build the platform prod bundle ONCE per run and hand it to every shard.
-  # Before this job existed each of the 16 shards restored the dist cache
-  # itself and, on a cold key, all 16 missed simultaneously and ran the ~4-min
-  # `bun run build` in parallel (issue #2385). Now the build happens exactly
-  # once: Turbo can restore the same build that Checks validated, and it flows
+  # Before this job existed every shard restored the dist cache itself and,
+  # on a cold key, every shard missed and built in parallel (issue #2385).
+  # Turbo can restore the same build that Checks validated, and it flows
   # to the shards as a run artifact — deterministic within the run (no
   # cache-visibility race between sibling jobs) and still available to
   # `gh run rerun --failed` from the first attempt.
@@ -239,18 +238,13 @@ jobs:
     needs: [candidate-source, build]
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    # The suite outgrew a single serial run (workers:1 against one backend).
-    # Shard the specs across parallel runners so each shard finishes well inside
-    # the timeout instead of being cancelled mid-run. Each shard is an
-    # independent job: it boots its own hermetic stack and authenticates with
-    # the worker-scoped org fixture. fail-fast:false so one shard's failure doesn't
-    # cancel the others — we want every shard's result, and a re-run of just the
-    # red shards (`gh run rerun --failed`) converges to green.
-    #
-    # Four shards amortize the fixed Chromium/Postgres/backend setup. With 16,
-    # each slice ran for only 22–37s after roughly 70–100s of runner setup;
-    # queue contention dominated wall time. Keep one worker per shard so the
-    # backend has CPU headroom. The build still arrives once as an artifact.
+    # Keep one worker per independent stack: more workers starve the backend.
+    # Each stack authenticates through the worker-scoped org fixture. Four
+    # shards preserve the full suite while removing twelve copies of fixed
+    # Postgres/toolchain/browser boot. In three October 2026 runs setup cost
+    # ~20 of the platform's ~28 runner-minutes, and the static web suite already
+    # set the critical path. fail-fast:false preserves every shard's result
+    # and failed-job reruns.
     strategy:
       fail-fast: false
       matrix:
@@ -296,13 +290,20 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           turbo-cache: 'false'
 
+      # Browser revisions follow the installed Playwright version, not every
+      # unrelated dependency bump. Native dependencies are installed below.
+      - name: Resolve Playwright version
+        id: playwright-version
+        working-directory: services/platform
+        run: |
+          version="$(bun -e 'process.stdout.write(require("@playwright/test/package.json").version)')"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
       - name: Cache Playwright browsers
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('bun.lock') }}
-          restore-keys: |
-            playwright-${{ runner.os }}-
+          key: playwright-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright-version.outputs.version }}
 
       - name: Install Playwright Chromium
         working-directory: services/platform
@@ -330,7 +331,7 @@ jobs:
           name: e2e-platform-dist
           path: services/platform/dist
 
-      - name: Run E2E suite (shard ${{ matrix.shard }}/4)
+      - name: Run E2E suite (shard ${{ matrix.shard }}/${{ strategy.job-total }})
         working-directory: services/platform
         # One worker per shard. Two workers over-subscribed the 4-vCPU runner
         # (Vite + backend + mock + the browser workers all share it).
@@ -344,7 +345,7 @@ jobs:
           # Skips the video-toolchain apt install in scripts/dev.ts (a slow
           # mirror has burned the webServer boot budget).
           TALE_E2E: '1'
-        run: bunx playwright test --shard=${{ matrix.shard }}/4
+        run: bunx playwright test --shard=${{ matrix.shard }}/${{ strategy.job-total }}
 
       # Under the shared config (`@tale/e2e/config`: failure screenshots,
       # traces on the first retry) Playwright writes test-results/ only for an
@@ -422,18 +423,26 @@ jobs:
         with:
           start-turbo-cache: 'false'
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          # Web's prerender suite reuses the normal build cache; docs only
-          # runs uncached Playwright and needs no shared Turbo cache.
-          turbo-cache: ${{ matrix.service == 'web' }}
-          cache-scope: test-static-${{ matrix.service }}
+          # Web's build writes generated release data and dist-seo/ outside
+          # its declared Turbo outputs. Rebuild the complete prerender inputs;
+          # restoring only dist/ can mix sources or replay an unproved verdict.
+          # Docs only runs Playwright, so neither job needs a Turbo archive.
+          turbo-cache: 'false'
+
+      # Browser revisions follow the installed Playwright version, not every
+      # unrelated dependency bump. Native dependencies are installed below.
+      - name: Resolve Playwright version
+        id: playwright-version
+        working-directory: services/${{ matrix.service }}
+        run: |
+          version="$(bun -e 'process.stdout.write(require("@playwright/test/package.json").version)')"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
 
       - name: Cache Playwright browsers
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('bun.lock') }}
-          restore-keys: |
-            playwright-${{ runner.os }}-
+          key: playwright-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright-version.outputs.version }}
 
       - name: Install Playwright Chromium
         working-directory: services/${{ matrix.service }}
@@ -451,7 +460,9 @@ jobs:
           bunx playwright install --with-deps chromium
 
       - name: Run E2E suite
-        run: bun run --filter @tale/${{ matrix.service }} test:e2e
+        # Static sites share no mutable backend: each page/context is isolated.
+        # Two browser workers passed all 90 web and 55 docs cases without retries.
+        run: bun run --filter @tale/${{ matrix.service }} test:e2e --workers=2
 
       - name: Prerender SEO suite (web)
         if: matrix.service == 'web'

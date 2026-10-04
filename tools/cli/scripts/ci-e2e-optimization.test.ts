@@ -12,6 +12,8 @@ type Step = {
   name?: string;
   run?: string;
   if?: string;
+  uses?: string;
+  'working-directory'?: string;
   env?: Record<string, string>;
   with?: Record<string, unknown>;
 };
@@ -140,6 +142,12 @@ describe('E2E service scheduling', () => {
     const cases: [string, string[]][] = [
       ['services/platform/tests/e2e/specs/chat.spec.ts', ['platform']],
       ['services/platform/backend/main.ts', ['platform']],
+      ['services/platform/index.html', ['platform']],
+      ['services/platform/app/routes/index.tsx', ['platform']],
+      ['services/platform/vite-plugins/inject-boot-shell.ts', ['platform']],
+      ['services/platform/scripts/prerender-boot-shell.tsx', ['platform']],
+      ['services/platform/public/assets/logo.svg', ['platform']],
+      ['configs/platform/custom/agents/assistant.json', ['platform']],
       ['services/platform/messages/en.yml', ['platform']],
       ['configs/platform/system/harnesses/example.yml', ['platform']],
       ['services/sandbox-runtime/daemon/src/file-ops.ts', ['platform']],
@@ -151,8 +159,11 @@ describe('E2E service scheduling', () => {
       ['docs/fr/self-hosted/install/overview.md', ['docs']],
       ...[
         'packages/ui/src/pwa/vite-plugin.ts',
+        'packages/ui/tailwind-preset.ts',
+        'packages/ui/src/components/button.tsx',
         'packages/marketing-ui/src/index.ts',
         'packages/shared/src/utils/site-urls.ts',
+        'packages/shared/src/schemas/provider.ts',
         'packages/e2e/src/config.ts',
         'patches/postgres@3.4.7.patch',
         'package.json',
@@ -160,6 +171,7 @@ describe('E2E service scheduling', () => {
         'bunfig.toml',
         'turbo.json',
         'tsconfig.dom.json',
+        'tsconfig.vite.json',
         '.github/actions/setup-turbo/action.yml',
         '.github/workflows/e2e.yml',
       ].map((path): [string, string[]] => [path, ['docs', 'platform', 'web']]),
@@ -182,9 +194,12 @@ describe('E2E service scheduling', () => {
     expect(shards).toEqual(Array.from({ length: 4 }, (_, index) => index + 1));
     expect(file.jobs.e2e?.strategy?.['fail-fast']).toBe(false);
     expect(
-      step(file.jobs.e2e, 'Run E2E suite (shard ${{ matrix.shard }}/4)'),
+      step(
+        file.jobs.e2e,
+        'Run E2E suite (shard ${{ matrix.shard }}/${{ strategy.job-total }})',
+      ),
     ).toMatchObject({
-      run: 'bunx playwright test --shard=${{ matrix.shard }}/4',
+      run: 'bunx playwright test --shard=${{ matrix.shard }}/${{ strategy.job-total }}',
       env: { E2E_WORKERS: '1', TALE_E2E_SERVE_BUILD: '1' },
     });
     expect(file.jobs.build?.if).toContain(
@@ -201,12 +216,24 @@ describe('E2E service scheduling', () => {
       "needs.scope.outputs.static_services != '[]'",
     );
     expect(file.jobs['candidate-gate']?.needs).toContain('scope');
-    expect(
-      step(file.jobs.build, 'Upload platform dist for the shards').with,
-    ).toMatchObject({
+    expect(step(file.jobs['static-sites'], 'Run E2E suite').run).toBe(
+      'bun run --filter @tale/${{ matrix.service }} test:e2e --workers=2',
+    );
+    const upload = step(file.jobs.build, 'Upload platform dist for the shards');
+    expect(upload.with).toMatchObject({
+      name: 'e2e-platform-dist',
+      path: 'services/platform/dist',
       'compression-level': 0,
       'if-no-files-found': 'error',
       'retention-days': 7,
+    });
+    const download = step(
+      file.jobs.e2e,
+      'Download platform dist (built once by the build job)',
+    );
+    expect(download.with).toMatchObject({
+      name: upload.with?.name,
+      path: upload.with?.path,
     });
   });
 
@@ -220,13 +247,19 @@ describe('E2E service scheduling', () => {
     expect(
       step(file.jobs.build, 'Setup toolchain').with?.['turbo-cache'],
     ).not.toBe('false');
+    const build = step(
+      file.jobs.build,
+      'Build platform (prod bundle for E2E preview)',
+    );
+    expect(build.run).toBe('bunx turbo run build --filter=@tale/platform');
+    expect(build.if).toBeUndefined();
     expect(
-      step(file.jobs.build, 'Build platform (prod bundle for E2E preview)'),
-    ).toMatchObject({
-      run: 'bunx turbo run build --filter=@tale/platform',
-    });
-    expect(
-      file.jobs.build?.steps?.some((entry) => entry.id === 'dist-cache'),
+      file.jobs.build?.steps?.some(
+        (entry) =>
+          entry.id === 'dist-cache' ||
+          (entry.with?.path === 'services/platform/dist' &&
+            entry.uses?.startsWith('actions/cache@')),
+      ),
     ).toBe(false);
     expect(step(file.jobs.e2e, 'Setup toolchain').with).toMatchObject({
       'turbo-cache': 'false',
@@ -236,12 +269,73 @@ describe('E2E service scheduling', () => {
     expect(
       step(file.jobs['static-sites'], 'Setup toolchain').with,
     ).toMatchObject({
-      'turbo-cache': "${{ matrix.service == 'web' }}",
-      'cache-scope': 'test-static-${{ matrix.service }}',
+      'turbo-cache': 'false',
       'start-turbo-cache': 'false',
       'github-token': '${{ secrets.GITHUB_TOKEN }}',
     });
+    expect(
+      step(file.jobs['static-sites'], 'Setup toolchain').with?.['cache-scope'],
+    ).toBeUndefined();
+    expect(
+      step(file.jobs['static-sites'], 'Prerender SEO suite (web)').run,
+    ).toBe('bunx turbo run test:prerender --filter=@tale/web');
   });
+
+  test.each(['e2e', 'static-sites'])(
+    '%s caches the installed browser version and always installs native dependencies',
+    async (job) => {
+      const file = await workflow('e2e');
+      const steps = file.jobs[job]!.steps!;
+      const version = step(file.jobs[job], 'Resolve Playwright version');
+      expect(version.run).toContain(
+        'require("@playwright/test/package.json").version',
+      );
+      // Assignment must fail before echo if version resolution fails. An echo
+      // wrapping the substitution swallows the command's failed exit status.
+      expect(version.run).toMatch(/^version="\$\(bun /);
+      expect(version['working-directory']).toBe(
+        job === 'e2e' ? 'services/platform' : 'services/${{ matrix.service }}',
+      );
+      const browserCache = step(file.jobs[job], 'Cache Playwright browsers');
+      expect(browserCache.with?.key).toBe(
+        'playwright-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright-version.outputs.version }}',
+      );
+      expect(browserCache.with?.['restore-keys']).toBeUndefined();
+      const install = step(file.jobs[job], 'Install Playwright Chromium');
+      expect(install.if).toBeUndefined();
+      expect(install.run).toContain('playwright install --with-deps chromium');
+      expect(steps.indexOf(version)).toBeLessThan(steps.indexOf(browserCache));
+    },
+  );
+
+  test.skipIf(process.platform === 'win32')(
+    'browser version lookup propagates failure instead of restoring an empty key',
+    async () => {
+      const file = await workflow('e2e');
+      for (const job of ['e2e', 'static-sites']) {
+        const script = step(file.jobs[job], 'Resolve Playwright version').run!;
+        for (const succeeds of [true, false]) {
+          const result = Bun.spawnSync(
+            [
+              'bash',
+              '-e',
+              '-c',
+              `bun() { ${succeeds ? "printf '1.58.2'" : 'return 19'}; }\n${script}`,
+            ],
+            {
+              env: { ...process.env, GITHUB_OUTPUT: '/dev/stdout' },
+              stdout: 'pipe',
+              stderr: 'pipe',
+            },
+          );
+          expect(result.exitCode).toBe(succeeds ? 0 : 19);
+          expect(result.stdout.toString()).toBe(
+            succeeds ? 'version=1.58.2\n' : '',
+          );
+        }
+      }
+    },
+  );
 });
 
 test('candidate scans retain blocking policies without a second discarded SARIF scan', async () => {

@@ -70,6 +70,10 @@ jobs:
       # uv backs `uvx ruff@<ver>` in format:check (Python formatting).
       - name: Setup uv
         uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+        with:
+          # The only Python formatter is uvx ruff, pinned in this manifest.
+          # Avoid recursively scanning node_modules for unrelated requirements.
+          cache-dependency-glob: package.json
 
       - name: Run format check
         run: bun run format:check
@@ -298,6 +302,9 @@ jobs:
         env:
           YOUTUBE_LIVE_TEST: '1'
           VIDEO_INGEST_POT_PROVIDER_URL: http://127.0.0.1:4416
+          # Reuse Node's parsed dependency bytecode across isolated workers.
+          # This caches no test results and leaves every file's isolation intact.
+          NODE_COMPILE_CACHE: ${{ runner.temp }}/node-compile-cache
         # Each workspace runner has its own worker pool. Bound their overlap so
         # full-corpus checks retain CPU time on the shared hosted runner.
         run: bunx turbo run test --concurrency=2 --output-logs=errors-only --summarize
@@ -370,6 +377,7 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           ref: ${{ needs.candidate-source.outputs.candidate_sha }}
+          persist-credentials: false
 
       - name: Setup toolchain
         uses: ./.github/actions/setup-turbo
@@ -380,11 +388,15 @@ jobs:
 
       - name: Run UI tests
         run: bunx turbo run test:ui --filter=@tale/platform --output-logs=errors-only --summarize -- --shard=${{ matrix.shard }}/4
+        env:
+          NODE_COMPILE_CACHE: ${{ runner.temp }}/node-compile-cache
 
       # Future UI workspaces still run once; only platform is partitioned.
       - name: Run other workspace UI tests
         if: matrix.shard == 1
         run: bunx turbo run test:ui --filter='!@tale/platform' --output-logs=errors-only --summarize
+        env:
+          NODE_COMPILE_CACHE: ${{ runner.temp }}/node-compile-cache
 
       - name: Upload Turbo execution summary
         if: always()
@@ -520,13 +532,20 @@ jobs:
           start-turbo-cache: 'false'
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
+      # Share the exact installed browser revision with the E2E jobs. Native
+      # dependencies are still installed below on every fresh hosted runner.
+      - name: Resolve Playwright version
+        id: playwright-version
+        working-directory: services/platform
+        run: |
+          version="$(bun -e 'process.stdout.write(require("@playwright/test/package.json").version)')"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
       - name: Cache Playwright browsers
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('bun.lock') }}
-          restore-keys: |
-            playwright-${{ runner.os }}-
+          key: playwright-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright-version.outputs.version }}
 
       - name: Install Playwright Chromium
         working-directory: services/platform

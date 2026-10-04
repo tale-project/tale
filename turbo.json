@@ -6,6 +6,7 @@
     "STORYBOOK_DISABLE_TELEMETRY",
     "TELEMETRY_DISABLED",
     "SCARF_ANALYTICS",
+    "NODE_COMPILE_CACHE",
     "SANDBOX_TOKEN",
     "GITHUB_TOKEN",
     "GH_TOKEN"
@@ -129,6 +130,7 @@
     ".oxlintrc.json",
     ".oxfmtrc.json",
     "tsconfig*.json",
-    "bunfig.toml"
+    "bunfig.toml",
+    "patches/**"
   ]
 }

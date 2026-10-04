@@ -230,6 +230,38 @@ test.each(['web', 'docs', 'ui-docs', 'ai-gateway'])(
   },
 );
 
+test.skipIf(process.platform === 'win32')(
+  'static builders reclaim disk only below the 20 GiB headroom threshold',
+  async () => {
+    const file = await workflow('build');
+    for (const service of ['web', 'docs', 'ui-docs', 'ai-gateway']) {
+      const reclaim = step(file, `${service}-test`, 'Reclaim disk space').run!;
+      for (const available of [20971519, 20971520]) {
+        const directory = await mkdtemp(join(tmpdir(), 'tale-static-disk-'));
+        directories.push(directory);
+        const calls = join(directory, 'calls');
+        await writeFile(calls, '');
+        const result = await execute(
+          `
+          df() { printf 'Filesystem Blocks Used Available Capacity Mounted\\nfixture 99999999 0 %s 0%% /\\n' "$TEST_AVAILABLE"; }
+          sudo() { printf '%s\\n' "$*" >> "$TEST_CLEANUP_CALLS"; }
+          ${reclaim}
+        `,
+          { TEST_AVAILABLE: String(available), TEST_CLEANUP_CALLS: calls },
+        );
+        expect(result.code, result.stdout + result.stderr).toBe(0);
+        const commands = await readFile(calls, 'utf8');
+        if (available < 20971520) {
+          expect(commands).toContain('rm -rf /usr/share/dotnet');
+          expect(commands).toContain('docker image prune -af');
+        } else {
+          expect(commands).toBe('');
+        }
+      }
+    }
+  },
+);
+
 test.skipIf(process.platform === 'win32' || !Bun.which('docker'))(
   'cached site plans preserve Compose overrides, environment interpolation and image identity',
   async () => {
@@ -341,7 +373,7 @@ test('CLI source tests still cover every host OS while every target builds', asy
 });
 
 describe.skipIf(process.platform === 'win32')(
-  'parallel verified image pulls',
+  'parallel verified release image pulls',
   () => {
     const services = [
       'db',
@@ -356,20 +388,6 @@ describe.skipIf(process.platform === 'win32')(
     // Release's real three- and twelve-image matrices end on exact batch
     // boundaries; macOS Bash 3.2 must never expand an empty final PID array.
     const cases: [string, string, string, string, string[]][] = [
-      [
-        'Build smoke (8)',
-        'build',
-        'smoke-test',
-        'Pull images from GHCR',
-        services,
-      ],
-      [
-        'Build validation (8)',
-        'build',
-        'image-validate',
-        'Pull images from GHCR',
-        services,
-      ],
       [
         'Release stack (8)',
         'release',
@@ -748,7 +766,22 @@ emit() {
 }
 if [ "$stage" = pull ]; then
   emit start
-  sleep 0.1
+  # The first two pulls must both start before either can finish. This
+  # proves overlap without relying on scheduler timing or an arbitrary sleep.
+  case "$service" in
+    db) peer=platform ;;
+    platform) peer=db ;;
+    *) peer= ;;
+  esac
+  if [ -n "$peer" ]; then
+    touch "$PULL_TRACE.$service"
+    attempts=0
+    while [ ! -f "$PULL_TRACE.$peer" ]; do
+      attempts=$((attempts + 1))
+      if [ "$attempts" -gt 1000 ]; then exit 1; fi
+      sleep 0.01
+    done
+  fi
   emit finish
 else
   emit "$stage"

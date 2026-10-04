@@ -9,11 +9,13 @@ import { z } from 'zod';
 const repository = fileURLToPath(new URL('../../..', import.meta.url));
 type Step = {
   name?: string;
+  id?: string;
   run?: string;
   uses?: string;
   if?: string;
   env?: Record<string, string>;
   with?: Record<string, unknown>;
+  'working-directory'?: string;
 };
 type Job = {
   name?: string;
@@ -235,9 +237,126 @@ describe('Checks execution optimizations', () => {
       expect(key).toContain(`'${path}'`);
     for (const workspace of manifest.workspaces)
       expect(key).toContain(`'${workspace}/package.json'`);
-    expect(
-      action.runs.steps.find((step) => step.name === 'Install JS dependencies')
-        ?.run,
-    ).toBe('bun install --frozen-lockfile');
+    const install = action.runs.steps.find(
+      (step) => step.name === 'Install JS dependencies',
+    );
+    expect(install?.run).toBe('bun install --frozen-lockfile');
+    expect(install?.if).toBeUndefined();
+  });
+
+  test('the formatter cache hashes the manifest that pins Ruff without scanning installed dependencies', async () => {
+    const setup = (await workflow()).jobs.format!.steps!.find((step) =>
+      step.uses?.startsWith('astral-sh/setup-uv@'),
+    );
+    const manifestPath = z
+      .string()
+      .parse(setup?.with?.['cache-dependency-glob']);
+    expect(manifestPath).toBe('package.json');
+    const manifest = z
+      .object({ scripts: z.record(z.string(), z.string()) })
+      .parse(
+        JSON.parse(await readFile(join(repository, manifestPath), 'utf8')),
+      );
+    expect(manifest.scripts['format:check']).toMatch(
+      /uvx ruff@[\d.]+ format --check/,
+    );
+  });
+
+  test('Browser shares the exact E2E browser cache and installs native dependencies even on a cache hit', async () => {
+    const steps = (await workflow()).jobs['test-browser']!.steps!;
+    const e2e = parse(
+      await readFile(join(repository, '.github/workflows/e2e.yml'), 'utf8'),
+    ) as { jobs: Record<string, { steps: Step[] }> };
+    const resolver = steps.find((step) => step.id === 'playwright-version');
+    expect(resolver?.['working-directory']).toBe('services/platform');
+    expect(resolver?.run).toBeTruthy();
+    // ci-e2e-optimization.test.ts exercises the shared resolver's failure path.
+    expect(resolver?.run).toBe(
+      e2e.jobs.e2e!.steps.find((step) => step.id === 'playwright-version')?.run,
+    );
+    const cache = steps.find((step) => step.uses?.startsWith('actions/cache@'));
+    expect(cache?.with?.key).toBe(
+      'playwright-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright-version.outputs.version }}',
+    );
+    expect(cache?.with?.['restore-keys']).toBeUndefined();
+    const install = steps.find((step) =>
+      step.run?.includes('bunx playwright install --with-deps chromium'),
+    );
+    expect(install).toBeDefined();
+    expect(install?.if).toBeUndefined();
+    expect(steps.indexOf(resolver!)).toBeLessThan(steps.indexOf(cache!));
+    expect(steps.indexOf(cache!)).toBeLessThan(steps.indexOf(install!));
+  });
+
+  test('isolated unit and UI workers receive a job-local Node bytecode cache through Turbo strict mode', async () => {
+    const file = await workflow();
+    for (const job of ['test', 'test-ui-shards']) {
+      const runs = file.jobs[job]!.steps!.filter((step) =>
+        step.run?.includes('bunx turbo run test'),
+      );
+      expect(runs).toHaveLength(job === 'test' ? 1 : 2);
+      for (const run of runs) {
+        expect(run.env?.NODE_COMPILE_CACHE).toBe(
+          '${{ runner.temp }}/node-compile-cache',
+        );
+        expect(run.run).not.toContain('--no-isolate');
+        expect(run.run).not.toContain('--coverage');
+      }
+    }
+
+    // Ask Turbo itself: an undeclared variable is silently dropped in strict
+    // mode, while hashing this temporary path would needlessly miss the cache
+    // on otherwise-identical work done in a different job directory.
+    const hashes: string[][] = [];
+    for (const cachePath of ['/tmp/tale-bytecode-a', '/tmp/tale-bytecode-b']) {
+      const child = Bun.spawn(
+        [
+          process.execPath,
+          'x',
+          'turbo',
+          'run',
+          'test:ui',
+          '--dry=json',
+          '--cache=local:,remote:',
+        ],
+        {
+          cwd: repository,
+          env: {
+            ...process.env,
+            NODE_COMPILE_CACHE: cachePath,
+            TURBO_TELEMETRY_DISABLED: '1',
+          },
+          stdout: 'pipe',
+          stderr: 'pipe',
+        },
+      );
+      const [status, stdout, stderr] = await Promise.all([
+        child.exited,
+        new Response(child.stdout).text(),
+        new Response(child.stderr).text(),
+      ]);
+      expect(status, stderr).toBe(0);
+      const result = dryRunSchema
+        .extend({
+          envMode: z.string(),
+          globalCacheInputs: z.object({
+            environmentVariables: z.object({
+              passthrough: z.array(z.string()),
+            }),
+          }),
+        })
+        .parse(JSON.parse(stdout));
+      expect(result.envMode).toBe('strict');
+      expect(
+        result.globalCacheInputs.environmentVariables.passthrough.some(
+          (value) => value.startsWith('NODE_COMPILE_CACHE='),
+        ),
+      ).toBe(true);
+      expect(result.tasks.length).toBeGreaterThan(0);
+      hashes.push(
+        result.tasks.map((task) => `${task.taskId}=${task.hash}`).toSorted(),
+      );
+    }
+    expect(hashes[0]).toEqual(hashes[1]);
   });
 });

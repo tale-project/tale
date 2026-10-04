@@ -15,7 +15,8 @@ needs fewer runners, while a long CPU-bound suite can benefit from more slices.
   backend and worker-scoped org fixture. Reports still capture failed tests and retries. The web and
   docs suites keep their independent jobs. Pull requests first compute affected service
   scope from the PR diff; missing or nonboolean filter results fail the scope job.
-  Nightly, manual and candidate rounds always select platform, web and docs.
+  Nightly, manual and candidate rounds always select platform, web and docs. Static
+  suites use two workers, verified with all 90 web and 55 docs cases passing without retries.
 - **Build** distinguishes the platform stack from standalone sites. Site-only changes run
   their container tests without building the eight-image platform stack. Shared package,
   dependency, toolchain and test-harness inputs expand to full coverage. Release candidates
@@ -28,7 +29,8 @@ needs fewer runners, while a long CPU-bound suite can benefit from more slices.
 - The four standalone container tests load their cached Buildx image into Docker and pass
   `SKIP_BUILD=true` and `PULL_POLICY=never` to the existing probes. Their Compose commands
   test those local bytes. Compose produces the Bake plan, preserving its build arguments,
-  overrides, targets and tags. They do not need the full stack's disk-reclamation step.
+  overrides, targets and tags. They reclaim disk only below 20 GiB of free space;
+  full-stack jobs retain their larger cleanup.
 - **Release** starts sandbox-runtime and platform builds first within its existing
   six-job limit. Architecture-specific registry caches survive tag boundaries; the main
   branch's service caches can warm a first release.
@@ -44,6 +46,12 @@ forcing real tests or compilers to run sequentially. Explicit `inputs` still cov
 read outside a workspace dependency. Root TypeScript config family members and the Bun
 setup action participate in the global hash. Bun download caches separate OS and CPU
 architecture.
+
+Unit and UI jobs also share a job-local Node compile cache between isolated workers.
+It stores bytecode, not test verdicts, and its temporary location passes through Turbo
+without affecting task hashes. Playwright browser caches use the installed version,
+OS and architecture; every runner still installs native dependencies. The formatter's
+uv cache hashes the manifest that pins Ruff instead of walking installed dependencies.
 
 `setup-turbo` restores `.turbo/cache` through GitHub's native cache action. Keys
 separate task scope, OS, architecture, Bun version and lockfile; the checked-out
@@ -70,6 +78,17 @@ task logs are excluded. Source-only hashes cannot certify that identity. E2E has
 hand-maintained file-list cache for its preview bundle; it reuses the ordinary build
 inputs and passes the result through a per-run artifact.
 
+Static E2E jobs do not restore Turbo caches. Web prerendering generates release content
+and SEO output outside `dist/`; those external inputs and outputs must be fully modeled
+before that build or its dependent prerender verdict can be safely restored.
+
+Only main pushes publish the shared platform-stack Docker layer cache; pull requests
+and candidates read it. This removes costly PR-local exports and prevents old release
+candidates from replacing main's cache. PR reruns may rebuild layers unique to that PR.
+Ephemeral hosted builders skip teardown. Forks build on the runners that test their
+images and retain builtin catalog validation, without a second unused image matrix.
+Candidate SAST retains its full blocking scan and omits only the unused SARIF pass.
+
 See [the repo contract](../.agents/repo.md#a-green-check-is-not-always-a-run) before
 interpreting a green cached result. Backend integration always executes its strict lanes;
 performance measurements and Playwright journeys are never replayed as tests.
@@ -90,10 +109,16 @@ Starting it first removes that scheduling delay when capacity is available.
 [Build candidate 37199185890](https://github.com/tale-project/tale/actions/runs/37199185890)
 spent 70–113s reclaiming disk per standalone site, before doing any site work.
 
+[Build run 37208030678](https://github.com/tale-project/tale/actions/runs/37208030678)
+spent 148 seconds exporting the platform's PR-local cache and 47 seconds deleting its
+ephemeral builder. [CLI run 37210592060](https://github.com/tale-project/tale/actions/runs/37210592060)
+repeated source tests for 132 seconds on macOS and 115 seconds on Linux cross rows.
+
 Run workflow and source-identity regressions with:
 
 ```bash
 bun test --timeout 30000 tools/cli/scripts/ci-*.test.ts \
+  tools/cli/scripts/cli-ci.test.ts \
   tools/cli/scripts/deployment-ci.test.ts \
   tools/cli/scripts/release-candidate-workflows.test.ts \
   tools/cli/scripts/release-candidate-gate.test.ts

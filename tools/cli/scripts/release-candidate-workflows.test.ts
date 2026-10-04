@@ -597,6 +597,15 @@ describe('one candidate event reuses the complete existing validation', () => {
         (step) => step.name === 'Run Opengrep',
       )?.run,
     ).toContain('bash tools/opengrep/run.sh');
+    const sast = await workflow('sast');
+    const report = sast.jobs.sast!.steps!.find(
+      (step) => step.name === 'Run Opengrep',
+    )!.env!.OPENGREP_SARIF_OUTPUT!;
+    for (const event of ['push', 'pull_request', 'repository_dispatch']) {
+      expect(expressionValue(report, admission(sast, 'sast', event))).toBe(
+        event === 'repository_dispatch' ? '' : 'opengrep.sarif',
+      );
+    }
   });
 });
 

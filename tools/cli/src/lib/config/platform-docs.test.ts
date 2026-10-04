@@ -16,6 +16,7 @@ const LOCALES = ['en', 'de', 'fr'];
 /** The CI files `scripts/deployment-ci.test.ts` and
  * `scripts/release-candidate-workflows.test.ts` read, from the repo root. */
 const CHECKED_CI_FILES = [
+  'services/platform/tests/integration/container-image-test.ts',
   'turbo.json',
   'package.json',
   '.github/actions/setup-turbo/action.yml',

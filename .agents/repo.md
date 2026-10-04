@@ -180,7 +180,8 @@ succeed. It does not install dependencies. Shard 1 also runs every other workspa
 `test:ui` once; the platform shards retain the suite's bounded worker pool. **E2E** uses
 four single-worker platform shards, each with its own stack, and builds the preview
 bundle once through the same Turbo task used by Checks. A run artifact carries those
-exact bytes to every shard. See [the CI scheduling guide](../.github/CI.md).
+exact bytes to every shard. Unit and UI workers reuse a job-local Node bytecode
+cache without relaxing isolation. See [the CI scheduling guide](../.github/CI.md).
 
 E2E pull requests first compute a fail-closed platform, web and docs service scope;
 candidates, nightly and manual runs select every service. Candidate receipts require
@@ -241,7 +242,8 @@ own files), then list the outside files as `$TURBO_ROOT$/<path>`:
   pages; the CI files `scripts/deployment-ci.test.ts` and the candidate graph suite
   (`scripts/release-candidate-workflows.test.ts`) check: the `build.yml`, `checks.yml`,
   `cleanup-pr-images.yml`, `commitlint.yml`, `e2e.yml`, `sast.yml`, `security.yml` and both
-  `release-candidate-*` workflows and the `setup-cli` action; the files the compose parity
+  `release-candidate-*` workflows and the `setup-cli` action, plus the container image harness used to prove fork
+  build coverage; the files the compose parity
   suite reads: `compose.yml`, the proxy's `Caddyfile` and entrypoint, the platform's
   `Dockerfile`, entrypoint and `env.sh`, the db and sandbox-egress `Dockerfile`s, and the
   `cli.yml` and `release.yml` workflows. The runtime suites prepare, read and apply the

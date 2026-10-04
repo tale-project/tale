@@ -49,11 +49,15 @@ describe('CI test partitioning preserves the complete validation', () => {
   ])('%s/%s runs each declared shard exactly once', async (file, id) => {
     const job = (await workflow(file)).jobs[id];
     const runner = job.steps.find((step) => step.run?.includes('--shard='))!;
-    const denominator = /--shard=\$\{\{ matrix\.shard \}\}\/(\d+)/.exec(
-      runner.run!,
-    );
+    const denominator =
+      /--shard=\$\{\{ matrix\.shard \}\}\/(\d+|\$\{\{ strategy\.job-total \}\})/.exec(
+        runner.run!,
+      );
     expect(denominator).not.toBeNull();
-    const total = Number(denominator![1]);
+    const total =
+      denominator![1] === '${{ strategy.job-total }}'
+        ? (job.strategy?.matrix.shard?.length ?? 0)
+        : Number(denominator![1]);
     expect(total).toBeGreaterThan(1);
     // A missing/duplicated numerator or a changed denominator would silently
     // drop or repeat part of the suite even if every scheduled job is green.

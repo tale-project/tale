@@ -151,6 +151,17 @@ describe('CI cache boundaries', () => {
     }
   });
 
+  test('installation settings and dependency patch contents invalidate shared task caches', () => {
+    const files = new Set(Object.keys(summary.globalCacheInputs.files));
+    expect(files).toContain('bunfig.toml');
+    const patches = Array.from(
+      new Bun.Glob('patches/**').scanSync({ cwd: REPO_ROOT, onlyFiles: true }),
+    );
+    expect(patches.length).toBeGreaterThan(0);
+    for (const patch of patches)
+      expect(files).toContain(patch.split(sep).join('/'));
+  });
+
   test('the shared platform build cache includes catalog validation and its output', () => {
     const task = tasks.get('@tale/platform#build')!;
     expect(task.command).toContain('configs:validate');
@@ -168,6 +179,20 @@ describe('CI cache boundaries', () => {
     ).toEqual([]);
     expect(task.dependencies).toContain('@tale/ui#build');
     expect(task.dependencies).toContain('@tale/shared#build');
+    for (const source of [
+      'services/platform/index.html',
+      'services/platform/vite.config.ts',
+      'services/platform/vite-plugins/inject-boot-shell.ts',
+      'services/platform/scripts/prerender-boot-shell.tsx',
+      'services/platform/scripts/check-entry-budget.ts',
+    ])
+      expect(inputs, source).toContain(source);
+    expect(repoInputs(tasks.get('@tale/ui#build')!)).toContain(
+      'packages/ui/tailwind-preset.ts',
+    );
+    expect(repoInputs(tasks.get('@tale/shared#build')!)).toContain(
+      'packages/shared/package.json',
+    );
   });
 
   test('CLI source identity is regenerated and compiled rather than restored from another commit', () => {

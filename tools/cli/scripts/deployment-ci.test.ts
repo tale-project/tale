@@ -501,6 +501,140 @@ printf '%s\\n' "$TEST_COMPARE_STATUS"
   );
 
   test.skipIf(process.platform === 'win32')(
+    'stack gates omit static-only work and duplicate fork publication',
+    async () => {
+      const build = await workflow();
+      for (const stack of [true, false]) {
+        for (const fork of [true, false]) {
+          for (const id of [
+            'build',
+            'smoke-test',
+            'image-validate',
+            'smoke-test-fork',
+            'image-validate-fork',
+          ]) {
+            const runs = runInNewContext(
+              build.jobs[id]!.if!,
+              {
+                cancelled: () => false,
+                needs: {
+                  changes: {
+                    result: 'success',
+                    outputs: {
+                      services: '["docs"]',
+                      ci_tests: 'false',
+                      stack: String(stack),
+                    },
+                  },
+                  build: { result: 'success' },
+                },
+                github: {
+                  event: {
+                    pull_request: { draft: false, head: { repo: { fork } } },
+                  },
+                },
+              },
+              { timeout: 100 },
+            );
+            expect(runs, `${id}, stack=${stack}, fork=${fork}`).toBe(
+              stack && (id.endsWith('-fork') ? fork : !fork),
+            );
+          }
+        }
+      }
+    },
+  );
+
+  test('hosted builders publish shared cache only on main and skip teardown', async () => {
+    const build = await workflow();
+    const job = build.jobs.build!;
+    for (const entry of Object.values(build.jobs)) {
+      for (const builder of entry.steps ?? []) {
+        if (builder.uses?.startsWith('docker/setup-buildx-action@')) {
+          expect(builder.with?.cleanup).toBe(false);
+        }
+      }
+    }
+    expect(step(job, 'Build and push').with?.['cache-from']).toBe(
+      'type=gha,scope=${{ matrix.service }}',
+    );
+    const cache = String(step(job, 'Build and push').with?.['cache-to']);
+    for (const [event, ref, expected] of [
+      ['push', 'refs/heads/main', 'type=gha,scope=platform,mode=max'],
+      ['pull_request', 'refs/pull/1/merge', ''],
+      ['merge_group', 'refs/heads/gh-readonly-queue/main/pr-1', ''],
+      ['workflow_dispatch', 'refs/heads/main', ''],
+      ['repository_dispatch', 'refs/heads/main', ''],
+    ]) {
+      expect(
+        runInNewContext(
+          cache.slice(3, -2),
+          {
+            github: { event_name: event, ref },
+            matrix: { service: 'platform' },
+            format: (template: string, service: string) =>
+              template.replace('{0}', service),
+          },
+          { timeout: 100 },
+        ),
+      ).toBe(expected);
+    }
+  });
+
+  test('fork validation still builds every published compose and spawner image', async () => {
+    const compose = parse(
+      await readFile(join(repository, 'compose.yml'), 'utf8'),
+    ) as {
+      services: Record<string, { build?: { dockerfile: string } }>;
+    };
+    const imageTest = await readFile(
+      join(
+        repository,
+        'services/platform/tests/integration/container-image-test.ts',
+      ),
+      'utf8',
+    );
+    const spawnerImages = imageTest
+      .match(/const SPAWNER_IMAGES = new Set\(\[([^\]]+)\]/)?.[1]
+      .match(/'([^']+)'/g)
+      ?.map((value) => value.slice(1, -1));
+    expect(spawnerImages).toBeDefined();
+    const builds = new Set(
+      Object.values(compose.services).flatMap((service) =>
+        service.build ? [service.build.dockerfile] : [],
+      ),
+    );
+    for (const service of BUILT) {
+      expect(
+        builds.has(`services/${service}/Dockerfile`) ||
+          spawnerImages!.includes(service),
+        service,
+      ).toBe(true);
+    }
+    expect(imageTest).toContain("compose.run(['build', '--parallel'])");
+    expect(imageTest).toContain('for (const svc of SPAWNER_IMAGES)');
+    const forkJob = (await workflow()).jobs['image-validate-fork']!;
+    const configGuard = step(forkJob, 'Validate builtin configs');
+    expect(
+      forkJob.steps.filter(
+        (entry) => entry.name === 'Validate builtin configs',
+      ),
+    ).toHaveLength(1);
+    expect(configGuard.run).toBe(
+      'bun run --filter @tale/platform configs:validate',
+    );
+    expect(
+      forkJob.steps.indexOf(step(forkJob, 'Setup toolchain')),
+    ).toBeLessThan(forkJob.steps.indexOf(configGuard));
+    expect(
+      step(
+        (await workflow()).jobs['image-validate-fork']!,
+        'Run image validation (local build)',
+      ).env?.SKIP_BUILD,
+    ).toBeUndefined();
+  });
+
+  test.skipIf(process.platform === 'win32')(
     'candidate images carry their own SHA tag',
     async () => {
       const script = step(
