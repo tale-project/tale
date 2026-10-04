@@ -329,6 +329,21 @@ export class SessionRoutes {
   private resolving: Promise<BackendSession[]> | null = null;
   private resolvingNext: Promise<BackendSession[]> | null = null;
 
+  // Concurrent adoption paths can discover the same incarnation in separate
+  // fresh lists. Share only its in-flight endpoint lookup; a new incarnation
+  // or a lookup after settlement must read the backend again.
+  private readonly resolvingEndpoints = new Map<
+    string,
+    { createdAtMs: number; promise: Promise<string> }
+  >();
+  // The registry object is the fence: a recreate of the same id never joins
+  // an old probe, even when both creations share a millisecond timestamp.
+  // No settled liveness verdict is cached.
+  private readonly checkingLiveness = new Map<
+    RegistrySession,
+    Promise<boolean>
+  >();
+
   // The maintenance pass in flight: a pass slower than its interval (hung
   // daemons, a slow dockerd) must not stack copies of itself.
   private maintaining: Promise<void> | null = null;
@@ -1203,7 +1218,7 @@ export class SessionRoutes {
     if (this.isDraining() || this.creating.has(s.sessionId)) return undefined;
     let endpoint: string;
     try {
-      endpoint = await this.backend.resolveEndpoint(s.sessionId);
+      endpoint = await this.resolveForAdoption(s);
     } catch (err) {
       console.warn(
         `[sandbox.session] adopt skipped for ${s.sessionId} (endpoint unresolved; will retry):`,
@@ -1236,6 +1251,26 @@ export class SessionRoutes {
     };
     this.registry.set(entry);
     return entry;
+  }
+
+  private resolveForAdoption(session: BackendSession): Promise<string> {
+    const pending = this.resolvingEndpoints.get(session.sessionId);
+    if (pending?.createdAtMs === session.createdAtMs) return pending.promise;
+    const promise = this.backend
+      .resolveEndpoint(session.sessionId)
+      .finally(() => {
+        // An older incarnation's completion must not clear its successor's slot.
+        if (
+          this.resolvingEndpoints.get(session.sessionId)?.promise === promise
+        ) {
+          this.resolvingEndpoints.delete(session.sessionId);
+        }
+      });
+    this.resolvingEndpoints.set(session.sessionId, {
+      createdAtMs: session.createdAtMs,
+      promise,
+    });
+    return promise;
   }
 
   /**
@@ -1559,11 +1594,23 @@ export class SessionRoutes {
    * blip must never evict a live session. Returns true when a stale entry was
    * evicted.
    */
-  private async evictIfBackendGone(sessionId: string): Promise<boolean> {
-    if (!this.registry.has(sessionId)) return false;
+  private evictIfBackendGone(sessionId: string): Promise<boolean> {
+    const session = this.registry.get(sessionId);
+    if (session === undefined) return Promise.resolve(false);
     // A terminating Pod is unavailable for work before its compute is gone.
     // Its stop owner keeps the slot until removal is actually confirmed.
-    if (this.stopping.has(sessionId)) return false;
+    if (this.stopping.has(sessionId)) return Promise.resolve(false);
+    const pending = this.checkingLiveness.get(session);
+    if (pending !== undefined) return pending;
+    const probe = this.checkBackendGone(session).finally(() => {
+      this.checkingLiveness.delete(session);
+    });
+    this.checkingLiveness.set(session, probe);
+    return probe;
+  }
+
+  private async checkBackendGone(session: RegistrySession): Promise<boolean> {
+    const { sessionId } = session;
     let alive: boolean;
     try {
       alive = await this.backend.sessionExists(sessionId);
@@ -1574,7 +1621,14 @@ export class SessionRoutes {
       );
       return false;
     }
-    if (alive) return false;
+    // The probe describes the entry captured before the await. A destroy /
+    // recreate or a stop that began meanwhile owns its new state and capacity.
+    if (
+      alive ||
+      this.registry.get(sessionId) !== session ||
+      this.stopping.has(sessionId)
+    )
+      return false;
     console.warn(
       `[sandbox.session] ${sessionId} backend object gone; evicting stale registry entry (workspace preserved for resume)`,
     );

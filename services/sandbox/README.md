@@ -186,12 +186,27 @@ An unused invalid owned network is recreated; an in-use or foreign network is
 never removed. If host observation fails or no safe subnet is available,
 sessions build locally.
 
+The mirrors enable registry storage deletion so `registry:2` can expire cached
+image layers after its seven-day lifetime. Without this setting, its expiry
+scheduler forgets failed deletions and the layers remain on disk. A spawner
+upgrade replaces older mirrors once no build is running, preserving their cache
+volumes. Layers whose expiry already failed are not scheduled again by the
+registry; they remain until the organization's stopped caches are reclaimed.
+
 After no agent session may still depend on an organization's cache helpers
 (only Docker-enabled agent sessions build), the `SANDBOX_SESSION_MAX_IDLE_MS` window (30
 minutes by default) starts. The helpers then stop, the builder pruning its cache
 to `SANDBOX_BUILDKITD_IDLE_CACHE` (5 GB by default) first; their network and
 volumes remain intact and the next build restarts them. Legacy global cache helpers retire once their remaining sessions drain,
 with their cache volumes retained.
+
+An organization's stopped helpers and all four cache volumes are removed after
+`SANDBOX_BUILDKITD_CACHE_RETENTION` (14 days by default), or sooner while the
+session disk is below `SANDBOX_MIN_FREE_DISK`. This also reclaims layers retained
+before mirror expiry was enabled. To make an organization's caches eligible,
+let its agent sessions finish and unpin or stop any warm sessions, then leave
+the helpers stopped for the retention period. Its next build starts with a
+cold cache; session workspaces and package-cache volumes are separate.
 
 Kubernetes sessions use their inner Docker builder. The Kubernetes backend
 does not provision these organization helpers or call the Docker CLI during

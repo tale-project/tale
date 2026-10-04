@@ -184,6 +184,18 @@ exec starts its descendant, so runnerd can end what the exec left
 bakes the browser bundles at build time. See the script headers for the split
 rationale.
 
+Inner Docker defaults to `json-file` logs rotating at 10 MB per nested container,
+with one file and compression disabled, matching the outer session's log cap.
+`docker logs` and Compose logs keep working. These daemon defaults apply to
+new nested containers; existing ones keep their original logging configuration
+until recreated, and an explicit per-container logging configuration takes
+precedence. Images, volumes and workspace files are not part of this log budget.
+
+Inner Docker and redsocks diagnostics go to container stderr, where the outer
+Docker logger or Kubernetes node owns rotation. They no longer accumulate in
+unbounded `/var/log/dockerd.log`, `/var/log/redsocks.log` or `/tmp/redsocks.log`
+files. Existing files are left intact; this change does not reclaim old logs.
+
 ```bash
 # from repo root
 docker build -f services/sandbox-runtime/Dockerfile .
