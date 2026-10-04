@@ -1,15 +1,17 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
+import { QueryClient } from '@tanstack/react-query';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { TaskReviewerState } from '@/app/lib/backend/contract/tasks';
 import { AppError } from '@/lib/shared/errors/app-error';
-import { render, screen, waitFor } from '@/tests/utils/render';
+import { act, render, screen, waitFor } from '@/tests/utils/render';
 
 import { TaskReviewerField } from './task-reviewer-field';
 
 const mocks = vi.hoisted(() => ({
   data: undefined as TaskReviewerState | undefined,
+  queryClient: undefined as QueryClient | undefined,
   isError: false,
   mutate: vi.fn(),
   refetch: vi.fn(),
@@ -22,9 +24,16 @@ vi.mock('@/app/hooks/use-backend-query', () => ({
     refetch: mocks.refetch,
   }),
 }));
-vi.mock('../hooks/mutations', () => ({
-  useSetTaskReviewer: () => ({ mutateAsync: mocks.mutate, isPending: false }),
-}));
+vi.mock('../hooks/mutations', async () => {
+  const { useMutation } = await import('@tanstack/react-query');
+  return {
+    useSetTaskReviewer: () =>
+      useMutation(
+        { mutationFn: (args: unknown) => mocks.mutate(args) },
+        mocks.queryClient,
+      ),
+  };
+});
 vi.mock('@tale/ui/use-toast', () => ({ toast: mocks.toast }));
 vi.mock('@/app/features/projects/hooks/queries', () => ({
   useProjectAgents: () => ({
@@ -75,6 +84,9 @@ const task = {
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.isError = false;
+  mocks.queryClient = new QueryClient({
+    defaultOptions: { mutations: { retry: false } },
+  });
   mocks.mutate.mockResolvedValue(null);
   mocks.refetch.mockResolvedValue(null);
   mocks.data = {
@@ -97,6 +109,51 @@ beforeEach(() => {
 });
 
 describe('TaskReviewerField', () => {
+  it.each(['success', 'failure'] as const)(
+    'keeps the same keyboard focus target through a delayed %s save',
+    async (outcome) => {
+      const pending = Promise.withResolvers<null>();
+      mocks.mutate.mockReturnValueOnce(pending.promise);
+      const { user } = render(<TaskReviewerField task={task} canEdit />);
+      const trigger = screen.getByRole('button', { name: 'Reviewer' });
+      await user.tab();
+      expect(trigger).toHaveFocus();
+      await user.keyboard('{Enter}');
+      await user.type(screen.getByRole('combobox'), 'Review agent');
+      await user.keyboard('{ArrowDown}{Enter}');
+      await waitFor(() => expect(mocks.mutate).toHaveBeenCalledTimes(1));
+
+      expect(screen.getByRole('button', { name: 'Reviewer' })).toBe(trigger);
+      expect(trigger).toHaveAttribute('aria-disabled', 'true');
+      expect(trigger).toHaveAttribute('aria-busy', 'true');
+      expect(trigger).not.toBeDisabled();
+      await waitFor(() => expect(trigger).toHaveFocus());
+      await user.keyboard('{Enter} ');
+      await user.click(trigger);
+      expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+      expect(mocks.mutate).toHaveBeenCalledTimes(1);
+
+      await act(async () => {
+        if (outcome === 'success') pending.resolve(null);
+        else pending.reject(new AppError({ code: 'TASK_REVIEWER_STALE' }));
+      });
+      await waitFor(() =>
+        expect(trigger).not.toHaveAttribute('aria-disabled', 'true'),
+      );
+      expect(screen.getByRole('button', { name: 'Reviewer' })).toBe(trigger);
+      expect(trigger).toHaveFocus();
+      expect(mocks.mutate).toHaveBeenCalledTimes(1);
+      expect(mocks.refetch).toHaveBeenCalledTimes(
+        outcome === 'failure' ? 1 : 0,
+      );
+      expect(mocks.toast).toHaveBeenCalledTimes(outcome === 'failure' ? 1 : 0);
+      await user.keyboard('{Enter}');
+      expect(screen.getByRole('combobox')).toBeInTheDocument();
+      await user.keyboard('{Escape}');
+      await waitFor(() => expect(trigger).toHaveFocus());
+    },
+  );
+
   it('keeps the identity observed when the picker opened across a newer review arriving', async () => {
     const { user, rerender } = render(
       <TaskReviewerField task={task} canEdit />,

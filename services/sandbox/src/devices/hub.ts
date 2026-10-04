@@ -21,7 +21,9 @@
 
 import { join } from 'node:path';
 
+import { memoryReserveBytes, sessionWorkingSetBytes } from '../host-memory.ts';
 import { jsonResponse } from '../http-util.ts';
+import { ID_ALPHABET_RE, ORG_ID_ALPHABET_RE } from '../wire.ts';
 import {
   parseHello,
   parseStatus,
@@ -151,7 +153,12 @@ function readCreate(body: string): {
   if (parsed === null || typeof parsed !== 'object') return null;
   const sessionId: unknown = Reflect.get(parsed, 'sessionId');
   const organizationId: unknown = Reflect.get(parsed, 'organizationId');
-  if (typeof sessionId !== 'string' || typeof organizationId !== 'string') {
+  if (
+    typeof sessionId !== 'string' ||
+    !ID_ALPHABET_RE.test(sessionId) ||
+    typeof organizationId !== 'string' ||
+    !ORG_ID_ALPHABET_RE.test(organizationId)
+  ) {
     return null;
   }
   return {
@@ -193,9 +200,12 @@ export class DeviceHub {
     input: string,
     init: RelayFetchInit,
   ) => Promise<Response>;
-  /** Creates forwarded per session id — a destroy only forgets a placement
-   * when no create for the same id was forwarded while it ran. */
-  private readonly creates = new Map<string, number>();
+  /** Unique create generations: clearing a finished session cannot reuse the
+   * identity captured by a delayed destroy of an earlier incarnation. */
+  private readonly creates = new Map<string, symbol>();
+  /** Creates and destroy finalization share one ordering per id: no create
+   * may reuse a route while its durable deletion is still committing. */
+  private readonly placing = new Map<string, Promise<void>>();
   /** When the hub last asked a device about a destroyed session's bytes. In
    * memory: after a restart it asks again at once. */
   private readonly deletingAskedAtMs = new Map<string, number>();
@@ -372,13 +382,17 @@ export class DeviceHub {
     body: string,
   ): Promise<Response | null> {
     if (req.method === 'POST' && url.pathname === '/v1/sessions') {
-      return this.routeCreate(req, url, body);
+      const create = readCreate(body);
+      if (create === null) return null;
+      return this.withPlacement(create.sessionId, () =>
+        this.routeCreate(req, url, body),
+      );
     }
     const sessionId = sessionIdFromPath(url.pathname);
     if (sessionId === null) return null;
     const placement = this.placements.get(sessionId);
     if (placement === undefined) return null;
-    const createsBefore = this.creates.get(sessionId) ?? 0;
+    const createsBefore = this.creates.get(sessionId);
     const res = await this.forward(placement.deviceId, req, url, body);
     if (
       req.method === 'DELETE' &&
@@ -477,7 +491,26 @@ export class DeviceHub {
     const used = d.status
       ? d.status.running + d.status.starting
       : d.hello.sessions.filter((s) => s.state !== 'stopped').length;
-    return max - used - d.inflightCreates;
+    const slots = max - used - d.inflightCreates;
+    const memory = d.status?.resources.memory;
+    if (
+      memory === undefined ||
+      memory.totalBytes === null ||
+      memory.usedBytes === null ||
+      memory.totalBytes <= 0 ||
+      memory.usedBytes > memory.totalBytes
+    )
+      return slots;
+    // Devices run non-DinD sessions. This is a placement hint from the last
+    // report; the device's current local admission remains authoritative.
+    const available =
+      memory.totalBytes -
+      memory.usedBytes -
+      memoryReserveBytes(memory.totalBytes);
+    const memorySlots = Math.floor(
+      available / sessionWorkingSetBytes('agent', false),
+    );
+    return Math.min(slots, memorySlots - d.inflightCreates);
   }
 
   private async routeCreate(
@@ -495,7 +528,7 @@ export class DeviceHub {
         return jsonResponse({ error: 'placement_conflict' }, 403);
       }
       if (existing.deleting !== true) {
-        this.countCreate(create.sessionId);
+        this.noteCreate(create.sessionId);
         return this.forward(existing.deviceId, req, url, body);
       }
     }
@@ -539,18 +572,23 @@ export class DeviceHub {
           this.freeSlots(b) - this.freeSlots(a),
       );
     for (const device of candidates) {
-      // Counted before the placement is written: a destroy (the hub's own
+      // An earlier candidate's refusal may have taken seconds; another
+      // create can have reserved this device while we waited for it.
+      if (this.freeSlots(device) <= 0) continue;
+      // Recorded before the placement is written: a destroy (the hub's own
       // ask included) answered while the write is under way must find the
       // id created anew and leave this session's placement alone.
-      this.countCreate(create.sessionId);
-      await this.placements.set(create.sessionId, {
-        deviceId: device.deviceId,
-        organizationId: create.organizationId,
-        placedAtMs: this.now(),
-      });
+      this.noteCreate(create.sessionId);
+      // Reserve before the durable write yields, so a burst cannot all
+      // select the same device using its last free slot.
       device.inflightCreates++;
       let res: Response;
       try {
+        await this.placements.set(create.sessionId, {
+          deviceId: device.deviceId,
+          organizationId: create.organizationId,
+          placedAtMs: this.now(),
+        });
         res = await this.forward(device.deviceId, req, url, body);
       } finally {
         device.inflightCreates--;
@@ -563,20 +601,19 @@ export class DeviceHub {
         await discard(res);
         return jsonResponse({ error: 'cancelled' }, 499);
       }
-      // Full after all (its last STATUS was stale), draining, broken (its
-      // Docker could not start the session, rolled back: a 5xx) or cut off
-      // before answering: nothing usable was created there, so the placement
-      // is released and the next place tried — a new session never fails
-      // for a device it never needed. A device that failed outright sits out
-      // new creates for a while. (A create cut off mid-flight may still have
-      // started there; nothing routes to that copy, which stays unused.)
-      if (res.status === 429 || res.status >= 500) {
+      // Admission's 429 confirms nothing started. A 5xx or lost tunnel does
+      // not: Docker may have created the session before the answer was lost,
+      // or cleanup may itself have failed. Keep that durable route so a retry
+      // reconciles with the same workspace instead of creating another copy.
+      if (res.status === 429) {
         await this.placements.delete(create.sessionId);
-        if (res.status !== 503) {
-          device.createFailedUntilMs = this.now() + CREATE_FAILURE_COOLDOWN_MS;
-        }
+        device.createFailedUntilMs = this.now() + CREATE_FAILURE_COOLDOWN_MS;
         await discard(res);
         continue;
+      }
+      if (res.status >= 500) {
+        device.createFailedUntilMs = this.now() + CREATE_FAILURE_COOLDOWN_MS;
+        return res;
       }
       // Refused as sent (a malformed create): nothing was made there either.
       // A 409 means the device holds the session already — it stays placed.
@@ -588,14 +625,33 @@ export class DeviceHub {
     return null;
   }
 
-  private countCreate(sessionId: string): void {
-    this.creates.set(sessionId, (this.creates.get(sessionId) ?? 0) + 1);
+  private noteCreate(sessionId: string): void {
+    this.creates.set(sessionId, Symbol());
+  }
+
+  private async withPlacement<T>(
+    sessionId: string,
+    action: () => Promise<T>,
+  ): Promise<T> {
+    const prior = this.placing.get(sessionId) ?? Promise.resolve();
+    const work = prior.then(action);
+    const settled = work.then(
+      () => undefined,
+      () => undefined,
+    );
+    this.placing.set(sessionId, settled);
+    try {
+      return await work;
+    } finally {
+      if (this.placing.get(sessionId) === settled)
+        this.placing.delete(sessionId);
+    }
   }
 
   private async afterDestroy(
     sessionId: string,
     res: Response,
-    createsBefore: number,
+    createsBefore: symbol | undefined,
   ): Promise<Response> {
     if (!res.ok) return res;
     const text = await res.text();
@@ -620,15 +676,17 @@ export class DeviceHub {
     // or one older than the `deletion` contract, whose answer says nothing
     // about the bytes — keeps it, marked deleting, so the destroy that asks
     // again reaches the device holding them.
-    const recreated = (this.creates.get(sessionId) ?? 0) !== createsBefore;
-    if (!busy && !recreated) {
-      if (deleted) {
-        await this.placements.delete(sessionId);
-        this.creates.delete(sessionId);
-      } else {
-        await this.placements.markDeleting(sessionId);
+    await this.withPlacement(sessionId, async () => {
+      const recreated = this.creates.get(sessionId) !== createsBefore;
+      if (!busy && !recreated) {
+        if (deleted) {
+          await this.placements.delete(sessionId);
+          this.creates.delete(sessionId);
+        } else {
+          await this.placements.markDeleting(sessionId);
+        }
       }
-    }
+    });
     return new Response(text, { status: res.status, headers: res.headers });
   }
 

@@ -162,7 +162,7 @@ export function ProductEditDialog({
     setValue,
     setError,
     watch,
-    formState: { errors, isDirty },
+    formState: { errors, isDirty, defaultValues },
   } = useForm<ProductFormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -171,7 +171,9 @@ export function ProductEditDialog({
       imageUrl: product.imageUrl || '',
       stock: product.stock?.toString() || '',
       price: product.price?.toString() || '',
-      currency: product.currency || 'USD',
+      // The stored currency, or blank: a seeded USD went out on every Save
+      // and put back a currency the person had cleared.
+      currency: product.currency || '',
       category: product.category || '',
       status: product.status || 'draft',
     },
@@ -193,7 +195,7 @@ export function ProductEditDialog({
         imageUrl: product.imageUrl || '',
         stock: product.stock?.toString() || '',
         price: product.price?.toString() || '',
-        currency: product.currency || 'USD',
+        currency: product.currency || '',
         category: product.category || '',
         status: product.status || 'draft',
       });
@@ -202,15 +204,22 @@ export function ProductEditDialog({
   }, [isOpen, product, reset]);
 
   const onSubmit = (data: ProductFormData) => {
+    // The door's patch rule: an omitted field is unchanged and `null` clears
+    // it. A field the editor opened with a value and Save finds blank was
+    // emptied, so it goes out as `null`; one that opened blank stays out.
+    // Omitting both (the create dialog's rule) kept every emptied value
+    // behind the success toast (#3615).
+    const blank = (field: keyof ProductFormData) =>
+      defaultValues?.[field] ? null : undefined;
     void updateProduct({
       productId: product._id,
       name: data.name.trim(),
-      description: data.description.trim() || undefined,
+      description: data.description.trim() || blank('description'),
       imageUrl: data.imageUrl.trim() || null,
-      stock: data.stock ? parseInt(data.stock) : undefined,
-      price: data.price ? parseFloat(data.price) : undefined,
-      currency: data.currency || undefined,
-      category: data.category.trim() || undefined,
+      stock: data.stock ? parseInt(data.stock) : blank('stock'),
+      price: data.price ? parseFloat(data.price) : blank('price'),
+      currency: data.currency || blank('currency'),
+      category: data.category.trim() || blank('category'),
       status: data.status,
     }).then(
       () => {

@@ -152,6 +152,62 @@ describe('file-ops', () => {
 });
 
 describe('bounded atomic staging', () => {
+  test('one batch deadline bounds later transfers and preserves destinations', async () => {
+    const first = Promise.withResolvers<Response>();
+    const second = Promise.withResolvers<Response>();
+    const firstRequested = Promise.withResolvers<void>();
+    const secondRequested = Promise.withResolvers<void>();
+    const server = Bun.serve({
+      port: 0,
+      fetch(request) {
+        if (new URL(request.url).pathname === '/first') {
+          firstRequested.resolve();
+          return first.promise;
+        }
+        secondRequested.resolve();
+        return second.promise;
+      },
+    });
+    writeFileSync(join(ROOT, 'batch-second.txt'), 'previous');
+    const staging = stageFiles(
+      [
+        {
+          path: 'batch-first.txt',
+          url: `http://127.0.0.1:${server.port}/first`,
+        },
+        {
+          path: 'batch-second.txt',
+          url: `http://127.0.0.1:${server.port}/second`,
+        },
+        { path: 'batch-never.txt', contentBase64: 'YQ==' },
+      ],
+      { fetchTimeoutMs: 1_000 },
+    );
+    try {
+      await firstRequested.promise;
+      first.resolve(new Response('first'));
+      await secondRequested.promise;
+      const result = await staging;
+      expect(result.staged).toEqual([{ path: 'batch-first.txt', bytes: 5 }]);
+      expect(result.skipped).toEqual([
+        { path: 'batch-second.txt', reason: 'timeout' },
+        { path: 'batch-never.txt', reason: 'timeout' },
+      ]);
+      expect(readFileSync(join(ROOT, 'batch-second.txt'), 'utf8')).toBe(
+        'previous',
+      );
+      expect(readdirSync(ROOT)).not.toContain('batch-never.txt');
+      expect(
+        readdirSync(ROOT).some((name) => name.startsWith('.tale-stage-')),
+      ).toBe(false);
+    } finally {
+      first.resolve(new Response('released'));
+      second.resolve(new Response('released'));
+      await staging;
+      await server.stop(true);
+    }
+  });
+
   test('atomic replacement preserves executable permissions and new files stay private', async () => {
     const path = join(ROOT, 'executable.sh');
     writeFileSync(path, 'old');
