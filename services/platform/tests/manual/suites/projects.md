@@ -70,7 +70,10 @@ projects-list row ⋯ menu.
   change narrows access…" (`projects.settings.sharingNarrowingWarning`) —
   confirm it; widening saves at once. The success toast
   (`projects.settings.saveSuccess`) appears and after reload the audience
-  persists. A member who cannot administer the project sees the read-only
+  persists. With project readback delayed after a successful addition, keep
+  the picker open and add another team → both additions remain selected and
+  persist; removing either saved team still asks for confirmation. A member
+  who cannot administer the project sees the read-only
   **Effective audience** (`projects.sharing.effectiveAudience`) instead.
 - [ ] `PROJ-F4` · **Files** — Files tab (rail label **Knowledge**,
   `projects.navigation.files`; page heading **Files**, `projects.files.title`)
