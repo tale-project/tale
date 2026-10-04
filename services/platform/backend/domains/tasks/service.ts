@@ -3068,12 +3068,13 @@ export async function deleteTask(
     { id: string; status: TaskStatus; archivedAt: number | null }[]
   >`
     WITH RECURSIVE tree AS (
-      SELECT id, status, archived_at_ms, 0 AS depth
+      SELECT id, status, archived_at_ms
       FROM app.tasks WHERE id = ${taskId}
-      UNION ALL
-      SELECT t.id, t.status, t.archived_at_ms, tree.depth + 1
+      UNION
+      SELECT t.id, t.status, t.archived_at_ms
       FROM app.tasks t JOIN tree ON t.parent_task_id = tree.id
-      WHERE tree.depth < 32
+      WHERE t.org_id = ${auth.organizationId}
+        AND t.project_id = ${task.projectId}
     )
     SELECT id, status, archived_at_ms::float8 AS "archivedAt"
     FROM tree
