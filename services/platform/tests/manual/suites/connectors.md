@@ -153,6 +153,13 @@ Sign in as an owner/admin — the page requires the `developerSettings` ability
   the GitHub rows show — the param seeded the **Connector** facet
   (`settings.connectors.vendorFilterLabel`). Changing or clearing the facet
   removes `?connector=` from the URL and the facet's own selection takes over.
+  Repeat with only GitHub credentials and `?connector=slack`, and after
+  deleting the selected connector's last credential → The shared no-results
+  state appears (never the first-connector invitation); search and Filter stay
+  enabled, the selected connector stays visible in the facet, and clearing it
+  removes the param and restores GitHub rows. A matching single-connector link
+  also keeps its filter clearable. Check EN/DE/FR and keyboard access to the
+  facet and clear action.
 - [ ] `CONN-F10` · **Row actions** — Row 3-dot menu
   (`settings.credentials.actionsLabel`) → Offers **Make default** /
   **Disable** / **Replace …** / **Edit credential** / **Delete**
