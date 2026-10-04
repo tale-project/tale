@@ -1356,6 +1356,44 @@ describe('the unfiltered run list the listings are held to', () => {
     expect(walkCalls(calls)).toHaveLength(2);
   });
 
+  test('an omitted qualifying candidate on page two blocks instead of issuing a receipt', async () => {
+    // Reserve lower IDs independently of which other tests ran first.
+    nextRun += 300;
+    const scenario = passing();
+    const hidden = candidateRun('failure', {
+      id: 150,
+      html_url: `https://github.com/${REPOSITORY}/actions/runs/150`,
+      created_at: '2026-09-29T15:00:01Z',
+      run_started_at: '2026-09-29T22:00:00Z',
+      run_attempt: 2,
+    });
+    scenario.candidateRuns.push(hidden);
+    scenario.listingOmits = [hidden.id];
+    scenario.otherRuns = Array.from({ length: 250 }, (_unused, index) =>
+      run('.github/workflows/checks.yml', 'success', {
+        id: 250 - index,
+        html_url: `https://github.com/${REPOSITORY}/actions/runs/${250 - index}`,
+        event: 'pull_request',
+        head_branch: 'fix/elsewhere',
+        head_sha: ELSEWHERE,
+        created_at:
+          index < 100 ? '2026-09-29T14:59:30Z' : '2026-09-20T12:00:00Z',
+      }),
+    ).filter((entry) => entry.id !== hidden.id);
+    const rows = allRuns(scenario);
+    expect(rows[99]!.created_at).toBe('2026-09-29T14:59:30Z');
+    expect(rows.slice(100, 200)).toContain(hidden);
+    // Its own creation time qualifies; its 31-second inversion fits the
+    // accepted model. Only the extended walk exposes the filtered omission.
+    const { report, calls } = await judge(scenario);
+    expect(report.state).toBe('blocked');
+    expect(report.receipt).toBeNull();
+    expect(report.reasons).toEqual([
+      `the run listings disagree: repos/${REPOSITORY}/${runListPath('candidate')} omits ${hidden.html_url}; read again`,
+    ]);
+    expect(walkCalls(calls)).toHaveLength(2);
+  });
+
   test('a walk that cannot reach the candidate commit within 3,000 runs refuses every listing', async () => {
     const scenario = passing();
     scenario.otherRuns = elsewhere(3000);

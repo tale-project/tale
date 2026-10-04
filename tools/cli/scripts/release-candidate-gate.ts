@@ -179,9 +179,9 @@ const RUNS_SEARCH_CEILING = RUNS_PAGE_SIZE * RUNS_MAX_PAGES;
 // The unfiltered run list has no search ceiling. 3,000 runs were about six
 // days of this repository's runs in 2026-10.
 const WALK_MAX_PAGES = 30;
-// One event fans its workflow runs out together, and GitHub stamps their ids
-// and creation times separately: a lower id can carry a creation time a
-// second later (#4330). The walk accepts that much skew and no more.
+// #4330 observed a lower run id created one second later in the same event.
+// Sixty seconds is this gate's chosen enumeration tolerance, not a GitHub
+// ordering guarantee. The running minimum and extended cutoff share it.
 const CREATED_AT_SKEW_MS = 60_000;
 /** GitHub creates one run of each of these for every push to main: their push
  * triggers carry no path filter (release-candidate-workflows.test.ts holds

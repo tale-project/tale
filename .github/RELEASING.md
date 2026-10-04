@@ -187,11 +187,12 @@ lists whose totals matched their pages, yet the newest runs were missing, or eve
   runs also block. Read again; do not tag from an incomplete result.
 
 The accepted enumeration model is an unfiltered list in descending run-id order whose original
-creation times never rise more than a minute above the earliest one listed before them. GitHub
-creates the runs of one event together and can give a lower id a creation time a second later
-(#4330); the minute of tolerance covers that, and the walk's extra minute past the cutoff keeps
-every run that could still count. Identical leading repeats caused by new runs shifting pagination
-are tolerated. GitHub does not document an immutable snapshot or ID/time-order guarantee; the
+creation times never rise more than a minute above the earliest one listed before them. The
+observed inversion in #4330 was one second between runs of the same event. Sixty seconds is the
+gate's chosen tolerance, not an observed maximum or a GitHub guarantee. Under this model, the
+walk's extra minute past the cutoff keeps every run that could still count. Identical leading
+repeats caused by new runs shifting pagination are tolerated. GitHub does not document an
+immutable snapshot or ID/time-order guarantee; the
 gate checks observed ordering and disagreements under this model. It does not reconstruct every
 historical ref update or prove the first-ever arrival of C, and cannot detect arbitrary history
 omitted by every API read. Stronger lifetime guarantees require durable ref-update evidence.
