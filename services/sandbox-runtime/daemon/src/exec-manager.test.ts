@@ -504,6 +504,7 @@ describe('ExecManager', () => {
       undefined,
       {
         procRoot,
+        selfPid: 0,
         scanDeadlineMs: 500,
         kill: (pid, signal) => {
           sent.push([pid, signal]);
@@ -583,6 +584,7 @@ describe('ExecManager', () => {
       undefined,
       {
         procRoot,
+        selfPid: 0,
         // Real groups are the test's own execs; the fake pid is only recorded.
         kill: (pid, signal) => {
           sent.push([pid, signal]);
@@ -646,6 +648,7 @@ describe('ExecManager', () => {
       undefined,
       {
         procRoot,
+        selfPid: 0,
         listDir: () => listing.promise,
         kill: (pid, signal) => {
           sent.push([pid, signal]);
@@ -697,6 +700,7 @@ describe('ExecManager', () => {
       undefined,
       {
         procRoot,
+        selfPid: 0,
         listDir: () => listing.promise,
         kill: (pid, signal) => {
           sent.push([pid, signal]);
@@ -759,6 +763,7 @@ describe('ExecManager', () => {
       undefined,
       {
         procRoot,
+        selfPid: 0,
         kill: (pid, signal) => {
           sent.push([pid, signal]);
           if (pid < 0) process.kill(pid, signal);
@@ -806,6 +811,7 @@ describe('ExecManager', () => {
       undefined,
       {
         procRoot,
+        selfPid: 0,
         kill: (pid, signal) => {
           sent.push([pid, signal]);
           if (pid < 0) process.kill(pid, signal);
@@ -867,6 +873,7 @@ describe('ExecManager', () => {
       undefined,
       {
         procRoot,
+        selfPid: 0,
         kill: (pid, signal) => {
           sent.push([pid, signal]);
           if (pid < 0) process.kill(pid, signal);
@@ -1120,6 +1127,7 @@ describe('ExecManager', () => {
       undefined,
       {
         procRoot,
+        selfPid: 0,
         // Real groups are the test's own execs; the fake pid is only recorded.
         kill: (pid, signal) => {
           sent.push([pid, signal]);

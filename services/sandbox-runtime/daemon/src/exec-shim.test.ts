@@ -548,6 +548,7 @@ describe('the shim’s status pipe', () => {
       undefined,
       {
         procRoot,
+        selfPid: 0,
         kill: (pid, signal) => {
           sent.push([pid, signal]);
         },

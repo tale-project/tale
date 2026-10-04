@@ -64,7 +64,7 @@ describe('exitDaemon', () => {
         [
           `import { exitDaemon } from '${src}/daemon-exit.ts';`,
           `import { taggedPids } from '${src}/process-reaper.ts';`,
-          `void taggedPids('e1', { procRoot: process.argv[2], scanDeadlineMs: 100 })`,
+          `void taggedPids('e1', { procRoot: process.argv[2], selfPid: 0, scanDeadlineMs: 100 })`,
           `  .then(() => exitDaemon(0));`,
         ].join('\n'),
       );
