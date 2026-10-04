@@ -42,6 +42,7 @@ import {
   useTestOrgObjectStorageConnection,
 } from '../hooks/mutations';
 import { useObjectStorageBackfillStatus } from '../hooks/queries';
+import { useConnectionTestResult } from '../hooks/use-connection-test-result';
 import {
   mapOrgResidencyError,
   orgResidencyErrorCode,
@@ -230,9 +231,6 @@ export function OrgStorageSection({
   const [enabled, setEnabled] = useState(Boolean(view?.configured));
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
   const [backfillConfirmOpen, setBackfillConfirmOpen] = useState(false);
-  const [testResult, setTestResult] = useState<
-    { ok: boolean; message?: string } | undefined
-  >(undefined);
 
   const configured = Boolean(view?.configured);
   useEffect(() => {
@@ -333,12 +331,10 @@ export function OrgStorageSection({
   });
   useRegisterGroupedEditor(editor, { enabled: !readOnly });
 
-  // A probe result describes the values it was run against — editing any
-  // field makes it stale.
-  useEffect(() => {
-    const sub = editor.form.watch(() => setTestResult(undefined));
-    return () => sub.unsubscribe();
-  }, [editor.form]);
+  const { testResult, clearTestResult, beginTest } = useConnectionTestResult(
+    editor.form,
+    organizationId,
+  );
 
   const {
     register,
@@ -363,7 +359,7 @@ export function OrgStorageSection({
     bothKeysEntered || (noKeysEntered && (view?.hasCredentials ?? false));
 
   async function onTest() {
-    setTestResult(undefined);
+    const publishResult = beginTest();
     const values = getValues();
     // The probe takes the same body as Save: name what it would refuse
     // under its field instead of sending it (a blank region used to come
@@ -392,16 +388,16 @@ export function OrgStorageSection({
           ? { secretAccessKey: values.secretAccessKey }
           : {}),
       });
-      setTestResult({ ok: res.ok, message: res.error || undefined });
+      publishResult({ ok: res.ok, message: res.error || undefined });
     } catch (err) {
-      setTestResult({ ok: false, message: mapOrgResidencyError(err, t) });
+      publishResult({ ok: false, message: mapOrgResidencyError(err, t) });
     }
   }
 
   async function onClear() {
     try {
       await remove.mutateAsync({ organizationId });
-      setTestResult(undefined);
+      clearTestResult();
       toast({ description: t('dataResidency.orgStorage.cleared') });
     } catch (err) {
       toast({
