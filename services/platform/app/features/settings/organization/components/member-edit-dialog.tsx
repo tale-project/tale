@@ -79,7 +79,15 @@ export function EditMemberDialog({
       z.object({
         displayName: z
           .string()
-          .min(1, tCommon('validation.required', { field: t('form.name') })),
+          .trim()
+          .min(1, tCommon('validation.required', { field: t('form.name') }))
+          .max(
+            100,
+            tCommon('validation.maxLength', {
+              field: t('form.name'),
+              max: 100,
+            }),
+          ),
         role: memberRoleSchema,
         email: z.string().email(tCommon('validation.email')),
         updatePassword: z.boolean().optional(),
@@ -196,6 +204,7 @@ export function EditMemberDialog({
         label={t('form.name')}
         placeholder={t('form.namePlaceholder')}
         {...register('displayName')}
+        errorMessage={formState.errors.displayName?.message}
         className="w-full"
         required
       />
