@@ -1,6 +1,6 @@
 # Automations
 
-> **Prefix** `AUTO-` · **Reset** none · **Cost** 78 boxes
+> **Prefix** `AUTO-` · **Reset** none · **Cost** 79 boxes
 
 Exercise the draft→deploy→version automation surface: each automation is one
 workflow document under a name, with an append-only version history, at most
@@ -52,8 +52,8 @@ Bring the stack up and sign in per [SETUP.md](../setup.md). Authoring (the
 create menu, node editing, Save version, Deploy, trigger and binding writes,
 Run live) is an owner/admin/developer act — the UI gates on the
 developer-settings capability, mirroring the backend guard; any other member
-sees the list and workbench read-only (no create button, read-only inspector,
-no Deploy).
+has no Automations navigation. Member and Editor seats work a task's run
+through its task panel (`AUTO-F53`, `AUTO-B11`).
 
 **Seeding.** The builtin packs are provisioned from the builtin catalog
 (`configs/platform/custom/automations/` when `TALE_CONFIG_BUILTIN_DIR` is
@@ -654,12 +654,14 @@ output:
       Nothing is ever reverted silently.
 - [ ] `AUTO-B8` · **Runs of a project you cannot see** — As an admin, bind an
       automation to a project shared with one team only and start a run there
-      that stops on a question; sign in as a Member outside that team → The
+      that stops on a question; sign in as a Developer outside that team → The
       automation's **Runs** list shows none of that project's runs, the
       project is not named among its bindings, and opening the run's URL
-      directly answers **Run not found**; the member can neither cancel the
+      directly answers **Run not found**; the Developer can neither cancel the
       run nor answer its question (a hidden run answers like a missing one).
-      The same member added to the team sees the run.
+      Its live agent transcript and the connector-approval card a paused run
+      shows follow the same rule. The same Developer added to the team sees
+      the run.
 - [ ] `AUTO-B9` · **Save bindings you only partly see** — As an admin, bind
       one automation to a project shared with one team only and to an open
       project, and bind a second automation to the team project alone; sign
@@ -676,6 +678,18 @@ output:
       person can start a project agent; a webhook or platform-event run
       cannot", and the unbound run fails as "Task not found"; neither adds a
       run to the task's timeline.
+
+- [ ] `AUTO-B11` · **Read-only task viewers cannot control its run** — As an
+      admin, prepare separate project tasks whose workflow runs wait on a
+      question and on a connector approval. As a Member inside the project's
+      audience, open each task from `/dashboard/{org}/projects/{projectId}` →
+      the question and approval are readable; submitting the answer or an
+      approval decision shows a refusal and leaves the card pending after
+      reload. **Cancel** (`tasks.subject.cancel`) is absent. In an Editor's
+      second session, answer or decide and reload the Member's task → the
+      pending card disappears. On another live task, the Editor can cancel;
+      the Member sees the terminal state after reload. Use the task panel:
+      Member and Editor seats have no Automations navigation (`AUTO-F53`).
 
 ## Run liveness — chaos recovery (backend, scripted)
 

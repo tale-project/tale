@@ -60,7 +60,7 @@ export interface DocumentItem {
    *  row). Absent for anything that is not synced. */
   syncHealth?: DocumentSyncHealth;
   ragStatus?: RagStatus;
-  /** Timestamp when the document was indexed (for completed status) */
+  /** When indexing completed, in epoch milliseconds (for completed status) */
   ragIndexedAt?: number;
   /** Error message (for failed status) */
   ragError?: string;

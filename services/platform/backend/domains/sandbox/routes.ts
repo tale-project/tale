@@ -20,6 +20,9 @@ import {
 import { SANDBOX_AGENT_OP_KINDS } from '../../core/sandbox/session_constants.ts';
 import { invalidBodyResponse } from '../../lib/invalid-body-response.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
+import { canReadRun } from '../automations/project-visibility.ts';
+import { getRun } from '../automations/store.ts';
+import { getProjectAuthContext } from '../projects/service.ts';
 import {
   scheduleSessionDestroy,
   sessionDestroyStates,
@@ -284,13 +287,27 @@ export function createSandboxRoutes(deps: {
   /** Recent per-harness failure ratios (the 0.4 `getHarnessHealth` hint) —
    * pg derives it from settled agent ops, with the same optional session
    * fallback as the metrics read. */
-  /** The agent-node op behind one automation run (its execution log). */
+  /** The agent-node op behind one automation run (its execution log) — gated
+   * by the run's own project read rule, like every other run read
+   * (`../automations/project-visibility.ts`). An organization run is visible to
+   * every member; a project run needs read access to its project, so a member
+   * outside a team-restricted project learns nothing of what its agent node
+   * did. A hidden or missing run answers the same fail-closed `{op:null}` this
+   * surface already gives an unknown run and the task door's sandbox-op gives a
+   * refused read. */
   app.get('/agent-node-op', async (c) => {
+    const organizationId = c.get('orgId');
+    const runId = c.req.query('runId') ?? '';
+    const run = await getRun(deps.sql, organizationId, runId);
+    if (run === null) return c.json({ op: null });
+    const auth = await getProjectAuthContext(deps.sql, {
+      organizationId,
+      userId: c.get('sessionBundle').user.id,
+      role: c.get('orgMember').role,
+    });
+    if (!(await canReadRun(deps.sql, auth, run))) return c.json({ op: null });
     return c.json({
-      op: await getAgentNodeSandboxOp(deps.sql, {
-        organizationId: c.get('orgId'),
-        runId: c.req.query('runId') ?? '',
-      }),
+      op: await getAgentNodeSandboxOp(deps.sql, { organizationId, runId }),
     });
   });
 

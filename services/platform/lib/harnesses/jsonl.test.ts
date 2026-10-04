@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  BoundedIdLedger,
+  HARNESS_ID_LEDGER_MAX_ENTRIES,
   appendHarnessAnswer,
   HARNESS_RECORD_MAX_CHARS,
   LineReassembler,
@@ -29,5 +31,31 @@ describe('harness line bounds', () => {
     expect(() => lines.push('456')).toThrow('protocol record exceeds');
     expect(lines.flush()).toEqual([]);
     expect(() => lines.push('123456\n')).toThrow('protocol record exceeds');
+  });
+});
+
+describe('bounded harness deduplication ledger', () => {
+  it('accepts duplicates at the entry cap and refuses new facts without eviction', () => {
+    const ledger = new BoundedIdLedger();
+    for (let index = 0; index < HARNESS_ID_LEDGER_MAX_ENTRIES; index += 1)
+      ledger.add(String(index));
+    ledger.add('0');
+    expect(() => ledger.add('overflow')).toThrow('memory budget');
+    expect(ledger.has('0')).toBe(true);
+    expect(ledger.has(String(HARNESS_ID_LEDGER_MAX_ENTRIES - 1))).toBe(true);
+    expect(ledger.has('overflow')).toBe(false);
+    const freshWindow = new BoundedIdLedger();
+    expect(freshWindow.has('0')).toBe(false);
+    freshWindow.add('overflow');
+    expect(freshWindow.has('overflow')).toBe(true);
+  });
+
+  it('caps individual IDs and their total retained characters independently of count', () => {
+    const ledger = new BoundedIdLedger();
+    expect(() => ledger.add('x'.repeat(4097))).toThrow('identifier exceeds');
+    for (let index = 0; index < 256; index += 1)
+      ledger.add(`${'x'.repeat(4091)}${String(index).padStart(5, '0')}`);
+    ledger.add(`${'x'.repeat(4091)}00000`);
+    expect(() => ledger.add('one-more-character')).toThrow('memory budget');
   });
 });

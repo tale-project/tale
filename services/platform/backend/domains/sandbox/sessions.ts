@@ -714,7 +714,7 @@ export async function listSandboxViewsForOrg(
            o.exec_id AS "execId", o.status,
            o.continuation_count AS "continuationCount",
            o.spent_cents AS "spentCents", o.paused_reason AS "pausedReason",
-           o.progress_text AS "progressText",
+           right(o.progress_text, 280) AS "progressText",
            o.started_at_ms::float8 AS "startedAt",
            o.heartbeat_at_ms::float8 AS "heartbeatAt",
            o.finalized_at_ms::float8 AS "finalizedAt"
@@ -740,56 +740,66 @@ export async function listSandboxViewsForOrg(
     SELECT "id", "name", "email" FROM "user" WHERE "id" = ANY(${userIds})
   `;
   const userById = new Map(users.map((user) => [user.id, user] as const));
+  // A standing workspace keeps its lifetime history. Index it once so each
+  // poll visits that history once, rather than once per visible workspace.
+  const opsBySession = Map.groupBy(ops, (op) => op.sessionId);
 
   const views = sessions.map((session): SandboxSessionView => {
-    let current: SandboxCurrentOpView | null = null;
+    let current: SessionOpViewRow | null = null;
     let currentRunning = false;
     let busy = false;
     let totalSpentCents = 0;
-    const running: SandboxCurrentOpView[] = [];
-    for (const op of ops) {
-      if (op.sessionId !== session.sessionId) continue;
+    const running: SessionOpViewRow[] = [];
+    for (const op of opsBySession.get(session.sessionId) ?? []) {
       totalSpentCents += op.spentCents ?? 0;
       // finalizedAt is the authoritative done-signal — a recovered turn
       // whose status never flipped must not read as "busy".
       const isRunning = op.status === 'running' && op.finalizedAt === null;
       if (isRunning) busy = true;
-      const view: SandboxCurrentOpView = {
-        execId: op.execId,
-        status: op.status,
-        startedAt: op.startedAt,
-        ...(session.ownerType === 'project_agent'
-          ? { kind: 'task-agent' as const }
-          : {}),
-        ...(session.ownerType === 'workflow_run'
-          ? {
-              kind: 'workflow-agent' as const,
-              workflowRunId: session.ownerId.split(':')[0],
-            }
-          : {}),
-        ...(op.threadId !== null ? { threadId: op.threadId } : {}),
-        ...(op.continuationCount !== null
-          ? { continuationCount: op.continuationCount }
-          : {}),
-        ...(op.spentCents !== null ? { spentCents: op.spentCents } : {}),
-        ...(op.pausedReason !== null ? { pausedReason: op.pausedReason } : {}),
-        ...(op.progressText !== null
-          ? { progressText: op.progressText.slice(-280) }
-          : {}),
-        ...(op.heartbeatAt !== null ? { heartbeatAt: op.heartbeatAt } : {}),
-      };
-      // The same object rides both lists, so the task lookup below stamps
-      // its taskId once for both.
-      if (isRunning) running.push(view);
+      if (isRunning) running.push(op);
       const wins =
         current === null ||
         (isRunning && !currentRunning) ||
         (isRunning === currentRunning && op.startedAt > current.startedAt);
       if (!wins) continue;
       currentRunning = isRunning;
-      current = view;
+      current = op;
     }
-    running.sort((a, b) => a.startedAt - b.startedAt);
+    // Project only displayed rows, regardless of the database's history
+    // order. Oldest-first history must not build and discard every view.
+    const toView = (op: SessionOpViewRow): SandboxCurrentOpView => ({
+      execId: op.execId,
+      status: op.status,
+      startedAt: op.startedAt,
+      ...(session.ownerType === 'project_agent'
+        ? { kind: 'task-agent' as const }
+        : {}),
+      ...(session.ownerType === 'workflow_run'
+        ? {
+            kind: 'workflow-agent' as const,
+            workflowRunId: session.ownerId.split(':')[0],
+          }
+        : {}),
+      ...(op.threadId !== null ? { threadId: op.threadId } : {}),
+      ...(op.continuationCount !== null
+        ? { continuationCount: op.continuationCount }
+        : {}),
+      ...(op.spentCents !== null ? { spentCents: op.spentCents } : {}),
+      ...(op.pausedReason !== null ? { pausedReason: op.pausedReason } : {}),
+      // SQL bounds the transferred tail by Unicode characters; slice
+      // keeps the existing 280 UTF-16 code-unit display boundary.
+      ...(op.progressText !== null
+        ? { progressText: op.progressText.slice(-280) }
+        : {}),
+      ...(op.heartbeatAt !== null ? { heartbeatAt: op.heartbeatAt } : {}),
+    });
+    const currentOp = current === null ? null : toView(current);
+    // The same object rides both lists, so the task lookup below stamps
+    // its taskId once for both.
+    const runningOps = running.map((op) =>
+      op === current && currentOp !== null ? currentOp : toView(op),
+    );
+    runningOps.sort((a, b) => a.startedAt - b.startedAt);
     const owner = userById.get(session.createdBy);
     return {
       sessionId: session.sessionId,
@@ -805,8 +815,8 @@ export async function listSandboxViewsForOrg(
       lastActivityAt: session.lastActivityAt,
       status: session.status,
       busy,
-      currentOp: current,
-      runningOps: running,
+      currentOp,
+      runningOps,
       totalSpentCents,
     };
   });
