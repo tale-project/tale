@@ -218,6 +218,32 @@ beforeEach(() => {
 });
 
 describe('POST /policies/:policyType — write order', () => {
+  it.each(['user', 'team', 'role'])(
+    'refuses untargeted %s model access rules before any write',
+    async (scope) => {
+      for (const scopeId of [undefined, '', '   ']) {
+        const response = await post('/policies/model_access?orgId=o1', {
+          config: {
+            enabled: true,
+            mode: 'blocklist',
+            rules: [
+              {
+                scope,
+                scopeId,
+                allowedModels: [],
+                blockedModels: ['fixture/model'],
+              },
+            ],
+          },
+        });
+        expect(response.status).toBe(400);
+        expect(await response.json()).toMatchObject({ error: 'validation' });
+      }
+      expect(writeGovernancePolicyFile).not.toHaveBeenCalled();
+      expect(createAuditLog).not.toHaveBeenCalled();
+    },
+  );
+
   it.each([
     'model_access',
     'vision_model',

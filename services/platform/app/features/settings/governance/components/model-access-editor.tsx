@@ -3,11 +3,15 @@
 import {
   defaultModelsConfigSchema,
   modelAccessConfigSchema,
+  modelAccessRuleHasTarget,
+  modelAccessRuleSchema,
+  storedModelAccessConfigSchema,
   type DefaultModelRule,
   type DefaultModelsConfig,
   type ModelAccessConfig,
   type ModelAccessRule,
 } from '@tale/shared/schemas/governance';
+import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
 import { Card } from '@tale/ui/card';
 import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
@@ -138,7 +142,7 @@ function emptyRule(): ModelAccessRule {
 
 function parseModelAccessConfig(policy: unknown): ModelAccessConfig {
   const config = isRecord(policy) ? policy : {};
-  const result = modelAccessConfigSchema.safeParse(config);
+  const result = storedModelAccessConfigSchema.safeParse(config);
   if (result.success) {
     return result.data;
   }
@@ -179,6 +183,8 @@ function RuleDialog({
   const { t } = useT('governance');
   const { t: tCommon } = useT('common');
   const [draft, setDraft] = useState(initialRule);
+  const [submitted, setSubmitted] = useState(false);
+  const targetError = submitted && !modelAccessRuleHasTarget(draft);
 
   useEffect(() => {
     if (open) {
@@ -198,7 +204,7 @@ function RuleDialog({
   const updateDraft = useCallback((patch: Partial<ModelAccessRule>) => {
     setDraft((prev) => {
       const updated = { ...prev, ...patch };
-      if (patch.scope === 'default') {
+      if (patch.scope !== undefined && patch.scope !== prev.scope) {
         delete updated.scopeId;
       }
       return updated;
@@ -208,10 +214,14 @@ function RuleDialog({
   const handleSubmit = useCallback(
     (e: React.FormEvent) => {
       e.preventDefault();
-      onSave(draft);
+      if (cannotManage) return;
+      setSubmitted(true);
+      const parsed = modelAccessRuleSchema.safeParse(draft);
+      if (!parsed.success) return;
+      onSave(parsed.data);
       onOpenChange(false);
     },
-    [draft, onSave, onOpenChange],
+    [cannotManage, draft, onSave, onOpenChange],
   );
 
   return (
@@ -223,6 +233,12 @@ function RuleDialog({
       submitText={t('modelAccess.confirm')}
     >
       <Stack gap={4}>
+        {targetError && draft.scope !== 'role' && (
+          <Alert
+            variant="destructive"
+            description={t('modelAccess.targetRequired')}
+          />
+        )}
         <Select
           label={t('modelAccess.scope')}
           options={SCOPE_OPTIONS}
@@ -238,6 +254,10 @@ function RuleDialog({
         {draft.scope === 'role' && (
           <Select
             label={t('modelAccess.role')}
+            required
+            errorMessage={
+              targetError ? t('modelAccess.targetRequired') : undefined
+            }
             options={ROLE_OPTIONS}
             value={draft.scopeId ?? ''}
             onValueChange={(value) => updateDraft({ scopeId: value })}
@@ -248,6 +268,11 @@ function RuleDialog({
         {draft.scope === 'user' && (
           <SearchableSelect
             label={t('modelAccess.user')}
+            required
+            error={targetError}
+            description={
+              targetError ? t('modelAccess.targetRequired') : undefined
+            }
             placeholder={t('modelAccess.selectUser')}
             disabled={cannotManage}
             value={draft.scopeId ?? null}
@@ -262,6 +287,11 @@ function RuleDialog({
         {draft.scope === 'team' && (
           <SearchableSelect
             label={t('modelAccess.team')}
+            required
+            error={targetError}
+            description={
+              targetError ? t('modelAccess.targetRequired') : undefined
+            }
             placeholder={t('modelAccess.selectTeam')}
             disabled={cannotManage}
             value={draft.scopeId ?? null}
@@ -389,6 +419,9 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
   const [enabled, setEnabled] = useState(false);
   const [mode, setMode] = useState<ModelAccessConfig['mode']>('blocklist');
   const [rules, setRules] = useState<ModelAccessRule[]>([]);
+  const needsTargetRepair = rules.some(
+    (rule) => !modelAccessRuleHasTarget(rule),
+  );
   // The model endpoints' switch lives in the same policy file: every save
   // below writes it back beside the rules, so no rule edit can drop it.
   const [modelApiEnabled, setModelApiEnabled] = useState(false);
@@ -428,6 +461,14 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
   /** Save the whole policy; answers whether it was written. */
   const saveConfig = useCallback(
     async (configToSave: ModelAccessConfig): Promise<boolean> => {
+      if (!modelAccessConfigSchema.safeParse(configToSave).success) {
+        toast({
+          title: t('toastSaveFailedTitle'),
+          description: t('modelAccess.targetsNeedRepair'),
+          variant: 'destructive',
+        });
+        return false;
+      }
       try {
         await upsertMutation.mutateAsync({
           organizationId,
@@ -565,6 +606,8 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
 
   const resolveTarget = useCallback(
     (rule: ModelAccessRule): string => {
+      if (!modelAccessRuleHasTarget(rule))
+        return t('modelAccess.missingTarget');
       switch (rule.scope) {
         case 'user': {
           if (!rule.scopeId) return '\u2014';
@@ -631,7 +674,7 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
           />
         }
       >
-        {(enabled || loading) && (
+        {(enabled || loading || needsTargetRepair) && (
           <Stack gap={6}>
             {/* The mode is a settings field like any other — label + hint on
                 the left, the control on the right, closed off by the list's
@@ -649,6 +692,12 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
               </SettingsFieldRow>
             </SettingsFieldList>
 
+            {needsTargetRepair && (
+              <Alert
+                variant="warning"
+                description={t('modelAccess.targetsNeedRepair')}
+              />
+            )}
             <HStack justify="end">
               <Button
                 variant="primary"

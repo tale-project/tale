@@ -567,12 +567,25 @@ export type FeatureFlagsConfig = z.infer<typeof featureFlagsConfigSchema>;
 // policy and existing consumers import it from this module.
 export { piiConfigSchema };
 
-export const modelAccessRuleSchema = z.object({
+const storedModelAccessRuleSchema = z.object({
   scope: z.enum(['user', 'team', 'role', 'default']),
   scopeId: z.string().optional(),
   allowedModels: z.array(z.string()),
   blockedModels: z.array(z.string()).optional(),
 });
+export function modelAccessRuleHasTarget(
+  rule: z.infer<typeof storedModelAccessRuleSchema>,
+): boolean {
+  return rule.scope === 'default' || Boolean(rule.scopeId?.trim());
+}
+
+export const modelAccessRuleSchema = storedModelAccessRuleSchema.refine(
+  modelAccessRuleHasTarget,
+  {
+    path: ['scopeId'],
+    message: 'User, team and role rules require a target',
+  },
+);
 export type ModelAccessRule = z.infer<typeof modelAccessRuleSchema>;
 
 /**
@@ -590,13 +603,16 @@ export const modelApiSettingsSchema = z.object({
 });
 export type ModelApiSettings = z.infer<typeof modelApiSettingsSchema>;
 
-export const modelAccessConfigSchema = z.object({
+export const storedModelAccessConfigSchema = z.object({
   /** Whether the allow and block `rules` bind — the door's switch below is
    * independent of it. */
   enabled: z.boolean(),
   mode: z.enum(['allowlist', 'blocklist']),
-  rules: z.array(modelAccessRuleSchema),
+  rules: z.array(storedModelAccessRuleSchema),
   modelApi: modelApiSettingsSchema.optional(),
+});
+export const modelAccessConfigSchema = storedModelAccessConfigSchema.extend({
+  rules: z.array(modelAccessRuleSchema),
 });
 export type ModelAccessConfig = z.infer<typeof modelAccessConfigSchema>;
 
@@ -1265,6 +1281,11 @@ export const POLICY_SCHEMAS = {
   embedding: embeddingConfigSchema,
   skill_sharing: skillSharingConfigSchema,
 } satisfies Partial<Record<PolicyType, z.ZodType>>;
+
+export const POLICY_READ_SCHEMAS = {
+  ...POLICY_SCHEMAS,
+  model_access: storedModelAccessConfigSchema,
+};
 
 /** Policy types that have a file-based representation (every type except the
  *  legacy `personalization` toggle). */

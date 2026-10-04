@@ -3961,6 +3961,9 @@ governance:
     noTeamsFound: No teams found
     confirm: Confirm
     saved: Model access policy updated
+    targetRequired: Select a target for this rule.
+    missingTarget: Missing target
+    targetsNeedRepair: Some rules have no target and do not apply to anyone. Select a target for each rule or delete it. Changes are not saved until all rules have targets.
     saveFailed: Couldn't save model access policy
     removeDefaultConfirmTitle: Remove permission for active default model?
     removeDefaultConfirmBody:

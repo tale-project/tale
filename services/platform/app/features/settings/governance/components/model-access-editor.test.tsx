@@ -1,6 +1,10 @@
-import { describe, expect, it, vi } from 'vitest';
+import { modelAccessConfigSchema } from '@tale/shared/schemas/governance';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { render, screen } from '@/tests/utils/render';
+import { settingsWriteAdapters } from '@/app/lib/backend/settings';
+import { evaluateModelAccess } from '@/backend/core/governance/model_access_enforcement';
+import { isRecord } from '@/lib/utils/type-utils';
+import { render, screen, within } from '@/tests/utils/render';
 
 import { ModelAccessEditor } from './model-access-editor';
 
@@ -45,12 +49,14 @@ vi.mock('../hooks/queries', () => ({
   }),
 }));
 
-const STABLE_MEMBERS = { members: [] };
+const STABLE_MEMBERS = {
+  members: [{ userId: 'member-proof', displayName: 'Proof member' }],
+};
 vi.mock('@/app/features/settings/organization/hooks/queries', () => ({
   useMembers: () => STABLE_MEMBERS,
 }));
 
-const STABLE_TEAMS = { teams: [] };
+const STABLE_TEAMS = { teams: [{ id: 'team-proof', name: 'Proof team' }] };
 vi.mock('@/app/features/settings/teams/hooks/queries', () => ({
   useOrgTeams: () => STABLE_TEAMS,
 }));
@@ -88,7 +94,216 @@ function setLoading() {
   state.config = null;
 }
 
+afterEach(() => {
+  vi.restoreAllMocks();
+  delete window.__ENV__;
+});
+
 describe('ModelAccessEditor', () => {
+  it('stages repairs of several legacy rules and writes only the complete valid policy', async () => {
+    setLoaded();
+    state.config = {
+      enabled: false,
+      mode: 'blocklist',
+      rules: [
+        { scope: 'user', allowedModels: [], blockedModels: ['openai/gpt-4o'] },
+        { scope: 'team', allowedModels: [], blockedModels: ['openai/gpt-4o'] },
+      ],
+    };
+    upsert.mutateAsync.mockClear();
+    const { user } = render(<ModelAccessEditor organizationId="org-1" />);
+    expect(screen.getAllByText('Missing target')).toHaveLength(2);
+    await user.click(screen.getAllByRole('button', { name: 'Edit rule' })[0]);
+    await user.click(screen.getByRole('button', { name: 'User' }));
+    await user.click(screen.getByRole('option', { name: 'Proof member' }));
+    await user.click(screen.getByRole('button', { name: 'Confirm' }));
+    expect(upsert.mutateAsync).not.toHaveBeenCalled();
+    expect(screen.getAllByText('Missing target')).toHaveLength(1);
+    await user.click(screen.getAllByRole('button', { name: 'Edit rule' })[1]);
+    await user.click(screen.getByRole('button', { name: 'Team' }));
+    await user.click(screen.getByRole('option', { name: 'Proof team' }));
+    await user.click(screen.getByRole('button', { name: 'Confirm' }));
+    expect(upsert.mutateAsync).toHaveBeenCalledOnce();
+    expect(upsert.mutateAsync).toHaveBeenCalledWith(
+      expect.objectContaining({
+        config: {
+          enabled: false,
+          mode: 'blocklist',
+          modelApi: { enabled: false },
+          rules: [
+            {
+              scope: 'user',
+              scopeId: 'member-proof',
+              allowedModels: [],
+              blockedModels: ['openai/gpt-4o'],
+            },
+            {
+              scope: 'team',
+              scopeId: 'team-proof',
+              allowedModels: [],
+              blockedModels: ['openai/gpt-4o'],
+            },
+          ],
+        },
+      }),
+    );
+  });
+
+  it('shows existing untargeted rules without dropping their neighboring restrictions', async () => {
+    setLoaded();
+    state.config = {
+      enabled: true,
+      mode: 'blocklist',
+      rules: [
+        {
+          scope: 'default',
+          allowedModels: [],
+          blockedModels: ['openai/gpt-4o'],
+        },
+        { scope: 'user', allowedModels: [], blockedModels: ['openai/gpt-4o'] },
+      ],
+    };
+    upsert.mutateAsync.mockClear();
+    const { user, container } = render(
+      <ModelAccessEditor organizationId="org-1" />,
+    );
+    expect(container.querySelectorAll('tbody tr')).toHaveLength(2);
+    expect(screen.getByText('Missing target')).toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Some rules have no target',
+    );
+    await user.click(
+      screen.getByRole('switch', { name: 'Enable model access policy' }),
+    );
+    expect(upsert.mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it.each(['User', 'Team', 'Role'])(
+    'repairs an existing %s target and saves an enforceable block',
+    async (scope) => {
+      setLoaded();
+      state.config = {
+        enabled: true,
+        mode: 'blocklist',
+        rules: [
+          {
+            scope: scope.toLowerCase(),
+            allowedModels: [],
+            blockedModels: ['openai/gpt-4o'],
+          },
+        ],
+      };
+      upsert.mutateAsync.mockClear();
+      const { user } = render(<ModelAccessEditor organizationId="org-1" />);
+      await user.click(screen.getByRole('button', { name: 'Edit rule' }));
+      window.__ENV__ = { BASE_PATH: '' };
+      let stored: unknown;
+      const transport = vi
+        .spyOn(window, 'fetch')
+        .mockImplementation(async (_url, init) => {
+          if (typeof init?.body !== 'string')
+            throw new Error('Expected JSON body');
+          const body: unknown = JSON.parse(init.body);
+          if (!isRecord(body)) throw new Error('Expected a policy request');
+          stored = modelAccessConfigSchema.parse(body.config);
+          return Response.json({ ok: true });
+        });
+      upsert.mutateAsync.mockImplementationOnce(async (args) => {
+        if (!isRecord(args)) throw new Error('Expected policy arguments');
+        const adapter =
+          settingsWriteAdapters['governance/file_actions:saveGovernancePolicy'];
+        if (!adapter) throw new Error('Missing policy save adapter');
+        await adapter.run(args, {});
+      });
+      await user.click(screen.getByRole('button', { name: 'Confirm' }));
+      const dialog = screen.getByRole('dialog');
+      expect(within(dialog).getByRole('alert')).toHaveTextContent(
+        'Select a target for this rule.',
+      );
+      expect(transport).not.toHaveBeenCalled();
+      const target = within(dialog).getByRole(
+        scope === 'Role' ? 'combobox' : 'button',
+        { name: scope },
+      );
+      const descriptionId = target.getAttribute('aria-describedby');
+      expect(descriptionId).toBeTruthy();
+      expect(document.getElementById(descriptionId ?? '')).toHaveTextContent(
+        'Select a target for this rule.',
+      );
+      if (scope === 'Role') {
+        await user.click(screen.getByRole('combobox', { name: 'Role' }));
+        await user.click(screen.getByRole('option', { name: 'Member' }));
+      } else {
+        await user.click(screen.getByRole('button', { name: scope }));
+        await user.click(
+          screen.getByRole('option', {
+            name: scope === 'User' ? 'Proof member' : 'Proof team',
+          }),
+        );
+      }
+      await user.click(screen.getByRole('button', { name: 'Confirm' }));
+      expect(upsert.mutateAsync).toHaveBeenCalledOnce();
+      expect(transport).toHaveBeenCalledOnce();
+      const call = upsert.mutateAsync.mock.calls[0]?.[0];
+      expect(call).toMatchObject({ policyType: 'model_access' });
+      const config = modelAccessConfigSchema.parse(stored);
+      expect(
+        evaluateModelAccess(
+          config,
+          {
+            userId: 'member-proof',
+            teamIds: ['team-proof'],
+            userRole: 'member',
+          },
+          'openai/gpt-4o',
+        ).allowed,
+      ).toBe(false);
+      expect(screen.queryByText('Missing target')).not.toBeInTheDocument();
+    },
+  );
+
+  it('clears the old target when switching between targeted scopes', async () => {
+    setLoaded();
+    state.config = {
+      enabled: true,
+      mode: 'blocklist',
+      rules: [
+        {
+          scope: 'role',
+          scopeId: 'member',
+          allowedModels: [],
+          blockedModels: ['openai/gpt-4o'],
+        },
+      ],
+    };
+    upsert.mutateAsync.mockClear();
+    const { user } = render(<ModelAccessEditor organizationId="org-1" />);
+    await user.click(screen.getByRole('button', { name: 'Edit rule' }));
+    await user.click(screen.getByRole('combobox', { name: 'Scope' }));
+    await user.click(screen.getByRole('option', { name: 'User' }));
+    await user.click(screen.getByRole('button', { name: 'Confirm' }));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(upsert.mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it.each(['User', 'Team', 'Role'])(
+    'keeps an untargeted %s rule in the dialog without saving',
+    async (scope) => {
+      setLoaded();
+      upsert.mutateAsync.mockClear();
+      const { user } = render(<ModelAccessEditor organizationId="org-1" />);
+      await user.click(screen.getByRole('button', { name: 'Add rule' }));
+      await user.click(screen.getByRole('combobox', { name: 'Scope' }));
+      await user.click(screen.getByRole('option', { name: scope }));
+      await user.click(screen.getByRole('button', { name: 'Confirm' }));
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'Select a target for this rule.',
+      );
+      expect(upsert.mutateAsync).not.toHaveBeenCalled();
+    },
+  );
+
   describe('loaded state', () => {
     it('renders the real enable switch (in the a11y tree)', () => {
       setLoaded();

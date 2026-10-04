@@ -4140,6 +4140,9 @@ governance:
         Rejette la demande et fais déposer une nouvelle par un admin actuel.
       bulkTooLarge: Au maximum 200 entrées par lot.
   modelAccess:
+    targetRequired: Sélectionne une cible pour cette règle.
+    missingTarget: Cible manquante
+    targetsNeedRepair: Certaines règles n’ont pas de cible et ne s’appliquent à personne. Sélectionne une cible pour chaque règle ou supprime-la. Les modifications ne sont enregistrées que lorsque toutes les règles ont une cible.
     title: Accès aux modèles
     description:
       Contrôle quels modèles d'IA sont disponibles pour les utilisateurs,
