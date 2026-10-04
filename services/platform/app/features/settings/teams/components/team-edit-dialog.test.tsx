@@ -126,6 +126,52 @@ describe('TeamEditDialog', () => {
     client.clear();
   });
 
+  it('preserves a roster draft when a refresh keeps the same users', async () => {
+    const client = new QueryClient();
+    const { user, rerender } = render(
+      <QueryClientProvider client={client}>
+        <TeamEditDialog
+          team={{
+            id: 'team-a',
+            name: storedName,
+            memberCount: 1,
+            createdAt: 0,
+          }}
+          organizationId="org-a"
+          open
+          onOpenChange={vi.fn()}
+        />
+      </QueryClientProvider>,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Add user-b' }));
+    members.value = [{ _id: 'tm-a-refreshed', userId: 'user-a' }];
+    rerender(
+      <QueryClientProvider client={client}>
+        <TeamEditDialog
+          team={{
+            id: 'team-a',
+            name: storedName,
+            memberCount: 1,
+            createdAt: 0,
+          }}
+          organizationId="org-a"
+          open
+          onOpenChange={vi.fn()}
+        />
+      </QueryClientProvider>,
+    );
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'The team membership changed in another session',
+    );
+    expect(screen.getByLabelText('Selected members')).toHaveTextContent(
+      'user-a,user-b',
+    );
+    expect(screen.getByRole('button', { name: /Save/ })).toBeDisabled();
+    client.clear();
+  });
+
   it('refreshes the visible list after a name-only Better Auth update without reloading', async () => {
     vi.mocked(authClient.organization.updateTeam).mockImplementation(
       async () => {
