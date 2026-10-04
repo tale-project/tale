@@ -7,7 +7,16 @@ import { z } from 'zod';
 
 const sourceSchema = z.object({
   status: z.literal('ready'),
-  mode: z.enum(['diagnostic', 'protocol', 'acceptance']),
+  mode: z.enum(['diagnostic', 'protocol', 'acceptance', 'dialog']),
+  dialogAdmission: z
+    .object({
+      eventName: z.enum(['pull_request', 'workflow_dispatch']),
+      eventBaseline: z.string().regex(/^[a-f0-9]{40}$/),
+      baseline: z.string().regex(/^[a-f0-9]{40}$/),
+      productCandidate: z.string().regex(/^[a-f0-9]{40}$/),
+      selection: z.string(),
+    })
+    .optional(),
   baseline: z.string().regex(/^[a-f0-9]{40}$/),
   candidate: z.string().regex(/^[a-f0-9]{40}$/),
   baselineTree: z.string().regex(/^[a-f0-9]{40}$/),

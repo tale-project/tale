@@ -11,6 +11,10 @@ import {
   runLogged,
   sources,
 } from './common.ts';
+import {
+  compareDialogBundle,
+  dialogBundleReference,
+} from './dialog-bundles.ts';
 
 async function hashes(
   directory: string,
@@ -41,6 +45,8 @@ try {
   );
   const bun = execFileSync('bun', ['--version'], { encoding: 'utf8' }).trim();
   assert.equal(bun, source.bun, 'Build Bun differs from root pin');
+  const reference =
+    source.mode === 'dialog' ? await dialogBundleReference() : undefined;
   // Installing is preparation, outside the measured cgroup. Keep dev deps:
   // production NODE_ENV during installation would omit Vite and test tooling.
   await runLogged('bun', ['install', '--frozen-lockfile'], {
@@ -54,7 +60,7 @@ try {
   for (const [name, path] of [
     ['baseline', source.baselinePath],
     ['candidate', source.candidatePath],
-  ]) {
+  ] as const) {
     const started = Date.now();
     await runLogged('bun', ['run', 'build'], {
       cwd: join(path, 'services/platform'),
@@ -80,14 +86,34 @@ try {
       recursive: true,
       errorOnExist: true,
     });
+    const parity = reference
+      ? compareDialogBundle(assets, reference.manifest.arms[name].files)
+      : undefined;
+    if (reference)
+      await json(`dialog-${name}-bundle-parity.json`, {
+        ...parity,
+        harnessCandidate: source.candidate,
+        productCommit: reference.manifest[name],
+        historicalRun: reference.manifest.run,
+        artifactId: reference.manifest.artifactId,
+        artifactZipSha256: reference.manifest.artifactZipSha256,
+        manifestSha256: reference.manifestSha256,
+        actual: assets,
+      });
     built[name] = {
       command: ['bun', 'run', 'build'],
       node: process.versions.node,
       bun,
       elapsedMs: Date.now() - started,
       assets,
+      ...(parity ? { dialogBundleParity: parity } : {}),
     };
     await json('builds.json', built);
+    if (parity)
+      assert(
+        parity.matches,
+        'Historical dialog bundle drift; retained actual manifest, refuse before runtime',
+      );
   }
 } catch (error) {
   await json('build-failure.json', { error: String(error) });

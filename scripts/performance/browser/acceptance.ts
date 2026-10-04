@@ -41,6 +41,12 @@ import {
   type BrowserSession,
 } from './browser-session.ts';
 import { json, outputPath, phaseTimeout, sources } from './common.ts';
+import {
+  seedIdsSchema,
+  fixturesSchema,
+  boardSchema,
+  buildsSchema,
+} from './fixture-inputs.ts';
 import { inspectRenderedFont } from './font-glyphs.ts';
 import { latinFontContract } from './font-policy.ts';
 import { browserOrigins } from './origins.mjs';
@@ -51,48 +57,9 @@ const end = Date.now() + phaseTimeout(60 * 60_000);
 const remaining = (cap = 120_000) => phaseTimeout(cap, String(end));
 const read = async (name: string) =>
   JSON.parse(await readFile(outputPath(name), 'utf8')) as unknown;
-const ids = z
-  .object({
-    orgId: z.string(),
-    ownerEmail: z.string(),
-    userIds: z.array(z.string()).length(5),
-    names: z.array(z.string()).length(5),
-    projects: z.object({ small: z.string(), large: z.string() }),
-  })
-  .parse(await read('seed-ids.json'));
-const task = z.object({
-  taskId: z.string(),
-  title: z.string(),
-  parent: z.string().optional(),
-  assigneeName: z.string().nullable(),
-});
-const fixtureSchema = z.object({
-  projectId: z.string(),
-  projectName: z.string(),
-  count: z.number(),
-  tasks: z.array(task),
-});
-const fixtures = z
-  .object({ small: fixtureSchema, large: fixtureSchema })
-  .parse(await read('seed-summary.json'));
-const boardSchema = z.object({
-  tasks: z.array(
-    z.object({
-      id: z.string(),
-      title: z.string(),
-      status: z.string(),
-      parentTaskId: z.string().nullable(),
-      assigneeId: z.string().nullable(),
-    }),
-  ),
-  truncated: z.boolean(),
-});
-const build = z.object({
-  assets: z.record(z.string(), z.string().regex(/^[a-f0-9]{64}$/)),
-});
-const builds = z
-  .object({ baseline: build, candidate: build })
-  .parse(await read('builds.json'));
+const ids = seedIdsSchema.parse(await read('seed-ids.json'));
+const fixtures = fixturesSchema.parse(await read('seed-summary.json'));
+const builds = buildsSchema.parse(await read('builds.json'));
 const fontContracts = {
   baseline: latinFontContract(browserOrigins[0]!, builds.baseline.assets),
   candidate: latinFontContract(browserOrigins[1]!, builds.candidate.assets),

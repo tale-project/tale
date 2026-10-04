@@ -23,7 +23,7 @@ this repository. The opt-in **Browser performance** workflow runs on the label
 event and later pushes; ordinary checks and deployment workflows are unchanged.
 The new workflow can run from the PR's merge branch before it is on `main`.
 After it is registered, its manual input fields also accept full baseline and
-candidate commit SHAs and a `diagnostic`, `protocol` or `acceptance` mode. Do not supply branch names or abbreviated hashes. Exactly one opt-in mode label is allowed; ambiguous admission fails with a receipt.
+candidate commit SHAs and a `diagnostic`, `protocol`, `acceptance` or `dialog` mode. Do not supply branch names or abbreviated hashes. Exactly one opt-in mode label is allowed; ambiguous admission fails with a receipt.
 
 The candidate must contain the event's baseline commit. Both sources must have
 identical server (including the production web shim and proxy contract), platform messages,
@@ -109,6 +109,66 @@ earlier measurement host. Keep the original latency, keyboard and modal behavior
 requirements; use the traces to choose a repair, then run the agreed acceptance
 campaign. The default performance inventory continues to mark authenticated UI
 as requiring separate evidence.
+
+## Investigate the frozen 2,000-task dialog regression
+
+The `dialog` mode is a four-attempt causal diagnostic for product baseline
+`a9a19afdcc68b7114af8bace6b8db74ba1696c2f` and product candidate
+`8a9da5114b3848501e5c4be02909f4d47674509b`. After review, select only
+`benchmark:task-dialog-profile`. This explicit diagnostic mode pins that pair
+independently of the current PR base, which `sources.json` retains separately as
+`dialogAdmission.eventBaseline`. Acceptance and older modes still use the event
+base without this override. The exact checked-out candidate is the new harness
+commit; it must descend from the product candidate and change only the allowed
+harness/workflow/reference paths. Product, dependency and runtime drift refuses
+before setup. The receipt records the separate product candidate and harness-only
+changes. A manual dispatch, where available, must explicitly supply baseline a9
+and the full new harness SHA. Remove every mode label before publishing a new
+harness, then admit just one reviewed attempt.
+
+The diagnostic also compares every newly built file with the immutable 640-file
+manifest for each arm from run 37189059988. The manifest retains its artifact ID,
+ZIP hash and exact product pair. Duplicate, missing, added, unsafe or changed
+paths/bytes refuse before runtime; HTML and source maps are included. Actual
+manifests and mismatch receipts survive. The harness commit is recorded separately
+from the product commit; bundle determinism is verified, never assumed.
+
+Four fresh browser/context attempts run in baseline/candidate/candidate/baseline
+order, using four distinct near-top root tasks. Exact loaded-board readiness,
+startup font/boot verification and GC plus one second precede tracing. There is
+no task-detail HTTP prewarm. The strict load/PSI gate and continuous shared
+resource monitor are reused. Capture has a five-minute total budget within the
+32-minute shared setup deadline and 45-minute job. A failure stops the plan,
+retaining partial evidence; there are no replacement or fifth collections.
+
+Each primary collection covers the real click, named-dialog content endpoint
+and three-second tail. Raw metric snapshots bracket input, readiness and tail;
+frame/input timestamps identify the actual action window. Periodic CPU profiles
+and timeline/user-timing/V8 traces omit the forced `timeline.stack` samples.
+The explicit invalidation-tracking category retains reasons, subtree/selector
+information and initiator stacks. Its instrumentation adds overhead: interpret
+invalidation counts/causes separately from periodic CPU self-time, with no
+uninstrumented performance claim.
+Legacy diagnostic/protocol categories and the 15-second trace success deadline
+remain unchanged. These instrumented durations cannot certify acceptance.
+
+Only after raw trace/profile finalization does the runner collect structural
+inventories with the modal open, then after Escape closes its original content
+and overlay and restores focus. Inventories aggregate board trigger classes and
+allowlisted state attributes, representative ancestor/computed styles, allowlisted inline body/root properties,
+source-safe linked stylesheet paths and hashes of injected stylesheets. Generated control IDs retain presence only. Text, form
+values, HTML, URLs and arbitrary attributes are excluded; bounded-out evidence
+fails explicitly. No CSS protocol instrumentation or matching-rule query runs.
+
+Use mapped primary stacks and timeline ordering to distinguish extra React/card/
+actor work from style/layout work. A differing post-collection attribute or
+ancestor signature can support a concrete cascade hypothesis. Identical CSS and
+inventories do not establish equal invalidation cost, and these later snapshots
+do not count historical renders or capture transient changes. A style-only trace
+without a concrete cause calls for a separately reviewed next experiment, not a
+speculative optimization. Inspect `dialog-receipt.json`, each attempt's raw
+profile/trace and action checkpoint, and its separately labelled style-open and
+style-closed files. This new mode still requires hosted runtime verification.
 
 ## Measure the full task-board acceptance campaign
 

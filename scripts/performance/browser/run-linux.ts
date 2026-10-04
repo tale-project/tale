@@ -247,10 +247,10 @@ try {
   network.complete = true;
   await json('network.json', network);
   await json('resource-membership.json', { db, browser, plan });
-  const acceptance = source.mode === 'acceptance';
+  const monitored = source.mode === 'acceptance' || source.mode === 'dialog';
   const sample = async () => {
     const counters = await sampleLinuxResources(boundedIO, plan);
-    if (!acceptance) {
+    if (!monitored) {
       samples.push({ at: Date.now(), counters });
       await json('resources.json', samples);
       return;
@@ -270,8 +270,8 @@ try {
   };
   const publishLive = (value: unknown) =>
     publishResourceCheckpoint(process.env.BENCH_OUTPUT!, value);
-  // The first fresh acceptance checkpoint and both memberships precede release.
-  if (acceptance) await sample();
+  // The first fresh checkpoint and both memberships precede monitored modes.
+  if (monitored) await sample();
   await writeFile(outputPath('resources-verified'), token, {
     flag: 'wx',
     mode: 0o600,
@@ -279,7 +279,7 @@ try {
   monitor = (async () => {
     while (monitoring.active) {
       if (
-        acceptance &&
+        monitored &&
         (await acknowledgeMonitorStop(process.env.BENCH_OUTPUT!, token))
       )
         return;
@@ -289,7 +289,7 @@ try {
   })().catch(async (error) => {
     monitorError = error;
     monitoring.active = false;
-    if (acceptance) {
+    if (monitored) {
       try {
         await publishLive({
           at: Date.now(),

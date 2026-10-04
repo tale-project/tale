@@ -168,3 +168,43 @@ test('acceptance bootstrap exports its one fixed75minute deadline before failing
     await rm(temporary, { recursive: true });
   }
 });
+
+test('only dialog bootstrap pins the diagnostic pair while preserving the real PR event base before setup', async () => {
+  for (const label of [
+    'benchmark:task-dialog-profile',
+    'benchmark:task-board-acceptance',
+  ]) {
+    const temporary = await mkdtemp(
+      join(tmpdir(), 'tale-browser-pinned-pair-'),
+    );
+    try {
+      await expect(
+        prepareSources({
+          RUNNER_TEMP: temporary,
+          GITHUB_ENV: join(temporary, 'github-env'),
+          BENCH_EVENT_NAME: 'pull_request',
+          BENCH_LABELS: JSON.stringify([label]),
+          BASELINE_SHA: 'f'.repeat(40),
+          CANDIDATE_SHA: 'invalid',
+        }),
+      ).rejects.toThrow('Expected a full lowercase commit SHA');
+      const receipt = JSON.parse(
+        await readFile(
+          join(temporary, 'browser-performance/sources.json'),
+          'utf8',
+        ),
+      );
+      expect(receipt.status).toBe('failed');
+      if (label === 'benchmark:task-dialog-profile')
+        expect(receipt.dialogAdmission).toMatchObject({
+          eventName: 'pull_request',
+          eventBaseline: 'f'.repeat(40),
+          baseline: 'a9a19afdcc68b7114af8bace6b8db74ba1696c2f',
+          productCandidate: '8a9da5114b3848501e5c4be02909f4d47674509b',
+        });
+      else expect(receipt.dialogAdmission).toBeUndefined();
+    } finally {
+      await rm(temporary, { recursive: true, force: true });
+    }
+  }
+});

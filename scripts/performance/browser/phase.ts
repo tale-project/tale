@@ -8,13 +8,25 @@ import { finishProfile, saveRawTrace } from './trace.ts';
 export const diagnosticTraceCategories =
   'devtools.timeline,blink.user_timing,disabled-by-default-devtools.timeline.stack,disabled-by-default-devtools.timeline.invalidationTracking';
 
+// Periodic CPU sampling stays separate from the legacy timeline.stack category,
+// which forces inspector CPU samples. Only the dialog causal mode selects this.
+export const dialogTraceCategories =
+  'devtools.timeline,blink.user_timing,v8,disabled-by-default-devtools.timeline.invalidationTracking';
+
 /** A completed action remains observable even if protocol finalization fails. */
 export async function capturePhase<T>(
   cdp: CDPSession,
   prefix: string,
   action: () => Promise<T>,
   checkpoint: (value: T) => Promise<void> = async () => {},
+  mode: 'diagnostic' | 'dialog' = 'diagnostic',
 ) {
+  assert(
+    mode === 'diagnostic' || mode === 'dialog',
+    'Unknown trace phase mode',
+  );
+  const categories =
+    mode === 'dialog' ? dialogTraceCategories : diagnosticTraceCategories;
   const write = (suffix: string, value: unknown) =>
     writeFile(`${prefix}.${suffix}.json`, JSON.stringify(value, null, 2), {
       flag: 'wx',
@@ -43,7 +55,7 @@ export async function capturePhase<T>(
     profileStarted = true;
     stage('profiler-started');
     await cdp.send('Tracing.start', {
-      categories: diagnosticTraceCategories,
+      categories,
       transferMode: 'ReturnAsStream',
       bufferUsageReportingInterval: 1000,
     });
@@ -96,6 +108,8 @@ export async function capturePhase<T>(
       ),
     ),
     write('stages', {
+      mode,
+      categories,
       stages,
       bufferUsage,
       bufferOverflow,

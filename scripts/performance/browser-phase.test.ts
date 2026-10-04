@@ -143,3 +143,52 @@ test('a failed trace start disposes a stream delivered during that owned attempt
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+test('dialog causal mode excludes forced stacks while the legacy diagnostic stays unchanged', async () => {
+  for (const mode of ['diagnostic', 'dialog'] as const) {
+    const directory = await mkdtemp(join(tmpdir(), 'tale-browser-category-'));
+    const events = new EventEmitter();
+    let categories: string | undefined;
+    const client = Object.assign(events, {
+      async send(method: string, args?: { categories?: string }) {
+        if (method === 'Tracing.start') categories = args?.categories;
+        if (method === 'Profiler.stop')
+          return { profile: { nodes: [{ id: 1 }] } };
+        if (method === 'Tracing.end')
+          events.emit('Tracing.tracingComplete', {
+            stream: 'owned',
+            dataLossOccurred: false,
+          });
+        if (method === 'IO.read')
+          return { data: '{"traceEvents":[]}', eof: true };
+        return {};
+      },
+    }) as unknown as CDPSession;
+    try {
+      const prefix = join(directory, 'phase');
+      await capturePhase(
+        client,
+        prefix,
+        async () => 42,
+        undefined,
+        mode === 'dialog' ? mode : undefined,
+      );
+      const receipt = JSON.parse(
+        await readFile(`${prefix}.stages.json`, 'utf8'),
+      );
+      expect(receipt.mode).toBe(mode);
+      expect(receipt.categories).toBe(categories);
+      if (mode === 'diagnostic')
+        expect(categories).toBe(
+          'devtools.timeline,blink.user_timing,disabled-by-default-devtools.timeline.stack,disabled-by-default-devtools.timeline.invalidationTracking',
+        );
+      else
+        expect(categories).toBe(
+          'devtools.timeline,blink.user_timing,v8,disabled-by-default-devtools.timeline.invalidationTracking',
+        );
+      expect(events.listenerCount('Tracing.tracingComplete')).toBe(0);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  }
+});

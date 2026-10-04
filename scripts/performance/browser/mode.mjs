@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 export function benchmarkMode(env) {
   if (env.BENCH_EVENT_NAME === 'workflow_dispatch') {
     assert(
-      ['diagnostic', 'protocol', 'acceptance'].includes(
+      ['diagnostic', 'protocol', 'acceptance', 'dialog'].includes(
         env.BENCH_REQUESTED_MODE,
       ),
       'Unknown requested browser mode',
@@ -23,6 +23,7 @@ export function benchmarkMode(env) {
     ['benchmark:task-board', 'diagnostic'],
     ['benchmark:browser-protocol', 'protocol'],
     ['benchmark:task-board-acceptance', 'acceptance'],
+    ['benchmark:task-dialog-profile', 'dialog'],
   ].filter(([label]) => labels.includes(label));
   assert.equal(
     selected.length,
@@ -36,7 +37,7 @@ export function benchmarkMode(env) {
  * bulk fixture seeding or the app's cold/dialog measurements. */
 export function measurementPlan(mode) {
   assert(
-    ['diagnostic', 'protocol', 'acceptance'].includes(mode),
+    ['diagnostic', 'protocol', 'acceptance', 'dialog'].includes(mode),
     'Unknown measured mode',
   );
   if (mode === 'acceptance')
@@ -44,6 +45,12 @@ export function measurementPlan(mode) {
       seedTasks: true,
       script: 'acceptance.ts',
       timeoutMs: 60 * 60_000,
+    });
+  if (mode === 'dialog')
+    return Object.freeze({
+      seedTasks: true,
+      script: 'dialog-profile.ts',
+      timeoutMs: 5 * 60_000,
     });
   return mode === 'protocol'
     ? Object.freeze({
@@ -62,7 +69,7 @@ export function measurementPlan(mode) {
  * the workflow job. Invalid admissions never receive the longer budget. */
 export function sharedBudgetMs(mode) {
   assert(
-    ['diagnostic', 'protocol', 'acceptance'].includes(mode),
+    ['diagnostic', 'protocol', 'acceptance', 'dialog'].includes(mode),
     'Unknown budget mode',
   );
   return (mode === 'acceptance' ? 75 : 32) * 60_000;

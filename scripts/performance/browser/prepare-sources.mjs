@@ -6,6 +6,11 @@ import { appendFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
+import {
+  assertDialogSources,
+  dialogAdmission,
+  dialogProductPair,
+} from './dialog-sources.mjs';
 import { benchmarkMode, sharedBudgetMs } from './mode.mjs';
 
 export function fullSha(value) {
@@ -93,7 +98,16 @@ export async function prepareSources(env = process.env, cwd = process.cwd()) {
       env.GITHUB_ENV,
       `BENCH_MODE=${receipt.mode}\nBENCH_DEADLINE_MS=${receipt.deadline}\n`,
     );
-    const baseline = fullSha(env.BASELINE_SHA);
+    const eventBaseline = fullSha(env.BASELINE_SHA);
+    if (receipt.mode === 'dialog')
+      receipt.dialogAdmission = dialogAdmission(
+        env.BENCH_EVENT_NAME,
+        eventBaseline,
+      );
+    const baseline =
+      receipt.mode === 'dialog'
+        ? receipt.dialogAdmission.baseline
+        : eventBaseline;
     const candidate = fullSha(env.CANDIDATE_SHA);
     const git = (...args) =>
       execFileSync('git', args, {
@@ -118,6 +132,26 @@ export async function prepareSources(env = process.env, cwd = process.cwd()) {
     if (git('rev-parse', '--is-shallow-repository') === 'true')
       git('fetch', '--no-tags', '--unshallow', 'origin', candidate);
     git('merge-base', '--is-ancestor', baseline, candidate);
+    if (receipt.mode === 'dialog') {
+      git(
+        'merge-base',
+        '--is-ancestor',
+        dialogProductPair.candidate,
+        candidate,
+      );
+      receipt.dialogProductPair = assertDialogSources(
+        baseline,
+        git(
+          'diff',
+          '--no-renames',
+          '--name-only',
+          dialogProductPair.candidate,
+          candidate,
+        )
+          .split('\n')
+          .filter(Boolean),
+      );
+    }
     const changed = git(
       'diff',
       '--no-renames',

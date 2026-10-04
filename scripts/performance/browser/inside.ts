@@ -255,9 +255,9 @@ try {
         timeoutMs: 240_000,
       },
     );
-  // Acceptance owns the stricter host load+PSI gate before every ABBA block.
+  // Paired modes own the stricter host load+PSI gate before every ABBA block.
   // Keep the existing diagnostic/protocol preparation unchanged.
-  if (mode !== 'acceptance') {
+  if (mode !== 'acceptance' && mode !== 'dialog') {
     // Preparation is not a sample. Wait at most 3 minutes for the declared host
     // threshold, then refuse without retrying a measurement under another rule.
     for (let attempt = 0; attempt < 90 && loadavg()[0] >= 2.5; attempt += 1) {
