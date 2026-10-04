@@ -12,8 +12,10 @@
 // every session created before devices existed is.
 
 import { randomUUID } from 'node:crypto';
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { mkdir, open, readFile, rename, rm } from 'node:fs/promises';
 import { dirname } from 'node:path';
+
+import { ID_ALPHABET_RE, ORG_ID_ALPHABET_RE } from '../wire.ts';
 
 export interface Placement {
   deviceId: string;
@@ -38,22 +40,25 @@ function isPlacement(value: unknown): value is Placement {
   const deleting: unknown = Reflect.get(value, 'deleting');
   return (
     typeof deviceId === 'string' &&
+    ID_ALPHABET_RE.test(deviceId) &&
     typeof organizationId === 'string' &&
+    ORG_ID_ALPHABET_RE.test(organizationId) &&
     typeof placedAtMs === 'number' &&
+    Number.isFinite(placedAtMs) &&
+    placedAtMs >= 0 &&
     (deleting === undefined || deleting === true)
   );
 }
 
 export class PlacementStore {
-  private readonly placements = new Map<string, Placement>();
+  private placements = new Map<string, Placement>();
   private writing: Promise<void> = Promise.resolve();
 
   constructor(private readonly file: string) {}
 
-  /** Read the file. A missing file is an empty store; an unreadable one is
-   * moved aside (kept for an operator) and the hub starts empty — those
-   * sessions' next calls reach the local backend, which answers "gone", and
-   * the platform starts them afresh. */
+  /** A missing file is a new store. An invalid existing snapshot refuses
+   * startup and stays untouched: forgetting a route would misreport an
+   * existing remote workspace as gone and create a second copy elsewhere. */
   async load(): Promise<void> {
     let raw: string;
     try {
@@ -73,22 +78,30 @@ export class PlacementStore {
     try {
       parsed = JSON.parse(raw);
     } catch (err) {
-      const aside = `${this.file}.corrupt-${Date.now()}`;
-      console.error(
-        `[sandbox.devices] placement file ${this.file} is not JSON; moved to ${aside} and starting empty:`,
-        err,
-      );
-      await rename(this.file, aside);
-      return;
+      throw new Error(`Invalid device placement snapshot at ${this.file}`, {
+        cause: err,
+      });
     }
     const placements: unknown =
       parsed !== null && typeof parsed === 'object'
         ? Reflect.get(parsed, 'placements')
         : undefined;
-    if (placements === null || typeof placements !== 'object') return;
+    if (
+      parsed === null ||
+      typeof parsed !== 'object' ||
+      Reflect.get(parsed, 'version') !== 1 ||
+      placements === null ||
+      typeof placements !== 'object' ||
+      Array.isArray(placements)
+    )
+      throw new Error(`Invalid device placement snapshot at ${this.file}`);
+    const loaded = new Map<string, Placement>();
     for (const [sessionId, placement] of Object.entries(placements)) {
-      if (isPlacement(placement)) this.placements.set(sessionId, placement);
+      if (!ID_ALPHABET_RE.test(sessionId) || !isPlacement(placement))
+        throw new Error(`Invalid device placement snapshot at ${this.file}`);
+      loaded.set(sessionId, placement);
     }
+    this.placements = loaded;
   }
 
   get(sessionId: string): Placement | undefined {
@@ -110,8 +123,11 @@ export class PlacementStore {
   }
 
   async set(sessionId: string, placement: Placement): Promise<void> {
-    this.placements.set(sessionId, placement);
-    await this.persist();
+    if (!ID_ALPHABET_RE.test(sessionId) || !isPlacement(placement))
+      throw new Error('Invalid device placement');
+    await this.change((next) => {
+      next.set(sessionId, placement);
+    });
   }
 
   /** The destroyed sessions whose bytes their devices have not confirmed
@@ -127,49 +143,88 @@ export class PlacementStore {
   /** Keep a destroyed session's route to its device until the device
    * confirms the workspace's bytes are gone. */
   async markDeleting(sessionId: string): Promise<void> {
-    const placement = this.placements.get(sessionId);
-    if (placement === undefined || placement.deleting === true) return;
-    this.placements.set(sessionId, { ...placement, deleting: true });
-    await this.persist();
+    await this.change((next) => {
+      const placement = next.get(sessionId);
+      if (placement === undefined || placement.deleting === true) return;
+      next.set(sessionId, { ...placement, deleting: true });
+    });
   }
 
   async delete(sessionId: string): Promise<void> {
-    if (!this.placements.delete(sessionId)) return;
-    await this.persist();
+    await this.change((next) => {
+      next.delete(sessionId);
+    });
   }
 
   /** Forget every placement on a device (it was removed); the count dropped. */
   async deleteDevice(deviceId: string): Promise<number> {
-    let dropped = 0;
-    for (const [sessionId, p] of this.placements) {
-      if (p.deviceId === deviceId) {
-        this.placements.delete(sessionId);
-        dropped++;
+    return this.change((next) => {
+      let dropped = 0;
+      for (const [sessionId, p] of next) {
+        if (p.deviceId === deviceId) {
+          next.delete(sessionId);
+          dropped++;
+        }
       }
-    }
-    if (dropped > 0) await this.persist();
-    return dropped;
+      return dropped;
+    });
   }
 
-  /** Serialized so two changes never interleave their temp-file renames; the
-   * written snapshot is taken when the write runs, so it is always current. */
-  private persist(): Promise<void> {
-    const next = this.writing.then(() => this.writeSnapshot());
-    // A failed write must not wedge every later one behind a rejection.
-    this.writing = next.catch((err: unknown) => {
-      console.error('[sandbox.devices] placement write failed:', err);
+  /** Serialize the whole mutation, not only its write. The atomic rename is
+   * the commit point: directory flush failures must not roll memory back to
+   * a snapshot that could erase the committed route on the next mutation. */
+  private change<T>(mutate: (next: Map<string, Placement>) => T): Promise<T> {
+    const next = this.writing.then(async () => {
+      const snapshot = new Map(this.placements);
+      const result = mutate(snapshot);
+      if (
+        snapshot.size !== this.placements.size ||
+        [...snapshot].some(([id, p]) => this.placements.get(id) !== p)
+      ) {
+        await this.writeSnapshot(snapshot);
+      }
+      return result;
     });
+    // A failed write must not wedge every later one behind a rejection.
+    this.writing = next
+      .then(() => undefined)
+      .catch((err: unknown) => {
+        console.error('[sandbox.devices] placement write failed:', err);
+      });
     return next;
   }
 
-  private async writeSnapshot(): Promise<void> {
+  private async writeSnapshot(
+    placements: ReadonlyMap<string, Placement>,
+  ): Promise<void> {
     const snapshot: PlacementFile = {
       version: 1,
-      placements: Object.fromEntries(this.placements),
+      placements: Object.fromEntries(placements),
     };
     await mkdir(dirname(this.file), { recursive: true });
     const tmp = `${this.file}.${randomUUID()}.tmp`;
-    await writeFile(tmp, JSON.stringify(snapshot), { mode: 0o600 });
-    await rename(tmp, this.file);
+    try {
+      const handle = await open(tmp, 'wx', 0o600);
+      try {
+        await handle.writeFile(JSON.stringify(snapshot));
+        await handle.sync();
+      } finally {
+        await handle.close();
+      }
+      await rename(tmp, this.file);
+      this.placements = new Map(placements);
+      await this.flushDirectory();
+    } finally {
+      await rm(tmp, { force: true });
+    }
+  }
+
+  private async flushDirectory(): Promise<void> {
+    const directory = await open(dirname(this.file), 'r');
+    try {
+      await directory.sync();
+    } finally {
+      await directory.close();
+    }
   }
 }

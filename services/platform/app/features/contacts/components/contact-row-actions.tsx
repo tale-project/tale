@@ -12,7 +12,7 @@ import { useAbility } from '@/app/hooks/use-ability';
 import type { ContactDoc } from '@/app/lib/backend/contract/docs';
 import { useT } from '@/lib/i18n/client';
 
-import { canEmailContact, isEditableContact } from '../lib/contact-data';
+import { canEditContact, canEmailContact } from '../lib/contact-data';
 import { ContactDeleteDialog } from './contact-delete-dialog';
 import { ContactEditDialog } from './contact-edit-dialog';
 import { ContactViewDialog } from './contact-view-dialog';
@@ -31,8 +31,7 @@ export function ContactRowActions({ contact }: ContactRowActionsProps) {
   const menuTriggerRef = useRef<HTMLButtonElement>(null);
   const dialogs = useEntityRowDialogs(['view', 'edit', 'delete']);
 
-  const canEdit =
-    ability.can('write', 'knowledgeWrite') && isEditableContact(contact);
+  const canEdit = canEditContact(ability, contact);
 
   const actions = useMemo(
     () => [

@@ -2,6 +2,7 @@ import { formatEnumLabel } from '@tale/ui/string';
 
 import type { ContactDoc } from '@/app/lib/backend/contract/docs';
 import type { ContactInfo } from '@/backend/core/conversations/types';
+import type { AppAbility } from '@/lib/permissions/ability';
 
 /**
  * A contact as rendered in the app: either a full directory row
@@ -26,8 +27,21 @@ export const UNKNOWN_CONTACT_EMAIL = 'unknown@example.com';
  * person typed in or uploaded. Synced and conversation contacts belong to
  * their source, which would overwrite a local change.
  */
-export function isEditableContact(contact: ContactDoc): boolean {
+function isEditableContact(contact: ContactDoc): boolean {
   return contact.source === 'manual_import' || contact.source === 'file_upload';
+}
+
+/**
+ * Whether this member may edit or delete the contact: a writer, on one of the
+ * organization's own records. The row menu, the details dialog and the list's
+ * bulk delete all ask this, so no second path offers what the first withholds
+ * (#3623: the checkboxes deleted synced contacts the menu protected).
+ */
+export function canEditContact(
+  ability: AppAbility,
+  contact: ContactDoc,
+): boolean {
+  return ability.can('write', 'knowledgeWrite') && isEditableContact(contact);
 }
 
 /** Whether the contact has a real address to compose an email to. */

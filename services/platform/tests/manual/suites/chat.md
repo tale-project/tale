@@ -101,6 +101,12 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   (`chat.editSend`) → A new branch is created; the branch navigator appears
   with **Previous branch** / **Next branch** (`chat.branchNavigator.previous`,
   `chat.branchNavigator.next`) and a position indicator.
+  With a document and an image on the original message, change only the text
+  → Both attachment cards remain in the edited version, including after a
+  reload; their names, types and sizes match the original. Navigate back to
+  the original and use **Try again** (`chat.tryAgain`) → Both attachments
+  remain there too. An unrelated file staged in the composer before editing
+  stays staged and does not join the edited message.
 - [ ] `CHAT-F9` · **Regenerate** — On an assistant message click **Try again**
   (`chat.tryAgain`) → A new response branch is added to the same turn; the
   branch navigator shows >1 branch.
