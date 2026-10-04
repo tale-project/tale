@@ -16,6 +16,8 @@
 //   ("cancelled" is the wrapper unwinding on runnerd's cancel signal — a user
 //   Stop, not a failure; `signal` carries the signal number.)
 
+import { z } from 'zod';
+
 import { asNumber, asString, LineReassembler, parseJsonLine } from '../jsonl';
 import type {
   HarnessEvent,
@@ -32,6 +34,14 @@ function mapRunStatus(status: string | undefined): HarnessTurnStatus {
   return status ? 'error' : 'completed';
 }
 
+const checkpointSchema = z.object({
+  lines: z.string(),
+  started: z.boolean(),
+  sessionId: z.string().optional(),
+  runInput: z.number(),
+  runOutput: z.number(),
+});
+
 class OpenClawJsonlParser implements HarnessEventParser {
   private readonly lines = new LineReassembler();
   private started = false;
@@ -45,6 +55,25 @@ class OpenClawJsonlParser implements HarnessEventParser {
   private runOutput = 0;
 
   constructor(private readonly slug: HarnessSlug) {}
+
+  snapshot(): Record<string, unknown> {
+    return {
+      lines: this.lines.snapshot(),
+      started: this.started,
+      sessionId: this.sessionId,
+      runInput: this.runInput,
+      runOutput: this.runOutput,
+    };
+  }
+
+  restore(value: unknown): void {
+    const state = checkpointSchema.parse(value);
+    this.lines.restore(state.lines);
+    this.started = state.started;
+    this.sessionId = state.sessionId;
+    this.runInput = state.runInput;
+    this.runOutput = state.runOutput;
+  }
 
   feed(chunk: string): HarnessEvent[] {
     return this.lines.push(chunk).flatMap((line) => this.line(line));

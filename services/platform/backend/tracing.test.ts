@@ -16,6 +16,7 @@ import {
   configureBackendTracing,
   requestTelemetry,
   traceBackendTask,
+  traceSandboxPhase,
   traceWorkerPhase,
 } from './tracing.ts';
 
@@ -87,6 +88,7 @@ describe('manual backend spans', () => {
     }
     expect(spans).toBe(0);
     expect(wrappedPromises).toBe(0);
+    expect(traceSandboxPhase('stage', () => promise)).toBe(promise);
   });
 
   it('exports sampled HTTP spans with only operational metadata', async () => {
@@ -252,6 +254,26 @@ describe('manual backend spans', () => {
       ]),
     );
     expect(JSON.stringify(events)).not.toContain('private-');
+  });
+
+  it('records fixed sandbox phase names as children of the worker trace', async () => {
+    await traceBackendTask('noop', async () => {
+      await traceSandboxPhase('stage', async () => Promise.resolve());
+      await traceSandboxPhase('persist', async () => Promise.resolve());
+    });
+    await flushErrorReporting();
+    const event = transactions.find((entry) =>
+      entry.spans?.some((span) => span.op === 'sandbox.stage'),
+    );
+    expect(event?.spans).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ op: 'sandbox.stage', description: 'stage' }),
+        expect.objectContaining({
+          op: 'sandbox.persist',
+          description: 'persist',
+        }),
+      ]),
+    );
   });
 
   it('sends no external trace headers while a sampled task is active', async () => {

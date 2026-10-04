@@ -615,6 +615,7 @@ setup_cgroup_nesting() {
 wait_inner_dockerd() {
   /usr/local/bin/python3 -I - "${TALE_DOCKERD_PID}" "${_DOCKER}" "${1:-30}" "${2:-/var/run/docker.sock}" <<'PY'
 import os
+import signal
 import subprocess
 import sys
 import tempfile
@@ -636,15 +637,21 @@ with tempfile.TemporaryDirectory(prefix="tale-docker-probe-", dir="/tmp") as con
         if remaining <= 0:
             break
         try:
-            result = subprocess.run(
+            probe = subprocess.Popen(
                 [docker, '--host=unix://' + socket, 'info'],
                 stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL, env=env, timeout=min(2, remaining),
+                stderr=subprocess.DEVNULL, env=env, start_new_session=True,
             )
-            if result.returncode == 0:
+            if probe.wait(timeout=min(1, remaining)) == 0:
                 sys.exit(0)
         except subprocess.TimeoutExpired:
-            pass
+            # A probe can spawn children that retain its pipes or survive
+            # killing only the Docker client. Reap its whole private group.
+            try:
+                os.killpg(probe.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            probe.wait()
         time.sleep(max(0, min(0.5, deadline - time.monotonic())))
 sys.exit('inner dockerd readiness deadline exceeded')
 PY

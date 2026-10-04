@@ -24,7 +24,7 @@ renders) never starts an inner daemon, on either backend.
 
 Within a DinD-enabled agent session, Docker starts automatically on the first
 connection to its standard socket. The agent uses ordinary `docker` and
-`docker compose` commands; there is no lightweight/full setting to select.
+`docker compose` commands; no separate activation command is needed.
 Concurrent first commands share one engine startup. After five minutes with
 no connected clients, the engine stops only when its inventory confirms no
 running, restarting or paused containers and no enabled restart policies.
@@ -226,11 +226,10 @@ override it with `SANDBOX_RUNTIME_CLASS`.
 The Docker backend keeps each session's inner `/var/lib/docker` disposable and
 shares persistent build caches only among sessions from the same organization.
 Optional preparation defaults to five seconds, capped at a quarter of the
-session startup budget, and prepares the three mirrors in parallel. When the
-initiating session's budget expires, it cancels queued and active provisioning
-and uses its local builder; cancelled queued work cannot launch helpers later.
-A session joining another session's setup can stop waiting without cancelling
-that setup. A late result does not attach a network to an already running
+session startup budget, and prepares the three mirrors in parallel. Each session stops waiting at its own startup limit and uses its local builder.
+The shared producer keeps its independent provisioning budget and organization
+lease even if the initiating session stops waiting. Expiry of that shared budget
+cancels queued and active work; cancelled queued work cannot launch helpers later. A late result does not attach a network to an already running
 session. Registering an available remote buildx builder does not itself start
 the session's inner engine.
 `SANDBOX_DOCKER_BUILD_CACHE` defaults to the DinD setting. Set it to `false` on
@@ -292,8 +291,9 @@ boundary and upgrade requirements.
   `docker compose up --build`, so DinD adjusts them:
   - **`fsize`** is lifted to unlimited (the 512 MiB per-file cap otherwise fails
     layer extraction of any image shipping a larger file — e.g. paradedb's
-    ~885 MiB debug symbols — with `EFBIG`). A hard disk bound therefore needs
-    the operator-provisioned `/var/lib/docker` volume quota above. `nofile` is
+    ~885 MiB debug symbols — with `EFBIG`). Hard disk bounds require the
+    operator-provisioned volume quotas described above; Tale itself checks
+    admission headroom, which cannot stop a running build filling the disk. `nofile` is
     raised to a daemon-class range.
   - **`pids`** is raised to 16384 (a parallel multi-service build's
     dockerd + buildkit + N executors blow past the 512 agent default and tools

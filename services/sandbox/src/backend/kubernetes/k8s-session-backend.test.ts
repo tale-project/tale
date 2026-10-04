@@ -10,6 +10,7 @@ import type {
   V1Pod,
 } from '@kubernetes/client-node';
 
+import { operationSignal } from '../../operation-budget.ts';
 import { SessionRoutes } from '../../session/session-routes.ts';
 import { TEST_SESSION_CONFIG } from '../../session/session-test-config.ts';
 import type { SpawnerConfig } from '../../types.ts';
@@ -65,6 +66,162 @@ const spec: SessionSpec = {
 function notFound(): Promise<never> {
   return Promise.reject(Object.assign(new Error('not found'), { code: 404 }));
 }
+
+describe('cancelled Kubernetes create', () => {
+  test.each([true, false])(
+    'cleans only acknowledged podless Secrets and preserves the PVC (acknowledged: %s)',
+    async (acknowledged) => {
+      const controller = new AbortController();
+      const deletions: unknown[] = [];
+      let pods = 0;
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- bounded CoreV1 test seam
+      const core = {
+        readNamespacedPersistentVolumeClaim: notFound,
+        createNamespacedPersistentVolumeClaim: async () => ({}),
+        createNamespacedSecret: async () => {
+          controller.abort(new Error('caller cancelled'));
+          return acknowledged ? { metadata: { uid: 'secret-uid' } } : {};
+        },
+        createNamespacedPod: async () => {
+          pods++;
+          return {};
+        },
+        readNamespacedPod: notFound,
+        listNamespacedSecret: async () => ({
+          items: [
+            {
+              metadata: {
+                name: sessionSecretNameFor(spec.sessionId),
+                uid: 'secret-uid',
+                annotations: {
+                  'tale.dev/created-at': String(spec.createdAtMs),
+                },
+              },
+            },
+          ],
+        }),
+        deleteNamespacedSecret: async (args: unknown) => {
+          expect(operationSignal()?.aborted).toBe(false);
+          deletions.push(args);
+          return {};
+        },
+        deleteNamespacedPersistentVolumeClaim: async () => {
+          throw new Error('must preserve workspace');
+        },
+      } as unknown as CoreV1Api;
+      const base = stub(async () => ({}));
+      const backend = new KubernetesSessionBackend(cfg, {
+        ...base.client,
+        core,
+      });
+      const error = await rejection(
+        backend.createSession({ ...spec, signal: controller.signal }),
+      );
+      expect(error?.message).toBe('caller cancelled');
+      expect(pods).toBe(0);
+      expect(deletions).toEqual(
+        acknowledged
+          ? [
+              {
+                name: sessionSecretNameFor(spec.sessionId),
+                namespace: cfg.k8s.namespace,
+                body: { preconditions: { uid: 'secret-uid' } },
+              },
+            ]
+          : [],
+      );
+    },
+  );
+
+  test.each(['acknowledged', 'ambiguous', 'replaced'])(
+    'fences cancelled Pod cleanup by acknowledged UID with an independent budget (%s)',
+    async (outcome) => {
+      const controller = new AbortController();
+      const deletions: Array<{ kind: string; body: unknown }> = [];
+      const observedUid = outcome === 'replaced' ? 'peer-pod' : 'created-pod';
+      let podDeleted = false;
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- bounded CoreV1 test seam
+      const core = {
+        readNamespacedPersistentVolumeClaim: notFound,
+        createNamespacedPersistentVolumeClaim: async () => ({}),
+        createNamespacedSecret: async () => ({
+          metadata: { uid: 'created-secret' },
+        }),
+        createNamespacedPod: async () => {
+          controller.abort(new Error('caller cancelled'));
+          return outcome === 'ambiguous'
+            ? {}
+            : { metadata: { uid: 'created-pod' } };
+        },
+        readNamespacedPod: async () =>
+          podDeleted
+            ? notFound()
+            : {
+                metadata: {
+                  uid: observedUid,
+                  resourceVersion: '17',
+                  annotations: {
+                    'tale.dev/created-at': String(spec.createdAtMs),
+                  },
+                },
+                status: { phase: 'Pending' },
+              },
+        listNamespacedSecret: async () => ({
+          items: [
+            {
+              metadata: {
+                name: sessionSecretNameFor(spec.sessionId),
+                uid: 'created-secret',
+                annotations: {
+                  'tale.dev/created-at': String(spec.createdAtMs),
+                },
+              },
+            },
+          ],
+        }),
+        deleteNamespacedPod: async (args: { body: unknown }) => {
+          expect(operationSignal()?.aborted).toBe(false);
+          deletions.push({ kind: 'pod', body: args.body });
+          podDeleted = true;
+          return {};
+        },
+        deleteNamespacedSecret: async (args: { body: unknown }) => {
+          expect(operationSignal()?.aborted).toBe(false);
+          deletions.push({ kind: 'secret', body: args.body });
+          return {};
+        },
+        deleteNamespacedPersistentVolumeClaim: async () => {
+          throw new Error('must preserve workspace');
+        },
+      } as unknown as CoreV1Api;
+      const base = stub(async () => ({}));
+      const backend = new KubernetesSessionBackend(cfg, {
+        ...base.client,
+        core,
+      });
+      const error = await rejection(
+        backend.createSession({ ...spec, signal: controller.signal }),
+      );
+      expect(error?.message).toBe('caller cancelled');
+      expect(deletions).toEqual(
+        outcome === 'acknowledged'
+          ? [
+              {
+                kind: 'pod',
+                body: {
+                  preconditions: { uid: 'created-pod', resourceVersion: '17' },
+                },
+              },
+              {
+                kind: 'secret',
+                body: { preconditions: { uid: 'created-secret' } },
+              },
+            ]
+          : [],
+      );
+    },
+  );
+});
 
 describe('Kubernetes session observation incarnation', () => {
   function observed(pod: V1Pod) {

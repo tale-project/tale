@@ -19,6 +19,8 @@ const KEYS = [
   'SANDBOX_BACKEND',
   'SANDBOX_AGENT_MEMORY',
   'SANDBOX_HOST_SESSION_ROOT',
+  'SANDBOX_DOCKER_DATA_ROOT',
+  'SANDBOX_DOCKER_DATA_PATH',
   'SANDBOX_TOKEN',
   'SANDBOX_MAX_REQUEST_BODY_BYTES',
   'SANDBOX_MAX_SESSIONS',
@@ -104,6 +106,17 @@ test('the builder bounds are optional and validated', () => {
   process.env.SANDBOX_BUILDKITD_MEMORY = '12g';
   process.env.SANDBOX_BUILDKITD_CPUS = 'many';
   expect(() => loadConfig()).toThrow(/SANDBOX_BUILDKITD_CPUS/);
+});
+
+test('Docker data filesystem monitoring is opt-in and requires absolute paths', () => {
+  expect(loadConfig().dockerDataPath).toBeUndefined();
+  process.env.SANDBOX_DOCKER_DATA_ROOT = '/srv/docker';
+  expect(loadConfig()).toMatchObject({
+    dockerDataRoot: '/srv/docker',
+    dockerDataPath: '/var/lib/tale-sandbox/docker-data',
+  });
+  process.env.SANDBOX_DOCKER_DATA_PATH = 'relative';
+  expect(() => loadConfig()).toThrow('SANDBOX_DOCKER_DATA_PATH');
 });
 
 test("an idle builder's cache budget is optional and validated", () => {

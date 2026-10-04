@@ -56,6 +56,8 @@ export interface RunnerdHealth {
   bootedAtMs: number;
   lastActivityAtMs: number;
   liveExecs: number;
+  /** Optional dependency diagnostics; do not affect daemon liveness. */
+  dependencies?: { docker?: { ok: boolean }; egress?: { ok: boolean } };
   /** Absent on older runtime images; pressure reclamation then fails closed. */
   activity?: {
     generation: string;
@@ -81,8 +83,8 @@ export interface RunnerdExecRequest {
   stdinMode?: 'close' | 'hold';
   timeoutMs: number;
   /** Cumulative stdout truncation cap; `<= 0` disables truncation. Journal
-   * storage limits still end an exec with OUTPUT_LIMIT. In-memory diagnostic
-   * output and consumer queues remain bounded. One-shot collected execs pass
+   * storage limits still end an exec with OUTPUT_LIMIT. Pending disk writes
+   * and consumer queues remain bounded. One-shot collected execs pass
    * a positive cap; long-lived streaming execs (the agent) pass 0. */
   stdoutMaxBytes: number;
   /** Cumulative stderr truncation cap; `<= 0` disables truncation (see above). */
@@ -114,10 +116,18 @@ export interface RunnerdStdinWriteResponse {
   reason?: 'NOT_FOUND' | 'STDIN_CLOSED' | 'BAD_LINE' | 'WRITE_FAILED';
 }
 
+/** Maximum encoded checkpoint payload; state is opaque to the sandbox. */
+export const RUNNERD_CHECKPOINT_MAX_BYTES = 1024 * 1024;
+export interface RunnerdExecCheckpoint {
+  seq: number;
+  state: unknown;
+}
+
 export type RunnerdExecEvent = (
   | { t: 'start'; execId: string; startedAtMs: number }
   | { t: 'stdout'; b64: string }
   | { t: 'stderr'; b64: string }
+  | { t: 'gap'; fromSeq: number; toSeq: number }
   | { t: 'replay-start' }
   | { t: 'replay-complete'; throughSeq: number }
   | {
@@ -158,6 +168,12 @@ export function isRunnerdExecEvent(value: unknown): value is RunnerdExecEvent {
   if (!isObject(value)) return false;
   if (value.seq !== undefined && !positiveInteger(value.seq)) return false;
   switch (value.t) {
+    case 'gap':
+      return (
+        positiveInteger(value.fromSeq) &&
+        positiveInteger(value.toSeq) &&
+        value.fromSeq <= value.toSeq
+      );
     case 'replay-start':
       return true;
     case 'replay-complete':

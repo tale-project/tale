@@ -9,6 +9,7 @@ import {
 } from 'bun:test';
 import { rejects } from 'node:assert/strict';
 
+import { withOperationBudget } from '../operation-budget.ts';
 import {
   runnerdAttach,
   runnerdExec,
@@ -80,6 +81,46 @@ test('the overall readiness deadline cancels an unresponsive health probe', asyn
         1000,
       ),
       /runnerd did not become ready within 50ms/,
+    );
+    expect(cancelled).toBe(true);
+  } finally {
+    fetch.mockRestore();
+  }
+});
+
+test('the inherited startup budget cancels readiness before its own deadline', async () => {
+  let cancelled = false;
+  const fetch = spyOn(globalThis, 'fetch').mockImplementation(
+    Object.assign(
+      (
+        _input: Parameters<typeof globalThis.fetch>[0],
+        init?: Parameters<typeof globalThis.fetch>[1],
+      ) =>
+        new Promise<Response>((_resolve, reject) => {
+          const signal = init?.signal;
+          if (!signal) throw new Error('missing inherited deadline');
+          signal.addEventListener(
+            'abort',
+            () => {
+              cancelled = true;
+              reject(signal.reason);
+            },
+            { once: true },
+          );
+        }),
+      { preconnect() {} },
+    ),
+  );
+  try {
+    await rejects(
+      withOperationBudget(25, () =>
+        waitForRunnerd(
+          { baseUrl: 'http://runnerd.invalid', token: 'test' },
+          1000,
+          1,
+        ),
+      ),
+      /sandbox operation deadline exceeded/,
     );
     expect(cancelled).toBe(true);
   } finally {
@@ -719,6 +760,24 @@ function setReplayBody(id: string, events: unknown[]): void {
 }
 
 describe('runnerd replay continuity', () => {
+  test('a checkpoint-recoverable gap preserves its exact range for the consumer', async () => {
+    const gap: RunnerdExecEvent = { t: 'gap', fromSeq: 4, toSeq: 9 };
+    setReplayBody('checkpoint-gap', [{ t: 'replay-start' }, gap]);
+    const seen: RunnerdExecEvent[] = [];
+    expect(
+      await runnerdAttach(
+        options,
+        'checkpoint-gap',
+        (event) => {
+          seen.push(event);
+        },
+        undefined,
+        3,
+      ),
+    ).toBe(true);
+    expect(seen).toEqual([{ t: 'replay-start' }, gap]);
+  });
+
   test('older ring-only runtime cannot silently replay a truncated tail as successful', async () => {
     setReplayBody('legacy-gap', [
       { t: 'stdout', b64: 'eA==', seq: 30 },
@@ -731,6 +790,17 @@ describe('runnerd replay continuity', () => {
       }).catch((error: unknown) => error),
     ).toBeInstanceOf(RunnerdOutputGapError);
     expect(seen).toEqual([]);
+  });
+  test('a reported checkpoint gap cannot be followed by a successful result', async () => {
+    const gap: RunnerdExecEvent = { t: 'gap', fromSeq: 1, toSeq: 9 };
+    setReplayBody('gap-then-result', [gap, { ...completed, seq: 1 }]);
+    const seen: RunnerdExecEvent[] = [];
+    expect(
+      await runnerdAttach(options, 'gap-then-result', (event) => {
+        seen.push(event);
+      }).catch((error: unknown) => error),
+    ).toBeInstanceOf(RunnerdOutputGapError);
+    expect(seen).toEqual([gap]);
   });
   test('a cursor reconnect accepts exactly the next sequence', async () => {
     setReplayBody('cursor', [{ t: 'stdout', b64: 'eA==', seq: 30 }]);
@@ -748,16 +818,19 @@ describe('runnerd replay continuity', () => {
     ).toBe(true);
     expect(seen).toHaveLength(1);
   });
-  test('new runtime journal exhaustion is terminal, not a generic transport retry', async () => {
-    setReplayBody('journal-gap', [
-      { t: 'fail', code: 'OUTPUT_GAP', message: 'bounded journal exhausted' },
-    ]);
-    expect(
-      await runnerdAttach(options, 'journal-gap', () => {}).catch(
-        (error: unknown) => error,
-      ),
-    ).toBeInstanceOf(RunnerdOutputGapError);
-  });
+  test.each(['OUTPUT_GAP', 'OUTPUT_LIMIT', 'REPLAY_UNAVAILABLE'])(
+    'daemon replay failure %s retains its terminal diagnostic code',
+    async (code) => {
+      setReplayBody('journal-gap', [
+        { t: 'fail', code, message: 'bounded replay exhausted' },
+      ]);
+      expect(
+        await runnerdAttach(options, 'journal-gap', () => {}).catch(
+          (error: unknown) => error,
+        ),
+      ).toMatchObject({ code });
+    },
+  );
   test('a gap in the middle stops delivery before a later terminal result', async () => {
     setReplayBody('middle', [
       { t: 'stdout', b64: 'eA==', seq: 3 },

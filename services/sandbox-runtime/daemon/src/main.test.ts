@@ -117,13 +117,28 @@ describe('runnerd HTTP service', () => {
       const ready = await fetch(`${baseUrl}/readyz`);
       expect(ready.status).toBe(503);
       expect(await ready.json()).toEqual({ ok: false });
+      const live = await fetch(`${baseUrl}/livez`);
+      expect(live.status).toBe(200);
+      expect(await live.json()).toEqual({ ok: true });
       const health = await fetch(`${baseUrl}/healthz`, { headers });
       expect(health.status).toBe(200);
       expect(await health.json()).toMatchObject({
         ok: true,
         dockerReady: false,
+        dependencies: { docker: { ok: false } },
         liveExecs: 0,
       });
+      const staged = await fetch(`${baseUrl}/files/stage`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          files: [{ path: 'docker-down-file.txt', contentBase64: 'b2s=' }],
+        }),
+      });
+      expect(staged.status).toBe(200);
+      expect(readFileSync(`${workspace}/docker-down-file.txt`, 'utf8')).toBe(
+        'ok',
+      );
       const acquire = await fetch(`${baseUrl}/acquire`, {
         method: 'POST',
         headers,
@@ -140,6 +155,12 @@ describe('runnerd HTTP service', () => {
       });
       expect(exec.status).toBe(503);
       expect(await exec.json()).toEqual({ error: 'docker_unavailable' });
+      const cancelled = await fetch(`${baseUrl}/execs/docker-down/cancel`, {
+        method: 'POST',
+        headers,
+      });
+      expect(cancelled.status).toBe(200);
+      expect(await cancelled.json()).toEqual({ killed: false });
       expect(await currentActiveOperations()).toBe(0);
     } finally {
       snapshot.mockRestore();
@@ -222,6 +243,85 @@ describe('runnerd HTTP service', () => {
       state: 'exited',
       exitCode: 0,
     });
+  });
+
+  test('checkpoint state is bounded, monotonic and scoped to a retained exec', async () => {
+    const response = await fetch(`${baseUrl}/execs`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        execId: 'checkpoint-http',
+        command: ['/bin/sh', '-c', 'printf checkpoint'],
+        cwd: workspace,
+        timeoutMs: 5_000,
+        stdoutMaxBytes: 10_000,
+        stderrMaxBytes: 10_000,
+      }),
+    });
+    const events = (await response.text())
+      .trim()
+      .split('\n')
+      .map((line) => record(JSON.parse(line)));
+    const seq = Number(events.at(-1)?.seq);
+    const url = `${baseUrl}/execs/checkpoint-http/checkpoint`;
+    expect(await (await fetch(url, { headers })).json()).toEqual({
+      checkpoint: null,
+    });
+    const put = (body: unknown) =>
+      fetch(url, { method: 'PUT', headers, body: JSON.stringify(body) });
+    expect(
+      (await put({ seq, state: { pendingTasks: ['task-1'] } })).status,
+    ).toBe(200);
+    expect(await (await fetch(url, { headers })).json()).toEqual({
+      checkpoint: { seq, state: { pendingTasks: ['task-1'] } },
+    });
+    expect((await put({ seq: seq - 1, state: {} })).status).toBe(409);
+    expect((await put({ seq: seq + 1, state: {} })).status).toBe(400);
+    expect((await put({ seq, state: 'a'.repeat(1024 * 1024) })).status).toBe(
+      413,
+    );
+    expect(
+      (await fetch(`${baseUrl}/execs/missing/checkpoint`, { headers })).status,
+    ).toBe(404);
+  });
+
+  test('disconnected staging stops fetching and releases its operation', async () => {
+    const entered = Promise.withResolvers<void>();
+    const release = Promise.withResolvers<Response>();
+    const source = Bun.serve({
+      port: 0,
+      fetch: () => {
+        entered.resolve();
+        return release.promise;
+      },
+    });
+    const caller = new AbortController();
+    try {
+      const staging = fetch(`${baseUrl}/files/stage`, {
+        method: 'POST',
+        headers,
+        signal: caller.signal,
+        body: JSON.stringify({
+          files: [
+            { path: 'cancelled-stage', url: `http://127.0.0.1:${source.port}` },
+          ],
+        }),
+      }).catch(() => null);
+      await entered.promise;
+      caller.abort();
+      await staging;
+      const deadline = Date.now() + 1_000;
+      let active = await currentActiveOperations();
+      while (active > 0 && Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        active = await currentActiveOperations();
+      }
+      expect(active).toBe(0);
+      expect(existsSync(`${workspace}/cancelled-stage`)).toBe(false);
+    } finally {
+      release.resolve(new Response('released'));
+      await source.stop(true);
+    }
   });
 
   test('a partial exec request body already protects the runtime from release and reclaim', async () => {
@@ -365,6 +465,108 @@ describe('runnerd HTTP service', () => {
         source.close((error) => (error ? reject(error) : resolve()));
         source.closeAllConnections();
       });
+    }
+  });
+
+  test('invalid attach cursors fail explicitly without consuming or damaging retained output', async () => {
+    const response = await fetch(`${baseUrl}/execs`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        execId: 'invalid-http-cursor',
+        command: ['/bin/sh', '-c', 'printf retained'],
+        cwd: workspace,
+        timeoutMs: 5000,
+        stdoutMaxBytes: 1024,
+        stderrMaxBytes: 1024,
+      }),
+    });
+    expect(response.status).toBe(200);
+    await response.text();
+    for (const cursor of ['-1', 'NaN', '0.5', 'Infinity', '9007199254740991']) {
+      const refused = await fetch(
+        `${baseUrl}/execs/invalid-http-cursor/attach?sinceSeq=${cursor}`,
+        { headers },
+      );
+      if (cursor !== '9007199254740991') {
+        expect(refused.status).toBe(400);
+        expect(await refused.json()).toEqual({ error: 'invalid_since_seq' });
+        continue;
+      }
+      expect(refused.status).toBe(200);
+      expect(
+        (await refused.text())
+          .trim()
+          .split('\n')
+          .map((line) => JSON.parse(line)),
+      ).toEqual([
+        {
+          t: 'fail',
+          code: 'REPLAY_UNAVAILABLE',
+          message: 'Invalid execution replay cursor.',
+        },
+      ]);
+    }
+    const replay = await fetch(`${baseUrl}/execs/invalid-http-cursor/attach`, {
+      headers,
+    });
+    const events = (await replay.text())
+      .trim()
+      .split('\n')
+      .map((line) => record(JSON.parse(line)));
+    expect(
+      events.some(
+        (event) =>
+          event.t === 'stdout' &&
+          event.b64 === Buffer.from('retained').toString('base64'),
+      ),
+    ).toBe(true);
+    expect(events.at(-1)).toMatchObject({ t: 'exit', exitCode: 0 });
+    expect(await currentActiveOperations()).toBe(0);
+  });
+
+  test('partial exec uploads consume the shared reader slots and release them on disconnect', async () => {
+    const uploads = Array.from({ length: 8 }, () => {
+      const upload = request(
+        `${baseUrl}/execs`,
+        {
+          method: 'POST',
+          headers: { ...headers, 'content-length': '2' },
+        },
+        (response) => response.resume(),
+      );
+      // Disconnect is the fixture action; it must release admission even when
+      // the upload never reaches JSON parsing or starts a child process.
+      upload.on('error', () => {});
+      upload.write('{');
+      return upload;
+    });
+    try {
+      let deadline = Date.now() + 5000;
+      while ((await currentActiveOperations()) < 8 && Date.now() < deadline)
+        await new Promise((resolve) => setTimeout(resolve, 5));
+      expect(await currentActiveOperations()).toBe(8);
+      const refused = await fetch(`${baseUrl}/execs/no-such-exec/attach`, {
+        headers,
+      });
+      expect(refused.status).toBe(503);
+      expect(await refused.json()).toEqual({ error: 'busy' });
+      uploads.pop()?.destroy();
+      deadline = Date.now() + 5000;
+      while ((await currentActiveOperations()) >= 8 && Date.now() < deadline)
+        await new Promise((resolve) => setTimeout(resolve, 5));
+      expect(await currentActiveOperations()).toBe(7);
+      const admitted = await fetch(`${baseUrl}/execs/no-such-exec/attach`, {
+        headers,
+      });
+      expect(admitted.status).toBe(404);
+      expect(await admitted.json()).toEqual({ error: 'not_found' });
+    } finally {
+      for (const upload of uploads) upload.destroy();
+      const deadline = Date.now() + 5000;
+      while ((await currentActiveOperations()) !== 0 && Date.now() < deadline)
+        await new Promise((resolve) => setTimeout(resolve, 5));
+      expect(await currentActiveOperations()).toBe(0);
     }
   });
 

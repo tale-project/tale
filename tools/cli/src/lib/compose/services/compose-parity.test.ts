@@ -327,6 +327,28 @@ describe('sandbox spawner URL parity', () => {
     }
   });
 
+  test('agent profile and effort settings reach both backend roles through both compose pipelines', () => {
+    for (const tier of ['backend-api', 'backend-worker'] as const) {
+      expect(compose.services[tier]?.environment?.SANDBOX_AGENT_PROFILE).toBe(
+        '${SANDBOX_AGENT_PROFILE:-agent}',
+      );
+      expect(
+        compose.services[tier]?.environment?.TALE_SANDBOX_CLAUDE_EFFORT,
+      ).toBe('${TALE_SANDBOX_CLAUDE_EFFORT:-}');
+    }
+    for (const service of [
+      createBackendApiService(config),
+      createBackendWorkerService(config),
+    ]) {
+      expect(service.environment?.SANDBOX_AGENT_PROFILE).toBe(
+        '${SANDBOX_AGENT_PROFILE:-agent}',
+      );
+      expect(service.environment?.TALE_SANDBOX_CLAUDE_EFFORT).toBe(
+        '${TALE_SANDBOX_CLAUDE_EFFORT:-}',
+      );
+    }
+  });
+
   test('backend entrypoint defaults SANDBOX_URL so a worker without compose env still reaches the spawner', () => {
     const entrypoint = readFileSync(
       resolve(repoRoot, 'services/platform/docker-entrypoint.sh'),

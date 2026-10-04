@@ -23,6 +23,7 @@ export const workloadRuntimes = {
   'platform.schema-hot': 'node',
   'platform.telemetry-disabled': 'node',
   'platform.telemetry-enabled': 'node',
+  'platform.agent-progress': 'node',
   'platform.projection-fragmented': 'node',
   'platform.projection-bursts': 'node',
   'sandbox.validation': 'bun',
@@ -54,6 +55,49 @@ export async function prepareWorkload(
   id: string,
   fixtureRoot: string,
 ): Promise<Workload> {
+  if (id === 'platform.agent-progress') {
+    const { HarnessProjection } =
+      await import('../../services/platform/lib/harnesses/projection.ts');
+    const payload = 'x'.repeat(100_000);
+    let retainedBytes = 0;
+    return {
+      operations: 4000,
+      unit: 'events',
+      description:
+        '1000 tool cycles with 100 KB payloads, raw events and text deltas, projected into a bounded resumable checkpoint',
+      run() {
+        const projection = new HarnessProjection();
+        for (let i = 0; i < 1000; i++) {
+          projection.accept({ type: 'raw', harness: 'claude-code', payload });
+          projection.accept({
+            type: 'text-delta',
+            text: 'Completed a step.\n',
+          });
+          projection.accept({
+            type: 'tool-use',
+            toolName: 'Read',
+            toolUseId: String(i),
+            input: { payload },
+          });
+          projection.accept({
+            type: 'tool-result',
+            toolUseId: String(i),
+            output: payload,
+          });
+        }
+        retainedBytes = Buffer.byteLength(
+          JSON.stringify(projection.snapshot()),
+        );
+        assert.ok(retainedBytes < 400_000);
+        assert.ok(projection.timeline().length <= 400);
+        assert.equal(projection.timeline().at(-1)?.toolCallId, '999');
+      },
+      details: () => ({
+        retainedCheckpointBytes: retainedBytes,
+        rawPayloadBytesPerSample: 300_000_000,
+      }),
+    };
+  }
   if (
     id === 'platform.projection-fragmented' ||
     id === 'platform.projection-bursts'

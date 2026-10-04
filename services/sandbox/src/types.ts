@@ -105,6 +105,9 @@ export interface SpawnerConfig {
   // still adopted (running ones keep their live mount; stopped ones via the
   // legacy-compat resume fallback in docker-session-backend.ts).
   hostSessionRoot: string;
+  /** Opt-in, verified read-only view of DockerRootDir for disk admission. */
+  dockerDataPath?: string;
+  dockerDataRoot?: string;
   cacheVolumePrefix: { pip: string; npm: string; bun: string };
   egressNetwork: string;
   egressProxy: string;

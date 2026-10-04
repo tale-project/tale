@@ -15,7 +15,12 @@ import {
   removeBuildkitVolume,
   retireLegacyBuildkitd,
 } from './buildkit-resources.ts';
-import { dockerDeadlineSignal } from './docker-deadline.ts';
+import {
+  operationSignal,
+  outsideOperationBudget,
+  waitWithinOperation,
+  withOperationBudget,
+} from './operation-budget.ts';
 import { runDocker } from './spawn-util.ts';
 import type { SpawnerConfig } from './types.ts';
 
@@ -242,17 +247,17 @@ async function withBuildkitdOperation<T>(
   operation: () => Promise<T>,
 ): Promise<T> {
   const previous = organizationOperations.get(organizationId);
-  const signal = dockerDeadlineSignal();
-  let started = false;
-  const result = (previous ?? Promise.resolve()).then(() => {
-    signal?.throwIfAborted();
-    started = true;
+  const result = waitWithinOperation(previous ?? Promise.resolve()).then(() => {
+    operationSignal()?.throwIfAborted();
     return operation();
   });
-  const settled = result.then(
+  const done = result.then(
     () => undefined,
     () => undefined,
   );
+  // A waiter may cancel before the producer ahead of it finishes. Its queue
+  // slot still retains that producer, so later callers cannot overtake it.
+  const settled = Promise.all([previous, done]).then(() => undefined);
   organizationOperations.set(organizationId, settled);
   void settled.then(() => {
     if (organizationOperations.get(organizationId) === settled) {
@@ -260,20 +265,7 @@ async function withBuildkitdOperation<T>(
     }
     return undefined;
   });
-  // A cancelled queued operation stays in the serialization chain but cannot
-  // mutate anything once it obtains the lock. Active Docker calls themselves
-  // observe the same signal and are drained before the next operation starts.
-  if (!signal) return result;
-  return new Promise<T>((resolve, reject) => {
-    const abort = () => {
-      if (!started) reject(signal.reason);
-    };
-    signal.addEventListener('abort', abort, { once: true });
-    if (signal.aborted) abort();
-    void result
-      .then(resolve, reject)
-      .finally(() => signal.removeEventListener('abort', abort));
-  });
+  return result;
 }
 
 const DOCKER_ID_RE = /^[a-f0-9]{12,64}$/;
@@ -532,7 +524,12 @@ async function liveBuildkitOrganizations(
     // Only agent sessions build: a crawler render or a script session of the
     // organization kept its helpers running for nothing. A container without
     // the label predates it and counts, as before.
-    if (profile === 'default' || docker === 'false') continue;
+    if (
+      profile === 'default' ||
+      profile === 'agent-light' ||
+      docker === 'false'
+    )
+      continue;
     // Created, paused, restarting, removing and unrecognized non-terminal
     // states may still use the cache. Pinned/warm runtimes are also retained.
     if (status !== 'exited' && status !== 'dead') live.add(org);
@@ -959,8 +956,6 @@ async function ensureBuildkitdMirrors(
    * then: the pulls through it come from that builder's builds. */
   idle: () => Promise<boolean>,
 ): Promise<string> {
-  // Three independent resources, still inside the per-organization lease and
-  // global Docker CLI bound. A slow registry must not serialize the others.
   const pairs = await Promise.all(
     MIRROR_REGISTRIES.map(async (registry) => {
       try {
@@ -972,11 +967,12 @@ async function ensureBuildkitdMirrors(
             `${registry} base images won't be pullable in builds:`,
           err,
         );
-        return undefined;
+        return null;
       }
     }),
   );
-  return pairs.filter((pair) => pair !== undefined).join(';');
+  operationSignal()?.throwIfAborted();
+  return pairs.filter((pair) => pair !== null).join(';');
 }
 
 async function ensureOneMirror(
@@ -987,7 +983,7 @@ async function ensureOneMirror(
 ): Promise<void> {
   const name = buildkitdMirrorContainerName(organizationId, registry);
   const existing = mirrorInFlight.get(name);
-  if (existing) return existing;
+  if (existing) return waitWithinOperation(existing);
   const work = ensureOneMirrorUnlocked(
     cfg,
     organizationId,
@@ -1100,41 +1096,20 @@ export async function ensureBuildkitd(
 ): Promise<string> {
   const name = buildkitdContainerName(organizationId);
   const existing = ensureInFlight.get(name);
-  if (existing) return waitForSharedBuildkitd(existing);
+  if (existing) return waitWithinOperation(existing);
   const release = retainBuildkitd(organizationId);
-  const work = withBuildkitdOperation(organizationId, () =>
-    ensureBuildkitdUnlocked(cfg, organizationId, name),
+  const work = outsideOperationBudget(() =>
+    withOperationBudget(cfg.buildkitdProvisionTimeoutMs ?? 5_000, () =>
+      withBuildkitdOperation(organizationId, () =>
+        ensureBuildkitdUnlocked(cfg, organizationId, name),
+      ),
+    ),
   ).finally(() => {
     release();
     ensureInFlight.delete(name);
   });
   ensureInFlight.set(name, work);
-  return work;
-}
-
-/** A joining caller can exhaust its own create budget before the caller
- * provisioning the shared helper does. Stop only its wait; the initiating
- * caller still owns cancellation, draining, and the organization lock. */
-function waitForSharedBuildkitd(work: Promise<string>): Promise<string> {
-  const signal = dockerDeadlineSignal();
-  if (!signal) return work;
-  signal.throwIfAborted();
-  return new Promise((resolve, reject) => {
-    const aborted = () => reject(signal.reason);
-    signal.addEventListener('abort', aborted, { once: true });
-    void work.then(
-      (value) => {
-        signal.removeEventListener('abort', aborted);
-        resolve(value);
-        return undefined;
-      },
-      (error) => {
-        signal.removeEventListener('abort', aborted);
-        reject(error);
-        return undefined;
-      },
-    );
-  });
+  return waitWithinOperation(work);
 }
 
 /**

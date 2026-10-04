@@ -34,6 +34,7 @@ import { agentLanguageGuidance } from '../../../lib/shared/agent-language';
 import { sanitizeUntrustedField } from '../../../lib/shared/sanitize-untrusted-field';
 import { parseSkillMd } from '../../../lib/skills/parse';
 import type { SkillViewer } from '../../../lib/skills/visibility';
+import { traceSandboxPhase } from '../../tracing';
 import {
   buildExternalTurnExec,
   classifyHarnessEnd,
@@ -86,6 +87,7 @@ import {
   resolveGatewayRouting,
   revokeVirtualKey,
 } from '../node_only/sandbox/llm_gateway_admin';
+import { stageBlobCacheKey } from '../node_only/sandbox/managed_stage';
 import { harvestSessionOutput } from '../node_only/sandbox/session_exec';
 import {
   isTurnBudgetExceededError,
@@ -1043,7 +1045,7 @@ export async function stageWorkflowFiles(
       toStage.push({
         path: `${pathPrefix}${name}/${file.name}`,
         url,
-        sourceId: `${organizationId}:${String(file.fileId)}`,
+        sourceId: stageBlobCacheKey(organizationId, String(file.fileId)),
       });
     }
     mounts.push(name);
@@ -2412,9 +2414,8 @@ export function liveProgressSink(
       const patch = pending;
       pending = undefined;
       try {
-        await ctx.runMutation(
-          internal.sandbox.session_mutations.upsertSessionOp,
-          {
+        await traceSandboxPhase('persist', () =>
+          ctx.runMutation(internal.sandbox.session_mutations.upsertSessionOp, {
             organizationId: args.organizationId,
             sessionId: args.sessionId,
             execId: args.execId,
@@ -2424,7 +2425,7 @@ export function liveProgressSink(
             heartbeatAt: patch.lastEventAt,
             ...(visionModelRef !== undefined && { visionModelRef }),
             ...patch,
-          },
+          }),
         );
       } catch (err) {
         console.warn('[agent-host] live progress write failed:', err);

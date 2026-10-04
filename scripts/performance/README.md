@@ -70,6 +70,7 @@ send authorization headers, measure browser rendering, or inspect server RSS.
 | --- | --- | --- |
 | Shared process utilities | 100,000 lines into a bounded ring; 16 MiB unterminated line in 4 KiB chunks | Other utilities and Postgres transaction/retry contention |
 | Platform engine/telemetry | Cold/cached validation of 100-item automation inputs; 1000 bounded metric updates and worker spans with tracing disabled/enabled; bounded display projection of 262,144 text units in tiny/large fragments, on Node | API/worker/knowledge/chat with real Postgres, storage and controlled model responses; authenticated UI |
+| Agent progress (`platform.agent-progress`) | 4,000 events across 1,000 tool cycles with 100 KB payloads; bounded resumable projection | Live model throughput, database write contention and end-to-end task latency |
 | Sandbox spawner | 1000 exec boundary validations with 128 environment values; 1000-event SSE burst | Docker/Kubernetes provisioning, concurrent session admission, image warmup |
 | Sandbox daemon/runtime | Real Node process output and complete 1 MiB disk replay; 16,000-record journal writes; 20 late reconnects per sample requesting the last ten records | Linux subreaper, sustained concurrent reconnects, container resource ceilings and image-only document dependencies |
 | AI gateway | Read/validate/decrypt 100 file-backed accounts and atomic update | OAuth, provider refresh, controlled credential-pool traffic |
@@ -120,11 +121,12 @@ is useful context, **not proof of a leak or a leak-free service**. The shared HT
 worker includes both server and client allocations. Compare like-for-like
 reports; do not claim a speedup from a contended run against an idle run.
 
-The journal workloads use actual temporary, unlinked files. Write samples include
-record encoding, backpressure, drain, a verified ten-record suffix replay and
-descriptor closure. Reconnect samples reuse a completed 16,000-record journal
-prepared before timing; each sample makes 20 sequential attachments and checks
-every returned sequence, payload and replay marker. Setup still contributes to
+The journal workloads use the segmented replay spool and actual temporary files.
+Write samples include record encoding, bounded 128 KiB admission windows, committed
+writes, a verified ten-record suffix replay and descriptor closure. Reconnect
+samples reuse a completed 16,000-record spool prepared before timing; each sample
+makes 20 sequential suffix replays and checks every returned sequence and payload.
+The exec-manager tests own replay-marker validation. Setup still contributes to
 process memory measurements. These workloads exercise Node and the host
 filesystem, without a container network or model provider; their batch timings
 do not predict complete agent-run latency.

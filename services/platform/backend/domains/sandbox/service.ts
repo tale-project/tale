@@ -599,11 +599,11 @@ async function requirePin(
  * organization's devices (the hub routes an id it placed back to that
  * machine, and keeps a server-side workspace on the server). */
 function recreateBody(row: SessionRow): SessionCreateBody | null {
-  if (row.profile === 'agent') {
+  if (row.profile === 'agent' || row.profile === 'agent-light') {
     return {
       sessionId: row.sessionId,
       organizationId: row.organizationId,
-      profile: 'agent',
+      profile: row.profile,
       workload: row.ownerType === 'workflow_run' ? 'workflow' : 'project',
       placement: 'device',
     };

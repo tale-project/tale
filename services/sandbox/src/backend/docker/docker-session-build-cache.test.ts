@@ -22,9 +22,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 const source = ${JSON.stringify(sourceRoot)};
 const scenario = ${JSON.stringify(scenario)};
-const {dockerDeadlineSignal} = await import(join(source,'docker-deadline.ts'));
 const events = [];
 let leases = 0;
+let completeCache;
+const cacheGate = new Promise(resolve => { completeCache = resolve; });
+const createAbort = new AbortController();
 let attemptId = null;
 let currentAttempt = 'own';
 let currentId = 'a'.repeat(64);
@@ -45,7 +47,7 @@ const spawnPath = join(source,'spawn-util.ts');
 const realSpawn = await import(spawnPath);
 mock.module(spawnPath, () => ({...realSpawn,
   runDocker: async (args) => {
-    if (scenario === 'expired-setup' && args[0] === 'volume') {
+    if (['expired-setup','create-deadline'].includes(scenario) && args[0] === 'volume') {
       events.push('volume-' + args[1]);
       if (args[1] === 'create') await Bun.sleep(70);
     }
@@ -59,14 +61,17 @@ mock.module(spawnPath, () => ({...realSpawn,
     if (args[0] === 'volume' && args[1] === 'rm' && ran) removedVolumesAfterRun.push(args.at(-1));
     if (args[0] === 'run') {
       events.push('run');
+      if (scenario === 'slow-cache') completeCache();
       ran = true;
       attemptId = args.find(value=>value.startsWith('tale.create-attempt='))?.split('=')[1] ?? null;
       if (scenario === 'orphan-replaced-fresh') return {...success,exitCode:1,stderr:'name already in use'};
       currentAttempt = attemptId ?? 'own';
       if (scenario === 'own-data-fresh') await writeFile(join(workspace,'sentinel'),'new workspace data');
       if (scenario === 'peer-after-run-fresh') {
-        await Bun.sleep(70);
         await installPeer();
+        // Cancel at the boundary under test, after the peer exists. A tiny
+        // startup timer can otherwise expire during unrelated filesystem setup.
+        createAbort.abort(new Error('sandbox operation deadline exceeded'));
         return {...success,exitCode:124,stderr:'Docker operation deadline exceeded'};
       }
       if (scenario === 'launch-reject-fresh') {
@@ -109,19 +114,21 @@ mock.module(spawnPath, () => ({...realSpawn,
 }));
 const buildPath = join(source,'buildkitd.ts');
 const realBuild = await import(buildPath);
+const { waitWithinOperation } = await import(join(source,'operation-budget.ts'));
 mock.module(buildPath, () => ({...realBuild,
   retainBuildkitd: () => {events.push('retain'); leases++; return () => {leases--;events.push('release');};},
-  ensureBuildkitd: async (_,org) => {events.push('ensure:'+leases);
-    if(scenario==='cache-deadline') {
-      const signal = dockerDeadlineSignal();
-      await new Promise((resolve,reject) => {
-        const timer=setTimeout(resolve,1000);
-        signal?.addEventListener('abort',()=>{clearTimeout(timer);reject(signal.reason);},{once:true});
-      });
+  ensureBuildkitd: async (_,org) => {
+    events.push('ensure:'+leases);
+    if(scenario==='cache-failure') throw new Error('cache unavailable');
+    if(['cache-timeout','cache-deadline'].includes(scenario)) {
+      let timer;
+      try { await waitWithinOperation(new Promise(resolve => { timer=setTimeout(resolve,1000); })); }
+      finally { clearTimeout(timer); }
       events.push('late-cache');
     }
-    if(scenario==='create-deadline') await Bun.sleep(70);
- if(scenario==='cache-failure') throw new Error('cache unavailable'); return realBuild.buildkitdEndpoint(org);},
+    if(scenario==='slow-cache') { await cacheGate; events.push('late-cache'); }
+    return realBuild.buildkitdEndpoint(org);
+  },
   sweepIdleBuildkitd: async () => {events.push('sweep'); return {stopped:0,organizations:0};},
 }));
 mock.module(join(source,'session/buildkit-network-guard.ts'), () => ({
@@ -143,14 +150,14 @@ await writeFile(join(workspace,'sentinel'),'saved workspace');
 }
 const cfg = {
  backend:'docker', sandboxToken:'test',runtimeImage:'runtime:test',runtimeTier:'kata',dockerInContainer:true,dockerBuildCache:true,
- buildkitdProvisionTimeoutMs:scenario==='cache-deadline'?20:1000,
+ buildkitdProvisionTimeoutMs:20,
  transparentEgress:false,hostSessionRoot:root,cacheVolumePrefix:{pip:'pip',npm:'npm',bun:'bun'},
  egressNetwork:'control',egressProxy:'http://egress:3128',
- session:{...TEST_SESSION_CONFIG,createHealthTimeoutMs:['create-deadline','peer-after-run-fresh','expired-setup'].includes(scenario)?40:1000,agentProfile:{...TEST_SESSION_CONFIG.agentProfile,uid:process.getuid() || 10001,gid:process.getgid() || 10001}},
+ session:{...TEST_SESSION_CONFIG,createHealthTimeoutMs:['create-deadline','expired-setup'].includes(scenario)?40:1000,agentProfile:{...TEST_SESSION_CONFIG.agentProfile,uid:process.getuid() || 10001,gid:process.getgid() || 10001}},
 };
 let error = null;
 try {
-  await new DockerSessionBackend(cfg).createSession({sessionId:'test-session',organizationId:'org-a',profile:'agent',env:{TEST_VALUE:'set'},createdAtMs:0,ttlMs:1000,idleTimeoutMs:1000});
+  await new DockerSessionBackend(cfg).createSession({sessionId:'test-session',organizationId:'org-a',profile:'agent',env:{TEST_VALUE:'set'},createdAtMs:0,ttlMs:1000,idleTimeoutMs:1000,signal:createAbort.signal});
 } catch (e) { error=e.message; }
 const retained = await readFile(join(workspace,'sentinel'),'utf8').catch(()=> 'absent');
 const owner = await readFile(join(root,'.owners','test-session.org'),'utf8').catch(() => null);
@@ -172,6 +179,19 @@ console.log(JSON.stringify({events,error,retained,owner,peerAlive,removalTargets
 }
 
 describe('Docker session build-cache readiness and create lease', () => {
+  test('an optional cache exceeding its startup budget falls back before launching the session', async () => {
+    const result = await create('cache-timeout');
+    expect(result.error).toBeNull();
+    expect(result.events).toEqual([
+      'retain',
+      'ensure:1',
+      'run',
+      'ready',
+      'env',
+      'release',
+    ]);
+    expect(result.retained).toBe('saved workspace');
+  });
   test('protects ensure through ready/attach and attaches before exposing environment', async () => {
     const result = await create('success');
     expect(result.error).toBeNull();
@@ -215,6 +235,30 @@ describe('Docker session build-cache readiness and create lease', () => {
       'env',
       'release',
     ]);
+  });
+
+  test('slow optional setup cannot delay readiness or attach its late result', async () => {
+    const result = await create('slow-cache');
+    expect(result.error).toBeNull();
+    expect(result.events).toContain('late-cache');
+    expect(result.events).toContain('ready');
+    expect(result.events.some((event) => event.startsWith('attach:'))).toBe(
+      false,
+    );
+    expect(result.events.indexOf('run')).toBeLessThan(
+      result.events.indexOf('late-cache'),
+    );
+    expect(result.retained).toBe('saved workspace');
+  });
+
+  test('setup consumes readiness time and an expired budget preserves the workspace', async () => {
+    const result = await create('expired-setup');
+    expect(result.error).toContain('sandbox operation deadline exceeded');
+    expect(result.events).not.toContain('run');
+    expect(result.removalTargets).toEqual([]);
+    expect(result.removedVolumesAfterRun).toEqual([]);
+    expect(result.events.at(-1)).toBe('release');
+    expect(result.retained).toBe('saved workspace');
   });
 
   test('failed Docker startup also releases the create lease', async () => {
@@ -318,6 +362,7 @@ describe('failed creates preserve a concurrent winner', () => {
     '%s never removes the peer container, its volume or freshly written workspace',
     async (scenario) => {
       const result = await create(scenario);
+      expect(result.events).toContain('run');
       expect(result.error).not.toBeNull();
       expect(result.peerAlive).toBe(true);
       expect(result.retained).toBe('peer workspace');

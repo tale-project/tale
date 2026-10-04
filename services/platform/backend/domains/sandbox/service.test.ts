@@ -674,34 +674,40 @@ describe('reconcileSession keeps a pinned session pinned', () => {
     expect(addJobInTx).not.toHaveBeenCalled();
   });
 
-  it('recreates a gone pinned session under its id in the queued job, waiting for the lock, then re-pins it', async () => {
-    const { sql, locks, data, stored, end } = fakeSql(PINNED_SESSION);
-    const { spawner, calls } = fakeSpawner(false);
+  it.each(['agent', 'agent-light'] as const)(
+    'recreates a gone pinned %s session under its id in the queued job, waiting for the lock, then re-pins it',
+    async (profile) => {
+      const { sql, locks, data, stored, end } = fakeSql({
+        ...PINNED_SESSION,
+        profile,
+      });
+      const { spawner, calls } = fakeSpawner(false);
 
-    await expect(recreatePinnedSession(sql, ARGS, spawner)).resolves.toBe(
-      'recreated',
-    );
+      await expect(recreatePinnedSession(sql, ARGS, spawner)).resolves.toBe(
+        'recreated',
+      );
 
-    // The create path the agent hosts use, under the SAME id and
-    // organization: the spawner resolves the workspace by id, so this create
-    // re-attaches the preserved one. The pin follows it, since a create
-    // always starts unpinned spawner-side.
-    expect(spawner.create).toHaveBeenCalledExactlyOnceWith({
-      sessionId: 'session-a',
-      organizationId: 'org-a',
-      profile: 'agent',
-      placement: 'device',
-      workload: 'project',
-    });
-    expect(calls).toEqual([
-      'isAlive session-a',
-      'create session-a',
-      'setPinned session-a true',
-    ]);
-    expect(addJobInTx).not.toHaveBeenCalled();
-    expectLockedOnce(locks, end, 'wait');
-    expectRowUntouched(data, stored);
-  });
+      // The create path the agent hosts use, under the SAME id and
+      // organization: the spawner resolves the workspace by id, so this create
+      // re-attaches the preserved one. The pin follows it, since a create
+      // always starts unpinned spawner-side.
+      expect(spawner.create).toHaveBeenCalledExactlyOnceWith({
+        sessionId: 'session-a',
+        organizationId: 'org-a',
+        profile,
+        placement: 'device',
+        workload: 'project',
+      });
+      expect(calls).toEqual([
+        'isAlive session-a',
+        'create session-a',
+        'setPinned session-a true',
+      ]);
+      expect(addJobInTx).not.toHaveBeenCalled();
+      expectLockedOnce(locks, end, 'wait');
+      expectRowUntouched(data, stored);
+    },
+  );
 
   it('heals a gone pinned render sandbox instead of recreating it', async () => {
     const { sql, stored } = fakeSql({

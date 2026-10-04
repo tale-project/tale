@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ActionCtx } from '../lib/ctx';
+import { stageBlobCacheKey } from '../node_only/sandbox/managed_stage';
 
 const stage = vi.hoisted(() => ({
   files: vi.fn(),
@@ -56,7 +57,7 @@ describe('workflow file staging authority and reuse', () => {
         {
           path: 'inputs/data/report.txt',
           url: 'https://authorized.test/blob',
-          sourceId: 'org:blob',
+          sourceId: stageBlobCacheKey('org', 'blob'),
         },
       ],
       { reuse: true, replaceRoots: ['inputs/data'] },
