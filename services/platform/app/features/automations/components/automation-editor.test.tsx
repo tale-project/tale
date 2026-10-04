@@ -1123,6 +1123,107 @@ describe('AutomationEditor', () => {
     30_000,
   );
 
+  it.each([true, false])(
+    'settles only its own draft after a pending append is discarded (replacement edited while pending: %s)',
+    async (editWhilePending) => {
+      state.deployedDocument = {
+        name: 'billing/dunning',
+        description: 'The v2 document.',
+        nodes: [{ id: 'summary', type: 'llm', prompt: 'Stored on v2' }],
+      };
+      const append = Promise.withResolvers<{ name: string; version: number }>();
+      saveMutation.mutateAsync = vi
+        .fn()
+        .mockRejectedValueOnce({
+          data: {
+            code: 'AUTOMATION_VERSION_STALE',
+            message: 'v4 landed.',
+            latestVersion: 4,
+            baseVersion: 3,
+          },
+        })
+        .mockImplementationOnce(() => append.promise)
+        .mockRejectedValueOnce({
+          data: {
+            code: 'AUTOMATION_VERSION_STALE',
+            message: 'v5 landed after v2.',
+            latestVersion: 5,
+            baseVersion: 2,
+          },
+        });
+      const { user, rerender } = renderPage();
+      const prompt = () => screen.getByRole('textbox', { name: 'Prompt' });
+      const editReplacement = async () => {
+        await user.clear(prompt());
+        await user.paste('Edited on v2');
+      };
+      await user.click(screen.getByRole('button', { name: 'select summary' }));
+      await user.clear(prompt());
+      await user.paste('Submitted draft');
+      await user.click(saveButton());
+      await user.click(screen.getByRole('button', { name: 'Save version' }));
+      await screen.findByText('v4 landed.');
+      await user.click(screen.getByRole('button', { name: 'Save anyway' }));
+      saveMutation.isPending = true;
+      rerender(page());
+
+      expect(saveMutation.mutateAsync).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          baseVersion: 4,
+          automation: expect.objectContaining({
+            nodes: [expect.objectContaining({ prompt: 'Submitted draft' })],
+          }),
+        }),
+      );
+      const submitted = saveMutation.mutateAsync.mock.calls[1]?.[0].automation;
+      await user.click(versionPicker());
+      await user.click(screen.getByRole('radio', { name: /^v2/ }));
+      await user.click(
+        screen.getByRole('button', { name: 'Discard and switch' }),
+      );
+      expect(prompt()).toHaveValue('Stored on v2');
+      if (editWhilePending) await editReplacement();
+      expect(versionPicker()).toHaveTextContent('v2');
+      onSelectVersion.mockClear();
+
+      state.document = submitted;
+      state.version = 5;
+      rerender(page());
+      await act(async () => {
+        saveMutation.isPending = false;
+        append.resolve({ name: 'billing/dunning', version: 5 });
+      });
+      rerender(page());
+
+      expect(versionPicker()).toHaveTextContent('v2');
+      expect(onSelectVersion).not.toHaveBeenCalled();
+      expect(prompt()).toHaveValue(
+        editWhilePending ? 'Edited on v2' : 'Stored on v2',
+      );
+      expect(submitted.nodes[0].prompt).toBe('Submitted draft');
+      if (!editWhilePending) {
+        expect(discardButton()).toBeDisabled();
+        await editReplacement();
+      }
+      expect(saveButton()).toBeEnabled();
+      expect(discardButton()).toBeEnabled();
+      await user.click(saveButton());
+      await user.click(screen.getByRole('button', { name: 'Save version' }));
+      await screen.findByText('v5 landed after v2.');
+      expect(saveMutation.mutateAsync).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          baseVersion: 2,
+          automation: expect.objectContaining({
+            description: 'The v2 document.',
+            nodes: [expect.objectContaining({ prompt: 'Edited on v2' })],
+          }),
+        }),
+      );
+      expect(toastSpy).not.toHaveBeenCalled();
+    },
+    30_000,
+  );
+
   it('keeps the draft when the stale-version decision is cancelled', async () => {
     saveMutation.mutateAsync = vi.fn().mockRejectedValue({
       data: {
