@@ -110,9 +110,8 @@ export function TaskReviewerField({
                       ? task.assigneeId
                       : undefined
                 }
-                disabled={
-                  !state || !canEdit || mutation.isPending || query.isError
-                }
+                disabled={!state || !canEdit || query.isError}
+                busy={mutation.isPending}
                 align="end"
                 onOpenChange={(open) => {
                   if (!open || !state) return;
