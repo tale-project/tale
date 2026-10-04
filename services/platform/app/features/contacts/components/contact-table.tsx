@@ -181,7 +181,9 @@ export function ContactsTable({
     },
     pageSize,
     sorting,
+    sortingColumns: columns,
     search: {
+      serverSide: true,
       value: searchValue,
       onChange: setSearchValue,
       placeholder: searchPlaceholder,
@@ -206,7 +208,11 @@ export function ContactsTable({
         enableRowSelection
         rowSelection={rowSelection}
         onRowSelectionChange={setRowSelection}
-        sorting={{ initialSorting: sorting, onSortingChange: setSorting }}
+        sorting={{
+          manual: true,
+          initialSorting: sorting,
+          onSortingChange: setSorting,
+        }}
         actionMenu={
           <ContactsActionMenu
             organizationId={organizationId}

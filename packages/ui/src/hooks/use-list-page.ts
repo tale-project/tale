@@ -5,7 +5,13 @@ import type {
   DataTableSearchConfig,
   EntityLabel,
 } from '@tale/ui/data-table/data-table-types';
-import type { SortingState } from '@tanstack/react-table';
+import {
+  createTable,
+  getCoreRowModel,
+  getSortedRowModel,
+  type ColumnDef,
+  type SortingState,
+} from '@tanstack/react-table';
 import { useState, useMemo, useCallback, useEffect } from 'react';
 
 import {
@@ -101,6 +107,7 @@ interface ManagedSearch<TData> {
 }
 
 interface ControlledSearch {
+  serverSide?: boolean;
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
@@ -144,11 +151,13 @@ interface UseListPageOptions<TData> {
    * The table's controlled sort state, when its columns are sortable. A sort
    * orders the WHOLE dataset, not the page the user happens to have scrolled
    * to, so while one is active the hook drains every remaining backend page
-   * and hands the table the full set instead of the `displayCount` window —
-   * otherwise the visible rows would reshuffle as later pages arrived.
-   * TanStack still owns the comparator; this only widens what it sorts.
+   * to preserve completeness. Without `sortingColumns`, the table receives
+   * the full set as before. Supply the table's columns to sort the whole
+   * buffer through TanStack before windowing; that table must use manual
+   * sorting so it does not independently sort the resulting window.
    */
   sorting?: SortingState;
+  sortingColumns?: ColumnDef<TData>[];
 }
 
 // ---------------------------------------------------------------------------
@@ -232,6 +241,7 @@ export function useListPage<TData>(
     entityLabel,
     countRow,
     sorting,
+    sortingColumns,
   } = options;
 
   // 1. Normalize data source
@@ -291,7 +301,7 @@ export function useListPage<TData>(
     const searchActive = search
       ? isManagedSearch(search)
         ? managedSearchValue.trim().length > 0
-        : search.value.trim().length > 0
+        : !search.serverSide && search.value.trim().length > 0
       : false;
     const managedFilterActive = filterValues
       ? Object.values(filterValues).some((values) => values.length > 0)
@@ -346,28 +356,22 @@ export function useListPage<TData>(
     }
   }, [loadFailed, displayCount, processed.length]);
 
-  // 6. Keep the rendered window bounded even while a sort drains the source.
-  // The complete buffer still lets TanStack determine the global order, but
-  // rendering every row is quadratic as pages arrive (#4211).
   const sortedProcessed = useMemo(() => {
-    const activeSort = sorting?.[0];
-    if (!activeSort) return processed;
-    return [...processed].sort((left, right) => {
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- TanStack sorting ids are keys from the host's row data
-      const leftValue = left[activeSort.id as keyof TData];
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- TanStack sorting ids are keys from the host's row data
-      const rightValue = right[activeSort.id as keyof TData];
-      const leftText = leftValue == null ? '' : String(leftValue);
-      const rightText = rightValue == null ? '' : String(rightValue);
-      const result = leftText.localeCompare(rightText, undefined, {
-        numeric: true,
-        sensitivity: 'base',
-      });
-      return activeSort.desc ? -result : result;
+    if (!sortingColumns || !sorting?.length) return processed;
+    const table = createTable({
+      data: processed,
+      columns: sortingColumns,
+      state: { sorting },
+      onStateChange: () => {},
+      renderFallbackValue: null,
+      getCoreRowModel: getCoreRowModel(),
+      getSortedRowModel: getSortedRowModel(),
+      getRowId,
     });
-  }, [processed, sorting]);
+    return table.getSortedRowModel().rows.map((row) => row.original);
+  }, [processed, sorting, sortingColumns, getRowId]);
   const renderAllForSort =
-    hasActiveSort && sortedProcessed.length < pageSize * 5;
+    hasActiveSort && (!sortingColumns || sortedProcessed.length < pageSize * 5);
   const displayed = useMemo(
     () =>
       renderAllForSort
@@ -376,9 +380,8 @@ export function useListPage<TData>(
     [sortedProcessed, renderAllForSort, windowCount],
   );
 
-  // 7. Compute hasMore. A sort keeps draining the source for completeness;
-  // the rendered window advances through the normal scroll sentinel.
-  const localRemaining = windowCount < sortedProcessed.length;
+  const localRemaining =
+    !renderAllForSort && windowCount < sortedProcessed.length;
   const hasMore =
     dataSource.type === 'paginated'
       ? localRemaining ||

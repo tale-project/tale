@@ -35,11 +35,13 @@ here the first time a round re-files it.
   rendered into the field.
 - **A client-side filter or sort on a paginated list drains every page.**
   A list fetches one page at rest, but a client-side facet or sort intentionally
-  loads the remaining pages so the result is complete (#2054). The table keeps
-  only its display window in the DOM while that drain runs, so a large sorted
-  list must not be reported as whole-collection rendering. Contacts search is
+  loads the remaining pages so the result is complete (#2054). Contacts uses
+  its complete TanStack column model before displaying a bounded initial sort
+  window. Other lists retain their existing client-sort behavior unless they
+  opt into column-aware windowing. Contacts search is
   server-side and does not use this exception: it sends the query with the
-  paginated request and keeps matching fields name, email and external id.
+  paginated request and keeps matching fields name, email and external id,
+  additionally matching phone via the existing server predicate.
   PERF-B2 measures the resting page and the bounded sorted window.
 - **A new org in mode A is not provider-wired.** Wizard-created or minted by
   `save-auth-state.ts`, it lands on chat's **No AI provider connected yet**
