@@ -128,6 +128,8 @@ const QUEUE_MAX_HINT_MS = 60_000;
  * this much more; one that stopped asking (its run was cancelled, its
  * worker died) gives its place up after that. */
 const QUEUE_LIVE_SLACK_MS = 15_000;
+/** A waiter that stops renewing cannot hold the line forever. */
+const QUEUE_LEASE_MS = 10 * 60_000;
 /** The most waiters the line keeps; past it the one that asked longest ago
  * goes. */
 const QUEUE_CAP = 10_000;
@@ -142,6 +144,12 @@ interface RoomWaiter {
   workingSetBytes: number;
   /** A warm activation already holds a runtime slot; only creates need one. */
   needsSlot: boolean;
+  /** Reclaim and memory probes may be slow; expiry must not prune this ask. */
+  inFlight: boolean;
+  /** The bounded lease, renewed by a re-ask or liveness ping. */
+  leaseUntilMs: number;
+  /** Invalidated when an explicit destroy or admission wins the race. */
+  generation: number;
 }
 
 /** A sweep's idle decision, checked again atomically by runnerd before it
@@ -262,6 +270,7 @@ export class SessionRoutes {
   // refusal — the map's own order (QUEUE_FRONT_HINT_MS). Memory only: a
   // restart starts it afresh.
   private readonly waiters = new Map<string, RoomWaiter>();
+  private readonly waiterGenerations = new Map<string, number>();
   // Settles when the create of that id leaves `creating` (success or
   // failure): an acquire for an id still being created waits for it instead
   // of answering a false not-found that the caller would turn into a
@@ -522,7 +531,7 @@ export class SessionRoutes {
     }
     if (this.atCapacity()) return 'full';
     if (this.memoryShort(workingSetBytes)) return 'short';
-    this.waiters.delete(sessionId);
+    this.invalidateWaiter(sessionId);
     this.creating.set(sessionId, organizationId);
     this.creatingBytes.set(sessionId, workingSetBytes);
     this.createSettled.set(sessionId, Promise.withResolvers<void>());
@@ -532,6 +541,7 @@ export class SessionRoutes {
   /** The most memory a session could ever be given here: the host's total
    * beside its reserve, or null when the host's memory is unknown. */
   private memoryCeiling(): number | null {
+    if (this.cfg.session.autoMaxSessions === false) return null;
     let memory: HostMemory | null;
     try {
       memory = this.hostMemory.latest();
@@ -581,6 +591,7 @@ export class SessionRoutes {
    * growing into, leave the host less than its reserve? Unknown memory never
    * refuses. */
   private memoryShort(workingSetBytes: number): boolean {
+    if (this.cfg.session.autoMaxSessions === false) return false;
     let memory: HostMemory | null;
     try {
       memory = this.hostMemory.latest();
@@ -614,6 +625,9 @@ export class SessionRoutes {
       profile,
       docker ?? this.cfg.dockerInContainer,
     );
+    const waiter = this.waiters.get(sessionId);
+    if (waiter !== undefined) waiter.inFlight = true;
+    const generation = this.waiterGenerations.get(sessionId) ?? 0;
     let decision = await this.withAdmission(() =>
       this.admit(sessionId, organizationId, workingSet),
     );
@@ -628,12 +642,24 @@ export class SessionRoutes {
       const short = decision === 'short';
       await this.reclaimOneIdle();
       if (short) await this.readHostMemory();
-      decision = await this.withAdmission(() =>
-        this.admit(sessionId, organizationId, workingSet),
-      );
+      // An explicit destroy may have invalidated this ask while the probes
+      // were running. Never let that stale completion claim a new slot.
+      if ((this.waiterGenerations.get(sessionId) ?? 0) !== generation) {
+        decision = 'full';
+      } else {
+        decision = await this.withAdmission(() =>
+          this.admit(sessionId, organizationId, workingSet),
+        );
+      }
     }
     if (decision === 'full' || decision === 'short' || decision === 'disk') {
-      const place = this.waitInLine(sessionId, workingSet, Date.now());
+      const place = this.waitInLine(
+        sessionId,
+        workingSet,
+        Date.now(),
+        true,
+        generation,
+      );
       const retryAfter = String(Math.ceil(place.hintMs / 1000));
       const queue = { position: place.position, waiting: place.waiting };
       if (decision === 'disk') {
@@ -661,6 +687,9 @@ export class SessionRoutes {
           { 'retry-after': retryAfter },
         );
       }
+      console.warn(
+        `[sandbox.session] refusing ${sessionId}: host_memory (queue position ${place.position})`,
+      );
       return jsonResponse(
         {
           error: 'host_memory',
@@ -673,7 +702,7 @@ export class SessionRoutes {
       );
     }
     // Any other answer (admitted, a duplicate) ends the wait.
-    this.waiters.delete(sessionId);
+    this.invalidateWaiter(sessionId);
     return decision;
   }
 
@@ -685,7 +714,11 @@ export class SessionRoutes {
     const ahead: RoomWaiter[] = [];
     let reachedOwn = false;
     for (const [id, waiter] of this.waiters) {
-      if (now - waiter.lastAtMs > 2 * waiter.hintMs + QUEUE_LIVE_SLACK_MS) {
+      if (
+        !waiter.inFlight &&
+        (now > waiter.leaseUntilMs ||
+          now - waiter.lastAtMs > 2 * waiter.hintMs + QUEUE_LIVE_SLACK_MS)
+      ) {
         this.waiters.delete(id);
         continue;
       }
@@ -702,18 +735,26 @@ export class SessionRoutes {
     workingSetBytes: number,
     now: number,
     needsSlot = true,
+    generation = this.waiterGenerations.get(sessionId) ?? 0,
   ): { position: number; waiting: number; hintMs: number } {
     const position = this.waitersAhead(sessionId, now).length;
     const hintMs = Math.min(
       QUEUE_FRONT_HINT_MS + position * QUEUE_STEP_HINT_MS,
       QUEUE_MAX_HINT_MS,
     );
+    const currentGeneration = this.waiterGenerations.get(sessionId) ?? 0;
+    if (generation !== currentGeneration)
+      return { position, waiting: this.waiters.size, hintMs };
     const known = this.waiters.get(sessionId);
     if (known !== undefined) {
+      if (known.generation !== generation)
+        return { position, waiting: this.waiters.size, hintMs };
       known.lastAtMs = now;
       known.hintMs = hintMs;
       known.workingSetBytes = workingSetBytes;
       known.needsSlot = needsSlot;
+      known.leaseUntilMs = now + QUEUE_LEASE_MS;
+      known.inFlight = false;
     } else {
       if (this.waiters.size >= QUEUE_CAP) this.dropStalestWaiter();
       this.waiters.set(sessionId, {
@@ -721,6 +762,9 @@ export class SessionRoutes {
         hintMs,
         workingSetBytes,
         needsSlot,
+        inFlight: false,
+        leaseUntilMs: now + QUEUE_LEASE_MS,
+        generation,
       });
     }
     return { position, waiting: this.waiters.size, hintMs };
@@ -735,7 +779,26 @@ export class SessionRoutes {
         stalestAtMs = waiter.lastAtMs;
       }
     }
-    if (stalest !== undefined) this.waiters.delete(stalest);
+    if (stalest !== undefined) this.invalidateWaiter(stalest);
+  }
+
+  private invalidateWaiter(sessionId: string): void {
+    this.waiters.delete(sessionId);
+    this.waiterGenerations.set(
+      sessionId,
+      (this.waiterGenerations.get(sessionId) ?? 0) + 1,
+    );
+  }
+
+  /** Renew a held queue lease without repeating the expensive admission probes. */
+  private renewWaiter(sessionId: string): Response {
+    const waiter = this.waiters.get(sessionId);
+    if (waiter === undefined)
+      return jsonResponse({ error: 'not_waiting' }, 404);
+    const now = Date.now();
+    waiter.lastAtMs = now;
+    waiter.leaseUntilMs = now + QUEUE_LEASE_MS;
+    return jsonResponse({ ok: true }, 200);
   }
 
   /** How many creates or activations wait in the line for host room. */
@@ -1912,7 +1975,7 @@ export class SessionRoutes {
    * never make the next workload eligible for pressure reclamation. */
   async handleActivity(
     sessionId: string,
-    action: 'ticket' | 'acquire' | 'release',
+    action: 'ticket' | 'acquire' | 'release' | 'wait',
     body = '',
   ): Promise<Response> {
     // Runnerd's generation remains the cross-replica authority. Serializing
@@ -1938,9 +2001,10 @@ export class SessionRoutes {
 
   private async handleActivityUnlocked(
     sessionId: string,
-    action: 'ticket' | 'acquire' | 'release',
+    action: 'ticket' | 'acquire' | 'release' | 'wait',
     body: string,
   ): Promise<Response> {
+    if (action === 'wait') return this.renewWaiter(sessionId);
     let generation: string | undefined;
     if (action === 'release') {
       try {
@@ -2083,7 +2147,7 @@ export class SessionRoutes {
         Date.now() - Math.max(previous.admittedAtMs, health.lastActivityAtMs) <
           YOUNG_SESSION_RESERVE_MS)
     ) {
-      this.waiters.delete(sessionId);
+      this.invalidateWaiter(sessionId);
       return null;
     }
     const workingSet = sessionWorkingSetBytes(
@@ -2115,7 +2179,7 @@ export class SessionRoutes {
       if (this.memoryShort(Math.max(0, workingSet - remaining) + held))
         return false;
       this.youngBytes.set(sessionId, { bytes: workingSet, sinceMs: now });
-      this.waiters.delete(sessionId);
+      this.invalidateWaiter(sessionId);
       return true;
     };
     if (await this.withAdmission(admit)) return null;
@@ -2144,7 +2208,7 @@ export class SessionRoutes {
     } = {},
   ): Promise<Response> {
     // A destroyed session asks for no room any more.
-    this.waiters.delete(sessionId);
+    this.invalidateWaiter(sessionId);
     // Conditional destroy (`?if_idle=1`): a janitor caller (the end-of-turn
     // thread-session teardown) must never destroy a session another turn is
     // actively executing in — two turns can share one thread session (e.g.
