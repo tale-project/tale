@@ -1968,6 +1968,7 @@ contacts:
   title: Contacts
   entityLabelOne: contact
   searchPlaceholder: Search contacts
+  refreshFailed: "Couldn't load the latest contacts. What's listed may be incomplete or out of date."
   filter:
     source:
       manual: Manual
@@ -4972,6 +4973,7 @@ products:
   title: Products
   entityLabelOne: product
   searchPlaceholder: Search products
+  refreshFailed: "Couldn't load the latest products. What's listed may be incomplete or out of date."
   addButton: Add product
   importMenu:
     fromDevice: From your device
@@ -8230,6 +8232,7 @@ websites:
   title: Websites
   entityLabelOne: website
   searchPlaceholder: Search websites
+  refreshFailed: "Couldn't load the latest websites. What's listed may be incomplete or out of date."
   addButton: Add website
   addWebsite: Add website
   addDescription: Index a whole website or a list of pages, and choose how often to scan it.

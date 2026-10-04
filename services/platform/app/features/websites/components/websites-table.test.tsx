@@ -44,9 +44,14 @@ vi.mock('../hooks/queries', () => ({
   useApproxWebsiteCount: () => ({ data: 0 }),
   useListWebsitesPaginated: () => ({
     results: [],
-    status: 'success',
+    status: 'Exhausted',
     loadMore: vi.fn(),
     isLoading: false,
+    error: null,
+    retry: vi.fn(),
+    isRetrying: false,
+    unavailable: false,
+    errorCount: 0,
   }),
 }));
 

@@ -1,6 +1,6 @@
 # Knowledge
 
-> **Prefix** `KNOW-` · **Reset** none · **Cost** 66 boxes
+> **Prefix** `KNOW-` · **Reset** none · **Cost** 68 boxes
 
 Exercise the knowledge surfaces — documents (upload + RAG indexing + preview +
 controlled revisions), manual knowledge entries, and the structured catalogs
@@ -755,6 +755,23 @@ records and delete them after.
   it. A list of synced contacts only, or a Member's view, shows no checkbox
   and no **Select all**; a screen reader names the first column **Select
   row**.
+- [ ] `KNOW-B22` · **A Contacts, Products or Websites list that cannot load
+  says so** — On **Contacts**, block `*/api/app/contacts?limit=*` in
+  DevTools (Network → request blocking) and reload → after the retries (a
+  few seconds) the table shows the error state with **Try again**
+  (`common.errors.tryAgain`), never **No contacts yet**
+  (`emptyStates.contacts.title`); unblock → **Try again** → the rows return
+  without a reload. With rows on screen, block the read again and add a
+  contact by **Manual entry** (`contacts.importMenu.manualEntry`) → the
+  refresh after it fails: the rows stay, and one notice above the table
+  (`contacts.refreshFailed`) offers **Try again**
+  (`common.actions.tryAgain`); unblock → **Try again** → the notice goes and
+  the rows stay. The same on **Products** (`*/api/app/products?limit=*`,
+  `emptyStates.products.title`, `products.refreshFailed`) and **Websites**
+  (`*/api/app/websites?limit=*`, `emptyStates.websites.title`,
+  `websites.refreshFailed`). An organization with none of them still shows
+  the empty state. No toast in either case. In German and French the
+  notice and **Try again** read in the page's language.
 
 ## Accessibility (WCAG 2.1 AA)
 
@@ -797,6 +814,16 @@ records and delete them after.
   pressing it, switch to another window and back → while the refresh runs,
   and after the error state returns, focus is on the **Knowledge entries**
   region, never on the page.
+- [ ] `KNOW-A8` · **Retry the record lists from the keyboard** → In the
+  `KNOW-B22` states on **Contacts**, **Products** and **Websites**, Tab
+  reaches **Try again** with a visible focus ring; Enter or Space runs it and
+  focus moves to the list's region (**Contacts**, **Products** or
+  **Websites**) — never to the page body — while the retry runs, after it
+  fails again and once the rows are back; a screen reader announces the
+  notice above loaded rows once per failure. In the first state (nothing
+  loaded), focus **Try again** without pressing it, switch to another window
+  and back → while the refresh runs, and after the error state returns,
+  focus is on the region, never on the page.
 
 ## Performance
 

@@ -61,6 +61,11 @@ vi.mock('../hooks/queries', () => ({
     status: 'Exhausted',
     loadMore: vi.fn(),
     isLoading: false,
+    error: null,
+    retry: vi.fn(),
+    isRetrying: false,
+    unavailable: false,
+    errorCount: 0,
   }),
 }));
 
