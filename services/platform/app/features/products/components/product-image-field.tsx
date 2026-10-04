@@ -26,6 +26,12 @@ interface ProductImageFieldProps {
   onChange: (value: string) => void;
   disabled?: boolean;
   errorMessage?: string;
+  /**
+   * Aborted when the draft this field fills is discarded. An upload still
+   * running then stops, and whatever it answers (an image or a refusal) is
+   * dropped: it belongs to no draft, least of all the next one.
+   */
+  signal?: AbortSignal;
 }
 
 const DROP_ZONE_ID = 'product-image-upload';
@@ -40,6 +46,7 @@ export function ProductImageField({
   onChange,
   disabled,
   errorMessage,
+  signal,
 }: ProductImageFieldProps) {
   const { t: tProducts } = useT('products');
   const { t: tCommon } = useT('common');
@@ -70,13 +77,17 @@ export function ProductImageField({
     }
 
     try {
-      const url = await uploadImage(file);
+      const url = await uploadImage(file, signal);
+      // Its draft was discarded while it ran (#3626).
+      if (signal?.aborted) return;
       if (url) {
         onChange(url);
       } else {
         refuse(tProducts('edit.imageUploadFailed'));
       }
     } catch (err) {
+      // Stopped with its draft, or refused after it: no one is left to tell.
+      if (signal?.aborted) return;
       console.error('Product image upload failed:', err);
       const key = productImageUploadErrorKey(err);
       // A refusal the field has no words of its own for — a role that
