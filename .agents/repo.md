@@ -214,10 +214,13 @@ own files), then list the outside files as `$TURBO_ROOT$/<path>`:
 
 - [`services/platform/turbo.json`](../services/platform/turbo.json) gives `@tale/platform`'s
   tests the catalogs under `configs/platform/`, compose files, tale-db init scripts,
+  the shared automation-name grammar inspected by the engine purity guard,
   knowledge-db migrations, `packages/ui/src` (two suites read it as text), `checks.yml` (the
   integration scope guard) and other outside files; its `test:ui` and `test:browser` list `packages/ui/src` as well, since their
   component suites render it, and all three list `@tale/ui`'s `package.json` and every file
-  it exports from outside `src/` (`tailwind-preset.ts`). Its guard is
+  it exports from outside `src/` (`tailwind-preset.ts`). Its `lint` and `typecheck` list the
+  sandbox daemon's `file-ops.ts`, which two suites import, and the `protocol.ts` it imports:
+  `tsc` and oxlint's type-aware rules type every module the sources import. Its guard is
   `services/platform/tests/guards/turbo-inputs.guard.test.ts`.
 - [`services/docs/turbo.json`](../services/docs/turbo.json) gives `@tale/docs` the root `docs/`
   tree (test, build), its JSON maps (typecheck, lint), and the root `README*.md` plus `@tale/ui`'s

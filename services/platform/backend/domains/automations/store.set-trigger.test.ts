@@ -143,10 +143,10 @@ describe('setTrigger', () => {
       rotate.sql,
       args({ kind: 'webhook', rotateToken: true }),
     );
-    // The rotate flag is the CASE's boolean parameter (the last one), decided
+    // The rotate flag follows the eleven INSERT parameters, decided
     // in SQL against the existing row.
-    expect(upsertOf(plain.statements)?.values.at(-1)).toBe(false);
-    expect(upsertOf(rotate.statements)?.values.at(-1)).toBe(true);
+    expect(upsertOf(plain.statements)?.values[11]).toBe(false);
+    expect(upsertOf(rotate.statements)?.values[11]).toBe(true);
     expect(rotated.token).toBeTypeOf('string');
   });
 
@@ -182,7 +182,10 @@ describe('setTrigger', () => {
     const fake = fakeUpsert('kept', { kind: 'schedule', tokenHash: null });
     await setTrigger(fake.sql, args({ kind: 'schedule', cron: '0 9 * * 1' }));
     const text = upsertOf(fake.statements)?.text ?? '';
-    expect(text).toContain('consecutive_failures = 0');
+    expect(text).toContain(
+      'consecutive_failures = CASE WHEN ? THEN t.consecutive_failures ELSE 0 END',
+    );
+    expect(upsertOf(fake.statements)?.values[12]).toBe(false);
     // A save that finds no pause dismisses nothing: the read and the write.
     expect(fake.statements).toHaveLength(2);
   });

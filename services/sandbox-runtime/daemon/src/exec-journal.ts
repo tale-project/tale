@@ -1,6 +1,5 @@
-// Full exec protocol, bounded on disk instead of treating the diagnostic ring
-// as authoritative history. Files are unlinked after open: only runnerd's fd
-// names them, and a container restart leaves no stale transcripts on disk.
+// Full exec protocol, bounded on disk. Files are unlinked after open: only
+// runnerd's fd names them, and a restart leaves no stale transcripts on disk.
 import {
   mkdtemp,
   open,

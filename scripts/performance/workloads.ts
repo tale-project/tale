@@ -23,6 +23,8 @@ export const workloadRuntimes = {
   'platform.schema-hot': 'node',
   'platform.telemetry-disabled': 'node',
   'platform.telemetry-enabled': 'node',
+  'platform.projection-fragmented': 'node',
+  'platform.projection-bursts': 'node',
   'sandbox.validation': 'bun',
   'sandbox.sse': 'bun',
   'daemon.exec-replay': 'node',
@@ -52,6 +54,13 @@ export async function prepareWorkload(
   id: string,
   fixtureRoot: string,
 ): Promise<Workload> {
+  if (
+    id === 'platform.projection-fragmented' ||
+    id === 'platform.projection-bursts'
+  ) {
+    const { prepareProjectionWorkload } = await import('./projection.ts');
+    return prepareProjectionWorkload(id);
+  }
   if (id === 'daemon.journal-write' || id === 'daemon.journal-reconnect') {
     const { prepareJournalWorkload } = await import('./journal.ts');
     return prepareJournalWorkload(id, fixtureRoot);

@@ -4048,6 +4048,7 @@ governance:
         userPickerLabel: Utilisateur
         userPickerPlaceholder: Recherche par nom ou email
         userPickerEmpty: Aucun utilisateur correspondant.
+        userPickerFailed: Impossible de charger les utilisateurs.
         orgWarning: Les conservations à l'échelle de l'organisation gèlent TOUTE
           rétention pour chaque entité de ce tenant. C'est une action délibérée,
           enregistrée dans l'audit — vérifie le contexte du dossier avant de
@@ -4060,6 +4061,7 @@ governance:
         reasonPlaceholder: 'ex. Hold litige Acme c. Co. (dossier #2026-04)'
         matterLabel: Dossier
         matterPlaceholder: Choisir ou créer un dossier
+        matterPickerFailed: Impossible de charger les dossiers.
         matterCreateNew: Créer un nouveau dossier…
         submit: Placer la conservation
       requestRelease:
@@ -5711,6 +5713,8 @@ settings:
       description: "Les équipes déterminent quels documents d'équipe, projets et files de la boîte de réception tu vois. Les admins les gèrent dans Paramètres › Équipes."
       none: "Tu n'es encore dans aucune équipe. Tu vois tout ce qui est partagé avec toute l'organisation."
       manageLink: Gérer les équipes
+      loadFailed: Impossible de charger tes équipes.
+      refreshFailed: Impossible d’actualiser tes équipes. L’affichage n’est peut-être plus à jour.
     security:
       title: Mot de passe
       description: Connecte-toi avec ton adresse e-mail et un mot de passe.
@@ -7542,6 +7546,7 @@ tasks:
     notStartedYet: L’agent attend que tu le démarres.
     failureTitle: L’agent n’a pas pu terminer cette tâche
     reported: Ce que l’exécution a signalé
+    logReadFailed: Le journal de l’agent n’a pas pu être chargé. Réessaie.
     failure:
       budget: Une limite d’utilisation a arrêté cette exécution. Demande à un admin de la relever, puis relance l’agent.
       setup: Il manque quelque chose à cet agent — son modèle, l’un de ses skills ou l’agent lui-même. Un éditeur ou un admin peut corriger cela dans l’onglet Agents du projet.
@@ -7726,6 +7731,7 @@ tasks:
   detail:
     overview: Aperçu
     comments: Commentaires
+    commentCount: '{count, plural, one {# commentaire} other {# commentaires}}'
     noComments: Aucun commentaire pour le moment.
     conversation: Conversation
     conversationEmpty: Aucun commentaire pour le moment — lance la conversation ci-dessous.
@@ -8115,6 +8121,7 @@ twoFactor:
     unnamed: Passkey
     registered: Passkey enregistré
     revoked: Passkey supprimé
+    empty: Tu n'as pas encore ajouté de passkey.
     namePromptDescription:
       Donne un nom à ce passkey pour le reconnaître plus tard
       (p. ex. "Touch ID du MacBook").
@@ -8128,6 +8135,8 @@ twoFactor:
     errors:
       registerFailed: Impossible d'enregistrer le passkey. Réessaie.
       revokeFailed: Impossible de supprimer le passkey. Réessaie.
+      listFailed: Impossible de charger tes passkeys.
+      refreshFailed: Impossible d'actualiser tes passkeys. La liste affichée n'est peut-être plus à jour.
   setup:
     title: Configurer l'authentification à double facteur
     qrInstructions: Scanne le code QR avec une application d'authentification

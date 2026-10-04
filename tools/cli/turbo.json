@@ -8,6 +8,8 @@
         "$TURBO_DEFAULT$",
         "$TURBO_ROOT$/.github/workflows/*.yml",
         "$TURBO_ROOT$/.github/workflows/*.yaml",
+        "$TURBO_ROOT$/services/platform/backend/core/lib/config_store/value_hash.ts",
+        "$TURBO_ROOT$/services/platform/lib/shared/utils/stable-stringify.ts",
         "$TURBO_ROOT$/scripts/publish-package.ts",
         "$TURBO_ROOT$/LICENSE",
         "$TURBO_ROOT$/packages/ui/package.json",

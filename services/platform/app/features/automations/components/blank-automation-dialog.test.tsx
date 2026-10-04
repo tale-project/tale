@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { isValidAutomationName } from '@/lib/engine/core/validate/name';
 import { render, screen } from '@/tests/utils/render';
 
 import { BlankAutomationDialog } from './blank-automation-dialog';
@@ -192,6 +193,32 @@ describe('BlankAutomationDialog schedule validation', () => {
  * created at all (2026-09-26 evaluation, D-03).
  */
 describe('BlankAutomationDialog display name', () => {
+  it.each([
+    [`${'a'.repeat(63)} b`, 'a'.repeat(63)],
+    [`${'a'.repeat(62)} b`, `${'a'.repeat(62)}-b`],
+    ['a'.repeat(65), 'a'.repeat(64)],
+  ])(
+    'generates a valid slug for a boundary name: %s',
+    async (displayName, expectedSlug) => {
+      const { user } = renderDialog();
+      await user.type(screen.getByLabelText(/Name/i), displayName);
+      await user.click(screen.getByRole('button', { name: /Agent model/i }));
+      await user.click(screen.getByRole('option', { name: /^claude-fable-5/ }));
+      await user.type(screen.getByLabelText(/What should it do\?/i), 'Scan');
+      await user.click(screen.getByRole('button', { name: /Next/i }));
+      await user.click(
+        screen.getByRole('button', { name: /Create automation/i }),
+      );
+
+      expect(saveAutomation).toHaveBeenCalledWith(
+        expect.objectContaining({
+          automation: expect.objectContaining({ name: expectedSlug }),
+        }),
+      );
+      expect(isValidAutomationName(expectedSlug)).toBe(true);
+    },
+  );
+
   it('keeps the typed name as the presentation and slugifies only the address', async () => {
     const { user } = renderDialog();
     await user.type(screen.getByLabelText(/Name/i), 'Eval-D agent 测试 🚀');

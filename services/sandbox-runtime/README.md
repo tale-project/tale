@@ -16,7 +16,7 @@ runnerd keeps the complete exec protocol in a disk-backed journal for
 reconnection during the runtime's lifetime. Each journal is limited to 64 MiB
 of encoded NDJSON, with a 256 MiB session budget; stdout/stderr's base64
 encoding counts toward those limits. Completed journals are evicted oldest
-first when space is needed. The 256 KiB in-memory ring is diagnostic only.
+first when space is needed. The journal is the sole retained output history.
 Exceeding the remaining storage budget ends the writer with `OUTPUT_LIMIT`;
 an evicted or unreadable transcript reports `REPLAY_UNAVAILABLE`, never a
 partial replay presented as complete. Journals are unlinked after opening and

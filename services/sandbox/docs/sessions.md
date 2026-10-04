@@ -157,7 +157,14 @@ clock are authoritative. On boot the spawner re-adopts running sessions
 (`SessionRoutes.adoptExisting`), resolving at most eight endpoints at once so
 Kubernetes recovery does not wait for each Pod read in turn. If draining begins
 during recovery, no further peer session is adopted, including one whose
-endpoint read was already in flight. A maintenance pass every minute
+endpoint read was already in flight. Adoption verifies the listed creation
+stamp when resolving the endpoint. Periodic adoption refreshes a replacement's
+metadata and endpoint together. Late probes and cleanup from the old incarnation
+cannot launch an exec or clear the replacement's activity or exec state. Liveness
+checks distinguish the
+registered incarnation from another running object under its name, while an
+unreadable identity remains unknown. Linger stops also use the creation fence.
+A maintenance pass every minute
 (`SessionRoutes.maintain`: adoption, then the reaper `sweepExpired`; a pass
 still running is joined, never stacked) **stops**:
 
@@ -214,9 +221,9 @@ encoded NDJSON per exec** and **256 MiB per session**, including base64 output.
 Completed journals are evicted oldest first under the session budget, and at
 most 16 completed execs are retained. An active writer that exhausts its budget
 ends with `OUTPUT_LIMIT`; unavailable or evicted history reports
-`REPLAY_UNAVAILABLE`. The 256 KiB diagnostic ring is never used as incomplete
-protocol history. A runtime restart loses its journals and execs; these files
-do not extend the persistent workspace's lifecycle.
+`REPLAY_UNAVAILABLE`. The journal is the sole retained output history.
+A runtime restart loses its journals and execs; these files do not extend the
+persistent workspace's lifecycle.
 
 An attach sends `replay-start` before journal history and `replay-complete`
 with `throughSeq` after delivering the historical prefix that existed when

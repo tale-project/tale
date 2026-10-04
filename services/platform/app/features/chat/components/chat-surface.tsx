@@ -1443,6 +1443,9 @@ function ChatSurfaceInner({
         );
         if (intoThreadId === undefined) {
           composerRef.current?.restoreText(text);
+          if (consumedAttachments.length > 0) {
+            setStagedAttachments(consumedAttachments);
+          }
           videoLinks.unmarkJobsSent(consumedJobIds);
         }
         // A turn that never started wrote nothing into the sibling.

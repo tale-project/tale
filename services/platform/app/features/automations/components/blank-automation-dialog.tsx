@@ -71,7 +71,8 @@ function slugify(input: string): string {
     .trim()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
-    .slice(0, 64);
+    .slice(0, 64)
+    .replace(/^-+|-+$/g, '');
 }
 
 /** The slug a name outside the Latin script gets — `发票提醒` slugifies to

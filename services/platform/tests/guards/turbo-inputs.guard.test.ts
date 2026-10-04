@@ -42,6 +42,12 @@ import { ENSURE_SANDBOX_RUNTIME_SCRIPT } from '../../scripts/dev-sandbox-runtime
  * re-run them: both hash `packages/ui/src` whole, as `test` does. All three
  * tasks also hash the package's manifest and every file it exports from
  * outside `src/` (`UI_PACKAGE_FILES`).
+ *
+ * `lint` and `typecheck` read outside the workspace too: `tsc` and oxlint's
+ * type-aware rules build one program from its sources and every module they
+ * import. Two suites import the sandbox daemon's `file-ops.ts`, which imports
+ * its `protocol.ts`, so an edit to either file alone can turn both verdicts:
+ * both tasks list them (`STATIC_IMPORTS`) after the same two-entry prefix.
  */
 
 const PLATFORM_ROOT = path.resolve(
@@ -95,6 +101,10 @@ const OUTSIDE_READS = [
   {
     path: 'knip.config.ts',
     readers: 'tests/guards/frontend-entry-discovery.guard.test.ts',
+  },
+  {
+    path: 'packages/shared/src/automation-name.ts',
+    readers: 'lib/engine/selftest/purity.test.ts scans the extracted grammar',
   },
   {
     // Not read as text: the suite runs the postgres.js these patches change
@@ -153,6 +163,19 @@ const OUTSIDE_READS = [
     path: 'services/sandbox-runtime/daemon/src/protocol.ts',
     readers:
       'tests/guards/integration-scope.guard.test.ts follows the native review file transfer proof',
+  },
+];
+
+/** Every daemon module the platform's sources import, and who imports it. */
+const STATIC_IMPORTS = [
+  {
+    path: 'services/sandbox-runtime/daemon/src/file-ops.ts',
+    importers:
+      'backend/domains/files/sandbox-blob-routes.test.ts and backend/domains/tasks/agent-review-files.integration.ts import its stageFiles',
+  },
+  {
+    path: 'services/sandbox-runtime/daemon/src/protocol.ts',
+    importers: 'file-ops.ts imports its WORKSPACE_ROOT',
   },
 ];
 
@@ -364,4 +387,35 @@ describe.each(COMPONENT_TASKS)('@tale/platform#%s turbo inputs', (name) => {
   });
 
   itHashesUiPackageFiles(name, () => hashed);
+});
+
+/** The static checks, which type the platform's sources with their imports. */
+const STATIC_TASKS = ['lint', 'typecheck'];
+
+describe.each(STATIC_TASKS)('@tale/platform#%s turbo inputs', (name) => {
+  let hashed: Set<string>;
+
+  beforeAll(() => {
+    hashed = hashedBy(name);
+  }, 60_000);
+
+  it('still hashes its own workspace', () => {
+    const self = toRepoPath(fileURLToPath(import.meta.url));
+    expect(
+      hashed.has(self),
+      `@tale/platform#${name} does not hash ${self}`,
+    ).toBe(true);
+  });
+
+  for (const { path: repoPath, importers } of STATIC_IMPORTS) {
+    it(`hashes ${repoPath} (${importers})`, () => {
+      const files = trackedFiles(repoPath);
+      expect(files.length, `${repoPath} tracks no file`).toBeGreaterThan(0);
+      const missing = files.filter((file) => !hashed.has(file));
+      expect(
+        missing.slice(0, 10),
+        `@tale/platform#${name} types ${missing.length} imported file(s) at ${repoPath} that turbo does not hash — list \`$TURBO_ROOT$/${repoPath}\` in services/platform/turbo.json tasks.${name}.inputs`,
+      ).toEqual([]);
+    });
+  }
 });
