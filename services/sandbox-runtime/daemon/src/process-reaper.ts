@@ -458,18 +458,6 @@ function deliver(
   }
 }
 
-/** Signal an exec's process group, and nothing else, without reading the
- * process table: for a group certainly the exec's (its leader still runs).
- * True when the signal was delivered. */
-export function signalGroup(
-  groupId: number | undefined,
-  signal: NodeJS.Signals,
-  deps: ReaperDeps = {},
-): boolean {
-  if (groupId === undefined || groupId <= 1) return false;
-  return deliver(deps, -groupId, signal, `pgroup ${groupId}`);
-}
-
 /** What a round did. */
 export interface RoundResult {
   /** How many signals were delivered. */

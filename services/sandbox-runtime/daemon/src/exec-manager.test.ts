@@ -1634,6 +1634,41 @@ describe('ExecManager', () => {
     expect(decode(newer.events, 'stdout')).toHaveLength(4096);
   });
 
+  test('disposing a completed manager closes its retained journal descriptor', async () => {
+    const handles: unknown[] = [];
+    const finish: (this: ExecJournal) => void = Reflect.get(
+      ExecJournal.prototype,
+      'finish',
+    );
+    const opened = spyOn(ExecJournal.prototype, 'finish').mockImplementation(
+      function (this: ExecJournal) {
+        handles.push(Reflect.get(this, 'ready'));
+        finish.call(this);
+      },
+    );
+    try {
+      {
+        using mgr = new ExecManager(new EnvStore(), () => {});
+        await mgr.run(
+          { ...base, execId: 'dispose-retained', command: ['true'], cwd: ROOT },
+          () => {},
+        );
+        expect(mgr.canAttach('dispose-retained')).toBe(true);
+      }
+      expect(handles).toHaveLength(1);
+      const file: unknown = await handles[0];
+      if (typeof file !== 'object' || file === null)
+        throw new Error('missing journal handle');
+      const deadline = Date.now() + 5_000;
+      while (Reflect.get(file, 'fd') !== -1 && Date.now() < deadline) {
+        await new Promise<void>((resolve) => setImmediate(resolve));
+      }
+      expect(Reflect.get(file, 'fd')).toBe(-1);
+    } finally {
+      opened.mockRestore();
+    }
+  });
+
   test('eviction closes a stalled replay descriptor before reusing its disk budget', async () => {
     const maxBytes = 40_000;
     const budget = new JournalBudget(maxBytes);

@@ -1,6 +1,12 @@
 import { afterAll, beforeAll, expect, test } from 'bun:test';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, realpathSync, rmSync } from 'node:fs';
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 
 import { EnvStore } from './env-store.ts';
@@ -20,7 +26,10 @@ const request = {
 
 beforeAll(() => {
   process.env.TALE_WORKSPACE_ROOT = ROOT;
-  if (process.platform !== 'linux') return;
+});
+
+function realShim(): string {
+  if (existsSync(shim)) return shim;
   const built = spawnSync('cc', [
     '-Wall',
     '-Wextra',
@@ -32,7 +41,8 @@ beforeAll(() => {
   ]);
   if (built.status !== 0)
     throw new Error(`shim build failed: ${String(built.stderr)}`);
-}, 60_000);
+  return shim;
+}
 
 afterAll(() => {
   if (previousRoot === undefined) delete process.env.TALE_WORKSPACE_ROOT;
@@ -75,12 +85,12 @@ for (const execShim of [null, shim]) {
   test.skipIf(process.platform !== 'linux')(
     `rotation kills an untagged TERM-proof group survivor after its leader exits (${execShim === null ? 'no shim' : 'real shim'})`,
     async () => {
-      const mgr = new ExecManager(
+      using mgr = new ExecManager(
         new EnvStore(),
         () => {},
         undefined,
         {},
-        { execShim },
+        { execShim: execShim === null ? null : realShim() },
       );
       const seen = output();
       let pid = 0;
@@ -114,12 +124,12 @@ for (const execShim of [null, shim]) {
 test.skipIf(process.platform !== 'linux')(
   'real-shim chained rotations keep a scrubbed detached server until the final successor ends',
   async () => {
-    const mgr = new ExecManager(
+    using mgr = new ExecManager(
       new EnvStore(),
       () => {},
       undefined,
       {},
-      { execShim: shim },
+      { execShim: realShim() },
     );
     const seen = output();
     let pid = 0;
@@ -164,7 +174,7 @@ test.skipIf(process.platform !== 'linux')(
   'the manager skips the delayed process scan after a real shim completes normally',
   async () => {
     let listings = 0;
-    const mgr = new ExecManager(
+    using mgr = new ExecManager(
       new EnvStore(),
       () => {},
       undefined,
@@ -174,7 +184,7 @@ test.skipIf(process.platform !== 'linux')(
           return [];
         },
       },
-      { execShim: shim },
+      { execShim: realShim() },
     );
     await mgr.run(
       { ...request, execId: 'normal-shim', command: ['true'] },
