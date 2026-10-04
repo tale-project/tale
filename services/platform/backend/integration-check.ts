@@ -36783,7 +36783,8 @@ async function checkBrowserSessions(
  * The approvals surface: one-row read and the generic decision with the 0.4
  * FSM (pending → executing|rejected only, once), the dedicated-door
  * refusal for review-gate rows, approver stamping, the workflow audit row,
- * and the silent-no-op poke for a stale run reference.
+ * and fail-closed handling of a missing automation run. Task reviews keep
+ * their own project-agent run metadata and dedicated decision door.
  */
 async function checkApprovalsSurface(
   sql: Sql,
@@ -36836,7 +36837,7 @@ async function checkApprovalsSurface(
   // Seeds: two connector operations (one to approve, one to reject) and a
   // review-gate row that must refuse toward its dedicated door.
   const approveId = await seed('connector_operation', 'itest-appr-op-1', {
-    runId: 'no-such-run',
+    source: 'connector',
     connector: 'imap-smtp',
     action: 'send',
   });
@@ -36893,6 +36894,95 @@ async function checkApprovalsSurface(
       badStatus.status === 400 &&
       Number(auditRows[0]?.count ?? '0') === 2,
     `get=${gotten.success} foreign=${foreign.status}, approve=${approved.status} row=${approvedRow?.status}/${approvedRow?.approvedBy === userId}/name=${typeof approvedRow?.metadata?.approverName} again=${again.status} (want 409), reject=${rejected.status}/${rejectedRow?.status} reviewGate=${reviewRefused.status}/${reviewRow?.status} (want 409/pending) badStatus=${badStatus.status} (want 400), audits=${auditRows[0]?.count} (want 2)`,
+  );
+
+  const missingRunId = await seed(
+    'connector_operation',
+    'itest-appr-missing-run',
+    { source: 'automation', runId: randomUUID() },
+  );
+  const missingRead = await api(`/${missingRunId}`);
+  const missingDecision = await api(`/${missingRunId}/decide`, {
+    body: { status: 'executing' },
+  });
+  const missingRow = await rowOf(missingRunId);
+  const [missingAudits] = await sql<{ count: number }[]>`
+    SELECT count(*)::int AS count FROM app.audit_logs
+    WHERE org_id = ${orgId} AND resource_type = 'approval'
+      AND resource_id = ${missingRunId}
+  `;
+  record(
+    'an approval naming a missing automation run is hidden and cannot be decided',
+    missingRead.status === 404 &&
+      missingDecision.status === 404 &&
+      missingRow?.status === 'pending' &&
+      missingRow.approvedBy === null &&
+      missingAudits?.count === 0,
+    `read=${missingRead.status}, decide=${missingDecision.status}, row=${missingRow?.status}/${missingRow?.approvedBy}, audits=${missingAudits?.count}`,
+  );
+
+  // The task review mint uses metadata.runId for a DIFFERENT run ledger.
+  // Exercise that producer so a synthetic row with no run metadata cannot
+  // accidentally stand in for a real agent's review request.
+  const projectId = randomUUID();
+  const taskId = randomUUID();
+  const agentRunId = randomUUID();
+  const now = Date.now();
+  await sql`
+    INSERT INTO app.projects (
+      id, org_id, name, team_ids, created_by, created_at_ms, updated_at_ms
+    ) VALUES (
+      ${projectId}, ${orgId}, 'Approval kind control', '{}'::text[],
+      ${userId}, ${now}, ${now}
+    )
+  `;
+  await sql`
+    INSERT INTO app.tasks (
+      id, org_id, project_id, title, status, rank, created_by,
+      created_by_type, reviewer_user_id, created_at_ms, updated_at_ms
+    ) VALUES (
+      ${taskId}, ${orgId}, ${projectId}, 'Task review control', 'in_review',
+      'a0', ${userId}, 'user', ${userId}, ${now}, ${now}
+    )
+  `;
+  await sql`
+    INSERT INTO app.project_agent_runs (
+      id, org_id, project_id, task_id, agent_id, exec_id, session_id,
+      status, harness, model, started_by, started_at_ms, deadline_at_ms,
+      settled_at_ms, updated_at_ms
+    ) VALUES (
+      ${agentRunId}, ${orgId}, ${projectId}, ${taskId}, ${randomUUID()},
+      ${randomUUID()}, ${randomUUID()}, 'settled', 'claude-code',
+      'synthetic/none', ${userId}, ${now}, ${now + 60_000}, ${now}, ${now}
+    )
+  `;
+  const { loadTaskOrThrow } = await import('./domains/tasks/service.ts');
+  const { requestTaskReview } = await import('./domains/tasks/reviews.ts');
+  const task = await loadTaskOrThrow(sql, taskId, orgId);
+  const agentReview = await sql.begin((tx) =>
+    requestTaskReview(tx, {
+      task,
+      trigger: { kind: 'agent_run', runId: agentRunId },
+    }),
+  );
+  const agentReviewRead = await api(`/${agentReview.approvalId}`);
+  const agentReviewDecision = await api(`/${agentReview.approvalId}/decide`, {
+    body: { status: 'rejected' },
+  });
+  const agentReviewRefusal = z
+    .object({ error: z.string() })
+    .safeParse(await agentReviewDecision.json());
+  const agentReviewRow = await rowOf(agentReview.approvalId);
+  record(
+    'a production-minted task review keeps its project-agent run and dedicated door',
+    agentReviewRead.status === 200 &&
+      agentReviewDecision.status === 409 &&
+      agentReviewRefusal.success &&
+      agentReviewRefusal.data.error === 'APPROVAL_REQUIRES_DEDICATED_RESPOND' &&
+      agentReviewRow?.status === 'pending' &&
+      agentReviewRow.approvedBy === null &&
+      agentReviewRow.metadata?.runId === agentRunId,
+    `read=${agentReviewRead.status}, decide=${agentReviewDecision.status}, row=${agentReviewRow?.status}/${agentReviewRow?.approvedBy}, run=${String(agentReviewRow?.metadata?.runId)}`,
   );
 }
 
