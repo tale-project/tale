@@ -15,11 +15,12 @@ needs fewer runners, while a long CPU-bound suite can benefit from more slices.
 - **E2E** builds the platform preview bundle once using the ordinary Turbo build task,
   then uploads it for four single-worker Playwright shards. Each shard owns its database,
   backend and worker-scoped org fixture. Reports still capture failed tests and retries.
-  The web and docs suites keep their independent jobs. Pull requests first compute
-  affected service scope from the PR diff; missing or nonboolean filter results fail
-  the scope job. Nightly, manual and candidate rounds select all three services. Static
-  suites use two workers, verified with all 90 web and 55 docs cases passing without
-  retries.
+  The web and docs suites restore/build their complete output once through Turbo and opt into
+  `E2E_USE_BUILD=1` preview. Web SEO reads the same production bytes and still runs after
+  a browser failure when the build succeeded. Pull requests first compute affected service
+  scope from the PR diff; missing or nonboolean filter results fail the scope job.
+  Nightly, manual and candidate rounds always select platform, web and docs. Static
+  suites use two workers, verified with all 90 web and 55 docs cases passing without retries.
 - **Build** distinguishes the platform stack from standalone sites. Site-only changes run
   their container tests without building the eight-image platform stack. Shared package,
   dependency, toolchain and test-harness inputs expand to full coverage. Release candidates
@@ -35,22 +36,26 @@ needs fewer runners, while a long CPU-bound suite can benefit from more slices.
   overrides, targets and tags. They reclaim disk only below 20 GiB of free space;
   full-stack jobs retain their larger cleanup.
 - **Release** starts sandbox-runtime and platform builds first within its existing
-  six-job limit. Architecture-specific registry caches survive tag boundaries; the main
-  branch's service caches can warm a first release.
+  six-job limit. Separate service/architecture registry cache images survive tag boundaries;
+  main's amd64 service caches can warm a first release. Only trusted Release writes registry
+  caches; a failed optional export does not block publication.
 - **CLI** runs source tests on native Linux, macOS and Windows rows. Cross-compilation rows
   still generate and build their binaries; repeating the same source suite on the same
-  host OS adds no platform coverage. Binary artifacts use fast compression.
-  Cross rows install only the CLI dependency closure and keep its download cache in a
-  separate namespace. Native rows retain the full workspace install for source tests.
+  host OS adds no platform coverage. Cross legs use a proven CLI-only frozen install
+  and keep its download cache in a separate namespace. Native source tests retain
+  the full workspace install because they import platform auth modules.
+  Binary artifacts use fast compression; all five targets still build, native binaries
+  retain smoke tests, and both macOS targets retain signature checks.
 
 ## Cache boundaries
 
-Turbo owns workspace task caching. The `transit` task has no script; its recursive
-`^transit` dependencies propagate shared-package changes to consumer checks without
-forcing real tests or compilers to run sequentially. Explicit `inputs` still cover files
-read outside a workspace dependency. Root TypeScript config family members and the Bun
-setup action participate in the global hash. Bun download caches separate OS and CPU
-architecture.
+Turbo owns workspace task caching. Generic checks depend on `^transit`: scriptless
+nodes hash dependency workspaces recursively and propagate shared-package changes
+without forcing real tests or compilers to run sequentially. Each check's effective
+inputs still hash its own selected source; component tasks can omit unrelated trees.
+Explicit `inputs` cover files read outside a workspace dependency. Root `tsconfig*.json`,
+lint and formatter configurations, `bunfig.toml`, patches and the Bun setup action
+participate in the global hash. Bun download caches separate OS and CPU architecture.
 
 The Bun download key also includes workspace manifests, the lockfile and patches.
 A frozen install remains authoritative after a cache hit, and successful downloads
@@ -76,10 +81,12 @@ policy edits invalidate them.
 
 `setup-turbo` restores `.turbo/cache` through GitHub's native cache action. Keys
 separate task scope, OS, architecture, Bun version and lockfile; the checked-out
-source SHA and workflow writer make successful writes immutable. Restore prefixes
+source SHA and workflow/job/matrix writer make successful writes immutable. Restore prefixes
 stay within that task scope. Separate writer keys let E2E save its platform bundle
 without preventing Checks from saving the larger build archive.
-Checks and E2E share the `build` scope, while every UI shard has its own scope.
+Checks, E2E platform builds and static sites share the `build` scope. Static matrix jobs
+set `cache-writer` per service, so their immutable writes stay distinct within E2E too.
+Every UI shard has its own scope.
 Turbo still compares task hashes before replaying any restored result.
 
 GitHub restricts a pull request's cache to its merge ref; `main` cannot restore it.
@@ -110,9 +117,21 @@ candidate's source and image receipts.
 Scorecard remains informational and runs weekly, manually and when branch protections
 change. Blocking source and dependency security gates retain their triggers.
 
-Static E2E jobs do not restore Turbo caches. Web prerendering generates release content
-and SEO output outside `dist/`; those external inputs and outputs must be fully modeled
-before that build or its dependent prerender verdict can be safely restored.
+CLI checks additionally depend on their own `transit`, whose inputs cover embedded
+source trees and platform modules reached by relative imports. Module-closure and
+generator-tree guards require those effective inputs.
+Keep arbitrary outside reads explicit; workspace dependencies alone cannot hash them.
+
+Website builds cache `dist/`, `dist-ssr/`, `dist-seo/`, generated frontmatter and translated
+search indexes together. The tracked web release snapshot remains an input, so a snapshot-only
+commit rebuilds its bundle. A real cold/warm docs proof restored all 3,793 artifacts byte-for-byte
+and passed 15 prerender/crawl tests; the preview served matching pages, JS and search bytes.
+The observed local build times were 83.982s cold and 6.242s warm, not hosted CI guarantees.
+
+Keep platform tests in build inputs: Tailwind's automatic source scanner read 639 files under
+`tests/` in the inspected tree. Their class strings can alter CSS and service-worker revisions.
+Narrowing those inputs requires explicit production-only Tailwind sources and an output-
+equivalence check.
 
 Only main pushes publish the shared platform-stack Docker layer cache; pull requests
 and candidates read it. This removes costly PR-local exports and prevents old release
@@ -133,7 +152,9 @@ The UI job spent 10m48s executing; platform E2E slices spent roughly 22–37s te
 70–100s of setup. Both runs also showed queue waits exceeding 100 minutes. Moving E2E
 from sixteen to four runners removes twelve repeated stack setups; UI gets four slices
 without increasing its worker pool. These are baseline observations and graph changes,
-not a claim about the duration of a future hosted run.
+not a claim about the duration of a future hosted run. The audit at checkout `79dc863fd`
+partitioned all 595 UI files once as 149/149/149/148; the E2E audit partition proof covered
+all 67 tests once as 17/17/17/16. Later source changes require a fresh inventory.
 
 [Release run 37136987405](https://github.com/tale-project/tale/actions/runs/37136987405)
 took 31m21s, with sandbox-runtime starting about eleven minutes after Prepare.
@@ -154,6 +175,8 @@ Run workflow and source-identity regressions with:
 
 ```bash
 bun test --timeout 30000 tools/cli/scripts/ci-*.test.ts \
+  tools/cli/scripts/build-ci.test.ts \
+  tools/cli/scripts/cli-workflow.test.ts \
   tools/cli/scripts/cli-ci.test.ts \
   tools/cli/scripts/deployment-ci.test.ts \
   tools/cli/scripts/release-candidate-workflows.test.ts \

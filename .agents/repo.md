@@ -183,7 +183,10 @@ bundle once through the same Turbo task used by Checks. A run artifact carries t
 exact bytes to every shard through the build's validated immutable artifact ID.
 Full reruns publish a new attempt-specific artifact; failed-only reruns reuse the
 successful build's original ID. Unit and UI workers reuse a job-local Node bytecode
-cache without relaxing isolation. Chromium caches use the installed Playwright version,
+cache without relaxing isolation. Static-site browser and web prerender suites also reuse
+one complete Turbo build, including client, SSR, SEO, frontmatter and translated search
+outputs. Native cache archives share a build scope but retain distinct workflow/job/matrix
+writers. Chromium caches use the installed Playwright version,
 runner OS and architecture; jobs install its headless shell and always provision native
 dependencies. See [the CI scheduling guide](../.github/CI.md).
 
@@ -265,21 +268,26 @@ These guards ask `turbo --dry=json` whether the files are hashed. Each also read
 without `$TURBO_EXTENDS$` while no root task declares inputs. A suite that starts reading
 another outside file adds it to both the task's inputs and its guard.
 
-Workspace checks depend on `^transit`: a task with no executable script that hashes
-each dependency's source and recursively follows its dependencies. A shared package
-change therefore invalidates its consumers without serializing their actual test,
-lint or typecheck processes. Explicit outside-file inputs remain necessary for imports
-and reads that are not workspace dependencies. The platform's UI input guards still
-hold its direct source reads and exported files to that contract. Every root
-`tsconfig*.json` and `bunfig.toml` also participate in the global hash.
+Generic workspace checks depend on `^transit`: scriptless nodes recursively hash
+dependency workspaces. A shared package change therefore invalidates its consumers
+without serializing their actual test, lint or typecheck processes. Each check's
+effective inputs hash its own selected source, preserving component input narrowing.
+CLI checks also depend on their own `transit` to hash their extra outside-module closure.
+Explicit outside-file inputs remain necessary for imports and reads that are not
+workspace dependencies. The platform's UI input guards still hold its direct source
+reads and exported files to that contract. Every root `tsconfig*.json`, `bunfig.toml`,
+lint and formatter configuration, patch and the setup action participate in the global hash.
 
 Checks skip echo-only setup tasks. The CLI keeps its real generation prerequisite explicitly;
 a workspace that adds substantive setup must attach it to its checks. The dependency fixture
 holds workspace setup scripts to this contract.
 
 CLI generation and builds record the checkout's Git revision and clean state; they are
-uncached because those values are not source-file hashes. Their outside source inputs
-still invalidate dependent checks; nested catalog `.turbo/` logs are excluded. The real
+uncached because those values are not source-file hashes. CLI transit inputs cover its
+generator's embedded trees and the platform modules reached by relative imports;
+module-closure and generator-tree guards require those actual outside inputs to be hashed.
+CLI lint/test run generation directly and do not repeat the setup alias. Nested catalog
+`.turbo/` logs are excluded. The real
 Turbo fixture in `tools/cli/scripts/ci-cache-optimization.test.ts` checks log creation and
 rewrites leave hashes unchanged while real catalog sources invalidate them.
 Do not cache these artifacts without including and

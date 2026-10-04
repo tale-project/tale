@@ -819,7 +819,6 @@ test('catalog build and generation hashes ignore task logs but retain source and
     '@tale/cli#setup',
     '@tale/cli#test',
     '@tale/cli#transit',
-    '@tale/cli#test',
   ];
   const hashes = () => {
     const run = spawnSync(
@@ -833,7 +832,6 @@ test('catalog build and generation hashes ignore task logs but retain source and
         'setup',
         'test',
         'transit',
-        'test',
         `--cwd=${fixture}`,
         '--dry=json',
         '--cache=local:,remote:',

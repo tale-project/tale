@@ -284,13 +284,12 @@ describe('E2E service scheduling', () => {
     expect(
       step(file.jobs['static-sites'], 'Setup toolchain').with,
     ).toMatchObject({
-      'turbo-cache': 'false',
+      'turbo-cache': 'true',
+      'cache-scope': 'build',
+      'cache-writer': 'static-${{ matrix.service }}',
       'start-turbo-cache': 'false',
       'github-token': '${{ secrets.GITHUB_TOKEN }}',
     });
-    expect(
-      step(file.jobs['static-sites'], 'Setup toolchain').with?.['cache-scope'],
-    ).toBeUndefined();
     expect(
       step(file.jobs['static-sites'], 'Prerender SEO suite (web)').run,
     ).toBe('bunx turbo run test:prerender --filter=@tale/web');
