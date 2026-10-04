@@ -6,6 +6,15 @@ suite alongside the automated ones — they drive the same stack.
 
 ## Coverage map
 
+Legal matter editing preserves retained 2500- and 4000-character descriptions
+when only the name changes. Creation accepts trimmed fields at the API limits
+(300-character name, 200-character case number, 4000-character description).
+Over-limit fields disable saving and show localized, accessible inline errors
+in EN/DE/FR that clear after correction:
+`app/features/settings/governance/legal-hold/upsert-matter-dialog.test.tsx`
+covers the component boundary and axe audit; real API persistence and browser
+layout remain manual.
+
 Text-only edits retain the original uploaded attachment references in both
 the send request and optimistic message, leave unrelated composer files
 staged, and keep regeneration on its original-prompt path:
