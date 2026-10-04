@@ -12,8 +12,10 @@
 import { describe, expect, test } from 'bun:test';
 
 import * as mirror from '../../../sandbox-runtime/daemon/src/protocol.ts';
+import { isRunnerdExecEvent as isMirroredExecEvent } from '../../../sandbox-runtime/daemon/src/protocol.ts';
 import { ID_ALPHABET_RE } from '../wire.ts';
 import * as canonical from './runnerd-protocol.ts';
+import { isRunnerdExecEvent } from './runnerd-protocol.ts';
 
 /** Daemon-local values the mirror carries whose canonical home is elsewhere
  * in the spawner: the id alphabet lives in wire.ts, the workspace mount in
@@ -89,8 +91,8 @@ describe('runnerd protocol mirror', () => {
       [{ t: 'fail', code: 'unknown', message: '' }, false],
     ];
     for (const [event, accepted] of cases) {
-      expect(canonical.isRunnerdExecEvent(event)).toBe(accepted);
-      expect(mirror.isRunnerdExecEvent(event)).toBe(accepted);
+      expect(isRunnerdExecEvent(event)).toBe(accepted);
+      expect(isMirroredExecEvent(event)).toBe(accepted);
     }
   });
 });
