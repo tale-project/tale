@@ -27,7 +27,7 @@ const SKILL_EXISTS = 'SKILL_EXISTS';
 
 /** Whether a failed skill write was refused for its organization-wide
  * audience. */
-export function isSkillExistsRefusal(error: unknown): boolean {
+function isSkillExistsRefusal(error: unknown): boolean {
   return backendErrorCode(error) === SKILL_EXISTS;
 }
 
