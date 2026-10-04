@@ -96,8 +96,10 @@ export function TeamEditDialog({
   const { handleSubmit, register, reset, formState, setError } = form;
 
   useEffect(() => {
-    reset({ name: team.name });
-  }, [team, reset]);
+    if (!open || !formState.isDirty) {
+      reset({ name: team.name });
+    }
+  }, [team.name, open, formState.isDirty, reset]);
 
   const handleToggleMember = useCallback((userId: string) => {
     setSelectedMemberIds((prev) => {
