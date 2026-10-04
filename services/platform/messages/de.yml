@@ -3978,6 +3978,7 @@ governance:
         userPickerLabel: Benutzer
         userPickerPlaceholder: Nach Name oder E-Mail suchen
         userPickerEmpty: Keine passenden Benutzer.
+        userPickerFailed: Benutzer konnten nicht geladen werden.
         orgWarning:
           Organisationsweite Holds frieren ALLE Aufbewahrung für jede Entität
           in diesem Tenant ein. Es handelt sich um eine bewusste, im Audit-Log
@@ -3990,6 +3991,7 @@ governance:
         reasonPlaceholder: z. B. Beweissicherungs-Hold für Acme./. Co. (Az. 2026-04)
         matterLabel: Fall
         matterPlaceholder: Fall auswählen oder anlegen
+        matterPickerFailed: Fälle konnten nicht geladen werden.
         matterCreateNew: Neuen Fall anlegen…
         submit: Hold setzen
       requestRelease:

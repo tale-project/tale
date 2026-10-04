@@ -4048,6 +4048,7 @@ governance:
         userPickerLabel: Utilisateur
         userPickerPlaceholder: Recherche par nom ou email
         userPickerEmpty: Aucun utilisateur correspondant.
+        userPickerFailed: Impossible de charger les utilisateurs.
         orgWarning: Les conservations à l'échelle de l'organisation gèlent TOUTE
           rétention pour chaque entité de ce tenant. C'est une action délibérée,
           enregistrée dans l'audit — vérifie le contexte du dossier avant de
@@ -4060,6 +4061,7 @@ governance:
         reasonPlaceholder: 'ex. Hold litige Acme c. Co. (dossier #2026-04)'
         matterLabel: Dossier
         matterPlaceholder: Choisir ou créer un dossier
+        matterPickerFailed: Impossible de charger les dossiers.
         matterCreateNew: Créer un nouveau dossier…
         submit: Placer la conservation
       requestRelease:
