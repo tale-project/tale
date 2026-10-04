@@ -112,7 +112,7 @@ function DetailsSidebar({
     <Skeletonize
       loading={loading ?? false}
       label={t('preview.sidebar.document')}
-      className="bg-background border-border flex h-full min-h-0 flex-col overflow-y-auto border-t"
+      className="bg-background border-border flex min-w-0 shrink-0 flex-col border-t md:h-full md:min-h-0 md:overflow-y-auto"
     >
       <aside
         aria-label={t('preview.sidebar.document')}
@@ -284,8 +284,8 @@ export function DocumentPreviewDialog({
       className="flex h-[85vh] flex-col gap-0 overflow-hidden border-0 p-0 ring-0 md:p-0"
       customHeader={
         documentId ? (
-          <div className="grid shrink-0 grid-cols-[minmax(0,1fr)_260px]">
-            <div className="border-border border-b px-5 py-3">
+          <div className="grid shrink-0 grid-cols-1 md:grid-cols-[minmax(0,1fr)_260px]">
+            <div className="border-border min-w-0 border-b px-5 py-3">
               <HStack gap={3} className="min-w-0">
                 <DocumentIcon
                   fileName={displayName}
@@ -295,7 +295,7 @@ export function DocumentPreviewDialog({
                 <Stack gap={1} className="min-w-0">
                   <Text
                     as="span"
-                    className="text-foreground truncate text-base leading-tight font-semibold tracking-tight"
+                    className="text-foreground text-base leading-tight font-semibold tracking-tight break-words md:truncate"
                   >
                     {displayName}
                   </Text>
@@ -311,7 +311,7 @@ export function DocumentPreviewDialog({
                 </Stack>
               </HStack>
             </div>
-            <div className="flex items-center justify-end gap-2 px-5 py-3">
+            <div className="border-border flex items-center justify-end gap-2 border-b px-5 py-3 md:border-b-0">
               {resolvedUrl && (
                 <Button
                   variant="secondary"
@@ -391,10 +391,16 @@ export function DocumentPreviewDialog({
         <div
           className={cn(
             '-mx-2 -mt-1 -mb-1 grid min-h-0 flex-1',
-            documentId && 'grid-cols-[minmax(0,1fr)_260px]',
+            documentId &&
+              'flex flex-col overflow-y-auto md:grid md:grid-cols-[minmax(0,1fr)_260px] md:overflow-hidden',
           )}
         >
-          <div className="flex min-h-0 min-w-0 flex-col overflow-hidden">
+          <div
+            className={cn(
+              'flex min-h-0 min-w-0 flex-col overflow-hidden',
+              documentId && 'h-[60vh] shrink-0 md:h-auto md:shrink',
+            )}
+          >
             {resolvedUrl ? (
               <DocumentPreview
                 url={resolvedUrl}
