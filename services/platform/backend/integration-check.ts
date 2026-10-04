@@ -50,6 +50,7 @@ import { checkLapsedTeamWrites } from './auth/team-lapse.integration.ts';
 import { ASK_DEADLINE_MARGIN_MS } from './core/automations/agent_host.ts';
 import { buildPeriodKeyFromTimestamp } from './core/governance/helpers.ts';
 import { computeAuditHash } from './core/lib/helpers/audit_hash.ts';
+import type { SessionExecResult } from './core/node_only/sandbox/helpers/session_client.ts';
 import {
   TASK_COMMENT_MAX,
   TASK_DESCRIPTION_MAX,
@@ -112,6 +113,7 @@ import { checkAgentTaskReadTools } from './domains/tasks/agent-read-tools.integr
 import { checkAgentTaskReviewRouting } from './domains/tasks/agent-review-routing.integration.ts';
 import { checkAgentTaskReviews } from './domains/tasks/agent-review.integration.ts';
 import { checkSessionOpTranscriptMerge } from './domains/tasks/agent-turn-shim.integration.ts';
+import { checkArchivedTaskWrites } from './domains/tasks/archived-writes.integration.ts';
 import { checkTaskAutomationOccupancy } from './domains/tasks/automation-occupancy.integration.ts';
 import { checkTaskBoardSearch } from './domains/tasks/board-search.integration.ts';
 import {
@@ -7572,6 +7574,79 @@ async function checkSmallDomains(
       hopperListed.updatedAt > hopperListed.createdAt &&
       hopperSearched.updatedAt === hopperListed.updatedAt,
     `listed created=${hopperListed?.createdAt} updated=${hopperListed?.updatedAt}, hit updatedAt=${hopperSearched?.updatedAt} (want = listed updatedAt, > createdAt)`,
+  );
+
+  // The Contacts Locale facet narrows the listing (#3618): a language lists
+  // its regional tags in any case or separator, a regional tag only itself,
+  // and the Source facet still narrows beside it. The search pins the
+  // listing to this probe's rows.
+  const localeRun = `locale-${Date.now()}`;
+  const localeEmail = (locale: string): string =>
+    `${localeRun}-${locale.toLowerCase()}@example.com`;
+  const localeBulk = await send(
+    'POST',
+    `/api/app/contacts/bulk?orgId=${orgId}`,
+    {
+      contacts: ['fr-CH', 'FR_ca', 'en-US', 'en'].map((locale) => ({
+        email: localeEmail(locale),
+        name: `Locale ${locale}`,
+        locale,
+        source: 'file_upload',
+      })),
+    },
+  );
+  const localeManual = await send('POST', `/api/app/contacts?orgId=${orgId}`, {
+    email: localeEmail('fr'),
+    name: 'Locale fr',
+    locale: 'fr',
+    source: 'manual_import',
+  });
+  const localeRows = async (
+    facets: string,
+  ): Promise<{ id: string; locale: string | null }[] | null> => {
+    const page = z
+      .object({
+        items: z.array(
+          z.object({ id: z.string(), locale: z.string().nullable() }),
+        ),
+      })
+      .safeParse(
+        await get(
+          `/api/app/contacts?orgId=${orgId}&limit=200&search=${localeRun}${facets}`,
+        ),
+      );
+    return page.success ? page.data.items : null;
+  };
+  const localesOf = (rows: { locale: string | null }[] | null): string =>
+    rows === null
+      ? 'ERR'
+      : rows
+          .map((row) => row.locale ?? '')
+          .sort()
+          .join(',');
+  const localeAll = await localeRows('');
+  const localeFacets = {
+    all: localesOf(localeAll),
+    fr: localesOf(await localeRows('&locale=fr')),
+    frCH: localesOf(await localeRows('&locale=fr-CH')),
+    EN: localesOf(await localeRows('&locale=EN')),
+    frUploads: localesOf(await localeRows('&locale=fr&source=file_upload')),
+    de: localesOf(await localeRows('&locale=de')),
+  };
+  for (const row of localeAll ?? []) {
+    await send('DELETE', `/api/app/contacts/${row.id}?orgId=${orgId}`);
+  }
+  record(
+    'contacts: the Locale facet lists a language with its regional tags',
+    localeBulk.ok &&
+      localeManual.ok &&
+      localeFacets.all === 'FR_ca,en,en-US,fr,fr-CH' &&
+      localeFacets.fr === 'FR_ca,fr,fr-CH' &&
+      localeFacets.frCH === 'fr-CH' &&
+      localeFacets.EN === 'en,en-US' &&
+      localeFacets.frUploads === 'FR_ca,fr-CH' &&
+      localeFacets.de === '',
+    `seeded bulk=${localeBulk.status} manual=${localeManual.status}; ${JSON.stringify(localeFacets)} (want all=FR_ca,en,en-US,fr,fr-CH fr=FR_ca,fr,fr-CH frCH=fr-CH EN=en,en-US frUploads=FR_ca,fr-CH de=)`,
   );
 
   // Message feedback lands on a REAL message the caller can read: a chat
@@ -37144,10 +37219,13 @@ async function checkTaskAgentTurnDrive(
         }
         res.write(
           `event: result\ndata: ${JSON.stringify({
+            status: 'completed',
             exitCode: 0,
+            durationMs: 850,
             stdoutBase64: '',
             stderrBase64: '',
-          })}\n\n`,
+            truncated: { stdout: false, stderr: false },
+          } satisfies SessionExecResult)}\n\n`,
         );
         res.end();
         return;
@@ -37879,10 +37957,13 @@ async function checkAutomationAgentNode(
     }
     res.write(
       `event: result\ndata: ${JSON.stringify({
+        status: 'completed',
         exitCode: 0,
+        durationMs: 400,
         stdoutBase64: '',
         stderrBase64: '',
-      })}\n\n`,
+        truncated: { stdout: false, stderr: false },
+      } satisfies SessionExecResult)}\n\n`,
     );
     res.end();
   };
@@ -38672,7 +38753,14 @@ async function checkAutomationStepDestroyPending(
       );
     });
     res.write(
-      `event: result\ndata: ${JSON.stringify({ exitCode: 0, stdoutBase64: '', stderrBase64: '' })}\n\n`,
+      `event: result\ndata: ${JSON.stringify({
+        status: 'completed',
+        exitCode: 0,
+        durationMs: 200,
+        stdoutBase64: '',
+        stderrBase64: '',
+        truncated: { stdout: false, stderr: false },
+      } satisfies SessionExecResult)}\n\n`,
     );
     res.end();
   };
@@ -59728,6 +59816,10 @@ async function main(): Promise<void> {
       [
         'checkTaskBoardSearch',
         () => checkTaskBoardSearch(sql, baseUrl, authCtx, record),
+      ],
+      [
+        'checkArchivedTaskWrites',
+        () => checkArchivedTaskWrites(sql, baseUrl, authCtx, record),
       ],
       [
         'checkAgentTaskReadTools',

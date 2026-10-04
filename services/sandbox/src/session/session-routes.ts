@@ -26,6 +26,7 @@ import type { SpawnerConfig } from '../types.ts';
 import type { SessionExecResponse, SessionInfo } from '../wire.ts';
 import {
   RunnerdActivityError,
+  RunnerdProtocolError,
   RunnerdStageBusyError,
   runnerdActivity,
   runnerdAttach,
@@ -569,6 +570,7 @@ export class SessionRoutes {
       return {
         availableBytes: disk.availableBytes,
         short: belowDiskFloor(disk, this.cfg.session.minFreeDiskBytes),
+        filesystem: disk.filesystem,
       };
     } catch (error) {
       console.warn('[sandbox.session] session disk unreadable:', error);
@@ -1447,6 +1449,9 @@ export class SessionRoutes {
       ) {
         return false;
       }
+      if (health.dockerReady === false) {
+        return this.reclaimIdle(s, { health, beforeMs: nowMs - 1 });
+      }
       const idleForMs = nowMs - health.lastActivityAtMs;
       if (!expired) expired = idleForMs > s.idleTimeoutMs;
       if (expired && health.activity?.idleReclaim === true) {
@@ -2068,12 +2073,17 @@ export class SessionRoutes {
   private async reserveActivation(
     session: RegistrySession,
   ): Promise<Response | null> {
-    if (this.memoryCeiling() === null) return null;
+    const observesMemory = this.memoryCeiling() !== null;
+    if (!observesMemory && !(session.docker ?? this.cfg.dockerInContainer))
+      return null;
     const sessionId = session.sessionId;
     const health = await runnerdHealth({
       baseUrl: session.endpoint,
       token: this.tokenFor(sessionId),
     });
+    if (health.dockerReady === false)
+      return this.unavailableDocker(session, health);
+    if (!observesMemory) return null;
     const previous = this.activeGenerations.get(sessionId);
     if (
       health.liveExecs > 0 ||
@@ -2133,6 +2143,20 @@ export class SessionRoutes {
       429,
       { 'retry-after': String(Math.ceil(place.hintMs / 1000)) },
     );
+  }
+
+  /** Docker readiness does not invalidate runnerd liveness. Recreate only
+   * after its atomic idle claim protects active work and a concurrent acquire;
+   * pinned or busy sessions stay alive until their owner releases them. */
+  private async unavailableDocker(
+    session: RegistrySession,
+    health: RunnerdHealth,
+  ): Promise<Response> {
+    if (await this.reclaimIdle(session, { health, beforeMs: Date.now() - 1 }))
+      return jsonResponse({ error: 'not_found' }, 404);
+    return jsonResponse({ error: 'session_unavailable' }, 503, {
+      'retry-after': '1',
+    });
   }
 
   async handleDestroy(
@@ -2344,6 +2368,23 @@ export class SessionRoutes {
     ) {
       const admission = await this.handleActivity(sessionId, 'acquire');
       if (!admission.ok) return admission;
+    } else if (session.docker ?? this.cfg.dockerInContainer) {
+      // A Docker daemon can fail after acquisition, during its growth window,
+      // and on hosts where memory cannot be observed. Never launch work into
+      // known-broken Docker, while preserving already running execs.
+      try {
+        const health = await runnerdHealth({
+          baseUrl: session.endpoint,
+          token: this.tokenFor(sessionId),
+        });
+        if (health.dockerReady === false)
+          return this.unavailableDocker(session, health);
+      } catch (error) {
+        console.warn('[sandbox.session] Docker readiness unavailable:', error);
+        return jsonResponse({ error: 'session_unavailable' }, 503, {
+          'retry-after': '1',
+        });
+      }
     }
 
     const ac = new AbortController();
@@ -2484,11 +2525,13 @@ export class SessionRoutes {
         if (req.signal.aborted || signal.aborted) return;
         send('error', {
           message: err instanceof Error ? err.message : String(err),
+          ...(err instanceof RunnerdProtocolError ? { code: err.code } : {}),
         });
         // A transport-level runnerd failure on a gone container must convert
         // the platform's resilient-drain retry into a 404 (registry miss),
         // not another connection error.
-        await this.evictIfBackendGone(sessionId);
+        if (!(err instanceof RunnerdProtocolError))
+          await this.evictIfBackendGone(sessionId);
       } finally {
         this.registry.unregisterExec(sessionId, execReq.execId);
         req.signal.removeEventListener('abort', abortHandler);
@@ -2641,10 +2684,12 @@ export class SessionRoutes {
         if (req.signal.aborted || signal.aborted) return;
         send('error', {
           message: err instanceof Error ? err.message : String(err),
+          ...(err instanceof RunnerdProtocolError ? { code: err.code } : {}),
         });
         // See handleExec: a dead backend object must surface as 404 on the
         // next reconnect, not as an endless transport error.
-        await this.evictIfBackendGone(sessionId);
+        if (!(err instanceof RunnerdProtocolError))
+          await this.evictIfBackendGone(sessionId);
       } finally {
         req.signal.removeEventListener('abort', onAbort);
       }

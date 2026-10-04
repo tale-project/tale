@@ -175,6 +175,8 @@ describe('product update — merge and the clearing rule', () => {
   const UPDATE = {
     description: 1,
     imageUrl: 2,
+    stock: 3,
+    price: 4,
     currency: 5,
     category: 6,
     tags: 7,
@@ -185,7 +187,10 @@ describe('product update — merge and the clearing rule', () => {
   const stored = {
     ...product,
     description: 'A widget',
+    stock: 8,
+    price: 12.5,
     currency: 'EUR',
+    category: 'Gadgets',
     tags: ['a'],
     metadata: { a: 1, keep: true, nested: { x: 1 } },
   };
@@ -213,6 +218,8 @@ describe('product update — merge and the clearing rule', () => {
       b: 2,
     });
     expect(values[UPDATE.description]).toBe('A widget');
+    expect(values[UPDATE.stock]).toBe(8);
+    expect(values[UPDATE.price]).toBe(12.5);
     expect(values[UPDATE.tags]).toEqual(['a']);
   });
 
@@ -220,6 +227,8 @@ describe('product update — merge and the clearing rule', () => {
     const values = await update({
       description: null,
       imageUrl: null,
+      stock: null,
+      price: null,
       currency: null,
       category: null,
       tags: null,
@@ -229,6 +238,8 @@ describe('product update — merge and the clearing rule', () => {
     });
     expect(values[UPDATE.description]).toBeNull();
     expect(values[UPDATE.imageUrl]).toBeNull();
+    expect(values[UPDATE.stock]).toBeNull();
+    expect(values[UPDATE.price]).toBeNull();
     expect(values[UPDATE.currency]).toBeNull();
     expect(values[UPDATE.category]).toBeNull();
     expect(values[UPDATE.tags]).toEqual([]);

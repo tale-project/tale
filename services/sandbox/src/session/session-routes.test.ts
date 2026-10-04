@@ -85,6 +85,7 @@ const execRequests: Array<{
 const fakeHealth = {
   lastActivityAtMs: 0,
   liveExecs: 0,
+  dockerReady: undefined as boolean | undefined,
 };
 const fakeActivities = new Map<string, ActivityGate>();
 let legacyDaemon = false;
@@ -152,6 +153,9 @@ beforeAll(() => {
           lastActivityAtMs:
             daemonLastActivity.get(token) ?? fakeHealth.lastActivityAtMs,
           liveExecs: fakeHealth.liveExecs,
+          ...(fakeHealth.dockerReady === undefined
+            ? {}
+            : { dockerReady: fakeHealth.dockerReady }),
           ...(legacyDaemon ? {} : { activity: activity.snapshot() }),
         });
       }
@@ -216,6 +220,10 @@ beforeAll(() => {
         // Echo-style script: a start, one stdout chunk, then exit 0.
         const text: string =
           body.command?.slice(1).join(' ') ?? body.shell ?? '';
+        if (text.includes('__malformed_stream__'))
+          return new Response('{broken}\n', {
+            headers: { 'content-type': 'application/x-ndjson' },
+          });
         // Sentinel: simulate a process that raced the deadline but still exited
         // cleanly (exitCode 0 + timedOut) — the H8 wire-coherence case.
         const cleanTimeout = text.includes('__timeout_clean__');
@@ -335,6 +343,10 @@ beforeAll(() => {
         });
       }
       if (url.pathname.endsWith('/attach')) {
+        if (url.pathname.includes('/malformed-'))
+          return new Response('{broken}\n', {
+            headers: { 'content-type': 'application/x-ndjson' },
+          });
         if (url.pathname.includes('/replay-unavailable/')) {
           return new Response(
             ndjson([
@@ -501,6 +513,7 @@ beforeEach(() => {
   backendPins.clear();
   fakeHealth.lastActivityAtMs = 0;
   fakeHealth.liveExecs = 0;
+  fakeHealth.dockerReady = undefined;
   fakeActivities.clear();
   legacyDaemon = false;
   legacyIdleReclaim = false;
@@ -512,6 +525,114 @@ beforeEach(() => {
 });
 
 describe('SessionRoutes (fake runnerd)', () => {
+  test.each(['exec', 'attach'])(
+    'malformed %s output is terminal replay failure and does not evict the session',
+    async (method) => {
+      const routes = new SessionRoutes(cfg, fakeBackend);
+      await routes.handleCreate(
+        JSON.stringify({
+          sessionId: 'malformed-stream',
+          organizationId: 'org_a',
+        }),
+      );
+      const request = new Request('http://sandbox/stream');
+      const result =
+        method === 'exec'
+          ? await routes.handleExec(
+              request,
+              'malformed-stream',
+              JSON.stringify({
+                execId: 'malformed-e',
+                command: ['echo', '__malformed_stream__'],
+              }),
+            )
+          : await routes.handleExecAttach(
+              request,
+              'malformed-stream',
+              'malformed-e',
+            );
+      backendGone.add('malformed-stream');
+      const text = await result.text();
+      expect(text).toContain('REPLAY_UNAVAILABLE');
+      expect(routes.holds('malformed-stream')).toBe(true);
+    },
+  );
+
+  test.each(['acquire', 'exec', 'sweep'])(
+    'unhealthy inner Docker recovers idle compute through the fenced claim on %s',
+    async (operation) => {
+      const routes = new SessionRoutes(
+        { ...cfg, dockerInContainer: true },
+        fakeBackend,
+      );
+      await routes.handleCreate(
+        JSON.stringify({
+          sessionId: 'docker-idle',
+          organizationId: 'org_a',
+          profile: 'agent',
+        }),
+      );
+      fakeHealth.dockerReady = false;
+      if (operation === 'sweep') expect(await routes.sweepExpired()).toBe(1);
+      else {
+        const result =
+          operation === 'acquire'
+            ? await routes.handleActivity('docker-idle', 'acquire')
+            : await routes.handleExec(
+                new Request('http://sandbox/exec'),
+                'docker-idle',
+                JSON.stringify({ execId: 'e-docker', command: ['true'] }),
+              );
+        expect(result.status).toBe(404);
+      }
+      expect(stopped.has('docker-idle')).toBe(true);
+      expect(destroyed.has('docker-idle')).toBe(false);
+      expect(execRequests).toHaveLength(0);
+    },
+  );
+
+  test.each(['busy', 'pinned', 'acquired-race', 'legacy'])(
+    'unhealthy inner Docker protects %s compute while refusing new work',
+    async (state) => {
+      const routes = new SessionRoutes(
+        { ...cfg, dockerInContainer: true },
+        fakeBackend,
+      );
+      await routes.handleCreate(
+        JSON.stringify({
+          sessionId: 'docker-protected',
+          organizationId: 'org_a',
+          profile: 'agent',
+        }),
+      );
+      if (state === 'busy') fakeHealth.liveExecs = 1;
+      if (state === 'pinned')
+        await routes.handleSetPinned('docker-protected', '{"pinned":true}');
+      if (state === 'legacy') legacyIdleReclaim = true;
+      if (state === 'acquired-race')
+        beforeReclaim = (_token, activity) => {
+          activity.acquire();
+        };
+      fakeHealth.dockerReady = false;
+      expect(
+        (await routes.handleActivity('docker-protected', 'acquire')).status,
+      ).toBe(503);
+      expect(
+        (
+          await routes.handleExec(
+            new Request('http://sandbox/exec'),
+            'docker-protected',
+            JSON.stringify({ execId: 'e-docker', command: ['true'] }),
+          )
+        ).status,
+      ).toBe(503);
+      expect(await routes.sweepExpired()).toBe(0);
+      expect(stopped.has('docker-protected')).toBe(false);
+      expect(destroyed.has('docker-protected')).toBe(false);
+      expect(execRequests).toHaveLength(0);
+    },
+  );
+
   test.each([{ docker: 'false' }, { workload: 'bogus' }])(
     'rejects malformed capability fields at create: %j',
     async (invalid) => {

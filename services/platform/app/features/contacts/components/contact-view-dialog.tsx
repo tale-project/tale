@@ -15,10 +15,10 @@ import type { ContactDoc } from '@/app/lib/backend/contract/docs';
 import { useT } from '@/lib/i18n/client';
 
 import {
+  canEditContact,
   canEmailContact,
   getContactLocaleLabel,
   getContactSourceLabel,
-  isEditableContact,
 } from '../lib/contact-data';
 import { ContactEditDialog } from './contact-edit-dialog';
 
@@ -48,8 +48,7 @@ export function ContactViewDialog({
   const { formatDate } = useFormatDate();
   const navigate = useNavigate();
   const ability = useAbility();
-  const canEdit =
-    ability.can('write', 'knowledgeWrite') && isEditableContact(contact);
+  const canEdit = canEditContact(ability, contact);
   const notAvailable = tCommon('labels.notAvailable');
 
   const facts = useMemo<StatGridItem[]>(

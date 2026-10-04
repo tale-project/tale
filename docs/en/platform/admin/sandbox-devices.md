@@ -14,6 +14,8 @@ A device is a machine you connect to your organization so its sandboxes run ther
 
 By default a device runs one sandbox for every two CPUs and every 4 GiB of memory that Docker can use, up to 16 at a time, because each agent sandbox gets 2 CPUs and 4 GiB. You can choose another number when you connect the machine.
 
+This number is a ceiling. The device also checks available host memory and workspace disk space before admitting work, so a free slot alone does not guarantee capacity for another sandbox.
+
 <Warning>
 
 A device runs your organization's work. Agent workspaces, the files they process and the short-lived credentials a task uses pass through the machine, and anyone with administrator access to it can read them. Connect only machines you control and trust as much as the Tale server. In turn, the Tale site decides what runs on the device, including the updates it installs by itself, so connect a machine only to a Tale site you trust with it.
@@ -64,6 +66,8 @@ The device keeps running after the machine restarts, as long as Docker starts wi
 ## Understand where sandboxes run
 
 New agent and automation workspaces start on a connected device that has room. When none has, they start on the Tale server. A workspace stays with its files on the machine where it started, so an agent that already has a workspace on the server keeps using it. Pages rendered for website crawling always stay on the server.
+
+When several devices have room, Tale considers both free slots and observed memory headroom. If a device refuses a create because it is full, another device or the server can take it. If the response is lost or the device returns a server error, retries stay on that device: it may already have created the workspace.
 
 Once your organization has a device, the **Workspaces** list shows where each workspace runs: **On the server** or on a device by name. While a device is offline, work that needs one of its workspaces fails with a message that the device is not connected. Start the work again once the device is back online; workspaces never move to another machine by themselves.
 
