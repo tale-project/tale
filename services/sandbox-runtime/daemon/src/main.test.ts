@@ -1,6 +1,6 @@
 // Drive runnerd over HTTP without Docker: the retired viewing surface must be
 // gone while ordinary command execution still streams stdout and exit status.
-import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
+import { afterAll, beforeAll, describe, expect, spyOn, test } from 'bun:test';
 import {
   existsSync,
   mkdtempSync,
@@ -17,6 +17,8 @@ import {
   type ServerResponse,
 } from 'node:http';
 import { tmpdir } from 'node:os';
+
+import { InnerDockerHealth } from './inner-docker-health.ts';
 
 const workspace = realpathSync(mkdtempSync(`${tmpdir()}/runnerd-http-`));
 const token = 'runnerd-http-test-token';
@@ -106,6 +108,66 @@ async function currentActiveOperations(): Promise<number> {
 }
 
 describe('runnerd HTTP service', () => {
+  test('a failed Docker capability blocks readiness and new execs without hiding live process state', async () => {
+    const snapshot = spyOn(
+      InnerDockerHealth.prototype,
+      'snapshot',
+    ).mockResolvedValue({ dockerReady: false });
+    try {
+      const ready = await fetch(`${baseUrl}/readyz`);
+      expect(ready.status).toBe(503);
+      expect(await ready.json()).toEqual({ ok: false });
+      const live = await fetch(`${baseUrl}/livez`);
+      expect(live.status).toBe(200);
+      expect(await live.json()).toEqual({ ok: true });
+      const health = await fetch(`${baseUrl}/healthz`, { headers });
+      expect(health.status).toBe(200);
+      expect(await health.json()).toMatchObject({
+        ok: true,
+        dockerReady: false,
+        dependencies: { docker: { ok: false } },
+        liveExecs: 0,
+      });
+      const staged = await fetch(`${baseUrl}/files/stage`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          files: [{ path: 'docker-down-file.txt', contentBase64: 'b2s=' }],
+        }),
+      });
+      expect(staged.status).toBe(200);
+      expect(readFileSync(`${workspace}/docker-down-file.txt`, 'utf8')).toBe(
+        'ok',
+      );
+      const acquire = await fetch(`${baseUrl}/acquire`, {
+        method: 'POST',
+        headers,
+      });
+      expect(acquire.status).toBe(503);
+      expect(await acquire.json()).toEqual({ error: 'docker_unavailable' });
+      const exec = await fetch(`${baseUrl}/execs`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          execId: 'docker-down',
+          command: ['/bin/echo', 'must not run'],
+        }),
+      });
+      expect(exec.status).toBe(503);
+      expect(await exec.json()).toEqual({ error: 'docker_unavailable' });
+      const cancelled = await fetch(`${baseUrl}/execs/docker-down/cancel`, {
+        method: 'POST',
+        headers,
+      });
+      expect(cancelled.status).toBe(200);
+      expect(await cancelled.json()).toEqual({ killed: false });
+      expect(await currentActiveOperations()).toBe(0);
+    } finally {
+      snapshot.mockRestore();
+    }
+    expect((await fetch(`${baseUrl}/readyz`)).status).toBe(200);
+  });
+
   test('rejects unauthenticated execution', async () => {
     const response = await fetch(`${baseUrl}/execs`, {
       method: 'POST',

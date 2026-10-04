@@ -170,11 +170,18 @@ override it with `SANDBOX_RUNTIME_CLASS`.
   `SANDBOX_DIND_INNER_POOL` outside every outer Pod, Service and VPC network;
   changing it requires recreating the session container or Pod. A same-Pod
   container restart keeps its existing Pod environment and inner store.
-- **Disk bound.** A plain Docker named volume has no hard size cap. For a real
-  multi-tenant quota, back the host docker data-root with an XFS project quota
-  (or a fixed-size loopback filesystem). On K8s the `emptyDir.sizeLimit` bounds
-  it (eviction is laggy). **Set a quota before exposing this to untrusted
-  tenants** — an unbounded `docker build` loop is a disk-DoS.
+- **Disk bound.** A plain Docker named volume has no hard size cap. Provision
+  and verify a quota for each session's volume through host storage; putting
+  the Docker data-root on XFS alone does not assign a project quota to each
+  named volume. Tale does not configure those quotas. A fixed-size filesystem
+  for the entire data-root bounds aggregate use, not individual sessions.
+  On K8s `emptyDir.sizeLimit` is enforced by eviction, which can lag writes.
+  **Set a quota before exposing this to untrusted tenants** — an unbounded
+  `docker build` loop can fill shared storage. Docker admission also observes
+  the workspace filesystem and, where the spawner's hostname bind verifies
+  it, Docker's metadata filesystem. This free-space floor pauses new creates;
+  it does not constrain already-running writers or observe separately mounted
+  volume/containerd stores. See [session admission](sessions.md).
 - **Caches.** The shared per-org pip/npm/bun caches are **disabled** under DinD
   (per-container userns shifting makes a shared cross-session volume unsafe).
   Installs still work, just uncached across sessions.

@@ -751,6 +751,44 @@ describe('organization build-cache lifecycle', () => {
       ).toBeDefined();
     });
 
+    test('does not compare free bytes or pause upkeep across different filesystems', async () => {
+      const now = Date.now();
+      await stoppedOrgs(
+        [
+          [nextOrg(), DAY],
+          [nextOrg(), 2 * DAY],
+        ],
+        now,
+      );
+      let reads = 0;
+      const reading = async () => {
+        reads++;
+        // The Docker floor is relieved, exposing the smaller workspace disk
+        // as the next limiting filesystem. Its lower free byte count cannot
+        // tell us whether removing caches on Docker's filesystem helped.
+        return reads === 1
+          ? {
+              filesystem: '/etc/hostname',
+              availableBytes: 10 * GIB,
+              short: true,
+            }
+          : {
+              filesystem: '/sessions',
+              availableBytes: (reads < 4 ? 1 : 6) * GIB,
+              short: reads < 4,
+            };
+      };
+      const first = await quiet(() =>
+        sweepIdleBuildkitd(cfg, now, { sessionDisk: reading }),
+      );
+      expect(first.relieved).toBe(1);
+      const second = await quiet(() =>
+        sweepIdleBuildkitd(cfg, now + 60_000, { sessionDisk: reading }),
+      );
+      expect(second.relieved).toBe(1);
+      expect(reads).toBe(4);
+    });
+
     test('nothing goes while the disk is above its floor, or cannot be read', async () => {
       const now = Date.now();
       const org = nextOrg();

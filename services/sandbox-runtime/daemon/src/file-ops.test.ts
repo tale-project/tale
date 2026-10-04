@@ -204,7 +204,8 @@ describe('atomic bounded staging', () => {
     }
   });
 
-  test('the batch deadline stops queued URLs instead of granting each a fresh full budget', async () => {
+  test('the batch deadline stops queued URLs and preserves existing destinations', async () => {
+    writeFileSync(join(ROOT, 'batch-b'), 'previous');
     const release = Promise.withResolvers<Response>();
     let calls = 0;
     const source = Bun.serve({
@@ -224,6 +225,11 @@ describe('atomic bounded staging', () => {
         { batchTimeoutMs: 50 },
       );
       expect(calls).toBe(2);
+      expect(readFileSync(join(ROOT, 'batch-b'), 'utf8')).toBe('previous');
+      expect(readdirSync(ROOT)).not.toContain('batch-c');
+      expect(
+        readdirSync(ROOT).some((name) => name.startsWith('.tale-stage-')),
+      ).toBe(false);
       expect(result.skipped.map((item) => item.reason)).toEqual([
         'timeout',
         'timeout',

@@ -62,7 +62,7 @@ the destination's permission bits, including executable files. At most two stage
 are admitted at once, including their JSON intake; excess requests report
 `busy`. Two transfers run concurrently across all admitted batches. A 25-second
 deadline covers the whole batch, including cache verification and final
-reconciliation. URL inputs retain their 100 MiB limit and inline inputs their 1 MiB limit. Output reads also stream, within their
+reconciliation. Queued items share the same deadline. URL inputs retain their 100 MiB limit and inline inputs their 1 MiB limit. Output reads also stream, within their
 20 MiB file limit. Immutable source identities can skip a transfer only after
 rehashing the current destination and checking that its pathname still names
 the same unchanged file; a changed file is repaired. Reads and cache probes
@@ -147,6 +147,15 @@ shared container gate runs on amd64. Each native amd64/arm64 runtime build also
 runs this document check for both users against its pushed image digest, after
 verifying the source, revision and version labels. Both builds must pass before
 the release manifests are published.
+
+Inner Docker startup has a 30-second readiness budget, with each Docker client
+probe bounded to one second; timed-out probe process groups are killed. After startup, runnerd checks the fixed local
+socket directly with a 750 ms deadline and shares results for one second.
+A failed engine makes `/readyz` and new acquire/exec requests return 503;
+authenticated `/healthz` keeps reporting process activity with
+`dockerReady: false`. The spawner recycles only an atomically claimed idle,
+unpinned session, preserving its workspace. Running work and pinned sessions
+remain protected; engine recovery makes them ready again.
 
 Before starting inner Docker on either backend, the runtime checks IPv4 routes
 and gateways from all tables, interface addresses and prefixes, DNS servers,
@@ -331,6 +340,8 @@ browser screenshots and still has the batch lane for its scripts.
 File staging streams downloads to temporary files and atomically renames them on
 success. At most two files stage concurrently under one 25-second batch deadline;
 cancellation removes temporary files. Verified SHA-256 manifests skip unchanged
-managed inputs, while changed or deleted workspace files are repaired. `/readyz`
-checks daemon liveness; `/healthz` adds bounded, coalesced Docker and egress
-observations when configured, without treating those dependencies as liveness.
+managed inputs, while changed or deleted workspace files are repaired. `/livez`
+checks daemon liveness; `/readyz` also checks requested Docker capability.
+`/healthz` reuses that Docker snapshot and adds bounded, coalesced egress
+diagnostics when configured. Docker-disabled sessions remain ready; health
+failures do not hide activity or prevent file access and exec cancellation.

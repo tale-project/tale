@@ -23,8 +23,8 @@ and keepalive immediately. The exec keeps running and can be reattached through
 the session API. Late output is discarded without repeated log messages.
 The runnerd response reader also cancels its upstream stream and releases its
 lock when parsing or forwarding fails, so retries do not retain old output
-subscriptions. Malformed JSON lines remain skippable; a failing output consumer
-ends that attachment.
+subscriptions. Malformed JSON or invalid protocol records fail the attachment;
+a failing output consumer also ends that attachment.
 
 ## Authentication
 
@@ -58,9 +58,13 @@ the host, at least 1 GiB), counting creates still starting at their planned
 working set and sessions started in the last 90 seconds at what they are
 still growing into: a create that would cut into it reclaims a released idle
 session or answers 429 `host_memory`. Admission also keeps
-`SANDBOX_MIN_FREE_DISK` free on the disk the session workspaces live on (a
-twentieth of it, at least 2 GiB, at most 20 GiB; `0` turns it off): below
-that floor every create answers 429 `host_disk`, and the build-cache upkeep
+`SANDBOX_MIN_FREE_DISK` free on the workspace filesystem and, where the
+spawner's Docker hostname bind can be verified, Docker's metadata filesystem
+(a twentieth of each, at least 2 GiB, at most 20 GiB; `0` turns it off). This
+does not observe separately mounted volume or containerd stores, and does not
+cap already-running writers; hard per-volume quotas require operator
+provisioning (docs/docker-in-container.md). Below either observed filesystem's
+floor every create answers 429 `host_disk`, and the build-cache upkeep
 removes the caches of organizations whose helpers are all stopped, the
 longest-stopped first. Creates refused for room wait in a
 first-come line: freed room goes to the oldest waiter still asking, and each
@@ -259,10 +263,13 @@ tools and persistent workspace without inner Docker or BuildKit.
 
 Reactivating a released session reserves its expected memory growth and checks
 disk headroom. Both create and acquire can return 429 `host_memory` or `host_disk`.
-Set `SANDBOX_DOCKER_DATA_ROOT` and a read-only mount visible at
-`SANDBOX_DOCKER_DATA_PATH` to monitor Docker's filesystem separately from the
-workspace filesystem. The CLI generates the mount when configured; raw Compose
-needs an override. The source must match DockerRootDir and the mount must be
-read-only; failed verification blocks admission. `/health.disks` reports each
-monitor as ready, unavailable or (Docker data) unconfigured. These checks do not
+Docker's metadata filesystem is observed through its existing `/etc/hostname`
+bind when that mount can be verified against the selected daemon. Otherwise,
+workspace admission remains active and Docker disk pressure is unavailable.
+An explicit `SANDBOX_DOCKER_DATA_ROOT` read-only mount visible at
+`SANDBOX_DOCKER_DATA_PATH` takes priority. The CLI generates that optional mount;
+raw Compose needs an override. Its source must match DockerRootDir; failed
+verification closes admission. `/health.disks` reports each monitor as ready or
+unavailable. Separately mounted volumes or containerd stores need their own
+monitoring. These checks do not
 enforce per-session disk quotas; those require a quota-capable storage backend.

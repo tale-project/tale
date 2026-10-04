@@ -36,6 +36,47 @@ async function collect(replay: ExecReplay, since: number, until: number) {
 }
 
 describe('disk exec replay', () => {
+  test.each([
+    { t: 'stdout', seq: 1 },
+    { t: 'stdout', seq: 1, b64: '@@@@' },
+    { t: 'stdout', seq: 1.5, b64: 'YQ==' },
+    { t: 'gap', seq: 1, fromSeq: 2, toSeq: 1 },
+    {
+      t: 'exit',
+      seq: 1,
+      exitCode: 0,
+      durationMs: 1,
+      timedOut: false,
+      cancelled: false,
+      truncated: {},
+    },
+  ])(
+    'rejects corrupt recorded payloads before delivering or advancing: %j',
+    async (event) => {
+      const replay = new ExecReplay();
+      const delivered: string[] = [];
+      try {
+        await replay.append(`${JSON.stringify(event)}\n`, 1);
+        await expectOutputLimit(
+          replay.replay(
+            0,
+            1,
+            async (value) => {
+              delivered.push(value);
+            },
+            () => {
+              throw new Error('corruption is not a retention gap');
+            },
+          ),
+          'REPLAY_UNAVAILABLE',
+        );
+        expect(delivered).toEqual([]);
+      } finally {
+        await replay.dispose();
+      }
+    },
+  );
+
   test('keeps output beyond the memory ring and replays only newer events', async () => {
     const replay = new ExecReplay();
     try {
@@ -237,7 +278,7 @@ describe('disk exec replay', () => {
       );
       await entered.promise;
       await replay.saveCheckpoint({ seq: 3, state: null });
-      const large = `${JSON.stringify({ t: 'stdout', seq: 1, b64: 'x'.repeat(130) })}\n`;
+      const large = `${JSON.stringify({ t: 'stdout', seq: 1, b64: 'x'.repeat(132) })}\n`;
       await expectOutputLimit(denied.append(large, 1));
       abort.abort();
       await reading;

@@ -8,6 +8,7 @@
 import { operationSignal } from '../operation-budget.ts';
 import {
   RUNNERD_CHECKPOINT_MAX_BYTES,
+  isRunnerdExecEvent,
   RUNNERD_TOKEN_HEADER,
   type RunnerdExecEvent,
   type RunnerdExecRequest,
@@ -94,6 +95,17 @@ export async function runnerdExecCheckpoint(
   });
 }
 
+/** Corrupt execution history cannot be repaired by skipping a line or retrying
+ * the same replay. The SSE boundary forwards this as a fatal replay error. */
+export class RunnerdProtocolError extends Error {
+  readonly code = 'REPLAY_UNAVAILABLE';
+
+  constructor(detail: string) {
+    super(`runnerd protocol: ${detail}`);
+    this.name = 'RunnerdProtocolError';
+  }
+}
+
 /** GET /healthz — used by create-poll and the idle reaper. Throws on
  * unreachable/non-200 so callers can distinguish "not ready yet" (retry)
  * from "degraded". */
@@ -149,26 +161,32 @@ export async function runnerdActivity(
   return Object.fromEntries(Object.entries(value));
 }
 
-/** Poll /healthz until it answers 200 or the deadline passes. Resolves once
- * the daemon is ready; throws on timeout. */
+/** Poll liveness and required Docker readiness within one deadline, including
+ * time spent inside a health request. Older runtimes omit dockerReady. */
 export async function waitForRunnerd(
   opts: RunnerdClientOptions,
   deadlineMs: number,
   pollIntervalMs = 500,
 ): Promise<void> {
-  const start = Date.now();
+  const deadline = performance.now() + deadlineMs;
+  const timeout = AbortSignal.timeout(Math.max(0, Math.ceil(deadlineMs)));
+  const operation = operationSignal();
+  const signal = operation ? AbortSignal.any([operation, timeout]) : timeout;
   for (;;) {
     operationSignal()?.throwIfAborted();
     try {
-      await runnerdHealth(opts, operationSignal());
-      return;
+      const health = await runnerdHealth(opts, signal);
+      if (health.dockerReady !== false && !signal.aborted) return;
     } catch {
-      operationSignal()?.throwIfAborted();
-      if (Date.now() - start > deadlineMs) {
-        throw new Error(`runnerd did not become ready within ${deadlineMs}ms`);
-      }
-      await new Promise((r) => setTimeout(r, pollIntervalMs));
+      // A failed health probe may recover while the overall budget remains.
     }
+    operation?.throwIfAborted();
+    const remaining = deadline - performance.now();
+    if (remaining <= 0 || signal.aborted)
+      throw new Error(`runnerd did not become ready within ${deadlineMs}ms`);
+    await new Promise((r) =>
+      setTimeout(r, Math.min(pollIntervalMs, remaining)),
+    );
   }
 }
 
@@ -216,57 +234,65 @@ async function pumpNdjson(
   onEvent: (event: RunnerdExecEvent) => void,
 ): Promise<void> {
   const reader = body.getReader();
-  const decoder = new TextDecoder('utf-8');
+  const decoder = new TextDecoder('utf-8', { fatal: true });
   let buf = '';
-  let completed = false;
+  let bufferedBytes = 0;
   const emitLine = (line: string): void => {
     const trimmed = line.trim();
     if (!trimmed) return;
-    let event: RunnerdExecEvent;
+    let event: unknown;
     try {
-      // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
-      event = JSON.parse(trimmed) as RunnerdExecEvent;
-    } catch (err) {
-      console.warn('[sandbox.session] bad NDJSON line from runnerd:', err);
-      return;
+      event = JSON.parse(trimmed);
+    } catch {
+      throw new RunnerdProtocolError('invalid NDJSON record');
     }
-    // A failed consumer must detach, not masquerade as malformed JSON and
-    // keep reading output nobody can forward.
+    if (!isRunnerdExecEvent(event))
+      throw new RunnerdProtocolError('invalid execution event');
+    // Consumer errors belong to the caller; never hide them as parse noise.
     onEvent(event);
+  };
+  const append = (part: string) => {
+    bufferedBytes += Buffer.byteLength(part);
+    if (bufferedBytes > MAX_NDJSON_BUFFER_BYTES)
+      throw new RunnerdProtocolError(
+        `NDJSON record exceeded ${MAX_NDJSON_BUFFER_BYTES} bytes`,
+      );
+    buf += part;
+  };
+  const decode = (value?: Uint8Array, stream = false) => {
+    let chunk: string;
+    try {
+      chunk = decoder.decode(value, { stream });
+    } catch {
+      throw new RunnerdProtocolError('invalid UTF-8');
+    }
+    let from = 0;
+    for (;;) {
+      const nl = chunk.indexOf('\n', from);
+      if (nl === -1) {
+        append(chunk.slice(from));
+        return;
+      }
+      append(chunk.slice(from, nl));
+      emitLine(buf);
+      buf = '';
+      bufferedBytes = 0;
+      from = nl + 1;
+    }
   };
   try {
     for (;;) {
       const { value, done } = await reader.read();
-      if (done) {
-        completed = true;
-        break;
-      }
-      buf += decoder.decode(value, { stream: true });
-      let nl = buf.indexOf('\n');
-      while (nl !== -1) {
-        emitLine(buf.slice(0, nl));
-        buf = buf.slice(nl + 1);
-        nl = buf.indexOf('\n');
-      }
-      // Bound the residual partial line: a daemon streaming without newlines
-      // would otherwise grow `buf` until the spawner OOMs. Abort the pump (the
-      // route's catch sends `error` + evicts a gone backend).
-      if (buf.length > MAX_NDJSON_BUFFER_BYTES) {
-        throw new Error(
-          `runnerd NDJSON exceeded ${MAX_NDJSON_BUFFER_BYTES} bytes without a newline`,
-        );
-      }
+      if (done) break;
+      decode(value, true);
     }
+    decode();
     emitLine(buf);
   } finally {
-    // A parser/consumer failure does not abort fetch by itself. Detach the
-    // upstream stream before a reconnect can add another runnerd subscriber
-    // (and its output forwarding work); the exec itself keeps running.
-    try {
-      if (!completed) await reader.cancel().catch(() => undefined);
-    } finally {
-      reader.releaseLock();
-    }
+    // Includes malformed records and downstream callback failures: neither
+    // may leave an unread runnerd response, subscription or socket behind.
+    await reader.cancel().catch(() => {});
+    reader.releaseLock();
   }
 }
 

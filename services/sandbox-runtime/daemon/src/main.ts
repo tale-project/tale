@@ -36,6 +36,7 @@ import {
   type StageItem,
 } from './file-ops.ts';
 import { readJsonBody } from './http-body.ts';
+import { InnerDockerHealth } from './inner-docker-health.ts';
 import {
   RUNNERD_CHECKPOINT_MAX_BYTES,
   RUNNERD_CONSUMER_BUFFER_MAX_BYTES,
@@ -53,6 +54,7 @@ const MAX_STAGING_OPERATIONS = 2;
 let stagingOperations = 0;
 
 const TOKEN = process.env.TALE_RUNNERD_TOKEN ?? '';
+const innerDocker = new InnerDockerHealth(process.env.TALE_DIND === '1');
 const bootedAtMs = Date.now();
 let lastActivityAtMs = bootedAtMs;
 const touch = () => {
@@ -263,6 +265,10 @@ async function handleExec(
     sendJson(res, body.status, { error: body.error });
     return;
   }
+  if ((await innerDocker.snapshot()).dockerReady === false) {
+    sendJson(res, 503, { error: 'docker_unavailable' });
+    return;
+  }
   // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
   const parsed = body.value as RunnerdExecRequest;
   if (execManager.liveCount() >= RUNNERD_MAX_LIVE_EXECS) {
@@ -353,9 +359,14 @@ async function router(
   const url = new URL(req.url ?? '/', 'http://runnerd');
   const path = url.pathname;
 
-  // Unauthenticated kubelet probe — returns no session data.
-  if (req.method === 'GET' && path === '/readyz') {
+  // Unauthenticated kubelet probes — return no session data.
+  if (req.method === 'GET' && path === '/livez') {
     sendJson(res, 200, { ok: true });
+    return;
+  }
+  if (req.method === 'GET' && path === '/readyz') {
+    const ok = (await innerDocker.snapshot()).dockerReady !== false;
+    sendJson(res, ok ? 200 : 503, { ok });
     return;
   }
 
@@ -365,7 +376,8 @@ async function router(
   }
 
   if (req.method === 'GET' && path === '/healthz') {
-    const dependencies = await dependencyHealth();
+    const docker = await innerDocker.snapshot();
+    const dependencies = await dependencyHealth(docker.dockerReady);
     const body: Record<string, unknown> = {
       ok: true,
       bootedAtMs,
@@ -373,6 +385,7 @@ async function router(
       liveExecs: execManager.liveCount(),
       activity: activity.snapshot(),
       ...(dependencies ? { dependencies } : {}),
+      ...docker,
     };
     sendJson(res, 200, body);
     return;
@@ -382,6 +395,10 @@ async function router(
     return;
   }
   if (req.method === 'POST' && path === '/acquire') {
+    if ((await innerDocker.snapshot()).dockerReady === false) {
+      sendJson(res, 503, { error: 'docker_unavailable' });
+      return;
+    }
     const generation = activity.acquire();
     sendJson(
       res,

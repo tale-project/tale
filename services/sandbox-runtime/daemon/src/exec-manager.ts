@@ -38,6 +38,7 @@ import {
 } from './process-reaper.ts';
 import {
   ID_ALPHABET_RE,
+  isRunnerdExecEvent,
   RUNNERD_RING_BUFFER_BYTES,
   RUNNERD_MAX_REQUEST_BODY_BYTES,
   RUNNERD_STDIN_MAX_BYTES,
@@ -1383,34 +1384,6 @@ function isSingleNdjsonLine(buf: Buffer): boolean {
 
 function isObject(v: unknown): v is Record<string, unknown> {
   return v !== null && typeof v === 'object' && !Array.isArray(v);
-}
-
-/** Narrow a parsed ring line to a RunnerdExecEvent. Lines are produced by
- * ringEmit (JSON.stringify of our own union), so this is defence-in-depth, but
- * it keeps the replay path cast-free: validate the `t` discriminator + the
- * required per-variant fields before emitting. */
-function isRunnerdExecEvent(v: unknown): v is RunnerdExecEvent {
-  if (!isObject(v)) return false;
-  if (v.seq !== undefined && typeof v.seq !== 'number') return false;
-  switch (v.t) {
-    case 'start':
-      return typeof v.execId === 'string' && typeof v.startedAtMs === 'number';
-    case 'stdout':
-    case 'stderr':
-      return typeof v.b64 === 'string';
-    case 'exit':
-      return (
-        typeof v.exitCode === 'number' &&
-        typeof v.durationMs === 'number' &&
-        typeof v.timedOut === 'boolean' &&
-        typeof v.cancelled === 'boolean' &&
-        isObject(v.truncated)
-      );
-    case 'fail':
-      return typeof v.code === 'string' && typeof v.message === 'string';
-    default:
-      return false;
-  }
 }
 
 /** Parse a retained ring line (NDJSON) back to an event for attach replay,

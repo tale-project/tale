@@ -47,29 +47,26 @@ const backend = createHostBackend(cfg);
 // Session lifecycle is separate from host boot/health. Construct once after
 // the deploy control routes are ready; both Docker and Kubernetes implement it.
 // The Docker host's memory, read where /proc describes it (a local Docker
-// spawner; never Kubernetes, a remote daemon or a device's own host checks).
-const hostMemory =
-  cfg.backend === 'docker' && cfg.deviceConfigPath === null
-    ? new HostMemoryProbe()
-    : null;
-// The disk the session workspaces live on (the session root, which this
-// process sees at the host's own path), on the same local Docker spawner:
-// admission keeps a floor of free space on it.
+// spawner or connected device; never Kubernetes or a remote daemon).
+const hostMemory = cfg.backend === 'docker' ? new HostMemoryProbe() : null;
+// Keep a floor on the workspace filesystem and the Docker metadata filesystem
+// where its existing hostname bind can be verified against the local daemon.
 const hostDisk =
-  cfg.backend === 'docker' && cfg.deviceConfigPath === null
+  cfg.backend === 'docker'
     ? new SandboxDiskProbe(
         new HostDiskProbe(cfg.hostSessionRoot, cfg.session.minFreeDiskBytes),
-        cfg.dockerDataPath === undefined
-          ? undefined
-          : new DockerDataDiskProbe(
-              { path: cfg.dockerDataPath, root: cfg.dockerDataRoot },
-              {
-                isLocalHost: () =>
-                  hostMemory?.latest() !== null &&
-                  hostMemory?.latest() !== undefined,
-              },
-            ),
+        new DockerDataDiskProbe(
+          cfg.dockerDataPath === undefined
+            ? undefined
+            : { path: cfg.dockerDataPath, root: cfg.dockerDataRoot },
+          {
+            isLocalHost: () =>
+              hostMemory?.latest() !== null &&
+              hostMemory?.latest() !== undefined,
+          },
+        ),
         cfg.session.minFreeDiskBytes,
+        cfg.dockerDataPath !== undefined,
       )
     : null;
 // No SANDBOX_MAX_SESSIONS set: a host whose memory the spawner can read

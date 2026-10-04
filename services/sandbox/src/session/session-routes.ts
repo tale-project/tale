@@ -36,6 +36,7 @@ import type {
 } from '../wire.ts';
 import {
   RunnerdActivityError,
+  RunnerdProtocolError,
   RunnerdStageBusyError,
   runnerdActivity,
   runnerdAttach,
@@ -581,6 +582,7 @@ export class SessionRoutes {
       return {
         availableBytes: disk.availableBytes,
         short: belowDiskFloor(disk, this.cfg.session.minFreeDiskBytes),
+        filesystem: disk.filesystem,
       };
     } catch (error) {
       console.warn('[sandbox.session] session disk unreadable:', error);
@@ -1459,6 +1461,9 @@ export class SessionRoutes {
       ) {
         return false;
       }
+      if (health.dockerReady === false) {
+        return this.reclaimIdle(s, { health, beforeMs: nowMs - 1 });
+      }
       const idleForMs = nowMs - health.lastActivityAtMs;
       if (!expired) expired = idleForMs > s.idleTimeoutMs;
       if (expired && health.activity?.idleReclaim === true) {
@@ -1956,6 +1961,7 @@ export class SessionRoutes {
     sessionId: string,
     action: 'ticket' | 'acquire' | 'release',
     body = '',
+    knownHealth?: RunnerdHealth,
   ): Promise<Response> {
     if (action !== 'acquire') {
       // A release/ticket separates turns; only adjacent acquires coalesce.
@@ -1964,10 +1970,12 @@ export class SessionRoutes {
     }
     let work = this.acquiring.get(sessionId);
     if (work === undefined) {
-      work = this.queueActivity(sessionId, action, body).finally(() => {
-        if (this.acquiring.get(sessionId) === work)
-          this.acquiring.delete(sessionId);
-      });
+      work = this.queueActivity(sessionId, action, body, knownHealth).finally(
+        () => {
+          if (this.acquiring.get(sessionId) === work)
+            this.acquiring.delete(sessionId);
+        },
+      );
       this.acquiring.set(sessionId, work);
     }
     const response = await work;
@@ -1981,6 +1989,7 @@ export class SessionRoutes {
     sessionId: string,
     action: 'ticket' | 'acquire' | 'release',
     body: string,
+    knownHealth?: RunnerdHealth,
   ): Promise<Response> {
     // Runnerd's generation remains the cross-replica authority. Serializing
     // this spawner's requests also keeps an old completion from clearing the
@@ -1988,7 +1997,7 @@ export class SessionRoutes {
     const previous =
       this.activityOperations.get(sessionId) ?? Promise.resolve();
     const work = previous.then(() =>
-      this.handleActivityUnlocked(sessionId, action, body),
+      this.handleActivityUnlocked(sessionId, action, body, knownHealth),
     );
     const settled = work.then(
       () => undefined,
@@ -2007,6 +2016,7 @@ export class SessionRoutes {
     sessionId: string,
     action: 'ticket' | 'acquire' | 'release',
     body: string,
+    knownHealth?: RunnerdHealth,
   ): Promise<Response> {
     let generation: string | undefined;
     if (action === 'release') {
@@ -2062,7 +2072,7 @@ export class SessionRoutes {
     try {
       if (action === 'acquire') {
         this.activating.add(sessionId);
-        const refused = await this.reserveActivation(session);
+        const refused = await this.reserveActivation(session, knownHealth);
         if (refused !== null) return refused;
       }
       const result = await runnerdActivity(
@@ -2134,6 +2144,7 @@ export class SessionRoutes {
    * An ambiguous RPC retains the bounded reservation: it may have run. */
   private async reserveActivation(
     session: RegistrySession,
+    knownHealth?: RunnerdHealth,
   ): Promise<Response | null> {
     // Disk admission applies even when host memory is unavailable (Kubernetes).
     if (this.diskShort()) {
@@ -2146,12 +2157,19 @@ export class SessionRoutes {
         { 'retry-after': '5' },
       );
     }
-    if (this.memoryCeiling() === null) return null;
+    const observesMemory = this.memoryCeiling() !== null;
+    if (!observesMemory && !(session.docker ?? this.cfg.dockerInContainer))
+      return null;
     const sessionId = session.sessionId;
-    const health = await runnerdHealth({
-      baseUrl: session.endpoint,
-      token: this.tokenFor(sessionId),
-    });
+    const health =
+      knownHealth ??
+      (await runnerdHealth({
+        baseUrl: session.endpoint,
+        token: this.tokenFor(sessionId),
+      }));
+    if (health.dockerReady === false)
+      return this.unavailableDocker(session, health);
+    if (!observesMemory) return null;
     const previous = this.activeGenerations.get(sessionId);
     if (
       health.liveExecs > 0 ||
@@ -2211,6 +2229,20 @@ export class SessionRoutes {
       429,
       { 'retry-after': String(Math.ceil(place.hintMs / 1000)) },
     );
+  }
+
+  /** Docker readiness does not invalidate runnerd liveness. Recreate only
+   * after its atomic idle claim protects active work and a concurrent acquire;
+   * pinned or busy sessions stay alive until their owner releases them. */
+  private async unavailableDocker(
+    session: RegistrySession,
+    health: RunnerdHealth,
+  ): Promise<Response> {
+    if (await this.reclaimIdle(session, { health, beforeMs: Date.now() - 1 }))
+      return jsonResponse({ error: 'not_found' }, 404);
+    return jsonResponse({ error: 'session_unavailable' }, 503, {
+      'retry-after': '1',
+    });
   }
 
   async handleDestroy(
@@ -2416,25 +2448,50 @@ export class SessionRoutes {
     // warm growth once, while an acquired turn or active exec already owns
     // its working set. An idempotent retry remains usable under pressure.
     let replayOnly = false;
+    const retainedExec = async () => {
+      const status = await runnerdExecStatus(
+        { baseUrl: session.endpoint, token: this.tokenFor(sessionId) },
+        execReq.execId,
+      );
+      return status.state === 'running' || status.state === 'exited';
+    };
+    let readiness: RunnerdHealth | undefined;
+    if (session.docker ?? this.cfg.dockerInContainer) {
+      try {
+        readiness = await runnerdHealth({
+          baseUrl: session.endpoint,
+          token: this.tokenFor(sessionId),
+        });
+        if (readiness.dockerReady === false) {
+          // Docker readiness gates fresh work, not retained output. Resolve
+          // the id before idle recovery can remove the daemon's replay store.
+          replayOnly = await retainedExec();
+          if (!replayOnly) return this.unavailableDocker(session, readiness);
+        }
+      } catch (error) {
+        console.warn('[sandbox.session] Docker readiness unavailable:', error);
+        return jsonResponse({ error: 'session_unavailable' }, 503, {
+          'retry-after': '1',
+        });
+      }
+    }
     const active = this.activeGenerations.get(sessionId);
     if (
+      !replayOnly &&
       session.liveExecs.size === 0 &&
       (active === undefined ||
         Date.now() - active.admittedAtMs >= YOUNG_SESSION_RESERVE_MS)
     ) {
       const refused =
         this.memoryCeiling() === null
-          ? await this.reserveActivation(session)
-          : await this.handleActivity(sessionId, 'acquire');
+          ? await this.reserveActivation(session, readiness)
+          : await this.handleActivity(sessionId, 'acquire', '', readiness);
       if (refused !== null && !refused.ok) {
-        if (refused.status !== 429) return refused;
+        // Docker may fail after our health snapshot; /acquire remains the
+        // authority and refuses fresh work without deleting retained replay.
+        if (refused.status !== 429 && refused.status !== 503) return refused;
         try {
-          const status = await runnerdExecStatus(
-            { baseUrl: session.endpoint, token: this.tokenFor(sessionId) },
-            execReq.execId,
-          );
-          if (status.state !== 'running' && status.state !== 'exited')
-            return refused;
+          if (!(await retainedExec())) return refused;
           // Attach, never POST: retention may evict the id after this probe,
           // and that race must not turn a refused retry into fresh execution.
           replayOnly = true;
@@ -2599,11 +2656,13 @@ export class SessionRoutes {
         if (req.signal.aborted || signal.aborted) return;
         send('error', {
           message: err instanceof Error ? err.message : String(err),
+          ...(err instanceof RunnerdProtocolError ? { code: err.code } : {}),
         });
         // A transport-level runnerd failure on a gone container must convert
         // the platform's resilient-drain retry into a 404 (registry miss),
         // not another connection error.
-        await this.evictIfBackendGone(sessionId);
+        if (!(err instanceof RunnerdProtocolError))
+          await this.evictIfBackendGone(sessionId);
       } finally {
         this.registry.unregisterExec(sessionId, execReq.execId);
         req.signal.removeEventListener('abort', abortHandler);
@@ -2780,10 +2839,12 @@ export class SessionRoutes {
         if (req.signal.aborted || signal.aborted) return;
         send('error', {
           message: err instanceof Error ? err.message : String(err),
+          ...(err instanceof RunnerdProtocolError ? { code: err.code } : {}),
         });
         // See handleExec: a dead backend object must surface as 404 on the
         // next reconnect, not as an endless transport error.
-        await this.evictIfBackendGone(sessionId);
+        if (!(err instanceof RunnerdProtocolError))
+          await this.evictIfBackendGone(sessionId);
       } finally {
         req.signal.removeEventListener('abort', onAbort);
       }

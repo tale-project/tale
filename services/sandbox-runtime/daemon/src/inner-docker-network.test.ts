@@ -74,7 +74,7 @@ exec sleep 30
 // argv on a busy CI runner. The delayed startup above makes that race explicit.
 writeFileSync(
   join(bin, 'docker'),
-  '#!/bin/sh\nif [ "$TALE_NETWORK_TEST_PROBE_HANG" = "1" ]; then printf "%s" "$$" > "$TALE_NETWORK_TEST_PROBE_PID"; exec sleep 30; fi\ngrep -q "^dockerd " "$TALE_NETWORK_TEST_LOG"\n',
+  '#!/bin/sh\nif [ "$TALE_NETWORK_TEST_PROBE_HANG" = "1" ]; then printf "%s" "$$" > "$TALE_NETWORK_TEST_PROBE_PID"; exec sleep 30; fi\n[ "$TALE_NETWORK_TEST_DOCKER_HANG" != 1 ] || exec sleep 30\ngrep -q "^dockerd " "$TALE_NETWORK_TEST_LOG"\n',
   { mode: 0o755 },
 );
 writeFileSync(
@@ -125,7 +125,7 @@ function run(
     '/bin/sh',
     [
       '-c',
-      `${helperSource}\n_IP='${join(bin, 'ip')}'\n_GETENT='${join(bin, 'getent')}'\n${command}`,
+      `${helperSource}\n_IP='${join(bin, 'ip')}'\n_GETENT='${join(bin, 'getent')}'\n_DOCKER='${join(bin, 'docker')}'\n_DOCKERD='${join(bin, 'dockerd')}'\n${command}`,
     ],
     {
       env: {
@@ -144,6 +144,7 @@ function run(
         TALE_NETWORK_TEST_LOG: log,
         TALE_NETWORK_TEST_HOSTS: '{}',
         TALE_NETWORK_TEST_DNS_HANG: '0',
+        TALE_NETWORK_TEST_DOCKER_HANG: '0',
         TALE_BUILDKITD_ENDPOINT: 'tcp://org-builder:1234',
         TALE_BUILDKIT_NETWORK_SUBNETS: '["172.19.0.0/23"]',
         TALE_DIND_INNER_POOL_OVERRIDE: '',
@@ -527,6 +528,61 @@ wait
     expect(calls).not.toContain('-s 172.31.0.0/16');
     expect(result.stderr).toContain('redsocks diagnostic');
   });
+  test('a hung Docker client cannot outlive the whole readiness deadline', () => {
+    const started = performance.now();
+    const { result } = run('TALE_DOCKERD_PID=$$\nwait_inner_dockerd 0.2', {
+      TALE_NETWORK_TEST_DOCKER_HANG: '1',
+    });
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('readiness deadline exceeded');
+    expect(performance.now() - started).toBeLessThan(2_000);
+  });
+  test('Docker readiness isolates inherited client configuration and removes it afterward', () => {
+    const inheritedConfig = join(root, 'inherited-docker-config');
+    mkdirSync(inheritedConfig);
+    const inheritedContents = '{"currentContext":"untrusted-context"}';
+    writeFileSync(join(inheritedConfig, 'config.json'), inheritedContents);
+    const probe = join(bin, 'docker-config-probe');
+    writeFileSync(
+      probe,
+      `#!/usr/bin/env bun
+import { readdirSync, statSync, writeFileSync } from 'node:fs';
+const config = process.env.DOCKER_CONFIG;
+writeFileSync(process.env.TALE_NETWORK_TEST_LOG, JSON.stringify({
+  config,
+  mode: statSync(config).mode & 0o777,
+  entries: readdirSync(config),
+  context: process.env.DOCKER_CONTEXT,
+  tls: process.env.DOCKER_TLS_VERIFY,
+  certificatePath: process.env.DOCKER_CERT_PATH,
+  args: process.argv.slice(2),
+}));
+`,
+      { mode: 0o755 },
+    );
+    const { result, calls } = run(
+      `TALE_DOCKERD_PID=$$\n_DOCKER='${probe}'\nwait_inner_dockerd 1`,
+      {
+        DOCKER_CONFIG: inheritedConfig,
+        DOCKER_CONTEXT: 'untrusted-context',
+        DOCKER_TLS_VERIFY: '1',
+        DOCKER_CERT_PATH: inheritedConfig,
+      },
+    );
+    expect(result.status).toBe(0);
+    const observed = JSON.parse(calls);
+    expect(observed).toEqual({
+      config: expect.any(String),
+      mode: 0o700,
+      entries: [],
+      args: ['--host=unix:///var/run/docker.sock', 'info'],
+    });
+    expect(observed.config).not.toBe(inheritedConfig);
+    expect(existsSync(observed.config)).toBe(false);
+    expect(readFileSync(join(inheritedConfig, 'config.json'), 'utf8')).toBe(
+      inheritedContents,
+    );
+  });
   test('dockerd receives the selected bip and address pool before any readiness work', () => {
     const { result, calls } = run(start, {
       TALE_NETWORK_TEST_ROUTES: '[{"dst":"172.31.0.0/16","dev":"eth0"}]',
@@ -563,7 +619,10 @@ wait
         TALE_NETWORK_TEST_PROBE_HANG: '1',
         TALE_NETWORK_TEST_PROBE_PID: pidFile,
       },
-      helpers.replace('time.monotonic() + 30', 'time.monotonic() + 1.2'),
+      helpers.replace(
+        'time.monotonic() + budget',
+        'time.monotonic() + min(budget, 1.2)',
+      ),
     );
     expect(result.status).toBe(1);
     expect(result.error).toBeUndefined();

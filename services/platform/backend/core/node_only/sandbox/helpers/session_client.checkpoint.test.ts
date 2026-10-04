@@ -315,7 +315,7 @@ describe('durable exec checkpoint transport', () => {
               'event: stdout\ndata: {"seq":4,"text":"old"}\n\n',
               'event: stdout\ndata: {"seq":5,"text":"new"}\n\n',
               'event: stdout\ndata: {"seq":5,"text":"duplicate"}\n\n',
-              'event: result\ndata: {"exitCode":0}\n\n',
+              'event: result\ndata: {"status":"completed","exitCode":0,"durationMs":1,"stdoutBase64":"","stderrBase64":"","truncated":{"stdout":false,"stderr":false}}\n\n',
             ].join(''),
           ),
         ),

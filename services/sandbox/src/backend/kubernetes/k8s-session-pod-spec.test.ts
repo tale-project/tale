@@ -60,7 +60,7 @@ describe('buildSessionPod', () => {
       failureThreshold: 36,
     });
     expect(runner?.livenessProbe).toMatchObject({
-      httpGet: { path: '/readyz', port: 8200 },
+      httpGet: { path: '/livez', port: 8200 },
       periodSeconds: 10,
       failureThreshold: 6,
     });

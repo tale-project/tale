@@ -405,7 +405,8 @@ export function buildSessionPod(
             ),
           },
           livenessProbe: {
-            httpGet: { path: '/readyz', port: RUNNERD_PORT },
+            // Docker readiness can fail while runnerd still owns active work.
+            httpGet: { path: '/livez', port: RUNNERD_PORT },
             periodSeconds: 10,
             timeoutSeconds: 5,
             failureThreshold: 6,

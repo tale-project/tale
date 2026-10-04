@@ -291,14 +291,14 @@ export async function checkTaskRetryProjectEligibility(
       archivedRuns.length === 1 &&
         archivedRuns[0]?.status === 'failed' &&
         archivedJobs.count === 0 &&
-        archivedSkips.join(',') === 'project_archived,project_archived' &&
+        archivedSkips.join(',') === 'project_archived,retry_refused' &&
         manualStart.status === 403 &&
         manualError === 'PROJECT_ARCHIVED' &&
         archivedTaskRow[0]?.status === 'in_progress',
-      `runs=${describe(archivedRuns)} (want failed/manual only), turn jobs=${archivedJobs.count} (want 0), skips=${archivedSkips.join(',') || 'none'} (want project_archived twice), manual start=${manualStart.status}/${String(manualError)} (want 403/PROJECT_ARCHIVED), task=${archivedTaskRow[0]?.status} (want in_progress)`,
+      `runs=${describe(archivedRuns)} (want failed/manual only), turn jobs=${archivedJobs.count} (want 0), skips=${archivedSkips.join(',') || 'none'} (want project_archived then retry_refused), manual start=${manualStart.status}/${String(manualError)} (want 403/PROJECT_ARCHIVED), task=${archivedTaskRow[0]?.status} (want in_progress)`,
     );
 
-    // ---- restored before a later delivery: eligibility is read then ----
+    // ---- restoration cannot revive a completed refusal ----------------
     await sql.begin((tx) => restoreProject(tx, owner, projectId));
     const restoredSkips = await skipsDuring(async () => {
       await retryHandler(archived.payload);
@@ -306,15 +306,12 @@ export async function checkTaskRetryProjectEligibility(
     const restoredRuns = await runsOf(archivedTask);
     const restoredJobs = await turnJobsOf(archivedTask);
     record(
-      'retry eligibility: once the project is restored, the next delivery of the same job admits the retry',
-      restoredRuns.length === 2 &&
-        restoredRuns[1]?.status === 'queued' &&
-        restoredRuns[1].trigger === 'auto_retry' &&
-        restoredRuns[1].startedBy === starter &&
-        restoredJobs.count === 1 &&
-        restoredJobs.held === 1 &&
-        restoredSkips.length === 0,
-      `runs=${describe(restoredRuns)} (want failed/manual,queued/auto_retry), turn jobs=${restoredJobs.count} held=${restoredJobs.held} (want 1, 1), skips=${restoredSkips.join(',') || 'none'} (want none)`,
+      'retry eligibility: restoring the project does not revive a retry already retired by a completed delivery',
+      restoredRuns.length === 1 &&
+        restoredRuns[0]?.status === 'failed' &&
+        restoredJobs.count === 0 &&
+        restoredSkips.join(',') === 'retry_refused',
+      `runs=${describe(restoredRuns)} (want failed/manual only), turn jobs=${restoredJobs.count} (want 0), skips=${restoredSkips.join(',') || 'none'} (want retry_refused)`,
     );
 
     // ---- the starter's access revoked after queuing --------------------

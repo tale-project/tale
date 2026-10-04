@@ -13,7 +13,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { StringDecoder } from 'node:string_decoder';
 
-import type { RunnerdExecCheckpoint } from './protocol.ts';
+import { isRunnerdExecEvent, type RunnerdExecCheckpoint } from './protocol.ts';
 
 const SEGMENT_BYTES = 1024 * 1024;
 const REPLAY_BYTES = 64 * 1024 * 1024;
@@ -441,12 +441,7 @@ export class ExecReplay {
             const item = pending.slice(0, end);
             pending = pending.slice(end + 1);
             const event: unknown = JSON.parse(item);
-            if (
-              event === null ||
-              typeof event !== 'object' ||
-              !('seq' in event) ||
-              typeof event.seq !== 'number'
-            )
+            if (!isRunnerdExecEvent(event) || event.seq === undefined)
               throw new ReplayError('REPLAY_UNAVAILABLE');
             if (event.seq <= cursor) continue;
             if (event.seq > until || combined.aborted) return cursor;

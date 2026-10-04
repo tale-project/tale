@@ -2,6 +2,7 @@ import { resolve } from 'node:path';
 
 import {
   diskReserveBytes,
+  DockerDataRootMount,
   HostDiskProbe,
   type HostDisk,
   type HostDiskSource,
@@ -16,17 +17,20 @@ interface DockerDataDiskConfig {
 interface DockerDataDiskDeps {
   docker?: (args: string[]) => Promise<RunDockerResult>;
   disk?: HostDiskSource;
+  mount?: Pick<DockerDataRootMount, 'read'>;
   hostname?: string;
   /** Direct host dev can trust a path only when /proc describes the daemon. */
   isLocalHost?: () => boolean;
   now?: () => number;
 }
 
-/** Docker volumes may live on a different disk from session workspaces.
- * Only an explicitly mapped, verified daemon data root counts as observed. */
+/** Observe Docker's metadata filesystem through one verified source: an
+ * explicit read-only data-root mount takes priority, otherwise discover the
+ * existing hostname bind. Neither observation supplies a storage quota. */
 export class DockerDataDiskProbe implements HostDiskSource {
   private readonly docker: NonNullable<DockerDataDiskDeps['docker']>;
-  private readonly disk: HostDiskSource;
+  private disk: HostDiskSource | undefined;
+  private readonly mount: Pick<DockerDataRootMount, 'read'>;
   private readonly now: () => number;
   private reading: HostDisk | null = null;
   private verifiedUntil = 0;
@@ -34,7 +38,7 @@ export class DockerDataDiskProbe implements HostDiskSource {
   private warned = false;
 
   constructor(
-    private readonly cfg: DockerDataDiskConfig,
+    private readonly cfg: DockerDataDiskConfig | undefined,
     private readonly deps: DockerDataDiskDeps = {},
   ) {
     this.docker =
@@ -45,7 +49,10 @@ export class DockerDataDiskProbe implements HostDiskSource {
           priority: true,
           stdoutMaxBytes: 64 * 1024,
         }));
-    this.disk = deps.disk ?? new HostDiskProbe(cfg.path);
+    this.disk =
+      deps.disk ??
+      (cfg === undefined ? undefined : new HostDiskProbe(cfg.path));
+    this.mount = deps.mount ?? new DockerDataRootMount();
     this.now = deps.now ?? Date.now;
   }
 
@@ -69,6 +76,9 @@ export class DockerDataDiskProbe implements HostDiskSource {
   }
 
   private async verify(): Promise<void> {
+    const cfg = this.cfg;
+    if (cfg === undefined)
+      throw new Error('Explicit Docker data path is absent');
     const root = await this.json([
       'info',
       '--format',
@@ -77,10 +87,7 @@ export class DockerDataDiskProbe implements HostDiskSource {
     if (typeof root !== 'string' || !root.startsWith('/')) {
       throw new Error('DockerRootDir is invalid');
     }
-    if (
-      this.cfg.root !== undefined &&
-      resolve(root) !== resolve(this.cfg.root)
-    ) {
+    if (cfg.root !== undefined && resolve(root) !== resolve(cfg.root)) {
       throw new Error('SANDBOX_DOCKER_DATA_ROOT does not match DockerRootDir');
     }
     const hostname = this.deps.hostname ?? process.env.HOSTNAME;
@@ -101,7 +108,7 @@ export class DockerDataDiskProbe implements HostDiskSource {
             'Source' in entry &&
             entry.Source === root &&
             'Destination' in entry &&
-            entry.Destination === this.cfg.path &&
+            entry.Destination === cfg.path &&
             'RW' in entry &&
             entry.RW === false
           );
@@ -113,7 +120,7 @@ export class DockerDataDiskProbe implements HostDiskSource {
     } else if (
       !(
         this.deps.isLocalHost?.() === true &&
-        resolve(this.cfg.path) === resolve(root)
+        resolve(cfg.path) === resolve(root)
       )
     ) {
       throw new Error(
@@ -124,9 +131,16 @@ export class DockerDataDiskProbe implements HostDiskSource {
   }
 
   private async readNow(fresh: boolean): Promise<HostDisk | null> {
+    if (this.cfg === undefined) {
+      const path = await this.mount.read();
+      if (path === null) return (this.reading = null);
+      this.disk ??= new HostDiskProbe(path);
+      this.reading = await this.disk.read(fresh);
+      return this.reading;
+    }
     try {
       if (this.now() >= this.verifiedUntil) await this.verify();
-      this.reading = await this.disk.read(fresh);
+      this.reading = (await this.disk?.read(fresh)) ?? null;
       if (this.reading === null)
         throw new Error('Docker data filesystem is unreadable');
       this.warned = false;
@@ -156,6 +170,7 @@ export class SandboxDiskProbe implements HostDiskSource {
     private readonly workspace: HostDiskSource,
     private readonly dockerData?: HostDiskSource,
     private readonly reserve?: number,
+    private readonly dockerDataRequired = true,
   ) {
     if (dockerData === undefined) {
       console.warn(
@@ -181,7 +196,9 @@ export class SandboxDiskProbe implements HostDiskSource {
     if (this.dockerData === undefined) return workspace;
     const docker = this.dockerData.latest();
     if (docker === null)
-      return { totalBytes: 0, availableBytes: 0, unavailable: true };
+      return this.dockerDataRequired
+        ? { totalBytes: 0, availableBytes: 0, unavailable: true }
+        : workspace;
     if (workspace === null) return docker;
     const headroom = (disk: HostDisk) =>
       disk.availableBytes - diskReserveBytes(disk.totalBytes, this.reserve);

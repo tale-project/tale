@@ -48,9 +48,10 @@ interface DockerSessionRunInput {
   /**
    * Per-session docker storage volume name, mounted at /var/lib/docker. Required
    * (and only used) when `sessionDindEnabled` — DinD is agent-profile only; the
-   * backend creates an ephemeral per-session volume so the inner dockerd's
+   * backend creates an ephemeral named volume so the inner dockerd's
    * image/layer store is isolated per session and doesn't share the
-   * (overlay-backed) workspace.
+   * (overlay-backed) workspace. Its hard size quota must be provisioned by
+   * the operator; a plain Docker local volume has none.
    */
   dockerStorageVolume?: string;
   /**
@@ -251,7 +252,7 @@ export function buildDockerSessionRunArgs(
     ? Math.max(profile.pidsLimit, 16384)
     : profile.pidsLimit;
 
-  // Inner dockerd storage: a dedicated, ephemeral volume so the
+  // Inner dockerd storage: a dedicated, ephemeral named volume so the
   // image/layer store never lands on the overlay-backed workspace bind mount
   // (nested overlay is rejected by the kernel). Named volumes have no portable
   // size quota: the Docker data filesystem is monitored, and hard storage
