@@ -1,6 +1,6 @@
 # Auth & account
 
-> **Prefix** `AUTH-` · **Reset** none · **Cost** 51 boxes
+> **Prefix** `AUTH-` · **Reset** none · **Cost** 52 boxes
 
 Exercise sign-in, the account/security model (password policy, 2FA, passkeys,
 backup codes), the first-run and create-org wizards, the post-grace 2FA
@@ -434,6 +434,18 @@ compute codes from the enrollment secret.
   session has ended, so the log-in page does not send you back. Remove the
   override and sign in → back on `/dashboard/create-organization`. Repeat
   with Deutsch and Français → the message and both actions are localized.
+- [ ] `AUTH-B16` · **A passkey list that fails to load** — Signed in with a
+  password and at least one passkey, in Chromium's devtools → **Network**,
+  block `*/api/auth/passkey/list-user-passkeys*`, then open Account → once
+  the retries give up (about 40 s) the Passkeys section says **Couldn't load
+  your passkeys.** (`twoFactor.passkeys.errors.listFailed`) with **Try
+  again** (`common.actions.tryAgain`), and never **You haven't added a
+  passkey yet.** (`twoFactor.passkeys.empty`); **Add a passkey**
+  (`twoFactor.passkeys.addButton`) stays. Unblock, Tab to **Try again** and
+  press Enter → it stays focused and busy until the list is back, then the
+  passkeys are listed and the focus rests on the Passkeys section, never on
+  the page. Repeat with Deutsch and Français → the notice and **Try again**
+  are localized.
 
 ## Accessibility (WCAG 2.1 AA)
 
