@@ -122,6 +122,7 @@ import {
   checkInPlaceCompletionCycle,
   checkScheduledAgentStarts,
 } from './domains/tasks/delegated-start.integration.ts';
+import { checkTaskSubtreeDeletion } from './domains/tasks/delete-subtree.integration.ts';
 import { checkTaskDescriptionMentions } from './domains/tasks/description-mentions.integration.ts';
 import { checkTaskExternalIssueSync } from './domains/tasks/external-issue.integration.ts';
 import { checkImportCursorContinuation } from './domains/tasks/import-cursors.integration.ts';
@@ -59641,6 +59642,10 @@ async function main(): Promise<void> {
       [
         'checkProjectTaskMetrics',
         () => checkProjectTaskMetrics(sql, authCtx, record),
+      ],
+      [
+        'checkTaskSubtreeDeletion',
+        () => checkTaskSubtreeDeletion(sql, authCtx, record),
       ],
       [
         'checkTaskBoardSearch',
