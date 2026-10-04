@@ -120,6 +120,9 @@ beforeEach(() => {
     runtimeSessions: [
       { sessionId: 'private-project-session', state: 'running' },
     ],
+    placements: [
+      { sessionId: 'private-project-session', deviceId: 'private-device' },
+    ],
   });
   policy.mockResolvedValue({
     maxSessionsPerOrg: 2,
@@ -163,11 +166,18 @@ describe('sandbox settings read and write authority', () => {
           status: 'available',
           observedAt: 1000,
           runtimeSessions: [],
+          placements: [],
         });
       } else {
         expect(listViews).toHaveBeenCalledWith(query, 'member-org');
         expect(await response.json()).toMatchObject({
           runtimeSessions: [{ sessionId: 'private-project-session' }],
+          placements: [
+            {
+              sessionId: 'private-project-session',
+              deviceId: 'private-device',
+            },
+          ],
         });
       }
       expect(policy).toHaveBeenCalledWith(query, 'member-org', 'sandbox_quota');
