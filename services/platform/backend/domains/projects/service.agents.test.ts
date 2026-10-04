@@ -101,6 +101,7 @@ function fakeTx(
     nameTaken?: boolean;
     insertedId?: string;
     archived?: boolean;
+    instructions?: string;
   } = {},
 ): {
   tx: TransactionSql;
@@ -111,7 +112,9 @@ function fakeTx(
     const text = strings.join('?').replace(/\s+/g, ' ').trim();
     statements.push({ text, values });
     if (text.includes('FROM app.project_agents WHERE id = ?')) {
-      return Promise.resolve([AGENT]);
+      return Promise.resolve([
+        { ...AGENT, instructions: options.instructions ?? AGENT.instructions },
+      ]);
     }
     if (
       text.startsWith('INSERT INTO app.project_agents') &&
@@ -281,6 +284,24 @@ describe('the harness rule is the models door’s eligible set', () => {
 });
 
 describe('updateProjectAgent — the optimistic precondition', () => {
+  it('stores null when existing instructions are cleared', async () => {
+    const { tx, statements } = fakeTx(['REVIEW_TOKEN'], {
+      instructions: 'Old instructions',
+    });
+    await updateProjectAgent(tx, auth, {
+      ...config,
+      secrets: ['REVIEW_TOKEN'],
+    });
+    const [statement] = updates(statements);
+    expect(updates(statements)).toHaveLength(1);
+    expect(statement.text).toContain('instructions = ?');
+    const instructionIndex =
+      statement.text
+        .slice(0, statement.text.indexOf('instructions = ?'))
+        .split('?').length - 1;
+    expect(statement.values[instructionIndex]).toBeNull();
+  });
+
   it('refuses a stale expectedUpdatedAt with 409 and the current stamp, writing nothing', async () => {
     const { tx, statements } = fakeTx();
     await expect(
