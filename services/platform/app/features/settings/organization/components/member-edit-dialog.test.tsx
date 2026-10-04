@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { i18n } from '@/lib/i18n/i18n';
+import { USER_NAME_MAX_LENGTH } from '@/lib/shared/constants/user-name';
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { fireEvent, render, screen, waitFor } from '@/tests/utils/render';
 
@@ -34,7 +35,11 @@ vi.mock('@/app/features/settings/governance/hooks/queries', async () => {
   return { usePasswordPolicy: () => DEFAULT_PASSWORD_POLICY };
 });
 
-function renderDialog() {
+function renderDialog(
+  memberOverrides: Partial<
+    NonNullable<Parameters<typeof EditMemberDialog>[0]['member']>
+  > = {},
+) {
   const onOpenChange = vi.fn();
   return {
     onOpenChange,
@@ -48,6 +53,7 @@ function renderDialog() {
           displayName: 'Alice',
           email: 'alice@example.com',
           role: 'member',
+          ...memberOverrides,
         }}
       />,
     ),
@@ -66,7 +72,10 @@ afterEach(() => {
 describe('EditMemberDialog name validation', () => {
   it.each([
     ['   ', 'Name is required'],
-    ['a'.repeat(101), 'Name must be 100 characters or fewer'],
+    [
+      'a'.repeat(USER_NAME_MAX_LENGTH + 1),
+      'Name must be 100 characters or fewer',
+    ],
   ])(
     'refuses the invalid draft %j without sending it',
     async (draft, error) => {
@@ -107,28 +116,31 @@ describe('EditMemberDialog name validation', () => {
     },
   );
 
-  it.each(['Bob', '  Bob  ', 'B', 'a'.repeat(100), `  ${'a'.repeat(100)}  `])(
-    'saves the valid trimmed name %j and closes',
-    async (draft) => {
-      const { user, onOpenChange } = renderDialog();
-      const input = screen.getByRole('textbox', { name: /^Name/ });
-      await user.clear(input);
-      await user.type(input, draft);
-      await user.click(screen.getByRole('button', { name: 'Save' }));
+  it.each([
+    'Bob',
+    '  Bob  ',
+    'B',
+    'a'.repeat(USER_NAME_MAX_LENGTH),
+    `  ${'a'.repeat(USER_NAME_MAX_LENGTH)}  `,
+  ])('saves the valid trimmed name %j and closes', async (draft) => {
+    const { user, onOpenChange } = renderDialog();
+    const input = screen.getByRole('textbox', { name: /^Name/ });
+    await user.clear(input);
+    await user.type(input, draft);
+    await user.click(screen.getByRole('button', { name: 'Save' }));
 
-      await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
-      expect(updateNameMock).toHaveBeenCalledExactlyOnceWith({
-        memberId: 'member-1',
-        displayName: draft.trim(),
-      });
-      expect(updateRoleMock).not.toHaveBeenCalled();
-      expect(setPasswordMock).not.toHaveBeenCalled();
-      expect(toastMock).toHaveBeenCalledWith(
-        expect.objectContaining({ variant: 'success' }),
-      );
-      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
-    },
-  );
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+    expect(updateNameMock).toHaveBeenCalledExactlyOnceWith({
+      memberId: 'member-1',
+      displayName: draft.trim(),
+    });
+    expect(updateRoleMock).not.toHaveBeenCalled();
+    expect(setPasswordMock).not.toHaveBeenCalled();
+    expect(toastMock).toHaveBeenCalledWith(
+      expect.objectContaining({ variant: 'success' }),
+    );
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
 
   it.each(['en', 'de', 'fr', 'de-CH'])(
     'renders both inline name errors in %s',
@@ -145,7 +157,7 @@ describe('EditMemberDialog name validation', () => {
       for (const [draft, error] of [
         ['   ', tCommon('validation.required', { field: name })],
         [
-          'a'.repeat(101),
+          'a'.repeat(USER_NAME_MAX_LENGTH + 1),
           tCommon('validation.maxLength', { field: name, max: 100 }),
         ],
       ]) {
@@ -160,4 +172,67 @@ describe('EditMemberDialog name validation', () => {
       }
     },
   );
+});
+
+describe('EditMemberDialog unrelated edits with legacy names', () => {
+  it.each([
+    ['   ', 'role', 'Editor'],
+    ['x'.repeat(USER_NAME_MAX_LENGTH + 20), 'role', 'Editor'],
+    ['   ', 'disable', 'Disabled'],
+    ['x'.repeat(USER_NAME_MAX_LENGTH + 20), 'disable', 'Disabled'],
+  ])(
+    'saves a %s legacy name when changing %s',
+    async (displayName, operation, role) => {
+      const { user, onOpenChange } = renderDialog({ displayName });
+      const roleSelect = screen.getByRole('combobox', { name: 'Role' });
+      await user.click(roleSelect);
+      await user.click(screen.getByRole('option', { name: role }));
+      await user.click(screen.getByRole('button', { name: 'Save' }));
+
+      await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+      expect(updateRoleMock).toHaveBeenCalledExactlyOnceWith({
+        memberId: 'member-1',
+        role: role.toLowerCase(),
+      });
+      expect(updateNameMock).not.toHaveBeenCalled();
+      expect(toastMock).toHaveBeenCalledWith(
+        expect.objectContaining({ variant: 'success' }),
+      );
+    },
+  );
+
+  it.each(['   ', 'x'.repeat(USER_NAME_MAX_LENGTH + 20)])(
+    'saves a %s legacy name when changing the password',
+    async (displayName) => {
+      const { user, onOpenChange } = renderDialog({ displayName });
+      await user.click(
+        screen.getByRole('checkbox', { name: /Update password/i }),
+      );
+      await user.type(screen.getByLabelText('Password'), 'ValidPassword1!');
+      await user.click(screen.getByRole('button', { name: 'Save' }));
+
+      await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+      expect(setPasswordMock).toHaveBeenCalledExactlyOnceWith({
+        memberId: 'member-1',
+        newPassword: 'ValidPassword1!',
+      });
+      expect(updateNameMock).not.toHaveBeenCalled();
+      expect(updateRoleMock).not.toHaveBeenCalled();
+    },
+  );
+
+  it('does not rewrite surrounding whitespace during an unrelated edit', async () => {
+    const { user, onOpenChange } = renderDialog({ displayName: ' Alice ' });
+    const roleSelect = screen.getByRole('combobox', { name: 'Role' });
+    await user.click(roleSelect);
+    await user.click(screen.getByRole('option', { name: 'Editor' }));
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+    expect(updateRoleMock).toHaveBeenCalledExactlyOnceWith({
+      memberId: 'member-1',
+      role: 'editor',
+    });
+    expect(updateNameMock).not.toHaveBeenCalled();
+  });
 });
