@@ -7,6 +7,7 @@ import { z } from 'zod';
 
 const sourceSchema = z.object({
   status: z.literal('ready'),
+  mode: z.enum(['diagnostic', 'protocol']),
   baseline: z.string().regex(/^[a-f0-9]{40}$/),
   candidate: z.string().regex(/^[a-f0-9]{40}$/),
   baselineTree: z.string().regex(/^[a-f0-9]{40}$/),

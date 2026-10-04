@@ -2,9 +2,10 @@ import assert from 'node:assert/strict';
 import { writeFile } from 'node:fs/promises';
 
 import type { CDPSession } from '../../../packages/e2e/src/index.ts';
+import { observeTrace } from './trace-session.ts';
 import { finishProfile, saveRawTrace } from './trace.ts';
 
-const categories =
+export const diagnosticTraceCategories =
   'devtools.timeline,blink.user_timing,disabled-by-default-devtools.timeline.stack,disabled-by-default-devtools.timeline.invalidationTracking';
 
 /** A completed action remains observable even if protocol finalization fails. */
@@ -28,6 +29,8 @@ export async function capturePhase<T>(
     else bufferUsage.push({ at: Date.now(), value });
   };
   cdp.on('Tracing.bufferUsage', recordBuffer);
+  const traceOwner = observeTrace(cdp);
+  let coverageEndAt: number | undefined;
   let profileStarted = false;
   let traceStarted = false;
   let value: T | undefined;
@@ -40,13 +43,14 @@ export async function capturePhase<T>(
     profileStarted = true;
     stage('profiler-started');
     await cdp.send('Tracing.start', {
-      categories,
+      categories: diagnosticTraceCategories,
       transferMode: 'ReturnAsStream',
       bufferUsageReportingInterval: 1000,
     });
     traceStarted = true;
     stage('trace-started');
     value = await action();
+    coverageEndAt = Date.now();
     stage('action-complete');
     await write('action', {
       status: 'action-complete',
@@ -65,15 +69,21 @@ export async function capturePhase<T>(
       evidenceErrors.push(writeError);
     }
   }
+  coverageEndAt ??= Date.now();
   stage('finalization-started');
   const retained = await Promise.allSettled([
     profileStarted
       ? finishProfile(cdp, `${prefix}.cpuprofile`)
       : Promise.resolve({ notStarted: true }),
     traceStarted
-      ? saveRawTrace(cdp, `${prefix}.trace.json`)
+      ? saveRawTrace(cdp, `${prefix}.trace.json`, {
+          owner: traceOwner,
+          coverageEndAt,
+        })
       : Promise.resolve({ notStarted: true }),
   ]);
+  const ownershipErrors = await traceOwner.dispose();
+  evidenceErrors.push(...ownershipErrors);
   cdp.off('Tracing.bufferUsage', recordBuffer);
   stage('finalization-settled');
   const metadata = await Promise.allSettled([
@@ -89,6 +99,7 @@ export async function capturePhase<T>(
       stages,
       bufferUsage,
       bufferOverflow,
+      completionEvents: traceOwner.events,
       failure: failure ? String(failure) : undefined,
       evidenceErrors: evidenceErrors.map(String),
     }),

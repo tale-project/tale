@@ -1,12 +1,13 @@
 import { afterEach, expect, test } from 'bun:test';
 import { createHash } from 'node:crypto';
 import { EventEmitter } from 'node:events';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { CDPSession } from '../../packages/e2e/src/index.ts';
 import { saveRawTrace } from './browser/trace';
+import { observeTrace } from './browser/trace-session.ts';
 
 const owned: string[] = [];
 afterEach(async () => {
@@ -162,4 +163,101 @@ test('a caller cannot relax the fixed trace evidence ceiling', async () => {
     }),
   ).rejects.toThrow('may only tighten');
   expect(f.calls).toEqual([]);
+});
+
+test('an already delivered stream is closed even if End rejects', async () => {
+  const f = await fixture();
+  const owner = observeTrace(f.client);
+  (f.client as unknown as EventEmitter).emit('Tracing.tracingComplete', {
+    stream: 'early-owned',
+    dataLossOccurred: false,
+  });
+  const calls: string[] = [];
+  f.client.send = (async (method: string) => {
+    calls.push(method);
+    if (method === 'Tracing.end') throw new Error('end refused');
+    return {};
+  }) as typeof f.client.send;
+  await expect(saveRawTrace(f.client, f.path, { owner })).rejects.toThrow(
+    'end refused',
+  );
+  expect(calls).toEqual(['Tracing.end', 'IO.close']);
+  expect(
+    (f.client as unknown as EventEmitter).listenerCount(
+      'Tracing.tracingComplete',
+    ),
+  ).toBe(0);
+  expect(
+    JSON.parse(await readFile(`${f.path}.receipt.json`, 'utf8')).completion
+      .stream,
+  ).toBe('early-owned');
+});
+
+test('exclusive output failure never touches preexisting bytes and disposes an owned stream', async () => {
+  const f = await fixture();
+  const owner = observeTrace(f.client);
+  (f.client as unknown as EventEmitter).emit('Tracing.tracingComplete', {
+    stream: 'owned',
+    dataLossOccurred: false,
+  });
+  await writeFile(f.path, 'preexisting');
+  await expect(saveRawTrace(f.client, f.path, { owner })).rejects.toThrow(
+    'EEXIST',
+  );
+  expect(await readFile(f.path, 'utf8')).toBe('preexisting');
+  expect(f.calls).toEqual(['IO.close']);
+  const receipt = JSON.parse(await readFile(`${f.path}.receipt.json`, 'utf8'));
+  expect(receipt.bytes).toBeNull();
+  expect(receipt.sha256).toBeNull();
+});
+
+test('a trace ending before action coverage is retained but cannot be complete', async () => {
+  const f = await fixture();
+  const owner = observeTrace(f.client);
+  (f.client as unknown as EventEmitter).emit('Tracing.tracingComplete', {
+    stream: 'owned-stream',
+    dataLossOccurred: false,
+  });
+  const send = f.client.send.bind(f.client);
+  f.client.send = (async (method: string) =>
+    method === 'Tracing.end'
+      ? {}
+      : send(method as 'IO.read')) as typeof f.client.send;
+  await expect(
+    saveRawTrace(f.client, f.path, { owner, coverageEndAt: Date.now() + 10 }),
+  ).rejects.toThrow('coverage ended');
+  expect((await readFile(f.path)).length).toBeGreaterThan(0);
+  expect(
+    JSON.parse(await readFile(`${f.path}.receipt.json`, 'utf8')).status,
+  ).toBe('failed');
+});
+
+test('late protocol evidence does not turn the fixed completion deadline into success', async () => {
+  const f = await fixture();
+  const events = f.client as unknown as EventEmitter;
+  const send = f.client.send.bind(f.client);
+  f.client.send = (async (method: string) => {
+    if (method === 'Tracing.end') {
+      setTimeout(
+        () =>
+          events.emit('Tracing.tracingComplete', {
+            stream: 'owned-stream',
+            dataLossOccurred: false,
+          }),
+        15,
+      );
+      return {};
+    }
+    return send(method as 'IO.read');
+  }) as typeof f.client.send;
+  await expect(
+    saveRawTrace(f.client, f.path, {
+      completionTimeoutMs: 1,
+      lateObservationMs: 100,
+    }),
+  ).rejects.toThrow('timed out');
+  const receipt = JSON.parse(await readFile(`${f.path}.receipt.json`, 'utf8'));
+  expect(receipt).toMatchObject({ status: 'failed', deadlineExceeded: true });
+  expect(receipt.bytes).toBeGreaterThan(0);
+  expect(f.calls.filter((method) => method === 'IO.close')).toHaveLength(1);
 });

@@ -112,6 +112,8 @@ test('runner paths are initialized at runtime and exported before any source ref
         RUNNER_TEMP: temporary,
         GITHUB_ENV: environment,
         BASELINE_SHA: 'invalid',
+        BENCH_EVENT_NAME: 'pull_request',
+        BENCH_LABELS: JSON.stringify(['benchmark:task-board']),
       }),
     ).rejects.toThrow('Expected a full lowercase commit SHA');
     const exported = await readFile(environment, 'utf8');

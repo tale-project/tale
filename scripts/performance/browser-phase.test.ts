@@ -112,3 +112,34 @@ test('an action-failure receipt write cannot prevent protocol finalization and l
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+test('a failed trace start disposes a stream delivered during that owned attempt', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'tale-browser-start-'));
+  const events = new EventEmitter();
+  const calls: string[] = [];
+  const client = Object.assign(events, {
+    async send(method: string) {
+      calls.push(method);
+      if (method === 'Tracing.start') {
+        events.emit('Tracing.tracingComplete', {
+          stream: 'owned',
+          dataLossOccurred: true,
+        });
+        throw new Error('start failed');
+      }
+      if (method === 'Profiler.stop')
+        return { profile: { nodes: [{ id: 1 }] } };
+      return {};
+    },
+  }) as unknown as CDPSession;
+  try {
+    await expect(
+      capturePhase(client, join(directory, 'phase'), async () => 1),
+    ).rejects.toThrow('start failed');
+    expect(calls.filter((method) => method === 'IO.close')).toHaveLength(1);
+    expect(events.listenerCount('Tracing.tracingComplete')).toBe(0);
+    expect(events.listenerCount('Tracing.bufferUsage')).toBe(0);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});

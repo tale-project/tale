@@ -43,10 +43,18 @@ assert.equal(
   origin,
   'Web origin differs from the source arm',
 );
+assert(
+  process.env.BENCH_TLS_KEY && process.env.BENCH_TLS_CERT,
+  'Owned TLS material is missing',
+);
 const server = Bun.serve({
   hostname: webHost,
   port: Number(new URL(origin).port),
   idleTimeout: 255,
+  tls: {
+    key: process.env.BENCH_TLS_KEY!,
+    cert: Bun.file(process.env.BENCH_TLS_CERT!),
+  },
   fetch: diagnosticWebFetch(createApp(), backendOrigin),
 });
 await json(`web-${variant}-runtime.json`, {

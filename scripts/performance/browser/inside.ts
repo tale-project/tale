@@ -16,12 +16,15 @@ import {
   runLogged,
   sources,
 } from './common.ts';
+import { measurementPlan } from './mode.mjs';
 import { backendOrigin, browserOrigins } from './origins.mjs';
 
 const scripts = dirname(fileURLToPath(import.meta.url));
 const baseline = process.env.BENCH_BASELINE!;
 const candidate = process.env.BENCH_SOURCE!;
 const children: ChildProcess[] = [];
+const mode = (await sources()).mode;
+const measurement = measurementPlan(mode);
 const environment = {
   ...process.env,
   ROLE: 'api',
@@ -211,6 +214,20 @@ try {
   await json('listeners.json', listeners);
   await runLogged(
     process.execPath,
+    [
+      '--experimental-transform-types',
+      '--disable-warning=ExperimentalWarning',
+      join(scripts, 'tls-proof.ts'),
+    ],
+    {
+      cwd: candidate,
+      env: environment,
+      log: outputPath('tls-proof.log'),
+      timeoutMs: 120_000,
+    },
+  );
+  await runLogged(
+    process.execPath,
     [join(scripts, 'seed-http.mjs'), 'diagnostic'],
     {
       cwd: candidate,
@@ -219,24 +236,25 @@ try {
       timeoutMs: 120_000,
     },
   );
-  await runLogged(
-    process.execPath,
-    [
-      '--import',
-      join(scripts, 'loopback-only.mjs'),
-      '--experimental-transform-types',
-      '--disable-warning=ExperimentalWarning',
-      '--import',
-      './backend/node-loader.mjs',
-      join(scripts, 'seed-tasks.ts'),
-    ],
-    {
-      cwd: join(baseline, 'services/platform'),
-      env: environment,
-      log: outputPath('seed-tasks.log'),
-      timeoutMs: 240_000,
-    },
-  );
+  if (measurement.seedTasks)
+    await runLogged(
+      process.execPath,
+      [
+        '--import',
+        join(scripts, 'loopback-only.mjs'),
+        '--experimental-transform-types',
+        '--disable-warning=ExperimentalWarning',
+        '--import',
+        './backend/node-loader.mjs',
+        join(scripts, 'seed-tasks.ts'),
+      ],
+      {
+        cwd: join(baseline, 'services/platform'),
+        env: environment,
+        log: outputPath('seed-tasks.log'),
+        timeoutMs: 240_000,
+      },
+    );
   // Preparation is not a sample. Wait at most 3 minutes for the declared host
   // threshold, then refuse without retrying a measurement under another rule.
   for (let attempt = 0; attempt < 90 && loadavg()[0] >= 2.5; attempt += 1) {
@@ -250,13 +268,13 @@ try {
     [
       '--experimental-transform-types',
       '--disable-warning=ExperimentalWarning',
-      join(scripts, 'capture.ts'),
+      join(scripts, measurement.script),
     ],
     {
       cwd: candidate,
       env: { ...environment, DEBUG: 'pw:browser' },
       log: outputPath('capture.log'),
-      timeoutMs: 600_000,
+      timeoutMs: measurement.timeoutMs,
     },
   );
   await json('inside-complete.json', {

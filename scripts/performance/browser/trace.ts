@@ -4,6 +4,11 @@ import { createReadStream } from 'node:fs';
 import { open, writeFile, type FileHandle } from 'node:fs/promises';
 
 import type { CDPSession } from '../../../packages/e2e/src/index.ts';
+import {
+  observeTrace,
+  type TraceOwner,
+  type TraceCompletion,
+} from './trace-session.ts';
 
 /** Stream to disk incrementally so a failed read retains partial evidence and
  * a large trace does not consume the measured container's memory budget. */
@@ -12,19 +17,21 @@ export async function saveRawTrace(
   path: string,
   options: {
     maximumBytes?: number;
+    owner?: TraceOwner;
+    coverageEndAt?: number;
+    completionTimeoutMs?: number;
+    /** Protocol-control evidence only; never extends the success deadline. */
+    lateObservationMs?: number;
     writeChunk?: (file: FileHandle, chunk: Buffer) => Promise<void>;
   } = {},
 ) {
   const maximumBytes = options.maximumBytes ?? 512 * 1024 * 1024;
-  assert(
-    Number.isSafeInteger(maximumBytes) &&
-      maximumBytes > 0 &&
-      maximumBytes <= 512 * 1024 * 1024,
-    'A trace budget may only tighten the fixed evidence ceiling',
-  );
+  const completionTimeoutMs = options.completionTimeoutMs ?? 15_000;
+  const lateObservationMs = options.lateObservationMs ?? 0;
+  const owner = options.owner ?? observeTrace(cdp);
   const writeChunk =
     options.writeChunk ?? ((file, chunk) => file.writeFile(chunk));
-  const file = await open(path, 'wx', 0o600);
+  let file: FileHandle | undefined;
   const hash = createHash('sha256');
   const stages: { name: string; at: number }[] = [];
   const stage = (name: string) => stages.push({ name, at: Date.now() });
@@ -33,48 +40,70 @@ export async function saveRawTrace(
   let digest: string | null = '';
   let readbackError: string | undefined;
   let stream: string | undefined;
-  let completionEvent:
-    | {
-        stream?: string;
-        dataLossOccurred?: unknown;
-        traceFormat?: string;
-        streamCompression?: string;
-      }
-    | undefined;
+  let completionEvent: TraceCompletion | undefined;
   let failure: unknown;
-  let listener: (value: NonNullable<typeof completionEvent>) => void;
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const complete = new Promise<NonNullable<typeof completionEvent>>(
-    (resolvePromise, reject) => {
-      listener = (value) => {
-        completionEvent = value;
-        stage('completion-event');
-        resolvePromise(value);
-      };
-      cdp.once('Tracing.tracingComplete', listener);
-      timer = setTimeout(
-        () => reject(new Error('CDP trace completion timed out')),
-        15_000,
-      );
-    },
-  );
-  // Attach a rejection handler immediately while Tracing.end is in flight.
-  const completion = complete.then(
-    (value) => ({ value }),
-    (error) => ({ error }),
-  );
+  let deadlineExceeded = false;
   try {
+    assert(
+      Number.isSafeInteger(maximumBytes) &&
+        maximumBytes > 0 &&
+        maximumBytes <= 512 * 1024 * 1024,
+      'A trace budget may only tighten the fixed evidence ceiling',
+    );
+    assert(
+      Number.isSafeInteger(completionTimeoutMs) &&
+        completionTimeoutMs > 0 &&
+        completionTimeoutMs <= 15_000,
+      'Trace completion deadline may only tighten',
+    );
+    assert(
+      Number.isSafeInteger(lateObservationMs) &&
+        lateObservationMs >= 0 &&
+        lateObservationMs <= 45_000,
+      'Late evidence observation exceeds its fixed bound',
+    );
+    file = await open(path, 'wx', 0o600);
     stage('end-requested');
-    await cdp.send('Tracing.end');
-    stage('end-acknowledged');
-    const result = await completion;
-    if ('error' in result) throw result.error;
+    // Timer starts before End, exactly as the established completion bound.
+    const endDeadline = Date.now() + completionTimeoutMs;
+    let endTimer: ReturnType<typeof setTimeout> | undefined;
+    let endAcknowledged = false;
+    try {
+      endAcknowledged = await Promise.race([
+        cdp.send('Tracing.end').then(() => {
+          stage('end-acknowledged');
+          return true;
+        }),
+        new Promise<false>((resolve) => {
+          endTimer = setTimeout(() => resolve(false), completionTimeoutMs);
+        }),
+      ]);
+    } finally {
+      clearTimeout(endTimer);
+    }
+    if (endAcknowledged)
+      completionEvent = await owner.wait(Math.max(0, endDeadline - Date.now()));
+    if (!completionEvent) {
+      deadlineExceeded = true;
+      failure = new Error('CDP trace completion timed out');
+      stage('completion-deadline-failed');
+      if (lateObservationMs) {
+        completionEvent = await owner.wait(lateObservationMs);
+        stage(
+          completionEvent
+            ? 'late-completion-observed'
+            : 'late-observation-expired',
+        );
+      }
+      if (!completionEvent) throw failure;
+    }
     stream =
-      typeof result.value.stream === 'string' && result.value.stream.length > 0
-        ? result.value.stream
+      typeof completionEvent.stream === 'string' &&
+      completionEvent.stream.length > 0
+        ? completionEvent.stream
         : undefined;
     assert(
-      stream && typeof result.value.dataLossOccurred === 'boolean',
+      stream && typeof completionEvent.dataLossOccurred === 'boolean',
       'Malformed CDP trace completion',
     );
     stage('stream-read-started');
@@ -96,36 +125,47 @@ export async function saveRawTrace(
     }
     stage('stream-read-completed');
     assert(bytes > 0, 'CDP trace stream is empty');
+    assert.equal(owner.events.length, 1, 'Duplicate CDP trace completion');
+    if (options.coverageEndAt !== undefined)
+      assert(
+        owner.events[0]!.at >= options.coverageEndAt,
+        'Trace completed before action coverage ended',
+      );
     // Retain bytes even when Chromium reports loss; never certify a truncated trace.
     assert.equal(
-      result.value.dataLossOccurred,
+      completionEvent.dataLossOccurred,
       false,
       'CDP reported trace data loss',
     );
     assert(
-      (result.value.traceFormat === undefined ||
-        result.value.traceFormat === 'json') &&
-        (result.value.streamCompression === undefined ||
-          result.value.streamCompression === 'none'),
+      (completionEvent.traceFormat === undefined ||
+        completionEvent.traceFormat === 'json') &&
+        (completionEvent.streamCompression === undefined ||
+          completionEvent.streamCompression === 'none'),
       'CDP returned an unsupported raw trace encoding',
     );
   } catch (error) {
-    failure = error;
+    failure ??= error;
     stage('capture-failed');
   } finally {
-    if (timer) clearTimeout(timer);
-    cdp.off('Tracing.tracingComplete', listener!);
     const cleanup = await Promise.allSettled([
-      file.close(),
-      ...(stream ? [cdp.send('IO.close', { handle: stream })] : []),
+      ...(file ? [file.close()] : []),
+      owner.dispose(),
     ]);
     const cleanupErrors = cleanup.flatMap((result) =>
-      result.status === 'rejected' ? [String(result.reason)] : [],
+      result.status === 'rejected'
+        ? [String(result.reason)]
+        : Array.isArray(result.value)
+          ? result.value
+          : [],
     );
     if (!failure && cleanupErrors.length)
       failure = new Error(cleanupErrors.join('; '));
     stage('cleanup-settled');
-    if (failure) {
+    if (!file) {
+      bytes = null;
+      digest = null;
+    } else if (failure) {
       // A rejected write can still have written a prefix; only the actual
       // retained file can establish its byte/hash receipt after failure.
       try {
@@ -147,7 +187,11 @@ export async function saveRawTrace(
       JSON.stringify(
         {
           status: failure ? 'failed' : 'complete',
-          completion: completionEvent ?? null,
+          completion: completionEvent ?? owner.events[0]?.value ?? null,
+          completionEvents: owner.events,
+          deadlineExceeded,
+          lateObservationMs,
+          coverageEndAt: options.coverageEndAt,
           stages,
           bytes,
           receivedBytes,

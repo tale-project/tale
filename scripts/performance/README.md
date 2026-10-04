@@ -23,7 +23,7 @@ this repository. The opt-in **Browser performance** workflow runs on the label
 event and later pushes; ordinary checks and deployment workflows are unchanged.
 The new workflow can run from the PR's merge branch before it is on `main`.
 After it is registered, its manual input fields also accept full baseline and
-candidate commit SHAs. Do not supply branch names or abbreviated hashes.
+candidate commit SHAs and a `diagnostic` or `protocol` mode. Do not supply branch names or abbreviated hashes. Exactly one opt-in mode label is allowed; ambiguous admission fails with a receipt.
 
 The candidate must contain the event's baseline commit. Both sources must have
 identical server (including the production web shim and proxy contract), platform messages,
@@ -43,7 +43,7 @@ host ports, live accounts, provider calls or production access. The browser imag
 is pinned by digest; the receipt checks its actual version and executable hash.
 Each arm imports its own unchanged production `server.ts` under the root-pinned
 Bun binary, mounted read-only and checked by version and hash. Private
-`[::1]` web origins preserve production runtime injection without activating
+`https://127.0.0.2` web origins preserve production runtime injection without activating
 the product's localhost-only development capture script. The narrow proxy keeps
 `/api/health` and `/events/file` web-owned; it forwards the API, exact `/events`
 and OAuth discovery routes to the shared API, preserving cookies, request
@@ -51,7 +51,7 @@ cancellation, streaming and redirects. Minimal health readiness and synthetic
 API setup precede the cold page; its already-loaded entry-script responses are
 hashed against that arm's build receipt without another asset request. The real
 auth constructor must accept both origins; synthetic sign-in and cookie-backed
-session checks verify both before browser work. Docker 26 or newer enables IPv6
+session checks verify both before browser work. The private TLS certificate has an ephemeral synthetic CA and IP SAN; unchanged product auth and CSP stay in force. Both arms use the same transport. Private signing and serving keys stay in memory/environment and are never artifacts. Public certificate fingerprints, SAN/validity, tooling and trust-database receipts are retained. The existing container UID and fixed child `HOME=/tmp` are preserved; its standard `/tmp/.pki/nssdb` starts without trust. An untrusted browser must reject the health endpoint and fully close before the public CA database is installed; a fresh trusted browser must succeed on both health origins with default verification. Separate Node/Bun children prove certificate rejection and launch-time CA trust. These health-only checks load no application script or asset. Same-origin branding uses the unchanged CSP `self`; cross-port IP branding is not claimed by this fixture. Docker 26 or newer enables IPv6
 only in the owned database container's private namespace; raw readbacks must show
 only loopback interfaces/addresses, no usable external/default route and the same
 namespace for both containers before measurement is released. No host networking
@@ -62,6 +62,25 @@ before the measured pairs, using the same browser, profiler, categories and
 15-second trace-completion deadline. They warm no Tale page or asset. A control
 failure stops the diagnostic with evidence; there is no retry. Measurement then
 starts in a fresh browser.
+
+For a bounded protocol investigation, replace the diagnostic label with
+`benchmark:browser-protocol`. This mode retains the ordinary exact production
+builds because the real production web handler and health proof use that setup;
+it skips bulk task seeding and all app cold/dialog measurements. After the same
+TLS/auth/resource proof and tiny controls, one fresh browser generates unique
+user-timing marks (1,024 names of 8 KiB per batch), clearing page mark entries
+between batches. It stops at the first 90–98% trace-buffer occupancy or fails
+within 45 seconds; overshoot and missing telemetry are retained without retry.
+Similar occupancy does not reproduce the app event mix or prove its timeout cause.
+
+The protocol control preserves the diagnostic categories, default buffer and
+15-second completion verdict. A separate, capped 45-second post-failure window
+can retain a late stream, but the original verdict stays failed. Its process is
+bounded to 180 seconds within the shared deadline, and raw evidence remains
+capped at 512 MiB. Completion subscription starts before tracing; an early
+completion cannot certify full action coverage. Owned streams and listeners are
+released on start, action, End or exclusive-file failure. No certificate bypass,
+trace-category change, longer success deadline or acceptance verdict is implied.
 
 Download `browser-performance-<run>-<attempt>` even when the job fails. It contains
 the exact source trees, build and runtime receipts, raw CDP traces and CPU profiles,

@@ -1,16 +1,17 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
-import { createRequire } from 'node:module';
 import { loadavg } from 'node:os';
 
 import { z } from 'zod';
 
 import { chromium, type Page } from '../../../packages/e2e/src/index.ts';
 import { verifyBoot } from './boot.ts';
+import { browserIdentity } from './browser-identity.ts';
 import { json, outputPath } from './common.ts';
 import { browserOrigins as origins } from './origins.mjs';
 import { capturePhase as trace } from './phase.ts';
+import { traceControls } from './trace-controls.ts';
 
 interface Frame {
   tDom: number;
@@ -59,51 +60,18 @@ const build = z.object({
 const builds = z
   .object({ baseline: build, candidate: build })
   .parse(JSON.parse(await readFile(outputPath('builds.json'), 'utf8')));
-const executable = process.env.BENCH_CHROMIUM;
-assert(
-  executable && process.env.BENCH_PASSWORD,
-  'Synthetic browser environment is missing',
-);
-const driverRequire = createRequire(
-  new URL('../../../packages/e2e/package.json', import.meta.url),
-);
-const driver = z
-  .object({ version: z.string() })
-  .parse(
-    JSON.parse(
-      await readFile(
-        driverRequire.resolve('@playwright/test/package.json'),
-        'utf8',
-      ),
-    ),
-  );
-const driverOwner = z
-  .object({ dependencies: z.object({ '@playwright/test': z.string() }) })
-  .parse(
-    JSON.parse(
-      await readFile(
-        new URL('../../../packages/e2e/package.json', import.meta.url),
-        'utf8',
-      ),
-    ),
-  );
-assert.equal(
-  driver.version,
-  driverOwner.dependencies['@playwright/test'],
-  'Browser driver differs from the E2E package pin',
-);
-const browserHash = createHash('sha256')
-  .update(await readFile(executable))
-  .digest('hex');
+const identity = await browserIdentity();
+const executable = identity.executable;
+assert(process.env.BENCH_PASSWORD, 'Synthetic browser environment is missing');
 const cards = '[role="region"] section button.line-clamp-2';
 const rows: unknown[] = [];
 const receipt = {
-  driverVersion: driver.version,
+  driverVersion: identity.driverVersion,
   mode: 'diagnostic',
   acceptanceVerdict: 'not-evaluated',
   retries: 0,
   browser: '141.0.7390.37',
-  browserHash,
+  browserHash: identity.browserHash,
   viewport: { width: 1440, height: 900 },
   order: ['baseline', 'candidate'],
   sizes: [50, 2000],
@@ -151,63 +119,7 @@ async function ready(page: Page) {
 }
 
 try {
-  // Functional protocol controls only: no Tale page, asset or API is warmed.
-  // The ordinary pair below still launches a fresh browser for every arm.
-  const control = {
-    status: 'running',
-    cases: [] as string[],
-    browser: receipt.browser,
-    driverVersion: driver.version,
-    browserHash,
-  };
-  await json('trace-control.json', control);
-  const controlBrowser = await chromium.launch({
-    executablePath: executable,
-    headless: true,
-    args: ['--enable-precise-memory-info'],
-  });
-  try {
-    assert.equal(controlBrowser.version(), receipt.browser);
-    for (const name of ['static', 'navigation'] as const) {
-      const context = await controlBrowser.newContext({
-        serviceWorkers: 'block',
-      });
-      try {
-        const page = await context.newPage();
-        const cdp = await context.newCDPSession(page);
-        await trace(cdp, outputPath(`control-${name}`), async () => {
-          if (name === 'navigation')
-            await page.goto(
-              'data:text/html,<title>Trace control</title><main>Owned protocol control</main>',
-            );
-          await page.evaluate(() => {
-            performance.mark('control-start');
-            const element = document.createElement('span');
-            element.textContent = 'protocol control';
-            document.body.appendChild(element);
-            performance.mark('control-end');
-          });
-          assert.equal(
-            await page.locator('span').textContent(),
-            'protocol control',
-          );
-          return { functionalControl: true, case: name };
-        });
-        control.cases.push(name);
-        await json('trace-control.json', control);
-      } finally {
-        await context.close();
-      }
-    }
-    control.status = 'passed';
-  } catch (error) {
-    control.status = 'failed';
-    await json('trace-control.json', { ...control, error: String(error) });
-    throw error;
-  } finally {
-    await controlBrowser.close();
-  }
-  await json('trace-control.json', control);
+  await traceControls(identity);
   for (const [size, count] of [
     ['small', 50],
     ['large', 2000],

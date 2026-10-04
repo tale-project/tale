@@ -6,6 +6,8 @@ import { appendFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
+import { benchmarkMode } from './mode.mjs';
+
 export function fullSha(value) {
   assert.equal(value?.length, 40, 'Expected a full lowercase commit SHA');
   assert.match(
@@ -84,6 +86,8 @@ export async function prepareSources(env = process.env, cwd = process.cwd()) {
     writeFile(`${output}/sources.json`, JSON.stringify(receipt, null, 2));
   await save();
   try {
+    receipt.mode = benchmarkMode(env);
+    await appendFile(env.GITHUB_ENV, `BENCH_MODE=${receipt.mode}\n`);
     const baseline = fullSha(env.BASELINE_SHA);
     const candidate = fullSha(env.CANDIDATE_SHA);
     const git = (...args) =>

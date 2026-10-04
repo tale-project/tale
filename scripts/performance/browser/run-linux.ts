@@ -26,6 +26,7 @@ import {
 } from './network.ts';
 import { browserOrigins } from './origins.mjs';
 import { nativeIO } from './resource-io.ts';
+import { prepareTls } from './tls.ts';
 
 const boundedIO = {
   ...nativeIO,
@@ -139,9 +140,17 @@ try {
   assert(healthy, 'Owned database health marker did not become ready');
   // Keep source paths stable in the container so Bun workspace symlinks resolve
   // to their own arm. These are owned ephemeral CI trees, not user workspaces.
+  const tls = await prepareTls(outputPath('tls'));
+  await json('tls-runtime.json', tls.receipt);
   const runtimeEnv = {
     ...env,
     BENCH_OUTPUT: process.env.BENCH_OUTPUT!,
+    BENCH_MODE: source.mode,
+    BENCH_TLS_KEY: tls.privateKey,
+    BENCH_TLS_CERT: tls.certificatePath,
+    BENCH_TLS_CA: tls.caPath,
+    BENCH_NSS_SOURCE: tls.nssDirectory,
+    NODE_EXTRA_CA_CERTS: tls.caPath,
     BENCH_SOURCE: source.candidatePath,
     BENCH_BASELINE: source.baselinePath,
     BENCH_URL: browserOrigins[0]!,
