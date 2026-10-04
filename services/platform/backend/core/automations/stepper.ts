@@ -1216,6 +1216,7 @@ async function stepAgentNode(args: AgentStepArgs): Promise<StepOutcome> {
   // Parked: the resolved request recorded at kick time is this entry's trace
   // input and effect, whatever happens next — the turn ran either way.
   trace.input = parked.input;
+  trace.execId = parked.execId;
   effects.push({ node: node.id, connector: 'agent', input: parked.input });
 
   // The settle may have landed after this turn loaded its checkpoints, so a

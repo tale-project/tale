@@ -1,6 +1,7 @@
 import type { SandboxQuotaConfig } from '@tale/shared/schemas/governance';
 import type { Sql, TransactionSql } from 'postgres';
 
+import { readCheckpoints } from '../../core/automations/checkpoints.ts';
 import type { TurnConnectorCaller } from '../../core/node_only/sandbox/connectors_bridge.ts';
 import {
   requireSessionBudgetForOwnerType,
@@ -874,20 +875,53 @@ export async function listSandboxViewsForOrg(
  * the turn, and where it got to). The session id is DERIVED from the run
  * (`sessionIdForWorkflowExecution`), so the lookup needs no join table.
  *
- * Returns null for a run that is not this org's, or one that has never
- * reached its agent node — the log then renders nothing rather than an
- * error.
+ * A node selector binds the read to its durable trace or live cursor's exec.
+ * Unknown identities (including older traces) fail closed, never borrowing
+ * another step's log. Omitting the selector preserves the run-wide latest op.
+ * Returns null for a foreign run or a step without an operation.
  */
 export async function getAgentNodeSandboxOp(
   sql: Sql,
-  args: { organizationId: string; runId: string },
+  args: { organizationId: string; runId: string; nodeId?: string },
 ): Promise<Record<string, unknown> | null> {
-  const runs = await sql<{ id: string }[]>`
-    SELECT id FROM app.automation_runs
+  const runs = await sql<
+    { id: string; checkpoints: unknown; trace: unknown }[]
+  >`
+    SELECT id, checkpoints, trace FROM app.automation_runs
     WHERE id = ${args.runId} AND org_id = ${args.organizationId}
     LIMIT 1
   `;
-  if (runs[0] === undefined) return null;
+  const run = runs[0];
+  if (run === undefined) return null;
+  let execId: string | undefined;
+  if (args.nodeId !== undefined) {
+    const checkpoints = readCheckpoints(run.checkpoints);
+    const cursor = checkpoints.cursor;
+    execId =
+      cursor?.node === args.nodeId
+        ? cursor.agent?.execId
+        : checkpoints.nodes[args.nodeId]?.trace?.execId;
+    if (execId === undefined && Array.isArray(run.trace)) {
+      const entry = run.trace.find(
+        (value: unknown) =>
+          value !== null &&
+          typeof value === 'object' &&
+          'node' in value &&
+          value.node === args.nodeId &&
+          'type' in value &&
+          value.type === 'agent',
+      );
+      if (
+        entry !== null &&
+        typeof entry === 'object' &&
+        'execId' in entry &&
+        typeof entry.execId === 'string'
+      ) {
+        execId = entry.execId;
+      }
+    }
+    if (typeof execId !== 'string' || execId === '') return null;
+  }
   const sessionId = sessionIdForWorkflowExecution(args.runId);
   const rows = await sql<
     {
@@ -911,6 +945,7 @@ export async function getAgentNodeSandboxOp(
     FROM app.sandbox_session_ops
     WHERE session_id = ${sessionId} AND org_id = ${args.organizationId}
       AND kind = ${WORKFLOW_AGENT_OP_KIND}
+      AND (${execId ?? null}::text IS NULL OR exec_id = ${execId ?? null})
     ORDER BY started_at_ms DESC, id DESC
     LIMIT 1
   `;
