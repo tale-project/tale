@@ -1778,7 +1778,7 @@ async function continueOrSettle(
   const text =
     ended?.finalText !== undefined && ended.finalText !== ''
       ? ended.finalText
-      : window.text;
+      : (window.answerText ?? window.text);
   // The harness's own words ARE the reason when it reported the error
   // itself: the failure it named on its stream (classify carries it), else
   // its last words — never bury a "401 token revoked" behind a generic line.

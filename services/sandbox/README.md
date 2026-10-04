@@ -168,7 +168,8 @@ The actual capability is recorded on each container or Pod and recovered after
 a spawner restart. New settings apply to new compute; running sessions retain
 their capability. Lightweight agents keep their normal agent uid and tool
 permissions, skip Docker storage and build-cache setup, and use the shorter
-released-session idle window. Their configured memory ceiling is unchanged.
+released-session idle window. Their default memory ceiling is 4 GiB instead of
+the 8 GiB used with Docker; an explicit `SANDBOX_AGENT_MEMORY` applies to both.
 
 ## Organization build caches
 

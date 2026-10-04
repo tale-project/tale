@@ -475,6 +475,73 @@ describe('drainSessionExecResilient', () => {
     expect(received).toEqual(['joined']);
   });
 
+  test.each(['aG!!!k=', 'aGk', 'aGk=\n', 'aGl=', 123, null])(
+    'rejects corrupt raw output without advancing the cursor or retrying (%j)',
+    async (b64) => {
+      let calls = 0;
+      globalThis.fetch = (async () => {
+        calls += 1;
+        return sseResponse([
+          `event: stdout\ndata: ${JSON.stringify({ seq: 2, b64, text: 'untrusted fallback' })}\n\n`,
+          RESULT_OK,
+        ]);
+      }) as unknown as typeof fetch;
+      const cursor = { lastSeq: 0 };
+      let text = '';
+      await expect(
+        drainSessionExecResilient(
+          's',
+          { execId: 'e' },
+          new AbortController().signal,
+          {
+            onStdout: (chunk) => {
+              text += chunk;
+            },
+          },
+          { cursor },
+        ),
+      ).rejects.toBeInstanceOf(ExecStreamProtocolError);
+      expect(cursor.lastSeq).toBe(0);
+      expect(text).toBe('');
+      expect(calls).toBe(1);
+    },
+  );
+
+  test('does not announce replay completion from noncanonical base64 output', async () => {
+    let requests = 0;
+    globalThis.fetch = (async () => {
+      requests += 1;
+      return sseResponse([
+        'event: stdout\ndata: {"seq":2,"b64":"aGl="}\n\n',
+        RESULT_OK,
+      ]);
+    }) as unknown as typeof fetch;
+    const cursor = { lastSeq: 0 };
+    const phases: string[] = [];
+    await expect(
+      drainSessionExecResilient(
+        's',
+        { execId: 'e' },
+        new AbortController().signal,
+        {
+          onReplayStarted: () => {
+            phases.push('started');
+          },
+          onReplayComplete: () => {
+            phases.push('complete');
+          },
+          onStdout: (text) => {
+            phases.push(text);
+          },
+        },
+        { cursor, resumeSinceSeq: 0 },
+      ),
+    ).rejects.toBeInstanceOf(ExecStreamProtocolError);
+    expect(phases).toEqual(['started']);
+    expect(cursor.lastSeq).toBe(0);
+    expect(requests).toBe(1);
+  });
+
   test('enables contiguous legacy replay without waiting for a marker', async () => {
     const phases: string[] = [];
     globalThis.fetch = (async () =>

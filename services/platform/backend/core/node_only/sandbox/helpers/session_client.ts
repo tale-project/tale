@@ -1628,6 +1628,14 @@ async function consumeExecSse(
     }
     if (event === 'stdout' || event === 'stderr') {
       const parsed = parseExecData(data, execOutputSchema, event);
+      const bytes =
+        parsed.b64 === undefined
+          ? undefined
+          : Buffer.from(parsed.b64, 'base64');
+      // The schema checks syntax; the round trip also rejects nonzero padding
+      // bits. Validate before changing replay state or the reconnect cursor.
+      if (bytes !== undefined && bytes.toString('base64') !== parsed.b64)
+        throw new ExecStreamProtocolError('Invalid sandbox output base64.');
       if (cursor && parsed.seq !== undefined && parsed.seq <= cursor.lastSeq)
         return;
       if (
@@ -1647,10 +1655,8 @@ async function consumeExecSse(
       if (replay === 'unknown') completeReplay();
       try {
         const text =
-          parsed.b64 !== undefined
-            ? outputDecoders[event].decode(Buffer.from(parsed.b64, 'base64'), {
-                stream: true,
-              })
+          bytes !== undefined
+            ? outputDecoders[event].decode(bytes, { stream: true })
             : (parsed.text ?? '');
         if (text !== '') {
           if (event === 'stdout') callbacks.onStdout?.(text);

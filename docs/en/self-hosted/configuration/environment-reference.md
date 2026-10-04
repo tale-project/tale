@@ -265,7 +265,7 @@ Connected devices apply the same local-host memory and disk admission checks whi
 
 An inner Docker daemon that stops responding makes its session unavailable for new work. The spawner can stop an idle, unpinned session after an atomic activity check, keeping the workspace for the next start. Busy or pinned sessions stay in place and refuse new starts until Docker recovers or an operator resolves the fault.
 
-Reactivating a released session uses the same local-host memory admission as creating one. An already active generation is not charged again. A workflow without inner Docker keeps its agent identity and tools, but starts no Docker daemon and does not keep build-cache helpers alive. The memory limit remains the deployment’s configured agent limit; it is a ceiling, not reserved RAM.
+Reactivating a released session uses the same local-host memory admission as creating one. An already active generation is not charged again. A workflow without inner Docker keeps its agent identity and tools, but starts no Docker daemon and does not keep build-cache helpers alive. Without an explicit `SANDBOX_AGENT_MEMORY`, each session defaults to `4g` without inner Docker or `8g` with it, even when other sessions in the deployment use Docker. An explicit value applies to both modes. These limits are ceilings, not reserved RAM.
 
 Shared build-cache preparation waits at most 15 seconds, or one quarter of the runner readiness timeout if shorter. After that, the session starts with its local builder while the tracked shared setup finishes for later sessions. Registry mirrors are prepared concurrently. The shared builder runs at most four build steps at once; its CPU and memory limits still apply.
 

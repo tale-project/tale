@@ -397,6 +397,17 @@ function virtualKeyName(args: MintVirtualKeyArgs): string {
   return `${head.slice(0, room)}-${tail}`.slice(0, VIRTUAL_KEY_NAME_MAX_LENGTH);
 }
 
+/** Key ids verified or written by ONE provisioning invocation. This is
+ * carried directly to its mint, never cached across sandbox sessions. */
+interface ProvisionedProviderKeys {
+  organizationId: string;
+  keyIds: ReadonlyMap<string, string>;
+}
+
+interface MintVirtualKeyOptions extends GatewayReuseOptions {
+  provisionedKeys?: ProvisionedProviderKeys;
+}
+
 /** POST /api/governance/virtual-keys — mint a session-scoped key.
  *
  * The gateway enforces both axes on the inference path:
@@ -406,6 +417,8 @@ function virtualKeyName(args: MintVirtualKeyArgs): string {
  *   - `allowed_models` is deny-by-default (an EMPTY list denies all), so an
  *     empty resolution fails closed here — throw, never mint a deny-all key.
  *
+ * A sandbox mint can bind ids its own provision just verified, avoiding a
+ * second listing while every new session still checks its credentials.
  * A request-scoped mint (`options.reuseRecent`) binds the key id the
  * provision it follows pushed or saw listed moments ago instead of listing
  * the keys again. A failed mint forgets the records it bound, whatever the
@@ -415,8 +428,16 @@ function virtualKeyName(args: MintVirtualKeyArgs): string {
  */
 export async function mintVirtualKey(
   args: MintVirtualKeyArgs,
-  options: GatewayReuseOptions = {},
+  options: MintVirtualKeyOptions = {},
 ): Promise<MintedVirtualKey> {
+  if (
+    options.provisionedKeys !== undefined &&
+    options.provisionedKeys.organizationId !== args.organizationId
+  ) {
+    throw new Error(
+      'mintVirtualKey: provisioned keys belong to another organization',
+    );
+  }
   // Group the allowed models by the GATEWAY provider record they route to
   // (the shared record for standard connectors; this org's per-model records
   // for custom ones). Allow both the bare model id and the full gateway ref so the
@@ -460,7 +481,7 @@ export async function mintVirtualKey(
 async function postVirtualKey(
   args: MintVirtualKeyArgs,
   byProvider: ReadonlyMap<string, ReadonlySet<string>>,
-  options: GatewayReuseOptions,
+  options: MintVirtualKeyOptions,
 ): Promise<MintedVirtualKey> {
   // Bind each provider config to THIS org's key id (resolved by stable
   // name). The key must already exist (provisionProviders ran at session
@@ -474,6 +495,7 @@ async function postVirtualKey(
   }> = [];
   for (const [provider, allowedModels] of byProvider) {
     const keyId =
+      options.provisionedKeys?.keyIds.get(provider) ??
       (options.reuseRecent === true
         ? recentProviderKey(providerMemoKey(args.organizationId, provider))
             ?.keyId
@@ -1302,7 +1324,7 @@ async function provisionOne(
   organizationId: string,
   p: ProviderProvision,
   reuseRecent: boolean,
-): Promise<void> {
+): Promise<string | null> {
   // Recheck DNS and the opt-in before a cached key can authorize a session.
   const allowPrivateNetwork =
     !isStandardGatewayProvider(p.name) && p.baseUrl
@@ -1310,8 +1332,9 @@ async function provisionOne(
       : false;
   const fingerprint = providerFingerprint(p, allowPrivateNetwork);
   const memoKey = providerMemoKey(organizationId, p.name);
-  if (reuseRecent && recentProviderKey(memoKey)?.fingerprint === fingerprint) {
-    return; // pushed or verified by this process moments ago
+  const recent = reuseRecent ? recentProviderKey(memoKey) : undefined;
+  if (recent?.fingerprint === fingerprint) {
+    return recent.keyId; // pushed or verified by this process moments ago
   }
   const existing =
     (await listProviderKeys(p.name)).find(
@@ -1323,7 +1346,7 @@ async function provisionOne(
       fingerprint,
       at: Date.now(),
     });
-    return; // fully provisioned by this process already
+    return existing.id; // fully provisioned by this process already
   }
   // The key is rewritten below, or recreated under a new id: what this
   // process remembered of it no longer holds, whether the write lands or not.
@@ -1340,6 +1363,7 @@ async function provisionOne(
   if (keyId !== null) {
     recentProviderKeys.set(memoKey, { keyId, fingerprint, at: Date.now() });
   }
+  return keyId;
 }
 
 /** One provider the reconcile could not push: the gateway record name and
@@ -1347,6 +1371,12 @@ async function provisionOne(
 export interface ProviderProvisionFailure {
   name: string;
   error: unknown;
+}
+
+interface ProviderProvisionOptions extends GatewayReuseOptions {
+  /** Receives only ids this invocation verified/wrote. A session may carry
+   * them directly to its own mint; this does not enable cross-session reuse. */
+  onProviderKey?: (provider: string, keyId: string) => void;
 }
 
 /**
@@ -1376,13 +1406,18 @@ export interface ProviderProvisionFailure {
 export async function provisionProviders(
   organizationId: string,
   providers: ProviderProvision[],
-  options: GatewayReuseOptions = {},
+  options: ProviderProvisionOptions = {},
 ): Promise<ProviderProvisionFailure[]> {
   const failures: ProviderProvisionFailure[] = [];
   for (const p of providers) {
     if (skipUnprovisionable(p)) continue;
     try {
-      await provisionOne(organizationId, p, options.reuseRecent === true);
+      const keyId = await provisionOne(
+        organizationId,
+        p,
+        options.reuseRecent === true,
+      );
+      if (keyId !== null) options.onProviderKey?.(p.name, keyId);
     } catch (err) {
       console.warn(
         `[llm-gateway] provisioning provider '${p.name}' for org '${organizationId}' failed (continuing):`,
