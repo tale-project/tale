@@ -528,9 +528,41 @@ A project holds at most 50 agents. Names are unique within the project without r
 
 `task_update_metadata` is an optional project-agent grant (contract 3.10.0) for changing an existing task’s priority and agent assignment without execution. Its request names `taskId`, `priority` and/or `agentId`, plus the current value of each touched field in `expected`; `null` clears a value and omitted fields stay untouched. Build `expected.assignee` as `{type, id}` from `task_get`’s `assigneeType` and `assigneeId`, or use `null` when unassigned; an absent priority is `null`. A stale value refuses the whole request. The [project-agent guide](/platform/projects/project-agents) explains the protected review and live-run states. `task_upsert_by_external_ref` still uses `priority` only when creating a task.
 
-`task_review` adds an optional project-agent grant in contract 3.11.0. It decides only a pending native review assigned to the live reviewer agent, for a completed run by a different agent in the same project. Pass `taskId`, `expected: {approvalId, runId, evidenceRevision}` from the current `task_get.pendingReview`, `decision: "approve" | "request_changes"`, nonempty `feedback`, and `evidence: {checks, pullRequests}`. Each check names its outcome (`passed` or `failed`) and details; a supplied GitHub pull request names its URL, exact `headSha`, and check state. Approval requires every supplied check to have passed. GitHub evidence is the agent's attestation, not a remote verification by Tale.
+`task_review` adds an optional project-agent grant in contract 3.11.0. It decides only a pending native review assigned to the live reviewer agent, for a completed run by a different agent in the same project. Pass `taskId`, `expected: {approvalId, runId, evidenceRevision}` from the current `task_get.pendingReview`, `decision: "approve" | "request_changes"`, `feedback`, and `evidence: {checks, pullRequests}`. The request and its nested objects are strict: unknown fields are refused.
+
+- `checks` requires 1–20 entries. Each requires `name` (1–200 characters after trimming), `outcome` (`passed` or `failed`), and `details` (1–2,000 characters after trimming).
+- `pullRequests` requires a list of 0–10 entries. Each requires `url` (at most 2,048 characters, exactly `https://github.com/<owner>/<repo>/pull/<positive integer>`, without a trailing slash, query or fragment), `headSha` (40 or 64 lowercase hexadecimal characters), and `checks` (`passed`, `failed` or `pending`).
+- `feedback` requires 1–8,000 characters after trimming.
+- `approve` requires all supplied checks and pull requests to be `passed`. A failed check or a failed/pending pull request refuses approval; use `request_changes` when the result needs correction, not a fabricated passing attestation.
+
+This minimal argument example has no pull request. Replace `taskId` and every `expected` value with the current task's identities and evidence revision; write feedback and checks for the result you actually examined. Parsing valid arguments does not establish review authority or commit a verdict.
+
+```json
+{
+  "taskId": "task-id",
+  "expected": {
+    "approvalId": "approval-id",
+    "runId": "implementation-run-id",
+    "evidenceRevision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "decision": "approve",
+  "feedback": "The reviewed result passed the targeted test.",
+  "evidence": {
+    "checks": [
+      { "name": "Targeted test", "outcome": "passed", "details": "1 test passed." }
+    ],
+    "pullRequests": []
+  }
+}
+```
+
+Tale records the reviewer's external attestation; it does not verify current GitHub heads or checks itself.
 
 The tool rechecks the current grant, live issuer authority, recorded reviewer, implementation run, and local evidence revision. A stale result requires another read; changing the current assignee does not establish independence. Approval moves the task to `done`; `request_changes` moves it to `todo` with feedback and no execution, even if the feedback contains a mention. Human competence requirements and workflow approval gates remain outside this tool. There is no public REST endpoint for an agent verdict.
+
+Native review feedback remains a visible task comment with normal notifications and activity, but dispatches neither `comment.created` nor mentions. It cannot start an event-triggered or mentioned agent/automation run.
+
+Native refusals are workspace-tool results, not the REST error envelope or the domain's HTTP status: argument and domain refusals use `status: "invalid_args"` (domain codes appear in `message`), normally inside HTTP 200. The ordinary session-authority gate can first return `status: "unavailable"` with blocker `code: "run_ended"` for an ended issuer; a direct-domain fixture may instead report `TASK_REVIEW_FORBIDDEN`. A missing/unsettled source can return `TASK_REVIEW_SOURCE_REQUIRED`, and a changed latest run, assignment or evidence can return `TASK_REVIEW_STALE`, before the live-work gate reaches `TASK_REVIEW_BUSY`. Keep these preconditions valid when testing a busy refusal; do not infer the first refusal solely from the task having live work.
 
 Since contract 3.15.0, native `task_get.agentRuns` includes an explicit `retryPending` boolean. Only the newest failed run of an existing agent can have `true`, using the same armed-retry, retirement and retry-budget checks as the task card. Preserve that retry. `false` does not authorize a restart or supply a provider reset time; an absent field on an older platform is unknown. Reconcile the current task, assignee, runs and review before acting, and honor provider waits and admission `retryAfter`. This adds no public REST endpoint or raw error text.
 
@@ -597,8 +629,8 @@ Each kind takes its own keys — `cron` and `timezone` only with `schedule`, `ev
 | `project.created`                                       | a project is created                                                                                                    |
 | `task.created`                                          | a task is created — on a board, through the API, or by an intake                                                        |
 | `task.status_changed`                                   | a person moves a task to another status (an agent's own moves raise nothing, so an automation cannot re-trigger itself) |
-| `comment.created`                                       | a comment lands on a task                                                                                               |
-| `comment.mentioned`                                     | a task comment mentions someone with `@`                                                                                |
+| `comment.created`                                       | a task comment is added, except native `task_review` feedback (no event or mention dispatch; notifications and activity remain) |
+| `comment.mentioned`                                     | a task comment mentions someone with `@`, except native `task_review` feedback |
 
 ### Check trigger health and pause safely
 

@@ -547,17 +547,49 @@ curl -fsS "$AGENT_URL/$AGENT_ID" \
 
 Ein Agent mit `managed` gleich `true` ist der [Standard-Agent](/de/platform/projects/project-agents#standard-agent) der Organisation: Tale hat ihn in einem Projekt ohne eigene Agenten eingerichtet und hält Laufzeit, Modell und Anweisungen im Einklang mit den Einstellungen der Organisation. Ein `PUT` auf ihn ergibt **409**, `PROJECT_AGENT_MANAGED`, und schreibt nichts; `DELETE` entfernt ihn wie jeden anderen Agenten (Vertrag 3.9.0).
 
-### Modelle, Freigaben und Grenzen prüfen
+### Modelle, Berechtigungen und Grenzen prüfen {#modelle-freigaben-und-grenzen-prüfen}
 
 Ein Projekt fasst höchstens 50 Agenten. Namen müssen innerhalb des Projekts unabhängig von Groß- und Kleinschreibung eindeutig sein und dürfen bis zu 120 Zeichen lang sein; jede Ausstattungsliste erlaubt 25 Einträge, Anweisungen 20.000 Zeichen. Ungültige Konfiguration oder eine überschrittene Grenze ergibt **400**; ein Name, den ein anderer Agent des Projekts schon trägt, ergibt **409**, `PROJECT_AGENT_NAME_TAKEN` — die Klasse, mit der jedes andere Duplikat an dieser Schnittstelle antwortet —, verwende also den bestehenden Agenten, statt es erneut zu versuchen.
 
-`model` muss ein Modell aus dem Katalog der Organisation sein (nenne `modelProvider`, wenn mehrere Anbieter es bedienen), und `tools` darf nur bekannte Tool-Freigaben nennen — ein falscher Wert ergibt **400** mit `PROJECT_AGENT_MODEL_INVALID`, `PROJECT_AGENT_PROVIDER_UNKNOWN` oder `PROJECT_AGENT_TOOL_UNKNOWN`, das sagt, was zu korrigieren ist, statt eines Agenten, der an seiner ersten Aufgabe scheitert. Mit `task_start_agent` kann der Agent einen anderen Agenten desselben Projekts an einer Aufgabe arbeiten lassen (Vertrag 3.8.0). `secrets` enthält Namen von Organisationsgeheimnissen, niemals deren Werte; ein Name, den die Organisation nicht gespeichert hat, wird mit **400**, `PROJECT_AGENT_SECRET_UNKNOWN`, abgewiesen und in `data.secrets` genannt (der Dialog der App entfernt solche Namen, die API nicht — ein Tippfehler ergibt also nie einen Agenten, der ohne seine Zugangsdaten läuft).
+`model` muss ein Modell aus dem Katalog der Organisation sein (nenne `modelProvider`, wenn mehrere Anbieter es bedienen), und `tools` darf nur bekannte Tool-Berechtigungen nennen — ein falscher Wert ergibt **400** mit `PROJECT_AGENT_MODEL_INVALID`, `PROJECT_AGENT_PROVIDER_UNKNOWN` oder `PROJECT_AGENT_TOOL_UNKNOWN`, das sagt, was zu korrigieren ist, statt eines Agenten, der an seiner ersten Aufgabe scheitert. Mit `task_start_agent` kann der Agent einen anderen Agenten desselben Projekts an einer Aufgabe arbeiten lassen (Vertrag 3.8.0). `secrets` enthält Namen von Organisationsgeheimnissen, niemals deren Werte; ein Name, den die Organisation nicht gespeichert hat, wird mit **400**, `PROJECT_AGENT_SECRET_UNKNOWN`, abgewiesen und in `data.secrets` genannt (der Dialog der App entfernt solche Namen, die API nicht — ein Tippfehler ergibt also nie einen Agenten, der ohne seine Zugangsdaten läuft).
 
-`task_update_metadata` ist eine optionale Freigabe für Projekt-Agenten (Vertrag 3.10.0), mit der sie Priorität und Agentenzuweisung bestehender Aufgaben ändern, ohne eine Ausführung zu starten. Die Anfrage nennt `taskId`, `priority` und/oder `agentId` sowie in `expected` den aktuellen Wert jedes betroffenen Felds. `null` hebt einen Wert auf, ausgelassene Felder bleiben unverändert. Bilde `expected.assignee` als `{type, id}` aus `assigneeType` und `assigneeId` der Antwort von `task_get`; ohne Zuweisung verwendest du `null`, ebenso bei fehlender Priorität. Ein veralteter Wert führt zur Ablehnung der gesamten Anfrage. Die [Anleitung zu Projekt-Agenten](/de/platform/projects/project-agents) beschreibt den Schutz laufender Arbeit und ausstehender Prüfungen. `task_upsert_by_external_ref` verwendet `priority` weiterhin nur beim Anlegen einer Aufgabe.
+`task_update_metadata` ist eine optionale Berechtigung für Projekt-Agenten (Vertrag 3.10.0), mit der sie Priorität und Agentenzuweisung bestehender Aufgaben ändern, ohne eine Ausführung zu starten. Die Anfrage nennt `taskId`, `priority` und/oder `agentId` sowie in `expected` den aktuellen Wert jedes betroffenen Felds. `null` hebt einen Wert auf, ausgelassene Felder bleiben unverändert. Bilde `expected.assignee` als `{type, id}` aus `assigneeType` und `assigneeId` der Antwort von `task_get`; ohne Zuweisung verwendest du `null`, ebenso bei fehlender Priorität. Ein veralteter Wert führt zur Ablehnung der gesamten Anfrage. Die [Anleitung zu Projekt-Agenten](/de/platform/projects/project-agents) beschreibt den Schutz laufender Arbeit und ausstehender Prüfungen. `task_upsert_by_external_ref` verwendet `priority` weiterhin nur beim Anlegen einer Aufgabe.
 
-`task_review` ergänzt mit Vertrag 3.11.0 eine optionale Freigabe für Projektagenten. Sie entscheidet nur ein ausstehendes natives Review, das dem aktiven Reviewer-Agenten zugewiesen ist, über einen abgeschlossenen Lauf eines anderen Agenten desselben Projekts. Übergib `taskId`, `expected: {approvalId, runId, evidenceRevision}` aus dem aktuellen `task_get.pendingReview`, `decision: "approve" | "request_changes"`, eine nicht leere `feedback`-Rückmeldung und `evidence: {checks, pullRequests}`. Jede Prüfung nennt ihr Ergebnis (`passed` oder `failed`) und Details; ein mitgegebener Pull Request auf GitHub nennt URL, exakten `headSha` und Prüfstatus. Für eine Freigabe müssen alle angegebenen Prüfungen bestanden sein. Die GitHub-Belege stammen vom Agenten; Tale verifiziert sie nicht beim externen Dienst.
+`task_review` ergänzt mit Vertrag 3.11.0 eine optionale Berechtigung für Projektagenten. Das Tool entscheidet nur über ein ausstehendes natives Review, das dem aktiven Reviewer-Agenten zugewiesen ist und einen abgeschlossenen Lauf eines anderen Agenten desselben Projekts betrifft. Übergib `taskId`, `expected: {approvalId, runId, evidenceRevision}` aus dem aktuellen `task_get.pendingReview`, `decision: "approve" | "request_changes"`, `feedback` und `evidence: {checks, pullRequests}`. Die Anfrage und ihre verschachtelten Objekte sind strikt: Unbekannte Felder werden abgelehnt.
 
-Das Tool prüft die aktuelle Freigabe, die Rechte des aktiven aufrufenden Laufs, den gespeicherten Reviewer, den Umsetzungslauf und die lokale Belegrevision erneut. Ein veraltetes Ergebnis muss neu gelesen werden; eine andere aktuelle Aufgabenzuweisung macht den Reviewer nicht unabhängig. Die Freigabe verschiebt die Aufgabe nach `done`, `request_changes` mit Rückmeldung nach `todo`, ohne einen Lauf zu starten, auch bei einer Erwähnung in der Rückmeldung. Menschliche Kompetenzanforderungen und Workflow-Genehmigungen bleiben außerhalb dieses Tools. Für eine Agentenentscheidung gibt es keinen öffentlichen REST-Endpunkt.
+- `checks` verlangt 1–20 Einträge. Jeder braucht `name` (1–200 Zeichen nach dem Entfernen äußerer Leerzeichen), `outcome` (`passed` oder `failed`) und `details` (1–2.000 Zeichen nach dem Entfernen äußerer Leerzeichen).
+- `pullRequests` verlangt eine Liste mit 0–10 Einträgen. Jeder braucht `url` (höchstens 2.048 Zeichen, exakt `https://github.com/<owner>/<repo>/pull/<positive integer>` mit einer positiven ganzen Zahl, ohne abschließenden Schrägstrich, Query oder Fragment), `headSha` (40 oder 64 kleingeschriebene Hexadezimalzeichen) und `checks` (`passed`, `failed` oder `pending`).
+- `feedback` verlangt 1–8.000 Zeichen nach dem Entfernen äußerer Leerzeichen.
+- `approve` verlangt bei allen angegebenen Prüfungen und Pull Requests `passed`. Eine fehlgeschlagene Prüfung oder ein Pull Request mit `failed`/`pending` verhindert die Genehmigung. Verwende `request_changes`, wenn das Ergebnis korrigiert werden muss, statt einen bestandenen Test zu erfinden.
+
+Dieses minimale Argumentbeispiel enthält keinen Pull Request. Ersetze `taskId` und sämtliche Werte in `expected` durch die aktuellen Identitäten und die Belegrevision der Aufgabe; beschreibe mit Rückmeldung und Prüfungen das tatsächlich untersuchte Ergebnis. Gültige Argumente belegen keine Review-Berechtigung und speichern noch keine Entscheidung.
+
+```json
+{
+  "taskId": "task-id",
+  "expected": {
+    "approvalId": "approval-id",
+    "runId": "implementation-run-id",
+    "evidenceRevision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "decision": "approve",
+  "feedback": "Das geprüfte Ergebnis hat den gezielten Test bestanden.",
+  "evidence": {
+    "checks": [
+      { "name": "Gezielter Test", "outcome": "passed", "details": "1 Test bestanden." }
+    ],
+    "pullRequests": []
+  }
+}
+```
+
+Tale speichert die externe Bestätigung des Reviewers; aktuelle GitHub-Commits und Prüfungen verifiziert Tale nicht selbst.
+
+Das Tool prüft die aktuelle Berechtigung, die Rechte des aktiven aufrufenden Laufs, den gespeicherten Reviewer, den Umsetzungslauf und die lokale Belegrevision erneut. Ein veraltetes Ergebnis muss neu gelesen werden; eine andere aktuelle Aufgabenzuweisung macht den Reviewer nicht unabhängig. Die Genehmigung verschiebt die Aufgabe nach `done`, `request_changes` mit Rückmeldung nach `todo`, ohne einen Lauf zu starten, auch bei einer Erwähnung in der Rückmeldung. Menschliche Kompetenzanforderungen und Workflow-Genehmigungen bleiben außerhalb dieses Tools. Für eine Agentenentscheidung gibt es keinen öffentlichen REST-Endpunkt.
+
+Native Review-Rückmeldungen bleiben sichtbare Aufgabenkommentare mit den üblichen Benachrichtigungen und Aktivitäten. Sie lösen aber weder `comment.created` noch Erwähnungsaktionen aus und starten somit keinen ereignisgesteuerten oder erwähnten Agenten- oder Automationslauf.
+
+Native Ablehnungen sind Workspace-Tool-Ergebnisse, keine REST-Fehlerantworten mit dem HTTP-Status des Domänenfehlers: Argument- und Domänenablehnungen verwenden `status: "invalid_args"` (Domänencodes stehen in `message`), normalerweise innerhalb von HTTP 200. Die vorgeschaltete Prüfung der Sitzungsrechte kann bei einem beendeten aufrufenden Lauf zuerst `status: "unavailable"` mit dem Blocker `code: "run_ended"` liefern; eine direkte Domänen-Testumgebung kann stattdessen `TASK_REVIEW_FORBIDDEN` melden. Eine fehlende oder nicht abgeschlossene Quelle kann `TASK_REVIEW_SOURCE_REQUIRED` liefern, ein geänderter neuester Lauf, eine geänderte Zuweisung oder Belegrevision `TASK_REVIEW_STALE`, bevor die Prüfung laufender Arbeit `TASK_REVIEW_BUSY` erreicht. Halte diese Voraussetzungen beim Test einer Beschäftigt-Ablehnung gültig; laufende Arbeit allein bestimmt nicht die erste Ablehnung.
 
 Seit Vertrag 3.15.0 enthält das native `task_get.agentRuns` einen expliziten booleschen Wert `retryPending`. Nur beim neuesten fehlgeschlagenen Lauf eines noch vorhandenen Agenten kann er `true` sein. Dabei gelten dieselben Prüfungen auf vorgemerkte oder endgültig abgelehnte Wiederholungen und das verbleibende Versuchskontingent wie auf der Aufgabenkarte. Lass diese Wiederholung bestehen. `false` erlaubt keinen Neustart und nennt keinen Rücksetzzeitpunkt des Anbieters; fehlt das Feld auf einer älteren Plattform, ist der Zustand unbekannt. Gleiche vor jeder Aktion Aufgabe, Zuständigkeit, Läufe und Prüfung neu ab und beachte Wartezeiten des Anbieters sowie `retryAfter` einer Startablehnung. Es kommen weder ein öffentlicher REST-Endpunkt noch rohe Fehlertexte hinzu.
 
@@ -571,7 +603,7 @@ Für ein gespeichertes Agentenreview mit nutzbarem Umsetzungslauf liefert `task_
 
 Dieselbe `task_review`-Berechtigung akzeptiert `{operation: "stage_file", taskId, expected: {approvalId, runId, evidenceRevision}, fileId}`, um eine aufgeführte, verfügbare Datei von höchstens 20 MiB bereitzustellen. Eigene Pfade, Speicherreferenzen oder URLs werden nicht angenommen. Die Antwort nennt den vom Server gewählten lokalen `path` und `bytes`; der Agent muss die Datei lesen, bevor er ihren Inhalt als Beleg anführt. Aufgabenzugehörigkeit, gespeicherter Reviewer, aktiver aufrufender Lauf, Berechtigung und Richtlinie werden vor der Übertragung und vor der Erfolgsmeldung geprüft. Geschützte Dokumentzuordnungen behalten ihre Zugriffsregeln; nicht unterstützte oder nicht verfügbare Dateien werden abgelehnt. Bei einem gleichzeitigen Entzug der Berechtigung oder einer Übergabe können zuvor berechtigt übertragene Bytes im Arbeitsbereich bleiben, während Erfolg und veraltete Entscheidung abgelehnt werden. Dies ist eine native Tool-Operation, kein neuer öffentlicher REST-Endpunkt für Dateien oder Entscheidungen.
 
-Nur Inhaber und Admins der Organisation dürfen die Freigaben ändern. Ein Redakteur muss vorhandene Freigaben beim Speichern beibehalten.
+Nur Inhaber und Admins der Organisation dürfen die Berechtigungen ändern. Ein Redakteur muss vorhandene Berechtigungen beim Speichern beibehalten.
 
 Projektleser dürfen die Agenten lesen; Änderungen verlangen Bearbeitungsrechte und ein aktives Projekt. Ein unsichtbares oder fehlendes Projekt sowie eine Agenten-ID aus einem anderen Projekt ergibt **404**. Bei Mitgliedschaft in mehreren Organisationen muss jede Lese- und Schreibanfrage `X-Organization-Slug` enthalten. [Projekt-Agenten](/de/platform/projects/project-agents) erklärt die Arbeit an Aufgaben; der direkte Chat verwendet weiterhin den eingebauten Assistenten.
 
@@ -624,8 +656,8 @@ Jede Art nimmt ihre eigenen Schlüssel — `cron` und `timezone` nur mit `schedu
 | `project.created`                                       | ein Projekt angelegt wird                                                                                                                                                    |
 | `task.created`                                          | eine Aufgabe angelegt wird — auf einem Board, über die API oder durch einen Intake                                                                                           |
 | `task.status_changed`                                   | eine Person eine Aufgabe in einen anderen Status verschiebt (die eigenen Züge eines Agenten lösen nichts aus, eine Automatisierung kann sich also nicht selbst neu triggern) |
-| `comment.created`                                       | ein Kommentar auf einer Aufgabe landet                                                                                                                                       |
-| `comment.mentioned`                                     | ein Aufgabenkommentar jemanden mit `@` erwähnt                                                                                                                               |
+| `comment.created`                                       | ein Aufgabenkommentar wird hinzugefügt, außer nativer `task_review`-Rückmeldung (keine Ereignis- oder Erwähnungsaktionen; Benachrichtigungen und Aktivitäten bleiben) |
+| `comment.mentioned`                                     | ein Aufgabenkommentar erwähnt jemanden mit `@`, außer nativer `task_review`-Rückmeldung |
 
 ### Triggerzustand prüfen und gezielt pausieren
 
