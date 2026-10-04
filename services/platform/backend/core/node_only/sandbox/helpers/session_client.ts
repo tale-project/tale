@@ -1737,7 +1737,7 @@ async function consumeExecSse(
       return;
     }
     if (event === 'stdout' || event === 'stderr') {
-      const parsed = parseData<{ text?: string; b64?: string; seq?: number }>(
+      const parsed = parseData<{ text?: string; b64?: unknown; seq?: number }>(
         data,
       );
       if (
@@ -1767,12 +1767,15 @@ async function consumeExecSse(
       if (cursor && typeof parsed?.seq === 'number')
         cursor.lastSeq = parsed.seq;
       try {
-        const text =
-          typeof parsed?.b64 === 'string'
-            ? outputDecoders[event].decode(Buffer.from(parsed.b64, 'base64'), {
-                stream: true,
-              })
-            : (parsed?.text ?? '');
+        let text = parsed?.text ?? '';
+        if (parsed?.b64 !== undefined) {
+          if (typeof parsed.b64 !== 'string')
+            throw new ExecStreamProtocolError('Invalid sandbox output base64.');
+          const bytes = Buffer.from(parsed.b64, 'base64');
+          if (bytes.toString('base64') !== parsed.b64)
+            throw new ExecStreamProtocolError('Invalid sandbox output base64.');
+          text = outputDecoders[event].decode(bytes, { stream: true });
+        }
         if (text !== '') {
           if (event === 'stdout') callbacks.onStdout?.(text);
           else callbacks.onStderr?.(text);
@@ -1780,6 +1783,7 @@ async function consumeExecSse(
       } catch (cause) {
         if (cursor !== undefined && previousSeq !== undefined)
           cursor.lastSeq = previousSeq;
+        if (cause instanceof ExecStreamProtocolError) throw cause;
         throw new ExecOutputConsumerError(cause);
       }
     } else if (event === 'gap') {

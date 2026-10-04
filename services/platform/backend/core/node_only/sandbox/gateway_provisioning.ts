@@ -353,7 +353,6 @@ async function provisionSessionGatewayKeyInner(
   requireGatewayAdminPassword();
   const reuse: GatewayReuseOptions = {
     reuseRecent: args.requestScoped === true,
-    verifiedKeys: new Map(),
   };
 
   // One provision-build per unique connector (one credential resolve each),
@@ -447,11 +446,13 @@ async function provisionSessionGatewayKeyInner(
     slugByRecord.set(provision.name, ref.providerSlug);
     provisions.push(provision);
   }
-  const failures = await provisionProviders(
-    args.organizationId,
-    provisions,
-    reuse,
-  );
+  const verifiedKeyIds = new Map<string, string>();
+  const failures = await provisionProviders(args.organizationId, provisions, {
+    ...reuse,
+    onProviderKey: (provider, keyId) => {
+      verifiedKeyIds.set(provider, keyId);
+    },
+  });
   // Every record here is one the mint below binds to, so a skipped push
   // never helps: the gateway keeps the org's key from the last successful
   // provision under the same stable name, and `mintVirtualKey` would resolve
@@ -480,7 +481,13 @@ async function provisionSessionGatewayKeyInner(
       sessionId: args.sessionId,
       ...(args.requestId !== undefined ? { requestId: args.requestId } : {}),
     },
-    reuse,
+    {
+      ...reuse,
+      provisionedKeys: {
+        organizationId: args.organizationId,
+        keyIds: verifiedKeyIds,
+      },
+    },
   );
   return {
     token: minted.key,

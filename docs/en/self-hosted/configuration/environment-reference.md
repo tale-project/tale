@@ -285,7 +285,7 @@ A disk floor is admission control, not a per-session storage quota. Docker named
 
 Kubernetes sessions use separate startup and liveness probes on `/readyz`. A wedged daemon can restart even when its session is pinned. Optional Docker and egress dependency checks appear in `/healthz` without making dependency failures restart the daemon.
 
-An already active generation is not charged again when it is acquired. A workflow without inner Docker keeps its agent identity and tools, but starts no Docker daemon and does not keep build-cache helpers alive. Resource limits are ceilings, not reserved memory.
+An already active generation is not charged again. A workflow without inner Docker keeps its agent identity and tools, but starts no Docker daemon and does not keep build-cache helpers alive. Without an explicit `SANDBOX_AGENT_MEMORY`, each session defaults to `4g` without inner Docker or `8g` with it, even when other sessions in the deployment use Docker. An explicit value applies to both modes. These limits are ceilings, not reserved RAM.
 
 Shared build-cache preparation waits at most `SANDBOX_BUILDKITD_START_TIMEOUT_MS` (30 seconds by default), or one quarter of the total session startup budget if shorter. The session then uses its local builder. Shared setup remains tracked under its own bounded budget for later sessions; a late result does not attach to a session that already fell back. Registry mirrors are prepared concurrently. The shared builder runs at most four build steps at once; its CPU and memory limits still apply.
 

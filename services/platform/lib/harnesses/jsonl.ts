@@ -31,6 +31,48 @@ export function appendHarnessAnswer(current: string, next: string): string {
   return current + next;
 }
 
+export const HARNESS_ID_LEDGER_MAX_ENTRIES = 16_384;
+const HARNESS_ID_LEDGER_MAX_CHARS = 1024 * 1024;
+const HARNESS_ID_MAX_CHARS = 4096;
+
+/** Usage/tool deduplication facts cannot be evicted without changing the
+ * result. Refuse excess explicitly; bookkeeping is constant time per ID. A
+ * checkpoint restores every retained fact before replay resumes. */
+export class BoundedIdLedger {
+  private readonly ids = new Set<string>();
+  private chars = 0;
+
+  [Symbol.iterator](): IterableIterator<string> {
+    return this.ids.values();
+  }
+
+  clear(): void {
+    this.ids.clear();
+    this.chars = 0;
+  }
+
+  has(id: string): boolean {
+    return this.ids.has(id);
+  }
+
+  add(id: string): void {
+    if (this.ids.has(id)) return;
+    if (id.length > HARNESS_ID_MAX_CHARS)
+      throw new Error(
+        `Harness deduplication identifier exceeds ${HARNESS_ID_MAX_CHARS} characters.`,
+      );
+    if (
+      this.ids.size >= HARNESS_ID_LEDGER_MAX_ENTRIES ||
+      this.chars + id.length > HARNESS_ID_LEDGER_MAX_CHARS
+    )
+      throw new Error(
+        'Harness deduplication ledger exceeds its memory budget.',
+      );
+    this.ids.add(id);
+    this.chars += id.length;
+  }
+}
+
 export class LineReassembler {
   constructor(private readonly maxBytes = MAX_HARNESS_JSONL_RECORD_BYTES) {}
   private buf = '';

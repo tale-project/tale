@@ -42,6 +42,21 @@ describe('parser checkpoints', () => {
     },
   );
 
+  it.each([
+    ['claude-code', 'seenUsageMsgIds'],
+    ['codex', 'toolStarted'],
+    ['opencode', 'toolStarted'],
+  ] as const)(
+    '%s applies deduplication limits when restoring a checkpoint',
+    (slug, field) => {
+      const parser = getHarnessGlue(slug, loadHarnesses()).createParser();
+      const state = parser.snapshot();
+      expect(() =>
+        parser.restore({ ...state, [field]: ['x'.repeat(4097)] }),
+      ).toThrow('identifier exceeds');
+    },
+  );
+
   it.each(HARNESS_SLUGS)(
     '%s rejects malformed checkpoints instead of resetting accounting',
     (slug) => {

@@ -28,6 +28,7 @@ import {
   asNumber,
   asRecord,
   asString,
+  BoundedIdLedger,
   LineReassembler,
   parseJsonLine,
 } from '../jsonl';
@@ -88,7 +89,7 @@ const checkpointSchema = z.object({
 
 class ClaudeStreamJsonParser implements HarnessEventParser {
   private readonly lines = new LineReassembler();
-  private readonly seenUsageMsgIds = new Set<string>();
+  private readonly seenUsageMsgIds = new BoundedIdLedger();
 
   constructor(private readonly slug: HarnessSlug) {}
 

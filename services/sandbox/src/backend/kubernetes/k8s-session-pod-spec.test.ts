@@ -74,11 +74,14 @@ describe('buildSessionPod', () => {
         runtimeTier: 'runc',
         session: {
           ...cfg.session,
-          agentLightMemory: '4g',
-          agentProfile: { ...cfg.session.agentProfile, memory: '8g' },
+          agentProfile: {
+            ...cfg.session.agentProfile,
+            memory: '8g',
+            memoryWithoutDocker: '4g',
+          },
         },
       },
-      { ...input, profile: 'agent-light' },
+      { ...input, profile: 'agent-light', docker: true },
     );
     const runner = pod.spec?.containers[0];
     expect(runner?.resources?.limits?.memory).toBe('4Gi');
@@ -94,11 +97,25 @@ describe('buildSessionPod', () => {
     ).toBe(false);
   });
   test('a lightweight agent keeps its uid and omits Docker storage and privilege', () => {
-    const pod = buildSessionPod(
-      { ...cfg, runtimeTier: 'sysbox', dockerInContainer: true },
-      { ...input, docker: false },
-    );
+    const configured = {
+      ...cfg,
+      runtimeTier: 'sysbox' as const,
+      dockerInContainer: true,
+      session: {
+        ...cfg.session,
+        agentProfile: {
+          ...cfg.session.agentProfile,
+          memory: '8g',
+          memoryWithoutDocker: '4g',
+        },
+      },
+    };
+    const pod = buildSessionPod(configured, { ...input, docker: false });
     const runner = pod.spec?.containers[0];
+    expect(runner?.resources).toMatchObject({
+      requests: { memory: '512Mi' },
+      limits: { memory: '4Gi' },
+    });
     expect(pod.metadata?.annotations?.['tale.dev/docker']).toBe('false');
     expect(runner?.securityContext?.runAsUser).toBe(
       cfg.session.agentProfile.uid,
@@ -111,6 +128,37 @@ describe('buildSessionPod', () => {
     expect(
       pod.spec?.volumes?.some((volume) => volume.name === 'docker-storage'),
     ).toBe(false);
+    const dind = buildSessionPod(configured, input);
+    expect(dind.spec?.containers[0]?.resources).toMatchObject({
+      requests: { memory: '1Gi' },
+      limits: { memory: '8Gi' },
+    });
+  });
+
+  test('an explicit memory override applies to every agent Docker capability', () => {
+    const configured: SpawnerConfig = {
+      ...cfg,
+      runtimeTier: 'sysbox',
+      dockerInContainer: true,
+      session: {
+        ...cfg.session,
+        agentProfile: {
+          ...cfg.session.agentProfile,
+          memory: '12g',
+          memoryWithoutDocker: '12g',
+        },
+      },
+    };
+    for (const profile of ['agent', 'agent-light'] as const) {
+      for (const docker of [true, false]) {
+        const pod = buildSessionPod(configured, {
+          ...input,
+          profile,
+          docker,
+        });
+        expect(pod.spec?.containers[0]?.resources?.limits?.memory).toBe('12Gi');
+      }
+    }
   });
 
   test('passes an operator inner pool only to DinD runners without Docker build-cache wiring or unsafe sysctls', () => {

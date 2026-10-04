@@ -8,7 +8,7 @@ describe('bounded harness progress', () => {
     const payload = 'x'.repeat(100_000);
     for (let index = 0; index < 1000; index++) {
       projection.accept({ type: 'raw', harness: 'claude-code', payload });
-      projection.accept({ type: 'text-delta', text: payload });
+      projection.accept({ type: 'text-delta', text: 'Completed a step.\n' });
       projection.accept({
         type: 'tool-use',
         toolName: 'Read',
@@ -21,6 +21,7 @@ describe('bounded harness progress', () => {
         output: payload,
       });
     }
+    expect(projection.answer).toBe('Completed a step.\n'.repeat(1000));
     expect(projection.text.length).toBeLessThanOrEqual(65_536);
     expect(projection.timeline().length).toBeLessThanOrEqual(400);
     expect(

@@ -28,14 +28,17 @@ Output framing retains at most three trailing bytes until a split UTF-8
 character is complete, without changing raw bytes. Writes batch up to 64 records
 or 128 KiB (a larger single record stays intact), and backpressure child output
 at 128 KiB queued, plus the chunk already delivered by the pipe. Sparse record
-indexes every 64 KiB let reconnects seek near their cursor within a segment. An exec reader is disconnected before pending writes exceed 8 MiB;
-attach replay waits for socket drain and disconnects a reader stalled for two
-seconds. Reconnect using the last sequence number. `replay-start` precedes
-history; `replay-complete` names the attachment's initial sequence watermark.
-Checkpoints are atomically committed and synced before acknowledged segments
-are removed. Normal disposal removes runtime-owned spool files; the entrypoint
-cleans their temporary directory at restart. Replay does not survive runtime
-restart, while the workspace does.
+indexes every 64 KiB let reconnects seek near their cursor within a segment.
+An exec reader is disconnected before pending writes exceed 8 MiB. Eight
+exec/attach consumers share a session-wide admission limit, including exec
+requests receiving their body; additional readers receive `503 busy`.
+Attach replay waits for socket drain and disconnects a reader stalled for two
+seconds. The command continues under its existing deadline. Reconnect using
+the last sequence number. `replay-start` precedes history; `replay-complete`
+names the attachment's initial sequence watermark. Checkpoints are atomically
+committed and synced before acknowledged segments are removed. Normal disposal
+removes runtime-owned spool files; the entrypoint cleans their temporary directory
+at restart. Replay does not survive runtime restart, while the workspace does.
 
 Session idle and TTL cleanup atomically checks the current work generation and activity clock
 before freezing compute; see the [session contract](../sandbox/docs/sessions.md).
@@ -48,13 +51,16 @@ its pipe drains, without partially accepting the refused line.
 
 File staging streams each URL into a temporary file beside its destination
 and replaces the destination only after a complete, bounded download. Cancelling
-or failing a download preserves the previous file. At most two stage requests
+or failing a download preserves the previous file. Atomic replacement preserves
+the destination's permission bits, including executable files. At most two stage requests
 are admitted at once, including their JSON intake; excess requests report
-`busy`. Two transfers run concurrently across all admitted batches; the entire
-batch and each URL fetch have a 25-second deadline. URL inputs retain their
-100 MiB limit and inline inputs their 1 MiB limit. Output reads also stream, within their
+`busy`. Two transfers run concurrently across all admitted batches. A 25-second
+deadline covers the whole batch, including cache verification and final
+reconciliation. URL inputs retain their 100 MiB limit and inline inputs their 1 MiB limit. Output reads also stream, within their
 20 MiB file limit. Immutable source identities can skip a transfer only after
-rehashing the current destination; a changed file is repaired. Explicit final
+rehashing the current destination and checking that its pathname still names
+the same unchanged file; a changed file is repaired. Reads and cache probes
+reject symlinks and named pipes without blocking filesystem workers. Explicit final
 manifests remove stale files only within the named managed roots after all
 transfer batches succeeded. The
 [session contract](../sandbox/docs/sessions.md) describes that internal API.

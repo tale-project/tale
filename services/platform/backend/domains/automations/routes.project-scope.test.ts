@@ -42,6 +42,7 @@ const member = vi.hoisted(() => ({ role: 'member' }));
 const visibility = vi.hoisted(() => ({
   readableProject: vi.fn(),
   readableProjectIds: vi.fn(),
+  runControlAccess: vi.fn(),
 }));
 
 vi.mock('./store.ts', async (importOriginal) => {
@@ -144,13 +145,26 @@ beforeEach(() => {
       projectId === HIDDEN ? null : { id: projectId },
   );
   visibility.readableProjectIds.mockResolvedValue([SHARED]);
+  // The real read-vs-control rule over the mocked project lookup: an org run
+  // is controllable by any member; a hidden project run is 'hidden'; a readable
+  // project run is controllable ('ok') unless a case marks it read-only.
+  visibility.runControlAccess.mockImplementation(
+    async (_sql: unknown, _auth: unknown, row: { projectId: string | null }) =>
+      row.projectId === null
+        ? 'ok'
+        : row.projectId === HIDDEN
+          ? 'hidden'
+          : 'ok',
+  );
   store.getRun.mockImplementation(
     async (_sql: unknown, _org: string, runId: string) =>
       runId === 'r-hidden'
         ? run('r-hidden', HIDDEN)
         : runId === 'r-org'
           ? run('r-org', null)
-          : null,
+          : runId === 'r-proj'
+            ? run('r-proj', SHARED)
+            : null,
   );
   store.listRuns.mockResolvedValue([]);
   store.getPendingAskForRun.mockResolvedValue({ id: 'ask-1' });
@@ -236,6 +250,43 @@ describe('app automation door — runs follow the project read rule', () => {
       message: 'Project not found.',
     });
     expect(store.beginRun).not.toHaveBeenCalled();
+  });
+
+  it('refuses a read-only member cancelling a readable project run (write gate)', async () => {
+    visibility.runControlAccess.mockResolvedValue('forbidden');
+    const response = await post('/runs/r-proj/cancel', {});
+    expect(response.status).toBe(403);
+    expect(await response.json()).toMatchObject({ error: 'RBAC_FORBIDDEN' });
+    expect(store.cancelRun).not.toHaveBeenCalled();
+  });
+
+  it('refuses a read-only member answering a readable project run (write gate)', async () => {
+    visibility.runControlAccess.mockResolvedValue('forbidden');
+    store.getAskRunId.mockResolvedValueOnce('r-proj');
+    const response = await post('/asks/ask-proj/answer', { answer: 'yes' });
+    expect(response.status).toBe(403);
+    expect(await response.json()).toMatchObject({ error: 'RBAC_FORBIDDEN' });
+    expect(store.answerAsk).not.toHaveBeenCalled();
+  });
+
+  it('lets a project writer cancel and answer a readable project run', async () => {
+    // runControlAccess resolves 'ok' for a writer of the readable project.
+    const cancelled = await post('/runs/r-proj/cancel', {});
+    expect(cancelled.status).toBe(200);
+    expect(await cancelled.json()).toEqual({
+      cancelled: true,
+      status: 'cancelled',
+    });
+    expect(store.cancelRun).toHaveBeenCalled();
+
+    store.getAskRunId.mockResolvedValueOnce('r-proj');
+    store.answerAsk.mockResolvedValueOnce({ runId: 'r-proj', taskId: null });
+    const answered = await post('/asks/ask-proj/answer', { answer: 'yes' });
+    expect(answered.status).toBe(200);
+    expect(store.answerAsk).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ askId: 'ask-proj', runId: 'r-proj' }),
+    );
   });
 
   it('refuses a missing question without opening an unscoped answer race', async () => {

@@ -1,9 +1,63 @@
 import { describe, expect, it } from 'vitest';
 
+import { HARNESS_RECORD_MAX_CHARS } from './jsonl';
 import { HarnessProjection, HARNESS_TEXT_MAX_CHARS } from './projection';
 import { TIMELINE_MAX_ENTRIES, TIMELINE_MAX_JSON_BYTES } from './timeline';
 
 describe('bounded harness display projection', () => {
+  it('keeps an exact bounded terminal fallback independently of its display tail', () => {
+    const p = new HarnessProjection();
+    const first = 'BEGIN ' + 'a'.repeat(70_000);
+    p.accept({ type: 'text', text: first });
+    p.accept({ type: 'text', text: 'END' });
+    expect(p.answer).toBe(`${first}\n\nEND`);
+    expect(p.text.length).toBe(HARNESS_TEXT_MAX_CHARS);
+    p.accept({ type: 'text-delta', text: 'ACTUAL ' });
+    p.accept({ type: 'text', text: 'duplicate completed text' });
+    p.accept({ type: 'text-delta', text: first });
+    expect(p.answer).toBe(`ACTUAL ${first}`);
+  });
+
+  it('preserves the complete fallback across serialized checkpoints and later deltas', () => {
+    const first = new HarnessProjection();
+    const prefix = 'BEGIN ' + 'a'.repeat(70_000);
+    first.accept({ type: 'text-delta', text: prefix });
+    const resumed = new HarnessProjection();
+    resumed.restore(JSON.parse(JSON.stringify(first.snapshot())));
+    resumed.accept({ type: 'text-delta', text: ' END' });
+    expect(resumed.answer).toBe(`${prefix} END`);
+    expect(resumed.text.length).toBe(HARNESS_TEXT_MAX_CHARS);
+  });
+
+  it('never promotes an older truncated checkpoint tail to an exact answer', () => {
+    const resumed = new HarnessProjection();
+    resumed.restore({
+      text: '…tail',
+      textTruncated: true,
+      streamsDeltas: true,
+      parts: [],
+    });
+    resumed.accept({ type: 'text-delta', text: ' later' });
+    expect(resumed.answer).toBeUndefined();
+    const next = new HarnessProjection();
+    next.restore(JSON.parse(JSON.stringify(resumed.snapshot())));
+    expect(next.answer).toBeUndefined();
+    const intact = new HarnessProjection();
+    intact.restore({ text: 'complete', streamsDeltas: false, parts: [] });
+    expect(intact.answer).toBe('complete');
+  });
+
+  it('refuses an excessive fallback answer rather than returning a successful truncated value', () => {
+    const p = new HarnessProjection();
+    p.accept({
+      type: 'text-delta',
+      text: 'x'.repeat(HARNESS_RECORD_MAX_CHARS),
+    });
+    expect(() => p.accept({ type: 'text-delta', text: '!' })).toThrow(
+      'final answer exceeds',
+    );
+  });
+
   it('refuses huge tool identifiers instead of retaining an oversized singleton entry', () => {
     const p = new HarnessProjection();
     expect(() =>

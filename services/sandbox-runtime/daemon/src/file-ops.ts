@@ -74,7 +74,8 @@ interface StageResult {
 
 const FETCH_MAX_BYTES = 100 * 1024 * 1024;
 const INLINE_MAX_BYTES = 1 * 1024 * 1024;
-const STAGE_FETCH_TIMEOUT_MS = 25_000;
+// One deadline for the whole batch, below the spawner's 30 s RPC timeout.
+const STAGE_TIMEOUT_MS = 25_000;
 const STAGE_MAX_ACTIVE = 2;
 const STAGE_MANIFEST_LIMIT = 4096;
 let activeStages = 0;
@@ -96,6 +97,7 @@ function rememberStagedSource(
 }
 
 export interface StageOptions {
+  /** Total batch budget, including cached-source verification/reconciliation. */
   fetchTimeoutMs?: number;
   batchTimeoutMs?: number;
   signal?: AbortSignal;
@@ -161,12 +163,14 @@ async function stageParent(
 }
 
 async function fileDigest(
-  path: string,
+  rel: string,
   signal?: AbortSignal,
 ): Promise<{ digest: string; bytes: number } | null> {
   let file: FileHandle | undefined;
+  let current: FileHandle | undefined;
   try {
-    file = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+    file = (await openWorkspaceFile(rel)) ?? undefined;
+    if (file === undefined) return null;
     const info = await file.stat();
     if (!info.isFile() || info.size > FETCH_MAX_BYTES) return null;
     const hash = createHash('sha256');
@@ -179,12 +183,57 @@ async function fileDigest(
       if (bytes > FETCH_MAX_BYTES) return null;
       hash.update(chunk);
     }
+    signal?.throwIfAborted();
+    // Hashing an old descriptor proves nothing about a replaced destination
+    // (or parent directory). Reopen through the current workspace path and
+    // require both snapshots to name the same unchanged regular file.
+    current = (await openWorkspaceFile(rel)) ?? undefined;
+    if (current === undefined) return null;
+    const final = await file.stat();
+    const actual = await current.stat();
+    if (
+      [final, actual].some(
+        (value) =>
+          value.dev !== info.dev ||
+          value.ino !== info.ino ||
+          value.size !== info.size ||
+          value.mtimeMs !== info.mtimeMs ||
+          value.ctimeMs !== info.ctimeMs,
+      ) ||
+      bytes !== info.size
+    )
+      return null;
     return { digest: hash.digest('hex'), bytes };
   } catch {
     return null;
   } finally {
     await file?.close();
+    await current?.close();
   }
+}
+
+/** Open through pinned ancestors without following symlinks or waiting on a
+ * named pipe. Only regular files may supply bytes to reads or cache probes. */
+async function openWorkspaceFile(rel: string): Promise<FileHandle | null> {
+  const abs = resolveUnderWorkspace(rel);
+  if (abs === null || abs === workspaceRoot()) return null;
+  let file: FileHandle | undefined;
+  let parentHandle: FileHandle | undefined;
+  try {
+    const parent = await stageParent(abs, false);
+    parentHandle = parent.handle;
+    file = await open(
+      join(anchoredDirectory(parentHandle, parent.path), basename(abs)),
+      constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
+    );
+    if ((await file.stat()).isFile()) return file;
+  } catch {
+    // Unsafe, missing and unreadable paths cannot supply a verified file.
+  } finally {
+    await parentHandle?.close().catch(() => {});
+  }
+  await file?.close().catch(() => {});
+  return null;
 }
 
 /** Two admitted batches share two transfer slots. One deadline covers queued
@@ -212,7 +261,7 @@ export async function stageFiles(
   const batch = new AbortController();
   const deadline = setTimeout(
     () => batch.abort(),
-    opts.batchTimeoutMs ?? STAGE_FETCH_TIMEOUT_MS,
+    opts.batchTimeoutMs ?? opts.fetchTimeoutMs ?? STAGE_TIMEOUT_MS,
   );
   const signal = opts.signal
     ? AbortSignal.any([batch.signal, opts.signal])
@@ -256,6 +305,7 @@ export async function stageFiles(
         opts.keepPaths ?? [],
         signal,
         skipped,
+        () => (opts.signal?.aborted ? 'cancelled' : 'timeout'),
       );
     }
     return {
@@ -312,12 +362,8 @@ async function stageItem(
   }
   let temporary: string | undefined;
   let parentHandle: FileHandle | undefined;
-  const controller = new AbortController();
-  const deadline = setTimeout(
-    () => controller.abort(),
-    opts.fetchTimeoutMs ?? STAGE_FETCH_TIMEOUT_MS,
-  );
-  const signal = AbortSignal.any([batchSignal, controller.signal]);
+  let responseBody: ReadableStream<Uint8Array> | undefined;
+  const signal = batchSignal;
   try {
     signal.throwIfAborted();
     const parent = await stageParent(abs);
@@ -332,8 +378,9 @@ async function stageItem(
         ? previous.digest
         : undefined);
     if (expectedDigest) {
-      const actual = await fileDigest(destination, signal);
+      const actual = await fileDigest(abs, signal);
       if (actual?.digest === expectedDigest) {
+        signal.throwIfAborted();
         if (sourceId) rememberStagedSource(abs, sourceId, actual.digest);
         return { staged: [{ path: item.path, bytes: actual.bytes }], skipped };
       }
@@ -346,19 +393,26 @@ async function stageItem(
       if (source.byteLength > INLINE_MAX_BYTES) throw new Error('too_large');
     } else if (item.url !== undefined) {
       const response = await fetch(item.url, { signal });
-      if (!response.ok) {
-        await response.body?.cancel();
-        throw new Error(`http_${response.status}`);
-      }
+      responseBody = response.body ?? undefined;
+      if (!response.ok) throw new Error(`http_${response.status}`);
       const declared = Number(response.headers.get('content-length') ?? '');
-      if (Number.isFinite(declared) && declared > FETCH_MAX_BYTES) {
-        await response.body?.cancel();
+      if (Number.isFinite(declared) && declared > FETCH_MAX_BYTES)
         throw new Error('too_large');
-      }
       if (response.body === null) throw new Error('no_body');
       source = response.body;
     } else throw new Error('no_source');
     temporary = join(anchoredParent, `.tale-stage-${randomUUID()}`);
+    let mode = 0o600;
+    try {
+      const existing = await lstat(destination);
+      if (existing.isSymbolicLink()) throw new Error('unsafe_path');
+      mode = existing.mode & 0o777;
+    } catch (error) {
+      if (
+        !(error instanceof Error && 'code' in error && error.code === 'ENOENT')
+      )
+        throw error;
+    }
     const file = await open(temporary, 'wx', 0o600);
     const hash = createHash('sha256');
     let bytes = 0;
@@ -417,10 +471,11 @@ async function stageItem(
           }
           await flush();
         } finally {
-          await reader.cancel().catch(() => {});
+          void reader.cancel().catch(() => {});
           reader.releaseLock();
         }
       }
+      await file.chmod(mode);
     } finally {
       await file.close();
     }
@@ -446,8 +501,8 @@ async function stageItem(
           : 'fetch_failed',
     });
   } finally {
-    clearTimeout(deadline);
-    controller.abort();
+    // Cancel unread/error bodies without waiting for upstream acknowledgement.
+    void responseBody?.cancel().catch(() => {});
     if (temporary !== undefined)
       await rm(temporary, { force: true }).catch(() => {});
     await parentHandle?.close();
@@ -460,6 +515,7 @@ async function reconcileStageRoots(
   paths: string[],
   signal: AbortSignal | undefined,
   skipped: StageResult['skipped'],
+  abortReason: () => string,
 ): Promise<void> {
   const invalid = paths.find((path) => resolveUnderWorkspace(path) === null);
   if (invalid !== undefined) {
@@ -527,7 +583,7 @@ async function reconcileStageRoots(
       skipped.push({
         path: root,
         reason: signal?.aborted
-          ? 'cancelled'
+          ? abortReason()
           : error instanceof Error
             ? error.message
             : 'reconcile_failed',
@@ -630,17 +686,10 @@ export async function streamWorkspaceFile(
   rel: string,
   maxBytes: number,
 ): Promise<Readable | null> {
-  const abs = resolveUnderWorkspace(rel);
-  if (abs === null || abs === workspaceRoot()) return null;
   let file: FileHandle | undefined;
-  let parentHandle: FileHandle | undefined;
   try {
-    const parent = await stageParent(abs, false);
-    parentHandle = parent.handle;
-    file = await open(
-      join(anchoredDirectory(parentHandle, parent.path), basename(abs)),
-      constants.O_RDONLY | constants.O_NOFOLLOW,
-    );
+    file = (await openWorkspaceFile(rel)) ?? undefined;
+    if (file === undefined) return null;
     const info = await file.stat();
     if (!info.isFile() || info.size > maxBytes) {
       await file.close();
@@ -658,7 +707,5 @@ export async function streamWorkspaceFile(
   } catch {
     await file?.close().catch(() => {});
     return null;
-  } finally {
-    await parentHandle?.close().catch(() => {});
   }
 }

@@ -165,6 +165,33 @@ beforeEach(() => {
 });
 
 describe('an automation agent turn', () => {
+  it('settles the full assistant report when the terminal result omits its text', async () => {
+    const report = `BEGIN ${'report '.repeat(20_000)} END`;
+    io.stdout = ndjson([
+      { type: 'system', subtype: 'init', session_id: 'conv-1' },
+      {
+        type: 'assistant',
+        message: { content: [{ type: 'text', text: report }] },
+      },
+      SILENT_RESULT,
+    ]);
+    const { ctx, mutations } = makeCtx();
+
+    await driveWorkflowAgentTurnImpl(ctx, KEYS);
+
+    expect(
+      called(mutations, 'recordAgentTurnSettled')[0]?.args.result,
+    ).toMatchObject({
+      errored: false,
+      text: report,
+    });
+    const progress = called(mutations, 'upsertSessionOp')
+      .map((mutation) => mutation.args.progressText)
+      .filter((text): text is string => typeof text === 'string');
+    expect(progress.length).toBeGreaterThan(0);
+    expect(progress.every((text) => text.length <= 64 * 1024)).toBe(true);
+  });
+
   it('fails, retryably, when the model answered nothing', async () => {
     io.stdout = `${readFixture('claude-code', 'empty-answer-turn')}\n`;
     const { ctx, mutations } = makeCtx();

@@ -184,8 +184,6 @@ export interface SessionConfig {
   /** Resource caps for the `agent` profile session containers. The `default`
    * profile mirrors the one-shot caps and is not configurable separately. */
   agentProfile: SessionAgentProfileConfig;
-  /** Light agents exclude dockerd, even where the full agent profile enables it. */
-  agentLightMemory?: string;
 }
 
 export interface SessionAgentProfileConfig {
@@ -193,6 +191,8 @@ export interface SessionAgentProfileConfig {
   /** Docker quantity string, e.g. '4g' (memory-swap is pinned to the same
    * value — no swap headroom, matching the one-shot containers). */
   memory: string;
+  /** Derived non-Docker ceiling; an explicit SANDBOX_AGENT_MEMORY sets both. */
+  memoryWithoutDocker?: string;
   pidsLimit: number;
   nofileSoft: number;
   nofileHard: number;

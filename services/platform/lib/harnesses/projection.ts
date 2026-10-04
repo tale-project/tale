@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { appendHarnessAnswer } from './jsonl';
 import { boundTimelineParts, type TimelinePart } from './timeline';
 import type { HarnessEvent } from './types';
 
@@ -23,6 +24,7 @@ const projectionSchema = z.object({
   text: z.string(),
   streamsDeltas: z.boolean(),
   textTruncated: z.boolean().optional(),
+  answerText: z.string().optional(),
   parts: z.array(partSchema),
 });
 
@@ -45,6 +47,7 @@ export class HarnessProjection {
   textTruncated = false;
   revision = 0;
   private streamsDeltas = false;
+  private answerText: string | undefined = '';
   private parts: TimelinePart[] = [];
   private sizes: number[] = [];
   private bytes = 0;
@@ -90,6 +93,12 @@ export class HarnessProjection {
     this.text = textTail(state.text, TEXT_CHARS);
     this.textTruncated =
       state.textTruncated === true || state.text.length > TEXT_CHARS;
+    this.answerText =
+      state.answerText !== undefined
+        ? appendHarnessAnswer('', state.answerText)
+        : this.textTruncated
+          ? undefined
+          : state.text;
     this.streamsDeltas = state.streamsDeltas;
     this.parts = boundTimelineParts(state.parts, {
       maxEntries: 400,
@@ -101,10 +110,17 @@ export class HarnessProjection {
   snapshot(): Record<string, unknown> {
     return {
       text: this.text,
+      answerText: this.answerText,
       textTruncated: this.textTruncated,
       streamsDeltas: this.streamsDeltas,
       parts: this.timeline(),
     };
+  }
+
+  /** Exact terminal fallback, absent only when an older checkpoint already
+   * discarded the prefix. Never treat that display tail as a complete answer. */
+  get answer(): string | undefined {
+    return this.answerText;
   }
 
   timeline(): TimelinePart[] {
@@ -118,11 +134,17 @@ export class HarnessProjection {
         this.streamsDeltas = true;
         this.text = '';
         this.textTruncated = false;
+        this.answerText = '';
         this.parts = this.parts.filter((part) => part.type !== 'text');
         this.indexSizes();
       }
       if (event.type === 'text' && this.streamsDeltas) return;
       const separator = event.type === 'text' && this.text !== '' ? '\n\n' : '';
+      if (this.answerText !== undefined)
+        this.answerText = appendHarnessAnswer(
+          this.answerText,
+          separator + event.text,
+        );
       const fullText = this.text + separator + event.text;
       this.textTruncated ||= fullText.length > TEXT_CHARS;
       this.text = textTail(fullText, TEXT_CHARS);

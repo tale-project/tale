@@ -300,6 +300,62 @@ describe('drainSessionExecResilient', () => {
     expect(received).toEqual(['joined']);
   });
 
+  test.each(['aG!!!k=', 'aGk', 'aGk=\n', 123, null])(
+    'rejects corrupt raw output without advancing the cursor or retrying (%j)',
+    async (b64) => {
+      let calls = 0;
+      globalThis.fetch = (async () => {
+        calls += 1;
+        return sseResponse([
+          `event: stdout\ndata: ${JSON.stringify({ seq: 2, b64, text: 'untrusted fallback' })}\n\n`,
+          RESULT_OK,
+        ]);
+      }) as unknown as typeof fetch;
+      const cursor = { lastSeq: 0 };
+      let text = '';
+      await expect(
+        drainSessionExecResilient(
+          's',
+          { execId: 'e' },
+          new AbortController().signal,
+          {
+            onStdout: (chunk) => {
+              text += chunk;
+            },
+          },
+          { cursor },
+        ),
+      ).rejects.toBeInstanceOf(ExecStreamProtocolError);
+      expect(cursor.lastSeq).toBe(0);
+      expect(text).toBe('');
+      expect(calls).toBe(1);
+    },
+  );
+
+  test('keeps invalid raw output fatal when replay completion aborts the drain', async () => {
+    const controller = new AbortController();
+    let calls = 0;
+    globalThis.fetch = (async () => {
+      calls += 1;
+      return sseResponse([
+        'event: stdout\ndata: {"seq":2,"b64":"aG!!!k="}\n\n',
+        RESULT_OK,
+      ]);
+    }) as unknown as typeof fetch;
+    const cursor = { lastSeq: 0 };
+    await expect(
+      drainSessionExecResilient(
+        's',
+        { execId: 'e' },
+        controller.signal,
+        { onReplayComplete: () => controller.abort() },
+        { cursor, resumeSinceSeq: 0 },
+      ),
+    ).rejects.toBeInstanceOf(ExecStreamProtocolError);
+    expect(cursor.lastSeq).toBe(0);
+    expect(calls).toBe(1);
+  });
+
   test('enables contiguous legacy replay without waiting for a marker', async () => {
     const phases: string[] = [];
     globalThis.fetch = (async () =>

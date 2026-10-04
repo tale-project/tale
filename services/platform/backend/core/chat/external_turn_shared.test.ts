@@ -309,7 +309,7 @@ describe('drainHarnessWindow end-of-turn rules', () => {
   });
 
   it.each([true, false])(
-    'keeps long final answers intact and rejects a truncated fallback (final report: %s)',
+    'keeps long final answers intact and refuses only an unavailable exact fallback (final report: %s)',
     async (hasFinalReport) => {
       const finalText = JSON.stringify({
         report: 'x'.repeat(70_000),
@@ -338,7 +338,11 @@ describe('drainHarnessWindow end-of-turn rules', () => {
         expect(JSON.parse(result.ended?.finalText ?? '').done).toBe(true);
         expect(classifyHarnessEnd(result).errored).toBe(false);
       } else {
-        expect(classifyHarnessEnd(result)).toMatchObject({
+        expect(result.answerText).toBe(finalText);
+        expect(classifyHarnessEnd(result).errored).toBe(false);
+        expect(
+          classifyHarnessEnd({ ...result, answerText: undefined }),
+        ).toMatchObject({
           errored: true,
           reason: expect.stringContaining('complete final answer'),
         });
@@ -497,6 +501,62 @@ describe('drainHarnessWindow end-of-turn rules', () => {
       expect(transport.cancelled).toEqual([]);
     },
   );
+
+  it('restores a long exact fallback when the terminal window only contains an empty result', async () => {
+    const report = `BEGIN ${'report '.repeat(20_000)} END`;
+    transport.stdout = ndjson([
+      CLAUDE_INIT,
+      {
+        type: 'assistant',
+        message: { content: [{ type: 'text', text: report }] },
+      },
+    ]);
+    const args = {
+      sessionId: 's',
+      execId: 'fallback-checkpoint',
+      harness: 'claude-code',
+      windowMs: 30,
+    };
+    expect((await drainHarnessWindow(args)).kind).toBe('running');
+    expect(transport.checkpoint?.seq).toBe(1);
+    transport.stdout = ndjson([{ ...CLAUDE_RESULT, result: '' }]);
+    transport.exitAfterStdout = true;
+    const result = await drainHarnessWindow(args);
+    expect(result.kind).toBe('terminal');
+    if (result.kind !== 'terminal') throw new Error('expected terminal');
+    expect(transport.resumedAt).toEqual([0, 1]);
+    expect(result.answerText).toBe(report);
+    expect(result.textTruncated).toBe(true);
+    expect(classifyHarnessEnd(result)).toEqual({
+      errored: false,
+      emptyAnswer: false,
+    });
+  });
+
+  it('keeps the exact terminal fallback when a successful result omits its final text', async () => {
+    const report = `BEGIN ${'report '.repeat(20_000)} END`;
+    transport.stdout = ndjson([
+      CLAUDE_INIT,
+      {
+        type: 'assistant',
+        message: { content: [{ type: 'text', text: report }] },
+      },
+      { ...CLAUDE_RESULT, result: '' },
+    ]);
+    transport.exitAfterStdout = true;
+    const result = await drainHarnessWindow({
+      sessionId: 's',
+      execId: 'e',
+      harness: 'claude-code',
+      windowMs: 50,
+    });
+    expect(result.kind).toBe('terminal');
+    if (result.kind === 'terminal') {
+      expect(result.ended?.finalText).toBeUndefined();
+      expect(result.answerText).toBe(report);
+      expect(result.text.length).toBeLessThanOrEqual(64 * 1024);
+    }
+  });
 
   it('keeps the authoritative final report intact beyond the display text budget', async () => {
     const report = `BEGIN ${'report '.repeat(20_000)} END`;

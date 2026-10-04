@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import {
   HarnessJsonlRecordTooLargeError,
+  BoundedIdLedger,
+  HARNESS_ID_LEDGER_MAX_ENTRIES,
   appendHarnessAnswer,
   HARNESS_RECORD_MAX_CHARS,
   LineReassembler,
@@ -79,5 +81,46 @@ describe('harness line bounds', () => {
     expect(() => lines.push('123456\n')).toThrow(
       HarnessJsonlRecordTooLargeError,
     );
+  });
+});
+
+describe('bounded harness deduplication ledger', () => {
+  it('accepts duplicates at the entry cap and refuses new facts without eviction', () => {
+    const ledger = new BoundedIdLedger();
+    for (let index = 0; index < HARNESS_ID_LEDGER_MAX_ENTRIES; index += 1)
+      ledger.add(String(index));
+    ledger.add('0');
+    expect(() => ledger.add('overflow')).toThrow('memory budget');
+    expect(ledger.has('0')).toBe(true);
+    expect(ledger.has(String(HARNESS_ID_LEDGER_MAX_ENTRIES - 1))).toBe(true);
+    expect(ledger.has('overflow')).toBe(false);
+    const freshWindow = new BoundedIdLedger();
+    expect(freshWindow.has('0')).toBe(false);
+    freshWindow.add('overflow');
+    expect(freshWindow.has('overflow')).toBe(true);
+  });
+
+  it('supports exact checkpoint iteration and resets the retained character count when cleared', () => {
+    const ledger = new BoundedIdLedger();
+    ledger.add('first');
+    ledger.add('second');
+    expect([...ledger]).toEqual(['first', 'second']);
+    ledger.clear();
+    expect([...ledger]).toEqual([]);
+    for (let index = 0; index < 256; index += 1)
+      ledger.add(`${'x'.repeat(4091)}${String(index).padStart(5, '0')}`);
+    expect(() => ledger.add('overflow')).toThrow('memory budget');
+    ledger.clear();
+    ledger.add('new turn');
+    expect([...ledger]).toEqual(['new turn']);
+  });
+
+  it('caps individual IDs and their total retained characters independently of count', () => {
+    const ledger = new BoundedIdLedger();
+    expect(() => ledger.add('x'.repeat(4097))).toThrow('identifier exceeds');
+    for (let index = 0; index < 256; index += 1)
+      ledger.add(`${'x'.repeat(4091)}${String(index).padStart(5, '0')}`);
+    ledger.add(`${'x'.repeat(4091)}00000`);
+    expect(() => ledger.add('one-more-character')).toThrow('memory budget');
   });
 });

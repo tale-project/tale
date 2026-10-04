@@ -390,6 +390,8 @@ export type HarnessWindowResult =
       /** Display text is bounded; a successful result must use finalText if
        * the display omitted an earlier prefix. */
       textTruncated?: boolean;
+      /** Exact bounded fallback when the harness terminal has no finalText. */
+      answerText?: string;
       timeline: HarnessTimelinePart[];
       ended?: Extract<HarnessEvent, { type: 'turn-ended' }>;
       execResult?: SessionExecResult;
@@ -812,6 +814,7 @@ export async function drainHarnessWindow(args: {
     kind: 'terminal',
     text,
     textTruncated: projection.textTruncated,
+    answerText: projection.answer,
     timeline,
     ...(ended !== undefined ? { ended } : {}),
     ...(execResult !== undefined ? { execResult } : {}),
@@ -860,6 +863,7 @@ type HarnessEndWindow = Pick<
   | 'exited'
   | 'text'
   | 'textTruncated'
+  | 'answerText'
   | 'timeline'
   | 'outputTokens'
   | 'stderrTail'
@@ -887,6 +891,7 @@ function isEmptyAnswer(
 ): boolean {
   if (ended.status !== 'completed') return false;
   const answered =
+    hasWords(window.answerText) ||
     hasWords(window.text) ||
     hasWords(ended.finalText) ||
     window.timeline.some((part) => part.type !== 'text' || hasWords(part.text));
@@ -970,7 +975,11 @@ export function classifyHarnessEnd(window: HarnessEndWindow): {
       emptyAnswer: false,
     };
   }
-  if (window.textTruncated === true && !hasWords(ended.finalText)) {
+  if (
+    window.textTruncated === true &&
+    !hasWords(ended.finalText) &&
+    !hasWords(window.answerText)
+  ) {
     return {
       errored: true,
       reason:
