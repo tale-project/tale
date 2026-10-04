@@ -485,6 +485,7 @@ export function DataTable<TData, TValue = unknown>({
     getCoreRowModel: getCoreRowModel(),
     ...(enableSorting && {
       getSortedRowModel: getSortedRowModel(),
+      manualSorting: sortingConfig?.manual,
       onSortingChange: onSortingChange ?? setInternalSorting,
     }),
     ...(enableRowSelection && {
