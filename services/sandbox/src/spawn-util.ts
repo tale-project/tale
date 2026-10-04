@@ -4,6 +4,8 @@
 // every actual docker call goes through one shape with consistent stdout/stderr
 // handling and timeouts.
 
+import { dockerDeadlineSignal } from './docker-deadline.ts';
+
 interface RunDockerOptions {
   timeoutMs?: number;
   // Cancellation also removes a call still waiting for a CLI slot, so it
@@ -275,6 +277,13 @@ export async function runDocker(
   args: string[],
   opts: RunDockerOptions = {},
 ): Promise<RunDockerResult> {
+  const deadline = dockerDeadlineSignal();
+  if (deadline) {
+    opts = {
+      ...opts,
+      signal: opts.signal ? AbortSignal.any([opts.signal, deadline]) : deadline,
+    };
+  }
   const budgetMs = resolveDockerTimeoutMs(opts.timeoutMs);
   const queuedAtMs = Date.now();
   const release = await dockerCliSlot(
@@ -316,6 +325,9 @@ async function runDockerNow(
     stdout: 'pipe',
     stderr: 'pipe',
     signal: opts.signal,
+    // An operation budget is a hard bound, just like the CLI's timeout below.
+    // SIGTERM can be ignored and let a cancelled command report success later.
+    killSignal: 'SIGKILL',
   });
 
   // Drain both streams concurrently to avoid pipe-back-pressure deadlock,

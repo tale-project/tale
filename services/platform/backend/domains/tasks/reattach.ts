@@ -8,6 +8,10 @@ import {
   claimRecoveryResume,
   driveJobPending,
   RECOVERY_STALE_MS,
+  RECOVERY_PROBE_BUDGET_MS,
+  RECOVERY_PROBE_TIMEOUT_MS,
+  recoveryProbeSignal,
+  visitRecoveryCandidates,
 } from '../sandbox/recovery.ts';
 import { failAgentRun } from './agent-runs.ts';
 
@@ -65,10 +69,8 @@ async function listStalledTurns(
 ): Promise<StalledTurn[]> {
   const now = Date.now();
   return sql<StalledTurn[]>`
-    SELECT r.id AS "runId", r.org_id AS "organizationId",
-           r.task_id AS "taskId", r.agent_id AS "agentId",
-           r.exec_id AS "execId", r.session_id AS "sessionId", r.harness,
-           r.deadline_at_ms::float8 AS "deadlineAt"
+    WITH candidates AS (
+    SELECT r.id
     FROM app.project_agent_runs r
     LEFT JOIN app.sandbox_session_ops op
       ON op.session_id = r.session_id AND op.exec_id = r.exec_id
@@ -95,31 +97,36 @@ async function listStalledTurns(
               ) < ${staleBeforeMs}
         )
       )
-    ORDER BY r.updated_at_ms
+      AND (r.recovery_checked_at_ms IS NULL
+        OR r.recovery_checked_at_ms < ${now - RECOVERY_PROBE_BUDGET_MS})
+    ORDER BY r.recovery_checked_at_ms ASC NULLS FIRST, r.updated_at_ms, r.id
     LIMIT ${SWEEP_LIMIT}
+    FOR UPDATE OF r SKIP LOCKED
+    )
+    UPDATE app.project_agent_runs r SET recovery_checked_at_ms = ${now}
+    FROM candidates c WHERE r.id = c.id
+    RETURNING r.id AS "runId", r.org_id AS "organizationId",
+           r.task_id AS "taskId", r.agent_id AS "agentId",
+           r.exec_id AS "execId", r.session_id AS "sessionId", r.harness,
+           r.deadline_at_ms::float8 AS "deadlineAt"
   `;
 }
 
 export async function recoverStalledTaskAgentTurns(
   sql: Sql,
-  options: { staleMs?: number; probe?: typeof sessionExecStatus } = {},
+  options: {
+    staleMs?: number;
+    probe?: typeof sessionExecStatus;
+    signal?: AbortSignal;
+  } = {},
 ): Promise<{ examined: number; resumed: number }> {
+  const signal = recoveryProbeSignal(options.signal);
+  if (signal.aborted) return { examined: 0, resumed: 0 };
   const staleBeforeMs = Date.now() - (options.staleMs ?? RECOVERY_STALE_MS);
   const stalled = await listStalledTurns(sql, staleBeforeMs);
   const probe = options.probe ?? sessionExecStatus;
   let resumed = 0;
-  for (const turn of stalled) {
-    try {
-      // Probe first — the drive window handles running, terminal and
-      // vanished execs alike; this only proves the sandbox is reachable.
-      await probe(turn.sessionId, turn.execId);
-    } catch (error) {
-      console.warn(
-        `[task-agent-watchdog] exec probe failed for ${turn.execId} (leaving for the next sweep):`,
-        error instanceof Error ? error.message : String(error),
-      );
-      continue;
-    }
+  await visitRecoveryCandidates(stalled, signal, async (turn) => {
     // A drive window still queued for this exec is a live chain waiting for
     // a worker slot, not a dead one: a second chain would drain the exec
     // twice, and each later sweep would add another.
@@ -133,8 +140,24 @@ export async function recoverStalledTaskAgentTurns(
       console.warn(
         `[task-agent-watchdog] ${turn.execId} of run ${turn.runId} reads silent, but a drive window for it is queued or running — leaving it to that chain`,
       );
-      continue;
+      return;
     }
+    if (signal.aborted) return;
+    try {
+      // Probe first — the drive window handles running, terminal and
+      // vanished execs alike; this only proves the sandbox is reachable.
+      await probe(turn.sessionId, turn.execId, {
+        signal,
+        timeoutMs: RECOVERY_PROBE_TIMEOUT_MS,
+      });
+    } catch (error) {
+      console.warn(
+        `[task-agent-watchdog] exec probe failed for ${turn.execId} (leaving for the next sweep):`,
+        error instanceof Error ? error.message : String(error),
+      );
+      return;
+    }
+    if (signal.aborted) return;
     const claimed = await claimRecoveryResume(sql, {
       sessionId: turn.sessionId,
       execId: turn.execId,
@@ -150,7 +173,7 @@ export async function recoverStalledTaskAgentTurns(
       console.warn(
         `[task-agent-watchdog] resume claim refused for ${turn.execId} of run ${turn.runId} — a live chain or a fresh settle owns it`,
       );
-      continue;
+      return;
     }
     await addJobInTx(sql, 'task.agent_drive', {
       organizationId: turn.organizationId,
@@ -166,7 +189,7 @@ export async function recoverStalledTaskAgentTurns(
     console.warn(
       `[task-agent-watchdog] re-attached abandoned turn ${turn.execId} of run ${turn.runId} (task ${turn.taskId})`,
     );
-  }
+  });
   return { examined: stalled.length, resumed };
 }
 
