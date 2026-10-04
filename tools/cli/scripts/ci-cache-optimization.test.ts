@@ -91,9 +91,10 @@ describe('CI cache boundaries', () => {
       ) {
         continue;
       }
+      const manifestPath = `${task.directory.split(sep).join('/')}/package.json`;
       expect(
-        ownInputs.has(`${task.directory}/package.json`),
-        `CLI cache guard reads ${task.directory}/package.json`,
+        ownInputs.has(manifestPath),
+        `CLI cache guard reads ${manifestPath}`,
       ).toBe(true);
       const manifest = z
         .object({

@@ -762,10 +762,10 @@ printf '%s\\n' "$TEST_COMPARE_STATUS"
         // Independent downloads overlap, but each image must be verified
         // before it is tagged for Compose. The final alias waits for all pulls.
         for (const service of BUILT) {
-          const [pull, inspect, tag] = expectedCalls.filter((call) =>
+          const [pullCall, inspect, tag] = expectedCalls.filter((call) =>
             call.includes(image(service)),
           );
-          expect(result.calls.indexOf(pull!)).toBeLessThan(
+          expect(result.calls.indexOf(pullCall!)).toBeLessThan(
             result.calls.indexOf(inspect!),
           );
           expect(result.calls.indexOf(inspect!)).toBeLessThan(

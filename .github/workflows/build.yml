@@ -598,9 +598,13 @@ jobs:
               pids=()
             fi
           done
-          for pid in "${pids[@]}"; do
-            if ! wait "$pid"; then failed=true; fi
-          done
+          # Bash 3.2 treats an empty array as unset under nounset. Exact
+          # batches already joined every child and leave nothing to wait for.
+          if [ "${#pids[@]}" -gt 0 ]; then
+            for pid in "${pids[@]}"; do
+              if ! wait "$pid"; then failed=true; fi
+            done
+          fi
           [ "$failed" = false ] || exit 1
           # See note in image-validate: the spawner's SANDBOX_RUNTIME_IMAGE
           # defaults to the unscoped `tale-sandbox-runtime:latest`.
@@ -1065,9 +1069,13 @@ jobs:
               pids=()
             fi
           done
-          for pid in "${pids[@]}"; do
-            if ! wait "$pid"; then failed=true; fi
-          done
+          # Bash 3.2 treats an empty array as unset under nounset. Exact
+          # batches already joined every child and leave nothing to wait for.
+          if [ "${#pids[@]}" -gt 0 ]; then
+            for pid in "${pids[@]}"; do
+              if ! wait "$pid"; then failed=true; fi
+            done
+          fi
           [ "$failed" = false ] || exit 1
           # The spawner reads SANDBOX_RUNTIME_IMAGE which defaults to
           # `tale-sandbox-runtime:latest` (unscoped). Mirror the tag so the

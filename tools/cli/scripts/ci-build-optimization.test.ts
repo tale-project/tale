@@ -56,7 +56,8 @@ async function execute(
   directories.push(directory);
   const output = join(directory, 'output');
   await writeFile(output, '');
-  const child = Bun.spawn(['bash', '-euo', 'pipefail', '-c', script], {
+  const shell = process.platform === 'darwin' ? '/bin/bash' : 'bash';
+  const child = Bun.spawn([shell, '-euo', 'pipefail', '-c', script], {
     cwd: cwd ?? directory,
     env: { PATH: process.env.PATH, GITHUB_OUTPUT: output, ...env },
     stdout: 'pipe',
@@ -338,11 +339,26 @@ test.skipIf(process.platform === 'win32')(
     const build = await workflow('build');
     const release = await workflow('release');
     const scripts = [
-      step(build, 'smoke-test', 'Pull images from GHCR').run!,
-      step(build, 'image-validate', 'Pull images from GHCR').run!,
-      step(release, 'container-test', 'Pull release images').run!,
+      {
+        script: step(build, 'smoke-test', 'Pull images from GHCR').run!,
+        selectedServices: services,
+      },
+      {
+        script: step(build, 'image-validate', 'Pull images from GHCR').run!,
+        selectedServices: services,
+      },
+      // Both release matrices finish on an exact batch boundary. Bash 3.2
+      // must not expand the final empty PID array under nounset.
+      ...[
+        services,
+        ['web', 'docs', 'ui-docs'],
+        [...services, 'web', 'docs', 'ui-docs', 'ai-gateway'],
+      ].map((selectedServices) => ({
+        script: step(release, 'container-test', 'Pull release images').run!,
+        selectedServices,
+      })),
     ];
-    for (const script of scripts) {
+    for (const { script, selectedServices } of scripts) {
       for (const fails of [false, true]) {
         const directory = await mkdtemp(join(tmpdir(), 'tale-pull-ci-'));
         directories.push(directory);
@@ -350,7 +366,7 @@ test.skipIf(process.platform === 'win32')(
         const log = join(directory, 'calls');
         await mkdir(receipts);
         await writeFile(log, '');
-        for (const service of services)
+        for (const service of selectedServices)
           await writeFile(
             join(receipts, `${service}.json`),
             JSON.stringify({ digest }),
@@ -364,7 +380,7 @@ case "$1" in
     echo "start $2" >> "$TEST_CALLS"
     sleep 0.1
     echo "end $2" >> "$TEST_CALLS"
-    if [ "$TEST_FAILS" = true ] && [[ "$2" == */tale-db[@:]* ]]; then exit 7; fi
+    if [ "$TEST_FAILS" = true ] && [[ "$2" == */tale-"$TEST_FAIL_SERVICE"[@:]* ]]; then exit 7; fi
     ;;
   image)
     echo "$SOURCE_SHA"
@@ -385,9 +401,10 @@ esac
           PATH: `${directory}:${process.env.PATH}`,
           SOURCE_SHA: source,
           RECEIPTS: receipts,
-          SERVICE_NAMES: JSON.stringify(services),
+          SERVICE_NAMES: JSON.stringify(selectedServices),
           TEST_CALLS: log,
           TEST_FAILS: String(fails),
+          TEST_FAIL_SERVICE: selectedServices[0]!,
         });
         const calls = (await readFile(log, 'utf8')).trim().split('\n');
         let active = 0;
@@ -407,7 +424,9 @@ esac
           ).toHaveLength(3);
           expect(
             calls.some((call) =>
-              call.startsWith('tag ghcr.io/tale-project/tale/tale-db'),
+              call.startsWith(
+                `tag ghcr.io/tale-project/tale/tale-${selectedServices[0]}`,
+              ),
             ),
           ).toBe(false);
           expect(
@@ -417,10 +436,10 @@ esac
           expect(result.code, result.stdout + result.stderr).toBe(0);
           expect(
             calls.filter((call) => call.startsWith('start ')),
-          ).toHaveLength(services.length);
+          ).toHaveLength(selectedServices.length);
           expect(
             calls.some((call) => call.endsWith(' tale-sandbox-runtime:latest')),
-          ).toBe(true);
+          ).toBe(selectedServices.includes('sandbox-runtime'));
         }
       }
     }

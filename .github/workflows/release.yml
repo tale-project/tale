@@ -279,9 +279,13 @@ jobs:
               pids=()
             fi
           done < <(jq -r '.[]' <<< "$SERVICE_NAMES")
-          for pid in "${pids[@]}"; do
-            if ! wait "$pid"; then failed=true; fi
-          done
+          # Bash 3.2 treats an empty array as unset under nounset. Exact
+          # batches already joined every child and leave nothing to wait for.
+          if [ "${#pids[@]}" -gt 0 ]; then
+            for pid in "${pids[@]}"; do
+              if ! wait "$pid"; then failed=true; fi
+            done
+          fi
           [ "$failed" = false ] || exit 1
 
       - name: Setup Bun
