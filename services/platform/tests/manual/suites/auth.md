@@ -437,8 +437,8 @@ compute codes from the enrollment secret.
 - [ ] `AUTH-B16` · **A passkey list that fails to load** — Signed in with a
   password and at least one passkey, in Chromium's devtools → **Network**,
   block `*/api/auth/passkey/list-user-passkeys*`, then open Account → once
-  the retries give up (about 40 s) the Passkeys section says **Couldn't load
-  your passkeys.** (`twoFactor.passkeys.errors.listFailed`) with **Try
+  the retries give up (a few seconds) the Passkeys section says **Couldn't
+  load your passkeys.** (`twoFactor.passkeys.errors.listFailed`) with **Try
   again** (`common.actions.tryAgain`), and never **You haven't added a
   passkey yet.** (`twoFactor.passkeys.empty`); **Add a passkey**
   (`twoFactor.passkeys.addButton`) stays. Unblock, Tab to **Try again** and
