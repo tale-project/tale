@@ -26,6 +26,7 @@ interface OneDriveSettingsStageProps {
   selectedItemCount: number;
   importType: ImportType;
   isImporting: boolean;
+  supportsSync?: boolean;
   teams: Array<{ id: string; name: string }> | undefined;
   isLoadingTeams: boolean;
   selectedTeamId?: string;
@@ -56,6 +57,7 @@ export function OneDriveSettingsStage({
   t,
   tCommon,
   messagePrefix = 'onedrive',
+  supportsSync = true,
   onImportTypeChange,
   onSelectTeam,
   onBack,
@@ -146,21 +148,25 @@ export function OneDriveSettingsStage({
             </div>
           </SelectableRow>
 
-          <SelectableRow
-            selected={importType === 'sync'}
-            onClick={() => onImportTypeChange('sync')}
-          >
-            <RadioGroupItem value="sync" id="sync" />
-            <div className="flex-1">
-              <label
-                htmlFor="sync"
-                className="cursor-pointer text-base font-medium"
-              >
-                {t(`${messagePrefix}.syncImport`)}
-              </label>
-              <Description>{t(`${messagePrefix}.syncDescription`)}</Description>
-            </div>
-          </SelectableRow>
+          {supportsSync && (
+            <SelectableRow
+              selected={importType === 'sync'}
+              onClick={() => onImportTypeChange('sync')}
+            >
+              <RadioGroupItem value="sync" id="sync" />
+              <div className="flex-1">
+                <label
+                  htmlFor="sync"
+                  className="cursor-pointer text-base font-medium"
+                >
+                  {t(`${messagePrefix}.syncImport`)}
+                </label>
+                <Description>
+                  {t(`${messagePrefix}.syncDescription`)}
+                </Description>
+              </div>
+            </SelectableRow>
+          )}
         </RadioGroup>
 
         <Separator />

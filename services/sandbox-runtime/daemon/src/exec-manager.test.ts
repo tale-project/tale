@@ -182,6 +182,53 @@ describe('ExecManager', () => {
     }
   });
 
+  test('bounded large UTF-8 frames resume exactly from a persisted checkpoint', async () => {
+    using manager = new ExecManager(new EnvStore(), () => {});
+    const text = 'a'.repeat(49151) + '😀€¢'.repeat(20000);
+    const live = collect();
+    await manager.run(
+      {
+        ...base,
+        execId: 'utf8-large-checkpoint',
+        cwd: ROOT,
+        command: ['cat'],
+        stdinBase64: Buffer.from(text).toString('base64'),
+      },
+      live.emit,
+    );
+    expect(live.events.at(-1)).toMatchObject({ t: 'exit', exitCode: 0 });
+    let prefix = '';
+    let first: Extract<RunnerdExecEvent, { t: 'stdout' }> | undefined;
+    for (const event of live.events) {
+      if (event.t !== 'stdout') continue;
+      expect(event.b64.length).toBeLessThanOrEqual(65536);
+      const decoded = new TextDecoder('utf-8', { fatal: true }).decode(
+        Buffer.from(event.b64, 'base64'),
+      );
+      if (first === undefined) {
+        first = event;
+        prefix = decoded;
+      }
+    }
+    if (first?.seq === undefined) throw new Error('missing output');
+    await manager.saveCheckpoint('utf8-large-checkpoint', {
+      seq: first.seq,
+      state: { text: prefix },
+    });
+    const checkpoint = await manager.checkpoint('utf8-large-checkpoint');
+    expect(checkpoint).toEqual({ seq: first.seq, state: { text: prefix } });
+    const suffix = collect();
+    await manager.attach('utf8-large-checkpoint', suffix.emit, first.seq);
+    expect(prefix + decode(suffix.events, 'stdout')).toBe(text);
+    expect(
+      Buffer.concat(
+        live.events.flatMap((event) =>
+          event.t === 'stdout' ? [Buffer.from(event.b64, 'base64')] : [],
+        ),
+      ),
+    ).toEqual(Buffer.from(text));
+  });
+
   test('UTF-8 framing preserves raw incomplete EOF and capped bytes', async () => {
     using mgr = new ExecManager(new EnvStore(), () => {});
     for (const cap of [0, 2]) {

@@ -37,6 +37,7 @@ import type {
 import {
   RunnerdActivityError,
   RunnerdAttachBusyError,
+  RunnerdOutputGapError,
   RunnerdProtocolError,
   RunnerdStageBusyError,
   runnerdActivity,
@@ -53,7 +54,11 @@ import {
   runnerdStageFiles,
   runnerdWriteStdin,
 } from './runnerd-client.ts';
-import type { RunnerdExecEvent, RunnerdHealth } from './runnerd-protocol.ts';
+import {
+  parseRunnerdSequence,
+  type RunnerdExecEvent,
+  type RunnerdHealth,
+} from './runnerd-protocol.ts';
 import { deriveRunnerdToken } from './session-naming.ts';
 import { SessionRegistry, type RegistrySession } from './session-registry.ts';
 import {
@@ -667,7 +672,10 @@ export class SessionRoutes {
    * flight at theirs and what the sessions that just started are still
    * growing into, leave the host less than its reserve? Unknown memory never
    * refuses. */
-  private memoryShort(workingSetBytes: number): boolean {
+  private memoryShort(
+    workingSetBytes: number,
+    reacquiringSessionId?: string,
+  ): boolean {
     let memory: HostMemory | null;
     try {
       memory = this.hostMemory.latest();
@@ -682,7 +690,8 @@ export class SessionRoutes {
     for (const [sessionId, young] of this.youngBytes) {
       const left = 1 - (now - young.sinceMs) / YOUNG_SESSION_RESERVE_MS;
       if (left <= 0) this.youngBytes.delete(sessionId);
-      else starting += Math.round(young.bytes * left);
+      else if (sessionId !== reacquiringSessionId)
+        starting += Math.round(young.bytes * left);
     }
     const reserve = memoryReserveBytes(
       memory.totalBytes,
@@ -1574,9 +1583,14 @@ export class SessionRoutes {
       ) {
         return false;
       }
-      if (health.dockerReady === false) {
+      if (
+        health.dockerReady === false &&
+        health.dockerRecoveryRequired === true
+      ) {
         return this.reclaimIdle(s, { health, beforeMs: nowMs - 1 });
       }
+      // A transient failure (or a legacy boolean-only health response) cannot
+      // accelerate destruction. Normal idle/TTL expiry still bounds recovery.
       const idleForMs = nowMs - health.lastActivityAtMs;
       if (!expired) expired = idleForMs > s.idleTimeoutMs;
       if (expired && health.activity?.idleReclaim === true) {
@@ -2321,12 +2335,18 @@ export class SessionRoutes {
       return this.unavailableDocker(session, health);
     if (!observesMemory) return null;
     const previous = this.activeGenerations.get(sessionId);
+    const young = this.youngBytes.get(sessionId);
     if (
       health.liveExecs > 0 ||
       (health.activity?.activeOperations ?? 0) > 0 ||
       (health.activity?.released === false &&
-        previous?.generation === health.activity.generation &&
-        Date.now() - Math.max(previous.admittedAtMs, health.lastActivityAtMs) <
+        (previous?.generation === health.activity.generation ||
+          (previous === undefined && young !== undefined)) &&
+        Date.now() -
+          Math.max(
+            previous?.admittedAtMs ?? young?.sinceMs ?? 0,
+            health.lastActivityAtMs,
+          ) <
           YOUNG_SESSION_RESERVE_MS)
     ) {
       this.waiters.delete(sessionId);
@@ -2339,17 +2359,6 @@ export class SessionRoutes {
     const admit = () => {
       if (this.registry.get(sessionId) !== session) return 'replaced';
       const now = Date.now();
-      const existing = this.youngBytes.get(sessionId);
-      const remaining =
-        existing === undefined
-          ? 0
-          : Math.max(
-              0,
-              Math.round(
-                existing.bytes *
-                  (1 - (now - existing.sinceMs) / YOUNG_SESSION_RESERVE_MS),
-              ),
-            );
       const fits = this.memoryCeiling();
       const held = this.waitersAhead(sessionId, now).reduce(
         (bytes, waiter) =>
@@ -2359,8 +2368,7 @@ export class SessionRoutes {
             : 0),
         0,
       );
-      if (this.memoryShort(Math.max(0, workingSet - remaining) + held))
-        return false;
+      if (this.memoryShort(workingSet + held, sessionId)) return false;
       this.youngBytes.set(sessionId, { bytes: workingSet, sinceMs: now });
       this.waiters.delete(sessionId);
       return true;
@@ -2387,21 +2395,23 @@ export class SessionRoutes {
     );
   }
 
-  /** Docker readiness does not invalidate runnerd liveness. Recreate only
-   * after its atomic idle claim protects active work and a concurrent acquire;
-   * pinned or busy sessions stay alive until their owner releases them. */
+  /** Refuse new work immediately, but recover compute only after runnerd
+   * confirms sustained probe failure or a terminal Docker state. Its atomic
+   * idle claim still protects active work, pins and a concurrent acquire. */
   private async unavailableDocker(
     session: RegistrySession,
     health: RunnerdHealth,
   ): Promise<Response> {
     if (
-      (await this.reclaimIdle(session, { health, beforeMs: Date.now() - 1 })) ||
+      (health.dockerRecoveryRequired === true &&
+        (await this.reclaimIdle(session, {
+          health,
+          beforeMs: Date.now() - 1,
+        }))) ||
       this.registry.get(session.sessionId) !== session
     )
       return jsonResponse({ error: 'not_found' }, 404);
-    return jsonResponse({ error: 'session_unavailable' }, 503, {
-      'retry-after': '1',
-    });
+    return unavailableSessionResponse();
   }
 
   async handleDestroy(
@@ -2628,6 +2638,8 @@ export class SessionRoutes {
           // Docker readiness gates fresh work, not retained output. Resolve
           // the id before idle recovery can remove the daemon's replay store.
           replayOnly = await retainedExec();
+          if (this.registry.get(sessionId) !== session)
+            return jsonResponse({ error: 'not_found' }, 404);
           if (!replayOnly) return this.unavailableDocker(session, readiness);
         }
       } catch (error) {
@@ -2690,6 +2702,8 @@ export class SessionRoutes {
     // accumulation (no unbounded growth for a never-exiting exec) and tell
     // runnerd the cap is unlimited (0) so its output is never silently cut off.
     const collect = execReq.collectOutput ?? true;
+    const binaryOutput =
+      req.headers.get('accept')?.includes('tale-output=base64') === true;
     return sseResponse(async ({ send, signal }) => {
       // Terminal-state accumulation so the SSE `result` event matches the
       // one-shot ExecuteResponse contract (the runnerd `exit` carries
@@ -2698,23 +2712,30 @@ export class SessionRoutes {
       const stdoutChunks: Uint8Array[] = [];
       const stderrChunks: Uint8Array[] = [];
       let result: SessionExecResponse | null = null;
-      const onEvent = (e: RunnerdExecEvent) => {
+      let replayGap = false;
+      const onEvent = async (e: RunnerdExecEvent) => {
         switch (e.t) {
           case 'replay-start':
-            send('replay-start', {});
+            await send('replay-start', {});
             break;
           case 'replay-complete':
-            send('replay-complete', { throughSeq: e.throughSeq });
+            await send('replay-complete', { throughSeq: e.throughSeq });
             break;
           case 'start':
-            send('phase', { phase: 'running' });
+            await send('phase', { phase: 'running' });
             break;
           case 'stdout': {
             const bytes = b64decode(e.b64);
             if (collect) stdoutChunks.push(bytes);
-            send('stdout', {
-              text: new TextDecoder('utf-8', { ignoreBOM: true }).decode(bytes),
-              b64: e.b64,
+            await send('stdout', {
+              ...(binaryOutput
+                ? { b64: e.b64 }
+                : {
+                    text: new TextDecoder('utf-8', { ignoreBOM: true }).decode(
+                      bytes,
+                    ),
+                    b64: e.b64,
+                  }),
               seq: e.seq,
             });
             break;
@@ -2722,9 +2743,15 @@ export class SessionRoutes {
           case 'stderr': {
             const bytes = b64decode(e.b64);
             if (collect) stderrChunks.push(bytes);
-            send('stderr', {
-              text: new TextDecoder('utf-8', { ignoreBOM: true }).decode(bytes),
-              b64: e.b64,
+            await send('stderr', {
+              ...(binaryOutput
+                ? { b64: e.b64 }
+                : {
+                    text: new TextDecoder('utf-8', { ignoreBOM: true }).decode(
+                      bytes,
+                    ),
+                    b64: e.b64,
+                  }),
               seq: e.seq,
             });
             break;
@@ -2750,10 +2777,10 @@ export class SessionRoutes {
             };
             break;
           case 'gap':
-            send('gap', { fromSeq: e.fromSeq, toSeq: e.toSeq });
+            replayGap = true;
+            await send('gap', { fromSeq: e.fromSeq, toSeq: e.toSeq });
             break;
           case 'fail':
-            forwardReplayFailure(e, send);
             result = {
               status: 'failed',
               exitCode: null,
@@ -2798,11 +2825,14 @@ export class SessionRoutes {
             execSignal,
           );
         }
+        // An acknowledged-prefix gap asks the platform to restore a newer
+        // checkpoint. It is not evidence that the daemon or session died.
+        if (replayGap) return;
         if (result) {
-          send('result', result);
+          await send('result', result);
         } else {
           // Stream ended without a terminal event — runnerd/ container died.
-          send('result', {
+          await send('result', {
             status: 'failed',
             exitCode: null,
             // Sentinel: the terminal `exit` line was lost with the container,
@@ -2824,17 +2854,23 @@ export class SessionRoutes {
         // window): nobody reads an error, and the backend is not suspect.
         if (req.signal.aborted || signal.aborted) return;
         if (err instanceof RunnerdAttachBusyError) {
-          send('error', { code: 'ATTACH_BUSY', message: err.message });
+          await send('error', { code: 'ATTACH_BUSY', message: err.message });
           return;
         }
-        send('error', {
+        await send('error', {
           message: err instanceof Error ? err.message : String(err),
-          ...(err instanceof RunnerdProtocolError ? { code: err.code } : {}),
+          ...(err instanceof RunnerdProtocolError ||
+          err instanceof RunnerdOutputGapError
+            ? { code: err.code }
+            : {}),
         });
         // A transport-level runnerd failure on a gone container must convert
         // the platform's resilient-drain retry into a 404 (registry miss),
         // not another connection error.
-        if (!(err instanceof RunnerdProtocolError))
+        if (
+          !(err instanceof RunnerdProtocolError) &&
+          !(err instanceof RunnerdOutputGapError)
+        )
           await this.evictIfBackendGone(sessionId);
       } finally {
         if (this.registry.get(sessionId) === session)
@@ -3003,39 +3039,53 @@ export class SessionRoutes {
     const session = await this.ensureRegistered(sessionId);
     if (session instanceof Response) return session;
     if (!session) return jsonResponse({ error: 'not_found' }, 404);
+    // Resume cursor: the platform passes the highest seq already consumed.
+    const sinceSeq = parseRunnerdSequence(
+      new URL(req.url).searchParams.get('sinceSeq'),
+    );
+    if (sinceSeq === null)
+      return jsonResponse({ error: 'invalid_since_seq' }, 400);
     const ac = new AbortController();
     const onAbort = () => ac.abort();
     req.signal.addEventListener('abort', onAbort, { once: true });
-    // Resume cursor: the platform passes the highest seq it already consumed so
-    // runnerd replays only newer events (idempotent reconnect).
-    const sinceSeq = Number(
-      new URL(req.url).searchParams.get('sinceSeq') ?? '0',
-    );
     const token = this.tokenFor(sessionId);
     return sseResponse(async ({ send, signal }) => {
       try {
         const found = await runnerdAttach(
           { baseUrl: session.endpoint, token },
           execId,
-          (e) => forwardExecEvent(e, send),
+          (e) =>
+            forwardExecEvent(
+              e,
+              send,
+              req.headers.get('accept')?.includes('tale-output=base64') ===
+                true,
+            ),
           AbortSignal.any([ac.signal, signal]),
           sinceSeq,
         );
-        if (!found) send('error', { message: `exec ${execId} not found` });
+        if (!found)
+          await send('error', { message: `exec ${execId} not found` });
       } catch (err) {
         // The caller hung up: see handleExec.
         if (req.signal.aborted || signal.aborted) return;
         if (err instanceof RunnerdAttachBusyError) {
-          send('error', { code: 'ATTACH_BUSY', message: err.message });
+          await send('error', { code: 'ATTACH_BUSY', message: err.message });
           return;
         }
-        send('error', {
+        await send('error', {
           message: err instanceof Error ? err.message : String(err),
-          ...(err instanceof RunnerdProtocolError ? { code: err.code } : {}),
+          ...(err instanceof RunnerdProtocolError ||
+          err instanceof RunnerdOutputGapError
+            ? { code: err.code }
+            : {}),
         });
         // See handleExec: a dead backend object must surface as 404 on the
         // next reconnect, not as an endless transport error.
-        if (!(err instanceof RunnerdProtocolError))
+        if (
+          !(err instanceof RunnerdProtocolError) &&
+          !(err instanceof RunnerdOutputGapError)
+        )
           await this.evictIfBackendGone(sessionId);
       } finally {
         req.signal.removeEventListener('abort', onAbort);
@@ -3370,40 +3420,49 @@ export class SessionRoutes {
 
 /** Translate a runnerd exec NDJSON event into the SSE event grammar used by
  * both /exec and /exec/:id/attach. */
-function forwardExecEvent(
+async function forwardExecEvent(
   e: RunnerdExecEvent,
-  send: (event: string, data: unknown) => void,
-): void {
+  send: (event: string, data: unknown) => void | Promise<void>,
+  binaryOutput = false,
+): Promise<void> {
   switch (e.t) {
     case 'replay-start':
-      send('replay-start', {});
+      await send('replay-start', {});
       break;
     case 'replay-complete':
-      send('replay-complete', { throughSeq: e.throughSeq });
+      await send('replay-complete', { throughSeq: e.throughSeq });
       break;
     case 'start':
-      send('phase', { phase: 'running' });
+      await send('phase', { phase: 'running' });
       break;
     case 'stdout':
-      send('stdout', {
-        text: new TextDecoder('utf-8', { ignoreBOM: true }).decode(
-          b64decode(e.b64),
-        ),
-        b64: e.b64,
+      await send('stdout', {
+        ...(binaryOutput
+          ? { b64: e.b64 }
+          : {
+              text: new TextDecoder('utf-8', { ignoreBOM: true }).decode(
+                b64decode(e.b64),
+              ),
+              b64: e.b64,
+            }),
         seq: e.seq,
       });
       break;
     case 'stderr':
-      send('stderr', {
-        text: new TextDecoder('utf-8', { ignoreBOM: true }).decode(
-          b64decode(e.b64),
-        ),
-        b64: e.b64,
+      await send('stderr', {
+        ...(binaryOutput
+          ? { b64: e.b64 }
+          : {
+              text: new TextDecoder('utf-8', { ignoreBOM: true }).decode(
+                b64decode(e.b64),
+              ),
+              b64: e.b64,
+            }),
         seq: e.seq,
       });
       break;
     case 'exit':
-      send('result', {
+      await send('result', {
         status: e.cancelled
           ? 'cancelled'
           : e.exitCode === 0
@@ -3422,11 +3481,10 @@ function forwardExecEvent(
       } satisfies SessionExecResponse);
       break;
     case 'gap':
-      send('gap', { fromSeq: e.fromSeq, toSeq: e.toSeq });
+      await send('gap', { fromSeq: e.fromSeq, toSeq: e.toSeq });
       break;
     case 'fail':
-      forwardReplayFailure(e, send);
-      send('result', {
+      await send('result', {
         status: 'failed',
         exitCode: null,
         // Sentinel: the process never ran, so there is no runnerd
@@ -3439,17 +3497,6 @@ function forwardExecEvent(
         errorMessage: e.message,
       } satisfies SessionExecResponse);
       break;
-  }
-}
-
-/** Incomplete replay is not a reconnectable transport failure. New clients
- * stop here; the ordinary terminal result remains for older consumers. */
-function forwardReplayFailure(
-  event: Extract<RunnerdExecEvent, { t: 'fail' }>,
-  send: (event: string, data: unknown) => void,
-): void {
-  if (event.code === 'REPLAY_UNAVAILABLE' || event.code === 'OUTPUT_LIMIT') {
-    send('error', { code: event.code, message: event.message });
   }
 }
 

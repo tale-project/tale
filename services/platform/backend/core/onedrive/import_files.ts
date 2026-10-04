@@ -272,6 +272,25 @@ export async function importFiles(
   },
   deps: ImportFilesDependencies,
 ): Promise<ImportFilesResult> {
+  if (
+    args.importType === 'sync' &&
+    args.items.some((item) => item.sourceType === 'sharepoint')
+  ) {
+    return {
+      success: false,
+      results: args.items.map((item) => ({
+        fileId: item.id,
+        fileName: item.name,
+        status: 'error',
+        error: 'SharePoint supports one-time import only',
+      })),
+      totalFiles: args.items.length,
+      successCount: 0,
+      failedCount: args.items.length,
+      skippedCount: 0,
+    };
+  }
+
   const results: ImportFileResult[] = [];
   let successCount = 0;
   let failedCount = 0;

@@ -14,6 +14,7 @@ import {
   spyOn,
   test,
 } from 'bun:test';
+import { createHash } from 'node:crypto';
 import { getEventListeners } from 'node:events';
 
 import { ActivityGate } from '../../../sandbox-runtime/daemon/src/activity-gate.ts';
@@ -64,6 +65,7 @@ const cfg: SpawnerConfig = {
 
 let fakeServer: ReturnType<typeof Bun.serve>;
 let fakeBaseUrl = '';
+let largeReplayCancelled = false;
 const created = new Set<string>();
 const destroyed = new Set<string>();
 const stopped = new Set<string>();
@@ -89,6 +91,7 @@ const fakeHealth = {
   lastActivityAtMs: 0,
   liveExecs: 0,
   dockerReady: undefined as boolean | undefined,
+  dockerRecoveryRequired: undefined as boolean | undefined,
 };
 const fakeActivities = new Map<string, ActivityGate>();
 let legacyDaemon = false;
@@ -106,8 +109,20 @@ const healthProbes = new Map<string, number>();
 // Per-daemon activity clocks (by session token), over fakeHealth's shared one.
 const daemonLastActivity = new Map<string, number>();
 
-function ndjson(lines: object[]): string {
-  return lines.map((l) => JSON.stringify(l)).join('\n') + '\n';
+function ndjson(
+  lines: Array<{ t: string; seq?: number; [key: string]: unknown }>,
+): string {
+  let seq = 0;
+  return (
+    lines
+      .map((line) => {
+        if (['fail', 'gap', 'replay-start', 'replay-complete'].includes(line.t))
+          return JSON.stringify(line);
+        seq = line.seq ?? seq + 1;
+        return JSON.stringify({ ...line, seq });
+      })
+      .join('\n') + '\n'
+  );
 }
 
 function replayGapResponse(): Response {
@@ -176,6 +191,9 @@ beforeAll(() => {
             daemonLastActivity.get(token) ?? fakeHealth.lastActivityAtMs,
           liveExecs: fakeHealth.liveExecs,
           ...(dockerReady === undefined ? {} : { dockerReady }),
+          ...(fakeHealth.dockerRecoveryRequired === undefined
+            ? {}
+            : { dockerRecoveryRequired: fakeHealth.dockerRecoveryRequired }),
           ...(legacyDaemon ? {} : { activity: activity.snapshot() }),
         });
       }
@@ -241,6 +259,8 @@ beforeAll(() => {
           stderrMaxBytes?: number;
         };
         execRequests.push(body);
+        if (body.execId === 'checkpoint-gap')
+          return new Response(ndjson([{ t: 'gap', fromSeq: 1, toSeq: 9 }]));
         if (body.execId === 'gap') return replayGapResponse();
         if (body.execId?.startsWith('hang-')) return hangingExecResponse();
         // Echo-style script: a start, one stdout chunk, then exit 0.
@@ -367,6 +387,54 @@ beforeAll(() => {
         return new Response('file-bytes', {
           headers: { 'content-type': 'application/octet-stream' },
         });
+      }
+      if (url.pathname.endsWith('/checkpoint-gap/attach'))
+        return new Response(ndjson([{ t: 'gap', fromSeq: 1, toSeq: 9 }]));
+      if (url.pathname.endsWith('/attach') && url.pathname.includes('/gap-')) {
+        return new Response(ndjson([{ t: 'stdout', b64: 'eA==', seq: 19 }]));
+      }
+      if (
+        url.pathname.endsWith('/attach') &&
+        /\/large-(replay|live)\//.test(url.pathname)
+      ) {
+        const live = url.pathname.includes('/large-live/');
+        let next = 0;
+        const count = 1536;
+        const encoder = new TextEncoder();
+        return new Response(
+          new ReadableStream<Uint8Array>({
+            pull(controller) {
+              let event: Record<string, unknown>;
+              if (next === 0) event = { t: 'replay-start' };
+              else if (next <= count || live)
+                event = {
+                  t: 'stdout',
+                  b64: Buffer.alloc(16384, next % 251).toString('base64'),
+                  seq: next,
+                };
+              else if (next === count + 1)
+                event = { t: 'replay-complete', throughSeq: count };
+              else {
+                event = {
+                  t: 'exit',
+                  seq: count + 1,
+                  exitCode: 0,
+                  durationMs: 5,
+                  truncated: { stdout: false, stderr: false },
+                  timedOut: false,
+                  cancelled: false,
+                };
+              }
+              controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`));
+              if (!live && next === count + 2) controller.close();
+              next++;
+            },
+            cancel() {
+              largeReplayCancelled = true;
+            },
+          }),
+          { headers: { 'content-type': 'application/x-ndjson' } },
+        );
       }
       if (url.pathname.endsWith('/attach')) {
         attachRequests.push(url.pathname);
@@ -549,6 +617,7 @@ beforeEach(() => {
   fakeHealth.lastActivityAtMs = 0;
   fakeHealth.liveExecs = 0;
   fakeHealth.dockerReady = undefined;
+  fakeHealth.dockerRecoveryRequired = undefined;
   fakeActivities.clear();
   legacyDaemon = false;
   legacyIdleReclaim = false;
@@ -594,7 +663,7 @@ describe('SessionRoutes (fake runnerd)', () => {
   );
 
   test.each(['acquire', 'exec', 'sweep'])(
-    'unhealthy inner Docker recovers idle compute through the fenced claim on %s',
+    'a first unhealthy inner Docker observation refuses %s without stopping compute',
     async (operation) => {
       const routes = new SessionRoutes(
         { ...cfg, dockerInContainer: true },
@@ -607,8 +676,13 @@ describe('SessionRoutes (fake runnerd)', () => {
           profile: 'agent',
         }),
       );
+      expect(
+        (await routes.handleActivity('docker-idle', 'acquire')).status,
+      ).toBe(200);
+      fakeHealth.lastActivityAtMs = Date.now() - 100;
       fakeHealth.dockerReady = false;
-      if (operation === 'sweep') expect(await routes.sweepExpired()).toBe(1);
+      fakeHealth.dockerRecoveryRequired = false;
+      if (operation === 'sweep') expect(await routes.sweepExpired()).toBe(0);
       else {
         const result =
           operation === 'acquire'
@@ -618,11 +692,13 @@ describe('SessionRoutes (fake runnerd)', () => {
                 'docker-idle',
                 JSON.stringify({ execId: 'gone-e-docker', command: ['true'] }),
               );
-        expect(result.status).toBe(404);
+        expect(result.status).toBe(503);
       }
-      expect(stopped.has('docker-idle')).toBe(true);
+      expect(stopped.has('docker-idle')).toBe(false);
       expect(destroyed.has('docker-idle')).toBe(false);
       expect(execRequests).toHaveLength(0);
+      expect(reclaimRequests).toHaveLength(0);
+      expect(routes.holds('docker-idle')).toBe(true);
     },
   );
 
@@ -647,6 +723,7 @@ describe('SessionRoutes (fake runnerd)', () => {
       }),
     );
     fakeHealth.dockerReady = false;
+    fakeHealth.dockerRecoveryRequired = true;
     const result = await routes.handleExec(
       new Request('http://sandbox/exec'),
       'docker-replaced',
@@ -658,7 +735,122 @@ describe('SessionRoutes (fake runnerd)', () => {
     expect(destroyed.has('docker-replaced')).toBe(false);
   });
 
-  test.each(['busy', 'pinned', 'acquired-race', 'legacy'])(
+  test.each(['acquire', 'exec', 'sweep'])(
+    'sustained inner Docker failure recovers idle compute through the fenced claim on %s',
+    async (operation) => {
+      const routes = new SessionRoutes(
+        { ...cfg, dockerInContainer: true },
+        fakeBackend,
+      );
+      await routes.handleCreate(
+        JSON.stringify({
+          sessionId: 'docker-confirmed',
+          organizationId: 'org_a',
+          profile: 'agent',
+        }),
+      );
+      expect(
+        (await routes.handleActivity('docker-confirmed', 'acquire')).status,
+      ).toBe(200);
+      fakeHealth.lastActivityAtMs = Date.now() - 100;
+      fakeHealth.dockerReady = false;
+      fakeHealth.dockerRecoveryRequired = true;
+      if (operation === 'sweep') expect(await routes.sweepExpired()).toBe(1);
+      else {
+        const result =
+          operation === 'acquire'
+            ? await routes.handleActivity('docker-confirmed', 'acquire')
+            : await routes.handleExec(
+                new Request('http://sandbox/exec'),
+                'docker-confirmed',
+                JSON.stringify({ execId: 'gone-e-docker', command: ['true'] }),
+              );
+        expect(result.status).toBe(404);
+      }
+      expect(stopped.has('docker-confirmed')).toBe(true);
+      expect(destroyed.has('docker-confirmed')).toBe(false);
+      expect(execRequests).toHaveLength(0);
+      expect(reclaimRequests).toHaveLength(1);
+    },
+  );
+
+  test.each(['idle', 'lifetime'])(
+    'legacy Docker readiness refuses new work but preserves ordinary %s recovery',
+    async (expiry) => {
+      const routes = new SessionRoutes(
+        {
+          ...cfg,
+          dockerInContainer: true,
+          ...(expiry === 'lifetime'
+            ? { session: { ...cfg.session, maxLifetimeMs: 10_000 } }
+            : {}),
+        },
+        fakeBackend,
+      );
+      await routes.handleCreate(
+        JSON.stringify({
+          sessionId: 'docker-legacy',
+          organizationId: 'org_a',
+          profile: 'agent',
+        }),
+      );
+      fakeHealth.lastActivityAtMs = Date.now() - 100;
+      fakeHealth.dockerReady = false;
+      expect(
+        (await routes.handleActivity('docker-legacy', 'acquire')).status,
+      ).toBe(503);
+      expect(await routes.sweepExpired()).toBe(0);
+      expect(reclaimRequests).toHaveLength(0);
+      expect(stopped.has('docker-legacy')).toBe(false);
+      const later =
+        Date.now() +
+        (expiry === 'lifetime' ? 20_000 : cfg.session.maxIdleMs + 1);
+      expect(await routes.sweepExpired(later)).toBe(1);
+      expect(reclaimRequests).toHaveLength(1);
+      expect(stopped.has('docker-legacy')).toBe(true);
+      expect(destroyed.has('docker-legacy')).toBe(false);
+    },
+  );
+
+  test('healthy Docker ignores recovery confidence and admits new work', async () => {
+    const routes = new SessionRoutes(
+      { ...cfg, dockerInContainer: true },
+      fakeBackend,
+    );
+    await routes.handleCreate(
+      JSON.stringify({
+        sessionId: 'docker-healthy',
+        organizationId: 'org_a',
+        profile: 'agent',
+      }),
+    );
+    fakeHealth.lastActivityAtMs = Date.now() - 100;
+    fakeHealth.dockerReady = true;
+    fakeHealth.dockerRecoveryRequired = true;
+    expect(
+      (await routes.handleActivity('docker-healthy', 'acquire')).status,
+    ).toBe(200);
+    const result = await routes.handleExec(
+      new Request('http://sandbox/exec'),
+      'docker-healthy',
+      JSON.stringify({ execId: 'healthy-exec', command: ['true'] }),
+    );
+    expect(result.status).toBe(200);
+    await result.text();
+    expect(await routes.sweepExpired()).toBe(0);
+    expect(stopped.has('docker-healthy')).toBe(false);
+    expect(reclaimRequests).toHaveLength(0);
+    expect(execRequests).toHaveLength(1);
+  });
+
+  test.each([
+    'busy',
+    'active-operation',
+    'pinned',
+    'acquired-race',
+    'activity-race',
+    'legacy',
+  ])(
     'unhealthy inner Docker protects %s compute while refusing new work',
     async (state) => {
       const routes = new SessionRoutes(
@@ -673,6 +865,15 @@ describe('SessionRoutes (fake runnerd)', () => {
         }),
       );
       if (state === 'busy') fakeHealth.liveExecs = 1;
+      let finishOperation: (() => void) | undefined;
+      if (state === 'active-operation') {
+        await routes.handleActivity('docker-protected', 'ticket');
+        finishOperation =
+          fakeActivities
+            .get(deriveRunnerdToken(cfg.sandboxToken, 'docker-protected'))
+            ?.enter() ?? undefined;
+        expect(finishOperation).toBeDefined();
+      }
       if (state === 'pinned')
         await routes.handleSetPinned('docker-protected', '{"pinned":true}');
       if (state === 'legacy') legacyIdleReclaim = true;
@@ -680,7 +881,14 @@ describe('SessionRoutes (fake runnerd)', () => {
         beforeReclaim = (_token, activity) => {
           activity.acquire();
         };
+      if (state === 'activity-race')
+        beforeReclaim = (_token, activity) => {
+          const finish = activity.enter();
+          fakeHealth.lastActivityAtMs = Date.now();
+          finish?.();
+        };
       fakeHealth.dockerReady = false;
+      fakeHealth.dockerRecoveryRequired = true;
       expect(
         (await routes.handleActivity('docker-protected', 'acquire')).status,
       ).toBe(503);
@@ -697,16 +905,23 @@ describe('SessionRoutes (fake runnerd)', () => {
       expect(stopped.has('docker-protected')).toBe(false);
       expect(destroyed.has('docker-protected')).toBe(false);
       expect(execRequests).toHaveLength(0);
+      finishOperation?.();
     },
   );
 
   test.each(
     ['running-existing', 'done-existing', 'done-disappears'].flatMap((execId) =>
-      [false, true].map((acquired) => ({ execId, acquired })),
+      [false, true].flatMap((acquired) =>
+        [false, true].map((dockerRecoveryRequired) => ({
+          execId,
+          acquired,
+          dockerRecoveryRequired,
+        })),
+      ),
     ),
   )(
     'unhealthy Docker preserves retained exec replay: %j',
-    async ({ execId, acquired }) => {
+    async ({ execId, acquired, dockerRecoveryRequired }) => {
       const routes = new SessionRoutes(
         { ...cfg, dockerInContainer: true },
         fakeBackend,
@@ -723,6 +938,7 @@ describe('SessionRoutes (fake runnerd)', () => {
           (await routes.handleActivity('docker-replay', 'acquire')).status,
         ).toBe(200);
       fakeHealth.dockerReady = false;
+      fakeHealth.dockerRecoveryRequired = dockerRecoveryRequired;
       const response = await routes.handleExec(
         new Request('http://sandbox/exec'),
         'docker-replay',
@@ -918,6 +1134,112 @@ describe('SessionRoutes (fake runnerd)', () => {
     ).toBe('\uFEFFreplayed');
   });
 
+  test('negotiated binary output preserves bytes on both exec and replay', async () => {
+    const routes = new SessionRoutes(cfg, fakeBackend);
+    await routes.handleCreate(
+      JSON.stringify({ sessionId: 'binary', organizationId: 'org_binary' }),
+    );
+    const headers = { accept: 'text/event-stream; tale-output=base64' };
+    const exec = await routes.handleExec(
+      new Request('http://x/v1/sessions/binary/exec', {
+        method: 'POST',
+        headers,
+      }),
+      'binary',
+      JSON.stringify({ execId: 'binary-exec', command: ['echo', '🙂'] }),
+    );
+    const initial = (await readSse(exec)).events.find(
+      (event) => event.event === 'stdout',
+    );
+    expect(initial?.data).toEqual({
+      b64: Buffer.from('🙂\n').toString('base64'),
+      seq: 2,
+    });
+    const attach = await routes.handleExecAttach(
+      new Request('http://x/v1/sessions/binary/exec/binary-exec/attach', {
+        headers,
+      }),
+      'binary',
+      'binary-exec',
+    );
+    expect(
+      (await readSse(attach)).events.find((event) => event.event === 'stdout')
+        ?.data,
+    ).toEqual({ b64: Buffer.from('replayed').toString('base64'), seq: 1 });
+  });
+
+  test('refuses malformed replay cursors before opening an event stream', async () => {
+    const routes = new SessionRoutes(cfg, fakeBackend);
+    await routes.handleCreate(
+      JSON.stringify({ sessionId: 'cursor', organizationId: 'org_cursor' }),
+    );
+    for (const cursor of [
+      '-1',
+      '1.5',
+      'Infinity',
+      'invalid',
+      '9007199254740992',
+    ]) {
+      const response = await routes.handleExecAttach(
+        new Request(`http://x/attach?sinceSeq=${cursor}`),
+        'cursor',
+        'exec',
+      );
+      expect(response.status).toBe(400);
+      expect(await response.json()).toEqual({ error: 'invalid_since_seq' });
+    }
+  });
+
+  test.each(['direct', 'attach'] as const)(
+    'checkpoint gap through %s preserves recovery without synthesizing terminal failure',
+    async (entry) => {
+      const routes = new SessionRoutes(cfg, fakeBackend);
+      await routes.handleCreate(
+        JSON.stringify({
+          sessionId: 'checkpoint-gap-session',
+          organizationId: 'org_gap',
+        }),
+      );
+      const req = new Request(
+        'http://x/v1/sessions/checkpoint-gap-session/exec',
+      );
+      const response =
+        entry === 'direct'
+          ? await routes.handleExec(
+              req,
+              'checkpoint-gap-session',
+              JSON.stringify({ execId: 'checkpoint-gap', command: ['true'] }),
+            )
+          : await routes.handleExecAttach(
+              req,
+              'checkpoint-gap-session',
+              'checkpoint-gap',
+            );
+      expect((await readSse(response)).events).toEqual([
+        { event: 'gap', data: { fromSeq: 1, toSeq: 9 } },
+      ]);
+      expect(routes.holds('checkpoint-gap-session')).toBe(true);
+    },
+  );
+
+  test('lost replay history reaches the platform as a typed error with no successful result', async () => {
+    const routes = new SessionRoutes(cfg, fakeBackend);
+    await routes.handleCreate(
+      JSON.stringify({ sessionId: 'replay-gap', organizationId: 'org_gap' }),
+    );
+    const response = await routes.handleExecAttach(
+      new Request('http://x/v1/sessions/replay-gap/exec/gap-exec/attach'),
+      'replay-gap',
+      'gap-exec',
+    );
+    const { events } = await readSse(response);
+    expect(events.find((event) => event.event === 'error')?.data.code).toBe(
+      'OUTPUT_GAP',
+    );
+    expect(events.some((event) => event.event === 'result')).toBe(false);
+    expect(events.some((event) => event.event === 'stdout')).toBe(false);
+  });
+
   test('result forwards runnerd exit durationMs VERBATIM (the runner-measured wall-clock)', async () => {
     const routes = new SessionRoutes(cfg, fakeBackend);
     await routes.handleCreate(
@@ -956,12 +1278,20 @@ describe('SessionRoutes (fake runnerd)', () => {
   });
 
   test.each(['exec', 'attach'] as const)(
-    'a replay gap stays distinct on the %s error wire',
+    'unavailable replay stays terminal on the %s error wire',
     async (mode) => {
-      const routes = new SessionRoutes(cfg, fakeBackend);
+      let existsChecks = 0;
+      const routes = new SessionRoutes(cfg, {
+        ...fakeBackend,
+        async sessionExists() {
+          existsChecks += 1;
+          return true;
+        },
+      });
       await routes.handleCreate(
         JSON.stringify({ sessionId: 'gap-session', organizationId: 'org' }),
       );
+      existsChecks = 0;
       const request = new Request('http://x/exec');
       const response =
         mode === 'exec'
@@ -975,10 +1305,13 @@ describe('SessionRoutes (fake runnerd)', () => {
       expect(
         events.find((event) => event.event === 'error')?.data,
       ).toMatchObject({
+        // The transport normalizes explicit journal loss and sequence gaps.
         code: 'REPLAY_UNAVAILABLE',
         message:
           'Exec output is no longer available from the requested cursor.',
       });
+      expect(events.some((event) => event.event === 'result')).toBe(false);
+      expect(existsChecks).toBe(0);
     },
   );
 
@@ -1365,7 +1698,7 @@ describe('SessionRoutes (fake runnerd)', () => {
   });
 
   test.each(['start', 'attach'])(
-    'replay storage failures on %s preserve their fatal SSE code before the compatibility result',
+    'replay storage failures on %s propagate a fatal output gap without a successful result',
     async (mode) => {
       const routes = new SessionRoutes(cfg, fakeBackend);
       await routes.handleCreate(
@@ -1393,11 +1726,10 @@ describe('SessionRoutes (fake runnerd)', () => {
       const failure = events.findIndex((event) => event.event === 'error');
       const result = events.findIndex((event) => event.event === 'result');
       expect(failure).toBeGreaterThanOrEqual(0);
-      expect(result).toBeGreaterThan(failure);
+      expect(result).toBe(-1);
       expect(events[failure]?.data.code).toBe(
         mode === 'start' ? 'OUTPUT_LIMIT' : 'REPLAY_UNAVAILABLE',
       );
-      expect(events[result]?.data.status).toBe('failed');
     },
   );
 
@@ -1760,6 +2092,83 @@ describe('SessionRoutes (fake runnerd)', () => {
       setSystemTime(Date.now() + 1000);
       await routes.handleSetPinned('pin-ttl', '{"pinned":false}');
       expect(await expiry()).toBe(renewed);
+    } finally {
+      setSystemTime();
+    }
+  });
+
+  test('failed durable Unpin converges on retry, then restart reads the acknowledged false', async () => {
+    let rejectUnpin = true;
+    const backend: SessionBackend = {
+      ...fakeBackend,
+      async setPinned(sessionId, pinned) {
+        if (!pinned && rejectUnpin) throw new Error('pin storage unavailable');
+        await fakeBackend.setPinned(sessionId, pinned);
+      },
+    };
+    const routes = new SessionRoutes(cfg, backend);
+    await routes.handleCreate(
+      JSON.stringify({ sessionId: 'pin-retry', organizationId: 'org_pin' }),
+    );
+    await routes.handleSetPinned('pin-retry', JSON.stringify({ pinned: true }));
+    expect(backendPins.get('pin-retry')).toBe(true);
+    expect(
+      (
+        await routes.handleSetPinned(
+          'pin-retry',
+          JSON.stringify({ pinned: false }),
+        )
+      ).status,
+    ).toBe(503);
+    expect(backendPins.get('pin-retry')).toBe(true);
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the route fixture's response shape is asserted below
+    const before = (await (await routes.handleGet('pin-retry')).json()) as {
+      session: { expiresAtMs: number };
+    };
+    rejectUnpin = false;
+    setSystemTime(new Date(Date.now() + 60_000));
+    try {
+      expect(
+        (
+          await routes.handleSetPinned(
+            'pin-retry',
+            JSON.stringify({ pinned: false }),
+          )
+        ).status,
+      ).toBe(200);
+      expect(backendPins.get('pin-retry')).toBe(false);
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the route fixture's response shape is asserted below
+      const after = (await (await routes.handleGet('pin-retry')).json()) as {
+        session: { expiresAtMs: number };
+      };
+      expect(after.session.expiresAtMs).toBeGreaterThan(
+        before.session.expiresAtMs,
+      );
+      await routes.handleSetPinned(
+        'pin-retry',
+        JSON.stringify({ pinned: false }),
+      );
+      expect(await (await routes.handleGet('pin-retry')).json()).toMatchObject({
+        session: { expiresAtMs: after.session.expiresAtMs },
+      });
+      // Restart observes the acknowledged durable false, not the stale pin.
+      const restarted = new SessionRoutes(cfg, {
+        ...backend,
+        async listSessions() {
+          return [
+            {
+              ...mkBackendSession('pin-retry', 'org_pin'),
+              pinned: backendPins.get('pin-retry') === true,
+            },
+          ];
+        },
+      });
+      await restarted.adoptExisting();
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the restarted route's pinned response is the assertion under test
+      const observed = (await (
+        await restarted.handleGet('pin-retry')
+      ).json()) as { session: { pinned: boolean } };
+      expect(observed.session.pinned).toBe(false);
     } finally {
       setSystemTime();
     }
@@ -2335,6 +2744,87 @@ describe('SessionRoutes (fake runnerd)', () => {
             expect(f.mutations).toEqual([]);
           } finally {
             answer.resolve(Response.json({ ok: true }));
+            fetchSpy.mockRestore();
+          }
+        },
+      );
+
+      test.each(['missing', 'retained'])(
+        'late retained exec status cannot clear a replacement cleanup claim: %s',
+        async (state) => {
+          const f = fixture('http://old-peer.invalid');
+          f.current().pinned = false;
+          await f.routes.adoptExisting();
+          const started = Promise.withResolvers<void>();
+          const answer = Promise.withResolvers<Response>();
+          const realFetch = globalThis.fetch;
+          let replacementStops = 0;
+          const fetchSpy = spyOn(globalThis, 'fetch').mockImplementation(
+            Object.assign(
+              (...args: Parameters<typeof fetch>) => {
+                const [input, init] = args;
+                if (input === 'http://old-peer.invalid/healthz')
+                  return Promise.resolve(
+                    Response.json({
+                      ok: true,
+                      bootedAtMs: 0,
+                      lastActivityAtMs: 0,
+                      liveExecs: 0,
+                      dockerReady: false,
+                      dockerRecoveryRequired: true,
+                    }),
+                  );
+                if (input === 'http://old-peer.invalid/execs/late-status') {
+                  started.resolve();
+                  return answer.promise;
+                }
+                return realFetch(input, init);
+              },
+              { preconnect: realFetch.preconnect },
+            ),
+          );
+          const pending = f.routes.handleExec(
+            new Request('http://sandbox/exec'),
+            'peer-replaced',
+            JSON.stringify({ execId: 'late-status', command: ['true'] }),
+          );
+          try {
+            await started.promise;
+            f.replace();
+            await f.routes.adoptExisting();
+            f.backend.stopSession = async () => {
+              replacementStops += 1;
+              throw new Error('replacement stop unavailable');
+            };
+            const expiredAt = Date.now() + cfg.session.maxLifetimeMs + 1;
+            await f.routes.sweepExpired(expiredAt);
+            expect(replacementStops).toBe(1);
+            expect(reclaimRequests).toHaveLength(1);
+            answer.resolve(
+              state === 'missing'
+                ? new Response('gone', { status: 404 })
+                : Response.json({
+                    execId: 'late-status',
+                    state: 'exited',
+                    exitCode: 0,
+                  }),
+            );
+            expect((await pending).status).toBe(404);
+            expect(replacementStops).toBe(1);
+            expect(execRequests).toHaveLength(0);
+            expect(attachRequests).toHaveLength(0);
+            // The successor remains frozen under its acknowledged claim.
+            // Its retry must stop without asking an already-frozen daemon
+            // to grant a second, different claim.
+            await f.routes.sweepExpired(expiredAt);
+            expect(replacementStops).toBe(2);
+            expect(reclaimRequests).toHaveLength(1);
+            expect(await f.routes.handleList(null).json()).toMatchObject({
+              sessions: [{ createdAtMs: 2000 }],
+            });
+          } finally {
+            answer.resolve(new Response('gone', { status: 404 }));
+            await pending;
             fetchSpy.mockRestore();
           }
         },
@@ -5564,6 +6054,121 @@ describe('memory-aware admission', () => {
     },
   );
 
+  const releaseWarm = async (routes: SessionRoutes, id: string) => {
+    const ticket: unknown = await (
+      await routes.handleActivity(id, 'ticket')
+    ).json();
+    expect(
+      (await routes.handleActivity(id, 'release', JSON.stringify(ticket)))
+        .status,
+    ).toBe(200);
+    return ticket;
+  };
+
+  test('a low-memory warm acquisition parks without changing its release generation', async () => {
+    let available = 8;
+    const routes = new SessionRoutes(
+      cfg,
+      fakeBackend,
+      undefined,
+      host(() => available),
+    );
+    expect((await create(routes, 'warm-short')).status).toBe(201);
+    const ticket = await releaseWarm(routes, 'warm-short');
+    available = 2;
+    const refused = await routes.handleActivity('warm-short', 'acquire');
+    expect(refused.status).toBe(429);
+    expect(refused.headers.get('retry-after')).toBe('5');
+    expect(await refused.json()).toMatchObject({ error: 'host_memory' });
+    expect(
+      await (await routes.handleActivity('warm-short', 'ticket')).json(),
+    ).toEqual(ticket);
+    expect(stopped.has('warm-short')).toBe(false);
+    available = 8;
+    expect((await routes.handleActivity('warm-short', 'acquire')).status).toBe(
+      200,
+    );
+    // The admitted use still invalidates the old completion ticket.
+    expect(
+      await (
+        await routes.handleActivity(
+          'warm-short',
+          'release',
+          JSON.stringify(ticket),
+        )
+      ).json(),
+    ).toEqual({ released: false });
+  });
+
+  test('concurrent warm acquisitions reserve working sets before the telemetry changes', async () => {
+    let available = 8;
+    const routes = new SessionRoutes(
+      cfg,
+      fakeBackend,
+      undefined,
+      host(() => available),
+    );
+    const ids = ['warm-burst-1', 'warm-burst-2', 'warm-burst-3'];
+    for (const id of ids) {
+      expect((await create(routes, id)).status).toBe(201);
+      await releaseWarm(routes, id);
+    }
+    setSystemTime(new Date(Date.now() + 91_000));
+    try {
+      available = 3; // 1.6 GiB floor: two 512 MiB working sets fit, three do not.
+      const acquired = await Promise.all(
+        ids.map((id) => routes.handleActivity(id, 'acquire')),
+      );
+      expect(
+        acquired.map((response) => response.status).sort((a, b) => a - b),
+      ).toEqual([200, 200, 429]);
+    } finally {
+      setSystemTime();
+    }
+  });
+
+  test('reacquiring a young released sandbox replaces its existing reservation without double counting', async () => {
+    const routes = new SessionRoutes(
+      cfg,
+      fakeBackend,
+      undefined,
+      host(() => 2.2),
+    );
+    expect((await create(routes, 'warm-young')).status).toBe(201);
+    await releaseWarm(routes, 'warm-young');
+    expect((await routes.handleActivity('warm-young', 'acquire')).status).toBe(
+      200,
+    );
+  });
+
+  test('memory pressure does not refuse already-held work or delay its release', async () => {
+    let available = 8;
+    const routes = new SessionRoutes(
+      cfg,
+      fakeBackend,
+      undefined,
+      host(() => available),
+    );
+    expect((await create(routes, 'warm-held')).status).toBe(201);
+    available = 1;
+    expect((await routes.handleActivity('warm-held', 'acquire')).status).toBe(
+      200,
+    );
+    await releaseWarm(routes, 'warm-held');
+  });
+
+  test('unknown host memory adds no daemon health round trip to acquisition', async () => {
+    const routes = new SessionRoutes(cfg, fakeBackend);
+    expect((await create(routes, 'warm-unknown')).status).toBe(201);
+    await releaseWarm(routes, 'warm-unknown');
+    const token = deriveRunnerdToken(cfg.sandboxToken, 'warm-unknown');
+    const before = healthProbes.get(token) ?? 0;
+    expect(
+      (await routes.handleActivity('warm-unknown', 'acquire')).status,
+    ).toBe(200);
+    expect(healthProbes.get(token) ?? 0).toBe(before);
+  });
+
   test('a create that would leave the host under its reserve is refused with host_memory', async () => {
     // 16 GiB host: the reserve is 1.6 GiB; an agent session is planned at
     // 512 MiB, so 2 GiB available is not enough.
@@ -6252,6 +6857,18 @@ test.each(['attach', 'direct'] as const)(
         }),
       );
       existsChecks = 0;
+      if (entry === 'attach') {
+        const invalid = await routes.handleExecAttach(
+          new Request(
+            'http://sandbox/v1/sessions/busy-attach/exec/e/attach?sinceSeq=not-a-number',
+          ),
+          'busy-attach',
+          'e',
+        );
+        expect(invalid.status).toBe(400);
+        expect(await invalid.json()).toEqual({ error: 'invalid_since_seq' });
+        expect(queries).toEqual([]);
+      }
       const response =
         entry === 'direct'
           ? await routes.handleExec(
@@ -6265,7 +6882,7 @@ test.each(['attach', 'direct'] as const)(
             )
           : await routes.handleExecAttach(
               new Request(
-                'http://sandbox/v1/sessions/busy-attach/exec/e/attach?sinceSeq=not-a-number',
+                'http://sandbox/v1/sessions/busy-attach/exec/e/attach?sinceSeq=7',
               ),
               'busy-attach',
               'e',
@@ -6273,7 +6890,7 @@ test.each(['attach', 'direct'] as const)(
       const stream = await response.text();
       expect(stream).toContain('ATTACH_BUSY');
       expect(stream).not.toContain('event: result');
-      expect(queries).toEqual([entry === 'attach' ? 'NaN' : null]);
+      expect(queries).toEqual([entry === 'attach' ? '7' : null]);
       expect(newExecs).toBe(0);
       expect(existsChecks).toBe(0);
     } finally {
@@ -6281,3 +6898,105 @@ test.each(['attach', 'direct'] as const)(
     }
   },
 );
+
+test('HTTP replay larger than the SSE ceiling preserves every byte and terminal event under backpressure', async () => {
+  const routes = new SessionRoutes(cfg, fakeBackend);
+  await routes.handleCreate(
+    JSON.stringify({ sessionId: 'large-http', organizationId: 'org_http' }),
+  );
+  const proxy = Bun.serve({
+    port: 0,
+    fetch: (req) => routes.handleExecAttach(req, 'large-http', 'large-replay'),
+  });
+  try {
+    const response = await fetch(proxy.url, {
+      headers: { accept: 'text/event-stream; tale-output=base64' },
+    });
+    // Exercise downstream network/HTTP queues before consuming the response.
+    await Bun.sleep(100);
+    const reader = response.body!.getReader();
+    const decoder = new TextDecoder();
+    const actual = createHash('sha256');
+    const expected = createHash('sha256');
+    for (let seq = 1; seq <= 1536; seq++)
+      expected.update(Buffer.alloc(16384, seq % 251));
+    let pending = '';
+    let bytes = 0;
+    let frames = 0;
+    const controls: string[] = [];
+    for (;;) {
+      const next = await reader.read();
+      if (next.done) break;
+      pending += decoder.decode(next.value, { stream: true });
+      for (
+        let end = pending.indexOf('\n\n');
+        end !== -1;
+        end = pending.indexOf('\n\n')
+      ) {
+        const block = pending.slice(0, end);
+        pending = pending.slice(end + 2);
+        const event = block
+          .split('\n')
+          .find((line) => line.startsWith('event: '))
+          ?.slice(7);
+        const data = block
+          .split('\n')
+          .find((line) => line.startsWith('data: '))
+          ?.slice(6);
+        if (!event || !data) continue;
+        const parsed: Record<string, unknown> = JSON.parse(data);
+        if (event === 'stdout') {
+          const chunk = Buffer.from(String(parsed.b64), 'base64');
+          actual.update(chunk);
+          bytes += chunk.length;
+          expect(parsed.seq).toBe(++frames);
+        } else {
+          controls.push(event);
+          if (event === 'result')
+            expect(parsed).toMatchObject({ status: 'completed', exitCode: 0 });
+        }
+      }
+    }
+    reader.releaseLock();
+    expect(pending).toBe('');
+    expect(bytes).toBe(24 * 1024 * 1024);
+    expect(actual.digest('hex')).toBe(expected.digest('hex'));
+    expect(controls).toEqual(['replay-start', 'replay-complete', 'result']);
+  } finally {
+    await proxy.stop(true);
+  }
+}, 15000);
+
+test('cancelling a backpressured HTTP replay detaches its upstream producer', async () => {
+  largeReplayCancelled = false;
+  const routes = new SessionRoutes(cfg, fakeBackend);
+  await routes.handleCreate(
+    JSON.stringify({
+      sessionId: 'cancel-large-http',
+      organizationId: 'org_http',
+    }),
+  );
+  const proxy = Bun.serve({
+    port: 0,
+    fetch: (req) =>
+      routes.handleExecAttach(req, 'cancel-large-http', 'large-live'),
+  });
+  try {
+    const controller = new AbortController();
+    const response = await fetch(proxy.url, {
+      signal: controller.signal,
+      headers: { accept: 'text/event-stream; tale-output=base64' },
+    });
+    await Bun.sleep(100);
+    controller.abort();
+    await response.body?.cancel().catch(() => {});
+    const deadline = Date.now() + 3000;
+    while (Date.now() < deadline) {
+      if (largeReplayCancelled) break;
+      await Bun.sleep(10);
+    }
+    expect(largeReplayCancelled).toBe(true);
+  } finally {
+    await proxy.stop(true);
+  }
+}, 10000);

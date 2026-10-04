@@ -1,19 +1,25 @@
 // One bounded replay authority: checkpointed segments on disk, with a shared
 // physical budget. An unlinked segment stays charged until its last reader
 // closes; eviction interrupts stalled readers before reusing their allowance.
+import { constants } from 'node:fs';
 import {
+  mkdir,
   mkdtemp,
   open,
   readFile,
+  realpath,
   rename,
   rm,
   type FileHandle,
 } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { StringDecoder } from 'node:string_decoder';
 
-import { isRunnerdExecEvent, type RunnerdExecCheckpoint } from './protocol.ts';
+import {
+  isRunnerdExecEvent,
+  WORKSPACE_ROOT,
+  type RunnerdExecCheckpoint,
+} from './protocol.ts';
 
 const SEGMENT_BYTES = 1024 * 1024;
 const REPLAY_BYTES = 64 * 1024 * 1024;
@@ -134,6 +140,10 @@ export class ExecReplay {
   private readonly readers = new Set<Promise<void>>();
   private readonly readHandles = new Set<FileHandle>();
   private disposal: Promise<void> | undefined;
+  private readonly pendingIO = new Set<Promise<unknown>>();
+  private parentDirectory: FileHandle | undefined;
+  private spoolDirectory: FileHandle | undefined;
+  private cleanupPath: string | undefined;
 
   constructor(
     private readonly limits = {
@@ -141,17 +151,93 @@ export class ExecReplay {
       maxBytes: REPLAY_BYTES,
     },
     private readonly budget = new ReplayBudget(),
-    directory = tmpdir(),
+    directory?: string,
+    private readonly ioTimeoutMs = 5_000,
   ) {
-    this.directory = mkdtemp(join(directory, 'tale-replay-'));
+    this.directory = this.io(this.createDirectory(directory));
     void this.directory.catch(() => {
       // The first operation reports the storage failure to its owning exec.
     });
   }
 
+  private async createDirectory(directory?: string): Promise<string> {
+    const root = await realpath(
+      directory ?? process.env.TALE_WORKSPACE_ROOT ?? WORKSPACE_ROOT,
+    );
+    const flags =
+      constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW;
+    let parent = await open(root, flags);
+    this.parentDirectory = parent;
+    let path = root;
+    const anchored = () =>
+      process.platform === 'linux' ? `/proc/self/fd/${parent.fd}` : path;
+    if (directory === undefined) {
+      for (const name of ['.runtime', 'tmp']) {
+        const childPath = join(anchored(), name);
+        await mkdir(childPath, { mode: 0o700 }).catch((error: unknown) => {
+          if (
+            !(
+              error instanceof Error &&
+              'code' in error &&
+              error.code === 'EEXIST'
+            )
+          )
+            throw error;
+        });
+        const child = await open(childPath, flags);
+        await parent.close();
+        parent = child;
+        this.parentDirectory = parent;
+        path = join(path, name);
+      }
+    }
+    this.cleanupPath = await mkdtemp(join(anchored(), 'tale-replay-'));
+    this.spoolDirectory = await open(this.cleanupPath, flags);
+    return process.platform === 'linux'
+      ? `/proc/self/fd/${this.spoolDirectory.fd}`
+      : this.cleanupPath;
+  }
+
+  /** A deadline detaches the caller, never the physical I/O owner. Disposal
+   * waits for these operations before closing descriptors or releasing bytes. */
+  private async io<T>(
+    operation: Promise<T>,
+    signal?: AbortSignal,
+    pending?: Set<Promise<unknown>>,
+  ): Promise<T> {
+    this.pendingIO.add(operation);
+    pending?.add(operation);
+    void operation.then(
+      () => {
+        this.pendingIO.delete(operation);
+        pending?.delete(operation);
+        return undefined;
+      },
+      () => {
+        this.pendingIO.delete(operation);
+        pending?.delete(operation);
+        return undefined;
+      },
+    );
+    const interrupted = Promise.withResolvers<never>();
+    const abort = () => interrupted.reject(new Error('replay aborted'));
+    signal?.addEventListener('abort', abort, { once: true });
+    if (signal?.aborted) abort();
+    const timer = setTimeout(() => {
+      this.failure ??= new ReplayError('REPLAY_UNAVAILABLE');
+      interrupted.reject(this.failure);
+    }, this.ioTimeoutMs);
+    try {
+      return await Promise.race([operation, interrupted.promise]);
+    } finally {
+      clearTimeout(timer);
+      signal?.removeEventListener('abort', abort);
+    }
+  }
+
   /** A reservation cannot reclaim a writer waiting on that same reservation. */
   get canReclaim(): boolean {
-    return !this.working;
+    return !this.working && this.pendingIO.size === 0;
   }
 
   assertAvailable(): void {
@@ -159,7 +245,15 @@ export class ExecReplay {
     if (this.disposed) throw new ReplayError('REPLAY_UNAVAILABLE');
   }
 
-  private serial<T>(work: () => Promise<T>): Promise<T> {
+  private serial<T>(
+    work: () => Promise<T>,
+    signal?: AbortSignal,
+    bounded = true,
+  ): Promise<T> {
+    if (bounded && (this.disposed || this.failure))
+      return Promise.reject(
+        this.failure ?? new ReplayError('REPLAY_UNAVAILABLE'),
+      );
     // A checkpoint, reader snapshot, finish or disposal is an ordering barrier:
     // a later append must never join a batch queued before that operation.
     this.pendingAppend = undefined;
@@ -174,10 +268,14 @@ export class ExecReplay {
     this.queue = result.catch(() => {
       // The operation caller receives the error; later cleanup must still run.
     });
-    return result;
+    return bounded ? this.io(result, signal) : result;
   }
 
   append(line: string, seq: number): Promise<void> {
+    if (this.disposed || this.failure)
+      return Promise.reject(
+        this.failure ?? new ReplayError('REPLAY_UNAVAILABLE'),
+      );
     const bytes = Buffer.from(line);
     const pending = this.pendingAppend;
     if (
@@ -226,7 +324,12 @@ export class ExecReplay {
             nextIndex: 0,
           };
           await this.writer?.close();
-          this.writer = await open(segment.path, 'ax', 0o600);
+          await this.io(
+            open(segment.path, 'ax', 0o600).then((file) => {
+              this.writer = file;
+              return undefined;
+            }),
+          );
           this.segments.push(segment);
         }
         if (!this.writer) throw new ReplayError('REPLAY_UNAVAILABLE');
@@ -248,7 +351,7 @@ export class ExecReplay {
         // sparse index until every byte in this bounded group is committed.
         while (buffers.length > 0) {
           this.assertAvailable();
-          const { bytesWritten } = await this.writer.writev(buffers);
+          const { bytesWritten } = await this.io(this.writer.writev(buffers));
           if (bytesWritten === 0) throw new ReplayError('REPLAY_UNAVAILABLE');
           let remaining = bytesWritten;
           let written = 0;
@@ -388,23 +491,29 @@ export class ExecReplay {
         'REPLAY_UNAVAILABLE',
         'Invalid execution replay cursor.',
       );
-    if (since === until) {
-      // Empty suffixes still cross the captured commit boundary. A cursor
-      // cannot acknowledge a pending write that may yet fail.
-      await this.serial(async () => this.assertAvailable());
-      return since;
-    }
     const combined = signal
       ? AbortSignal.any([signal, this.stopped.signal])
       : this.stopped.signal;
+    if (since === until) {
+      // Empty suffixes still cross the captured commit boundary. A cursor
+      // cannot acknowledge a pending write that may yet fail.
+      try {
+        await this.serial(async () => this.assertAvailable(), combined);
+      } catch (error) {
+        if (!combined.aborted) throw error;
+      }
+      return since;
+    }
     const done = Promise.withResolvers<void>();
     this.readers.add(done.promise);
     const snapshot: Array<{
       segment: Segment;
       bytes: number;
-      file: FileHandle;
+      last: number;
+      file?: FileHandle;
     }> = [];
     let cursor = since;
+    const pendingIO = new Set<Promise<unknown>>();
     try {
       await this.serial(async () => {
         this.assertAvailable();
@@ -415,15 +524,32 @@ export class ExecReplay {
             combined.aborted
           )
             continue;
-          const file = await open(segment.path, 'r');
-          this.readHandles.add(file);
+          // Pin the physical reservation before open enters the kernel. An
+          // abort may release the queue while that open is still pending.
+          const lease: (typeof snapshot)[number] = {
+            segment,
+            bytes: segment.bytes,
+            last: segment.last,
+          };
           segment.readers += 1;
-          snapshot.push({ segment, bytes: segment.bytes, file });
+          snapshot.push(lease);
+          await this.io(
+            open(segment.path, 'r').then((file) => {
+              this.readHandles.add(file);
+              lease.file = file;
+              return undefined;
+            }),
+            combined,
+            pendingIO,
+          );
         }
-      });
-      for (const { segment, bytes, file } of snapshot) {
+      }, combined);
+      for (const { segment, bytes, last, file } of snapshot) {
         if (combined.aborted) return cursor;
+        if (!file) throw new ReplayError('REPLAY_UNAVAILABLE');
         if (segment.first > cursor + 1) {
+          if ((this.checkpoint?.seq ?? -1) < segment.first - 1)
+            throw new ReplayError('REPLAY_UNAVAILABLE');
           gap(cursor + 1, segment.first - 1);
           return cursor;
         }
@@ -437,15 +563,21 @@ export class ExecReplay {
           if (entry && entry.seq <= cursor + 1) low = middle + 1;
           else high = middle;
         }
-        let offset = segment.index[low - 1]?.position ?? 0;
+        const checkpoint = segment.index[low - 1];
+        let offset = checkpoint?.position ?? 0;
+        let seenSeq = (checkpoint?.seq ?? segment.first) - 1;
         let pending = '';
         while (offset < bytes) {
           if (combined.aborted) return cursor;
-          const { bytesRead } = await file.read(
-            buffer,
-            0,
-            Math.min(buffer.length, bytes - offset),
-            offset,
+          const { bytesRead } = await this.io(
+            file.read(
+              buffer,
+              0,
+              Math.min(buffer.length, bytes - offset),
+              offset,
+            ),
+            combined,
+            pendingIO,
           );
           if (bytesRead === 0) throw new ReplayError('REPLAY_UNAVAILABLE');
           offset += bytesRead;
@@ -455,42 +587,67 @@ export class ExecReplay {
             const item = pending.slice(0, end);
             pending = pending.slice(end + 1);
             const event: unknown = JSON.parse(item);
-            if (!isRunnerdExecEvent(event) || event.seq === undefined)
+            if (
+              !isRunnerdExecEvent(event) ||
+              event.seq === undefined ||
+              event.seq !== seenSeq + 1
+            )
               throw new ReplayError('REPLAY_UNAVAILABLE');
+            seenSeq = event.seq;
             if (event.seq <= cursor) continue;
             if (event.seq > until || combined.aborted) return cursor;
-            if (event.seq !== cursor + 1) {
-              gap(cursor + 1, event.seq - 1);
-              return cursor;
-            }
+            if (event.seq !== cursor + 1)
+              throw new ReplayError('REPLAY_UNAVAILABLE');
             await deliver(line, item, combined);
             cursor = event.seq;
           }
         }
+        if (pending.length > 0 || seenSeq !== last)
+          throw new ReplayError('REPLAY_UNAVAILABLE');
       }
-      if (cursor < until && !combined.aborted) gap(cursor + 1, until);
+      if (cursor < until && !combined.aborted) {
+        if ((this.checkpoint?.seq ?? -1) < until)
+          throw new ReplayError('REPLAY_UNAVAILABLE');
+        gap(cursor + 1, until);
+      }
       return cursor;
+    } catch (error) {
+      if (combined.aborted) return cursor;
+      this.failure =
+        error instanceof ReplayError
+          ? error
+          : new ReplayError('REPLAY_UNAVAILABLE');
+      throw this.failure;
     } finally {
-      try {
-        await Promise.all(
-          snapshot.map(async ({ segment, file }) => {
-            await file.close();
-            this.readHandles.delete(file);
-            segment.readers -= 1;
-            this.releaseSegment(segment);
-          }),
-        );
-      } finally {
-        // A failed close keeps its bytes charged, but must not wedge every
-        // other writer waiting for this reader's disposal to settle.
-        this.readers.delete(done.promise);
-        done.resolve();
-      }
+      const close = async () => {
+        try {
+          await Promise.allSettled(pendingIO);
+          await Promise.all(
+            snapshot.map(async ({ segment, file }) => {
+              await file?.close();
+              if (file) this.readHandles.delete(file);
+              segment.readers -= 1;
+              this.releaseSegment(segment);
+            }),
+          );
+        } finally {
+          this.readers.delete(done.promise);
+          done.resolve();
+        }
+      };
+      // A cancelled or timed-out reader is detached promptly. Its lease and
+      // reservation survive in this cleanup until the real read has settled.
+      if (pendingIO.size > 0)
+        void close().catch(() => {
+          /* Failed closes keep their physical charge. */
+        });
+      else await close();
     }
   }
 
   finish(): Promise<void> {
     return this.serial(async () => {
+      this.assertAvailable();
       await this.writer?.close();
       this.writer = undefined;
       if (!this.disposed) this.budget.retain(this);
@@ -502,22 +659,30 @@ export class ExecReplay {
     this.disposed = true;
     this.stopped.abort();
     this.disposal = (async () => {
-      await this.serial(async () => {
-        // A deferred descendant may keep this spool object reachable after
-        // eviction. The parser snapshot is no longer usable or owned here.
-        this.checkpoint = null;
-        await this.writer?.close();
-        this.writer = undefined;
-        await rm(await this.directory, { recursive: true, force: true });
-        for (const segment of this.segments) {
-          segment.unlinked = true;
-          this.releaseSegment(segment);
-        }
-        this.segments.length = 0;
-        this.bytes = 0;
-        this.budget.release(this.checkpointBytes);
-        this.checkpointBytes = 0;
-      });
+      await this.serial(
+        async () => {
+          // A deferred descendant may keep this spool object reachable after
+          // eviction. The parser snapshot is no longer usable or owned here.
+          this.checkpoint = null;
+          await Promise.allSettled(this.pendingIO);
+          await this.writer?.close();
+          this.writer = undefined;
+          if (this.cleanupPath)
+            await rm(this.cleanupPath, { recursive: true, force: true });
+          await this.spoolDirectory?.close();
+          await this.parentDirectory?.close();
+          for (const segment of this.segments) {
+            segment.unlinked = true;
+            this.releaseSegment(segment);
+          }
+          this.segments.length = 0;
+          this.bytes = 0;
+          this.budget.release(this.checkpointBytes);
+          this.checkpointBytes = 0;
+        },
+        undefined,
+        false,
+      );
       await Promise.all(this.readers);
     })();
     this.budget.retire(this, this.disposal);

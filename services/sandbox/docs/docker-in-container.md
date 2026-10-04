@@ -22,6 +22,35 @@ Docker-in-container is enabled with `SANDBOX_DOCKER_IN_CONTAINER=true`. It is
 an **agent-profile capability** — a `default`-profile session (run_code, crawler
 renders) never starts an inner daemon, on either backend.
 
+Within a DinD-enabled agent session, Docker starts automatically on the first
+connection to its standard socket. The agent uses ordinary `docker` and
+`docker compose` commands; no separate activation command is needed.
+Concurrent first commands share one engine startup. After five minutes with
+no connected clients, the engine stops only when its inventory confirms no
+running, restarting or paused containers and no enabled restart policies.
+An unavailable or unknown inventory
+keeps it running. A later command restarts it against the same Docker store.
+This reduces idle processes; the session retains its configured runtime
+boundary, privileges and resource limits throughout.
+
+Health checks do not start the engine or reset its idle timer. An intentionally
+sleeping engine remains ready for new work. A failed probe refuses new work
+while runnerd stays live, but one slow probe does not cause session cleanup.
+Probe-based recovery requires at least three completed failures spanning five
+seconds; cached reads do not count again, and a healthy result or a new engine
+clears the engine's failure history. A confirmed startup failure or unexpected
+engine exit can request recovery immediately. The spawner reclaims such a
+session only through its atomic idle claim, preserving pinned or busy sessions
+and the workspace. Stopping the whole session on Docker removes its ephemeral
+inner Docker store; the automatic idle stop of just the inner engine keeps it.
+A real Docker request can attempt engine recovery.
+
+During a rolling upgrade, keep old spawners pinned to their existing runtime
+image until they are replaced. Do not move a runtime tag still used by an old
+spawner: it cannot distinguish a transient probe failure from confirmed failure.
+When the new spawner encounters an older runtime, unhealthy sessions refuse new
+work and retain the normal idle and lifetime cleanup limits.
+
 ### What each tier means for DinD
 
 - **`sysbox`** maps in-container uid 0 to an unprivileged host subuid via a
@@ -154,6 +183,12 @@ override it with `SANDBOX_RUNTIME_CLASS`.
 
 ## Storage & lifecycle
 
+- **Automatic engine sleep.** Stopping only the idle inner engine preserves
+  the workspace, images, named volumes and networks. Its selected address pool
+  stays fixed across activations. A session-container restart with existing
+  container metadata starts the engine immediately to honor restart policies.
+  Running services, enabled restart policies and connected clients prevent
+  automatic engine sleep.
 - The inner `/var/lib/docker` is a **dedicated, ephemeral per-session volume**
   (Docker backend: a named volume `tale-dind-<session>`; K8s: a size-bounded
   `emptyDir`). It is **not** the workspace (nested overlay is rejected by the
@@ -190,6 +225,13 @@ override it with `SANDBOX_RUNTIME_CLASS`.
 
 The Docker backend keeps each session's inner `/var/lib/docker` disposable and
 shares persistent build caches only among sessions from the same organization.
+Optional preparation defaults to five seconds, capped at a quarter of the
+session startup budget, and prepares the three mirrors in parallel. Each session stops waiting at its own startup limit and uses its local builder.
+The shared producer keeps its independent provisioning budget and organization
+lease even if the initiating session stops waiting. Expiry of that shared budget
+cancels queued and active work; cancelled queued work cannot launch helpers later. A late result does not attach a network to an already running
+session. Registering an available remote buildx builder does not itself start
+the session's inner engine.
 `SANDBOX_DOCKER_BUILD_CACHE` defaults to the DinD setting. Set it to `false` on
 the `sandbox` service, or set `sandboxRuntime.dockerBuildCache` in deployment
 configuration, to use only the session's local builder.

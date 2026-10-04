@@ -90,3 +90,30 @@ describe('Utf8FrameBoundary', () => {
     expect(stderr.push(Buffer.from([0x98, 0x80])).toString()).toBe('😀');
   });
 });
+
+test('bounded frames preserve exact bytes and complete four-byte characters at every cut', () => {
+  for (const prefix of [49148, 49149, 49150, 49151, 49152]) {
+    const bytes = Buffer.concat([
+      Buffer.alloc(prefix, 97),
+      Buffer.from('😀€¢'.repeat(10000)),
+    ]);
+    const boundary = new Utf8FrameBoundary();
+    const frames = [...boundary.pushFrames(bytes), boundary.flush()];
+    expect(Buffer.concat(frames)).toEqual(bytes);
+    expect(
+      frames.every((frame) => frame.toString('base64').length <= 65536),
+    ).toBe(true);
+    expect(
+      frames
+        .map((frame) => new TextDecoder('utf-8', { fatal: true }).decode(frame))
+        .join(''),
+    ).toBe(bytes.toString());
+  }
+  const binary = Buffer.from(
+    Array.from({ length: 200000 }, (_, index) => index % 256),
+  );
+  const boundary = new Utf8FrameBoundary();
+  expect(
+    Buffer.concat([...boundary.pushFrames(binary), boundary.flush()]),
+  ).toEqual(binary);
+});

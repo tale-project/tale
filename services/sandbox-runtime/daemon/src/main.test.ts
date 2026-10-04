@@ -176,6 +176,18 @@ describe('runnerd HTTP service', () => {
     expect(response.status).toBe(401);
   });
 
+  test.each(['-1', '1.5', 'Infinity', 'not-a-number', '9007199254740992'])(
+    'refuses malformed replay cursor %s before attachment',
+    async (cursor) => {
+      const response = await fetch(
+        `${baseUrl}/execs/unknown/attach?sinceSeq=${cursor}`,
+        { headers },
+      );
+      expect(response.status).toBe(400);
+      expect(await response.json()).toEqual({ error: 'invalid_since_seq' });
+    },
+  );
+
   test('removed browser controls and viewing tunnel return 404', async () => {
     for (const [method, path] of [
       ['GET', '/screencast'],
@@ -476,6 +488,11 @@ describe('runnerd HTTP service', () => {
         `${baseUrl}/execs/invalid-http-cursor/attach?sinceSeq=${cursor}`,
         { headers },
       );
+      if (cursor !== '9007199254740991') {
+        expect(refused.status).toBe(400);
+        expect(await refused.json()).toEqual({ error: 'invalid_since_seq' });
+        continue;
+      }
       expect(refused.status).toBe(200);
       expect(
         (await refused.text())

@@ -5,7 +5,7 @@ import { appendHarnessAnswer } from './jsonl';
 import { boundTimelineParts, type TimelinePart } from './timeline';
 import type { HarnessEvent } from './types';
 
-export const HARNESS_TEXT_MAX_CHARS = 64 * 1024;
+export const HARNESS_TEXT_MAX_CHARS = 32_000;
 const TEXT_CHARS = HARNESS_TEXT_MAX_CHARS;
 const encoder = new TextEncoder();
 const BLOCK_CHARS = 4_000;
@@ -104,7 +104,7 @@ export class HarnessProjection {
     this.answerText =
       state.answerText !== undefined
         ? appendHarnessAnswer('', state.answerText)
-        : this.textTruncated
+        : state.textTruncated === true
           ? undefined
           : state.text;
     this.streamsDeltas = state.streamsDeltas;

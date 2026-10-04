@@ -647,8 +647,7 @@ export class ExecManager {
       chunk: Buffer,
       atLimit = false,
     ) => {
-      const bytes = outputFrames[stream].push(chunk);
-      if (bytes.length > 0)
+      for (const bytes of outputFrames[stream].pushFrames(chunk))
         publishEvent({ t: stream, b64: bytes.toString('base64') });
       if (atLimit) flushOutput(stream);
     };

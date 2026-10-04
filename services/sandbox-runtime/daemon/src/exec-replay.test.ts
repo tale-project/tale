@@ -1,8 +1,16 @@
 import { describe, expect, spyOn, test } from 'bun:test';
 import * as fs from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { ExecReplay, ReplayBudget } from './exec-replay.ts';
+
+function createReplay(
+  limits?: ConstructorParameters<typeof ExecReplay>[0],
+  budget?: ReplayBudget,
+) {
+  return new ExecReplay(limits, budget, tmpdir());
+}
 
 function line(seq: number): string {
   return `${JSON.stringify({ t: 'stdout', b64: 'Ynl0ZXM=', seq })}\n`;
@@ -53,7 +61,7 @@ describe('disk exec replay', () => {
   ])(
     'rejects corrupt recorded payloads before delivering or advancing: %j',
     async (event) => {
-      const replay = new ExecReplay();
+      const replay = createReplay();
       const delivered: string[] = [];
       try {
         await replay.append(`${JSON.stringify(event)}\n`, 1);
@@ -78,7 +86,7 @@ describe('disk exec replay', () => {
   );
 
   test('keeps large output on disk and replays only newer events', async () => {
-    const replay = new ExecReplay();
+    const replay = createReplay();
     try {
       const payload = 'a'.repeat(64 * 1024);
       for (let seq = 1; seq <= 8; seq++)
@@ -96,7 +104,7 @@ describe('disk exec replay', () => {
   });
 
   test('commits checkpoint before pruning acknowledged output and rejects stale writes', async () => {
-    const replay = new ExecReplay({ segmentBytes: 1, maxBytes: 4096 });
+    const replay = createReplay({ segmentBytes: 1, maxBytes: 4096 });
     try {
       for (let seq = 1; seq <= 5; seq++) await replay.append(line(seq), seq);
       expect(
@@ -121,7 +129,7 @@ describe('disk exec replay', () => {
   });
 
   test('fails explicitly instead of discarding unacknowledged history at the disk limit', async () => {
-    const replay = new ExecReplay({
+    const replay = createReplay({
       segmentBytes: 1,
       maxBytes: Buffer.byteLength(line(1)) * 2,
     });
@@ -135,7 +143,7 @@ describe('disk exec replay', () => {
   });
 
   test('checkpoint acknowledgements let lifetime output exceed the per-exec cap', async () => {
-    const replay = new ExecReplay({
+    const replay = createReplay({
       segmentBytes: 1,
       maxBytes: Buffer.byteLength(line(1)) * 2,
     });
@@ -155,7 +163,7 @@ describe('disk exec replay', () => {
   });
 
   test('a failed directory sync after checkpoint rename prevents stale replacement or further output', async () => {
-    const replay = new ExecReplay();
+    const replay = createReplay();
     const originalOpen = fs.open;
     let syncFailures = 0;
     const opened = spyOn(fs, 'open').mockImplementation(async (...args) => {
@@ -203,7 +211,7 @@ describe('disk exec replay', () => {
   });
 
   test('every snapshot segment remains readable while a checkpoint prunes future ones', async () => {
-    const replay = new ExecReplay({
+    const replay = createReplay({
       segmentBytes: Buffer.byteLength(line(1)) * 2,
       maxBytes: 4096,
     });
@@ -229,7 +237,7 @@ describe('disk exec replay', () => {
   });
 
   test('abort stops paced replay before reading the rest', async () => {
-    const replay = new ExecReplay();
+    const replay = createReplay();
     try {
       for (let seq = 1; seq <= 3; seq++) await replay.append(line(seq), seq);
       const controller = new AbortController();
@@ -255,9 +263,9 @@ describe('disk exec replay', () => {
   test('checkpoint pruning keeps leased physical bytes charged until a stalled reader closes', async () => {
     const budget = new ReplayBudget(250);
     const limits = { segmentBytes: 1, maxBytes: 1000 };
-    const replay = new ExecReplay(limits, budget);
-    const denied = new ExecReplay(limits, budget);
-    const later = new ExecReplay(limits, budget);
+    const replay = createReplay(limits, budget);
+    const denied = createReplay(limits, budget);
+    const later = createReplay(limits, budget);
     const abort = new AbortController();
     const entered = Promise.withResolvers<void>();
     const blocked = Promise.withResolvers<void>();

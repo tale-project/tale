@@ -1099,7 +1099,7 @@ export async function ensureBuildkitd(
   if (existing) return waitWithinOperation(existing);
   const release = retainBuildkitd(organizationId);
   const work = outsideOperationBudget(() =>
-    withOperationBudget(cfg.buildkitdProvisionTimeoutMs ?? 15_000, () =>
+    withOperationBudget(cfg.buildkitdProvisionTimeoutMs ?? 5_000, () =>
       withBuildkitdOperation(organizationId, () =>
         ensureBuildkitdUnlocked(cfg, organizationId, name),
       ),

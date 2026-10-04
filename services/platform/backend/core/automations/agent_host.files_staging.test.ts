@@ -1,138 +1,112 @@
-// @vitest-environment node
-
-import { randomBytes } from 'node:crypto';
-import {
-  mkdir,
-  mkdtemp,
-  readFile,
-  readdir,
-  rm,
-  stat,
-  writeFile,
-} from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join, dirname } from 'node:path';
-
-import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ActionCtx } from '../lib/ctx';
-import { stageWorkflowFiles } from './agent_host';
+import { stageBlobCacheKey } from '../node_only/sandbox/managed_stage';
 
+const stage = vi.hoisted(() => ({
+  files: vi.fn(),
+  remove: vi.fn(),
+  url: vi.fn(),
+}));
+vi.mock(
+  '../node_only/sandbox/helpers/session_client',
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import('../node_only/sandbox/helpers/session_client')
+    >()),
+    sessionStageFiles: stage.files,
+    sessionDeleteFiles: stage.remove,
+  }),
+);
 vi.mock('../node_only/sandbox/helpers/stage_url', () => ({
-  stageUrlForBlobRef: vi.fn(async () => 'https://files.invalid/child.txt'),
+  stageUrlForBlobRef: stage.url,
 }));
 
-let root: string;
-let deletes: string[];
-const sessionId = 'file-mount-transition';
-const organizationId = 'A'.repeat(32);
-const ctx = {
-  runQuery: vi.fn(async () => ({
-    files: [{ fileId: 'blob-child', name: 'child.txt' }],
-    truncated: false,
-  })),
-} as unknown as ActionCtx;
+import { stageWorkflowFiles } from './agent_host';
 
-beforeEach(async () => {
-  root = await mkdtemp(join(tmpdir(), 'tale-file-mount-'));
-  deletes = [];
-  vi.stubEnv('SANDBOX_URL', 'http://file-mount.invalid');
-  vi.stubEnv('SANDBOX_TOKEN', randomBytes(32).toString('hex'));
-  vi.stubGlobal(
-    'fetch',
-    vi.fn(async (target: string, init?: RequestInit) => {
-      const url = new URL(target);
-      if (init?.method === 'GET') {
-        const folder = join(root, url.searchParams.get('path') ?? '.');
-        try {
-          const entries = await readdir(folder, { withFileTypes: true });
-          return Response.json({
-            entries: entries.map((entry) => ({
-              name: entry.name,
-              type: entry.isDirectory() ? 'dir' : 'file',
-              size: 0,
-              mtimeMs: 0,
-            })),
-          });
-        } catch {
-          return new Response(null, { status: 404 });
-        }
-      }
-      expect(
-        new Headers(init?.headers).get('x-tale-sandbox-signature'),
-      ).toMatch(/^[a-f0-9]{64}$/);
-      if (typeof init?.body !== 'string')
-        throw new Error('Expected a serialized staging request');
-      const body = JSON.parse(init.body) as {
-        paths?: string[];
-        files?: Array<{ path: string; contentBase64?: string; url?: string }>;
-      };
-      if (url.pathname.endsWith('/files/delete')) {
-        for (const path of body.paths ?? []) {
-          deletes.push(path);
-          await rm(join(root, path), { recursive: true, force: true });
-        }
-        return Response.json({ deleted: body.paths, skipped: [] });
-      }
-      expect(url.pathname.endsWith('/files/stage')).toBe(true);
-      const staged: Array<{ path: string; bytes: number }> = [];
-      const skipped: Array<{ path: string; reason: string }> = [];
-      for (const file of body.files ?? []) {
-        try {
-          const destination = join(root, file.path);
-          await mkdir(dirname(destination), { recursive: true });
-          const bytes =
-            file.contentBase64 === undefined
-              ? Buffer.from('folder child')
-              : Buffer.from(file.contentBase64, 'base64');
-          await writeFile(destination, bytes);
-          staged.push({ path: file.path, bytes: bytes.length });
-        } catch (error) {
-          skipped.push({ path: file.path, reason: String(error) });
-        }
-      }
-      return Response.json({ staged, skipped, reconciled: true });
-    }),
-  );
+beforeEach(() => {
+  stage.files.mockReset().mockResolvedValue({ staged: [], skipped: [] });
+  stage.remove.mockReset().mockResolvedValue({ deleted: [], skipped: [] });
+  stage.url.mockReset().mockResolvedValue('https://authorized.test/blob');
 });
 
-afterEach(async () => {
-  vi.unstubAllGlobals();
-  vi.unstubAllEnvs();
-  await rm(root, { recursive: true, force: true });
-});
+describe('workflow file staging authority and reuse', () => {
+  it('passes an organization-scoped authorized manifest without clearing unchanged folders', async () => {
+    const runQuery = vi.fn().mockResolvedValue({
+      files: [{ fileId: 'blob', name: 'report.txt' }],
+      truncated: false,
+    });
+    const ctx = { runQuery } as unknown as ActionCtx;
+    const result = await stageWorkflowFiles(
+      ctx,
+      'org',
+      'session',
+      { data: { folderId: 'folder' } },
+      'inputs/',
+    );
+    expect(runQuery.mock.calls[0]?.[1]).toMatchObject({
+      organizationId: 'org',
+      folderId: 'folder',
+      recursive: true,
+    });
+    expect(stage.url).toHaveBeenCalledWith('blob', 'org');
+    expect(stage.remove).not.toHaveBeenCalled();
+    expect(stage.files).toHaveBeenCalledWith(
+      'session',
+      [
+        {
+          path: 'inputs/data/report.txt',
+          url: 'https://authorized.test/blob',
+          sourceId: stageBlobCacheKey('org', 'blob'),
+        },
+      ],
+      { reuse: true, replaceRoots: ['inputs/data'] },
+    );
+    expect(result.stagedPaths).toEqual(['inputs/data/report.txt']);
+    runQuery.mockResolvedValue(null);
+    await expect(
+      stageWorkflowFiles(
+        ctx,
+        'org',
+        'session',
+        { data: { folderId: 'folder' } },
+        'inputs/',
+      ),
+    ).rejects.toThrow('does not exist');
+    expect(stage.files).toHaveBeenCalledTimes(1);
+  });
 
-const stage = (source: string | { content: string }) =>
-  stageWorkflowFiles(
-    ctx,
-    organizationId,
-    sessionId,
-    { data: source },
-    'inputs/',
-  );
+  it('reconciles an empty current folder so old files cannot survive', async () => {
+    const ctx = {
+      runQuery: vi.fn().mockResolvedValue({ files: [], truncated: false }),
+    } as unknown as ActionCtx;
+    await stageWorkflowFiles(
+      ctx,
+      'org',
+      'session',
+      { data: { folderId: 'folder' } },
+      'inputs/',
+    );
+    expect(stage.files).toHaveBeenCalledWith('session', [], {
+      reuse: true,
+      replaceRoots: ['inputs/data'],
+    });
+  });
 
-it('replaces a previous inline mount with a folder before staging its children', async () => {
-  await stage({ content: 'inline contents' });
-  await expect(stage('folder-id')).resolves.toMatchObject({ mounts: ['data'] });
-  expect(await readFile(join(root, 'inputs/data/child.txt'), 'utf8')).toBe(
-    'folder child',
-  );
-  expect(deletes).toEqual(['inputs/data', 'inputs/data']);
-});
-
-it('replaces a previous folder mount with inline content', async () => {
-  await stage('folder-id');
-  await stage({ content: 'inline contents' });
-  expect(await readFile(join(root, 'inputs/data'), 'utf8')).toBe(
-    'inline contents',
-  );
-  expect(deletes).toEqual(['inputs/data']);
-});
-
-it('preserves an existing directory mount for verified cache reuse', async () => {
-  await stage('folder-id');
-  const inode = (await stat(join(root, 'inputs/data'))).ino;
-  await stage('folder-id');
-  expect(deletes).toEqual([]);
-  expect((await stat(join(root, 'inputs/data'))).ino).toBe(inode);
+  it('fails a refused inline mount replacement before staging', async () => {
+    stage.remove.mockResolvedValue({
+      deleted: [],
+      skipped: [{ path: 'inputs/data', reason: 'permission' }],
+    });
+    await expect(
+      stageWorkflowFiles(
+        {} as ActionCtx,
+        'org',
+        'session',
+        { data: { content: 'new' } },
+        'inputs/',
+      ),
+    ).rejects.toThrow('staging input files failed');
+    expect(stage.files).not.toHaveBeenCalled();
+  });
 });

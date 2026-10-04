@@ -391,6 +391,15 @@ async function stageItem(
         throw new Error('too_large');
       source = Buffer.from(item.contentBase64, 'base64');
       if (source.byteLength > INLINE_MAX_BYTES) throw new Error('too_large');
+      const digest = createHash('sha256').update(source).digest('hex');
+      if (item.sha256 && item.sha256 !== digest)
+        throw new Error('digest_mismatch');
+      const actual = await fileDigest(abs, signal);
+      if (actual?.digest === digest) {
+        signal.throwIfAborted();
+        rememberStagedSource(abs, sourceId, digest);
+        return { staged: [{ path: item.path, bytes: actual.bytes }], skipped };
+      }
     } else if (item.url !== undefined) {
       const response = await fetch(item.url, { signal });
       responseBody = response.body ?? undefined;
@@ -405,7 +414,7 @@ async function stageItem(
     let mode = 0o600;
     try {
       const existing = await lstat(destination);
-      if (existing.isSymbolicLink()) throw new Error('unsafe_path');
+      if (!existing.isFile()) throw new Error('unsafe_path');
       mode = existing.mode & 0o777;
     } catch (error) {
       if (
@@ -612,8 +621,29 @@ export async function deletePaths(paths: string[]): Promise<DeleteResult> {
       continue;
     }
     try {
-      await rm(abs, { recursive: true, force: true });
-      deleted.push(rel);
+      let parent: Awaited<ReturnType<typeof stageParent>>;
+      try {
+        parent = await stageParent(abs, false);
+      } catch (error) {
+        if (
+          error instanceof Error &&
+          'code' in error &&
+          error.code === 'ENOENT'
+        ) {
+          deleted.push(rel);
+          continue;
+        }
+        throw error;
+      }
+      try {
+        await rm(
+          join(anchoredDirectory(parent.handle, parent.path), basename(abs)),
+          { recursive: true, force: true },
+        );
+        deleted.push(rel);
+      } finally {
+        await parent.handle.close();
+      }
     } catch (err) {
       skipped.push({
         path: rel,
@@ -634,9 +664,14 @@ interface FsEntry {
 export async function listDir(rel: string): Promise<FsEntry[] | null> {
   const abs = resolveUnderWorkspace(rel);
   if (abs === null) return null;
-  if ((await realpathUnderRoot(abs)) === null) return null;
   const out: FsEntry[] = [];
   try {
+    // Never traverse a staged root symlink, even to another workspace directory:
+    // reconciliation must replace the link, not prune the link target.
+    if (!(await lstat(abs)).isDirectory()) return null;
+    const canonical = await realpath(abs);
+    const root = await realpath(workspaceRoot());
+    if (canonical !== root && !canonical.startsWith(`${root}/`)) return null;
     const entries = await readdir(abs, { withFileTypes: true });
     for (const e of entries) {
       let size = 0;
@@ -655,8 +690,14 @@ export async function listDir(rel: string): Promise<FsEntry[] | null> {
         mtimeMs,
       });
     }
-  } catch {
-    return null;
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      'code' in error &&
+      (error.code === 'ENOENT' || error.code === 'ENOTDIR')
+    )
+      return null;
+    throw error;
   }
   return out;
 }

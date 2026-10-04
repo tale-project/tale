@@ -17,14 +17,23 @@
  * called tools, only reasoned, or only reported output tokens is not.
  */
 
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import {
+  ExecReplay,
+  ReplayBudget,
+} from '../../../../sandbox-runtime/daemon/src/exec-replay';
 import { readFixture } from '../../../lib/harnesses/test-helpers';
 
 const transport = vi.hoisted(() => ({
   replayComplete: true,
   stdout: '' as string,
   stderr: '' as string,
+  replayTail: '' as string,
   cancelled: [] as string[],
   exitAfterStdout: false,
   exitCode: 0,
@@ -69,7 +78,9 @@ vi.mock('../node_only/sandbox/helpers/session_client', () => ({
     _execId: string,
     checkpoint: { seq: number; state: unknown },
   ) => {
-    transport.checkpoint = JSON.parse(JSON.stringify(checkpoint));
+    // Match the real client: an oversized exact answer leaves replay unacknowledged.
+    if (Buffer.byteLength(JSON.stringify(checkpoint)) <= 1024 * 1024)
+      transport.checkpoint = JSON.parse(JSON.stringify(checkpoint));
   },
   sessionCancelExec: async (_sessionId: string, execId: string) => {
     transport.cancelled.push(execId);
@@ -105,6 +116,10 @@ vi.mock('../node_only/sandbox/helpers/session_client', () => ({
       );
     if (transport.stdout !== '') opts.cursor.lastSeq++;
     callbacks.onStdout?.(transport.stdout);
+    if (transport.replayTail !== '') {
+      await new Promise((resolve) => setTimeout(resolve, 1600));
+      callbacks.onStdout?.(transport.replayTail);
+    }
     if (transport.replayComplete) callbacks.onReplayComplete?.();
     if (transport.gapAfterStdout) {
       transport.checkpointAfterGap = transport.checkpointRecovery;
@@ -191,6 +206,7 @@ describe('drainHarnessWindow end-of-turn rules', () => {
     transport.replayComplete = true;
     transport.stdout = '';
     transport.stderr = '';
+    transport.replayTail = '';
     transport.cancelled = [];
     transport.exitAfterStdout = false;
     transport.checkpoint = null;
@@ -387,6 +403,67 @@ describe('drainHarnessWindow end-of-turn rules', () => {
     expect(transport.resumedAt).toEqual([0, 1]);
   });
 
+  it('returns the complete final report beyond the display text cap', async () => {
+    const report = 'first-line\n' + 'x'.repeat(80_000) + '\nlast-line';
+    transport.stdout = ndjson([
+      CLAUDE_INIT,
+      { ...CLAUDE_RESULT, result: report },
+    ]);
+    transport.exitAfterStdout = true;
+    const result = await drainHarnessWindow({
+      sessionId: 'sandbox',
+      execId: 'large-report',
+      harness: 'claude-code',
+    });
+    expect(result.kind).toBe('terminal');
+    if (result.kind === 'terminal') {
+      expect(result.ended?.finalText).toBe(report);
+      expect(classifyHarnessEnd(result).errored).toBe(false);
+    }
+  });
+
+  it('keeps the exact streamed narrative as settlement fallback while progress stays bounded', async () => {
+    const report = 'first-line\n' + 'x'.repeat(80_000) + '\nlast-line';
+    transport.stdout = ndjson([
+      CLAUDE_INIT,
+      {
+        type: 'stream_event',
+        event: { delta: { type: 'text_delta', text: report } },
+      },
+      { type: 'result', subtype: 'success', session_id: 'claude-1' },
+    ]);
+    transport.exitAfterStdout = true;
+    const onText = vi.fn();
+    const result = await drainHarnessWindow({
+      sessionId: 'sandbox',
+      execId: 'narrative-only',
+      harness: 'claude-code',
+      onText,
+    });
+    expect(result.kind).toBe('terminal');
+    if (result.kind === 'terminal') {
+      expect(result.answerText).toBe(report);
+      expect(result.text.length).toBeLessThanOrEqual(32_000);
+      expect(result.ended?.finalText).toBeUndefined();
+      expect(classifyHarnessEnd(result).errored).toBe(false);
+    }
+    expect(onText).toHaveBeenCalledOnce();
+    expect(onText.mock.calls[0]?.[0].length).toBeLessThanOrEqual(32_000);
+  });
+
+  it('does not finish on a historical terminal marker before replay catches up', async () => {
+    transport.stdout = ndjson([CLAUDE_INIT, CLAUDE_RESULT]);
+    transport.replayTail = ndjson([CLAUDE_TASK_STARTED]);
+    const result = await drainHarnessWindow({
+      sessionId: 'sandbox',
+      execId: 'replaying',
+      harness: 'claude-code',
+      windowMs: 1750,
+    });
+    expect(result.kind).toBe('running');
+    expect(transport.cancelled).toEqual([]);
+  });
+
   it('carries the harness’s stderr tail on a window that exited without a turn', async () => {
     // A CLI that refuses to start writes its reason to stderr and exits:
     // no event, no JSON — the tail is the only lead the crash leaves.
@@ -483,7 +560,7 @@ describe('drainHarnessWindow end-of-turn rules', () => {
     expect(onTimeline).not.toHaveBeenCalled();
   });
 
-  it.each(['REPLAY_GAP', 'REPLAY_UNAVAILABLE', 'OUTPUT_LIMIT'])(
+  it.each(['OUTPUT_GAP', 'REPLAY_GAP', 'REPLAY_UNAVAILABLE', 'OUTPUT_LIMIT'])(
     'reaps an exec after %s prevents rebuilding its full ledger',
     async (errorCode) => {
       transport.stdout = `${readFixture('claude-code', 'issue-to-pr')}\n`;
@@ -791,6 +868,87 @@ describe('drainHarnessWindow end-of-turn rules', () => {
 
     expect(result.kind).toBe('running');
     expect(transport.cancelled).toEqual([]);
+  });
+
+  it('preserves Claude background control through real disk replay after the RAM ring overflowed', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'claude-replay-'));
+    const replay = new ExecReplay(undefined, new ReplayBudget(), directory);
+    let seq = 0;
+    const replayIntoTransport = async (since = 0) => {
+      await replay.replay(
+        since,
+        seq,
+        async (line) => {
+          const event = JSON.parse(line) as { t: string; b64: string };
+          if (event.t === 'stdout')
+            transport.stdout += Buffer.from(event.b64, 'base64').toString(
+              'utf8',
+            );
+        },
+        () => {
+          throw new Error('Unexpected replay gap');
+        },
+      );
+    };
+    try {
+      const filler = {
+        type: 'stream_event',
+        event: { delta: { type: 'text_delta', text: 'x'.repeat(8192) } },
+      };
+      const bytes = Buffer.from(
+        ndjson([
+          CLAUDE_INIT,
+          CLAUDE_TASK_STARTED,
+          ...Array.from({ length: 128 }, () => filler),
+          CLAUDE_RESULT,
+        ]),
+      );
+      expect(bytes.byteLength).toBeGreaterThan(1024 * 1024);
+      for (let offset = 0; offset < bytes.byteLength; offset += 16 * 1024) {
+        await replay.append(
+          `${JSON.stringify({
+            t: 'stdout',
+            seq: ++seq,
+            b64: bytes.subarray(offset, offset + 16 * 1024).toString('base64'),
+          })}\n`,
+          seq,
+        );
+      }
+      await replayIntoTransport();
+      const running = await drainHarnessWindow({
+        sessionId: 'sandbox',
+        execId: 'replay-background',
+        harness: 'claude-code',
+        windowMs: 1750,
+      });
+      expect(running.kind).toBe('running');
+      expect(transport.cancelled).toEqual([]);
+
+      // This exact answer exceeds the checkpoint cap. The full spool must
+      // remain available until a later replay reconstructs the settled ledger.
+      expect(transport.checkpoint).toBeNull();
+      await replay.append(
+        `${JSON.stringify({
+          t: 'stdout',
+          seq: ++seq,
+          b64: Buffer.from(ndjson([CLAUDE_TASK_SETTLED])).toString('base64'),
+        })}\n`,
+        seq,
+      );
+      transport.stdout = '';
+      await replayIntoTransport();
+      const terminal = await drainHarnessWindow({
+        sessionId: 'sandbox',
+        execId: 'replay-background',
+        harness: 'claude-code',
+        windowMs: 10000,
+      });
+      expect(terminal.kind).toBe('terminal');
+      expect(transport.cancelled).toEqual(['replay-background']);
+    } finally {
+      await replay.dispose();
+      await rm(directory, { recursive: true, force: true });
+    }
   });
 
   it('ends a claude turn once its background task settles', async () => {
@@ -1251,7 +1409,7 @@ describe('spend refusal (402) classification', () => {
 });
 
 describe('incomplete replay refusal', () => {
-  it.each(['REPLAY_GAP', 'REPLAY_UNAVAILABLE', 'OUTPUT_LIMIT'])(
+  it.each(['OUTPUT_GAP', 'REPLAY_GAP', 'REPLAY_UNAVAILABLE', 'OUTPUT_LIMIT'])(
     'never accepts an earlier successful result after %s',
     (errorCode) => {
       const result = classifyHarnessEnd({

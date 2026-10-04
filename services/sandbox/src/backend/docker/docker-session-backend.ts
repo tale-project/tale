@@ -398,7 +398,7 @@ export class DockerSessionBackend implements SessionBackend {
       try {
         const ready = await withOperationBudget(
           Math.min(
-            this.cfg.buildkitdProvisionTimeoutMs ?? 15_000,
+            this.cfg.buildkitdProvisionTimeoutMs ?? 5_000,
             this.cfg.session.createHealthTimeoutMs / 4,
           ),
           () =>

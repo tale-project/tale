@@ -45,8 +45,9 @@ import { ENSURE_SANDBOX_RUNTIME_SCRIPT } from '../../scripts/dev-sandbox-runtime
  *
  * `lint` and `typecheck` read outside the workspace too: `tsc` and oxlint's
  * type-aware rules build one program from its sources and every module they
- * import. Two suites import the sandbox daemon's `file-ops.ts`, which imports
- * its `protocol.ts`, so an edit to either file alone can turn both verdicts:
+ * import. Suites import the sandbox runtime's `build-gemini-settings.ts` and
+ * daemon `file-ops.ts` and `exec-replay.ts`; the daemon modules both import
+ * `protocol.ts`. An edit to any of these files alone can turn both verdicts:
  * both tasks list them (`STATIC_IMPORTS`) after the same two-entry prefix.
  */
 
@@ -103,6 +104,10 @@ const OUTSIDE_READS = [
     readers: 'tests/guards/frontend-entry-discovery.guard.test.ts',
   },
   {
+    path: 'packages/shared/src/automation-name.ts',
+    readers: 'lib/engine/selftest/purity.test.ts scans the extracted grammar',
+  },
+  {
     // Not read as text: the suite runs the postgres.js these patches change
     // (the root `patchedDependencies`), so a patch edit alone must re-run it.
     path: 'patches',
@@ -151,6 +156,11 @@ const OUTSIDE_READS = [
     readers: 'scripts/dev-sandbox-runtime.test.ts',
   },
   {
+    path: 'services/sandbox-runtime/daemon/src/exec-replay.ts',
+    readers:
+      'backend/core/chat/external_turn_shared.test.ts proves the real journal and harness control ledger together',
+  },
+  {
     path: 'services/sandbox-runtime/daemon/src/file-ops.ts',
     readers:
       'tests/guards/integration-scope.guard.test.ts follows the native review file transfer proof',
@@ -158,12 +168,22 @@ const OUTSIDE_READS = [
   {
     path: 'services/sandbox-runtime/daemon/src/protocol.ts',
     readers:
-      'tests/guards/integration-scope.guard.test.ts follows the native review file transfer proof',
+      'tests/guards/integration-scope.guard.test.ts follows the native review file transfer proof; backend/core/chat/external_turn_shared.test.ts imports the journal protocol',
   },
 ];
 
-/** Every daemon module the platform's sources import, and who imports it. */
+/** Every sandbox-runtime module the platform's sources import, and who imports it. */
 const STATIC_IMPORTS = [
+  {
+    path: 'services/sandbox-runtime/build-gemini-settings.ts',
+    importers:
+      'lib/harnesses/gemini-settings-build.test.ts imports its geminiPolicies and settings placeholders',
+  },
+  {
+    path: 'services/sandbox-runtime/daemon/src/exec-replay.ts',
+    importers:
+      'backend/core/chat/external_turn_shared.test.ts imports its ExecReplay and ReplayBudget',
+  },
   {
     path: 'services/sandbox-runtime/daemon/src/file-ops.ts',
     importers:
@@ -171,7 +191,8 @@ const STATIC_IMPORTS = [
   },
   {
     path: 'services/sandbox-runtime/daemon/src/protocol.ts',
-    importers: 'file-ops.ts imports its WORKSPACE_ROOT',
+    importers:
+      'file-ops.ts imports its WORKSPACE_ROOT; exec-replay.ts imports its exec-event validator and wire types',
   },
 ];
 

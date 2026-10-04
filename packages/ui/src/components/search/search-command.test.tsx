@@ -59,6 +59,17 @@ function useMockSource(query: string): SearchSourceState {
 }
 const mockSource: SearchSource = useMockSource;
 
+function createScopedSource(
+  scope: 'everything' | 'chats',
+  results: Record<'everything' | 'chats', SearchResult[]>,
+): SearchSource {
+  return function useScopedSource(query: string): SearchSourceState {
+    return query
+      ? { results: results[scope], status: 'ready' }
+      : { results: [], status: 'idle' };
+  };
+}
+
 function result(overrides: Partial<SearchResult> = {}): SearchResult {
   return {
     id: 'a',
@@ -220,6 +231,56 @@ describe('SearchCommand', () => {
     await user.keyboard('{ArrowDown}{ArrowDown}{Enter}');
     expect(onSelect).toHaveBeenCalledWith(
       expect.objectContaining({ href: '/b/1' }),
+    );
+  });
+
+  it('keeps the selection valid when a scope narrows the result set', async () => {
+    const everything = Array.from({ length: 5 }, (_, index) =>
+      result({ id: `project-${index}`, title: `Project ${index}` }),
+    );
+    const chat = result({ id: 'chat-1', title: 'Chat result', group: 'chat' });
+    const results = { everything, chats: [chat] };
+    const onSelect = vi.fn();
+    const { user, rerender } = render(
+      <SearchCommand
+        open
+        onOpenChange={vi.fn()}
+        onSelect={onSelect}
+        source={createScopedSource('everything', results)}
+        debounceMs={0}
+      />,
+    );
+    const input = screen.getByRole('combobox');
+    await user.type(input, 'query');
+    await waitFor(() => expect(screen.getAllByRole('option')).toHaveLength(5));
+
+    await user.keyboard('{ArrowDown}{ArrowDown}{ArrowDown}{ArrowDown}');
+    expect(input).toHaveAttribute(
+      'aria-activedescendant',
+      expect.stringContaining('4'),
+    );
+
+    rerender(
+      <SearchCommand
+        open
+        onOpenChange={vi.fn()}
+        onSelect={onSelect}
+        source={createScopedSource('chats', results)}
+        debounceMs={0}
+      />,
+    );
+    await waitFor(() => expect(screen.getAllByRole('option')).toHaveLength(1));
+
+    const chatOption = screen.getByRole('option');
+    expect(input).toHaveAttribute(
+      'aria-activedescendant',
+      chatOption.getAttribute('id'),
+    );
+    expect(chatOption).toHaveAttribute('aria-selected', 'true');
+
+    await user.keyboard('{Enter}');
+    expect(onSelect).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'chat-1' }),
     );
   });
 

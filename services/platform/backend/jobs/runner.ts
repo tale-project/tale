@@ -206,10 +206,19 @@ export async function startWorker(options: WorkerOptions): Promise<void> {
                 // pg-boss aborts `job.signal` once the batch outlives the
                 // queue's `expireInSeconds` and retries the job; a handler that
                 // honours it stops instead of running beside its retry.
-                await traceWorkerPhase('handler', () =>
+                const result = await traceWorkerPhase('handler', () =>
                   handler(job.data, { signal: job.signal, jobId: job.id }),
                 );
-                return { id: job.id, status: 'completed' };
+                return {
+                  id: job.id,
+                  status: 'completed',
+                  // An expired/shutting-down attempt must not certify a
+                  // successful scan, even if its handler ignored the signal.
+                  // pg-boss also fences the stored completion to active jobs.
+                  ...(result !== undefined && !job.signal.aborted
+                    ? { output: result.output }
+                    : {}),
+                };
               } catch (error) {
                 span?.setStatus({ code: 2, message: 'internal_error' });
                 if (isDatabaseUnavailable(error)) {

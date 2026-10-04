@@ -57,6 +57,25 @@ describe('bounded harness display projection', () => {
     expect(resumed.text.length).toBe(HARNESS_TEXT_MAX_CHARS);
   });
 
+  it('restores older complete checkpoints into the smaller display budget without losing the answer', () => {
+    const text = 'BEGIN ' + 'x'.repeat(60_000) + ' END';
+    const restored = new HarnessProjection();
+    restored.restore({
+      text,
+      streamsDeltas: true,
+      parts: [],
+      textTruncated: false,
+    });
+    expect(restored.text.length).toBe(HARNESS_TEXT_MAX_CHARS);
+    expect(restored.textTruncated).toBe(true);
+    expect(restored.answer).toBe(text);
+    const resumed = new HarnessProjection();
+    resumed.restore(JSON.parse(JSON.stringify(restored.snapshot())));
+    resumed.accept({ type: 'text-delta', text: ' later' });
+    expect(resumed.answer).toBe(`${text} later`);
+    expect(resumed.text.length).toBe(HARNESS_TEXT_MAX_CHARS);
+  });
+
   it('restores lazy text buffers across split surrogates without mutating issued checkpoints', () => {
     const original = new HarnessProjection();
     const prefix = 'BEGIN ' + '\u0000'.repeat(70_000) + '\ud800';

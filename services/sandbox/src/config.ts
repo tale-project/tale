@@ -532,7 +532,7 @@ export function loadConfig(): SpawnerConfig {
     ...(buildkitdCpus !== undefined ? { buildkitdCpus } : {}),
     buildkitdProvisionTimeoutMs: numEnv(
       'SANDBOX_BUILDKITD_PROVISION_TIMEOUT_MS',
-      15_000,
+      5_000,
       { min: 100, max: 60_000 },
     ),
     ...(buildkitdMemoryBytes !== undefined ? { buildkitdMemoryBytes } : {}),

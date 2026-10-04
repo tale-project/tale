@@ -1252,6 +1252,41 @@ describe('organization build-cache lifecycle', () => {
     ).toBe(true);
   });
 
+  test('an omitted cache budget expires queued setup after five seconds', async () => {
+    const org = nextOrg();
+    const initial = seed(org);
+    initial.stopGate = true;
+    await save(initial);
+    const now = Date.now();
+    await sweepIdleBuildkitd(cfg, now);
+    const sweep = sweepIdleBuildkitd(cfg, now + 1000);
+    const deadline = Date.now() + 2000;
+    while (!(await Bun.file(join(root, 'stopping')).exists())) {
+      if (Date.now() > deadline) throw new Error('stop gate timed out');
+      await Bun.sleep(5);
+    }
+    expect(cfg.buildkitdProvisionTimeoutMs).toBeUndefined();
+    const pending = rejection(ensureBuildkitd(cfg, org));
+    let error: string | null;
+    try {
+      error = await Promise.race([
+        pending,
+        Bun.sleep(6000).then(
+          () => 'setup still waiting after its default budget',
+        ),
+      ]);
+    } finally {
+      await writeFile(join(root, 'release-stop'), '1');
+      await sweep;
+      await pending;
+    }
+    expect(error).toContain('deadline');
+    expect((await calls()).filter((args) => args[0] === 'run')).toEqual([]);
+    expect(
+      Object.values((await state()).containers).every((c) => !c.running),
+    ).toBe(true);
+  }, 15_000);
+
   test('a cancelled joiner leaves a shared ensure available to its first caller', async () => {
     const org = nextOrg();
     const initial = seed(org);

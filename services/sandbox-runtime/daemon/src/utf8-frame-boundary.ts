@@ -17,6 +17,16 @@ export class Utf8FrameBoundary {
     return bytes.subarray(0, end);
   }
 
+  /** Leave room for the pending suffix while bounding each base64 record to
+   * 64 KiB. Splitting encoded strings would bisect valid UTF-8 characters. */
+  *pushFrames(chunk: Buffer): Generator<Buffer> {
+    const bytesPerChunk = 49152 - 3;
+    for (let offset = 0; offset < chunk.length; offset += bytesPerChunk) {
+      const bytes = this.push(chunk.subarray(offset, offset + bytesPerChunk));
+      if (bytes.length > 0) yield bytes;
+    }
+  }
+
   flush(): Buffer {
     const bytes = this.pending;
     this.pending = EMPTY_BYTES;

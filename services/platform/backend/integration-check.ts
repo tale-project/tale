@@ -66,6 +66,7 @@ import { rowToHashInput } from './domains/audit_logs/hash-input.ts';
 import type { AuditLogRow } from './domains/audit_logs/types.ts';
 import { checkDeletedOrgDoors } from './domains/automations/deleted-org-doors.integration.ts';
 import { checkDeletedOrgSchedules } from './domains/automations/deleted-org-schedules.integration.ts';
+import { checkManagedAutomationConfiguration } from './domains/automations/managed-configuration.integration.ts';
 import { checkAutomationProjectVisibility } from './domains/automations/project-visibility.integration.ts';
 import { checkTriggerStreakLockOrder } from './domains/automations/trigger-lock-order.integration.ts';
 import { checkTriggerPauseAfterFailures } from './domains/automations/trigger-pause.integration.ts';
@@ -100,6 +101,7 @@ import { writeNotificationForOrgs } from './domains/notifications/service.ts';
 import { ensureDefaultObjectStore } from './domains/object_storage/bootstrap.ts';
 import { checkOrphanedOrgRowsBackfill } from './domains/organizations/orphaned-rows.integration.ts';
 import { checkProductImageReleaseHolders } from './domains/products/image-release.integration.ts';
+import { checkManagedInstructions } from './domains/projects/managed-instructions.integration.ts';
 import { checkStandardAgent } from './domains/projects/standard-agent.integration.ts';
 import { checkBrokerAccountSelection } from './domains/provider_credentials/broker-selection.integration.ts';
 import { checkProviderCredentialConfiguration } from './domains/provider_credentials/configuration.integration.ts';
@@ -130,6 +132,7 @@ import {
   checkInPlaceCompletionCycle,
   checkScheduledAgentStarts,
 } from './domains/tasks/delegated-start.integration.ts';
+import { checkTaskSubtreeDeletion } from './domains/tasks/delete-subtree.integration.ts';
 import { checkTaskDescriptionMentions } from './domains/tasks/description-mentions.integration.ts';
 import { checkTaskExternalIssueSync } from './domains/tasks/external-issue.integration.ts';
 import { checkImportCursorContinuation } from './domains/tasks/import-cursors.integration.ts';
@@ -169,6 +172,7 @@ import { addJobInTx, setEnqueueBoss } from './jobs/enqueue.ts';
 import { checkWorkerDrainHandOff } from './jobs/runner.integration.ts';
 import { startWorker } from './jobs/runner.ts';
 import { registerSchedules } from './jobs/schedules.ts';
+import { checkTaskCompletionEvidence } from './jobs/task-completion.integration.ts';
 import { createTaskList } from './jobs/task-list.ts';
 import type { TaskIdentifier } from './jobs/tasks.ts';
 import {
@@ -1778,6 +1782,13 @@ async function checkProjects(
   const assignedTaskId = overdueTaskBody.success
     ? overdueTaskBody.data.taskId
     : '';
+  await checkManagedInstructions(
+    sql,
+    base,
+    ctx,
+    { projectId, agentId: agentIdToDelete, taskId: assignedTaskId },
+    record,
+  );
   const tasksApi = `${base}/api/app/tasks`;
   const assignedToAgent = await fetch(
     `${tasksApi}/${assignedTaskId}/assign?orgId=${orgId}`,
@@ -29734,6 +29745,9 @@ async function checkControlDrain(
   );
   const hasStreams = metricsBody.includes('tale_backend_hint_streams_open');
   const hasDrain = metricsBody.includes('tale_backend_drain_active');
+  const hasScan = metricsBody.includes(
+    'tale_backend_automation_trigger_scan_last_success_timestamp_seconds',
+  );
   const hasHttp = metricsBody.includes('tale_backend_http_requests_total');
   // The route label must be the bounded class, never a path with ids in it.
   const labelledByClass = /route="\/api\/app\/[a-z_-]+"/.test(metricsBody);
@@ -29749,10 +29763,11 @@ async function checkControlDrain(
       hasGenerations &&
       hasStreams &&
       hasDrain &&
+      hasScan &&
       hasHttp &&
       labelledByClass &&
       noIdsInLabels,
-    `status=${metricsRes.status}, process=${hasProcess} sla=${hasSla} jobs=${hasJobs} generations=${hasGenerations} streams=${hasStreams} drain=${hasDrain} http=${hasHttp}, routeClass=${labelledByClass} noIds=${noIdsInLabels}`,
+    `status=${metricsRes.status}, process=${hasProcess} sla=${hasSla} jobs=${hasJobs} generations=${hasGenerations} streams=${hasStreams} drain=${hasDrain} scan=${hasScan} http=${hasHttp}, routeClass=${labelledByClass} noIds=${noIdsInLabels}`,
   );
 
   record(
@@ -56204,6 +56219,69 @@ async function checkWatchdogs(
     `fair(tick1=${probedTick1.join(',')} all=${[...probedFair].join(',')} stamped=${fairRows.filter((r) => r.lastReconciledAt !== null).length}/3) reclaim(${reclaimRows.map((r) => `${r.sessionId}=${r.status}`).join(' ')} asked=${[...destroyAskedSet].join(',')} reclaimed=${tick1.reclaimed}/${tick2.reclaimed})`,
   );
 
+  // Historical stopped rows can outnumber compute-holding rows by orders of
+  // magnitude. Their independent quota must leave active health checks room,
+  // while both least-recently-visited walks advance on the next tick.
+  const prior = await sql<{ oldest: number }[]>`
+    SELECT coalesce(min(created_at_ms), ${now})::float8 AS oldest
+    FROM app.sandbox_sessions
+  `;
+  const quotaAncient = (prior[0]?.oldest ?? now) - 1_000;
+  await sql`
+    INSERT INTO app.sandbox_sessions (
+      org_id, session_id, status, owner_type, owner_id, created_by,
+      created_at_ms, expires_at_ms
+    )
+    SELECT ${orgId}, 'wd-quota-cold-' || n, 'stopped', 'project',
+      'wd-quota-cold-' || n, 'itest:wd', ${quotaAncient}::bigint + n,
+      ${now + 24 * 3_600_000}::bigint
+    FROM generate_series(1, 30) n
+    UNION ALL
+    SELECT ${orgId}, 'wd-quota-active-' || n, 'active', 'project',
+      'wd-quota-active-' || n, 'itest:wd', ${quotaAncient + 100}::bigint + n,
+      ${now + 24 * 3_600_000}::bigint
+    FROM generate_series(1, 21) n
+  `;
+  const quotaProbed: string[] = [];
+  const quotaSpawner = {
+    ...scriptedSpawner,
+    observe: (sessionId: string) => {
+      quotaProbed.push(sessionId);
+      return Promise.resolve(
+        sessionId.startsWith('wd-quota-cold-') ? null : { pinned: false },
+      );
+    },
+  };
+  await sandboxWatchdogs.runSandboxWatchdog(sql, { spawner: quotaSpawner });
+  const quotaFirst = [...quotaProbed];
+  quotaProbed.length = 0;
+  await sandboxWatchdogs.runSandboxWatchdog(sql, { spawner: quotaSpawner });
+  const quotaCold = new Set(
+    [...quotaFirst, ...quotaProbed].filter((id) =>
+      id.startsWith('wd-quota-cold-'),
+    ),
+  );
+  const quotaActive = new Set(
+    [...quotaFirst, ...quotaProbed].filter((id) =>
+      id.startsWith('wd-quota-active-'),
+    ),
+  );
+  const retainedCold = await sql<{ count: number }[]>`
+    SELECT count(*)::int AS count FROM app.sandbox_sessions
+    WHERE org_id = ${orgId} AND session_id LIKE 'wd-quota-cold-%'
+      AND status = 'stopped' AND destroyed_at_ms IS NULL
+  `;
+  record(
+    'sandbox watchdog reserves active health capacity and independently rotates historical pin probes without retiring absent workspaces',
+    quotaFirst.filter((id) => id.startsWith('wd-quota-active-')).length ===
+      20 &&
+      quotaFirst.filter((id) => id.startsWith('wd-quota-cold-')).length === 5 &&
+      quotaActive.size === 21 &&
+      quotaCold.size === 10 &&
+      retainedCold[0]?.count === 30,
+    `first active=${quotaFirst.filter((id) => id.startsWith('wd-quota-active-')).length}/20 cold=${quotaFirst.filter((id) => id.startsWith('wd-quota-cold-')).length}/5; rotated active=${quotaActive.size}/21 cold=${quotaCold.size}/10; retained=${retainedCold[0]?.count}/30`,
+  );
+
   // Lane 3d: the render sessions of cut-off scan links. A link destroys its
   // render session when its batch ends; one cut off mid-batch (a restart, a
   // deploy, a crash) left the row compute-holding and the container running,
@@ -59718,6 +59796,10 @@ async function main(): Promise<void> {
         () => checkAutomationTriggerDelivery(sql, baseUrl, authCtx),
       ],
       [
+        'checkManagedAutomationConfiguration',
+        () => checkManagedAutomationConfiguration(sql, authCtx, record),
+      ],
+      [
         'checkTriggerPauseAfterFailures',
         () => checkTriggerPauseAfterFailures(sql, authCtx, record),
       ],
@@ -59959,6 +60041,10 @@ async function main(): Promise<void> {
         () => checkWorkerDrainHandOff(sql, boss, record),
       ],
       [
+        'checkTaskCompletionEvidence',
+        () => checkTaskCompletionEvidence(sql, boss, record),
+      ],
+      [
         'checkImportCursorContinuation',
         () => checkImportCursorContinuation(sql, authCtx, record),
       ],
@@ -60002,6 +60088,10 @@ async function main(): Promise<void> {
       [
         'checkProjectTaskMetrics',
         () => checkProjectTaskMetrics(sql, authCtx, record),
+      ],
+      [
+        'checkTaskSubtreeDeletion',
+        () => checkTaskSubtreeDeletion(sql, authCtx, record),
       ],
       [
         'checkTaskBoardSearch',

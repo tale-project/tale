@@ -26,6 +26,7 @@ const events = [];
 let leases = 0;
 let completeCache;
 const cacheGate = new Promise(resolve => { completeCache = resolve; });
+const createAbort = new AbortController();
 let attemptId = null;
 let currentAttempt = 'own';
 let currentId = 'a'.repeat(64);
@@ -67,8 +68,10 @@ mock.module(spawnPath, () => ({...realSpawn,
       currentAttempt = attemptId ?? 'own';
       if (scenario === 'own-data-fresh') await writeFile(join(workspace,'sentinel'),'new workspace data');
       if (scenario === 'peer-after-run-fresh') {
-        await Bun.sleep(70);
         await installPeer();
+        // Cancel at the boundary under test, after the peer exists. A tiny
+        // startup timer can otherwise expire during unrelated filesystem setup.
+        createAbort.abort(new Error('sandbox operation deadline exceeded'));
         return {...success,exitCode:124,stderr:'Docker operation deadline exceeded'};
       }
       if (scenario === 'launch-reject-fresh') {
@@ -150,11 +153,11 @@ const cfg = {
  buildkitdProvisionTimeoutMs:20,
  transparentEgress:false,hostSessionRoot:root,cacheVolumePrefix:{pip:'pip',npm:'npm',bun:'bun'},
  egressNetwork:'control',egressProxy:'http://egress:3128',
- session:{...TEST_SESSION_CONFIG,createHealthTimeoutMs:['create-deadline','peer-after-run-fresh','expired-setup'].includes(scenario)?40:1000,agentProfile:{...TEST_SESSION_CONFIG.agentProfile,uid:process.getuid() || 10001,gid:process.getgid() || 10001}},
+ session:{...TEST_SESSION_CONFIG,createHealthTimeoutMs:['create-deadline','expired-setup'].includes(scenario)?40:1000,agentProfile:{...TEST_SESSION_CONFIG.agentProfile,uid:process.getuid() || 10001,gid:process.getgid() || 10001}},
 };
 let error = null;
 try {
-  await new DockerSessionBackend(cfg).createSession({sessionId:'test-session',organizationId:'org-a',profile:'agent',env:{TEST_VALUE:'set'},createdAtMs:0,ttlMs:1000,idleTimeoutMs:1000});
+  await new DockerSessionBackend(cfg).createSession({sessionId:'test-session',organizationId:'org-a',profile:'agent',env:{TEST_VALUE:'set'},createdAtMs:0,ttlMs:1000,idleTimeoutMs:1000,signal:createAbort.signal});
 } catch (e) { error=e.message; }
 const retained = await readFile(join(workspace,'sentinel'),'utf8').catch(()=> 'absent');
 const owner = await readFile(join(root,'.owners','test-session.org'),'utf8').catch(() => null);
@@ -359,6 +362,7 @@ describe('failed creates preserve a concurrent winner', () => {
     '%s never removes the peer container, its volume or freshly written workspace',
     async (scenario) => {
       const result = await create(scenario);
+      expect(result.events).toContain('run');
       expect(result.error).not.toBeNull();
       expect(result.peerAlive).toBe(true);
       expect(result.retained).toBe('peer workspace');

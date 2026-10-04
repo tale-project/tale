@@ -24,7 +24,14 @@ test('a hung docker info and its descendants are killed within the total readine
     const began = Date.now();
     const result = spawnSync(
       python,
-      ['-I', '-', String(process.pid), join(root, 'docker'), '1.2'],
+      [
+        '-I',
+        '-',
+        String(process.pid),
+        join(root, 'docker'),
+        '1.2',
+        '/var/run/tale-docker/engine.sock',
+      ],
       {
         input: script,
         encoding: 'utf8',

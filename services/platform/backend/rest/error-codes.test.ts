@@ -145,6 +145,8 @@ const APP_ONLY_CODES: ReadonlySet<string> = new Set<string>([
   // Saving and deploying an automation happen through MCP and the app,
   // whose envelopes are their own (answering its human asks moved onto
   // `POST …/runs/{runId}/asks/{askId}`, and its codes into the registry).
+  // Managed adoption is app-only and refuses the existing tombstone too.
+  'AUTOMATION_DELETED',
   'AUTOMATION_DEPLOY_REJECTED',
   'AUTOMATION_NAME_INVALID',
   'AUTOMATION_NAME_RESERVED',

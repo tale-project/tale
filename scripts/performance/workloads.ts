@@ -267,7 +267,7 @@ export async function prepareWorkload(
       operations: 1,
       unit: 'execs',
       description:
-        'Real Node child outputs 1 MiB through runnerd then replays its bounded journal; host process reaping, no container',
+        'Real Node child outputs 1 MiB through runnerd then replays every byte from its bounded disk journal; host process reaping, no container',
       async run() {
         const execId = `performance-${sequence++}`;
         let exited = false;
@@ -292,13 +292,21 @@ export async function prepareWorkload(
           },
         );
         assert.equal(exited, true);
-        let replayed = 0;
-        const replay = manager.attach(execId, () => {
-          replayed++;
+        let replayedBytes = 0;
+        let replayedExit = false;
+        let replayComplete = false;
+        const replay = manager.attach(execId, (event) => {
+          assert.notEqual(event.t, 'fail');
+          if (event.t === 'stdout')
+            replayedBytes += Buffer.byteLength(event.b64, 'base64');
+          if (event.t === 'exit') replayedExit = true;
+          if (event.t === 'replay-complete') replayComplete = true;
         });
         assert.ok(replay);
         await replay;
-        assert.ok(replayed > 0);
+        assert.equal(replayedBytes, 1048576);
+        assert.equal(replayedExit, true);
+        assert.equal(replayComplete, true);
         assert.equal(manager.liveCount(), 0);
       },
       async cleanup() {

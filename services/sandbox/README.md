@@ -23,8 +23,9 @@ and keepalive immediately. The exec keeps running and can be reattached through
 the session API. Late output is discarded without repeated log messages.
 The runnerd response reader also cancels its upstream stream and releases its
 lock when parsing or forwarding fails, so retries do not retain old output
-subscriptions. Malformed JSON or invalid protocol records fail the attachment;
-a failing output consumer also ends that attachment.
+subscriptions. Malformed JSON, invalid payloads, invalid UTF-8 or oversized
+records fail with `REPLAY_UNAVAILABLE`; missing sequence numbers or sequence
+gaps fail with `OUTPUT_GAP`. A failing output consumer also ends that attachment.
 
 Cold runtime-image warming runs in the background. New local sessions wait
 with `429 runtime_image` and `Retry-After: 5`, while control, health and existing
@@ -202,7 +203,7 @@ this works against remote Docker without borrowing the spawner host's routes.
 An unused invalid owned network is recreated; an in-use or foreign network is
 never removed. If host observation fails or no safe subnet is available,
 sessions build locally. Shared cache provisioning has its own
-`SANDBOX_BUILDKITD_PROVISION_TIMEOUT_MS` budget (15 seconds by default,
+`SANDBOX_BUILDKITD_PROVISION_TIMEOUT_MS` budget (5 seconds by default,
 100–60000 ms), including queued Docker calls and helper operations. Independent
 registry mirrors initialize concurrently. Each session waits no longer than
 that budget or a quarter of `SANDBOX_SESSION_CREATE_TIMEOUT_MS`, whichever is
@@ -253,6 +254,14 @@ Docker containers explicitly disable IPv6 so IPv4-only deployments do not rely
 on host IPv6 firewall support. See the [operator environment reference](../../docs/en/self-hosted/configuration/environment-reference.md#sandbox-infrastructure).
 
 ## Inner Docker networking
+
+An enabled agent session starts its inner engine on the first ordinary Docker
+socket connection and stops it after five idle minutes only when no clients
+or active containers need it and all container restart policies are disabled. The image store and workspace survive that
+engine stop; the address pool stays fixed until the session container restarts.
+Existing container metadata at boot starts the engine immediately for restart
+policies. Agents need no setting or new command. See the
+[Docker lifecycle](docs/docker-in-container.md#storage--lifecycle).
 
 On Docker and Kubernetes, DinD agent sessions choose an inner private `/16`
 against their observed routes, interface addresses, DNS and proxy/gateway

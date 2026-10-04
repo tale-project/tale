@@ -156,6 +156,9 @@ analytics:
     emptyVoiceModels:
       title: Aucune utilisation vocale
       description: Aucune synthèse TTS n'a été enregistrée pour la période sélectionnée.
+    errors:
+      loadFailed: Impossible de charger les métriques d'utilisation.
+      refreshFailed: Impossible d'actualiser les métriques d'utilisation. Les chiffres affichés ne sont peut-être plus à jour.
   feedback:
     title: Métriques des retours
     description:
@@ -3943,6 +3946,8 @@ governance:
     emptyTitle: La corbeille est vide
     entityLabelOne: enregistrement
     entityLabel: enregistrements
+    refreshFailed: Impossible de charger les derniers enregistrements. La liste est peut-être incomplète ou obsolète.
+    loadFailed: Impossible de charger les enregistrements de la corbeille.
   legalHold:
     targetTypes:
       thread: Thread
@@ -4048,6 +4053,7 @@ governance:
         userPickerLabel: Utilisateur
         userPickerPlaceholder: Recherche par nom ou email
         userPickerEmpty: Aucun utilisateur correspondant.
+        userPickerFailed: Impossible de charger les utilisateurs.
         orgWarning: Les conservations à l'échelle de l'organisation gèlent TOUTE
           rétention pour chaque entité de ce tenant. C'est une action délibérée,
           enregistrée dans l'audit — vérifie le contexte du dossier avant de
@@ -4060,6 +4066,7 @@ governance:
         reasonPlaceholder: 'ex. Hold litige Acme c. Co. (dossier #2026-04)'
         matterLabel: Dossier
         matterPlaceholder: Choisir ou créer un dossier
+        matterPickerFailed: Impossible de charger les dossiers.
         matterCreateNew: Créer un nouveau dossier…
         submit: Placer la conservation
       requestRelease:
@@ -5475,6 +5482,7 @@ skills:
       bundle.
     refused: Ton organisation réserve le partage avec tout le monde, et tu n'as
       pas le droit de publier. Partage plutôt ce skill avec tes équipes.
+    exists: Un skill portant ce nom existe déjà. Aucune modification n’a été effectuée.
   addMenu:
     label: Ajouter un skill
   createMenu:
@@ -6626,6 +6634,7 @@ settings:
     yourApiKey: Ta clé API
     keyRevoked: Clé API révoquée
     keyRevokeFailed: Échec de la révocation de la clé API
+    keyCreateFailed: Échec de la création de la clé API
     revokeKey: Révoquer la clé
     revokeKeyTitle: Révoquer la clé API
     revokeConfirmation: Es-tu sûr de vouloir révoquer la clé API « {keyName} » ?
@@ -7729,6 +7738,7 @@ tasks:
   detail:
     overview: Aperçu
     comments: Commentaires
+    commentCount: '{count, plural, one {# commentaire} other {# commentaires}}'
     noComments: Aucun commentaire pour le moment.
     conversation: Conversation
     conversationEmpty: Aucun commentaire pour le moment — lance la conversation ci-dessous.
@@ -8118,6 +8128,7 @@ twoFactor:
     unnamed: Passkey
     registered: Passkey enregistré
     revoked: Passkey supprimé
+    empty: Tu n'as pas encore ajouté de passkey.
     namePromptDescription:
       Donne un nom à ce passkey pour le reconnaître plus tard
       (p. ex. "Touch ID du MacBook").
@@ -8131,6 +8142,8 @@ twoFactor:
     errors:
       registerFailed: Impossible d'enregistrer le passkey. Réessaie.
       revokeFailed: Impossible de supprimer le passkey. Réessaie.
+      listFailed: Impossible de charger tes passkeys.
+      refreshFailed: Impossible d'actualiser tes passkeys. La liste affichée n'est peut-être plus à jour.
   setup:
     title: Configurer l'authentification à double facteur
     qrInstructions: Scanne le code QR avec une application d'authentification

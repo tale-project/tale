@@ -606,10 +606,16 @@ async function createSession(
 /** GET /v1/sessions/:id — is the session alive spawner-side? `false` ONLY on
  * a definitive 404 (the phantom-session signal); transport errors throw so a
  * spawner blip is never misread as "session gone". */
-export async function sessionIsAlive(sessionId: string): Promise<boolean> {
+export async function sessionIsAlive(
+  sessionId: string,
+  options: { signal?: AbortSignal } = {},
+): Promise<boolean> {
   const path = `/v1/sessions/${encodeURIComponent(sessionId)}`;
   const res = await spawnerFetch('GET', path, {
-    signal: AbortSignal.timeout(15_000),
+    signal: AbortSignal.any([
+      AbortSignal.timeout(15_000),
+      ...(options.signal ? [options.signal] : []),
+    ]),
   });
   if (res.status === 404) return false;
   await throwIfDeviceOffline(res);
@@ -638,14 +644,15 @@ export async function sessionObserve(
   if (res.status === 404) return null;
   await throwIfDeviceOffline(res);
   if (!res.ok) throw new Error(`sandbox session get failed (${res.status})`);
-  return z
+  const observed = z
     .object({
       session: z.object({
         pinned: z.boolean().optional(),
         pinSynchronized: z.boolean().optional(),
       }),
     })
-    .parse(await res.json()).session;
+    .safeParse(await res.json().catch(() => null));
+  return observed.success ? observed.data.session : {};
 }
 
 /** Returns true when the spawner destroyed a live session, false when it had
@@ -675,10 +682,14 @@ export async function sessionDestroy(sessionId: string): Promise<boolean> {
  * non-2xx THROW contract as sessionDestroy. */
 export async function sessionDestroyIfIdle(
   sessionId: string,
+  options: { signal?: AbortSignal } = {},
 ): Promise<{ destroyed: boolean; busy: boolean }> {
   const path = `/v1/sessions/${encodeURIComponent(sessionId)}?if_idle=1`;
   const res = await spawnerFetch('DELETE', path, {
-    signal: AbortSignal.timeout(30_000),
+    signal: AbortSignal.any([
+      AbortSignal.timeout(30_000),
+      ...(options.signal ? [options.signal] : []),
+    ]),
   });
   await throwIfDeviceOffline(res);
   if (!res.ok) {
@@ -820,7 +831,7 @@ export async function sandboxOrganizationTeardown(
 export async function sessionSetPinned(
   sessionId: string,
   pinned: boolean,
-  signal?: AbortSignal,
+  options: { signal?: AbortSignal } = {},
 ): Promise<boolean> {
   const path = `/v1/sessions/${encodeURIComponent(sessionId)}/pin`;
   const bodyJson = JSON.stringify({ pinned });
@@ -828,7 +839,7 @@ export async function sessionSetPinned(
     body: bodyJson,
     signal: AbortSignal.any([
       AbortSignal.timeout(30_000),
-      ...(signal ? [signal] : []),
+      ...(options.signal ? [options.signal] : []),
     ]),
   });
   if (!res.ok) return false;
@@ -1062,6 +1073,29 @@ export async function sessionStageFiles(
   options: StageOptions = {},
 ): Promise<SessionStageResult> {
   return traceSandboxPhase('stage', async () => {
+    options.signal?.throwIfAborted();
+    // A previous node (or the agent) can replace a managed directory with a
+    // file/link. Prepare directory roots even for an empty desired manifest. Intact
+    // directory contents stay available for current-byte verification; the
+    // daemon prunes stale children only after every transfer succeeds.
+    for (const root of new Set(options.replaceRoots ?? [])) {
+      // An explicitly staged root file is not a directory to prepare.
+      if (files.some((file) => file.path === root.replace(/\/$/, ''))) continue;
+      if (
+        (await sessionListFiles(sessionId, root, {
+          signal: options.signal,
+        })) !== null
+      )
+        continue;
+      const cleared = await sessionDeleteFiles(sessionId, [root], {
+        signal: options.signal,
+      });
+      if (cleared.skipped.length > 0) {
+        throw new Error(
+          `managed staging roots could not be prepared: ${cleared.skipped.map((file) => file.path).join(', ')}`,
+        );
+      }
+    }
     const merged: SessionStageResult = { staged: [], skipped: [] };
     const identified = options.reuse
       ? files.map((file) =>
@@ -1134,6 +1168,7 @@ export async function sessionStageFiles(
         const cleared = await sessionDeleteFiles(
           sessionId,
           options.replaceRoots,
+          { signal: options.signal },
         );
         if (cleared.skipped.length > 0) {
           merged.skipped.push(...cleared.skipped);
@@ -1152,6 +1187,7 @@ export async function sessionStageFiles(
         }
       }
     }
+    options.signal?.throwIfAborted();
     return merged;
   });
 }
@@ -1168,12 +1204,18 @@ export interface SessionDeleteResult {
 export async function sessionDeleteFiles(
   sessionId: string,
   paths: string[],
+  options: { signal?: AbortSignal } = {},
 ): Promise<SessionDeleteResult> {
   const path = `/v1/sessions/${encodeURIComponent(sessionId)}/files/delete`;
   const bodyJson = JSON.stringify({ paths });
+  const signal = AbortSignal.any([
+    AbortSignal.timeout(30_000),
+    ...(options.signal ? [options.signal] : []),
+  ]);
+  signal.throwIfAborted();
   const res = await spawnerFetch('POST', path, {
     body: bodyJson,
-    signal: AbortSignal.timeout(30_000),
+    signal,
   });
   if (res.status === 404) throw new SessionNotFoundError(sessionId);
   if (!res.ok) {
@@ -1196,10 +1238,16 @@ export interface SessionFsEntry {
 export async function sessionListFiles(
   sessionId: string,
   dirPath: string,
+  options: { signal?: AbortSignal } = {},
 ): Promise<SessionFsEntry[] | null> {
   const path = `/v1/sessions/${encodeURIComponent(sessionId)}/files?path=${encodeURIComponent(dirPath)}`;
+  const signal = AbortSignal.any([
+    AbortSignal.timeout(30_000),
+    ...(options.signal ? [options.signal] : []),
+  ]);
+  signal.throwIfAborted();
   const res = await spawnerFetch('GET', path, {
-    signal: AbortSignal.timeout(30_000),
+    signal,
   });
   if (res.status === 404) return null;
   if (!res.ok) {
@@ -1541,6 +1589,11 @@ export class ExecReplayGapError extends Error {
   }
 }
 
+/** Missing earlier control/output records cannot be repaired by reattaching. */
+export class ExecOutputGapError extends ExecStreamProtocolError {
+  readonly code = 'OUTPUT_GAP';
+}
+
 /**
  * POST /v1/sessions/:id/exec as SSE. Streams stdout/stderr deltas to the
  * callbacks (the progress-bridge action feeds these through the agent adapter
@@ -1559,22 +1612,29 @@ async function sessionExec(
   // One healthy connection holds for the whole turn (timeoutMs + grace); the
   // resilient drain only re-attaches when this connection actually DROPS before
   // the terminal result (network blip / spawner restart), not on a fixed cycle.
+  const subscription = new AbortController();
   const fetchAbort = AbortSignal.any([
     signal,
+    subscription.signal,
     AbortSignal.timeout(
       (body.timeoutMs ?? EXEC_FALLBACK_TIMEOUT_MS) + EXEC_FETCH_GRACE_MS,
     ),
   ]);
-  const res = await spawnerFetch('POST', path, {
-    body: bodyJson,
-    accept: 'text/event-stream',
-    signal: fetchAbort,
-  });
-  if (res.status === 404) throw new SessionNotFoundError(sessionId);
-  if (!res.ok || !res.body) {
-    throw new Error(`sandbox session exec failed (${res.status})`);
+  try {
+    const res = await spawnerFetch('POST', path, {
+      body: bodyJson,
+      accept: 'text/event-stream; tale-output=base64',
+      signal: fetchAbort,
+    });
+    if (res.status === 404) throw new SessionNotFoundError(sessionId);
+    if (!res.ok || !res.body) {
+      throw new Error(`sandbox session exec failed (${res.status})`);
+    }
+    return await consumeExecSse(res.body, body.execId, callbacks, cursor);
+  } finally {
+    // Own this attachment's transport without aborting the caller's turn.
+    subscription.abort();
   }
-  return consumeExecSse(res.body, body.execId, callbacks, cursor);
 }
 
 /**
@@ -1600,21 +1660,27 @@ async function sessionAttachExec(
   // a non-zero cursor (i.e. every real continuation), which silently killed
   // the resilient drain + the stdin-steering continuation path.
   const signedPath = `/v1/sessions/${encodeURIComponent(sessionId)}/exec/${encodeURIComponent(execId)}/attach${query}`;
+  const subscription = new AbortController();
   const fetchAbort = AbortSignal.any([
     signal,
+    subscription.signal,
     AbortSignal.timeout(
       (timeoutMs ?? EXEC_FALLBACK_TIMEOUT_MS) + EXEC_FETCH_GRACE_MS,
     ),
   ]);
-  const res = await spawnerFetch('GET', signedPath, {
-    accept: 'text/event-stream',
-    signal: fetchAbort,
-  });
-  if (res.status === 404) throw new SessionNotFoundError(sessionId);
-  if (!res.ok || !res.body) {
-    throw new Error(`sandbox session attach failed (${res.status})`);
+  try {
+    const res = await spawnerFetch('GET', signedPath, {
+      accept: 'text/event-stream; tale-output=base64',
+      signal: fetchAbort,
+    });
+    if (res.status === 404) throw new SessionNotFoundError(sessionId);
+    if (!res.ok || !res.body) {
+      throw new Error(`sandbox session attach failed (${res.status})`);
+    }
+    return await consumeExecSse(res.body, execId, callbacks, cursor, true);
+  } finally {
+    subscription.abort();
   }
-  return consumeExecSse(res.body, execId, callbacks, cursor, true);
 }
 
 /**
@@ -1869,6 +1935,7 @@ async function consumeExecSse(
       // `exec <id> not found`.
       if (parsed?.code === 'ATTACH_BUSY')
         throw new ExecAttachBusyError(message);
+      if (parsed?.code === 'OUTPUT_GAP') throw new ExecOutputGapError(message);
       if (message === `exec ${execId} not found`) {
         throw new ExecNotFoundError(execId);
       }
@@ -1906,9 +1973,6 @@ async function consumeExecSse(
             );
           }),
         ]);
-      } catch (err) {
-        await reader.cancel().catch(() => {});
-        throw err;
       } finally {
         if (idleTimer) clearTimeout(idleTimer);
       }
@@ -1937,7 +2001,9 @@ async function consumeExecSse(
     // A transport drop must discard its incomplete event. Only the cursor's
     // accepted output decoder state survives a reconnect.
     parser.reset();
-    await reader.cancel().catch(() => {});
+    // Cancellation acknowledgements can stall forever. Release the reader now;
+    // the attachment owner also aborts its fetch before retrying or returning.
+    void reader.cancel().catch(() => {});
     reader.releaseLock();
   }
 }

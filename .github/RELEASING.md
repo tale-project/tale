@@ -178,16 +178,21 @@ lists whose totals matched their pages, yet the newest runs were missing, or eve
   this category appear under `excluded`. Among eligible originals, the newest current attempt
   still decides. Delayed push workflows and later pushes never move the cutoff. The report's
   `arrival` field names the verified PR, repository id and canonical merge time (`createdAt`).
-- **The unfiltered walk goes past the cutoff and every listed original run**, including those
-  excluded from validation. An eligible run omitted by either read, different attempts or
-  completed outcomes, a repeated push of C, or an observed push before the canonical merge
-  answers `blocked`. A run still going in either read is judged as still going. Out-of-order
-  IDs or creation times, changed repeated records, incomplete pages or failure to cross the
-  boundary within 3,000 runs also block. Read again; do not tag from an incomplete result.
+- **The unfiltered walk goes a minute past the cutoff and past every listed original run**,
+  including those excluded from validation. An eligible run omitted by either read, different
+  attempts or completed outcomes, a repeated push of C, or an observed push before the canonical
+  merge answers `blocked`. A run still going in either read is judged as still going.
+  Out-of-order IDs, a creation time more than a minute later than the earliest one listed before
+  it, changed repeated records, incomplete pages or failure to cross the boundary within 3,000
+  runs also block. Read again; do not tag from an incomplete result.
 
-The accepted enumeration model is an unfiltered list in descending run-id and non-increasing
-original-creation-time order. Identical leading repeats caused by new runs shifting pagination
-are tolerated. GitHub does not document an immutable snapshot or ID/time-order guarantee; the
+The accepted enumeration model is an unfiltered list in descending run-id order whose original
+creation times never rise more than a minute above the earliest one listed before them. The
+observed inversion in #4330 was one second between runs of the same event. Sixty seconds is the
+gate's chosen tolerance, not an observed maximum or a GitHub guarantee. Under this model, the
+walk's extra minute past the cutoff keeps every run that could still count. Identical leading
+repeats caused by new runs shifting pagination are tolerated. GitHub does not document an
+immutable snapshot or ID/time-order guarantee; the
 gate checks observed ordering and disagreements under this model. It does not reconstruct every
 historical ref update or prove the first-ever arrival of C, and cannot detect arbitrary history
 omitted by every API read. Stronger lifetime guarantees require durable ref-update evidence.

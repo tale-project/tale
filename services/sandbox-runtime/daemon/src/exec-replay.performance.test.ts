@@ -2,8 +2,16 @@ import { expect, spyOn, test } from 'bun:test';
 import { fstatSync } from 'node:fs';
 import * as fs from 'node:fs/promises';
 import type { FileHandle } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 
 import { ExecReplay, ReplayBudget } from './exec-replay.ts';
+
+function createReplay(
+  limits?: ConstructorParameters<typeof ExecReplay>[0],
+  budget?: ReplayBudget,
+) {
+  return new ExecReplay(limits, budget, tmpdir());
+}
 
 function output(seq: number, bytes = 384): string {
   return `${JSON.stringify({ t: 'stdout', seq, b64: Buffer.alloc(bytes, seq % 256).toString('base64') })}\n`;
@@ -80,7 +88,7 @@ async function collect(
 }
 
 test('replay batches bounded vectors and preserves records across partial writes', async () => {
-  const replay = new ExecReplay();
+  const replay = createReplay();
   try {
     await replay.append(output(1), 1);
     const file = writerFor(replay);
@@ -125,7 +133,7 @@ test('replay batches bounded vectors and preserves records across partial writes
 });
 
 test('a zero-progress vector write makes replay unavailable without spinning', async () => {
-  const replay = new ExecReplay();
+  const replay = createReplay();
   try {
     await replay.append(output(1), 1);
     writerFor(replay).writev = (buffers) =>
@@ -138,7 +146,7 @@ test('a zero-progress vector write makes replay unavailable without spinning', a
 });
 
 test('suffix replay seeks record starts and preserves large UTF-8 records', async () => {
-  const replay = new ExecReplay();
+  const replay = createReplay();
   const originalOpen = fs.open;
   let reads = 0;
   const opened = spyOn(fs, 'open').mockImplementation(async (...args) => {
@@ -175,7 +183,7 @@ test('suffix replay seeks record starts and preserves large UTF-8 records', asyn
 });
 
 test('serial checkpoint operations seal an earlier append batch', async () => {
-  const replay = new ExecReplay({ segmentBytes: 1, maxBytes: 4096 });
+  const replay = createReplay({ segmentBytes: 1, maxBytes: 4096 });
   try {
     const first = replay.append(output(1, 1), 1);
     const checkpoint = replay.saveCheckpoint({ seq: 1, state: 'acknowledged' });
@@ -203,7 +211,7 @@ test('serial checkpoint operations seal an earlier append batch', async () => {
 
 test('an in-flight vector remains charged until disposal closes its descriptor', async () => {
   const budget = new ReplayBudget(4096);
-  const replay = new ExecReplay(undefined, budget);
+  const replay = createReplay(undefined, budget);
   const release = Promise.withResolvers<void>();
   let writing: Promise<void> | undefined;
   try {
@@ -234,7 +242,7 @@ test('an in-flight vector remains charged until disposal closes its descriptor',
 });
 
 test('sparse replay indexes remain bounded at the full retained transcript limit', async () => {
-  const replay = new ExecReplay();
+  const replay = createReplay();
   const count = () => {
     const segments: unknown = Reflect.get(replay, 'segments');
     if (!Array.isArray(segments)) throw new Error('missing replay segments');
@@ -265,7 +273,7 @@ test('sparse replay indexes remain bounded at the full retained transcript limit
 });
 
 test('shared budget exhaustion after a committed prefix never replays partial success', async () => {
-  const replay = new ExecReplay(undefined, new ReplayBudget(1000));
+  const replay = createReplay(undefined, new ReplayBudget(1000));
   try {
     await replay.append(output(1), 1);
     const file = writerFor(replay);
