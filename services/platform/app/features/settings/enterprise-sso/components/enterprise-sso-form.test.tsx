@@ -95,6 +95,18 @@ const connectedOidc: SsoConnectionView = {
   samlAcsUrl: 'https://app.example.com/api/sso/saml/acs',
   oidcCallbackUrl: 'https://app.example.com/api/sso/callback',
 };
+const connectedGenericOidc: SsoConnectionView = {
+  ...connectedOidc,
+  oidc: {
+    ...connectedOidc.oidc!,
+    providerId: 'generic-oidc',
+    claimMappings: {
+      email: 'profile.email',
+      name: 'profile.full_name',
+      groups: 'roles',
+    },
+  },
+};
 
 const samlConfig: SsoConnectionView = {
   ...connectedOidc,
@@ -256,6 +268,25 @@ describe('EnterpriseSsoForm validation + save', () => {
     });
 
     expect(upsertOidcMock).not.toHaveBeenCalled();
+  });
+
+  it('preserves stored Generic OIDC claim mappings on an unrelated edit', async () => {
+    upsertOidcMock.mockClear();
+    const { user } = renderForm(connectedGenericOidc);
+
+    await user.clear(screen.getByRole('textbox', { name: /display name/i }));
+    await user.type(
+      screen.getByRole('textbox', { name: /display name/i }),
+      'Renamed SSO',
+    );
+    await user.click(await screen.findByRole('button', { name: /^save$/i }));
+
+    await waitFor(() => expect(upsertOidcMock).toHaveBeenCalledTimes(1));
+    expect(upsertOidcMock.mock.calls[0][0].claimMappings).toEqual({
+      email: 'profile.email',
+      name: 'profile.full_name',
+      groups: 'roles',
+    });
   });
 
   it('saves a valid OIDC connection via upsertOidc', async () => {
