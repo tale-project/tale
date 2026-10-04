@@ -13,7 +13,7 @@ import { Image } from '@/app/components/image';
 import { failureDetail } from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
 
-import { useSaveImage } from '../hooks/mutations';
+import { useDeleteImage, useSaveImage } from '../hooks/mutations';
 import { imageUploadErrorToastKey } from '../utils/image-upload-error';
 
 const ACCEPTED_IMAGE_TYPES = '.png,.svg,.jpg,.jpeg,.webp,.ico';
@@ -85,12 +85,17 @@ export function ImageUploadField({
   ariaLabel,
 }: ImageUploadFieldProps) {
   const [isUploading, setIsUploading] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const isBusy = isUploading || isDeleting;
+  const focusAfterDeleteRef = useRef(false);
+  const uploadButtonRef = useRef<HTMLButtonElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isRemoved, setIsRemoved] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const objectUrlRef = useRef<string | null>(null);
   const prevCurrentUrlRef = useRef(currentUrl);
+  const deleteImage = useDeleteImage();
   const saveImage = useSaveImage({ errorToast: false });
   const { toast } = useToast();
   const { t } = useT('settings');
@@ -113,12 +118,20 @@ export function ImageUploadField({
     };
   }, []);
 
+  useEffect(() => {
+    if (!isDeleting && focusAfterDeleteRef.current) {
+      focusAfterDeleteRef.current = false;
+      uploadButtonRef.current?.focus();
+    }
+  }, [isDeleting]);
+
   const handleClick = useCallback(() => {
     fileInputRef.current?.click();
   }, []);
 
   const uploadFile = useCallback(
     async (file: File) => {
+      if (isBusy) return;
       // Gate the logo on a minimum raster size BEFORE any preview state so a
       // rejected file never flashes into the preview or the live form.
       if (imageType === 'logo' && !isSvg(file)) {
@@ -191,6 +204,7 @@ export function ImageUploadField({
     },
     [
       organizationId,
+      isBusy,
       saveImage,
       imageType,
       onUpload,
@@ -211,9 +225,9 @@ export function ImageUploadField({
   const handleDragOver = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault();
-      if (!isUploading) setIsDragging(true);
+      if (!isBusy) setIsDragging(true);
     },
-    [isUploading],
+    [isBusy],
   );
 
   const handleDragLeave = useCallback((e: React.DragEvent) => {
@@ -225,23 +239,40 @@ export function ImageUploadField({
     (e: React.DragEvent) => {
       e.preventDefault();
       setIsDragging(false);
-      if (isUploading) return;
+      if (isBusy) return;
       const file = e.dataTransfer.files?.[0];
       if (file && isAcceptedImage(file)) void uploadFile(file);
     },
-    [isUploading, uploadFile],
+    [isBusy, uploadFile],
   );
 
-  const handleRemove = useCallback(() => {
-    setPreviewUrl(null);
-    onPreviewUrlChange?.(null);
-    setIsRemoved(true);
-    if (objectUrlRef.current) {
-      URL.revokeObjectURL(objectUrlRef.current);
-      objectUrlRef.current = null;
+  const handleRemove = useCallback(async () => {
+    if (isBusy) return;
+    setIsDeleting(true);
+    try {
+      await deleteImage.mutateAsync({ organizationId, type: imageType });
+      setPreviewUrl(null);
+      onPreviewUrlChange?.(null);
+      setIsRemoved(true);
+      if (objectUrlRef.current) {
+        URL.revokeObjectURL(objectUrlRef.current);
+        objectUrlRef.current = null;
+      }
+      onRemove?.();
+      focusAfterDeleteRef.current = true;
+    } catch (error) {
+      console.error('[ImageUploadField] image removal failed', error);
+    } finally {
+      setIsDeleting(false);
     }
-    onRemove?.();
-  }, [onRemove, onPreviewUrlChange]);
+  }, [
+    isBusy,
+    deleteImage,
+    organizationId,
+    imageType,
+    onRemove,
+    onPreviewUrlChange,
+  ]);
 
   const sizeClasses = size === 'sm' ? 'size-10' : 'size-12';
 
@@ -251,11 +282,13 @@ export function ImageUploadField({
         <SkeletonBox asChild>
           <button
             type="button"
+            ref={uploadButtonRef}
             onClick={handleClick}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
-            disabled={isUploading}
+            disabled={isBusy}
+            aria-busy={isBusy}
             className={cn(
               'group border-border ring-offset-background bg-background relative flex cursor-pointer items-center justify-center overflow-clip rounded-lg border shadow-xs transition-all duration-150',
               'hover:border-border-strong hover:bg-bg-elevated',
@@ -263,11 +296,11 @@ export function ImageUploadField({
               'active:scale-[0.97] active:duration-75 motion-reduce:transition-none motion-reduce:active:scale-100',
               sizeClasses,
               isDragging && 'border-accent-base ring-accent-base ring-1',
-              isUploading && 'cursor-wait opacity-60',
+              isBusy && 'cursor-wait opacity-60',
             )}
             aria-label={ariaLabel}
           >
-            {isUploading ? (
+            {isBusy ? (
               <Spinner className="size-4" />
             ) : displayUrl ? (
               <>
@@ -301,7 +334,9 @@ export function ImageUploadField({
           <SkeletonBox asChild>
             <button
               type="button"
-              onClick={handleRemove}
+              onClick={() => void handleRemove()}
+              disabled={isBusy}
+              aria-busy={isDeleting}
               className="bg-foreground text-background ring-offset-background focus-visible:ring-ring absolute -top-1 -right-1 flex size-4 cursor-pointer items-center justify-center rounded-full transition-transform duration-150 hover:scale-110 focus-visible:ring-1 focus-visible:ring-offset-2 focus-visible:outline-none motion-reduce:transition-none motion-reduce:hover:scale-100"
               aria-label={t('branding.removeImageAria', {
                 label: label ?? t('branding.imageFallback'),

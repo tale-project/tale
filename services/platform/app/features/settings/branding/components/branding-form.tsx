@@ -148,10 +148,31 @@ export function BrandingForm({
     ],
   );
 
+  const savedImageFilenamesRef = useRef(
+    new Map<
+      'logoFilename' | 'faviconLightFilename' | 'faviconDarkFilename',
+      string
+    >(),
+  );
+
+  useEffect(() => {
+    savedImageFilenamesRef.current.clear();
+  }, [
+    branding?.logoFilename,
+    branding?.faviconLightFilename,
+    branding?.faviconDarkFilename,
+  ]);
+
   const editor = useFormEditor<BrandingFormData>({
     data,
     schema: brandingFormSchema,
     save,
+    onReset: () => {
+      for (const [filename, value] of savedImageFilenamesRef.current) {
+        register(filename);
+        resetField(filename, { defaultValue: value });
+      }
+    },
   });
 
   const [confirmClearOpen, setConfirmClearOpen] = useState(false);
@@ -179,8 +200,20 @@ export function BrandingForm({
   ]);
 
   const {
-    form: { watch, setValue, getValues, control, reset: resetForm },
+    form: {
+      watch,
+      setValue,
+      getValues,
+      control,
+      register,
+      resetField,
+      reset: resetForm,
+    },
   } = editor;
+
+  register('logoFilename');
+  register('faviconLightFilename');
+  register('faviconDarkFilename');
 
   const watchedValues = watch();
 
@@ -246,6 +279,7 @@ export function BrandingForm({
         });
         // Already on the server: the image write records its reference, so
         // the field mirrors the saved state rather than staging an edit.
+        savedImageFilenamesRef.current.set('faviconLightFilename', filename);
         setValue('faviconLightFilename', filename);
         setFaviconPreviewUrl(`data:image/png;base64,${base64}`);
         toast({
@@ -366,11 +400,13 @@ export function BrandingForm({
               // happen (the image write records its own reference); the
               // fields only mirror that, so they never dirty the Save cluster.
               onUpload={(filename, file) => {
+                savedImageFilenamesRef.current.set('logoFilename', filename);
                 setValue('logoFilename', filename);
                 void maybeDeriveFavicon(file);
               }}
               onRemove={() => {
-                setValue('logoFilename', '');
+                savedImageFilenamesRef.current.set('logoFilename', '');
+                resetField('logoFilename', { defaultValue: '' });
               }}
               onPreviewUrlChange={setLogoPreviewUrl}
               size="md"
@@ -389,10 +425,18 @@ export function BrandingForm({
                 currentUrl={faviconPreviewUrl ?? branding?.faviconLightUrl}
                 imageType="favicon-light"
                 onUpload={(filename) => {
+                  savedImageFilenamesRef.current.set(
+                    'faviconLightFilename',
+                    filename,
+                  );
                   setValue('faviconLightFilename', filename);
                 }}
                 onRemove={() => {
-                  setValue('faviconLightFilename', '');
+                  savedImageFilenamesRef.current.set(
+                    'faviconLightFilename',
+                    '',
+                  );
+                  resetField('faviconLightFilename', { defaultValue: '' });
                 }}
                 onPreviewUrlChange={setFaviconPreviewUrl}
                 label={t('branding.light')}
@@ -404,10 +448,15 @@ export function BrandingForm({
                 currentUrl={branding?.faviconDarkUrl}
                 imageType="favicon-dark"
                 onUpload={(filename) => {
+                  savedImageFilenamesRef.current.set(
+                    'faviconDarkFilename',
+                    filename,
+                  );
                   setValue('faviconDarkFilename', filename);
                 }}
                 onRemove={() => {
-                  setValue('faviconDarkFilename', '');
+                  savedImageFilenamesRef.current.set('faviconDarkFilename', '');
+                  resetField('faviconDarkFilename', { defaultValue: '' });
                 }}
                 label={t('branding.dark')}
                 ariaLabel={`${t('branding.uploadFavicon')} (${t('branding.dark')})`}
