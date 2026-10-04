@@ -2568,7 +2568,11 @@
           "path": "workbox-d7cb8519.js.map",
           "sha256": "be51d5f118a7406e737edbceae65aa03756940a34fbcb947a9f182a821e9b3fa"
         }
-      ]
+      ],
+      "mapMetadata": {
+        "entrySha256": "291a803a3f3dfdaaf5a26dd0a20f6476be6ca340dfcb32845e56eedaf64a0cd3",
+        "workerSha256": "e58a64fd3015ba4d177cfd2fe11b227d225aa234be73fcc9ddeb091329ebd56b"
+      }
     },
     "candidate": {
       "files": [
@@ -5132,7 +5136,11 @@
           "path": "workbox-d7cb8519.js.map",
           "sha256": "be51d5f118a7406e737edbceae65aa03756940a34fbcb947a9f182a821e9b3fa"
         }
-      ]
+      ],
+      "mapMetadata": {
+        "entrySha256": "7596028fae64f4ceb36ea25ed5b809b59b20da71dbd13e1254c5bc12bbd9a48b",
+        "workerSha256": "8916422ad06dcc2b3267b88b96d92b86718bf28f04562bd339b23349747dcbfe"
+      }
     }
   }
 }

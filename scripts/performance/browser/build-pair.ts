@@ -11,10 +11,7 @@ import {
   runLogged,
   sources,
 } from './common.ts';
-import {
-  compareDialogBundle,
-  dialogBundleReference,
-} from './dialog-bundles.ts';
+import { compareDialogBuild, dialogBundleReference } from './dialog-bundles.ts';
 
 async function hashes(
   directory: string,
@@ -87,7 +84,12 @@ try {
       errorOnExist: true,
     });
     const parity = reference
-      ? compareDialogBundle(assets, reference.manifest.arms[name].files)
+      ? await compareDialogBuild(
+          assets,
+          reference.manifest.arms[name],
+          name,
+          (mapPath) => readFile(outputPath(`bundles/${name}/${mapPath}`)),
+        )
       : undefined;
     if (reference)
       await json(`dialog-${name}-bundle-parity.json`, {

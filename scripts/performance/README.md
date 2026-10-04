@@ -126,12 +126,23 @@ changes. A manual dispatch, where available, must explicitly supply baseline a9
 and the full new harness SHA. Remove every mode label before publishing a new
 harness, then admit just one reviewed attempt.
 
-The diagnostic also compares every newly built file with the immutable 640-file
+The diagnostic compares every newly built file with the immutable 640-file
 manifest for each arm from run 37189059988. The manifest retains its artifact ID,
-ZIP hash and exact product pair. Duplicate, missing, added, unsafe or changed
-paths/bytes refuse before runtime; HTML and source maps are included. Actual
-manifests and mismatch receipts survive. The harness commit is recorded separately
-from the product commit; bundle determinism is verified, never assumed.
+ZIP hash and exact product pair. All 411 non-map files and 227 source maps require
+raw byte equality. Two named source maps permit only witnessed generator metadata:
+the entry map's two Inter Latin 400/500 asset-reference tokens and the worker map's
+single temporary-directory token. Their normalized digests derive from the same
+original artifact and cover every other serialized byte, including mappings and
+source content. Unsupported shapes, duplicate JSON keys, noncompact JSON, added,
+missing or changed assets refuse before runtime. This corrects the metadata-only
+refusal in run 37195051012; it does not change acceptance criteria.
+
+Original maps and raw hashes are always retained without rewriting. The parity
+receipt distinguishes `rawMatches` from `matches`, lists every raw difference,
+records each metadata comparison and retains unresolved differences or read errors.
+The harness commit is recorded separately from the product commit. Inspect these
+receipts before interpreting any diagnostic; candidate build parity still needs
+its own successful check.
 
 Four fresh browser/context attempts run in baseline/candidate/candidate/baseline
 order, using four distinct near-top root tasks. Exact loaded-board readiness,
