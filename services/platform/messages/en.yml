@@ -3837,6 +3837,7 @@ governance:
         userPickerLabel: User
         userPickerPlaceholder: Search by name or email
         userPickerEmpty: No matching users.
+        userPickerFailed: Users could not be loaded.
         orgWarning:
           Organization-wide holds freeze ALL retention for every entity in
           this tenant. This is a deliberate, audit-logged action — review the
@@ -3849,6 +3850,7 @@ governance:
         reasonPlaceholder: 'e.g. Litigation hold for Acme v. Co. (matter #2026-04)'
         matterLabel: Matter
         matterPlaceholder: Pick or create a matter
+        matterPickerFailed: Matters could not be loaded.
         matterCreateNew: Create new matter…
         submit: Place hold
       requestRelease:
