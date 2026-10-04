@@ -25,6 +25,7 @@ export async function checkProjectTaskMetrics(
 ): Promise<void> {
   const { orgId, userId } = ctx;
   const projectId = randomUUID();
+  const terminalProjectId = randomUUID();
   const agentId = randomUUID();
   const agentTaskId = randomUUID();
   const humanTaskId = randomUUID();
@@ -35,6 +36,10 @@ export async function checkProjectTaskMetrics(
   await sql`
     INSERT INTO app.projects (id, org_id, name, created_by, created_at_ms, updated_at_ms)
     VALUES (${projectId}, ${orgId}, 'Metrics proof', ${userId}, ${now}, ${now})
+  `;
+  await sql`
+    INSERT INTO app.projects (id, org_id, name, created_by, created_at_ms, updated_at_ms)
+    VALUES (${terminalProjectId}, ${orgId}, 'Terminal creation proof', ${userId}, ${now}, ${now})
   `;
   await sql`
     INSERT INTO app.project_agents (id, org_id, project_id, name, harness, model,
@@ -52,7 +57,7 @@ export async function checkProjectTaskMetrics(
         teamIds: [],
       },
       {
-        projectId,
+        projectId: terminalProjectId,
         title: 'Created done',
         status: 'done',
       },
@@ -66,7 +71,7 @@ export async function checkProjectTaskMetrics(
         teamIds: [],
       },
       {
-        projectId,
+        projectId: terminalProjectId,
         title: 'Created cancelled',
         status: 'cancelled',
       },
