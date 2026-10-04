@@ -1,9 +1,9 @@
 import { afterAll, beforeAll, describe, expect, spyOn, test } from 'bun:test';
 import { spawnSync } from 'node:child_process';
 import {
+  chmodSync,
   closeSync,
   constants,
-  openSync,
   mkdtempSync,
   realpathSync,
   renameSync,
@@ -13,6 +13,8 @@ import {
   readdirSync,
   symlinkSync,
   mkdirSync,
+  openSync,
+  statSync,
 } from 'node:fs';
 import * as fsPromises from 'node:fs/promises';
 import { createServer } from 'node:http';
@@ -89,14 +91,18 @@ describe('file-ops', () => {
   // accepted and never answered (or trickled) pinned the handler and every
   // later item in the batch for undici's 300 s defaults, long after the
   // spawner's 30 s RPC bound had already reported a timeout.
-  test('stageFiles gives up on a stalled URL within its deadline and moves on', async () => {
+  test('stageFiles shares one deadline across the batch and never starts later downloads after it expires', async () => {
     const stalled = Bun.serve({
       port: 0,
       fetch: () => new Promise<Response>(() => {}), // never answers
     });
+    let laterRequests = 0;
     const live = Bun.serve({
       port: 0,
-      fetch: () => new Response('after-the-stall'),
+      fetch: () => {
+        laterRequests += 1;
+        return new Response('after-the-stall');
+      },
     });
     try {
       const started = Date.now();
@@ -110,9 +116,10 @@ describe('file-ops', () => {
       expect(Date.now() - started).toBeLessThan(2_000);
       expect(result.skipped).toEqual([
         { path: 'stalled.txt', reason: 'timeout' },
+        { path: 'later.txt', reason: 'timeout' },
       ]);
-      // The item behind the stall still stages.
-      expect(result.staged).toEqual([{ path: 'later.txt', bytes: 15 }]);
+      expect(result.staged).toEqual([]);
+      expect(laterRequests).toBe(0);
     } finally {
       await stalled.stop(true);
       await live.stop(true);
@@ -135,7 +142,7 @@ describe('file-ops', () => {
           { path: 'batch-second', url: stalled.url.href },
           { path: 'batch-inline', contentBase64: 'YQ==' },
         ],
-        { batchTimeoutMs: 50, fetchTimeoutMs: 150 },
+        { fetchTimeoutMs: 50 },
       );
       expect(requests).toBe(1);
       expect(result.staged).toEqual([]);
@@ -159,7 +166,7 @@ describe('file-ops', () => {
     await stageFiles([{ path, sourceId, contentBase64: 'YQ==' }]);
     rmSync(join(ROOT, path));
     expect(spawnSync('mkfifo', [join(ROOT, path)]).status).toBe(0);
-    const pending = stageFiles([{ path, sourceId }], { batchTimeoutMs: 50 });
+    const pending = stageFiles([{ path, sourceId }], { fetchTimeoutMs: 50 });
     try {
       const result = await Promise.race([
         pending,
@@ -223,6 +230,20 @@ describe('file-ops', () => {
 });
 
 describe('bounded atomic staging', () => {
+  test('atomic replacement preserves executable permissions and new files stay private', async () => {
+    const path = join(ROOT, 'executable.sh');
+    writeFileSync(path, 'old');
+    chmodSync(path, 0o750);
+    const result = await stageFiles([
+      { path: 'executable.sh', contentBase64: 'bmV3' },
+      { path: 'new-mode.txt', contentBase64: 'bmV3' },
+    ]);
+    expect(result.skipped).toEqual([]);
+    expect(readFileSync(path, 'utf8')).toBe('new');
+    expect(statSync(path).mode & 0o777).toBe(0o750);
+    expect(statSync(join(ROOT, 'new-mode.txt')).mode & 0o777).toBe(0o600);
+  });
+
   test('a streamed transfer preserves the old destination until complete and cancels cleanly', async () => {
     const release = Promise.withResolvers<void>();
     const seen = Promise.withResolvers<void>();
@@ -464,6 +485,71 @@ describe('bounded atomic staging', () => {
       expect(readFileSync(join(ROOT, 'source.txt'), 'utf8')).toBe('trusted');
     } finally {
       await server.stop(true);
+    }
+  });
+
+  test('a cache probe rejects an old descriptor after its ancestor is replaced', async () => {
+    const parent = join(ROOT, 'source-replaced-parent');
+    const parked = `${parent}-old`;
+    const path = 'source-replaced-parent/source-leaf.txt';
+    await stageFiles([
+      { path, contentBase64: 'dHJ1c3RlZA==', sourceId: 'source-replaced' },
+    ]);
+    const originalOpen = fsPromises.open;
+    let swapped = false;
+    const opening = spyOn(fsPromises, 'open').mockImplementation(
+      async (...args) => {
+        const file = await originalOpen(...args);
+        if (String(args[0]).endsWith('/source-leaf.txt') && !swapped) {
+          swapped = true;
+          renameSync(parent, parked);
+          mkdirSync(parent);
+          writeFileSync(join(ROOT, path), 'changed');
+        }
+        return file;
+      },
+    );
+    try {
+      expect(await stageFiles([{ path, sourceId: 'source-replaced' }])).toEqual(
+        {
+          staged: [],
+          skipped: [{ path, reason: 'no_source' }],
+        },
+      );
+      expect(swapped).toBe(true);
+    } finally {
+      opening.mockRestore();
+    }
+  });
+
+  test('cache probes and streamed reads reject named pipes without blocking a worker', async () => {
+    const path = 'cached-fifo';
+    const absolute = join(ROOT, path);
+    await stageFiles([
+      { path, contentBase64: 'dHJ1c3RlZA==', sourceId: 'source-fifo' },
+    ]);
+    rmSync(absolute);
+    expect(spawnSync('mkfifo', [absolute]).status).toBe(0);
+    let rescue: number | undefined;
+    // Ensure a regression does not strand a filesystem worker or the suite.
+    const timer = setTimeout(() => {
+      rescue = openSync(absolute, constants.O_RDWR | constants.O_NONBLOCK);
+    }, 500);
+    try {
+      const [probe, read] = await Promise.all([
+        stageFiles([{ path, sourceId: 'source-fifo' }]),
+        streamWorkspaceFile(path, 1000),
+      ]);
+      expect(read).toBeNull();
+      expect(probe).toEqual({
+        staged: [],
+        skipped: [{ path, reason: 'no_source' }],
+      });
+      expect(rescue).toBeUndefined();
+    } finally {
+      clearTimeout(timer);
+      if (rescue !== undefined) closeSync(rescue);
+      rmSync(absolute, { force: true });
     }
   });
 

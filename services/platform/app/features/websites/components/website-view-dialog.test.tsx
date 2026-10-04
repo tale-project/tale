@@ -687,6 +687,34 @@ describe('WebsiteViewDialog', () => {
       limit: 20,
     });
     expect(fetchPages).toHaveBeenCalledTimes(4);
+
+    expect(within(dialog).getByText('Fine')).toBeVisible();
+    pagesPayload.current = {
+      ...pagesPayload.current,
+      pages: pagesPayload.current.pages.map((page) => ({
+        ...page,
+        url: 'https://docs.example.com/broken',
+        title: 'Broken',
+        indexed: false,
+        fail_count: 1,
+        last_error: 'Page not found',
+        last_error_kind: 'http_error',
+      })),
+    };
+    await user.keyboard('{ArrowRight}');
+    const failed = within(filter).getByRole('radio', { name: 'Failed (2)' });
+    expect(failed).toHaveFocus();
+    expect(failed).toHaveAttribute('aria-checked', 'true');
+    expect(fetchPages).toHaveBeenLastCalledWith({
+      websiteId: 'w-1',
+      offset: 0,
+      limit: 20,
+      state: 'failed',
+    });
+    expect(within(dialog).queryByText('Fine')).not.toBeInTheDocument();
+    expect(within(dialog).getByText('Broken')).toBeVisible();
+    expect(within(dialog).getByText('Failed')).toBeVisible();
+    expect(fetchPages).toHaveBeenCalledTimes(5);
   });
 
   it('says so when no page is in the chosen state', async () => {

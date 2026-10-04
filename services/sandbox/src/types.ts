@@ -188,6 +188,8 @@ export interface SessionAgentProfileConfig {
   /** Docker quantity string, e.g. '4g' (memory-swap is pinned to the same
    * value — no swap headroom, matching the one-shot containers). */
   memory: string;
+  /** Derived non-Docker ceiling; an explicit SANDBOX_AGENT_MEMORY sets both. */
+  memoryWithoutDocker?: string;
   pidsLimit: number;
   nofileSoft: number;
   nofileHard: number;

@@ -225,6 +225,7 @@ describe('drainHarnessWindow end-of-turn rules', () => {
       if (result.kind === 'terminal') {
         expect(result.ended).toBeUndefined();
         expect(result.text).toBe('');
+        expect(result.answerText).toBe('');
         expect(result.timeline).toEqual([]);
         expect(result.outputTokens).toBeUndefined();
         expect(classifyHarnessEnd(result).errored).toBe(true);
@@ -310,6 +311,31 @@ describe('drainHarnessWindow end-of-turn rules', () => {
       expect(transport.cancelled).toEqual([]);
     },
   );
+
+  it('keeps the exact terminal fallback when a successful result omits its final text', async () => {
+    const report = `BEGIN ${'report '.repeat(20_000)} END`;
+    transport.stdout = ndjson([
+      CLAUDE_INIT,
+      {
+        type: 'assistant',
+        message: { content: [{ type: 'text', text: report }] },
+      },
+      { ...CLAUDE_RESULT, result: '' },
+    ]);
+    transport.exitAfterStdout = true;
+    const result = await drainHarnessWindow({
+      sessionId: 's',
+      execId: 'e',
+      harness: 'claude-code',
+      windowMs: 50,
+    });
+    expect(result.kind).toBe('terminal');
+    if (result.kind === 'terminal') {
+      expect(result.ended?.finalText).toBeUndefined();
+      expect(result.answerText).toBe(report);
+      expect(result.text.length).toBeLessThanOrEqual(64 * 1024);
+    }
+  });
 
   it('keeps the authoritative final report intact beyond the display text budget', async () => {
     const report = `BEGIN ${'report '.repeat(20_000)} END`;

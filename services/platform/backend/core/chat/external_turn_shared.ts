@@ -350,6 +350,8 @@ export type HarnessWindowResult =
   | {
       kind: 'terminal';
       text: string;
+      /** Exact bounded fallback when the harness terminal has no finalText. */
+      answerText?: string;
       timeline: HarnessTimelinePart[];
       ended?: Extract<HarnessEvent, { type: 'turn-ended' }>;
       execResult?: SessionExecResult;
@@ -665,6 +667,7 @@ export async function drainHarnessWindow(args: {
   return {
     kind: 'terminal',
     text,
+    answerText: replayGap ? '' : projection.answer,
     timeline,
     ...(ended !== undefined ? { ended } : {}),
     ...(execResult !== undefined ? { execResult } : {}),

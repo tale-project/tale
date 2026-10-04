@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { HARNESS_RECORD_MAX_CHARS } from './jsonl';
 import { HarnessProjection, HARNESS_TEXT_MAX_CHARS } from './projection';
 import { TIMELINE_MAX_ENTRIES, TIMELINE_MAX_JSON_BYTES } from './timeline';
 
@@ -21,6 +22,30 @@ describe('bounded harness display projection', () => {
     p.timeline();
     p.timeline();
     expect(serialized).toBe(1);
+  });
+
+  it('keeps an exact bounded terminal fallback independently of its display tail', () => {
+    const p = new HarnessProjection();
+    const first = 'BEGIN ' + 'a'.repeat(70_000);
+    p.accept({ type: 'text', text: first });
+    p.accept({ type: 'text', text: 'END' });
+    expect(p.answer).toBe(`${first}\n\nEND`);
+    expect(p.text.length).toBe(HARNESS_TEXT_MAX_CHARS);
+    p.accept({ type: 'text-delta', text: 'ACTUAL ' });
+    p.accept({ type: 'text', text: 'duplicate completed text' });
+    p.accept({ type: 'text-delta', text: first });
+    expect(p.answer).toBe(`ACTUAL ${first}`);
+  });
+
+  it('refuses an excessive fallback answer rather than returning a successful truncated value', () => {
+    const p = new HarnessProjection();
+    p.accept({
+      type: 'text-delta',
+      text: 'x'.repeat(HARNESS_RECORD_MAX_CHARS),
+    });
+    expect(() => p.accept({ type: 'text-delta', text: '!' })).toThrow(
+      'final answer exceeds',
+    );
   });
 
   it('refuses huge tool identifiers instead of retaining an oversized singleton entry', () => {

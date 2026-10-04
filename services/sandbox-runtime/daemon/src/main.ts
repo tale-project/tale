@@ -46,6 +46,8 @@ import {
   type RunnerdStdinWriteRequest,
 } from './protocol.ts';
 let stageRequests = 0;
+let execConsumers = 0;
+const MAX_EXEC_CONSUMERS = 8;
 const FILE_READ_MAX_BYTES = 20 * 1024 * 1024;
 
 const TOKEN = process.env.TALE_RUNNERD_TOKEN ?? '';
@@ -228,6 +230,27 @@ function execConsumer(
         response.end();
     },
   };
+}
+
+/** Bound aggregate response buffers and journal readers, including requests
+ * still receiving an exec body. Every exit path releases the same slot. */
+async function withExecConsumer(
+  req: IncomingMessage,
+  res: ServerResponse,
+  operation: () => Promise<void>,
+): Promise<void> {
+  if (execConsumers >= MAX_EXEC_CONSUMERS) {
+    // Drain a refused POST without buffering it so keep-alive stays framed.
+    if (req.method === 'POST') await readJsonBody(req, 0);
+    sendJson(res, 503, { error: 'busy' });
+    return;
+  }
+  execConsumers += 1;
+  try {
+    await operation();
+  } finally {
+    execConsumers -= 1;
+  }
 }
 
 async function handleExec(
@@ -460,7 +483,7 @@ async function handleOperation(
 ): Promise<void> {
   const path = url.pathname;
   if (req.method === 'POST' && path === '/execs') {
-    await handleExec(req, res);
+    await withExecConsumer(req, res, () => handleExec(req, res));
     return;
   }
   const cancelMatch = path.match(EXEC_CANCEL_RE);
@@ -477,7 +500,9 @@ async function handleOperation(
   const attachMatch = path.match(EXEC_ATTACH_RE);
   if (req.method === 'GET' && attachMatch) {
     const sinceSeq = Number(url.searchParams.get('sinceSeq') ?? '0');
-    await handleAttach(req, res, attachMatch[1] ?? '', sinceSeq);
+    await withExecConsumer(req, res, () =>
+      handleAttach(req, res, attachMatch[1] ?? '', sinceSeq),
+    );
     return;
   }
   const stdinMatch = path.match(EXEC_STDIN_RE);
