@@ -1,6 +1,7 @@
 title: Kontakte
 entityLabelOne: Kontakt
 searchPlaceholder: Kontakte suchen
+refreshFailed: Die neuesten Kontakte konnten nicht geladen werden. Die Liste ist womöglich unvollständig oder veraltet.
 filter:
   source:
     manual: Manuell
