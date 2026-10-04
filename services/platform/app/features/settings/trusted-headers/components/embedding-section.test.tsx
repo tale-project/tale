@@ -204,5 +204,4 @@ describe('EmbeddingSection', () => {
     fireEvent.click(retry);
     expect(readState.refetch).not.toHaveBeenCalled();
   });
-
 });

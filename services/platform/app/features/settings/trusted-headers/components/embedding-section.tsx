@@ -75,10 +75,7 @@ export function EmbeddingSection({
     isFetching,
     isError: policyReadFailed,
     refetch,
-  } = useGovernancePolicy(
-    organizationId,
-    'embedding',
-  );
+  } = useGovernancePolicy(organizationId, 'embedding');
   const save = useUpsertGovernancePolicy({ errorToast: false });
   const stored = useMemo(
     () => embeddingConfigFrom(policy?.config),
