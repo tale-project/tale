@@ -23,9 +23,11 @@ import {
 import { createAuditLog, lockAuditChain } from '../audit_logs/service.ts';
 import {
   indexedMessageRefsOf,
+  retireConversationAttachments,
   queueMessageRefRelease,
 } from '../conversations/message-corpus.ts';
 import { emitDocumentChangeHints } from '../documents/hints.ts';
+import { queueHolderBlobRetirement } from '../files/retirement.ts';
 import { releaseRefs, type ReleaseFailure } from '../knowledge/release.ts';
 import { syncRagRefHolderScopes } from '../knowledge/service.ts';
 import {
@@ -882,7 +884,14 @@ export async function purgeDocument(
     organizationId: string;
     historyFiles?: string[];
   },
-): Promise<void> {
+): Promise<{
+  bytesRetained: number;
+  bytesDeleted: number;
+  bytesUnknown: number;
+}> {
+  let bytesRetained = 0;
+  let bytesDeleted = 0;
+  let bytesUnknown = 0;
   // A null slug means the organization row itself is gone — its corpus and
   // bucket are unaddressable; only the app rows remain to clean up.
   if (orgSlug !== null) {
@@ -895,6 +904,9 @@ export async function purgeDocument(
     if (outcome.failures.length > 0) {
       throw new PurgeIncompleteError(doc.id, outcome.failures);
     }
+    bytesRetained = outcome.bytesRetained?.length ?? 0;
+    bytesDeleted = outcome.bytesDeleted?.length ?? 0;
+    bytesUnknown = outcome.bytesUnknown?.length ?? 0;
   }
   await sql.begin(async (tx) => {
     await markEntryChainDeletedForDocument(tx, doc.organizationId, doc.id);
@@ -906,6 +918,14 @@ export async function purgeDocument(
   if (orgSlug !== null && doc.fileRef !== null) {
     await syncRagRefHolderScopes(sql, doc.organizationId, [doc.fileRef]);
   }
+  return {
+    bytesRetained,
+    bytesDeleted,
+    bytesUnknown:
+      orgSlug === null
+        ? [doc.fileRef, ...(doc.historyFiles ?? [])].filter(Boolean).length
+        : bytesUnknown,
+  };
 }
 
 async function sweepDocuments(
@@ -1026,14 +1046,22 @@ async function sweepDocuments(
   if (passB.length === 0) return;
   const orgSlug = await resolveOrgSlug(sql, org.organizationId);
   let purgedProjectId: string | null = null;
+  const byteCounts = {
+    retainedBlobRefs: 0,
+    deletedBlobRefs: 0,
+    unknownBlobRefs: 0,
+  };
   for (const doc of passB) {
     try {
-      await purgeDocument(sql, orgSlug, {
+      const outcome = await purgeDocument(sql, orgSlug, {
         id: doc.id,
         fileRef: doc.fileRef,
         organizationId: org.organizationId,
         historyFiles: doc.historyFiles,
       });
+      byteCounts.retainedBlobRefs += outcome.bytesRetained;
+      byteCounts.deletedBlobRefs += outcome.bytesDeleted;
+      byteCounts.unknownBlobRefs += outcome.bytesUnknown;
     } catch (error) {
       // The row is kept (purgeDocument releases before it deletes), so the
       // next daily run retries; one stuck document must not starve the rest.
@@ -1057,6 +1085,7 @@ async function sweepDocuments(
       await recordDestruction(tx, trail, {
         deleted: trail.tally.deleted,
         failed: trail.tally.failed,
+        counts: { documentRecords: trail.tally.deleted, ...byteCounts },
       });
     });
   }
@@ -1070,26 +1099,52 @@ export async function purgeThreadLineage(
   organizationId: string,
   rootThreadId: string,
 ): Promise<number> {
-  const lineage = await sql<{ threadId: string }[]>`
-    SELECT thread_id AS "threadId" FROM app.thread_metadata
-    WHERE branch_root_id = ${rootThreadId}
-  `;
-  const ids = [rootThreadId, ...lineage.map((row) => row.threadId)];
-  await sql.begin(async (tx) => {
+  return sql.begin(async (tx) => {
+    const root = await tx`SELECT thread_id FROM app.thread_metadata
+      WHERE thread_id = ${rootThreadId} AND org_id = ${organizationId} FOR UPDATE`;
+    if (root.length === 0) return 0;
+    const lineage = await tx<{ threadId: string }[]>`
+      SELECT thread_id AS "threadId" FROM app.thread_metadata
+      WHERE branch_root_id = ${rootThreadId} AND org_id = ${organizationId}
+      ORDER BY thread_id FOR UPDATE
+    `;
+    const ids = [rootThreadId, ...lineage.map((row) => row.threadId)];
+    await tx`SELECT id FROM app.threads
+      WHERE org_id = ${organizationId} AND id = ANY(${ids}::text[])
+      ORDER BY id FOR UPDATE`;
+    const attachments = await tx<{ ref: string; userId: string }[]>`
+      SELECT DISTINCT part->>'fileId' AS ref, owner.user_id AS "userId"
+      FROM app.messages message
+      JOIN app.thread_metadata owner ON owner.thread_id = message.thread_id AND owner.org_id = message.org_id
+      CROSS JOIN LATERAL jsonb_array_elements(
+        CASE WHEN jsonb_typeof(message.parts) = 'array' THEN message.parts ELSE '[]'::jsonb END
+      ) part
+      WHERE message.org_id = ${organizationId} AND message.thread_id = ANY(${ids}::text[])
+        AND message.role = 'user' AND part->>'type' = 'attachment'
+        AND jsonb_typeof(part->'fileId') = 'string'
+    `;
+    await queueHolderBlobRetirement(
+      tx,
+      organizationId,
+      attachments.map((row) => ({
+        refs: [row.ref],
+        custodianUserIds: [row.userId],
+      })),
+    );
     await tx`
       DELETE FROM app.message_feedback
       WHERE org_id = ${organizationId} AND thread_id IN ${tx(ids)}
     `;
-    await tx`DELETE FROM app.generations WHERE thread_id IN ${tx(ids)}`;
+    await tx`DELETE FROM app.generations WHERE org_id = ${organizationId} AND thread_id IN ${tx(ids)}`;
     // Voice artifacts die with the conversation (chunk rows + audio blobs).
     for (const threadId of ids) {
       await cascadeDeleteThreadTtsChunks(tx, organizationId, threadId);
     }
-    await tx`DELETE FROM app.messages WHERE thread_id IN ${tx(ids)}`;
-    await tx`DELETE FROM app.thread_metadata WHERE thread_id IN ${tx(ids)}`;
-    await tx`DELETE FROM app.threads WHERE id IN ${tx(ids)}`;
+    await tx`DELETE FROM app.messages WHERE org_id = ${organizationId} AND thread_id IN ${tx(ids)}`;
+    await tx`DELETE FROM app.thread_metadata WHERE org_id = ${organizationId} AND thread_id IN ${tx(ids)}`;
+    await tx`DELETE FROM app.threads WHERE org_id = ${organizationId} AND id IN ${tx(ids)}`;
+    return ids.length;
   });
-  return ids.length;
 }
 
 async function sweepChatHistory(
@@ -1377,6 +1432,7 @@ async function sweepExternalConversations(
       org.organizationId,
       deletable,
     );
+    await retireConversationAttachments(tx, org.organizationId, deletable);
     const removed =
       deletable.length === 0
         ? []

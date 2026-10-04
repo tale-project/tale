@@ -238,6 +238,20 @@ export async function ownsUploadedBlob(
           RETURNING id
         `;
   if (intents.length > 0) return true;
+  const handoff =
+    options.stamp === false
+      ? await sql<{ storage_ref: string }[]>`
+        SELECT storage_ref FROM app.blob_composer_handoffs
+        WHERE org_id = ${args.organizationId} AND user_id = ${args.userId}
+          AND storage_ref = ${args.storageRef} AND expires_at_ms > ${now}
+      `
+      : await sql<{ storage_ref: string }[]>`
+        UPDATE app.blob_composer_handoffs SET expires_at_ms = expires_at_ms
+        WHERE org_id = ${args.organizationId} AND user_id = ${args.userId}
+          AND storage_ref = ${args.storageRef} AND expires_at_ms > ${now}
+        RETURNING storage_ref
+      `;
+  if (handoff.length > 0) return true;
   const rows = await sql<{ owned: boolean }[]>`
     SELECT EXISTS (
       SELECT 1 FROM app.file_metadata

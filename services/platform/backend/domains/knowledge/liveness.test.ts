@@ -107,9 +107,14 @@ describe('assessRefLiveness — a listed holder', () => {
     expect(statements).toHaveLength(1);
     const { corpus, blob } = halves(statements[0]);
     // The list `blobRefHeld` asks too (`files/blob-holders.ts`), #4111.
+    expect(blob).toContain("held_mail.delivery_state IN ('queued', 'failed')");
     expect(blob).toContain(
-      "OR (EXISTS ( SELECT 1 FROM app.tasks held WHERE held.org_id = ? AND (coalesce(held.attachments, '[]'::jsonb) || coalesce(held.outputs, '[]'::jsonb)) @> jsonb_build_array(jsonb_build_object('fileId', r.ref::text)) ) OR EXISTS ( SELECT 1 FROM app.conversation_messages held_mail WHERE held_mail.org_id = ? AND held_mail.direction = 'outbound' AND held_mail.delivery_state IN ('queued', 'failed') AND held_mail.metadata->'attachments' @> jsonb_build_array(jsonb_build_object('storageId', r.ref::text)) ) OR EXISTS ( SELECT 1 FROM app.messages held_chat WHERE held_chat.org_id = ? AND held_chat.role = 'user' AND held_chat.parts @> jsonb_build_array(jsonb_build_object( 'type', 'attachment', 'fileId', r.ref::text )) )) ) AS \"blobLive\"",
+      'held_chat.attachment_ownership->r.ref::text @> \'{"owned":true}\'::jsonb',
     );
+    expect(blob).toContain('file.document_id IS NULL');
+    expect(blob).toContain('file.uploaded_by = thread.user_id');
+    expect(blob).toContain('thread.org_id = file.org_id');
+    expect(blob).toContain('app.tasks held');
     expect(corpus).not.toContain('app.tasks');
     expect(corpus).not.toContain('app.conversation_messages');
     expect(corpus).not.toContain('app.messages');

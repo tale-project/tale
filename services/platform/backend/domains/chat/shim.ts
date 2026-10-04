@@ -17,6 +17,7 @@ import {
   viewerForUser,
   type FileBindingFields,
 } from '../files/access.ts';
+import { replayableChatParts } from '../files/chat-replay.ts';
 import {
   checkModelAccessForUser,
   resolveModelGovernanceForUser,
@@ -493,7 +494,7 @@ export function chatShimHandlers(sql: Sql): ShimHandlers {
           createdAt: number;
         }[]
       >`
-        SELECT m.id, m.role, m.parts, m."order" AS sequence,
+        SELECT m.id, m.role, ${replayableChatParts(sql, args.organizationId, sql`m`)} AS parts, m."order" AS sequence,
                m.model, m.provider_slug AS "providerSlug", m.usage,
                m.blocked_reason AS "blockedReason", m.error,
                m.created_at_ms::float8 AS "createdAt"

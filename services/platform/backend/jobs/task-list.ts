@@ -753,6 +753,19 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         await import('../domains/knowledge/release.ts');
       await runReleaseRefsJob(deps.sql, input);
     },
+    'files.retire_blobs': async (payload) => {
+      const input = z
+        .object({ organizationId: z.string().min(1) })
+        .parse(payload);
+      const { retireBlobBatch } =
+        await import('../domains/files/retirement.ts');
+      await retireBlobBatch(deps.sql, input.organizationId);
+    },
+    'files.recover_retirements': async () => {
+      const { recoverBlobRetirements } =
+        await import('../domains/files/retirement.ts');
+      await recoverBlobRetirements(deps.sql);
+    },
     'knowledge.reconcile_corpus': async () => {
       const { runCorpusReconcile } =
         await import('../domains/knowledge/release.ts');

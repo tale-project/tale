@@ -17,6 +17,7 @@ import type { Sql } from 'postgres';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { deleteOrgObject } from '../../lib/object-store.ts';
+import { blobRefHeld } from './blob-holders.ts';
 import {
   claimRejectedUpload,
   firstForeignUpload,
@@ -61,6 +62,7 @@ function fakeLedger(script: {
   claimed?: { id: string }[];
   stamped?: { id: string }[];
   uploaderRow?: boolean;
+  handoff?: boolean;
   /** Fail the sweep's first statement (the consumed-row DELETE). */
   sweepFails?: boolean;
 }): { sql: Sql; statements: Statement[] } {
@@ -98,6 +100,11 @@ function fakeLedger(script: {
       rows = script.claimed ?? [];
     } else if (text.startsWith('UPDATE app.upload_intents SET bound_at_ms')) {
       rows = script.stamped ?? [];
+    } else if (
+      text.includes('FROM app.blob_composer_handoffs') ||
+      text.startsWith('UPDATE app.blob_composer_handoffs')
+    ) {
+      rows = script.handoff ? [{ storage_ref: 's3:blobs/acme/aaa' }] : [];
     } else if (text.startsWith('SELECT EXISTS')) {
       rows = [{ owned: script.uploaderRow === true }];
     }
@@ -160,8 +167,10 @@ describe('firstForeignUpload', () => {
 });
 
 /** `blobRefHeld` over the ledger row's ref, as the statements inline it. */
-const HELD_BY_A_ROW =
-  "(EXISTS ( SELECT 1 FROM app.file_metadata held_file WHERE held_file.org_id = ? AND held_file.storage_ref = i.s3_ref ) OR EXISTS ( SELECT 1 FROM app.documents held_doc WHERE held_doc.org_id = ? AND (held_doc.file_ref = i.s3_ref OR held_doc.history_files @> ARRAY[i.s3_ref::text]) ) OR (EXISTS ( SELECT 1 FROM app.tasks held WHERE held.org_id = ? AND (coalesce(held.attachments, '[]'::jsonb) || coalesce(held.outputs, '[]'::jsonb)) @> jsonb_build_array(jsonb_build_object('fileId', i.s3_ref::text)) ) OR EXISTS ( SELECT 1 FROM app.conversation_messages held_mail WHERE held_mail.org_id = ? AND held_mail.direction = 'outbound' AND held_mail.delivery_state IN ('queued', 'failed') AND held_mail.metadata->'attachments' @> jsonb_build_array(jsonb_build_object('storageId', i.s3_ref::text)) ) OR EXISTS ( SELECT 1 FROM app.messages held_chat WHERE held_chat.org_id = ? AND held_chat.role = 'user' AND held_chat.parts @> jsonb_build_array(jsonb_build_object( 'type', 'attachment', 'fileId', i.s3_ref::text )) )))";
+const holderSql = fakeLedger({}).sql;
+const sharedHolder = blobRefHeld(holderSql, 'org_1', holderSql`i.s3_ref`);
+if (!isFragment(sharedHolder)) throw new Error('Expected rendered holder SQL');
+const HELD_BY_A_ROW = sharedHolder.text;
 
 afterEach(() => {
   vi.clearAllMocks();
@@ -169,6 +178,47 @@ afterEach(() => {
 });
 
 describe('ownsUploadedBlob', () => {
+  it.each([true, false])(
+    'proves a live composer handoff with stamp=%s before the file fallback',
+    async (stamp) => {
+      const fake = fakeLedger({ handoff: true });
+      expect(
+        await ownsUploadedBlob(
+          fake.sql,
+          { ...scope, storageRef: 's3:blobs/acme/aaa' },
+          { stamp },
+        ),
+      ).toBe(true);
+      const issued = sqlStatements(fake.statements);
+      const handoff = issued[1];
+      expect(handoff?.text).toContain(
+        'WHERE org_id = ? AND user_id = ? AND storage_ref = ? AND expires_at_ms > ?',
+      );
+      expect(handoff?.values).toEqual([
+        'org_1',
+        'user_1',
+        's3:blobs/acme/aaa',
+        expect.any(Number),
+      ]);
+      if (stamp) {
+        expect(handoff?.text).toContain(
+          'UPDATE app.blob_composer_handoffs SET expires_at_ms = expires_at_ms',
+        );
+        expect(handoff?.text).toContain('RETURNING storage_ref');
+      } else {
+        expect(handoff?.text).toContain(
+          'SELECT storage_ref FROM app.blob_composer_handoffs',
+        );
+        expect(
+          issued.some((statement) => statement.text.startsWith('UPDATE')),
+        ).toBe(false);
+      }
+      expect(
+        issued.some((statement) => statement.text.startsWith('SELECT EXISTS')),
+      ).toBe(false);
+    },
+  );
+
   it('asks without writing when told not to stamp (#4111)', async () => {
     const fake = fakeLedger({ stamped: [{ id: 'i-1' }] });
 
@@ -222,6 +272,10 @@ describe('ownsUploadedBlob', () => {
     );
     expect(proof?.text).toContain('FROM app.file_metadata');
     expect(proof?.text).toContain('uploaded_by = ?');
+    expect(proof?.text).toContain(
+      'WHERE org_id = ? AND storage_ref = ? AND uploaded_by = ?',
+    );
+    expect(proof?.values).toEqual(['org_1', 's3:blobs/acme/aaa', 'user_1']);
   });
 
   it('proves nothing through a staged bundle’s intent, which its own lane consumes and deletes (#4110)', async () => {

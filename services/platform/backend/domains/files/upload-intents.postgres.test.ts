@@ -10,6 +10,8 @@ import {
 } from 'vitest';
 
 import { deleteOrgObject } from '../../lib/object-store.ts';
+import { blobRefHeld, listedBlobRefHeld } from './blob-holders.ts';
+import { preserveChatAttachmentOwnership } from './chat-ownership.ts';
 import { firstForeignUpload, sweepUploadIntents } from './upload-intents.ts';
 
 vi.mock('../../lib/object-store.ts', () => ({
@@ -83,19 +85,35 @@ describe.runIf(databaseUrl)('upload-intent PostgreSQL substrate', () => {
       );
       CREATE INDEX IF NOT EXISTS upload_intents_expiry ON app.upload_intents (org_id, expires_at_ms);
       CREATE TABLE IF NOT EXISTS app.file_metadata (org_id text, storage_ref text, uploaded_by text);
+      ALTER TABLE app.file_metadata ADD COLUMN IF NOT EXISTS id text;
+      ALTER TABLE app.file_metadata ADD COLUMN IF NOT EXISTS document_id text;
+      ALTER TABLE app.file_metadata ADD COLUMN IF NOT EXISTS thread_id text;
       CREATE TABLE IF NOT EXISTS app.documents (org_id text, file_ref text, history_files text[]);
       CREATE TABLE IF NOT EXISTS app.tasks (org_id text, attachments jsonb, outputs jsonb);
       CREATE TABLE IF NOT EXISTS app.conversation_messages (
         org_id text, direction text, delivery_state text, metadata jsonb
       );
+      ALTER TABLE app.conversation_messages ADD COLUMN IF NOT EXISTS channel text;
+      ALTER TABLE app.conversation_messages ADD COLUMN IF NOT EXISTS conversation_id text;
+      CREATE TABLE IF NOT EXISTS app.conversation_api_bindings (org_id text, conversation_id text, source_deleted boolean);
       CREATE TABLE IF NOT EXISTS app.messages (org_id text, role text, parts jsonb);
+      ALTER TABLE app.messages ADD COLUMN IF NOT EXISTS thread_id text;
+      ALTER TABLE app.messages ADD COLUMN IF NOT EXISTS attachment_ownership jsonb;
+      CREATE TABLE IF NOT EXISTS app.thread_metadata (
+        org_id text, thread_id text, user_id text, branch_root_id text
+      );
+      CREATE TABLE IF NOT EXISTS app.blob_composer_handoffs (
+        org_id text NOT NULL, user_id text NOT NULL, storage_ref text NOT NULL,
+        expires_at_ms bigint NOT NULL, PRIMARY KEY (org_id, user_id, storage_ref)
+      );
     `);
   });
 
   beforeEach(async () => {
     vi.clearAllMocks();
     await sql`TRUNCATE app.upload_intents, app.file_metadata, app.documents,
-      app.tasks, app.conversation_messages, app.messages`;
+      app.tasks, app.conversation_messages, app.messages,
+      app.thread_metadata, app.blob_composer_handoffs, app.conversation_api_bindings`;
     statements.length = 0;
   });
 
@@ -112,9 +130,10 @@ describe.runIf(databaseUrl)('upload-intent PostgreSQL substrate', () => {
       FROM generate_series(1, 1000) n
     `;
     await sql`
-      INSERT INTO app.messages (org_id, role, parts)
+      INSERT INTO app.messages (org_id, role, parts, attachment_ownership)
       SELECT ${scope.organizationId}, 'user', jsonb_build_array(
-        jsonb_build_object('type', 'attachment', 'fileId', 's3:blobs/synthetic/' || n))
+        jsonb_build_object('type', 'attachment', 'fileId', 's3:blobs/synthetic/' || n)),
+        jsonb_build_object('s3:blobs/synthetic/' || n, jsonb_build_object('owned', true))
       FROM generate_series(26, 1000) n
     `;
     await sweepUploadIntents(sql, scope);
@@ -157,6 +176,285 @@ describe.runIf(databaseUrl)('upload-intent PostgreSQL substrate', () => {
     `;
     expect(failed?.count).toBe(25);
   });
+
+  it.each([
+    {
+      name: 'author upload',
+      uploader: 'synthetic-user',
+      fileThread: null,
+      document: null,
+      expected: true,
+    },
+    {
+      name: 'thread upload',
+      uploader: 'other-user',
+      fileThread: 'thread',
+      document: null,
+      expected: true,
+    },
+    {
+      name: 'branch-root upload',
+      uploader: 'other-user',
+      fileThread: 'root',
+      document: null,
+      expected: true,
+    },
+    {
+      name: 'unrelated upload',
+      uploader: 'other-user',
+      fileThread: 'other-thread',
+      document: null,
+      expected: false,
+    },
+    {
+      name: 'borrowed document attachment',
+      uploader: 'other-user',
+      fileThread: null,
+      document: 'document',
+      expected: false,
+    },
+    {
+      name: 'author document attachment',
+      uploader: 'synthetic-user',
+      fileThread: 'thread',
+      document: 'document',
+      expected: false,
+    },
+  ])(
+    'preserves only independent ownership for $name after file deletion',
+    async ({ uploader, fileThread, document, expected }) => {
+      const ref = 's3:blobs/synthetic/attachment';
+      await sql`INSERT INTO app.thread_metadata (org_id, thread_id, user_id, branch_root_id)
+      VALUES (${scope.organizationId}, 'thread', ${scope.userId}, 'root')`;
+      await sql`INSERT INTO app.file_metadata (id, org_id, storage_ref, uploaded_by, document_id, thread_id)
+      VALUES ('file', ${scope.organizationId}, ${ref}, ${uploader}, ${document}, ${fileThread})`;
+      await sql`INSERT INTO app.messages (org_id, thread_id, role, parts)
+      VALUES (${scope.organizationId}, 'thread', 'user',
+        jsonb_build_array(jsonb_build_object('type', 'attachment', 'fileId', ${ref}::text)))`;
+      const verdict = async () => {
+        const [row] = await sql<
+          { held: boolean }[]
+        >`SELECT ${listedBlobRefHeld(sql, scope.organizationId, sql`${ref}`)} AS held`;
+        return row?.held;
+      };
+      expect(await verdict()).toBe(expected);
+      await preserveChatAttachmentOwnership(sql, scope.organizationId, ref);
+      const [message] = await sql<
+        { ownership: unknown }[]
+      >`SELECT attachment_ownership AS ownership FROM app.messages`;
+      expect(message?.ownership).toEqual({
+        [ref]: expected
+          ? { owned: true }
+          : document
+            ? { documentId: document }
+            : { fileId: 'file' },
+      });
+      await sql`DELETE FROM app.file_metadata WHERE org_id = ${scope.organizationId} AND storage_ref = ${ref}`;
+      expect(await verdict()).toBe(expected);
+    },
+  );
+
+  it('does not promote recorded document provenance through a later matching upload', async () => {
+    const ref = 's3:blobs/synthetic/borrowed';
+    await sql`INSERT INTO app.thread_metadata (org_id, thread_id, user_id)
+      VALUES (${scope.organizationId}, 'thread', ${scope.userId})`;
+    await sql`INSERT INTO app.file_metadata (id, org_id, storage_ref, uploaded_by)
+      VALUES ('file', ${scope.organizationId}, ${ref}, ${scope.userId})`;
+    await sql`INSERT INTO app.messages (org_id, thread_id, role, parts, attachment_ownership)
+      VALUES (${scope.organizationId}, 'thread', 'user',
+        jsonb_build_array(jsonb_build_object('type', 'attachment', 'fileId', ${ref}::text)),
+        jsonb_build_object(${ref}::text, jsonb_build_object('documentId', 'destroyed-document')))`;
+    await preserveChatAttachmentOwnership(sql, scope.organizationId, ref);
+    const [row] = await sql<
+      { held: boolean }[]
+    >`SELECT ${listedBlobRefHeld(sql, scope.organizationId, sql`${ref}`)} AS held`;
+    expect(row?.held).toBe(false);
+  });
+
+  it.each([
+    {
+      name: 'foreign message',
+      messageOrg: 'other-org',
+      threadOrg: 'synthetic-org',
+      fileOrg: 'synthetic-org',
+      role: 'user',
+    },
+    {
+      name: 'foreign thread',
+      messageOrg: 'synthetic-org',
+      threadOrg: 'other-org',
+      fileOrg: 'synthetic-org',
+      role: 'user',
+    },
+    {
+      name: 'foreign file',
+      messageOrg: 'synthetic-org',
+      threadOrg: 'synthetic-org',
+      fileOrg: 'other-org',
+      role: 'user',
+    },
+    {
+      name: 'assistant attachment',
+      messageOrg: 'synthetic-org',
+      threadOrg: 'synthetic-org',
+      fileOrg: 'synthetic-org',
+      role: 'assistant',
+    },
+  ])(
+    'rejects $name as an independent holder',
+    async ({ messageOrg, threadOrg, fileOrg, role }) => {
+      const ref = 's3:blobs/synthetic/scoped';
+      await sql`INSERT INTO app.thread_metadata (org_id, thread_id, user_id)
+      VALUES (${threadOrg}, 'thread', ${scope.userId})`;
+      await sql`INSERT INTO app.file_metadata (org_id, storage_ref, uploaded_by)
+      VALUES (${fileOrg}, ${ref}, ${scope.userId})`;
+      await sql`INSERT INTO app.messages (org_id, thread_id, role, parts)
+      VALUES (${messageOrg}, 'thread', ${role},
+        jsonb_build_array(jsonb_build_object('type', 'attachment', 'fileId', ${ref}::text)))`;
+      const [row] = await sql<
+        { held: boolean }[]
+      >`SELECT ${listedBlobRefHeld(sql, scope.organizationId, sql`${ref}`)} AS held`;
+      expect(row?.held).toBe(false);
+    },
+  );
+
+  it.each([
+    {
+      name: 'live local',
+      organizationId: 'synthetic-org',
+      expiresIn: 60_000,
+      expected: true,
+    },
+    {
+      name: 'expired local',
+      organizationId: 'synthetic-org',
+      expiresIn: -60_000,
+      expected: false,
+    },
+    {
+      name: 'live foreign',
+      organizationId: 'other-org',
+      expiresIn: 60_000,
+      expected: false,
+    },
+  ])(
+    'holds a composer handoff only when $name',
+    async ({ organizationId, expiresIn, expected }) => {
+      const ref = 's3:blobs/synthetic/handoff';
+      await sql`INSERT INTO app.blob_composer_handoffs (org_id, user_id, storage_ref, expires_at_ms)
+      VALUES (${organizationId}, ${scope.userId}, ${ref}, ${Date.now() + expiresIn})`;
+      const [row] = await sql<
+        { held: boolean }[]
+      >`SELECT ${blobRefHeld(sql, scope.organizationId, sql`${ref}`)} AS held`;
+      expect(row?.held).toBe(expected);
+    },
+  );
+
+  it.each(
+    ['queued', 'failed'].flatMap((deliveryState) => [
+      {
+        name: 'closed API source',
+        deliveryState,
+        channel: 'api',
+        bindingOrg: 'synthetic-org',
+        bindingConversation: 'conversation',
+        deleted: true,
+        expected: true,
+      },
+      {
+        name: 'live API source',
+        deliveryState,
+        channel: 'api',
+        bindingOrg: 'synthetic-org',
+        bindingConversation: 'conversation',
+        deleted: false,
+        expected: true,
+      },
+      {
+        name: 'foreign closed API source',
+        deliveryState,
+        channel: 'api',
+        bindingOrg: 'other-org',
+        bindingConversation: 'conversation',
+        deleted: true,
+        expected: true,
+      },
+      {
+        name: 'different closed API conversation',
+        deliveryState,
+        channel: 'api',
+        bindingOrg: 'synthetic-org',
+        bindingConversation: 'other-conversation',
+        deleted: true,
+        expected: true,
+      },
+      {
+        name: 'email beside closed API source',
+        deliveryState,
+        channel: 'email',
+        bindingOrg: 'synthetic-org',
+        bindingConversation: 'conversation',
+        deleted: true,
+        expected: true,
+      },
+    ]),
+  )(
+    '$deliveryState mail with $name has held=$expected',
+    async ({
+      deliveryState,
+      channel,
+      bindingOrg,
+      bindingConversation,
+      deleted,
+      expected,
+    }) => {
+      const ref = 's3:blobs/synthetic/api-attachment';
+      await sql`INSERT INTO app.conversation_api_bindings (org_id, conversation_id, source_deleted)
+      VALUES (${bindingOrg}, ${bindingConversation}, ${deleted})`;
+      await sql`INSERT INTO app.conversation_messages (org_id, conversation_id, channel, direction, delivery_state, metadata)
+      VALUES (${scope.organizationId}, 'conversation', ${channel}, 'outbound', ${deliveryState},
+        jsonb_build_object('attachments', jsonb_build_array(jsonb_build_object('storageId', ${ref}::text))))`;
+      const [row] = await sql<{ listed: boolean; held: boolean }[]>`
+      SELECT ${listedBlobRefHeld(sql, scope.organizationId, sql`${ref}`)} AS listed,
+        ${blobRefHeld(sql, scope.organizationId, sql`${ref}`)} AS held`;
+      expect(row).toEqual({ listed: expected, held: expected });
+    },
+  );
+
+  it.each(['queued', 'failed'])(
+    'keeps a native %s reply held after receipt-owned snapshot removal until acknowledgement',
+    async (deliveryState) => {
+      const ref = 's3:blobs/synthetic/closed-attachment';
+      await sql`INSERT INTO app.conversation_api_bindings (org_id, conversation_id, source_deleted)
+      VALUES (${scope.organizationId}, 'conversation', true)`;
+      await sql`INSERT INTO app.conversation_messages (org_id, conversation_id, channel, direction, delivery_state, metadata)
+      VALUES (${scope.organizationId}, 'conversation', 'api', 'outbound', ${deliveryState},
+        jsonb_build_object('attachments', jsonb_build_array(jsonb_build_object('storageId', ${ref}::text))))`;
+      await sql`INSERT INTO app.conversation_messages (org_id, conversation_id, channel, direction, delivery_state, metadata)
+      VALUES (${scope.organizationId}, 'conversation', 'api', 'inbound', 'delivered',
+        jsonb_build_object('receiptId', 'source-receipt', 'attachments',
+          jsonb_build_array(jsonb_build_object('storageId', ${ref}::text))))`;
+      const removed = await sql`DELETE FROM app.conversation_messages
+      WHERE org_id = ${scope.organizationId} AND conversation_id = 'conversation'
+        AND metadata->>'receiptId' = 'source-receipt'
+      RETURNING direction`;
+      expect(removed).toEqual([{ direction: 'inbound' }]);
+      const verdict = async () => {
+        const [row] = await sql<{ listed: boolean; held: boolean }[]>`
+        SELECT ${listedBlobRefHeld(sql, scope.organizationId, sql`${ref}`)} AS listed,
+          ${blobRefHeld(sql, scope.organizationId, sql`${ref}`)} AS held`;
+        return row;
+      };
+      expect(await verdict()).toEqual({ listed: true, held: true });
+      const acknowledged =
+        await sql`UPDATE app.conversation_messages SET delivery_state = 'delivered'
+      WHERE org_id = ${scope.organizationId} AND conversation_id = 'conversation'
+        AND direction = 'outbound' AND delivery_state IN ('queued', 'failed')
+      RETURNING delivery_state`;
+      expect(acknowledged).toEqual([{ delivery_state: 'delivered' }]);
+      expect(await verdict()).toEqual({ listed: false, held: false });
+    },
+  );
 
   it('completes concurrent reversed-ref transactional proofs without deadlock', async () => {
     await sql.unsafe(`

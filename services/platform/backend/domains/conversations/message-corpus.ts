@@ -7,8 +7,54 @@ import {
   messageRef,
 } from '../../../lib/knowledge/message-ref.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
+import { queueHolderBlobRetirement } from '../files/retirement.ts';
 import { queueRefRelease } from '../knowledge/release-queue.ts';
 import { markRagQueued } from '../knowledge/service.ts';
+
+export function mailAttachmentRefs(metadata: unknown): string[] {
+  if (
+    typeof metadata !== 'object' ||
+    metadata === null ||
+    !('attachments' in metadata)
+  )
+    return [];
+  const attachments = metadata.attachments;
+  if (!Array.isArray(attachments)) return [];
+  return [
+    ...new Set(
+      attachments.flatMap((attachment: unknown) =>
+        typeof attachment === 'object' &&
+        attachment !== null &&
+        'storageId' in attachment &&
+        typeof attachment.storageId === 'string'
+          ? [attachment.storageId]
+          : [],
+      ),
+    ),
+  ];
+}
+
+export async function retireConversationAttachments(
+  tx: TransactionSql | Sql,
+  organizationId: string,
+  conversationIds: readonly string[],
+): Promise<void> {
+  if (conversationIds.length === 0) return;
+  const rows = await tx<{ metadata: unknown; owner: string | null }[]>`
+    SELECT metadata, attachment_owner_user_id AS owner FROM app.conversation_messages
+    WHERE org_id = ${organizationId} AND conversation_id = ANY(${[...conversationIds]}::text[])
+      AND direction = 'outbound' AND delivery_state IN ('queued', 'failed')
+    FOR UPDATE
+  `;
+  await queueHolderBlobRetirement(
+    tx,
+    organizationId,
+    rows.map((row) => ({
+      refs: mailAttachmentRefs(row.metadata),
+      custodianUserIds: row.owner ? [row.owner] : [],
+    })),
+  );
+}
 
 /**
  * The conversation side of the MAIL corpus — the bodies of its inbound email

@@ -26,6 +26,7 @@ import {
 } from '../../lib/object-store.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { blobRefHeld } from './blob-holders.ts';
+import { preserveChatAttachmentOwnership } from './chat-ownership.ts';
 import {
   claimRejectedUpload,
   consumeUploadIntent,
@@ -682,6 +683,11 @@ export async function deleteFile(
   }
   const { orgSlug } = await requireOrgStore(sql, scope.organizationId);
   const key = requireOrgScopedKey(meta.storageRef, orgSlug);
+  await preserveChatAttachmentOwnership(
+    tx,
+    scope.organizationId,
+    meta.storageRef,
+  );
   await tx`DELETE FROM app.file_metadata WHERE id = ${fileId}`;
   // Another file row, a document or a task may still name the ref — a task
   // lists its attachments and deliverables by ref with no row of its own
@@ -750,6 +756,7 @@ export async function deleteUnheldOrgBlobRefs(
   db: Sql | TransactionSql,
   organizationId: string,
   refs: readonly string[],
+  options: { strict?: boolean } = {},
 ): Promise<string[]> {
   if (refs.length === 0) return [];
   let unheld: { ref: string }[];
@@ -757,12 +764,30 @@ export async function deleteUnheldOrgBlobRefs(
     unheld = await db<{ ref: string }[]>`
       SELECT r.ref FROM unnest(${[...refs]}::text[]) AS r(ref)
       WHERE NOT ${blobRefHeld(db, organizationId, db`r.ref`)}
+        AND (${options.strict !== true} OR NOT EXISTS (
+          SELECT 1 FROM app.upload_intents pending
+          WHERE pending.org_id = ${organizationId} AND pending.s3_ref = r.ref
+            AND pending.consumed_at_ms IS NULL AND pending.expires_at_ms > ${Date.now()}
+        ))
+        AND (${options.strict !== true} OR NOT EXISTS (
+          SELECT 1 FROM app.rest_upload_intents pending
+          WHERE pending.org_id = ${organizationId} AND pending.s3_ref = r.ref
+            AND pending.consumed_at_ms IS NULL AND pending.expires_at_ms > ${Date.now()}
+        ))
     `;
   } catch (error) {
+    if (options.strict) throw error;
     console.warn('[files] blob reclaim skipped (holder check failed):', error);
     return [];
   }
   const doomed = unheld.map((row) => row.ref);
+  if (options.strict && doomed.length > 0) {
+    const orgSlug = await resolveOrgSlug(db, organizationId, { fresh: true });
+    if (!orgSlug) throw new Error('Blob retirement organization is unresolved');
+    const keys = doomed.map((ref) => requireOrgScopedKey(ref, orgSlug));
+    for (const key of keys) await deleteOrgObject(orgSlug, key);
+    return doomed;
+  }
   await deleteOrgBlobRefs(db, organizationId, doomed);
   return doomed;
 }
