@@ -84,8 +84,9 @@ export function blobRefHeld(
  *   | chat, user rows                       | 400k messages   | seq scan     | 516–612 ms   |
  *   | chat, with a partial index (not here) | 400k messages   | bitmap scan  | 30–85 ms     |
  *
- * The lanes asking pay this once per ref on a file delete or a reclaim,
- * next to the data loss it prevents. Should a profile show either arm, a
+ * Each evaluation pays this cost per ref: a file delete or reclaim, or a
+ * bounded expired-intent batch on the mint path. Repeated sweeps can ask
+ * again for a held ref or a failed delete. Should a profile show either arm, a
  * partial index on `app.messages (org_id) WHERE role = 'user' AND parts @>
  * '[{"type":"attachment"}]'` (and a GIN index for the task arm) is the
  * measured next step.
