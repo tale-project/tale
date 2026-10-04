@@ -107,6 +107,66 @@ it('preserves known audience after four failed reads and recovers through Try ag
   expect(updateSharing).not.toHaveBeenCalled();
 });
 
+it('keeps Retry usable after recovery and a later failed background refresh', async () => {
+  let reads = 0;
+  let fail = true;
+  vi.mocked(backendFetch).mockImplementation(async (path) => {
+    if (path === '/teams/directory') return { teams: [team] };
+    if (path !== '/teams') throw new Error(`Unexpected path: ${path}`);
+    reads += 1;
+    if (fail) throw new BackendApiError(503, 'Controlled failure');
+    return { teams: [team] };
+  });
+  const { client, user } = mount();
+  await screen.findByRole('alert');
+  expect(reads).toBe(4);
+  const retry = screen.getByRole('button', { name: 'Try again' });
+  await user.tab();
+  expect(retry).toHaveFocus();
+  await user.keyboard('{Enter}');
+  await waitFor(() => {
+    expect(reads).toBe(8);
+    expect(retry).not.toHaveAttribute('aria-busy');
+  });
+  expect(retry).toHaveFocus();
+  fail = false;
+  await user.keyboard(' ');
+  const picker = await screen.findByRole('combobox', { name: 'Audience' });
+  await waitFor(() => expect(picker).toHaveFocus());
+  expect(reads).toBe(9);
+  fail = true;
+  await act(async () => {
+    await client.refetchQueries({
+      queryKey: ['backend', 'org-audit', 'team', 'org-list'],
+    });
+  });
+  await screen.findByRole('alert');
+  expect(reads).toBe(13);
+  const laterRetry = screen.getByRole('button', { name: 'Try again' });
+  expect(laterRetry).not.toHaveAttribute('aria-busy');
+  expect(laterRetry).not.toHaveAttribute('aria-disabled');
+  expect(laterRetry).not.toBeDisabled();
+  expect(screen.getByText('Alpha')).toBeInTheDocument();
+  expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+  await user.tab();
+  expect(laterRetry).toHaveFocus();
+  await user.keyboard('{Enter}');
+  await waitFor(() => {
+    expect(reads).toBe(17);
+    expect(laterRetry).not.toHaveAttribute('aria-busy');
+  });
+  expect(laterRetry).toHaveFocus();
+  fail = false;
+  await user.keyboard(' ');
+  const recoveredPicker = await screen.findByRole('combobox', {
+    name: 'Audience',
+  });
+  await waitFor(() => expect(recoveredPicker).toHaveFocus());
+  expect(reads).toBe(18);
+  expect(screen.getByText('Alpha')).toBeInTheDocument();
+  expect(updateSharing).not.toHaveBeenCalled();
+});
+
 it('shows creation only after a successful empty teams read', async () => {
   vi.mocked(backendFetch).mockResolvedValue({ teams: [] });
   mount([]);

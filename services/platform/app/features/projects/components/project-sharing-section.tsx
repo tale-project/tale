@@ -236,8 +236,8 @@ export function ProjectSharingSection({
             retrying={teamsRetrying}
             onRetry={() => {
               setTeamsRetrying(true);
-              void refetchTeams().then((result) => {
-                if (result.isError) setTeamsRetrying(false);
+              void refetchTeams().then(() => {
+                setTeamsRetrying(false);
               });
             }}
             onFocusLost={focusAudience}
