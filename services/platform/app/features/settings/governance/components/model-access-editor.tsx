@@ -30,7 +30,7 @@ import {
 } from '@tale/ui/table';
 import { useToast } from '@tale/ui/use-toast';
 import { Pencil, Plus, ShieldCheck, Trash2 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import {
   SettingsFieldList,
@@ -382,10 +382,13 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
 
   const savedConfig = useMemo(
     () => parseModelAccessConfig(policy?.config),
-    [policy],
+    [policy?.config],
   );
 
-  const initializedRef = useRef(false);
+  const [readback, setReadback] = useState<{
+    organizationId: string;
+    config: unknown;
+  } | null>(null);
   const [enabled, setEnabled] = useState(false);
   const [mode, setMode] = useState<ModelAccessConfig['mode']>('blocklist');
   const [rules, setRules] = useState<ModelAccessRule[]>([]);
@@ -415,8 +418,15 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
     revert: () => void;
   } | null>(null);
 
-  if (!isLoading && !initializedRef.current) {
-    initializedRef.current = true;
+  if (
+    !isLoading &&
+    !upsertMutation.isPending &&
+    !pendingSave &&
+    (readback === null ||
+      readback.organizationId !== organizationId ||
+      readback.config !== policy?.config)
+  ) {
+    setReadback({ organizationId, config: policy?.config });
     setEnabled(savedConfig.enabled);
     setMode(savedConfig.mode);
     setRules(savedConfig.rules);
@@ -427,7 +437,10 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
 
   /** Save the whole policy; answers whether it was written. */
   const saveConfig = useCallback(
-    async (configToSave: ModelAccessConfig): Promise<boolean> => {
+    async (
+      configToSave: ModelAccessConfig,
+      revert: () => void,
+    ): Promise<boolean> => {
       try {
         await upsertMutation.mutateAsync({
           organizationId,
@@ -441,6 +454,8 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
         });
         return true;
       } catch (error: unknown) {
+        revert();
+        setReadback(null);
         toast({
           title: t('toastSaveFailedTitle'),
           description: mapGovernanceSaveError(
@@ -464,13 +479,13 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
   /**
    * Attempt to save; if the proposed config would deny any current
    * default-model rule, open a confirm dialog. `revert` restores local state
-   * if the admin cancels.
+   * if the admin cancels or the save fails.
    */
   const attemptSaveConfig = useCallback(
     (next: ModelAccessConfig, revert: () => void) => {
       const affected = findDefaultRulesDeniedBy(next, defaultRules);
       if (affected.length === 0) {
-        void saveConfig(next);
+        void saveConfig(next, revert);
         return;
       }
       setPendingSave({ next, affected, revert });
@@ -496,14 +511,10 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
     (checked: boolean) => {
       const prev = modelApiEnabled;
       setModelApiEnabled(checked);
-      void saveConfig({
-        enabled,
-        mode,
-        rules,
-        modelApi: { enabled: checked },
-      }).then((saved) => {
-        if (!saved) setModelApiEnabled(prev);
-      });
+      void saveConfig(
+        { enabled, mode, rules, modelApi: { enabled: checked } },
+        () => setModelApiEnabled(prev),
+      );
     },
     [saveConfig, modelApiEnabled, enabled, mode, rules],
   );
@@ -604,7 +615,7 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
     [allModelOptions],
   );
 
-  const loading = isLoading || !initializedRef.current;
+  const loading = isLoading || readback === null;
   const isPending = upsertMutation.isPending;
 
   // While loading, render fixed placeholder rows so the table occupies the
@@ -828,7 +839,7 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
           variant="destructive"
           onConfirm={() => {
             if (pendingSave) {
-              void saveConfig(pendingSave.next);
+              void saveConfig(pendingSave.next, pendingSave.revert);
               setPendingSave(null);
             }
           }}

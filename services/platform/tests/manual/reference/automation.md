@@ -6,6 +6,11 @@ suite alongside the automated ones — they drive the same stack.
 
 ## Coverage map
 
+Model access immediate saves roll back on failure (including after the
+affected-defaults confirmation), show one failure toast, remain retryable,
+and reconcile mounted controls with a fresh policy readback:
+`app/features/settings/governance/components/model-access-editor.test.tsx`.
+
 Text-only edits retain the original uploaded attachment references in both
 the send request and optimistic message, leave unrelated composer files
 staged, and keep regeneration on its original-prompt path:
