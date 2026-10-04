@@ -16,6 +16,43 @@ import {
 import { loadConfig } from './config.ts';
 import { SessionRoutes } from './session/session-routes.ts';
 
+test('device spawners observe local resource pressure while preserving their configured slot count', async () => {
+  const source = import.meta.dir;
+  const script = `
+    import {mock} from 'bun:test';
+    const source = ${JSON.stringify(source)};
+    const memory = await import(source + '/host-memory.ts');
+    const disk = await import(source + '/host-disk.ts');
+    let memories = 0, disks = 0;
+    mock.module(source + '/host-memory.ts', () => ({...memory, HostMemoryProbe: class extends memory.HostMemoryProbe {constructor(...args) {super(...args); memories++;}}}));
+    mock.module(source + '/host-disk.ts', () => ({...disk, HostDiskProbe: class extends disk.HostDiskProbe {constructor(...args) {super(...args); disks++;}}}));
+    process.env.SANDBOX_TOKEN = 'device-resource-test';
+    process.env.SANDBOX_DEVICE_CONFIG = '/unused-device-config';
+    process.env.SANDBOX_MAX_SESSIONS = '3';
+    process.env.SANDBOX_BACKEND = 'docker';
+    const {router} = await import(source + '/server.ts');
+    const {sign, NONCE_HEADER, SIGNATURE_HEADER, TIMESTAMP_HEADER} = await import(source + '/auth.ts');
+    const timestamp = String(Date.now()), nonce = crypto.randomUUID();
+    const response = await router(new Request('http://sandbox/v1/limits', {headers:{[SIGNATURE_HEADER]:sign('GET','/v1/limits',timestamp,'','device-resource-test',nonce),[TIMESTAMP_HEADER]:timestamp,[NONCE_HEADER]:nonce}}));
+    console.log(JSON.stringify({memories,disks,limits:await response.json()}));
+  `;
+  const child = Bun.spawn([process.execPath, '-e', script], {
+    stdout: 'pipe',
+    stderr: 'pipe',
+  });
+  const [stdout, stderr, exit] = await Promise.all([
+    new Response(child.stdout).text(),
+    new Response(child.stderr).text(),
+    child.exited,
+  ]);
+  expect({ exit, stderr }).toEqual({ exit: 0, stderr: '' });
+  expect(JSON.parse(stdout.trim().split('\n').at(-1) ?? '{}')).toEqual({
+    memories: 1,
+    disks: 1,
+    limits: { maxSessions: 3 },
+  });
+});
+
 describe('session HTTP routes', () => {
   let router: typeof import('./server.ts').router;
 

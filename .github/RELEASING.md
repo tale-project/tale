@@ -22,8 +22,11 @@ has the structure. Generated API contract notes and the PR list follow these sec
 
 Run `bun tools/cli/scripts/release-notes.ts --version vX.Y.Z` on the checkout you intend to select.
 Only select a candidate containing that reviewed file. The existing candidate gate checks CI
-and source identity; it does not check the prose. Release Prepare independently rejects missing,
-empty or placeholder sections before any image builds. Content-only `sites_only` builds are exempt.
+and source identity; it does not check the prose. Release Prepare runs the same validator before
+any image builds. It rejects a missing file, a missing, repeated or misordered section, and a
+section that contains TODO or TBD or nothing but comments and `*`, `_` or `-` markers. It cannot
+recognise leftover template prose or a wrong claim; the review must. Content-only `sites_only`
+builds are exempt.
 
 ## 1. Choose the candidate
 
@@ -208,10 +211,21 @@ git push origin refs/tags/vX.Y.Z
 
 The tag starts `release.yml` and `publish-packages.yml`. `release.yml` builds both
 architectures from the tag, runs its container test gate, then publishes the manifests, the
-GitHub release and the CLI binaries.
+GitHub release and the CLI binaries. Both validate the version's authored notes before they
+publish anything: Release in Prepare, and Publish packages before it pins `ui-vX.Y.Z` and
+`marketing-ui-vX.Y.Z`, so a version whose notes Release refuses at that tag gets no package
+tags from that tag push. The two workflows run independently: package tags can already exist
+when Release fails after Prepare.
 
 A version dispatch of `release.yml` builds the head of the ref it runs on. Run one only with
 `--ref vX.Y.Z` on the pushed tag, never on `main`.
+
+`publish-packages.yml` also validates notes at the ref its dispatch runs on, not by looking up
+`tag_version`'s tag. Dispatch it on the matching immutable tag when retrying that version's
+snapshot. A dispatch from a newer branch could validate notes added after a refused tag and
+publish that branch's snapshot under the requested package version; it is not evidence for the
+original tag. A ref predating the notes gate does not gain it retroactively. Keep existing
+package tags immutable and choose a new version for corrected source.
 
 ## 5. Verify the release
 
@@ -256,10 +270,17 @@ A published version is not a deployment. Deployments follow their own procedure.
 - **Release-note validation fails.** Before tagging, correct the notes in a reviewed PR and choose
   the new candidate. If a tag was already pushed without valid notes, keep that tag and release
   the corrected candidate under the next version; never repair its source by moving the tag.
+  Publish packages also refuses notes from that same tag on its tag-push run. A branch dispatch
+  with later notes is a different source; do not use it to repair the refused version.
 - **A release publication retry.** A published release is preserved, including its edited notes
   and attached assets. A draft with the same tag stops publication for the release lane to
   reconcile; do not delete or overwrite another maintainer's draft. API/authentication failures
-  remain failures instead of being reported as an existing release.
+  remain failures instead of being reported as an existing release. The draft check is
+  `gh release view <tag>`: gh looks a published release up by its tag and a draft by its pending
+  tag (GraphQL `release(tagName:)`, `FetchRelease` in cli/cli `pkg/cmd/release/shared/fetch.go`).
+  The workflow test stubs `gh`, so it proves the step's branching, not GitHub's lookup. This is
+  a recorded decision: the step treats any failed lookup as a missing release and calls
+  `gh release create`, so the draft check is only as reliable as gh's lookup.
 - **A failed Release run after the tag.** Never move the tag. Re-run the Release run's failed
   jobs (its concurrency never cancels a release), or release the fix as the next version.
 

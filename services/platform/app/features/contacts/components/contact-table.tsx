@@ -8,6 +8,7 @@ import type { Row, RowSelectionState } from '@tanstack/react-table';
 import { Users } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
+import { useAbility } from '@/app/hooks/use-ability';
 import { useViewedRecord } from '@/app/hooks/use-viewed-record';
 import { firstFailureDetail } from '@/app/lib/backend/adapters';
 import type { ContactDoc } from '@/app/lib/backend/contract/docs';
@@ -20,6 +21,7 @@ import {
   useListContactsPaginated,
 } from '../hooks/queries';
 import { useContactsTableConfig } from '../hooks/use-contacts-table-config';
+import { canEditContact } from '../lib/contact-data';
 import { ContactViewDialog } from './contact-view-dialog';
 import { ContactsActionMenu } from './contacts-action-menu';
 
@@ -37,6 +39,7 @@ export function ContactsTable({
   locale,
 }: ContactsTableProps) {
   const navigate = useNavigate();
+  const ability = useAbility();
   const { t: tTables } = useT('tables');
   const { t: tEmpty } = useT('emptyStates');
   const { t: tContacts } = useT('contacts');
@@ -158,6 +161,33 @@ export function ContactsTable({
     setRowSelection({});
   }, []);
 
+  // Only a contact whose row menu offers Delete gets a checkbox: a synced
+  // contact belongs to its source, and a member who cannot write deletes
+  // nothing (#3623).
+  const canSelectRow = useCallback(
+    (row: Row<Contact>) => canEditContact(ability, row.original),
+    [ability],
+  );
+
+  // The bar deletes every id it is handed. A contact selected before a sync
+  // took it over (or before this member lost write access) keeps its id in the
+  // selection once its checkbox is gone, so the table and the bar get the
+  // selection without it. An id no longer loaded stays, as before: it passed
+  // the rule when it was picked, and dropping it would shrink the count while a
+  // delete's own refetch removes rows.
+  const deletableSelection = useMemo(() => {
+    if (Object.keys(rowSelection).length === 0) return rowSelection;
+    const loaded = new Map(
+      paginatedResult.results.map((contact) => [contact._id, contact]),
+    );
+    return Object.fromEntries(
+      Object.entries(rowSelection).filter(([id]) => {
+        const contact = loaded.get(id);
+        return contact === undefined || canEditContact(ability, contact);
+      }),
+    );
+  }, [rowSelection, paginatedResult.results, ability]);
+
   const handleDeleteItem = useCallback(
     async (id: string) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex Id type from row selection key
@@ -198,8 +228,8 @@ export function ContactsTable({
         columns={columns}
         stickyLayout
         onRowClick={handleRowClick}
-        enableRowSelection
-        rowSelection={rowSelection}
+        enableRowSelection={canSelectRow}
+        rowSelection={deletableSelection}
         onRowSelectionChange={setRowSelection}
         sorting={{ initialSorting: sorting, onSortingChange: setSorting }}
         actionMenu={
@@ -217,7 +247,7 @@ export function ContactsTable({
         }}
         footer={
           <BulkDeleteBar
-            rowSelection={rowSelection}
+            rowSelection={deletableSelection}
             onClearSelection={handleClearSelection}
             onDeleteItem={handleDeleteItem}
             onDeleteComplete={handleClearSelection}

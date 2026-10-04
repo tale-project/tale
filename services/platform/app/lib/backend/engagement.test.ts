@@ -157,6 +157,74 @@ describe.each([
   });
 });
 
+describe('the contacts listing facets', () => {
+  const listing = (args: Record<string, unknown>) =>
+    engagementPaginatedAdapters['contacts/queries:listContactsPaginated']?.(
+      args,
+      ctx,
+    );
+
+  /** The address of every page the adapter asked for, origin stripped. */
+  async function requested(
+    args: Record<string, unknown>,
+    cursor: string | null = null,
+  ): Promise<string> {
+    const fetchSpy = vi
+      .spyOn(window, 'fetch')
+      .mockResolvedValue(
+        new Response(JSON.stringify({ items: [], nextCursor: null })),
+      );
+    await listing(args)?.fetchPage(cursor, 20);
+    const input = fetchSpy.mock.calls[0]?.[0];
+    fetchSpy.mockRestore();
+    return typeof input === 'string' ? input : '';
+  }
+
+  // #3618: the Locale facet changed neither the request nor the cache key,
+  // so the list kept every contact under an active filter.
+  it('asks for the selected Locale and keys its pages apart', async () => {
+    expect(await requested({ locale: 'fr' })).toBe(
+      '/api/app/contacts?limit=20&locale=fr&orgId=org1',
+    );
+    expect(listing({ locale: 'fr' })?.queryKey).not.toEqual(
+      listing({})?.queryKey,
+    );
+    expect(listing({ locale: 'fr' })?.queryKey).not.toEqual(
+      listing({ locale: 'de' })?.queryKey,
+    );
+  });
+
+  it('keeps the Locale on every later page', async () => {
+    expect(await requested({ locale: 'fr' }, '1770003600000|record-1')).toBe(
+      '/api/app/contacts?limit=20&locale=fr&cursorUpdatedAt=1770003600000&cursorId=record-1&orgId=org1',
+    );
+  });
+
+  it('still asks for the Source, alone and beside the Locale', async () => {
+    expect(await requested({ source: 'file_upload' })).toBe(
+      '/api/app/contacts?limit=20&source=file_upload&orgId=org1',
+    );
+    expect(await requested({ source: 'file_upload', locale: 'fr' })).toBe(
+      '/api/app/contacts?limit=20&source=file_upload&locale=fr&orgId=org1',
+    );
+    const keys = [
+      listing({}),
+      listing({ source: 'file_upload' }),
+      listing({ locale: 'file_upload' }),
+      listing({ source: 'file_upload', locale: 'fr' }),
+    ].map((adapter) => JSON.stringify(adapter?.queryKey));
+    expect(new Set(keys).size).toBe(keys.length);
+  });
+
+  it('keys every facet under the contact entity a write invalidates', () => {
+    expect(listing({ locale: 'fr' })?.queryKey.slice(0, 3)).toEqual([
+      'backend',
+      'org1',
+      'contact',
+    ]);
+  });
+});
+
 describe('website creation dates', () => {
   const wireRow = {
     id: 'website-1',

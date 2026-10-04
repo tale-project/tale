@@ -11,6 +11,8 @@ Ouvre le menu `+` près du champ de message et choisis **Ajouter photos et fichi
 
 Les images apparaissent en miniature. Les autres fichiers apparaissent sous forme de pastilles avec leur nom et l’état du traitement. Vérifie les noms avant l’envoi. Retire une pièce jointe préparée avec sa commande de suppression si elle ne doit pas accompagner le message.
 
+Après l’envoi, **Modifier le message** change le texte dans une nouvelle version de la conversation et conserve les pièces jointes d’origine. Tu n’as pas besoin de les téléverser à nouveau.
+
 <Frame caption="Un document préparé affiche son nom, puis sa taille une fois traité et prêt à partir avec ta question.">
 
 ![Le champ de saisie affiche un document joint au-dessus du message, avec sa taille et une commande pour le retirer.](/images/platform/chat-document-attachment.webp)
