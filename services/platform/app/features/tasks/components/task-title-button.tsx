@@ -36,7 +36,9 @@ export function TaskTitleButton({
       .join(' ') || undefined;
   return (
     <>
-      <Tooltip content={description}>
+      <Tooltip
+        content={description === undefined ? undefined : description || title}
+      >
         <button
           type="button"
           ref={sortable.setActivatorNodeRef}

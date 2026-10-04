@@ -77,9 +77,8 @@ const blocker: TaskRow = {
   title: 'Collect figures',
 };
 
-function renderCard(editable = false, overrides: Partial<TaskRow> = {}) {
-  const row = { ...task, ...overrides };
-  return render(
+function cardTree(row: TaskRow, editable: boolean, blocked: boolean) {
+  return (
     <DndContext
       accessibility={{
         screenReaderInstructions: { draggable: 'Enter opens. Space picks up.' },
@@ -87,14 +86,24 @@ function renderCard(editable = false, overrides: Partial<TaskRow> = {}) {
     >
       <TaskBoardProvider
         tasks={[row, blocker]}
-        dependencyEdges={[
-          { blockerTaskId: blocker._id, blockedTaskId: row._id },
-        ]}
+        dependencyEdges={
+          blocked
+            ? [{ blockerTaskId: blocker._id, blockedTaskId: row._id }]
+            : []
+        }
       >
         <TaskCard task={row} canWorkTask={() => editable} />
       </TaskBoardProvider>
-    </DndContext>,
+    </DndContext>
   );
+}
+
+function renderCard(
+  editable = false,
+  overrides: Partial<TaskRow> = {},
+  blocked = true,
+) {
+  return render(cardTree({ ...task, ...overrides }, editable, blocked));
 }
 
 afterEach(() => {
@@ -103,6 +112,21 @@ afterEach(() => {
 });
 
 describe('TaskCard state accessibility', () => {
+  it('keeps the title focused when a card gains or loses indicator state', async () => {
+    const row = { ...task, status: 'todo' as const, commentCount: 0 };
+    const { user, rerender } = renderCard(false, row, false);
+    const title = screen.getByRole('button', { name: task.title });
+    await user.tab();
+    expect(title).toHaveFocus();
+    rerender(cardTree({ ...row, commentCount: 1 }, false, false));
+    expect(screen.getByRole('button', { name: task.title })).toBe(title);
+    expect(title).toHaveFocus();
+    expect(title).toHaveAccessibleDescription('1 comment');
+    rerender(cardTree(row, false, false));
+    expect(screen.getByRole('button', { name: task.title })).toBe(title);
+    expect(title).toHaveFocus();
+    expect(title).not.toHaveAttribute('aria-describedby');
+  });
   it('gives the other compact indicators valid image names', async () => {
     const { container } = render(
       <>
