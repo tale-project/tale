@@ -5,6 +5,12 @@ on:
     branches: [main]
   workflow_dispatch:
     inputs:
+      mode:
+        description: Browser campaign mode
+        required: true
+        type: choice
+        options: [diagnostic, protocol]
+        default: diagnostic
       baseline:
         description: Full baseline commit SHA
         required: true
@@ -20,18 +26,22 @@ concurrency:
   cancel-in-progress: false
 jobs:
   task-board:
-    name: Task board diagnostic
+    name: Task board browser proof
     if: >-
       github.event_name == 'workflow_dispatch' ||
       (github.event.pull_request.draft == false &&
       github.event.pull_request.head.repo.full_name == github.repository &&
-      contains(github.event.pull_request.labels.*.name, 'benchmark:task-board'))
+      (contains(github.event.pull_request.labels.*.name, 'benchmark:task-board') ||
+      contains(github.event.pull_request.labels.*.name, 'benchmark:browser-protocol')))
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     env:
       BASELINE_SHA: ${{ inputs.baseline || github.event.pull_request.base.sha }}
       CANDIDATE_SHA: ${{ inputs.candidate || github.event.pull_request.head.sha }}
       DO_NOT_TRACK: '1'
+      BENCH_EVENT_NAME: ${{ github.event_name }}
+      BENCH_LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+      BENCH_REQUESTED_MODE: ${{ inputs.mode }}
     steps:
       - name: Checkout exact candidate
         timeout-minutes: 2
@@ -64,6 +74,9 @@ jobs:
         timeout-minutes: 33
         # Serial direct workspace build commands, never Turbo/cache timing.
         run: node --experimental-transform-types --disable-warning=ExperimentalWarning scripts/performance/browser/build-pair.ts
+      - name: Prepare the disposable runner certificate tooling
+        timeout-minutes: 3
+        run: node --experimental-transform-types --disable-warning=ExperimentalWarning scripts/performance/browser/prepare-cert-tools.ts
       - name: Reserve image preparation within the shared deadline
         run: node --experimental-transform-types --disable-warning=ExperimentalWarning scripts/performance/browser/image-budget.ts
       - name: Setup Docker builder

@@ -27,7 +27,11 @@ import {
   withdrawAgentRunFailedNotices,
 } from './run-failure-notice.ts';
 import { recordTaskAgentRunLedgerEntry } from './run-ledger.ts';
-import { assertTaskAutomationEnabled, lockTaskRunStart } from './run-start.ts';
+import {
+  assertTaskAutomationEnabled,
+  lockTaskRunStart,
+  readInPlaceRetryState,
+} from './run-start.ts';
 
 /**
  * The project-agent run ledger over PG — the 0.5 twin of
@@ -300,13 +304,18 @@ export async function kickAgentRun(
   // 40001 instead, which `transactSerializable` retries — that throw path is
   // by design, not a gap.
   const via = args.startedVia;
+  const inPlace = via !== undefined && args.inPlace === true;
+  const retryState = inPlace
+    ? await readInPlaceRetryState(tx, args.organizationId, args.taskId)
+    : undefined;
   const rows = await tx<{ id: string }[]>`
     INSERT INTO app.project_agent_runs (
       org_id, project_id, task_id, agent_id, exec_id, session_id, status,
       harness, model, model_provider, trigger, feedback, mention_source,
       auto_retry_attempt, started_by, started_at_ms, deadline_at_ms,
       updated_at_ms, started_via, started_via_run_id, started_via_node_id,
-      started_via_automation, started_via_agent_id, in_place
+      started_via_automation, started_via_agent_id, in_place,
+      in_place_retry_status, in_place_retry_activity_id
     ) VALUES (
       ${args.organizationId}, ${args.projectId}, ${args.taskId},
       ${args.agentId}, ${execId}, ${sessionId},
@@ -320,7 +329,8 @@ export async function kickAgentRun(
       ${via?.kind === 'automation' ? via.nodeId : null},
       ${via?.kind === 'automation' ? via.automation : null},
       ${via?.kind === 'agent' ? via.agentId : null},
-      ${via !== undefined && args.inPlace === true}
+      ${inPlace}, ${retryState?.status ?? null},
+      ${retryState?.activityId ?? null}
     )
     ON CONFLICT (task_id) WHERE status IN ('queued', 'running') DO NOTHING
     RETURNING id
@@ -349,19 +359,6 @@ export async function kickAgentRun(
   });
   await emitTaskRunHint(tx, args);
   return { runId, execId, reused: false };
-}
-
-/** Whether a run was started in place (`moveToInProgress: false`) — what
- * an auto-retry copies, so the retried run completes the same way. */
-export async function inPlaceOfRun(
-  sql: Sql | TransactionSql,
-  runId: string,
-): Promise<boolean> {
-  const rows = await sql<{ inPlace: boolean }[]>`
-    SELECT in_place AS "inPlace" FROM app.project_agent_runs
-    WHERE id = ${runId} LIMIT 1
-  `;
-  return rows[0]?.inPlace ?? false;
 }
 
 /** The provenance a run carries when an automation step or another agent
@@ -1049,10 +1046,9 @@ export async function getLatestAgentRunCardForTask(
  * start again: its retry was armed when it failed, it is still the newest
  * run, the job has not retired it, and the budget has room — the job's own
  * walk (`resolveAutoRetryBudget` over `loadTaskRetryHistory`). Every final
- * refusal the job makes retires the run, so the card and the job cannot
- * disagree about whether a failure is final; the job's other stand-downs
- * (the card moved, the agent reassigned, a newer run) change what the task
- * shows by themselves.
+ * refusal the job makes retires the run. Legacy in-place kicks have no
+ * captured decision: old writers may still fail them during a rolling
+ * deployment, but the new worker cannot safely retry them.
  */
 async function failedRunRetryPending(
   sql: Sql,
@@ -1064,6 +1060,13 @@ async function failedRunRetryPending(
   if (newest === undefined || newest.id !== runId) return false;
   if (newest.autoRetryArmedAt === undefined) return false;
   if (newest.autoRetryRefusedAt !== undefined) return false;
+  if (
+    newest.inPlace &&
+    (newest.inPlaceRetryStatus === undefined ||
+      newest.inPlaceRetryActivityId === undefined)
+  ) {
+    return false;
+  }
   return resolveAutoRetryBudget(history).retry;
 }
 

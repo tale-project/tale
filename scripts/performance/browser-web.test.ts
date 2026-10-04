@@ -1,7 +1,6 @@
 import { expect, test } from 'bun:test';
 
 import { createApp } from '../../services/platform/server';
-import { webHost } from './browser/origins.mjs';
 import { backendOwns, diagnosticWebFetch } from './browser/web-routing';
 
 const template =
@@ -16,7 +15,9 @@ async function fixture(
   let web: ReturnType<typeof Bun.serve> | undefined;
   try {
     web = Bun.serve({
-      hostname: webHost,
+      // Supplemental owned IPv6 listener on Darwin; hosted TLS proof owns
+      // exact Linux127.0.0.2 transport without mutating this machine.
+      hostname: '::1',
       port: 0,
       fetch: (request) => handle(request),
     });

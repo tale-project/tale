@@ -461,6 +461,11 @@ export const automationWriteAdapters: Record<string, WriteAdapter> = {
       invalidateRuns(client, args, ctx);
       const orgId = orgOf(args, ctx);
       if (orgId === undefined) return;
+      // The decided approval itself: its card reads the recorded decision
+      // back without waiting for the approval hint.
+      void client.invalidateQueries({
+        queryKey: backendEntityPrefix(orgId, 'approval'),
+      });
       void client.invalidateQueries({
         queryKey: backendEntityPrefix(orgId, 'gdpr_erasure'),
       });

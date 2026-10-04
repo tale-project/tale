@@ -2,10 +2,6 @@
 // or profiler lifecycle belongs here: diagnostic and acceptance own those.
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { readFile } from 'node:fs/promises';
-import { createRequire } from 'node:module';
-
-import { z } from 'zod';
 
 import { chromium, type Page } from '../../../packages/e2e/src/index.ts';
 import { browserOrigins as origins } from './origins.mjs';
@@ -41,71 +37,7 @@ export const cards = '[role="region"] section button.line-clamp-2';
 export const viewport = { width: 1440, height: 900 };
 export const browserVersion = '141.0.7390.37';
 
-export async function browserIdentity() {
-  const executable = process.env.BENCH_CHROMIUM;
-  assert(
-    executable && process.env.BENCH_PASSWORD,
-    'Synthetic browser environment is missing',
-  );
-  const driverRequire = createRequire(
-    new URL('../../../packages/e2e/package.json', import.meta.url),
-  );
-  const driver = z
-    .object({ version: z.string() })
-    .parse(
-      JSON.parse(
-        await readFile(
-          driverRequire.resolve('@playwright/test/package.json'),
-          'utf8',
-        ),
-      ),
-    );
-  const owner = z
-    .object({ dependencies: z.object({ '@playwright/test': z.string() }) })
-    .parse(
-      JSON.parse(
-        await readFile(
-          new URL('../../../packages/e2e/package.json', import.meta.url),
-          'utf8',
-        ),
-      ),
-    );
-  assert.equal(
-    driver.version,
-    owner.dependencies['@playwright/test'],
-    'Browser driver differs from the E2E package pin',
-  );
-  return {
-    executable,
-    driverVersion: driver.version,
-    browser: browserVersion,
-    browserHash: createHash('sha256')
-      .update(await readFile(executable))
-      .digest('hex'),
-    viewport,
-  };
-}
-
-export async function launchBrowser(
-  identity: Awaited<ReturnType<typeof browserIdentity>>,
-) {
-  const browser = await chromium.launch({
-    executablePath: identity.executable,
-    headless: true,
-    args: ['--enable-precise-memory-info'],
-  });
-  try {
-    assert.equal(
-      browser.version(),
-      identity.browser,
-      'Wrong historical browser binary',
-    );
-    return browser;
-  } catch (error) {
-    await browser.close();
-    throw error;
-  }
-}
+export { browserIdentity, launchBrowser } from './browser-identity.ts';
 
 type Browser = Awaited<ReturnType<typeof chromium.launch>>;
 export async function browserSession(
@@ -114,6 +46,7 @@ export async function browserSession(
   ownerEmail: string,
 ) {
   assert(origins.includes(origin), 'Unowned browser origin');
+  assert(process.env.BENCH_PASSWORD, 'Synthetic password is missing');
   const context = await browser.newContext({
     viewport,
     deviceScaleFactor: 1,
