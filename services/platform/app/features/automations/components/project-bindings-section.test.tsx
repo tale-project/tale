@@ -22,6 +22,7 @@ vi.mock('@/app/features/projects/hooks/queries', () => ({
     projects: [
       { _id: 'proj_1', name: 'Document desk' },
       { _id: 'proj_2', name: 'Getting started' },
+      { _id: 'proj_3', name: 'Field service' },
     ],
     isLoading: false,
   }),
@@ -50,6 +51,27 @@ function GeneralTab({ children }: { children: ReactNode }) {
 
 const saveButton = () =>
   screen.getByRole('button', { name: 'common.actions.save' });
+
+/** The selected projects, in chip order — each chip carries a remove button. */
+const selectedProjects = () =>
+  screen
+    .queryAllByRole('button', { name: /^Remove / })
+    .map((button) =>
+      button.getAttribute('aria-label')?.replace(/^Remove /, ''),
+    );
+
+/** An author's section, rendered again as each query answer arrives. */
+function section() {
+  return (
+    <GeneralTab>
+      <ProjectBindingsSection
+        organizationId="org-1"
+        name="desk/prepare-return"
+        canEdit
+      />
+    </GeneralTab>
+  );
+}
 
 describe('ProjectBindingsSection', () => {
   it('shows the hint and no count for an unbound automation, and waits for an edit', () => {
@@ -106,15 +128,6 @@ describe('ProjectBindingsSection', () => {
 
   it('keeps a selection in progress when a refetch answers the same set', async () => {
     boundData = ['proj_1'];
-    const section = () => (
-      <GeneralTab>
-        <ProjectBindingsSection
-          organizationId="org-1"
-          name="desk/prepare-return"
-          canEdit
-        />
-      </GeneralTab>
-    );
     const { user, rerender } = render(section());
 
     await user.click(screen.getByRole('combobox'));
@@ -125,6 +138,68 @@ describe('ProjectBindingsSection', () => {
     rerender(section());
 
     expect(saveButton()).toBeEnabled();
+  });
+
+  // A set another session saved reaches a selection holding an edit (#3620):
+  // the author's unsaved adds and removes are replayed onto it.
+  it('keeps an unsaved project when another session changes the bound set', async () => {
+    boundData = ['proj_1'];
+    setProjects.mutateAsync.mockResolvedValue(undefined);
+    const { user, rerender } = render(section());
+
+    await user.click(screen.getByRole('combobox'));
+    await user.click(screen.getByRole('option', { name: /Getting started/ }));
+    await user.keyboard('{Escape}');
+    boundData = ['proj_1', 'proj_3'];
+    rerender(section());
+
+    expect(selectedProjects()).toEqual([
+      'Document desk',
+      'Field service',
+      'Getting started',
+    ]);
+    expect(saveButton()).toBeEnabled();
+    await user.click(saveButton());
+    expect(setProjects.mutateAsync).toHaveBeenLastCalledWith(
+      expect.objectContaining({ projectIds: ['proj_1', 'proj_3', 'proj_2'] }),
+    );
+  });
+
+  it('keeps an unsaved removal when another session adds a project', async () => {
+    boundData = ['proj_1', 'proj_2'];
+    const { user, rerender } = render(section());
+
+    await user.click(
+      screen.getByRole('button', { name: 'Remove Document desk' }),
+    );
+    boundData = ['proj_1', 'proj_2', 'proj_3'];
+    rerender(section());
+
+    expect(selectedProjects()).toEqual(['Getting started', 'Field service']);
+    expect(saveButton()).toBeEnabled();
+  });
+
+  it('settles on the set its own save wrote', async () => {
+    boundData = ['proj_1'];
+    setProjects.mutateAsync.mockResolvedValue(undefined);
+    const { user, rerender } = render(section());
+
+    await user.click(screen.getByRole('combobox'));
+    await user.click(screen.getByRole('option', { name: /Getting started/ }));
+    await user.keyboard('{Escape}');
+    await user.click(saveButton());
+    // The store answers with the saved set, in its own order.
+    boundData = ['proj_2', 'proj_1'];
+    rerender(section());
+
+    expect(selectedProjects()).toEqual(['Getting started', 'Document desk']);
+    // Nothing is left to save (Save reads "Saved" for a moment).
+    expect(
+      screen.getByRole('button', { name: 'common.actions.discard' }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole('button', { name: /^common\.actions\.saved?$/ }),
+    ).toBeDisabled();
   });
 
   it('discards the selection back to the stored set', async () => {

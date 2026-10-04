@@ -60,6 +60,35 @@ type StoredTrigger = NonNullable<
   ReturnType<typeof useAutomationTriggers>['data']
 >[number];
 
+/** The fields the form edits, as a binding holds them. */
+interface TriggerFields {
+  kind: string;
+  cron: string;
+  timezone: string;
+  event: string;
+  enabled: boolean;
+}
+
+/** The empty form a new binding starts from. */
+const NO_TRIGGER: TriggerFields = {
+  kind: 'schedule',
+  cron: '',
+  timezone: 'UTC',
+  event: '',
+  enabled: false,
+};
+
+function triggerFields(row: StoredTrigger | undefined): TriggerFields {
+  if (row === undefined) return NO_TRIGGER;
+  return {
+    kind: row.kind,
+    cron: row.cron ?? '',
+    timezone: row.timezone ?? 'UTC',
+    event: row.event ?? '',
+    enabled: row.enabled,
+  };
+}
+
 const NO_DIRTY_KEYS: ReadonlySet<string> = new Set();
 /** What the General tab's strip lights its unsaved dot for. */
 const TRIGGER_DIRTY_KEYS: ReadonlySet<string> = new Set([TRIGGER_DIRTY_KEY]);
@@ -144,44 +173,50 @@ export function TriggerEditor({
   // empty schedule that looks armed.
   const [adding, setAdding] = useState(false);
 
-  /** Put a binding (none: the empty form) into the fields. */
-  const applyStored = useCallback((row: typeof stored) => {
-    setAdding(false);
-    if (row === undefined) {
-      setKind('schedule');
-      setCron('');
-      setTimezone('UTC');
-      setEventName('');
-      setEnabled(false);
-      return;
-    }
-    if (isTriggerKind(row.kind)) setKind(row.kind);
-    setCron(row.cron ?? '');
-    setTimezone(row.timezone ?? 'UTC');
-    setEventName(row.event ?? '');
-    setEnabled(row.enabled);
-  }, []);
+  // The fields as the form last loaded them (or saved them): what tells an
+  // edit from a field the author left alone.
+  const loadedRef = useRef<TriggerFields>(NO_TRIGGER);
+
+  /**
+   * Put a binding (none: the empty form) into the fields. With `keepEdits`,
+   * a field the author changed since the form last loaded keeps the edit and
+   * only the fields left alone take the binding's values: a row another
+   * session saved must not erase a draft in progress.
+   */
+  const applyStored = useCallback(
+    (row: StoredTrigger | undefined, keepEdits = false) => {
+      const loaded = loadedRef.current;
+      const next = triggerFields(row);
+      loadedRef.current = next;
+      const take = <T,>(current: T, wasLoaded: unknown, incoming: T): T =>
+        keepEdits && current !== wasLoaded ? current : incoming;
+      setAdding(false);
+      const nextKind = next.kind;
+      if (isTriggerKind(nextKind)) {
+        setKind((current) => take(current, loaded.kind, nextKind));
+      }
+      setCron((current) => take(current, loaded.cron, next.cron));
+      setTimezone((current) => take(current, loaded.timezone, next.timezone));
+      setEventName((current) => take(current, loaded.event, next.event));
+      setEnabled((current) => take(current, loaded.enabled, next.enabled));
+    },
+    [],
+  );
 
   // Load the stored binding into the form whenever it changes under us —
-  // the row is the truth; local state only carries unsaved edits. Keyed on
-  // the fields the form edits, not on the row object: a refetch that only
-  // moves `lastFiredAt` (the trigger just fired) must not wipe an edit in
-  // progress.
+  // the row is the truth; local state only carries unsaved edits, which
+  // the load keeps. Keyed on the fields the form edits, not on the row
+  // object: a refetch that only moves `lastFiredAt` (the trigger just
+  // fired) loads nothing.
   const storedRef = useRef(stored);
   storedRef.current = stored;
   const storedFields =
-    stored === undefined
-      ? null
-      : JSON.stringify([
-          stored.kind,
-          stored.cron ?? '',
-          stored.timezone ?? 'UTC',
-          stored.event ?? '',
-          stored.enabled,
-        ]);
+    stored === undefined ? null : JSON.stringify(triggerFields(stored));
+  const storedFieldsRef = useRef(storedFields);
+  storedFieldsRef.current = storedFields;
   useEffect(() => {
     if (storedFields === null) return;
-    applyStored(storedRef.current);
+    applyStored(storedRef.current, true);
   }, [storedFields, applyStored]);
 
   const dirty = useMemo(() => {
@@ -251,23 +286,46 @@ export function TriggerEditor({
   const persist = async (rotateToken?: boolean): Promise<void> => {
     setRefusal(null);
     setMintedToken(null);
-    const result = await setTrigger.mutateAsync({
-      organizationId,
-      name,
-      trigger: {
-        kind,
-        ...(kind === 'schedule' && cron !== '' && { cron }),
-        ...(kind === 'schedule' && timezone !== '' && { timezone }),
-        ...(kind === 'event' && eventName !== '' && { event: eventName }),
-        enabled,
-      },
-      ...(rotateToken === true && { rotateToken: true }),
-    });
-    if (result.token !== undefined) setMintedToken(result.token);
-    // The server names the live URL this bind stopped answering on — say so,
-    // since nothing on the page shows the old URL any more.
-    if (result.revoked === 'webhook') {
-      toast({ title: t('trigger.revokedToast') });
+    const sent: TriggerFields = {
+      kind,
+      cron,
+      timezone,
+      event: eventName,
+      enabled,
+    };
+    const storedFieldsBefore = storedFieldsRef.current;
+    try {
+      const result = await setTrigger.mutateAsync({
+        organizationId,
+        name,
+        trigger: {
+          kind,
+          ...(kind === 'schedule' && cron !== '' && { cron }),
+          ...(kind === 'schedule' && timezone !== '' && { timezone }),
+          ...(kind === 'event' && eventName !== '' && { event: eventName }),
+          enabled,
+        },
+        ...(rotateToken === true && { rotateToken: true }),
+      });
+      // The store holds the form as sent: a field still as sent takes the
+      // row it answers with, which drops what the kind leaves out (a
+      // webhook keeps no cron), while an edit made during the save stays.
+      loadedRef.current = sent;
+      if (result.token !== undefined) setMintedToken(result.token);
+      // The server names the live URL this bind stopped answering on — say
+      // so, since nothing on the page shows the old URL any more.
+      if (result.revoked === 'webhook') {
+        toast({ title: t('trigger.revokedToast') });
+      }
+    } finally {
+      // A row that arrived while the save was out loaded against the form
+      // as it stood before; load it again against what the store holds now.
+      if (
+        storedFieldsRef.current !== null &&
+        storedFieldsRef.current !== storedFieldsBefore
+      ) {
+        applyStored(storedRef.current, true);
+      }
     }
   };
 

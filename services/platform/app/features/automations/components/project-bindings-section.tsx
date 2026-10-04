@@ -29,6 +29,22 @@ function sameSelection(a: readonly string[], b: readonly string[]): boolean {
 }
 
 /**
+ * `incoming` with the author's unsaved edits replayed on it: the projects
+ * they added since `loaded` stay picked, the ones they removed stay off.
+ */
+function keepEdits(
+  loaded: readonly string[],
+  current: readonly string[],
+  incoming: readonly string[],
+): string[] {
+  const removed = new Set(loaded.filter((id) => !current.includes(id)));
+  const added = current.filter(
+    (id) => !loaded.includes(id) && !incoming.includes(id),
+  );
+  return [...incoming.filter((id) => !removed.has(id)), ...added];
+}
+
+/**
  * The automation's project bindings: which projects' task boards see it.
  *
  * The binding SET is the scope — none means the automation is org-level and
@@ -64,17 +80,25 @@ export function ProjectBindingsSection({
   );
   const [selection, setSelection] = useState<string[]>([]);
 
-  // The rows are the truth; local state only carries unsaved edits. Keyed on
-  // the set's content, not on the array, so a refetch that answers the same
-  // set never wipes a selection in progress; and the functional update
-  // returns the CURRENT array when the content already matches, so React
-  // bails out of the re-render.
+  // The rows are the truth; local state only carries unsaved edits, which a
+  // set another session saved does not erase: they are replayed on it. Keyed
+  // on the set's content, not on the array, so a refetch that answers the
+  // same set loads nothing; and the functional update returns the CURRENT
+  // array when the content already matches, so React bails out of the
+  // re-render.
   const storedRef = useRef(stored);
   storedRef.current = stored;
+  // The set the selection last loaded: what tells the author's edits apart.
+  const loadedRef = useRef<readonly string[]>([]);
   const storedKey = stored.join(',');
   useEffect(() => {
     const next = storedRef.current;
-    setSelection((current) => (sameSelection(current, next) ? current : next));
+    const loaded = loadedRef.current;
+    loadedRef.current = next;
+    setSelection((current) => {
+      const rebased = keepEdits(loaded, current, next);
+      return sameSelection(current, rebased) ? current : rebased;
+    });
   }, [storedKey]);
 
   const dirty = useMemo(() => {
