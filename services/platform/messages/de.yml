@@ -7353,6 +7353,8 @@ projectSecrets:
       Du hast keinen Zugriff auf die Secrets dieses Projekts. Nur
       Projekt-Administratoren können sie ansehen oder verwalten.
     PROJECT_NOT_FOUND: Dieses Projekt existiert nicht mehr.
+    loadFailed: Die Secrets dieses Projekts konnten nicht geladen werden.
+    refreshFailed: Die Secrets dieses Projekts konnten nicht aktualisiert werden. Die Anzeige ist womöglich veraltet.
 tasks:
   sourceIssue:
     heading: '{provider}-Issue'
