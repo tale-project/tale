@@ -1,5 +1,6 @@
 'use client';
 
+import { Button } from '@tale/ui/button';
 import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
 import { Spinner } from '@tale/ui/spinner';
 import { Text } from '@tale/ui/text';
@@ -45,7 +46,13 @@ export function ProjectSharingSection({
   const { t } = useT('projects');
   const { t: tCommon } = useT('common');
   // What the viewer may ASSIGN (an admin: every team) — the picker's options.
-  const { teams: assignableTeams, isLoading: teamsLoading } = useOrgTeams();
+  const {
+    teams: assignableTeams,
+    isLoading: teamsLoading,
+    isError: teamsError,
+    isFetching: teamsFetching,
+    refetch: refetchTeams,
+  } = useOrgTeams();
   // Every team by name — the read-only summary must name a team the viewer
   // is not in, too.
   const { nameOf } = useTeamNames();
@@ -130,18 +137,43 @@ export function ProjectSharingSection({
     [applySave, audienceTeamIds],
   );
 
+  const audience =
+    audienceTeamIds.length === 0
+      ? t('list.sharingOrgWide')
+      : audienceTeamIds
+          .map((id) => nameOf(id) ?? t('list.unknownTeam'))
+          .join(', ');
+
   if (!canAdminister) {
-    // Read-only audience summary for non-admin viewers.
-    const audience =
-      audienceTeamIds.length === 0
-        ? t('list.sharingOrgWide')
-        : audienceTeamIds
-            .map((id) => nameOf(id) ?? t('list.unknownTeam'))
-            .join(', ');
     return (
       <SettingsFieldList>
         <SettingsFieldRow label={t('sharing.effectiveAudience')}>
           <Text variant="muted">{audience}</Text>
+        </SettingsFieldRow>
+      </SettingsFieldList>
+    );
+  }
+
+  if (teamsError) {
+    return (
+      <SettingsFieldList>
+        <SettingsFieldRow
+          label={t('settings.audience')}
+          description={t('settings.audienceHelp')}
+        >
+          <div className="space-y-2">
+            <Text variant="muted">{audience}</Text>
+            <Text role="alert">{t('sharing.teamsLoadError')}</Text>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              isLoading={teamsFetching}
+              onClick={() => void refetchTeams()}
+            >
+              {tCommon('actions.tryAgain')}
+            </Button>
+          </div>
         </SettingsFieldRow>
       </SettingsFieldList>
     );
@@ -160,7 +192,10 @@ export function ProjectSharingSection({
           {/* No teams until the org's teams have loaded: "No teams yet" would
               be false for an org that has them, so hold the row meanwhile. */}
           {teamsLoading ? (
-            <Spinner size="sm" label={tCommon('actions.loading')} />
+            <div className="space-y-2">
+              <Text variant="muted">{audience}</Text>
+              <Spinner size="sm" label={tCommon('actions.loading')} />
+            </div>
           ) : (
             <Text variant="muted">
               {t('sharing.noTeamsHint')}{' '}
