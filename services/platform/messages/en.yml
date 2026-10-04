@@ -5953,6 +5953,7 @@ settings:
     editMember: Edit member
     removeMember: Remove member
     memberUpdated: Member updated
+    memberUpdateFailed: Couldn't save the member — try again.
     memberRemoved: Member removed
     twoFactorResetSuccess: Two-factor reset — the member must enrol again on next sign-in
     emailCannotChange: Email cannot be changed
