@@ -9,6 +9,7 @@ import { usePolicyReadAvailable } from '../hooks/policy-read-access';
 import { DsarPolicyEditor } from './dsar-policy-editor';
 import { LoginPolicyEditor } from './login-policy-editor';
 import { PasswordPolicyEditor } from './password-policy-editor';
+import { PersonalizationPolicyEditor } from './personalization-policy-editor';
 import { withGovernancePolicyReadBoundary } from './policy-read-boundary';
 import { RetentionEditor } from './retention-editor';
 import { TwoFactorPolicyEditor } from './two-factor-policy-editor';
@@ -110,6 +111,7 @@ describe('governance policy read safety', () => {
   });
   it.each([
     PasswordPolicyEditor,
+    PersonalizationPolicyEditor,
     LoginPolicyEditor,
     VoiceOutputPolicyEditor,
     TwoFactorPolicyEditor,
