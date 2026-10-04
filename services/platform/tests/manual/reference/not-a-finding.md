@@ -33,12 +33,14 @@ here the first time a round re-files it.
   textbox — a property of any text control, not a leak: stored secrets are
   never echoed into the field. Report it only if a round finds a stored value
   rendered into the field.
-- **A client-side search, filter or sort on a paginated list drains every
-  page.** The contacts table (and every `useListPage` list) fetches one page
-  at rest, but a search box, facet or sort that is evaluated client-side
-  intentionally loads the remaining pages so the result is complete (#2054) —
-  eleven list responses after typing a query are that drain, not eager
-  paging. PERF-B2 measures the resting page only.
+- **A client-side filter or sort on a paginated list drains every page.**
+  A list fetches one page at rest, but a client-side facet or sort intentionally
+  loads the remaining pages so the result is complete (#2054). The table keeps
+  only its display window in the DOM while that drain runs, so a large sorted
+  list must not be reported as whole-collection rendering. Contacts search is
+  server-side and does not use this exception: it sends the query with the
+  paginated request and keeps matching fields name, email and external id.
+  PERF-B2 measures the resting page and the bounded sorted window.
 - **A new org in mode A is not provider-wired.** Wizard-created or minted by
   `save-auth-state.ts`, it lands on chat's **No AI provider connected yet**
   empty state with zero credentials until the mock provider is wired per

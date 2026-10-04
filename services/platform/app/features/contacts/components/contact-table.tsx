@@ -2,6 +2,7 @@
 
 import { DataTable } from '@tale/ui/data-table/data-table';
 import { BulkDeleteBar } from '@tale/ui/data-table/data-table-bulk-actions';
+import { useDebounce } from '@tale/ui/use-debounce';
 import { useListPage } from '@tale/ui/use-list-page';
 import { useNavigate } from '@tanstack/react-router';
 import type { Row, RowSelectionState } from '@tanstack/react-table';
@@ -44,8 +45,11 @@ export function ContactsTable({
 
   const { data: count } = useApproxContactCount(organizationId);
   const { columns, searchPlaceholder, pageSize } = useContactsTableConfig();
+  const [searchValue, setSearchValue] = useState('');
+  const debouncedSearch = useDebounce(searchValue.trim(), 250);
   const paginatedResult = useListContactsPaginated({
     organizationId,
+    search: debouncedSearch || undefined,
     source,
     locale,
     initialNumItems: pageSize,
@@ -178,7 +182,8 @@ export function ContactsTable({
     pageSize,
     sorting,
     search: {
-      fields: ['name', 'email', 'externalId'],
+      value: searchValue,
+      onChange: setSearchValue,
       placeholder: searchPlaceholder,
     },
     filters: {

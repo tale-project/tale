@@ -346,15 +346,39 @@ export function useListPage<TData>(
     }
   }, [loadFailed, displayCount, processed.length]);
 
-  // 6. Slice for display — a sort takes the whole set (see `hasActiveSort`)
+  // 6. Keep the rendered window bounded even while a sort drains the source.
+  // The complete buffer still lets TanStack determine the global order, but
+  // rendering every row is quadratic as pages arrive (#4211).
+  const sortedProcessed = useMemo(() => {
+    const activeSort = sorting?.[0];
+    if (!activeSort) return processed;
+    return [...processed].sort((left, right) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- TanStack sorting ids are keys from the host's row data
+      const leftValue = left[activeSort.id as keyof TData];
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- TanStack sorting ids are keys from the host's row data
+      const rightValue = right[activeSort.id as keyof TData];
+      const leftText = leftValue == null ? '' : String(leftValue);
+      const rightText = rightValue == null ? '' : String(rightValue);
+      const result = leftText.localeCompare(rightText, undefined, {
+        numeric: true,
+        sensitivity: 'base',
+      });
+      return activeSort.desc ? -result : result;
+    });
+  }, [processed, sorting]);
+  const renderAllForSort =
+    hasActiveSort && sortedProcessed.length < pageSize * 5;
   const displayed = useMemo(
-    () => (hasActiveSort ? processed : processed.slice(0, windowCount)),
-    [processed, windowCount, hasActiveSort],
+    () =>
+      renderAllForSort
+        ? sortedProcessed
+        : sortedProcessed.slice(0, windowCount),
+    [sortedProcessed, renderAllForSort, windowCount],
   );
 
-  // 7. Compute hasMore. `displayed` already holds every processed row while a
-  // sort is active, so only an un-drained backend can still add to it.
-  const localRemaining = !hasActiveSort && windowCount < processed.length;
+  // 7. Compute hasMore. A sort keeps draining the source for completeness;
+  // the rendered window advances through the normal scroll sentinel.
+  const localRemaining = windowCount < sortedProcessed.length;
   const hasMore =
     dataSource.type === 'paginated'
       ? localRemaining ||

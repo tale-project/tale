@@ -782,7 +782,8 @@ export async function listContacts(
     WHERE org_id = ${scope.organizationId}
       AND lifecycle_status IS DISTINCT FROM 'trashed'
       AND (${search}::text IS NULL OR name ILIKE ${search}
-        OR email ILIKE ${search} OR phone ILIKE ${search})
+        OR email ILIKE ${search} OR phone ILIKE ${search}
+        OR external_id ILIKE ${search})
       AND (${options.source ?? null}::text IS NULL OR source = ${options.source ?? null})
       AND (${options.tag ?? null}::text IS NULL OR ${options.tag ?? null} = ANY(tags))
       AND (${cursor?.updatedAt ?? null}::bigint IS NULL

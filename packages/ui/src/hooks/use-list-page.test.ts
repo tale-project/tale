@@ -172,17 +172,17 @@ describe('useListPage — infiniteScroll mode (default)', () => {
 // ---------------------------------------------------------------------------
 
 describe('useListPage — active sort', () => {
-  it('hands the table every processed row instead of the page window', () => {
+  it('keeps the rendered sort window bounded for large buffers', () => {
     const { result } = renderListPage({
       sorting: [{ id: 'name', desc: false }],
     });
 
-    // Without a sort this would be the 10-row `pageSize` slice; a sort that
-    // only saw the first page would reshuffle rows as later pages arrived.
-    expect(result.current.tableProps.data).toHaveLength(50);
+    // The full buffer is still drained for completeness, but only one page
+    // is rendered once the list is large enough to make rendering expensive.
+    expect(result.current.tableProps.data).toHaveLength(10);
   });
 
-  it('reports no more rows once the backend is drained', () => {
+  it('keeps buffered rows reachable after backend exhaustion', () => {
     const { result } = renderListPage({
       sorting: [{ id: 'name', desc: true }],
       dataSource: {
@@ -196,7 +196,7 @@ describe('useListPage — active sort', () => {
 
     const props = result.current.tableProps;
     if ('infiniteScroll' in props) {
-      expect(props.infiniteScroll.hasMore).toBe(false);
+      expect(props.infiniteScroll.hasMore).toBe(true);
     }
   });
 
