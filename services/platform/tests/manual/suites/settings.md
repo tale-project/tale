@@ -870,7 +870,13 @@ run.
   `/dashboard/{org}/settings/providers/openrouter` → Redirects to the
   providers index with `?provider=openrouter` — the vendor filter
   (`settings.providers.vendorFilterLabel`) arrives pre-applied to that vendor;
-  clearing the filter clears the URL param.
+  clearing the filter clears the URL param. Repeat with only one other provider
+  holding credentials, and after deleting the selected provider's last
+  credential → The shared no-results state appears (never the first-provider
+  invitation); search and Filter stay enabled, the selected provider stays
+  visible in the facet, and clearing it restores the remaining rows. A link
+  matching the only provider also keeps its filter clearable. Check EN/DE/FR
+  and keyboard access to the facet and clear action.
 - [ ] `SET-B4` · **Role gating — member** — Sign in as a **member** role
   account → The rail shows only the Personal section plus **Skills**; direct
   URLs are refused with the full access-denied message —
