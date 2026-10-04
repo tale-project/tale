@@ -62,12 +62,19 @@ a group or session of its own (such as a browser its driver started detached)
 leftovers wait: that exec may be using what the earlier one started (a dev
 server, a build daemon), so they end when the session's last running exec
 ends; meanwhile they keep their output pipes, whose output runnerd reads and
-drops. A cancel or the deadline ends the exec's processes at once, what it
+drops. A cancel or a live exec's deadline ends its processes at once, what it
 left waiting included, and the SIGKILL reaches its group while its own
 process still runs even if no process there shows the id. A
 backgrounded server, a `nohup` worker or a browser therefore no longer runs on
 in a session that reads idle until the container stops. Each process gets one
 SIGTERM, so a second signal never cuts short the cleanup the first one started.
+Once terminal journal drain begins, attach can replay but cannot re-arm the
+orphan deadline or reap sibling-dependent leftovers. Status remains running
+until the terminal record is durable; an explicit cancel still ends waiting
+leftovers. The start record keeps its epoch `startedAtMs`, while exit
+`durationMs` measures spawn-to-drained-exit elapsed time using a monotonic clock,
+so a backward wall-clock adjustment cannot produce a negative duration.
+
 A group's number can be reused once the group is gone, so a signal that comes
 after the exec's end reaches the group only while the group is provably still
 the exec's: a process carrying the id is in it, or a process runnerd recorded
@@ -97,6 +104,14 @@ the read. A cancel that comes before the shim has named the command's group
 waits for it — the shim does so as soon as it has forked — so the group still
 gets its signal as a whole.
 
+A shim that exits normally has waited for every descendant to end. Its later
+SIGKILL round therefore reads neither the process table nor environments. A
+shim killed by a signal does not provide that proof: runnerd falls back to
+group records and tags. In a mixed tag scan, an intermediate whose environment
+read stalls still contributes its already-read parent/group information to
+the descendant walk. A stalled `stat` read cannot provide that information;
+its subtree may remain undiscoverable until a later scan.
+
 Each cleanup round indexes its process snapshot once by execution tag, parent,
 group and PID. All retained executions use that index, and ancestry walks
 visit their descendants without shifting the remaining queue on every step.
@@ -111,10 +126,11 @@ workspace, so the platform sends that cancel as a rotation:
 `POST /v1/sessions/:id/exec/:execId/cancel?leftovers=keep`, which the spawner
 forwards to runnerd's `POST /execs/:id/cancel?leftovers=keep`. runnerd then
 ends only the exec's own process group (SIGTERM, then SIGKILL five seconds
-later while its own process still runs) and holds what it left outside the
+later while its own process or a proven group member still runs) and holds what it left outside the
 group, such as a dev server a harness's tool call started in a session of its
 own, for the exec that takes over. The hold lifts when an exec started after
-the cancel ends; the leftovers then end with the session's last running exec,
+the cancel ends without itself being rotated; chained rotations keep earlier
+holds until a successor actually finishes. The leftovers then end with the session's last running exec,
 as above, or when runnerd stops. A hold that sees no successor within ten
 minutes (a restart whose new exec never started) lifts too, and with no exec
 running its leftovers end at once. A later cancel of the handed-over exec (the
@@ -122,6 +138,31 @@ platform's superseded drive still reaps the exec it no longer owns) ends none
 of what it holds; a person's Stop goes to the exec that took over, and its
 end ends them. A plain cancel ends everything; a spawner or runnerd that
 predates the flag ignores it and does the same.
+
+Without a shim, a rotation snapshots the group before SIGTERM, while the
+leader still proves ownership. That stat-only scan is bounded to two seconds;
+if the leader exits before it completes, its snapshot is discarded. The
+group-only rounds use recorded pid/start-time pairs or an exec tag still in
+the group, not an unverified group number, and never signal held processes
+outside the group. When the leader exits during the snapshot, tag fallback
+still reaches tagged survivors; without a live subreaper, those fallback
+rounds may read environments.
+A survivor that removes its tag and leaves the group remains out of reach
+without a working subreaper. So does a group whose entire recorded membership
+has been replaced by newly forked, untagged processes after the leader exits.
+
+**Session teardown is best effort, not a wrapper-cleanup guarantee.** runnerd
+passes SIGTERM to execs when it receives a graceful stop, but does not await
+their completion before exiting. Docker's force-removal path does not deliver
+that graceful stop at all. This change intentionally retains those teardown
+semantics; guaranteeing wrapper cleanup would require a separate provider and
+daemon shutdown change. The unit tests prove the manager's signal delivery,
+not provider teardown or the timing of wrapper completion.
+
+Avoid `pkill -9 -f '<command>'` for managed execs: the shim's argv contains the
+command too, so that pattern can kill the shim. runnerd then reports the shim's
+signal exit (137) if no command status was received, and falls back to reaping
+by tag/group. Cancel through runnerd instead; SIGKILL cannot be caught.
 
 **No `kubectl exec`/attach anywhere** — runnerd is reached by ordinary HTTP, so
 the exec-free K8s constraint holds. runnerd auth is the per-session token

@@ -26,7 +26,6 @@ import {
   groupMembers,
   processesLeft,
   signalExecProcesses,
-  signalGroup,
   type GroupMember,
   type ReaperDeps,
   type ReapTarget,
@@ -119,7 +118,11 @@ interface LiveExec {
   /** Only these small liveness flags outlive the exec while a delayed reap
    * or a deferred descendant waits. Never capture the full record there:
    * it owns replay data and callbacks into the child and HTTP consumer. */
-  processState: { leaderExited: boolean; rootExited: boolean };
+  processState: {
+    leaderExited: boolean;
+    rootExited: boolean;
+    rootCompleted: boolean;
+  };
   /** The exec's subreaper shim, when it runs under one: every process it
    * started is the shim's descendant. */
   rootPid: number | undefined;
@@ -150,6 +153,7 @@ interface LiveExec {
    * the window. */
   timeoutMs: number;
   timer: ReturnType<typeof setTimeout> | null;
+  finishing: boolean;
   /** Set by the deadline timer so the terminal exit event reports timedOut. */
   timedOut: boolean;
   /** Held-open stdin pipe (stdinMode:'hold'), written via writeStdin(). Null
@@ -252,6 +256,7 @@ export class ExecManager {
    * An actively-attached exec is perpetually extended; an orphaned one (no
    * attach for `timeoutMs`) is SIGTERM→SIGKILLed — the sole orphan reaper. */
   private armDeadline(rec: LiveExec): void {
+    if (rec.finishing) return;
     if (rec.timer) clearTimeout(rec.timer);
     rec.timer = setTimeout(() => {
       rec.timedOut = true;
@@ -366,6 +371,7 @@ export class ExecManager {
     this.onActivity();
     this.beforeSpawn();
     const startedAtMs = Date.now();
+    const startedAtMonotonicMs = performance.now();
     // Under the subreaper shim, the command runs as its child in a process
     // group of its own and everything it starts stays the shim's descendant;
     // the shim says on its status pipe (fd 3) when the command started,
@@ -429,7 +435,11 @@ export class ExecManager {
       // Under the shim the group is the command's, named on the status pipe.
       groupId: shim !== null ? undefined : child.pid,
       rootPid: shim !== null ? child.pid : undefined,
-      processState: { leaderExited: false, rootExited: false },
+      processState: {
+        leaderExited: false,
+        rootExited: false,
+        rootCompleted: false,
+      },
       groupPending: shim !== null,
       awaitingGroup: [],
       exitCode: null,
@@ -439,6 +449,7 @@ export class ExecManager {
       seq: 0,
       timeoutMs: req.timeoutMs,
       timer: null,
+      finishing: false,
       timedOut: false,
       stdin: null,
       terminated: false,
@@ -630,6 +641,7 @@ export class ExecManager {
       const finish = async (code: number) => {
         if (settled) return;
         settled = true;
+        record.finishing = true;
         if (record.timer) clearTimeout(record.timer);
         if (drainTimer) clearTimeout(drainTimer);
         if (!closed && record.deferred === null) {
@@ -646,11 +658,7 @@ export class ExecManager {
         const terminal: RunnerdExecEvent = {
           t: 'exit',
           exitCode: code,
-          // The canonical execution wall-clock (protocol.ts `exit.durationMs`):
-          // startedAtMs was taken immediately before spawn(), and finish() runs
-          // only once stdio is drained — nothing outside the process
-          // (scheduling, staging, harvest) can leak into the measurement.
-          durationMs: Date.now() - startedAtMs,
+          durationMs: performance.now() - startedAtMonotonicMs,
           truncated: { stdout: stdoutTrunc, stderr: stderrTrunc },
           timedOut: record.timedOut,
           cancelled: record.cancelRequested,
@@ -680,6 +688,7 @@ export class ExecManager {
       const spawnFailed = (message: string) => {
         if (settled) return;
         settled = true;
+        record.finishing = true;
         couldNotRun = true;
         record.stdin = null;
         child.stdin.destroy();
@@ -776,6 +785,8 @@ export class ExecManager {
         } | null = null;
         const shimOver = () => {
           if (!statusEnded || shimExit === null) return;
+          record.processState.rootCompleted =
+            shimExit.signal === null && record.rootPid !== undefined;
           this.groupSettled(record);
           commandExit(shimExit.code, shimExit.signal);
         };
@@ -874,12 +885,25 @@ export class ExecManager {
    * Ending those too would leave the restarted turn, which goes on where
    * this one stopped, with the servers it started gone. */
   private handOver(execId: string, rec: LiveExec): void {
+    if (rec.handedOver) return;
     const waiting = rec.deferred;
     if (waiting !== null) {
       // Its leader already exited: what it left waits on, for the
       // successor as well.
       rec.handedOver = true;
       this.holdForSuccessor(waiting);
+      const round = (signal: NodeJS.Signals) =>
+        signalExecProcesses(
+          [{ ...waiting, groupOnly: true }],
+          signal,
+          this.reaper,
+        ).catch((error: unknown) => {
+          console.warn('[runnerd] rotation group round failed:', error);
+        });
+      void round('SIGTERM');
+      setTimeout(() => {
+        void round('SIGKILL');
+      }, SIGKILL_GRACE_MS).unref();
       return;
     }
     if (rec.terminated) return;
@@ -898,11 +922,40 @@ export class ExecManager {
     this.withGroup(rec, () => {
       const group = rec.groupId;
       held.groupId = group;
-      signalGroup(group, 'SIGTERM', this.reaper);
-      setTimeout(() => {
-        if (!rec.processState.leaderExited)
-          signalGroup(group, 'SIGKILL', this.reaper);
-      }, SIGKILL_GRACE_MS).unref();
+      held.members = this.recordGroup(execId, group).then((members) =>
+        rec.processState.leaderExited ? [] : members,
+      );
+      void held.members.then(() => {
+        void signalExecProcesses(
+          [
+            {
+              ...held,
+              groupOnly: true,
+              groupKnown: !rec.processState.leaderExited,
+            },
+          ],
+          'SIGTERM',
+          this.reaper,
+        ).catch((error: unknown) => {
+          console.warn('[runnerd] rotation group SIGTERM failed:', error);
+        });
+        setTimeout(() => {
+          void signalExecProcesses(
+            [
+              {
+                ...held,
+                groupOnly: true,
+                groupKnown: !rec.processState.leaderExited,
+              },
+            ],
+            'SIGKILL',
+            this.reaper,
+          ).catch((error: unknown) => {
+            console.warn('[runnerd] rotation group SIGKILL failed:', error);
+          });
+        }, SIGKILL_GRACE_MS).unref();
+        return undefined;
+      });
     });
   }
 
@@ -969,10 +1022,16 @@ export class ExecManager {
   }
 
   /** The exec's subreaper shim as a reaping root, while it runs. */
-  private rootOf(rec: LiveExec): Pick<ReapTarget, 'rootPid' | 'rootAlive'> {
+  private rootOf(
+    rec: LiveExec,
+  ): Pick<ReapTarget, 'rootPid' | 'rootAlive' | 'rootComplete'> {
     if (rec.rootPid === undefined) return {};
     const { processState } = rec;
-    return { rootPid: rec.rootPid, rootAlive: () => !processState.rootExited };
+    return {
+      rootPid: rec.rootPid,
+      rootAlive: () => !processState.rootExited,
+      rootComplete: () => processState.rootCompleted,
+    };
   }
 
   /** The daemon is going down: every live exec, and what exited execs left
@@ -1010,7 +1069,7 @@ export class ExecManager {
   private dropLive(execId: string): void {
     const rec = this.live.get(execId);
     this.live.delete(execId);
-    if (rec !== undefined) this.liftHolds(rec.ordinal);
+    if (rec !== undefined && !rec.handedOver) this.liftHolds(rec.ordinal);
     if (this.live.size === 0) void this.reap(this.takeUnheldLeftovers());
   }
 
@@ -1088,13 +1147,22 @@ export class ExecManager {
     const term = round(
       'SIGTERM',
       targets.map(
-        ({ execId, groupId, groupKnown, members, rootPid, rootAlive }) => ({
+        ({
           execId,
           groupId,
           groupKnown,
           members,
           rootPid,
           rootAlive,
+          rootComplete,
+        }) => ({
+          execId,
+          groupId,
+          groupKnown,
+          members,
+          rootPid,
+          rootAlive,
+          rootComplete,
         }),
       ),
     );
@@ -1103,7 +1171,15 @@ export class ExecManager {
         'SIGKILL',
         targets.map(
           (
-            { execId, groupId, leaderRunning, members, rootPid, rootAlive },
+            {
+              execId,
+              groupId,
+              leaderRunning,
+              members,
+              rootPid,
+              rootAlive,
+              rootComplete,
+            },
             index,
           ) => ({
             execId,
@@ -1115,6 +1191,7 @@ export class ExecManager {
             ]),
             rootPid,
             rootAlive,
+            rootComplete,
           }),
         ),
       );
