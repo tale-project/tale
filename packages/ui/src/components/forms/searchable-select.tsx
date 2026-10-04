@@ -4,6 +4,7 @@ import * as PopoverPrimitive from '@radix-ui/react-popover';
 import * as TooltipPrimitive from '@radix-ui/react-tooltip';
 import { cn } from '@tale/ui/cn';
 import { Description } from '@tale/ui/description';
+import { useT } from '@tale/ui/i18n/client';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Text } from '@tale/ui/text';
 import { TooltipContent } from '@tale/ui/tooltip';
@@ -68,7 +69,7 @@ export interface SearchableSelectProps {
    * to `Select` is rendered using `label`, `placeholder`, `size`, etc.
    */
   trigger?: ReactNode;
-  /** Label rendered above the default trigger. Ignored when `trigger` is provided. */
+  /** Field label; also names the open picker when no explicit accessible name is supplied. */
   label?: ReactNode;
   /** Placeholder shown on the default trigger when no value is selected. */
   placeholder?: ReactNode;
@@ -104,7 +105,7 @@ export interface SearchableSelectProps {
   sideOffset?: number;
   /** Additional className for the popover content */
   contentClassName?: string;
-  /** Accessible label for the listbox */
+  /** Accessible name for the listbox/popover and fallback name for the search input. */
   'aria-label'?: string;
   /** Custom filter function; defaults to case-insensitive match on label + description */
   filterFn?: (option: SearchableSelectOption, query: string) => boolean;
@@ -290,12 +291,20 @@ function SearchableSelectBase({
   title,
   variant = 'default',
 }: SearchableSelectProps) {
+  const { t } = useT('common');
   const isSwitcher = variant === 'switcher';
   const instanceId = useId();
   const listboxId = `${instanceId}-listbox`;
   const optionId = (index: number) => `${instanceId}-option-${index}`;
   const triggerId = providedId ?? `${instanceId}-trigger`;
   const descriptionId = `${instanceId}-description`;
+  const labelId = `${instanceId}-label`;
+  const searchLabel = searchPlaceholder?.trim();
+  const fieldLabel =
+    ariaLabel?.trim() || (typeof label === 'string' ? label.trim() : undefined);
+  const labelReference =
+    !fieldLabel && label && typeof label !== 'string' ? labelId : undefined;
+  const pickerLabel = fieldLabel || searchLabel || t('search.placeholder');
 
   const selectedOption = useMemo(
     () => (value ? options.find((o) => o.value === value) : undefined),
@@ -503,7 +512,8 @@ function SearchableSelectBase({
       <PopoverPrimitive.Portal>
         <SkeletonBox asChild>
           <PopoverPrimitive.Content
-            aria-label={ariaLabel ?? searchPlaceholder}
+            aria-label={pickerLabel}
+            aria-labelledby={labelReference}
             align={align}
             side={side}
             sideOffset={sideOffset}
@@ -575,7 +585,8 @@ function SearchableSelectBase({
                         : undefined
                     }
                     aria-autocomplete="list"
-                    aria-label={searchPlaceholder}
+                    aria-label={searchLabel || pickerLabel}
+                    aria-labelledby={searchLabel ? undefined : labelReference}
                   />
                 </div>
               </div>
@@ -585,7 +596,8 @@ function SearchableSelectBase({
               ref={listRef}
               id={listboxId}
               role="listbox"
-              aria-label={ariaLabel}
+              aria-label={pickerLabel}
+              aria-labelledby={labelReference}
               className={cn(
                 'overflow-y-auto',
                 // Switcher stays compact so a long sibling list doesn't fill the
@@ -651,7 +663,12 @@ function SearchableSelectBase({
       {...(label
         ? {
             label: (
-              <Label htmlFor={triggerId} required={required} error={error}>
+              <Label
+                id={labelId}
+                htmlFor={triggerId}
+                required={required}
+                error={error}
+              >
                 {label}
               </Label>
             ),
