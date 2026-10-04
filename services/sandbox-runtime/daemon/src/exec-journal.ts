@@ -318,6 +318,22 @@ export class ExecJournal {
     signal?: AbortSignal,
   ): Promise<void> {
     if (signal?.aborted) return;
+    if (
+      !Number.isSafeInteger(sinceSeq) ||
+      sinceSeq < 0 ||
+      sinceSeq > this.lastSeq
+    ) {
+      await this.deliver(
+        emit,
+        {
+          t: 'fail',
+          code: 'REPLAY_UNAVAILABLE',
+          message: 'Invalid execution replay cursor.',
+        },
+        signal,
+      );
+      return;
+    }
     const throughSeq = this.lastSeq;
     let caughtUp = false;
     this.readers += 1;
@@ -328,8 +344,8 @@ export class ExecJournal {
       if (signal?.aborted) return;
       const file = await this.ready;
       const buffer = Buffer.alloc(READ_CHUNK);
-      // Include the captured prefix's final record even when the cursor is
-      // ahead of it: replay-complete still belongs before subsequent live data.
+      // Include the captured prefix's final record even when the cursor has
+      // reached it: replay-complete still belongs before subsequent live data.
       let position = this.replayPosition(Math.min(sinceSeq + 1, throughSeq));
       let pending = '';
       const decoder = new StringDecoder('utf8');

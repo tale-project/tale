@@ -879,13 +879,15 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         );
       }
     },
-    'watchdog.task_agents': async () => {
+    'watchdog.task_agents': async (_payload, context) => {
       // Re-attach BEFORE the deadline pass: a turn whose chain died is
       // still doing work, and failing it for a stale heartbeat would throw
       // away a live agent's output.
       const { recoverStalledTaskAgentTurns, recoverStuckQueuedTaskAgentRuns } =
         await import('../domains/tasks/reattach.ts');
-      const reattached = await recoverStalledTaskAgentTurns(deps.sql);
+      const reattached = await recoverStalledTaskAgentTurns(deps.sql, {
+        signal: context?.signal,
+      });
       if (reattached.resumed > 0) {
         console.log(
           `[watchdog] task agents: re-attached ${reattached.resumed} of ${reattached.examined} abandoned turn(s)`,
@@ -894,6 +896,7 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
       // The queued-start twin: a start job lost before setAgentRunRunning
       // leaves the run 'queued' with no op row and no capacity stamp — invisible
       // to the re-attach above and the deadline sweep below until the 12h wall.
+      if (context?.signal?.aborted) return;
       const queued = await recoverStuckQueuedTaskAgentRuns(deps.sql);
       if (queued.requeued > 0 || queued.failed > 0) {
         console.log(
@@ -907,13 +910,15 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         );
       }
     },
-    'watchdog.automation_agents': async () => {
+    'watchdog.automation_agents': async (_payload, context) => {
       // The workflow twin of the task-agent re-attach: a drive chain that
       // died mid-turn is resurrected from the run cursor, never failed —
       // the agent in the sandbox is still doing (or has finished) the work.
       const { recoverAnsweredAskResumes, recoverStalledWorkflowAgentTurns } =
         await import('../domains/automations/reattach.ts');
-      const reattached = await recoverStalledWorkflowAgentTurns(deps.sql);
+      const reattached = await recoverStalledWorkflowAgentTurns(deps.sql, {
+        signal: context?.signal,
+      });
       if (reattached.resumed > 0) {
         console.log(
           `[watchdog] automation agents: re-attached ${reattached.resumed} of ${reattached.examined} abandoned turn(s)`,
@@ -923,6 +928,7 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
       // parks on the asking exec (the re-attach above spares it as
       // awaiting_human) is re-enqueued instead of stranding to the 7-day ask
       // deadline.
+      if (context?.signal?.aborted) return;
       const asks = await recoverAnsweredAskResumes(deps.sql);
       if (asks.requeued > 0) {
         console.log(

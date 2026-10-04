@@ -38,7 +38,9 @@ vi.mock('../threads/store.ts', () => ({
 vi.mock('./automation-access.ts', () => ({
   taskOwnedByAutomation: vi.fn().mockReturnValue(false),
 }));
-vi.mock('./service.ts', () => ({
+vi.mock('./service.ts', async (importOriginal) => ({
+  assertTaskNotArchived: (await importOriginal<typeof import('./service.ts')>())
+    .assertTaskNotArchived,
   loadTaskOrThrow: vi.fn().mockResolvedValue({
     id: 'task',
     organizationId: 'org',

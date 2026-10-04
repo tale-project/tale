@@ -1244,3 +1244,34 @@ describe('DataTable — error state', () => {
     expect(onErrorFocusLost).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('DataTable — preordered window', () => {
+  it('preserves host ordering in manual sorting mode while leaving default sorting unchanged', () => {
+    const data = [...sampleRows].reverse();
+    const sorting = [{ id: 'name', desc: false }];
+    const { rerender } = render(
+      <DataTable
+        columns={columns}
+        data={data}
+        sorting={{ initialSorting: sorting, onSortingChange: vi.fn() }}
+      />,
+    );
+    expect(within(getTbody()).getAllByRole('row')[0]).toHaveTextContent(
+      'Alice',
+    );
+    rerender(
+      <DataTable
+        columns={columns}
+        data={data}
+        sorting={{
+          manual: true,
+          initialSorting: sorting,
+          onSortingChange: vi.fn(),
+        }}
+      />,
+    );
+    expect(within(getTbody()).getAllByRole('row')[0]).toHaveTextContent(
+      'Charlie',
+    );
+  });
+});

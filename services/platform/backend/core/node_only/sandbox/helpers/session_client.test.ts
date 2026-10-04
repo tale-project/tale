@@ -100,6 +100,56 @@ function restoreEnv(name: string, value: string | undefined): void {
 }
 
 describe('drainSessionExecResilient', () => {
+  test('reader admission keeps retrying the same attach beyond the transport failure budget', async () => {
+    const requests: Array<{ url: string; method: string | undefined }> = [];
+    globalThis.fetch = (async (url: string, init?: RequestInit) => {
+      requests.push({ url, method: init?.method });
+      return requests.length <= 6
+        ? sseResponse([
+            'event: error\ndata: {"code":"ATTACH_BUSY","message":"busy"}\n\n',
+          ])
+        : sseResponse([RESULT_OK]);
+    }) as typeof fetch;
+    const result = await drainSessionExecResilient(
+      's',
+      { execId: 'e' },
+      new AbortController().signal,
+      {},
+      { resumeSinceSeq: 3 },
+    );
+    expect(result.status).toBe('completed');
+    expect(requests).toHaveLength(7);
+    expect(
+      requests.every(
+        (request) =>
+          request.method === 'GET' &&
+          request.url.endsWith('/exec/e/attach?sinceSeq=3'),
+      ),
+    ).toBe(true);
+  });
+
+  test('cancellation ends reader admission retries without restarting the exec', async () => {
+    const controller = new AbortController();
+    let calls = 0;
+    globalThis.fetch = (async () => {
+      calls += 1;
+      controller.abort();
+      return sseResponse([
+        'event: error\ndata: {"code":"ATTACH_BUSY","message":"busy"}\n\n',
+      ]);
+    }) as unknown as typeof fetch;
+    await expect(
+      drainSessionExecResilient(
+        's',
+        { execId: 'e' },
+        controller.signal,
+        {},
+        { resumeSinceSeq: 3 },
+      ),
+    ).rejects.toThrow();
+    expect(calls).toBe(1);
+  });
+
   test.each([
     ['stdout', ''],
     ['stdout', '{"seq":3,"text":'],

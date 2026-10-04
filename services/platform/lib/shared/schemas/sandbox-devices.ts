@@ -87,10 +87,15 @@ export interface SandboxDeviceTicketGrant {
 /** `POST /api/app/sandbox-devices/join-tokens` — the settings page builds
  * the one-line command from it. */
 export interface SandboxDeviceJoinToken {
+  id: string;
   token: string;
   expiresAt: number;
   /** The Tale site the device must reach (the deployment's SITE_URL). */
   serverUrl: string;
+}
+
+export interface SandboxDeviceJoinTokenStatus {
+  deviceId: string | null;
 }
 
 /**
