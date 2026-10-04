@@ -142,19 +142,28 @@ export async function runnerdExec(
   onEvent: (event: RunnerdExecEvent) => void,
   signal?: AbortSignal,
 ): Promise<void> {
-  const res = await fetch(`${opts.baseUrl}/execs`, {
-    method: 'POST',
-    headers: {
-      ...authHeaders(opts.token),
-      'content-type': 'application/json',
-    },
-    body: JSON.stringify(req),
-    ...(signal ? { signal } : {}),
-  });
-  if (!res.ok || !res.body) {
-    throw new Error(`runnerd /execs ${res.status}`);
+  const consumer = new AbortController();
+  try {
+    const res = await fetch(`${opts.baseUrl}/execs`, {
+      method: 'POST',
+      headers: {
+        ...authHeaders(opts.token),
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify(req),
+      signal: signal
+        ? AbortSignal.any([signal, consumer.signal])
+        : consumer.signal,
+    });
+    if (!res.ok || !res.body) {
+      throw new Error(`runnerd /execs ${res.status}`);
+    }
+    await pumpNdjson(res.body, onEvent);
+  } finally {
+    // Cancelling a body reader alone can leave Bun's HTTP fetch connected.
+    // End this subscription, never the detached command behind it.
+    consumer.abort();
   }
-  await pumpNdjson(res.body, onEvent);
 }
 
 /** Read an NDJSON body, invoking `onEvent` per parsed line in order (trailing
@@ -311,14 +320,24 @@ export async function runnerdAttach(
   sinceSeq = 0,
 ): Promise<boolean> {
   const q = sinceSeq > 0 ? `?sinceSeq=${sinceSeq}` : '';
-  const res = await fetch(
-    `${opts.baseUrl}/execs/${encodeURIComponent(execId)}/attach${q}`,
-    { headers: authHeaders(opts.token), ...(signal ? { signal } : {}) },
-  );
-  if (res.status === 404) return false;
-  if (!res.ok || !res.body) throw new Error(`runnerd /attach ${res.status}`);
-  await pumpNdjson(res.body, onEvent);
-  return true;
+  const consumer = new AbortController();
+  try {
+    const res = await fetch(
+      `${opts.baseUrl}/execs/${encodeURIComponent(execId)}/attach${q}`,
+      {
+        headers: authHeaders(opts.token),
+        signal: signal
+          ? AbortSignal.any([signal, consumer.signal])
+          : consumer.signal,
+      },
+    );
+    if (res.status === 404) return false;
+    if (!res.ok || !res.body) throw new Error(`runnerd /attach ${res.status}`);
+    await pumpNdjson(res.body, onEvent);
+    return true;
+  } finally {
+    consumer.abort();
+  }
 }
 
 /** PATCH the session env store (POST /env on runnerd). Returns the names the
