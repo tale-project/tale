@@ -13,6 +13,7 @@ import { Copy, Check } from 'lucide-react';
 import { useMemo, useState, type RefObject } from 'react';
 import * as z from 'zod';
 
+import { failureDetail } from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
 
 import { useCreateApiKey } from '../hooks/use-api-keys';
@@ -123,6 +124,11 @@ export function ApiKeyCreateDialog({
       onSuccess?.();
     } catch (error) {
       console.error(error);
+      toast({
+        title: tSettings('apiKeys.keyCreateFailed'),
+        description: failureDetail(error),
+        variant: 'destructive',
+      });
     }
   };
 
