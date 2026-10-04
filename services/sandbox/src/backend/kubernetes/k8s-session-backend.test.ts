@@ -1,9 +1,5 @@
-// C4 regression: a Secret-create failure during a FRESH session create must
-// clean up the workspace PVC it already created — the PVC has no ownerReference,
-// so without the cleanup envelope K8s GC has nothing to cascade from and the
-// volume leaks. Driven through a stub CoreV1Api (the same DI pattern the
-// one-shot KubernetesBackend tests use) so the asymmetry is pinned without a
-// cluster.
+// Kubernetes lifecycle ownership and workspace preservation are exercised
+// through a stub CoreV1Api, without requiring a cluster.
 
 import { describe, expect, test } from 'bun:test';
 
@@ -562,7 +558,10 @@ function resumeStub(podPhase: 'Failed' | 'Succeeded' | 'Running' | 'Pending'): {
       podReads += 1;
       if (podReads === 1) {
         log.push('readPod:probe');
-        return Promise.resolve({ status: { phase: podPhase } });
+        return Promise.resolve({
+          metadata: { uid: 'terminal-original', resourceVersion: '8' },
+          status: { phase: podPhase },
+        });
       }
       log.push('readPod:gone');
       return notFound();
@@ -571,6 +570,7 @@ function resumeStub(podPhase: 'Failed' | 'Succeeded' | 'Running' | 'Pending'): {
       log.push('deletePod');
       return Promise.resolve({});
     },
+    listNamespacedSecret: () => Promise.resolve({ items: [] }),
     deleteNamespacedSecret: () => {
       log.push('deleteSecret');
       return Promise.resolve({});
@@ -633,18 +633,17 @@ async function rejection(promise: Promise<unknown>): Promise<Error | null> {
   }
 }
 
-describe('KubernetesSessionBackend.createSession — PVC cleanup on Secret failure (C4)', () => {
-  test('a fresh-create Secret failure deletes the just-created workspace PVC', async () => {
-    // A definitive non-conflict failure: the objects are ours to clean up.
+describe('KubernetesSessionBackend.createSession — PVC preservation on Secret failure', () => {
+  test('a fresh-create Secret failure preserves the workspace PVC for retry', async () => {
+    // Even a fresh deterministic PVC can already be in use by a peer.
     const { client, calls } = stub(badRequest);
     const backend = new KubernetesSessionBackend(cfg, client);
 
     expect(await rejection(backend.createSession(spec))).not.toBeNull();
 
-    // The PVC was created, then the Secret failed AFTER it — the cleanup
-    // envelope must destroy the orphan (fresh create ⇒ destroy, not stop).
+    // Only an explicit destroy removes workspace data.
     expect(calls.pvcCreated).toBe(true);
-    expect(calls.pvcDeleted).toBe(true);
+    expect(calls.pvcDeleted).toBe(false);
   });
 });
 
@@ -665,7 +664,10 @@ describe('KubernetesSessionBackend.createSession — a 409 name conflict is not 
   });
 
   test('Pod 409: rejects with the conflict, removes only the Secret this call created', async () => {
-    const { client, calls } = stub(() => Promise.resolve({}), conflict);
+    const { client, calls } = stub(
+      () => Promise.resolve({ metadata: { uid: 'own-secret' } }),
+      conflict,
+    );
     const backend = new KubernetesSessionBackend(cfg, client);
     const err = await rejection(backend.createSession(spec));
     expect(err?.message).toMatch(/session sess_c4 already exists/);
@@ -759,8 +761,9 @@ describe('KubernetesSessionBackend.createSession — an orphaned Secret or a Pod
     expect(err?.message).toBe('halt');
     expect(podCreates).toBe(1);
     expect(err?.message).not.toMatch(/already exists/);
-    // The failed Pod create cleans up what this create made, its Secret too.
-    expect(calls.secretDeleted).toBeGreaterThan(0);
+    // The first response was lost: a matching timestamp permits retry, but
+    // without an acknowledged UID cleanup leaves the Secret to recovery.
+    expect(calls.secretDeleted).toBe(0);
   });
 
   test("a Pod 409 on this create's own Pod keeps its Secret and waits for readiness", async () => {
@@ -937,6 +940,28 @@ describe('KubernetesSessionBackend durable pin (Pod annotation)', () => {
 });
 
 describe('KubernetesSessionBackend.listSessions', () => {
+  test('reports the actual Docker capability while preserving unlabeled legacy objects', async () => {
+    const backend = backendOver({
+      listNamespacedPod: async () => ({
+        items: ['true', 'false', undefined].map((value, index) => ({
+          metadata: {
+            annotations: {
+              'tale.dev/session-id': `capability-${index}`,
+              'tale.dev/profile': 'agent',
+              ...(value === undefined ? {} : { 'tale.dev/docker': value }),
+            },
+          },
+          status: { phase: 'Running' },
+        })),
+      }),
+    });
+    expect((await backend.listSessions()).map((s) => s.docker)).toEqual([
+      true,
+      false,
+      undefined,
+    ]);
+  });
+
   test('THROWS on an API failure instead of reporting "no sessions"', async () => {
     // An apiserver hiccup laundered into [] would leave every running session
     // Pod unregistered (unroutable, never reaped) until the next successful
@@ -1229,5 +1254,188 @@ describe('KubernetesSessionBackend.createSession — the workspace PVC names its
         organizationId: spec.organizationId,
       },
     ]);
+  });
+});
+
+describe('Kubernetes failed-create identity fencing', () => {
+  test.each([
+    'own',
+    'peer-before-read',
+    'peer-after-read',
+    'unknown-create',
+  ] as const)(
+    'readiness cleanup preserves workspace and respects %s ownership',
+    async (scenario) => {
+      const deletions: Array<{ kind: string; body?: unknown }> = [];
+      const pod: V1Pod = { metadata: { uid: 'own-pod', resourceVersion: '7' } };
+      let currentUid = scenario === 'peer-before-read' ? 'peer-pod' : 'own-pod';
+      let reads = 0;
+      const base = stub(async () => ({ metadata: { uid: 'own-secret' } }));
+      base.client.core.createNamespacedPod = async () => {
+        if (scenario === 'unknown-create')
+          throw Object.assign(new Error('reply lost'), { code: 400 });
+        return pod;
+      };
+      base.client.core.readNamespacedPod = async () => {
+        reads += 1;
+        if (reads === 1 && scenario !== 'unknown-create')
+          throw Object.assign(new Error('readiness unavailable'), {
+            code: 400,
+          });
+        const observed = {
+          metadata: { uid: currentUid, resourceVersion: '7' },
+        };
+        if (scenario === 'peer-after-read') currentUid = 'peer-pod';
+        return observed;
+      };
+      base.client.core.deleteNamespacedPod = async (args) => {
+        deletions.push({ kind: 'pod', body: args.body });
+        if (args.body?.preconditions?.uid !== currentUid)
+          throw Object.assign(new Error('replacement'), { code: 409 });
+        return {};
+      };
+      base.client.core.deleteNamespacedSecret = async (args) => {
+        deletions.push({ kind: 'secret', body: args.body });
+        return {};
+      };
+      expect(
+        await rejection(
+          new KubernetesSessionBackend(cfg, base.client).createSession(spec),
+        ),
+      ).not.toBeNull();
+      expect(base.calls.pvcDeleted).toBe(false);
+      if (scenario === 'own') {
+        expect(deletions).toEqual([
+          {
+            kind: 'pod',
+            body: { preconditions: { uid: 'own-pod', resourceVersion: '7' } },
+          },
+          { kind: 'secret', body: { preconditions: { uid: 'own-secret' } } },
+        ]);
+      } else if (scenario === 'peer-after-read') {
+        expect(deletions).toEqual([
+          {
+            kind: 'pod',
+            body: { preconditions: { uid: 'own-pod', resourceVersion: '7' } },
+          },
+        ]);
+      } else expect(deletions).toEqual([]);
+    },
+  );
+
+  test('a Pod conflict cannot delete a replacement Secret under the same name', async () => {
+    const { client, calls } = stub(
+      async () => ({ metadata: { uid: 'own-secret' } }),
+      conflict,
+    );
+    const fences: unknown[] = [];
+    let peerSecretAlive = true;
+    client.core.deleteNamespacedSecret = async (args) => {
+      fences.push(args.body);
+      if (args.body?.preconditions?.uid !== 'peer-secret')
+        throw Object.assign(new Error('replacement'), { code: 409 });
+      peerSecretAlive = false;
+      return {};
+    };
+    const error = await rejection(
+      new KubernetesSessionBackend(cfg, client).createSession(spec),
+    );
+    expect(error?.message).toContain('already exists');
+    expect(fences).toEqual([{ preconditions: { uid: 'own-secret' } }]);
+    expect(peerSecretAlive).toBe(true);
+    expect(calls.pvcDeleted).toBe(false);
+  });
+});
+
+describe('Kubernetes terminal recovery identity fencing', () => {
+  test('a peer replacing an observed terminal Pod survives the cleanup verdict', async () => {
+    const { client } = resumeStub('Failed');
+    const deletions: Array<{ kind: string; body?: unknown }> = [];
+    let reads = 0;
+    let peerAlive = true;
+    client.core.readNamespacedPod = async () => {
+      if (++reads > 1) return notFound();
+      return {
+        metadata: { uid: 'terminal-original', resourceVersion: '8' },
+        status: { phase: 'Failed' },
+      };
+    };
+    client.core.listNamespacedSecret = async () => ({
+      items: [
+        {
+          metadata: {
+            name: sessionSecretNameFor(spec.sessionId),
+            uid: 'terminal-secret',
+          },
+        },
+      ],
+    });
+    client.core.deleteNamespacedPod = async (args) => {
+      deletions.push({ kind: 'pod', body: args.body });
+      if (args.body?.preconditions?.uid !== undefined)
+        throw Object.assign(new Error('replacement'), { code: 409 });
+      peerAlive = false;
+      return {};
+    };
+    client.core.deleteNamespacedSecret = async (args) => {
+      deletions.push({ kind: 'secret', body: args.body });
+      return {};
+    };
+    expect(
+      await rejection(
+        new KubernetesSessionBackend(cfg, client).createSession(spec),
+      ),
+    ).not.toBeNull();
+    expect(peerAlive).toBe(true);
+    expect(deletions).toEqual([
+      {
+        kind: 'pod',
+        body: {
+          preconditions: { uid: 'terminal-original', resourceVersion: '8' },
+        },
+      },
+    ]);
+  });
+
+  test('a replacement Secret observed beside a terminal Pod keeps both objects', async () => {
+    const { client } = resumeStub('Failed');
+    let deletes = 0;
+    let reads = 0;
+    client.core.readNamespacedPod = async () => {
+      if (++reads > 1) return notFound();
+      return {
+        metadata: {
+          uid: 'terminal-original',
+          resourceVersion: '8',
+          annotations: { 'tale.dev/created-at': '1000' },
+        },
+        status: { phase: 'Failed' },
+      };
+    };
+    client.core.listNamespacedSecret = async () => ({
+      items: [
+        {
+          metadata: {
+            name: sessionSecretNameFor(spec.sessionId),
+            uid: 'peer-secret',
+            annotations: { 'tale.dev/created-at': '2000' },
+          },
+        },
+      ],
+    });
+    client.core.deleteNamespacedPod = async () => {
+      deletes += 1;
+      return {};
+    };
+    client.core.deleteNamespacedSecret = async () => {
+      deletes += 1;
+      return {};
+    };
+    expect(
+      await rejection(
+        new KubernetesSessionBackend(cfg, client).createSession(spec),
+      ),
+    ).not.toBeNull();
+    expect(deletes).toBe(0);
   });
 });

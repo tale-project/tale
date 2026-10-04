@@ -74,6 +74,52 @@ describe('managed staging transport', () => {
       timeout.mockRestore();
     }
   });
+  it('caller cancellation reaches an active transfer and prevents later batches', async () => {
+    const controller = new AbortController();
+    const called = Promise.withResolvers<void>();
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockImplementation(async (_url, init) => {
+        called.resolve();
+        return new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener(
+            'abort',
+            () => reject(init.signal?.reason),
+            { once: true },
+          );
+        });
+      });
+    vi.stubGlobal('fetch', fetcher);
+    const result = sessionStageFiles(
+      's',
+      Array.from({ length: 513 }, (_, index) => ({
+        path: `inputs/${index}`,
+        contentBase64: 'YQ==',
+      })),
+      { signal: controller.signal },
+    ).catch((error: unknown) => error);
+    await called.promise;
+    controller.abort();
+    expect(await result).toMatchObject({ name: 'AbortError' });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(fetcher.mock.calls[0]?.[1]?.signal?.aborted).toBe(true);
+  });
+
+  it('caller cancellation stops the admission retry wait without another request', async () => {
+    const controller = new AbortController();
+    const fetcher = vi.fn<typeof fetch>().mockImplementation(async () => {
+      controller.abort();
+      return Response.json({ error: 'busy' }, { status: 503 });
+    });
+    vi.stubGlobal('fetch', fetcher);
+    await expect(
+      sessionStageFiles('s', [{ path: 'inputs/a', contentBase64: 'YQ==' }], {
+        signal: controller.signal,
+      }),
+    ).rejects.toThrow();
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
   it('batches both tiny source probes and transfers within the runtime item limit', async () => {
     const sizes: number[] = [];
     vi.stubGlobal(
@@ -180,6 +226,28 @@ describe('managed staging transport', () => {
     );
     expect(result.skipped).toHaveLength(1);
     expect(bodies).toHaveLength(1);
+  });
+
+  it('does not start legacy clear-and-copy after the staging caller cancels', async () => {
+    const controller = new AbortController();
+    const paths: string[] = [];
+    const fetcher = vi.fn<typeof fetch>().mockImplementation(async (url) => {
+      const path = url instanceof Request ? url.url : url.toString();
+      paths.push(path);
+      if (paths.length === 2) controller.abort();
+      if (path.endsWith('/delete'))
+        return Response.json({ deleted: ['inputs'], skipped: [] });
+      return Response.json({ staged: [], skipped: [] });
+    });
+    vi.stubGlobal('fetch', fetcher);
+    await expect(
+      sessionStageFiles('s', [{ path: 'inputs/a', contentBase64: 'YQ==' }], {
+        replaceRoots: ['inputs'],
+        signal: controller.signal,
+      }),
+    ).rejects.toThrow();
+    expect(paths).toHaveLength(2);
+    expect(paths.some((path) => path.endsWith('/delete'))).toBe(false);
   });
 
   it('falls back to clear-and-copy when an old runtime cannot reconcile', async () => {

@@ -10,6 +10,7 @@ import { chmod, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { withDockerDeadline } from './docker-deadline.ts';
 import {
   DOCKER_CLI_CONCURRENCY,
   DOCKER_CLI_PRIORITY_CONCURRENCY,
@@ -422,4 +423,46 @@ describe('runDocker — cancellation before spawn', () => {
       }
     },
   );
+});
+
+describe('Docker operation deadlines', () => {
+  test('the deadline kills a CLI that ignores SIGTERM and drains its slot', async () => {
+    const started = Date.now();
+    const result = await withDockerDeadline(80, () =>
+      runDocker(['-c', 'trap "" TERM; exec sleep 2'], { timeoutMs: 3_000 }),
+    );
+    expect(Date.now() - started).toBeLessThan(1000);
+    expect(result.exitCode).not.toBe(0);
+    expect(dockerCliLoad()).toEqual({ running: 0, waiting: 0 });
+  });
+
+  test('a shared deadline aborts a running CLI and prevents subsequent commands', async () => {
+    const started = Date.now();
+    const results = await withDockerDeadline(80, async () => {
+      const first = await runDocker(['-c', 'exec sleep 2']);
+      const second = await runDocker(['-c', 'printf should-not-run']);
+      return [first, second];
+    });
+    expect(Date.now() - started).toBeLessThan(1000);
+    expect(results[0]?.exitCode).not.toBe(0);
+    expect(results[1]?.exitCode).toBe(-1);
+    expect(results[1]?.stdout).toBe('');
+  });
+
+  test('nested deadlines inherit cancellation while independent cleanup can run', async () => {
+    await withDockerDeadline(20, async () => {
+      await Bun.sleep(40);
+      const inherited = await withDockerDeadline(500, () =>
+        runDocker(['-c', 'printf no']),
+      );
+      expect(inherited.exitCode).toBe(-1);
+      const cleanup = await withDockerDeadline(
+        500,
+        () => runDocker(['-c', 'printf cleaned']),
+        { independent: true },
+      );
+      expect(cleanup.stdout).toBe('cleaned');
+    });
+    expect((await runDocker(['-c', 'printf outside'])).stdout).toBe('outside');
+  });
 });

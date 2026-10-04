@@ -324,6 +324,7 @@ export async function stageFiles(
                 offset,
                 chunk.byteLength - offset,
               );
+              if (result.bytesWritten === 0) throw new Error('write_failed');
               offset += result.bytesWritten;
             }
           };

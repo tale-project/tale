@@ -12,10 +12,21 @@ import { render, screen, waitFor, within } from '@/tests/utils/render';
 
 import { SandboxDevicesSection } from './sandbox-devices';
 
-const { mintToken, removeDevice, toast } = vi.hoisted(() => ({
-  mintToken: vi.fn(),
-  removeDevice: vi.fn(),
-  toast: vi.fn(),
+const { mintToken, removeDevice, toast, joinStatus, readStatus } = vi.hoisted(
+  () => ({
+    mintToken: vi.fn(),
+    removeDevice: vi.fn(),
+    toast: vi.fn(),
+    joinStatus: { deviceId: null as string | null },
+    readStatus: vi.fn(),
+  }),
+);
+
+vi.mock('@/app/hooks/use-backend-query', () => ({
+  useBackendQuery: (name: string, args: unknown) => {
+    readStatus(name, args);
+    return { data: args === 'skip' ? undefined : joinStatus };
+  },
 }));
 
 vi.mock('@/app/hooks/use-backend-mutation', () => ({
@@ -80,7 +91,9 @@ function renderSection(props: {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  joinStatus.deviceId = null;
   mintToken.mockResolvedValue({
+    id: 'grant-1',
     token: 'tsdj_1234abcd',
     expiresAt: 1_790_003_600_000,
     serverUrl: 'https://acme.tale.dev',
@@ -235,6 +248,34 @@ describe('SandboxDevicesSection', () => {
 });
 
 describe('Add device', () => {
+  it('does not confirm another administrator’s enrollment with an unused command', async () => {
+    const { user, rerender } = renderSection({});
+    await user.click(screen.getByRole('button', { name: 'Add device' }));
+    await screen.findAllByText(/tsdj_1234abcd/);
+    rerender(
+      <SandboxDevicesSection
+        organizationId="org-1"
+        view={view([
+          device({
+            id: 'other-device',
+            name: 'Other administrator laptop',
+            createdBy: 'admin-2',
+          }),
+        ])}
+        isLoading={false}
+        error={null}
+        canManage
+        onRefresh={vi.fn()}
+      />,
+    );
+    expect(
+      screen.queryByText('Other administrator laptop is connected.'),
+    ).toBeNull();
+    expect(
+      screen.getByText('Waiting for the device to connect…'),
+    ).toBeInTheDocument();
+  });
+
   it('mints one command per opening and hands out the one-liner', async () => {
     const { user } = renderSection({});
     await user.click(screen.getByRole('button', { name: 'Add device' }));
@@ -244,6 +285,14 @@ describe('Add device', () => {
     );
     expect(mintToken).toHaveBeenCalledTimes(1);
     expect(mintToken).toHaveBeenCalledWith({ organizationId: 'org-1' });
+    expect(readStatus).toHaveBeenCalledWith(
+      'sandbox_devices/queries:joinTokenStatus',
+      'skip',
+    );
+    expect(readStatus).toHaveBeenLastCalledWith(
+      'sandbox_devices/queries:joinTokenStatus',
+      { organizationId: 'org-1', tokenId: 'grant-1' },
+    );
     expect(dialog.textContent).toContain(
       'curl -fsSL https://raw.githubusercontent.com/tale-project/tale/main/scripts/install-cli.sh | VERSION=0.5.60 bash && tale sandbox connect https://acme.tale.dev --token tsdj_1234abcd',
     );
@@ -271,6 +320,7 @@ describe('Add device', () => {
       within(dialog).queryByRole('button', { name: 'Copy command' }),
     ).toBeNull();
     finishMint({
+      id: 'grant-1',
       token: 'tsdj_1234abcd',
       expiresAt: 1_790_003_600_000,
       serverUrl: 'https://acme.tale.dev',
@@ -293,6 +343,7 @@ describe('Add device', () => {
     const { user, rerender } = renderSection({ view: view(devices) });
     await user.click(screen.getByRole('button', { name: 'Add device' }));
     await screen.findAllByText(/tsdj_1234abcd/);
+    joinStatus.deviceId = 'dev-new';
     rerender(
       <SandboxDevicesSection
         organizationId="org-1"
@@ -308,10 +359,34 @@ describe('Add device', () => {
     ).toBeInTheDocument();
   });
 
+  it('keeps existing devices and another command from the same administrator waiting', async () => {
+    const { user, rerender } = renderSection({ view: view([device()]) });
+    await user.click(screen.getByRole('button', { name: 'Add device' }));
+    await screen.findAllByText(/tsdj_1234abcd/);
+    rerender(
+      <SandboxDevicesSection
+        organizationId="org-1"
+        view={view([
+          device(),
+          device({ id: 'another-grant-device', name: 'another-command' }),
+        ])}
+        isLoading={false}
+        error={null}
+        canManage
+        onRefresh={vi.fn()}
+      />,
+    );
+    expect(
+      screen.getByText('Waiting for the device to connect…'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('another-command is connected.')).toBeNull();
+  });
+
   it('a machine that joined but is still starting is not yet connected', async () => {
     const { user, rerender } = renderSection({ view: view([]) });
     await user.click(screen.getByRole('button', { name: 'Add device' }));
     await screen.findAllByText(/tsdj_1234abcd/);
+    joinStatus.deviceId = 'dev-new';
     const show = (status: SandboxDeviceView['status']) =>
       rerender(
         <SandboxDevicesSection
@@ -345,5 +420,28 @@ describe('Add device', () => {
     await user.click(screen.getByRole('button', { name: 'Try again' }));
     expect((await screen.findAllByText(/tsdj_1234abcd/)).length).toBe(2);
     expect(mintToken).toHaveBeenCalledTimes(2);
+  });
+
+  it('uses a fresh grant when the dialog reopens', async () => {
+    const { user } = renderSection({});
+    await user.click(screen.getByRole('button', { name: 'Add device' }));
+    await screen.findAllByText(/tsdj_1234abcd/);
+    await user.click(screen.getByRole('button', { name: 'Done' }));
+    mintToken.mockResolvedValueOnce({
+      id: 'grant-2',
+      token: 'tsdj_fresh',
+      expiresAt: 1_790_003_600_000,
+      serverUrl: 'https://acme.tale.dev',
+    });
+    await user.click(screen.getByRole('button', { name: 'Add device' }));
+    await screen.findAllByText(/tsdj_fresh/);
+    expect(mintToken).toHaveBeenCalledTimes(2);
+    expect(readStatus).toHaveBeenLastCalledWith(
+      'sandbox_devices/queries:joinTokenStatus',
+      { organizationId: 'org-1', tokenId: 'grant-2' },
+    );
+    expect(
+      screen.getByText('Waiting for the device to connect…'),
+    ).toBeInTheDocument();
   });
 });

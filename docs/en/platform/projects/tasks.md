@@ -53,6 +53,8 @@ The same goes for the subtasks under such a task, whoever added them, for exampl
 
 On other people's tasks, a Member reads and comments; mentioning an agent there leaves an ordinary mention that starts nothing. Everyone can edit and delete their own comments on any task they can read, and Owners and Admins can also delete other people's comments.
 
+An archived task can be read but not changed. Until someone restores it, nobody can comment on it, edit or delete its comments, or change its dependencies; a task it blocks can still remove it under **Blocked by**. An agent run that was already working on the task still posts its result there.
+
 Handing a task that was assigned to you to someone else, a person or an agent, also hands over the right to change it, unless you created the task. A run you started still answers to you, though: when your @mention hands the task to an agent, you can guide that run with further mentions and stop it with **Cancel run** until it ends.
 
 A dependency belongs to the task it blocks, so a Member records dependencies for their own tasks only: under **Blocked by** on a task of theirs, or under **Blocks** on any task they can open, picking one of their tasks as the blocked one. The project's settings, agents, files, and label catalog stay with Editors and higher roles; a Member picks from the labels the project already has. Only Owners and Admins can delete a task; everyone else who can change it archives it instead.

@@ -1,6 +1,7 @@
+import { useState } from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-import { render, screen } from '@/tests/utils/render';
+import { act, render, screen } from '@/tests/utils/render';
 
 import { NotificationPreferencesSettings } from './notification-preferences-settings';
 
@@ -36,17 +37,110 @@ vi.mock('../hooks/queries', () => ({
 }));
 
 vi.mock('../hooks/mutations', () => ({
-  useSetNotificationPreferences: () => ({
-    mutateAsync: mockSave,
-    isPending: false,
-  }),
+  useSetNotificationPreferences: () => {
+    const [isPending, setIsPending] = useState(false);
+    return {
+      mutateAsync: async (args: Record<string, string | boolean>) => {
+        setIsPending(true);
+        try {
+          await mockSave(args);
+        } finally {
+          setIsPending(false);
+        }
+      },
+      isPending,
+    };
+  },
 }));
 
 describe('NotificationPreferencesSettings', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockSave.mockReset();
     prefsFixture = {};
     viewer.role = 'member';
+  });
+
+  describe('Keyboard focus during saving (#3819)', () => {
+    it.each([
+      ['Task assigned to me', 'taskAssigned', 'Task status changed'],
+      ['Mentions', 'mention', 'Start and due dates'],
+      ['Email me actionable alerts', 'actionableEmail', 'Task assigned to me'],
+    ])(
+      'keeps %s focused and preserves Tab order while saving',
+      async (label, key, nextLabel) => {
+        const { promise, resolve } = Promise.withResolvers<void>();
+        mockSave.mockReturnValueOnce(promise);
+        const { user } = render(<NotificationPreferencesSettings />);
+        const toggle = screen.getByRole('switch', { name: label });
+
+        toggle.focus();
+        await user.keyboard(' ');
+
+        expect(mockSave).toHaveBeenCalledWith({
+          organizationId: 'org-1',
+          [key]: false,
+        });
+        expect(toggle).toHaveAttribute('aria-busy', 'true');
+        expect(toggle).not.toBeDisabled();
+        expect(toggle).toHaveFocus();
+        await user.keyboard(' ');
+        expect(mockSave).toHaveBeenCalledTimes(1);
+        await user.tab();
+        const nextToggle = screen.getByRole('switch', { name: nextLabel });
+        expect(nextToggle).toHaveFocus();
+        await user.keyboard(' ');
+        await user.click(nextToggle);
+        expect(mockSave).toHaveBeenCalledTimes(1);
+        expect(
+          screen.getByRole('switch', { name: 'Review requests' }),
+        ).toBeDisabled();
+
+        await act(async () => resolve());
+        expect(nextToggle).toHaveFocus();
+        expect(toggle).toHaveAttribute('aria-busy', 'false');
+        await user.keyboard(' ');
+        expect(mockSave).toHaveBeenCalledTimes(2);
+      },
+    );
+
+    it.each(['success', 'failure'])(
+      'keeps focus on the changed switch after save %s and allows retry',
+      async (outcome) => {
+        const { promise, resolve, reject } = Promise.withResolvers<void>();
+        mockSave.mockReturnValueOnce(promise);
+        const { user, rerender } = render(<NotificationPreferencesSettings />);
+        const toggle = screen.getByRole('switch', { name: 'Mentions' });
+
+        toggle.focus();
+        await user.keyboard(' ');
+        expect(toggle).not.toBeDisabled();
+        expect(toggle).toHaveFocus();
+
+        await act(async () => {
+          if (outcome === 'success') {
+            prefsFixture = { mention: false };
+            resolve();
+          } else {
+            reject(new Error('Save failed'));
+          }
+        });
+        rerender(<NotificationPreferencesSettings />);
+
+        expect(toggle).toHaveFocus();
+        expect(toggle).toHaveAttribute('aria-busy', 'false');
+        expect(toggle).toHaveAttribute(
+          'aria-checked',
+          String(outcome === 'failure'),
+        );
+        await user.keyboard(' ');
+        expect(mockSave).toHaveBeenLastCalledWith({
+          organizationId: 'org-1',
+          mention: outcome === 'success',
+        });
+        expect(mockSave).toHaveBeenCalledTimes(2);
+      },
+    );
   });
 
   describe('Review requests lock (#2651)', () => {
