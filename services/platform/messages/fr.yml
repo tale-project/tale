@@ -6634,6 +6634,7 @@ settings:
     yourApiKey: Ta clé API
     keyRevoked: Clé API révoquée
     keyRevokeFailed: Échec de la révocation de la clé API
+    keyCreateFailed: Échec de la création de la clé API
     revokeKey: Révoquer la clé
     revokeKeyTitle: Révoquer la clé API
     revokeConfirmation: Es-tu sûr de vouloir révoquer la clé API « {keyName} » ?

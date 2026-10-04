@@ -6706,6 +6706,7 @@ settings:
     yourApiKey: Your API key
     keyRevoked: API key revoked
     keyRevokeFailed: Couldn't revoke API key
+    keyCreateFailed: Couldn't create API key
     revokeKey: Revoke key
     revokeKeyTitle: Revoke API key
     revokeConfirmation: 'Revoke "{keyName}"? Any applications using this key will immediately lose access. This can''t be undone.'

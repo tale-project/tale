@@ -6534,6 +6534,7 @@ settings:
     yourApiKey: Dein API-Schlüssel
     keyRevoked: API-Schlüssel widerrufen
     keyRevokeFailed: API-Schlüssel konnte nicht widerrufen werden
+    keyCreateFailed: API-Schlüssel konnte nicht erstellt werden
     revokeKey: Schlüssel widerrufen
     revokeKeyTitle: API-Schlüssel widerrufen
     revokeConfirmation: '„{keyName}" widerrufen? Alle Anwendungen, die diesen Schlüssel verwenden, verlieren sofort den Zugriff. Das lässt sich nicht rückgängig machen.'
