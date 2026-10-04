@@ -542,7 +542,7 @@ describe('the shim’s status pipe', () => {
       'TALE_EXEC_ID=refused-fallback\0',
     );
     const sent: Array<[number, NodeJS.Signals]> = [];
-    const mgr = new ExecManager(
+    using mgr = new ExecManager(
       new EnvStore(),
       () => {},
       undefined,

@@ -640,7 +640,7 @@ describe('ExecManager', () => {
     const procRoot = mkdtempSync(`${tmpdir()}/runnerd-proc-`);
     const listing = Promise.withResolvers<string[]>();
     const sent: Array<[number, NodeJS.Signals]> = [];
-    const mgr = new ExecManager(
+    using mgr = new ExecManager(
       new EnvStore(),
       () => {},
       undefined,
@@ -691,7 +691,7 @@ describe('ExecManager', () => {
     const procRoot = mkdtempSync(`${tmpdir()}/runnerd-proc-`);
     const listing = Promise.withResolvers<string[]>();
     const sent: Array<[number, NodeJS.Signals]> = [];
-    const mgr = new ExecManager(
+    using mgr = new ExecManager(
       new EnvStore(),
       () => {},
       undefined,
