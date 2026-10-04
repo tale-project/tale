@@ -439,6 +439,9 @@ export function boardTaskAccess(
   };
 }
 
+/** The archived-task gate: a person's change to an archived task (its fields,
+ * status, assignee, starts, comments, dependencies) is refused until someone
+ * restores it. Restoring, deleting and stopping a live run stay open. */
 export function assertTaskNotArchived(task: Pick<TaskRow, 'archivedAt'>): void {
   if (task.archivedAt !== null) {
     throw new TaskError('TASK_ARCHIVED', 'Task is archived');
@@ -3182,6 +3185,10 @@ export async function addTaskDependency(
   // "Blocked by" is the blocked task's own record — its activity line and
   // its Blocked chip — so the edge is a change to that task.
   await assertTaskWorkable(tx, project, blocked, auth);
+  // An archived task takes no new edge on either end, as on the board: an
+  // archived blocker's status no longer moves, so it would block for good.
+  assertTaskNotArchived(blocked);
+  assertTaskNotArchived(blocker);
 
   // Adding blocker→blocked creates a cycle iff blocker is reachable FROM
   // blocked already.
@@ -3234,8 +3241,11 @@ export async function removeTaskDependency(
     auth.organizationId,
   );
   const project = await loadProjectOrThrow(tx, blocked.projectId);
-  // The edge is the blocked task's record, as when it was added.
+  // The edge is the blocked task's record, as when it was added: an archived
+  // one keeps its edges, while an archived BLOCKER can still be dropped from
+  // an active task, the one way to free it.
   await assertTaskWorkable(tx, project, blocked, auth);
+  assertTaskNotArchived(blocked);
   const deleted = await tx`
     DELETE FROM app.task_dependencies
     WHERE blocker_task_id = ${args.blockerTaskId}
@@ -3687,8 +3697,10 @@ export async function getTask(
     task: decorated,
     ...access,
     // Reaching here means the caller passed the project read gate — exactly
-    // the requirement to comment (a READ-level action, the 0.4 posture).
-    canComment: true,
+    // the requirement to comment (a READ-level action, the 0.4 posture) — on
+    // an active task in an active project, which every comment door
+    // requires; the composer and the comment actions follow this flag.
+    canComment: project.archivedAt === null && task.archivedAt === null,
     ancestors,
   };
 }

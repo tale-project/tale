@@ -35,6 +35,12 @@ which the history present at attachment has been delivered. Session idle and
 TTL cleanup atomically checks the current work generation and activity clock
 before freezing compute; see the [session contract](../sandbox/docs/sessions.md).
 
+Process cleanup indexes each process-table snapshot once by execution, parent,
+group and PID. A session retaining many executions' background processes reuses
+those indexes throughout the cleanup pass instead of rescanning the complete
+table for every execution. The indexes expire with the pass; later passes
+still check process identity and ownership from a fresh snapshot.
+
 Completed commands release their request and consumer data even while another
 command keeps the session active. Process cleanup retains only the ownership
 and liveness data it still needs. Held-open stdin has an 8 MiB pending-write
@@ -46,9 +52,10 @@ and replaces the destination only after a complete, bounded download. Cancelling
 or failing a download preserves the previous file. Atomic replacement preserves
 the destination's permission bits, including executable files. At most two stage requests
 are admitted at once, including their JSON intake; excess requests report
-`busy`. URL inputs retain their 100 MiB limit; a 25-second deadline covers the
-whole batch, including cache verification and final reconciliation;
-inline inputs retain their 1 MiB limit. Output reads also stream, within their
+`busy`. URL inputs retain their 100 MiB limit; one 25-second deadline covers the
+whole batch, including cache verification and final reconciliation. Queued items
+cannot extend the deadline by taking turns.
+Inline inputs retain their 1 MiB limit. Output reads also stream, within their
 20 MiB file limit. Immutable source identities can skip a transfer only after
 rehashing the current destination and checking that its pathname still names
 the same unchanged file; a changed file is repaired. Reads and cache probes
@@ -133,6 +140,15 @@ shared container gate runs on amd64. Each native amd64/arm64 runtime build also
 runs this document check for both users against its pushed image digest, after
 verifying the source, revision and version labels. Both builds must pass before
 the release manifests are published.
+
+Inner Docker startup has a 30-second readiness budget, with each Docker client
+probe bounded to two seconds. After startup, runnerd checks the fixed local
+socket directly with a 750 ms deadline and shares results for one second.
+A failed engine makes `/readyz` and new acquire/exec requests return 503;
+authenticated `/healthz` keeps reporting process activity with
+`dockerReady: false`. The spawner recycles only an atomically claimed idle,
+unpinned session, preserving its workspace. Running work and pinned sessions
+remain protected; engine recovery makes them ready again.
 
 Before starting inner Docker on either backend, the runtime checks IPv4 routes
 and gateways from all tables, interface addresses and prefixes, DNS servers,

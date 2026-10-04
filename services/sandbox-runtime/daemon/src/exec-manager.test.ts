@@ -698,13 +698,13 @@ describe('ExecManager', () => {
     let holder = 0;
     try {
       const { events, emit } = collect();
-      // A child that shrugs off SIGTERM keeps the exec's pipes, so the exec
-      // drains for a while after its leader exits.
+      // The child prints its own PID after ignoring SIGTERM, so cancellation
+      // cannot race its trap setup. It keeps the pipes open after leader exit.
       const done = mgr.run(
         {
           ...base,
           execId: 'elate',
-          shell: "(trap '' TERM; exec sleep 30) & echo $!; exec sleep 30",
+          shell: `sh -c 'trap "" TERM; echo $$; exec sleep 30' & exec sleep 30`,
           cwd: ROOT,
         },
         emit,
@@ -1013,7 +1013,15 @@ describe('ExecManager', () => {
     try {
       const long = collect();
       const longDone = mgr.run(
-        { ...base, execId: 'prune-long', shell: 'sleep 30', cwd: ROOT },
+        {
+          ...base,
+          execId: 'prune-long',
+          // Keep the session alive throughout all 256 spawns even on a busy
+          // host; the ordinary five-second exec deadline tests another path.
+          timeoutMs: 30_000,
+          shell: 'sleep 30',
+          cwd: ROOT,
+        },
         long.emit,
       );
       while (mgr.status('prune-long')?.state !== 'running') {

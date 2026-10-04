@@ -40,9 +40,13 @@ Le rôle Rédacteur ou un rôle supérieur est nécessaire pour modifier les fic
 
 Avant d’enregistrer, le formulaire vérifie chaque champ selon ce que Tale conserve : un **Nom** de 300 caractères au plus, un **Téléphone** de 50 au plus, une **Langue** de 20 au plus et un **Courriel** d’au plus 64 caractères avant le `@`. Une valeur qui dépasse une limite est signalée sous son champ, et rien n’est enregistré tant que tu ne l’as pas corrigée.
 
+Pour n’afficher que les contacts d’une langue, choisis **Filtre** au-dessus de la liste des contacts, puis la langue sous **Langue**. Une langue inclut ses variantes régionales : **FR** affiche les contacts dont la langue est `fr`, `fr-CH` ou `fr_CA`. Un contact sans langue n’apparaît que tant qu’aucune langue n’est choisie.
+
 Tu peux aussi créer une fiche au moment d’écrire. Dans la vue **Réception** d’**Accueil**, choisis **Nouvel e-mail** et saisis une adresse dans **À** : si aucun contact ne la porte, la liste propose **Ajouter « … » comme contact**, ce qui ouvre ce même formulaire avec le **Courriel** déjà renseigné. Une fois la fiche enregistrée, ce contact devient le destinataire : tu ne quittes jamais le message en cours.
 
 Si cette adresse existe déjà, retrouve la fiche et modifie-la depuis le menu de sa ligne ; depuis **Nouvel e-mail**, Tale sélectionne pour toi le contact existant. Enregistrer un contact crée uniquement une fiche ; cette opération ne lui envoie aucun e-mail.
+
+Tu peux modifier ou supprimer les contacts que ton équipe a saisis ou importés ici, un par un depuis le menu de la ligne. Pour en supprimer plusieurs à la fois, coche leurs lignes, puis choisis **Supprimer la sélection**. Les contacts issus d’une intégration, de l’API ou d’une conversation appartiennent à leur source, qui écraserait une modification faite ici : le menu de leur ligne ne propose ni **Modifier** ni **Supprimer**, et leurs lignes n’ont pas de case à cocher.
 
 ## Créer une fiche produit
 

@@ -1,6 +1,6 @@
 # Navigation & shell
 
-> **Prefix** `NAV-` · **Reset** none · **Cost** 67 boxes
+> **Prefix** `NAV-` · **Reset** none · **Cost** 68 boxes
 
 Exercise cross-app navigation — the primary side-nav rail and the section
 panels beside the page (the Home panel with its projects and its one stream of
@@ -598,6 +598,8 @@ loaded, and reads **No teams** for an account in none.
   shows that warning, so judge only the link there.
 
 - [ ] `NAV-B15` · **Recover the header after typing in an iPhone Safari overlay** → On a real iPhone or iOS Simulator, test both the software keyboard and hardware-keyboard accessory bar. Open an automation node, focus a field, then dismiss the keyboard and close the panel; repeat by closing while the keyboard is still open, with Safari's toolbar expanded and collapsed, and with another form dialog. The title/profile row returns fully into view after dismissal and stays visible when navigating away; panel content remains scrollable. Repeat in the installed home-screen app and with pinch zoom: neither regresses.
+
+- [ ] `NAV-B16` · **Literal-code drafts stay discoverable in Home** → In a chat with a sent message, leave `<Button />` unsent and choose **New chat**: its Home row shows **Draft**. Reopen it: the composer retains exactly that text and its active row hides the badge. Leave again and reload: the badge returns, and reopening still preserves the text. Repeat with `<tag>`, an ordinary unsent note, and a task comment. Empty and whitespace-only chat or task drafts show no badge. An emptied rich Inbox reply (including an empty paragraph or nonbreaking space) shows no badge in either Home's combined stream or its Inbox view. Check EN/DE/FR using the existing localized Draft label; keyboard navigation and row names remain usable.
 
 ## Accessibility (WCAG 2.1 AA)
 

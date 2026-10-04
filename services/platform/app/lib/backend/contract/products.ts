@@ -79,13 +79,14 @@ export interface ProductsContract {
       status?: 'active' | 'archived' | 'draft' | 'inactive';
       metadata?: Record<string, unknown>;
       name?: string;
-      category?: string;
-      description?: string;
+      // `null` clears a field; an omitted one stays as it is.
+      category?: string | null;
+      description?: string | null;
       tags?: string[];
       imageUrl?: string | null;
-      stock?: number;
-      price?: number;
-      currency?: string;
+      stock?: number | null;
+      price?: number | null;
+      currency?: string | null;
       translations?: Array<{
         metadata?: Record<string, unknown>;
         name?: string;
