@@ -87,6 +87,8 @@ export interface SkillsContract {
       description: string;
       slug: string;
       body: string;
+      /** Refuse the write if the slug already exists. Used by blank create. */
+      createOnly?: boolean;
     };
     returns: {
       body: string;
