@@ -5403,6 +5403,7 @@ skills:
     uploadRefused: Setze in der SKILL.md die Sichtbarkeit auf team mit den IDs
       deiner Teams, oder lass einen Admin das Bundle hochladen.
     refused: Deine Organisation beschränkt das Teilen mit allen, und du darfst
+    exists: Ein Skill mit diesem Namen existiert bereits. Es wurde nichts geändert.
       nicht veröffentlichen. Teile den Skill stattdessen mit deinen Teams.
   addMenu:
     label: Skill hinzufügen

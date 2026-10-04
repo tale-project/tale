@@ -242,6 +242,24 @@ describe('the app skill door under a reserved organization-wide audience', () =>
     );
   });
 
+  it('passes a create-only precondition through the locked save', async () => {
+    mocks.saveSkillForViewer.mockResolvedValue({
+      skill: { ...summary, body: '' },
+      previous: null,
+      current: revision('t1'),
+    });
+    const res = await routes().request('/house-voice?orgId=o1', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json', 'if-none-match': '*' },
+      body: JSON.stringify({ description: 'd', body: '' }),
+    });
+    expect(res.status).toBe(200);
+    expect(mocks.saveSkillForViewer.mock.calls.at(-1)?.[0]).toMatchObject({
+      slug: 'house-voice',
+      precondition: { ifNoneMatch: { kind: 'any' } },
+    });
+  });
+
   it('hands the answer to the save, and answers and audits its refusal', async () => {
     const refusal = new AppError({
       code: 'SKILL_PUBLISH_FORBIDDEN',
