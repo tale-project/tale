@@ -215,7 +215,10 @@ own files), then list the outside files as `$TURBO_ROOT$/<path>`:
   it exports from outside `src/` (`tailwind-preset.ts`). Its `lint` and `typecheck` list the
   sandbox daemon's `file-ops.ts`, which two suites import, and the `protocol.ts` it imports:
   `tsc` and oxlint's type-aware rules type every module the sources import. Its guard is
-  `services/platform/tests/guards/turbo-inputs.guard.test.ts`.
+  `services/platform/tests/guards/turbo-inputs.guard.test.ts`. The catalog glob explicitly
+  excludes nested `.turbo/` output: explicit inputs include otherwise ignored task logs, so
+  running a catalog skill must not invalidate the platform test cache. The guard changes logs
+  and real catalog/skill source in an isolated Git fixture and checks the actual Turbo hashes.
 - [`services/docs/turbo.json`](../services/docs/turbo.json) gives `@tale/docs` the root `docs/`
   tree (test, build), its JSON maps (typecheck, lint), and the root `README*.md` plus `@tale/ui`'s
   i18n catalogs and test framework (test). Its guard is `services/docs/tests/turbo-inputs.test.ts`.
