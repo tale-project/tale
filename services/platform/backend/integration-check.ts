@@ -83,6 +83,7 @@ import { checkTriggerStreakLockOrder } from './domains/automations/trigger-lock-
 import { checkTriggerPauseAfterFailures } from './domains/automations/trigger-pause.integration.ts';
 import { markAutomationWriterInTx } from './domains/automations/writer-protocol.ts';
 import { appendMessageRow } from './domains/chat/store.ts';
+import { checkAgentQuestionCoalescing } from './domains/collab/agent-question-coalescing.integration.ts';
 import { checkMentionHandles } from './domains/collab/mention-handles.integration.ts';
 import { checkTaskNotificationAccess } from './domains/collab/notification-access.integration.ts';
 import { checkConnectorCredentialLiveListing } from './domains/connector_credentials/live-listing.integration.ts';
@@ -64782,6 +64783,10 @@ async function main(): Promise<void> {
       [
         'checkTaskNotificationAccess',
         () => checkTaskNotificationAccess(sql, baseUrl, authCtx, record),
+      ],
+      [
+        'checkAgentQuestionCoalescing',
+        () => checkAgentQuestionCoalescing(sql, baseUrl, authCtx, record),
       ],
       [
         'checkTaskSourceThread',
