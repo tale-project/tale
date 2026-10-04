@@ -87,6 +87,9 @@
     },
     "lint": {
       "dependsOn": ["generate", "^transit"]
+    },
+    "lint:fix": {
+      "dependsOn": ["generate", "^transit"]
     }
   }
 }

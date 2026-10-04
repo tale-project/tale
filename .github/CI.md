@@ -37,6 +37,8 @@ needs fewer runners, while a long CPU-bound suite can benefit from more slices.
 - **CLI** runs source tests on native Linux, macOS and Windows rows. Cross-compilation rows
   still generate and build their binaries; repeating the same source suite on the same
   host OS adds no platform coverage. Binary artifacts use fast compression.
+  Cross rows install only the CLI dependency closure and keep its download cache in a
+  separate namespace. Native rows retain the full workspace install for source tests.
 
 ## Cache boundaries
 
@@ -58,6 +60,16 @@ Unit and UI jobs also share a job-local Node compile cache between isolated work
 It stores bytecode, not test verdicts, and its temporary location passes through Turbo
 without affecting task hashes. The formatter's uv cache hashes the manifest that
 pins Ruff instead of walking installed dependencies.
+
+Checks skip workspace setup scripts that only print a message. CLI checks keep their real
+generation prerequisite. A workspace that adds substantive setup must attach it to its checks;
+the dependency fixture guards this distinction.
+
+Platform component tasks exclude backend trees they do not execute and manual/E2E evidence.
+Their input guard follows runtime imports and re-exports and checks every visited module against
+Turbo's actual hashed inputs, including workspace dependencies and source text read by tests.
+An isolated fixture verifies that unrelated backend edits preserve these hashes while imported
+policy edits invalidate them.
 
 `setup-turbo` restores `.turbo/cache` through GitHub's native cache action. Keys
 separate task scope, OS, architecture, Bun version and lockfile; the checked-out
@@ -119,6 +131,10 @@ spent 70–113s reclaiming disk per standalone site, before doing any site work.
 spent 148 seconds exporting the platform's PR-local cache and 47 seconds deleting its
 ephemeral builder. [CLI run 37210592060](https://github.com/tale-project/tale/actions/runs/37210592060)
 repeated source tests for 132 seconds on macOS and 115 seconds on Linux cross rows.
+
+A local inventory verified that the 67 platform Playwright tests partition exactly once across
+the four shards (17, 17, 17 and 16 tests). An isolated Bun 1.4.2 checkout installed 265 packages
+for cross compilation and built both Linux arm64 and macOS x64 CLI binaries successfully.
 
 Run workflow and source-identity regressions with:
 

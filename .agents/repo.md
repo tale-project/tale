@@ -235,6 +235,10 @@ own files), then list the outside files as `$TURBO_ROOT$/<path>`:
   excludes nested `.turbo/` output: explicit inputs include otherwise ignored task logs, so
   running a catalog skill must not invalidate the platform test cache. The guard changes logs
   and real catalog/skill source in an isolated Git fixture and checks the actual Turbo hashes.
+  Component tasks exclude unrelated backend trees and manual/E2E evidence; the same guard
+  follows runtime imports and re-exports and requires every visited module and source-text read
+  to remain hashed, including recursive workspace dependencies. Keep that proof green before
+  narrowing a component input list.
 - [`services/docs/turbo.json`](../services/docs/turbo.json) gives `@tale/docs` the root `docs/`
   tree (test, build), its JSON maps (typecheck, lint), and the root `README*.md` plus `@tale/ui`'s
   i18n catalogs and test framework (test). Its guard is `services/docs/tests/turbo-inputs.test.ts`.
@@ -264,6 +268,10 @@ lint or typecheck processes. Explicit outside-file inputs remain necessary for i
 and reads that are not workspace dependencies. The platform's UI input guards still
 hold its direct source reads and exported files to that contract. Every root
 `tsconfig*.json` and `bunfig.toml` also participate in the global hash.
+
+Checks skip echo-only setup tasks. The CLI keeps its real generation prerequisite explicitly;
+a workspace that adds substantive setup must attach it to its checks. The dependency fixture
+holds workspace setup scripts to this contract.
 
 CLI generation and builds record the checkout's Git revision and clean state; they are
 uncached because those values are not source-file hashes. Their outside source inputs

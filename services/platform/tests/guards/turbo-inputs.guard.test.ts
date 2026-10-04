@@ -2,16 +2,19 @@
 
 import { spawnSync } from 'node:child_process';
 import {
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import ts from 'typescript';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
@@ -252,6 +255,7 @@ const dryRunSchema = z.object({
       taskId: z.string(),
       hash: z.string(),
       directory: z.string(),
+      dependencies: z.array(z.string()),
       inputs: z.record(z.string(), z.string()),
     }),
   ),
@@ -281,7 +285,7 @@ function run(command: string, args: string[], cwd = REPO_ROOT): string {
   return result.stdout;
 }
 
-/** Repo-relative files turbo hashes for `@tale/platform#<name>`. */
+/** Repo-relative files hashed by the task and its source dependency nodes. */
 function hashedBy(name: string): Set<string> {
   const stdout = run('bunx', [
     'turbo',
@@ -297,11 +301,26 @@ function hashedBy(name: string): Set<string> {
   const taskId = `@tale/platform#${name}`;
   const task = tasks.find((entry) => entry.taskId === taskId);
   if (!task) throw new Error(`turbo --dry=json listed no ${taskId}`);
-  return new Set(
-    Object.keys(task.inputs).map((file) =>
-      toRepoPath(path.join(REPO_ROOT, task.directory, file)),
-    ),
-  );
+  const files = new Set<string>();
+  const visited = new Set<string>();
+  const queue = [task];
+  while (queue.length > 0) {
+    const entry = queue.pop();
+    if (!entry || visited.has(entry.taskId)) continue;
+    visited.add(entry.taskId);
+    for (const file of Object.keys(entry.inputs)) {
+      files.add(toRepoPath(path.join(REPO_ROOT, entry.directory, file)));
+    }
+    for (const dependency of entry.dependencies) {
+      const prerequisite = tasks.find(
+        (candidate) => candidate.taskId === dependency,
+      );
+      if (!prerequisite)
+        throw new Error(`turbo --dry=json listed no ${dependency}`);
+      queue.push(prerequisite);
+    }
+  }
+  return files;
 }
 
 /** The git-tracked files at `repoPath` — a file, or every file under a directory. */
@@ -483,15 +502,165 @@ describe('@tale/platform#test turbo inputs', () => {
   itHashesUiPackageFiles('test', () => hashed);
 });
 
+/**
+ * The component suites do not execute the whole backend. Follow their runtime
+ * imports (including re-exports and literal dynamic imports) before excluding
+ * backend files from their cache inputs. Type-only imports disappear before
+ * execution, unlike the integration-scope guard's full source dependency walk.
+ */
+function componentModules(name: string): {
+  files: Set<string>;
+  unresolved: string[];
+} {
+  const compiler = ts.getParsedCommandLineOfConfigFile(
+    path.join(PLATFORM_ROOT, 'tsconfig.json'),
+    {},
+    {
+      ...ts.sys,
+      onUnRecoverableConfigFileDiagnostic: (diagnostic) => {
+        throw new Error(
+          ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n'),
+        );
+      },
+    },
+  );
+  if (!compiler)
+    throw new Error('services/platform/tsconfig.json did not parse');
+  const sources = trackedFiles('services/platform');
+  const seeds = sources.filter((file) =>
+    name === 'test:browser'
+      ? /\.browser\.test\.tsx?$/.test(file)
+      : /^services\/platform\/app\/(components|features|hooks|routes)\/.+\.test\.tsx?$/.test(
+          file,
+        ) && !/\.browser\.test\.tsx?$/.test(file),
+  );
+  seeds.push(
+    name === 'test:ui'
+      ? 'services/platform/vitest.ui.config.ts'
+      : 'services/platform/vitest.config.ts',
+    'services/platform/tests/setup-ui.ts',
+  );
+  const queue = seeds.map((file) => path.join(REPO_ROOT, file));
+  const files = new Set<string>();
+  const unresolved: string[] = [];
+  while (queue.length > 0) {
+    const file = queue.pop();
+    if (file === undefined || files.has(file)) continue;
+    files.add(file);
+    if (!/\.[cm]?[jt]sx?$/.test(file)) continue;
+    const source = ts.createSourceFile(
+      file,
+      readFileSync(file, 'utf8'),
+      ts.ScriptTarget.Latest,
+      true,
+    );
+    const imports = new Set<string>();
+    const visit = (node: ts.Node): void => {
+      if (ts.isImportDeclaration(node)) {
+        const clause = node.importClause;
+        const bindings = clause?.namedBindings;
+        const onlyTypes =
+          clause?.isTypeOnly ||
+          (!clause?.name &&
+            bindings &&
+            ts.isNamedImports(bindings) &&
+            bindings.elements.length > 0 &&
+            bindings.elements.every((entry) => entry.isTypeOnly));
+        if (!onlyTypes && ts.isStringLiteralLike(node.moduleSpecifier))
+          imports.add(node.moduleSpecifier.text);
+      } else if (
+        ts.isExportDeclaration(node) &&
+        !node.isTypeOnly &&
+        node.moduleSpecifier &&
+        ts.isStringLiteralLike(node.moduleSpecifier)
+      ) {
+        imports.add(node.moduleSpecifier.text);
+      } else if (
+        ts.isCallExpression(node) &&
+        (node.expression.kind === ts.SyntaxKind.ImportKeyword ||
+          (ts.isIdentifier(node.expression) &&
+            node.expression.text === 'require'))
+      ) {
+        const argument = node.arguments[0];
+        if (argument && ts.isStringLiteralLike(argument))
+          imports.add(argument.text);
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(source);
+    for (const specifier of imports) {
+      let resolved = ts.resolveModuleName(
+        specifier,
+        file,
+        compiler.options,
+        ts.sys,
+      ).resolvedModule?.resolvedFileName;
+      if (!resolved) {
+        // Vite imports YAML, CSS and other assets that TypeScript does not resolve.
+        const literal = specifier.split('?')[0] ?? specifier;
+        const local = literal.startsWith('@/')
+          ? path.join(PLATFORM_ROOT, literal.slice(2))
+          : literal.startsWith('.')
+            ? path.resolve(path.dirname(file), literal)
+            : undefined;
+        if (local && existsSync(local) && statSync(local).isFile())
+          resolved = local;
+        else if (local) unresolved.push(`${toRepoPath(file)}: ${specifier}`);
+      }
+      if (
+        resolved &&
+        resolved.startsWith(REPO_ROOT + path.sep) &&
+        !resolved.split(path.sep).includes('node_modules') &&
+        !/\.d\.[cm]?ts$/.test(resolved)
+      )
+        queue.push(resolved);
+    }
+  }
+  return { files: new Set([...files].map(toRepoPath)), unresolved };
+}
+
+/** Source text read by a component suite, in addition to its runtime imports. */
+const COMPONENT_TEXT_READS = ['services/platform/backend/domains/tasks'];
+
 /** The tasks that run the component suites, which render `@tale/ui`. */
 const COMPONENT_TASKS = ['test:ui', 'test:browser'];
 
 describe.each(COMPONENT_TASKS)('@tale/platform#%s turbo inputs', (name) => {
   let hashed: Set<string>;
+  let graph: ReturnType<typeof componentModules>;
 
   beforeAll(() => {
     hashed = hashedBy(name);
+    graph = componentModules(name);
   }, 60_000);
+
+  it('hashes every runtime module the component suites import', () => {
+    expect(graph.unresolved).toEqual([]);
+    expect(graph.files.size).toBeGreaterThan(100);
+    expect([...graph.files].filter((file) => !hashed.has(file))).toEqual([]);
+  });
+
+  it('hashes backend task writers read as source text by the activity-label suite', () => {
+    for (const directory of COMPONENT_TEXT_READS) {
+      const files = trackedFiles(directory).filter(
+        (file) =>
+          file.endsWith('.ts') && !/\.(test|integration)\.ts$/.test(file),
+      );
+      expect(files.length).toBeGreaterThan(0);
+      expect(files.filter((file) => !hashed.has(file))).toEqual([]);
+    }
+  });
+
+  it('keeps independently tested backend and manual/E2E evidence out of the component hash', () => {
+    for (const file of [
+      'services/platform/backend/integration-check.ts',
+      'services/platform/backend/domains/chat/routes.ts',
+      'services/platform/tests/e2e/AGENTS.md',
+      'services/platform/tests/manual/readme.md',
+    ]) {
+      expect(hashed.has(file), file).toBe(false);
+    }
+  });
 
   it('still hashes its own workspace', () => {
     const self = toRepoPath(fileURLToPath(import.meta.url));

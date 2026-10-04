@@ -36,21 +36,18 @@
       "persistent": true
     },
     "lint": {
-      "dependsOn": ["setup", "^transit"],
+      "dependsOn": ["^transit"],
       "outputs": []
     },
     "lint:fix": {
-      "dependsOn": ["setup"],
       "cache": false,
       "outputs": []
     },
     "format": {
-      "dependsOn": ["setup"],
       "cache": false,
       "outputs": []
     },
     "format:check": {
-      "dependsOn": ["setup"],
       "outputs": []
     },
     "@tale/cli#generate": {
@@ -66,7 +63,7 @@
       "dependsOn": ["^transit"]
     },
     "test": {
-      "dependsOn": ["setup", "^transit"],
+      "dependsOn": ["^transit"],
       "outputs": [],
       "env": [
         "YOUTUBE_LIVE_TEST",
@@ -75,7 +72,6 @@
       ]
     },
     "test:watch": {
-      "dependsOn": ["setup"],
       "cache": false,
       "persistent": true
     },
@@ -96,7 +92,7 @@
       "outputs": []
     },
     "test:coverage": {
-      "dependsOn": ["setup", "^transit"],
+      "dependsOn": ["^transit"],
       "outputs": ["coverage/**"]
     },
     "knip": {

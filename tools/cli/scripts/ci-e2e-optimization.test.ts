@@ -281,10 +281,14 @@ describe('E2E service scheduling', () => {
     ).toBe('bunx turbo run test:prerender --filter=@tale/web');
   });
 
-  test.each(['e2e', 'static-sites'])(
-    '%s caches the installed browser version and always installs native dependencies',
-    async (job) => {
-      const file = await workflow('e2e');
+  test.each([
+    ['e2e', 'e2e'],
+    ['e2e', 'static-sites'],
+    ['checks', 'test-browser'],
+  ])(
+    '%s/%s caches the installed browser version and always installs native dependencies',
+    async (stem, job) => {
+      const file = await workflow(stem);
       const steps = file.jobs[job]!.steps!;
       const version = step(file.jobs[job], 'Resolve Playwright version');
       expect(
@@ -297,7 +301,9 @@ describe('E2E service scheduling', () => {
       // wrapping the substitution swallows the command's failed exit status.
       expect(version.run).toMatch(/^set -euo pipefail\nversion="\$\(bun /);
       expect(version['working-directory']).toBe(
-        job === 'e2e' ? 'services/platform' : 'services/${{ matrix.service }}',
+        job === 'static-sites'
+          ? 'services/${{ matrix.service }}'
+          : 'services/platform',
       );
       const browserCache = step(file.jobs[job], 'Cache Playwright browsers');
       expect(browserCache.with?.key).toBe(
@@ -316,8 +322,12 @@ describe('E2E service scheduling', () => {
   test.skipIf(process.platform === 'win32')(
     'browser version lookup propagates failure instead of restoring an empty key',
     async () => {
-      const file = await workflow('e2e');
-      for (const job of ['e2e', 'static-sites']) {
+      for (const [stem, job] of [
+        ['e2e', 'e2e'],
+        ['e2e', 'static-sites'],
+        ['checks', 'test-browser'],
+      ] as const) {
+        const file = await workflow(stem);
         const script = step(file.jobs[job], 'Resolve Playwright version').run!;
         for (const [mock, exitCode, output] of [
           ["printf '1.58.2'", 0, 'version=1.58.2\n'],
@@ -343,6 +353,40 @@ describe('E2E service scheduling', () => {
           expect(await readFile(versionOutput, 'utf8'), mock).toBe(output);
         }
       }
+    },
+  );
+
+  test.skipIf(process.platform === 'win32')(
+    'version resolution reads the actual installed Playwright package',
+    async () => {
+      const resolve = step(
+        (await workflow('e2e')).jobs.e2e,
+        'Resolve Playwright version',
+      );
+      if (!resolve.run || !resolve['working-directory'])
+        throw new Error('Missing service-local Playwright version resolution');
+      const directory = await mkdtemp(join(tmpdir(), 'tale-ci-playwright-'));
+      temporary.push(directory);
+      const output = join(directory, 'output');
+      await writeFile(output, '');
+      const child = Bun.spawn(['bash', '-c', resolve.run], {
+        cwd: join(repository, resolve['working-directory']),
+        env: { PATH: process.env.PATH, GITHUB_OUTPUT: output },
+        stdout: 'pipe',
+        stderr: 'pipe',
+      });
+      const [code, stderr] = await Promise.all([
+        child.exited,
+        new Response(child.stderr).text(),
+      ]);
+      expect(code, stderr).toBe(0);
+      const { version } = JSON.parse(
+        await readFile(
+          join(repository, 'node_modules/@playwright/test/package.json'),
+          'utf8',
+        ),
+      ) as { version: string };
+      expect(await readFile(output, 'utf8')).toBe(`version=${version}\n`);
     },
   );
 });

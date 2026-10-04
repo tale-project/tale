@@ -1,6 +1,7 @@
 import { beforeAll, describe, expect, test } from 'bun:test';
 import { spawnSync } from 'node:child_process';
 import {
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -9,7 +10,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, relative, resolve, sep } from 'node:path';
+import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { parse } from 'yaml';
@@ -68,6 +69,7 @@ describe('CI cache boundaries', () => {
         'run',
         ...CHECK_TASKS,
         'build',
+        'setup',
         '--dry=json',
         '--cache=local:,remote:',
       ],
@@ -96,6 +98,76 @@ describe('CI cache boundaries', () => {
           .object({ scripts: z.record(z.string(), z.string()).optional() })
           .parse(JSON.parse(readFileSync(file, 'utf8')));
         expect(manifest.scripts?.transit, file).toBeUndefined();
+      }
+    }
+  });
+
+  test('ordinary checks skip empty setup tasks while real workspace setup stays explicit', () => {
+    const configSchema = z.object({
+      tasks: z.record(
+        z.string(),
+        z.object({ dependsOn: z.array(z.string()).optional() }),
+      ),
+    });
+    const config = configSchema.parse(
+      JSON.parse(readFileSync(join(REPO_ROOT, 'turbo.json'), 'utf8')),
+    );
+    const ordinary = [
+      'lint',
+      'lint:fix',
+      'format',
+      'format:check',
+      'test',
+      'test:watch',
+      'test:coverage',
+    ];
+    for (const task of ordinary)
+      expect(config.tasks[task]?.dependsOn ?? [], task).not.toContain('setup');
+    expect(config.tasks.dev?.dependsOn).toContain('setup');
+    const { workspaces } = z
+      .object({ workspaces: z.array(z.string()) })
+      .parse(JSON.parse(readFileSync(join(REPO_ROOT, 'package.json'), 'utf8')));
+    for (const pattern of workspaces) {
+      for (const file of new Bun.Glob(`${pattern}/package.json`).scanSync({
+        cwd: REPO_ROOT,
+        absolute: true,
+        onlyFiles: true,
+      })) {
+        const workspace = z
+          .object({
+            name: z.string(),
+            scripts: z.record(z.string(), z.string()).optional(),
+          })
+          .parse(JSON.parse(readFileSync(file, 'utf8')));
+        const setup = workspace.scripts?.setup;
+        if (!setup) continue;
+        const localPath = join(dirname(file), 'turbo.json');
+        const local: z.infer<typeof configSchema> = existsSync(localPath)
+          ? configSchema.parse(JSON.parse(readFileSync(localPath, 'utf8')))
+          : { tasks: {} };
+        for (const task of ordinary) {
+          if (!workspace.scripts?.[task]) continue;
+          const dependencies =
+            local.tasks[task]?.dependsOn ??
+            config.tasks[`${workspace.name}#${task}`]?.dependsOn ??
+            config.tasks[task]?.dependsOn ??
+            [];
+          if (/^echo '[^']*'$/.test(setup.trim())) {
+            expect(dependencies, `${file}: ${task}`).not.toContain('setup');
+          } else if (workspace.name === '@tale/cli') {
+            expect(setup).toBe('bun run generate');
+            // Format checks do not read the generated, ignored files.
+            if (!task.startsWith('format')) {
+              expect(dependencies, `${file}: ${task}`).toContain('generate');
+              expect(dependencies, `${file}: ${task}`).not.toContain('setup');
+            }
+          } else {
+            expect(
+              dependencies,
+              `${file}: attach real setup to this workspace's ${task}`,
+            ).toContain('setup');
+          }
+        }
       }
     }
   });
@@ -255,6 +327,102 @@ describe('CI cache boundaries', () => {
     }
   });
 });
+
+test('component hashes reuse unrelated backend edits and invalidate imported policies', () => {
+  const fixture = mkdtempSync(join(tmpdir(), 'tale-component-inputs-'));
+  const write = (path: string, content: string) => {
+    const file = join(fixture, path);
+    mkdirSync(dirname(file), { recursive: true });
+    writeFileSync(file, content);
+  };
+  try {
+    const config = z
+      .object({ tasks: z.record(z.string(), z.unknown()) })
+      .passthrough()
+      .parse(JSON.parse(readFileSync(join(REPO_ROOT, 'turbo.json'), 'utf8')));
+    config.tasks = Object.fromEntries(
+      Object.entries(config.tasks).filter(([name]) => !name.includes('#')),
+    );
+    write('turbo.json', JSON.stringify(config));
+    write(
+      'package.json',
+      JSON.stringify({
+        name: 'component-input-fixture',
+        private: true,
+        packageManager: 'bun@1.4.2',
+        workspaces: ['services/*'],
+      }),
+    );
+    write(
+      'services/platform/package.json',
+      JSON.stringify({
+        name: '@tale/platform',
+        scripts: {
+          'test:ui': 'echo never executed',
+          'test:browser': 'echo never executed',
+        },
+      }),
+    );
+    write(
+      'services/platform/turbo.json',
+      readFileSync(join(REPO_ROOT, 'services/platform/turbo.json'), 'utf8'),
+    );
+    const unrelated = 'services/platform/backend/domains/chat/runtime.ts';
+    const policies = [
+      'services/platform/backend/core/tasks/helpers.ts',
+      'services/platform/backend/domains/tasks/task-writer.ts',
+    ];
+    const original = 'export const version = 1;\n';
+    const changed = 'export const version = 2;\n';
+    for (const file of [unrelated, ...policies]) write(file, original);
+    const install = spawnSync(
+      process.execPath,
+      ['install', '--lockfile-only', '--ignore-scripts'],
+      { cwd: fixture, encoding: 'utf8' },
+    );
+    expect(install.status, install.stderr).toBe(0);
+    const snapshots = () => {
+      const run = spawnSync(
+        process.execPath,
+        [
+          'x',
+          'turbo',
+          'run',
+          'test:ui',
+          'test:browser',
+          `--cwd=${fixture}`,
+          '--dry=json',
+          '--cache=local:,remote:',
+        ],
+        { cwd: REPO_ROOT, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 },
+      );
+      if (run.status !== 0)
+        throw new Error(`component dry run failed: ${run.error ?? run.stderr}`);
+      return summarySchema
+        .parse(JSON.parse(run.stdout.slice(run.stdout.indexOf('{'))))
+        .tasks.filter((task) => task.command !== '<NONEXISTENT>')
+        .map(({ taskId, hash }) => ({ taskId, hash }));
+    };
+    const baseline = snapshots();
+    expect(baseline.map(({ taskId }) => taskId).sort()).toEqual([
+      '@tale/platform#test:browser',
+      '@tale/platform#test:ui',
+    ]);
+    write(unrelated, changed);
+    expect(snapshots()).toEqual(baseline);
+    for (const file of policies) {
+      write(file, changed);
+      for (const task of snapshots())
+        expect(task.hash, `${task.taskId}/${file}`).not.toBe(
+          baseline.find((entry) => entry.taskId === task.taskId)?.hash,
+        );
+      write(file, original);
+      expect(snapshots()).toEqual(baseline);
+    }
+  } finally {
+    rmSync(fixture, { recursive: true, force: true });
+  }
+}, 30_000);
 
 /** Real hash changes in a disposable monorepo: changing shared source must
  * invalidate its transitive consumers, while an unrelated workspace stays hot.

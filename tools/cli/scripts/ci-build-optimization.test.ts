@@ -355,6 +355,69 @@ test('CLI source tests still cover every host OS while every target builds', asy
   });
 });
 
+test('cross CLI builds isolate filtered dependencies while native suites keep the shared cache', async () => {
+  const file = await workflow('cli');
+  const configure = step(file, 'build', 'Configure Bun install cache');
+  const cache = step(file, 'build', 'Restore Bun install cache');
+  const install = step(file, 'build', 'Install dependencies');
+  expect(configure.if).toBe('matrix.cross');
+  expect(configure.run).toContain(
+    'BUN_INSTALL_CACHE_DIR=${RUNNER_TEMP}/bun-cli-cache',
+  );
+  expect(cache.with?.path).toBe(
+    "${{ matrix.cross && env.BUN_INSTALL_CACHE_DIR || '~/.bun/install/cache' }}",
+  );
+  expect(cache.with?.key).toBe(
+    "${{ matrix.cross && 'bun-cli-install' || 'bun-install' }}-${{ runner.os }}-${{ runner.arch }}-1.4.2-${{ hashFiles('bun.lock') }}",
+  );
+  expect(String(cache.with?.['restore-keys']).trim()).toBe(
+    "${{ matrix.cross && 'bun-cli-install' || 'bun-install' }}-${{ runner.os }}-${{ runner.arch }}-1.4.2-",
+  );
+  expect(install.env?.CROSS).toBe('${{ matrix.cross }}');
+  const names = file.jobs.build!.steps.map((entry) => entry.name);
+  expect(names.indexOf(configure.name)).toBeLessThan(names.indexOf(cache.name));
+  expect(names.indexOf(install.name)).toBeLessThan(
+    names.indexOf('Generate embedded files'),
+  );
+});
+
+test.skipIf(process.platform === 'win32')(
+  'CLI install filters only cross builds and remains frozen on every host',
+  async () => {
+    const install = step(
+      await workflow('cli'),
+      'build',
+      'Install dependencies',
+    );
+    const directory = await mkdtemp(join(tmpdir(), 'tale-cli-install-ci-'));
+    directories.push(directory);
+    await writeFile(
+      join(directory, 'bun'),
+      '#!/usr/bin/env bash\nprintf "%s\\n" "$@"\n',
+      { mode: 0o755 },
+    );
+    for (const cross of ['true', 'false', '']) {
+      const result = await execute(install.run!, {
+        PATH: `${directory}:${process.env.PATH}`,
+        CROSS: cross,
+      });
+      expect(result.code, result.stdout + result.stderr).toBe(0);
+      expect(result.stdout.trim().split('\n')).toEqual(
+        cross === 'true'
+          ? ['install', '--frozen-lockfile', '--filter', '@tale/cli']
+          : ['install', '--frozen-lockfile'],
+      );
+    }
+  },
+);
+
+test('hosted release builders skip teardown after publishing their images and caches', async () => {
+  expect(
+    step(await workflow('release'), 'build', 'Setup Docker builder').with
+      ?.cleanup,
+  ).toBe(false);
+});
+
 describe.skipIf(process.platform === 'win32')(
   'parallel verified release image pulls',
   () => {
@@ -412,7 +475,8 @@ describe.skipIf(process.platform === 'win32')(
         const pullSource = 'a'.repeat(40);
         const digest = `sha256:${'b'.repeat(64)}`;
         const script = step(await workflow(name), job, pullStep).run!;
-        for (const fails of [false, true]) {
+        for (const failureStage of ['', 'pull', 'tag']) {
+          const fails = failureStage !== '';
           const directory = await mkdtemp(join(tmpdir(), 'tale-pull-ci-'));
           directories.push(directory);
           const receipts = join(directory, 'receipts');
@@ -433,13 +497,14 @@ case "$1" in
     echo "start $2" >> "$TEST_CALLS"
     sleep 0.1
     echo "end $2" >> "$TEST_CALLS"
-    if [ "$TEST_FAILS" = true ] && [[ "$2" == */tale-"$TEST_FAIL_SERVICE"[@:]* ]]; then exit 7; fi
+    if [ "$TEST_FAIL_STAGE" = pull ] && [[ "$2" == */tale-"$TEST_FAIL_SERVICE"[@:]* ]]; then exit 7; fi
     ;;
   image)
     echo "$SOURCE_SHA"
     ;;
   tag)
     echo "tag $2 $3" >> "$TEST_CALLS"
+    if [ "$TEST_FAIL_STAGE" = tag ] && [[ "$2" == */tale-"$TEST_FAIL_SERVICE"[@:]* ]]; then exit 8; fi
     ;;
   *) exit 9 ;;
 esac
@@ -456,7 +521,7 @@ esac
             RECEIPTS: receipts,
             SERVICE_NAMES: JSON.stringify(selectedServices),
             TEST_CALLS: log,
-            TEST_FAILS: String(fails),
+            TEST_FAIL_STAGE: failureStage,
             TEST_FAIL_SERVICE: selectedServices[0]!,
           });
           const calls = (await readFile(log, 'utf8')).trim().split('\n');
@@ -476,12 +541,16 @@ esac
               calls.filter((call) => call.startsWith('start ')),
             ).toHaveLength(3);
             expect(
-              calls.some((call) =>
-                call.startsWith(
-                  `tag ghcr.io/tale-project/tale/tale-${selectedServices[0]}`,
+              calls.filter((call) => call.startsWith('end ')),
+            ).toHaveLength(3);
+            if (failureStage === 'pull')
+              expect(
+                calls.some((call) =>
+                  call.startsWith(
+                    `tag ghcr.io/tale-project/tale/tale-${selectedServices[0]}`,
+                  ),
                 ),
-              ),
-            ).toBe(false);
+              ).toBe(false);
             expect(
               calls.some((call) =>
                 call.endsWith(' tale-sandbox-runtime:latest'),
