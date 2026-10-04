@@ -358,7 +358,7 @@ export async function checkRetentionAuditTrail(
       placed_at_ms
     ) VALUES (
       ${collisionOrg}, 'userMembership', ${heldCollisionUser},
-      'retention tuple collision', 'itest', ${now}
+      'retention tuple collision', 'itest', ${userId}, ${now}
     )
   `;
   const ledgerSeed = [
