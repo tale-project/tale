@@ -9,7 +9,7 @@ Ein Harness ist das Coding-Programm, das die Sitzung eines Agenten in einer Sand
 
 Öffne im Tab **Agenten** eines Projekts einen Agenten und wähle die **Agent-Laufzeit**. Bei einer Agent-Node heißt das Feld **Harness**. Wähle danach Modell und Provider. Unter **Einstellungen > KI-Anbieter** zeigt **Agent-Laufzeiten**, welche Ausführungswege der Organisation derzeit zur Verfügung stehen.
 
-Die Laufzeit braucht passende Zugangsdaten und [Sandbox-Kapazität](/de/platform/admin/sandboxes). Ein funktionierendes Chat-Modell genügt nicht. Fehlt die Laufzeit oder bietet sie keine Modelle an, prüfe ihren Status und die Provider-Zugangsdaten, bevor du den Aufgabenauftrag änderst.
+Die Laufzeit braucht passende Zugangsdaten und [Sandbox-Kapazität](/de/platform/admin/sandboxes). Ein funktionierendes Chat-Modell genügt nicht. Fehlt die Laufzeit oder bietet sie keine Modelle an, prüfe ihren Status und die Provider-Zugangsdaten, bevor du den Aufgabenauftrag änderst. Ein Modell, das Tools nur über die Responses-API von OpenAI aufruft, etwa GPT-6 Astra oder GPT-6.1 Sol, läuft nur auf Codex; für andere Laufzeiten bietet die Modellauswahl es deshalb nicht an.
 
 ## Unterstützte Laufzeiten vergleichen
 
@@ -37,7 +37,7 @@ Gemini CLI ist die Ausnahme: Tale setzt eine seiner Unterhaltungen nie fort. Ein
 
 Bei einem gespeicherten API-Schlüssel oder einer Deployment-Umgebungsvariable stellt Tale einen sitzungsgebundenen Gateway-Schlüssel bereit. Der ursprüngliche Modell-Provider-Schlüssel bleibt bei der Plattform. Gateway-Aufrufe werden gemessen und unterliegen den geltenden Ausgabenregeln. Bereits an andere laufende Durchläufe vergebene Beträge werden berücksichtigt.
 
-Provider-Abonnements verwenden ihren unterstützten Harness und erhalten den Abonnement-Zugang in der Sitzungsumgebung. Sie dienen weder als normale Chat-Zugangsdaten noch für inkompatible Harnesses. Ihre direkten Aufrufe umgehen die Kostenmessung und Ausgabengrenzen des Tale-Gateways. Prüfe die Nutzung beim Abonnement-Provider.
+Provider-Abonnements verwenden ihren unterstützten Harness und erhalten den Abonnement-Zugang in der Sitzungsumgebung. Sie dienen weder als normale Chat-Zugangsdaten noch für inkompatible Harnesses, weil die Anbieter Abo-Tokens nur in ihrer eigenen Laufzeit erlauben; mehr dazu unter [KI-Anbieter](/de/platform/admin/providers#abos-in-aufgaben-nutzen-nicht-im-chat). Ihre direkten Aufrufe umgehen die Kostenmessung und Ausgabengrenzen des Tale-Gateways. Prüfe die Nutzung beim Abonnement-Provider.
 
 Diese Regeln für Modellzugänge bedeuten nicht, dass die Sandbox keinerlei Geheimnisse enthält. Ausdrücklich vergebene **Secrets** sowie ein Token für einen zugeordneten GitHub-Zugang können darin verfügbar sein. Vergib nur den für die Aufgabe nötigen Zugriff.
 

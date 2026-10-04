@@ -20,6 +20,7 @@ import {
   buildAgentRunPreview,
   buildTaskActorPreview,
   buildWorkflowRunPreview,
+  isWorkflowSentinel,
   type TaskActivityContext,
   type TaskActorPreview,
 } from '../utils/task-actor-preview';
@@ -42,6 +43,9 @@ export interface AssignableActor {
   email?: string;
   /** Org role (members only) — lets the assignable filter drop disabled users. */
   role?: string;
+  /** Granted platform tools (agents only) — lets the reviewer picker grey an
+   * agent the server would refuse for a missing `task_review` grant. */
+  tools?: readonly string[];
 }
 
 // Shared frozen instances keep hook results referentially stable across
@@ -124,6 +128,7 @@ export function useActorDirectory(organizationId: string, projectId?: string) {
             type: 'agent' as const,
             id: row._id,
             name: row.name,
+            tools: row.tools,
           })),
     [projectAgents],
   );
@@ -176,6 +181,14 @@ export function useActorDirectory(organizationId: string, projectId?: string) {
           };
         }
         if (type === 'agent') {
+          if (isWorkflowSentinel(type, id)) {
+            return {
+              type,
+              id,
+              name: t('timeline.unresolvedWorkflow'),
+              isAgent: true,
+            };
+          }
           if (id === 'system') {
             return {
               type,

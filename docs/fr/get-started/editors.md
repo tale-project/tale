@@ -3,7 +3,7 @@ title: Créer et tester un agent de projet
 description: Donner une tâche précise à un agent, le lancer et examiner son résultat.
 ---
 
-Un agent de projet est une consigne réutilisable pour les tâches du projet. Tu choisis ses instructions, son environnement d’exécution, son modèle et ses outils, puis tu le lances sur une tâche et examines ce qu’il produit. Tant qu’un projet n’a pas d’agent propre, ses tâches peuvent aller à l’[agent standard](/fr/platform/projects/project-agents#standard-agent) de l’organisation.
+Crée un agent de projet pour un travail récurrent, comme la revue de documents ou la préparation d’un rapport opérationnel. Tu choisis ses instructions, son environnement d’exécution, son modèle et ses outils, puis tu lui donnes une tâche dont tu peux examiner le résultat. Ce guide prend la revue d’un brief de lancement comme exemple. Tant qu’un projet n’a pas d’agent propre, ses tâches peuvent aller à l’[agent standard](/fr/platform/projects/project-agents#standard-agent) de l’organisation.
 
 ## Avant de commencer
 
@@ -62,3 +62,5 @@ Teste aussi le cas où une entrée manque. Un agent qui demande le brief absent 
 ## Améliorer un point à la fois
 
 Corrige l’instruction à l’origine d’un mauvais résultat, puis teste une tâche comparable. Ajoute des outils seulement lorsque le travail le nécessite. Avant d’autoriser des écritures externes, examine [les approbations](/fr/platform/approvals/concepts). Pour un exemple plus complet, suis [ton premier agent de bout en bout](/fr/tutorials/editor/first-agent-end-to-end).
+
+Lorsque tu sais évaluer le résultat d’une tâche de façon fiable, utilise le même agent pour des travaux similaires. Si le processus nécessite des exécutions planifiées, des étapes définies ou des approbations pour les actions des connecteurs, crée une [automatisation](/fr/platform/automations/concepts) qui répond à ces besoins.

@@ -22,14 +22,17 @@ import type { Alternates } from '../types';
  * absolute or relative; it is resolved against `repoRoot` before being
  * passed to `git`.
  *
- * Falls back to the current time when:
- *   - `.git/` is unavailable (e.g. CI shallow clones without history),
+ * Returns undefined (omit `<lastmod>`) when:
+ *   - `.git/` is unavailable (e.g. a source archive),
  *   - the file is untracked / has no commits yet,
  *   - the `git` binary is missing or fails for any other reason.
  *
  * Uses `node:child_process` which is supported in both Node and Bun.
  */
-export function gitMtimeIso(filePath: string, repoRoot: string): string {
+export function gitMtimeIso(
+  filePath: string,
+  repoRoot: string,
+): string | undefined {
   const absolute = path.isAbsolute(filePath)
     ? filePath
     : path.join(repoRoot, filePath);
@@ -41,13 +44,13 @@ export function gitMtimeIso(filePath: string, repoRoot: string): string {
     )
       .toString()
       .trim();
-    return out || new Date().toISOString();
+    return out || undefined;
   } catch (error) {
     console.warn(
-      `[sitemap] gitMtimeIso fallback for ${filePath}:`,
+      `[sitemap] cannot determine lastModified for ${filePath}:`,
       error instanceof Error ? error.message : error,
     );
-    return new Date().toISOString();
+    return undefined;
   }
 }
 

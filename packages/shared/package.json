@@ -34,7 +34,8 @@
     "./schemas/automation-pack": "./src/schemas/automation-pack.ts",
     "./schemas/automation-settings": "./src/schemas/automation-settings.ts",
     "./schemas/task-contract": "./src/schemas/task-contract.ts",
-    "./schemas/task-external-issue": "./src/schemas/task-external-issue.ts"
+    "./schemas/task-external-issue": "./src/schemas/task-external-issue.ts",
+    "./schemas/task-review": "./src/schemas/task-review.ts"
   },
   "scripts": {
     "lint": "bunx oxlint --type-aware",

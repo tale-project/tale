@@ -33,7 +33,10 @@ interface SessionPodInput {
   sessionId: string;
   organizationId: string;
   profile: SandboxSessionProfile;
+  docker?: boolean;
   createdAtMs: number;
+  /** Durable startup lease, shared by peer spawners during recovery. */
+  startupDeadlineMs?: number;
 }
 
 const WORKSPACE_MOUNT = '/agent';
@@ -67,6 +70,55 @@ export function sessionWorkspacePvcNameFor(sessionId: string): string {
   return `${sessionPodNameFor(sessionId)}-ws`;
 }
 
+/** What a session Pod asks the scheduler for: its typical working set, not
+ * its ceiling. An idle session uses ~60 MB and next to no CPU and an agent
+ * turn a few hundred MB, so the old flat 500m / 1Gi reserved ~17x the idle
+ * footprint and capped a node's sessions by CPU it never used. A crawler
+ * render is never idle: Chromium is up from the start, at 170 MB with no page
+ * and 365 MB after five modest ones (measured), so it asks for that. Limits
+ * stay the profile's; an operator override applies to every session Pod. */
+const SESSION_REQUESTS = {
+  agent: { cpu: '250m', memory: '512Mi' },
+  dind: { cpu: '250m', memory: '1Gi' },
+  default: { cpu: '250m', memory: '512Mi' },
+} as const;
+
+/** A CPU quantity in millicores ('250m', '2', '1.5'), NaN when unreadable. */
+function cpuMillis(quantity: string): number {
+  return quantity.endsWith('m')
+    ? Number(quantity.slice(0, -1))
+    : Number(quantity) * 1000;
+}
+
+const MEMORY_UNITS: Record<string, number> = {
+  '': 1,
+  k: 1e3,
+  M: 1e6,
+  G: 1e9,
+  T: 1e12,
+  Ki: 2 ** 10,
+  Mi: 2 ** 20,
+  Gi: 2 ** 30,
+  Ti: 2 ** 40,
+};
+
+/** A memory quantity in bytes ('512Mi', '4Gi', '1500M'), NaN when unreadable. */
+function memoryBytes(quantity: string): number {
+  const m = /^(\d+(?:\.\d+)?)([KMGT]i|[kMGT])?$/.exec(quantity);
+  if (!m) return Number.NaN;
+  return Number(m[1]) * (MEMORY_UNITS[m[2] ?? ''] ?? Number.NaN);
+}
+
+/** The request, unless it would exceed the limit (the apiserver refuses a
+ * request above its limit, which failed every create). */
+function notAbove(
+  request: string,
+  limit: string,
+  measure: (quantity: string) => number,
+): string {
+  return measure(request) > measure(limit) ? limit : request;
+}
+
 /** Default profile mirrors the one-shot caps (uid 65534). */
 const DEFAULT_PROFILE: Pick<
   SessionAgentProfileConfig,
@@ -87,6 +139,7 @@ export function buildSessionPod(
   const gid = Number(gidStr ?? '65534');
   // K8s memory limits use Mi/Gi; the docker quantity (e.g. '4g') maps to '4Gi'.
   const memLimit = dockerMemToK8s(profile.memory);
+  const cpuLimit = String(profile.cpus);
 
   const hardenedSecurityContext = {
     runAsUser: uid,
@@ -110,7 +163,7 @@ export function buildSessionPod(
   // `default` Pod must never run untrusted content as root/privileged, and the
   // entrypoint's DinD branch drops to uid 10001 which cannot write the
   // 65534-group workspace — the Pod would never become ready.
-  const dind = sessionDindEnabled(cfg, inp.profile);
+  const dind = sessionDindEnabled(cfg, inp.profile, inp.docker);
   const dindPrivileged = dindCapabilityOf(cfg.runtimeTier) === 'privileged';
   const dindSecurityContext = {
     runAsUser: 0,
@@ -124,6 +177,23 @@ export function buildSessionPod(
   const runnerSecurityContext = dind
     ? dindSecurityContext
     : hardenedSecurityContext;
+  const requested =
+    SESSION_REQUESTS[
+      dind ? 'dind' : inp.profile === 'agent' ? 'agent' : 'default'
+    ];
+  const requests = {
+    cpu: notAbove(cfg.k8s.cpuRequest ?? requested.cpu, cpuLimit, cpuMillis),
+    memory: notAbove(
+      cfg.k8s.memoryRequest ?? requested.memory,
+      memLimit,
+      memoryBytes,
+    ),
+  };
+  // A crawler render (the `default` profile) is created for one batch and
+  // destroyed after it, never resumed: its workspace is a sized emptyDir, not
+  // a provisioned volume (a CSI create/attach/delete per batch). Agent
+  // sessions keep their PVC across stop and resume.
+  const durableWorkspace = inp.profile === 'agent';
 
   // Transparent egress (non-DinD, supported tier). A native sidecar (an init
   // container with restartPolicy: Always — K8s 1.28+) holds NET_ADMIN, installs
@@ -153,6 +223,13 @@ export function buildSessionPod(
           args: ['egress-sidecar'],
           // Native sidecar: started (and kept running) before the runner.
           restartPolicy: 'Always',
+          // redsocks idles at ~2 MB. Explicit resources also let the Pod
+          // through a namespace ResourceQuota, which refuses any container
+          // without them.
+          resources: {
+            requests: { cpu: '10m', memory: '16Mi' },
+            limits: { cpu: '250m', memory: '64Mi' },
+          },
           env: [
             // redsocks resolves the egress proxy endpoint from these.
             { name: 'HTTPS_PROXY', value: cfg.egressProxy },
@@ -204,7 +281,11 @@ export function buildSessionPod(
         'tale.dev/session-id': inp.sessionId,
         'tale.dev/organization-id': inp.organizationId,
         'tale.dev/profile': inp.profile,
+        'tale.dev/docker': String(dind),
         'tale.dev/created-at': String(inp.createdAtMs),
+        ...(inp.startupDeadlineMs === undefined
+          ? {}
+          : { 'tale.dev/startup-deadline': String(inp.startupDeadlineMs) }),
         // AppArmor unconfined for the inner dockerd (the userns/VM is the real
         // boundary). Annotation form for broad node-version compatibility.
         ...(dind && {
@@ -225,15 +306,23 @@ export function buildSessionPod(
       }),
       securityContext: {
         fsGroup: gid,
+        // Without it the kubelet re-chowns the whole workspace (repositories,
+        // node_modules, site-packages) on every mount, i.e. every resume.
+        fsGroupChangePolicy: 'OnRootMismatch',
         seccompProfile: { type: dind ? 'Unconfined' : 'RuntimeDefault' },
       },
       volumes: [
-        {
-          name: 'workspace',
-          persistentVolumeClaim: {
-            claimName: sessionWorkspacePvcNameFor(inp.sessionId),
-          },
-        },
+        durableWorkspace
+          ? {
+              name: 'workspace',
+              persistentVolumeClaim: {
+                claimName: sessionWorkspacePvcNameFor(inp.sessionId),
+              },
+            }
+          : {
+              name: 'workspace',
+              emptyDir: { sizeLimit: cfg.k8s.workspaceSizeLimit },
+            },
         { name: 'tmp', emptyDir: { medium: 'Memory', sizeLimit: '512Mi' } },
         // /dev/shm — Chromium (Playwright) crashes on the 64Mi default.
         { name: 'dshm', emptyDir: { medium: 'Memory', sizeLimit: '512Mi' } },
@@ -299,8 +388,8 @@ export function buildSessionPod(
             periodSeconds: 5,
           },
           resources: {
-            requests: { cpu: '500m', memory: '1Gi' },
-            limits: { cpu: String(profile.cpus), memory: memLimit },
+            requests,
+            limits: { cpu: cpuLimit, memory: memLimit },
           },
           securityContext: runnerSecurityContext,
           volumeMounts: [

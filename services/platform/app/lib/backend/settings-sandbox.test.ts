@@ -141,3 +141,43 @@ describe('sandbox quota cache refresh', () => {
     client.clear();
   });
 });
+
+describe('sandbox workspace list', () => {
+  it('polls faster while a Destroy is under way, so the row leaves soon after it', () => {
+    const adapter = settingsReadAdapters[
+      'sandbox/session_queries_public:listSandboxesForOrg'
+    ]?.({ organizationId: 'org-a' }, {});
+    const interval = adapter?.refetchInterval;
+    if (typeof interval !== 'function') {
+      throw new Error('the list decides its poll from its answer');
+    }
+    expect(
+      interval([{ destroyState: 'pending' }, { destroyState: null }]),
+    ).toBe(2_000);
+    expect(interval([{ destroyState: 'failed' }, {}])).toBe(15_000);
+    expect(interval(null)).toBe(15_000);
+    expect(interval(undefined)).toBe(15_000);
+  });
+
+  it('queues a Destroy and refreshes this organization’s sandbox reads', async () => {
+    const fetch = vi
+      .spyOn(window, 'fetch')
+      .mockResolvedValue(Response.json({ scheduled: true }, { status: 202 }));
+    const write =
+      settingsWriteAdapters[
+        'node_only/sandbox/session_admin_actions:destroySandbox'
+      ];
+    await expect(
+      write?.run({ organizationId: 'org-a', sessionId: 'pa 1' }, {}),
+    ).resolves.toBeNull();
+    expect(fetch.mock.calls[0]?.[0]).toBe(
+      '/api/app/sandbox/sessions/pa%201/destroy?orgId=org-a',
+    );
+    const client = new QueryClient();
+    const list = backendKey('org-a', 'sandbox_session', 'list');
+    client.setQueryData(list, []);
+    write?.invalidate?.(client, { organizationId: 'org-a' }, {});
+    expect(client.getQueryState(list)?.isInvalidated).toBe(true);
+    client.clear();
+  });
+});

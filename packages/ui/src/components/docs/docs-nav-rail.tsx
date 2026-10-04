@@ -64,9 +64,9 @@ export function DocsNavRail({
       as="nav"
       width="wide"
       ariaLabel={navLabel}
-      className="sticky top-0 h-screen print:hidden"
+      className="bg-muted/20 sticky top-0 h-dvh print:hidden"
     >
-      <div className="border-border flex h-13 shrink-0 items-center border-b px-3">
+      <div className="border-border/70 flex h-13 shrink-0 items-center border-b px-5">
         <Link
           to={homeHref}
           // Exact: a locale home (`/de`) prefixes every page under it, and an
@@ -78,10 +78,13 @@ export function DocsNavRail({
           <TaleLogo />
         </Link>
       </div>
-      <div className="shrink-0 px-3 pt-3">
+      <div className="shrink-0 px-4 pt-5">
         <DocsSearchTrigger onClick={onOpenSearch} />
       </div>
-      <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
+      <div
+        ref={scrollRef}
+        className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-6"
+      >
         <DocsNavTree
           sections={sections}
           activeHref={activeHref}

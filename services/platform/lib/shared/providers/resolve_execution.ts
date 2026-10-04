@@ -8,23 +8,28 @@
  *
  *  - `api-key` / `env` — the platform holds the secret and can mint a
  *    session-scoped gateway virtual key, so BOTH modes are allowed:
- *    `direct` runs the platform chat loop; `sandbox` runs the requested
- *    harness in managed posture (gateway VK). The harness must accept
- *    managed credentials (`credentialPolicy.managed` in its yml) — Cursor
- *    does not (its CLI cannot route through the gateway), so it refuses.
+ *    `direct` runs the platform chat loop (on the Responses API for a model
+ *    whose tools need it); `sandbox` runs the requested harness in managed
+ *    posture (gateway VK). The harness must accept managed credentials
+ *    (`credentialPolicy.managed` in its yml) — Cursor does not (its CLI
+ *    cannot route through the gateway), so it refuses.
  *  - `subscription-key` / `subscription-broker` — a vendor subscription
  *    (a static coding-plan key, an OAuth blob, or a brokered rotating
- *    token) is only usable by the vendor's sanctioned CLI inside a sandbox,
- *    so `direct` is REFUSED with a reason naming the forced harness, and
- *    `sandbox` is REQUIRED to run that exact harness (requesting another
- *    refuses). The secret is injected into the session environment, i.e.
- *    bring-your-own posture — the forced harness must accept byo
- *    credentials (`credentialPolicy.byo`); OpenCode is managed-only and
- *    refuses.
+ *    token) is only usable by the vendor's sanctioned CLI inside a sandbox:
+ *    the vendors permit those tokens in their own agent runtime alone, and
+ *    Anthropic refuses them from any other client. So `direct` is REFUSED
+ *    with a reason naming the forced harness, and `sandbox` is REQUIRED to
+ *    run that exact harness (requesting another refuses). The secret is
+ *    injected into the session environment, i.e. bring-your-own posture —
+ *    the forced harness must accept byo credentials (`credentialPolicy.byo`);
+ *    OpenCode is managed-only and refuses.
  *
  * Sandbox with no harness selected is a refusal, not a guess: the caller
  * owns default-harness policy and passes a concrete slug (a subscription
  * credential is the one case that carries its own forced harness).
+ * A model's explicit tool API requirement also holds in a sandbox: the
+ * harness must declare the compatible wire. Native chat speaks that API
+ * itself.
  *
  * Refusal reasons are user-facing API — actionable one-liners naming the
  * offending piece and the way out.
@@ -35,6 +40,7 @@
 import type {
   ExecutionConstraints,
   HarnessDefinition,
+  HarnessGatewayWire,
   ModelCatalogEntry,
 } from '@tale/shared/schemas/providers';
 
@@ -78,6 +84,31 @@ export function buildHarnessTable(
   return new Map(harnesses.map((harness) => [harness.slug, harness]));
 }
 
+/** A model may accept plain text on a wire that cannot carry its tools.
+ * A harness speaks one wire (Codex: Responses; most others: Chat
+ * Completions or Anthropic), so agent serving and the sandbox arm below
+ * check it. Native chat needs no check: it calls such a model on the
+ * Responses API. */
+export function supportsToolCallingWire(
+  model: Pick<ModelCatalogEntry, 'toolCallingApi'>,
+  wire: HarnessGatewayWire,
+): boolean {
+  return model.toolCallingApi !== 'responses' || wire === 'openai-responses';
+}
+
+/** Harness declarations predate the explicit wire field. Keep their one
+ * fallback rule beside the capability check, shared with gateway routing. */
+export function harnessToolCallingWire(
+  harness: HarnessDefinition | undefined,
+): HarnessGatewayWire {
+  return (
+    harness?.gatewayWire ??
+    (harness?.credentialEnvKeys.includes('ANTHROPIC_BASE_URL') === true
+      ? 'anthropic'
+      : 'openai-chat')
+  );
+}
+
 export type ExecutionResolution =
   | { readonly mode: 'direct' }
   | { readonly mode: 'sandbox'; readonly harness: HarnessDefinition }
@@ -102,11 +133,17 @@ function acceptSandboxHarness(
   slug: string,
   posture: SandboxPosture,
   harnesses: HarnessTable,
+  model: ModelCatalogEntry,
 ): ExecutionResolution {
   const harness = harnesses.get(slug);
   if (!harness) {
     return refused(
       `Unknown harness "${slug}" — available harnesses: ${knownHarnessList(harnesses)}.`,
+    );
+  }
+  if (!supportsToolCallingWire(model, harnessToolCallingWire(harness))) {
+    return refused(
+      `Model "${model.id}" requires the Responses API for tools; harness "${slug}" does not use it. Select a Responses-capable harness.`,
     );
   }
   switch (posture) {
@@ -146,7 +183,8 @@ export function resolveExecution(
     case 'api-key':
     case 'env': {
       // The platform holds (or resolves) the secret and mints a session
-      // gateway key, so both modes are open; sandbox runs managed.
+      // gateway key, so both modes are open; sandbox runs managed. A direct
+      // turn speaks the Responses API for a model whose tools need it.
       switch (mode) {
         case 'direct':
           return { mode: 'direct' };
@@ -156,7 +194,12 @@ export function resolveExecution(
               `Sandbox execution needs a harness for model "${model.id}" — select one of: ${knownHarnessList(harnesses)}.`,
             );
           }
-          return acceptSandboxHarness(selection.harness, 'managed', harnesses);
+          return acceptSandboxHarness(
+            selection.harness,
+            'managed',
+            harnesses,
+            model,
+          );
         }
         default: {
           const _exhaustive: never = mode;
@@ -174,7 +217,7 @@ export function resolveExecution(
       switch (mode) {
         case 'direct':
           return refused(
-            `Model "${model.id}" is selected with a subscription credential that cannot run in direct chat — it only works in a sandbox with the "${forced}" harness. Switch to sandbox execution, or pick an api-key or env credential.`,
+            `Model "${model.id}" is selected with a subscription credential that cannot run in direct chat — the vendor permits subscription tokens only in its own agent runtime, so it works only in a sandbox with the "${forced}" harness. Switch to sandbox execution, or pick an api-key or env credential.`,
           );
         case 'sandbox': {
           if (selection.harness !== undefined && selection.harness !== forced) {
@@ -182,7 +225,7 @@ export function resolveExecution(
               `This subscription credential only runs on the "${forced}" harness; "${selection.harness}" cannot use it. Select "${forced}", or pick an api-key or env credential.`,
             );
           }
-          return acceptSandboxHarness(forced, 'byo', harnesses);
+          return acceptSandboxHarness(forced, 'byo', harnesses, model);
         }
         default: {
           const _exhaustive: never = mode;

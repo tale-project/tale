@@ -1,51 +1,80 @@
 ---
 title: Tale documentation
-description: Learn to use Tale, build project agents, connect applications, and operate an instance.
+description: Coordinate teammates and AI agents in Tale’s open-source workspace with project tasks, delegation, sandboxes, and reviewable results.
 kind: index
 ---
 
-Tale brings conversations, projects, knowledge, and automations into one workspace. Start with the task you want to complete; you do not need to understand every feature first.
+Find your way around Tale, give an agent its first task, or build on the platform. Start with [your first message](/get-started/quickstart) if you already have an account, or [install your own workspace](/self-hosted/install/quickstart).
 
-## Get started
+## From a task to a result
+
+1. [Describe the work](/platform/projects/tasks). Give the task its goal, source files, and a clear outcome.
+2. [Give an agent the task](/get-started/editors). Choose its instructions and tools, then start the work.
+3. [Review what comes back](/platform/projects/task-automation). Inspect the report and files, then approve or request changes.
+
+Each guide explains the access and setup it needs. A working chat does not prove that an agent runtime or sandbox is ready.
+
+## What would you like to do?
 
 <CardGroup cols="2">
 
-<Card title="Send your first message" icon="message-circle" href="/get-started/quickstart">
+<Card title="Create and test a project agent" icon="bot" href="/get-started/editors">
 
-Sign in, choose a model, and get an answer.
-
-</Card>
-
-<Card title="Use Tale with your team" icon="users" href="/get-started/members">
-
-Find your chats, work with sources, and join a project.
+Configure a focused agent, give it a project task, and inspect its first result.
 
 </Card>
 
-<Card title="Build a project agent" icon="bot" href="/get-started/editors">
+<Card title="Work with your team" icon="users" href="/get-started/members">
 
-Give an agent a clear job and review its first result.
+Find your conversations, work with sources, and join a project.
 
 </Card>
 
 <Card title="Set up a workspace" icon="shield" href="/get-started/admins">
 
-Connect providers, add people, and choose their access.
+Connect a provider, invite people, and choose their access.
+
+</Card>
+
+<Card title="Connect another system" icon="code" href="/get-started/developers">
+
+Make your first API request and check the response.
 
 </Card>
 
 </CardGroup>
 
-## Find the right guide
+## Learn by doing
 
-- **[Do a complete task](/tutorials/overview)** — Guided examples for members, builders, and administrators.
-- **[Look up a product feature](/platform)** — Controls, permissions, expected behavior, and troubleshooting.
-- **[Connect another system](/develop/overview)** — REST API, MCP, WebDAV, and webhooks.
-- **[Run Tale yourself](/self-hosted)** — Installation, configuration, backups, and upgrades.
-- **[Use managed hosting](/cloud)** — Cloud onboarding, commercial terms, and operational responsibilities.
+Follow a complete task with example inputs and checkpoints. Check the prerequisites before starting, or [browse all tutorials](/tutorials/overview).
 
-## How to use these docs
+<CardGroup cols="3">
 
-The same product guides apply to Cloud and self-hosted instances. What you see depends on your role and which providers and services your administrator has configured. If a control is missing, start with [members and roles](/platform/admin/members-and-roles).
+<Card title="Organize work in a project" icon="folder" href="/tutorials/member/use-projects">
 
-Instructions use the labels shown in the app. Screenshots illustrate the English interface; German and French pages use the labels from their respective interfaces. For a first visit, follow [the quickstart](/get-started/quickstart).
+Bring a task, source files, and project instructions together.
+
+</Card>
+
+<Card title="Run your first agent" icon="bot" href="/tutorials/editor/first-agent-end-to-end">
+
+Start a delegated task and review the report and delivered files.
+
+</Card>
+
+<Card title="Build a workflow with approvals" icon="check-check" href="/tutorials/editor/workflow-with-approvals">
+
+Review an action before the workflow carries it out.
+
+</Card>
+
+</CardGroup>
+
+## Find the reference you need
+
+- [Platform guides](/platform) explain controls, permissions, expected behavior, and troubleshooting.
+- [API reference](/develop/api-reference) describes the contract for integrating another system.
+- [Self-hosting](/self-hosted) covers installation, configuration, backups, and upgrades.
+- [Tale Cloud](/cloud) explains managed hosting and operational responsibilities.
+
+The same product guides apply to Cloud and self-hosted instances. Screenshots show the English interface; German and French pages use the labels from their respective interfaces.

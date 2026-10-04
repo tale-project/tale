@@ -2,6 +2,7 @@ import {
   buildBreadcrumbListJsonLd,
   buildItemListJsonLd,
 } from '@tale/ui/seo/builders/json-ld';
+import { TALE_SITE_URL } from '@tale/ui/seo/globals';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { ReleaseBody } from '@/app/components/blocks/changelog/release-body';
@@ -28,12 +29,18 @@ import {
   groupReleasesByMonth,
   releaseDayOfMonth,
 } from '@/lib/releases/group-by-month';
-import { prerenderedBodyCount } from '@/lib/releases/prerender-budget';
+import {
+  prerenderedBodyCount,
+  RELEASE_DISPLAY_LIMIT,
+} from '@/lib/releases/prerender-budget';
+import { CHANGELOG_JSON_ROUTE } from '@/lib/releases/route';
 import type { Release } from '@/lib/releases/types';
 import { absoluteLocalizedUrl } from '@/lib/seo/absolute-url';
 import { useDocumentMeta } from '@/lib/seo/use-document-meta';
 
-const DISPLAY_LIMIT = 40;
+const RELEASE_ALTERNATE_FORMATS = [
+  { href: `${TALE_SITE_URL}${CHANGELOG_JSON_ROUTE}`, type: 'application/json' },
+] as const;
 
 /** True when the GitHub release name is more than a version restatement. */
 function distinctiveReleaseName(release: Release): string | null {
@@ -70,7 +77,7 @@ export function ChangelogPage() {
     fetchedAt: RELEASES_FETCHED_AT,
   });
   const releases = useMemo(
-    () => feed.releases.slice(0, DISPLAY_LIMIT) as Release[],
+    () => feed.releases.slice(0, RELEASE_DISPLAY_LIMIT) as Release[],
     [feed.releases],
   );
 
@@ -103,16 +110,31 @@ export function ChangelogPage() {
     [locale, releases],
   );
 
-  // Keep the active timeline row visible inside the scrollable sticky nav.
+  // Move only the timeline's own scrollport. scrollIntoView also scrolls the
+  // document when this sticky rail reaches its boundary near the page footer.
   useEffect(() => {
     if (!activeTag) return;
     const selector = `a[href="#${CSS.escape(activeTag)}"]`;
-    for (const nav of [desktopNavRef.current, mobileNavRef.current]) {
-      nav?.querySelector<HTMLAnchorElement>(selector)?.scrollIntoView({
-        block: 'nearest',
-        inline: 'nearest',
-        behavior: 'smooth',
-      });
+    for (const [container, horizontal] of [
+      [desktopNavRef.current, false],
+      [mobileNavRef.current, true],
+    ] as const) {
+      const link = container?.querySelector<HTMLAnchorElement>(selector);
+      if (!container || !link || container.getClientRects().length === 0)
+        continue;
+      const row = link.getBoundingClientRect();
+      const viewport = container.getBoundingClientRect();
+      if (horizontal) {
+        if (row.right > viewport.right)
+          container.scrollLeft += row.right - viewport.right;
+        else if (row.left < viewport.left)
+          container.scrollLeft += row.left - viewport.left;
+      } else {
+        if (row.bottom > viewport.bottom)
+          container.scrollTop += row.bottom - viewport.bottom;
+        else if (row.top < viewport.top)
+          container.scrollTop += row.top - viewport.top;
+      }
     }
   }, [activeTag]);
 
@@ -139,6 +161,7 @@ export function ChangelogPage() {
     description: tSeo('changelog.description'),
     path: '/changelog',
     jsonLd,
+    alternateFormats: RELEASE_ALTERNATE_FORMATS,
   });
 
   const releaseStream = (
@@ -273,15 +296,14 @@ export function ChangelogPage() {
       <PageSection pad="lg" border="none" surface="site">
         <div className="mx-auto grid w-full max-w-6xl gap-10 lg:grid-cols-[220px_minmax(0,1fr)] lg:gap-16">
           {/* Desktop sticky timeline — quiet rail, no raised card. */}
-          <aside className="hidden lg:sticky lg:top-24 lg:block lg:max-h-[calc(100dvh-7rem)] lg:self-start lg:overflow-y-auto lg:overscroll-contain">
+          <aside
+            ref={desktopNavRef}
+            className="hidden lg:sticky lg:top-24 lg:block lg:max-h-[calc(100dvh-7rem)] lg:self-start lg:overflow-y-auto lg:overscroll-contain"
+          >
             <p className="text-fg-subtle mb-4 text-[11px] font-medium tracking-[0.08em] uppercase">
               {t('allReleases')}
             </p>
-            <nav
-              ref={desktopNavRef}
-              aria-label={t('allReleases')}
-              className="relative"
-            >
+            <nav aria-label={t('allReleases')} className="relative">
               <div
                 aria-hidden
                 className="bg-border-base absolute top-1 bottom-1 left-[5px] w-px"

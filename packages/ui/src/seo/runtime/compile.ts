@@ -29,6 +29,8 @@ import type {
   ResolvedRoutes,
   RobotsConfig,
 } from '../types';
+import { absoluteSitePath } from '../urls';
+import { normalizeCanonicalUrl } from './canonical-url';
 import { etagOf } from './etag';
 import { type Manifest, MANIFEST_VERSION, writeManifest } from './manifest';
 import type { ArtifactPlugin, BuildContext } from './plugin';
@@ -140,6 +142,7 @@ export function compileArtifacts(
           url: `${siteUrl}${r.url}`,
           body: r.body,
         })),
+        siteUrl,
       ),
     );
   }
@@ -182,6 +185,7 @@ export function compileArtifacts(
           },
           body: r.body,
           siteUrl,
+          pageUrl: normalizeCanonicalUrl(absoluteSitePath(siteUrl, r.url)),
         }),
       );
     }
@@ -222,6 +226,7 @@ export async function compileToMemory(params: CompileToMemoryParams): Promise<
       contentType: string;
       cacheControl: string;
       pluginId: string;
+      canonicalUrl?: string;
     }
   >
 > {
@@ -269,6 +274,7 @@ export async function compileToMemory(params: CompileToMemoryParams): Promise<
       contentType: string;
       cacheControl: string;
       pluginId: string;
+      canonicalUrl?: string;
     }
   >();
   for (const plugin of plugins) {
@@ -287,6 +293,9 @@ export async function compileToMemory(params: CompileToMemoryParams): Promise<
         contentType: response.contentType,
         cacheControl: response.cacheControl,
         pluginId: plugin.id,
+        ...(response.canonicalUrl !== undefined
+          ? { canonicalUrl: normalizeCanonicalUrl(response.canonicalUrl) }
+          : {}),
       });
     }
   }
@@ -364,6 +373,9 @@ export async function compileToDisk(
       contentType: value.contentType,
       cacheControl: value.cacheControl,
       byteLength: Buffer.byteLength(value.body, 'utf-8'),
+      ...(value.canonicalUrl !== undefined
+        ? { canonicalUrl: value.canonicalUrl }
+        : {}),
     });
 
     if (pathname.endsWith('.md')) knownMdPaths.push(pathname);

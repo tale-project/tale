@@ -22,10 +22,13 @@ reference lives in [`services/docs/tests/AGENTS.md`](../services/docs/tests/AGEN
   served, append-only (the docs build records new pages; never delete a line). Each must keep
   answering in every locale, as a page or through `redirects.json`: a page that goes away without
   a redirect fails `tests/published.test.ts`. The retired `de-CH`, `de-AT` and `fr-CH` trees and
-  guessed addresses (a title turned into a slug, a translated folder) are answered by the server's
-  near-miss resolver (`lib/near-miss.ts`), not by entries here.
+  guessed addresses (a title turned into a slug, a translated folder, a sidebar group's label such
+  as `/de/verwaltung`) are answered by the server's near-miss resolver (`lib/near-miss.ts`), not by
+  entries here.
 - The site: `services/docs/` (Vite + React + TanStack Router, prerendered static HTML). Its
-  chrome follows the **platform app** design language — a `SubPanel` navigation rail, one sticky
+  locale-root landing pages use the shared **marketing** language for search and guide discovery.
+  Their text companions remain `docs/{en,de,fr}/index.md`, including the published Markdown
+  exports. Guide pages keep the **platform app** design language — a `SubPanel` navigation rail, one sticky
   `h-13` header strip carrying the breadcrumb trail and the page actions, the article column, and
   the "On this page" outline (a rail from `xl`, a disclosure below it). That chrome is the shared
   `@tale/ui/docs/*` frame the design-system guide renders too; change it in `packages/ui`, never

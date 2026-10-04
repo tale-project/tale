@@ -126,6 +126,7 @@ export default defineConfig({
   },
   ssr: {
     noExternal: [
+      '@tale/marketing-ui',
       '@tale/ui',
       '@tanstack/react-router',
       'framer-motion',
@@ -150,7 +151,7 @@ export default defineConfig({
       name: 'Tale Docs',
       shortName: 'Tale Docs',
       description:
-        'Documentation for Tale, the self-hosted orchestration layer for AI agents.',
+        'Documentation for Tale, the open-source project workspace for teams and AI agents.',
       themeColor: '#09090b',
       backgroundColor: '#fcfcfc',
       projectDir: import.meta.dirname,

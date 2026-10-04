@@ -1,7 +1,9 @@
 import { DemoShell } from '@tale/marketing-ui/demo-shell';
+import { useReducedMotion } from '@tale/marketing-ui/entrance';
 import { useDemoTimeline } from '@tale/marketing-ui/use-demo-timeline';
+import { Card } from '@tale/ui/card';
 import { cn } from '@tale/ui/cn';
-import { motion, useInView, useReducedMotion } from 'framer-motion';
+import { motion, useInView } from 'framer-motion';
 import {
   ChevronRight,
   FileCode2,
@@ -62,14 +64,15 @@ export function SandboxWorkspace({
       <DemoShell
         label={scene.label}
         activeNav="chat"
-        className="mx-auto aspect-[7/10] max-w-4xl sm:aspect-[16/10]"
+        domain="agents"
+        className="mx-auto min-h-208 max-w-4xl @sm/demo:min-h-176 @4xl/demo:aspect-[16/10] @4xl/demo:min-h-136"
       >
-        <div className="flex h-full min-h-0">
-          <div className="border-border-base flex min-w-0 flex-[0.95] flex-col border-r">
-            <div className="flex min-h-0 flex-1 flex-col justify-start gap-2.5 px-3 py-3 sm:gap-3 sm:px-4 sm:py-3.5">
+        <div className="flex h-full min-h-0 flex-col @4xl/demo:flex-row">
+          <div className="border-border-base flex min-w-0 flex-col border-b @4xl/demo:flex-[0.95] @4xl/demo:border-r @4xl/demo:border-b-0">
+            <div className="flex min-h-0 flex-1 flex-col justify-start gap-2.5 px-3 py-3 @lg/demo:gap-3 @lg/demo:px-4 @lg/demo:py-3.5">
               {beat >= BEAT.prompt ? (
                 <motion.div {...pop()} className="flex flex-col items-end">
-                  <div className="bg-surface-site-inset text-fg-base max-w-[92%] rounded-2xl px-3 py-2 text-xs sm:max-w-xs sm:text-[13px]">
+                  <div className="demo-soft text-fg-base max-w-[92%] rounded-2xl px-3 py-2 text-xs @lg/demo:max-w-xs @lg/demo:text-[13px]">
                     {scene.prompt}
                   </div>
                 </motion.div>
@@ -80,14 +83,14 @@ export function SandboxWorkspace({
                   {...pop()}
                   className="flex flex-col items-start gap-1.5"
                 >
-                  <p className="text-fg-subtle flex items-center gap-1.5 text-[10px] sm:text-[11px]">
+                  <p className="text-fg-subtle flex flex-wrap items-center gap-1.5 text-[10px] @lg/demo:text-[11px]">
                     <span className="text-fg-base font-medium">
                       {scene.agent}
                     </span>
                     <span aria-hidden>·</span>
                     <span>{scene.model}</span>
                   </p>
-                  <p className="text-fg-base text-xs leading-snug sm:text-[13px]">
+                  <p className="text-fg-base text-xs leading-snug @lg/demo:text-[13px]">
                     {scene.reply}
                   </p>
                 </motion.div>
@@ -118,14 +121,14 @@ export function SandboxWorkspace({
                   <div
                     className={cn(
                       'flex h-full min-h-0',
-                      showLive && 'flex-col sm:flex-row',
+                      showLive && 'flex-col',
                     )}
                   >
                     <div
                       className={cn(
                         'flex min-h-0',
                         showLive
-                          ? 'border-border-base/70 max-h-[38%] shrink-0 border-b sm:max-h-none sm:w-[36%] sm:flex-col sm:border-r sm:border-b-0'
+                          ? 'border-border-base/70 shrink-0 border-b'
                           : 'min-w-0 flex-1',
                       )}
                     >
@@ -146,9 +149,9 @@ export function SandboxWorkspace({
                                   key={name}
                                   {...pop(index * 0.04)}
                                   className={cn(
-                                    'flex items-center gap-1 rounded px-1 py-0.5 text-[10px] md:text-[11px]',
+                                    'flex items-center gap-1 rounded px-1 py-0.5 text-[10px] @2xl/demo:text-[11px]',
                                     active
-                                      ? 'bg-surface-site-inset text-fg-base font-medium'
+                                      ? 'demo-soft demo-accent font-medium'
                                       : 'text-fg-muted',
                                   )}
                                 >
@@ -172,14 +175,14 @@ export function SandboxWorkspace({
                           : null}
                       </div>
                       {!showLive ? (
-                        <div className="bg-surface-site-inset/40 flex min-w-0 flex-1 flex-col px-2 py-2 md:px-3">
+                        <div className="bg-surface-site-inset/40 flex min-w-0 flex-1 flex-col px-2 py-2 @2xl/demo:px-3">
                           <p className="text-fg-subtle mb-1.5 truncate text-[10px] font-medium">
                             {scene.activeFile}
                           </p>
                           {beat >= BEAT.code ? (
                             <motion.pre
                               {...pop()}
-                              className="text-fg-muted overflow-hidden font-mono text-[9px] leading-relaxed md:text-[10px]"
+                              className="text-fg-muted overflow-hidden font-mono text-[9px] leading-relaxed @2xl/demo:text-[10px]"
                             >
                               {scene.codeLines.map((line, i) => (
                                 <div key={i} className="flex gap-2">
@@ -200,33 +203,68 @@ export function SandboxWorkspace({
                     {showLive ? (
                       <motion.div
                         {...pop()}
-                        className="flex min-h-0 min-w-0 flex-1 flex-col p-2 md:p-2.5"
+                        className="flex min-h-0 min-w-0 flex-1 flex-col p-2 @2xl/demo:p-2.5"
                       >
-                        <div className="border-border-base bg-surface-site-raised flex min-h-0 flex-1 flex-col overflow-hidden rounded-md border">
+                        <Card
+                          padding="none"
+                          radius="lg"
+                          className="bg-surface-site-raised flex min-h-0 flex-1 flex-col overflow-hidden"
+                        >
                           <div className="border-border-base flex items-center gap-1.5 border-b px-2 py-1.5">
                             <Globe
                               aria-hidden
                               className="text-fg-muted size-3 shrink-0"
                               strokeWidth={1.75}
                             />
-                            <span className="text-fg-muted truncate font-mono text-[10px] md:text-[11px]">
+                            <span className="text-fg-muted truncate font-mono text-[10px] @2xl/demo:text-[11px]">
                               {scene.browserUrl}
                             </span>
                           </div>
-                          <div className="from-surface-site-inset to-surface-site-raised relative flex min-h-0 flex-1 flex-col items-center justify-center bg-gradient-to-b px-3">
-                            <MonitorPlay
-                              aria-hidden
-                              className="text-fg-subtle mb-2 size-6 md:size-7"
-                              strokeWidth={1.5}
-                            />
-                            <p className="text-fg-base text-center text-[11px] font-medium md:text-xs">
-                              {scene.browserTitle}
-                            </p>
-                            <p className="text-fg-subtle mt-1 text-center text-[10px]">
-                              {t('demos.sandbox.liveHint')}
-                            </p>
+                          <div className="demo-surface flex min-h-0 flex-1 flex-col gap-3 p-3 @2xl/demo:p-4">
+                            <div className="flex items-center gap-2.5">
+                              <span className="demo-accent demo-soft flex size-8 shrink-0 items-center justify-center rounded-lg text-sm font-semibold">
+                                {scene.previewTitle.slice(0, 1)}
+                              </span>
+                              <div className="min-w-0">
+                                <p className="text-fg-base text-sm leading-snug font-semibold @2xl/demo:text-base">
+                                  {scene.previewTitle}
+                                </p>
+                                <p className="text-fg-muted mt-0.5 text-[10px] leading-snug @2xl/demo:text-[11px]">
+                                  {scene.previewDescription}
+                                </p>
+                              </div>
+                            </div>
+                            <ol className="flex flex-col gap-2">
+                              {scene.previewItems.map((item, index) => (
+                                <Card
+                                  asChild
+                                  padding="none"
+                                  key={item.title}
+                                  className="bg-surface-site-raised flex items-start gap-2.5 px-2.5 py-2"
+                                >
+                                  <li>
+                                    <span className="demo-accent pt-0.5 font-mono text-[10px]">
+                                      {String(index + 1).padStart(2, '0')}
+                                    </span>
+                                    <div className="min-w-0">
+                                      <p className="text-fg-base text-[11px] leading-snug font-medium">
+                                        {item.title}
+                                      </p>
+                                      <p className="text-fg-muted mt-0.5 text-[10px] leading-snug">
+                                        {item.detail}
+                                      </p>
+                                    </div>
+                                  </li>
+                                </Card>
+                              ))}
+                            </ol>
                           </div>
-                        </div>
+                        </Card>
+                        <p className="text-fg-subtle mt-1.5 text-[9px] leading-snug">
+                          <span>{scene.browserTitle}</span>
+                          {' · '}
+                          <span>{t('demos.sandbox.liveHint')}</span>
+                        </p>
                       </motion.div>
                     ) : null}
                   </div>
@@ -252,7 +290,7 @@ function PaneTab({
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1 rounded-t-md px-2 py-1 text-[10px] font-medium md:text-[11px]',
+        'inline-flex items-center gap-1 rounded-t-md px-2 py-1 text-[10px] font-medium @2xl/demo:text-[11px]',
         active
           ? 'bg-surface-site text-fg-base border-border-base border border-b-transparent'
           : 'text-fg-muted',

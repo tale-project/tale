@@ -144,7 +144,14 @@ function sqlWith(runs: Array<Record<string, unknown>>, world: World = {}): Sql {
       text.includes('started_via IS NOT NULL')
     ) {
       return Promise.resolve(
-        (world.automatedStarts ?? []).map((startedAt) => ({ startedAt })),
+        (world.automatedStarts ?? []).map((startedAt) => ({
+          startedAt,
+          automated: true,
+          agentId: 'agent-1',
+          status: 'failed',
+          failureCode: 'turn_crashed',
+          apiErrorStatus: null,
+        })),
       );
     }
     if (

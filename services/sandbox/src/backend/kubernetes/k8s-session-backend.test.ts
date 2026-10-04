@@ -14,6 +14,7 @@ import type {
   V1Pod,
 } from '@kubernetes/client-node';
 
+import { SessionRoutes } from '../../session/session-routes.ts';
 import { TEST_SESSION_CONFIG } from '../../session/session-test-config.ts';
 import type { SpawnerConfig } from '../../types.ts';
 import { SessionIncarnationChangedError, type SessionSpec } from '../types.ts';
@@ -68,6 +69,133 @@ const spec: SessionSpec = {
 function notFound(): Promise<never> {
   return Promise.reject(Object.assign(new Error('not found'), { code: 404 }));
 }
+
+describe('abandoned Kubernetes startup recovery', () => {
+  const stamp = Date.now() - 600_000;
+  const pending = (): V1Pod => ({
+    metadata: {
+      uid: 'pending-original',
+      resourceVersion: '17',
+      creationTimestamp: new Date(stamp),
+      annotations: {
+        'tale.dev/created-at': String(stamp),
+        'tale.dev/startup-deadline': String(
+          stamp + cfg.session.createHealthTimeoutMs,
+        ),
+      },
+    },
+    status: { phase: 'Pending' },
+  });
+
+  function fixture(pod: V1Pod, changed = false, terminates = true) {
+    let gone = false;
+    const deletions: Array<{ kind: string; body?: unknown }> = [];
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- bounded CoreV1 test seam
+    const core = {
+      readNamespacedPod: async () => (gone ? notFound() : pod),
+      listNamespacedSecret: async () => ({
+        items: [
+          {
+            metadata: {
+              name: sessionSecretNameFor('pending'),
+              uid: 'secret-original',
+              annotations: { 'tale.dev/created-at': String(stamp) },
+            },
+          },
+        ],
+      }),
+      deleteNamespacedPod: async (args: { body: unknown }) => {
+        deletions.push({ kind: 'pod', body: args.body });
+        if (changed)
+          throw Object.assign(new Error('phase or incarnation changed'), {
+            code: 409,
+          });
+        gone = terminates;
+      },
+      deleteNamespacedSecret: async (args: { body: unknown }) => {
+        deletions.push({ kind: 'secret', body: args.body });
+      },
+      deleteNamespacedPersistentVolumeClaim: async () => {
+        throw new Error('workspace must survive');
+      },
+    } as unknown as CoreV1Api;
+    return {
+      backend: new KubernetesSessionBackend(cfg, {
+        ...stub(async () => ({})).client,
+        core,
+      }),
+      deletions,
+    };
+  }
+
+  test('stops only an old Pending incarnation, fences its observed state and preserves its PVC', async () => {
+    const { backend, deletions } = fixture(pending());
+    expect(await backend.reapStaleSession('pending', stamp)).toBe(true);
+    expect(deletions).toEqual([
+      {
+        kind: 'pod',
+        body: {
+          preconditions: { uid: 'pending-original', resourceVersion: '17' },
+        },
+      },
+      { kind: 'secret', body: { preconditions: { uid: 'secret-original' } } },
+    ]);
+  });
+
+  test.each(['Running', 'Unknown', 'Succeeded', undefined])(
+    'leaves phase %s untouched',
+    async (phase) => {
+      const pod = pending();
+      pod.status = { phase };
+      const { backend, deletions } = fixture(pod);
+      expect(await backend.reapStaleSession('pending', stamp)).toBe(false);
+      expect(deletions).toEqual([]);
+    },
+  );
+
+  test('the server creation timestamp protects a recent peer carrying an old caller stamp', async () => {
+    const pod = pending();
+    pod.metadata!.creationTimestamp = new Date();
+    const { backend, deletions } = fixture(pod);
+    expect(await backend.reapStaleSession('pending', stamp)).toBe(false);
+    expect(deletions).toEqual([]);
+  });
+
+  test('honors the original creator deadline across configuration changes', async () => {
+    const pod = pending();
+    pod.metadata!.annotations!['tale.dev/startup-deadline'] = String(
+      Date.now() + 600_000,
+    );
+    const { backend, deletions } = fixture(pod);
+    expect(await backend.reapStaleSession('pending', stamp)).toBe(false);
+    expect(deletions).toEqual([]);
+  });
+
+  test('a legacy Pod without a recorded deadline receives a conservative grace', async () => {
+    const pod = pending();
+    delete pod.metadata!.annotations!['tale.dev/startup-deadline'];
+    const { backend, deletions } = fixture(pod);
+    expect(await backend.reapStaleSession('pending', stamp)).toBe(false);
+    expect(deletions).toEqual([]);
+  });
+
+  test('a Pod that changed after observation keeps its Secret', async () => {
+    const { backend, deletions } = fixture(pending(), true);
+    expect(await backend.reapStaleSession('pending', stamp)).toBe(false);
+    expect(deletions.map((item) => item.kind)).toEqual(['pod']);
+  });
+
+  test('a replacement incarnation is never stopped', async () => {
+    const { backend, deletions } = fixture(pending());
+    expect(await backend.reapStaleSession('pending', stamp - 1)).toBe(false);
+    expect(deletions).toEqual([]);
+  });
+
+  test('a terminating Pod keeps its occupancy until disappearance is confirmed', async () => {
+    const { backend } = fixture(pending(), false, false);
+    expect(await backend.reapStaleSession('pending', stamp)).toBe(false);
+  });
+});
 
 describe('Kubernetes pressure stop', () => {
   test('fences Pod and Secret UIDs, waits through termination, and retains the workspace PVC', async () => {
@@ -270,6 +398,7 @@ function badRequest(): Promise<never> {
 }
 
 interface Calls {
+  pvcReads: number;
   pvcCreated: boolean;
   pvcDeleted: boolean;
   podDeleted: boolean;
@@ -303,16 +432,46 @@ describe('Kubernetes destroy of a stopped session', () => {
     const backend = new KubernetesSessionBackend(cfg, base.client);
     expect(await backend.destroySession('gone-k8s')).toBe(false);
   });
+
+  test("states its own deletion contract: the volume handed to its provisioner, never Docker's done", async () => {
+    // An answer without a deletion state reads as a spawner older than the
+    // contract (unconfirmed), so this backend says what its destroy did.
+    const base = stub(async () => ({}));
+    Object.assign(base.client.core, {
+      deleteNamespacedPod: () => notFound(),
+      deleteNamespacedSecret: () => notFound(),
+    });
+    const backend = new KubernetesSessionBackend(cfg, base.client);
+    const routes = new SessionRoutes(cfg, backend);
+    const res = await routes.handleDestroy('stopped-k8s', {
+      awaitDeletion: true,
+    });
+    expect(await res.json()).toEqual({
+      destroyed: true,
+      busy: false,
+      deletion: 'handed_off',
+    });
+    expect(await backend.workspaceDeletion()).toBe('handed_off');
+  });
 });
 
 function stub(
   createSecret: () => Promise<unknown>,
   createPod: () => Promise<unknown> = () => Promise.resolve({}),
+  existing: {
+    /** The Secret a `list` by name finds (none: an empty list). */
+    secret?: { uid: string; createdAt: Date; createdAtMs?: number };
+    /** What reading the Pod returns (none: 404). */
+    pod?: object;
+    /** The bodies Secret deletes were sent with. */
+    secretDeletes?: unknown[];
+  } = {},
 ): {
   client: K8sClient;
   calls: Calls;
 } {
   const calls: Calls = {
+    pvcReads: 0,
     pvcCreated: false,
     pvcDeleted: false,
     podDeleted: false,
@@ -320,7 +479,10 @@ function stub(
   };
   // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion -- test stub
   const core = {
-    readNamespacedPersistentVolumeClaim: () => notFound(),
+    readNamespacedPersistentVolumeClaim: () => {
+      calls.pvcReads += 1;
+      return notFound();
+    },
     createNamespacedPersistentVolumeClaim: () => {
       calls.pvcCreated = true;
       return Promise.resolve({});
@@ -331,13 +493,39 @@ function stub(
     },
     createNamespacedSecret: createSecret,
     createNamespacedPod: createPod,
-    readNamespacedPod: () => notFound(),
+    readNamespacedPod: () =>
+      existing.pod === undefined ? notFound() : Promise.resolve(existing.pod),
+    listNamespacedSecret: (request: { fieldSelector?: string }) =>
+      Promise.resolve({
+        items:
+          existing.secret === undefined
+            ? []
+            : [
+                {
+                  metadata: {
+                    name: request.fieldSelector?.replace('metadata.name=', ''),
+                    uid: existing.secret.uid,
+                    creationTimestamp: existing.secret.createdAt,
+                    ...(existing.secret.createdAtMs === undefined
+                      ? {}
+                      : {
+                          annotations: {
+                            'tale.dev/created-at': String(
+                              existing.secret.createdAtMs,
+                            ),
+                          },
+                        }),
+                  },
+                },
+              ],
+      }),
     deleteNamespacedPod: () => {
       calls.podDeleted = true;
       return Promise.resolve({});
     },
-    deleteNamespacedSecret: () => {
+    deleteNamespacedSecret: (request: { body?: unknown }) => {
       calls.secretDeleted += 1;
+      existing.secretDeletes?.push(request.body);
       return Promise.resolve({});
     },
   } as unknown as CoreV1Api;
@@ -489,6 +677,114 @@ describe('KubernetesSessionBackend.createSession — a 409 name conflict is not 
   });
 });
 
+describe('KubernetesSessionBackend.createSession — a render session has no volume', () => {
+  test('a default-profile create provisions no PVC and reads none', async () => {
+    const { client, calls } = stub(
+      () => Promise.resolve({}),
+      () => Promise.reject(Object.assign(new Error('halt'), { code: 400 })),
+    );
+    const err = await rejection(
+      new KubernetesSessionBackend(cfg, client).createSession({
+        ...spec,
+        profile: 'default',
+      }),
+    );
+    expect(err?.message).toBe('halt');
+    expect(calls.pvcReads).toBe(0);
+    expect(calls.pvcCreated).toBe(false);
+  });
+});
+
+describe('KubernetesSessionBackend.createSession — an orphaned Secret or a Pod of its own', () => {
+  const named = (secret: { uid: string; createdAt: Date }) => secret;
+
+  test('a Secret no Pod holds, older than a create, is removed by its UID and the create goes on', async () => {
+    let secretCreates = 0;
+    const secretDeletes: unknown[] = [];
+    const { client } = stub(
+      () => {
+        secretCreates += 1;
+        return secretCreates === 1 ? conflict() : Promise.resolve({});
+      },
+      // Halt before the readiness wait (no runnerd in a unit test).
+      () => Promise.reject(Object.assign(new Error('halt'), { code: 400 })),
+      {
+        secret: named({
+          uid: 'orphan-uid',
+          createdAt: new Date(Date.now() - 600_000),
+        }),
+        secretDeletes,
+      },
+    );
+    const err = await rejection(
+      new KubernetesSessionBackend(cfg, client).createSession(spec),
+    );
+    expect(err?.message).toBe('halt');
+    expect(secretCreates).toBe(2);
+    expect(secretDeletes[0]).toEqual({ preconditions: { uid: 'orphan-uid' } });
+  });
+
+  test("a young Pod-less Secret is a peer's create in flight: a conflict, nothing deleted", async () => {
+    const { client, calls } = stub(conflict, undefined, {
+      secret: named({ uid: 'peer-uid', createdAt: new Date() }),
+    });
+    const err = await rejection(
+      new KubernetesSessionBackend(cfg, client).createSession(spec),
+    );
+    expect(err?.message).toMatch(/session sess_c4 already exists/);
+    expect(calls.secretDeleted).toBe(0);
+    expect(calls.podDeleted).toBe(false);
+  });
+
+  test("a Secret 409 on this create's own Secret, stored by a timed-out first attempt, goes on to the Pod", async () => {
+    let podCreates = 0;
+    const { client, calls } = stub(
+      conflict,
+      () => {
+        podCreates += 1;
+        // Halt before the readiness wait (no runnerd in a unit test).
+        return Promise.reject(Object.assign(new Error('halt'), { code: 400 }));
+      },
+      {
+        secret: {
+          uid: 'own-uid',
+          createdAt: new Date(),
+          createdAtMs: spec.createdAtMs,
+        },
+      },
+    );
+    const err = await rejection(
+      new KubernetesSessionBackend(cfg, client).createSession(spec),
+    );
+    expect(err?.message).toBe('halt');
+    expect(podCreates).toBe(1);
+    expect(err?.message).not.toMatch(/already exists/);
+    // The failed Pod create cleans up what this create made, its Secret too.
+    expect(calls.secretDeleted).toBeGreaterThan(0);
+  });
+
+  test("a Pod 409 on this create's own Pod keeps its Secret and waits for readiness", async () => {
+    const { client } = stub(() => Promise.resolve({}), conflict, {
+      pod: {
+        metadata: {
+          annotations: { 'tale.dev/created-at': String(spec.createdAtMs) },
+        },
+        status: { phase: 'Pending' },
+      },
+    });
+    const quick = {
+      ...cfg,
+      session: { ...cfg.session, createHealthTimeoutMs: 200 },
+    };
+    const err = await rejection(
+      new KubernetesSessionBackend(quick, client).createSession(spec),
+    );
+    // It went on to the readiness wait instead of reporting a conflict.
+    expect(err).not.toBeNull();
+    expect(err?.message).not.toMatch(/already exists/);
+  });
+});
+
 // REGRESSION: destroySession swallowed a failed PVC delete, so the route
 // answered destroyed:true while the user's data (and its storage) survived
 // with no retry and no sweeper.
@@ -539,6 +835,49 @@ describe('KubernetesSessionBackend.destroySession — the workspace PVC delete i
 });
 
 describe('KubernetesSessionBackend durable pin (Pod annotation)', () => {
+  test('a pin write fences the observed Pod and refuses a replaced incarnation', async () => {
+    const patches: unknown[] = [];
+    // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion -- test stub
+    const core = {
+      readNamespacedPod: async () => ({
+        metadata: {
+          uid: 'original',
+          resourceVersion: '7',
+          annotations: { 'tale.dev/created-at': '123' },
+        },
+      }),
+      patchNamespacedPod: async (request: { body: unknown }) => {
+        patches.push(request.body);
+        return {};
+      },
+    } as unknown as CoreV1Api;
+    // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion -- test stub
+    const networking = {} as NetworkingV1Api;
+    const backend = new KubernetesSessionBackend(cfg, {
+      core,
+      networking,
+      namespace: 'tale-sandbox',
+    });
+    await backend.setPinned('fenced-pin', true, 123);
+    expect(patches).toEqual([
+      {
+        metadata: {
+          uid: 'original',
+          resourceVersion: '7',
+          annotations: { 'tale.dev/pinned': 'true' },
+        },
+      },
+    ]);
+    let rejected = false;
+    try {
+      await backend.setPinned('fenced-pin', false, 456);
+    } catch {
+      rejected = true;
+    }
+    expect(rejected).toBe(true);
+    expect(patches).toHaveLength(1);
+  });
+
   test('setPinned merge-patches the pin annotation; listSessions reads it back', async () => {
     const patches: Array<{ name: string; body: unknown }> = [];
     // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion -- test stub

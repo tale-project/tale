@@ -1,6 +1,6 @@
 # Settings
 
-> **Prefix** `SET-` · **Reset** none · **Cost** 114 boxes
+> **Prefix** `SET-` · **Reset** none · **Cost** 118 boxes
 
 Exercise the settings surface along its real rail — **Personal** (Account,
 Preferences, Notifications, Usage), **Organization** (Organization, Teams, Members,
@@ -264,7 +264,7 @@ run.
   catalog pane (`settings.credentials.catalog.title`) lists configured
   providers first with a **Configured** badge
   (`settings.credentials.catalog.configured`), then the rest alphabetically →
-  pick a vendor → **Name** (`settings.credentials.name`) arrives filled with
+  While the catalog is loading, the picker shows an accessible loading state instead of the empty-catalog warning; the warning remains for a successfully empty catalog. Then pick a vendor → **Name** (`settings.credentials.name`) arrives filled with
   the vendor's name; keep it, fill **API key**
   (`settings.providers.dialog.secret`), optionally narrow the **Model
   allowlist** (`settings.providers.dialog.allowlist`) → **Add credential**
@@ -325,8 +325,7 @@ run.
 - [ ] `SET-F24` · **Connectors page** — `/dashboard/{org}/settings/connectors`
   → The credential table renders under the description
   (`settings.connectors.sectionDescription`) — or the empty state
-  (`emptyStates.connectors.title`) on a fresh org — with **Add credential**
-  opening the same two-step catalog picker; connector auth methods render from
+  (`emptyStates.connectors.title`) on a fresh org — with **Add credential** opening the same two-step catalog picker; while the connector catalog is loading, the picker shows a loading state rather than the empty-catalog warning; connector auth methods render from
   `settings.connectors.authMethod.*` (API key / Token / Username & password /
   OAuth)
 - [ ] `SET-F25` · **Connector add-credential smoke** — Mode A. **Add
@@ -829,6 +828,27 @@ run.
   `docker volume ls --filter label=tale.org=<id>` list nothing, no
   `tale-sandbox-*-cache-<id>` volume remains, and the host session root
   holds none of its `ses-pa-…` directories.
+- [ ] `SET-F73` · **Destroy answers at once** — As owner on
+  `/dashboard/{org}/settings/sandboxes` with a live workspace (env-gated; a
+  project agent's after a task that installed dependencies shows it best) →
+  row menu → **Destroy** → confirm → The dialog closes within a second with
+  the toast **Destroying sandbox** (`sandboxes.toast.destroying`); the row
+  reads **Destroying** (`sandboxes.status.destroying`) and its row menu
+  holds **Pin** and **Destroy** (**Stop task**, shown while a task runs,
+  stays available); another row can be pinned meanwhile; the row
+  leaves the list within a few seconds of the spawner finishing, without a
+  reload.
+- [ ] `SET-F74` · **Subscription scope where a subscription is set up** —
+  `/dashboard/{org}/settings/providers` → **Add credential** → Anthropic →
+  **Authentication method** **Subscription broker**
+  (`settings.providers.authMethod.subscriptionBroker`) → An info notice
+  **Tasks and automations only** (`settings.providers.subscriptionScope.title`)
+  with its reason (`settings.providers.subscriptionScope.description`) sits
+  above the broker fields and is not announced as an alert; with **API key**
+  chosen it is gone. In the table a subscription row carries
+  `settings.providers.credential.tasksOnly` under its name. In `en`, `de`,
+  `de-CH` (which spells *ausser*) and `fr`, both texts wrap without clipping
+  at desktop and narrow widths.
 
 ## Boundary & error tests
 
@@ -1029,6 +1049,24 @@ run.
   → **Days without use** (`sandboxes.cleanup.unusedDays`) → `0`, `3651` or
   `2.5` → Save is blocked with **Must be a whole number between 1 and 3650.**
   (`sandboxes.cleanup.invalidDays`); `1` and `3650` save.
+- [ ] `SET-B29` · **A Destroy the spawner cannot finish** — Mode B. Stop
+  the sandbox service (`docker stop tale-sandbox`) → **Destroy** a
+  workspace on `/dashboard/{org}/settings/sandboxes` → The dialog still
+  closes at once and the row reads **Destroying** while the job retries;
+  start the service again within a few minutes (`docker start
+  tale-sandbox`) → the row leaves on its own. Repeat, leaving the service
+  stopped for half an hour → the row stays, unpinned, reading **Destroy
+  failed** (`sandboxes.status.destroyFailed`), and its menu offers
+  **Destroy** again, which finishes once the service is back.
+- [ ] `SET-B30` · **Nothing starts in a workspace being destroyed** — Mode
+  B. Stop the sandbox service (`docker stop tale-sandbox`) → **Destroy** a
+  project agent's **Stopped** workspace → while its row reads
+  **Destroying**, start a task with that agent, and mention the agent in a
+  chat → each run reads **Waiting for a sandbox slot**
+  (`tasks.agentRun.waitingForSlot`, `chat.taskTray.waitingForSlot`) and
+  nothing runs in the workspace; start the service again (`docker start
+  tale-sandbox`) → the row leaves, then the runs start on their own in a
+  fresh workspace, whose file list holds nothing the old one did.
 
 ## Accessibility (WCAG 2.1 AA)
 

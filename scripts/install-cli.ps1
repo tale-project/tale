@@ -117,9 +117,9 @@ function Download-File {
     }
 }
 
-# Verify the downloaded binary against the release's SHA256SUMS file. Releases
-# that predate checksum publishing won't have one — warn and continue rather
-# than hard-fail, so the installer keeps working against older tags.
+# Verify the downloaded binary against the release's SHA256SUMS file. Only a
+# missing file (404) is a legacy release; network failures and invalid checksum
+# files must not silently turn a verified installation into an unverified one.
 function Verify-Checksum {
     param($file, $tag)
     $asset = "tale_${Platform}.exe"
@@ -144,16 +144,19 @@ function Verify-Checksum {
         $detail = if ($statusCode) { "HTTP $statusCode" } else { "network error" }
         Write-Err "Could not fetch the checksum file for $tag ($detail). Aborting rather than installing an unverified binary."
     }
-    $expected = $null
+    $expectedEntries = @()
     foreach ($line in ($sums -split "`n")) {
         $parts = ($line.Trim() -split "\s+")
-        if ($parts.Length -ge 2 -and $parts[1] -eq $asset) { $expected = $parts[0]; break }
+        if ($parts.Length -ge 2 -and $parts[1] -eq $asset) { $expectedEntries += $parts[0] }
     }
-    if (-not $expected) {
-        Write-Info "No checksum entry for $asset; skipping verification."
-        return
+    if ($expectedEntries.Count -eq 0) {
+        Write-Err "No checksum entry for $asset. Aborting rather than installing an unverified binary."
     }
-    $actual = (Get-FileHash -Path $file -Algorithm SHA256).Hash.ToLower()
+    if ($expectedEntries.Count -ne 1 -or $expectedEntries[0] -notmatch '^[a-fA-F0-9]{64}$') {
+        Write-Err "Invalid checksum entry for $asset. Aborting."
+    }
+    $expected = $expectedEntries[0]
+    $actual = (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLower()
     if ($actual -ne $expected.ToLower()) {
         Write-Err "Checksum mismatch for $asset (expected $expected, got $actual). Aborting."
     }
@@ -278,6 +281,24 @@ function Verify-ReleaseExists {
     }
 }
 
+# Resolve relative overrides against PowerShell's location, which can differ
+# from the process working directory after Set-Location.
+function Resolve-InstallDir {
+    param([string]$directory)
+    return $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($directory)
+}
+
+# Put this installation first, comparing whole entries rather than substrings
+# (C:\Tools\tale-old does not contain C:\Tools\tale). Keep all other entries.
+function Get-PathWithInstallDir {
+    param([string]$path, [string]$directory)
+    $normalized = $directory.TrimEnd([char[]]"\/")
+    $entries = @($path -split ';' | Where-Object {
+        $_ -and $_.Trim().Trim('"').TrimEnd([char[]]"\/") -ne $normalized
+    })
+    return (@($directory) + $entries) -join ';'
+}
+
 # Orchestrate: resolve tag → verify (when pinned) → download → move into
 # place → ensure the install directory is on the user PATH.
 function Install-Binary {
@@ -296,24 +317,27 @@ function Install-Binary {
     Download-File $binaryUrl $tmpFile
     Verify-Checksum $tmpFile $tag
 
-    if (-not (Test-Path $script:InstallDir)) {
+    $script:InstallDir = Resolve-InstallDir $script:InstallDir
+    if (-not (Test-Path -LiteralPath $script:InstallDir)) {
         New-Item -ItemType Directory -Path $script:InstallDir -Force | Out-Null
     }
     $script:DestPath = Join-Path $script:InstallDir $BinaryName
-    Move-Item -Path $tmpFile -Destination $script:DestPath -Force
+    Move-Item -LiteralPath $tmpFile -Destination $script:DestPath -Force
 
     # Add the install directory to the user PATH so `tale` resolves in new shells.
     $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
-    if ($userPath -notlike "*$script:InstallDir*") {
-        $newPath = "$userPath;$script:InstallDir"
+    $newPath = Get-PathWithInstallDir $userPath $script:InstallDir
+    if ($newPath -ne $userPath) {
         # Windows truncates user PATH at 8192 chars; refuse to silently corrupt it.
         if ($newPath.Length -gt 8192) {
             Write-Err "User PATH would exceed 8192 characters. Manually add $script:InstallDir to your PATH."
         }
         [Environment]::SetEnvironmentVariable("Path", $newPath, "User")
-        $env:Path = "$env:Path;$script:InstallDir"
         Write-Info "Added $script:InstallDir to user PATH."
     }
+    # The persisted PATH may already be correct while this terminal has an old
+    # copy. Always update this session, and let the new binary win over old ones.
+    $env:Path = Get-PathWithInstallDir $env:Path $script:InstallDir
 }
 
 # Smoke-test the freshly installed binary by running --version. A binary that
@@ -321,7 +345,7 @@ function Install-Binary {
 # here — reporting success for a dead binary strands the user at the very
 # next command with no explanation.
 function Verify-Installation {
-    if (-not (Test-Path $script:DestPath)) {
+    if (-not (Test-Path -LiteralPath $script:DestPath)) {
         Write-Err "Installation failed. tale not found at $script:DestPath"
     }
     try {
@@ -348,7 +372,7 @@ function Main {
     Verify-Installation
 
     if (-not $script:ExistingTale) {
-        Write-Info "Restart your terminal for PATH changes to take effect."
+        Write-Info "Tale is available in this terminal. Restart other terminals to pick up PATH changes."
     }
     # Hand off to the CLI: `tale init` scaffolds a project (no prerequisites);
     # `tale dev` then installs/starts Docker on demand and launches locally.

@@ -86,14 +86,16 @@ export function DocPage({ slug }: DocPageProps) {
   const markdownUrl = docMarkdownUrl(slug);
 
   const rawMarkdown = doc
-    ? pageAsMarkdown({
-        frontmatter: {
-          title: doc.frontmatter.title,
-          description: doc.frontmatter.description,
-        },
-        body: doc.body,
-        siteUrl: SITE_URL,
-      })
+    ? () =>
+        pageAsMarkdown({
+          frontmatter: {
+            title: doc.frontmatter.title,
+            description: doc.frontmatter.description,
+          },
+          body: doc.body,
+          siteUrl: SITE_URL,
+          pageUrl: url,
+        })
     : null;
 
   const jsonLd = useMemo(() => {

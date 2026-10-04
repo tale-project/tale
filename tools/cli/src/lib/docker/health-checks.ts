@@ -3,10 +3,9 @@ import { execSync } from 'node:child_process';
 import { daemonReachable } from './daemon-reachable';
 
 /**
- * Host health checks shared by the run-time paths (currently `tale deploy`'s
- * preflight). These used to live in the `tale doctor` command; that command
- * was removed in favor of init/start/deploy handling readiness themselves, but
- * the daemon + sandbox-token checks remain useful inline before a deploy.
+ * Host health checks shared by deployment preflight and read-only diagnostics.
+ * Startup owns its automatic readiness checks; doctor can also explain missing
+ * prerequisites before a project exists.
  */
 interface Check {
   name: string;

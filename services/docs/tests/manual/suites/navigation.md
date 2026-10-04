@@ -1,6 +1,6 @@
 # Navigation
 
-> **Prefix** `NAV-` · **Reset** none · **Cost** 27 boxes
+> **Prefix** `NAV-` · **Reset** none · **Cost** 28 boxes
 
 Exercise every way a reader moves through the docs — the navigation rail
 (`docs/nav.json`), collapsible sub-groups, the header strip's breadcrumb trail,
@@ -16,7 +16,7 @@ guide ([search.md](search.md)).
 
 | Surface        | Route                                                                                                                                     |
 | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| Landing        | `{base}/`                                                                                                                                 |
+| Landing        | `{base}/` — discovery page; see [home](home.md)                                                                                                                                 |
 | Content page   | any slug, e.g. `{base}/self-hosted/install/quickstart`                                                                                    |
 | Nested group   | `{base}/platform/chat/…` (sub-groups inside **Platform**)                                                                                 |
 | Unknown URL    | `{base}/nope-not-a-page` → styled 404                                                                                                     |
@@ -27,7 +27,7 @@ guide ([search.md](search.md)).
 ## Preconditions
 
 Bring the site up per [SETUP.md](../setup.md) — either mode for
-NAV-F1–NAV-F8/NAV-B1–NAV-B3. The redirect rows (NAV-F9/NAV-F10/NAV-F16/NAV-F17) and the PWA
+NAV-F1–NAV-F8/NAV-B1–NAV-B3. The redirect rows (NAV-F9/NAV-F10/NAV-F16–NAV-F21) and the PWA
 rows (NAV-F11/NAV-F12) need the **built** server (mode A, or `build` + `start`
 per SETUP.md) — the vite dev server serves no 301s, no prerendered stubs, and
 registers no service worker. The rail tree is build-time static;
@@ -48,7 +48,7 @@ this guide focuses on **behaviour**, not link rot.
 
 ## Functional tests
 
-- [ ] `NAV-F1` · **Rail tree** — On `{base}/`, read the rail → The six top
+- [ ] `NAV-F1` · **Rail tree** — On `{base}/self-hosted/install/quickstart`, read the rail → The six top
   groups render in `nav.json` order as uppercase section labels: **Start
   here**, **Cloud**, **Self-hosted**, **Platform**, **Tutorials**,
   **Development** (`nav.groups.*`); clicking a page row commits its slug URL
@@ -65,8 +65,8 @@ this guide focuses on **behaviour**, not link rot.
   aria-label>` = **Breadcrumbs** (`docs.breadcrumbs`) in the header strip →
   Trail = **Home** (`docs.home`, links to `{base}/`) → group labels → current
   page (marked `aria-current="page"`, not a link, and **not** a heading — the
-  page's only `<h1>` is the article title below); on the landing page the trail
-  is **Home** alone, as its own current leaf; clicking a crumb navigates there.
+  page's only `<h1>` is the article title below); clicking a crumb navigates there.
+  The locale-root discovery page has its own marketing header, without an article trail.
   Below 1024 px only the immediate parent precedes the current page; at any
   width a long trail truncates its crumbs with an ellipsis (Home keeps its
   width) and never runs past the strip or pushes the page actions away.
@@ -175,6 +175,19 @@ this guide focuses on **behaviour**, not link rot.
   `…/self-hosted/install/quickstart`, `…/platform/chat/basics` and
   `https://tale.dev/de/legal/privacy-policy` (every slug in `docs/published.json`
   keeps answering; `tests/published.test.ts` proves all of them).
+- [ ] `NAV-F21` · **Sidebar labels as addresses** — Built server only —
+  `curl -sI` the rail's group labels spelled as addresses:
+  `{base}/de/verwaltung`, `{base}/de/plattform/automatisierungen`,
+  `{base}/de/verwaltung/governance`, `{base}/de/tutorials/verwaltung` and
+  `{base}/fr/plateforme/automatisations` → Each answers **HTTP 302** to the
+  first page of the group the label names — `…/de/platform/admin/overview`,
+  `…/de/platform/automations/concepts`,
+  `…/de/platform/admin/governance/audit-logs`,
+  `…/de/tutorials/admin/connect-local-provider`,
+  `…/fr/platform/automations/concepts`. **Verwaltung** labels two groups: on
+  its own it lands in **Platform**, under `tutorials/` in the tutorials. A
+  label with an unknown page under it (`{base}/de/verwaltung/xyz`) still
+  answers **404**.
 
 ## Boundary & error tests
 

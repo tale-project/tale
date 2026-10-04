@@ -8,6 +8,7 @@ import { createCleanupCommand } from './commands/cleanup';
 import { createConfigCommand } from './commands/config';
 import { createDeployCommand } from './commands/deploy';
 import { createDevCommand } from './commands/dev';
+import { createDoctorCommand } from './commands/doctor';
 import { createInitCommand } from './commands/init';
 import { createLogsCommand } from './commands/logs';
 import { createMigrateCommand } from './commands/migrate';
@@ -94,6 +95,7 @@ const ADVANCED = 'Advanced:';
 const DEVICE = 'Sandbox device:';
 
 program.addCommand(createInitCommand().helpGroup(SETUP));
+program.addCommand(createDoctorCommand().helpGroup(SETUP));
 program.addCommand(createDevCommand().helpGroup(SETUP));
 program.addCommand(createDeployCommand().helpGroup(SETUP));
 
@@ -133,7 +135,9 @@ program.addHelpText(
   [
     '',
     'Examples:',
+    '  tale doctor                   check Docker and local prerequisites',
     '  tale init my-workspace        scaffold a new project',
+    '  cd my-workspace               enter the project directory',
     '  tale dev                      run it locally (Ctrl-C to stop)',
     '  tale status --json            machine-readable status',
     '  tale deploy --verbose         deploy with full subprocess output',

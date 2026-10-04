@@ -25,7 +25,13 @@ import {
   s3PutObject,
 } from '../../lib/object-store.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
-import { consumeUploadIntent, type UploadPurpose } from './upload-intents.ts';
+import { blobRefHeld } from './blob-holders.ts';
+import {
+  claimRejectedUpload,
+  consumeUploadIntent,
+  releaseReclaimedIntent,
+  type UploadPurpose,
+} from './upload-intents.ts';
 
 /**
  * Files domain core — the upload/serve/delete lanes over the S3-only object
@@ -342,6 +348,42 @@ export async function getFileMetadataByIdOrRef(
   return rows[0] ?? null;
 }
 
+/** Bounded task manifest lookup. A ref may have several ledger rows; any
+ * document binding keeps its ACL precedence, including a replaced document
+ * or a binding recorded on a different row for those same bytes. */
+export async function getTaskReviewFileMetadata(
+  sql: Sql | TransactionSql,
+  organizationId: string,
+  identifiers: string[],
+): Promise<Map<string, FileMetadataRow & { documentBound: boolean }>> {
+  if (identifiers.length === 0) return new Map();
+  if (identifiers.length > 50)
+    throw new Error('Review metadata pages are capped at 50 files');
+  const rows = await sql<
+    (FileMetadataRow & { identifier: string; documentBound: boolean })[]
+  >`
+    SELECT requested.identifier, ${sql.unsafe(FILE_METADATA_COLUMNS)},
+      (file.document_id IS NOT NULL OR EXISTS (
+        SELECT 1 FROM app.file_metadata binding
+        WHERE binding.org_id = ${organizationId}
+          AND binding.storage_ref = file.storage_ref AND binding.document_id IS NOT NULL
+      ) OR EXISTS (
+        SELECT 1 FROM app.documents document
+        WHERE document.org_id = ${organizationId} AND document.file_ref = file.storage_ref
+      )) AS "documentBound"
+    FROM unnest(${sql.array(identifiers)}::text[]) AS requested(identifier)
+    JOIN LATERAL (
+      SELECT * FROM app.file_metadata metadata
+      WHERE metadata.org_id = ${organizationId}
+        AND CASE WHEN requested.identifier LIKE 's3:%'
+          THEN metadata.storage_ref = requested.identifier
+          ELSE metadata.id = requested.identifier END
+      ORDER BY metadata.created_at_ms ASC, metadata.id ASC LIMIT 1
+    ) file ON true
+  `;
+  return new Map(rows.map(({ identifier, ...file }) => [identifier, file]));
+}
+
 /**
  * Presigned GET for a blob ref the caller's org owns. Tenancy only — WHO may
  * read the row is decided first, by `access.ts` (the callers hold a row the
@@ -641,16 +683,14 @@ export async function deleteFile(
   const { orgSlug } = await requireOrgStore(sql, scope.organizationId);
   const key = requireOrgScopedKey(meta.storageRef, orgSlug);
   await tx`DELETE FROM app.file_metadata WHERE id = ${fileId}`;
+  // Another file row, a document or a task may still name the ref — a task
+  // lists its attachments and deliverables by ref with no row of its own
+  // (`blob-holders.ts`): the bytes stay while anything holds them, or the
+  // card would keep showing a file whose every run start meets the store's
+  // 404.
   const stillReferenced = await tx<{ referenced: boolean }[]>`
-    SELECT EXISTS (
-      SELECT 1 FROM app.file_metadata
-      WHERE org_id = ${scope.organizationId}
-        AND storage_ref = ${meta.storageRef}
-    ) OR EXISTS (
-      SELECT 1 FROM app.documents
-      WHERE org_id = ${scope.organizationId}
-        AND file_ref = ${meta.storageRef}
-    ) AS referenced
+    SELECT ${blobRefHeld(tx, scope.organizationId, tx`${meta.storageRef}`)}
+    AS referenced
   `;
   if (stillReferenced[0]?.referenced ?? false) {
     return;
@@ -693,6 +733,38 @@ export async function deleteOrgBlobRefs(
   } catch (error) {
     console.warn('[files] blob reclaim skipped (store unresolved):', error);
   }
+}
+
+/**
+ * Reclaim the bytes of `refs` that nothing holds any more — no file row, no
+ * document (current or retained version) and no task names them
+ * ({@link blobRefHeld}) — and keep the rest: the reclaim for a lane whose
+ * ref another row may have come to name, such as a video link's transcript,
+ * which its paster can attach to a task or take over as a document. Drop
+ * the lane's own rows first, as `deleteFile` does, or they keep the bytes.
+ * Best-effort like {@link deleteOrgBlobRefs}: a holder check that fails
+ * keeps every byte (orphaned bytes are reclaimable later, a held ref's are
+ * not), and a failed delete logs. Answers the refs it judged unheld.
+ */
+export async function deleteUnheldOrgBlobRefs(
+  db: Sql | TransactionSql,
+  organizationId: string,
+  refs: readonly string[],
+): Promise<string[]> {
+  if (refs.length === 0) return [];
+  let unheld: { ref: string }[];
+  try {
+    unheld = await db<{ ref: string }[]>`
+      SELECT r.ref FROM unnest(${[...refs]}::text[]) AS r(ref)
+      WHERE NOT ${blobRefHeld(db, organizationId, db`r.ref`)}
+    `;
+  } catch (error) {
+    console.warn('[files] blob reclaim skipped (holder check failed):', error);
+    return [];
+  }
+  const doomed = unheld.map((row) => row.ref);
+  await deleteOrgBlobRefs(db, organizationId, doomed);
+  return doomed;
 }
 
 /**
@@ -797,9 +869,13 @@ export async function getOrgBlobBytes(
 /**
  * Reclaim a blob whose upload was REJECTED after landing (policy refusal,
  * unsupported type): the 0.4 `deleteRejectedUploadBlob` contract. Never
- * touches a blob that became a real file, and never a blob the caller did
- * not mint: the reclaim consumes the caller's own upload intent, so naming
- * another member's staged key answers `deleted: false` like a missing one.
+ * touches a blob something holds — a file row, a document, a task, or a
+ * bind that vouched for it without consuming (an outbound mail) — and never
+ * a blob the caller did not mint: the reclaim claims the caller's own
+ * upload intent (`claimRejectedUpload`), so naming another member's staged
+ * key answers `deleted: false` like a missing or a bound one. The claim
+ * leaves a tombstone until the store confirms the delete; a delete that
+ * fails keeps it, and the abandoned-upload sweep retries (#4111).
  */
 export async function deleteRejectedUploadBlob(
   sql: Sql,
@@ -807,24 +883,23 @@ export async function deleteRejectedUploadBlob(
   storageRef: string,
 ): Promise<{ deleted: boolean }> {
   const { organizationId } = scope;
-  const linked = await sql<{ id: string }[]>`
-    SELECT id FROM app.file_metadata
-    WHERE org_id = ${organizationId} AND storage_ref = ${storageRef}
-    LIMIT 1
-  `;
-  if (linked[0]) return { deleted: false };
-  const owned = await consumeUploadIntent(sql, {
+  const claimed = await claimRejectedUpload(sql, {
     organizationId,
     userId: scope.userId,
     storageRef,
   });
-  if (!owned) return { deleted: false };
+  if (!claimed) return { deleted: false };
   const { orgSlug, store } = await requireOrgStore(sql, organizationId);
   const key = requireOrgScopedKey(storageRef, orgSlug);
   try {
     await s3DeleteObject(store, key);
   } catch (error) {
-    console.warn(`[files] rejected-blob delete failed for ${key}:`, error);
+    console.warn(
+      `[files] rejected-blob delete failed for ${key}; the abandoned-upload sweep retries it:`,
+      error,
+    );
+    return { deleted: true };
   }
+  await releaseReclaimedIntent(sql, { organizationId, storageRef });
   return { deleted: true };
 }

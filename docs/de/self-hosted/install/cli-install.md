@@ -7,6 +7,8 @@ Mit der `tale`-CLI installierst und betreibst du Tale und stellst neue Versionen
 
 Dieselbe CLI übernimmt Container-Operationen im Workspace, verwaltete Deployments aus exakten Quell-Commits und Client-Konfigurations-Releases. Deine Deployment-Automatisierung wählt Ziel, Referenzen und Zugangsdatenverweise und ruft die CLI auf. [Client-Konfigurationen veröffentlichen](/de/self-hosted/configuration/config-releases) behandelt die Inhalte im eigenen Repository des Clients.
 
+Für deine erste Instanz nutze den [Schnellstart](/de/self-hosted/install/quickstart). Der übliche Ablauf ist `tale init` und danach `tale dev`. Eine Spezifikation für verwaltete Deployments brauchst du erst, wenn deine Automatisierung exakte Quell-Commits für Laufzeit und Client festlegen muss.
+
 ## Bevor du beginnst
 
 Du brauchst:
@@ -51,7 +53,7 @@ Mit `VERSION` legst du eine Release-Version fest, mit `INSTALL_DIR` ein anderes 
 tale --version
 ```
 
-Die CLI zeigt die installierte Version. Falls der Befehl nicht gefunden wird, prüfe das Zielverzeichnis in der Installer-Ausgabe und ergänze es im `PATH`. Öffne unter Windows nach der Installation ein neues Terminal. Schlägt der Download fehl, prüfe die oben genannten Netzwerkziele. Mit der optionalen Umgebungsvariable `GITHUB_TOKEN` authentifizierst du die Release-Abfrage, falls GitHub anonyme API-Anfragen begrenzt.
+Die CLI zeigt die installierte Version. Falls der Befehl nicht gefunden wird, prüfe das Zielverzeichnis in der Installer-Ausgabe und ergänze es im `PATH`. Falls ein bereits geöffnetes Windows-Terminal `tale` weiterhin nicht findet, öffne es neu. Schlägt der Download fehl, prüfe die oben genannten Netzwerkziele. Mit der optionalen Umgebungsvariable `GITHUB_TOKEN` authentifizierst du die Release-Abfrage, falls GitHub anonyme API-Anfragen begrenzt.
 
 ## Konfiguration prüfen
 
@@ -63,7 +65,7 @@ tale config show
 
 Konfigurations-Releases und [verwaltete Deployments](#managed-deployments) wählen Quellen und Ziele explizit und gleichen sich nicht an einen benachbarten Workspace an. `config show` behält sein bisheriges Verhalten für lokale Projekte.
 
-Bei Workspace-Deployments liegen Proxy-Host, TLS-Einstellungen und Secrets in der `.env` des Projekts. Ändere `HOST` dort oder übergib `--host` an `tale dev` / `tale deploy`. Für entfernte Workspace-Hosts nutzt du den Docker-Kontext deiner Shell oder `DOCKER_HOST`. Ein verwaltetes Bundle-Deployment läuft dagegen auf dem festgelegten Ziel mit dessen lokalem Docker-Daemon.
+Bei Workspace-Deployments liegen Proxy-Host, TLS-Einstellungen und Secrets in der `.env` des Projekts. Ändere für die Produktion `HOST` dort oder übergib `--host` an `tale deploy`. Lokal verwendet `tale dev` standardmäßig `localhost`; seine Optionen `--host` und `--port` gelten nur für diesen Lauf. Für entfernte Workspace-Hosts nutzt du den Docker-Kontext deiner Shell oder `DOCKER_HOST`. Ein verwaltetes Bundle-Deployment läuft dagegen auf dem festgelegten Ziel mit dessen lokalem Docker-Daemon.
 
 ## tale deploy ausführen
 
@@ -82,7 +84,7 @@ Die CLI gruppiert ihre Befehle danach, was du gerade tust — genau wie `tale --
 - Ein Flag der Form `--flag <wert>` **erfordert einen Wert**, wenn du es nutzt (z. B. `--port 8443`); ein bloßes Flag wie `--detach` ist ein boolescher Schalter.
 - **Standardwerte** stehen in Klammern hinter der Beschreibung. Kein Standard bedeutet, das Flag ist aus oder der Wert wird aus `.env` / Kontext aufgelöst.
 
-Führe `tale <befehl> --help` für die maßgebliche Liste deiner installierten Version aus.
+Diese Referenz beschreibt auch Befehle aus dem aktuellen Quellcode. Die veröffentlichte CLI-Version v0.5.70 enthält weder `tale doctor` noch `tale dev --stop`. Mit `tale --help` und `tale <befehl> --help` prüfst du, welche Befehle und Optionen deine installierte Version unterstützt.
 
 **Globale Flags** funktionieren bei jedem Befehl:
 
@@ -90,21 +92,29 @@ Führe `tale <befehl> --help` für die maßgebliche Liste deiner installierten V
 - `-q, --quiet` — nur Warnungen und Fehler.
 - `-y, --yes` — bei allen Rückfragen «ja» annehmen (nicht-interaktiv).
 - `--no-color` — ANSI-Farben deaktivieren (berücksichtigt auch `NO_COLOR` / `FORCE_COLOR`).
-- `--json` — maschinenlesbares JSON auf stdout; unterstützt von `status`, `sandbox status`, allen `config`-Unterbefehlen und verwalteten Deployment-Befehlen.
+- `--json` — maschinenlesbares JSON auf stdout; unterstützt von `doctor`, `status`, `sandbox status`, allen `config`-Unterbefehlen und verwalteten Deployment-Befehlen.
 - `--ci` — erzwingt nicht-interaktive, rein anhängende Ausgabe (keine Cursor-Steuerung).
 
 Befehle beenden mit `0` bei Erfolg, `2` bei einem Nutzungsfehler, `3` bei einer nicht erfüllten Voraussetzung (kein Projekt, Docker läuft nicht, Port belegt), `4` bei einem Abbruch durch dich (Ctrl-C oder eine erforderliche Rückfrage ohne Terminal) und `5` beim Fehler einer externen Abhängigkeit — so können Skripte anhand der Ursache verzweigen.
 
 ### Einrichtung
 
+`tale doctor` — prüft die Voraussetzungen für einen lokalen Start, ohne ein Projekt anzulegen, Software zu installieren oder Konfiguration zu ändern. Der Befehl prüft Docker-Daemon, Compose-Unterstützung und Linux-Container-Modus, meldet die Daemon-Architektur und untersucht lokale Ports. Bei einem entfernten Docker-Kontext entfällt die lokale Portprüfung. Prüfe Warnungen zu ARM64 oder belegten Ports; eine bestehende Instanz kann den Port bereits verwenden.
+
+- `-p, --port <port>` — zu prüfender HTTPS-Port (Standard `443`); Sandbox-Port `8003` wird ebenfalls geprüft.
+- `--json` — gibt die Prüfergebnisse als maschinenlesbares JSON aus.
+
+Fehler bei Docker, Compose, einem nicht unterstützten Container-Modus oder die Wahl von HTTPS-Port `8003` führen zum Exit-Code `3`. Warnungen allein ergeben `0`; Image-Downloads, Speicherkapazität und Modellanbieter sind damit nicht geprüft. Prüfe einen anderen Port mit `tale doctor --port 8443` und verwende denselben Port bei `tale dev`.
+
 `tale init [directory]` — ein Projekt anlegen: erzeugt die Beispiel-Configs, `AGENTS.md` + einen `CLAUDE.md`-Verweis sowie eine lokale Standard-`.env` (localhost, selbstsigniertes Zertifikat, generierte Secrets). Docker braucht es nicht; Produktiv-Domain und TLS werden später bei `tale deploy` gewählt. Im Terminal fragt es nach einem Projektnamen, wenn `directory` fehlt, bestätigt vor dem Überschreiben eines bestehenden Projekts und fragt einmal, ob Agents in Sandboxes `docker` ausführen dürfen (Standard: nein — die Freigabe startet einen privilegierten inneren Docker); nicht-interaktive Läufe überspringen alle Rückfragen. `directory` ist optional (Standard: das aktuelle Verzeichnis).
 
 - `-f, --force` — eine vorhandene `tale.json` überschreiben statt abzubrechen.
 - `--no-env` — das Projekt anlegen, aber die `.env`-Generierung überspringen.
 
-`tale dev` — alle Dienste lokal mit selbstsigniertem Zertifikat starten.
+`tale dev` — alle Dienste lokal mit selbstsigniertem Zertifikat starten. Der gewählte Host und Port bestimmen die lokale Anwendungsadresse für diesen Lauf, ohne die Produktionseinstellungen in `.env` umzuschreiben. Die Bereitschaftsprüfung wartet, bis Dienste mit Gesundheitsprüfungen gesund sind und die übrigen Dienste laufen. Läuft sie ab, prüfe vor dem nächsten Versuch die Protokolle der gemeldeten Dienste.
 
 - `-d, --detach` — im Hintergrund laufen statt Logs zu streamen.
+- `--stop` — stoppt die lokalen Entwicklungscontainer dieses Projekts und erhält ihre Daten. Mit `tale dev` setzt du den Betrieb fort.
 - `-p, --port <port>` — auszugebender HTTPS-Port (Standard `443`).
 - `--host <hostname>` — Host-Alias für den Proxy (Standard `localhost`).
 - `-y, --yes` — nicht-interaktiv: Abfragen automatisch akzeptieren (z. B. Docker installieren oder starten).

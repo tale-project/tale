@@ -35,6 +35,7 @@ import { ProjectIdentityPicker } from './project-identity-picker';
 import { ProjectInstructionsEditor } from './project-instructions-editor';
 import { ProjectReadOnlyBanner } from './project-read-only-banner';
 import { ProjectSharingSection } from './project-sharing-section';
+import { ProjectTaskReviewerSection } from './project-task-reviewer-section';
 
 interface ProjectOverviewProps {
   organizationId: string;
@@ -314,6 +315,8 @@ function ProjectOverviewContent({
       {/* The project's standing instructions — a property of the project, so
           they sit with identity here instead of on a tab of their own. */}
       <ProjectInstructionsEditor projectId={projectId} />
+
+      <ProjectTaskReviewerSection projectId={projectId} />
 
       <SettingsSection
         id="project-sharing"

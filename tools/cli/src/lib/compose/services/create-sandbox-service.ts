@@ -47,13 +47,14 @@ export function createSandboxService(config: ServiceConfig): ComposeService {
     // generator overlays `127.0.0.1:8003:8003` so that `bun dev` with the backend
     // running on the host can reach the spawner.
     // Per-container resource caps. The spawner is a thin Bun HTTP server
-    // that issues `docker` subprocess calls; 512 MB is generous for the
-    // server itself but excludes the runtime containers it spawns (those
-    // get their own caps via `--memory=1g` in docker-args.ts). pids_limit
-    // bounds the docker-CLI fanout under a fork-bomb regression; the
-    // nofile bump leaves room for many in-flight SSE streams.
-    mem_limit: '512m',
-    pids_limit: 512,
+    // that issues `docker` subprocess calls, at most 16 at once (12 shared
+    // and 4 kept for short calls, ~28 MB and a dozen threads each,
+    // spawn-util.ts); the caps exclude the runtime
+    // containers it spawns (those get their own). pids_limit bounds the
+    // docker-CLI fanout under a fork-bomb regression; the nofile bump leaves
+    // room for many in-flight SSE streams.
+    mem_limit: '1g',
+    pids_limit: 1024,
     ulimits: {
       nofile: { soft: 4096, hard: 8192 },
     },
@@ -70,6 +71,7 @@ export function createSandboxService(config: ServiceConfig): ComposeService {
       // runc/gvisor); set SANDBOX_DOCKER_IN_CONTAINER (or the deployment.json
       // sandboxRuntime section) to force it.
       SANDBOX_DOCKER_IN_CONTAINER: '${SANDBOX_DOCKER_IN_CONTAINER:-}',
+      SANDBOX_DOCKER_WORKLOADS: '${SANDBOX_DOCKER_WORKLOADS:-}',
       SANDBOX_DIND_INNER_POOL: '${SANDBOX_DIND_INNER_POOL:-}',
       SANDBOX_RUNTIME_IMAGE:
         '${SANDBOX_RUNTIME_IMAGE:-tale-sandbox-runtime:latest}',

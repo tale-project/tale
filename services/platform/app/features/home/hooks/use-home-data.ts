@@ -1,12 +1,13 @@
 'use client';
 
 import { formatTaskIdentifier } from '@tale/shared/utils/project-key';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 
 import {
   useArchivedThreads,
   useChatProjects,
   useChatThreads,
+  useChatThreadsRetry,
 } from '@/app/features/chat/data/chat-backend';
 import type {
   ChatProjectSummary,
@@ -50,12 +51,29 @@ export interface HomeData {
     readonly conversations: boolean;
     readonly projects: boolean;
   };
+  /**
+   * Per source: its read gave up with nothing to show (#4093). Its rows are
+   * missing, not absent — a view that lists them says so and offers
+   * `retry`, never its empty state — and it is not loading, through a retry
+   * either, so the notice holds until an answer replaces it.
+   */
+  readonly failed: {
+    readonly chats: boolean;
+    readonly tasks: boolean;
+    readonly conversations: boolean;
+  };
+  /** A failed read is being asked for again. */
+  readonly retrying: boolean;
+  /** Asks again for each failed read not already being retried — never for
+   * one that answered. */
+  readonly retry: () => void;
   readonly hasInbox: boolean;
-  /** Unread (or waiting-on-you) counts per kind — the switcher's dots. */
+  /** Unread (or waiting-on-you) counts per kind — the switcher's dots;
+   * `null` while that kind's read has failed, since its count is unknown. */
   readonly attention: {
-    readonly chats: number;
-    readonly tasks: number;
-    readonly inbox: number;
+    readonly chats: number | null;
+    readonly tasks: number | null;
+    readonly inbox: number | null;
   };
 }
 
@@ -110,7 +128,8 @@ export function toHomeConversationItem(
  * every project they can read, and the inbox is the first page of OPEN
  * conversations their inbox scope shows. Always open, whichever status the
  * Inbox view was left on: that view reads its own pages, and the stream and
- * the Inbox dot are about what still needs an answer.
+ * the Inbox dot are about what still needs an answer. A read that fails is
+ * reported as `failed`, with a `retry` for it, never as an empty source.
  */
 export function useHomeData(
   organizationId: string,
@@ -124,6 +143,11 @@ export function useHomeData(
   const archivedThreads = useArchivedThreads(organizationId, {
     enabled: includeArchived,
   });
+  const retryChatLists = useChatThreadsRetry(organizationId);
+  // A chat read that never answered starts over as `loading` when asked
+  // again, so its failure is held here until that retry settles: the notice
+  // keeps its busy Try again instead of giving way to the skeleton.
+  const [chatRetryPending, setChatRetryPending] = useState(false);
   const projectsQuery = useChatProjects(organizationId);
   const { data: me } = useCurrentUser();
   const myUserId = me?.userId;
@@ -204,6 +228,9 @@ export function useHomeData(
 
   const taskItems = useMemo((): HomeTaskItem[] => {
     const seen = new Set<string>();
+    // The server's reviewer filter honors the captured review recipient.
+    // A changed task default must not put an agent's review in a person's Home.
+    const reviewTaskIds = new Set(reviewsQuery.tasks.map((task) => task._id));
     return [...tasksQuery.tasks, ...reviewsQuery.tasks]
       .filter((task) => {
         if (task.archivedAt !== undefined || seen.has(task._id)) return false;
@@ -214,7 +241,7 @@ export function useHomeData(
         const key = task.projectKey ?? projectKeys.get(task.projectId);
         const identifier = formatTaskIdentifier(key, task.number);
         const awaitingMyReview =
-          task.status === 'in_review' && task.reviewerUserId === myUserId;
+          task.status === 'in_review' && reviewTaskIds.has(task._id);
         const item: HomeTaskItem = {
           kind: 'task',
           id: task._id,
@@ -229,7 +256,7 @@ export function useHomeData(
         };
         return item;
       });
-  }, [tasksQuery.tasks, reviewsQuery.tasks, projectKeys, myUserId]);
+  }, [tasksQuery.tasks, reviewsQuery.tasks, projectKeys]);
 
   const conversationItems = useMemo((): HomeConversationItem[] => {
     if (!hasInbox) return [];
@@ -244,13 +271,62 @@ export function useHomeData(
     [chatItems, taskItems, conversationItems],
   );
 
+  const threadsUnavailable = threads.status === 'unavailable';
+  const archivedUnavailable =
+    includeArchived && archivedThreads.status === 'unavailable';
+  const chatsLoading =
+    threads.status === 'loading' ||
+    (includeArchived && archivedThreads.status === 'loading');
+  const chatsRetrying = chatRetryPending && chatsLoading;
+  const chatsFailed =
+    threadsUnavailable || archivedUnavailable || chatsRetrying;
+  // Either read failing leaves "my tasks" partial: what the other answered
+  // stays listed, and the failure is still named.
+  const tasksFailed =
+    tasksQuery.read.kind === 'failed' || reviewsQuery.read.kind === 'failed';
+  const conversationsFailed = hasInbox && conversations.unavailable;
+  const retrying =
+    chatsRetrying ||
+    (tasksQuery.read.kind === 'failed' && tasksQuery.read.retrying) ||
+    (reviewsQuery.read.kind === 'failed' && reviewsQuery.read.retrying) ||
+    (conversationsFailed && conversations.isRetrying);
+
+  const retry = () => {
+    for (const query of [tasksQuery, reviewsQuery]) {
+      if (query.read.kind === 'failed' && !query.read.retrying) query.retry();
+    }
+    if (conversationsFailed && !conversations.isRetrying) {
+      conversations.retry();
+    }
+    if ((threadsUnavailable || archivedUnavailable) && !chatRetryPending) {
+      setChatRetryPending(true);
+      void retryChatLists({
+        threads: threadsUnavailable,
+        archived: archivedUnavailable,
+      }).finally(() => setChatRetryPending(false));
+    }
+  };
+
   const attention = useMemo(
     () => ({
-      chats: chatItems.filter((item) => item.unread).length,
-      tasks: taskItems.filter((item) => item.awaitingMyReview).length,
-      inbox: conversationItems.filter((item) => item.unread).length,
+      chats: chatsFailed
+        ? null
+        : chatItems.filter((item) => item.unread).length,
+      tasks: tasksFailed
+        ? null
+        : taskItems.filter((item) => item.awaitingMyReview).length,
+      inbox: conversationsFailed
+        ? null
+        : conversationItems.filter((item) => item.unread).length,
     }),
-    [chatItems, taskItems, conversationItems],
+    [
+      chatItems,
+      taskItems,
+      conversationItems,
+      chatsFailed,
+      tasksFailed,
+      conversationsFailed,
+    ],
   );
 
   const threadsById = useMemo(() => {
@@ -275,18 +351,25 @@ export function useHomeData(
     threadsById,
     projects,
     loading: {
-      chats:
-        threads.status === 'loading' ||
-        (includeArchived && archivedThreads.status === 'loading'),
+      chats: chatsLoading && !chatsFailed,
       tasks:
         myUserId === undefined ||
-        tasksQuery.isLoading ||
-        reviewsQuery.isLoading,
+        (tasksQuery.isLoading && tasksQuery.read.kind !== 'failed') ||
+        (reviewsQuery.isLoading && reviewsQuery.read.kind !== 'failed'),
       conversations:
         inboxGateLoading ||
-        (hasInbox && conversations.status === 'LoadingFirstPage'),
+        (hasInbox &&
+          conversations.status === 'LoadingFirstPage' &&
+          !conversations.unavailable),
       projects: projectsQuery.status === 'loading',
     },
+    failed: {
+      chats: chatsFailed,
+      tasks: tasksFailed,
+      conversations: conversationsFailed,
+    },
+    retrying,
+    retry,
     hasInbox,
     attention,
   };

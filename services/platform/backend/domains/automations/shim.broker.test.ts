@@ -87,3 +87,55 @@ describe('automation-agent broker account attribution', () => {
     expect(db.writes).toEqual([]);
   });
 });
+
+describe('a start that waited for sandbox room launching', () => {
+  it('turns the run’s room park into an agent park, and says so', async () => {
+    const statements: { text: string; values: unknown[] }[] = [];
+    const sql = async (strings: TemplateStringsArray, ...values: unknown[]) => {
+      const text = strings.join('?').replaceAll(/\s+/g, ' ');
+      statements.push({ text, values });
+      if (text.includes('SELECT status, checkpoints, detail')) {
+        return [
+          {
+            status: 'waiting',
+            detail: 'room:agent',
+            checkpoints: {
+              cursor: { node: 'agent', agent: { execId: 'exec-current' } },
+            },
+          },
+        ];
+      }
+      return [];
+    };
+    sql.json = (value: unknown) => value;
+    sql.begin = async (callback: (tx: typeof sql) => unknown) => callback(sql);
+
+    const stamp = automationShimHandlers(sql as unknown as Sql)[
+      'automations/mutations:stampAgentTurnLaunch'
+    ];
+    expect(
+      await stamp?.({
+        organizationId: 'org-1',
+        runId: 'run-1',
+        nodeId: 'agent',
+        execId: 'exec-current',
+        launchedAt: 123,
+        brokerTokenHash: null,
+      }),
+    ).toEqual({ stamped: true });
+
+    const update = statements.find((statement) =>
+      statement.text.includes('UPDATE app.automation_runs SET'),
+    );
+    expect(update?.text).toContain('detail = CASE WHEN detail = ? THEN ?');
+    expect(update?.values).toEqual(
+      expect.arrayContaining(['room:agent', 'agent:agent']),
+    );
+    // The run view refreshes: its park changed under it.
+    expect(
+      statements.some((statement) =>
+        statement.text.includes('INSERT INTO app_realtime.outbox'),
+      ),
+    ).toBe(true);
+  });
+});

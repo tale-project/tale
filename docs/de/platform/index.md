@@ -44,7 +44,7 @@ Unter den Projekten ordnet eine einzige Liste deine Arbeit nach **Angeheftet**, 
 - Die offenen Aufgaben, die dir zugewiesen sind oder auf dein Review warten, aus allen Projekten, die du lesen darfst.
 - In **Alle** außerdem die offenen Inbox-Konversationen, die du sehen darfst.
 
-Eine leere Ansicht **Aufgaben** bietet **Alle Projekte**, das die Projektliste öffnet. Am Computer bietet auch eine leere Ansicht **Alle** oder **Chats** **Neuer Chat** an.
+Eine leere Ansicht **Aufgaben** bietet **Alle Projekte**, das die Projektliste öffnet. Am Computer bietet auch eine leere Ansicht **Alle** oder **Chats** **Neuer Chat** an. Lassen sich deine Chats, Aufgaben oder Konversationen nicht laden, behält die Liste, was geladen wurde, und sagt, was fehlt, statt eine leere Ansicht zu zeigen. **Erneut versuchen** lädt es noch einmal.
 
 Auf dem Smartphone unterscheidet sich die Liste in drei Punkten:
 

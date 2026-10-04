@@ -35,12 +35,45 @@ else
 fi
 export FILTER_BLOCK
 
-# Explicit SHELL-FORMAT so envsubst only ever substitutes ${FILTER_BLOCK};
-# a future literal `$` in the template can't be silently eaten.
-envsubst '${FILTER_BLOCK}' \
+# Connections the proxy serves at once, for the whole fleet (tinyproxy
+# MaxClients). Past it, tinyproxy refuses new connections and installs and
+# page loads fail with resets. Each connection holds a thread and two
+# descriptors (client and upstream), so compose sizes the container's pids
+# and open-file limits for the default; a raised value needs them raised too.
+MAX_CLIENTS="${SANDBOX_EGRESS_MAX_CLIENTS:-2000}"
+case "$MAX_CLIENTS" in
+  '' | *[!0-9]* | 0*)
+    echo "[sandbox-egress] FATAL: SANDBOX_EGRESS_MAX_CLIENTS must be a whole number of connections above 0; got '${MAX_CLIENTS}'"
+    exit 1 ;;
+esac
+export MAX_CLIENTS
+# A Kubernetes Pod spec sets no open-file limit, and a container runtime's
+# default soft limit can be as low as 1024: raise the soft limit to what the
+# connections need, as far as the hard limit allows (no privilege needed).
+_need_files=$((MAX_CLIENTS * 2 + 64))
+_open_files="$(ulimit -n)"
+if [ "$_open_files" != unlimited ] && [ "$_need_files" -gt "$_open_files" ]; then
+  _hard_files="$(ulimit -H -n 2>/dev/null || echo unknown)"
+  _want_files="$_need_files"
+  if [ "$_hard_files" != unlimited ] && [ "$_hard_files" -lt "$_want_files" ] 2>/dev/null; then
+    _want_files="$_hard_files"
+  fi
+  if [ "$_want_files" -gt "$_open_files" ] && ulimit -S -n "$_want_files" 2>/dev/null; then
+    echo "[sandbox-egress] raised the open-file limit from ${_open_files} to ${_want_files} for ${MAX_CLIENTS} connections"
+    _open_files="$(ulimit -n)"
+  fi
+fi
+if [ "$_open_files" != unlimited ] && [ "$_need_files" -gt "$_open_files" ]; then
+  echo "[sandbox-egress] WARN: ${MAX_CLIENTS} connections need about ${_need_files} open files, more than this container's limit of ${_open_files} allows; raise its nofile ulimit or lower SANDBOX_EGRESS_MAX_CLIENTS"
+fi
+
+# Explicit SHELL-FORMAT so envsubst only ever substitutes ${FILTER_BLOCK}
+# and ${MAX_CLIENTS}; a future literal `$` in the template can't be silently
+# eaten.
+envsubst '${FILTER_BLOCK} ${MAX_CLIENTS}' \
   < /etc/tinyproxy/tinyproxy.conf.template > /etc/tinyproxy/tinyproxy.conf
 
-echo "[sandbox-egress] starting tinyproxy on :3128 (egress mode: ${EGRESS_MODE})"
+echo "[sandbox-egress] starting tinyproxy on :3128 (egress mode: ${EGRESS_MODE}, at most ${MAX_CLIENTS} connections)"
 if [ "$EGRESS_MODE" = allowlist ]; then
   echo "[sandbox-egress] CONNECT allow-list:"
   sed 's/^/  /' /etc/tinyproxy/allowlist

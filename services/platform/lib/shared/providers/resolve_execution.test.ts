@@ -95,7 +95,65 @@ describe('resolveExecution — direct mode', () => {
       expect(result.reason).toContain('claude-code');
       expect(result.reason).toContain('sandbox');
       expect(result.reason).toContain(MODEL.id);
+      // Why, not only what: the vendor's terms bind the token to its runtime.
+      expect(result.reason).toContain(
+        'the vendor permits subscription tokens only in its own agent runtime',
+      );
     }
+  });
+
+  // Native chat calls such a model on the Responses API itself, so a direct
+  // credential runs it directly; the harness check stays the sandbox's.
+  it('runs a Responses-only model directly on an api-key or env credential', () => {
+    const model = { ...MODEL, toolCallingApi: 'responses' as const };
+    for (const credential of [API_KEY, ENV]) {
+      expect(
+        resolveExecution({ model, credential, mode: 'direct' }, HARNESSES),
+      ).toEqual({ mode: 'direct' });
+    }
+  });
+});
+
+describe('resolveExecution — tool API compatibility', () => {
+  const model = { ...MODEL, toolCallingApi: 'responses' as const };
+  const codex = {
+    ...harness('codex', { managed: true, byo: true }),
+    gatewayWire: 'openai-responses' as const,
+  };
+  const table = buildHarnessTable([...HARNESSES.values(), codex]);
+
+  it('allows Responses tools on a managed or subscription Codex harness', () => {
+    for (const credential of [
+      API_KEY,
+      {
+        authMethod: 'subscription-broker' as const,
+        constraints: { execution: 'sandbox' as const, harness: 'codex' },
+      },
+    ]) {
+      expect(
+        resolveExecution(
+          { model, credential, mode: 'sandbox', harness: 'codex' },
+          table,
+        ),
+      ).toMatchObject({ mode: 'sandbox', harness: { slug: 'codex' } });
+    }
+  });
+
+  it('refuses Responses tools on a managed Chat Completions harness', () => {
+    expect(
+      resolveExecution(
+        {
+          model,
+          credential: API_KEY,
+          mode: 'sandbox',
+          harness: 'opencode',
+        },
+        table,
+      ),
+    ).toMatchObject({
+      mode: 'refused',
+      reason: expect.stringContaining('Responses'),
+    });
   });
 });
 

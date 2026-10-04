@@ -1,3 +1,4 @@
+import { taskAgentReviewReceiptSchema } from '@tale/shared/schemas/task-review';
 import type { Sql } from 'postgres';
 
 import {
@@ -39,7 +40,8 @@ import { assertTaskReadable } from './service.ts';
  *   the external-turn metrics count.
  * - reviews passed — task reviews (`app.approvals`) that closed approved;
  *   changes requested — a person moving a task out of In review back to an
- *   open status, which is how the 0.5 review gate records "send it back".
+ *   open status, or an agent's typed requested-changes receipt. An ordinary
+ *   agent status move withdraws a review and is not a verdict.
  * - escalations — the questions agents asked people (`automation_human_asks`)
  *   on this project's runs, the source of the `agent_escalation` bell.
  * - capped — some source had more rows in the scan range than one page
@@ -106,7 +108,7 @@ export interface MetricsTaskRow {
   archivedAt: number | null;
 }
 
-/** A lifecycle activity row (`created` / `status.changed`) in scan range. */
+/** A lifecycle or native review activity row in scan range. */
 export interface MetricsActivityRow {
   taskId: string;
   action: string;
@@ -135,6 +137,27 @@ export interface ProjectMetricsSources {
   escalationsAt: number[];
   /** Some source overflowed its page: the figures are lower bounds. */
   capped: boolean;
+}
+
+function isAgentChangesRequested(row: MetricsActivityRow): boolean {
+  if (
+    row.action !== 'review.responded' ||
+    row.actorType !== 'agent' ||
+    row.toValue === null
+  )
+    return false;
+  try {
+    const value: unknown = JSON.parse(row.toValue);
+    const receipt = taskAgentReviewReceiptSchema.safeParse(value);
+    return (
+      receipt.success &&
+      receipt.data.taskId === row.taskId &&
+      receipt.data.decision === 'request_changes' &&
+      receipt.data.status === 'todo'
+    );
+  } catch {
+    return false;
+  }
 }
 
 function emptyDay(dateKey: string, capped: boolean): ProjectMetricsDay {
@@ -211,6 +234,10 @@ export function foldProjectTaskMetrics(
     if (day === undefined) continue;
     if (row.action === 'created') {
       day.tasksCreated += 1;
+      continue;
+    }
+    if (isAgentChangesRequested(row)) {
+      day.reviewsChangesRequested += 1;
       continue;
     }
     if (row.action !== 'status.changed') continue;
@@ -379,7 +406,7 @@ async function loadProjectMetricsSources(
       FROM app.task_activity
       WHERE org_id = ${organizationId} AND project_id = ${projectId}
         AND created_at_ms >= ${scanStart}
-        AND action IN ('created', 'status.changed')
+        AND action IN ('created', 'status.changed', 'review.responded')
       ORDER BY created_at_ms DESC
       LIMIT ${pageSize}
     `,

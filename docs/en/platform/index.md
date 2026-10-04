@@ -44,7 +44,7 @@ Below the projects, one list groups your work under **Pinned**, **Today**, **Yes
 - The open tasks assigned to you or waiting for your review, from every project you can read.
 - In **All**, the open inbox conversations you can see.
 
-An empty **Tasks** view offers **All projects**, which opens the project list. On a computer, an empty **All** or **Chats** view also offers **New chat**.
+An empty **Tasks** view offers **All projects**, which opens the project list. On a computer, an empty **All** or **Chats** view also offers **New chat**. If your chats, tasks, or conversations cannot be loaded, the list keeps what did load and says what is missing, instead of showing an empty view. **Try again** asks for it again.
 
 On a phone, the same list differs in three ways:
 

@@ -74,6 +74,12 @@ production URLs in canonical links, the sitemap and `llms.txt` are judged on the
 instead of being skipped as external. The docs sites run it in `test:prerender`
 (`tests/prerender/links.test.ts`).
 
+Standalone diagnostics can import `chromium` and the `Page`/`CDPSession` types
+from `@tale/e2e`. This uses the package's declared Playwright pin; it does not
+supply retries or choose a different browser binary. The opt-in
+[browser performance diagnostic](../../scripts/performance/README.md#diagnose-task-board-rendering-on-linux)
+selects and verifies its own immutable Chromium image.
+
 ## Run and maintain tests
 
 From the repository root:

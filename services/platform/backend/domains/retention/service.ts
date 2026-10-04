@@ -78,7 +78,10 @@ export class RetentionError extends Error {
 const MAX_RETENTION_FILE_BYTES = 256 * 1024;
 
 /** The org's retention DEFAULTS/BOUNDS file (its OWN file only — every org
- * is seeded from the catalog at create; no cross-org fallback). */
+ * is seeded from the catalog at create; no cross-org fallback). A file that
+ * exists but does not parse — a bound below its compliance floor, say —
+ * reads as no file, so its reason goes to the log: the editor shows only
+ * that the bounds are missing. */
 export async function loadOrgRetentionConfig(orgSlug: string) {
   const path = await import('node:path');
   const dir = path.join(getConfigRoot('retention'), orgSlug, 'governance');
@@ -88,7 +91,13 @@ export async function loadOrgRetentionConfig(orgSlug: string) {
     MAX_RETENTION_FILE_BYTES,
     (data) => retentionDefaultsConfigSchema.parse(data),
   );
-  return result.ok ? result.data : null;
+  if (result.ok) return result.data;
+  if (result.error !== 'not_found') {
+    console.warn(
+      `[retention] bounds file unreadable for org ${orgSlug}: ${result.message}`,
+    );
+  }
+  return null;
 }
 
 export type AppliedBounds = Partial<

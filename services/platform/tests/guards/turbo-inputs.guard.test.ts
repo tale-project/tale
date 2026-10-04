@@ -132,6 +132,10 @@ const OUTSIDE_READS = [
     readers: 'backend/core/node_only/sandbox/gateway_setup_token.test.ts',
   },
   {
+    path: 'services/sandbox-runtime/build-gemini-settings.ts',
+    readers: 'lib/harnesses/gemini-settings-build.test.ts',
+  },
+  {
     // Its engine install RUN, run under /bin/sh with recording doubles.
     path: 'services/sandbox-runtime/Dockerfile',
     readers: 'tests/guards/dockerfile-fail-closed.guard.test.ts',
@@ -139,6 +143,16 @@ const OUTSIDE_READS = [
   {
     path: 'services/sandbox/src/config.ts',
     readers: 'scripts/dev-sandbox-runtime.test.ts',
+  },
+  {
+    path: 'services/sandbox-runtime/daemon/src/file-ops.ts',
+    readers:
+      'tests/guards/integration-scope.guard.test.ts follows the native review file transfer proof',
+  },
+  {
+    path: 'services/sandbox-runtime/daemon/src/protocol.ts',
+    readers:
+      'tests/guards/integration-scope.guard.test.ts follows the native review file transfer proof',
   },
 ];
 

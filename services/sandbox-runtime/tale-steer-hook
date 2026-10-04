@@ -11,7 +11,7 @@
 # re-queued for the next turn).
 #
 # This runs after EVERY tool call of every turn in the session container — the
-# empty-dir fast path must stay one process spawn, and no failure mode may
+# empty-dir fast path must stay one cheap process spawn, and no failure mode may
 # break a normal turn (always exit 0, never exit 2: exit 2 feeds stderr to the
 # model).
 #
@@ -32,12 +32,19 @@ trap 'exit 0' ERR
 # needed) and makes the substring expansion codepoint-aware.
 export LC_ALL=C.UTF-8
 EVENT="${1:-post}"
-SRC=$(jq -r 'if (.agent_id // "") == "" then "main" else "sub" end' 2> /dev/null) || SRC=""
-[ -n "$TALE_STEER_DIR" ] || exit 0
-[ -d "$TALE_STEER_DIR" ] || exit 0
+# Nothing queued is the common case: answer it before parsing the payload,
+# since jq alone costs ~25 ms per tool call. The payload is still drained so
+# the harness never writes into a closed pipe.
+nothing_queued() {
+  cat > /dev/null 2>&1
+  exit 0
+}
+[ -n "$TALE_STEER_DIR" ] || nothing_queued
+[ -d "$TALE_STEER_DIR" ] || nothing_queued
 shopt -s nullglob
 files=("$TALE_STEER_DIR"/steer-*.json)
-[ ${#files[@]} -gt 0 ] || exit 0
+[ ${#files[@]} -gt 0 ] || nothing_queued
+SRC=$(jq -r 'if (.agent_id // "") == "" then "main" else "sub" end' 2> /dev/null) || SRC=""
 [ "$SRC" = "main" ] || exit 0
 
 msgs=""

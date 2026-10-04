@@ -4,7 +4,7 @@ description: Wie die Personalisierungsschicht von Tale (benutzerdefinierte Anwei
 noindex: true
 ---
 
-**Letzte Aktualisierung:** 27.09.2026
+**Letzte Aktualisierung:** 03.10.2026
 
 ## 1. Die Zusage
 
@@ -33,7 +33,7 @@ Sobald deine Anweisungen gesendet wurden, **kann Tale sie nicht zurückholen**. 
 
 ### 2.2 Self-Hosting: Der Betreiber des Deployments kann Rohdaten lesen
 
-Tale speichert deine benutzerdefinierten Anweisungen in der Postgres-Datenbank deines Deployments, in der Tabelle `app.user_preferences`. Wer in deinem Deployment Zugriff auf die Datenbank oder ihre Backups hat, kann diese Zeilen direkt lesen — Tales rollenbasierte Admin-Sperre („Admins können keine Inhalte sehen“) **gilt nicht auf Datenbankebene**. Beim Self-Hosting solltest du davon ausgehen, dass deine Datenbankbetreiber Zugriff auf alle Personalisierungsinhalte haben. SOC-2- und ISO-Kontrollen für DB-Zugriff liegen in deiner Verantwortung.
+Tale speichert deine benutzerdefinierten Anweisungen in der Postgres-Datenbank deines Deployments, in der Tabelle `app.user_preferences`. Wer in deinem Deployment Zugriff auf die Datenbank oder ihre Backups hat, kann diese Zeilen direkt lesen — Tales rollenbasierte Admin-Sperre („Admins können keine Inhalte sehen“) **gilt nicht auf Datenbankebene**. Beim Self-Hosting solltest du davon ausgehen, dass deine Datenbankbetreiber Zugriff auf alle Personalisierungsinhalte haben. Kontrollen für den Datenbankzugriff liegen in deiner Verantwortung.
 
 ### 2.3 Assistenten-Antworten können deine benutzerdefinierten Anweisungen zitieren oder paraphrasieren
 

@@ -1,9 +1,4 @@
-import {
-  TooltipRoot,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@tale/ui/tooltip';
+import { Popover } from '@tale/ui/popover';
 import { HelpCircle } from 'lucide-react';
 import { useMemo, useState, type ReactNode } from 'react';
 
@@ -17,24 +12,25 @@ export function LabelWithInfo({
   info: string;
 }): ReactNode {
   return (
-    <span className="inline-flex items-center gap-1.5">
+    <span className="inline-flex items-center gap-1">
       {label}
-      <TooltipProvider delayDuration={150}>
-        <TooltipRoot>
-          <TooltipTrigger asChild>
-            <button
-              type="button"
-              aria-label={info}
-              className="text-fg-muted hover:text-fg-base focus-visible:ring-accent-base/30 inline-flex h-4 w-4 items-center justify-center rounded-full focus-visible:ring-2 focus-visible:outline-none"
-            >
-              <HelpCircle className="h-3.5 w-3.5" strokeWidth={2} />
-            </button>
-          </TooltipTrigger>
-          <TooltipContent side="top" className="max-w-xs text-center">
-            {info}
-          </TooltipContent>
-        </TooltipRoot>
-      </TooltipProvider>
+      <Popover
+        aria-label={label}
+        side="top"
+        align="start"
+        contentClassName="max-w-[min(20rem,calc(100vw-2rem))] rounded-xl text-sm leading-relaxed"
+        trigger={
+          <button
+            type="button"
+            aria-label={label}
+            className="text-fg-muted hover:text-fg-base hover:bg-surface-site-inset focus-visible:ring-accent-base inline-flex size-11 shrink-0 items-center justify-center rounded-full transition-colors focus-visible:ring-2 focus-visible:outline-none motion-reduce:transition-none"
+          >
+            <HelpCircle aria-hidden className="size-4" strokeWidth={1.75} />
+          </button>
+        }
+      >
+        {info}
+      </Popover>
     </span>
   );
 }

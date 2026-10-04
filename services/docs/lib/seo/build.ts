@@ -10,8 +10,6 @@
  * canonical config block for `compileToDisk`.
  */
 
-import { statSync } from 'node:fs';
-
 import type {
   ArtifactRoute,
   ArtifactSection,
@@ -26,9 +24,9 @@ import { listAllContent, type ContentRecord } from '../../scripts/walk-content';
 import { BASE_LOCALES } from '../i18n/locales';
 import { DEFAULT_DOCS_SITE_URL } from '../site-url';
 
-export const DOCS_SITE_TITLE = 'Tale';
+export const DOCS_SITE_TITLE = 'Tale documentation';
 export const DOCS_SITE_DESCRIPTION =
-  'The orchestration layer for AI agents — local AI models, agents, skills, and workflows on your own infrastructure.';
+  'Use Tale, the open-source workspace for teams and AI agents: coordinate project tasks, configure agents, review their work, and manage your deployment.';
 
 /**
  * How to read the index, for the agents that start here. The German and
@@ -64,15 +62,6 @@ function isNoindex(page: ContentRecord): boolean {
   return page.frontmatter.noindex === true;
 }
 
-function fileMtimeIso(path: string): string {
-  try {
-    return statSync(path).mtime.toISOString();
-  } catch (error) {
-    console.warn(`[docs/seo] fileMtimeIso fallback for ${path}:`, error);
-    return new Date().toISOString();
-  }
-}
-
 function getString(
   fm: Record<string, string | boolean>,
   key: string,
@@ -89,9 +78,8 @@ function toRoute(
     url: pathFor(page.locale, page.slug),
     title: getString(page.frontmatter, 'title') ?? page.slug,
     description: getString(page.frontmatter, 'description'),
-    // Filesystem mtime — per-file `git log` across the whole tree is too
-    // slow for the on-demand / test walk (hundreds of sync spawns).
-    lastModified: fileMtimeIso(page.filePath),
+    // Omit lastModified until content carries a reliable change date.
+    // Checkout mtimes and the build clock do not describe page updates.
     alternates,
   };
 }

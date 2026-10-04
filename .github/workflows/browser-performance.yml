@@ -1,0 +1,103 @@
+name: Browser performance
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, labeled]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      baseline:
+        description: Full baseline commit SHA
+        required: true
+        type: string
+      candidate:
+        description: Full candidate commit SHA
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: browser-performance-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+jobs:
+  task-board:
+    name: Task board diagnostic
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.pull_request.draft == false &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      contains(github.event.pull_request.labels.*.name, 'benchmark:task-board'))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      BASELINE_SHA: ${{ inputs.baseline || github.event.pull_request.base.sha }}
+      CANDIDATE_SHA: ${{ inputs.candidate || github.event.pull_request.head.sha }}
+      BENCH_OUTPUT: ${{ runner.temp }}/browser-performance
+      DO_NOT_TRACK: '1'
+    steps:
+      - name: Checkout exact candidate
+        timeout-minutes: 2
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          ref: ${{ inputs.candidate || github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Verify sources and initialize evidence
+        timeout-minutes: 3
+        # Uses system Node only for dependency-free boundary validation. No
+        # source SHA is interpolated into shell code, and no token is persisted.
+        run: node scripts/performance/browser/prepare-sources.mjs
+      - name: Setup repository toolchain
+        timeout-minutes: 6
+        uses: ./.github/actions/setup-turbo
+        with:
+          github-token: ${{ github.token }}
+          start-turbo-cache: 'false'
+      - name: Resolve the common platform Node pin
+        id: node
+        run: node scripts/performance/browser/resolve-node.mjs
+      - name: Setup platform Node
+        timeout-minutes: 2
+        id: node-setup
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: ${{ steps.node.outputs.version }}
+          package-manager-cache: false
+      - name: Install baseline and build both production bundles
+        timeout-minutes: 33
+        # Serial direct workspace build commands, never Turbo/cache timing.
+        run: node --experimental-transform-types --disable-warning=ExperimentalWarning scripts/performance/browser/build-pair.ts
+      - name: Reserve image preparation within the shared deadline
+        run: node --experimental-transform-types --disable-warning=ExperimentalWarning scripts/performance/browser/image-budget.ts
+      - name: Setup Docker builder
+        timeout-minutes: 2
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd
+      - name: Build disposable database image
+        timeout-minutes: 5
+        # Same image/source/cache-read choreography as backend integration.
+        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f
+        with:
+          context: .
+          file: services/db/Dockerfile
+          platforms: linux/amd64
+          push: false
+          load: true
+          tags: tale-db:browser-performance
+          cache-from: type=gha,scope=db
+          provenance: false
+      - name: Run bounded serial browser diagnostic
+        # Owns the shared cgroup slice, container IDs, synthetic DB, and cleanup.
+        # No token/env dump, host network, published ports, socket mount, model,
+        # provider, native agent or deployment access in measured containers.
+        run: node --experimental-transform-types --disable-warning=ExperimentalWarning scripts/performance/browser/run-linux.ts
+      - name: Verify cleanup even after a failed phase
+        timeout-minutes: 3
+        if: always() && steps.node-setup.outcome == 'success'
+        run: node --experimental-transform-types --disable-warning=ExperimentalWarning scripts/performance/browser/cleanup-linux.ts
+      - name: Upload raw evidence and failure receipts
+        timeout-minutes: 6
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: browser-performance-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/browser-performance
+          retention-days: 14
+          if-no-files-found: error

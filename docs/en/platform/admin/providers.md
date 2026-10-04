@@ -27,14 +27,22 @@ For **API key** or **Environment variable** credentials, open a chat and send a 
 | --- | --- | --- |
 | **API key** | The provider's secret key | Standard metered API access. The stored secret is encrypted and later shown only as a masked fragment. |
 | **Environment variable** | The name of a deployment variable | An operator manages the secret outside the UI. The name must start with `TALE_PROVIDER_KEY_`. |
-| **Subscription key** | A supported vendor subscription secret | Runs through the vendor's supported agent runtime, rather than a direct API call. |
-| **Subscription broker** | A broker endpoint and token-response configuration | The deployment obtains usable subscription tokens from a broker. |
+| **Subscription key** | A supported vendor subscription secret | Runs through the vendor's supported agent runtime in tasks and automations, never in chat. |
+| **Subscription broker** | A broker endpoint and token-response configuration | The deployment obtains usable subscription tokens from a broker for the vendor's agent runtime in tasks and automations, never in chat. |
 
 Only methods supported by the selected provider appear. An environment reference does not create the variable: ask the operator to provision it using the [provider configuration guide](/self-hosted/configuration/providers).
 
+## Use subscriptions in tasks, not in chat
+
+A **Subscription key** or **Subscription broker** credential works only inside the agent runtime it is bound to: Claude Code for an Anthropic subscription and for the Moonshot and Z.ai coding plans, Codex for a ChatGPT subscription, Gemini CLI for Gemini, and Hermes for Nous Portal. Vendors do not permit subscription tokens in other applications, and Anthropic refuses them from any client other than Claude Code. Chat calls the provider's API from Tale itself, so it cannot use a subscription credential.
+
+Tale therefore runs a subscription in tasks and automations, where its runtime works in a sandbox. Chat offers only models that an **API key** or **Environment variable** credential serves. The app says so in three places: the add form shows **Tasks and automations only** when you choose a subscription method, every subscription row in the credentials table carries the same note, and the chat model list names the subscriptions it leaves out.
+
+To chat with a model you reach through a subscription, add an API key or environment-variable credential for the same provider, or connect a provider such as OpenRouter that serves the model.
+
 ## Connect a subscription broker
 
-Subscription brokers support Anthropic subscriptions through Claude Code and OpenAI ChatGPT subscriptions through Codex. These credentials serve task and automation agents; chats require direct API credentials.
+Subscription brokers support Anthropic subscriptions through Claude Code and OpenAI ChatGPT subscriptions through Codex. These credentials serve task and automation agents; chats require direct API credentials, for the [reasons above](#use-subscriptions-in-tasks-not-in-chat).
 
 | Provider and runtime | Target variable |
 | --- | --- |
@@ -47,6 +55,8 @@ Set **Token array path** to `$.tokens`, **Token field** to `access_token`, and *
 
 For OpenAI, restrict **Model allowlist** to model IDs your ChatGPT plan supports. The OpenAI API catalog can include models that the subscription cannot use.
 
+To run a GPT-6 model on the ChatGPT subscription, save the OpenAI broker credential, then configure a [project agent](/platform/projects/project-agents) with **Agent type** set to **Codex**. Under **Model**, search for the model ID, such as `gpt-6.1-sol`, and select the entry marked **OpenAI · Subscription**. [Run the GPT-6 models](#run-the-gpt-6-models) explains where else each model runs.
+
 Choose **Token selection** according to how you want to distribute new agent turns:
 
 - **Random**, the initial choice, picks uniformly from the usable accounts for each selection.
@@ -54,6 +64,13 @@ Choose **Token selection** according to how you want to distribute new agent tur
 - **Round-robin** picks the usable account that was selected least recently. All backend processes share the selection history for this organization and credential, including concurrent requests. Reordered responses and backend restarts preserve that history; stable broker account IDs also preserve it across token refreshes. This distributes selections; it does not promise equal token usage or equal numbers of running agents.
 
 Save the credential, then run a short task or automation with the matching provider and agent runtime. Check that the agent completes a reply. If no account is usable, ask the operator to check account authorization, token expiry and planned refreshes, and reported quota. The [broker configuration reference](/self-hosted/configuration/providers#connect-a-subscription-broker) explains the optional account metadata, defaults and recovery.
+
+## Run the GPT-6 models
+
+The OpenAI catalog includes GPT-6 Astra (`gpt-6-astra`), GPT-6 Sol (`gpt-6-sol`), GPT-6 Luna (`gpt-6-luna`) and GPT-6.1 Sol (`gpt-6.1-sol`).
+
+- **Chat** offers all four through an OpenAI **API key** or **Environment variable** credential, automatic model selection included. Astra and GPT-6.1 Sol make tool calls only through OpenAI's Responses API, so Tale calls them through it. GPT-6 Sol and Luna accept the chat's tools only with reasoning switched off, so the picker offers no effort levels for them.
+- **Project agents and automations** run Astra and GPT-6.1 Sol only on **Codex**, the runtime that speaks the Responses API, on an API-key, environment-variable or ChatGPT-subscription credential. The model picker offers them for no other runtime.
 
 ## Configure Azure or another custom endpoint
 

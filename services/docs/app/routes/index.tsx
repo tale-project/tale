@@ -1,9 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 
-import { DocsPage } from '@/app/pages/docs-page';
-import { ensureDocBody } from '@/lib/content/loader';
-
+import { HomePage } from '@/app/pages/home-page';
 export const Route = createFileRoute('/')({
-  loader: () => ensureDocBody('en', 'index'),
-  component: () => <DocsPage locale="en" slug="index" />,
+  component: () => <HomePage locale="en" />,
 });

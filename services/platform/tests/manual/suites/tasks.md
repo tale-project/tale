@@ -1,6 +1,6 @@
 # Tasks
 
-> **Prefix** `TASK-` · **Reset** none · **Cost** 115 boxes
+> **Prefix** `TASK-` · **Reset** none · **Cost** 116 boxes
 
 Exercise a project's task workspace — the board and list views with
 drag-and-drop across status lanes, the task sheet (description, comments with
@@ -1289,3 +1289,13 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   the dialog, the route and the Home panel in the commits, never a card).
   Target: the task shows < 1 s after the click, and the close ends with its
   exit animation.
+
+## Independent agent reviews
+
+Use a disposable local project with two different agents: A produced a completed native task run; B has **Review other agents’ task results** (`projects.agents.tool.task_review`) and an authorized live run on its own review task. Keep the implementation task, its source run and pending review intact. Do not start a new run on the implementation task to obtain reviewer authority. A synthetic local integration fixture may provide these states without a model call; record which mode the round used.
+
+- [ ] `TASK-F63` · **Hand the recorded review to an independent agent** — With a human-owned pending review open in two editor sessions, change **Reviewer** (`tasks.fields.reviewer`) to B → the task names B under **Current review** (`tasks.reviewer.pendingFor`), both open task views update, and the former human review drops from **Needs my review** (`tasks.review.needsMyReview`) and Home without a reload. Reload the task → B remains the reviewer, the assignee and status are unchanged, and no new implementation run appears. The actual source agent A is unavailable as a choice with the independence explanation (`tasks.reviewer.independentAgent`), even if the current assignee no longer names A.
+- [ ] `TASK-F64` · **Read an agent verdict and its feedback live** — Keep the implementation task open while B decides its assigned review from B's own task, once with approval and on a separate result with a request for changes → the first task becomes **Done** (`tasks.status.done`), the second **To do** (`tasks.status.todo`), and Activity shows B with **Review decided** (`tasks.activity.reviewResponded`) and **Approved** or **Changes requested** (`tasks.review.decisionApproved`, `tasks.review.decisionChangesRequested`). Feedback appears once with B's identity, the pending review clears, and the result survives reload. Include an agent mention in the request-for-changes feedback → it remains feedback; neither task starts a new run until a separate authorized start.
+- [ ] `TASK-B38` · **Read a review without project edit access** — As a Member who owns the task but cannot edit the project, open its task page and board dialog → **Reviewer** (`tasks.fields.reviewer`) and **Current review** (`tasks.reviewer.pendingFor`) remain readable, but the reviewer cannot be changed by pointer or keyboard. An editor opening the same task can reach the picker. Existing task-edit rights do not imply reviewer-handoff rights.
+- [ ] `TASK-B39` · **Recover from a stale review handoff** — Open the same pending result in two editor sessions; transfer its review in one, then choose another reviewer from the first session's still-open choice list → one localized stale-review refusal (`tasks.reviewer.stale`) is shown, not a raw payload, and the refreshed **Current review** (`tasks.reviewer.pendingFor`) names the saved reviewer. Reload before choosing again → the successful handoff remains, and no unrelated result or run was changed.
+- [ ] `TASK-A15` · **Read and choose reviewers at narrow widths** — In EN/DE/FR, use the keyboard on the project's **Default reviewer** (`projects.taskReview.defaultReviewer`), the task's **Reviewer** (`tasks.fields.reviewer`), and **Review other agents’ task results** (`projects.agents.tool.task_review`) in the agent equipment menu, at desktop and phone widths → labels, human/agent choices, the write caption, pending-review name, and missing-permission hint (`tasks.reviewer.agentPermissionRequired`) remain readable without clipping or horizontal page overflow; focused controls have visible focus, Escape returns focus to their trigger, and saved choices persist after reopening.

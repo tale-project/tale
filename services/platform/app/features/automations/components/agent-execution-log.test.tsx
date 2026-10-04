@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { render, screen } from '@/tests/utils/render';
 
-import { AgentExecutionLog } from './agent-execution-log';
+import { AgentActivityLine, AgentExecutionLog } from './agent-execution-log';
 
 // Drives the mocked `useBackendQuery` return: the run's sandbox op, or `null`
 // for a run that never ran an agent node.
@@ -113,6 +113,42 @@ describe('AgentExecutionLog', () => {
     expect(
       screen.getByText(/ran on openrouter\/anthropic\/claude-fable-5/),
     ).toBeInTheDocument();
+  });
+
+  // A step waiting for sandbox room re-kicks its start for up to two hours:
+  // the newest op is a kicked start that has not run, or the refused one.
+  it.each([
+    ['a kicked start', op([])],
+    ['a refused start', op([], 'failed')],
+  ])(
+    'says a step waits for sandbox room over %s, not that the agent starts up or wrote nothing',
+    (_label, data) => {
+      state.data = data;
+      render(
+        <AgentExecutionLog
+          organizationId="org-1"
+          runId={runId}
+          waitingForRoom
+        />,
+      );
+      expect(
+        screen.getByText('Waiting for a sandbox slot'),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText('The agent is starting up in the sandbox…'),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByText('The agent produced no log for this run.'),
+      ).not.toBeInTheDocument();
+    },
+  );
+
+  it('says the collapsed step waits for sandbox room, whatever the refused start left', () => {
+    state.data = op([], 'failed');
+    render(
+      <AgentActivityLine organizationId="org-1" runId={runId} waitingForRoom />,
+    );
+    expect(screen.getByText('Waiting for a sandbox slot')).toBeInTheDocument();
   });
 
   it('renders nothing for a run without an agent op', () => {

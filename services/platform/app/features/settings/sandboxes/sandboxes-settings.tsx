@@ -119,11 +119,17 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
       sessionId: string,
       fn: () => Promise<unknown>,
       successKey: string,
+      successDescriptionKey?: string,
     ): Promise<void> => {
       setPendingId(sessionId);
       try {
         await fn();
-        toast({ title: t(successKey) });
+        toast({
+          title: t(successKey),
+          ...(successDescriptionKey !== undefined
+            ? { description: t(successDescriptionKey) }
+            : {}),
+        });
       } catch (err) {
         toast({
           title: t('toast.error'),
@@ -212,6 +218,14 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
                   </Badge>
                 )}
                 {s.pinned && <Badge variant="blue">{t('status.pinned')}</Badge>}
+                {s.destroyState === 'pending' && (
+                  <Badge variant="yellow">{t('status.destroying')}</Badge>
+                )}
+                {s.destroyState === 'failed' && (
+                  <Badge variant="destructive">
+                    {t('status.destroyFailed')}
+                  </Badge>
+                )}
               </Row>
               <span className="text-muted-foreground text-xs">
                 {t(allocated ? 'status.quotaInUse' : 'status.quotaReleased')}
@@ -298,6 +312,11 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
         cell: ({ row }) => {
           const s = row.original;
           const busy = pendingId === s.sessionId;
+          // A queued Destroy unpins and deletes the workspace whatever is
+          // asked of it meanwhile, so Pin and Destroy wait until it is gone.
+          // Stop stays: a task that runs while the Destroy retries can still
+          // be stopped.
+          const changing = busy || s.destroyState === 'pending';
           return (
             <Row gap={0} align="stretch" justify="end">
               <EntityRowActions
@@ -324,7 +343,7 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
                     key: 'pin',
                     label: s.pinned ? t('actions.unpin') : t('actions.pin'),
                     icon: s.pinned ? PinOff : Pin,
-                    disabled: busy,
+                    disabled: changing,
                     onClick: () =>
                       void run(
                         s.sessionId,
@@ -344,7 +363,7 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
                     // Auto-gets a separator above it; the confirm dialog below
                     // gates the actual teardown.
                     destructive: true,
-                    disabled: busy,
+                    disabled: changing,
                     onClick: () => setConfirmDestroy(s.sessionId),
                   },
                 ]}
@@ -421,7 +440,8 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
               void run(
                 sessionId,
                 () => destroy.mutateAsync({ organizationId, sessionId }),
-                'toast.destroyed',
+                'toast.destroying',
+                'toast.destroyingDescription',
               ).finally(() => setConfirmDestroy(null));
             }}
           />

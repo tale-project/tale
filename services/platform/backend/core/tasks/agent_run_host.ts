@@ -20,7 +20,6 @@ import { randomBytes } from 'node:crypto';
 import { buildStdinUserMessage } from '../../../lib/harnesses/parsers/claude-stream-json';
 import { isHarnessSlug } from '../../../lib/harnesses/types';
 import { agentLanguageGuidance } from '../../../lib/shared/agent-language';
-import { AppError } from '../../../lib/shared/errors/app-error';
 import type { TaskCommentBodies } from '../../../lib/shared/schemas/task-comment';
 import {
   liveProgressSink,
@@ -53,6 +52,11 @@ import {
 import type { Id } from '../lib/rows';
 import { safePathSegment } from '../lib/safe_path_segment';
 import { ensureAgentSession } from '../node_only/sandbox/agent_session';
+import {
+  isDestroyPendingRefusal,
+  queuedWakeAfterMs,
+  sandboxCapacityRefusal,
+} from '../node_only/sandbox/capacity_refusal';
 import type { TurnConnectorCaller } from '../node_only/sandbox/connectors_bridge';
 import { provisionSessionGatewayKey } from '../node_only/sandbox/gateway_provisioning';
 import {
@@ -105,6 +109,10 @@ import {
   isCredentialRotation,
   type TaskRunFailureCode,
 } from './task_auto_retry';
+import {
+  isTaskInputMissingError,
+  TaskInputMissingError,
+} from './task_input_missing_error';
 import { isValidResumeHandle } from './task_kick_resume';
 import { resolveTaskServing, type TaskServing } from './task_serving';
 
@@ -236,15 +244,77 @@ export interface StagedTaskInputs {
   outputs: string[];
 }
 
+/** One planned input, keyed by the path the daemon's skip report names:
+ * which box it belongs to, the name it got on disk (the prompt's and
+ * `StagedTaskInputs`' spelling) and the name the task shows the person. */
+export interface PlannedTaskInput {
+  kind: 'attachments' | 'outputs';
+  stagedName: string;
+  fileName: string;
+}
+
+type TaskInputSkipVerdict =
+  | { kind: 'staged'; droppedOutputs: string[] }
+  | { kind: 'inputs_missing'; fileNames: string[]; droppedOutputs: string[] }
+  | { kind: 'failed'; message: string };
+
+/**
+ * What `sessionStageFiles` could not land, read for what it means to the
+ * run. `http_404` is the blob door passing the store's own 404 through
+ * (`domains/files/sandbox-blob-routes.ts`): the bytes behind a listed input
+ * are gone — a deleted file row, a purge, a cleanup outside Tale. A missing
+ * ATTACHMENT fails the run by the file's name: it is the person's input, a
+ * run that quietly worked without it would deliver the wrong thing, and no
+ * retry brings the bytes back (`TaskInputMissingError` → `input_missing`,
+ * never auto-retried; whoever can change the task removes the attachment or
+ * uploads it again). A missing OUTPUT — an earlier run's deliverable — is
+ * dropped from the brief instead: the agent can produce it again, and nobody
+ * can put the old bytes back. Any other reason (a dead staging route, a
+ * refused fetch, a timeout) is an infra fault and keeps the generic failure,
+ * every skip listed with its reason — the run error is the only diagnostic
+ * a failed staging leaves behind, and a bare path list reads as "file gone"
+ * when the real cause is the route. Exported for its unit test.
+ */
+export function partitionTaskInputSkips(
+  skipped: ReadonlyArray<{ path: string; reason: string }>,
+  planned: ReadonlyMap<string, PlannedTaskInput>,
+): TaskInputSkipVerdict {
+  const missingAttachments: string[] = [];
+  const droppedOutputs: string[] = [];
+  for (const skip of skipped) {
+    const input = planned.get(skip.path);
+    if (skip.reason !== 'http_404' || input === undefined) {
+      return {
+        kind: 'failed',
+        message: `staging task inputs failed: ${skipped
+          .map((entry) => `${entry.path} (${entry.reason})`)
+          .join(', ')}`,
+      };
+    }
+    if (input.kind === 'attachments') missingAttachments.push(input.fileName);
+    else droppedOutputs.push(input.stagedName);
+  }
+  if (missingAttachments.length > 0) {
+    return {
+      kind: 'inputs_missing',
+      fileNames: missingAttachments,
+      droppedOutputs,
+    };
+  }
+  return { kind: 'staged', droppedOutputs };
+}
+
 /**
  * Mirror the task's inputs into the standing session: the user's attachments
  * under `<dir>/attachments/`, the task's current deliverables (earlier runs'
  * harvested outputs) under `<dir>/outputs/`. Re-mirrored from scratch every
  * turn — attachments and outputs may have changed since the last run, and a
- * stale mirror would mislead worse than none. A purged blob under a live row
- * skips that file (mirroring `stageWorkflowFiles`); a staging failure throws
- * so the run fails with the real reason instead of quietly proceeding
- * blind.
+ * stale mirror would mislead worse than none. A ref of the retired `_storage`
+ * backend skips that file (mirroring `stageWorkflowFiles`); what the store
+ * no longer holds and what failed to stage is sorted by
+ * `partitionTaskInputSkips` — a gone attachment fails the run by name, a
+ * gone deliverable leaves the brief, an infra fault throws with the real
+ * reason instead of quietly proceeding blind.
  */
 async function stageTaskInputs(
   ctx: ActionCtx,
@@ -258,12 +328,8 @@ async function stageTaskInputs(
 ): Promise<StagedTaskInputs> {
   const dir = taskInputsDir(args.taskId);
   const staged: StagedTaskInputs = { dir, attachments: [], outputs: [] };
-  try {
-    await sessionDeleteFiles(args.sessionId, [dir]);
-  } catch (err) {
-    console.warn('[task-agent] inputs pre-clear failed (continuing):', err);
-  }
   const toStage: SessionStageFile[] = [];
+  const planned = new Map<string, PlannedTaskInput>();
   for (const [kind, files] of [
     ['attachments', args.attachments],
     ['outputs', args.outputs],
@@ -271,23 +337,51 @@ async function stageTaskInputs(
     const taken = new Set<string>();
     for (const file of files) {
       const url = await stageUrlForBlobRef(file.fileId, args.organizationId);
-      if (url === null) continue; // blob purged under a live row — skip, don't fail
+      if (url === null) continue; // a retired backend's ref — skip, don't fail
       const name = safeInputFileName(file.fileName, taken);
-      toStage.push({ path: `${dir}/${kind}/${name}`, url });
+      const path = `${dir}/${kind}/${name}`;
+      toStage.push({
+        path,
+        url,
+        sourceId: `${args.organizationId}:${file.fileId}`,
+      });
+      planned.set(path, {
+        kind,
+        stagedName: name,
+        fileName: file.fileName === '' ? name : file.fileName,
+      });
       staged[kind].push(name);
     }
   }
-  if (toStage.length === 0) return staged;
-  const result = await sessionStageFiles(args.sessionId, toStage);
-  if (result.skipped.length > 0) {
-    // Carry each file's skip REASON: the run error is the only diagnostic a
-    // failed staging leaves behind, and a bare path list reads as "file
-    // gone" when the real cause is a dead staging route or a refused fetch.
-    throw new Error(
-      `staging task inputs failed: ${result.skipped
-        .map((skip) => `${skip.path} (${skip.reason})`)
-        .join(', ')}`,
+  const result = await sessionStageFiles(args.sessionId, toStage, {
+    replaceRoots: [dir],
+  });
+  const verdict = partitionTaskInputSkips(result.skipped, planned);
+  if (verdict.kind === 'failed') throw new Error(verdict.message);
+  if (verdict.droppedOutputs.length > 0) {
+    console.warn(
+      `[task-agent] earlier deliverables of task ${args.taskId} are no longer in storage and were left out of the brief: ${verdict.droppedOutputs.join(', ')}`,
     );
+    const dropped = new Set(verdict.droppedOutputs);
+    staged.outputs = staged.outputs.filter((name) => !dropped.has(name));
+  }
+  if (verdict.kind === 'inputs_missing') {
+    throw new TaskInputMissingError(verdict.fileNames);
+  }
+  if (verdict.droppedOutputs.length > 0) {
+    // A missing old deliverable is allowed, but its former on-disk copy must
+    // not survive. The first stage intentionally never prunes after a miss.
+    const missing = new Set(result.skipped.map((file) => file.path));
+    const reconciled = await sessionStageFiles(
+      args.sessionId,
+      toStage.filter((file) => !missing.has(file.path)),
+      { replaceRoots: [dir] },
+    );
+    if (reconciled.skipped.length > 0) {
+      throw new Error(
+        `reconciling task inputs failed: ${reconciled.skipped.map((file) => file.path).join(', ')}`,
+      );
+    }
   }
   return staged;
 }
@@ -1099,33 +1193,40 @@ export async function startTaskAgentTurnImpl(
       // A project agent's equipment is the PROJECT's: team skills resolve
       // against the project's teams, never against whoever configured the
       // agent or whoever triggers the run.
-      const projectScope = await ctx.runQuery(
-        internal.projects.internal_queries.getProjectAgentSkillScope,
-        { agentId: args.agentId },
-      );
-      const skillsAddendum = await stageWorkflowSkills(
-        ctx,
-        args.organizationId,
-        args.sessionId,
-        args.skills,
-        projectScope === null
-          ? { kind: 'org' }
-          : { kind: 'project', teamIds: projectScope.teamIds },
-      );
-
-      const brief = await ctx.runQuery(
-        internal.tasks.agent_runs.getTaskBriefForAgentRun,
-        { taskId: args.taskId },
-      );
+      const [projectScope, brief] = await Promise.all([
+        ctx.runQuery(
+          internal.projects.internal_queries.getProjectAgentSkillScope,
+          { agentId: args.agentId },
+        ),
+        ctx.runQuery(internal.tasks.agent_runs.getTaskBriefForAgentRun, {
+          taskId: args.taskId,
+        }),
+      ]);
       if (brief === null) throw new Error('the task no longer exists');
-
-      const inputs = await stageTaskInputs(ctx, {
-        organizationId: args.organizationId,
-        sessionId: args.sessionId,
-        taskId: args.taskId,
-        attachments: brief.attachments,
-        outputs: brief.outputs,
-      });
+      // Disjoint managed directories can stage together. Finish both before
+      // failure releases the session; credentials are minted only afterwards.
+      const [skillsResult, inputsResult] = await Promise.allSettled([
+        stageWorkflowSkills(
+          ctx,
+          args.organizationId,
+          args.sessionId,
+          args.skills,
+          projectScope === null
+            ? { kind: 'org' }
+            : { kind: 'project', teamIds: projectScope.teamIds },
+        ),
+        stageTaskInputs(ctx, {
+          organizationId: args.organizationId,
+          sessionId: args.sessionId,
+          taskId: args.taskId,
+          attachments: brief.attachments,
+          outputs: brief.outputs,
+        }),
+      ]);
+      if (skillsResult.status === 'rejected') throw skillsResult.reason;
+      if (inputsResult.status === 'rejected') throw inputsResult.reason;
+      const skillsAddendum = skillsResult.value;
+      const inputs = inputsResult.value;
       // A subscription serving that cannot see images must not run blind
       // over image inputs: refuse with the reason (the run fails visibly,
       // naming the fix) before anything is minted; a turn without image
@@ -1389,16 +1490,30 @@ export async function startTaskAgentTurnImpl(
       await progress.flush();
       await continueOrSettle(ctx, keys, window, resume);
     } catch (err) {
-      // A full session budget is not a failure — park the run and let the
-      // next slot release (or the watchdog backstop) restart it. Everything
-      // else settles as a failure with the REAL reason.
-      if (isQuotaExceededError(err)) {
+      // No room is not a failure: the organization's session budget is
+      // spent, or the sandbox host is at capacity or short of memory. Park
+      // the run and let the next slot release (or the watchdog backstop,
+      // every two minutes) restart it — or, when the host keeps a line and
+      // said when the run's place comes up, a wake at that moment. A
+      // workspace an administrator is destroying parks the run too: the
+      // Destroy's settle is a release edge, and the run starts afresh after
+      // it. Everything else settles as a failure with the REAL reason.
+      const noRoom = sandboxCapacityRefusal(err);
+      if (noRoom !== null || isDestroyPendingRefusal(err)) {
         console.warn(
-          `[task-agent] no session slot for ${args.execId} — parking the run until one frees`,
+          noRoom === null
+            ? `[task-agent] the sandbox workspace for ${args.execId} is being destroyed — parking the run until the Destroy settles`
+            : `[task-agent] no ${noRoom.scope === 'host' ? 'sandbox host capacity' : 'session slot'} for ${args.execId} — parking the run until one frees`,
         );
+        const wakeAfterMs =
+          noRoom !== null ? queuedWakeAfterMs(noRoom) : undefined;
         await ctx.runMutation(
           internal.tasks.agent_runs.parkTaskAgentRunForCapacity,
-          { runId: args.runId, execId: args.execId },
+          {
+            runId: args.runId,
+            execId: args.execId,
+            ...(wakeAfterMs !== undefined ? { wakeAfterMs } : {}),
+          },
         );
         return null;
       }
@@ -1415,22 +1530,6 @@ export async function startTaskAgentTurnImpl(
     }
     return null;
   }
-}
-
-/** The `QUOTA_EXCEEDED` shape thrown by the slot reserve and the cap-checked
- * resume — the one start failure that parks instead of failing. */
-function isQuotaExceededError(err: unknown): boolean {
-  if (err instanceof AppError) {
-    const data: unknown = err.data;
-    return (
-      typeof data === 'object' &&
-      data !== null &&
-      (data as { code?: unknown }).code === 'QUOTA_EXCEEDED'
-    );
-  }
-  // A AppError thrown inside a sub-mutation reaches the action wrapped as
-  // a plain Error whose message carries the payload — match the code there.
-  return err instanceof Error && err.message.includes('QUOTA_EXCEEDED');
 }
 
 /** One drive window as a PLAIN exported function (see the start's twin). */
@@ -2264,7 +2363,12 @@ export async function steerTaskAgentTurnImpl(
   );
   if (rotated === null) return await retry(args.execId); // raced a settle/cancel/steer
   const execId = rotated.execId;
-  await sessionCancelExec(args.sessionId, args.execId).catch((err) =>
+  // A rotation, not a Stop: the old exec's own processes end, while what the
+  // turn started outside them (a dev server it is testing against) stays up
+  // for the restarted turn, which goes on where this one stopped.
+  await sessionCancelExec(args.sessionId, args.execId, {
+    keepLeftovers: true,
+  }).catch((err) =>
     console.warn('[task-agent] steer kill of the old exec failed:', err),
   );
   try {
@@ -2514,7 +2618,11 @@ export async function steerTaskAgentTurnImpl(
         text: '',
         // Retryable: the retry run's resume prompt carries the comment via
         // the discussion delta, so the steer is not lost with the restart.
-        failureCode: 'steer_restart_failed',
+        // Except for an attachment the store no longer holds — the restart
+        // re-stages the brief, and a retry would meet the same 404.
+        failureCode: isTaskInputMissingError(err)
+          ? 'input_missing'
+          : 'steer_restart_failed',
         ...(retryAtMs !== undefined ? { retryAtMs } : {}),
       },
     );

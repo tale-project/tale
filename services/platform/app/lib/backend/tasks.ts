@@ -7,6 +7,7 @@
 
 import { isEpochMs } from '@tale/shared/schemas/epoch-ms';
 import { taskExternalIssueSchema } from '@tale/shared/schemas/task-external-issue';
+import { setTaskReviewerInputSchema } from '@tale/shared/schemas/task-review';
 import type { QueryClient } from '@tanstack/react-query';
 
 import type { ItemOf, PageItemOf, ReturnsOf } from '@/app/lib/backend/contract';
@@ -58,6 +59,7 @@ interface TaskWire {
   assigneeType: string | null;
   assigneeId: string | null;
   reviewerUserId: string | null;
+  reviewerAgentId?: string | null;
   parentTaskId: string | null;
   commentCount: number;
   rank: string;
@@ -122,6 +124,9 @@ function taskView(row: TaskWire): TaskItem {
     ...(row.assigneeId !== null ? { assigneeId: row.assigneeId } : {}),
     ...(row.reviewerUserId !== null
       ? { reviewerUserId: row.reviewerUserId }
+      : {}),
+    ...(typeof row.reviewerAgentId === 'string'
+      ? { reviewerAgentId: row.reviewerAgentId }
       : {}),
     ...(row.parentTaskId !== null ? { parentTaskId: row.parentTaskId } : {}),
     commentCount: row.commentCount,
@@ -283,6 +288,18 @@ function boardFilterParams(args: Record<string, unknown>): {
 }
 
 export const taskReadAdapters: Record<string, ReadAdapter> = {
+  'tasks/queries:getTaskReviewer': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    const taskId = args.taskId;
+    if (orgId === undefined || typeof taskId !== 'string') return null;
+    return {
+      queryKey: backendKey(orgId, 'task', 'reviewer', taskId),
+      queryFn: () =>
+        backendFetch(`/tasks/${encodeURIComponent(taskId)}/reviewer`, {
+          orgId,
+        }),
+    };
+  },
   'tasks/queries:listTasksByProject': (args, ctx) => {
     const orgId = orgOf(args, ctx);
     const projectId = args.projectId;
@@ -1127,14 +1144,12 @@ export const taskWriteAdapters: Record<string, WriteAdapter> = {
     run: async (args, ctx) => {
       const orgId = requireOrg(args, ctx);
       const taskId = requireString(args, 'taskId');
-      await backendFetch(`/tasks/${encodeURIComponent(taskId)}`, {
+      await backendFetch(`/tasks/${encodeURIComponent(taskId)}/reviewer`, {
         method: 'POST',
-        body: {
-          reviewerUserId:
-            typeof args.reviewerUserId === 'string'
-              ? args.reviewerUserId
-              : null,
-        },
+        body: setTaskReviewerInputSchema.parse({
+          reviewer: args.reviewer,
+          expected: args.expected,
+        }),
         orgId,
       });
       return null;

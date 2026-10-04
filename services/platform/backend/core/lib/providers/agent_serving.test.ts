@@ -34,7 +34,10 @@ vi.mock('./org_providers', () => ({
 }));
 vi.mock('./load_system_config', () => ({ loadHarnesses }));
 
-import { resolveWorkflowAgentServing } from './agent_serving';
+import {
+  resolveWorkflowAgentServing,
+  walkDirectServing,
+} from './agent_serving';
 
 const ORG = 'org_agent_serving';
 
@@ -167,6 +170,23 @@ const ctx = { runQuery } as unknown as ActionCtx;
 const BROKER = { status: 'active', authMethod: 'subscription-broker' };
 const DIRECT = { status: 'active', authMethod: 'api-key' };
 
+async function shippedOpenAi() {
+  const actual = await vi.importActual<typeof import('./load_system_config')>(
+    './load_system_config',
+  );
+  const provider = actual
+    .loadProviderDefinitions()
+    .find((item) => item.name === 'openai');
+  if (provider === undefined)
+    throw new Error('missing shipped OpenAI provider');
+  resolveConnectors.mockResolvedValue([provider]);
+  getProviderCatalog.mockResolvedValue(
+    actual.loadStaticCatalogs().get('openai'),
+  );
+  loadHarnesses.mockReturnValue(actual.loadHarnesses());
+  return provider;
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   credentials = {};
@@ -180,6 +200,69 @@ beforeEach(() => {
     // shipped harness.yml declares the wire, mirrored here.
     harness('codex', { managed: true, byo: true }, false, 'openai-responses'),
   ]);
+});
+
+describe('shipped Sol 6.1 serving', () => {
+  it('resolves the OpenAI pin through its Codex subscription with the exact vendor model id', async () => {
+    await shippedOpenAi();
+    credentials = { openai: BROKER };
+    await expect(
+      resolveWorkflowAgentServing(ctx, {
+        organizationId: ORG,
+        model: 'gpt-6.1-sol',
+        modelProvider: 'openai',
+        harness: 'codex',
+      }),
+    ).resolves.toMatchObject({
+      lane: 'subscription',
+      providerSlug: 'openai',
+      modelId: 'gpt-6.1-sol',
+      apiBaseUrl: 'https://chatgpt.com/backend-api/codex',
+      vision: { readable: true },
+    });
+  });
+
+  it('permits a managed Responses harness and a raw no-tools LLM call', async () => {
+    const provider = await shippedOpenAi();
+    credentials = { openai: DIRECT };
+    await expect(
+      resolveWorkflowAgentServing(ctx, {
+        organizationId: ORG,
+        model: 'gpt-6.1-sol',
+        modelProvider: 'openai',
+        harness: 'codex',
+      }),
+    ).resolves.toMatchObject({
+      lane: 'gateway',
+      providerSlug: 'openai',
+      modelId: 'gpt-6.1-sol',
+    });
+    await expect(
+      walkDirectServing(ctx, ORG, 'gpt-6.1-sol', [provider]),
+    ).resolves.toMatchObject({
+      target: { providerSlug: 'openai', modelId: 'gpt-6.1-sol' },
+    });
+  });
+
+  // Listed, but not on the harness's wire: the refusal says so and names the
+  // harness that can run it, instead of reporting the model as missing.
+  it.each([undefined, 'openai'])(
+    'refuses a managed chat-wire harness with provider pin %s, naming the Responses API',
+    async (modelProvider) => {
+      await shippedOpenAi();
+      credentials = { openai: DIRECT };
+      await expect(
+        resolveWorkflowAgentServing(ctx, {
+          organizationId: ORG,
+          model: 'gpt-6.1-sol',
+          modelProvider,
+          harness: 'opencode',
+        }),
+      ).rejects.toThrow(
+        'model "gpt-6.1-sol" takes tools only through the Responses API, which the "opencode" harness does not speak — run the agent on "codex", or pick another model',
+      );
+    },
+  );
 });
 
 describe('resolveWorkflowAgentServing — direct pass', () => {

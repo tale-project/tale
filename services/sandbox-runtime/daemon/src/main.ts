@@ -12,22 +12,26 @@
 // by the image's Node 24 — so this file uses only node: built-ins, no deps.
 
 import { timingSafeEqual } from 'node:crypto';
+import { once } from 'node:events';
 import {
   createServer,
   type IncomingMessage,
   type ServerResponse,
 } from 'node:http';
 import { resolve } from 'node:path';
+import { pipeline } from 'node:stream/promises';
 import { fileURLToPath } from 'node:url';
 
 import { ActivityGate } from './activity-gate.ts';
 import { reconcileBakedSkills } from './baked-skills.ts';
+import { exitDaemon } from './daemon-exit.ts';
 import { EnvStore } from './env-store.ts';
 import { ExecManager } from './exec-manager.ts';
 import {
   deletePaths,
   listDir,
-  readWorkspaceFile,
+  streamWorkspaceFile,
+  type StageOptions,
   stageFiles,
   type StageItem,
 } from './file-ops.ts';
@@ -41,6 +45,7 @@ import {
   type RunnerdExecRequest,
   type RunnerdStdinWriteRequest,
 } from './protocol.ts';
+let stageRequests = 0;
 const FILE_READ_MAX_BYTES = 20 * 1024 * 1024;
 
 const TOKEN = process.env.TALE_RUNNERD_TOKEN ?? '';
@@ -73,7 +78,10 @@ const envStore = new EnvStore(seedEnv);
 const execManager = new ExecManager(envStore, touch, () =>
   reconcileBakedSkills(),
 );
-const activity = new ActivityGate(() => execManager.liveCount());
+const activity = new ActivityGate(
+  () => execManager.liveCount(),
+  () => lastActivityAtMs,
+);
 
 function tokenOk(req: IncomingMessage): boolean {
   if (TOKEN === '') return true; // unsigned dev mode
@@ -133,6 +141,95 @@ function parseEnvPatch(
   return { set, unset };
 }
 
+/** One HTTP consumer of an exec. A slow reader must lose its connection,
+ * buffered writes and subscription together; the detached exec and its replay
+ * ring remain available to this reader's next attach. */
+function execConsumer(
+  req: IncomingMessage,
+  res: ServerResponse,
+  label: string,
+) {
+  // A detached exec can outlive this HTTP exchange. Its failure continuation
+  // still holds the consumer, so explicitly release the request/response pair
+  // when the connection ends instead of waiting for the command to finish.
+  let transport: { req: IncomingMessage; res: ServerResponse } | null = {
+    req,
+    res,
+  };
+  const consumer = new AbortController();
+  const closed = new Promise<void>((settleClosed) => {
+    consumer.signal.addEventListener('abort', () => settleClosed(), {
+      once: true,
+    });
+  });
+  const gone = () => {
+    transport?.req.removeListener('aborted', gone);
+    transport?.res.removeListener('close', gone);
+    transport = null;
+    // Node's default abort Error captures this close listener's response in
+    // its stack; a still-running exec retains the signal, so use no stack.
+    consumer.abort('consumer disconnected');
+  };
+  // IncomingMessage 'close' also means a completely received request under
+  // Node. The response's close is the consumer's lifetime; aborted covers an
+  // incomplete request without mistaking normal receipt for a disconnect.
+  req.once('aborted', gone);
+  res.once('close', gone);
+  const emit = (event: RunnerdExecEvent) => {
+    const response = transport?.res;
+    if (!response || response.destroyed || response.writableEnded) return;
+    const line = `${JSON.stringify(event)}\n`;
+    if (
+      response.writableLength + Buffer.byteLength(line) >
+      RUNNERD_CONSUMER_BUFFER_MAX_BYTES
+    ) {
+      console.warn(
+        `[runnerd] ${label} consumer backpressured past ${RUNNERD_CONSUMER_BUFFER_MAX_BYTES}B — disconnecting it (reconnect via /attach)`,
+      );
+      gone();
+      // end() would leave the queued bytes waiting on the stalled reader.
+      // Destroying just this response releases its socket and write queue.
+      response.destroy();
+      return;
+    }
+    try {
+      response.write(line);
+    } catch (err) {
+      console.warn(`[runnerd] ${label} write failed:`, err);
+      gone();
+      response.destroy();
+    }
+  };
+  return {
+    signal: consumer.signal,
+    closed,
+    emit,
+    async replay(this: void, event: RunnerdExecEvent) {
+      emit(event);
+      // Only this in-flight write may hold the response. The reusable replay
+      // callback reads the nullable transport, so detach releases it as well.
+      const response = transport?.res;
+      if (response?.writableNeedDrain) {
+        const stalled = setTimeout(() => {
+          gone();
+          response.destroy();
+        }, 2_000);
+        try {
+          await once(response, 'drain', { signal: consumer.signal });
+        } finally {
+          clearTimeout(stalled);
+        }
+      }
+    },
+    end() {
+      const response = transport?.res;
+      gone();
+      if (response && !response.destroyed && !response.writableEnded)
+        response.end();
+    },
+  };
+}
+
 async function handleExec(
   req: IncomingMessage,
   res: ServerResponse,
@@ -163,43 +260,28 @@ async function handleExec(
     'cache-control': 'no-cache, no-transform',
     'x-accel-buffering': 'no',
   });
-  let primaryClosed = false;
-  const emit = (event: RunnerdExecEvent) => {
-    if (primaryClosed) return; // stop writing to a dead socket (no log spam)
-    // Backpressure ceiling: a stalled-but-attached consumer must not let the
-    // response buffer grow without bound. Stop writing to THIS consumer past the
-    // cap; it reconnects via /attach?sinceSeq= and replays from the ring.
-    if (res.writableLength > RUNNERD_CONSUMER_BUFFER_MAX_BYTES) {
-      primaryClosed = true;
-      console.warn(
-        `[runnerd] exec stream consumer backpressured past ${RUNNERD_CONSUMER_BUFFER_MAX_BYTES}B — dropping it (reconnect via /attach)`,
-      );
-      return;
-    }
-    try {
-      res.write(`${JSON.stringify(event)}\n`);
-    } catch (err) {
-      console.warn('[runnerd] NDJSON write after close:', err);
-    }
-  };
+  const consumer = execConsumer(req, res, 'exec stream');
   // Consumer disconnect: do NOT touch the exec. The child runs detached and is
   // kept alive by its SLIDING deadline (re-armed on every /attach), so a
   // platform action that lost its SSE can reconnect via /attach?sinceSeq= for
   // as long as the window allows — an orphaned exec (no reconnect for the whole
   // window) is the only thing the deadline reaps. We just stop writing here.
-  req.on('close', () => {
-    primaryClosed = true;
-  });
   try {
-    await execManager.run(parsed, emit);
-  } catch (err) {
-    emit({
-      t: 'fail',
-      code: 'BAD_REQUEST',
-      message: err instanceof Error ? err.message : String(err),
-    });
+    // The request's activity ends with its consumer. The exec keeps running,
+    // protected by liveCount and its orphan deadline, with any late failure
+    // observed even after the consumer left.
+    const run = execManager
+      .run(parsed, consumer.emit, consumer.signal)
+      .catch((err: unknown) => {
+        consumer.emit({
+          t: 'fail',
+          code: 'BAD_REQUEST',
+          message: err instanceof Error ? err.message : String(err),
+        });
+      });
+    await Promise.race([run, consumer.closed]);
   } finally {
-    res.end();
+    consumer.end();
   }
 }
 
@@ -223,32 +305,21 @@ async function handleAttach(
     'cache-control': 'no-cache, no-transform',
     'x-accel-buffering': 'no',
   });
-  let attachClosed = false;
-  const emit = (event: RunnerdExecEvent) => {
-    if (attachClosed) return;
-    // Same backpressure ceiling as the primary stream (see handleExec): bound a
-    // slow attach consumer's buffer; it can reconnect and replay from the ring.
-    if (res.writableLength > RUNNERD_CONSUMER_BUFFER_MAX_BYTES) {
-      attachClosed = true;
-      console.warn(
-        `[runnerd] attach consumer backpressured past ${RUNNERD_CONSUMER_BUFFER_MAX_BYTES}B — dropping it (reconnect via /attach)`,
-      );
-      return;
-    }
-    try {
-      res.write(`${JSON.stringify(event)}\n`);
-    } catch (err) {
-      console.warn('[runnerd] attach write after close:', err);
-    }
-  };
+  const consumer = execConsumer(req, res, 'attach');
   // This attach consumer dropping leaves the exec to its sliding deadline; a
-  // further reattach re-arms it. No grace kill here (see handleExec).
-  req.on('close', () => {
-    attachClosed = true;
-  });
-  const stream = execManager.attach(execId, emit, sinceSeq);
-  if (stream) await stream;
-  res.end();
+  // further reattach re-arms it. No grace kill here (see handleExec). The
+  // attach itself ends with its consumer, so it stops counting as work.
+  try {
+    const stream = execManager.attach(
+      execId,
+      consumer.replay,
+      sinceSeq,
+      consumer.signal,
+    );
+    if (stream) await stream;
+  } finally {
+    consumer.end();
+  }
 }
 
 async function router(
@@ -333,12 +404,29 @@ async function router(
       sendJson(res, 400, { error: 'bad_request' });
       return;
     }
+    const idleBeforeMs = body.value.idleBeforeMs;
+    if (
+      path === '/reclaim' &&
+      idleBeforeMs !== undefined &&
+      (typeof idleBeforeMs !== 'number' ||
+        !Number.isSafeInteger(idleBeforeMs) ||
+        idleBeforeMs < 0)
+    ) {
+      sendJson(res, 400, { error: 'bad_request' });
+      return;
+    }
     sendJson(
       res,
       200,
       path === '/release'
         ? { released: activity.release(token) }
-        : { claimed: activity.claim(token, String(body.value.generation)) },
+        : {
+            claimed: activity.claim(
+              token,
+              String(body.value.generation),
+              typeof idleBeforeMs === 'number' ? idleBeforeMs : undefined,
+            ),
+          },
     );
     return;
   }
@@ -374,7 +462,12 @@ async function handleOperation(
   const cancelMatch = path.match(EXEC_CANCEL_RE);
   if (req.method === 'POST' && cancelMatch) {
     touch();
-    sendJson(res, 200, { killed: execManager.cancel(cancelMatch[1] ?? '') });
+    // `?leftovers=keep`: a rotation, which hands what the exec left outside
+    // its group to the exec that takes over (ExecManager.cancel).
+    const keepLeftovers = url.searchParams.get('leftovers') === 'keep';
+    sendJson(res, 200, {
+      killed: execManager.cancel(cancelMatch[1] ?? '', { keepLeftovers }),
+    });
     return;
   }
   const attachMatch = path.match(EXEC_ATTACH_RE);
@@ -434,17 +527,86 @@ async function handleOperation(
     return;
   }
   if (req.method === 'POST' && path === '/files/stage') {
-    const stageBody = await readJsonBody(req);
-    if (!stageBody.ok) {
-      sendJson(res, stageBody.status, { error: stageBody.error });
+    // Bound JSON intake as well as downloads. Refused bodies are drained
+    // without retaining bytes, preserving the keep-alive framing contract.
+    if (stageRequests >= 2) {
+      await readJsonBody(req, 0);
+      sendJson(res, 503, { error: 'busy' });
       return;
     }
-    // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
-    const body = stageBody.value as { files?: StageItem[] };
-    touch();
-    const result = await stageFiles(body.files ?? []);
-    sendJson(res, 200, result);
-    return;
+    stageRequests += 1;
+    try {
+      const stageBody = await readJsonBody(req);
+      if (!stageBody.ok) {
+        sendJson(res, stageBody.status, { error: stageBody.error });
+        return;
+      }
+      const body = stageBody.value;
+      if (!isObject(body)) {
+        sendJson(res, 400, { error: 'bad_request' });
+        return;
+      }
+      const incomingFiles = body.files ?? [];
+      if (!Array.isArray(incomingFiles) || incomingFiles.length > 512) {
+        sendJson(res, 400, { error: 'bad_request' });
+        return;
+      }
+      const files: StageItem[] = [];
+      for (const item of incomingFiles) {
+        if (
+          !isObject(item) ||
+          typeof item.path !== 'string' ||
+          (item.url !== undefined && typeof item.url !== 'string') ||
+          (item.contentBase64 !== undefined &&
+            typeof item.contentBase64 !== 'string') ||
+          (item.sourceId !== undefined &&
+            (typeof item.sourceId !== 'string' ||
+              item.sourceId.length > 2048)) ||
+          (item.url !== undefined && item.contentBase64 !== undefined)
+        ) {
+          sendJson(res, 400, { error: 'bad_request' });
+          return;
+        }
+        files.push({
+          path: item.path,
+          url: item.url,
+          contentBase64: item.contentBase64,
+          sourceId: item.sourceId,
+        });
+      }
+      const options: StageOptions = {};
+      for (const key of ['replaceRoots', 'keepPaths'] as const) {
+        const value = body[key];
+        if (value !== undefined) {
+          if (
+            !Array.isArray(value) ||
+            !value.every((entry): entry is string => typeof entry === 'string')
+          ) {
+            sendJson(res, 400, { error: 'bad_request' });
+            return;
+          }
+          options[key] = value;
+        }
+      }
+      const transfer = new AbortController();
+      const abort = () => transfer.abort();
+      req.once('aborted', abort);
+      res.once('close', abort);
+      touch();
+      try {
+        const result = await stageFiles(files, {
+          ...options,
+          signal: transfer.signal,
+        });
+        if (!res.destroyed) sendJson(res, 200, result);
+      } finally {
+        req.removeListener('aborted', abort);
+        res.removeListener('close', abort);
+      }
+      return;
+    } finally {
+      stageRequests -= 1;
+    }
   }
   if (req.method === 'POST' && path === '/files/delete') {
     const deleteBody = await readJsonBody(req);
@@ -469,16 +631,16 @@ async function handleOperation(
     return;
   }
   if (req.method === 'GET' && path === '/fs/read') {
-    const bytes = await readWorkspaceFile(
+    const stream = await streamWorkspaceFile(
       url.searchParams.get('path') ?? '',
       FILE_READ_MAX_BYTES,
     );
-    if (bytes === null) {
+    if (stream === null) {
       sendJson(res, 404, { error: 'not_found' });
       return;
     }
     res.writeHead(200, { 'content-type': 'application/octet-stream' });
-    res.end(bytes);
+    await pipeline(stream, res);
     return;
   }
   sendJson(res, 404, { error: 'not_found' });
@@ -495,6 +657,8 @@ export const server = createServer((req, res) => {
   });
 });
 
+server.once('close', () => execManager[Symbol.dispose]());
+
 // Bound how long a client may take to send a request (headers + body) so a
 // slow/stalled client can't pin a connection for Node's 5-min default. These
 // cap request RECEIPT only — not the response, so long-lived exec NDJSON
@@ -508,12 +672,21 @@ if (
   process.argv[1] &&
   resolve(process.argv[1]) === fileURLToPath(import.meta.url)
 ) {
-  // SIGTERM → graceful close (the container is being torn down; in-flight execs
-  // get their process-group SIGTERM from the orchestrator's container stop).
+  // SIGTERM → graceful close (the container is being torn down). The init's
+  // signal reaches only this daemon's process group, never the execs (each
+  // runs in a group of its own), so pass it on: a harness gets to write its
+  // transcript and a wrapper to remove what it staged before the teardown.
+  // Either exit ends the daemon even past a /proc read that never returns
+  // (daemon-exit.ts).
   for (const sig of ['SIGTERM', 'SIGINT'] as const) {
     process.on(sig, () => {
-      server.close(() => process.exit(0));
-      setTimeout(() => process.exit(0), 2_000);
+      setTimeout(() => exitDaemon(0), 2_000);
+      void execManager
+        .terminateAll()
+        .catch((error: unknown) => {
+          console.warn('[runnerd] passing the stop on failed:', error);
+        })
+        .finally(() => server.close(() => exitDaemon(0)));
     });
   }
 
@@ -523,7 +696,7 @@ if (
 
   server.listen(RUNNERD_PORT, '0.0.0.0', () => {
     console.log(
-      `[runnerd] listening on :${RUNNERD_PORT}; tokenAuth=${TOKEN === '' ? 'OFF (dev)' : 'on'}`,
+      `[runnerd] listening on :${RUNNERD_PORT}; tokenAuth=${TOKEN === '' ? 'OFF (dev)' : 'on'}; execShim=${execManager.execShim ?? 'off'}`,
     );
   });
 }

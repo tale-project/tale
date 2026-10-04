@@ -23,6 +23,27 @@ WORKDIR /build
 COPY services/sandbox-runtime/daemon/ ./
 RUN bun build --target=node src/main.ts --outfile /runnerd.mjs
 
+# Gemini's system settings must be immutable and root-owned. Derive them
+# from the platform's existing harness interpreter, without a package install.
+FROM oven/bun:1 AS gemini-settings-build
+WORKDIR /build
+COPY services/platform/lib/harnesses/ services/platform/lib/harnesses/
+COPY configs/platform/system/harnesses/gemini/harness.yml configs/platform/system/harnesses/gemini/harness.yml
+COPY services/sandbox-runtime/build-gemini-settings.ts services/sandbox-runtime/build-gemini-settings.ts
+RUN bun services/sandbox-runtime/build-gemini-settings.ts /gemini-settings
+
+# --- exec shim build stage: the subreaper runnerd runs every exec under -----
+# Everything an exec starts stays the shim's descendant, so runnerd ends what
+# the exec left even after it moved to a session of its own and dropped the
+# exec's tag (daemon/exec-shim/tale-exec-shim.c). Built on the runtime's own
+# Debian release, so it links against the same glibc.
+FROM debian:bookworm-slim AS exec-shim-build
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends gcc libc6-dev \
+    && rm -rf /var/lib/apt/lists/*
+COPY services/sandbox-runtime/daemon/exec-shim/tale-exec-shim.c /build/tale-exec-shim.c
+RUN gcc -O2 -Wall -Wextra -Werror -o /tale-exec-shim /build/tale-exec-shim.c
+
 # --- runtime image ----------------------------------------------------------
 FROM python:3.12-slim-bookworm
 
@@ -30,22 +51,21 @@ FROM python:3.12-slim-bookworm
 # 2.x required: the claude_code adapter passes --include-partial-messages,
 # which 1.0.x rejects (exit 1 before the agent even starts). 2.1.280 is the
 # first release that knows Claude Opus 5.5 (2.1.257: Claude Fable 5.1).
-ARG CLAUDE_CODE_VERSION=2.1.283
-ARG OPENCODE_VERSION=1.17.3
-ARG CURSOR_AGENT_VERSION=2026.03.20-44cb435
-ARG HERMES_AGENT_VERSION=0.18.0
-# 0.59.0 is the last release tale-gemini-run can drive unchanged: from
-# 0.60.0 the CLI refuses a system settings file (and every ancestor
-# directory) that is not root-owned and free of group/other write, while
-# the wrapper stages that file per exec as `agent` under a temp dir. A bump
-# needs root-owned staging first. The harness YAML also keeps
+ARG CLAUDE_CODE_VERSION=2.1.285
+ARG OPENCODE_VERSION=1.18.34
+ARG CURSOR_AGENT_VERSION=2026.10.01-e373342
+ARG HERMES_AGENT_VERSION=0.19.0
+# Since 0.60.0 the CLI requires root-owned system settings and ancestors.
+# The build stage derives immutable policy files; the non-root wrapper
+# selects one by its settings hash and supplies only per-exec string values
+# through env expansion. The harness YAML keeps
 # `capabilities.resume: false` until a release carries the resume fix
 # (google-gemini/gemini-cli#29365).
-ARG GEMINI_CLI_VERSION=0.59.0
-ARG CODEX_VERSION=0.142.5
-ARG PI_CODING_AGENT_VERSION=0.80.3
-ARG OPENCLAW_VERSION=2026.6.11
-ARG QWEN_CODE_VERSION=0.23.3
+ARG GEMINI_CLI_VERSION=0.62.0
+ARG CODEX_VERSION=0.160.0
+ARG PI_CODING_AGENT_VERSION=1.0.1
+ARG OPENCLAW_VERSION=2026.9.8
+ARG QWEN_CODE_VERSION=0.24.7
 ARG PLAYWRIGHT_MCP_VERSION=0.0.41
 ARG GH_VERSION=2.62.0
 ARG PILLOW_VERSION=12.3.0
@@ -147,8 +167,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # uv — fast Python package installer/resolver. See https://github.com/astral-sh/uv
 COPY --from=ghcr.io/astral-sh/uv:0.5 /uv /usr/local/bin/uv
 
-# Node 24 LTS. Copy /usr/local from node:24-bookworm-slim into /opt/node.
-COPY --from=node:24-bookworm-slim /usr/local /opt/node
+# Node 24 LTS. OpenClaw requires at least 24.16.0; pin the verified LTS patch
+# so a cached floating image cannot silently leave the upgraded CLI unusable.
+COPY --from=node:24.21.0-bookworm-slim /usr/local /opt/node
 
 # bun — many JS/TS projects (Tale included) use it for install/test/scripts, so
 # an in-sandbox coding agent needs it on PATH. Reuse the daemon-build stage's
@@ -213,7 +234,10 @@ ENV CLAUDE_CODE_MAX_OUTPUT_TOKENS=64000
 
 # --- coding-agent CLIs (pinned) ---------------------------------------------
 # Claude Code + Playwright MCP via npm into /opt/agents (on PATH above).
-RUN npm install -g --prefix /opt/agents \
+# Native-addon build headers stay in BuildKit's cache, never in runtime layers.
+# Share by architecture; node-gyp already separates Node versions within it.
+RUN --mount=type=cache,id=tale-sandbox-node-gyp-${TARGETARCH},target=/root/.cache/node-gyp,sharing=locked \
+    npm install -g --prefix /opt/agents \
       @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION} \
       @playwright/mcp@${PLAYWRIGHT_MCP_VERSION} \
     && npm cache clean --force
@@ -254,7 +278,8 @@ RUN PLAYWRIGHT_DOWNLOAD_HOST="${PLAYWRIGHT_DOWNLOAD_HOST}" \
 # hoisting, and reusing that install means the skill reuses the MCP's
 # already-downloaded Chromium revision (no second ~150 MB browser).
 COPY configs/platform/custom/skills/visual-aspect-analyzer /opt/agents/skills/visual-aspect-analyzer
-RUN cd /opt/agents/skills/visual-aspect-analyzer \
+RUN --mount=type=cache,id=tale-sandbox-skill-bun-${TARGETARCH},target=/root/.bun/install/cache,sharing=locked \
+    cd /opt/agents/skills/visual-aspect-analyzer \
     && bun install --production \
     && MCP=/opt/agents/lib/node_modules/@playwright/mcp \
     && ln -sfn "$(node -p "require('path').dirname(require.resolve('playwright/package.json',{paths:['$MCP']}))")" node_modules/playwright \
@@ -341,23 +366,48 @@ RUN chmod +x /usr/local/bin/tale-hermes-run
 
 # Gemini CLI (pinned npm, into /opt/agents like Claude Code) + Tale wrapper
 # that stages per-exec settings/context before the headless run.
-RUN npm install -g --prefix /opt/agents "@google/gemini-cli@${GEMINI_CLI_VERSION}" \
+RUN --mount=type=cache,id=tale-sandbox-node-gyp-${TARGETARCH},target=/root/.cache/node-gyp,sharing=locked \
+    npm install -g --prefix /opt/agents "@google/gemini-cli@${GEMINI_CLI_VERSION}" \
     && npm cache clean --force \
     && gemini --version
 COPY services/sandbox-runtime/tale-gemini-run /usr/local/bin/tale-gemini-run
+COPY --from=gemini-settings-build /gemini-settings/ /usr/local/share/tale/gemini-settings/
 RUN chmod +x /usr/local/bin/tale-gemini-run
 
 # OpenAI Codex CLI (pinned npm). Driven headlessly by the platform's codex
 # adapter (`codex exec --json`, config via -c overrides) — no wrapper needed;
-# the CLI's native JSONL is the parse contract.
-RUN npm install -g --prefix /opt/agents "@openai/codex@${CODEX_VERSION}" \
+# the CLI's native JSONL is the parse contract. Its npm launcher is a Node
+# process that stays the native binary's parent for the whole run; `codex` on
+# PATH execs the binary directly instead (codex-launcher.in), resolved the way
+# that launcher resolves it.
+COPY services/sandbox-runtime/codex-launcher.in /tmp/codex-launcher.in
+RUN --mount=type=cache,id=tale-sandbox-node-gyp-${TARGETARCH},target=/root/.cache/node-gyp,sharing=locked \
+    npm install -g --prefix /opt/agents "@openai/codex@${CODEX_VERSION}" \
     && npm cache clean --force \
+    && codex_root="$(realpath /opt/agents/lib/node_modules/@openai/codex)" \
+    && codex_bin="$(node -e ' \
+         const path = require("path"); \
+         const root = process.argv[1]; \
+         const req = require("module").createRequire(path.join(root, "bin", "codex.js")); \
+         const triple = { x64: "x86_64-unknown-linux-musl", arm64: "aarch64-unknown-linux-musl" }[process.arch]; \
+         const pkg = { x64: "@openai/codex-linux-x64", arm64: "@openai/codex-linux-arm64" }[process.arch]; \
+         let vendor; \
+         try { vendor = path.join(path.dirname(req.resolve(pkg + "/package.json")), "vendor"); } \
+         catch { vendor = path.join(root, "vendor"); } \
+         console.log(path.join(vendor, triple, "bin", "codex"));' "$codex_root")" \
+    && test -x "$codex_bin" \
+    && sed -e "s|@CODEX_ROOT@|$codex_root|" -e "s|@CODEX_BIN@|$codex_bin|" \
+         /tmp/codex-launcher.in > /opt/agents/bin/codex.direct \
+    && chmod 755 /opt/agents/bin/codex.direct \
+    && mv -f /opt/agents/bin/codex.direct /opt/agents/bin/codex \
+    && rm /tmp/codex-launcher.in \
     && codex --version
 
 # Pi (pinned npm, into /opt/agents like Claude Code) + Tale wrapper that
 # stages the per-exec config dir (models.json/settings/APPEND_SYSTEM.md)
 # before the headless run.
-RUN npm install -g --prefix /opt/agents "@earendil-works/pi-coding-agent@${PI_CODING_AGENT_VERSION}" \
+RUN --mount=type=cache,id=tale-sandbox-node-gyp-${TARGETARCH},target=/root/.cache/node-gyp,sharing=locked \
+    npm install -g --prefix /opt/agents "@earendil-works/pi-coding-agent@${PI_CODING_AGENT_VERSION}" \
     && npm cache clean --force \
     && pi --version
 COPY services/sandbox-runtime/tale-pi-run /usr/local/bin/tale-pi-run
@@ -366,7 +416,8 @@ RUN chmod +x /usr/local/bin/tale-pi-run
 # OpenClaw (pinned npm, into /opt/agents like Claude Code) + Tale wrapper
 # that stages per-exec config/prompt/AGENTS.md and translates the CLI's
 # single --json envelope into Tale NDJSON lifecycle events.
-RUN npm install -g --prefix /opt/agents "openclaw@${OPENCLAW_VERSION}" \
+RUN --mount=type=cache,id=tale-sandbox-node-gyp-${TARGETARCH},target=/root/.cache/node-gyp,sharing=locked \
+    npm install -g --prefix /opt/agents "openclaw@${OPENCLAW_VERSION}" \
     && npm cache clean --force \
     && openclaw --version
 COPY services/sandbox-runtime/tale-openclaw-run /usr/local/bin/tale-openclaw-run
@@ -376,7 +427,8 @@ RUN chmod +x /usr/local/bin/tale-openclaw-run
 # that stages per-exec settings/context before the headless run — the
 # gemini-cli fork with OpenAI-compatible auth; its headless stream is the
 # Claude-style stream-json dialect.
-RUN npm install -g --prefix /opt/agents "@qwen-code/qwen-code@${QWEN_CODE_VERSION}" \
+RUN --mount=type=cache,id=tale-sandbox-node-gyp-${TARGETARCH},target=/root/.cache/node-gyp,sharing=locked \
+    npm install -g --prefix /opt/agents "@qwen-code/qwen-code@${QWEN_CODE_VERSION}" \
     && npm cache clean --force \
     && qwen --version
 COPY services/sandbox-runtime/tale-qwen-run /usr/local/bin/tale-qwen-run
@@ -438,8 +490,10 @@ RUN echo 'agent:100000:65536' >> /etc/subuid \
     && echo 'agent:100000:65536' >> /etc/subgid
 
 # runnerd — the session control daemon, bundled to a single file in the
-# daemon-build stage and run by the image's Node 24 (session mode only).
+# daemon-build stage and run by the image's Node 24 (session mode only) — and
+# the subreaper shim it runs every exec under.
 COPY --from=daemon-build /runnerd.mjs /usr/local/lib/tale/runnerd.mjs
+COPY --from=exec-shim-build /tale-exec-shim /usr/local/bin/tale-exec-shim
 
 # Claude Code managed settings (highest precedence on Linux): disable
 # auto-update + telemetry, suppress Claude commit/PR attribution
@@ -474,10 +528,17 @@ COPY services/sandbox-runtime/tale-plan-gate /usr/local/bin/tale-plan-gate
 # via the session entrypoint; baked here so it exists read-only.
 COPY services/sandbox-runtime/tale-git-credential /usr/local/bin/tale-git-credential
 
-# Playwright MCP launcher shim: appends --proxy-server/--proxy-bypass from the
-# container's HTTPS_PROXY/NO_PROXY (Chromium ignores the env vars) and execs
-# mcp-server-playwright. The agent adapters use this as the MCP command.
+# Playwright MCP launcher: appends --proxy-server/--proxy-bypass from the
+# container's HTTPS_PROXY/NO_PROXY (Chromium ignores the env vars), and answers
+# the start of an agent turn (initialize, tools/list, the prompt and resource
+# lists) from manifests of the real server's answers, recorded below for the
+# argument sets the platform passes (playwright-mcp-args.json, held to
+# exec-builder.ts by its test): the server, a Node process holding ~100 MB,
+# starts only once the turn first uses the browser. The agent adapters use
+# this as the MCP command.
 COPY services/sandbox-runtime/tale-playwright-mcp /usr/local/bin/tale-playwright-mcp
+COPY services/sandbox-runtime/playwright-mcp-args.json /opt/tale/playwright-mcp/args.json
+RUN python3 -Es /usr/local/bin/tale-playwright-mcp --write-manifests /opt/tale/playwright-mcp/args.json
 
 # Connector-dispatch MCP bridge: a dependency-free stdio MCP server the agent
 # adapters wire in via --mcp-config. Relays connector({slug,operation,args})

@@ -15,13 +15,35 @@ enabled = true
 # "host" — the alternative "bridge" default (newer BuildKit) gives RUN steps
 # their own subnet that bypasses the redirect, so they'd have no egress.
 networkMode = "host"
+# Bound simultaneous build vertices as well as the container's CPU/memory.
+# Without this, independent RUN steps compete until the cgroup OOM-kills them.
+max-parallelism = 4
 gc = true
 
 # Keep the cache bounded so a runaway build can't fill the host disk. The
 # persistent /var/lib/buildkit volume holds the cache across daemon restarts.
+# A rule's keepDuration shields everything used more recently than it from
+# that rule's space limits, so the old `keepBytes + keepDuration` rule pruned
+# nothing used within a week. GC applies the rules in order, at start and
+# about a minute after a build:
+# first, cache mounts, build contexts and git checkouts unused for two days go;
 [[worker.oci.gcpolicy]]
-keepBytes = "20GB"
-keepDuration = "168h"
+keepDuration = "48h"
+filters = [
+  "type==source.local",
+  "type==exec.cachemount",
+  "type==source.git.checkout",
+]
+# then everything else, least recently used first, until the cache is under
+# 20 GB — and smaller while the disk it shares with every session has less
+# than 5% free, but never below 2 GB: every organization's builder prunes its
+# own cache by the whole shortfall, so without that floor a disk that other
+# data filled would wipe each building organization's cache.
+[[worker.oci.gcpolicy]]
+all = true
+maxUsedSpace = "20GB"
+minFreeSpace = "5%"
+reservedSpace = "2GB"
 
 [worker.containerd]
 # Single OCI worker; no containerd worker (the image has no containerd.sock).

@@ -43,18 +43,85 @@ export type WorkflowAgentFailureCode =
    * the first account is back — for free when the refused attempt retried
    * one that ended on a 429, the rate limit that cooled the pool
    * ({@link planWorkflowAgentRetry}). */
-  | 'credential_cooldown';
+  | 'credential_cooldown'
+  /** The start found no sandbox room: the organization's session budget was
+   * spent, or the sandbox host was at capacity or short of memory. Nothing
+   * ran, and the room frees as other work settles: the re-kick waits out the
+   * refusal's retry hint and spends no attempt and no execution of the run's
+   * guard, for at most {@link SANDBOX_ROOM_MAX_WAIT_MS} in a row
+   * ({@link planWorkflowAgentRetry}). */
+  | 'sandbox_capacity'
+  /** The start found the run's workspace being deleted: an administrator's
+   * Destroy of its session was queued, retrying or running. No wait for
+   * room and no retry: once the Destroy settles, a re-kick would continue
+   * the run in a fresh, empty workspace, without what its earlier steps
+   * left there. */
+  | 'sandbox_destroying';
+
+/** The longest an agent node waits for sandbox room before its run fails:
+ * room frees as other work settles, but a deployment whose capacity is
+ * wedged must still end the run with a reason a person can act on. */
+export const SANDBOX_ROOM_MAX_WAIT_MS = 2 * 60 * 60_000;
+
+/** The longest one start of a node waiting for sandbox room is held back:
+ * past it, a node still waiting asks about once a minute on average. */
+export const SANDBOX_ROOM_RETRY_CEILING_MS = 2 * 60_000;
+
+/** The most a start that holds a place in the spawner's line comes back
+ * after its hint: enough to keep waiters refused together apart. */
+const QUEUED_RETRY_JITTER_MS = 1_000;
+
+/**
+ * When the next start of a node waiting for sandbox room may run. Never
+ * before the refusal's retry hint. A spawner that keeps a first-come line
+ * for host room gives the place's own hint (`queued`): the start comes back
+ * then, within a second — later, and the waiters behind it take the room.
+ * Otherwise, past the hint, at a moment drawn at random from a window that
+ * doubles with each refusal in a row, up to
+ * {@link SANDBOX_ROOM_RETRY_CEILING_MS}: such a host answers every waiter
+ * with the same hint, so a fixed delay kept the waiters in lockstep — a
+ * burst of creates the spawner refused together, every ten seconds for as
+ * long as the wait lasted; the doubling thins a long wait's attempts, and
+ * the draw spreads waiters refused together across the window.
+ */
+export function sandboxRoomRetryAtMs(args: {
+  now: number;
+  /** The refusal's retry hint. */
+  retryAfterMs: number;
+  /** Refusals in a row of this wait, the one being answered included. */
+  refusals: number;
+  /** The refusal named the start's place in the spawner's line. */
+  queued?: boolean;
+  random?: () => number;
+}): number {
+  const hint = Math.min(
+    Math.max(args.retryAfterMs, 0),
+    SANDBOX_ROOM_RETRY_CEILING_MS,
+  );
+  if (args.queued === true) {
+    const jitter = (args.random ?? Math.random)() * QUEUED_RETRY_JITTER_MS;
+    return args.now + hint + Math.round(jitter);
+  }
+  const window = Math.min(
+    SANDBOX_ROOM_RETRY_CEILING_MS,
+    hint * 2 ** Math.max(1, args.refusals),
+  );
+  const draw = (args.random ?? Math.random)();
+  return args.now + hint + Math.round(draw * (window - hint));
+}
 
 /** Failures where a retry is pure waste: the turn burned its 12h window, or
  * the operator ignored the agent's question for the whole ask TTL — a fresh
- * turn would only ask again. Everything else — provider errors, crashes,
- * vanished sessions, harvest hiccups — retries by DEFAULT, including an
- * absent code, so a future failure producer inherits the retry posture
- * without opting in. */
+ * turn would only ask again — or worse than waste: the run's workspace is
+ * being destroyed, and a retry after the Destroy would start over an empty
+ * one. Everything else — provider errors, crashes, vanished sessions,
+ * harvest hiccups — retries by DEFAULT, including an absent code, so a
+ * future failure producer inherits the retry posture without opting in. */
 const NO_RETRY_FAILURE_CODES: ReadonlySet<string> = new Set([
   'deadline',
   'ask_expired',
   'budget_exceeded',
+  'sandbox_destroying',
 ] satisfies WorkflowAgentFailureCode[]);
 
 export function isWorkflowAgentRetryable(code: string | undefined): boolean {
@@ -66,6 +133,9 @@ export function isWorkflowAgentRetryable(code: string | undefined): boolean {
 export interface WorkflowAgentRetryResume {
   agentSessionId: string;
   reason: string;
+  /** An answered question the conversation has not seen: the resume opens
+   * with its answer instead of the retry prompt. */
+  askId?: string;
 }
 
 /** Failures that leave no conversation to continue: the sandbox session is
@@ -76,6 +146,14 @@ const NO_RESUME_FAILURE_CODES: ReadonlySet<string> = new Set([
   'session_gone',
   'start_failed',
   'credential_cooldown',
+  'sandbox_capacity',
+] satisfies WorkflowAgentFailureCode[]);
+
+/** Starts refused before anything launched: the conversation the refused
+ * attempt was to resume still stands, with the cut that ended it. */
+const NEVER_LAUNCHED_FAILURE_CODES: ReadonlySet<string> = new Set([
+  'credential_cooldown',
+  'sandbox_capacity',
 ] satisfies WorkflowAgentFailureCode[]);
 
 /**
@@ -85,22 +163,46 @@ const NO_RESUME_FAILURE_CODES: ReadonlySet<string> = new Set([
  * harness the platform never resumes (`capabilities.resume: false` in its
  * YAML — the exec builder refuses a handle on it). A start refused while
  * the broker pool cooled down never launched, so the conversation it was to
- * resume (`parked.resumedFrom`) still stands, with the cut that ended it.
+ * resume (`parked.resumedFrom`) still stands, with the cut that ended it —
+ * and so does the asking conversation an answered question's delivery was
+ * refused for (`settled.undeliveredAskId`), which the re-kick resumes with
+ * that answer; without a handle to it, the fresh start folds every answer
+ * into its prompt.
  */
 export function workflowAgentRetryResume(
-  settled: { failureCode?: string; agentSessionId?: string },
+  settled: {
+    failureCode?: string;
+    agentSessionId?: string;
+    undeliveredAskId?: string;
+  },
   reason: string,
-  parked: Pick<WorkflowAgentAttempt, 'resumedFrom' | 'resumeReason'>,
+  parked: Pick<
+    WorkflowAgentAttempt,
+    'resumedFrom' | 'resumeReason' | 'resumeAskId'
+  >,
   harness: { resumable: boolean },
 ): WorkflowAgentRetryResume | undefined {
   if (!harness.resumable) return undefined;
+  if (settled.undeliveredAskId !== undefined) {
+    return settled.agentSessionId !== undefined
+      ? {
+          agentSessionId: settled.agentSessionId,
+          reason,
+          askId: settled.undeliveredAskId,
+        }
+      : undefined;
+  }
   if (
-    settled.failureCode === 'credential_cooldown' &&
+    settled.failureCode !== undefined &&
+    NEVER_LAUNCHED_FAILURE_CODES.has(settled.failureCode) &&
     parked.resumedFrom !== undefined
   ) {
     return {
       agentSessionId: parked.resumedFrom,
       reason: parked.resumeReason ?? reason,
+      ...(parked.resumeAskId !== undefined
+        ? { askId: parked.resumeAskId }
+        : {}),
     };
   }
   if (settled.agentSessionId === undefined) return undefined;
@@ -175,6 +277,25 @@ export interface WorkflowAgentAttempt {
   retriedRateLimit?: boolean;
   resumedFrom?: string;
   resumeReason?: string;
+  resumeAskId?: string;
+  waitingForRoomSince?: number;
+  roomRefusals?: number;
+}
+
+/**
+ * When the attempt's wait for sandbox room began, or undefined when it is
+ * not waiting for room. A start that launched after the wait began ended
+ * that wait: a later refusal — the resume of an answered question, hours
+ * on — begins a new one instead of inheriting the old one's clock.
+ */
+export function roomWaitSince(
+  parked: Pick<WorkflowAgentAttempt, 'waitingForRoomSince' | 'launchedAt'>,
+): number | undefined {
+  return parked.waitingForRoomSince !== undefined &&
+    (parked.launchedAt === undefined ||
+      parked.waitingForRoomSince >= parked.launchedAt)
+    ? parked.waitingForRoomSince
+    : undefined;
 }
 
 /** What a re-kick of a failed attempt carries, and whether it may happen. */
@@ -189,6 +310,12 @@ export interface WorkflowAgentRetryPlan {
   /** Credential rotations in a row, the failed attempt's included (0 when
    * it failed any other way) — carried so the next one can tell. */
   credentialRotations: number;
+  /** Set while the node waits for sandbox room: when the wait began. */
+  waitingForRoomSince?: number;
+  /** Set while the node waits for sandbox room: the refusals in a row, the
+   * failed attempt's included, which the re-kick's delay grows with
+   * ({@link sandboxRoomRetryAtMs}). */
+  roomRefusals?: number;
 }
 
 /**
@@ -212,6 +339,19 @@ export function planWorkflowAgentRetry(
   now: number,
 ): WorkflowAgentRetryPlan {
   const attempt = parked.attempt ?? 0;
+  if (failureCode === 'sandbox_capacity') {
+    const waitingSince = roomWaitSince(parked);
+    const since = waitingSince ?? now;
+    return {
+      retry: now - since < SANDBOX_ROOM_MAX_WAIT_MS,
+      attempt,
+      burnedBrokerTokenHashes: [...(parked.burnedBrokerTokenHashes ?? [])],
+      credentialRotations: 0,
+      waitingForRoomSince: since,
+      roomRefusals:
+        (waitingSince !== undefined ? (parked.roomRefusals ?? 0) : 0) + 1,
+    };
+  }
   if (
     failureCode === 'credential_cooldown' &&
     parked.retriedRateLimit === true

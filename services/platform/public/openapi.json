@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Tale Platform API",
-    "version": "3.10.0",
+    "version": "3.15.0",
     "contact": {
       "name": "Tale",
       "url": "https://tale.dev"
@@ -19526,7 +19526,7 @@
       "get": {
         "tags": ["Tasks"],
         "summary": "Read a task’s open review",
-        "description": "The task’s status beside the review a person still has to decide — `review: null` when none is pending. Read access, like the task itself. A task reaches `in_review` when its workflow parks there; the decision is made with a POST to this path, or on the board.",
+        "description": "The task’s status beside its ordinary pending review, with the captured typed reviewer and native source evidence when available. `review: null` means no ordinary review is pending; workflow-owned approvals keep their own decision gate. Read access, like the task itself. A person decides a human-owned review with a POST to this path or on the board. An agent-owned review requires its independent native reviewer or an explicit handoff to an eligible person before human approval.",
         "operationId": "getTaskReview",
         "security": [
           {
@@ -20045,7 +20045,7 @@
             }
           },
           "409": {
-            "description": "The task is not in review (`TASK_NOT_IN_REVIEW`); it has open subtasks (`TASK_HAS_OPEN_SUBTASKS`); two members carry the actor’s e-mail (`ACTOR_AMBIGUOUS`); the e-mail now belongs to another member than the pinned `userId` (`ACTOR_REBOUND`); `workflowSlug` is saved but not deployed (`AUTOMATION_NOT_DEPLOYED`); the task is held by the organization’s standard agent, which cannot run for the member (`STANDARD_AGENT_UNAVAILABLE`, `data.reason` saying why)",
+            "description": "The task is not in review (`TASK_NOT_IN_REVIEW`); approval belongs to an agent and needs an explicit eligible-person handoff (`TASK_AGENT_REVIEW_REQUIRED`); approval cannot read a valid current review policy (`TASK_REVIEW_POLICY_UNAVAILABLE`, including after a human handoff); it has open subtasks (`TASK_HAS_OPEN_SUBTASKS`); two members carry the actor’s e-mail (`ACTOR_AMBIGUOUS`); the e-mail now belongs to another member than the pinned `userId` (`ACTOR_REBOUND`); `workflowSlug` is saved but not deployed (`AUTOMATION_NOT_DEPLOYED`); the task is held by the organization’s standard agent, which cannot run for the member (`STANDARD_AGENT_UNAVAILABLE`, `data.reason` saying why)",
             "content": {
               "application/json": {
                 "schema": {
@@ -38236,7 +38236,7 @@
         "description": "The version of this contract (`info.version`) the serving instance implements — semver for the wire",
         "schema": {
           "type": "string",
-          "example": "3.10.0"
+          "example": "3.15.0"
         }
       },
       "Location": {
@@ -38509,6 +38509,7 @@
                   "SKILL_TEAM_UNKNOWN",
                   "STANDARD_AGENT_OFF",
                   "STANDARD_AGENT_UNAVAILABLE",
+                  "TASK_AGENT_REVIEW_REQUIRED",
                   "TASK_ARCHIVED",
                   "TASK_AUTOMATION_DISABLED",
                   "TASK_AUTOMATION_UNAVAILABLE",
@@ -38517,6 +38518,7 @@
                   "TASK_LABEL_UNKNOWN",
                   "TASK_NOT_FOUND",
                   "TASK_NOT_IN_REVIEW",
+                  "TASK_REVIEW_POLICY_UNAVAILABLE",
                   "TEAM_ACCESS_DENIED",
                   "TEAM_INHERITED_FROM_FOLDER",
                   "TEAM_NOT_IN_ORG",
@@ -38731,6 +38733,7 @@
                   "SKILL_TEAM_UNKNOWN",
                   "STANDARD_AGENT_OFF",
                   "STANDARD_AGENT_UNAVAILABLE",
+                  "TASK_AGENT_REVIEW_REQUIRED",
                   "TASK_ARCHIVED",
                   "TASK_AUTOMATION_DISABLED",
                   "TASK_AUTOMATION_UNAVAILABLE",
@@ -38739,6 +38742,7 @@
                   "TASK_LABEL_UNKNOWN",
                   "TASK_NOT_FOUND",
                   "TASK_NOT_IN_REVIEW",
+                  "TASK_REVIEW_POLICY_UNAVAILABLE",
                   "TEAM_ACCESS_DENIED",
                   "TEAM_INHERITED_FROM_FOLDER",
                   "TEAM_NOT_IN_ORG",
@@ -38944,6 +38948,7 @@
               "SKILL_TEAM_UNKNOWN",
               "STANDARD_AGENT_OFF",
               "STANDARD_AGENT_UNAVAILABLE",
+              "TASK_AGENT_REVIEW_REQUIRED",
               "TASK_ARCHIVED",
               "TASK_AUTOMATION_DISABLED",
               "TASK_AUTOMATION_UNAVAILABLE",
@@ -38952,6 +38957,7 @@
               "TASK_LABEL_UNKNOWN",
               "TASK_NOT_FOUND",
               "TASK_NOT_IN_REVIEW",
+              "TASK_REVIEW_POLICY_UNAVAILABLE",
               "TEAM_ACCESS_DENIED",
               "TEAM_INHERITED_FROM_FOLDER",
               "TEAM_NOT_IN_ORG",
@@ -41243,11 +41249,15 @@
           "taskId",
           "round",
           "requestedFor",
+          "reviewer",
           "agentSlug",
           "runId",
+          "implementationAgentId",
+          "evidenceRevision",
+          "agentReviewBlockedReason",
           "createdAt"
         ],
-        "description": "A task’s open review: the gate a person decides at `POST …/tasks/{taskId}/review` or on the board.",
+        "description": "A task’s ordinary pending review, owned by the captured person or agent. Native agent verdicts use task_review; the public review POST relays a person’s decision.",
         "properties": {
           "approvalId": {
             "type": "string"
@@ -41262,17 +41272,78 @@
           "requestedFor": {
             "type": "string",
             "nullable": true,
-            "description": "The reviewer the request named, if any"
+            "description": "Human reviewer compatibility field; null for an agent or absent recipient. Use reviewer for typed ownership."
+          },
+          "reviewer": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["kind", "userId"],
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": ["user"]
+                  },
+                  "userId": {
+                    "type": "string"
+                  }
+                },
+                "nullable": true
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["kind", "agentId"],
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": ["agent"]
+                  },
+                  "agentId": {
+                    "type": "string"
+                  }
+                },
+                "nullable": true
+              }
+            ],
+            "description": "The recipient captured by this pending review."
           },
           "agentSlug": {
             "type": "string",
             "nullable": true,
-            "description": "The agent whose work is under review, if the park named one"
+            "description": "Compatibility display text for the implementation driver, not its identity; use implementationAgentId for the actual native source agent."
           },
           "runId": {
             "type": "string",
             "nullable": true,
             "description": "The run whose settle parked the task in review, if any"
+          },
+          "implementationAgentId": {
+            "type": "string",
+            "nullable": true,
+            "description": "The exact source run’s agent in this organization, project and task; null without a matching native source."
+          },
+          "evidenceRevision": {
+            "type": "string",
+            "nullable": true,
+            "pattern": "^[a-f0-9]{64}$",
+            "description": "Opaque compare-and-set digest of local task, source result and discussion evidence. Null without a settled native source. It does not verify external pull-request heads or checks."
+          },
+          "agentReviewBlockedReason": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "reviewer_unavailable",
+              "permission_missing",
+              "source_required",
+              "source_changed",
+              "self_review",
+              "human_policy",
+              "policy_unavailable",
+              null
+            ],
+            "description": "Current reason a captured agent cannot decide; null for a human review or an eligible agent. Derived from current project scope, permission, policy and source; it never changes review ownership. Restore the indicated condition or explicitly transfer to an eligible reviewer."
           },
           "createdAt": {
             "type": "integer",
@@ -41716,7 +41787,7 @@
           },
           "detail": {
             "type": "string",
-            "description": "The failure or wait reason, when the run has one. While `waiting` it names the park: `approval:<approvalId>`, `agent:<nodeId>` or `repeat:<nodeId>` — `waitingFor` is the field to branch on; when `failed`, the failure sentence, and `failureCode` the stable cause — the sentence is not contractual."
+            "description": "The failure or wait reason, when the run has one. While `waiting` it names the park: `approval:<approvalId>`, `agent:<nodeId>`, `room:<nodeId>` or `repeat:<nodeId>` — `waitingFor` is the field to branch on; when `failed`, the failure sentence, and `failureCode` the stable cause — the sentence is not contractual."
           },
           "failureCode": {
             "type": "string",
@@ -41754,8 +41825,8 @@
           },
           "waitingFor": {
             "type": "string",
-            "enum": ["approval", "ask", "agent", "repeat"],
-            "description": "Present only while `status` is `waiting`: what the run is parked on. `approval` — a person’s decision on a gate; `ask` — a question a person has to answer; `agent` — an agent turn still running, no one to page; `repeat` — a node polling until its `repeatUntil` condition holds, no one to page. \"Runs that need a human\" is `waitingFor` in (`approval`, `ask`), never `status=waiting` alone."
+            "enum": ["approval", "ask", "agent", "room", "repeat"],
+            "description": "Present only while `status` is `waiting`: what the run is parked on. `approval` — a person’s decision on a gate; `ask` — a question a person has to answer; `agent` — an agent turn still running, no one to page; `room` — an agent turn whose start waits for sandbox room, no one to page; `repeat` — a node polling until its `repeatUntil` condition holds, no one to page. \"Runs that need a human\" is `waitingFor` in (`approval`, `ask`), never `status=waiting` alone."
           },
           "startedAt": {
             "type": "integer",
@@ -41848,7 +41919,7 @@
           "detail": {
             "type": "string",
             "nullable": true,
-            "description": "The failure or wait reason; null while the run has none — and null again once a cancel lands (the park it named is over). While `waiting` it names the park: `approval:<approvalId>`, `agent:<nodeId>` or `repeat:<nodeId>` — `waitingFor` is the field to branch on; when `failed`, the failure sentence, and `failureCode` the stable cause to branch on — the sentence is not contractual."
+            "description": "The failure or wait reason; null while the run has none — and null again once a cancel lands (the park it named is over). While `waiting` it names the park: `approval:<approvalId>`, `agent:<nodeId>`, `room:<nodeId>` or `repeat:<nodeId>` — `waitingFor` is the field to branch on; when `failed`, the failure sentence, and `failureCode` the stable cause to branch on — the sentence is not contractual."
           },
           "failureCode": {
             "type": "string",
@@ -41888,8 +41959,8 @@
           },
           "waitingFor": {
             "type": "string",
-            "enum": ["approval", "ask", "agent", "repeat"],
-            "description": "Present only while `status` is `waiting`: what the run is parked on. `approval` — a person’s decision on a gate; `ask` — a question a person has to answer; `agent` — an agent turn still running, no one to page; `repeat` — a node polling until its `repeatUntil` condition holds, no one to page."
+            "enum": ["approval", "ask", "agent", "room", "repeat"],
+            "description": "Present only while `status` is `waiting`: what the run is parked on. `approval` — a person’s decision on a gate; `ask` — a question a person has to answer; `agent` — an agent turn still running, no one to page; `room` — an agent turn whose start waits for sandbox room, no one to page; `repeat` — a node polling until its `repeatUntil` condition holds, no one to page."
           },
           "claimEpoch": {
             "type": "integer",
@@ -41966,7 +42037,7 @@
           "detail": {
             "type": "string",
             "nullable": true,
-            "description": "The failure or wait reason; null while the run has none — and null again once a cancel lands (the park it named is over). While `waiting` it names the park: `approval:<approvalId>`, `agent:<nodeId>` or `repeat:<nodeId>` — `waitingFor` is the field to branch on; when `failed`, the failure sentence, and `failureCode` the stable cause to branch on — the sentence is not contractual."
+            "description": "The failure or wait reason; null while the run has none — and null again once a cancel lands (the park it named is over). While `waiting` it names the park: `approval:<approvalId>`, `agent:<nodeId>`, `room:<nodeId>` or `repeat:<nodeId>` — `waitingFor` is the field to branch on; when `failed`, the failure sentence, and `failureCode` the stable cause to branch on — the sentence is not contractual."
           },
           "failureCode": {
             "type": "string",
@@ -42006,8 +42077,8 @@
           },
           "waitingFor": {
             "type": "string",
-            "enum": ["approval", "ask", "agent", "repeat"],
-            "description": "Present only while `status` is `waiting`: what the run is parked on. `approval` — a person’s decision on a gate; `ask` — a question a person has to answer; `agent` — an agent turn still running, no one to page; `repeat` — a node polling until its `repeatUntil` condition holds, no one to page."
+            "enum": ["approval", "ask", "agent", "room", "repeat"],
+            "description": "Present only while `status` is `waiting`: what the run is parked on. `approval` — a person’s decision on a gate; `ask` — a question a person has to answer; `agent` — an agent turn still running, no one to page; `room` — an agent turn whose start waits for sandbox room, no one to page; `repeat` — a node polling until its `repeatUntil` condition holds, no one to page."
           },
           "claimEpoch": {
             "type": "integer",
@@ -42517,7 +42588,7 @@
           "status": {
             "type": "string",
             "enum": ["pending", "complete", "failed", "cancelled"],
-            "description": "`pending` is the placeholder a running turn fills in (the row GET …/generation names as messageId); `complete` is a settled reply — a reply the output cap cut short included, so read `finishReason` for that; `cancelled` is a turn stopped through DELETE …/generation — `parts` and `usage` hold what had streamed; `failed` carries `error`."
+            "description": "`pending` is the placeholder a running turn fills in (the row GET …/generation names as messageId); `complete` is a settled reply — a reply the output cap cut short included, so read `finishReason` for that; `cancelled` is a turn stopped through DELETE …/generation — `parts` and `usage` hold what had streamed; `failed` carries `error`, and `usage` when the turn had consumed any."
           },
           "finishReason": {
             "type": "string",
@@ -42570,7 +42641,7 @@
           "usage": {
             "type": "object",
             "additionalProperties": false,
-            "description": "The token counters the finished turn recorded and the catalog cost estimate stamped beside them; absent until the turn settles, and absent on a turn that failed before the provider reported counts. Counts are the provider’s own unless `estimated` is present.",
+            "description": "The token counters the finished turn recorded and the catalog cost estimate stamped beside them; absent until the turn settles. A failed turn carries what it consumed — its finished model rounds and, if the provider had already accepted the request, the round that failed; a round the provider refused (an HTTP error status, or a refusal such as a rate limit reported before any answer or positive reported usage) adds nothing, so a turn refused on its first round carries none. Counts are the provider’s own unless `estimated` is present.",
             "properties": {
               "inputTokens": {
                 "type": "integer",
@@ -42596,7 +42667,7 @@
               "estimated": {
                 "type": "boolean",
                 "enum": [true],
-                "description": "Present when the counts are the platform’s own estimate — the provider’s usage frame was lost (a cancelled turn, typically) or never sent — so the cost is an estimate too"
+                "description": "Present when the counts are the platform’s own estimate — the provider’s usage frame was lost (a cancelled turn, or one that failed mid-stream, typically) or never sent — so the cost is an estimate too"
               },
               "stepLimitHit": {
                 "type": "boolean",
@@ -42664,6 +42735,7 @@
                 "task_comment",
                 "task_update_status",
                 "task_update_metadata",
+                "task_review",
                 "task_start_agent",
                 "task_upsert_by_external_ref",
                 "document_find",
@@ -42744,6 +42816,7 @@
                 "task_comment",
                 "task_update_status",
                 "task_update_metadata",
+                "task_review",
                 "task_start_agent",
                 "task_upsert_by_external_ref",
                 "document_find",

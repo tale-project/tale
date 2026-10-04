@@ -11,6 +11,7 @@ import { RUNNERD_MAX_REQUEST_BODY_BYTES } from './session/runnerd-protocol.ts';
 const KEYS = [
   'SANDBOX_RUNTIME',
   'SANDBOX_DOCKER_IN_CONTAINER',
+  'SANDBOX_DOCKER_WORKLOADS',
   'SANDBOX_DOCKER_BUILD_CACHE',
   'SANDBOX_DIND_INNER_POOL',
   'SANDBOX_BUILDKITD_IMAGE',
@@ -22,6 +23,13 @@ const KEYS = [
   'SANDBOX_MAX_REQUEST_BODY_BYTES',
   'SANDBOX_MAX_SESSIONS',
   'SANDBOX_MAX_SESSIONS_PER_ORG',
+  'SANDBOX_K8S_CPU_REQUEST',
+  'SANDBOX_K8S_MEMORY_REQUEST',
+  'SANDBOX_BUILDKITD_CPUS',
+  'SANDBOX_BUILDKITD_MEMORY',
+  'SANDBOX_BUILDKITD_IDLE_CACHE',
+  'SANDBOX_BUILDKITD_CACHE_RETENTION',
+  'SANDBOX_MIN_FREE_DISK',
   'TALE_PLATFORM_SHARED_CONFIG_DIR',
 ] as const;
 
@@ -63,6 +71,74 @@ test('deployment session capacity is the only runtime cap', () => {
   const config = loadConfig();
   expect(config.session.maxSessions).toBe(24);
   expect(config.session).not.toHaveProperty('maxSessionsPerOrg');
+});
+
+test('session Pod requests: absent by default, read as Kubernetes quantities, refused when malformed', () => {
+  expect(loadConfig().k8s).not.toHaveProperty('cpuRequest');
+  expect(loadConfig().k8s).not.toHaveProperty('memoryRequest');
+  process.env.SANDBOX_K8S_CPU_REQUEST = ' 300m ';
+  process.env.SANDBOX_K8S_MEMORY_REQUEST = '768Mi';
+  expect(loadConfig().k8s).toMatchObject({
+    cpuRequest: '300m',
+    memoryRequest: '768Mi',
+  });
+  process.env.SANDBOX_K8S_MEMORY_REQUEST = '768 MB';
+  expect(() => loadConfig()).toThrow(/SANDBOX_K8S_MEMORY_REQUEST/);
+  process.env.SANDBOX_K8S_MEMORY_REQUEST = '768Mi';
+  process.env.SANDBOX_K8S_CPU_REQUEST = 'half';
+  expect(() => loadConfig()).toThrow(/SANDBOX_K8S_CPU_REQUEST/);
+});
+
+test('the builder bounds are optional and validated', () => {
+  expect(loadConfig()).not.toHaveProperty('buildkitdCpus');
+  expect(loadConfig()).not.toHaveProperty('buildkitdMemoryBytes');
+  process.env.SANDBOX_BUILDKITD_CPUS = '6';
+  process.env.SANDBOX_BUILDKITD_MEMORY = '12g';
+  expect(loadConfig()).toMatchObject({
+    buildkitdCpus: 6,
+    buildkitdMemoryBytes: 12 * 1024 ** 3,
+  });
+  process.env.SANDBOX_BUILDKITD_MEMORY = 'lots';
+  expect(() => loadConfig()).toThrow(/SANDBOX_BUILDKITD_MEMORY/);
+  process.env.SANDBOX_BUILDKITD_MEMORY = '12g';
+  process.env.SANDBOX_BUILDKITD_CPUS = 'many';
+  expect(() => loadConfig()).toThrow(/SANDBOX_BUILDKITD_CPUS/);
+});
+
+test("an idle builder's cache budget is optional and validated", () => {
+  expect(loadConfig()).not.toHaveProperty('buildkitdIdleCacheBytes');
+  process.env.SANDBOX_BUILDKITD_IDLE_CACHE = '2g';
+  expect(loadConfig().buildkitdIdleCacheBytes).toBe(2 * 1024 ** 3);
+  process.env.SANDBOX_BUILDKITD_IDLE_CACHE = '0';
+  expect(loadConfig().buildkitdIdleCacheBytes).toBe(0);
+  process.env.SANDBOX_BUILDKITD_IDLE_CACHE = 'small';
+  expect(() => loadConfig()).toThrow(/SANDBOX_BUILDKITD_IDLE_CACHE/);
+});
+
+test('the free space kept on the session disk is optional and validated', () => {
+  expect(loadConfig().session).not.toHaveProperty('minFreeDiskBytes');
+  process.env.SANDBOX_MIN_FREE_DISK = '10g';
+  expect(loadConfig().session.minFreeDiskBytes).toBe(10 * 1024 ** 3);
+  // 0 turns the floor off.
+  process.env.SANDBOX_MIN_FREE_DISK = '0';
+  expect(loadConfig().session.minFreeDiskBytes).toBe(0);
+  process.env.SANDBOX_MIN_FREE_DISK = 'plenty';
+  expect(() => loadConfig()).toThrow(/SANDBOX_MIN_FREE_DISK/);
+});
+
+test('how long stopped build caches are kept is optional and validated', () => {
+  expect(loadConfig()).not.toHaveProperty('buildkitdCacheRetentionMs');
+  const hour = 60 * 60 * 1000;
+  process.env.SANDBOX_BUILDKITD_CACHE_RETENTION = '14d';
+  expect(loadConfig().buildkitdCacheRetentionMs).toBe(14 * 24 * hour);
+  process.env.SANDBOX_BUILDKITD_CACHE_RETENTION = '36h';
+  expect(loadConfig().buildkitdCacheRetentionMs).toBe(36 * hour);
+  for (const off of ['0', 'off', 'OFF']) {
+    process.env.SANDBOX_BUILDKITD_CACHE_RETENTION = off;
+    expect(loadConfig().buildkitdCacheRetentionMs).toBe(0);
+  }
+  process.env.SANDBOX_BUILDKITD_CACHE_RETENTION = 'two weeks';
+  expect(() => loadConfig()).toThrow(/SANDBOX_BUILDKITD_CACHE_RETENTION/);
 });
 
 describe('loadConfig — runtime tier', () => {
@@ -341,4 +417,16 @@ describe('loadConfig — request body cap follows runnerd', () => {
     process.env.SANDBOX_MAX_REQUEST_BODY_BYTES = String(256 * 1024);
     expect(loadConfig().maxRequestBodyBytes).toBe(256 * 1024);
   });
+});
+
+test('Docker workloads inherit by default and validate an explicit allowlist', () => {
+  expect(loadConfig().dockerWorkloads).toBeUndefined();
+  process.env.SANDBOX_DOCKER_WORKLOADS = ' project, project ';
+  expect(loadConfig().dockerWorkloads).toEqual(['project']);
+  process.env.SANDBOX_DOCKER_WORKLOADS = 'none';
+  expect(loadConfig().dockerWorkloads).toEqual([]);
+  process.env.SANDBOX_DOCKER_WORKLOADS = 'workflow,project';
+  expect(loadConfig().dockerWorkloads).toEqual(['workflow', 'project']);
+  process.env.SANDBOX_DOCKER_WORKLOADS = 'browser';
+  expect(() => loadConfig()).toThrow(/SANDBOX_DOCKER_WORKLOADS/);
 });

@@ -108,6 +108,15 @@ export async function walkChatCatalog(
     // exactly as it does there, so the picker never disagrees with a turn.
     for (const entry of catalog) {
       if (!modelAllowlistPermits(credential.modelAllowlist, entry.id)) continue;
+      // Direct chat calls a model whose tools need the Responses API on that
+      // API — an OpenAI surface, so an Anthropic-format connector has no
+      // wire for one and must not offer it. A pinned managed agent resolves
+      // separately against its harness's wire.
+      if (
+        entry.toolCallingApi === 'responses' &&
+        connector.apiFormat !== 'openai'
+      )
+        continue;
       hits.push({ connector, credential, credentialAuth, entry });
     }
   }

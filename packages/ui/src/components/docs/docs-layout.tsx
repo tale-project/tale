@@ -2,14 +2,7 @@
 
 import { useT } from '@tale/ui/i18n/client';
 import { SkipLink } from '@tale/ui/skip-link';
-import {
-  lazy,
-  type ReactNode,
-  Suspense,
-  useCallback,
-  useEffect,
-  useState,
-} from 'react';
+import { lazy, type ReactNode, Suspense } from 'react';
 
 import { DocsFooter, type DocsFooterProps } from './docs-footer';
 import { DocsMobileNav } from './docs-mobile-nav';
@@ -17,6 +10,7 @@ import type { DocsNavGroup } from './docs-nav';
 import { DocsNavRail } from './docs-nav-rail';
 import type { DocsSearchConfig } from './docs-search-dialog';
 import { ScrollToTop } from './scroll-to-top';
+import { useDocsSearch } from './use-docs-search';
 
 // Lazy: the palette (framer-motion + the search family + MiniSearch) is only
 // needed once a reader opens search (⌘K), so it stays off the initial route
@@ -68,33 +62,8 @@ export function DocsLayout({
   children,
 }: DocsLayoutProps) {
   const { t } = useT('docs');
-  const [searchOpen, setSearchOpen] = useState(false);
-  // Mount the lazy palette on first open and keep it mounted so its close
-  // animation can still play.
-  const [searchMounted, setSearchMounted] = useState(false);
-  useEffect(() => {
-    if (searchOpen) setSearchMounted(true);
-  }, [searchOpen]);
-
-  // ⌘K / Ctrl+K toggles the palette.
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      const isMod = event.metaKey || event.ctrlKey;
-      if (
-        isMod &&
-        !event.shiftKey &&
-        !event.altKey &&
-        (event.key === 'k' || event.key === 'K')
-      ) {
-        event.preventDefault();
-        setSearchOpen((open) => !open);
-      }
-    };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, []);
-
-  const openSearch = useCallback(() => setSearchOpen(true), []);
+  const { searchOpen, searchMounted, setSearchOpen, openSearch } =
+    useDocsSearch();
   const navProps = {
     sections,
     activeHref,

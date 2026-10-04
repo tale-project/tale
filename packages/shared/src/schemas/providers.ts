@@ -478,6 +478,13 @@ export const modelCatalogEntrySchema = z
      * `embedding`, `text-to-speech`, …) — open vocabulary, additive. */
     tags: z.array(z.string().min(1).max(64)),
     supportsTools: z.boolean(),
+    /** Function tools require this API even when the model also accepts
+     * plain text through Chat Completions. Absent preserves the provider's
+     * existing tool wire. This is a model capability, not an auth method:
+     * direct chat then calls the model on the provider's Responses API
+     * (`<baseUrl>/responses`, OpenAI-compatible providers only), and an agent
+     * harness serves it only when it speaks that wire. */
+    toolCallingApi: z.literal('responses').optional(),
     supportsVision: z.boolean(),
     /** The model GENERATES media (its output modalities include audio, image,
      * or video — e.g. music or image generators). Such listings often carry a

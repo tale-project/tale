@@ -6,6 +6,7 @@ import {
   sessionAcquire,
   sessionReleaseIdle,
   sessionReleaseTicket,
+  SpawnerBusyError,
 } from './session_client.ts';
 
 beforeEach(() => {
@@ -18,6 +19,26 @@ afterEach(() => {
 });
 
 describe('runtime acquisition and release transport', () => {
+  it('parks a warm acquisition refused for capacity instead of treating it as gone', async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(
+        Response.json(
+          { error: 'host_memory', queue: { position: 2, waiting: 3 } },
+          { status: 429, headers: { 'retry-after': '5' } },
+        ),
+      );
+    vi.stubGlobal('fetch', fetcher);
+    const failed = await sessionAcquire('warm').catch(
+      (error: unknown) => error,
+    );
+    expect(failed).toBeInstanceOf(SpawnerBusyError);
+    expect(failed).toMatchObject({
+      retryAfterMs: 5000,
+      queue: { position: 2, waiting: 3 },
+    });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
   it('authenticates the session, verb and captured generation in every request', async () => {
     const fetcher = vi
       .fn<typeof fetch>()

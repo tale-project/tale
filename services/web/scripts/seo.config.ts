@@ -20,7 +20,6 @@ import { TALE_DOCS_URL, TALE_SITE_URL } from '@tale/ui/seo/globals';
 
 import {
   buildWebSections,
-  legalDisallowPaths,
   makeWebLoadBody,
   WEB_SITE_DESCRIPTION,
   WEB_SITE_TITLE,
@@ -61,7 +60,7 @@ export default async function webSeoConfig(): Promise<
     optionalPages: webOptionalPages(),
     loadBody: makeWebLoadBody(ssr),
     robots: {
-      disallow: legalDisallowPaths(legal),
+      // Legal pages must remain crawlable so their noindex tags can be read.
       extraSitemaps: [`${TALE_DOCS_URL}/sitemap.xml`],
     },
   };

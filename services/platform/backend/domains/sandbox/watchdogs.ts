@@ -1,9 +1,11 @@
+import PQueue from 'p-queue';
 import type { Sql } from 'postgres';
 
 import {
   sessionCreate,
   sessionDestroyIfIdle,
   sessionIsAlive,
+  sessionObserve,
   sessionSetPinned,
 } from '../../core/node_only/sandbox/helpers/session_client.ts';
 import { SANDBOX_SESSION_LIVE_STATUSES } from '../../core/sandbox/session_constants.ts';
@@ -19,6 +21,7 @@ import {
 } from './service.ts';
 import { markSessionDestroyed } from './sessions.ts';
 import { reconcilePendingSessionOpKeys } from './spend-settlement.ts';
+import { sweepRoomWaitLeftovers } from './wait-retention.ts';
 
 /**
  * The spawner verbs the sweep's spawner-facing passes use. Injectable so the
@@ -34,6 +37,7 @@ export interface WatchdogSpawner extends ReconcileSpawner {
 
 const DEFAULT_SPAWNER: WatchdogSpawner = {
   isAlive: sessionIsAlive,
+  observe: (sessionId, signal) => sessionObserve(sessionId, signal),
   setPinned: sessionSetPinned,
   create: sessionCreate,
   destroyIfIdle: sessionDestroyIfIdle,
@@ -131,8 +135,8 @@ export interface SandboxWatchdogResult {
  *    (phantom heal) — unless the row is pinned: a pinned agent workspace has
  *    its recreate in place queued (`sandbox.recreate_pinned` — same id, so
  *    the spawner re-attaches its preserved workspace; never inline, since a
- *    create can take minutes) and a live one has its pin re-asserted, since
- *    the spawner forgets a pin with its container. A row another lifecycle
+ *    create can take minutes). Live sessions have pin drift repaired in either
+ *    direction; matching pins need no write. A row another lifecycle
  *    transition holds (a Destroy, a pin, a running recreate) is skipped, not
  *    waited for. Requires a reachable spawner — when
  *    it is down the probes fail closed as `live` (never heal blind). The
@@ -287,6 +291,24 @@ export async function runSandboxWatchdog(
     );
   }
 
+  // What waiting for sandbox room leaves behind: the op rows of refused
+  // starts an hour after they ended (each session's newest kept, the run
+  // view reads it) and failed session rows a day after they were collected
+  // (domains/sandbox/wait-retention.ts).
+  try {
+    const pruned = await sweepRoomWaitLeftovers(sql, { now });
+    if (pruned.ops + pruned.sessions > 0) {
+      console.log(
+        `[watchdog] deleted ${pruned.ops} op row(s) of refused starts and ${pruned.sessions} collected failed session row(s)`,
+      );
+    }
+  } catch (error: unknown) {
+    console.error(
+      '[watchdog] deleting what waits for sandbox room left failed:',
+      error,
+    );
+  }
+
   // SETTLE: finalized ops whose gateway-key settlement is still open past
   // the grace — the backstop behind the settle's own retry ladder (a
   // backend restart between retries, a gateway down for longer than it).
@@ -362,29 +384,41 @@ async function reconcilePass(
   let healed = 0;
   let recreating = 0;
   const visited: Candidate[] = [];
-  for (const candidate of candidates) {
-    if (args.signal?.aborted === true) break;
-    visited.push(candidate);
-    try {
-      const outcome = await reconcileSession(
-        sql,
-        { organizationId: candidate.orgId, sessionId: candidate.sessionId },
-        spawner,
-        args.scheduleRecreate !== undefined
-          ? { schedule: args.scheduleRecreate }
-          : {},
-      );
-      if (outcome === 'healed') healed += 1;
-      if (outcome === 'recreating') recreating += 1;
-    } catch (error) {
-      // Spawner unreachable or refusing ⇒ no verdict on this row; leave it
-      // alone for its next visit.
-      console.warn(
-        `[watchdog] reconcile failed for ${candidate.sessionId}:`,
-        error,
-      );
-    }
-  }
+  const signal = AbortSignal.any([
+    AbortSignal.timeout(20_000),
+    ...(args.signal ? [args.signal] : []),
+  ]);
+  const queue = new PQueue({ concurrency: 4 });
+  await Promise.all(
+    candidates.map((candidate) =>
+      queue.add(async () => {
+        if (signal.aborted) return;
+        visited.push(candidate);
+        try {
+          const outcome = await reconcileSession(
+            sql,
+            { organizationId: candidate.orgId, sessionId: candidate.sessionId },
+            spawner,
+            {
+              signal,
+              ...(args.scheduleRecreate !== undefined
+                ? { schedule: args.scheduleRecreate }
+                : {}),
+            },
+          );
+          if (outcome === 'healed') healed += 1;
+          if (outcome === 'recreating') recreating += 1;
+        } catch (error) {
+          // Spawner unreachable or refusing ⇒ no verdict on this row; leave it
+          // alone for its next visit.
+          console.warn(
+            `[watchdog] reconcile failed for ${candidate.sessionId}:`,
+            error,
+          );
+        }
+      }),
+    ),
+  );
   await stampVisited(sql, visited, args.now);
   return { healed, recreating };
 }

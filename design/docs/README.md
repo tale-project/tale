@@ -26,12 +26,14 @@ surface's layout into another.
 | ------------------- | ------------------------ | ---------------------------------------------------- | -------------------------------------------- | ---------------- |
 | **App** (product)   | `services/platform`      | `design/sources/platform/*.pen` + `design-system.md` | `@tale/ui` product components                | light + dark     |
 | **Web** (marketing) | `services/web`           | `design/docs/web.md` + `@tale/marketing-ui` + assets | `@tale/marketing-ui` + marketing composition | light + dark     |
-| **Docs**            | `services/docs`          | follows the **app** language                         | `@tale/ui`, the shared `@tale/ui/docs/*` frame | light + dark |
+| **Docs**            | `services/docs`          | locale-root front pages: **web** language · guide pages: **app** language | `@tale/marketing-ui` (front page, scoped `landing.css`) + shared `@tale/ui/docs/*` frame (guides) | light + dark |
 | **Design-system docs** (ui.tale.dev) | `services/ui-docs` | front page: **web** language · `/docs/*`: **app** language | `@tale/marketing-ui` (front page) + the same `@tale/ui/docs/*` frame (docs pages, live `<Demo>`s) | light + dark |
 | **Shared** (brand)  | `design/sources/shared/` | `branding.pen` / `logofolio.pen`                     | `TaleLogo`, accent `#056CFF`, Inter          | —                |
 
-Platform authentication and its application shell are **app only** — never add them to web or docs. **Docs follow the app**
-language — see [app.md](app.md).
+Platform authentication and its application shell are **app only** — never add them to web or docs. **Documentation articles follow the app**
+language — see [app.md](app.md). The product-docs locale roots and design-system front page use
+the marketing language for discovery. Product docs imports `@tale/marketing-ui/landing.css` and
+scopes canonical marketing aliases to `.marketing-surface`; deep guides retain the app tokens.
 
 ## Sources of truth — read, don't memorize
 

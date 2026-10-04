@@ -685,6 +685,20 @@ services:
       - path: .env
         required: false
     restart: unless-stopped
+    environment:
+      # Connections the proxy serves at once for the whole fleet (tinyproxy
+      # MaxClients). Mirrors the CLI compose generator.
+      SANDBOX_EGRESS_MAX_CLIENTS: ${SANDBOX_EGRESS_MAX_CLIENTS:-2000}
+    # Mirrors the CLI compose generator (create-sandbox-egress-service.ts):
+    # tinyproxy runs a thread and holds two descriptors per connection
+    # (SANDBOX_EGRESS_MAX_CLIENTS, 2000 by default), and threads count
+    # against the pids limit. A raised connection limit needs these raised.
+    mem_limit: 512m
+    pids_limit: 4096
+    ulimits:
+      nofile:
+        soft: 8192
+        hard: 16384
     # IPv4-only proxy networks: disable current and future-interface IPv6 so
     # the fail-closed firewall also boots on kernels without ip6_tables.
     sysctls:
@@ -808,6 +822,7 @@ services:
       # runc/gvisor); set SANDBOX_DOCKER_IN_CONTAINER=true/false (or the
       # deployment.json sandboxRuntime section) to force it.
       SANDBOX_DOCKER_IN_CONTAINER: ${SANDBOX_DOCKER_IN_CONTAINER:-}
+      SANDBOX_DOCKER_WORKLOADS: ${SANDBOX_DOCKER_WORKLOADS:-}
       SANDBOX_DIND_INNER_POOL: ${SANDBOX_DIND_INNER_POOL:-}
       SANDBOX_RUNTIME_IMAGE: ${SANDBOX_RUNTIME_IMAGE:-tale-sandbox-runtime:latest}
       # Shared cross-session docker build cache. Unset here so the spawner applies
@@ -846,8 +861,8 @@ services:
     # operational posture; previously this file shipped without caps, so
     # operators running `docker compose up` directly got an uncapped
     # spawner — audit finding R2-B11.
-    mem_limit: 512m
-    pids_limit: 512
+    mem_limit: 1g
+    pids_limit: 1024
     ulimits:
       nofile:
         soft: 4096

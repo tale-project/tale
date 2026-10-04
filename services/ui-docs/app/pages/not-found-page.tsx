@@ -8,7 +8,7 @@ import { firstNavSlug } from '@/lib/content/nav';
 import { navPage } from '@/lib/content/nav-sections';
 import { docPath } from '@/lib/content/paths';
 import { useT } from '@/lib/i18n/client';
-import { uiDocsNearMissPages } from '@/lib/near-miss';
+import { uiDocsNearMissGroups, uiDocsNearMissPages } from '@/lib/near-miss';
 import { useDocumentMeta } from '@/lib/seo/use-document-meta';
 
 /** The requested path as a content slug: `/docs/components/buton` → `components/buton`. */
@@ -28,11 +28,14 @@ export function NotFoundPage() {
   const requestedSlug = pathnameToSlug(pathname);
   const suggestions = useMemo(
     () =>
-      // Ranked on titles as well as slugs — the same guides the server
-      // scores a guessed address against.
-      suggestPages(requestedSlug, uiDocsNearMissPages()).map(({ slug }) =>
-        navPage(slug),
-      ),
+      // Ranked on titles and sidebar labels as well as slugs — the same
+      // guides the server scores a guessed address against.
+      suggestPages(
+        requestedSlug,
+        uiDocsNearMissPages(),
+        undefined,
+        uiDocsNearMissGroups(),
+      ).map(({ slug }) => navPage(slug)),
     [requestedSlug],
   );
 

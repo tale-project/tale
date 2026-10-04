@@ -366,6 +366,62 @@ describe('teardownSession ownership and confirmed deletion', () => {
   });
 });
 
+// A queued Destroy names the row it was asked for. Its retry can run long
+// after the request, when that row was settled another way and a turn opened
+// a fresh incarnation under the same deterministic id.
+describe('teardownSession of a queued Destroy', () => {
+  const ARGS = { organizationId: 'org-a', sessionId: 'session-a' };
+
+  it('destroys the row it was asked for, under the session lock', async () => {
+    const { sql, locks, stored, end } = fakeSql(OWNED_SESSION);
+
+    await expect(
+      teardownSession(sql, { ...ARGS, rowId: OWNED_SESSION.id }),
+    ).resolves.toBe(true);
+
+    expect(sessionDestroy).toHaveBeenCalledExactlyOnceWith('session-a');
+    expect(stored?.status).toBe('destroyed');
+    // The lock key is the session's, whichever row the Destroy names.
+    expectLockedOnce(locks, end, 'wait');
+  });
+
+  it('leaves a newer incarnation under the reused id alone', async () => {
+    const { sql, data, stored } = fakeSql({
+      ...OWNED_SESSION,
+      id: 'row-fresh',
+      createdAt: 5000,
+    });
+
+    await expect(
+      teardownSession(sql, { ...ARGS, rowId: OWNED_SESSION.id }),
+    ).resolves.toBe(false);
+
+    expect(sessionSetPinned).not.toHaveBeenCalled();
+    expect(sessionDestroy).not.toHaveBeenCalled();
+    expect(revokeSessionGatewayKeys).not.toHaveBeenCalled();
+    expect(
+      data.filter((statement) => !statement.text.startsWith('SELECT')),
+    ).toEqual([]);
+    expect(stored?.status).toBe('active');
+  });
+
+  it('does nothing once the row it was asked for is settled', async () => {
+    const { sql, stored } = fakeSql({
+      ...OWNED_SESSION,
+      status: 'destroyed',
+      destroyedAt: 3000,
+    });
+
+    await expect(
+      teardownSession(sql, { ...ARGS, rowId: OWNED_SESSION.id }),
+    ).resolves.toBe(false);
+
+    expect(sessionSetPinned).not.toHaveBeenCalled();
+    expect(sessionDestroy).not.toHaveBeenCalled();
+    expect(stored?.status).toBe('destroyed');
+  });
+});
+
 describe('pinSession serializes with the other lifecycle transitions', () => {
   it.each([true, false])(
     'writes the row (pinned=%s) on the dedicated connection under the lock, then patches the spawner',
@@ -433,10 +489,25 @@ describe('pinSession serializes with the other lifecycle transitions', () => {
         sessionId: 'session-a',
         pinned: true,
       }),
-    ).resolves.toBe(true);
+    ).rejects.toThrow('spawner unreachable');
 
     expect(stored?.pinned).toBe(true);
     expect(warn).toHaveBeenCalledOnce();
+    warn.mockRestore();
+  });
+
+  it('does not acknowledge an unpin the runtime refused, and preserves its intent', async () => {
+    const { sql, stored } = fakeSql({ ...OWNED_SESSION, pinned: true });
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.mocked(sessionSetPinned).mockResolvedValueOnce(false);
+    await expect(
+      pinSession(sql, {
+        organizationId: 'org-a',
+        sessionId: 'session-a',
+        pinned: false,
+      }),
+    ).rejects.toThrow('did not confirm pin=false');
+    expect(stored?.pinned).toBe(false);
     warn.mockRestore();
   });
 });
@@ -490,6 +561,58 @@ function expectRowUntouched(
 }
 
 describe('reconcileSession keeps a pinned session pinned', () => {
+  it.each([false, true])(
+    'retries an unsynchronized pin even when its acknowledged value already equals %s',
+    async (pinned) => {
+      const { sql, locks, end } = fakeSql({ ...OWNED_SESSION, pinned });
+      const { spawner } = fakeSpawner(true, {
+        observe: vi.fn(async () => ({ pinned, pinSynchronized: false })),
+      });
+      await expect(reconcileSession(sql, ARGS, spawner)).resolves.toBe(
+        pinned ? 'repinned' : 'live',
+      );
+      expect(vi.mocked(spawner.setPinned).mock.calls[0]?.slice(0, 2)).toEqual([
+        'session-a',
+        pinned,
+      ]);
+      expectLockedOnce(locks, end, 'try');
+    },
+  );
+
+  it('repairs a failed unpin under the lifecycle lock without refreshing it on later sweeps', async () => {
+    const { sql, locks, stored } = fakeSql(OWNED_SESSION);
+    let runtimePin = true;
+    const { spawner } = fakeSpawner(true, {
+      observe: vi.fn(async () => ({ pinned: runtimePin })),
+      setPinned: vi.fn(async (_id, pinned) => {
+        runtimePin = pinned;
+        return true;
+      }),
+    });
+    await expect(reconcileSession(sql, ARGS, spawner)).resolves.toBe('live');
+    expect(runtimePin).toBe(false);
+    expect(stored?.pinned).toBe(false);
+    expect(locks).toHaveLength(1);
+    await expect(reconcileSession(sql, ARGS, spawner)).resolves.toBe('live');
+    expect(spawner.setPinned).toHaveBeenCalledTimes(1);
+    expect(locks).toHaveLength(1);
+  });
+
+  it('leaves a matching runtime pin untouched and retries a refused drift correction', async () => {
+    const { sql, locks } = fakeSql(PINNED_SESSION);
+    const { spawner } = fakeSpawner(true, {
+      observe: vi.fn(async () => ({ pinned: true })),
+    });
+    await expect(reconcileSession(sql, ARGS, spawner)).resolves.toBe('live');
+    expect(locks).toHaveLength(0);
+    expect(spawner.setPinned).not.toHaveBeenCalled();
+    const unpinned = fakeSql(OWNED_SESSION);
+    spawner.setPinned = vi.fn(async () => false);
+    await expect(reconcileSession(unpinned.sql, ARGS, spawner)).rejects.toThrow(
+      'did not remove the pin',
+    );
+    expect(unpinned.stored?.status).toBe('active');
+  });
   it('re-asserts the pin on a live pinned session under the tried lock and settles nothing', async () => {
     const { sql, root, locks, data, stored, end } = fakeSql(PINNED_SESSION);
     const { spawner, calls } = fakeSpawner(true);
@@ -559,6 +682,7 @@ describe('reconcileSession keeps a pinned session pinned', () => {
       organizationId: 'org-a',
       profile: 'agent',
       placement: 'device',
+      workload: 'project',
     });
     expect(calls).toEqual([
       'isAlive session-a',

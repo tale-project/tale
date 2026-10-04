@@ -134,6 +134,7 @@ export const AGENT_TOOL_CATALOG = [
   { name: 'task_comment', effect: 'write', module: 'tasks' },
   { name: 'task_update_status', effect: 'write', module: 'tasks' },
   { name: 'task_update_metadata', effect: 'write', module: 'tasks' },
+  { name: 'task_review', effect: 'write', module: 'tasks' },
   { name: 'task_start_agent', effect: 'write', module: 'tasks' },
   { name: 'task_upsert_by_external_ref', effect: 'write', module: 'tasks' },
   { name: 'document_find', effect: 'read', module: 'documents' },
@@ -149,12 +150,14 @@ export const AGENT_TOOL_CATALOG = [
  * puts another agent of the project to work on behalf of whoever the run
  * answers to (`domains/tasks/delegated-start.ts`). An automation starts
  * agents with its `task.start_agent` step instead. `task_update_metadata`
- * triages existing tasks without starting work. The automation agent node
+ * triages existing tasks without starting work; `task_review` decides an
+ * independent native task review. The automation agent node
  * neither offers nor grants these project-only tools.
  */
 export const PROJECT_AGENT_ONLY_TOOLS: readonly string[] = [
   'task_start_agent',
   'task_update_metadata',
+  'task_review',
 ];
 
 /** The grantable tools that change org data (status listings badge these). */

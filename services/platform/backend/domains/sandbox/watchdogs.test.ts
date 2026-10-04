@@ -252,6 +252,39 @@ describe('runSandboxWatchdog — expiry spares a live turn', () => {
 });
 
 describe('runSandboxWatchdog — fair reconcile', () => {
+  it('probes four sessions at a time and waits for in-flight probes before stamping', async () => {
+    const batch = Array.from({ length: 7 }, (_, n) =>
+      candidate(`parallel-${n}`),
+    );
+    const { sql, statements } = fakeSql({ reconcile: [batch] });
+    let release: () => void = () => {};
+    const blocked = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let active = 0;
+    let peak = 0;
+    vi.mocked(reconcileSession).mockImplementation(async () => {
+      active += 1;
+      peak = Math.max(peak, active);
+      await blocked;
+      active -= 1;
+      return 'live';
+    });
+    const sweep = runSandboxWatchdog(sql, {
+      reconcileBatch: 7,
+      spawner: scriptedSpawner(),
+    });
+    await vi.waitFor(() => expect(reconcileSession).toHaveBeenCalledTimes(4));
+    expect(stampsOf(statements)).toHaveLength(0);
+    release();
+    await sweep;
+    expect(peak).toBe(4);
+    expect(reconcileSession).toHaveBeenCalledTimes(7);
+    expect(stampsOf(statements)[0]?.values).toContainEqual(
+      batch.map((row) => row.id),
+    );
+  });
+
   it('walks least-recently-visited first, probes with the injected spawner, and stamps every visited row', async () => {
     const batch = [candidate('a'), candidate('b'), candidate('c')];
     const { sql, statements } = fakeSql({ reconcile: [batch] });
@@ -285,7 +318,7 @@ describe('runSandboxWatchdog — fair reconcile', () => {
         sql,
         { organizationId: row.orgId, sessionId: row.sessionId },
         spawner,
-        {},
+        { signal: expect.any(AbortSignal) },
       );
     }
 
@@ -349,7 +382,7 @@ describe('runSandboxWatchdog — pinned sessions in the reconcile', () => {
       sql,
       { organizationId: 'org_1', sessionId: 'ses-pinned' },
       spawner,
-      { schedule: scheduleRecreate },
+      { schedule: scheduleRecreate, signal: expect.any(AbortSignal) },
     );
   });
 
@@ -503,7 +536,9 @@ describe('runSandboxWatchdog — reclaim of ended runs', () => {
       statements.some((s) => s.text.includes("s.owner_type = 'workflow_run'")),
     ).toBe(false);
     expect(
-      statements.some((s) => s.text.includes("WHERE status = 'failed'")),
+      statements.some((s) =>
+        s.text.includes("status = 'failed' AND destroyed_at_ms IS NULL"),
+      ),
     ).toBe(false);
     expect(stampsOf(statements)).toHaveLength(0);
     expect(collectStampsOf(statements)).toHaveLength(0);
@@ -768,14 +803,16 @@ describe('runSandboxWatchdog — settled model-endpoint request rows', () => {
 
     const result = await runSandboxWatchdog(sql, { skipReconcile: true });
 
-    const sweeps = statements.filter((s) =>
-      s.text.includes('DELETE FROM app.sandbox_session_ops'),
+    const sweeps = statements.filter(
+      (s) =>
+        s.text.includes('DELETE FROM app.sandbox_session_ops') &&
+        s.text.includes("kind = 'model-api'"),
     );
     // Two rows came back from a batch of 1,000: one statement drained it.
     expect(sweeps).toHaveLength(1);
     expect(sweeps[0]?.values).toEqual([NOW - WEEK_MS, 1_000]);
     const close = indexOf(statements, "status = 'failed', finished_at_ms");
-    const sweep = indexOf(statements, 'DELETE FROM app.sandbox_session_ops');
+    const sweep = indexOf(statements, "WHERE kind = 'model-api'");
     const settle = indexOf(statements, 'WHERE finalized_at_ms IS NOT NULL');
     expect(close).toBeGreaterThanOrEqual(0);
     expect(sweep).toBeGreaterThan(close);
@@ -861,7 +898,7 @@ describe('reconcileOrgSessions — the Sandboxes page mount probe', () => {
         sql,
         { organizationId: c.orgId, sessionId: c.sessionId },
         spawner,
-        {},
+        { signal: expect.any(AbortSignal) },
       );
     }
     expect(spawner.destroyIfIdle).not.toHaveBeenCalled();

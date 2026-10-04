@@ -13,6 +13,7 @@
 
 import { createHash, createHmac, randomUUID } from 'node:crypto';
 
+import { createParser } from 'eventsource-parser';
 import { z } from 'zod';
 
 import {
@@ -88,17 +89,60 @@ export class SessionDuplicateError extends Error {
   }
 }
 
-/** The spawner is at its global host capacity (HTTP 429, `session_quota`).
- * Distinct from the platform's per-workload `QUOTA_EXCEEDED`: the host is
- * shared across organizations. The retry hint lets each workload apply its
- * own failure/retry policy; an earlier capacity read reserves no compute. */
-class SpawnerBusyError extends Error {
+/** Where a refused create stands in the spawner's first-come line for host
+ * room: its place, and how many creates wait in the line. */
+export interface SpawnerQueuePlace {
+  position: number;
+  waiting: number;
+}
+
+/** The spawner is at its global host capacity (HTTP 429: `session_quota`,
+ * `host_memory` when the host is short of memory, or `host_disk` when the
+ * disk the workspaces live on is short of space), or a destroy of the id
+ * is still under way. Distinct from the platform's per-workload
+ * `QUOTA_EXCEEDED`: the host is shared across organizations. The retry hint
+ * lets each workload apply its own wait; an earlier capacity read reserves
+ * no compute. A spawner that keeps a first-come line for host room says
+ * where the create stands in it (`queue`), and its hint is then the moment
+ * that place comes up: a waiter that asks later loses its turn to the ones
+ * behind it, so it comes back exactly then. */
+export class SpawnerBusyError extends Error {
   readonly retryAfterMs: number | undefined;
-  constructor(retryAfterMs: number | undefined) {
+  readonly queue: SpawnerQueuePlace | undefined;
+  constructor(retryAfterMs: number | undefined, queue?: SpawnerQueuePlace) {
     super('sandbox spawner at host capacity (429)');
     this.name = 'SpawnerBusyError';
     this.retryAfterMs = retryAfterMs;
+    this.queue = queue;
   }
+}
+
+/** The `queue` field of a 429 body, as a boundary: a body that is not JSON,
+ * names no line or names one out of shape is an older spawner's answer, and
+ * the create waits as it always did. */
+const spawnerQueueBodySchema = z.object({
+  queue: z.object({
+    position: z.number().int().nonnegative(),
+    waiting: z.number().int().nonnegative(),
+  }),
+});
+
+/** The refusal a 429 to a create is, with its place in the spawner's line
+ * when the body names one. */
+async function spawnerBusyErrorOf(res: Response): Promise<SpawnerBusyError> {
+  const retryAfterMs = parseRetryAfterMs(res);
+  const text = await safeText(res);
+  let body: unknown;
+  try {
+    body = JSON.parse(text);
+  } catch {
+    return new SpawnerBusyError(retryAfterMs);
+  }
+  const parsed = spawnerQueueBodySchema.safeParse(body);
+  return new SpawnerBusyError(
+    retryAfterMs,
+    parsed.success ? parsed.data.queue : undefined,
+  );
 }
 
 /**
@@ -297,6 +341,9 @@ async function spawnerFetch(
 }
 
 export interface SessionCreateBody {
+  /** Optional capability narrowing; never overrides the deployment ceiling. */
+  docker?: boolean;
+  workload?: 'project' | 'workflow';
   sessionId: string;
   organizationId: string;
   profile: 'default' | 'agent';
@@ -408,6 +455,7 @@ export async function sessionAcquire(sessionId: string): Promise<boolean> {
     { signal: AbortSignal.timeout(15_000) },
   );
   await throwIfDeviceOffline(response);
+  if (response.status === 429) throw await spawnerBusyErrorOf(response);
   if (response.status === 404) {
     // Rolling upgrade: an old spawner has neither activity routes nor the
     // limits endpoint (and cannot pressure-reclaim compute). Only that
@@ -515,7 +563,7 @@ export async function sessionCreate(
       signal: AbortSignal.timeout(CREATE_TIMEOUT_MS),
     });
     if (res.status === 409) throw new SessionDuplicateError(body.sessionId);
-    if (res.status === 429) throw new SpawnerBusyError(parseRetryAfterMs(res));
+    if (res.status === 429) throw await spawnerBusyErrorOf(res);
     // 503 "draining": the targeted colour is mid-flip. Re-POST so the bare
     // `sandbox` alias re-resolves onto the now-active colour. A 503 for an
     // offline device is final for this create: the session's workspace lives
@@ -561,6 +609,35 @@ export async function sessionIsAlive(sessionId: string): Promise<boolean> {
   return true;
 }
 
+/** The runtime's current pin, for bidirectional drift repair. Absence is
+ * definitive; an omitted pin is an older protocol, never evidence to unpin. */
+export async function sessionObserve(
+  sessionId: string,
+  signal?: AbortSignal,
+): Promise<{ pinned?: boolean; pinSynchronized?: boolean } | null> {
+  const res = await spawnerFetch(
+    'GET',
+    `/v1/sessions/${encodeURIComponent(sessionId)}`,
+    {
+      signal: AbortSignal.any([
+        AbortSignal.timeout(15_000),
+        ...(signal ? [signal] : []),
+      ]),
+    },
+  );
+  if (res.status === 404) return null;
+  await throwIfDeviceOffline(res);
+  if (!res.ok) throw new Error(`sandbox session get failed (${res.status})`);
+  return z
+    .object({
+      session: z.object({
+        pinned: z.boolean().optional(),
+        pinSynchronized: z.boolean().optional(),
+      }),
+    })
+    .parse(await res.json()).session;
+}
+
 /** Returns true when the spawner destroyed a live session, false when it had
  * nothing under that id (both mean "backend is gone"). THROWS on any non-2xx
  * so callers can't mistake a failed teardown for a clean one — flipping the
@@ -602,17 +679,56 @@ export async function sessionDestroyIfIdle(
   return { destroyed: parsed.destroyed === true, busy: parsed.busy === true };
 }
 
-/** The workspace cleanup's destroy: only the preserved workspace of a
- * STOPPED session goes — the spawner answers `{busy:true}` while any compute
- * runs under the id (a turn that just resumed it, before its first exec) or a
- * create is in flight. `if_idle=1` rides along so a spawner or device that
- * predates `if_stopped` still refuses a session with a live exec. Same
- * non-2xx THROW contract as sessionDestroy; a device that is not connected
- * throws {@link SandboxDeviceOfflineError}. */
-export async function sessionDestroyStopped(
+/** How far deleting a destroyed workspace's bytes has come, as the spawner
+ * answers a destroy: `done` (Docker: no trash entry of the id is left),
+ * `pending` (still being deleted in the background), `failed` (the last
+ * attempt failed; the next destroy has it tried again) or `handed_off`
+ * (Kubernetes: the PVC delete was accepted, and the volume is its storage
+ * provisioner's to delete under the storage class's reclaim policy). */
+export type WorkspaceDeletion = 'done' | 'pending' | 'failed' | 'handed_off';
+
+/** What a destroy answers the workspace cleanup. */
+export interface WorkspaceDestroyAnswer {
+  /** Something under the id was taken out of use. */
+  destroyed: boolean;
+  /** A condition refused the destroy: nothing was touched. */
+  busy: boolean;
+  /** Absent only from a spawner or device older than the deletion contract,
+   * whose answer says nothing about the bytes (19776cf18 already deleted in
+   * the background): the cleanup reads it as unconfirmed, never as done. */
+  deletion?: WorkspaceDeletion;
+}
+
+const workspaceDestroyAnswerSchema = z.object({
+  destroyed: z.boolean(),
+  busy: z.boolean().default(false),
+  deletion: z.enum(['done', 'pending', 'failed', 'handed_off']).optional(),
+});
+
+/** The workspace cleanup's destroy — its erasures, retirements and sweeps.
+ * `ifStopped` deletes only the preserved workspace of a STOPPED session: the
+ * spawner answers `{busy:true}` while any compute runs under the id (a turn
+ * that just resumed it, before its first exec) or a create is in flight, and
+ * `if_idle=1` rides along so a spawner or device that predates `if_stopped`
+ * still refuses a session with a live exec. `ifIdle` alone refuses only a
+ * live exec; neither (an erasure) deletes whatever runs.
+ *
+ * A destroy answers once the workspace is out of use, before its bytes are
+ * gone; `?await_deletion=1` has the spawner wait a bounded time for them and
+ * answer how far they came, so the cleanup settles a deletion only on
+ * `done`. Same non-2xx THROW contract as sessionDestroy; a device that is
+ * not connected throws {@link SandboxDeviceOfflineError}. */
+export async function sessionDestroyWorkspace(
   sessionId: string,
-): Promise<{ destroyed: boolean; busy: boolean }> {
-  const path = `/v1/sessions/${encodeURIComponent(sessionId)}?if_idle=1&if_stopped=1`;
+  conditions: { ifIdle?: boolean; ifStopped?: boolean } = {},
+): Promise<WorkspaceDestroyAnswer> {
+  const query = new URLSearchParams();
+  if (conditions.ifIdle === true || conditions.ifStopped === true) {
+    query.set('if_idle', '1');
+  }
+  if (conditions.ifStopped === true) query.set('if_stopped', '1');
+  query.set('await_deletion', '1');
+  const path = `/v1/sessions/${encodeURIComponent(sessionId)}?${query}`;
   const res = await spawnerFetch('DELETE', path, {
     signal: AbortSignal.timeout(60_000),
   });
@@ -620,9 +736,7 @@ export async function sessionDestroyStopped(
   if (!res.ok) {
     throw new Error(`sandbox session destroy failed (${res.status})`);
   }
-  return z
-    .object({ destroyed: z.boolean(), busy: z.boolean() })
-    .parse(await res.json());
+  return workspaceDestroyAnswerSchema.parse(await res.json());
 }
 
 const workspaceInventorySchema = z.object({
@@ -689,21 +803,23 @@ export async function sandboxOrganizationTeardown(
     .parse(await res.json());
 }
 
-/** PATCH /v1/sessions/:id/pin — toggle the spawner-side "always-on" reaper
- * exemption. Best-effort; the platform `sandbox_sessions.pinned` row is the
- * durable truth. The sandbox drift reconcile re-asserts a PIN on every visit
- * to a pinned row (`reconcileSession` in `domains/sandbox/service.ts`); an
- * unpin is pushed only by the Unpin action and by Destroy, and nothing
- * re-asserts it after a failed patch. */
+/** PATCH /v1/sessions/:id/pin — toggle the spawner-side reaper exemption.
+ * The platform row is durable intent; reconciliation observes runtime state
+ * and repairs either direction when a patch fails, without refreshing TTL
+ * for pins that already agree. */
 export async function sessionSetPinned(
   sessionId: string,
   pinned: boolean,
+  signal?: AbortSignal,
 ): Promise<boolean> {
   const path = `/v1/sessions/${encodeURIComponent(sessionId)}/pin`;
   const bodyJson = JSON.stringify({ pinned });
   const res = await spawnerFetch('PATCH', path, {
     body: bodyJson,
-    signal: AbortSignal.timeout(30_000),
+    signal: AbortSignal.any([
+      AbortSignal.timeout(30_000),
+      ...(signal ? [signal] : []),
+    ]),
   });
   if (!res.ok) return false;
   // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
@@ -712,14 +828,23 @@ export async function sessionSetPinned(
 }
 
 /** POST /v1/sessions/:id/exec/:execId/cancel — SIGTERM→SIGKILL the exec's
- * process group in the sandbox. Idempotent (false if the exec/session is gone).
+ * processes in the sandbox. Idempotent (false if the exec/session is gone).
  * The Stop-button path for external-agent turns; the run's own finalize then
- * persists the partial timeline + marks the message failed. */
+ * persists the partial timeline + marks the message failed.
+ *
+ * `keepLeftovers` is a rotation's cancel (a steer's restart, which continues
+ * the conversation in a new exec over the same workspace): only the exec's
+ * own process group ends, and what the turn started outside it — a dev
+ * server its shell tool backgrounded — is kept for the exec that takes over.
+ * A spawner or runtime that predates the flag ignores it and ends
+ * everything. */
 export async function sessionCancelExec(
   sessionId: string,
   execId: string,
+  opts: { keepLeftovers?: boolean } = {},
 ): Promise<boolean> {
-  const path = `/v1/sessions/${encodeURIComponent(sessionId)}/exec/${encodeURIComponent(execId)}/cancel`;
+  const query = opts.keepLeftovers === true ? '?leftovers=keep' : '';
+  const path = `/v1/sessions/${encodeURIComponent(sessionId)}/exec/${encodeURIComponent(execId)}/cancel${query}`;
   const res = await spawnerFetch('POST', path, {
     body: '',
     signal: AbortSignal.timeout(30_000),
@@ -782,11 +907,30 @@ export interface SessionStageFile {
   url?: string;
   /** Inline bytes, base64 — for small control files (steer messages). */
   contentBase64?: string;
+  /** Trusted immutable source identity. Runnerd verifies actual target bytes
+   * against its own manifest before reusing them; this is never permission. */
+  sourceId?: string;
 }
 
 export interface SessionStageResult {
   staged: Array<{ path: string; bytes: number }>;
   skipped: Array<{ path: string; reason: string }>;
+  /** Explicit acknowledgement of a managed-root reconciliation. */
+  reconciled?: boolean;
+}
+
+interface StageOptions {
+  /** Directories this payload fully owns; absent files are pruned only after
+   * every chunk staged successfully. Never name the workspace root. */
+  replaceRoots?: string[];
+  /** Probe inline hashes first, avoiding transfer of already verified bytes. */
+  reuse?: boolean;
+}
+
+class StageRequestError extends Error {
+  constructor(readonly status: number) {
+    super(`sandbox session files stage failed (${status})`);
+  }
 }
 
 /** Client-side serialized-body budget per stage POST. Deliberately far under
@@ -795,6 +939,7 @@ export interface SessionStageResult {
  * build is running; the HMAC headers ride outside the body, so the envelope
  * math below is exact. */
 export const STAGE_BODY_BUDGET_BYTES = 1.5 * 1024 * 1024;
+const STAGE_MAX_FILES = 512;
 
 // Serialized length of the request envelope around the files array:
 // `{"files":[` + `]}`.
@@ -824,7 +969,10 @@ export function chunkStageFiles(
       );
     }
     const commaBytes = batch.length > 0 ? 1 : 0;
-    if (batchBytes + commaBytes + entryBytes > maxBodyBytes) {
+    if (
+      batch.length >= STAGE_MAX_FILES ||
+      batchBytes + commaBytes + entryBytes > maxBodyBytes
+    ) {
       batches.push(batch);
       batch = [];
       batchBytes = STAGE_ENVELOPE_BYTES;
@@ -841,19 +989,47 @@ export function chunkStageFiles(
 async function postStageFiles(
   sessionId: string,
   files: SessionStageFile[],
+  reconcile?: { replaceRoots: string[]; keepPaths: string[] },
 ): Promise<SessionStageResult> {
   const path = `/v1/sessions/${encodeURIComponent(sessionId)}/files/stage`;
-  const bodyJson = JSON.stringify({ files });
-  const res = await spawnerFetch('POST', path, {
-    body: bodyJson,
-    signal: AbortSignal.timeout(30_000),
-  });
-  if (res.status === 404) throw new SessionNotFoundError(sessionId);
-  if (!res.ok) {
-    throw new Error(`sandbox session files stage failed (${res.status})`);
+  const bodyJson = JSON.stringify({ files, ...reconcile });
+  if (Buffer.byteLength(bodyJson) > STAGE_BODY_BUDGET_BYTES) {
+    throw new Error('Sandbox staging manifest exceeds the request budget');
   }
-  // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
-  return (await res.json()) as SessionStageResult;
+  const signal = AbortSignal.timeout(30_000);
+  for (;;) {
+    signal.throwIfAborted();
+    const res = await spawnerFetch('POST', path, { body: bodyJson, signal });
+    if (res.status === 404) throw new SessionNotFoundError(sessionId);
+    if (res.status === 503) {
+      const refusal: unknown = await res.json().catch(() => null);
+      if (
+        refusal === null ||
+        typeof refusal !== 'object' ||
+        !('error' in refusal) ||
+        refusal.error !== 'busy'
+      ) {
+        throw new StageRequestError(res.status);
+      }
+    } else {
+      if (!res.ok) throw new StageRequestError(res.status);
+      // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+      const result = (await res.json()) as SessionStageResult;
+      if (
+        result.staged.length > 0 ||
+        result.skipped.length === 0 ||
+        result.skipped.some((file) => file.reason !== 'busy')
+      )
+        return result;
+    }
+    // Runnerd refuses admission before mutation when two transfers are busy,
+    // or a final prune must wait for another staging request. Keep the queue
+    // in the caller, bounded by this batch's one deadline, rather than retain
+    // arbitrary request bodies inside the memory-constrained daemon.
+    await new Promise((resolve) =>
+      setTimeout(resolve, 50 + Math.floor(Math.random() * 200)),
+    );
+  }
 }
 
 /** POST /v1/sessions/:id/files/stage — write files into the session workspace.
@@ -864,12 +1040,73 @@ async function postStageFiles(
 export async function sessionStageFiles(
   sessionId: string,
   files: SessionStageFile[],
+  options: StageOptions = {},
 ): Promise<SessionStageResult> {
   const merged: SessionStageResult = { staged: [], skipped: [] };
-  for (const batch of chunkStageFiles(files)) {
+  const identified = options.reuse
+    ? files.map((file) =>
+        file.contentBase64 !== undefined
+          ? {
+              ...file,
+              sourceId: `sha256:${createHash('sha256').update(Buffer.from(file.contentBase64, 'base64')).digest('hex')}`,
+            }
+          : file,
+      )
+    : files;
+  let missing = identified;
+  if (
+    options.reuse &&
+    identified.length > 0 &&
+    identified.every((file) => file.sourceId !== undefined)
+  ) {
+    try {
+      const hits = new Map<string, { path: string; bytes: number }>();
+      for (const batch of chunkStageFiles(
+        identified.map(({ path, sourceId }) => ({ path, sourceId })),
+      )) {
+        const probe = await postStageFiles(sessionId, batch);
+        // Legacy runtimes may accept a source-only entry but report no_source;
+        // only explicit staged paths count as verified cache hits.
+        for (const hit of probe.staged) {
+          if (typeof hit === 'object' && typeof hit.path === 'string')
+            hits.set(hit.path, hit);
+        }
+      }
+      missing = identified.filter((file) => !hits.has(file.path));
+      merged.staged.push(...hits.values());
+    } catch (error) {
+      // Old controls reject source-only probes. Their normal stage path still
+      // works during rolling upgrades; other failures must remain visible.
+      if (!(error instanceof StageRequestError && error.status === 400))
+        throw error;
+    }
+  }
+  for (const batch of chunkStageFiles(missing)) {
     const result = await postStageFiles(sessionId, batch);
     merged.staged.push(...result.staged);
     merged.skipped.push(...result.skipped);
+  }
+  if (options.replaceRoots?.length && merged.skipped.length === 0) {
+    const final = await postStageFiles(sessionId, [], {
+      replaceRoots: options.replaceRoots,
+      keepPaths: identified.map((file) => file.path),
+    });
+    merged.skipped.push(...final.skipped);
+    if (final.skipped.length === 0 && final.reconciled !== true) {
+      // A legacy runtime ignored the new reconciliation fields. Restore the
+      // old clear-and-copy behavior so removed files cannot survive a roll.
+      const cleared = await sessionDeleteFiles(sessionId, options.replaceRoots);
+      if (cleared.skipped.length > 0) {
+        merged.skipped.push(...cleared.skipped);
+      } else {
+        merged.staged = [];
+        for (const batch of chunkStageFiles(identified)) {
+          const result = await postStageFiles(sessionId, batch);
+          merged.staged.push(...result.staged);
+          merged.skipped.push(...result.skipped);
+        }
+      }
+    }
   }
   return merged;
 }
@@ -1043,8 +1280,8 @@ export interface SessionExecBody {
   /** Whether the spawner collects stdout/stderr into the terminal `result`
    * buffers. Default true (one-shot). The agent run passes false: its output is
    * consumed live (the collected buffer is unused for it), so collecting would
-   * grow the spawner unboundedly AND trip runnerd's cumulative cap → the live
-   * stream would go silently dark mid-run. false ⇒ stream-only, unbounded. */
+   * retain an unused output copy in the spawner. false streams from the
+   * bounded runnerd journal; reaching its budget fails the exec explicitly. */
   collectOutput?: boolean;
   timeoutMs?: number;
 }
@@ -1097,6 +1334,19 @@ export interface SessionExecResult {
 export interface SessionExecCallbacks {
   onStdout?: (text: string) => void;
   onStderr?: (text: string) => void;
+  /** Reconnect starts replaying historical bytes; lifecycle cuts must wait. */
+  onReplayStarted?: () => void;
+  /** The captured historical prefix has been delivered, before live follow. */
+  onReplayComplete?: () => void;
+}
+
+/** A protocol or consumer failure cannot be repaired by replaying a later
+ * suffix. Fail the turn visibly instead of advancing past corrupt state. */
+export class ExecStreamProtocolError extends Error {
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options);
+    this.name = 'ExecStreamProtocolError';
+  }
 }
 
 /**
@@ -1151,6 +1401,7 @@ async function sessionAttachExec(
   cursor?: ExecCursor,
   timeoutMs?: number,
 ): Promise<SessionExecResult> {
+  callbacks.onReplayStarted?.();
   const query = sinceSeq > 0 ? `?sinceSeq=${sinceSeq}` : '';
   // The spawner verifies the HMAC over pathname+search, so the signed string
   // MUST include the query — signing the bare path 401s every re-attach with
@@ -1171,7 +1422,7 @@ async function sessionAttachExec(
   if (!res.ok || !res.body) {
     throw new Error(`sandbox session attach failed (${res.status})`);
   }
-  return consumeExecSse(res.body, execId, callbacks, cursor);
+  return consumeExecSse(res.body, execId, callbacks, cursor, true);
 }
 
 /**
@@ -1234,6 +1485,7 @@ export async function drainSessionExecResilient(
       // A 404 means the session is gone, not a transient drop — retrying can't
       // help. Surface it so the caller self-heals the stale platform row.
       if (err instanceof SessionNotFoundError) throw err;
+      if (err instanceof ExecStreamProtocolError) throw err;
       // An idle SSE (no keepalive) is a wedged socket, NOT an exec failure: a
       // live-but-quiet exec resumes losslessly via sinceSeq, and a genuinely
       // dead sandbox surfaces as a real fetch error on the next re-attach
@@ -1270,20 +1522,126 @@ export interface ExecCursor {
   lastSeq: number;
 }
 
+// Decoding is part of the cursor's in-memory state: a runnerd chunk can end
+// halfway through a UTF-8 character, including at a transport reconnect.
+const cursorDecoders = new WeakMap<
+  ExecCursor,
+  { stdout: TextDecoder; stderr: TextDecoder }
+>();
+
+const SSE_FRAME_MAX_CHARS = 16 * 1024 * 1024;
+
+/** The library bounds retained data, but complete events can dispatch before
+ * its buffer check, and ignored fields/comments do not enter its buffer.
+ * Keep our whole-frame limit independently, with counters only. Line endings
+ * count as LF across arbitrary chunks; the terminating blank line is excluded.
+ * Each incoming character is examined once, never the buffered prefix. */
+class SseFrameBudget {
+  private frameChars = 0;
+  private lineChars = 0;
+  private skipLineFeed = false;
+
+  accept(chunk: string): void {
+    for (let at = 0; at < chunk.length; at += 1) {
+      const code = chunk.charCodeAt(at);
+      if (this.skipLineFeed && code === 10) {
+        this.skipLineFeed = false;
+        continue;
+      }
+      this.skipLineFeed = code === 13;
+      if (code === 10 || code === 13) {
+        // A non-empty line's terminator may be the first half of the blank
+        // separator; charge it only if another non-empty line follows.
+        this.frameChars = this.lineChars === 0 ? 0 : this.frameChars + 1;
+        this.lineChars = 0;
+      } else {
+        this.lineChars += 1;
+        this.frameChars += 1;
+        if (this.frameChars > SSE_FRAME_MAX_CHARS) {
+          throw new ExecStreamProtocolError('Sandbox SSE frame exceeds 16 MiB');
+        }
+      }
+    }
+  }
+}
+
 async function consumeExecSse(
   body: ReadableStream<Uint8Array>,
   execId: string,
   callbacks: SessionExecCallbacks,
   cursor?: ExecCursor,
+  attaching = false,
 ): Promise<SessionExecResult> {
   const reader = body.getReader();
   const decoder = new TextDecoder('utf-8');
-  let buf = '';
+  const frameBudget = new SseFrameBudget();
   let result: SessionExecResult | null = null;
+  const outputDecoders = (cursor && cursorDecoders.get(cursor)) || {
+    stdout: new TextDecoder(),
+    stderr: new TextDecoder(),
+  };
+  if (cursor) cursorDecoders.set(cursor, outputDecoders);
+  let replay: 'unknown' | 'journal' | 'complete' = attaching
+    ? 'unknown'
+    : 'complete';
+  let journal = false;
+  const completeReplay = () => {
+    if (replay === 'complete') return;
+    replay = 'complete';
+    callbacks.onReplayComplete?.();
+  };
   const handleEvent = (event: string, data: string): void => {
+    if (event === 'replay-start') {
+      journal = true;
+      if (attaching) replay = 'journal';
+      return;
+    }
     if (event === 'stdout' || event === 'stderr') {
-      const parsed = parseData<{ text?: string; seq?: number }>(data);
-      const text = parsed?.text ?? '';
+      const parsed = parseData<{ text?: string; b64?: string; seq?: number }>(
+        data,
+      );
+      if (
+        cursor &&
+        typeof parsed?.seq === 'number' &&
+        parsed.seq <= cursor.lastSeq
+      )
+        return;
+      if (
+        attaching &&
+        !journal &&
+        cursor &&
+        typeof parsed?.seq === 'number' &&
+        parsed.seq > Math.max(2, cursor.lastSeq + 1)
+      ) {
+        throw new ExecStreamProtocolError(
+          'Legacy sandbox replay is incomplete; earlier output was evicted',
+        );
+      }
+      // Older runtimes/spawners lack journal markers. A contiguous legacy
+      // replay retains its old progress and completion behavior; a visible
+      // ring rollover is refused instead of reconstructing partial state.
+      if (replay === 'unknown') completeReplay();
+      try {
+        const text =
+          typeof parsed?.b64 === 'string'
+            ? outputDecoders[event].decode(Buffer.from(parsed.b64, 'base64'), {
+                stream: true,
+              })
+            : (parsed?.text ?? '');
+        if (text !== '') {
+          if (event === 'stdout') callbacks.onStdout?.(text);
+          else callbacks.onStderr?.(text);
+        }
+      } catch (cause) {
+        throw new ExecStreamProtocolError(
+          cause instanceof Error
+            ? cause.message
+            : 'Harness stream consumer failed',
+          { cause },
+        );
+      }
+      // Advance only AFTER consumption, so a refused protocol record cannot
+      // be silently skipped on reconnect.
       // Advance the reconnect cursor as each seq'd delta is consumed, so a drop
       // resumes from exactly here (no missed or replayed bytes).
       if (
@@ -1293,77 +1651,91 @@ async function consumeExecSse(
       ) {
         cursor.lastSeq = parsed.seq;
       }
-      if (event === 'stdout') callbacks.onStdout?.(text);
-      else callbacks.onStderr?.(text);
+    } else if (event === 'replay-complete') {
+      completeReplay();
     } else if (event === 'result') {
+      if (replay === 'unknown') completeReplay();
       const parsed = parseData<SessionExecResult>(data);
       if (parsed) result = parsed;
     } else if (event === 'error') {
-      const parsed = parseData<{ message?: string }>(data);
+      const parsed = parseData<{ message?: string; code?: string }>(data);
       const message = parsed?.message ?? 'sandbox session exec stream error';
       // The spawner's attach grammar for an unknown exec (session-routes.ts):
       // `exec <id> not found`.
       if (message === `exec ${execId} not found`) {
         throw new ExecNotFoundError(execId);
       }
+      if (
+        parsed?.code?.startsWith('REPLAY_') ||
+        parsed?.code === 'OUTPUT_LIMIT'
+      )
+        throw new ExecStreamProtocolError(message);
       throw new Error(message);
     }
   };
-  for (;;) {
-    // Race each read against an idle deadline. The spawner's 20s `: keepalive`
-    // comment feeds a healthy connection (even through a long silent agent
-    // phase), so this only fires on a wedged/half-open socket → cancel + throw
-    // a benign idle error the resilient drain re-attaches on (no failure-budget
-    // cost). Without it a half-open read blocks until the hours-long fetch
-    // deadline.
-    let idleTimer: ReturnType<typeof setTimeout> | undefined;
-    let chunk: Awaited<ReturnType<typeof reader.read>>;
+  const parser = createParser({
+    maxBufferSize: SSE_FRAME_MAX_CHARS,
+    onEvent: ({ event, data }) => handleEvent(event ?? 'message', data),
+    onError: (error) => {
+      if (error.type === 'max-buffer-size-exceeded') {
+        throw new ExecStreamProtocolError('Sandbox SSE frame exceeds 16 MiB');
+      }
+    },
+  });
+  try {
+    for (;;) {
+      // Race each read against an idle deadline. The spawner's 20s `: keepalive`
+      // comment feeds a healthy connection (even through a long silent agent
+      // phase), so this only fires on a wedged/half-open socket → cancel + throw
+      // a benign idle error the resilient drain re-attaches on (no failure-budget
+      // cost). Without it a half-open read blocks until the hours-long fetch
+      // deadline.
+      let idleTimer: ReturnType<typeof setTimeout> | undefined;
+      let chunk: Awaited<ReturnType<typeof reader.read>>;
+      try {
+        chunk = await Promise.race([
+          reader.read(),
+          new Promise<never>((_, reject) => {
+            idleTimer = setTimeout(
+              () => reject(new ExecStreamIdleError(execId)),
+              IDLE_READ_TIMEOUT_MS,
+            );
+          }),
+        ]);
+      } catch (err) {
+        await reader.cancel().catch(() => {});
+        throw err;
+      } finally {
+        if (idleTimer) clearTimeout(idleTimer);
+      }
+      const { value, done } = chunk;
+      if (done) break;
+      const text = decoder.decode(value, { stream: true });
+      frameBudget.accept(text);
+      parser.feed(text);
+    }
+    if (result === null) {
+      throw new Error('sandbox session exec stream ended without a result');
+    }
     try {
-      chunk = await Promise.race([
-        reader.read(),
-        new Promise<never>((_, reject) => {
-          idleTimer = setTimeout(
-            () => reject(new ExecStreamIdleError(execId)),
-            IDLE_READ_TIMEOUT_MS,
-          );
-        }),
-      ]);
-    } catch (err) {
-      await reader.cancel().catch(() => {});
-      throw err;
-    } finally {
-      if (idleTimer) clearTimeout(idleTimer);
+      const stdout = outputDecoders.stdout.decode();
+      const stderr = outputDecoders.stderr.decode();
+      if (stdout !== '') callbacks.onStdout?.(stdout);
+      if (stderr !== '') callbacks.onStderr?.(stderr);
+    } catch (cause) {
+      throw new ExecStreamProtocolError(
+        'Harness stream consumer failed at EOF',
+        { cause },
+      );
     }
-    const { value, done } = chunk;
-    if (done) break;
-    // Normalize CRLF → LF so the `\n\n` SSE block split below can't leave a
-    // stray `\r` on event/data lines (parity with spawner_client.ts:371).
-    buf += decoder.decode(value, { stream: true }).replace(/\r\n/g, '\n');
-    let idx = buf.indexOf('\n\n');
-    while (idx !== -1) {
-      parseSseBlock(buf.slice(0, idx), handleEvent);
-      buf = buf.slice(idx + 2);
-      idx = buf.indexOf('\n\n');
-    }
+    return result;
+  } finally {
+    // A transport drop must discard its incomplete event. Only the cursor's
+    // accepted output decoder state survives a reconnect.
+    parser.reset();
+    await reader.cancel().catch(() => {});
+    reader.releaseLock();
   }
-  if (result === null) {
-    throw new Error('sandbox session exec stream ended without a result');
-  }
-  return result;
-}
-
-function parseSseBlock(
-  block: string,
-  handle: (event: string, data: string) => void,
-): void {
-  let event = 'message';
-  let data = '';
-  for (const line of block.split('\n')) {
-    if (line.startsWith('event: ')) event = line.slice(7).trim();
-    else if (line.startsWith('data: ')) data = line.slice(6);
-    // ': ' comment lines (keepalive) are ignored.
-  }
-  if (data) handle(event, data);
 }
 
 function parseData<T>(data: string): T | null {

@@ -147,3 +147,51 @@ describe('recoverStalledTaskAgentTurns — the missing-op-row heal', () => {
     expect(sent.map((job) => job.name)).toEqual(['task.agent_drive']);
   });
 });
+
+/**
+ * Unit lock for the re-attach's chain fence: a turn whose op reads silent
+ * while a drive window for its exec is still queued for a worker slot has a
+ * live chain. Recovery leaves it alone — a second chain would drain the exec
+ * twice, and each later sweep would add another. The real-Postgres proof
+ * (queued and recently started jobs fence, a long-dead running one does not)
+ * rides `integration-check.ts`.
+ */
+describe('recoverStalledTaskAgentTurns — the drive-chain fence', () => {
+  it('leaves a silent turn whose drive window is queued to that chain', async () => {
+    const sent: { name: string; data: unknown }[] = [];
+    fakeBoss(sent);
+    const statements: Statement[] = [];
+    const sql = scriptedSql(
+      [
+        [
+          {
+            runId: 'run_1',
+            organizationId: 'org_1',
+            taskId: 'task_1',
+            agentId: 'agent_1',
+            execId: 'exec_1',
+            sessionId: 'pa-agent_1',
+            harness: 'claude-code',
+            deadlineAt: Date.now() + 3_600_000,
+          },
+        ],
+        // The fence: a drive window for the exec is on its way.
+        [{ pending: true }],
+      ],
+      statements,
+    );
+
+    const result = await recoverStalledTaskAgentTurns(sql, {
+      probe: () => Promise.resolve({ state: 'running' as const }),
+    });
+
+    expect(result).toEqual({ examined: 1, resumed: 0 });
+    expect(sent).toEqual([]);
+    const fence = statements[1];
+    expect(fence?.text).toContain('FROM pgboss.job');
+    expect(fence?.text).toContain("data ->> 'execId' = ?");
+    expect(fence?.values.slice(0, 2)).toEqual(['task.agent_drive', 'exec_1']);
+    // Nothing claimed: the live chain keeps the op's lease as it is.
+    expect(statements).toHaveLength(2);
+  });
+});

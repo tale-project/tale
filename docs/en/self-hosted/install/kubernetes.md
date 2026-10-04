@@ -10,7 +10,7 @@ Tale runs on Kubernetes when you translate the [service contract](/self-hosted/i
 | Requirement | Why it matters |
 | --- | --- |
 | A CNI that enforces NetworkPolicy, such as Calico, Cilium, or kube-network-policies | The sandbox egress fence and the backend fence are NetworkPolicy objects. Every API server accepts them; only the CNI makes them block traffic. |
-| A default StorageClass whose `ReadWriteOnce` volumes re-bind where a Pod is scheduled | The database, the object store, the proxy certificates, the gateway state, and every sandbox workspace live on PersistentVolumeClaims. |
+| A default StorageClass whose `ReadWriteOnce` volumes re-bind where a Pod is scheduled | The database, the object store, the proxy certificates, the gateway state, and every sandbox workspace live on PersistentVolumeClaims. A deleted sandbox workspace's volume follows the StorageClass's `reclaimPolicy`: with `Delete`, its files go with it; with `Retain`, they stay until you remove the volume. |
 | `ReadWriteMany` storage, or a single node, for the organization configuration | The backend roles write `config-data`; the web tier and the spawner read it. `ReadWriteOnce` is enough on one node. Several nodes need `ReadWriteMany` or a node pin for those Pods. |
 | Nodes that grant `NET_ADMIN` and provide ip6tables, or allow the IPv6 sysctls | The egress proxy installs its firewall at start and refuses to start without it. |
 | Ports 80 and 443 reachable at the public address | Caddy obtains certificates itself in `selfsigned` and `letsencrypt` mode. Behind an Ingress that terminates TLS, set `TLS_MODE=external`. |
@@ -471,6 +471,8 @@ Two alternatives keep the same Pod:
 
 The egress proxy needs the capability set from the Compose contract and no sysctls: the entrypoint installs the IPv6 firewall with ip6tables when the node kernel offers it, and otherwise disables IPv6 in its own network namespace. A cluster that denies both blocks the Pod at start; allow the `net.ipv6.conf.*` sysctls on the kubelet in that case. The spawner creates session Pods, Secrets, and workspace claims through the Kubernetes API, so it runs with a namespaced Role and no Docker socket.
 
+The proxy serves `SANDBOX_EGRESS_MAX_CLIENTS` connections at once (2000 by default) for every session together, each with a thread and two open files. A Pod spec cannot set process or open-file limits: at start the proxy raises its open-file limit to what its connections need, as far as the hard limit of the container runtime allows, and warns in its log when that is too low. Its threads count against the kubelet's `podPidsLimit`; on nodes that set one, keep it above the connection limit, or lower `SANDBOX_EGRESS_MAX_CLIENTS` to fit.
+
 ```yaml
 # 40-sandbox.yaml
 apiVersion: v1
@@ -494,6 +496,8 @@ spec:
       containers:
         - name: egress
           image: ghcr.io/tale-project/tale/tale-sandbox-egress:${VERSION}
+          env:
+            - { name: SANDBOX_EGRESS_MAX_CLIENTS, value: '2000' }
           securityContext:
             runAsUser: 0
             capabilities:
@@ -638,7 +642,8 @@ spec:
 | `SANDBOX_K8S_NAMESPACE` | The namespace the session Pods, Secrets, and workspace claims are created in; the spawner's own namespace in this layout. Defaults to `tale-sandbox`. |
 | `SANDBOX_RUNTIME_IMAGE` | The matching Tale sandbox runtime image, available to every node. |
 | `NODE_EXTRA_CA_CERTS` | The cluster CA file, normally `/var/run/secrets/kubernetes.io/serviceaccount/ca.crt` inside the spawner. It is the only CA-trust mechanism the spawner honors; keep TLS verification on. |
-| `SANDBOX_K8S_WORKSPACE_SIZE_LIMIT` | The size of each `/agent` workspace claim, default `4Gi`; also bounds the inner Docker temporary store when that is enabled. |
+| `SANDBOX_K8S_WORKSPACE_SIZE_LIMIT` | The size of each agent session's `/agent` workspace claim, default `4Gi`; also bounds a crawler render's temporary workspace, which needs no claim because it is never resumed, and the inner Docker temporary store when that is enabled. |
+| `SANDBOX_K8S_CPU_REQUEST` / `SANDBOX_K8S_MEMORY_REQUEST` | What every session Pod requests from the scheduler, as Kubernetes quantities. Unset, an agent Pod requests `250m` and `512Mi` (`1Gi` with Docker inside the sandbox) and a crawler render `250m` and `512Mi`; a request never exceeds the Pod's limit. Raise them when agents on your nodes run heavier builds than this, so the scheduler does not place more sessions than a node can hold. |
 | `SANDBOX_K8S_CACHE_STORAGECLASS` | The StorageClass for workspace claims; unset uses the cluster default. |
 | `SANDBOX_RUNTIME` / `SANDBOX_RUNTIME_CLASS` | A supported runtime tier and, when needed, the installed RuntimeClass name. |
 | `SANDBOX_EGRESS_PROXY` | The egress Service the sessions use, default `http://sandbox-egress:3128`. |

@@ -20,6 +20,8 @@
  * one wire for thread titles and llm nodes.
  */
 
+import type { HarnessGatewayWire } from '@tale/shared/schemas/providers';
+
 import { compileSchema } from '../../../lib/engine/core/validate/schema';
 import {
   createBuilderModel,
@@ -29,6 +31,7 @@ import {
 } from '../automations_builder/model_call';
 import type { ActionCtx } from '../lib/ctx';
 import {
+  responsesToolsRefusal,
   walkDirectServing,
   type DirectServingWalk,
 } from '../lib/providers/agent_serving';
@@ -81,13 +84,25 @@ export async function resolveServingTarget(
   ctx: ActionCtx,
   organizationId: string,
   modelId: string,
+  /** Legacy task agents share this direct-only walk but carry tools. */
+  toolCallingWire?: HarnessGatewayWire,
 ): Promise<BuilderModelTarget> {
-  const walk = await walkLlmServing(ctx, organizationId, modelId);
+  const walk = await walkLlmServing(
+    ctx,
+    organizationId,
+    modelId,
+    toolCallingWire,
+  );
   if (walk.target !== null) return walk.target;
   const detail =
     walk.unreachable.length > 0
       ? ` (the catalog for ${walk.unreachable.map((name) => `"${name}"`).join(', ')} was unreachable)`
       : '';
+  // Only an agent turn passes a wire; its model was listed, but its tools
+  // need the Responses API.
+  if (walk.wireRefused.length > 0) {
+    throw new Error(`${responsesToolsRefusal(modelId)}${detail}`);
+  }
   throw new Error(
     `no configured provider serves model "${modelId}" — an llm node's model must be listed in a connected provider's catalog and permitted by its credential${detail}`,
   );
@@ -103,9 +118,16 @@ export async function walkLlmServing(
   ctx: ActionCtx,
   organizationId: string,
   modelId: string,
+  toolCallingWire?: HarnessGatewayWire,
 ): Promise<DirectServingWalk> {
   const connectors = await resolveProvidersForOrgId(ctx, organizationId);
-  return walkDirectServing(ctx, organizationId, modelId, connectors);
+  return walkDirectServing(
+    ctx,
+    organizationId,
+    modelId,
+    connectors,
+    toolCallingWire,
+  );
 }
 
 const MISS = Symbol('not json');

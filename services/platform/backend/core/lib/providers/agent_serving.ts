@@ -41,7 +41,9 @@ import {
 import { isStandardGatewayProvider } from '../../../../lib/shared/providers/gateway_standard_providers';
 import {
   buildHarnessTable,
+  harnessToolCallingWire,
   resolveExecution,
+  supportsToolCallingWire,
 } from '../../../../lib/shared/providers/resolve_execution';
 import { isRecord } from '../../../../lib/utils/type-utils';
 import type { ActionCtx } from '../ctx';
@@ -135,9 +137,9 @@ function readAgentDefaultCredentialRow(
   return shaped;
 }
 
-/** The resolver only reads a model's identity; neutral values fill the
- * catalog fields it ignores (same convention as the composer's affordance
- * probe and the harness status derivation). */
+/** The subscription policy probe tests identity and credential constraints.
+ * Model tool-wire compatibility is checked against the actual catalog entry
+ * once that policy has admitted the harness. */
 function neutralModelEntry(id: string, provider: string): ModelCatalogEntry {
   return {
     id,
@@ -253,7 +255,35 @@ function findChatModel(
 export interface DirectServingWalk {
   target: { providerSlug: string; modelId: string } | null;
   unreachable: string[];
+  /** Connectors whose catalog lists the model with tools on the Responses
+   * API alone, which the turn's wire cannot carry. */
+  wireRefused: string[];
   rows: Map<string, unknown>;
+}
+
+/** The managed harnesses that speak the Responses API to the gateway — the
+ * ones a model whose tools need that API can run on. */
+function responsesHarnesses(): string[] {
+  return loadHarnesses()
+    .filter(
+      (harness) =>
+        harness.credentialPolicy.managed &&
+        harnessToolCallingWire(harness) === 'openai-responses',
+    )
+    .map((harness) => harness.slug);
+}
+
+/** Why a turn on a wire that cannot carry a Responses-only model's tools
+ * refuses it, naming the harnesses that could run it. */
+export function responsesToolsRefusal(model: string, harness?: string): string {
+  const speaker =
+    harness === undefined ? "this agent's harness" : `the "${harness}" harness`;
+  const capable = responsesHarnesses();
+  const way =
+    capable.length > 0
+      ? `run the agent on ${capable.map((slug) => `"${slug}"`).join(', ')}, or pick another model`
+      : 'pick another model';
+  return `model "${model}" takes tools only through the Responses API, which ${speaker} does not speak — ${way}`;
 }
 
 /**
@@ -271,8 +301,11 @@ export async function walkDirectServing(
   organizationId: string,
   modelId: string,
   connectors: readonly ProviderDefinition[],
+  /** Absent for a plain no-tools LLM call; agent turns pass their harness wire. */
+  toolCallingWire?: HarnessGatewayWire,
 ): Promise<DirectServingWalk> {
   const unreachable: string[] = [];
+  const wireRefused: string[] = [];
   const rows = new Map<string, unknown>();
   for (const connector of connectors) {
     const row: unknown = await ctx.runQuery(
@@ -297,15 +330,24 @@ export async function walkDirectServing(
       continue;
     }
     const entry = findChatModel(catalog, modelId);
-    if (entry !== undefined) {
-      return {
-        target: { providerSlug: connector.name, modelId: entry.id },
-        unreachable,
-        rows,
-      };
+    if (entry === undefined) continue;
+    if (
+      toolCallingWire !== undefined &&
+      !supportsToolCallingWire(entry, toolCallingWire)
+    ) {
+      // Listed, but not on a wire this turn speaks: say so if nothing else
+      // serves it, rather than reporting the model as missing.
+      wireRefused.push(connector.name);
+      continue;
     }
+    return {
+      target: { providerSlug: connector.name, modelId: entry.id },
+      unreachable,
+      wireRefused,
+      rows,
+    };
   }
-  return { target: null, unreachable, rows };
+  return { target: null, unreachable, wireRefused, rows };
 }
 
 /**
@@ -322,12 +364,9 @@ export async function walkDirectServing(
 /** The wire a harness speaks to the sandbox gateway on the managed lane: its
  * declaration, else derived — a harness that points ANTHROPIC_BASE_URL at the
  * gateway's `/anthropic` path speaks Anthropic, every other one chat. */
-function harnessGatewayWire(harness: string): HarnessGatewayWire {
+export function harnessGatewayWire(harness: string): HarnessGatewayWire {
   const def = loadHarnesses().find((entry) => entry.slug === harness);
-  if (def?.gatewayWire !== undefined) return def.gatewayWire;
-  return def?.credentialEnvKeys.includes('ANTHROPIC_BASE_URL') === true
-    ? 'anthropic'
-    : 'openai-chat';
+  return harnessToolCallingWire(def);
 }
 
 /** The gateway serving of a client speaking `wire` should ride the
@@ -400,9 +439,13 @@ export async function resolvePinnedAgentServing(
   }
 
   if (row.authMethod === 'api-key' || row.authMethod === 'env') {
-    const walk = await walkDirectServing(ctx, args.organizationId, args.model, [
-      connector,
-    ]);
+    const walk = await walkDirectServing(
+      ctx,
+      args.organizationId,
+      args.model,
+      [connector],
+      harnessGatewayWire(args.harness),
+    );
     if (walk.target !== null) {
       return {
         lane: 'gateway',
@@ -411,6 +454,9 @@ export async function resolvePinnedAgentServing(
           ? { anthropicHarnessLane: true }
           : {}),
       };
+    }
+    if (walk.wireRefused.length > 0) {
+      throw new Error(responsesToolsRefusal(args.model, args.harness));
     }
     const detail =
       walk.unreachable.length > 0
@@ -443,6 +489,11 @@ export async function resolvePinnedAgentServing(
   if (entry === undefined) {
     throw new Error(
       `provider "${pinned}" does not list model "${args.model}" in its catalog — edit the agent's model`,
+    );
+  }
+  if (!supportsToolCallingWire(entry, harnessGatewayWire(args.harness))) {
+    throw new Error(
+      `model "${entry.id}" requires the Responses API for tools; harness "${args.harness}" cannot serve it`,
     );
   }
   // The lane mints no gateway key, so there is no vision polyfill: images
@@ -509,6 +560,7 @@ export async function resolveWorkflowAgentServing(
     args.organizationId,
     args.model,
     connectors,
+    harnessGatewayWire(args.harness),
   );
   if (direct.target !== null) {
     const chosen = connectors.find(
@@ -561,6 +613,12 @@ export async function resolveWorkflowAgentServing(
     }
     const entry = findChatModel(catalog, args.model);
     if (entry === undefined) continue;
+    if (!supportsToolCallingWire(entry, harnessGatewayWire(args.harness))) {
+      refusals.push(
+        `"${connector.name}": model "${entry.id}" requires the Responses API for tools; harness "${args.harness}" cannot serve it`,
+      );
+      continue;
+    }
     const apiBaseUrl = subscriptionApiBaseUrl(connector, row.authMethod);
     if (apiBaseUrl === undefined) {
       refusals.push(
@@ -595,6 +653,11 @@ export async function resolveWorkflowAgentServing(
     refusals.length > 0
       ? `; subscription credentials that could not serve it: ${refusals.join('; ')}`
       : '';
+  if (direct.wireRefused.length > 0) {
+    throw new Error(
+      `${responsesToolsRefusal(args.model, args.harness)}${unreachableDetail}${refusalDetail}`,
+    );
+  }
   throw new Error(
     `no configured provider serves model "${args.model}" for this agent turn — the model must be listed in a connected provider's catalog and permitted by its credential: a direct api-key/env credential, or a subscription credential whose forced harness is the turn's ("${args.harness}")${unreachableDetail}${refusalDetail}`,
   );

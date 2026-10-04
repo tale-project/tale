@@ -57,7 +57,9 @@ import {
  * durable op-row upserts, the trusted task writers, and the session slot
  * verbs. Quota throws are re-shaped into the `AppError QUOTA_EXCEEDED`
  * the host's park branch matches on — that mapping is what makes
- * capacity parking work at all.
+ * capacity parking work at all. A refusal for a pending Destroy keeps its
+ * `reason` in the payload: no want of room, it fails an automation step
+ * where a full budget only holds it (`classifyWorkflowStartFailure`).
  *
  * The STEER lane is answered here too (`getOpSteerState`,
  * `rotateTaskAgentRunExec`, `kickMentionRunAfterSteerMiss`) — see the
@@ -66,7 +68,11 @@ import {
 
 function quotaAsAppError(error: unknown): never {
   if (error instanceof SandboxQuotaError) {
-    throw new AppError({ code: 'QUOTA_EXCEEDED', message: error.message });
+    throw new AppError({
+      code: 'QUOTA_EXCEEDED',
+      message: error.message,
+      ...(error.reason !== undefined ? { reason: error.reason } : {}),
+    });
   }
   throw error;
 }
@@ -377,19 +383,60 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
 
     'tasks/agent_runs:parkTaskAgentRunForCapacity': async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
-      const args = raw as { runId: string; execId: string };
-      await sql.begin(async (tx) => {
-        const parked = await tx<{ organizationId: string; taskId: string }[]>`
+      const args = raw as {
+        runId: string;
+        execId: string;
+        /** The sandbox host refused it and said when its place in line comes
+         * up: the run is woken then rather than at the watchdog's next tick. */
+        wakeAfterMs?: number;
+      };
+      const parked = await sql.begin(async (tx) => {
+        const rows = await tx<
+          { organizationId: string; taskId: string; agentId: string }[]
+        >`
           UPDATE app.project_agent_runs SET
             waiting_for_capacity_at_ms = ${Date.now()},
             updated_at_ms = ${Date.now()}
           WHERE id = ${args.runId} AND exec_id = ${args.execId}
             AND status = 'queued'
-          RETURNING org_id AS "organizationId", task_id AS "taskId"
+          RETURNING org_id AS "organizationId", task_id AS "taskId",
+            agent_id AS "agentId"
         `;
         // The card now reads "Waiting for a sandbox slot", not "Queued".
-        if (parked[0] !== undefined) await emitTaskRunHint(tx, parked[0]);
+        const row = rows[0];
+        if (row !== undefined) {
+          await emitTaskRunHint(tx, {
+            organizationId: row.organizationId,
+            taskId: row.taskId,
+          });
+          if (args.wakeAfterMs !== undefined && args.wakeAfterMs > 0) {
+            await addJobInTx(
+              tx,
+              'task.agent_park_wake',
+              {
+                organizationId: row.organizationId,
+                runId: args.runId,
+                execId: args.execId,
+              },
+              { startAfter: new Date(Date.now() + args.wakeAfterMs) },
+            );
+          }
+        }
+        return row;
       });
+      // A parked run holds no slot: a standing workspace its start resumed
+      // before the sandbox host refused the create reads `active` with no
+      // compute, where the reconcile would heal it to destroyed. Free it back
+      // to `stopped` — quietly, since waking the next parked run would only
+      // send it into the same refusal.
+      if (parked !== undefined) {
+        await releaseProjectAgentSessionSlot(
+          sql,
+          { organizationId: parked.organizationId, agentId: parked.agentId },
+          undefined,
+          { wake: false },
+        );
+      }
       return null;
     },
 
@@ -758,12 +805,21 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
 
     'sandbox/session_mutations:setSessionStatus': async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
-      const args = raw as { rowId: string; status: string };
+      const args = raw as {
+        rowId: string;
+        status: string;
+        /** The spawner holds nothing under the row's id (it refused the
+         * create): the row is settled as collected, so the watchdog's
+         * COLLECT pass never destroys the id — whose preserved workspace
+         * may be another incarnation's. */
+        collected?: boolean;
+      };
       const now = Date.now();
       await sql`
         UPDATE app.sandbox_sessions SET
           status = ${args.status}, last_activity_at_ms = ${now},
-          destroyed_at_ms = CASE WHEN ${args.status} = 'destroyed'
+          destroyed_at_ms = CASE
+            WHEN ${args.status} = 'destroyed' OR ${args.collected === true}
             THEN ${now}::bigint ELSE destroyed_at_ms END
         WHERE id = ${args.rowId}
       `;
@@ -784,7 +840,7 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
       const args = raw as { organizationId: string; agentId: string };
       // Stop the agent's standing session unless a sibling turn is live —
-      // and wake the org's oldest parked run on the freed slot.
+      // and wake the oldest parked runs on the freed slot.
       return releaseProjectAgentSessionSlot(sql, args);
     },
 

@@ -17,7 +17,7 @@
  *   - `response_format` of any other `json*` type → `{}` (router / title
  *     generation parse the content as JSON and must never choke).
  *   - A user message containing a `MOCK_TRIGGERS` substring switches into the
- *     matching scenario (reasoning / error).
+ *     matching scenario (reasoning / error / empty / length / stream error).
  *
  * The exact `delta` wire fields (`content`, `reasoning_content`, `tool_calls`)
  * match what `@ai-sdk/openai-compatible` reads in
@@ -29,6 +29,7 @@ import {
   CANNED_REASONING,
   CANNED_REASONING_ANSWER,
   CANNED_REPLY,
+  CANNED_STREAM_ERROR_MESSAGE,
   MOCK_TRIGGERS,
 } from './canned';
 import {
@@ -131,7 +132,10 @@ type Scenario =
   | 'docsTool'
   | 'taskTriage'
   | 'reasoning'
-  | 'error';
+  | 'error'
+  | 'empty'
+  | 'length'
+  | 'streamError';
 
 function userTexts(messages: ParsedMessage[]): string[] {
   return messages
@@ -245,7 +249,10 @@ function pickScenario(body: ChatCompletionRequest): Scenario {
   const users = userTexts(messages);
   const resume = isToolResume(messages);
   const last = users[users.length - 1] ?? '';
+  if (last.includes(MOCK_TRIGGERS.streamError)) return 'streamError';
   if (last.includes(MOCK_TRIGGERS.error)) return 'error';
+  if (last.includes(MOCK_TRIGGERS.empty)) return 'empty';
+  if (last.includes(MOCK_TRIGGERS.length)) return 'length';
   if (last.includes(MOCK_TRIGGERS.reasoning)) return 'reasoning';
   // Docs-pipeline phrases come last so an e2e trigger always wins; anything
   // unmatched stays on the spec-pinned canned path. A tool-scripted entry
@@ -378,7 +385,7 @@ interface ChatCompletionChunk {
       reasoning_content?: string;
       tool_calls?: ToolCallDelta[];
     };
-    finish_reason: 'stop' | 'tool_calls' | null;
+    finish_reason: 'stop' | 'tool_calls' | 'length' | null;
   }>;
   usage?: {
     prompt_tokens: number;
@@ -411,7 +418,7 @@ function streamedCompletion(body: ChatCompletionRequest): Response {
       const send = (text: string) => controller.enqueue(encoder.encode(text));
       const sendDelta = (
         delta: ChatCompletionChunk['choices'][number]['delta'],
-        finish: 'stop' | 'tool_calls' | null,
+        finish: ChatCompletionChunk['choices'][number]['finish_reason'],
         usage?: ChatCompletionChunk['usage'],
       ) =>
         send(
@@ -429,6 +436,48 @@ function streamedCompletion(body: ChatCompletionRequest): Response {
 
       // Every stream opens with the assistant role delta.
       sendDelta({ role: 'assistant' }, null);
+
+      // The replies that end without an answer (see `MOCK_TRIGGERS`).
+      if (scenario === 'empty') {
+        sendDelta({}, 'stop', {
+          prompt_tokens: 16,
+          completion_tokens: 0,
+          total_tokens: 16,
+        });
+        send('data: [DONE]\n\n');
+        controller.close();
+        return;
+      }
+      if (scenario === 'length') {
+        for (const delta of toDeltas(CANNED_REASONING)) {
+          sendDelta({ reasoning_content: delta }, null);
+          await pause();
+        }
+        sendDelta({}, 'length', USAGE);
+        send('data: [DONE]\n\n');
+        controller.close();
+        return;
+      }
+      if (scenario === 'streamError') {
+        await pause();
+        // A failure after the `200` went out: the event carries it, and the
+        // stream ends there, with no `[DONE]`.
+        send(
+          `data: ${JSON.stringify({
+            ...base,
+            error: {
+              code: 502,
+              message: CANNED_STREAM_ERROR_MESSAGE,
+              metadata: { error_type: 'provider_error' },
+            },
+            choices: [
+              { index: 0, delta: { content: '' }, finish_reason: 'error' },
+            ],
+          })}\n\n`,
+        );
+        controller.close();
+        return;
+      }
 
       // A docs entry's scripted tool turn: reasoning first (thinking before
       // acting reads naturally on camera), then the tool call(s). The agent

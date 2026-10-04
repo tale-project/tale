@@ -94,6 +94,9 @@ export function createPrecompiledServerFromManifest(
       etag: entry.etag,
       contentType: entry.contentType,
       cacheControl: entry.cacheControl,
+      ...(entry.canonicalUrl !== undefined
+        ? { canonicalUrl: entry.canonicalUrl }
+        : {}),
     };
     cache.set(entry.path, cached);
     return cached;

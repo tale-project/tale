@@ -27,14 +27,22 @@ Teste Zugangsdaten vom Typ **API-Schlüssel** oder **Umgebungsvariable** mit ein
 | --- | --- | --- |
 | **API-Schlüssel** | Der geheime Schlüssel des Anbieters | Gewöhnlicher, nutzungsabhängig abgerechneter API-Zugriff. Der gespeicherte Wert ist verschlüsselt und später nur maskiert sichtbar. |
 | **Umgebungsvariable** | Der Name einer Bereitstellungsvariable | Ein Betreiber verwaltet das Geheimnis außerhalb der Oberfläche. Der Name muss mit `TALE_PROVIDER_KEY_` beginnen. |
-| **Abo-Schlüssel** | Ein unterstütztes Abonnement-Geheimnis des Anbieters | Ausführung über die unterstützte Agent-Laufzeit des Anbieters statt eines direkten API-Aufrufs. |
-| **Abo-Broker** | Broker-Endpunkt und Konfiguration seiner Token-Antwort | Die Bereitstellung bezieht nutzbare Abonnement-Tokens von einem Broker. |
+| **Abo-Schlüssel** | Ein unterstütztes Abonnement-Geheimnis des Anbieters | Ausführung über die unterstützte Agent-Laufzeit des Anbieters in Aufgaben und Automatisierungen, nie im Chat. |
+| **Abo-Broker** | Broker-Endpunkt und Konfiguration seiner Token-Antwort | Die Bereitstellung bezieht nutzbare Abonnement-Tokens von einem Broker, für die Agent-Laufzeit des Anbieters in Aufgaben und Automatisierungen, nie im Chat. |
 
 Es erscheinen nur Methoden, die der ausgewählte Anbieter unterstützt. Ein Variablenverweis legt die Variable nicht an. Der Betreiber muss sie gemäß der [Anbieterkonfiguration](/de/self-hosted/configuration/providers) bereitstellen.
 
+## Abos in Aufgaben nutzen, nicht im Chat
+
+Zugangsdaten vom Typ **Abo-Schlüssel** oder **Abo-Broker** funktionieren nur in der Agent-Laufzeit, an die sie gebunden sind: Claude Code für ein Anthropic-Abonnement und für die Coding-Pläne von Moonshot und Z.ai, Codex für ein ChatGPT-Abonnement, Gemini CLI für Gemini und Hermes für Nous Portal. Die Anbieter erlauben Abo-Tokens nicht in anderen Anwendungen, und Anthropic weist sie bei jedem Client außer Claude Code ab. Der Chat ruft die API des Anbieters direkt aus Tale auf und kann deshalb keine Abo-Zugangsdaten verwenden.
+
+Tale führt ein Abo deshalb in Aufgaben und Automatisierungen aus, wo seine Laufzeit in einer Sandbox arbeitet. Der Chat bietet nur Modelle an, die Zugangsdaten vom Typ **API-Schlüssel** oder **Umgebungsvariable** bereitstellen. Die App weist an drei Stellen darauf hin: Das Formular zum Hinzufügen zeigt **Nur für Aufgaben und Automatisierungen**, sobald du eine Abo-Methode wählst, jede Abo-Zeile in der Tabelle der Zugangsdaten trägt denselben Hinweis, und die Modellliste im Chat nennt die Abos, die sie auslässt.
+
+Um mit einem Modell zu chatten, das du über ein Abo erreichst, füge für denselben Anbieter Zugangsdaten per API-Schlüssel oder Umgebungsvariable hinzu oder verbinde einen Anbieter wie OpenRouter, der das Modell bereitstellt.
+
 ## Einen Abo-Broker verbinden
 
-Abo-Broker unterstützen Anthropic-Abonnements über Claude Code und OpenAI-ChatGPT-Abonnements über Codex. Diese Zugangsdaten dienen Agenten für Aufgaben und Automatisierungen. Chats benötigen Zugangsdaten für den direkten API-Zugriff.
+Abo-Broker unterstützen Anthropic-Abonnements über Claude Code und OpenAI-ChatGPT-Abonnements über Codex. Diese Zugangsdaten dienen Agenten für Aufgaben und Automatisierungen. Chats benötigen Zugangsdaten für den direkten API-Zugriff, aus den [oben genannten Gründen](#abos-in-aufgaben-nutzen-nicht-im-chat).
 
 | Anbieter und Laufzeit | Zielvariable |
 | --- | --- |
@@ -47,6 +55,8 @@ Trage unter **Pfad zum Token-Array** den Wert `$.tokens` ein, unter **Token-Feld
 
 Begrenze bei OpenAI **Erlaubte Modelle** auf Modell-IDs, die dein ChatGPT-Abonnement unterstützt. Der OpenAI-API-Katalog kann Modelle enthalten, die dieses Abonnement nicht nutzen kann.
 
+Um ein GPT-6-Modell über das ChatGPT-Abonnement zu nutzen, speicherst du zuerst die OpenAI-Broker-Zugangsdaten. Wähle dann bei einem [Projektagenten](/de/platform/projects/project-agents) unter **Agent-Laufzeit** den Eintrag **Codex**. Suche unter **Modell** nach der Modell-ID, etwa `gpt-6.1-sol`, und wähle den Eintrag mit **OpenAI · Abo**. [Die GPT-6-Modelle nutzen](#die-gpt-6-modelle-nutzen) erklärt, wo jedes Modell sonst läuft.
+
 Mit **Token-Auswahl** bestimmst du, wie neue Agentendurchläufe verteilt werden:
 
 - **Zufällig** ist vorausgewählt. Bei jeder Auswahl haben alle nutzbaren Konten die gleiche Wahrscheinlichkeit.
@@ -54,6 +64,13 @@ Mit **Token-Auswahl** bestimmst du, wie neue Agentendurchläufe verteilt werden:
 - **Round-Robin** wählt das nutzbare Konto, dessen letzte Auswahl am längsten zurückliegt. Alle Backend-Prozesse teilen sich den Auswahlverlauf für diese Organisation und diese Zugangsdaten, auch bei gleichzeitigen Anfragen. Eine andere Antwortreihenfolge und Backend-Neustarts erhalten diesen Verlauf. Stabile Kontokennungen des Brokers erhalten ihn auch bei Tokenwechseln. So werden Auswahlen verteilt, nicht zwingend der Tokenverbrauch oder die Anzahl laufender Agenten.
 
 Speichere die Zugangsdaten und starte eine kurze Aufgabe oder Automatisierung mit dem passenden Anbieter und der passenden Agent-Laufzeit. Prüfe, ob der Agent eine Antwort abschließt. Ist kein Konto nutzbar, sollte der Betreiber Autorisierung, Token-Ablauf und geplante Token-Erneuerungen sowie das gemeldete Kontingent prüfen. Die [Broker-Konfigurationsreferenz](/de/self-hosted/configuration/providers#einen-abo-broker-verbinden) erklärt optionale Kontometadaten, Standardwerte und Abhilfe.
+
+## Die GPT-6-Modelle nutzen
+
+Der OpenAI-Katalog enthält GPT-6 Astra (`gpt-6-astra`), GPT-6 Sol (`gpt-6-sol`), GPT-6 Luna (`gpt-6-luna`) und GPT-6.1 Sol (`gpt-6.1-sol`).
+
+- Der **Chat** bietet alle vier über OpenAI-Zugangsdaten vom Typ **API-Schlüssel** oder **Umgebungsvariable** an, auch in der automatischen Modellauswahl. Astra und GPT-6.1 Sol rufen Tools nur über die Responses-API von OpenAI auf, deshalb spricht Tale sie über diese API an. GPT-6 Sol und Luna nehmen die Tools des Chats nur mit ausgeschaltetem Reasoning an, deshalb bietet die Auswahl für sie keine Stufen für **Denkaufwand** an.
+- **Projektagenten und Automatisierungen** führen Astra und GPT-6.1 Sol nur auf **Codex** aus, der Laufzeit, die die Responses-API spricht, mit Zugangsdaten per API-Schlüssel, Umgebungsvariable oder ChatGPT-Abo. Für andere Laufzeiten bietet die Modellauswahl sie nicht an.
 
 ## Azure oder einen eigenen Endpunkt einrichten
 

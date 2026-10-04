@@ -64,7 +64,7 @@ chatHistory:
   default: 90
   unit: days
 auditLog:
-  min: 365
+  min: 180
   max: 3650
   default: 730
   unit: days

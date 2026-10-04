@@ -45,7 +45,10 @@ import {
 } from '../domains/onedrive/service.ts';
 import { scaffoldNewOrganization } from '../domains/organizations/scaffold.ts';
 import { releaseIdleSession } from '../domains/sandbox/idle-release.ts';
-import { recreatePinnedSession } from '../domains/sandbox/service.ts';
+import {
+  recreatePinnedSession,
+  teardownSession,
+} from '../domains/sandbox/service.ts';
 import { reconcileSessionOpKey } from '../domains/sandbox/spend-settlement.ts';
 import { runSandboxWatchdog } from '../domains/sandbox/watchdogs.ts';
 import {
@@ -61,6 +64,7 @@ import {
   isStandardAgentRefusal,
   kickAgentRun,
   startedViaOfRun,
+  wakeParkedAgentRun,
 } from '../domains/tasks/agent-runs.ts';
 import {
   agentTurnShimHandlers,
@@ -135,9 +139,14 @@ const idleSessionReleaseSchema = z.object({
   generation: z.string().min(1),
 });
 
-const recreatePinnedSchema = z.object({
+/** One session of one organization: a pinned recreate's or a Destroy's. */
+const sessionJobSchema = z.object({
   organizationId: z.string().min(1),
   sessionId: z.string().min(1),
+});
+
+const destroySessionSchema = sessionJobSchema.extend({
+  rowId: z.string().min(1),
 });
 
 const orgCleanupSchema = z.object({
@@ -510,7 +519,7 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
       );
     },
     'sandbox.recreate_pinned': async (payload) => {
-      const input = recreatePinnedSchema.parse(payload);
+      const input = sessionJobSchema.parse(payload);
       try {
         const outcome = await recreatePinnedSession(deps.sql, input);
         if (outcome === 'recreated') {
@@ -885,6 +894,12 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         );
       }
     },
+    'sandbox.destroy_session': async (payload) => {
+      // A throw is the retry: the spawner could not be asked, refused, or
+      // the session's device is offline. The row stays listed, unpinned on
+      // both sides, and reads the Destroy as pending until the last attempt.
+      await teardownSession(deps.sql, destroySessionSchema.parse(payload));
+    },
     'sandbox.retire_workspaces': async (payload) => {
       const input = retireWorkspacesSchema.parse(payload);
       const { retired, kept } = await retireOwnerWorkspaces(deps.sql, input);
@@ -1231,6 +1246,17 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         shim as unknown as Parameters<typeof steerTaskAgentTurnImpl>[0],
         input,
       );
+    },
+
+    'task.agent_park_wake': async (payload) => {
+      const input = z
+        .object({
+          organizationId: z.string().min(1),
+          runId: z.string().min(1),
+          execId: z.string().min(1),
+        })
+        .parse(payload);
+      await wakeParkedAgentRun(deps.sql, input);
     },
 
     'task.agent_turn': async (payload) => {

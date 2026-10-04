@@ -27,14 +27,22 @@ Pour des identifiants de type **Clé API** ou **Variable d'environnement**, envo
 | --- | --- | --- |
 | **Clé API** | La clé secrète du fournisseur | Accès API facturé à l’usage. Le secret enregistré est chiffré et seul un fragment masqué reste visible. |
 | **Variable d'environnement** | Le nom d’une variable du déploiement | L’opérateur gère le secret hors de l’interface. Son nom doit commencer par `TALE_PROVIDER_KEY_`. |
-| **Clé d'abonnement** | Un secret d’abonnement pris en charge | Exécution dans l’environnement d’agent du fournisseur, plutôt que par un appel API direct. |
-| **Courtier d'abonnement** | L’adresse du courtier et la configuration de sa réponse | Le déploiement obtient des tokens d’abonnement utilisables auprès du courtier. |
+| **Clé d'abonnement** | Un secret d’abonnement pris en charge | Exécution dans l’environnement d’agent du fournisseur, dans les tâches et les automatisations, jamais dans le chat. |
+| **Courtier d'abonnement** | L’adresse du courtier et la configuration de sa réponse | Le déploiement obtient auprès du courtier des tokens d’abonnement pour l’environnement d’agent du fournisseur, dans les tâches et les automatisations, jamais dans le chat. |
 
 Seules les méthodes du fournisseur sélectionné apparaissent. Référencer une variable ne la crée pas : demande à l’opérateur de la fournir selon le [guide de configuration des fournisseurs](/fr/self-hosted/configuration/providers).
 
+## Utiliser les abonnements dans les tâches, pas dans le chat
+
+Des identifiants de type **Clé d'abonnement** ou **Courtier d'abonnement** ne fonctionnent que dans l’environnement d’agent auquel ils sont liés : Claude Code pour un abonnement Anthropic et pour les forfaits de programmation de Moonshot et de Z.ai, Codex pour un abonnement ChatGPT, Gemini CLI pour Gemini et Hermes pour Nous Portal. Les fournisseurs n’autorisent pas les jetons d’abonnement dans d’autres applications, et Anthropic les refuse depuis tout client autre que Claude Code. Le chat appelle l’API du fournisseur depuis Tale même : il ne peut donc pas utiliser d’identifiants d’abonnement.
+
+Tale exécute donc un abonnement dans les tâches et les automatisations, où son environnement travaille dans une sandbox. Le chat ne propose que les modèles servis par des identifiants de type **Clé API** ou **Variable d'environnement**. L’application l’indique à trois endroits : le formulaire d’ajout affiche **Tâches et automatisations uniquement** quand tu choisis une méthode d’abonnement, chaque ligne d’abonnement du tableau des identifiants porte la même mention, et la liste des modèles du chat nomme les abonnements qu’elle laisse de côté.
+
+Pour discuter avec un modèle auquel tu accèdes par un abonnement, ajoute des identifiants par clé API ou variable d’environnement pour le même fournisseur, ou connecte un fournisseur comme OpenRouter qui sert ce modèle.
+
 ## Connecter un courtier d’abonnement
 
-Les courtiers d’abonnement prennent en charge les abonnements Anthropic via Claude Code et les abonnements OpenAI ChatGPT via Codex. Ces identifiants servent aux agents de tâche et d’automatisation ; les chats nécessitent des identifiants d’accès direct à l’API.
+Les courtiers d’abonnement prennent en charge les abonnements Anthropic via Claude Code et les abonnements OpenAI ChatGPT via Codex. Ces identifiants servent aux agents de tâche et d’automatisation ; les chats nécessitent des identifiants d’accès direct à l’API, pour les [raisons expliquées plus haut](#utiliser-les-abonnements-dans-les-taches-pas-dans-le-chat).
 
 | Fournisseur et agent | Variable cible |
 | --- | --- |
@@ -47,6 +55,8 @@ Renseigne `$.tokens` dans **Chemin du tableau de jetons**, `access_token` dans *
 
 Pour OpenAI, limite **Modèles autorisés** aux identifiants de modèles pris en charge par ton abonnement ChatGPT. Le catalogue de l’API OpenAI peut inclure des modèles auxquels cet abonnement ne donne pas accès.
 
+Pour utiliser un modèle GPT-6 avec l’abonnement ChatGPT, enregistre les identifiants du courtier OpenAI, puis configure un [agent de projet](/fr/platform/projects/project-agents) en choisissant **Codex** sous **Harness**. Sous **Modèle**, recherche l’identifiant du modèle, par exemple `gpt-6.1-sol`, et sélectionne l’entrée **OpenAI · Abonnement**. [Utiliser les modèles GPT-6](#utiliser-les-modeles-gpt-6) indique où chaque modèle fonctionne par ailleurs.
+
 Choisis **Sélection du jeton** selon la répartition souhaitée pour les nouveaux tours d’agent :
 
 - **Aléatoire**, le choix initial, donne à chaque compte utilisable la même probabilité à chaque sélection.
@@ -54,6 +64,13 @@ Choisis **Sélection du jeton** selon la répartition souhaitée pour les nouvea
 - **Round-robin** choisit le compte utilisable dont la dernière sélection est la plus ancienne. Tous les processus backend partagent cet historique pour l’organisation et les identifiants concernés, y compris lors de requêtes simultanées. L’ordre des réponses et les redémarrages du backend conservent cet historique ; des identifiants de compte stables chez le courtier le préservent aussi lors des changements de jetons. Cela répartit les sélections, sans garantir une consommation de jetons ou un nombre d’agents en cours identiques.
 
 Enregistre les identifiants, puis lance une courte tâche ou automatisation avec le fournisseur et l’environnement d’agent correspondants. Vérifie que l’agent termine sa réponse. Si aucun compte n’est utilisable, demande à l’opérateur de vérifier l’autorisation des comptes, l’expiration et les actualisations prévues des jetons, ainsi que les quotas signalés. La [référence de configuration du courtier](/fr/self-hosted/configuration/providers#connecter-un-courtier-dabonnement) décrit les métadonnées facultatives, les valeurs par défaut et les solutions aux erreurs.
+
+## Utiliser les modèles GPT-6
+
+Le catalogue OpenAI comprend GPT-6 Astra (`gpt-6-astra`), GPT-6 Sol (`gpt-6-sol`), GPT-6 Luna (`gpt-6-luna`) et GPT-6.1 Sol (`gpt-6.1-sol`).
+
+- Le **chat** propose les quatre via des identifiants OpenAI de type **Clé API** ou **Variable d'environnement**, y compris pour la sélection automatique du modèle. Astra et GPT-6.1 Sol n’appellent des tools que via l’API Responses d’OpenAI : Tale les interroge donc par cette API. GPT-6 Sol et Luna n’acceptent les tools du chat qu’avec le raisonnement désactivé : le sélecteur ne propose donc pas de niveau d’**Effort de raisonnement** pour eux.
+- Les **agents de projet et les automatisations** n’exécutent Astra et GPT-6.1 Sol que sur **Codex**, l’environnement qui parle l’API Responses, avec des identifiants par clé API, variable d’environnement ou abonnement ChatGPT. Le sélecteur de modèle ne les propose pour aucun autre environnement.
 
 ## Configurer Azure ou une adresse propre au compte
 

@@ -4,7 +4,7 @@ description: How Tale's personalization layer (custom instructions) handles your
 noindex: true
 ---
 
-**Last updated:** 27.09.2026
+**Last updated:** 03.10.2026
 
 ## 1. The contract
 
@@ -33,7 +33,7 @@ Once your instructions are sent, **Tale cannot recall them**. If you change or c
 
 ### 2.2 Self-hosted deployments: the deployment operator can read raw rows
 
-Tale stores your custom instructions in your deployment's Postgres database, in the `app.user_preferences` table. Whoever has database access at your deployment, or access to its backups, can read those rows directly — Tale's role-based admin restriction ("admin can't read content") **does not extend to the database layer**. If you self-host, treat your database operators as having access to all personalization content. SOC 2 / ISO controls covering DB-level access are your responsibility.
+Tale stores your custom instructions in your deployment's Postgres database, in the `app.user_preferences` table. Whoever has database access at your deployment, or access to its backups, can read those rows directly — Tale's role-based admin restriction ("admin can't read content") **does not extend to the database layer**. If you self-host, treat your database operators as having access to all personalization content. Controls covering database-level access are your responsibility.
 
 ### 2.3 Assistant replies may quote or paraphrase your custom instructions
 

@@ -49,7 +49,7 @@ DevTools / the browser context.
   `index.html` script reads `localStorage['tale-theme']` and applies the
   `dark` class pre-hydration; same check with system-dark + no stored value.
 - [ ] `THEME-F5` · **Demo scenes + head assets follow the theme** — On `/`,
-  toggle Light ↔ Dark and inspect the hero demo (`home.demos.hero.label`) and
+  toggle Light ↔ Dark and inspect the hero demo (`home.demos.tasks.label`) and
   one tour demo; read `document.head` → The demo windows restyle with the
   design tokens (dark surfaces/borders/text — no unreadable hardcoded colours
   inside `DemoShell` chrome or scene content; there is **no** light/dark image
@@ -72,8 +72,11 @@ DevTools / the browser context.
 - [ ] `THEME-A1` · **Radiogroup** → The control is `role="radiogroup"`
   aria-labelled **Switch theme**; each option is `role="radio"` with
   `aria-checked` and a text-resolvable name.
-- [ ] `THEME-A2` · **Keyboard** → The radios are reachable by Tab and
-  switchable by keyboard; focus ring visible in **both** themes.
+- [ ] `THEME-A2` · **Keyboard** → Tab enters the selected radio once; Left/Right
+  selects adjacent options and wraps; Tab exits the group. Focus ring is
+  visible in **both** themes. Choices are 32px with a fine pointer and at least
+  44px with a coarse pointer; the segmented frame is compact, and the selected
+  surface stays directly behind its icon at mobile and desktop widths.
 - [ ] `THEME-A3` · **No content loss** → Toggling theme changes no
   layout/content — only colours; text remains readable during the flip
   (transitions suppressed by the provider)

@@ -48,6 +48,8 @@ export interface DocumentHeadInput {
     locale: SupportedLocale;
     alternates: Partial<Record<SupportedLocale, string>>;
   };
+  /** Alternate representations of this page, such as a JSON or Atom feed. */
+  alternateFormats?: readonly { href: string; type: string }[];
   /** Stringified JSON-LD blocks to inject as <script type="application/ld+json">. */
   jsonLd?: string[];
 }
@@ -55,7 +57,7 @@ export interface DocumentHeadInput {
 export type HeadTag =
   | { tag: 'title'; text: string }
   | { tag: 'meta'; attr: 'name' | 'property'; key: string; content: string }
-  | { tag: 'link'; rel: string; href: string; hreflang?: string }
+  | { tag: 'link'; rel: string; href: string; hreflang?: string; type?: string }
   | { tag: 'script'; jsonLd: string };
 
 /**
@@ -89,6 +91,7 @@ export function resolveDocumentHead(meta: DocumentHeadInput): HeadTag[] {
     noindex,
     hreflang,
     jsonLd,
+    alternateFormats,
   } = meta;
 
   const fullTitle = resolveFullTitle(title, siteName);
@@ -167,6 +170,10 @@ export function resolveDocumentHead(meta: DocumentHeadInput): HeadTag[] {
     }
   }
 
+  for (const format of alternateFormats ?? []) {
+    tags.push({ tag: 'link', rel: 'alternate', ...format });
+  }
+
   if (jsonLd) {
     for (const block of jsonLd) tags.push({ tag: 'script', jsonLd: block });
   }
@@ -220,7 +227,7 @@ export function renderHeadToHtml(tags: readonly HeadTag[]): string {
         case 'link':
           html = `<link rel="${t.rel}"${
             t.hreflang ? ` hreflang="${escapeAttr(t.hreflang)}"` : ''
-          } href="${escapeAttr(t.href)}" />`;
+          }${t.type ? ` type="${escapeAttr(t.type)}" data-tale-format="1"` : ''} href="${escapeAttr(t.href)}" />`;
           break;
         case 'script':
           html = `<script type="application/ld+json" ${JSON_LD_DATA_ATTR}="1">${escapeJsonLd(
@@ -275,7 +282,9 @@ function upsertLink(rel: string, href: string, hreflang?: string): void {
  */
 export function applyHeadToDocument(tags: readonly HeadTag[]): void {
   document.head
-    .querySelectorAll('link[rel="alternate"][hreflang]')
+    .querySelectorAll(
+      'link[rel="alternate"][hreflang], link[rel="alternate"][data-tale-format]',
+    )
     .forEach((el) => el.remove());
   document.head
     .querySelectorAll(
@@ -308,7 +317,14 @@ export function applyHeadToDocument(tags: readonly HeadTag[]): void {
         }
         break;
       case 'link':
-        if (t.rel === 'alternate') {
+        if (t.rel === 'alternate' && t.type) {
+          const el = document.createElement('link');
+          el.rel = t.rel;
+          el.type = t.type;
+          el.href = t.href;
+          el.setAttribute('data-tale-format', '1');
+          document.head.appendChild(el);
+        } else if (t.rel === 'alternate') {
           upsertLink('alternate', t.href, t.hreflang);
         } else {
           upsertLink(t.rel, t.href);

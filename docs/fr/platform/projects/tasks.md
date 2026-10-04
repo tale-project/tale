@@ -41,15 +41,15 @@ Une description utile précise les éléments de départ, le résultat attendu e
 
 ## Qui peut créer et modifier les tâches
 
-Toute personne qui peut ouvrir un projet peut y créer des tâches. Les Éditeurs et les rôles supérieurs peuvent modifier toutes les tâches du projet. Un Membre modifie les tâches qu’il a créées et celles qui lui sont attribuées, avec les mêmes possibilités qu’un Éditeur :
+Toute personne qui peut ouvrir un projet peut y créer des tâches. Les Éditeurs et les rôles supérieurs peuvent modifier toutes les tâches du projet. Sur les tâches qu’il a créées ou qui lui sont attribuées, un Membre peut :
 
-- Modifier le titre, la description, les pièces jointes, les sous-tâches, les dates, la priorité, les étiquettes, le relecteur et la répétition.
+- Modifier le titre, la description, les pièces jointes, les sous-tâches, les dates, la priorité, les étiquettes et la répétition.
 - Attribuer la tâche à lui-même, à un autre membre du projet, à l’un de ses agents ou à une automatisation conçue pour les tâches.
 - Démarrer, guider ou arrêter l’agent, y compris en le mentionnant avec @ dans un commentaire.
 - Changer le statut, et accepter un résultat en passant la tâche à **Terminé**.
 - Archiver la tâche ou la restaurer.
 
-Il en va de même pour les sous-tâches placées sous une telle tâche, quelle que soit la personne qui les a ajoutées, par exemple un agent qui a découpé le travail : elles n’empêchent donc jamais le Membre de clôturer sa tâche.
+Il en va de même pour les sous-tâches placées sous une telle tâche, quelle que soit la personne qui les a ajoutées, par exemple un agent qui a découpé le travail : elles n’empêchent donc jamais le Membre de clôturer sa tâche. Modifier **Relecteur** exige le droit de modifier le projet, même sur une tâche que tu as créée ou qui t’est attribuée.
 
 Sur les tâches des autres, un Membre lit et commente ; s’il y mentionne un agent, la mention reste ordinaire et ne lance rien. Chacun peut modifier et supprimer ses propres commentaires sur toute tâche qu’il peut lire, et les propriétaires et les admins peuvent aussi supprimer ceux des autres.
 
@@ -72,7 +72,7 @@ L’exécution peut toujours lire les tâches et les connaissances du projet, et
 
 ## Désigner un responsable et un relecteur
 
-**Assigné à** indique qui fait le travail : une personne, un agent du projet ou une automatisation disponible dans ce projet. **Relecteur** désigne la personne à prévenir lorsque le résultat d’un agent attend une revue. Seuls les membres qui peuvent modifier le projet peuvent être relecteurs.
+**Assigné à** désigne qui réalise le travail : une personne, un agent de projet ou une automatisation disponible dans le projet. **Relecteur** permet de choisir une personne, un agent de projet ou le **Choix par défaut du projet** pour examiner le résultat. Modifier ce choix exige le droit de modifier le projet. Un relecteur humain doit aussi avoir ce droit ; un agent relecteur doit appartenir au même projet et être différent de celui qui a produit le résultat.
 
 Assigner un agent et lancer son exécution sont deux choix distincts. Après l’assignation, clique sur **Démarrer l'agent** ou passe la tâche à **En cours**. Lis [Automatiser les tâches](/fr/platform/projects/task-automation) avant de lancer un travail qui utilise des services connectés ou produit des fichiers.
 
@@ -84,7 +84,25 @@ Si le projet n’a pas d’agent propre, **Assigné à** propose l’option **Ag
 
 </Frame>
 
-Le relecteur reçoit la demande de revue, sans être le seul autorisé à décider. Toute autre personne qui peut modifier la tâche peut aussi accepter le résultat : un Éditeur ou un rôle supérieur, ou le Membre à qui la tâche appartient. Si ton organisation exige une relecture indépendante, la personne qui a démarré l’exécution d’agent examinée ne peut toutefois pas en accepter le résultat ; quand aucune exécution d’agent n’a produit le résultat, c’est la personne qui a créé la tâche qui ne le peut pas. Une exécution qu’un Membre a démarrée sur sa propre tâche attend alors un Éditeur ou un rôle supérieur, tandis que le Membre peut toujours accepter une exécution qu’un Éditeur y a démarrée.
+Quand la relecture est attribuée à une personne, celle-ci reçoit la demande sans être la seule autorisée à accepter le résultat. Toute autre personne qui peut modifier la tâche peut aussi l’accepter : un Éditeur ou un rôle supérieur, ou le Membre à qui la tâche appartient. Si l’organisation exige une relecture indépendante, la personne qui a démarré l’exécution examinée ne peut pas en accepter le résultat ; si le résultat ne vient pas d’une exécution d’agent, cette restriction s’applique à la personne qui a créé la tâche. Les compétences humaines requises restent exigées. Une relecture attribuée à un agent attend sa décision, ou un transfert explicite à une personne autorisée avant toute approbation humaine.
+
+Si la politique de relecture de l’organisation est illisible ou invalide, l’approbation humaine est refusée, y compris après un transfert d’un agent à une personne. Un administrateur de l’organisation doit rétablir une configuration valide avant que l’approbation puisse réussir. Les demandes de modifications et le retrait d’une relecture gardent leur fonctionnement actuel.
+
+### Définir le relecteur par défaut du projet {#review-default}
+
+Dans l’onglet **Général** du projet, ouvre **Relecture des tâches**, choisis le **Relecteur par défaut**, puis enregistre les modifications du projet. Le choix initial, **Personne**, retient d’abord la personne qui a créé la tâche, puis celle qui a créé le projet, si elle peut le modifier. Choisis un agent de projet indépendant pour lui attribuer les nouvelles relectures. Ce réglage ne démarre pas l’agent et ne lui accorde pas la permission de relire ; [Configurer un relecteur indépendant](/fr/platform/projects/task-automation#agent-review) décrit ces étapes.
+
+Les tâches qui suivent le **Choix par défaut du projet** reprennent ce choix au début d’une nouvelle relecture. Une personne ou un agent explicitement choisi pour une tâche reste sélectionné. Les relectures déjà en attente conservent leur relecteur enregistré, même si le choix du projet change. Si quelqu’un modifie ce choix pendant ta modification, abandonne ton brouillon périmé et choisis à nouveau.
+
+Le choix d’un agent par défaut s’applique uniquement aux résultats d’une exécution native d’agent de projet, si l’organisation n’exige ni indépendance humaine ni justificatifs de compétences. Un travail soumis par une personne ou une automation sans cette exécution suit la chaîne de relecture humaine. Pour enregistrer le choix d’un agent, sa permission de relire doit être active ; une tâche ne peut pas choisir l’agent qui l’a réalisée comme relecteur. Une relecture déjà en attente ne change jamais de responsable automatiquement après une modification des permissions, de l’affectation ou de la politique.
+
+### Transférer une relecture en attente {#transfer-review}
+
+Ouvre la tâche et lis **Relecture en cours** sous **Relecteur**. Cette indication désigne qui doit examiner le résultat en attente ; elle peut différer du choix actuel du projet. Choisir un autre relecteur lui transfère aussi cette relecture, sans changer l’assignation du travail ni démarrer d’exécution. Le **Choix par défaut du projet** utilise la sélection actuelle du projet. Si le relecteur ou le résultat a changé depuis le chargement de la tâche, le transfert est refusé ; vérifie l’état actualisé avant de choisir à nouveau.
+
+Un agent peut uniquement relire un résultat terminé produit par un autre agent de projet. Réassigner la tâche ne change pas l’identité de l’agent qui a produit ce résultat. Une exécution active ou une question ouverte peut empêcher le transfert à un agent. En l’absence d’une exécution d’agent terminée compatible, ou si la politique exige une indépendance humaine ou des justificatifs de compétences, choisis une personne autorisée. Si l’agent est indisponible ou n’a pas la permission de relire, la tâche en indique la raison ; elle ne te réattribue pas silencieusement la relecture.
+
+La relecture en cours explique aussi les blocages liés à l’auto-relecture, à une nouvelle affectation du travail ou à une politique illisible. Rétablis la condition indiquée ou transfère explicitement la relecture ; le résultat de l’exécution reste enregistré. Une tâche répétée conserve un agent explicitement choisi même s’il a été supprimé ou a perdu sa permission. Corrige ce choix plutôt que d’hériter silencieusement d’un autre relecteur.
 
 ## Montrer la progression avec les statuts
 
@@ -95,8 +113,8 @@ Modifie **Statut** dans les détails de la tâche ou déplace sa carte vers une 
 | **Backlog** | Travail proposé, mais pas encore retenu. |
 | **À faire** | Travail prêt à démarrer. |
 | **En cours** | Travail commencé. Pour une tâche assignée à un agent, passer à ce statut lance son exécution. |
-| **En revue** | Résultat en attente d’une vérification humaine. |
-| **Terminé** | Une personne a accepté le travail accompli. |
+| **En revue** | Résultat en attente de son relecteur humain ou de son agent relecteur. |
+| **Terminé** | Le travail accompli a été accepté. |
 | **Annulé** | Travail abandonné. |
 
 Pour une tâche d’agent, changer de statut peut démarrer ou annuler une exécution. Lis l’indication de l’action avant de déplacer la carte. Un agent remet son résultat à **En revue** ; il ne peut pas le marquer lui-même **Terminé**.
@@ -172,7 +190,7 @@ Survole **Répéter** ou place le focus clavier dessus pour lire pourquoi le cha
 
 ## Vérifier le résultat avant de clôturer
 
-Pour une tâche humaine, compare le travail au critère de fin décrit dans la tâche. Pour un agent, lis son compte rendu dans les commentaires et examine les fichiers produits. Une exécution terminée indique que l’agent a cessé de travailler ; le résultat attend encore son acceptation par une personne.
+Pour une tâche humaine, compare le travail au critère de fin décrit dans la tâche. Pour un agent, lis son compte rendu dans les commentaires et examine les fichiers produits. Une exécution terminée indique que l’agent a cessé de travailler. Consulte la décision de relecture enregistrée pour savoir si le résultat a été accepté.
 
 Passe la tâche à **Terminé** lorsqu’elle répond au besoin. Si l’agent doit reprendre son travail, explique précisément la modification attendue dans un commentaire et mentionne-le. [Automatiser les tâches](/fr/platform/projects/task-automation) détaille les reprises, nouvelles tentatives et annulations.
 

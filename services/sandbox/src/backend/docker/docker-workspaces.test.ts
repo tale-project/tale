@@ -375,7 +375,7 @@ describe('DockerSessionBackend.listWorkspaces', () => {
         '--filter',
         'label=tale.sandbox-session=1',
         '--format',
-        '{{.Label "tale.session"}}\t{{.Label "tale.org"}}\t{{.Label "tale.profile"}}\t{{.Label "tale.created"}}\t{{.State}}\t{{.Label "tale.sandbox-instance"}}',
+        '{{.Label "tale.session"}}\t{{.Label "tale.org"}}\t{{.Label "tale.profile"}}\t{{.Label "tale.created"}}\t{{.State}}\t{{.Label "tale.sandbox-instance"}}\t{{.Label "tale.docker"}}',
       ],
     ]);
   });

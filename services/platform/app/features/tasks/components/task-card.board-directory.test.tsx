@@ -13,6 +13,7 @@ import type { TaskCreatorType, TaskDoc } from '../lib/display';
 import { KanbanBoard } from './kanban-board';
 import {
   type BoardActorDirectory,
+  type PendingReviewRef,
   TaskBoardProvider,
 } from './task-board-context';
 
@@ -122,12 +123,19 @@ function boardDirectory(
 function Board({
   tasks,
   actors,
+  pendingReviews,
 }: {
   tasks: TaskDoc[];
   actors?: BoardActorDirectory;
+  pendingReviews?: PendingReviewRef[];
 }) {
   return (
-    <TaskBoardProvider tasks={tasks} dependencyEdges={[]} actors={actors}>
+    <TaskBoardProvider
+      tasks={tasks}
+      dependencyEdges={[]}
+      actors={actors}
+      pendingReviews={pendingReviews}
+    >
       <KanbanBoard tasks={tasks} canWorkTask={() => true} />
     </TaskBoardProvider>
   );
@@ -158,6 +166,50 @@ describe('TaskCard on a project board', () => {
     // No assignee list is mounted before someone opens one.
     expect(useAssignableActors).not.toHaveBeenCalled();
     expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+  });
+
+  it('names the captured agent reviewer from the shared directory after future settings change', () => {
+    render(
+      <Board
+        tasks={[{ ...reviewed, reviewerUserId: 'user_1' }]}
+        actors={boardDirectory({ agent_review: 'Review Agent' })}
+        pendingReviews={[
+          {
+            taskId: reviewed._id,
+            requestedFor: 'user_1',
+            reviewer: { kind: 'agent', agentId: 'agent_review' },
+          },
+        ]}
+      />,
+    );
+
+    expect(
+      screen.getByLabelText('Waiting on Review Agent'),
+    ).toBeInTheDocument();
+    expect(useActorDirectory).not.toHaveBeenCalled();
+    expect(useAssignableActors).not.toHaveBeenCalled();
+  });
+
+  it('keeps an unresolved captured reviewer instead of naming the task’s future reviewer', () => {
+    render(
+      <Board
+        tasks={[reviewed]}
+        actors={boardDirectory({ user_2: 'Future Reviewer' })}
+        pendingReviews={[
+          {
+            taskId: reviewed._id,
+            requestedFor: 'user_2',
+            reviewer: null,
+          },
+        ]}
+      />,
+    );
+
+    expect(screen.getByLabelText('Needs review')).toBeInTheDocument();
+    expect(
+      screen.queryByLabelText('Waiting on Future Reviewer'),
+    ).not.toBeInTheDocument();
+    expect(useActorDirectory).not.toHaveBeenCalled();
   });
 
   it('renames every card when the board’s directory changes', () => {

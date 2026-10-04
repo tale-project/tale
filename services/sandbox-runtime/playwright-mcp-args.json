@@ -1,0 +1,20 @@
+[
+  [
+    "--headless",
+    "--browser",
+    "chromium",
+    "--isolated",
+    "--no-sandbox",
+    "--ignore-https-errors"
+  ],
+  [
+    "--headless",
+    "--browser",
+    "chromium",
+    "--isolated",
+    "--no-sandbox",
+    "--ignore-https-errors",
+    "--image-responses",
+    "omit"
+  ]
+]

@@ -764,24 +764,32 @@ export async function cancelAgentRun(
 }
 
 /**
- * The release-edge wake: claim the org's OLDEST parked run and re-enqueue
- * its turn. A spurious wake (nobody parked) is a cheap no-op; a failed
- * restart re-parks, re-arming the claim. A parked run already past its
- * deadline is NOT a candidate: it belongs to the task-agent watchdog's
- * deadline lane (failed as "waited for capacity past its time limit"), and
- * waking it would launch a turn the drive's deadline cut stops on arrival —
- * un-parking it first would also hide it from that lane, which keys on
- * `waiting_for_capacity_at_ms IS NOT NULL`.
+ * Claim ONE parked run — the oldest park of one organization, or the oldest
+ * of every organization but one — and re-enqueue its turn. A spurious wake
+ * (nobody parked) is a cheap no-op; a failed restart re-parks, re-arming
+ * the claim. A parked run already past its deadline is NOT a candidate: it
+ * belongs to the task-agent watchdog's deadline lane (failed as "waited for
+ * capacity past its time limit"), and waking it would launch a turn the
+ * drive's deadline cut stops on arrival — un-parking it first would also
+ * hide it from that lane, which keys on `waiting_for_capacity_at_ms IS NOT
+ * NULL`.
  */
-export async function wakeParkedAgentRuns(
+async function wakeOldestParkedAgentRun(
   sql: Sql,
-  organizationId: string,
+  scope: { organizationId: string } | { outsideOrganizationId: string },
 ): Promise<number> {
+  const inside = 'organizationId' in scope;
+  const organizationId = inside
+    ? scope.organizationId
+    : scope.outsideOrganizationId;
   return sql.begin(async (tx) => {
-    const parked = await tx<{ id: string; execId: string; taskId: string }[]>`
-      SELECT id, exec_id AS "execId", task_id AS "taskId"
+    const parked = await tx<ParkedRun[]>`
+      SELECT id, org_id AS "organizationId", exec_id AS "execId",
+             task_id AS "taskId"
       FROM app.project_agent_runs
-      WHERE org_id = ${organizationId} AND status = 'queued'
+      WHERE CASE WHEN ${inside} THEN org_id = ${organizationId}
+              ELSE org_id <> ${organizationId} END
+        AND status = 'queued'
         AND waiting_for_capacity_at_ms IS NOT NULL
         AND deadline_at_ms > ${Date.now()}
       ORDER BY waiting_for_capacity_at_ms
@@ -790,31 +798,133 @@ export async function wakeParkedAgentRuns(
     `;
     const run = parked[0];
     if (!run) return 0;
-    await tx`
-      UPDATE app.project_agent_runs SET
-        waiting_for_capacity_at_ms = NULL, updated_at_ms = ${Date.now()}
-      WHERE id = ${run.id}
-    `;
-    await addJobInTx(tx, 'task.agent_turn', {
-      organizationId,
-      runId: run.id,
-      execId: run.execId,
-    });
-    await emitTaskRunHint(tx, { organizationId, taskId: run.taskId });
+    await restartParkedRun(tx, run);
     return 1;
   });
 }
 
-/** Watchdog work lists: parked runs (oldest first) and stalled launches. */
-export async function listParkedAgentRuns(
+interface ParkedRun {
+  id: string;
+  organizationId: string;
+  execId: string;
+  taskId: string;
+}
+
+/** Un-park a claimed run and re-enqueue its turn, in the claim's
+ * transaction. */
+async function restartParkedRun(
+  tx: TransactionSql,
+  run: ParkedRun,
+): Promise<void> {
+  await tx`
+    UPDATE app.project_agent_runs SET
+      waiting_for_capacity_at_ms = NULL, updated_at_ms = ${Date.now()}
+    WHERE id = ${run.id}
+  `;
+  await addJobInTx(tx, 'task.agent_turn', {
+    organizationId: run.organizationId,
+    runId: run.id,
+    execId: run.execId,
+  });
+  await emitTaskRunHint(tx, {
+    organizationId: run.organizationId,
+    taskId: run.taskId,
+  });
+}
+
+/** Wake ONE run parked because the sandbox host refused its start, when
+ * the spawner said its place in line comes up (`task.agent_park_wake`).
+ * Claims the run only while it is still parked under that exec and inside
+ * its deadline: a wake delivered twice, or after a release edge or the
+ * watchdog already woke it, does nothing. */
+export async function wakeParkedAgentRun(
   sql: Sql,
-  limit = 50,
-): Promise<Array<{ organizationId: string; runId: string; execId: string }>> {
-  return sql<{ organizationId: string; runId: string; execId: string }[]>`
-    SELECT org_id AS "organizationId", id AS "runId", exec_id AS "execId"
+  args: { organizationId: string; runId: string; execId: string },
+): Promise<number> {
+  return sql.begin(async (tx) => {
+    const parked = await tx<ParkedRun[]>`
+      SELECT id, org_id AS "organizationId", exec_id AS "execId",
+             task_id AS "taskId"
+      FROM app.project_agent_runs
+      WHERE id = ${args.runId} AND org_id = ${args.organizationId}
+        AND exec_id = ${args.execId}
+        AND status = 'queued'
+        AND waiting_for_capacity_at_ms IS NOT NULL
+        AND deadline_at_ms > ${Date.now()}
+      FOR UPDATE SKIP LOCKED
+    `;
+    const run = parked[0];
+    if (!run) return 0;
+    await restartParkedRun(tx, run);
+    return 1;
+  });
+}
+
+/** Claim one organization's OLDEST parked run and re-enqueue its turn — the
+ * watchdog's per-organization wake (see {@link wakeOldestParkedAgentRun}). */
+export async function wakeOrganizationParkedAgentRun(
+  sql: Sql,
+  organizationId: string,
+): Promise<number> {
+  return wakeOldestParkedAgentRun(sql, { organizationId });
+}
+
+/**
+ * The release-edge wake: room freed by one organization's session goes to
+ * that organization's OLDEST parked run, and to the oldest parked run of
+ * every other organization. The organization's own budget is what its
+ * release freed; the sandbox host is shared, so the same release can free
+ * host room a run of another organization waits for — and an organization
+ * that runs nothing of its own has no release edge that would ever wake
+ * it. Each wake claims at most one run, so one release starts at most two
+ * turns, and one that still finds no room parks again at the back.
+ * Best-effort per wake: the cross-organization claim runs even when the
+ * organization's own failed.
+ */
+export async function wakeParkedAgentRuns(
+  sql: Sql,
+  organizationId: string,
+): Promise<number> {
+  let woken = 0;
+  let failure: unknown;
+  for (const scope of [
+    { organizationId },
+    { outsideOrganizationId: organizationId },
+  ]) {
+    try {
+      woken += await wakeOldestParkedAgentRun(sql, scope);
+    } catch (error) {
+      failure ??= error;
+    }
+  }
+  if (failure !== undefined) throw failure;
+  return woken;
+}
+
+/** The organizations a watchdog tick wakes parked runs of, at most. */
+const PARKED_ORGANIZATIONS_PER_TICK = 500;
+
+/**
+ * The watchdog's parked-run work list: every organization with a run
+ * parked for capacity that is still inside its deadline, the one whose
+ * park is oldest first. Organizations, not rows: one organization's
+ * backlog of parked runs must not crowd every other organization off a
+ * page of the oldest rows. The cap bounds a tick's work; the order rotates,
+ * since a woken run that still finds no room parks again with a fresh
+ * stamp, moving an organization whose parked runs were all tried to the
+ * back.
+ */
+export async function listParkedAgentRunOrganizations(
+  sql: Sql,
+  limit = PARKED_ORGANIZATIONS_PER_TICK,
+): Promise<Array<{ organizationId: string }>> {
+  return sql<{ organizationId: string }[]>`
+    SELECT org_id AS "organizationId"
     FROM app.project_agent_runs
     WHERE status = 'queued' AND waiting_for_capacity_at_ms IS NOT NULL
-    ORDER BY waiting_for_capacity_at_ms
+      AND deadline_at_ms > ${Date.now()}
+    GROUP BY org_id
+    ORDER BY min(waiting_for_capacity_at_ms), org_id
     LIMIT ${limit}
   `;
 }
@@ -979,6 +1089,10 @@ export interface TaskAgentRunSummary {
   settledAt: number | null;
   waitingForCapacity: boolean;
   failureCode: string | null;
+  /** The same pending native retry the task card reads. A finished run is
+   * not idle work while its automatic retry is still armed. False is an
+   * observed fact, not permission to restart or a provider reset time. */
+  retryPending: boolean;
   feedback: string | null;
   feedbackTruncated: boolean;
 }
@@ -999,7 +1113,9 @@ export async function listTaskAgentRunSummaries(
     beforeSeq?: number;
   },
 ): Promise<TaskAgentRunSummary[]> {
-  return sql<TaskAgentRunSummary[]>`
+  const rows = await sql<
+    (Omit<TaskAgentRunSummary, 'retryPending'> & { agentExists: boolean })[]
+  >`
     SELECT id, seq::float8 AS seq, agent_id AS "agentId", status, trigger,
            started_at_ms::float8 AS "startedAt",
            launched_at_ms::float8 AS "launchedAt",
@@ -1007,6 +1123,11 @@ export async function listTaskAgentRunSummaries(
            (status = 'queued' AND waiting_for_capacity_at_ms IS NOT NULL)
              AS "waitingForCapacity",
            failure_code AS "failureCode",
+           EXISTS (
+             SELECT 1 FROM app.project_agents a
+             WHERE a.id = project_agent_runs.agent_id
+               AND a.org_id = project_agent_runs.org_id
+           ) AS "agentExists",
            left(feedback, ${AGENT_RUN_FEEDBACK_EXCERPT_CHARS}) AS feedback,
            coalesce(char_length(feedback) > ${AGENT_RUN_FEEDBACK_EXCERPT_CHARS},
                     false) AS "feedbackTruncated"
@@ -1017,6 +1138,17 @@ export async function listTaskAgentRunSummaries(
     ORDER BY seq DESC
     LIMIT ${Math.min(Math.max(Math.floor(args.limit), 1), 100)}
   `;
+  const newest = rows[0];
+  // One history read at most. The shared helper also verifies the global
+  // newest run, so a page of older failures cannot claim a pending retry.
+  // Like the task card, an agent that no longer exists cannot be retried.
+  const retryPending =
+    newest?.status === 'failed' && newest.agentExists
+      ? await failedRunRetryPending(sql, args.taskId, newest.id)
+      : false;
+  return rows.map(({ agentExists: _agentExists, ...run }, index) =>
+    Object.assign(run, { retryPending: index === 0 && retryPending }),
+  );
 }
 
 /** The 0.4 sandbox-op wire for one run's live transcript. */

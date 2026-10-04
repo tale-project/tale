@@ -1,3 +1,4 @@
+import { Card } from '@tale/ui/card';
 import { cn } from '@tale/ui/cn';
 import type { ReactNode } from 'react';
 
@@ -13,13 +14,12 @@ interface MarketingPanelProps {
  */
 export function MarketingPanel({ children, className }: MarketingPanelProps) {
   return (
-    <div
-      className={cn(
-        'border-border-base bg-surface-site-raised overflow-hidden rounded-xl border',
-        className,
-      )}
+    <Card
+      padding="none"
+      radius="xl"
+      className={cn('bg-surface-site-raised overflow-hidden', className)}
     >
       {children}
-    </div>
+    </Card>
   );
 }

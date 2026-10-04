@@ -9,8 +9,17 @@ export function webHealthStatus(opts: {
   webhookUrl: string;
   formsRequired: boolean;
   version: string;
+  releases?: {
+    ok: boolean;
+    releasesFetchedAt: string;
+    source: 'live' | 'snapshot';
+    ageSeconds: number | null;
+  };
 }): { status: number; body: Record<string, unknown> } {
-  const checks = { forms: formsHealthCheck(opts.webhookUrl) };
+  const checks = {
+    forms: formsHealthCheck(opts.webhookUrl),
+    ...(opts.releases ? { releases: opts.releases } : {}),
+  };
   const formsBlocking = opts.formsRequired && !checks.forms.ok;
   return {
     status: formsBlocking ? 503 : 200,

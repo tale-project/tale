@@ -3,7 +3,7 @@ title: Projektagenten verstehen
 description: Lege den Aufgabenbereich eines Agenten fest und verstehe das Zusammenspiel von Laufzeit, Modell, Anweisungen und Ausstattung.
 ---
 
-Ein Projektagent bearbeitet Aufgaben in einem bestimmten Projekt. Du legst fest, wie er arbeitet und worauf er zugreifen darf, und gibst ihm eine Aufgabe mit einem prüfbaren Ergebnis. In seiner Sandbox kann er Dateien bearbeiten und Befehle ausführen. Eine Person prüft das Ergebnis, bevor sie die Aufgabe abschließt.
+Ein Projektagent bearbeitet Aufgaben in einem bestimmten Projekt. Du legst fest, wie er arbeitet und worauf er zugreifen darf, und gibst ihm eine Aufgabe mit einem prüfbaren Ergebnis. In seiner Sandbox kann er Dateien bearbeiten und Befehle ausführen. Der [festgelegte Prüfer](/de/platform/projects/tasks#review-default), eine Person oder ein unabhängiger Projektagent, prüft das Ergebnis vor dem Abschluss der Aufgabe. Neue Prüfungen, die menschliche Unabhängigkeit oder Kompetenznachweise voraussetzen, gehen in die menschliche Prüferkette; eine bereits einem Agenten zugewiesene Prüfung muss ausdrücklich an eine berechtigte Person übertragen werden.
 
 ## Die passende Arbeitsform wählen
 

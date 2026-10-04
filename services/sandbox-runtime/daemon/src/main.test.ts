@@ -1,8 +1,20 @@
 // Drive runnerd over HTTP without Docker: the retired viewing surface must be
 // gone while ordinary command execution still streams stdout and exit status.
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
-import { mkdtempSync, realpathSync, rmSync } from 'node:fs';
-import { request, type Server } from 'node:http';
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
+import {
+  request,
+  type IncomingMessage,
+  type Server,
+  type ServerResponse,
+} from 'node:http';
 import { tmpdir } from 'node:os';
 
 const workspace = realpathSync(mkdtempSync(`${tmpdir()}/runnerd-http-`));
@@ -46,6 +58,15 @@ afterAll(async () => {
 
 const headers = { 'x-tale-runnerd-token': token };
 
+function alive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (err) {
+    return err instanceof Error && 'code' in err && err.code === 'EPERM';
+  }
+}
+
 function record(value: unknown): Record<string, unknown> {
   return value !== null && typeof value === 'object'
     ? Object.fromEntries(Object.entries(value))
@@ -66,6 +87,21 @@ async function activityPost(path: string, body: object = {}) {
 
 async function releaseTicket(): Promise<Record<string, unknown>> {
   return record(await (await fetch(`${baseUrl}/release`, { headers })).json());
+}
+
+async function waitUntil(predicate: () => boolean): Promise<void> {
+  const deadline = Date.now() + 5_000;
+  while (!predicate() && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  expect(predicate()).toBe(true);
+}
+
+async function currentActiveOperations(): Promise<number> {
+  const health = record(
+    await (await fetch(`${baseUrl}/healthz`, { headers })).json(),
+  );
+  return Number(record(health.activity).activeOperations);
 }
 
 describe('runnerd HTTP service', () => {
@@ -103,6 +139,7 @@ describe('runnerd HTTP service', () => {
         released: false,
         pinned: false,
         reclaiming: false,
+        idleReclaim: true,
       },
     });
   });
@@ -212,6 +249,158 @@ describe('runnerd HTTP service', () => {
     }
   });
 
+  for (const mode of ['exec', 'attach'] as const) {
+    test(`a stalled ${mode} consumer disconnects while its exec remains attachable`, async () => {
+      const execId = `stalled-${mode}`;
+      const path = mode === 'exec' ? '/execs' : `/execs/${execId}/attach`;
+      let stalled: ServerResponse | undefined;
+      let intake: IncomingMessage | undefined;
+      const observe = (req: IncomingMessage, res: ServerResponse) => {
+        if (req.url === path) {
+          stalled = res;
+          intake = req;
+        }
+      };
+      server.on('request', observe);
+      const body = JSON.stringify({
+        execId,
+        // Release the output only after the slow consumer has received its
+        // headers and paused. Keep the command live after its 32 MiB burst.
+        shell: `echo $$ > ${execId}.pid; while [ ! -f ${execId}.emit ]; do sleep 0.02; done; head -c 33554432 /dev/zero; exec sleep 30`,
+        cwd: workspace,
+        timeoutMs: 30_000,
+        stdoutMaxBytes: 0,
+        stderrMaxBytes: 0,
+      });
+      const primaryReceived = Promise.withResolvers<void>();
+      const primary = request(
+        `${baseUrl}/execs`,
+        { method: 'POST', headers },
+        (response) => {
+          response.on('error', () => {});
+          if (mode === 'exec') response.pause();
+          else response.resume();
+          primaryReceived.resolve();
+        },
+      );
+      primary.on('error', primaryReceived.reject);
+      let attachment: ReturnType<typeof request> | undefined;
+      let terminal: Promise<string> | undefined;
+      try {
+        primary.end(body);
+        await primaryReceived.promise;
+        if (mode === 'attach') {
+          const received = Promise.withResolvers<void>();
+          attachment = request(`${baseUrl}${path}`, { headers }, (response) => {
+            response.on('error', () => {});
+            response.pause();
+            received.resolve();
+          });
+          attachment.on('error', received.reject);
+          attachment.end();
+          await received.promise;
+        }
+        expect(stalled).toBeDefined();
+        // A running response must not keep the parsed upload buffered in
+        // IncomingMessage listeners; detach also releases its abort hook.
+        expect(intake?.listenerCount('data')).toBe(0);
+        writeFileSync(`${workspace}/${execId}.emit`, 'go');
+        await waitUntil(() => stalled?.destroyed === true);
+        expect(intake?.listenerCount('aborted')).toBe(0);
+        expect(stalled?.listenerCount('drain')).toBe(0);
+        expect(
+          await (await fetch(`${baseUrl}/execs/${execId}`, { headers })).json(),
+        ).toMatchObject({ state: 'running' });
+        expect(
+          alive(Number(readFileSync(`${workspace}/${execId}.pid`, 'utf8'))),
+        ).toBe(true);
+        // The healthy primary in the attach case also leaves now, so no
+        // disconnected consumer keeps an activity operation open.
+        primary.destroy();
+        const deadline = Date.now() + 5_000;
+        while ((await currentActiveOperations()) > 0 && Date.now() < deadline) {
+          await new Promise((resolve) => setTimeout(resolve, 10));
+        }
+        expect(await currentActiveOperations()).toBe(0);
+        const reattach = await fetch(`${baseUrl}/execs/${execId}/attach`, {
+          headers,
+        });
+        expect(reattach.status).toBe(200);
+        terminal = reattach.text();
+        const cancel = await fetch(`${baseUrl}/execs/${execId}/cancel`, {
+          method: 'POST',
+          headers,
+        });
+        expect(await cancel.json()).toEqual({ killed: true });
+        const stream = await terminal;
+        expect(stream).toContain('"t":"stdout"');
+        expect(stream).toContain('"t":"exit"');
+        expect(stream).toContain('"timedOut":false');
+        expect(stream).toContain('"cancelled":true');
+      } finally {
+        server.removeListener('request', observe);
+        primary.destroy();
+        attachment?.destroy();
+        await fetch(`${baseUrl}/execs/${execId}/cancel`, {
+          method: 'POST',
+          headers,
+        });
+        await terminal;
+      }
+    }, 15_000);
+  }
+
+  test.skipIf(!existsSync('/proc/self/environ'))(
+    'a cancel with leftovers=keep leaves what the exec started outside its group to the next exec',
+    async () => {
+      const execBody = (execId: string, shell: string) =>
+        JSON.stringify({
+          execId,
+          shell,
+          cwd: workspace,
+          timeoutMs: 30_000,
+          stdoutMaxBytes: 10_000,
+          stderrMaxBytes: 10_000,
+        });
+      const turn = fetch(`${baseUrl}/execs`, {
+        method: 'POST',
+        headers,
+        body: execBody(
+          'rotated-turn',
+          'setsid /bin/sleep 408 >/dev/null 2>&1 </dev/null & sleep 0.2; pgrep -n -f "^/bin/sleep 408$" > server.pid; exec sleep 30',
+        ),
+      }).then((response) => response.text());
+      let pid = 0;
+      const started = Date.now();
+      while (pid <= 1 && Date.now() - started < 5_000) {
+        await new Promise((r) => setTimeout(r, 20));
+        pid = existsSync(`${workspace}/server.pid`)
+          ? Number(readFileSync(`${workspace}/server.pid`, 'utf8').trim())
+          : 0;
+      }
+      expect(pid).toBeGreaterThan(1);
+      const cancel = await fetch(
+        `${baseUrl}/execs/rotated-turn/cancel?leftovers=keep`,
+        { method: 'POST', headers },
+      );
+      expect(await cancel.json()).toEqual({ killed: true });
+      expect(await turn).toContain('"cancelled":true');
+      await new Promise((r) => setTimeout(r, 300));
+      expect(alive(pid)).toBe(true);
+      const next = await fetch(`${baseUrl}/execs`, {
+        method: 'POST',
+        headers,
+        body: execBody('next-turn', 'true'),
+      });
+      expect(await next.text()).toContain('"exitCode":0');
+      const until = Date.now() + 3_000;
+      while (alive(pid) && Date.now() < until) {
+        await new Promise((r) => setTimeout(r, 20));
+      }
+      expect(alive(pid)).toBe(false);
+    },
+  );
+
   // KEEP LAST: the claim below freezes the one daemon this file shares —
   // by design a successful claim never expires — so every request a later
   // test would make answers 503 `reclaiming`.
@@ -222,6 +411,24 @@ describe('runnerd HTTP service', () => {
       released: false,
     });
     const current = await releaseTicket();
+    for (const idleBeforeMs of [null, '0', -1, 1.5]) {
+      expect(
+        (
+          await activityPost('/reclaim', {
+            claimId: 'invalid-idle-cutoff',
+            idleBeforeMs,
+          })
+        ).status,
+      ).toBe(400);
+    }
+    expect(
+      (
+        await activityPost('/reclaim', {
+          claimId: 'stale-idle-cutoff',
+          idleBeforeMs: 0,
+        })
+      ).value,
+    ).toEqual({ claimed: false });
     expect((await activityPost('/release', current)).value).toEqual({
       released: true,
     });

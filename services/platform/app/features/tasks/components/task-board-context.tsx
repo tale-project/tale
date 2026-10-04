@@ -1,5 +1,6 @@
 'use client';
 
+import type { TaskReviewRecipient } from '@tale/shared/schemas/task-review';
 import { createContext, type ReactNode, useContext, useMemo } from 'react';
 
 import type { ResolvedActor } from '../hooks/use-actor-directory';
@@ -23,6 +24,7 @@ export interface PendingReviewRef {
   /** The named reviewer the request waits on; undefined when the review was
    * minted with no resolvable reviewer. */
   requestedFor: string | undefined;
+  reviewer?: TaskReviewRecipient | null;
 }
 
 /** What a card needs to name the people and agents on it — the slice of
@@ -57,6 +59,7 @@ interface TaskBoardContextValue {
   /** The reviewer the task's review waits on — the pending approval's
    * `requestedFor`, else the task's own designation while at `in_review`. */
   reviewRequestedFor: (taskId: string) => string | undefined;
+  reviewRecipient: (taskId: string) => TaskReviewRecipient | undefined;
   /** The board's actor directory, when it has one (a single project's
    * board); read through {@link useBoardActorDirectory}. */
   actors: BoardActorDirectory | undefined;
@@ -69,6 +72,7 @@ const EMPTY: TaskBoardContextValue = {
   isAgentAsking: () => false,
   needsReview: () => false,
   reviewRequestedFor: () => undefined,
+  reviewRecipient: () => undefined,
   actors: undefined,
 };
 
@@ -123,8 +127,30 @@ export function TaskBoardProvider({
       return (
         task !== undefined &&
         task.status === 'in_review' &&
-        task.reviewerUserId !== undefined
+        (task.reviewerUserId !== undefined ||
+          task.reviewerAgentId !== undefined)
       );
+    };
+    const reviewRecipient = (
+      taskId: string,
+    ): TaskReviewRecipient | undefined => {
+      const pending = pendingByTask.get(taskId);
+      if (pending !== undefined) {
+        // A captured agent or unresolved recipient never becomes a person
+        // because the task's future-review setting changed.
+        if (pending.reviewer !== undefined)
+          return pending.reviewer ?? undefined;
+        return pending.requestedFor === undefined
+          ? undefined
+          : { kind: 'user', userId: pending.requestedFor };
+      }
+      const task = byId.get(taskId);
+      if (task?.status !== 'in_review') return undefined;
+      if (task.reviewerAgentId !== undefined)
+        return { kind: 'agent', agentId: task.reviewerAgentId };
+      return task.reviewerUserId === undefined
+        ? undefined
+        : { kind: 'user', userId: task.reviewerUserId };
     };
     return {
       isBlocked: (taskId) => blocked.has(taskId),
@@ -132,11 +158,10 @@ export function TaskBoardProvider({
       isAgentWorking: (taskId) => working.has(taskId),
       isAgentAsking: (taskId) => asking.has(taskId),
       needsReview: awaitsReview,
+      reviewRecipient,
       reviewRequestedFor: (taskId) => {
-        const pending = pendingByTask.get(taskId);
-        if (pending?.requestedFor !== undefined) return pending.requestedFor;
-        const task = byId.get(taskId);
-        return task?.status === 'in_review' ? task.reviewerUserId : undefined;
+        const recipient = reviewRecipient(taskId);
+        return recipient?.kind === 'user' ? recipient.userId : undefined;
       },
       actors,
     };

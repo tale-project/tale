@@ -15,6 +15,8 @@ export interface RegistrySession {
   sessionId: string;
   organizationId: string;
   profile: SandboxSessionProfile;
+  /** Actual capability of the running incarnation, independent of new defaults. */
+  docker?: boolean;
   state: SandboxSessionState;
   createdAtMs: number;
   expiresAtMs: number;
@@ -27,6 +29,9 @@ export interface RegistrySession {
   /** "Always-on": the idle/TTL reaper skips this session. In-memory only
    * (re-derived from the platform row after a spawner restart). */
   pinned?: boolean;
+  /** runnerd's activity clock as the last sweep read it — how pressure
+   * reclamation picks the session idle longest. */
+  lastActivityAtMs?: number;
 }
 
 export class SessionRegistry {

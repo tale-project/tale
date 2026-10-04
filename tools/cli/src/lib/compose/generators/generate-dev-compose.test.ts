@@ -62,6 +62,8 @@ interface ParsedCompose {
     {
       depends_on?: string[] | Record<string, { condition: string }>;
       volumes?: string[];
+      environment?: Record<string, string>;
+      ports?: string[];
     }
   >;
   volumes: Record<string, unknown>;
@@ -84,6 +86,58 @@ function renderDevCompose(): ParsedCompose {
 }
 
 describe('generateDevCompose — the stack is self-consistent', () => {
+  test('custom local origin reaches the proxy, auth and browser blob URLs', () => {
+    const projectDir = mkdtempSync(join(tmpdir(), 'tale-dev-origin-'));
+    try {
+      const { services } = parse(
+        generateDevCompose(
+          { version: 'latest', registry: 'ghcr.io/tale-project/tale' },
+          'tale.localhost',
+          8443,
+          { projectDir },
+        ),
+      ) as ParsedCompose;
+      for (const name of [
+        'platform',
+        'backend-api',
+        'backend-worker',
+        'sandbox',
+      ]) {
+        expect(services[name]?.environment?.SITE_URL).toBe(
+          'https://tale.localhost:8443',
+        );
+        expect(services[name]?.environment?.HOST).toBe('tale.localhost');
+        expect(services[name]?.environment?.TLS_MODE).toBe('selfsigned');
+      }
+      // The public port must not alter Caddy's internal listeners.
+      expect(services.proxy?.environment?.SITE_URL).toBe(
+        'https://tale.localhost',
+      );
+      expect(services.proxy?.ports).toEqual(['8443:443']);
+      expect(
+        services['backend-api']?.environment?.OBJECT_STORE_PUBLIC_ENDPOINT,
+      ).toBe('${OBJECT_STORE_PUBLIC_ENDPOINT:-https://tale.localhost:8443}');
+    } finally {
+      rmSync(projectDir, { recursive: true, force: true });
+    }
+  });
+  test.each([80, 2020])(
+    'public HTTPS port %i does not collide with private proxy listeners',
+    (port) => {
+      const { services } = parse(
+        generateDevCompose(
+          { version: 'latest', registry: 'ghcr.io/tale-project/tale' },
+          'localhost',
+          port,
+        ),
+      ) as ParsedCompose;
+      expect(services.proxy?.ports).toEqual([`${port}:443`]);
+      expect(services.proxy?.environment?.SITE_URL).toBe('https://localhost');
+      expect(services['backend-api']?.environment?.SITE_URL).toBe(
+        `https://localhost:${port}`,
+      );
+    },
+  );
   // A `depends_on` naming a service the file does not define is a compose
   // file docker refuses outright (`service "x" depends on undefined service
   // "y"`), so the whole `tale dev` stack fails to start. The backend tier

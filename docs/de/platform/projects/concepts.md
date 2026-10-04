@@ -9,7 +9,7 @@ Nutze ein Projekt, wenn mehrere Fragen oder Aufgaben auf denselben Unterlagen be
 
 | Bereich | Was hier hingehört |
 | --- | --- |
-| **Allgemein** | Name, Beschreibung, dauerhafte Anweisungen und Freigabe. |
+| **Allgemein** | Name, Beschreibung, dauerhafte Anweisungen, Freigabe und Standard-Reviewer für Aufgaben. |
 | **Chats** | Deine Projektgespräche und ausdrücklich mit dem Projekt geteilte Gespräche. |
 | **Wissen** | Referenzdateien in Ordnern, deren Zugriff auf dieses Projekt begrenzt ist. |
 | **Aufgaben** | Arbeit mit Zuständigkeit, Status, Kommentaren und einem prüfbaren Ergebnis. |

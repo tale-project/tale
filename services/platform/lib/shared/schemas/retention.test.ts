@@ -108,7 +108,7 @@ describe('retentionDefaultsConfigSchema', () => {
     const suffix = { min: 'MIN', max: 'MAX', default: 'DEF' } as const;
     for (const cat of RETENTION_CATEGORIES) {
       // Unit is derived from the category id by the schema's own rule, and
-      // min must clear every compliance floor (auditLog 365, loginAttempt 90).
+      // min must clear every compliance floor (auditLog 180, loginAttempt 90).
       const unit = String(cat).endsWith('Hours') ? 'hours' : 'days';
       doc[cat] = { min: 365, max: 3650, default: 730, unit };
       for (const field of ['min', 'max', 'default'] as const) {
@@ -139,6 +139,29 @@ describe('retentionDefaultsConfigSchema', () => {
     });
     expect(result.success).toBe(true);
   });
+
+  it('accepts an audit-log floor of 180 days', () => {
+    const result = retentionDefaultsConfigSchema.safeParse({
+      auditLog: { min: 180, max: 3650, default: 730, unit: 'days' },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it.each([
+    ['auditLog', { min: 179, max: 3650, default: 730, unit: 'days' }],
+    ['loginAttempt', { min: 89, max: 365, default: 90, unit: 'days' }],
+  ])(
+    'refuses a floor below the %s compliance floor, naming every floor',
+    (category, bound) => {
+      const result = retentionDefaultsConfigSchema.safeParse({
+        [category]: bound,
+      });
+      expect(result.success).toBe(false);
+      expect(result.error?.issues.map((issue) => issue.message)).toEqual([
+        'compliance floor violation: auditLog.min >= 180, loginAttempt.min >= 90',
+      ]);
+    },
+  );
 
   it('rejects empty object (refine: at least one category)', () => {
     const result = retentionDefaultsConfigSchema.safeParse({});

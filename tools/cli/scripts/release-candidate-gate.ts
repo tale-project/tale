@@ -111,6 +111,7 @@ export const CANDIDATE_JOBS: Record<
       'build',
       'test',
       'test-ui',
+      'performance',
       'knip',
       'test-browser',
       'integration-scope',
@@ -124,6 +125,7 @@ export const CANDIDATE_JOBS: Record<
       'Build',
       'Unit',
       'UI',
+      'Performance',
       'Knip',
       'Browser',
       'Integration scope',
@@ -174,6 +176,27 @@ const RUNS_MAX_PAGES = 10;
 // Filtered Actions searches return at most 1,000 results. At that boundary,
 // even a reported total of 1,000 cannot establish that no run was omitted.
 const RUNS_SEARCH_CEILING = RUNS_PAGE_SIZE * RUNS_MAX_PAGES;
+// The unfiltered run list has no search ceiling. 3,000 runs were about six
+// days of this repository's runs in 2026-10.
+const WALK_MAX_PAGES = 30;
+/** GitHub creates one run of each of these for every push to main: their push
+ * triggers carry no path filter (release-candidate-workflows.test.ts holds
+ * them to the workflow files). */
+export const ALWAYS_PUSH_WORKFLOWS = [
+  '.github/workflows/checks.yml',
+  '.github/workflows/commitlint.yml',
+  '.github/workflows/sast.yml',
+] as const;
+/** The same push may also run these, as their path filters decide. */
+export const FILTERED_PUSH_WORKFLOWS = [
+  CANDIDATE_WORKFLOW_PATH,
+  '.github/workflows/security.yml',
+  '.github/workflows/cli.yml',
+] as const;
+const PUSH_WORKFLOWS = new Set<string>([
+  ...ALWAYS_PUSH_WORKFLOWS,
+  ...FILTERED_PUSH_WORKFLOWS,
+]);
 
 const SHA = /^[a-f0-9]{40}$/;
 const VERSION = /^v\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
@@ -254,6 +277,126 @@ const refSchema = z.object({
   object: z.object({ sha: z.string(), type: z.string() }),
 });
 const releaseSchema = z.object({ tag_name: z.string() });
+const repositorySchema = z.object({
+  id: z.number().int().positive(),
+  full_name: z.string(),
+});
+// Association is discovery, not a merge certificate. Re-read every discovered
+// PR and require these identity/merge fields to agree with its direct record.
+const associatedPullSchema = z.object({
+  id: z.number().int().positive(),
+  number: z.number().int().positive(),
+  state: z.enum(['open', 'closed']),
+  merge_commit_sha: z.string().nullable(),
+  merged_at: z.iso.datetime().nullable(),
+  base: z.object({ ref: z.string(), repo: repositorySchema }),
+});
+const pullSchema = associatedPullSchema.extend({
+  merged: z.boolean(),
+  html_url: z.url(),
+});
+
+type CanonicalMerge = {
+  url: string;
+  createdAt: string;
+  pullRequest: number;
+  repositoryId: number;
+};
+
+/** The release policy's fixed cutoff is this exact commit's canonical PR
+ * merge into the requested repository's main. It is not a reconstruction of
+ * every ref update. Deleted/fork source branches are immaterial: target
+ * identity and the final merge commit are what bind the certificate. */
+async function canonicalMerge(
+  api: GitHubApi,
+  repo: string,
+  sha: string,
+  blocked: string[],
+): Promise<CanonicalMerge | null> {
+  const refuse = (detail: string) => {
+    blocked.push(
+      `unverified canonical main merge for ${sha}: ${detail}; read again or choose a candidate with a verifiable merged PR`,
+    );
+    return null;
+  };
+  try {
+    const metadata = repositorySchema.safeParse(await api(repo));
+    if (
+      !metadata.success ||
+      metadata.data.full_name.toLowerCase() !==
+        repo.slice('repos/'.length).toLowerCase()
+    )
+      return refuse('the requested repository identity is missing or invalid');
+    const target = metadata.data;
+    const seen = new Set<number>();
+    const matches: CanonicalMerge[] = [];
+    for (let page = 1; page <= RUNS_MAX_PAGES; page++) {
+      const discovery = z
+        .array(associatedPullSchema)
+        .max(RUNS_PAGE_SIZE)
+        .safeParse(
+          await api(
+            `${repo}/commits/${sha}/pulls?per_page=${RUNS_PAGE_SIZE}&page=${page}`,
+          ),
+        );
+      if (!discovery.success)
+        return refuse(`associated PR page ${page} is missing or invalid`);
+      for (const hint of discovery.data) {
+        if (seen.has(hint.number))
+          return refuse(`associated PR ${hint.number} is repeated`);
+        seen.add(hint.number);
+        const parsed = pullSchema.safeParse(
+          await api(`${repo}/pulls/${hint.number}`),
+        );
+        if (!parsed.success)
+          return refuse(`PR ${hint.number} is missing or invalid`);
+        const pull = parsed.data;
+        if (
+          JSON.stringify(associatedPullSchema.parse(pull)) !==
+          JSON.stringify(hint)
+        )
+          return refuse(
+            `PR ${hint.number} disagrees with its association record`,
+          );
+        if (
+          pull.base.repo.id !== target.id ||
+          pull.base.repo.full_name.toLowerCase() !==
+            target.full_name.toLowerCase()
+        )
+          return refuse(
+            `PR ${hint.number} names a different target repository`,
+          );
+        if (pull.merge_commit_sha !== sha) continue;
+        if (
+          pull.base.ref !== 'main' ||
+          pull.state !== 'closed' ||
+          !pull.merged ||
+          pull.merged_at === null ||
+          Date.parse(pull.merged_at) > Date.now()
+        )
+          return refuse(
+            `PR ${hint.number} is not a completed, nonfuture exact-candidate merge into main`,
+          );
+        matches.push({
+          url: pull.html_url,
+          createdAt: pull.merged_at,
+          pullRequest: pull.number,
+          repositoryId: target.id,
+        });
+      }
+      if (discovery.data.length < RUNS_PAGE_SIZE) {
+        if (matches.length !== 1)
+          return refuse(
+            `expected one exact-candidate merge record, found ${matches.length}`,
+          );
+        return matches[0]!;
+      }
+    }
+    return refuse('associated PR discovery exceeded its bounded page limit');
+  } catch {
+    return refuse('repository or PR evidence could not be read');
+  }
+}
 
 type Run = z.infer<typeof runSchema>;
 
@@ -278,6 +421,11 @@ export type GateReport = {
   tag: string | null;
   tagName: string | null;
   latestRelease: { tag: string; sha: string | null } | null;
+  /** Verified canonical PR merge. createdAt is the server's merged_at;
+   * an original run created before it never counts, even when rerun later. */
+  arrival: CanonicalMerge | null;
+  /** Candidate runs for C created before that arrival, which never count. */
+  excluded: RunSummary[];
   /** Every candidate run for this SHA, newest attempt first; it decides. */
   validation: RunSummary[];
   receipt: { artifact: string; id: number } | null;
@@ -364,6 +512,273 @@ async function readRuns(
   return refuse('the page limit was reached before the list was complete');
 }
 
+/** The repository's run list without any search filter, newest first, until
+ * `done` holds after a full page or the list ends. Its total is not exact,
+ * and runs created while it is read push earlier ones down a page: those
+ * repeats are skipped. A new run out of id order, a short page before the
+ * list ends or a walk past its page bound refuses it. */
+async function walkRuns(
+  api: GitHubApi,
+  repo: string,
+  done: (runs: Run[]) => boolean,
+  goal: string,
+  blocked: string[],
+): Promise<Run[] | null> {
+  const path = `${repo}/actions/runs?per_page=${RUNS_PAGE_SIZE}`;
+  const runs: Run[] = [];
+  const seen = new Map<number, Run>();
+  const refuse = (detail: string) => {
+    blocked.push(`incomplete workflow run evidence from ${path}: ${detail}`);
+    return null;
+  };
+  for (let page = 1; page <= WALK_MAX_PAGES; page++) {
+    const parsed = runsSchema.safeParse(await api(`${path}&page=${page}`));
+    if (!parsed.success) {
+      return refuse(
+        `page ${page} is missing or invalid (${parsed.error.issues[0]?.message})`,
+      );
+    }
+    const listed = parsed.data.workflow_runs;
+    let repeating = true;
+    for (const run of listed) {
+      if (seen.has(run.id)) {
+        if (
+          repeating &&
+          JSON.stringify(seen.get(run.id)) === JSON.stringify(run)
+        )
+          continue;
+        return refuse(`page ${page} repeats run ${run.id}`);
+      }
+      repeating = false;
+      if (runs.length > 0 && run.id >= runs.at(-1)!.id) {
+        return refuse(`page ${page} lists run ${run.id} out of order`);
+      }
+      if (
+        runs.length > 0 &&
+        Date.parse(run.created_at) > Date.parse(runs.at(-1)!.created_at)
+      ) {
+        return refuse(
+          `page ${page} lists run ${run.id} with creation time out of order`,
+        );
+      }
+      seen.set(run.id, run);
+      runs.push(run);
+    }
+    if (listed.length < RUNS_PAGE_SIZE) {
+      if (seen.size < parsed.data.total_count) {
+        return refuse(`page ${page} ends before the list does`);
+      }
+      return runs;
+    }
+    if (done(runs)) return runs;
+  }
+  return refuse(
+    `it did not get past ${goal} within ${(WALK_MAX_PAGES * RUNS_PAGE_SIZE).toLocaleString('en-US')} runs`,
+  );
+}
+
+/** Push runs corroborate the merge policy; they never define its cutoff.
+ * Refuse observed repeated pushes and arrivals preceding the certificate. */
+function pushAmbiguity(
+  runs: Run[],
+  sha: string,
+  merge: CanonicalMerge,
+): string | null {
+  const cohort = runs.filter(
+    (run) =>
+      run.event === 'push' &&
+      run.head_branch === 'main' &&
+      run.head_sha === sha &&
+      PUSH_WORKFLOWS.has(run.path),
+  );
+  const repeated = cohort.find(
+    (run, index) =>
+      cohort.findIndex((other) => other.path === run.path) !== index,
+  );
+  if (repeated)
+    return `${repeated.path} ran more than once for a push of ${sha} to main (${repeated.html_url}), so where ${sha} reached main is ambiguous`;
+  const earlier = cohort.find(
+    (run) => Date.parse(run.created_at) < Date.parse(merge.createdAt),
+  );
+  return earlier
+    ? `${earlier.html_url} records a push of ${sha} to main before its canonical merge; the arrival evidence is contradictory`
+    : null;
+}
+
+type Listing = {
+  workflow: string | null;
+  path: string;
+  /** Whether a run belongs in this listing; the walk is held to it too. */
+  lists: (run: Run) => boolean;
+  runs: Run[] | null;
+};
+
+/** Two reads of one run agree when they describe the same attempt. A run
+ * still going may move on between them, so its status and conclusion only
+ * have to match once both reads saw it complete. */
+function sameAttempt(a: Run, b: Run) {
+  const attempt = ({
+    status: _status,
+    conclusion: _conclusion,
+    ...rest
+  }: Run) => JSON.stringify(rest);
+  return (
+    attempt(a) === attempt(b) &&
+    (a.status !== 'completed' ||
+      b.status !== 'completed' ||
+      a.conclusion === b.conclusion)
+  );
+}
+
+/** Filtered Actions pages may be self-consistent subsets (#4055). Compare
+ * them with the unfiltered creation-ordered walk past the fixed PR merge
+ * time and every listed run, including excluded originals. We accept that
+ * listing model, not a documented snapshot or lifetime first-arrival proof.
+ * Missing/different attempts refuse; a run either read saw pending waits. */
+async function crossCheck(
+  api: GitHubApi,
+  repo: string,
+  sha: string,
+  listings: Listing[],
+  blocked: string[],
+): Promise<{ arrival: CanonicalMerge | null; excluded: Run[] }> {
+  const complete = listings.filter((listing) => listing.runs !== null);
+  const unverified = (reason?: string) => {
+    if (reason) blocked.push(reason);
+    for (const listing of complete) listing.runs = null;
+    return { arrival: null, excluded: [] };
+  };
+  if (complete.length === 0) return unverified();
+  const merge = await canonicalMerge(api, repo, sha, blocked);
+  if (merge === null) return unverified();
+  const oldestListed = Math.min(
+    ...complete.flatMap((listing) =>
+      listing.runs!.filter(listing.lists).map((run) => run.id),
+    ),
+  );
+  const walked = await walkRuns(
+    api,
+    repo,
+    (runs) => {
+      const last = runs.at(-1)!;
+      return (
+        last.id < oldestListed &&
+        Date.parse(last.created_at) < Date.parse(merge.createdAt)
+      );
+    },
+    `the canonical merge of ${sha} and every run a listing returned`,
+    blocked,
+  );
+  if (walked === null) return unverified();
+  const ambiguity = pushAmbiguity(walked, sha, merge);
+  if (ambiguity) return unverified(ambiguity);
+  const counts = (run: Run) =>
+    Date.parse(run.created_at) >= Date.parse(merge.createdAt);
+  const walkedById = new Map(walked.map((run) => [run.id, run]));
+  const excluded = new Map<number, Run>();
+  for (const listing of complete) {
+    for (const run of [...listing.runs!, ...walked])
+      if (listing.workflow && listing.lists(run) && !counts(run))
+        excluded.set(run.id, walkedById.get(run.id) ?? run);
+    const listed = new Map(
+      listing
+        .runs!.filter((run) => listing.lists(run) && counts(run))
+        .map((run) => [run.id, run]),
+    );
+    const disagreements = [
+      ...walked
+        .filter(
+          (run) => listing.lists(run) && counts(run) && !listed.has(run.id),
+        )
+        .map((run) => `${listing.path} omits ${run.html_url}`),
+      ...[...listed.values()].flatMap((run) => {
+        const other = walkedById.get(run.id);
+        if (!other) return [`the unfiltered run list omits ${run.html_url}`];
+        if (!sameAttempt(run, other))
+          return [
+            `${listing.path} and the unfiltered run list describe ${run.html_url} differently`,
+          ];
+        return [];
+      }),
+    ];
+    if (disagreements.length > 0) {
+      blocked.push(
+        ...disagreements.map(
+          (detail) => `the run listings disagree: ${detail}; read again`,
+        ),
+      );
+      listing.runs = null;
+      continue;
+    }
+    listing.runs = listing.runs!.filter(counts).map((run) => {
+      const other = listed.has(run.id) ? walkedById.get(run.id) : undefined;
+      return other && other.status !== 'completed' ? other : run;
+    });
+  }
+  return { arrival: merge, excluded: [...excluded.values()] };
+}
+
+/** Every run the gate may judge: each workflow's candidate-event listings,
+ * and the runs of the candidate commit itself. The listings carry no branch
+ * filter; a newest attempt from another branch is refused when judged. */
+async function runEvidence(
+  api: GitHubApi,
+  repo: string,
+  sha: string,
+  blocked: string[],
+) {
+  const title = `Release candidate ${sha}`;
+  const listings: Listing[] = [];
+  for (const workflow of [CANDIDATE_WORKFLOW_PATH, ...REQUIRED_WORKFLOWS]) {
+    for (const event of workflow === CANDIDATE_WORKFLOW_PATH
+      ? CANDIDATE_EVENTS
+      : ['repository_dispatch']) {
+      const path = `${repo}/actions/workflows/${stemOf(workflow)}.yml/runs?event=${event}&per_page=${RUNS_PAGE_SIZE}`;
+      listings.push({
+        workflow,
+        path,
+        lists: (run) =>
+          run.path === workflow &&
+          run.event === event &&
+          run.display_title === title,
+        runs: await readRuns(api, path, blocked),
+      });
+    }
+  }
+  const commitPath = `${repo}/actions/runs?head_sha=${sha}&per_page=${RUNS_PAGE_SIZE}`;
+  const onCommit: Listing = {
+    workflow: null,
+    path: commitPath,
+    lists: (run) => run.head_sha === sha,
+    runs: await readRuns(api, commitPath, blocked),
+  };
+  listings.push(onCommit);
+  const { arrival, excluded } = await crossCheck(
+    api,
+    repo,
+    sha,
+    listings,
+    blocked,
+  );
+  return {
+    arrival,
+    excluded: excluded.sort(newestFirst),
+    candidates(workflow: string) {
+      const own = listings.filter((listing) => listing.workflow === workflow);
+      return {
+        runs: own
+          .flatMap(
+            (listing) =>
+              listing.runs?.filter((run) => run.display_title === title) ?? [],
+          )
+          .sort(newestFirst),
+        complete: own.every((listing) => listing.runs !== null),
+      };
+    },
+    onCommit: onCommit.runs,
+  };
+}
+
 /** The commit a tag names (annotated tags dereferenced), or null. */
 async function tagCommit(
   api: GitHubApi,
@@ -432,34 +847,6 @@ export const candidateArtifactName = (
   sha: string,
   attempt: number,
 ) => `release-candidate-${stemOf(workflow)}-${sha}-attempt-${attempt}`;
-
-async function candidateRuns(
-  api: GitHubApi,
-  repo: string,
-  workflow: string,
-  sha: string,
-  blocked: string[],
-) {
-  const runs: Run[] = [];
-  let complete = true;
-  for (const event of workflow === CANDIDATE_WORKFLOW_PATH
-    ? CANDIDATE_EVENTS
-    : ['repository_dispatch']) {
-    const page = await readRuns(
-      api,
-      `${repo}/actions/workflows/${stemOf(workflow)}.yml/runs?branch=main&event=${event}&per_page=${RUNS_PAGE_SIZE}`,
-      blocked,
-    );
-    if (page === null) complete = false;
-    else
-      runs.push(
-        ...page.filter(
-          (run) => run.display_title === `Release candidate ${sha}`,
-        ),
-      );
-  }
-  return { runs: runs.sort(newestFirst), complete };
-}
 
 /** The workflows contain fewer than 100 jobs/artifacts per attempt. Refuse a
  * larger/incomplete response rather than silently treating page one as proof. */
@@ -670,6 +1057,8 @@ export async function gate({
     tag: null,
     tagName: null,
     latestRelease: null,
+    arrival: null,
+    excluded: [],
     validation: [],
     receipt: null,
     checks: [],
@@ -744,13 +1133,10 @@ export async function gate({
 
   // Candidate dispatches run trusted workflow H against source C. Their
   // GitHub head_sha is H, so exact-C push listings cannot discover them.
-  const candidates = await candidateRuns(
-    api,
-    repo,
-    CANDIDATE_WORKFLOW_PATH,
-    sha,
-    reasons.blocked,
-  );
+  const evidence = await runEvidence(api, repo, sha, reasons.blocked);
+  const candidates = evidence.candidates(CANDIDATE_WORKFLOW_PATH);
+  report.arrival = evidence.arrival;
+  report.excluded = evidence.excluded.map(summary);
   report.validation = candidates.runs.map(summary);
   const validation = candidates.runs[0];
   if (!validation) {
@@ -772,19 +1158,9 @@ export async function gate({
     );
   }
 
-  const onCommit = await readRuns(
-    api,
-    `${repo}/actions/runs?head_sha=${sha}&per_page=${RUNS_PAGE_SIZE}`,
-    reasons.blocked,
-  );
+  const { onCommit } = evidence;
   for (const workflow of REQUIRED_WORKFLOWS) {
-    const dispatched = await candidateRuns(
-      api,
-      repo,
-      workflow,
-      sha,
-      reasons.blocked,
-    );
+    const dispatched = evidence.candidates(workflow);
     // A dispatch for another source may happen to have head_sha=C. It is
     // never normal-source evidence for C; only its candidate receipt binds it.
     // CLI manual dispatch checks out release_tag, whose source may differ

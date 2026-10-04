@@ -1533,7 +1533,8 @@ export function runStartedVia(
 
 /**
  * What a `waiting` run is parked on, read off the park's `detail` — the
- * stepper writes `approval:<approvalId>`, `agent:<nodeId>` and
+ * stepper writes `approval:<approvalId>`, `agent:<nodeId>`, `room:<nodeId>`
+ * (an agent turn whose start waits for sandbox room) and
  * `repeat:<nodeId>` — with the one distinction the detail cannot carry: an
  * agent park whose question is pending is an `ask`, waiting on a person,
  * where the same park without one is an agent turn still running. A client
@@ -1547,6 +1548,7 @@ export function runWaitingFor(
   if (row.detail.startsWith('approval:')) return 'approval';
   if (row.detail.startsWith('repeat:')) return 'repeat';
   if (row.detail.startsWith('agent:')) return row.askPending ? 'ask' : 'agent';
+  if (row.detail.startsWith('room:')) return 'room';
   return undefined;
 }
 

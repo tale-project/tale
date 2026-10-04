@@ -27,6 +27,20 @@ describe('loadEnv', () => {
     expect(env.WORKER_CONCURRENCY).toBe(2);
   });
 
+  it('reads the agent turn slots, unset by default and bounded', () => {
+    expect(loadEnv({ ...BASE }).AGENT_START_SLOTS).toBeUndefined();
+    expect(loadEnv({ ...BASE }).AGENT_DRIVE_SLOTS).toBeUndefined();
+    const env = loadEnv({
+      ...BASE,
+      AGENT_START_SLOTS: '12',
+      AGENT_DRIVE_SLOTS: '64',
+    });
+    expect(env.AGENT_START_SLOTS).toBe(12);
+    expect(env.AGENT_DRIVE_SLOTS).toBe(64);
+    expect(() => loadEnv({ ...BASE, AGENT_DRIVE_SLOTS: '0' })).toThrow();
+    expect(() => loadEnv({ ...BASE, AGENT_START_SLOTS: 'lots' })).toThrow();
+  });
+
   it('passes SENTRY_DSN through and leaves it optional', () => {
     expect(loadEnv({ ...BASE }).SENTRY_DSN).toBeUndefined();
     const env = loadEnv({
@@ -34,6 +48,22 @@ describe('loadEnv', () => {
       SENTRY_DSN: 'https://key@sentry.example/1',
     });
     expect(env.SENTRY_DSN).toBe('https://key@sentry.example/1');
+  });
+
+  it('defaults backend tracing off and validates its independent sample rate', () => {
+    expect(
+      loadEnv({ ...BASE, SENTRY_TRACES_SAMPLE_RATE: '1' })
+        .BACKEND_SENTRY_TRACES_SAMPLE_RATE,
+    ).toBe(0);
+    expect(
+      loadEnv({ ...BASE, BACKEND_SENTRY_TRACES_SAMPLE_RATE: '0.1' })
+        .BACKEND_SENTRY_TRACES_SAMPLE_RATE,
+    ).toBe(0.1);
+    for (const bad of ['-1', '1.01', 'NaN', 'Infinity', 'all']) {
+      expect(() =>
+        loadEnv({ ...BASE, BACKEND_SENTRY_TRACES_SAMPLE_RATE: bad }),
+      ).toThrow();
+    }
   });
 
   it('rejects a missing DATABASE_URL and an unknown role', () => {

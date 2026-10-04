@@ -54,8 +54,9 @@ type AgentWireFailureCode = (typeof AGENT_FAILURE_CODES)[number];
  * carried before it was named, so `Run.failureCode` — an OpenAPI enum
  * integrators branch on — does not move under them. A start refused while
  * every broker account cooled down never launched (`start_failed`, as every
- * refused start was); a 401 on a token the broker refreshed under the turn
- * is the harness's own error, as it was. Every agent code is either on the
+ * refused start was), nor did one that waited for sandbox room; a 401 on a
+ * token the broker refreshed under the turn is the harness's own error, as
+ * it was. Every agent code is either on the
  * wire or here — a new one that is neither fails to compile. */
 const AGENT_RETRY_ONLY_CODES: Record<
   Exclude<WorkflowAgentFailureCode, AgentWireFailureCode>,
@@ -63,6 +64,12 @@ const AGENT_RETRY_ONLY_CODES: Record<
 > = {
   credential_cooldown: 'start_failed',
   credential_rotated: 'harness_error',
+  // Waited for sandbox room past the node's execution guard: it never
+  // launched, as every refused start before it.
+  sandbox_capacity: 'start_failed',
+  // Refused while the run's workspace was being destroyed: a refused start,
+  // as it read before the code was named.
+  sandbox_destroying: 'start_failed',
 };
 
 const AGENT_RETRY_ONLY_CODE_MAP: ReadonlyMap<string, RunFailureCode> = new Map(

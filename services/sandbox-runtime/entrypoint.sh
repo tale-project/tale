@@ -408,7 +408,8 @@ base { log_debug = off; log_info = off; log = "stderr"; daemon = off; redirector
 redsocks { local_ip = 0.0.0.0; local_port = 12346; ip = ${TALE_EGRESS_IP}; port = ${TALE_EGRESS_PORT}; type = http-connect; }
 EOF
   # redsocks lives in /usr/sbin, which the image PATH drops — call it absolute.
-  /usr/sbin/redsocks -c /etc/redsocks.conf >/var/log/redsocks.log 2>&1 &
+  # Inherit container stderr so the outer logger rotates long-lived diagnostics.
+  /usr/sbin/redsocks -c /etc/redsocks.conf >&2 &
   TALE_REDSOCKS_STARTED=1
   # nat REDSOCKS chain: leave internal / private / link-local DIRECT (so inner
   # service-to-service, localhost healthchecks and the inner embedded DNS are
@@ -529,15 +530,14 @@ _install_session_dns_dnat() {
 }
 
 # Launch redsocks as the dedicated low-priv uid (for the owner-match), unless it
-# is already running (the DinD inner path launched it as root). Background. Logs
-# to /tmp (the writable tmpfs) — the non-DinD session keeps a read-only root, so
-# /var/log (used by the DinD inner path, which has a writable rootfs) is not
-# writable here.
+# is already running (the DinD inner path launched it as root). Background;
+# diagnostics go to the container logger, which owns rotation, instead of
+# growing a file in the session's temporary filesystem.
 _launch_session_redsocks() {
   [ "${TALE_REDSOCKS_STARTED:-}" = "1" ] && return 0
   _write_redsocks_conf "${TALE_REDSOCKS_CONF}"
   setpriv --reuid "${TALE_REDSOCKS_UID}" --regid "${TALE_REDSOCKS_UID}" --init-groups -- \
-    /usr/sbin/redsocks -c "${TALE_REDSOCKS_CONF}" >/tmp/redsocks.log 2>&1 &
+    /usr/sbin/redsocks -c "${TALE_REDSOCKS_CONF}" >&2 &
   TALE_REDSOCKS_STARTED=1
 }
 
@@ -655,6 +655,9 @@ start_inner_dockerd() {
   # dockerd (and the iptables/modprobe it shells out to) need /usr/sbin on PATH,
   # which the image ENV drops. Scope the widened PATH to dockerd only — runnerd
   # is exec'd later with the unmodified (sbin-free) agent PATH.
+  # Nested containers otherwise inherit Docker's unrotated json-file default,
+  # independently of the outer session's cap. Apply that same cap here; daemon
+  # diagnostics themselves inherit the outer logger instead of a growing file.
   # shellcheck disable=SC2086 # _dns_flags must word-split: empty, or one --dns flag
   PATH="/usr/sbin:/sbin:${PATH}" dockerd \
     --host=unix:///var/run/docker.sock \
@@ -662,15 +665,18 @@ start_inner_dockerd() {
     --bip="${TALE_DIND_INNER_BIP}" \
     --default-address-pool "base=${TALE_DIND_INNER_POOL},size=24" \
     --storage-driver=overlay2 \
+    --log-driver=json-file \
+    --log-opt=max-size=10m \
+    --log-opt=max-file=1 \
+    --log-opt=compress=false \
     ${_dns_flags} \
-    >/var/log/dockerd.log 2>&1 &
+    >&2 &
   TALE_DOCKERD_PID=$!
 
   _i=0
   while [ "$_i" -lt 60 ]; do
     if ! kill -0 "$TALE_DOCKERD_PID" 2>/dev/null; then
-      echo "[entrypoint] FATAL: inner dockerd exited during startup:" >&2
-      tail -n 20 /var/log/dockerd.log >&2 2>/dev/null || true
+      echo "[entrypoint] FATAL: inner dockerd exited during startup; see container logs" >&2
       exit 1
     fi
     if docker info >/dev/null 2>&1; then
@@ -685,8 +691,7 @@ start_inner_dockerd() {
     _i=$((_i + 1))
     sleep 0.5
   done
-  echo "[entrypoint] FATAL: inner dockerd not ready within 30s:" >&2
-  tail -n 20 /var/log/dockerd.log >&2 2>/dev/null || true
+  echo "[entrypoint] FATAL: inner dockerd not ready within 30s; see container logs" >&2
   exit 1
 }
 
@@ -775,7 +780,9 @@ if [ "$1" = "egress-sidecar" ]; then
   resolve_egress_endpoint
   if [ -z "${TALE_EGRESS_IP}" ]; then
     echo "[entrypoint] WARN: egress-sidecar could not resolve the egress proxy endpoint; transparent egress disabled (proxy-aware clients still use HTTPS_PROXY). Idling so the runner can still start." >&2
-    exec sleep infinity
+    # Under tini: a bare `sleep` as PID 1 ignores SIGTERM, so every Pod
+    # deletion waited out the whole grace period for this idle sidecar.
+    exec tini -- sleep infinity
   fi
   # Best-effort install — never crashloop the sidecar (and so block the runner)
   # on an iptables hiccup; proxy-aware clients still egress via the env.
@@ -799,12 +806,14 @@ fi
 # session/docker-session-args.ts + the K8s pod spec); any other arg fails
 # closed at the tail of this file. PID 1 of a session container is tini,
 # exec'd here with runnerd as its only child — on EVERY path (plain,
-# transparent-egress, DinD). A long-lived container needs a real init: every
-# cancelled/timed-out exec tree and every SIGKILLed Chromium recycle leaves
-# orphans that reparent to PID 1, and node never wait()s children it did not
-# spawn, so as PID 1 it would let them pile up as zombies against pids-limit
-# until fork() fails. `tini -g` forwards container-stop SIGTERM to runnerd's
-# process group, so graceful shutdown is unchanged.
+# transparent-egress, DinD). A long-lived container needs a real init: what an
+# exec orphans goes to the exec's subreaper shim (tale-exec-shim), but what a
+# shim killed outright leaves, and what the daemons started here orphan,
+# reparent to PID 1, and node never wait()s children it did not spawn, so as
+# PID 1 it would let them pile up as zombies against pids-limit until fork()
+# fails. `tini -g` forwards container-stop SIGTERM to runnerd's
+# process group; runnerd passes it on to every live exec (each runs in a
+# group of its own) before it exits.
 # ---------------------------------------------------------------------------
 if [ "$1" = "daemon" ]; then
   # Both DinD and transparent egress boot the container as root (DinD to run the

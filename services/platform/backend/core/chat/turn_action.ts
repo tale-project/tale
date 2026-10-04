@@ -78,7 +78,10 @@ import {
 import { resolveProjectContext } from './project_context';
 import {
   readEvent,
+  readStreamFailure,
   type StreamDecodeState,
+  type StreamDialect,
+  type StreamFailure,
   type ToolCallDraft,
 } from './stream_decode';
 import { createStallGuard, type StallGuard } from './stream_stall';
@@ -92,7 +95,7 @@ const ERROR_EXCERPT = 2000;
 
 // ------------------------------------------------------------- the model call
 
-interface DirectWire {
+export interface DirectWire {
   readonly apiFormat: ApiFormat;
   readonly wireDialect?: WireDialect;
   readonly baseUrl: string;
@@ -102,7 +105,8 @@ interface DirectWire {
 
 /** Resolve the credential and endpoint for a direct call, refusing anything a
  * direct chat turn cannot serve. Mirrors the one resolution every direct model
- * call shares: a subscription credential is bound to a vendor harness and
+ * call shares: a subscription credential is bound to a vendor harness — the
+ * vendors permit subscription tokens only in their own agent runtime — and
  * cannot answer a chat endpoint. */
 async function resolveDirectWire(
   ctx: ActionCtx,
@@ -116,7 +120,7 @@ async function resolveDirectWire(
   if (credential.authMethod !== 'api-key' && credential.authMethod !== 'env') {
     throw new AppError({
       code: 'CHAT_CREDENTIAL_UNSUPPORTED',
-      message: `The default "${connector.name}" credential is a ${credential.authMethod} credential, which is bound to a vendor harness and only runs in a sandbox. Configure an API-key or environment-variable credential to chat with this model directly.`,
+      message: `The default "${connector.name}" credential is a ${credential.authMethod} credential. The vendor permits subscription tokens only in its own agent runtime, so it runs in tasks and automations, never in chat. Configure an API-key or environment-variable credential to chat with this model.`,
     });
   }
   const baseUrl = credential.endpointUrl ?? connector.baseUrl;
@@ -198,14 +202,41 @@ function rejectOnAbort(signal: AbortSignal): Promise<never> {
   return rejection;
 }
 
+/**
+ * The error a failure reported INSIDE an opened stream ends the round with:
+ * the provider's own sentence, secret-redacted, under the status and code it
+ * stands for — so the chat-error classifier buckets an upstream rate limit
+ * or overload exactly as it does the same failure sent as an HTTP status.
+ */
+function streamFailureError(failure: StreamFailure): Error {
+  const named =
+    failure.code !== undefined && !failure.message.includes(failure.code)
+      ? `(${failure.code})`
+      : '';
+  const detail = [failure.message, named].filter(Boolean).join(' ');
+  return Object.assign(
+    new Error(
+      detail.length > 0
+        ? `The model provider ended the reply with an error: ${sanitizeError(detail, ERROR_EXCERPT)}`
+        : 'The model provider ended the reply with an error and gave no reason.',
+    ),
+    {
+      ...(failure.status !== undefined ? { status: failure.status } : {}),
+      ...(failure.code !== undefined ? { code: failure.code } : {}),
+    },
+  );
+}
+
 /** Read a provider's Server-Sent Events stream line by line, yielding each
  * `data:` payload as a chunk of cleared text (and the final usage when it
  * arrives). With a stall guard, every byte restarts its silence clock and
  * every read races it, so a provider that stops sending ends the round with
- * the guard's error even where the runtime would leave the read pending. */
+ * the guard's error even where the runtime would leave the read pending. A
+ * failure the provider reports on the stream itself ends the round with its
+ * words ({@link streamFailureError}), whatever had streamed before it. */
 export async function* streamSse(
   response: Response,
-  apiFormat: ApiFormat,
+  dialect: StreamDialect,
   stall?: StallGuard,
 ): AsyncGenerator<ModelStreamChunk> {
   const body = response.body;
@@ -265,8 +296,28 @@ export async function* streamSse(
         continue;
       }
       if (!event) continue;
+      const failure = readStreamFailure(dialect, event);
+      if (failure !== undefined) {
+        // Usage the failure event itself reports is what the round had
+        // consumed: hand it on before the round ends, so it is booked. A
+        // count of nothing is no evidence of consumption, and stays behind.
+        const { usage } = readEvent(dialect, event, state);
+        if (
+          usage !== undefined &&
+          (usage.inputTokens > 0 || usage.outputTokens > 0)
+        ) {
+          yield { text: '', usage };
+        }
+        // Nothing the provider sends after its own error belongs to the
+        // reply; leave the connection rather than drain it.
+        void reader.cancel().then(
+          () => undefined,
+          () => undefined,
+        );
+        throw streamFailureError(failure);
+      }
       const { text, reasoning, usage, finishReason } = readEvent(
-        apiFormat,
+        dialect,
         event,
         state,
       );
@@ -395,8 +446,9 @@ async function settleWireAttachments(
 
 /** Build the real streaming model call for direct execution over a wire
  * the host resolved UP FRONT (`resolveDirectWire`) — so a credential fault
- * is a pre-turn refusal, never a failed bubble inside the stream. */
-function createDirectModelCall(
+ * is a pre-turn refusal, never a failed bubble inside the stream. Exported
+ * for its tests, which drive it against a stubbed `fetch`. */
+export function createDirectModelCall(
   ctx: ActionCtx,
   organizationId: string,
   connector: ProviderDefinition,
@@ -419,12 +471,22 @@ function createDirectModelCall(
     // TALE_ALLOW_PRIVATE_PROVIDER_HOSTS=1.
     checkProviderHostPolicy(wire.baseUrl);
 
-    // The modern OpenAI dialect and the Anthropic wire send a custom
-    // temperature only for a model KNOWN not to reason; that fact lives on
-    // the catalog entry (absent for credential-allowlist connectors like
-    // Azure, where unknown must count as reasoning).
+    // A model whose function tools work only on the Responses API (its
+    // catalog entry says so) is called there; everything else keeps the
+    // connector's own wire.
+    const responses = request.toolCallingApi === 'responses';
+    const dialect: StreamDialect = responses
+      ? 'openai-responses'
+      : wire.apiFormat;
+
+    // The modern OpenAI dialect, the Responses API and the Anthropic wire
+    // send a custom temperature only for a model KNOWN not to reason; that
+    // fact lives on the catalog entry (absent for credential-allowlist
+    // connectors like Azure, where unknown must count as reasoning).
     if (
-      (wire.wireDialect !== undefined || wire.apiFormat === 'anthropic') &&
+      (wire.wireDialect !== undefined ||
+        wire.apiFormat === 'anthropic' ||
+        responses) &&
       !reasoningResolved
     ) {
       const entry = (await getProviderCatalog(connector)).find(
@@ -453,6 +515,7 @@ function createDirectModelCall(
         ? { wireDialect: wire.wireDialect }
         : {}),
       ...(reasoningModel !== undefined ? { reasoningModel } : {}),
+      ...(responses ? { toolCallingApi: 'responses' as const } : {}),
       baseUrl: wire.baseUrl,
       modelId: request.model,
       apiKey: wire.apiKey,
@@ -469,15 +532,16 @@ function createDirectModelCall(
         : {}),
       extraHeaders: wire.attribution,
     });
-    // Reuse the dialect shaping, then flip streaming on. OpenAI-compatible
-    // endpoints must be asked for a usage frame explicitly.
+    // Reuse the dialect shaping, then flip streaming on. Chat Completions
+    // endpoints must be asked for a usage frame explicitly; the Responses
+    // API reports usage on its closing event and refuses the option.
     const parsed: unknown = JSON.parse(base.body);
     const body = JSON.stringify({
       ...(isRecord(parsed) ? parsed : {}),
       stream: true,
-      ...(wire.apiFormat === 'anthropic'
-        ? {}
-        : { stream_options: { include_usage: true } }),
+      ...(dialect === 'openai'
+        ? { stream_options: { include_usage: true } }
+        : {}),
     });
 
     // The round's only clock is a SILENCE clock — never a whole-request
@@ -507,26 +571,45 @@ function createDirectModelCall(
         { cause: error },
       );
     }
-    if (!response.ok) {
-      const detail = await response.text().catch(() => '');
-      stall.dispose();
-      // The HTTP status rides on the error so the chat-error classifier can
-      // bucket it precisely (401/402/429…) instead of regexing the text.
-      throw Object.assign(
-        new Error(
-          `The model provider answered ${response.status}: ${sanitizeError(detail, ERROR_EXCERPT)}`,
-        ),
-        { status: response.status },
-      );
-    }
-    // Headers count as the first sign of life; the body's bytes take over.
-    stall.touch();
     try {
-      yield* streamSse(response, wire.apiFormat, stall);
+      yield* streamProviderAnswer(response, dialect, stall, request.onAccepted);
     } finally {
       stall.dispose();
     }
   };
+}
+
+/**
+ * The provider's answer to one round's request, read as the round's stream.
+ * A refusal answered as an HTTP status throws before anything streams: the
+ * provider turned the request away, and the round consumed nothing. A
+ * success status means it accepted the prompt — `onAccepted` tells the
+ * pipeline so before the first byte is read, and a failure from there on
+ * (an error event on the stream, a stall, a dropped connection) still books
+ * what the round used, unless the stream's first word is a refusal of its
+ * own (`runTurn`).
+ */
+export async function* streamProviderAnswer(
+  response: Response,
+  dialect: StreamDialect,
+  stall: StallGuard,
+  onAccepted?: () => void,
+): AsyncGenerator<ModelStreamChunk> {
+  if (!response.ok) {
+    const detail = await response.text().catch(() => '');
+    // The HTTP status rides on the error so the chat-error classifier can
+    // bucket it precisely (401/402/429…) instead of regexing the text.
+    throw Object.assign(
+      new Error(
+        `The model provider answered ${response.status}: ${sanitizeError(detail, ERROR_EXCERPT)}`,
+      ),
+      { status: response.status },
+    );
+  }
+  // Headers count as the first sign of life; the body's bytes take over.
+  stall.touch();
+  onAccepted?.();
+  yield* streamSse(response, dialect, stall);
 }
 
 // ----------------------------------------------------------------- the turn

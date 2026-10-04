@@ -1,6 +1,7 @@
 import type { TransactionSql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { ConfigurationError } from '../../core/lib/config_store/precondition.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
 import { closePendingTaskReviewOnStatusLeave } from './reviews.ts';
 import type { TaskRow } from './service.ts';
@@ -83,6 +84,25 @@ beforeEach(() => {
 });
 
 describe('a member accepting the review of their own task', () => {
+  it('refuses unreadable governance instead of approving with default policy', async () => {
+    vi.mocked(readGovernancePolicyForOrg).mockImplementation(
+      async (_tx, _org, _policy, options) => {
+        if (options?.strict)
+          throw new ConfigurationError(
+            'GOVERNANCE_POLICY_INVALID',
+            'Invalid policy',
+          );
+        return null;
+      },
+    );
+    const { tx, approved } = reviewTx('u-editor');
+    await expect(accept(tx)).rejects.toMatchObject({
+      code: 'TASK_REVIEW_POLICY_UNAVAILABLE',
+      status: 409,
+    });
+    expect(approved()).toBe(false);
+  });
+
   it('accepts the work of the run they started', async () => {
     const { tx, approved } = reviewTx('u-member');
     await accept(tx);

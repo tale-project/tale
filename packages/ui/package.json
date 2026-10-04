@@ -3,6 +3,16 @@
   "version": "0.1.0",
   "private": true,
   "description": "Shared Tale React component library — primitives, theming, i18n + the markdown rendering pipeline (components, plugins, streaming).",
+  "homepage": "https://ui.tale.dev",
+  "bugs": {
+    "url": "https://github.com/tale-project/tale/issues"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tale-project/tale.git",
+    "directory": "packages/ui"
+  },
   "bin": {
     "tale-seo-compile": "./bin/seo-compile.ts"
   },
@@ -78,6 +88,7 @@
     "./docs/docs-prev-next": "./src/components/docs/docs-prev-next.tsx",
     "./docs/docs-search-dialog": "./src/components/docs/docs-search-dialog.tsx",
     "./docs/docs-search-trigger": "./src/components/docs/docs-search-trigger.tsx",
+    "./docs/use-docs-search": "./src/components/docs/use-docs-search.ts",
     "./docs/docs-toc": "./src/components/docs/docs-toc.tsx",
     "./docs/edit-on-github": "./src/components/docs/edit-on-github.tsx",
     "./docs/links": "./src/components/docs/links.ts",
@@ -412,8 +423,8 @@
     "@radix-ui/react-toggle-group": "1.1.19",
     "@radix-ui/react-tooltip": "1.2.8",
     "@radix-ui/react-visually-hidden": "1.2.4",
-    "@sentry/browser": "10.48.0",
-    "@sentry/bun": "10.48.0",
+    "@sentry/browser": "10.54.0",
+    "@sentry/bun": "10.54.0",
     "@tanstack/react-router": "1.168.10",
     "@tanstack/react-table": "8.21.3",
     "@types/react-file-icon": "1.0.5",
@@ -434,8 +445,10 @@
     "micromark": "4.0.2",
     "micromark-core-commonmark": "2.0.3",
     "micromark-util-classify-character": "2.0.1",
+    "micromark-util-decode-string": "2.0.1",
     "micromark-util-types": "2.0.2",
     "minisearch": "7.2.0",
+    "parse5": "7.3.0",
     "react-datepicker": "9.1.0",
     "react-day-picker": "9.14.0",
     "react-file-icon": "1.6.0",

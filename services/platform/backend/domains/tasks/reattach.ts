@@ -4,7 +4,11 @@ import type { Sql } from 'postgres';
 
 import { sessionExecStatus } from '../../core/node_only/sandbox/helpers/session_client.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
-import { claimRecoveryResume, RECOVERY_STALE_MS } from '../sandbox/recovery.ts';
+import {
+  claimRecoveryResume,
+  driveJobPending,
+  RECOVERY_STALE_MS,
+} from '../sandbox/recovery.ts';
 import { failAgentRun } from './agent-runs.ts';
 
 /**
@@ -113,6 +117,21 @@ export async function recoverStalledTaskAgentTurns(
       console.warn(
         `[task-agent-watchdog] exec probe failed for ${turn.execId} (leaving for the next sweep):`,
         error instanceof Error ? error.message : String(error),
+      );
+      continue;
+    }
+    // A drive window still queued for this exec is a live chain waiting for
+    // a worker slot, not a dead one: a second chain would drain the exec
+    // twice, and each later sweep would add another.
+    if (
+      await driveJobPending(sql, {
+        queue: 'task.agent_drive',
+        execId: turn.execId,
+        staleBeforeMs,
+      })
+    ) {
+      console.warn(
+        `[task-agent-watchdog] ${turn.execId} of run ${turn.runId} reads silent, but a drive window for it is queued or running — leaving it to that chain`,
       );
       continue;
     }

@@ -8,7 +8,7 @@
  *
  * Bun (1.4) cannot install a package that lives in a subdirectory of a git
  * repository and rejects `workspace:` ranges inside a downloaded package, so
- * the snapshot is the package directory alone, with every `workspace:` entry
+ * the snapshot is the package directory and its license, with every `workspace:` entry
  * stripped (those are monorepo links — a consumer supplies the peer itself),
  * committed as an orphan on the `dist/<name>` branch and force-pushed. A
  * release additionally pins the same commit with a `<name>-v<version>` tag.
@@ -128,6 +128,16 @@ function main(): void {
   );
   try {
     snapshot(packageDir, workDir);
+    // Repository-root snapshots lose the parent license. Carry it with the
+    // source unless the package supplies a license of its own.
+    const hasLicense = fs
+      .readdirSync(workDir)
+      .some((name) => /^licen[sc]e(?:\.(?:md|txt))?$/i.test(name));
+    if (!hasLicense)
+      fs.copyFileSync(
+        path.join(repoRoot, 'LICENSE'),
+        path.join(workDir, 'LICENSE'),
+      );
     const stripped = stripWorkspaceLinks(manifest);
     fs.writeFileSync(
       path.join(workDir, 'package.json'),

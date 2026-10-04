@@ -1,7 +1,6 @@
-import { useReducedMotion } from 'framer-motion';
 import { useEffect, useRef, useState } from 'react';
 
-import { withinEntranceWindow } from '../../lib/entrance';
+import { useReducedMotion, withinEntranceWindow } from '../../lib/entrance';
 
 interface UseDemoTimelineOptions {
   /**
@@ -37,11 +36,16 @@ export function useDemoTimeline({
   const pinnedRef = useRef(
     typeof window === 'undefined' || !withinEntranceWindow(),
   );
-  const [beat, setBeat] = useState(() => (pinnedRef.current ? finalBeat : 0));
+  const [beat, setBeat] = useState(() =>
+    pinnedRef.current || reduceMotion ? finalBeat : 0,
+  );
   const elapsedRef = useRef(0);
 
   useEffect(() => {
     if (reduceMotion || pinnedRef.current) {
+      // A preference change completes this visit's story. Turning motion
+      // back on must not rewind an illustration the reader has seen.
+      pinnedRef.current = true;
       setBeat(finalBeat);
       return undefined;
     }
@@ -69,7 +73,9 @@ export function useDemoTimeline({
       }
     };
 
-    raf = requestAnimationFrame(tick);
+    // A background tab may mount before its first visibility event.
+    // Do not count that hidden time as playback.
+    if (!document.hidden) raf = requestAnimationFrame(tick);
     document.addEventListener('visibilitychange', onVisibilityChange);
     return () => {
       cancelAnimationFrame(raf);
@@ -77,5 +83,5 @@ export function useDemoTimeline({
     };
   }, [beats, finalBeat, reduceMotion, start]);
 
-  return beat;
+  return reduceMotion ? finalBeat : beat;
 }

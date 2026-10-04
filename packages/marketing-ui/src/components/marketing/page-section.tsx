@@ -12,11 +12,13 @@ const pageSectionVariants = cva('', {
       soft: 'bg-gradient-site-band',
       plain: '',
       transparent: 'bg-transparent',
+      contrast: 'site-contrast',
     },
     pad: {
-      md: 'py-12 md:py-16',
-      lg: 'py-16 md:py-20',
-      xl: 'py-20 md:py-28',
+      compact: 'py-6 sm:py-8 lg:py-10',
+      md: 'py-10 sm:py-12 lg:py-14',
+      lg: 'py-14 sm:py-16 lg:py-20',
+      xl: 'py-16 sm:py-20 lg:py-24',
     },
     border: {
       none: '',

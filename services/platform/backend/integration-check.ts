@@ -76,6 +76,13 @@ import { setMailTransportForTesting } from './domains/connectors/service.ts';
 import { checkConversationApi } from './domains/conversations/api-sync.integration.ts';
 import { checkErasureReviewHandoverRaces } from './domains/erasure/review-handover.integration.ts';
 import { checkRagWatchdogBatch } from './domains/file_metadata/watchdogs.integration.ts';
+import {
+  checkStagedBundlesUnnameable,
+  checkTaskReleaseKeepsLaneRows,
+  checkVideoLinkHeldBlobs,
+} from './domains/files/held-blob-cleanups.integration.ts';
+import { checkMessageHeldBlobs } from './domains/files/message-held-blobs.integration.ts';
+import { checkRejectedUploadReclaim } from './domains/files/reject-blob.integration.ts';
 import { checkHubFolderWriteRole } from './domains/folders/write-role.integration.ts';
 import { checkEmailedAttachments } from './domains/knowledge/attachment-mail.integration.ts';
 import { checkInboundEmailBodies } from './domains/knowledge/message-index.integration.ts';
@@ -85,6 +92,7 @@ import { checkKnowledgeEntryIndexing } from './domains/knowledge_entries/indexin
 import { writeNotificationForOrgs } from './domains/notifications/service.ts';
 import { ensureDefaultObjectStore } from './domains/object_storage/bootstrap.ts';
 import { checkOrphanedOrgRowsBackfill } from './domains/organizations/orphaned-rows.integration.ts';
+import { checkProductImageReleaseHolders } from './domains/products/image-release.integration.ts';
 import { checkStandardAgent } from './domains/projects/standard-agent.integration.ts';
 import { checkBrokerAccountSelection } from './domains/provider_credentials/broker-selection.integration.ts';
 import { checkProviderCredentialConfiguration } from './domains/provider_credentials/configuration.integration.ts';
@@ -100,6 +108,8 @@ import { checkSandboxDevices } from './domains/sandbox_devices/devices.integrati
 import { checkSkillUploadAudience } from './domains/skills/upload-audience.integration.ts';
 import { checkAgentTaskMetadata } from './domains/tasks/agent-metadata.integration.ts';
 import { checkAgentTaskReadTools } from './domains/tasks/agent-read-tools.integration.ts';
+import { checkAgentTaskReviewRouting } from './domains/tasks/agent-review-routing.integration.ts';
+import { checkAgentTaskReviews } from './domains/tasks/agent-review.integration.ts';
 import { checkSessionOpTranscriptMerge } from './domains/tasks/agent-turn-shim.integration.ts';
 import { checkTaskAutomationOccupancy } from './domains/tasks/automation-occupancy.integration.ts';
 import { checkTaskBoardSearch } from './domains/tasks/board-search.integration.ts';
@@ -126,14 +136,20 @@ import { checkTaskSourceThread } from './domains/tasks/source-thread.integration
 import { checkTaskWorkflowParentMoves } from './domains/tasks/workflow-parent-moves.integration.ts';
 import { checkVideoLinkComposerChips } from './domains/video_links/composer-chips.integration.ts';
 import { checkRenderFailedCreate } from './domains/websites/render-failed-create.integration.ts';
+import { closeServerGracefully } from './http-shutdown.ts';
 import {
+  connectSse,
   cookieHeaderFrom,
+  errorText,
   fullCoverageBlockers,
   isSkippedCheck,
   itestObjectStore,
   recordSkip,
   requestedLanes,
+  settleTeardown,
   signUpUser,
+  withinDeadline,
+  type SseEvent,
 } from './integration-lane-helpers.ts';
 import {
   itestResolve,
@@ -146,6 +162,7 @@ import { checkWorkerDrainHandOff } from './jobs/runner.integration.ts';
 import { startWorker } from './jobs/runner.ts';
 import { registerSchedules } from './jobs/schedules.ts';
 import { createTaskList } from './jobs/task-list.ts';
+import type { TaskIdentifier } from './jobs/tasks.ts';
 import {
   BACKEND_SERVER_OPTIONS,
   installClientErrorEnvelope,
@@ -395,64 +412,6 @@ async function checkPickupLatency(sql: Sql, boss: PgBoss): Promise<void> {
   );
 }
 
-interface SseEvent {
-  event: string;
-  id: string | null;
-  data: string;
-}
-
-/** Minimal SSE client: collects events until aborted. */
-function connectSse(
-  url: string,
-  headers: Record<string, string>,
-): { events: SseEvent[]; abort: () => void; done: Promise<void> } {
-  const controller = new AbortController();
-  const events: SseEvent[] = [];
-
-  const done = (async () => {
-    const response = await fetch(url, { signal: controller.signal, headers });
-    const body = response.body;
-    if (!body) {
-      throw new Error('SSE response has no body');
-    }
-    const reader = body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
-    for (;;) {
-      const { done: finished, value } = await reader.read();
-      if (finished) {
-        break;
-      }
-      buffer += decoder.decode(value, { stream: true });
-      let boundary = buffer.indexOf('\n\n');
-      while (boundary !== -1) {
-        const frame = buffer.slice(0, boundary);
-        buffer = buffer.slice(boundary + 2);
-        let event = 'message';
-        let id: string | null = null;
-        const dataLines: string[] = [];
-        for (const line of frame.split('\n')) {
-          if (line.startsWith('event:')) {
-            event = line.slice(6).trim();
-          } else if (line.startsWith('id:')) {
-            id = line.slice(3).trim();
-          } else if (line.startsWith('data:')) {
-            dataLines.push(line.slice(5).trim());
-          }
-        }
-        events.push({ event, id, data: dataLines.join('\n') });
-        boundary = buffer.indexOf('\n\n');
-      }
-    }
-  })().catch((error: unknown) => {
-    if (!(error instanceof Error && error.name === 'AbortError')) {
-      throw error;
-    }
-  });
-
-  return { events, abort: () => controller.abort(), done };
-}
-
 async function waitFor(
   predicate: () => boolean | Promise<boolean>,
   timeoutMs: number,
@@ -688,8 +647,7 @@ async function checkAuthAndSse(
     3_000,
   );
   const lastId = [...first.events].reverse().find((e) => e.id)?.id ?? null;
-  first.abort();
-  await first.done;
+  await first.close();
 
   await sql.begin(async (tx) => {
     await emitHintInTx(tx, { orgId, entity: 'task', entityId: 't2' });
@@ -704,8 +662,7 @@ async function checkAuthAndSse(
     3_000,
   );
   const noDuplicate = !second.events.some((e) => e.data.includes('"t1"'));
-  second.abort();
-  await second.done;
+  await second.close();
 
   record(
     'authorized outbox → SSE',
@@ -752,8 +709,7 @@ async function checkAuthAndSse(
     endedWithForbidden(kickedStream),
     endedWithForbidden(revokedStream),
   ]);
-  kickedStream.abort();
-  revokedStream.abort();
+  await Promise.all([kickedStream.close(), revokedStream.close()]);
   await sql`
     DELETE FROM "member" WHERE "id" IN (${kicked.memberId}, ${revoked.memberId})
   `;
@@ -876,10 +832,7 @@ async function checkOutboxRetention(
   );
   const intactReplayed = intact.events.some((e) => e.data.includes('"skewed"'));
   const intactResynced = intact.events.some((e) => e.event === 'resync');
-  gapped.abort();
-  intact.abort();
-  await gapped.done;
-  await intact.done;
+  await Promise.all([gapped.close(), intact.close()]);
 
   record(
     'realtime outbox retention: prefix reclaim, skew-safe, resync on a reclaimed cursor',
@@ -935,8 +888,7 @@ async function checkNotifications(
       ),
     5_000,
   );
-  stream.abort();
-  await stream.done;
+  await stream.close();
 
   const countAfterCreate = z
     .object({ count: z.number() })
@@ -10826,6 +10778,14 @@ async function checkChat(
   // a single tick and the stream only ever sees the settled state — the
   // probe would pass or fail on scheduling luck, not on behaviour.
   const TRACE_MARKER = 'TRACE THE TOOLS';
+  // A provider that accepts the request (200), streams words and its usage,
+  // then reports a failure ON the stream; and one that refuses the request
+  // with an HTTP status before any stream.
+  const STREAM_FAILS_MARKER = 'FAIL INSIDE THE STREAM';
+  const REFUSED_MARKER = 'REFUSE BY STATUS';
+  // OpenRouter's early 200: keep-alives, then the upstream's rate limit
+  // reported on the stream before any of the answer.
+  const REFUSED_ON_STREAM_MARKER = 'REFUSE ON THE STREAM';
   const FINAL_ANSWER = 'The ledger mentions verdigris pigments.';
   const SLOW_CHUNKS = 40;
   /** Every chat-completion request body the model saw, in order — the
@@ -10913,7 +10873,63 @@ async function checkChat(
         );
         return;
       }
+      if (transcript.includes(REFUSED_MARKER)) {
+        res.statusCode = 429;
+        res.setHeader('content-type', 'application/json');
+        res.end(
+          JSON.stringify({ error: { message: 'Rate limit exceeded (itest)' } }),
+        );
+        return;
+      }
       res.setHeader('content-type', 'text/event-stream');
+      if (transcript.includes(REFUSED_ON_STREAM_MARKER)) {
+        res.write(': OPENROUTER PROCESSING\n\n');
+        res.write(
+          sse({
+            error: { code: 429, message: 'Rate limit exceeded upstream' },
+            choices: [
+              { index: 0, delta: { content: '' }, finish_reason: 'error' },
+            ],
+          }),
+        );
+        res.end();
+        return;
+      }
+      if (transcript.includes(STREAM_FAILS_MARKER)) {
+        res.write(
+          sse({
+            choices: [
+              {
+                index: 0,
+                delta: { content: 'The first half ' },
+                finish_reason: null,
+              },
+            ],
+          }),
+        );
+        res.write(
+          sse({
+            choices: [],
+            usage: {
+              prompt_tokens: 100,
+              completion_tokens: 5,
+              total_tokens: 105,
+            },
+          }),
+        );
+        // OpenRouter's mid-stream failure: an `error` beside a choice that
+        // finished in error, on a stream that already answered 200.
+        res.write(
+          sse({
+            error: { code: 502, message: 'Provider disconnected unexpectedly' },
+            choices: [
+              { index: 0, delta: { content: '' }, finish_reason: 'error' },
+            ],
+          }),
+        );
+        res.end();
+        return;
+      }
       const finish = (finishReason: string): void => {
         res.write(
           sse({
@@ -11180,6 +11196,108 @@ async function checkChat(
         Number(usageRows[0]?.count ?? '0') >= 1 &&
         settledGen[0]?.count === '0',
       `outcome=${outcome.success ? outcome.data.status : 'ERR'}${outcome.success && outcome.data.reason !== undefined ? ` (${outcome.data.reason})` : ''}, messages=${history.success ? history.data.messages.length : 'ERR'}, toolRound=${assistantRaw.includes('rag_search') && assistantRaw.includes('verdigris')}, usageRows=${usageRows[0]?.count}, genSettled=${settledGen[0]?.count === '0'}`,
+    );
+
+    // A turn the provider fails INSIDE its opened stream still consumed the
+    // prompt and the words it wrote: the turn settles failed, books what
+    // the stream reported, and stamps the same figures on the failed reply.
+    // A request the provider refuses with an HTTP status consumed nothing
+    // and books nothing. Each runs on a titled thread of its own, so no
+    // title call books beside it and the ledger delta is the turn's alone.
+    const chatLedger = async () => {
+      const rows = await sql<
+        { input: number; output: number; requests: number }[]
+      >`
+        SELECT coalesce(sum(input_tokens), 0)::float8 AS input,
+               coalesce(sum(output_tokens), 0)::float8 AS output,
+               coalesce(sum(request_count), 0)::float8 AS requests
+        FROM app.usage_ledger
+        WHERE org_id = ${orgId} AND model = 'itest-chat'
+          AND granularity = 'daily'
+          AND agent_slug IS DISTINCT FROM 'thread-title'
+      `;
+      return rows[0] ?? { input: 0, output: 0, requests: 0 };
+    };
+    const failedTurn = async (marker: string) => {
+      const thread = z.object({ id: z.string() }).safeParse(
+        await (
+          await send(`/api/app/chat/threads?orgId=${orgId}`, {
+            title: `Itest ${marker.toLowerCase()}`,
+          })
+        ).json(),
+      );
+      const failThreadId = thread.success ? thread.data.id : '';
+      const before = await chatLedger();
+      const res = await send(
+        `/api/app/chat/threads/${failThreadId}/messages?orgId=${orgId}`,
+        {
+          text: `${marker}, please`,
+          modelId: 'itest-chat',
+          providerSlug: 'itestchat',
+        },
+      );
+      // Finish the response before reading final accounting or closing the server.
+      await res.text();
+      const after = await chatLedger();
+      const rows = await sql<
+        { status: string; usage: unknown; error: string | null }[]
+      >`
+        SELECT status, usage, error FROM app.messages
+        WHERE thread_id = ${failThreadId} AND role = 'assistant'
+        ORDER BY "order" DESC LIMIT 1
+      `;
+      return {
+        status: res.status,
+        row: rows[0],
+        delta: {
+          input: after.input - before.input,
+          output: after.output - before.output,
+          requests: after.requests - before.requests,
+        },
+      };
+    };
+    const inStream = await failedTurn(STREAM_FAILS_MARKER);
+    const inStreamUsage = z
+      .object({
+        inputTokens: z.number(),
+        outputTokens: z.number(),
+        totalTokens: z.number(),
+        costEstimateCents: z.number(),
+      })
+      .loose()
+      .safeParse(inStream.row?.usage);
+    const refusedByStatus = await failedTurn(REFUSED_MARKER);
+    const refusedOnStream = await failedTurn(REFUSED_ON_STREAM_MARKER);
+    record(
+      'chat turn that fails inside its stream books what it consumed; a refusal by HTTP status, or on the stream before any answer, books nothing',
+      inStream.row?.status === 'failed' &&
+        (inStream.row.error ?? '').includes(
+          'Provider disconnected unexpectedly',
+        ) &&
+        inStream.delta.input === 100 &&
+        inStream.delta.output === 5 &&
+        inStream.delta.requests === 1 &&
+        inStreamUsage.success &&
+        inStreamUsage.data.inputTokens === 100 &&
+        inStreamUsage.data.outputTokens === 5 &&
+        inStreamUsage.data.totalTokens === 105 &&
+        // 100 prompt tokens at 100 ¢/M + 5 at 200 ¢/M.
+        Math.abs(inStreamUsage.data.costEstimateCents - 0.011) < 1e-9 &&
+        refusedByStatus.row?.status === 'failed' &&
+        (refusedByStatus.row.error ?? '').includes('429') &&
+        refusedByStatus.row.usage === null &&
+        refusedByStatus.delta.input === 0 &&
+        refusedByStatus.delta.output === 0 &&
+        refusedByStatus.delta.requests === 0 &&
+        refusedOnStream.row?.status === 'failed' &&
+        (refusedOnStream.row.error ?? '').includes(
+          'Rate limit exceeded upstream',
+        ) &&
+        refusedOnStream.row.usage === null &&
+        refusedOnStream.delta.input === 0 &&
+        refusedOnStream.delta.output === 0 &&
+        refusedOnStream.delta.requests === 0,
+      `in-stream: send → ${inStream.status}, row=${inStream.row?.status ?? 'MISSING'}, booked Δ=${JSON.stringify(inStream.delta)} (want 100/5/1), stamped=${JSON.stringify(inStream.row?.usage ?? null)}; refused: send → ${refusedByStatus.status}, row=${refusedByStatus.row?.status ?? 'MISSING'}, booked Δ=${JSON.stringify(refusedByStatus.delta)} (want 0/0/0), stamped=${JSON.stringify(refusedByStatus.row?.usage ?? null)}; refused on the stream: row=${refusedOnStream.row?.status ?? 'MISSING'}, booked Δ=${JSON.stringify(refusedOnStream.delta)} (want 0/0/0), stamped=${JSON.stringify(refusedOnStream.row?.usage ?? null)}`,
     );
 
     // A provider that ships NO catalog (Azure deployment names, Nous Portal):
@@ -19389,6 +19507,109 @@ async function checkTurnReattach(
     `unreachable=${unreachable.resumed} (want 0, jobs ${jobsBefore[0]?.count}→${jobsAfterUnreachable[0]?.count}), resumed=${recovered.resumed} (want 2), abandoned=${drivenRunIds.has(abandoned.runId)} opless=${drivenRunIds.has(noOp.runId)} liveUntouched=${!drivenRunIds.has(live.runId)} rotatedUntouched=${!drivenRunIds.has(justRotated.runId)}, createdOp=${createdOp[0]?.resumedBy}/${createdOp[0]?.status}/${createdOp[0]?.kind}/${createdOp[0]?.harness} (want harness pi) runCard=${recoveredCard?.op?.execId ?? 'null'}`,
   );
 
+  // A turn whose op reads silent can still have a live chain: its next
+  // drive window waits for a worker slot, and the op's heartbeat moves only
+  // when a window ends. Re-attaching it would start a second chain beside
+  // the first. A queued window and a window that started inside the
+  // staleness window fence the re-attach; a window that started long ago
+  // with the op silent since belongs to a worker that died with it, and the
+  // turn re-attaches.
+  const fencedQueued = await mkRun('fence-queued', {
+    withOp: true,
+    heartbeatAgoMs: 10 * 60_000,
+  });
+  const fencedRunning = await mkRun('fence-running', {
+    withOp: true,
+    heartbeatAgoMs: 10 * 60_000,
+  });
+  const deadWorker = await mkRun('fence-dead-worker', {
+    withOp: true,
+    heartbeatAgoMs: 10 * 60_000,
+  });
+  const { addJobInTx: enqueueDrive } = await import('./jobs/enqueue.ts');
+  const parkDrive = async (
+    turn: { runId: string; sessionId: string; execId: string },
+    startedAgo: number | null,
+  ): Promise<string | null> => {
+    // Held far in the future, so the harness's worker never takes it.
+    const jobId = await enqueueDrive(
+      sql,
+      'task.agent_drive',
+      {
+        organizationId: orgId,
+        runId: turn.runId,
+        taskId: 'itest-fence-task',
+        agentId,
+        execId: turn.execId,
+        sessionId: turn.sessionId,
+        harness: 'claude-code',
+        deadlineAt: now + 3_600_000,
+      },
+      { startAfter: new Date(now + 24 * 3_600_000) },
+    );
+    if (startedAgo !== null && jobId !== null) {
+      await sql`
+        UPDATE pgboss.job SET state = 'active',
+          started_on = now() - make_interval(secs => ${startedAgo / 1000})
+        WHERE id = ${jobId}
+      `;
+    }
+    return jobId;
+  };
+  const fenceJobIds = [
+    await parkDrive(fencedQueued, null),
+    await parkDrive(fencedRunning, 30_000),
+    await parkDrive(deadWorker, 30 * 60_000),
+  ];
+  const drivesFor = async (execId: string): Promise<number> =>
+    Number(
+      (
+        await sql<{ count: string }[]>`
+          SELECT count(*)::text AS count FROM pgboss.job
+          WHERE name = 'task.agent_drive' AND data ->> 'execId' = ${execId}
+        `
+      )[0]?.count ?? '0',
+    );
+  const fenced = await recoverStalledTaskAgentTurns(sql, {
+    probe: () => Promise.resolve({ state: 'running' as const }),
+  });
+  const fenceDrives = {
+    queued: await drivesFor(fencedQueued.execId),
+    running: await drivesFor(fencedRunning.execId),
+    deadWorker: await drivesFor(deadWorker.execId),
+  };
+  record(
+    're-attach: a silent turn whose drive window is queued or running keeps its one chain; a window a dead worker held does not fence',
+    fenceDrives.queued === 1 &&
+      fenceDrives.running === 1 &&
+      fenceDrives.deadWorker === 2 &&
+      fenced.resumed >= 1,
+    `drives per exec queued=${fenceDrives.queued}/1 running=${fenceDrives.running}/1 deadWorker=${fenceDrives.deadWorker}/2 resumed=${fenced.resumed}`,
+  );
+  await sql`
+    DELETE FROM pgboss.job
+    WHERE name = 'task.agent_drive'
+      AND (id = ANY(${fenceJobIds.filter((id) => id !== null)})
+        OR data ->> 'execId' = ${deadWorker.execId})
+  `;
+  // The fence's turns are this check's alone: the backfill check below
+  // reads every op of the lane's sessions.
+  const fenceSessions = [fencedQueued, fencedRunning, deadWorker].map(
+    (turn) => turn.sessionId,
+  );
+  await sql`
+    UPDATE app.project_agent_runs SET status = 'cancelled'
+    WHERE session_id = ANY(${fenceSessions}) AND status IN ('queued', 'running')
+  `;
+  await sql`
+    DELETE FROM app.sandbox_session_ops WHERE session_id = ANY(${fenceSessions})
+  `;
+  await sql`
+    UPDATE app.sandbox_sessions SET status = 'destroyed',
+                                    destroyed_at_ms = ${Date.now()}
+    WHERE session_id = ANY(${fenceSessions})
+  `;
+
   // Migration 0127 names the ops written before the column existed. A
   // task-agent op takes the harness of ITS RUN — here `codex`, under a
   // session stamped `claude-code`; an op that already records one keeps it.
@@ -20161,7 +20382,15 @@ async function checkSandboxBlobDoor(
     ref: encodeS3Ref('some-other-org/deadbeef'),
     org: ctx.orgId,
   });
-  if (token === null || foreignToken === null) {
+  // A validly SIGNED token for an in-namespace key the store never held: the
+  // store's 404 must pass through as 404 — it used to collapse into the 502
+  // that also says "store down", and a task whose attachment's bytes were
+  // gone read as an infra fault to retry (2026-10-02).
+  const goneToken = await signStageToken({
+    ref: encodeS3Ref(buildObjectKey(store, orgSlug)),
+    org: ctx.orgId,
+  });
+  if (token === null || foreignToken === null || goneToken === null) {
     record(
       'sandbox-blob: a stage token streams the org blob through the door',
       false,
@@ -20177,14 +20406,136 @@ async function checkSandboxBlobDoor(
   const foreign = await fetch(
     `${base}/api/sandbox-blob?token=${encodeURIComponent(foreignToken)}`,
   );
+  const gone = await fetch(
+    `${base}/api/sandbox-blob?token=${encodeURIComponent(goneToken)}`,
+  );
   record(
     'sandbox-blob: a stage token streams the org blob through the door',
     served.status === 200 &&
       servedBody === payload &&
       forged.status === 403 &&
-      foreign.status === 404,
-    `served=${served.status} bodyOk=${servedBody === payload}, forged=${forged.status} (want 403), foreignKey=${foreign.status} (want 404)`,
+      foreign.status === 404 &&
+      gone.status === 404,
+    `served=${served.status} bodyOk=${servedBody === payload}, forged=${forged.status} (want 403), foreignKey=${foreign.status} (want 404), goneKey=${gone.status} (want 404, not 502)`,
   );
+}
+
+/**
+ * A task lists its attachments and deliverables by blob ref with no file
+ * row of its own (`domains/tasks/blob-holders.ts`): deleting the file row
+ * that minted the ref used to delete the bytes too — the card kept showing
+ * the file, and every run start met the store's 404 (2026-10-02). The bytes
+ * now outlive the row while any task lists the ref, and go through the
+ * shared release seam once no task does. Gated on ITEST_S3_ENDPOINT like
+ * the other blob lanes.
+ */
+async function checkTaskHeldBlobOutlivesFileRow(
+  sql: Sql,
+  ctx: { orgId: string; userId: string },
+): Promise<void> {
+  if (!itestObjectStore()) {
+    recordSkip(
+      record,
+      'task-held blob outlives its file row',
+      'no ITEST_S3_ENDPOINT — S3 lanes not exercised in this run',
+    );
+    return;
+  }
+  const { resolveOrgSlug } = await import('./lib/org-config.ts');
+  const {
+    buildObjectKey,
+    resolveObjectStore,
+    s3DeleteObject,
+    s3HeadObject,
+    s3PutObject,
+  } = await import('./lib/object-store.ts');
+  const { encodeS3Ref } = await import('./core/lib/storage/blob_ref.ts');
+  const { deleteFile } = await import('./domains/files/service.ts');
+  const { releaseUnlistedTaskBlobRefs } =
+    await import('./domains/tasks/retire.ts');
+  const { orgId, userId } = ctx;
+  const orgSlug = (await resolveOrgSlug(sql, orgId)) ?? '';
+  const store = await resolveObjectStore(orgSlug);
+  const key = buildObjectKey(store, orgSlug);
+  const ref = encodeS3Ref(key);
+  const payload = new TextEncoder().encode('held by a task');
+  await s3PutObject(store, key, payload, 'text/plain');
+  const now = Date.now();
+  const fileRows = await sql<{ id: string }[]>`
+    INSERT INTO app.file_metadata (
+      org_id, file_name, content_type, size, storage_ref, uploaded_by,
+      created_at_ms
+    ) VALUES (
+      ${orgId}, 'held.txt', 'text/plain', ${payload.byteLength}, ${ref},
+      ${userId}, ${now}
+    ) RETURNING id
+  `;
+  const fileId = fileRows[0]?.id ?? '';
+  const projectRows = await sql<{ id: string }[]>`
+    INSERT INTO app.projects (org_id, name, created_by, created_at_ms,
+                              updated_at_ms)
+    VALUES (${orgId}, 'Held blob probe', ${userId}, ${now}, ${now})
+    RETURNING id
+  `;
+  const projectId = projectRows[0]?.id ?? '';
+  const taskRows = await sql<{ id: string }[]>`
+    INSERT INTO app.tasks (
+      org_id, project_id, title, status, rank, created_by, created_by_type,
+      attachments, created_at_ms, updated_at_ms
+    ) VALUES (
+      ${orgId}, ${projectId}, 'Task holding a blob', 'todo', 'a0', ${userId},
+      'user',
+      ${sql.json([
+        {
+          fileId: ref,
+          fileName: 'held.txt',
+          fileType: 'text/plain',
+          fileSize: payload.byteLength,
+        },
+      ])},
+      ${now}, ${now}
+    ) RETURNING id
+  `;
+  const taskId = taskRows[0]?.id ?? '';
+  let deleteError = '';
+  try {
+    await sql.begin((tx) =>
+      deleteFile(sql, tx, { organizationId: orgId }, fileId),
+    );
+  } catch (error) {
+    deleteError = error instanceof Error ? error.message : String(error);
+  }
+  const rowCount = await sql<{ n: string }[]>`
+    SELECT count(*)::text AS n FROM app.file_metadata WHERE id = ${fileId}
+  `;
+  const rowGone = rowCount[0]?.n === '0';
+  const bytesKept = (await s3HeadObject(store, key)) !== null;
+  // The task lets go: no task lists the ref any more, so the task door hands
+  // it to the shared release seam, which deletes the bytes after commit.
+  await sql.begin(async (tx) => {
+    await tx`UPDATE app.tasks SET attachments = NULL WHERE id = ${taskId}`;
+    await releaseUnlistedTaskBlobRefs(tx, orgId, [ref]);
+  });
+  const released = await sql<{ n: string }[]>`
+    SELECT count(*)::text AS n FROM pgboss.job
+    WHERE name = 'knowledge.release_refs' AND data->'refs' ? ${ref}
+  `;
+  record(
+    'task-held blob outlives its file row, and is released once no task lists it',
+    deleteError === '' &&
+      rowGone &&
+      bytesKept &&
+      Number(released[0]?.n ?? '0') >= 1,
+    `delete=${deleteError === '' ? 'ok' : deleteError} rowGone=${rowGone} (want true) bytesKept=${bytesKept} (want true) releaseJobs=${released[0]?.n ?? '0'} (want ≥1)`,
+  );
+  // Tidy: the release job may already have taken the bytes; S3 DELETE is
+  // idempotent, and the project cascades the task.
+  try {
+    await s3DeleteObject(store, key);
+  } catch (error) {
+    console.warn('[itest] held-blob cleanup failed:', error);
+  }
+  await sql`DELETE FROM app.projects WHERE id = ${projectId}`;
 }
 
 /**
@@ -36432,7 +36783,8 @@ async function checkBrowserSessions(
  * The approvals surface: one-row read and the generic decision with the 0.4
  * FSM (pending → executing|rejected only, once), the dedicated-door
  * refusal for review-gate rows, approver stamping, the workflow audit row,
- * and the silent-no-op poke for a stale run reference.
+ * and fail-closed handling of a missing automation run. Task reviews keep
+ * their own project-agent run metadata and dedicated decision door.
  */
 async function checkApprovalsSurface(
   sql: Sql,
@@ -36485,7 +36837,7 @@ async function checkApprovalsSurface(
   // Seeds: two connector operations (one to approve, one to reject) and a
   // review-gate row that must refuse toward its dedicated door.
   const approveId = await seed('connector_operation', 'itest-appr-op-1', {
-    runId: 'no-such-run',
+    source: 'connector',
     connector: 'imap-smtp',
     action: 'send',
   });
@@ -36542,6 +36894,95 @@ async function checkApprovalsSurface(
       badStatus.status === 400 &&
       Number(auditRows[0]?.count ?? '0') === 2,
     `get=${gotten.success} foreign=${foreign.status}, approve=${approved.status} row=${approvedRow?.status}/${approvedRow?.approvedBy === userId}/name=${typeof approvedRow?.metadata?.approverName} again=${again.status} (want 409), reject=${rejected.status}/${rejectedRow?.status} reviewGate=${reviewRefused.status}/${reviewRow?.status} (want 409/pending) badStatus=${badStatus.status} (want 400), audits=${auditRows[0]?.count} (want 2)`,
+  );
+
+  const missingRunId = await seed(
+    'connector_operation',
+    'itest-appr-missing-run',
+    { source: 'automation', runId: randomUUID() },
+  );
+  const missingRead = await api(`/${missingRunId}`);
+  const missingDecision = await api(`/${missingRunId}/decide`, {
+    body: { status: 'executing' },
+  });
+  const missingRow = await rowOf(missingRunId);
+  const [missingAudits] = await sql<{ count: number }[]>`
+    SELECT count(*)::int AS count FROM app.audit_logs
+    WHERE org_id = ${orgId} AND resource_type = 'approval'
+      AND resource_id = ${missingRunId}
+  `;
+  record(
+    'an approval naming a missing automation run is hidden and cannot be decided',
+    missingRead.status === 404 &&
+      missingDecision.status === 404 &&
+      missingRow?.status === 'pending' &&
+      missingRow.approvedBy === null &&
+      missingAudits?.count === 0,
+    `read=${missingRead.status}, decide=${missingDecision.status}, row=${missingRow?.status}/${missingRow?.approvedBy}, audits=${missingAudits?.count}`,
+  );
+
+  // The task review mint uses metadata.runId for a DIFFERENT run ledger.
+  // Exercise that producer so a synthetic row with no run metadata cannot
+  // accidentally stand in for a real agent's review request.
+  const projectId = randomUUID();
+  const taskId = randomUUID();
+  const agentRunId = randomUUID();
+  const now = Date.now();
+  await sql`
+    INSERT INTO app.projects (
+      id, org_id, name, team_ids, created_by, created_at_ms, updated_at_ms
+    ) VALUES (
+      ${projectId}, ${orgId}, 'Approval kind control', '{}'::text[],
+      ${userId}, ${now}, ${now}
+    )
+  `;
+  await sql`
+    INSERT INTO app.tasks (
+      id, org_id, project_id, title, status, rank, created_by,
+      created_by_type, reviewer_user_id, created_at_ms, updated_at_ms
+    ) VALUES (
+      ${taskId}, ${orgId}, ${projectId}, 'Task review control', 'in_review',
+      'a0', ${userId}, 'user', ${userId}, ${now}, ${now}
+    )
+  `;
+  await sql`
+    INSERT INTO app.project_agent_runs (
+      id, org_id, project_id, task_id, agent_id, exec_id, session_id,
+      status, harness, model, started_by, started_at_ms, deadline_at_ms,
+      settled_at_ms, updated_at_ms
+    ) VALUES (
+      ${agentRunId}, ${orgId}, ${projectId}, ${taskId}, ${randomUUID()},
+      ${randomUUID()}, ${randomUUID()}, 'settled', 'claude-code',
+      'synthetic/none', ${userId}, ${now}, ${now + 60_000}, ${now}, ${now}
+    )
+  `;
+  const { loadTaskOrThrow } = await import('./domains/tasks/service.ts');
+  const { requestTaskReview } = await import('./domains/tasks/reviews.ts');
+  const task = await loadTaskOrThrow(sql, taskId, orgId);
+  const agentReview = await sql.begin((tx) =>
+    requestTaskReview(tx, {
+      task,
+      trigger: { kind: 'agent_run', runId: agentRunId },
+    }),
+  );
+  const agentReviewRead = await api(`/${agentReview.approvalId}`);
+  const agentReviewDecision = await api(`/${agentReview.approvalId}/decide`, {
+    body: { status: 'rejected' },
+  });
+  const agentReviewRefusal = z
+    .object({ error: z.string() })
+    .safeParse(await agentReviewDecision.json());
+  const agentReviewRow = await rowOf(agentReview.approvalId);
+  record(
+    'a production-minted task review keeps its project-agent run and dedicated door',
+    agentReviewRead.status === 200 &&
+      agentReviewDecision.status === 409 &&
+      agentReviewRefusal.success &&
+      agentReviewRefusal.data.error === 'APPROVAL_REQUIRES_DEDICATED_RESPOND' &&
+      agentReviewRow?.status === 'pending' &&
+      agentReviewRow.approvedBy === null &&
+      agentReviewRow.metadata?.runId === agentRunId,
+    `read=${agentReviewRead.status}, decide=${agentReviewDecision.status}, row=${agentReviewRow?.status}/${agentReviewRow?.approvedBy}, run=${String(agentReviewRow?.metadata?.runId)}`,
   );
 }
 
@@ -38131,6 +38572,466 @@ async function checkAutomationAgentNode(
     await new Promise<void>((resolve) => {
       gateway.close(() => resolve());
     });
+  }
+}
+
+/**
+ * An automation step whose run's workspace an administrator is destroying
+ * fails with the reason at once, #4122. While the Destroy of a workflow
+ * run's session is queued, retrying or running, its admission refuses the
+ * run's next start (#4095). That refusal was read as a spent budget: the
+ * step waited up to two hours for room, and once the Destroy had settled it
+ * started over in a fresh, empty workspace, without what the run's earlier
+ * steps left there. A real two-step run on a fake spawner: the first step's
+ * turn is held while the run's session is destroyed through the Sandboxes
+ * page's route, the spawner refusing the delete so the Destroy stays
+ * pending between attempts; then the turn ends. The second step's start
+ * must fail the run with the Destroy's reason while the Destroy is still
+ * pending, and once it has settled nothing may start in the run again.
+ */
+async function checkAutomationStepDestroyPending(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string },
+): Promise<void> {
+  const { cookie, orgId } = ctx;
+  const { createServer } = await import('node:http');
+  const { sessionIdForWorkflowExecution } =
+    await import('./core/sandbox/session_naming.ts');
+  const { SANDBOX_DESTROY_PENDING_MESSAGE } =
+    await import('./core/sandbox/session_constants.ts');
+  const sessions = await import('./domains/sandbox/sessions.ts');
+
+  // The steps run on `itestagent`: the provider the turn-drive lane left in
+  // the suite org, or one of this lane's own when it runs alone.
+  const [orgRow] = await sql<{ slug: string }[]>`
+    SELECT "slug" FROM "organization" WHERE "id" = ${orgId}
+  `;
+  const orgSlug = orgRow?.slug ?? '';
+  const providerSeeded = await stat(
+    path.join(
+      process.env.TALE_CONFIG_DIR ?? '',
+      orgSlug,
+      'providers',
+      'itestagent.yml',
+    ),
+  ).then(
+    () => true,
+    () => false,
+  );
+  const agentProvider = providerSeeded
+    ? null
+    : await seedItestAgentProvider({
+        base,
+        cookie,
+        orgId,
+        orgSlug,
+        displayName: 'Itest Agent Destroy',
+        credentialName: 'Agent destroy key',
+        secret: 'sk-itest-agent-destroy',
+      });
+
+  // The spawner: every create and exec counted; the first exec (the first
+  // step's turn) held until the lane lets it end; a delete refused while
+  // `failDeletes` holds.
+  const spawned = { creates: 0, execs: 0, deletes: 0 };
+  let failDeletes = false;
+  let firstExecStarted = (): void => {};
+  const firstExec = new Promise<void>((resolve) => {
+    firstExecStarted = resolve;
+  });
+  let releaseFirstExec = (): void => {};
+  const firstExecGate = new Promise<void>((resolve) => {
+    releaseFirstExec = resolve;
+  });
+  const writeExecStream = (res: ServerResponse): void => {
+    res.setHeader('content-type', 'text/event-stream');
+    const lines = [
+      { type: 'system', subtype: 'init', session_id: 'wfconv-destroy' },
+      {
+        type: 'assistant',
+        message: {
+          id: 'wd1',
+          model: 'itest-agent-model',
+          content: [{ type: 'text', text: 'Drafted the notes.' }],
+          usage: { input_tokens: 40, output_tokens: 10 },
+        },
+      },
+      {
+        type: 'result',
+        subtype: 'success',
+        session_id: 'wfconv-destroy',
+        result: 'Drafted the notes into the workspace.',
+        duration_ms: 200,
+      },
+    ];
+    lines.forEach((line, index) => {
+      res.write(
+        `event: stdout\ndata: ${JSON.stringify({ text: `${JSON.stringify(line)}\n`, seq: index + 1 })}\n\n`,
+      );
+    });
+    res.write(
+      `event: result\ndata: ${JSON.stringify({ exitCode: 0, stdoutBase64: '', stderrBase64: '' })}\n\n`,
+    );
+    res.end();
+  };
+  const spawner = createServer((req, res) => {
+    let body = '';
+    req.on('data', (chunk: unknown) => {
+      body += String(chunk);
+    });
+    req.on('end', () => {
+      const url = new URL(req.url ?? '', 'http://x');
+      const method = req.method ?? 'GET';
+      res.setHeader('content-type', 'application/json');
+      if (method === 'POST' && url.pathname === '/v1/sessions') {
+        spawned.creates += 1;
+        const parsed = z
+          .object({ sessionId: z.string() })
+          .loose()
+          .safeParse(JSON.parse(body || '{}'));
+        res.end(
+          JSON.stringify({
+            session: {
+              sessionId: parsed.success ? parsed.data.sessionId : '',
+              organizationId: orgId,
+              profile: 'agent',
+              state: 'ready',
+              backend: 'itest',
+              createdAtMs: Date.now(),
+              expiresAtMs: Date.now() + 3_600_000,
+              idleTimeoutMs: 600_000,
+            },
+          }),
+        );
+        return;
+      }
+      if (method === 'POST' && url.pathname.endsWith('/exec')) {
+        spawned.execs += 1;
+        if (spawned.execs === 1) {
+          firstExecStarted();
+          void firstExecGate.then(() => writeExecStream(res));
+          return;
+        }
+        writeExecStream(res);
+        return;
+      }
+      if (url.pathname.endsWith('/files/stage')) {
+        res.end(JSON.stringify({ staged: [], skipped: [] }));
+        return;
+      }
+      if (url.pathname.endsWith('/files/delete')) {
+        res.end(JSON.stringify({ deleted: [], skipped: [] }));
+        return;
+      }
+      if (/\/v1\/sessions\/[^/]+\/files$/.test(url.pathname)) {
+        res.end(JSON.stringify({ entries: [] }));
+        return;
+      }
+      if (/\/exec\/[^/]+\/cancel$/.test(url.pathname)) {
+        res.end('{"cancelled":true}');
+        return;
+      }
+      if (method === 'PATCH' && url.pathname.endsWith('/pin')) {
+        res.end('{"pinned":false}');
+        return;
+      }
+      if (method === 'GET' && /^\/v1\/sessions\/[^/]+$/.test(url.pathname)) {
+        res.end('{"session":{"state":"ready"}}');
+        return;
+      }
+      if (method === 'DELETE') {
+        spawned.deletes += 1;
+        if (failDeletes) {
+          res.statusCode = 500;
+          res.end('{"error":"itest delete failure"}');
+          return;
+        }
+        res.end('{"destroyed":true}');
+        return;
+      }
+      res.statusCode = 404;
+      res.end('{}');
+    });
+  });
+  await new Promise<void>((resolve) => {
+    spawner.listen(0, '127.0.0.1', resolve);
+  });
+  const spawnerAddress = spawner.address();
+  const spawnerPort =
+    spawnerAddress !== null && typeof spawnerAddress === 'object'
+      ? spawnerAddress.port
+      : 0;
+  // The gateway: the provider keys the platform syncs, each turn's key
+  // minted and revoked, nothing spent.
+  const providerKeys = new Map<string, Array<{ id: string; name: string }>>();
+  const gateway = createServer((req, res) => {
+    let gatewayBody = '';
+    req.on('data', (chunk: unknown) => {
+      gatewayBody += String(chunk);
+    });
+    req.on('end', () => {
+      const url = req.url ?? '';
+      const method = req.method ?? 'GET';
+      res.setHeader('content-type', 'application/json');
+      if (url === '/api/config') {
+        res.end(JSON.stringify({ client_config: {} }));
+        return;
+      }
+      const keysMatch = /^\/api\/providers\/([^/]+)\/keys/.exec(url);
+      if (keysMatch) {
+        const provider = decodeURIComponent(keysMatch[1] ?? '');
+        const list = providerKeys.get(provider) ?? [];
+        if (method !== 'GET') {
+          const parsed = z
+            .looseObject({ name: z.string() })
+            .safeParse(JSON.parse(gatewayBody || '{}'));
+          if (
+            parsed.success &&
+            !list.some((k) => k.name === parsed.data.name)
+          ) {
+            list.push({ id: `key-${list.length + 1}`, name: parsed.data.name });
+          }
+          providerKeys.set(provider, list);
+          res.end('{}');
+          return;
+        }
+        res.end(JSON.stringify({ keys: list }));
+        return;
+      }
+      if (url.startsWith('/api/governance/pricing-overrides')) {
+        res.end(
+          method === 'GET'
+            ? JSON.stringify({ pricing_overrides: [], total_count: 0 })
+            : '{}',
+        );
+        return;
+      }
+      if (url === '/api/governance/virtual-keys' && method === 'POST') {
+        const id = `vk-destroy-${randomUUID()}`;
+        res.end(
+          JSON.stringify({
+            virtual_key: {
+              id,
+              value: `sk-bf-${id}`,
+              budgets: [{ id: `budget-${id}`, max_limit: 5, current_usage: 0 }],
+            },
+          }),
+        );
+        return;
+      }
+      if (url.startsWith('/api/governance/virtual-keys/')) {
+        res.end(
+          method === 'DELETE'
+            ? '{}'
+            : JSON.stringify({
+                virtual_key: { budgets: [{ current_usage: 0 }] },
+              }),
+        );
+        return;
+      }
+      if (url.startsWith('/api/providers')) {
+        res.end('{}');
+        return;
+      }
+      res.statusCode = 404;
+      res.end('{}');
+    });
+  });
+  await new Promise<void>((resolve) => {
+    gateway.listen(0, '127.0.0.1', resolve);
+  });
+  const gatewayAddress = gateway.address();
+  const gatewayPort =
+    gatewayAddress !== null && typeof gatewayAddress === 'object'
+      ? gatewayAddress.port
+      : 0;
+  const restoreEnv = overrideEnv({
+    SANDBOX_URL: `http://127.0.0.1:${spawnerPort}`,
+    SANDBOX_TOKEN: 'itest-destroy-spawner',
+    SANDBOX_LLM_GATEWAY_URL: `http://127.0.0.1:${gatewayPort}`,
+    TALE_ALLOW_PRIVATE_PROVIDER_HOSTS: '1',
+  });
+
+  let sessionId = '';
+  try {
+    const post = (route: string, payload?: unknown): Promise<Response> =>
+      fetch(`${base}${route}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', cookie, origin: base },
+        ...(payload !== undefined ? { body: JSON.stringify(payload) } : {}),
+      });
+    const name = `ops/destroy-pending-${randomUUID().slice(0, 8)}`;
+    const saved = z.object({ version: z.number() }).safeParse(
+      await (
+        await post(`/api/app/automations/${name}/save?orgId=${orgId}`, {
+          document: {
+            version: 1,
+            name,
+            nodes: [
+              {
+                id: 'draft',
+                type: 'agent',
+                model: 'itest-agent-model',
+                prompt:
+                  'Draft notes on {{ input.subject }} into the workspace.',
+              },
+              {
+                id: 'publish',
+                type: 'agent',
+                model: 'itest-agent-model',
+                prompt:
+                  'Publish the notes you drafted: {{ nodes.draft.output.text }}',
+              },
+            ],
+            output: '{{ nodes.publish.output }}',
+          },
+        })
+      ).json(),
+    );
+    const deployed = await post(
+      `/api/app/automations/${name}/deploy?orgId=${orgId}`,
+      { version: saved.success ? saved.data.version : 0 },
+    );
+    const started = z.object({ runId: z.string() }).safeParse(
+      await (
+        await post(`/api/app/automations/${name}/start?orgId=${orgId}`, {
+          input: { subject: 'the quarter' },
+          mode: 'live',
+        })
+      ).json(),
+    );
+    const runId = started.success ? started.data.runId : '';
+    sessionId = sessionIdForWorkflowExecution(runId);
+    const runRow = async () =>
+      (
+        await sql<
+          {
+            status: string;
+            detail: string | null;
+            failureCode: string | null;
+          }[]
+        >`
+          SELECT status, detail, failure_code AS "failureCode"
+          FROM app.automation_runs WHERE id = ${runId}
+        `
+      )[0];
+    const destroyJobStates = async () =>
+      (
+        await sql<{ state: string }[]>`
+          SELECT state::text AS state FROM pgboss.job
+          WHERE name = 'sandbox.destroy_session'
+            AND data ->> 'organizationId' = ${orgId}
+            AND data ->> 'sessionId' = ${sessionId}
+          ORDER BY created_on
+        `
+      ).map((job) => job.state);
+
+    // The first step's turn runs in the run's workspace...
+    const firstStepRunning = await Promise.race([
+      firstExec.then(() => true),
+      sleep(30_000).then(() => false),
+    ]);
+    // ...when an administrator destroys it. The spawner refuses the delete,
+    // so the Destroy waits for its next attempt: pending.
+    failDeletes = true;
+    const destroyRes = await post(
+      `/api/app/sandbox/sessions/${sessionId}/destroy?orgId=${orgId}`,
+    );
+    const destroyPending = await waitFor(
+      async () => (await destroyJobStates()).includes('retry'),
+      15_000,
+    );
+    // The first step's turn ends; the run moves on to the second step.
+    const releasedAt = Date.now();
+    releaseFirstExec();
+    await waitFor(async () => {
+      const row = await runRow();
+      return (
+        row !== undefined &&
+        (['success', 'failed', 'cancelled'].includes(row.status) ||
+          row.detail === 'room:publish')
+      );
+    }, 30_000);
+    const atRefusal = await runRow();
+    const refusedAfterMs = Date.now() - releasedAt;
+    const destroyStillPending = (await destroyJobStates()).includes('retry');
+
+    // The Destroy settles: the spawner deletes, the retry runs now.
+    failDeletes = false;
+    await sql`
+      UPDATE pgboss.job SET start_after = now()
+      WHERE name = 'sandbox.destroy_session'
+        AND data ->> 'organizationId' = ${orgId}
+        AND data ->> 'sessionId' = ${sessionId} AND state = 'retry'
+    `;
+    const destroySettled = await waitFor(
+      async () =>
+        (await destroyJobStates()).every((state) => state === 'completed') &&
+        (await sessions.getSessionBySessionId(sql, orgId, sessionId))
+          ?.status === 'destroyed',
+      15_000,
+    );
+    // Whatever was still waiting comes back within its backoff, at most
+    // half a minute after a first refusal: give it that long to show.
+    await waitFor(async () => {
+      const row = await runRow();
+      return (
+        row !== undefined &&
+        ['success', 'failed', 'cancelled'].includes(row.status)
+      );
+    }, 40_000);
+    const afterwards = await runRow();
+    const rows = await sql<{ status: string }[]>`
+      SELECT status FROM app.sandbox_sessions
+      WHERE org_id = ${orgId} AND session_id = ${sessionId}
+      ORDER BY created_at_ms
+    `;
+    record(
+      'automation step: a pending Destroy of the run’s workspace fails the next step with its reason, never a wait for room or a fresh, empty workspace',
+      saved.success &&
+        deployed.status === 200 &&
+        firstStepRunning &&
+        destroyRes.status === 202 &&
+        destroyPending &&
+        atRefusal?.status === 'failed' &&
+        atRefusal.failureCode === 'start_failed' &&
+        (atRefusal.detail ?? '').startsWith('publish: ') &&
+        (atRefusal.detail ?? '').includes(SANDBOX_DESTROY_PENDING_MESSAGE) &&
+        !(atRefusal.detail ?? '').includes('sandbox room') &&
+        destroyStillPending &&
+        destroySettled &&
+        afterwards?.status === 'failed' &&
+        rows.length === 1 &&
+        rows[0]?.status === 'destroyed' &&
+        spawned.creates === 1 &&
+        spawned.execs === 1,
+      `deploy=${deployed.status}, first step running=${firstStepRunning}, destroy=${destroyRes.status}, pending=${destroyPending}; ${refusedAfterMs} ms after the first step ended: run=${atRefusal?.status ?? 'missing'}/${atRefusal?.failureCode ?? '-'} (want failed/start_failed) "${(atRefusal?.detail ?? '').slice(0, 160)}", Destroy still pending then=${destroyStillPending}; Destroy settled=${destroySettled}, then run=${afterwards?.status ?? 'missing'} (want failed), session rows=${rows.map((row) => row.status).join(',')} (want destroyed: no fresh incarnation), spawner creates=${spawned.creates} execs=${spawned.execs} (want 1/1: the second step never ran)`,
+    );
+  } finally {
+    releaseFirstExec();
+    failDeletes = false;
+    restoreEnv();
+    if (sessionId !== '') {
+      // Hand back the workflow budget whatever happened above.
+      await sql`
+        DELETE FROM pgboss.job WHERE name = 'sandbox.destroy_session'
+          AND data ->> 'organizationId' = ${orgId}
+          AND data ->> 'sessionId' = ${sessionId}
+          AND state::text IN ('created', 'retry')
+      `;
+      await sessions.markSessionDestroyed(sql, {
+        organizationId: orgId,
+        sessionId,
+      });
+    }
+    await new Promise<void>((resolve) => {
+      spawner.close(() => resolve());
+    });
+    await new Promise<void>((resolve) => {
+      gateway.close(() => resolve());
+    });
+    await agentProvider?.cleanup();
   }
 }
 
@@ -39767,6 +40668,10 @@ async function checkSandboxSpawner(
   const SPAWNER_TOKEN = 'itest-spawner-token';
   const live = new Map<string, { pinned: boolean }>();
   let badSignatures = 0;
+  // The admin Destroy runs as a job: a held delete shows the request
+  // answering before the spawner has, a failing one the retry and its end.
+  let deleteHold: Promise<void> | null = null;
+  let failDeletes = false;
   const spawner = createServer((req, res) => {
     let body = '';
     req.on('data', (chunk: unknown) => {
@@ -39828,8 +40733,16 @@ async function checkSandboxSpawner(
         return;
       }
       if (method === 'DELETE' && idMatch) {
-        live.delete(sessionId);
-        res.end('{"destroyed":true}');
+        void (async () => {
+          await deleteHold;
+          if (failDeletes) {
+            res.statusCode = 500;
+            res.end('{"error":"itest delete failure"}');
+            return;
+          }
+          live.delete(sessionId);
+          res.end('{"destroyed":true}');
+        })();
         return;
       }
       if (method === 'PATCH' && idMatch && idMatch[2] === '/pin') {
@@ -39898,20 +40811,44 @@ async function checkSandboxSpawner(
     );
 
     // Admin surface over HTTP: list + pin + destroy.
-    const listed = z
-      .object({
-        sessions: z.array(
-          z.looseObject({ sessionId: z.string(), status: z.string() }),
-        ),
-      })
-      .loose()
-      .safeParse(
-        await (
-          await fetch(`${base}/api/app/sandbox/sessions/view?orgId=${orgId}`, {
-            headers: { cookie },
-          })
-        ).json(),
-      );
+    const view = async () =>
+      z
+        .object({
+          sessions: z.array(
+            z.looseObject({
+              sessionId: z.string(),
+              status: z.string(),
+              destroyState: z.enum(['pending', 'failed']).nullish(),
+            }),
+          ),
+        })
+        .loose()
+        .safeParse(
+          await (
+            await fetch(
+              `${base}/api/app/sandbox/sessions/view?orgId=${orgId}`,
+              { headers: { cookie } },
+            )
+          ).json(),
+        );
+    const viewRow = async (sessionId: string) => {
+      const parsed = await view();
+      return parsed.success
+        ? parsed.data.sessions.find((row) => row.sessionId === sessionId)
+        : undefined;
+    };
+    const rowStatus = async (sessionId: string) =>
+      (await sessions.getSessionBySessionId(sql, orgId, sessionId))?.status;
+    const destroyJobStates = async (sessionId: string) =>
+      (
+        await sql<{ state: string }[]>`
+          SELECT state::text AS state FROM pgboss.job
+          WHERE name = 'sandbox.destroy_session'
+            AND data ->> 'sessionId' = ${sessionId}
+          ORDER BY created_on
+        `
+      ).map((job) => job.state);
+    const listed = await view();
     const pinRes = await fetch(
       `${base}/api/app/sandbox/sessions/itest-spawn-1/pin?orgId=${orgId}`,
       {
@@ -39920,27 +40857,359 @@ async function checkSandboxSpawner(
         body: JSON.stringify({ pinned: true }),
       },
     );
-    const destroyRes = await fetch(
-      `${base}/api/app/sandbox/sessions/itest-spawn-1/destroy?orgId=${orgId}`,
-      {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', cookie, origin: base },
-      },
+    const destroy = (sessionId: string) =>
+      fetch(
+        `${base}/api/app/sandbox/sessions/${sessionId}/destroy?orgId=${orgId}`,
+        {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            cookie,
+            origin: base,
+          },
+        },
+      );
+    // The spawner holds its delete: the request answers anyway, the row
+    // reads the Destroy as under way, and the queued teardown finishes it
+    // once the spawner does.
+    let releaseDeletes = () => {};
+    deleteHold = new Promise<void>((resolve) => {
+      releaseDeletes = resolve;
+    });
+    const destroyRes = await destroy('itest-spawn-1');
+    const whileHeld = await viewRow('itest-spawn-1');
+    const liveWhileHeld = live.has('itest-spawn-1');
+    releaseDeletes();
+    deleteHold = null;
+    const settled = await waitFor(
+      async () =>
+        !live.has('itest-spawn-1') &&
+        (await rowStatus('itest-spawn-1')) === 'destroyed',
+      15_000,
     );
+    const afterDestroy = await viewRow('itest-spawn-1');
 
     record(
       'sandbox spawner dispatch (reused HMAC client + admin surface)',
       badSignatures === 0 &&
         rowAfterCreate?.status === 'active' &&
-        !live.has('itest-spawn-1') &&
         listed.success &&
         listed.data.sessions.some(
           (row) => row.sessionId === 'itest-spawn-1' && row.status === 'active',
         ) &&
         pinRes.ok &&
-        destroyRes.ok,
-      `signatures ok=${badSignatures === 0}, active=${rowAfterCreate?.status === 'active'}, admin(list=${listed.success ? listed.data.sessions.length : 'ERR'}, pin=${pinRes.status}, destroy=${destroyRes.status}), containerGone=${live.get('itest-spawn-1') === undefined}`,
+        destroyRes.status === 202 &&
+        whileHeld?.destroyState === 'pending' &&
+        liveWhileHeld &&
+        settled &&
+        afterDestroy === undefined,
+      `signatures ok=${badSignatures === 0}, active=${rowAfterCreate?.status === 'active'}, admin(list=${listed.success ? listed.data.sessions.length : 'ERR'}, pin=${pinRes.status}, destroy=${destroyRes.status}), whileHeld(destroyState=${whileHeld?.destroyState}, live=${liveWhileHeld}), settled=${settled}, listedAfter=${afterDestroy !== undefined}, containerGone=${live.get('itest-spawn-1') === undefined}`,
     );
+
+    // A spawner that refuses the delete: the job retries while the row reads
+    // pending, a Destroy whose ladder ran out reads failed, and asking again
+    // queues a fresh one that finishes the work.
+    await provision('itest-spawn-2', {
+      ownerType: 'workflow_run',
+      ownerId: 'wf-21',
+    });
+    failDeletes = true;
+    const refusedRes = await destroy('itest-spawn-2');
+    const retrying = await waitFor(
+      async () => (await destroyJobStates('itest-spawn-2')).includes('retry'),
+      15_000,
+    );
+    const whileRetrying = await viewRow('itest-spawn-2');
+    const duplicateRes = await destroy('itest-spawn-2');
+    const jobsWhileRetrying = await destroyJobStates('itest-spawn-2');
+    // Stand in for the end of the ladder (a quarter to half an hour).
+    await sql`
+      UPDATE pgboss.job SET state = 'failed', completed_on = now()
+      WHERE name = 'sandbox.destroy_session'
+        AND data ->> 'sessionId' = 'itest-spawn-2' AND state = 'retry'
+    `;
+    const afterFailure = await viewRow('itest-spawn-2');
+    failDeletes = false;
+    const retryRes = await destroy('itest-spawn-2');
+    const retried = await waitFor(
+      async () =>
+        !live.has('itest-spawn-2') &&
+        (await rowStatus('itest-spawn-2')) === 'destroyed',
+      15_000,
+    );
+    record(
+      'sandbox Destroy retries in the background, reads failed when it gives up, and finishes when asked again',
+      refusedRes.status === 202 &&
+        retrying &&
+        whileRetrying?.destroyState === 'pending' &&
+        duplicateRes.status === 202 &&
+        jobsWhileRetrying.length === 1 &&
+        afterFailure?.destroyState === 'failed' &&
+        afterFailure.status === 'active' &&
+        retryRes.status === 202 &&
+        retried,
+      `refused=${refusedRes.status}, retrying=${retrying}, whileRetrying=${whileRetrying?.destroyState}, duplicate=${duplicateRes.status} (jobs=${jobsWhileRetrying.join('/')}), afterFailure=${afterFailure?.destroyState}/${afterFailure?.status}, retry=${retryRes.status}, destroyed=${retried}`,
+    );
+
+    // A retry outlives the row it was asked for: the spawner did delete the
+    // workspace but the answer was lost, the reconcile heals the row, and a
+    // turn opens a fresh incarnation under the same id. The retry leaves that
+    // one alone, the list never reads it as being destroyed, and a Destroy
+    // asked for it is queued on its own rather than absorbed.
+    await provision('itest-spawn-3', {
+      ownerType: 'workflow_run',
+      ownerId: 'wf-22',
+    });
+    const firstRowId = (
+      await sessions.getSessionBySessionId(sql, orgId, 'itest-spawn-3')
+    )?.id;
+    failDeletes = true;
+    const staleRes = await destroy('itest-spawn-3');
+    const staleRetrying = await waitFor(
+      async () => (await destroyJobStates('itest-spawn-3')).includes('retry'),
+      15_000,
+    );
+    live.delete('itest-spawn-3');
+    await sessions.markSessionDestroyed(sql, {
+      organizationId: orgId,
+      sessionId: 'itest-spawn-3',
+    });
+    await provision('itest-spawn-3', {
+      ownerType: 'workflow_run',
+      ownerId: 'wf-22',
+    });
+    const freshRowId = (
+      await sessions.getSessionBySessionId(sql, orgId, 'itest-spawn-3')
+    )?.id;
+    const freshWhileStale = await viewRow('itest-spawn-3');
+    failDeletes = false;
+    await sql`
+      UPDATE pgboss.job SET start_after = now()
+      WHERE name = 'sandbox.destroy_session'
+        AND data ->> 'rowId' = ${firstRowId ?? ''} AND state = 'retry'
+    `;
+    const staleSettled = await waitFor(
+      async () =>
+        (await destroyJobStates('itest-spawn-3')).every(
+          (state) => state === 'completed',
+        ),
+      15_000,
+    );
+    const freshKept =
+      live.has('itest-spawn-3') &&
+      (await rowStatus('itest-spawn-3')) === 'active';
+    const freshRes = await destroy('itest-spawn-3');
+    const freshDestroyed = await waitFor(
+      async () =>
+        !live.has('itest-spawn-3') &&
+        (await rowStatus('itest-spawn-3')) === 'destroyed',
+      15_000,
+    );
+    record(
+      'sandbox Destroy retry leaves a fresh incarnation under the reused id alone',
+      staleRes.status === 202 &&
+        staleRetrying &&
+        firstRowId !== undefined &&
+        freshRowId !== undefined &&
+        freshRowId !== firstRowId &&
+        freshWhileStale !== undefined &&
+        (freshWhileStale.destroyState ?? null) === null &&
+        staleSettled &&
+        freshKept &&
+        freshRes.status === 202 &&
+        freshDestroyed,
+      `stale=${staleRes.status}, retrying=${staleRetrying}, rows=${firstRowId === freshRowId ? 'same' : 'distinct'}, freshWhileStale=${freshWhileStale?.destroyState ?? 'none'}, staleSettled=${staleSettled}, freshKept=${freshKept}, fresh=${freshRes.status}, freshDestroyed=${freshDestroyed}`,
+    );
+
+    // The first attempt failed, and before its retry a turn asks for the
+    // same row: a member's chat run, an agent's next task, an automation's
+    // next step — each through its lane's shim to the hosts' one admission
+    // (`ensureAgentSession`). A resume keeps the row id, the one thing the
+    // retry checks, so a turn let in here would be killed by the next
+    // attempt, its workspace deleted and its tokens revoked. It is refused
+    // before anything starts, the row keeps reading Destroying, and once the
+    // Destroy has finished the same start opens a fresh incarnation. In an
+    // organization of their own: the lane's organization may already hold
+    // as many project sessions as its budget allows. The Destroy is asked
+    // for through the route's own scheduler and read back through the
+    // page's own reader; the real worker runs it against this spawner.
+    const { ensureAgentSession } =
+      await import('./core/node_only/sandbox/agent_session.ts');
+    const { agentTurnShimHandlers, taskAgentShimScheduler } =
+      await import('./domains/tasks/agent-turn-shim.ts');
+    const { automationShimHandlers, automationShimScheduler } =
+      await import('./domains/automations/shim.ts');
+    const { scheduleSessionDestroy, sessionDestroyStates } =
+      await import('./domains/sandbox/destroy-schedule.ts');
+    const { createCtxShim } = await import('./lib/ctx-shim.ts');
+    const naming = await import('./core/sandbox/session_naming.ts');
+    const taskShim = createCtxShim(agentTurnShimHandlers(sql), {
+      scheduler: taskAgentShimScheduler(sql),
+    });
+    const automationShim = createCtxShim(automationShimHandlers(sql), {
+      scheduler: automationShimScheduler(sql),
+    });
+    const resumeOrgId = `${orgId}:destroy-resume:${randomUUID()}`;
+    const resumeAgentId = `itest-resume-${randomUUID()}`;
+    const resumeRunId = `itest-resume-run-${randomUUID()}`;
+    const resumePaths = [
+      {
+        lane: "a member's chat run",
+        shim: taskShim,
+        sessionId: naming.memberSessionIdForProjectAgent(resumeAgentId, userId),
+        owner: { type: 'project_agent' as const, agentId: resumeAgentId },
+        ownerId: naming.projectAgentOwnerId(resumeAgentId),
+      },
+      {
+        lane: "an agent's next task",
+        shim: taskShim,
+        sessionId: naming.standingSessionIdForProjectAgent(resumeAgentId),
+        owner: { type: 'project_agent' as const, agentId: resumeAgentId },
+        ownerId: naming.projectAgentOwnerId(resumeAgentId),
+      },
+      {
+        lane: "an automation's next step",
+        shim: automationShim,
+        sessionId: naming.sessionIdForWorkflowExecution(resumeRunId),
+        owner: { type: 'workflow_run' as const, runId: resumeRunId },
+        ownerId: naming.workflowExecutionOwnerId(resumeRunId),
+      },
+    ];
+    const resumeRowStatus = async (sessionId: string) =>
+      (await sessions.getSessionBySessionId(sql, resumeOrgId, sessionId))
+        ?.status;
+    try {
+      for (const resumePath of resumePaths) {
+        const resumeArgs = {
+          organizationId: resumeOrgId,
+          sessionId: resumePath.sessionId,
+        };
+        // The hosts' choreography, then the idle release: compute
+        // stopped, files kept.
+        await sessions.reserveSessionSlot(sql, {
+          ...resumeArgs,
+          profile: 'agent',
+          ownerType: resumePath.owner.type,
+          ownerId: resumePath.ownerId,
+          createdBy: userId,
+        });
+        await sessionCreate({
+          sessionId: resumePath.sessionId,
+          organizationId: resumeOrgId,
+          profile: 'agent',
+        });
+        await sql`
+          UPDATE app.sandbox_sessions SET status = 'stopped'
+          WHERE org_id = ${resumeOrgId}
+            AND session_id = ${resumePath.sessionId}
+        `;
+        live.delete(resumePath.sessionId);
+        const askedRowId = (
+          await sessions.getSessionBySessionId(
+            sql,
+            resumeOrgId,
+            resumePath.sessionId,
+          )
+        )?.id;
+        failDeletes = true;
+        const queued = await scheduleSessionDestroy(sql, resumeArgs);
+        const firstFailed = await waitFor(
+          async () =>
+            (await destroyJobStates(resumePath.sessionId)).includes('retry'),
+          15_000,
+        );
+        const start = () =>
+          ensureAgentSession(
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the hosts' admission on its lane's shim, as the job wires it
+            resumePath.shim as unknown as Parameters<
+              typeof ensureAgentSession
+            >[0],
+            {
+              ...resumeArgs,
+              owner: resumePath.owner,
+              agentKind: 'claude-code',
+            },
+          ).then(
+            (started) =>
+              started.liveCreatedAt === undefined ? 'fresh' : 'resumed',
+            (error: unknown) =>
+              String(error).includes('is deleting this sandbox workspace')
+                ? 'refused'
+                : `error: ${String(error)}`,
+          );
+        const asked = await start();
+        // What the turn would hold had it been let in: its session token.
+        if (asked === 'resumed') {
+          await sql`
+            INSERT INTO app.sandbox_session_tokens (
+              org_id, session_id, token_hash, scope, created_at_ms,
+              expires_at_ms
+            ) VALUES (${resumeOrgId}, ${resumePath.sessionId}, ${randomUUID()},
+              '{}'::jsonb, ${Date.now()}, ${Date.now() + 3_600_000})
+          `;
+        }
+        const containerAfterAsk = live.has(resumePath.sessionId);
+        const rowAfterAsk = await resumeRowStatus(resumePath.sessionId);
+        const pageAfterAsk = (
+          await sessionDestroyStates(sql, resumeOrgId, [resumePath.sessionId])
+        ).get(resumePath.sessionId);
+        failDeletes = false;
+        await sql`
+          UPDATE pgboss.job SET start_after = now()
+          WHERE name = 'sandbox.destroy_session'
+            AND data ->> 'rowId' = ${askedRowId ?? ''} AND state = 'retry'
+        `;
+        const resumeRetried = await waitFor(
+          async () =>
+            (await destroyJobStates(resumePath.sessionId)).every(
+              (state) => state === 'completed',
+            ) && (await resumeRowStatus(resumePath.sessionId)) === 'destroyed',
+          15_000,
+        );
+        const containerAfterRetry = live.has(resumePath.sessionId);
+        const tokens = await sql<{ revoked: boolean }[]>`
+          SELECT revoked_at_ms IS NOT NULL AS revoked
+          FROM app.sandbox_session_tokens
+          WHERE org_id = ${resumeOrgId} AND session_id = ${resumePath.sessionId}
+        `;
+        const afterwards = await start();
+        const startedRowId = (
+          await sessions.getSessionBySessionId(
+            sql,
+            resumeOrgId,
+            resumePath.sessionId,
+          )
+        )?.id;
+        record(
+          `sandbox Destroy retry never deletes work resumed after the request: ${resumePath.lane}`,
+          queued &&
+            firstFailed &&
+            asked === 'refused' &&
+            !containerAfterAsk &&
+            rowAfterAsk === 'stopped' &&
+            pageAfterAsk === 'pending' &&
+            resumeRetried &&
+            tokens.length === 0 &&
+            afterwards === 'fresh' &&
+            startedRowId !== undefined &&
+            startedRowId !== askedRowId &&
+            live.has(resumePath.sessionId) &&
+            (await resumeRowStatus(resumePath.sessionId)) === 'active',
+          `queued=${queued}, first attempt failed=${firstFailed}, start between attempts=${asked} (want refused), container after it=${containerAfterAsk ? 'running' : 'none'}, row=${rowAfterAsk}, page=${pageAfterAsk ?? 'none'} (want pending), retry settled=${resumeRetried}, container after the retry=${containerAfterRetry ? 'running' : 'none'}, turn tokens revoked=${tokens.filter((token) => token.revoked).length}/${tokens.length}, start after the Destroy=${afterwards} (want fresh), rows=${startedRowId === askedRowId ? 'same' : 'distinct'}`,
+        );
+        // The fresh session holds one of the organization's project slots.
+        await sessions.markSessionDestroyed(sql, resumeArgs);
+        live.delete(resumePath.sessionId);
+      }
+    } finally {
+      failDeletes = false;
+      await sql`
+        DELETE FROM pgboss.job WHERE name = 'sandbox.destroy_session'
+          AND data ->> 'organizationId' = ${resumeOrgId}
+      `;
+      await sql`DELETE FROM app.sandbox_session_tokens WHERE org_id = ${resumeOrgId}`;
+      await sql`DELETE FROM app.sandbox_sessions WHERE org_id = ${resumeOrgId}`;
+    }
 
     // --- the in-sandbox workspace-tool door (the REUSED bridge on the shim).
     const post = (route: string, body?: unknown): Promise<Response> =>
@@ -40292,8 +41561,8 @@ async function checkTaskAgentRuns(
     runId,
     execId,
   });
-  const woken = await agentRuns.wakeParkedAgentRuns(sql, orgId);
-  const wokenAgain = await agentRuns.wakeParkedAgentRuns(sql, orgId);
+  const woken = await agentRuns.wakeOrganizationParkedAgentRun(sql, orgId);
+  const wokenAgain = await agentRuns.wakeOrganizationParkedAgentRun(sql, orgId);
   const afterWake = await agentRuns.getAgentRun(sql, orgId, runId);
 
   // The release EDGE itself: a project-agent turn ending frees the agent's
@@ -40301,10 +41570,11 @@ async function checkTaskAgentRuns(
   // once — no watchdog tick in between. Counted org-wide (a live worker may
   // have parked a sibling), so the proof is one fewer parked run and one
   // more turn job, plus the slot really hibernated.
-  await shimRefs['tasks/agent_runs:parkTaskAgentRunForCapacity']?.({
-    runId,
-    execId,
-  });
+  // A park frees the slot its start held: a standing workspace the start
+  // resumed (`active`) before the sandbox host refused the create holds no
+  // compute, and left `active` the reconcile would heal it to destroyed and
+  // the next refused create delete its files. The release is quiet: the run
+  // stays parked and no turn is kicked into the same refusal.
   await sql`
     INSERT INTO app.sandbox_sessions (
       org_id, session_id, status, owner_type, owner_id, created_by,
@@ -40313,6 +41583,102 @@ async function checkTaskAgentRuns(
       ${orgId}, ${ledgerSessionId}, 'active', 'project_agent', ${ledgerAgentId},
       'itest:ledger', ${Date.now()}, ${Date.now() + 3_600_000}
     )
+  `;
+  const turnJobsBeforePark = Number(
+    (
+      await sql<{ count: string }[]>`
+        SELECT count(*)::text AS count FROM pgboss.job
+        WHERE name = 'task.agent_turn' AND data ->> 'organizationId' = ${orgId}
+          AND data ->> 'runId' = ${runId}
+      `
+    )[0]?.count ?? '0',
+  );
+  await shimRefs['tasks/agent_runs:parkTaskAgentRunForCapacity']?.({
+    runId,
+    execId,
+  });
+  const [parkedSlot] = await sql<{ status: string }[]>`
+    SELECT status FROM app.sandbox_sessions
+    WHERE org_id = ${orgId} AND session_id = ${ledgerSessionId}
+    ORDER BY created_at_ms DESC LIMIT 1
+  `;
+  const [parkedRun] = await sql<{ parked: boolean }[]>`
+    SELECT waiting_for_capacity_at_ms IS NOT NULL AS parked
+    FROM app.project_agent_runs WHERE id = ${runId}
+  `;
+  const turnJobsAfterPark = Number(
+    (
+      await sql<{ count: string }[]>`
+        SELECT count(*)::text AS count FROM pgboss.job
+        WHERE name = 'task.agent_turn' AND data ->> 'organizationId' = ${orgId}
+          AND data ->> 'runId' = ${runId}
+      `
+    )[0]?.count ?? '0',
+  );
+  record(
+    'a run parking for room frees its standing slot to stopped without waking a turn',
+    parkedSlot?.status === 'stopped' &&
+      (parkedRun?.parked ?? false) &&
+      turnJobsAfterPark === turnJobsBeforePark,
+    `slot=${parkedSlot?.status ?? 'MISSING'}/stopped parked=${String(parkedRun?.parked)}/true turnJobs=${turnJobsBeforePark}→${turnJobsAfterPark}`,
+  );
+  // A host that keeps a first-come line says when the run's place comes up:
+  // the park schedules ONE wake for then, which restarts the run once — a
+  // second delivery finds it un-parked and does nothing.
+  const parkWakeJobs = async (): Promise<Array<{ startAfter: Date }>> =>
+    sql<{ startAfter: Date }[]>`
+      SELECT start_after AS "startAfter" FROM pgboss.job
+      WHERE name = 'task.agent_park_wake' AND data ->> 'runId' = ${runId}
+    `;
+  const parkedAtMs = Date.now();
+  await shimRefs['tasks/agent_runs:parkTaskAgentRunForCapacity']?.({
+    runId,
+    execId,
+    wakeAfterMs: 20_000,
+  });
+  const wakeJobs = await parkWakeJobs();
+  const turnJobsBeforeTimedWake = Number(
+    (
+      await sql<{ count: string }[]>`
+        SELECT count(*)::text AS count FROM pgboss.job
+        WHERE name = 'task.agent_turn' AND data ->> 'runId' = ${runId}
+      `
+    )[0]?.count ?? '0',
+  );
+  const parkWake = createTaskList({ sql })['task.agent_park_wake'];
+  await parkWake?.({ organizationId: orgId, runId, execId });
+  await parkWake?.({ organizationId: orgId, runId, execId });
+  const [timedWoken] = await sql<{ parked: boolean }[]>`
+    SELECT waiting_for_capacity_at_ms IS NOT NULL AS parked
+    FROM app.project_agent_runs WHERE id = ${runId}
+  `;
+  const turnJobsAfterTimedWake = Number(
+    (
+      await sql<{ count: string }[]>`
+        SELECT count(*)::text AS count FROM pgboss.job
+        WHERE name = 'task.agent_turn' AND data ->> 'runId' = ${runId}
+      `
+    )[0]?.count ?? '0',
+  );
+  const wakeAt = wakeJobs[0]?.startAfter.getTime() ?? 0;
+  record(
+    'a host refusal that names its place in line wakes the parked run then, once',
+    wakeJobs.length === 1 &&
+      wakeAt >= parkedAtMs + 19_000 &&
+      wakeAt <= Date.now() + 21_000 &&
+      !(timedWoken?.parked ?? true) &&
+      turnJobsAfterTimedWake === turnJobsBeforeTimedWake + 1,
+    `wakeJobs=${wakeJobs.length}/1 at=+${wakeAt - parkedAtMs}ms(want ~20000) parked=${String(timedWoken?.parked)}/false turnJobs=${turnJobsBeforeTimedWake}→${turnJobsAfterTimedWake} (want +1)`,
+  );
+  // Parked again, for the release edge below.
+  await shimRefs['tasks/agent_runs:parkTaskAgentRunForCapacity']?.({
+    runId,
+    execId,
+  });
+  // Back to `active` for the release edge below.
+  await sql`
+    UPDATE app.sandbox_sessions SET status = 'active'
+    WHERE org_id = ${orgId} AND session_id = ${ledgerSessionId}
   `;
   const countParked = async (): Promise<number> =>
     Number(
@@ -40333,6 +41699,34 @@ async function checkTaskAgentRuns(
         `
       )[0]?.count ?? '0',
     );
+  // The sandbox host is shared: the same release wakes the oldest parked
+  // run of another organization too, one that runs nothing of its own and
+  // so has no release edge that would ever wake it. Parked first of all
+  // (stamp 1), so no other lane's leftover park is older; its agent is a
+  // phantom, so the turn job it gets is skipped.
+  const quietOrgId = `${orgId}-quiet-${randomUUID()}`;
+  const [quietTask] = await sql<{ id: string }[]>`
+    INSERT INTO app.tasks (
+      org_id, project_id, title, status, rank, created_by, created_by_type,
+      created_at_ms, updated_at_ms
+    ) VALUES (
+      ${orgId}, ${projectId}, 'Quiet organization work', 'todo', 'a0',
+      'itest:ledger', 'user', ${Date.now()}, ${Date.now()}
+    ) RETURNING id
+  `;
+  const [quietRun] = await sql<{ id: string }[]>`
+    INSERT INTO app.project_agent_runs (
+      org_id, project_id, task_id, agent_id, exec_id, session_id, status,
+      harness, model, started_by, started_at_ms, waiting_for_capacity_at_ms,
+      deadline_at_ms, updated_at_ms
+    ) VALUES (
+      ${quietOrgId}, ${projectId}, ${quietTask?.id ?? ''},
+      ${`itest-quiet-agent-${randomUUID()}`}, 'exec-quiet-1', 'pa-quiet',
+      'queued', 'claude-code', 'itest-model', 'itest:ledger', ${Date.now()},
+      1, ${Date.now() + 3_600_000}, ${Date.now()}
+    ) RETURNING id
+  `;
+  const quietRunId = quietRun?.id ?? '';
   const parkedBeforeRelease = await countParked();
   const turnJobsBeforeRelease = await countTurnJobs();
   const sessionsApi = await import('./domains/sandbox/sessions.ts');
@@ -40342,6 +41736,28 @@ async function checkTaskAgentRuns(
   });
   const parkedAfterRelease = await countParked();
   const turnJobsAfterRelease = await countTurnJobs();
+  const [quietAfterRelease] = await sql<
+    { parked: boolean; turnJobs: string }[]
+  >`
+    SELECT r.waiting_for_capacity_at_ms IS NOT NULL AS parked,
+           (SELECT count(*) FROM pgboss.job j
+            WHERE j.name = 'task.agent_turn'
+              AND j.data ->> 'organizationId' = ${quietOrgId}
+              AND j.data ->> 'runId' = ${quietRunId})::text AS "turnJobs"
+    FROM app.project_agent_runs r WHERE r.id = ${quietRunId}
+  `;
+  record(
+    'a release edge also wakes the oldest parked run of another organization',
+    released &&
+      !(quietAfterRelease?.parked ?? true) &&
+      quietAfterRelease?.turnJobs === '1',
+    `released=${released} quiet parked=${String(quietAfterRelease?.parked)}/false turnJobs=${quietAfterRelease?.turnJobs ?? 'MISSING'}/1`,
+  );
+  await sql`
+    UPDATE app.project_agent_runs SET status = 'cancelled',
+      waiting_for_capacity_at_ms = NULL, settled_at_ms = ${Date.now()}
+    WHERE id = ${quietRunId}
+  `;
   const releasedSlot = await sql<{ status: string }[]>`
     SELECT status FROM app.sandbox_sessions
     WHERE org_id = ${orgId} AND session_id = ${ledgerSessionId}
@@ -40358,7 +41774,7 @@ async function checkTaskAgentRuns(
   // instead: the wake claims the org's oldest parked run, ours included
   // (`claimParkedAgentRun` is gone — one live run per task is the schema's
   // rule and the wake is the one un-park door).
-  await agentRuns.wakeParkedAgentRuns(sql, orgId);
+  await agentRuns.wakeOrganizationParkedAgentRun(sql, orgId);
 
   // Launch (the host's running flip) + exactly-once settle through the
   // host's mark; `launchedAt` distinct from kick time. A late failure must
@@ -44360,102 +45776,107 @@ async function checkBellHintWire(
   const mateStream = connectSse(`${base}/events?orgId=${orgId}`, {
     cookie: mateCookie,
   });
-  await sleep(500); // both tails established
-  const startId = await latestOutboxId(sql);
+  try {
+    await sleep(500); // both tails established
+    const startId = await latestOutboxId(sql);
 
-  // The row is about a real task of an organization-wide project, which the
-  // teammate can open: a task-bound row is written only for its readers.
-  await sql`
-    INSERT INTO app.projects (id, org_id, name, created_by, created_at_ms,
-                              updated_at_ms)
-    VALUES ('p-bell-wire', ${orgId}, 'Bell wire', ${userId}, ${Date.now()},
-            ${Date.now()})
-  `;
-  await sql`
-    INSERT INTO app.tasks (
-      id, org_id, project_id, title, status, rank, number, created_by,
-      created_by_type, created_at_ms, updated_at_ms
-    ) VALUES (
-      'itest-bell-wire', ${orgId}, 'p-bell-wire', 'Bell wire', 'todo', 'b0', 1,
-      ${userId}, 'user', ${Date.now()}, ${Date.now()}
-    )
-  `;
-  const { writeCoalescedNotification } =
-    await import('./domains/collab/service.ts');
-  await sql.begin((tx) =>
-    writeCoalescedNotification(tx, {
-      userId: mateId,
-      organizationId: orgId,
-      type: 'task_status_changed',
-      titleKey: 'taskStatusChanged',
-      bodyKey: 'taskStatusChangedBody',
-      params: {
-        title: 'Bell wire',
-        from: 'todo',
-        to: 'in_progress',
-        projectId: 'p-bell-wire',
-      },
-      resourceType: 'task',
-      resourceId: 'itest-bell-wire',
-      taskId: 'itest-bell-wire',
-      actorType: 'user',
-      actorId: userId,
-    }),
-  );
-  const bellHint = JSON.stringify({ entity: 'notification', entityId: null });
-  const isBellHint = (e: SseEvent): boolean =>
-    e.event === 'hint' && e.data === bellHint;
-  const mateGotIt = await waitFor(
-    () => mateStream.events.some(isBellHint),
-    5_000,
-  );
-  await sleep(700); // two poll cycles — the owner's stream had every chance
-  const ownerSpared = !ownerStream.events.some(isBellHint);
-  const outboxRows = await sql<{ userId: string | null; entity: string }[]>`
-    SELECT user_id AS "userId", entity FROM app_realtime.outbox
-    WHERE org_id = ${orgId} AND id > ${startId}::bigint
-      AND entity IN ('notification', 'user_notification')
-  `;
-  const narrowed =
-    outboxRows.length === 1 &&
-    outboxRows[0]?.entity === 'notification' &&
-    outboxRows[0].userId === mateId;
+    // The row is about a real task of an organization-wide project, which the
+    // teammate can open: a task-bound row is written only for its readers.
+    await sql`
+      INSERT INTO app.projects (id, org_id, name, created_by, created_at_ms,
+                                updated_at_ms)
+      VALUES ('p-bell-wire', ${orgId}, 'Bell wire', ${userId}, ${Date.now()},
+              ${Date.now()})
+    `;
+    await sql`
+      INSERT INTO app.tasks (
+        id, org_id, project_id, title, status, rank, number, created_by,
+        created_by_type, created_at_ms, updated_at_ms
+      ) VALUES (
+        'itest-bell-wire', ${orgId}, 'p-bell-wire', 'Bell wire', 'todo', 'b0', 1,
+        ${userId}, 'user', ${Date.now()}, ${Date.now()}
+      )
+    `;
+    const { writeCoalescedNotification } =
+      await import('./domains/collab/service.ts');
+    await sql.begin((tx) =>
+      writeCoalescedNotification(tx, {
+        userId: mateId,
+        organizationId: orgId,
+        type: 'task_status_changed',
+        titleKey: 'taskStatusChanged',
+        bodyKey: 'taskStatusChangedBody',
+        params: {
+          title: 'Bell wire',
+          from: 'todo',
+          to: 'in_progress',
+          projectId: 'p-bell-wire',
+        },
+        resourceType: 'task',
+        resourceId: 'itest-bell-wire',
+        taskId: 'itest-bell-wire',
+        actorType: 'user',
+        actorId: userId,
+      }),
+    );
+    const bellHint = JSON.stringify({ entity: 'notification', entityId: null });
+    const isBellHint = (e: SseEvent): boolean =>
+      e.event === 'hint' && e.data === bellHint;
+    const mateGotIt = await waitFor(
+      () => mateStream.events.some(isBellHint),
+      5_000,
+    );
+    await sleep(700); // two poll cycles — the owner's stream had every chance
+    const ownerSpared = !ownerStream.events.some(isBellHint);
+    const outboxRows = await sql<{ userId: string | null; entity: string }[]>`
+      SELECT user_id AS "userId", entity FROM app_realtime.outbox
+      WHERE org_id = ${orgId} AND id > ${startId}::bigint
+        AND entity IN ('notification', 'user_notification')
+    `;
+    const narrowed =
+      outboxRows.length === 1 &&
+      outboxRows[0]?.entity === 'notification' &&
+      outboxRows[0].userId === mateId;
 
-  // The recipient reads everything → their own streams are told as well.
-  const hintsBeforeRead = mateStream.events.filter(isBellHint).length;
-  const markAll = await post(
-    `/api/app/collab/notifications/read-all?orgId=${orgId}`,
-    undefined,
-    mateCookie,
-  );
-  const mateToldOfRead = await waitFor(
-    () => mateStream.events.filter(isBellHint).length > hintsBeforeRead,
-    5_000,
-  );
-  ownerStream.abort();
-  mateStream.abort();
-  await ownerStream.done;
-  await mateStream.done;
-  const row = await sql<{ read: boolean }[]>`
-    SELECT read FROM app.user_notifications
-    WHERE org_id = ${orgId} AND user_id = ${mateId}
-      AND resource_id = 'itest-bell-wire'
-  `;
-  record(
-    'personal bell hint wire: app entity, recipient-only, read-all hints',
-    joined.ok &&
-      mateGotIt &&
-      ownerSpared &&
-      narrowed &&
-      markAll.ok &&
-      mateToldOfRead &&
-      (row[0]?.read ?? false),
-    `joined=${joined.status}, recipientHint=${mateGotIt}, otherMemberSpared=${ownerSpared}, outbox=${outboxRows.map((r) => `${r.entity}→${r.userId === mateId ? 'recipient' : (r.userId ?? 'org-wide')}`).join(',') || 'none'} (want notification→recipient), readAll=${markAll.status}/hint=${mateToldOfRead}, read=${row[0]?.read}`,
-  );
-  // Later lanes count the organization's projects.
-  await sql`
-    DELETE FROM app.projects WHERE id = 'p-bell-wire' AND org_id = ${orgId}
-  `;
+    // The recipient reads everything → their own streams are told as well.
+    const hintsBeforeRead = mateStream.events.filter(isBellHint).length;
+    const markAll = await post(
+      `/api/app/collab/notifications/read-all?orgId=${orgId}`,
+      undefined,
+      mateCookie,
+    );
+    const mateToldOfRead = await waitFor(
+      () => mateStream.events.filter(isBellHint).length > hintsBeforeRead,
+      5_000,
+    );
+    const row = await sql<{ read: boolean }[]>`
+      SELECT read FROM app.user_notifications
+      WHERE org_id = ${orgId} AND user_id = ${mateId}
+        AND resource_id = 'itest-bell-wire'
+    `;
+    record(
+      'personal bell hint wire: app entity, recipient-only, read-all hints',
+      joined.ok &&
+        mateGotIt &&
+        ownerSpared &&
+        narrowed &&
+        markAll.ok &&
+        mateToldOfRead &&
+        (row[0]?.read ?? false),
+      `joined=${joined.status}, recipientHint=${mateGotIt}, otherMemberSpared=${ownerSpared}, outbox=${outboxRows.map((r) => `${r.entity}→${r.userId === mateId ? 'recipient' : (r.userId ?? 'org-wide')}`).join(',') || 'none'} (want notification→recipient), readAll=${markAll.status}/hint=${mateToldOfRead}, read=${row[0]?.read}`,
+    );
+  } finally {
+    // On every path: both tails end (a tail that will not fails the lane in
+    // seconds, naming it, instead of holding it to the lane deadline), and
+    // the project goes, since later lanes count the organization's projects.
+    try {
+      await Promise.all([ownerStream.close(), mateStream.close()]);
+    } finally {
+      await sql`
+        DELETE FROM app.projects WHERE id = 'p-bell-wire' AND org_id = ${orgId}
+      `;
+    }
+  }
 }
 
 /**
@@ -45102,7 +46523,7 @@ async function checkRetention(
   const governanceDir = path.join(configRoot, orgSlug, 'governance');
   await mkdir(governanceDir, { recursive: true });
   // Every category must be declared (the env-tightening walk throws on a
-  // gap), and the compliance floors bind (auditLog ≥ 365, loginAttempt ≥ 90).
+  // gap), and the compliance floors bind (auditLog ≥ 180, loginAttempt ≥ 90).
   const bound = (min: number, unit = 'days') =>
     [
       `  min: ${min}`,
@@ -49711,6 +51132,19 @@ async function checkMetricsSurface(
       (${`${orgId}-other`}, 'mx-sess', 'mx-other-op', 'task-agent',
        'completed', 'other-tenant', ${now - 2000}, ${now - 1000})
   `;
+  // An automation step waiting for sandbox room settles one op per refused
+  // start: not a harness turn, and newer than every real one. Enough of
+  // them to fill the metrics read's 5000-row cap on their own, plus one
+  // inside the harness-health window under a harness the real turns name.
+  await sql`
+    INSERT INTO app.sandbox_session_ops (
+      org_id, session_id, exec_id, kind, status, agent_result_status,
+      harness, started_at_ms, finished_at_ms
+    )
+    SELECT ${orgId}, 'mx-wait', 'mx-wait-' || n, 'workflow-agent', 'failed',
+           'awaiting_room', 'codex', ${now - 500}, ${now - 400}
+    FROM generate_series(1, 5000) AS n
+  `;
 
   // ---- probes ------------------------------------------------------------
   const usage = z
@@ -49967,13 +51401,18 @@ async function checkMetricsSurface(
       harnessHealthAfter.data.health.length === 3 &&
       harnessHealthAfter.data.health.find((row) => row.harness === 'codex')
         ?.recentTotal === 1 &&
+      // The question-parked turn and the room waits are no outcome.
       harnessHealthAfter.data.health.find(
         (row) => row.harness === 'claude-code',
-      )?.recentTotal === 6,
+      )?.recentTotal === 5,
     turns.success
-      ? `total=${turns.data.total} c/f/x/t=${turns.data.completed}/${turns.data.failed}/${turns.data.cancelled}/${turns.data.timeout} rec=${turns.data.recovered} p95=${turns.data.durationP95Ms} spent=${turns.data.spentCents} byHarness=${JSON.stringify(turns.data.byHarness.map((row) => [row.harness, row.total]))} (want claude-code 6 + pi 1 + codex 1, no foreign/old rows) health.pi=${piHealth?.recentTotal ?? 'none'} (want 1)`
+      ? `total=${turns.data.total} c/f/x/t=${turns.data.completed}/${turns.data.failed}/${turns.data.cancelled}/${turns.data.timeout} rec=${turns.data.recovered} p95=${turns.data.durationP95Ms} spent=${turns.data.spentCents} byHarness=${JSON.stringify(turns.data.byHarness.map((row) => [row.harness, row.total]))} (want claude-code 6 + pi 1 + codex 1, no foreign/old rows, no room waits) health=${JSON.stringify(harnessHealthAfter.success ? harnessHealthAfter.data.health.map((row) => [row.harness, row.recentTotal]) : 'shape-fail')} (want claude-code 5, pi 1, codex 1)`
       : 'shape-fail',
   );
+  await sql`
+    DELETE FROM app.sandbox_session_ops
+    WHERE org_id = ${orgId} AND session_id = 'mx-wait'
+  `;
 
   // ---- the run dialog's execution log ---------------------------------
   const { sessionIdForWorkflowExecution } =
@@ -51403,12 +52842,16 @@ async function checkApiKeyCreateGate(
  * The budget editor's per-key picker (`GET /api/app/governance/api-keys`):
  * an admin lists every live key held by a member of the organization — never
  * a non-member's, never an expired one, never a secret — and a non-admin is
- * refused. Run against the real auth tables, so a wrong column name in the
- * listing's query fails here rather than leaving the picker silently empty.
+ * refused. Beside it, the keys the saved budget rules name that are no
+ * longer live, described as far as this organization's own evidence goes.
+ * Run against the real auth and audit tables, so a wrong column name in
+ * either query fails here rather than leaving the picker silently empty or
+ * a rule's key unnamed.
  */
 async function checkOrgApiKeyListing(
   sql: Sql,
   base: string,
+  auth: Auth,
   ctx: { cookie: string; orgId: string },
   suffix: string,
 ): Promise<void> {
@@ -51453,6 +52896,23 @@ async function checkOrgApiKeyListing(
   const memberKey = await mint(member.cookie, `keylist-live-${suffix}`);
   const expiredKey = await mint(member.cookie, `keylist-expired-${suffix}`);
   const outsiderKey = await mint(outsider.cookie, `keylist-out-${suffix}`);
+  const revokedKey = await mint(member.cookie, `keylist-revoked-${suffix}`);
+  if (revokedKey !== null) {
+    const revoked = await fetch(`${base}/api/auth/api-key/delete`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        cookie: member.cookie,
+        origin: base,
+      },
+      body: JSON.stringify({ keyId: revokedKey.id }),
+    });
+    await revoked.text();
+  }
+  // Creating a key can start Better Auth's expiry sweep without awaiting
+  // it. Finish that work before aging this fixture, then use only the
+  // governance read until its still-present Expired state has been observed.
+  await auth.api.deleteAllExpiredApiKeys({});
   if (expiredKey !== null) {
     await sql`
       UPDATE "apikey" SET "expiresAt" = now() - interval '1 day'
@@ -51490,6 +52950,7 @@ async function checkOrgApiKeyListing(
     (minted) => minted !== null && adminText.includes(minted.key),
   );
   const memberRes = await list(member.cookie);
+  await memberRes.text();
   record(
     "org api-key listing: an admin sees members' live keys, masked; a non-admin is refused",
     adminRes.status === 200 &&
@@ -51503,6 +52964,372 @@ async function checkOrgApiKeyListing(
       !leaked &&
       memberRes.status === 403,
     `admin → ${adminRes.status}, member key listed=${memberRow !== undefined} (owner ${memberRow?.ownerEmail ?? 'MISSING'}), expired listed=${expiredKey !== null && ids.includes(expiredKey.id)}, outsider listed=${outsiderKey !== null && ids.includes(outsiderKey.id)}, secret leaked=${leaked}, non-admin → ${memberRes.status} (want 403)`,
+  );
+
+  // A budget rule stores its key's bare id and outlives the key. The listing
+  // therefore also describes the keys the saved rules name that are no
+  // longer live, so the rule table reads as a key and an owner instead of a
+  // string of random characters: an expired key from the auth tables, a
+  // deleted one from the audit trail its creation left. A key this
+  // organization has no evidence of — another organization's, or an id that
+  // names nothing — answers `unknown` either way, so a saved rule cannot be
+  // used to ask whose key an id is.
+  const noSuchKeyId = `keylist-none-${suffix}`;
+  const policyUrl = `${base}/api/app/governance/policies/budgets?orgId=${ctx.orgId}`;
+  const priorBudgets = z
+    .object({
+      policy: z
+        .object({ config: z.record(z.string(), z.unknown()) })
+        .nullable(),
+    })
+    .safeParse(
+      await fetch(policyUrl, { headers: { cookie: ctx.cookie } })
+        .then((res) => res.json())
+        .catch(() => null),
+    );
+  const savePolicy = async (config: unknown) => {
+    const res = await fetch(policyUrl, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        cookie: ctx.cookie,
+        origin: base,
+      },
+      body: JSON.stringify({ config }),
+    });
+    await res.text();
+    return res;
+  };
+  const ruleKeyIds = [
+    memberKey?.id,
+    expiredKey?.id,
+    revokedKey?.id,
+    outsiderKey?.id,
+    noSuchKeyId,
+  ].filter((id) => id !== undefined);
+  const saved = await savePolicy({
+    enabled: true,
+    // A cap no probe reaches: the rules are here to be read, not to bind.
+    rules: ruleKeyIds.map((apiKeyId) => ({
+      scope: 'apiKey',
+      apiKeyId,
+      period: 'monthly',
+      maxRequests: 1_000_000_000,
+    })),
+  });
+  const describedRes = await list(ctx.cookie);
+  const describedText = await describedRes.text();
+  let describedBody: unknown = null;
+  try {
+    describedBody = JSON.parse(describedText);
+  } catch (error) {
+    console.warn(
+      '[org api-key listing] the rule-key read answered no JSON',
+      error instanceof Error ? error.message : error,
+    );
+  }
+  const ruleKeyListingSchema = z.object({
+    ruleKeys: z.array(
+      z.object({
+        id: z.string(),
+        name: z.string().nullable(),
+        userId: z.string().nullable(),
+        ownerEmail: z.string().nullable(),
+        status: z.string(),
+      }),
+    ),
+  });
+  const described = ruleKeyListingSchema.safeParse(describedBody);
+  const ruleKey = (id: string | undefined) =>
+    described.success
+      ? described.data.ruleKeys.find((key) => key.id === id)
+      : undefined;
+  const expiredRule = ruleKey(expiredKey?.id);
+  const revokedRule = ruleKey(revokedKey?.id);
+  const outsiderRule = ruleKey(outsiderKey?.id);
+  const noSuchRule = ruleKey(noSuchKeyId);
+  const ruleKeySecretLeaked = [expiredKey, revokedKey, outsiderKey].some(
+    (minted) => minted !== null && describedText.includes(minted.key),
+  );
+  record(
+    'org api-key listing: a rule on a key that is no longer live still names the key and its owner; a key of another organization stays unknown',
+    saved.status === 200 &&
+      describedRes.status === 200 &&
+      // The live key is in the listing proper, never described twice.
+      ruleKey(memberKey?.id) === undefined &&
+      expiredRule?.status === 'expired' &&
+      expiredRule.name === `keylist-expired-${suffix}` &&
+      expiredRule.ownerEmail === member.email &&
+      revokedRule?.status === 'revoked' &&
+      revokedRule.name === `keylist-revoked-${suffix}` &&
+      revokedRule.userId === member.userId &&
+      revokedRule.ownerEmail === member.email &&
+      outsiderRule?.status === 'unknown' &&
+      outsiderRule.name === null &&
+      outsiderRule.userId === null &&
+      outsiderRule.ownerEmail === null &&
+      noSuchRule?.status === 'unknown' &&
+      !describedText.includes(outsider.email) &&
+      !ruleKeySecretLeaked,
+    `save → ${saved.status}, read → ${describedRes.status}, live described=${ruleKey(memberKey?.id) !== undefined}, expired=${expiredRule?.status ?? 'MISSING'}/${expiredRule?.ownerEmail ?? 'no owner'}, revoked=${revokedRule?.status ?? 'MISSING'}/${revokedRule?.name ?? 'no name'}/${revokedRule?.ownerEmail ?? 'no owner'}, outsider=${outsiderRule?.status ?? 'MISSING'}/${outsiderRule?.name ?? 'no name'}, none=${noSuchRule?.status ?? 'MISSING'}, outsider named=${describedText.includes(outsider.email)}, secret leaked=${ruleKeySecretLeaked}`,
+  );
+
+  // Exercise the real plugin cleanup, not a hand-deleted auth row or a
+  // sleep that races its throttle. Cleanup catches adapter errors, so its
+  // success response alone does not prove that the expired row was removed.
+  await auth.api.deleteAllExpiredApiKeys({});
+  const expiredRowsLeft =
+    expiredKey === null
+      ? []
+      : await sql`SELECT "id" FROM "apikey" WHERE "id" = ${expiredKey.id}`;
+  const expiredRevokeReceipts =
+    expiredKey === null
+      ? []
+      : await sql`
+          SELECT id FROM app.audit_logs
+          WHERE org_id = ${ctx.orgId} AND resource_type = 'api_key'
+            AND resource_id = ${expiredKey.id} AND action = 'api_key.revoked'
+        `;
+  const sweptRes = await list(ctx.cookie);
+  const sweptText = await sweptRes.text();
+  let sweptBody: unknown = null;
+  try {
+    sweptBody = JSON.parse(sweptText);
+  } catch (error) {
+    console.warn(
+      '[org api-key listing] the post-cleanup read answered no JSON',
+      error instanceof Error ? error.message : error,
+    );
+  }
+  const swept = ruleKeyListingSchema.safeParse(sweptBody);
+  const sweptKey = (id: string | undefined) =>
+    swept.success
+      ? swept.data.ruleKeys.find((key) => key.id === id)
+      : undefined;
+  const unavailableRule = sweptKey(expiredKey?.id);
+  const sweptSecretLeaked = [
+    memberKey,
+    expiredKey,
+    revokedKey,
+    outsiderKey,
+  ].some((minted) => minted !== null && sweptText.includes(minted.key));
+  record(
+    'org api-key listing: real expiry cleanup removes the row without a revoke receipt; the known key becomes unavailable',
+    expiredKey !== null &&
+      expiredRule?.status === 'expired' &&
+      expiredRowsLeft.length === 0 &&
+      expiredRevokeReceipts.length === 0 &&
+      sweptRes.status === 200 &&
+      unavailableRule?.status === 'unavailable' &&
+      unavailableRule.name === `keylist-expired-${suffix}` &&
+      unavailableRule.userId === member.userId &&
+      unavailableRule.ownerEmail === member.email &&
+      sweptKey(revokedKey?.id)?.status === 'revoked' &&
+      sweptKey(outsiderKey?.id)?.status === 'unknown' &&
+      sweptKey(noSuchKeyId)?.status === 'unknown' &&
+      !sweptText.includes(outsider.email) &&
+      !sweptSecretLeaked,
+    `read → ${sweptRes.status}, before=${expiredRule?.status ?? 'MISSING'}, auth rows=${expiredRowsLeft.length}, revoke receipts=${expiredRevokeReceipts.length}, after=${unavailableRule?.status ?? 'MISSING'}/${unavailableRule?.name ?? 'no name'}/${unavailableRule?.ownerEmail ?? 'no owner'}, explicit revoke=${sweptKey(revokedKey?.id)?.status ?? 'MISSING'}, secret leaked=${sweptSecretLeaked}`,
+  );
+  await savePolicy(
+    priorBudgets.success && priorBudgets.data.policy !== null
+      ? priorBudgets.data.policy.config
+      : { enabled: false, rules: [] },
+  );
+
+  // A key whose holder LEFT is described from what this organization
+  // recorded while they were a member, and nothing else. What they do with
+  // the key afterwards happens elsewhere: deleting it writes its
+  // `api_key.revoked` row into the organizations they belong to NOW, so the
+  // former organization's answer must not move when they do. A key they
+  // revoked while still a member reads `revoked` from that record, before
+  // and after they leave.
+  const leaver = await signUpOrgMember(
+    sql,
+    base,
+    ctx.orgId,
+    `keylist-leaver-${suffix}`,
+    'developer',
+  );
+  const deleteKey = async (cookie: string, keyId: string) => {
+    const res = await fetch(`${base}/api/auth/api-key/delete`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      body: JSON.stringify({ keyId }),
+    });
+    await res.text();
+    return res;
+  };
+  const leftKey = await mint(leaver.cookie, `keylist-left-${suffix}`);
+  const leftRevokedKey = await mint(
+    leaver.cookie,
+    `keylist-left-revoked-${suffix}`,
+  );
+  const revokedWhileMember =
+    leftRevokedKey === null
+      ? null
+      : await deleteKey(leaver.cookie, leftRevokedKey.id);
+  await sql`
+    DELETE FROM "member"
+    WHERE "organizationId" = ${ctx.orgId} AND "userId" = ${leaver.userId}
+  `;
+  const savedForLeaver = await savePolicy({
+    enabled: true,
+    rules: [leftKey?.id, leftRevokedKey?.id]
+      .filter((id) => id !== undefined)
+      .map((apiKeyId) => ({
+        scope: 'apiKey',
+        apiKeyId,
+        period: 'monthly',
+        maxRequests: 1_000_000_000,
+      })),
+  });
+  /** The whole description of each key the rules name, as the admin reads it. */
+  const readRuleKeys = async () => {
+    const res = await list(ctx.cookie);
+    let body: unknown = null;
+    try {
+      body = JSON.parse(await res.text());
+    } catch (error) {
+      console.warn(
+        '[org api-key listing] the departed-holder read answered no JSON',
+        error instanceof Error ? error.message : error,
+      );
+    }
+    const parsed = z
+      .object({
+        ruleKeys: z.array(
+          z.object({ id: z.string(), status: z.string() }).loose(),
+        ),
+      })
+      .safeParse(body);
+    const find = (id: string | undefined) =>
+      parsed.success
+        ? parsed.data.ruleKeys.find((key) => key.id === id)
+        : undefined;
+    return {
+      status: res.status,
+      left: find(leftKey?.id),
+      leftRevoked: find(leftRevokedKey?.id),
+    };
+  };
+  const beforeDeletion = await readRuleKeys();
+  const deletedElsewhere =
+    leftKey === null ? null : await deleteKey(leaver.cookie, leftKey.id);
+  const keyRowsLeft =
+    leftKey === null
+      ? []
+      : await sql`SELECT "id" FROM "apikey" WHERE "id" = ${leftKey.id}`;
+  const afterDeletion = await readRuleKeys();
+  await savePolicy(
+    priorBudgets.success && priorBudgets.data.policy !== null
+      ? priorBudgets.data.policy.config
+      : { enabled: false, rules: [] },
+  );
+  const sameAnswer = (
+    a: Record<string, unknown> | undefined,
+    b: Record<string, unknown> | undefined,
+  ) => a !== undefined && JSON.stringify(a) === JSON.stringify(b);
+  record(
+    'org api-key listing: a holder who left is described from this organization’s record alone — deleting the key elsewhere afterwards changes nothing',
+    savedForLeaver.status === 200 &&
+      revokedWhileMember?.status === 200 &&
+      deletedElsewhere?.status === 200 &&
+      // The deletion really happened: the key is gone from the auth store.
+      keyRowsLeft.length === 0 &&
+      beforeDeletion.status === 200 &&
+      afterDeletion.status === 200 &&
+      beforeDeletion.left?.status === 'holder_left' &&
+      beforeDeletion.left.name === `keylist-left-${suffix}` &&
+      beforeDeletion.left.userId === leaver.userId &&
+      beforeDeletion.left.ownerEmail === leaver.email &&
+      beforeDeletion.left.ownerName === null &&
+      beforeDeletion.left.expiresAt === null &&
+      sameAnswer(afterDeletion.left, beforeDeletion.left) &&
+      beforeDeletion.leftRevoked?.status === 'revoked' &&
+      beforeDeletion.leftRevoked.name === `keylist-left-revoked-${suffix}` &&
+      sameAnswer(afterDeletion.leftRevoked, beforeDeletion.leftRevoked),
+    `save → ${savedForLeaver.status}, revoke while a member → ${revokedWhileMember?.status ?? 'not minted'}, delete after leaving → ${deletedElsewhere?.status ?? 'not minted'} (rows left ${keyRowsLeft.length}), before=${JSON.stringify(beforeDeletion.left ?? null)}, after=${JSON.stringify(afterDeletion.left ?? null)}, revoked before=${beforeDeletion.leftRevoked?.status ?? 'MISSING'} after=${afterDeletion.leftRevoked?.status ?? 'MISSING'}`,
+  );
+
+  // A key made BEFORE its holder joined has no creation row here, but a
+  // revoke while they are a member lands here as it does in each of their
+  // organizations: this organization recorded the key's end, and reads it
+  // as revoked and whose, not as a key it has no record of.
+  const joiner = await signUpUser(base, `keylist-joiner-${suffix}`);
+  const joinerOrgId = randomUUID();
+  await sql`
+    INSERT INTO "organization" ("id", "name", "slug", "createdAt")
+    VALUES (${joinerOrgId}, ${`Key listing joiner ${suffix}`},
+            ${`keylist-joiner-${suffix}`}, ${new Date()})
+  `;
+  await sql`
+    INSERT INTO "member" ("id", "organizationId", "userId", "role", "createdAt")
+    VALUES (${randomUUID()}, ${joinerOrgId}, ${joiner.userId}, 'owner',
+            ${new Date()})
+  `;
+  const joinerKey = await mint(joiner.cookie, `keylist-joiner-key-${suffix}`);
+  await sql`
+    INSERT INTO "member" ("id", "organizationId", "userId", "role", "createdAt")
+    VALUES (${randomUUID()}, ${ctx.orgId}, ${joiner.userId}, 'developer',
+            ${new Date()})
+  `;
+  const joinerRevoked =
+    joinerKey === null ? null : await deleteKey(joiner.cookie, joinerKey.id);
+  const savedForJoiner = await savePolicy({
+    enabled: true,
+    rules:
+      joinerKey === null
+        ? []
+        : [
+            {
+              scope: 'apiKey',
+              apiKeyId: joinerKey.id,
+              period: 'monthly',
+              maxRequests: 1_000_000_000,
+            },
+          ],
+  });
+  const joinerRes = await list(ctx.cookie);
+  let joinerBody: unknown = null;
+  try {
+    joinerBody = JSON.parse(await joinerRes.text());
+  } catch (error) {
+    console.warn(
+      '[org api-key listing] the joiner read answered no JSON',
+      error instanceof Error ? error.message : error,
+    );
+  }
+  await savePolicy(
+    priorBudgets.success && priorBudgets.data.policy !== null
+      ? priorBudgets.data.policy.config
+      : { enabled: false, rules: [] },
+  );
+  // The shared organization's member count is as the lane found it.
+  await sql`
+    DELETE FROM "member"
+    WHERE "organizationId" = ${ctx.orgId} AND "userId" = ${joiner.userId}
+  `;
+  const joinerParsed = z
+    .object({
+      ruleKeys: z.array(
+        z.object({ id: z.string(), status: z.string() }).loose(),
+      ),
+    })
+    .safeParse(joinerBody);
+  const joinerRule = joinerParsed.success
+    ? joinerParsed.data.ruleKeys.find((key) => key.id === joinerKey?.id)
+    : undefined;
+  record(
+    'org api-key listing: a key made before its holder joined and revoked while a member reads revoked, with its holder',
+    savedForJoiner.status === 200 &&
+      joinerRevoked?.status === 200 &&
+      joinerRes.status === 200 &&
+      joinerRule?.status === 'revoked' &&
+      joinerRule.userId === joiner.userId &&
+      joinerRule.ownerEmail === joiner.email &&
+      joinerRule.name === null,
+    `save → ${savedForJoiner.status}, revoke → ${joinerRevoked?.status ?? 'not minted'}, read → ${joinerRes.status}, described=${JSON.stringify(joinerRule ?? null)}`,
   );
 }
 
@@ -53643,6 +55470,46 @@ async function checkWatchdogs(
   `;
   const parkedId = parked[0]?.id ?? '';
 
+  // Lane 2b: an organization whose one run parked for host room behind
+  // another organization's backlog of sixty older parks. The tick wakes
+  // runs of every organization that has a parked one, so the quiet
+  // organization is tried this tick, not once the backlog's oldest fifty
+  // have drained. A third organization's even older park takes the
+  // cross-organization wake of the deadline lane's slot release, which
+  // would otherwise reach the quiet run without the tick. Phantom agents:
+  // the turn jobs the wakes enqueue are skipped.
+  const backlogTasks = await sql<{ id: string }[]>`
+    INSERT INTO app.tasks (
+      org_id, project_id, title, status, rank, created_by, created_by_type,
+      created_at_ms, updated_at_ms
+    )
+    SELECT ${orgId}, ${projectId}, 'Watchdog backlog ' || n, 'todo', 'a0',
+           'itest:wd', 'user', ${now}, ${now}
+    FROM generate_series(1, 62) AS n
+    RETURNING id
+  `;
+  const backlogRunIds: string[] = [];
+  for (const [index, row] of backlogTasks.entries()) {
+    const quiet = index === backlogTasks.length - 1;
+    const decoy = index === backlogTasks.length - 2;
+    const [inserted] = await sql<{ id: string }[]>`
+      INSERT INTO app.project_agent_runs (
+        org_id, project_id, task_id, agent_id, exec_id, session_id, status,
+        harness, model, started_by, started_at_ms,
+        waiting_for_capacity_at_ms, deadline_at_ms, updated_at_ms
+      ) VALUES (
+        ${quiet ? `${orgId}-wd-quiet` : decoy ? `${orgId}-wd-decoy` : orgId},
+        ${projectId}, ${row.id}, ${`wd-phantom-${randomUUID()}`},
+        ${`exec-wd-backlog-${index}`}, ${`pa-wd-backlog-${index}`}, 'queued',
+        'claude-code', 'itest-model', 'itest:wd', ${now - 3 * 3_600_000},
+        ${quiet ? now - 3_600_000 : decoy ? 2 : now - 2 * 3_600_000 + index},
+        ${now + 3_600_000}, ${now}
+      ) RETURNING id
+    `;
+    backlogRunIds.push(inserted?.id ?? '');
+  }
+  const quietParkedId = backlogRunIds.at(-1) ?? '';
+
   // The deadline sweep must stop the exec itself, not only its ledger row:
   // a fake spawner records the cancel the sweep sends for the overdue run.
   const { createServer } = await import('node:http');
@@ -53711,6 +55578,26 @@ async function checkWatchdogs(
       slotAfter[0]?.status === 'stopped',
     `overdue=${overdueAfter?.status} parked=${parkedAfter?.status} op=${opAfter[0]?.status} slot=${slotAfter[0]?.status}`,
   );
+  const [quietAfterTick] = await sql<{ parked: boolean }[]>`
+    SELECT waiting_for_capacity_at_ms IS NOT NULL AS parked
+    FROM app.project_agent_runs WHERE id = ${quietParkedId}
+  `;
+  const [backlogAfterTick] = await sql<{ parked: string }[]>`
+    SELECT count(*)::text AS parked FROM app.project_agent_runs
+    WHERE id = ANY(${backlogRunIds.slice(0, -2)})
+      AND waiting_for_capacity_at_ms IS NOT NULL
+  `;
+  const backlogStillParked = Number(backlogAfterTick?.parked ?? '60');
+  record(
+    'task-agent watchdog wakes a parked run of every organization, not only of the oldest fifty parks',
+    !(quietAfterTick?.parked ?? true) && backlogStillParked <= 56,
+    `quiet parked=${String(quietAfterTick?.parked)}/false backlog still parked=${backlogStillParked}/≤56 (four woken a tick, one more by the slot release)`,
+  );
+  await sql`
+    UPDATE app.project_agent_runs SET status = 'cancelled',
+      waiting_for_capacity_at_ms = NULL, settled_at_ms = ${Date.now()}
+    WHERE id = ANY(${backlogRunIds})
+  `;
   record(
     'task-agent watchdog stops the sandbox exec of a deadline-failed run',
     cancels.length === 1 &&
@@ -53861,6 +55748,8 @@ async function checkWatchdogs(
   // session whose run the retention purge deleted (reclaimed), a LIVE run's
   // active AND hibernated sessions (both survive — a resume is coming), and
   // an ended run whose session the spawner reports busy (waits a tick).
+  // An unrelated lane's old orphan is also reclaimable: the scripted
+  // spawner must leave it alone, even when a full run exceeds the grace.
   const wdRun = async (
     name: string,
     status: 'success' | 'running' | 'cancelled',
@@ -53899,6 +55788,9 @@ async function checkWatchdogs(
        ${now + 24 * 3_600_000}),
       (${orgId}, 'wd-reclaim-busy', 'stopped', 'workflow_run',
        ${`${busyRunId}:@workflow`}, 'itest:wd', ${now - 2 * 3_600_000},
+       ${now + 24 * 3_600_000}),
+      (${orgId}, 'wd-unrelated-reclaim', 'stopped', 'workflow_run',
+       'itest-wd-unrelated-run:@workflow', 'itest:wd', ${now - 2 * 3_600_000},
        ${now + 24 * 3_600_000})
   `;
   const probed: string[] = [];
@@ -53915,9 +55807,9 @@ async function checkWatchdogs(
     ): Promise<{ destroyed: boolean; busy: boolean }> => {
       destroyAsked.push(sessionId);
       return Promise.resolve(
-        sessionId === 'wd-reclaim-busy'
-          ? { destroyed: false, busy: true }
-          : { destroyed: true, busy: false },
+        sessionId === 'wd-reclaim-ended' || sessionId === 'wd-reclaim-purged'
+          ? { destroyed: true, busy: false }
+          : { destroyed: false, busy: true },
       );
     },
   };
@@ -53942,6 +55834,7 @@ async function checkWatchdogs(
   const reclaimRows = await sql<{ sessionId: string; status: string }[]>`
     SELECT session_id AS "sessionId", status FROM app.sandbox_sessions
     WHERE session_id LIKE 'wd-reclaim-%'
+      OR session_id = 'wd-unrelated-reclaim'
   `;
   const statusOf = (sessionId: string): string | undefined =>
     reclaimRows.find((r) => r.sessionId === sessionId)?.status;
@@ -53968,6 +55861,9 @@ async function checkWatchdogs(
       // …and the busy one was asked, refused, and left for a later tick.
       destroyAskedSet.has('wd-reclaim-busy') &&
       statusOf('wd-reclaim-busy') === 'stopped' &&
+      // Other lanes' reclaimable fixtures must not affect these counters.
+      destroyAskedSet.has('wd-unrelated-reclaim') &&
+      statusOf('wd-unrelated-reclaim') === 'stopped' &&
       tick1.reclaimed === 2 &&
       tick2.reclaimed === 0,
     `fair(tick1=${probedTick1.join(',')} all=${[...probedFair].join(',')} stamped=${fairRows.filter((r) => r.lastReconciledAt !== null).length}/3) reclaim(${reclaimRows.map((r) => `${r.sessionId}=${r.status}`).join(' ')} asked=${[...destroyAskedSet].join(',')} reclaimed=${tick1.reclaimed}/${tick2.reclaimed})`,
@@ -54176,6 +56072,7 @@ async function checkWatchdogs(
           sessionId: 'wd-org-pinned-gone',
           organizationId: orgId,
           profile: 'agent',
+          workload: 'project',
           placement: 'device',
         }) &&
       orgPinned.includes('wd-org-pinned-gone') &&
@@ -54309,6 +56206,159 @@ async function checkWatchdogs(
       collectRow('wd-collect-recent', 'failed')?.destroyedAt === null &&
       collectedTotal >= 2,
     `passes=${collectPasses} asked=${[...new Set(collectAsked)].join(',')} rows=${collectRows.map((r) => `${r.sessionId}=${r.status}/${r.destroyedAt === null ? 'unstamped' : 'stamped'}`).join(' ')} token=${reusedTokenRows[0]?.revokedAt === null ? 'live' : 'revoked'} collected=${collectedTotal}`,
+  );
+
+  // Lane 3e: a create the sandbox host refused (429) made nothing, so its
+  // row is settled as collected and the COLLECT pass never destroys its id.
+  // A standing workspace whose last row the reconcile healed to destroyed
+  // keeps its files spawner-side; a destroy of its id, once the refused
+  // row's grace had passed, deleted them. Both the turn hosts' and the
+  // render lane's settles, through their real shim handlers, with no grace
+  // left; the spy spawner answers busy for everything, so other lanes' rows
+  // are left alone.
+  const { agentTurnShimHandlers: refusedTaskShim } =
+    await import('./domains/tasks/agent-turn-shim.ts');
+  const { crawlHandlers: refusedRenderShim } =
+    await import('./domains/websites/service.ts');
+  await sql`
+    INSERT INTO app.sandbox_sessions (
+      org_id, session_id, status, owner_type, owner_id, created_by,
+      created_at_ms, expires_at_ms, last_activity_at_ms, destroyed_at_ms
+    ) VALUES (
+      ${orgId}, 'pa-wd-refused', 'destroyed', 'project_agent',
+      'itest-wd-refused-agent', 'itest:wd', ${now - 3 * 3_600_000},
+      ${now + 21 * 3_600_000}, ${now - 3 * 3_600_000}, ${now - 2 * 3_600_000}
+    )
+  `;
+  const reserveRefused = async (
+    sessionId: string,
+    ownerType: string,
+  ): Promise<string> => {
+    const [row] = await sql<{ id: string }[]>`
+      INSERT INTO app.sandbox_sessions (
+        org_id, session_id, status, owner_type, owner_id, created_by,
+        created_at_ms, expires_at_ms, last_activity_at_ms
+      ) VALUES (
+        ${orgId}, ${sessionId}, 'creating', ${ownerType}, ${sessionId},
+        'itest:wd', ${now - 60_000}, ${now + 24 * 3_600_000}, ${now - 60_000}
+      ) RETURNING id
+    `;
+    return row?.id ?? '';
+  };
+  const refusedAgentRowId = await reserveRefused(
+    'pa-wd-refused',
+    'project_agent',
+  );
+  const refusedRenderRowId = await reserveRefused(
+    'render-wd-refused',
+    'render',
+  );
+  await refusedTaskShim(sql)['sandbox/session_mutations:setSessionStatus']?.({
+    rowId: refusedAgentRowId,
+    status: 'failed',
+    collected: true,
+  });
+  await refusedRenderShim(sql)['sandbox/session_mutations:setSessionStatus']?.({
+    rowId: refusedRenderRowId,
+    status: 'failed',
+    collected: true,
+  });
+  const refusedAsked: string[] = [];
+  await sandboxWatchdogs.runSandboxWatchdog(sql, {
+    collectBatch: 50,
+    collectGraceMs: 0,
+    spawner: {
+      isAlive: (): Promise<boolean> => Promise.resolve(true),
+      setPinned: (): Promise<boolean> => Promise.resolve(true),
+      create: (): Promise<unknown> => Promise.resolve(undefined),
+      destroyIfIdle: (
+        sessionId: string,
+      ): Promise<{ destroyed: boolean; busy: boolean }> => {
+        refusedAsked.push(sessionId);
+        return Promise.resolve({ destroyed: false, busy: true });
+      },
+    },
+  });
+  const refusedAfter = await sql<
+    { id: string; status: string; destroyedAt: number | null }[]
+  >`
+    SELECT id, status, destroyed_at_ms::float8 AS "destroyedAt"
+    FROM app.sandbox_sessions
+    WHERE id = ANY(${[refusedAgentRowId, refusedRenderRowId]})
+  `;
+  record(
+    'a create the sandbox host refused leaves its row collected, and the COLLECT pass never destroys its id',
+    refusedAfter.length === 2 &&
+      refusedAfter.every(
+        (row) => row.status === 'failed' && row.destroyedAt !== null,
+      ) &&
+      !refusedAsked.includes('pa-wd-refused') &&
+      !refusedAsked.includes('render-wd-refused'),
+    `rows=${refusedAfter.map((row) => `${row.status}/${row.destroyedAt === null ? 'unstamped' : 'stamped'}`).join(' ')} asked=${refusedAsked.filter((id) => id.endsWith('-wd-refused')).join(',') || 'none'} (want both failed/stamped, neither asked)`,
+  );
+
+  // What waiting for room leaves behind goes: the op rows of refused starts
+  // an hour after they ended — the session's newest kept, the run view
+  // reads it — and failed session rows a day after they were collected.
+  const waitSession = `wf-wd-wait-${randomUUID()}`;
+  const hourAgo = now - 2 * 60 * 60 * 1000;
+  for (const [execId, startedAt] of [
+    ['wait-1', hourAgo - 3_000],
+    ['wait-2', hourAgo - 2_000],
+    ['wait-3', hourAgo - 1_000],
+  ] as const) {
+    await sql`
+      INSERT INTO app.sandbox_session_ops (
+        org_id, session_id, exec_id, kind, status, agent_result_status,
+        started_at_ms, finished_at_ms
+      ) VALUES (
+        ${orgId}, ${waitSession}, ${execId}, 'workflow-agent', 'failed',
+        'awaiting_room', ${startedAt}, ${startedAt + 500}
+      )
+    `;
+  }
+  // One that minted a key is the settlement's to finish, never this sweep's.
+  await sql`
+    INSERT INTO app.sandbox_session_ops (
+      org_id, session_id, exec_id, kind, status, agent_result_status,
+      minted_key_id, started_at_ms, finished_at_ms
+    ) VALUES (
+      ${orgId}, ${waitSession}, 'wait-keyed', 'workflow-agent', 'failed',
+      'awaiting_room', 'key-wd-wait', ${hourAgo - 4_000}, ${hourAgo - 3_500}
+    )
+  `;
+  const day = 24 * 60 * 60 * 1000;
+  const collectedRows = await sql<{ id: string; old: boolean }[]>`
+    INSERT INTO app.sandbox_sessions (
+      org_id, session_id, status, owner_type, owner_id, created_by,
+      created_at_ms, expires_at_ms, destroyed_at_ms
+    ) VALUES
+      (${orgId}, 'pa-wd-collected-old', 'failed', 'project_agent', 'agent-wd',
+       'itest', ${now - day - 120_000}, ${now}, ${now - day - 60_000}),
+      (${orgId}, 'pa-wd-collected-new', 'failed', 'project_agent', 'agent-wd',
+       'itest', ${now - 120_000}, ${now}, ${now - 60_000})
+    RETURNING id, destroyed_at_ms < ${now - day} AS old
+  `;
+  const { sweepRoomWaitLeftovers } =
+    await import('./domains/sandbox/wait-retention.ts');
+  await sweepRoomWaitLeftovers(sql, { now });
+  const waitOpsLeft = (
+    await sql<{ execId: string }[]>`
+      SELECT exec_id AS "execId" FROM app.sandbox_session_ops
+      WHERE session_id = ${waitSession} ORDER BY started_at_ms
+    `
+  ).map((row) => row.execId);
+  const collectedLeft = await sql<{ id: string }[]>`
+    SELECT id FROM app.sandbox_sessions
+    WHERE id = ANY(${collectedRows.map((row) => row.id)})
+  `;
+  const keptRecent = collectedRows.find((row) => !row.old)?.id;
+  record(
+    'what waiting for room leaves behind is deleted past its retention, the newest op and a keyed one kept',
+    waitOpsLeft.join(',') === 'wait-keyed,wait-3' &&
+      collectedLeft.length === 1 &&
+      collectedLeft[0]?.id === keptRecent,
+    `ops=${waitOpsLeft.join(',')} (want wait-keyed,wait-3) sessions=${collectedLeft.length}/1 recent kept=${String(collectedLeft[0]?.id === keptRecent)}`,
   );
 
   // Lane 4: a stale chat generation (hard-killed turn) clears; the thread
@@ -56442,49 +58492,15 @@ interface LaneSummary {
   filter: string | null;
 }
 
-function errorText(error: unknown): string {
-  return error instanceof Error
-    ? `${error.name}: ${error.message}`
-    : String(error);
-}
-
-/** Does the suite's shared session still resolve to its user? Better Auth's
- * own door, outside every org-scoped gate, so a policy probe (2FA
- * enforcement, idle windows) cannot false-alarm it. */
 /** The longest a single lane may run — the slowest lanes take well under
  * two minutes, and a lane that passes this is not slow but stuck. */
 const LANE_DEADLINE_MS = 10 * 60_000;
 /** The post-lane probes are one request and one query each. */
 const PROBE_DEADLINE_MS = 2 * 60_000;
 
-/**
- * Settles `work`, or rejects naming `what` once `ms` have passed — so a
- * lane (or a probe between lanes) that never settles truncates the run
- * under its own name instead of holding the job until CI's wall clock
- * kills it 30 minutes later, with nothing in the log to say which lane.
- */
-async function withinDeadline<T>(
-  work: Promise<T>,
-  ms: number,
-  what: string,
-): Promise<T> {
-  let timer: NodeJS.Timeout | undefined;
-  const deadline = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => {
-      reject(
-        new Error(
-          `${what} did not settle within ${Math.round(ms / 60_000)} min`,
-        ),
-      );
-    }, ms);
-  });
-  try {
-    return await Promise.race([work, deadline]);
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
+/** Does the suite's shared session still resolve to its user? Better Auth's
+ * own door, outside every org-scoped gate, so a policy probe (2FA
+ * enforcement, idle windows) cannot false-alarm it. */
 async function sharedSessionAlive(
   base: string,
   ctx: { cookie: string; userId: string },
@@ -56819,21 +58835,37 @@ async function main(): Promise<void> {
     triggerSchedules.length === 1 && triggerSchedules[0]?.cron === '* * * * *',
     `schedules=${triggerSchedules.length}, cron=${triggerSchedules[0]?.cron}`,
   );
-  // The delivery lanes drive the real scan explicitly, including overlapping
-  // workers and fleets across pages. A wall-clock tick competing with those
-  // calls makes their per-scan counts depend on the host's minute boundary.
-  // Disable only that recurring clock, before starting any worker; any tick
+  // Lanes drive the work of these recurring jobs explicitly, and a wall-clock
+  // tick competing with those calls makes their outcome depend on the host's
+  // minute boundary:
+  //
+  //  - `automation.trigger_scan`: the delivery lanes drive the real scan,
+  //    including overlapping workers and fleets across pages, and count what
+  //    each scan fired;
+  //  - `watchdog.rag_indexing`: the RAG watchdog lanes drive the real sweep,
+  //    whose candidate read is global and led by their rows. A tick in its
+  //    slot (2-59/5) settled those rows too: it queued behind the row the
+  //    lock lane holds and failed it as soon as the lane let go, before the
+  //    lane read back the row its own tick had deferred (#4113).
+  //
+  // Disable only those recurring clocks, before starting any worker; any tick
   // queued during schedule registration is cancelled as well.
-  await boss.unschedule('automation.trigger_scan');
-  const queuedScans = await sql<{ id: string }[]>`
-    SELECT id FROM pgboss.job WHERE name = 'automation.trigger_scan'
-      AND state IN ('created', 'retry')
-  `;
-  if (queuedScans.length > 0) {
-    await boss.cancel(
-      'automation.trigger_scan',
-      queuedScans.map((job) => job.id),
-    );
+  const laneDrivenSchedules: readonly TaskIdentifier[] = [
+    'automation.trigger_scan',
+    'watchdog.rag_indexing',
+  ];
+  for (const name of laneDrivenSchedules) {
+    await boss.unschedule(name);
+    const queued = await sql<{ id: string }[]>`
+      SELECT id FROM pgboss.job WHERE name = ${name}
+        AND state IN ('created', 'retry')
+    `;
+    if (queued.length > 0) {
+      await boss.cancel(
+        name,
+        queued.map((job) => job.id),
+      );
+    }
   }
   setEnqueueBoss(boss);
   // No itest job may ever open a real IMAP/SMTP connection.
@@ -57227,7 +59259,7 @@ async function main(): Promise<void> {
       ],
       [
         'checkOrgApiKeyListing',
-        () => checkOrgApiKeyListing(sql, baseUrl, authCtx, orgSuffix),
+        () => checkOrgApiKeyListing(sql, baseUrl, auth, authCtx, orgSuffix),
       ],
       [
         'checkApiKeyCreateGate',
@@ -57442,6 +59474,82 @@ async function main(): Promise<void> {
         () => checkSandboxBlobDoor(sql, baseUrl, authCtx),
       ],
       [
+        'checkTaskHeldBlobOutlivesFileRow',
+        () => checkTaskHeldBlobOutlivesFileRow(sql, authCtx),
+      ],
+      [
+        'checkRejectedUploadReclaim',
+        () =>
+          checkRejectedUploadReclaim(
+            sql,
+            baseUrl,
+            authCtx,
+            (label, role) =>
+              signUpOrgMember(sql, baseUrl, authCtx.orgId, label, role),
+            record,
+          ),
+      ],
+      [
+        'checkProductImageReleaseHolders',
+        () =>
+          checkProductImageReleaseHolders(
+            sql,
+            baseUrl,
+            authCtx,
+            (label, role) =>
+              signUpOrgMember(sql, baseUrl, authCtx.orgId, label, role),
+            record,
+          ),
+      ],
+      [
+        'checkVideoLinkHeldBlobs',
+        () =>
+          checkVideoLinkHeldBlobs(
+            sql,
+            baseUrl,
+            authCtx,
+            (label, role) =>
+              signUpOrgMember(sql, baseUrl, authCtx.orgId, label, role),
+            record,
+          ),
+      ],
+      [
+        'checkStagedBundlesUnnameable',
+        () =>
+          checkStagedBundlesUnnameable(
+            sql,
+            baseUrl,
+            authCtx,
+            (label, role) =>
+              signUpOrgMember(sql, baseUrl, authCtx.orgId, label, role),
+            record,
+          ),
+      ],
+      [
+        'checkTaskReleaseKeepsLaneRows',
+        () =>
+          checkTaskReleaseKeepsLaneRows(
+            sql,
+            baseUrl,
+            authCtx,
+            (label, role) =>
+              signUpOrgMember(sql, baseUrl, authCtx.orgId, label, role),
+            record,
+          ),
+      ],
+      [
+        'checkMessageHeldBlobs',
+        () =>
+          checkMessageHeldBlobs(
+            sql,
+            baseUrl,
+            authCtx,
+            (label, role) =>
+              signUpOrgMember(sql, baseUrl, authCtx.orgId, label, role),
+            record,
+          ),
+      ],
+      [
         'checkNotificationProjectBackfill',
         () => checkNotificationProjectBackfill(sql, authCtx),
       ],
@@ -57541,6 +59649,21 @@ async function main(): Promise<void> {
       [
         'checkAgentTaskReadTools',
         () => checkAgentTaskReadTools(sql, baseUrl, authCtx, record),
+      ],
+      [
+        'checkAgentTaskReviewRouting',
+        () => checkAgentTaskReviewRouting(sql, baseUrl, authCtx, record),
+      ],
+      [
+        'checkAgentTaskReviews',
+        () =>
+          checkAgentTaskReviews(
+            sql,
+            baseUrl,
+            authCtx,
+            `itest-${orgSuffix}`,
+            record,
+          ),
       ],
       [
         'checkAgentTaskMetadata',
@@ -57729,6 +59852,10 @@ async function main(): Promise<void> {
         () =>
           checkAutomationAgentNode(sql, baseUrl, authCtx, `itest-${orgSuffix}`),
       ],
+      [
+        'checkAutomationStepDestroyPending',
+        () => checkAutomationStepDestroyPending(sql, baseUrl, authCtx),
+      ],
       ['checkAskAnswer', () => checkAskAnswer(sql, baseUrl, authCtx)],
       [
         'checkAnsweredAskRecovery',
@@ -57858,13 +59985,20 @@ async function main(): Promise<void> {
       `RUN TRUNCATED before the lanes: ${errorText(error)}`,
     );
   } finally {
-    await boss.stop({ graceful: false });
-    await new Promise<void>((resolve) => {
-      server.close(() => resolve());
-    });
-    await vendorStub.close();
-    await sql`DROP TABLE IF EXISTS itest_counter`;
-    await sql.end({ timeout: 5 });
+    // Bounded step by step, so a run a lane left hanging still prints its
+    // tally and exits with its code. The backend closes the way the
+    // deployment does: a bare `server.close()` waits for every connection,
+    // and an `/events` tail a stuck lane still holds never ends on its own.
+    await settleTeardown(
+      [
+        ['stops pg-boss', () => boss.stop({ graceful: false })],
+        ['closes the backend', () => closeServerGracefully(server)],
+        ['closes the vendor stub', () => vendorStub.close()],
+        ['drops itest_counter', () => sql`DROP TABLE IF EXISTS itest_counter`],
+        ['ends the database pool', () => sql.end({ timeout: 5 })],
+      ],
+      record,
+    );
   }
 
   // The run's traffic off the box, as evidence in the log. A refused

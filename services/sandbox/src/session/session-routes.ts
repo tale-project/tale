@@ -8,13 +8,25 @@ import {
   type BackendSession,
   type CreateSessionResult,
   type SessionBackend,
+  type WorkspaceDeletion,
 } from '../backend/types.ts';
+import {
+  belowDiskFloor,
+  type HostDiskSource,
+  type SessionDiskState,
+} from '../host-disk.ts';
+import {
+  memoryReserveBytes,
+  sessionWorkingSetBytes,
+  type HostMemory,
+} from '../host-memory.ts';
 import { jsonResponse } from '../http-util.ts';
 import { sseResponse } from '../sse.ts';
 import type { SpawnerConfig } from '../types.ts';
 import type { SessionExecResponse, SessionInfo } from '../wire.ts';
 import {
   RunnerdActivityError,
+  RunnerdStageBusyError,
   runnerdActivity,
   runnerdAttach,
   runnerdCancelExec,
@@ -28,7 +40,7 @@ import {
   runnerdStageFiles,
   runnerdWriteStdin,
 } from './runnerd-client.ts';
-import type { RunnerdExecEvent } from './runnerd-protocol.ts';
+import type { RunnerdExecEvent, RunnerdHealth } from './runnerd-protocol.ts';
 import { deriveRunnerdToken } from './session-naming.ts';
 import { SessionRegistry, type RegistrySession } from './session-registry.ts';
 import {
@@ -44,15 +56,153 @@ function b64decode(b64: string): Uint8Array {
  * candidate list — the periodic sweep re-probes everything anyway. */
 const RECLAIM_PROBE_BACKOFF_MS = 30_000;
 
+/** How long a session whose daemon answered that it cannot be reclaimed —
+ * held by a turn, working, pinned, or too old for the claim — stays off the
+ * candidate list. Nearly every running turn is a candidate by this replica's
+ * own count (the platform ends each exec stream at its drain window and
+ * follows the turn by attach), so creates refused at capacity used to probe
+ * every busy session again, one after another. A release through this
+ * spawner puts the session back on the list at once. */
+const RECLAIM_BUSY_FOR_MS = 15_000;
+
+/** Daemons one reclaim walk probes at most — the sessions last seen
+ * released first, then idle-longest first: the next walk goes on past the
+ * ones this one found busy. */
+const RECLAIM_PROBES_PER_WALK = 8;
+
+/** How long a walk that found nothing to reclaim answers the creates refused
+ * after it: they are refused at once rather than each walking the same busy
+ * sessions again. A release through this spawner ends the wait. */
+const RECLAIM_NOTHING_FOR_MS = 3_000;
+
+/** Does runnerd's answer allow a reclaim claim: a daemon that speaks the
+ * claim protocol, released (or a claim already under way), unpinned, with
+ * nothing in flight? */
+function reclaimable(health: RunnerdHealth): boolean {
+  const activity = health.activity;
+  return (
+    activity !== undefined &&
+    !activity.pinned &&
+    health.liveExecs === 0 &&
+    activity.activeOperations === 0 &&
+    (activity.released || activity.reclaiming)
+  );
+}
+
 /** Longest an acquire waits for an in-flight create of the same id. Under
  * the platform's own acquire timeout, so a create that is still pulling its
  * image answers not-found (the caller retries) rather than a client timeout. */
 const ACQUIRE_WAITS_FOR_CREATE_MS = 10_000;
 
+/** Sessions one sweep probes at once: a pass is bounded by the slowest few
+ * daemons, not by the sum of every probe (5 s each when a daemon hangs). */
+const SWEEP_CONCURRENCY = 8;
+
+/** Consecutive sweeps (one a minute) a running session's runnerd may fail to
+ * answer before it is taken for wedged: its compute is stopped, the workspace
+ * kept, so a slot and its limits are not held for the rest of a day-long TTL
+ * by a container nothing can use. */
+const WEDGED_PROBE_FAILURES = 5;
+
+/** How long removing an ended container/Pod that failed waits to be tried
+ * again. */
+const ENDED_REAP_BACKOFF_MS = 10 * 60_000;
+
+/** How long a session that just started keeps part of its planned working
+ * set reserved at admission: its turn is still growing toward it while
+ * MemAvailable shows only the idle footprint. The reservation shrinks
+ * linearly to nothing over this window. */
+const YOUNG_SESSION_RESERVE_MS = 90_000;
+
+/** The first-come line for host room. A create refused for want of room
+ * waits its turn: the room that frees next goes to the oldest waiter still
+ * asking, not to whichever create happens to arrive first — a waiter that
+ * asks rarely (a task run woken every two minutes) would otherwise lose to
+ * every one that asks often. Each refusal tells the waiter when its place
+ * comes up: the front asks again in QUEUE_FRONT_HINT_MS, each place behind
+ * it QUEUE_STEP_HINT_MS later, up to QUEUE_MAX_HINT_MS. */
+const QUEUE_FRONT_HINT_MS = 5_000;
+const QUEUE_STEP_HINT_MS = 5_000;
+const QUEUE_MAX_HINT_MS = 60_000;
+/** A waiter holds its place while it asks again within twice its hint and
+ * this much more; one that stopped asking (its run was cancelled, its
+ * worker died) gives its place up after that. */
+const QUEUE_LIVE_SLACK_MS = 15_000;
+/** The most waiters the line keeps; past it the one that asked longest ago
+ * goes. */
+const QUEUE_CAP = 10_000;
+
+/** A create refused for want of room, waiting its turn. */
+interface RoomWaiter {
+  /** When it last asked. */
+  lastAtMs: number;
+  /** The hint the last refusal gave it. */
+  hintMs: number;
+  /** The working set it is planned with, held for it while it is ahead. */
+  workingSetBytes: number;
+  /** A warm activation already holds a runtime slot; only creates need one. */
+  needsSlot: boolean;
+}
+
+/** A sweep's idle decision, checked again atomically by runnerd before it
+ * freezes the incarnation. New work must win over this health snapshot. */
+interface IdleReclaim {
+  health: RunnerdHealth;
+  beforeMs: number;
+}
+
+/** Run `work` over `items`, at most `limit` at a time. */
+async function forEachLimited<T>(
+  items: readonly T[],
+  limit: number,
+  work: (item: T) => Promise<void>,
+): Promise<void> {
+  let next = 0;
+  const lane = async () => {
+    while (next < items.length) {
+      const item = items[next];
+      next += 1;
+      if (item !== undefined) await work(item);
+    }
+  };
+  await Promise.all(
+    Array.from({ length: Math.min(limit, items.length) }, lane),
+  );
+}
+
+/** Longest a create waits for the removal of the same id's ended compute
+ * (a container that exited with the host's reboot, say) under way: well
+ * under the platform's create timeout, and past it the create answers busy
+ * and the caller retries. */
+const CREATE_WAITS_FOR_ENDED_REAP_MS = 30_000;
+
 /** Longest a create waits for a destroy of the same id under way. A destroy
- * deletes the whole workspace, which a large one takes a while for; past
- * this the destroy is taken for wedged and the create answers busy. */
+ * settles once the compute is gone and the workspace moved aside (Docker
+ * deletes it in the background), so the wait is normally short; past this
+ * the destroy is taken for wedged (a hung daemon or filesystem) and the
+ * create answers busy. */
 const CREATE_WAITS_FOR_DESTROY_MS = 120_000;
+
+/** How long a destroy asked to await its deletion (`?await_deletion=1`)
+ * waits for the workspace's bytes before answering how far they came: well
+ * inside the 30 s the platform gives a destroy, and enough for most. */
+const DESTROY_AWAITS_DELETION_MS = 10_000;
+
+/** Where admission reads the host's memory from. */
+export interface HostMemorySource {
+  latest(): HostMemory | null;
+  read(fresh?: boolean): Promise<HostMemory | null>;
+}
+
+const NO_HOST_MEMORY: HostMemorySource = {
+  latest: () => null,
+  read: () => Promise.resolve(null),
+};
+
+const NO_HOST_DISK: HostDiskSource = {
+  latest: () => null,
+  read: () => Promise.resolve(null),
+};
 
 /** Whether `promise` settles, either way, within `ms`. */
 export async function settlesWithin(
@@ -79,6 +229,18 @@ export async function settlesWithin(
 
 export class SessionRoutes {
   private readonly registry = new SessionRegistry();
+  /** Existing nonterminal backend objects without a routable daemon still
+   * occupy capacity (notably Pending Pods after a spawner restart). */
+  private unregistered = new Map<string, BackendSession>();
+  private readonly activityOperations = new Map<string, Promise<void>>();
+  private readonly activating = new Set<string>();
+  private readonly pinOperations = new Map<string, Promise<void>>();
+  /** A failed durable pin is unpublished, but keeps its incarnation safe until retry. */
+  private readonly pinProtection = new Map<string, RegistrySession>();
+  private readonly activeGenerations = new Map<
+    string,
+    { generation: string; admittedAtMs: number }
+  >();
   // Session ids with a createSession in flight → their organization. The
   // registry is only populated AFTER the backend create resolves (up to
   // createHealthTimeoutMs later, through an image pull), so this map closes
@@ -87,6 +249,19 @@ export class SessionRoutes {
   // occupied capacity — a burst of distinct ids during a slow pull must not
   // oversubscribe the host by the number of creates in flight.
   private readonly creating = new Map<string, string>();
+  // The working set each create in flight is planned with: memory a starting
+  // session is about to take that MemAvailable does not show yet.
+  private readonly creatingBytes = new Map<string, number>();
+  // Sessions that started a moment ago, with the working set they were
+  // planned with: what they are still growing into (YOUNG_SESSION_RESERVE_MS).
+  private readonly youngBytes = new Map<
+    string,
+    { bytes: number; sinceMs: number }
+  >();
+  // The first-come line for host room, by session id, in the order of first
+  // refusal — the map's own order (QUEUE_FRONT_HINT_MS). Memory only: a
+  // restart starts it afresh.
+  private readonly waiters = new Map<string, RoomWaiter>();
   // Settles when the create of that id leaves `creating` (success or
   // failure): an acquire for an id still being created waits for it instead
   // of answering a false not-found that the caller would turn into a
@@ -109,12 +284,33 @@ export class SessionRoutes {
   // Stops in flight (pressure reclaim or the sweep), shared so a concurrent
   // create at capacity or an acquire waits for the outcome. Every handle
   // settles to a boolean — a failed stop is `false`, never a rejection a
-  // waiter would surface as a 500.
+  // waiter would surface as a 500. Each is the stop of the incarnation the
+  // registry holds.
   private readonly stopping = new Map<string, Promise<boolean>>();
+  // Removals of ended compute in flight (reapEnded), by session id. Kept
+  // apart from `stopping`: the incarnation they remove is never the one the
+  // registry holds, so an acquire, a pressure reclaim or the sweep of the
+  // registered session must not wait for it or count it as that session's
+  // stop. A create of the id waits for it instead (handleCreate). Settles to
+  // a boolean, never rejects.
+  private readonly endedReaping = new Map<string, Promise<boolean>>();
   // Sessions whose runnerd did not answer a reclaim probe, by failure time:
   // skipped as reclaim candidates for a short window so one wedged daemon
   // (a full health timeout) does not stall every create at capacity.
   private readonly probeFailedAtMs = new Map<string, number>();
+  // What each session's daemon last answered, to a reclaim probe or the
+  // sweep's, about reclaiming it, and when; an acquire or a release through
+  // this spawner counts as an answer too. One that cannot be reclaimed stays
+  // off the candidate list for RECLAIM_BUSY_FOR_MS; one that can goes first,
+  // so a walk capped at RECLAIM_PROBES_PER_WALK reaches it among hundreds of
+  // busy sessions.
+  private readonly reclaimSeen = new Map<
+    string,
+    { atMs: number; reclaimable: boolean }
+  >();
+  // Until when a create at capacity skips the reclaim walk: the last walk
+  // found nothing (RECLAIM_NOTHING_FOR_MS).
+  private nothingToReclaimUntilMs = 0;
   // Settles when the destroy of that id is done (success or failure):
   // destroys of one id run one after another, and a create of the id waits
   // for the one under way instead of racing its workspace removal.
@@ -132,6 +328,44 @@ export class SessionRoutes {
   private resolving: Promise<BackendSession[]> | null = null;
   private resolvingNext: Promise<BackendSession[]> | null = null;
 
+  // Concurrent adoption paths can discover the same incarnation in separate
+  // fresh lists. Share only its in-flight endpoint lookup; a new incarnation
+  // or a lookup after settlement must read the backend again.
+  private readonly resolvingEndpoints = new Map<
+    string,
+    { createdAtMs: number; promise: Promise<string> }
+  >();
+  // The registry object is the fence: a recreate of the same id never joins
+  // an old probe, even when both creations share a millisecond timestamp.
+  // No settled liveness verdict is cached.
+  private readonly checkingLiveness = new Map<
+    RegistrySession,
+    Promise<boolean>
+  >();
+
+  // The maintenance pass in flight: a pass slower than its interval (hung
+  // daemons, a slow dockerd) must not stack copies of itself.
+  private maintaining: Promise<void> | null = null;
+  // The build-cache upkeep in flight — the reconcile for organizations whose
+  // agent sessions were just adopted, the retirement of legacy helpers, the
+  // idle-helper sweep — and the organizations still waiting for a reconcile.
+  // It runs beside the API and beside the maintenance pass, one job at a
+  // time: recreating one organization's helpers takes seconds to minutes,
+  // and a pass that waited for it held every session's sweep up with it.
+  private buildCacheWork: Promise<void> | null = null;
+  private readonly buildCacheOrgs = new Set<string>();
+  // Consecutive failed health probes of a session's incarnation.
+  private readonly probeFailures = new Map<
+    string,
+    { count: number; createdAtMs: number }
+  >();
+  // Ended compute whose removal failed, by failure time: retried after a
+  // back-off rather than on (and logged by) every sweep.
+  private readonly endedReapFailedAtMs = new Map<string, number>();
+  // The removal of ended compute in flight, which runs beside the API: after
+  // a host reboot every session container has ended.
+  private reapingEnded: Promise<void> | null = null;
+
   /**
    * @param isDraining Read on every registry miss: a lingering (draining)
    * spawner must never adopt — the miss is a session its replacement created
@@ -145,6 +379,14 @@ export class SessionRoutes {
     private readonly cfg: SpawnerConfig,
     private readonly backend: SessionBackend,
     private readonly isDraining: () => boolean = () => false,
+    /** The Docker host's memory: `latest` without waiting (admission decides
+     * with it inside its lock), `read` afresh. Null where it cannot be read
+     * (a remote daemon, Kubernetes): admission then counts sessions only. */
+    private readonly hostMemory: HostMemorySource = NO_HOST_MEMORY,
+    /** The disk the workspaces live on: `latest` without waiting, `read`
+     * afresh. Null where it cannot be read (Kubernetes, whose workspaces
+     * are volumes of a fixed size): admission then ignores disk. */
+    private readonly hostDisk: HostDiskSource = NO_HOST_DISK,
   ) {}
 
   /** Number of live sessions this spawner currently manages (drain readiness). */
@@ -215,17 +457,28 @@ export class SessionRoutes {
   }
 
   private atCapacity(): boolean {
-    return (
-      this.registry.size() + this.creating.size >= this.cfg.session.maxSessions
-    );
+    return this.occupiedSlots() >= this.cfg.session.maxSessions;
   }
 
-  /** The admission decision for one create: a duplicate id → 409, a full
-   * host → `'full'`, else the id is reserved in `creating`. */
+  private occupiedSlots(): number {
+    let count = this.registry.size() + this.creating.size;
+    for (const id of this.unregistered.keys()) {
+      if (!this.registry.has(id) && !this.creating.has(id)) count += 1;
+    }
+    return count;
+  }
+
+  /** The admission decision for one create: a duplicate id → 409, a disk
+   * the workspaces live on below its floor → `'disk'`, a full host →
+   * `'full'`, a host whose memory would drop below its reserve with every
+   * create in flight at its planned working set → `'short'`, else the id is
+   * reserved in `creating`. Synchronous, under the admission lock: each
+   * create sees exactly the ones admitted before it. */
   private admit(
     sessionId: string,
     organizationId: string,
-  ): Response | 'full' | null {
+    workingSetBytes: number,
+  ): Response | 'disk' | 'full' | 'short' | null {
     if (this.registry.has(sessionId) || this.creating.has(sessionId)) {
       return jsonResponse(
         {
@@ -235,81 +488,373 @@ export class SessionRoutes {
         409,
       );
     }
+    if (this.unregistered.get(sessionId)?.state === 'degraded') {
+      return jsonResponse(
+        {
+          error: 'busy',
+          message: `session ${sessionId} is still starting or recovering`,
+        },
+        429,
+        { 'retry-after': '5' },
+      );
+    }
+    // A disk below its floor takes no session: every running one's next
+    // write may be the one that fails.
+    if (this.diskShort()) return 'disk';
+    // Room that frees is the oldest waiters' first: a create gets in ahead
+    // of them only where there is room for them as well.
+    const ahead = this.waitersAhead(sessionId, Date.now());
+    if (ahead.length > 0) {
+      const free = this.cfg.session.maxSessions - this.occupiedSlots();
+      if (free <= ahead.filter((waiter) => waiter.needsSlot).length)
+        return 'full';
+      // Memory is held only for waiters this host could ever fit: one that
+      // asks for more than the host has beside its reserve must not keep
+      // every create behind it out for as long as it keeps asking.
+      const fits = this.memoryCeiling();
+      let held = 0;
+      for (const waiter of ahead) {
+        if (fits === null || waiter.workingSetBytes <= fits) {
+          held += waiter.workingSetBytes;
+        }
+      }
+      if (this.memoryShort(workingSetBytes + held)) return 'short';
+    }
     if (this.atCapacity()) return 'full';
+    if (this.memoryShort(workingSetBytes)) return 'short';
+    this.waiters.delete(sessionId);
     this.creating.set(sessionId, organizationId);
+    this.creatingBytes.set(sessionId, workingSetBytes);
     this.createSettled.set(sessionId, Promise.withResolvers<void>());
     return null;
+  }
+
+  /** The most memory a session could ever be given here: the host's total
+   * beside its reserve, or null when the host's memory is unknown. */
+  private memoryCeiling(): number | null {
+    let memory: HostMemory | null;
+    try {
+      memory = this.hostMemory.latest();
+    } catch (error) {
+      console.warn('[sandbox.session] host memory unreadable:', error);
+      return null;
+    }
+    if (memory === null) return null;
+    return (
+      memory.totalBytes -
+      memoryReserveBytes(memory.totalBytes, this.cfg.session.minFreeMemoryBytes)
+    );
+  }
+
+  /** Is the disk the workspaces live on below its floor (the probe's last
+   * reading)? An unknown disk never refuses. */
+  private diskShort(): boolean {
+    try {
+      return belowDiskFloor(
+        this.hostDisk.latest(),
+        this.cfg.session.minFreeDiskBytes,
+      );
+    } catch (error) {
+      console.warn('[sandbox.session] session disk unreadable:', error);
+      return false;
+    }
+  }
+
+  /** The disk read now, for upkeep that frees space on it and goes on only
+   * while it is still short. */
+  private async sessionDiskNow(): Promise<SessionDiskState | null> {
+    try {
+      const disk = await this.hostDisk.read(true);
+      if (disk === null) return null;
+      return {
+        availableBytes: disk.availableBytes,
+        short: belowDiskFloor(disk, this.cfg.session.minFreeDiskBytes),
+      };
+    } catch (error) {
+      console.warn('[sandbox.session] session disk unreadable:', error);
+      return null;
+    }
+  }
+
+  /** Would starting a session of this working set, beside every create in
+   * flight at theirs and what the sessions that just started are still
+   * growing into, leave the host less than its reserve? Unknown memory never
+   * refuses. */
+  private memoryShort(workingSetBytes: number): boolean {
+    let memory: HostMemory | null;
+    try {
+      memory = this.hostMemory.latest();
+    } catch (error) {
+      console.warn('[sandbox.session] host memory unreadable:', error);
+      return false;
+    }
+    if (memory === null) return false;
+    let starting = workingSetBytes;
+    for (const bytes of this.creatingBytes.values()) starting += bytes;
+    const now = Date.now();
+    for (const [sessionId, young] of this.youngBytes) {
+      const left = 1 - (now - young.sinceMs) / YOUNG_SESSION_RESERVE_MS;
+      if (left <= 0) this.youngBytes.delete(sessionId);
+      else starting += Math.round(young.bytes * left);
+    }
+    const reserve = memoryReserveBytes(
+      memory.totalBytes,
+      this.cfg.session.minFreeMemoryBytes,
+    );
+    return memory.availableBytes - starting < reserve;
   }
 
   private async reserveCreate(
     sessionId: string,
     organizationId: string,
+    profile: 'agent' | 'default',
+    docker?: boolean,
   ): Promise<Response | null> {
-    let decision = await this.withAdmission(() =>
-      this.admit(sessionId, organizationId),
+    const workingSet = sessionWorkingSetBytes(
+      profile,
+      docker ?? this.cfg.dockerInContainer,
     );
-    if (decision === 'full') {
-      // At capacity: try to reclaim ONE released idle session, outside the
-      // admission lock (a probe per candidate and a backend stop take
-      // seconds — creates that still have room must not queue behind them),
-      // then decide again. Concurrent creates at capacity share the one stop
-      // in flight and only the first to re-enter admission gets its slot.
+    let decision = await this.withAdmission(() =>
+      this.admit(sessionId, organizationId, workingSet),
+    );
+    if (decision === 'full' || decision === 'short') {
+      // At capacity, or short of memory: try to reclaim ONE released idle
+      // session, outside the admission lock (a probe per candidate and a
+      // backend stop take seconds — creates that still have room must not
+      // queue behind them), then decide again. Concurrent creates at capacity
+      // share the one stop in flight and only the first to re-enter admission
+      // gets its slot. Short of memory, the decision waits for a reading
+      // taken after the reclaim.
+      const short = decision === 'short';
       await this.reclaimOneIdle();
+      if (short) await this.readHostMemory();
       decision = await this.withAdmission(() =>
-        this.admit(sessionId, organizationId),
+        this.admit(sessionId, organizationId, workingSet),
       );
     }
-    if (decision === 'full') {
+    if (decision === 'full' || decision === 'short' || decision === 'disk') {
+      const place = this.waitInLine(sessionId, workingSet, Date.now());
+      const retryAfter = String(Math.ceil(place.hintMs / 1000));
+      const queue = { position: place.position, waiting: place.waiting };
+      if (decision === 'disk') {
+        // Stopping an idle session frees no disk (its workspace stays for
+        // its resume): the build-cache upkeep gives back what it can.
+        return jsonResponse(
+          {
+            error: 'host_disk',
+            message:
+              'the sandbox host is short of disk space; the session starts once some is freed',
+            queue,
+          },
+          429,
+          { 'retry-after': retryAfter },
+        );
+      }
+      if (decision === 'full') {
+        return jsonResponse(
+          {
+            error: 'session_quota',
+            message: 'spawner session cap reached',
+            queue,
+          },
+          429,
+          { 'retry-after': retryAfter },
+        );
+      }
       return jsonResponse(
-        { error: 'session_quota', message: 'spawner session cap reached' },
+        {
+          error: 'host_memory',
+          message:
+            'the sandbox host is short of memory; the session starts once running sessions free some',
+          queue,
+        },
         429,
-        { 'retry-after': '10' },
+        { 'retry-after': retryAfter },
       );
     }
+    // Any other answer (admitted, a duplicate) ends the wait.
+    this.waiters.delete(sessionId);
     return decision;
   }
 
-  /** Reclaim the oldest released idle session, if any. Candidates that
-   * failed their last probe within the back-off window are skipped: a
-   * wedged daemon costs one health timeout per window, not one per create. */
-  private async reclaimOneIdle(): Promise<boolean> {
-    const now = Date.now();
-    for (const session of this.registry.list()) {
-      const failedAt = this.probeFailedAtMs.get(session.sessionId);
-      if (
-        failedAt !== undefined &&
-        now - failedAt < RECLAIM_PROBE_BACKOFF_MS &&
-        !this.reclaimClaims.has(session.sessionId)
-      ) {
+  /** The live waiters refused before `sessionId` (all of them, for a create
+   * not yet in line), oldest first: the line keeps the order of first
+   * refusal, which a repeat never changes. Waiters that stopped asking
+   * leave. */
+  private waitersAhead(sessionId: string, now: number): RoomWaiter[] {
+    const ahead: RoomWaiter[] = [];
+    let reachedOwn = false;
+    for (const [id, waiter] of this.waiters) {
+      if (now - waiter.lastAtMs > 2 * waiter.hintMs + QUEUE_LIVE_SLACK_MS) {
+        this.waiters.delete(id);
         continue;
       }
-      if (await this.reclaimIdle(session)) return true;
+      if (id === sessionId) reachedOwn = true;
+      else if (!reachedOwn) ahead.push(waiter);
     }
+    return ahead;
+  }
+
+  /** Put a refused create or activation in line (keeping its place when it was in line
+   * already) and say where it stands and when to ask again. */
+  private waitInLine(
+    sessionId: string,
+    workingSetBytes: number,
+    now: number,
+    needsSlot = true,
+  ): { position: number; waiting: number; hintMs: number } {
+    const position = this.waitersAhead(sessionId, now).length;
+    const hintMs = Math.min(
+      QUEUE_FRONT_HINT_MS + position * QUEUE_STEP_HINT_MS,
+      QUEUE_MAX_HINT_MS,
+    );
+    const known = this.waiters.get(sessionId);
+    if (known !== undefined) {
+      known.lastAtMs = now;
+      known.hintMs = hintMs;
+      known.workingSetBytes = workingSetBytes;
+      known.needsSlot = needsSlot;
+    } else {
+      if (this.waiters.size >= QUEUE_CAP) this.dropStalestWaiter();
+      this.waiters.set(sessionId, {
+        lastAtMs: now,
+        hintMs,
+        workingSetBytes,
+        needsSlot,
+      });
+    }
+    return { position, waiting: this.waiters.size, hintMs };
+  }
+
+  private dropStalestWaiter(): void {
+    let stalest: string | undefined;
+    let stalestAtMs = Infinity;
+    for (const [id, waiter] of this.waiters) {
+      if (waiter.lastAtMs < stalestAtMs) {
+        stalest = id;
+        stalestAtMs = waiter.lastAtMs;
+      }
+    }
+    if (stalest !== undefined) this.waiters.delete(stalest);
+  }
+
+  /** How many creates or activations wait in the line for host room. */
+  roomQueueLength(): number {
+    return this.waiters.size;
+  }
+
+  /** A fresh reading of the host's memory, for the next admission. */
+  private async readHostMemory(): Promise<void> {
+    try {
+      await this.hostMemory.read(true);
+    } catch (error) {
+      console.warn('[sandbox.session] host memory unreadable:', error);
+    }
+  }
+
+  /** Reclaim the released idle session that has been idle longest, if any.
+   * Candidates that failed their last probe within the back-off window are
+   * skipped: a wedged daemon costs one health timeout per window, not one per
+   * create. So are candidates whose daemon said a moment ago that they cannot
+   * be reclaimed, while those last seen reclaimable go first; a walk probes
+   * at most RECLAIM_PROBES_PER_WALK daemons, and after a walk that found
+   * nothing the creates refused next are answered at once. A candidate whose
+   * claim is already acknowledged needs no probe. A candidate a concurrent
+   * create is already stopping frees that create's slot, so each create at
+   * capacity claims a session of its own and shares a sibling's stop only
+   * when nothing else is left. */
+  private async reclaimOneIdle(): Promise<boolean> {
+    const now = Date.now();
+    const idleSince = (session: RegistrySession) =>
+      session.lastActivityAtMs ?? session.createdAtMs;
+    const seenReclaimable = (session: RegistrySession) =>
+      this.reclaimSeen.get(session.sessionId)?.reclaimable === true ? 0 : 1;
+    const candidates = this.registry
+      .list()
+      .filter(
+        (session) =>
+          !session.pinned &&
+          (this.pinProtection.get(session.sessionId) !== session ||
+            this.reclaimClaims.has(session.sessionId)) &&
+          session.liveExecs.size === 0 &&
+          !this.activating.has(session.sessionId),
+      )
+      .sort(
+        (a, b) =>
+          seenReclaimable(a) - seenReclaimable(b) ||
+          idleSince(a) - idleSince(b),
+      );
+    const walk = now >= this.nothingToReclaimUntilMs;
+    if (walk) {
+      let probes = 0;
+      for (const session of candidates) {
+        const sessionId = session.sessionId;
+        if (this.stopping.has(sessionId)) continue;
+        if (!this.reclaimClaims.has(sessionId)) {
+          const failedAt = this.probeFailedAtMs.get(sessionId);
+          if (
+            failedAt !== undefined &&
+            now - failedAt < RECLAIM_PROBE_BACKOFF_MS
+          )
+            continue;
+          const seen = this.reclaimSeen.get(sessionId);
+          if (
+            seen !== undefined &&
+            !seen.reclaimable &&
+            now - seen.atMs < RECLAIM_BUSY_FOR_MS
+          )
+            continue;
+          if (probes >= RECLAIM_PROBES_PER_WALK) continue;
+          probes += 1;
+        }
+        if (await this.reclaimIdle(session)) return true;
+      }
+    }
+    for (const session of candidates) {
+      const pending = this.stopping.get(session.sessionId);
+      if (pending !== undefined && (await pending)) return true;
+    }
+    if (walk)
+      this.nothingToReclaimUntilMs = Date.now() + RECLAIM_NOTHING_FOR_MS;
     return false;
   }
 
+  /** Remember whether this session can be reclaimed, as of now. */
+  private noteReclaimable(sessionId: string, canBe: boolean): void {
+    this.reclaimSeen.set(sessionId, { atMs: Date.now(), reclaimable: canBe });
+  }
+
   /** runnerd's atomic claim closes the health-probe→stop race across replicas.
-   * Unknown/old daemons refuse, as do busy, pinned and unreleased sessions.
+   * Busy and pinned sessions refuse; pressure also requires explicit release,
+   * while expiry requires the negotiated atomic idle-clock cutoff.
    * A failed stop keeps its claim frozen and counted until a later retry.
    * Never rejects: a waiter sharing the stop sees `false`, not a 500. */
-  private reclaimIdle(session: RegistrySession): Promise<boolean> {
+  private reclaimIdle(
+    session: RegistrySession,
+    idle?: IdleReclaim,
+  ): Promise<boolean> {
     const pending = this.stopping.get(session.sessionId);
     if (pending !== undefined) return pending;
     if (
       session.pinned ||
+      (this.pinProtection.get(session.sessionId) === session &&
+        !this.reclaimClaims.has(session.sessionId)) ||
       session.liveExecs.size > 0 ||
       this.creating.has(session.sessionId)
     ) {
       return Promise.resolve(false);
     }
-    const reclaim = this.stopClaimedIdle(session).finally(() => {
+    const reclaim = this.stopClaimedIdle(session, idle).finally(() => {
       this.stopping.delete(session.sessionId);
     });
     this.stopping.set(session.sessionId, reclaim);
     return reclaim;
   }
 
-  private async stopClaimedIdle(session: RegistrySession): Promise<boolean> {
+  private async stopClaimedIdle(
+    session: RegistrySession,
+    idle?: IdleReclaim,
+  ): Promise<boolean> {
     const sessionId = session.sessionId;
     const opts = { baseUrl: session.endpoint, token: this.tokenFor(sessionId) };
     const held = this.reclaimClaims.get(sessionId);
@@ -320,14 +865,17 @@ export class SessionRoutes {
     }
     try {
       if (!this.reclaimClaims.has(sessionId)) {
-        const health = await runnerdHealth(opts);
+        const health = idle?.health ?? (await runnerdHealth(opts));
+        this.noteReclaimable(sessionId, reclaimable(health));
         const activity = health.activity;
         if (
           activity === undefined ||
-          activity.pinned ||
-          health.liveExecs > 0 ||
-          activity.activeOperations > 0 ||
-          (!activity.released && !activity.reclaiming)
+          (idle === undefined
+            ? !reclaimable(health)
+            : activity.idleReclaim !== true ||
+              activity.pinned ||
+              health.liveExecs > 0 ||
+              activity.activeOperations > 0)
         ) {
           return false;
         }
@@ -335,8 +883,13 @@ export class SessionRoutes {
         const result = await runnerdActivity(opts, 'reclaim', {
           claimId,
           generation: activity.generation,
+          ...(idle !== undefined ? { idleBeforeMs: idle.beforeMs } : {}),
         });
-        if (result.claimed !== true) return false;
+        if (result.claimed !== true) {
+          // Acquired or touched between the probe and the claim: keep it.
+          this.noteReclaimable(sessionId, false);
+          return false;
+        }
         // Frozen: nothing can start in this incarnation any more, so a
         // failed stop below is retried later without another probe.
         this.reclaimClaims.set(sessionId, {
@@ -353,6 +906,7 @@ export class SessionRoutes {
     } catch (error) {
       // An older daemon has no claim route and cannot have frozen itself.
       if (error instanceof RunnerdActivityError && error.status === 404) {
+        this.noteReclaimable(sessionId, false);
         return false;
       }
       if (error instanceof SessionIncarnationChangedError) {
@@ -403,12 +957,23 @@ export class SessionRoutes {
     if (this.registry.get(session.sessionId) === session) {
       this.registry.delete(session.sessionId);
     }
+    if (
+      this.unregistered.get(session.sessionId)?.createdAtMs ===
+      session.createdAtMs
+    )
+      this.unregistered.delete(session.sessionId);
     this.forgetReclaimMarks(session.sessionId);
   }
 
   private forgetReclaimMarks(sessionId: string): void {
     this.reclaimClaims.delete(sessionId);
     this.probeFailedAtMs.delete(sessionId);
+    this.reclaimSeen.delete(sessionId);
+    this.probeFailures.delete(sessionId);
+    // Its memory is the host's again: no reservation for it either.
+    this.youngBytes.delete(sessionId);
+    this.activeGenerations.delete(sessionId);
+    this.pinProtection.delete(sessionId);
   }
 
   /**
@@ -423,6 +988,7 @@ export class SessionRoutes {
    * resumable state whose correct answer is 404 (the platform resumes it).
    */
   async adoptExisting(): Promise<void> {
+    if (this.isDraining()) return;
     let sessions: BackendSession[];
     try {
       sessions = await this.backend.listSessions();
@@ -430,29 +996,211 @@ export class SessionRoutes {
       console.warn('[sandbox.session] adoptExisting list failed:', err);
       return;
     }
-    const adopted: BackendSession[] = [];
+    if (this.isDraining()) return;
+    const candidates: BackendSession[] = [];
+    const ended: BackendSession[] = [];
+    this.unregistered = new Map(
+      sessions
+        .filter((session) => session.ended !== true)
+        .map((session) => [session.sessionId, session]),
+    );
+    const seen = new Set<string>();
     for (const s of sessions) {
       // A create in flight on this replica registers itself when it completes;
       // adopting it early would race that registration.
-      if (this.registry.has(s.sessionId) || this.creating.has(s.sessionId)) {
+      if (
+        this.registry.has(s.sessionId) ||
+        this.creating.has(s.sessionId) ||
+        seen.has(s.sessionId)
+      ) {
         continue;
       }
-      if (s.state !== 'ready') continue;
-      const registered = await this.adoptSession(s);
-      if (registered !== undefined) adopted.push(s);
+      if (s.ended === true) {
+        seen.add(s.sessionId);
+        ended.push(s);
+        continue;
+      }
+      if (s.state !== 'ready') {
+        if (this.backend.reapStaleSession !== undefined) ended.push(s);
+        continue;
+      }
+      seen.add(s.sessionId);
+      candidates.push(s);
+    }
+    // Each Kubernetes endpoint requires an API read. Resolve a bounded set
+    // together so recovery waits for waves of calls, never their whole sum;
+    // deduplicate before awaiting so a duplicate cannot take another lane.
+    const adoptedIds = new Set<string>();
+    await forEachLimited(candidates, SWEEP_CONCURRENCY, async (s) => {
+      if ((await this.adoptSession(s)) !== undefined) {
+        adoptedIds.add(s.sessionId);
+      }
+    });
+    // A drain that began during resolution ends this old spawner's adoption:
+    // replacement-owned compute and build helpers stay with its successor.
+    if (this.isDraining()) return;
+    const adopted = candidates.filter((s) => adoptedIds.has(s.sessionId));
+    // The removal runs beside the API: after a host reboot every session
+    // container has ended, and removing each takes up to seconds (with its
+    // inner image volume). A pass still under way covers what it listed; the
+    // next sweep takes the rest.
+    if (ended.length > 0 && this.reapingEnded === null) {
+      this.reapingEnded = this.reapEnded(ended)
+        .catch((error: unknown) => {
+          console.warn(
+            '[sandbox.session] removing ended compute failed:',
+            error,
+          );
+        })
+        .finally(() => {
+          this.reapingEnded = null;
+        });
     }
 
-    // Heal the shared build cache for every org whose session was just adopted.
-    // The buildkitd outlives the spawner, so the same stack restart that bounced
-    // this spawner may have moved sandbox-egress to a new IP — leaving the
-    // daemon's egress fence stale. An adopted session that reuses it would build
-    // with no DNS/egress (the createSession heal never fires for it). Best-effort
-    // inside the backend; a no-op when there's no shared cache or nothing drifted.
-    if (adopted.length > 0) {
-      await this.backend.reconcileBuildCache(
-        adopted.map((s) => s.organizationId),
-      );
+    // Heal the shared build cache for every org whose agent session was just
+    // adopted (only agent sessions build). The buildkitd outlives the spawner,
+    // so the same stack restart that bounced this spawner may have moved
+    // sandbox-egress to a new IP — leaving the daemon's egress fence stale. An
+    // adopted session that reuses it would build with no DNS/egress (the
+    // createSession heal never fires for it). Best-effort inside the backend; a
+    // no-op when there's no shared cache or nothing drifted. It runs beside the
+    // API instead of ahead of it: a recreate per organization takes seconds to
+    // minutes, and the sessions are routable as soon as they are registered.
+    const builders = adopted
+      .filter((s) => s.profile === 'agent' && s.docker !== false)
+      .map((s) => s.organizationId);
+    if (builders.length > 0) void this.maintainBuildCache(builders);
+  }
+
+  /** Start the build-cache upkeep, or join the job under way; organizations
+   * named here are reconciled by it, or by the run that follows it. Never
+   * rejects: a failure is logged and the next sweep asks again. */
+  private maintainBuildCache(
+    organizationIds: readonly string[] = [],
+  ): Promise<void> {
+    for (const organizationId of organizationIds) {
+      this.buildCacheOrgs.add(organizationId);
     }
+    this.buildCacheWork ??= this.runBuildCache().finally(() => {
+      this.buildCacheWork = null;
+      // Named while the last run was finishing: they get a run of their own.
+      if (this.buildCacheOrgs.size > 0) void this.maintainBuildCache();
+    });
+    return this.buildCacheWork;
+  }
+
+  private async runBuildCache(): Promise<void> {
+    do {
+      const organizationIds = [...this.buildCacheOrgs];
+      this.buildCacheOrgs.clear();
+      try {
+        // With no organization named, the backend retires drained legacy
+        // helpers and stops idle ones without provisioning anything: the last
+        // legacy session may just have stopped, letting its global helpers go.
+        await this.backend.reconcileBuildCache(organizationIds, {
+          sessionDisk: () => this.sessionDiskNow(),
+        });
+      } catch (error) {
+        console.warn(
+          organizationIds.length > 0
+            ? '[sandbox.session] build-cache reconcile after adoption failed:'
+            : '[sandbox.session] build-cache maintenance failed:',
+          error,
+        );
+      }
+    } while (this.buildCacheOrgs.size > 0);
+  }
+
+  /** Settles once no build-cache upkeep is under way. */
+  async buildCacheSettled(): Promise<void> {
+    while (this.buildCacheWork !== null) await this.buildCacheWork;
+  }
+
+  /** Settles once the removal of ended compute adoption started is done. */
+  endedReapSettled(): Promise<void> {
+    return this.reapingEnded ?? Promise.resolve();
+  }
+
+  /** Containers/Pods whose process ended for good — a host reboot or daemon
+   * restart, an init killed by the OOM killer, an evicted Pod — are never
+   * adopted, and nothing but a resume or a destroy used to remove them: the
+   * container record stayed, and on Docker its inner image volume with it.
+   * Remove their compute as an idle stop does, fenced to that incarnation and
+   * keeping the workspace for the resume. */
+  private async reapEnded(ended: readonly BackendSession[]): Promise<void> {
+    const now = Date.now();
+    await forEachLimited(ended, SWEEP_CONCURRENCY, async (s) => {
+      const id = s.sessionId;
+      const failedAt = this.endedReapFailedAtMs.get(id);
+      if (
+        this.registry.has(id) ||
+        this.creating.has(id) ||
+        this.stopping.has(id) ||
+        this.endedReaping.has(id) ||
+        this.destroySettled.has(id) ||
+        (failedAt !== undefined && now - failedAt < ENDED_REAP_BACKOFF_MS)
+      ) {
+        return;
+      }
+      const removal =
+        s.ended === true
+          ? this.backend.stopSession(id, s.createdAtMs).then(() => true)
+          : (this.backend.reapStaleSession?.(id, s.createdAtMs) ??
+            Promise.resolve(false));
+      const stop = removal
+        .then(
+          (removed) => {
+            this.endedReapFailedAtMs.delete(id);
+            if (
+              removed &&
+              this.unregistered.get(id)?.createdAtMs === s.createdAtMs
+            )
+              this.unregistered.delete(id);
+            return removed;
+          },
+          (error: unknown) => {
+            if (error instanceof SessionIncarnationChangedError) {
+              // Replaced under the id meanwhile (a peer replica's create):
+              // the ended incarnation is gone, and the new one is not ours.
+              this.endedReapFailedAtMs.delete(id);
+              return false;
+            }
+            this.endedReapFailedAtMs.set(id, Date.now());
+            console.warn(
+              `[sandbox.session] removing the ended compute of ${id} failed (retried in ${ENDED_REAP_BACKOFF_MS / 60_000} min):`,
+              error,
+            );
+            return false;
+          },
+        )
+        .finally(() => {
+          this.endedReaping.delete(id);
+        });
+      this.endedReaping.set(id, stop);
+      if (await stop) {
+        console.log(
+          `[sandbox.session] removed the ended compute of ${id} (workspace preserved for resume)`,
+        );
+      }
+    });
+  }
+
+  /** One maintenance pass: adoption (never while draining — a lingering
+   * spawner must not adopt, and later linger-reap, the sessions its
+   * replacement is creating), then the reaper. A call while a pass is under
+   * way joins it instead of starting another. The pass starts the removal of
+   * ended compute and the build-cache upkeep and waits for neither: both run
+   * beside it, so a slow one never holds up the next pass's sweep. */
+  maintain(): Promise<void> {
+    if (this.maintaining !== null) return this.maintaining;
+    const pass = (async () => {
+      if (!this.isDraining()) await this.adoptExisting();
+      await this.sweepExpired();
+    })().finally(() => {
+      this.maintaining = null;
+    });
+    this.maintaining = pass;
+    return pass;
   }
 
   /** Register one backend-listed session in the cache, resolving its runnerd
@@ -461,9 +1209,14 @@ export class SessionRoutes {
   private async adoptSession(
     s: BackendSession,
   ): Promise<RegistrySession | undefined> {
+    // A queued adoption or a route miss may reach this after draining began.
+    // Only sessions already registered belong to the lingering spawner.
+    const registered = this.registry.get(s.sessionId);
+    if (registered !== undefined) return registered;
+    if (this.isDraining() || this.creating.has(s.sessionId)) return undefined;
     let endpoint: string;
     try {
-      endpoint = await this.backend.resolveEndpoint(s.sessionId);
+      endpoint = await this.resolveForAdoption(s);
     } catch (err) {
       console.warn(
         `[sandbox.session] adopt skipped for ${s.sessionId} (endpoint unresolved; will retry):`,
@@ -475,10 +1228,14 @@ export class SessionRoutes {
     // never overwrite a live entry (it may already track in-flight execs).
     const raced = this.registry.get(s.sessionId);
     if (raced !== undefined) return raced;
+    // A create that is still awaiting its backend has not registered yet.
+    // It owns the id too: never adopt an older listing over its pending work.
+    if (this.isDraining() || this.creating.has(s.sessionId)) return undefined;
     const entry: RegistrySession = {
       sessionId: s.sessionId,
       organizationId: s.organizationId,
       profile: s.profile,
+      ...(s.docker === undefined ? {} : { docker: s.docker }),
       state: s.state,
       createdAtMs: s.createdAtMs,
       expiresAtMs: s.createdAtMs + s.ttlMs,
@@ -492,6 +1249,26 @@ export class SessionRoutes {
     };
     this.registry.set(entry);
     return entry;
+  }
+
+  private resolveForAdoption(session: BackendSession): Promise<string> {
+    const pending = this.resolvingEndpoints.get(session.sessionId);
+    if (pending?.createdAtMs === session.createdAtMs) return pending.promise;
+    const promise = this.backend
+      .resolveEndpoint(session.sessionId)
+      .finally(() => {
+        // An older incarnation's completion must not clear its successor's slot.
+        if (
+          this.resolvingEndpoints.get(session.sessionId)?.promise === promise
+        ) {
+          this.resolvingEndpoints.delete(session.sessionId);
+        }
+      });
+    this.resolvingEndpoints.set(session.sessionId, {
+      createdAtMs: session.createdAtMs,
+      promise,
+    });
+    return promise;
   }
 
   /**
@@ -580,113 +1357,193 @@ export class SessionRoutes {
    */
   async sweepExpired(nowMs: number = Date.now()): Promise<number> {
     let reaped = 0;
-    for (const s of this.registry.list()) {
-      if (this.reclaimClaims.has(s.sessionId)) {
-        if (await this.reclaimIdle(s)) reaped += 1;
-        continue;
-      }
-      // Pinned ("always-on") sessions are exempt from BOTH idle and TTL reap.
-      if (s.pinned) continue;
-      // A session with a live exec is NEVER reaped — a long, QUIET tool (no
-      // stdout for >idleTimeout) would otherwise be idle-killed mid-task, and a
-      // running task shouldn't be cut at the hard TTL either. The registry
-      // tracks in-flight execs on this replica; after a spawner restart its
-      // cache is cold, so the runnerd health.liveExecs check below is the
-      // backstop for a re-adopted busy session.
-      if (s.liveExecs.size > 0) continue;
-      let expired = nowMs > s.expiresAtMs;
-      // Local exec cache is cold (e.g. a spawner restart re-adopted this session
-      // with an empty liveExecs map), so consult runnerd's own clock. This probe
-      // gates BOTH the idle AND the TTL reap: a re-adopted exec that's been
-      // running past the hard TTL must not be stopped mid-task just because this
-      // replica's liveExecs map is empty. Run it unconditionally (not only when
-      // !expired) — that's the cold-cache backstop for a busy re-adopted session.
-      try {
-        const health = await runnerdHealth({
-          baseUrl: s.endpoint,
-          token: this.tokenFor(s.sessionId),
-        });
-        // Resume a frozen stop after a spawner restart through the same
-        // generation and backend-incarnation fences as pressure admission.
-        if (health.activity?.reclaiming) {
-          if (await this.reclaimIdle(s)) reaped += 1;
-          continue;
-        }
-        if (
-          health.liveExecs > 0 ||
-          (health.activity?.activeOperations ?? 0) > 0
-        )
-          continue;
-        if (!expired) {
-          expired = nowMs - health.lastActivityAtMs > s.idleTimeoutMs;
-        }
-      } catch (err) {
-        // runnerd unreachable. Distinguish a transient blip (leave for a
-        // later sweep; the TTL is the hard backstop) from a ZOMBIE — the
-        // backend object is gone but the cache entry survived. Without
-        // this, a dead session lingers routable-but-unreachable until TTL.
-        console.warn(
-          `[sandbox.session] sweep health probe failed for ${s.sessionId} (${s.endpoint}):`,
-          err,
-        );
-        if (await this.evictIfBackendGone(s.sessionId)) {
-          reaped += 1;
-          continue;
-        }
-        // Backend still present (transient blip): fall through to the TTL-only
-        // decision below — a not-yet-expired session is left for a later sweep.
-      }
-      if (expired) {
-        // A pressure claim may have begun while the health probe awaited.
-        // Its owner alone stops that incarnation, including retries.
-        if (
-          this.reclaimClaims.has(s.sessionId) ||
-          this.stopping.has(s.sessionId) ||
-          s.pinned ||
-          s.liveExecs.size > 0
-        )
-          continue;
-        // Stop, never destroy: idle/TTL release compute but keep the workspace
-        // so the session resumes with its data on the next turn. stopSession
-        // THROWS on a transient backend hiccup (its contract) — keep the
-        // registry entry so the next sweep retries, rather than dropping a
-        // still-running container from the cache and orphaning it until a
-        // restart re-adopts it.
-        // The shared handle settles to a boolean: an acquire or a create at
-        // capacity waiting on it must see a failed stop as `false`, never
-        // as a rejection it would answer with a 500.
-        const stop = this.backend
-          .stopSession(s.sessionId)
-          .then(
-            () => {
-              this.registry.delete(s.sessionId);
-              this.forgetReclaimMarks(s.sessionId);
-              return true;
-            },
-            (err: unknown) => {
-              console.warn(
-                '[sandbox.session] sweep stop failed (will retry next sweep):',
-                err,
-              );
-              return false;
-            },
-          )
-          .finally(() => {
-            this.stopping.delete(s.sessionId);
-          });
-        this.stopping.set(s.sessionId, stop);
-        if (await stop) reaped += 1;
-      }
-    }
-    // No newly adopted session is required for maintenance: the last legacy
-    // session may just have stopped, allowing its global build helpers to
-    // retire. Empty orgIds performs cleanup without provisioning new builders.
-    try {
-      await this.backend.reconcileBuildCache([]);
-    } catch (error) {
-      console.warn('[sandbox.session] build-cache maintenance failed:', error);
-    }
+    await forEachLimited(
+      this.registry.list(),
+      SWEEP_CONCURRENCY,
+      async (session) => {
+        if (await this.sweepSession(session, nowMs)) reaped += 1;
+      },
+    );
+    // The build helpers follow the sessions just stopped, beside the sweep
+    // rather than inside it: the next sweep never waits for a slow recreate.
+    void this.maintainBuildCache();
     return reaped;
+  }
+
+  /** Does this session keep the full idle window once released? A
+   * Docker-in-sandbox session's resume starts its inner daemon on an empty
+   * image store, so stopping it early would cost every turn a re-pull. */
+  private keepsFullIdleWindow(session: RegistrySession): boolean {
+    return (
+      (session.docker ?? this.cfg.dockerInContainer) &&
+      session.profile === 'agent'
+    );
+  }
+
+  /** Count a failed health probe of this incarnation; returns the streak. */
+  private noteProbeFailure(session: RegistrySession): number {
+    const previous = this.probeFailures.get(session.sessionId);
+    const count =
+      previous !== undefined && previous.createdAtMs === session.createdAtMs
+        ? previous.count + 1
+        : 1;
+    this.probeFailures.set(session.sessionId, {
+      count,
+      createdAtMs: session.createdAtMs,
+    });
+    return count;
+  }
+
+  /** The sweep's decision for one session: true when it stopped. */
+  private async sweepSession(
+    s: RegistrySession,
+    nowMs: number,
+  ): Promise<boolean> {
+    if (this.reclaimClaims.has(s.sessionId)) return this.reclaimIdle(s);
+    // Pinned ("always-on") sessions are exempt from BOTH idle and TTL reap.
+    // Unprobed, a streak of failed probes from before no longer describes
+    // the daemon, so it starts over.
+    if (s.pinned || this.pinProtection.get(s.sessionId) === s) {
+      this.probeFailures.delete(s.sessionId);
+      // Always-on exempts live compute from idle stops, not confirmed-dead
+      // backend objects from reconciliation. Unknown still stays held.
+      return this.evictIfBackendGone(s.sessionId);
+    }
+    if (this.activating.has(s.sessionId)) return false;
+    // A session with a live exec is NEVER reaped — a long, QUIET tool (no
+    // stdout for >idleTimeout) would otherwise be idle-killed mid-task, and a
+    // running task shouldn't be cut at the hard TTL either. The registry
+    // tracks in-flight execs on this replica; after a spawner restart its
+    // cache is cold, so the runnerd health.liveExecs check below is the
+    // backstop for a re-adopted busy session. An exec running through this
+    // replica shows its runnerd answers: any streak of failed probes ends.
+    if (s.liveExecs.size > 0) {
+      this.probeFailures.delete(s.sessionId);
+      return false;
+    }
+    let expired = nowMs > s.expiresAtMs;
+    let reason = expired ? 'lifetime' : 'idle';
+    // Local exec cache is cold (e.g. a spawner restart re-adopted this session
+    // with an empty liveExecs map), so consult runnerd's own clock. This probe
+    // gates BOTH the idle AND the TTL reap: a re-adopted exec that's been
+    // running past the hard TTL must not be stopped mid-task just because this
+    // replica's liveExecs map is empty. Run it unconditionally (not only when
+    // !expired) — that's the cold-cache backstop for a busy re-adopted session.
+    try {
+      const health = await runnerdHealth({
+        baseUrl: s.endpoint,
+        token: this.tokenFor(s.sessionId),
+      });
+      this.probeFailures.delete(s.sessionId);
+      s.lastActivityAtMs = health.lastActivityAtMs;
+      // What the sweep saw spares a create at capacity a probe of its own.
+      this.noteReclaimable(s.sessionId, reclaimable(health));
+      // Resume a frozen stop after a spawner restart through the same
+      // generation and backend-incarnation fences as pressure admission.
+      if (health.activity?.reclaiming) return this.reclaimIdle(s);
+      if (
+        health.liveExecs > 0 ||
+        (health.activity?.activeOperations ?? 0) > 0
+      ) {
+        return false;
+      }
+      const idleForMs = nowMs - health.lastActivityAtMs;
+      if (!expired) expired = idleForMs > s.idleTimeoutMs;
+      if (expired && health.activity?.idleReclaim === true) {
+        // An acquire changes the generation; a completed operation changes
+        // the daemon's clock. Either wins over the sweep's stale snapshot.
+        // TTL still expires a held but idle session, while a touch at or
+        // after the sweep start defers that stop to the next pass.
+        return this.reclaimIdle(s, {
+          health,
+          beforeMs: reason === 'lifetime' ? nowMs - 1 : nowMs - s.idleTimeoutMs,
+        });
+      }
+      // Released by the platform (its turn or run settled, nothing holds it):
+      // a few idle minutes are enough. The stop goes through runnerd's
+      // claim, so a turn that acquires the session meanwhile keeps it.
+      if (
+        !expired &&
+        health.activity?.released === true &&
+        !this.keepsFullIdleWindow(s) &&
+        idleForMs > Math.min(this.cfg.session.releasedIdleMs, s.idleTimeoutMs)
+      ) {
+        return this.reclaimIdle(s);
+      }
+    } catch (err) {
+      // runnerd unreachable. Distinguish a transient blip (leave for a
+      // later sweep; the TTL is the hard backstop) from a ZOMBIE — the
+      // backend object is gone but the cache entry survived. Without
+      // this, a dead session lingers routable-but-unreachable until TTL.
+      console.warn(
+        `[sandbox.session] sweep health probe failed for ${s.sessionId} (${s.endpoint}):`,
+        err,
+      );
+      if (await this.evictIfBackendGone(s.sessionId)) {
+        this.probeFailures.delete(s.sessionId);
+        return true;
+      }
+      // Backend still present: a blip, or a daemon that is never coming
+      // back. One that has not answered for several sweeps in a row holds a
+      // slot nothing can use; stop it (the workspace stays for the resume).
+      if (!expired && this.noteProbeFailure(s) >= WEDGED_PROBE_FAILURES) {
+        expired = true;
+        reason = 'unreachable';
+      }
+    }
+    if (!expired) return false;
+    // A pressure claim may have begun while the health probe awaited.
+    // Its owner alone stops that incarnation, including retries.
+    if (
+      this.reclaimClaims.has(s.sessionId) ||
+      this.stopping.has(s.sessionId) ||
+      s.pinned ||
+      s.liveExecs.size > 0
+    ) {
+      return false;
+    }
+    // Stop, never destroy: idle/TTL release compute but keep the workspace
+    // so the session resumes with its data on the next turn. stopSession
+    // THROWS on a transient backend hiccup (its contract) — keep the
+    // registry entry so the next sweep retries, rather than dropping a
+    // still-running container from the cache and orphaning it until a
+    // restart re-adopts it. The stop is fenced to the incarnation this
+    // entry describes: a replacement under the same id is never touched.
+    // The shared handle settles to a boolean: an acquire or a create at
+    // capacity waiting on it must see a failed stop as `false`, never as a
+    // rejection it would answer with a 500.
+    const stop = this.backend
+      .stopSession(s.sessionId, s.createdAtMs)
+      .then(
+        () => {
+          this.forgetReclaimed(s);
+          this.probeFailures.delete(s.sessionId);
+          if (reason === 'unreachable') {
+            console.warn(
+              `[sandbox.session] stopped ${s.sessionId}: runnerd did not answer ${WEDGED_PROBE_FAILURES} sweeps in a row (workspace preserved)`,
+            );
+          }
+          return true;
+        },
+        (err: unknown) => {
+          if (err instanceof SessionIncarnationChangedError) {
+            // A replacement now lives under the id; this entry is stale and
+            // the next adoption registers the replacement.
+            this.forgetReclaimed(s);
+            return false;
+          }
+          console.warn(
+            '[sandbox.session] sweep stop failed (will retry next sweep):',
+            err,
+          );
+          return false;
+        },
+      )
+      .finally(() => {
+        this.stopping.delete(s.sessionId);
+      });
+    this.stopping.set(s.sessionId, stop);
+    return stop;
   }
 
   private toInfo(sessionId: string): SessionInfo | null {
@@ -696,6 +1553,7 @@ export class SessionRoutes {
       sessionId: s.sessionId,
       organizationId: s.organizationId,
       profile: s.profile,
+      ...(s.docker === undefined ? {} : { docker: s.docker }),
       // Sourced from the registry (set at create, refreshed by adoptExisting
       // from the backend) rather than a hardcoded literal, so the wire state
       // tracks the one field that records it instead of always saying 'ready'.
@@ -705,6 +1563,9 @@ export class SessionRoutes {
       expiresAtMs: s.expiresAtMs,
       idleTimeoutMs: s.idleTimeoutMs,
       pinned: s.pinned === true,
+      ...(this.pinProtection.get(sessionId) === s
+        ? { pinSynchronized: false }
+        : {}),
     };
   }
 
@@ -728,11 +1589,23 @@ export class SessionRoutes {
    * blip must never evict a live session. Returns true when a stale entry was
    * evicted.
    */
-  private async evictIfBackendGone(sessionId: string): Promise<boolean> {
-    if (!this.registry.has(sessionId)) return false;
+  private evictIfBackendGone(sessionId: string): Promise<boolean> {
+    const session = this.registry.get(sessionId);
+    if (session === undefined) return Promise.resolve(false);
     // A terminating Pod is unavailable for work before its compute is gone.
     // Its stop owner keeps the slot until removal is actually confirmed.
-    if (this.stopping.has(sessionId)) return false;
+    if (this.stopping.has(sessionId)) return Promise.resolve(false);
+    const pending = this.checkingLiveness.get(session);
+    if (pending !== undefined) return pending;
+    const probe = this.checkBackendGone(session).finally(() => {
+      this.checkingLiveness.delete(session);
+    });
+    this.checkingLiveness.set(session, probe);
+    return probe;
+  }
+
+  private async checkBackendGone(session: RegistrySession): Promise<boolean> {
+    const { sessionId } = session;
     let alive: boolean;
     try {
       alive = await this.backend.sessionExists(sessionId);
@@ -743,11 +1616,20 @@ export class SessionRoutes {
       );
       return false;
     }
-    if (alive) return false;
+    // The probe describes the entry captured before the await. A destroy /
+    // recreate or a stop that began meanwhile owns its new state and capacity.
+    if (
+      alive ||
+      this.registry.get(sessionId) !== session ||
+      this.stopping.has(sessionId)
+    )
+      return false;
     console.warn(
       `[sandbox.session] ${sessionId} backend object gone; evicting stale registry entry (workspace preserved for resume)`,
     );
     this.registry.delete(sessionId);
+    if (this.unregistered.get(sessionId)?.state !== 'degraded')
+      this.unregistered.delete(sessionId);
     this.forgetReclaimMarks(sessionId);
     return true;
   }
@@ -764,14 +1646,19 @@ export class SessionRoutes {
       return jsonResponse({ error: 'bad_request', message: v.error }, 400);
     const req = v.value;
 
-    const refused = await this.reserveCreate(req.sessionId, req.organizationId);
+    const refused = await this.reserveCreate(
+      req.sessionId,
+      req.organizationId,
+      req.profile,
+      req.docker,
+    );
     if (refused !== null) return refused;
     try {
       // A destroy of this id already under way finishes first, so the create
-      // lays out its workspace on a settled slate instead of beside an
-      // `rm -rf` of the old one. Bounded: one wedged on a stuck filesystem
-      // must not hold this create, and its capacity slot, for ever — the
-      // caller retries on the busy answer.
+      // lays out its workspace on a settled slate instead of racing the old
+      // one's removal. Bounded: one wedged on a stuck filesystem must not
+      // hold this create, and its capacity slot, for ever — the caller
+      // retries on the busy answer.
       const destroying = this.destroySettled.get(req.sessionId);
       if (
         destroying !== undefined &&
@@ -786,6 +1673,38 @@ export class SessionRoutes {
           { 'retry-after': '30' },
         );
       }
+      // So does the removal of the id's ended compute (a resume right after
+      // a host reboot): its steps are keyed by the session's name — the
+      // inner image volume, the pin marker — and run beside this create
+      // they would remove what the new container is about to use.
+      const reaping = this.endedReaping.get(req.sessionId);
+      if (
+        reaping !== undefined &&
+        !(await settlesWithin(reaping, CREATE_WAITS_FOR_ENDED_REAP_MS))
+      ) {
+        return jsonResponse(
+          {
+            error: 'busy',
+            message: `the removal of ${req.sessionId}'s ended compute is still under way`,
+          },
+          429,
+          { 'retry-after': '10' },
+        );
+      }
+      const pinning = this.pinOperations.get(req.sessionId);
+      if (
+        pinning !== undefined &&
+        !(await settlesWithin(pinning, CREATE_WAITS_FOR_DESTROY_MS))
+      ) {
+        return jsonResponse(
+          {
+            error: 'busy',
+            message: 'previous pin persistence is still under way',
+          },
+          429,
+          { 'retry-after': '5' },
+        );
+      }
       const createdAtMs = Date.now();
       let created: CreateSessionResult;
       try {
@@ -793,6 +1712,7 @@ export class SessionRoutes {
           sessionId: req.sessionId,
           organizationId: req.organizationId,
           profile: req.profile,
+          docker: req.docker,
           ttlMs: req.ttlMs,
           idleTimeoutMs: req.idleTimeoutMs,
           env: req.env,
@@ -843,6 +1763,7 @@ export class SessionRoutes {
         sessionId: req.sessionId,
         organizationId: req.organizationId,
         profile: req.profile,
+        docker: req.docker,
         state: 'ready',
         createdAtMs,
         expiresAtMs: createdAtMs + req.ttlMs,
@@ -850,9 +1771,17 @@ export class SessionRoutes {
         endpoint,
         liveExecs: new Map(),
       });
+      const planned = this.creatingBytes.get(req.sessionId);
+      if (planned !== undefined) {
+        this.youngBytes.set(req.sessionId, {
+          bytes: planned,
+          sinceMs: Date.now(),
+        });
+      }
       return jsonResponse({ session: this.toInfo(req.sessionId) }, 201);
     } finally {
       this.creating.delete(req.sessionId);
+      this.creatingBytes.delete(req.sessionId);
       this.createSettled.get(req.sessionId)?.resolve();
       this.createSettled.delete(req.sessionId);
     }
@@ -986,6 +1915,32 @@ export class SessionRoutes {
     action: 'ticket' | 'acquire' | 'release',
     body = '',
   ): Promise<Response> {
+    // Runnerd's generation remains the cross-replica authority. Serializing
+    // this spawner's requests also keeps an old completion from clearing the
+    // growth reservation belonging to the acquire that overtook it.
+    const previous =
+      this.activityOperations.get(sessionId) ?? Promise.resolve();
+    const work = previous.then(() =>
+      this.handleActivityUnlocked(sessionId, action, body),
+    );
+    const settled = work.then(
+      () => undefined,
+      () => undefined,
+    );
+    this.activityOperations.set(sessionId, settled);
+    try {
+      return await work;
+    } finally {
+      if (this.activityOperations.get(sessionId) === settled)
+        this.activityOperations.delete(sessionId);
+    }
+  }
+
+  private async handleActivityUnlocked(
+    sessionId: string,
+    action: 'ticket' | 'acquire' | 'release',
+    body: string,
+  ): Promise<Response> {
     let generation: string | undefined;
     if (action === 'release') {
       try {
@@ -1038,6 +1993,11 @@ export class SessionRoutes {
     }
     const opts = { baseUrl: session.endpoint, token: this.tokenFor(sessionId) };
     try {
+      if (action === 'acquire') {
+        this.activating.add(sessionId);
+        const refused = await this.reserveActivation(session);
+        if (refused !== null) return refused;
+      }
       const result = await runnerdActivity(
         opts,
         action,
@@ -1046,6 +2006,13 @@ export class SessionRoutes {
       if (action === 'release') {
         if (typeof result.released !== 'boolean')
           throw new Error('invalid runnerd release response');
+        if (result.released) {
+          this.youngBytes.delete(sessionId);
+          this.activeGenerations.delete(sessionId);
+          // A reclaim candidate now: the next create at capacity may take it.
+          this.noteReclaimable(sessionId, true);
+          this.nothingToReclaimUntilMs = 0;
+        }
         return jsonResponse({ released: result.released }, 200);
       }
       if (
@@ -1053,6 +2020,17 @@ export class SessionRoutes {
         !/^[a-zA-Z0-9_-]{1,128}$/.test(result.generation)
       ) {
         throw new Error('invalid runnerd generation');
+      }
+      // Held by the caller's work from now on: no reclaim candidate.
+      if (action === 'acquire') {
+        this.activeGenerations.set(sessionId, {
+          generation: result.generation,
+          admittedAtMs:
+            this.youngBytes.get(sessionId)?.sinceMs ??
+            this.activeGenerations.get(sessionId)?.admittedAtMs ??
+            Date.now(),
+        });
+        this.noteReclaimable(sessionId, false);
       }
       return jsonResponse({ generation: result.generation }, 200);
     } catch (error) {
@@ -1079,13 +2057,94 @@ export class SessionRoutes {
       return jsonResponse({ error: 'session_unavailable' }, 503, {
         'retry-after': '1',
       });
+    } finally {
+      if (action === 'acquire') this.activating.delete(sessionId);
     }
+  }
+
+  /** Renew the growth reservation when idle compute becomes working compute.
+   * Repeated acquires of an already-held generation spend no second budget.
+   * An ambiguous RPC retains the bounded reservation: it may have run. */
+  private async reserveActivation(
+    session: RegistrySession,
+  ): Promise<Response | null> {
+    if (this.memoryCeiling() === null) return null;
+    const sessionId = session.sessionId;
+    const health = await runnerdHealth({
+      baseUrl: session.endpoint,
+      token: this.tokenFor(sessionId),
+    });
+    const previous = this.activeGenerations.get(sessionId);
+    if (
+      health.liveExecs > 0 ||
+      (health.activity?.activeOperations ?? 0) > 0 ||
+      (health.activity?.released === false &&
+        previous?.generation === health.activity.generation &&
+        Date.now() - Math.max(previous.admittedAtMs, health.lastActivityAtMs) <
+          YOUNG_SESSION_RESERVE_MS)
+    ) {
+      this.waiters.delete(sessionId);
+      return null;
+    }
+    const workingSet = sessionWorkingSetBytes(
+      session.profile,
+      session.docker ?? this.cfg.dockerInContainer,
+    );
+    const admit = () => {
+      const now = Date.now();
+      const existing = this.youngBytes.get(sessionId);
+      const remaining =
+        existing === undefined
+          ? 0
+          : Math.max(
+              0,
+              Math.round(
+                existing.bytes *
+                  (1 - (now - existing.sinceMs) / YOUNG_SESSION_RESERVE_MS),
+              ),
+            );
+      const fits = this.memoryCeiling();
+      const held = this.waitersAhead(sessionId, now).reduce(
+        (bytes, waiter) =>
+          bytes +
+          (fits === null || waiter.workingSetBytes <= fits
+            ? waiter.workingSetBytes
+            : 0),
+        0,
+      );
+      if (this.memoryShort(Math.max(0, workingSet - remaining) + held))
+        return false;
+      this.youngBytes.set(sessionId, { bytes: workingSet, sinceMs: now });
+      this.waiters.delete(sessionId);
+      return true;
+    };
+    if (await this.withAdmission(admit)) return null;
+    await this.reclaimOneIdle();
+    await this.readHostMemory();
+    if (await this.withAdmission(admit)) return null;
+    const place = this.waitInLine(sessionId, workingSet, Date.now(), false);
+    return jsonResponse(
+      {
+        error: 'host_memory',
+        message:
+          'the sandbox host is short of memory; work resumes once running sessions free some',
+        queue: { position: place.position, waiting: place.waiting },
+      },
+      429,
+      { 'retry-after': String(Math.ceil(place.hintMs / 1000)) },
+    );
   }
 
   async handleDestroy(
     sessionId: string,
-    opts: { ifIdle?: boolean; ifStopped?: boolean } = {},
+    opts: {
+      ifIdle?: boolean;
+      ifStopped?: boolean;
+      awaitDeletion?: boolean;
+    } = {},
   ): Promise<Response> {
+    // A destroyed session asks for no room any more.
+    this.waiters.delete(sessionId);
     // Conditional destroy (`?if_idle=1`): a janitor caller (the end-of-turn
     // thread-session teardown) must never destroy a session another turn is
     // actively executing in — two turns can share one thread session (e.g.
@@ -1109,8 +2168,10 @@ export class SessionRoutes {
     const settled = Promise.withResolvers<void>();
     const previous = this.destroySettled.get(sessionId);
     this.destroySettled.set(sessionId, settled);
+    let destroyed: boolean;
     try {
       await previous?.promise;
+      await this.pinOperations.get(sessionId);
       if (opts.ifIdle || opts.ifStopped) {
         const busy =
           this.creating.has(sessionId) ||
@@ -1120,22 +2181,39 @@ export class SessionRoutes {
           this.creating.has(sessionId);
         if (busy) return jsonResponse({ destroyed: false, busy: true }, 200);
       }
-      return await this.destroyNow(sessionId);
+      const outcome = await this.destroyNow(sessionId);
+      if (outcome instanceof Response) return outcome;
+      destroyed = outcome.destroyed;
     } finally {
       settled.resolve();
       if (this.destroySettled.get(sessionId) === settled) {
         this.destroySettled.delete(sessionId);
       }
     }
+    // Out of use is not deleted: `deletion` says how far the workspace's
+    // bytes came, on every answer that is not busy — an erasure or a
+    // retirement settles only on an explicit `done` (or Kubernetes'
+    // `handed_off`), and reads an answer without it as unconfirmed. The wait
+    // comes after the destroy settled — the id is free once the workspace is
+    // out of use, so a create of it never waits for the bytes.
+    const deletion = await this.deletionOf(
+      sessionId,
+      opts.awaitDeletion === true,
+    );
+    return jsonResponse({ destroyed, busy: false, deletion }, 200);
   }
 
   /** Is there compute under the id — a registered session, a stop still
-   * removing one, or a container/Pod the backend holds that has not ended
-   * (one still starting on a peer replica counts; an exited container whose
-   * process died out-of-band does not)? A backend that cannot answer counts
-   * as holding it. */
+   * removing one (an ended container's removal too), or a container/Pod the
+   * backend holds that has not ended (one still starting on a peer replica
+   * counts; an exited container whose process died out-of-band does not)? A
+   * backend that cannot answer counts as holding it. */
   private async holdsCompute(sessionId: string): Promise<boolean> {
-    if (this.registry.has(sessionId) || this.stopping.has(sessionId)) {
+    if (
+      this.registry.has(sessionId) ||
+      this.stopping.has(sessionId) ||
+      this.endedReaping.has(sessionId)
+    ) {
       return true;
     }
     try {
@@ -1151,7 +2229,11 @@ export class SessionRoutes {
     }
   }
 
-  private async destroyNow(sessionId: string): Promise<Response> {
+  /** The destroy itself: whether it reached anything under the id, or the
+   * 502 a failed backend destroy answers. */
+  private async destroyNow(
+    sessionId: string,
+  ): Promise<Response | { destroyed: boolean }> {
     // Delete from the registry BEFORE awaiting the backend so a concurrent
     // destroy of the same id sees an empty cache and can't double-call
     // destroySession. The backend destroy then runs exactly once; its return
@@ -1164,10 +2246,8 @@ export class SessionRoutes {
     this.forgetReclaimMarks(sessionId);
     try {
       const backendExisted = await this.backend.destroySession(sessionId);
-      return jsonResponse(
-        { destroyed: had || backendExisted, busy: false },
-        200,
-      );
+      this.unregistered.delete(sessionId);
+      return { destroyed: had || backendExisted };
     } catch (err) {
       // The backend destroy FAILED (a wedged dockerd, an apiserver blip). Do
       // NOT report success: the container/workspace may survive, and laundering
@@ -1181,6 +2261,27 @@ export class SessionRoutes {
         { destroyed: false, busy: false, error: 'backend destroy failed' },
         502,
       );
+    }
+  }
+
+  /** How far deleting the destroyed workspace has come, waited for up to
+   * {@link DESTROY_AWAITS_DELETION_MS} when the caller asked. Unknown reads
+   * `pending`, never `done`. */
+  private async deletionOf(
+    sessionId: string,
+    awaitDeletion: boolean,
+  ): Promise<WorkspaceDeletion> {
+    try {
+      return await this.backend.workspaceDeletion(
+        sessionId,
+        awaitDeletion ? DESTROY_AWAITS_DELETION_MS : 0,
+      );
+    } catch (error) {
+      console.warn(
+        `[sandbox.session] deletion of ${sessionId}'s workspace unknown:`,
+        error,
+      );
+      return 'pending';
     }
   }
 
@@ -1233,6 +2334,18 @@ export class SessionRoutes {
       return jsonResponse({ error: 'bad_request', message: v.error }, 400);
     const execReq = v.value;
 
+    // Direct API exec callers use the same admission as platform acquisition.
+    // A turn already admitted during this growth window incurs no extra RPC.
+    const active = this.activeGenerations.get(sessionId);
+    if (
+      this.memoryCeiling() !== null &&
+      (active === undefined ||
+        Date.now() - active.admittedAtMs >= YOUNG_SESSION_RESERVE_MS)
+    ) {
+      const admission = await this.handleActivity(sessionId, 'acquire');
+      if (!admission.ok) return admission;
+    }
+
     const ac = new AbortController();
     const abortHandler = () => ac.abort();
     req.signal.addEventListener('abort', abortHandler, { once: true });
@@ -1245,7 +2358,7 @@ export class SessionRoutes {
     // accumulation (no unbounded growth for a never-exiting exec) and tell
     // runnerd the cap is unlimited (0) so its output is never silently cut off.
     const collect = execReq.collectOutput ?? true;
-    return sseResponse(async ({ send }) => {
+    return sseResponse(async ({ send, signal }) => {
       // Terminal-state accumulation so the SSE `result` event matches the
       // one-shot ExecuteResponse contract (the runnerd `exit` carries
       // truncation/timeout; stdout/stderr are summed here for the buffers).
@@ -1255,6 +2368,12 @@ export class SessionRoutes {
       let result: SessionExecResponse | null = null;
       const onEvent = (e: RunnerdExecEvent) => {
         switch (e.t) {
+          case 'replay-start':
+            send('replay-start', {});
+            break;
+          case 'replay-complete':
+            send('replay-complete', { throughSeq: e.throughSeq });
+            break;
           case 'start':
             send('phase', { phase: 'running' });
             break;
@@ -1263,6 +2382,7 @@ export class SessionRoutes {
             if (collect) stdoutChunks.push(bytes);
             send('stdout', {
               text: new TextDecoder().decode(bytes),
+              b64: e.b64,
               seq: e.seq,
             });
             break;
@@ -1272,6 +2392,7 @@ export class SessionRoutes {
             if (collect) stderrChunks.push(bytes);
             send('stderr', {
               text: new TextDecoder().decode(bytes),
+              b64: e.b64,
               seq: e.seq,
             });
             break;
@@ -1297,6 +2418,7 @@ export class SessionRoutes {
             };
             break;
           case 'fail':
+            forwardReplayFailure(e, send);
             result = {
               status: 'failed',
               exitCode: null,
@@ -1333,7 +2455,7 @@ export class SessionRoutes {
             stderrMaxBytes: collect ? this.cfg.stderrMaxBytes : 0,
           },
           onEvent,
-          ac.signal,
+          AbortSignal.any([ac.signal, signal]),
         );
         if (result) {
           send('result', result);
@@ -1357,6 +2479,9 @@ export class SessionRoutes {
           await this.evictIfBackendGone(sessionId);
         }
       } catch (err) {
+        // The caller hung up (the platform ends its stream at every drain
+        // window): nobody reads an error, and the backend is not suspect.
+        if (req.signal.aborted || signal.aborted) return;
         send('error', {
           message: err instanceof Error ? err.message : String(err),
         });
@@ -1371,7 +2496,15 @@ export class SessionRoutes {
     });
   }
 
-  async handleExecCancel(sessionId: string, execId: string): Promise<Response> {
+  /** POST /v1/sessions/:id/exec/:execId/cancel — end an exec. With
+   * `keepLeftovers` (`?leftovers=keep`: a steer's restart), runnerd ends only
+   * the exec's own process group and holds what it left outside it for the
+   * exec that takes over; without, everything the exec started ends. */
+  async handleExecCancel(
+    sessionId: string,
+    execId: string,
+    mode: { keepLeftovers?: boolean } = {},
+  ): Promise<Response> {
     const session = await this.ensureRegistered(sessionId);
     if (!session) return jsonResponse({ error: 'not_found' }, 404);
     // Local abort (ends the SSE proxy) + tell runnerd to kill the process group.
@@ -1381,6 +2514,7 @@ export class SessionRoutes {
       killed = await runnerdCancelExec(
         { baseUrl: session.endpoint, token: this.tokenFor(sessionId) },
         execId,
+        mode,
       );
     } catch (err) {
       if (await this.evictIfBackendGone(sessionId)) {
@@ -1492,17 +2626,19 @@ export class SessionRoutes {
     const sinceSeq =
       Number(new URL(req.url).searchParams.get('sinceSeq') ?? '0') || 0;
     const token = this.tokenFor(sessionId);
-    return sseResponse(async ({ send }) => {
+    return sseResponse(async ({ send, signal }) => {
       try {
         const found = await runnerdAttach(
           { baseUrl: session.endpoint, token },
           execId,
           (e) => forwardExecEvent(e, send),
-          ac.signal,
+          AbortSignal.any([ac.signal, signal]),
           sinceSeq,
         );
         if (!found) send('error', { message: `exec ${execId} not found` });
       } catch (err) {
+        // The caller hung up: see handleExec.
+        if (req.signal.aborted || signal.aborted) return;
         send('error', {
           message: err instanceof Error ? err.message : String(err),
         });
@@ -1551,53 +2687,96 @@ export class SessionRoutes {
     return jsonResponse({ ok: true, denied }, 200);
   }
 
-  /** PATCH /v1/sessions/:id/pin — toggle "always-on". Pinned sessions are
-   * exempt from the idle/TTL reaper; unpinning restores a fresh normal TTL.
-   * The flag takes effect in the registry at once and is then recorded on
-   * the backend object's durable state (see SessionBackend.setPinned) so a
-   * spawner restart re-adopts it — the platform row is the durable truth
-   * platform-side, but nothing re-pushes it at spawner boot. */
+  /** A pin is published only after runnerd and durable storage agree. Serial
+   * requests cannot overtake one another or write into a local replacement. */
   async handleSetPinned(sessionId: string, body: string): Promise<Response> {
+    const previous = this.pinOperations.get(sessionId) ?? Promise.resolve();
+    const work = previous.then(() => this.setPinned(sessionId, body));
+    const settled = work.then(
+      () => undefined,
+      () => undefined,
+    );
+    this.pinOperations.set(sessionId, settled);
+    try {
+      return await work;
+    } finally {
+      if (this.pinOperations.get(sessionId) === settled)
+        this.pinOperations.delete(sessionId);
+    }
+  }
+
+  private async setPinned(sessionId: string, body: string): Promise<Response> {
+    if (this.destroySettled.has(sessionId) || this.creating.has(sessionId)) {
+      return jsonResponse({ error: 'session_unavailable' }, 503, {
+        'retry-after': '1',
+      });
+    }
+    await this.stopping.get(sessionId);
     const session = await this.ensureRegistered(sessionId);
     if (!session) return jsonResponse({ error: 'not_found' }, 404);
-    let parsed: { pinned?: boolean };
+    let pinned: boolean;
     try {
-      // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
-      parsed = JSON.parse(body) as { pinned?: boolean };
+      const parsed: unknown = JSON.parse(body);
+      if (
+        parsed === null ||
+        typeof parsed !== 'object' ||
+        !('pinned' in parsed) ||
+        typeof parsed.pinned !== 'boolean'
+      ) {
+        return jsonResponse(
+          { error: 'bad_request', message: 'pinned must be a boolean' },
+          400,
+        );
+      }
+      pinned = parsed.pinned;
     } catch (err) {
       return jsonResponse({ error: 'bad_request', message: String(err) }, 400);
     }
-    const pinned = parsed.pinned === true;
+    // Protect even a legacy runnerd while persistence retries; report only the
+    // acknowledged value so platform reconciliation can still see the drift.
+    this.pinProtection.set(sessionId, session);
     try {
-      await runnerdActivity(
-        { baseUrl: session.endpoint, token: this.tokenFor(sessionId) },
-        'pin',
-        { pinned },
-      );
-    } catch (error) {
-      // An old image has no pressure gate, so the durable backend pin remains
-      // sufficient. Other failures must not acknowledge an unapplied pin.
-      if (!(error instanceof RunnerdActivityError && error.status === 404)) {
-        return jsonResponse({ error: 'session_unavailable' }, 503);
+      try {
+        const applied = await runnerdActivity(
+          { baseUrl: session.endpoint, token: this.tokenFor(sessionId) },
+          'pin',
+          { pinned },
+        );
+        if (applied.ok !== true)
+          throw new Error('runnerd did not acknowledge the pin');
+      } catch (error) {
+        if (!(error instanceof RunnerdActivityError && error.status === 404))
+          throw error;
       }
-    }
-    session.pinned = pinned;
-    if (!pinned) {
-      // Give an unpinned session a fresh lifetime so it isn't reaped instantly.
-      session.expiresAtMs = Date.now() + this.cfg.session.maxLifetimeMs;
-    }
-    // Best-effort durability: the in-memory pin already protects this process;
-    // a failed record means the pin would not survive a RESTART, which is
-    // worth an operator-visible line, not a failed toggle.
-    try {
-      await this.backend.setPinned(sessionId, pinned);
-    } catch (err) {
+      if (this.registry.get(sessionId) !== session)
+        return jsonResponse({ error: 'session_unavailable' }, 503);
+      await this.backend.setPinned(sessionId, pinned, session.createdAtMs);
+      if (this.registry.get(sessionId) !== session)
+        return jsonResponse({ error: 'session_unavailable' }, 503);
+      const wasPinned = session.pinned === true;
+      session.pinned = pinned;
+      if (wasPinned && !pinned)
+        session.expiresAtMs = Date.now() + this.cfg.session.maxLifetimeMs;
+      if (this.pinProtection.get(sessionId) === session)
+        this.pinProtection.delete(sessionId);
+      return jsonResponse({ ok: true, pinned }, 200);
+    } catch (error) {
       console.warn(
-        `[sandbox.session] recording pin=${pinned} for ${sessionId} on the backend failed (in-memory pin applied; will not survive a spawner restart):`,
-        err,
+        `[sandbox.session] pin=${pinned} for ${sessionId} was not durably acknowledged:`,
+        error,
       );
+      if (error instanceof SessionIncarnationChangedError) {
+        this.forgetReclaimed(session);
+        return jsonResponse({ error: 'session_unavailable' }, 503, {
+          'retry-after': '1',
+        });
+      }
+      if (await this.evictIfBackendGone(sessionId))
+        return jsonResponse({ error: 'not_found' }, 404);
+      return jsonResponse({ error: 'session_unavailable' }, 503, {
+        'retry-after': '1',
+      });
     }
-    return jsonResponse({ ok: true, pinned }, 200);
   }
 
   /** POST /v1/sessions/:id/files/stage — write files into /agent (inline
@@ -1606,13 +2785,55 @@ export class SessionRoutes {
     const session = await this.ensureRegistered(sessionId);
     if (!session) return jsonResponse({ error: 'not_found' }, 404);
     let parsed: {
-      files?: Array<{ path: string; url?: string; contentBase64?: string }>;
+      files?: Array<{
+        path: string;
+        url?: string;
+        contentBase64?: string;
+        sourceId?: string;
+      }>;
+      replaceRoots?: string[];
+      keepPaths?: string[];
     };
     try {
       // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
-      parsed = JSON.parse(body) as {
-        files?: Array<{ path: string; url?: string; contentBase64?: string }>;
-      };
+      parsed = JSON.parse(body) as typeof parsed;
+      if (
+        parsed === null ||
+        typeof parsed !== 'object' ||
+        Array.isArray(parsed) ||
+        (parsed.files !== undefined &&
+          (!Array.isArray(parsed.files) ||
+            parsed.files.some(
+              (file) =>
+                file === null ||
+                typeof file !== 'object' ||
+                typeof file.path !== 'string' ||
+                (file.url === undefined &&
+                  file.contentBase64 === undefined &&
+                  file.sourceId === undefined) ||
+                (file.url !== undefined && typeof file.url !== 'string') ||
+                (file.contentBase64 !== undefined &&
+                  typeof file.contentBase64 !== 'string') ||
+                (file.sourceId !== undefined &&
+                  (typeof file.sourceId !== 'string' ||
+                    file.sourceId.length === 0 ||
+                    file.sourceId.length > 2048)),
+            ))) ||
+        [parsed.replaceRoots, parsed.keepPaths].some(
+          (paths) =>
+            paths !== undefined &&
+            (!Array.isArray(paths) ||
+              paths.some((path) => typeof path !== 'string')),
+        )
+      ) {
+        return jsonResponse(
+          {
+            error: 'bad_request',
+            message: 'invalid staging files or reconciliation paths',
+          },
+          400,
+        );
+      }
     } catch (err) {
       return jsonResponse({ error: 'bad_request', message: String(err) }, 400);
     }
@@ -1621,8 +2842,11 @@ export class SessionRoutes {
       result = await runnerdStageFiles(
         { baseUrl: session.endpoint, token: this.tokenFor(sessionId) },
         parsed.files ?? [],
+        { replaceRoots: parsed.replaceRoots, keepPaths: parsed.keepPaths },
       );
     } catch (err) {
+      if (err instanceof RunnerdStageBusyError)
+        return jsonResponse({ error: 'busy' }, 503, { 'retry-after': '1' });
       // Evict a zombie but answer 502, NOT 404 — the file routes' 404 already
       // means "path not found" platform-side; a session-gone 404 here would
       // be misread. The eviction makes the next aliveness probe 404 instead.
@@ -1697,7 +2921,11 @@ export class SessionRoutes {
 
   /** GET /v1/sessions/:id/files/content?path= — raw file bytes streamed
    * through the spawner. */
-  async handleFileContent(sessionId: string, path: string): Promise<Response> {
+  async handleFileContent(
+    sessionId: string,
+    path: string,
+    signal?: AbortSignal,
+  ): Promise<Response> {
     const session = await this.ensureRegistered(sessionId);
     if (!session) return jsonResponse({ error: 'not_found' }, 404);
     let bytes;
@@ -1705,6 +2933,7 @@ export class SessionRoutes {
       bytes = await runnerdReadFile(
         { baseUrl: session.endpoint, token: this.tokenFor(sessionId) },
         path,
+        signal,
       );
     } catch (err) {
       // 502 not 404 — see handleFilesStage.
@@ -1718,7 +2947,7 @@ export class SessionRoutes {
       );
     }
     if (bytes === null) return jsonResponse({ error: 'not_found' }, 404);
-    return new Response(bytes, {
+    return new Response(bytes.body, {
       status: 200,
       headers: { 'content-type': 'application/octet-stream' },
     });
@@ -1732,18 +2961,26 @@ function forwardExecEvent(
   send: (event: string, data: unknown) => void,
 ): void {
   switch (e.t) {
+    case 'replay-start':
+      send('replay-start', {});
+      break;
+    case 'replay-complete':
+      send('replay-complete', { throughSeq: e.throughSeq });
+      break;
     case 'start':
       send('phase', { phase: 'running' });
       break;
     case 'stdout':
       send('stdout', {
         text: new TextDecoder().decode(b64decode(e.b64)),
+        b64: e.b64,
         seq: e.seq,
       });
       break;
     case 'stderr':
       send('stderr', {
         text: new TextDecoder().decode(b64decode(e.b64)),
+        b64: e.b64,
         seq: e.seq,
       });
       break;
@@ -1767,6 +3004,7 @@ function forwardExecEvent(
       } satisfies SessionExecResponse);
       break;
     case 'fail':
+      forwardReplayFailure(e, send);
       send('result', {
         status: 'failed',
         exitCode: null,
@@ -1780,6 +3018,17 @@ function forwardExecEvent(
         errorMessage: e.message,
       } satisfies SessionExecResponse);
       break;
+  }
+}
+
+/** Incomplete replay is not a reconnectable transport failure. New clients
+ * stop here; the ordinary terminal result remains for older consumers. */
+function forwardReplayFailure(
+  event: Extract<RunnerdExecEvent, { t: 'fail' }>,
+  send: (event: string, data: unknown) => void,
+): void {
+  if (event.code === 'REPLAY_UNAVAILABLE' || event.code === 'OUTPUT_LIMIT') {
+    send('error', { code: event.code, message: event.message });
   }
 }
 

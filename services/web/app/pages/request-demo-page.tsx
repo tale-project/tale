@@ -165,7 +165,7 @@ export function RequestDemoPage() {
         <ul role="list" className="mt-2 flex flex-col gap-3">
           {REQUEST_DEMO_INTERESTS.map((key) => (
             <li key={key}>
-              <label className="text-fg-base flex items-center gap-2 text-sm">
+              <label className="text-fg-base flex min-h-11 items-center gap-2 text-sm">
                 <Checkbox
                   checked={interests.includes(key)}
                   onCheckedChange={() => toggleInterest(key)}

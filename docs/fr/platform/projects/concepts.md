@@ -9,7 +9,7 @@ Utilise un projet lorsque plusieurs questions ou tâches reposent sur les mêmes
 
 | Espace | Ce qui y appartient |
 | --- | --- |
-| **Général** | Nom, description, instructions permanentes et partage. |
+| **Général** | Nom, description, instructions permanentes, partage et relecteur par défaut des tâches. |
 | **Chats** | Tes conversations de projet et celles explicitement partagées avec lui. |
 | **Connaissances** | Les fichiers de référence, classés en dossiers et limités à ce projet. |
 | **Tâches** | Le travail avec un responsable, un statut, des commentaires et un résultat à relire. |

@@ -128,6 +128,104 @@ describe('shipped providers', () => {
 });
 
 describe('shipped static model catalogs', () => {
+  it('ships Sol 6.1 for Responses tool calls without an unsupported reasoning off value', () => {
+    const model = loadStaticCatalogs()
+      .get('openai')
+      ?.find((entry) => entry.id === 'gpt-6.1-sol');
+    expect(model).toMatchObject({
+      id: 'gpt-6.1-sol',
+      provider: 'openai',
+      tags: ['chat'],
+      supportsTools: true,
+      supportsVision: true,
+      toolCallingApi: 'responses',
+      contextWindow: 1_050_000,
+      maxOutputTokens: 128_000,
+      reasoning: { knob: 'effort' },
+      pricing: {
+        inputCentsPerMillion: 200,
+        outputCentsPerMillion: 1000,
+        cacheReadCentsPerMillion: 10,
+        cacheWriteCentsPerMillion: 250,
+      },
+    });
+    expect(model?.reasoning?.off).toBeUndefined();
+    expect(model?.reasoning?.toolsRequireOff).toBeUndefined();
+  });
+
+  // The vendor's latest-model guide: Astra, like Sol 6.1, takes tools only
+  // on Responses and cannot switch reasoning off; Sol and Luna take tools on
+  // Chat Completions only with reasoning_effort none.
+  it('ships the GPT-6 family with the tool API and reasoning switch the vendor documents', () => {
+    const openai = loadStaticCatalogs().get('openai') ?? [];
+    const byId = new Map(openai.map((entry) => [entry.id, entry] as const));
+    const family = {
+      tags: ['chat'],
+      supportsTools: true,
+      supportsVision: true,
+      contextWindow: 1_050_000,
+      maxOutputTokens: 128_000,
+    };
+    expect(byId.get('gpt-6-astra')).toEqual({
+      id: 'gpt-6-astra',
+      provider: 'openai',
+      ...family,
+      toolCallingApi: 'responses',
+      reasoning: { knob: 'effort' },
+      pricing: {
+        inputCentsPerMillion: 1000,
+        outputCentsPerMillion: 5000,
+        cacheReadCentsPerMillion: 100,
+        cacheWriteCentsPerMillion: 1250,
+      },
+    });
+    expect(byId.get('gpt-6-sol')).toEqual({
+      id: 'gpt-6-sol',
+      provider: 'openai',
+      ...family,
+      reasoning: { knob: 'effort', off: 'none', toolsRequireOff: true },
+      pricing: {
+        inputCentsPerMillion: 200,
+        outputCentsPerMillion: 1000,
+        cacheReadCentsPerMillion: 20,
+        cacheWriteCentsPerMillion: 250,
+      },
+    });
+    expect(byId.get('gpt-6-luna')).toEqual({
+      id: 'gpt-6-luna',
+      provider: 'openai',
+      ...family,
+      reasoning: { knob: 'effort', off: 'none', toolsRequireOff: true },
+      pricing: {
+        inputCentsPerMillion: 10,
+        outputCentsPerMillion: 50,
+        cacheReadCentsPerMillion: 1,
+        cacheWriteCentsPerMillion: 12.5,
+      },
+    });
+  });
+
+  // The Responses API is an OpenAI surface: direct chat calls a model that
+  // declares it at `<baseUrl>/responses`, which an Anthropic-format
+  // connector does not have — the chat walk would hide such an entry.
+  it('declares the Responses tool API only on an OpenAI-format connector', () => {
+    const formatBySlug = new Map(
+      loadProviderDefinitions().map((p) => [p.name, p.apiFormat] as const),
+    );
+    const misplaced: string[] = [];
+    for (const [provider, entries] of loadStaticCatalogs()) {
+      for (const entry of entries) {
+        if (
+          entry.toolCallingApi === 'responses' &&
+          formatBySlug.get(provider) !== 'openai'
+        ) {
+          misplaced.push(`${provider}/${entry.id}`);
+        }
+      }
+    }
+    expect(misplaced).toEqual([]);
+  });
+
   it('every catalog entry validates and carries its file provider', () => {
     const catalogs = loadStaticCatalogs();
     expect(catalogs.size).toBeGreaterThan(0);

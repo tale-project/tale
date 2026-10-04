@@ -33,7 +33,7 @@ Choisis un modèle précis pour comparer des réponses dans les mêmes condition
 
 </Frame>
 
-Si aucun modèle n’est disponible, demande à un admin de vérifier les identifiants actifs des fournisseurs et les règles d’accès. La page [Modèles](/fr/platform/models) explique la composition du catalogue.
+Si aucun modèle n’est disponible, demande à un admin de vérifier les identifiants actifs des fournisseurs et les règles d’accès. Le chat ne propose que les modèles servis par des identifiants par clé API ou variable d’environnement : un abonnement ne fonctionne que dans les tâches et les automatisations, et la liste des modèles nomme les abonnements qu’elle laisse de côté. La page [Modèles](/fr/platform/models) explique la composition du catalogue.
 
 ## Fournir les bonnes sources
 
@@ -101,5 +101,6 @@ Une conversation très longue peut dépasser la fenêtre de contexte du modèle.
 | Un fichier n’a pas été utilisé | Vérifie le projet du chat, l’indexation du fichier et les étapes de consultation. Nomme le fichier. |
 | La recherche signale une source indisponible | Demande à un admin de vérifier le service indiqué ou la configuration d’embedding. Un résultat vide ne prouve pas que l’information n’existe pas. |
 | Une réponse s’arrête sur une erreur | Lis l’erreur, vérifie le modèle choisi et réessaie après correction. Tale ne change pas de fournisseur en silence. |
+| Une réponse reste vide | La mention affichée à sa place en donne la raison : le modèle n’a rien renvoyé, il a épuisé sa limite de tokens en sortie avant d’écrire, ou le filtre de contenu du fournisseur a retenu la réponse. Choisis **Réessayer**, ou réduis d’abord l’effort de raisonnement, raccourcis la demande ou choisis un autre modèle. |
 
 Pour un exemple guidé avec vérification des sources, suis [Mieux dialoguer avec le chat](/fr/tutorials/member/chat-effectively).

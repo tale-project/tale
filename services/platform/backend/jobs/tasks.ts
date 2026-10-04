@@ -117,6 +117,14 @@ export interface TaskPayloads {
   'automation.liveness': Record<string, never>;
   /** One project-agent turn against a task (driver lands with 25b). */
   'task.agent_turn': { organizationId: string; runId: string; execId: string };
+  /** Wake ONE run parked because the sandbox host refused its start, when
+   * the spawner said its place in line comes up: a no-op unless that run,
+   * under that exec, is still parked. */
+  'task.agent_park_wake': {
+    organizationId: string;
+    runId: string;
+    execId: string;
+  };
   /** One workflow-agent turn for an automation run's agent node. The payload
    * is the reused host's full start-args shape (validated by the handler). */
   'automation.agent_turn': Record<string, unknown>;
@@ -266,6 +274,15 @@ export interface TaskPayloads {
    * spawner-side, under its id, then re-pin it — queued by the sweep and the
    * Sandboxes page probe so neither waits for a create. */
   'sandbox.recreate_pinned': { organizationId: string; sessionId: string };
+  /** An administrator's Destroy from the Sandboxes page: delete the session's
+   * sandbox and workspace and settle its rows. `rowId` is the incarnation it
+   * was asked for; a newer one under the reused id is left alone. The page
+   * answers at once and reads the job back as that row's destroy state. */
+  'sandbox.destroy_session': {
+    organizationId: string;
+    sessionId: string;
+    rowId: string;
+  };
   /** Delete the workspaces of deleted project agents (standing and every
    * member's), or a departed member's workspaces with every agent —
    * enqueued in the deleting transaction. Throws while one is busy, offline
@@ -505,6 +522,9 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
   // At-most-once LLM spend: the run ledger owns retries (auto-retry kicks a
   // NEW run); a lost job is the watchdog's to re-kick, never pg-boss's.
   'task.agent_turn': { retryLimit: 0, expireInSeconds: 43_200 },
+  // A wake claims its run or finds it gone: delivered twice, the second
+  // finds nothing parked. A lost one leaves the watchdog's wake.
+  'task.agent_park_wake': { retryLimit: 1, expireInSeconds: 300 },
   'automation.agent_turn': { retryLimit: 0, expireInSeconds: 43_200 },
   // Same posture as task.agent_drive: the window is long and a second drive
   // of the same exec would replay the ring buffer twice, so no pg-boss retry.
@@ -583,6 +603,24 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
     retryLimit: 0,
     expireInSeconds: 300,
   },
+  // One queued-or-running Destroy per incarnation (`exclusive`, keyed by
+  // organization, session and row), so a second click while one is under way
+  // adds nothing, and a Destroy of a newer incarnation is never absorbed by
+  // an older one still retrying. Every step of the teardown is idempotent, so
+  // a retry is safe; the ladder (30 s doubling with jitter, six tries over a
+  // quarter to half an hour) waits out a spawner restart or a device
+  // reconnecting, then the row reads that the Destroy failed and the
+  // administrator can ask again. While the ladder lasts, the row admits no
+  // new turn (`sessionDestroyPending`). The expiry covers a wait behind a
+  // pinned recreate holding the session's lock, plus the unpin and the
+  // delete.
+  'sandbox.destroy_session': {
+    policy: 'exclusive',
+    retryLimit: 5,
+    retryDelay: 30,
+    retryBackoff: true,
+    expireInSeconds: 900,
+  },
   // Every decision is re-read and every spawner call is idempotent, so a
   // retry is always safe. The ladder (1 min doubling, eleven tries) waits
   // out a turn still running in a deleted agent's workspace, a device that
@@ -658,4 +696,78 @@ export const TASK_WORKER_BATCH_LIMITS: ReadonlyMap<string, number> = new Map<
  * next job the moment its own ends.
  */
 export const TASK_WORKER_SLOT_QUEUES: ReadonlySet<string> =
-  new Set<TaskIdentifier>(['websites.scan']);
+  new Set<TaskIdentifier>([
+    'websites.scan',
+    // An agent turn's start (a session create can take minutes) and each of
+    // its 90 s drive windows: batched, one slow start held every start
+    // behind it, and live turns past a batch were drained only in turns.
+    'task.agent_turn',
+    'task.agent_drive',
+    'automation.agent_turn',
+    'automation.agent_drive',
+  ]);
+
+/**
+ * The fewest slots a slot queue runs, whatever `WORKER_CONCURRENCY` says. A
+ * drive window spends its 90 s waiting on the sandbox's output stream, and a
+ * live turn whose window waits for a free slot is not drained meanwhile: its
+ * output piles up in the daemon's replay ring (256 KB) and its heartbeat
+ * goes stale, so the default of five slots throttled a worker to five live
+ * agent turns at once.
+ */
+const TASK_WORKER_MIN_SLOTS: ReadonlyMap<string, number> = new Map<
+  TaskIdentifier,
+  number
+>([
+  ['task.agent_turn', 8],
+  ['automation.agent_turn', 8],
+  ['task.agent_drive', 16],
+  ['automation.agent_drive', 16],
+]);
+
+/** The agent queues whose slots the operator sets: a turn's start (a
+ * session create and its first 90 s window) and its later drive windows. */
+const AGENT_START_QUEUES: ReadonlySet<string> = new Set<TaskIdentifier>([
+  'task.agent_turn',
+  'automation.agent_turn',
+]);
+const AGENT_DRIVE_QUEUES: ReadonlySet<string> = new Set<TaskIdentifier>([
+  'task.agent_drive',
+  'automation.agent_drive',
+]);
+
+/**
+ * How many one-job slots a slot queue runs on this worker: the operator's
+ * AGENT_START_SLOTS / AGENT_DRIVE_SLOTS for the agent queues, else
+ * `concurrency` and at least the queue's {@link TASK_WORKER_MIN_SLOTS}.
+ */
+export function slotQueueSlots(
+  name: string,
+  options: {
+    concurrency: number;
+    agentStartSlots?: number | undefined;
+    agentDriveSlots?: number | undefined;
+  },
+): number {
+  if (AGENT_START_QUEUES.has(name) && options.agentStartSlots !== undefined) {
+    return options.agentStartSlots;
+  }
+  if (AGENT_DRIVE_QUEUES.has(name) && options.agentDriveSlots !== undefined) {
+    return options.agentDriveSlots;
+  }
+  return Math.max(options.concurrency, TASK_WORKER_MIN_SLOTS.get(name) ?? 0);
+}
+
+/**
+ * How often an IDLE slot of these queues polls, in seconds, where the
+ * default is two. Each slot of a slot queue polls on its own, so sixteen
+ * drive slots polling every two seconds would cost a worker eight empty
+ * fetches a second; a drive window is always enqueued with no delay, so the
+ * insert notification wakes the slots at once and the poll is only the
+ * recovery backstop.
+ */
+export const TASK_WORKER_IDLE_POLL_SECONDS: ReadonlyMap<string, number> =
+  new Map<TaskIdentifier, number>([
+    ['task.agent_drive', 10],
+    ['automation.agent_drive', 10],
+  ]);

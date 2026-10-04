@@ -7,7 +7,7 @@ hermes/parse.ts normalizes the stdout lines into AgentEvent[]. All
 human-oriented Hermes CLI output stays on stderr; stdout is JSONL only.
 
 Two SDK facts this wrapper exists to honour (verified on the pinned
-hermes-agent 0.18.0):
+hermes-agent 0.19.0):
 
   - `AIAgent.run_conversation` reports most failures by RETURNING, not
     raising: a nonretryable API error (401, exhausted retries), a blocked
@@ -32,8 +32,13 @@ import re
 import sys
 import time
 import traceback
+from contextlib import redirect_stdout
 from datetime import datetime, timezone
 from typing import Any
+
+# SDK lifecycle notices can print even in quiet mode. Keep a dedicated event
+# sink while all SDK/import/tool diagnostics use stderr instead of our JSONL.
+EVENT_OUTPUT = sys.stdout
 
 
 def _ts() -> str:
@@ -43,8 +48,8 @@ def _ts() -> str:
 def emit(event: dict[str, Any]) -> None:
     event.setdefault("schema_version", 1)
     event.setdefault("ts", _ts())
-    sys.stdout.write(json.dumps(event, ensure_ascii=False) + "\n")
-    sys.stdout.flush()
+    EVENT_OUTPUT.write(json.dumps(event, ensure_ascii=False) + "\n")
+    EVENT_OUTPUT.flush()
 
 
 def warn(message: str) -> None:
@@ -261,6 +266,9 @@ def main() -> int:
         agent = AIAgent(
             model=args.model or "",
             quiet_mode=True,
+            # The SDK defaults to a one-second pause between tool calls for
+            # human-readable CLI pacing; provider retry/backoff is separate.
+            tool_delay=0,
             max_iterations=args.max_turns,
             session_id=session_id,
             session_db=session_db,
@@ -331,4 +339,5 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    with redirect_stdout(sys.stderr):
+        raise SystemExit(main())

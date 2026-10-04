@@ -1,6 +1,6 @@
 import { cn } from '@tale/ui/cn';
 import { motion, type HTMLMotionProps } from 'framer-motion';
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 
 import { useSkipEntrance } from '../../lib/entrance';
 
@@ -40,37 +40,37 @@ export function Reveal({
   delay = 0,
   duration = 0.55,
   onMount = false,
+  onFocusCapture,
   ...rest
 }: RevealProps) {
   const skip = useSkipEntrance();
-  const initial = skip ? false : { opacity: 0, ...(y ? { y } : {}) };
-  const target = { opacity: 1, ...(y ? { y: 0 } : {}) };
-  const transition = skip
+  const [focused, setFocused] = useState(false);
+  const immediate = skip || focused;
+  const offset = onMount ? y : 0;
+  const initial = immediate
+    ? false
+    : { opacity: 0, ...(offset ? { y: offset } : {}) };
+  const target = { opacity: 1, ...(offset ? { y: 0 } : {}) };
+  const transition = immediate
     ? { duration: 0 }
     : { duration, delay, ease: MARKETING_EASE };
-
-  if (onMount) {
-    return (
-      <motion.div
-        initial={initial}
-        animate={target}
-        transition={transition}
-        className={cn(className)}
-        {...rest}
-      >
-        {children}
-      </motion.div>
-    );
-  }
+  const animateNow = onMount || immediate;
 
   return (
     <motion.div
       initial={initial}
-      whileInView={target}
+      animate={animateNow ? target : undefined}
+      whileInView={animateNow ? undefined : target}
       viewport={MARKETING_VIEWPORT}
       transition={transition}
       className={cn(className)}
       {...rest}
+      onFocusCapture={(event) => {
+        // Keyboard navigation may reach a link before its section has
+        // crossed the viewport threshold. Never leave focused UI hidden.
+        setFocused(true);
+        onFocusCapture?.(event);
+      }}
     >
       {children}
     </motion.div>

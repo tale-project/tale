@@ -7,6 +7,8 @@ La CLI `tale` permet d’installer Tale, de le déployer et d’en assurer l’e
 
 La même CLI gère les opérations du workspace sur les conteneurs, les déploiements depuis des commits source exacts et les releases de configuration client. Ton automatisation choisit la destination, les références et les références d’identifiants, puis appelle la CLI. [Publier les configurations d’un client](/fr/self-hosted/configuration/config-releases) traite les contenus conservés dans son propre repository.
 
+Pour ta première instance, suis le [démarrage rapide](/fr/self-hosted/install/quickstart). Le parcours habituel est `tale init`, puis `tale dev`. Une spécification de déploiement géré n’est nécessaire que si ton automatisation doit fixer les commits source exacts du runtime et du client.
+
 ## Avant de commencer
 
 Il te faut :
@@ -51,7 +53,7 @@ Définis `VERSION` pour choisir une version précise et `INSTALL_DIR` pour chang
 tale --version
 ```
 
-La CLI affiche la version installée. Si la commande est introuvable, vérifie le répertoire indiqué par l’installeur et ajoute-le au `PATH`. Sous Windows, ouvre un nouveau terminal après l’installation. Si le téléchargement échoue, vérifie l’accès aux destinations réseau ci-dessus. La variable d’environnement facultative `GITHUB_TOKEN` authentifie la recherche de version lorsque GitHub limite les appels anonymes à son API.
+La CLI affiche la version installée. Si la commande est introuvable, vérifie le répertoire indiqué par l’installeur et ajoute-le au `PATH`. Si un terminal Windows déjà ouvert ne trouve toujours pas `tale`, rouvre-le. Si le téléchargement échoue, vérifie l’accès aux destinations réseau ci-dessus. La variable d’environnement facultative `GITHUB_TOKEN` authentifie la recherche de version lorsque GitHub limite les appels anonymes à son API.
 
 ## Vérifier la configuration
 
@@ -63,7 +65,7 @@ tale config show
 
 Les releases de configuration et les [déploiements gérés](#managed-deployments) désignent explicitement sources et destinations, sans s’aligner sur un workspace voisin. `config show` garde son comportement existant pour les projets locaux.
 
-Pour un déploiement de workspace, l’hôte du proxy, les réglages TLS et les secrets vivent dans son `.env`. Modifie `HOST` ou passe `--host` à `tale dev` / `tale deploy`. Pour un workspace distant, utilise le contexte Docker de ton shell ou `DOCKER_HOST`. Un bundle géré s’applique sur la destination déclarée avec son daemon Docker local.
+Pour un déploiement de workspace, l’hôte du proxy, les réglages TLS et les secrets vivent dans son `.env`. Pour la production, modifie `HOST` ou passe `--host` à `tale deploy`. En local, `tale dev` utilise `localhost` par défaut ; ses options `--host` et `--port` ne valent que pour cette exécution. Pour un workspace distant, utilise le contexte Docker de ton shell ou `DOCKER_HOST`. Un bundle géré s’applique sur la destination déclarée avec son daemon Docker local.
 
 ## Lancer tale deploy
 
@@ -82,7 +84,7 @@ La CLI regroupe ses commandes selon ce que tu fais, comme le fait `tale --help`.
 - Une option de la forme `--option <valeur>` **exige une valeur** quand tu l'utilises (p. ex. `--port 8443`) ; une option seule comme `--detach` est un commutateur booléen.
 - Les **valeurs par défaut** figurent entre parenthèses après la description. Aucune valeur par défaut signifie que l'option est désactivée, ou que la valeur est résolue depuis `.env` / le contexte.
 
-Lance `tale <commande> --help` pour la liste de référence de ta version installée.
+Cette référence décrit aussi les commandes du code source actuel. La CLI publiée en version v0.5.70 ne contient ni `tale doctor` ni `tale dev --stop`. Consulte `tale --help` et `tale <commande> --help` pour connaître les commandes et options disponibles dans ta version installée.
 
 **Les options globales** fonctionnent sur chaque commande :
 
@@ -90,21 +92,29 @@ Lance `tale <commande> --help` pour la liste de référence de ta version instal
 - `-q, --quiet` — uniquement les avertissements et les erreurs.
 - `-y, --yes` — répondre « oui » à toutes les questions (non interactif).
 - `--no-color` — désactiver les couleurs ANSI (respecte aussi `NO_COLOR` / `FORCE_COLOR`).
-- `--json` — JSON lisible par machine sur stdout ; pris en charge par `status`, `sandbox status`, toutes les sous-commandes `config` et les commandes de déploiement géré.
+- `--json` — JSON lisible par machine sur stdout ; pris en charge par `doctor`, `status`, `sandbox status`, toutes les sous-commandes `config` et les commandes de déploiement géré.
 - `--ci` — forcer une sortie non interactive en mode ajout seul (sans contrôle du curseur).
 
 Les commandes se terminent avec `0` en cas de succès, `2` pour une erreur d'utilisation, `3` pour une condition préalable non remplie (pas de projet, Docker arrêté, port occupé), `4` pour une interruption par l'utilisateur (Ctrl-C, ou une question requise sans terminal) et `5` pour l'échec d'une dépendance externe — ainsi les scripts peuvent se ramifier selon la cause.
 
 ### Installation
 
+`tale doctor` — examine les prérequis d’un démarrage local sans créer de projet, installer de logiciel ni modifier la configuration. La commande vérifie le daemon Docker, la prise en charge de Compose et le mode de conteneurs Linux, indique l’architecture du daemon et examine les ports locaux. Avec un contexte Docker distant, elle ignore les ports locaux. Examine les avertissements sur ARM64 et les ports occupés ; une instance existante peut déjà utiliser le port.
+
+- `-p, --port <port>` — port HTTPS à vérifier (par défaut `443`) ; le port sandbox `8003` est aussi vérifié.
+- `--json` — produit les résultats en JSON lisible par machine.
+
+Un échec lié à Docker, Compose, à un mode de conteneurs non pris en charge ou au choix du port HTTPS `8003` renvoie le code `3`. Les avertissements seuls renvoient `0` ; cela ne vérifie ni les téléchargements d’images, ni la capacité de stockage, ni le fournisseur de modèles. Vérifie un autre port avec `tale doctor --port 8443`, puis utilise le même port avec `tale dev`.
+
 `tale init [directory]` — créer un projet : crée les configs d'exemple, `AGENTS.md` + un pointeur `CLAUDE.md` et un `.env` local par défaut (localhost, certificat auto-signé, secrets générés). Aucun Docker requis ; le domaine de production et le TLS sont choisis plus tard, lors de `tale deploy`. Dans un terminal, il demande un nom de projet quand `directory` est omis, confirme avant d'écraser un projet existant, et demande une fois si les agents peuvent lancer `docker` dans les sandboxes (par défaut : non — l'activer fait tourner un Docker interne privilégié) ; les exécutions non interactives sautent toutes les questions. `directory` est optionnel (par défaut : le répertoire courant).
 
 - `-f, --force` — écraser un `tale.json` existant au lieu d'abandonner.
 - `--no-env` — créer le projet mais ignorer la génération du `.env`.
 
-`tale dev` — démarrer tous les services localement avec un certificat auto-signé.
+`tale dev` — démarrer tous les services localement avec un certificat auto-signé. L’hôte et le port choisis définissent l’adresse locale de l’application pour cette exécution, sans réécrire les réglages de production dans `.env`. La vérification attend que les services dotés de sondes de santé soient sains et que les autres soient en cours d’exécution. Si le délai est dépassé, consulte les logs des services signalés avant de réessayer.
 
 - `-d, --detach` — s'exécuter en arrière-plan au lieu de diffuser les logs.
+- `--stop` — arrête les conteneurs locaux de développement de ce projet et conserve leurs données. Relance `tale dev` pour reprendre.
 - `-p, --port <port>` — port HTTPS à exposer (par défaut `443`).
 - `--host <hostname>` — alias d'hôte pour le proxy (par défaut `localhost`).
 - `-y, --yes` — non-interactif : accepter automatiquement les invites (p. ex. installer ou démarrer Docker).
