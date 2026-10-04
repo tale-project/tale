@@ -60,18 +60,31 @@ describe('inner Docker readiness', () => {
   });
 
   test('bounds a stalled response and closes its connection', async () => {
-    let closed = false;
-    const { socketPath } = await engine((_req, res) => {
-      res.on('close', () => {
-        closed = true;
-      });
+    const closed = Promise.withResolvers<void>();
+    const { socketPath } = await engine((req) => {
+      req.socket.once('close', () => closed.resolve());
     });
     const health = new InnerDockerHealth(true, { socketPath, timeoutMs: 30 });
     const started = Date.now();
     expect(await health.ready()).toBe(false);
     expect(Date.now() - started).toBeLessThan(1_000);
-    await Bun.sleep(10);
-    expect(closed).toBe(true);
+    // Destroying the client request settles readiness before the peer's
+    // close event reaches the server. Observe that event without assuming
+    // how soon the event loop will deliver it under a busy CI host.
+    let deadline: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await Promise.race([
+        closed.promise,
+        new Promise<never>((_resolve, reject) => {
+          deadline = setTimeout(
+            () => reject(new Error('Timed-out Docker probe did not close')),
+            1_000,
+          );
+        }),
+      ]);
+    } finally {
+      clearTimeout(deadline);
+    }
   });
 
   test.each(['not Docker', 'OK'.repeat(100)])(
