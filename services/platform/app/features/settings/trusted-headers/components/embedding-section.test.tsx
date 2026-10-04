@@ -21,6 +21,7 @@ import {
 
 const { policyState, saveMock, toastMock } = vi.hoisted(() => ({
   policyState: { current: null as null | { config: unknown } },
+  readState: { isError: false, refetch: vi.fn() },
   saveMock: vi.fn(),
   toastMock: vi.fn(),
 }));
@@ -31,7 +32,12 @@ vi.mock('@tale/ui/use-toast', () => ({
 }));
 
 vi.mock('@/app/features/settings/governance/hooks/queries', () => ({
-  useGovernancePolicy: () => ({ data: policyState.current, isLoading: false }),
+  useGovernancePolicy: () => ({
+    data: policyState.current,
+    isLoading: false,
+    isError: readState.isError,
+    refetch: readState.refetch,
+  }),
 }));
 
 vi.mock('@/app/features/settings/governance/hooks/mutations', () => ({
@@ -60,6 +66,8 @@ beforeEach(() => {
     config: { enabled: true, frameAncestors: ['https://portal.example'] },
   };
   saveMock.mockReset().mockResolvedValue(null);
+  readState.isError = false;
+  readState.refetch.mockReset();
   toastMock.mockReset();
 });
 
@@ -159,4 +167,26 @@ describe('EmbeddingSection', () => {
     ).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Save origins' })).toBeDisabled();
   });
+  it('shows an unavailable state after a failed read and does not persist fallback data', () => {
+    readState.isError = true;
+    policyState.current = null;
+    renderCard();
+
+    expect(screen.getByText('Unavailable')).toBeInTheDocument();
+    expect(
+      screen.getByText("Couldn't load embedding settings. Try again."),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('switch')).toBeDisabled();
+    expect(
+      screen.getByRole('textbox', { name: 'Allowed origins' }),
+    ).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeEnabled();
+
+    fireEvent.click(screen.getByRole('switch'));
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+
+    expect(saveMock).not.toHaveBeenCalled();
+    expect(readState.refetch).toHaveBeenCalledTimes(1);
+  });
+
 });

@@ -6359,6 +6359,9 @@ settings:
       save: Save origins
       saved: Embedding settings saved
       saveFailed: Couldn't save the embedding settings
+      unavailable: Unavailable
+      readFailed: Couldn't load embedding settings. Try again.
+      retry: Try again
       sameSiteNote:
         A frame receives the signed-in session only when the surrounding page
         is on the same site as Tale, for example a subdomain of the host or Tale served

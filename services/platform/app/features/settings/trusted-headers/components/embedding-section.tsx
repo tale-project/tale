@@ -6,6 +6,7 @@ import {
   isFrameAncestorOrigin,
   type EmbeddingConfig,
 } from '@tale/shared/schemas/governance';
+import { Alert } from '@tale/ui/alert';
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { HStack, Stack } from '@tale/ui/layout';
@@ -68,7 +69,12 @@ export function EmbeddingSection({
   const ability = useAbility();
   const canEdit = ability.can('write', 'orgSettings');
 
-  const { data: policy, isLoading } = useGovernancePolicy(
+  const {
+    data: policy,
+    isLoading,
+    isError: policyReadFailed,
+    refetch,
+  } = useGovernancePolicy(
     organizationId,
     'embedding',
   );
@@ -100,6 +106,7 @@ export function EmbeddingSection({
         : undefined;
 
   const persist = async (config: EmbeddingConfig) => {
+    if (policyReadFailed) return;
     try {
       await save.mutateAsync({
         organizationId,
@@ -126,6 +133,10 @@ export function EmbeddingSection({
             <Badge variant="green" dot>
               {t('enterpriseSso.embedding.enabled')}
             </Badge>
+          ) : policyReadFailed ? (
+            <Badge variant="orange" dot>
+              {t('enterpriseSso.embedding.unavailable')}
+            </Badge>
           ) : (
             <Badge variant="slate" dot>
               {t('enterpriseSso.embedding.disabled')}
@@ -136,6 +147,24 @@ export function EmbeddingSection({
       description={t('enterpriseSso.embedding.help')}
     >
       <Stack gap={4}>
+        {policyReadFailed && (
+          <Alert
+            variant="warning"
+            description={t('enterpriseSso.embedding.readFailed')}
+          >
+            <div className="pt-2">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                disabled={isLoading}
+                onClick={() => void refetch()}
+              >
+                {t('enterpriseSso.embedding.retry')}
+              </Button>
+            </div>
+          </Alert>
+        )}
         <SettingsToggleRow
           label={t('enterpriseSso.embedding.toggleLabel')}
           description={t('enterpriseSso.embedding.toggleHelp')}
@@ -143,7 +172,7 @@ export function EmbeddingSection({
           onCheckedChange={(checked) =>
             void persist({ ...stored, enabled: checked })
           }
-          disabled={!canEdit || isLoading || save.isPending}
+          disabled={!canEdit || isLoading || policyReadFailed || save.isPending}
           ariaBusy={save.isPending}
         />
         <SettingsFieldList>
@@ -165,7 +194,7 @@ export function EmbeddingSection({
                   setText(event.target.value);
                 }}
                 rows={4}
-                disabled={!canEdit || isLoading}
+                disabled={!canEdit || isLoading || policyReadFailed}
                 {...(errorMessage !== undefined ? { errorMessage } : {})}
               />
               <HStack gap={2} justify="end">
@@ -176,6 +205,7 @@ export function EmbeddingSection({
                   disabled={
                     !canEdit ||
                     isLoading ||
+                    policyReadFailed ||
                     !dirty ||
                     errorMessage !== undefined ||
                     save.isPending

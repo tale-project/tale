@@ -6256,6 +6256,9 @@ settings:
       save: Enregistrer les origines
       saved: Paramètres d’intégration enregistrés
       saveFailed: Impossible d’enregistrer les paramètres d’intégration
+      unavailable: Indisponible
+      readFailed: Impossible de charger les paramètres d’intégration. Réessaie.
+      retry: Réessayer
       sameSiteNote:
         Un cadre ne reçoit la session connectée que si la page englobante est
         sur le même site que Tale, par exemple un sous-domaine de l’hôte ou Tale servi
