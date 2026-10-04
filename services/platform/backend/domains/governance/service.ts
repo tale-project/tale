@@ -212,7 +212,7 @@ export async function incrementUsageLedger(
   for (const period of ALL_PERIODS) {
     const periodKey = buildPeriodKeyFromTimestamp(period, entry.timestamp);
     await sql`
-      INSERT INTO app.usage_ledger (
+      INSERT INTO app.usage_ledger_provider AS ledger (
         org_id, user_id, team_id, period_key, granularity, agent_slug, model,
         provider, api_key_id, connector_name, connector_operation,
         input_tokens, output_tokens, total_tokens, cost_estimate_cents,
@@ -232,35 +232,34 @@ export async function incrementUsageLedger(
       ON CONFLICT (
         org_id, user_id, period_key,
         coalesce(team_id, ''), coalesce(agent_slug, ''), coalesce(model, ''),
-        coalesce(api_key_id, ''), coalesce(connector_name, ''),
+        coalesce(provider, ''), coalesce(api_key_id, ''), coalesce(connector_name, ''),
         coalesce(connector_operation, '')
       ) DO UPDATE SET
-        input_tokens = app.usage_ledger.input_tokens + EXCLUDED.input_tokens,
+        input_tokens = ledger.input_tokens + EXCLUDED.input_tokens,
         output_tokens =
-          app.usage_ledger.output_tokens + EXCLUDED.output_tokens,
-        total_tokens = app.usage_ledger.total_tokens + EXCLUDED.total_tokens,
+          ledger.output_tokens + EXCLUDED.output_tokens,
+        total_tokens = ledger.total_tokens + EXCLUDED.total_tokens,
         cost_estimate_cents =
-          app.usage_ledger.cost_estimate_cents
+          ledger.cost_estimate_cents
             + EXCLUDED.cost_estimate_cents,
-        request_count = app.usage_ledger.request_count + 1,
+        request_count = ledger.request_count + 1,
         connector_call_count =
-          app.usage_ledger.connector_call_count
+          ledger.connector_call_count
             + EXCLUDED.connector_call_count,
         character_count =
           CASE
-            WHEN app.usage_ledger.character_count IS NULL
+            WHEN ledger.character_count IS NULL
               AND EXCLUDED.character_count IS NULL THEN NULL
-            ELSE coalesce(app.usage_ledger.character_count, 0)
+            ELSE coalesce(ledger.character_count, 0)
               + coalesce(EXCLUDED.character_count, 0)
           END,
         audio_duration_sec =
           CASE
-            WHEN app.usage_ledger.audio_duration_sec IS NULL
+            WHEN ledger.audio_duration_sec IS NULL
               AND EXCLUDED.audio_duration_sec IS NULL THEN NULL
-            ELSE coalesce(app.usage_ledger.audio_duration_sec, 0)
+            ELSE coalesce(ledger.audio_duration_sec, 0)
               + coalesce(EXCLUDED.audio_duration_sec, 0)
           END,
-        provider = coalesce(app.usage_ledger.provider, EXCLUDED.provider),
         updated_at_ms = ${now}
     `;
   }

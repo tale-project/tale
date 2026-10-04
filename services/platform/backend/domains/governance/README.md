@@ -8,6 +8,21 @@ daily, weekly, monthly — per (organization, user, agent, model, provider, API 
 operation). `incrementUsageLedger` in [`service.ts`](service.ts) is its one writer; the usage
 page, the budget gate, erasure and retention are its readers.
 
+New writes target `app.usage_ledger_provider`, which inherits `app.usage_ledger`
+(`db/migrations/0150_usage_ledger_provider.sql`). Its unique bucket key includes
+provider because wire model IDs are only unique within a provider catalog.
+Ordinary reads and deletes of the parent include both tables, so budgets,
+metrics, erasure and retention continue to use the same logical ledger. Do not
+use `ONLY app.usage_ledger` in those readers. Indexes are not inherited: future
+ledger index changes must cover both tables.
+
+During rolling deployment the previous image can still upsert the parent using
+its original conflict target. Those writes retain the old attribution behavior
+until that image retires; new-image writes preserve each provider separately.
+Existing parent rows are left unchanged, including their recorded provider and
+totals. Previously merged rows cannot be split without original request data;
+the migration does not guess or reattribute historical spend.
+
 ## Rules
 
 1. **One ledger.** Every billable call books into `app.usage_ledger` and nowhere else. The
