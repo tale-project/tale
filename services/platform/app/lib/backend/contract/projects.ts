@@ -97,6 +97,7 @@ export interface ProjectsContract {
   'projects/mutations:updateProjectAgent': {
     kind: 'mutation';
     args: {
+      expectedUpdatedAt?: number;
       secrets?: string[];
       modelProvider?: string;
       tools?: string[];

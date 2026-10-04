@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { AppError } from '@/lib/shared/errors/app-error';
+
 import { activeOrganizationId } from './adapters';
 import {
   projectActionQueryAdapters,
@@ -305,6 +307,31 @@ describe('project read adapters', () => {
 });
 
 describe('project write adapters', () => {
+  it('sends the agent read stamp and refreshes only for a stale refusal', async () => {
+    const fetchSpy = vi
+      .spyOn(window, 'fetch')
+      .mockResolvedValue(jsonResponse(200, { ok: true }));
+    const adapter =
+      projectWriteAdapters['projects/mutations:updateProjectAgent'];
+    await adapter?.run(
+      { agentId: 'a1', name: 'Draft', expectedUpdatedAt: 20 },
+      { organizationId: 'org-1' },
+    );
+    const [url, init] = fetchSpy.mock.calls[0] ?? [];
+    expect(url).toBe('/api/app/projects/agents/a1?orgId=org-1');
+    expect(jsonBody(init)).toEqual({ name: 'Draft', expectedUpdatedAt: 20 });
+    expect(
+      adapter?.refusalInvalidates?.(
+        new AppError({ code: 'PROJECT_AGENT_STALE' }),
+      ),
+    ).toBe(true);
+    expect(
+      adapter?.refusalInvalidates?.(new AppError({ code: 'RBAC_FORBIDDEN' })),
+    ).toBe(false);
+    expect(
+      adapter?.refusalInvalidates?.(new TypeError('Network failure')),
+    ).toBe(false);
+  });
   it('creates a project and answers the new id like the 0.4 mutation', async () => {
     const fetchSpy = vi
       .spyOn(window, 'fetch')

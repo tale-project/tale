@@ -95,6 +95,8 @@ Pour donner au projet un agent propre, choisis **Nouvel agent**. Dès lors, le p
 
 ## Modifier ou retirer un agent
 
+Quand tu modifies un agent existant, Tale vérifie à l’enregistrement que ses paramètres n’ont pas changé depuis son ouverture. Si quelqu’un a enregistré avant toi, ton enregistrement est refusé et tes modifications non enregistrées restent dans le dialogue. Copie celles que tu veux garder avant de le fermer, puis rouvre l’agent pour charger les paramètres actuels et y intégrer tes modifications avant d’enregistrer à nouveau.
+
 Utilise le menu de sa ligne pour le modifier ou le supprimer. L’agent standard n’a que **Supprimer l'agent**. Les changements concernent les prochaines exécutions ; une exécution active conserve sa configuration initiale. La suppression retire les affectations à l’agent mais conserve l’historique des tâches. Elle efface aussi les [espaces de travail de sandbox](/fr/platform/admin/sandboxes#explain-why-a-workspace-disappeared) de l’agent avec leurs fichiers, y compris ceux des Membres. Examine le travail en cours et conserve les résultats nécessaires avant de retirer l’agent concerné.
 
 Si la création échoue, lis la cause affichée : un nom déjà utilisé, un accès au projet manquant, un modèle indisponible et un skill invisible sont des problèmes distincts. Une exécution qui échoue définitivement indique en haut de sa tâche ce qui s’est passé et qui peut y remédier ; [Quand l’agent ne peut pas terminer](/fr/platform/projects/task-automation#quand-lagent-ne-peut-pas-terminer) détaille les cas. Modifier les instructions ne résout pas ces prérequis.

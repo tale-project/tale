@@ -8660,6 +8660,7 @@ projects:
     PROJECT_INSTRUCTIONS_TOO_LONG: Anweisungen überschreiten das Limit von {cap}
       Zeichen. Kürze sie vor dem Speichern.
     PROJECT_AGENT_NAME_INVALID: Der Agentenname muss 1–120 Zeichen lang sein.
+    PROJECT_AGENT_STALE: Dieser Agent wurde seit dem Öffnen geändert. Deine Änderungen sind noch hier. Kopiere sie vor dem Schließen, öffne den Agenten erneut und füge sie in die aktuellen Einstellungen ein.
     PROJECT_AGENT_NAME_TAKEN: Ein anderer Agent in diesem Projekt trägt diesen Namen bereits.
     PROJECT_AGENT_HARNESS_INVALID: Dieses Harness lässt sich nicht für Projekt-Agenten verwenden.
     PROJECT_AGENT_MODEL_INVALID: Wähle ein Modell für diesen Agenten.

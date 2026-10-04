@@ -142,6 +142,47 @@ describe('project agent session routes share REST configuration limits', () => {
     },
   );
 
+  it('preserves the read stamp on an app replacement', async () => {
+    expect(
+      (await send('POST', '/agents/a1', { ...agent, expectedUpdatedAt: 20 }))
+        .status,
+    ).toBe(200);
+    expect(service.updateProjectAgent).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      { ...agent, agentId: 'a1', expectedUpdatedAt: 20 },
+    );
+  });
+
+  it('returns the stale service refusal as 409 with the current stamp', async () => {
+    const { ProjectError } = await import('./service.ts');
+    service.updateProjectAgent.mockRejectedValueOnce(
+      new ProjectError('PROJECT_AGENT_STALE', 'Reload and merge', 409, {
+        updatedAt: 30,
+      }),
+    );
+    const response = await send('POST', '/agents/a1', {
+      ...agent,
+      expectedUpdatedAt: 20,
+    });
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toEqual({
+      error: 'PROJECT_AGENT_STALE',
+      data: { updatedAt: 30 },
+    });
+  });
+
+  it.each([-1, 1.5, '20', null, 8_640_000_000_000_001])(
+    'rejects an invalid read stamp without writing: %j',
+    async (expectedUpdatedAt) => {
+      expect(
+        (await send('POST', '/agents/a1', { ...agent, expectedUpdatedAt }))
+          .status,
+      ).toBe(400);
+      expect(service.updateProjectAgent).not.toHaveBeenCalled();
+    },
+  );
+
   it('forwards valid configuration with its project path', async () => {
     expect((await send('POST', '/p1/agents', agent)).status).toBe(200);
     expect(service.createProjectAgent).toHaveBeenCalledWith(

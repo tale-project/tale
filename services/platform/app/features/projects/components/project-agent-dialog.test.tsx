@@ -63,6 +63,7 @@ const MODELS = [
 // A row saved before picks carried providers: model only, no modelProvider.
 const LEGACY_AGENT = {
   _id: 'agent-1',
+  updatedAt: 20,
   name: 'PR reviewer',
   harness: 'claude-code',
   model: 'claude-fable-5',
@@ -89,6 +90,7 @@ function renderDialog(agent: ProjectAgentRow, models = MODELS) {
 beforeEach(() => {
   createAgent.mockClear();
   updateAgent.mockClear();
+  vi.mocked(toast).mockClear();
   previewState.data = undefined;
 });
 
@@ -132,6 +134,81 @@ describe('ProjectAgentDialog create', () => {
 });
 
 describe('ProjectAgentDialog model pin', () => {
+  it('saves the opening stamp and retains a refused draft across row refreshes', async () => {
+    updateAgent.mockRejectedValueOnce(
+      new AppError({ code: 'PROJECT_AGENT_STALE' }),
+    );
+    updateAgent.mockRejectedValueOnce(
+      new AppError({ code: 'PROJECT_AGENT_STALE' }),
+    );
+    const onOpenChange = vi.fn();
+    const dialog = (agent: ProjectAgentRow, open = true) => (
+      <ProjectAgentDialog
+        open={open}
+        onOpenChange={onOpenChange}
+        projectId="p1"
+        organizationId="org-1"
+        harnesses={[{ harness: 'claude-code', label: 'Claude Code' }]}
+        models={MODELS}
+        skills={[]}
+        connectors={[]}
+        agent={agent}
+      />
+    );
+    const { user, rerender } = render(dialog(LEGACY_AGENT));
+    await user.clear(screen.getByRole('textbox', { name: /Name/ }));
+    await user.type(screen.getByRole('textbox', { name: /Name/ }), 'My draft');
+    await user.type(
+      screen.getByRole('textbox', { name: 'Instructions' }),
+      'Draft instructions',
+    );
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    expect(updateAgent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'My draft',
+        instructions: 'Draft instructions',
+        expectedUpdatedAt: 20,
+      }),
+    );
+    expect(onOpenChange).not.toHaveBeenCalled();
+    expect(toast).toHaveBeenCalledTimes(1);
+    expect(toast).toHaveBeenCalledWith({
+      title: expect.stringContaining('changed'),
+      variant: 'destructive',
+    });
+    const refreshed = {
+      ...LEGACY_AGENT,
+      name: 'Concurrent edit',
+      updatedAt: 30,
+    };
+    rerender(dialog(refreshed));
+    expect(screen.getByRole('textbox', { name: /Name/ })).toHaveValue(
+      'My draft',
+    );
+    expect(screen.getByRole('textbox', { name: 'Instructions' })).toHaveValue(
+      'Draft instructions',
+    );
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    expect(updateAgent).toHaveBeenLastCalledWith(
+      expect.objectContaining({ name: 'My draft', expectedUpdatedAt: 20 }),
+    );
+    rerender(dialog(refreshed, false));
+    rerender(dialog(refreshed));
+    expect(screen.getByRole('textbox', { name: /Name/ })).toHaveValue(
+      'Concurrent edit',
+    );
+    expect(screen.getByRole('textbox', { name: 'Instructions' })).toHaveValue(
+      '',
+    );
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    expect(updateAgent).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        name: 'Concurrent edit',
+        expectedUpdatedAt: 30,
+      }),
+    );
+  });
+
   it('finds a friendly-named model by its API id and saves its provider', async () => {
     const { user } = renderDialog(LEGACY_AGENT, [
       { ...MODELS[0], label: 'Claude Fable 5' },
