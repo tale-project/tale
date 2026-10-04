@@ -3,7 +3,7 @@ import { afterEach, expect, it, vi } from 'vitest';
 
 import { BackendApiError, backendFetch } from '@/app/lib/backend/api-client';
 import { i18n } from '@/lib/i18n/i18n';
-import { forgetSavedLocale, saveLocale } from '@/tests/utils/lapsed-session';
+import { forgetSavedLocale } from '@/tests/utils/lapsed-session';
 import { act, render, screen, waitFor } from '@/tests/utils/render';
 
 import { ProjectSharingSection } from './project-sharing-section';
@@ -190,7 +190,7 @@ it.each([
 ])(
   'renders the failed read and retry in $locale',
   async ({ locale, message, retryLabel }) => {
-    saveLocale(locale);
+    localStorage.setItem('user-locale', locale);
     await i18n.changeLanguage(locale);
     vi.mocked(backendFetch).mockImplementation(async (path) => {
       if (path === '/teams/directory') return { teams: [team] };
