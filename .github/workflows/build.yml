@@ -71,14 +71,17 @@ on:
   repository_dispatch:
     types: [release-candidate]
 
-# Pushes and pull requests keep one run per ref: a newer commit cancels the
-# run it supersedes. A release candidate gets a group of its own, keyed by its
+# Main pushes keep one running Build and coalesce newer pushes into the pending
+# slot. Let the running build finish publishing the shared main layer cache;
+# otherwise frequent merges can keep every PR rebuilding unchanged images.
+# Pull requests and merge groups still cancel superseded runs. A release
+# candidate gets a group of its own, keyed by its
 # SHA and never cancelled — a merge to main must not starve it (#3951), and a
 # second dispatch of the same SHA waits behind the first instead of replacing
 # it.
 concurrency:
   group: ${{ github.workflow }}-${{ (github.event_name == 'workflow_dispatch' || github.event_name == 'repository_dispatch') && format('candidate-{0}', inputs.candidate_sha || github.event.client_payload.candidate_sha) || github.ref }}
-  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' && github.event_name != 'repository_dispatch' }}
+  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' && github.event_name != 'repository_dispatch' && !(github.event_name == 'push' && github.ref == 'refs/heads/main') }}
 
 env:
   REGISTRY: ghcr.io
@@ -253,7 +256,8 @@ jobs:
   # Matrix is intentionally fixed (not driven by `changes.outputs.services`):
   # smoke-test and image-validate need ALL compose-stack services available, so
   # building only changed ones would force them back into local-build mode.
-  # Unchanged services hit the GHA layer cache and finish in seconds.
+  # Unchanged services can reuse the main branch's GHA layer cache when it is
+  # available. A missing or evicted cache still requires a complete build.
   #
   # Web/docs/ui-docs are NOT in this matrix — they have their own compose
   # stacks and are exercised by the separate web-test / docs-test /
