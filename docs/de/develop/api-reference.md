@@ -547,7 +547,7 @@ curl -fsS "$AGENT_URL/$AGENT_ID" \
 
 Ein Agent mit `managed` gleich `true` ist der [Standard-Agent](/de/platform/projects/project-agents#standard-agent) der Organisation: Tale hat ihn in einem Projekt ohne eigene Agenten eingerichtet und hält Laufzeit, Modell und Anweisungen im Einklang mit den Einstellungen der Organisation. Ein `PUT` auf ihn ergibt **409**, `PROJECT_AGENT_MANAGED`, und schreibt nichts; `DELETE` entfernt ihn wie jeden anderen Agenten (Vertrag 3.9.0).
 
-### Modelle, Berechtigungen und Grenzen prüfen {#modelle-freigaben-und-grenzen-prüfen}
+### Modelle, Berechtigungen und Grenzen prüfen {#modelle-freigaben-und-grenzen-pruefen}
 
 Ein Projekt fasst höchstens 50 Agenten. Namen müssen innerhalb des Projekts unabhängig von Groß- und Kleinschreibung eindeutig sein und dürfen bis zu 120 Zeichen lang sein; jede Ausstattungsliste erlaubt 25 Einträge, Anweisungen 20.000 Zeichen. Ungültige Konfiguration oder eine überschrittene Grenze ergibt **400**; ein Name, den ein anderer Agent des Projekts schon trägt, ergibt **409**, `PROJECT_AGENT_NAME_TAKEN` — die Klasse, mit der jedes andere Duplikat an dieser Schnittstelle antwortet —, verwende also den bestehenden Agenten, statt es erneut zu versuchen.
 
@@ -557,12 +557,12 @@ Ein Projekt fasst höchstens 50 Agenten. Namen müssen innerhalb des Projekts un
 
 `task_review` ergänzt mit Vertrag 3.11.0 eine optionale Berechtigung für Projektagenten. Das Tool entscheidet nur über ein ausstehendes natives Review, das dem aktiven Reviewer-Agenten zugewiesen ist und einen abgeschlossenen Lauf eines anderen Agenten desselben Projekts betrifft. Übergib `taskId`, `expected: {approvalId, runId, evidenceRevision}` aus dem aktuellen `task_get.pendingReview`, `decision: "approve" | "request_changes"`, `feedback` und `evidence: {checks, pullRequests}`. Die Anfrage und ihre verschachtelten Objekte sind strikt: Unbekannte Felder werden abgelehnt.
 
-- `checks` verlangt 1–20 Einträge. Jeder braucht `name` (1–200 Zeichen nach dem Entfernen äußerer Leerzeichen), `outcome` (`passed` oder `failed`) und `details` (1–2.000 Zeichen nach dem Entfernen äußerer Leerzeichen).
-- `pullRequests` verlangt eine Liste mit 0–10 Einträgen. Jeder braucht `url` (höchstens 2.048 Zeichen, exakt `https://github.com/<owner>/<repo>/pull/<positive integer>` mit einer positiven ganzen Zahl, ohne abschließenden Schrägstrich, Query oder Fragment), `headSha` (40 oder 64 kleingeschriebene Hexadezimalzeichen) und `checks` (`passed`, `failed` oder `pending`).
-- `feedback` verlangt 1–8.000 Zeichen nach dem Entfernen äußerer Leerzeichen.
-- `approve` verlangt bei allen angegebenen Prüfungen und Pull Requests `passed`. Eine fehlgeschlagene Prüfung oder ein Pull Request mit `failed`/`pending` verhindert die Genehmigung. Verwende `request_changes`, wenn das Ergebnis korrigiert werden muss, statt einen bestandenen Test zu erfinden.
+- `checks` verlangt 1–20 Einträge. Jeder braucht `name` (1–200 UTF-16-Codeeinheiten nach dem Entfernen von Leerraum am Anfang und Ende), `outcome` (`passed` oder `failed`) und `details` (1–2.000 UTF-16-Codeeinheiten nach dem Entfernen von Leerraum am Anfang und Ende).
+- `pullRequests` verlangt eine Liste mit 0–10 Einträgen. Jeder braucht `url` (höchstens 2.048 UTF-16-Codeeinheiten, exakt `https://github.com/<owner>/<repo>/pull/<positive integer>`, wobei `<positive integer>` eine positive ganze Zahl ohne führende Null ist, ohne abschließenden Schrägstrich, Query oder Fragment), `headSha` (40 oder 64 kleingeschriebene Hexadezimalzeichen) und `checks` (`passed`, `failed` oder `pending`).
+- `feedback` verlangt 1–8.000 UTF-16-Codeeinheiten nach dem Entfernen von Leerraum am Anfang und Ende.
+- `approve` verlangt bei allen angegebenen Prüfungen und Pull Requests `passed`. Eine fehlgeschlagene Prüfung oder ein Pull Request mit `failed`/`pending` verhindert die Genehmigung. Verwende `request_changes`, wenn das Ergebnis korrigiert werden muss, statt ein Bestehen zu bescheinigen, das nicht stattgefunden hat.
 
-Dieses minimale Argumentbeispiel enthält keinen Pull Request. Ersetze `taskId` und sämtliche Werte in `expected` durch die aktuellen Identitäten und die Belegrevision der Aufgabe; beschreibe mit Rückmeldung und Prüfungen das tatsächlich untersuchte Ergebnis. Gültige Argumente belegen keine Review-Berechtigung und speichern noch keine Entscheidung.
+Dieses minimale Argumentbeispiel enthält keinen Pull Request. Ersetze `taskId` und sämtliche Werte in `expected` durch die aktuellen IDs und die Belegrevision der Aufgabe; beschreibe mit Rückmeldung und Prüfungen das tatsächlich untersuchte Ergebnis. Gültige Argumente belegen keine Review-Berechtigung und speichern noch keine Entscheidung.
 
 ```json
 {
@@ -587,7 +587,7 @@ Tale speichert die externe Bestätigung des Reviewers; aktuelle GitHub-Commits u
 
 Das Tool prüft die aktuelle Berechtigung, die Rechte des aktiven aufrufenden Laufs, den gespeicherten Reviewer, den Umsetzungslauf und die lokale Belegrevision erneut. Ein veraltetes Ergebnis muss neu gelesen werden; eine andere aktuelle Aufgabenzuweisung macht den Reviewer nicht unabhängig. Die Genehmigung verschiebt die Aufgabe nach `done`, `request_changes` mit Rückmeldung nach `todo`, ohne einen Lauf zu starten, auch bei einer Erwähnung in der Rückmeldung. Menschliche Kompetenzanforderungen und Workflow-Genehmigungen bleiben außerhalb dieses Tools. Für eine Agentenentscheidung gibt es keinen öffentlichen REST-Endpunkt.
 
-Native Review-Rückmeldungen bleiben sichtbare Aufgabenkommentare mit den üblichen Benachrichtigungen und Aktivitäten. Sie lösen aber weder `comment.created` noch Erwähnungsaktionen aus und starten somit keinen ereignisgesteuerten oder erwähnten Agenten- oder Automationslauf.
+Beim Veröffentlichen nativer Review-Rückmeldungen entstehen sichtbare Aufgabenkommentare mit den üblichen Benachrichtigungen und Aktivitäten. Das Veröffentlichen löst aber weder `comment.created` noch Erwähnungsaktionen aus und startet somit keinen ereignisgesteuerten oder erwähnten Agenten- oder Automatisierungslauf. Eine spätere berechtigte Bearbeitung, die eine Erwähnung hinzufügt, kann `comment.mentioned` auslösen.
 
 Native Ablehnungen sind Workspace-Tool-Ergebnisse, keine REST-Fehlerantworten mit dem HTTP-Status des Domänenfehlers: Argument- und Domänenablehnungen verwenden `status: "invalid_args"` (Domänencodes stehen in `message`), normalerweise innerhalb von HTTP 200. Die vorgeschaltete Prüfung der Sitzungsrechte kann bei einem beendeten aufrufenden Lauf zuerst `status: "unavailable"` mit dem Blocker `code: "run_ended"` liefern; eine direkte Domänen-Testumgebung kann stattdessen `TASK_REVIEW_FORBIDDEN` melden. Eine fehlende oder nicht abgeschlossene Quelle kann `TASK_REVIEW_SOURCE_REQUIRED` liefern, ein geänderter neuester Lauf, eine geänderte Zuweisung oder Belegrevision `TASK_REVIEW_STALE`, bevor die Prüfung laufender Arbeit `TASK_REVIEW_BUSY` erreicht. Halte diese Voraussetzungen beim Test einer Beschäftigt-Ablehnung gültig; laufende Arbeit allein bestimmt nicht die erste Ablehnung.
 
@@ -656,8 +656,8 @@ Jede Art nimmt ihre eigenen Schlüssel — `cron` und `timezone` nur mit `schedu
 | `project.created`                                       | ein Projekt angelegt wird                                                                                                                                                    |
 | `task.created`                                          | eine Aufgabe angelegt wird — auf einem Board, über die API oder durch einen Intake                                                                                           |
 | `task.status_changed`                                   | eine Person eine Aufgabe in einen anderen Status verschiebt (die eigenen Züge eines Agenten lösen nichts aus, eine Automatisierung kann sich also nicht selbst neu triggern) |
-| `comment.created`                                       | ein Aufgabenkommentar wird hinzugefügt, außer nativer `task_review`-Rückmeldung (keine Ereignis- oder Erwähnungsaktionen; Benachrichtigungen und Aktivitäten bleiben) |
-| `comment.mentioned`                                     | ein Aufgabenkommentar erwähnt jemanden mit `@`, außer nativer `task_review`-Rückmeldung |
+| `comment.created`                                       | ein Aufgabenkommentar hinzugefügt wird, außer bei nativer `task_review`-Rückmeldung (keine Ereignis- oder Erwähnungsaktionen; Benachrichtigungen und Aktivitäten bleiben) |
+| `comment.mentioned`                                     | eine Bearbeitung eines Aufgabenkommentars eine neue Erwähnung mit `@` hinzufügt |
 
 ### Triggerzustand prüfen und gezielt pausieren
 
