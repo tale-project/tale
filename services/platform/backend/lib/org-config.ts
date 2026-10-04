@@ -1,7 +1,7 @@
 import { stat } from 'node:fs/promises';
 
 import {
-  POLICY_SCHEMAS,
+  POLICY_READ_SCHEMAS as POLICY_SCHEMAS,
   policyTypeToFileBase,
   type FilePolicyType,
 } from '@tale/shared/schemas/governance';
