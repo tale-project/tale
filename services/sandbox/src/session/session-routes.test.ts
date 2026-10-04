@@ -89,6 +89,7 @@ const fakeHealth = {
   lastActivityAtMs: 0,
   liveExecs: 0,
   dockerReady: undefined as boolean | undefined,
+  dockerRecoveryRequired: undefined as boolean | undefined,
 };
 const fakeActivities = new Map<string, ActivityGate>();
 let legacyDaemon = false;
@@ -185,6 +186,9 @@ beforeAll(() => {
           ...(fakeHealth.dockerReady === undefined
             ? {}
             : { dockerReady: fakeHealth.dockerReady }),
+          ...(fakeHealth.dockerRecoveryRequired === undefined
+            ? {}
+            : { dockerRecoveryRequired: fakeHealth.dockerRecoveryRequired }),
           ...(legacyDaemon ? {} : { activity: activity.snapshot() }),
         });
       }
@@ -591,6 +595,7 @@ beforeEach(() => {
   fakeHealth.lastActivityAtMs = 0;
   fakeHealth.liveExecs = 0;
   fakeHealth.dockerReady = undefined;
+  fakeHealth.dockerRecoveryRequired = undefined;
   fakeActivities.clear();
   legacyDaemon = false;
   legacyIdleReclaim = false;
@@ -636,7 +641,7 @@ describe('SessionRoutes (fake runnerd)', () => {
   );
 
   test.each(['acquire', 'exec', 'sweep'])(
-    'unhealthy inner Docker recovers idle compute through the fenced claim on %s',
+    'a first unhealthy inner Docker observation refuses %s without stopping compute',
     async (operation) => {
       const routes = new SessionRoutes(
         { ...cfg, dockerInContainer: true },
@@ -649,8 +654,13 @@ describe('SessionRoutes (fake runnerd)', () => {
           profile: 'agent',
         }),
       );
+      expect(
+        (await routes.handleActivity('docker-idle', 'acquire')).status,
+      ).toBe(200);
+      fakeHealth.lastActivityAtMs = Date.now() - 100;
       fakeHealth.dockerReady = false;
-      if (operation === 'sweep') expect(await routes.sweepExpired()).toBe(1);
+      fakeHealth.dockerRecoveryRequired = false;
+      if (operation === 'sweep') expect(await routes.sweepExpired()).toBe(0);
       else {
         const result =
           operation === 'acquire'
@@ -660,11 +670,13 @@ describe('SessionRoutes (fake runnerd)', () => {
                 'docker-idle',
                 JSON.stringify({ execId: 'e-docker', command: ['true'] }),
               );
-        expect(result.status).toBe(404);
+        expect(result.status).toBe(503);
       }
-      expect(stopped.has('docker-idle')).toBe(true);
+      expect(stopped.has('docker-idle')).toBe(false);
       expect(destroyed.has('docker-idle')).toBe(false);
       expect(execRequests).toHaveLength(0);
+      expect(reclaimRequests).toHaveLength(0);
+      expect(routes.holds('docker-idle')).toBe(true);
     },
   );
 
@@ -689,6 +701,7 @@ describe('SessionRoutes (fake runnerd)', () => {
       }),
     );
     fakeHealth.dockerReady = false;
+    fakeHealth.dockerRecoveryRequired = true;
     const result = await routes.handleExec(
       new Request('http://sandbox/exec'),
       'docker-replaced',
@@ -700,7 +713,122 @@ describe('SessionRoutes (fake runnerd)', () => {
     expect(destroyed.has('docker-replaced')).toBe(false);
   });
 
-  test.each(['busy', 'pinned', 'acquired-race', 'legacy'])(
+  test.each(['acquire', 'exec', 'sweep'])(
+    'sustained inner Docker failure recovers idle compute through the fenced claim on %s',
+    async (operation) => {
+      const routes = new SessionRoutes(
+        { ...cfg, dockerInContainer: true },
+        fakeBackend,
+      );
+      await routes.handleCreate(
+        JSON.stringify({
+          sessionId: 'docker-confirmed',
+          organizationId: 'org_a',
+          profile: 'agent',
+        }),
+      );
+      expect(
+        (await routes.handleActivity('docker-confirmed', 'acquire')).status,
+      ).toBe(200);
+      fakeHealth.lastActivityAtMs = Date.now() - 100;
+      fakeHealth.dockerReady = false;
+      fakeHealth.dockerRecoveryRequired = true;
+      if (operation === 'sweep') expect(await routes.sweepExpired()).toBe(1);
+      else {
+        const result =
+          operation === 'acquire'
+            ? await routes.handleActivity('docker-confirmed', 'acquire')
+            : await routes.handleExec(
+                new Request('http://sandbox/exec'),
+                'docker-confirmed',
+                JSON.stringify({ execId: 'e-docker', command: ['true'] }),
+              );
+        expect(result.status).toBe(404);
+      }
+      expect(stopped.has('docker-confirmed')).toBe(true);
+      expect(destroyed.has('docker-confirmed')).toBe(false);
+      expect(execRequests).toHaveLength(0);
+      expect(reclaimRequests).toHaveLength(1);
+    },
+  );
+
+  test.each(['idle', 'lifetime'])(
+    'legacy Docker readiness refuses new work but preserves ordinary %s recovery',
+    async (expiry) => {
+      const routes = new SessionRoutes(
+        {
+          ...cfg,
+          dockerInContainer: true,
+          ...(expiry === 'lifetime'
+            ? { session: { ...cfg.session, maxLifetimeMs: 10_000 } }
+            : {}),
+        },
+        fakeBackend,
+      );
+      await routes.handleCreate(
+        JSON.stringify({
+          sessionId: 'docker-legacy',
+          organizationId: 'org_a',
+          profile: 'agent',
+        }),
+      );
+      fakeHealth.lastActivityAtMs = Date.now() - 100;
+      fakeHealth.dockerReady = false;
+      expect(
+        (await routes.handleActivity('docker-legacy', 'acquire')).status,
+      ).toBe(503);
+      expect(await routes.sweepExpired()).toBe(0);
+      expect(reclaimRequests).toHaveLength(0);
+      expect(stopped.has('docker-legacy')).toBe(false);
+      const later =
+        Date.now() +
+        (expiry === 'lifetime' ? 20_000 : cfg.session.maxIdleMs + 1);
+      expect(await routes.sweepExpired(later)).toBe(1);
+      expect(reclaimRequests).toHaveLength(1);
+      expect(stopped.has('docker-legacy')).toBe(true);
+      expect(destroyed.has('docker-legacy')).toBe(false);
+    },
+  );
+
+  test('healthy Docker ignores recovery confidence and admits new work', async () => {
+    const routes = new SessionRoutes(
+      { ...cfg, dockerInContainer: true },
+      fakeBackend,
+    );
+    await routes.handleCreate(
+      JSON.stringify({
+        sessionId: 'docker-healthy',
+        organizationId: 'org_a',
+        profile: 'agent',
+      }),
+    );
+    fakeHealth.lastActivityAtMs = Date.now() - 100;
+    fakeHealth.dockerReady = true;
+    fakeHealth.dockerRecoveryRequired = true;
+    expect(
+      (await routes.handleActivity('docker-healthy', 'acquire')).status,
+    ).toBe(200);
+    const result = await routes.handleExec(
+      new Request('http://sandbox/exec'),
+      'docker-healthy',
+      JSON.stringify({ execId: 'healthy-exec', command: ['true'] }),
+    );
+    expect(result.status).toBe(200);
+    await result.text();
+    expect(await routes.sweepExpired()).toBe(0);
+    expect(stopped.has('docker-healthy')).toBe(false);
+    expect(reclaimRequests).toHaveLength(0);
+    expect(execRequests).toHaveLength(1);
+  });
+
+  test.each([
+    'busy',
+    'active-operation',
+    'pinned',
+    'acquired-race',
+    'activity-race',
+    'legacy',
+  ])(
     'unhealthy inner Docker protects %s compute while refusing new work',
     async (state) => {
       const routes = new SessionRoutes(
@@ -715,6 +843,15 @@ describe('SessionRoutes (fake runnerd)', () => {
         }),
       );
       if (state === 'busy') fakeHealth.liveExecs = 1;
+      let finishOperation: (() => void) | undefined;
+      if (state === 'active-operation') {
+        await routes.handleActivity('docker-protected', 'ticket');
+        finishOperation =
+          fakeActivities
+            .get(deriveRunnerdToken(cfg.sandboxToken, 'docker-protected'))
+            ?.enter() ?? undefined;
+        expect(finishOperation).toBeDefined();
+      }
       if (state === 'pinned')
         await routes.handleSetPinned('docker-protected', '{"pinned":true}');
       if (state === 'legacy') legacyIdleReclaim = true;
@@ -722,7 +859,14 @@ describe('SessionRoutes (fake runnerd)', () => {
         beforeReclaim = (_token, activity) => {
           activity.acquire();
         };
+      if (state === 'activity-race')
+        beforeReclaim = (_token, activity) => {
+          const finish = activity.enter();
+          fakeHealth.lastActivityAtMs = Date.now();
+          finish?.();
+        };
       fakeHealth.dockerReady = false;
+      fakeHealth.dockerRecoveryRequired = true;
       expect(
         (await routes.handleActivity('docker-protected', 'acquire')).status,
       ).toBe(503);
@@ -739,6 +883,7 @@ describe('SessionRoutes (fake runnerd)', () => {
       expect(stopped.has('docker-protected')).toBe(false);
       expect(destroyed.has('docker-protected')).toBe(false);
       expect(execRequests).toHaveLength(0);
+      finishOperation?.();
     },
   );
 

@@ -34,11 +34,22 @@ This reduces idle processes; the session retains its configured runtime
 boundary, privileges and resource limits throughout.
 
 Health checks do not start the engine or reset its idle timer. An intentionally
-sleeping engine remains ready for new work. A failed startup or an unexpected
-engine exit reports degraded Docker readiness while runnerd stays live; new
-work waits instead of running with broken Docker. The spawner reclaims such a
+sleeping engine remains ready for new work. A failed probe refuses new work
+while runnerd stays live, but one slow probe does not cause session cleanup.
+Probe-based recovery requires at least three completed failures spanning five
+seconds; cached reads do not count again, and a healthy result or a new engine
+clears the engine's failure history. A confirmed startup failure or unexpected
+engine exit can request recovery immediately. The spawner reclaims such a
 session only through its atomic idle claim, preserving pinned or busy sessions
-and the workspace. A real Docker request can attempt engine recovery.
+and the workspace. Stopping the whole session on Docker removes its ephemeral
+inner Docker store; the automatic idle stop of just the inner engine keeps it.
+A real Docker request can attempt engine recovery.
+
+During a rolling upgrade, keep old spawners pinned to their existing runtime
+image until they are replaced. Do not move a runtime tag still used by an old
+spawner: it cannot distinguish a transient probe failure from confirmed failure.
+When the new spawner encounters an older runtime, unhealthy sessions refuse new
+work and retain the normal idle and lifetime cleanup limits.
 
 ### What each tier means for DinD
 
@@ -214,12 +225,14 @@ override it with `SANDBOX_RUNTIME_CLASS`.
 
 The Docker backend keeps each session's inner `/var/lib/docker` disposable and
 shares persistent build caches only among sessions from the same organization.
-Optional preparation waits at most five seconds or a quarter of the session
-readiness budget, whichever is shorter, and prepares the three mirrors in
-parallel. If it takes longer, that session uses its local builder while the
-shared preparation completes for future sessions; a late result does not
-attach a network to the session already running. Registering an available
-remote buildx builder does not itself start the session's inner engine.
+Optional preparation defaults to five seconds, capped at a quarter of the
+session startup budget, and prepares the three mirrors in parallel. When the
+initiating session's budget expires, it cancels queued and active provisioning
+and uses its local builder; cancelled queued work cannot launch helpers later.
+A session joining another session's setup can stop waiting without cancelling
+that setup. A late result does not attach a network to an already running
+session. Registering an available remote buildx builder does not itself start
+the session's inner engine.
 `SANDBOX_DOCKER_BUILD_CACHE` defaults to the DinD setting. Set it to `false` on
 the `sandbox` service, or set `sandboxRuntime.dockerBuildCache` in deployment
 configuration, to use only the session's local builder.

@@ -1571,9 +1571,14 @@ export class SessionRoutes {
       ) {
         return false;
       }
-      if (health.dockerReady === false) {
+      if (
+        health.dockerReady === false &&
+        health.dockerRecoveryRequired === true
+      ) {
         return this.reclaimIdle(s, { health, beforeMs: nowMs - 1 });
       }
+      // A transient failure (or a legacy boolean-only health response) cannot
+      // accelerate destruction. Normal idle/TTL expiry still bounds recovery.
       const idleForMs = nowMs - health.lastActivityAtMs;
       if (!expired) expired = idleForMs > s.idleTimeoutMs;
       if (expired && health.activity?.idleReclaim === true) {
@@ -2292,21 +2297,23 @@ export class SessionRoutes {
     );
   }
 
-  /** Docker readiness does not invalidate runnerd liveness. Recreate only
-   * after its atomic idle claim protects active work and a concurrent acquire;
-   * pinned or busy sessions stay alive until their owner releases them. */
+  /** Refuse new work immediately, but recover compute only after runnerd
+   * confirms sustained probe failure or a terminal Docker state. Its atomic
+   * idle claim still protects active work, pins and a concurrent acquire. */
   private async unavailableDocker(
     session: RegistrySession,
     health: RunnerdHealth,
   ): Promise<Response> {
     if (
-      (await this.reclaimIdle(session, { health, beforeMs: Date.now() - 1 })) ||
+      (health.dockerRecoveryRequired === true &&
+        (await this.reclaimIdle(session, {
+          health,
+          beforeMs: Date.now() - 1,
+        }))) ||
       this.registry.get(session.sessionId) !== session
     )
       return jsonResponse({ error: 'not_found' }, 404);
-    return jsonResponse({ error: 'session_unavailable' }, 503, {
-      'retry-after': '1',
-    });
+    return unavailableSessionResponse();
   }
 
   async handleDestroy(

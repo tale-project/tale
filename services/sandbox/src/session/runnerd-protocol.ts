@@ -82,6 +82,8 @@ export interface RunnerdHealth {
   ok: true;
   /** DinD capability readiness without activation. False blocks new work. */
   dockerReady?: boolean;
+  /** Sustained probe failure or observed terminal Docker state; permits fenced idle recovery. */
+  dockerRecoveryRequired?: boolean;
   bootedAtMs: number;
   /** Daemon-held activity clock: last exec start/exit, env change, or file
    * op. The spawner's idle reaper reads this, so idleness stays correct

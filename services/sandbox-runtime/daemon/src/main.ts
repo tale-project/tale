@@ -58,6 +58,7 @@ const FILE_READ_MAX_BYTES = 20 * 1024 * 1024;
 const TOKEN = process.env.TALE_RUNNERD_TOKEN ?? '';
 const innerDocker = new InnerDockerHealth(process.env.TALE_DIND === '1', {
   socketPath: LAZY_DOCKER_HEALTH_SOCKET,
+  supervisor: true,
 });
 const bootedAtMs = Date.now();
 let lastActivityAtMs = bootedAtMs;

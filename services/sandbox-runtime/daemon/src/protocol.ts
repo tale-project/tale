@@ -51,6 +51,8 @@ export interface RunnerdHealth {
   ok: true;
   /** DinD capability readiness without activation. False blocks new work. */
   dockerReady?: boolean;
+  /** Sustained probe failure or observed terminal Docker state; permits fenced idle recovery. */
+  dockerRecoveryRequired?: boolean;
   bootedAtMs: number;
   lastActivityAtMs: number;
   liveExecs: number;

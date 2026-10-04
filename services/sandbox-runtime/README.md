@@ -157,13 +157,28 @@ verifying the source, revision and version labels. Both builds must pass before
 the release manifests are published.
 
 Inner Docker startup has a 30-second readiness budget, with each Docker client
-probe bounded to two seconds. After startup, runnerd checks the fixed local
-socket directly with a 750 ms deadline and shares results for one second.
-A failed engine makes `/readyz` and new acquire/exec requests return 503;
+probe bounded to two seconds. Runnerd checks the supervisor's fixed control
+socket within 750 ms and shares results for one second. The supervisor probes
+an active engine within 500 ms; it leaves an intentionally sleeping engine
+asleep. A failed probe makes `/readyz` and new acquire/exec requests return 503;
 authenticated `/healthz` keeps reporting process activity with
-`dockerReady: false`. The spawner recycles only an atomically claimed idle,
-unpinned session, preserving its workspace. Running work and pinned sessions
-remain protected; engine recovery makes them ready again.
+`dockerReady: false`.
+
+One slow probe does not authorize session recycling. At least three completed
+failed probes spanning five seconds are needed for `dockerRecoveryRequired`;
+cached reads do not add evidence. A healthy result or a new engine clears the
+engine's failure history. An observed failed startup or unexpected engine exit
+is direct failure evidence and can request recovery immediately. The spawner
+still recycles only an atomically claimed idle, unpinned session. Its workspace
+survives, but the Docker backend removes the session's ephemeral inner Docker
+store when stopping the session. Running work and pinned sessions remain
+protected; engine recovery makes them ready again.
+
+During a rolling upgrade, keep old spawners pinned to their existing runtime
+image until they are replaced. Do not move a runtime tag still used by an old
+spawner: it does not understand the recovery-confidence field. A new spawner with
+an older runtime refuses unhealthy new work but retains ordinary idle and
+lifetime cleanup instead of accelerating cleanup from a boolean health result.
 
 Before starting inner Docker on either backend, the runtime checks IPv4 routes
 and gateways from all tables, interface addresses and prefixes, DNS servers,

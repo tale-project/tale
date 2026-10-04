@@ -13,6 +13,7 @@ import { createServer as createHttpServer, request } from 'node:http';
 import { createConnection, createServer, type Socket } from 'node:net';
 
 import {
+  DOCKER_RECOVERY_HEADER,
   InnerDockerHealth,
   LAZY_DOCKER_HEALTH_SOCKET,
 } from './inner-docker-health.ts';
@@ -48,15 +49,27 @@ export async function createLazyDockerProxy(options: ProxyOptions) {
   let closePromise: Promise<void> | undefined;
   let engineHealth: InnerDockerHealth | undefined;
 
-  async function healthy(): Promise<boolean> {
-    if (closed || failed) return false;
+  async function health(): Promise<{
+    dockerReady: boolean;
+    dockerRecoveryRequired: boolean;
+  }> {
+    const available = { dockerReady: true, dockerRecoveryRequired: false };
+    const unavailable = { dockerReady: false, dockerRecoveryRequired: true };
+    // A failed start has completed its cleanup; an unexpected exit is an
+    // observed process termination. Neither relies on uncertain ping timing.
+    if (closed || failed) return unavailable;
     const candidate = engine;
     // A cold or intentionally stopped engine remains available on demand.
     // Health must never join activation clients or extend their idle timer.
-    if (!candidate) return true;
-    const ready = await engineHealth?.ready();
+    if (!candidate) return available;
+    const reading = await engineHealth?.snapshot();
     // An intentional stop may race the ping; an unexpected exit sets failed.
-    return !closed && !failed && (engine !== candidate || ready === true);
+    if (closed || failed) return unavailable;
+    if (engine !== candidate) return available;
+    return {
+      dockerReady: reading?.dockerReady === true,
+      dockerRecoveryRequired: reading?.dockerRecoveryRequired === true,
+    };
   }
 
   function scheduleIdle(delay = idleMs) {
@@ -211,8 +224,14 @@ export async function createLazyDockerProxy(options: ProxyOptions) {
             res.writeHead(404).end();
             return;
           }
-          void healthy().then((ready) => {
-            res.writeHead(ready ? 200 : 503).end(ready ? 'OK' : 'unavailable');
+          void health().then((reading) => {
+            res.setHeader(
+              DOCKER_RECOVERY_HEADER,
+              String(reading.dockerRecoveryRequired),
+            );
+            res
+              .writeHead(reading.dockerReady ? 200 : 503)
+              .end(reading.dockerReady ? 'OK' : 'unavailable');
             return;
           });
         },

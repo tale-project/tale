@@ -25,6 +25,8 @@ async function fixture(
     idleMs?: number;
     failFirst?: boolean;
     canStop?: () => Promise<boolean>;
+    healthCacheMs?: number;
+    healthNow?: () => number;
   } = {},
 ) {
   const dir = await mkdtemp(join(tmpdir(), 'tale-health-'));
@@ -66,7 +68,9 @@ async function fixture(
   cleanups.push(() => proxy.close());
   const health = new InnerDockerHealth(true, {
     socketPath: healthSocket,
-    cacheMs: 0,
+    cacheMs: options.healthCacheMs ?? 0,
+    now: options.healthNow,
+    supervisor: true,
   });
   return {
     proxy,
@@ -126,12 +130,18 @@ void test('startup failure and unexpected exit stay degraded until an actual Doc
     cacheMs: 0,
   });
   assert.equal(await docker.ready(), false);
-  assert.equal(await f.health.ready(), false);
+  assert.deepEqual(await f.health.snapshot(), {
+    dockerReady: false,
+    dockerRecoveryRequired: true,
+  });
   assert.equal(f.starts(), 1);
   assert.equal(await docker.ready(), true);
   assert.equal(await f.health.ready(), true);
   await f.crash();
-  assert.equal(await f.health.ready(), false);
+  assert.deepEqual(await f.health.snapshot(), {
+    dockerReady: false,
+    dockerRecoveryRequired: true,
+  });
   assert.equal(f.starts(), 2);
   assert.equal(await docker.ready(), true);
   assert.equal(await f.health.ready(), true);
@@ -184,11 +194,11 @@ void test('replacement engine probes cannot join an earlier engine pending reque
   const blocked = Promise.withResolvers<boolean>();
   const entered = Promise.withResolvers<void>();
   // oxlint-disable-next-line typescript/unbound-method -- The mock calls this original with its actual reader receiver below.
-  const ready = InnerDockerHealth.prototype.ready;
+  const snapshot = InnerDockerHealth.prototype.snapshot;
   let delayed = false;
   context.mock.method(
     InnerDockerHealth.prototype,
-    'ready',
+    'snapshot',
     function (this: InnerDockerHealth) {
       const options: unknown = Reflect.get(this, 'options');
       if (
@@ -203,10 +213,10 @@ void test('replacement engine probes cannot join an earlier engine pending reque
         // as a delayed socket completion can be after the engine is reaped.
         Reflect.set(this, 'probe', () => {
           entered.resolve();
-          return blocked.promise;
+          return blocked.promise.then((ready) => ({ ready }));
         });
       }
-      return ready.call(this);
+      return snapshot.call(this);
     },
   );
   await f.proxy.ensureReady();
@@ -220,6 +230,7 @@ void test('replacement engine probes cannot join an earlier engine pending reque
     const freshReader = new InnerDockerHealth(true, {
       socketPath: f.healthSocket,
       cacheMs: 0,
+      supervisor: true,
     });
     assert.equal(await freshReader.ready(), true);
     assert.equal(f.pings(), 1);
@@ -230,6 +241,113 @@ void test('replacement engine probes cannot join an earlier engine pending reque
     blocked.resolve(false);
     await oldRequest;
   }
+});
+
+void test('a production-deadline ping stall refuses work without requiring recovery and then recovers', async () => {
+  const f = await fixture({ healthCacheMs: 1_000 });
+  await f.proxy.ensureReady();
+  f.setPing(() => {});
+  const started = performance.now();
+  assert.deepEqual(await f.health.snapshot(), {
+    dockerReady: false,
+    dockerRecoveryRequired: false,
+  });
+  assert.ok(performance.now() - started >= 450);
+  assert.equal(f.pings(), 1);
+  for (let i = 0; i < 20; i++) {
+    assert.deepEqual(await f.health.snapshot(), {
+      dockerReady: false,
+      dockerRecoveryRequired: false,
+    });
+  }
+  assert.equal(f.pings(), 1);
+  f.setPing((res) => res.end('OK'));
+  await delay(1_050);
+  assert.deepEqual(await f.health.snapshot(), {
+    dockerReady: true,
+    dockerRecoveryRequired: false,
+  });
+  assert.equal(f.starts(), 1);
+  assert.equal(f.stops(), 0);
+});
+
+void test('sustained real probe failures require recovery, then healthy and replacement engines clear confidence', async () => {
+  let healthNow = 0;
+  const f = await fixture({ healthCacheMs: 1_000, healthNow: () => healthNow });
+  await f.proxy.ensureReady();
+  f.setPing(() => {});
+  assert.equal((await f.health.snapshot()).dockerRecoveryRequired, false);
+  await delay(4_550);
+  healthNow = 1_000;
+  assert.equal((await f.health.snapshot()).dockerRecoveryRequired, false);
+  healthNow = 2_000;
+  assert.deepEqual(await f.health.snapshot(), {
+    dockerReady: false,
+    dockerRecoveryRequired: true,
+  });
+  assert.equal(f.pings(), 3);
+  // The same outer observer must not reuse confirmed failure during its cache
+  // interval after a new engine replaces the one that supplied that proof.
+  await f.crash();
+  await f.proxy.ensureReady();
+  assert.equal(f.starts(), 2);
+  assert.deepEqual(await f.health.snapshot(), {
+    dockerReady: false,
+    dockerRecoveryRequired: false,
+  });
+  f.setPing((res) => res.end('OK'));
+  healthNow = 3_000;
+  assert.deepEqual(await f.health.snapshot(), {
+    dockerReady: true,
+    dockerRecoveryRequired: false,
+  });
+  f.setPing(() => {});
+  healthNow = 4_000;
+  assert.equal((await f.health.snapshot()).dockerRecoveryRequired, false);
+});
+
+void test('a stalled supervisor exceeds the production outer deadline once and a valid response resets transport evidence', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'tale-control-stall-'));
+  cleanups.push(() => rm(dir, { recursive: true, force: true }));
+  const socketPath = join(dir, 'health.sock');
+  let available = false;
+  let calls = 0;
+  const server = createServer((_req, res) => {
+    calls++;
+    if (available) {
+      res.setHeader('x-tale-docker-recovery-required', 'false');
+      res.end('OK');
+    }
+  });
+  await new Promise<void>((resolve) => server.listen(socketPath, resolve));
+  cleanups.push(async () => {
+    server.closeAllConnections();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  });
+  const health = new InnerDockerHealth(true, {
+    socketPath,
+    supervisor: true,
+    cacheMs: 0,
+  });
+  const started = performance.now();
+  const readings = await Promise.all([
+    health.snapshot(),
+    health.snapshot(),
+    health.snapshot(),
+  ]);
+  assert.ok(performance.now() - started >= 700);
+  assert.equal(calls, 1);
+  for (const reading of readings) {
+    assert.deepEqual(reading, {
+      dockerReady: false,
+      dockerRecoveryRequired: false,
+    });
+  }
+  available = true;
+  assert.deepEqual(await health.snapshot(), {
+    dockerReady: true,
+    dockerRecoveryRequired: false,
+  });
 });
 
 void test('one health socket accepts only one request while its engine probe is pending', async () => {
