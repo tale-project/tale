@@ -59,5 +59,6 @@ describe('skills/actions:saveSkill', () => {
       ctx,
     );
     expect(lastBody()).not.toHaveProperty('icon');
+    expect(backendFetch.mock.calls.at(-1)?.[1]).not.toHaveProperty('headers');
   });
 });

@@ -5473,8 +5473,8 @@ skills:
       identifiants de tes équipes, ou demande à un admin de téléverser ce
       bundle.
     refused: Ton organisation réserve le partage avec tout le monde, et tu n'as
-    exists: Un skill portant ce nom existe déjà. Aucune modification n’a été effectuée.
       pas le droit de publier. Partage plutôt ce skill avec tes équipes.
+    exists: Un skill portant ce nom existe déjà. Aucune modification n’a été effectuée.
   addMenu:
     label: Ajouter un skill
   createMenu:
