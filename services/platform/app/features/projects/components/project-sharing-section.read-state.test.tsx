@@ -2,6 +2,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, expect, it, vi } from 'vitest';
 
 import { BackendApiError, backendFetch } from '@/app/lib/backend/api-client';
+import { i18n } from '@/lib/i18n/i18n';
+import { forgetSavedLocale, saveLocale } from '@/tests/utils/lapsed-session';
 import { act, render, screen, waitFor } from '@/tests/utils/render';
 
 import { ProjectSharingSection } from './project-sharing-section';
@@ -50,10 +52,11 @@ function mount(teamIds = ['a']) {
   };
 }
 
-afterEach(() => {
+afterEach(async () => {
   for (const client of clients) client.clear();
   clients.length = 0;
   vi.clearAllMocks();
+  await forgetSavedLocale();
 });
 
 it('preserves known audience after four failed reads and recovers through Try again', async () => {
@@ -166,6 +169,43 @@ it('keeps Retry usable after recovery and a later failed background refresh', as
   expect(screen.getByText('Alpha')).toBeInTheDocument();
   expect(updateSharing).not.toHaveBeenCalled();
 });
+
+it.each([
+  { locale: 'en', message: "Couldn't load teams.", retryLabel: 'Try again' },
+  {
+    locale: 'de',
+    message: 'Teams konnten nicht geladen werden.',
+    retryLabel: 'Erneut versuchen',
+  },
+  {
+    locale: 'fr',
+    message: 'Impossible de charger les équipes.',
+    retryLabel: 'Réessayer',
+  },
+  {
+    locale: 'de-CH',
+    message: 'Teams konnten nicht geladen werden.',
+    retryLabel: 'Erneut versuchen',
+  },
+])(
+  'renders the failed read and retry in $locale',
+  async ({ locale, message, retryLabel }) => {
+    saveLocale(locale);
+    await i18n.changeLanguage(locale);
+    vi.mocked(backendFetch).mockImplementation(async (path) => {
+      if (path === '/teams/directory') return { teams: [team] };
+      throw new BackendApiError(503, 'Controlled failure');
+    });
+    mount();
+    expect(await screen.findByRole('alert')).toHaveTextContent(message);
+    expect(
+      screen.getByRole('button', { name: retryLabel }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Alpha')).toBeInTheDocument();
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+    expect(updateSharing).not.toHaveBeenCalled();
+  },
+);
 
 it('shows creation only after a successful empty teams read', async () => {
   vi.mocked(backendFetch).mockResolvedValue({ teams: [] });
