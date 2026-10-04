@@ -190,6 +190,12 @@ export function SkillsMenu({
         slug,
         label: t('skills.unavailableOption', { slug }),
       }));
+    const unavailableConnectors: SkillOption[] = value.connectors
+      .filter((slug) => !connectors.some((option) => option.slug === slug))
+      .map((slug) => ({
+        slug,
+        label: t('skills.unavailableOption', { slug }),
+      }));
 
     return [
       group(
@@ -202,7 +208,7 @@ export function SkillsMenu({
       group(
         t('skills.sectionConnectors'),
         t('skills.emptyConnectors'),
-        connectors,
+        [...connectors, ...unavailableConnectors],
         value.connectors,
         (slugs) => ({ ...value, connectors: slugs }),
       ),
