@@ -36,6 +36,20 @@ export interface LatinFontContract {
 function family(value: string) {
   return value.replace(/^(['"])(.*)\1$/, '$2').trim();
 }
+function knownFamily(value: string, expected: 'Inter' | 'Inter Fallback') {
+  return family(value).toLowerCase() === expected.toLowerCase();
+}
+function possibleWeight(value: string, weight: InterWeight, rule: boolean) {
+  const normalized = value.trim().toLowerCase();
+  if (normalized === 'normal' || (rule && normalized === ''))
+    return weight === 400;
+  if (normalized === 'bold') return weight === 700;
+  // The pinned source uses fixed numeric weights. Ranges and unfamiliar
+  // descriptors cannot establish disjointness, so fail closed on ambiguity.
+  if (!/^\d+(?:\.\d+)?$/.test(normalized)) return true;
+  const numeric = Number(normalized);
+  return numeric < 1 || numeric > 1000 || numeric === weight;
+}
 export function canonicalFontRange(value: string): string | undefined {
   const ranges: [number, number][] = [];
   for (const part of value.toUpperCase().split(',')) {
@@ -58,13 +72,9 @@ function asciiCandidate(
   rule: boolean,
 ) {
   if (
-    family(value.family) !== 'Inter' ||
-    !(value.style === 'normal' || (rule && value.style === '')) ||
-    !(
-      value.weight === String(weight) ||
-      (weight === 400 &&
-        (value.weight === 'normal' || (rule && value.weight === '')))
-    )
+    !knownFamily(value.family, 'Inter') ||
+    !(value.style.toLowerCase() === 'normal' || (rule && value.style === '')) ||
+    !possibleWeight(value.weight, weight, rule)
   )
     return false;
   const ranges = canonicalFontRange(value.unicodeRange);
@@ -171,8 +181,8 @@ function normalDescriptors(
 }
 function optionalFallback(face: Face, rule: Rule) {
   return (
-    family(face.family) === 'Inter Fallback' &&
-    family(rule.family) === 'Inter Fallback' &&
+    knownFamily(face.family, 'Inter Fallback') &&
+    knownFamily(rule.family, 'Inter Fallback') &&
     face.weight === 'normal' &&
     (rule.weight === '' || rule.weight === 'normal') &&
     canonicalFontRange(face.unicodeRange) === '0-10ffff' &&
@@ -233,11 +243,11 @@ export function classifyFontEvidence(
     classification: 'source-exact-local-Arial';
     errored: boolean;
   }[] = [];
-  const fallbacks = faces.filter(
-    (face) => family(face.family) === 'Inter Fallback',
+  const fallbacks = faces.filter((face) =>
+    knownFamily(face.family, 'Inter Fallback'),
   );
-  const fallbackRules = rules.filter(
-    (rule) => family(rule.family) === 'Inter Fallback',
+  const fallbackRules = rules.filter((rule) =>
+    knownFamily(rule.family, 'Inter Fallback'),
   );
   const fallbackValid =
     fallbacks.length === 1 &&
@@ -305,6 +315,7 @@ export function classifyFontEvidence(
     );
     const loaded =
       matching.length === 1 &&
+      matching[0]!.weight === String(weight) &&
       canonicalFontRange(matching[0]!.unicodeRange) ===
         canonicalFontRange(latinUnicodeRange) &&
       matching[0]!.status === 'loaded' &&
@@ -312,6 +323,7 @@ export function classifyFontEvidence(
     const declared =
       contract !== undefined &&
       declarations.length === 1 &&
+      declarations[0]!.weight === String(weight) &&
       canonicalFontRange(declarations[0]!.unicodeRange) ===
         canonicalFontRange(latinUnicodeRange) &&
       normalDescriptors(declarations[0]!, true, false) &&

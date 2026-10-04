@@ -418,6 +418,56 @@ describe('strict required-font classification', () => {
     }
   });
 
+  test('rejects overlapping weight ranges, bold aliases and unsupported weight descriptors', () => {
+    for (const descriptor of [
+      '100 900',
+      '500 700',
+      'bold',
+      'unreadable',
+      '1001',
+    ]) {
+      for (const mode of ['face', 'rule']) {
+        const { evidence, expected } = fixture([700]);
+        const face = evidence.faces.find((value) => value.weight === '700')!;
+        const rule = evidence.rules.find((value) => value.weight === '700')!;
+        if (mode === 'face')
+          evidence.faces.push({ ...face, weight: descriptor });
+        else evidence.rules.push({ ...rule, weight: descriptor });
+        expect(classifyFontEvidence(evidence, expected).valid).toBe(false);
+      }
+    }
+  });
+
+  test('detects duplicate known CSS families regardless of ASCII case', () => {
+    for (const name of ['inter', 'INTER', 'INTER FALLBACK', 'inter fallback']) {
+      for (const mode of ['face', 'rule']) {
+        const { evidence, expected } = fixture();
+        const index = name.toLowerCase() === 'inter' ? 2 : 0;
+        if (mode === 'face')
+          evidence.faces.push({
+            ...evidence.faces[index]!,
+            family: name,
+            status: 'unloaded',
+          });
+        else evidence.rules.push({ ...evidence.rules[index]!, family: name });
+        expect(classifyFontEvidence(evidence, expected).valid).toBe(false);
+      }
+    }
+  });
+
+  test('never accepts a required fixed-weight source relabeled as a weight range', () => {
+    for (const mode of ['face', 'rule']) {
+      const { evidence, expected } = fixture();
+      if (mode === 'face')
+        evidence.faces.find((value) => value.weight === '500')!.weight =
+          '100 900';
+      else
+        evidence.rules.find((value) => value.weight === '500')!.weight =
+          '100 900';
+      expect(classifyFontEvidence(evidence, expected).valid).toBe(false);
+    }
+  });
+
   test('keeps non-ASCII subsets valid even when they share Latin combining marks', () => {
     const { evidence, expected } = fixture();
     const range = 'U+0100-02BA,U+0304,U+0308';
