@@ -1178,6 +1178,23 @@ describe('DataTable utility column header accessibility', () => {
     // One name, from the checkbox — not "Select all Select all".
     expect(selectHeader()).toHaveAccessibleName('Select all');
   });
+
+  // No row on the page can be selected, so the select-all box is gone (a
+  // synced-only contacts page, a member who cannot delete): the header keeps
+  // the column's name instead of going blank.
+  it('names the select column when no row can be selected', () => {
+    render(
+      <DataTable
+        columns={selectColumns}
+        data={sampleRows}
+        approxRowCount={3}
+        enableRowSelection={() => false}
+      />,
+    );
+
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+    expect(selectHeader()).toHaveAccessibleName('Select row');
+  });
 });
 
 describe('DataTable — error state', () => {
