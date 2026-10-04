@@ -139,7 +139,9 @@ and absence of task cards. The same oracle cost applies to both arms. Search
 uses real key events at 120 ms per key, timing from the last intended key through
 the existing debounce; clear uses select-all and Backspace. Cold timing starts
 at navigation time origin; other flows use the observed input timestamp. Dialog
-close ends at the rendering opportunity after both original content and overlay
+close setup checks the visible named dialog and identifies its background opener
+with `includeHidden: true`; modal accessibility isolation hides the board. Open
+and post-exit focus checks retain the ordinary accessible card lookup. Close ends at the rendering opportunity after both original content and overlay
 are removed. Their individual removal timestamps and own exit-animation events
 remain separate; the earlier content-only frame is also retained. Both original
 exit animations must finish before their respective removal. These are

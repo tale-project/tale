@@ -15,6 +15,7 @@ import {
   assertResourceCheckpoint,
   waitForQuietHost,
 } from './acceptance-control.ts';
+import { acceptanceDialogTargets } from './acceptance-dialog-target.ts';
 import { acceptanceFixture } from './acceptance-fixture.ts';
 import { proveAcceptanceFunctionality } from './acceptance-functional.ts';
 import { acceptanceInitScript } from './acceptance-init.ts';
@@ -247,9 +248,10 @@ async function perform(
   const { page } = session;
   delete session.fontState.current;
   const target = fixture.targets[planned.sample + 1]!;
-  const card = page
-    .locator(cards)
-    .and(page.getByRole('button', { name: target.title, exact: true }));
+  const { card, dialog, assertPrecondition } = acceptanceDialogTargets(
+    page,
+    target.title,
+  );
   let actionFrame: { tDom: number; tFrame: number } | undefined;
   let tailMetrics: Awaited<ReturnType<typeof heap>> | undefined;
   const expectedFonts = {
@@ -387,24 +389,9 @@ async function perform(
           await search.press('Backspace', { timeout: remaining() });
         }
       } else {
-        assert.equal(await card.count(), 1, 'Dialog target is ambiguous');
-        if (operation === 'close') {
-          const dialog = page.getByRole('dialog', {
-            name: target.title,
-            exact: true,
-          });
-          assert.equal(
-            await dialog.count(),
-            1,
-            'Close must own the open target',
-          );
+        await assertPrecondition(operation === 'open');
+        if (operation === 'close')
           await dialog.evaluate(observeAcceptanceClose);
-        } else
-          assert.equal(
-            await page.getByRole('dialog').count(),
-            0,
-            'Open predicate must start false',
-          );
         await page.evaluate(
           ({ title, opening }) => {
             window.__perf.inputs = [];
