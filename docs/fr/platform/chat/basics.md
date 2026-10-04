@@ -33,7 +33,7 @@ Choisis un modèle précis pour comparer des réponses dans les mêmes condition
 
 </Frame>
 
-Si aucun modèle n’est disponible, demande à un admin de vérifier les identifiants actifs des fournisseurs et les règles d’accès. La page [Modèles](/fr/platform/models) explique la composition du catalogue.
+Si aucun modèle n’est disponible, demande à un admin de vérifier les identifiants actifs des fournisseurs et les règles d’accès. Le chat ne propose que les modèles servis par des identifiants par clé API ou variable d’environnement : un abonnement ne fonctionne que dans les tâches et les automatisations, et la liste des modèles nomme les abonnements qu’elle laisse de côté. La page [Modèles](/fr/platform/models) explique la composition du catalogue.
 
 ## Fournir les bonnes sources
 

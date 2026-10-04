@@ -28,7 +28,7 @@ import { loadDeviceConfig } from './devices/device-config.ts';
 import { DeviceAgent } from './devices/device.ts';
 import { DeviceHub, serveHub } from './devices/hub.ts';
 import { makeHealthProbe } from './health-probe.ts';
-import { HostDiskProbe } from './host-disk.ts';
+import { DockerDataRootMount, HostDiskProbe } from './host-disk.ts';
 import {
   autoSessionCapacity,
   HostMemoryProbe,
@@ -46,17 +46,16 @@ const backend = createHostBackend(cfg);
 // Session lifecycle is separate from host boot/health. Construct once after
 // the deploy control routes are ready; both Docker and Kubernetes implement it.
 // The Docker host's memory, read where /proc describes it (a local Docker
-// spawner; never Kubernetes, a remote daemon or a device's own host checks).
-const hostMemory =
-  cfg.backend === 'docker' && cfg.deviceConfigPath === null
-    ? new HostMemoryProbe()
-    : null;
-// The disk the session workspaces live on (the session root, which this
-// process sees at the host's own path), on the same local Docker spawner:
-// admission keeps a floor of free space on it.
+// spawner or connected device; never Kubernetes or a remote daemon).
+const hostMemory = cfg.backend === 'docker' ? new HostMemoryProbe() : null;
+// Keep a floor on the workspace filesystem and the Docker metadata filesystem
+// where its existing hostname bind can be verified against the local daemon.
+const dockerDataRootMount = new DockerDataRootMount();
 const hostDisk =
-  cfg.backend === 'docker' && cfg.deviceConfigPath === null
-    ? new HostDiskProbe(cfg.hostSessionRoot, cfg.session.minFreeDiskBytes)
+  cfg.backend === 'docker'
+    ? new HostDiskProbe(cfg.hostSessionRoot, cfg.session.minFreeDiskBytes, {
+        additionalPath: () => dockerDataRootMount.read(),
+      })
     : null;
 // No SANDBOX_MAX_SESSIONS set: a host whose memory the spawner can read
 // gets a capacity sized from it (never below the fixed default of 8), and
@@ -72,6 +71,7 @@ async function sizeSessionCapacity(): Promise<void> {
     memory.totalBytes,
     memoryReserveBytes(memory.totalBytes, cfg.session.minFreeMemoryBytes),
     cfg.dockerInContainer,
+    cfg.dockerWorkloads,
   );
   console.log(
     `[sandbox] session capacity ${cfg.session.maxSessions}, sized from the host's ${Math.round(memory.totalBytes / 1024 ** 3)} GiB (set SANDBOX_MAX_SESSIONS to fix it)`,
@@ -347,6 +347,7 @@ async function handleSessionRoutes(
     return getSessionRoutes().handleFileContent(
       fileContentMatch[1] ?? '',
       url.searchParams.get('path') ?? '',
+      req.signal,
     );
   }
   // GET /v1/sessions/:id/files?path=  (directory listing)

@@ -1,6 +1,6 @@
 # Tasks
 
-> **Prefix** `TASK-` · **Reset** none · **Cost** 116 boxes
+> **Prefix** `TASK-` · **Reset** none · **Cost** 123 boxes
 
 Exercise a project's task workspace — the board and list views with
 drag-and-drop across status lanes, the task sheet (description, comments with
@@ -1045,6 +1045,13 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   image model; the run itself still settles. Restore: delete the rule —
   env-gated: mark **ENVIRONMENT** without a runnable harness and an
   image-capable credential.
+- [ ] `TASK-B28` · **A Request changes draft stays with its task** — On an
+  automation-owned task parked **In review** whose automation offers
+  **Request changes** (`tasks.subject.requestChanges`), open it, type feedback
+  under **What should change** (`tasks.subject.requestChangesLabel`) and
+  **Cancel**; open another automation-owned task in review in the same sheet (a
+  subtask, or **Part of**) and open its **Request changes** → the box is empty:
+  feedback written for one task never waits, pre-filled, on another.
 - [ ] `TASK-B32` · **A failed board read** — DevTools → Network → block the
   request URL `*/api/app/tasks/by-project/*`, open **Board**, then **List**;
   unblock and press **Try again** (`common.actions.tryAgain`) → Once the
@@ -1125,6 +1132,15 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   **Standard agent**; as the member, **Start agent** (`tasks.agentRun.start`)
   → the toast `tasks.agentRun.standardAgent.noModel` says to ask an Admin,
   and no run appears under **Activity**. Restore the rule.
+- [ ] `TASK-B40` · **An archived task's discussion is read-only** — Post a
+  comment on a task you can change and add a task under **Blocked by**
+  (`tasks.detail.blockedBy`), then archive it (`tasks.actions.archive`) and
+  open it again with **Show archived** (`tasks.list.showArchived`) → the
+  comment still reads, but the task offers no comment field, no **Edit** or
+  **Delete** on the comment and nothing to change under **Blocked by**. A
+  second tab that still shows the task as it was before the archive gets one
+  error toast for a comment it sends, and after reload nothing has landed.
+  **Restore** (`tasks.actions.restore`) → the comment field is back.
 
 ## Accessibility (WCAG 2.1 AA)
 
@@ -1298,4 +1314,4 @@ Use a disposable local project with two different agents: A produced a completed
 - [ ] `TASK-F64` · **Read an agent verdict and its feedback live** — Keep the implementation task open while B decides its assigned review from B's own task, once with approval and on a separate result with a request for changes → the first task becomes **Done** (`tasks.status.done`), the second **To do** (`tasks.status.todo`), and Activity shows B with **Review decided** (`tasks.activity.reviewResponded`) and **Approved** or **Changes requested** (`tasks.review.decisionApproved`, `tasks.review.decisionChangesRequested`). Feedback appears once with B's identity, the pending review clears, and the result survives reload. Include an agent mention in the request-for-changes feedback → it remains feedback; neither task starts a new run until a separate authorized start.
 - [ ] `TASK-B38` · **Read a review without project edit access** — As a Member who owns the task but cannot edit the project, open its task page and board dialog → **Reviewer** (`tasks.fields.reviewer`) and **Current review** (`tasks.reviewer.pendingFor`) remain readable, but the reviewer cannot be changed by pointer or keyboard. An editor opening the same task can reach the picker. Existing task-edit rights do not imply reviewer-handoff rights.
 - [ ] `TASK-B39` · **Recover from a stale review handoff** — Open the same pending result in two editor sessions; transfer its review in one, then choose another reviewer from the first session's still-open choice list → one localized stale-review refusal (`tasks.reviewer.stale`) is shown, not a raw payload, and the refreshed **Current review** (`tasks.reviewer.pendingFor`) names the saved reviewer. Reload before choosing again → the successful handoff remains, and no unrelated result or run was changed.
-- [ ] `TASK-A15` · **Read and choose reviewers at narrow widths** — In EN/DE/FR, use the keyboard on the project's **Default reviewer** (`projects.taskReview.defaultReviewer`), the task's **Reviewer** (`tasks.fields.reviewer`), and **Review other agents’ task results** (`projects.agents.tool.task_review`) in the agent equipment menu, at desktop and phone widths → labels, human/agent choices, the write caption, pending-review name, and missing-permission hint (`tasks.reviewer.agentPermissionRequired`) remain readable without clipping or horizontal page overflow; focused controls have visible focus, Escape returns focus to their trigger, and saved choices persist after reopening.
+- [ ] `TASK-A15` · **Read and choose reviewers at narrow widths** — In EN/DE/FR, use the keyboard on the project's **Default reviewer** (`projects.taskReview.defaultReviewer`), the task's **Reviewer** (`tasks.fields.reviewer`), and **Review other agents’ task results** (`projects.agents.tool.task_review`) in the agent equipment menu, at desktop and phone widths → labels, human/agent choices, the write caption, pending-review name, and missing-permission hint (`tasks.reviewer.agentPermissionRequired`) remain readable without clipping or horizontal page overflow; focused controls have visible focus, Escape returns focus to their trigger, and saved choices persist after reopening. Delay a local reviewer-save response, choose by keyboard, then exercise both success and refusal → the same task Reviewer trigger keeps visible focus while saving, announces its busy/unavailable state, and cannot open another choice or save again. After either response, it becomes usable without moving focus; reopen and Escape returns focus again. A read-only task still has no reviewer edit button.

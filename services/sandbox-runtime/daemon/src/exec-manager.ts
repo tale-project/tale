@@ -20,6 +20,7 @@ import { accessSync, constants as fsConstants, realpathSync } from 'node:fs';
 import { Readable, type Writable } from 'node:stream';
 
 import type { EnvStore } from './env-store.ts';
+import { ExecJournal, JournalBudget } from './exec-journal.ts';
 import {
   EXEC_TAG_ENV,
   groupMembers,
@@ -32,6 +33,7 @@ import {
 import {
   ID_ALPHABET_RE,
   RUNNERD_RING_BUFFER_BYTES,
+  RUNNERD_MAX_REQUEST_BODY_BYTES,
   RUNNERD_STDIN_MAX_BYTES,
   WORKSPACE_ROOT,
   type RunnerdExecEvent,
@@ -57,7 +59,8 @@ const LEFTOVER_PRUNE_AT = 256;
  * ends. */
 const HOLD_MAX_MS = 10 * 60_000;
 
-type ExecSubscriber = (event: RunnerdExecEvent) => void;
+type ExecSubscriber = (event: RunnerdExecEvent) => void | Promise<void>;
+const discardEvent: ExecSubscriber = () => {};
 
 /** A reaping target, with whether its leader is still running: while it is,
  * its pid — the group's number — cannot have been reused, so the delayed
@@ -101,6 +104,7 @@ export function resolveExecShim(
 }
 
 interface LiveExec {
+  journal: ExecJournal;
   startedAtMs: number;
   /** This exec's place in the order the session's execs started. */
   ordinal: number;
@@ -111,15 +115,17 @@ interface LiveExec {
    * when the daemon goes down. Once per exec. */
   terminate: () => void;
   terminated: boolean;
-  /** The child itself exited (its 'exit' fired). */
-  leaderExited: boolean;
+  /** Only these small liveness flags outlive the exec while a delayed reap
+   * or a deferred descendant waits. Never capture the full record there:
+   * it owns replay data and callbacks into the child and HTTP consumer. */
+  processState: {
+    leaderExited: boolean;
+    rootExited: boolean;
+    rootCompleted: boolean;
+  };
   /** The exec's subreaper shim, when it runs under one: every process it
    * started is the shim's descendant. */
   rootPid: number | undefined;
-  /** The shim exited: no descendant of it is left, and its pid may name
-   * another process now. */
-  rootExited: boolean;
-  rootCompleted: boolean;
   /** The shim has yet to name the command's group on its status pipe. */
   groupPending: boolean;
   /** What waits for the shim to name the command's group: a cancel that
@@ -131,17 +137,12 @@ interface LiveExec {
   /** What the exit (or a hand-over) left waiting, while it still waits; a
    * cancel or the deadline ends it at once. */
   deferred: Leftover | null;
-  /** Last RING_BUFFER_BYTES of emitted NDJSON lines, for /attach replay. */
+  /** Last RING_BUFFER_BYTES of emitted NDJSON lines, for diagnostics only. */
   ring: string[];
   ringBytes: number;
   exitCode: number | null;
   /** Set by cancel() so the terminal exit event reports cancelled:true. */
   cancelRequested: boolean;
-  /** Concurrent attach() consumers fanned the live event stream. */
-  subscribers: Set<ExecSubscriber>;
-  /** Removable completion waiters: detached consumers must not leave promise
-   * reactions retained until a potentially multi-hour exec finishes. */
-  completions: Set<() => void>;
   /** Monotonic per-exec event counter (assigned in ringEmit). Lets a
    * reconnecting consumer request `/attach?sinceSeq=` and skip replayed lines. */
   seq: number;
@@ -160,18 +161,20 @@ interface LiveExec {
   stdin: Writable | null;
 }
 
-/** A retained (exited) exec: its final ring for /attach replay plus the exit
+/** A retained (exited) exec: its journal for /attach replay plus the exit
  * code, kept so GET /execs/:id can report `exited(code)` after the live record
  * is gone — distinct from an evicted/never-existed exec (404 → 'gone'). */
 interface RetainedExec {
+  journal: ExecJournal;
   ring: string[];
   exitCode: number | null;
 }
 
 export class ExecManager {
   private readonly live = new Map<string, LiveExec>();
+  private readonly journalBudget: JournalBudget;
   // Exited execs retained briefly so a reconnecting /attach can replay the
-  // final ring + terminal event, and so GET /execs/:id can still report the
+  // full journal + terminal event, and so GET /execs/:id can still report the
   // real exit code (insertion-ordered; oldest evicted past cap).
   private readonly recent = new Map<string, RetainedExec>();
   // Execs that exited while another exec of the session ran: what they left
@@ -182,6 +185,7 @@ export class ExecManager {
   private pruningLeftovers = false;
   /** How many execs this session has started. */
   private started = 0;
+  private disposed = false;
 
   constructor(
     private readonly envStore: EnvStore,
@@ -192,11 +196,15 @@ export class ExecManager {
     private readonly reaper: ReaperDeps = {},
     private readonly options: {
       holdMaxMs?: number;
+      journalMaxBytes?: number;
+      journalBudgetBytes?: number;
+      journalDirectory?: string;
       /** The subreaper shim to run execs under; unset, {@link
        * resolveExecShim}'s, and null for none. */
       execShim?: string | null;
     } = {},
   ) {
+    this.journalBudget = new JournalBudget(options.journalBudgetBytes);
     this.execShim =
       options.execShim === undefined ? resolveExecShim() : options.execShim;
   }
@@ -214,7 +222,7 @@ export class ExecManager {
   }
 
   /**
-   * Attach a consumer to an exec: replay its buffered ring, then (if still
+   * Attach a consumer to an exec: replay its disk journal, then (if still
    * live) follow new events until it exits. Returns a promise that resolves
    * when the stream is complete, or null if the exec is unknown (neither live
    * nor recently retained). Used by GET /execs/:id/attach for reconnect.
@@ -236,28 +244,10 @@ export class ExecManager {
       // kill timer is perpetually pushed out and only ever fires for a
       // genuinely orphaned exec (no attach for the whole window).
       this.armDeadline(liveRec);
-      // Replay only what this consumer hasn't seen (seq > sinceSeq), then
-      // follow live. The replay loop + subscribers.add are synchronous, so no
-      // live event can slip in between (single-threaded) → no gap, no dup.
-      for (const line of liveRec.ring) emitRingLine(line, emit, sinceSeq);
-      if (signal?.aborted) return Promise.resolve();
-      liveRec.subscribers.add(emit);
-      return new Promise<void>((resolve) => {
-        const finish = () => {
-          liveRec.subscribers.delete(emit);
-          liveRec.completions.delete(finish);
-          signal?.removeEventListener('abort', finish);
-          resolve();
-        };
-        liveRec.completions.add(finish);
-        signal?.addEventListener('abort', finish, { once: true });
-      });
+      return liveRec.journal.replay(emit, sinceSeq, signal);
     }
     const recentRec = this.recent.get(execId);
-    if (recentRec) {
-      for (const line of recentRec.ring) emitRingLine(line, emit, sinceSeq);
-      return Promise.resolve();
-    }
+    if (recentRec) return recentRec.journal.replay(emit, sinceSeq, signal);
     return null;
   }
 
@@ -275,12 +265,20 @@ export class ExecManager {
   private retainRecent(
     execId: string,
     ring: string[],
+    journal: ExecJournal,
     exitCode: number | null,
   ): void {
-    this.recent.set(execId, { ring, exitCode });
+    journal.finish();
+    if (this.disposed) {
+      void journal.dispose();
+      return;
+    }
+    void this.recent.get(execId)?.journal.dispose();
+    this.recent.set(execId, { ring, journal, exitCode });
     while (this.recent.size > RECENT_EXEC_LIMIT) {
       const oldest = this.recent.keys().next().value;
       if (oldest === undefined) break;
+      void this.recent.get(oldest)?.journal.dispose();
       this.recent.delete(oldest);
     }
   }
@@ -312,13 +310,26 @@ export class ExecManager {
   async run(
     req: RunnerdExecRequest,
     emit: (event: RunnerdExecEvent) => void,
+    consumerSignal?: AbortSignal,
   ): Promise<void> {
-    if (!ID_ALPHABET_RE.test(req.execId)) {
+    if (this.disposed) {
+      emit({
+        t: 'fail',
+        code: 'BAD_REQUEST',
+        message: 'exec manager is closed',
+      });
+      return;
+    }
+    // Child callbacks outlive the command when a background descendant holds
+    // its output pipe. Capture only their small inputs, not the initial stdin
+    // or environment carried by the request.
+    const { execId, stdoutMaxBytes, stderrMaxBytes } = req;
+    if (!ID_ALPHABET_RE.test(execId)) {
       emit({ t: 'fail', code: 'BAD_REQUEST', message: 'invalid execId' });
       return;
     }
-    if (this.live.has(req.execId)) {
-      emit({ t: 'fail', code: 'DUPLICATE_EXEC', message: req.execId });
+    if (this.live.has(execId)) {
+      emit({ t: 'fail', code: 'DUPLICATE_EXEC', message: execId });
       return;
     }
     // Capture into consts so the type narrows without re-reading req.* (which
@@ -349,7 +360,7 @@ export class ExecManager {
     const env: NodeJS.ProcessEnv = {
       ...process.env,
       ...this.envStore.resolve(req.env),
-      [EXEC_TAG_ENV]: req.execId,
+      [EXEC_TAG_ENV]: execId,
     };
 
     const cmd = hasShell ? 'bash' : (command?.[0] ?? '');
@@ -389,57 +400,90 @@ export class ExecManager {
     let stdoutTruncLogged = false;
     let stderrTruncLogged = false;
     let settled = false;
+    let journalFailed = false;
+    const journal = new ExecJournal(
+      this.journalBudget,
+      () => {
+        child.stdout.resume();
+        child.stderr.resume();
+      },
+      (code) => {
+        journalFailed = true;
+        ringEmit({
+          t: 'fail',
+          code,
+          message:
+            code === 'OUTPUT_LIMIT'
+              ? 'Execution output exceeded its replay storage limit.'
+              : 'Execution output could not be preserved.',
+        });
+        record.terminate();
+        child.stdout.resume();
+        child.stderr.resume();
+      },
+      this.options.journalMaxBytes,
+      this.options.journalDirectory,
+    );
     this.started += 1;
     const record: LiveExec = {
+      journal,
       startedAtMs,
       ordinal: this.started,
       // Under the shim the group is the command's, named on the status pipe.
       groupId: shim !== null ? undefined : child.pid,
       rootPid: shim !== null ? child.pid : undefined,
-      rootExited: false,
-      rootCompleted: false,
+      processState: {
+        leaderExited: false,
+        rootExited: false,
+        rootCompleted: false,
+      },
       groupPending: shim !== null,
       awaitingGroup: [],
       exitCode: null,
       ring: [],
       ringBytes: 0,
       cancelRequested: false,
-      subscribers: new Set(),
-      completions: new Set(),
       seq: 0,
       timeoutMs: req.timeoutMs,
       timer: null,
       timedOut: false,
       stdin: null,
       terminated: false,
-      leaderExited: false,
       handedOver: false,
       deferred: null,
       terminate: () => {
         if (record.terminated) return;
         record.terminated = true;
         this.withGroup(record, () => {
-          void this.reap([this.liveTarget(req.execId, record)]);
+          void this.reap([this.liveTarget(execId, record)]);
         });
       },
     };
-    this.live.set(req.execId, record);
+    this.live.set(execId, record);
 
-    const ringEmit = (event: RunnerdExecEvent) => {
+    const detach = () => {
+      consumerSignal?.removeEventListener('abort', detach);
+      consumerSignal = undefined;
+      emit = discardEvent;
+    };
+    if (consumerSignal?.aborted) detach();
+    else consumerSignal?.addEventListener('abort', detach, { once: true });
+
+    const ringEmit = (event: RunnerdExecEvent, persist = true) => {
       // Stamp a monotonic seq so a reconnecting /attach?sinceSeq= can replay
       // only events it hasn't seen — idempotent reconnect.
       record.seq += 1;
       const stamped: RunnerdExecEvent = { ...event, seq: record.seq };
-      emit(stamped);
-      // Fan out to any concurrent /attach consumers.
-      for (const sub of record.subscribers) {
-        try {
-          sub(stamped);
-        } catch (err) {
-          console.warn('[runnerd] attach subscriber threw:', err);
+      const line = `${JSON.stringify(stamped)}\n`;
+      if (!journalFailed && persist) {
+        const writable = journal.append(line);
+        if (journalFailed) return;
+        if (!writable) {
+          child.stdout.pause();
+          child.stderr.pause();
         }
       }
-      const line = `${JSON.stringify(stamped)}\n`;
+      emit(stamped);
       record.ring.push(line);
       record.ringBytes += Buffer.byteLength(line, 'utf8');
       while (
@@ -452,7 +496,7 @@ export class ExecManager {
       }
     };
 
-    ringEmit({ t: 'start', execId: req.execId, startedAtMs });
+    ringEmit({ t: 'start', execId, startedAtMs });
 
     if (req.stdinMode === 'hold') {
       // Held-open stdin: the initial payload is written but NOT ended; later
@@ -503,16 +547,16 @@ export class ExecManager {
       // handling below). Keeps the start..stdout..exit order the platform
       // adapters depend on and never mutates the already-retained ring.
       if (settled) return;
-      // stdoutMaxBytes <= 0 ⇒ UNLIMITED: never truncate (the ring + per-consumer
-      // buffer ceiling bound memory). Long-lived streaming execs pass 0 so their
-      // live output is never silently cut off mid-run.
-      if (req.stdoutMaxBytes > 0) {
-        const remaining = req.stdoutMaxBytes - stdoutBytes;
+      // stdoutMaxBytes <= 0 disables truncation. The ring and consumer queues
+      // bound memory; the journal's storage budget fails explicitly instead
+      // of silently cutting off a long-lived command's output.
+      if (stdoutMaxBytes > 0) {
+        const remaining = stdoutMaxBytes - stdoutBytes;
         if (remaining <= 0) {
           if (!stdoutTruncLogged) {
             stdoutTruncLogged = true;
             console.warn(
-              `[runnerd] exec ${req.execId} stdout hit cap ${req.stdoutMaxBytes}B — further stdout dropped (truncated)`,
+              `[runnerd] exec ${execId} stdout hit cap ${stdoutMaxBytes}B — further stdout dropped (truncated)`,
             );
           }
           stdoutTrunc = true;
@@ -535,13 +579,13 @@ export class ExecManager {
     });
     child.stderr.on('data', (chunk: Buffer) => {
       if (settled) return;
-      if (req.stderrMaxBytes > 0) {
-        const remaining = req.stderrMaxBytes - stderrBytes;
+      if (stderrMaxBytes > 0) {
+        const remaining = stderrMaxBytes - stderrBytes;
         if (remaining <= 0) {
           if (!stderrTruncLogged) {
             stderrTruncLogged = true;
             console.warn(
-              `[runnerd] exec ${req.execId} stderr hit cap ${req.stderrMaxBytes}B — further stderr dropped (truncated)`,
+              `[runnerd] exec ${execId} stderr hit cap ${stderrMaxBytes}B — further stderr dropped (truncated)`,
             );
           }
           stderrTrunc = true;
@@ -590,7 +634,7 @@ export class ExecManager {
       let stderrClosed = false;
       let exitCode = -1;
       let drainTimer: ReturnType<typeof setTimeout> | null = null;
-      const finish = (code: number) => {
+      const finish = async (code: number) => {
         if (settled) return;
         settled = true;
         if (record.timer) clearTimeout(record.timer);
@@ -605,9 +649,8 @@ export class ExecManager {
           child.stdout.destroy();
           child.stderr.destroy();
         }
-        record.exitCode = code;
         this.onActivity();
-        ringEmit({
+        const terminal: RunnerdExecEvent = {
           t: 'exit',
           exitCode: code,
           // The canonical execution wall-clock (protocol.ts `exit.durationMs`):
@@ -618,10 +661,25 @@ export class ExecManager {
           truncated: { stdout: stdoutTrunc, stderr: stderrTrunc },
           timedOut: record.timedOut,
           cancelled: record.cancelRequested,
-        });
-        this.dropLive(req.execId);
-        this.retainRecent(req.execId, record.ring, code);
-        for (const complete of record.completions) complete();
+        };
+        // A success must not outrun a failed disk open/write. Preserve the
+        // terminal record before publishing it or making status exited.
+        journal.append(
+          `${JSON.stringify({ ...terminal, seq: record.seq + 1 })}\n`,
+        );
+        await journal.drain();
+        record.exitCode = journalFailed ? -1 : code;
+        ringEmit(
+          journalFailed ? { ...terminal, exitCode: -1 } : terminal,
+          false,
+        );
+        this.dropLive(execId);
+        this.retainRecent(execId, record.ring, journal, record.exitCode);
+        // Deferred descendants may keep these pipe callbacks alive after the
+        // recent diagnostic history is evicted. Transfer its sole ownership.
+        record.ring = [];
+        record.ringBytes = 0;
+        detach();
         resolve();
       };
       // The command could not be executed: nothing of it is left to end.
@@ -630,6 +688,8 @@ export class ExecManager {
         if (settled) return;
         settled = true;
         couldNotRun = true;
+        record.stdin = null;
+        child.stdin.destroy();
         if (record.timer) clearTimeout(record.timer);
         if (drainTimer) clearTimeout(drainTimer);
         ringEmit({
@@ -637,9 +697,11 @@ export class ExecManager {
           code: 'BAD_REQUEST',
           message: `spawn failed: ${message}`,
         });
-        this.dropLive(req.execId);
-        this.retainRecent(req.execId, record.ring, null);
-        for (const complete of record.completions) complete();
+        this.dropLive(execId);
+        this.retainRecent(execId, record.ring, journal, null);
+        record.ring = [];
+        record.ringBytes = 0;
+        detach();
         resolve();
       };
       child.on('error', (err) => {
@@ -655,7 +717,11 @@ export class ExecManager {
         // 128 + signal number is the conventional shell exit for a signal.
         exitCode = code ?? (signal ? 128 + (SIGNAL_NUMBERS[signal] ?? 15) : -1);
         exited = true;
-        record.leaderExited = true;
+        record.processState.leaderExited = true;
+        // No later steer can reach the finished command. A shim or descendant
+        // may still hold fd 0 open, so release any queued input explicitly.
+        record.stdin = null;
+        child.stdin.destroy();
         // The exec is over: whatever it left running (a `cmd &`, a `nohup`
         // worker, a browser) ends with it instead of holding memory and pids
         // in a session that reads idle — at once when no other exec of the
@@ -669,13 +735,11 @@ export class ExecManager {
         if (!record.terminated) {
           record.terminated = true;
           const self: Reaping = {
-            execId: req.execId,
+            execId,
             groupId: record.groupId,
             ...this.rootOf(record),
           };
-          const othersLive = [...this.live.keys()].some(
-            (id) => id !== req.execId,
-          );
+          const othersLive = [...this.live.keys()].some((id) => id !== execId);
           this.liftHolds(record.ordinal);
           if (othersLive) {
             // Under the shim its descendants are the proof; without it, a
@@ -683,7 +747,7 @@ export class ExecManager {
             const waiting: Leftover = {
               ...self,
               ...(record.rootPid === undefined
-                ? { members: this.recordGroup(req.execId, record.groupId) }
+                ? { members: this.recordGroup(execId, record.groupId) }
                 : {}),
             };
             record.deferred = waiting;
@@ -697,9 +761,12 @@ export class ExecManager {
         }
         // stdio already closed (normal fast path) → emit now; otherwise wait a
         // bounded grace for 'close' before forcing the terminal event.
-        if (closed) finish(exitCode);
+        if (closed) void finish(exitCode);
         else
-          drainTimer = setTimeout(() => finish(exitCode), EXIT_DRAIN_GRACE_MS);
+          drainTimer = setTimeout(
+            () => void finish(exitCode),
+            EXIT_DRAIN_GRACE_MS,
+          );
       };
       if (shim !== null) {
         // The shim's status pipe: the command's pid (its group), its exit,
@@ -716,7 +783,7 @@ export class ExecManager {
         } | null = null;
         const shimOver = () => {
           if (!statusEnded || shimExit === null) return;
-          record.rootCompleted =
+          record.processState.rootCompleted =
             shimExit.signal === null && record.rootPid !== undefined;
           this.groupSettled(record);
           commandExit(shimExit.code, shimExit.signal);
@@ -766,7 +833,7 @@ export class ExecManager {
         }
         child.on('exit', (code, signal) => {
           // The shim waits until nothing it adopted is left.
-          record.rootExited = true;
+          record.processState.rootExited = true;
           shimExit = { code, signal };
           shimOver();
         });
@@ -780,7 +847,7 @@ export class ExecManager {
         // Both output pipes closed: every 'data' event has been delivered,
         // so the terminal 'exit' event is now guaranteed last and complete.
         closed = true;
-        if (exited) finish(exitCode);
+        if (exited) void finish(exitCode);
       };
       child.stdout.on('close', () => {
         stdoutClosed = true;
@@ -854,11 +921,17 @@ export class ExecManager {
       const group = rec.groupId;
       held.groupId = group;
       held.members = this.recordGroup(execId, group).then((members) =>
-        rec.leaderExited ? [] : members,
+        rec.processState.leaderExited ? [] : members,
       );
       void held.members.then(() => {
         void signalExecProcesses(
-          [{ ...held, groupOnly: true, groupKnown: !rec.leaderExited }],
+          [
+            {
+              ...held,
+              groupOnly: true,
+              groupKnown: !rec.processState.leaderExited,
+            },
+          ],
           'SIGTERM',
           this.reaper,
         ).catch((error: unknown) => {
@@ -866,7 +939,13 @@ export class ExecManager {
         });
         setTimeout(() => {
           void signalExecProcesses(
-            [{ ...held, groupOnly: true, groupKnown: !rec.leaderExited }],
+            [
+              {
+                ...held,
+                groupOnly: true,
+                groupKnown: !rec.processState.leaderExited,
+              },
+            ],
             'SIGKILL',
             this.reaper,
           ).catch((error: unknown) => {
@@ -930,11 +1009,12 @@ export class ExecManager {
 
   /** A live exec as a reaping target: its group is certainly its own. */
   private liveTarget(execId: string, rec: LiveExec): Reaping {
+    const { processState } = rec;
     return {
       execId,
       groupId: rec.groupId,
       groupKnown: true,
-      leaderRunning: () => !rec.leaderExited,
+      leaderRunning: () => !processState.leaderExited,
       ...this.rootOf(rec),
     };
   }
@@ -944,11 +1024,11 @@ export class ExecManager {
     rec: LiveExec,
   ): Pick<ReapTarget, 'rootPid' | 'rootAlive' | 'rootComplete'> {
     if (rec.rootPid === undefined) return {};
+    const { processState } = rec;
     return {
       rootPid: rec.rootPid,
-      rootAlive: () => !rec.rootExited,
-      rootComplete: () =>
-        rec.rootCompleted && rec.rootPid !== undefined && !rec.groupPending,
+      rootAlive: () => !processState.rootExited,
+      rootComplete: () => processState.rootCompleted,
     };
   }
 
@@ -962,6 +1042,18 @@ export class ExecManager {
       targets.push(this.liveTarget(execId, rec));
     }
     await this.reap(targets);
+  }
+
+  /** End the manager's ownership. Live execs are reaped and release their
+   * journals when they settle; retained transcripts close immediately. */
+  [Symbol.dispose](): void {
+    if (this.disposed) return;
+    this.disposed = true;
+    for (const record of this.recent.values()) void record.journal.dispose();
+    this.recent.clear();
+    void this.terminateAll().catch((error: unknown) => {
+      console.warn('[runnerd] disposing exec manager failed:', error);
+    });
   }
 
   /** How many exited or handed-over execs' leftovers wait. */
@@ -1146,6 +1238,16 @@ export class ExecManager {
     if (req.b64 !== undefined && req.b64 !== '') {
       buf = Buffer.from(req.b64, 'base64');
       if (!isSingleNdjsonLine(buf)) return { ok: false, reason: 'BAD_LINE' };
+      // A held-open pipe can stop draining for an entire turn. Bound all
+      // queued lines together, not just each request: write(false) still
+      // enqueues its bytes, so refuse BEFORE write and preserve EOF on refusal.
+      // The existing body budget also admits the exec's initial stdin payload.
+      if (
+        rec.stdin.writableLength + buf.byteLength >
+        RUNNERD_MAX_REQUEST_BODY_BYTES
+      ) {
+        return { ok: false, reason: 'WRITE_FAILED' };
+      }
     }
     try {
       if (buf) rec.stdin.write(buf);
@@ -1189,56 +1291,6 @@ function isSingleNdjsonLine(buf: Buffer): boolean {
     return false;
   }
   return true;
-}
-
-function isObject(v: unknown): v is Record<string, unknown> {
-  return v !== null && typeof v === 'object' && !Array.isArray(v);
-}
-
-/** Narrow a parsed ring line to a RunnerdExecEvent. Lines are produced by
- * ringEmit (JSON.stringify of our own union), so this is defence-in-depth, but
- * it keeps the replay path cast-free: validate the `t` discriminator + the
- * required per-variant fields before emitting. */
-function isRunnerdExecEvent(v: unknown): v is RunnerdExecEvent {
-  if (!isObject(v)) return false;
-  if (v.seq !== undefined && typeof v.seq !== 'number') return false;
-  switch (v.t) {
-    case 'start':
-      return typeof v.execId === 'string' && typeof v.startedAtMs === 'number';
-    case 'stdout':
-    case 'stderr':
-      return typeof v.b64 === 'string';
-    case 'exit':
-      return (
-        typeof v.exitCode === 'number' &&
-        typeof v.durationMs === 'number' &&
-        typeof v.timedOut === 'boolean' &&
-        typeof v.cancelled === 'boolean' &&
-        isObject(v.truncated)
-      );
-    case 'fail':
-      return typeof v.code === 'string' && typeof v.message === 'string';
-    default:
-      return false;
-  }
-}
-
-/** Parse a retained ring line (NDJSON) back to an event for attach replay,
- * skipping anything the reconnecting consumer already saw (seq <= sinceSeq). */
-function emitRingLine(line: string, emit: ExecSubscriber, sinceSeq = 0): void {
-  const trimmed = line.trim();
-  if (!trimmed) return;
-  try {
-    const parsed: unknown = JSON.parse(trimmed);
-    if (!isRunnerdExecEvent(parsed)) {
-      console.warn('[runnerd] ring line is not a RunnerdExecEvent:', trimmed);
-      return;
-    }
-    if ((parsed.seq ?? 0) <= sinceSeq) return;
-    emit(parsed);
-  } catch (err) {
-    console.warn('[runnerd] bad ring line during attach replay:', err);
-  }
 }
 
 let noSubreaperWarned = false;

@@ -485,10 +485,19 @@ describe('Prism-served AI endpoints (deterministic examples)', () => {
     });
     const body = await readJson(res);
     expect(typeof body.data[0].embedding).toBe('string');
+    const bytes = Buffer.from(body.data[0].embedding, 'base64');
+    expect(bytes.byteLength).toBe(1536 * Float32Array.BYTES_PER_ELEMENT);
+    // A pooled Buffer can occupy only part of its backing ArrayBuffer.
     const floats = new Float32Array(
-      Buffer.from(body.data[0].embedding, 'base64').buffer,
+      bytes.buffer,
+      bytes.byteOffset,
+      bytes.byteLength / Float32Array.BYTES_PER_ELEMENT,
     );
     expect(floats).toHaveLength(1536);
+    const asJson = await readJson(
+      await post('/v1/embeddings', { model: 'x', input: 'hi' }),
+    );
+    expect(floats).toEqual(new Float32Array(asJson.data[0].embedding));
   });
 
   test('POST /v1/moderations returns a benign OpenAI-shaped verdict', async () => {

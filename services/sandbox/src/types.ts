@@ -26,6 +26,9 @@ export interface SpawnerConfig {
   // other tiers; runtime-tier.ts defines their different isolation guarantees.
   // Only agent-profile sessions receive this capability.
   dockerInContainer: boolean;
+  /** Workloads allowed to use inner Docker. Absent preserves the historical
+   * setting for all agent sessions; an empty list disables it for new ones. */
+  dockerWorkloads?: readonly ('project' | 'workflow')[];
   // Operator-selected private /16 for inner Docker on either backend. Unset
   // selects automatically; the runtime also rejects observed network overlap.
   dindInnerPool?: string;
@@ -149,9 +152,9 @@ export interface SessionConfig {
   /** Memory admission always leaves free on the host (SANDBOX_MIN_FREE_MEMORY);
    * unset is a tenth of the host, at least 1 GiB. */
   minFreeMemoryBytes?: number;
-  /** Free space admission keeps on the disk the workspaces live on
+  /** Free space admission keeps on the workspace and verified Docker metadata filesystems
    * (SANDBOX_MIN_FREE_DISK; 0 turns the floor off); unset is a twentieth of
-   * the disk, at least 2 GiB and at most 20 GiB (host-disk.ts). */
+   * each filesystem, at least 2 GiB and at most 20 GiB (host-disk.ts). */
   minFreeDiskBytes?: number;
   /** Hard wall-clock ceiling on a session's lifetime. */
   maxLifetimeMs: number;
@@ -183,6 +186,8 @@ export interface SessionAgentProfileConfig {
   /** Docker quantity string, e.g. '4g' (memory-swap is pinned to the same
    * value — no swap headroom, matching the one-shot containers). */
   memory: string;
+  /** Derived non-Docker ceiling; an explicit SANDBOX_AGENT_MEMORY sets both. */
+  memoryWithoutDocker?: string;
   pidsLimit: number;
   nofileSoft: number;
   nofileHard: number;

@@ -93,6 +93,7 @@ import {
   useThreadReasoningEffort,
   useThreadFeedback,
   useVoiceMode,
+  type ChatTurnAttachment,
 } from '../data/chat-backend';
 import {
   readEffortPreference,
@@ -160,6 +161,7 @@ import { WelcomeView } from './welcome-view';
 const NO_SELECTION: ComposerSelection = {};
 
 const NO_MODELS: readonly ComposerModelOption[] = [];
+const NO_PROVIDERS: readonly string[] = [];
 /** The message field's DOM id — the chat skip link's target. */
 const COMPOSER_TEXTAREA_ID = 'chat-composer';
 
@@ -486,6 +488,21 @@ function ChatSurfaceInner({
         : NO_MODELS,
     [composerOptions],
   );
+  // The providers whose models are left out for that reason, named in the
+  // picker so a short or empty list explains itself.
+  const subscriptionProviders = useMemo(() => {
+    if (composerOptions.status !== 'ready') return NO_PROVIDERS;
+    const offered = new Set(models);
+    const hidden = composerOptions.data.models.filter(
+      (model) => !offered.has(model),
+    );
+    if (hidden.length === 0) return NO_PROVIDERS;
+    return [
+      ...new Set(
+        hidden.map((model) => model.providerLabel ?? model.providerSlug),
+      ),
+    ];
+  }, [composerOptions, models]);
 
   // The thread being viewed, once the list has answered.
   const activeThread =
@@ -1147,6 +1164,7 @@ function ChatSurfaceInner({
     text: string,
     intoThreadId?: string,
     fork?: BranchFork,
+    originalAttachments: readonly ChatTurnAttachment[] = [],
   ) => {
     // A turn needs its model — a concrete pick or Auto. `sendDisabled`
     // already gates this; the guard here keeps a race from slipping through.
@@ -1224,12 +1242,15 @@ function ChatSurfaceInner({
     // optimistic bubble below can paint them immediately.
     const consumedAttachments =
       intoThreadId === undefined ? takeStagedAttachments() : [];
-    const requestAttachments = consumedAttachments.map((attachment) => ({
-      fileId: attachment.fileId,
-      fileName: attachment.fileName,
-      fileType: attachment.fileType,
-      fileSize: attachment.fileSize,
-    }));
+    const requestAttachments =
+      intoThreadId !== undefined
+        ? originalAttachments
+        : consumedAttachments.map((attachment) => ({
+            fileId: attachment.fileId,
+            fileName: attachment.fileName,
+            fileType: attachment.fileType,
+            fileSize: attachment.fileSize,
+          }));
     // The pasted video URLs leave the outgoing text — the chip (and later
     // the transcript attachment) represents the video; the model must not
     // see both the raw link and its transcript.
@@ -1498,12 +1519,23 @@ function ChatSurfaceInner({
     const { parentId, forkSequence } = forked;
     const restoreTo = selections[forkKey(parentId, forkSequence)] ?? parentId;
     rememberSelection(parentId, forkSequence, forked.id);
-    handleSend(text, forked.id, {
-      parentId,
-      forkSequence,
-      branchId: forked.id,
-      restoreTo,
-    });
+    handleSend(
+      text,
+      forked.id,
+      { parentId, forkSequence, branchId: forked.id, restoreTo },
+      message.parts.flatMap((part) =>
+        part.type === 'attachment' && part.fileId !== undefined
+          ? [
+              {
+                fileId: part.fileId,
+                fileName: part.name,
+                fileType: part.mediaType,
+                fileSize: part.sizeBytes ?? 0,
+              },
+            ]
+          : [],
+      ),
+    );
     return true;
   };
 
@@ -2085,6 +2117,7 @@ function ChatSurfaceInner({
                   textareaId={COMPOSER_TEXTAREA_ID}
                   draftKey={draftKey}
                   models={models}
+                  subscriptionProviders={subscriptionProviders}
                   selection={selection}
                   onSelectionChange={stableSelectionChange}
                   onSend={stableSend}

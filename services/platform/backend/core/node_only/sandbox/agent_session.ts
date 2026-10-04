@@ -104,7 +104,11 @@ export async function ensureAgentSession(
       throw new Error(`Sandbox allocation for ${sessionId} no longer exists`);
     try {
       if (!(await sessionAcquire(sessionId))) {
-        await createOrAcquireSession(sessionId, organizationId);
+        await createOrAcquireSession(
+          sessionId,
+          organizationId,
+          args.owner.type,
+        );
       }
     } catch (error) {
       await policy.releaseSlot().catch((releaseError: unknown) => {
@@ -131,7 +135,7 @@ export async function ensureAgentSession(
     },
   );
   try {
-    await createOrAcquireSession(sessionId, organizationId);
+    await createOrAcquireSession(sessionId, organizationId, args.owner.type);
   } catch (error) {
     // The spawner may already hold what this create made (one cut short
     // between Docker's create and start stays `created`), and a `failed` row
@@ -183,6 +187,7 @@ export async function ensureAgentSession(
 async function createOrAcquireSession(
   sessionId: string,
   organizationId: string,
+  ownerType: AgentSessionOwner['type'],
 ): Promise<void> {
   try {
     // Agent and automation workspaces may start on one of the organization's
@@ -191,6 +196,7 @@ async function createOrAcquireSession(
       sessionId,
       organizationId,
       profile: 'agent',
+      workload: ownerType === 'project_agent' ? 'project' : 'workflow',
       placement: 'device',
     });
   } catch (error) {

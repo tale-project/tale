@@ -1,7 +1,7 @@
 import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdir, realpath, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { isAbsolute, join } from 'node:path';
+import { dirname, isAbsolute, join } from 'node:path';
 import { parseArgs } from 'node:util';
 
 import { z } from 'zod';
@@ -58,8 +58,31 @@ function readTraffic(endpoint: TrafficEndpoint): unknown {
 async function privateDirectory(directory: string): Promise<string> {
   if (!isAbsolute(directory))
     throw new Error('Use an absolute output directory outside a Git checkout.');
+  // A refused destination leaves nothing behind: check the deepest existing
+  // directory before creating anything, then the result again in case a
+  // symlink planted meanwhile moved it into a checkout.
+  refuseCheckout(await existingAncestor(directory));
   await mkdir(directory, { recursive: true, mode: 0o700 });
   const resolved = await realpath(directory);
+  refuseCheckout(resolved);
+  return resolved;
+}
+
+async function existingAncestor(directory: string): Promise<string> {
+  try {
+    return await realpath(directory);
+  } catch (error) {
+    const parent = dirname(directory);
+    if (
+      (error as NodeJS.ErrnoException).code !== 'ENOENT' ||
+      parent === directory
+    )
+      throw error;
+    return existingAncestor(parent);
+  }
+}
+
+function refuseCheckout(resolved: string): void {
   const checkout = spawnSync(
     'git',
     ['-C', resolved, 'rev-parse', '--show-toplevel'],
@@ -91,7 +114,6 @@ async function privateDirectory(directory: string): Promise<string> {
       'Cannot verify the private output directory; check that Git is installed and can inspect it.',
     );
   }
-  return resolved;
 }
 
 export async function snapshotTraffic(

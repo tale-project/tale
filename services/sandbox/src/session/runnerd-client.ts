@@ -6,6 +6,7 @@
 // fetch, which is what keeps the K8s backend exec-free.
 
 import {
+  isRunnerdExecEvent,
   RUNNERD_TOKEN_HEADER,
   type RunnerdExecEvent,
   type RunnerdExecRequest,
@@ -37,6 +38,17 @@ const RUNNERD_HEALTH_TIMEOUT_MS = 5_000;
  * residual means a malfunctioning/compromised daemon streaming without
  * newlines — abort rather than grow the buffer until the spawner OOMs. */
 const MAX_NDJSON_BUFFER_BYTES = 1_048_576;
+
+/** Corrupt execution history cannot be repaired by skipping a line or retrying
+ * the same replay. The SSE boundary forwards this as a fatal replay error. */
+export class RunnerdProtocolError extends Error {
+  readonly code = 'REPLAY_UNAVAILABLE';
+
+  constructor(detail: string) {
+    super(`runnerd protocol: ${detail}`);
+    this.name = 'RunnerdProtocolError';
+  }
+}
 
 /** GET /healthz — used by create-poll and the idle reaper. Throws on
  * unreachable/non-200 so callers can distinguish "not ready yet" (retry)
@@ -93,24 +105,28 @@ export async function runnerdActivity(
   return Object.fromEntries(Object.entries(value));
 }
 
-/** Poll /healthz until it answers 200 or the deadline passes. Resolves once
- * the daemon is ready; throws on timeout. */
+/** Poll liveness and required Docker readiness within one deadline, including
+ * time spent inside a health request. Older runtimes omit dockerReady. */
 export async function waitForRunnerd(
   opts: RunnerdClientOptions,
   deadlineMs: number,
   pollIntervalMs = 500,
 ): Promise<void> {
-  const start = Date.now();
+  const deadline = performance.now() + deadlineMs;
+  const signal = AbortSignal.timeout(Math.max(0, Math.ceil(deadlineMs)));
   for (;;) {
     try {
-      await runnerdHealth(opts);
-      return;
+      const health = await runnerdHealth(opts, signal);
+      if (health.dockerReady !== false && !signal.aborted) return;
     } catch {
-      if (Date.now() - start > deadlineMs) {
-        throw new Error(`runnerd did not become ready within ${deadlineMs}ms`);
-      }
-      await new Promise((r) => setTimeout(r, pollIntervalMs));
+      // A failed health probe may recover while the overall budget remains.
     }
+    const remaining = deadline - performance.now();
+    if (remaining <= 0 || signal.aborted)
+      throw new Error(`runnerd did not become ready within ${deadlineMs}ms`);
+    await new Promise((r) =>
+      setTimeout(r, Math.min(pollIntervalMs, remaining)),
+    );
   }
 }
 
@@ -126,19 +142,28 @@ export async function runnerdExec(
   onEvent: (event: RunnerdExecEvent) => void,
   signal?: AbortSignal,
 ): Promise<void> {
-  const res = await fetch(`${opts.baseUrl}/execs`, {
-    method: 'POST',
-    headers: {
-      ...authHeaders(opts.token),
-      'content-type': 'application/json',
-    },
-    body: JSON.stringify(req),
-    ...(signal ? { signal } : {}),
-  });
-  if (!res.ok || !res.body) {
-    throw new Error(`runnerd /execs ${res.status}`);
+  const consumer = new AbortController();
+  try {
+    const res = await fetch(`${opts.baseUrl}/execs`, {
+      method: 'POST',
+      headers: {
+        ...authHeaders(opts.token),
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify(req),
+      signal: signal
+        ? AbortSignal.any([signal, consumer.signal])
+        : consumer.signal,
+    });
+    if (!res.ok || !res.body) {
+      throw new Error(`runnerd /execs ${res.status}`);
+    }
+    await pumpNdjson(res.body, onEvent);
+  } finally {
+    // Cancelling a body reader alone can leave Bun's HTTP fetch connected.
+    // End this subscription, never the detached command behind it.
+    consumer.abort();
   }
-  await pumpNdjson(res.body, onEvent);
 }
 
 /** Read an NDJSON body, invoking `onEvent` per parsed line in order (trailing
@@ -149,38 +174,66 @@ async function pumpNdjson(
   onEvent: (event: RunnerdExecEvent) => void,
 ): Promise<void> {
   const reader = body.getReader();
-  const decoder = new TextDecoder('utf-8');
+  const decoder = new TextDecoder('utf-8', { fatal: true });
   let buf = '';
+  let bufferedBytes = 0;
   const emitLine = (line: string): void => {
     const trimmed = line.trim();
     if (!trimmed) return;
+    let event: unknown;
     try {
-      // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
-      onEvent(JSON.parse(trimmed) as RunnerdExecEvent);
-    } catch (err) {
-      console.warn('[sandbox.session] bad NDJSON line from runnerd:', err);
+      event = JSON.parse(trimmed);
+    } catch {
+      throw new RunnerdProtocolError('invalid NDJSON record');
+    }
+    if (!isRunnerdExecEvent(event))
+      throw new RunnerdProtocolError('invalid execution event');
+    // Consumer errors belong to the caller; never hide them as parse noise.
+    onEvent(event);
+  };
+  const append = (part: string) => {
+    bufferedBytes += Buffer.byteLength(part);
+    if (bufferedBytes > MAX_NDJSON_BUFFER_BYTES)
+      throw new RunnerdProtocolError(
+        `NDJSON record exceeded ${MAX_NDJSON_BUFFER_BYTES} bytes`,
+      );
+    buf += part;
+  };
+  const decode = (value?: Uint8Array, stream = false) => {
+    let chunk: string;
+    try {
+      chunk = decoder.decode(value, { stream });
+    } catch {
+      throw new RunnerdProtocolError('invalid UTF-8');
+    }
+    let from = 0;
+    for (;;) {
+      const nl = chunk.indexOf('\n', from);
+      if (nl === -1) {
+        append(chunk.slice(from));
+        return;
+      }
+      append(chunk.slice(from, nl));
+      emitLine(buf);
+      buf = '';
+      bufferedBytes = 0;
+      from = nl + 1;
     }
   };
-  for (;;) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    buf += decoder.decode(value, { stream: true });
-    let nl = buf.indexOf('\n');
-    while (nl !== -1) {
-      emitLine(buf.slice(0, nl));
-      buf = buf.slice(nl + 1);
-      nl = buf.indexOf('\n');
+  try {
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      decode(value, true);
     }
-    // Bound the residual partial line: a daemon streaming without newlines
-    // would otherwise grow `buf` until the spawner OOMs. Abort the pump (the
-    // route's catch sends `error` + evicts a gone backend).
-    if (buf.length > MAX_NDJSON_BUFFER_BYTES) {
-      throw new Error(
-        `runnerd NDJSON exceeded ${MAX_NDJSON_BUFFER_BYTES} bytes without a newline`,
-      );
-    }
+    decode();
+    emitLine(buf);
+  } finally {
+    // Includes malformed records and downstream callback failures: neither
+    // may leave an unread runnerd response, subscription or socket behind.
+    await reader.cancel().catch(() => {});
+    reader.releaseLock();
   }
-  emitLine(buf);
 }
 
 /** POST /execs/:id/cancel. A transport failure THROWS (the route turns it into
@@ -267,14 +320,24 @@ export async function runnerdAttach(
   sinceSeq = 0,
 ): Promise<boolean> {
   const q = sinceSeq > 0 ? `?sinceSeq=${sinceSeq}` : '';
-  const res = await fetch(
-    `${opts.baseUrl}/execs/${encodeURIComponent(execId)}/attach${q}`,
-    { headers: authHeaders(opts.token), ...(signal ? { signal } : {}) },
-  );
-  if (res.status === 404) return false;
-  if (!res.ok || !res.body) throw new Error(`runnerd /attach ${res.status}`);
-  await pumpNdjson(res.body, onEvent);
-  return true;
+  const consumer = new AbortController();
+  try {
+    const res = await fetch(
+      `${opts.baseUrl}/execs/${encodeURIComponent(execId)}/attach${q}`,
+      {
+        headers: authHeaders(opts.token),
+        signal: signal
+          ? AbortSignal.any([signal, consumer.signal])
+          : consumer.signal,
+      },
+    );
+    if (res.status === 404) return false;
+    if (!res.ok || !res.body) throw new Error(`runnerd /attach ${res.status}`);
+    await pumpNdjson(res.body, onEvent);
+    return true;
+  } finally {
+    consumer.abort();
+  }
 }
 
 /** PATCH the session env store (POST /env on runnerd). Returns the names the
@@ -295,23 +358,47 @@ export async function runnerdEnvPatch(
   return body.denied ?? [];
 }
 
+/** A stage request refused before any file mutation; callers may retry it. */
+export class RunnerdStageBusyError extends Error {
+  constructor() {
+    super('runnerd staging is busy');
+  }
+}
+
 interface RunnerdStageResult {
   staged: Array<{ path: string; bytes: number }>;
   skipped: Array<{ path: string; reason: string }>;
+  reconciled?: true;
 }
 
 /** POST /files/stage — write each item into the workspace (inline base64
  * bytes, or fetched by the daemon from its URL). */
 export async function runnerdStageFiles(
   opts: RunnerdClientOptions,
-  files: Array<{ path: string; url?: string; contentBase64?: string }>,
+  files: Array<{
+    path: string;
+    url?: string;
+    contentBase64?: string;
+    sourceId?: string;
+  }>,
+  reconcile: { replaceRoots?: string[]; keepPaths?: string[] } = {},
 ): Promise<RunnerdStageResult> {
   const res = await fetch(`${opts.baseUrl}/files/stage`, {
     method: 'POST',
     headers: { ...authHeaders(opts.token), 'content-type': 'application/json' },
-    body: JSON.stringify({ files }),
+    body: JSON.stringify({ files, ...reconcile }),
     signal: AbortSignal.timeout(RUNNERD_RPC_TIMEOUT_MS),
   });
+  if (res.status === 503) {
+    const body: unknown = await res.json().catch(() => null);
+    if (
+      body !== null &&
+      typeof body === 'object' &&
+      'error' in body &&
+      body.error === 'busy'
+    )
+      throw new RunnerdStageBusyError();
+  }
   if (!res.ok) throw new Error(`runnerd /files/stage ${res.status}`);
   // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
   return (await res.json()) as RunnerdStageResult;
@@ -369,15 +456,22 @@ export async function runnerdListDir(
 export async function runnerdReadFile(
   opts: RunnerdClientOptions,
   path: string,
-): Promise<ArrayBuffer | null> {
+  signal?: AbortSignal,
+): Promise<Response | null> {
   const res = await fetch(
     `${opts.baseUrl}/fs/read?path=${encodeURIComponent(path)}`,
     {
       headers: authHeaders(opts.token),
-      signal: AbortSignal.timeout(RUNNERD_RPC_TIMEOUT_MS),
+      signal: AbortSignal.any([
+        AbortSignal.timeout(RUNNERD_RPC_TIMEOUT_MS),
+        ...(signal === undefined ? [] : [signal]),
+      ]),
     },
   );
-  if (res.status === 404) return null;
-  if (!res.ok) throw new Error(`runnerd /fs/read ${res.status}`);
-  return res.arrayBuffer();
+  if (!res.ok) {
+    await res.body?.cancel();
+    if (res.status === 404) return null;
+    throw new Error(`runnerd /fs/read ${res.status}`);
+  }
+  return res;
 }

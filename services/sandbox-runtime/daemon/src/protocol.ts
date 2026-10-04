@@ -16,7 +16,7 @@ export const RUNNERD_RING_BUFFER_BYTES = 256 * 1024;
  * response unboundedly — the only thing the old fixed stdout cap incidentally
  * bounded. Past this, the daemon disconnects that ONE consumer (the others
  * are unaffected); it reconnects via /attach?sinceSeq= and replays from the
- * bounded ring. Not a stream cap — it bounds memory, never truncates output. */
+ * disk-backed journal. The diagnostic ring is not replay history. */
 export const RUNNERD_CONSUMER_BUFFER_MAX_BYTES = 8 * 1024 * 1024;
 /** Cap on ONE request body runnerd accepts, on every route. The spawner's own
  * SANDBOX_MAX_REQUEST_BODY_BYTES is clamped to this at boot, so a stage batch
@@ -50,6 +50,8 @@ export function isDeniedEnvName(name: string): boolean {
 
 export interface RunnerdHealth {
   ok: true;
+  /** DinD /_ping readiness. False keeps liveness healthy but blocks new work. */
+  dockerReady?: boolean;
   bootedAtMs: number;
   lastActivityAtMs: number;
   liveExecs: number;
@@ -77,12 +79,12 @@ export interface RunnerdExecRequest {
    * Code --input-format stream-json). Default 'close' = write-then-end. */
   stdinMode?: 'close' | 'hold';
   timeoutMs: number;
-  /** Cumulative stdout truncation cap. `<= 0` means UNLIMITED — the live stream
-   * is never truncated and memory stays bounded by the ring (+ the per-consumer
-   * buffer ceiling). One-shot collected execs pass a positive cap to bound the
-   * response; long-lived streaming execs (the agent) pass 0. */
+  /** Cumulative stdout truncation cap; `<= 0` disables truncation. Journal
+   * storage limits still end an exec with OUTPUT_LIMIT. In-memory diagnostic
+   * output and consumer queues remain bounded. One-shot collected execs pass
+   * a positive cap; long-lived streaming execs (the agent) pass 0. */
   stdoutMaxBytes: number;
-  /** Cumulative stderr truncation cap. `<= 0` means UNLIMITED (see above). */
+  /** Cumulative stderr truncation cap; `<= 0` disables truncation (see above). */
   stderrMaxBytes: number;
 }
 
@@ -106,7 +108,8 @@ export interface RunnerdStdinWriteResponse {
   ok: boolean;
   /** NOT_FOUND: exec not live. STDIN_CLOSED: exec spawned in 'close' mode or
    * EOF already sent. BAD_LINE: payload failed the single-NDJSON-line check
-   * (or exceeded RUNNERD_STDIN_MAX_BYTES). WRITE_FAILED: pipe write threw. */
+   * (or exceeded RUNNERD_STDIN_MAX_BYTES). WRITE_FAILED: pipe write threw or
+   * its bounded input queue is full. */
   reason?: 'NOT_FOUND' | 'STDIN_CLOSED' | 'BAD_LINE' | 'WRITE_FAILED';
 }
 
@@ -114,6 +117,8 @@ export type RunnerdExecEvent = (
   | { t: 'start'; execId: string; startedAtMs: number }
   | { t: 'stdout'; b64: string }
   | { t: 'stderr'; b64: string }
+  | { t: 'replay-start' }
+  | { t: 'replay-complete'; throughSeq: number }
   | {
       t: 'exit';
       exitCode: number;
@@ -134,10 +139,82 @@ export type RunnerdExecEvent = (
     }
   | {
       t: 'fail';
-      code: 'INVALID_CWD' | 'EXEC_LIMIT' | 'DUPLICATE_EXEC' | 'BAD_REQUEST';
+      code:
+        | 'INVALID_CWD'
+        | 'EXEC_LIMIT'
+        | 'DUPLICATE_EXEC'
+        | 'BAD_REQUEST'
+        | 'OUTPUT_LIMIT'
+        | 'REPLAY_UNAVAILABLE';
       message: string;
     }
 ) & { seq?: number };
+
+/** Validate every record at both replay and HTTP boundaries. Additive fields
+ * are allowed; missing or corrupt payloads must never advance a stream cursor. */
+export function isRunnerdExecEvent(value: unknown): value is RunnerdExecEvent {
+  if (!isObject(value)) return false;
+  if (value.seq !== undefined && !positiveInteger(value.seq)) return false;
+  switch (value.t) {
+    case 'replay-start':
+      return true;
+    case 'replay-complete':
+      return (
+        nonNegativeNumber(value.throughSeq) &&
+        Number.isSafeInteger(value.throughSeq)
+      );
+    case 'start':
+      return (
+        typeof value.execId === 'string' &&
+        value.execId.length > 0 &&
+        nonNegativeNumber(value.startedAtMs)
+      );
+    case 'stdout':
+    case 'stderr':
+      // Buffer.from(base64) silently ignores corrupt characters. Validate the
+      // alphabet and padding without decoding/allocating another output copy.
+      return (
+        typeof value.b64 === 'string' &&
+        value.b64.length % 4 === 0 &&
+        /^[A-Za-z0-9+/]*={0,2}$/.test(value.b64)
+      );
+    case 'exit':
+      return (
+        typeof value.exitCode === 'number' &&
+        Number.isSafeInteger(value.exitCode) &&
+        nonNegativeNumber(value.durationMs) &&
+        typeof value.timedOut === 'boolean' &&
+        typeof value.cancelled === 'boolean' &&
+        isObject(value.truncated) &&
+        typeof value.truncated.stdout === 'boolean' &&
+        typeof value.truncated.stderr === 'boolean'
+      );
+    case 'fail':
+      return (
+        typeof value.message === 'string' &&
+        (value.code === 'INVALID_CWD' ||
+          value.code === 'EXEC_LIMIT' ||
+          value.code === 'DUPLICATE_EXEC' ||
+          value.code === 'BAD_REQUEST' ||
+          value.code === 'OUTPUT_LIMIT' ||
+          value.code === 'REPLAY_UNAVAILABLE')
+      );
+    default:
+      return false;
+  }
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function nonNegativeNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0;
+}
+
+function positiveInteger(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value > 0;
+}
 
 export interface RunnerdCancelResponse {
   killed: boolean;

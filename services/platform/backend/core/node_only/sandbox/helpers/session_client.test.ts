@@ -2,11 +2,12 @@
 // fetch is mocked to return SSE streams, including a mid-turn drop, and we
 // assert the drain re-attaches via sinceSeq and feeds each delta exactly once.
 
-import { afterEach, beforeEach, describe, expect, test } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
 import {
   chunkStageFiles,
   drainSessionExecResilient,
+  ExecStreamProtocolError,
   SandboxDeviceOfflineError,
   sandboxDeploymentLimits,
   sandboxDeviceDisconnect,
@@ -99,6 +100,663 @@ function restoreEnv(name: string, value: string | undefined): void {
 }
 
 describe('drainSessionExecResilient', () => {
+  test.each([
+    ['stdout', ''],
+    ['stdout', '{"seq":3,"text":'],
+    ['stderr', '{"seq":3}'],
+    ['stdout', '{"seq":3,"text":42}'],
+    ['stdout', '{"seq":"3","text":"lost cursor"}'],
+    ['stdout', '{"seq":3,"b64":"not base64!"}'],
+    ['result', '{}'],
+    ['result', '{"status":"completed","exitCode":"0"}'],
+    ['error', '{"code":42}'],
+  ])(
+    'refuses a corrupt %s payload before advancing the cursor: %s',
+    async (event, data) => {
+      let requests = 0;
+      let cancelled = false;
+      let stdout = '';
+      let closeTimer: ReturnType<typeof setTimeout>;
+      globalThis.fetch = (async () => {
+        requests += 1;
+        return new Response(
+          new ReadableStream<Uint8Array>({
+            start(controller) {
+              controller.enqueue(
+                enc.encode(
+                  'event: stdout\ndata: {"seq":2,"text":"verified"}\n\n' +
+                    `event: ${event}\ndata: ${data}\n\n` +
+                    'event: stdout\ndata: {"seq":4,"text":"must not arrive"}\n\n' +
+                    RESULT_OK,
+                ),
+              );
+              // The refusal must release the transport before its natural end.
+              closeTimer = setTimeout(() => controller.close(), 20);
+            },
+            cancel() {
+              clearTimeout(closeTimer);
+              cancelled = true;
+            },
+          }),
+        );
+      }) as unknown as typeof fetch;
+      const cursor = { lastSeq: 0 };
+      await expect(
+        drainSessionExecResilient(
+          's',
+          { execId: 'e', command: ['fixture'] },
+          AbortSignal.timeout(1000),
+          {
+            onStdout: (text) => {
+              stdout += text;
+            },
+          },
+          { cursor },
+        ),
+      ).rejects.toBeInstanceOf(ExecStreamProtocolError);
+      expect(cursor.lastSeq).toBe(2);
+      expect(stdout).toBe('verified');
+      expect(requests).toBe(1);
+      expect(cancelled).toBe(true);
+    },
+  );
+
+  test('validates complete frames after JSON and base64 split across transport chunks', async () => {
+    globalThis.fetch = (async () =>
+      sseResponse([
+        'event: stdout\ndata: {"seq":2,"b64":"',
+        '8J+Y',
+        'gA==","futureField":true}\n',
+        '\nevent: stderr\ndata: {"text":"legacy"}\n\n',
+        RESULT_OK,
+      ])) as unknown as typeof fetch;
+    let stdout = '';
+    let stderr = '';
+    await drainSessionExecResilient(
+      's',
+      { execId: 'e', command: ['fixture'] },
+      new AbortController().signal,
+      {
+        onStdout: (text) => {
+          stdout += text;
+        },
+        onStderr: (text) => {
+          stderr += text;
+        },
+      },
+    );
+    expect(stdout).toBe('😀');
+    expect(stderr).toBe('legacy');
+  });
+
+  test('accepts SSE fields without spaces and joins data lines while ignoring keepalives', async () => {
+    globalThis.fetch = (async () =>
+      sseResponse([
+        ': keepalive\n\n',
+        'event:stdout\ndata:{"seq":2,\ndata:"text":"joined"}\n\n',
+        RESULT_OK,
+      ])) as unknown as typeof fetch;
+    let stdout = '';
+    await drainSessionExecResilient(
+      's',
+      { execId: 'e', command: ['fixture'] },
+      new AbortController().signal,
+      {
+        onStdout: (text) => {
+          stdout += text;
+        },
+      },
+    );
+    expect(stdout).toBe('joined');
+  });
+
+  test('does not announce replay completion from an invalid terminal result', async () => {
+    globalThis.fetch = (async () =>
+      sseResponse(['event: result\ndata: {}\n\n'])) as unknown as typeof fetch;
+    let replayComplete = false;
+    await expect(
+      drainSessionExecResilient(
+        's',
+        { execId: 'e' },
+        new AbortController().signal,
+        {
+          onReplayComplete: () => {
+            replayComplete = true;
+          },
+        },
+        { resumeSinceSeq: 0 },
+      ),
+    ).rejects.toBeInstanceOf(ExecStreamProtocolError);
+    expect(replayComplete).toBe(false);
+  });
+
+  test.each([
+    ['replay-start', '{'],
+    ['replay-start', 'null'],
+    ['replay-complete', '{'],
+    ['replay-complete', '{}'],
+    ['replay-complete', '{"throughSeq":"2"}'],
+    ['replay-complete', '{"throughSeq":-1}'],
+    ['replay-complete', '{"throughSeq":1.5}'],
+  ])(
+    'does not change replay state from an invalid %s marker: %s',
+    async (event, data) => {
+      let requests = 0;
+      const phases: string[] = [];
+      globalThis.fetch = (async () => {
+        requests += 1;
+        return sseResponse([
+          `event: ${event}\ndata: ${data}\n\n`,
+          'event: stdout\ndata: {"seq":2,"text":"must not arrive"}\n\n',
+          RESULT_OK,
+        ]);
+      }) as unknown as typeof fetch;
+      await expect(
+        drainSessionExecResilient(
+          's',
+          { execId: 'e' },
+          new AbortController().signal,
+          {
+            onReplayStarted: () => {
+              phases.push('started');
+            },
+            onReplayComplete: () => {
+              phases.push('complete');
+            },
+            onStdout: (text) => {
+              phases.push(text);
+            },
+          },
+          { resumeSinceSeq: 0 },
+        ),
+      ).rejects.toBeInstanceOf(ExecStreamProtocolError);
+      expect(phases).toEqual(['started']);
+      expect(requests).toBe(1);
+    },
+  );
+
+  test('preserves stdout and completion at every CRLF chunk boundary', async () => {
+    const frame =
+      'event: stdout\r\ndata: {"seq":2,"text":"REQUIRED OUTPUT"}\r\n\r\n';
+    for (let split = 1; split < frame.length; split += 1) {
+      globalThis.fetch = (async () =>
+        sseResponse([
+          frame.slice(0, split),
+          frame.slice(split),
+          RESULT_OK,
+        ])) as unknown as typeof fetch;
+      let text = '';
+      const cursor = { lastSeq: 0 };
+      const result = await drainSessionExecResilient(
+        's',
+        { execId: 'e' },
+        new AbortController().signal,
+        {
+          onStdout: (chunk) => {
+            text += chunk;
+          },
+        },
+        { cursor },
+      );
+      expect({
+        split,
+        text,
+        seq: cursor.lastSeq,
+        status: result.status,
+      }).toEqual({
+        split,
+        text: 'REQUIRED OUTPUT',
+        seq: 2,
+        status: 'completed',
+      });
+    }
+  });
+
+  test('scans fragmented SSE input in linear work instead of rescanning its buffered prefix', async () => {
+    const text = 'x'.repeat(1024 * 1024);
+    const frame = `event: stdout\ndata: ${JSON.stringify({ seq: 2, text })}\n\n`;
+    const chunks: string[] = [];
+    for (let at = 0; at < frame.length; at += 4096) {
+      chunks.push(frame.slice(at, at + 4096));
+    }
+    globalThis.fetch = (async () =>
+      sseResponse([...chunks, RESULT_OK])) as unknown as typeof fetch;
+    // Saved for the instrumentation below, which supplies its receiver with call.
+    // oxlint-disable-next-line typescript/unbound-method
+    const originalIndexOf = String.prototype.indexOf;
+    let searchedChars = 0;
+    const spy = vi
+      .spyOn(String.prototype, 'indexOf')
+      .mockImplementation(function (this: string, search: string, start = 0) {
+        const found = originalIndexOf.call(this, search, start);
+        if (search === '\n' || search === '\r' || search === '\n\n') {
+          searchedChars +=
+            (found < 0 ? this.length : found + search.length) - start;
+        }
+        return found;
+      });
+    let output = '';
+    try {
+      await drainSessionExecResilient(
+        's',
+        { execId: 'e' },
+        new AbortController().signal,
+        {
+          onStdout: (chunk) => {
+            output += chunk;
+          },
+        },
+      );
+    } finally {
+      spy.mockRestore();
+    }
+    expect(output).toBe(text);
+    // Counts characters examined by delimiter searches, not noisy elapsed
+    // time. Whole-prefix rescans examine over128x the input for this fixture.
+    expect(searchedChars).toBeLessThan(frame.length * 8);
+  });
+
+  test.each(['complete', 'fragmented', 'comment', 'multiline'] as const)(
+    'refuses an oversized %s SSE frame and cancels without reconnecting',
+    async (shape) => {
+      const maxChars = 16 * 1024 * 1024;
+      const frame =
+        shape === 'comment'
+          ? `: ${'x'.repeat(maxChars)}\n\n`
+          : shape === 'multiline'
+            ? `event: stdout\n${`data: ${'x'.repeat(4096)}\n`.repeat(4096)}\n`
+            : `event: stdout\ndata: ${JSON.stringify({ seq: 2, text: 'x'.repeat(maxChars) })}\n\n`;
+      const chunkSize = shape === 'complete' ? frame.length : 64 * 1024;
+      let at = 0;
+      let cancelled = false;
+      let requests = 0;
+      globalThis.fetch = (async () => {
+        requests += 1;
+        return new Response(
+          new ReadableStream<Uint8Array>({
+            pull(controller) {
+              if (at < frame.length) {
+                controller.enqueue(enc.encode(frame.slice(at, at + chunkSize)));
+                at += chunkSize;
+              }
+            },
+            cancel() {
+              cancelled = true;
+            },
+          }),
+        );
+      }) as unknown as typeof fetch;
+      const cursor = { lastSeq: 0 };
+      const onStdout = vi.fn();
+      await expect(
+        drainSessionExecResilient(
+          's',
+          { execId: 'e' },
+          new AbortController().signal,
+          { onStdout },
+          { cursor },
+        ),
+      ).rejects.toThrow('Sandbox SSE frame exceeds 16 MiB');
+      expect(cancelled).toBe(true);
+      expect(requests).toBe(1);
+      expect(cursor.lastSeq).toBe(0);
+      expect(onStdout).not.toHaveBeenCalled();
+    },
+  );
+
+  test('resets the frame budget between events in a large network chunk', async () => {
+    const value = 'x'.repeat(8 * 1024 * 1024);
+    const frame = (seq: number) =>
+      `event: stdout\ndata: ${JSON.stringify({ seq, text: value })}\n\n`;
+    globalThis.fetch = (async () =>
+      sseResponse([
+        frame(2) + frame(3) + RESULT_OK,
+      ])) as unknown as typeof fetch;
+    let chars = 0;
+    await drainSessionExecResilient(
+      's',
+      { execId: 'e' },
+      new AbortController().signal,
+      {
+        onStdout: (text) => {
+          chars += text.length;
+        },
+      },
+    );
+    expect(chars).toBe(value.length * 2);
+  });
+
+  test('discards an incomplete event at EOF before replaying it once', async () => {
+    const frame = 'event: stdout\ndata: {"seq":2,"text":"once"}\n\n';
+    let requests = 0;
+    const cursor = { lastSeq: 0 };
+    globalThis.fetch = (async () => {
+      requests += 1;
+      // A single newline has finished the data line, but has not dispatched
+      // the event. Reconnect must neither emit it nor advance its cursor.
+      if (requests === 1) return sseResponse([frame.slice(0, -1)]);
+      expect(cursor.lastSeq).toBe(0);
+      return sseResponse([frame, RESULT_OK]);
+    }) as unknown as typeof fetch;
+    const received: string[] = [];
+    await drainSessionExecResilient(
+      's',
+      { execId: 'e' },
+      new AbortController().signal,
+      {
+        onStdout: (text) => {
+          received.push(text);
+        },
+      },
+      { cursor },
+    );
+    expect(received).toEqual(['once']);
+    expect(requests).toBe(2);
+    expect(cursor.lastSeq).toBe(2);
+  });
+
+  test('accepts standard multiline data and CR-only event boundaries', async () => {
+    globalThis.fetch = (async () =>
+      sseResponse([
+        'event:stdout\rdata:{"seq":2,\rdata:"text":"joined"}\r\r',
+        RESULT_OK,
+      ])) as unknown as typeof fetch;
+    const received: string[] = [];
+    await drainSessionExecResilient(
+      's',
+      { execId: 'e' },
+      new AbortController().signal,
+      {
+        onStdout: (text) => {
+          received.push(text);
+        },
+      },
+    );
+    expect(received).toEqual(['joined']);
+  });
+
+  test.each(['aG!!!k=', 'aGk', 'aGk=\n', 'aGl=', 123, null])(
+    'rejects corrupt raw output without advancing the cursor or retrying (%j)',
+    async (b64) => {
+      let calls = 0;
+      globalThis.fetch = (async () => {
+        calls += 1;
+        return sseResponse([
+          `event: stdout\ndata: ${JSON.stringify({ seq: 2, b64, text: 'untrusted fallback' })}\n\n`,
+          RESULT_OK,
+        ]);
+      }) as unknown as typeof fetch;
+      const cursor = { lastSeq: 0 };
+      let text = '';
+      await expect(
+        drainSessionExecResilient(
+          's',
+          { execId: 'e' },
+          new AbortController().signal,
+          {
+            onStdout: (chunk) => {
+              text += chunk;
+            },
+          },
+          { cursor },
+        ),
+      ).rejects.toBeInstanceOf(ExecStreamProtocolError);
+      expect(cursor.lastSeq).toBe(0);
+      expect(text).toBe('');
+      expect(calls).toBe(1);
+    },
+  );
+
+  test('does not announce replay completion from noncanonical base64 output', async () => {
+    let requests = 0;
+    globalThis.fetch = (async () => {
+      requests += 1;
+      return sseResponse([
+        'event: stdout\ndata: {"seq":2,"b64":"aGl="}\n\n',
+        RESULT_OK,
+      ]);
+    }) as unknown as typeof fetch;
+    const cursor = { lastSeq: 0 };
+    const phases: string[] = [];
+    await expect(
+      drainSessionExecResilient(
+        's',
+        { execId: 'e' },
+        new AbortController().signal,
+        {
+          onReplayStarted: () => {
+            phases.push('started');
+          },
+          onReplayComplete: () => {
+            phases.push('complete');
+          },
+          onStdout: (text) => {
+            phases.push(text);
+          },
+        },
+        { cursor, resumeSinceSeq: 0 },
+      ),
+    ).rejects.toBeInstanceOf(ExecStreamProtocolError);
+    expect(phases).toEqual(['started']);
+    expect(cursor.lastSeq).toBe(0);
+    expect(requests).toBe(1);
+  });
+
+  test('enables contiguous legacy replay without waiting for a marker', async () => {
+    const phases: string[] = [];
+    globalThis.fetch = (async () =>
+      sseResponse([
+        'event: phase\ndata: {"phase":"running"}\n\n',
+        'event: stdout\ndata: {"seq":2,"text":"legacy"}\n\n',
+        RESULT_OK,
+      ])) as unknown as typeof fetch;
+    await drainSessionExecResilient(
+      's',
+      { execId: 'e' },
+      new AbortController().signal,
+      {
+        onReplayStarted: () => {
+          phases.push('start');
+        },
+        onReplayComplete: () => {
+          phases.push('complete');
+        },
+        onStdout: (text) => {
+          phases.push(text);
+        },
+      },
+      { resumeSinceSeq: 0 },
+    );
+    expect(phases).toEqual(['start', 'complete', 'legacy']);
+  });
+
+  test('keeps journal history gated until its explicit completion marker', async () => {
+    const phases: string[] = [];
+    globalThis.fetch = (async () =>
+      sseResponse([
+        'event: replay-start\ndata: {}\n\n',
+        'event: stdout\ndata: {"seq":2,"text":"history"}\n\n',
+        'event: replay-complete\ndata: {"throughSeq":2}\n\n',
+        RESULT_OK,
+      ])) as unknown as typeof fetch;
+    await drainSessionExecResilient(
+      's',
+      { execId: 'e' },
+      new AbortController().signal,
+      {
+        onReplayStarted: () => {
+          phases.push('start');
+        },
+        onReplayComplete: () => {
+          phases.push('complete');
+        },
+        onStdout: (text) => {
+          phases.push(text);
+        },
+      },
+      { resumeSinceSeq: 0 },
+    );
+    expect(phases).toEqual(['start', 'history', 'complete']);
+  });
+
+  test('fails a legacy ring rollover before consuming its partial history', async () => {
+    let calls = 0;
+    let text = '';
+    globalThis.fetch = (async () => {
+      calls += 1;
+      return sseResponse([
+        'event: stdout\ndata: {"seq":40,"text":"incomplete"}\n\n',
+        RESULT_OK,
+      ]);
+    }) as unknown as typeof fetch;
+    await expect(
+      drainSessionExecResilient(
+        's',
+        { execId: 'e' },
+        new AbortController().signal,
+        {
+          onStdout: (chunk) => {
+            text += chunk;
+          },
+        },
+        { resumeSinceSeq: 0 },
+      ),
+    ).rejects.toThrow('Legacy sandbox replay is incomplete');
+    expect(calls).toBe(1);
+    expect(text).toBe('');
+  });
+
+  test('decodes exact UTF-8 bytes across stdout/stderr frames and reconnects without duplicates', async () => {
+    const stdout = Buffer.from('A😀Z');
+    const stderr = Buffer.from('é');
+    const frame = (event: string, seq: number, bytes: Uint8Array) =>
+      `event: ${event}\ndata: ${JSON.stringify({ seq, b64: Buffer.from(bytes).toString('base64'), text: 'legacy replacement' })}\n\n`;
+    let calls = 0;
+    globalThis.fetch = (async () => {
+      calls += 1;
+      return calls === 1
+        ? sseResponse([
+            frame('stdout', 2, stdout.subarray(0, 3)),
+            frame('stderr', 3, stderr.subarray(0, 1)),
+          ])
+        : sseResponse([
+            frame('stdout', 2, stdout.subarray(0, 3)),
+            frame('stderr', 4, stderr.subarray(1)),
+            frame('stdout', 5, stdout.subarray(3)),
+            RESULT_OK,
+          ]);
+    }) as unknown as typeof fetch;
+    let out = '';
+    let err = '';
+    const cursor = { lastSeq: 0 };
+    await drainSessionExecResilient(
+      's',
+      { execId: 'e', command: ['fixture'] },
+      new AbortController().signal,
+      {
+        onStdout: (chunk) => {
+          out += chunk;
+        },
+        onStderr: (chunk) => {
+          err += chunk;
+        },
+      },
+      { cursor },
+    );
+    expect(out).toBe('A😀Z');
+    expect(err).toBe('é');
+    expect(cursor.lastSeq).toBe(5);
+    expect(calls).toBe(2);
+  });
+
+  test('flushes a final incomplete UTF-8 character only at authoritative EOF', async () => {
+    globalThis.fetch = (async () =>
+      sseResponse([
+        'event: stdout\ndata: {"seq":2,"b64":"ww=="}\n\n',
+        RESULT_OK,
+      ])) as unknown as typeof fetch;
+    let text = '';
+    await drainSessionExecResilient(
+      's',
+      { execId: 'e', command: ['fixture'] },
+      new AbortController().signal,
+      {
+        onStdout: (chunk) => {
+          text += chunk;
+        },
+      },
+    );
+    expect(text).toBe('�');
+  });
+
+  test('marks replay boundaries and fails a journal gap without reconnecting', async () => {
+    let requests = 0;
+    const phases: string[] = [];
+    globalThis.fetch = (async () => {
+      requests += 1;
+      return sseResponse([
+        'event: replay-complete\ndata: {"throughSeq":2}\n\n',
+        'event: error\ndata: {"code":"REPLAY_GAP","message":"replay unavailable"}\n\n',
+      ]);
+    }) as unknown as typeof fetch;
+    await expect(
+      drainSessionExecResilient(
+        's',
+        { execId: 'e' },
+        new AbortController().signal,
+        {
+          onReplayStarted: () => {
+            phases.push('started');
+          },
+          onReplayComplete: () => {
+            phases.push('complete');
+          },
+        },
+        { resumeSinceSeq: 0 },
+      ),
+    ).rejects.toBeInstanceOf(ExecStreamProtocolError);
+    expect(phases).toEqual(['started', 'complete']);
+    expect(requests).toBe(1);
+  });
+
+  test('does not advance past a refused harness record and cancels its reader', async () => {
+    let cancelled = false;
+    let requests = 0;
+    globalThis.fetch = (async () => {
+      requests += 1;
+      return new Response(
+        new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(
+              enc.encode(
+                'event: stdout\ndata: {"text":"oversized record","seq":2}\n\n',
+              ),
+            );
+          },
+          cancel() {
+            cancelled = true;
+          },
+        }),
+      );
+    }) as unknown as typeof fetch;
+    const cursor = { lastSeq: 0 };
+    await expect(
+      drainSessionExecResilient(
+        's',
+        { execId: 'e' },
+        new AbortController().signal,
+        {
+          onStdout: () => {
+            throw new Error('protocol record exceeds budget');
+          },
+        },
+        { cursor },
+      ),
+    ).rejects.toThrow('protocol record exceeds budget');
+    expect(cursor.lastSeq).toBe(0);
+    expect(cancelled).toBe(true);
+    expect(requests).toBe(1);
+  });
   test('re-attaches after a mid-turn drop and feeds each delta once', async () => {
     const calls: string[] = [];
     let n = 0;

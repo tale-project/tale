@@ -291,6 +291,32 @@ describe('TaskSubjectPanel', () => {
     });
   });
 
+  it('explains a refused human approval when organization policy is unavailable', async () => {
+    mocks.reviewer = capturedReview({ kind: 'user', userId: 'alice' });
+    mocks.updateStatus.mockRejectedValueOnce(
+      new AppError({
+        code: 'TASK_REVIEW_POLICY_UNAVAILABLE',
+        message:
+          'The review policy is unavailable; restore valid configuration before deciding',
+      }),
+    );
+    const { user } = renderPanel(ownedBy(), true, 'in_review', 'alice');
+    await user.click(screen.getByRole('button', { name: 'Approve' }));
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledExactlyOnceWith({
+        title:
+          'Review policy could not be read. Restore valid organization policy before deciding.',
+        variant: 'destructive',
+      }),
+    );
+    expect(mocks.updateStatus).toHaveBeenCalledExactlyOnceWith({
+      taskId: 'task_1',
+      status: 'done',
+    });
+    expect(mocks.addComment).not.toHaveBeenCalled();
+    expect(screen.getByText('Current review: Alice')).toBeInTheDocument();
+  });
+
   it('does not offer a human verdict or name a future reviewer before the captured review loads', () => {
     mocks.reviewer = undefined;
     renderPanel(ownedBy(), true, 'in_review', 'future');
@@ -671,6 +697,48 @@ describe('TaskSubjectPanel', () => {
       taskId: 'task_1',
       status: 'done',
     });
+  });
+
+  // The board dialog keeps the panel mounted when it opens another task (a
+  // subtask, the parent, a link in a comment). Whatever the reader was
+  // saying about one task stays with that task: a Request changes draft for
+  // task A must not be waiting, pre-filled, in task B's dialog.
+  it('keeps a Request changes draft with the task it was written for', async () => {
+    const taskOf = (id: string) => ({
+      _id: id,
+      projectId: 'project_1',
+      status: 'in_review',
+      externalId: FOLDER,
+      hasFiles: true,
+    });
+    const { user, rerender } = render(
+      <TaskSubjectPanel
+        organizationId="org_1"
+        task={taskOf('task_a')}
+        ownedBy={ownedBy()}
+        canEdit
+      />,
+    );
+    await user.click(screen.getByRole('button', { name: 'Request changes' }));
+    await user.type(
+      await screen.findByRole('textbox', { name: 'What should change' }),
+      'Task A: replace the old figures',
+    );
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    rerender(
+      <TaskSubjectPanel
+        organizationId="org_1"
+        task={taskOf('task_b')}
+        ownedBy={ownedBy()}
+        canEdit
+      />,
+    );
+    await user.click(screen.getByRole('button', { name: 'Request changes' }));
+
+    expect(
+      await screen.findByRole('textbox', { name: 'What should change' }),
+    ).toHaveValue('');
   });
 
   // Cancel run parks the task at Cancelled, which closes it: a parent whose

@@ -40,9 +40,13 @@ Zum Pflegen der Organisationsdatensätze brauchst du die Rolle Redakteur oder h�
 
 Vor dem Speichern prüft das Formular jedes Feld gegen das, was Tale speichert: **Name** bis 300 Zeichen, **Telefon** bis 50, **Sprache** bis 20 und bei der **E-Mail** höchstens 64 Zeichen vor dem `@`. Ein Wert über einer Grenze wird unter seinem Feld genannt, und gespeichert wird erst, wenn du ihn korrigiert hast.
 
+Um nur die Kontakte einer Sprache zu sehen, wähle über der Kontaktliste **Filter** und unter **Sprache** die gewünschte Sprache. Eine Sprache schließt ihre regionalen Varianten ein: **FR** zeigt Kontakte mit der Sprache `fr`, `fr-CH` oder `fr_CA`. Ein Kontakt ohne Sprache erscheint nur, solange keine Sprache gewählt ist.
+
 Du kannst einen Kontakt auch beim Schreiben anlegen. Wähle im Bereich **Start** in der Ansicht **Inbox** die Schaltfläche **Neue E-Mail** und tippe eine Adresse in **An**: Trägt sie kein Kontakt, bietet die Liste **„…“ als Kontakt hinzufügen** an und öffnet dasselbe Formular mit bereits ausgefüllter **E-Mail**. Nach dem Speichern ist dieser Kontakt der Empfänger – du verlässt die begonnene Nachricht also nie.
 
 Ist die E-Mail-Adresse bereits vorhanden, suche den bestehenden Kontakt und bearbeite ihn über sein Zeilenmenü; aus **Neue E-Mail** heraus wählt Tale den vorhandenen Kontakt für dich aus. Beim Speichern wird nur der Datensatz angelegt; Tale sendet dem Kontakt dabei keine E-Mail.
+
+Kontakte, die dein Team hier erfasst oder importiert hat, bearbeitest oder löschst du einzeln über das Zeilenmenü. Um mehrere auf einmal zu löschen, setze bei ihren Zeilen das Häkchen und wähle **Ausgewählte löschen**. Kontakte aus einer Integration, der API oder einer Konversation gehören ihrer Quelle, die eine Änderung hier überschreiben würde. Deshalb bietet ihr Zeilenmenü weder **Bearbeiten** noch **Löschen**, und ihre Zeilen haben kein Kästchen.
 
 ## Ein Produkt anlegen
 

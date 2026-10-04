@@ -16,10 +16,11 @@ import {
 import { getEventListeners } from 'node:events';
 
 import { ActivityGate } from '../../../sandbox-runtime/daemon/src/activity-gate.ts';
-import type {
-  BackendSession,
-  SessionBackend,
-  SessionSpec,
+import {
+  SessionIncarnationChangedError,
+  type BackendSession,
+  type SessionBackend,
+  type SessionSpec,
 } from '../backend/types.ts';
 import type { SpawnerConfig } from '../types.ts';
 import { deriveRunnerdToken } from './session-naming.ts';
@@ -66,6 +67,8 @@ const created = new Set<string>();
 const destroyed = new Set<string>();
 const stopped = new Set<string>();
 const stdinWrites: Array<{ execId: string; b64?: string; eof?: boolean }> = [];
+const stageBodies: unknown[] = [];
+let stageFailure: string | undefined;
 // Each POST /execs/:id/cancel runnerd received, path and query.
 const cancelRequests: string[] = [];
 // Captures each POST /execs body the spawner sends to runnerd, so tests can
@@ -82,6 +85,7 @@ const execRequests: Array<{
 const fakeHealth = {
   lastActivityAtMs: 0,
   liveExecs: 0,
+  dockerReady: undefined as boolean | undefined,
 };
 const fakeActivities = new Map<string, ActivityGate>();
 let legacyDaemon = false;
@@ -149,6 +153,9 @@ beforeAll(() => {
           lastActivityAtMs:
             daemonLastActivity.get(token) ?? fakeHealth.lastActivityAtMs,
           liveExecs: fakeHealth.liveExecs,
+          ...(fakeHealth.dockerReady === undefined
+            ? {}
+            : { dockerReady: fakeHealth.dockerReady }),
           ...(legacyDaemon ? {} : { activity: activity.snapshot() }),
         });
       }
@@ -213,11 +220,53 @@ beforeAll(() => {
         // Echo-style script: a start, one stdout chunk, then exit 0.
         const text: string =
           body.command?.slice(1).join(' ') ?? body.shell ?? '';
+        if (text.includes('__malformed_stream__'))
+          return new Response('{broken}\n', {
+            headers: { 'content-type': 'application/x-ndjson' },
+          });
         // Sentinel: simulate a process that raced the deadline but still exited
         // cleanly (exitCode 0 + timedOut) — the H8 wire-coherence case.
         const cleanTimeout = text.includes('__timeout_clean__');
         // Sentinel: simulate a pre-spawn `fail` line (the process never ran,
         // so runnerd reports no measurement).
+        if (text.includes('__utf8_split__')) {
+          const bytes = Buffer.from('🙂');
+          return new Response(
+            ndjson([
+              {
+                t: 'stdout',
+                b64: bytes.subarray(0, 2).toString('base64'),
+                seq: 1,
+              },
+              {
+                t: 'stdout',
+                b64: bytes.subarray(2).toString('base64'),
+                seq: 2,
+              },
+              {
+                t: 'exit',
+                exitCode: 0,
+                durationMs: 1,
+                truncated: { stdout: false, stderr: false },
+                timedOut: false,
+                cancelled: false,
+              },
+            ]),
+            { headers: { 'content-type': 'application/x-ndjson' } },
+          );
+        }
+        if (text.includes('__output_limit__')) {
+          return new Response(
+            ndjson([
+              {
+                t: 'fail',
+                code: 'OUTPUT_LIMIT',
+                message: 'Replay limit exceeded',
+              },
+            ]),
+            { headers: { 'content-type': 'application/x-ndjson' } },
+          );
+        }
         if (text.includes('__fail__')) {
           return new Response(
             ndjson([
@@ -273,9 +322,14 @@ beforeAll(() => {
         return Response.json({ ok: true });
       }
       if (url.pathname === '/files/stage' && req.method === 'POST') {
+        if (stageFailure !== undefined)
+          return Response.json({ error: stageFailure }, { status: 503 });
+        const staged: unknown = await req.json();
+        stageBodies.push(staged);
         return Response.json({
           staged: [{ path: 'repo/README.md', bytes: 12 }],
           skipped: [],
+          reconciled: true,
         });
       }
       if (url.pathname === '/fs/list') {
@@ -289,12 +343,40 @@ beforeAll(() => {
         });
       }
       if (url.pathname.endsWith('/attach')) {
+        if (url.pathname.includes('/malformed-'))
+          return new Response('{broken}\n', {
+            headers: { 'content-type': 'application/x-ndjson' },
+          });
+        if (url.pathname.includes('/replay-unavailable/')) {
+          return new Response(
+            ndjson([
+              {
+                t: 'fail',
+                code: 'REPLAY_UNAVAILABLE',
+                message: 'Replay could not be preserved',
+              },
+            ]),
+            { headers: { 'content-type': 'application/x-ndjson' } },
+          );
+        }
+
         if (url.pathname.includes('/hang-')) {
           return hangingExecResponse();
         }
         return new Response(
           ndjson([
-            { t: 'stdout', b64: Buffer.from('replayed').toString('base64') },
+            { t: 'replay-start' },
+            {
+              t: 'stdout',
+              b64: Buffer.from('replayed').toString('base64'),
+              seq: 1,
+            },
+            { t: 'replay-complete', throughSeq: 1 },
+            {
+              t: 'stdout',
+              b64: Buffer.from('live').toString('base64'),
+              seq: 2,
+            },
             {
               t: 'exit',
               exitCode: 0,
@@ -421,6 +503,8 @@ beforeEach(() => {
   destroyed.clear();
   stopped.clear();
   stdinWrites.length = 0;
+  stageBodies.length = 0;
+  stageFailure = undefined;
   execRequests.length = 0;
   backendGone.clear();
   backendCheckThrows = false;
@@ -429,6 +513,7 @@ beforeEach(() => {
   backendPins.clear();
   fakeHealth.lastActivityAtMs = 0;
   fakeHealth.liveExecs = 0;
+  fakeHealth.dockerReady = undefined;
   fakeActivities.clear();
   legacyDaemon = false;
   legacyIdleReclaim = false;
@@ -440,6 +525,189 @@ beforeEach(() => {
 });
 
 describe('SessionRoutes (fake runnerd)', () => {
+  test.each(['exec', 'attach'])(
+    'malformed %s output is terminal replay failure and does not evict the session',
+    async (method) => {
+      const routes = new SessionRoutes(cfg, fakeBackend);
+      await routes.handleCreate(
+        JSON.stringify({
+          sessionId: 'malformed-stream',
+          organizationId: 'org_a',
+        }),
+      );
+      const request = new Request('http://sandbox/stream');
+      const result =
+        method === 'exec'
+          ? await routes.handleExec(
+              request,
+              'malformed-stream',
+              JSON.stringify({
+                execId: 'malformed-e',
+                command: ['echo', '__malformed_stream__'],
+              }),
+            )
+          : await routes.handleExecAttach(
+              request,
+              'malformed-stream',
+              'malformed-e',
+            );
+      backendGone.add('malformed-stream');
+      const text = await result.text();
+      expect(text).toContain('REPLAY_UNAVAILABLE');
+      expect(routes.holds('malformed-stream')).toBe(true);
+    },
+  );
+
+  test.each(['acquire', 'exec', 'sweep'])(
+    'unhealthy inner Docker recovers idle compute through the fenced claim on %s',
+    async (operation) => {
+      const routes = new SessionRoutes(
+        { ...cfg, dockerInContainer: true },
+        fakeBackend,
+      );
+      await routes.handleCreate(
+        JSON.stringify({
+          sessionId: 'docker-idle',
+          organizationId: 'org_a',
+          profile: 'agent',
+        }),
+      );
+      fakeHealth.dockerReady = false;
+      if (operation === 'sweep') expect(await routes.sweepExpired()).toBe(1);
+      else {
+        const result =
+          operation === 'acquire'
+            ? await routes.handleActivity('docker-idle', 'acquire')
+            : await routes.handleExec(
+                new Request('http://sandbox/exec'),
+                'docker-idle',
+                JSON.stringify({ execId: 'e-docker', command: ['true'] }),
+              );
+        expect(result.status).toBe(404);
+      }
+      expect(stopped.has('docker-idle')).toBe(true);
+      expect(destroyed.has('docker-idle')).toBe(false);
+      expect(execRequests).toHaveLength(0);
+    },
+  );
+
+  test.each(['busy', 'pinned', 'acquired-race', 'legacy'])(
+    'unhealthy inner Docker protects %s compute while refusing new work',
+    async (state) => {
+      const routes = new SessionRoutes(
+        { ...cfg, dockerInContainer: true },
+        fakeBackend,
+      );
+      await routes.handleCreate(
+        JSON.stringify({
+          sessionId: 'docker-protected',
+          organizationId: 'org_a',
+          profile: 'agent',
+        }),
+      );
+      if (state === 'busy') fakeHealth.liveExecs = 1;
+      if (state === 'pinned')
+        await routes.handleSetPinned('docker-protected', '{"pinned":true}');
+      if (state === 'legacy') legacyIdleReclaim = true;
+      if (state === 'acquired-race')
+        beforeReclaim = (_token, activity) => {
+          activity.acquire();
+        };
+      fakeHealth.dockerReady = false;
+      expect(
+        (await routes.handleActivity('docker-protected', 'acquire')).status,
+      ).toBe(503);
+      expect(
+        (
+          await routes.handleExec(
+            new Request('http://sandbox/exec'),
+            'docker-protected',
+            JSON.stringify({ execId: 'e-docker', command: ['true'] }),
+          )
+        ).status,
+      ).toBe(503);
+      expect(await routes.sweepExpired()).toBe(0);
+      expect(stopped.has('docker-protected')).toBe(false);
+      expect(destroyed.has('docker-protected')).toBe(false);
+      expect(execRequests).toHaveLength(0);
+    },
+  );
+
+  test.each([{ docker: 'false' }, { workload: 'bogus' }])(
+    'rejects malformed capability fields at create: %j',
+    async (invalid) => {
+      const routes = new SessionRoutes(cfg, fakeBackend);
+      const response = await routes.handleCreate(
+        JSON.stringify({
+          sessionId: 'invalid-capability',
+          organizationId: 'org_caps',
+          ...invalid,
+        }),
+      );
+      expect(response.status).toBe(400);
+      expect(created.size).toBe(0);
+    },
+  );
+
+  test('staging preserves only a safe admission refusal as retryable busy', async () => {
+    const routes = new SessionRoutes(cfg, fakeBackend);
+    await routes.handleCreate(
+      JSON.stringify({ sessionId: 'busy-stage', organizationId: 'org_stage' }),
+    );
+    stageFailure = 'busy';
+    const busy = await routes.handleFilesStage('busy-stage', '{"files":[]}');
+    expect(busy.status).toBe(503);
+    expect(await busy.json()).toEqual({ error: 'busy' });
+    expect(busy.headers.get('retry-after')).toBe('1');
+    stageFailure = 'broken';
+    expect(
+      (await routes.handleFilesStage('busy-stage', '{"files":[]}')).status,
+    ).toBe(502);
+    expect(stageBodies).toHaveLength(0);
+  });
+
+  test('forwards source probes and bounded directory reconciliation with its compatibility marker', async () => {
+    const routes = new SessionRoutes(cfg, fakeBackend);
+    await routes.handleCreate(
+      JSON.stringify({ sessionId: 'stage-probe', organizationId: 'org_stage' }),
+    );
+    const request = {
+      files: [{ path: 'repo/README.md', sourceId: 'sha256:fixture' }],
+      replaceRoots: ['skills'],
+      keepPaths: ['skills/example/SKILL.md'],
+    };
+    const response = await routes.handleFilesStage(
+      'stage-probe',
+      JSON.stringify(request),
+    );
+    expect(stageBodies).toEqual([request]);
+    expect(await response.json()).toMatchObject({ reconciled: true });
+    expect(
+      (
+        await routes.handleFilesStage(
+          'stage-probe',
+          JSON.stringify({ files: [], replaceRoots: [42] }),
+        )
+      ).status,
+    ).toBe(400);
+    expect(
+      (
+        await routes.handleFilesStage(
+          'stage-probe',
+          JSON.stringify({ files: [{ path: 'x', sourceId: 12 }] }),
+        )
+      ).status,
+    ).toBe(400);
+    expect(
+      (
+        await routes.handleFilesStage(
+          'stage-probe',
+          JSON.stringify({ files: [{ path: 'missing-source' }] }),
+        )
+      ).status,
+    ).toBe(400);
+    expect(stageBodies.length).toBe(1);
+  });
   test('create → exec echo → destroy', async () => {
     const routes = new SessionRoutes(cfg, fakeBackend);
 
@@ -866,7 +1134,92 @@ describe('SessionRoutes (fake runnerd)', () => {
     expect(events.find((e) => e.event === 'result')?.data.status).toBe(
       'completed',
     );
+    expect(
+      events.filter((event) =>
+        ['replay-start', 'stdout', 'replay-complete'].includes(event.event),
+      ),
+    ).toEqual([
+      { event: 'replay-start', data: {} },
+      {
+        event: 'stdout',
+        data: {
+          text: 'replayed',
+          b64: Buffer.from('replayed').toString('base64'),
+          seq: 1,
+        },
+      },
+      { event: 'replay-complete', data: { throughSeq: 1 } },
+      {
+        event: 'stdout',
+        data: {
+          text: 'live',
+          b64: Buffer.from('live').toString('base64'),
+          seq: 2,
+        },
+      },
+    ]);
   });
+
+  test('stdio frames preserve exact bytes across split UTF-8 while collected output remains lossless', async () => {
+    const routes = new SessionRoutes(cfg, fakeBackend);
+    await routes.handleCreate(
+      JSON.stringify({ sessionId: 'utf8-bytes', organizationId: 'org_text' }),
+    );
+    const response = await routes.handleExec(
+      new Request('http://x'),
+      'utf8-bytes',
+      JSON.stringify({
+        execId: 'split-text',
+        command: ['echo', '__utf8_split__'],
+      }),
+    );
+    const { events } = await readSse(response);
+    const chunks = events
+      .filter((event) => event.event === 'stdout')
+      .map((event) => Buffer.from(String(event.data.b64), 'base64'));
+    expect(chunks.map((chunk) => chunk.length)).toEqual([2, 2]);
+    expect(Buffer.concat(chunks).toString()).toBe('🙂');
+    expect(
+      events.find((event) => event.event === 'result')?.data.stdoutBase64,
+    ).toBe(Buffer.from('🙂').toString('base64'));
+  });
+
+  test.each(['start', 'attach'])(
+    'replay storage failures on %s preserve their fatal SSE code before the compatibility result',
+    async (mode) => {
+      const routes = new SessionRoutes(cfg, fakeBackend);
+      await routes.handleCreate(
+        JSON.stringify({
+          sessionId: 'replay-error',
+          organizationId: 'org_replay',
+        }),
+      );
+      const response =
+        mode === 'start'
+          ? await routes.handleExec(
+              new Request('http://x'),
+              'replay-error',
+              JSON.stringify({
+                execId: 'limit',
+                command: ['echo', '__output_limit__'],
+              }),
+            )
+          : await routes.handleExecAttach(
+              new Request('http://x'),
+              'replay-error',
+              'replay-unavailable',
+            );
+      const { events } = await readSse(response);
+      const failure = events.findIndex((event) => event.event === 'error');
+      const result = events.findIndex((event) => event.event === 'result');
+      expect(failure).toBeGreaterThanOrEqual(0);
+      expect(result).toBeGreaterThan(failure);
+      expect(events[failure]?.data.code).toBe(
+        mode === 'start' ? 'OUTPUT_LIMIT' : 'REPLAY_UNAVAILABLE',
+      );
+      expect(events[result]?.data.status).toBe('failed');
+    },
+  );
 
   test('env/files/attach against unknown session → 404', async () => {
     const routes = new SessionRoutes(cfg, fakeBackend);
@@ -991,6 +1344,202 @@ describe('SessionRoutes (fake runnerd)', () => {
     expect(await routes.sweepExpired()).toBe(1);
     expect((await routes.handleGet('pin1')).status).toBe(404);
     fakeHealth.lastActivityAtMs = 0;
+  });
+
+  test.each([false, true])(
+    'a failed durable pin to %s stays unpublished, protected, and retryable',
+    async (pinned) => {
+      let fail = false;
+      const writes: Array<[boolean, number | undefined]> = [];
+      const routes = new SessionRoutes(cfg, {
+        ...fakeBackend,
+        async setPinned(id, value, stamp) {
+          writes.push([value, stamp]);
+          if (fail) throw new Error('pin persistence unavailable');
+          await fakeBackend.setPinned(id, value);
+        },
+      });
+      await routes.handleCreate(
+        JSON.stringify({ sessionId: 'pin-retry', organizationId: 'org_pin' }),
+      );
+      expect(
+        (
+          await routes.handleSetPinned(
+            'pin-retry',
+            JSON.stringify({ pinned: !pinned }),
+          )
+        ).status,
+      ).toBe(200);
+      fail = true;
+      expect(
+        (await routes.handleSetPinned('pin-retry', JSON.stringify({ pinned })))
+          .status,
+      ).toBe(503);
+      expect(await (await routes.handleGet('pin-retry')).json()).toMatchObject({
+        session: { pinned: !pinned },
+      });
+      expect(backendPins.get('pin-retry')).toBe(!pinned);
+      expect(await routes.sweepExpired()).toBe(0);
+      expect(stopped.has('pin-retry')).toBe(false);
+      fail = false;
+      expect(
+        (await routes.handleSetPinned('pin-retry', JSON.stringify({ pinned })))
+          .status,
+      ).toBe(200);
+      expect(await (await routes.handleGet('pin-retry')).json()).toMatchObject({
+        session: { pinned },
+      });
+      expect(backendPins.get('pin-retry')).toBe(pinned);
+      expect(writes.every(([, stamp]) => typeof stamp === 'number')).toBe(true);
+    },
+  );
+
+  test('a failed durable pin protects a legacy daemon without publishing success', async () => {
+    legacyDaemon = true;
+    const routes = new SessionRoutes(cfg, {
+      ...fakeBackend,
+      async setPinned() {
+        throw new Error('storage unavailable');
+      },
+    });
+    await routes.handleCreate(
+      JSON.stringify({ sessionId: 'legacy-pin', organizationId: 'org_pin' }),
+    );
+    expect(
+      (await routes.handleSetPinned('legacy-pin', '{"pinned":true}')).status,
+    ).toBe(503);
+    expect(await (await routes.handleGet('legacy-pin')).json()).toMatchObject({
+      session: { pinned: false },
+    });
+    expect(await routes.sweepExpired()).toBe(0);
+  });
+
+  test('a canceled pin whose two durable writes fail stays observably unsynchronized until retry succeeds', async () => {
+    let fail = true;
+    const routes = new SessionRoutes(cfg, {
+      ...fakeBackend,
+      async setPinned() {
+        if (fail) throw new Error('pin persistence unavailable');
+      },
+    });
+    await routes.handleCreate(
+      JSON.stringify({ sessionId: 'canceled-pin', organizationId: 'org_pin' }),
+    );
+    for (const pinned of [true, false]) {
+      expect(
+        (
+          await routes.handleSetPinned(
+            'canceled-pin',
+            JSON.stringify({ pinned }),
+          )
+        ).status,
+      ).toBe(503);
+      expect(
+        await (await routes.handleGet('canceled-pin')).json(),
+      ).toMatchObject({ session: { pinned: false, pinSynchronized: false } });
+    }
+    fail = false;
+    expect(
+      (await routes.handleSetPinned('canceled-pin', '{"pinned":false}')).status,
+    ).toBe(200);
+    expect(
+      await (await routes.handleGet('canceled-pin')).json(),
+    ).not.toMatchObject({ session: { pinSynchronized: false } });
+  });
+
+  test('a pin rejected by a peer replacement drops only its stale registry incarnation', async () => {
+    const replacement = {
+      ...mkBackendSession('pin-replaced', 'org_pin'),
+      createdAtMs: 987654,
+      pinned: false,
+    };
+    const routes = new SessionRoutes(cfg, {
+      ...fakeBackend,
+      async setPinned(id) {
+        throw new SessionIncarnationChangedError(id, 'replaced');
+      },
+      async listSessions() {
+        return [replacement];
+      },
+    });
+    await routes.handleCreate(
+      JSON.stringify({
+        sessionId: replacement.sessionId,
+        organizationId: 'org_pin',
+      }),
+    );
+    expect(
+      (await routes.handleSetPinned(replacement.sessionId, '{"pinned":true}'))
+        .status,
+    ).toBe(503);
+    expect(
+      await (await routes.handleGet(replacement.sessionId)).json(),
+    ).toMatchObject({
+      session: { createdAtMs: replacement.createdAtMs, pinned: false },
+    });
+    expect(destroyed.has(replacement.sessionId)).toBe(false);
+  });
+
+  test('pin writes are serialized, and destroy waits before removing their incarnation', async () => {
+    const entered = Promise.withResolvers<void>();
+    const finish = Promise.withResolvers<void>();
+    const writes: boolean[] = [];
+    const routes = new SessionRoutes(cfg, {
+      ...fakeBackend,
+      async setPinned(id, value) {
+        writes.push(value);
+        if (value) {
+          entered.resolve();
+          await finish.promise;
+        }
+        await fakeBackend.setPinned(id, value);
+      },
+    });
+    await routes.handleCreate(
+      JSON.stringify({ sessionId: 'pin-order', organizationId: 'org_pin' }),
+    );
+    const first = routes.handleSetPinned('pin-order', '{"pinned":true}');
+    await entered.promise;
+    const second = routes.handleSetPinned('pin-order', '{"pinned":false}');
+    await Promise.resolve();
+    expect(writes).toEqual([true]);
+    const destroy = routes.handleDestroy('pin-order');
+    expect(await settlesWithin(destroy, 5)).toBe(false);
+    finish.resolve();
+    expect((await first).status).toBe(200);
+    // The queued toggle loses to the announced destroy; it cannot recreate its marker.
+    expect((await second).status).toBe(503);
+    expect((await destroy).status).toBe(200);
+    expect(writes).toEqual([true]);
+  });
+
+  test('only an acknowledged true-to-false pin transition renews the TTL', async () => {
+    const routes = new SessionRoutes(cfg, fakeBackend);
+    await routes.handleCreate(
+      JSON.stringify({ sessionId: 'pin-ttl', organizationId: 'org_pin' }),
+    );
+    const expiry = async () => {
+      // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion -- fake route response asserted by this regression
+      const response = (await (await routes.handleGet('pin-ttl')).json()) as {
+        session: { expiresAtMs: number };
+      };
+      return response.session.expiresAtMs;
+    };
+    const original = await expiry();
+    try {
+      setSystemTime(Date.now() + 1000);
+      await routes.handleSetPinned('pin-ttl', '{"pinned":false}');
+      expect(await expiry()).toBe(original);
+      await routes.handleSetPinned('pin-ttl', '{"pinned":true}');
+      await routes.handleSetPinned('pin-ttl', '{"pinned":false}');
+      const renewed = await expiry();
+      expect(renewed).toBeGreaterThan(original);
+      setSystemTime(Date.now() + 1000);
+      await routes.handleSetPinned('pin-ttl', '{"pinned":false}');
+      expect(await expiry()).toBe(renewed);
+    } finally {
+      setSystemTime();
+    }
   });
 
   test('a pin survives a spawner restart: adoptExisting carries `pinned` and the sweep spares it', async () => {
@@ -1143,6 +1692,122 @@ describe('SessionRoutes (fake runnerd)', () => {
   });
 
   describe('zombie-session eviction', () => {
+    test('a delayed dead probe cannot evict a replacement or join its liveness check', async () => {
+      const started = Promise.withResolvers<void>();
+      const answer = Promise.withResolvers<boolean>();
+      let checks = 0;
+      const routes = new SessionRoutes(cfg, {
+        ...fakeBackend,
+        async sessionExists() {
+          checks += 1;
+          if (checks === 1) {
+            started.resolve();
+            return answer.promise;
+          }
+          return true;
+        },
+      });
+      const body = JSON.stringify({
+        sessionId: 'probe-replacement',
+        organizationId: 'org_z',
+      });
+      await routes.handleCreate(body);
+      const oldProbe = routes.handleGet('probe-replacement');
+      await started.promise;
+      await routes.handleDestroy('probe-replacement');
+      expect((await routes.handleCreate(body)).status).toBe(201);
+      const newProbe = routes.handleGet('probe-replacement');
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      const replacementChecks = checks;
+      answer.resolve(false);
+      const responses = await Promise.all([oldProbe, newProbe]);
+      expect(replacementChecks).toBe(2);
+      expect(responses.map((response) => response.status)).toEqual([200, 200]);
+      expect(routes.holds('probe-replacement')).toBe(true);
+      expect((await routes.handleGet('probe-replacement')).status).toBe(200);
+      expect(checks).toBe(3);
+    });
+
+    test.each(['alive', 'unknown'])(
+      'concurrent liveness checks share an in-flight %s answer but never cache it',
+      async (outcome) => {
+        const started = Promise.withResolvers<void>();
+        const release = Promise.withResolvers<void>();
+        let checks = 0;
+        const routes = new SessionRoutes(cfg, {
+          ...fakeBackend,
+          async sessionExists() {
+            checks += 1;
+            started.resolve();
+            await release.promise;
+            if (outcome === 'unknown') throw new Error('temporary API failure');
+            return true;
+          },
+        });
+        await routes.handleCreate(
+          JSON.stringify({
+            sessionId: 'shared-probe',
+            organizationId: 'org_z',
+          }),
+        );
+        const requests = Array.from({ length: 16 }, () =>
+          routes.handleGet('shared-probe'),
+        );
+        await started.promise;
+        const simultaneousChecks = checks;
+        release.resolve();
+        const responses = await Promise.all(requests);
+        expect(simultaneousChecks).toBe(1);
+        expect(responses.every((response) => response.status === 200)).toBe(
+          true,
+        );
+        expect(routes.holds('shared-probe')).toBe(true);
+        expect((await routes.handleGet('shared-probe')).status).toBe(200);
+        expect(checks).toBe(2);
+      },
+    );
+
+    test('a stop that begins during a liveness probe keeps its capacity until compute is gone', async () => {
+      const probeStarted = Promise.withResolvers<void>();
+      const probeAnswer = Promise.withResolvers<boolean>();
+      const stopStarted = Promise.withResolvers<void>();
+      const stopRelease = Promise.withResolvers<void>();
+      let checks = 0;
+      const routes = new SessionRoutes(cfg, {
+        ...fakeBackend,
+        async sessionExists() {
+          checks += 1;
+          if (checks === 1) {
+            probeStarted.resolve();
+            return probeAnswer.promise;
+          }
+          return false;
+        },
+        async stopSession() {
+          stopStarted.resolve();
+          await stopRelease.promise;
+          return true;
+        },
+      });
+      await routes.handleCreate(
+        JSON.stringify({ sessionId: 'probe-stop', organizationId: 'org_z' }),
+      );
+      const probe = routes.handleGet('probe-stop');
+      await probeStarted.promise;
+      const sweep = routes.sweepExpired(
+        Date.now() + cfg.session.maxLifetimeMs + 1,
+      );
+      await stopStarted.promise;
+      probeAnswer.resolve(false);
+      const response = await probe;
+      const heldDuringStop = routes.holds('probe-stop');
+      stopRelease.resolve();
+      await sweep;
+      expect(response.status).toBe(200);
+      expect(heldDuringStop).toBe(true);
+      expect(routes.holds('probe-stop')).toBe(false);
+    });
+
     test('aliveness probe (handleGet) 404s + evicts when the backend object is gone', async () => {
       const routes = new SessionRoutes(cfg, fakeBackend);
       await routes.handleCreate(
@@ -1700,6 +2365,129 @@ describe('SessionRoutes (fake runnerd)', () => {
         };
         return b;
       };
+
+      test.each(['ready', 'failed'])(
+        'same-incarnation misses share an in-flight %s endpoint resolution',
+        async (outcome) => {
+          const resolveStarted = Promise.withResolvers<void>();
+          const release = Promise.withResolvers<void>();
+          let resolutions = 0;
+          let lists = 0;
+          let fail = outcome === 'failed';
+          const entry = mkBackendSession('shared-endpoint', 'org_peer');
+          const routes = new SessionRoutes(cfg, {
+            ...fakeBackend,
+            async listSessions() {
+              lists += 1;
+              return [entry];
+            },
+            async resolveEndpoint() {
+              resolutions += 1;
+              resolveStarted.resolve();
+              await release.promise;
+              if (fail) throw new Error('temporary endpoint failure');
+              return fakeBaseUrl;
+            },
+          });
+          const requests = Array.from({ length: 16 }, () =>
+            routes.handleGet(entry.sessionId),
+          );
+          await resolveStarted.promise;
+          await new Promise<void>((resolve) => setImmediate(resolve));
+          const simultaneousResolutions = resolutions;
+          release.resolve();
+          const responses = await Promise.all(requests);
+          expect(lists).toBe(2);
+          expect(simultaneousResolutions).toBe(1);
+          expect(
+            responses.every(
+              (response) => response.status === (fail ? 404 : 200),
+            ),
+          ).toBe(true);
+          if (fail) {
+            fail = false;
+            expect((await routes.handleGet(entry.sessionId)).status).toBe(200);
+            expect(resolutions).toBe(2);
+          }
+        },
+      );
+
+      test('a newer listed incarnation resolves separately from an older in-flight adoption', async () => {
+        const oldStarted = Promise.withResolvers<void>();
+        const oldRelease = Promise.withResolvers<void>();
+        let resolutions = 0;
+        let entry = mkBackendSession('new-endpoint', 'org_peer');
+        const routes = new SessionRoutes(cfg, {
+          ...fakeBackend,
+          async listSessions() {
+            return [entry];
+          },
+          async resolveEndpoint() {
+            resolutions += 1;
+            if (resolutions === 1) {
+              oldStarted.resolve();
+              await oldRelease.promise;
+            }
+            return fakeBaseUrl;
+          },
+        });
+        const older = routes.handleGet(entry.sessionId);
+        await oldStarted.promise;
+        entry = { ...entry, createdAtMs: entry.createdAtMs + 1 };
+        const newer = routes.handleGet(entry.sessionId);
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        const simultaneousResolutions = resolutions;
+        oldRelease.resolve();
+        const responses = await Promise.all([older, newer]);
+        expect(simultaneousResolutions).toBe(2);
+        for (const response of responses) {
+          expect(await response.json()).toMatchObject({
+            session: { createdAtMs: entry.createdAtMs },
+          });
+        }
+      });
+
+      test('an old endpoint failure cannot clear a newer incarnation resolution still in flight', async () => {
+        const oldStarted = Promise.withResolvers<void>();
+        const oldRelease = Promise.withResolvers<void>();
+        const newStarted = Promise.withResolvers<void>();
+        const newRelease = Promise.withResolvers<void>();
+        let resolutions = 0;
+        let entry = mkBackendSession('pending-endpoint', 'org_peer');
+        const routes = new SessionRoutes(cfg, {
+          ...fakeBackend,
+          async listSessions() {
+            return [entry];
+          },
+          async resolveEndpoint() {
+            resolutions += 1;
+            if (resolutions === 1) {
+              oldStarted.resolve();
+              await oldRelease.promise;
+              throw new Error('old Pod disappeared');
+            }
+            newStarted.resolve();
+            await newRelease.promise;
+            return fakeBaseUrl;
+          },
+        });
+        const older = routes.handleGet(entry.sessionId);
+        await oldStarted.promise;
+        entry = { ...entry, createdAtMs: entry.createdAtMs + 1 };
+        const newer = routes.handleGet(entry.sessionId);
+        await newStarted.promise;
+        oldRelease.resolve();
+        expect((await older).status).toBe(404);
+        const joining = routes.handleGet(entry.sessionId);
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        const simultaneousResolutions = resolutions;
+        newRelease.resolve();
+        const responses = await Promise.all([newer, joining]);
+        expect(simultaneousResolutions).toBe(2);
+        expect(responses.map((response) => response.status)).toEqual([
+          200, 200,
+        ]);
+      });
 
       test('GET / exec / exec-status / env / files on a session the registry never saw succeed', async () => {
         const backend = peerBackend(mkBackendSession('peer1', 'org_peer'));
@@ -2556,6 +3344,80 @@ describe('sweep and adoption hygiene', () => {
     return routes.handleActivity(id, 'release', JSON.stringify(ticket));
   };
 
+  test('a pinned session whose backend died gives back capacity without destroying its workspace', async () => {
+    const routes = new SessionRoutes(
+      { ...cfg, session: { ...cfg.session, maxSessions: 1 } },
+      fakeBackend,
+    );
+    await create(routes, 'pinned-dead');
+    await routes.handleSetPinned(
+      'pinned-dead',
+      JSON.stringify({ pinned: true }),
+    );
+    backendGone.add('pinned-dead');
+    await routes.maintain();
+    expect(routes.sessionCount()).toBe(0);
+    expect((await create(routes, 'after-pinned-death')).status).toBe(201);
+    expect(destroyed.has('pinned-dead')).toBe(false);
+  });
+
+  test('nonterminal unregistered backend objects occupy capacity after restart', async () => {
+    const routes = new SessionRoutes(
+      { ...cfg, session: { ...cfg.session, maxSessions: 1 } },
+      {
+        ...fakeBackend,
+        kind: 'kubernetes',
+        async listSessions() {
+          return [
+            {
+              ...mkBackendSession('pending-peer', 'org_hygiene'),
+              state: 'degraded' as const,
+              ended: false,
+            },
+          ];
+        },
+      },
+    );
+    await routes.maintain();
+    expect((await create(routes, 'would-overfill')).status).toBe(429);
+    expect(stopped.has('pending-peer')).toBe(false);
+    const sameId = await create(routes, 'pending-peer');
+    expect(sameId.status).toBe(429);
+    expect(await sameId.json()).toMatchObject({ error: 'busy' });
+    expect(created.has('pending-peer')).toBe(false);
+  });
+
+  test('pending recovery frees capacity only after the backend confirms its compute is gone', async () => {
+    const removal = Promise.withResolvers<boolean>();
+    const pending = {
+      ...mkBackendSession('abandoned-pending', 'org_hygiene'),
+      state: 'degraded' as const,
+      ended: false,
+    };
+    const reaped: Array<[string, number]> = [];
+    const routes = new SessionRoutes(
+      { ...cfg, session: { ...cfg.session, maxSessions: 1 } },
+      {
+        ...fakeBackend,
+        kind: 'kubernetes',
+        async listSessions() {
+          return [pending];
+        },
+        async reapStaleSession(id, stamp) {
+          reaped.push([id, stamp]);
+          return removal.promise;
+        },
+      },
+    );
+    await routes.maintain();
+    expect(reaped).toEqual([[pending.sessionId, pending.createdAtMs]]);
+    expect((await create(routes, 'after-pending')).status).toBe(429);
+    removal.resolve(true);
+    await routes.endedReapSettled();
+    expect((await create(routes, 'after-pending')).status).toBe(201);
+    expect(destroyed.has(pending.sessionId)).toBe(false);
+  });
+
   test('a maintenance pass still running is joined, not stacked', async () => {
     const listing = Promise.withResolvers<BackendSession[]>();
     let lists = 0;
@@ -2741,7 +3603,7 @@ describe('sweep and adoption hygiene', () => {
     });
   });
 
-  test('the build-cache reconcile after adoption covers agent sessions only and never holds adoption up', async () => {
+  test('the build-cache reconcile after adoption excludes render and opted-out agents and never holds adoption up', async () => {
     const gate = Promise.withResolvers<void>();
     const reconciled: string[][] = [];
     const routes = new SessionRoutes(cfg, {
@@ -2749,6 +3611,7 @@ describe('sweep and adoption hygiene', () => {
       async listSessions(): Promise<BackendSession[]> {
         return [
           mkBackendSession('builder-1', 'org_build'),
+          { ...mkBackendSession('light-agent', 'org_light'), docker: false },
           { ...mkBackendSession('render-1', 'org_render'), profile: 'default' },
         ];
       },
@@ -3236,6 +4099,215 @@ describe('memory-aware admission', () => {
     });
     return { latest: reading, read: () => Promise.resolve(reading()) };
   };
+
+  const release = async (routes: SessionRoutes, id: string) => {
+    const ticket: unknown = await (
+      await routes.handleActivity(id, 'ticket')
+    ).json();
+    return routes.handleActivity(id, 'release', JSON.stringify(ticket));
+  };
+
+  test('a warm released session waits for memory before acquiring without losing its workspace', async () => {
+    let available = 8;
+    const routes = new SessionRoutes(
+      cfg,
+      fakeBackend,
+      undefined,
+      host(() => available),
+    );
+    await create(routes, 'warm-acquire');
+    await release(routes, 'warm-acquire');
+    available = 2;
+    const refused = await routes.handleActivity('warm-acquire', 'acquire');
+    expect(refused.status).toBe(429);
+    expect(await refused.json()).toMatchObject({
+      error: 'host_memory',
+      queue: { position: 0, waiting: 1 },
+    });
+    expect(stopped.has('warm-acquire')).toBe(false);
+    expect(destroyed.has('warm-acquire')).toBe(false);
+    available = 8;
+    expect(
+      (await routes.handleActivity('warm-acquire', 'acquire')).status,
+    ).toBe(200);
+  });
+
+  test('warm activations reserve memory once, stale releases cannot give it back, and current releases can', async () => {
+    let available = 8;
+    const routes = new SessionRoutes(
+      cfg,
+      fakeBackend,
+      undefined,
+      host(() => available),
+    );
+    for (const id of ['warm-a', 'warm-b']) {
+      await create(routes, id);
+      await release(routes, id);
+    }
+    const oldTicket: unknown = await (
+      await routes.handleActivity('warm-a', 'ticket')
+    ).json();
+    // Only one 512 MiB activation fits beside the 1.6 GiB reserve.
+    available = 2.2;
+    const first = await routes.handleActivity('warm-a', 'acquire');
+    expect(first.status).toBe(200);
+    expect((await routes.handleActivity('warm-a', 'acquire')).status).toBe(200);
+    expect(
+      await (
+        await routes.handleActivity(
+          'warm-a',
+          'release',
+          JSON.stringify(oldTicket),
+        )
+      ).json(),
+    ).toEqual({ released: false });
+    expect((await routes.handleActivity('warm-b', 'acquire')).status).toBe(429);
+    await release(routes, 'warm-a');
+    expect((await routes.handleActivity('warm-b', 'acquire')).status).toBe(200);
+  });
+
+  test('concurrent acquires of one released session share its activation reservation', async () => {
+    let available = 8;
+    const routes = new SessionRoutes(
+      cfg,
+      fakeBackend,
+      undefined,
+      host(() => available),
+    );
+    await create(routes, 'shared-activation');
+    await release(routes, 'shared-activation');
+    available = 2.2;
+    const responses = await Promise.all(
+      Array.from({ length: 4 }, () =>
+        routes.handleActivity('shared-activation', 'acquire'),
+      ),
+    );
+    expect(responses.map((response) => response.status)).toEqual([
+      200, 200, 200, 200,
+    ]);
+  });
+
+  test('direct exec of idle warm compute shares activation admission and the current turn keeps its reservation', async () => {
+    let available = 8;
+    const routes = new SessionRoutes(
+      cfg,
+      fakeBackend,
+      undefined,
+      host(() => available),
+    );
+    await create(routes, 'direct-warm');
+    await release(routes, 'direct-warm');
+    const exec = () =>
+      routes.handleExec(
+        new Request('http://x'),
+        'direct-warm',
+        JSON.stringify({ execId: 'direct-exec', command: ['echo', 'ok'] }),
+      );
+    available = 2;
+    expect((await exec()).status).toBe(429);
+    expect(execRequests).toHaveLength(0);
+    available = 2.2;
+    const admitted = await exec();
+    expect(admitted.status).toBe(200);
+    await readSse(admitted);
+    available = 1;
+    const sameTurn = await exec();
+    expect(sameTurn.status).toBe(200);
+    await readSse(sameTurn);
+    await release(routes, 'direct-warm');
+    expect((await exec()).status).toBe(429);
+    expect(execRequests).toHaveLength(2);
+  });
+
+  test('an acquired but abandoned idle generation must re-enter admission after its growth window', async () => {
+    let available = 8;
+    const routes = new SessionRoutes(
+      cfg,
+      fakeBackend,
+      undefined,
+      host(() => available),
+    );
+    await create(routes, 'abandoned-acquire');
+    expect(
+      (await routes.handleActivity('abandoned-acquire', 'acquire')).status,
+    ).toBe(200);
+    try {
+      setSystemTime(Date.now() + 91_000);
+      available = 2;
+      expect(
+        (
+          await routes.handleExec(
+            new Request('http://x'),
+            'abandoned-acquire',
+            JSON.stringify({ execId: 'too-late', command: ['echo', 'ok'] }),
+          )
+        ).status,
+      ).toBe(429);
+      expect(execRequests).toHaveLength(0);
+    } finally {
+      setSystemTime();
+    }
+  });
+
+  test('warm waiters hold memory in the shared FIFO without holding another runtime slot', async () => {
+    let available = 8;
+    const routes = new SessionRoutes(
+      { ...cfg, session: { ...cfg.session, maxSessions: 2 } },
+      fakeBackend,
+      undefined,
+      host(() => available),
+    );
+    await create(routes, 'fifo-warm');
+    await release(routes, 'fifo-warm');
+    await routes.handleSetPinned('fifo-warm', '{"pinned":true}');
+    available = 2;
+    expect((await routes.handleActivity('fifo-warm', 'acquire')).status).toBe(
+      429,
+    );
+    available = 2.2;
+    const behind = await create(routes, 'fifo-create');
+    expect(behind.status).toBe(429);
+    expect(await behind.json()).toMatchObject({
+      error: 'host_memory',
+      queue: { position: 1 },
+    });
+    available = 2.7;
+    expect((await create(routes, 'fifo-create')).status).toBe(201);
+    expect((await routes.handleActivity('fifo-warm', 'acquire')).status).toBe(
+      200,
+    );
+  });
+
+  test.each([false, true])(
+    'adopted actual Docker capability %s determines warm working set after policy changes',
+    async (docker) => {
+      const session = {
+        ...mkBackendSession('adopted-capability', 'org_memory'),
+        docker,
+      };
+      const routes = new SessionRoutes(
+        { ...cfg, dockerInContainer: !docker },
+        {
+          ...fakeBackend,
+          async listSessions() {
+            return [session];
+          },
+        },
+        undefined,
+        host(() => 2.2),
+      );
+      await routes.adoptExisting();
+      await release(routes, session.sessionId);
+      const response = await routes.handleActivity(
+        session.sessionId,
+        'acquire',
+      );
+      expect(response.status).toBe(docker ? 429 : 200);
+      expect(
+        await (await routes.handleGet(session.sessionId)).json(),
+      ).toMatchObject({ session: { docker } });
+    },
+  );
 
   test('a create that would leave the host under its reserve is refused with host_memory', async () => {
     // 16 GiB host: the reserve is 1.6 GiB; an agent session is planned at

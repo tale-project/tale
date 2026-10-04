@@ -59,12 +59,14 @@ The proxy publishes the door at `<site>/sandbox/tunnel` (`services/proxy/Caddyfi
 ### Placement
 
 - A create with `placement: 'device'` goes to the organization's
-  release-compatible device with the most free slots. A device that answers
-  429 or a 5xx created nothing usable (a spawner rolls a failed create
-  back), and one that drops before answering is treated the same: the
-  placement is released and the next device tried, then the local backend. A
-  device that failed a create outright sits out new ones for a minute. A
-  session id the server already holds is never moved.
+  release-compatible device with the most free slots after limiting them
+  to the observed memory headroom. Devices enforce local-host memory and disk admission
+  while retaining their configured session ceiling. Only a confirmed 429
+  releases the placement to try another device, then the local backend.
+  A 5xx or lost response keeps the placement: the remote create may have
+  succeeded. Concurrent creates of the same id share that decision. A device
+  that refused a create sits out new ones for a minute. A session id the
+  server already holds is never moved.
 - A create the platform abandons (its timeout, a restarting worker) keeps its
   placement and is tried nowhere else: the device may still finish it, and a
   retried create for the id lands on that copy.
@@ -72,7 +74,11 @@ The proxy publishes the door at `<site>/sandbox/tunnel` (`services/proxy/Caddyfi
   `placement_conflict` — never 409, which the platform reads as "it exists,
   acquire it".
 - Placements are **sticky** and persisted (`placements.json`, serialized
-  atomic writes; a corrupt file is moved aside as `.corrupt-<ts>`). Every
+  flushed temporary files and atomic rename). The rename publishes the new route
+  in memory; if flushing the parent directory then fails, the operation reports
+  the durability error but retains that route for retries and later writes. Invalid
+  JSON or any invalid placement refuses startup and preserves the file for
+  operator recovery; it never silently becomes an empty placement map. Every
   later call for the session goes to its device.
 - A device that is not connected answers **503 `{"error":"device_offline"}`**
   with `x-tale-sandbox-device: <id>`, never a 404 — the platform reads 404 as

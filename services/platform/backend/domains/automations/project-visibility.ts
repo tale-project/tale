@@ -2,6 +2,7 @@ import type { Sql, TransactionSql } from 'postgres';
 
 import {
   assertReadable,
+  assertWritable,
   listProjects,
   loadProjectOrThrow,
   ProjectError,
@@ -61,4 +62,39 @@ export async function canReadRun(
     run.projectId === null ||
     (await readableProject(sql, auth, run.projectId)) !== null
   );
+}
+
+/**
+ * Whether the actor may CONTROL a run — cancel it, answer its question, or
+ * decide the connector approval it parked on. Reading a run needs project
+ * READ access ({@link canReadRun}); acting on it is a WRITE and needs the
+ * project's write gate, the same one the REST run door (`loadRestProject`
+ * `{write:true}`) and the task workflow door (`assertTaskWritable`) apply —
+ * `canReadRun` alone is not authority to mutate. An organization run keeps
+ * its member-level control (there is no project write gate to apply); this is
+ * the one place org-scoped behaviour is deliberately preserved.
+ *
+ * - `ok` — an organization run, or a project run the actor may write.
+ * - `hidden` — the actor cannot even read the run's project; it answers like a
+ *   missing one, so a refused control never confirms the run exists.
+ * - `forbidden` — the actor may read the project but not write it (a read-only
+ *   member); the control refuses without pretending the run is missing.
+ */
+export type RunControlAccess = 'ok' | 'hidden' | 'forbidden';
+
+export async function runControlAccess(
+  sql: Sql | TransactionSql,
+  auth: ProjectAuthContext,
+  run: { projectId: string | null },
+): Promise<RunControlAccess> {
+  if (run.projectId === null) return 'ok';
+  const project = await readableProject(sql, auth, run.projectId);
+  if (project === null) return 'hidden';
+  try {
+    assertWritable(project, auth);
+  } catch (error) {
+    if (error instanceof ProjectError) return 'forbidden';
+    throw error;
+  }
+  return 'ok';
 }

@@ -32,6 +32,7 @@ export function ReviewerPicker({
   onChange,
   onOpenChange,
   disabled = false,
+  busy = false,
   align = 'start',
 }: {
   organizationId: string;
@@ -42,6 +43,8 @@ export function ReviewerPicker({
   onChange: (reviewer: TaskReviewer) => void;
   onOpenChange?: (open: boolean) => void;
   disabled?: boolean;
+  /** A save keeps its trigger mounted and focusable, but cannot start another edit. */
+  busy?: boolean;
   align?: 'start' | 'center' | 'end';
 }) {
   const { t } = useT('tasks');
@@ -190,12 +193,14 @@ export function ReviewerPicker({
       <SearchableSelect
         value={value}
         onValueChange={(next) => {
+          if (busy) return;
           const choice = choices.get(next);
           if (choice !== undefined) onChange(choice);
         }}
         options={options}
         open={open}
         onOpenChange={(next) => {
+          if (busy && next) return;
           onOpenChange?.(next);
           setOpen(next);
         }}
@@ -207,9 +212,20 @@ export function ReviewerPicker({
             variant="ghost"
             size="icon"
             aria-label={t('fields.reviewer')}
+            aria-disabled={busy || undefined}
+            aria-busy={busy || undefined}
             className="h-auto w-auto rounded-full p-1"
             onPointerDown={(event) => event.stopPropagation()}
-            onClick={(event) => event.stopPropagation()}
+            onClick={(event) => {
+              event.stopPropagation();
+              if (busy) event.preventDefault();
+            }}
+            onKeyDown={(event) => {
+              if (busy && (event.key === 'Enter' || event.key === ' ')) {
+                event.preventDefault();
+                event.stopPropagation();
+              }
+            }}
           >
             {avatar}
           </Button>

@@ -2,6 +2,7 @@ import { afterAll, describe, expect, test } from 'bun:test';
 import { spawnSync } from 'node:child_process';
 import {
   chmodSync,
+  existsSync,
   mkdtempSync,
   mkdirSync,
   readFileSync,
@@ -32,6 +33,8 @@ const helpers = source
   .replaceAll('/var/log/dockerd.log', join(root, 'dockerd.log'))
   .replaceAll('/etc/redsocks.conf', join(root, 'redsocks.conf'))
   .replaceAll('/var/log/redsocks.log', join(root, 'redsocks.log'))
+  .replaceAll('/tmp/redsocks.log', join(root, 'redsocks.log'))
+  .replaceAll('/tmp/redsocks.conf', join(root, 'redsocks.conf'))
   .replaceAll('/usr/sbin/redsocks', join(bin, 'redsocks'));
 writeFileSync(
   join(bin, 'ip'),
@@ -59,6 +62,8 @@ writeFileSync(
   join(bin, 'dockerd'),
   `#!/bin/sh
 sleep 0.1
+printf 'inner dockerd diagnostic\\n' >&2
+[ "$TALE_NETWORK_TEST_DOCKERD_FAIL" != '1' ] || exit 1
 printf 'dockerd %s\\n' "$*" >> "$TALE_NETWORK_TEST_LOG"
 exec sleep 30
 `,
@@ -69,10 +74,19 @@ exec sleep 30
 // argv on a busy CI runner. The delayed startup above makes that race explicit.
 writeFileSync(
   join(bin, 'docker'),
-  '#!/bin/sh\ngrep -q "^dockerd " "$TALE_NETWORK_TEST_LOG"\n',
+  '#!/bin/sh\n[ "$TALE_NETWORK_TEST_DOCKER_HANG" != 1 ] || exec sleep 30\ngrep -q "^dockerd " "$TALE_NETWORK_TEST_LOG"\n',
   { mode: 0o755 },
 );
-writeFileSync(join(bin, 'redsocks'), '#!/bin/sh\nexit 0\n', { mode: 0o755 });
+writeFileSync(
+  join(bin, 'redsocks'),
+  '#!/bin/sh\nprintf "redsocks diagnostic\\n" >&2\n',
+  { mode: 0o755 },
+);
+writeFileSync(
+  join(bin, 'setpriv'),
+  '#!/bin/sh\nwhile [ "$1" != "--" ]; do shift; done\nshift\nexec "$@"\n',
+  { mode: 0o755 },
+);
 writeFileSync(join(bin, 'python3'), '#!/bin/sh\nexit 77\n', { mode: 0o755 });
 writeFileSync(
   join(root, 'ipaddress.py'),
@@ -107,7 +121,7 @@ function run(command: string, env: Record<string, string> = {}) {
     '/bin/sh',
     [
       '-c',
-      `${helpers}\n_IP='${join(bin, 'ip')}'\n_GETENT='${join(bin, 'getent')}'\n${command}`,
+      `${helpers}\n_IP='${join(bin, 'ip')}'\n_GETENT='${join(bin, 'getent')}'\n_DOCKER='${join(bin, 'docker')}'\n_DOCKERD='${join(bin, 'dockerd')}'\n${command}`,
     ],
     {
       env: {
@@ -126,6 +140,7 @@ function run(command: string, env: Record<string, string> = {}) {
         TALE_NETWORK_TEST_LOG: log,
         TALE_NETWORK_TEST_HOSTS: '{}',
         TALE_NETWORK_TEST_DNS_HANG: '0',
+        TALE_NETWORK_TEST_DOCKER_HANG: '0',
         TALE_BUILDKITD_ENDPOINT: 'tcp://org-builder:1234',
         TALE_BUILDKIT_NETWORK_SUBNETS: '["172.19.0.0/23"]',
         TALE_DIND_INNER_POOL_OVERRIDE: '',
@@ -133,6 +148,7 @@ function run(command: string, env: Record<string, string> = {}) {
         HTTPS_PROXY: '',
         TALE_GATEWAY_URL: '',
         TALE_RUNTIME_TIER: 'runc',
+        TALE_NETWORK_TEST_DOCKERD_FAIL: '0',
         ...env,
       },
       encoding: 'utf8',
@@ -143,6 +159,16 @@ function run(command: string, env: Record<string, string> = {}) {
 }
 const select =
   'select_inner_docker_pool\nprintf "POOL=%s BIP=%s\\n" "$TALE_DIND_INNER_POOL" "$TALE_DIND_INNER_BIP"';
+const start = `
+setup_cgroup_nesting() { :; }
+resolve_egress_endpoint() { TALE_EGRESS_IP=''; }
+apply_inner_egress_fence() { :; }
+protect_shared_cache_network() { :; }
+setup_inner_transparent_egress() { printf 'egress %s\\n' "$TALE_DIND_INNER_POOL" >> "$TALE_NETWORK_TEST_LOG"; }
+mkdir() { :; }
+trap '[ -z "\${TALE_DOCKERD_PID:-}" ] || kill "$TALE_DOCKERD_PID" 2>/dev/null || true' EXIT
+start_inner_dockerd
+`;
 afterAll(() => rmSync(root, { recursive: true, force: true }));
 
 describe('adaptive inner Docker network', () => {
@@ -486,6 +512,7 @@ TALE_EGRESS_IP='172.31.0.2'
 TALE_EGRESS_PORT='3128'
 rm() { :; }
 setup_inner_transparent_egress
+wait
 `,
       { TALE_NETWORK_TEST_ROUTES: '[{"dst":"172.31.0.0/16","dev":"eth0"}]' },
     );
@@ -494,21 +521,67 @@ setup_inner_transparent_egress
       '-t nat -A PREROUTING -s 172.16.0.0/16 -p tcp -j REDSOCKS',
     );
     expect(calls).not.toContain('-s 172.31.0.0/16');
+    expect(result.stderr).toContain('redsocks diagnostic');
+  });
+  test('a hung Docker client cannot outlive the whole readiness deadline', () => {
+    const started = performance.now();
+    const { result } = run('TALE_DOCKERD_PID=$$\nwait_inner_dockerd 0.2', {
+      TALE_NETWORK_TEST_DOCKER_HANG: '1',
+    });
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('readiness deadline exceeded');
+    expect(performance.now() - started).toBeLessThan(2_000);
+  });
+  test('Docker readiness isolates inherited client configuration and removes it afterward', () => {
+    const inheritedConfig = join(root, 'inherited-docker-config');
+    mkdirSync(inheritedConfig);
+    const inheritedContents = '{"currentContext":"untrusted-context"}';
+    writeFileSync(join(inheritedConfig, 'config.json'), inheritedContents);
+    const probe = join(bin, 'docker-config-probe');
+    writeFileSync(
+      probe,
+      `#!/usr/bin/env bun
+import { readdirSync, statSync, writeFileSync } from 'node:fs';
+const config = process.env.DOCKER_CONFIG;
+writeFileSync(process.env.TALE_NETWORK_TEST_LOG, JSON.stringify({
+  config,
+  mode: statSync(config).mode & 0o777,
+  entries: readdirSync(config),
+  context: process.env.DOCKER_CONTEXT,
+  tls: process.env.DOCKER_TLS_VERIFY,
+  certificatePath: process.env.DOCKER_CERT_PATH,
+  args: process.argv.slice(2),
+}));
+`,
+      { mode: 0o755 },
+    );
+    const { result, calls } = run(
+      `TALE_DOCKERD_PID=$$\n_DOCKER='${probe}'\nwait_inner_dockerd 1`,
+      {
+        DOCKER_CONFIG: inheritedConfig,
+        DOCKER_CONTEXT: 'untrusted-context',
+        DOCKER_TLS_VERIFY: '1',
+        DOCKER_CERT_PATH: inheritedConfig,
+      },
+    );
+    expect(result.status).toBe(0);
+    const observed = JSON.parse(calls);
+    expect(observed).toEqual({
+      config: expect.any(String),
+      mode: 0o700,
+      entries: [],
+      args: ['--host=unix:///var/run/docker.sock', 'info'],
+    });
+    expect(observed.config).not.toBe(inheritedConfig);
+    expect(existsSync(observed.config)).toBe(false);
+    expect(readFileSync(join(inheritedConfig, 'config.json'), 'utf8')).toBe(
+      inheritedContents,
+    );
   });
   test('dockerd receives the selected bip and address pool before any readiness work', () => {
-    const { result, calls } = run(
-      `
-setup_cgroup_nesting() { :; }
-resolve_egress_endpoint() { TALE_EGRESS_IP=''; }
-apply_inner_egress_fence() { :; }
-protect_shared_cache_network() { :; }
-setup_inner_transparent_egress() { printf 'egress %s\\n' "$TALE_DIND_INNER_POOL" >> "$TALE_NETWORK_TEST_LOG"; }
-mkdir() { :; }
-trap '[ -z "\${TALE_DOCKERD_PID:-}" ] || kill "$TALE_DOCKERD_PID" 2>/dev/null || true' EXIT
-start_inner_dockerd
-`,
-      { TALE_NETWORK_TEST_ROUTES: '[{"dst":"172.31.0.0/16","dev":"eth0"}]' },
-    );
+    const { result, calls } = run(start, {
+      TALE_NETWORK_TEST_ROUTES: '[{"dst":"172.31.0.0/16","dev":"eth0"}]',
+    });
     expect(result.status).toBe(0);
     expect(calls).toContain('--bip=172.16.0.1/24');
     expect(calls).toContain(
@@ -516,5 +589,30 @@ start_inner_dockerd
     );
     expect(calls).toContain('egress 172.16.0.0/16');
     expect(calls.indexOf('dockerd ')).toBeLessThan(calls.indexOf('egress '));
+  });
+  test('bounds new inner container logs and streams daemon diagnostics to the outer logger', () => {
+    const { result, calls } = run(start);
+    expect(result.status).toBe(0);
+    expect(calls).toContain('--log-driver=json-file');
+    expect(calls).toContain('--log-opt=max-size=10m');
+    expect(calls).toContain('--log-opt=max-file=1');
+    expect(calls).toContain('--log-opt=compress=false');
+    expect(result.stderr).toContain('inner dockerd diagnostic');
+  });
+  test('a daemon startup failure keeps its diagnostic on container stderr', () => {
+    const { result } = run(start, { TALE_NETWORK_TEST_DOCKERD_FAIL: '1' });
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('inner dockerd diagnostic');
+    expect(result.stderr).toContain('FATAL: inner dockerd exited');
+  });
+  test('session redsocks streams diagnostics without filling its temporary filesystem', () => {
+    const { result } = run(`
+TALE_EGRESS_IP='172.18.0.2'
+TALE_EGRESS_PORT='3128'
+_launch_session_redsocks
+wait
+`);
+    expect(result.status).toBe(0);
+    expect(result.stderr).toContain('redsocks diagnostic');
   });
 });

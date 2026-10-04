@@ -328,11 +328,6 @@ async function stageTaskInputs(
 ): Promise<StagedTaskInputs> {
   const dir = taskInputsDir(args.taskId);
   const staged: StagedTaskInputs = { dir, attachments: [], outputs: [] };
-  try {
-    await sessionDeleteFiles(args.sessionId, [dir]);
-  } catch (err) {
-    console.warn('[task-agent] inputs pre-clear failed (continuing):', err);
-  }
   const toStage: SessionStageFile[] = [];
   const planned = new Map<string, PlannedTaskInput>();
   for (const [kind, files] of [
@@ -345,7 +340,11 @@ async function stageTaskInputs(
       if (url === null) continue; // a retired backend's ref — skip, don't fail
       const name = safeInputFileName(file.fileName, taken);
       const path = `${dir}/${kind}/${name}`;
-      toStage.push({ path, url });
+      toStage.push({
+        path,
+        url,
+        sourceId: `${args.organizationId}:${file.fileId}`,
+      });
       planned.set(path, {
         kind,
         stagedName: name,
@@ -354,8 +353,9 @@ async function stageTaskInputs(
       staged[kind].push(name);
     }
   }
-  if (toStage.length === 0) return staged;
-  const result = await sessionStageFiles(args.sessionId, toStage);
+  const result = await sessionStageFiles(args.sessionId, toStage, {
+    replaceRoots: [dir],
+  });
   const verdict = partitionTaskInputSkips(result.skipped, planned);
   if (verdict.kind === 'failed') throw new Error(verdict.message);
   if (verdict.droppedOutputs.length > 0) {
@@ -367,6 +367,21 @@ async function stageTaskInputs(
   }
   if (verdict.kind === 'inputs_missing') {
     throw new TaskInputMissingError(verdict.fileNames);
+  }
+  if (verdict.droppedOutputs.length > 0) {
+    // A missing old deliverable is allowed, but its former on-disk copy must
+    // not survive. The first stage intentionally never prunes after a miss.
+    const missing = new Set(result.skipped.map((file) => file.path));
+    const reconciled = await sessionStageFiles(
+      args.sessionId,
+      toStage.filter((file) => !missing.has(file.path)),
+      { replaceRoots: [dir] },
+    );
+    if (reconciled.skipped.length > 0) {
+      throw new Error(
+        `reconciling task inputs failed: ${reconciled.skipped.map((file) => file.path).join(', ')}`,
+      );
+    }
   }
   return staged;
 }
@@ -1178,33 +1193,40 @@ export async function startTaskAgentTurnImpl(
       // A project agent's equipment is the PROJECT's: team skills resolve
       // against the project's teams, never against whoever configured the
       // agent or whoever triggers the run.
-      const projectScope = await ctx.runQuery(
-        internal.projects.internal_queries.getProjectAgentSkillScope,
-        { agentId: args.agentId },
-      );
-      const skillsAddendum = await stageWorkflowSkills(
-        ctx,
-        args.organizationId,
-        args.sessionId,
-        args.skills,
-        projectScope === null
-          ? { kind: 'org' }
-          : { kind: 'project', teamIds: projectScope.teamIds },
-      );
-
-      const brief = await ctx.runQuery(
-        internal.tasks.agent_runs.getTaskBriefForAgentRun,
-        { taskId: args.taskId },
-      );
+      const [projectScope, brief] = await Promise.all([
+        ctx.runQuery(
+          internal.projects.internal_queries.getProjectAgentSkillScope,
+          { agentId: args.agentId },
+        ),
+        ctx.runQuery(internal.tasks.agent_runs.getTaskBriefForAgentRun, {
+          taskId: args.taskId,
+        }),
+      ]);
       if (brief === null) throw new Error('the task no longer exists');
-
-      const inputs = await stageTaskInputs(ctx, {
-        organizationId: args.organizationId,
-        sessionId: args.sessionId,
-        taskId: args.taskId,
-        attachments: brief.attachments,
-        outputs: brief.outputs,
-      });
+      // Disjoint managed directories can stage together. Finish both before
+      // failure releases the session; credentials are minted only afterwards.
+      const [skillsResult, inputsResult] = await Promise.allSettled([
+        stageWorkflowSkills(
+          ctx,
+          args.organizationId,
+          args.sessionId,
+          args.skills,
+          projectScope === null
+            ? { kind: 'org' }
+            : { kind: 'project', teamIds: projectScope.teamIds },
+        ),
+        stageTaskInputs(ctx, {
+          organizationId: args.organizationId,
+          sessionId: args.sessionId,
+          taskId: args.taskId,
+          attachments: brief.attachments,
+          outputs: brief.outputs,
+        }),
+      ]);
+      if (skillsResult.status === 'rejected') throw skillsResult.reason;
+      if (inputsResult.status === 'rejected') throw inputsResult.reason;
+      const skillsAddendum = skillsResult.value;
+      const inputs = inputsResult.value;
       // A subscription serving that cannot see images must not run blind
       // over image inputs: refuse with the reason (the run fails visibly,
       // naming the fix) before anything is minted; a turn without image
@@ -1756,7 +1778,7 @@ async function continueOrSettle(
   const text =
     ended?.finalText !== undefined && ended.finalText !== ''
       ? ended.finalText
-      : window.text;
+      : (window.answerText ?? window.text);
   // The harness's own words ARE the reason when it reported the error
   // itself: the failure it named on its stream (classify carries it), else
   // its last words — never bury a "401 token revoked" behind a generic line.

@@ -25,12 +25,13 @@ import {
   SESSION_INSTANCE_LABEL,
   sessionContainerName,
 } from './session-naming.ts';
-import { sessionDindEnabled } from './session-profile.ts';
+import { sessionAgentProfile, sessionDindEnabled } from './session-profile.ts';
 
 interface DockerSessionRunInput {
   sessionId: string;
   organizationId: string;
   profile: SandboxSessionProfile;
+  docker?: boolean;
   /** Host dir bind-mounted 1:1 at /agent (survives container death). */
   workspaceHostDir: string;
   /** Per-org pip/npm/bun cache volume names (pip/npm reused from one-shot). */
@@ -43,9 +44,10 @@ interface DockerSessionRunInput {
   /**
    * Per-session docker storage volume name, mounted at /var/lib/docker. Required
    * (and only used) when `sessionDindEnabled` — DinD is agent-profile only; the
-   * backend creates an ephemeral, size-bounded volume so the inner dockerd's
+   * backend creates an ephemeral named volume so the inner dockerd's
    * image/layer store is isolated per session and doesn't share the
-   * (overlay-backed) workspace.
+   * (overlay-backed) workspace. Its hard size quota must be provisioned by
+   * the operator; a plain Docker local volume has none.
    */
   dockerStorageVolume?: string;
   /**
@@ -122,8 +124,9 @@ export function buildDockerSessionRunArgs(
   assertSafe('workspaceHostDir', inp.workspaceHostDir, HOST_DIR_RE);
   assertSafe('runnerdToken', inp.runnerdToken, TOKEN_RE);
 
+  const dind = sessionDindEnabled(cfg, inp.profile, inp.docker);
   const profile =
-    inp.profile === 'agent' ? cfg.session.agentProfile : DEFAULT_PROFILE;
+    inp.profile === 'agent' ? sessionAgentProfile(cfg, dind) : DEFAULT_PROFILE;
   assertSafe('profile.user', profile.user, USER_RE);
   assertSafe('profile.memory', profile.memory, MEM_RE);
   assertSafe('profile.tmpfsSize', profile.tmpfsSize, MEM_RE);
@@ -139,7 +142,6 @@ export function buildDockerSessionRunArgs(
   //     root). config.ts allows this only with a loud trusted-only warning.
   // When !dind every conditional collapses to today's hardened argv (byte-for-
   // byte, unit-tested).
-  const dind = sessionDindEnabled(cfg, inp.profile);
   const dindMode = dindCapabilityOf(cfg.runtimeTier);
 
   // Transparent egress for the session's OWN processes. The entrypoint installs
@@ -207,8 +209,8 @@ export function buildDockerSessionRunArgs(
   // agent profile's per-file `fsize` cap (512 MiB) would make layer extraction
   // fail with EFBIG on any image shipping a single file larger than the cap —
   // e.g. paradedb's >512 MiB `pg_search.so.dbg` debug symbols. Under DinD the
-  // per-file ceiling is also the wrong disk-DoS lever (the real bound is the
-  // dedicated /var/lib/docker volume quota), so drop it entirely; and dockerd
+  // per-file ceiling is also the wrong disk-DoS lever (a hard bound needs an
+  // operator-provisioned /var/lib/docker volume quota), so drop it entirely; and dockerd
   // needs a daemon-class fd budget, so raise `nofile` to its customary range.
   // Non-DinD keeps today's caps verbatim (the byte-identical-argv unit test
   // depends on this branch staying unchanged).
@@ -245,9 +247,11 @@ export function buildDockerSessionRunArgs(
     ? Math.max(profile.pidsLimit, 16384)
     : profile.pidsLimit;
 
-  // Inner dockerd storage: a dedicated, ephemeral, size-bounded volume so the
+  // Inner dockerd storage: a dedicated, ephemeral named volume so the
   // image/layer store never lands on the overlay-backed workspace bind mount
-  // (nested overlay is rejected by the kernel) and can't fill the host disk.
+  // (nested overlay is rejected by the kernel). Plain local volumes have no
+  // hard size bound; admission reserves free space, while the operator owns
+  // storage quotas for already-running writers.
   let dockerStorageMount: string[] = [];
   let dindEnv: string[] = [];
   if (dind) {
@@ -387,6 +391,8 @@ export function buildDockerSessionRunArgs(
     `tale.org=${inp.organizationId}`,
     '--label',
     `tale.profile=${inp.profile}`,
+    '--label',
+    `tale.docker=${dind}`,
     '--label',
     `tale.created=${inp.createdAtMs}`,
     ...networkArgs,

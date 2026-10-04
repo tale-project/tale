@@ -18,7 +18,13 @@ export interface ModelOption {
   /** Present when a subscription credential serves this entry — usable only
    * by its forced harness, so the picker offers it for that harness alone. */
   subscription?: { harness: string };
+  /** Present when the model's tools work only on the Responses API — usable
+   * only by a harness that speaks it. */
+  responsesOnly?: true;
 }
+
+/** The wire a harness speaks to the gateway, as the listing carries it. */
+export type HarnessToolWire = 'anthropic' | 'openai-chat' | 'openai-responses';
 
 /** A `listComposerModels` row, narrowed to the fields the mapping reads. */
 export interface ComposerModelListingRow {
@@ -26,6 +32,7 @@ export interface ComposerModelListingRow {
   label: string;
   providerSlug: string;
   providerLabel: string;
+  toolCallingApi?: 'responses';
   credential:
     | { authMethod: 'api-key' | 'env' }
     | {
@@ -52,8 +59,30 @@ export function toModelOptions(
     ) {
       option.subscription = { harness: row.credential.constraints.harness };
     }
+    if (row.toolCallingApi === 'responses') option.responsesOnly = true;
     return option;
   });
+}
+
+/**
+ * Whether a picker offers `option` to an agent on `harness`, which speaks
+ * `wire`: a subscription-served entry only to the harness its credential is
+ * bound to, and a Responses-only entry only to a harness that speaks the
+ * Responses API. An unknown wire (the roster still loading) offers no
+ * Responses-only entry.
+ */
+export function offeredToHarness(
+  option: ModelOption,
+  harness: string,
+  wire: HarnessToolWire | undefined,
+): boolean {
+  if (
+    option.subscription !== undefined &&
+    option.subscription.harness !== harness
+  ) {
+    return false;
+  }
+  return option.responsesOnly !== true || wire === 'openai-responses';
 }
 
 /** The offered option matching a saved pick: the exact (provider, id) pair,

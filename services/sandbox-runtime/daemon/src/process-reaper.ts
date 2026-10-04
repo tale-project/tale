@@ -333,17 +333,30 @@ async function recordedMembers(
   }
 }
 
+/** One set of indexes for the whole round. A session can keep many execs'
+ * leftovers while another exec runs: rebuilding ancestry and matching tags
+ * against the full table for each target makes every prune quadratic. */
+function indexProcesses(table: readonly ProcessEntry[]) {
+  return {
+    byPid: new Map(table.map((proc) => [proc.pid, proc])),
+    byExec: Map.groupBy(table, (proc) => proc.execId),
+    byParent: Map.groupBy(table, (proc) => proc.ppid),
+    byGroup: Map.groupBy(table, (proc) => proc.pgrp),
+  };
+}
+
+type ProcessIndex = ReturnType<typeof indexProcesses>;
+
 /** Whether a recorded member of the group is still in it. */
 function memberStillIn(
   group: number,
   members: readonly GroupMember[],
-  table: readonly ProcessEntry[],
+  index: ProcessIndex,
 ): boolean {
-  return table.some(
-    (proc) =>
-      proc.pgrp === group &&
-      members.some((m) => m.pid === proc.pid && m.startTime === proc.startTime),
-  );
+  return members.some((member) => {
+    const proc = index.byPid.get(member.pid);
+    return proc?.pgrp === group && proc.startTime === member.startTime;
+  });
 }
 
 const groupOf = ({ groupId }: ReapTarget): number | null =>
@@ -356,21 +369,14 @@ function rootOf(target: ReapTarget): number | null {
 }
 
 /** The descendants of `root` in the table, the root itself left out. */
-function descendantsOf(
-  root: number,
-  table: readonly ProcessEntry[],
-): ProcessEntry[] {
-  const children = new Map<number, ProcessEntry[]>();
-  for (const proc of table) {
-    const siblings = children.get(proc.ppid);
-    if (siblings === undefined) children.set(proc.ppid, [proc]);
-    else siblings.push(proc);
-  }
+function descendantsOf(root: number, index: ProcessIndex): ProcessEntry[] {
   const found: ProcessEntry[] = [];
   const queue = [root];
   const seen = new Set<number>([root]);
-  for (let next = queue.shift(); next !== undefined; next = queue.shift()) {
-    for (const child of children.get(next) ?? []) {
+  // Array iteration visits appended descendants without shifting the rest
+  // of a wide process tree once per node.
+  for (const next of queue) {
+    for (const child of index.byParent.get(next) ?? []) {
       if (seen.has(child.pid)) continue;
       seen.add(child.pid);
       found.push(child);
@@ -382,18 +388,15 @@ function descendantsOf(
 
 /** A target's processes in the table: the ones tagged with the exec and
  * the descendants of its shim, each once. */
-function processesOf(
-  target: ReapTarget,
-  table: readonly ProcessEntry[],
-): ProcessEntry[] {
+function processesOf(target: ReapTarget, index: ProcessIndex): ProcessEntry[] {
   if (target.rootComplete?.() === true) return [];
   const owned = new Map<number, ProcessEntry>();
-  for (const proc of table) {
-    if (proc.execId === target.execId) owned.set(proc.pid, proc);
+  for (const proc of index.byExec.get(target.execId) ?? []) {
+    owned.set(proc.pid, proc);
   }
   const root = rootOf(target);
   if (root !== null) {
-    for (const proc of descendantsOf(root, table)) owned.set(proc.pid, proc);
+    for (const proc of descendantsOf(root, index)) owned.set(proc.pid, proc);
   }
   owned.delete(root ?? -1);
   return [...owned.values()].filter(
@@ -424,11 +427,14 @@ export async function processesLeft(
     Promise.all(targets.map(recordedMembers)),
   ]);
   if (table === null) return null;
+  const indexed = indexProcesses(table);
   return targets.map((target, index) => {
     if (target.rootComplete?.() === true) return false;
-    if (processesOf(target, table).length > 0) return true;
+    if (processesOf(target, indexed).length > 0) return true;
     const group = groupOf(target);
-    return group !== null && memberStillIn(group, recorded[index] ?? [], table);
+    return (
+      group !== null && memberStillIn(group, recorded[index] ?? [], indexed)
+    );
   });
 }
 
@@ -508,18 +514,19 @@ export async function signalExecProcesses(
     readProcessTable(deps, !rootsSuffice(targets)),
     Promise.all(targets.map(recordedMembers)),
   ]);
+  const indexed = table === null ? null : indexProcesses(table);
   const members = targets.map((target, index) => {
     if (target.rootComplete?.() === true) return [];
     const group = groupOf(target);
-    const owned = table === null ? [] : processesOf(target, table);
+    const owned = indexed === null ? [] : processesOf(target, indexed);
     let groupReached = groupSent[index] === true;
     if (
       !groupReached &&
       group !== null &&
-      (table === null
+      (indexed === null
         ? target.groupOnly !== true
         : owned.some((proc) => proc.pgrp === group) ||
-          memberStillIn(group, recorded[index] ?? [], table))
+          memberStillIn(group, recorded[index] ?? [], indexed))
     ) {
       send(-group, `pgroup ${group}`);
       groupReached = true;
@@ -528,10 +535,11 @@ export async function signalExecProcesses(
       if (groupReached && proc.pgrp === group) continue;
       send(proc.pid, `pid ${proc.pid}`);
     }
-    if (!groupReached || group === null || table === null) return [];
-    return table
-      .filter((proc) => proc.pgrp === group)
-      .map(({ pid, startTime }) => ({ pid, startTime }));
+    if (!groupReached || group === null || indexed === null) return [];
+    return (indexed.byGroup.get(group) ?? []).map(({ pid, startTime }) => ({
+      pid,
+      startTime,
+    }));
   });
   return { reached, members };
 }

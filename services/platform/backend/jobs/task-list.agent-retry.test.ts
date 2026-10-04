@@ -11,8 +11,7 @@
 import type { Sql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { inPlaceOfRun, kickAgentRun, startedViaOfRun } = vi.hoisted(() => ({
-  inPlaceOfRun: vi.fn(async () => false),
+const { kickAgentRun, startedViaOfRun } = vi.hoisted(() => ({
   kickAgentRun: vi.fn(async () => ({ runId: 'run-retry' })),
   startedViaOfRun: vi.fn(
     async (): Promise<Record<string, string> | undefined> => undefined,
@@ -22,7 +21,6 @@ const { inPlaceOfRun, kickAgentRun, startedViaOfRun } = vi.hoisted(() => ({
 vi.mock('../domains/tasks/agent-runs.ts', async () => {
   const errors = await import('../domains/tasks/errors.ts');
   return {
-    inPlaceOfRun,
     kickAgentRun,
     startedViaOfRun,
     isStandardAgentRefusal: (error: unknown) =>
@@ -99,6 +97,9 @@ interface World {
   automatedStarts?: number[];
   /** The card's column (default: in_progress). */
   status?: string;
+  archived?: boolean;
+  /** Monotonic decision cursor, returned as text without numeric rounding. */
+  activityId?: string;
   /** Who holds the card (default: the retried agent). */
   assigneeId?: string;
   /** The agent's live run on another task in the workspace the retry
@@ -129,7 +130,8 @@ function sqlWith(runs: Array<Record<string, unknown>>, world: World = {}): Sql {
       return Promise.resolve([
         {
           status: world.status ?? 'in_progress',
-          archivedAt: null,
+          archivedAt: world.archived === true ? 1 : null,
+          activityId: world.activityId ?? '41',
           projectId: 'project-1',
           assigneeType: 'agent',
           assigneeId: world.assigneeId ?? 'agent-1',
@@ -414,11 +416,12 @@ describe('task.agent_retry admission', () => {
   async function deliver(
     world: World,
     startedBy = 'user-starter',
+    run: Record<string, unknown> = {},
   ): Promise<string[]> {
     const log = vi.spyOn(console, 'log').mockImplementation(() => {});
     const handler = createTaskList({
       sql: sqlWith(
-        [failedRun('run-failed', 'turn_crashed', { startedBy })],
+        [failedRun('run-failed', 'turn_crashed', { startedBy, ...run })],
         world,
       ),
     })['task.agent_retry'];
@@ -467,14 +470,11 @@ describe('task.agent_retry admission', () => {
 
       expect(kickAgentRun).not.toHaveBeenCalled();
       expect(lines).toEqual([`[task-agent] auto-retry skipped: ${reason}`]);
-      // A lost starter ends the retry for good, and it is told. A project
-      // archived or gone may come back, and the job's next delivery then
-      // starts the retry: nothing is retired.
-      if (reason === 'not_permitted') {
-        expect(retireAutoRetry).toHaveBeenCalledWith(...retiredWith(true));
-      } else {
-        expect(retireAutoRetry).not.toHaveBeenCalled();
-      }
+      // This delivery completes without another check; every final refusal
+      // retires the marker. Human archive decisions need no failure notice.
+      expect(retireAutoRetry).toHaveBeenCalledWith(
+        ...retiredWith(reason === 'not_permitted'),
+      );
     },
   );
 
@@ -494,6 +494,21 @@ describe('task.agent_retry admission', () => {
       expect(retireAutoRetry).toHaveBeenCalledWith(...retiredWith(true));
     },
   );
+
+  it('retires an explicitly disabled task policy without reviving it on later delivery', async () => {
+    kickAgentRun.mockRejectedValueOnce(
+      new TaskError(
+        'TASK_AUTOMATION_DISABLED',
+        'disabled by an administrator',
+        403,
+      ),
+    );
+    const lines = await deliver({});
+    expect(lines).toEqual([
+      '[task-agent] auto-retry skipped: task_automation_disabled',
+    ]);
+    expect(retireAutoRetry).toHaveBeenCalledWith(...retiredWith(false));
+  });
 
   it('lets any other kick refusal fail the delivery, so the queue retries it', async () => {
     kickAgentRun.mockRejectedValueOnce(
@@ -628,34 +643,80 @@ describe('task.agent_retry admission', () => {
     ).toBe(false);
   });
 
-  it('carries an in-place start into its retry, so the retry completes in place too', async () => {
-    const via = {
-      kind: 'automation',
-      runId: 'run-occurrence',
-      nodeId: 'start',
-      automation: 'autonomous-cycle/local-qa',
-    };
-    startedViaOfRun.mockResolvedValueOnce(via);
-    inPlaceOfRun.mockResolvedValueOnce(true);
+  it.each(['backlog', 'todo', 'in_progress'])(
+    'retries an unchanged in-place %s card without moving it',
+    async (status) => {
+      const via = {
+        kind: 'automation',
+        runId: 'run-occurrence',
+        nodeId: 'start',
+        automation: 'autonomous-cycle/local-qa',
+      };
+      startedViaOfRun.mockResolvedValueOnce(via);
+      const lines = await deliver({ status }, 'user-starter', {
+        inPlace: true,
+        inPlaceRetryStatus: status,
+        inPlaceRetryActivityId: '41',
+      });
 
-    await deliver({});
+      expect(lines).toEqual([]);
+      expect(kickAgentRun).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ startedVia: via, inPlace: true }),
+      );
+      expect(retireAutoRetry).not.toHaveBeenCalled();
+    },
+  );
 
-    expect(inPlaceOfRun).toHaveBeenCalledWith(expect.anything(), 'run-failed');
-    expect(kickAgentRun).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({ startedVia: via, inPlace: true }),
-    );
-  });
+  it.each([
+    ['a move to another column', { status: 'in_progress' }, 'todo', '41'],
+    [
+      'a move away and back',
+      { status: 'todo', activityId: '43' },
+      'todo',
+      '41',
+    ],
+    [
+      'a bigint decision beyond exact JS numbers',
+      { status: 'todo', activityId: '9007199254740993' },
+      'todo',
+      '9007199254740992',
+    ],
+    ['a legacy run without a snapshot', { status: 'todo' }, null, null],
+    ['a closed original state', { status: 'done' }, 'done', '41'],
+  ] satisfies [string, World, string | null, string | null][])(
+    'retires in-place retries after %s',
+    async (_label, world, status, activityId) => {
+      startedViaOfRun.mockResolvedValueOnce({
+        kind: 'agent',
+        runId: 'manager-run',
+        agentId: 'manager',
+      });
+      const lines = await deliver(world, 'user-starter', {
+        inPlace: true,
+        inPlaceRetryStatus: status,
+        inPlaceRetryActivityId: activityId,
+      });
+      expect(lines).toEqual(['[task-agent] auto-retry skipped: task_moved']);
+      expect(kickAgentRun).not.toHaveBeenCalled();
+      expect(retireAutoRetry).toHaveBeenCalledWith(...retiredWith(false));
+      expect(addJobInTx).not.toHaveBeenCalled();
+    },
+  );
 
-  it('never asks a person’s run whether it was in place', async () => {
-    await deliver({});
-
-    expect(inPlaceOfRun).not.toHaveBeenCalled();
-    expect(kickAgentRun).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.not.objectContaining({ inPlace: expect.anything() }),
-    );
-  });
+  it.each([
+    ['task_moved', { status: 'todo' }],
+    ['reassigned', { assigneeId: 'agent-2' }],
+    ['task_unavailable', { archived: true }],
+  ] satisfies [string, World][])(
+    'retires a final %s decision so retryPending cannot remain armed',
+    async (reason, world) => {
+      const lines = await deliver(world);
+      expect(lines).toEqual([`[task-agent] auto-retry skipped: ${reason}`]);
+      expect(retireAutoRetry).toHaveBeenCalledWith(...retiredWith(false));
+      expect(kickAgentRun).not.toHaveBeenCalled();
+    },
+  );
 
   it('refuses a starter that names nobody', async () => {
     const lines = await deliver({}, 'itest:plan');

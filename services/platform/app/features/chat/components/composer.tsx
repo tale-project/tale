@@ -102,6 +102,9 @@ interface ComposerProps {
   textareaId?: string;
   /** The direct-served models the chat lane can call. */
   models: readonly ComposerModelOption[];
+  /** Providers whose models only a subscription serves, which chat leaves
+   * out — the picker says why. */
+  subscriptionProviders?: readonly string[];
   selection: ComposerSelection;
   onSelectionChange: (next: ComposerSelection) => void;
   onSend: (text: string) => void;
@@ -180,6 +183,7 @@ export const Composer = memo(
       draftKey,
       textareaId,
       models,
+      subscriptionProviders,
       selection,
       onSelectionChange,
       onSend,
@@ -541,6 +545,9 @@ export const Composer = memo(
                 />
                 <ComposerSelectionPicker
                   models={models}
+                  {...(subscriptionProviders !== undefined
+                    ? { subscriptionProviders }
+                    : {})}
                   selection={selection}
                   onSelectionChange={onSelectionChange}
                   disabled={disabled}

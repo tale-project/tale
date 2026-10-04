@@ -5,7 +5,8 @@
 # every push to main republishes `packages/ui` and `packages/marketing-ui` as
 # orphan snapshots on the `dist/ui` / `dist/marketing-ui` branches, and every
 # release pins the same snapshot with a `ui-v<version>` / `marketing-ui-v<version>`
-# tag. A consumer then depends on
+# tag, once the version's authored release notes validate. A consumer then
+# depends on
 #
 #   "@tale/ui": "github:tale-project/tale#dist/ui"          (moving)
 #   "@tale/ui": "github:tale-project/tale#ui-v0.5.25"       (pinned)
@@ -30,7 +31,7 @@ on:
   workflow_dispatch:
     inputs:
       tag_version:
-        description: 'Also tag the snapshots with this release version (e.g. 0.5.25); empty = branches only'
+        description: 'Also tag the snapshots with a version whose authored notes exist at this ref (e.g. 1.0.0); empty = branches only'
         required: false
         default: ''
         type: string
@@ -83,9 +84,22 @@ jobs:
               echo "::error::Version must be semver, got '$VERSION'"; exit 1
             fi
             echo "value=${PACKAGE}-v${VERSION}" >> "$GITHUB_OUTPUT"
+            echo "version=v${VERSION}" >> "$GITHUB_OUTPUT"
           else
             echo "value=" >> "$GITHUB_OUTPUT"
+            echo "version=" >> "$GITHUB_OUTPUT"
           fi
+
+      # Release's Prepare refuses a version without valid authored notes, and
+      # that version is never released (.github/RELEASING.md). Refuse it here
+      # as well, before anything is pushed, so no package tag names it.
+      - name: Validate authored release notes before pinning
+        if: steps.tag.outputs.version != ''
+        shell: bash
+        working-directory: .
+        env:
+          TAG: ${{ steps.tag.outputs.version }}
+        run: bun tools/cli/scripts/release-notes.ts --version "$TAG"
 
       - name: Publish snapshot
         env:
