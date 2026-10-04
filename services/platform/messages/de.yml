@@ -5638,6 +5638,8 @@ settings:
       none: Du bist noch in keinem Team. Du siehst alles, was mit der ganzen
         Organisation geteilt ist.
       manageLink: Teams verwalten
+      loadFailed: Deine Teams konnten nicht geladen werden.
+      refreshFailed: Deine Teams konnten nicht aktualisiert werden. Die Anzeige ist womöglich veraltet.
     security:
       title: Passwort
       description: Melde dich mit deiner E-Mail-Adresse und einem Passwort an.

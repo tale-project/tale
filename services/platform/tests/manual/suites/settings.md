@@ -1,6 +1,6 @@
 # Settings
 
-> **Prefix** `SET-` · **Reset** none · **Cost** 118 boxes
+> **Prefix** `SET-` · **Reset** none · **Cost** 119 boxes
 
 Exercise the settings surface along its real rail — **Personal** (Account,
 Preferences, Notifications, Usage), **Organization** (Organization, Teams, Members,
@@ -933,6 +933,16 @@ run.
   The name truncates with an ellipsis and never pushes the **Synced** badge
   (`settings.teams.syncedBadge`) or the member count out of place; hovering the
   name shows it in full; the name column is wider than the member-count column.
+- [ ] `SET-B32` · **Your teams when the read fails** — As a member of a team,
+  block `*/api/app/teams/mine*` in DevTools (Network → request blocking) and
+  reload `/dashboard/{org}/settings/account#teams` → after the read's retries
+  (a few seconds) **Your teams** (`settings.account.teams.title`) shows
+  `settings.account.teams.loadFailed` with **Try again**
+  (`common.actions.tryAgain`), never `settings.account.teams.none`. Tab to
+  **Try again** and press Enter while the request is still blocked → the
+  button stays focused, busy while the read runs, and the failure stays on
+  screen. Unblock and press it again → the team badges appear without a
+  reload, and the focus is on the section, not lost to the page.
 - [ ] `SET-B18` · **A used or expired connect command** — Run SET-F56's
   command again on another machine (or any copied command after an hour) →
   `tale sandbox connect` fails saying the command expired or was already used,

@@ -5858,6 +5858,10 @@ settings:
       none: You are not in any team yet. You see everything shared with the
         whole organization.
       manageLink: Manage teams
+      # A read that failed is never "not in any team" (#3847). Try again
+      # is common.actions.tryAgain.
+      loadFailed: "Couldn't load your teams."
+      refreshFailed: "Couldn't refresh your teams. What's shown may be out of date."
     security:
       title: Password
       description: Sign in with your email and a password.
