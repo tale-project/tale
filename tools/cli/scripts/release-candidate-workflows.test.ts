@@ -6,7 +6,11 @@ import { fileURLToPath } from 'node:url';
 
 import { parse } from 'yaml';
 
-import { CANDIDATE_JOBS } from './release-candidate-gate';
+import {
+  ALWAYS_PUSH_WORKFLOWS,
+  CANDIDATE_JOBS,
+  FILTERED_PUSH_WORKFLOWS,
+} from './release-candidate-gate';
 
 const root = fileURLToPath(new URL('../../..', import.meta.url));
 const temporary: string[] = [];
@@ -58,6 +62,39 @@ const sourceWorkflows = [
 ];
 const C = 'c'.repeat(40);
 const H = 'd'.repeat(40);
+
+describe('push workflows used to detect contradictory arrival evidence', () => {
+  const pushTrigger = async (path: string) =>
+    (
+      await workflow(
+        path
+          .split('/')
+          .at(-1)!
+          .replace(/\.yml$/, ''),
+      )
+    ).on.push as
+      | { branches?: string[]; paths?: string[]; 'paths-ignore'?: string[] }
+      | undefined;
+
+  test.each([...ALWAYS_PUSH_WORKFLOWS])(
+    'GitHub runs %s for every push to main: no path filter',
+    async (path) => {
+      const push = await pushTrigger(path);
+      expect(push?.branches).toContain('main');
+      expect(push?.paths).toBeUndefined();
+      expect(push?.['paths-ignore']).toBeUndefined();
+    },
+  );
+
+  test.each([...FILTERED_PUSH_WORKFLOWS])(
+    '%s runs for a push to main only as its path filter decides',
+    async (path) => {
+      const push = await pushTrigger(path);
+      expect(push?.branches).toContain('main');
+      expect(push?.paths?.length).toBeGreaterThan(0);
+    },
+  );
+});
 
 describe('one candidate event reuses the complete existing validation', () => {
   for (const stem of sourceWorkflows) {
