@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import { AppShell } from '@tale/ui/app-shell';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, renderHook, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
@@ -18,11 +19,16 @@ vi.mock('@/app/hooks/use-current-user', () => ({
   useCurrentUser: () => ({ data: { userId: 'user_owner' } }),
 }));
 
+// The RAG status badge holds its retry action, a react-query mutation.
+const queryClient = new QueryClient();
+
 function Providers({ children }: { children: ReactNode }) {
   return (
-    <AppShell i18n={i18n} locale={{ mode: 'client' }}>
-      {children}
-    </AppShell>
+    <QueryClientProvider client={queryClient}>
+      <AppShell i18n={i18n} locale={{ mode: 'client' }}>
+        {children}
+      </AppShell>
+    </QueryClientProvider>
   );
 }
 
@@ -365,5 +371,28 @@ describe('useDocumentsTableConfig — source cell', () => {
     expect(await screen.findByRole('tooltip')).toHaveTextContent(
       'Reconnect needed',
     );
+  });
+});
+
+// #3603: the badge read the backend's epoch-millisecond stamp as seconds,
+// and the Indexed dialog dated the indexing in the year 58711.
+describe('useDocumentsTableConfig — ragStatus cell', () => {
+  // 10:00Z is 28 September from UTC−10 to UTC+13, whatever zone runs this.
+  const indexedAt = Date.parse('2026-09-28T10:00:00.000Z');
+
+  it.each([
+    { ragIndexedAt: indexedAt, shows: 'September 28, 2026' },
+    { ragIndexedAt: undefined, shows: 'Unknown' },
+  ])('shows $shows in the Indexed dialog', async ({ ragIndexedAt, shows }) => {
+    const { user } = renderColumnCellWithUser('ragStatus', {
+      type: 'file',
+      id: 'doc-1',
+      ragStatus: 'completed',
+      ragIndexedAt,
+    });
+    await user.click(screen.getByRole('button', { name: 'Document indexed' }));
+    const dialog = screen.getByRole('dialog', { name: 'Document indexed' });
+    expect(dialog).toHaveTextContent(`Indexed on: ${shows}`);
+    expect(dialog).not.toHaveTextContent('58711');
   });
 });
