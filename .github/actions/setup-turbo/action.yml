@@ -54,8 +54,13 @@ runs:
       with:
         bun-version: ${{ inputs.bun-version }}
 
+    # Cache downloaded packages, not node_modules. A frozen install remains
+    # authoritative even when a prior lockfile supplied the package payloads.
     - name: Restore Bun install cache
-      uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+      id: bun-cache
+      uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+      env:
+        SEGMENT_DOWNLOAD_TIMEOUT_MINS: '2'
       with:
         path: ~/.bun/install/cache
         # The download store carries platform-specific package builds. Keep
@@ -69,6 +74,15 @@ runs:
     - name: Install JS dependencies
       shell: bash
       run: bun install --frozen-lockfile
+
+    # Save successful downloads before a later check failure can prevent the
+    # job's post steps. A failed install never reaches this normal step.
+    - name: Save Bun install cache
+      if: steps.bun-cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+      with:
+        path: ~/.bun/install/cache
+        key: ${{ steps.bun-cache.outputs.cache-primary-key }}
 
     - name: Identify the checked-out cache source
       if: inputs.turbo-cache == 'true'

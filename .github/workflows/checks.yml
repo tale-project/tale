@@ -323,7 +323,7 @@ jobs:
     needs: [candidate-source, test-ui-shards]
     name: UI
     if: >-
-      !cancelled() &&
+      always() &&
       (((github.event_name == 'repository_dispatch') &&
       needs.candidate-source.result == 'success') ||
       ((github.event_name != 'repository_dispatch') &&
@@ -532,20 +532,24 @@ jobs:
           start-turbo-cache: 'false'
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      # Share the exact installed browser revision with the E2E jobs. Native
-      # dependencies are still installed below on every fresh hosted runner.
+      # Browser revisions follow Playwright, not unrelated dependency updates.
+      # Cache only the headless payload these channel-free CI projects execute.
       - name: Resolve Playwright version
         id: playwright-version
         working-directory: services/platform
         run: |
-          version="$(bun -e 'process.stdout.write(require("@playwright/test/package.json").version)')"
+          set -euo pipefail
+          version="$(bun -e 'console.log(require("@playwright/test/package.json").version)')"
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo '::error::Cannot resolve the installed Playwright version'; exit 1
+          fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
       - name: Cache Playwright browsers
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright-version.outputs.version }}
+          key: playwright-shell-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright-version.outputs.version }}
 
       - name: Install Playwright Chromium
         working-directory: services/platform
@@ -561,7 +565,7 @@ jobs:
           Acquire::Retries "1";
           APT
           sudo apt-config shell IPv4 Acquire::ForceIPv4 HTTPTimeout Acquire::http::Timeout HTTPSTimeout Acquire::https::Timeout Retries Acquire::Retries
-          bunx playwright install --with-deps chromium
+          bunx playwright install --with-deps --only-shell chromium
 
       - name: Run browser-mode component tests
         run: bunx turbo run test:browser --output-logs=errors-only --summarize

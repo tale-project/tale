@@ -111,6 +111,16 @@ test.skipIf(process.platform === 'win32')(
       ['services/web/app/index.tsx', ['web'], false],
       ['compose.ui-docs.test.yml', ['ui-docs'], false],
       ['services/platform/backend/server.ts', ['platform'], true],
+      [
+        'services/platform/tests/integration/container-docs-test.ts',
+        ['platform', 'docs'],
+        true,
+      ],
+      [
+        'services/platform/lib/harnesses/gemini.ts',
+        ['platform', 'sandbox-runtime'],
+        true,
+      ],
       ['services/sandbox-runtime/Dockerfile', ['sandbox-runtime'], true],
       [
         'configs/platform/system/harnesses/gemini/harness.yml',
@@ -124,6 +134,11 @@ test.skipIf(process.platform === 'win32')(
       ],
       ['configs/platform/custom/agents/example.yml', ['platform'], true],
       ['compose.yml', [], true],
+      [
+        'packages/ui/src/button.tsx',
+        ['platform', 'web', 'docs', 'ui-docs', 'ai-gateway'],
+        true,
+      ],
       ['bun.lock', ['platform', 'web', 'docs', 'ui-docs', 'ai-gateway'], true],
       [
         'package.json',
@@ -178,7 +193,7 @@ test.skipIf(process.platform === 'win32')(
         },
       );
       expect(result.code, result.stdout + result.stderr).toBe(0);
-      expect(result.outputs.ci_tests, path).toBe(String(stack));
+      expect(result.outputs.stack, path).toBe(String(stack));
       const selected = JSON.parse(result.outputs.list!) as string[];
       expect(selected, path).toEqual(expect.arrayContaining(services));
       if (!stack) expect(selected).toEqual(services);
@@ -227,38 +242,6 @@ test.each(['web', 'docs', 'ui-docs', 'ai-gateway'])(
     expect(file.jobs[job]!.steps.indexOf(build)).toBeLessThan(
       file.jobs[job]!.steps.indexOf(probes),
     );
-  },
-);
-
-test.skipIf(process.platform === 'win32')(
-  'static builders reclaim disk only below the 20 GiB headroom threshold',
-  async () => {
-    const file = await workflow('build');
-    for (const service of ['web', 'docs', 'ui-docs', 'ai-gateway']) {
-      const reclaim = step(file, `${service}-test`, 'Reclaim disk space').run!;
-      for (const available of [20971519, 20971520]) {
-        const directory = await mkdtemp(join(tmpdir(), 'tale-static-disk-'));
-        directories.push(directory);
-        const calls = join(directory, 'calls');
-        await writeFile(calls, '');
-        const result = await execute(
-          `
-          df() { printf 'Filesystem Blocks Used Available Capacity Mounted\\nfixture 99999999 0 %s 0%% /\\n' "$TEST_AVAILABLE"; }
-          sudo() { printf '%s\\n' "$*" >> "$TEST_CLEANUP_CALLS"; }
-          ${reclaim}
-        `,
-          { TEST_AVAILABLE: String(available), TEST_CLEANUP_CALLS: calls },
-        );
-        expect(result.code, result.stdout + result.stderr).toBe(0);
-        const commands = await readFile(calls, 'utf8');
-        if (available < 20971520) {
-          expect(commands).toContain('rm -rf /usr/share/dotnet');
-          expect(commands).toContain('docker image prune -af');
-        } else {
-          expect(commands).toBe('');
-        }
-      }
-    }
   },
 );
 
@@ -733,133 +716,6 @@ test('direct config validation avoids starting an unused Turbo cache server', as
     ],
   ).toBe('false');
 });
-
-describe
-  .skipIf(process.platform === 'win32')
-  .each(['smoke-test', 'image-validate'])(
-  '%s bounded image downloads',
-  (id) => {
-    const run = async (failure = '', stage = 'pull') => {
-      const build = await workflow();
-      const directory = await mkdtemp(join(tmpdir(), 'tale-ci-pulls-'));
-      directories.push(directory);
-      const services = build.jobs.build!.strategy!.matrix!.service!;
-      for (const service of services)
-        await writeFile(
-          join(directory, `${service}.json`),
-          JSON.stringify({ digest: `sha256:${'a'.repeat(64)}` }),
-        );
-      const trace = join(directory, 'trace');
-      await writeFile(trace, '');
-      await writeFile(
-        join(directory, 'docker'),
-        `#!/bin/bash
-set -euo pipefail
-stage="$1"
-if [ "$stage" = image ]; then stage=inspect; fi
-for image in "$@"; do :; done
-service="\${image##*/}"
-service="\${service#tale-}"
-service="\${service%%[:@]*}"
-emit() {
-  printf '{"event":"%s","service":"%s"}\\n' "$1" "$service" >> "$PULL_TRACE"
-}
-if [ "$stage" = pull ]; then
-  emit start
-  # The first two pulls must both start before either can finish. This
-  # proves overlap without relying on scheduler timing or an arbitrary sleep.
-  case "$service" in
-    db) peer=platform ;;
-    platform) peer=db ;;
-    *) peer= ;;
-  esac
-  if [ -n "$peer" ]; then
-    touch "$PULL_TRACE.$service"
-    attempts=0
-    while [ ! -f "$PULL_TRACE.$peer" ]; do
-      attempts=$((attempts + 1))
-      if [ "$attempts" -gt 1000 ]; then exit 1; fi
-      sleep 0.01
-    done
-  fi
-  emit finish
-else
-  emit "$stage"
-fi
-if [ "$service" = "$FAIL_SERVICE" ] && [ "$stage" = "$FAIL_STAGE" ]; then exit 1; fi
-if [ "$stage" = inspect ]; then printf '%s\\n' "$SOURCE_SHA"; fi
-`,
-        { mode: 0o755 },
-      );
-      const script = findStep(build.jobs[id]!, 'Pull images from GHCR')
-        .run!.replaceAll('${{ env.REGISTRY }}', 'ghcr.io')
-        .replaceAll('${{ github.repository }}', 'tale-project/tale');
-      const result = await execute(script, {
-        PATH: `${directory}:${process.env.PATH}`,
-        PULL_TRACE: trace,
-        RECEIPTS: directory,
-        SOURCE_SHA: source,
-        FAIL_SERVICE: failure,
-        FAIL_STAGE: stage,
-      });
-      const events = (await readFile(trace, 'utf8'))
-        .trim()
-        .split('\n')
-        .filter(Boolean)
-        .map((line) => JSON.parse(line) as { event: string; service: string });
-      return { ...result, events, services };
-    };
-
-    test('overlaps downloads with at most three pulls and aliases only after every check', async () => {
-      const result = await run();
-      expect(result.code, result.stdout + result.stderr).toBe(0);
-      let active = 0;
-      let peak = 0;
-      for (const { event } of result.events) {
-        if (event === 'start') active++;
-        if (event === 'finish') active--;
-        peak = Math.max(peak, active);
-        expect(active).toBeLessThanOrEqual(3);
-      }
-      expect(peak).toBeGreaterThan(1);
-      expect(active).toBe(0);
-      for (const service of result.services)
-        expect(
-          result.events
-            .filter((event) => event.service === service)
-            .map((event) => event.event),
-        ).toEqual(
-          service === 'sandbox-runtime'
-            ? ['start', 'finish', 'inspect', 'tag', 'tag']
-            : ['start', 'finish', 'inspect', 'tag'],
-        );
-      expect(result.events.at(-1)).toEqual({
-        event: 'tag',
-        service: 'sandbox-runtime',
-      });
-    });
-
-    test.each(['pull', 'inspect', 'tag'])(
-      'a background %s failure fails the stack before its runtime alias',
-      async (stage) => {
-        const result = await run('proxy', stage);
-        expect(result.code).not.toBe(0);
-        expect(result.stdout).toContain(
-          '::error::Image download or source verification failed',
-        );
-        expect(
-          result.events.filter((event) => event.event === 'start'),
-        ).toHaveLength(3);
-        expect(
-          result.events.filter((event) => event.event === 'finish'),
-        ).toHaveLength(3);
-        expect(
-          result.events.some((event) => event.service === 'sandbox-runtime'),
-        ).toBe(false);
-      },
-    );
-  },
-);
 
 test('native release builds reuse isolated architecture caches without adding runner pressure', async () => {
   const build = (await workflow('release')).jobs.build!;

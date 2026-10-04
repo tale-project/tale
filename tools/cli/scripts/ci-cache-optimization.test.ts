@@ -82,8 +82,34 @@ describe('CI cache boundaries', () => {
     tasks = new Map(summary.tasks.map((task) => [task.taskId, task]));
   }, 60_000);
 
+  test('transit remains a no-command node across every declared workspace', () => {
+    const { workspaces } = z
+      .object({ workspaces: z.array(z.string()) })
+      .parse(JSON.parse(readFileSync(join(REPO_ROOT, 'package.json'), 'utf8')));
+    for (const workspace of workspaces) {
+      for (const file of new Bun.Glob(`${workspace}/package.json`).scanSync({
+        cwd: REPO_ROOT,
+        absolute: true,
+        onlyFiles: true,
+      })) {
+        const manifest = z
+          .object({ scripts: z.record(z.string(), z.string()).optional() })
+          .parse(JSON.parse(readFileSync(file, 'utf8')));
+        expect(manifest.scripts?.transit, file).toBeUndefined();
+      }
+    }
+  });
+
   test('dependency sources invalidate checks without scheduling dependency checks', () => {
     const ownInputs = repoInputs(tasks.get('@tale/cli#test')!);
+    const closure = (id: string, found = new Set<string>()): Set<string> => {
+      for (const dependency of tasks.get(id)?.dependencies ?? []) {
+        if (found.has(dependency)) continue;
+        found.add(dependency);
+        closure(dependency, found);
+      }
+      return found;
+    };
     for (const task of summary.tasks) {
       if (
         !CHECK_TASKS.includes(task.task) ||
@@ -91,6 +117,14 @@ describe('CI cache boundaries', () => {
       ) {
         continue;
       }
+      // Check the whole prerequisite closure, not just direct edges: a
+      // dependency setup must not indirectly serialize executable checks.
+      expect(
+        Array.from(closure(task.taskId)).filter((dependency) =>
+          dependency.endsWith(`#${task.task}`),
+        ),
+        `${task.taskId} remains parallel to every dependency's checks`,
+      ).toEqual([]);
       const manifestPath = `${task.directory.split(sep).join('/')}/package.json`;
       expect(
         ownInputs.has(manifestPath),
@@ -143,7 +177,7 @@ describe('CI cache boundaries', () => {
 
   test('every root TypeScript family config contributes to task hashes', () => {
     const configs = readdirSync(REPO_ROOT).filter((name) =>
-      /^tsconfig\..+\.json$/.test(name),
+      /^tsconfig.*\.json$/.test(name),
     );
     expect(configs.length).toBeGreaterThan(1);
     for (const config of configs) {
@@ -220,49 +254,6 @@ describe('CI cache boundaries', () => {
       expect(dependencies).not.toContain('@tale/cli#setup');
     }
   });
-});
-
-test('Bun download caches cannot restore a different runner architecture', () => {
-  const action = z
-    .object({
-      runs: z.object({
-        steps: z.array(
-          z.object({
-            name: z.string(),
-            with: z.record(z.string(), z.unknown()).optional(),
-          }),
-        ),
-      }),
-    })
-    .parse(
-      parse(
-        readFileSync(
-          join(REPO_ROOT, '.github/actions/setup-turbo/action.yml'),
-          'utf8',
-        ),
-      ),
-    );
-  const cache = action.runs.steps.find(
-    (step) => step.name === 'Restore Bun install cache',
-  );
-  const prefix =
-    'bun-install-${{ runner.os }}-${{ runner.arch }}-${{ inputs.bun-version }}-';
-  const key = String(cache?.with?.key);
-  expect(key).toStartWith(prefix);
-  const workspaces = z
-    .object({ workspaces: z.array(z.string()) })
-    .parse(
-      JSON.parse(readFileSync(join(REPO_ROOT, 'package.json'), 'utf8')),
-    ).workspaces;
-  for (const input of [
-    'bun.lock',
-    'package.json',
-    'patches/**',
-    ...workspaces.map((workspace) => `${workspace}/package.json`),
-  ]) {
-    expect(key, input).toContain(`'${input}'`);
-  }
-  expect(cache?.with?.['restore-keys']).toBe(`${prefix}\n`);
 });
 
 /** Real hash changes in a disposable monorepo: changing shared source must
@@ -374,6 +365,7 @@ const setupAction = () =>
             if: z.string().optional(),
             uses: z.string().optional(),
             run: z.string().optional(),
+            env: z.record(z.string(), z.string()).optional(),
             with: z.record(z.string(), z.unknown()).optional(),
           }),
         ),
@@ -387,6 +379,56 @@ const setupAction = () =>
         ),
       ),
     );
+
+test('Bun download caches preserve frozen installs and save before later checks', () => {
+  const steps = setupAction().runs.steps;
+  const restoreIndex = steps.findIndex((step) => step.id === 'bun-cache');
+  const installIndex = steps.findIndex(
+    (step) => step.name === 'Install JS dependencies',
+  );
+  const saveIndex = steps.findIndex(
+    (step) => step.name === 'Save Bun install cache',
+  );
+  expect(restoreIndex).toBeGreaterThan(-1);
+  expect(installIndex).toBeGreaterThan(restoreIndex);
+  expect(saveIndex).toBeGreaterThan(installIndex);
+  const restore = steps[restoreIndex];
+  const install = steps[installIndex];
+  const save = steps[saveIndex];
+  expect(restore.uses).toMatch(/^actions\/cache\/restore@[a-f0-9]{40}$/);
+  expect(save.uses).toBe(restore.uses?.replace('/restore@', '/save@'));
+  const prefix =
+    'bun-install-${{ runner.os }}-${{ runner.arch }}-${{ inputs.bun-version }}-';
+  expect(restore.with?.path).toBe('~/.bun/install/cache');
+  const key = String(restore.with?.key);
+  expect(key).toStartWith(prefix);
+  const { workspaces } = z
+    .object({ workspaces: z.array(z.string()) })
+    .parse(JSON.parse(readFileSync(join(REPO_ROOT, 'package.json'), 'utf8')));
+  for (const input of [
+    'bun.lock',
+    'package.json',
+    'patches/**',
+    ...workspaces.map((workspace) => `${workspace}/package.json`),
+  ])
+    expect(key, input).toContain(`'${input}'`);
+  expect(restore.with?.['restore-keys']).toBe(`${prefix}\n`);
+  expect(restore.env?.SEGMENT_DOWNLOAD_TIMEOUT_MINS).toBe('2');
+  expect(install.run).toBe('bun install --frozen-lockfile');
+  expect(install.if).toBeUndefined();
+  // A normal step inherits success(), so only a successful frozen install
+  // saves. Save downloads before later workload failures suppress post steps.
+  expect(save.if).toBe("steps.bun-cache.outputs.cache-hit != 'true'");
+  expect(save.with).toEqual({
+    path: '~/.bun/install/cache',
+    key: '${{ steps.bun-cache.outputs.cache-primary-key }}',
+  });
+  expect(saveIndex).toBeLessThan(
+    steps.findIndex(
+      (step) => step.name === 'Identify the checked-out cache source',
+    ),
+  );
+});
 
 test('Turbo uses one native branch-scoped cache archive with distinct workflow writers', () => {
   const action = setupAction();
@@ -516,6 +558,7 @@ test('catalog build and generation hashes ignore task logs but retain source edi
     '@tale/platform#build',
     '@tale/cli#generate',
     '@tale/cli#setup',
+    '@tale/cli#test',
   ];
   const hashes = () => {
     const run = spawnSync(
@@ -527,6 +570,7 @@ test('catalog build and generation hashes ignore task logs but retain source edi
         'build',
         'generate',
         'setup',
+        'test',
         `--cwd=${fixture}`,
         '--dry=json',
         '--cache=local:,remote:',
@@ -584,12 +628,13 @@ test('catalog build and generation hashes ignore task logs but retain source edi
             build: 'echo unused',
             generate: 'echo unused',
             setup: 'echo unused',
+            test: 'echo unused',
           },
         }),
       );
       write(
         `${directory}/turbo.json`,
-        readFileSync(join(REPO_ROOT, directory!, 'turbo.json'), 'utf8'),
+        readFileSync(join(REPO_ROOT, directory, 'turbo.json'), 'utf8'),
       );
     }
     write('.gitignore', '.turbo\n');
@@ -607,8 +652,8 @@ test('catalog build and generation hashes ignore task logs but retain source edi
     }
     const baseline = hashes();
     for (const reader of readers) {
-      expect(baseline[reader]!.inputs[`../../${catalog}`]).toBeDefined();
-      expect(baseline[reader]!.inputs[`../../${skill}`]).toBeDefined();
+      expect(baseline[reader].inputs[`../../${catalog}`]).toBeDefined();
+      expect(baseline[reader].inputs[`../../${skill}`]).toBeDefined();
     }
     write(log, 'test pass\n');
     const ignored = spawnSync('git', ['check-ignore', '--', log], {
@@ -621,14 +666,22 @@ test('catalog build and generation hashes ignore task logs but retain source edi
     expect(hashes()).toEqual(baseline);
     write(catalog, 'name: changed\n');
     const changedCatalog = hashes();
-    for (const reader of readers)
-      expect(changedCatalog[reader]!.hash).not.toBe(baseline[reader]!.hash);
+    for (const reader of readers) {
+      expect(changedCatalog[reader].hash).not.toBe(baseline[reader].hash);
+      expect(changedCatalog[reader].inputs[`../../${catalog}`]).not.toBe(
+        baseline[reader].inputs[`../../${catalog}`],
+      );
+    }
     write(catalog, 'name: original\n');
     expect(hashes()).toEqual(baseline);
     write(skill, 'export const version = 2;\n');
     const changedSkill = hashes();
-    for (const reader of readers)
-      expect(changedSkill[reader]!.hash).not.toBe(baseline[reader]!.hash);
+    for (const reader of readers) {
+      expect(changedSkill[reader].hash).not.toBe(baseline[reader].hash);
+      expect(changedSkill[reader].inputs[`../../${skill}`]).not.toBe(
+        baseline[reader].inputs[`../../${skill}`],
+      );
+    }
   } finally {
     rmSync(fixture, { recursive: true, force: true });
   }

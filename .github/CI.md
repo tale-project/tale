@@ -47,11 +47,17 @@ read outside a workspace dependency. Root TypeScript config family members and t
 setup action participate in the global hash. Bun download caches separate OS and CPU
 architecture.
 
+The Bun download key also includes workspace manifests, the lockfile and patches.
+A frozen install remains authoritative after a cache hit, and successful downloads
+are saved before the workload begins. Browser checks and E2E share an exact
+installed Playwright version, OS and architecture cache for the Chromium headless
+shell. Every runner still installs native dependencies; a malformed version fails
+before cache restoration or browser installation.
+
 Unit and UI jobs also share a job-local Node compile cache between isolated workers.
 It stores bytecode, not test verdicts, and its temporary location passes through Turbo
-without affecting task hashes. Playwright browser caches use the installed version,
-OS and architecture; every runner still installs native dependencies. The formatter's
-uv cache hashes the manifest that pins Ruff instead of walking installed dependencies.
+without affecting task hashes. The formatter's uv cache hashes the manifest that
+pins Ruff instead of walking installed dependencies.
 
 `setup-turbo` restores `.turbo/cache` through GitHub's native cache action. Keys
 separate task scope, OS, architecture, Bun version and lockfile; the checked-out

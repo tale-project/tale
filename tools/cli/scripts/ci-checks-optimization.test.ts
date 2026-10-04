@@ -7,31 +7,40 @@ import { parse } from 'yaml';
 import { z } from 'zod';
 
 const repository = fileURLToPath(new URL('../../..', import.meta.url));
-type Step = {
-  name?: string;
-  id?: string;
-  run?: string;
-  uses?: string;
-  if?: string;
-  env?: Record<string, string>;
-  with?: Record<string, unknown>;
-  'working-directory'?: string;
-};
-type Job = {
-  name?: string;
-  needs?: string | string[];
-  permissions?: Record<string, string>;
-  'timeout-minutes'?: number;
-  steps?: Step[];
-  strategy?: {
-    'fail-fast'?: boolean;
-    matrix?: { shard?: number[] };
-  };
-};
+const workflowSchema = z.object({
+  jobs: z.record(
+    z.string(),
+    z.object({
+      name: z.string().optional(),
+      steps: z
+        .array(
+          z.object({
+            name: z.string().optional(),
+            id: z.string().optional(),
+            env: z.record(z.string(), z.string()).optional(),
+            'working-directory': z.string().optional(),
+            run: z.string().optional(),
+            uses: z.string().optional(),
+            if: z.string().optional(),
+            with: z.record(z.string(), z.unknown()).optional(),
+          }),
+        )
+        .default([]),
+      strategy: z
+        .object({
+          'fail-fast': z.boolean().optional(),
+          matrix: z.object({ shard: z.array(z.number()).optional() }),
+        })
+        .optional(),
+    }),
+  ),
+});
 const workflow = async () =>
-  parse(
-    await readFile(join(repository, '.github/workflows/checks.yml'), 'utf8'),
-  ) as { jobs: Record<string, Job> };
+  workflowSchema.parse(
+    parse(
+      await readFile(join(repository, '.github/workflows/checks.yml'), 'utf8'),
+    ),
+  );
 const dryRunSchema = z.object({
   tasks: z.array(
     z.object({
@@ -45,7 +54,7 @@ const dryRunSchema = z.object({
 
 describe('Checks execution optimizations', () => {
   test('platform UI shards have distinct verdicts while every other UI workspace runs once', async () => {
-    const job = (await workflow()).jobs['test-ui-shards']!;
+    const job = (await workflow()).jobs['test-ui-shards'];
     expect(job.strategy?.['fail-fast']).toBe(false);
     const shards = job.strategy?.matrix?.shard;
     expect(shards).toEqual([1, 2, 3, 4]);
@@ -117,35 +126,6 @@ describe('Checks execution optimizations', () => {
     );
   });
 
-  test.skipIf(process.platform === 'win32')(
-    'the stable UI gate refuses a failed, cancelled or unexpectedly skipped shard',
-    async () => {
-      const file = await workflow();
-      const job = file.jobs['test-ui']!;
-      expect(job.name).toBe('UI');
-      expect(job.needs).toEqual(['candidate-source', 'test-ui-shards']);
-      expect(job.permissions).toEqual({});
-      expect(job['timeout-minutes']).toBeLessThanOrEqual(3);
-      expect(job.steps?.some((step) => step.uses)).toBe(false);
-      const step = job.steps?.find(
-        (entry) => entry.name === 'Require every UI shard',
-      );
-      expect(step?.env?.SHARDS_RESULT).toBe(
-        '${{ needs.test-ui-shards.result }}',
-      );
-      if (!step?.run) throw new Error('The stable UI gate has no assertion');
-      for (const result of ['success', 'failure', 'cancelled', 'skipped', '']) {
-        const run = Bun.spawnSync(['bash', '-e', '-c', step.run], {
-          cwd: repository,
-          env: { ...process.env, SHARDS_RESULT: result },
-        });
-        expect(run.exitCode === 0, result).toBe(result === 'success');
-      }
-      expect(file.jobs['candidate-gate']?.needs).toContain('test-ui');
-      expect(file.jobs['candidate-gate']?.needs).toContain('test-ui-shards');
-    },
-  );
-
   test('successful output is bounded while compiler diagnostics remain visible', async () => {
     const { jobs } = await workflow();
     for (const id of [
@@ -212,38 +192,6 @@ describe('Checks execution optimizations', () => {
     }
   });
 
-  test('Bun download caches cover every workspace and never cross architectures', async () => {
-    const action = parse(
-      await readFile(
-        join(repository, '.github/actions/setup-turbo/action.yml'),
-        'utf8',
-      ),
-    ) as { runs: { steps: Step[] } };
-    const cache = action.runs.steps.find((step) =>
-      step.uses?.startsWith('actions/cache@'),
-    )?.with;
-    const key = String(cache?.key);
-    const restore = String(cache?.['restore-keys']);
-    for (const field of ['runner.os', 'runner.arch', 'inputs.bun-version']) {
-      expect(key).toContain(`\${{ ${field} }}`);
-      expect(restore).toContain(`\${{ ${field} }}`);
-    }
-    const manifest = z
-      .object({ workspaces: z.array(z.string()) })
-      .parse(
-        JSON.parse(await readFile(join(repository, 'package.json'), 'utf8')),
-      );
-    for (const path of ['bun.lock', 'package.json', 'patches/**'])
-      expect(key).toContain(`'${path}'`);
-    for (const workspace of manifest.workspaces)
-      expect(key).toContain(`'${workspace}/package.json'`);
-    const install = action.runs.steps.find(
-      (step) => step.name === 'Install JS dependencies',
-    );
-    expect(install?.run).toBe('bun install --frozen-lockfile');
-    expect(install?.if).toBeUndefined();
-  });
-
   test('the formatter cache hashes the manifest that pins Ruff without scanning installed dependencies', async () => {
     const setup = (await workflow()).jobs.format!.steps!.find((step) =>
       step.uses?.startsWith('astral-sh/setup-uv@'),
@@ -260,32 +208,6 @@ describe('Checks execution optimizations', () => {
     expect(manifest.scripts['format:check']).toMatch(
       /uvx ruff@[\d.]+ format --check/,
     );
-  });
-
-  test('Browser shares the exact E2E browser cache and installs native dependencies even on a cache hit', async () => {
-    const steps = (await workflow()).jobs['test-browser']!.steps!;
-    const e2e = parse(
-      await readFile(join(repository, '.github/workflows/e2e.yml'), 'utf8'),
-    ) as { jobs: Record<string, { steps: Step[] }> };
-    const resolver = steps.find((step) => step.id === 'playwright-version');
-    expect(resolver?.['working-directory']).toBe('services/platform');
-    expect(resolver?.run).toBeTruthy();
-    // ci-e2e-optimization.test.ts exercises the shared resolver's failure path.
-    expect(resolver?.run).toBe(
-      e2e.jobs.e2e!.steps.find((step) => step.id === 'playwright-version')?.run,
-    );
-    const cache = steps.find((step) => step.uses?.startsWith('actions/cache@'));
-    expect(cache?.with?.key).toBe(
-      'playwright-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright-version.outputs.version }}',
-    );
-    expect(cache?.with?.['restore-keys']).toBeUndefined();
-    const install = steps.find((step) =>
-      step.run?.includes('bunx playwright install --with-deps chromium'),
-    );
-    expect(install).toBeDefined();
-    expect(install?.if).toBeUndefined();
-    expect(steps.indexOf(resolver!)).toBeLessThan(steps.indexOf(cache!));
-    expect(steps.indexOf(cache!)).toBeLessThan(steps.indexOf(install!));
   });
 
   test('isolated unit and UI workers receive a job-local Node bytecode cache through Turbo strict mode', async () => {

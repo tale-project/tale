@@ -287,23 +287,28 @@ describe('E2E service scheduling', () => {
       const file = await workflow('e2e');
       const steps = file.jobs[job]!.steps!;
       const version = step(file.jobs[job], 'Resolve Playwright version');
+      expect(
+        steps.filter((entry) => entry.id === 'playwright-version'),
+      ).toHaveLength(1);
       expect(version.run).toContain(
         'require("@playwright/test/package.json").version',
       );
       // Assignment must fail before echo if version resolution fails. An echo
       // wrapping the substitution swallows the command's failed exit status.
-      expect(version.run).toMatch(/^version="\$\(bun /);
+      expect(version.run).toMatch(/^set -euo pipefail\nversion="\$\(bun /);
       expect(version['working-directory']).toBe(
         job === 'e2e' ? 'services/platform' : 'services/${{ matrix.service }}',
       );
       const browserCache = step(file.jobs[job], 'Cache Playwright browsers');
       expect(browserCache.with?.key).toBe(
-        'playwright-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright-version.outputs.version }}',
+        'playwright-shell-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright-version.outputs.version }}',
       );
       expect(browserCache.with?.['restore-keys']).toBeUndefined();
       const install = step(file.jobs[job], 'Install Playwright Chromium');
       expect(install.if).toBeUndefined();
-      expect(install.run).toContain('playwright install --with-deps chromium');
+      expect(install.run).toContain(
+        'playwright install --with-deps --only-shell chromium',
+      );
       expect(steps.indexOf(version)).toBeLessThan(steps.indexOf(browserCache));
     },
   );
@@ -314,24 +319,28 @@ describe('E2E service scheduling', () => {
       const file = await workflow('e2e');
       for (const job of ['e2e', 'static-sites']) {
         const script = step(file.jobs[job], 'Resolve Playwright version').run!;
-        for (const succeeds of [true, false]) {
+        for (const [mock, exitCode, output] of [
+          ["printf '1.58.2'", 0, 'version=1.58.2\n'],
+          ['return 19', 19, ''],
+          ["printf '1.58.2'; return 19", 19, ''],
+          ["printf ''", 1, ''],
+          ["printf 'malformed'", 1, ''],
+          ["printf '1.58.2\\n1.59.0'", 1, ''],
+        ] as const) {
+          const directory = await mkdtemp(join(tmpdir(), 'tale-ci-browser-'));
+          temporary.push(directory);
+          const versionOutput = join(directory, 'output');
+          await writeFile(versionOutput, '');
           const result = Bun.spawnSync(
-            [
-              'bash',
-              '-e',
-              '-c',
-              `bun() { ${succeeds ? "printf '1.58.2'" : 'return 19'}; }\n${script}`,
-            ],
+            ['bash', '-c', `bun() { ${mock}; }\n${script}`],
             {
-              env: { ...process.env, GITHUB_OUTPUT: '/dev/stdout' },
+              env: { ...process.env, GITHUB_OUTPUT: versionOutput },
               stdout: 'pipe',
               stderr: 'pipe',
             },
           );
-          expect(result.exitCode).toBe(succeeds ? 0 : 19);
-          expect(result.stdout.toString()).toBe(
-            succeeds ? 'version=1.58.2\n' : '',
-          );
+          expect(result.exitCode, mock).toBe(exitCode);
+          expect(await readFile(versionOutput, 'utf8'), mock).toBe(output);
         }
       }
     },

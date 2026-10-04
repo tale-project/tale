@@ -222,7 +222,7 @@ describe('ordinary CI source admission', () => {
     },
   );
 
-  test('all 35 ordinary job definitions survive an intentionally skipped ancestor', async () => {
+  test('all ordinary job definitions survive an intentionally skipped ancestor', async () => {
     let count = 0;
     for (const stem of callers) {
       const file = await workflow(stem);
@@ -252,7 +252,7 @@ describe('ordinary CI source admission', () => {
           ).toBe(expected);
           state.cancelled = true;
           expect(admitted(job, state, true), `${stem}/${id} cancelled`).toBe(
-            false,
+            stem === 'checks' && id === 'test-ui',
           );
         }
       }

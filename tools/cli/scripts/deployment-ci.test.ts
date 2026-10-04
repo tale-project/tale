@@ -238,6 +238,31 @@ describe('release candidate validation', () => {
       join(bin, 'docker'),
       `#!/bin/sh
 printf 'docker %s\\n' "$*" >> "$TEST_COMMAND_LOG"
+if [ "$1" = pull ] && [ "$TEST_TRACK_PULLS" = true ]; then
+  printf 'pull-start %s\\n' "$2" >> "$TEST_COMMAND_LOG"
+  service="\${2##*/}"
+  service="\${service#tale-}"
+  service="\${service%%@*}"
+  # The prioritized first batch joins at a barrier: all three starts must
+  # be logged before any finish, so overlap never depends on host scheduling.
+  case "$service" in
+    sandbox-runtime|platform|db)
+      touch "$TEST_COMMAND_LOG.$service"
+      attempts=0
+      while [ ! -f "$TEST_COMMAND_LOG.sandbox-runtime" ] ||
+            [ ! -f "$TEST_COMMAND_LOG.platform" ] ||
+            [ ! -f "$TEST_COMMAND_LOG.db" ]; do
+        attempts=$((attempts + 1))
+        if [ "$attempts" -gt 1000 ]; then exit 1; fi
+        sleep 0.01
+      done
+      ;;
+  esac
+  printf 'pull-end %s\\n' "$2" >> "$TEST_COMMAND_LOG"
+fi
+if [ "$1" = "$TEST_FAIL_COMMAND" ]; then
+  case "$*" in *tale-"$TEST_FAIL_SERVICE"@*) exit 37 ;; esac
+fi
 if [ "$1 $2" = 'image inspect' ]; then
   case "$5" in
     *tale-"$TEST_FOREIGN_SERVICE"@*) printf '%s\\n' "$TEST_FOREIGN_REVISION" ;;
@@ -500,6 +525,32 @@ printf '%s\\n' "$TEST_COMPARE_STATUS"
     },
   );
 
+  test('a fork relies on its local smoke and image-validation jobs, never an isolated build matrix', async () => {
+    const build = await workflow();
+    expect(build.jobs.build?.if).toContain(
+      'github.event.pull_request.head.repo.fork != true',
+    );
+    for (const id of ['smoke-test-fork', 'image-validate-fork']) {
+      expect(build.jobs[id]?.needs).toBe('changes');
+      expect(build.jobs[id]?.if).toContain(
+        'github.event.pull_request.head.repo.fork == true',
+      );
+    }
+    const fork = build.jobs['image-validate-fork']!;
+    const catalog = step(fork, 'Validate builtin configs');
+    expect(catalog.run).toBe(
+      'bun run --filter @tale/platform configs:validate',
+    );
+    expect(fork.steps.indexOf(catalog)).toBeGreaterThan(
+      fork.steps.indexOf(step(fork, 'Setup toolchain')),
+    );
+    expect(fork.steps.indexOf(catalog)).toBeLessThan(
+      fork.steps.indexOf(step(fork, 'Run image validation (local build)')),
+    );
+    const validate = step(build.jobs.build!, 'Setup toolchain');
+    expect(validate.with?.['turbo-cache']).toBe('false');
+  });
+
   test.skipIf(process.platform === 'win32')(
     'stack gates omit static-only work and duplicate fork publication',
     async () => {
@@ -761,7 +812,11 @@ printf '%s\\n' "$TEST_COMPARE_STATUS"
       expect(step(job, 'Build and push').id).toBe('image');
       const record = step(job, 'Record image receipt');
       const upload = step(job, 'Upload image receipt');
-      expect(record.if).toBe("steps.pushmode.outputs.push == 'true'");
+      expect(job.if).toContain(
+        'github.event.pull_request.head.repo.fork != true',
+      );
+      expect(step(job, 'Build and push').with?.push).toBe(true);
+      expect(record.if).toBeUndefined();
       expect(upload.if).toBe(record.if);
       expect(record.env).toMatchObject({
         DIGEST: '${{ steps.image.outputs.digest }}',
@@ -861,7 +916,13 @@ printf '%s\\n' "$TEST_COMPARE_STATUS"
       });
       return async (
         directory: string,
-        foreign: { service?: string; revision?: string } = {},
+        foreign: {
+          service?: string;
+          revision?: string;
+          failCommand?: string;
+          failService?: string;
+          trackPulls?: boolean;
+        } = {},
       ) => {
         const tools = await standIns();
         const result = await execute(expand(pulling.run), {
@@ -870,6 +931,9 @@ printf '%s\\n' "$TEST_COMPARE_STATUS"
           TEST_REVISION: CANDIDATE,
           TEST_FOREIGN_SERVICE: foreign.service ?? '-',
           TEST_FOREIGN_REVISION: foreign.revision ?? '',
+          TEST_FAIL_COMMAND: foreign.failCommand ?? '-',
+          TEST_FAIL_SERVICE: foreign.failService ?? '-',
+          TEST_TRACK_PULLS: String(foreign.trackPulls ?? false),
           SOURCE_SHA: CANDIDATE,
           RECEIPTS: directory,
         });
@@ -915,6 +979,84 @@ printf '%s\\n' "$TEST_COMPARE_STATUS"
         expect(BUILT.toSorted()).toEqual(
           (await workflow()).jobs.build!.strategy!.matrix!.service!.toSorted(),
         );
+      },
+    );
+
+    test.skipIf(process.platform === 'win32')(
+      'overlaps pulls, never exceeds three workers and waits before exposing the runtime tag',
+      async () => {
+        const run = await pull();
+        const result = await run(await receipts(CANDIDATE, 'tag'), {
+          trackPulls: true,
+        });
+        expect(result.code, result.stdout + result.stderr).toBe(0);
+        let active = 0;
+        let peak = 0;
+        for (const call of result.calls) {
+          if (call.startsWith('pull-start ')) {
+            active += 1;
+            peak = Math.max(peak, active);
+          } else if (call.startsWith('pull-end ')) {
+            active -= 1;
+          } else if (call.endsWith(' tale-sandbox-runtime:latest')) {
+            expect(active).toBe(0);
+          }
+          expect(active).toBeGreaterThanOrEqual(0);
+          expect(active).toBeLessThanOrEqual(3);
+        }
+        expect(peak).toBe(3);
+        expect(active).toBe(0);
+        expect(
+          result.calls.filter((call) => call.startsWith('pull-end ')),
+        ).toHaveLength(BUILT.length);
+      },
+    );
+
+    test
+      .skipIf(process.platform === 'win32')
+      .each(
+        ['db', 'sandbox-buildkitd'].flatMap((service) =>
+          ['pull', 'image', 'tag'].map(
+            (command) => [service, command] as const,
+          ),
+        ),
+      )(
+      'propagates a %s %s failure from a worker, including the final batch',
+      async (service, command) => {
+        const run = await pull();
+        const result = await run(await receipts(CANDIDATE, 'tag'), {
+          failService: service,
+          failCommand: command,
+          trackPulls: true,
+        });
+        expect(result.code).not.toBe(0);
+        expect(result.stdout).toContain(
+          '::error::Image download or source verification failed',
+        );
+        expect(result.calls.at(-1)).not.toBe(
+          'docker tag ghcr.io/tale-project/tale/tale-sandbox-runtime:latest tale-sandbox-runtime:latest',
+        );
+        expect(
+          result.calls.filter((call) => call.startsWith('pull-end ')),
+        ).toHaveLength(service === 'db' ? 3 : BUILT.length);
+        if (command === 'pull') {
+          expect(
+            result.calls.some(
+              (call) =>
+                call.startsWith('docker image inspect ') &&
+                call.includes(`/tale-${service}@`),
+            ),
+          ).toBe(false);
+        }
+        if (command !== 'tag') {
+          expect(
+            result.calls.some((call) =>
+              call.startsWith(
+                `docker tag ghcr.io/tale-project/tale/tale-${service}@`,
+              ),
+            ),
+          ).toBe(false);
+        }
       },
     );
 
@@ -1334,6 +1476,66 @@ test.skipIf(process.platform === 'win32')(
     );
   },
 );
+
+describe('standalone container CI efficiency', () => {
+  const SERVICES = ['web', 'docs', 'ui-docs', 'ai-gateway'] as const;
+  const workflow = async () =>
+    parse(
+      await readFile(join(repository, '.github/workflows/build.yml'), 'utf8'),
+    ) as {
+      jobs: Record<string, { steps: Step[] }>;
+    };
+
+  test.skipIf(process.platform === 'win32').each([
+    ['ample space', '25000000', false],
+    ['low space', '2000000', true],
+    ['just below 20 GiB', '20971519', true],
+    ['the 20 GiB threshold', '20971520', false],
+  ] as const)(
+    'only reclaims preinstalled SDKs with %s',
+    async (_, available, reclaim) => {
+      const jobs = (await workflow()).jobs;
+      const script = jobs['web-test']?.steps.find(
+        (step) => step.name === 'Reclaim disk space if needed',
+      )?.run;
+      for (const service of SERVICES) {
+        expect(
+          jobs[`${service}-test`]?.steps.find(
+            (step) => step.name === 'Reclaim disk space if needed',
+          )?.run,
+        ).toBe(script);
+      }
+      const result = await execute(
+        script,
+        { TEST_AVAILABLE: available },
+        {
+          df: '#!/bin/sh\nprintf "Filesystem 1024-blocks Used Available Capacity Mounted on\\nsynthetic 10000000 1000000 %s 10%% /\\n" "$TEST_AVAILABLE"\n',
+          sudo: '#!/bin/sh\nprintf "%s\\n" "$*" >> "$PROOF_DIR/reclaim-calls"\n',
+        },
+      );
+      expect(result.code, result.stdout + result.stderr).toBe(0);
+      const calls = Bun.file(join(result.root, 'reclaim-calls'));
+      expect(await calls.exists()).toBe(reclaim);
+      if (reclaim) {
+        expect(await calls.text()).toBe(
+          'rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL\ndocker image prune -af\n',
+        );
+      }
+    },
+  );
+
+  test
+    .skipIf(process.platform === 'win32')
+    .each([
+      '#!/bin/sh\nexit 27\n',
+      '#!/bin/sh\nprintf "unreadable free space\\n"\n',
+    ])('fails when free disk space cannot be measured', async (df) => {
+    const script = (await workflow()).jobs['web-test']?.steps.find(
+      (step) => step.name === 'Reclaim disk space if needed',
+    )?.run;
+    expect((await execute(script, {}, { df })).code).not.toBe(0);
+  });
+});
 
 test.skipIf(process.platform === 'win32')(
   'setup action selects the host binary, honours linux-baseline on x64 only and seals only the final Mac executable',
@@ -2064,5 +2266,142 @@ describe('Playwright diagnostics', () => {
     } finally {
       await chmod(results, 0o755);
     }
+  });
+});
+
+/** Keep runner savings independent of test coverage and build-cache freshness. */
+describe('E2E efficiency', () => {
+  const e2e = async () =>
+    parse(
+      await readFile(join(repository, '.github/workflows/e2e.yml'), 'utf8'),
+    ) as {
+      on: { pull_request: { paths: string[] } };
+      jobs: Record<
+        string,
+        {
+          name?: string;
+          steps: Step[];
+          strategy?: {
+            'fail-fast': boolean;
+            matrix: { shard: number[] };
+          };
+        }
+      >;
+    };
+
+  test('four isolated single-worker shards retain every test partition', async () => {
+    const platform = (await e2e()).jobs.e2e!;
+    const shards = platform.strategy?.matrix.shard;
+    expect(shards).toEqual([1, 2, 3, 4]);
+    expect(platform.strategy?.['fail-fast']).toBe(false);
+    expect(platform.name).toBe('Playwright (platform ${{ matrix.shard }}/4)');
+    const suite = platform.steps.find((step) =>
+      step.run?.includes('playwright test'),
+    );
+    expect(suite?.run).toBe(
+      'bunx playwright test --shard=${{ matrix.shard }}/${{ strategy.job-total }}',
+    );
+    expect(suite?.env?.E2E_WORKERS).toBe('1');
+    // No grep/test-file selectors: Playwright partitions the whole discovered
+    // suite. The candidate graph suite holds all four names to its receipt.
+    expect(suite?.if).toBeUndefined();
+    expect(suite?.['continue-on-error']).toBeUndefined();
+  });
+
+  test.each(['e2e', 'static-sites'])(
+    '%s caches the installed headless browser revision while always installing system dependencies',
+    async (job) => {
+      const steps = (await e2e()).jobs[job]!.steps;
+      const version = steps.find((step) => step.id === 'playwright-version');
+      expect(version?.run).toContain(
+        'require("@playwright/test/package.json").version',
+      );
+      const cache = steps.find(
+        (step) => step.name === 'Cache Playwright browsers',
+      );
+      expect(steps.indexOf(version!)).toBeLessThan(steps.indexOf(cache!));
+      expect(cache?.with?.key).toBe(
+        'playwright-shell-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright-version.outputs.version }}',
+      );
+      expect(cache?.with?.['restore-keys']).toBeUndefined();
+      const install = steps.find(
+        (step) => step.name === 'Install Playwright Chromium',
+      );
+      expect(install?.run).toContain(
+        'bunx playwright install --with-deps --only-shell chromium',
+      );
+      // Linux shared libraries are runner state, never part of browser cache.
+      expect(install?.if).toBeUndefined();
+      expect(install?.run).toContain('Acquire::http::Timeout "30"');
+      expect(install?.run).toContain('Acquire::Retries "1"');
+      for (const service of ['platform', 'web', 'docs']) {
+        const config = await readFile(
+          join(repository, 'services', service, 'playwright.config.ts'),
+          'utf8',
+        );
+        expect(config).not.toMatch(/\bchannel\s*:/);
+        expect(config).not.toMatch(/\bheadless\s*:\s*false/);
+      }
+    },
+  );
+
+  test.skipIf(process.platform === 'win32').each([
+    ['installed version', '1.58.2', 0, true],
+    ['failed resolver with valid output', '1.58.2', 9, false],
+    ['empty version', '', 0, false],
+    ['invalid version', 'latest', 0, false],
+    ['multiline version', '1.58.2\nother=true', 0, false],
+  ])(
+    'browser cache identity fails closed for %s',
+    async (_, version, code, ok) => {
+      const steps = (await e2e()).jobs.e2e!.steps;
+      const resolver = steps.find((step) => step.id === 'playwright-version');
+      const result = await execute(
+        resolver?.run,
+        { PROOF_VERSION: String(version), PROOF_EXIT: String(code) },
+        {
+          bun: '#!/bin/sh\nprintf "%s\\n" "$PROOF_VERSION"\nexit "$PROOF_EXIT"\n',
+        },
+      );
+      if (ok) {
+        expect(result.code, result.stderr).toBe(0);
+        expect(result.output).toBe(`version=${version}\n`);
+      } else {
+        expect(result.code).not.toBe(0);
+        expect(result.output).toBe('');
+      }
+    },
+  );
+
+  test('the preview build reuses the native build task cache without a second dist cache', async () => {
+    const workflow = await e2e();
+    const { jobs } = workflow;
+    const steps = jobs.build?.steps ?? [];
+    const setup = steps.find((step) => step.name === 'Setup toolchain');
+    expect(setup?.with?.['cache-scope']).toBe('build');
+    expect(setup?.with?.['turbo-cache']).not.toBe('false');
+    expect(
+      steps.some(
+        (step) =>
+          step.id === 'dist-cache' || step.name === 'Cache platform dist',
+      ),
+    ).toBe(false);
+    const build = steps.find((step) => step.name?.startsWith('Build platform'));
+    expect(build?.run).toBe('bunx turbo run build --filter=@tale/platform');
+    expect(build?.if).toBeUndefined();
+    for (const input of [
+      'packages/shared/src/index.ts',
+      'configs/platform/system/harnesses/gemini/harness.yml',
+      'docs/en/index.md',
+      'patches/postgres.patch',
+      'tsconfig.dom.json',
+      'bunfig.toml',
+    ])
+      expect(
+        workflow.on.pull_request.paths.some((pattern) =>
+          new Bun.Glob(pattern).match(input),
+        ),
+        input,
+      ).toBe(true);
   });
 });

@@ -296,14 +296,18 @@ jobs:
         id: playwright-version
         working-directory: services/platform
         run: |
-          version="$(bun -e 'process.stdout.write(require("@playwright/test/package.json").version)')"
+          set -euo pipefail
+          version="$(bun -e 'console.log(require("@playwright/test/package.json").version)')"
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo '::error::Cannot resolve the installed Playwright version'; exit 1
+          fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
       - name: Cache Playwright browsers
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright-version.outputs.version }}
+          key: playwright-shell-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright-version.outputs.version }}
 
       - name: Install Playwright Chromium
         working-directory: services/platform
@@ -319,7 +323,7 @@ jobs:
           Acquire::Retries "1";
           APT
           sudo apt-config shell IPv4 Acquire::ForceIPv4 HTTPTimeout Acquire::http::Timeout HTTPSTimeout Acquire::https::Timeout Retries Acquire::Retries
-          bunx playwright install --with-deps chromium
+          bunx playwright install --with-deps --only-shell chromium
 
       # The prod bundle is built (or cache-restored) exactly once by the
       # upstream `build` job — see its comments for why the suite serves a
@@ -435,14 +439,18 @@ jobs:
         id: playwright-version
         working-directory: services/${{ matrix.service }}
         run: |
-          version="$(bun -e 'process.stdout.write(require("@playwright/test/package.json").version)')"
+          set -euo pipefail
+          version="$(bun -e 'console.log(require("@playwright/test/package.json").version)')"
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo '::error::Cannot resolve the installed Playwright version'; exit 1
+          fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
       - name: Cache Playwright browsers
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright-version.outputs.version }}
+          key: playwright-shell-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright-version.outputs.version }}
 
       - name: Install Playwright Chromium
         working-directory: services/${{ matrix.service }}
@@ -457,7 +465,7 @@ jobs:
           Acquire::Retries "1";
           APT
           sudo apt-config shell IPv4 Acquire::ForceIPv4 HTTPTimeout Acquire::http::Timeout HTTPSTimeout Acquire::https::Timeout Retries Acquire::Retries
-          bunx playwright install --with-deps chromium
+          bunx playwright install --with-deps --only-shell chromium
 
       - name: Run E2E suite
         # Static sites share no mutable backend: each page/context is isolated.

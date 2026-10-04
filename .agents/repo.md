@@ -263,15 +263,23 @@ change therefore invalidates its consumers without serializing their actual test
 lint or typecheck processes. Explicit outside-file inputs remain necessary for imports
 and reads that are not workspace dependencies. The platform's UI input guards still
 hold its direct source reads and exported files to that contract. Every root
-`tsconfig.*.json` also participates in the global hash.
+`tsconfig*.json` and `bunfig.toml` also participate in the global hash.
 
 CLI generation and builds record the checkout's Git revision and clean state; they are
 uncached because those values are not source-file hashes. Their outside source inputs
 still invalidate dependent checks; nested catalog `.turbo/` logs are excluded. The real
-Turbo fixture in `tools/cli/scripts/turbo-dependencies.test.ts` checks log creation and
+Turbo fixture in `tools/cli/scripts/ci-cache-optimization.test.ts` checks log creation and
 rewrites leave hashes unchanged while real catalog sources invalidate them.
 Do not cache these artifacts without including and
 verifying their complete source identity.
+
+`setup-turbo` always runs a frozen install. Its download cache separates OS,
+architecture, Bun version, manifests, lockfile and patches, and saves after a successful
+install so a later workload failure does not lose the downloaded packages.
+Browser checks and Playwright share an exact installed-version/OS/architecture
+headless-shell cache; native dependencies are still installed on every runner.
+The [CI guide](../.github/CI.md) documents task cache boundaries and the four-way
+UI and platform Playwright matrices, including their required release evidence.
 
 ## Skills index
 

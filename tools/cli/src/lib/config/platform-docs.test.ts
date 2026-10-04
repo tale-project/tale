@@ -13,13 +13,18 @@ import { parsePlatformConfiguration } from './platform-model';
 const REPO_ROOT = fileURLToPath(new URL('../../../../../', import.meta.url));
 const CLI_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 const LOCALES = ['en', 'de', 'fr'];
-/** The CI files `scripts/deployment-ci.test.ts` and
- * `scripts/release-candidate-workflows.test.ts` read, from the repo root. */
+/** Outside files read by the CI workflow, cache and candidate regression suites. */
 const CHECKED_CI_FILES = [
   'services/platform/tests/integration/container-image-test.ts',
   'turbo.json',
   'package.json',
   '.github/actions/setup-turbo/action.yml',
+  'services/platform/vitest.config.ts',
+  'packages/ui/vitest.config.ts',
+  'services/platform/playwright.config.ts',
+  'services/web/playwright.config.ts',
+  'services/docs/playwright.config.ts',
+  'packages/e2e/src/config.ts',
   '.github/workflows/build.yml',
   '.github/workflows/checks.yml',
   '.github/workflows/cleanup-pr-images.yml',
@@ -41,6 +46,10 @@ const PARITY_FILES = [
   '.github/workflows/cli.yml',
   '.github/workflows/release.yml',
   'compose.yml',
+  'compose.web.yml',
+  'compose.docs.yml',
+  'compose.ui-docs.yml',
+  'compose.ai-gateway.yml',
   'services/proxy/Caddyfile',
   'services/proxy/docker-entrypoint.sh',
   'services/platform/Dockerfile',

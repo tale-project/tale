@@ -6,6 +6,8 @@ import { z } from 'zod';
 
 const stepSchema = z.object({
   name: z.string().optional(),
+  id: z.string().optional(),
+  'working-directory': z.string().optional(),
   run: z.string().optional(),
   uses: z.string().optional(),
   if: z.string().optional(),
@@ -21,6 +23,9 @@ const workflowSchema = z.object({
     z.string(),
     z.object({
       name: z.string(),
+      if: z.string().optional(),
+      permissions: z.record(z.string(), z.string()).optional(),
+      'timeout-minutes': z.number().optional(),
       needs: z.union([z.string(), z.array(z.string())]).optional(),
       strategy: z
         .object({
@@ -86,6 +91,26 @@ describe('CI test partitioning preserves the complete validation', () => {
     ).toHaveLength(1);
   });
 
+  test('the stable UI verdict retains source and draft admission on cancellation', async () => {
+    const file = await workflow('checks');
+    const verdict = file.jobs['test-ui'];
+    const shards = file.jobs['test-ui-shards'];
+    expect(verdict.needs).toEqual(['candidate-source', 'test-ui-shards']);
+    expect(verdict.if).toContain('always()');
+    expect(verdict.if).not.toContain('needs.test-ui-shards.result');
+    expect(verdict.permissions).toEqual({});
+    expect(verdict['timeout-minutes']).toBeLessThanOrEqual(3);
+    expect(shards.needs).toBe('candidate-source');
+    expect(shards.if).toBe(verdict.if?.replace('always()', '!cancelled()'));
+    expect(verdict.if).toContain('github.event.pull_request.draft != true');
+    expect(
+      shards.steps.find((step) => step.name === 'Checkout')?.with?.ref,
+    ).toBe('${{ needs.candidate-source.outputs.candidate_sha }}');
+    expect([file.jobs['candidate-gate'].needs].flat()).toEqual(
+      expect.arrayContaining(['test-ui', 'test-ui-shards']),
+    );
+  });
+
   test.each(['success', 'failure', 'cancelled', 'skipped', ''])(
     'the stable UI check fails closed for shard result %j',
     async (result) => {
@@ -107,6 +132,66 @@ describe('CI test partitioning preserves the complete validation', () => {
       expect(execution.exitCode === 0).toBe(result === 'success');
     },
   );
+});
+
+describe('Browser check cache', () => {
+  test('shares installed-version headless binaries with E2E on each architecture', async () => {
+    const job = (await workflow('checks')).jobs['test-browser'];
+    const resolver = job.steps.find(
+      (step) => step.id === 'playwright-version',
+    )!;
+    const cache = job.steps.find(
+      (step) => step.name === 'Cache Playwright browsers',
+    )!;
+    expect(resolver['working-directory']).toBe('services/platform');
+    expect(resolver.run).toContain(
+      'require("@playwright/test/package.json").version',
+    );
+    expect(cache.with).toEqual({
+      path: '~/.cache/ms-playwright',
+      key: 'playwright-shell-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright-version.outputs.version }}',
+    });
+    expect(job.steps.indexOf(resolver)).toBeLessThan(job.steps.indexOf(cache));
+    const e2e = await workflow('e2e');
+    for (const id of ['e2e', 'static-sites']) {
+      const other = e2e.jobs[id];
+      expect(
+        other.steps.find((step) => step.id === 'playwright-version')?.run,
+        id,
+      ).toBe(resolver.run);
+      expect(
+        other.steps.find((step) => step.name === 'Cache Playwright browsers')
+          ?.with,
+        id,
+      ).toEqual(cache.with);
+    }
+  });
+
+  test('always installs native dependencies and only the used headless shell', async () => {
+    const job = (await workflow('checks')).jobs['test-browser'];
+    const install = job.steps.find(
+      (step) => step.name === 'Install Playwright Chromium',
+    )!;
+    expect(install.if).toBeUndefined();
+    expect(install.run).toContain(
+      'bunx playwright install --with-deps --only-shell chromium',
+    );
+    expect(install.run).toContain('Acquire::http::Timeout "30";');
+    expect(install.run).toContain('Acquire::Retries "1";');
+    for (const config of [
+      'services/platform/vitest.config.ts',
+      'packages/ui/vitest.config.ts',
+    ]) {
+      const source = await readFile(
+        new URL(`../../../${config}`, import.meta.url),
+        'utf8',
+      );
+      // An explicit channel requires full Chromium instead of the shell.
+      expect(source, config).not.toMatch(/\bchannel\s*:/);
+      expect(source, config).toContain('headless: true');
+      expect(source, config).toContain('provider: playwright()');
+    }
+  });
 });
 
 test('E2E uses the normal build cache and one artifact for every platform shard', async () => {
