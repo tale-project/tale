@@ -19,6 +19,11 @@ import {
   sampleLinuxResources,
   verifyContainerResources,
 } from './linux-resources.ts';
+import {
+  assertPrivateLoopback,
+  assertSharedNetwork,
+  readContainerNetwork,
+} from './network.ts';
 import { browserOrigins } from './origins.mjs';
 import { nativeIO } from './resource-io.ts';
 
@@ -45,6 +50,22 @@ const env = childEnvironment({
   BENCH_PASSWORD: `Synthetic-${randomBytes(32).toString('hex')}!`,
 });
 try {
+  const dockerVersion = await boundedIO.command(
+    'docker',
+    ['version', '--format', '{{.Server.Version}}'],
+    10_000,
+  );
+  assert.equal(dockerVersion.code, 0);
+  assert.match(dockerVersion.stdout.trim(), /^\d+\.\d+\.\d+(?:[-+][\w.-]+)?$/);
+  assert(
+    Number.parseInt(dockerVersion.stdout, 10) >= 26,
+    'Private IPv6 loopback requires Docker26 or newer',
+  );
+  const network: Record<string, unknown> = {
+    dockerVersion: dockerVersion.stdout.trim(),
+    complete: false,
+  };
+  await json('network.json', network);
   // Fetching/setup precedes the constrained and offline measured phase.
   await runLogged('docker', ['pull', browserImage], {
     cwd: source.candidatePath,
@@ -70,6 +91,8 @@ try {
     ...containerResourceArgs(plan, 'db'),
     '--network',
     'none',
+    '--sysctl',
+    'net.ipv6.conf.all.disable_ipv6=0',
     '--shm-size',
     '128m',
     '--pids-limit',
@@ -89,6 +112,11 @@ try {
     env,
   });
   const db = await verifyContainerResources(boundedIO, plan, 'db');
+  const dbNetwork = await readContainerNetwork(boundedIO, db.id);
+  network.db = dbNetwork;
+  await json('network.json', network);
+  assert.equal(dbNetwork.networkMode, 'none');
+  assertPrivateLoopback(dbNetwork);
   let healthy = false;
   for (let attempt = 0; attempt < 120; attempt += 1) {
     const probe = await boundedIO.command(
@@ -198,6 +226,12 @@ try {
     env: runtimeEnv,
   });
   const browser = await verifyContainerResources(boundedIO, plan, 'browser');
+  const browserNetwork = await readContainerNetwork(boundedIO, browser.id);
+  network.browser = browserNetwork;
+  await json('network.json', network);
+  assertSharedNetwork(dbNetwork, browserNetwork, db.id);
+  network.complete = true;
+  await json('network.json', network);
   await json('resource-membership.json', { db, browser, plan });
   // The child waits for this proof; it cannot seed or measure before the host
   // verifies that BOTH container PIDs share the exact constrained slice.

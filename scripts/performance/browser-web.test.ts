@@ -16,8 +16,7 @@ async function fixture(
   let web: ReturnType<typeof Bun.serve> | undefined;
   try {
     web = Bun.serve({
-      // Darwin needs a user-owned loopback alias for .2; do not mutate host networking.
-      hostname: process.platform === 'linux' ? webHost : '127.0.0.1',
+      hostname: webHost,
       port: 0,
       fetch: (request) => handle(request),
     });

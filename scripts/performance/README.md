@@ -43,13 +43,19 @@ host ports, live accounts, provider calls or production access. The browser imag
 is pinned by digest; the receipt checks its actual version and executable hash.
 Each arm imports its own unchanged production `server.ts` under the root-pinned
 Bun binary, mounted read-only and checked by version and hash. Private
-`127.0.0.2` web origins preserve production runtime injection without activating
+`[::1]` web origins preserve production runtime injection without activating
 the product's localhost-only development capture script. The narrow proxy keeps
 `/api/health` and `/events/file` web-owned; it forwards the API, exact `/events`
 and OAuth discovery routes to the shared API, preserving cookies, request
 cancellation, streaming and redirects. Minimal health readiness and synthetic
 API setup precede the cold page; its already-loaded entry-script responses are
-hashed against that arm's build receipt without another asset request.
+hashed against that arm's build receipt without another asset request. The real
+auth constructor must accept both origins; synthetic sign-in and cookie-backed
+session checks verify both before browser work. Docker 26 or newer enables IPv6
+only in the owned database container's private namespace; raw readbacks must show
+only loopback interfaces/addresses, no usable external/default route and the same
+namespace for both containers before measurement is released. No host networking
+or browser capability is changed.
 
 Two tiny app-free trace controls exercise DOM mutation and data-URL navigation
 before the measured pairs, using the same browser, profiler, categories and

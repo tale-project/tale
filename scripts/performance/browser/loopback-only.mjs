@@ -11,15 +11,7 @@ net.Socket.prototype.connect = function (...args) {
       : typeof first === 'number' && typeof args[1] === 'string'
         ? args[1]
         : 'localhost';
-  if (
-    ![
-      'localhost',
-      '127.0.0.1',
-      '127.0.0.2',
-      '::1',
-      '::ffff:127.0.0.1',
-    ].includes(host)
-  ) {
+  if (!['localhost', '127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(host)) {
     throw new Error(`Diagnostic refused off-box socket host: ${host}`);
   }
   return Reflect.apply(connect, this, args);

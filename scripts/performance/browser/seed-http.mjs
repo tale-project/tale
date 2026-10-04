@@ -31,12 +31,13 @@ function cookieJar() {
   };
 }
 
-async function call(jar, method, path, body) {
-  const res = await fetch(BASE + path, {
+async function call(jar, method, path, body, origin = BASE) {
+  assert(browserOrigins.includes(origin), 'Unowned synthetic auth origin');
+  const res = await fetch(origin + path, {
     method,
     signal: AbortSignal.timeout(30000),
     headers: {
-      origin: BASE,
+      origin,
       'content-type': 'application/json',
       ...(jar ? { cookie: jar.header() } : {}),
     },
@@ -104,4 +105,42 @@ const ids = {
   projects,
 };
 writeFileSync(`${OUT}/seed-ids.json`, JSON.stringify(ids, null, 2));
+const verifiedOrigins = [];
+for (const origin of browserOrigins) {
+  const jar = cookieJar();
+  const signedIn = z.object({ user: z.object({ id }) }).parse(
+    await call(
+      jar,
+      'POST',
+      '/api/auth/sign-in/email',
+      {
+        email: people[0].email,
+        password,
+      },
+      origin,
+    ),
+  );
+  assert.equal(signedIn.user.id, userIds[0]);
+  const session = z
+    .object({ user: z.object({ id }) })
+    .parse(await call(jar, 'GET', '/api/auth/get-session', undefined, origin));
+  assert.equal(session.user.id, userIds[0]);
+  verifiedOrigins.push({
+    origin,
+    userId: session.user.id,
+    signIn: true,
+    session: true,
+  });
+  writeFileSync(
+    `${OUT}/auth-origins.json`,
+    JSON.stringify(
+      {
+        complete: verifiedOrigins.length === browserOrigins.length,
+        origins: verifiedOrigins,
+      },
+      null,
+      2,
+    ),
+  );
+}
 // Synthetic login secret stays in process environment; never write it.
