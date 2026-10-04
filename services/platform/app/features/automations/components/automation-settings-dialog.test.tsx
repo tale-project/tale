@@ -91,6 +91,7 @@ const SETTINGS = fixture({
           required: true,
           pattern: String.raw`^CASE-\d{6}$`,
         },
+        { key: 'contact', label: 'Contact', type: 'text' },
       ],
     },
     {
@@ -250,6 +251,49 @@ describe('AutomationSettingsDialog', () => {
       }),
     );
     expect(toastMock).toHaveBeenCalled();
+  });
+
+  it('keeps a successful file clean when a later file fails and retries', async () => {
+    seedFiles();
+    convexMocks.write.mockReset();
+    convexMocks.write
+      .mockResolvedValueOnce({ action: 'updated' })
+      .mockRejectedValueOnce(new Error('temporary failure'))
+      .mockResolvedValue({ action: 'updated' });
+
+    const { user } = mount();
+    await user.clear(screen.getByLabelText(/Legal name/));
+    await user.type(screen.getByLabelText(/Legal name/), 'New name');
+    await user.click(screen.getByRole('tab', { name: /Validation policy/ }));
+    await user.selectOptions(
+      screen.getByLabelText(/Validation profile/),
+      'strict_rules',
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(convexMocks.write).toHaveBeenCalledTimes(2));
+
+    await user.click(screen.getByRole('tab', { name: /Client identity/ }));
+    expect(screen.getByLabelText(/Legal name/)).toHaveValue('New name');
+    expect(
+      screen
+        .getByRole('tab', { name: /Client identity/ })
+        .querySelector('[aria-label="Unsaved changes"]'),
+    ).toBeNull();
+
+    await user.type(screen.getByLabelText(/Contact/), 'contact@example.com');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => expect(convexMocks.write).toHaveBeenCalledTimes(4));
+    expect(convexMocks.write.mock.calls[2]?.[0]).toEqual(
+      expect.objectContaining({
+        fileName: 'identity.yaml',
+        yaml: expect.objectContaining({
+          organisation_name: 'New name',
+          contact: 'contact@example.com',
+        }),
+      }),
+    );
   });
 
   it('refuses an invalid value and reveals the tab that holds it', async () => {

@@ -164,6 +164,10 @@ export function useSettingsEditor({
   );
 
   const [edited, setEdited] = useState<ValuesByFile>({});
+  // A multi-file save can succeed for one form before a later form fails. Keep
+  // successful values as the clean baseline until the complete query refresh,
+  // rather than letting the still-cached server response resurrect old data.
+  const [committed, setCommitted] = useState<ValuesByFile>({});
   // Issues appear on save attempts, never while typing a form for the first
   // time; a change to the offending field clears its issue immediately.
   const [issues, setIssues] = useState<
@@ -184,13 +188,13 @@ export function useSettingsEditor({
   const fromFiles = useMemo(() => {
     const out: ValuesByFile = {};
     for (const form of fieldsForms) {
-      const file = stored.data?.[form.file] ?? {};
+      const file = committed[form.file] ?? stored.data?.[form.file] ?? {};
       out[form.file] = Object.fromEntries(
         form.fields.map((field) => [field.key, initialValue(field, file)]),
       );
     }
     return out;
-  }, [fieldsForms, stored.data]);
+  }, [committed, fieldsForms, stored.data]);
 
   const valuesOf = (file: string): Record<string, string> => ({
     ...fromFiles[file],
@@ -217,15 +221,24 @@ export function useSettingsEditor({
   };
 
   const writeForm = async (form: SettingsForm): Promise<void> => {
+    const values = valuesOf(form.file);
     await writeValues.mutateAsync({
       organizationId,
       projectId,
       folderName: folder,
       fileName: form.file,
-      yaml: yamlOf(form, valuesOf(form.file)),
+      yaml: yamlOf(form, values),
     });
-    // Drop this form's edits: the file is now the source of truth again, so the
-    // controls derive back to clean without tracking a baseline.
+    setCommitted((prev) => ({ ...prev, [form.file]: values }));
+    queryClient.setQueriesData<ValuesByFile>(
+      { queryKey: settingsValuesQueryKey(organizationId, projectId, folder) },
+      (previous) =>
+        previous === undefined
+          ? previous
+          : { ...previous, [form.file]: yamlOf(form, values) },
+    );
+    // The local committed value is the source of truth until the query is
+    // refreshed. Failed forms retain their edits for the next retry.
     setEdited((prev) => {
       const { [form.file]: _saved, ...rest } = prev;
       return rest;
@@ -270,6 +283,7 @@ export function useSettingsEditor({
       await queryClient.invalidateQueries({
         queryKey: settingsValuesQueryKey(organizationId, projectId, folder),
       });
+      setCommitted({});
       return { ok: true, written };
     } finally {
       setSaving(false);
