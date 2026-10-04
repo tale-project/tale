@@ -139,6 +139,9 @@ rollups**, so figures may legitimately lag same-day activity.
   ([projects.md](projects.md): file a task, move it to In progress, then to
   Done) **Completed** reads `1`, the throughput bars carry the day, and the
   cumulative flow shows the open tasks per status at each day's end; a
+  task archived on an earlier day remains excluded for that archive interval
+  after restoring it today — restoring or archiving today changes today's
+  flow, never earlier days; a
   project with no task activity in the period shows `tasks.metrics.noData`
   on every chart, and every KPI card reads zero — never a dash for a count.
   The pick lands in `?project=` and survives reload.
