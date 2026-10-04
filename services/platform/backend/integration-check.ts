@@ -60,6 +60,7 @@ import {
 import { setUrlSafetyResolverForTests } from './core/video_links/url_safety.ts';
 import { runBootMigrations } from './db/migrate.ts';
 import { createSql } from './db/sql.ts';
+import { checkApprovalDecisionResume } from './domains/approvals/decide-resume.integration.ts';
 import { rowToHashInput } from './domains/audit_logs/hash-input.ts';
 import type { AuditLogRow } from './domains/audit_logs/types.ts';
 import { checkDeletedOrgDoors } from './domains/automations/deleted-org-doors.integration.ts';
@@ -7571,6 +7572,79 @@ async function checkSmallDomains(
       hopperListed.updatedAt > hopperListed.createdAt &&
       hopperSearched.updatedAt === hopperListed.updatedAt,
     `listed created=${hopperListed?.createdAt} updated=${hopperListed?.updatedAt}, hit updatedAt=${hopperSearched?.updatedAt} (want = listed updatedAt, > createdAt)`,
+  );
+
+  // The Contacts Locale facet narrows the listing (#3618): a language lists
+  // its regional tags in any case or separator, a regional tag only itself,
+  // and the Source facet still narrows beside it. The search pins the
+  // listing to this probe's rows.
+  const localeRun = `locale-${Date.now()}`;
+  const localeEmail = (locale: string): string =>
+    `${localeRun}-${locale.toLowerCase()}@example.com`;
+  const localeBulk = await send(
+    'POST',
+    `/api/app/contacts/bulk?orgId=${orgId}`,
+    {
+      contacts: ['fr-CH', 'FR_ca', 'en-US', 'en'].map((locale) => ({
+        email: localeEmail(locale),
+        name: `Locale ${locale}`,
+        locale,
+        source: 'file_upload',
+      })),
+    },
+  );
+  const localeManual = await send('POST', `/api/app/contacts?orgId=${orgId}`, {
+    email: localeEmail('fr'),
+    name: 'Locale fr',
+    locale: 'fr',
+    source: 'manual_import',
+  });
+  const localeRows = async (
+    facets: string,
+  ): Promise<{ id: string; locale: string | null }[] | null> => {
+    const page = z
+      .object({
+        items: z.array(
+          z.object({ id: z.string(), locale: z.string().nullable() }),
+        ),
+      })
+      .safeParse(
+        await get(
+          `/api/app/contacts?orgId=${orgId}&limit=200&search=${localeRun}${facets}`,
+        ),
+      );
+    return page.success ? page.data.items : null;
+  };
+  const localesOf = (rows: { locale: string | null }[] | null): string =>
+    rows === null
+      ? 'ERR'
+      : rows
+          .map((row) => row.locale ?? '')
+          .sort()
+          .join(',');
+  const localeAll = await localeRows('');
+  const localeFacets = {
+    all: localesOf(localeAll),
+    fr: localesOf(await localeRows('&locale=fr')),
+    frCH: localesOf(await localeRows('&locale=fr-CH')),
+    EN: localesOf(await localeRows('&locale=EN')),
+    frUploads: localesOf(await localeRows('&locale=fr&source=file_upload')),
+    de: localesOf(await localeRows('&locale=de')),
+  };
+  for (const row of localeAll ?? []) {
+    await send('DELETE', `/api/app/contacts/${row.id}?orgId=${orgId}`);
+  }
+  record(
+    'contacts: the Locale facet lists a language with its regional tags',
+    localeBulk.ok &&
+      localeManual.ok &&
+      localeFacets.all === 'FR_ca,en,en-US,fr,fr-CH' &&
+      localeFacets.fr === 'FR_ca,fr,fr-CH' &&
+      localeFacets.frCH === 'fr-CH' &&
+      localeFacets.EN === 'en,en-US' &&
+      localeFacets.frUploads === 'FR_ca,fr-CH' &&
+      localeFacets.de === '',
+    `seeded bulk=${localeBulk.status} manual=${localeManual.status}; ${JSON.stringify(localeFacets)} (want all=FR_ca,en,en-US,fr,fr-CH fr=FR_ca,fr,fr-CH frCH=fr-CH EN=en,en-US frUploads=FR_ca,fr-CH de=)`,
   );
 
   // Message feedback lands on a REAL message the caller can read: a chat
@@ -36783,7 +36857,8 @@ async function checkBrowserSessions(
  * The approvals surface: one-row read and the generic decision with the 0.4
  * FSM (pending → executing|rejected only, once), the dedicated-door
  * refusal for review-gate rows, approver stamping, the workflow audit row,
- * and the silent-no-op poke for a stale run reference.
+ * and fail-closed handling of a missing automation run. Task reviews keep
+ * their own project-agent run metadata and dedicated decision door.
  */
 async function checkApprovalsSurface(
   sql: Sql,
@@ -36836,7 +36911,7 @@ async function checkApprovalsSurface(
   // Seeds: two connector operations (one to approve, one to reject) and a
   // review-gate row that must refuse toward its dedicated door.
   const approveId = await seed('connector_operation', 'itest-appr-op-1', {
-    runId: 'no-such-run',
+    source: 'connector',
     connector: 'imap-smtp',
     action: 'send',
   });
@@ -36893,6 +36968,95 @@ async function checkApprovalsSurface(
       badStatus.status === 400 &&
       Number(auditRows[0]?.count ?? '0') === 2,
     `get=${gotten.success} foreign=${foreign.status}, approve=${approved.status} row=${approvedRow?.status}/${approvedRow?.approvedBy === userId}/name=${typeof approvedRow?.metadata?.approverName} again=${again.status} (want 409), reject=${rejected.status}/${rejectedRow?.status} reviewGate=${reviewRefused.status}/${reviewRow?.status} (want 409/pending) badStatus=${badStatus.status} (want 400), audits=${auditRows[0]?.count} (want 2)`,
+  );
+
+  const missingRunId = await seed(
+    'connector_operation',
+    'itest-appr-missing-run',
+    { source: 'automation', runId: randomUUID() },
+  );
+  const missingRead = await api(`/${missingRunId}`);
+  const missingDecision = await api(`/${missingRunId}/decide`, {
+    body: { status: 'executing' },
+  });
+  const missingRow = await rowOf(missingRunId);
+  const [missingAudits] = await sql<{ count: number }[]>`
+    SELECT count(*)::int AS count FROM app.audit_logs
+    WHERE org_id = ${orgId} AND resource_type = 'approval'
+      AND resource_id = ${missingRunId}
+  `;
+  record(
+    'an approval naming a missing automation run is hidden and cannot be decided',
+    missingRead.status === 404 &&
+      missingDecision.status === 404 &&
+      missingRow?.status === 'pending' &&
+      missingRow.approvedBy === null &&
+      missingAudits?.count === 0,
+    `read=${missingRead.status}, decide=${missingDecision.status}, row=${missingRow?.status}/${missingRow?.approvedBy}, audits=${missingAudits?.count}`,
+  );
+
+  // The task review mint uses metadata.runId for a DIFFERENT run ledger.
+  // Exercise that producer so a synthetic row with no run metadata cannot
+  // accidentally stand in for a real agent's review request.
+  const projectId = randomUUID();
+  const taskId = randomUUID();
+  const agentRunId = randomUUID();
+  const now = Date.now();
+  await sql`
+    INSERT INTO app.projects (
+      id, org_id, name, team_ids, created_by, created_at_ms, updated_at_ms
+    ) VALUES (
+      ${projectId}, ${orgId}, 'Approval kind control', '{}'::text[],
+      ${userId}, ${now}, ${now}
+    )
+  `;
+  await sql`
+    INSERT INTO app.tasks (
+      id, org_id, project_id, title, status, rank, created_by,
+      created_by_type, reviewer_user_id, created_at_ms, updated_at_ms
+    ) VALUES (
+      ${taskId}, ${orgId}, ${projectId}, 'Task review control', 'in_review',
+      'a0', ${userId}, 'user', ${userId}, ${now}, ${now}
+    )
+  `;
+  await sql`
+    INSERT INTO app.project_agent_runs (
+      id, org_id, project_id, task_id, agent_id, exec_id, session_id,
+      status, harness, model, started_by, started_at_ms, deadline_at_ms,
+      settled_at_ms, updated_at_ms
+    ) VALUES (
+      ${agentRunId}, ${orgId}, ${projectId}, ${taskId}, ${randomUUID()},
+      ${randomUUID()}, ${randomUUID()}, 'settled', 'claude-code',
+      'synthetic/none', ${userId}, ${now}, ${now + 60_000}, ${now}, ${now}
+    )
+  `;
+  const { loadTaskOrThrow } = await import('./domains/tasks/service.ts');
+  const { requestTaskReview } = await import('./domains/tasks/reviews.ts');
+  const task = await loadTaskOrThrow(sql, taskId, orgId);
+  const agentReview = await sql.begin((tx) =>
+    requestTaskReview(tx, {
+      task,
+      trigger: { kind: 'agent_run', runId: agentRunId },
+    }),
+  );
+  const agentReviewRead = await api(`/${agentReview.approvalId}`);
+  const agentReviewDecision = await api(`/${agentReview.approvalId}/decide`, {
+    body: { status: 'rejected' },
+  });
+  const agentReviewRefusal = z
+    .object({ error: z.string() })
+    .safeParse(await agentReviewDecision.json());
+  const agentReviewRow = await rowOf(agentReview.approvalId);
+  record(
+    'a production-minted task review keeps its project-agent run and dedicated door',
+    agentReviewRead.status === 200 &&
+      agentReviewDecision.status === 409 &&
+      agentReviewRefusal.success &&
+      agentReviewRefusal.data.error === 'APPROVAL_REQUIRES_DEDICATED_RESPOND' &&
+      agentReviewRow?.status === 'pending' &&
+      agentReviewRow.approvedBy === null &&
+      agentReviewRow.metadata?.runId === agentRunId,
+    `read=${agentReviewRead.status}, decide=${agentReviewDecision.status}, row=${agentReviewRow?.status}/${agentReviewRow?.approvedBy}, run=${String(agentReviewRow?.metadata?.runId)}`,
   );
 }
 
@@ -39176,6 +39340,75 @@ async function checkSandboxSettingsViews(
       busy.currentOp?.taskId === busyTasks[2],
     `busy=${busy?.busy}, spent=${busy?.totalSpentCents}, running=${busy?.runningOps.map((op) => op.taskId?.slice(0, 8)).join(',')}, current=${busy?.currentOp?.taskId?.slice(0, 8)}, want=${busyTasks.map((id) => id.slice(0, 8)).join(',')}`,
   );
+  // Standing workspaces accumulate historical turns. A poll still counts
+  // their spend but must not transfer their complete progress transcripts.
+  const historicalProgress = `${'Old progress. '.repeat(500)}${'😀'.repeat(200)}tail`;
+  const historyPrefix = randomUUID();
+  await sql`
+    INSERT INTO app.sandbox_session_ops (
+      org_id, session_id, exec_id, kind, status, finalized_at_ms,
+      spent_cents, started_at_ms, progress_text
+    )
+    SELECT ${orgId}, ${busySessionId}, ${historyPrefix} || '-' || n,
+      'task-agent', 'completed', ${now}, 2, ${now - 10_000}::bigint - n,
+      ${historicalProgress}
+    FROM generate_series(1, 256) AS n
+  `;
+  await sql`
+    UPDATE app.sandbox_session_ops SET progress_text = ${historicalProgress}
+    WHERE org_id = ${orgId} AND session_id = ${sessionId} AND exec_id = ${execId}
+  `;
+  let largestProgressRead = 0;
+  const observedSql = new Proxy(sql, {
+    apply(target, thisArg, args: unknown[]) {
+      const result: unknown = Reflect.apply(target, thisArg, args);
+      const parts = args[0];
+      if (
+        Array.isArray(parts) &&
+        'raw' in parts &&
+        parts.join('?').includes('FROM app.sandbox_session_ops o')
+      ) {
+        return Promise.resolve(result).then((rows) => {
+          if (Array.isArray(rows)) {
+            for (const row of rows) {
+              if (
+                row !== null &&
+                typeof row === 'object' &&
+                'progressText' in row &&
+                typeof row.progressText === 'string'
+              ) {
+                largestProgressRead = Math.max(
+                  largestProgressRead,
+                  row.progressText.length,
+                );
+              }
+            }
+          }
+          return rows;
+        });
+      }
+      return result;
+    },
+  });
+  const historicalViews = await listSandboxViewsForOrg(observedSql, orgId);
+  const historicalBusy = historicalViews.find(
+    (view) => view.sessionId === busySessionId,
+  );
+  const historicalProject = historicalViews.find(
+    (view) => view.sessionId === sessionId,
+  );
+  record(
+    'sandbox settings bound historical progress and preserve spend and Unicode tails',
+    largestProgressRead > 0 &&
+      largestProgressRead <= 560 &&
+      historicalBusy?.totalSpentCents === 517 &&
+      historicalBusy.currentOp?.taskId === busyTasks[2] &&
+      historicalBusy.runningOps.map((op) => op.taskId).join(',') ===
+        busyTasks.join(',') &&
+      historicalProject?.currentOp?.progressText ===
+        historicalProgress.slice(-280),
+    `progressRead=${largestProgressRead}, spent=${historicalBusy?.totalSpentCents}, running=${historicalBusy?.runningOps.length}, displayedTail=${historicalProject?.currentOp?.progressText?.length}`,
+  );
   // A corrupt/stale cross-org owner reference must not reveal that owner's
   // label, even though the referenced primary key exists globally.
   await sql`UPDATE app.project_agents SET org_id = 'foreign-settings-org' WHERE id = ${agentId}`;
@@ -39212,10 +39445,23 @@ async function checkSandboxSettingsViews(
     foreignDestroy.status === 404 && foreignSession[0]?.status === 'stopped',
     `status=${foreignDestroy.status}, foreign session=${foreignSession[0]?.status}`,
   );
-  await sql`DELETE FROM app.sandbox_session_ops WHERE session_id = ANY(${[sessionId, workflowSessionId]})`;
-  await sql`DELETE FROM app.sandbox_sessions WHERE session_id = ANY(${[sessionId, workflowSessionId]})`;
+  const fixtureSessionIds = [sessionId, workflowSessionId, busySessionId];
+  await sql`DELETE FROM app.sandbox_session_ops WHERE session_id = ANY(${fixtureSessionIds})`;
+  await sql`DELETE FROM app.sandbox_sessions WHERE session_id = ANY(${fixtureSessionIds})`;
   await sql`DELETE FROM app.automation_runs WHERE id = ${runId}`;
   await sql`DELETE FROM app.projects WHERE id = ${projectId}`;
+  const remaining = await sql<{ ops: number; sessions: number }[]>`
+    SELECT
+      (SELECT count(*)::int FROM app.sandbox_session_ops
+       WHERE session_id = ANY(${fixtureSessionIds})) AS ops,
+      (SELECT count(*)::int FROM app.sandbox_sessions
+       WHERE session_id = ANY(${fixtureSessionIds})) AS sessions
+  `;
+  record(
+    'sandbox settings remove their history before later settlement sweeps',
+    remaining[0]?.ops === 0 && remaining[0].sessions === 0,
+    `remaining ops=${remaining[0]?.ops}, sessions=${remaining[0]?.sessions} (want 0/0)`,
+  );
 }
 
 /**
@@ -59689,6 +59935,10 @@ async function main(): Promise<void> {
       [
         'checkApprovalsSurface',
         () => checkApprovalsSurface(sql, baseUrl, authCtx),
+      ],
+      [
+        'checkApprovalDecisionResume',
+        () => checkApprovalDecisionResume(sql, baseUrl, authCtx, record),
       ],
       [
         'checkGovernance',

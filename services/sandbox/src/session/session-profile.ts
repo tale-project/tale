@@ -5,7 +5,7 @@
 // `default` profile (run_code / crawler page rendering — untrusted content,
 // uid 65534) never gets the agent-only ones.
 
-import type { SpawnerConfig } from '../types.ts';
+import type { SessionAgentProfileConfig, SpawnerConfig } from '../types.ts';
 import type { SandboxSessionProfile } from '../wire.ts';
 
 /**
@@ -44,4 +44,16 @@ export function sessionDockerCapability(
       ? allowed.includes('project') && allowed.includes('workflow')
       : allowed.includes(workload));
   return workloadAllowed && sessionDindEnabled(cfg, profile, requested);
+}
+
+/** The derived memory ceiling follows the session's actual Docker capability.
+ * CPU, ownership and other agent limits remain the configured profile's. */
+export function sessionAgentProfile(
+  cfg: SpawnerConfig,
+  docker: boolean,
+): SessionAgentProfileConfig {
+  const profile = cfg.session.agentProfile;
+  return !docker && profile.memoryWithoutDocker !== undefined
+    ? { ...profile, memory: profile.memoryWithoutDocker }
+    : profile;
 }

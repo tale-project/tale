@@ -492,6 +492,7 @@ export function HomeInboxList({
                           item.id !== activeConversationId &&
                           hasDraft(
                             homeDraftKey(item, me?.userId, organizationId),
+                            item.kind,
                           )
                         }
                         item={item}

@@ -13,6 +13,10 @@ const {
   listViews,
   pin,
   reconcileOrg,
+  agentNodeOp,
+  getRun,
+  canReadRun,
+  projectAuth,
   scheduleDestroy,
   destroyStates,
   deletions,
@@ -24,6 +28,21 @@ const {
   listViews: vi.fn(),
   pin: vi.fn(),
   reconcileOrg: vi.fn(),
+  agentNodeOp: vi.fn(),
+  getRun: vi.fn(),
+  // The real rule is covered by automations/routes.project-scope.test.ts;
+  // here the fake only marks project 'p-hidden' unreadable so the route's
+  // wiring (load run → check → fail closed) is what is under test.
+  canReadRun: vi.fn(
+    async (_sql: unknown, _auth: unknown, run: { projectId: string | null }) =>
+      run.projectId === null || run.projectId !== 'p-hidden',
+  ),
+  projectAuth: vi.fn(async () => ({
+    organizationId: 'member-org',
+    userId: 'u1',
+    role: 'member',
+    teamIds: [],
+  })),
   scheduleDestroy: vi.fn(),
   destroyStates: vi.fn(),
   deletions: vi.fn(),
@@ -76,7 +95,12 @@ vi.mock('./workspace-cleanup.ts', () => ({
 vi.mock('./sessions.ts', () => ({
   listSandboxViewsForOrg: listViews,
   listRunningOpsBySession: vi.fn(),
-  getAgentNodeSandboxOp: vi.fn(),
+  getAgentNodeSandboxOp: agentNodeOp,
+}));
+vi.mock('../automations/store.ts', () => ({ getRun }));
+vi.mock('../automations/project-visibility.ts', () => ({ canReadRun }));
+vi.mock('../projects/service.ts', () => ({
+  getProjectAuthContext: projectAuth,
 }));
 
 import { createSandboxRoutes } from './routes.ts';
@@ -361,6 +385,56 @@ describe('sandbox settings read and write authority', () => {
       status: 'unavailable',
       reason: 'unreachable',
     });
+  });
+});
+
+describe('agent-node op honours the run project read rule', () => {
+  const op = { execId: 'exec-1', status: 'running', progressText: 'working…' };
+  beforeEach(() => {
+    caller.role = 'member';
+    agentNodeOp.mockResolvedValue(op);
+    getRun.mockImplementation(
+      async (_sql: unknown, _org: string, runId: string) =>
+        runId === 'r-hidden'
+          ? { id: 'r-hidden', projectId: 'p-hidden' }
+          : runId === 'r-visible'
+            ? { id: 'r-visible', projectId: 'p-visible' }
+            : runId === 'r-org'
+              ? { id: 'r-org', projectId: null }
+              : null,
+    );
+  });
+
+  it('answers the op for an organization run', async () => {
+    const res = await app().request('/agent-node-op?runId=r-org');
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ op });
+    expect(agentNodeOp).toHaveBeenCalledWith(query, {
+      organizationId: 'member-org',
+      runId: 'r-org',
+    });
+  });
+
+  it('answers the op for a project run the member can read', async () => {
+    const res = await app().request('/agent-node-op?runId=r-visible');
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ op });
+    expect(agentNodeOp).toHaveBeenCalledTimes(1);
+  });
+
+  it('hides the op of a run whose project the member cannot read', async () => {
+    const res = await app().request('/agent-node-op?runId=r-hidden');
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ op: null });
+    // The transcript read never runs for a hidden run.
+    expect(agentNodeOp).not.toHaveBeenCalled();
+  });
+
+  it('answers null for an unknown run without reading a project', async () => {
+    const res = await app().request('/agent-node-op?runId=nope');
+    expect(await res.json()).toEqual({ op: null });
+    expect(canReadRun).not.toHaveBeenCalled();
+    expect(agentNodeOp).not.toHaveBeenCalled();
   });
 });
 

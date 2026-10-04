@@ -7,6 +7,7 @@ import {
   type AutoRetryRunFacts,
 } from '../../core/tasks/task_auto_retry.ts';
 import { resolveTaskKickResume } from '../../core/tasks/task_kick_resume.ts';
+import { emitHintInTx } from '../../realtime/outbox.ts';
 
 /**
  * The kick-time resume plan over PG — the 0.5 twin of
@@ -214,6 +215,10 @@ export async function resolveTaskKickStartArgs(
 export interface TaskRetryHistoryRow extends AutoRetryRunFacts {
   readonly id: string;
   readonly startedBy: string;
+  readonly inPlace: boolean;
+  /** Original task decision; absent on legacy in-place kicks. */
+  readonly inPlaceRetryStatus?: string | undefined;
+  readonly inPlaceRetryActivityId?: string | undefined;
   /** When this failed run's automatic retry was refused for good
    * (`markAutoRetryRetired`); absent while it may still start. */
   readonly autoRetryRefusedAt?: number | undefined;
@@ -240,6 +245,9 @@ export async function loadTaskRetryHistory(
       status: string;
       agentId: string;
       startedBy: string;
+      inPlace: boolean;
+      inPlaceRetryStatus: string | null;
+      inPlaceRetryActivityId: string | null;
       launchedAt: number | null;
       settledAt: number | null;
       failureCode: string | null;
@@ -250,7 +258,9 @@ export async function loadTaskRetryHistory(
     }[]
   >`
     SELECT id, status, agent_id AS "agentId",
-           started_by AS "startedBy",
+           started_by AS "startedBy", in_place AS "inPlace",
+           in_place_retry_status AS "inPlaceRetryStatus",
+           in_place_retry_activity_id::text AS "inPlaceRetryActivityId",
            launched_at_ms::float8 AS "launchedAt",
            settled_at_ms::float8 AS "settledAt",
            failure_code AS "failureCode",
@@ -267,6 +277,9 @@ export async function loadTaskRetryHistory(
     id: row.id,
     agentId: row.agentId,
     startedBy: row.startedBy,
+    inPlace: row.inPlace,
+    inPlaceRetryStatus: row.inPlaceRetryStatus ?? undefined,
+    inPlaceRetryActivityId: row.inPlaceRetryActivityId ?? undefined,
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the column CHECK admits exactly these statuses
     status: row.status as AutoRetryRunFacts['status'],
     launchedAt: row.launchedAt ?? undefined,
@@ -297,5 +310,13 @@ export async function markAutoRetryRetired(
       AND auto_retry_refused_at_ms IS NULL
     RETURNING id
   `;
-  return retired.length > 0;
+  if (retired.length === 0) return false;
+  // A silent final refusal changes retryPending too. A prior task-move hint
+  // can already have been read before this transaction retires the arm.
+  await emitHintInTx(tx, {
+    orgId: args.organizationId,
+    entity: 'task',
+    entityId: args.taskId,
+  });
+  return true;
 }

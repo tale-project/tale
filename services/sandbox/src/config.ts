@@ -609,6 +609,7 @@ export function loadConfig(): SpawnerConfig {
         // the concurrent-session peak.
         memory:
           process.env.SANDBOX_AGENT_MEMORY ?? (dockerInContainer ? '8g' : '4g'),
+        memoryWithoutDocker: process.env.SANDBOX_AGENT_MEMORY ?? '4g',
         pidsLimit: numEnv('SANDBOX_AGENT_PIDS', 512, { min: 64 }),
         nofileSoft: numEnv('SANDBOX_AGENT_NOFILE_SOFT', 4096, { min: 256 }),
         nofileHard: numEnv('SANDBOX_AGENT_NOFILE_HARD', 8192, { min: 256 }),

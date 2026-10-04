@@ -209,7 +209,7 @@ export function ProductCreateDialog({
 
   const onSubmit = (data: ProductFormData) => {
     const statusValue = data.status || undefined;
-    void createProduct({
+    return createProduct({
       organizationId,
       name: data.name.trim(),
       description: data.description.trim() || undefined,
@@ -264,7 +264,7 @@ export function ProductCreateDialog({
   return (
     <Dialog
       open={isOpen}
-      onOpenChange={(open) => !open && handleClose()}
+      onOpenChange={(open) => !open && !isSubmitting && handleClose()}
       title={tProducts('create.title')}
       description={stepHints[activeIndex]}
       size="entity"
