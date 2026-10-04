@@ -3,11 +3,6 @@
   "extends": ["//"],
   "tasks": {
     "build": {
-      "inputs": [
-        "$TURBO_EXTENDS$",
-        "$TURBO_DEFAULT$",
-        "!app/generated/releases-manifest.ts"
-      ],
       "outputs": [
         "$TURBO_EXTENDS$",
         "dist-ssr/**",

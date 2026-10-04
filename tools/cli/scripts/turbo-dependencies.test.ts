@@ -129,6 +129,18 @@ async function fixture(): Promise<string> {
         join(workspace, 'turbo.json'),
         await readFile(join(ROOT, 'tools/cli/turbo.json')),
       );
+    if (name === 'web') {
+      await writeFile(
+        join(workspace, 'turbo.json'),
+        await readFile(join(ROOT, 'services/web/turbo.json')),
+      );
+      const generated = join(workspace, 'app/generated');
+      await mkdir(generated, { recursive: true });
+      await writeFile(
+        join(generated, 'releases-manifest.ts'),
+        "export const RELEASES = [{ tag: 'v1.0.0' }];\n",
+      );
+    }
   }
   for (const [file, source] of [
     [
@@ -314,8 +326,31 @@ describe('dependency-aware Turbo cache', () => {
       getTask(tasks, '@tale/web#build').inputs[
         'app/generated/releases-manifest.ts'
       ],
-    ).toBeUndefined();
+    ).toBeDefined();
   });
+
+  test('a committed release snapshot edit invalidates the web build', async () => {
+    const directory = await fixture();
+    const before = graph(directory);
+    const id = '@tale/web#build';
+    expect(
+      getTask(before, id).inputs['app/generated/releases-manifest.ts'],
+    ).toBeDefined();
+    await writeFile(
+      join(directory, 'packages/web/app/generated/releases-manifest.ts'),
+      "export const RELEASES = [{ tag: 'v1.1.0' }];\n",
+    );
+    const after = graph(directory);
+    expect(getTask(after, id).hash).not.toBe(getTask(before, id).hash);
+    expect(
+      getTask(after, id).inputs['app/generated/releases-manifest.ts'],
+    ).not.toBe(
+      getTask(before, id).inputs['app/generated/releases-manifest.ts'],
+    );
+    expect(getTask(after, '@tale/unrelated#build').hash).toBe(
+      getTask(before, '@tale/unrelated#build').hash,
+    );
+  }, 60_000);
 
   test('CLI checks invalidate embedded data and platform imports without hashing the frontend', async () => {
     const directory = await fixture();
