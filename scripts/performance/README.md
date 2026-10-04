@@ -23,11 +23,11 @@ this repository. The opt-in **Browser performance** workflow runs on the label
 event and later pushes; ordinary checks and deployment workflows are unchanged.
 The new workflow can run from the PR's merge branch before it is on `main`.
 After it is registered, its manual input fields also accept full baseline and
-candidate commit SHAs and a `diagnostic` or `protocol` mode. Do not supply branch names or abbreviated hashes. Exactly one opt-in mode label is allowed; ambiguous admission fails with a receipt.
+candidate commit SHAs and a `diagnostic`, `protocol` or `acceptance` mode. Do not supply branch names or abbreviated hashes. Exactly one opt-in mode label is allowed; ambiguous admission fails with a receipt.
 
 The candidate must contain the event's baseline commit. Both sources must have
 identical server (including the production web shim and proxy contract), platform messages,
-shared-library (including `@tale/ui`), database, configuration, dependency and runtime inputs: this first diagnostic mode shares one API and database while comparing
+shared-library (including `@tale/ui`), database, configuration, dependency and runtime inputs: these modes share one API and database while comparing
 the frontend builds. A refusal after `main` advances needs an explicitly reviewed
 integration and new source pair, not a weaker comparison check. Each production
 bundle is built directly with the same pinned Bun, Node and options.
@@ -83,7 +83,7 @@ released on start, action, End or exclusive-file failure. No certificate bypass,
 trace-category change, longer success deadline or acceptance verdict is implied.
 
 Download `browser-performance-<run>-<attempt>` even when the job fails. It contains
-the exact source trees, build and runtime receipts, raw CDP traces and CPU profiles,
+the exact source IDs/tree hashes, build and runtime receipts and mode-specific evidence. Diagnostic/protocol modes retain raw CDP traces and CPU profiles,
 source maps, frame stamps, DOM counts, heap metrics, long-task/event observations,
 screenshots, literal verified cgroup limits, resource counters and cleanup readback.
 Action and observation checkpoints remain explicitly incomplete until profile and
@@ -109,6 +109,77 @@ earlier measurement host. Keep the original latency, keyboard and modal behavior
 requirements; use the traces to choose a repair, then run the agreed acceptance
 campaign. The default performance inventory continues to mark authenticated UI
 as requiring separate evidence.
+
+## Measure the full task-board acceptance campaign
+
+Use only `benchmark:task-board-acceptance` after reviewing the exact source pair.
+Remove any diagnostic/protocol label before a new publication: each label and
+later push admits work. The acceptance mode reuses the same verified production
+builds, HTTPS trust, synthetic API, browser pins, isolated namespace and shared
+2 CPU / 4 GiB limits. It performs no tracing, CPU/React profiling, video or
+screenshots during timing. Minimal input, long-task/event, DOM, frame and heap
+observation is identical in both arms; bootstrap marks remain enabled.
+
+Both 50- and 2,000-task fixtures run cold load, in-app navigation, leave, narrow
+search, clear search, dialog open and dialog close. Each flow group follows ABBA,
+with one declared warmup and three measured samples per block: six measurements
+per arm/flow, 168 measured and 56 warmup rows. Browsers/contexts are fresh per
+block, and cold samples each have a fresh context. Four distinct deterministic
+near-top root tasks serve the warmup and three dialog samples; task-detail HTTP
+reads are never prewarmed. Fixture cardinality and narrow-search results are
+verified through the real API before sampling. Each non-cold action receives
+one garbage collection and a one-second pause before its input; a three-second
+tail and heap read precede any later forced collection. Natural action GC stays
+inside its measured window.
+
+Board readiness requires the exact route, search value, count, title multiset,
+resolved assigned-human labels and non-busy board. The earlier count milestone
+is retained separately. General readiness checks the loaded project-name value
+and absence of task cards. The same oracle cost applies to both arms. Search
+uses real key events at 120 ms per key, timing from the last intended key through
+the existing debounce; clear uses select-all and Backspace. Cold timing starts
+at navigation time origin; other flows use the observed input timestamp. Dialog
+close ends at the rendering opportunity after both original content and overlay
+are removed. Their individual removal timestamps and own exit-animation events
+remain separate; the earlier content-only frame is also retained. Both original
+exit animations must finish before their respective removal. These are
+main-thread observations, not proof of the compositor's final visible pixel.
+
+Before every block the host must reach load1 below 2.5 **and** host CPU PSI
+`some avg10` below 20%, waiting at most 120 seconds in five-second polls. A failed
+gate stops the campaign. The host monitor rechecks both owned container identities,
+cgroup memberships, quotas and OOM counters each tick. It appends raw resource
+rows to `resources.jsonl` and atomically replaces `resource-live.json`; the first
+checkpoint precedes release. This host-side monitor overhead is identical for
+both arms. Workload-induced load or ordinary two-CPU throttling after an action
+is retained evidence, never a reason to discard a slow row. Source, ownership,
+resource, OOM, readiness, clock or browser errors stop with partial evidence.
+The runner ends sampling before requesting the owned monitor's stop acknowledgment,
+so service teardown cannot race a still-active resource check.
+
+Acceptance alone has a 90-minute job and a 75-minute shared setup/measurement
+deadline. Its browser campaign is capped at 60 minutes and the remaining shared
+time, leaving cleanup/upload margin. There are no replacement samples or retries.
+`acceptance-current.json` checkpoints each action before post-action checks;
+`acceptance-rows.jsonl` and `acceptance-receipt.json` preserve all rows, original
+observations, tails, heap values, missing coverage, medians/ranges and adjacent
+ABBA block differences. Heap uses MiB; the historical 600 MB budget keeps its
+numeric value. Separate fresh post-campaign contexts exercise modal, keyboard,
+picker, title and background-isolation behavior; failures retain their own
+functional receipt. The seeded fixture has no captured reviewer assignments,
+so retained exact-source reviewer tests remain necessary.
+
+The original thresholds remain binding: 2,000-task search/leave medians at most
+3 seconds, cold/navigation/clear medians at most 10 seconds, and after-load heap
+at most 600 MiB. The 50-task navigation median remains at most 1.1 seconds;
+TASK-P1 requires each candidate 50-task cold/navigation sample below 3 seconds,
+and TASK-P4 requires dialog open below 1 second plus actual exit-animation
+completion. There is no invented close-duration budget or positive regression
+allowance. Protected 50-task/dialog candidate medians above baseline fail;
+tails and functional behavior also need independent review. The machine summary
+returns only failed or inconclusive, never a performance pass. A completed
+workflow establishes retained evidence; merge acceptance remains a separate
+review of the full campaign and exact-source product regressions.
 
 The uncached **Performance** CI job runs the default workloads with 20 measured
 samples on each check workflow and uploads `tale-performance-<run>-<attempt>`

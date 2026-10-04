@@ -1,6 +1,10 @@
 import { expect, test } from 'bun:test';
 
-import { benchmarkMode, measurementPlan } from './browser/mode.mjs';
+import {
+  benchmarkMode,
+  measurementPlan,
+  sharedBudgetMs,
+} from './browser/mode.mjs';
 import { fillProtocolBuffer, protocolPlan } from './browser/protocol-plan.ts';
 
 test('mode admission refuses absent, ambiguous and foreign choices', () => {
@@ -20,7 +24,7 @@ test('mode admission refuses absent, ambiguous and foreign choices', () => {
   expect(() =>
     benchmarkMode({
       BENCH_EVENT_NAME: 'workflow_dispatch',
-      BENCH_REQUESTED_MODE: 'acceptance',
+      BENCH_REQUESTED_MODE: 'unknown',
     }),
   ).toThrow();
 });
@@ -83,5 +87,27 @@ test('protocol admission cannot seed tasks or select app measurement entrypoint'
     timeoutMs: 600_000,
   });
   expect(() => measurementPlan(undefined)).toThrow('Unknown');
-  expect(() => measurementPlan('acceptance')).toThrow('Unknown');
+  expect(measurementPlan('acceptance')).toEqual({
+    seedTasks: true,
+    script: 'acceptance.ts',
+    timeoutMs: 60 * 60_000,
+  });
+});
+
+test('acceptance admission is exclusive and only it receives the predeclared longer shared budget', () => {
+  const pr = (labels: string[]) => ({
+    BENCH_EVENT_NAME: 'pull_request',
+    BENCH_LABELS: JSON.stringify(labels),
+  });
+  expect(benchmarkMode(pr(['benchmark:task-board-acceptance']))).toBe(
+    'acceptance',
+  );
+  for (const label of ['benchmark:browser-protocol', 'benchmark:task-board'])
+    expect(() =>
+      benchmarkMode(pr([label, 'benchmark:task-board-acceptance'])),
+    ).toThrow('Exactly one');
+  expect(sharedBudgetMs('acceptance')).toBe(75 * 60_000);
+  expect(sharedBudgetMs('diagnostic')).toBe(32 * 60_000);
+  expect(sharedBudgetMs('protocol')).toBe(32 * 60_000);
+  expect(() => sharedBudgetMs('other')).toThrow('Unknown');
 });

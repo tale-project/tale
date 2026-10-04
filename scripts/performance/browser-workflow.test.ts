@@ -37,7 +37,9 @@ test('exact source IDs and artifacts remain explicit, even on diagnostic failure
   const job = workflow.jobs['task-board'];
   expect(job.env.BASELINE_SHA).toContain('github.event.pull_request.base.sha');
   expect(job.env.CANDIDATE_SHA).toContain('github.event.pull_request.head.sha');
-  expect(job['timeout-minutes']).toBe(45);
+  expect(job['timeout-minutes']).toContain("inputs.mode == 'acceptance'");
+  expect(job['timeout-minutes']).toContain("'benchmark:task-board-acceptance'");
+  expect(job['timeout-minutes']).toContain('&& 90 || 45');
   const checkout = job.steps.find(
     (step: { name: string }) => step.name === 'Checkout exact candidate',
   );
@@ -127,5 +129,42 @@ test('runner paths are initialized at runtime and exported before any source ref
     expect(receipt.error).toContain('Expected a full lowercase commit SHA');
   } finally {
     await rm(temporary, { recursive: true, force: true });
+  }
+});
+
+test('acceptance bootstrap exports its one fixed75minute deadline before failing source validation', async () => {
+  const temporary = await mkdtemp(
+    join(tmpdir(), 'tale-browser-acceptance-bootstrap-'),
+  );
+  try {
+    const environment = join(temporary, 'github-env');
+    const before = Date.now();
+    await expect(
+      prepareSources({
+        RUNNER_TEMP: temporary,
+        GITHUB_ENV: environment,
+        BASELINE_SHA: 'invalid',
+        BENCH_EVENT_NAME: 'workflow_dispatch',
+        BENCH_REQUESTED_MODE: 'acceptance',
+      }),
+    ).rejects.toThrow('Expected a full lowercase commit SHA');
+    const after = Date.now();
+    const receipt = JSON.parse(
+      await readFile(
+        join(temporary, 'browser-performance/sources.json'),
+        'utf8',
+      ),
+    );
+    expect(receipt.mode).toBe('acceptance');
+    expect(receipt.deadline - 75 * 60_000).toBeGreaterThanOrEqual(before);
+    expect(receipt.deadline - 75 * 60_000).toBeLessThanOrEqual(after);
+    const deadlines = [
+      ...(await readFile(environment, 'utf8')).matchAll(
+        /BENCH_DEADLINE_MS=(\d+)/g,
+      ),
+    ];
+    expect(Number(deadlines.at(-1)?.[1])).toBe(receipt.deadline);
+  } finally {
+    await rm(temporary, { recursive: true });
   }
 });

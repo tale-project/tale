@@ -9,6 +9,8 @@ export async function recordAcceptanceAction<T extends object>(
   planned: AcceptancePlannedRow,
   io: {
     now: () => number;
+    prepare?: () => Promise<Record<string, unknown>>;
+    failureEvidence?: () => Promise<Record<string, unknown>>;
     action: () => Promise<T & { durationMs: number }>;
     after: () => Promise<{ heapMiB: number } & Record<string, unknown>>;
     checkpoint: (
@@ -29,6 +31,10 @@ export async function recordAcceptanceAction<T extends object>(
   let failure: unknown;
   try {
     await io.checkpoint(row);
+    if (io.prepare) {
+      Object.assign(row, await io.prepare());
+      await io.checkpoint(row);
+    }
     Object.assign(row, await io.action(), {
       actionObservedAt: io.now(),
       error: 'Post-action validity and tail pending',
@@ -49,6 +55,13 @@ export async function recordAcceptanceAction<T extends object>(
       error: String(error),
       failedAt: io.now(),
     });
+    if (io.failureEvidence) {
+      try {
+        row.failureEvidence = await io.failureEvidence();
+      } catch (evidenceError) {
+        row.failureEvidenceError = String(evidenceError);
+      }
+    }
     try {
       await io.checkpoint(row);
     } catch (writeError) {

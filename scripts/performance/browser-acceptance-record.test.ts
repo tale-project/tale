@@ -74,3 +74,60 @@ test('failed evidence checkpoint preserves original write error and no fake succ
     checkpointError: 'Error: disk-full',
   });
 });
+
+test('failed preparation retains an invalid planned row without executing or replacing the action', async () => {
+  let actions = 0;
+  const rows: Record<string, unknown>[] = [];
+  await expect(
+    recordAcceptanceAction(planned, {
+      now: () => 1,
+      prepare: async () => {
+        throw new Error('Wrong general precondition');
+      },
+      action: async () => {
+        actions += 1;
+        return { durationMs: 5 };
+      },
+      after: async () => ({ heapMiB: 1 }),
+      checkpoint: async () => {},
+      append: async (row) => {
+        rows.push(structuredClone(row));
+      },
+    }),
+  ).rejects.toThrow('Wrong general precondition');
+  expect(actions).toBe(0);
+  expect(rows).toHaveLength(1);
+  expect(rows[0]).toMatchObject({
+    id: planned.id,
+    complete: false,
+    valid: false,
+  });
+});
+
+test('partial browser evidence is kept after action failure and cannot mask the original error', async () => {
+  for (const evidenceFails of [false, true]) {
+    const rows: Record<string, unknown>[] = [];
+    await expect(
+      recordAcceptanceAction(planned, {
+        now: () => 1,
+        action: async () => {
+          throw new Error('original action failure');
+        },
+        after: async () => ({ heapMiB: 1 }),
+        failureEvidence: async () => {
+          if (evidenceFails) throw new Error('browser unavailable');
+          return { animation: 'partial' };
+        },
+        checkpoint: async () => {},
+        append: async (row) => {
+          rows.push(row);
+        },
+      }),
+    ).rejects.toThrow('original action failure');
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.error).toContain('original action failure');
+    if (evidenceFails)
+      expect(rows[0]!.failureEvidenceError).toContain('browser unavailable');
+    else expect(rows[0]!.failureEvidence).toEqual({ animation: 'partial' });
+  }
+});

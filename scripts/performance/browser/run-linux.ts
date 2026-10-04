@@ -1,8 +1,13 @@
 import assert from 'node:assert/strict';
 import { createHash, randomBytes } from 'node:crypto';
-import { readFile, realpath, writeFile } from 'node:fs/promises';
+import { appendFile, readFile, realpath, writeFile } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
 
+import { assertResourceCheckpoint } from './acceptance-control.ts';
+import {
+  acknowledgeMonitorStop,
+  publishResourceCheckpoint,
+} from './acceptance-monitor.ts';
 import {
   childEnvironment,
   json,
@@ -242,30 +247,69 @@ try {
   network.complete = true;
   await json('network.json', network);
   await json('resource-membership.json', { db, browser, plan });
-  // The child waits for this proof; it cannot seed or measure before the host
-  // verifies that BOTH container PIDs share the exact constrained slice.
+  const acceptance = source.mode === 'acceptance';
+  const sample = async () => {
+    const counters = await sampleLinuxResources(boundedIO, plan);
+    if (!acceptance) {
+      samples.push({ at: Date.now(), counters });
+      await json('resources.json', samples);
+      return;
+    }
+    const membership = {
+      db: await verifyContainerResources(boundedIO, plan, 'db'),
+      browser: await verifyContainerResources(boundedIO, plan, 'browser'),
+    };
+    const value = { at: Date.now(), valid: true, counters, membership };
+    assertResourceCheckpoint(value, Date.now());
+    // Append-only raw evidence avoids quadratic disk writes over a long run.
+    await appendFile(
+      outputPath('resources.jsonl'),
+      JSON.stringify(value) + '\n',
+    );
+    await publishLive(value);
+  };
+  const publishLive = (value: unknown) =>
+    publishResourceCheckpoint(process.env.BENCH_OUTPUT!, value);
+  // The first fresh acceptance checkpoint and both memberships precede release.
+  if (acceptance) await sample();
   await writeFile(outputPath('resources-verified'), token, {
     flag: 'wx',
     mode: 0o600,
   });
   monitor = (async () => {
     while (monitoring.active) {
-      samples.push({
-        at: Date.now(),
-        counters: await sampleLinuxResources(boundedIO, plan),
-      });
-      await json('resources.json', samples);
+      if (
+        acceptance &&
+        (await acknowledgeMonitorStop(process.env.BENCH_OUTPUT!, token))
+      )
+        return;
+      await sample();
       await new Promise((resolvePromise) => setTimeout(resolvePromise, 1000));
     }
-  })().catch((error) => {
+  })().catch(async (error) => {
     monitorError = error;
     monitoring.active = false;
+    if (acceptance) {
+      try {
+        await publishLive({
+          at: Date.now(),
+          valid: false,
+          error: String(error),
+        });
+      } catch (writeError) {
+        monitorError = new AggregateError(
+          [error, writeError],
+          'Resource monitoring and failure checkpoint failed',
+        );
+      }
+    }
   });
   // Attach after the ownership proof; Docker replays all buffered output.
   await runLogged('docker', ['attach', '--sig-proxy=false', browser.id], {
     cwd: source.candidatePath,
     log: outputPath('browser-run.log'),
-    timeoutMs: 900_000,
+    timeoutMs:
+      source.mode === 'acceptance' ? phaseTimeout(75 * 60_000) : 900_000,
   });
   const finished = JSON.parse(
     await readFile(outputPath('inside-complete.json'), 'utf8'),

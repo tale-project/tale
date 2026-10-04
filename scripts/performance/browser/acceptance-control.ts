@@ -99,3 +99,41 @@ export function assertResourceCheckpoint(
   }
   return value;
 }
+
+export function assertAcceptanceFrame(
+  frame: {
+    tDom: number;
+    tRaf: number;
+    tFrame: number;
+    countFrame?: { tDom: number; tRaf: number; tFrame: number };
+    contentFrame?: { tDom: number; tRaf: number; tFrame: number };
+  },
+  clock: { timeOrigin: number; performanceNow: number },
+) {
+  assert(
+    Number.isFinite(clock.timeOrigin) &&
+      clock.timeOrigin > 0 &&
+      Number.isFinite(clock.performanceNow) &&
+      clock.performanceNow >= 0,
+    'Invalid page clock',
+  );
+  for (const current of [
+    frame,
+    ...(frame.countFrame ? [frame.countFrame] : []),
+    ...(frame.contentFrame ? [frame.contentFrame] : []),
+  ]) {
+    assert(
+      [current.tDom, current.tRaf, current.tFrame].every(
+        (value) => Number.isFinite(value) && value >= 0,
+      ),
+      'Invalid frame timestamp',
+    );
+    assert(
+      current.tDom <= current.tRaf &&
+        current.tRaf <= current.tFrame &&
+        current.tFrame <= clock.performanceNow,
+      'Frame clocks are out of order',
+    );
+  }
+  return frame;
+}

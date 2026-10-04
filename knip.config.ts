@@ -55,7 +55,7 @@ export default {
       entry: [
         'scripts/performance/worker.ts',
         // The opt-in Linux diagnostic launches these by path in an owned container.
-        'scripts/performance/browser/{inside,capture,protocol,tls-proof,seed-tasks,serve-web}.ts',
+        'scripts/performance/browser/{inside,capture,acceptance,protocol,tls-proof,seed-tasks,serve-web}.ts',
         'scripts/performance/browser/{seed-http,tls-client,loopback-only}.mjs',
         'scripts/performance/browser/observer.js',
       ],

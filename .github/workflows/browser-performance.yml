@@ -9,7 +9,7 @@ on:
         description: Browser campaign mode
         required: true
         type: choice
-        options: [diagnostic, protocol]
+        options: [diagnostic, protocol, acceptance]
         default: diagnostic
       baseline:
         description: Full baseline commit SHA
@@ -32,9 +32,10 @@ jobs:
       (github.event.pull_request.draft == false &&
       github.event.pull_request.head.repo.full_name == github.repository &&
       (contains(github.event.pull_request.labels.*.name, 'benchmark:task-board') ||
-      contains(github.event.pull_request.labels.*.name, 'benchmark:browser-protocol')))
+      contains(github.event.pull_request.labels.*.name, 'benchmark:browser-protocol') ||
+      contains(github.event.pull_request.labels.*.name, 'benchmark:task-board-acceptance')))
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: ${{ (inputs.mode == 'acceptance' || contains(github.event.pull_request.labels.*.name, 'benchmark:task-board-acceptance')) && 90 || 45 }}
     env:
       BASELINE_SHA: ${{ inputs.baseline || github.event.pull_request.base.sha }}
       CANDIDATE_SHA: ${{ inputs.candidate || github.event.pull_request.head.sha }}
@@ -95,7 +96,7 @@ jobs:
           tags: tale-db:browser-performance
           cache-from: type=gha,scope=db
           provenance: false
-      - name: Run bounded serial browser diagnostic
+      - name: Run bounded serial browser campaign
         # Owns the shared cgroup slice, container IDs, synthetic DB, and cleanup.
         # No token/env dump, host network, published ports, socket mount, model,
         # provider, native agent or deployment access in measured containers.

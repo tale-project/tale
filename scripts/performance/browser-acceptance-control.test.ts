@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 
 import {
+  assertAcceptanceFrame,
   assertResourceCheckpoint,
   hostQuiet,
   waitForQuietHost,
@@ -99,4 +100,30 @@ test('resource checkpoints reject stale, failed, missing and nonzero OOM evidenc
       101,
     ),
   ).toThrow('OOM');
+});
+
+test('frame stamps and count milestones must use finite ordered clocks from the observed page', () => {
+  const frame = {
+    tDom: 10,
+    tRaf: 20,
+    tFrame: 21,
+    countFrame: { tDom: 1, tRaf: 2, tFrame: 3 },
+  };
+  const clock = { timeOrigin: 1000, performanceNow: 22 };
+  expect(assertAcceptanceFrame(frame, clock)).toBe(frame);
+  expect(() => assertAcceptanceFrame({ ...frame, tDom: 25 }, clock)).toThrow(
+    'out of order',
+  );
+  expect(() =>
+    assertAcceptanceFrame(frame, { ...clock, performanceNow: 20 }),
+  ).toThrow('out of order');
+  expect(() =>
+    assertAcceptanceFrame(
+      { ...frame, countFrame: { tDom: -1, tRaf: 2, tFrame: 3 } },
+      clock,
+    ),
+  ).toThrow('Invalid frame');
+  expect(() =>
+    assertAcceptanceFrame(frame, { ...clock, timeOrigin: NaN }),
+  ).toThrow('Invalid page clock');
 });

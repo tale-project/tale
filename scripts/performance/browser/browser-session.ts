@@ -10,11 +10,26 @@ export interface Frame {
   tDom: number;
   tRaf: number;
   tFrame: number;
+  contentFrame?: { tDom: number; tRaf: number; tFrame: number };
 }
 export interface Input {
   type: string;
   t: number;
   key?: string | null;
+}
+export interface ExpectedBoard {
+  path: string;
+  tasks: { title: string; assigneeName: string | null }[];
+  searchValue: string;
+}
+export interface ExpectedGeneral {
+  path: string;
+  projectName: string;
+}
+export interface ContentFrame extends Frame {
+  source: string;
+  label: string;
+  countFrame?: Frame;
 }
 declare global {
   interface Window {
@@ -31,6 +46,18 @@ declare global {
       watchDialog: (title: string, open: boolean) => Promise<Frame>;
     };
     __benchmarkReady: Promise<Frame>;
+    __acceptance: {
+      boardState: (expected: ExpectedBoard) => boolean;
+      generalState: (expected: ExpectedGeneral) => boolean;
+      watchBoard: (
+        expected: ExpectedBoard,
+        options: { requireFalse: true },
+      ) => Promise<ContentFrame>;
+      watchGeneral: (
+        expected: ExpectedGeneral,
+        options: { requireFalse: true },
+      ) => Promise<ContentFrame>;
+    };
   }
 }
 export const cards = '[role="region"] section button.line-clamp-2';
@@ -111,6 +138,7 @@ export async function observations(page: Page) {
   return page.evaluate(() => ({
     at: Date.now(),
     timeOrigin: performance.timeOrigin,
+    performanceNow: performance.now(),
     domElements: document.getElementsByTagName('*').length,
     longtasks: window.__perf.longtasks,
     events: window.__perf.events,

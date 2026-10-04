@@ -5,6 +5,7 @@ import { loadavg } from 'node:os';
 import { z } from 'zod';
 
 import { chromium } from '../../../packages/e2e/src/index.ts';
+import { proveModalFocusTrap } from './acceptance-functional.ts';
 import { verifyBoot } from './boot.ts';
 import {
   browserIdentity,
@@ -222,73 +223,18 @@ try {
           ),
           'Dialog did not own focus',
         );
-        // Outside the timed open/close windows, walk the actual browser tab
-        // order until it wraps. One Tab from initial focus cannot prove a trap.
-        const focusTrap = {
-          forwardSteps: 0,
-          forwardWrapped: false,
-          backwardWrapped: false,
-        };
-        row.focusTrap = focusTrap;
+        // Reuse the same actual forward/backward focus walk, outside timing.
         row.phase = 'focus-wrap';
         await json('browser-receipt.json', receipt);
-        await page.keyboard.press('Tab');
-        assert(
-          await dialog.evaluate((element) =>
-            element.contains(document.activeElement),
-          ),
-          'Initial Tab escaped the modal',
+        row.focusTrap = await proveModalFocusTrap(
+          page,
+          title,
+          120_000,
+          (value) => {
+            row.focusTrap = value;
+          },
         );
-        const first = await page.evaluateHandle(() => document.activeElement);
-        let last = first;
-        try {
-          for (let step = 0; step < 128; step += 1) {
-            await page.keyboard.press('Tab');
-            focusTrap.forwardSteps += 1;
-            assert(
-              await dialog.evaluate((element) =>
-                element.contains(document.activeElement),
-              ),
-              'Forward Tab escaped the modal',
-            );
-            if (
-              await first.evaluate(
-                (element) => element === document.activeElement,
-              )
-            ) {
-              focusTrap.forwardWrapped = true;
-              break;
-            }
-            if (last !== first) await last.dispose();
-            last = await page.evaluateHandle(() => document.activeElement);
-          }
-          assert(
-            focusTrap.forwardWrapped,
-            'Modal tab order did not wrap within the declared 128-step bound',
-          );
-          assert(
-            focusTrap.forwardSteps > 1,
-            'The synthetic task modal must expose more than one reachable control',
-          );
-          await page.keyboard.press('Shift+Tab');
-          focusTrap.backwardWrapped = await last.evaluate(
-            (element) => element === document.activeElement,
-          );
-          assert(
-            focusTrap.backwardWrapped,
-            'Backward Tab did not wrap from first to last',
-          );
-          assert(
-            await dialog.evaluate((element) =>
-              element.contains(document.activeElement),
-            ),
-            'Backward Tab escaped the modal',
-          );
-          await json('browser-receipt.json', receipt);
-        } finally {
-          if (last !== first) await last.dispose();
-          await first.dispose();
-        }
+        await json('browser-receipt.json', receipt);
         await page.screenshot({
           path: outputPath(`${variant}-${size}-dialog.png`),
         });

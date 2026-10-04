@@ -255,14 +255,21 @@ try {
         timeoutMs: 240_000,
       },
     );
-  // Preparation is not a sample. Wait at most 3 minutes for the declared host
-  // threshold, then refuse without retrying a measurement under another rule.
-  for (let attempt = 0; attempt < 90 && loadavg()[0] >= 2.5; attempt += 1) {
-    await new Promise((resolvePromise) =>
-      setTimeout(resolvePromise, phaseTimeout(2000)),
+  // Acceptance owns the stricter host load+PSI gate before every ABBA block.
+  // Keep the existing diagnostic/protocol preparation unchanged.
+  if (mode !== 'acceptance') {
+    // Preparation is not a sample. Wait at most 3 minutes for the declared host
+    // threshold, then refuse without retrying a measurement under another rule.
+    for (let attempt = 0; attempt < 90 && loadavg()[0] >= 2.5; attempt += 1) {
+      await new Promise((resolvePromise) =>
+        setTimeout(resolvePromise, phaseTimeout(2000)),
+      );
+    }
+    assert(
+      loadavg()[0] < 2.5,
+      'Host never reached the fixed idle precondition',
     );
   }
-  assert(loadavg()[0] < 2.5, 'Host never reached the fixed idle precondition');
   await runLogged(
     process.execPath,
     [
