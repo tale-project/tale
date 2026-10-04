@@ -6,6 +6,7 @@ import { JsonViewer } from '@tale/ui/json-viewer';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
+import { useRetryFocus } from '@tale/ui/use-retry-focus';
 import { RefreshCw } from 'lucide-react';
 import { type ReactNode, useState } from 'react';
 
@@ -88,6 +89,12 @@ function ApprovalDecisionCard({
     approvalQuery.data === null ||
     (approvalQuery.isError &&
       automationErrorCode(approvalQuery.error) === 'NOT_FOUND');
+  const loading = approval === null && !approvalQuery.isError;
+  const unreadable = approval === null && approvalQuery.isError;
+  const retryFocus = useRetryFocus(
+    missing || approval !== null ? 'ready' : unreadable ? 'failed' : 'loading',
+    approvalId,
+  );
   if (approval === null && missing) {
     return <Alert variant="info" description={t('runs.waiting.approval')} />;
   }
@@ -148,8 +155,6 @@ function ApprovalDecisionCard({
     );
   };
 
-  const loading = approval === null && !approvalQuery.isError;
-  const unreadable = approval === null && approvalQuery.isError;
   return (
     <Skeletonize loading={loading} label={t('runs.approval.loading')}>
       <ApprovalFrame
@@ -175,22 +180,27 @@ function ApprovalDecisionCard({
         }
       >
         {unreadable ? (
-          <Alert
-            variant="destructive"
-            title={t('runs.approval.loadFailed')}
-            description={failureDetail(approvalQuery.error)}
-          >
-            <Button
-              variant="secondary"
-              size="sm"
-              icon={RefreshCw}
-              className="mt-3"
-              isLoading={approvalQuery.isFetching}
-              onClick={() => void approvalQuery.refetch()}
+          <div ref={retryFocus.ref}>
+            <Alert
+              variant="destructive"
+              title={t('runs.approval.loadFailed')}
+              description={failureDetail(approvalQuery.error)}
             >
-              {t('runs.approval.retry')}
-            </Button>
-          </Alert>
+              <Button
+                variant="secondary"
+                size="sm"
+                icon={RefreshCw}
+                className="mt-3"
+                isLoading={approvalQuery.isFetching}
+                onClick={() => {
+                  retryFocus.arm();
+                  void approvalQuery.refetch();
+                }}
+              >
+                {t('runs.approval.retry')}
+              </Button>
+            </Alert>
+          </div>
         ) : (
           (loading || metadata.parameters !== undefined) && (
             <ApprovalInput

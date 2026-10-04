@@ -250,14 +250,16 @@ describe('RunApprovalCard — the approval read', () => {
     expect(
       await screen.findByRole('button', { name: 'Approve' }),
     ).toBeEnabled();
-    expect(screen.getByText(/client-a@example\.test/)).toBeVisible();
+    expect(await screen.findByText(/client-a@example\.test/)).toBeVisible();
     expect(screen.queryByText("Couldn't load this approval.")).toBeNull();
   });
 
   it('falls back to the plain waiting banner when no such approval exists', async () => {
     renderCard('approval-gone');
 
-    expect(await screen.findByText('Waiting for approval')).toBeVisible();
+    const banner = await screen.findByRole('alert');
+    expect(banner).toBeVisible();
+    expect(banner).toHaveTextContent('Waiting for approval');
     expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull();
   });
@@ -490,7 +492,7 @@ describe('RunApprovalCard — controls', () => {
     expect(
       await screen.findByText('Waiting for your approval: gmail.send'),
     ).toBeVisible();
-    expect(screen.getByText(/client-a@example\.test/)).toBeVisible();
+    expect(await screen.findByText(/client-a@example\.test/)).toBeVisible();
     expect(screen.getByRole('button', { name: 'Approve' })).toBeEnabled();
     expect(screen.getByRole('button', { name: 'Reject' })).toBeEnabled();
   });
@@ -587,5 +589,95 @@ describe('RunApprovalCard — controls', () => {
 
     expect(screen.queryByText(/already rejected/)).toBeNull();
     expect(screen.getByRole('button', { name: 'Approve' })).toBeEnabled();
+  });
+});
+
+describe('RunApprovalCard — keyboard recovery', () => {
+  it.each([false, true])(
+    'restores a stranded retry focus, preserving a deliberate move: %s',
+    async (moveFocus) => {
+      const retryAnswer = deferred();
+      let retrying = false;
+      door.read.set('approval-a', () =>
+        retrying
+          ? retryAnswer.promise.then((response) => response.clone())
+          : answerWith(503, { error: 'unavailable' }),
+      );
+      const { user } = renderCard('approval-a');
+      render(<button type="button">Another action</button>);
+      const another = screen.getByRole('button', { name: 'Another action' });
+      const retry = await screen.findByRole('button', { name: 'Try again' });
+      retry.focus();
+      expect(retry).toHaveFocus();
+
+      retrying = true;
+      await user.keyboard('{Enter}');
+      await waitFor(() => expect(retry.isConnected).toBe(false));
+      if (moveFocus) {
+        await user.tab();
+        expect(another).toHaveFocus();
+      }
+
+      retryAnswer.resolve(answerWith(503, { error: 'unavailable' }));
+      const replacement = await screen.findByRole('button', {
+        name: 'Try again',
+      });
+      await waitFor(() =>
+        expect(moveFocus ? another : replacement).toHaveFocus(),
+      );
+    },
+  );
+
+  it('does not hand retry focus to another approval after changing cards', async () => {
+    const retryAnswer = deferred();
+    let retrying = false;
+    door.read.set('approval-a', () =>
+      retrying
+        ? retryAnswer.promise.then((response) => response.clone())
+        : answerWith(503, { error: 'unavailable' }),
+    );
+    door.read.set('approval-b', () =>
+      answerWith(503, { error: 'unavailable' }),
+    );
+    const { user, show } = renderCard('approval-a');
+    const retry = await screen.findByRole('button', { name: 'Try again' });
+    retry.focus();
+    retrying = true;
+    await user.keyboard('{Enter}');
+    await waitFor(() => expect(retry.isConnected).toBe(false));
+
+    show('approval-b');
+    const replacement = await screen.findByRole('button', {
+      name: 'Try again',
+    });
+    retryAnswer.resolve(answerWith(503, { error: 'unavailable' }));
+    await act(async () => {
+      await retryAnswer.promise;
+    });
+    expect(replacement).not.toHaveFocus();
+  });
+
+  it('keeps a late accepted decision for A away from approval B', async () => {
+    const late = deferred();
+    door.read.set('approval-a', () =>
+      answerWith(200, approvalRow('approval-a', 'a@example.test')),
+    );
+    door.read.set('approval-b', () =>
+      answerWith(200, approvalRow('approval-b', 'b@example.test')),
+    );
+    door.decide.set('approval-a', () => late.promise);
+    const { user, show, client } = renderCard('approval-a');
+    await user.click(await screen.findByRole('button', { name: 'Approve' }));
+    await waitFor(() => expect(client.isMutating()).toBe(1));
+
+    show('approval-b');
+    await screen.findByText(/b@example\.test/);
+    late.resolve(answerWith(200, { ok: true }));
+    await act(async () => {
+      await late.promise;
+    });
+    await waitFor(() => expect(client.isMutating()).toBe(0));
+    expect(screen.getByRole('button', { name: 'Approve' })).toBeEnabled();
+    expect(screen.queryByText(/approved —/)).toBeNull();
   });
 });

@@ -26,7 +26,7 @@ function isFocusStranded(region: Element | null): boolean {
  * focus was inside `ref`. When the read is `failed` again, focus goes to the
  * new control only if it is still stranded (`isFocusStranded`): a member who
  * moved focus somewhere while the retry ran keeps it there. An answer, or
- * another read (`key`: the skill or file the pane now shows), disarms it, so
+ * another read (`key`: the resource the host now shows), disarms it, so
  * a failure the member did not retry never moves their focus.
  */
 export function useRetryFocus(
