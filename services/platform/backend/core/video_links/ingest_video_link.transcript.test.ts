@@ -137,6 +137,46 @@ afterEach(async () => {
 });
 
 describe('a caption ingest stores the whole track', () => {
+  it.each(['human', 'automatic'] as const)(
+    'preserves adjacent cue word and sentence boundaries in a %s track (#3928)',
+    async (mode) => {
+      const tracks = { en: [{ ext: 'vtt' }] };
+      fixture.metadata = {
+        title: 'Shipment update',
+        duration: 6,
+        language: 'en',
+        subtitles: mode === 'human' ? tracks : {},
+        automatic_captions: mode === 'automatic' ? tracks : {},
+      };
+      fixture.vtt = `WEBVTT
+
+00:00:00.000 --> 00:00:02.000
+We will
+
+00:00:02.000 --> 00:00:04.000
+ship Monday.
+
+00:00:04.000 --> 00:00:06.000
+Thank you.
+`;
+      const { ctx, row, files } = harness();
+
+      await ingestVideoLinkImpl(ctx, { jobId: 'job-1' as never });
+
+      const expected = '[00:00:00] We will ship Monday. Thank you.';
+      expect(row.status).toBe('completed');
+      expect(files).toHaveLength(1);
+      expect(files[0]?.transcriptSource).toBe(
+        mode === 'human' ? 'captions_human' : 'captions_auto',
+      );
+      expect(files[0]?.transcript).toBe(expected);
+      expect(fixture.blobs).toHaveLength(1);
+      expect(decode(fixture.blobs[0]?.bytes ?? new Uint8Array())).toBe(
+        expected,
+      );
+    },
+  );
+
   it('keeps both speakers of a human track who start at the same moment', async () => {
     fixture.metadata = {
       title: 'Shipment call',
