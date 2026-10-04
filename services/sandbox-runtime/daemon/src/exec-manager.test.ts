@@ -152,15 +152,17 @@ describe('ExecManager', () => {
     expect(exit?.seq).toBe(maxSeq);
   });
 
-  test('exit durationMs is the runner-measured process wall-clock (spawn → drained exit)', async () => {
+  test('exit durationMs is the runner-measured elapsed time (spawn → drained exit)', async () => {
     using mgr = new ExecManager(new EnvStore(), () => {});
     const { events, emit } = collect();
+    const beforeMonotonicMs = performance.now();
     const beforeMs = Date.now();
     await mgr.run(
       { ...base, execId: 'dur1', shell: 'sleep 0.12', cwd: ROOT },
       emit,
     );
     const afterMs = Date.now();
+    const elapsedMs = performance.now() - beforeMonotonicMs;
     const start = events.find(
       (e): e is Extract<RunnerdExecEvent, { t: 'start' }> => e.t === 'start',
     );
@@ -172,10 +174,10 @@ describe('ExecManager', () => {
     expect(start.startedAtMs).toBeGreaterThanOrEqual(beforeMs);
     expect(start.startedAtMs).toBeLessThanOrEqual(afterMs);
     // The measurement covers the child's own runtime (a 120ms sleep; allow
-    // Date.now() granularity slack) and never exceeds the outer wall-clock —
+    // clock granularity slack) and never exceeds the outer elapsed window —
     // i.e. it contains NO out-of-process phase (staging, harvest, scheduling).
     expect(exit.durationMs).toBeGreaterThanOrEqual(110);
-    expect(exit.durationMs).toBeLessThanOrEqual(afterMs - start.startedAtMs);
+    expect(exit.durationMs).toBeLessThanOrEqual(elapsedMs);
   });
 
   test('shell form runs via bash -lc, propagates non-zero exit', async () => {
@@ -610,6 +612,14 @@ describe('ExecManager', () => {
       await new Promise((r) => setTimeout(r, 200));
       expect(sent.some(([pid]) => pid === 99992)).toBe(false);
       expect(mgr.leftoverCount()).toBe(1);
+      const second = mgr.run(
+        { ...base, execId: 'erot-middle', shell: 'sleep 30', cwd: ROOT },
+        () => {},
+      );
+      expect(mgr.cancel('erot-middle', { keepLeftovers: true })).toBe(true);
+      await second;
+      expect(mgr.leftoverCount()).toBe(2);
+      expect(sent.some(([pid]) => pid === 99992)).toBe(false);
       // The exec that takes over ends: what the cancelled one held ends too.
       await mgr.run(
         { ...base, execId: 'erot-next', command: ['true'], cwd: ROOT },
@@ -625,6 +635,114 @@ describe('ExecManager', () => {
       rmSync(procRoot, { recursive: true, force: true });
     }
   });
+
+  test('a rotation snapshot that outlives its leader cannot certify a reused group', async () => {
+    const procRoot = mkdtempSync(`${tmpdir()}/runnerd-proc-`);
+    const listing = Promise.withResolvers<string[]>();
+    const sent: Array<[number, NodeJS.Signals]> = [];
+    const mgr = new ExecManager(
+      new EnvStore(),
+      () => {},
+      undefined,
+      {
+        procRoot,
+        listDir: () => listing.promise,
+        kill: (pid, signal) => {
+          sent.push([pid, signal]);
+        },
+      },
+      { execShim: null },
+    );
+    const seen = collect();
+    let leader = 0;
+    const done = mgr.run(
+      {
+        ...base,
+        execId: 'snapshot-reuse',
+        shell: 'echo $$; exec sleep 30',
+        cwd: ROOT,
+      },
+      seen.emit,
+    );
+    try {
+      leader = await stdoutPid(seen.events);
+      expect(mgr.cancel('snapshot-reuse', { keepLeftovers: true })).toBe(true);
+      expect(sent).toEqual([]);
+      process.kill(leader, 'SIGTERM');
+      await done;
+      mkdirSync(`${procRoot}/99994`);
+      writeFileSync(
+        `${procRoot}/99994/stat`,
+        `99994 (unrelated) S 1 ${leader} ${leader} 0 -1 0 0 0 0 0 0 0 0 0 20 0 1 0 999999 0 0\n`,
+      );
+      listing.resolve(['99994']);
+      await new Promise((resolve) => setTimeout(resolve, 5_300));
+      expect(sent).not.toContainEqual([-leader, 'SIGKILL']);
+    } finally {
+      listing.resolve([]);
+      if (leader > 1 && isAlive(leader)) process.kill(leader, 'SIGKILL');
+      await mgr.terminateAll();
+      await done;
+      rmSync(procRoot, { recursive: true, force: true });
+    }
+  }, 10_000);
+
+  test('a tagged original survivor is reached when the leader exits during the rotation snapshot', async () => {
+    const procRoot = mkdtempSync(`${tmpdir()}/runnerd-proc-`);
+    const listing = Promise.withResolvers<string[]>();
+    const sent: Array<[number, NodeJS.Signals]> = [];
+    const mgr = new ExecManager(
+      new EnvStore(),
+      () => {},
+      undefined,
+      {
+        procRoot,
+        listDir: () => listing.promise,
+        kill: (pid, signal) => {
+          sent.push([pid, signal]);
+        },
+      },
+      { execShim: null },
+    );
+    const seen = collect();
+    let leader = 0;
+    const done = mgr.run(
+      {
+        ...base,
+        execId: 'snapshot-survivor',
+        shell: 'echo $$; exec sleep 30',
+        cwd: ROOT,
+      },
+      seen.emit,
+    );
+    try {
+      leader = await stdoutPid(seen.events);
+      expect(mgr.cancel('snapshot-survivor', { keepLeftovers: true })).toBe(
+        true,
+      );
+      process.kill(leader, 'SIGTERM');
+      await done;
+      mkdirSync(`${procRoot}/99995`);
+      writeFileSync(
+        `${procRoot}/99995/stat`,
+        `99995 (survivor) S 1 ${leader} ${leader} 0 -1 0 0 0 0 0 0 0 0 0 20 0 1 0 55555 0 0\n`,
+      );
+      writeFileSync(
+        `${procRoot}/99995/environ`,
+        'TALE_EXEC_ID=snapshot-survivor\0',
+      );
+      listing.resolve(['99995']);
+      await new Promise((resolve) => setTimeout(resolve, 5_300));
+      expect(sent).toContainEqual([-leader, 'SIGTERM']);
+      expect(sent).toContainEqual([-leader, 'SIGKILL']);
+    } finally {
+      listing.resolve([]);
+      if (leader > 1 && isAlive(leader)) process.kill(leader, 'SIGKILL');
+      await mgr.terminateAll();
+      await done;
+      rmSync(procRoot, { recursive: true, force: true });
+    }
+  }, 10_000);
 
   test('what a hand-over holds ends when no successor comes within its window', async () => {
     const procRoot = mkdtempSync(`${tmpdir()}/runnerd-proc-`);
@@ -1016,10 +1134,8 @@ describe('ExecManager', () => {
         {
           ...base,
           execId: 'prune-long',
-          // Keep the session alive throughout all 256 spawns even on a busy
-          // host; the ordinary five-second exec deadline tests another path.
-          timeoutMs: 30_000,
-          shell: 'sleep 30',
+          shell: 'sleep 120',
+          timeoutMs: 60_000,
           cwd: ROOT,
         },
         long.emit,

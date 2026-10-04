@@ -8,7 +8,13 @@
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  mkdirSync,
+  mkdtempSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
@@ -524,4 +530,42 @@ describe('the shim’s status pipe', () => {
       warnings.filter((w) => w.includes('cannot become a subreaper (EINVAL)')),
     ).toHaveLength(1);
   });
+  test('a normally exiting shim that refused the subreaper still uses tag fallback after the grace', async () => {
+    const procRoot = `${ROOT}/refused-proc`;
+    mkdirSync(`${procRoot}/99988`, { recursive: true });
+    writeFileSync(
+      `${procRoot}/99988/stat`,
+      '99988 (server) S 1 99988 99988 0 -1 0 0 0 0 0 0 0 0 0 20 0 1 0 88888 0 0\n',
+    );
+    writeFileSync(
+      `${procRoot}/99988/environ`,
+      'TALE_EXEC_ID=refused-fallback\0',
+    );
+    const sent: Array<[number, NodeJS.Signals]> = [];
+    const mgr = new ExecManager(
+      new EnvStore(),
+      () => {},
+      undefined,
+      {
+        procRoot,
+        kill: (pid, signal) => {
+          sent.push([pid, signal]);
+        },
+      },
+      {
+        execShim: standIn(
+          'refused-fallback',
+          ['no-subreaper EINVAL', 'pid 99987', 'exit 0'],
+          0,
+        ),
+      },
+    );
+    await mgr.run(
+      { ...base, execId: 'refused-fallback', command: ['true'], cwd: ROOT },
+      () => {},
+    );
+    await new Promise((resolve) => setTimeout(resolve, 5_300));
+    expect(sent).toContainEqual([99988, 'SIGTERM']);
+    expect(sent).toContainEqual([99988, 'SIGKILL']);
+  }, 10_000);
 });
