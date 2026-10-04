@@ -173,6 +173,57 @@ afterEach(() => {
 });
 
 describe('materializing an entry', () => {
+  it('locks the tenant-scoped normalized topic before the transactional create lookup', async () => {
+    const { sql, statements } = fakeSql({});
+    await createKnowledgeEntry(sql, {
+      ...WRITER,
+      topic: '  REFUND   policy ',
+      content: '30 days',
+    });
+    const lock = statements.findIndex((statement) =>
+      statement.text.includes('pg_advisory_xact_lock'),
+    );
+    const lookups = statements.flatMap((statement, index) =>
+      statement.text.includes('SELECT id, topic, document_id') ? [index] : [],
+    );
+    expect(lookups).toHaveLength(2);
+    expect(lock).toBeGreaterThan(lookups[0] ?? -1);
+    expect(lock).toBeLessThan(lookups[1] ?? -1);
+    expect(statements[lock]?.values).toEqual([
+      JSON.stringify(['knowledge-entry-topic', ORG, 'refund policy']),
+    ]);
+  });
+
+  it('locks the rename destination before locking and re-reading the addressed revision', async () => {
+    const { sql, statements } = fakeSql({
+      current: {
+        id: 'old',
+        topicKey: 'old topic',
+        topic: 'Old topic',
+        content: 'Before',
+        documentId: 'doc-1',
+      },
+    });
+    await updateKnowledgeEntry(sql, {
+      ...WRITER,
+      entryId: 'old',
+      topic: 'New topic',
+      content: 'After',
+    });
+    const lock = statements.findIndex((statement) =>
+      statement.text.includes('pg_advisory_xact_lock'),
+    );
+    const reads = statements.flatMap((statement, index) =>
+      statement.text.includes('SELECT ke.id, ke.status') ? [index] : [],
+    );
+    expect(reads).toHaveLength(2);
+    expect(lock).toBeLessThan(reads[1] ?? -1);
+    expect(statements[reads[1] ?? -1]?.text).toContain('FOR UPDATE OF ke');
+    expect(statements[lock]?.values).toEqual([
+      JSON.stringify(['knowledge-entry-topic', ORG, 'new topic']),
+    ]);
+  });
+
   it('marks the first version queued before its indexing job is enqueued', async () => {
     const { sql, statements } = fakeSql({});
 

@@ -646,7 +646,9 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
               app.sandbox_session_ops.harness),
             deadline_ms = coalesce(EXCLUDED.deadline_ms,
               app.sandbox_session_ops.deadline_ms),
-            heartbeat_at_ms = coalesce(EXCLUDED.heartbeat_at_ms,
+            -- Delayed progress carries its callback time; it must not
+            -- erase a newer gateway, drainer or recovery heartbeat.
+            heartbeat_at_ms = greatest(EXCLUDED.heartbeat_at_ms,
               app.sandbox_session_ops.heartbeat_at_ms),
             -- Monotonic: a stale in-flight racer must not regress it.
             last_event_at_ms = greatest(

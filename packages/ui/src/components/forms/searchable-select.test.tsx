@@ -1,7 +1,11 @@
+import { createInstance } from 'i18next';
+import { I18nextProvider } from 'react-i18next';
 import { describe, expect, it, vi } from 'vitest';
 
+import { checkAccessibility } from '@/tests/utils/a11y';
 import { render, screen, within } from '@/tests/utils/render';
 
+import { uiMessages } from '../../i18n/messages';
 import {
   SearchableSelect,
   type SearchableSelectOption,
@@ -534,6 +538,148 @@ describe('SearchableSelect', () => {
   });
 
   describe('accessibility', () => {
+    it.each(['Project', 'Competence'])(
+      'names the open picker from its %s label without a search placeholder',
+      async (label) => {
+        const { user } = render(
+          <SearchableSelect
+            value={null}
+            onValueChange={vi.fn()}
+            options={options}
+            label={label}
+          />,
+        );
+        const trigger = screen.getByRole('button', { name: label });
+        await user.click(trigger);
+
+        const input = screen.getByRole('combobox');
+        const listbox = screen.getByRole('listbox');
+        const popover = screen.getByRole('dialog');
+        expect(input).toHaveAccessibleName(label);
+        expect(listbox).toHaveAccessibleName(label);
+        expect(popover).toHaveAccessibleName(label);
+        expect(input).toHaveFocus();
+        await checkAccessibility(popover, {
+          runOnly: {
+            type: 'tag',
+            values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'],
+          },
+        });
+
+        await user.keyboard('{ArrowDown}{Enter}');
+        expect(trigger).toHaveFocus();
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      },
+    );
+
+    it.each([
+      {
+        caseName: 'explicit names take precedence over the field label',
+        label: 'Type',
+        ariaLabel: 'Agent type',
+        searchPlaceholder: 'Search agent types',
+        searchName: 'Search agent types',
+        pickerName: 'Agent type',
+      },
+      {
+        caseName: 'aria-label names the search when no placeholder is supplied',
+        label: undefined,
+        ariaLabel: 'Recipients',
+        searchPlaceholder: undefined,
+        searchName: 'Recipients',
+        pickerName: 'Recipients',
+      },
+      {
+        caseName: 'placeholder alone names the entire open picker',
+        label: undefined,
+        ariaLabel: undefined,
+        searchPlaceholder: 'Search projects',
+        searchName: 'Search projects',
+        pickerName: 'Search projects',
+      },
+      {
+        caseName:
+          'field label names the list while search keeps its placeholder',
+        label: 'Project',
+        ariaLabel: undefined,
+        searchPlaceholder: 'Search projects',
+        searchName: 'Search projects',
+        pickerName: 'Project',
+      },
+      {
+        caseName: 'rich field labels name the entire open picker',
+        label: (
+          <span>
+            Project <strong>destination</strong>
+          </span>
+        ),
+        ariaLabel: undefined,
+        searchPlaceholder: undefined,
+        searchName: 'Project destination',
+        pickerName: 'Project destination',
+      },
+      {
+        caseName: 'blank explicit names fall back to the field label',
+        label: 'Project',
+        ariaLabel: '  ',
+        searchPlaceholder: '  ',
+        searchName: 'Project',
+        pickerName: 'Project',
+      },
+    ])(
+      '$caseName',
+      async ({
+        label,
+        ariaLabel,
+        searchPlaceholder,
+        searchName,
+        pickerName,
+      }) => {
+        const { user } = renderSelect({
+          label,
+          'aria-label': ariaLabel,
+          searchPlaceholder,
+        });
+        await user.click(screen.getByRole('button', { name: 'Open select' }));
+        const popover = screen.getByRole('dialog');
+        expect(screen.getByRole('combobox')).toHaveAccessibleName(searchName);
+        expect(screen.getByRole('listbox')).toHaveAccessibleName(pickerName);
+        expect(popover).toHaveAccessibleName(pickerName);
+        await checkAccessibility(popover, {
+          runOnly: {
+            type: 'tag',
+            values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'],
+          },
+        });
+      },
+    );
+
+    it.each([
+      ['en', 'Search'],
+      ['de', 'Suchen'],
+      ['fr', 'Rechercher'],
+    ])(
+      'uses the existing %s search name when no naming props are supplied',
+      async (locale, name) => {
+        const i18n = createInstance();
+        await i18n.init({ lng: locale, resources: uiMessages.bundles });
+        const { user } = render(
+          <I18nextProvider i18n={i18n}>
+            <SearchableSelect
+              value={null}
+              onValueChange={vi.fn()}
+              options={options}
+              trigger={<button type="button">Open select</button>}
+            />
+          </I18nextProvider>,
+        );
+        await user.click(screen.getByRole('button', { name: 'Open select' }));
+        expect(screen.getByRole('combobox')).toHaveAccessibleName(name);
+        expect(screen.getByRole('listbox')).toHaveAccessibleName(name);
+        expect(screen.getByRole('dialog')).toHaveAccessibleName(name);
+      },
+    );
+
     it('search input has role combobox', async () => {
       const { user } = renderSelect();
       await user.click(screen.getByText('Open select'));

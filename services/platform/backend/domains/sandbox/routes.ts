@@ -101,6 +101,7 @@ export function createSandboxRoutes(deps: {
         // Developers can see aggregate infrastructure pressure without
         // learning ids belonging to a project they cannot access.
         runtimeSessions: hasAdminCapability(c) ? snapshot.runtimeSessions : [],
+        placements: hasAdminCapability(c) ? snapshot.placements : [],
       });
     } catch (error) {
       console.warn(

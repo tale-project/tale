@@ -116,6 +116,19 @@ interface ActiveEntry {
   documentId: string | null;
 }
 
+async function lockEntryTopic(
+  tx: TransactionSql,
+  organizationId: string,
+  topicKey: string,
+): Promise<void> {
+  const key = JSON.stringify([
+    'knowledge-entry-topic',
+    organizationId,
+    topicKey,
+  ]);
+  await tx`SELECT pg_advisory_xact_lock(hashtextextended(${key}, 0))`;
+}
+
 async function findActiveByTopicKey(
   tx: TransactionSql | Sql,
   organizationId: string,
@@ -176,6 +189,7 @@ async function loadUpdateTarget(
       AND (d.id IS NULL OR d.lifecycle_status IS NULL
            OR d.lifecycle_status = 'active')
     LIMIT 1
+    FOR UPDATE OF ke
   `;
   const current = currents[0];
   if (!current) {
@@ -447,6 +461,7 @@ export async function createKnowledgeEntry(
   }
   const blob = await storeEntryBlob(sql, args.organizationId, content);
   return sql.begin(async (tx) => {
+    await lockEntryTopic(tx, args.organizationId, topicKey);
     const existing = await findActiveByTopicKey(
       tx,
       args.organizationId,
@@ -514,6 +529,7 @@ export async function updateKnowledgeEntry(
   }
   const blob = await storeEntryBlob(sql, args.organizationId, content);
   return sql.begin(async (tx) => {
+    await lockEntryTopic(tx, args.organizationId, topicKey);
     const current = await loadUpdateTarget(
       tx,
       args.organizationId,

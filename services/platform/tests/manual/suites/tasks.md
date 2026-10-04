@@ -1,6 +1,6 @@
 # Tasks
 
-> **Prefix** `TASK-` · **Reset** none · **Cost** 122 boxes
+> **Prefix** `TASK-` · **Reset** none · **Cost** 123 boxes
 
 Exercise a project's task workspace — the board and list views with
 drag-and-drop across status lanes, the task sheet (description, comments with
@@ -1132,6 +1132,15 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   **Standard agent**; as the member, **Start agent** (`tasks.agentRun.start`)
   → the toast `tasks.agentRun.standardAgent.noModel` says to ask an Admin,
   and no run appears under **Activity**. Restore the rule.
+- [ ] `TASK-B40` · **An archived task's discussion is read-only** — Post a
+  comment on a task you can change and add a task under **Blocked by**
+  (`tasks.detail.blockedBy`), then archive it (`tasks.actions.archive`) and
+  open it again with **Show archived** (`tasks.list.showArchived`) → the
+  comment still reads, but the task offers no comment field, no **Edit** or
+  **Delete** on the comment and nothing to change under **Blocked by**. A
+  second tab that still shows the task as it was before the archive gets one
+  error toast for a comment it sends, and after reload nothing has landed.
+  **Restore** (`tasks.actions.restore`) → the comment field is back.
 
 ## Accessibility (WCAG 2.1 AA)
 
