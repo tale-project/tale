@@ -38,9 +38,10 @@ import { ENSURE_SANDBOX_RUNTIME_SCRIPT } from '../../scripts/dev-sandbox-runtime
  *
  * A suite that starts reading another file outside the workspace adds it to
  * `turbo.json` and to `OUTSIDE_READS`. The sources of the workspace packages
- * the platform depends on (`@tale/shared`, `@tale/e2e`) are also hashed through
- * the root task's `^transit` dependencies without serializing their checks.
- * A suite that reads a package's files as text is an outside read like
+ * the platform depends on (`@tale/shared`, `@tale/e2e`) are not outside
+ * reads in this sense when a suite only imports them: the root `^transit`
+ * dependency hashes those without waiting for their check tasks. A suite
+ * that reads a package's files as text is an outside read like
  * any other: the accent palette's test reads `@tale/ui`'s stylesheet, and
  * the error-message guard all of `packages/ui/src`.
  *
@@ -607,6 +608,7 @@ function componentModules(name: string): {
           resolved = local;
         else if (local) unresolved.push(`${toRepoPath(file)}: ${specifier}`);
       }
+      if (resolved) resolved = path.resolve(resolved);
       if (
         resolved &&
         resolved.startsWith(REPO_ROOT + path.sep) &&
@@ -681,6 +683,23 @@ describe.each(COMPONENT_TASKS)('@tale/platform#%s turbo inputs', (name) => {
   });
 
   itHashesUiPackageFiles(name, () => hashed);
+});
+
+describe('@tale/platform#build turbo inputs', () => {
+  let hashed: Set<string>;
+
+  beforeAll(() => {
+    hashed = hashedBy('build');
+  }, 60_000);
+
+  it('hashes the builtin catalogs that configs:validate reads before building', () => {
+    const files = trackedFiles('configs/platform');
+    expect(files.length).toBeGreaterThan(0);
+    expect(
+      files.filter((file) => !hashed.has(file)),
+      'configs:validate must run again when a builtin catalog changes',
+    ).toEqual([]);
+  });
 });
 
 /** The static checks, which type the platform's sources with their imports. */

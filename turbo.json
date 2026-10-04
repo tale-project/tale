@@ -12,6 +12,10 @@
     "GH_TOKEN"
   ],
   "tasks": {
+    "transit": {
+      "dependsOn": ["^transit"],
+      "outputs": []
+    },
     "setup": {
       "cache": false,
       "outputs": [".venv/**"]
@@ -51,16 +55,12 @@
       "outputs": []
     },
     "@tale/cli#generate": {
-      "outputs": ["src/generated/**"],
-      "cache": false
-    },
-    "@tale/cli#typecheck": {
-      "dependsOn": ["generate", "^transit"],
-      "outputs": []
+      "cache": false,
+      "outputs": ["src/generated/**"]
     },
     "typecheck": {
-      "outputs": [],
-      "dependsOn": ["^transit"]
+      "dependsOn": ["^transit"],
+      "outputs": []
     },
     "test": {
       "dependsOn": ["^transit"],
@@ -76,12 +76,12 @@
       "persistent": true
     },
     "test:ui": {
-      "outputs": [],
-      "dependsOn": ["^transit"]
+      "dependsOn": ["^transit"],
+      "outputs": []
     },
     "test:browser": {
-      "outputs": [],
-      "dependsOn": ["^transit"]
+      "dependsOn": ["^transit"],
+      "outputs": []
     },
     "test:e2e": {
       "cache": false,
@@ -104,15 +104,11 @@
       "persistent": true
     },
     "storybook:build": {
-      "outputs": ["storybook-static/**"],
-      "dependsOn": ["^transit"]
+      "dependsOn": ["^transit"],
+      "outputs": ["storybook-static/**"]
     },
     "docker:build": {
       "cache": false,
-      "outputs": []
-    },
-    "transit": {
-      "dependsOn": ["^transit"],
       "outputs": []
     },
     "@tale/cli#build": {

@@ -61,6 +61,23 @@ function repoInputs(task: Task): Set<string> {
   );
 }
 
+/** Checks may reach package sources through their own transit task, which
+ * also hashes outside-workspace CLI sources. Follow the actual dependency
+ * graph instead of requiring only direct `^transit` edges. */
+function dependencyClosure(task: Task, tasks: Map<string, Task>): Set<string> {
+  const dependencies = new Set<string>();
+  const queue = [...task.dependencies];
+  while (queue.length > 0) {
+    const id = queue.pop();
+    if (id === undefined || dependencies.has(id)) continue;
+    dependencies.add(id);
+    const dependency = tasks.get(id);
+    if (!dependency) throw new Error(`Turbo did not describe ${id}`);
+    queue.push(...dependency.dependencies);
+  }
+  return dependencies;
+}
+
 describe('CI cache boundaries', () => {
   let summary: z.infer<typeof summarySchema>;
   let tasks: Map<string, Task>;
@@ -179,14 +196,6 @@ describe('CI cache boundaries', () => {
 
   test('dependency sources invalidate checks without scheduling dependency checks', () => {
     const ownInputs = repoInputs(tasks.get('@tale/cli#test')!);
-    const closure = (id: string, found = new Set<string>()): Set<string> => {
-      for (const dependency of tasks.get(id)?.dependencies ?? []) {
-        if (found.has(dependency)) continue;
-        found.add(dependency);
-        closure(dependency, found);
-      }
-      return found;
-    };
     for (const task of summary.tasks) {
       if (
         !CHECK_TASKS.includes(task.task) ||
@@ -194,10 +203,11 @@ describe('CI cache boundaries', () => {
       ) {
         continue;
       }
+      const reachable = dependencyClosure(task, tasks);
       // Check the whole prerequisite closure, not just direct edges: a
       // dependency setup must not indirectly serialize executable checks.
       expect(
-        Array.from(closure(task.taskId)).filter((dependency) =>
+        [...reachable].filter((dependency) =>
           dependency.endsWith(`#${task.task}`),
         ),
         `${task.taskId} remains parallel to every dependency's checks`,
@@ -224,9 +234,7 @@ describe('CI cache boundaries', () => {
         .filter(([, version]) => version.startsWith('workspace:'))
         .map(([name]) => name);
       for (const dependency of dependencies) {
-        expect(task.dependencies, task.taskId).toContain(
-          `${dependency}#transit`,
-        );
+        expect(reachable, task.taskId).toContain(`${dependency}#transit`);
         const transit = tasks.get(`${dependency}#transit`)!;
         expect(transit.command, transit.taskId).toBe('<NONEXISTENT>');
         expect(
@@ -234,7 +242,7 @@ describe('CI cache boundaries', () => {
           transit.taskId,
         ).toBeGreaterThan(1);
         expect(
-          task.dependencies.filter((id) => id === `${dependency}#${task.task}`),
+          [...reachable].filter((id) => id === `${dependency}#${task.task}`),
           `${task.taskId} must stay parallel to ${dependency}'s checks`,
         ).toEqual([]);
       }
@@ -269,7 +277,7 @@ describe('CI cache boundaries', () => {
       /^tsconfig.*\.json$/.test(name),
     );
     expect(configs.length).toBeGreaterThan(1);
-    for (const config of configs) {
+    for (const config of [...configs, 'bunfig.toml']) {
       expect(Object.keys(summary.globalCacheInputs.files)).toContain(config);
     }
   });
@@ -744,6 +752,7 @@ test('catalog build and generation hashes ignore task logs but retain source and
     '@tale/cli#generate',
     '@tale/cli#setup',
     '@tale/cli#test',
+    '@tale/cli#transit',
   ];
   const hashes = () => {
     const run = spawnSync(
@@ -756,6 +765,7 @@ test('catalog build and generation hashes ignore task logs but retain source and
         'generate',
         'setup',
         'test',
+        'transit',
         `--cwd=${fixture}`,
         '--dry=json',
         '--cache=local:,remote:',
