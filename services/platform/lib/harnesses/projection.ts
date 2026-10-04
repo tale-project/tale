@@ -1,6 +1,7 @@
 /** Bounded incremental display state. Protocol lifecycle/accounting remains
  * independent of this tail: evicting a display entry never forgets a task or
  * usage event. A disk replay can be arbitrarily longer than the displayed log. */
+import { appendHarnessAnswer } from './jsonl';
 import {
   TIMELINE_MAX_ENTRIES,
   TIMELINE_MAX_JSON_BYTES,
@@ -134,12 +135,17 @@ export class HarnessProjection {
   private deltas = new TimelineTail();
   private fullText = '';
   private deltaText = '';
+  private answerText = '';
   private streamsDeltas = false;
   revision = 0;
 
   accept(event: HarnessEvent): void {
     if (event.type === 'text') {
       if (this.streamsDeltas) return;
+      this.answerText = appendHarnessAnswer(
+        this.answerText,
+        `${this.answerText === '' ? '' : '\n\n'}${event.text}`,
+      );
       this.fullText = textTail(
         `${this.fullText}${this.fullText === '' ? '' : '\n\n'}${event.text}`,
       );
@@ -149,7 +155,9 @@ export class HarnessProjection {
         this.streamsDeltas = true;
         this.full = new TimelineTail();
         this.fullText = '';
+        this.answerText = '';
       }
+      this.answerText = appendHarnessAnswer(this.answerText, event.text);
       this.deltaText = textTail(this.deltaText + event.text);
       this.deltas.text(event.text, '');
     } else if (event.type === 'tool-use') {
@@ -165,6 +173,12 @@ export class HarnessProjection {
       this.deltas.result(event, output);
     } else return;
     this.revision += 1;
+  }
+
+  /** Exact fallback for a terminal record without its own finalText. Kept
+   * separate from the visible tail, under the shared explicit answer cap. */
+  get answer(): string {
+    return this.answerText;
   }
 
   get text(): string {

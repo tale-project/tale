@@ -248,6 +248,7 @@ describe('loadConfig — docker-in-container gating', () => {
       process.env.SANDBOX_RUNTIME = 'sysbox';
       process.env.SANDBOX_DOCKER_IN_CONTAINER = 'true';
       expect(loadConfig().session.agentProfile.memory).toBe('8g');
+      expect(loadConfig().session.agentProfile.memoryWithoutDocker).toBe('4g');
     });
 
     test('explicit SANDBOX_AGENT_MEMORY wins over the DinD default', () => {
@@ -255,6 +256,7 @@ describe('loadConfig — docker-in-container gating', () => {
       process.env.SANDBOX_DOCKER_IN_CONTAINER = 'true';
       process.env.SANDBOX_AGENT_MEMORY = '12g';
       expect(loadConfig().session.agentProfile.memory).toBe('12g');
+      expect(loadConfig().session.agentProfile.memoryWithoutDocker).toBe('12g');
     });
   });
 

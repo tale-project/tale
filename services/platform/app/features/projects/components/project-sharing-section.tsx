@@ -51,6 +51,24 @@ export function ProjectSharingSection({
   const { nameOf } = useTeamNames();
   const { mutateAsync: updateSharing, isPending } = useUpdateProjectSharing();
 
+  const [acknowledgedAudience, setAcknowledgedAudience] = useState<{
+    projectId: string;
+    teamIds: string[];
+  } | null>(null);
+  const audienceTeamIds =
+    acknowledgedAudience?.projectId === projectId
+      ? acknowledgedAudience.teamIds
+      : teamIds;
+
+  if (
+    acknowledgedAudience !== null &&
+    (acknowledgedAudience.projectId !== projectId ||
+      (teamIds.length === acknowledgedAudience.teamIds.length &&
+        teamIds.every((id) => acknowledgedAudience.teamIds.includes(id))))
+  ) {
+    setAcknowledgedAudience(null);
+  }
+
   const [pendingNarrowChange, setPendingNarrowChange] = useState<
     string[] | null
   >(null);
@@ -59,6 +77,7 @@ export function ProjectSharingSection({
     async (next: string[]) => {
       try {
         await updateSharing({ projectId, teamIds: next });
+        setAcknowledgedAudience({ projectId, teamIds: next });
         toast({ title: t('settings.saveSuccess'), variant: 'success' });
         setPendingNarrowChange(null);
       } catch (error) {
@@ -96,27 +115,29 @@ export function ProjectSharingSection({
   // first; widening (adding a team, going organization-wide) just saves.
   const handleChange = useCallback(
     (next: string[]) => {
-      const wasOrgWide = teamIds.length === 0;
+      const wasOrgWide = audienceTeamIds.length === 0;
       const willBeOrgWide = next.length === 0;
       const upcoming = new Set(next);
       const narrows =
         (wasOrgWide && !willBeOrgWide) ||
-        (!willBeOrgWide && teamIds.some((id) => !upcoming.has(id)));
+        (!willBeOrgWide && audienceTeamIds.some((id) => !upcoming.has(id)));
       if (narrows) {
         setPendingNarrowChange(next);
         return;
       }
       void applySave(next);
     },
-    [applySave, teamIds],
+    [applySave, audienceTeamIds],
   );
 
   if (!canAdminister) {
     // Read-only audience summary for non-admin viewers.
     const audience =
-      teamIds.length === 0
+      audienceTeamIds.length === 0
         ? t('list.sharingOrgWide')
-        : teamIds.map((id) => nameOf(id) ?? t('list.unknownTeam')).join(', ');
+        : audienceTeamIds
+            .map((id) => nameOf(id) ?? t('list.unknownTeam'))
+            .join(', ');
     return (
       <SettingsFieldList>
         <SettingsFieldRow label={t('sharing.effectiveAudience')}>
@@ -172,7 +193,7 @@ export function ProjectSharingSection({
               aria-labelledby={labelId}
               aria-describedby={descriptionId}
               teams={assignableTeams}
-              selectedTeamIds={teamIds}
+              selectedTeamIds={audienceTeamIds}
               onSelectionChange={handleChange}
               orgWideLabel={t('list.sharingOrgWide')}
               disabled={isPending}
