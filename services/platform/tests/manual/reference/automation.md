@@ -6,6 +6,13 @@ suite alongside the automated ones — they drive the same stack.
 
 ## Coverage map
 
+Failed single-notification reads restore the unread row and its retry control
+in both organization and personal streams, including body activation and a
+fresh unread response; successful optimistic dismissals and the All-filter
+recovery control remain covered by
+`app/features/notifications/components/notification-list-panel.test.tsx`.
+The real disconnected-backend/browser interaction remains a manual check.
+
 Text-only edits retain the original uploaded attachment references in both
 the send request and optimistic message, leave unrelated composer files
 staged, and keep regeneration on its original-prompt path:

@@ -127,6 +127,14 @@ export function NotificationListPanel({
   const markMyRead = useMarkMyNotificationRead();
   const markAllMyRead = useMarkAllMyNotificationsRead();
 
+  const restoreHiddenNotification = useCallback((notificationId: string) => {
+    setHiddenIds((prev) => {
+      const next = new Set(prev);
+      next.delete(notificationId);
+      return next;
+    });
+  }, []);
+
   const handleMarkRead = useCallback(
     (notificationId: string) => {
       setHiddenIds((prev) => {
@@ -134,9 +142,11 @@ export function NotificationListPanel({
         next.add(notificationId);
         return next;
       });
-      void markRead.mutateAsync({ notificationId });
+      void markRead.mutateAsync({ notificationId }).catch(() => {
+        restoreHiddenNotification(notificationId);
+      });
     },
-    [markRead],
+    [markRead, restoreHiddenNotification],
   );
 
   const handleMarkMyRead = useCallback(
@@ -146,9 +156,11 @@ export function NotificationListPanel({
         next.add(notificationId);
         return next;
       });
-      void markMyRead.mutateAsync({ notificationId });
+      void markMyRead.mutateAsync({ notificationId }).catch(() => {
+        restoreHiddenNotification(notificationId);
+      });
     },
-    [markMyRead],
+    [markMyRead, restoreHiddenNotification],
   );
 
   const handleMarkAllRead = useCallback(() => {
