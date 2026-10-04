@@ -99,6 +99,7 @@ export function ConnectorsSettings({
           credentials={credentialsQuery.data ?? []}
           adapter={connectorCredentialAdapter}
           isLoading={abilityLoading || credentialsQuery.isPending}
+          catalogLoading={connectorsQuery.isPending}
           labels={{
             vendorColumn: t('connectors.vendorColumn'),
             vendorFilter: t('connectors.vendorFilterLabel'),

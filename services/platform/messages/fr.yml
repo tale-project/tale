@@ -1188,6 +1188,10 @@ chat:
     auto: Auto
     autoDescription: Tale choisit le meilleur modèle pour chaque message — équilibre qualité, vitesse et coût.
     noModelsAvailable: Aucun modèle disponible
+    subscriptionsTasksOnly:
+      Les abonnements des fournisseurs {providers} ne fonctionnent que dans
+      les tâches et les automatisations. Pour discuter avec leurs modèles,
+      ajoute des identifiants par clé API ou variable d'environnement.
     viewProvider: Voir les paramètres du fournisseur
     viewInfo: Détails du modèle
     info:
@@ -6472,6 +6476,11 @@ settings:
       noDirectCredential:
         Aucun identifiant de fournisseur directement utilisable — ajoute une
         clé API ou une variable d'environnement ci-dessus.
+      noCompatibleModel:
+        Un harness sans modèle ne peut exécuter aucun des modèles servis
+        directement — ils n'appellent des outils que via l'API Responses, que
+        seul Codex parle. Autorise un autre modèle pour ces harnesses, ou
+        exécute l'agent sur Codex.
       noModel: Pas encore de modèle
       degraded: En échec récemment
       subscriptionVia: Abonnement · {provider}
@@ -6492,6 +6501,9 @@ settings:
       catalogUnavailable: 'Catalogue de modèles indisponible : {error}'
     credential:
       disabled: Désactivé
+      tasksOnly:
+        Tâches et automatisations uniquement — le chat nécessite une clé API
+        ou une variable d'environnement
       deleteEmbeddingWarning: >-
         Le modèle d'embedding de la recherche de connaissances utilise ces
         identifiants : les supprimer arrête l'indexation des documents et la
@@ -6516,7 +6528,6 @@ settings:
     dialog:
       secret: Clé API
       subscriptionSecret: Clé d'abonnement
-      sandboxedExplainer: S'exécute en sandbox sur le harness de son fournisseur.
       envName: Variable d'environnement
       envNameHelp:
         Nom de la variable du déploiement qui contient la clé — le préfixe
@@ -6537,11 +6548,20 @@ settings:
         ta ressource ; sans eux, aucun modèle n'est disponible.
       allowlistFreeTextPlaceholder: gpt-4o, o4-mini
       removeModel: Retirer {model}
+    subscriptionScope:
+      title: Tâches et automatisations uniquement
+      description: >-
+        Un jeton d'abonnement ne s'exécute que dans l'environnement d'agent
+        pris en charge par son fournisseur, comme Claude Code ou Codex, dans
+        une sandbox : les fournisseurs n'autorisent pas ces jetons dans
+        d'autres applications, et Anthropic les refuse depuis tout client
+        autre que Claude Code. Le chat ne peut pas utiliser ces identifiants.
+        Pour discuter avec ces modèles, ajoute des identifiants par clé API
+        ou variable d'environnement pour ce fournisseur.
     broker:
       explainer:
         Un courtier d'abonnement fournit des jetons OAuth renouvelés pour les
-        abonnements Claude ou ChatGPT. Ils servent aux agents de tâche et
-        d'automatisation dans l'environnement sandbox du fournisseur.
+        abonnements Claude ou ChatGPT.
       invalid: 'Configuration du courtier invalide : {error}'
       endpoint: Endpoint du courtier
       httpMethod: Méthode HTTP

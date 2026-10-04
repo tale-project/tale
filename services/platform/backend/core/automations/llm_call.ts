@@ -31,6 +31,7 @@ import {
 } from '../automations_builder/model_call';
 import type { ActionCtx } from '../lib/ctx';
 import {
+  responsesToolsRefusal,
   walkDirectServing,
   type DirectServingWalk,
 } from '../lib/providers/agent_serving';
@@ -97,6 +98,11 @@ export async function resolveServingTarget(
     walk.unreachable.length > 0
       ? ` (the catalog for ${walk.unreachable.map((name) => `"${name}"`).join(', ')} was unreachable)`
       : '';
+  // Only an agent turn passes a wire; its model was listed, but its tools
+  // need the Responses API.
+  if (walk.wireRefused.length > 0) {
+    throw new Error(`${responsesToolsRefusal(modelId)}${detail}`);
+  }
   throw new Error(
     `no configured provider serves model "${modelId}" — an llm node's model must be listed in a connected provider's catalog and permitted by its credential${detail}`,
   );

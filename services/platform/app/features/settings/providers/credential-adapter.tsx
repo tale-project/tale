@@ -7,7 +7,6 @@ import {
 import { Input } from '@tale/ui/input';
 import { Stack } from '@tale/ui/layout';
 import { RadioGroup } from '@tale/ui/radio-group';
-import { Text } from '@tale/ui/text';
 import { useToast } from '@tale/ui/use-toast';
 import { RefreshCw } from 'lucide-react';
 import { useEffect } from 'react';
@@ -34,6 +33,7 @@ import {
   mapProviderDefinitionError,
   type CustomProviderFacts,
 } from './components/provider-definition-form';
+import { SubscriptionScopeNotice } from './components/subscription-scope-notice';
 import {
   useCreateProviderCredential,
   useUpdateProviderCredential,
@@ -181,14 +181,10 @@ function SecretFields({
   if (method === 'subscription-key') {
     return (
       <>
-        {/* A subscription key is handed to a sandboxed harness rather than
-            called directly, which changes where it can leak — say so before
-            the field, not after. */}
-        {!replacing && (
-          <Text as="p" variant="muted" className="text-sm">
-            {t('providers.dialog.sandboxedExplainer')}
-          </Text>
-        )}
+        {/* A subscription key is handed to the vendor's own harness in a
+            sandbox, never called directly — so it serves tasks and
+            automations and never chat. Say so before the field, not after. */}
+        {!replacing && <SubscriptionScopeNotice />}
         <Input
           label={
             replacing
@@ -220,11 +216,14 @@ function SecretFields({
   }
 
   return (
-    <BrokerFormFields
-      value={value.broker}
-      onChange={(broker) => onChange({ ...value, broker })}
-      disabled={disabled}
-    />
+    <>
+      {!replacing && <SubscriptionScopeNotice />}
+      <BrokerFormFields
+        value={value.broker}
+        onChange={(broker) => onChange({ ...value, broker })}
+        disabled={disabled}
+      />
+    </>
   );
 }
 
@@ -500,12 +499,17 @@ export const providerCredentialAdapter: CredentialAdapter<
 
   // A provider with two working keys and no model list still cannot serve a
   // request, so the catalog failure belongs on every row that depends on it.
-  detailLine: (t, _credential, vendor) =>
+  // Otherwise a subscription row says where it runs: chat never offers its
+  // models, and the row is where an admin looks for why.
+  detailLine: (t, credential, vendor) =>
     vendor?.catalog.catalogError !== undefined
       ? t('providers.card.catalogUnavailable', {
           error: vendor.catalog.catalogError,
         })
-      : undefined,
+      : credential.authMethod === 'subscription-key' ||
+          credential.authMethod === 'subscription-broker'
+        ? t('providers.credential.tasksOnly')
+        : undefined,
 
   // A custom provider lives and dies with its credentials: the last one going
   // retires the definition, and the delete dialog says so.

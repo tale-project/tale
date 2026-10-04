@@ -64,5 +64,29 @@ describe('collectComposerOptions', () => {
       label: 'GLM 5v Turbo',
       providerLabel: 'Z.ai (GLM)',
     });
+    expect(byId.get('zai glm-5v-turbo')).not.toHaveProperty('toolCallingApi');
+  });
+
+  it('carries the Responses tool API, which decides the harnesses an agent picker offers it to', () => {
+    const hit = {
+      connector: { name: 'openai', displayName: 'OpenAI', apiFormat: 'openai' },
+      credential: { authMethod: 'api-key' },
+      credentialAuth: { authMethod: 'api-key' as const },
+      entry: {
+        id: 'gpt-6.1-sol',
+        provider: 'openai',
+        tags: ['chat'],
+        supportsTools: true,
+        toolCallingApi: 'responses',
+        supportsVision: true,
+        contextWindow: 1_050_000,
+      },
+    };
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the walk's hit shape, narrowed to what the projection reads
+    const { byId } = collectComposerOptions([hit as never]);
+    expect(byId.get('openai gpt-6.1-sol')).toMatchObject({
+      id: 'gpt-6.1-sol',
+      toolCallingApi: 'responses',
+    });
   });
 });
