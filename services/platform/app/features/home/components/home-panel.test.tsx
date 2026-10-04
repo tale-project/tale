@@ -629,7 +629,7 @@ describe('HomeNavigator on the phone screen', () => {
     expect(projectRow()).toHaveAttribute('aria-pressed', 'false');
   });
 
-  it('offers Open project in project actions menu without showing redundant scope bars', async () => {
+  it('offers Open project and Pin project in a project menu without showing redundant scope bars', async () => {
     const { user } = render(
       <HomeNavigator organizationId="org-1" variant="screen" />,
     );
@@ -645,9 +645,10 @@ describe('HomeNavigator on the phone screen', () => {
         name: 'Actions for Website relaunch',
       }),
     );
+    // No New chat: on a phone it leads the Chats view instead.
     expect(
-      screen.getByRole('menuitem', { name: 'Open project' }),
-    ).toBeInTheDocument();
+      screen.getAllByRole('menuitem').map((item) => item.textContent),
+    ).toEqual(['Open project', 'Pin project']);
   });
 
   it('narrows the Tasks view to the project too', async () => {
@@ -684,7 +685,7 @@ describe('HomeNavigator on the phone screen', () => {
     expect(screen.queryByText(/^Showing /)).not.toBeInTheDocument();
   });
 
-  it('says the project is empty instead of "nothing yet"', async () => {
+  it('says which view of the project is empty instead of "nothing yet"', async () => {
     homeData.current = data({
       items: data().items.filter((item) => item.kind === 'conversation'),
     });
@@ -695,6 +696,15 @@ describe('HomeNavigator on the phone screen', () => {
     await user.click(projectRow());
     expect(screen.getByText('No chats in this project')).toBeInTheDocument();
     expect(screen.queryByText('Nothing here yet')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('radio', { name: /Tasks/ }));
+    expect(projectRow()).toHaveAttribute('aria-pressed', 'true');
+    expect(
+      screen.getByText('No open tasks assigned to you in this project'),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText('Nothing assigned to you'),
+    ).not.toBeInTheDocument();
   });
 
   it('holds back the archived chats while narrowed', async () => {
