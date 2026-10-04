@@ -50,7 +50,10 @@ import {
   sessionWorkspaceDirName,
 } from '../../session/session-naming.ts';
 import { sessionDindEnabled } from '../../session/session-profile.ts';
-import { listWorkspaceDirs } from '../../session/workspace-inventory.ts';
+import {
+  listSessionWorkspaceDirs,
+  listWorkspaceDirs,
+} from '../../session/workspace-inventory.ts';
 import {
   workspaceTrash,
   type WorkspaceTrash,
@@ -245,6 +248,7 @@ export class DockerSessionBackend implements SessionBackend {
    * path. */
   private async inspectWorkspaceMount(
     sessionId: string,
+    requireComplete = false,
   ): Promise<string | null> {
     const containerName = sessionContainerName(sessionId);
     const inspect = await runDocker(
@@ -256,7 +260,14 @@ export class DockerSessionBackend implements SessionBackend {
       ],
       { timeoutMs: 5_000 },
     );
-    if (inspect.exitCode !== 0) return null;
+    if (inspect.exitCode !== 0) {
+      if (requireComplete && !isDockerNoSuchObject(inspect.stderr)) {
+        throw new Error(
+          `cannot read session ${sessionId}'s workspace mount: ${inspect.stderr.trim() || 'docker inspect failed'}`,
+        );
+      }
+      return null;
+    }
     const src = inspect.stdout.trim();
     return src.length > 0 ? src : null;
   }
@@ -851,13 +862,17 @@ export class DockerSessionBackend implements SessionBackend {
   }
 
   async destroySession(sessionId: string): Promise<boolean> {
-    // Resolve the REAL workspace dir BEFORE removing the container — a legacy
-    // colour-rooted session's dir lives under an old subdir and `docker inspect`
-    // (used by resolveWorkspaceDir) only works while the container still exists.
-    const workspaceHostDir = await this.resolveWorkspaceDir(sessionId);
-    // A stopped session has no container, only its workspace: deleting that
-    // is the destroy too, and the answer says so.
-    const hadWorkspace = await this.workspaceDirExists(workspaceHostDir);
+    // Capture every copy BEFORE removing the container. A flat workspace
+    // can coexist with a legacy copy or mask a mount from a moved root; taking
+    // only the first path and clearing ownership strands the others forever.
+    const workspaceDirs = new Set(
+      await listSessionWorkspaceDirs(this.cfg.hostSessionRoot, sessionId),
+    );
+    const mounted = await this.inspectWorkspaceMount(sessionId, true);
+    if (mounted !== null) {
+      workspaceDirs.add(mounted);
+    }
+    const hadWorkspace = workspaceDirs.size > 0;
     const { existed, docker } = await this.removeContainer(sessionId);
     // CONFIRM the container is gone before deleting the workspace. A wedged
     // dockerd that ignored the rm would otherwise leave a gutted-but-running
@@ -884,14 +899,16 @@ export class DockerSessionBackend implements SessionBackend {
     // it. A workspace already gone is nothing to move, so the retry the throw
     // provokes is idempotent (the container is gone by now, and
     // removeContainer/clearPinMarker are no-ops on a second pass).
-    try {
-      await this.trash.discard(workspaceHostDir);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      throw new Error(
-        `destroy ${sessionId}: container removed but workspace ${workspaceHostDir} could not be deleted: ${msg}`,
-        { cause: err },
-      );
+    for (const workspaceHostDir of workspaceDirs) {
+      try {
+        await this.trash.discard(workspaceHostDir);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        throw new Error(
+          `destroy ${sessionId}: container removed but workspace ${workspaceHostDir} could not be deleted: ${msg}`,
+          { cause: err },
+        );
+      }
     }
     await this.clearOwnerMarker(sessionId);
     return existed || hadWorkspace;

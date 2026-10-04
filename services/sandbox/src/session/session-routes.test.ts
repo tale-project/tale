@@ -1616,6 +1616,122 @@ describe('SessionRoutes (fake runnerd)', () => {
   });
 
   describe('zombie-session eviction', () => {
+    test('a delayed dead probe cannot evict a replacement or join its liveness check', async () => {
+      const started = Promise.withResolvers<void>();
+      const answer = Promise.withResolvers<boolean>();
+      let checks = 0;
+      const routes = new SessionRoutes(cfg, {
+        ...fakeBackend,
+        async sessionExists() {
+          checks += 1;
+          if (checks === 1) {
+            started.resolve();
+            return answer.promise;
+          }
+          return true;
+        },
+      });
+      const body = JSON.stringify({
+        sessionId: 'probe-replacement',
+        organizationId: 'org_z',
+      });
+      await routes.handleCreate(body);
+      const oldProbe = routes.handleGet('probe-replacement');
+      await started.promise;
+      await routes.handleDestroy('probe-replacement');
+      expect((await routes.handleCreate(body)).status).toBe(201);
+      const newProbe = routes.handleGet('probe-replacement');
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      const replacementChecks = checks;
+      answer.resolve(false);
+      const responses = await Promise.all([oldProbe, newProbe]);
+      expect(replacementChecks).toBe(2);
+      expect(responses.map((response) => response.status)).toEqual([200, 200]);
+      expect(routes.holds('probe-replacement')).toBe(true);
+      expect((await routes.handleGet('probe-replacement')).status).toBe(200);
+      expect(checks).toBe(3);
+    });
+
+    test.each(['alive', 'unknown'])(
+      'concurrent liveness checks share an in-flight %s answer but never cache it',
+      async (outcome) => {
+        const started = Promise.withResolvers<void>();
+        const release = Promise.withResolvers<void>();
+        let checks = 0;
+        const routes = new SessionRoutes(cfg, {
+          ...fakeBackend,
+          async sessionExists() {
+            checks += 1;
+            started.resolve();
+            await release.promise;
+            if (outcome === 'unknown') throw new Error('temporary API failure');
+            return true;
+          },
+        });
+        await routes.handleCreate(
+          JSON.stringify({
+            sessionId: 'shared-probe',
+            organizationId: 'org_z',
+          }),
+        );
+        const requests = Array.from({ length: 16 }, () =>
+          routes.handleGet('shared-probe'),
+        );
+        await started.promise;
+        const simultaneousChecks = checks;
+        release.resolve();
+        const responses = await Promise.all(requests);
+        expect(simultaneousChecks).toBe(1);
+        expect(responses.every((response) => response.status === 200)).toBe(
+          true,
+        );
+        expect(routes.holds('shared-probe')).toBe(true);
+        expect((await routes.handleGet('shared-probe')).status).toBe(200);
+        expect(checks).toBe(2);
+      },
+    );
+
+    test('a stop that begins during a liveness probe keeps its capacity until compute is gone', async () => {
+      const probeStarted = Promise.withResolvers<void>();
+      const probeAnswer = Promise.withResolvers<boolean>();
+      const stopStarted = Promise.withResolvers<void>();
+      const stopRelease = Promise.withResolvers<void>();
+      let checks = 0;
+      const routes = new SessionRoutes(cfg, {
+        ...fakeBackend,
+        async sessionExists() {
+          checks += 1;
+          if (checks === 1) {
+            probeStarted.resolve();
+            return probeAnswer.promise;
+          }
+          return false;
+        },
+        async stopSession() {
+          stopStarted.resolve();
+          await stopRelease.promise;
+          return true;
+        },
+      });
+      await routes.handleCreate(
+        JSON.stringify({ sessionId: 'probe-stop', organizationId: 'org_z' }),
+      );
+      const probe = routes.handleGet('probe-stop');
+      await probeStarted.promise;
+      const sweep = routes.sweepExpired(
+        Date.now() + cfg.session.maxLifetimeMs + 1,
+      );
+      await stopStarted.promise;
+      probeAnswer.resolve(false);
+      const response = await probe;
+      const heldDuringStop = routes.holds('probe-stop');
+      stopRelease.resolve();
+      await sweep;
+      expect(response.status).toBe(200);
+      expect(heldDuringStop).toBe(true);
+      expect(routes.holds('probe-stop')).toBe(false);
+    });
+
     test('aliveness probe (handleGet) 404s + evicts when the backend object is gone', async () => {
       const routes = new SessionRoutes(cfg, fakeBackend);
       await routes.handleCreate(
@@ -2173,6 +2289,140 @@ describe('SessionRoutes (fake runnerd)', () => {
         };
         return b;
       };
+
+      test.each(['ready', 'failed'])(
+        'same-incarnation misses share an in-flight %s endpoint resolution',
+        async (outcome) => {
+          const resolveStarted = Promise.withResolvers<void>();
+          const release = Promise.withResolvers<void>();
+          let resolutions = 0;
+          let lists = 0;
+          let fail = outcome === 'failed';
+          const entry = mkBackendSession('shared-endpoint', 'org_peer');
+          const routes = new SessionRoutes(cfg, {
+            ...fakeBackend,
+            async listSessions() {
+              lists += 1;
+              return [entry];
+            },
+            async resolveEndpoint() {
+              resolutions += 1;
+              resolveStarted.resolve();
+              await release.promise;
+              if (fail) throw new Error('temporary endpoint failure');
+              return fakeBaseUrl;
+            },
+          });
+          const requests = Array.from({ length: 16 }, () =>
+            routes.handleGet(entry.sessionId),
+          );
+          await resolveStarted.promise;
+          await new Promise<void>((resolve) => setImmediate(resolve));
+          const simultaneousResolutions = resolutions;
+          release.resolve();
+          const responses = await Promise.all(requests);
+          expect(lists).toBe(2);
+          expect(simultaneousResolutions).toBe(1);
+          expect(
+            responses.every(
+              (response) => response.status === (fail ? 503 : 200),
+            ),
+          ).toBe(true);
+          if (fail) {
+            for (const response of responses) {
+              expect(response.headers.get('retry-after')).toBe('1');
+              expect(await response.json()).toEqual({
+                error: 'session_unavailable',
+              });
+            }
+            fail = false;
+            expect((await routes.handleGet(entry.sessionId)).status).toBe(200);
+            expect(resolutions).toBe(2);
+          }
+        },
+      );
+
+      test('a newer listed incarnation resolves separately from an older in-flight adoption', async () => {
+        const oldStarted = Promise.withResolvers<void>();
+        const oldRelease = Promise.withResolvers<void>();
+        let resolutions = 0;
+        let entry = mkBackendSession('new-endpoint', 'org_peer');
+        const routes = new SessionRoutes(cfg, {
+          ...fakeBackend,
+          async listSessions() {
+            return [entry];
+          },
+          async resolveEndpoint() {
+            resolutions += 1;
+            if (resolutions === 1) {
+              oldStarted.resolve();
+              await oldRelease.promise;
+            }
+            return fakeBaseUrl;
+          },
+        });
+        const older = routes.handleGet(entry.sessionId);
+        await oldStarted.promise;
+        entry = { ...entry, createdAtMs: entry.createdAtMs + 1 };
+        const newer = routes.handleGet(entry.sessionId);
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        const simultaneousResolutions = resolutions;
+        oldRelease.resolve();
+        const responses = await Promise.all([older, newer]);
+        expect(simultaneousResolutions).toBe(2);
+        for (const response of responses) {
+          expect(await response.json()).toMatchObject({
+            session: { createdAtMs: entry.createdAtMs },
+          });
+        }
+      });
+
+      test('an old endpoint failure cannot clear a newer incarnation resolution still in flight', async () => {
+        const oldStarted = Promise.withResolvers<void>();
+        const oldRelease = Promise.withResolvers<void>();
+        const newStarted = Promise.withResolvers<void>();
+        const newRelease = Promise.withResolvers<void>();
+        let resolutions = 0;
+        let entry = mkBackendSession('pending-endpoint', 'org_peer');
+        const routes = new SessionRoutes(cfg, {
+          ...fakeBackend,
+          async listSessions() {
+            return [entry];
+          },
+          async resolveEndpoint() {
+            resolutions += 1;
+            if (resolutions === 1) {
+              oldStarted.resolve();
+              await oldRelease.promise;
+              throw new Error('old Pod disappeared');
+            }
+            newStarted.resolve();
+            await newRelease.promise;
+            return fakeBaseUrl;
+          },
+        });
+        const older = routes.handleGet(entry.sessionId);
+        await oldStarted.promise;
+        entry = { ...entry, createdAtMs: entry.createdAtMs + 1 };
+        const newer = routes.handleGet(entry.sessionId);
+        await newStarted.promise;
+        oldRelease.resolve();
+        const unavailable = await older;
+        expect(unavailable.status).toBe(503);
+        expect(unavailable.headers.get('retry-after')).toBe('1');
+        expect(await unavailable.json()).toEqual({
+          error: 'session_unavailable',
+        });
+        const joining = routes.handleGet(entry.sessionId);
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        const simultaneousResolutions = resolutions;
+        newRelease.resolve();
+        const responses = await Promise.all([newer, joining]);
+        expect(simultaneousResolutions).toBe(2);
+        expect(responses.map((response) => response.status)).toEqual([
+          200, 200,
+        ]);
+      });
 
       test('GET / exec / exec-status / env / files on a session the registry never saw succeed', async () => {
         const backend = peerBackend(mkBackendSession('peer1', 'org_peer'));

@@ -17,6 +17,7 @@ import type { RunnerdExecEvent } from './protocol.ts';
 const EXEC_BYTES = 64 * 1024 * 1024;
 const SESSION_BYTES = 256 * 1024 * 1024;
 const WRITE_WATERMARK = 128 * 1024;
+const WRITE_VECTORS = 64;
 const READ_CHUNK = 64 * 1024;
 
 type Failure = 'OUTPUT_LIMIT' | 'REPLAY_UNAVAILABLE';
@@ -84,6 +85,10 @@ export class ExecJournal {
   private totalBytes = 0;
   private committedBytes = 0;
   private reservedBytes = 0;
+  // Record starts, spaced by at least one read chunk: at most 1024 entries
+  // for a 64 MiB transcript, regardless of how many tiny records it contains.
+  private readonly checkpoints: { seq: number; position: number }[] = [];
+  private nextCheckpoint = 0;
   private writing = false;
   private complete = false;
   private lastSeq = 0;
@@ -132,6 +137,13 @@ export class ExecJournal {
       return false;
     }
     this.lastSeq += 1;
+    if (this.totalBytes >= this.nextCheckpoint) {
+      this.checkpoints.push({
+        seq: this.lastSeq,
+        position: this.totalBytes,
+      });
+      this.nextCheckpoint = this.totalBytes + READ_CHUNK;
+    }
     this.totalBytes += bytes;
     this.queuedBytes += bytes;
     this.queued.push(Buffer.from(line));
@@ -214,33 +226,52 @@ export class ExecJournal {
         !this.disposed &&
         this.failure === undefined
       ) {
-        const batch = this.queued;
+        const queued = this.queued;
         this.queued = [];
-        for (const bytes of batch) {
+        for (let start = 0; start < queued.length;) {
           if (this.disposed || this.failure !== undefined) break;
-          if (!(await this.budget.reserve(bytes.length))) {
+          let end = start;
+          let batchBytes = 0;
+          while (end < queued.length && end - start < WRITE_VECTORS) {
+            const bytes = queued[end];
+            if (bytes === undefined) break;
+            const length = bytes.length;
+            if (end > start && batchBytes + length > WRITE_WATERMARK) break;
+            batchBytes += length;
+            end += 1;
+          }
+          let batch = queued.slice(start, end);
+          if (!(await this.budget.reserve(batchBytes))) {
             this.fail('OUTPUT_LIMIT');
             break;
           }
-          this.reservedBytes += bytes.length;
+          this.reservedBytes += batchBytes;
           if (this.disposed || this.failure !== undefined) break;
-          let offset = 0;
-          while (offset < bytes.length) {
-            const written = await file.write(
-              bytes,
-              offset,
-              bytes.length - offset,
+          while (batch.length > 0) {
+            if (this.disposed || this.failure !== undefined) break;
+            const { bytesWritten } = await file.writev(
+              batch,
               this.committedBytes,
             );
-            if (written.bytesWritten === 0)
-              throw new Error('journal write made no progress');
-            offset += written.bytesWritten;
-            this.committedBytes += written.bytesWritten;
+            if (bytesWritten === 0) throw new Error('incomplete journal write');
+            this.committedBytes += bytesWritten;
+            let remaining = bytesWritten;
+            let written = 0;
+            while (written < batch.length) {
+              const bytes = batch[written];
+              if (bytes === undefined || remaining < bytes.length) break;
+              remaining -= bytes.length;
+              written += 1;
+            }
+            batch = batch.slice(written);
+            if (remaining > 0 && batch[0] !== undefined)
+              batch[0] = batch[0].subarray(remaining);
           }
-          this.queuedBytes -= bytes.length;
+          this.queuedBytes -= batchBytes;
+          start = end;
+          this.wake();
+          if (this.queuedBytes < WRITE_WATERMARK) this.onDrain();
         }
-        this.wake();
-        if (this.queuedBytes < WRITE_WATERMARK) this.onDrain();
       }
     } catch {
       this.fail('REPLAY_UNAVAILABLE');
@@ -249,6 +280,18 @@ export class ExecJournal {
       this.wake();
       this.closeIfUnused();
     }
+  }
+
+  private replayPosition(seq: number): number {
+    let low = 0;
+    let high = this.checkpoints.length;
+    while (low < high) {
+      const middle = Math.floor((low + high) / 2);
+      const checkpoint = this.checkpoints[middle];
+      if (checkpoint !== undefined && checkpoint.seq <= seq) low = middle + 1;
+      else high = middle;
+    }
+    return this.checkpoints[low - 1]?.position ?? 0;
   }
 
   private wake(): void {
@@ -301,7 +344,9 @@ export class ExecJournal {
       if (signal?.aborted) return;
       const file = await this.ready;
       const buffer = Buffer.alloc(READ_CHUNK);
-      let position = 0;
+      // Include the captured prefix's final record even when the cursor has
+      // reached it: replay-complete still belongs before subsequent live data.
+      let position = this.replayPosition(Math.min(sinceSeq + 1, throughSeq));
       let pending = '';
       const decoder = new StringDecoder('utf8');
       for (;;) {

@@ -524,7 +524,13 @@ The spawner's part:
   run one after another, and a create of an id waits for a destroy of it under way —
   up to two minutes; past that it answers 429 busy (`retry-after`), so a
   destroy wedged on its filesystem never holds the create and its capacity
-  slot for ever.
+  slot for ever. On Docker, destroying an id discards every flat and legacy
+  workspace copy plus the workspace its container actually mounts, even if
+  the configured session root moved. The organization marker stays until all
+  copies are discarded; an unreadable directory or an unknown container mount
+  defers the destroy. A failed create removes only its own container and
+  preserves every workspace and organization marker, including a newly
+  created directory. A later explicit destroy performs the workspace cleanup.
 - `DELETE /v1/organizations/:id` — for an organization the platform deleted:
   destroys every session the backend still holds for it (containers/Pods with
   their workspaces) and every stopped workspace attributed to it, then its

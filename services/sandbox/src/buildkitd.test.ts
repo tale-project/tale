@@ -61,7 +61,7 @@ describe('buildkitd naming seam', () => {
       .digest('hex')
       .slice(0, 16);
     expect(helperStamp(image, limits)).toBe(deployed);
-    expect(helperStamp(image, limits, 'solver-parallelism=1')).not.toBe(
+    expect(helperStamp(image, limits, ['solver-parallelism=1'])).not.toBe(
       deployed,
     );
   });
@@ -123,6 +123,21 @@ describe('buildkitd naming seam', () => {
     expect(entrypoint).toContain(`EGRESS_READY=${EGRESS_READY_MARKER}`);
     expect(BUILDKITD_LIVE_TOML).toMatch(/^\/[\w./-]+$/);
     expect(entrypoint).toContain(`LIVE_TOML=${BUILDKITD_LIVE_TOML}`);
+  });
+
+  test('the transparent proxy uses the helper’s bounded Docker log', async () => {
+    const entrypoint = await Bun.file(
+      new URL('../../sandbox-buildkitd/docker-entrypoint.sh', import.meta.url),
+    ).text();
+    expect(entrypoint).toMatch(/^\s*redsocks -c \/tmp\/redsocks.conf >&2 &$/m);
+    expect(entrypoint).not.toContain('/tmp/redsocks.log');
+    expect(buildkitHelperLimits(LIMITS_CFG, 'builder')).toEqual(
+      expect.arrayContaining([
+        '--log-driver=json-file',
+        'max-size=10m',
+        'max-file=1',
+      ]),
+    );
   });
 });
 

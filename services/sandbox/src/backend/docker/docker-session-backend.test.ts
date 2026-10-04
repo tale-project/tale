@@ -4,7 +4,7 @@
 // healthy session on another spawner replica. These pin that so a refactor
 // can't loosen it to "anything that isn't running".
 
-import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
+import { afterAll, beforeAll, describe, expect, spyOn, test } from 'bun:test';
 import { randomUUID } from 'node:crypto';
 import {
   chmod,
@@ -99,7 +99,7 @@ describe('isReapableContainerStatus', () => {
 // ---------------------------------------------------------------------------
 
 const FAKE_DOCKER = `#!/usr/bin/env bash
-# Fake docker CLI for tests. Reads six lines from ./mode next to this script:
+# Fake docker CLI for tests. Reads seven lines from ./mode next to this script:
 #   line 1: 1 when the container exists, else 0
 #   line 2: rm outcome — ok | removes (ok, and the container is gone after) |
 #           nosuch | busy
@@ -107,6 +107,7 @@ const FAKE_DOCKER = `#!/usr/bin/env bash
 #   line 4: ps outcome — ok | fail (a daemon hiccup: non-zero exit + stderr)
 #   line 5: the host source of the container's /agent mount (may be empty)
 #   line 6: the session's Docker-in-container capability (may be empty)
+#   line 7: mount inspect outcome — ok | fail
 here="$(cd "$(dirname "$0")" && pwd)"
 present="$(sed -n 1p "$here/mode")"
 rm_mode="$(sed -n 2p "$here/mode")"
@@ -133,7 +134,12 @@ case "$cmd" in
         *State.Running*) echo "true" ;;
         *State.Status*) echo "running" ;;
         *tale.docker*) printf 'abc123\\t%s\\t\\n' "$(cat "$here/docker-capability" 2>/dev/null || true)" ;;
-        *Mounts*) sed -n 5p "$here/mode" ;;
+        *Mounts*)
+          if [ "$(sed -n 7p "$here/mode")" = "fail" ]; then
+            echo "Cannot connect to the Docker daemon" >&2
+            exit 1
+          fi
+          sed -n 5p "$here/mode" ;;
         *) echo "abc123" ;;
       esac
       exit 0
@@ -180,10 +186,11 @@ async function fakeDocker(scenario: {
   ps?: 'ok' | 'fail';
   mount?: string;
   dind?: boolean;
+  mountRead?: 'ok' | 'fail';
 }): Promise<void> {
   await writeFile(
     join(fakeRoot, 'mode'),
-    `${scenario.present ? '1' : '0'}\n${scenario.rm}\n${(scenario.listed ?? []).join(',')}\n${scenario.ps ?? 'ok'}\n${scenario.mount ?? ''}\n${scenario.dind ?? ''}\n`,
+    `${scenario.present ? '1' : '0'}\n${scenario.rm}\n${(scenario.listed ?? []).join(',')}\n${scenario.ps ?? 'ok'}\n${scenario.mount ?? ''}\n${scenario.dind ?? ''}\n${scenario.mountRead ?? 'ok'}\n`,
   );
 }
 
@@ -479,6 +486,57 @@ describe('DockerSessionBackend stop/destroy honour the rm result', () => {
     },
   );
 
+  test.each(['true', 'legacy-mount'])(
+    'destroying an adopted DinD session reclaims every workspace copy after Docker is disabled (%s)',
+    async (capability) => {
+      const root = await freshRoot();
+      const workspace = join(root, 'ses-adopted-dind');
+      const legacy = join(root, 'blue', 'ses-adopted-dind');
+      const mounted = join(await freshRoot(), 'ses-adopted-dind');
+      for (const path of [workspace, legacy, mounted]) {
+        await plantWorkspace(path, 1, 2);
+      }
+      await mkdir(join(root, '.owners'));
+      const owner = join(root, '.owners', 'adopted-dind.org');
+      await writeFile(owner, 'org_adopted\n');
+      await fakeDocker({ present: true, rm: 'removes', mount: mounted });
+      await writeFile(
+        join(fakeRoot, 'docker-capability'),
+        capability === 'legacy-mount' ? '\ttrue' : 'true',
+      );
+      const trash = new WorkspaceTrash(root);
+      const backend = new DockerSessionBackend(rootedConfig(root), trash);
+      await backend.setPinned('adopted-dind', true);
+      const warnings: string[] = [];
+      const warn = spyOn(console, 'warn').mockImplementation(
+        (...args: unknown[]) => {
+          warnings.push(args.map(String).join(' '));
+        },
+      );
+      try {
+        expect(await backend.destroySession('adopted-dind')).toBe(true);
+        // The fake daemon refuses volume commands, making the attempted
+        // store cleanup observable even though the current config is off.
+        expect(
+          warnings.some((line) =>
+            line.includes('dind volume rm tale-dind-adopted-dind'),
+          ),
+        ).toBe(true);
+        for (const path of [workspace, legacy, mounted]) {
+          expect(await exists(path)).toBe(false);
+        }
+        expect(await exists(owner)).toBe(false);
+        expect(await exists(join(root, '.pins', 'adopted-dind.pinned'))).toBe(
+          false,
+        );
+      } finally {
+        warn.mockRestore();
+        await rm(join(fakeRoot, 'docker-capability'));
+        await trash.empty();
+      }
+    },
+  );
+
   test('stopSession is idempotent: an already-gone container resolves false without throwing', async () => {
     await fakeDocker({ present: false, rm: 'nosuch' });
     const backend = new DockerSessionBackend(backendConfig());
@@ -503,6 +561,107 @@ describe('DockerSessionBackend stop/destroy honour the rm result', () => {
     expect(await exists(owner)).toBe(false);
     // Nothing left under the id: idempotent, and now truly nothing existed.
     expect(await backend.destroySession('destroy-stopped')).toBe(false);
+  });
+
+  test('destroys every flat and legacy copy before removing the owner marker', async () => {
+    await fakeDocker({ present: false, rm: 'nosuch' });
+    const root = await freshRoot();
+    const workspace = join(root, 'ses-duplicated');
+    const legacy = join(root, 'blue', 'ses-duplicated');
+    const older = join(root, 'green', 'ses-duplicated');
+    const unrelated = join(root, 'ses-other', 'ses-duplicated');
+    for (const path of [workspace, legacy, older, unrelated]) {
+      await plantWorkspace(path, 1, 2);
+    }
+    await mkdir(join(root, '.owners'));
+    const owner = join(root, '.owners', 'duplicated.org');
+    await writeFile(owner, 'org_duplicates\n');
+    const held = heldTrash(root);
+    const backend = new DockerSessionBackend(rootedConfig(root), held.trash);
+
+    try {
+      expect(await backend.destroySession('duplicated')).toBe(true);
+      expect(await backend.hasWorkspace('duplicated')).toBe(false);
+      for (const path of [workspace, legacy, older]) {
+        expect(await exists(path)).toBe(false);
+      }
+      expect(await exists(owner)).toBe(false);
+      expect(await countFiles(unrelated)).toBe(2);
+      expect(await trashEntries(held.trash)).toHaveLength(3);
+    } finally {
+      held.release();
+      await held.trash.empty();
+    }
+  });
+
+  test('keeps ownership after a partial destroy so the remaining copy can be retried', async () => {
+    await fakeDocker({ present: false, rm: 'nosuch' });
+    const root = await freshRoot();
+    const workspace = join(root, 'ses-partial');
+    const legacy = join(root, 'blue', 'ses-partial');
+    await plantWorkspace(workspace, 1, 2);
+    await plantWorkspace(legacy, 1, 2);
+    await mkdir(join(root, '.owners'));
+    const owner = join(root, '.owners', 'partial.org');
+    await writeFile(owner, 'org_partial\n');
+    const trash = new WorkspaceTrash(root);
+    let attempted = 0;
+    const discard = spyOn(trash, 'discard').mockImplementation(async (path) => {
+      attempted += 1;
+      if (attempted === 2) throw new Error('EACCES: workspace is read-only');
+      await WorkspaceTrash.prototype.discard.call(trash, path);
+    });
+    const backend = new DockerSessionBackend(rootedConfig(root), trash);
+    try {
+      const err = await rejection(backend.destroySession('partial'));
+      expect(err?.message).toContain('could not be deleted');
+      expect(await exists(owner)).toBe(true);
+      expect(await backend.hasWorkspace('partial')).toBe(true);
+    } finally {
+      discard.mockRestore();
+    }
+    expect(await backend.destroySession('partial')).toBe(true);
+    expect(await backend.hasWorkspace('partial')).toBe(false);
+    expect(await exists(owner)).toBe(false);
+    await trash.empty();
+  });
+
+  test('an unreadable legacy root defers the destroy and retains ownership', async () => {
+    await fakeDocker({ present: false, rm: 'nosuch' });
+    const root = await freshRoot();
+    const workspace = join(root, 'ses-unreadable');
+    const legacyRoot = join(root, 'blue');
+    await plantWorkspace(workspace, 1, 2);
+    await plantWorkspace(join(legacyRoot, 'ses-unreadable'), 1, 2);
+    await mkdir(join(root, '.owners'));
+    const owner = join(root, '.owners', 'unreadable.org');
+    await writeFile(owner, 'org_unreadable\n');
+    await chmod(legacyRoot, 0o000);
+    try {
+      const backend = new DockerSessionBackend(rootedConfig(root));
+      const err = await rejection(backend.destroySession('unreadable'));
+      expect(err?.message).toContain('workspace inventory: cannot read');
+      expect(await exists(workspace)).toBe(true);
+      expect(await exists(owner)).toBe(true);
+    } finally {
+      await chmod(legacyRoot, 0o755);
+    }
+  });
+
+  test('an unknown container mount leaves even an existing flat workspace intact', async () => {
+    await fakeDocker({ present: true, rm: 'removes', mountRead: 'fail' });
+    const root = await freshRoot();
+    const workspace = join(root, 'ses-unknown-mount');
+    await plantWorkspace(workspace, 1, 2);
+    await mkdir(join(root, '.owners'));
+    const owner = join(root, '.owners', 'unknown-mount.org');
+    await writeFile(owner, 'org_unknown\n');
+    const backend = new DockerSessionBackend(rootedConfig(root));
+    const err = await rejection(backend.destroySession('unknown-mount'));
+    expect(err?.message).toContain('cannot read session unknown-mount');
+    expect(await exists(workspace)).toBe(true);
+    expect(await exists(owner)).toBe(true);
+    expect(await backend.sessionExists('unknown-mount')).toBe(true);
   });
 
   test('destroySession THROWS on a failed rm and leaves the workspace intact', async () => {
@@ -845,6 +1004,22 @@ describe('DockerSessionBackend.destroySession hands the workspace to the trash',
 });
 
 describe('DockerSessionBackend.destroySession after the session root moved', () => {
+  test('a flat copy never masks the workspace still mounted from a previous root', async () => {
+    const root = await freshRoot();
+    const flat = join(root, 'ses-moved-twice');
+    const oldRoot = await freshRoot();
+    const mounted = join(oldRoot, 'ses-moved-twice');
+    await plantWorkspace(flat, 1, 2);
+    await plantWorkspace(mounted, 1, 3);
+    await fakeDocker({ present: true, rm: 'removes', mount: mounted });
+    const trash = new WorkspaceTrash(root);
+    const backend = new DockerSessionBackend(rootedConfig(root), trash);
+    expect(await backend.destroySession('moved-twice')).toBe(true);
+    expect(await exists(flat)).toBe(false);
+    expect(await exists(mounted)).toBe(false);
+    await trash.empty();
+  });
+
   test('deletes the workspace a live session still mounts from the old root', async () => {
     const oldRoot = await freshRoot();
     const mounted = join(oldRoot, 'ses-moved-root');

@@ -94,7 +94,7 @@ function abandon(source: FakeEventSource | undefined): void {
 }
 
 describe('useBackendHints', () => {
-  it('refreshes task reviewer defaults when another session changes project settings', () => {
+  it('refreshes project-dependent lists when another session changes a project', () => {
     const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
     renderHook(() => useBackendHints('org1'), { wrapper });
     act(() =>
@@ -106,6 +106,8 @@ describe('useBackendHints', () => {
     expect(invalidate.mock.calls.map(([options]) => options?.queryKey)).toEqual(
       [
         ['backend', 'org1', 'project'],
+        ['backend', 'org1', 'task'],
+        ['backend', 'org1', 'chat_thread'],
         ['backend', 'org1', 'task', 'reviewer'],
       ],
     );

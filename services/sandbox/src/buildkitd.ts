@@ -136,6 +136,24 @@ function mirrorUpstream(registry: string): string {
     : `https://${registry}`;
 }
 
+/** Immutable mirror settings, also stamped so an existing helper adopts a
+ * changed cleanup policy once its organization's builds finish. */
+export function buildkitMirrorEnvironment(
+  cfg: Pick<SpawnerConfig, 'egressProxy'>,
+  registry: string,
+): string[] {
+  return [
+    `REGISTRY_PROXY_REMOTEURL=${mirrorUpstream(registry)}`,
+    // Distribution's proxy TTL scheduler calls the storage deletion path.
+    // Its default is disabled: expiration otherwise fails before removing
+    // any layer bytes, even though the scheduler forgets the expired entry.
+    'REGISTRY_STORAGE_DELETE_ENABLED=true',
+    `HTTPS_PROXY=${cfg.egressProxy}`,
+    `HTTP_PROXY=${cfg.egressProxy}`,
+    'NO_PROXY=127.0.0.1,localhost',
+  ];
+}
+
 function assertOrg(organizationId: string): void {
   if (!ORG_RE.test(organizationId)) {
     throw new Error(
@@ -326,18 +344,16 @@ export function buildkitHelperLimits(
 /** The label a helper carries with {@link helperStamp}. */
 const HELPER_STAMP_LABEL = 'tale.helper-config';
 
-/** How a helper was launched — its image and bounds — as a short hash: a
+/** How a helper was launched — its image, bounds and settings — as a short hash: a
  * running helper whose stamp differs predates the current release or
  * settings. */
 export function helperStamp(
   image: string,
   limits: readonly string[],
-  configuration = '',
+  configuration: readonly string[] = [],
 ): string {
   return createHash('sha256')
-    .update(
-      [image, ...limits, ...(configuration ? [configuration] : [])].join('\n'),
-    )
+    .update([image, ...limits, ...configuration].join('\n'))
     .digest('hex')
     .slice(0, 16);
 }
@@ -989,7 +1005,8 @@ async function ensureOneMirrorUnlocked(
   idle: () => Promise<boolean>,
 ): Promise<void> {
   const limits = buildkitHelperLimits(cfg, 'mirror');
-  const stamp = helperStamp(cfg.buildkitdMirrorImage, limits);
+  const environment = buildkitMirrorEnvironment(cfg, registry);
+  const stamp = helperStamp(cfg.buildkitdMirrorImage, limits, environment);
   const helper = await inspectBuildkitHelper(
     name,
     organizationId,
@@ -1039,14 +1056,7 @@ async function ensureOneMirrorUnlocked(
       // through the egress proxy (so the mirror itself needs no external DNS).
       '--network',
       cfg.egressNetwork,
-      '--env',
-      `REGISTRY_PROXY_REMOTEURL=${mirrorUpstream(registry)}`,
-      '--env',
-      `HTTPS_PROXY=${cfg.egressProxy}`,
-      '--env',
-      `HTTP_PROXY=${cfg.egressProxy}`,
-      '--env',
-      'NO_PROXY=127.0.0.1,localhost',
+      ...environment.flatMap((value) => ['--env', value]),
       '--mount',
       `type=volume,src=${volume},dst=/var/lib/registry`,
       cfg.buildkitdMirrorImage,
@@ -1222,11 +1232,9 @@ async function ensureBuildkitdOnNetwork(
     1,
     Math.floor(cfg.buildkitdCpus ?? cfg.session.agentProfile.cpus),
   );
-  const stamp = helperStamp(
-    cfg.buildkitdImage,
-    limits,
+  const stamp = helperStamp(cfg.buildkitdImage, limits, [
     `solver-parallelism=${parallelism}`,
-  );
+  ]);
   const helper = await inspectBuildkitHelper(
     name,
     organizationId,

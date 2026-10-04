@@ -198,7 +198,7 @@ base { log_debug = off; log_info = off; log = "stderr"; daemon = off; redirector
 redsocks { local_ip = 0.0.0.0; local_port = ${REDSOCKS_PORT}; ip = ${EGRESS_IP}; port = ${EGRESS_PORT}; type = http-connect; }
 EOF
   setpriv --reuid "$REDSOCKS_UID" --regid "$REDSOCKS_UID" --clear-groups -- \
-    redsocks -c /tmp/redsocks.conf >/tmp/redsocks.log 2>&1 &
+    redsocks -c /tmp/redsocks.conf >&2 &
 
   # Signal the spawner that the fence is up (redsocks + default route + current-IP
   # [dns]). Written last, only on the success path; its absence on a running

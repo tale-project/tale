@@ -14,6 +14,7 @@
 import { createHash, createHmac, randomUUID } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
 
+import { createParser } from 'eventsource-parser';
 import { z } from 'zod';
 
 import {
@@ -1565,6 +1566,42 @@ const cursorDecoders = new WeakMap<
   { stdout: TextDecoder; stderr: TextDecoder }
 >();
 
+const SSE_FRAME_MAX_CHARS = 16 * 1024 * 1024;
+
+/** The library bounds retained data, but complete events can dispatch before
+ * its buffer check, and ignored fields/comments do not enter its buffer.
+ * Keep our whole-frame limit independently, with counters only. Line endings
+ * count as LF across arbitrary chunks; the terminating blank line is excluded.
+ * Each incoming character is examined once, never the buffered prefix. */
+class SseFrameBudget {
+  private frameChars = 0;
+  private lineChars = 0;
+  private skipLineFeed = false;
+
+  accept(chunk: string): void {
+    for (let at = 0; at < chunk.length; at += 1) {
+      const code = chunk.charCodeAt(at);
+      if (this.skipLineFeed && code === 10) {
+        this.skipLineFeed = false;
+        continue;
+      }
+      this.skipLineFeed = code === 13;
+      if (code === 10 || code === 13) {
+        // A non-empty line's terminator may be the first half of the blank
+        // separator; charge it only if another non-empty line follows.
+        this.frameChars = this.lineChars === 0 ? 0 : this.frameChars + 1;
+        this.lineChars = 0;
+      } else {
+        this.lineChars += 1;
+        this.frameChars += 1;
+        if (this.frameChars > SSE_FRAME_MAX_CHARS) {
+          throw new ExecStreamProtocolError('Sandbox SSE frame exceeds 16 MiB');
+        }
+      }
+    }
+  }
+}
+
 async function consumeExecSse(
   body: ReadableStream<Uint8Array>,
   execId: string,
@@ -1574,7 +1611,7 @@ async function consumeExecSse(
 ): Promise<SessionExecResult> {
   const reader = body.getReader();
   const decoder = new TextDecoder('utf-8');
-  let buf = '';
+  const frameBudget = new SseFrameBudget();
   let result: SessionExecResult | null = null;
   const outputDecoders = (cursor && cursorDecoders.get(cursor)) || {
     stdout: new TextDecoder(),
@@ -1675,6 +1712,15 @@ async function consumeExecSse(
       throw new Error(message);
     }
   };
+  const parser = createParser({
+    maxBufferSize: SSE_FRAME_MAX_CHARS,
+    onEvent: ({ event, data }) => handleEvent(event ?? 'message', data),
+    onError: (error) => {
+      if (error.type === 'max-buffer-size-exceeded') {
+        throw new ExecStreamProtocolError('Sandbox SSE frame exceeds 16 MiB');
+      }
+    },
+  });
   try {
     for (;;) {
       // Race each read against an idle deadline. The spawner's 20s `: keepalive`
@@ -1703,20 +1749,9 @@ async function consumeExecSse(
       }
       const { value, done } = chunk;
       if (done) break;
-      // Normalize CRLF → LF so the `\n\n` SSE block split below can't leave a
-      // stray `\r` on event/data lines (parity with spawner_client.ts:371).
-      buf += decoder.decode(value, { stream: true }).replace(/\r\n/g, '\n');
-      let idx = buf.indexOf('\n\n');
-      while (idx !== -1) {
-        if (idx > 16 * 1024 * 1024)
-          throw new ExecStreamProtocolError('Sandbox SSE frame exceeds 16 MiB');
-        parseSseBlock(buf.slice(0, idx), handleEvent);
-        buf = buf.slice(idx + 2);
-        idx = buf.indexOf('\n\n');
-      }
-      if (buf.length > 16 * 1024 * 1024) {
-        throw new ExecStreamProtocolError('Sandbox SSE frame exceeds 16 MiB');
-      }
+      const text = decoder.decode(value, { stream: true });
+      frameBudget.accept(text);
+      parser.feed(text);
     }
     if (result === null) {
       throw new Error('sandbox session exec stream ended without a result');
@@ -1734,23 +1769,12 @@ async function consumeExecSse(
     }
     return result;
   } finally {
+    // A transport drop must discard its incomplete event. Only the cursor's
+    // accepted output decoder state survives a reconnect.
+    parser.reset();
     await reader.cancel().catch(() => {});
     reader.releaseLock();
   }
-}
-
-function parseSseBlock(
-  block: string,
-  handle: (event: string, data: string) => void,
-): void {
-  let event = 'message';
-  let data = '';
-  for (const line of block.split('\n')) {
-    if (line.startsWith('event: ')) event = line.slice(7).trim();
-    else if (line.startsWith('data: ')) data = line.slice(6);
-    // ': ' comment lines (keepalive) are ignored.
-  }
-  if (data) handle(event, data);
 }
 
 function parseData<T>(data: string): T | null {
