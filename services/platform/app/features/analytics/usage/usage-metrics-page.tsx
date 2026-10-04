@@ -1,6 +1,7 @@
 'use client';
 
 import { Alert } from '@tale/ui/alert';
+import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
 import {
   MetricsFilterChips,
   type MetricsFilterChip,
@@ -13,10 +14,12 @@ import {
 import { MetricsPeriodSelect } from '@tale/ui/metrics/metrics-period-select';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { AlertTriangle } from 'lucide-react';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
+import { failureDetail } from '@/app/lib/backend/adapters';
 import type { ReturnsOf } from '@/app/lib/backend/contract';
+import { readStateOf } from '@/app/lib/backend/read-state';
 import { useT } from '@/lib/i18n/client';
 
 import { TopAgentsTable } from './top-agents-table';
@@ -51,6 +54,12 @@ interface UsageMetricsPageViewProps {
    *  enclosing `<Skeletonize>` — cards/chart/tables stand in at full height). */
   data: UsageMetricsData;
   isLoading: boolean;
+  /** The failed read's notice, above whatever the page still shows. */
+  readFailure?: ReactNode;
+  /** The read never answered: no figure is known, so the cards, chart and
+   *  tables give way to `readFailure` — a zero there would claim measured
+   *  usage the server never reported (#3641). */
+  unavailable?: boolean;
   periodDays: MetricsPeriodDays;
   granularity: UsageGranularity;
   metric: UsageMetric;
@@ -77,6 +86,8 @@ interface UsageMetricsPageViewProps {
 function UsageMetricsPageView({
   data,
   isLoading,
+  readFailure,
+  unavailable = false,
   periodDays,
   granularity,
   metric,
@@ -174,48 +185,57 @@ function UsageMetricsPageView({
         />
       }
       notice={
-        summary?.capped ? (
-          <Alert
-            variant="warning"
-            icon={AlertTriangle}
-            title={t('usage.cappedNotice')}
-          />
+        readFailure || summary?.capped ? (
+          <>
+            {readFailure}
+            {summary?.capped ? (
+              <Alert
+                variant="warning"
+                icon={AlertTriangle}
+                title={t('usage.cappedNotice')}
+              />
+            ) : null}
+          </>
         ) : undefined
       }
     >
-      <UsageSummaryCards
-        totalRequests={summary?.totalRequests ?? 0}
-        totalTokens={summary?.totalTokens ?? 0}
-        totalCostCents={summary?.totalCostCents ?? 0}
-        activeUsers={summary?.activeUsers ?? 0}
-        previous={data?.previousSummary}
-      />
+      {unavailable ? null : (
+        <>
+          <UsageSummaryCards
+            totalRequests={summary?.totalRequests ?? 0}
+            totalTokens={summary?.totalTokens ?? 0}
+            totalCostCents={summary?.totalCostCents ?? 0}
+            activeUsers={summary?.activeUsers ?? 0}
+            previous={data?.previousSummary}
+          />
 
-      <UsageTrendChart
-        series={series}
-        metric={metric}
-        granularity={granularity}
-      />
+          <UsageTrendChart
+            series={series}
+            metric={metric}
+            granularity={granularity}
+          />
 
-      <TopAgentsTable
-        rows={topAgents}
-        isLoading={isLoading}
-        onSelectAgent={onSelectAgent}
-      />
+          <TopAgentsTable
+            rows={topAgents}
+            isLoading={isLoading}
+            onSelectAgent={onSelectAgent}
+          />
 
-      <TopModelsTable
-        rows={topModels}
-        isLoading={isLoading}
-        onSelectModel={onSelectModel}
-      />
+          <TopModelsTable
+            rows={topModels}
+            isLoading={isLoading}
+            onSelectModel={onSelectModel}
+          />
 
-      <TopVoiceModelsTable
-        rows={topVoiceModels}
-        isLoading={isLoading}
-        onSelectModel={onSelectModel}
-      />
+          <TopVoiceModelsTable
+            rows={topVoiceModels}
+            isLoading={isLoading}
+            onSelectModel={onSelectModel}
+          />
 
-      <UsersTable rows={users} isLoading={isLoading} />
+          <UsersTable rows={users} isLoading={isLoading} />
+        </>
+      )}
     </MetricsLayout>
   );
 }
@@ -248,7 +268,7 @@ export function UsageMetricsPage({
   const [model, setModel] = useState<string | undefined>(undefined);
   const [provider, setProvider] = useState<string | undefined>(undefined);
 
-  const { data, isLoading } = useBackendQuery(
+  const usage = useBackendQuery(
     'governance/queries:getOrgUsageMetrics',
     {
       organizationId,
@@ -260,6 +280,21 @@ export function UsageMetricsPage({
     },
     { enabled: !!organizationId },
   );
+  const { data, isLoading, refetch } = usage;
+  // A failed read is named, never passed off as zero usage (#3641): the
+  // flags hold through a retry, which react-query starts from `pending`.
+  const read = readStateOf(usage);
+  // Where a Try again that worked hands its focus as the notice goes: the
+  // page's region, around the figures it brought back.
+  const regionRef = useRef<HTMLDivElement>(null);
+  const focusRegion = useCallback(() => regionRef.current?.focus(), []);
+  const retry = useCallback(() => void refetch(), [refetch]);
+  const failureMessage = [
+    t(read.stale ? 'usage.errors.refreshFailed' : 'usage.errors.loadFailed'),
+    failureDetail(usage.error),
+  ]
+    .filter(Boolean)
+    .join(' ');
 
   const handlePeriod = useCallback(
     (v: string) => {
@@ -295,24 +330,51 @@ export function UsageMetricsPage({
   }, []);
 
   return (
-    <Skeletonize loading={isLoading} label={t('usage.title')}>
-      <UsageMetricsPageView
-        data={data}
-        isLoading={isLoading}
-        periodDays={periodDays}
-        granularity={granularity}
-        metric={metric}
-        agentSlug={agentSlug}
-        model={model}
-        provider={provider}
-        onPeriod={handlePeriod}
-        onGranularity={handleGranularity}
-        onMetric={handleMetric}
-        onSelectAgent={setAgentSlug}
-        onSelectModel={setModel}
-        onSelectProvider={setProvider}
-        onClearAll={clearAll}
-      />
-    </Skeletonize>
+    <div
+      ref={regionRef}
+      role="region"
+      aria-label={t('usage.title')}
+      tabIndex={-1}
+      className="outline-none"
+    >
+      {/* A failed read that is being retried stays named, with its Try
+          again busy, rather than turning back into the skeleton. */}
+      <Skeletonize
+        loading={isLoading && !read.unavailable}
+        label={t('usage.title')}
+      >
+        <UsageMetricsPageView
+          data={data}
+          isLoading={isLoading}
+          readFailure={
+            read.unavailable || read.stale ? (
+              <CatalogLoadError
+                // Each failure is announced again; Try again keeps its node,
+                // and the focus on it, through a retry that fails again.
+                failureKey={read.failureCount}
+                message={failureMessage}
+                onRetry={retry}
+                isRetrying={read.retrying}
+                onFocusLost={focusRegion}
+              />
+            ) : undefined
+          }
+          unavailable={read.unavailable}
+          periodDays={periodDays}
+          granularity={granularity}
+          metric={metric}
+          agentSlug={agentSlug}
+          model={model}
+          provider={provider}
+          onPeriod={handlePeriod}
+          onGranularity={handleGranularity}
+          onMetric={handleMetric}
+          onSelectAgent={setAgentSlug}
+          onSelectModel={setModel}
+          onSelectProvider={setProvider}
+          onClearAll={clearAll}
+        />
+      </Skeletonize>
+    </div>
   );
 }

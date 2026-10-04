@@ -156,6 +156,9 @@ analytics:
     emptyVoiceModels:
       title: Aucune utilisation vocale
       description: Aucune synthèse TTS n'a été enregistrée pour la période sélectionnée.
+    errors:
+      loadFailed: Impossible de charger les métriques d'utilisation.
+      refreshFailed: Impossible d'actualiser les métriques d'utilisation. Les chiffres affichés ne sont peut-être plus à jour.
   feedback:
     title: Métriques des retours
     description:
@@ -3943,6 +3946,8 @@ governance:
     emptyTitle: La corbeille est vide
     entityLabelOne: enregistrement
     entityLabel: enregistrements
+    refreshFailed: Impossible de charger les derniers enregistrements. La liste est peut-être incomplète ou obsolète.
+    loadFailed: Impossible de charger les enregistrements de la corbeille.
   legalHold:
     targetTypes:
       thread: Thread
