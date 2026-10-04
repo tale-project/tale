@@ -60,7 +60,6 @@ import {
 import { releaseRemovedDevices } from '../domains/sandbox_devices/service.ts';
 import {
   failAgentRun,
-  inPlaceOfRun,
   isStandardAgentRefusal,
   kickAgentRun,
   startedViaOfRun,
@@ -77,6 +76,7 @@ import {
   retireBusyRetry,
   SCHEDULE_REVOKED_BEFORE_LAUNCH,
 } from '../domains/tasks/delegated-start.ts';
+import { TaskError } from '../domains/tasks/errors.ts';
 import {
   loadTaskRetryHistory,
   resolveTaskKickStartArgs,
@@ -89,6 +89,7 @@ import {
   announceAgentRunFailed,
   retireAutoRetry,
 } from '../domains/tasks/run-failure-notice.ts';
+import { readInPlaceRetryState } from '../domains/tasks/run-start.ts';
 import { deferredAgentKickRefusal } from '../domains/tasks/service.ts';
 import { runTaskAgentWatchdog } from '../domains/tasks/watchdogs.ts';
 import {
@@ -263,9 +264,9 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
     // The 0.5 port of `kickAutoRetryRun`: every guard re-derived in ONE
     // transaction — the failed run must still be the task's newest (a
     // raced manual kick supersedes the retry), the card must still sit at
-    // in_progress with THIS agent assigned (a person intervening must not
-    // be overridden), the consecutive-failure budget (reused pure
-    // module) must have room, and the run's starter must still be able to
+    // in_progress (or at the captured in-place decision) with THIS agent
+    // assigned (a person intervening must not be overridden), the consecutive-
+    // failure budget (reused pure module) must have room, and the run's starter must still be able to
     // start it (the manual Start's gate, as the project and their access
     // stand now).
     // Attribution stays with the failed run's own starter — the retry
@@ -314,11 +315,9 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         FOR UPDATE
       `;
       const task = tasks[0];
-      if (!task || task.archivedAt !== null) return 'task_unavailable';
-      if (task.status !== 'in_progress') return 'task_moved';
-      if (task.assigneeType !== 'agent' || task.assigneeId !== input.agentId) {
-        return 'reassigned';
-      }
+      // A missing/foreign task grants no authority over a run. Archived
+      // tasks still exist: inspect the exact failed source and retire it.
+      if (!task) return 'task_unavailable';
       const runs = await loadTaskRetryHistory(tx, input.taskId);
       const newest = runs[0];
       if (newest === undefined || newest.id !== input.expectedRunId) {
@@ -340,6 +339,36 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
           runId: newest.id,
           announce,
         });
+      if (task.archivedAt !== null) {
+        await retire(false);
+        return 'task_unavailable';
+      }
+      if (task.assigneeType !== 'agent' || task.assigneeId !== input.agentId) {
+        await retire(false);
+        return 'reassigned';
+      }
+      if (newest.inPlace) {
+        // Null on legacy kicks: do not guess which card decision they began
+        // under. A later scheduled occurrence can make a fresh decision.
+        const state = await readInPlaceRetryState(
+          tx,
+          input.organizationId,
+          input.taskId,
+        );
+        if (
+          startedVia === undefined ||
+          !['backlog', 'todo', 'in_progress'].includes(task.status) ||
+          newest.inPlaceRetryStatus !== task.status ||
+          newest.inPlaceRetryActivityId === undefined ||
+          state?.activityId !== newest.inPlaceRetryActivityId
+        ) {
+          await retire(false);
+          return 'task_moved';
+        }
+      } else if (task.status !== 'in_progress') {
+        await retire(false);
+        return 'task_moved';
+      }
       const budget = resolveAutoRetryBudget(runs);
       if (!budget.retry) {
         await retire(true);
@@ -374,11 +403,9 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         startedBy: newest.startedBy,
       });
       if (refusal !== null) {
-        // A starter who may no longer work the task ends its retry for good,
-        // and its watchers are told. A project archived or gone is someone
-        // else's decision about all of its work, and a restored project
-        // takes the retry on the job's next delivery: nothing is retired.
-        if (refusal === 'not_permitted') await retire(true);
+        // This delivery finishes without scheduling another check. An
+        // archive/restore is a new human decision, not a deferred retry.
+        await retire(refusal === 'not_permitted');
         return refusal;
       }
       // A run an automation step or another agent started stays one when
@@ -479,7 +506,7 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
           startedBy: newest.startedBy,
           trigger: 'auto_retry',
           ...(startedVia !== undefined
-            ? { startedVia, inPlace: await inPlaceOfRun(tx, newest.id) }
+            ? { startedVia, inPlace: newest.inPlace }
             : {}),
           autoRetryAttempt: budget.attempt,
           // Queued now, so the card shows the retry; started once the
@@ -490,6 +517,15 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
           ...(sessionId !== undefined ? { sessionId } : {}),
         });
       } catch (error) {
+        // Explicitly disabling automatic task work ends this decision. An
+        // unreadable policy still throws so pg-boss can retry that outage.
+        if (
+          error instanceof TaskError &&
+          error.code === 'TASK_AUTOMATION_DISABLED'
+        ) {
+          await retire(false);
+          return 'task_automation_disabled';
+        }
         // The organization's standard agent was switched off, or no longer
         // runs for the starter: no retry changes that, so the failed run
         // ends here and its watchers are told. The refusal is a check, not
