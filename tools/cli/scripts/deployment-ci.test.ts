@@ -12,6 +12,7 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { runInNewContext } from 'node:vm';
 
 import { parse } from 'yaml';
 
@@ -165,6 +166,33 @@ describe('release candidate validation', () => {
     parse(
       await readFile(join(repository, '.github/workflows/build.yml'), 'utf8'),
     ) as Workflow;
+
+  test.each([
+    ['push', 'refs/heads/main', false],
+    ['push', 'refs/heads/other', true],
+    ['pull_request', 'refs/pull/1/merge', true],
+    ['merge_group', 'refs/heads/gh-readonly-queue/main/pr-1', true],
+    ['workflow_dispatch', 'refs/heads/main', false],
+    ['repository_dispatch', 'refs/heads/main', false],
+  ] as const)(
+    '%s on %s cancels an admitted Build only when supersedable',
+    async (eventName, ref, expected) => {
+      const policy = (await workflow()).concurrency['cancel-in-progress'];
+      expect(typeof policy).toBe('string');
+      // This source-owned expression uses only string comparisons and boolean
+      // operators, with the same semantics for these lowercase event/ref values
+      // in JavaScript and Actions. Evaluate the parsed workflow's actual policy,
+      // not a second implementation of the intended event mapping.
+      const expression = String(policy).match(/^\$\{\{ (.+) \}\}$/)?.[1];
+      expect(expression).toBeDefined();
+      const actual: unknown = runInNewContext(
+        expression!,
+        { github: { event_name: eventName, ref } },
+        { timeout: 100 },
+      );
+      expect(actual).toBe(expected);
+    },
+  );
   const step = (job: Job, name: string) => {
     const found = (job.steps ?? []).find((entry) => entry.name === name);
     if (!found) throw new Error(`build.yml step "${name}" is missing`);
@@ -291,13 +319,14 @@ printf '%s\\n' "$TEST_COMPARE_STATUS"
       "(github.event_name == 'workflow_dispatch' || github.event_name == 'repository_dispatch')";
     const candidate =
       'inputs.candidate_sha || github.event.client_payload.candidate_sha';
-    // A push or pull request keeps `Build-<ref>` and cancels what it
-    // supersedes; either dispatch of one SHA shares `Build-candidate-<sha>`,
+    // Ordinary events keep `Build-<ref>`; main pushes finish the admitted run
+    // while superseded pending runs coalesce. Either dispatch of one SHA shares
+    // `Build-candidate-<sha>`,
     // which only another dispatch of that SHA can enter, and cancels nothing.
     expect(build.concurrency).toEqual({
       group: `\${{ github.workflow }}-\${{ ${dispatched} && format('candidate-{0}', ${candidate}) || github.ref }}`,
       'cancel-in-progress':
-        "${{ github.event_name != 'workflow_dispatch' && github.event_name != 'repository_dispatch' }}",
+        "${{ github.event_name != 'workflow_dispatch' && github.event_name != 'repository_dispatch' && !(github.event_name == 'push' && github.ref == 'refs/heads/main') }}",
     });
     // The title the release gate finds the run by; empty (GitHub's default
     // title) for every other event.

@@ -30,7 +30,10 @@ env:
   TURBO_TEAM: 'tale'
 
 jobs:
+  # Only candidates need remote source validation; ordinary jobs keep their event SHA.
   candidate-source:
+    if: >-
+      github.event_name == 'repository_dispatch'
     name: Candidate source
     uses: ./.github/workflows/release-candidate-source.yml
     permissions:
@@ -40,6 +43,12 @@ jobs:
       candidate_sha: ${{ github.event.client_payload.candidate_sha }}
 
   format:
+    if: >-
+      !cancelled() &&
+      (((github.event_name == 'repository_dispatch') &&
+      needs.candidate-source.result == 'success') ||
+      ((github.event_name != 'repository_dispatch') &&
+      needs.candidate-source.result == 'skipped'))
     needs: candidate-source
     name: Format
     runs-on: ubuntu-latest
@@ -82,6 +91,12 @@ jobs:
         run: bun run lint:links
 
   lint:
+    if: >-
+      !cancelled() &&
+      (((github.event_name == 'repository_dispatch') &&
+      needs.candidate-source.result == 'success') ||
+      ((github.event_name != 'repository_dispatch') &&
+      needs.candidate-source.result == 'skipped'))
     needs: candidate-source
     name: Lint
     runs-on: ubuntu-latest
@@ -104,6 +119,12 @@ jobs:
         run: bunx turbo run lint
 
   typecheck:
+    if: >-
+      !cancelled() &&
+      (((github.event_name == 'repository_dispatch') &&
+      needs.candidate-source.result == 'success') ||
+      ((github.event_name != 'repository_dispatch') &&
+      needs.candidate-source.result == 'skipped'))
     needs: candidate-source
     name: Type check
     runs-on: ubuntu-latest
@@ -159,6 +180,12 @@ jobs:
           fi
 
   build:
+    if: >-
+      !cancelled() &&
+      (((github.event_name == 'repository_dispatch') &&
+      needs.candidate-source.result == 'success') ||
+      ((github.event_name != 'repository_dispatch') &&
+      needs.candidate-source.result == 'skipped'))
     needs: candidate-source
     name: Build
     runs-on: ubuntu-latest
@@ -193,6 +220,12 @@ jobs:
         run: bunx turbo run test:prerender --filter=@tale/docs --filter=@tale/ui-docs
 
   test:
+    if: >-
+      !cancelled() &&
+      (((github.event_name == 'repository_dispatch') &&
+      needs.candidate-source.result == 'success') ||
+      ((github.event_name != 'repository_dispatch') &&
+      needs.candidate-source.result == 'skipped'))
     needs: candidate-source
     name: Unit
     runs-on: ubuntu-latest
@@ -241,7 +274,13 @@ jobs:
   test-ui:
     needs: candidate-source
     name: UI
-    if: github.event.pull_request.draft != true
+    if: >-
+      !cancelled() &&
+      (((github.event_name == 'repository_dispatch') &&
+      needs.candidate-source.result == 'success') ||
+      ((github.event_name != 'repository_dispatch') &&
+      needs.candidate-source.result == 'skipped')) &&
+      (github.event.pull_request.draft != true)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -269,6 +308,12 @@ jobs:
   # Failures mean workload correctness/setup failed, not that a latency budget
   # was exceeded. The report records representative coverage and remaining gaps.
   performance:
+    if: >-
+      !cancelled() &&
+      (((github.event_name == 'repository_dispatch') &&
+      needs.candidate-source.result == 'success') ||
+      ((github.event_name != 'repository_dispatch') &&
+      needs.candidate-source.result == 'skipped'))
     needs: candidate-source
     name: Performance
     runs-on: ubuntu-latest
@@ -321,6 +366,12 @@ jobs:
           if-no-files-found: warn
 
   knip:
+    if: >-
+      !cancelled() &&
+      (((github.event_name == 'repository_dispatch') &&
+      needs.candidate-source.result == 'success') ||
+      ((github.event_name != 'repository_dispatch') &&
+      needs.candidate-source.result == 'skipped'))
     needs: candidate-source
     name: Knip
     runs-on: ubuntu-latest
@@ -351,7 +402,13 @@ jobs:
   test-browser:
     needs: candidate-source
     name: Browser
-    if: github.event.pull_request.draft != true
+    if: >-
+      !cancelled() &&
+      (((github.event_name == 'repository_dispatch') &&
+      needs.candidate-source.result == 'success') ||
+      ((github.event_name != 'repository_dispatch') &&
+      needs.candidate-source.result == 'skipped')) &&
+      (github.event.pull_request.draft != true)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -405,6 +462,12 @@ jobs:
   # slipped past this list (a newer push to main cancels an older one's run,
   # and its tree carries every earlier commit).
   integration-scope:
+    if: >-
+      !cancelled() &&
+      (((github.event_name == 'repository_dispatch') &&
+      needs.candidate-source.result == 'success') ||
+      ((github.event_name != 'repository_dispatch') &&
+      needs.candidate-source.result == 'skipped'))
     needs: candidate-source
     name: Integration scope
     runs-on: ubuntu-latest
@@ -478,9 +541,12 @@ jobs:
     needs: [candidate-source, integration-scope]
     name: Backend integration
     if: >-
-      !cancelled() && github.event.pull_request.draft != true &&
-      (needs.integration-scope.result != 'success' ||
-      needs.integration-scope.outputs.run == 'true')
+      !cancelled() &&
+      (((github.event_name == 'repository_dispatch') &&
+      needs.candidate-source.result == 'success') ||
+      ((github.event_name != 'repository_dispatch') &&
+      needs.candidate-source.result == 'skipped')) &&
+      (github.event.pull_request.draft != true && (needs.integration-scope.result != 'success' || needs.integration-scope.outputs.run == 'true'))
     runs-on: ubuntu-latest
     timeout-minutes: 40
     permissions:

@@ -50,7 +50,10 @@ concurrency:
   cancel-in-progress: ${{ github.event_name != 'repository_dispatch' }}
 
 jobs:
+  # Only candidates need remote source validation; ordinary jobs keep their event SHA.
   candidate-source:
+    if: >-
+      github.event_name == 'repository_dispatch'
     name: Candidate source
     uses: ./.github/workflows/release-candidate-source.yml
     permissions:
@@ -70,7 +73,13 @@ jobs:
   bun-audit:
     needs: candidate-source
     name: Bun audit
-    if: github.event.pull_request.draft != true
+    if: >-
+      !cancelled() &&
+      (((github.event_name == 'repository_dispatch') &&
+      needs.candidate-source.result == 'success') ||
+      ((github.event_name != 'repository_dispatch') &&
+      needs.candidate-source.result == 'skipped')) &&
+      (github.event.pull_request.draft != true)
     runs-on: ubuntu-latest
     # Budget for a degraded advisory registry: the report step is capped at 4
     # minutes, the gate below retries hung or 5xx lookups up to three times.
@@ -151,7 +160,13 @@ jobs:
   trivy-fs:
     needs: candidate-source
     name: Trivy filesystem scan
-    if: github.event.pull_request.draft != true
+    if: >-
+      !cancelled() &&
+      (((github.event_name == 'repository_dispatch') &&
+      needs.candidate-source.result == 'success') ||
+      ((github.event_name != 'repository_dispatch') &&
+      needs.candidate-source.result == 'skipped')) &&
+      (github.event.pull_request.draft != true)
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
