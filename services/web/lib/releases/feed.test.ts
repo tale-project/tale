@@ -175,6 +175,7 @@ describe('release feed freshness', () => {
       reportStale,
       now: () => clock,
     });
+    clock += RELEASES_STALE_AFTER_MS + 1;
     await feed.refresh();
     await feed.refresh();
     expect(reportStale).toHaveBeenCalledTimes(1);
@@ -197,6 +198,32 @@ describe('release feed freshness', () => {
     clock += 1;
     await feed.refresh();
     expect(reportStale).toHaveBeenCalledTimes(2);
+  });
+
+  it('gives a deploy six hours to refresh an older snapshot before reporting', async () => {
+    let clock = Date.parse('2026-08-21T10:00:00Z');
+    const fetchReleases = vi
+      .fn<() => Promise<Release[]>>()
+      .mockRejectedValue(new Error('offline'));
+    const reportStale = vi.fn();
+    const feed = createReleaseFeed({
+      snapshot: SNAPSHOT,
+      snapshotFetchedAt: SNAPSHOT_FETCHED_AT,
+      fetchReleases,
+      reportStale,
+      now: () => clock,
+    });
+    await feed.refresh();
+    expect(reportStale).not.toHaveBeenCalled();
+    // Health still describes what is served: a list older than six hours.
+    expect(releaseFeedHealth(feed.read(), clock).ok).toBe(false);
+    clock += RELEASES_STALE_AFTER_MS;
+    await feed.refresh();
+    expect(reportStale).not.toHaveBeenCalled();
+    clock += 1;
+    await feed.refresh();
+    await feed.refresh();
+    expect(reportStale).toHaveBeenCalledTimes(1);
   });
 
   it('does not claim freshness for invalid or future snapshot dates', () => {

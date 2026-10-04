@@ -279,6 +279,43 @@ describe('POST /products — a refused body names its field', () => {
   });
 });
 
+/**
+ * The body the edit dialog sends once the person empties every optional
+ * field (#3615): the door hands each `null` to the update as a clear, so
+ * none is stripped or refused on the way.
+ */
+describe('POST /products/:id — the edit dialog clears its optional fields', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    updateProduct.mockResolvedValue([]);
+  });
+
+  it('passes every cleared field to the update as null', async () => {
+    const body = {
+      name: 'Audit widget',
+      description: null,
+      imageUrl: null,
+      stock: null,
+      price: null,
+      currency: null,
+      category: null,
+      status: 'active',
+    };
+    const res = await makeApp().request('/p-1?orgId=o1', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    expect(res.status).toBe(200);
+    expect(updateProduct).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ organizationId: 'o1' }),
+      'p-1',
+      body,
+    );
+  });
+});
+
 describe('DELETE and POST /products/:id — the managed image goes with the row', () => {
   beforeEach(() => {
     vi.clearAllMocks();
