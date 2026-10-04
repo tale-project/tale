@@ -220,6 +220,7 @@ export async function getFeedbackComment(
     SELECT comment
     FROM app.message_feedback
     WHERE id = ${feedbackId} AND org_id = ${organizationId}
+      AND lifecycle_status IS DISTINCT FROM 'trashed'
   `;
   return rows[0] === undefined ? undefined : rows[0].comment;
 }
@@ -383,6 +384,7 @@ export async function listRecentFeedbackPage(
       userId: row.userId,
       userDisplayName: nameOf.get(row.userId) ?? row.userId,
       rating: row.rating,
+      commentTruncated: (row.comment?.length ?? 0) > COMMENT_PROJECTION_MAX,
       comment: row.comment
         ? row.comment.length > COMMENT_PROJECTION_MAX
           ? row.comment.slice(0, COMMENT_PROJECTION_MAX) + '…'

@@ -24,27 +24,27 @@ function ExpandedComment({
 }) {
   const { data, isLoading, isError } = useBackendQuery(
     'feedback/queries:getFeedbackComment',
-    { feedbackId: row._id },
+    row.commentTruncated === true ? { feedbackId: row._id } : 'skip',
   );
 
-  if (isLoading) {
-    return (
-      <Text className="text-sm">
-        {tAnalytics('feedback.recent.loadingComment')}
-      </Text>
-    );
-  }
-  if (isError) {
-    return (
-      <Text className="text-destructive text-sm">
-        {tAnalytics('feedback.recent.commentLoadFailed')}
-      </Text>
-    );
-  }
   return (
-    <Text className="text-sm whitespace-pre-wrap">
-      {data?.comment ?? tAnalytics('feedback.recent.noComment')}
-    </Text>
+    <Stack gap={1} aria-live="polite">
+      <Text className="text-sm whitespace-pre-wrap">
+        {(row.commentTruncated === true && data !== undefined
+          ? data.comment
+          : row.comment) ?? tAnalytics('feedback.recent.noComment')}
+      </Text>
+      {row.commentTruncated === true && data === undefined && isLoading && (
+        <Text role="status" className="text-sm">
+          {tAnalytics('feedback.recent.loadingComment')}
+        </Text>
+      )}
+      {row.commentTruncated === true && data === undefined && isError && (
+        <Text role="alert" className="text-destructive text-sm">
+          {tAnalytics('feedback.recent.commentLoadFailed')}
+        </Text>
+      )}
+    </Stack>
   );
 }
 

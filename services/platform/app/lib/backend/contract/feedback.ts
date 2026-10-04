@@ -95,6 +95,7 @@ export interface FeedbackContract {
         userDisplayName: string;
         rating: 'positive' | 'negative';
         comment: null | string;
+        commentTruncated: boolean;
         agentSlug: null | string;
         model: null | string;
         provider: null | string;
