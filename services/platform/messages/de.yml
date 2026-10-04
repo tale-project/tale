@@ -2756,6 +2756,9 @@ emptyStates:
     description: Erstelle einen Schlüssel, um externe Tools und Skripte zu verbinden.
     descriptionNoCreate: Einen Schlüssel erstellen können Inhaber, Admins und Entwickler oder wer von einem Admin eine Kompetenz dafür erhalten hat.
 governance:
+  policyReadFailed: "Die gespeicherte Richtlinie konnte nicht geladen werden. Die Bearbeitung ist erst nach erfolgreichem Laden möglich."
+  policyReadRetry: Erneut versuchen
+  policyReadRetrying: Richtlinie wird erneut geladen
   title: Richtlinien
   toastSavedTitle: Änderungen gespeichert
   toastSaveFailedTitle: Änderungen konnten nicht gespeichert werden
