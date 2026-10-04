@@ -21,9 +21,19 @@ import {
   type HostMemory,
 } from '../host-memory.ts';
 import { jsonResponse } from '../http-util.ts';
+import {
+  operationSignal,
+  outsideOperationBudget,
+  waitWithinOperation,
+  withOperationBudget,
+} from '../operation-budget.ts';
 import { sseResponse } from '../sse.ts';
 import type { SpawnerConfig } from '../types.ts';
-import type { SessionExecResponse, SessionInfo } from '../wire.ts';
+import type {
+  SandboxSessionProfile,
+  SessionExecResponse,
+  SessionInfo,
+} from '../wire.ts';
 import {
   RunnerdActivityError,
   RunnerdStageBusyError,
@@ -34,6 +44,7 @@ import {
   runnerdEnvPatch,
   runnerdExec,
   runnerdExecStatus,
+  runnerdExecCheckpoint,
   runnerdHealth,
   runnerdListDir,
   runnerdReadFile,
@@ -252,6 +263,7 @@ export class SessionRoutes {
   // The working set each create in flight is planned with: memory a starting
   // session is about to take that MemAvailable does not show yet.
   private readonly creatingBytes = new Map<string, number>();
+  private readonly acquiring = new Map<string, Promise<Response>>();
   // Sessions that started a moment ago, with the working set they were
   // planned with: what they are still growing into (YOUNG_SESSION_RESERVE_MS).
   private readonly youngBytes = new Map<
@@ -550,7 +562,7 @@ export class SessionRoutes {
   private async sessionDiskNow(): Promise<SessionDiskState | null> {
     try {
       const disk = await this.hostDisk.read(true);
-      if (disk === null) return null;
+      if (disk === null || disk.unavailable === true) return null;
       return {
         availableBytes: disk.availableBytes,
         short: belowDiskFloor(disk, this.cfg.session.minFreeDiskBytes),
@@ -592,7 +604,7 @@ export class SessionRoutes {
   private async reserveCreate(
     sessionId: string,
     organizationId: string,
-    profile: 'agent' | 'default',
+    profile: SandboxSessionProfile,
     docker?: boolean,
   ): Promise<Response | null> {
     const workingSet = sessionWorkingSetBytes(
@@ -1580,7 +1592,25 @@ export class SessionRoutes {
     return true;
   }
 
-  async handleCreate(body: string): Promise<Response> {
+  async handleCreate(body: string, signal?: AbortSignal): Promise<Response> {
+    try {
+      return await withOperationBudget(
+        this.cfg.session.createHealthTimeoutMs,
+        () => this.handleCreateNow(body),
+        signal,
+      );
+    } catch (error) {
+      return jsonResponse(
+        {
+          error: 'create_failed',
+          message: error instanceof Error ? error.message : String(error),
+        },
+        502,
+      );
+    }
+  }
+
+  private async handleCreateNow(body: string): Promise<Response> {
     let parsed: unknown;
     try {
       parsed = JSON.parse(body);
@@ -1608,7 +1638,9 @@ export class SessionRoutes {
       const destroying = this.destroySettled.get(req.sessionId);
       if (
         destroying !== undefined &&
-        !(await settlesWithin(destroying.promise, CREATE_WAITS_FOR_DESTROY_MS))
+        !(await waitWithinOperation(
+          settlesWithin(destroying.promise, CREATE_WAITS_FOR_DESTROY_MS),
+        ))
       ) {
         return jsonResponse(
           {
@@ -1626,7 +1658,9 @@ export class SessionRoutes {
       const reaping = this.endedReaping.get(req.sessionId);
       if (
         reaping !== undefined &&
-        !(await settlesWithin(reaping, CREATE_WAITS_FOR_ENDED_REAP_MS))
+        !(await waitWithinOperation(
+          settlesWithin(reaping, CREATE_WAITS_FOR_ENDED_REAP_MS),
+        ))
       ) {
         return jsonResponse(
           {
@@ -1640,7 +1674,9 @@ export class SessionRoutes {
       const pinning = this.pinOperations.get(req.sessionId);
       if (
         pinning !== undefined &&
-        !(await settlesWithin(pinning, CREATE_WAITS_FOR_DESTROY_MS))
+        !(await waitWithinOperation(
+          settlesWithin(pinning, CREATE_WAITS_FOR_DESTROY_MS),
+        ))
       ) {
         return jsonResponse(
           {
@@ -1663,6 +1699,7 @@ export class SessionRoutes {
           idleTimeoutMs: req.idleTimeoutMs,
           env: req.env,
           createdAtMs,
+          signal: operationSignal(),
         });
       } catch (err) {
         return jsonResponse(
@@ -1688,9 +1725,14 @@ export class SessionRoutes {
         // released, workspace kept for the retry); only a fresh create destroys
         // the half-made workspace it created itself. Mirrors the backends' own
         // failed-create cleanup.
-        const rollback = created.resumed
-          ? this.backend.stopSession(req.sessionId)
-          : this.backend.destroySession(req.sessionId);
+        const preserveWorkspace = created.resumed || operationSignal()?.aborted;
+        const rollback = outsideOperationBudget(() =>
+          withOperationBudget(30_000, () =>
+            preserveWorkspace
+              ? this.backend.stopSession(req.sessionId, createdAtMs)
+              : this.backend.destroySession(req.sessionId),
+          ),
+        );
         await rollback.catch((rollbackErr) => {
           console.warn(
             `[sandbox.session] rollback ${created.resumed ? 'stop' : 'destroy'} after resolveEndpoint failure:`,
@@ -1861,6 +1903,31 @@ export class SessionRoutes {
     action: 'ticket' | 'acquire' | 'release',
     body = '',
   ): Promise<Response> {
+    if (action !== 'acquire') {
+      // A release/ticket separates turns; only adjacent acquires coalesce.
+      this.acquiring.delete(sessionId);
+      return this.queueActivity(sessionId, action, body);
+    }
+    let work = this.acquiring.get(sessionId);
+    if (work === undefined) {
+      work = this.queueActivity(sessionId, action, body).finally(() => {
+        if (this.acquiring.get(sessionId) === work)
+          this.acquiring.delete(sessionId);
+      });
+      this.acquiring.set(sessionId, work);
+    }
+    const response = await work;
+    return new Response(response.clone().body, {
+      status: response.status,
+      headers: response.headers,
+    });
+  }
+
+  private async queueActivity(
+    sessionId: string,
+    action: 'ticket' | 'acquire' | 'release',
+    body: string,
+  ): Promise<Response> {
     // Runnerd's generation remains the cross-replica authority. Serializing
     // this spawner's requests also keeps an old completion from clearing the
     // growth reservation belonging to the acquire that overtook it.
@@ -2014,6 +2081,17 @@ export class SessionRoutes {
   private async reserveActivation(
     session: RegistrySession,
   ): Promise<Response | null> {
+    // Disk admission applies even when host memory is unavailable (Kubernetes).
+    if (this.diskShort()) {
+      return jsonResponse(
+        {
+          error: 'host_disk',
+          message: 'the sandbox host is short of disk space',
+        },
+        429,
+        { 'retry-after': '5' },
+      );
+    }
     if (this.memoryCeiling() === null) return null;
     const sessionId = session.sessionId;
     const health = await runnerdHealth({
@@ -2280,21 +2358,48 @@ export class SessionRoutes {
       return jsonResponse({ error: 'bad_request', message: v.error }, 400);
     const execReq = v.value;
 
-    // Direct API exec callers use the same admission as platform acquisition.
-    // A turn already admitted during this growth window incurs no extra RPC.
+    // Direct exec callers need not acquire a work lease first. Admit their
+    // warm growth once, while an acquired turn or active exec already owns
+    // its working set. An idempotent retry remains usable under pressure.
+    let replayOnly = false;
     const active = this.activeGenerations.get(sessionId);
     if (
-      this.memoryCeiling() !== null &&
+      session.liveExecs.size === 0 &&
       (active === undefined ||
         Date.now() - active.admittedAtMs >= YOUNG_SESSION_RESERVE_MS)
     ) {
-      const admission = await this.handleActivity(sessionId, 'acquire');
-      if (!admission.ok) return admission;
+      const refused =
+        this.memoryCeiling() === null
+          ? await this.reserveActivation(session)
+          : await this.handleActivity(sessionId, 'acquire');
+      if (refused !== null && !refused.ok) {
+        if (refused.status !== 429) return refused;
+        try {
+          const status = await runnerdExecStatus(
+            { baseUrl: session.endpoint, token: this.tokenFor(sessionId) },
+            execReq.execId,
+          );
+          if (status.state !== 'running' && status.state !== 'exited')
+            return refused;
+          // Attach, never POST: retention may evict the id after this probe,
+          // and that race must not turn a refused retry into fresh execution.
+          replayOnly = true;
+        } catch (error) {
+          if (await this.evictIfBackendGone(sessionId))
+            return jsonResponse({ error: 'not_found' }, 404);
+          console.warn(
+            '[sandbox.session] exec retry status unavailable:',
+            error,
+          );
+          return refused;
+        }
+      }
     }
 
     const ac = new AbortController();
     const abortHandler = () => ac.abort();
     req.signal.addEventListener('abort', abortHandler, { once: true });
+    if (req.signal.aborted) ac.abort();
     this.registry.registerExec(sessionId, execReq.execId, ac);
 
     const token = this.tokenFor(sessionId);
@@ -2327,7 +2432,7 @@ export class SessionRoutes {
             const bytes = b64decode(e.b64);
             if (collect) stdoutChunks.push(bytes);
             send('stdout', {
-              text: new TextDecoder().decode(bytes),
+              text: new TextDecoder('utf-8', { ignoreBOM: true }).decode(bytes),
               b64: e.b64,
               seq: e.seq,
             });
@@ -2337,7 +2442,7 @@ export class SessionRoutes {
             const bytes = b64decode(e.b64);
             if (collect) stderrChunks.push(bytes);
             send('stderr', {
-              text: new TextDecoder().decode(bytes),
+              text: new TextDecoder('utf-8', { ignoreBOM: true }).decode(bytes),
               b64: e.b64,
               seq: e.seq,
             });
@@ -2363,6 +2468,9 @@ export class SessionRoutes {
                 : {}),
             };
             break;
+          case 'gap':
+            send('gap', { fromSeq: e.fromSeq, toSeq: e.toSeq });
+            break;
           case 'fail':
             forwardReplayFailure(e, send);
             result = {
@@ -2382,27 +2490,34 @@ export class SessionRoutes {
         }
       };
       try {
-        await runnerdExec(
-          { baseUrl: session.endpoint, token },
-          {
-            execId: execReq.execId,
-            ...(execReq.command ? { command: execReq.command } : {}),
-            ...(execReq.shell ? { shell: execReq.shell } : {}),
-            ...(execReq.cwd ? { cwd: execReq.cwd } : {}),
-            ...(execReq.env ? { env: execReq.env } : {}),
-            ...(execReq.stdinBase64
-              ? { stdinBase64: execReq.stdinBase64 }
-              : {}),
-            ...(execReq.stdinMode ? { stdinMode: execReq.stdinMode } : {}),
-            timeoutMs: execReq.timeoutMs,
-            // 0 = unlimited for streaming execs (collect=false): runnerd never
-            // truncates the live stream; memory stays bounded by its ring.
-            stdoutMaxBytes: collect ? this.cfg.stdoutMaxBytes : 0,
-            stderrMaxBytes: collect ? this.cfg.stderrMaxBytes : 0,
-          },
-          onEvent,
-          AbortSignal.any([ac.signal, signal]),
-        );
+        const opts = { baseUrl: session.endpoint, token };
+        const execSignal = AbortSignal.any([ac.signal, signal]);
+        if (replayOnly) {
+          if (!(await runnerdAttach(opts, execReq.execId, onEvent, execSignal)))
+            throw new Error(`exec ${execReq.execId} not found`);
+        } else {
+          await runnerdExec(
+            opts,
+            {
+              execId: execReq.execId,
+              ...(execReq.command ? { command: execReq.command } : {}),
+              ...(execReq.shell ? { shell: execReq.shell } : {}),
+              ...(execReq.cwd ? { cwd: execReq.cwd } : {}),
+              ...(execReq.env ? { env: execReq.env } : {}),
+              ...(execReq.stdinBase64
+                ? { stdinBase64: execReq.stdinBase64 }
+                : {}),
+              ...(execReq.stdinMode ? { stdinMode: execReq.stdinMode } : {}),
+              timeoutMs: execReq.timeoutMs,
+              // 0 = unlimited for streaming execs (collect=false): runnerd never
+              // truncates the live stream; memory stays bounded by replay and consumer queues.
+              stdoutMaxBytes: collect ? this.cfg.stdoutMaxBytes : 0,
+              stderrMaxBytes: collect ? this.cfg.stderrMaxBytes : 0,
+            },
+            onEvent,
+            execSignal,
+          );
+        }
         if (result) {
           send('result', result);
         } else {
@@ -2483,6 +2598,30 @@ export class SessionRoutes {
    * evicted past the recent window). A transport blip with a live backend
    * returns 502 so the platform's restorative watchdog treats it as "unknown"
    * and skips (never finalizes a turn on a daemon hiccup). */
+  async handleExecCheckpoint(
+    req: Request,
+    sessionId: string,
+    execId: string,
+    body: string,
+  ): Promise<Response> {
+    const session = await this.ensureRegistered(sessionId);
+    if (!session) return jsonResponse({ error: 'not_found' }, 404);
+    try {
+      return await runnerdExecCheckpoint(
+        { baseUrl: session.endpoint, token: this.tokenFor(sessionId) },
+        execId,
+        req.method === 'PUT' ? 'PUT' : 'GET',
+        body,
+        req.signal,
+      );
+    } catch (error) {
+      if (await this.evictIfBackendGone(sessionId))
+        return jsonResponse({ error: 'not_found' }, 404);
+      console.warn('[sandbox.session] checkpoint transport failed:', error);
+      return jsonResponse({ error: 'upstream_error' }, 502);
+    }
+  }
+
   async handleExecStatus(sessionId: string, execId: string): Promise<Response> {
     const session = await this.ensureRegistered(sessionId);
     if (!session) return jsonResponse({ execId, state: 'gone' }, 404);
@@ -2727,7 +2866,11 @@ export class SessionRoutes {
 
   /** POST /v1/sessions/:id/files/stage — write files into /agent (inline
    * base64 content, or presigned URLs the daemon fetches). */
-  async handleFilesStage(sessionId: string, body: string): Promise<Response> {
+  async handleFilesStage(
+    sessionId: string,
+    body: string,
+    signal?: AbortSignal,
+  ): Promise<Response> {
     const session = await this.ensureRegistered(sessionId);
     if (!session) return jsonResponse({ error: 'not_found' }, 404);
     let parsed: {
@@ -2735,6 +2878,8 @@ export class SessionRoutes {
         path: string;
         url?: string;
         contentBase64?: string;
+        sha256?: string;
+        cacheKey?: string;
         sourceId?: string;
       }>;
       replaceRoots?: string[];
@@ -2760,6 +2905,13 @@ export class SessionRoutes {
                 (file.url !== undefined && typeof file.url !== 'string') ||
                 (file.contentBase64 !== undefined &&
                   typeof file.contentBase64 !== 'string') ||
+                (file.sha256 !== undefined &&
+                  (typeof file.sha256 !== 'string' ||
+                    !/^[a-f0-9]{64}$/.test(file.sha256))) ||
+                (file.cacheKey !== undefined &&
+                  (typeof file.cacheKey !== 'string' ||
+                    file.cacheKey.length === 0 ||
+                    file.cacheKey.length > 256)) ||
                 (file.sourceId !== undefined &&
                   (typeof file.sourceId !== 'string' ||
                     file.sourceId.length === 0 ||
@@ -2789,6 +2941,7 @@ export class SessionRoutes {
         { baseUrl: session.endpoint, token: this.tokenFor(sessionId) },
         parsed.files ?? [],
         { replaceRoots: parsed.replaceRoots, keepPaths: parsed.keepPaths },
+        signal,
       );
     } catch (err) {
       if (err instanceof RunnerdStageBusyError)
@@ -2918,14 +3071,18 @@ function forwardExecEvent(
       break;
     case 'stdout':
       send('stdout', {
-        text: new TextDecoder().decode(b64decode(e.b64)),
+        text: new TextDecoder('utf-8', { ignoreBOM: true }).decode(
+          b64decode(e.b64),
+        ),
         b64: e.b64,
         seq: e.seq,
       });
       break;
     case 'stderr':
       send('stderr', {
-        text: new TextDecoder().decode(b64decode(e.b64)),
+        text: new TextDecoder('utf-8', { ignoreBOM: true }).decode(
+          b64decode(e.b64),
+        ),
         b64: e.b64,
         seq: e.seq,
       });
@@ -2948,6 +3105,9 @@ function forwardExecEvent(
           ? { errorCode: 'TIMEOUT' as const }
           : {}),
       } satisfies SessionExecResponse);
+      break;
+    case 'gap':
+      send('gap', { fromSeq: e.fromSeq, toSeq: e.toSeq });
       break;
     case 'fail':
       forwardReplayFailure(e, send);

@@ -71,6 +71,7 @@ const stageBodies: unknown[] = [];
 let stageFailure: string | undefined;
 // Each POST /execs/:id/cancel runnerd received, path and query.
 const cancelRequests: string[] = [];
+const attachRequests: string[] = [];
 // Captures each POST /execs body the spawner sends to runnerd, so tests can
 // assert the per-exec stdoutMaxBytes/stderrMaxBytes the spawner chose.
 const execRequests: Array<{
@@ -335,6 +336,10 @@ beforeAll(() => {
         });
       }
       if (url.pathname.endsWith('/attach')) {
+        attachRequests.push(url.pathname);
+        if (url.pathname.includes('/done-disappears/')) {
+          return new Response('gone', { status: 404 });
+        }
         if (url.pathname.includes('/replay-unavailable/')) {
           return new Response(
             ndjson([
@@ -356,7 +361,9 @@ beforeAll(() => {
             { t: 'replay-start' },
             {
               t: 'stdout',
-              b64: Buffer.from('replayed').toString('base64'),
+              b64: Buffer.from(
+                url.pathname.includes('/bom-') ? '\uFEFFreplayed' : 'replayed',
+              ).toString('base64'),
               seq: 1,
             },
             { t: 'replay-complete', throughSeq: 1 },
@@ -494,6 +501,7 @@ beforeEach(() => {
   stageBodies.length = 0;
   stageFailure = undefined;
   execRequests.length = 0;
+  attachRequests.length = 0;
   backendGone.clear();
   backendCheckThrows = false;
   backendDestroyThrows.clear();
@@ -551,7 +559,15 @@ describe('SessionRoutes (fake runnerd)', () => {
       JSON.stringify({ sessionId: 'stage-probe', organizationId: 'org_stage' }),
     );
     const request = {
-      files: [{ path: 'repo/README.md', sourceId: 'sha256:fixture' }],
+      files: [
+        { path: 'repo/README.md', sourceId: 'sha256:fixture' },
+        {
+          path: 'skills/example/SKILL.md',
+          contentBase64: 'eA==',
+          sha256: 'a'.repeat(64),
+          cacheKey: 'immutable-version',
+        },
+      ],
       replaceRoots: ['skills'],
       keepPaths: ['skills/example/SKILL.md'],
     };
@@ -585,6 +601,18 @@ describe('SessionRoutes (fake runnerd)', () => {
         )
       ).status,
     ).toBe(400);
+    for (const invalid of [{ sha256: 'not-a-digest' }, { cacheKey: '' }]) {
+      expect(
+        (
+          await routes.handleFilesStage(
+            'stage-probe',
+            JSON.stringify({
+              files: [{ path: 'x', contentBase64: 'eA==', ...invalid }],
+            }),
+          )
+        ).status,
+      ).toBe(400);
+    }
     expect(stageBodies.length).toBe(1);
   });
   test('create → exec echo → destroy', async () => {
@@ -642,6 +670,31 @@ describe('SessionRoutes (fake runnerd)', () => {
     expect(destroyed.has('sess1')).toBe(true);
     // gone from registry
     expect((await routes.handleGet('sess1')).status).toBe(404);
+  });
+
+  test('exec and attach preserve a frame-leading Unicode BOM as output', async () => {
+    const routes = new SessionRoutes(cfg, fakeBackend);
+    await routes.handleCreate(
+      JSON.stringify({ sessionId: 'sess_bom', organizationId: 'org_bom' }),
+    );
+    const execRes = await routes.handleExec(
+      new Request('http://x/v1/sessions/sess_bom/exec', { method: 'POST' }),
+      'sess_bom',
+      JSON.stringify({ execId: 'bom-live', command: ['echo', '\uFEFFhi'] }),
+    );
+    const live = await readSse(execRes);
+    expect(
+      live.events.find((event) => event.event === 'stdout')?.data.text,
+    ).toBe('\uFEFFhi\n');
+    const attachRes = await routes.handleExecAttach(
+      new Request('http://x', { method: 'GET' }),
+      'sess_bom',
+      'bom-replay',
+    );
+    const replay = await readSse(attachRes);
+    expect(
+      replay.events.find((event) => event.event === 'stdout')?.data.text,
+    ).toBe('\uFEFFreplayed');
   });
 
   test('result forwards runnerd exit durationMs VERBATIM (the runner-measured wall-clock)', async () => {
@@ -1357,6 +1410,49 @@ describe('SessionRoutes (fake runnerd)', () => {
       session: { createdAtMs: replacement.createdAtMs, pinned: false },
     });
     expect(destroyed.has(replacement.sessionId)).toBe(false);
+  });
+
+  test('a cancelled recreate stops waiting for an older pin without starting new compute', async () => {
+    const entered = Promise.withResolvers<void>();
+    const finish = Promise.withResolvers<void>();
+    let gone = false;
+    let creates = 0;
+    const routes = new SessionRoutes(cfg, {
+      ...fakeBackend,
+      async createSession(spec) {
+        creates++;
+        return fakeBackend.createSession(spec);
+      },
+      async sessionExists() {
+        return !gone;
+      },
+      async setPinned() {
+        entered.resolve();
+        await finish.promise;
+      },
+    });
+    const body = JSON.stringify({
+      sessionId: 'pin-create-cancel',
+      organizationId: 'org_pin',
+    });
+    await routes.handleCreate(body);
+    const pin = routes.handleSetPinned('pin-create-cancel', '{"pinned":true}');
+    await entered.promise;
+    gone = true;
+    expect((await routes.handleGet('pin-create-cancel')).status).toBe(404);
+    const controller = new AbortController();
+    const creating = routes.handleCreate(body, controller.signal);
+    await Bun.sleep(0);
+    controller.abort(new Error('create caller cancelled'));
+    try {
+      expect(await settlesWithin(creating, 50)).toBe(true);
+      expect((await creating).status).toBe(502);
+      expect(creates).toBe(1);
+    } finally {
+      finish.resolve();
+      await pin;
+      await creating;
+    }
   });
 
   test('pin writes are serialized, and destroy waits before removing their incarnation', async () => {
@@ -3723,6 +3819,12 @@ describe('the first-come line for host room', () => {
 
 describe('memory-aware admission', () => {
   const GIB = 1024 ** 3;
+  const release = async (routes: SessionRoutes, id: string) => {
+    const ticket: unknown = await (
+      await routes.handleActivity(id, 'ticket')
+    ).json();
+    return routes.handleActivity(id, 'release', JSON.stringify(ticket));
+  };
   const create = (routes: SessionRoutes, id: string) =>
     routes.handleCreate(
       JSON.stringify({
@@ -3739,13 +3841,166 @@ describe('memory-aware admission', () => {
     });
     return { latest: reading, read: () => Promise.resolve(reading()) };
   };
+  const exec = (routes: SessionRoutes, id: string, execId: string) =>
+    routes.handleExec(
+      new Request(`http://spawner/v1/sessions/${id}/exec`, { method: 'POST' }),
+      id,
+      JSON.stringify({ execId, command: ['echo', 'admitted'] }),
+    );
 
-  const release = async (routes: SessionRoutes, id: string) => {
-    const ticket: unknown = await (
-      await routes.handleActivity(id, 'ticket')
-    ).json();
-    return routes.handleActivity(id, 'release', JSON.stringify(ticket));
-  };
+  test('a new direct exec on released warm compute cannot bypass memory admission', async () => {
+    let available = 8;
+    const routes = new SessionRoutes(
+      cfg,
+      fakeBackend,
+      undefined,
+      host(() => available),
+    );
+    await create(routes, 'direct-pressure');
+    await release(routes, 'direct-pressure');
+    available = 0.125;
+    const response = await exec(routes, 'direct-pressure', 'gone-new');
+    expect(response.status).toBe(429);
+    expect(await response.json()).toMatchObject({ error: 'host_memory' });
+    expect(execRequests).toHaveLength(0);
+    expect(attachRequests).toHaveLength(0);
+  });
+
+  test('concurrent direct execs share one warm growth reservation', async () => {
+    let available = 8;
+    const routes = new SessionRoutes(
+      cfg,
+      fakeBackend,
+      undefined,
+      host(() => available),
+    );
+    for (const id of ['direct-pair', 'direct-other']) {
+      await create(routes, id);
+      await release(routes, id);
+    }
+    available = 2.2;
+    const responses = await Promise.all([
+      exec(routes, 'direct-pair', 'gone-first'),
+      exec(routes, 'direct-pair', 'gone-second'),
+    ]);
+    expect(responses.map((response) => response.status)).toEqual([200, 200]);
+    await Promise.all(responses.map(readSse));
+    expect(execRequests).toHaveLength(2);
+    expect((await exec(routes, 'direct-other', 'gone-third')).status).toBe(429);
+    expect(execRequests).toHaveLength(2);
+  });
+
+  test('an acquired work lease with live work is not charged again under pressure', async () => {
+    let available = 8;
+    const routes = new SessionRoutes(
+      cfg,
+      fakeBackend,
+      undefined,
+      host(() => available),
+    );
+    await create(routes, 'direct-held');
+    await release(routes, 'direct-held');
+    expect((await routes.handleActivity('direct-held', 'acquire')).status).toBe(
+      200,
+    );
+    try {
+      setSystemTime(Date.now() + 120_000);
+      fakeHealth.liveExecs = 1;
+      available = 0.125;
+      const response = await exec(routes, 'direct-held', 'gone-new');
+      expect(response.status).toBe(200);
+      await readSse(response);
+      expect(execRequests).toHaveLength(1);
+      expect(attachRequests).toHaveLength(0);
+    } finally {
+      setSystemTime();
+    }
+  });
+
+  test.each(['running-existing', 'done-existing', 'done-disappears'])(
+    'a capacity-refused retry of %s only attaches and never starts a fresh exec',
+    async (execId) => {
+      let available = 8;
+      const routes = new SessionRoutes(
+        cfg,
+        fakeBackend,
+        undefined,
+        host(() => available),
+      );
+      await create(routes, 'direct-replay');
+      await release(routes, 'direct-replay');
+      available = 0.125;
+      const response = await exec(routes, 'direct-replay', execId);
+      expect(response.status).toBe(200);
+      const { events } = await readSse(response);
+      expect(execRequests).toHaveLength(0);
+      expect(attachRequests).toEqual([`/execs/${execId}/attach`]);
+      if (execId === 'done-disappears') {
+        expect(events.some((event) => event.event === 'error')).toBe(true);
+        expect(events.some((event) => event.event === 'result')).toBe(false);
+      } else {
+        expect(
+          events.find((event) => event.event === 'result')?.data,
+        ).toMatchObject({
+          status: 'completed',
+          stdoutBase64: Buffer.from('replayedlive').toString('base64'),
+        });
+      }
+    },
+  );
+
+  test('warm turns reserve growth, refuse pressure, and release the reservation', async () => {
+    let available = 8;
+    const routes = new SessionRoutes(
+      cfg,
+      fakeBackend,
+      undefined,
+      host(() => available),
+    );
+    for (const id of ['warm-one', 'warm-two']) {
+      expect((await create(routes, id)).status).toBe(201);
+      await release(routes, id);
+      await routes.handleSetPinned(id, '{"pinned":true}');
+    }
+    available = 2;
+    const refused = await routes.handleActivity('warm-one', 'acquire');
+    expect(refused.status).toBe(429);
+    expect(await refused.json()).toMatchObject({ error: 'host_memory' });
+    expect(stopped.size).toBe(0);
+    available = 2.5;
+    const burst = await Promise.all([
+      routes.handleActivity('warm-one', 'acquire'),
+      routes.handleActivity('warm-two', 'acquire'),
+    ]);
+    expect(burst.map((response) => response.status)).toEqual([200, 429]);
+    // An existing lease can retry; it does not pay a second working set.
+    expect((await routes.handleActivity('warm-one', 'acquire')).status).toBe(
+      200,
+    );
+    await release(routes, 'warm-one');
+    expect((await routes.handleActivity('warm-two', 'acquire')).status).toBe(
+      200,
+    );
+  });
+
+  test('duplicate warm acquires share one generation and reservation', async () => {
+    let available = 8;
+    const routes = new SessionRoutes(
+      cfg,
+      fakeBackend,
+      undefined,
+      host(() => available),
+    );
+    await create(routes, 'same-warm');
+    await release(routes, 'same-warm');
+    available = 2.2;
+    const responses = await Promise.all([
+      routes.handleActivity('same-warm', 'acquire'),
+      routes.handleActivity('same-warm', 'acquire'),
+    ]);
+    expect(responses.map((response) => response.status)).toEqual([200, 200]);
+    expect(await responses[0].json()).toEqual(await responses[1].json());
+  });
 
   test('a warm released session waits for memory before acquiring without losing its workspace', async () => {
     let available = 8;
@@ -3806,6 +4061,25 @@ describe('memory-aware admission', () => {
     expect((await routes.handleActivity('warm-b', 'acquire')).status).toBe(200);
   });
 
+  test('an intervening ticket separates acquires into distinct serialized generations', async () => {
+    const routes = new SessionRoutes(
+      cfg,
+      fakeBackend,
+      undefined,
+      host(() => 8),
+    );
+    await create(routes, 'ordered-activation');
+    await release(routes, 'ordered-activation');
+    const first = routes.handleActivity('ordered-activation', 'acquire');
+    const ticket = routes.handleActivity('ordered-activation', 'ticket');
+    const next = routes.handleActivity('ordered-activation', 'acquire');
+    const generations = await Promise.all(
+      [first, ticket, next].map(async (response) => (await response).json()),
+    );
+    expect(generations[0]).toEqual(generations[1]);
+    expect(generations[2]).not.toEqual(generations[0]);
+  });
+
   test('concurrent acquires of one released session share its activation reservation', async () => {
     let available = 8;
     const routes = new SessionRoutes(
@@ -3837,25 +4111,25 @@ describe('memory-aware admission', () => {
     );
     await create(routes, 'direct-warm');
     await release(routes, 'direct-warm');
-    const exec = () =>
+    const directExec = () =>
       routes.handleExec(
         new Request('http://x'),
         'direct-warm',
-        JSON.stringify({ execId: 'direct-exec', command: ['echo', 'ok'] }),
+        JSON.stringify({ execId: 'gone-direct-exec', command: ['echo', 'ok'] }),
       );
     available = 2;
-    expect((await exec()).status).toBe(429);
+    expect((await directExec()).status).toBe(429);
     expect(execRequests).toHaveLength(0);
     available = 2.2;
-    const admitted = await exec();
+    const admitted = await directExec();
     expect(admitted.status).toBe(200);
     await readSse(admitted);
     available = 1;
-    const sameTurn = await exec();
+    const sameTurn = await directExec();
     expect(sameTurn.status).toBe(200);
     await readSse(sameTurn);
     await release(routes, 'direct-warm');
-    expect((await exec()).status).toBe(429);
+    expect((await directExec()).status).toBe(429);
     expect(execRequests).toHaveLength(2);
   });
 
@@ -3879,7 +4153,10 @@ describe('memory-aware admission', () => {
           await routes.handleExec(
             new Request('http://x'),
             'abandoned-acquire',
-            JSON.stringify({ execId: 'too-late', command: ['echo', 'ok'] }),
+            JSON.stringify({
+              execId: 'gone-too-late',
+              command: ['echo', 'ok'],
+            }),
           )
         ).status,
       ).toBe(429);
@@ -4068,6 +4345,30 @@ describe('disk-aware admission', () => {
     return { latest: reading, read: () => Promise.resolve(reading()) };
   };
 
+  test('a new direct exec cannot bypass disk admission on warm compute', async () => {
+    let available = 50;
+    const routes = new SessionRoutes(
+      cfg,
+      fakeBackend,
+      undefined,
+      undefined,
+      disk(() => available),
+    );
+    await create(routes, 'direct-disk');
+    available = 4;
+    const response = await routes.handleExec(
+      new Request('http://spawner/v1/sessions/direct-disk/exec', {
+        method: 'POST',
+      }),
+      'direct-disk',
+      JSON.stringify({ execId: 'gone-new', command: ['echo', 'blocked'] }),
+    );
+    expect(response.status).toBe(429);
+    expect(await response.json()).toMatchObject({ error: 'host_disk' });
+    expect(execRequests).toHaveLength(0);
+    expect(attachRequests).toHaveLength(0);
+  });
+
   test('below its floor, the session disk takes no session: the create waits in line with host_disk', async () => {
     let available = 4;
     const routes = new SessionRoutes(
@@ -4085,6 +4386,9 @@ describe('disk-aware admission', () => {
     ).json();
     await routes.handleActivity('warm-disk', 'release', JSON.stringify(ticket));
     available = 4;
+    const warmRefused = await routes.handleActivity('warm-disk', 'acquire');
+    expect(warmRefused.status).toBe(429);
+    expect(await warmRefused.json()).toMatchObject({ error: 'host_disk' });
     const refused = await create(routes, 'disk-wait');
     expect(refused.status).toBe(429);
     expect(refused.headers.get('retry-after')).toBe('5');

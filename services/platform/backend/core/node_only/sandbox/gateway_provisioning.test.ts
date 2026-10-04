@@ -177,10 +177,13 @@ describe('provisionSessionGatewayKey', () => {
     expect(provisionProviders).toHaveBeenCalledWith(
       'org_1',
       [expect.objectContaining({ name: 'openrouter', apiKey: 'sk-live' })],
-      { reuseRecent: false },
+      { reuseRecent: false, verifiedKeys: expect.any(Map) },
     );
     expect(applyGatewayConfig).toHaveBeenCalledTimes(1);
-    expect(applyGatewayConfig).toHaveBeenCalledWith({ reuseRecent: false });
+    expect(applyGatewayConfig).toHaveBeenCalledWith({
+      reuseRecent: false,
+      verifiedKeys: expect.any(Map),
+    });
     expect(mintVirtualKey).toHaveBeenCalledWith(
       {
         budgetCents: 500,
@@ -188,7 +191,7 @@ describe('provisionSessionGatewayKey', () => {
         organizationId: 'org_1',
         sessionId: 'sess-1',
       },
-      { reuseRecent: false },
+      { reuseRecent: false, verifiedKeys: expect.any(Map) },
     );
     expect(result.token).toBe('sk-bf-t');
     expect(result.keyId).toBe('vk-9');
@@ -331,7 +334,7 @@ describe('provisionSessionGatewayKey', () => {
           apiKey: 'sk-ds',
         }),
       ],
-      { reuseRecent: false },
+      { reuseRecent: false, verifiedKeys: expect.any(Map) },
     );
     // The price is scoped to that same per-model record, matched on the
     // wire model id (the ref with the record prefix stripped).
@@ -380,7 +383,7 @@ describe('provisionSessionGatewayKey', () => {
           apiKey: 'sk-ds',
         }),
       ],
-      { reuseRecent: false },
+      { reuseRecent: false, verifiedKeys: expect.any(Map) },
     );
     // Pricing scoped to that SAME distinct record, else its turns bill 0.
     expect(ensureModelPricingOverride).toHaveBeenCalledWith({
@@ -428,7 +431,7 @@ describe('provisionSessionGatewayKey', () => {
           apiKey: 'sk-live',
         }),
       ],
-      { reuseRecent: false },
+      { reuseRecent: false, verifiedKeys: expect.any(Map) },
     );
     expect(ensureModelPricingOverride).toHaveBeenCalledWith({
       gatewayProvider:
@@ -713,9 +716,12 @@ describe('provisionSessionGatewayKey — request-scoped keys', () => {
     expect(provisionProviders).toHaveBeenCalledWith(
       'org_1',
       [expect.objectContaining({ name: 'openrouter', apiKey: 'sk-live' })],
-      { reuseRecent: true },
+      { reuseRecent: true, verifiedKeys: expect.any(Map) },
     );
-    expect(applyGatewayConfig).toHaveBeenCalledWith({ reuseRecent: true });
+    expect(applyGatewayConfig).toHaveBeenCalledWith({
+      reuseRecent: true,
+      verifiedKeys: expect.any(Map),
+    });
     expect(mintVirtualKey).toHaveBeenCalledWith(
       {
         budgetCents: 4,
@@ -724,7 +730,7 @@ describe('provisionSessionGatewayKey — request-scoped keys', () => {
         sessionId: 'model-api:key-1',
         requestId: 'req-1',
       },
-      { reuseRecent: true },
+      { reuseRecent: true, verifiedKeys: expect.any(Map) },
     );
   });
 
@@ -782,6 +788,7 @@ describe('provisionSessionGatewayKey — request-scoped keys', () => {
     });
     expect(provisionProviders).toHaveBeenCalledWith('org_1', [], {
       reuseRecent: false,
+      verifiedKeys: expect.any(Map),
     });
     expect(mintVirtualKey).toHaveBeenCalledTimes(1);
   });

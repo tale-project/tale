@@ -8,6 +8,22 @@
 import type { SpawnerConfig } from '../types.ts';
 import type { SandboxSessionProfile } from '../wire.ts';
 
+/** Coding-agent identity and persistent workspace, with or without Docker. */
+export function isAgentSessionProfile(
+  profile: unknown,
+): profile is 'agent' | 'agent-light' {
+  return profile === 'agent' || profile === 'agent-light';
+}
+
+export function sessionAgentProfile(
+  cfg: SpawnerConfig,
+  profile: SandboxSessionProfile,
+): SpawnerConfig['session']['agentProfile'] {
+  return profile === 'agent-light' && cfg.session.agentLightMemory
+    ? { ...cfg.session.agentProfile, memory: cfg.session.agentLightMemory }
+    : cfg.session.agentProfile;
+}
+
 /**
  * DinD is an AGENT-profile capability, never a `default`-profile one. The
  * `default` profile is the hardened run_code posture (untrusted user code,

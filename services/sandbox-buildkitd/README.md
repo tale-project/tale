@@ -9,10 +9,11 @@ the session's own Docker image store remains disposable.
 The Docker spawner provisions the cache lazily when an agent session needs it.
 `SANDBOX_DOCKER_BUILD_CACHE` defaults to the DinD setting; set it to `false` to
 use only each session's local builder. This integration is implemented by the
-Docker backend, not the Kubernetes backend. A caller waits no more than 15
-seconds (or one quarter of its runner readiness timeout, if shorter) for the
-optional cache. After that it uses its own builder. Shared provisioning remains
-coalesced and protected by its organization lease until completion; a late
+Docker backend, not the Kubernetes backend. A caller waits no more than
+`SANDBOX_BUILDKITD_START_TIMEOUT_MS` (30 seconds by default), or one quarter of
+its total session startup budget if shorter, for the optional cache. After that
+it uses its own builder. Shared provisioning has its own bounded lifetime and
+remains coalesced and protected by its organization lease until completion; a late
 result never attaches a network to the session that already fell back. Registry
 mirrors are prepared concurrently under the global Docker CLI concurrency bound.
 Agents created without Docker do not start or retain these helpers.

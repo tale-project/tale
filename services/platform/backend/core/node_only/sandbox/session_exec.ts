@@ -12,6 +12,7 @@
 import { randomUUID } from 'node:crypto';
 
 import type { TaskCommentBodies } from '../../../../lib/shared/schemas/task-comment';
+import { traceSandboxPhase } from '../../../tracing';
 import type { ActionCtx } from '../../lib/ctx';
 import { internal } from '../../lib/handler_names';
 import { orgSlugFromIdOrNull } from '../../lib/helpers/org_slug';
@@ -276,202 +277,204 @@ export async function harvestSessionOutput(
   files: HarvestedOutputFile[];
   harvestSkipped: HarvestSkippedOutput[];
 }> {
-  const { sessionId, organizationId, execId } = args;
-  const outputDir = args.outputDir ?? OUTPUT_DIR;
-  // Harvested outputs land in the org's own bucket (`putBlob` routes a
-  // BYO-bucket org to its bucket). There is no other store: an org whose
-  // slug does not resolve is an infra fault (deleted mid-run), and a harvest
-  // that quietly skipped every file would launder it into "produced
-  // nothing" — fail loud before touching the session, like the 404s below.
-  const orgSlug = await orgSlugFromIdOrNull(ctx, organizationId);
-  if (orgSlug === null) {
-    throw new Error(
-      `sandbox output harvest for session ${sessionId} has no bucket: organization ${organizationId} does not resolve to a slug`,
-    );
-  }
-
-  const files: HarvestedOutputFile[] = [];
-  const harvestSkipped: HarvestSkippedOutput[] = [];
-  let entries = await sessionListFiles(sessionId, outputDir);
-  if (entries === null) {
-    // A 404 is ambiguous for a per-turn SUBDIR: the daemon answers it both
-    // for "the turn never created its output dir" (a genuinely empty harvest)
-    // AND for "the session itself is gone" (evicted, spawner restarted). Only
-    // the session-level probe tells them apart — a dead session must fail
-    // loud, or an infra fault settles as a clean "produced nothing".
-    if (outputDir !== OUTPUT_DIR) {
-      if (await sessionIsAlive(sessionId)) return { files, harvestSkipped };
+  return traceSandboxPhase('harvest', async () => {
+    const { sessionId, organizationId, execId } = args;
+    const outputDir = args.outputDir ?? OUTPUT_DIR;
+    // Harvested outputs land in the org's own bucket (`putBlob` routes a
+    // BYO-bucket org to its bucket). There is no other store: an org whose
+    // slug does not resolve is an infra fault (deleted mid-run), and a harvest
+    // that quietly skipped every file would launder it into "produced
+    // nothing" — fail loud before touching the session, like the 404s below.
+    const orgSlug = await orgSlugFromIdOrNull(ctx, organizationId);
+    if (orgSlug === null) {
       throw new Error(
-        `sandbox output listing came back 404 for ${outputDir} and the session is gone — its deliverables were lost before harvest`,
+        `sandbox output harvest for session ${sessionId} has no bucket: organization ${organizationId} does not resolve to a slug`,
       );
     }
-    // The top-level delivery box is pre-created by the session entrypoint, so
-    // a 404 here means the session (or its box) was gone AT HARVEST TIME —
-    // silently treating that as "no outputs" launders an infra fault into a
-    // clean-looking empty delivery (a run whose script demonstrably wrote
-    // files then "produced nothing"). Fail loud; the step surfaces it.
-    throw new Error(
-      `sandbox output listing came back 404 for ${outputDir} — the session or its delivery box disappeared before harvest`,
-    );
-  }
-  if (entries.length === 0) {
-    // An EMPTY listing right after an exec that reported success is usually a
-    // read-after-write race on the session's delivery box, not a script that
-    // wrote nothing (scripts that write nothing are rare and retrying costs
-    // milliseconds). Re-list briefly before accepting emptiness as truth.
-    for (let attempt = 0; attempt < 3 && entries.length === 0; attempt++) {
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      const again = await sessionListFiles(sessionId, outputDir);
-      if (again === null) {
-        // The dir listed fine moments ago and now 404s — the session died
-        // mid-settle. Never coerce this back to "empty": that is the one
-        // bypass of the loud-404 rule above.
+
+    const files: HarvestedOutputFile[] = [];
+    const harvestSkipped: HarvestSkippedOutput[] = [];
+    let entries = await sessionListFiles(sessionId, outputDir);
+    if (entries === null) {
+      // A 404 is ambiguous for a per-turn SUBDIR: the daemon answers it both
+      // for "the turn never created its output dir" (a genuinely empty harvest)
+      // AND for "the session itself is gone" (evicted, spawner restarted). Only
+      // the session-level probe tells them apart — a dead session must fail
+      // loud, or an infra fault settles as a clean "produced nothing".
+      if (outputDir !== OUTPUT_DIR) {
+        if (await sessionIsAlive(sessionId)) return { files, harvestSkipped };
         throw new Error(
-          `sandbox output listing came back 404 for ${outputDir} during the empty-listing retry — the session disappeared mid-harvest`,
+          `sandbox output listing came back 404 for ${outputDir} and the session is gone — its deliverables were lost before harvest`,
         );
       }
-      entries = again;
-    }
-    if (entries.length > 0) {
-      console.warn(
-        `[sandbox] output listing for ${outputDir} was empty on first read and recovered on retry — read-after-write race`,
+      // The top-level delivery box is pre-created by the session entrypoint, so
+      // a 404 here means the session (or its box) was gone AT HARVEST TIME —
+      // silently treating that as "no outputs" launders an infra fault into a
+      // clean-looking empty delivery (a run whose script demonstrably wrote
+      // files then "produced nothing"). Fail loud; the step surfaces it.
+      throw new Error(
+        `sandbox output listing came back 404 for ${outputDir} — the session or its delivery box disappeared before harvest`,
       );
     }
-  }
-  for (const e of entries) {
-    if (e.type !== 'file') continue;
-    const absPath = `${outputDir}/${e.name}`;
-    if (files.length >= SANDBOX_MAX_OUTPUT_FILES_PER_RUN) {
-      harvestSkipped.push(
-        skippedOutput(absPath, {
-          en: `over the ${SANDBOX_MAX_OUTPUT_FILES_PER_RUN}-file per-run harvest cap`,
-          de: `Die Grenze von ${SANDBOX_MAX_OUTPUT_FILES_PER_RUN} Dateien pro Lauf ist erreicht.`,
-          fr: `La limite de ${SANDBOX_MAX_OUTPUT_FILES_PER_RUN} fichiers par exécution est atteinte.`,
-        }),
-      );
-      continue;
-    }
-    if (e.size > HARVEST_READ_MAX_BYTES) {
-      harvestSkipped.push(
-        skippedOutput(absPath, {
-          en: `${formatMb(e.size)} exceeds the ${formatMb(
-            HARVEST_READ_MAX_BYTES,
-          )} per-file harvest cap — split the output or have the user download it another way`,
-          de: `${formatMb(e.size)} überschreitet die Dateigrößengrenze von ${formatMb(HARVEST_READ_MAX_BYTES)}. Teile die Datei auf oder stelle sie auf anderem Weg bereit.`,
-          fr: `${formatMb(e.size)} dépasse la limite de ${formatMb(HARVEST_READ_MAX_BYTES)} par fichier. Divise le fichier ou propose un autre moyen de le télécharger.`,
-        }),
-      );
-      continue;
-    }
-    if (execId !== undefined) {
-      // Lease renewal per file: read + store below are bounded (30s client
-      // timeout) but a many-file harvest as a whole is not. Best-effort — a
-      // missed bump only hastens a takeover verdict, never corrupts one.
-      await ctx
-        .runMutation(
-          internal.sandbox.session_mutations.bumpSessionOpHeartbeat,
-          {
-            sessionId,
-            execId,
-          },
-        )
-        .catch((err) =>
-          console.warn('[session_exec] harvest lease bump failed:', err),
+    if (entries.length === 0) {
+      // An EMPTY listing right after an exec that reported success is usually a
+      // read-after-write race on the session's delivery box, not a script that
+      // wrote nothing (scripts that write nothing are rare and retrying costs
+      // milliseconds). Re-list briefly before accepting emptiness as truth.
+      for (let attempt = 0; attempt < 3 && entries.length === 0; attempt++) {
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        const again = await sessionListFiles(sessionId, outputDir);
+        if (again === null) {
+          // The dir listed fine moments ago and now 404s — the session died
+          // mid-settle. Never coerce this back to "empty": that is the one
+          // bypass of the loud-404 rule above.
+          throw new Error(
+            `sandbox output listing came back 404 for ${outputDir} during the empty-listing retry — the session disappeared mid-harvest`,
+          );
+        }
+        entries = again;
+      }
+      if (entries.length > 0) {
+        console.warn(
+          `[sandbox] output listing for ${outputDir} was empty on first read and recovered on retry — read-after-write race`,
         );
+      }
     }
-    let read: Awaited<ReturnType<typeof sessionReadFile>>;
-    try {
-      read = await sessionReadFile(sessionId, absPath, {
-        maxBytes: HARVEST_READ_MAX_BYTES,
+    for (const e of entries) {
+      if (e.type !== 'file') continue;
+      const absPath = `${outputDir}/${e.name}`;
+      if (files.length >= SANDBOX_MAX_OUTPUT_FILES_PER_RUN) {
+        harvestSkipped.push(
+          skippedOutput(absPath, {
+            en: `over the ${SANDBOX_MAX_OUTPUT_FILES_PER_RUN}-file per-run harvest cap`,
+            de: `Die Grenze von ${SANDBOX_MAX_OUTPUT_FILES_PER_RUN} Dateien pro Lauf ist erreicht.`,
+            fr: `La limite de ${SANDBOX_MAX_OUTPUT_FILES_PER_RUN} fichiers par exécution est atteinte.`,
+          }),
+        );
+        continue;
+      }
+      if (e.size > HARVEST_READ_MAX_BYTES) {
+        harvestSkipped.push(
+          skippedOutput(absPath, {
+            en: `${formatMb(e.size)} exceeds the ${formatMb(
+              HARVEST_READ_MAX_BYTES,
+            )} per-file harvest cap — split the output or have the user download it another way`,
+            de: `${formatMb(e.size)} überschreitet die Dateigrößengrenze von ${formatMb(HARVEST_READ_MAX_BYTES)}. Teile die Datei auf oder stelle sie auf anderem Weg bereit.`,
+            fr: `${formatMb(e.size)} dépasse la limite de ${formatMb(HARVEST_READ_MAX_BYTES)} par fichier. Divise le fichier ou propose un autre moyen de le télécharger.`,
+          }),
+        );
+        continue;
+      }
+      if (execId !== undefined) {
+        // Lease renewal per file: read + store below are bounded (30s client
+        // timeout) but a many-file harvest as a whole is not. Best-effort — a
+        // missed bump only hastens a takeover verdict, never corrupts one.
+        await ctx
+          .runMutation(
+            internal.sandbox.session_mutations.bumpSessionOpHeartbeat,
+            {
+              sessionId,
+              execId,
+            },
+          )
+          .catch((err) =>
+            console.warn('[session_exec] harvest lease bump failed:', err),
+          );
+      }
+      let read: Awaited<ReturnType<typeof sessionReadFile>>;
+      try {
+        read = await sessionReadFile(sessionId, absPath, {
+          maxBytes: HARVEST_READ_MAX_BYTES,
+        });
+      } catch (error) {
+        if (!(error instanceof SessionFileTooLargeError)) throw error;
+        // A file may grow after listing; its capped read is still a per-file
+        // refusal and must not discard the other deliverables.
+        harvestSkipped.push(
+          skippedOutput(absPath, {
+            en: `exceeds the ${formatMb(HARVEST_READ_MAX_BYTES)} per-file harvest cap — split the output or have the user download it another way`,
+            de: `Die Datei überschreitet die Dateigrößengrenze von ${formatMb(HARVEST_READ_MAX_BYTES)}. Teile die Datei auf oder stelle sie auf anderem Weg bereit.`,
+            fr: `Le fichier dépasse la limite de ${formatMb(HARVEST_READ_MAX_BYTES)} par fichier. Divise le fichier ou propose un autre moyen de le télécharger.`,
+          }),
+        );
+        continue;
+      }
+      if (read === null) {
+        harvestSkipped.push(
+          skippedOutput(absPath, {
+            en: 'read from sandbox failed',
+            de: 'Die Datei konnte nicht aus der Sandbox gelesen werden.',
+            fr: 'Impossible de lire le fichier depuis la sandbox.',
+          }),
+        );
+        continue;
+      }
+      const buf = Buffer.from(read.bytes);
+      // Every harvested file is stored fresh (no unchanged-file dedup). Costs
+      // duplicate blobs on re-runs, never correctness; the retention sweep
+      // reclaims unclaimed outputs.
+      // The spawner serves the generic octet-stream — fall back to the
+      // extension-derived type (sessionReadFile's documented contract). The
+      // Blob MUST carry a non-empty type: the self-hosted backend rejects a
+      // type-less storage upload with `BadHeader` ("Error uploading file:
+      // … invalid HTTP header"), which failed every harvest of a real output
+      // file (e.g. a generated .pptx).
+      const contentType =
+        read.contentType && read.contentType !== 'application/octet-stream'
+          ? read.contentType
+          : inferContentType(absPath);
+      // Backend-aware store: harvested outputs are org-user-persistent thread
+      // files — a BYO-bucket org's outputs land in its own bucket. A rejected
+      // store (quota, validation) leaves no blob behind to reap.
+      // The read already owns an ArrayBuffer. A view avoids a second full
+      // payload allocation while the object-store upload is in flight.
+      const harvestBytes = new Uint8Array(read.bytes);
+      let storageId: string;
+      try {
+        storageId = await putBlob(orgSlug, harvestBytes, contentType);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.warn(`[session_exec] harvest skipped ${absPath}: ${message}`);
+        harvestSkipped.push(
+          skippedOutput(absPath, {
+            en: `not saved to the workspace: ${message}`,
+            de: `Die Datei konnte nicht im Arbeitsbereich gespeichert werden. Technische Meldung: ${message}`,
+            fr: `Le fichier n’a pas pu être enregistré dans l’espace de travail. Message technique : ${message}`,
+          }),
+        );
+        continue;
+      }
+      // A fileMetadata row per harvested blob (was a documented follow-up): a
+      // follow-up consumer of the storage id — e.g. a workflow `document.create`
+      // filing a produced artifact — resolves name/type through fileMetadata and
+      // would otherwise fail on "metadata not found". source 'agent' with no
+      // documentId keeps unclaimed outputs eligible for the retention sweep;
+      // document.create back-fills the documentId link when a file is claimed.
+      // Best-effort: a metadata failure must not fail the whole harvest.
+      try {
+        await ctx.runMutation(
+          internal.file_metadata.internal_mutations.saveFileMetadata,
+          {
+            organizationId,
+            // Blob reference string — saveFileMetadata is blobRef-wide.
+            storageId,
+            fileName: e.name,
+            contentType,
+            size: buf.byteLength,
+            source: 'agent',
+          },
+        );
+      } catch (metaErr) {
+        console.warn('[session_exec] saveFileMetadata failed:', metaErr);
+      }
+      files.push({
+        path: absPath,
+        storageId,
+        size: buf.byteLength,
+        contentType,
       });
-    } catch (error) {
-      if (!(error instanceof SessionFileTooLargeError)) throw error;
-      // A file may grow after listing; its capped read is still a per-file
-      // refusal and must not discard the other deliverables.
-      harvestSkipped.push(
-        skippedOutput(absPath, {
-          en: `exceeds the ${formatMb(HARVEST_READ_MAX_BYTES)} per-file harvest cap — split the output or have the user download it another way`,
-          de: `Die Datei überschreitet die Dateigrößengrenze von ${formatMb(HARVEST_READ_MAX_BYTES)}. Teile die Datei auf oder stelle sie auf anderem Weg bereit.`,
-          fr: `Le fichier dépasse la limite de ${formatMb(HARVEST_READ_MAX_BYTES)} par fichier. Divise le fichier ou propose un autre moyen de le télécharger.`,
-        }),
-      );
-      continue;
     }
-    if (read === null) {
-      harvestSkipped.push(
-        skippedOutput(absPath, {
-          en: 'read from sandbox failed',
-          de: 'Die Datei konnte nicht aus der Sandbox gelesen werden.',
-          fr: 'Impossible de lire le fichier depuis la sandbox.',
-        }),
-      );
-      continue;
-    }
-    const buf = Buffer.from(read.bytes);
-    // Every harvested file is stored fresh (no unchanged-file dedup). Costs
-    // duplicate blobs on re-runs, never correctness; the retention sweep
-    // reclaims unclaimed outputs.
-    // The spawner serves the generic octet-stream — fall back to the
-    // extension-derived type (sessionReadFile's documented contract). The
-    // Blob MUST carry a non-empty type: the self-hosted backend rejects a
-    // type-less storage upload with `BadHeader` ("Error uploading file:
-    // … invalid HTTP header"), which failed every harvest of a real output
-    // file (e.g. a generated .pptx).
-    const contentType =
-      read.contentType && read.contentType !== 'application/octet-stream'
-        ? read.contentType
-        : inferContentType(absPath);
-    // Backend-aware store: harvested outputs are org-user-persistent thread
-    // files — a BYO-bucket org's outputs land in its own bucket. A rejected
-    // store (quota, validation) leaves no blob behind to reap.
-    // The read already owns an ArrayBuffer. A view avoids a second full
-    // payload allocation while the object-store upload is in flight.
-    const harvestBytes = new Uint8Array(read.bytes);
-    let storageId: string;
-    try {
-      storageId = await putBlob(orgSlug, harvestBytes, contentType);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      console.warn(`[session_exec] harvest skipped ${absPath}: ${message}`);
-      harvestSkipped.push(
-        skippedOutput(absPath, {
-          en: `not saved to the workspace: ${message}`,
-          de: `Die Datei konnte nicht im Arbeitsbereich gespeichert werden. Technische Meldung: ${message}`,
-          fr: `Le fichier n’a pas pu être enregistré dans l’espace de travail. Message technique : ${message}`,
-        }),
-      );
-      continue;
-    }
-    // A fileMetadata row per harvested blob (was a documented follow-up): a
-    // follow-up consumer of the storage id — e.g. a workflow `document.create`
-    // filing a produced artifact — resolves name/type through fileMetadata and
-    // would otherwise fail on "metadata not found". source 'agent' with no
-    // documentId keeps unclaimed outputs eligible for the retention sweep;
-    // document.create back-fills the documentId link when a file is claimed.
-    // Best-effort: a metadata failure must not fail the whole harvest.
-    try {
-      await ctx.runMutation(
-        internal.file_metadata.internal_mutations.saveFileMetadata,
-        {
-          organizationId,
-          // Blob reference string — saveFileMetadata is blobRef-wide.
-          storageId,
-          fileName: e.name,
-          contentType,
-          size: buf.byteLength,
-          source: 'agent',
-        },
-      );
-    } catch (metaErr) {
-      console.warn('[session_exec] saveFileMetadata failed:', metaErr);
-    }
-    files.push({
-      path: absPath,
-      storageId,
-      size: buf.byteLength,
-      contentType,
-    });
-  }
 
-  return { files, harvestSkipped };
+    return { files, harvestSkipped };
+  });
 }

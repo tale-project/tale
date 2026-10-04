@@ -25,6 +25,9 @@ let staged: Array<{ path: string; contentBase64: string }>;
 let skipStage: boolean;
 
 const sandboxFetch = vi.fn(async (url: string, init?: RequestInit) => {
+  if (init?.method === 'GET' && url.includes('/files?')) {
+    return Response.json({ entries: [] });
+  }
   expect(url).toBe(
     `http://skill-review.invalid/v1/sessions/${encodeURIComponent(SESSION)}/files/stage`,
   );

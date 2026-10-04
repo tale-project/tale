@@ -176,17 +176,26 @@ disconnects a reader that has not drained for two seconds. Other readers and
 the command continue under the existing exec deadline. A dropped consumer does
 not keep an idle session busy after the command ends.
 
-Reconnect through `/execs/:id/attach?sinceSeq=<last-seen-seq>`. The complete
-protocol lives in an unlinked, disk-backed journal, limited to **64 MiB of
-encoded NDJSON per exec** and **256 MiB per session**, including base64 output.
-Completed journals are evicted oldest first under the session budget, and at
-most 16 completed execs are retained. An active writer that exhausts its budget
-ends with `OUTPUT_LIMIT`; unavailable or evicted history reports
-`REPLAY_UNAVAILABLE`. The 256 KiB diagnostic ring is never used as incomplete
-protocol history. A runtime restart loses its journals and execs; these files
-do not extend the persistent workspace's lifecycle.
+Reconnect through `/execs/:id/attach?sinceSeq=<last-seen-seq>`. The protocol
+is retained in a disk-backed spool, limited to **64 MiB of unacknowledged
+encoded NDJSON per exec** and **256 MiB of physical replay and checkpoint
+storage per session**, including files held open by readers. At most four
+execs run at once and 16 exec records are retained. Completed spools are
+evicted first under the shared budget. An active writer that exhausts its
+budget ends with `OUTPUT_LIMIT`; unavailable or evicted history reports
+`REPLAY_UNAVAILABLE`. The 256 KiB diagnostic ring is never substituted for
+missing protocol history.
 
-An attach sends `replay-start` before journal history and `replay-complete`
+A checkpoint is durably written before its acknowledged prefix is pruned,
+so a run can produce more than 64 MiB over its lifetime while the consumer
+keeps acknowledging progress. A `gap` event identifies any pruned sequence
+interval; consumers restore the durable checkpoint before continuing. Spool
+segments and checkpoints live under the runtime-owned `TMPDIR`; normal
+disposal removes them and startup clears that directory after a crash. A
+runtime restart loses execs and checkpoints, and never clears user files
+elsewhere in the persistent workspace.
+
+An attach sends `replay-start` before retained history and `replay-complete`
 with `throughSeq` after delivering the
 historical prefix that existed when attachment began. Clients must reconstruct
 protocol state through that boundary before treating a historical turn result
@@ -211,7 +220,7 @@ streams also remove caller abort listeners on completion, reset or disconnect.
 
 `POST /files/stage` accepts the existing `files` list: a destination `path`
 and either `url` or `contentBase64`. Downloads stream to a temporary file,
-with a 100 MiB cap and 25-second per-file deadline, and atomically replace the
+with a 100 MiB cap per file and one 25-second batch deadline, and atomically replace the
 destination only after success. Inline files remain capped at 1 MiB. Cancelled,
 failed and oversized transfers leave the previous destination intact and
 remove their temporary file. Parent symlinks cannot redirect staging outside
@@ -221,7 +230,8 @@ request must be retried. `/fs/read` streams an opened regular file within the
 20 MiB read cap and fixes its range before sending bytes, so later growth does
 not bypass the limit.
 
-A file may carry an immutable `sourceId` supplied by the platform. runnerd
+A file may carry an immutable `sourceId` (or `cacheKey`) supplied by the platform,
+or a `sha256` digest for content verification. runnerd
 keeps up to 4,096 source/digest entries in memory and skips an unchanged source
 only after hashing the actual destination again. A source-only entry probes
 that cache: a verified hit is `staged`; a miss reports `no_source` and requires
@@ -631,3 +641,24 @@ NetworkPolicy verbs, is in [kubernetes.md](kubernetes.md#rbac-namespaced-role--n
   built agent image.)
 - Live agent smoke (secret-gated, needs real provider creds via the LLM gateway):
   one real `claude -p` + `agent -p` turn end-to-end. (Pending.)
+
+### Checkpoint and staging protocol
+
+`GET /v1/sessions/:id/exec/:execId/checkpoint` returns `{checkpoint: null}` or
+`{checkpoint: {seq, state}}`. `PUT` accepts `{seq, state}` up to 1 MiB; it rejects
+invalid/future cursors with 400, stale checkpoints with 409 and oversized bodies
+with 413. State is opaque to the sandbox. The platform saves parser state,
+partial JSONL, background-task state and its bounded progress projection every
+five seconds and at a drain handoff before acknowledging replay. A 404 from an
+older runtime retains the legacy path during a rolling upgrade.
+
+Staged files accept optional `sha256` and `cacheKey` fields. The runtime verifies
+existing content against its manifest before skipping a transfer; it never
+trusts the platform's claim alone. Downloads use two lanes, a shared 25-second
+budget and atomic temporary-file renames. Cancellation reaches the runtime.
+
+`agent-light` uses the same non-root agent identity and persistent workspace as
+`agent`, without Docker or BuildKit. The backend's `SANDBOX_AGENT_PROFILE` chooses
+new workspaces; saved profiles survive stop/resume and pin reconciliation.
+Released-session acquire performs memory/disk admission and may return 429,
+which the platform handles as a capacity wait.

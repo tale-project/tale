@@ -19,6 +19,7 @@ async function runInNode(body: string, withHttpServer = false): Promise<void> {
     `import assert from 'node:assert/strict';
 import { writeFileSync } from 'node:fs';
 import { ExecManager } from ${JSON.stringify(`${import.meta.dir}/exec-manager.ts`)};
+import { ExecReplay } from ${JSON.stringify(`${import.meta.dir}/exec-replay.ts`)};
 import { EnvStore } from ${JSON.stringify(`${import.meta.dir}/env-store.ts`)};
 import { RUNNERD_MAX_REQUEST_BODY_BYTES } from ${JSON.stringify(`${import.meta.dir}/protocol.ts`)};
 process.env.TALE_WORKSPACE_ROOT = ${JSON.stringify(root)};
@@ -54,6 +55,30 @@ ${body}`,
 }
 
 describe('ExecManager memory under Node', () => {
+  test('disposed replay releases opaque checkpoint state while a descendant still retains its spool', async () => {
+    await runInNode(String.raw`
+const replay = new ExecReplay();
+let reference;
+async function checkpoint() {
+  const state = { payload: 'x'.repeat(1024 * 1024 - 100) };
+  reference = new WeakRef(state);
+  await replay.saveCheckpoint({ seq: 0, state });
+}
+await checkpoint();
+await replay.dispose();
+let retained = true;
+for (let round = 0; round < 30; round++) {
+  await wait(10);
+  global.gc();
+  retained = reference.deref() !== undefined;
+  if (!retained) break;
+}
+assert.equal(retained, false, 'disposed replay must release its opaque parser state');
+// Keep the spool object live, just as a deferred descendant's callback does.
+assert.throws(() => replay.assertAvailable(), /unavailable/);
+`);
+  }, 20_000);
+
   for (const consumerMode of ['exec', 'attach'] as const) {
     test(`a disconnected HTTP ${consumerMode} consumer is collected while its exec keeps running`, async () => {
       await runInNode(

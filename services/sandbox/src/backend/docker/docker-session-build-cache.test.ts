@@ -41,9 +41,20 @@ mock.module(spawnPath, () => ({...realSpawn,
 }));
 const buildPath = join(source,'buildkitd.ts');
 const realBuild = await import(buildPath);
+const { waitWithinOperation } = await import(join(source,'operation-budget.ts'));
 mock.module(buildPath, () => ({...realBuild,
   retainBuildkitd: () => {events.push('retain'); leases++; return () => {leases--;events.push('release');};},
-  ensureBuildkitd: async (_,org) => {events.push('ensure:'+leases); if(scenario==='cache-failure') throw new Error('cache unavailable'); if(scenario==='slow-cache') { await cacheGate; events.push('late-cache'); } return realBuild.buildkitdEndpoint(org);},
+  ensureBuildkitd: async (_,org) => {
+    events.push('ensure:'+leases);
+    if(scenario==='cache-failure') throw new Error('cache unavailable');
+    if(scenario==='cache-timeout') {
+      let timer;
+      try { await waitWithinOperation(new Promise(resolve => { timer=setTimeout(resolve,1000); })); }
+      finally { clearTimeout(timer); }
+    }
+    if(scenario==='slow-cache') { await cacheGate; events.push('late-cache'); }
+    return realBuild.buildkitdEndpoint(org);
+  },
   sweepIdleBuildkitd: async () => {events.push('sweep'); return {stopped:0,organizations:0};},
 }));
 mock.module(join(source,'session/buildkit-network-guard.ts'), () => ({
@@ -64,6 +75,7 @@ await writeFile(join(workspace,'sentinel'),'saved workspace');
 const cfg = {
  backend:'docker', sandboxToken:'test',runtimeImage:'runtime:test',runtimeTier:'kata',dockerInContainer:true,dockerBuildCache:true,
  transparentEgress:false,hostSessionRoot:root,cacheVolumePrefix:{pip:'pip',npm:'npm',bun:'bun'},
+ buildkitdStartTimeoutMs:20,
  egressNetwork:'control',egressProxy:'http://egress:3128',
  session:{...TEST_SESSION_CONFIG,createHealthTimeoutMs:scenario==='slow-cache'||scenario==='expired-setup'?40:TEST_SESSION_CONFIG.createHealthTimeoutMs,agentProfile:{...TEST_SESSION_CONFIG.agentProfile,uid:process.getuid() || 10001,gid:process.getgid() || 10001}},
 };
@@ -90,6 +102,19 @@ console.log(JSON.stringify({events,error,retained,owner}));
 }
 
 describe('Docker session build-cache readiness and create lease', () => {
+  test('an optional cache exceeding its startup budget falls back before launching the session', async () => {
+    const result = await create('cache-timeout');
+    expect(result.error).toBeNull();
+    expect(result.events).toEqual([
+      'retain',
+      'ensure:1',
+      'run',
+      'ready',
+      'env',
+      'release',
+    ]);
+    expect(result.retained).toBe('saved workspace');
+  });
   test('protects ensure through ready/attach and attaches before exposing environment', async () => {
     const result = await create('success');
     expect(result.error).toBeNull();
@@ -151,9 +176,7 @@ describe('Docker session build-cache readiness and create lease', () => {
 
   test('setup consumes readiness time and an expired budget preserves the workspace', async () => {
     const result = await create('expired-setup');
-    expect(result.error).toContain(
-      'session create readiness deadline exceeded',
-    );
+    expect(result.error).toContain('sandbox operation deadline exceeded');
     expect(result.events).not.toContain('run');
     expect(result.events.at(-2)).toBe('volume-rm');
     expect(result.events.at(-1)).toBe('release');

@@ -355,6 +355,9 @@ export interface GatewayReuseOptions {
    * an unchanged provision fingerprint (`provisionProviders`,
    * `mintVirtualKey`). */
   reuseRecent?: boolean;
+  /** Request-owned handoff from the current credential reconciliation to its
+   * mint. Keys include the org; this is never a cross-request TTL cache. */
+  verifiedKeys?: Map<string, string>;
 }
 
 export interface MintVirtualKeyArgs {
@@ -449,7 +452,9 @@ export async function mintVirtualKey(
     return await postVirtualKey(args, byProvider, options);
   } catch (error) {
     for (const provider of byProvider.keys()) {
-      recentProviderKeys.delete(providerMemoKey(args.organizationId, provider));
+      const memoKey = providerMemoKey(args.organizationId, provider);
+      recentProviderKeys.delete(memoKey);
+      options.verifiedKeys?.delete(memoKey);
     }
     throw error;
   }
@@ -474,6 +479,9 @@ async function postVirtualKey(
   }> = [];
   for (const [provider, allowedModels] of byProvider) {
     const keyId =
+      options.verifiedKeys?.get(
+        providerMemoKey(args.organizationId, provider),
+      ) ??
       (options.reuseRecent === true
         ? recentProviderKey(providerMemoKey(args.organizationId, provider))
             ?.keyId
@@ -1298,11 +1306,13 @@ async function writeProviderKey(
  * rotated credential still pushes at once; the host policy is rechecked
  * first all the same.
  */
+const provisioning = new Map<string, Promise<string | null>>();
+
 async function provisionOne(
   organizationId: string,
   p: ProviderProvision,
   reuseRecent: boolean,
-): Promise<void> {
+): Promise<string | null> {
   // Recheck DNS and the opt-in before a cached key can authorize a session.
   const allowPrivateNetwork =
     !isStandardGatewayProvider(p.name) && p.baseUrl
@@ -1310,9 +1320,34 @@ async function provisionOne(
       : false;
   const fingerprint = providerFingerprint(p, allowPrivateNetwork);
   const memoKey = providerMemoKey(organizationId, p.name);
-  if (reuseRecent && recentProviderKey(memoKey)?.fingerprint === fingerprint) {
-    return; // pushed or verified by this process moments ago
+  const recent = recentProviderKey(memoKey);
+  if (reuseRecent && recent?.fingerprint === fingerprint) return recent.keyId;
+  // Only equivalent calls already in flight share work. DNS policy and the
+  // caller's live credential resolution still happen for every provision.
+  const flightKey = `${llmGatewayUrl()}:${memoKey}:${fingerprint}`;
+  const pending = provisioning.get(flightKey);
+  if (pending !== undefined) return pending;
+  const work = reconcileProvider(
+    organizationId,
+    p,
+    allowPrivateNetwork,
+    fingerprint,
+  );
+  provisioning.set(flightKey, work);
+  try {
+    return await work;
+  } finally {
+    if (provisioning.get(flightKey) === work) provisioning.delete(flightKey);
   }
+}
+
+async function reconcileProvider(
+  organizationId: string,
+  p: ProviderProvision,
+  allowPrivateNetwork: boolean,
+  fingerprint: string,
+): Promise<string | null> {
+  const memoKey = providerMemoKey(organizationId, p.name);
   const existing =
     (await listProviderKeys(p.name)).find(
       (k) => k.name === gatewayKeyName(organizationId, p.name),
@@ -1323,7 +1358,7 @@ async function provisionOne(
       fingerprint,
       at: Date.now(),
     });
-    return; // fully provisioned by this process already
+    return existing.id; // fully provisioned by this process already
   }
   // The key is rewritten below, or recreated under a new id: what this
   // process remembered of it no longer holds, whether the write lands or not.
@@ -1340,6 +1375,7 @@ async function provisionOne(
   if (keyId !== null) {
     recentProviderKeys.set(memoKey, { keyId, fingerprint, at: Date.now() });
   }
+  return keyId;
 }
 
 /** One provider the reconcile could not push: the gateway record name and
@@ -1381,8 +1417,15 @@ export async function provisionProviders(
   const failures: ProviderProvisionFailure[] = [];
   for (const p of providers) {
     if (skipUnprovisionable(p)) continue;
+    const memoKey = providerMemoKey(organizationId, p.name);
+    options.verifiedKeys?.delete(memoKey);
     try {
-      await provisionOne(organizationId, p, options.reuseRecent === true);
+      const keyId = await provisionOne(
+        organizationId,
+        p,
+        options.reuseRecent === true,
+      );
+      if (keyId !== null) options.verifiedKeys?.set(memoKey, keyId);
     } catch (err) {
       console.warn(
         `[llm-gateway] provisioning provider '${p.name}' for org '${organizationId}' failed (continuing):`,
@@ -1430,6 +1473,8 @@ let gatewayConfigAppliedAt: number | undefined;
  * creates keep re-asserting it in between. A failed apply is never
  * remembered: it throws, and the next call applies again.
  */
+const applyingGatewayConfig = new Map<string, Promise<void>>();
+
 export async function applyGatewayConfig(
   options: GatewayReuseOptions = {},
 ): Promise<void> {
@@ -1440,6 +1485,28 @@ export async function applyGatewayConfig(
   ) {
     return;
   }
+  const identity = createHash('sha256')
+    .update(
+      JSON.stringify([
+        llmGatewayUrl(),
+        adminUsername(),
+        requireGatewayAdminPassword(),
+      ]),
+    )
+    .digest('hex');
+  const pending = applyingGatewayConfig.get(identity);
+  if (pending !== undefined) return pending;
+  const work = verifyGatewayConfig();
+  applyingGatewayConfig.set(identity, work);
+  try {
+    await work;
+  } finally {
+    if (applyingGatewayConfig.get(identity) === work)
+      applyingGatewayConfig.delete(identity);
+  }
+}
+
+async function verifyGatewayConfig(): Promise<void> {
   const getRes = await managementFetch('/api/config');
   if (!getRes.ok) {
     throw new Error(
@@ -1452,6 +1519,18 @@ export async function applyGatewayConfig(
     auth_config?: { is_enabled?: boolean };
   };
   const current = cfg.client_config ?? {};
+  // Authenticate and inspect on every sandbox create; write only on drift.
+  // A restored/insecure store is repaired before any virtual key is minted.
+  if (
+    cfg.auth_config?.is_enabled === true &&
+    current.enforce_auth_on_inference === true &&
+    current.disable_content_logging === true &&
+    typeof current.log_retention_days === 'number' &&
+    current.log_retention_days >= 1
+  ) {
+    gatewayConfigAppliedAt = Date.now();
+    return;
+  }
   // `PUT /api/config` re-validates the whole client_config, but GET returns
   // server-side zero-defaults that fail it — notably log_retention_days=0 vs
   // the `min=1` validator. Clamp the known-constrained field before

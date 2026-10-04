@@ -11,6 +11,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import {
+  outsideOperationBudget,
+  waitWithinOperation,
+  withOperationBudget,
+} from './operation-budget.ts';
+import {
   DOCKER_CLI_CONCURRENCY,
   DOCKER_CLI_PRIORITY_CONCURRENCY,
   IMAGE_PULL_TIMEOUT_MS,
@@ -25,6 +30,14 @@ import {
 // reads DOCKER_BIN lazily on each invocation so this override works after
 // module load.
 const ORIGINAL_DOCKER_BIN = process.env.DOCKER_BIN;
+async function rejection(promise: Promise<unknown>): Promise<string | null> {
+  try {
+    await promise;
+    return null;
+  } catch (error) {
+    return error instanceof Error ? error.message : String(error);
+  }
+}
 beforeAll(() => {
   process.env.DOCKER_BIN = '/bin/bash';
 });
@@ -37,6 +50,52 @@ afterAll(() => {
 });
 
 describe('runDocker — byte caps', () => {
+  test('one lifecycle deadline cancels a slow CLI and forbids a later launch', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'tale-docker-budget-'));
+    const marker = join(dir, 'late-start');
+    try {
+      expect(
+        await rejection(
+          withOperationBudget(50, async () => {
+            await runDocker(['-c', 'sleep 0.3'], { timeoutMs: 5_000 });
+            const late = await runDocker([
+              '-c',
+              'echo late > "$1"',
+              'late',
+              marker,
+            ]);
+            expect(late.exitCode).toBe(-1);
+          }),
+        ),
+      ).toContain('deadline');
+      expect(await Bun.file(marker).exists()).toBe(false);
+      expect(dockerCliLoad()).toEqual({ running: 0, waiting: 0 });
+      // Cleanup remains possible after a cancelled create.
+      const cleaned = await outsideOperationBudget(() =>
+        runDocker(['-c', 'true']),
+      );
+      expect(cleaned.exitCode).toBe(0);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('an optional helper stops waiting for another operation at its own deadline', async () => {
+    const other = Promise.withResolvers<void>();
+    const keepAlive = setTimeout(() => other.resolve(), 1_000);
+    try {
+      expect(
+        await rejection(
+          withOperationBudget(20, () => waitWithinOperation(other.promise)),
+        ),
+      ).toContain('deadline');
+      // Cancelling the waiter never cancels its shared producer.
+      other.resolve();
+      await other.promise;
+    } finally {
+      clearTimeout(keepAlive);
+    }
+  });
   test('caps stdout at stdoutMaxBytes and marks truncated', async () => {
     // ~256 KiB of stdout — exceeds the 64 KiB cap by 4× (so truncation
     // definitely fires) but is small enough to finish well inside bun's

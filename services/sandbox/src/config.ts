@@ -2,7 +2,7 @@
 // every knob is overridable so an operator can tune without rebuilding.
 
 import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { dirname, isAbsolute, join } from 'node:path';
 
 import { parse as parseYaml } from 'yaml';
 
@@ -231,6 +231,21 @@ function dockerWorkloadsEnv(): readonly ('project' | 'workflow')[] | undefined {
 }
 
 export function loadConfig(): SpawnerConfig {
+  const dockerDataRoot =
+    process.env.SANDBOX_DOCKER_DATA_ROOT?.trim() || undefined;
+  const dockerDataPath =
+    process.env.SANDBOX_DOCKER_DATA_PATH?.trim() ||
+    (dockerDataRoot === undefined
+      ? undefined
+      : '/var/lib/tale-sandbox/docker-data');
+  for (const [name, value] of [
+    ['SANDBOX_DOCKER_DATA_ROOT', dockerDataRoot],
+    ['SANDBOX_DOCKER_DATA_PATH', dockerDataPath],
+  ]) {
+    if (value !== undefined && (!isAbsolute(value) || value.includes('\0'))) {
+      throw new Error(`${name} must be an absolute path`);
+    }
+  }
   // Runtime tier (default 'runc'). The deployment config (deployment.json,
   // operator's higher-level source of truth) overrides SANDBOX_RUNTIME when set;
   // 'runsc' is accepted as a back-compat alias for the 'gvisor' tier. The tier
@@ -469,6 +484,8 @@ export function loadConfig(): SpawnerConfig {
 
   return {
     backend,
+    ...(dockerDataRoot !== undefined ? { dockerDataRoot } : {}),
+    ...(dockerDataPath !== undefined ? { dockerDataPath } : {}),
     instance,
     hub,
     deviceConfigPath,
@@ -514,6 +531,13 @@ export function loadConfig(): SpawnerConfig {
       process.env.SANDBOX_BUILDKITD_MIRROR_IMAGE ?? 'registry:2',
     ...(buildkitdCpus !== undefined ? { buildkitdCpus } : {}),
     ...(buildkitdMemoryBytes !== undefined ? { buildkitdMemoryBytes } : {}),
+    buildkitdStartTimeoutMs: numEnv(
+      'SANDBOX_BUILDKITD_START_TIMEOUT_MS',
+      30_000,
+      {
+        min: 1_000,
+      },
+    ),
     ...(buildkitdCacheRetentionMs !== undefined
       ? { buildkitdCacheRetentionMs }
       : {}),
@@ -595,6 +619,7 @@ export function loadConfig(): SpawnerConfig {
         180_000,
         { min: 5_000 },
       ),
+      agentLightMemory: process.env.SANDBOX_AGENT_MEMORY ?? '4g',
       agentProfile: {
         cpus: numEnv('SANDBOX_AGENT_CPUS', 2, { min: 1 }),
         // Memory is a real resource budget (the session cgroup is shared by the

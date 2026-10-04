@@ -54,6 +54,8 @@ export interface SpawnerConfig {
   // memory (buildkitd.ts buildkitHelperLimits).
   buildkitdCpus?: number;
   buildkitdMemoryBytes?: number;
+  /** Optional cache setup budget inside the session create deadline. */
+  buildkitdStartTimeoutMs?: number;
   // The build cache an organization's builder keeps when it stops for want of
   // agent sessions (env SANDBOX_BUILDKITD_IDLE_CACHE): unset, 5 GiB
   // (buildkitd.ts DEFAULT_IDLE_CACHE_BYTES).
@@ -103,6 +105,9 @@ export interface SpawnerConfig {
   // still adopted (running ones keep their live mount; stopped ones via the
   // legacy-compat resume fallback in docker-session-backend.ts).
   hostSessionRoot: string;
+  /** Opt-in, verified read-only view of DockerRootDir for disk admission. */
+  dockerDataPath?: string;
+  dockerDataRoot?: string;
   cacheVolumePrefix: { pip: string; npm: string; bun: string };
   egressNetwork: string;
   egressProxy: string;
@@ -179,6 +184,8 @@ export interface SessionConfig {
   /** Resource caps for the `agent` profile session containers. The `default`
    * profile mirrors the one-shot caps and is not configurable separately. */
   agentProfile: SessionAgentProfileConfig;
+  /** Light agents exclude dockerd, even where the full agent profile enables it. */
+  agentLightMemory?: string;
 }
 
 export interface SessionAgentProfileConfig {

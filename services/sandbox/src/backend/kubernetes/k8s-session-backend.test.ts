@@ -70,6 +70,74 @@ function notFound(): Promise<never> {
   return Promise.reject(Object.assign(new Error('not found'), { code: 404 }));
 }
 
+describe('cancelled Kubernetes create', () => {
+  test.each([true, false])(
+    'fences podless Secret cleanup and preserves the PVC (own Secret: %s)',
+    async (own) => {
+      const controller = new AbortController();
+      const deletions: unknown[] = [];
+      let pods = 0;
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- bounded CoreV1 test seam
+      const core = {
+        readNamespacedPersistentVolumeClaim: notFound,
+        createNamespacedPersistentVolumeClaim: async () => ({}),
+        createNamespacedSecret: async () => {
+          controller.abort(new Error('caller cancelled'));
+          return {};
+        },
+        createNamespacedPod: async () => {
+          pods++;
+          return {};
+        },
+        readNamespacedPod: notFound,
+        listNamespacedSecret: async () => ({
+          items: [
+            {
+              metadata: {
+                name: sessionSecretNameFor(spec.sessionId),
+                uid: 'secret-uid',
+                annotations: {
+                  'tale.dev/created-at': String(
+                    spec.createdAtMs + (own ? 0 : 1),
+                  ),
+                },
+              },
+            },
+          ],
+        }),
+        deleteNamespacedSecret: async (args: unknown) => {
+          deletions.push(args);
+          return {};
+        },
+        deleteNamespacedPersistentVolumeClaim: async () => {
+          throw new Error('must preserve workspace');
+        },
+      } as unknown as CoreV1Api;
+      const base = stub(async () => ({}));
+      const backend = new KubernetesSessionBackend(cfg, {
+        ...base.client,
+        core,
+      });
+      const error = await rejection(
+        backend.createSession({ ...spec, signal: controller.signal }),
+      );
+      expect(error?.message).toBe('caller cancelled');
+      expect(pods).toBe(0);
+      expect(deletions).toEqual(
+        own
+          ? [
+              {
+                name: sessionSecretNameFor(spec.sessionId),
+                namespace: cfg.k8s.namespace,
+                body: { preconditions: { uid: 'secret-uid' } },
+              },
+            ]
+          : [],
+      );
+    },
+  );
+});
+
 describe('abandoned Kubernetes startup recovery', () => {
   const stamp = Date.now() - 600_000;
   const pending = (): V1Pod => ({

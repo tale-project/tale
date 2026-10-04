@@ -24,6 +24,7 @@
  */
 
 import { randomBytes, randomUUID } from 'node:crypto';
+import { posix } from 'node:path';
 
 import PQueue from 'p-queue';
 
@@ -34,6 +35,7 @@ import { agentLanguageGuidance } from '../../../lib/shared/agent-language';
 import { sanitizeUntrustedField } from '../../../lib/shared/sanitize-untrusted-field';
 import { parseSkillMd } from '../../../lib/skills/parse';
 import type { SkillViewer } from '../../../lib/skills/visibility';
+import { traceSandboxPhase } from '../../tracing';
 import {
   buildExternalTurnExec,
   classifyHarnessEnd,
@@ -76,6 +78,7 @@ import { provisionSessionGatewayKey } from '../node_only/sandbox/gateway_provisi
 import {
   sessionCancelExec,
   sessionDeleteFiles,
+  sessionListFiles,
   sessionStageFiles,
   type SessionStageFile,
 } from '../node_only/sandbox/helpers/session_client';
@@ -86,6 +89,7 @@ import {
   resolveGatewayRouting,
   revokeVirtualKey,
 } from '../node_only/sandbox/llm_gateway_admin';
+import { stageBlobCacheKey } from '../node_only/sandbox/managed_stage';
 import { harvestSessionOutput } from '../node_only/sandbox/session_exec';
 import {
   isTurnBudgetExceededError,
@@ -983,6 +987,7 @@ export async function stageWorkflowFiles(
   if (files === undefined) return { mounts: [], stagedPaths: [] };
   const toStage: SessionStageFile[] = [];
   const mounts: string[] = [];
+  const managedRoots: string[] = [];
   for (const [rawName, rawSource] of Object.entries(files)) {
     const name = mountNameOf(rawName);
     const source = parseStagingSource(rawSource);
@@ -991,17 +996,9 @@ export async function stageWorkflowFiles(
         `the files entry ${JSON.stringify(rawName)} names no usable source — use a folder id string, {folderPath}, or {content}`,
       );
     }
-    // The run's session is shared across its nodes — clear the mount first so
-    // a file from an earlier staging of the same mount cannot linger into
-    // this node's view of its inputs. Best-effort: a fresh session has
-    // nothing to clear.
-    await sessionDeleteFiles(sessionId, [`${pathPrefix}${name}`]).catch((err) =>
-      console.debug(
-        `[agent-host] mount pre-clear skipped for ${pathPrefix}${name}:`,
-        err instanceof Error ? err.message : err,
-      ),
-    );
     if ('content' in source) {
+      // A previous folder can occupy this inline file's mount.
+      await sessionDeleteFiles(sessionId, [`${pathPrefix}${name}`]);
       toStage.push({
         path: `${pathPrefix}${name}`,
         contentBase64: Buffer.from(source.content, 'utf8').toString('base64'),
@@ -1036,24 +1033,58 @@ export async function stageWorkflowFiles(
         `the folder referenced by files.${name} exceeds the staging caps — the listing was truncated, so the run would see only part of its inputs`,
       );
     }
+    managedRoots.push(`${pathPrefix}${name}`);
     for (const file of listing.files) {
       // Blob-aware: a BYO-bucket org's documents carry `s3:` refs, which stage
       // via the token-gated stream route instead of a `_storage` URL.
       const url = await stageUrlForBlobRef(String(file.fileId), organizationId);
       if (url === null) continue; // blob purged under a live row — skip, don't fail
-      toStage.push({ path: `${pathPrefix}${name}/${file.name}`, url });
+      toStage.push({
+        path: `${pathPrefix}${name}/${file.name}`,
+        url,
+        sourceId: stageBlobCacheKey(organizationId, String(file.fileId)),
+      });
     }
     mounts.push(name);
   }
-  if (toStage.length > 0) {
-    const staged = await sessionStageFiles(sessionId, toStage);
-    if (staged.skipped.length > 0) {
-      throw new Error(
-        `staging input files failed: ${staged.skipped
-          .map((s) => `${s.path} (${s.reason})`)
-          .join(', ')}`,
-      );
+  const batches = managedRoots.map((root) => ({
+    files: toStage.filter((file) => file.path.startsWith(`${root}/`)),
+    options: { replaceRoots: [root] },
+  }));
+  const inlineFiles = toStage.filter(
+    (file) => !managedRoots.some((root) => file.path.startsWith(`${root}/`)),
+  );
+  if (inlineFiles.length > 0)
+    batches.push({ files: inlineFiles, options: { replaceRoots: [] } });
+  for (const batch of batches) {
+    const root = batch.options.replaceRoots[0];
+    if (root !== undefined) {
+      // A previous node may have mounted inline content at this same path.
+      // Remove only that conflicting file: existing directories retain their
+      // verified cache entries until successful final reconciliation.
+      const siblings = await sessionListFiles(sessionId, posix.dirname(root));
+      if (
+        siblings?.some(
+          (entry) =>
+            entry.name === posix.basename(root) && entry.type === 'file',
+        )
+      ) {
+        const removed = await sessionDeleteFiles(sessionId, [root]);
+        if (removed.skipped.length > 0)
+          throw new Error(
+            `preparing folder mount ${root} failed: ${removed.skipped.map((item) => item.reason).join(', ')}`,
+          );
+      }
     }
+    const staged = await sessionStageFiles(
+      sessionId,
+      batch.files,
+      batch.options,
+    );
+    if (staged.skipped.length > 0)
+      throw new Error(
+        `staging input files failed: ${staged.skipped.map((s) => `${s.path} (${s.reason})`).join(', ')}`,
+      );
   }
   return { mounts, stagedPaths: toStage.map((file) => file.path) };
 }
@@ -2405,9 +2436,8 @@ export function liveProgressSink(
       const patch = pending;
       pending = undefined;
       try {
-        await ctx.runMutation(
-          internal.sandbox.session_mutations.upsertSessionOp,
-          {
+        await traceSandboxPhase('persist', () =>
+          ctx.runMutation(internal.sandbox.session_mutations.upsertSessionOp, {
             organizationId: args.organizationId,
             sessionId: args.sessionId,
             execId: args.execId,
@@ -2416,7 +2446,7 @@ export function liveProgressSink(
             lastEventAt: Date.now(),
             ...(visionModelRef !== undefined && { visionModelRef }),
             ...patch,
-          },
+          }),
         );
       } catch (err) {
         console.warn('[agent-host] live progress write failed:', err);

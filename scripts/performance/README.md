@@ -60,6 +60,7 @@ send authorization headers, measure browser rendering, or inspect server RSS.
 | --- | --- | --- |
 | Shared process utilities | 100,000 lines into a bounded ring; 16 MiB unterminated line in 4 KiB chunks | Other utilities and Postgres transaction/retry contention |
 | Platform engine/telemetry | Cold/cached validation of 100-item automation inputs; 1000 bounded metric updates and worker spans with tracing disabled/enabled, on Node | API/worker/knowledge/chat with real Postgres, storage and controlled model responses; authenticated UI |
+| Agent progress (`platform.agent-progress`) | 4,000 events across 1,000 tool cycles with 100 KB payloads; bounded resumable projection | Live model throughput, database write contention and end-to-end task latency |
 | Sandbox spawner | 1000 exec boundary validations with 128 environment values; 1000-event SSE burst | Docker/Kubernetes provisioning, concurrent session admission, image warmup |
 | Sandbox daemon/runtime | Real Node process output, 1 MiB stream and bounded replay | Linux subreaper, sustained reconnects, container resource ceilings and image-only document dependencies |
 | AI gateway | Read/validate/decrypt 100 file-backed accounts and atomic update | OAuth, provider refresh, controlled credential-pool traffic |

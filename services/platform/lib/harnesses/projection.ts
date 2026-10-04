@@ -1,177 +1,176 @@
-/** Bounded incremental display state. Protocol lifecycle/accounting remains
- * independent of this tail: evicting a display entry never forgets a task or
- * usage event. A disk replay can be arbitrarily longer than the displayed log. */
-import {
-  TIMELINE_MAX_ENTRIES,
-  TIMELINE_MAX_JSON_BYTES,
-  type TimelinePart,
-} from './timeline';
+import { z } from 'zod';
+
+import { boundTimelineParts, type TimelinePart } from './timeline';
 import type { HarnessEvent } from './types';
 
 export const HARNESS_TEXT_MAX_CHARS = 64 * 1024;
-const VALUE_CHARS = 2000;
-const BLOCK_CHARS = 4000;
+const TEXT_CHARS = HARNESS_TEXT_MAX_CHARS;
+const encoder = new TextEncoder();
+const BLOCK_CHARS = 4_000;
+const VALUE_CHARS = 2_000;
+// Leave space in the 1 MiB checkpoint for parser state and partial JSONL.
+const TIMELINE_BYTES = 240_000;
+const partSchema = z.object({
+  type: z.string(),
+  text: z.string().optional(),
+  state: z.string().optional(),
+  toolCallId: z.string().optional(),
+  input: z.unknown().optional(),
+  output: z.unknown().optional(),
+  errorText: z.string().optional(),
+});
+const projectionSchema = z.object({
+  text: z.string(),
+  streamsDeltas: z.boolean(),
+  textTruncated: z.boolean().optional(),
+  parts: z.array(partSchema),
+});
 
-/** A visible tail, including its truncation marker within the budget. */
-export function textTail(
-  value: string,
-  maxChars = HARNESS_TEXT_MAX_CHARS,
-): string {
-  return value.length <= maxChars ? value : `…${value.slice(-(maxChars - 1))}`;
+export function textTail(text: string, limit = HARNESS_TEXT_MAX_CHARS): string {
+  return text.length <= limit ? text : `…${text.slice(-(limit - 1))}`;
 }
 
-function clampValue(value: unknown): unknown {
+function boundedValue(value: unknown): unknown {
   if (value === undefined) return undefined;
   const json = JSON.stringify(value);
-  if (json === undefined) return undefined;
-  return json.length <= VALUE_CHARS ? value : `${json.slice(0, VALUE_CHARS)}…`;
+  return json === undefined || json.length <= VALUE_CHARS
+    ? value
+    : `${json.slice(0, VALUE_CHARS)}…`;
 }
 
-interface Entry {
-  part: TimelinePart;
-  bytes: number;
-}
-
-const encoder = new TextEncoder();
-const sizeOf = (part: TimelinePart) =>
-  encoder.encode(JSON.stringify(part)).length;
-
-class TimelineTail {
-  private entries: Entry[] = [];
-  private tools = new Map<string, Entry>();
-  private textBlock: Entry | undefined;
+/** A bounded incremental display projection. Raw events and large tool
+ * payloads never accumulate for the duration of a drain window. */
+export class HarnessProjection {
+  text = '';
+  textTruncated = false;
+  revision = 0;
+  private streamsDeltas = false;
+  private parts: TimelinePart[] = [];
+  private sizes: number[] = [];
   private bytes = 0;
+  private offset = 0;
+  private tools = new Map<string, number>();
 
-  private bound(): void {
+  private indexSizes(): void {
+    this.offset = 0;
+    this.tools.clear();
+    this.parts.forEach((part, index) => {
+      if (part.toolCallId !== undefined) this.tools.set(part.toolCallId, index);
+    });
+    this.sizes = this.parts.map(
+      (part) => encoder.encode(JSON.stringify(part)).byteLength,
+    );
+    this.bytes = this.sizes.reduce((sum, size) => sum + size, 0);
+  }
+
+  private writePart(index: number, part: TimelinePart): void {
+    const size = encoder.encode(JSON.stringify(part)).byteLength;
+    this.bytes += size - (this.sizes[index] ?? 0);
+    this.sizes[index] = size;
+    this.parts[index] = part;
+    if (part.toolCallId !== undefined)
+      this.tools.set(part.toolCallId, index + this.offset);
     while (
-      this.entries.length > 1 &&
-      (this.entries.length > TIMELINE_MAX_ENTRIES ||
-        this.bytes > TIMELINE_MAX_JSON_BYTES)
+      this.parts.length > 1 &&
+      (this.parts.length > 400 || this.bytes > TIMELINE_BYTES)
     ) {
-      const dropped = this.entries.shift();
-      if (dropped === undefined) break;
-      this.bytes -= dropped.bytes;
-      const id = dropped.part.toolCallId;
-      if (id !== undefined && this.tools.get(id) === dropped)
-        this.tools.delete(id);
-      if (this.textBlock === dropped) this.textBlock = undefined;
+      this.bytes -= this.sizes.shift() ?? 0;
+      const dropped = this.parts.shift();
+      if (
+        dropped?.toolCallId !== undefined &&
+        this.tools.get(dropped.toolCallId) === this.offset
+      )
+        this.tools.delete(dropped.toolCallId);
+      this.offset++;
     }
   }
 
-  private append(part: TimelinePart): Entry {
-    const entry = { part, bytes: sizeOf(part) };
-    this.entries.push(entry);
-    this.bytes += entry.bytes;
-    this.bound();
-    return entry;
-  }
-
-  private update(entry: Entry, part: TimelinePart): void {
-    this.bytes -= entry.bytes;
-    // A previously emitted snapshot may still be queued for storage. Never
-    // mutate the objects it holds when the next tool result/delta arrives.
-    entry.part = part;
-    entry.bytes = sizeOf(part);
-    this.bytes += entry.bytes;
-    this.bound();
-  }
-
-  text(value: string, separator: string): void {
-    if (value === '') return;
-    const previous = this.textBlock?.part.text ?? '';
-    const text = textTail(
-      `${previous}${previous === '' ? '' : separator}${value}`,
-      BLOCK_CHARS,
-    );
-    if (this.textBlock === undefined)
-      this.textBlock = this.append({ type: 'text', text });
-    else this.update(this.textBlock, { type: 'text', text });
-  }
-
-  tool(
-    event: Extract<HarnessEvent, { type: 'tool-use' }>,
-    input: unknown,
-  ): void {
-    this.textBlock = undefined;
-    const entry = this.append({
-      type: `tool-${event.toolName}`,
-      toolCallId: event.toolUseId,
-      state: 'input-available',
-      ...(input !== undefined ? { input } : {}),
+  restore(value: unknown): void {
+    const state = projectionSchema.parse(value);
+    this.text = textTail(state.text, TEXT_CHARS);
+    this.textTruncated =
+      state.textTruncated === true || state.text.length > TEXT_CHARS;
+    this.streamsDeltas = state.streamsDeltas;
+    this.parts = boundTimelineParts(state.parts, {
+      maxEntries: 400,
+      maxJsonBytes: TIMELINE_BYTES,
     });
-    this.tools.set(event.toolUseId, entry);
+    this.indexSizes();
   }
 
-  result(
-    event: Extract<HarnessEvent, { type: 'tool-result' }>,
-    output: unknown,
-  ): void {
-    const entry = this.tools.get(event.toolUseId);
-    if (entry === undefined) return;
-    this.update(entry, {
-      ...entry.part,
-      state: event.isError === true ? 'output-error' : 'output-available',
-      ...(event.isError === true
-        ? {
-            errorText:
-              typeof output === 'string' ? output : JSON.stringify(output),
-          }
-        : output !== undefined
-          ? { output }
-          : {}),
-    });
-  }
-
-  snapshot(): TimelinePart[] {
-    return this.entries.map((entry) => entry.part);
-  }
-}
-
-export class HarnessProjection {
-  // Some CLIs report both deltas and the completed text. Keep independently
-  // bounded projections until the first delta establishes the display lane.
-  private full = new TimelineTail();
-  private deltas = new TimelineTail();
-  private fullText = '';
-  private deltaText = '';
-  private streamsDeltas = false;
-  revision = 0;
-
-  accept(event: HarnessEvent): void {
-    if (event.type === 'text') {
-      if (this.streamsDeltas) return;
-      this.fullText = textTail(
-        `${this.fullText}${this.fullText === '' ? '' : '\n\n'}${event.text}`,
-      );
-      this.full.text(event.text, '\n\n');
-    } else if (event.type === 'text-delta') {
-      if (!this.streamsDeltas) {
-        this.streamsDeltas = true;
-        this.full = new TimelineTail();
-        this.fullText = '';
-      }
-      this.deltaText = textTail(this.deltaText + event.text);
-      this.deltas.text(event.text, '');
-    } else if (event.type === 'tool-use') {
-      if (event.toolUseId.length > 1024 || event.toolName.length > 256) {
-        throw new Error('Harness tool identifier exceeds its safety budget');
-      }
-      const input = clampValue(event.input);
-      if (!this.streamsDeltas) this.full.tool(event, input);
-      this.deltas.tool(event, input);
-    } else if (event.type === 'tool-result') {
-      const output = clampValue(event.output);
-      if (!this.streamsDeltas) this.full.result(event, output);
-      this.deltas.result(event, output);
-    } else return;
-    this.revision += 1;
-  }
-
-  get text(): string {
-    return this.streamsDeltas ? this.deltaText : this.fullText;
+  snapshot(): Record<string, unknown> {
+    return {
+      text: this.text,
+      textTruncated: this.textTruncated,
+      streamsDeltas: this.streamsDeltas,
+      parts: this.timeline(),
+    };
   }
 
   timeline(): TimelinePart[] {
-    return (this.streamsDeltas ? this.deltas : this.full).snapshot();
+    // Every entry is replaced rather than mutated when its state advances.
+    return [...this.parts];
+  }
+
+  accept(event: HarnessEvent): void {
+    if (event.type === 'text' || event.type === 'text-delta') {
+      if (event.type === 'text-delta' && !this.streamsDeltas) {
+        this.streamsDeltas = true;
+        this.text = '';
+        this.textTruncated = false;
+        this.parts = this.parts.filter((part) => part.type !== 'text');
+        this.indexSizes();
+      }
+      if (event.type === 'text' && this.streamsDeltas) return;
+      const separator = event.type === 'text' && this.text !== '' ? '\n\n' : '';
+      const fullText = this.text + separator + event.text;
+      this.textTruncated ||= fullText.length > TEXT_CHARS;
+      this.text = textTail(fullText, TEXT_CHARS);
+      const previous = this.parts.at(-1);
+      const words = previous?.type === 'text' ? (previous.text ?? '') : '';
+      const text = textTail(
+        words +
+          (words !== '' && event.type === 'text' ? '\n\n' : '') +
+          event.text,
+        BLOCK_CHARS,
+      );
+      const part = { type: 'text', text };
+      this.writePart(
+        previous?.type === 'text' ? this.parts.length - 1 : this.parts.length,
+        part,
+      );
+      this.revision++;
+    } else if (event.type === 'tool-use') {
+      if (event.toolUseId.length > 1024 || event.toolName.length > 256)
+        throw new Error('Harness tool identifier exceeds its safety budget');
+      const input = boundedValue(event.input);
+      this.writePart(this.parts.length, {
+        type: `tool-${event.toolName}`,
+        state: 'input-available',
+        toolCallId: event.toolUseId,
+        ...(input !== undefined ? { input } : {}),
+      });
+      this.revision++;
+    } else if (event.type === 'tool-result') {
+      const position = this.tools.get(event.toolUseId);
+      if (position === undefined) return;
+      const at = position - this.offset;
+      const previous = this.parts[at];
+      if (previous === undefined) return;
+      const output = boundedValue(event.output);
+      this.writePart(at, {
+        ...previous,
+        state: event.isError === true ? 'output-error' : 'output-available',
+        ...(event.isError === true
+          ? {
+              errorText:
+                typeof output === 'string' ? output : JSON.stringify(output),
+            }
+          : output !== undefined
+            ? { output }
+            : {}),
+      });
+      this.revision++;
+    } else return;
   }
 }

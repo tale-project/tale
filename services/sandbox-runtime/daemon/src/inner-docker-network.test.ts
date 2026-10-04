@@ -2,6 +2,7 @@ import { afterAll, describe, expect, test } from 'bun:test';
 import { spawnSync } from 'node:child_process';
 import {
   chmodSync,
+  existsSync,
   mkdtempSync,
   mkdirSync,
   readFileSync,
@@ -73,7 +74,7 @@ exec sleep 30
 // argv on a busy CI runner. The delayed startup above makes that race explicit.
 writeFileSync(
   join(bin, 'docker'),
-  '#!/bin/sh\ngrep -q "^dockerd " "$TALE_NETWORK_TEST_LOG"\n',
+  '#!/bin/sh\nif [ "$TALE_NETWORK_TEST_PROBE_HANG" = "1" ]; then printf "%s" "$$" > "$TALE_NETWORK_TEST_PROBE_PID"; exec sleep 30; fi\ngrep -q "^dockerd " "$TALE_NETWORK_TEST_LOG"\n',
   { mode: 0o755 },
 );
 writeFileSync(
@@ -100,7 +101,11 @@ printf 'iptables %s\\n' "$*" >> "$TALE_NETWORK_TEST_LOG"
   { mode: 0o755 },
 );
 const initialRoutes = [{ dst: '172.18.0.0/16', dev: 'eth0' }];
-function run(command: string, env: Record<string, string> = {}) {
+function run(
+  command: string,
+  env: Record<string, string> = {},
+  helperSource = helpers,
+) {
   writeFileSync(log, '');
   rmSync(dockerState, { recursive: true, force: true });
   if (env.TALE_NETWORK_TEST_DOCKER_STATE === 'directory') {
@@ -120,7 +125,7 @@ function run(command: string, env: Record<string, string> = {}) {
     '/bin/sh',
     [
       '-c',
-      `${helpers}\n_IP='${join(bin, 'ip')}'\n_GETENT='${join(bin, 'getent')}'\n${command}`,
+      `${helperSource}\n_IP='${join(bin, 'ip')}'\n_GETENT='${join(bin, 'getent')}'\n${command}`,
     ],
     {
       env: {
@@ -147,6 +152,7 @@ function run(command: string, env: Record<string, string> = {}) {
         TALE_GATEWAY_URL: '',
         TALE_RUNTIME_TIER: 'runc',
         TALE_NETWORK_TEST_DOCKERD_FAIL: '0',
+        TALE_NETWORK_TEST_PROBE_HANG: '0',
         ...env,
       },
       encoding: 'utf8',
@@ -547,6 +553,29 @@ wait
     expect(result.status).toBe(1);
     expect(result.stderr).toContain('inner dockerd diagnostic');
     expect(result.stderr).toContain('FATAL: inner dockerd exited');
+  });
+  test('bounded logging does not bypass the readiness deadline or retain a hung probe', () => {
+    const pidFile = join(root, 'hung-probe.pid');
+    const began = Date.now();
+    const { result, calls } = run(
+      start,
+      {
+        TALE_NETWORK_TEST_PROBE_HANG: '1',
+        TALE_NETWORK_TEST_PROBE_PID: pidFile,
+      },
+      helpers.replace('time.monotonic() + 30', 'time.monotonic() + 1.2'),
+    );
+    expect(result.status).toBe(1);
+    expect(result.error).toBeUndefined();
+    expect(Date.now() - began).toBeLessThan(5_000);
+    expect(result.stderr).toContain('inner dockerd diagnostic');
+    expect(result.stderr).toContain('see container logs');
+    expect(calls).toContain('--log-opt=max-size=10m');
+    expect(calls).not.toContain('egress ');
+    const probe = Number(readFileSync(pidFile, 'utf8'));
+    expect(() => process.kill(probe, 0)).toThrow();
+    expect(existsSync(join(root, 'dockerd.log'))).toBe(false);
+    expect(existsSync(join(root, 'redsocks.log'))).toBe(false);
   });
   test('session redsocks streams diagnostics without filling its temporary filesystem', () => {
     const { result } = run(`

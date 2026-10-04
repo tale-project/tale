@@ -8,6 +8,29 @@ const KEY_HEX = 'ab'.repeat(32);
 const BASE = { DATABASE_URL: 'postgres://x', ENCRYPTION_SECRET_HEX: KEY_HEX };
 
 describe('loadEnv', () => {
+  it('validates lightweight sessions and explicit Claude reasoning effort', () => {
+    expect(loadEnv(BASE).SANDBOX_AGENT_PROFILE).toBe('agent');
+    expect(loadEnv(BASE).TALE_SANDBOX_CLAUDE_EFFORT).toBeUndefined();
+    expect(
+      loadEnv({ ...BASE, TALE_SANDBOX_CLAUDE_EFFORT: '' })
+        .TALE_SANDBOX_CLAUDE_EFFORT,
+    ).toBeUndefined();
+    expect(
+      loadEnv({
+        ...BASE,
+        SANDBOX_AGENT_PROFILE: 'agent-light',
+        TALE_SANDBOX_CLAUDE_EFFORT: 'medium',
+      }),
+    ).toMatchObject({
+      SANDBOX_AGENT_PROFILE: 'agent-light',
+      TALE_SANDBOX_CLAUDE_EFFORT: 'medium',
+    });
+    expect(() => loadEnv({ ...BASE, SANDBOX_AGENT_PROFILE: 'agnt' })).toThrow();
+    expect(() =>
+      loadEnv({ ...BASE, TALE_SANDBOX_CLAUDE_EFFORT: 'faster' }),
+    ).toThrow();
+  });
+
   it('applies defaults for port, role, and concurrency', () => {
     const env = loadEnv({ ...BASE });
     expect(env.PORT).toBe(3005);

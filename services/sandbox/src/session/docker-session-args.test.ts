@@ -52,6 +52,28 @@ const goodInput = {
 };
 
 describe('buildDockerSessionRunArgs', () => {
+  test('light agents retain the agent user and caps without DinD or its storage', () => {
+    const args = buildDockerSessionRunArgs(
+      {
+        ...cfg,
+        runtimeTier: 'runc',
+        dockerInContainer: true,
+        transparentEgress: false,
+        session: {
+          ...cfg.session,
+          agentLightMemory: '4g',
+          agentProfile: { ...cfg.session.agentProfile, memory: '8g' },
+        },
+      },
+      { ...goodInput, profile: 'agent-light' },
+    );
+    expect(args).toContain('10001:10001');
+    expect(args).toContain('tale.profile=agent-light');
+    expect(args).toContain('--memory=4g');
+    expect(args).not.toContain('--privileged');
+    expect(args).not.toContain('TALE_DIND=1');
+    expect(args).toContain('--read-only');
+  });
   test('a lightweight agent keeps agent ownership but starts no Docker daemon', () => {
     const args = buildDockerSessionRunArgs(
       { ...cfg, runtimeTier: 'sysbox', dockerInContainer: true },

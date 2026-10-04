@@ -41,6 +41,16 @@ export function traceWorkerPhase<T>(phase: WorkerPhase, run: () => T): T {
   return Sentry.startSpan({ op: `queue.${phase}`, name: phase }, run);
 }
 
+/** Bounded phase vocabulary only: no org, exec id, prompt, path or credential
+ * enters traces. Disabled tracing preserves the callback's return identity. */
+export function traceSandboxPhase<T>(
+  phase: 'acquire' | 'gateway' | 'stage' | 'execute' | 'persist' | 'harvest',
+  run: () => T,
+): T {
+  if (!enabled) return run();
+  return Sentry.startSpan({ op: `sandbox.${phase}`, name: phase }, run);
+}
+
 /** Measures handler completion, not the lifetime of a streamed response body. */
 export function requestTelemetry(): MiddlewareHandler {
   return async (c, next) => {

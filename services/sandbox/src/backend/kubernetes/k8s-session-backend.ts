@@ -13,9 +13,15 @@ import {
   type V1Secret,
 } from '@kubernetes/client-node';
 
+import {
+  operationSignal,
+  outsideOperationBudget,
+  withOperationBudget,
+} from '../../operation-budget.ts';
 import { waitForRunnerd } from '../../session/runnerd-client.ts';
 import { RUNNERD_PORT } from '../../session/runnerd-protocol.ts';
 import { deriveRunnerdToken } from '../../session/session-naming.ts';
+import { isAgentSessionProfile } from '../../session/session-profile.ts';
 import type { SpawnerConfig } from '../../types.ts';
 import { ID_ALPHABET_RE } from '../../wire.ts';
 import {
@@ -81,12 +87,43 @@ export class KubernetesSessionBackend implements SessionBackend {
   }
 
   async createSession(spec: SessionSpec): Promise<CreateSessionResult> {
+    return withOperationBudget(
+      this.cfg.session.createHealthTimeoutMs,
+      async (signal) => {
+        try {
+          const created = await this.createSessionWithinBudget(spec);
+          signal.throwIfAborted();
+          return created;
+        } catch (error) {
+          if (signal.aborted) {
+            await outsideOperationBudget(() =>
+              withOperationBudget(30_000, () =>
+                this.cleanupCancelledCreate(spec),
+              ),
+            ).catch((cleanupError: unknown) => {
+              console.warn(
+                '[sandbox.session] cancelled pod create cleanup deferred:',
+                cleanupError,
+              );
+            });
+          }
+          throw error;
+        }
+      },
+      spec.signal,
+    );
+  }
+
+  private async createSessionWithinBudget(
+    spec: SessionSpec,
+  ): Promise<CreateSessionResult> {
+    const deadline = Date.now() + this.cfg.session.createHealthTimeoutMs;
     // A pre-existing workspace PVC means this is a RESUME of a stopped session.
     // A failed create here must NOT delete that PVC (it holds the user's
     // preserved data) — stop instead. Fresh creates clean up fully.
     // Only agent sessions keep a workspace volume; a crawler render's
     // workspace lives and dies with its Pod (k8s-session-pod-spec.ts).
-    const durable = spec.profile === 'agent';
+    const durable = isAgentSessionProfile(spec.profile);
     const preexisting =
       durable && (await this.workspacePvcExists(spec.sessionId));
     // On a resume (preexisting PVC) a Pod that died out-of-band can still hold
@@ -159,7 +196,6 @@ export class KubernetesSessionBackend implements SessionBackend {
     }
     // The Pod carries this creator's deadline, so a replacement spawner with
     // a shorter configured timeout never reaps a healthy peer's startup.
-    const deadline = Date.now() + this.cfg.session.createHealthTimeoutMs;
     try {
       await withRetry('create-session-pod', () =>
         this.client.core.createNamespacedPod(
@@ -212,6 +248,28 @@ export class KubernetesSessionBackend implements SessionBackend {
       throw err;
     }
     return { resumed: preexisting };
+  }
+
+  /** Cancellation can arrive after the Secret is stored but before the Pod.
+   * Delete only this create's stamped Secret, with an immutable UID fence;
+   * keep the workspace so a retry can safely resume it. */
+  private async cleanupCancelledCreate(spec: SessionSpec): Promise<void> {
+    if (await this.stopSession(spec.sessionId, spec.createdAtMs)) return;
+    const secret = await this.readSessionSecret(spec.sessionId);
+    if (
+      secret?.metadata?.annotations?.['tale.dev/created-at'] !==
+        String(spec.createdAtMs) ||
+      !secret.metadata.uid
+    )
+      return;
+    await this.client.core.deleteNamespacedSecret(
+      {
+        name: sessionSecretNameFor(spec.sessionId),
+        namespace: this.cfg.k8s.namespace,
+        body: { preconditions: { uid: secret.metadata.uid } },
+      },
+      apiTimeout(),
+    );
   }
 
   /** Is the Pod under the session's name the incarnation this create made
@@ -358,6 +416,8 @@ export class KubernetesSessionBackend implements SessionBackend {
     sessionId: string,
     preexisting: boolean,
   ): Promise<void> {
+    // The outer cancellation envelope handles ambiguous writes by incarnation.
+    operationSignal()?.throwIfAborted();
     if (preexisting) {
       await this.stopSession(sessionId);
     } else {
@@ -371,6 +431,7 @@ export class KubernetesSessionBackend implements SessionBackend {
     deadlineMs: number,
   ): Promise<string> {
     for (;;) {
+      operationSignal()?.throwIfAborted();
       const ip = (await this.readPod(sessionId))?.status?.podIP;
       if (ip) return `http://${ip}:${RUNNERD_PORT}`;
       if (Date.now() > deadlineMs) {
@@ -872,7 +933,9 @@ export class KubernetesSessionBackend implements SessionBackend {
       out.push({
         sessionId,
         organizationId: org,
-        profile: ann['tale.dev/profile'] === 'agent' ? 'agent' : 'default',
+        profile: isAgentSessionProfile(ann['tale.dev/profile'])
+          ? ann['tale.dev/profile']
+          : 'default',
         ...(ann['tale.dev/docker'] === undefined
           ? {}
           : { docker: ann['tale.dev/docker'] === 'true' }),

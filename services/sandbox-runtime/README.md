@@ -12,25 +12,30 @@ Tale sandbox runtime image — the Python/Node/coding-agent environment that
 
 Any other argument exits 65 (there is no per-call language lane).
 
-runnerd keeps the complete exec protocol in a disk-backed journal for
-reconnection during the runtime's lifetime. Each journal is limited to 64 MiB
-of encoded NDJSON, with a 256 MiB session budget; stdout/stderr's base64
-encoding counts toward those limits. Completed journals are evicted oldest
-first when space is needed. The 256 KiB in-memory ring is diagnostic only.
-Exceeding the remaining storage budget ends the writer with `OUTPUT_LIMIT`;
-an evicted or unreadable transcript reports `REPLAY_UNAVAILABLE`, never a
-partial replay presented as complete. Journals are unlinked after opening and
-held through file descriptors: stopping or restarting the runtime loses them,
-while the workspace remains persistent.
+runnerd keeps the exec protocol in checkpointed disk segments for reconnection
+within the runtime's lifetime. Each exec may retain up to 64 MiB of unacknowledged
+encoded NDJSON; stdout/stderr base64 counts toward that bound. All live and
+retained execs share a 256 MiB physical storage budget, including checkpoints and
+unlinked segments still held by readers. Completed spools are evicted first.
+The 256 KiB in-memory ring is diagnostic only. A committed parser checkpoint
+acknowledges its prefix before segments are pruned, allowing long runs to exceed
+the per-exec bound over time. Unacknowledged overflow ends the writer with
+`OUTPUT_LIMIT`; evicted or unreadable replay reports `REPLAY_UNAVAILABLE`.
+An acknowledged prefix missing from an older reader's cursor produces an exact
+gap range, which the platform can recover from a covering checkpoint.
 
-An exec output reader is disconnected before its pending writes exceed 8 MiB.
-Attach replay waits for socket drain, disconnecting a reader stalled for two
-seconds, so historical output cannot fill memory faster than the client reads.
-The command continues under its existing deadline. Reconnect through attach
-with the last sequence number. `replay-start` precedes journal history;
-`replay-complete` names the sequence through
-which the history present at attachment has been delivered. Session idle and
-TTL cleanup atomically checks the current work generation and activity clock
+Output framing retains at most three trailing bytes until a split UTF-8
+character is complete, without changing raw bytes. Writes backpressure child
+output. An exec reader is disconnected before pending writes exceed 8 MiB;
+attach replay waits for socket drain and disconnects a reader stalled for two
+seconds. Reconnect using the last sequence number. `replay-start` precedes
+history; `replay-complete` names the attachment's initial sequence watermark.
+Checkpoints are atomically committed and synced before acknowledged segments
+are removed. Normal disposal removes runtime-owned spool files; the entrypoint
+cleans their temporary directory at restart. Replay does not survive runtime
+restart, while the workspace does.
+
+Session idle and TTL cleanup atomically checks the current work generation and activity clock
 before freezing compute; see the [session contract](../sandbox/docs/sessions.md).
 
 Completed commands release their request and consumer data even while another
@@ -43,8 +48,9 @@ File staging streams each URL into a temporary file beside its destination
 and replaces the destination only after a complete, bounded download. Cancelling
 or failing a download preserves the previous file. At most two stage requests
 are admitted at once, including their JSON intake; excess requests report
-`busy`. URL inputs retain their 100 MiB limit and 25-second per-file deadline;
-inline inputs retain their 1 MiB limit. Output reads also stream, within their
+`busy`. Two transfers run concurrently across all admitted batches; the entire
+batch and each URL fetch have a 25-second deadline. URL inputs retain their
+100 MiB limit and inline inputs their 1 MiB limit. Output reads also stream, within their
 20 MiB file limit. Immutable source identities can skip a transfer only after
 rehashing the current destination; a changed file is repaired. Explicit final
 manifests remove stale files only within the named managed roots after all
@@ -307,3 +313,10 @@ browser screenshots and still has the batch lane for its scripts.
 ### Per-request vision thinking
 
 `tale-vision --thinking disabled` requests the standard Anthropic disabled-thinking mode for that batch only. The default (`--thinking provider`, or omission) leaves provider behavior unchanged. Choose the override only for a compatible vision model; it does not change provider defaults, output-token limits, image processing, per-image deadlines or the ordinary Read-hook fallback. The batch cache distinguishes the override from the provider default, while the default retains historical cache entries. Runtime tests cover both request forms, cache isolation, exact original image bytes and invalid-value refusal.
+
+File staging streams downloads to temporary files and atomically renames them on
+success. At most two files stage concurrently under one 25-second batch deadline;
+cancellation removes temporary files. Verified SHA-256 manifests skip unchanged
+managed inputs, while changed or deleted workspace files are repaired. `/readyz`
+checks daemon liveness; `/healthz` adds bounded, coalesced Docker and egress
+observations when configured, without treating those dependencies as liveness.

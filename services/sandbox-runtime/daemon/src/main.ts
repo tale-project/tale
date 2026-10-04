@@ -12,7 +12,6 @@
 // by the image's Node 24 — so this file uses only node: built-ins, no deps.
 
 import { timingSafeEqual } from 'node:crypto';
-import { once } from 'node:events';
 import {
   createServer,
   type IncomingMessage,
@@ -25,6 +24,7 @@ import { fileURLToPath } from 'node:url';
 import { ActivityGate } from './activity-gate.ts';
 import { reconcileBakedSkills } from './baked-skills.ts';
 import { exitDaemon } from './daemon-exit.ts';
+import { dependencyHealth } from './dependency-health.ts';
 import { EnvStore } from './env-store.ts';
 import { ExecManager } from './exec-manager.ts';
 import {
@@ -37,6 +37,7 @@ import {
 } from './file-ops.ts';
 import { readJsonBody } from './http-body.ts';
 import {
+  RUNNERD_CHECKPOINT_MAX_BYTES,
   RUNNERD_CONSUMER_BUFFER_MAX_BYTES,
   RUNNERD_MAX_LIVE_EXECS,
   RUNNERD_PORT,
@@ -45,8 +46,9 @@ import {
   type RunnerdExecRequest,
   type RunnerdStdinWriteRequest,
 } from './protocol.ts';
-let stageRequests = 0;
 const FILE_READ_MAX_BYTES = 20 * 1024 * 1024;
+const MAX_STAGING_OPERATIONS = 2;
+let stagingOperations = 0;
 
 const TOKEN = process.env.TALE_RUNNERD_TOKEN ?? '';
 const bootedAtMs = Date.now();
@@ -149,9 +151,8 @@ function execConsumer(
   res: ServerResponse,
   label: string,
 ) {
-  // A detached exec can outlive this HTTP exchange. Its failure continuation
-  // still holds the consumer, so explicitly release the request/response pair
-  // when the connection ends instead of waiting for the command to finish.
+  // A running exec retains its consumer after this exchange ends. Clearing the
+  // nullable transport releases the request/response and their upload buffers.
   let transport: { req: IncomingMessage; res: ServerResponse } | null = {
     req,
     res,
@@ -166,60 +167,58 @@ function execConsumer(
     transport?.req.removeListener('aborted', gone);
     transport?.res.removeListener('close', gone);
     transport = null;
-    // Node's default abort Error captures this close listener's response in
-    // its stack; a still-running exec retains the signal, so use no stack.
+    // Error stacks can retain this close listener's response. A detached exec
+    // needs only the abort state, not an Error carrying that response stack.
     consumer.abort('consumer disconnected');
   };
-  // IncomingMessage 'close' also means a completely received request under
-  // Node. The response's close is the consumer's lifetime; aborted covers an
-  // incomplete request without mistaking normal receipt for a disconnect.
   req.once('aborted', gone);
   res.once('close', gone);
-  const emit = (event: RunnerdExecEvent) => {
-    const response = transport?.res;
-    if (!response || response.destroyed || response.writableEnded) return;
-    const line = `${JSON.stringify(event)}\n`;
-    if (
-      response.writableLength + Buffer.byteLength(line) >
-      RUNNERD_CONSUMER_BUFFER_MAX_BYTES
-    ) {
-      console.warn(
-        `[runnerd] ${label} consumer backpressured past ${RUNNERD_CONSUMER_BUFFER_MAX_BYTES}B — disconnecting it (reconnect via /attach)`,
-      );
-      gone();
-      // end() would leave the queued bytes waiting on the stalled reader.
-      // Destroying just this response releases its socket and write queue.
-      response.destroy();
-      return;
-    }
-    try {
-      response.write(line);
-    } catch (err) {
-      console.warn(`[runnerd] ${label} write failed:`, err);
-      gone();
-      response.destroy();
-    }
-  };
   return {
     signal: consumer.signal,
     closed,
-    emit,
-    async replay(this: void, event: RunnerdExecEvent) {
-      emit(event);
-      // Only this in-flight write may hold the response. The reusable replay
-      // callback reads the nullable transport, so detach releases it as well.
+    emit: (event: RunnerdExecEvent) => {
       const response = transport?.res;
-      if (response?.writableNeedDrain) {
+      if (!response || response.destroyed || response.writableEnded) return;
+      const line = `${JSON.stringify(event)}\n`;
+      if (
+        response.writableLength + Buffer.byteLength(line) >
+        RUNNERD_CONSUMER_BUFFER_MAX_BYTES
+      ) {
+        console.warn(
+          `[runnerd] ${label} consumer backpressured past ${RUNNERD_CONSUMER_BUFFER_MAX_BYTES}B — disconnecting it (reconnect via /attach)`,
+        );
+        gone();
+        response.destroy();
+        return;
+      }
+      try {
+        response.write(line);
+      } catch (err) {
+        console.warn(`[runnerd] ${label} write failed:`, err);
+        gone();
+        response.destroy();
+      }
+    },
+    ready: (): Promise<void> => {
+      // Only the in-flight wait holds the response; the reusable callback
+      // captures the nullable transport, so detach can release the socket.
+      const response = transport?.res;
+      if (!response?.writableNeedDrain || consumer.signal.aborted)
+        return Promise.resolve();
+      return new Promise((finishReady) => {
+        const settle = () => {
+          response.removeListener('drain', settle);
+          consumer.signal.removeEventListener('abort', settle);
+          clearTimeout(stalled);
+          finishReady();
+        };
         const stalled = setTimeout(() => {
           gone();
           response.destroy();
         }, 2_000);
-        try {
-          await once(response, 'drain', { signal: consumer.signal });
-        } finally {
-          clearTimeout(stalled);
-        }
-      }
+        response.once('drain', settle);
+        consumer.signal.addEventListener('abort', settle, { once: true });
+      });
     },
     end() {
       const response = transport?.res;
@@ -288,6 +287,7 @@ async function handleExec(
 const EXEC_CANCEL_RE = /^\/execs\/([a-zA-Z0-9_-]{1,64})\/cancel$/;
 const EXEC_ATTACH_RE = /^\/execs\/([a-zA-Z0-9_-]{1,64})\/attach$/;
 const EXEC_STDIN_RE = /^\/execs\/([a-zA-Z0-9_-]{1,64})\/stdin$/;
+const EXEC_CHECKPOINT_RE = /^\/execs\/([a-zA-Z0-9_-]{1,64})\/checkpoint$/;
 const EXEC_STATUS_RE = /^\/execs\/([a-zA-Z0-9_-]{1,64})$/;
 
 async function handleAttach(
@@ -312,9 +312,10 @@ async function handleAttach(
   try {
     const stream = execManager.attach(
       execId,
-      consumer.replay,
+      consumer.emit,
       sinceSeq,
       consumer.signal,
+      consumer.ready,
     );
     if (stream) await stream;
   } finally {
@@ -341,12 +342,14 @@ async function router(
   }
 
   if (req.method === 'GET' && path === '/healthz') {
+    const dependencies = await dependencyHealth();
     const body: Record<string, unknown> = {
       ok: true,
       bootedAtMs,
       lastActivityAtMs,
       liveExecs: execManager.liveCount(),
       activity: activity.snapshot(),
+      ...(dependencies ? { dependencies } : {}),
     };
     sendJson(res, 200, body);
     return;
@@ -491,6 +494,54 @@ async function handleOperation(
     sendJson(res, 200, execManager.writeStdin(stdinMatch[1] ?? '', body));
     return;
   }
+  const checkpointMatch = path.match(EXEC_CHECKPOINT_RE);
+  if (checkpointMatch && (req.method === 'GET' || req.method === 'PUT')) {
+    const id = checkpointMatch[1] ?? '';
+    if (!execManager.canAttach(id)) {
+      sendJson(res, 404, { error: 'not_found' });
+      return;
+    }
+    if (req.method === 'GET') {
+      sendJson(res, 200, { checkpoint: await execManager.checkpoint(id) });
+      return;
+    }
+    const body = await readJsonBody(req);
+    if (!body.ok) {
+      sendJson(res, body.status, { error: body.error });
+      return;
+    }
+    if (
+      !isObject(body.value) ||
+      typeof body.value.seq !== 'number' ||
+      !Number.isSafeInteger(body.value.seq) ||
+      body.value.seq < 0 ||
+      !Object.hasOwn(body.value, 'state')
+    ) {
+      sendJson(res, 400, { error: 'bad_request' });
+      return;
+    }
+    if (
+      Buffer.byteLength(JSON.stringify(body.value)) >
+      RUNNERD_CHECKPOINT_MAX_BYTES
+    ) {
+      sendJson(res, 413, { error: 'payload_too_large' });
+      return;
+    }
+    const result = await execManager.saveCheckpoint(id, {
+      seq: body.value.seq,
+      state: body.value.state,
+    });
+    const status =
+      result === 'ok'
+        ? 200
+        : result === 'stale'
+          ? 409
+          : result === 'not_found'
+            ? 404
+            : 400;
+    sendJson(res, status, result === 'ok' ? { ok: true } : { error: result });
+    return;
+  }
   const statusMatch = path.match(EXEC_STATUS_RE);
   if (req.method === 'GET' && statusMatch) {
     const id = statusMatch[1] ?? '';
@@ -529,12 +580,12 @@ async function handleOperation(
   if (req.method === 'POST' && path === '/files/stage') {
     // Bound JSON intake as well as downloads. Refused bodies are drained
     // without retaining bytes, preserving the keep-alive framing contract.
-    if (stageRequests >= 2) {
+    if (stagingOperations >= MAX_STAGING_OPERATIONS) {
       await readJsonBody(req, 0);
       sendJson(res, 503, { error: 'busy' });
       return;
     }
-    stageRequests += 1;
+    stagingOperations += 1;
     try {
       const stageBody = await readJsonBody(req);
       if (!stageBody.ok) {
@@ -553,17 +604,7 @@ async function handleOperation(
       }
       const files: StageItem[] = [];
       for (const item of incomingFiles) {
-        if (
-          !isObject(item) ||
-          typeof item.path !== 'string' ||
-          (item.url !== undefined && typeof item.url !== 'string') ||
-          (item.contentBase64 !== undefined &&
-            typeof item.contentBase64 !== 'string') ||
-          (item.sourceId !== undefined &&
-            (typeof item.sourceId !== 'string' ||
-              item.sourceId.length > 2048)) ||
-          (item.url !== undefined && item.contentBase64 !== undefined)
-        ) {
+        if (!isStageItem(item)) {
           sendJson(res, 400, { error: 'bad_request' });
           return;
         }
@@ -572,6 +613,8 @@ async function handleOperation(
           url: item.url,
           contentBase64: item.contentBase64,
           sourceId: item.sourceId,
+          sha256: item.sha256,
+          cacheKey: item.cacheKey,
         });
       }
       const options: StageOptions = {};
@@ -580,6 +623,7 @@ async function handleOperation(
         if (value !== undefined) {
           if (
             !Array.isArray(value) ||
+            value.length > 4096 ||
             !value.every((entry): entry is string => typeof entry === 'string')
           ) {
             sendJson(res, 400, { error: 'bad_request' });
@@ -605,7 +649,7 @@ async function handleOperation(
       }
       return;
     } finally {
-      stageRequests -= 1;
+      stagingOperations -= 1;
     }
   }
   if (req.method === 'POST' && path === '/files/delete') {
@@ -699,4 +743,22 @@ if (
       `[runnerd] listening on :${RUNNERD_PORT}; tokenAuth=${TOKEN === '' ? 'OFF (dev)' : 'on'}; execShim=${execManager.execShim ?? 'off'}`,
     );
   });
+}
+
+function isStageItem(value: unknown): value is StageItem {
+  return (
+    isObject(value) &&
+    typeof value.path === 'string' &&
+    !(value.url !== undefined && value.contentBase64 !== undefined) &&
+    (value.sourceId === undefined ||
+      (typeof value.sourceId === 'string' && value.sourceId.length <= 2048)) &&
+    (value.url === undefined || typeof value.url === 'string') &&
+    (value.contentBase64 === undefined ||
+      typeof value.contentBase64 === 'string') &&
+    (value.sha256 === undefined ||
+      (typeof value.sha256 === 'string' &&
+        /^[a-f0-9]{64}$/.test(value.sha256))) &&
+    (value.cacheKey === undefined ||
+      (typeof value.cacheKey === 'string' && value.cacheKey.length <= 256))
+  );
 }

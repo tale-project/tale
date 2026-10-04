@@ -239,3 +239,20 @@ reach the server directly. See the script headers for the split rationale.
 # from repo root
 docker build -f services/sandbox/Dockerfile .
 ```
+
+Session startup has one `SANDBOX_SESSION_CREATE_TIMEOUT_MS` budget (180 seconds),
+including optional BuildKit startup (`SANDBOX_BUILDKITD_START_TIMEOUT_MS`,
+30 seconds, capped at one quarter of the create budget), container/Pod readiness and environment delivery. Request
+cancellation propagates to outstanding work; cleanup is separately bounded and
+preserves the workspace. The `agent-light` profile keeps the agent user, coding
+tools and persistent workspace without inner Docker or BuildKit.
+
+Reactivating a released session reserves its expected memory growth and checks
+disk headroom. Both create and acquire can return 429 `host_memory` or `host_disk`.
+Set `SANDBOX_DOCKER_DATA_ROOT` and a read-only mount visible at
+`SANDBOX_DOCKER_DATA_PATH` to monitor Docker's filesystem separately from the
+workspace filesystem. The CLI generates the mount when configured; raw Compose
+needs an override. The source must match DockerRootDir and the mount must be
+read-only; failed verification blocks admission. `/health.disks` reports each
+monitor as ready, unavailable or (Docker data) unconfigured. These checks do not
+enforce per-session disk quotas; those require a quota-capable storage backend.

@@ -25,7 +25,11 @@ import {
   SESSION_INSTANCE_LABEL,
   sessionContainerName,
 } from './session-naming.ts';
-import { sessionDindEnabled } from './session-profile.ts';
+import {
+  isAgentSessionProfile,
+  sessionAgentProfile,
+  sessionDindEnabled,
+} from './session-profile.ts';
 
 interface DockerSessionRunInput {
   sessionId: string;
@@ -123,8 +127,9 @@ export function buildDockerSessionRunArgs(
   assertSafe('workspaceHostDir', inp.workspaceHostDir, HOST_DIR_RE);
   assertSafe('runnerdToken', inp.runnerdToken, TOKEN_RE);
 
-  const profile =
-    inp.profile === 'agent' ? cfg.session.agentProfile : DEFAULT_PROFILE;
+  const profile = isAgentSessionProfile(inp.profile)
+    ? sessionAgentProfile(cfg, inp.profile)
+    : DEFAULT_PROFILE;
   assertSafe('profile.user', profile.user, USER_RE);
   assertSafe('profile.memory', profile.memory, MEM_RE);
   assertSafe('profile.tmpfsSize', profile.tmpfsSize, MEM_RE);
@@ -208,8 +213,8 @@ export function buildDockerSessionRunArgs(
   // agent profile's per-file `fsize` cap (512 MiB) would make layer extraction
   // fail with EFBIG on any image shipping a single file larger than the cap —
   // e.g. paradedb's >512 MiB `pg_search.so.dbg` debug symbols. Under DinD the
-  // per-file ceiling is also the wrong disk-DoS lever (the real bound is the
-  // dedicated /var/lib/docker volume quota), so drop it entirely; and dockerd
+  // per-file ceiling cannot bound total disk use. Admission monitors free
+  // space; hard quotas require operator-provisioned storage. Drop fsize; dockerd
   // needs a daemon-class fd budget, so raise `nofile` to its customary range.
   // Non-DinD keeps today's caps verbatim (the byte-identical-argv unit test
   // depends on this branch staying unchanged).
@@ -246,9 +251,11 @@ export function buildDockerSessionRunArgs(
     ? Math.max(profile.pidsLimit, 16384)
     : profile.pidsLimit;
 
-  // Inner dockerd storage: a dedicated, ephemeral, size-bounded volume so the
+  // Inner dockerd storage: a dedicated, ephemeral volume so the
   // image/layer store never lands on the overlay-backed workspace bind mount
-  // (nested overlay is rejected by the kernel) and can't fill the host disk.
+  // (nested overlay is rejected by the kernel). Named volumes have no portable
+  // size quota: the Docker data filesystem is monitored, and hard storage
+  // isolation requires an operator-provisioned quota-capable filesystem.
   let dockerStorageMount: string[] = [];
   let dindEnv: string[] = [];
   if (dind) {

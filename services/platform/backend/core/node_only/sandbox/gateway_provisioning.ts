@@ -39,6 +39,7 @@ import type { ModelCatalogEntry } from '@tale/shared/schemas/providers';
 
 import { AppError } from '../../../../lib/shared/errors/app-error';
 import { isRecord } from '../../../../lib/utils/type-utils';
+import { traceSandboxPhase } from '../../../tracing';
 import type { ActionCtx } from '../../lib/ctx';
 import { internal } from '../../lib/handler_names';
 import { getProviderCatalog } from '../../lib/providers/catalog_fetch';
@@ -332,7 +333,16 @@ export interface SessionGatewayKey {
  * inference, defeating the whole per-session key model. What it throws
  * tells its stage through `gatewayProvisioningFailureStage`.
  */
-export async function provisionSessionGatewayKey(
+export function provisionSessionGatewayKey(
+  ctx: ActionCtx,
+  args: SessionGatewayArgs,
+): Promise<SessionGatewayKey> {
+  return traceSandboxPhase('gateway', () =>
+    provisionSessionGatewayKeyInner(ctx, args),
+  );
+}
+
+async function provisionSessionGatewayKeyInner(
   ctx: ActionCtx,
   args: SessionGatewayArgs,
 ): Promise<SessionGatewayKey> {
@@ -343,6 +353,7 @@ export async function provisionSessionGatewayKey(
   requireGatewayAdminPassword();
   const reuse: GatewayReuseOptions = {
     reuseRecent: args.requestScoped === true,
+    verifiedKeys: new Map(),
   };
 
   // One provision-build per unique connector (one credential resolve each),

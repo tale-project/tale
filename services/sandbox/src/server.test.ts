@@ -86,6 +86,65 @@ describe('session HTTP routes', () => {
     }
   });
 
+  test('checkpoint GET and PUT pass the authenticated router with a bounded body', async () => {
+    const checkpoint = spyOn(
+      SessionRoutes.prototype,
+      'handleExecCheckpoint',
+    ).mockImplementation(async () => Response.json({ checkpoint: null }));
+    const path = '/v1/sessions/sess1/exec/exec1/checkpoint';
+    try {
+      for (const method of ['GET', 'PUT']) {
+        expect(
+          (await router(new Request(`http://sandbox${path}`, { method })))
+            .status,
+        ).toBe(401);
+        const body =
+          method === 'PUT'
+            ? JSON.stringify({ seq: 10, state: 'x'.repeat(300_000) })
+            : '';
+        const timestamp = String(Date.now());
+        const nonce = crypto.randomUUID();
+        const response = await router(
+          new Request(`http://sandbox${path}`, {
+            method,
+            ...(method === 'PUT' ? { body } : {}),
+            headers: {
+              [SIGNATURE_HEADER]: sign(
+                method,
+                path,
+                timestamp,
+                body,
+                'route-test-secret',
+                nonce,
+              ),
+              [TIMESTAMP_HEADER]: timestamp,
+              [NONCE_HEADER]: nonce,
+            },
+          }),
+        );
+        expect(response.status).toBe(200);
+        expect(checkpoint.mock.calls.at(-1)?.slice(1)).toEqual([
+          'sess1',
+          'exec1',
+          body,
+        ]);
+      }
+      expect(
+        (
+          await router(
+            new Request(`http://sandbox${path}`, {
+              method: 'PUT',
+              body: 'x'.repeat(1024 * 1024 + 1),
+            }),
+          )
+        ).status,
+      ).toBe(413);
+      expect(checkpoint).toHaveBeenCalledTimes(2);
+    } finally {
+      checkpoint.mockRestore();
+    }
+  });
+
   test('the session exec route remains authenticated', async () => {
     const response = await router(
       new Request('http://sandbox/v1/sessions/sess1/exec', {
