@@ -66,6 +66,7 @@ import { rowToHashInput } from './domains/audit_logs/hash-input.ts';
 import type { AuditLogRow } from './domains/audit_logs/types.ts';
 import { checkDeletedOrgDoors } from './domains/automations/deleted-org-doors.integration.ts';
 import { checkDeletedOrgSchedules } from './domains/automations/deleted-org-schedules.integration.ts';
+import { checkManagedAutomationConfiguration } from './domains/automations/managed-configuration.integration.ts';
 import { checkAutomationProjectVisibility } from './domains/automations/project-visibility.integration.ts';
 import { checkTriggerStreakLockOrder } from './domains/automations/trigger-lock-order.integration.ts';
 import { checkTriggerPauseAfterFailures } from './domains/automations/trigger-pause.integration.ts';
@@ -100,6 +101,7 @@ import { writeNotificationForOrgs } from './domains/notifications/service.ts';
 import { ensureDefaultObjectStore } from './domains/object_storage/bootstrap.ts';
 import { checkOrphanedOrgRowsBackfill } from './domains/organizations/orphaned-rows.integration.ts';
 import { checkProductImageReleaseHolders } from './domains/products/image-release.integration.ts';
+import { checkManagedInstructions } from './domains/projects/managed-instructions.integration.ts';
 import { checkStandardAgent } from './domains/projects/standard-agent.integration.ts';
 import { checkBrokerAccountSelection } from './domains/provider_credentials/broker-selection.integration.ts';
 import { checkProviderCredentialConfiguration } from './domains/provider_credentials/configuration.integration.ts';
@@ -1780,6 +1782,13 @@ async function checkProjects(
   const assignedTaskId = overdueTaskBody.success
     ? overdueTaskBody.data.taskId
     : '';
+  await checkManagedInstructions(
+    sql,
+    base,
+    ctx,
+    { projectId, agentId: agentIdToDelete, taskId: assignedTaskId },
+    record,
+  );
   const tasksApi = `${base}/api/app/tasks`;
   const assignedToAgent = await fetch(
     `${tasksApi}/${assignedTaskId}/assign?orgId=${orgId}`,
@@ -59692,6 +59701,10 @@ async function main(): Promise<void> {
       [
         'checkAutomationTriggerDelivery',
         () => checkAutomationTriggerDelivery(sql, baseUrl, authCtx),
+      ],
+      [
+        'checkManagedAutomationConfiguration',
+        () => checkManagedAutomationConfiguration(sql, authCtx, record),
       ],
       [
         'checkTriggerPauseAfterFailures',
