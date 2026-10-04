@@ -868,6 +868,44 @@ describe('release artifact identity', () => {
       sitesOnly,
     ).services;
 
+  test('identity evidence still rejects an alias whose source was never pulled', () => {
+    expect(() =>
+      prepareImages(
+        {
+          run: `docker tag ghcr.io/tale-project/tale/tale-platform@${CI_DIGEST} ghcr.io/tale-project/tale/tale-platform:latest`,
+        },
+        [],
+      ),
+    ).toThrow();
+  });
+
+  test.each(['smoke-test', 'image-validate', 'release'])(
+    '%s retains complete image identity records when concurrent workers yield between writes',
+    (job) => {
+      const source =
+        job === 'release'
+          ? releasePull
+          : build.jobs[job]!.steps.find(
+              (step) => step.name === 'Pull images from GHCR',
+            )!;
+      // Each stdout write yields to another worker. This deterministically
+      // exposes a mock that emits one command as several separate writes,
+      // while retaining the workflow's real parallel pull/tag ordering.
+      const images = prepareImages(
+        {
+          ...source,
+          run: 'printf() { builtin printf "$@"; sleep 0.01; };\n' + source.run,
+        },
+        releaseMatrix(false),
+      );
+      expect(images.get('tale-sandbox-runtime:latest')).toBe(
+        job === 'release'
+          ? 'ghcr.io/tale-project/tale/tale-sandbox-runtime:0.5.43-amd64'
+          : `ghcr.io/tale-project/tale/tale-sandbox-runtime@${CI_DIGEST}`,
+      );
+    },
+  );
+
   test.each(['smoke-test', 'image-validate'])(
     'release prepares every image alias used by the green Build %s lane',
     (job) => {
