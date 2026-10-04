@@ -27,9 +27,11 @@ vi.mock('@tale/ui/use-toast', () => ({ useToast: () => ({ toast }) }));
 vi.mock('@/lib/auth-client', () => ({
   authClient: { organization: { updateTeam: vi.fn() } },
 }));
-const members = vi.hoisted(() => [{ _id: 'tm-a', userId: 'user-a' }]);
+const members = vi.hoisted(() => ({
+  value: [{ _id: 'tm-a', userId: 'user-a' }],
+}));
 vi.mock('../hooks/queries', () => ({
-  useTeamMembers: () => ({ teamMembers: members }),
+  useTeamMembers: () => ({ teamMembers: members.value }),
 }));
 const addMember = vi.hoisted(() => vi.fn());
 vi.mock('../hooks/mutations', () => ({
@@ -40,12 +42,19 @@ vi.mock('../hooks/mutations', () => ({
 vi.mock('./team-member-checklist', () => ({
   TeamMemberChecklist: ({
     onToggleMember,
+    selectedMemberIds,
   }: {
     onToggleMember: (userId: string) => void;
+    selectedMemberIds: Set<string>;
   }) => (
-    <button type="button" onClick={() => onToggleMember('user-b')}>
-      Add user-b
-    </button>
+    <>
+      <output aria-label="Selected members">
+        {Array.from(selectedMemberIds).sort().join(',')}
+      </output>
+      <button type="button" onClick={() => onToggleMember('user-b')}>
+        Add user-b
+      </button>
+    </>
   ),
 }));
 
@@ -63,9 +72,106 @@ function TeamList() {
 beforeEach(() => {
   vi.clearAllMocks();
   storedName = 'Original team';
+  members.value = [{ _id: 'tm-a', userId: 'user-a' }];
 });
 
 describe('TeamEditDialog', () => {
+  it('preserves a roster draft and blocks saving after a remote roster refresh', async () => {
+    const client = new QueryClient();
+    const { user, rerender } = render(
+      <QueryClientProvider client={client}>
+        <TeamEditDialog
+          team={{
+            id: 'team-a',
+            name: storedName,
+            memberCount: 1,
+            createdAt: 0,
+          }}
+          organizationId="org-a"
+          open
+          onOpenChange={vi.fn()}
+        />
+      </QueryClientProvider>,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Add user-b' }));
+    members.value = [
+      { _id: 'tm-a', userId: 'user-a' },
+      { _id: 'tm-c', userId: 'user-c' },
+    ];
+    rerender(
+      <QueryClientProvider client={client}>
+        <TeamEditDialog
+          team={{
+            id: 'team-a',
+            name: storedName,
+            memberCount: 2,
+            createdAt: 0,
+          }}
+          organizationId="org-a"
+          open
+          onOpenChange={vi.fn()}
+        />
+      </QueryClientProvider>,
+    );
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'The team membership changed in another session',
+    );
+    expect(screen.getByLabelText('Selected members')).toHaveTextContent(
+      'user-a,user-b',
+    );
+    expect(screen.getByRole('button', { name: /Save/ })).toBeDisabled();
+    expect(addMember).not.toHaveBeenCalled();
+    client.clear();
+  });
+
+  it('preserves a roster draft when a refresh keeps the same users', async () => {
+    const client = new QueryClient();
+    const { user, rerender } = render(
+      <QueryClientProvider client={client}>
+        <TeamEditDialog
+          team={{
+            id: 'team-a',
+            name: storedName,
+            memberCount: 1,
+            createdAt: 0,
+          }}
+          organizationId="org-a"
+          open
+          onOpenChange={vi.fn()}
+        />
+      </QueryClientProvider>,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Add user-b' }));
+    members.value = [{ _id: 'tm-a-refreshed', userId: 'user-a' }];
+    rerender(
+      <QueryClientProvider client={client}>
+        <TeamEditDialog
+          team={{
+            id: 'team-a',
+            name: storedName,
+            memberCount: 1,
+            createdAt: 0,
+          }}
+          organizationId="org-a"
+          open
+          onOpenChange={vi.fn()}
+        />
+      </QueryClientProvider>,
+    );
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'The team membership changed in another session',
+    );
+    expect(screen.getByLabelText('Selected members')).toHaveTextContent(
+      'user-a,user-b',
+    );
+    expect(screen.getByRole('button', { name: /Save/ })).toBeDisabled();
+    client.clear();
+  });
+
   it('refreshes the visible list after a name-only Better Auth update without reloading', async () => {
     vi.mocked(authClient.organization.updateTeam).mockImplementation(
       async () => {

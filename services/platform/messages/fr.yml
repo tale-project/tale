@@ -5881,6 +5881,7 @@ settings:
     teamNameTooLong: Le nom de l'équipe ne peut pas dépasser 80 caractères
     teamNameTaken: Une équipe portant ce nom existe déjà
     membershipChangesFailed: '{count, plural, one {# modification de membre a été refusée} other {# modifications de membres ont été refusées}}. La liste a été actualisée.'
+    membershipRefreshConflict: Les membres de l’équipe ont changé dans une autre session. Ferme cette boîte de dialogue et rouvre-la pour vérifier la liste actuelle.
     syncedBadge: Synchronisée
     syncedNotice: "Cette équipe est provisionnée par ton fournisseur d'identité, qui gère son nom et ses membres. Modifie-les là-bas : une modification locale serait annulée à la prochaine synchronisation."
     deleteImpact:

@@ -5798,6 +5798,7 @@ settings:
     teamNameTooLong: Der Teamname darf höchstens 80 Zeichen lang sein
     teamNameTaken: Ein Team mit diesem Namen existiert bereits
     membershipChangesFailed: '{count, plural, one {# Mitgliedschaftsänderung wurde} other {# Mitgliedschaftsänderungen wurden}} abgelehnt. Die Liste wurde aktualisiert.'
+    membershipRefreshConflict: Die Teammitglieder wurden in einer anderen Sitzung geändert. Schließe diesen Dialog und öffne ihn erneut, um die aktuelle Liste zu prüfen.
     syncedBadge: Synchronisiert
     syncedNotice: Dieses Team wird von deinem Identity Provider bereitgestellt,
       der Name und Mitglieder verwaltet. Ändere sie dort – eine lokale Änderung
