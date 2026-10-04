@@ -423,7 +423,7 @@ describe('loadConfig — request body cap follows runnerd', () => {
 });
 
 test('optional build cache has a bounded whole-operation budget', () => {
-  expect(loadConfig().buildkitdProvisionTimeoutMs).toBe(15_000);
+  expect(loadConfig().buildkitdProvisionTimeoutMs).toBe(5_000);
   process.env.SANDBOX_BUILDKITD_PROVISION_TIMEOUT_MS = '500';
   expect(loadConfig().buildkitdProvisionTimeoutMs).toBe(500);
   process.env.SANDBOX_BUILDKITD_PROVISION_TIMEOUT_MS = '60001';

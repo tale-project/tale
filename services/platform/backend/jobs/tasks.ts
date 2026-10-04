@@ -274,6 +274,12 @@ export interface TaskPayloads {
    * spawner-side, under its id, then re-pin it — queued by the sweep and the
    * Sandboxes page probe so neither waits for a create. */
   'sandbox.recreate_pinned': { organizationId: string; sessionId: string };
+  /** Deliver the latest desired pin of this incarnation, including Unpin. */
+  'sandbox.sync_pin': {
+    organizationId: string;
+    sessionId: string;
+    rowId: string;
+  };
   /** An administrator's Destroy from the Sandboxes page: delete the session's
    * sandbox and workspace and settle its rows. `rowId` is the incarnation it
    * was asked for; a newer one under the reused id is left alone. The page
@@ -587,6 +593,13 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
   'watchdog.automation_agents': { retryLimit: 1, expireInSeconds: 120 },
   'watchdog.sandbox': { retryLimit: 1, expireInSeconds: 300 },
   // A spawner blip is retried with backoff, not three times in one second.
+  'sandbox.sync_pin': {
+    policy: 'short',
+    retryLimit: 3,
+    retryDelay: 5,
+    retryBackoff: true,
+    expireInSeconds: 300,
+  },
   'sandbox.release_idle': {
     retryLimit: 3,
     retryDelay: 5,

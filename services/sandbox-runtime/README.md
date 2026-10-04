@@ -10,7 +10,19 @@ Tale sandbox runtime image — the Python/Node/coding-agent environment that
 2. **`egress-sidecar`** — the Kubernetes native sidecar that installs the
    transparent-egress redirect and runs redsocks beside the session container.
 
-Any other argument exits 65 (there is no per-call language lane).
+`internal-dockerd` is reserved for the root supervisor's engine child. Any
+other argument exits 65 (there is no per-call language lane).
+
+When DinD is enabled, the session starts with the standard Docker socket and
+no inner engine. Its first Docker client starts the engine automatically;
+concurrent clients share that startup. After five minutes without clients,
+the supervisor stops the engine only if no container is running, restarting
+or paused and every container has its restart policy disabled. Unknown
+inventory keeps it running. The next Docker command starts
+it again with the same image store, volumes and workspace. Existing container
+state at session-container boot starts the engine immediately so restart
+policies still work. This needs no agent setting and does not change the
+deployment's runtime isolation or resource limits.
 
 runnerd keeps the complete exec protocol in a disk-backed journal for
 reconnection during the runtime's lifetime. Each journal is limited to 64 MiB
@@ -19,7 +31,8 @@ encoding counts toward those limits. Completed journals are evicted oldest
 first when space is needed. The journal is the sole retained output history.
 Exceeding the remaining storage budget ends the writer with `OUTPUT_LIMIT`;
 an evicted or unreadable transcript reports `REPLAY_UNAVAILABLE`, never a
-partial replay presented as complete. Journals are unlinked after opening and
+partial replay presented as complete. Journals live under `/agent/.runtime/tmp`
+on the workspace disk rather than the memory-backed `/tmp`. They are unlinked after opening and
 held through file descriptors: stopping or restarting the runtime loses them,
 while the workspace remains persistent.
 
@@ -144,13 +157,28 @@ verifying the source, revision and version labels. Both builds must pass before
 the release manifests are published.
 
 Inner Docker startup has a 30-second readiness budget, with each Docker client
-probe bounded to two seconds. After startup, runnerd checks the fixed local
-socket directly with a 750 ms deadline and shares results for one second.
-A failed engine makes `/readyz` and new acquire/exec requests return 503;
+probe bounded to two seconds. Runnerd checks the supervisor's fixed control
+socket within 750 ms and shares results for one second. The supervisor probes
+an active engine within 500 ms; it leaves an intentionally sleeping engine
+asleep. A failed probe makes `/readyz` and new acquire/exec requests return 503;
 authenticated `/healthz` keeps reporting process activity with
-`dockerReady: false`. The spawner recycles only an atomically claimed idle,
-unpinned session, preserving its workspace. Running work and pinned sessions
-remain protected; engine recovery makes them ready again.
+`dockerReady: false`.
+
+One slow probe does not authorize session recycling. At least three completed
+failed probes spanning five seconds are needed for `dockerRecoveryRequired`;
+cached reads do not add evidence. A healthy result or a new engine clears the
+engine's failure history. An observed failed startup or unexpected engine exit
+is direct failure evidence and can request recovery immediately. The spawner
+still recycles only an atomically claimed idle, unpinned session. Its workspace
+survives, but the Docker backend removes the session's ephemeral inner Docker
+store when stopping the session. Running work and pinned sessions remain
+protected; engine recovery makes them ready again.
+
+During a rolling upgrade, keep old spawners pinned to their existing runtime
+image until they are replaced. Do not move a runtime tag still used by an old
+spawner: it does not understand the recovery-confidence field. A new spawner with
+an older runtime refuses unhealthy new work but retains ordinary idle and
+lifetime cleanup instead of accelerating cleanup from a boolean health result.
 
 Before starting inner Docker on either backend, the runtime checks IPv4 routes
 and gateways from all tables, interface addresses and prefixes, DNS servers,
@@ -186,10 +214,12 @@ bun run --filter @tale/sandbox-runtime docker:build
 ## Container
 
 `docker-entrypoint.sh` (PID 1, container-level envelope) `exec`s `entrypoint.sh`
-with args preserved, which dispatches on mode and `exec`s the daemon so
-signals (SIGTERM) reach it directly. The `daemon` (session) dispatch `exec`s
-`tini -g` with runnerd as its child on every path, so PID 1 reaps the orphans a
-long-lived session accumulates. runnerd starts every exec under
+with args preserved, which dispatches on mode. The `daemon` (session) dispatch
+`exec`s `tini -g`, so PID 1 reaps the orphans a long-lived session accumulates.
+Without DinD its child is runnerd; with DinD its child is the root Docker
+supervisor, which forwards shutdown and starts runnerd as uid 10001. The
+supervisor uses a private engine socket and proxies the ordinary
+`/var/run/docker.sock` with bounded, backpressured connections. runnerd starts every exec under
 `/usr/local/bin/tale-exec-shim`, built in its own stage from
 `daemon/exec-shim/tale-exec-shim.c`: a child subreaper that keeps whatever the
 exec starts its descendant, so runnerd can end what the exec left

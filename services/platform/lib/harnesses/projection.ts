@@ -10,7 +10,7 @@ import {
 } from './timeline';
 import type { HarnessEvent } from './types';
 
-export const HARNESS_TEXT_MAX_CHARS = 64 * 1024;
+export const HARNESS_TEXT_MAX_CHARS = 32_000;
 const VALUE_CHARS = 2000;
 const BLOCK_CHARS = 4000;
 

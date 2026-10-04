@@ -214,7 +214,8 @@ own files), then list the outside files as `$TURBO_ROOT$/<path>`:
   integration scope guard) and other outside files; its `test:ui` and `test:browser` list `packages/ui/src` as well, since their
   component suites render it, and all three list `@tale/ui`'s `package.json` and every file
   it exports from outside `src/` (`tailwind-preset.ts`). Its `lint` and `typecheck` list the
-  sandbox daemon's `file-ops.ts`, which two suites import, and the `protocol.ts` it imports:
+  sandbox runtime's `build-gemini-settings.ts` and daemon `file-ops.ts` and
+  `exec-journal.ts`, which suites import, plus the daemon modules' shared `protocol.ts`:
   `tsc` and oxlint's type-aware rules type every module the sources import. Its guard is
   `services/platform/tests/guards/turbo-inputs.guard.test.ts`.
 - [`services/docs/turbo.json`](../services/docs/turbo.json) gives `@tale/docs` the root `docs/`

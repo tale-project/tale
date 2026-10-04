@@ -460,6 +460,19 @@ export class ExecManager {
     else consumerSignal?.addEventListener('abort', detach, { once: true });
 
     const publishEvent = (event: RunnerdExecEvent, persist = true) => {
+      // Keep one protocol record bounded, including direct shim output. A
+      // multiple of four preserves independently decodable base64 frames.
+      if (
+        (event.t === 'stdout' || event.t === 'stderr') &&
+        event.b64.length > 65536
+      ) {
+        for (let offset = 0; offset < event.b64.length; offset += 65536)
+          publishEvent(
+            { ...event, b64: event.b64.slice(offset, offset + 65536) },
+            persist,
+          );
+        return;
+      }
       // Stamp a monotonic seq so a reconnecting /attach?sinceSeq= can replay
       // only events it hasn't seen — idempotent reconnect.
       record.seq += 1;

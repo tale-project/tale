@@ -6,6 +6,8 @@
       "inputs": [
         "$TURBO_EXTENDS$",
         "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/services/sandbox-runtime/build-gemini-settings.ts",
+        "$TURBO_ROOT$/services/sandbox-runtime/daemon/src/exec-journal.ts",
         "$TURBO_ROOT$/services/sandbox-runtime/daemon/src/file-ops.ts",
         "$TURBO_ROOT$/services/sandbox-runtime/daemon/src/protocol.ts"
       ]
@@ -34,6 +36,7 @@
         "$TURBO_ROOT$/services/sandbox-llm-gateway/docker-entrypoint.sh",
         "$TURBO_ROOT$/services/sandbox-runtime/Dockerfile",
         "$TURBO_ROOT$/services/sandbox-runtime/build-gemini-settings.ts",
+        "$TURBO_ROOT$/services/sandbox-runtime/daemon/src/exec-journal.ts",
         "$TURBO_ROOT$/services/sandbox-runtime/daemon/src/file-ops.ts",
         "$TURBO_ROOT$/services/sandbox-runtime/daemon/src/protocol.ts",
         "$TURBO_ROOT$/services/sandbox-runtime/playwright-mcp-args.json",
@@ -62,6 +65,8 @@
       "inputs": [
         "$TURBO_EXTENDS$",
         "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/services/sandbox-runtime/build-gemini-settings.ts",
+        "$TURBO_ROOT$/services/sandbox-runtime/daemon/src/exec-journal.ts",
         "$TURBO_ROOT$/services/sandbox-runtime/daemon/src/file-ops.ts",
         "$TURBO_ROOT$/services/sandbox-runtime/daemon/src/protocol.ts"
       ]
