@@ -163,6 +163,11 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
 
 ## A green check is not always a run
 
+The seven workflow-specific **CI ready** terminal jobs judge complete native PR/merge-group
+dependencies and validated scope. Their source contract, conditional/advisory limits and
+separate required-check activation procedure are in [`.github/CI.md`](../.github/CI.md).
+They do not replace independent review or the release-candidate gate.
+
 Every CI job is `setup-turbo` plus one root script, so most check results are **replays**:
 `@tale/ui:test:browser`, for instance, actually executed four times in one recent stretch of
 forty `checks.yml` runs. Whichever run first executes a given input hash freezes its verdict for

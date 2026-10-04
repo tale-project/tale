@@ -20,25 +20,7 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
     branches:
       - main
-    paths:
-      - 'services/**'
-      - 'packages/**'
-      - 'configs/platform/custom/skills/visual-aspect-analyzer/**'
-      - 'docs/**'
-      - '.github/workflows/build.yml'
-      - '.github/actions/setup-turbo/**'
-      - 'compose.yml'
-      - 'compose.test.yml'
-      - 'services/platform/tests/integration/container-*'
-      - 'services/platform/tests/integration/static-site-test.ts'
-      - 'services/platform/tests/integration/lib/**'
-      - '.env.test'
-      - 'bunfig.toml'
-      - 'tsconfig.base.json'
-      - 'turbo.json'
-      - '.dockerignore'
-      - 'package.json'
-      - 'bun.lock'
+
   push:
     branches:
       - main
@@ -87,6 +69,31 @@ env:
   REGISTRY: ghcr.io
 
 jobs:
+  pr-scope:
+    name: PR scope
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      run: ${{ steps.scope.outputs.run }}
+      full: ${{ steps.scope.outputs.full }}
+      changes: ${{ steps.scope.outputs.changes }}
+      ci_tests: ${{ steps.scope.outputs.ci_tests }}
+      storybook: ${{ steps.scope.outputs.storybook }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+      - name: Decide applicability
+        id: scope
+        uses: ./.github/actions/ci-scope
+        with:
+          filter: build
+
   # Only candidates need remote source validation; ordinary jobs keep their event SHA.
   candidate-source:
     if: >-
@@ -108,8 +115,10 @@ jobs:
       (((github.event_name == 'repository_dispatch' || github.event_name == 'workflow_dispatch') &&
       needs.candidate-source.result == 'success') ||
       ((github.event_name != 'repository_dispatch' && github.event_name != 'workflow_dispatch') &&
-      needs.candidate-source.result == 'skipped'))
-    needs: candidate-source
+      needs.candidate-source.result == 'skipped')) &&
+      (github.event_name != 'pull_request' ||
+      (needs.pr-scope.result == 'success' && needs.pr-scope.outputs.run == 'true'))
+    needs: [candidate-source, pr-scope]
     name: Detect changes
     runs-on: ubuntu-latest
     timeout-minutes: 3
@@ -134,75 +143,37 @@ jobs:
           ref: ${{ needs.candidate-source.outputs.candidate_sha }}
 
       - name: Filter paths
-        if: needs.candidate-source.outputs.candidate_sha == ''
+        if: needs.candidate-source.outputs.candidate_sha == '' && github.event_name != 'pull_request' && github.event_name != 'merge_group' && needs.pr-scope.outputs.full != 'true'
         uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4
         id: filter
         with:
-          filters: |
-            platform:
-              - 'services/platform/**'
-            db:
-              - 'services/db/**'
-            proxy:
-              - 'services/proxy/**'
-            sandbox-llm-gateway:
-              - 'services/sandbox-llm-gateway/**'
-            web:
-              - 'services/web/**'
-              - 'packages/ui/**'
-              - 'packages/marketing-ui/**'
-            docs:
-              - 'services/docs/**'
-              - 'docs/**'
-              - 'packages/ui/**'
-              - 'packages/marketing-ui/**'
-            ui-docs:
-              - 'services/ui-docs/**'
-              - 'packages/ui/**'
-              - 'packages/marketing-ui/**'
-            ai-gateway:
-              - 'services/ai-gateway/**'
-              - 'packages/ui/**'
-            storybook:
-              - 'services/platform/**'
-              - 'packages/ui/**'
-              - 'packages/marketing-ui/**'
-            sandbox:
-              - 'services/sandbox/**'
-            sandbox-egress:
-              - 'services/sandbox-egress/**'
-            sandbox-buildkitd:
-              - 'services/sandbox-buildkitd/**'
-            sandbox-runtime:
-              - 'services/sandbox-runtime/**'
-            ci_tests:
-              - 'services/platform/tests/integration/container-*'
-              - 'services/platform/tests/integration/static-site-test.ts'
-              - 'services/platform/tests/integration/lib/**'
-              - 'compose.test.yml'
-              - 'compose.yml'
-              - '.env.test'
-              - '.github/workflows/build.yml'
-              - 'services/db/**'
-              - 'services/platform/**'
-              - 'services/proxy/**'
-              - 'services/sandbox-llm-gateway/**'
-              - 'services/sandbox/**'
-              - 'services/sandbox-egress/**'
-              - 'services/sandbox-buildkitd/**'
-              - 'services/sandbox-runtime/**'
+          filters: .github/ci-scope.yml
 
       - name: Compute service matrix
         id: services
         env:
           CANDIDATE_SHA: ${{ needs.candidate-source.outputs.candidate_sha }}
+          EVENT_NAME: ${{ github.event_name }}
+          FULL_SCOPE: ${{ needs.pr-scope.outputs.full }}
+          PR_CHANGES: ${{ needs.pr-scope.outputs.changes }}
+          PR_CI_TESTS: ${{ needs.pr-scope.outputs.ci_tests }}
+          PR_STORYBOOK: ${{ needs.pr-scope.outputs.storybook }}
           CHANGES: ${{ steps.filter.outputs.changes }}
-          CI_TESTS: ${{ steps.filter.outputs.ci_tests }}
-          STORYBOOK: ${{ steps.filter.outputs.storybook }}
+          CI_TESTS: ${{ steps.filter.outputs.build_ci_tests }}
+          STORYBOOK: ${{ steps.filter.outputs.build_storybook }}
         run: |
           set -euo pipefail
-          if [ -n "$CANDIDATE_SHA" ]; then
-            # A release candidate runs every check, whatever its last commit
+          if [ "$EVENT_NAME" = pull_request ] && [ "$FULL_SCOPE" != true ]; then
+            # This decision was validated once against the frozen PR event.
+            # Never query the mutable PR files again after waiting in the queue.
+            CHANGES="$PR_CHANGES"
+            CI_TESTS="$PR_CI_TESTS"
+            STORYBOOK="$PR_STORYBOOK"
+          elif [ -n "$CHANGES" ]; then
+            CHANGES=$(jq -ce '[.[] | select(startswith("build_")) | ltrimstr("build_")]' <<< "$CHANGES")
+          fi
+          if [ -n "$CANDIDATE_SHA" ] || [ "$EVENT_NAME" = merge_group ] || [ "$FULL_SCOPE" = true ]; then
+            # Candidates, merge groups and conservative scope run every check, whatever its last commit
             # touched: a check skipped for the candidate never passed for it.
             # Every filter above, pseudo-filters included (deployment-ci.test.ts).
             CHANGES='["platform","db","proxy","sandbox-llm-gateway","web","docs","ui-docs","ai-gateway","storybook","sandbox","sandbox-egress","sandbox-buildkitd","sandbox-runtime","ci_tests"]'
@@ -1198,3 +1169,23 @@ jobs:
           path: release-candidate.json
           retention-days: 90
           overwrite: true
+
+  # A required context must execute even when an upstream check failed/skipped.
+  ci-ready:
+    name: CI ready (Build)
+    if: always() && (github.event_name == 'pull_request' || github.event_name == 'merge_group')
+    needs: [pr-scope, candidate-source, changes, build, smoke-test, smoke-test-fork, web-test, docs-test, ui-docs-test, ai-gateway-test, image-validate, image-validate-fork, vulnerability-scan, storybook, candidate-gate]
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout verdict policy
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+      - name: Evaluate native workflow
+        uses: ./.github/actions/ci-ready
+        with:
+          workflow: build
+          jobs: ${{ toJSON(needs) }}

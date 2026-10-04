@@ -1,0 +1,138 @@
+# Authoritative scope for PRs and existing Build service discovery.
+integration:
+  - services/platform/backend/**
+  - services/platform/lib/**
+  - services/platform/messages/**
+  - services/platform/sla-targets.ts
+  - services/platform/package.json
+  - services/platform/Dockerfile
+  - services/db/**
+  - services/sandbox-runtime/daemon/src/file-ops.ts
+  - services/sandbox-runtime/daemon/src/protocol.ts
+  - packages/shared/**
+  - packages/ui/package.json
+  - packages/ui/src/i18n/**
+  - configs/platform/**
+  - tools/cli/src/lib/compose/types.ts
+  - package.json
+  - bun.lock
+  - .github/workflows/checks.yml
+  - .github/actions/setup-turbo/**
+security:
+  - bun.lock
+  - package.json
+  - services/*/package.json
+  - services/sandbox-runtime/document-node/**
+  - services/sandbox-runtime/document-python-requirements.txt
+  - services/*/Dockerfile
+  - services/*/Dockerfile.dockerignore
+  - .trivyignore.yaml
+  - .github/workflows/security.yml
+cli:
+  - tools/cli/**
+  - services/platform/backend/core/automations/pack_zip.ts
+  - services/platform/backend/core/skills/bundle_zip.ts
+  - services/platform/lib/**
+  - configs/platform/system/connectors/**
+  - packages/shared/**
+  - bun.lock
+  - scripts/install-cli.*
+  - .github/workflows/cli.yml
+  - .github/actions/setup-cli/**
+e2e:
+  - services/platform/**
+  - services/web/**
+  - services/docs/**
+  - packages/ui/**
+  - packages/marketing-ui/**
+  - packages/e2e/**
+  - .github/workflows/e2e.yml
+  - .github/actions/setup-turbo/**
+  - package.json
+  - bun.lock
+  - turbo.json
+  - tsconfig.base.json
+build:
+  - services/**
+  - packages/**
+  - configs/platform/custom/skills/visual-aspect-analyzer/**
+  - docs/**
+  - .github/workflows/build.yml
+  - .github/actions/setup-turbo/**
+  - compose.yml
+  - compose.test.yml
+  - services/platform/tests/integration/container-*
+  - services/platform/tests/integration/static-site-test.ts
+  - services/platform/tests/integration/lib/**
+  - .env.test
+  - bunfig.toml
+  - tsconfig.base.json
+  - turbo.json
+  - .dockerignore
+  - package.json
+  - bun.lock
+guard:
+  - .github/ci-scope.yml
+  - .github/actions/ci-scope/**
+  - .github/actions/ci-ready/**
+  - tools/cli/scripts/ci-ready.ts
+  - tools/cli/scripts/ci-ready.test.ts
+  - tools/cli/scripts/ci-ready-workflows.test.ts
+all:
+  - "**"
+build_platform:
+  - services/platform/**
+build_db:
+  - services/db/**
+build_proxy:
+  - services/proxy/**
+build_sandbox-llm-gateway:
+  - services/sandbox-llm-gateway/**
+build_web:
+  - services/web/**
+  - packages/ui/**
+  - packages/marketing-ui/**
+build_docs:
+  - services/docs/**
+  - docs/**
+  - packages/ui/**
+  - packages/marketing-ui/**
+build_ui-docs:
+  - services/ui-docs/**
+  - packages/ui/**
+  - packages/marketing-ui/**
+build_ai-gateway:
+  - services/ai-gateway/**
+  - packages/ui/**
+build_storybook:
+  - services/platform/**
+  - packages/ui/**
+  - packages/marketing-ui/**
+build_sandbox:
+  - services/sandbox/**
+build_sandbox-egress:
+  - services/sandbox-egress/**
+build_sandbox-buildkitd:
+  - services/sandbox-buildkitd/**
+build_sandbox-runtime:
+  - services/sandbox-runtime/**
+build_ci_tests:
+  - services/platform/tests/integration/container-*
+  - services/platform/tests/integration/static-site-test.ts
+  - services/platform/tests/integration/lib/**
+  - compose.test.yml
+  - compose.yml
+  - .env.test
+  - .github/workflows/build.yml
+  - services/db/**
+  - services/platform/**
+  - services/proxy/**
+  - services/sandbox-llm-gateway/**
+  - services/sandbox/**
+  - services/sandbox-egress/**
+  - services/sandbox-buildkitd/**
+  - services/sandbox-runtime/**
+added:
+  - added: "**"
+deleted:
+  - deleted: "**"

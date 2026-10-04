@@ -606,6 +606,46 @@ describe('complete candidate event and receipt provenance', () => {
     },
   );
 
+  test.each(['skipped', 'success', 'failure', 'cancelled', null])(
+    'ordinary readiness jobs in candidate listings must be deliberate skips: %s',
+    async (conclusion) => {
+      const scenario = dispatchedSources();
+      const contexts: Record<string, string> = {
+        build: 'Build',
+        checks: 'Checks',
+        commitlint: 'Commitlint',
+        sast: 'SAST',
+        security: 'Security',
+        cli: 'CLI',
+        e2e: 'E2E',
+      };
+      for (const entry of scenario.candidateRuns) {
+        const stem = entry.path.split('/').at(-1)!.replace('.yml', '');
+        scenario.jobs[entry.id]!.push({
+          name: `CI ready (${contexts[stem]})`,
+          conclusion,
+        });
+        if (['build', 'e2e', 'cli', 'security'].includes(stem))
+          scenario.jobs[entry.id]!.push({ name: 'PR scope', conclusion });
+      }
+      expect((await judge(scenario)).report.state).toBe(
+        conclusion === 'skipped' ? 'eligible' : 'blocked',
+      );
+    },
+  );
+
+  test.each(['CI ready (Build)', 'PR scope'])(
+    'an ordinary-only name from another workflow is still unclassified: %s',
+    async (name) => {
+      const scenario = dispatchedSources();
+      const entry = scenario.candidateRuns.find((candidate) =>
+        candidate.path.endsWith('/checks.yml'),
+      )!;
+      scenario.jobs[entry.id]!.push({ name, conclusion: 'skipped' });
+      expect((await judge(scenario)).report.state).toBe('blocked');
+    },
+  );
+
   test('a CLI tag-publication dispatch at workflow C cannot prove the tag source D was candidate C', async () => {
     const scenario = dispatchedSources();
     const path = '.github/workflows/cli.yml';

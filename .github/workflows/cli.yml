@@ -3,6 +3,8 @@ name: CLI
 run-name: ${{ github.event_name == 'repository_dispatch' && format('Release candidate {0}', github.event.client_payload.candidate_sha) || '' }}
 
 on:
+  merge_group:
+    types: [checks_requested]
   repository_dispatch:
     types: [release-candidate]
   workflow_dispatch:
@@ -26,17 +28,7 @@ on:
       - '.github/workflows/cli.yml'
       - '.github/actions/setup-cli/**'
   pull_request:
-    paths:
-      - 'tools/cli/**'
-      - 'services/platform/backend/core/automations/pack_zip.ts'
-      - 'services/platform/backend/core/skills/bundle_zip.ts'
-      - 'services/platform/lib/**'
-      - 'configs/platform/system/connectors/**'
-      - 'packages/shared/**'
-      - 'bun.lock'
-      - 'scripts/install-cli.*'
-      - '.github/workflows/cli.yml'
-      - '.github/actions/setup-cli/**'
+    types: [opened, synchronize, reopened, ready_for_review]
 
 permissions:
   contents: read
@@ -46,6 +38,28 @@ concurrency:
   cancel-in-progress: ${{ github.event_name != 'repository_dispatch' && github.event_name != 'workflow_dispatch' }}
 
 jobs:
+  pr-scope:
+    name: PR scope
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      run: ${{ steps.scope.outputs.run }}
+      full: ${{ steps.scope.outputs.full }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+      - name: Decide applicability
+        id: scope
+        uses: ./.github/actions/ci-scope
+        with:
+          filter: cli
+
   # Only candidates need remote source validation; ordinary jobs keep their event SHA.
   candidate-source:
     if: >-
@@ -67,8 +81,10 @@ jobs:
       (((github.event_name == 'repository_dispatch') &&
       needs.candidate-source.result == 'success') ||
       ((github.event_name != 'repository_dispatch') &&
-      needs.candidate-source.result == 'skipped'))
-    needs: candidate-source
+      needs.candidate-source.result == 'skipped')) &&
+      (github.event_name != 'pull_request' ||
+      (needs.pr-scope.result == 'success' && needs.pr-scope.outputs.run == 'true'))
+    needs: [candidate-source, pr-scope]
     name: Prepare
     runs-on: ubuntu-latest
     timeout-minutes: 3
@@ -126,9 +142,11 @@ jobs:
       needs.candidate-source.result == 'success') ||
       ((github.event_name != 'repository_dispatch') &&
       needs.candidate-source.result == 'skipped')) &&
-      needs.prepare.result == 'success'
+      needs.prepare.result == 'success' &&
+      (github.event_name != 'pull_request' ||
+      (needs.pr-scope.result == 'success' && needs.pr-scope.outputs.run == 'true'))
     name: Build (${{ matrix.platform }})
-    needs: [candidate-source, prepare]
+    needs: [candidate-source, prepare, pr-scope]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     strategy:
@@ -372,3 +390,23 @@ jobs:
       candidate_sha: ${{ github.event.client_payload.candidate_sha }}
       workflow: .github/workflows/cli.yml
       jobs: ${{ toJSON(needs) }}
+
+  # A required context must execute even when an upstream check failed/skipped.
+  ci-ready:
+    name: CI ready (CLI)
+    if: always() && (github.event_name == 'pull_request' || github.event_name == 'merge_group')
+    needs: [pr-scope, candidate-source, prepare, build, release, candidate-gate]
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout verdict policy
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+      - name: Evaluate native workflow
+        uses: ./.github/actions/ci-ready
+        with:
+          workflow: cli
+          jobs: ${{ toJSON(needs) }}

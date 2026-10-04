@@ -13,25 +13,15 @@ name: E2E
 run-name: ${{ github.event_name == 'repository_dispatch' && format('Release candidate {0}', github.event.client_payload.candidate_sha) || '' }}
 
 on:
+  merge_group:
+    types: [checks_requested]
   repository_dispatch:
     types: [release-candidate]
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     branches:
       - main
-    paths:
-      - 'services/platform/**'
-      - 'services/web/**'
-      - 'services/docs/**'
-      - 'packages/ui/**'
-      - 'packages/marketing-ui/**'
-      - 'packages/e2e/**'
-      - '.github/workflows/e2e.yml'
-      - '.github/actions/setup-turbo/**'
-      - 'package.json'
-      - 'bun.lock'
-      - 'turbo.json'
-      - 'tsconfig.base.json'
+
   schedule:
     # Nightly at 02:30 UTC.
     - cron: '30 2 * * *'
@@ -42,6 +32,28 @@ concurrency:
   cancel-in-progress: ${{ github.event_name != 'repository_dispatch' }}
 
 jobs:
+  pr-scope:
+    name: PR scope
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      run: ${{ steps.scope.outputs.run }}
+      full: ${{ steps.scope.outputs.full }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+      - name: Decide applicability
+        id: scope
+        uses: ./.github/actions/ci-scope
+        with:
+          filter: e2e
+
   # Only candidates need remote source validation; ordinary jobs keep their event SHA.
   candidate-source:
     if: >-
@@ -63,7 +75,7 @@ jobs:
   # cache-visibility race between sibling jobs) and still available to
   # `gh run rerun --failed` from the first attempt.
   build:
-    needs: candidate-source
+    needs: [candidate-source, pr-scope]
     name: Build platform (E2E preview bundle)
     if: >-
       !cancelled() &&
@@ -71,7 +83,9 @@ jobs:
       needs.candidate-source.result == 'success') ||
       ((github.event_name != 'repository_dispatch') &&
       needs.candidate-source.result == 'skipped')) &&
-      (github.event_name != 'pull_request' || github.event.pull_request.draft != true)
+      (github.event_name != 'pull_request' || github.event.pull_request.draft != true) &&
+      (github.event_name != 'pull_request' ||
+      (needs.pr-scope.result == 'success' && needs.pr-scope.outputs.run == 'true'))
     runs-on: ubuntu-latest
     # Sized for the COLD path: a lockfile bump invalidates the toolchain and
     # dist caches at once, and the uncached install + prod build exceeds 15
@@ -142,8 +156,10 @@ jobs:
       ((github.event_name != 'repository_dispatch') &&
       needs.candidate-source.result == 'skipped')) &&
       needs.build.result == 'success' &&
-      (github.event_name != 'pull_request' || github.event.pull_request.draft != true)
-    needs: [candidate-source, build]
+      (github.event_name != 'pull_request' || github.event.pull_request.draft != true) &&
+      (github.event_name != 'pull_request' ||
+      (needs.pr-scope.result == 'success' && needs.pr-scope.outputs.run == 'true'))
+    needs: [candidate-source, build, pr-scope]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     # The suite outgrew a single serial run (workers:1 against one backend).
@@ -303,7 +319,7 @@ jobs:
   # Smoke suites for the static sites — each boots only its own Vite dev server
   # (no backend, no mock LLM), so the job is much lighter than platform's.
   static-sites:
-    needs: candidate-source
+    needs: [candidate-source, pr-scope]
     name: Playwright (${{ matrix.service }})
     if: >-
       !cancelled() &&
@@ -311,7 +327,9 @@ jobs:
       needs.candidate-source.result == 'success') ||
       ((github.event_name != 'repository_dispatch') &&
       needs.candidate-source.result == 'skipped')) &&
-      (github.event_name != 'pull_request' || github.event.pull_request.draft != true)
+      (github.event_name != 'pull_request' || github.event.pull_request.draft != true) &&
+      (github.event_name != 'pull_request' ||
+      (needs.pr-scope.result == 'success' && needs.pr-scope.outputs.run == 'true'))
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -409,3 +427,23 @@ jobs:
       candidate_sha: ${{ github.event.client_payload.candidate_sha }}
       workflow: .github/workflows/e2e.yml
       jobs: ${{ toJSON(needs) }}
+
+  # A required context must execute even when an upstream check failed/skipped.
+  ci-ready:
+    name: CI ready (E2E)
+    if: always() && (github.event_name == 'pull_request' || github.event_name == 'merge_group')
+    needs: [pr-scope, candidate-source, build, e2e, static-sites, candidate-gate]
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout verdict policy
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+      - name: Evaluate native workflow
+        uses: ./.github/actions/ci-ready
+        with:
+          workflow: e2e
+          jobs: ${{ toJSON(needs) }}

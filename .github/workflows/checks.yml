@@ -476,48 +476,27 @@ jobs:
       contents: read
       pull-requests: read
     outputs:
-      run: ${{ steps.decide.outputs.run }}
+      run: ${{ steps.complete.outputs.run || steps.decide.outputs.run }}
 
     steps:
-      - name: Filter paths
-        id: filter
+      # Candidate C may predate these PR helpers in workflow H. Non-PR
+      # events always owe integration and need no checkout or local action.
+      - name: Require complete integration
+        if: github.event_name != 'pull_request'
+        id: complete
+        run: echo 'run=true' >> "$GITHUB_OUTPUT"
+      - name: Checkout
         if: github.event_name == 'pull_request'
-        uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
-          filters: |
-            integration:
-              - 'services/platform/backend/**'
-              - 'services/platform/lib/**'
-              - 'services/platform/messages/**'
-              - 'services/platform/sla-targets.ts'
-              - 'services/platform/package.json'
-              - 'services/platform/Dockerfile'
-              - 'services/db/**'
-              - 'services/sandbox-runtime/daemon/src/file-ops.ts'
-              - 'services/sandbox-runtime/daemon/src/protocol.ts'
-              - 'packages/shared/**'
-              - 'packages/ui/package.json'
-              - 'packages/ui/src/i18n/**'
-              - 'configs/platform/**'
-              - 'tools/cli/src/lib/compose/types.ts'
-              - 'package.json'
-              - 'bun.lock'
-              - '.github/workflows/checks.yml'
-              - '.github/actions/setup-turbo/**'
-
+          ref: ${{ needs.candidate-source.outputs.candidate_sha }}
+          persist-credentials: false
       - name: Decide
         id: decide
-        env:
-          EVENT_NAME: ${{ github.event_name }}
-          TOUCHED: ${{ steps.filter.outputs.integration }}
-        run: |
-          set -euo pipefail
-          if [ "$EVENT_NAME" != pull_request ] || [ "$TOUCHED" = true ]; then
-            echo 'run=true' >> "$GITHUB_OUTPUT"
-          else
-            echo 'run=false' >> "$GITHUB_OUTPUT"
-            echo 'This pull request touches nothing the backend integration suite runs.'
-          fi
+        if: github.event_name == 'pull_request'
+        uses: ./.github/actions/ci-scope
+        with:
+          filter: integration
 
   # The real-Postgres proof: `backend:integration` (services/platform/backend/
   # integration-check.ts) against the database image Tale ships — built here
@@ -791,3 +770,23 @@ jobs:
       candidate_sha: ${{ github.event.client_payload.candidate_sha }}
       workflow: .github/workflows/checks.yml
       jobs: ${{ toJSON(needs) }}
+
+  # A required context must execute even when an upstream check failed/skipped.
+  ci-ready:
+    name: CI ready (Checks)
+    if: always() && (github.event_name == 'pull_request' || github.event_name == 'merge_group')
+    needs: [candidate-source, format, lint, typecheck, build, test, test-ui, performance, knip, test-browser, integration-scope, backend-integration, candidate-gate]
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout verdict policy
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+      - name: Evaluate native workflow
+        uses: ./.github/actions/ci-ready
+        with:
+          workflow: checks
+          jobs: ${{ toJSON(needs) }}

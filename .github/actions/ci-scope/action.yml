@@ -1,0 +1,93 @@
+name: Validated CI scope
+description: Preserve path admission without treating incomplete discovery as irrelevant
+inputs:
+  filter:
+    description: Named path policy in .github/ci-scope.yml
+    required: true
+outputs:
+  run:
+    description: Explicit true or false applicability
+    value: ${{ steps.decide.outputs.run }}
+  full:
+    description: Whether conservative complete validation is required
+    value: ${{ steps.decide.outputs.full }}
+  changes:
+    description: Validated Build changes from the same frozen PR discovery
+    value: ${{ steps.decide.outputs.changes }}
+  ci_tests:
+    description: Validated Build ci_tests from the same frozen PR discovery
+    value: ${{ steps.decide.outputs.ci_tests }}
+  storybook:
+    description: Validated Build storybook from the same frozen PR discovery
+    value: ${{ steps.decide.outputs.storybook }}
+runs:
+  using: composite
+  steps:
+    - name: Validate frozen discovery identity
+      id: before
+      uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0; Node 24
+      with:
+        script: |
+          const { requiresFullScope } = await import(require('node:url').pathToFileURL(`${process.env.GITHUB_WORKSPACE}/tools/cli/scripts/ci-ready.ts`).href);
+          if (context.eventName !== 'pull_request') {
+            if (!['merge_group', 'push', 'schedule', 'workflow_dispatch', 'repository_dispatch'].includes(context.eventName)) throw new Error('Unknown scope event');
+            core.setOutput('full', 'true');
+            return;
+          }
+          const { data } = await github.rest.pulls.get({ ...context.repo, pull_number: context.payload.pull_request.number });
+          core.setOutput('full', String(requiresFullScope(context.payload.pull_request, data)));
+          core.setOutput('identity', JSON.stringify({ base: { sha: data.base.sha }, head: { sha: data.head.sha }, changed_files: data.changed_files }));
+
+    - name: Filter complete PR changes
+      if: steps.before.outputs.full == 'false'
+      id: filter
+      uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4
+      with:
+        filters: .github/ci-scope.yml
+        list-files: json
+
+    - name: Validate scope decision
+      id: decide
+      uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0; Node 24
+      env:
+        SCOPE_FILTER: ${{ inputs.filter }}
+        SCOPE_BEFORE: ${{ steps.before.outputs.identity }}
+        SCOPE_FULL: ${{ steps.before.outputs.full }}
+        SCOPE_TOUCHED: ${{ steps.filter.outputs[inputs.filter] }}
+        SCOPE_GUARD: ${{ steps.filter.outputs.guard }}
+        SCOPE_COUNT: ${{ steps.filter.outputs.all_count }}
+        SCOPE_FILES: ${{ steps.filter.outputs.all_files }}
+        SCOPE_ADDED: ${{ steps.filter.outputs.added }}
+        SCOPE_DELETED: ${{ steps.filter.outputs.deleted }}
+        BUILD_platform: ${{ steps.filter.outputs.build_platform }}
+        BUILD_db: ${{ steps.filter.outputs.build_db }}
+        BUILD_proxy: ${{ steps.filter.outputs.build_proxy }}
+        BUILD_sandbox_llm_gateway: ${{ steps.filter.outputs.build_sandbox-llm-gateway }}
+        BUILD_web: ${{ steps.filter.outputs.build_web }}
+        BUILD_docs: ${{ steps.filter.outputs.build_docs }}
+        BUILD_ui_docs: ${{ steps.filter.outputs.build_ui-docs }}
+        BUILD_ai_gateway: ${{ steps.filter.outputs.build_ai-gateway }}
+        BUILD_storybook: ${{ steps.filter.outputs.build_storybook }}
+        BUILD_sandbox: ${{ steps.filter.outputs.build_sandbox }}
+        BUILD_sandbox_egress: ${{ steps.filter.outputs.build_sandbox-egress }}
+        BUILD_sandbox_buildkitd: ${{ steps.filter.outputs.build_sandbox-buildkitd }}
+        BUILD_sandbox_runtime: ${{ steps.filter.outputs.build_sandbox-runtime }}
+        BUILD_ci_tests: ${{ steps.filter.outputs.build_ci_tests }}
+      with:
+        script: |
+          const { BUILD_FILTERS, buildScope, requiresFullScope, scopeBoolean, validateScope } = await import(require('node:url').pathToFileURL(`${process.env.GITHUB_WORKSPACE}/tools/cli/scripts/ci-ready.ts`).href);
+          if (!['integration', 'build', 'e2e', 'cli', 'security'].includes(process.env.SCOPE_FILTER)) throw new Error('Unknown scope filter');
+          let decision = { run: true, full: true };
+          const full = scopeBoolean(process.env.SCOPE_FULL);
+          if (context.eventName === 'pull_request') {
+            const { data } = await github.rest.pulls.get({ ...context.repo, pull_number: context.payload.pull_request.number });
+            requiresFullScope(context.payload.pull_request, data); // validate even the conservative branch
+            if (!full) decision = validateScope({ frozen: context.payload.pull_request, before: JSON.parse(process.env.SCOPE_BEFORE), after: data, touched: process.env.SCOPE_TOUCHED, guard: process.env.SCOPE_GUARD, counted: process.env.SCOPE_COUNT, files: process.env.SCOPE_FILES, added: process.env.SCOPE_ADDED, deleted: process.env.SCOPE_DELETED });
+          } else if (!full) throw new Error('Non-PR validation cannot be path-filtered');
+          if (process.env.SCOPE_FILTER === 'build') {
+            const filters = Object.fromEntries(BUILD_FILTERS.map(name => [name, full ? 'true' : process.env['BUILD_' + name.replaceAll('-', '_')]]));
+            for (const [name, value] of Object.entries(buildScope(filters, decision.full))) core.setOutput(name, value);
+          }
+          core.setOutput('run', String(decision.run));
+          core.setOutput('full', String(decision.full));
+          core.info(`Validated ${process.env.SCOPE_FILTER} scope: ${JSON.stringify(decision)}`);
