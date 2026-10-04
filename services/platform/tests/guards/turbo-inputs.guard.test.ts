@@ -97,6 +97,10 @@ const OUTSIDE_READS = [
     readers: 'tests/guards/frontend-entry-discovery.guard.test.ts',
   },
   {
+    path: 'packages/shared/src/automation-name.ts',
+    readers: 'lib/engine/selftest/purity.test.ts scans the extracted grammar',
+  },
+  {
     // Not read as text: the suite runs the postgres.js these patches change
     // (the root `patchedDependencies`), so a patch edit alone must re-run it.
     path: 'patches',

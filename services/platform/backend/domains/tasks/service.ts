@@ -19,6 +19,8 @@ import {
   type TaskRepeat,
 } from '../../../lib/shared/task-repeat.ts';
 import { findOrganizationMember } from '../../auth/membership.ts';
+import { assertExpectedHash } from '../../core/lib/config_store/precondition.ts';
+import { managedConfigurationHash } from '../../core/lib/config_store/value_hash.ts';
 import {
   checkProjectAccess,
   EDITOR_ROLES,
@@ -1551,6 +1553,54 @@ function stringifyEditValue(action: string, value: unknown): string {
   return stringifyEditScalar(value);
 }
 
+export async function readTaskInstructionsConfiguration(
+  sql: Sql | TransactionSql,
+  auth: ProjectAuthContext,
+  projectId: string,
+  taskId: string,
+) {
+  const task = await loadTaskOrThrow(sql, taskId, auth.organizationId);
+  if (task.projectId !== projectId)
+    throw new TaskError('TASK_NOT_FOUND', 'Task not found', 404);
+  const project = await loadProjectOrThrow(sql, projectId);
+  assertTaskReadable(project, auth);
+  const config = { projectId, taskId, description: task.description ?? '' };
+  return { config, hash: managedConfigurationHash(config) };
+}
+
+/** The managed lane changes only description, through the ordinary task edit
+ * effects. Compare and edit share the route's serializable transaction. */
+export async function updateTaskInstructionsConfiguration(
+  tx: TransactionSql,
+  auth: ProjectAuthContext,
+  config: { projectId: string; taskId: string; description: string },
+  expectedHash: string,
+): Promise<void> {
+  const task = await loadTaskOrThrow(tx, config.taskId, auth.organizationId);
+  if (task.projectId !== config.projectId)
+    throw new TaskError('TASK_NOT_FOUND', 'Task not found', 404);
+  const project = await loadProjectOrThrow(tx, config.projectId);
+  await assertTaskWorkable(tx, project, task, auth);
+  assertTaskNotArchived(task);
+  const description = validateDescription(config.description) ?? '';
+  assertExpectedHash(
+    managedConfigurationHash({
+      projectId: config.projectId,
+      taskId: config.taskId,
+      description: task.description ?? '',
+    }),
+    expectedHash,
+  );
+  if ((task.description ?? '') === description) return;
+  await updateTaskFields(
+    tx,
+    auth,
+    { taskId: config.taskId, description },
+    undefined,
+    { notifyDescriptionMentions: false },
+  );
+}
+
 export async function updateTask(
   tx: TransactionSql,
   auth: ProjectAuthContext,
@@ -1566,6 +1616,7 @@ async function updateTaskFields(
   auth: ProjectAuthContext,
   args: UpdateTaskArgs,
   agentId?: string,
+  options: { notifyDescriptionMentions?: boolean } = {},
 ): Promise<void> {
   const task = await loadTaskOrThrow(tx, args.taskId, auth.organizationId);
   const project = await loadProjectOrThrow(tx, task.projectId);
@@ -1878,7 +1929,11 @@ async function updateTaskFields(
   });
   // An edit fans out only the mentions it ADDS: prose reworded around an
   // existing `@handle` must not ring the bell or start the agent again.
-  if (newState.description !== undefined && description !== null) {
+  if (
+    options.notifyDescriptionMentions !== false &&
+    newState.description !== undefined &&
+    description !== null
+  ) {
     await fanOutDescriptionMentions(tx, auth, {
       taskId: task.id,
       project,
