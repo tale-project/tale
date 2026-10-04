@@ -172,6 +172,7 @@ export default {
         'src/**/*.test.ts',
         'src/lazy-docker-entry.ts',
         'src/lazy-docker.node-fixture.ts',
+        'src/lazy-docker-health.node-fixture.ts',
       ],
     },
     'configs/platform/custom/skills/visual-aspect-analyzer': {
