@@ -155,15 +155,46 @@ describe('parseCSVWithMapper quoted fields (RFC 4180, #3580)', () => {
     ]);
   });
 
-  it('reads a quote that never closes as a literal character', () => {
-    // An unbalanced quote must not swallow the rows after it.
+  it('refuses a row whose quote never closes, and keeps the rows after it', () => {
+    // An unbalanced quote must neither swallow the rows after it nor import
+    // its own row misread.
     const result = parse(
       'name,description,price,stock\nWidget,"Best widget,12,3\nGadget,x,5,1',
     );
+    expect(result.errors).toEqual([]);
+    expect(result.rowErrors).toEqual([{ row: 2, quotes: 'unpaired' }]);
     expect(result.data).toEqual([
-      { name: 'Widget', description: '"Best widget', price: '12', stock: '3' },
       { name: 'Gadget', description: 'x', price: '5', stock: '1' },
     ]);
+    expect(result.rows).toEqual([3]);
+  });
+
+  it('refuses a row with text after a closing quote', () => {
+    const result = parse(
+      [
+        'name,description,price,stock',
+        'Widget,"Best" widget,12,3',
+        // Two stray quotes pair up across lines and merge two rows.
+        'Cable,"thin,1,1',
+        'Plug,"x" y,2,2',
+        'Gadget,x,5,1',
+      ].join('\n'),
+    );
+    expect(result.errors).toEqual([]);
+    expect(result.rowErrors).toEqual([
+      { row: 2, quotes: 'unpaired' },
+      { row: 3, quotes: 'unpaired' },
+    ]);
+    expect(result.data).toEqual([
+      { name: 'Gadget', description: 'x', price: '5', stock: '1' },
+    ]);
+  });
+
+  it('refuses the file at line 1 when the header quotes do not pair up', () => {
+    const result = parse('name,"description,price,stock\nWidget,x,12,3');
+    expect(result.data).toEqual([]);
+    expect(result.errors).toEqual([]);
+    expect(result.rowErrors).toEqual([{ row: 1, quotes: 'unpaired' }]);
   });
 });
 
