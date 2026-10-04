@@ -26,6 +26,7 @@ const {
   startRun,
   deploy,
   toastSpy,
+  refetch,
 } = vi.hoisted(() => ({
   state: {
     document: {
@@ -44,6 +45,7 @@ const {
     deployedUnpinnedAgentNodes: undefined as string[] | undefined,
     /** A `?version=` the read refuses with `AUTOMATION_VERSION_UNKNOWN`. */
     missingVersion: undefined as number | undefined,
+    detailError: undefined as Error | undefined,
   },
   /** The org's projects and the automation's bindings — the run-scope picker
    * appears only when two or more projects are bound. */
@@ -65,6 +67,7 @@ const {
   startRun: { mutate: vi.fn(), isPending: false },
   deploy: { mutate: vi.fn(), isPending: false, variables: undefined },
   toastSpy: vi.fn(),
+  refetch: vi.fn(),
 }));
 
 // `EditorActions` owns every piece of save feedback and reaches for the
@@ -93,41 +96,54 @@ vi.mock('@/app/features/projects/hooks/queries', () => ({
 
 vi.mock('../hooks/queries', () => ({
   useAutomation: (_organizationId: string, _name: string, version?: number) =>
-    version !== undefined && version === state.missingVersion
+    version === undefined && state.detailError !== undefined
       ? {
           data: undefined,
           isPending: false,
           isError: true,
-          error: {
-            data: {
-              code: 'AUTOMATION_VERSION_UNKNOWN',
-              message: `version ${version} does not exist`,
-              latestVersion: state.version,
-            },
-          },
+          error: state.detailError,
+          refetch,
         }
-      : {
-          data: {
-            document:
-              version === state.deployedVersion &&
-              state.deployedDocument !== undefined
-                ? state.deployedDocument
-                : state.document,
-            version: version ?? state.version,
-            deployedVersion: state.deployedVersion,
-            ...(state.presentation !== undefined
-              ? { presentation: state.presentation }
-              : {}),
-            settings: state.settings,
-            taskContract: state.taskContract,
-            ...(state.deployedUnpinnedAgentNodes !== undefined
-              ? { deployedUnpinnedAgentNodes: state.deployedUnpinnedAgentNodes }
-              : {}),
+      : version !== undefined && version === state.missingVersion
+        ? {
+            data: undefined,
+            isPending: false,
+            isError: true,
+            error: {
+              data: {
+                code: 'AUTOMATION_VERSION_UNKNOWN',
+                message: `version ${version} does not exist`,
+                latestVersion: state.version,
+              },
+            },
+            refetch,
+          }
+        : {
+            data: {
+              document:
+                version === state.deployedVersion &&
+                state.deployedDocument !== undefined
+                  ? state.deployedDocument
+                  : state.document,
+              version: version ?? state.version,
+              deployedVersion: state.deployedVersion,
+              ...(state.presentation !== undefined
+                ? { presentation: state.presentation }
+                : {}),
+              settings: state.settings,
+              taskContract: state.taskContract,
+              ...(state.deployedUnpinnedAgentNodes !== undefined
+                ? {
+                    deployedUnpinnedAgentNodes:
+                      state.deployedUnpinnedAgentNodes,
+                  }
+                : {}),
+            },
+            isPending: false,
+            isError: false,
+            error: null,
+            refetch,
           },
-          isPending: false,
-          isError: false,
-          error: null,
-        },
   useAutomationVersions: () => ({
     data: [
       {
@@ -318,6 +334,8 @@ beforeEach(() => {
   state.deployedVersion = 2;
   state.deployedUnpinnedAgentNodes = undefined;
   state.missingVersion = undefined;
+  state.detailError = undefined;
+  refetch.mockClear();
 });
 
 /**
@@ -326,6 +344,23 @@ beforeEach(() => {
  * version is missing and offers the latest, instead of the automation-level
  * not-found state under the automation's own tabs.
  */
+describe('AutomationEditor detail read failure', () => {
+  it('names the error, focuses retry, and retries instead of staying loading', async () => {
+    state.detailError = new Error('Request failed with status 503');
+    const { user } = renderPage();
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      "Couldn't load the automationRequest failed with status 503",
+    );
+    const retryButton = screen.getByRole('button', { name: 'Try again' });
+    expect(retryButton).toHaveFocus();
+    expect(screen.queryByText('Loading the automation…')).toBeNull();
+
+    await user.click(retryButton);
+    expect(refetch).toHaveBeenCalledOnce();
+  });
+});
+
 describe('AutomationEditor missing version', () => {
   it('names the missing version and opens the latest on request', async () => {
     state.missingVersion = 99;

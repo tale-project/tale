@@ -615,6 +615,10 @@ automations:
       organization.
   detail:
     loading: Loading the automation…
+    loadFailed:
+      title: Couldn't load the automation
+      description: '{error}'
+      retry: Try again
     # A deleted automation keeps its run history until retention removes
     # it; the Runs pages still open under this banner.
     deleted:

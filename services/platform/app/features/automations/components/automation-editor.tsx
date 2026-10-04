@@ -489,6 +489,29 @@ function AutomationEditorScope({
       </ContentArea>
     );
   }
+  if (automationQuery.isError) {
+    return (
+      <ContentArea variant="narrow">
+        <Alert
+          variant="destructive"
+          title={t('detail.loadFailed.title')}
+          description={t('detail.loadFailed.description', {
+            error: automationErrorMessage(automationQuery.error),
+          })}
+        >
+          <Button
+            variant="secondary"
+            autoFocus
+            onClick={() => {
+              void automationQuery.refetch();
+            }}
+          >
+            {t('detail.loadFailed.retry')}
+          </Button>
+        </Alert>
+      </ContentArea>
+    );
+  }
   if (!automation) {
     return (
       <ContentArea variant="narrow">
