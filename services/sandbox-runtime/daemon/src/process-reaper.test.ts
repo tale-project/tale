@@ -525,11 +525,17 @@ describe('signalExecProcesses', () => {
         expect(await taggedPids('e6', deps)).toEqual([42]);
         writeStat(procRoot, '41', { env: null, pgrp: 41, startTime: 99_999 });
         started = Date.now();
-        await taggedPids('e6', deps);
+        expect(
+          await taggedPids('e6', {
+            ...deps,
+            listDir: () => Promise.resolve(['41']),
+          }),
+        ).toEqual([]);
         expect(Date.now() - started).toBeGreaterThanOrEqual(250);
-        expect(pendingProcReads()).toBeGreaterThanOrEqual(2);
+        expect(pendingProcReads()).toBe(2);
       } finally {
         await release(fifo);
+        expect(pendingProcReads()).toBe(0);
       }
     },
   );
