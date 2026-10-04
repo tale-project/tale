@@ -153,6 +153,7 @@ interface LiveExec {
    * the window. */
   timeoutMs: number;
   timer: ReturnType<typeof setTimeout> | null;
+  finishing: boolean;
   /** Set by the deadline timer so the terminal exit event reports timedOut. */
   timedOut: boolean;
   /** Held-open stdin pipe (stdinMode:'hold'), written via writeStdin(). Null
@@ -255,6 +256,7 @@ export class ExecManager {
    * An actively-attached exec is perpetually extended; an orphaned one (no
    * attach for `timeoutMs`) is SIGTERM→SIGKILLed — the sole orphan reaper. */
   private armDeadline(rec: LiveExec): void {
+    if (rec.finishing) return;
     if (rec.timer) clearTimeout(rec.timer);
     rec.timer = setTimeout(() => {
       rec.timedOut = true;
@@ -369,6 +371,7 @@ export class ExecManager {
     this.onActivity();
     this.beforeSpawn();
     const startedAtMs = Date.now();
+    const startedAtMonotonicMs = performance.now();
     // Under the subreaper shim, the command runs as its child in a process
     // group of its own and everything it starts stays the shim's descendant;
     // the shim says on its status pipe (fd 3) when the command started,
@@ -446,6 +449,7 @@ export class ExecManager {
       seq: 0,
       timeoutMs: req.timeoutMs,
       timer: null,
+      finishing: false,
       timedOut: false,
       stdin: null,
       terminated: false,
@@ -637,6 +641,7 @@ export class ExecManager {
       const finish = async (code: number) => {
         if (settled) return;
         settled = true;
+        record.finishing = true;
         if (record.timer) clearTimeout(record.timer);
         if (drainTimer) clearTimeout(drainTimer);
         if (!closed && record.deferred === null) {
@@ -653,11 +658,7 @@ export class ExecManager {
         const terminal: RunnerdExecEvent = {
           t: 'exit',
           exitCode: code,
-          // The canonical execution wall-clock (protocol.ts `exit.durationMs`):
-          // startedAtMs was taken immediately before spawn(), and finish() runs
-          // only once stdio is drained — nothing outside the process
-          // (scheduling, staging, harvest) can leak into the measurement.
-          durationMs: Date.now() - startedAtMs,
+          durationMs: performance.now() - startedAtMonotonicMs,
           truncated: { stdout: stdoutTrunc, stderr: stderrTrunc },
           timedOut: record.timedOut,
           cancelled: record.cancelRequested,
@@ -687,6 +688,7 @@ export class ExecManager {
       const spawnFailed = (message: string) => {
         if (settled) return;
         settled = true;
+        record.finishing = true;
         couldNotRun = true;
         record.stdin = null;
         child.stdin.destroy();

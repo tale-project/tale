@@ -62,12 +62,19 @@ a group or session of its own (such as a browser its driver started detached)
 leftovers wait: that exec may be using what the earlier one started (a dev
 server, a build daemon), so they end when the session's last running exec
 ends; meanwhile they keep their output pipes, whose output runnerd reads and
-drops. A cancel or the deadline ends the exec's processes at once, what it
+drops. A cancel or a live exec's deadline ends its processes at once, what it
 left waiting included, and the SIGKILL reaches its group while its own
 process still runs even if no process there shows the id. A
 backgrounded server, a `nohup` worker or a browser therefore no longer runs on
 in a session that reads idle until the container stops. Each process gets one
 SIGTERM, so a second signal never cuts short the cleanup the first one started.
+Once terminal journal drain begins, attach can replay but cannot re-arm the
+orphan deadline or reap sibling-dependent leftovers. Status remains running
+until the terminal record is durable; an explicit cancel still ends waiting
+leftovers. The start record keeps its epoch `startedAtMs`, while exit
+`durationMs` measures spawn-to-drained-exit elapsed time using a monotonic clock,
+so a backward wall-clock adjustment cannot produce a negative duration.
+
 A group's number can be reused once the group is gone, so a signal that comes
 after the exec's end reaches the group only while the group is provably still
 the exec's: a process carrying the id is in it, or a process runnerd recorded

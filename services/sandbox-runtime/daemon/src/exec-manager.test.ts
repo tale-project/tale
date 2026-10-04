@@ -152,15 +152,17 @@ describe('ExecManager', () => {
     expect(exit?.seq).toBe(maxSeq);
   });
 
-  test('exit durationMs is the runner-measured process wall-clock (spawn → drained exit)', async () => {
+  test('exit durationMs is the runner-measured elapsed time (spawn → drained exit)', async () => {
     using mgr = new ExecManager(new EnvStore(), () => {});
     const { events, emit } = collect();
+    const beforeMonotonicMs = performance.now();
     const beforeMs = Date.now();
     await mgr.run(
       { ...base, execId: 'dur1', shell: 'sleep 0.12', cwd: ROOT },
       emit,
     );
     const afterMs = Date.now();
+    const elapsedMs = performance.now() - beforeMonotonicMs;
     const start = events.find(
       (e): e is Extract<RunnerdExecEvent, { t: 'start' }> => e.t === 'start',
     );
@@ -172,10 +174,10 @@ describe('ExecManager', () => {
     expect(start.startedAtMs).toBeGreaterThanOrEqual(beforeMs);
     expect(start.startedAtMs).toBeLessThanOrEqual(afterMs);
     // The measurement covers the child's own runtime (a 120ms sleep; allow
-    // Date.now() granularity slack) and never exceeds the outer wall-clock —
+    // clock granularity slack) and never exceeds the outer elapsed window —
     // i.e. it contains NO out-of-process phase (staging, harvest, scheduling).
     expect(exit.durationMs).toBeGreaterThanOrEqual(110);
-    expect(exit.durationMs).toBeLessThanOrEqual(afterMs - start.startedAtMs);
+    expect(exit.durationMs).toBeLessThanOrEqual(elapsedMs);
   });
 
   test('shell form runs via bash -lc, propagates non-zero exit', async () => {

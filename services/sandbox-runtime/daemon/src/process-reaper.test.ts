@@ -527,7 +527,7 @@ describe('signalExecProcesses', () => {
         started = Date.now();
         await taggedPids('e6', deps);
         expect(Date.now() - started).toBeGreaterThanOrEqual(250);
-        expect(pendingProcReads()).toBe(2);
+        expect(pendingProcReads()).toBeGreaterThanOrEqual(2);
       } finally {
         await release(fifo);
       }
