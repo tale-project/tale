@@ -883,11 +883,15 @@ export async function undoSendMessage(
     for (const ref of listed.sort()) {
       if (
         deleted[0]?.owner ||
-        (await ownsUploadedBlob(tx, {
-          organizationId: args.organizationId,
-          userId: args.actor.userId,
-          storageRef: ref,
-        }))
+        (await ownsUploadedBlob(
+          tx,
+          {
+            organizationId: args.organizationId,
+            userId: args.actor.userId,
+            storageRef: ref,
+          },
+          { stamp: false },
+        ))
       )
         owned.push(ref);
     }

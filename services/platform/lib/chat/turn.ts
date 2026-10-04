@@ -295,6 +295,7 @@ export interface TurnStore {
     /** The user turn's parts. Absent on a regenerate — the trailing user
      * row already exists and the turn only re-answers it. */
     userParts?: ChatMessage['parts'];
+    attachmentProvenance?: Readonly<Record<string, ChatAttachmentProvenance>>;
     /** Older history was dropped assembling this turn's context — recorded
      * silently on the reply row for telemetry; never rendered. */
     truncation?: { droppedMessages: number };
@@ -389,6 +390,10 @@ export interface TurnAttachment {
   readonly fileSize: number;
 }
 
+export interface ChatAttachmentProvenance {
+  readonly documentId?: string;
+}
+
 export interface TurnRequest {
   readonly organizationId: string;
   readonly userId: string;
@@ -400,6 +405,9 @@ export interface TurnRequest {
   /** Files riding the user's message, oldest gesture first. The HOST owns
    * validating them (org ownership, count, type) before the turn starts. */
   readonly attachments?: readonly TurnAttachment[];
+  readonly attachmentProvenance?: Readonly<
+    Record<string, ChatAttachmentProvenance>
+  >;
   /** The conversation so far, oldest first, excluding `userText`. */
   readonly history: readonly ChatMessage[];
   readonly locale: string;
@@ -1299,6 +1307,9 @@ export async function runTurn(
     threadId: request.threadId,
     ...(request.appendUserMessage !== false
       ? { userParts: userTurnParts(input.text, request.attachments) }
+      : {}),
+    ...(request.attachmentProvenance !== undefined
+      ? { attachmentProvenance: request.attachmentProvenance }
       : {}),
     // Silent observability: the reply records that its context was fitted
     // by dropping history. Never rendered — telemetry and debugging only.

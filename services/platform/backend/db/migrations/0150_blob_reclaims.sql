@@ -2,6 +2,29 @@
 -- job retries. These are explicitly retired refs, never a historic bucket scan.
 -- Additive schema compatibility only; legacy rowless ownership needs a
 -- separate rollout disposition before release. No existing data is rewritten.
+-- Refuse the rollout when the previous image already left a user attachment
+-- without a file row and without trusted provenance. The old image remains
+-- serving because this migration is transactional; a later phased rollout
+-- must export/adjudicate those refs before this gate can pass. Guessing from
+-- the message author would grant borrowed document refs retention ownership.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM app.messages message
+    CROSS JOIN LATERAL jsonb_array_elements(coalesce(message.parts, '[]'::jsonb)) part
+    WHERE message.role = 'user'
+      AND part->>'type' = 'attachment'
+      AND NOT EXISTS (
+        SELECT 1 FROM app.file_metadata file
+        WHERE file.org_id = message.org_id
+          AND file.storage_ref = part->>'fileId'
+      )
+  ) THEN
+    RAISE EXCEPTION 'blob provenance transition blocked: rowless chat attachment needs trusted adjudication';
+  END IF;
+END $$;
+
 CREATE TABLE IF NOT EXISTS app.blob_reclaims (
   org_id text NOT NULL,
   storage_ref text NOT NULL,

@@ -824,6 +824,7 @@ describe('mail holder closure — durable retirement in the winning transaction'
       [
         transactions[0],
         { organizationId: 'o1', userId: 'u1', storageRef: foreign.storageId },
+        { stamp: false },
       ],
       [
         transactions[0],
@@ -832,6 +833,7 @@ describe('mail holder closure — durable retirement in the winning transaction'
           userId: 'u1',
           storageRef: storedAttachment.storageId,
         },
+        { stamp: false },
       ],
     ]);
     expect(
@@ -885,11 +887,15 @@ describe('mail holder closure — durable retirement in the winning transaction'
     await expect(
       undoSendMessage(sql, { organizationId: 'o1', messageId: 'm1', actor }),
     ).resolves.toEqual({ sourceMarkdown: null, attachments: [] });
-    expect(ownsUploadedBlob).toHaveBeenCalledExactlyOnceWith(transactions[0], {
-      organizationId: 'o1',
-      userId: 'u1',
-      storageRef: storedAttachment.storageId,
-    });
+    expect(ownsUploadedBlob).toHaveBeenCalledExactlyOnceWith(
+      transactions[0],
+      {
+        organizationId: 'o1',
+        userId: 'u1',
+        storageRef: storedAttachment.storageId,
+      },
+      { stamp: false },
+    );
     expect(
       statements.some((statement) =>
         statement.text.startsWith('INSERT INTO app.blob_composer_handoffs'),

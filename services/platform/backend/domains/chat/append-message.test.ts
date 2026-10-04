@@ -278,4 +278,15 @@ describe('appendMessageRow — locked attachment provenance', () => {
       fragmentText(attachmentOwnershipForParts(sql, 'org-1', 't-1', parts)),
     ).toContain('FROM app.file_metadata file JOIN app.thread_metadata thread');
   });
+
+  it('uses the authenticated source document rather than the file pointer', () => {
+    const { sql, jsonInputs } = fakeSql([]);
+    const text = fragmentText(
+      attachmentOwnershipForParts(sql, 'org-1', 't-1', parts, undefined, {
+        'ref-1': { documentId: 'team-a-document' },
+      }),
+    );
+    expect(text).toContain('?::jsonb ? file.storage_ref');
+    expect(jsonInputs).toHaveLength(2);
+  });
 });

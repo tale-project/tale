@@ -104,6 +104,7 @@ export async function appendMessageRow(
     threadId: string;
     role: string;
     parts: unknown;
+    attachmentProvenance?: Readonly<Record<string, { documentId?: string }>>;
     text?: string;
     model?: string;
     providerSlug?: string;
@@ -169,7 +170,7 @@ export async function appendMessageRow(
              ${message.error ?? null}, ${message.status ?? 'complete'},
              ${Date.now()},
              coalesce(${message.id ?? null}, gen_random_uuid()::text),
-             ${message.role === 'user' ? attachmentOwnershipForParts(sql, message.organizationId, message.threadId, message.parts ?? [], sql`locked_attachment_files`) : sql`NULL`}
+             ${message.role === 'user' ? attachmentOwnershipForParts(sql, message.organizationId, message.threadId, message.parts ?? [], sql`locked_attachment_files`, message.attachmentProvenance) : sql`NULL`}
       FROM app.messages WHERE thread_id = ${message.threadId}
       HAVING NOT EXISTS (SELECT 1 FROM missing_attachment_refs)
       ON CONFLICT (thread_id, "order", step_order) DO NOTHING

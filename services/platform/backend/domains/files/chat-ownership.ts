@@ -46,12 +46,16 @@ export function attachmentOwnershipForParts(
   threadId: string,
   parts: unknown,
   source: Fragment = sql`app.file_metadata`,
+  provenance: Readonly<Record<string, { documentId?: string }>> = {},
 ): Fragment {
   const serialized = sql.json(toJson(parts));
+  const trusted = sql.json(toJson(provenance));
   return sql`(SELECT coalesce(jsonb_object_agg(binding.storage_ref, binding.proof), '{}'::jsonb)
     FROM (
       SELECT DISTINCT ON (file.storage_ref) file.storage_ref,
-        CASE WHEN ${chatUploadOwned(sql, sql`file`, sql`thread`)}
+        CASE WHEN (${trusted}::jsonb ? file.storage_ref)
+          THEN ${trusted}::jsonb -> file.storage_ref
+          WHEN ${chatUploadOwned(sql, sql`file`, sql`thread`)}
           THEN jsonb_build_object('owned', true)
           WHEN file.document_id IS NULL THEN jsonb_build_object('fileId', file.id)
           ELSE jsonb_build_object('documentId', file.document_id) END AS proof
