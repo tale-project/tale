@@ -41,6 +41,13 @@ describe('sizing from the host', () => {
     expect(capacity(64)).toBe(38);
   });
 
+  test('disabling Docker for every workload sizes light sessions while allowing any workload retains the Docker budget', () => {
+    const reserve = memoryReserveBytes(16 * GIB);
+    expect(autoSessionCapacity(16 * GIB, reserve, true, [])).toBe(19);
+    expect(autoSessionCapacity(16 * GIB, reserve, true, ['project'])).toBe(9);
+    expect(autoSessionCapacity(16 * GIB, reserve, true)).toBe(9);
+  });
+
   test('a starting session is planned at its kind of working set', () => {
     expect(sessionWorkingSetBytes('default', true)).toBe(512 * 1024 ** 2);
     expect(sessionWorkingSetBytes('agent', false)).toBe(512 * 1024 ** 2);

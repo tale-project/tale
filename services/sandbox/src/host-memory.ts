@@ -14,6 +14,7 @@ import { release } from 'node:os';
 
 import { parseMemory } from './capacity.ts';
 import { runDocker, type RunDockerResult } from './spawn-util.ts';
+import type { SpawnerConfig } from './types.ts';
 import type { SandboxSessionProfile } from './wire.ts';
 
 const MIB = 1024 * 1024;
@@ -58,6 +59,7 @@ export function autoSessionCapacity(
   totalBytes: number,
   reserveBytes: number,
   dockerInside = false,
+  dockerWorkloads?: SpawnerConfig['dockerWorkloads'],
 ): number {
   if (reserveBytes >= totalBytes) {
     throw new Error(
@@ -66,7 +68,10 @@ export function autoSessionCapacity(
   }
   const perSession = Math.max(
     SIZING_BYTES_PER_SESSION,
-    sessionWorkingSetBytes('agent', dockerInside),
+    sessionWorkingSetBytes(
+      'agent',
+      dockerInside && dockerWorkloads?.length !== 0,
+    ),
   );
   const fits = Math.floor((totalBytes - reserveBytes) / perSession);
   return Math.min(AUTO_MAX_SESSIONS, Math.max(AUTO_MIN_SESSIONS, fits));

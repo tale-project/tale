@@ -25,7 +25,10 @@ import {
   transparentEgressSupported,
 } from '../../runtime-tier.ts';
 import { RUNNERD_PORT } from '../../session/runnerd-protocol.ts';
-import { sessionDindEnabled } from '../../session/session-profile.ts';
+import {
+  sessionAgentProfile,
+  sessionDindEnabled,
+} from '../../session/session-profile.ts';
 import type { SessionAgentProfileConfig, SpawnerConfig } from '../../types.ts';
 import type { SandboxSessionProfile } from '../../wire.ts';
 
@@ -33,7 +36,10 @@ interface SessionPodInput {
   sessionId: string;
   organizationId: string;
   profile: SandboxSessionProfile;
+  docker?: boolean;
   createdAtMs: number;
+  /** Durable startup lease, shared by peer spawners during recovery. */
+  startupDeadlineMs?: number;
 }
 
 const WORKSPACE_MOUNT = '/agent';
@@ -129,8 +135,11 @@ export function buildSessionPod(
   assertSafe('sessionId', inp.sessionId, ID_RE);
   assertSafe('organizationId', inp.organizationId, ORG_RE);
 
+  const dind = sessionDindEnabled(cfg, inp.profile, inp.docker);
   const profile =
-    inp.profile === 'agent' ? cfg.session.agentProfile : { ...DEFAULT_PROFILE };
+    inp.profile === 'agent'
+      ? sessionAgentProfile(cfg, dind)
+      : { ...DEFAULT_PROFILE };
   const [uidStr, gidStr] = profile.user.split(':');
   const uid = Number(uidStr ?? '65534');
   const gid = Number(gidStr ?? '65534');
@@ -160,7 +169,6 @@ export function buildSessionPod(
   // `default` Pod must never run untrusted content as root/privileged, and the
   // entrypoint's DinD branch drops to uid 10001 which cannot write the
   // 65534-group workspace — the Pod would never become ready.
-  const dind = sessionDindEnabled(cfg, inp.profile);
   const dindPrivileged = dindCapabilityOf(cfg.runtimeTier) === 'privileged';
   const dindSecurityContext = {
     runAsUser: 0,
@@ -278,7 +286,11 @@ export function buildSessionPod(
         'tale.dev/session-id': inp.sessionId,
         'tale.dev/organization-id': inp.organizationId,
         'tale.dev/profile': inp.profile,
+        'tale.dev/docker': String(dind),
         'tale.dev/created-at': String(inp.createdAtMs),
+        ...(inp.startupDeadlineMs === undefined
+          ? {}
+          : { 'tale.dev/startup-deadline': String(inp.startupDeadlineMs) }),
         // AppArmor unconfined for the inner dockerd (the userns/VM is the real
         // boundary). Annotation form for broad node-version compatibility.
         ...(dind && {

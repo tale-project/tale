@@ -10,7 +10,9 @@ import {
   classifyScanError,
   embeddingFailureClass,
   embeddingHintKey,
+  hasFailedOrSkippedPages,
   isHollowSiteScan,
+  isPageTallyReason,
   isSiteLevelScanError,
   scanEmptyMessageKey,
   scanErrorDetail,
@@ -235,5 +237,61 @@ describe('isHollowSiteScan', () => {
     expect(
       isHollowSiteScan({ ...errorSite, crawledPageCount: 1 }, [], false),
     ).toBe(false);
+  });
+});
+
+describe('hasFailedOrSkippedPages', () => {
+  it('reads the counts a pages answer carries, skipped pages among them', () => {
+    expect(
+      hasFailedOrSkippedPages(
+        { failedPageCount: 0 },
+        { failed: 2, skipped: 0 },
+      ),
+    ).toBe(true);
+    expect(
+      hasFailedOrSkippedPages(
+        { failedPageCount: 0 },
+        { failed: 0, skipped: 3 },
+      ),
+    ).toBe(true);
+    expect(
+      hasFailedOrSkippedPages(
+        { failedPageCount: 1 },
+        { failed: 0, skipped: 0 },
+      ),
+    ).toBe(false);
+  });
+
+  it("stands on the row's failed count until a pages answer comes", () => {
+    expect(hasFailedOrSkippedPages({ failedPageCount: 1 }, null)).toBe(true);
+    expect(hasFailedOrSkippedPages({ failedPageCount: 0 }, null)).toBe(false);
+    expect(hasFailedOrSkippedPages({}, null)).toBe(false);
+  });
+});
+
+describe('isPageTallyReason', () => {
+  it("holds for the crawl action's tally of the pages it attempted", () => {
+    expect(
+      isPageTallyReason(
+        'No page could be stored: 1 of 1 attempted pages failed (dns_failed)',
+      ),
+    ).toBe(true);
+    expect(
+      isPageTallyReason(
+        'No page could be stored: 0 of 3 attempted pages failed and 3 were skipped (robots_noindex)',
+      ),
+    ).toBe(true);
+  });
+
+  it('does not hold for a reason the pages do not explain', () => {
+    expect(
+      [
+        'Connection terminated unexpectedly',
+        'Reading the sitemap timed out',
+        'Host does not resolve: docs.example.com',
+        "No page could be stored: 4 page(s) were still waiting when the scan's continuation budget ran out",
+        'No page could be stored: discovery found no page to fetch',
+      ].map(isPageTallyReason),
+    ).toEqual([false, false, false, false, false]);
   });
 });

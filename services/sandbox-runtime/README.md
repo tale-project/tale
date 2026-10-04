@@ -12,12 +12,50 @@ Tale sandbox runtime image — the Python/Node/coding-agent environment that
 
 Any other argument exits 65 (there is no per-call language lane).
 
-runnerd disconnects an exec or attach output reader once its pending writes
-would exceed 8 MiB, releasing the connection and its request activity while
-the command continues. A reader can reconnect through attach using its last
-sequence number and the retained 256 KiB output ring. Session idle and TTL
-cleanup atomically checks the current work generation and activity clock
+runnerd keeps the complete exec protocol in a disk-backed journal for
+reconnection during the runtime's lifetime. Each journal is limited to 64 MiB
+of encoded NDJSON, with a 256 MiB session budget; stdout/stderr's base64
+encoding counts toward those limits. Completed journals are evicted oldest
+first when space is needed. The 256 KiB in-memory ring is diagnostic only.
+Exceeding the remaining storage budget ends the writer with `OUTPUT_LIMIT`;
+an evicted or unreadable transcript reports `REPLAY_UNAVAILABLE`, never a
+partial replay presented as complete. Journals are unlinked after opening and
+held through file descriptors: stopping or restarting the runtime loses them,
+while the workspace remains persistent.
+
+An exec output reader is disconnected before its pending writes exceed 8 MiB.
+Eight exec/attach consumers share a session-wide admission limit, including
+exec requests receiving their body; additional readers receive `503 busy`.
+Attach replay waits for socket drain, disconnecting a reader stalled for two
+seconds, so historical output cannot fill memory faster than the client reads.
+The command continues under its existing deadline. Reconnect through attach
+with the last sequence number. `replay-start` precedes journal history;
+`replay-complete` names the sequence through
+which the history present at attachment has been delivered. Session idle and
+TTL cleanup atomically checks the current work generation and activity clock
 before freezing compute; see the [session contract](../sandbox/docs/sessions.md).
+
+Completed commands release their request and consumer data even while another
+command keeps the session active. Process cleanup retains only the ownership
+and liveness data it still needs. Held-open stdin has an 8 MiB pending-write
+ceiling: a nonreading command refuses further lines with `WRITE_FAILED` until
+its pipe drains, without partially accepting the refused line.
+
+File staging streams each URL into a temporary file beside its destination
+and replaces the destination only after a complete, bounded download. Cancelling
+or failing a download preserves the previous file. Atomic replacement preserves
+the destination's permission bits, including executable files. At most two stage requests
+are admitted at once, including their JSON intake; excess requests report
+`busy`. URL inputs retain their 100 MiB limit; a 25-second deadline covers the
+whole batch, including cache verification and final reconciliation;
+inline inputs retain their 1 MiB limit. Output reads also stream, within their
+20 MiB file limit. Immutable source identities can skip a transfer only after
+rehashing the current destination and checking that its pathname still names
+the same unchanged file; a changed file is repaired. Reads and cache probes
+reject symlinks and named pipes without blocking filesystem workers. Explicit final
+manifests remove stale files only within the named managed roots after all
+transfer batches succeeded. The
+[session contract](../sandbox/docs/sessions.md) describes that internal API.
 
 Headless Chromium and Playwright are available on demand for automation,
 rendering and screenshots. The runtime starts no display server, managed
@@ -141,10 +179,73 @@ exec starts its descendant, so runnerd can end what the exec left
 bakes the browser bundles at build time. See the script headers for the split
 rationale.
 
+Inner Docker defaults to `json-file` logs rotating at 10 MB per nested container,
+with one file and compression disabled, matching the outer session's log cap.
+`docker logs` and Compose logs keep working. These daemon defaults apply to
+new nested containers; existing ones keep their original logging configuration
+until recreated, and an explicit per-container logging configuration takes
+precedence. Images, volumes and workspace files are not part of this log budget.
+
+Inner Docker and redsocks diagnostics go to container stderr, where the outer
+Docker logger or Kubernetes node owns rotation. They no longer accumulate in
+unbounded `/var/log/dockerd.log`, `/var/log/redsocks.log` or `/tmp/redsocks.log`
+files. Existing files are left intact; this change does not reclaim old logs.
+
 ```bash
 # from repo root
 docker build -f services/sandbox-runtime/Dockerfile .
 ```
+
+### Harness upgrades
+
+The Dockerfile pins every bundled harness and the Node patch version. Refresh
+the complete set together after checking each upstream's supported release
+channel and runtime requirements. Claude uses its `stable` channel; Hermes uses
+the PyPI distribution, whose version can differ from the GitHub release. Keep
+installs at image build time so a new agent never downloads or updates its CLI
+during startup. An image update does not add models to the platform catalog;
+deploy the matching platform release before selecting newly supported models.
+
+BuildKit keeps native-addon headers and the built-in skill's Bun package cache
+outside runtime layers. The October harness refresh grows the amd64 image to
+about 6.0 GB; its image-validation budget is 6,600 MB (roughly 10% headroom).
+The complete upstream runtimes and diagnostics ship in the image, which is
+shared by concurrent sessions. This increases image pull and base-image disk
+cost; it does not duplicate the base image for every worker.
+
+Run the wrapper regression tests and the real image conformance suite before
+shipping a refresh:
+
+```bash
+bun run --filter @tale/sandbox-runtime-daemon test
+bun run docker:test:sandbox-runtime
+```
+
+To test a previously built image, set `IMAGE=<ref>` and `SKIP_BUILD=true` on
+the second command. The image suite checks every registry harness against its
+exact Dockerfile pin, from separate empty homes with networking disabled, a
+read-only root and all capabilities dropped. Each version probe has a
+60-second cold-start deadline and reports its elapsed time. It also exercises
+the real wrapper flags and SDK signatures, managed executions against a stub
+model, baked skills, process cleanup, and lazy browser startup. These checks
+need no provider credentials; live subscription authentication still requires
+verification after rollout. CI runs the image conformance gate on amd64.
+
+Hermes keeps SDK diagnostics on stderr so stdout remains NDJSON and disables
+the SDK's artificial delay between tool calls. Provider retry and backoff stay
+enabled. OpenClaw's wrapper treats a structured error as a failed execution
+even when the CLI itself exits successfully.
+
+Gemini requires its system settings and every ancestor directory to be owned
+by root and not writable by group or others. The image generates immutable
+policy files from the platform's existing harness interpreter; the wrapper
+selects the file matching the incoming settings and supplies only the bridge
+URL and a unique context filename through environment substitution. Repository
+settings cannot override that system policy. A platform/image policy mismatch
+fails before the CLI starts and asks for a runtime update. Agent execution
+remains non-root, and cancellation removes the private per-execution context
+file. Keep the harness catalog and runtime image aligned when changing Gemini
+settings.
 
 ### Built-in skills
 

@@ -27,6 +27,7 @@ import { createAuditLog } from '../audit_logs/service.ts';
 import { runConnectorAction } from '../connectors/service.ts';
 import { getFileUrl } from '../files/service.ts';
 import { queueApiReply, retryApiDeliveryAudited } from './api-sync.ts';
+import { assertOwnedAttachments } from './attachment-ownership.ts';
 import { completePendingDraftInTx } from './draft.ts';
 import {
   assertAssignableMember,
@@ -221,6 +222,14 @@ async function sendMessageViaConnectorInTx(
   tx: TransactionSql,
   args: SendMessageViaConnectorArgs,
 ): Promise<string> {
+  // The sender's own uploads, proven in THIS transaction: the proof stamps
+  // their intents, so a refusal below rolls the stamps back with the queued
+  // row instead of leaving an upload no reclaim may take (#4111).
+  await assertOwnedAttachments(
+    tx,
+    { organizationId: args.organizationId, userId: args.actor.userId },
+    args.attachments,
+  );
   // Locked: the send rewrites the summary from this read (the rule in
   // `service.ts`'s module doc), so an inbound message landing meanwhile keeps
   // its unread count.

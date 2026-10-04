@@ -97,8 +97,8 @@ describe('assessRefLiveness — an emailed attachment', () => {
   });
 });
 
-describe('assessRefLiveness — a task attachment or deliverable', () => {
-  it('keeps the bytes while any task lists the ref, and leaves the corpus verdict to the rows', async () => {
+describe('assessRefLiveness — a listed holder', () => {
+  it('keeps the bytes while a task, a pending outbound mail or a chat message lists the ref, and leaves the corpus verdict to the rows', async () => {
     const { sql, statements } = recorder();
     await assessRefLiveness(sql, {
       organizationId: 'org-1',
@@ -106,9 +106,12 @@ describe('assessRefLiveness — a task attachment or deliverable', () => {
     });
     expect(statements).toHaveLength(1);
     const { corpus, blob } = halves(statements[0]);
+    // The list `blobRefHeld` asks too (`files/blob-holders.ts`), #4111.
     expect(blob).toContain(
-      "OR EXISTS ( SELECT 1 FROM app.tasks held WHERE held.org_id = ? AND (coalesce(held.attachments, '[]'::jsonb) || coalesce(held.outputs, '[]'::jsonb)) @> jsonb_build_array(jsonb_build_object('fileId', r.ref::text)) ) ) AS \"blobLive\"",
+      "OR (EXISTS ( SELECT 1 FROM app.tasks held WHERE held.org_id = ? AND (coalesce(held.attachments, '[]'::jsonb) || coalesce(held.outputs, '[]'::jsonb)) @> jsonb_build_array(jsonb_build_object('fileId', r.ref::text)) ) OR EXISTS ( SELECT 1 FROM app.conversation_messages held_mail WHERE held_mail.org_id = ? AND held_mail.direction = 'outbound' AND held_mail.delivery_state IN ('queued', 'failed') AND held_mail.metadata->'attachments' @> jsonb_build_array(jsonb_build_object('storageId', r.ref::text)) ) OR EXISTS ( SELECT 1 FROM app.messages held_chat WHERE held_chat.org_id = ? AND held_chat.role = 'user' AND held_chat.parts @> jsonb_build_array(jsonb_build_object( 'type', 'attachment', 'fileId', r.ref::text )) )) ) AS \"blobLive\"",
     );
     expect(corpus).not.toContain('app.tasks');
+    expect(corpus).not.toContain('app.conversation_messages');
+    expect(corpus).not.toContain('app.messages');
   });
 });

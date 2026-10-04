@@ -20,6 +20,7 @@ import {
   asNumber,
   asString,
   isRecord,
+  BoundedIdLedger,
   LineReassembler,
   parseJsonLine,
 } from '../jsonl';
@@ -82,7 +83,7 @@ class CodexJsonlParser implements HarnessEventParser {
   private sessionId: string | undefined;
   private finalText: string | undefined;
   /** Item ids whose `tool-use` has been emitted (item.started dedup). */
-  private readonly toolStarted = new Set<string>();
+  private readonly toolStarted = new BoundedIdLedger();
 
   constructor(private readonly slug: HarnessSlug) {}
 

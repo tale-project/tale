@@ -1095,6 +1095,90 @@ describe('provisionProviders + mintVirtualKey — request-scoped reuse of the or
     expect(keyListings(calls)).toHaveLength(2);
   });
 
+  async function captureProvision(
+    mod: Awaited<ReturnType<typeof loadModule>>,
+    options: { reuseRecent?: boolean } = {},
+  ) {
+    const keyIds = new Map<string, string>();
+    const failures = await mod.provisionProviders(ORG, [PROVIDER], {
+      ...options,
+      onProviderKey: (provider, keyId) => {
+        keyIds.set(provider, keyId);
+      },
+    });
+    return { failures, verifiedKeys: { organizationId: ORG, keyIds } };
+  }
+
+  it('uses this sandbox provision’s verified ids without a second listing, but checks every next session', async () => {
+    const calls = stubGateway({ keyExists: true });
+    const mod = await loadModule();
+    for (const sessionId of ['session-1', 'session-2']) {
+      calls.length = 0;
+      const provision = await captureProvision(mod);
+      expect(provision.failures).toEqual([]);
+      await mod.mintVirtualKey(
+        { ...MINT, sessionId },
+        {
+          provisionedKeys: provision.verifiedKeys,
+        },
+      );
+      expect(keyListings(calls)).toHaveLength(1);
+      expect(mintOf(calls)?.body?.provider_configs).toMatchObject([
+        { provider: 'openrouter', key_ids: ['kid-A'] },
+      ]);
+    }
+  });
+
+  it('refuses another org’s verified ids before any gateway call', async () => {
+    const calls = stubGateway({ keyExists: true });
+    const mod = await loadModule();
+    const provision = await captureProvision(mod);
+    calls.length = 0;
+    await expect(
+      mod.mintVirtualKey(
+        { ...MINT, organizationId: 'org_other' },
+        {
+          provisionedKeys: provision.verifiedKeys,
+        },
+      ),
+    ).rejects.toThrow('provisioned keys belong to another organization');
+    expect(calls).toEqual([]);
+  });
+
+  it('lists at mint when a successful create did not return its key id', async () => {
+    stubGateway({ keyExists: false });
+    const mod = await loadModule();
+    const provision = await captureProvision(mod);
+    expect(provision.failures).toEqual([]);
+    expect(provision.verifiedKeys.keyIds.size).toBe(0);
+    // The older gateway omitted the id from its write response, but its
+    // listing now contains the created key. A fallback still binds by org.
+    const calls = stubGateway({ keyExists: true });
+    await mod.mintVirtualKey(MINT, { provisionedKeys: provision.verifiedKeys });
+    expect(keyListings(calls)).toHaveLength(1);
+    expect(mintOf(calls)?.body?.provider_configs).toMatchObject([
+      { key_ids: ['kid-A'] },
+    ]);
+  });
+
+  it('a removed key still fails the mint and invalidates the recent-key memo', async () => {
+    const calls = stubGateway({
+      keyExists: true,
+      mintRefusal: { status: 400, body: 'provider key was removed' },
+    });
+    const mod = await loadModule();
+    const provision = await captureProvision(mod, REUSE);
+    await expect(
+      mod.mintVirtualKey(MINT, {
+        ...REUSE,
+        provisionedKeys: provision.verifiedKeys,
+      }),
+    ).rejects.toThrow('provider key was removed');
+    calls.length = 0;
+    await captureProvision(mod, REUSE);
+    expect(keyListings(calls)).toHaveLength(1);
+  });
+
   it('pushes a changed secret at once, even within the minute', async () => {
     const calls = stubGateway({ keyExists: true });
     const mod = await loadModule();

@@ -29,12 +29,22 @@ const pyTest = hasPython ? test : test.skip;
 const FAKE_RUN_AGENT = `
 import json, os
 
+if os.environ.get("FAKE_SDK_NOISE"):
+    print("SDK import notice")
+
 class AIAgent:
     def __init__(self, **kwargs):
         self.kwargs = kwargs
         self.session_id = kwargs.get("session_id") or "fresh-session"
+        if os.environ.get("FAKE_SDK_NOISE"):
+            print("SDK initialization notice")
 
     def run_conversation(self, user_message, conversation_history=None, **_kw):
+        if os.environ.get("FAKE_SDK_NOISE"):
+            print("SDK retry notice despite quiet mode")
+            self.kwargs["stream_delta_callback"]("streamed reply")
+            self.kwargs["tool_start_callback"]("call-1", "terminal", "pwd")
+            self.kwargs["tool_complete_callback"]("call-1", "terminal", "pwd", {})
         plain = (str, int, float, bool, type(None))
         record = {
             "ctor": {
@@ -123,6 +133,31 @@ const runEnd = (events: RunOutcome['events']) =>
   events.find((event) => event.type === 'run_end');
 
 describe('tale-hermes-run result semantics', () => {
+  pyTest(
+    'keeps SDK notices off the event stream while callbacks still emit',
+    () => {
+      const out = runWrapper(
+        { final_response: 'Done.', completed: true },
+        { env: { FAKE_SDK_NOISE: '1' } },
+      );
+
+      expect(out.code).toBe(0);
+      expect(out.stderr).toContain('SDK import notice');
+      expect(out.stderr).toContain('SDK initialization notice');
+      expect(out.stderr).toContain('SDK retry notice despite quiet mode');
+      expect(out.events.map((event) => event.type)).toEqual([
+        'run_start',
+        'text_delta',
+        'tool_call_start',
+        'tool_call_end',
+        'session_id',
+        'assistant_message',
+        'run_end',
+      ]);
+      expect(out.seen?.ctor.tool_delay).toBe(0);
+    },
+  );
+
   pyTest('ends a returned API failure as an error run', () => {
     const out = runWrapper({
       final_response: 'HTTP 401: review synthetic unauthorized',

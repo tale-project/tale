@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test';
+import { getEventListeners } from 'node:events';
 
 import {
   encodeFrame,
@@ -134,6 +135,140 @@ describe('TunnelEndpoint', () => {
     const back = await readAll(res.body);
     expect(back.byteLength).toBe(payload.byteLength);
     expect(Buffer.compare(back, payload)).toBe(0);
+  });
+
+  test('completed requests release their caller signal across repeated exchanges', async () => {
+    const { hub, device } = tunnelPair({ device: echo });
+    const caller = new AbortController();
+    const payload = bytes(32 * 1024);
+    try {
+      for (let wave = 0; wave < 8; wave++) {
+        await Promise.all(
+          Array.from({ length: 8 }, async () => {
+            const res = await hub.request(
+              { method: 'POST', path: '/echo', headers: [] },
+              payload,
+              caller.signal,
+            );
+            expect(Buffer.compare(await readAll(res.body), payload)).toBe(0);
+          }),
+        );
+        expect(hub.streamCount).toBe(0);
+        expect(getEventListeners(caller.signal, 'abort')).toHaveLength(0);
+      }
+    } finally {
+      caller.abort();
+      hub.close();
+      device.close();
+    }
+  });
+
+  test('a peer reset releases the caller signal', async () => {
+    const { hub } = tunnelPair({ device: (s) => s.reset('refused') });
+    const caller = new AbortController();
+    const error = await rejection(
+      hub.request(
+        { method: 'GET', path: '/refused', headers: [] },
+        null,
+        caller.signal,
+      ),
+    );
+    expect(error).toBeInstanceOf(TunnelStreamResetError);
+    expect(hub.streamCount).toBe(0);
+    expect(getEventListeners(caller.signal, 'abort')).toHaveLength(0);
+    hub.close();
+  });
+
+  test('closing a tunnel releases caller signals while requests await a response', async () => {
+    const { hub } = tunnelPair({ device: () => {} });
+    const caller = new AbortController();
+    const pending = hub.request(
+      { method: 'GET', path: '/pending', headers: [] },
+      null,
+      caller.signal,
+    );
+    expect(getEventListeners(caller.signal, 'abort')).toHaveLength(1);
+    hub.close();
+    expect(await rejection(pending)).toBeInstanceOf(TunnelClosedError);
+    expect(getEventListeners(caller.signal, 'abort')).toHaveLength(0);
+  });
+
+  test('a failed OPEN send leaves no caller signal subscription', async () => {
+    let sourceCancelled = false;
+    const source = new ReadableStream<Uint8Array>({
+      cancel() {
+        sourceCancelled = true;
+      },
+    });
+    const endpoint = new TunnelEndpoint(
+      'hub',
+      {
+        send: () => {
+          throw new Error('socket dropped the frame');
+        },
+        bufferedAmount: () => 0,
+        close: () => {},
+      },
+      { onStream: () => {}, onControl: () => {} },
+    );
+    const caller = new AbortController();
+    expect(
+      await rejection(
+        endpoint.request(
+          { method: 'GET', path: '/pending', headers: [] },
+          source,
+          caller.signal,
+        ),
+      ),
+    ).toBeInstanceOf(TunnelClosedError);
+    expect(getEventListeners(caller.signal, 'abort')).toHaveLength(0);
+    expect(sourceCancelled).toBe(true);
+    // Allow the pump's cancellation/finally to settle before checking ownership.
+    await Promise.resolve();
+    expect(source.locked).toBe(false);
+  });
+
+  test('a synchronous peer reset cancels the request body before pumping starts', async () => {
+    let sourceCancelled = false;
+    const source = new ReadableStream<Uint8Array>({
+      cancel() {
+        sourceCancelled = true;
+      },
+    });
+    const endpoint: TunnelEndpoint = new TunnelEndpoint(
+      'hub',
+      {
+        send: (frame) => {
+          if (frame[0] === FRAME.OPEN) {
+            endpoint.receive(
+              encodeFrame(
+                FRAME.RESET,
+                1,
+                new TextEncoder().encode('{"code":"refused"}'),
+              ),
+            );
+          }
+        },
+        bufferedAmount: () => 0,
+        close: () => {},
+      },
+      { onStream: () => {}, onControl: () => {} },
+    );
+    const caller = new AbortController();
+    expect(
+      await rejection(
+        endpoint.request(
+          { method: 'POST', path: '/upload', headers: [] },
+          source,
+          caller.signal,
+        ),
+      ),
+    ).toBeInstanceOf(TunnelStreamResetError);
+    expect(sourceCancelled).toBe(true);
+    expect(getEventListeners(caller.signal, 'abort')).toHaveLength(0);
+    await Promise.resolve();
+    expect(source.locked).toBe(false);
+    endpoint.close();
   });
 
   test('device-opened streams reach the hub handler (relay direction)', async () => {

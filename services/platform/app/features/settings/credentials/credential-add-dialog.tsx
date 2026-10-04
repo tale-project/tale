@@ -47,6 +47,7 @@ export function CredentialAddDialog<
   onOpenChange,
   searchPlaceholder,
   catalogEmpty,
+  catalogLoading,
 }: {
   organizationId: string;
   /** The whole shipped catalog, in any order — step one sorts it. */
@@ -63,6 +64,7 @@ export function CredentialAddDialog<
   searchPlaceholder: string;
   /** Operator-facing copy for a deployment that ships no vendors at all. */
   catalogEmpty: string;
+  catalogLoading: boolean;
 }) {
   const { t } = useT('settings');
   const { t: tCommon } = useT('common');
@@ -267,6 +269,7 @@ export function CredentialAddDialog<
           onSelect={selectVendor}
           searchPlaceholder={searchPlaceholder}
           catalogEmpty={catalogEmpty}
+          catalogLoading={catalogLoading}
         />
       )}
 

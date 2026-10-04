@@ -1,6 +1,6 @@
 # Chat
 
-> **Prefix** `CHAT-` · **Reset** none · **Cost** 99 boxes
+> **Prefix** `CHAT-` · **Reset** none · **Cost** 101 boxes
 
 Exercise the AI chat surface — the welcome view, messaging and the composer
 (model + reasoning-effort picker, attachments, dictation, voice output),
@@ -170,6 +170,24 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   (`chat.errorDetailsSummary`) reads **The model provider ended the reply with
   an error: E2E induced provider error inside the stream (502)** — never a
   completed, empty reply with thinking dots.
+- [ ] `CHAT-F59` · **Subscriptions left out of the model list** — Mode B: in
+  an organization whose credentials include a **Subscription broker**
+  (Anthropic or OpenAI) beside an **API key** for another provider, open the
+  composer picker (`chat.picker.ariaLabel`) → **Model**
+  (`chat.picker.sectionModel`) → No model that only the subscription serves is
+  listed; under the list `chat.modelSelector.subscriptionsTasksOnly` names its
+  provider (two are joined by the locale's word for *and*). With subscription
+  credentials alone the list reads **No models available**
+  (`chat.modelSelector.noModelsAvailable`) above the same note. The note wraps
+  inside the menu without clipping in `en`, `de` and `fr`.
+- [ ] `CHAT-F60` · **GPT-6.1 Sol in direct chat** — Mode B with an OpenAI
+  **API key** or **Environment variable** credential: pick **GPT 6.1 Sol**
+  (OpenAI) and ask something the organization's knowledge answers → The reply
+  streams and completes with its sources, so the knowledge tool ran through
+  the Responses API; **Model details** (`chat.modelSelector.viewInfo`) name
+  `gpt-6.1-sol`. Pick **GPT 6 Sol** → **Reasoning effort** (`chat.effort.label`)
+  offers only **Default** with `chat.effort.toolsLockedHint`, and a message
+  still answers.
 - [ ] `CHAT-F20` · **Export** — Thread header **Conversation actions**
   (`chat.aria.threadActions`) → **Export** (`chat.export.button`) → The
   **Export chat** dialog (`chat.export.title`) opens; **Deselect all**

@@ -52,6 +52,45 @@ const input = {
 };
 
 describe('buildSessionPod', () => {
+  test('a lightweight agent keeps its uid and omits Docker storage and privilege', () => {
+    const configured = {
+      ...cfg,
+      runtimeTier: 'sysbox' as const,
+      dockerInContainer: true,
+      session: {
+        ...cfg.session,
+        agentProfile: {
+          ...cfg.session.agentProfile,
+          memory: '8g',
+          memoryWithoutDocker: '4g',
+        },
+      },
+    };
+    const pod = buildSessionPod(configured, { ...input, docker: false });
+    const runner = pod.spec?.containers[0];
+    expect(runner?.resources).toMatchObject({
+      requests: { memory: '512Mi' },
+      limits: { memory: '4Gi' },
+    });
+    expect(pod.metadata?.annotations?.['tale.dev/docker']).toBe('false');
+    expect(runner?.securityContext?.runAsUser).toBe(
+      cfg.session.agentProfile.uid,
+    );
+    expect(runner?.securityContext?.privileged).not.toBe(true);
+    expect(runner?.env).not.toContainEqual({
+      name: 'TALE_DOCKER_ENABLED',
+      value: '1',
+    });
+    expect(
+      pod.spec?.volumes?.some((volume) => volume.name === 'docker-storage'),
+    ).toBe(false);
+    const dind = buildSessionPod(configured, input);
+    expect(dind.spec?.containers[0]?.resources).toMatchObject({
+      requests: { memory: '1Gi' },
+      limits: { memory: '8Gi' },
+    });
+  });
+
   test('passes an operator inner pool only to DinD runners without Docker build-cache wiring or unsafe sysctls', () => {
     const configured: SpawnerConfig = {
       ...cfg,

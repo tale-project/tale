@@ -39,6 +39,7 @@ Check these boundaries in order, or give the details to an administrator if you 
 1. Confirm the provider has an enabled, usable credential. A catalog entry by itself is not an account connection.
 2. Inspect that credential’s **Model allowlist**. For a catalog provider it restricts the list; for a provider without a catalog it defines the list.
 3. Check the model-access rules for the relevant organization, team or user under [Content & models](/platform/admin/governance/content-models).
-4. For a project agent, check that the credential supports its selected [harness](/platform/agents/harnesses). A subscription may work only with its required runtime.
+4. For a project agent, check that the credential supports its selected [harness](/platform/agents/harnesses). A subscription may work only with its required runtime, and a model whose tool calls need OpenAI’s Responses API, such as GPT-6.1 Sol, is offered only for Codex.
+5. In Chat, a model that only a subscription credential serves is not offered: a subscription runs only in tasks and automations, and the chat model list names the subscriptions it leaves out. Add an API key or environment-variable credential to chat with that model; [AI providers](/platform/admin/providers#use-subscriptions-in-tasks-not-in-chat) explains why.
 
 If the model is visible but a call fails, read the displayed reason. Expired credentials, provider failure, budget limits and lack of sandbox capacity are different problems. Refreshing a catalog cannot repair all of them. [AI providers](/platform/admin/providers) covers credentials; [Policies and limits](/platform/admin/governance/policies-and-limits) covers spending refusals.

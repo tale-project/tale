@@ -9,7 +9,13 @@ the session's own Docker image store remains disposable.
 The Docker spawner provisions the cache lazily when an agent session needs it.
 `SANDBOX_DOCKER_BUILD_CACHE` defaults to the DinD setting; set it to `false` to
 use only each session's local builder. This integration is implemented by the
-Docker backend, not the Kubernetes backend.
+Docker backend, not the Kubernetes backend. A caller waits no more than 15
+seconds (or one quarter of its runner readiness timeout, if shorter) for the
+optional cache. After that it uses its own builder. Shared provisioning remains
+coalesced and protected by its organization lease until completion; a late
+result never attaches a network to the session that already fell back. Registry
+mirrors are prepared concurrently under the global Docker CLI concurrency bound.
+Agents created without Docker do not start or retain these helpers.
 
 The spawner creates one daemon, one private internal bridge, and persistent
 cache volumes per organization. Container/network names include a bounded hash
@@ -81,23 +87,31 @@ logged and the stop goes on. A session create of the organization that arrives
 meanwhile cuts the prune short, and the helpers keep running for it. Stopped
 caches add up to the idle budget times the number of organizations, so they
 are kept only so long: once an organization's builder has been stopped for
-`SANDBOX_BUILDKITD_CACHE_RETENTION` (14 days by default; `off` keeps them) and
+`SANDBOX_BUILDKITD_CACHE_RETENTION` (14 days by default; `off` disables age-based removal) and
 no session of it may build, the idle sweep removes its helpers, network and
 cache volumes the way its teardown through `DELETE /v1/organizations/:id`
-does, and its next build starts cold. What stays open: no budget reacts to the
-free disk itself.
+does, and its next build starts cold. When the session disk is below
+`SANDBOX_MIN_FREE_DISK`, the sweep can reclaim stopped caches sooner, even
+with retention off, starting with the longest-stopped organization. See
+[the spawner's cache lifecycle](../sandbox/README.md#organization-build-caches).
+
+The OCI worker limits concurrent build steps to four (`max-parallelism`), in
+addition to its cgroup limits.
 
 The builder is shared by all of its organization's agent sessions and runs
 under their CPU limit and twice their memory limit (its RUN steps execute
 there, outside every session's cgroup), or `SANDBOX_BUILDKITD_CPUS` and
 `SANDBOX_BUILDKITD_MEMORY`; each mirror runs under 512 MB and one CPU, and
 every helper's logs are capped like a session's. Each helper carries a stamp of
-its image reference and bounds, and the spawner compares the image it runs
+its image reference, bounds and mirror settings, and the spawner compares the image it runs
 with the one its reference names now (a release re-tags `:latest` in place).
 A helper launched otherwise gets its CPU and process bounds in place at once;
 the builder and its mirrors are recreated on the current image and bounds,
 memory included, once no build is running, keeping their volumes. A memory
 cut is never applied to a busy helper: on cgroup v2 it OOM-kills the build.
+
+The builder's redsocks diagnostics share container stderr and its log cap;
+they no longer grow an uncapped `/tmp/redsocks.log` in the writable layer.
 
 Keep Docker's outer network allocation within RFC1918 and separate from the
 inner Docker pool. Current runtimes select a non-overlapping private `/16` at

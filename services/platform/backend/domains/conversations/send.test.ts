@@ -25,12 +25,14 @@ const {
   addJobInTx,
   emitHintInTx,
   queueApiReply,
+  assertOwnedAttachments,
 } = vi.hoisted(() => ({
   runConnectorAction: vi.fn(),
   createAuditLog: vi.fn(async () => undefined),
   addJobInTx: vi.fn(async () => 'job-1'),
   emitHintInTx: vi.fn(async () => undefined),
   queueApiReply: vi.fn(async () => 'm-api'),
+  assertOwnedAttachments: vi.fn(async () => undefined),
 }));
 
 vi.mock('../connectors/service.ts', () => ({ runConnectorAction }));
@@ -41,6 +43,7 @@ vi.mock('../events/emit.ts', () => ({
   emitEvent: vi.fn(async () => undefined),
 }));
 vi.mock('../../jobs/enqueue.ts', () => ({ addJobInTx }));
+vi.mock('./attachment-ownership.ts', () => ({ assertOwnedAttachments }));
 vi.mock('./api-sync.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./api-sync.ts')>()),
   queueApiReply,
@@ -906,6 +909,13 @@ describe('replyToConversation and composeEmailConversation — files alone', () 
         }),
       ],
     });
+    // The files are proven the sender's own inside the send's transaction,
+    // where the proof's stamp rolls back with any refusal (#4111).
+    expect(assertOwnedAttachments).toHaveBeenCalledWith(
+      expect.anything(),
+      { organizationId: 'o1', userId: 'u1' },
+      [FILE],
+    );
     const [payload] = addJobInTx.mock.calls[0]?.slice(2) ?? [];
     // An empty plain-text part beside the file: every mail connector sends
     // that as a body-less email with its attachment.

@@ -209,6 +209,27 @@ function userEnv(
   return { user: `${uid}:${gid}`, uid, gid };
 }
 
+/** A workload allowlist, with an explicit `none` for a lightweight fleet. */
+function dockerWorkloadsEnv(): readonly ('project' | 'workflow')[] | undefined {
+  const raw = process.env.SANDBOX_DOCKER_WORKLOADS?.trim();
+  if (raw === undefined || raw === '') return undefined;
+  if (raw === 'none') return [];
+  const values = raw.split(',').map((value) => value.trim());
+  if (values.some((value) => value !== 'project' && value !== 'workflow')) {
+    throw new Error(
+      'SANDBOX_DOCKER_WORKLOADS must be project, workflow, project,workflow or none',
+    );
+  }
+  return [
+    ...new Set(
+      values.filter(
+        (value): value is 'project' | 'workflow' =>
+          value === 'project' || value === 'workflow',
+      ),
+    ),
+  ];
+}
+
 export function loadConfig(): SpawnerConfig {
   // Runtime tier (default 'runc'). The deployment config (deployment.json,
   // operator's higher-level source of truth) overrides SANDBOX_RUNTIME when set;
@@ -241,6 +262,7 @@ export function loadConfig(): SpawnerConfig {
     deployment.dockerInContainer ??
     boolEnvOpt('SANDBOX_DOCKER_IN_CONTAINER') ??
     dindDefaultEnabled(runtimeTier);
+  const dockerWorkloads = dockerWorkloadsEnv();
   const rawDindInnerPool = process.env.SANDBOX_DIND_INNER_POOL?.trim();
   const k8sCpuRequest = k8sQuantityEnv(
     'SANDBOX_K8S_CPU_REQUEST',
@@ -475,6 +497,7 @@ export function loadConfig(): SpawnerConfig {
       process.env.SANDBOX_RUNTIME_IMAGE ?? 'tale-sandbox-runtime:latest',
     runtimeTier,
     dockerInContainer,
+    ...(dockerWorkloads !== undefined ? { dockerWorkloads } : {}),
     ...(dindInnerPool ? { dindInnerPool } : {}),
     // Per-org cross-session build cache (defaults to DinD's setting, resolved
     // above). Each organization gets its own builder, mirrors and private net.
@@ -586,6 +609,7 @@ export function loadConfig(): SpawnerConfig {
         // the concurrent-session peak.
         memory:
           process.env.SANDBOX_AGENT_MEMORY ?? (dockerInContainer ? '8g' : '4g'),
+        memoryWithoutDocker: process.env.SANDBOX_AGENT_MEMORY ?? '4g',
         pidsLimit: numEnv('SANDBOX_AGENT_PIDS', 512, { min: 64 }),
         nofileSoft: numEnv('SANDBOX_AGENT_NOFILE_SOFT', 4096, { min: 256 }),
         nofileHard: numEnv('SANDBOX_AGENT_NOFILE_HARD', 8192, { min: 256 }),
