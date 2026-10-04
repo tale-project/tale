@@ -31,7 +31,7 @@ The organization's retention policy sets the grace period. With a positive grace
 
 An empty Trash means there are no recoverable records in the current view. It does not prove that nothing has ever been deleted. Clear category filters before concluding a record is absent.
 
-Trash never shows a failed read as empty. If the list cannot be loaded, the table shows the error and **Try again** instead of the empty state. If records are listed but the next ones or a refresh cannot be loaded, a notice above the list says so and offers **Try again**, and the count under the list no longer claims to show all records.
+Trash never shows a failed read as empty. If the list cannot be loaded, an alert takes the table's place and offers **Try again**, instead of the empty state. If records are listed but the next ones or a refresh cannot be loaded, a notice above the list says so and offers **Try again**, and the count under the list no longer claims to show all records.
 
 ## Account for legal holds
 

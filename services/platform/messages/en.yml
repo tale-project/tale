@@ -3743,6 +3743,7 @@ governance:
     entityLabelOne: record
     entityLabel: records
     refreshFailed: Couldn't load the latest records. What's listed may be incomplete or out of date.
+    loadFailed: Couldn't load the records in Trash.
   legalHold:
     targetTypes:
       thread: Thread

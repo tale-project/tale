@@ -31,7 +31,7 @@ La règle de rétention de l’organisation définit le délai de grâce. S’il
 
 Une corbeille vide signifie qu’aucun enregistrement n’est récupérable dans cette vue. Elle ne prouve pas qu’aucune suppression n’a eu lieu. Efface les filtres de catégorie avant de conclure qu’un enregistrement manque.
 
-La corbeille ne présente jamais un chargement échoué comme vide. Si la liste ne peut pas être chargée, le tableau affiche l’erreur et **Réessayer** au lieu de l’état vide. Si des enregistrements sont déjà listés mais que les suivants ou une actualisation ne peuvent pas être chargés, une note au-dessus de la liste le signale et propose **Réessayer**. Le décompte sous la liste n’affirme alors plus afficher tous les enregistrements.
+La corbeille ne présente jamais un chargement échoué comme vide. Si la liste ne peut pas être chargée, une alerte le signale à la place du tableau et propose **Réessayer**, au lieu de l’état vide. Si des enregistrements sont déjà listés mais que les suivants ou une actualisation ne peuvent pas être chargés, une note au-dessus de la liste le signale et propose **Réessayer**. Le décompte sous la liste n’affirme alors plus afficher tous les enregistrements.
 
 ## Tenir compte des gels juridiques
 

@@ -3946,6 +3946,7 @@ governance:
     entityLabelOne: enregistrement
     entityLabel: enregistrements
     refreshFailed: Impossible de charger les derniers enregistrements. La liste est peut-être incomplète ou obsolète.
+    loadFailed: Impossible de charger les enregistrements de la corbeille.
   legalHold:
     targetTypes:
       thread: Thread

@@ -677,10 +677,14 @@ agent.
   (`governance.trash.status.trashed`); hovering it shows the full owner.
 - [ ] `GOV-B22` · **A Trash read that fails is not an empty Trash** — Block
   `*/api/app/governance/trash*` in DevTools (Network → request blocking) and
-  reload `trash` → after the retries (a few seconds) the table shows the
-  error state with **Try again** (`common.errors.tryAgain`), never **Trash is
-  empty** (`governance.trash.emptyTitle`) with a disabled **Filter**; unblock
-  → **Try again** → the list returns without a reload. With more than 20
+  reload `trash` → after the retries (a few seconds) an alert reads
+  **Couldn't load the records in Trash.** (`governance.trash.loadFailed`)
+  with **Try again** (`common.actions.tryAgain`) where the table was, never
+  **Trash is empty** (`governance.trash.emptyTitle`) with a disabled
+  **Filter**; a screen reader announces the alert, and **Try again** pressed
+  while still blocked stays focused (busy) and announces the failure again;
+  unblock → **Try again** → the list returns without a reload and the focus
+  lands on the **Trash** section. With more than 20
   trashed rows, block only `*/api/app/governance/trash?cursor=*` and scroll
   to the end of the list → one notice above the table
   (`governance.trash.refreshFailed`) with **Try again**

@@ -135,6 +135,20 @@ function scrollToEnd() {
   });
 }
 
+/** The alert standing in for a first page that never answered, and its
+ * Try again, as each shipped locale words them — pinned here so a missing
+ * translation fails. */
+const LOAD_FAILED: Record<ShippedLocale, string> = {
+  en: "Couldn't load the records in Trash.",
+  de: 'Die Datensätze im Papierkorb konnten nicht geladen werden.',
+  fr: 'Impossible de charger les enregistrements de la corbeille.',
+};
+const TRY_AGAIN: Record<ShippedLocale, string> = {
+  en: 'Try again',
+  de: 'Erneut versuchen',
+  fr: 'Réessayer',
+};
+
 /** The notice over rows a later read failed to complete, as each shipped
  * locale words it — pinned here so a missing translation fails. */
 const REFRESH_FAILED: Record<ShippedLocale, string> = {
@@ -178,34 +192,134 @@ function renderTrash() {
 
 const t = (key: string) => i18n.t(key, { ns: 'governance' });
 const emptyTitle = () => t('trash.emptyTitle');
-const tableTryAgain = () => i18n.t('errors.tryAgain', { ns: 'common' });
-const noticeTryAgain = () => i18n.t('actions.tryAgain', { ns: 'common' });
+const tryAgain = () => i18n.t('actions.tryAgain', { ns: 'common' });
+const filterButton = () =>
+  screen.getByRole('button', {
+    name: i18n.t('labels.filter', { ns: 'common' }),
+  });
 const trashRegion = () =>
   screen.getByRole('region', { name: t('trash.title') });
 
+/** Answer the next request to `pattern` only when the test says so, with a
+ * 503 — so the state while a retry runs can be read. */
+function holdNext(pattern: RegExp): () => void {
+  let release: () => void = () => undefined;
+  backend.on(
+    pattern,
+    () =>
+      new Promise<Response>((resolve) => {
+        release = () => resolve(serviceUnavailable());
+      }),
+  );
+  return () => release();
+}
+
 describe('TrashPage when its read fails', { timeout: 30_000 }, () => {
-  it('shows a failed first page as a failure with Try again, never as an empty trash, and recovers in place', async () => {
+  it('announces a failed first page as an alert with Try again, never as an empty trash, and recovers in place', async () => {
     backend.on(ANY_PAGE, () => serviceUnavailable());
     const { user } = renderTrash();
 
-    const retry = await screen.findByRole('button', { name: tableTryAgain() });
-    // The policy's four attempts, then the table's error state.
+    const alert = await screen.findByRole('alert');
+    // The policy's four attempts, then the failure — said in the page's
+    // own words, in a live region a screen reader announces.
     expect(backend.count(FIRST_PAGE)).toBe(4);
+    expect(alert).toHaveTextContent(t('trash.loadFailed'));
+    // Nothing about the trash is known: no empty state, and no table whose
+    // disabled filter would say there is nothing to narrow.
     expect(screen.queryByText(emptyTitle())).not.toBeInTheDocument();
     expect(screen.queryByText(t('trash.empty'))).not.toBeInTheDocument();
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
 
     // The same mounted page recovers on Try again, with no reload.
     backend.on(ANY_PAGE, pagedRecords);
-    await user.click(retry);
+    await user.click(within(alert).getByRole('button', { name: tryAgain() }));
     expect(await screen.findByText('Synthetic record 25')).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     expect(screen.queryByText(emptyTitle())).not.toBeInTheDocument();
-    expect(
-      screen.getByRole('button', {
-        name: i18n.t('labels.filter', { ns: 'common' }),
-      }),
-    ).toBeEnabled();
-    // The Try again went with the error state; its focus is on the list.
-    expect(trashRegion()).toHaveFocus();
+    expect(filterButton()).toBeEnabled();
+    expect(backend.count(FIRST_PAGE)).toBe(5);
+    // Try again went with the alert; its focus is on the Trash section,
+    // not on the page.
+    await waitFor(() => expect(trashRegion()).toHaveFocus());
+  });
+
+  it('keeps Try again focused and busy through a retry that fails again, and announces the new failure', async () => {
+    backend.on(ANY_PAGE, () => serviceUnavailable());
+    const { user } = renderTrash();
+    const alert = await screen.findByRole('alert');
+    const retry = within(alert).getByRole('button', { name: tryAgain() });
+    const failure = within(alert).getByText(t('trash.loadFailed'));
+
+    // From the keyboard, with the retry's first attempt held open.
+    const release = holdNext(ANY_PAGE);
+    retry.focus();
+    await user.keyboard('{Enter}');
+    await waitFor(() => expect(retry).toHaveAttribute('aria-busy', 'true'));
+    // While it runs the failure stays named — no skeleton, no empty state,
+    // no table — and nothing new is announced: the alert, its sentence and
+    // Try again are the same nodes, and Try again keeps the focus.
+    expect(screen.getByRole('alert')).toBe(alert);
+    expect(within(alert).getByText(t('trash.loadFailed'))).toBe(failure);
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
+    expect(screen.queryByText(emptyTitle())).not.toBeInTheDocument();
+    expect(retry).toHaveFocus();
+
+    // It fails again: the sentence is put back as a new node, which the
+    // live region announces afresh; Try again keeps its node and focus.
+    backend.on(ANY_PAGE, () => serviceUnavailable());
+    release();
+    await waitFor(() => expect(retry).not.toHaveAttribute('aria-busy'));
+    expect(backend.count(FIRST_PAGE)).toBe(8);
+    expect(screen.getByRole('alert')).toBe(alert);
+    const announced = within(alert).getByText(t('trash.loadFailed'));
+    expect(announced).not.toBe(failure);
+    expect(within(alert).getByRole('button', { name: tryAgain() })).toBe(retry);
+    expect(retry).toHaveFocus();
+
+    // It answers: the alert goes and hands its focus to the section.
+    backend.on(ANY_PAGE, pagedRecords);
+    await user.keyboard('{Enter}');
+    expect(await screen.findByText('Synthetic record 25')).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    await waitFor(() => expect(trashRegion()).toHaveFocus());
+  });
+
+  it('keeps the chosen category through a failed first page and retries that same read', async () => {
+    const DOCUMENTS =
+      /^GET \/api\/app\/governance\/trash\?resourceTypes=document&limit=20&orgId=org-1$/;
+    backend.on(ANY_PAGE, pagedRecords);
+    const { user } = renderTrash();
+    await screen.findByText('Synthetic record 25');
+
+    // Narrowing to Documents asks for a first page of its own, which fails.
+    backend.on(DOCUMENTS, () => serviceUnavailable());
+    await user.click(filterButton());
+    if (screen.queryAllByRole('checkbox').length === 0) {
+      await user.click(screen.getByRole('button', { name: /Category/ }));
+    }
+    await user.click(screen.getByRole('checkbox', { name: 'Documents' }));
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent(t('trash.loadFailed'));
+    expect(backend.count(DOCUMENTS)).toBe(4);
+    expect(screen.queryByText('Synthetic record 25')).not.toBeInTheDocument();
+
+    // Try again asks for the Documents page again — the category was kept —
+    // and the list comes back narrowed, its Filter usable.
+    backend.on(DOCUMENTS, () =>
+      Response.json({ rows: RECORDS.slice(5, 7), nextCursor: null }),
+    );
+    const unfiltered = backend.count(FIRST_PAGE);
+    await user.click(within(alert).getByRole('button', { name: tryAgain() }));
+    expect(await screen.findByText('Synthetic record 20')).toBeInTheDocument();
+    expect(screen.queryByText('Synthetic record 25')).not.toBeInTheDocument();
+    expect(backend.count(DOCUMENTS)).toBe(5);
+    expect(backend.count(FIRST_PAGE)).toBe(unfiltered);
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    await user.click(filterButton());
+    if (screen.queryAllByRole('checkbox').length === 0) {
+      await user.click(screen.getByRole('button', { name: /Category/ }));
+    }
+    expect(screen.getByRole('checkbox', { name: 'Documents' })).toBeChecked();
   });
 
   it('keeps the empty state for a trash that is really empty', async () => {
@@ -213,15 +327,29 @@ describe('TrashPage when its read fails', { timeout: 30_000 }, () => {
     renderTrash();
 
     expect(await screen.findByText(emptyTitle())).toBeInTheDocument();
-    expect(
-      screen.getByRole('button', {
-        name: i18n.t('labels.filter', { ns: 'common' }),
-      }),
-    ).toBeDisabled();
+    expect(filterButton()).toBeDisabled();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     expect(
-      screen.queryByRole('button', { name: tableTryAgain() }),
+      screen.queryByRole('button', { name: tryAgain() }),
     ).not.toBeInTheDocument();
+  });
+
+  it('names a failed refresh over an empty trash without taking back what it last said', async () => {
+    backend.on(ANY_PAGE, () => Response.json({ rows: [], nextCursor: null }));
+    const { user } = renderTrash();
+    await screen.findByText(emptyTitle());
+
+    // A background refresh (the tab regaining focus) fails.
+    backend.on(ANY_PAGE, () => serviceUnavailable());
+    void client.invalidateQueries();
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent(t('trash.refreshFailed'));
+    expect(screen.getByText(emptyTitle())).toBeInTheDocument();
+
+    backend.on(ANY_PAGE, pagedRecords);
+    await user.click(within(alert).getByRole('button', { name: tryAgain() }));
+    expect(await screen.findByText('Synthetic record 25')).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
   it('keeps the loaded rows when the next page fails, never claims they are all, and loads the rest on Try again', async () => {
@@ -261,9 +389,7 @@ describe('TrashPage when its read fails', { timeout: 30_000 }, () => {
     expect(backend.count(NEXT_PAGE)).toBe(4);
 
     backend.on(NEXT_PAGE, pagedRecords);
-    await user.click(
-      within(alert).getByRole('button', { name: noticeTryAgain() }),
-    );
+    await user.click(within(alert).getByRole('button', { name: tryAgain() }));
     expect(await screen.findByText('Synthetic record 01')).toBeInTheDocument();
     expect(screen.getByText('Synthetic record 25')).toBeInTheDocument();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
@@ -300,15 +426,29 @@ describe('TrashPage when its read fails', { timeout: 30_000 }, () => {
     backend.on(ANY_PAGE, () =>
       Response.json({ rows: RECORDS.slice(1, 3), nextCursor: null }),
     );
-    await user.click(
-      within(alert).getByRole('button', { name: noticeTryAgain() }),
-    );
+    await user.click(within(alert).getByRole('button', { name: tryAgain() }));
     await waitFor(() =>
       expect(screen.queryByRole('alert')).not.toBeInTheDocument(),
     );
     expect(screen.queryByText('Synthetic record 25')).not.toBeInTheDocument();
     expect(screen.getByText('Synthetic record 24')).toBeInTheDocument();
   });
+
+  it.each(SHIPPED_LOCALES)(
+    'names a failed first page and its Try again in the reader’s language (%s)',
+    async (locale) => {
+      saveLocale(locale);
+      await i18n.changeLanguage(locale);
+      backend.on(ANY_PAGE, () => serviceUnavailable());
+      renderTrash();
+
+      const alert = await screen.findByRole('alert');
+      expect(alert).toHaveTextContent(LOAD_FAILED[locale]);
+      expect(
+        within(alert).getByRole('button', { name: TRY_AGAIN[locale] }),
+      ).toBeInTheDocument();
+    },
+  );
 
   it.each(SHIPPED_LOCALES)(
     'names a failed later read in the reader’s language (%s)',
@@ -330,7 +470,7 @@ describe('TrashPage when its read fails', { timeout: 30_000 }, () => {
   it('passes axe audit in its failed state', async () => {
     backend.on(ANY_PAGE, () => serviceUnavailable());
     const { container } = renderTrash();
-    await screen.findByRole('button', { name: tableTryAgain() });
+    await screen.findByRole('alert');
     await checkAccessibility(container);
   });
 });

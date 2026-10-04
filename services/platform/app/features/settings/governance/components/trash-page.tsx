@@ -20,6 +20,7 @@ import { useRestoreSoftDeletedRow } from '@/app/features/settings/governance/hoo
 import { useListTrashedRows } from '@/app/features/settings/governance/hooks/queries';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useListReadRecovery } from '@/app/hooks/use-list-read-recovery';
+import { readStateOf } from '@/app/lib/backend/read-state';
 import {
   TRASH_LISTED_RESOURCE_TYPES,
   type SoftDeleteResourceType,
@@ -168,9 +169,8 @@ export function TrashPage({ organizationId }: Props) {
   );
 
   // A failed read is named, never passed off as an empty trash (#3641).
-  // With nothing on screen it is the table's error state; rows already on
-  // screen — earlier pages, or the page a refresh failed to renew — stay,
-  // and the failure is named above them.
+  // Rows already on screen — earlier pages, or the page a refresh failed to
+  // renew — stay, and the failure is named above them.
   const retry = useCallback(() => void refetchTrash(), [refetchTrash]);
   const { regionRef, retryRead, focusRegion, failedWithRows } =
     useListReadRecovery({
@@ -178,9 +178,18 @@ export function TrashPage({ organizationId }: Props) {
       results: visibleRows,
       retry,
     });
+  // How the page being read stands; the flags hold through a retry, which
+  // react-query starts from `pending` for a page that never answered.
+  const read = readStateOf(trash);
+  // The first page never answered: nothing about the trash is known, so an
+  // alert stands where the table would be — announced, with a Try again
+  // that stays focused and busy through its retry.
+  const firstPageFailed = read.unavailable && visibleRows.length === 0;
   // The page after the loaded ones never answered: the rows end there, not
   // because the trash does.
   const nextPageFailed = failedWithRows && trash.data === undefined;
+  // A refresh failed over what the trash last answered — rows, or none.
+  const refreshFailed = failedWithRows || read.stale;
 
   const handleRestore = async () => {
     if (!restoreTarget) return;
@@ -394,66 +403,76 @@ export function TrashPage({ organizationId }: Props) {
           )}
           className="min-h-0 flex-1 outline-none"
         >
-          {failedWithRows && (
+          {firstPageFailed ? (
             <CatalogLoadError
-              // Each failure is announced again; Try again keeps its node.
-              failureKey={trash.errorUpdateCount}
+              // Each failure is announced again. Try again keeps its node,
+              // and the focus on it, through the retry; once the records
+              // answer, the focus goes to the section.
+              failureKey={read.failureCount}
               onFocusLost={focusRegion}
               message={t(
-                'trash.refreshFailed',
-                "Couldn't load the latest records. What's listed may be incomplete or out of date.",
+                'trash.loadFailed',
+                "Couldn't load the records in Trash.",
               )}
-              onRetry={retryRead}
-              isRetrying={trash.isFetching}
+              onRetry={retry}
+              isRetrying={read.retrying}
             />
+          ) : (
+            <>
+              {refreshFailed && (
+                <CatalogLoadError
+                  // Each failure is announced again; Try again keeps its node.
+                  failureKey={trash.errorUpdateCount}
+                  onFocusLost={focusRegion}
+                  message={t(
+                    'trash.refreshFailed',
+                    "Couldn't load the latest records. What's listed may be incomplete or out of date.",
+                  )}
+                  onRetry={retryRead}
+                  isRetrying={trash.isFetching}
+                />
+              )}
+              <DataTable<TrashRow>
+                columns={columns}
+                stickyLayout
+                data={visibleRows}
+                isLoading={isFirstPageLoading}
+                // `undefined` while the first page (or a filter change) is in
+                // flight — DataTable shows its standard skeleton instead of
+                // flashing the empty state before the count is known.
+                approxRowCount={
+                  trash.data === undefined ? undefined : visibleRows.length
+                }
+                getRowId={(row) => `${row.resourceType}:${row.id}`}
+                filters={filterConfigs}
+                onClearFilters={handleClearFilters}
+                infiniteScroll={{
+                  // Keep the affordance up while a page fetch is in flight so the
+                  // footer doesn't flash "showing all" between pages.
+                  hasMore: hasMore || isLoadingMore,
+                  onLoadMore: handleLoadMore,
+                  isLoadingMore,
+                  isInitialLoading: isFirstPageLoading,
+                  // Scrolling asks for nothing until Try again, and the footer
+                  // says the rest could not be loaded instead of "Showing all".
+                  loadFailed: nextPageFailed,
+                  entityLabel: {
+                    one: t('trash.entityLabelOne', 'record'),
+                    other: t('trash.entityLabel', 'records'),
+                  },
+                }}
+                emptyState={{
+                  icon: Trash2,
+                  title: t('trash.emptyTitle', 'Trash is empty'),
+                  description: t(
+                    'trash.empty',
+                    'Nothing in the trash. Retention will move expired rows here once their grace window starts.',
+                  ),
+                }}
+                caption={t('trash.title', 'Trash')}
+              />
+            </>
           )}
-          <DataTable<TrashRow>
-            columns={columns}
-            stickyLayout
-            data={visibleRows}
-            isLoading={isFirstPageLoading}
-            // A first page that failed is the table's error state with its
-            // retry, never "Trash is empty".
-            error={visibleRows.length === 0 ? trash.error : null}
-            onRetry={retryRead}
-            // A refresh the reader did not start takes the error state away
-            // while it runs; a focused Try again hands its focus to the
-            // list, not to the page.
-            onErrorFocusLost={focusRegion}
-            // `undefined` while the first page (or a filter change) is in
-            // flight — DataTable shows its standard skeleton instead of
-            // flashing the empty state before the count is known.
-            approxRowCount={
-              trash.data === undefined ? undefined : visibleRows.length
-            }
-            getRowId={(row) => `${row.resourceType}:${row.id}`}
-            filters={filterConfigs}
-            onClearFilters={handleClearFilters}
-            infiniteScroll={{
-              // Keep the affordance up while a page fetch is in flight so the
-              // footer doesn't flash "showing all" between pages.
-              hasMore: hasMore || isLoadingMore,
-              onLoadMore: handleLoadMore,
-              isLoadingMore,
-              isInitialLoading: isFirstPageLoading,
-              // Scrolling asks for nothing until Try again, and the footer
-              // says the rest could not be loaded instead of "Showing all".
-              loadFailed: nextPageFailed,
-              entityLabel: {
-                one: t('trash.entityLabelOne', 'record'),
-                other: t('trash.entityLabel', 'records'),
-              },
-            }}
-            emptyState={{
-              icon: Trash2,
-              title: t('trash.emptyTitle', 'Trash is empty'),
-              description: t(
-                'trash.empty',
-                'Nothing in the trash. Retention will move expired rows here once their grace window starts.',
-              ),
-            }}
-            caption={t('trash.title', 'Trash')}
-          />
         </SettingsSection>
       </SettingsPage>
 
