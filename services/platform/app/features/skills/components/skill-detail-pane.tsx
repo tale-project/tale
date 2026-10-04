@@ -163,6 +163,7 @@ export function SkillDetailPane({
       await saveSkill.mutateAsync({
         organizationId,
         slug,
+        etag: skill.etag,
         description: form.metadata.description.trim(),
         body: form.body,
         visibility: form.metadata.sharing.visibility,

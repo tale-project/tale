@@ -61,4 +61,21 @@ describe('skills/actions:saveSkill', () => {
     expect(lastBody()).not.toHaveProperty('icon');
     expect(backendFetch.mock.calls.at(-1)?.[1]).not.toHaveProperty('headers');
   });
+
+  it('sends the document snapshot as If-Match', async () => {
+    await run(
+      {
+        organizationId: 'org-1',
+        slug: 'alpha',
+        description: 'd',
+        body: 'b',
+        etag: '"snapshot"',
+      },
+      ctx,
+    );
+    const call = backendFetch.mock.calls.at(-1);
+    expect(call?.[1]).toMatchObject({
+      headers: { 'if-match': '"snapshot"' },
+    });
+  });
 });
