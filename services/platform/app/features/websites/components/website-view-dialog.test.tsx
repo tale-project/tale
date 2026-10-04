@@ -14,6 +14,7 @@ import { WebsiteViewDialog } from './website-view-dialog';
 
 const canWrite = { current: true };
 const scanNowMutate = vi.hoisted(() => vi.fn());
+const searchToast = vi.hoisted(() => vi.fn());
 /** Each action's hook-level success handler, to answer a request later. */
 const answerAction = vi.hoisted(
   () => new Map<string, (data: unknown) => void>(),
@@ -69,6 +70,11 @@ vi.mock('@/app/hooks/use-organization-id', () => ({
   useOrganizationId: () => 'org-1',
 }));
 
+vi.mock('@tale/ui/use-toast', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@tale/ui/use-toast')>()),
+  toast: searchToast,
+}));
+
 vi.mock('@/app/hooks/use-ability', () => ({
   useAbility: () => ({
     can: () => canWrite.current,
@@ -97,7 +103,16 @@ vi.mock('@/app/hooks/use-backend-action', () => {
             },
           ) => {
             if (name === 'websites/actions:searchContent') {
-              searchRequests.push(callbacks ?? {});
+              searchRequests.push({
+                onSuccess: (data) => {
+                  onSuccessByName.get(name)?.(data);
+                  callbacks?.onSuccess?.(data);
+                },
+                onError: () => {
+                  failAction.get(name)?.();
+                  callbacks?.onError?.();
+                },
+              });
               return;
             }
             if (name !== 'websites/actions:fetchPages') return;
@@ -140,6 +155,7 @@ describe('WebsiteViewDialog', () => {
     pagesPayload.current = null;
     pagesRead.current = null;
     scanNowMutate.mockClear();
+    searchToast.mockClear();
     searchRequests.length = 0;
   });
 
@@ -178,6 +194,114 @@ describe('WebsiteViewDialog', () => {
     expect(screen.getByText('Second result')).toBeInTheDocument();
     expect(screen.queryByText('First result')).not.toBeInTheDocument();
   });
+
+  it('keeps loading through obsolete search success and error until the latest empty response', async () => {
+    const { user } = render(
+      <WebsiteViewDialog isOpen onClose={vi.fn()} website={WEBSITE} />,
+    );
+    const search = screen.getByPlaceholderText('Search website content');
+
+    await user.type(search, 'first{Enter}');
+    await user.clear(search);
+    await user.type(search, 'second{Enter}');
+
+    expect(searchRequests).toHaveLength(2);
+    expect(screen.getByRole('status', { name: 'Loading' })).toBeInTheDocument();
+    await act(async () => {
+      searchRequests[0]?.onSuccess?.({ results: [] });
+      searchRequests[0]?.onError?.();
+    });
+    expect(screen.getByRole('status', { name: 'Loading' })).toBeInTheDocument();
+    expect(screen.queryByText('No results found')).not.toBeInTheDocument();
+    expect(searchToast).not.toHaveBeenCalled();
+
+    await act(async () => {
+      searchRequests[1]?.onSuccess?.({ results: [] });
+    });
+    expect(
+      screen.queryByRole('status', { name: 'Loading' }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText('No results found')).toBeInTheDocument();
+  });
+
+  it('reports the latest search error and stops loading', async () => {
+    const { user } = render(
+      <WebsiteViewDialog isOpen onClose={vi.fn()} website={WEBSITE} />,
+    );
+    await user.type(
+      screen.getByPlaceholderText('Search website content'),
+      'first{Enter}',
+    );
+
+    await act(async () => {
+      searchRequests[0]?.onError?.();
+    });
+    expect(
+      screen.queryByRole('status', { name: 'Loading' }),
+    ).not.toBeInTheDocument();
+    expect(searchToast).toHaveBeenCalledExactlyOnceWith({
+      title: 'Search failed',
+      variant: 'destructive',
+    });
+  });
+
+  it.each(['clear', 'site change'] as const)(
+    'ignores pending search callbacks after %s',
+    async (invalidation) => {
+      const onClose = vi.fn();
+      const { user, rerender } = render(
+        <WebsiteViewDialog isOpen onClose={onClose} website={WEBSITE} />,
+      );
+      const search = screen.getByPlaceholderText('Search website content');
+      await user.type(search, 'first{Enter}');
+
+      if (invalidation === 'clear') {
+        await user.clear(search);
+      } else {
+        rerender(
+          <WebsiteViewDialog
+            isOpen
+            onClose={onClose}
+            website={{ ...WEBSITE, _id: 'w-2', domain: 'other.example.com' }}
+          />,
+        );
+      }
+
+      await act(async () => {
+        searchRequests[0]?.onSuccess?.({
+          results: [
+            {
+              url: 'https://docs.example.com/obsolete',
+              title: 'Obsolete',
+              chunk_index: 0,
+              chunk_content: 'Obsolete result',
+            },
+          ],
+        });
+        searchRequests[0]?.onError?.();
+      });
+      expect(searchToast).not.toHaveBeenCalled();
+      expect(search).toHaveValue('');
+
+      await user.type(search, 'second{Enter}');
+      expect(screen.queryByText('Obsolete result')).not.toBeInTheDocument();
+      expect(searchRequests).toHaveLength(2);
+      await act(async () => {
+        searchRequests[0]?.onSuccess?.({ results: [] });
+        searchRequests[0]?.onError?.();
+      });
+      expect(search).toHaveValue('second');
+      expect(
+        screen.getByRole('status', { name: 'Loading' }),
+      ).toBeInTheDocument();
+      expect(searchToast).not.toHaveBeenCalled();
+
+      await act(async () => {
+        searchRequests[1]?.onSuccess?.({ results: [] });
+      });
+      expect(screen.getByText('No results found')).toBeInTheDocument();
+    },
+  );
 
   it('names the site in the shared record details', async () => {
     render(<WebsiteViewDialog isOpen onClose={vi.fn()} website={WEBSITE} />);
