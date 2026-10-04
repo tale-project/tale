@@ -45,8 +45,9 @@ import { ENSURE_SANDBOX_RUNTIME_SCRIPT } from '../../scripts/dev-sandbox-runtime
  *
  * `lint` and `typecheck` read outside the workspace too: `tsc` and oxlint's
  * type-aware rules build one program from its sources and every module they
- * import. Two suites import the sandbox daemon's `file-ops.ts`, which imports
- * its `protocol.ts`, so an edit to either file alone can turn both verdicts:
+ * import. Suites import the sandbox runtime's `build-gemini-settings.ts` and
+ * daemon `file-ops.ts` and `exec-journal.ts`; the daemon modules both import
+ * `protocol.ts`. An edit to any of these files alone can turn both verdicts:
  * both tasks list them (`STATIC_IMPORTS`) after the same two-entry prefix.
  */
 
@@ -167,8 +168,18 @@ const OUTSIDE_READS = [
   },
 ];
 
-/** Every daemon module the platform's sources import, and who imports it. */
+/** Every sandbox-runtime module the platform's sources import, and who imports it. */
 const STATIC_IMPORTS = [
+  {
+    path: 'services/sandbox-runtime/build-gemini-settings.ts',
+    importers:
+      'lib/harnesses/gemini-settings-build.test.ts imports its geminiPolicies and settings placeholders',
+  },
+  {
+    path: 'services/sandbox-runtime/daemon/src/exec-journal.ts',
+    importers:
+      'backend/core/chat/external_turn_shared.test.ts imports its ExecJournal and JournalBudget',
+  },
   {
     path: 'services/sandbox-runtime/daemon/src/file-ops.ts',
     importers:
@@ -176,7 +187,8 @@ const STATIC_IMPORTS = [
   },
   {
     path: 'services/sandbox-runtime/daemon/src/protocol.ts',
-    importers: 'file-ops.ts imports its WORKSPACE_ROOT',
+    importers:
+      'file-ops.ts imports its WORKSPACE_ROOT; exec-journal.ts imports its exec-event validator and wire types',
   },
 ];
 
