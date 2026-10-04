@@ -335,6 +335,8 @@ interface StreamState {
   receivedHead: boolean;
   reset: boolean;
   abort: AbortController;
+  /** Release the caller's signal when this exchange ends, even if it never aborts. */
+  detachCallerSignal: (() => void) | undefined;
   /** The body being pumped out, cancelled when the stream dies. */
   source: { cancel(reason?: unknown): Promise<void> } | null;
   onHead:
@@ -432,14 +434,16 @@ export class TunnelEndpoint {
       state.onHead = { resolve, reject };
     });
     this.streams.set(id, state);
-    this.sendFrame(FRAME.OPEN, id, encoder.encode(JSON.stringify(head)));
     if (signal) {
-      signal.addEventListener(
-        'abort',
-        () => this.resetStream(state, 'cancelled', 'aborted by caller', true),
-        { once: true },
-      );
+      const onAbort = () =>
+        this.resetStream(state, 'cancelled', 'aborted by caller', true);
+      signal.addEventListener('abort', onAbort, { once: true });
+      state.detachCallerSignal = () =>
+        signal.removeEventListener('abort', onAbort);
     }
+    // Sending can close the tunnel synchronously. Own the signal first so
+    // that failure tears it down with the rest of the stream.
+    this.sendFrame(FRAME.OPEN, id, encoder.encode(JSON.stringify(head)));
     void this.pump(state, toBodyStream(body));
     return response;
   }
@@ -563,6 +567,7 @@ export class TunnelEndpoint {
       receivedHead: false,
       reset: false,
       abort: new AbortController(),
+      detachCallerSignal: undefined,
       source: null,
       onHead: undefined,
     };
@@ -675,6 +680,13 @@ export class TunnelEndpoint {
       const reader = source.getReader();
       state.source = reader;
       try {
+        // OPEN/HEAD can fail synchronously before the source was installed:
+        // teardown could not cancel it then. Do so before a read that might
+        // otherwise wait forever after the stream has already ended.
+        if (state.reset || this.closed) {
+          await reader.cancel();
+          return;
+        }
         for (;;) {
           const { done, value } = await reader.read();
           if (done) break;
@@ -781,6 +793,8 @@ export class TunnelEndpoint {
   }
 
   private teardown(state: StreamState, error: Error): void {
+    state.detachCallerSignal?.();
+    state.detachCallerSignal = undefined;
     state.reset = true;
     state.abort.abort(error);
     state.inbound.fail(error);
@@ -796,7 +810,11 @@ export class TunnelEndpoint {
   }
 
   private retireIfDone(state: StreamState): void {
-    if (state.sentEnd && state.receivedEnd) this.streams.delete(state.id);
+    if (state.sentEnd && state.receivedEnd) {
+      state.detachCallerSignal?.();
+      state.detachCallerSignal = undefined;
+      this.streams.delete(state.id);
+    }
   }
 
   private sendFrame(type: number, id: number, payload?: Uint8Array): void {

@@ -90,6 +90,7 @@ export function CredentialTable<
   credentials,
   adapter,
   isLoading,
+  catalogLoading,
   labels,
   vendorFilter,
   onVendorFilterChange,
@@ -100,6 +101,7 @@ export function CredentialTable<
   credentials: readonly Cred[];
   adapter: CredentialAdapter<V, Cred, Method, Draft, Extra>;
   isLoading: boolean;
+  catalogLoading: boolean;
   /**
    * The strings only the surface can name (its vendor noun, its empty state).
    *
@@ -372,6 +374,7 @@ export function CredentialTable<
           onOpenChange={setAddOpen}
           searchPlaceholder={labels.catalogSearch}
           catalogEmpty={labels.catalogEmpty}
+          catalogLoading={catalogLoading}
         />
       )}
     </>
