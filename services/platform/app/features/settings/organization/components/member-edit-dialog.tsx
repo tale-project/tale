@@ -21,6 +21,7 @@ import * as z from 'zod';
 import { usePasswordPolicy } from '@/app/features/settings/governance/hooks/queries';
 import { usePasswordValidation } from '@/app/hooks/use-password-validation';
 import { useT } from '@/lib/i18n/client';
+import { USER_NAME_MAX_LENGTH } from '@/lib/shared/constants/user-name';
 import {
   memberRoleSchema,
   type MemberRole,
@@ -74,30 +75,48 @@ export function EditMemberDialog({
 
   const policy = usePasswordPolicy(member?.organizationId);
 
-  const editMemberSchema = useMemo(
-    () =>
-      z.object({
-        displayName: z
-          .string()
-          .min(1, tCommon('validation.required', { field: t('form.name') })),
-        role: memberRoleSchema,
-        email: z.string().email(tCommon('validation.email')),
-        updatePassword: z.boolean().optional(),
-        password: createOptionalPasswordSchema(
-          {
-            minLength: tAuth('validation.passwordMinLength', {
-              n: policy.minLength,
-            }),
-            lowercase: tAuth('validation.passwordLowercase'),
-            uppercase: tAuth('validation.passwordUppercase'),
-            number: tAuth('validation.passwordNumber'),
-            specialChar: tAuth('validation.passwordSpecial'),
-          },
-          policy,
-        ),
-      }),
-    [t, tCommon, tAuth, policy],
-  );
+  const editMemberSchema = useMemo(() => {
+    const originalDisplayName = member?.displayName?.trim() ?? '';
+    const displayName = z.string().superRefine((value, ctx) => {
+      const trimmedValue = value.trim();
+      if (trimmedValue === originalDisplayName) return;
+      if (trimmedValue.length === 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: tCommon('validation.required', { field: t('form.name') }),
+        });
+        return;
+      }
+      if (trimmedValue.length > USER_NAME_MAX_LENGTH) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: tCommon('validation.maxLength', {
+            field: t('form.name'),
+            max: USER_NAME_MAX_LENGTH,
+          }),
+        });
+      }
+    });
+
+    return z.object({
+      displayName,
+      role: memberRoleSchema,
+      email: z.string().email(tCommon('validation.email')),
+      updatePassword: z.boolean().optional(),
+      password: createOptionalPasswordSchema(
+        {
+          minLength: tAuth('validation.passwordMinLength', {
+            n: policy.minLength,
+          }),
+          lowercase: tAuth('validation.passwordLowercase'),
+          uppercase: tAuth('validation.passwordUppercase'),
+          number: tAuth('validation.passwordNumber'),
+          specialChar: tAuth('validation.passwordSpecial'),
+        },
+        policy,
+      ),
+    });
+  }, [member?.displayName, t, tCommon, tAuth, policy]);
 
   const form = useForm<EditMemberFormData>({
     resolver: zodResolver(editMemberSchema),
@@ -131,11 +150,11 @@ export function EditMemberDialog({
         promises.push(updateMemberRole({ memberId, role: data.role }));
       }
 
-      const displayNameChanged = data.displayName !== original.displayName;
+      const displayName = data.displayName.trim();
+      const displayNameChanged =
+        displayName !== (original.displayName ?? '').trim();
       if (displayNameChanged) {
-        promises.push(
-          updateMemberDisplayName({ memberId, displayName: data.displayName }),
-        );
+        promises.push(updateMemberDisplayName({ memberId, displayName }));
       }
 
       if (data.updatePassword && data.password) {
@@ -196,6 +215,7 @@ export function EditMemberDialog({
         label={t('form.name')}
         placeholder={t('form.namePlaceholder')}
         {...register('displayName')}
+        errorMessage={formState.errors.displayName?.message}
         className="w-full"
         required
       />
