@@ -342,6 +342,137 @@ export async function checkRetentionAuditTrail(
     `actions=${retry.map((row) => row.action).join(',')}, deleted=${String(retry[1]?.metadata?.deleted)} (want 2), agedFeedbackLeft=${feedbackAfterRetry}, chainValid=${verified.valid} (${verified.verifiedCount} rows), cut=${String(cut)} prefixHead=${prefixHead[0]?.hash} anchor=${anchor[0]?.previousHash}`,
   );
 
+  // Inherited ledger tables have independent physical tuple addresses. A
+  // ctid-only outer DELETE can therefore remove a fresh, held, or unrelated
+  // tenant row whose ctid happens to match a stale candidate in another
+  // inherited table. Exercise both parent and child rows in one bounded run.
+  const collisionOrg = orgId;
+  const collisionUser = `collision-${tag}`;
+  const heldCollisionUser = `held-collision-${tag}`;
+  const otherOrg = randomUUID();
+  const collisionAncient = now - 100 * DAY_MS;
+  const collisionFresh = now;
+  await sql`
+    INSERT INTO app.legal_holds (
+      org_id, target_type, target_id, target_label, reason, placed_by,
+      placed_at_ms
+    ) VALUES (
+      ${collisionOrg}, 'userMembership', ${heldCollisionUser},
+      'retention tuple collision', 'itest', ${now}
+    )
+  `;
+  const ledgerSeed = [
+    [collisionOrg, collisionUser, 'collision-parent-stale', collisionAncient],
+    [collisionOrg, collisionUser, 'collision-parent-fresh', collisionFresh],
+    [
+      collisionOrg,
+      heldCollisionUser,
+      'collision-parent-held',
+      collisionAncient,
+    ],
+    [otherOrg, collisionUser, 'collision-other-tenant', collisionAncient],
+  ] as const;
+  for (const [seedOrg, seedUser, model, updatedAt] of ledgerSeed) {
+    await sql`
+      INSERT INTO app.usage_ledger (
+        org_id, user_id, period_key, granularity, model, provider,
+        input_tokens, output_tokens, total_tokens, cost_estimate_cents,
+        request_count, connector_call_count, updated_at_ms
+      ) VALUES (
+        ${seedOrg}, ${seedUser}, ${model}, 'daily', ${model}, 'itest',
+        1, 1, 2, 1, 1, 0, ${updatedAt}
+      )
+    `;
+    await sql`
+      INSERT INTO app.usage_ledger_provider (
+        org_id, user_id, period_key, granularity, model, provider,
+        input_tokens, output_tokens, total_tokens, cost_estimate_cents,
+        request_count, connector_call_count, updated_at_ms
+      ) VALUES (
+        ${seedOrg}, ${seedUser}, ${`${model}-child`}, 'daily',
+        ${`${model}-child`}, 'itest', 1, 1, 2, 1, 1, 0, ${updatedAt}
+      )
+    `;
+  }
+  const batchLedgerRows = Array.from({ length: 1001 }, (_, index) => ({
+    org_id: collisionOrg,
+    user_id: collisionUser,
+    period_key: `collision-batch-${index}`,
+    granularity: 'daily',
+    model: `collision-batch-${index}`,
+    provider: 'itest',
+    input_tokens: 1,
+    output_tokens: 1,
+    total_tokens: 2,
+    cost_estimate_cents: 1,
+    request_count: 1,
+    connector_call_count: 0,
+    updated_at_ms: collisionAncient,
+  }));
+  await sql`INSERT INTO app.usage_ledger ${sql(batchLedgerRows)}`;
+  await sql`
+    INSERT INTO app.usage_ledger_provider (
+      org_id, user_id, period_key, granularity, model, provider,
+      input_tokens, output_tokens, total_tokens, cost_estimate_cents,
+      request_count, connector_call_count, updated_at_ms
+    ) VALUES (
+      ${collisionOrg}, ${collisionUser}, 'collision-child-fresh', 'daily',
+      'collision-child-fresh', 'itest', 1, 1, 2, 1, 1, 0, ${collisionFresh}
+    )
+  `;
+  await runRetentionCleanup(sql);
+  const collisionRows = await sql<
+    {
+      model: string;
+      tableName: string;
+      userId: string;
+    }[]
+  >`
+    SELECT model, tableoid::regclass::text AS "tableName", user_id AS "userId"
+    FROM app.usage_ledger
+    WHERE org_id IN (${collisionOrg}, ${otherOrg})
+    ORDER BY model
+  `;
+  const collisionAudit = await sql<{ metadata: Record<string, unknown> }[]>`
+    SELECT metadata FROM app.audit_logs
+    WHERE org_id = ${collisionOrg}
+      AND action = 'usage_ledger.retention_deleted'
+    ORDER BY ts DESC, id DESC LIMIT 1
+  `;
+  const collisionMetadata = collisionAudit[0]?.metadata;
+  const collisionModels = new Set(collisionRows.map((row) => row.model));
+  const remainingBatchRows = collisionRows.filter((row) =>
+    row.model.startsWith('collision-batch-'),
+  ).length;
+  const collisionAuditCounts = collisionMetadata?.counts;
+  const collisionAuditExact =
+    collisionMetadata?.deleted === 1000 &&
+    isDeepStrictEqual(collisionAuditCounts, {
+      usageLedger: 1000,
+      usageEvents: 0,
+    });
+  record(
+    'retention ledger: inherited tuple identity preserves tenant, fresh and held rows with exact bounded audit counts',
+    collisionRows.length === 10 &&
+      collisionModels.has('collision-parent-fresh') &&
+      collisionModels.has('collision-parent-held') &&
+      collisionModels.has('collision-child-fresh') &&
+      collisionModels.has('collision-parent-fresh-child') &&
+      collisionModels.has('collision-parent-held-child') &&
+      collisionModels.has('collision-other-tenant') &&
+      collisionModels.has('collision-other-tenant-child') &&
+      remainingBatchRows === 3 &&
+      collisionAuditExact,
+    `rows=${collisionRows.map((row) => `${row.tableName}:${row.model}:${row.userId}`).join(',')}, batchRemaining=${remainingBatchRows} (want 3), audit=${JSON.stringify(collisionMetadata)} (want deleted=1000, usageLedger=1000, usageEvents=0)`,
+  );
+  await sql`
+    DELETE FROM app.legal_holds
+    WHERE org_id = ${collisionOrg} AND target_id = ${heldCollisionUser}
+  `;
+  await sql`
+    DELETE FROM app.usage_ledger WHERE org_id IN (${collisionOrg}, ${otherOrg})
+  `;
+
   // Later lanes sweep the fleet; this organization leaves it.
   await sql`DELETE FROM app.retention_applied_bounds WHERE org_id = ${orgId}`;
   await rm(orgConfigDir, { recursive: true, force: true });

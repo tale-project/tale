@@ -603,8 +603,8 @@ async function sweepUsageLedger(
   await destroyInTx(sql, trail, async (tx) => {
     const ledger = await tx<{ id: string }[]>`
       DELETE FROM app.usage_ledger
-      WHERE ctid IN (
-        SELECT ctid FROM app.usage_ledger
+      WHERE (tableoid, ctid) IN (
+        SELECT tableoid, ctid FROM app.usage_ledger
         WHERE org_id = ${org.organizationId}
           AND updated_at_ms < ${cutoff}
           AND (${protectedIds.length === 0}

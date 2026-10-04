@@ -449,9 +449,13 @@ describe('runRetentionCleanup — the run audit trail', () => {
     // The retired usage events age out on the ledger's clock and are counted
     // with it, in the ledger delete's transaction.
     const ledger = appendOf('usage_ledger.retention_deleted');
-    expect(ledger.tx).toBe(
-      txOf(fake.statements, 'DELETE FROM app.usage_ledger'),
+    const ledgerDelete = fake.statements.find((statement) =>
+      statement.text.startsWith('DELETE FROM app.usage_ledger'),
     );
+    expect(ledgerDelete?.text).toMatch(
+      /WHERE \(tableoid, ctid\) IN \( SELECT tableoid, ctid FROM app\.usage_ledger/,
+    );
+    expect(ledger.tx).toBe(ledgerDelete?.tx);
     expect(ledger.tx).toBe(
       txOf(fake.statements, 'DELETE FROM app.usage_events'),
     );
