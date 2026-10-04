@@ -92,6 +92,8 @@ export interface TaskPayloads {
   /** Release rotated-away blob refs: de-index dead corpus rows, delete
    * unreferenced bytes (enqueued transactionally by every ref rotation). */
   'knowledge.release_refs': { organizationId: string; refs: string[] };
+  'files.retire_blobs': { organizationId: string };
+  'files.recover_retirements': Record<string, never>;
   /** Daily corpus↔app reconcile: de-index refs nothing references (cron). */
   'knowledge.reconcile_corpus': Record<string, never>;
   /** Background `REINDEX INDEX CONCURRENTLY` of one corrupted BM25 index the
@@ -480,6 +482,13 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
     expireInSeconds: 600,
   },
   'knowledge.reconcile_corpus': { retryLimit: 1, expireInSeconds: 3600 },
+  'files.retire_blobs': {
+    retryLimit: 8,
+    retryDelay: 10,
+    retryBackoff: true,
+    expireInSeconds: 600,
+  },
+  'files.recover_retirements': { retryLimit: 2, expireInSeconds: 300 },
   // A rebuild is ONE deliberate attempt (a retry would loop on a corruption
   // REINDEX cannot fix), `short` so a concurrently booting api and worker
   // queue it once per index, and a day for a very large index to finish.

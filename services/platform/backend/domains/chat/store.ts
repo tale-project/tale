@@ -14,6 +14,7 @@ import { resolveProvidersForOrg } from '../../core/lib/providers/org_providers.t
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
+import { attachmentOwnershipForParts } from '../files/chat-ownership.ts';
 import { budgetPolicyActive } from '../governance/budget-gate.ts';
 import { incrementUsageLedger } from '../governance/service.ts';
 import { claimMessageSlot, type SlotClaimOptions } from '../threads/store.ts';
@@ -94,7 +95,7 @@ export async function assertThreadWriteScope(
 }
 
 export async function appendMessageRow(
-  sql: Sql,
+  sql: Sql | TransactionSql,
   message: {
     /** A caller-minted id — the REST door names the assistant placeholder
      * in its 202 before the turn runs, so the row must land under it. */
@@ -103,6 +104,7 @@ export async function appendMessageRow(
     threadId: string;
     role: string;
     parts: unknown;
+    attachmentProvenance?: Readonly<Record<string, { documentId?: string }>>;
     text?: string;
     model?: string;
     providerSlug?: string;
@@ -114,15 +116,48 @@ export async function appendMessageRow(
   },
   slot: SlotClaimOptions = {},
 ): Promise<{ id: string; sequence: number }> {
+  const attachmentRefs =
+    message.role === 'user' && Array.isArray(message.parts)
+      ? [
+          ...new Set(
+            message.parts.flatMap((part: unknown) =>
+              typeof part === 'object' &&
+              part !== null &&
+              'type' in part &&
+              part.type === 'attachment' &&
+              'fileId' in part &&
+              typeof part.fileId === 'string'
+                ? [part.fileId]
+                : [],
+            ),
+          ),
+        ]
+      : [];
   // The slot is UNIQUE: two turns appending to one thread at once both read
   // the same max, and the one the index refuses re-claims the next slot on
   // a fresh statement instead of tying the winner's ordering.
   const row = await claimMessageSlot(async () => {
-    const rows = await sql<{ id: string; order: number }[]>`
+    const rows = await sql<
+      { id: string; order: number; missingAttachments: boolean }[]
+    >`
+      WITH requested_attachment_refs AS MATERIALIZED (
+        SELECT jsonb_array_elements_text(${sql.json(attachmentRefs)}::jsonb) AS ref
+      ), locked_attachment_files AS MATERIALIZED (
+        SELECT file.* FROM app.file_metadata file
+        WHERE file.org_id = ${message.organizationId}
+          AND file.storage_ref IN (SELECT ref FROM requested_attachment_refs)
+        ORDER BY file.id
+        FOR SHARE OF file
+      ), missing_attachment_refs AS MATERIALIZED (
+        SELECT ref FROM requested_attachment_refs requested
+        WHERE NOT EXISTS (
+          SELECT 1 FROM locked_attachment_files file WHERE file.storage_ref = requested.ref
+        )
+      ), inserted_message AS (
       INSERT INTO app.messages (
         thread_id, org_id, "order", step_order, role, parts, text, model,
         provider_slug, usage, blocked_reason, truncation, error, status,
-        created_at_ms, id
+        created_at_ms, id, attachment_ownership
       )
       SELECT ${message.threadId}, ${message.organizationId},
              coalesce(max("order"), -1) + 1, 0, ${message.role},
@@ -134,11 +169,25 @@ export async function appendMessageRow(
              ${message.truncation === undefined ? null : sql.json(toJson(message.truncation))},
              ${message.error ?? null}, ${message.status ?? 'complete'},
              ${Date.now()},
-             coalesce(${message.id ?? null}, gen_random_uuid()::text)
+             coalesce(${message.id ?? null}, gen_random_uuid()::text),
+             ${message.role === 'user' ? attachmentOwnershipForParts(sql, message.organizationId, message.threadId, message.parts ?? [], sql`locked_attachment_files`, message.attachmentProvenance) : sql`NULL`}
       FROM app.messages WHERE thread_id = ${message.threadId}
+      HAVING NOT EXISTS (SELECT 1 FROM missing_attachment_refs)
       ON CONFLICT (thread_id, "order", step_order) DO NOTHING
       RETURNING id, "order"
+      )
+      SELECT id, "order", false AS "missingAttachments" FROM inserted_message
+      UNION ALL
+      SELECT NULL::text, NULL::integer, true AS "missingAttachments"
+      WHERE EXISTS (SELECT 1 FROM missing_attachment_refs)
     `;
+    if (rows.some((result) => result.missingAttachments)) {
+      throw new ChatThreadError(
+        'ATTACHMENT_UNAVAILABLE',
+        'A referenced attachment is no longer available.',
+        409,
+      );
+    }
     return rows[0]; // undefined: the slot went to a concurrent append
   }, slot);
   // A turn just wrote to the thread; keep its list ordering fresh. An

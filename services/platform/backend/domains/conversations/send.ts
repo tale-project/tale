@@ -25,10 +25,16 @@ import type { TaskPayloads } from '../../jobs/tasks.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { runConnectorAction } from '../connectors/service.ts';
+import {
+  handoffComposerBlobs,
+  queueBlobRetirement,
+} from '../files/retirement.ts';
 import { getFileUrl } from '../files/service.ts';
+import { ownsUploadedBlob } from '../files/upload-intents.ts';
 import { queueApiReply, retryApiDeliveryAudited } from './api-sync.ts';
 import { assertOwnedAttachments } from './attachment-ownership.ts';
 import { completePendingDraftInTx } from './draft.ts';
+import { mailAttachmentRefs } from './message-corpus.ts';
 import {
   assertAssignableMember,
   CONVERSATION_COLUMNS,
@@ -302,13 +308,13 @@ async function sendMessageViaConnectorInTx(
         org_id, conversation_id, connector_name, credential_id, channel,
         direction,
         delivery_state, content, sent_at_ms, delivered_at_ms, metadata,
-        created_at_ms, status_changed_at_ms
+        created_at_ms, status_changed_at_ms, attachment_owner_user_id
       ) VALUES (
         ${args.organizationId}, ${args.conversationId},
         ${args.connectorName}, ${args.credentialId ?? null},
         'email', 'outbound', 'queued',
         ${args.content}, ${now}, ${now},
-        ${tx.json(toJson(messageMetadata))}, ${now}, ${now}
+        ${tx.json(toJson(messageMetadata))}, ${now}, ${now}, ${args.actor.userId}
       )
       RETURNING id
     `;
@@ -831,12 +837,14 @@ export async function undoSendMessage(
     // would delete the claimed row under a mail already leaving — the exact
     // outcome the claim exists to prevent, narrowed to this transaction's
     // span instead of closed.
-    const deleted = await tx<{ id: string }[]>`
+    const deleted = await tx<
+      { id: string; metadata: unknown; owner: string | null }[]
+    >`
       DELETE FROM app.conversation_messages
       WHERE id = ${args.messageId} AND org_id = ${args.organizationId}
         AND direction = 'outbound' AND delivery_state = 'queued'
         AND metadata->>'sendClaimedAt' IS NULL
-      RETURNING id
+      RETURNING id, metadata, attachment_owner_user_id AS owner
     `;
     if (deleted.length === 0) {
       throw new ConversationError(
@@ -869,17 +877,47 @@ export async function undoSendMessage(
       status: 'success',
     });
     const sourceMarkdown = metadata.sourceMarkdown;
+    const listed = mailAttachmentRefs(deleted[0]?.metadata ?? metadata);
+    const handoffOwner = deleted[0]?.owner ?? args.actor.userId;
+    const owned: string[] = [];
+    for (const ref of listed.sort()) {
+      if (
+        deleted[0]?.owner ||
+        (await ownsUploadedBlob(
+          tx,
+          {
+            organizationId: args.organizationId,
+            userId: args.actor.userId,
+            storageRef: ref,
+          },
+          { stamp: false },
+        ))
+      )
+        owned.push(ref);
+    }
+    await handoffComposerBlobs(tx, args.organizationId, handoffOwner, owned);
+    await queueBlobRetirement(
+      tx,
+      args.organizationId,
+      listed,
+      Date.now(),
+      deleted[0]?.owner || owned.length === listed.length ? [handoffOwner] : [],
+    );
     return {
       sourceMarkdown:
         typeof sourceMarkdown === 'string' ? sourceMarkdown : null,
-      attachments: (attachmentsFromMetadata(metadata.attachments) ?? []).map(
-        (attachment) => ({
+      attachments: (attachmentsFromMetadata(metadata.attachments) ?? [])
+        .filter(
+          (attachment) =>
+            handoffOwner === args.actor.userId &&
+            owned.includes(attachment.storageRef),
+        )
+        .map((attachment) => ({
           storageId: attachment.storageRef,
           fileName: attachment.fileName,
           contentType: attachment.contentType,
           size: attachment.size,
-        }),
-      ),
+        })),
     };
   });
 }
@@ -926,6 +964,13 @@ export async function retrySendMessage(
     }
     const metadata = message.metadata ?? {};
     const to = asStringArray(metadata.to);
+    if (typeof metadata.sendDeliveredAt === 'number') {
+      throw new ConversationError(
+        'DELIVERY_RETRY_UNAVAILABLE',
+        'The delivered message is awaiting settlement',
+        409,
+      );
+    }
     const connectorName =
       message.connectorName ??
       (typeof metadata.connectorName === 'string'
@@ -961,13 +1006,22 @@ export async function retrySendMessage(
     delete retainedMetadata.scheduledSendAt;
     delete retainedMetadata.sendClaimedAt;
     const retryCount = (message.retryCount ?? 0) + 1;
-    await tx`
+    const requeued = await tx<{ id: string }[]>`
       UPDATE app.conversation_messages SET
         delivery_state = 'queued', retry_count = ${retryCount},
         status_changed_at_ms = ${Date.now()},
         metadata = ${tx.json(toJson(retainedMetadata))}
-      WHERE id = ${args.messageId}
+      WHERE id = ${args.messageId} AND org_id = ${args.organizationId}
+        AND direction = 'outbound' AND delivery_state = 'failed'
+        AND metadata->>'sendDeliveredAt' IS NULL
+      RETURNING id
     `;
+    if (requeued.length === 0)
+      throw new ConversationError(
+        'DELIVERY_RETRY_UNAVAILABLE',
+        'Only a failed outbound message can be retried',
+        409,
+      );
     const cc = asStringArray(metadata.cc);
     const references = asStringArray(metadata.references);
     const attachments = attachmentsFromMetadata(metadata.attachments);
@@ -1057,11 +1111,13 @@ export async function discardOutboundMessage(
     // predicate then finds a queued row — which a discard must not delete
     // (its send job would fire on nothing and the retry would silently
     // vanish).
-    const deleted = await tx<{ id: string }[]>`
+    const deleted = await tx<
+      { id: string; metadata: unknown; owner: string | null }[]
+    >`
       DELETE FROM app.conversation_messages
       WHERE id = ${args.messageId} AND org_id = ${args.organizationId}
         AND direction = 'outbound' AND delivery_state = 'failed'
-      RETURNING id
+      RETURNING id, metadata, attachment_owner_user_id AS owner
     `;
     if (deleted.length === 0) {
       throw new ConversationError(
@@ -1070,6 +1126,13 @@ export async function discardOutboundMessage(
         409,
       );
     }
+    await queueBlobRetirement(
+      tx,
+      args.organizationId,
+      mailAttachmentRefs(deleted[0]?.metadata ?? metadata),
+      Date.now(),
+      deleted[0]?.owner ? [deleted[0].owner] : [],
+    );
     await recomputeConversationLastMessageAt(tx, message.conversationId);
     await emitHintInTx(tx, {
       orgId: args.organizationId,
@@ -1169,17 +1232,35 @@ async function settleSent(
   sql: Sql,
   messageId: string,
   externalMessageId: string | undefined,
+  organizationId: string,
+  claimedAt: number,
 ): Promise<{ id: string }[]> {
   const now = Date.now();
-  try {
-    return await sql<{ id: string }[]>`
+  const settle = async (externalId: string | undefined) =>
+    sql.begin(async (tx) => {
+      const changed = await tx<
+        { id: string; metadata: unknown; owner: string | null }[]
+      >`
       UPDATE app.conversation_messages SET
-        delivery_state = 'sent', sent_at_ms = ${now},
-        status_changed_at_ms = ${now},
-        external_message_id = ${externalMessageId ?? sql.unsafe('external_message_id')}
-      WHERE id = ${messageId}
-      RETURNING id
+        delivery_state = 'sent', sent_at_ms = ${now}, status_changed_at_ms = ${now},
+        external_message_id = ${externalId ?? tx.unsafe('external_message_id')}
+      WHERE id = ${messageId} AND org_id = ${organizationId}
+        AND delivery_state IN ('queued', 'failed') AND metadata->>'sendClaimedAt' = ${String(claimedAt)}
+      RETURNING id, metadata, attachment_owner_user_id AS owner
     `;
+      if (changed.length > 0) {
+        await queueBlobRetirement(
+          tx,
+          organizationId,
+          changed.flatMap((row) => mailAttachmentRefs(row.metadata)),
+          Date.now(),
+          changed.flatMap((row) => (row.owner ? [row.owner] : [])),
+        );
+      }
+      return changed;
+    });
+  try {
+    return await settle(externalMessageId);
   } catch (error) {
     if (externalMessageId === undefined || !isUniqueViolation(error)) {
       throw error;
@@ -1187,13 +1268,7 @@ async function settleSent(
     console.warn(
       `[conversation-send] ${messageId} delivered as ${externalMessageId}, but the Sent-folder sync landed that Message-ID first — settling without it`,
     );
-    return sql<{ id: string }[]>`
-      UPDATE app.conversation_messages SET
-        delivery_state = 'sent', sent_at_ms = ${now},
-        status_changed_at_ms = ${now}
-      WHERE id = ${messageId}
-      RETURNING id
-    `;
+    return settle(undefined);
   }
 }
 
@@ -1226,6 +1301,7 @@ export async function runSendMessageJob(
   `;
   const message = claimed[0];
   if (!message) return;
+  let delivered = false;
   try {
     const { connector, action } = sendConnectorAction(payload.connectorName);
     // Each attachment travels with both handles and `buildSendInput` picks
@@ -1289,13 +1365,30 @@ export async function runSendMessageJob(
     if (result.status !== 'ok') {
       throw new Error(result.message);
     }
+    delivered = true;
     const externalMessageId = await resolveSentExternalMessageId(sql, {
       organizationId: payload.organizationId,
       connector,
       connectorName: payload.connectorName,
       output: result.output,
     });
-    const settled = await settleSent(sql, payload.messageId, externalMessageId);
+    await sql`UPDATE app.conversation_messages SET
+      delivery_state = 'queued',
+      metadata = coalesce(metadata, '{}'::jsonb) || ${sql.json(
+        toJson({
+          sendDeliveredAt: Date.now(),
+          sendDeliveredExternalId: externalMessageId ?? null,
+        }),
+      )}
+      WHERE id = ${payload.messageId} AND org_id = ${payload.organizationId}
+        AND delivery_state IN ('queued', 'failed') AND metadata->>'sendClaimedAt' = ${String(claimedAt)}`;
+    const settled = await settleSent(
+      sql,
+      payload.messageId,
+      externalMessageId,
+      payload.organizationId,
+      claimedAt,
+    );
     if (settled.length === 0) {
       // The mail left; the row did not survive to record it (the conversation
       // was deleted under the send). Loud, because the Sent-folder sync will
@@ -1308,13 +1401,21 @@ export async function runSendMessageJob(
       orgId: payload.organizationId,
       entity: 'conversation',
       entityId: message.conversationId,
-    });
+    }).catch(() =>
+      console.warn('[conversation-send] delivered send notification deferred'),
+    );
   } catch (error) {
+    if (delivered) {
+      console.warn(
+        '[conversation-send] observed delivery awaits settlement recovery',
+      );
+      throw error;
+    }
     const reason = error instanceof Error ? error.message : String(error);
     console.warn(
       `[conversation-send] delivery failed for ${payload.messageId}: ${reason}`,
     );
-    await sql`
+    const failed = await sql<{ id: string }[]>`
       UPDATE app.conversation_messages SET
         delivery_state = 'failed', status_changed_at_ms = ${Date.now()},
         metadata = coalesce(metadata, '{}'::jsonb)
@@ -1326,13 +1427,16 @@ export async function runSendMessageJob(
                 : {}),
             }),
           )}
-      WHERE id = ${payload.messageId}
+      WHERE id = ${payload.messageId} AND org_id = ${payload.organizationId}
+        AND delivery_state = 'queued' AND metadata->>'sendClaimedAt' = ${String(claimedAt)}
+      RETURNING id
     `;
-    await emitHintInTx(sql, {
-      orgId: payload.organizationId,
-      entity: 'conversation',
-      entityId: message.conversationId,
-    });
+    if (failed.length > 0)
+      await emitHintInTx(sql, {
+        orgId: payload.organizationId,
+        entity: 'conversation',
+        entityId: message.conversationId,
+      });
   }
 }
 
@@ -1361,6 +1465,50 @@ export async function recoverStuckConversationSends(
   sql: Sql,
   options: { staleMs?: number } = {},
 ): Promise<{ failed: number }> {
+  const delivered = await sql<
+    {
+      id: string;
+      organizationId: string;
+      conversationId: string;
+      metadata: Record<string, unknown> | null;
+    }[]
+  >`
+    SELECT id, org_id AS "organizationId", conversation_id AS "conversationId", metadata
+    FROM app.conversation_messages
+    WHERE direction = 'outbound' AND delivery_state IN ('queued', 'failed')
+      AND channel IS DISTINCT FROM 'api' AND metadata->>'sendDeliveredAt' IS NOT NULL
+    ORDER BY coalesce(status_changed_at_ms, created_at_ms), id LIMIT 25
+  `;
+  for (const receipt of delivered) {
+    const claim = receipt.metadata?.sendClaimedAt;
+    if (typeof claim !== 'number') continue;
+    try {
+      const externalId = receipt.metadata?.sendDeliveredExternalId;
+      await settleSent(
+        sql,
+        receipt.id,
+        typeof externalId === 'string' ? externalId : undefined,
+        receipt.organizationId,
+        claim,
+      );
+      await emitHintInTx(sql, {
+        orgId: receipt.organizationId,
+        entity: 'conversation',
+        entityId: receipt.conversationId,
+      }).catch(() =>
+        console.warn(
+          '[conversation-send] recovered send notification deferred',
+        ),
+      );
+    } catch {
+      await sql`UPDATE app.conversation_messages SET status_changed_at_ms = ${Date.now()}
+        WHERE id = ${receipt.id} AND org_id = ${receipt.organizationId}
+          AND delivery_state IN ('queued', 'failed') AND metadata->>'sendClaimedAt' = ${String(claim)}`;
+      console.warn(
+        '[conversation-send] observed delivery settlement will be retried',
+      );
+    }
+  }
   const now = Date.now();
   const cutoff = now - (options.staleMs ?? SEND_STALE_MS);
   const failed = await sql<
@@ -1372,6 +1520,7 @@ export async function recoverStuckConversationSends(
         toJson({ error: SEND_WATCHDOG_ERROR, errorCode: 'send_interrupted' }),
       )}
     WHERE direction = 'outbound' AND delivery_state = 'queued'
+      AND metadata->>'sendDeliveredAt' IS NULL
       AND coalesce(status_changed_at_ms, created_at_ms) < ${cutoff}
       -- API replies have their own durable leased outbox, not email jobs.
       AND channel IS DISTINCT FROM 'api'

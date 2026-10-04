@@ -59,6 +59,7 @@ export const ABANDONED_UPLOAD_GRACE_MS = 24 * 3_600_000;
 /** Blobs reclaimed per sweep — bounded work on a request path; a backlog
  * drains over the following mints. */
 const RECLAIM_BATCH = 25;
+const RECLAIM_RETRY_DELAY_MS = 60_000;
 
 /** The two ledgers the sweep serves: the session lanes' and the REST door's
  * (0033). Only the session ledger carries `bound_at_ms` — the REST bind
@@ -237,6 +238,20 @@ export async function ownsUploadedBlob(
           RETURNING id
         `;
   if (intents.length > 0) return true;
+  const handoff =
+    options.stamp === false
+      ? await sql<{ storage_ref: string }[]>`
+        SELECT storage_ref FROM app.blob_composer_handoffs
+        WHERE org_id = ${args.organizationId} AND user_id = ${args.userId}
+          AND storage_ref = ${args.storageRef} AND expires_at_ms > ${now}
+      `
+      : await sql<{ storage_ref: string }[]>`
+        UPDATE app.blob_composer_handoffs SET expires_at_ms = expires_at_ms
+        WHERE org_id = ${args.organizationId} AND user_id = ${args.userId}
+          AND storage_ref = ${args.storageRef} AND expires_at_ms > ${now}
+        RETURNING storage_ref
+      `;
+  if (handoff.length > 0) return true;
   const rows = await sql<{ owned: boolean }[]>`
     SELECT EXISTS (
       SELECT 1 FROM app.file_metadata
@@ -255,7 +270,7 @@ export async function firstForeignUpload(
   storageRefs: readonly string[],
   options: { stamp?: boolean } = {},
 ): Promise<string | null> {
-  for (const storageRef of new Set(storageRefs)) {
+  for (const storageRef of [...new Set(storageRefs)].sort()) {
     if (!(await ownsUploadedBlob(sql, { ...scope, storageRef }, options))) {
       return storageRef;
     }
@@ -295,7 +310,10 @@ function intentBlobHeld(
  *     bytes are reclaimed, then the row. A rejected upload whose reclaim
  *     could not delete its bytes lands here at once: its tombstone expired
  *     at 0 ({@link claimRejectedUpload}). A failed delete keeps the row, so
- *     a later sweep retries; a bounded batch keeps the mint request cheap.
+ *     a later sweep retries. Failed rows move to just inside the grace
+ *     horizon for one minute, still expired and never bindable, so they
+ *     cannot pin the bounded candidate prefix ahead of held rows forever.
+ *     Both holder scans run only after materializing a bounded batch.
  *
  * Never reclaims a blob that got bound: a bound blob is either consumed (1),
  * vouched for (2), or held by a row (2).
@@ -315,23 +333,35 @@ export async function sweepUploadIntents(
     WHERE org_id = ${args.organizationId} AND consumed_at_ms IS NOT NULL
   `;
   await sql`
-    DELETE FROM ${ledger} i
-    WHERE i.org_id = ${args.organizationId}
-      AND i.consumed_at_ms IS NULL
-      AND i.expires_at_ms < ${horizon}
+    WITH candidates AS MATERIALIZED (
+      SELECT * FROM ${ledger}
+      WHERE org_id = ${args.organizationId}
+        AND consumed_at_ms IS NULL
+        AND expires_at_ms < ${horizon}
+      ORDER BY expires_at_ms, id
+      LIMIT ${RECLAIM_BATCH}
+      FOR UPDATE SKIP LOCKED
+    )
+    DELETE FROM ${ledger} target USING candidates i
+    WHERE target.id = i.id
       AND ${held}
   `;
   // A row that holds the ref keeps the blob even where no bind stamped the
   // intent (a task's bind always does, so there it is the belt to that
   // brace).
   const abandoned = await sql<{ id: string; s3Ref: string }[]>`
-    SELECT i.id, i.s3_ref AS "s3Ref" FROM ${ledger} i
-    WHERE i.org_id = ${args.organizationId}
-      AND i.consumed_at_ms IS NULL
-      AND i.expires_at_ms < ${horizon}
-      AND NOT ${held}
-    ORDER BY i.expires_at_ms
-    LIMIT ${RECLAIM_BATCH}
+    WITH candidates AS MATERIALIZED (
+      SELECT * FROM ${ledger}
+      WHERE org_id = ${args.organizationId}
+        AND consumed_at_ms IS NULL
+        AND expires_at_ms < ${horizon}
+      ORDER BY expires_at_ms, id
+      LIMIT ${RECLAIM_BATCH}
+      FOR UPDATE SKIP LOCKED
+    )
+    SELECT i.id, i.s3_ref AS "s3Ref" FROM candidates i
+    WHERE NOT ${held}
+    ORDER BY i.expires_at_ms, i.id
   `;
   if (abandoned.length === 0) return { reclaimed: 0 };
 
@@ -367,6 +397,12 @@ export async function sweepUploadIntents(
         `[files] abandoned-upload delete failed for ${key}:`,
         error instanceof Error ? error.message : error,
       );
+      await sql`
+        UPDATE ${ledger}
+        SET expires_at_ms = ${horizon + RECLAIM_RETRY_DELAY_MS}
+        WHERE id = ${row.id} AND org_id = ${args.organizationId}
+          AND consumed_at_ms IS NULL AND expires_at_ms < ${horizon}
+      `;
       continue;
     }
     await sql`DELETE FROM ${ledger} WHERE id = ${row.id}`;

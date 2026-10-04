@@ -1187,11 +1187,11 @@ export async function branchThread(
     await tx`
       INSERT INTO app.messages (
         thread_id, org_id, "order", step_order, role, parts, text, model,
-        provider_slug, usage, blocked_reason, error, status, created_at_ms
+        provider_slug, usage, blocked_reason, error, status, created_at_ms, attachment_ownership
       )
       SELECT ${branchId}, org_id, "order", step_order, role, parts, text,
              model, provider_slug, usage, blocked_reason, error, status,
-             ${now}
+             ${now}, attachment_ownership
       FROM app.messages
       WHERE thread_id = ${thread.id}
         AND ("order", step_order) <= (${fork.order}, ${fork.stepOrder})
@@ -1620,11 +1620,11 @@ async function createBranchSibling(
     await tx`
       INSERT INTO app.messages (
         thread_id, org_id, "order", step_order, role, parts, text, model,
-        provider_slug, usage, blocked_reason, error, status, created_at_ms
+        provider_slug, usage, blocked_reason, error, status, created_at_ms, attachment_ownership
       )
       SELECT ${branchId}, org_id, "order", step_order, role, parts, text,
              model, provider_slug, usage, blocked_reason, error, status,
-             ${now}
+             ${now}, attachment_ownership
       FROM app.messages
       WHERE thread_id = ${parent.id} AND "order" <= ${copyThrough}
       ORDER BY "order", step_order

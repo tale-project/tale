@@ -19,30 +19,76 @@ vi.mock('../../core/lib/providers/catalog_fetch.ts', () => ({
 }));
 vi.mock('../../jobs/enqueue.ts', () => ({ addJobInTx: vi.fn() }));
 
+import { attachmentOwnershipForParts } from '../files/chat-ownership.ts';
 import { MESSAGE_SLOT_CLAIM_DEADLINE_MS } from '../threads/store.ts';
 import { appendMessageRow } from './store.ts';
 
+function fragmentText(value: unknown): string {
+  if (
+    typeof value === 'object' &&
+    value !== null &&
+    'text' in value &&
+    typeof value.text === 'string'
+  )
+    return value.text;
+  return '?';
+}
+
 /** A `sql` whose INSERTs answer from `outcomes` in order (an empty array is a
  * lost race); every other statement finds nothing. */
-function fakeSql(outcomes: { id: string; order: number }[][]): {
+function fakeSql(
+  outcomes: (
+    | {
+        id: string | null;
+        order: number | null;
+        missingAttachments?: boolean;
+      }[]
+    | Error
+  )[],
+): {
   sql: Sql;
   statements: string[];
+  jsonInputs: unknown[];
+  begin: ReturnType<typeof vi.fn>;
 } {
   const statements: string[] = [];
+  const jsonInputs: unknown[] = [];
   let inserts = 0;
-  const tag = (strings: TemplateStringsArray): Promise<unknown[]> => {
-    const text = strings.join('?');
-    statements.push(text);
-    if (text.includes('INSERT INTO app.messages')) {
-      const outcome = outcomes[inserts] ?? [];
-      inserts += 1;
-      return Promise.resolve(outcome);
+  const begin = vi.fn(() => {
+    throw new Error('Nested transaction');
+  });
+  const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
+    const text = strings.reduce(
+      (result, segment, index) =>
+        result +
+        segment +
+        (index < values.length ? fragmentText(values[index]) : ''),
+      '',
+    );
+    const isInsert = text.includes('INSERT INTO app.messages');
+    if (isInsert || /^\s*(UPDATE|SELECT branch_root_id)/.test(text)) {
+      statements.push(text);
     }
-    return Promise.resolve([]);
+    const outcome = isInsert ? (outcomes[inserts++] ?? []) : [];
+    return Object.assign(
+      outcome instanceof Error
+        ? Promise.reject(outcome)
+        : Promise.resolve(outcome),
+      {
+        text,
+        toString: () => text,
+      },
+    );
   };
-  Object.assign(tag, { json: (value: unknown) => value });
+  Object.assign(tag, {
+    json: (value: unknown) => {
+      jsonInputs.push(value);
+      return value;
+    },
+    begin,
+  });
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- only the tag call and `json` are exercised
-  return { sql: tag as unknown as Sql, statements };
+  return { sql: tag as unknown as Sql, statements, jsonInputs, begin };
 }
 
 const MESSAGE = {
@@ -106,14 +152,7 @@ describe('appendMessageRow — claiming a unique slot', () => {
     const boom = Object.assign(new Error('could not serialize access'), {
       code: '40001',
     });
-    const statements: string[] = [];
-    const tag = (strings: TemplateStringsArray): Promise<unknown[]> => {
-      statements.push(strings.join('?'));
-      return Promise.reject(boom);
-    };
-    Object.assign(tag, { json: (value: unknown) => value });
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- only the tag call and `json` are exercised
-    const sql = tag as unknown as Sql;
+    const { sql, statements } = fakeSql([boom]);
     await expect(
       appendMessageRow(sql, MESSAGE, { sleep: () => Promise.resolve() }),
     ).rejects.toBe(boom);
@@ -134,5 +173,120 @@ describe('appendMessageRow — claiming a unique slot', () => {
     );
     expect(insertsOf(statements)).toBe(3);
     expect(statements.some((text) => text.includes('UPDATE'))).toBe(false);
+  });
+});
+
+describe('appendMessageRow — locked attachment provenance', () => {
+  const parts = [
+    {
+      type: 'attachment',
+      fileId: 'ref-1',
+      attachmentOwnership: { owned: true },
+    },
+    { type: 'attachment', fileId: 'ref-1' },
+    { type: 'text', text: 'hello', fileId: 'not-an-attachment' },
+    { type: 'attachment', fileId: 'ref-2' },
+  ];
+
+  it('classifies only same-org rows returned by the materialized share lock', async () => {
+    const { sql, statements, jsonInputs, begin } = fakeSql([
+      [{ id: 'm-1', order: 0 }],
+    ]);
+    await appendMessageRow(sql, { ...MESSAGE, role: 'user', parts });
+    const insert = statements[0];
+    expect(insert).toContain('locked_attachment_files AS MATERIALIZED');
+    expect(insert).toContain('file.org_id = ?');
+    expect(insert).toContain(
+      'file.storage_ref IN (SELECT ref FROM requested_attachment_refs)',
+    );
+    expect(insert).toContain('ORDER BY file.id');
+    expect(insert).toContain('FOR SHARE OF file');
+    expect(insert).toContain(
+      'FROM locked_attachment_files file JOIN app.thread_metadata thread',
+    );
+    expect(insert?.match(/FROM app.file_metadata/g)).toHaveLength(1);
+    expect(jsonInputs[0]).toEqual(['ref-1', 'ref-2']);
+    expect(insert).toContain("jsonb_build_object('owned', true)");
+    expect(insert).toContain("jsonb_build_object('fileId', file.id)");
+    expect(insert).toContain(
+      "jsonb_build_object('documentId', file.document_id)",
+    );
+    expect(insert).toContain('file.uploaded_by = thread.user_id');
+    expect(insert).toContain('file.thread_id = thread.thread_id');
+    expect(insert).toContain('file.thread_id = thread.branch_root_id');
+    expect(insert).toContain('file.document_id IS NULL');
+    expect(begin).not.toHaveBeenCalled();
+    expect(insertsOf(statements)).toBe(1);
+  });
+
+  it('refuses a referenced row deleted during the lock wait without retrying or touching the thread', async () => {
+    const { sql, statements } = fakeSql([
+      [{ id: null, order: null, missingAttachments: true }],
+    ]);
+    const sleep = vi.fn(() => Promise.resolve());
+    await expect(
+      appendMessageRow(sql, { ...MESSAGE, role: 'user', parts }, { sleep }),
+    ).rejects.toMatchObject({
+      code: 'ATTACHMENT_UNAVAILABLE',
+      status: 409,
+    });
+    expect(statements).toHaveLength(1);
+    expect(statements[0]).toContain(
+      'HAVING NOT EXISTS (SELECT 1 FROM missing_attachment_refs)',
+    );
+    expect(statements[0]).toContain(
+      'SELECT 1 FROM locked_attachment_files file WHERE file.storage_ref = requested.ref',
+    );
+    expect(statements[0]).toContain('true AS "missingAttachments"');
+    expect(sleep).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { ...MESSAGE, role: 'assistant', parts },
+    { ...MESSAGE, role: 'user', parts: [] },
+    { ...MESSAGE, role: 'user', parts: [{ type: 'text', text: 'hello' }] },
+    { ...MESSAGE, role: 'user', parts: undefined },
+  ])('requests no file locks for $role with parts $parts', async (message) => {
+    const { sql, jsonInputs, begin } = fakeSql([[{ id: 'm-1', order: 0 }]]);
+    await appendMessageRow(sql, message);
+    expect(jsonInputs[0]).toEqual([]);
+    expect(begin).not.toHaveBeenCalled();
+  });
+
+  it('rechecks the locked provenance on each slot retry', async () => {
+    const { sql, statements } = fakeSql([[], [{ id: 'm-1', order: 1 }]]);
+    await appendMessageRow(
+      sql,
+      { ...MESSAGE, role: 'user', parts },
+      { sleep: () => Promise.resolve() },
+    );
+    const inserts = statements.filter((text) =>
+      text.includes('INSERT INTO app.messages'),
+    );
+    expect(inserts).toHaveLength(2);
+    for (const insert of inserts) {
+      expect(insert).toContain('locked_attachment_files AS MATERIALIZED');
+      expect(insert).toContain(
+        'FROM locked_attachment_files file JOIN app.thread_metadata thread',
+      );
+    }
+  });
+
+  it('keeps the default ownership source for existing callers', () => {
+    const { sql } = fakeSql([]);
+    expect(
+      fragmentText(attachmentOwnershipForParts(sql, 'org-1', 't-1', parts)),
+    ).toContain('FROM app.file_metadata file JOIN app.thread_metadata thread');
+  });
+
+  it('uses the authenticated source document rather than the file pointer', () => {
+    const { sql, jsonInputs } = fakeSql([]);
+    const text = fragmentText(
+      attachmentOwnershipForParts(sql, 'org-1', 't-1', parts, undefined, {
+        'ref-1': { documentId: 'team-a-document' },
+      }),
+    );
+    expect(text).toContain('?::jsonb ? file.storage_ref');
+    expect(jsonInputs).toHaveLength(2);
   });
 });

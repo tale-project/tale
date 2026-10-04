@@ -512,6 +512,12 @@ describe('runRetentionCleanup — the run audit trail', () => {
     expect(documents.row.metadata).toEqual({
       category: 'documents',
       deleted: 2,
+      counts: {
+        documentRecords: 2,
+        retainedBlobRefs: 0,
+        deletedBlobRefs: 0,
+        unknownBlobRefs: 0,
+      },
     });
     // The expiry flip moved rows into the Trash; that is not destruction and
     // earns no row of its own, but the run's closing row counts it.
@@ -553,6 +559,12 @@ describe('runRetentionCleanup — the run audit trail', () => {
       category: 'documents',
       deleted: 1,
       failed: 1,
+      counts: {
+        documentRecords: 1,
+        retainedBlobRefs: 0,
+        deletedBlobRefs: 0,
+        unknownBlobRefs: 0,
+      },
     });
     const failed = appendOf('retention.run_failed');
     expect(failed.row.status).toBe('failure');
