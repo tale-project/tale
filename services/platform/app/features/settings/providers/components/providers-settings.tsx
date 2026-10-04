@@ -184,6 +184,7 @@ export function ProvidersSettings({
             credentials={credentialsQuery.data ?? []}
             adapter={providerCredentialAdapter}
             isLoading={abilityLoading || credentialsQuery.isPending}
+            catalogLoading={catalogsQuery.isPending}
             labels={{
               vendorColumn: t('providers.vendorColumn'),
               vendorFilter: t('providers.vendorFilterLabel'),

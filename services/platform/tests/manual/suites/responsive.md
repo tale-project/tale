@@ -185,12 +185,14 @@ if you want to keep a write.
   with its project, and the conversation's reads name · time · e-mail ·
   source.
 - [ ] `RESP-F23` · **Narrow Home to a project** — At 390 px, in an
-  organization with a project that holds a chat and a task assigned to you,
-  and with at least one chat or task outside it, open the Home list, choose **Chats** or **Tasks**,
-  and choose the project under **Projects** (`home.projects.title`) → The project row reads as
-  pressed and the URL stays `/dashboard/{org}/home`. **Chats** or **Tasks** lists only that
-  project's chats or open tasks in it, and the **Archived** drawer is hidden. A narrowed view with
-  nothing in it reads **Nothing in this project yet** (`home.scope.emptyTitle`). **Open project**
+  organization with a project that holds a chat and a task assigned to you, a second project
+  that holds neither, and at least one chat or task outside both, open the Home list, choose
+  **Chats** or **Tasks**, and choose the first project under **Projects** (`home.projects.title`)
+  → The project row reads as pressed and the URL stays `/dashboard/{org}/home`. **Chats** or
+  **Tasks** lists only that project's chats or open tasks in it, and the **Archived** drawer is
+  hidden. Narrowed to the second project, **Chats** reads **No chats in this project**
+  (`home.scope.emptyChatsTitle`) and **Tasks** reads
+  **No open tasks assigned to you in this project** (`home.scope.emptyTasksTitle`). **Open project**
   (`home.scope.open`) in the project row's **...** menu opens the project's page. Choosing the row
   again brings all chats/tasks back. **All** and **Inbox** show all items without narrowing.
   Open a chat and go back → the narrowing is still on when viewing **Chats**. Delete the project in
@@ -203,7 +205,8 @@ if you want to keep a write.
   **Chats** → a **New chat** button leads the list and opens the fresh
   composer at `/chat?new=true`. Narrow to a project first → it opens that
   project's fresh composer at `/chat?projectId={id}`. A project's menu
-  (`home.projects.actions`) offers **Pin project** and nothing else.
+  (`home.projects.actions`) offers **Open project** and **Pin project**, and
+  no **New chat**.
 
 ## Boundary & error tests
 

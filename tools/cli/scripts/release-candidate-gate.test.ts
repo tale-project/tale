@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 import {
   gate,
+  ALWAYS_PUSH_WORKFLOWS,
   CANDIDATE_JOBS,
   IMAGE_SERVICES,
   candidateArtifactName,
@@ -43,7 +44,8 @@ function run(
   conclusion: string | null,
   extra: Partial<Run> = {},
 ): Run {
-  const id = nextRun++;
+  const id = nextRun;
+  nextRun += 10;
   return {
     id,
     path,
@@ -53,7 +55,7 @@ function run(
     display_title: 'fix: something',
     html_url: `https://github.com/${REPOSITORY}/actions/runs/${id}`,
     run_attempt: 1,
-    created_at: `2026-09-29T19:${String(id % 60).padStart(2, '0')}:00Z`,
+    created_at: '2026-09-29T19:00:00Z',
     head_branch: 'main',
     head_sha: CANDIDATE,
     ...extra,
@@ -81,12 +83,32 @@ type Scenario = {
   jobs: Record<number, { name: string; conclusion: string | null }[]>;
   artifacts: Record<number, { id: number; name: string; expired: boolean }[]>;
   commitRuns: Run[];
+  /** Runs of other branches and commits, which no filtered listing returns. */
+  otherRuns?: Run[];
+  /** GitHub's filtered listings leave these runs out, with totals that still
+   * match their pages (#4055); direct reads still return them. */
+  listingOmits?: number[];
+  /** ...or show an older state of them. */
+  listingStale?: Record<number, Partial<Run>>;
   runPageOverrides?: Record<string, unknown>;
   receiptOverrides?: Record<number, unknown>;
+  /** The server-owned canonical merge record, independent of Actions timings. */
+  mergeTime?: string;
 };
 
 /** Everything the gate reads, for a candidate every check passed on. */
 function passing(): Scenario {
+  // GitHub ran these for the push of C to main before anyone validated it.
+  const commitRuns = [
+    ...REQUIRED_WORKFLOWS.map((path) =>
+      run(path, 'success', {
+        event: path.endsWith('e2e.yml') ? 'workflow_dispatch' : 'push',
+      }),
+    ),
+    // The push Build run main merges starved (#3951): not a candidate check.
+    run('.github/workflows/build.yml', 'cancelled'),
+    run('.github/workflows/scorecard.yml', 'failure'),
+  ];
   const validation = candidateRun('success');
   return {
     tags: { 'v0.5.63': { sha: PREVIOUS } },
@@ -115,18 +137,17 @@ function passing(): Scenario {
         },
       ],
     },
-    commitRuns: [
-      ...REQUIRED_WORKFLOWS.map((path) =>
-        run(path, 'success', {
-          event: path.endsWith('e2e.yml') ? 'workflow_dispatch' : 'push',
-        }),
-      ),
-      // The push Build run main merges starved (#3951): not a candidate check.
-      run('.github/workflows/build.yml', 'cancelled'),
-      run('.github/workflows/scorecard.yml', 'failure'),
-    ],
+    commitRuns,
   };
 }
+
+/** The source lane's workflow: sast.yml also runs nightly, so normal runs of
+ * it other than the one push run can exist for C. */
+const SOURCE_LANE_WORKFLOW = '.github/workflows/sast.yml';
+const pushRunOf = (scenario: Scenario, path: string) =>
+  scenario.commitRuns.find(
+    (entry) => entry.path === path && entry.event === 'push',
+  )!;
 
 /** The older run is attempted again after a newer run has completed. */
 function rerunScenario(
@@ -136,10 +157,12 @@ function rerunScenario(
 ) {
   const scenario = passing();
   const path =
+    lane === 'candidate' ? '.github/workflows/build.yml' : SOURCE_LANE_WORKFLOW;
+  const make =
     lane === 'candidate'
-      ? '.github/workflows/build.yml'
-      : '.github/workflows/checks.yml';
-  const make = lane === 'candidate' ? candidateRun : run.bind(null, path);
+      ? candidateRun
+      : (result: string | null, extra: Partial<Run>) =>
+          run(path, result, { event: 'schedule', ...extra });
   const retried = make(conclusion, {
     created_at: '2026-09-29T19:00:00Z',
     run_started_at: '2026-09-29T21:00:00Z',
@@ -163,11 +186,7 @@ function rerunScenario(
       ];
     }
   } else {
-    scenario.commitRuns = [
-      ...scenario.commitRuns.filter((entry) => entry.path !== path),
-      newer,
-      retried,
-    ];
+    scenario.commitRuns = [...scenario.commitRuns, newer, retried];
   }
   return { scenario, retried };
 }
@@ -196,6 +215,9 @@ function pagedRerunScenario(
         {
           event: lane === 'candidate' ? 'workflow_dispatch' : 'push',
           display_title: `Release candidate ${ELSEWHERE}`,
+          // A dispatch's GitHub head is its workflow source, not C.
+          head_sha: lane === 'candidate' ? WORKFLOW_SOURCE : CANDIDATE,
+          created_at: '2026-09-29T20:00:00Z',
         },
       ),
     );
@@ -206,19 +228,65 @@ function pagedRerunScenario(
 
 function runListPath(lane: 'candidate' | 'checks') {
   return lane === 'candidate'
-    ? 'actions/workflows/build.yml/runs?branch=main&event=workflow_dispatch&per_page=100'
+    ? 'actions/workflows/build.yml/runs?event=workflow_dispatch&per_page=100'
     : `actions/runs?head_sha=${CANDIDATE}&per_page=100`;
+}
+
+const WALK_PATH = 'actions/runs?per_page=100';
+
+/** The repository's unfiltered run list: every run, newest id first. */
+function allRuns(scenario: Scenario) {
+  const rows = new Map<number, Run>();
+  for (const entry of [
+    ...scenario.candidateRuns,
+    ...scenario.commitRuns,
+    ...(scenario.otherRuns ?? []),
+  ])
+    if (!rows.has(entry.id)) rows.set(entry.id, entry);
+  return [...rows.values()].sort((a, b) => b.id - a.id);
+}
+
+/** A filtered listing's answer: self-consistent, but possibly incomplete or
+ * stale (#4055). */
+function filteredView(scenario: Scenario, rows: Run[]) {
+  // A copy: the unfiltered list and direct reads keep the true record.
+  return rows
+    .filter((entry) => !scenario.listingOmits?.includes(entry.id))
+    .map((entry) =>
+      Object.assign({}, entry, scenario.listingStale?.[entry.id]),
+    );
+}
+
+function mergeCertificate(scenario: Scenario) {
+  return {
+    id: 117,
+    number: 17,
+    html_url: `https://github.com/${REPOSITORY}/pull/17`,
+    state: 'closed',
+    merged: true,
+    merge_commit_sha: CANDIDATE,
+    merged_at: scenario.mergeTime ?? '2026-09-29T15:00:00Z',
+    base: { ref: 'main', repo: { id: 12345, full_name: REPOSITORY } },
+    head: { ref: 'fix/source', repo: null },
+  };
 }
 
 function fakeApi(scenario: Scenario) {
   const calls: string[] = [];
   const api: GitHubApi = async (path) => {
     calls.push(path);
+    if (path === API_ROOT.slice(0, -1))
+      return Object.hasOwn(scenario.runPageOverrides ?? {}, '')
+        ? scenario.runPageOverrides!['']
+        : { id: 12345, full_name: REPOSITORY };
     if (!path.startsWith(API_ROOT))
       throw new Error(`outside the repo: ${path}`);
     const rest = path.slice(API_ROOT.length);
     if (Object.hasOwn(scenario.runPageOverrides ?? {}, rest))
       return scenario.runPageOverrides![rest];
+    if (rest === `commits/${CANDIDATE}/pulls?per_page=100&page=1`)
+      return [mergeCertificate(scenario)];
+    if (rest === 'pulls/17') return mergeCertificate(scenario);
     let match: RegExpMatchArray | null;
     if ((match = rest.match(/^actions\/runs\/(\d+)$/)))
       return (
@@ -246,15 +314,26 @@ function fakeApi(scenario: Scenario) {
       const status = scenario.compare[match[1]!];
       return status ? { status } : null;
     }
+    if ((match = rest.match(/^actions\/runs\?per_page=100&page=(\d+)$/))) {
+      const rows = allRuns(scenario);
+      const page = Number(match[1]);
+      return {
+        total_count: rows.length,
+        workflow_runs: rows.slice((page - 1) * 100, page * 100),
+      };
+    }
     if (
       (match = rest.match(
-        /^actions\/workflows\/(\w+)\.yml\/runs\?branch=main&event=(\w+)&per_page=100(?:&page=(\d+))?$/,
+        /^actions\/workflows\/(\w+)\.yml\/runs\?event=(\w+)&per_page=100(?:&page=(\d+))?$/,
       ))
     ) {
-      const rows = scenario.candidateRuns.filter(
-        (entry) =>
-          entry.event === match![2] &&
-          entry.path === `.github/workflows/${match![1]}.yml`,
+      const rows = filteredView(
+        scenario,
+        scenario.candidateRuns.filter(
+          (entry) =>
+            entry.event === match![2] &&
+            entry.path === `.github/workflows/${match![1]}.yml`,
+        ),
       );
       const page = Number(match[3] ?? 1);
       return {
@@ -332,7 +411,10 @@ function fakeApi(scenario: Scenario) {
         /^actions\/runs\?head_sha=([a-f0-9]{40})&per_page=100(?:&page=(\d+))?$/,
       ))
     ) {
-      const rows = match[1] === CANDIDATE ? scenario.commitRuns : [];
+      const rows = filteredView(
+        scenario,
+        match[1] === CANDIDATE ? scenario.commitRuns : [],
+      );
       const page = Number(match[2] ?? 1);
       return {
         total_count: rows.length,
@@ -357,12 +439,16 @@ async function judge(scenario: Scenario, version = 'v0.5.64') {
 
 function dispatchedSources() {
   const scenario = passing();
+  // Only the push runs GitHub creates for every push to main stay: the
+  // candidate receipts below are newer than them.
   scenario.commitRuns = scenario.commitRuns.filter(
     (entry) =>
+      (ALWAYS_PUSH_WORKFLOWS as readonly string[]).includes(entry.path) ||
       !REQUIRED_WORKFLOWS.includes(
         entry.path as (typeof REQUIRED_WORKFLOWS)[number],
       ),
   );
+  nextRun += 100; // Leave chronology slots for older source-run fixtures.
   for (const path of REQUIRED_WORKFLOWS) {
     const validation = candidateRun('success', {
       path,
@@ -446,6 +532,7 @@ describe('complete candidate event and receipt provenance', () => {
       scenario.commitRuns.push(
         run(entry.path, 'success', {
           event: 'schedule',
+          id: scenario.candidateRuns[1]!.id - 1,
           created_at: '2026-09-29T20:00:00Z',
         }),
       );
@@ -459,10 +546,19 @@ describe('complete candidate event and receipt provenance', () => {
     '%s: candidate success recovers an older cancelled source run, but a later failed source rerun still blocks',
     async (stem) => {
       const scenario = dispatchedSources();
-      const normal = run(`.github/workflows/${stem}.yml`, 'cancelled', {
-        created_at: '2026-09-29T20:00:00Z',
+      const path = `.github/workflows/${stem}.yml`;
+      // The push of C ran each workflow once; a second run would be a
+      // second push.
+      const normal =
+        scenario.commitRuns.find(
+          (entry) => entry.path === path && entry.event === 'push',
+        ) ?? run(path, 'cancelled', { id: scenario.candidateRuns[1]!.id - 1 });
+      if (!scenario.commitRuns.includes(normal))
+        scenario.commitRuns.push(normal);
+      Object.assign(normal, {
+        conclusion: 'cancelled',
+        created_at: '2026-09-29T19:00:00Z',
       });
-      scenario.commitRuns.push(normal);
       expect((await judge(scenario)).report.state).toBe('eligible');
       normal.run_attempt = 2;
       normal.run_started_at = '2026-09-29T22:00:00Z';
@@ -486,6 +582,7 @@ describe('complete candidate event and receipt provenance', () => {
         event: 'repository_dispatch',
         head_sha: CANDIDATE,
         display_title: `Release candidate ${ELSEWHERE}`,
+        created_at: '2026-09-29T22:00:00Z',
       }),
     );
     const { report } = await judge(scenario);
@@ -518,7 +615,11 @@ describe('complete candidate event and receipt provenance', () => {
     // cli.yml workflow_dispatch checks out release_tag, not GitHub's head_sha.
     // That tag may point at D; API run metadata cannot bind this build to C.
     scenario.commitRuns.push(
-      run(path, 'success', { event: 'workflow_dispatch', head_sha: CANDIDATE }),
+      run(path, 'success', {
+        event: 'workflow_dispatch',
+        head_sha: CANDIDATE,
+        created_at: '2026-09-29T22:00:00Z',
+      }),
     );
     const { report } = await judge(scenario);
     expect(report.state).toBe('blocked');
@@ -658,21 +759,23 @@ describe('complete candidate event and receipt provenance', () => {
           path,
           event: 'repository_dispatch',
           display_title: `Release candidate ${ELSEWHERE}`,
+          created_at: '2026-09-29T22:00:00Z',
         }),
       );
-    scenario.candidateRuns.push(
-      candidateRun('failure', {
-        path,
-        event: 'repository_dispatch',
-        created_at: '2026-09-29T19:00:00Z',
-        run_started_at: '2026-09-29T23:00:00Z',
-        run_attempt: 2,
-      }),
-    );
+    const failed = candidateRun('failure', {
+      path,
+      event: 'repository_dispatch',
+      id: scenario.candidateRuns[1]!.id - 1,
+      created_at: '2026-09-29T19:00:00Z',
+      run_started_at: '2026-09-29T23:00:00Z',
+      run_attempt: 2,
+    });
+    scenario.candidateRuns.push(failed);
     const { report, calls } = await judge(scenario);
     expect(report.state).toBe('blocked');
+    expect(report.reasons.join(' ')).toContain(failed.html_url);
     expect(calls).toContain(
-      `${API_ROOT}actions/workflows/e2e.yml/runs?branch=main&event=repository_dispatch&per_page=100&page=2`,
+      `${API_ROOT}actions/workflows/e2e.yml/runs?event=repository_dispatch&per_page=100&page=2`,
     );
   });
 
@@ -690,6 +793,555 @@ describe('complete candidate event and receipt provenance', () => {
       expect((await judge(scenario)).report.state).toBe('blocked');
     },
   );
+});
+
+/** On 2026-10-01 GitHub's filtered run listings answered self-consistent
+ * subsets, each total matching its pages, that left out the newest runs or
+ * all of them, some led by months-old runs (#4055). */
+describe('a run listing GitHub answered incompletely', () => {
+  test('Build: a listing that keeps an older successful round cannot hide a newer failed one', async () => {
+    const scenario = passing();
+    const older = scenario.candidateRuns[0]!;
+    older.created_at = '2026-09-29T20:00:00Z';
+    const newer = candidateRun('failure', {
+      created_at: '2026-09-29T21:00:00Z',
+    });
+    scenario.candidateRuns.push(newer);
+    scenario.listingOmits = [newer.id];
+    const { report } = await judge(scenario);
+    expect(report.state).toBe('blocked');
+    expect(report.receipt).toBeNull();
+    expect(report.reasons.join(' ')).toContain(newer.html_url);
+  });
+
+  test('Build: a listing that leaves out a failed rerun of an older run cannot approve the newer success', async () => {
+    const { scenario, retried } = rerunScenario('candidate', 'failure');
+    scenario.listingOmits = [retried.id];
+    const { report } = await judge(scenario);
+    expect(report.state).toBe('blocked');
+    expect(report.reasons.join(' ')).toContain(retried.html_url);
+  });
+
+  test('E2E: a dispatch listing that keeps an older successful round cannot hide a newer failed one', async () => {
+    const scenario = dispatchedSources();
+    const path = '.github/workflows/e2e.yml';
+    const newer = candidateRun('failure', {
+      path,
+      event: 'repository_dispatch',
+      created_at: '2026-09-29T22:00:00Z',
+    });
+    scenario.candidateRuns.push(newer);
+    scenario.listingOmits = [newer.id];
+    const { report } = await judge(scenario);
+    expect(report.state).toBe('blocked');
+    expect(report.reasons.join(' ')).toContain(newer.html_url);
+  });
+
+  test('a listing led by months-old runs cannot hide the deciding run that sits on page two of the unfiltered list', async () => {
+    const scenario = passing();
+    const older = scenario.candidateRuns[0]!;
+    older.created_at = '2026-09-29T20:00:00Z';
+    // Page one of the filtered answer: another candidate's runs from June.
+    scenario.candidateRuns.unshift(
+      ...Array.from({ length: 100 }, (_unused, index) =>
+        candidateRun('success', {
+          id: index + 1,
+          display_title: `Release candidate ${ELSEWHERE}`,
+          created_at: '2026-06-01T12:00:00Z',
+        }),
+      ),
+    );
+    const newer = candidateRun('failure', {
+      created_at: '2026-09-29T21:00:00Z',
+    });
+    scenario.candidateRuns.push(newer);
+    scenario.listingOmits = [newer.id];
+    // Another branch's runs since then fill the unfiltered list's page one.
+    scenario.otherRuns = Array.from({ length: 100 }, () =>
+      run('.github/workflows/checks.yml', 'success', {
+        event: 'pull_request',
+        head_branch: 'fix/elsewhere',
+        head_sha: ELSEWHERE,
+        created_at: '2026-09-29T23:00:00Z',
+      }),
+    );
+    const { report } = await judge(scenario);
+    expect(report.state).toBe('blocked');
+    expect(report.receipt).toBeNull();
+    expect(report.reasons.join(' ')).toContain(newer.html_url);
+  });
+
+  test('an empty Build listing still blocks', async () => {
+    const scenario = passing();
+    scenario.listingOmits = scenario.candidateRuns.map((entry) => entry.id);
+    const { report } = await judge(scenario);
+    expect(report.state).toBe('blocked');
+    expect(report.receipt).toBeNull();
+  });
+
+  test('an empty E2E dispatch listing cannot hide a newer failed candidate run behind an older normal success', async () => {
+    const scenario = dispatchedSources();
+    const entry = scenario.candidateRuns.find((candidate) =>
+      candidate.path.endsWith('/e2e.yml'),
+    )!;
+    entry.conclusion = 'failure';
+    scenario.commitRuns.push(
+      run(entry.path, 'success', {
+        event: 'schedule',
+        id: scenario.candidateRuns[1]!.id - 1,
+        created_at: '2026-09-29T20:00:00Z',
+      }),
+    );
+    scenario.listingOmits = [entry.id];
+    const { report } = await judge(scenario);
+    expect(report.state).toBe('blocked');
+    expect(report.reasons.join(' ')).toContain(entry.html_url);
+  });
+
+  test('a head_sha listing that leaves out a failed rerun of a push run cannot approve the older candidate success', async () => {
+    const scenario = dispatchedSources();
+    const normal = pushRunOf(scenario, '.github/workflows/checks.yml');
+    Object.assign(normal, {
+      conclusion: 'failure',
+      run_started_at: '2026-09-29T22:00:00Z',
+      run_attempt: 2,
+    });
+    scenario.listingOmits = [normal.id];
+    const { report } = await judge(scenario);
+    expect(report.state).toBe('blocked');
+    expect(report.reasons.join(' ')).toContain(normal.html_url);
+  });
+
+  test('a listing that shows a rerun as its earlier successful attempt cannot approve the newer success', async () => {
+    const { scenario, retried } = rerunScenario('candidate', 'failure');
+    scenario.listingStale = {
+      [retried.id]: {
+        run_attempt: 1,
+        run_started_at: retried.created_at,
+        conclusion: 'success',
+      },
+    };
+    const { report } = await judge(scenario);
+    expect(report.state).toBe('blocked');
+    expect(report.reasons.join(' ')).toContain(retried.html_url);
+  });
+});
+
+/** Root's review of #4074 (issuecomment-5949439275): a Git date bounds
+ * nothing. Evidence counts from where GitHub recorded C reaching main. */
+describe('where C reached main', () => {
+  const elsewhereAt = (created_at: string, firstId: number) =>
+    Array.from({ length: 100 }, (_unused, index) =>
+      run('.github/workflows/checks.yml', 'success', {
+        id: firstId + index,
+        event: 'pull_request',
+        head_branch: 'fix/elsewhere',
+        head_sha: ELSEWHERE,
+        created_at,
+      }),
+    );
+  /** C's push runs at `arrival` (ids from 1 or after the early run), an
+   * early Build run at 16:00 rerun at 22:00, 100 foreign runs at 17:00 and
+   * the 19:00 validation, all in GitHub's id order. */
+  function arrivalScenario(arrival: '15:00' | '19:00', rerun: string | null) {
+    const scenario = passing();
+    const validation = scenario.candidateRuns[0]!;
+    validation.created_at = '2026-09-29T19:00:00Z';
+    scenario.mergeTime = `2026-09-29T${arrival}:00Z`;
+    const pushFirst = arrival === '15:00';
+    scenario.commitRuns.forEach((entry, index) => {
+      entry.id = (pushFirst ? 1 : 200) + index;
+      entry.created_at = `2026-09-29T${arrival}:00Z`;
+    });
+    const early = candidateRun(rerun, {
+      id: pushFirst ? 50 : 1,
+      created_at: '2026-09-29T16:00:00Z',
+      run_started_at: '2026-09-29T22:00:00Z',
+      run_attempt: 2,
+    });
+    scenario.candidateRuns.push(early);
+    scenario.jobs[early.id] = scenario.jobs[validation.id]!;
+    scenario.artifacts[early.id] = [
+      {
+        id: 9000,
+        name: candidateArtifactName(early.path, CANDIDATE, 2),
+        expired: false,
+      },
+    ];
+    scenario.otherRuns = elsewhereAt('2026-09-29T17:00:00Z', 60);
+    return { scenario, early };
+  }
+
+  test('a future-dated Git commit cannot hide the 16:00 run made after C reached main at 15:00, rerun and failed at 22:00', async () => {
+    const { scenario, early } = arrivalScenario('15:00', 'failure');
+    scenario.listingOmits = [early.id];
+    const { report, calls } = await judge(scenario);
+    expect(report.state).toBe('blocked');
+    expect(report.receipt).toBeNull();
+    expect(report.arrival?.createdAt).toBe('2026-09-29T15:00:00Z');
+    expect(report.reasons).toContain(
+      `the run listings disagree: repos/${REPOSITORY}/${runListPath('candidate')} omits ${early.html_url}; read again`,
+    );
+    expect(calls.some((call) => call.includes('git/commits'))).toBe(false);
+  });
+
+  test.each([
+    ['failure', 'blocked'],
+    [null, 'pending'],
+    ['success', 'eligible'],
+  ] as const)(
+    'with an honest listing the 22:00 rerun of that 16:00 run decides: %s → %s',
+    async (rerun, state) => {
+      const { scenario, early } = arrivalScenario('15:00', rerun);
+      const { report } = await judge(scenario);
+      expect(report.state).toBe(state);
+      expect(report.validation[0]).toMatchObject({
+        url: early.html_url,
+        attempt: 2,
+        startedAt: '2026-09-29T22:00:00Z',
+      });
+      expect(report.excluded).toEqual([]);
+    },
+  );
+
+  test('a run created before C reached main never counts, even a failed rerun: omitted, it is simply not seen', async () => {
+    const { scenario, early } = arrivalScenario('19:00', 'failure');
+    scenario.listingOmits = [early.id];
+    const { report } = await judge(scenario);
+    expect(report.reasons).toEqual([]);
+    expect(report.state).toBe('eligible');
+    expect(report.arrival?.createdAt).toBe('2026-09-29T19:00:00Z');
+    expect(report.validation.map((entry) => entry.url)).toEqual([
+      scenario.candidateRuns[0]!.html_url,
+    ]);
+  });
+
+  test('a listed run created before C reached main is reported as excluded and does not decide', async () => {
+    const { scenario, early } = arrivalScenario('19:00', 'failure');
+    const { report } = await judge(scenario);
+    expect(report.reasons).toEqual([]);
+    expect(report.state).toBe('eligible');
+    expect(report.excluded).toEqual([
+      expect.objectContaining({
+        url: early.html_url,
+        attempt: 2,
+        conclusion: 'failure',
+      }),
+    ]);
+  });
+
+  test.each([
+    ['checks.yml', '.github/workflows/checks.yml'],
+    ['build.yml', '.github/workflows/build.yml'],
+  ])(
+    'a second push run of %s for C on main makes the boundary ambiguous',
+    async (_label, path) => {
+      const scenario = passing();
+      scenario.commitRuns.push(
+        run(path, 'success', { created_at: '2026-09-29T23:00:00Z' }),
+      );
+      const { report } = await judge(scenario);
+      expect(report.state).toBe('blocked');
+      expect(report.arrival).toBeNull();
+      expect(report.reasons).toEqual([
+        expect.stringMatching(
+          new RegExp(
+            `^${path.replaceAll('.', '\\.')} ran more than once for a push of ${CANDIDATE} to main \\(.+\\), so where ${CANDIDATE} reached main is ambiguous$`,
+          ),
+        ),
+      ]);
+    },
+  );
+
+  test('an earlier push of C that a listing returns is read however far below the boundary it lies', async () => {
+    const scenario = passing();
+    // C reached main once at 10:00, and again at 19:00.
+    scenario.commitRuns.push(
+      run('.github/workflows/checks.yml', 'success', {
+        id: 1,
+        created_at: '2026-09-29T10:00:00Z',
+      }),
+    );
+    scenario.otherRuns = elsewhereAt('2026-09-29T11:00:00Z', 2);
+    const { report, calls } = await judge(scenario);
+    expect(report.state).toBe('blocked');
+    expect(report.reasons).toEqual([expect.stringContaining('so where')]);
+    expect(
+      calls.filter((call) => call.startsWith(`${API_ROOT}${WALK_PATH}&`)),
+    ).toHaveLength(2);
+  });
+
+  test('delayed push runs do not move the verified merge cutoff: a validation between them counts', async () => {
+    const scenario = passing();
+    const validation = scenario.candidateRuns[0]!;
+    // GitHub created build.yml's push run at once and the arrival workflows'
+    // runs late, after the candidate was dispatched.
+    pushRunOf(scenario, '.github/workflows/build.yml').id = 1;
+    for (const [index, path] of ALWAYS_PUSH_WORKFLOWS.entries())
+      pushRunOf(scenario, path).id = validation.id + 1000 + index;
+    const { report } = await judge(scenario);
+    expect(report.reasons).toEqual([]);
+    expect(report.state).toBe('eligible');
+    expect(report.arrival?.url).toBe(
+      `https://github.com/${REPOSITORY}/pull/17`,
+    );
+  });
+
+  test('a validation older than every run of the push is excluded, and a fresh full validation recovers', async () => {
+    const scenario = passing();
+    const stale = scenario.candidateRuns[0]!;
+    // The canonical merge, not delayed push-run creation, excludes this original.
+    scenario.mergeTime = '2026-09-29T19:00:00Z';
+    stale.created_at = '2026-09-29T18:59:59Z';
+    for (const entry of scenario.commitRuns) entry.id += 5000;
+    const blocked = await judge(scenario);
+    expect(blocked.report.state).toBe('blocked');
+    expect(blocked.report.excluded.map((entry) => entry.url)).toEqual([
+      stale.html_url,
+    ]);
+    expect(blocked.report.reasons).toEqual([
+      `no main-branch Release candidate run validated ${CANDIDATE}: dispatch build.yml for it (.github/RELEASING.md)`,
+    ]);
+    // The same SHA dispatched again, after it reached main.
+    const fresh = candidateRun('success', {
+      id: stale.id + 10_000,
+      created_at: '2026-09-29T23:30:00Z',
+    });
+    scenario.candidateRuns.push(fresh);
+    scenario.jobs[fresh.id] = scenario.jobs[stale.id]!;
+    scenario.artifacts[fresh.id] = [
+      {
+        id: 9001,
+        name: candidateArtifactName(fresh.path, CANDIDATE, 1),
+        expired: false,
+      },
+    ];
+    const recovered = await judge(scenario);
+    expect(recovered.report.reasons).toEqual([]);
+    expect(recovered.report.state).toBe('eligible');
+    expect(recovered.report.receipt?.id).toBe(9001);
+  });
+});
+
+describe('the unfiltered run list the listings are held to', () => {
+  const walkCalls = (calls: string[]) =>
+    calls.filter((call) => call.startsWith(`${API_ROOT}${WALK_PATH}&`));
+  const elsewhere = (count: number, extra: Partial<Run> = {}) =>
+    Array.from({ length: count }, () =>
+      run('.github/workflows/checks.yml', 'success', {
+        event: 'pull_request',
+        head_branch: 'fix/elsewhere',
+        head_sha: ELSEWHERE,
+        created_at: '2026-09-29T23:00:00Z',
+        ...extra,
+      }),
+    );
+
+  test('listings carry no branch filter, and the walk stops at the first page that ends before the canonical merge cutoff', async () => {
+    const scenario = passing();
+    scenario.otherRuns = Array.from({ length: 150 }, (_unused, index) =>
+      run('.github/workflows/checks.yml', 'success', {
+        id: index + 1,
+        event: 'pull_request',
+        head_branch: 'fix/elsewhere',
+        head_sha: ELSEWHERE,
+        created_at: '2026-09-20T12:00:00Z',
+      }),
+    );
+    const { report, calls } = await judge(scenario);
+    expect(report.reasons).toEqual([]);
+    expect(report.state).toBe('eligible');
+    expect(calls.some((call) => call.includes('branch='))).toBe(false);
+    expect(calls.some((call) => call.includes('git/commits'))).toBe(false);
+    expect(walkCalls(calls)).toEqual([`${API_ROOT}${WALK_PATH}&page=1`]);
+  });
+
+  test('the walk reads down to every run a listing returned, and shows one from before C reached main as excluded', async () => {
+    const scenario = passing();
+    // Dispatched before C reached main, rerun last, failed: it never counts.
+    const early = candidateRun('failure', {
+      id: 1,
+      created_at: '2026-09-29T10:00:00Z',
+      run_started_at: '2026-09-29T23:00:00Z',
+      run_attempt: 2,
+    });
+    scenario.candidateRuns.push(early);
+    scenario.otherRuns = elsewhere(100, {
+      created_at: '2026-09-29T11:00:00Z',
+    });
+    for (const [index, entry] of scenario.otherRuns.entries())
+      entry.id = index + 2;
+    const { report, calls } = await judge(scenario);
+    expect(report.reasons).toEqual([]);
+    expect(report.state).toBe('eligible');
+    expect(report.excluded).toEqual([
+      expect.objectContaining({ url: early.html_url, conclusion: 'failure' }),
+    ]);
+    expect(walkCalls(calls)).toHaveLength(2);
+  });
+
+  test('a run the unfiltered list lacks is refused, never trusted from the filtered listing alone', async () => {
+    const scenario = passing();
+    const validation = scenario.candidateRuns[0]!;
+    const rows = allRuns(scenario).filter(
+      (entry) => entry.id !== validation.id,
+    );
+    scenario.runPageOverrides = {
+      [`${WALK_PATH}&page=1`]: {
+        total_count: rows.length,
+        workflow_runs: rows,
+      },
+    };
+    const { report } = await judge(scenario);
+    expect(report.state).toBe('blocked');
+    expect(report.receipt).toBeNull();
+    expect(report.reasons).toEqual([
+      `the run listings disagree: the unfiltered run list omits ${validation.html_url}; read again`,
+    ]);
+  });
+
+  test("runs created during the walk repeat the previous page's tail without refusing it", async () => {
+    const scenario = passing();
+    scenario.otherRuns = [
+      ...elsewhere(150),
+      // Older than the candidate commit: the walk ends on them.
+      ...Array.from({ length: 100 }, (_unused, index) =>
+        run('.github/workflows/checks.yml', 'success', {
+          id: index + 1,
+          event: 'pull_request',
+          head_branch: 'fix/elsewhere',
+          head_sha: ELSEWHERE,
+          created_at: '2026-09-20T12:00:00Z',
+        }),
+      ),
+    ];
+    const rows = allRuns(scenario);
+    // Two runs were created after page one was read.
+    scenario.runPageOverrides = {
+      [`${WALK_PATH}&page=2`]: {
+        total_count: rows.length + 2,
+        workflow_runs: rows.slice(98, 198),
+      },
+    };
+    const { report, calls } = await judge(scenario);
+    expect(report.reasons).toEqual([]);
+    expect(report.state).toBe('eligible');
+    expect(walkCalls(calls)).toHaveLength(2);
+  });
+
+  test.each([
+    ['missing', 'page 2 is missing or invalid'],
+    ['without total', 'page 2 is missing or invalid'],
+    ['out of order', 'page 2 lists run'],
+    ['repeated', 'page 2 repeats run'],
+    ['short', 'page 2 ends before the list does'],
+  ])(
+    'a %s page of the unfiltered list refuses every listing',
+    async (kind, detail) => {
+      const scenario = passing();
+      scenario.otherRuns = elsewhere(200);
+      const rows = allRuns(scenario);
+      const second = rows.slice(100, 200);
+      scenario.runPageOverrides = {
+        [`${WALK_PATH}&page=2`]:
+          kind === 'missing'
+            ? null
+            : kind === 'without total'
+              ? { workflow_runs: second }
+              : {
+                  total_count: rows.length,
+                  workflow_runs:
+                    kind === 'out of order'
+                      ? [{ ...second[0]!, id: rows[0]!.id + 1 }, ...second]
+                      : kind === 'repeated'
+                        ? [second[0]!, rows[0]!, ...second.slice(1)]
+                        : second.slice(0, 50),
+                },
+      };
+      const { report } = await judge(scenario);
+      expect(report.state).toBe('blocked');
+      expect(report.receipt).toBeNull();
+      expect(report.reasons).toEqual([
+        expect.stringContaining(
+          `incomplete workflow run evidence from repos/${REPOSITORY}/${WALK_PATH}: ${detail}`,
+        ),
+      ]);
+    },
+  );
+
+  test('a walk that cannot reach the candidate commit within 3,000 runs refuses every listing', async () => {
+    const scenario = passing();
+    scenario.otherRuns = elsewhere(3000);
+    const { report, calls } = await judge(scenario);
+    expect(report.state).toBe('blocked');
+    expect(report.reasons).toEqual([
+      `incomplete workflow run evidence from repos/${REPOSITORY}/${WALK_PATH}: it did not get past the canonical merge of ${CANDIDATE} and every run a listing returned within 3,000 runs`,
+    ]);
+    expect(walkCalls(calls)).toHaveLength(30);
+  });
+
+  test.each([...ALWAYS_PUSH_WORKFLOWS])(
+    'without any source evidence for %s the canonical certificate alone cannot pass',
+    async (path) => {
+      const scenario = passing();
+      scenario.commitRuns = scenario.commitRuns.filter(
+        (entry) => entry !== pushRunOf(scenario, path),
+      );
+      const { report } = await judge(scenario);
+      expect(report.state).toBe('blocked');
+      expect(report.arrival?.pullRequest).toBe(17);
+      expect(report.reasons).toEqual([`${path} never ran for ${CANDIDATE}`]);
+    },
+  );
+
+  test.each(['the listing', 'the unfiltered list'])(
+    'a validation that %s still saw running is pending, not refused',
+    async (reader) => {
+      const scenario = passing();
+      const validation = scenario.candidateRuns[0]!;
+      const running = { status: 'in_progress', conclusion: null };
+      if (reader === 'the listing')
+        scenario.listingStale = { [validation.id]: running };
+      else {
+        Object.assign(validation, running);
+        scenario.listingStale = {
+          [validation.id]: { status: 'completed', conclusion: 'success' },
+        };
+      }
+      const { report } = await judge(scenario);
+      expect(report.reasons).toEqual([
+        `the candidate validation ${validation.html_url} is in_progress`,
+      ]);
+      expect(report.state).toBe('pending');
+    },
+  );
+
+  test('two reads that saw one finished attempt end differently refuse it', async () => {
+    const scenario = passing();
+    const validation = scenario.candidateRuns[0]!;
+    validation.conclusion = 'failure';
+    scenario.listingStale = { [validation.id]: { conclusion: 'success' } };
+    const { report } = await judge(scenario);
+    expect(report.state).toBe('blocked');
+    expect(report.reasons).toEqual([
+      `the run listings disagree: repos/${REPOSITORY}/${runListPath('candidate')} and the unfiltered run list describe ${validation.html_url} differently; read again`,
+    ]);
+  });
+
+  test('a newer Build attempt dispatched from another branch is refused, not skipped', async () => {
+    const scenario = passing();
+    scenario.candidateRuns[0]!.created_at = '2026-09-29T20:00:00Z';
+    const branch = candidateRun('success', {
+      head_branch: 'ci/unmerged-workflow',
+      created_at: '2026-09-29T21:00:00Z',
+    });
+    scenario.candidateRuns.push(branch);
+    const { report } = await judge(scenario);
+    expect(report.state).toBe('blocked');
+    expect(report.reasons).toEqual([
+      `${branch.html_url} is not a candidate validation from the main Build workflow at a full source SHA`,
+    ]);
+  });
 });
 
 describe('bounded candidate archive reader', () => {
@@ -798,7 +1450,11 @@ describe('release candidate gate', () => {
       run: { conclusion: 'success' },
     });
     // It only reads.
-    expect(calls.every((call) => call.startsWith(API_ROOT))).toBe(true);
+    expect(
+      calls.every(
+        (call) => call === API_ROOT.slice(0, -1) || call.startsWith(API_ROOT),
+      ),
+    ).toBe(true);
   });
 
   test('a repository-dispatched validation of the head of main counts too', async () => {
@@ -886,8 +1542,8 @@ describe('release candidate gate', () => {
       expect(
         calls.filter((call) => call.includes('/workflows/build.yml/runs?')),
       ).toEqual([
-        `${API_ROOT}actions/workflows/build.yml/runs?branch=main&event=workflow_dispatch&per_page=100&page=1`,
-        `${API_ROOT}actions/workflows/build.yml/runs?branch=main&event=repository_dispatch&per_page=100&page=1`,
+        `${API_ROOT}actions/workflows/build.yml/runs?event=workflow_dispatch&per_page=100&page=1`,
+        `${API_ROOT}actions/workflows/build.yml/runs?event=repository_dispatch&per_page=100&page=1`,
       ]);
     },
   );
@@ -906,11 +1562,12 @@ describe('release candidate gate', () => {
   );
 
   test('the newest validation decides, and an earlier failure stays visible', async () => {
+    const retried = passing();
     const failed = candidateRun('failure', {
       created_at: '2026-09-29T20:00:00Z',
     });
-    const retried = passing();
     const passed = retried.candidateRuns[0]!;
+    failed.id = passed.id - 1;
     passed.created_at = '2026-09-29T21:00:00Z';
     retried.candidateRuns.push(failed);
     const after = await judge(retried);
@@ -949,7 +1606,7 @@ describe('release candidate gate', () => {
           lane === 'candidate'
             ? report.validation[0]
             : report.checks.find(
-                (check) => check.workflow === '.github/workflows/checks.yml',
+                (check) => check.workflow === SOURCE_LANE_WORKFLOW,
               )?.run;
         expect(selected).toMatchObject({
           url: retried.html_url,
@@ -1102,10 +1759,13 @@ describe('release candidate gate', () => {
     'the newest %s run of a required workflow blocks it, whatever ran before',
     async (conclusion) => {
       const scenario = passing();
-      const newest = run('.github/workflows/checks.yml', conclusion, {
-        created_at: '2026-09-29T23:59:00Z',
+      // A rerun of the push run: the one push of C ran checks.yml once.
+      const newest = pushRunOf(scenario, '.github/workflows/checks.yml');
+      Object.assign(newest, {
+        conclusion,
+        run_attempt: 2,
+        run_started_at: '2026-09-29T23:59:00Z',
       });
-      scenario.commitRuns.push(newest);
       const { report } = await judge(scenario);
       expect(report.state).toBe('blocked');
       expect(report.reasons).toEqual([
@@ -1128,8 +1788,8 @@ describe('release candidate gate', () => {
 
   test('a path-filtered workflow blocks it only when it ran and did not pass', async () => {
     const scenario = passing();
-    const audit = run('.github/workflows/security.yml', 'failure');
-    scenario.commitRuns.push(audit);
+    const audit = pushRunOf(scenario, '.github/workflows/security.yml');
+    audit.conclusion = 'failure';
     const { report } = await judge(scenario);
     expect(report.state).toBe('blocked');
     expect(report.reasons).toEqual([
@@ -1139,17 +1799,18 @@ describe('release candidate gate', () => {
 
   test('a required run still going leaves it pending, a failure outranks it', async () => {
     const scenario = passing();
-    scenario.commitRuns.push(
-      run('.github/workflows/sast.yml', null, {
-        created_at: '2026-09-29T23:59:00Z',
-      }),
-    );
+    Object.assign(pushRunOf(scenario, '.github/workflows/sast.yml'), {
+      status: 'in_progress',
+      conclusion: null,
+      run_attempt: 2,
+      run_started_at: '2026-09-29T23:59:00Z',
+    });
     expect((await judge(scenario)).report.state).toBe('pending');
-    scenario.commitRuns.push(
-      run('.github/workflows/commitlint.yml', 'failure', {
-        created_at: '2026-09-29T23:59:00Z',
-      }),
-    );
+    Object.assign(pushRunOf(scenario, '.github/workflows/commitlint.yml'), {
+      conclusion: 'failure',
+      run_attempt: 2,
+      run_started_at: '2026-09-29T23:59:00Z',
+    });
     const { report } = await judge(scenario);
     expect(report.state).toBe('blocked');
     expect(report.reasons).toHaveLength(2);
@@ -1399,6 +2060,9 @@ describe('release candidate gate command', () => {
       // Answer every path the in-process fake would, byte for byte.
       const { api } = fakeApi(scenario);
       const paths = [
+        '',
+        `commits/${CANDIDATE}/pulls?per_page=100&page=1`,
+        'pulls/17',
         `git/ref/tags/v0.5.64`,
         `git/ref/tags/0.5.64`,
         `compare/${CANDIDATE}...main?per_page=1`,
@@ -1406,8 +2070,8 @@ describe('release candidate gate command', () => {
         `git/ref/tags/v0.5.63`,
         `compare/${PREVIOUS}...${CANDIDATE}?per_page=1`,
         `compare/${WORKFLOW_SOURCE}...main?per_page=1`,
-        `actions/workflows/build.yml/runs?branch=main&event=workflow_dispatch&per_page=100`,
-        `actions/workflows/build.yml/runs?branch=main&event=repository_dispatch&per_page=100`,
+        `actions/workflows/build.yml/runs?event=workflow_dispatch&per_page=100`,
+        `actions/workflows/build.yml/runs?event=repository_dispatch&per_page=100`,
         ...['workflow_dispatch', 'repository_dispatch'].flatMap((event) =>
           Array.from(
             {
@@ -1421,12 +2085,16 @@ describe('release candidate gate command', () => {
               ),
             },
             (_unused, page) =>
-              `actions/workflows/build.yml/runs?branch=main&event=${event}&per_page=100&page=${page + 1}`,
+              `actions/workflows/build.yml/runs?event=${event}&per_page=100&page=${page + 1}`,
           ),
         ),
         ...REQUIRED_WORKFLOWS.map(
           (workflow) =>
-            `actions/workflows/${workflow.split('/').at(-1)}/runs?branch=main&event=repository_dispatch&per_page=100&page=1`,
+            `actions/workflows/${workflow.split('/').at(-1)}/runs?event=repository_dispatch&per_page=100&page=1`,
+        ),
+        ...Array.from(
+          { length: Math.floor(allRuns(scenario).length / 100) + 1 },
+          (_unused, page) => `${WALK_PATH}&page=${page + 1}`,
         ),
         ...scenario.candidateRuns.flatMap((entry) => [
           `actions/runs/${entry.id}`,
@@ -1444,9 +2112,10 @@ describe('release candidate gate command', () => {
         ),
       ];
       for (const path of paths) {
-        const answer = await api(API_ROOT + path);
+        const fullPath = path === '' ? API_ROOT.slice(0, -1) : API_ROOT + path;
+        const answer = await api(fullPath);
         if (answer === null) continue;
-        const destination = join(fixtures, encodeURIComponent(API_ROOT + path));
+        const destination = join(fixtures, encodeURIComponent(fullPath));
         if (path.endsWith('/zip')) {
           const child = Bun.spawn(
             [
@@ -1601,4 +2270,371 @@ exit 1
     },
     30_000,
   );
+});
+
+describe('a verified merge cutoff cannot move with delayed Actions creation', () => {
+  test.each([false, true])(
+    'an omitted eligible failure stays visible across a delayed cohort; earlier complete push=%s',
+    async (earlierComplete) => {
+      const scenario = passing();
+      for (const [index, entry] of [
+        ...scenario.commitRuns,
+        ...scenario.candidateRuns,
+      ].entries()) {
+        const oldId = entry.id;
+        entry.id = 1000 + index;
+        entry.html_url = `https://github.com/${REPOSITORY}/actions/runs/${entry.id}`;
+        entry.created_at = '2026-09-29T19:00:00Z';
+        if (scenario.jobs[oldId])
+          scenario.jobs[entry.id] = scenario.jobs[oldId]!;
+        if (scenario.artifacts[oldId])
+          scenario.artifacts[entry.id] = scenario.artifacts[oldId]!;
+        if (oldId !== entry.id) {
+          delete scenario.jobs[oldId];
+          delete scenario.artifacts[oldId];
+        }
+      }
+      const old = candidateRun('failure', {
+        id: 50,
+        created_at: '2026-09-29T16:00:00Z',
+        run_started_at: '2026-09-29T22:00:00Z',
+        run_attempt: 2,
+      });
+      scenario.candidateRuns.push(old);
+      scenario.listingOmits = [old.id];
+      if (earlierComplete) {
+        for (const [index, path] of ALWAYS_PUSH_WORKFLOWS.entries()) {
+          const earlier = run(path, 'success', {
+            id: 10 + index,
+            created_at: '2026-09-29T15:00:00Z',
+          });
+          scenario.commitRuns.push(earlier);
+          scenario.listingOmits.push(earlier.id);
+        }
+      } else {
+        const build = pushRunOf(scenario, '.github/workflows/build.yml');
+        build.id = 10;
+        build.created_at = '2026-09-29T15:00:00Z';
+        scenario.listingOmits.push(build.id);
+      }
+      scenario.otherRuns = Array.from({ length: 100 }, (_, index) =>
+        run('.github/workflows/checks.yml', 'success', {
+          id: 100 + index,
+          created_at: '2026-09-29T17:00:00Z',
+          event: 'pull_request',
+          head_branch: 'fix/unrelated',
+          head_sha: ELSEWHERE,
+        }),
+      );
+      const { report, calls } = await judge(scenario);
+      expect(report.state).toBe('blocked');
+      expect(report.receipt).toBeNull();
+      expect(calls).toContain(`${API_ROOT}${WALK_PATH}&page=2`);
+      expect(
+        report.reasons.some(
+          (reason) =>
+            reason.includes('omits') || reason.includes('ran more than once'),
+        ),
+      ).toBe(true);
+    },
+  );
+});
+
+describe('canonical PR evidence binds this repository, main and the exact candidate', () => {
+  const discoveryPath = `commits/${CANDIDATE}/pulls?per_page=100&page=1`;
+
+  test.each([
+    ['missing repository', '', null],
+    ['repository without numeric identity', '', { full_name: REPOSITORY }],
+    [
+      'foreign repository metadata',
+      '',
+      { id: 12345, full_name: 'elsewhere/repo' },
+    ],
+    ['omitted discovery', discoveryPath, []],
+    ['inaccessible discovery', discoveryPath, null],
+    [
+      'partial/error response',
+      discoveryPath,
+      { data: [], errors: [{ message: 'unavailable' }] },
+    ],
+    ['deleted or inaccessible PR', 'pulls/17', null],
+  ])(
+    '%s blocks rather than falling back to a push cohort',
+    async (_label, path, answer) => {
+      const scenario = passing();
+      scenario.runPageOverrides = { [path as string]: answer };
+      const { report } = await judge(scenario);
+      expect(report.state).toBe('blocked');
+      expect(report.arrival).toBeNull();
+      expect(report.receipt).toBeNull();
+      expect(report.reasons.join(' ')).toContain(
+        'unverified canonical main merge',
+      );
+    },
+  );
+
+  test.each([
+    [
+      'wrong target id',
+      { base: { ref: 'main', repo: { id: 9876, full_name: REPOSITORY } } },
+    ],
+    [
+      'foreign target name',
+      {
+        base: { ref: 'main', repo: { id: 12345, full_name: 'elsewhere/repo' } },
+      },
+    ],
+    [
+      'wrong target branch',
+      { base: { ref: 'release', repo: { id: 12345, full_name: REPOSITORY } } },
+    ],
+    ['different final SHA', { merge_commit_sha: ELSEWHERE }],
+    ['open test merge SHA', { state: 'open', merged: false }],
+    ['closed without merge', { merged: false }],
+    ['missing merge time', { merged_at: null }],
+    ['malformed merge time', { merged_at: 'not-a-date' }],
+    ['future merge time', { merged_at: '9999-01-01T00:00:00Z' }],
+  ])('%s is not an admissible certificate', async (_label, patch) => {
+    const scenario = passing();
+    const certificate = { ...mergeCertificate(scenario), ...patch };
+    scenario.runPageOverrides = {
+      [discoveryPath]: [certificate],
+      'pulls/17': certificate,
+    };
+    const { report } = await judge(scenario);
+    expect(report.state).toBe('blocked');
+    expect(report.arrival).toBeNull();
+    expect(report.reasons.join(' ')).toContain(
+      'unverified canonical main merge',
+    );
+  });
+
+  test.each([
+    { id: 118 },
+    { number: 18 },
+    { merged_at: '2026-09-29T16:00:00Z' },
+    { merge_commit_sha: ELSEWHERE },
+    { state: 'open' },
+  ])(
+    'a direct PR that disagrees with discovery %j refuses the hint',
+    async (patch) => {
+      const scenario = passing();
+      scenario.runPageOverrides = {
+        'pulls/17': { ...mergeCertificate(scenario), ...patch },
+      };
+      const { report } = await judge(scenario);
+      expect(report.state).toBe('blocked');
+      expect(report.reasons.join(' ')).toContain(
+        'disagrees with its association record',
+      );
+    },
+  );
+
+  test.each(['same', 'different'] as const)(
+    'duplicate exact-C records with %s merge times remain ambiguous',
+    async (time) => {
+      const scenario = passing();
+      const first = mergeCertificate(scenario);
+      const second = {
+        ...first,
+        number: 18,
+        id: 118,
+        merged_at: time === 'same' ? first.merged_at : '2026-09-29T16:00:00Z',
+      };
+      scenario.runPageOverrides = {
+        [discoveryPath]: [first, second],
+        'pulls/18': second,
+      };
+      const { report } = await judge(scenario);
+      expect(report.state).toBe('blocked');
+      expect(report.reasons.join(' ')).toContain('found 2');
+    },
+  );
+
+  test.each([null, { id: 777, full_name: 'contributor/source' }])(
+    'a deleted/fork source repo %j does not change target identity',
+    async (source) => {
+      const scenario = passing();
+      scenario.runPageOverrides = {
+        'pulls/17': {
+          ...mergeCertificate(scenario),
+          head: { ref: 'fix/deleted', repo: source },
+        },
+      };
+      const { report, calls } = await judge(scenario);
+      expect(report.state).toBe('eligible');
+      expect(report.arrival).toEqual({
+        url: `https://github.com/${REPOSITORY}/pull/17`,
+        createdAt: '2026-09-29T15:00:00Z',
+        pullRequest: 17,
+        repositoryId: 12345,
+      });
+      expect(calls).toContain(API_ROOT.slice(0, -1));
+      expect(calls).toContain(`${API_ROOT}pulls/17`);
+    },
+  );
+
+  test.each(['complete', 'missing', 'repeated', 'bounded'] as const)(
+    'associated PR discovery is fully bounded and verified: %s',
+    async (mode) => {
+      const scenario = passing();
+      const certificate = mergeCertificate(scenario);
+      const records = Array.from(
+        { length: mode === 'bounded' ? 1000 : 101 },
+        (_, index) => ({
+          ...certificate,
+          number: index + 1,
+          id: index + 1000,
+          merge_commit_sha: index === 100 ? CANDIDATE : ELSEWHERE,
+          html_url: `https://github.com/${REPOSITORY}/pull/${index + 1}`,
+        }),
+      );
+      const { api } = fakeApi(scenario);
+      const pages: number[] = [];
+      const report = await gate({
+        sha: CANDIDATE,
+        version: 'v0.5.64',
+        repository: REPOSITORY,
+        api: async (path) => {
+          const page = path.match(
+            /\/commits\/.+\/pulls\?per_page=100&page=(\d+)$/,
+          );
+          if (page) {
+            const number = Number(page[1]);
+            pages.push(number);
+            if (number === 2 && mode === 'missing') return null;
+            if (number === 2 && mode === 'repeated') return [records[0]];
+            return records.slice((number - 1) * 100, number * 100);
+          }
+          const pull = path.match(/\/pulls\/(\d+)$/);
+          return pull ? records[Number(pull[1]) - 1] : api(path);
+        },
+      });
+      expect(report.state).toBe(mode === 'complete' ? 'eligible' : 'blocked');
+      expect(pages).toHaveLength(mode === 'bounded' ? 10 : 2);
+      if (mode === 'complete') expect(report.arrival?.pullRequest).toBe(101);
+      else expect(report.arrival).toBeNull();
+    },
+  );
+
+  test('a transport error gives a blocked report, not an inferred cutoff', async () => {
+    const scenario = passing();
+    const { api } = fakeApi(scenario);
+    const report = await gate({
+      sha: CANDIDATE,
+      version: 'v0.5.64',
+      repository: REPOSITORY,
+      api: async (path) => {
+        if (path.endsWith('/pulls/17')) throw new Error('timeout');
+        return api(path);
+      },
+    });
+    expect(report.state).toBe('blocked');
+    expect(report.reasons.join(' ')).toContain('could not be read');
+  });
+
+  test('the observed exact df7fd99 merge fields fix the cutoff independently of synthetic Actions', async () => {
+    // These merge fields were read from PR4056 on 2026-10-02. The transport
+    // record id and all Actions/receipts are synthetic: this is not a live
+    // release-eligibility claim about that commit.
+    const candidate = 'df7fd99f46bff6b0c70535110b6949b7fb2468fa';
+    const repository = 'tale-project/tale';
+    const scenario = passing();
+    for (const entry of [...scenario.commitRuns, ...scenario.candidateRuns])
+      entry.created_at = '2026-10-02T05:00:00Z';
+    const certificate = {
+      id: 117,
+      number: 4056,
+      node_id: 'PR_kwDOQfsaWM8AAAABGKoYeQ',
+      state: 'closed',
+      merged: true,
+      merged_at: '2026-10-02T04:47:53Z',
+      merge_commit_sha: candidate,
+      html_url: 'https://github.com/tale-project/tale/pull/4056',
+      base: { ref: 'main', repo: { id: 1106975320, full_name: repository } },
+    };
+    const { api } = fakeApi(scenario);
+    const report = await gate({
+      sha: candidate,
+      version: 'v0.5.64',
+      repository,
+      api: async (path) => {
+        if (path === `repos/${repository}`) return certificate.base.repo;
+        if (
+          path ===
+          `repos/${repository}/commits/${candidate}/pulls?per_page=100&page=1`
+        )
+          return [certificate];
+        if (path === `repos/${repository}/pulls/4056`) return certificate;
+        const answer = await api(
+          path
+            .replaceAll(repository, REPOSITORY)
+            .replaceAll(candidate, CANDIDATE),
+        );
+        return JSON.parse(
+          JSON.stringify(answer)
+            .replaceAll(REPOSITORY, repository)
+            .replaceAll(CANDIDATE, candidate),
+        );
+      },
+    });
+    expect(report.state).toBe('eligible');
+    expect(report.arrival).toEqual({
+      url: certificate.html_url,
+      createdAt: certificate.merged_at,
+      pullRequest: 4056,
+      repositoryId: 1106975320,
+    });
+  });
+
+  test.each([
+    ['2026-09-29T14:59:59Z', 'eligible'],
+    ['2026-09-29T15:00:00Z', 'blocked'],
+    ['2026-09-29T15:00:01Z', 'blocked'],
+  ] as const)(
+    'original creation %s determines eligibility despite a later failed rerun',
+    async (created_at, state) => {
+      const scenario = passing();
+      const old = candidateRun('failure', {
+        id: 1,
+        created_at,
+        run_attempt: 2,
+        run_started_at: '2026-09-29T22:00:00Z',
+      });
+      scenario.candidateRuns.push(old);
+      const { report } = await judge(scenario);
+      expect(report.state).toBe(state);
+      expect(report.excluded.some((entry) => entry.url === old.html_url)).toBe(
+        state === 'eligible',
+      );
+    },
+  );
+
+  test('an observed push before the canonical merge refuses contradictory history', async () => {
+    const scenario = passing();
+    const push = pushRunOf(scenario, '.github/workflows/checks.yml');
+    push.id = 1;
+    push.created_at = '2026-09-29T14:59:59Z';
+    const { report } = await judge(scenario);
+    expect(report.state).toBe('blocked');
+    expect(report.reasons.join(' ')).toContain(
+      'arrival evidence is contradictory',
+    );
+  });
+
+  test('run IDs with contradictory creation timestamps refuse a clock/order anomaly', async () => {
+    const scenario = passing();
+    scenario.otherRuns = [
+      run('.github/workflows/checks.yml', 'success', {
+        id: 1,
+        created_at: '2026-09-29T23:00:00Z',
+        event: 'pull_request',
+        head_sha: ELSEWHERE,
+      }),
+    ];
+    const { report } = await judge(scenario);
+    expect(report.state).toBe('blocked');
+    expect(report.reasons.join(' ')).toContain('creation time out of order');
+  });
 });

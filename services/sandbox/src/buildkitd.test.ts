@@ -107,6 +107,21 @@ describe('buildkitd naming seam', () => {
     expect(BUILDKITD_LIVE_TOML).toMatch(/^\/[\w./-]+$/);
     expect(entrypoint).toContain(`LIVE_TOML=${BUILDKITD_LIVE_TOML}`);
   });
+
+  test('the transparent proxy uses the helper’s bounded Docker log', async () => {
+    const entrypoint = await Bun.file(
+      new URL('../../sandbox-buildkitd/docker-entrypoint.sh', import.meta.url),
+    ).text();
+    expect(entrypoint).toMatch(/^\s*redsocks -c \/tmp\/redsocks.conf >&2 &$/m);
+    expect(entrypoint).not.toContain('/tmp/redsocks.log');
+    expect(buildkitHelperLimits(LIMITS_CFG, 'builder')).toEqual(
+      expect.arrayContaining([
+        '--log-driver=json-file',
+        'max-size=10m',
+        'max-file=1',
+      ]),
+    );
+  });
 });
 
 describe('buildkitd helper bounds', () => {
@@ -153,6 +168,7 @@ describe('buildkitd cache garbage collection', () => {
     const toml = await Bun.file(
       new URL('../../sandbox-buildkitd/buildkitd.toml', import.meta.url),
     ).text();
+    expect(toml).toMatch(/^max-parallelism = 4$/m);
     const rules = toml
       .split('[[worker.oci.gcpolicy]]')
       .slice(1)

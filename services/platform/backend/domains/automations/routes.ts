@@ -30,6 +30,7 @@ import {
   canReadRun,
   readableProject,
   readableProjectIds,
+  runControlAccess,
 } from './project-visibility.ts';
 import {
   AutomationError,
@@ -266,6 +267,23 @@ export function createAutomationRoutes(deps: {
     if (run === null) return null;
     return (await canReadRun(deps.sql, await projectAuth(c), run)) ? run : null;
   };
+  // Cancelling a run and answering its question are WRITES: a project run
+  // needs the project's write gate, not merely read access (`runControlAccess`
+  // — the same rule the REST run door and the task workflow door apply), while
+  // an organization run keeps its member-level control. `absent` = no such run;
+  // `hidden` = a project the caller cannot read (answers like a missing one);
+  // `forbidden` = readable but read-only (a member without write).
+  const controllableRun = async (
+    c: Context<OrgEnv>,
+    runId: string,
+  ): Promise<'ok' | 'absent' | 'forbidden'> => {
+    const run = await getRun(deps.sql, c.get('orgId'), runId);
+    if (run === null) return 'absent';
+    const access = await runControlAccess(deps.sql, await projectAuth(c), run);
+    return access === 'hidden' ? 'absent' : access;
+  };
+  const forbiddenControl = (c: Context<OrgEnv>): Response =>
+    c.json({ error: 'RBAC_FORBIDDEN', message: 'Editor role required' }, 403);
   // The APP listing (0.4 wire): deployed-version behaviour fields + scope.
   app.get('/listing', async (c) => {
     const projectId = c.req.query('projectId');
@@ -434,21 +452,34 @@ export function createAutomationRoutes(deps: {
     });
   });
 
-  // Any member may answer (the 0.4 gate) — the agent asked a PERSON, not a
-  // role. The answer records and the resume job rides its transaction.
+  // Answering resumes the run, so it is a WRITE: a project run's question is
+  // answerable by a project WRITER (like the REST answer door), an
+  // organization run's by any member (the 0.4 "the agent asked a PERSON"
+  // gate). A hidden run's question is "not found"; a read-only member who can
+  // see the question is refused rather than told it does not exist. The
+  // answer records and the resume job rides its transaction.
   app.post('/asks/:askId/answer', async (c) => {
     const body = answerSchema.safeParse(await c.req.json());
     if (!body.success) return invalidBodyResponse(c, body.error);
     try {
       const askId = c.req.param('askId');
       const runId = await getAskRunId(deps.sql, c.get('orgId'), askId);
-      if (runId === null || (await visibleRun(c, runId)) === null) {
+      if (runId === null) {
         throw new AutomationError(
           'HUMAN_ASK_NOT_FOUND',
           'this question does not exist',
           404,
         );
       }
+      const control = await controllableRun(c, runId);
+      if (control === 'absent') {
+        throw new AutomationError(
+          'HUMAN_ASK_NOT_FOUND',
+          'this question does not exist',
+          404,
+        );
+      }
+      if (control === 'forbidden') return forbiddenControl(c);
       await answerAsk(deps.sql, {
         organizationId: c.get('orgId'),
         askId,
@@ -466,10 +497,12 @@ export function createAutomationRoutes(deps: {
   app.post('/runs/:runId/cancel', async (c) => {
     try {
       const runId = c.req.param('runId');
-      // A hidden run answers like a missing one: nothing to stop.
-      if ((await visibleRun(c, runId)) === null) {
-        return c.json({ cancelled: false });
-      }
+      const control = await controllableRun(c, runId);
+      // A hidden or missing run answers like a missing one: nothing to stop.
+      if (control === 'absent') return c.json({ cancelled: false });
+      // Cancelling is a write — a read-only member who can see the run may not
+      // stop it (the app must not bypass the project write gate).
+      if (control === 'forbidden') return forbiddenControl(c);
       return c.json(
         await cancelRun(
           deps.sql,

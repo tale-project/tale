@@ -24,7 +24,6 @@
 import type { ModelCatalogEntry } from '@tale/shared/schemas/providers';
 import { modelAllowlistPermits } from '@tale/shared/utils/model-ref';
 
-import { supportsToolCallingWire } from '../../../../lib/shared/providers/resolve_execution';
 import type { ActionCtx } from '../ctx';
 import { credentialAuthFor } from './credential_auth';
 import { resolveProvidersForOrgId } from './org_providers';
@@ -109,14 +108,13 @@ export async function walkChatCatalog(
     // exactly as it does there, so the picker never disagrees with a turn.
     for (const entry of catalog) {
       if (!modelAllowlistPermits(credential.modelAllowlist, entry.id)) continue;
-      // This shared picker/Auto surface offers direct chat or a subscription
-      // harness. Direct chat always carries tools over Chat Completions;
-      // adding a Responses-only model must not turn those calls into 400s.
-      // A pinned managed Codex agent resolves separately against its wire.
+      // Direct chat calls a model whose tools need the Responses API on that
+      // API — an OpenAI surface, so an Anthropic-format connector has no
+      // wire for one and must not offer it. A pinned managed agent resolves
+      // separately against its harness's wire.
       if (
-        (credential.authMethod === 'api-key' ||
-          credential.authMethod === 'env') &&
-        !supportsToolCallingWire(entry, 'openai-chat')
+        entry.toolCallingApi === 'responses' &&
+        connector.apiFormat !== 'openai'
       )
         continue;
       hits.push({ connector, credential, credentialAuth, entry });

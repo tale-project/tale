@@ -751,3 +751,232 @@ describe('the openai-modern dialect', () => {
     expect(body).not.toHaveProperty('max_completion_tokens');
   });
 });
+
+describe('the Responses API shape', () => {
+  const tools = [
+    {
+      name: 'rag_search',
+      description: 'Search the knowledge.',
+      parameters: { type: 'object', properties: { query: { type: 'string' } } },
+    },
+  ];
+  const transcript = [
+    { role: 'system' as const, content: 'GUIDE' },
+    {
+      role: 'user' as const,
+      content: 'WHAT IS THIS?',
+      images: [{ mediaType: 'image/png', dataBase64: 'AAAA' }],
+    },
+    {
+      role: 'assistant' as const,
+      content: 'Let me check.',
+      toolCalls: [{ id: 'call_1', name: 'rag_search', input: { query: 'x' } }],
+    },
+    {
+      role: 'tool' as const,
+      content: '',
+      toolResults: [{ callId: 'call_1', content: '{"hits":1}' }],
+    },
+    {
+      role: 'assistant' as const,
+      content: '',
+      toolCalls: [{ id: 'call_2', name: 'rag_search', input: undefined }],
+    },
+    {
+      role: 'tool' as const,
+      content: '',
+      toolResults: [{ callId: 'call_2', content: 'none' }],
+    },
+    { role: 'user' as const, content: 'THANKS' },
+  ];
+
+  function responsesRequest(
+    overrides: Partial<Parameters<typeof buildChatRequest>[0]> = {},
+  ) {
+    return buildChatRequest({
+      apiFormat: 'openai',
+      wireDialect: 'openai-modern',
+      toolCallingApi: 'responses',
+      reasoningModel: true,
+      baseUrl: 'https://api.openai.test/v1/',
+      modelId: 'gpt-6.1-sol',
+      apiKey: 'secret-key',
+      messages: transcript,
+      tools,
+      temperature: 0.3,
+      maxTokens: 4096,
+      reasoning: { kind: 'effort', value: 'high' },
+      extraHeaders: { 'x-attribution': 'tale' },
+      ...overrides,
+    });
+  }
+
+  it('posts the transcript as input items to the responses path', () => {
+    const wire = responsesRequest();
+    expect(wire.url).toBe('https://api.openai.test/v1/responses');
+    expect(wire.headers).toEqual({
+      'content-type': 'application/json',
+      authorization: 'Bearer secret-key',
+      'x-attribution': 'tale',
+    });
+    expect(JSON.parse(wire.body)).toEqual({
+      model: 'gpt-6.1-sol',
+      instructions: 'GUIDE',
+      max_output_tokens: 4096,
+      reasoning: { effort: 'high' },
+      tools: [
+        {
+          type: 'function',
+          name: 'rag_search',
+          description: 'Search the knowledge.',
+          parameters: {
+            type: 'object',
+            properties: { query: { type: 'string' } },
+          },
+          strict: false,
+        },
+      ],
+      input: [
+        {
+          role: 'user',
+          content: [
+            { type: 'input_text', text: 'WHAT IS THIS?' },
+            { type: 'input_image', image_url: 'data:image/png;base64,AAAA' },
+          ],
+        },
+        { role: 'assistant', content: 'Let me check.' },
+        {
+          type: 'function_call',
+          call_id: 'call_1',
+          name: 'rag_search',
+          arguments: '{"query":"x"}',
+        },
+        {
+          type: 'function_call_output',
+          call_id: 'call_1',
+          output: '{"hits":1}',
+        },
+        // A call-only assistant turn adds no empty message, and arguments
+        // the model never sent read as an empty object.
+        {
+          type: 'function_call',
+          call_id: 'call_2',
+          name: 'rag_search',
+          arguments: '{}',
+        },
+        { type: 'function_call_output', call_id: 'call_2', output: 'none' },
+        { role: 'user', content: 'THANKS' },
+      ],
+      store: false,
+    });
+  });
+
+  it('sends a temperature only for a model known not to reason', () => {
+    expect(JSON.parse(responsesRequest().body)).not.toHaveProperty(
+      'temperature',
+    );
+    expect(
+      JSON.parse(responsesRequest({ reasoningModel: undefined }).body),
+    ).not.toHaveProperty('temperature');
+    expect(
+      JSON.parse(responsesRequest({ reasoningModel: false }).body),
+    ).toMatchObject({ temperature: 0.3 });
+  });
+
+  it('omits instructions, tools and reasoning it was not given', () => {
+    const body: unknown = JSON.parse(
+      responsesRequest({
+        messages: [{ role: 'user', content: 'HI' }],
+        tools: undefined,
+        reasoning: undefined,
+      }).body,
+    );
+    expect(body).toEqual({
+      model: 'gpt-6.1-sol',
+      max_output_tokens: 4096,
+      input: [{ role: 'user', content: 'HI' }],
+      store: false,
+    });
+  });
+
+  // The Responses API takes all five steps, unlike Chat Completions' three,
+  // and the off literals pass through.
+  it.each([
+    ['low', 'low'],
+    ['medium', 'medium'],
+    ['high', 'high'],
+    ['extra', 'xhigh'],
+    ['max', 'max'],
+    ['none', 'none'],
+    ['minimal', 'minimal'],
+  ] as const)(
+    'spells the %s step as the Responses effort %s',
+    (step, level) => {
+      const body: unknown = JSON.parse(
+        responsesRequest({ reasoning: { kind: 'effort', value: step } }).body,
+      );
+      expect(body).toMatchObject({ reasoning: { effort: level } });
+      expect(body).not.toHaveProperty('reasoning_effort');
+    },
+  );
+
+  it('drops a thinking budget, which the Responses API cannot spell', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const body: unknown = JSON.parse(
+      responsesRequest({
+        reasoning: { kind: 'thinking', budgetTokens: 2048 },
+      }).body,
+    );
+    expect(body).not.toHaveProperty('reasoning');
+    expect(warn).toHaveBeenCalledOnce();
+    warn.mockRestore();
+  });
+
+  it('refuses the pairing with an Anthropic-format connector', () => {
+    expect(() =>
+      responsesRequest({ apiFormat: 'anthropic', wireDialect: undefined }),
+    ).toThrow(/Responses API/);
+  });
+
+  it('serves the shipped Sol 6.1 at every effort step its page lists', () => {
+    const entry = loadStaticCatalogs()
+      .get('openai')
+      ?.find((model) => model.id === 'gpt-6.1-sol');
+    if (entry === undefined) throw new Error('the catalog misses gpt-6.1-sol');
+    for (const [effort, level] of [
+      [undefined, undefined],
+      ['low', 'low'],
+      ['extra', 'xhigh'],
+      ['max', 'max'],
+    ] as const) {
+      const sampling = resolveTurnSampling(entry, effort);
+      const body: unknown = JSON.parse(
+        buildChatRequest({
+          apiFormat: 'openai',
+          wireDialect: 'openai-modern',
+          toolCallingApi: entry.toolCallingApi,
+          reasoningModel: entry.reasoning !== undefined,
+          baseUrl: 'https://api.openai.test/v1',
+          modelId: entry.id,
+          apiKey: 'secret-key',
+          messages: [{ role: 'user', content: 'HI' }],
+          tools,
+          maxTokens: sampling.maxTokens,
+          ...(sampling.temperature !== undefined
+            ? { temperature: sampling.temperature }
+            : {}),
+          ...(sampling.reasoning !== undefined
+            ? { reasoning: sampling.reasoning }
+            : {}),
+        }).body,
+      );
+      expect(body).not.toHaveProperty('temperature');
+      if (level === undefined) {
+        // Default: the model's own effort, never an off literal it refuses.
+        expect(body).not.toHaveProperty('reasoning');
+      } else {
+        expect(body).toMatchObject({ reasoning: { effort: level } });
+      }
+    }
+  });
+});
