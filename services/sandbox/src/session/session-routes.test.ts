@@ -6247,6 +6247,119 @@ describe('the first-come line for host room', () => {
     });
   });
 
+  test('an in-flight re-ask keeps its place past the lease', async () => {
+    let slow = false;
+    let releaseRead!: () => void;
+    const readGate = new Promise<void>((resolve) => {
+      releaseRead = resolve;
+    });
+    const reading = () => ({
+      totalBytes: 16 * GIB,
+      availableBytes: 0,
+    });
+    const routes = new SessionRoutes(cfg, fakeBackend, undefined, {
+      latest: reading,
+      read: async () => {
+        if (slow) await readGate;
+        return reading();
+      },
+    });
+    expect((await create(routes, 'slow-asker')).status).toBe(429);
+    slow = true;
+    const reask = create(routes, 'slow-asker');
+    setSystemTime(new Date(Date.now() + 11 * 60_000));
+    try {
+      releaseRead();
+      expect((await reask).status).toBe(429);
+      expect(routes.roomQueueLength()).toBe(1);
+    } finally {
+      setSystemTime();
+    }
+  });
+
+  test('a re-ask cancelled while probing cannot resurrect its waiter', async () => {
+    let slow = false;
+    let releaseRead!: () => void;
+    const readGate = new Promise<void>((resolve) => {
+      releaseRead = resolve;
+    });
+    const reading = () => ({
+      totalBytes: 16 * GIB,
+      availableBytes: 0,
+    });
+    const routes = new SessionRoutes(cfg, fakeBackend, undefined, {
+      latest: reading,
+      read: async () => {
+        if (slow) await readGate;
+        return reading();
+      },
+    });
+    expect((await create(routes, 'cancelled-asker')).status).toBe(429);
+    slow = true;
+    const reask = create(routes, 'cancelled-asker');
+    await routes.handleDestroy('cancelled-asker');
+    releaseRead();
+    expect((await reask).status).toBe(429);
+    expect(routes.roomQueueLength()).toBe(0);
+  });
+
+  test('queue-cap eviction invalidates an in-flight waiter generation', async () => {
+    let slow = false;
+    let releaseRead!: () => void;
+    const readGate = new Promise<void>((resolve) => {
+      releaseRead = resolve;
+    });
+    const reading = () => ({
+      totalBytes: 16 * GIB,
+      availableBytes: 0,
+    });
+    const routes = new SessionRoutes(
+      { ...cfg, session: { ...cfg.session, maxSessions: 1 } },
+      fakeBackend,
+      undefined,
+      {
+        latest: reading,
+        read: async () => {
+          if (slow) await readGate;
+          return reading();
+        },
+      },
+    );
+    const warning = spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      expect((await create(routes, 'evicted-asker')).status).toBe(429);
+      for (let index = 0; index < 10_000; index += 1)
+        await create(routes, `filler-${index}`);
+      slow = true;
+      const reask = create(routes, 'evicted-asker');
+      await create(routes, 'newest');
+      releaseRead();
+      expect((await reask).status).toBe(429);
+      expect(routes.roomQueueLength()).toBe(10_000);
+    } finally {
+      warning.mockRestore();
+    }
+  });
+
+  test('a waiter liveness ping renews its bounded lease', async () => {
+    const routes = new SessionRoutes(capped, fakeBackend);
+    await create(routes, 'held-a');
+    await create(routes, 'held-b');
+    expect((await create(routes, 'live-waiter')).status).toBe(429);
+    setSystemTime(new Date(Date.now() + 11 * 60_000));
+    fakeHealth.liveExecs = 1;
+    try {
+      expect((await routes.handleActivity('live-waiter', 'wait')).status).toBe(
+        200,
+      );
+      expect((await create(routes, 'next-live')).status).toBe(429);
+      expect(routes.roomQueueLength()).toBe(2);
+    } finally {
+      fakeHealth.liveExecs = 0;
+      setSystemTime();
+    }
+  });
+
   test('a waiter that stops asking gives its place up', async () => {
     const routes = new SessionRoutes(capped, fakeBackend);
     await create(routes, 'busy-a');
