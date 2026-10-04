@@ -248,6 +248,58 @@ describe('a board row carries only what a card shows', () => {
 });
 
 describe('the palette and the board search alike', () => {
+  it('ranks both bounded pages after deduplication even when fields fill the page', async () => {
+    const fieldHits = Array.from({ length: 25 }, (_, index) => ({
+      taskId: `archived-${index}`,
+      projectId: 'proj-1',
+      title: 'needle',
+      status: 'todo',
+      description: null,
+      updatedAt: 100 - index,
+      number: null,
+      archivedAt: 1,
+    }));
+    const commentHits = [
+      { ...fieldHits[0], body: 'needle duplicate' },
+      {
+        ...fieldHits[0],
+        taskId: 'active-comment',
+        archivedAt: null,
+        updatedAt: 0,
+        body: 'needle discussion',
+      },
+    ];
+    const { sql, statements } = recordingSql((text) =>
+      text.startsWith('SELECT t.id AS "taskId"')
+        ? fieldHits
+        : text.startsWith('SELECT DISTINCT ON')
+          ? commentHits
+          : [],
+    );
+    const hits = await searchTasks(sql, auth, {
+      query: 'needle',
+      projectId: 'proj-1',
+    });
+    expect(hits).toHaveLength(25);
+    expect(hits[0]).toMatchObject({
+      taskId: 'active-comment',
+      snippet: 'needle discussion',
+    });
+    expect(new Set(hits.map((hit) => hit.taskId)).size).toBe(25);
+    expect(hits.some((hit) => hit.taskId === 'archived-24')).toBe(false);
+    const pages = statements.filter(
+      (statement) =>
+        statement.text.startsWith('SELECT t.id AS "taskId"') ||
+        statement.text.startsWith('SELECT DISTINCT ON'),
+    );
+    expect(pages).toHaveLength(2);
+    expect(
+      pages.every(
+        (page) => page.text.endsWith('LIMIT ?') && page.values.at(-1) === 25,
+      ),
+    ).toBe(true);
+  });
+
   it('share the fields leg and the comment leg', async () => {
     const board = recordingSql();
     await listTasksByProject(board.sql, auth, 'proj-1', { query: 'needle' });

@@ -164,6 +164,7 @@ import { checkAutomatedRetryAgentBusy } from './domains/tasks/retry-agent-busy.i
 import { checkTaskRetryProjectEligibility } from './domains/tasks/retry-eligibility.integration.ts';
 import { checkAgentRunFailureNotice } from './domains/tasks/run-failure-notice.integration.ts';
 import { checkTaskRunStartFence } from './domains/tasks/run-start.integration.ts';
+import { checkTaskSearchPriority } from './domains/tasks/search-priority.integration.ts';
 import { checkTaskSourceThread } from './domains/tasks/source-thread.integration.ts';
 import { checkTaskWorkflowParentMoves } from './domains/tasks/workflow-parent-moves.integration.ts';
 import { checkTtsBudgetReservations } from './domains/tts/budget.integration.ts';
@@ -62365,6 +62366,10 @@ async function main(): Promise<void> {
       [
         'checkArchivedTaskWrites',
         () => checkArchivedTaskWrites(sql, baseUrl, authCtx, record),
+      ],
+      [
+        'checkTaskSearchPriority',
+        () => checkTaskSearchPriority(sql, authCtx, record),
       ],
       [
         'checkAgentTaskReadTools',
