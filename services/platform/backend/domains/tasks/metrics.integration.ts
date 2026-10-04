@@ -346,5 +346,6 @@ export async function checkProjectTaskMetrics(
     await sql`DELETE FROM app.sandbox_session_ops WHERE org_id = ${orgId} AND session_id = ${sessionId}`;
     await sql`DELETE FROM app.project_agent_runs WHERE project_id = ${projectId}`;
     await sql`DELETE FROM app.projects WHERE id = ${projectId}`;
+    await sql`DELETE FROM app.projects WHERE id = ${terminalProjectId}`;
   }
 }
