@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import { productNumberSchema } from './product-number-schema';
+import {
+  parseProductNumber,
+  productNumberSchema,
+} from './product-number-schema';
 
 const stock = productNumberSchema({
   number: 'number',
@@ -39,5 +42,17 @@ describe('productNumberSchema', () => {
   it('holds a count to whole numbers and an amount not', () => {
     expect(firstMessage(stock, '1.5')).toBe('integer');
     expect(firstMessage(price, '1.5')).toBeNull();
+  });
+
+  // The dialogs send this reading of a value the rule passed, so the two
+  // cannot disagree: `parseInt` sent stock `1e3` as 1 (#3616).
+  it.each([
+    ['1e3', 1000],
+    ['2.5e2', 250],
+    ['150e-1', 15],
+    ['1000', 1000],
+  ])('passes stock %s and reads it as %d', (value, number) => {
+    expect(firstMessage(stock, value)).toBeNull();
+    expect(parseProductNumber(value)).toBe(number);
   });
 });
