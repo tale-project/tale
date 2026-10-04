@@ -72,6 +72,16 @@ component-level axe coverage comes from `vitest-axe` via
   button (`document.activeElement` === it), never `<body>` — the menu item
   that opened the dialog is gone by then. A confirmed delete that removes the
   row is a separate case.
+- [ ] `A11Y-A21` · **Focus after a confirmed row delete** — Keyboard only, with
+  two rows and then with one, on Settings → Teams (**Delete**), API keys
+  (**Revoke key**), Members (**Delete**), AI providers (**Delete**), Contacts
+  (**Delete**), then WebDAV (the row's **Revoke**); confirm, wait for the row to
+  leave, read `document.activeElement`, then press Tab → Focus is never
+  `<body>`. With rows left, it is on the next row's menu button, or the row
+  above when the last row left. With none, it is on the empty state's create
+  action or the toolbar's. On WebDAV the revoked row stays and has no control:
+  the next active row's **Revoke**, else the named **App-passwords** section.
+  The next Tab stays in the main content, never at **Skip to main content**.
 - [ ] `A11Y-A6` · **Icon buttons** — Query all `<button>` on each surface →
   **Zero** buttons have an empty accessible name — every icon-only button
   carries a translated `aria-label`/`title` (verified live: 0 unnamed on

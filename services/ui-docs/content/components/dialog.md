@@ -90,6 +90,8 @@ Keep descriptions in one place rather than repeating them in the summary and bod
 
 The modal traps focus while open. Escape and the close control request dismissal; controlled state determines whether the request is accepted. Restore focus to a useful surviving control after close, especially when a successful action removes the original row.
 
+A return point counts only if it can still take the focus: an opener, `restoreFocusRef` or menu button that was removed or disabled is skipped. When none is left, as when a confirmed delete took the row, the dialog asks the surviving part of the page. It dispatches `RESTORE_FOCUS_LOST_EVENT` (from `@tale/ui/use-restore-focus`), bubbling and cancelable, from the nearest ancestor of the lost return point that is still in the document. `DataTable` answers by focusing the next row's control. A host that knows a better target can do the same: focus it and cancel the event. If nothing answers, focus goes to the nearest surviving ancestor that accepts programmatic focus (`tabIndex={-1}`), such as a list's named region or the page's `<main>`.
+
 Content can remain mounted through a closing animation. Do not assume `open=false` immediately stops its subscriptions or requests. If hook-heavy content has a closing-lifecycle problem, move it into a separate component and conditionally mount that component; do not call hooks conditionally inside one component.
 
 Use an inline error for repairable form problems and a [toast](/docs/components/toast) for an optional completion notice. Use a persistent page or side panel when the task needs more room or the reader needs to refer to the surrounding content continuously.

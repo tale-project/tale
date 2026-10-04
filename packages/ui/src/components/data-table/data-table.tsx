@@ -68,6 +68,7 @@ import {
   isFilterActive,
   type FilterConfig,
 } from './data-table-filters';
+import { ADD_ACTION, DATA_ROW, useRowFocusRescue } from './data-table-focus';
 import {
   DataTablePagination,
   type DataTablePaginationProps,
@@ -409,6 +410,9 @@ export function DataTable<TData, TValue = unknown>({
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const tableHeaderRef = useRef<HTMLTableSectionElement>(null);
   const [rowsScrollMargin, setRowsScrollMargin] = useState(40);
+  // A confirmed delete takes the row the focus was on: hand the focus to
+  // the next row's control instead of the page.
+  const focusRootRef = useRowFocusRescue<HTMLDivElement>();
   // Non-sticky layout: horizontal scrollport that must chain vertical wheel to
   // the page scroller (see chainVerticalWheelToScrollParent).
   const horizontalScrollRef = useRef<HTMLDivElement>(null);
@@ -665,17 +669,21 @@ export function DataTable<TData, TValue = unknown>({
   // header content); otherwise `addAction` renders at the default (h-9) size and
   // the standard right-aligned placement so every list's add button looks the
   // same — and lines up with the h-9 search/filter controls in the same toolbar.
+  // `contents`: the marker adds no box to the toolbar's or empty state's
+  // layout; it names the action wherever it moves (`useRowFocusRescue`).
   const addActionControl = addAction ? (
-    <DataTableActionMenu
-      triggerRef={addAction.triggerRef}
-      label={addAction.label}
-      icon={addAction.icon}
-      onClick={addAction.onClick}
-      href={addAction.href}
-      menuItems={addAction.menuItems}
-      disabled={addAction.disabled}
-      variant={addAction.variant ?? 'primary'}
-    />
+    <span {...ADD_ACTION} className="contents">
+      <DataTableActionMenu
+        triggerRef={addAction.triggerRef}
+        label={addAction.label}
+        icon={addAction.icon}
+        onClick={addAction.onClick}
+        href={addAction.href}
+        menuItems={addAction.menuItems}
+        disabled={addAction.disabled}
+        variant={addAction.variant ?? 'primary'}
+      />
+    </span>
   ) : null;
 
   const hasToolbarChrome =
@@ -1093,6 +1101,7 @@ export function DataTable<TData, TValue = unknown>({
                       />
                     )}
                     <TableRow
+                      {...DATA_ROW}
                       ref={rowWindow.measureElement}
                       data-index={index}
                       onFocusCapture={rowWindow.onFocusCapture}
@@ -1357,7 +1366,7 @@ export function DataTable<TData, TValue = unknown>({
           />
         )}
       >
-        <div className={cn('space-y-4', className)}>
+        <div ref={focusRootRef} className={cn('space-y-4', className)}>
           {headerContent}
           {/* The bordered frame stays at the container's width — its rounded
               border is always fully visible — while the table scrolls inside
@@ -1397,7 +1406,10 @@ export function DataTable<TData, TValue = unknown>({
         />
       )}
     >
-      <div className={cn('flex min-h-0 min-w-0 flex-1 flex-col', className)}>
+      <div
+        ref={focusRootRef}
+        className={cn('flex min-h-0 min-w-0 flex-1 flex-col', className)}
+      >
         {headerContent && <div className="shrink-0 pb-4">{headerContent}</div>}
         {/* The bordered frame stays at the container's width — its rounded
             border is always fully visible — while both axes scroll inside
