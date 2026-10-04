@@ -912,7 +912,6 @@ automations:
     empty: Diese Automatisierung ist noch nicht gelaufen.
     loading: Lauf wird geladen …
     loadFailed: Dieser Lauf konnte nicht geladen werden.
-    retry: Erneut versuchen
     # Während die Plattform den fehlgeschlagenen Agent-Schritt von selbst
     # wiederholt — damit klar ist, dass nicht du es warst.
     autoRetrying: 'Automatischer Versuch {n} von {max}'

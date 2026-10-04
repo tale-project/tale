@@ -3,6 +3,7 @@
 import { Alert } from '@tale/ui/alert';
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
+import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
 import { cn } from '@tale/ui/cn';
 import { ContentArea } from '@tale/ui/content-area';
 import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
@@ -12,11 +13,11 @@ import { JsonViewer } from '@tale/ui/json-viewer';
 import { SectionHeader } from '@tale/ui/section-header';
 import { Text } from '@tale/ui/text';
 import { useFormatDate } from '@tale/ui/use-format-date';
-import { useRetryFocus } from '@tale/ui/use-retry-focus';
-import { Ban, RefreshCw, SearchX } from 'lucide-react';
-import { useCallback, useId, useMemo, useState } from 'react';
+import { Ban, SearchX } from 'lucide-react';
+import { useCallback, useId, useMemo, useRef, useState } from 'react';
 
 import { failureDetail } from '@/app/lib/backend/adapters';
+import { readStateOf } from '@/app/lib/backend/read-state';
 import { useT } from '@/lib/i18n/client';
 import { automationDisplayName } from '@/lib/shared/schemas/automation_presentation';
 
@@ -77,7 +78,24 @@ import { RunBadge } from './run-status-badge';
  * refused stop or a picked node never shows on the next run.
  */
 export function RunDetail(props: RunDetailProps) {
-  return <RunDetailBody key={props.runId} {...props} />;
+  const { t } = useT('automations');
+  const runRegionRef = useRef<HTMLDivElement>(null);
+  const focusRunRegion = useCallback(() => runRegionRef.current?.focus(), []);
+  return (
+    <div
+      ref={runRegionRef}
+      role="region"
+      aria-label={t('runs.breadcrumb')}
+      tabIndex={-1}
+      className="flex min-w-0 flex-1 flex-col"
+    >
+      <RunDetailBody
+        key={props.runId}
+        {...props}
+        onFocusLost={focusRunRegion}
+      />
+    </div>
+  );
 }
 
 interface RunDetailProps {
@@ -90,7 +108,8 @@ function RunDetailBody({
   organizationId,
   automationSlug,
   runId,
-}: RunDetailProps) {
+  onFocusLost,
+}: RunDetailProps & { onFocusLost: () => void }) {
   const { t } = useT('automations');
   const { formatDate } = useFormatDate();
   const inspectorId = useId();
@@ -109,6 +128,9 @@ function RunDetailBody({
   const [confirmStop, setConfirmStop] = useState(false);
 
   const runQuery = useAutomationRun(organizationId, runId);
+  const runRead = readStateOf(runQuery);
+  const readFailureRef = useRef<string | undefined>(undefined);
+  if (runQuery.isError) readFailureRef.current = failureDetail(runQuery.error);
   const run = runQuery.data ?? null;
   const pendingAskQuery = useRunPendingAsk(organizationId, runId);
   const pendingAsk = pendingAskQuery.data ?? null;
@@ -169,11 +191,6 @@ function RunDetailBody({
   );
 
   const runMissing = isMissingAutomationRead(runQuery);
-  const runUnreadable = run === null && runQuery.isError && !runMissing;
-  const retryFocus = useRetryFocus(
-    runMissing || run !== null ? 'ready' : runUnreadable ? 'failed' : 'loading',
-    runId,
-  );
 
   if (runMissing) {
     return (
@@ -187,30 +204,18 @@ function RunDetailBody({
       </ContentArea>
     );
   }
-  if (runUnreadable) {
+  if (runRead.unavailable) {
     return (
       <ContentArea variant="narrow">
-        <div ref={retryFocus.ref}>
-          <Alert
-            variant="destructive"
-            title={t('runs.loadFailed')}
-            description={failureDetail(runQuery.error)}
-          >
-            <Button
-              variant="secondary"
-              size="sm"
-              icon={RefreshCw}
-              className="mt-3"
-              isLoading={runQuery.isFetching}
-              onClick={() => {
-                retryFocus.arm();
-                void runQuery.refetch();
-              }}
-            >
-              {t('runs.retry')}
-            </Button>
-          </Alert>
-        </div>
+        <CatalogLoadError
+          message={[t('runs.loadFailed'), readFailureRef.current]
+            .filter(Boolean)
+            .join(' ')}
+          isRetrying={runRead.retrying}
+          failureKey={runRead.failureCount}
+          onRetry={() => void runQuery.refetch()}
+          onFocusLost={onFocusLost}
+        />
       </ContentArea>
     );
   }

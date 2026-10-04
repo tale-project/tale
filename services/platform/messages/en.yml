@@ -873,7 +873,6 @@ automations:
     empty: This automation has not run yet.
     loading: Loading the run…
     loadFailed: "Couldn't load this run."
-    retry: Try again
     # The engine's own retry of a failed agent turn — the user must be able
     # to tell the platform's retry from their own rerun.
     autoRetrying: 'Auto-retry {n} of {max}'

@@ -1,6 +1,7 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { render, screen, waitFor } from '@/tests/utils/render';
+import { act, render, screen, waitFor } from '@/tests/utils/render';
 
 import { i18n } from '../../../../lib/i18n/i18n';
 
@@ -23,58 +24,68 @@ const { state, resolveApproval, readApproval, refetchRun } = vi.hoisted(() => ({
     runError: undefined as unknown,
     runMissing: false,
     runFetching: false,
+    runFailureCount: 0,
+    realRunRead: false,
   },
   resolveApproval: vi.fn(() => Promise.resolve(null)),
   readApproval: vi.fn(),
   refetchRun: vi.fn(() => Promise.resolve()),
 }));
 
-vi.mock('../hooks/queries', () => ({
-  useAutomationRun: () => ({
-    isError: state.runError !== undefined,
-    isPending: state.runPending,
-    error: state.runError,
-    isFetching: state.runFetching,
-    refetch: refetchRun,
-    data: state.runMissing
-      ? null
-      : state.runPending || state.runError !== undefined
-        ? undefined
+vi.mock('../hooks/queries', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../hooks/queries')>();
+  return {
+    useAutomationRun: (organizationId: string, runId: string) =>
+      state.realRunRead
+        ? actual.useAutomationRun(organizationId, runId)
         : {
-            id: 'run-proof',
-            name: 'docs-approval-proof',
-            version: 1,
-            mode: 'live',
-            startedAt: 1789363168936,
-            input: {},
-            output: null,
-            effects: [],
-            ...state,
+            isError: state.runError !== undefined,
+            isPending: state.runPending,
+            error: state.runError,
+            isFetching: state.runFetching,
+            errorUpdateCount:
+              state.runError === undefined ? state.runFailureCount : 1,
+            refetch: refetchRun,
+            data: state.runMissing
+              ? null
+              : state.runPending || state.runError !== undefined
+                ? undefined
+                : {
+                    id: 'run-proof',
+                    name: 'docs-approval-proof',
+                    version: 1,
+                    mode: 'live',
+                    startedAt: 1789363168936,
+                    input: {},
+                    output: null,
+                    effects: [],
+                    ...state,
+                  },
           },
-  }),
-  useAutomation: () =>
-    state.versionPending
-      ? { data: undefined, isError: false, error: null }
-      : state.versionError === undefined
-        ? { data: { document: state.versionDocument }, isError: false }
-        : { data: undefined, isError: true, error: state.versionError },
-  useNodeTypeCatalog: () => ({ data: [], isError: false }),
-  useRunPendingAsk: () => ({ data: null }),
-  useRunApproval: (organizationId: string, approvalId: string) => {
-    readApproval(organizationId, approvalId);
-    return {
-      data: {
-        status: 'pending',
-        metadata: {
-          connector: 'imap-smtp',
-          action: 'send',
-          nodeId: 'deliver',
-          parameters: { subject: 'Approval proof' },
+    useAutomation: () =>
+      state.versionPending
+        ? { data: undefined, isError: false, error: null }
+        : state.versionError === undefined
+          ? { data: { document: state.versionDocument }, isError: false }
+          : { data: undefined, isError: true, error: state.versionError },
+    useNodeTypeCatalog: () => ({ data: [], isError: false }),
+    useRunPendingAsk: () => ({ data: null }),
+    useRunApproval: (organizationId: string, approvalId: string) => {
+      readApproval(organizationId, approvalId);
+      return {
+        data: {
+          status: 'pending',
+          metadata: {
+            connector: 'imap-smtp',
+            action: 'send',
+            nodeId: 'deliver',
+            parameters: { subject: 'Approval proof' },
+          },
         },
-      },
-    };
-  },
-}));
+      };
+    },
+  };
+});
 const cancelRun = vi.hoisted(() => vi.fn());
 vi.mock('../hooks/mutations', () => ({
   useCancelAutomationRun: () => ({ mutate: cancelRun, isPending: false }),
@@ -140,6 +151,8 @@ beforeEach(() => {
   state.runError = undefined;
   state.runMissing = false;
   state.runFetching = false;
+  state.runFailureCount = 0;
+  state.realRunRead = false;
   vi.clearAllMocks();
 });
 
@@ -220,13 +233,16 @@ describe('RunDetail read recovery', () => {
       await user.click(screen.getByRole('button', { name: 'Try again' }));
       state.runError = undefined;
       state.runPending = true;
+      state.runFailureCount = 1;
       rerender(
         <>
           <button>Route navigation</button>
           {detail()}
         </>,
       );
-      expect(screen.getByText('Loading the run…')).toBeVisible();
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        "Couldn't load this run.",
+      );
       if (moveFocus)
         await user.click(
           screen.getByRole('button', { name: 'Route navigation' }),
@@ -272,6 +288,228 @@ describe('RunDetail read recovery', () => {
     );
     expect(screen.getByRole('button', { name: 'Try again' })).not.toHaveFocus();
   });
+});
+
+const realRunClients: QueryClient[] = [];
+const runQueryKey = [
+  'backend',
+  'org-proof',
+  'automation_run',
+  'detail',
+  'run-proof',
+];
+
+afterEach(() => {
+  for (const client of realRunClients) client.clear();
+  realRunClients.length = 0;
+  vi.unstubAllGlobals();
+});
+
+function renderRealRun() {
+  state.realRunRead = true;
+  const client = new QueryClient({
+    defaultOptions: { queries: { retryDelay: 0, gcTime: Infinity } },
+  });
+  realRunClients.push(client);
+  const view = render(
+    <QueryClientProvider client={client}>
+      <button type="button">Route navigation</button>
+      <RunDetail
+        organizationId="org-proof"
+        automationSlug="docs-approval-proof"
+        runId="run-proof"
+      />
+    </QueryClientProvider>,
+  );
+  return { ...view, client };
+}
+
+function runResponse() {
+  return Response.json({
+    run: {
+      id: 'run-proof',
+      name: 'docs-approval-proof',
+      version: 1,
+      mode: 'live',
+      status: 'success',
+      startedAt: 1789363168936,
+      finishedAt: 1789363170729,
+      startedBy: 'user:user-me',
+      input: {},
+      output: null,
+      effects: [],
+      trace: [],
+      detail: null,
+    },
+  });
+}
+
+function unavailableResponse() {
+  return Response.json({ message: 'Service unavailable' }, { status: 503 });
+}
+
+describe('RunDetail real run read focus recovery', () => {
+  it.each(['retry', 'outside'] as const)(
+    'retains keyboard Retry through repeated failure and respects %s focus on recovery',
+    async (recoveryFocus) => {
+      let deferRead = false;
+      let finishRead: ((response: Response) => void) | undefined;
+      const fetchRun = vi.fn((url: string) => {
+        expect(new URL(url, window.location.origin).pathname).toBe(
+          '/api/app/automations/runs/run-proof',
+        );
+        if (!deferRead) return Promise.resolve(unavailableResponse());
+        return new Promise<Response>((resolve) => {
+          finishRead = resolve;
+        });
+      });
+      vi.stubGlobal('fetch', fetchRun);
+      const { user } = renderRealRun();
+      const retryButton = await screen.findByRole(
+        'button',
+        { name: 'Try again' },
+        { timeout: 30000 },
+      );
+      expect(fetchRun).toHaveBeenCalledTimes(4);
+      await user.click(
+        screen.getByRole('button', { name: 'Route navigation' }),
+      );
+      await user.tab();
+      expect(retryButton).toHaveFocus();
+      deferRead = true;
+      await user.keyboard('{Enter}');
+      await waitFor(() => expect(finishRead).toBeDefined(), { timeout: 30000 });
+      expect(retryButton).toHaveFocus();
+      expect(retryButton).not.toBeDisabled();
+      expect(retryButton).toHaveAttribute('aria-busy', 'true');
+      expect(retryButton).toHaveAttribute('aria-disabled', 'true');
+      expect(screen.queryByText('Loading the run…')).toBeNull();
+      const requests = fetchRun.mock.calls.length;
+      await user.keyboard('{Enter}');
+      expect(fetchRun).toHaveBeenCalledTimes(requests);
+      deferRead = false;
+      await act(async () => {
+        finishRead?.(unavailableResponse());
+      });
+      await waitFor(
+        () => expect(retryButton).not.toHaveAttribute('aria-busy'),
+        { timeout: 30000 },
+      );
+      expect(screen.getByRole('button', { name: 'Try again' })).toBe(
+        retryButton,
+      );
+      expect(retryButton).toHaveFocus();
+      expect(document.activeElement).not.toBe(document.body);
+      finishRead = undefined;
+      deferRead = true;
+      await user.keyboard('{Enter}');
+      await waitFor(() => expect(finishRead).toBeDefined(), { timeout: 30000 });
+      expect(retryButton).toHaveFocus();
+      if (recoveryFocus === 'outside')
+        await user.click(
+          screen.getByRole('button', { name: 'Route navigation' }),
+        );
+      await act(async () => {
+        finishRead?.(runResponse());
+      });
+      await screen.findByTestId('canvas', {}, { timeout: 30000 });
+      await waitFor(() => expect(screen.queryByRole('alert')).toBeNull());
+      await waitFor(() =>
+        expect(
+          screen.getByRole(recoveryFocus === 'retry' ? 'region' : 'button', {
+            name: recoveryFocus === 'retry' ? 'Run' : 'Route navigation',
+          }),
+        ).toHaveFocus(),
+      );
+      expect(document.activeElement).not.toBe(document.body);
+    },
+    60000,
+  );
+
+  it.each(['success', 'failure'] as const)(
+    'retains focused Retry through background invalidation and %s',
+    async (outcome) => {
+      let refreshing = false;
+      let finishRead: ((response: Response) => void) | undefined;
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(() => {
+          if (!refreshing) return Promise.resolve(unavailableResponse());
+          return new Promise<Response>((resolve) => {
+            finishRead = resolve;
+          });
+        }),
+      );
+      const { user, client } = renderRealRun();
+      const retryButton = await screen.findByRole(
+        'button',
+        { name: 'Try again' },
+        { timeout: 30000 },
+      );
+      await user.click(
+        screen.getByRole('button', { name: 'Route navigation' }),
+      );
+      await user.tab();
+      expect(retryButton).toHaveFocus();
+      refreshing = true;
+      act(() => {
+        void client.invalidateQueries({
+          queryKey: ['backend', 'org-proof', 'automation_run'],
+        });
+      });
+      await waitFor(() => expect(finishRead).toBeDefined(), { timeout: 30000 });
+      expect(retryButton).toHaveFocus();
+      expect(retryButton).not.toBeDisabled();
+      expect(retryButton).toHaveAttribute('aria-busy', 'true');
+      expect(screen.queryByText('Loading the run…')).toBeNull();
+      if (outcome === 'failure') refreshing = false;
+      await act(async () => {
+        finishRead?.(
+          outcome === 'success' ? runResponse() : unavailableResponse(),
+        );
+      });
+      if (outcome === 'success') {
+        await screen.findByTestId('canvas', {}, { timeout: 30000 });
+        await waitFor(() =>
+          expect(screen.getByRole('region', { name: 'Run' })).toHaveFocus(),
+        );
+      } else {
+        await waitFor(
+          () => expect(retryButton).not.toHaveAttribute('aria-busy'),
+          { timeout: 30000 },
+        );
+        expect(screen.getByRole('button', { name: 'Try again' })).toBe(
+          retryButton,
+        );
+        expect(retryButton).toHaveFocus();
+      }
+      expect(document.activeElement).not.toBe(document.body);
+    },
+    60000,
+  );
+
+  it('preserves cached run details and chosen focus after a failed background read', async () => {
+    let failRefresh = false;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() =>
+        Promise.resolve(failRefresh ? unavailableResponse() : runResponse()),
+      ),
+    );
+    const { user, client } = renderRealRun();
+    const canvas = await screen.findByTestId('canvas', {}, { timeout: 30000 });
+    await user.click(screen.getByRole('button', { name: 'Route navigation' }));
+    failRefresh = true;
+    await act(async () => {
+      await client.invalidateQueries({ queryKey: runQueryKey });
+    });
+    expect(client.getQueryState(runQueryKey)?.status).toBe('error');
+    expect(screen.getByTestId('canvas')).toBe(canvas);
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(
+      screen.getByRole('button', { name: 'Route navigation' }),
+    ).toHaveFocus();
+  }, 60000);
 });
 
 describe('RunDetail native run state', () => {
