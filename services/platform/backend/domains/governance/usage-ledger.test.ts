@@ -40,11 +40,31 @@ describe('incrementUsageLedger', () => {
     expect(statements).toHaveLength(3);
     for (const text of statements) {
       expect(text).toMatch(
-        /character_count =\s+CASE\s+WHEN app\.usage_ledger\.character_count IS NULL\s+AND EXCLUDED\.character_count IS NULL THEN NULL/,
+        /character_count =\s+CASE\s+WHEN ledger\.character_count IS NULL\s+AND EXCLUDED\.character_count IS NULL THEN NULL/,
       );
       expect(text).toMatch(
-        /audio_duration_sec =\s+CASE\s+WHEN app\.usage_ledger\.audio_duration_sec IS NULL\s+AND EXCLUDED\.audio_duration_sec IS NULL THEN NULL/,
+        /audio_duration_sec =\s+CASE\s+WHEN ledger\.audio_duration_sec IS NULL\s+AND EXCLUDED\.audio_duration_sec IS NULL THEN NULL/,
       );
+    }
+  });
+
+  it('uses provider as an immutable bucket dimension in every period', async () => {
+    const { sql, statements } = capturingSql();
+    await incrementUsageLedger(sql, {
+      organizationId: 'org_1',
+      userId: 'user_1',
+      model: 'shared-model',
+      provider: 'provider-b',
+      inputTokens: 10,
+      outputTokens: 5,
+      costEstimateCents: 90,
+      timestamp: Date.now(),
+    });
+    expect(statements).toHaveLength(3);
+    for (const text of statements) {
+      expect(text).toContain('INSERT INTO app.usage_ledger_provider AS ledger');
+      expect(text).toMatch(/ON CONFLICT \([\s\S]*coalesce\(provider, ''\)/);
+      expect(text).not.toMatch(/provider\s*=/);
     }
   });
 });

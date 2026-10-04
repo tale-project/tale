@@ -14210,6 +14210,15 @@ async function checkGovernance(
   const governance = await import('./domains/governance/service.ts');
   const orgConfig = await import('./lib/org-config.ts');
 
+  const { verifyProviderUsageLedger } =
+    await import('./domains/governance/usage-ledger.integration.ts');
+  await verifyProviderUsageLedger(sql);
+  record(
+    'usage ledger: provider-local models, filters and totals',
+    true,
+    'all granularities, repeated provider, distinct IDs, null provider and deletion',
+  );
+
   const restoreViaTrash = (body: unknown): Promise<Response> =>
     fetch(`${base}/api/app/governance/trash/restore?orgId=${orgId}`, {
       method: 'POST',
