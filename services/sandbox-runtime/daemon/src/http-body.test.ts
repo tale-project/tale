@@ -5,8 +5,8 @@
 // shared protocol constant and an oversize body is its own 413 class.
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
-import { createServer, type Server } from 'node:http';
-import { connect } from 'node:net';
+import { createServer, IncomingMessage, type Server } from 'node:http';
+import { connect, Socket } from 'node:net';
 
 import { readJsonBody } from './http-body.ts';
 import { RUNNERD_MAX_REQUEST_BODY_BYTES } from './protocol.ts';
@@ -38,6 +38,41 @@ afterAll(async () => {
 });
 
 describe('readJsonBody', () => {
+  test.each(['valid', 'malformed', 'oversize', 'error'])(
+    'releases body listeners after %s intake while the request stays alive',
+    async (outcome) => {
+      // Exec responses can outlive their POST body for minutes. The request
+      // must no longer retain the raw upload through the reader's closures.
+      const req = new IncomingMessage(new Socket());
+      req.headers = {};
+      const callerData = () => {};
+      const callerError = () => {};
+      req.on('data', callerData);
+      req.on('error', callerError);
+      const pending = readJsonBody(req, CAP);
+      expect(req.listenerCount('data')).toBe(2);
+      expect(req.listenerCount('error')).toBe(2);
+      req.emit(
+        'data',
+        Buffer.from(
+          outcome === 'valid'
+            ? '{"ok":true}'
+            : outcome === 'oversize'
+              ? 'x'.repeat(CAP + 1)
+              : '{',
+        ),
+      );
+      if (outcome === 'error') req.emit('error', new Error('upload lost'));
+      else req.emit('end');
+      const result = await pending;
+      expect(result.ok).toBe(outcome === 'valid');
+      expect(req.listeners('data')).toEqual([callerData]);
+      expect(req.listeners('error')).toEqual([callerError]);
+      expect(req.listenerCount('end')).toBe(0);
+      req.destroy();
+    },
+  );
+
   test('a body over the cap is 413 payload_too_large, not 400', async () => {
     const res = await fetch(base, {
       method: 'POST',

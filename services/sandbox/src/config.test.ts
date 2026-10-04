@@ -11,6 +11,7 @@ import { RUNNERD_MAX_REQUEST_BODY_BYTES } from './session/runnerd-protocol.ts';
 const KEYS = [
   'SANDBOX_RUNTIME',
   'SANDBOX_DOCKER_IN_CONTAINER',
+  'SANDBOX_DOCKER_WORKLOADS',
   'SANDBOX_DOCKER_BUILD_CACHE',
   'SANDBOX_DIND_INNER_POOL',
   'SANDBOX_BUILDKITD_IMAGE',
@@ -416,4 +417,16 @@ describe('loadConfig — request body cap follows runnerd', () => {
     process.env.SANDBOX_MAX_REQUEST_BODY_BYTES = String(256 * 1024);
     expect(loadConfig().maxRequestBodyBytes).toBe(256 * 1024);
   });
+});
+
+test('Docker workloads inherit by default and validate an explicit allowlist', () => {
+  expect(loadConfig().dockerWorkloads).toBeUndefined();
+  process.env.SANDBOX_DOCKER_WORKLOADS = ' project, project ';
+  expect(loadConfig().dockerWorkloads).toEqual(['project']);
+  process.env.SANDBOX_DOCKER_WORKLOADS = 'none';
+  expect(loadConfig().dockerWorkloads).toEqual([]);
+  process.env.SANDBOX_DOCKER_WORKLOADS = 'workflow,project';
+  expect(loadConfig().dockerWorkloads).toEqual(['workflow', 'project']);
+  process.env.SANDBOX_DOCKER_WORKLOADS = 'browser';
+  expect(() => loadConfig()).toThrow(/SANDBOX_DOCKER_WORKLOADS/);
 });

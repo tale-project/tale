@@ -10,6 +10,16 @@
 # (2026-10-03). Tools require Responses; Chat Completions accepts no tools.
 # Reasoning cannot be disabled: neither none nor minimal is supported.
 # Codex subscription availability: https://learn.chatgpt.com/docs/models
+# The GPT-6 family (Astra, Sol, Luna) read from the same pages and from the
+# vendor's latest-model guide on 2026-10-03: "GPT-6 Astra and GPT-6.1 Sol
+# support Chat Completions, but tool calling requires Responses", and "GPT-6
+# Sol and GPT-6 Luna support function calling in Chat Completions only with
+# reasoning_effort: none". So Astra declares the Responses tool API (direct
+# chat calls it there), while Sol and Luna declare off + toolsRequireOff like
+# the 5.6 trio. Astra and Sol bill prompts over 272K input tokens at 2x input
+# and cache rates and 1.5x output, which this per-token schema cannot express;
+# the short-context prices are listed. Luna's cache writes are 1.25x its input
+# rate, as the vendor states it.
 - id: gpt-6.1-sol
   provider: openai
   tags:
@@ -26,6 +36,56 @@
     outputCentsPerMillion: 1000
     cacheReadCentsPerMillion: 10
     cacheWriteCentsPerMillion: 250
+- id: gpt-6-astra
+  provider: openai
+  tags:
+    - chat
+  supportsTools: true
+  toolCallingApi: responses
+  supportsVision: true
+  reasoning:
+    knob: effort
+  contextWindow: 1050000
+  maxOutputTokens: 128000
+  pricing:
+    inputCentsPerMillion: 1000
+    outputCentsPerMillion: 5000
+    cacheReadCentsPerMillion: 100
+    cacheWriteCentsPerMillion: 1250
+- id: gpt-6-sol
+  provider: openai
+  tags:
+    - chat
+  supportsTools: true
+  supportsVision: true
+  reasoning:
+    knob: effort
+    off: none
+    toolsRequireOff: true
+  contextWindow: 1050000
+  maxOutputTokens: 128000
+  pricing:
+    inputCentsPerMillion: 200
+    outputCentsPerMillion: 1000
+    cacheReadCentsPerMillion: 20
+    cacheWriteCentsPerMillion: 250
+- id: gpt-6-luna
+  provider: openai
+  tags:
+    - chat
+  supportsTools: true
+  supportsVision: true
+  reasoning:
+    knob: effort
+    off: none
+    toolsRequireOff: true
+  contextWindow: 1050000
+  maxOutputTokens: 128000
+  pricing:
+    inputCentsPerMillion: 10
+    outputCentsPerMillion: 50
+    cacheReadCentsPerMillion: 1
+    cacheWriteCentsPerMillion: 12.5
 - id: gpt-5.5
   provider: openai
   tags:

@@ -12,12 +12,14 @@
 // by the image's Node 24 — so this file uses only node: built-ins, no deps.
 
 import { timingSafeEqual } from 'node:crypto';
+import { once } from 'node:events';
 import {
   createServer,
   type IncomingMessage,
   type ServerResponse,
 } from 'node:http';
 import { resolve } from 'node:path';
+import { pipeline } from 'node:stream/promises';
 import { fileURLToPath } from 'node:url';
 
 import { ActivityGate } from './activity-gate.ts';
@@ -28,7 +30,8 @@ import { ExecManager } from './exec-manager.ts';
 import {
   deletePaths,
   listDir,
-  readWorkspaceFile,
+  streamWorkspaceFile,
+  type StageOptions,
   stageFiles,
   type StageItem,
 } from './file-ops.ts';
@@ -42,6 +45,7 @@ import {
   type RunnerdExecRequest,
   type RunnerdStdinWriteRequest,
 } from './protocol.ts';
+let stageRequests = 0;
 const FILE_READ_MAX_BYTES = 20 * 1024 * 1024;
 
 const TOKEN = process.env.TALE_RUNNERD_TOKEN ?? '';
@@ -145,50 +149,83 @@ function execConsumer(
   res: ServerResponse,
   label: string,
 ) {
+  // A detached exec can outlive this HTTP exchange. Its failure continuation
+  // still holds the consumer, so explicitly release the request/response pair
+  // when the connection ends instead of waiting for the command to finish.
+  let transport: { req: IncomingMessage; res: ServerResponse } | null = {
+    req,
+    res,
+  };
   const consumer = new AbortController();
   const closed = new Promise<void>((settleClosed) => {
     consumer.signal.addEventListener('abort', () => settleClosed(), {
       once: true,
     });
   });
-  const gone = () => consumer.abort();
+  const gone = () => {
+    transport?.req.removeListener('aborted', gone);
+    transport?.res.removeListener('close', gone);
+    transport = null;
+    // Node's default abort Error captures this close listener's response in
+    // its stack; a still-running exec retains the signal, so use no stack.
+    consumer.abort('consumer disconnected');
+  };
   // IncomingMessage 'close' also means a completely received request under
   // Node. The response's close is the consumer's lifetime; aborted covers an
   // incomplete request without mistaking normal receipt for a disconnect.
   req.once('aborted', gone);
   res.once('close', gone);
+  const emit = (event: RunnerdExecEvent) => {
+    const response = transport?.res;
+    if (!response || response.destroyed || response.writableEnded) return;
+    const line = `${JSON.stringify(event)}\n`;
+    if (
+      response.writableLength + Buffer.byteLength(line) >
+      RUNNERD_CONSUMER_BUFFER_MAX_BYTES
+    ) {
+      console.warn(
+        `[runnerd] ${label} consumer backpressured past ${RUNNERD_CONSUMER_BUFFER_MAX_BYTES}B — disconnecting it (reconnect via /attach)`,
+      );
+      gone();
+      // end() would leave the queued bytes waiting on the stalled reader.
+      // Destroying just this response releases its socket and write queue.
+      response.destroy();
+      return;
+    }
+    try {
+      response.write(line);
+    } catch (err) {
+      console.warn(`[runnerd] ${label} write failed:`, err);
+      gone();
+      response.destroy();
+    }
+  };
   return {
     signal: consumer.signal,
     closed,
-    emit: (event: RunnerdExecEvent) => {
-      if (consumer.signal.aborted || res.destroyed || res.writableEnded) return;
-      const line = `${JSON.stringify(event)}\n`;
-      if (
-        res.writableLength + Buffer.byteLength(line) >
-        RUNNERD_CONSUMER_BUFFER_MAX_BYTES
-      ) {
-        console.warn(
-          `[runnerd] ${label} consumer backpressured past ${RUNNERD_CONSUMER_BUFFER_MAX_BYTES}B — disconnecting it (reconnect via /attach)`,
-        );
-        gone();
-        // end() would leave the queued bytes waiting on the stalled reader.
-        // Destroying just this response releases its socket and write queue.
-        res.destroy();
-        return;
-      }
-      try {
-        res.write(line);
-      } catch (err) {
-        console.warn(`[runnerd] ${label} write failed:`, err);
-        gone();
-        res.destroy();
+    emit,
+    async replay(this: void, event: RunnerdExecEvent) {
+      emit(event);
+      // Only this in-flight write may hold the response. The reusable replay
+      // callback reads the nullable transport, so detach releases it as well.
+      const response = transport?.res;
+      if (response?.writableNeedDrain) {
+        const stalled = setTimeout(() => {
+          gone();
+          response.destroy();
+        }, 2_000);
+        try {
+          await once(response, 'drain', { signal: consumer.signal });
+        } finally {
+          clearTimeout(stalled);
+        }
       }
     },
     end() {
+      const response = transport?.res;
       gone();
-      req.removeListener('aborted', gone);
-      res.removeListener('close', gone);
-      if (!res.destroyed && !res.writableEnded) res.end();
+      if (response && !response.destroyed && !response.writableEnded)
+        response.end();
     },
   };
 }
@@ -233,13 +270,15 @@ async function handleExec(
     // The request's activity ends with its consumer. The exec keeps running,
     // protected by liveCount and its orphan deadline, with any late failure
     // observed even after the consumer left.
-    const run = execManager.run(parsed, consumer.emit).catch((err: unknown) => {
-      consumer.emit({
-        t: 'fail',
-        code: 'BAD_REQUEST',
-        message: err instanceof Error ? err.message : String(err),
+    const run = execManager
+      .run(parsed, consumer.emit, consumer.signal)
+      .catch((err: unknown) => {
+        consumer.emit({
+          t: 'fail',
+          code: 'BAD_REQUEST',
+          message: err instanceof Error ? err.message : String(err),
+        });
       });
-    });
     await Promise.race([run, consumer.closed]);
   } finally {
     consumer.end();
@@ -273,7 +312,7 @@ async function handleAttach(
   try {
     const stream = execManager.attach(
       execId,
-      consumer.emit,
+      consumer.replay,
       sinceSeq,
       consumer.signal,
     );
@@ -488,17 +527,86 @@ async function handleOperation(
     return;
   }
   if (req.method === 'POST' && path === '/files/stage') {
-    const stageBody = await readJsonBody(req);
-    if (!stageBody.ok) {
-      sendJson(res, stageBody.status, { error: stageBody.error });
+    // Bound JSON intake as well as downloads. Refused bodies are drained
+    // without retaining bytes, preserving the keep-alive framing contract.
+    if (stageRequests >= 2) {
+      await readJsonBody(req, 0);
+      sendJson(res, 503, { error: 'busy' });
       return;
     }
-    // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
-    const body = stageBody.value as { files?: StageItem[] };
-    touch();
-    const result = await stageFiles(body.files ?? []);
-    sendJson(res, 200, result);
-    return;
+    stageRequests += 1;
+    try {
+      const stageBody = await readJsonBody(req);
+      if (!stageBody.ok) {
+        sendJson(res, stageBody.status, { error: stageBody.error });
+        return;
+      }
+      const body = stageBody.value;
+      if (!isObject(body)) {
+        sendJson(res, 400, { error: 'bad_request' });
+        return;
+      }
+      const incomingFiles = body.files ?? [];
+      if (!Array.isArray(incomingFiles) || incomingFiles.length > 512) {
+        sendJson(res, 400, { error: 'bad_request' });
+        return;
+      }
+      const files: StageItem[] = [];
+      for (const item of incomingFiles) {
+        if (
+          !isObject(item) ||
+          typeof item.path !== 'string' ||
+          (item.url !== undefined && typeof item.url !== 'string') ||
+          (item.contentBase64 !== undefined &&
+            typeof item.contentBase64 !== 'string') ||
+          (item.sourceId !== undefined &&
+            (typeof item.sourceId !== 'string' ||
+              item.sourceId.length > 2048)) ||
+          (item.url !== undefined && item.contentBase64 !== undefined)
+        ) {
+          sendJson(res, 400, { error: 'bad_request' });
+          return;
+        }
+        files.push({
+          path: item.path,
+          url: item.url,
+          contentBase64: item.contentBase64,
+          sourceId: item.sourceId,
+        });
+      }
+      const options: StageOptions = {};
+      for (const key of ['replaceRoots', 'keepPaths'] as const) {
+        const value = body[key];
+        if (value !== undefined) {
+          if (
+            !Array.isArray(value) ||
+            !value.every((entry): entry is string => typeof entry === 'string')
+          ) {
+            sendJson(res, 400, { error: 'bad_request' });
+            return;
+          }
+          options[key] = value;
+        }
+      }
+      const transfer = new AbortController();
+      const abort = () => transfer.abort();
+      req.once('aborted', abort);
+      res.once('close', abort);
+      touch();
+      try {
+        const result = await stageFiles(files, {
+          ...options,
+          signal: transfer.signal,
+        });
+        if (!res.destroyed) sendJson(res, 200, result);
+      } finally {
+        req.removeListener('aborted', abort);
+        res.removeListener('close', abort);
+      }
+      return;
+    } finally {
+      stageRequests -= 1;
+    }
   }
   if (req.method === 'POST' && path === '/files/delete') {
     const deleteBody = await readJsonBody(req);
@@ -523,16 +631,16 @@ async function handleOperation(
     return;
   }
   if (req.method === 'GET' && path === '/fs/read') {
-    const bytes = await readWorkspaceFile(
+    const stream = await streamWorkspaceFile(
       url.searchParams.get('path') ?? '',
       FILE_READ_MAX_BYTES,
     );
-    if (bytes === null) {
+    if (stream === null) {
       sendJson(res, 404, { error: 'not_found' });
       return;
     }
     res.writeHead(200, { 'content-type': 'application/octet-stream' });
-    res.end(bytes);
+    await pipeline(stream, res);
     return;
   }
   sendJson(res, 404, { error: 'not_found' });
@@ -548,6 +656,8 @@ export const server = createServer((req, res) => {
     }
   });
 });
+
+server.once('close', () => execManager[Symbol.dispose]());
 
 // Bound how long a client may take to send a request (headers + body) so a
 // slow/stalled client can't pin a connection for Node's 5-min default. These

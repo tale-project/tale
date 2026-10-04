@@ -132,9 +132,25 @@ export function HarnessStatusSection({
       ) : (
         <Skeletonize loading={statusQuery.isPending}>
           {!statusQuery.isPending &&
-            statusQuery.data.some((row) => !row.managed.available) && (
+            statusQuery.data.some(
+              (row) =>
+                !row.managed.available &&
+                row.managed.reason === 'no-direct-credential',
+            ) && (
               <Text variant="muted" className="text-sm">
                 {t('providers.harnesses.noDirectCredential')}
+              </Text>
+            )}
+          {/* Models are direct-served, but none a runtime can carry: adding
+              a credential would not help, another model or Codex would. */}
+          {!statusQuery.isPending &&
+            statusQuery.data.some(
+              (row) =>
+                !row.managed.available &&
+                row.managed.reason === 'no-compatible-model',
+            ) && (
+              <Text variant="muted" className="text-sm">
+                {t('providers.harnesses.noCompatibleModel')}
               </Text>
             )}
           <ul className="border-border divide-border divide-y rounded-lg border">

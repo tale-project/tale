@@ -205,16 +205,24 @@ export function StandardAgentEditor({
     return rows;
   }, [harness, roster.data?.harnesses, t]);
 
-  // A subscription's model runs only on the runtime it is bound to: with a
-  // runtime chosen, offer what it can run.
+  // A subscription's model runs only on the runtime it is bound to, and a
+  // Responses-only model only on a runtime that speaks that API: with a
+  // runtime chosen, offer what it can run. Automatic picks the runtime.
   const modelOptions = useMemo<SearchableSelectOption[]>(() => {
+    const harnessWire = roster.data?.harnesses.find(
+      (entry) => entry.harness === harness,
+    )?.toolCallingWire;
     const runnable = (roster.data?.models ?? []).filter((model) => {
+      if (harness === AUTOMATIC) return true;
       const credential = model.credential;
-      return (
-        harness === AUTOMATIC ||
+      const bound =
         credential.authMethod === 'api-key' ||
         credential.authMethod === 'env' ||
-        credential.constraints.harness === harness
+        credential.constraints.harness === harness;
+      return (
+        bound &&
+        (model.toolCallingApi !== 'responses' ||
+          harnessWire === 'openai-responses')
       );
     });
     const rows: SearchableSelectOption[] = [
@@ -240,7 +248,7 @@ export function StandardAgentEditor({
       });
     }
     return rows;
-  }, [harness, roster.data?.models, selection, t]);
+  }, [harness, roster.data?.harnesses, roster.data?.models, selection, t]);
 
   // What a run would get, for the person looking — only once saved: a draft
   // is not what runs.

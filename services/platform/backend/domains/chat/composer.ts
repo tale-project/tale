@@ -1,6 +1,8 @@
+import type { HarnessGatewayWire } from '@tale/shared/schemas/providers';
 import type { SkillOrigin } from '@tale/shared/schemas/skills';
 import type { Sql } from 'postgres';
 
+import { harnessToolCallingWire } from '../../../lib/shared/providers/resolve_execution.ts';
 import {
   collectComposerOptions,
   type ComposerModelOption,
@@ -193,12 +195,22 @@ export async function listGovernedChatModels(
   return (await walkGovernedChatModels(sql, args)).models;
 }
 
+/** One harness the managed lane can run, as the agent pickers list it. */
+export interface ComposerHarnessRow {
+  harness: string;
+  label: string;
+  iconUrl?: string;
+  /** The wire the harness speaks to the gateway (its declaration, else
+   * derived). */
+  toolCallingWire: HarnessGatewayWire;
+}
+
 export async function listComposerModels(
   sql: Sql,
   args: { organizationId: string; userId: string },
 ): Promise<{
   models: ComposerModelOption[];
-  harnesses: Array<{ harness: string; label: string; iconUrl?: string }>;
+  harnesses: ComposerHarnessRow[];
   voice: {
     ttsAvailable: boolean;
     transcriptionAvailable: boolean;
@@ -215,14 +227,17 @@ export async function listComposerModels(
     args.organizationId,
   );
 
-  // Only harnesses the managed lane can actually run.
+  // Only harnesses the managed lane can actually run, each with the wire it
+  // speaks to the gateway: a model whose tools need the Responses API is
+  // offered only to a harness that speaks it.
   const harnesses = loadHarnesses()
     .filter((harness) => harness.credentialPolicy.managed)
     .map((harness) => {
       const iconUrl = readSystemEntryIcon('harnesses', harness.slug);
-      const row: { harness: string; label: string; iconUrl?: string } = {
+      const row: ComposerHarnessRow = {
         harness: harness.slug,
         label: harness.displayName,
+        toolCallingWire: harnessToolCallingWire(harness),
       };
       if (iconUrl !== undefined) row.iconUrl = iconUrl;
       return row;

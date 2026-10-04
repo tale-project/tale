@@ -19,6 +19,7 @@ import {
   type DropdownMenuGroup,
   type DropdownMenuItem,
 } from '@tale/ui/dropdown-menu';
+import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { ChevronDown, Cpu, Gauge } from 'lucide-react';
 import { useMemo, useState, type ComponentType } from 'react';
 
@@ -44,6 +45,10 @@ const LEVEL_LABEL_KEY: Record<ReasoningEffort, string> = {
 interface ComposerSelectionPickerProps {
   /** The direct-served models the chat lane can call. */
   models: readonly ComposerModelOption[];
+  /** Providers whose models only a subscription serves: chat leaves them out
+   * (a subscription runs only in its vendor's own runtime, in tasks and
+   * automations), and the model list says so under its rows. */
+  subscriptionProviders?: readonly string[];
   selection: ComposerSelection;
   onSelectionChange: (next: ComposerSelection) => void;
   disabled?: boolean;
@@ -51,11 +56,21 @@ interface ComposerSelectionPickerProps {
 
 export function ComposerSelectionPicker({
   models,
+  subscriptionProviders = [],
   selection,
   onSelectionChange,
   disabled,
 }: ComposerSelectionPickerProps) {
   const { t } = useT('chat');
+  const { locale } = useLocale();
+  const subscriptionNote =
+    subscriptionProviders.length > 0
+      ? t('modelSelector.subscriptionsTasksOnly', {
+          providers: new Intl.ListFormat(locale, {
+            type: 'conjunction',
+          }).format(subscriptionProviders),
+        })
+      : undefined;
   // Controlled so a single pick inside a section submenu can close the whole
   // menu the way a plain menu item would.
   const [open, setOpen] = useState(false);
@@ -158,11 +173,18 @@ export function ComposerSelectionPicker({
           {
             type: 'custom',
             content: (
-              <PickerSearchList
-                options={modelChoices}
-                emptyHint={t('modelSelector.noModelsAvailable')}
-                onPicked={closeMenu}
-              />
+              <div className="flex min-w-0 flex-col">
+                <PickerSearchList
+                  options={modelChoices}
+                  emptyHint={t('modelSelector.noModelsAvailable')}
+                  onPicked={closeMenu}
+                />
+                {subscriptionNote !== undefined && (
+                  <p className="text-muted-foreground max-w-56 px-2 pt-1.5 pb-1 text-xs leading-snug">
+                    {subscriptionNote}
+                  </p>
+                )}
+              </div>
             ),
           },
         ),
@@ -229,6 +251,7 @@ export function ComposerSelectionPicker({
     return groups;
   }, [
     modelChoices,
+    subscriptionNote,
     selection,
     onSelectionChange,
     selectedModel,
