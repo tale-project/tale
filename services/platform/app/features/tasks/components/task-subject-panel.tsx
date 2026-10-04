@@ -67,13 +67,17 @@ function reviewConfirmationIdentity(
  * input renders Start soft-disabled with the reason attached, because a promise
  * of "then start" with no Start on screen leaves the reader hunting the board
  * for a gesture that doesn't exist.
+ *
+ * Everything the reader started here belongs to ONE task: the board dialog
+ * keeps this panel mounted when it opens another task, so each task gets a
+ * fresh panel — a Request changes draft, a pending verb or an open
+ * confirmation never carries over to the next task.
  */
-export function TaskSubjectPanel({
-  organizationId,
-  task,
-  ownedBy,
-  canEdit,
-}: {
+export function TaskSubjectPanel(props: TaskSubjectPanelProps) {
+  return <TaskSubjectPanelBody key={props.task._id} {...props} />;
+}
+
+interface TaskSubjectPanelProps {
   organizationId: string;
   task: {
     _id: string;
@@ -90,7 +94,14 @@ export function TaskSubjectPanel({
   /** The viewer may work the task (`useTaskAccess`): start, approve,
    * request changes, cancel. */
   canEdit: boolean;
-}) {
+}
+
+function TaskSubjectPanelBody({
+  organizationId,
+  task,
+  ownedBy,
+  canEdit,
+}: TaskSubjectPanelProps) {
   const { t } = useT('tasks');
   const { t: tCommon } = useT('common');
   const headingId = useId();

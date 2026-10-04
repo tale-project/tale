@@ -1,5 +1,6 @@
 'use client';
 
+import { isEpochMs } from '@tale/shared/schemas/epoch-ms';
 import { Badge, type BadgeProps } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { ViewDialog } from '@tale/ui/dialog/view-dialog';
@@ -20,7 +21,7 @@ import { EmbeddingNotConfiguredGuidance } from './embedding-settings-action';
 
 interface RagStatusBadgeProps {
   status: RagStatus | undefined;
-  /** Timestamp (in seconds) when the document was indexed */
+  /** When indexing completed, in epoch milliseconds (`rag_indexed_at_ms`) */
   indexedAt?: number;
   /** Error message (for failed status) */
   error?: string;
@@ -137,7 +138,9 @@ export function RagStatusBadge({
 
   // Show clickable dialog with indexed date for completed status
   if (effectiveStatus === 'completed') {
-    const indexedDate = indexedAt ? new Date(indexedAt * 1000) : null;
+    // Epoch milliseconds, as every producer stamps it; a stamp outside the
+    // shared bound reads as unknown, like a missing one.
+    const indexedDate = isEpochMs(indexedAt) ? new Date(indexedAt) : null;
     const formattedDate = indexedDate
       ? formatDate(indexedDate, 'long')
       : t('rag.status.unknown');

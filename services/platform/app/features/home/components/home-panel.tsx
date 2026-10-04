@@ -634,7 +634,8 @@ export function HomeNavigator({
 
   // Unsent text marks its row — not the open one, whose composer is in view.
   const draftFor = (item: HomeItem, active: boolean) =>
-    !active && hasDraft(homeDraftKey(item, myUserId, organizationId));
+    !active &&
+    hasDraft(homeDraftKey(item, myUserId, organizationId), item.kind);
 
   const renderRow = (item: HomeItem) => {
     const active = isActive(item, location);

@@ -126,9 +126,16 @@ const DEDICATED_RESPOND_DOORS: Readonly<Record<string, string>> = {
  * only from `pending`, only to `executing` (approve) or `rejected`;
  * `completed` is the execution path's to set. Review-gate rows refuse
  * toward their dedicated respond doors, whose permission checks and state
- * transitions a generic settle would bypass. A decided connector operation
- * pokes the automation run parked behind it (post-commit; the run's own
- * poll chain is the backstop, the 0.4 posture).
+ * transitions a generic settle would bypass.
+ *
+ * The decision is what the transaction commits, and once committed it
+ * stands. A decided connector operation then pokes the automation run
+ * parked behind it, but the poke only saves time: the run's own approval
+ * poll and the liveness sweep resume it anyway (0.4 had no poke at all).
+ * A poke that fails after the commit is therefore logged, never thrown —
+ * answering a recorded approval with a failure told the reviewer it was not
+ * accepted, a retry then met ALREADY_RESOLVED, and the gate went on to
+ * admit the operation all the same.
  */
 export async function decideApproval(
   sql: Sql,
@@ -249,10 +256,34 @@ export async function decideApproval(
   if (decided.resourceType === 'connector_operation') {
     const runId = decided.metadata?.runId;
     if (typeof runId === 'string') {
-      await pokeParkedRun(sql, {
+      await wakeParkedRun(sql, {
         organizationId: args.organizationId,
+        approvalId: args.approvalId,
         runId,
       });
     }
+  }
+}
+
+/**
+ * The post-commit poke of {@link decideApproval}. It runs after the decision
+ * committed, so a failure here (the resume job's send, the run row's update)
+ * must not reach the caller as the decision's failure; the run's own poll
+ * resumes it within `APPROVAL_POLL_MS`.
+ */
+async function wakeParkedRun(
+  sql: Sql,
+  args: { organizationId: string; approvalId: string; runId: string },
+): Promise<void> {
+  try {
+    await pokeParkedRun(sql, {
+      organizationId: args.organizationId,
+      runId: args.runId,
+    });
+  } catch (error) {
+    console.error(
+      `[approvals] approval ${args.approvalId} is decided, but waking run ${args.runId} failed; its own poll resumes it:`,
+      error,
+    );
   }
 }

@@ -9,6 +9,7 @@ import { SkeletonBox, SkeletonText } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { useTheme } from '@tale/ui/theme';
+import { useRetryFocus } from '@tale/ui/use-retry-focus';
 import { Check, Copy, WrapText } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
@@ -35,7 +36,6 @@ import {
 } from '@/lib/utils/text-file-types';
 
 import { useSkillAsset } from '../hooks/queries';
-import { useRetryFocus } from '../hooks/use-retry-focus';
 import { readFailureMessage, skillReadState } from '../utils/skill-read-state';
 
 interface SkillAssetViewerProps {

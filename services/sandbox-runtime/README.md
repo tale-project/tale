@@ -24,6 +24,8 @@ held through file descriptors: stopping or restarting the runtime loses them,
 while the workspace remains persistent.
 
 An exec output reader is disconnected before its pending writes exceed 8 MiB.
+Eight exec/attach consumers share a session-wide admission limit, including
+exec requests receiving their body; additional readers receive `503 busy`.
 Attach replay waits for socket drain, disconnecting a reader stalled for two
 seconds, so historical output cannot fill memory faster than the client reads.
 The command continues under its existing deadline. Reconnect through attach
@@ -33,6 +35,12 @@ which the history present at attachment has been delivered. Session idle and
 TTL cleanup atomically checks the current work generation and activity clock
 before freezing compute; see the [session contract](../sandbox/docs/sessions.md).
 
+Process cleanup indexes each process-table snapshot once by execution, parent,
+group and PID. A session retaining many executions' background processes reuses
+those indexes throughout the cleanup pass instead of rescanning the complete
+table for every execution. The indexes expire with the pass; later passes
+still check process identity and ownership from a fresh snapshot.
+
 Completed commands release their request and consumer data even while another
 command keeps the session active. Process cleanup retains only the ownership
 and liveness data it still needs. Held-open stdin has an 8 MiB pending-write
@@ -41,12 +49,16 @@ its pipe drains, without partially accepting the refused line.
 
 File staging streams each URL into a temporary file beside its destination
 and replaces the destination only after a complete, bounded download. Cancelling
-or failing a download preserves the previous file. At most two stage requests
+or failing a download preserves the previous file. Atomic replacement preserves
+the destination's permission bits, including executable files. At most two stage requests
 are admitted at once, including their JSON intake; excess requests report
-`busy`. URL inputs retain their 100 MiB limit and 25-second per-file deadline;
+`busy`. URL inputs retain their 100 MiB limit; a 25-second deadline covers the
+whole batch, including cache verification and final reconciliation;
 inline inputs retain their 1 MiB limit. Output reads also stream, within their
 20 MiB file limit. Immutable source identities can skip a transfer only after
-rehashing the current destination; a changed file is repaired. Explicit final
+rehashing the current destination and checking that its pathname still names
+the same unchanged file; a changed file is repaired. Reads and cache probes
+reject symlinks and named pipes without blocking filesystem workers. Explicit final
 manifests remove stale files only within the named managed roots after all
 transfer batches succeeded. The
 [session contract](../sandbox/docs/sessions.md) describes that internal API.

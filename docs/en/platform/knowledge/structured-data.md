@@ -40,6 +40,8 @@ You need an Editor role or higher to maintain organization records. Open **Knowl
 
 The form holds each field to what Tale stores before it saves: a **Name** of up to 300 characters, a **Phone** of up to 50, a **Locale** of up to 20, and an **Email** with at most 64 characters before the `@`. A value past a limit is named under its field, and nothing is saved until you fix it.
 
+To see only the contacts in one language, choose **Filter** above the Contacts list and pick the language under **Locale**. A language includes its regional variants: **FR** lists contacts whose locale is `fr`, `fr-CH`, or `fr_CA`. A contact without a locale appears only while no language is picked.
+
 You can also add a contact while writing to them. In the **Inbox** view in Home, choose **New email** and type an address into **To**: if no contact carries it, the list offers **Add “…” as a contact**, which opens this same form with the **Email** already filled. Saving makes that contact the recipient, so you never leave the message you are writing.
 
 If the email address already exists, find the existing contact and update it through the row menu instead of creating a duplicate; from **New email**, Tale selects the existing contact for you. Saving a contact creates a record; it does not send that person an email.
