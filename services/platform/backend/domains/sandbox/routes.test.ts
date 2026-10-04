@@ -184,7 +184,7 @@ describe('sandbox settings read and write authority', () => {
     },
   );
 
-  it.each(['editor', 'viewer'])(
+  it.each(['member', 'editor', 'viewer'])(
     'withholds infrastructure reads from %s',
     async (role) => {
       caller.role = role;
