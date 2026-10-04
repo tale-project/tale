@@ -35,6 +35,9 @@ const CHECKED_CI_FILES = [
   '.github/workflows/sast.yml',
   '.github/workflows/security.yml',
   '.github/actions/setup-cli/action.yml',
+  '.github/workflows/scorecard.yml',
+  '.github/scripts/pull-ci-images.sh',
+  'services/platform/turbo.json',
 ];
 /**
  * The files `compose/services/compose-parity.test.ts` holds the CLI's

@@ -139,6 +139,7 @@ test.skipIf(process.platform === 'win32')(
         ['platform', 'web', 'docs', 'ui-docs', 'ai-gateway'],
         true,
       ],
+      ['.github/scripts/pull-ci-images.sh', [], true],
       ['bun.lock', ['platform', 'web', 'docs', 'ui-docs', 'ai-gateway'], true],
       [
         'package.json',
@@ -431,8 +432,8 @@ describe.skipIf(process.platform === 'win32')(
       'sandbox-buildkitd',
       'sandbox-runtime',
     ];
-    // Release's real three- and twelve-image matrices end on exact batch
-    // boundaries; macOS Bash 3.2 must never expand an empty final PID array.
+    // Exercise Release's real three- and twelve-image selections under
+    // macOS Bash 3.2 as well as the eight-image stack.
     const cases: [string, string, string, string, string[]][] = [
       [
         'Release stack (8)',
@@ -515,15 +516,25 @@ esac
             .replaceAll('${{ env.REGISTRY }}', 'ghcr.io')
             .replaceAll('${{ github.repository }}', 'tale-project/tale')
             .replaceAll('${{ needs.prepare.outputs.version_number }}', '1.2.3');
-          const result = await execute(expanded, {
-            PATH: `${directory}:${process.env.PATH}`,
-            SOURCE_SHA: pullSource,
-            RECEIPTS: receipts,
-            SERVICE_NAMES: JSON.stringify(selectedServices),
-            TEST_CALLS: log,
-            TEST_FAIL_STAGE: failureStage,
-            TEST_FAIL_SERVICE: selectedServices[0]!,
-          });
+          const result = await execute(
+            expanded,
+            {
+              REGISTRY_PATH: 'ghcr.io/tale-project/tale',
+              PULL_HELPER: join(
+                repository,
+                '.github/scripts/pull-ci-images.sh',
+              ),
+              IMAGE_TAG: name === 'release' ? '1.2.3-amd64' : '',
+              PATH: `${directory}:${process.env.PATH}`,
+              SOURCE_SHA: pullSource,
+              RECEIPTS: name === 'release' ? '' : receipts,
+              SERVICE_NAMES: JSON.stringify(selectedServices),
+              TEST_CALLS: log,
+              TEST_FAIL_STAGE: failureStage,
+              TEST_FAIL_SERVICE: selectedServices[0]!,
+            },
+            repository,
+          );
           const calls = (await readFile(log, 'utf8')).trim().split('\n');
           let active = 0;
           let peak = 0;
@@ -537,12 +548,13 @@ esac
           expect(peak).toBeLessThanOrEqual(3);
           if (fails) {
             expect(result.code).not.toBe(0);
-            expect(
-              calls.filter((call) => call.startsWith('start ')),
-            ).toHaveLength(3);
+            const started = calls.filter((call) => call.startsWith('start '));
+            // Other persistent workers may finish their own assigned images.
+            expect(started.length).toBeGreaterThanOrEqual(3);
+            expect(started.length).toBeLessThanOrEqual(selectedServices.length);
             expect(
               calls.filter((call) => call.startsWith('end ')),
-            ).toHaveLength(3);
+            ).toHaveLength(started.length);
             if (failureStage === 'pull')
               expect(
                 calls.some((call) =>

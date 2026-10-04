@@ -18,6 +18,7 @@ type Step = {
   with?: Record<string, unknown>;
 };
 type Job = {
+  outputs?: Record<string, string>;
   name?: string;
   needs?: string[] | string;
   if?: string;
@@ -221,7 +222,7 @@ describe('E2E service scheduling', () => {
     );
     const upload = step(file.jobs.build, 'Upload platform dist for the shards');
     expect(upload.with).toMatchObject({
-      name: 'e2e-platform-dist',
+      name: 'e2e-platform-dist-attempt-${{ github.run_attempt }}',
       path: 'services/platform/dist',
       'compression-level': 0,
       'if-no-files-found': 'error',
@@ -231,10 +232,24 @@ describe('E2E service scheduling', () => {
       file.jobs.e2e,
       'Download platform dist (built once by the build job)',
     );
-    expect(download.with).toMatchObject({
-      name: upload.with?.name,
+    expect(upload.id).toBe('bundle-artifact');
+    expect(file.jobs.build?.outputs?.dist_artifact_id).toBe(
+      '${{ steps.bundle-artifact.outputs.artifact-id }}',
+    );
+    expect(download.with).toEqual({
+      'artifact-ids': '${{ needs.build.outputs.dist_artifact_id }}',
       path: upload.with?.path,
     });
+    const validate = step(
+      file.jobs.e2e,
+      'Validate platform bundle artifact identity',
+    );
+    expect(download.with?.['artifact-ids']).toBe(
+      validate.env?.DIST_ARTIFACT_ID,
+    );
+    expect(file.jobs.e2e!.steps!.indexOf(validate)).toBeLessThan(
+      file.jobs.e2e!.steps!.indexOf(download),
+    );
   });
 
   test('preview reuses the declared build task while Playwright cache lanes stay isolated', async () => {
@@ -434,4 +449,83 @@ test('candidate scans retain blocking policies without a second discarded SARIF 
     'ignore-unfixed': true,
     trivyignores: '.trivyignore.yaml',
   });
+});
+
+async function execute(
+  cmd: string[],
+  cwd: string,
+  env: Record<string, string> = {},
+) {
+  const child = Bun.spawn(cmd, {
+    cwd,
+    env: { ...process.env, ...env },
+    stdout: 'pipe',
+    stderr: 'pipe',
+  });
+  const [stdout, stderr, code] = await Promise.all([
+    new Response(child.stdout).text(),
+    new Response(child.stderr).text(),
+    child.exited,
+  ]);
+  return { stdout, stderr, code };
+}
+
+describe('E2E artifact and browser provenance', () => {
+  test.skipIf(process.platform === 'win32').each([
+    ['123456', true],
+    ['', false],
+    ['0', false],
+    ['123,456', false],
+    ['123\n456', false],
+    ['wrong', false],
+  ] as const)(
+    'bundle download admits only one immutable artifact ID: %s',
+    async (id, valid) => {
+      const validate = step(
+        (await workflow('e2e')).jobs.e2e!,
+        'Validate platform bundle artifact identity',
+      );
+      const result = await execute(
+        ['bash', '-e', '-c', validate.run!],
+        repository,
+        {
+          DIST_ARTIFACT_ID: id,
+        },
+      );
+      expect(result.code === 0, result.stderr).toBe(valid);
+      if (!valid)
+        expect(result.stdout).toContain(
+          '::error::The platform build reported no valid bundle artifact ID',
+        );
+    },
+  );
+
+  test.each([
+    'packages/e2e/src/config.ts',
+    'services/platform/playwright.config.ts',
+    'services/web/playwright.config.ts',
+    'services/docs/playwright.config.ts',
+  ])(
+    '%s uses headless Chromium without a full-browser channel',
+    async (path) => {
+      const source = await readFile(join(repository, path), 'utf8');
+      expect(source).not.toMatch(/\bchannel\s*:/);
+      expect(source).not.toMatch(/\bheadless\s*:\s*false\b/);
+      for (const preset of source.matchAll(/\bdevices\[['"]([^'"]+)['"]\]/g))
+        expect(preset[1]).toBe('Desktop Chrome');
+      for (const browser of source.matchAll(
+        /\bbrowserName\s*:\s*['"]([^'"]+)['"]/g,
+      ))
+        expect(browser[1]).toBe('chromium');
+      // The platform supplies its Desktop Chrome project; static sites inherit
+      // this factory's Chromium project. Resolve the real config with Playwright
+      // --list when changing the project shape; don't load Playwright into every
+      // CLI unit run merely to inspect these declarative settings.
+      if (path.startsWith('packages/'))
+        expect(source).toContain(
+          "{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }",
+        );
+      else expect(source).toContain('createPlaywrightConfig({');
+    },
+  );
 });

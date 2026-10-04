@@ -180,8 +180,12 @@ succeed. It does not install dependencies. Shard 1 also runs every other workspa
 `test:ui` once; the platform shards retain the suite's bounded worker pool. **E2E** uses
 four single-worker platform shards, each with its own stack, and builds the preview
 bundle once through the same Turbo task used by Checks. A run artifact carries those
-exact bytes to every shard. Unit and UI workers reuse a job-local Node bytecode
-cache without relaxing isolation. See [the CI scheduling guide](../.github/CI.md).
+exact bytes to every shard through the build's validated immutable artifact ID.
+Full reruns publish a new attempt-specific artifact; failed-only reruns reuse the
+successful build's original ID. Unit and UI workers reuse a job-local Node bytecode
+cache without relaxing isolation. Chromium caches use the installed Playwright version,
+runner OS and architecture; jobs install its headless shell and always provision native
+dependencies. See [the CI scheduling guide](../.github/CI.md).
 
 E2E pull requests first compute a fail-closed platform, web and docs service scope;
 candidates, nightly and manual runs select every service. Candidate receipts require

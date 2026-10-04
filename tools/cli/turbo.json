@@ -61,7 +61,9 @@
         "$TURBO_ROOT$/services/platform/backend/core/**",
         "$TURBO_ROOT$/services/platform/lib/**",
         "$TURBO_ROOT$/configs/platform/**",
-        "!$TURBO_ROOT$/configs/platform/**/.turbo/**"
+        "!$TURBO_ROOT$/configs/platform/**/.turbo/**",
+        "$TURBO_ROOT$/.github/scripts/pull-ci-images.sh",
+        "$TURBO_ROOT$/.github/workflows/scorecard.yml"
       ],
       "dependsOn": ["generate", "^transit"]
     },

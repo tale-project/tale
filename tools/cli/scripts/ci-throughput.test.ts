@@ -23,6 +23,7 @@ const workflowSchema = z.object({
     z.string(),
     z.object({
       name: z.string(),
+      outputs: z.record(z.string(), z.string()).optional(),
       if: z.string().optional(),
       permissions: z.record(z.string(), z.string()).optional(),
       'timeout-minutes': z.number().optional(),
@@ -222,7 +223,17 @@ test('E2E uses the normal build cache and one artifact for every platform shard'
   const download = suite.steps.find((step) =>
     step.uses?.startsWith('actions/download-artifact@'),
   )!;
-  expect(upload.with?.name).toBe(download.with?.name);
+  expect(upload.id).toBe('bundle-artifact');
+  expect(upload.with?.name).toBe(
+    'e2e-platform-dist-attempt-${{ github.run_attempt }}',
+  );
+  expect(build.outputs?.dist_artifact_id).toBe(
+    '${{ steps.bundle-artifact.outputs.artifact-id }}',
+  );
+  expect(download.with?.['artifact-ids']).toBe(
+    '${{ needs.build.outputs.dist_artifact_id }}',
+  );
+  expect(download.with?.name).toBeUndefined();
   expect(upload.with?.path).toBe(download.with?.path);
   expect(upload.with?.['if-no-files-found']).toBe('error');
   expect([suite.needs].flat()).toContain('build');

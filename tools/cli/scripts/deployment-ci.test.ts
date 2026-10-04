@@ -730,6 +730,18 @@ printf '%s\\n' "$TEST_COMPARE_STATUS"
     );
     expect(checkouts.length).toBeGreaterThan(10);
     for (const { id, job, entry } of checkouts) {
+      if (entry.name === 'Checkout CI image pull helper') {
+        expect(['smoke-test', 'image-validate']).toContain(id);
+        expect(entry.if).toBe("needs.changes.outputs.candidate_sha != ''");
+        expect(entry.with).toEqual({
+          ref: '${{ github.workflow_sha }}',
+          path: '.ci-workflow',
+          'persist-credentials': false,
+          'sparse-checkout': '.github/scripts/pull-ci-images.sh',
+          'sparse-checkout-cone-mode': false,
+        });
+        continue;
+      }
       if (id === 'changes') {
         expect(entry.with?.ref).toBe(
           '${{ needs.candidate-source.outputs.candidate_sha }}',
@@ -911,6 +923,9 @@ printf '%s\\n' "$TEST_COMPARE_STATUS"
         'merge-multiple': true,
       });
       expect(pulling.env).toEqual({
+        PULL_HELPER:
+          "${{ needs.changes.outputs.candidate_sha != '' && '.ci-workflow/.github/scripts/pull-ci-images.sh' || '.github/scripts/pull-ci-images.sh' }}",
+        REGISTRY_PATH: '${{ env.REGISTRY }}/${{ github.repository }}',
         SOURCE_SHA: '${{ needs.changes.outputs.source_sha }}',
         RECEIPTS: '${{ runner.temp }}/image-receipts',
       });
@@ -925,7 +940,11 @@ printf '%s\\n' "$TEST_COMPARE_STATUS"
         } = {},
       ) => {
         const tools = await standIns();
-        const result = await execute(expand(pulling.run), {
+        const script = expand(pulling.run)?.replace(
+          'bash "$PULL_HELPER"',
+          `bash '${join(repository, '.github/scripts/pull-ci-images.sh')}'`,
+        );
+        const result = await execute(script, {
           PATH: tools.path,
           TEST_COMMAND_LOG: tools.log,
           TEST_REVISION: CANDIDATE,
@@ -934,6 +953,7 @@ printf '%s\\n' "$TEST_COMPARE_STATUS"
           TEST_FAIL_COMMAND: foreign.failCommand ?? '-',
           TEST_FAIL_SERVICE: foreign.failService ?? '-',
           TEST_TRACK_PULLS: String(foreign.trackPulls ?? false),
+          REGISTRY_PATH: 'ghcr.io/tale-project/tale',
           SOURCE_SHA: CANDIDATE,
           RECEIPTS: directory,
         });
@@ -958,23 +978,24 @@ printf '%s\\n' "$TEST_COMPARE_STATUS"
               `docker image inspect --format {{ index .Config.Labels "org.opencontainers.image.revision" }} ${image(service)}`,
               `docker tag ${image(service)} ghcr.io/tale-project/tale/tale-${service}:latest`,
             ]),
-            'docker tag ghcr.io/tale-project/tale/tale-sandbox-runtime:latest tale-sandbox-runtime:latest',
+            ...['sandbox-runtime', 'sandbox-buildkitd'].map(
+              (service) =>
+                `docker tag ${image(service)} tale-${service}:latest`,
+            ),
           ].toSorted(),
         );
+        // Independent service workers may interleave, but each service must
+        // finish pulling and pass source validation before its local tag.
         for (const service of BUILT) {
-          const pulled = result.calls.indexOf(`docker pull ${image(service)}`);
-          const inspected = result.calls.indexOf(
-            `docker image inspect --format {{ index .Config.Labels "org.opencontainers.image.revision" }} ${image(service)}`,
+          const calls = result.calls.filter((call) =>
+            call.includes(image(service)),
           );
-          const tagged = result.calls.indexOf(
-            `docker tag ${image(service)} ghcr.io/tale-project/tale/tale-${service}:latest`,
-          );
-          expect(pulled).toBeLessThan(inspected);
-          expect(inspected).toBeLessThan(tagged);
+          expect(calls[0]).toBe(`docker pull ${image(service)}`);
+          expect(calls[1]).toStartWith('docker image inspect ');
+          expect(
+            calls.slice(2).every((call) => call.startsWith('docker tag ')),
+          ).toBe(true);
         }
-        expect(result.calls.at(-1)).toBe(
-          'docker tag ghcr.io/tale-project/tale/tale-sandbox-runtime:latest tale-sandbox-runtime:latest',
-        );
         // The loop pulls exactly what the build matrix builds.
         expect(BUILT.toSorted()).toEqual(
           (await workflow()).jobs.build!.strategy!.matrix!.service!.toSorted(),
@@ -1021,7 +1042,7 @@ printf '%s\\n' "$TEST_COMPARE_STATUS"
           ),
         ),
       )(
-      'propagates a %s %s failure from a worker, including the final batch',
+      'propagates a %s %s failure from a worker, including its final image',
       async (service, command) => {
         const run = await pull();
         const result = await run(await receipts(CANDIDATE, 'tag'), {
@@ -1031,14 +1052,16 @@ printf '%s\\n' "$TEST_COMPARE_STATUS"
         });
         expect(result.code).not.toBe(0);
         expect(result.stdout).toContain(
-          '::error::Image download or source verification failed',
-        );
-        expect(result.calls.at(-1)).not.toBe(
-          'docker tag ghcr.io/tale-project/tale/tale-sandbox-runtime:latest tale-sandbox-runtime:latest',
+          `::error::Could not ${command === 'image' ? 'inspect' : command} tale-${service}`,
         );
         expect(
+          result.calls.some((call) =>
+            / tale-sandbox-(runtime|buildkitd):latest$/.test(call),
+          ),
+        ).toBe(false);
+        expect(
           result.calls.filter((call) => call.startsWith('pull-end ')),
-        ).toHaveLength(service === 'db' ? 3 : BUILT.length);
+        ).toHaveLength(service === 'db' ? BUILT.length - 1 : BUILT.length);
         if (command === 'pull') {
           expect(
             result.calls.some(

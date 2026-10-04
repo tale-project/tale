@@ -10,7 +10,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join, relative, resolve, sep } from 'node:path';
+import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { parse } from 'yaml';
@@ -46,12 +46,17 @@ const summarySchema = z.object({
 });
 type Task = z.infer<typeof summarySchema>['tasks'][number];
 
+const posixPath = (file: string) => file.replaceAll('\\', '/');
+
 function repoInputs(task: Task): Set<string> {
   return new Set(
     Object.keys(task.inputs).map((file) =>
-      relative(REPO_ROOT, resolve(REPO_ROOT, task.directory, file))
-        .split(sep)
-        .join('/'),
+      posixPath(
+        relative(
+          REPO_ROOT,
+          resolve(REPO_ROOT, posixPath(task.directory), posixPath(file)),
+        ),
+      ),
     ),
   );
 }
@@ -197,10 +202,10 @@ describe('CI cache boundaries', () => {
         ),
         `${task.taskId} remains parallel to every dependency's checks`,
       ).toEqual([]);
-      const manifestPath = `${task.directory.split(sep).join('/')}/package.json`;
+      const directory = posixPath(task.directory);
       expect(
-        ownInputs.has(manifestPath),
-        `CLI cache guard reads ${manifestPath}`,
+        ownInputs.has(`${directory}/package.json`),
+        `CLI cache guard reads ${directory}/package.json`,
       ).toBe(true);
       const manifest = z
         .object({
@@ -209,10 +214,7 @@ describe('CI cache boundaries', () => {
         })
         .parse(
           JSON.parse(
-            readFileSync(
-              join(REPO_ROOT, task.directory, 'package.json'),
-              'utf8',
-            ),
+            readFileSync(join(REPO_ROOT, directory, 'package.json'), 'utf8'),
           ),
         );
       const dependencies = Object.entries({
@@ -247,6 +249,21 @@ describe('CI cache boundaries', () => {
     );
   });
 
+  test('Windows Turbo directory and input paths resolve to the same repository keys', () => {
+    const task = tasks.get('@tale/cli#test')!;
+    const windowsTask = {
+      ...task,
+      directory: posixPath(task.directory).replaceAll('/', '\\'),
+      inputs: Object.fromEntries(
+        Object.entries(task.inputs).map(([file, hash]) => [
+          posixPath(file).replaceAll('/', '\\'),
+          hash,
+        ]),
+      ),
+    };
+    expect(repoInputs(windowsTask)).toEqual(repoInputs(task));
+  });
+
   test('every root TypeScript family config contributes to task hashes', () => {
     const configs = readdirSync(REPO_ROOT).filter((name) =>
       /^tsconfig.*\.json$/.test(name),
@@ -258,14 +275,15 @@ describe('CI cache boundaries', () => {
   });
 
   test('installation settings and dependency patch contents invalidate shared task caches', () => {
-    const files = new Set(Object.keys(summary.globalCacheInputs.files));
+    const files = new Set(
+      Object.keys(summary.globalCacheInputs.files).map(posixPath),
+    );
     expect(files).toContain('bunfig.toml');
     const patches = Array.from(
       new Bun.Glob('patches/**').scanSync({ cwd: REPO_ROOT, onlyFiles: true }),
     );
     expect(patches.length).toBeGreaterThan(0);
-    for (const patch of patches)
-      expect(files).toContain(patch.split(sep).join('/'));
+    for (const patch of patches) expect(files).toContain(posixPath(patch));
   });
 
   test('the shared platform build cache includes catalog validation and its output', () => {
@@ -280,9 +298,7 @@ describe('CI cache boundaries', () => {
       }),
     );
     expect(catalogs.length).toBeGreaterThan(0);
-    expect(
-      catalogs.filter((file) => !inputs.has(file.split(sep).join('/'))),
-    ).toEqual([]);
+    expect(catalogs.filter((file) => !inputs.has(posixPath(file)))).toEqual([]);
     expect(task.dependencies).toContain('@tale/ui#build');
     expect(task.dependencies).toContain('@tale/shared#build');
     for (const source of [
@@ -714,8 +730,9 @@ test('native cache callers use valid inputs and isolate active matrix task lanes
 });
 
 // Explicit outside-workspace globs include Git-ignored files unless they are
-// excluded. A catalog skill's own Turbo log must not invalidate another task.
-test('catalog build and generation hashes ignore task logs but retain source edits', () => {
+// excluded. A catalog skill's own Turbo log must not invalidate another task;
+// dependency patches and shared toolchain inputs must invalidate every reader.
+test('catalog build and generation hashes ignore task logs but retain source and toolchain edits', () => {
   const fixture = mkdtempSync(join(tmpdir(), 'tale-catalog-cache-'));
   const write = (file: string, value: string) => {
     const target = join(fixture, file);
@@ -757,7 +774,18 @@ test('catalog build and generation hashes ignore task logs but retain source edi
       readers.map((id) => {
         const task = tasks.find((entry) => entry.taskId === id);
         if (!task) throw new Error(`Missing catalog reader ${id}`);
-        return [id, { hash: task.hash, inputs: task.inputs }];
+        return [
+          id,
+          {
+            hash: task.hash,
+            inputs: Object.fromEntries(
+              Object.entries(task.inputs).map(([file, hash]) => [
+                posixPath(file),
+                hash,
+              ]),
+            ),
+          },
+        ];
       }),
     );
   };
@@ -809,8 +837,15 @@ test('catalog build and generation hashes ignore task logs but retain source edi
     const catalog = 'configs/platform/system/connectors/example/connector.yml';
     const skill = 'configs/platform/custom/skills/example/analyze.ts';
     const log = 'configs/platform/custom/skills/example/.turbo/turbo-test.log';
+    const globalInputs = {
+      'patches/postgres@3.4.7.patch': 'fixture patch\n',
+      'tsconfig.dom.json': '{"compilerOptions":{"lib":["DOM"]}}\n',
+      '.github/actions/setup-turbo/action.yml': 'name: fixture toolchain\n',
+    };
     write(catalog, 'name: original\n');
     write(skill, 'export const version = 1;\n');
+    for (const [file, contents] of Object.entries(globalInputs))
+      write(file, contents);
     for (const args of [
       ['init', '--quiet'],
       ['add', '.'],
@@ -849,6 +884,18 @@ test('catalog build and generation hashes ignore task logs but retain source edi
       expect(changedSkill[reader].inputs[`../../${skill}`]).not.toBe(
         baseline[reader].inputs[`../../${skill}`],
       );
+    }
+    write(skill, 'export const version = 1;\n');
+    expect(hashes()).toEqual(baseline);
+    for (const [file, contents] of Object.entries(globalInputs)) {
+      write(file, `${contents}\n`);
+      const changed = hashes();
+      for (const reader of readers)
+        expect(changed[reader].hash, `${reader} hashes ${file}`).not.toBe(
+          baseline[reader].hash,
+        );
+      write(file, contents);
+      expect(hashes()).toEqual(baseline);
     }
   } finally {
     rmSync(fixture, { recursive: true, force: true });

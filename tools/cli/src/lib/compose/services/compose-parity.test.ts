@@ -2,14 +2,16 @@ import { describe, expect, test } from 'bun:test';
 import { spawnSync } from 'node:child_process';
 import {
   existsSync,
+  mkdirSync,
   mkdtempSync,
   readFileSync,
   rmSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { resolve } from 'node:path';
+import { delimiter, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { runInNewContext } from 'node:vm';
 
 import { parse } from 'yaml';
 
@@ -797,6 +799,7 @@ describe('release artifact identity', () => {
       process.platform === 'darwin' ? '/bin/bash' : 'bash',
       ['-euo', 'pipefail', '-c', script],
       {
+        cwd: repoRoot,
         encoding: 'utf8',
         env: { ...process.env, SKIP_BUILD: '', PULL_POLICY: '', ...env },
       },
@@ -808,54 +811,167 @@ describe('release artifact identity', () => {
    * and tags, and answers an inspect with the source commit. */
   const CI_DIGEST = `sha256:${'a'.repeat(64)}`;
   const CI_SOURCE = 'b'.repeat(40);
-  const prepareImages = (step: Step, services: string[]) => {
-    const script = step
-      .run!.replaceAll('${{ needs.prepare.outputs.version_number }}', '0.5.43')
-      .replaceAll('${{ env.REGISTRY }}', 'ghcr.io')
-      .replaceAll('${{ github.repository }}', 'tale-project/tale');
-    // Match the Ubuntu workflow's LF output when Git Bash uses native jq.exe.
-    const jqMode =
-      process.platform === 'win32'
-        ? 'jq() { command jq --binary "$@"; };\n'
-        : '';
-    const receipts = mkdtempSync(resolve(tmpdir(), 'tale-image-receipts-'));
+  const CI_REGISTRY = 'ghcr.io/tale-project/tale';
+  const revisionFormat =
+    '{{ index .Config.Labels "org.opencontainers.image.revision" }}';
+  const prepareImages = (
+    step: Step,
+    services: string[],
+    yieldBetweenArguments = false,
+  ) => {
+    const directory = mkdtempSync(resolve(tmpdir(), 'tale-image-receipts-'));
+    const receipts = resolve(directory, 'image-receipts');
+    const log = resolve(directory, 'docker-calls');
     let result: ReturnType<typeof shell>;
+    let calls: string[][];
     try {
+      let jqExecutable = '';
+      mkdirSync(receipts);
+      writeFileSync(log, '');
+      // The actual helper launches Docker from child Bash workers. An
+      // in-shell function would neither reach them nor write coherent records
+      // when its multiple printf calls overlap another service's calls.
+      writeFileSync(
+        resolve(directory, 'docker'),
+        String.raw`#!/usr/bin/env bash
+set -eu
+record=DOCKER
+for argument in "$@"; do
+  record+=$'\t'"$argument"
+  if [ "$TEST_DOCKER_YIELD" = 'true' ]; then sleep 0.01; fi
+done
+printf '%s\n' "$record" >> "$TEST_DOCKER_LOG"
+if [ "$1 $2" = 'image inspect' ]; then
+  printf '%s\n' "$TEST_REVISION"
+fi
+`,
+        { mode: 0o755 },
+      );
+      // A wrapper executable, rather than a shell function, also reaches
+      // the child helper and keeps native jq.exe's Windows output at LF.
+      if (process.platform === 'win32') {
+        const jq = shell('command -v jq');
+        expect(jq.status, jq.stderr).toBe(0);
+        writeFileSync(
+          resolve(directory, 'jq'),
+          '#!/usr/bin/env bash\nexec "$TEST_JQ_EXECUTABLE" --binary "$@"\n',
+          { mode: 0o755 },
+        );
+        jqExecutable = jq.stdout.trim();
+      }
       for (const service of services) {
         writeFileSync(
           resolve(receipts, `${service}.json`),
           JSON.stringify({ service, digest: CI_DIGEST, revision: CI_SOURCE }),
         );
       }
-      result = shell(
-        jqMode +
-          // Parallel pulls share stdout. Assemble each record first, then
-          // emit it with one write so another child cannot split its fields.
-          'docker() { if [ "$1 $2" = "image inspect" ]; then printf "%s\\n" "$SOURCE_SHA"; return; fi; local record; printf -v record "\\t%s" "$@"; printf "DOCKER%s\\n" "$record"; };\n' +
-          script,
-        {
-          SERVICE_NAMES: JSON.stringify(services),
-          RECEIPTS: receipts,
-          SOURCE_SHA: CI_SOURCE,
+      const context = {
+        env: { REGISTRY: 'ghcr.io' },
+        github: { repository: 'tale-project/tale', sha: CI_SOURCE },
+        needs: {
+          prepare: {
+            outputs: {
+              version_number: '0.5.43',
+              service_names: JSON.stringify(services),
+            },
+          },
+          changes: { outputs: { source_sha: CI_SOURCE, candidate_sha: '' } },
         },
+        runner: { temp: directory.replaceAll('\\', '/') },
+      };
+      const expand = (value: string) =>
+        value.replace(/\$\{\{\s*(.*?)\s*\}\}/g, (_match, expression: string) =>
+          String(runInNewContext(expression, context)),
+        );
+      const environment = Object.fromEntries(
+        Object.entries(step.env ?? {}).map(([key, value]) => [
+          key,
+          expand(value),
+        ]),
       );
+      expect(environment.REGISTRY_PATH).toBe(CI_REGISTRY);
+      expect(environment.SOURCE_SHA).toBe(CI_SOURCE);
+      if (environment.RECEIPTS) {
+        expect(environment.RECEIPTS).toBe(receipts.replaceAll('\\', '/'));
+        expect(environment.PULL_HELPER).toBe(
+          '.github/scripts/pull-ci-images.sh',
+        );
+      } else {
+        expect(environment.SERVICE_NAMES).toBe(JSON.stringify(services));
+        expect(environment.IMAGE_TAG).toBe('0.5.43-amd64');
+      }
+      result = shell(expand(step.run!), {
+        PATH: `${directory}${delimiter}${process.env.PATH ?? ''}`,
+        RECEIPTS: '',
+        IMAGE_TAG: '',
+        TEST_DOCKER_LOG: log.replaceAll('\\', '/'),
+        TEST_DOCKER_YIELD: String(yieldBetweenArguments),
+        TEST_REVISION: CI_SOURCE,
+        TEST_JQ_EXECUTABLE: jqExecutable,
+        ...environment,
+      });
+      calls = readFileSync(log, 'utf8')
+        .trim()
+        .split('\n')
+        .filter(Boolean)
+        .map((line) => {
+          expect(line).toStartWith('DOCKER\t');
+          return line.split('\t').slice(1);
+        });
     } finally {
-      rmSync(receipts, { recursive: true, force: true });
+      rmSync(directory, { recursive: true, force: true });
     }
-    expect(result.status, result.stdout + result.stderr).toBe(0);
+    expect(result.status, result.stderr + result.stdout).toBe(0);
     const images = new Map<string, string>();
-    for (const line of result.stdout.split('\n')) {
-      if (!line.startsWith('DOCKER\t')) continue;
-      const [, command, source, target] = line.split('\t');
+    const verified = new Set<string>();
+    for (const [command, ...arguments_] of calls) {
+      const source = command === 'image' ? arguments_[3] : arguments_[0];
+      const target = arguments_[1];
       expect(source).toBeDefined();
       if (command === 'pull') {
+        expect(images.has(source!)).toBe(false);
         images.set(source!, source!);
+      } else if (command === 'image') {
+        expect(arguments_.slice(0, 3)).toEqual([
+          'inspect',
+          '--format',
+          revisionFormat,
+        ]);
+        expect(images.has(source!)).toBe(true);
+        expect(verified.has(source!)).toBe(false);
+        verified.add(source!);
       } else {
         expect(command).toBe('tag');
-        expect(images.has(source!)).toBe(true);
+        if (!images.has(source!))
+          throw new Error(`Image tag source was never pulled: ${source}`);
+        expect(verified.has(source!)).toBe(true);
         expect(target).toBeDefined();
         images.set(target!, images.get(source!)!);
       }
+    }
+    expect(verified.size).toBeGreaterThan(0);
+    for (const source of verified) {
+      const repository = source.split('@')[0]!.replace(/:[^/]*$/, '');
+      const service = repository.slice(`${CI_REGISTRY}/tale-`.length);
+      expect(services).toContain(service);
+      const ownCalls = calls.filter((call) =>
+        call[0] === 'image' ? call[4] === source : call[1] === source,
+      );
+      expect(ownCalls).toEqual([
+        ['pull', source],
+        ['image', 'inspect', '--format', revisionFormat, source],
+        ['tag', source, `${repository}:latest`],
+        ...(['sandbox-runtime', 'sandbox-buildkitd'].includes(service)
+          ? [['tag', source, `tale-${service}:latest`]]
+          : []),
+      ]);
+    }
+    const lastScopedTag = calls.findLastIndex(
+      (call) => call[0] === 'tag' && call[2]?.startsWith(`${CI_REGISTRY}/`),
+    );
+    for (const [index, call] of calls.entries()) {
+      if (call[0] === 'tag' && call[2]?.startsWith('tale-'))
+        expect(index).toBeGreaterThan(lastScopedTag);
     }
     return images;
   };
@@ -869,18 +985,20 @@ describe('release artifact identity', () => {
     ).services;
 
   test('identity evidence still rejects an alias whose source was never pulled', () => {
+    const source = `ghcr.io/tale-project/tale/tale-platform@${CI_DIGEST}`;
     expect(() =>
       prepareImages(
         {
-          run: `docker tag ghcr.io/tale-project/tale/tale-platform@${CI_DIGEST} ghcr.io/tale-project/tale/tale-platform:latest`,
+          ...releasePull,
+          run: `docker tag ${source} ghcr.io/tale-project/tale/tale-platform:latest`,
         },
         [],
       ),
-    ).toThrow();
+    ).toThrow(`Image tag source was never pulled: ${source}`);
   });
 
   test.each(['smoke-test', 'image-validate', 'release'])(
-    '%s retains complete image identity records when concurrent workers yield between writes',
+    '%s retains complete image identity records when concurrent workers yield between arguments',
     (job) => {
       const source =
         job === 'release'
@@ -888,16 +1006,10 @@ describe('release artifact identity', () => {
           : build.jobs[job]!.steps.find(
               (step) => step.name === 'Pull images from GHCR',
             )!;
-      // Each stdout write yields to another worker. This deterministically
-      // exposes a mock that emits one command as several separate writes,
-      // while retaining the workflow's real parallel pull/tag ordering.
-      const images = prepareImages(
-        {
-          ...source,
-          run: 'printf() { builtin printf "$@"; sleep 0.01; };\n' + source.run,
-        },
-        releaseMatrix(false),
-      );
+      // The external Docker executable yields while constructing a record,
+      // then appends it once. This exercises the actual helper's child
+      // workers without relying on inherited shell functions or global order.
+      const images = prepareImages(source, releaseMatrix(false), true);
       expect(images.get('tale-sandbox-runtime:latest')).toBe(
         job === 'release'
           ? 'ghcr.io/tale-project/tale/tale-sandbox-runtime:0.5.43-amd64'

@@ -253,44 +253,13 @@ jobs:
       - name: Pull release images
         env:
           SERVICE_NAMES: ${{ needs.prepare.outputs.service_names }}
+          REGISTRY_PATH: ${{ env.REGISTRY }}/${{ github.repository }}
+          SOURCE_SHA: ${{ github.sha }}
+          IMAGE_TAG: ${{ needs.prepare.outputs.version_number }}-amd64
         run: |
           set -euo pipefail
-          VERSION="${{ needs.prepare.outputs.version_number }}"
-          ARCH="amd64"
-          pull_image() {
-            local svc=$1 image
-            image="${{ env.REGISTRY }}/${{ github.repository }}/tale-${svc}:${VERSION}-${ARCH}"
-            echo "Pulling ${image}..."
-            docker pull "$image"
-            docker tag "$image" "ghcr.io/tale-project/tale/tale-${svc}:latest"
-            # The spawner uses unscoped local defaults for its child images.
-            case "$svc" in
-              sandbox-runtime|sandbox-buildkitd)
-                docker tag "$image" "tale-${svc}:latest"
-                ;;
-            esac
-          }
-          pids=()
-          failed=false
-          while IFS= read -r svc; do
-            pull_image "$svc" &
-            pids+=("$!")
-            if [ "${#pids[@]}" -eq 3 ]; then
-              for pid in "${pids[@]}"; do
-                if ! wait "$pid"; then failed=true; fi
-              done
-              [ "$failed" = false ] || exit 1
-              pids=()
-            fi
-          done < <(jq -r '.[]' <<< "$SERVICE_NAMES")
-          # Bash 3.2 treats an empty array as unset under nounset. Exact
-          # batches already joined every child and leave nothing to wait for.
-          if [ "${#pids[@]}" -gt 0 ]; then
-            for pid in "${pids[@]}"; do
-              if ! wait "$pid"; then failed=true; fi
-            done
-          fi
-          [ "$failed" = false ] || exit 1
+          read -r -a SERVICES <<< "$(jq -r 'join(" ")' <<< "$SERVICE_NAMES")"
+          bash .github/scripts/pull-ci-images.sh "${SERVICES[@]}"
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2

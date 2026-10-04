@@ -9,14 +9,17 @@ needs fewer runners, while a long CPU-bound suite can benefit from more slices.
 - **Checks / UI** is the stable required aggregate. Four platform UI shards run the same
   suite with Vitest's `--shard=N/4`; shard 1 also runs other workspaces' `test:ui` once.
   The aggregate fails on failed, cancelled, skipped or missing shard results. It needs no
-  checkout or dependency installation. Keep all matrix legs in the candidate receipt.
+  checkout or dependency installation. Its `always()` predicate admits cancellation so
+  the explicit result check can reject missing evidence. Keep all matrix legs in the
+  candidate receipt.
 - **E2E** builds the platform preview bundle once using the ordinary Turbo build task,
   then uploads it for four single-worker Playwright shards. Each shard owns its database,
-  backend and worker-scoped org fixture. Reports still capture failed tests and retries. The web and
-  docs suites keep their independent jobs. Pull requests first compute affected service
-  scope from the PR diff; missing or nonboolean filter results fail the scope job.
-  Nightly, manual and candidate rounds always select platform, web and docs. Static
-  suites use two workers, verified with all 90 web and 55 docs cases passing without retries.
+  backend and worker-scoped org fixture. Reports still capture failed tests and retries.
+  The web and docs suites keep their independent jobs. Pull requests first compute
+  affected service scope from the PR diff; missing or nonboolean filter results fail
+  the scope job. Nightly, manual and candidate rounds select all three services. Static
+  suites use two workers, verified with all 90 web and 55 docs cases passing without
+  retries.
 - **Build** distinguishes the platform stack from standalone sites. Site-only changes run
   their container tests without building the eight-image platform stack. Shared package,
   dependency, toolchain and test-harness inputs expand to full coverage. Release candidates
@@ -94,7 +97,18 @@ CLI generation and builds embed Git revision and clean-state metadata, so they a
 uncached. Their outside catalog and reference sources are declared inputs; generated skill
 task logs are excluded. Source-only hashes cannot certify that identity. E2E has no independent
 hand-maintained file-list cache for its preview bundle; it reuses the ordinary build
-inputs and passes the result through a per-run artifact.
+inputs. Uploads use attempt-specific names, and shards validate and download the
+successful build's immutable artifact ID. Failed-only reruns reuse that original ID;
+full reruns publish a new artifact.
+
+Build and Release share [pull-ci-images.sh](scripts/pull-ci-images.sh), which validates
+all receipts before Docker work, uses three bounded workers and checks source revision
+labels before tagging. Candidate image gates fetch only that helper from the exact
+trusted workflow commit into an isolated sparse checkout, preserving an older
+candidate's source and image receipts.
+
+Scorecard remains informational and runs weekly, manually and when branch protections
+change. Blocking source and dependency security gates retain their triggers.
 
 Static E2E jobs do not restore Turbo caches. Web prerendering generates release content
 and SEO output outside `dist/`; those external inputs and outputs must be fully modeled

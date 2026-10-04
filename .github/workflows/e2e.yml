@@ -186,6 +186,9 @@ jobs:
     permissions:
       contents: read
 
+    outputs:
+      dist_artifact_id: ${{ steps.bundle-artifact.outputs.artifact-id }}
+
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
@@ -217,9 +220,10 @@ jobs:
       # late `gh run rerun --failed` re-runs; a re-run after expiry needs a
       # full workflow re-run instead.
       - name: Upload platform dist for the shards
+        id: bundle-artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: e2e-platform-dist
+          name: e2e-platform-dist-attempt-${{ github.run_attempt }}
           path: services/platform/dist
           retention-days: 7
           if-no-files-found: error
@@ -329,10 +333,20 @@ jobs:
       # upstream `build` job — see its comments for why the suite serves a
       # prebuilt dist/ via `vite preview` (TALE_E2E_SERVE_BUILD=1). Shards only
       # download it; none ever runs `bun run build` (issue #2385).
+      - name: Validate platform bundle artifact identity
+        env:
+          DIST_ARTIFACT_ID: ${{ needs.build.outputs.dist_artifact_id }}
+        run: |
+          if [[ ! "$DIST_ARTIFACT_ID" =~ ^[1-9][0-9]*$ ]]; then
+            echo '::error::The platform build reported no valid bundle artifact ID'
+            exit 1
+          fi
+
       - name: Download platform dist (built once by the build job)
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
-          name: e2e-platform-dist
+          # Failed-only reruns keep the successful build's original output.
+          artifact-ids: ${{ needs.build.outputs.dist_artifact_id }}
           path: services/platform/dist
 
       - name: Run E2E suite (shard ${{ matrix.shard }}/${{ strategy.job-total }})
