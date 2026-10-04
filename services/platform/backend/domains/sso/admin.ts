@@ -21,7 +21,11 @@ import { getPublicHttpApiUrl } from '../../core/lib/helpers/public_storage_url.t
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { getScimStatus } from '../scim/service.ts';
-import { readSsoConnection, readSsoSecrets } from './config.ts';
+import {
+  readSsoConnection,
+  readSsoSecrets,
+  SsoConnectionReadError,
+} from './config.ts';
 
 /**
  * The admin config-write surface for the file-backed SSO connection — the
@@ -466,7 +470,15 @@ export async function getSsoConnectionView(
 ): Promise<Record<string, unknown>> {
   const base = publicBase();
   const scim = await getScimStatus(sql, organizationId);
-  const loaded = await readSsoConnection(sql, organizationId);
+  let loaded: Awaited<ReturnType<typeof readSsoConnection>>;
+  try {
+    loaded = await readSsoConnection(sql, organizationId);
+  } catch (error) {
+    if (error instanceof SsoConnectionReadError) {
+      throw new SsoAdminError('sso_config_unreadable', error.message, 409);
+    }
+    throw error;
+  }
   const config = loaded?.config ?? null;
   // The SP private key lives in the secrets sidecar and never rides the
   // view; the form only needs to know one is stored (blank field = keep it),

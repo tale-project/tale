@@ -33,6 +33,15 @@ export interface LoadedSsoConnection {
   config: SsoConnectionFile;
 }
 
+export class SsoConnectionReadError extends Error {
+  constructor(orgSlug: string) {
+    super(
+      `The SSO connection configuration for ${orgSlug} could not be read; repair connection.yml before continuing.`,
+    );
+    this.name = 'SsoConnectionReadError';
+  }
+}
+
 export async function readSsoConnection(
   sql: Sql,
   organizationId: string,
@@ -45,7 +54,14 @@ export async function readSsoConnection(
     MAX_FILE_SIZE_BYTES,
     validateSsoConnectionData,
   );
-  if (!result.ok) return null;
+  if (!result.ok) {
+    if (result.error === 'not_found') return null;
+    console.error('[sso] connection configuration unreadable', {
+      orgSlug,
+      error: result.message,
+    });
+    throw new SsoConnectionReadError(orgSlug);
+  }
   return { organizationId, orgSlug, config: result.data };
 }
 
