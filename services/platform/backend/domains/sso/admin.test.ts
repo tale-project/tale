@@ -380,3 +380,33 @@ describe('getSsoConnectionView — hasSpKeypair reports the stored key', () => {
     });
   });
 });
+
+describe('getSsoConnectionView — unreadable connection config', () => {
+  let configRoot: string;
+  let savedConfigDir: string | undefined;
+
+  beforeEach(async () => {
+    savedConfigDir = process.env.TALE_CONFIG_DIR;
+    configRoot = await mkdtemp(path.join(tmpdir(), 'tale-sso-admin-'));
+    process.env.TALE_CONFIG_DIR = configRoot;
+    clearOrgConfigCaches();
+    await corruptConnectionFile(configRoot, 'acme');
+  });
+
+  afterEach(async () => {
+    if (savedConfigDir === undefined) delete process.env.TALE_CONFIG_DIR;
+    else process.env.TALE_CONFIG_DIR = savedConfigDir;
+    await rm(configRoot, { recursive: true, force: true });
+    clearOrgConfigCaches();
+  });
+
+  it('refuses with a repair message instead of returning unconfigured', async () => {
+    await expect(
+      getSsoConnectionView(slugSql('acme'), 'org-1'),
+    ).rejects.toMatchObject({
+      code: 'sso_config_unreadable',
+      status: 409,
+      message: expect.stringContaining('repair connection.yml'),
+    });
+  });
+});
