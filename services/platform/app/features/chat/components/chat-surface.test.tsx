@@ -2228,6 +2228,6 @@ describe('ChatSurface on a conversation shared with the project', () => {
       <ChatSurface organizationId="org-1" threadId="thread-shared" />,
     );
     await screen.findByTestId('message-copy-button');
-    await waitFor(() => checkAccessibility(container));
+    await checkAccessibility(container);
   });
 });
