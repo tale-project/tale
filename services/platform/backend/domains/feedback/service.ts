@@ -331,6 +331,7 @@ export async function listRecentFeedbackPage(
       AND (${args.agentSlug ?? null}::text IS NULL OR agent_slug = ${args.agentSlug ?? null})
       AND (${args.model ?? null}::text IS NULL OR model = ${args.model ?? null})
       AND (${args.provider ?? null}::text IS NULL OR provider = ${args.provider ?? null})
+      AND (NOT ${args.withCommentOnly === true}::boolean OR NULLIF(comment, '') IS NOT NULL)
       AND (${args.cursor?.ts ?? null}::bigint IS NULL
         OR (created_at_ms, id) < (${args.cursor?.ts ?? null}, ${args.cursor?.id ?? null}))
     ORDER BY created_at_ms DESC, id DESC
@@ -339,12 +340,10 @@ export async function listRecentFeedbackPage(
   const pageRows = rows.slice(0, limit);
   const isDone = rows.length <= limit;
 
-  // Post-filters mirror 0.4 (kind / withCommentOnly are page-level).
   const wanted = pageRows.filter((row) => {
     const isArena = row.metadata?.arenaVerdict !== undefined;
     if (args.kind === 'message' && isArena) return false;
     if (args.kind === 'arena' && !isArena) return false;
-    if (args.withCommentOnly === true && !row.comment) return false;
     return true;
   });
 
