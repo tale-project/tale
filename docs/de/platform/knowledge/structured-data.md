@@ -44,6 +44,8 @@ Du kannst einen Kontakt auch beim Schreiben anlegen. Wähle im Bereich **Start**
 
 Ist die E-Mail-Adresse bereits vorhanden, suche den bestehenden Kontakt und bearbeite ihn über sein Zeilenmenü; aus **Neue E-Mail** heraus wählt Tale den vorhandenen Kontakt für dich aus. Beim Speichern wird nur der Datensatz angelegt; Tale sendet dem Kontakt dabei keine E-Mail.
 
+Kontakte, die dein Team hier erfasst oder importiert hat, bearbeitest oder löschst du einzeln über das Zeilenmenü. Um mehrere auf einmal zu löschen, setze bei ihren Zeilen das Häkchen und wähle **Ausgewählte löschen**. Kontakte aus einer Integration, der API oder einer Konversation gehören ihrer Quelle, die eine Änderung hier überschreiben würde: Ihr Zeilenmenü bietet weder **Bearbeiten** noch **Löschen**, und ihre Zeilen haben kein Kästchen.
+
 ## Ein Produkt anlegen
 
 <Frame caption="Wissen > Produkte: Jedes Produkt ist ein Datensatz mit benannten Feldern für Bestand, Preis, Kategorie und Status.">

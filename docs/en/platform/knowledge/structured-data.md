@@ -44,6 +44,8 @@ You can also add a contact while writing to them. In the **Inbox** view in Home,
 
 If the email address already exists, find the existing contact and update it through the row menu instead of creating a duplicate; from **New email**, Tale selects the existing contact for you. Saving a contact creates a record; it does not send that person an email.
 
+You can edit or delete the contacts your team entered or imported here, one at a time from the row menu. To delete several at once, tick their rows and choose **Delete selected**. Contacts that came from an integration, the API or a conversation belong to their source, which would overwrite a change made here: their row menu offers no **Edit** or **Delete**, and their rows have no checkbox.
+
 ## Create a product
 
 <Frame caption="Knowledge > Products: each product is a record with named fields for stock, price, category, and status.">
