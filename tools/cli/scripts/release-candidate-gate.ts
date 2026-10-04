@@ -147,9 +147,10 @@ export const CANDIDATE_JOBS: Record<
     names: [SOURCE_JOB, 'Lint commits', RECEIPT_JOB],
   },
   e2e: {
-    ids: ['candidate-source', 'build', 'e2e', 'static-sites'],
+    ids: ['candidate-source', 'scope', 'build', 'e2e', 'static-sites'],
     names: [
       SOURCE_JOB,
+      'E2E scope',
       'Build platform (E2E preview bundle)',
       ...Array.from(
         { length: 4 },

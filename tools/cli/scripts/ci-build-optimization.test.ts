@@ -1,4 +1,4 @@
-import { afterEach, expect, test } from 'bun:test';
+import { afterEach, describe, expect, test } from 'bun:test';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -21,7 +21,10 @@ type Workflow = {
       needs?: string[];
       strategy?: {
         'max-parallel'?: number;
-        matrix?: { include?: { os: string; cross?: boolean }[] };
+        matrix?: {
+          service?: string[];
+          include?: { os: string; cross?: boolean }[];
+        };
       };
       steps: Step[];
     }
@@ -29,27 +32,46 @@ type Workflow = {
 };
 
 const repository = resolve(import.meta.dir, '../../..');
+const source = '1234567890abcdef1234567890abcdef12345678';
 const directories: string[] = [];
 afterEach(async () => {
   for (const directory of directories.splice(0))
     await rm(directory, { recursive: true, force: true });
 });
 
-async function workflow(name: string): Promise<Workflow> {
+async function workflow(name = 'build'): Promise<Workflow> {
   return parse(
     await readFile(join(repository, `.github/workflows/${name}.yml`), 'utf8'),
   ) as Workflow;
 }
 
-function step(file: Workflow, job: string, name: string): Step {
-  const found = file.jobs[job]?.steps.find((entry) => entry.name === name);
-  if (!found) throw new Error(`Missing ${job}/${name}`);
+function findStep(job: Workflow['jobs'][string], name: string): Step {
+  const found = job.steps.find((entry) => entry.name === name);
+  if (!found) throw new Error(`Missing ${name}`);
   return found;
 }
 
+function step(file: Workflow, job: string, name: string): Step {
+  const found = file.jobs[job];
+  if (!found) throw new Error(`Missing ${job}`);
+  return findStep(found, name);
+}
+
+const outputs = (text: string) =>
+  Object.fromEntries(
+    text
+      .trim()
+      .split('\n')
+      .filter(Boolean)
+      .map((line) => {
+        const separator = line.indexOf('=');
+        return [line.slice(0, separator), line.slice(separator + 1)];
+      }),
+  );
+
 async function execute(
   script: string,
-  env: Record<string, string>,
+  env: Record<string, string> = {},
   cwd?: string,
 ) {
   const directory = await mkdtemp(join(tmpdir(), 'tale-build-ci-'));
@@ -72,16 +94,8 @@ async function execute(
     code,
     stdout,
     stderr,
-    outputs: Object.fromEntries(
-      (await readFile(output, 'utf8'))
-        .trim()
-        .split('\n')
-        .filter(Boolean)
-        .map((line) => [
-          line.slice(0, line.indexOf('=')),
-          line.slice(line.indexOf('=') + 1),
-        ]),
-    ),
+    output: await readFile(output, 'utf8'),
+    outputs: outputs(await readFile(output, 'utf8')),
   };
 }
 
@@ -160,6 +174,7 @@ test.skipIf(process.platform === 'win32')(
           CHANGES: JSON.stringify(changes),
           CI_TESTS: String(changes.includes('ci_tests')),
           STORYBOOK: String(changes.includes('storybook')),
+          IMAGE_INPUTS: String(changes.includes('image_inputs')),
         },
       );
       expect(result.code, result.stdout + result.stderr).toBe(0);
@@ -168,6 +183,7 @@ test.skipIf(process.platform === 'win32')(
       expect(selected, path).toEqual(expect.arrayContaining(services));
       if (!stack) expect(selected).toEqual(services);
       expect(selected).not.toContain('shared_build');
+      expect(selected).not.toContain('image_inputs');
     }
     for (const job of [
       'build',
@@ -177,7 +193,7 @@ test.skipIf(process.platform === 'win32')(
       'image-validate-fork',
     ]) {
       expect(file.jobs[job]?.if).toContain(
-        "needs.changes.outputs.ci_tests == 'true'",
+        "needs.changes.outputs.stack == 'true'",
       );
       expect(file.jobs[job]?.if).not.toContain("outputs.services != '[]'");
     }
@@ -297,7 +313,10 @@ test.skipIf(process.platform === 'win32')(
     expect(file.jobs.build?.strategy?.['max-parallel']).toBe(6);
     expect(
       step(file, 'build', 'Build and push').with?.['cache-from'],
-    ).toContain('type=gha,scope=${{ matrix.service.name }}');
+    ).toContain("matrix.arch.name == 'amd64'");
+    expect(
+      step(file, 'build', 'Build and push').with?.['cache-from'],
+    ).toContain("format('type=gha,scope={0}', matrix.service.name)");
     expect(step(file, 'build', 'Build and push').with?.['cache-to']).toContain(
       ':buildcache-${{ matrix.arch.name }},mode=max',
     );
@@ -321,9 +340,9 @@ test('CLI source tests still cover every host OS while every target builds', asy
   });
 });
 
-test.skipIf(process.platform === 'win32')(
-  'parallel image pulls stay bounded and never hide an early failed child',
-  async () => {
+describe.skipIf(process.platform === 'win32')(
+  'parallel verified image pulls',
+  () => {
     const services = [
       'db',
       'platform',
@@ -334,46 +353,79 @@ test.skipIf(process.platform === 'win32')(
       'sandbox-buildkitd',
       'sandbox-runtime',
     ];
-    const source = 'a'.repeat(40);
-    const digest = `sha256:${'b'.repeat(64)}`;
-    const build = await workflow('build');
-    const release = await workflow('release');
-    const scripts = [
-      {
-        script: step(build, 'smoke-test', 'Pull images from GHCR').run!,
-        selectedServices: services,
-      },
-      {
-        script: step(build, 'image-validate', 'Pull images from GHCR').run!,
-        selectedServices: services,
-      },
-      // Both release matrices finish on an exact batch boundary. Bash 3.2
-      // must not expand the final empty PID array under nounset.
-      ...[
+    // Release's real three- and twelve-image matrices end on exact batch
+    // boundaries; macOS Bash 3.2 must never expand an empty final PID array.
+    const cases: [string, string, string, string, string[]][] = [
+      [
+        'Build smoke (8)',
+        'build',
+        'smoke-test',
+        'Pull images from GHCR',
         services,
+      ],
+      [
+        'Build validation (8)',
+        'build',
+        'image-validate',
+        'Pull images from GHCR',
+        services,
+      ],
+      [
+        'Release stack (8)',
+        'release',
+        'container-test',
+        'Pull release images',
+        services,
+      ],
+      [
+        'Release sites (3)',
+        'release',
+        'container-test',
+        'Pull release images',
         ['web', 'docs', 'ui-docs'],
-        [...services, 'web', 'docs', 'ui-docs', 'ai-gateway'],
-      ].map((selectedServices) => ({
-        script: step(release, 'container-test', 'Pull release images').run!,
-        selectedServices,
-      })),
+      ],
+      [
+        'Release full (12)',
+        'release',
+        'container-test',
+        'Pull release images',
+        [
+          'sandbox-runtime',
+          'platform',
+          'db',
+          'web',
+          'docs',
+          'ui-docs',
+          'ai-gateway',
+          'proxy',
+          'sandbox-llm-gateway',
+          'sandbox',
+          'sandbox-egress',
+          'sandbox-buildkitd',
+        ],
+      ],
     ];
-    for (const { script, selectedServices } of scripts) {
-      for (const fails of [false, true]) {
-        const directory = await mkdtemp(join(tmpdir(), 'tale-pull-ci-'));
-        directories.push(directory);
-        const receipts = join(directory, 'receipts');
-        const log = join(directory, 'calls');
-        await mkdir(receipts);
-        await writeFile(log, '');
-        for (const service of selectedServices)
+    test.each(cases)(
+      '%s stays bounded and never hides an early failed child',
+      async (_label, name, job, pullStep, selectedServices) => {
+        const pullSource = 'a'.repeat(40);
+        const digest = `sha256:${'b'.repeat(64)}`;
+        const script = step(await workflow(name), job, pullStep).run!;
+        for (const fails of [false, true]) {
+          const directory = await mkdtemp(join(tmpdir(), 'tale-pull-ci-'));
+          directories.push(directory);
+          const receipts = join(directory, 'receipts');
+          const log = join(directory, 'calls');
+          await mkdir(receipts);
+          await writeFile(log, '');
+          for (const service of selectedServices)
+            await writeFile(
+              join(receipts, `${service}.json`),
+              JSON.stringify({ digest }),
+            );
           await writeFile(
-            join(receipts, `${service}.json`),
-            JSON.stringify({ digest }),
-          );
-        await writeFile(
-          join(directory, 'docker'),
-          `#!/usr/bin/env bash
+            join(directory, 'docker'),
+            `#!/usr/bin/env bash
 set -euo pipefail
 case "$1" in
   pull)
@@ -391,57 +443,400 @@ case "$1" in
   *) exit 9 ;;
 esac
 `,
-          { mode: 0o755 },
-        );
-        const expanded = script
-          .replaceAll('${{ env.REGISTRY }}', 'ghcr.io')
-          .replaceAll('${{ github.repository }}', 'tale-project/tale')
-          .replaceAll('${{ needs.prepare.outputs.version_number }}', '1.2.3');
-        const result = await execute(expanded, {
-          PATH: `${directory}:${process.env.PATH}`,
-          SOURCE_SHA: source,
-          RECEIPTS: receipts,
-          SERVICE_NAMES: JSON.stringify(selectedServices),
-          TEST_CALLS: log,
-          TEST_FAILS: String(fails),
-          TEST_FAIL_SERVICE: selectedServices[0]!,
-        });
-        const calls = (await readFile(log, 'utf8')).trim().split('\n');
-        let active = 0;
-        let peak = 0;
-        for (const call of calls) {
-          if (call.startsWith('start ')) active++;
-          if (call.startsWith('end ')) active--;
-          peak = Math.max(peak, active);
-          expect(active).toBeGreaterThanOrEqual(0);
-        }
-        expect(active).toBe(0);
-        expect(peak).toBeLessThanOrEqual(3);
-        if (fails) {
-          expect(result.code).not.toBe(0);
-          expect(
-            calls.filter((call) => call.startsWith('start ')),
-          ).toHaveLength(3);
-          expect(
-            calls.some((call) =>
-              call.startsWith(
-                `tag ghcr.io/tale-project/tale/tale-${selectedServices[0]}`,
+            { mode: 0o755 },
+          );
+          const expanded = script
+            .replaceAll('${{ env.REGISTRY }}', 'ghcr.io')
+            .replaceAll('${{ github.repository }}', 'tale-project/tale')
+            .replaceAll('${{ needs.prepare.outputs.version_number }}', '1.2.3');
+          const result = await execute(expanded, {
+            PATH: `${directory}:${process.env.PATH}`,
+            SOURCE_SHA: pullSource,
+            RECEIPTS: receipts,
+            SERVICE_NAMES: JSON.stringify(selectedServices),
+            TEST_CALLS: log,
+            TEST_FAILS: String(fails),
+            TEST_FAIL_SERVICE: selectedServices[0]!,
+          });
+          const calls = (await readFile(log, 'utf8')).trim().split('\n');
+          let active = 0;
+          let peak = 0;
+          for (const call of calls) {
+            if (call.startsWith('start ')) active++;
+            if (call.startsWith('end ')) active--;
+            peak = Math.max(peak, active);
+            expect(active).toBeGreaterThanOrEqual(0);
+          }
+          expect(active).toBe(0);
+          expect(peak).toBeLessThanOrEqual(3);
+          if (fails) {
+            expect(result.code).not.toBe(0);
+            expect(
+              calls.filter((call) => call.startsWith('start ')),
+            ).toHaveLength(3);
+            expect(
+              calls.some((call) =>
+                call.startsWith(
+                  `tag ghcr.io/tale-project/tale/tale-${selectedServices[0]}`,
+                ),
               ),
-            ),
-          ).toBe(false);
-          expect(
-            calls.some((call) => call.endsWith(' tale-sandbox-runtime:latest')),
-          ).toBe(false);
-        } else {
-          expect(result.code, result.stdout + result.stderr).toBe(0);
-          expect(
-            calls.filter((call) => call.startsWith('start ')),
-          ).toHaveLength(selectedServices.length);
-          expect(
-            calls.some((call) => call.endsWith(' tale-sandbox-runtime:latest')),
-          ).toBe(selectedServices.includes('sandbox-runtime'));
+            ).toBe(false);
+            expect(
+              calls.some((call) =>
+                call.endsWith(' tale-sandbox-runtime:latest'),
+              ),
+            ).toBe(false);
+          } else {
+            expect(result.code, result.stdout + result.stderr).toBe(0);
+            expect(
+              calls.filter((call) => call.startsWith('start ')),
+            ).toHaveLength(selectedServices.length);
+            expect(
+              calls.some((call) =>
+                call.endsWith(' tale-sandbox-runtime:latest'),
+              ),
+            ).toBe(selectedServices.includes('sandbox-runtime'));
+          }
         }
-      }
-    }
+      },
+    );
   },
 );
+
+describe.skipIf(process.platform === 'win32')(
+  'Build selects the affected container stacks',
+  () => {
+    test.each(['web', 'docs', 'ui-docs', 'ai-gateway', 'storybook'])(
+      '%s changes do not build the unrelated platform stack',
+      async (service) => {
+        const matrix = findStep(
+          (await workflow()).jobs.changes!,
+          'Compute service matrix',
+        );
+        const result = await execute(matrix.run!, {
+          CANDIDATE_SHA: '',
+          CHANGES: JSON.stringify([service]),
+          CI_TESTS: 'false',
+          STORYBOOK: String(service === 'storybook'),
+          IMAGE_INPUTS: 'false',
+        });
+        expect(result.code, result.stdout + result.stderr).toBe(0);
+        expect(outputs(result.output).stack).toBe('false');
+      },
+    );
+
+    test('all composed services and CI harness changes retain the complete stack', async () => {
+      const build = await workflow();
+      const matrix = findStep(build.jobs.changes!, 'Compute service matrix');
+      for (const service of build.jobs.build!.strategy!.matrix!.service!) {
+        const result = await execute(matrix.run!, {
+          CANDIDATE_SHA: '',
+          CHANGES: JSON.stringify([service]),
+          CI_TESTS: 'false',
+          STORYBOOK: 'false',
+          IMAGE_INPUTS: 'false',
+        });
+        expect(result.code, result.stdout + result.stderr).toBe(0);
+        expect(outputs(result.output).stack).toBe('true');
+      }
+      const harness = await execute(matrix.run!, {
+        CANDIDATE_SHA: '',
+        CHANGES: '["ci_tests"]',
+        CI_TESTS: 'true',
+        STORYBOOK: 'false',
+        IMAGE_INPUTS: 'false',
+      });
+      expect(harness.code).toBe(0);
+      expect(outputs(harness.output).stack).toBe('true');
+      for (const id of [
+        'build',
+        'smoke-test',
+        'image-validate',
+        'smoke-test-fork',
+        'image-validate-fork',
+      ])
+        expect(build.jobs[id]!.if).toContain(
+          "needs.changes.outputs.stack == 'true'",
+        );
+      expect(build.jobs.build!.if).toContain(
+        'github.event.pull_request.head.repo.fork != true',
+      );
+    });
+
+    test('root build inputs validate every workspace image and keep candidate breadth', async () => {
+      const build = await workflow();
+      const filters = parse(
+        String(findStep(build.jobs.changes!, 'Filter paths').with!.filters),
+      ) as Record<string, string[]>;
+      const matrix = findStep(build.jobs.changes!, 'Compute service matrix');
+      for (const candidate of ['', source]) {
+        const result = await execute(matrix.run!, {
+          CANDIDATE_SHA: candidate,
+          CHANGES: '["image_inputs"]',
+          CI_TESTS: 'false',
+          STORYBOOK: 'false',
+          IMAGE_INPUTS: 'true',
+        });
+        expect(result.code, result.stdout + result.stderr).toBe(0);
+        const values = outputs(result.output);
+        const services = JSON.parse(values.list!) as string[];
+        for (const service of [
+          'platform',
+          'web',
+          'docs',
+          'ui-docs',
+          'ai-gateway',
+        ])
+          expect(services).toContain(service);
+        expect(services).not.toContain('image_inputs');
+        expect(values.stack).toBe('true');
+        expect(values.storybook).toBe('true');
+        expect(services.toSorted()).toEqual(
+          Object.keys(filters)
+            .filter(
+              (key) => !['storybook', 'ci_tests', 'image_inputs'].includes(key),
+            )
+            .toSorted(),
+        );
+      }
+      for (const input of [
+        'patches/postgres.patch',
+        'tools/cli/package.json',
+        'configs/platform/system/harnesses/gemini/harness.yml',
+      ]) {
+        for (const event of ['pull_request', 'push'])
+          expect(
+            build.on[event]!.paths!.some((pattern) =>
+              new Bun.Glob(pattern).match(input),
+            ),
+          ).toBe(true);
+      }
+      for (const input of [
+        'bun.lock',
+        'patches/postgres.patch',
+        'tools/cli/package.json',
+        'tsconfig.dom.json',
+      ])
+        expect(
+          filters.image_inputs!.some((pattern) =>
+            new Bun.Glob(pattern).match(input),
+          ),
+        ).toBe(true);
+    });
+  },
+);
+
+test('standalone container tests run for their own harness and shared stack inputs', async () => {
+  const build = await workflow();
+  const filters = parse(
+    String(findStep(build.jobs.changes!, 'Filter paths').with!.filters),
+  ) as Record<string, string[]>;
+  for (const service of ['web', 'docs', 'ui-docs', 'ai-gateway']) {
+    for (const input of [
+      `compose.${service}.yml`,
+      `compose.${service}.test.yml`,
+      '.env.test',
+      `services/platform/tests/integration/container-${service}-test.ts`,
+      'services/platform/tests/integration/static-site-test.ts',
+      'services/platform/tests/integration/lib/docker.ts',
+    ]) {
+      expect(
+        filters[service]!.some((pattern) => new Bun.Glob(pattern).match(input)),
+      ).toBe(true);
+      for (const event of ['pull_request', 'push'])
+        expect(
+          build.on[event]!.paths!.some((pattern) =>
+            new Bun.Glob(pattern).match(input),
+          ),
+        ).toBe(true);
+    }
+  }
+});
+
+test('every declared workspace manifest selects the workspace image consumers', async () => {
+  const build = await workflow();
+  const filters = parse(
+    String(findStep(build.jobs.changes!, 'Filter paths').with!.filters),
+  ) as Record<string, string[]>;
+  const { workspaces } = JSON.parse(
+    await readFile(join(repository, 'package.json'), 'utf8'),
+  ) as { workspaces: string[] };
+  expect(workspaces.length).toBeGreaterThan(0);
+  for (const workspace of workspaces) {
+    const manifest = `${workspace.replaceAll('*', 'example')}/package.json`;
+    expect(
+      filters.image_inputs!.some((pattern) =>
+        new Bun.Glob(pattern).match(manifest),
+      ),
+      manifest,
+    ).toBe(true);
+    for (const event of ['pull_request', 'push'])
+      expect(
+        build.on[event]!.paths!.some((pattern) =>
+          new Bun.Glob(pattern).match(manifest),
+        ),
+        `${event}: ${manifest}`,
+      ).toBe(true);
+  }
+});
+
+test('standalone compose edits do not select the unrelated stack harness', async () => {
+  const filters = parse(
+    String(
+      findStep((await workflow()).jobs.changes!, 'Filter paths').with!.filters,
+    ),
+  ) as Record<string, string[]>;
+  for (const service of ['web', 'docs', 'ui-docs', 'ai-gateway']) {
+    for (const path of [
+      `compose.${service}.yml`,
+      `compose.${service}.test.yml`,
+    ]) {
+      expect(
+        filters[service]!.some((pattern) => new Bun.Glob(pattern).match(path)),
+        path,
+      ).toBe(true);
+      expect(
+        filters.ci_tests!.some((pattern) => new Bun.Glob(pattern).match(path)),
+        path,
+      ).toBe(false);
+    }
+  }
+  expect(
+    filters.ci_tests!.some((pattern) =>
+      new Bun.Glob(pattern).match('compose.test.yml'),
+    ),
+  ).toBe(true);
+});
+
+test('direct config validation avoids starting an unused Turbo cache server', async () => {
+  expect(
+    findStep((await workflow()).jobs.build!, 'Setup toolchain').with![
+      'start-turbo-cache'
+    ],
+  ).toBe('false');
+});
+
+describe
+  .skipIf(process.platform === 'win32')
+  .each(['smoke-test', 'image-validate'])(
+  '%s bounded image downloads',
+  (id) => {
+    const run = async (failure = '', stage = 'pull') => {
+      const build = await workflow();
+      const directory = await mkdtemp(join(tmpdir(), 'tale-ci-pulls-'));
+      directories.push(directory);
+      const services = build.jobs.build!.strategy!.matrix!.service!;
+      for (const service of services)
+        await writeFile(
+          join(directory, `${service}.json`),
+          JSON.stringify({ digest: `sha256:${'a'.repeat(64)}` }),
+        );
+      const trace = join(directory, 'trace');
+      await writeFile(trace, '');
+      await writeFile(
+        join(directory, 'docker'),
+        `#!/bin/bash
+set -euo pipefail
+stage="$1"
+if [ "$stage" = image ]; then stage=inspect; fi
+for image in "$@"; do :; done
+service="\${image##*/}"
+service="\${service#tale-}"
+service="\${service%%[:@]*}"
+emit() {
+  printf '{"event":"%s","service":"%s"}\\n' "$1" "$service" >> "$PULL_TRACE"
+}
+if [ "$stage" = pull ]; then
+  emit start
+  sleep 0.1
+  emit finish
+else
+  emit "$stage"
+fi
+if [ "$service" = "$FAIL_SERVICE" ] && [ "$stage" = "$FAIL_STAGE" ]; then exit 1; fi
+if [ "$stage" = inspect ]; then printf '%s\\n' "$SOURCE_SHA"; fi
+`,
+        { mode: 0o755 },
+      );
+      const script = findStep(build.jobs[id]!, 'Pull images from GHCR')
+        .run!.replaceAll('${{ env.REGISTRY }}', 'ghcr.io')
+        .replaceAll('${{ github.repository }}', 'tale-project/tale');
+      const result = await execute(script, {
+        PATH: `${directory}:${process.env.PATH}`,
+        PULL_TRACE: trace,
+        RECEIPTS: directory,
+        SOURCE_SHA: source,
+        FAIL_SERVICE: failure,
+        FAIL_STAGE: stage,
+      });
+      const events = (await readFile(trace, 'utf8'))
+        .trim()
+        .split('\n')
+        .filter(Boolean)
+        .map((line) => JSON.parse(line) as { event: string; service: string });
+      return { ...result, events, services };
+    };
+
+    test('overlaps downloads with at most three pulls and aliases only after every check', async () => {
+      const result = await run();
+      expect(result.code, result.stdout + result.stderr).toBe(0);
+      let active = 0;
+      let peak = 0;
+      for (const { event } of result.events) {
+        if (event === 'start') active++;
+        if (event === 'finish') active--;
+        peak = Math.max(peak, active);
+        expect(active).toBeLessThanOrEqual(3);
+      }
+      expect(peak).toBeGreaterThan(1);
+      expect(active).toBe(0);
+      for (const service of result.services)
+        expect(
+          result.events
+            .filter((event) => event.service === service)
+            .map((event) => event.event),
+        ).toEqual(
+          service === 'sandbox-runtime'
+            ? ['start', 'finish', 'inspect', 'tag', 'tag']
+            : ['start', 'finish', 'inspect', 'tag'],
+        );
+      expect(result.events.at(-1)).toEqual({
+        event: 'tag',
+        service: 'sandbox-runtime',
+      });
+    });
+
+    test.each(['pull', 'inspect', 'tag'])(
+      'a background %s failure fails the stack before its runtime alias',
+      async (stage) => {
+        const result = await run('proxy', stage);
+        expect(result.code).not.toBe(0);
+        expect(result.stdout).toContain(
+          '::error::Image download or source verification failed',
+        );
+        expect(
+          result.events.filter((event) => event.event === 'start'),
+        ).toHaveLength(3);
+        expect(
+          result.events.filter((event) => event.event === 'finish'),
+        ).toHaveLength(3);
+        expect(
+          result.events.some((event) => event.service === 'sandbox-runtime'),
+        ).toBe(false);
+      },
+    );
+  },
+);
+
+test('native release builds reuse isolated architecture caches without adding runner pressure', async () => {
+  const build = (await workflow('release')).jobs.build!;
+  const image = findStep(build, 'Build and push');
+  expect(build.strategy!['max-parallel']).toBe(6);
+  expect(image.with!['cache-from']).toContain(
+    'ref=${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service.name }}:buildcache-${{ matrix.arch.name }}',
+  );
+  expect(image.with!['cache-from']).toContain("matrix.arch.name == 'amd64'");
+  expect(image.with!['cache-to']).toBe(
+    'type=registry,ref=${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service.name }}:buildcache-${{ matrix.arch.name }},mode=max,ignore-error=true',
+  );
+});

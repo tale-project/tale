@@ -43,7 +43,14 @@
         "$TURBO_ROOT$/services/*/package.json",
         "$TURBO_ROOT$/services/sandbox-runtime/daemon/package.json",
         "$TURBO_ROOT$/tools/*/package.json",
-        "$TURBO_ROOT$/configs/platform/custom/skills/*/package.json"
+        "$TURBO_ROOT$/configs/platform/custom/skills/*/package.json",
+        "$TURBO_ROOT$/turbo.json",
+        "$TURBO_ROOT$/package.json",
+        "$TURBO_ROOT$/.github/actions/setup-turbo/action.yml",
+        "$TURBO_ROOT$/services/platform/backend/core/**",
+        "$TURBO_ROOT$/services/platform/lib/**",
+        "$TURBO_ROOT$/configs/platform/**",
+        "!$TURBO_ROOT$/configs/platform/**/.turbo/**"
       ],
       "dependsOn": ["generate", "^transit"]
     },

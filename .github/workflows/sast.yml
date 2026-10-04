@@ -75,7 +75,9 @@ jobs:
       # Repos without the opengrep port keep this identical file and self-skip.
       - name: Run Opengrep
         env:
-          OPENGREP_SARIF_OUTPUT: opengrep.sarif
+          # Candidates cannot upload against moving main. Avoid the extra full
+          # reporting scan there; the identical blocking scan still always runs.
+          OPENGREP_SARIF_OUTPUT: ${{ github.event_name != 'repository_dispatch' && 'opengrep.sarif' || '' }}
         run: |
           if [ ! -f tools/opengrep/run.sh ]; then
             echo "No tools/opengrep/run.sh in this repository — skipping the SAST gate."

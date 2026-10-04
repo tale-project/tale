@@ -128,6 +128,7 @@
     ".github/actions/setup-turbo/action.yml",
     ".oxlintrc.json",
     ".oxfmtrc.json",
-    "tsconfig.*.json"
+    "tsconfig*.json",
+    "bunfig.toml"
   ]
 }

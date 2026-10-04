@@ -222,7 +222,21 @@ test('Bun download caches cannot restore a different runner architecture', () =>
   );
   const prefix =
     'bun-install-${{ runner.os }}-${{ runner.arch }}-${{ inputs.bun-version }}-';
-  expect(cache?.with?.key).toBe(`${prefix}\${{ hashFiles('bun.lock') }}`);
+  const key = String(cache?.with?.key);
+  expect(key).toStartWith(prefix);
+  const workspaces = z
+    .object({ workspaces: z.array(z.string()) })
+    .parse(
+      JSON.parse(readFileSync(join(REPO_ROOT, 'package.json'), 'utf8')),
+    ).workspaces;
+  for (const input of [
+    'bun.lock',
+    'package.json',
+    'patches/**',
+    ...workspaces.map((workspace) => `${workspace}/package.json`),
+  ]) {
+    expect(key, input).toContain(`'${input}'`);
+  }
   expect(cache?.with?.['restore-keys']).toBe(`${prefix}\n`);
 });
 

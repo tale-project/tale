@@ -23,20 +23,21 @@ on:
       - 'services/platform/**'
       - 'services/web/**'
       - 'services/docs/**'
-      - 'docs/**'
-      - 'packages/ui/**'
-      - 'packages/marketing-ui/**'
-      - 'packages/e2e/**'
-      - 'packages/shared/**'
+      - 'packages/**'
       - 'configs/platform/**'
+      - 'services/sandbox-runtime/daemon/**'
+      - 'tools/cli/**'
+      - 'scripts/**'
+      - 'compose*.yml'
+      - 'docs/**'
+      - 'patches/**'
       - '.github/workflows/e2e.yml'
       - '.github/actions/setup-turbo/**'
       - 'package.json'
       - 'bun.lock'
+      - 'bunfig.toml'
       - 'turbo.json'
       - 'tsconfig*.json'
-      - 'patches/**'
-      - 'bunfig.toml'
   schedule:
     # Nightly at 02:30 UTC.
     - cron: '30 2 * * *'
@@ -59,6 +60,104 @@ jobs:
       candidate: ${{ github.event_name == 'repository_dispatch' }}
       candidate_sha: ${{ github.event.client_payload.candidate_sha }}
 
+  # PRs run only the affected services. Shared packages/toolchain changes run
+  # all three; release candidates, nightly and manual runs always run all.
+  # The REST PR diff requires no checkout, dependency install or git history.
+  scope:
+    needs: candidate-source
+    name: E2E scope
+    if: >-
+      !cancelled() &&
+      (((github.event_name == 'repository_dispatch') &&
+      needs.candidate-source.result == 'success') ||
+      ((github.event_name != 'repository_dispatch') &&
+      needs.candidate-source.result == 'skipped')) &&
+      (github.event_name != 'pull_request' || github.event.pull_request.draft != true)
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      platform: ${{ steps.decide.outputs.platform }}
+      static_services: ${{ steps.decide.outputs.static_services }}
+    steps:
+      - name: Filter paths
+        id: filter
+        if: github.event_name == 'pull_request'
+        uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4
+        with:
+          filters: |
+            platform:
+              - 'services/platform/**'
+              - 'configs/platform/**'
+              - 'services/sandbox-runtime/daemon/**'
+              - 'tools/cli/**'
+              - 'scripts/**'
+              - 'compose*.yml'
+              - 'packages/**'
+              - 'patches/**'
+              - 'package.json'
+              - 'bun.lock'
+              - 'bunfig.toml'
+              - 'turbo.json'
+              - 'tsconfig*.json'
+              - '.github/workflows/e2e.yml'
+              - '.github/actions/setup-turbo/**'
+            web:
+              - 'services/web/**'
+              - 'packages/**'
+              - 'patches/**'
+              - 'package.json'
+              - 'bun.lock'
+              - 'bunfig.toml'
+              - 'turbo.json'
+              - 'tsconfig*.json'
+              - '.github/workflows/e2e.yml'
+              - '.github/actions/setup-turbo/**'
+            docs:
+              - 'services/docs/**'
+              - 'docs/**'
+              - 'packages/**'
+              - 'patches/**'
+              - 'package.json'
+              - 'bun.lock'
+              - 'bunfig.toml'
+              - 'turbo.json'
+              - 'tsconfig*.json'
+              - '.github/workflows/e2e.yml'
+              - '.github/actions/setup-turbo/**'
+
+      - name: Decide
+        id: decide
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PLATFORM: ${{ steps.filter.outputs.platform }}
+          WEB: ${{ steps.filter.outputs.web }}
+          DOCS: ${{ steps.filter.outputs.docs }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" != pull_request ]; then
+            PLATFORM=true
+            WEB=true
+            DOCS=true
+          fi
+          for value in "$PLATFORM" "$WEB" "$DOCS"; do
+            case "$value" in
+              true|false) ;;
+              *) echo '::error::E2E scope did not return a boolean for every service'; exit 1 ;;
+            esac
+          done
+          services='[]'
+          if [ "$WEB" = true ]; then
+            services='["web"]'
+          fi
+          if [ "$DOCS" = true ]; then
+            if [ "$WEB" = true ]; then services='["web","docs"]'; else services='["docs"]'; fi
+          fi
+          echo "platform=$PLATFORM" >> "$GITHUB_OUTPUT"
+          echo "static_services=$services" >> "$GITHUB_OUTPUT"
+
   # Build the platform prod bundle ONCE per run and hand it to every shard.
   # Before this job existed each of the 16 shards restored the dist cache
   # itself and, on a cold key, all 16 missed simultaneously and ran the ~4-min
@@ -68,7 +167,7 @@ jobs:
   # cache-visibility race between sibling jobs) and still available to
   # `gh run rerun --failed` from the first attempt.
   build:
-    needs: candidate-source
+    needs: [candidate-source, scope]
     name: Build platform (E2E preview bundle)
     if: >-
       !cancelled() &&
@@ -76,6 +175,7 @@ jobs:
       needs.candidate-source.result == 'success') ||
       ((github.event_name != 'repository_dispatch') &&
       needs.candidate-source.result == 'skipped')) &&
+      needs.scope.result == 'success' && needs.scope.outputs.platform == 'true' &&
       (github.event_name != 'pull_request' || github.event.pull_request.draft != true)
     runs-on: ubuntu-latest
     # Sized for the COLD path: a lockfile bump invalidates the toolchain and
@@ -124,6 +224,7 @@ jobs:
           path: services/platform/dist
           retention-days: 7
           if-no-files-found: error
+          compression-level: 0
 
   e2e:
     name: Playwright (platform ${{ matrix.shard }}/4)
@@ -141,8 +242,8 @@ jobs:
     # The suite outgrew a single serial run (workers:1 against one backend).
     # Shard the specs across parallel runners so each shard finishes well inside
     # the timeout instead of being cancelled mid-run. Each shard is an
-    # independent job: it boots its own hermetic stack and runs the `setup` auth
-    # project before its slice. fail-fast:false so one shard's failure doesn't
+    # independent job: it boots its own hermetic stack and authenticates with
+    # the worker-scoped org fixture. fail-fast:false so one shard's failure doesn't
     # cancel the others — we want every shard's result, and a re-run of just the
     # red shards (`gh run rerun --failed`) converges to green.
     #
@@ -287,10 +388,10 @@ jobs:
           retention-days: 14
           if-no-files-found: ignore
 
-  # Smoke suites for the static sites — each boots only its own Vite dev server
+  # Smoke suites for the static sites — each builds its client and boots Vite preview
   # (no backend, no mock LLM), so the job is much lighter than platform's.
   static-sites:
-    needs: candidate-source
+    needs: [candidate-source, scope]
     name: Playwright (${{ matrix.service }})
     if: >-
       !cancelled() &&
@@ -298,6 +399,7 @@ jobs:
       needs.candidate-source.result == 'success') ||
       ((github.event_name != 'repository_dispatch') &&
       needs.candidate-source.result == 'skipped')) &&
+      needs.scope.result == 'success' && needs.scope.outputs.static_services != '[]' &&
       (github.event_name != 'pull_request' || github.event.pull_request.draft != true)
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -306,7 +408,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        service: [web, docs]
+        service: ${{ fromJSON(needs.scope.outputs.static_services) }}
 
     steps:
       - name: Checkout
@@ -392,7 +494,7 @@ jobs:
 
   candidate-gate:
     name: Candidate gate
-    needs: [candidate-source, build, e2e, static-sites]
+    needs: [candidate-source, scope, build, e2e, static-sites]
     if: always() && github.event_name == 'repository_dispatch'
     uses: ./.github/workflows/release-candidate-receipt.yml
     permissions: {}

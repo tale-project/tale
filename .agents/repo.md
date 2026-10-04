@@ -168,8 +168,10 @@ Most CI check jobs use `setup-turbo` plus a root script, so many results are **r
 forty `checks.yml` runs. Whichever run first executes a given input hash freezes its verdict for
 every later run that shares those inputs — so a task that is flaky but passed once reads green
 until its inputs change, and "it passes on `main`" is not evidence the suite ran there. Before
-concluding that a failure is yours, open the job log and look for `cache hit, replaying logs`
-beside the task; `--force` re-runs it locally. A task whose result depends on anything but its
+concluding that a failure is yours, inspect the task cache status in the job's `turbo-*`
+artifact. Most check jobs print only failing logs; the summary preserves per-task execution
+evidence. Type check retains full logs (`cache hit, replaying logs`); `--output-logs=full`
+restores that detail locally, and `--force` re-runs the task. A task whose result depends on anything but its
 declared inputs — test file ordering, wall-clock, a shared browser page — is not safely
 cacheable, and the fix is the determinism, not the cache.
 
@@ -179,6 +181,10 @@ succeed. It does not install dependencies. Shard 1 also runs every other workspa
 four single-worker platform shards, each with its own stack, and builds the preview
 bundle once through the same Turbo task used by Checks. A run artifact carries those
 exact bytes to every shard. See [the CI scheduling guide](../.github/CI.md).
+
+E2E pull requests first compute a fail-closed platform, web and docs service scope;
+candidates, nightly and manual runs select every service. Candidate receipts require
+the scope, the stable UI aggregate and every individual UI and E2E shard.
 
 The **Type check** job gives every `tsc` a 6 GiB Node heap (`NODE_OPTIONS`, #4005). The
 platform checks its frontend, backend and tests as one program, which outgrew V8's default of
@@ -259,7 +265,10 @@ hold its direct source reads and exported files to that contract. Every root
 
 CLI generation and builds record the checkout's Git revision and clean state; they are
 uncached because those values are not source-file hashes. Their outside source inputs
-still invalidate dependent checks. Do not cache these artifacts without including and
+still invalidate dependent checks; nested catalog `.turbo/` logs are excluded. The real
+Turbo fixture in `tools/cli/scripts/turbo-dependencies.test.ts` checks log creation and
+rewrites leave hashes unchanged while real catalog sources invalidate them.
+Do not cache these artifacts without including and
 verifying their complete source identity.
 
 ## Skills index

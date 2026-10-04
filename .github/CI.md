@@ -12,12 +12,19 @@ needs fewer runners, while a long CPU-bound suite can benefit from more slices.
   checkout or dependency installation. Keep all matrix legs in the candidate receipt.
 - **E2E** builds the platform preview bundle once using the ordinary Turbo build task,
   then uploads it for four single-worker Playwright shards. Each shard owns its database,
-  backend and setup project. Reports still capture failed tests and retries. The web and
-  docs suites keep their independent jobs.
+  backend and worker-scoped org fixture. Reports still capture failed tests and retries. The web and
+  docs suites keep their independent jobs. Pull requests first compute affected service
+  scope from the PR diff; missing or nonboolean filter results fail the scope job.
+  Nightly, manual and candidate rounds always select platform, web and docs.
 - **Build** distinguishes the platform stack from standalone sites. Site-only changes run
   their container tests without building the eight-image platform stack. Shared package,
   dependency, toolchain and test-harness inputs expand to full coverage. Release candidates
   always run the complete graph, regardless of changed paths.
+  Forks build on their consuming smoke and image-validation runners rather than additionally
+  scheduling eight isolated builds that those runners cannot use. Published image checks
+  preflight every digest receipt, pull at most three images concurrently, and check each
+  source revision before tagging it locally. Every child must succeed before the runtime
+  alias is created.
 - The four standalone container tests load their cached Buildx image into Docker and pass
   `SKIP_BUILD=true` and `PULL_POLICY=never` to the existing probes. Their Compose commands
   test those local bytes. Compose produces the Bake plan, preserving its build arguments,
@@ -58,7 +65,8 @@ those deprecated inputs and uses `turbo-cache` and `cache-scope`. The old artifa
 server must stay disabled in every caller during this compatibility period.
 
 CLI generation and builds embed Git revision and clean-state metadata, so they are
-uncached. Source-only hashes cannot certify that identity. E2E has no independent
+uncached. Their outside catalog and reference sources are declared inputs; generated skill
+task logs are excluded. Source-only hashes cannot certify that identity. E2E has no independent
 hand-maintained file-list cache for its preview bundle; it reuses the ordinary build
 inputs and passes the result through a per-run artifact.
 
@@ -95,3 +103,9 @@ Also run `actionlint`, the cache-input guards, and `bun run check`. When a matri
 required job changes, update `CANDIDATE_JOBS` in
 `tools/cli/scripts/release-candidate-gate.ts` and its workflow graph tests together.
 A release receipt must reject missing or skipped shards even if an aggregate is green.
+
+Type check retains its 6 GiB heap, compiler diagnostics and peak memory evidence. Other
+Turbo check commands print failing logs; the seven-day `turbo-*` artifacts preserve task
+hashes, timings and cache status, including failed jobs. Use `--output-logs=full` to inspect
+replayed logs locally and `--force` for fresh execution. Candidate SAST and dependency scans
+retain their blocking passes while skipping informational SARIF that cannot be published.

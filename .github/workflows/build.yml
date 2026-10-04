@@ -24,6 +24,8 @@ on:
       - 'services/**'
       - 'packages/**'
       - 'configs/platform/**'
+      - 'patches/**'
+      - 'tools/**/package.json'
       - 'docs/**'
       - '.github/workflows/build.yml'
       - '.github/actions/setup-turbo/**'
@@ -34,8 +36,6 @@ on:
       - '.env.test'
       - 'bunfig.toml'
       - 'tsconfig*.json'
-      - 'patches/**'
-      - 'tools/*/package.json'
       - 'turbo.json'
       - '.dockerignore'
       - 'package.json'
@@ -47,6 +47,8 @@ on:
       - 'services/**'
       - 'packages/**'
       - 'configs/platform/**'
+      - 'patches/**'
+      - 'tools/**/package.json'
       - 'docs/**'
       - '.github/workflows/build.yml'
       - '.github/actions/setup-turbo/**'
@@ -57,8 +59,6 @@ on:
       - '.env.test'
       - 'bunfig.toml'
       - 'tsconfig*.json'
-      - 'patches/**'
-      - 'tools/*/package.json'
       - 'turbo.json'
       - '.dockerignore'
       - 'package.json'
@@ -122,6 +122,7 @@ jobs:
       services: ${{ steps.services.outputs.list }}
       scannable_services: ${{ steps.services.outputs.scannable }}
       ci_tests: ${{ steps.services.outputs.ci_tests }}
+      stack: ${{ steps.services.outputs.stack }}
       storybook: ${{ steps.services.outputs.storybook }}
       image_tag: ${{ steps.tag.outputs.value }}
       # The commit every job builds and tests. `candidate_sha` is that same
@@ -141,22 +142,27 @@ jobs:
         id: filter
         with:
           filters: |
-            shared_build:
-              - 'packages/**'
-              - '**/package.json'
+            # Root build inputs, workspace manifests and shared package code
+            # retain full validation coverage across the image consumers.
+            image_inputs:
+              - 'package.json'
               - 'bun.lock'
               - 'bunfig.toml'
               - 'patches/**'
+              - 'packages/**/package.json'
+              - 'packages/shared/**'
+              - 'services/**/package.json'
+              - 'configs/platform/custom/skills/*/package.json'
+              - 'tools/**/package.json'
               - 'tsconfig*.json'
-              - 'turbo.json'
               - '.dockerignore'
-              - '.env.test'
               - '.github/workflows/build.yml'
               - '.github/actions/setup-turbo/**'
-              - 'services/platform/tests/integration/static-site-test.ts'
-              - 'services/platform/tests/integration/lib/**'
+              - 'turbo.json'
             platform:
               - 'services/platform/**'
+              - 'packages/ui/**'
+              - 'packages/shared/**'
               - 'configs/platform/**'
             db:
               - 'services/db/**'
@@ -167,22 +173,38 @@ jobs:
             web:
               - 'services/web/**'
               - 'compose.web*.yml'
+              - '.env.test'
+              - 'services/platform/tests/integration/container-web-test.ts'
+              - 'services/platform/tests/integration/static-site-test.ts'
+              - 'services/platform/tests/integration/lib/**'
               - 'packages/ui/**'
               - 'packages/marketing-ui/**'
             docs:
               - 'services/docs/**'
-              - 'docs/**'
               - 'compose.docs*.yml'
+              - '.env.test'
+              - 'services/platform/tests/integration/container-docs-test.ts'
+              - 'services/platform/tests/integration/static-site-test.ts'
+              - 'services/platform/tests/integration/lib/**'
+              - 'docs/**'
               - 'packages/ui/**'
               - 'packages/marketing-ui/**'
             ui-docs:
               - 'services/ui-docs/**'
               - 'compose.ui-docs*.yml'
+              - '.env.test'
+              - 'services/platform/tests/integration/container-ui-docs-test.ts'
+              - 'services/platform/tests/integration/static-site-test.ts'
+              - 'services/platform/tests/integration/lib/**'
               - 'packages/ui/**'
               - 'packages/marketing-ui/**'
             ai-gateway:
               - 'services/ai-gateway/**'
               - 'compose.ai-gateway*.yml'
+              - '.env.test'
+              - 'services/platform/tests/integration/container-ai-gateway-test.ts'
+              - 'services/platform/tests/integration/static-site-test.ts'
+              - 'services/platform/tests/integration/lib/**'
               - 'packages/ui/**'
             storybook:
               - 'services/platform/**'
@@ -196,9 +218,9 @@ jobs:
               - 'services/sandbox-buildkitd/**'
             sandbox-runtime:
               - 'services/sandbox-runtime/**'
-              - 'configs/platform/custom/skills/visual-aspect-analyzer/**'
-              - 'configs/platform/system/harnesses/gemini/harness.yml'
               - 'services/platform/lib/harnesses/**'
+              - 'configs/platform/system/harnesses/gemini/harness.yml'
+              - 'configs/platform/custom/skills/visual-aspect-analyzer/**'
             ci_tests:
               - 'services/platform/tests/integration/container-*'
               - 'services/platform/tests/integration/static-site-test.ts'
@@ -225,20 +247,28 @@ jobs:
           CHANGES: ${{ steps.filter.outputs.changes }}
           CI_TESTS: ${{ steps.filter.outputs.ci_tests }}
           STORYBOOK: ${{ steps.filter.outputs.storybook }}
+          IMAGE_INPUTS: ${{ steps.filter.outputs.image_inputs }}
         run: |
           set -euo pipefail
-          if [ -n "$CANDIDATE_SHA" ] || jq -e 'index("shared_build") != null' <<< "$CHANGES" > /dev/null; then
-            # Candidates and shared build inputs run every check. A candidate
-            # must never pass by omission; dependency/manifest changes can alter
-            # every Dockerfile even when no individual service filter matches.
-            CHANGES='["platform","db","proxy","sandbox-llm-gateway","web","docs","ui-docs","ai-gateway","storybook","sandbox","sandbox-egress","sandbox-buildkitd","sandbox-runtime","ci_tests"]'
+          if [ -n "$CANDIDATE_SHA" ]; then
+            # A release candidate runs every check, whatever its last commit
+            # touched: a check skipped for the candidate never passed for it.
+            # Every filter above, pseudo-filters included (deployment-ci.test.ts).
+            CHANGES='["platform","db","proxy","sandbox-llm-gateway","web","docs","ui-docs","ai-gateway","storybook","sandbox","sandbox-egress","sandbox-buildkitd","sandbox-runtime","ci_tests","image_inputs"]'
+            CI_TESTS=true
+            STORYBOOK=true
+          elif [ "${IMAGE_INPUTS:-false}" = true ]; then
+            CHANGES=$(jq -c '. + ["platform","db","proxy","sandbox-llm-gateway","web","docs","ui-docs","ai-gateway","storybook","sandbox","sandbox-egress","sandbox-buildkitd","sandbox-runtime"] | unique' <<< "$CHANGES")
             CI_TESTS=true
             STORYBOOK=true
           fi
           # Strip pseudo-filters that aren't real services from the matrix list.
-          SERVICES=$(jq -c '[.[] | select(. != "ci_tests" and . != "storybook" and . != "shared_build")]' <<< "$CHANGES")
+          SERVICES=$(jq -c '[.[] | select(. != "ci_tests" and . != "storybook" and . != "image_inputs")]' <<< "$CHANGES")
           echo "list=${SERVICES}" >> "$GITHUB_OUTPUT"
           echo "Services to build: ${SERVICES}"
+          # Standalone sites have their own tests and need no platform stack.
+          STACK=$(jq -r 'any(.[]; . == "db" or . == "platform" or . == "proxy" or . == "sandbox-llm-gateway" or . == "sandbox" or . == "sandbox-egress" or . == "sandbox-buildkitd" or . == "sandbox-runtime")' <<< "$SERVICES")
+          if [ "$CI_TESTS" = true ]; then STACK=true; fi
 
           # Vulnerability scan covers the compose-stack services + sandbox
           # trio that `build` actually pushes to GHCR. Web, docs and ui-docs
@@ -251,6 +281,7 @@ jobs:
           {
             echo "scannable=${SCANNABLE}"
             echo "ci_tests=${CI_TESTS}"
+            echo "stack=${STACK}"
             echo "storybook=${STORYBOOK}"
           } >> "$GITHUB_OUTPUT"
           echo "Services to scan: ${SCANNABLE}"
@@ -298,10 +329,9 @@ jobs:
   # stacks and are exercised by the separate web-test / docs-test /
   # ui-docs-test jobs below.
   #
-  # Fork PRs cannot push to the upstream GHCR (read-only GITHUB_TOKEN), so
-  # this job switches to local build (`push: false`, `load: true`). The
-  # smoke-test-fork / image-validate-fork jobs cover that path with the
-  # OLD-style local-build smoke pipeline.
+  # Fork PRs cannot push to upstream GHCR. Their smoke-test-fork and
+  # image-validate-fork jobs build locally on the runners that use the images;
+  # loading eight additional matrix images into unrelated runners wastes work.
   #
   # Draft PRs skip to save minutes.
   # ---------------------------------------------------------------------------
@@ -311,7 +341,7 @@ jobs:
     if: >-
       !cancelled() &&
       needs.changes.result == 'success' &&
-      (needs.changes.outputs.ci_tests == 'true' && github.event.pull_request.draft != true)
+      (needs.changes.outputs.stack == 'true' && github.event.pull_request.draft != true && github.event.pull_request.head.repo.fork != true)
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -346,22 +376,13 @@ jobs:
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
           sudo docker image prune -af
 
-      # Fork PRs get a read-only GITHUB_TOKEN regardless of `permissions:`,
-      # so we can't push to GHCR. Switch to local build (load into runner's
-      # Docker) on forks; the smoke-test-fork / image-validate-fork jobs
-      # then exercise the resulting images via SKIP_BUILD=true on the same
-      # runner. Same-repo PRs and pushes use push: true → GHCR as before.
+      # This publication matrix runs only where GHCR writes are available.
+      # Keep the mode outputs used by image receipts and failure summaries.
       - name: Set push mode
         id: pushmode
         run: |
-          if [ "${{ github.event.pull_request.head.repo.fork }}" = "true" ]; then
-            echo "push=false" >> "$GITHUB_OUTPUT"
-            echo "load=true"  >> "$GITHUB_OUTPUT"
-            echo "Fork PR detected — building locally (push=false, load=true)"
-          else
-            echo "push=true"  >> "$GITHUB_OUTPUT"
-            echo "load=false" >> "$GITHUB_OUTPUT"
-          fi
+          echo "push=true" >> "$GITHUB_OUTPUT"
+          echo "load=false" >> "$GITHUB_OUTPUT"
 
       - name: Setup Docker builder
         uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
@@ -506,7 +527,7 @@ jobs:
       !cancelled() &&
       needs.changes.result == 'success' &&
       needs.build.result == 'success' &&
-      (needs.changes.outputs.ci_tests == 'true' && github.event.pull_request.draft != true && github.event.pull_request.head.repo.fork != true)
+      (needs.changes.outputs.stack == 'true' && github.event.pull_request.draft != true && github.event.pull_request.head.repo.fork != true)
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -562,50 +583,50 @@ jobs:
           # not a compose service but the spawner pulls it at boot — re-tag it
           # locally so smoke tests with PULL_POLICY=never find it.
           REGISTRY_PATH="${{ env.REGISTRY }}/${{ github.repository }}"
-          # Validate all receipts before any background work; a missing or
-          # malformed receipt must not be hidden by another successful pull.
-          images=()
-          for svc in db platform proxy sandbox-llm-gateway sandbox sandbox-egress sandbox-buildkitd sandbox-runtime; do
+          SERVICES=(db platform proxy sandbox-llm-gateway sandbox sandbox-egress sandbox-buildkitd sandbox-runtime)
+          DIGESTS=()
+          # Check every receipt before starting any download. A malformed or
+          # missing digest must not leave a partially trusted stack behind.
+          for svc in "${SERVICES[@]}"; do
             DIGEST=$(jq -r '.digest // empty' "${RECEIPTS}/${svc}.json" 2> /dev/null || true)
             if [[ ! "$DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]]; then
               echo "::error::No image receipt with a digest for tale-${svc}"; exit 1
             fi
-            images+=("${svc}@${DIGEST}")
+            DIGESTS+=("$DIGEST")
           done
-          pull_image() {
-            local svc=$1 digest=$2 image revision
-            image="${REGISTRY_PATH}/tale-${svc}@${digest}"
-            echo "Pulling ${image}..."
-            docker pull "$image"
-            revision=$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$image")
-            if [ "$revision" != "$SOURCE_SHA" ]; then
-              echo "::error::tale-${svc} was built from ${revision}, not ${SOURCE_SHA}"; exit 1
+          pull_image() (
+            set -euo pipefail
+            svc="$1"
+            IMAGE="${REGISTRY_PATH}/tale-${svc}@$2"
+            echo "Pulling ${IMAGE}..."
+            docker pull "${IMAGE}"
+            REVISION=$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "${IMAGE}")
+            if [ "$REVISION" != "$SOURCE_SHA" ]; then
+              echo "::error::tale-${svc} was built from ${REVISION}, not ${SOURCE_SHA}"; exit 1
             fi
-            docker tag "$image" "ghcr.io/tale-project/tale/tale-${svc}:latest"
+            docker tag "${IMAGE}" "ghcr.io/tale-project/tale/tale-${svc}:latest"
+          )
+          PIDS=()
+          FAILED=0
+          wait_for_pulls() {
+            for pid in "${PIDS[@]}"; do
+              if ! wait "$pid"; then FAILED=1; fi
+            done
+            PIDS=()
+            if [ "$FAILED" -ne 0 ]; then
+              echo '::error::Image download or source verification failed'; exit 1
+            fi
           }
-          # Three concurrent pulls overlap downloads without flooding the
-          # runner's disk. Wait on every PID, including a failed early child.
-          pids=()
-          failed=false
-          for entry in "${images[@]}"; do
-            pull_image "${entry%@*}" "${entry#*@}" &
-            pids+=("$!")
-            if [ "${#pids[@]}" -eq 3 ]; then
-              for pid in "${pids[@]}"; do
-                if ! wait "$pid"; then failed=true; fi
-              done
-              [ "$failed" = false ] || exit 1
-              pids=()
-            fi
+          # Three concurrent downloads overlap registry latency without
+          # overwhelming disk extraction; every background failure is awaited.
+          for index in "${!SERVICES[@]}"; do
+            pull_image "${SERVICES[$index]}" "${DIGESTS[$index]}" &
+            PIDS+=("$!")
+            if [ "${#PIDS[@]}" -eq 3 ]; then wait_for_pulls; fi
           done
           # Bash 3.2 treats an empty array as unset under nounset. Exact
           # batches already joined every child and leave nothing to wait for.
-          if [ "${#pids[@]}" -gt 0 ]; then
-            for pid in "${pids[@]}"; do
-              if ! wait "$pid"; then failed=true; fi
-            done
-          fi
-          [ "$failed" = false ] || exit 1
+          if [ "${#PIDS[@]}" -gt 0 ]; then wait_for_pulls; fi
           # See note in image-validate: the spawner's SANDBOX_RUNTIME_IMAGE
           # defaults to the unscoped `tale-sandbox-runtime:latest`.
           docker tag "ghcr.io/tale-project/tale/tale-sandbox-runtime:latest" \
@@ -661,7 +682,7 @@ jobs:
     if: >-
       !cancelled() &&
       needs.changes.result == 'success' &&
-      (needs.changes.outputs.ci_tests == 'true' && github.event.pull_request.draft != true && github.event.pull_request.head.repo.fork == true)
+      (needs.changes.outputs.stack == 'true' && github.event.pull_request.draft != true && github.event.pull_request.head.repo.fork == true)
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -988,7 +1009,7 @@ jobs:
       !cancelled() &&
       needs.changes.result == 'success' &&
       needs.build.result == 'success' &&
-      (needs.changes.outputs.ci_tests == 'true' && github.event.pull_request.draft != true && github.event.pull_request.head.repo.fork != true)
+      (needs.changes.outputs.stack == 'true' && github.event.pull_request.draft != true && github.event.pull_request.head.repo.fork != true)
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -1033,50 +1054,50 @@ jobs:
           # not a compose service but the spawner pulls it at boot — re-tag it
           # locally so PULL_POLICY=never validation finds it.
           REGISTRY_PATH="${{ env.REGISTRY }}/${{ github.repository }}"
-          # Validate all receipts before any background work; a missing or
-          # malformed receipt must not be hidden by another successful pull.
-          images=()
-          for svc in db platform proxy sandbox-llm-gateway sandbox sandbox-egress sandbox-buildkitd sandbox-runtime; do
+          SERVICES=(db platform proxy sandbox-llm-gateway sandbox sandbox-egress sandbox-buildkitd sandbox-runtime)
+          DIGESTS=()
+          # Check every receipt before starting any download. A malformed or
+          # missing digest must not leave a partially trusted stack behind.
+          for svc in "${SERVICES[@]}"; do
             DIGEST=$(jq -r '.digest // empty' "${RECEIPTS}/${svc}.json" 2> /dev/null || true)
             if [[ ! "$DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]]; then
               echo "::error::No image receipt with a digest for tale-${svc}"; exit 1
             fi
-            images+=("${svc}@${DIGEST}")
+            DIGESTS+=("$DIGEST")
           done
-          pull_image() {
-            local svc=$1 digest=$2 image revision
-            image="${REGISTRY_PATH}/tale-${svc}@${digest}"
-            echo "Pulling ${image}..."
-            docker pull "$image"
-            revision=$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$image")
-            if [ "$revision" != "$SOURCE_SHA" ]; then
-              echo "::error::tale-${svc} was built from ${revision}, not ${SOURCE_SHA}"; exit 1
+          pull_image() (
+            set -euo pipefail
+            svc="$1"
+            IMAGE="${REGISTRY_PATH}/tale-${svc}@$2"
+            echo "Pulling ${IMAGE}..."
+            docker pull "${IMAGE}"
+            REVISION=$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "${IMAGE}")
+            if [ "$REVISION" != "$SOURCE_SHA" ]; then
+              echo "::error::tale-${svc} was built from ${REVISION}, not ${SOURCE_SHA}"; exit 1
             fi
-            docker tag "$image" "ghcr.io/tale-project/tale/tale-${svc}:latest"
+            docker tag "${IMAGE}" "ghcr.io/tale-project/tale/tale-${svc}:latest"
+          )
+          PIDS=()
+          FAILED=0
+          wait_for_pulls() {
+            for pid in "${PIDS[@]}"; do
+              if ! wait "$pid"; then FAILED=1; fi
+            done
+            PIDS=()
+            if [ "$FAILED" -ne 0 ]; then
+              echo '::error::Image download or source verification failed'; exit 1
+            fi
           }
-          # Three concurrent pulls overlap downloads without flooding the
-          # runner's disk. Wait on every PID, including a failed early child.
-          pids=()
-          failed=false
-          for entry in "${images[@]}"; do
-            pull_image "${entry%@*}" "${entry#*@}" &
-            pids+=("$!")
-            if [ "${#pids[@]}" -eq 3 ]; then
-              for pid in "${pids[@]}"; do
-                if ! wait "$pid"; then failed=true; fi
-              done
-              [ "$failed" = false ] || exit 1
-              pids=()
-            fi
+          # Three concurrent downloads overlap registry latency without
+          # overwhelming disk extraction; every background failure is awaited.
+          for index in "${!SERVICES[@]}"; do
+            pull_image "${SERVICES[$index]}" "${DIGESTS[$index]}" &
+            PIDS+=("$!")
+            if [ "${#PIDS[@]}" -eq 3 ]; then wait_for_pulls; fi
           done
           # Bash 3.2 treats an empty array as unset under nounset. Exact
           # batches already joined every child and leave nothing to wait for.
-          if [ "${#pids[@]}" -gt 0 ]; then
-            for pid in "${pids[@]}"; do
-              if ! wait "$pid"; then failed=true; fi
-            done
-          fi
-          [ "$failed" = false ] || exit 1
+          if [ "${#PIDS[@]}" -gt 0 ]; then wait_for_pulls; fi
           # The spawner reads SANDBOX_RUNTIME_IMAGE which defaults to
           # `tale-sandbox-runtime:latest` (unscoped). Mirror the tag so the
           # spawner's boot-time `ensureImage` hits a local cache instead of
@@ -1117,7 +1138,7 @@ jobs:
     if: >-
       !cancelled() &&
       needs.changes.result == 'success' &&
-      (needs.changes.outputs.ci_tests == 'true' && github.event.pull_request.draft != true && github.event.pull_request.head.repo.fork == true)
+      (needs.changes.outputs.stack == 'true' && github.event.pull_request.draft != true && github.event.pull_request.head.repo.fork == true)
     runs-on: ubuntu-latest
     permissions:
       contents: read

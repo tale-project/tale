@@ -454,6 +454,7 @@ printf '%s\\n' "$TEST_COMPARE_STATUS"
             CHANGES: '',
             CI_TESTS: '',
             STORYBOOK: '',
+            IMAGE_INPUTS: '',
           })
         ).output,
       );
@@ -467,7 +468,7 @@ printf '%s\\n' "$TEST_COMPARE_STATUS"
           ...(JSON.parse(candidate.list!) as string[]),
           'ci_tests',
           'storybook',
-          'shared_build',
+          'image_inputs',
         ].toSorted(),
       ).toEqual(filters.toSorted());
       expect(JSON.parse(candidate.list!)).toEqual(
@@ -486,12 +487,14 @@ printf '%s\\n' "$TEST_COMPARE_STATUS"
         CHANGES: '["platform","web","ci_tests"]',
         CI_TESTS: 'true',
         STORYBOOK: 'false',
+        IMAGE_INPUTS: '',
       });
       expect(pushed.code, pushed.stdout + pushed.stderr).toBe(0);
       expect(outputs(pushed.output)).toEqual({
         list: '["platform","web"]',
         scannable: '["platform"]',
         ci_tests: 'true',
+        stack: 'true',
         storybook: 'false',
       });
     },
@@ -750,29 +753,30 @@ printf '%s\\n' "$TEST_COMPARE_STATUS"
         expect(result.code, result.stdout + result.stderr).toBe(0);
         const image = (service: string) =>
           `ghcr.io/tale-project/tale/tale-${service}@${digest(service)}`;
-        const expectedCalls = [
-          ...BUILT.flatMap((service) => [
-            `docker pull ${image(service)}`,
-            `docker image inspect --format {{ index .Config.Labels "org.opencontainers.image.revision" }} ${image(service)}`,
-            `docker tag ${image(service)} ghcr.io/tale-project/tale/tale-${service}:latest`,
-          ]),
-          'docker tag ghcr.io/tale-project/tale/tale-sandbox-runtime:latest tale-sandbox-runtime:latest',
-        ];
-        expect(result.calls.toSorted()).toEqual(expectedCalls.toSorted());
-        // Independent downloads overlap, but each image must be verified
-        // before it is tagged for Compose. The final alias waits for all pulls.
+        expect(result.calls.toSorted()).toEqual(
+          [
+            ...BUILT.flatMap((service) => [
+              `docker pull ${image(service)}`,
+              `docker image inspect --format {{ index .Config.Labels "org.opencontainers.image.revision" }} ${image(service)}`,
+              `docker tag ${image(service)} ghcr.io/tale-project/tale/tale-${service}:latest`,
+            ]),
+            'docker tag ghcr.io/tale-project/tale/tale-sandbox-runtime:latest tale-sandbox-runtime:latest',
+          ].toSorted(),
+        );
         for (const service of BUILT) {
-          const [pullCall, inspect, tag] = expectedCalls.filter((call) =>
-            call.includes(image(service)),
+          const pulled = result.calls.indexOf(`docker pull ${image(service)}`);
+          const inspected = result.calls.indexOf(
+            `docker image inspect --format {{ index .Config.Labels "org.opencontainers.image.revision" }} ${image(service)}`,
           );
-          expect(result.calls.indexOf(pullCall!)).toBeLessThan(
-            result.calls.indexOf(inspect!),
+          const tagged = result.calls.indexOf(
+            `docker tag ${image(service)} ghcr.io/tale-project/tale/tale-${service}:latest`,
           );
-          expect(result.calls.indexOf(inspect!)).toBeLessThan(
-            result.calls.indexOf(tag!),
-          );
+          expect(pulled).toBeLessThan(inspected);
+          expect(inspected).toBeLessThan(tagged);
         }
-        expect(result.calls.at(-1)).toBe(expectedCalls.at(-1));
+        expect(result.calls.at(-1)).toBe(
+          'docker tag ghcr.io/tale-project/tale/tale-sandbox-runtime:latest tale-sandbox-runtime:latest',
+        );
         // The loop pulls exactly what the build matrix builds.
         expect(BUILT.toSorted()).toEqual(
           (await workflow()).jobs.build!.strategy!.matrix!.service!.toSorted(),

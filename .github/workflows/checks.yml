@@ -113,7 +113,17 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Run lint
-        run: bunx turbo run lint
+        run: bunx turbo run lint --output-logs=errors-only --summarize
+
+      - name: Upload Turbo execution summary
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: turbo-lint-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .turbo/runs/*.json
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 7
 
   typecheck:
     if: >-
@@ -172,10 +182,20 @@ jobs:
         run: |
           set -euo pipefail
           if [ -x /usr/bin/time ]; then
-            /usr/bin/time --format 'Type check peak RSS: %M KiB, %e s' bunx turbo run typecheck -- --extendedDiagnostics
+            /usr/bin/time --format 'Type check peak RSS: %M KiB, %e s' bunx turbo run typecheck --summarize -- --extendedDiagnostics
           else
-            bunx turbo run typecheck -- --extendedDiagnostics
+            bunx turbo run typecheck --summarize -- --extendedDiagnostics
           fi
+
+      - name: Upload Turbo execution summary
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: turbo-typecheck-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .turbo/runs/*.json
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 7
 
   build:
     if: >-
@@ -205,7 +225,7 @@ jobs:
           cache-scope: build
 
       - name: Run build
-        run: bunx turbo run build
+        run: bunx turbo run build --output-logs=errors-only --summarize
         env:
           # @tale/web's fetch-releases calls api.github.com; unauthenticated
           # shared-runner IPs get rate-limited (403), so hand it the workflow
@@ -217,7 +237,17 @@ jobs:
       # every address their pages, llms.txt, sitemap and Markdown exports
       # carry — the links the docs frame builds, which no source check sees.
       - name: Crawl the built docs sites
-        run: bunx turbo run test:prerender --filter=@tale/docs --filter=@tale/ui-docs
+        run: bunx turbo run test:prerender --filter=@tale/docs --filter=@tale/ui-docs --output-logs=errors-only --summarize
+
+      - name: Upload Turbo execution summary
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: turbo-build-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .turbo/runs/*.json
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 7
 
   test:
     if: >-
@@ -270,7 +300,17 @@ jobs:
           VIDEO_INGEST_POT_PROVIDER_URL: http://127.0.0.1:4416
         # Each workspace runner has its own worker pool. Bound their overlap so
         # full-corpus checks retain CPU time on the shared hosted runner.
-        run: bunx turbo run test --concurrency=2
+        run: bunx turbo run test --concurrency=2 --output-logs=errors-only --summarize
+
+      - name: Upload Turbo execution summary
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: turbo-test-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .turbo/runs/*.json
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 7
 
   test-ui:
     needs: [candidate-source, test-ui-shards]
@@ -339,12 +379,22 @@ jobs:
           cache-scope: test-ui-${{ matrix.shard }}
 
       - name: Run UI tests
-        run: bunx turbo run test:ui --filter=@tale/platform -- --shard=${{ matrix.shard }}/4
+        run: bunx turbo run test:ui --filter=@tale/platform --output-logs=errors-only --summarize -- --shard=${{ matrix.shard }}/4
 
       # Future UI workspaces still run once; only platform is partitioned.
       - name: Run other workspace UI tests
         if: matrix.shard == 1
-        run: bunx turbo run test:ui --filter='!@tale/platform'
+        run: bunx turbo run test:ui --filter='!@tale/platform' --output-logs=errors-only --summarize
+
+      - name: Upload Turbo execution summary
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: turbo-test-ui-shards-${{ matrix.shard }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .turbo/runs/*.json
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 7
 
   # Always measure: timing samples must never be replayed from Turbo's cache.
   # Failures mean workload correctness/setup failed, not that a latency budget
@@ -495,7 +545,17 @@ jobs:
           bunx playwright install --with-deps chromium
 
       - name: Run browser-mode component tests
-        run: bunx turbo run test:browser
+        run: bunx turbo run test:browser --output-logs=errors-only --summarize
+
+      - name: Upload Turbo execution summary
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: turbo-test-browser-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .turbo/runs/*.json
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 7
 
   # Which runs owe the real-Postgres proof below. A pull request owes it when
   # it touches what the suite runs: the backend and the libraries it imports,

@@ -39,7 +39,7 @@ type Job = {
     matrix: {
       include?: Record<string, string>[];
       shard?: number[];
-      service?: string[];
+      service?: string[] | string;
     };
   };
 };
@@ -110,6 +110,9 @@ const admission = (file: Workflow, stem: string, event: string): Admission => ({
           ci_tests: 'true',
           storybook: 'true',
           run: 'true',
+          stack: 'true',
+          platform: 'true',
+          static_services: '["web","docs"]',
           sha: candidateEvent(stem, event) ? C : '',
           candidate_sha: candidateEvent(stem, event) ? C : '',
           source_sha:
@@ -129,7 +132,10 @@ const admission = (file: Workflow, stem: string, event: string): Admission => ({
  * for missing results/outputs and exercise the default skipped-ancestor rule.
  * Reject unsupported syntax instead of silently guessing its semantics. */
 function expressionValue(source: string, state: Admission): unknown {
-  const expression = source.replace(/^\$\{\{\s*|\s*\}\}$/g, '').trim();
+  const expression = source
+    .replace(/^\$\{\{\s*|\s*\}\}$/g, '')
+    .replace(/\bfromJSON\b/g, 'fromJson')
+    .trim();
   const remaining = expression
     .replace(/'(?:[^']|'')*'/g, 'STRING')
     .replace(
@@ -216,7 +222,7 @@ describe('ordinary CI source admission', () => {
     },
   );
 
-  test('all 34 ordinary job definitions survive an intentionally skipped ancestor', async () => {
+  test('all 35 ordinary job definitions survive an intentionally skipped ancestor', async () => {
     let count = 0;
     for (const stem of callers) {
       const file = await workflow(stem);
@@ -251,7 +257,7 @@ describe('ordinary CI source admission', () => {
         }
       }
     }
-    expect(count).toBe(34);
+    expect(count).toBe(35);
   });
 
   test('direct source disposition and every other required predecessor fail closed', async () => {
@@ -341,6 +347,7 @@ describe('ordinary CI source admission', () => {
     const state = admission(build, 'build', 'pull_request');
     for (const fork of [false, true]) {
       state.github.event.pull_request.head.repo.fork = fork;
+      expect(admitted(build.jobs.build!, state, true)).toBe(!fork);
       for (const id of ['smoke-test', 'image-validate']) {
         expect(admitted(build.jobs[id]!, state, true)).toBe(!fork);
         expect(admitted(build.jobs[`${id}-fork`]!, state, true)).toBe(fork);
@@ -355,6 +362,7 @@ describe('ordinary CI source admission', () => {
       scannable_services: '[]',
       ci_tests: 'false',
       storybook: 'false',
+      stack: 'false',
     };
     for (const [id, job] of Object.entries(build.jobs)) {
       if (!['candidate-source', 'candidate-gate', 'changes'].includes(id))
@@ -507,10 +515,17 @@ describe('one candidate event reuses the complete existing validation', () => {
             names.push(`${job.name} / ${nested.name}`);
         } else if (job.strategy) {
           const matrix = job.strategy.matrix;
+          const services =
+            typeof matrix.service === 'string'
+              ? (expressionValue(
+                  matrix.service,
+                  admission(file, stem, 'repository_dispatch'),
+                ) as string[])
+              : matrix.service;
           const entries =
             matrix.include ??
             matrix.shard?.map((shard) => ({ shard })) ??
-            matrix.service!.map((service) => ({ service }));
+            services!.map((service) => ({ service }));
           for (const entry of entries)
             names.push(
               job.name!.replace(

@@ -71,10 +71,10 @@ describe('CI test partitioning preserves the complete validation', () => {
       (step) => step.name === 'Run other workspace UI tests',
     )!;
     expect(platform.run).toContain(
-      'test:ui --filter=@tale/platform -- --shard=',
+      'test:ui --filter=@tale/platform --output-logs=errors-only --summarize -- --shard=',
     );
     expect(others.run).toBe(
-      "bunx turbo run test:ui --filter='!@tale/platform'",
+      "bunx turbo run test:ui --filter='!@tale/platform' --output-logs=errors-only --summarize",
     );
     expect(others.if).toBe('matrix.shard == 1');
     expect(
@@ -150,14 +150,17 @@ test('E2E uses the normal build cache and one artifact for every platform shard'
 
 test('E2E source scopes include the build and test inputs outside services', async () => {
   const file = await workflow('e2e');
-  expect(file.on.pull_request.paths).toEqual(
-    expect.arrayContaining([
-      'docs/**',
-      'packages/shared/**',
-      'configs/platform/**',
-      'tsconfig*.json',
-      'patches/**',
-      'bunfig.toml',
-    ]),
-  );
+  const paths = file.on.pull_request.paths ?? [];
+  for (const input of [
+    'docs/en/self-hosted/install/overview.md',
+    'packages/shared/src/utils/session-idle.ts',
+    'configs/platform/system/providers/example.yml',
+    'tsconfig.dom.json',
+    'patches/postgres@3.4.7.patch',
+    'bunfig.toml',
+  ])
+    expect(
+      paths.some((pattern) => new Bun.Glob(pattern).match(input)),
+      input,
+    ).toBe(true);
 });

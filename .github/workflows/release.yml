@@ -163,6 +163,14 @@ jobs:
             ${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service.name }}:${{ needs.prepare.outputs.version_number }}-${{ matrix.arch.name }}
           build-args: |
             VERSION=${{ needs.prepare.outputs.version_number }}
+          # Registry caches survive version tags, including native arm64;
+          # architecture tags keep the two builders from replacing each other.
+          # amd64 also imports the GHA cache CI warms on main.
+          cache-from: |
+            type=registry,ref=${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service.name }}:buildcache-${{ matrix.arch.name }}
+            ${{ matrix.arch.name == 'amd64' && format('type=gha,scope={0}', matrix.service.name) || '' }}
+          # A cache outage must not invalidate a successfully pushed image.
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service.name }}:buildcache-${{ matrix.arch.name }},mode=max,ignore-error=true
           # `labels:` replaces Dockerfile LABEL (not merges). The CLI reads
           # org.opencontainers.image.version to detect the running instance;
           # omitting it made every in-place 0.4.x deploy look like an unknown
@@ -172,12 +180,6 @@ jobs:
             org.opencontainers.image.revision=${{ steps.meta.outputs.revision }}
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.version=${{ needs.prepare.outputs.version_number }}
-          # Main's GHA cache warms the first release; registry caches survive
-          # the tag boundary and keep amd64/arm64 from evicting one another.
-          cache-from: |
-            type=gha,scope=${{ matrix.service.name }}
-            type=registry,ref=${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service.name }}:buildcache-${{ matrix.arch.name }}
-          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service.name }}:buildcache-${{ matrix.arch.name }},mode=max
           provenance: false
 
       - name: Setup Bun for document checks
