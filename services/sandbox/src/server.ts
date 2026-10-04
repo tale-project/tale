@@ -198,7 +198,7 @@ const SESSION_EXEC_STATUS_RE = new RegExp(
 const SESSION_ENV_RE = new RegExp(`^/v1/sessions/${SESSION_ID}/env$`);
 const SESSION_PIN_RE = new RegExp(`^/v1/sessions/${SESSION_ID}/pin$`);
 const SESSION_ACTIVITY_RE = new RegExp(
-  `^/v1/sessions/${SESSION_ID}/(acquire|release)$`,
+  `^/v1/sessions/${SESSION_ID}/(acquire|release|wait)$`,
 );
 const SESSION_FILES_STAGE_RE = new RegExp(
   `^/v1/sessions/${SESSION_ID}/files/stage$`,
@@ -276,7 +276,9 @@ async function handleSessionRoutes(
         ? 'ticket'
         : activityMatch[2] === 'acquire'
           ? 'acquire'
-          : 'release',
+          : activityMatch[2] === 'release'
+            ? 'release'
+            : 'wait',
       body,
     );
   }

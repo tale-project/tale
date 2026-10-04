@@ -355,6 +355,9 @@ const fakeBackend: SessionBackend = {
     destroyed.add(sessionId);
     return had;
   },
+  async workspaceDeletion() {
+    return 'done';
+  },
   async stopSession(sessionId: string) {
     // Stop releases compute but PRESERVES the workspace — never marks destroyed.
     const had = created.has(sessionId);
@@ -1044,7 +1047,11 @@ describe('SessionRoutes (fake runnerd)', () => {
       // Exec finished → the same conditional destroy proceeds.
       fakeHealth.liveExecs = 0;
       const idleRes = await routes.handleDestroy('cond1', { ifIdle: true });
-      expect(await idleRes.json()).toEqual({ destroyed: true, busy: false });
+      expect(await idleRes.json()).toEqual({
+        destroyed: true,
+        busy: false,
+        deletion: 'done',
+      });
       expect(destroyed.has('cond1')).toBe(true);
       expect((await routes.handleGet('cond1')).status).toBe(404);
     });
@@ -1056,7 +1063,11 @@ describe('SessionRoutes (fake runnerd)', () => {
       );
       fakeHealth.liveExecs = 1;
       const res = await routes.handleDestroy('cond2');
-      expect(await res.json()).toEqual({ destroyed: true, busy: false });
+      expect(await res.json()).toEqual({
+        destroyed: true,
+        busy: false,
+        deletion: 'done',
+      });
       expect(destroyed.has('cond2')).toBe(true);
     });
 
@@ -1077,7 +1088,11 @@ describe('SessionRoutes (fake runnerd)', () => {
       );
       backendGone.add('dead-cond4');
       const res = await routes.handleDestroy('dead-cond4', { ifIdle: true });
-      expect(await res.json()).toEqual({ destroyed: true, busy: false });
+      expect(await res.json()).toEqual({
+        destroyed: true,
+        busy: false,
+        deletion: 'done',
+      });
       expect(destroyed.has('dead-cond4')).toBe(true);
     });
 
@@ -1100,7 +1115,11 @@ describe('SessionRoutes (fake runnerd)', () => {
       backendDestroyThrows.delete('wedge1');
       const retry = await routes.handleDestroy('wedge1');
       expect(retry.status).toBe(200);
-      expect(await retry.json()).toEqual({ destroyed: true, busy: false });
+      expect(await retry.json()).toEqual({
+        destroyed: true,
+        busy: false,
+        deletion: 'done',
+      });
     });
   });
 
@@ -2248,7 +2267,11 @@ describe('workspace cleanup routes', () => {
 
     // Nothing runs under the id: the preserved workspace goes.
     const idle = await routes.handleDestroy('stopped-1', { ifStopped: true });
-    expect(await idle.json()).toEqual({ destroyed: false, busy: false });
+    expect(await idle.json()).toEqual({
+      destroyed: false,
+      busy: false,
+      deletion: 'done',
+    });
     expect(destroyed.has('stopped-1')).toBe(true);
 
     // A container still starting (on a peer replica): kept.
@@ -3102,6 +3125,119 @@ describe('the first-come line for host room', () => {
       position: 1,
       waiting: 14,
     });
+  });
+
+  test('an in-flight re-ask keeps its place past the lease', async () => {
+    let slow = false;
+    let releaseRead!: () => void;
+    const readGate = new Promise<void>((resolve) => {
+      releaseRead = resolve;
+    });
+    const reading = () => ({
+      totalBytes: 16 * GIB,
+      availableBytes: 0,
+    });
+    const routes = new SessionRoutes(cfg, fakeBackend, undefined, {
+      latest: reading,
+      read: async () => {
+        if (slow) await readGate;
+        return reading();
+      },
+    });
+    expect((await create(routes, 'slow-asker')).status).toBe(429);
+    slow = true;
+    const reask = create(routes, 'slow-asker');
+    setSystemTime(new Date(Date.now() + 11 * 60_000));
+    try {
+      releaseRead();
+      expect((await reask).status).toBe(429);
+      expect(routes.roomQueueLength()).toBe(1);
+    } finally {
+      setSystemTime();
+    }
+  });
+
+  test('a re-ask cancelled while probing cannot resurrect its waiter', async () => {
+    let slow = false;
+    let releaseRead!: () => void;
+    const readGate = new Promise<void>((resolve) => {
+      releaseRead = resolve;
+    });
+    const reading = () => ({
+      totalBytes: 16 * GIB,
+      availableBytes: 0,
+    });
+    const routes = new SessionRoutes(cfg, fakeBackend, undefined, {
+      latest: reading,
+      read: async () => {
+        if (slow) await readGate;
+        return reading();
+      },
+    });
+    expect((await create(routes, 'cancelled-asker')).status).toBe(429);
+    slow = true;
+    const reask = create(routes, 'cancelled-asker');
+    await routes.handleDestroy('cancelled-asker');
+    releaseRead();
+    expect((await reask).status).toBe(429);
+    expect(routes.roomQueueLength()).toBe(0);
+  });
+
+  test('queue-cap eviction invalidates an in-flight waiter generation', async () => {
+    let slow = false;
+    let releaseRead!: () => void;
+    const readGate = new Promise<void>((resolve) => {
+      releaseRead = resolve;
+    });
+    const reading = () => ({
+      totalBytes: 16 * GIB,
+      availableBytes: 0,
+    });
+    const routes = new SessionRoutes(
+      { ...cfg, session: { ...cfg.session, maxSessions: 1 } },
+      fakeBackend,
+      undefined,
+      {
+        latest: reading,
+        read: async () => {
+          if (slow) await readGate;
+          return reading();
+        },
+      },
+    );
+    const warning = spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      expect((await create(routes, 'evicted-asker')).status).toBe(429);
+      for (let index = 0; index < 10_000; index += 1)
+        await create(routes, `filler-${index}`);
+      slow = true;
+      const reask = create(routes, 'evicted-asker');
+      await create(routes, 'newest');
+      releaseRead();
+      expect((await reask).status).toBe(429);
+      expect(routes.roomQueueLength()).toBe(10_000);
+    } finally {
+      warning.mockRestore();
+    }
+  });
+
+  test('a waiter liveness ping renews its bounded lease', async () => {
+    const routes = new SessionRoutes(capped, fakeBackend);
+    await create(routes, 'held-a');
+    await create(routes, 'held-b');
+    expect((await create(routes, 'live-waiter')).status).toBe(429);
+    setSystemTime(new Date(Date.now() + 11 * 60_000));
+    fakeHealth.liveExecs = 1;
+    try {
+      expect((await routes.handleActivity('live-waiter', 'wait')).status).toBe(
+        200,
+      );
+      expect((await create(routes, 'next-live')).status).toBe(429);
+      expect(routes.roomQueueLength()).toBe(2);
+    } finally {
+      fakeHealth.liveExecs = 0;
+      setSystemTime();
+    }
   });
 
   test('a waiter that stops asking gives its place up', async () => {

@@ -479,6 +479,20 @@ export async function sessionAcquire(sessionId: string): Promise<boolean> {
 
 /** Capture BEFORE releasing the database allocation. The generation binds a
  * later release to this use, so a delayed job cannot release a newer turn. */
+/** Renew a spawner queue lease while a platform start is still live. */
+export async function sessionWaiterLiveness(sessionId: string): Promise<void> {
+  const response = await spawnerFetch(
+    'POST',
+    `/v1/sessions/${encodeURIComponent(sessionId)}/wait`,
+    { signal: AbortSignal.timeout(2_000) },
+  );
+  if (response.status === 404) return;
+  if (!response.ok)
+    throw new Error(`Sandbox waiter liveness failed (${response.status})`);
+}
+
+/** Capture BEFORE releasing the database allocation. The generation binds a
+ * later release to this use, so a delayed job can never release a newer turn. */
 export async function sessionReleaseTicket(
   sessionId: string,
 ): Promise<string | null> {
@@ -563,7 +577,12 @@ export async function sessionCreate(
       signal: AbortSignal.timeout(CREATE_TIMEOUT_MS),
     });
     if (res.status === 409) throw new SessionDuplicateError(body.sessionId);
-    if (res.status === 429) throw await spawnerBusyErrorOf(res);
+    if (res.status === 429) {
+      const busy = await spawnerBusyErrorOf(res);
+      if (busy.queue !== undefined)
+        await sessionWaiterLiveness(body.sessionId).catch(() => undefined);
+      throw busy;
+    }
     // 503 "draining": the targeted colour is mid-flip. Re-POST so the bare
     // `sandbox` alias re-resolves onto the now-active colour. A 503 for an
     // offline device is final for this create: the session's workspace lives
