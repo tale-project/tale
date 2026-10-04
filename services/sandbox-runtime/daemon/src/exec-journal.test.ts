@@ -148,7 +148,6 @@ test('cursor replay seeks to a record boundary and reads only the unseen tail', 
       122,
       events.length - 10,
       events.length,
-      events.length + 10,
     ]) {
       reads.mockClear();
       const actual = await replay(journal, cursor);
@@ -167,6 +166,17 @@ test('cursor replay seeks to a record boundary and reads only the unseen tail', 
       if (cursor < events.length) expect(actual[caughtUp + 1]?.t).toBe('exit');
       if (cursor >= events.length - 10)
         expect(reads.mock.calls.length).toBeLessThanOrEqual(2);
+    }
+    for (const cursor of [-1, 0.5, NaN, Infinity, events.length + 10]) {
+      reads.mockClear();
+      expect(await replay(journal, cursor)).toEqual([
+        {
+          t: 'fail',
+          code: 'REPLAY_UNAVAILABLE',
+          message: 'Invalid execution replay cursor.',
+        },
+      ]);
+      expect(reads).not.toHaveBeenCalled();
     }
   } finally {
     await journal.dispose();
@@ -223,7 +233,9 @@ test('concurrent cursor readers wait for committed data and mark the captured pr
             if (event.t === 'replay-start') ready[index]!.resolve();
             if (event.t === 'replay-complete') caughtUp[index]!.resolve();
           },
-          index === 0 ? 300 : 302,
+          // A live consumer may have seen the queued record before it is
+          // committed, but cannot legitimately have seen a future record.
+          index === 0 ? 300 : 301,
           controllers[index]!.signal,
         ),
       );
@@ -249,6 +261,7 @@ test('concurrent cursor readers wait for committed data and mark the captured pr
     expect(seen[1]).toEqual([
       { t: 'replay-start' },
       { t: 'replay-complete', throughSeq: 301 },
+      live,
       terminal,
     ]);
   } finally {

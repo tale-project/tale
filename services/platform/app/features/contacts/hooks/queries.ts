@@ -57,6 +57,7 @@ export function useContactById(
 
 interface ListContactsPaginatedArgs {
   organizationId: string;
+  search?: string;
   source?: string;
   locale?: string;
   initialNumItems: number;

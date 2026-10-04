@@ -57,7 +57,7 @@ function stringToProxyList(value: string): string[] | null {
 }
 
 function scheduleToString(schedule: number[]): string {
-  return schedule.map((ms) => Math.round(ms / 1000)).join(', ');
+  return schedule.map((ms) => ms / 1000).join(', ');
 }
 
 function stringToSchedule(value: string): number[] | null {

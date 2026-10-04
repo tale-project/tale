@@ -1,12 +1,14 @@
+import { loginPolicyConfigSchema } from '@tale/shared/schemas/governance';
 import {
   ActiveEditorProvider,
+  EditorActions,
   useActiveEditor,
   type EditorController,
 } from '@tale/ui/editor';
 import { act } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
-import { render, screen } from '@/tests/utils/render';
+import { render, screen, waitFor } from '@/tests/utils/render';
 
 import { LoginPolicyEditor } from './login-policy-editor';
 
@@ -88,6 +90,62 @@ describe('LoginPolicyEditor', () => {
       render(<LoginPolicyEditor organizationId="org-1" />);
       expect(screen.queryByRole('status')).not.toBeInTheDocument();
     });
+  });
+
+  describe('schedule round trip', () => {
+    function SaveControls() {
+      const editor = useActiveEditor();
+      return editor ? <EditorActions controller={editor} /> : null;
+    }
+
+    it.each([
+      { seconds: '0.4, 1.5', milliseconds: [400, 1500] },
+      { seconds: '0.001, 1.001, 1.234', milliseconds: [1, 1001, 1234] },
+      { seconds: '1, 2', milliseconds: [1000, 2000] },
+    ])(
+      'preserves $seconds on reopen and unrelated save',
+      async ({ seconds, milliseconds }) => {
+        setLoaded();
+        saveMutateAsync.mockReset().mockImplementation(async ({ config }) => {
+          state.config = loginPolicyConfigSchema.parse(config);
+          return null;
+        });
+        function Editor() {
+          return (
+            <ActiveEditorProvider>
+              <LoginPolicyEditor organizationId="org-1" />
+              <SaveControls />
+            </ActiveEditorProvider>
+          );
+        }
+
+        const first = render(<Editor />);
+        const schedule = screen.getByRole('textbox', {
+          name: /backoff schedule/i,
+        });
+        await first.user.clear(schedule);
+        await first.user.type(schedule, seconds);
+        await first.user.click(screen.getByRole('button', { name: /^save$/i }));
+        await waitFor(() => expect(saveMutateAsync).toHaveBeenCalledTimes(1));
+        expect(state.config?.backoffSchedule).toEqual(milliseconds);
+        first.unmount();
+
+        const reopened = render(<Editor />);
+        const attempts = screen.getByRole('spinbutton');
+        await reopened.user.clear(attempts);
+        await reopened.user.type(attempts, '7');
+        await reopened.user.click(
+          screen.getByRole('button', { name: /^save$/i }),
+        );
+        await waitFor(() => expect(saveMutateAsync).toHaveBeenCalledTimes(2));
+        expect(state.config?.maxAttemptsBeforeLockout).toBe(7);
+        expect(state.config?.backoffSchedule).toEqual(milliseconds);
+        expect(
+          screen.getByRole('textbox', { name: /backoff schedule/i }),
+        ).toHaveValue(seconds);
+        saveMutateAsync.mockReset().mockResolvedValue(null);
+      },
+    );
   });
 
   describe('loading state (skeletonized)', () => {

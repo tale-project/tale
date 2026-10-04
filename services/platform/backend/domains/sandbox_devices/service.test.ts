@@ -19,6 +19,7 @@ vi.mock('../../core/node_only/sandbox/helpers/session_client.ts', () => ({
 
 import {
   createJoinToken,
+  getJoinTokenStatus,
   grantTicket,
   joinDevice,
   leaveDevice,
@@ -59,7 +60,11 @@ function fakeSql(
     const text = strings.join('$?').replace(/\s+/g, ' ').trim();
     queries.push({ text, values });
     return Promise.resolve(
-      auditChainAnswers(text) ?? answer(text, values) ?? [],
+      auditChainAnswers(text) ??
+        answer(text, values) ??
+        (text.startsWith('INSERT INTO app.sandbox_device_join_tokens')
+          ? [{ id: 'jt-1' }]
+          : []),
     );
   };
   const begin = async (cb: (tx: unknown) => Promise<unknown>) => cb(sqlObject);
@@ -108,6 +113,7 @@ describe('createJoinToken', () => {
       actor: ACTOR,
     });
     expect(created.token.startsWith(SANDBOX_DEVICE_JOIN_MARKER)).toBe(true);
+    expect(created.id).toBe('jt-1');
     expect(created.serverUrl).toBe('https://acme.tale.dev');
     expect(created.expiresAt - Date.now()).toBeGreaterThan(59 * 60_000);
     const insert = queries.find((q) =>
@@ -131,6 +137,39 @@ describe('createJoinToken', () => {
     await expect(
       createJoinToken(sql, { organizationId: 'org_a', actor: ACTOR }),
     ).rejects.toMatchObject({ code: 'SANDBOX_NOT_CONFIGURED', status: 503 });
+  });
+});
+
+describe('getJoinTokenStatus', () => {
+  it.each([null, 'device-1'])(
+    'reads only the creator’s own organization-scoped grant: %s',
+    async (deviceId) => {
+      const { sql, queries } = fakeSql(() => [{ deviceId }]);
+      await expect(
+        getJoinTokenStatus(sql, {
+          organizationId: 'org_a',
+          tokenId: 'jt-1',
+          actor: ACTOR,
+        }),
+      ).resolves.toEqual({ deviceId });
+      expect(queries).toEqual([
+        {
+          text: 'SELECT device_id AS "deviceId" FROM app.sandbox_device_join_tokens WHERE id = $? AND org_id = $? AND created_by = $?',
+          values: ['jt-1', 'org_a', ACTOR.userId],
+        },
+      ]);
+    },
+  );
+
+  it('does not disclose missing, foreign or another administrator’s grant', async () => {
+    const { sql } = fakeSql(() => []);
+    await expect(
+      getJoinTokenStatus(sql, {
+        organizationId: 'org_a',
+        tokenId: 'other-grant',
+        actor: ACTOR,
+      }),
+    ).rejects.toMatchObject({ code: 'JOIN_TOKEN_NOT_FOUND', status: 404 });
   });
 });
 
