@@ -46,6 +46,8 @@ Tu peux aussi créer une fiche au moment d’écrire. Dans la vue **Réception**
 
 Si cette adresse existe déjà, retrouve la fiche et modifie-la depuis le menu de sa ligne ; depuis **Nouvel e-mail**, Tale sélectionne pour toi le contact existant. Enregistrer un contact crée uniquement une fiche ; cette opération ne lui envoie aucun e-mail.
 
+Tu peux modifier ou supprimer les contacts que ton équipe a saisis ou importés ici, un par un depuis le menu de la ligne. Pour en supprimer plusieurs à la fois, coche leurs lignes, puis choisis **Supprimer la sélection**. Les contacts issus d’une intégration, de l’API ou d’une conversation appartiennent à leur source, qui écraserait une modification faite ici : le menu de leur ligne ne propose ni **Modifier** ni **Supprimer**, et leurs lignes n’ont pas de case à cocher.
+
 ## Créer une fiche produit
 
 <Frame caption="Connaissances > Produits : chaque produit est une fiche aux champs nommés pour le stock, le prix, la catégorie et le statut.">

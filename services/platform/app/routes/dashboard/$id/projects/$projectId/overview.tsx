@@ -13,6 +13,7 @@ function ProjectOverviewPage() {
   const { id: organizationId, projectId } = Route.useParams();
   return (
     <ProjectOverview
+      key={`${organizationId}:${projectId}`}
       organizationId={organizationId}
       projectId={asProjectId(projectId)}
     />

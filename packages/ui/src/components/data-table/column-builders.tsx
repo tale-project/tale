@@ -349,10 +349,14 @@ export function createSelectColumn<TData>(): ColumnDef<TData> {
       // The cells' rule, applied to the header: once the page has rows and
       // none of them can be selected (the Members list shows only you), a
       // select-all box would select nothing. While rows are still loading it
-      // stays, so the skeleton keeps its shape.
+      // stays, so the skeleton keeps its shape. Without the box the `<th>`
+      // still needs a name (axe `empty-table-header`): the column's per-row
+      // control, as the expander column's header reads "Expand row".
       const rows = table.getRowModel().rows;
       if (rows.length > 0 && !rows.some((row) => row.getCanSelect())) {
-        return null;
+        return (
+          <span className="sr-only">{i18n.t('common:aria.selectRow')}</span>
+        );
       }
       return (
         <div className="flex h-full items-center justify-center">
