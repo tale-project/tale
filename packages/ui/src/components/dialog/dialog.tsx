@@ -273,6 +273,7 @@ export function Dialog({
           <DialogPrimitive.Content
             ref={contentRef}
             aria-modal="true"
+            data-tale-modal=""
             className={cn(dialogContentVariants({ size }), className)}
             onClick={(e) => e.stopPropagation()}
             {...(customHeader || !description
