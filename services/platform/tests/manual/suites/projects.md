@@ -576,7 +576,7 @@ projects-list row ⋯ menu.
 
 ## Concurrent agent edits
 
-- [ ] `PROJ-B14` · **Keep a stale agent draft without overwriting another editor** — Open the same project agent in two editor sessions. In the first, change its name and save. In the second, change its instructions and save → one localized refusal (`projects.errors.PROJECT_AGENT_STALE`) appears, the dialog stays open with the second editor's unsaved edits, and the first editor's saved name and equipment remain unchanged. Copy the draft before closing, reopen the agent, merge the copied changes into the latest settings and save → the merged settings persist. Repeat in English, German and French; inspect the refusal for clipping and keyboard reachability. Saving an unchanged current configuration leaves its version unchanged.
+- [ ] `PROJ-B15` · **Keep a stale agent draft without overwriting another editor** — Open the same project agent in two editor sessions. In the first, change its name and save. In the second, change its instructions and save → one localized refusal (`projects.errors.PROJECT_AGENT_STALE`) appears, the dialog stays open with the second editor's unsaved edits, and the first editor's saved name and equipment remain unchanged. Copy the draft before closing, reopen the agent, merge the copied changes into the latest settings and save → the merged settings persist. Repeat in English, German and French; inspect the refusal for clipping and keyboard reachability. Saving an unchanged current configuration leaves its version unchanged.
 
 ## Default task reviewer
 
