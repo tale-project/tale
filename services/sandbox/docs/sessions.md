@@ -214,9 +214,9 @@ encoded NDJSON per exec** and **256 MiB per session**, including base64 output.
 Completed journals are evicted oldest first under the session budget, and at
 most 16 completed execs are retained. An active writer that exhausts its budget
 ends with `OUTPUT_LIMIT`; unavailable or evicted history reports
-`REPLAY_UNAVAILABLE`. The 256 KiB diagnostic ring is never used as incomplete
-protocol history. A runtime restart loses its journals and execs; these files
-do not extend the persistent workspace's lifecycle.
+`REPLAY_UNAVAILABLE`. The journal is the sole retained output history.
+A runtime restart loses its journals and execs; these files do not extend the
+persistent workspace's lifecycle.
 
 An attach sends `replay-start` before journal history and `replay-complete`
 with `throughSeq` after delivering the historical prefix that existed when
