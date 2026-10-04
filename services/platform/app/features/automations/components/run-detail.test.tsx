@@ -1,8 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { render, screen } from '@/tests/utils/render';
+import { render, screen, waitFor } from '@/tests/utils/render';
 
-const { state, resolveApproval, readApproval } = vi.hoisted(() => ({
+import { i18n } from '../../../../lib/i18n/i18n';
+
+const { state, resolveApproval, readApproval, refetchRun } = vi.hoisted(() => ({
   state: {
     status: 'waiting',
     finishedAt: null as number | null,
@@ -17,24 +19,38 @@ const { state, resolveApproval, readApproval } = vi.hoisted(() => ({
     } as unknown,
     versionError: undefined as unknown,
     versionPending: false,
+    runPending: false,
+    runError: undefined as unknown,
+    runMissing: false,
+    runFetching: false,
   },
   resolveApproval: vi.fn(() => Promise.resolve(null)),
   readApproval: vi.fn(),
+  refetchRun: vi.fn(() => Promise.resolve()),
 }));
 
 vi.mock('../hooks/queries', () => ({
   useAutomationRun: () => ({
-    data: {
-      id: 'run-proof',
-      name: 'docs-approval-proof',
-      version: 1,
-      mode: 'live',
-      startedAt: 1789363168936,
-      input: {},
-      output: null,
-      effects: [],
-      ...state,
-    },
+    isError: state.runError !== undefined,
+    isPending: state.runPending,
+    error: state.runError,
+    isFetching: state.runFetching,
+    refetch: refetchRun,
+    data: state.runMissing
+      ? null
+      : state.runPending || state.runError !== undefined
+        ? undefined
+        : {
+            id: 'run-proof',
+            name: 'docs-approval-proof',
+            version: 1,
+            mode: 'live',
+            startedAt: 1789363168936,
+            input: {},
+            output: null,
+            effects: [],
+            ...state,
+          },
   }),
   useAutomation: () =>
     state.versionPending
@@ -120,6 +136,10 @@ beforeEach(() => {
   state.versionDocument = { name: 'docs-approval-proof', nodes: [] };
   state.versionError = undefined;
   state.versionPending = false;
+  state.runPending = false;
+  state.runError = undefined;
+  state.runMissing = false;
+  state.runFetching = false;
   vi.clearAllMocks();
 });
 
@@ -132,6 +152,127 @@ function renderRun() {
     />,
   );
 }
+
+describe('RunDetail read recovery', () => {
+  it.each([
+    ['en', "Couldn't load this run.", 'Try again'],
+    ['de', 'Dieser Lauf konnte nicht geladen werden.', 'Erneut versuchen'],
+    ['fr', 'Impossible de charger cette exécution.', 'Réessayer'],
+  ])('shows an actionable read failure in %s', async (locale, title, retry) => {
+    const previousLocale = localStorage.getItem('user-locale');
+    localStorage.setItem('user-locale', locale);
+    await i18n.changeLanguage(locale);
+    try {
+      state.runError = new Error('Request failed with status 503');
+      const { user } = renderRun();
+      expect(screen.getByRole('alert')).toHaveTextContent(title);
+      expect(screen.queryByText('Loading the run…')).toBeNull();
+      expect(screen.queryByTestId('canvas')).toBeNull();
+      await user.click(screen.getByRole('button', { name: retry }));
+      expect(refetchRun).toHaveBeenCalledOnce();
+    } finally {
+      if (previousLocale === null) localStorage.removeItem('user-locale');
+      else localStorage.setItem('user-locale', previousLocale);
+      await i18n.changeLanguage('en');
+    }
+  });
+
+  it('keeps pending reads distinct from failure', () => {
+    state.runPending = true;
+    renderRun();
+    expect(screen.getByText('Loading the run…')).toBeVisible();
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
+  });
+
+  it.each([null, { data: { code: 'NOT_FOUND' } }])(
+    'keeps missing runs distinct from failure: %s',
+    (error) => {
+      state.runMissing = error === null;
+      state.runError = error === null ? undefined : error;
+      renderRun();
+      expect(
+        screen.getByRole('heading', { name: 'Run not found' }),
+      ).toBeVisible();
+      expect(screen.queryByRole('alert')).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
+    },
+  );
+
+  it.each([false, true])(
+    'recovers retry focus without stealing moved focus: %s',
+    async (moveFocus) => {
+      state.runError = new Error('Request failed with status 503');
+      const detail = () => (
+        <RunDetail
+          organizationId="org-proof"
+          automationSlug="docs-approval-proof"
+          runId="run-proof"
+        />
+      );
+      const view = (
+        <>
+          <button>Route navigation</button>
+          {detail()}
+        </>
+      );
+      const { user, rerender } = render(view);
+      await user.click(screen.getByRole('button', { name: 'Try again' }));
+      state.runError = undefined;
+      state.runPending = true;
+      rerender(
+        <>
+          <button>Route navigation</button>
+          {detail()}
+        </>,
+      );
+      expect(screen.getByText('Loading the run…')).toBeVisible();
+      if (moveFocus)
+        await user.click(
+          screen.getByRole('button', { name: 'Route navigation' }),
+        );
+      state.runPending = false;
+      state.runError = new Error('Request failed with status 503');
+      rerender(
+        <>
+          <button>Route navigation</button>
+          {detail()}
+        </>,
+      );
+      await waitFor(() =>
+        expect(
+          screen.getByRole('button', {
+            name: moveFocus ? 'Route navigation' : 'Try again',
+          }),
+        ).toHaveFocus(),
+      );
+      await user.click(screen.getByRole('button', { name: 'Try again' }));
+      state.runError = undefined;
+      rerender(
+        <>
+          <button>Route navigation</button>
+          {detail()}
+        </>,
+      );
+      expect(screen.getByTestId('canvas')).toBeVisible();
+      expect(screen.queryByText("Couldn't load this run.")).toBeNull();
+    },
+  );
+
+  it('does not carry retry focus to another run', async () => {
+    state.runError = new Error('Request failed with status 503');
+    const { user, rerender } = renderRun();
+    await user.click(screen.getByRole('button', { name: 'Try again' }));
+    rerender(
+      <RunDetail
+        organizationId="org-proof"
+        automationSlug="docs-approval-proof"
+        runId="run-next"
+      />,
+    );
+    expect(screen.getByRole('button', { name: 'Try again' })).not.toHaveFocus();
+  });
+});
 
 describe('RunDetail native run state', () => {
   it('shows a UUID approval and lets the reader reject the exact operation', async () => {

@@ -12,9 +12,11 @@ import { JsonViewer } from '@tale/ui/json-viewer';
 import { SectionHeader } from '@tale/ui/section-header';
 import { Text } from '@tale/ui/text';
 import { useFormatDate } from '@tale/ui/use-format-date';
-import { Ban, SearchX } from 'lucide-react';
+import { useRetryFocus } from '@tale/ui/use-retry-focus';
+import { Ban, RefreshCw, SearchX } from 'lucide-react';
 import { useCallback, useId, useMemo, useState } from 'react';
 
+import { failureDetail } from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
 import { automationDisplayName } from '@/lib/shared/schemas/automation_presentation';
 
@@ -166,7 +168,14 @@ function RunDetailBody({
     [catalogQuery.data],
   );
 
-  if (isMissingAutomationRead(runQuery)) {
+  const runMissing = isMissingAutomationRead(runQuery);
+  const runUnreadable = run === null && runQuery.isError && !runMissing;
+  const retryFocus = useRetryFocus(
+    runMissing || run !== null ? 'ready' : runUnreadable ? 'failed' : 'loading',
+    runId,
+  );
+
+  if (runMissing) {
     return (
       <ContentArea variant="narrow">
         <EmptyState
@@ -175,6 +184,33 @@ function RunDetailBody({
           description={t('runs.notFound.description')}
           headingLevel={2}
         />
+      </ContentArea>
+    );
+  }
+  if (runUnreadable) {
+    return (
+      <ContentArea variant="narrow">
+        <div ref={retryFocus.ref}>
+          <Alert
+            variant="destructive"
+            title={t('runs.loadFailed')}
+            description={failureDetail(runQuery.error)}
+          >
+            <Button
+              variant="secondary"
+              size="sm"
+              icon={RefreshCw}
+              className="mt-3"
+              isLoading={runQuery.isFetching}
+              onClick={() => {
+                retryFocus.arm();
+                void runQuery.refetch();
+              }}
+            >
+              {t('runs.retry')}
+            </Button>
+          </Alert>
+        </div>
       </ContentArea>
     );
   }
