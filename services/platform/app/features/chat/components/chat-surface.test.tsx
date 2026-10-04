@@ -14,6 +14,13 @@ const navigateMock = vi.hoisted(() => vi.fn());
 const canManageProvidersMock = vi.hoisted(() => ({ value: false }));
 const uploadRecovery = vi.hoisted(() => ({
   notify: undefined as ((reason?: string) => void) | undefined,
+  attachments: [] as {
+    fileId: string;
+    fileName: string;
+    fileType: string;
+    fileSize: number;
+  }[],
+  clearAttachments: vi.fn(() => []),
 }));
 
 vi.mock('@tanstack/react-router', () => ({
@@ -103,7 +110,7 @@ vi.mock('@/app/features/shared/files/use-file-upload', () => ({
   }) => {
     uploadRecovery.notify = config.onTranscriptionUnavailable;
     return {
-      attachments: [],
+      attachments: uploadRecovery.attachments,
       setAttachments: vi.fn(),
       uploadingFiles: [],
       isUploading: false,
@@ -111,7 +118,7 @@ vi.mock('@/app/features/shared/files/use-file-upload', () => ({
       cancelUpload: vi.fn(),
       removeAttachment: vi.fn(),
       retryAttachmentTranscription: vi.fn(),
-      clearAttachments: vi.fn(() => []),
+      clearAttachments: uploadRecovery.clearAttachments,
     };
   },
 }));
@@ -237,6 +244,7 @@ vi.mock('./arena/arena-split-view', () => ({
 }));
 import { HomePanelProvider } from '@/app/features/home/components/home-panel-context';
 
+import { useBranchActions } from '../data/branch-actions';
 import {
   useArenaPair,
   useChatGeneration,
@@ -254,10 +262,33 @@ import {
 } from '../utils/pending-messages';
 import { ChatSurface } from './chat-surface';
 
+vi.mock('../data/branch-actions', () => ({
+  useBranchActions: vi.fn(),
+}));
+
+const editBranchActions = {
+  available: true,
+  branchForEdit: vi.fn(),
+  branchForRegenerate: vi.fn(),
+  regenerate: vi.fn(),
+  fork: vi.fn(),
+  select: vi.fn(),
+  discard: vi.fn(),
+};
+
+beforeEach(() => {
+  vi.mocked(useBranchActions).mockReturnValue(editBranchActions);
+  for (const action of Object.values(editBranchActions)) {
+    if (typeof action === 'function') action.mockReset();
+  }
+});
+
 afterEach(() => {
   navigateMock.mockReset();
   canManageProvidersMock.value = false;
   uploadRecovery.notify = undefined;
+  uploadRecovery.attachments = [];
+  uploadRecovery.clearAttachments.mockClear();
   transcriptionState.statusMap = new Map();
   transcriptionState.isTranscribing = false;
   transcriptionState.isQueryLoading = false;
@@ -562,6 +593,141 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
       stop: vi.fn(() => Promise.resolve()),
     });
   });
+
+  it.each([true, false])(
+    'retains original attachments on a text-only edit (attached: %s)',
+    async (attached) => {
+      vi.mocked(useThreadView).mockClear();
+      uploadRecovery.attachments = [
+        {
+          fileId: 's3:draft',
+          fileName: 'draft.pdf',
+          fileType: 'application/pdf',
+          fileSize: 512,
+        },
+      ];
+      const attachments = attached
+        ? [
+            {
+              type: 'attachment' as const,
+              fileId: 's3:audit',
+              name: 'audit.pdf',
+              mediaType: 'application/pdf',
+              sizeBytes: 128,
+            },
+            {
+              type: 'attachment' as const,
+              fileId: 's3:chart',
+              name: 'chart.png',
+              mediaType: 'image/png',
+              sizeBytes: 256,
+            },
+          ]
+        : [];
+      const rows = toSettledItems([
+        {
+          id: 'm-user',
+          role: 'user',
+          parts: [{ type: 'text', text: 'Read this audit' }, ...attachments],
+          sequence: 0,
+          createdAt: 1,
+        },
+        {
+          id: 'm-answer',
+          role: 'assistant',
+          parts: [{ type: 'text', text: 'Audit read' }],
+          sequence: 1,
+          createdAt: 2,
+        },
+      ]);
+      vi.mocked(useThreadView).mockReturnValue({
+        status: 'ready',
+        items: rows,
+        generation: null,
+        streamingMessageId: undefined,
+        pendingConsumed: false,
+      });
+      editBranchActions.branchForEdit.mockResolvedValue({
+        status: 'created',
+        id: 't-edit',
+        parentId: 't1',
+        forkSequence: 0,
+      });
+      start.mockResolvedValue({
+        threadId: 't-edit',
+        outcome: Promise.resolve({ status: 'complete' }),
+      });
+
+      const { user } = render(
+        <ChatSurface organizationId="org-1" threadId="t1" />,
+      );
+      uploadRecovery.clearAttachments.mockClear();
+      editBranchActions.branchForRegenerate.mockResolvedValue({
+        status: 'created',
+        id: 't-regen',
+        parentId: 't1',
+        forkSequence: 0,
+      });
+      editBranchActions.regenerate.mockResolvedValue({ refused: false });
+      await user.click(await screen.findByTestId('message-more-button'));
+      await user.click(screen.getByRole('menuitem', { name: 'Try again' }));
+      await waitFor(() =>
+        expect(editBranchActions.regenerate).toHaveBeenCalledWith(
+          't-regen',
+          expect.objectContaining({ modelId: MODEL.id }),
+        ),
+      );
+      expect(editBranchActions.branchForRegenerate).toHaveBeenCalledWith(
+        't1',
+        'm-answer',
+      );
+      expect(start).not.toHaveBeenCalled();
+      await user.click(await screen.findByTestId('message-edit-button'));
+      const editor = screen.getByRole('textbox', { name: 'Edit message' });
+      await user.clear(editor);
+      await user.type(editor, 'Read this audit (edited){Enter}');
+
+      const expectedAttachments = attachments.map((part) => ({
+        fileId: part.fileId,
+        fileName: part.name,
+        fileType: part.mediaType,
+        fileSize: part.sizeBytes,
+      }));
+      await waitFor(() =>
+        expect(start).toHaveBeenCalledWith(
+          expect.objectContaining({
+            threadId: 't-edit',
+            text: 'Read this audit (edited)',
+            ...(attached ? { attachments: expectedAttachments } : {}),
+          }),
+        ),
+      );
+      expect(editBranchActions.branchForEdit).toHaveBeenCalledWith(
+        't1',
+        'm-user',
+      );
+      const request = start.mock.calls[0]?.[0];
+      expect(request.attachments ?? []).toEqual(expectedAttachments);
+      const pending = vi
+        .mocked(useThreadView)
+        .mock.calls.map((call) => call[2])
+        .find((send) => send?.threadId === 't-edit');
+      expect(pending?.attachments ?? []).toEqual(expectedAttachments);
+      expect(rows[0]?.parts).toEqual([
+        { type: 'text', text: 'Read this audit' },
+        ...attachments,
+      ]);
+      expect(uploadRecovery.clearAttachments).not.toHaveBeenCalled();
+      expect(uploadRecovery.attachments).toEqual([
+        {
+          fileId: 's3:draft',
+          fileName: 'draft.pdf',
+          fileType: 'application/pdf',
+          fileSize: 512,
+        },
+      ]);
+    },
+  );
 
   /** Answer `(pointer: fine)` the way a desktop does, restoring the harness
    * mock afterwards — every other query keeps answering "no". */

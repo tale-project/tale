@@ -100,7 +100,9 @@ An agent default applies only when a native project-agent run produced the resul
 
 Open the task and read **Current review** below **Reviewer**: it names who owns the waiting review, which can differ from the current project default. Choosing another reviewer also transfers that pending review, without changing the assignee or starting a run. Choose **Project default** to hand it to the project's current default. If the reviewer or result changed since the task was read, the transfer is refused; check the refreshed review before choosing again.
 
-An agent can review only a completed project-agent result from a different implementation agent. Changing the task's assignee does not change who produced that result. A live run or open question can prevent a transfer to an agent. For work without a supported completed agent run, or a review requiring human independence or competence records, choose an eligible person. If an agent is unavailable or lacks the review permission, the task shows that reason; it does not silently send the review to you.
+An agent can review only a completed project-agent result from a different implementation agent. Assigning the task to someone else keeps the original result's producer but blocks the pending agent decision. To keep the new assignment and review that result, explicitly transfer the review to an eligible person; the organization's review policy still applies.
+
+A live run or open question can prevent a transfer to an agent. For work without a supported completed agent run, or a review requiring human independence or competence records, choose an eligible person. If an agent is unavailable or lacks the review permission, the task shows that reason; it does not silently send the review to you.
 
 The current review also explains self-review, changed implementation ownership, and unavailable policy. Restore the indicated condition or transfer it explicitly; settlement still records the result. A repeated task retains an explicit agent reviewer even if that agent was deleted or lost its grant, so repair that choice instead of silently inheriting a different reviewer.
 
