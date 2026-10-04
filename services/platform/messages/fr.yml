@@ -790,6 +790,7 @@ automations:
       Le catalogue des types de nœuds n’a pas pu être chargé, donc seuls
       les types intégrés sont décrits. Les champs de ce nœud restent affichés.
     invalidJson: Ce n’est pas encore du JSON valide, le nœud n’a donc pas été modifié.
+    inputObject: "L’entrée doit être un objet JSON."
     versionNotFound:
       title: 'La version {version} n’existe pas'
       description: Cette automatisation n’a aucune version portant ce numéro — le lien est peut-être périmé, ou le numéro mal saisi.

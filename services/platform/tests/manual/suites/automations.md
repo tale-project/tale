@@ -638,7 +638,11 @@ output:
 - [ ] `AUTO-B6` · **Invalid JSON in a node** — In the inspector, type the
       text `{ not json` into the **Input** field → Notice
       `automations.editor.invalidJson`; the node is NOT changed (no dirty state
-      from the invalid text; Save version keeps the last valid document)
+      from the invalid text; Save version keeps the last valid document). Replace
+      it with valid scalar JSON such as `42` → Notice
+      `automations.editor.inputObject`; the scalar stays visible and the last
+      valid object remains in the document. Clear the field deliberately to
+      remove the input mapping.
 - [ ] `AUTO-B7` · **Two tabs editing the same automation** — Open the same
       automation's workbench in tabs A and B (both on the latest version). In
       B, edit a node and leave it unsaved. In A, edit another node → **Save**
