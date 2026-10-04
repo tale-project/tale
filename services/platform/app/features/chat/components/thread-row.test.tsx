@@ -4,7 +4,7 @@ import React from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { render, screen, waitFor } from '@/tests/utils/render';
+import { fireEvent, render, screen, waitFor } from '@/tests/utils/render';
 
 import type { ChatThreadSummary } from '../types';
 
@@ -118,6 +118,13 @@ function renderRow(
   );
 }
 
+async function openRename() {
+  const view = renderRow(THREAD);
+  await view.user.click(screen.getByRole('button', { name: 'More actions' }));
+  await view.user.click(screen.getByRole('menuitem', { name: 'Rename' }));
+  return { ...view, input: screen.getByRole('textbox', { name: 'Rename' }) };
+}
+
 describe('ThreadRow', () => {
   it('offers the full action set from one menu', async () => {
     const { user } = renderRow(THREAD);
@@ -162,6 +169,73 @@ describe('ThreadRow', () => {
       expect(renameMock).toHaveBeenCalledWith('t1', 'Board deck'),
     );
     // The row is back to its link presentation.
+    expect(screen.queryByRole('textbox')).toBeNull();
+  });
+
+  it('keeps the rename open while Enter confirms an IME candidate', async () => {
+    renameMock.mockClear();
+    const { input } = await openRename();
+
+    // Japanese input in Chromium: the Enter that confirms the candidate
+    // arrives mid-composition. It belongs to the IME, so the field stays
+    // open with the finished text; the next ordinary Enter saves it, once.
+    fireEvent.compositionStart(input);
+    fireEvent.change(input, { target: { value: 'にほん' } });
+    fireEvent.keyDown(input, { key: 'Enter', isComposing: true, keyCode: 229 });
+    fireEvent.compositionEnd(input);
+
+    expect(renameMock).not.toHaveBeenCalled();
+    expect(screen.getByRole('textbox', { name: 'Rename' })).toHaveValue(
+      'にほん',
+    );
+
+    fireEvent.keyDown(input, { key: 'Enter' });
+
+    await waitFor(() =>
+      expect(renameMock).toHaveBeenCalledWith('t1', 'にほん'),
+    );
+    expect(renameMock).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('textbox')).toBeNull();
+  });
+
+  it('leaves composition keys to the IME, Escape included', async () => {
+    renameMock.mockClear();
+    const { input } = await openRename();
+    fireEvent.change(input, { target: { value: '你好' } });
+
+    // The three guards on their own: the WHATWG flag, the legacy Safari
+    // keyCode (Safari ends the composition before its keydown), and the
+    // composition-event mirror for browsers that surface neither.
+    fireEvent.keyDown(input, { key: 'Enter', isComposing: true });
+    fireEvent.keyDown(input, { key: 'Enter', keyCode: 229 });
+    fireEvent.compositionStart(input);
+    fireEvent.keyDown(input, { key: 'Enter' });
+    // Escape mid-composition cancels the candidate, not the rename.
+    fireEvent.keyDown(input, { key: 'Escape' });
+    fireEvent.compositionEnd(input);
+
+    expect(screen.getByRole('textbox', { name: 'Rename' })).toHaveValue('你好');
+    expect(renameMock).not.toHaveBeenCalled();
+
+    // An ordinary Escape still cancels without saving.
+    fireEvent.keyDown(input, { key: 'Escape' });
+
+    expect(screen.queryByRole('textbox')).toBeNull();
+    expect(renameMock).not.toHaveBeenCalled();
+  });
+
+  it('commits the rename once on blur', async () => {
+    renameMock.mockClear();
+    const { user, input } = await openRename();
+
+    await user.clear(input);
+    await user.type(input, 'Board deck');
+    fireEvent.blur(input);
+
+    await waitFor(() =>
+      expect(renameMock).toHaveBeenCalledWith('t1', 'Board deck'),
+    );
+    expect(renameMock).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole('textbox')).toBeNull();
   });
 
