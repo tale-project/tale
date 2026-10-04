@@ -2,7 +2,7 @@ import { renderHook } from '@testing-library/react';
 import { createRef } from 'react';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { useRestoreFocus } from './use-restore-focus';
+import { RESTORE_FOCUS_LOST_EVENT, useRestoreFocus } from './use-restore-focus';
 
 describe('useRestoreFocus', () => {
   afterEach(() => {
@@ -334,6 +334,99 @@ describe('useRestoreFocus', () => {
     result.current(event);
 
     expect(event.defaultPrevented).toBe(false);
+  });
+
+  // #3791: a confirmed delete takes the row, its menu button with it — the
+  // completion path, where Escape (#3715) still finds the button.
+  describe('when a completed action removed every return point', () => {
+    /** A list region holding one row, whose menu is open on its item. */
+    function openRowMenu() {
+      const region = document.createElement('div');
+      region.setAttribute('role', 'region');
+      region.setAttribute('aria-label', 'Teams');
+      region.tabIndex = -1;
+      const list = document.createElement('ul');
+      const row = document.createElement('li');
+      const next = document.createElement('button');
+      next.textContent = 'Actions for Beta';
+      list.append(row, next);
+      region.append(list);
+      document.body.append(region);
+      const { trigger, menu } = openMenu('Delete');
+      row.append(trigger);
+      return { region, list, row, trigger, menu, next };
+    }
+
+    it('asks what survived, and keeps the answer', () => {
+      const { region, row, menu, next } = openRowMenu();
+      const lost: Event[] = [];
+      region.addEventListener(RESTORE_FOCUS_LOST_EVENT, (event) => {
+        lost.push(event);
+        next.focus();
+        event.preventDefault();
+      });
+
+      const { result } = renderHook(({ open }) => useRestoreFocus(open), {
+        initialProps: { open: true },
+      });
+      menu.remove();
+      row.remove();
+      const event = new Event('close', { cancelable: true });
+      result.current(event);
+
+      expect(lost).toHaveLength(1);
+      expect(event.defaultPrevented).toBe(true);
+      expect(document.activeElement).toBe(next);
+    });
+
+    it('focuses the nearest surviving region when nothing answers', () => {
+      const { region, row, menu } = openRowMenu();
+
+      const { result } = renderHook(({ open }) => useRestoreFocus(open), {
+        initialProps: { open: true },
+      });
+      menu.remove();
+      row.remove();
+      const event = new Event('close', { cancelable: true });
+      result.current(event);
+
+      expect(event.defaultPrevented).toBe(true);
+      expect(document.activeElement).toBe(region);
+    });
+
+    it('skips a menu button its row disabled, as it skips a removed one', () => {
+      // Teams disables a deleted row's menu button until the list drops it.
+      const { region, trigger, menu } = openRowMenu();
+
+      const { result } = renderHook(({ open }) => useRestoreFocus(open), {
+        initialProps: { open: true },
+      });
+      menu.remove();
+      trigger.disabled = true;
+      const event = new Event('close', { cancelable: true });
+      result.current(event);
+
+      expect(event.defaultPrevented).toBe(true);
+      expect(document.activeElement).toBe(region);
+    });
+
+    it('skips a removed fallback for the menu button that survived', () => {
+      const { trigger, menu } = openRowMenu();
+      const fallback = document.createElement('button');
+      document.body.append(fallback);
+      const fallbackRef = createRef<HTMLButtonElement>();
+      fallbackRef.current = fallback;
+
+      const { result } = renderHook(
+        ({ open }) => useRestoreFocus(open, fallbackRef),
+        { initialProps: { open: true } },
+      );
+      menu.remove();
+      fallback.remove();
+      result.current(new Event('close', { cancelable: true }));
+
+      expect(document.activeElement).toBe(trigger);
+    });
   });
 
   it('leaves an ordinary control that merely sits in a menu alone', () => {
