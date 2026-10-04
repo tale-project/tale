@@ -26,6 +26,7 @@ vi.mock('./service.ts', async (importOriginal) => ({
     organizationId: 'org-1',
     projectId: 'p-1',
     title: 'Check figures',
+    archivedAt: null,
   }),
   assertTaskWorkable: vi.fn(),
 }));

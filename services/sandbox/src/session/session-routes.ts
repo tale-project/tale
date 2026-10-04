@@ -26,6 +26,7 @@ import type { SpawnerConfig } from '../types.ts';
 import type { SessionExecResponse, SessionInfo } from '../wire.ts';
 import {
   RunnerdActivityError,
+  RunnerdAttachBusyError,
   RunnerdProtocolError,
   RunnerdStageBusyError,
   runnerdActivity,
@@ -51,6 +52,20 @@ import {
 
 function b64decode(b64: string): Uint8Array {
   return new Uint8Array(Buffer.from(b64, 'base64'));
+}
+
+function unavailableSessionResponse(): Response {
+  return jsonResponse({ error: 'session_unavailable' }, 503, {
+    'retry-after': '1',
+  });
+}
+
+/** Namespace compute occupancy is independent of runnerd routability. */
+interface BackendOccupancy {
+  sessionIds: ReadonlySet<string>;
+  degradedSessionIds: ReadonlySet<string>;
+  startedAtMs: number;
+  creatingWhenListed: ReadonlySet<string>;
 }
 
 /** How long a session whose runnerd failed a reclaim probe stays off the
@@ -457,16 +472,56 @@ export class SessionRoutes {
     }
   }
 
-  private atCapacity(): boolean {
-    return this.occupiedSlots() >= this.cfg.session.maxSessions;
+  private occupiedSlots(occupancy: BackendOccupancy | null): number {
+    if (occupancy === null) {
+      const ids = new Set([
+        ...this.registry.list().map((s) => s.sessionId),
+        ...this.creating.keys(),
+        ...this.unregistered.keys(),
+      ]);
+      return ids.size;
+    }
+    const ids = new Set(occupancy.sessionIds);
+    for (const id of this.creating.keys()) ids.add(id);
+    // A local create can finish after the API sampled its list. It still
+    // occupies a slot even though it has already left `creating`.
+    for (const session of this.registry.list()) {
+      if (
+        session.createdAtMs >= occupancy.startedAtMs ||
+        occupancy.creatingWhenListed.has(session.sessionId)
+      )
+        ids.add(session.sessionId);
+    }
+    return ids.size;
   }
 
-  private occupiedSlots(): number {
-    let count = this.registry.size() + this.creating.size;
-    for (const id of this.unregistered.keys()) {
-      if (!this.registry.has(id) && !this.creating.has(id)) count += 1;
+  private async admissionOccupancy(): Promise<
+    BackendOccupancy | null | Response
+  > {
+    if (this.backend.kind !== 'kubernetes') return null;
+    const startedAtMs = Date.now();
+    const creatingWhenListed = new Set(this.creating.keys());
+    try {
+      const sessions = await this.listForResolve();
+      return {
+        startedAtMs,
+        creatingWhenListed,
+        degradedSessionIds: new Set(
+          sessions
+            .filter((s) => s.ended !== true && s.state === 'degraded')
+            .map((s) => s.sessionId),
+        ),
+        sessionIds: new Set(
+          sessions.filter((s) => s.ended !== true).map((s) => s.sessionId),
+        ),
+      };
+    } catch (error) {
+      console.warn(
+        '[sandbox.session] namespace admission inventory unavailable:',
+        error,
+      );
+      return unavailableSessionResponse();
     }
-    return count;
   }
 
   /** The admission decision for one create: a duplicate id → 409, a disk
@@ -479,6 +534,7 @@ export class SessionRoutes {
     sessionId: string,
     organizationId: string,
     workingSetBytes: number,
+    occupancy: BackendOccupancy | null,
   ): Response | 'disk' | 'full' | 'short' | null {
     if (this.registry.has(sessionId) || this.creating.has(sessionId)) {
       return jsonResponse(
@@ -489,7 +545,11 @@ export class SessionRoutes {
         409,
       );
     }
-    if (this.unregistered.get(sessionId)?.state === 'degraded') {
+    if (
+      occupancy !== null
+        ? occupancy.degradedSessionIds.has(sessionId)
+        : this.unregistered.get(sessionId)?.state === 'degraded'
+    ) {
       return jsonResponse(
         {
           error: 'busy',
@@ -499,14 +559,24 @@ export class SessionRoutes {
         { 'retry-after': '5' },
       );
     }
+    if (occupancy?.sessionIds.has(sessionId)) {
+      return jsonResponse(
+        {
+          error: 'duplicate',
+          message: `session ${sessionId} exists or is being created`,
+        },
+        409,
+      );
+    }
     // A disk below its floor takes no session: every running one's next
     // write may be the one that fails.
     if (this.diskShort()) return 'disk';
     // Room that frees is the oldest waiters' first: a create gets in ahead
     // of them only where there is room for them as well.
+    const occupied = this.occupiedSlots(occupancy);
     const ahead = this.waitersAhead(sessionId, Date.now());
     if (ahead.length > 0) {
-      const free = this.cfg.session.maxSessions - this.occupiedSlots();
+      const free = this.cfg.session.maxSessions - occupied;
       if (free <= ahead.filter((waiter) => waiter.needsSlot).length)
         return 'full';
       // Memory is held only for waiters this host could ever fit: one that
@@ -521,7 +591,7 @@ export class SessionRoutes {
       }
       if (this.memoryShort(workingSetBytes + held)) return 'short';
     }
-    if (this.atCapacity()) return 'full';
+    if (occupied >= this.cfg.session.maxSessions) return 'full';
     if (this.memoryShort(workingSetBytes)) return 'short';
     this.waiters.delete(sessionId);
     this.creating.set(sessionId, organizationId);
@@ -616,8 +686,14 @@ export class SessionRoutes {
       profile,
       docker ?? this.cfg.dockerInContainer,
     );
+    const observed =
+      this.backend.kind === 'kubernetes'
+        ? await this.admissionOccupancy()
+        : null;
+    if (observed instanceof Response) return observed;
+    let occupancy = observed;
     let decision = await this.withAdmission(() =>
-      this.admit(sessionId, organizationId, workingSet),
+      this.admit(sessionId, organizationId, workingSet, occupancy),
     );
     if (decision === 'full' || decision === 'short') {
       // At capacity, or short of memory: try to reclaim ONE released idle
@@ -630,8 +706,14 @@ export class SessionRoutes {
       const short = decision === 'short';
       await this.reclaimOneIdle();
       if (short) await this.readHostMemory();
+      const refreshed =
+        this.backend.kind === 'kubernetes'
+          ? await this.admissionOccupancy()
+          : null;
+      if (refreshed instanceof Response) return refreshed;
+      occupancy = refreshed;
       decision = await this.withAdmission(() =>
-        this.admit(sessionId, organizationId, workingSet),
+        this.admit(sessionId, organizationId, workingSet, occupancy),
       );
     }
     if (decision === 'full' || decision === 'short' || decision === 'disk') {
@@ -1034,7 +1116,8 @@ export class SessionRoutes {
     // deduplicate before awaiting so a duplicate cannot take another lane.
     const adoptedIds = new Set<string>();
     await forEachLimited(candidates, SWEEP_CONCURRENCY, async (s) => {
-      if ((await this.adoptSession(s)) !== undefined) {
+      const adopted = await this.adoptSession(s);
+      if (adopted !== undefined && !(adopted instanceof Response)) {
         adoptedIds.add(s.sessionId);
       }
     });
@@ -1206,11 +1289,11 @@ export class SessionRoutes {
   }
 
   /** Register one backend-listed session in the cache, resolving its runnerd
-   * endpoint. Returns the entry, or undefined (logged) when the endpoint can't
-   * be read right now — the next sweep or route miss retries. */
+   * endpoint. An endpoint that cannot be observed is retryable, never proof
+   * of a lost session. The sweep skips it and the next route miss retries. */
   private async adoptSession(
     s: BackendSession,
-  ): Promise<RegistrySession | undefined> {
+  ): Promise<RegistrySession | Response | undefined> {
     // A queued adoption or a route miss may reach this after draining began.
     // Only sessions already registered belong to the lingering spawner.
     const registered = this.registry.get(s.sessionId);
@@ -1224,7 +1307,7 @@ export class SessionRoutes {
         `[sandbox.session] adopt skipped for ${s.sessionId} (endpoint unresolved; will retry):`,
         err instanceof Error ? err.message : err,
       );
-      return undefined;
+      return unavailableSessionResponse();
     }
     // A concurrent create/adopt may have registered it while we awaited —
     // never overwrite a live entry (it may already track in-flight execs).
@@ -1287,11 +1370,11 @@ export class SessionRoutes {
    */
   private async ensureRegistered(
     sessionId: string,
-  ): Promise<RegistrySession | undefined> {
+  ): Promise<RegistrySession | Response | undefined> {
     const hit = this.registry.get(sessionId);
     if (hit !== undefined) return hit;
     // Our own in-flight create registers itself on completion.
-    if (this.creating.has(sessionId)) return undefined;
+    if (this.creating.has(sessionId)) return unavailableSessionResponse();
     // A lingering spawner never adopts — 404 is the status quo; the
     // replacement serves the session (see the constructor's isDraining).
     if (this.isDraining()) return undefined;
@@ -1300,13 +1383,14 @@ export class SessionRoutes {
       sessions = await this.listForResolve();
     } catch (err) {
       console.warn(
-        `[sandbox.session] backend re-resolve for ${sessionId} failed (answering not-found):`,
+        `[sandbox.session] backend re-resolve for ${sessionId} unavailable (retry later):`,
         err instanceof Error ? err.message : err,
       );
-      return undefined;
+      return unavailableSessionResponse();
     }
     const s = sessions.find((x) => x.sessionId === sessionId);
-    if (s === undefined || s.state !== 'ready') return undefined;
+    if (s === undefined || s.ended === true) return undefined;
+    if (s.state !== 'ready') return unavailableSessionResponse();
     return this.adoptSession(s);
   }
 
@@ -1444,6 +1528,7 @@ export class SessionRoutes {
       // generation and backend-incarnation fences as pressure admission.
       if (health.activity?.reclaiming) return this.reclaimIdle(s);
       if (
+        health.activity?.pinned === true ||
         health.liveExecs > 0 ||
         (health.activity?.activeOperations ?? 0) > 0
       ) {
@@ -1797,7 +1882,9 @@ export class SessionRoutes {
    * against the backend object: answering from the cache alone turns a dead
    * container into "alive" and the turn then fails on a dead address. */
   async handleGet(sessionId: string): Promise<Response> {
-    if ((await this.ensureRegistered(sessionId)) === undefined) {
+    const session = await this.ensureRegistered(sessionId);
+    if (session instanceof Response) return session;
+    if (session === undefined) {
       return jsonResponse({ error: 'not_found' }, 404);
     }
     if (await this.evictIfBackendGone(sessionId)) {
@@ -1993,6 +2080,7 @@ export class SessionRoutes {
       }
     }
     const session = await this.ensureRegistered(sessionId);
+    if (session instanceof Response) return session;
     if (!session || (await this.evictIfBackendGone(sessionId))) {
       return jsonResponse({ error: 'not_found' }, 404);
     }
@@ -2346,6 +2434,7 @@ export class SessionRoutes {
     body: string,
   ): Promise<Response> {
     const session = await this.ensureRegistered(sessionId);
+    if (session instanceof Response) return session;
     if (!session) return jsonResponse({ error: 'not_found' }, 404);
     let parsed: unknown;
     try {
@@ -2469,8 +2558,7 @@ export class SessionRoutes {
               stdoutBase64: '',
               stderrBase64: '',
               truncated: { stdout: false, stderr: false },
-              errorCode:
-                e.code === 'INVALID_CWD' ? 'INVALID_CWD' : 'RUNTIME_ERROR',
+              errorCode: e.code === 'INVALID_CWD' ? e.code : 'RUNTIME_ERROR',
               errorMessage: e.message,
             };
             break;
@@ -2549,6 +2637,7 @@ export class SessionRoutes {
     mode: { keepLeftovers?: boolean } = {},
   ): Promise<Response> {
     const session = await this.ensureRegistered(sessionId);
+    if (session instanceof Response) return session;
     if (!session) return jsonResponse({ error: 'not_found' }, 404);
     // Local abort (ends the SSE proxy) + tell runnerd to kill the process group.
     this.registry.getExec(sessionId, execId)?.abort();
@@ -2580,16 +2669,24 @@ export class SessionRoutes {
    * evicted past the recent window). A transport blip with a live backend
    * returns 502 so the platform's restorative watchdog treats it as "unknown"
    * and skips (never finalizes a turn on a daemon hiccup). */
-  async handleExecStatus(sessionId: string, execId: string): Promise<Response> {
+  async handleExecStatus(
+    sessionId: string,
+    execId: string,
+    signal?: AbortSignal,
+  ): Promise<Response> {
+    if (signal?.aborted) return jsonResponse({ error: 'cancelled' }, 502);
     const session = await this.ensureRegistered(sessionId);
+    if (session instanceof Response) return session;
     if (!session) return jsonResponse({ execId, state: 'gone' }, 404);
     try {
       const status = await runnerdExecStatus(
         { baseUrl: session.endpoint, token: this.tokenFor(sessionId) },
         execId,
+        signal,
       );
       return jsonResponse(status, status.state === 'gone' ? 404 : 200);
     } catch (err) {
+      if (signal?.aborted) return jsonResponse({ error: 'cancelled' }, 502);
       if (await this.evictIfBackendGone(sessionId)) {
         return jsonResponse({ execId, state: 'gone' }, 404);
       }
@@ -2613,6 +2710,7 @@ export class SessionRoutes {
     body: string,
   ): Promise<Response> {
     const session = await this.ensureRegistered(sessionId);
+    if (session instanceof Response) return session;
     if (!session) return jsonResponse({ error: 'not_found' }, 404);
     let parsed: { b64?: string; eof?: boolean };
     try {
@@ -2660,14 +2758,16 @@ export class SessionRoutes {
     execId: string,
   ): Promise<Response> {
     const session = await this.ensureRegistered(sessionId);
+    if (session instanceof Response) return session;
     if (!session) return jsonResponse({ error: 'not_found' }, 404);
     const ac = new AbortController();
     const onAbort = () => ac.abort();
     req.signal.addEventListener('abort', onAbort, { once: true });
     // Resume cursor: the platform passes the highest seq it already consumed so
     // runnerd replays only newer events (idempotent reconnect).
-    const sinceSeq =
-      Number(new URL(req.url).searchParams.get('sinceSeq') ?? '0') || 0;
+    const sinceSeq = Number(
+      new URL(req.url).searchParams.get('sinceSeq') ?? '0',
+    );
     const token = this.tokenFor(sessionId);
     return sseResponse(async ({ send, signal }) => {
       try {
@@ -2682,6 +2782,10 @@ export class SessionRoutes {
       } catch (err) {
         // The caller hung up: see handleExec.
         if (req.signal.aborted || signal.aborted) return;
+        if (err instanceof RunnerdAttachBusyError) {
+          send('error', { code: 'ATTACH_BUSY', message: err.message });
+          return;
+        }
         send('error', {
           message: err instanceof Error ? err.message : String(err),
           ...(err instanceof RunnerdProtocolError ? { code: err.code } : {}),
@@ -2700,6 +2804,7 @@ export class SessionRoutes {
    * credential/gateway-token injection uses). */
   async handleEnvPatch(sessionId: string, body: string): Promise<Response> {
     const session = await this.ensureRegistered(sessionId);
+    if (session instanceof Response) return session;
     if (!session) return jsonResponse({ error: 'not_found' }, 404);
     let parsed: { set?: Record<string, string>; unset?: string[] };
     try {
@@ -2758,6 +2863,7 @@ export class SessionRoutes {
     }
     await this.stopping.get(sessionId);
     const session = await this.ensureRegistered(sessionId);
+    if (session instanceof Response) return session;
     if (!session) return jsonResponse({ error: 'not_found' }, 404);
     let pinned: boolean;
     try {
@@ -2826,8 +2932,13 @@ export class SessionRoutes {
 
   /** POST /v1/sessions/:id/files/stage — write files into /agent (inline
    * base64 content, or presigned URLs the daemon fetches). */
-  async handleFilesStage(sessionId: string, body: string): Promise<Response> {
+  async handleFilesStage(
+    sessionId: string,
+    body: string,
+    signal?: AbortSignal,
+  ): Promise<Response> {
     const session = await this.ensureRegistered(sessionId);
+    if (session instanceof Response) return session;
     if (!session) return jsonResponse({ error: 'not_found' }, 404);
     let parsed: {
       files?: Array<{
@@ -2888,6 +2999,7 @@ export class SessionRoutes {
         { baseUrl: session.endpoint, token: this.tokenFor(sessionId) },
         parsed.files ?? [],
         { replaceRoots: parsed.replaceRoots, keepPaths: parsed.keepPaths },
+        { signal },
       );
     } catch (err) {
       if (err instanceof RunnerdStageBusyError)
@@ -2911,6 +3023,7 @@ export class SessionRoutes {
    * /agent. Idempotent reconcile primitive (e.g. pruning stale skills). */
   async handleFilesDelete(sessionId: string, body: string): Promise<Response> {
     const session = await this.ensureRegistered(sessionId);
+    if (session instanceof Response) return session;
     if (!session) return jsonResponse({ error: 'not_found' }, 404);
     let parsed: { paths?: string[] };
     try {
@@ -2942,6 +3055,7 @@ export class SessionRoutes {
   /** GET /v1/sessions/:id/files?path= — directory listing. */
   async handleFilesList(sessionId: string, path: string): Promise<Response> {
     const session = await this.ensureRegistered(sessionId);
+    if (session instanceof Response) return session;
     if (!session) return jsonResponse({ error: 'not_found' }, 404);
     let entries;
     try {
@@ -2972,6 +3086,7 @@ export class SessionRoutes {
     signal?: AbortSignal,
   ): Promise<Response> {
     const session = await this.ensureRegistered(sessionId);
+    if (session instanceof Response) return session;
     if (!session) return jsonResponse({ error: 'not_found' }, 404);
     let bytes;
     try {
@@ -3059,7 +3174,7 @@ function forwardExecEvent(
         stdoutBase64: '',
         stderrBase64: '',
         truncated: { stdout: false, stderr: false },
-        errorCode: e.code === 'INVALID_CWD' ? 'INVALID_CWD' : 'RUNTIME_ERROR',
+        errorCode: e.code === 'INVALID_CWD' ? e.code : 'RUNTIME_ERROR',
         errorMessage: e.message,
       } satisfies SessionExecResponse);
       break;

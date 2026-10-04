@@ -25,8 +25,9 @@ while the workspace remains persistent.
 
 An exec output reader is disconnected before its pending writes exceed 8 MiB.
 Eight exec/attach consumers share a session-wide admission limit, including
-exec requests receiving their body; additional readers receive `503 busy`.
-Attach replay waits for socket drain, disconnecting a reader stalled for two
+exec requests receiving their body; excess consumers receive a retryable
+`503 busy` response without changing the exec. Invalid or future replay cursors
+fail explicitly. Attach replay waits for socket drain, disconnecting a reader stalled for two
 seconds, so historical output cannot fill memory faster than the client reads.
 The command continues under its existing deadline. Reconnect through attach
 with the last sequence number. `replay-start` precedes journal history;
@@ -54,7 +55,8 @@ the destination's permission bits, including executable files. At most two stage
 are admitted at once, including their JSON intake; excess requests report
 `busy`. URL inputs retain their 100 MiB limit; one 25-second deadline covers the
 whole batch, including cache verification and final reconciliation. Queued items
-cannot extend the deadline by taking turns.
+cannot extend the deadline by taking turns. Cancellation propagates through the
+platform and spawner to the active transfer.
 Inline inputs retain their 1 MiB limit. Output reads also stream, within their
 20 MiB file limit. Immutable source identities can skip a transfer only after
 rehashing the current destination and checking that its pathname still names

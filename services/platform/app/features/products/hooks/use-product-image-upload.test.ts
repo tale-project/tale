@@ -55,6 +55,25 @@ describe('useProductImageUpload', () => {
     expect(query).not.toHaveBeenCalled();
   });
 
+  // The create dialog aborts the signal when its draft is discarded (#3626).
+  it('lets the caller stop the upload POST', async () => {
+    mutation.mockResolvedValue('https://upload.example/post');
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ imageUrl: '/api/app/products/images/file-1' }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const { signal } = new AbortController();
+
+    const { result } = renderHook(() => useProductImageUpload());
+    await result.current.uploadImage(file(), signal);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://upload.example/post',
+      expect.objectContaining({ method: 'POST', signal }),
+    );
+  });
+
   it('throws when the upload POST fails', async () => {
     mutation.mockResolvedValue('https://upload.example/post');
     vi.stubGlobal(

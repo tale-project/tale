@@ -23,6 +23,40 @@ export const RECOVERY_STALE_MS = (() => {
     : 4 * 60 * 1000;
 })();
 
+/** A sweep has 60 s to probe, inside its queue's 120 s expiry. Four
+ * concurrent five-second probes keep a full offline batch below that budget.
+ * A reservation expires with the sweep, independently of the agent lease. */
+export const RECOVERY_PROBE_BUDGET_MS = 60_000;
+export const RECOVERY_PROBE_TIMEOUT_MS = 5_000;
+
+export function recoveryProbeSignal(signal?: AbortSignal): AbortSignal {
+  const budget = AbortSignal.timeout(RECOVERY_PROBE_BUDGET_MS);
+  return signal === undefined ? budget : AbortSignal.any([signal, budget]);
+}
+
+/** Shared bounded walker; the visit passes this signal into network I/O.
+ * Every selected row was reserved in SQL before this starts, so a killed
+ * worker or an expired budget leaves fair, retryable work for another tick. */
+export async function visitRecoveryCandidates<T>(
+  candidates: readonly T[],
+  signal: AbortSignal,
+  visit: (candidate: T, signal: AbortSignal) => Promise<void>,
+): Promise<void> {
+  let next = 0;
+  const visits = await Promise.allSettled(
+    Array.from({ length: Math.min(4, candidates.length) }, async () => {
+      while (!signal.aborted && next < candidates.length) {
+        const candidate = candidates[next++];
+        if (candidate !== undefined) await visit(candidate, signal);
+      }
+    }),
+  );
+  // Do not let one failed database call leave other probes detached from
+  // the job that owns them while its retry begins.
+  const failed = visits.find((result) => result.status === 'rejected');
+  if (failed?.status === 'rejected') throw failed.reason;
+}
+
 /**
  * Whether a drive job for this exec is already on its way: queued (or
  * waiting out a retry) for a worker slot, or running and started inside the
@@ -104,7 +138,7 @@ export async function claimRecoveryResume(
     const row = rows[0];
     const now = Date.now();
     if (row === undefined) {
-      await tx`
+      const inserted = await tx<{ id: string }[]>`
         INSERT INTO app.sandbox_session_ops (
           org_id, session_id, exec_id, kind, status, harness, deadline_ms,
           started_at_ms, heartbeat_at_ms, resumed_by
@@ -115,8 +149,9 @@ export async function claimRecoveryResume(
           ${args.createMissing.deadlineMs}, ${now}, ${now}, 'watchdog'
         )
         ON CONFLICT (session_id, exec_id) DO NOTHING
+        RETURNING id
       `;
-      return true;
+      return inserted.length > 0;
     }
     const lastSignOfLife = sessionOpLastSignOfLifeMs({
       startedAt: row.startedAt,

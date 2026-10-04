@@ -624,6 +624,20 @@ export const settingsReadAdapters: Record<string, ReadAdapter> = {
       refetchInterval: sandboxListPollInterval,
     };
   },
+  'sandbox_devices/queries:joinTokenStatus': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    if (orgId === undefined) return null;
+    const tokenId = stringArg(args, 'tokenId');
+    return {
+      queryKey: backendKey(orgId, 'sandbox_device', 'join-token', tokenId),
+      queryFn: () =>
+        backendFetch<ReturnsOf<'sandbox_devices/queries:joinTokenStatus'>>(
+          `/sandbox-devices/join-tokens/${encodeURIComponent(tokenId)}`,
+          { orgId },
+        ),
+      refetchInterval: 3_000,
+    };
+  },
   'sandbox_devices/queries:list': (args, ctx) => {
     const orgId = orgOf(args, ctx);
     if (orgId === undefined) return null;

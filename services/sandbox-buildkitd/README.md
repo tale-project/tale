@@ -95,9 +95,6 @@ does, and its next build starts cold. When the session disk is below
 with retention off, starting with the longest-stopped organization. See
 [the spawner's cache lifecycle](../sandbox/README.md#organization-build-caches).
 
-The OCI worker limits concurrent build steps to four (`max-parallelism`), in
-addition to its cgroup limits.
-
 The builder is shared by all of its organization's agent sessions and runs
 under their CPU limit and twice their memory limit (its RUN steps execute
 there, outside every session's cgroup), or `SANDBOX_BUILDKITD_CPUS` and
@@ -126,3 +123,16 @@ network for operator review.
 
 Resource creation, refusal, reuse, and guarded legacy retirement are covered by
 [the provisioning tests](../sandbox/src/buildkit-resources.test.ts).
+
+Solver parallelism is bounded to the builder CPU limit rounded down, with a
+minimum of one (two by default). The spawner passes this as `TALE_BUILDKITD_MAX_PARALLELISM`; the
+entrypoint regenerates `max-parallelism` on each start. It is part of the helper
+configuration stamp, so busy helpers finish their builds before recreation
+applies a changed setting. The existing memory limit still bounds the entire
+builder, including its build steps.
+
+Optional provisioning shares a 15-second budget across Docker calls and mirror
+setup (`SANDBOX_BUILDKITD_PROVISION_TIMEOUT_MS`, 100–60000 ms), capped at one
+quarter of the session create budget to preserve time for readiness. Independent
+registry mirrors initialize concurrently. Expiry falls back to the session's
+local builder; any queued expired setup is skipped before it can mutate Docker.

@@ -1068,6 +1068,18 @@ run.
   tale-sandbox`) → the row leaves, then the runs start on their own in a
   fresh workspace, whose file list holds nothing the old one did.
 
+- [ ] `SET-B31` · **Concurrent device commands stay separate** — Two admins
+  open **Add device** (`sandboxes.devices.add`) in the same organization;
+  leave A's command unused and connect a machine with B's command → A still
+  reads **Waiting for the device to connect…**
+  (`sandboxes.devices.addDialog.waiting`), while only B reads **{name} is
+  connected.** (`sandboxes.devices.addDialog.connected`). Existing online
+  devices and newly enrolled offline devices do not finish either flow.
+  Run A's command and wait for its own device to connect → A names only its
+  own device. Repeat with two commands from the same admin. If command
+  generation fails, **Try again** (`sandboxes.devices.addDialog.retry`)
+  remains available inside the dialog.
+
 ## Accessibility (WCAG 2.1 AA)
 
 - [ ] `SET-A1` · **Settings rail** → The rail is a labelled `nav`
