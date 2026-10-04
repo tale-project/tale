@@ -5,9 +5,10 @@ import { DataTable } from '@tale/ui/data-table/data-table';
 import { Row } from '@tale/ui/layout';
 import { TableDateCell } from '@tale/ui/table-date-cell';
 import { Text } from '@tale/ui/text';
+import { useRetryFocus } from '@tale/ui/use-retry-focus';
 import type { ColumnDef } from '@tanstack/react-table';
 import { ShieldOff } from 'lucide-react';
-import { useMemo } from 'react';
+import { useCallback, useMemo, useRef } from 'react';
 
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useT } from '@/lib/i18n/client';
@@ -34,6 +35,24 @@ export function BlockCountersTable({
     'login_attempts/queries:listBlockCounters',
     { organizationId, limit: 200 },
   );
+
+  const regionRef = useRef<HTMLDivElement>(null);
+  const retryFocus = useRetryFocus(
+    error ? 'failed' : isLoading ? 'loading' : 'ready',
+    organizationId,
+  );
+  const focusRegion = useCallback(() => {
+    if (
+      document.activeElement === document.body ||
+      document.activeElement === document.documentElement
+    ) {
+      regionRef.current?.focus();
+    }
+  }, []);
+  const retryRead = () => {
+    retryFocus.arm();
+    void refetch();
+  };
 
   const rows: BlockCounterRow[] = useMemo(() => data ?? [], [data]);
 
@@ -104,27 +123,37 @@ export function BlockCountersTable({
   );
 
   return (
-    <DataTable
-      columns={columns}
-      data={rows}
-      caption={t('logs.blockCounters.tableCaption')}
-      error={error}
-      isLoading={isLoading}
-      onRetry={refetch}
-      emptyState={{
-        icon: ShieldOff,
-        title: t('logs.blockCounters.emptyTitle'),
-        description: t('logs.blockCounters.empty'),
-      }}
-      footer={
-        rows.length > 0 ? (
-          <Row gap={0} className="border-border h-10 border-t px-4">
-            <Text variant="muted" className="text-xs">
-              {t('logs.blockCounters.footerCount', { count: rows.length })}
-            </Text>
-          </Row>
-        ) : undefined
-      }
-    />
+    <div
+      ref={regionRef}
+      role="region"
+      aria-label={t('logs.blockCounters.tableCaption')}
+      tabIndex={-1}
+    >
+      <div ref={retryFocus.ref}>
+        <DataTable
+          columns={columns}
+          data={rows}
+          caption={t('logs.blockCounters.tableCaption')}
+          error={error}
+          isLoading={isLoading}
+          onRetry={retryRead}
+          onErrorFocusLost={focusRegion}
+          emptyState={{
+            icon: ShieldOff,
+            title: t('logs.blockCounters.emptyTitle'),
+            description: t('logs.blockCounters.empty'),
+          }}
+          footer={
+            rows.length > 0 ? (
+              <Row gap={0} className="border-border h-10 border-t px-4">
+                <Text variant="muted" className="text-xs">
+                  {t('logs.blockCounters.footerCount', { count: rows.length })}
+                </Text>
+              </Row>
+            ) : undefined
+          }
+        />
+      </div>
+    </div>
   );
 }
