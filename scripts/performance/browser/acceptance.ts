@@ -40,6 +40,8 @@ import {
   type BrowserSession,
 } from './browser-session.ts';
 import { json, outputPath, phaseTimeout, sources } from './common.ts';
+import { inspectRenderedFont } from './font-glyphs.ts';
+import { latinFontContract } from './font-policy.ts';
 import { browserOrigins } from './origins.mjs';
 
 const source = await sources();
@@ -90,6 +92,10 @@ const build = z.object({
 const builds = z
   .object({ baseline: build, candidate: build })
   .parse(await read('builds.json'));
+const fontContracts = {
+  baseline: latinFontContract(browserOrigins[0]!, builds.baseline.assets),
+  candidate: latinFontContract(browserOrigins[1]!, builds.candidate.assets),
+};
 const identity = await browserIdentity();
 const rows: (AcceptanceObservation & Record<string, unknown>)[] = [];
 const verified = new Map<number, ReturnType<typeof acceptanceFixture>>();
@@ -246,6 +252,15 @@ async function perform(
     .and(page.getByRole('button', { name: target.title, exact: true }));
   let actionFrame: { tDom: number; tFrame: number } | undefined;
   let tailMetrics: Awaited<ReturnType<typeof heap>> | undefined;
+  const expectedFonts = {
+    ...fontContracts[planned.arm],
+    requiredWeights:
+      planned.operation === 'leave'
+        ? ([400] as const)
+        : planned.operation === 'open'
+          ? ([500, 600] as const)
+          : ([500] as const),
+  };
   await recordAcceptanceAction(planned, {
     now: Date.now,
     checkpoint: (row) => json('acceptance-current.json', row),
@@ -260,7 +275,7 @@ async function perform(
     failureEvidence: async () => {
       if (!session.fontState.current) {
         try {
-          await fontsReady(session, (evidence) =>
+          await fontsReady(session, expectedFonts, (evidence) =>
             json('acceptance-fonts-current.json', {
               id: planned.id,
               phase: 'action-failure',
@@ -441,13 +456,16 @@ async function perform(
       await delay(session, 3000);
       const metrics = await heap(session);
       tailMetrics = metrics;
-      const fontEvidence = await fontsReady(session, (evidence) =>
-        json('acceptance-fonts-current.json', {
-          id: planned.id,
-          phase: 'post-action-tail-and-heap',
-          ...metrics,
-          ...evidence,
-        }),
+      const fontEvidence = await fontsReady(
+        session,
+        expectedFonts,
+        (evidence) =>
+          json('acceptance-fonts-current.json', {
+            id: planned.id,
+            phase: 'post-action-tail-and-heap',
+            ...metrics,
+            ...evidence,
+          }),
       );
       const boot = await pageBoot(session);
       const animation =
@@ -557,21 +575,28 @@ try {
           { waitUntil: 'domcontentloaded', timeout: remaining() },
         );
         await ready(session.page, remaining());
-        await fontsReady(session, (evidence) => {
-          // Keep the same object: a failed dedicated write adds persistenceError
-          // before the outer campaign catch saves this recoverable receipt.
-          receipt.startupFonts = {
-            size: block.size,
-            group: block.group,
-            block: block.block,
-            arm: block.arm,
-            evidence,
-          };
-          return json(
-            `fonts-start-${block.size}-${block.group}-${block.block}.json`,
-            evidence,
-          );
-        });
+        await fontsReady(
+          session,
+          {
+            ...fontContracts[block.arm],
+            requiredWeights: start === 'general' ? [400] : [500],
+          },
+          (evidence) => {
+            // Keep the same object: a failed dedicated write adds persistenceError
+            // before the outer campaign catch saves this recoverable receipt.
+            receipt.startupFonts = {
+              size: block.size,
+              group: block.group,
+              block: block.block,
+              arm: block.arm,
+              evidence,
+            };
+            return json(
+              `fonts-start-${block.size}-${block.group}-${block.block}.json`,
+              evidence,
+            );
+          },
+        );
         assert.deepEqual(session.errors, []);
       }
       for (const sample of block.samples) {
@@ -596,7 +621,9 @@ try {
   await save();
   for (const size of [50, 2000]) {
     const fixture = verified.get(size)!;
-    for (const [index, armName] of ['baseline', 'candidate'].entries()) {
+    for (const [index, armName] of (
+      ['baseline', 'candidate'] as const
+    ).entries()) {
       const origin = browserOrigins[index]!;
       const functionalRow: Record<string, unknown> = {
         arm: armName,
@@ -605,7 +632,11 @@ try {
         phase: 'startup',
       };
       functional.push(functionalRow);
-      await save();
+      const saveFunctional = async () => {
+        await json(`functional-${armName}-${size}.json`, functionalRow);
+        await save();
+      };
+      await saveFunctional();
       const browser = await launchBrowser(identity);
       try {
         const session = await sessionFor(browser, origin, fixture, 'board');
@@ -614,10 +645,14 @@ try {
           timeout: remaining(),
         });
         await ready(session.page, remaining());
-        await fontsReady(session, (evidence) => {
-          functionalRow.fonts = evidence;
-          return save();
-        });
+        await fontsReady(
+          session,
+          { ...fontContracts[armName], requiredWeights: [500] },
+          (evidence) => {
+            functionalRow.fonts = evidence;
+            return saveFunctional();
+          },
+        );
         const result = await proveAcceptanceFunctionality(session, {
           orgId: ids.orgId,
           fixture,
@@ -633,10 +668,102 @@ try {
           },
         });
         Object.assign(functionalRow, result);
-        await json(`functional-${armName}-${size}.json`, result);
-        await save();
+        // The helper's own result remains separate from the additional glyph
+        // obligation. No intermediate artifact may claim the whole row passed.
+        functionalRow.behaviorComplete = result.complete;
+        functionalRow.complete = false;
+        await saveFunctional();
         assert.equal(result.complete, true, 'Separate functional proof failed');
+        functionalRow.complete = false;
+        functionalRow.phase = 'font-glyphs';
+        const glyphs: Record<string, unknown> = {};
+        functionalRow.glyphs = glyphs;
+        await saveFunctional();
+        const target = fixture.targets[0]!;
+        const card = session.page.locator(cards).and(
+          session.page.getByRole('button', {
+            name: target.title,
+            exact: true,
+          }),
+        );
+        const checkGlyphs = async (
+          name: string,
+          locator: ReturnType<BrowserSession['page']['locator']>,
+          text: string,
+          weight: 400 | 500 | 600,
+        ) => {
+          const proof = await inspectRenderedFont(
+            session.page,
+            locator,
+            { text, weight },
+            remaining(),
+          );
+          glyphs[name] = proof;
+          await saveFunctional();
+          assert(proof.complete, `Required ${name} glyph proof failed`);
+        };
+        await checkGlyphs('board', card, target.title, 500);
+        await card.click({ timeout: remaining() });
+        const dialog = session.page.getByRole('dialog', {
+          name: target.title,
+          exact: true,
+        });
+        const title = dialog.locator('input[aria-label="Title"]');
+        await title.waitFor({ state: 'visible', timeout: remaining() });
+        await fontsReady(
+          session,
+          { ...fontContracts[armName], requiredWeights: [500, 600] },
+          async (evidence) => {
+            glyphs.dialogFonts = evidence;
+            await saveFunctional();
+          },
+        );
+        await checkGlyphs('dialog', title, target.title, 600);
+        await session.page.keyboard.press('Escape');
+        await dialog.waitFor({ state: 'hidden', timeout: remaining() });
+        await arm(session, fixture, 'general');
+        await session.page
+          .locator(`a[href="${generalPath(fixture.projectId)}"]`)
+          .and(session.page.getByRole('link', { name: 'General', exact: true }))
+          .click({ timeout: remaining() });
+        await ready(session.page, remaining());
+        await fontsReady(
+          session,
+          { ...fontContracts[armName], requiredWeights: [400] },
+          async (evidence) => {
+            glyphs.generalFonts = evidence;
+            await saveFunctional();
+          },
+        );
+        await checkGlyphs(
+          'general',
+          session.page.locator('#project-overview-name'),
+          fixture.projectName,
+          400,
+        );
+        assert.deepEqual(
+          session.errors,
+          [],
+          'Functional glyph browser errors invalidate the campaign',
+        );
+        functionalRow.complete = true;
+        functionalRow.phase = 'complete';
+        await saveFunctional();
         await resource();
+      } catch (error) {
+        functionalRow.complete = false;
+        functionalRow.error = String(error);
+        try {
+          await saveFunctional();
+        } catch (writeError) {
+          functionalRow.persistenceError = String(writeError);
+          throw new AggregateError(
+            [error, writeError],
+            `${String(error)}; ${String(writeError)}`,
+            { cause: writeError },
+          );
+        }
+        throw error;
       } finally {
         await browser.close();
       }

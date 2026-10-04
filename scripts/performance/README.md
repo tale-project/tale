@@ -168,8 +168,18 @@ only. Font/CSSOM inspection and response-body hashes run after the action's
 three-second tail and heap read, or after failure; they issue no new asset
 requests. Startup checks have separate font receipts. Collection or persistence
 failures remain invalid, and partial row evidence keeps the original cause.
-Every errored font face still fails this guard, including local fallback faces;
-these diagnostics do not grant an exception or change the timing endpoint.
+The font policy requires loaded Latin Inter faces for the actual checkpoint:
+500 for board titles, 400 for the populated General input, and 600 for the
+visible editable dialog title. It verifies their declarations and received font
+bytes against the arm's build manifest. Unused registered weights are not
+force-loaded. Only the unchanged metric-adjusted `Inter Fallback` declaration
+with its sole `local(Arial)` source can be classified as an optional local lookup;
+the raw error remains in the receipt. Unknown errors, changed or ambiguous
+descriptors, missing/failed/corrupt required fonts and incomplete evidence fail.
+After every timing row is immutable, separate functional contexts inspect the
+actual custom Inter glyphs of board text, the visible dialog title input and the
+populated General input. Empty or system-font results fail. This CSS inspection
+can refetch resources in Chromium141 and is never part of timing or preparation.
 `acceptance-rows.jsonl` and `acceptance-receipt.json` preserve all rows, original
 observations, tails, heap values, missing coverage, medians/ranges and adjacent
 ABBA block differences. Heap uses MiB; the historical 600 MB budget keeps its

@@ -64,6 +64,13 @@ function snapshot(): FontPageEvidence {
         unicodeRange: 'U+0-10FFFF',
         display: 'auto',
         status: 'error',
+        ascentOverride: '90.49%',
+        descentOverride: '22.56%',
+        lineGapOverride: '0%',
+        sizeAdjust: '107.06%',
+        featureSettings: 'normal',
+        variationSettings: 'normal',
+        variant: 'normal',
       },
     ],
     rules: [],
@@ -319,6 +326,17 @@ describe('passive font evidence', () => {
 });
 
 describe('serialized FontFace and CSSOM snapshot', () => {
+  test('missing descriptor APIs are explicit null, never synthesized from CSS source', async () => {
+    const {
+      sizeAdjust: _sizeAdjust,
+      variationSettings: _variationSettings,
+      ...face
+    } = snapshot().faces[0]!;
+    const result = await serializedSnapshot({ faces: [face] });
+    expect(result.faces[0]?.sizeAdjust).toBeNull();
+    expect(result.faces[0]?.variationSettings).toBeNull();
+    expect(result.faces[0]?.ascentOverride).toBe('90.49%');
+  });
   test('has no module closure and preserves failed face identity after readiness', async () => {
     const result = await serializedSnapshot();
     expect(result.ready).toBe(true);

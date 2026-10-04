@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 
 import type { FontEvidence } from './font-evidence.ts';
+import type { classifyFontEvidence } from './font-policy.ts';
 
 export interface FontCheckpoint {
   fonts: FontEvidence | null;
@@ -8,6 +9,7 @@ export interface FontCheckpoint {
   collectionError?: string;
   validationErrors?: string[];
   persistenceError?: string;
+  classification?: ReturnType<typeof classifyFontEvidence>;
 }
 
 /** Collect only outside action/heap windows. Cache and persist the identity of
@@ -17,6 +19,9 @@ export async function fontCheckpoint(io: {
   errors: () => string[];
   retain: (evidence: FontCheckpoint) => void;
   persist: (evidence: FontCheckpoint) => Promise<void>;
+  classify?: (
+    evidence: FontEvidence,
+  ) => ReturnType<typeof classifyFontEvidence>;
 }) {
   const evidence: FontCheckpoint = { fonts: null, errors: [] };
   const failures: unknown[] = [];
@@ -30,11 +35,19 @@ export async function fontCheckpoint(io: {
   // Build the original failure before secondary evidence/persistence failures.
   if (evidence.fonts) {
     try {
-      assert.equal(
-        evidence.fonts.faces.filter((face) => face.status === 'error').length,
-        0,
-        'A font failed to load',
-      );
+      if (io.classify) {
+        evidence.classification = io.classify(evidence.fonts);
+        assert(
+          evidence.classification.valid,
+          evidence.classification.failures.join('; '),
+        );
+      } else {
+        assert.equal(
+          evidence.fonts.faces.filter((face) => face.status === 'error').length,
+          0,
+          'A font failed to load',
+        );
+      }
     } catch (error) {
       failures.unshift(error);
     }

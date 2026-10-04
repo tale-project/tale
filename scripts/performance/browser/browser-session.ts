@@ -6,6 +6,7 @@ import { createHash } from 'node:crypto';
 import { chromium, type Page } from '../../../packages/e2e/src/index.ts';
 import { fontCheckpoint, type FontCheckpoint } from './font-checkpoint.ts';
 import { createFontEvidence } from './font-evidence.ts';
+import { classifyFontEvidence } from './font-policy.ts';
 import { browserOrigins as origins } from './origins.mjs';
 
 export interface Frame {
@@ -214,11 +215,13 @@ export async function pageBoot(session: BrowserSession) {
 
 export async function fontsReady(
   session: BrowserSession,
+  expected: Parameters<typeof classifyFontEvidence>[1],
   persist: (evidence: FontCheckpoint) => Promise<void>,
 ) {
   return fontCheckpoint({
     collect: () => session.fontEvidence.collect(session.page),
     errors: () => session.errors,
+    classify: (evidence) => classifyFontEvidence(evidence, expected),
     retain: (evidence) => {
       session.fontState.current = evidence;
     },

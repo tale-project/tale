@@ -17,6 +17,7 @@ import {
   ready,
 } from './browser-session.ts';
 import { json, outputPath } from './common.ts';
+import { latinFontContract } from './font-policy.ts';
 import { browserOrigins as origins } from './origins.mjs';
 import { capturePhase as trace } from './phase.ts';
 import { traceControls } from './trace-controls.ts';
@@ -154,10 +155,17 @@ try {
           phase: 'cold-complete',
         });
         await json('browser-receipt.json', receipt);
-        await fontsReady(session, async (evidence) => {
-          row.fonts = evidence;
-          await json('browser-receipt.json', receipt);
-        });
+        await fontsReady(
+          session,
+          {
+            ...latinFontContract(origin, builds[variant].assets),
+            requiredWeights: [500],
+          },
+          async (evidence) => {
+            row.fonts = evidence;
+            await json('browser-receipt.json', receipt);
+          },
+        );
         await page.waitForTimeout(3000);
         const { taskId, title } = fixture[size].target;
         const card = page

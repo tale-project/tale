@@ -31,6 +31,13 @@ export interface FontFaceEvidence {
   unicodeRange: string;
   display: string;
   status: string;
+  ascentOverride: string | null;
+  descentOverride: string | null;
+  lineGapOverride: string | null;
+  sizeAdjust: string | null;
+  featureSettings: string | null;
+  variationSettings: string | null;
+  variant: string | null;
 }
 export interface FontPageEvidence {
   capturedAt: number;
@@ -45,6 +52,15 @@ export interface FontPageEvidence {
     weight: string;
     unicodeRange: string;
     src: string;
+    stretch: string;
+    display: string;
+    ascentOverride: string;
+    descentOverride: string;
+    lineGapOverride: string;
+    sizeAdjust: string;
+    featureSettings: string;
+    variationSettings: string;
+    variant: string;
   }[];
   errors: string[];
   overflow: boolean;
@@ -132,6 +148,10 @@ export async function snapshotFonts(
         result.overflow = true;
         break;
       }
+      const descriptor = (name: string) => {
+        const value = (face as unknown as Record<string, unknown>)[name];
+        return typeof value === 'string' ? bounded(value) : null;
+      };
       result.faces.push({
         family: bounded(face.family),
         style: bounded(face.style),
@@ -140,6 +160,13 @@ export async function snapshotFonts(
         unicodeRange: bounded(face.unicodeRange),
         display: bounded(face.display),
         status: face.status,
+        ascentOverride: descriptor('ascentOverride'),
+        descentOverride: descriptor('descentOverride'),
+        lineGapOverride: descriptor('lineGapOverride'),
+        sizeAdjust: descriptor('sizeAdjust'),
+        featureSettings: descriptor('featureSettings'),
+        variationSettings: descriptor('variationSettings'),
+        variant: descriptor('variant'),
       });
     }
   };
@@ -223,6 +250,19 @@ export async function snapshotFonts(
           weight: bounded(style.getPropertyValue('font-weight')),
           unicodeRange: bounded(style.getPropertyValue('unicode-range')),
           src: bounded(src),
+          stretch: bounded(style.getPropertyValue('font-stretch')),
+          display: bounded(style.getPropertyValue('font-display')),
+          ascentOverride: bounded(style.getPropertyValue('ascent-override')),
+          descentOverride: bounded(style.getPropertyValue('descent-override')),
+          lineGapOverride: bounded(style.getPropertyValue('line-gap-override')),
+          sizeAdjust: bounded(style.getPropertyValue('size-adjust')),
+          featureSettings: bounded(
+            style.getPropertyValue('font-feature-settings'),
+          ),
+          variationSettings: bounded(
+            style.getPropertyValue('font-variation-settings'),
+          ),
+          variant: bounded(style.getPropertyValue('font-variant')),
         });
       } else if (rule.type === CSSRule.IMPORT_RULE) {
         const imported = (rule as CSSImportRule).styleSheet;
