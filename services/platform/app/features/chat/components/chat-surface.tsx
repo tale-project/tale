@@ -55,6 +55,7 @@ import { HomePanelToggle } from '@/app/features/home/components/home-panel-toggl
 import { ProjectAvatar } from '@/app/features/projects/components/project-avatar';
 import { useMyBudgetStatus } from '@/app/features/settings/governance/hooks/queries';
 import { useUploadPolicy } from '@/app/features/settings/governance/hooks/queries';
+import type { FileAttachment } from '@/app/features/shared/files/types';
 import { useFileUpload } from '@/app/features/shared/files/use-file-upload';
 import {
   freezeActiveStream,
@@ -341,6 +342,14 @@ function ChatSurfaceInner({
   // The composer owns its draft (persisted per thread); the surface reaches
   // in for the starter fill and the failed-send restore.
   const composerRef = useRef<ComposerHandle>(null);
+  const currentThreadIdRef = useRef(threadId);
+  currentThreadIdRef.current = threadId;
+  const failedSendRecoveryRef = useRef(
+    new Map<
+      string | undefined,
+      Array<{ text: string; attachments: FileAttachment[] }>
+    >(),
+  );
   // A new chat starts in the message box for a pointer user: nothing else on
   // the screen wants the focus, and the alternative was ~290 Tabs through the
   // sidebar (2026-09-26 evaluation, G-11). A coarse pointer keeps the
@@ -1013,6 +1022,19 @@ function ChatSurfaceInner({
   useEffect(() => {
     clearAttachments();
   }, [threadId, clearAttachments]);
+  useEffect(() => {
+    const queued = failedSendRecoveryRef.current.get(threadId);
+    if (queued === undefined) return;
+    failedSendRecoveryRef.current.delete(threadId);
+    for (const recovery of queued) {
+      composerRef.current?.restoreText(recovery.text);
+      if (recovery.attachments.length > 0) {
+        setStagedAttachments((previous) =>
+          previous.length === 0 ? recovery.attachments : previous,
+        );
+      }
+    }
+  }, [threadId, setStagedAttachments]);
   const arenaLive = pair !== null;
   useEffect(() => {
     if (arenaLive) clearAttachments();
@@ -1051,6 +1073,27 @@ function ChatSurfaceInner({
     }
     setStagedAttachments([]);
     return taken;
+  };
+
+  const restoreFailedSend = (
+    recoveryThreadId: string | undefined,
+    text: string,
+    attachments: FileAttachment[],
+  ) => {
+    if (currentThreadIdRef.current !== recoveryThreadId) {
+      const queued = failedSendRecoveryRef.current.get(recoveryThreadId) ?? [];
+      failedSendRecoveryRef.current.set(recoveryThreadId, [
+        ...queued,
+        { text, attachments },
+      ]);
+      return;
+    }
+    composerRef.current?.restoreText(text);
+    if (attachments.length > 0) {
+      setStagedAttachments((previous) =>
+        previous.length === 0 ? attachments : previous,
+      );
+    }
   };
 
   // The composer locks only while nothing behind it could EVER serve: the
@@ -1179,6 +1222,7 @@ function ChatSurfaceInner({
             } as const)
           : undefined;
     if (modelPick === undefined) return;
+    const recoveryThreadId = threadId;
     // A live pair fans the prompt into BOTH columns through the arena
     // action; the ordinary single-thread path never runs during arena.
     if (
@@ -1224,7 +1268,7 @@ function ChatSurfaceInner({
           // side's transcript shows the prompt and a blocked reply) keeps
           // the composer clear — restoring would invite a duplicate send.
           if (failed.persisted !== true) {
-            composerRef.current?.restoreText(text);
+            restoreFailedSend(recoveryThreadId, text, []);
           }
           refusalToast(failed.reason, failed.code);
         });
@@ -1290,10 +1334,7 @@ function ChatSurfaceInner({
         } catch (error) {
           console.error('[chat] could not park the send', error);
           videoLinks.unmarkJobsSent(jobIds);
-          composerRef.current?.restoreText(text);
-          if (consumedAttachments.length > 0) {
-            setStagedAttachments(consumedAttachments);
-          }
+          restoreFailedSend(recoveryThreadId, text, consumedAttachments);
           // A reached cap refuses the park itself: name it as a refused send
           // would be named, not as a bare "Send failed". Any other refusal
           // (a full tray, too many attachments, a thread it cannot find)
@@ -1380,10 +1421,7 @@ function ChatSurfaceInner({
             // composer stays clear: restoring would duplicate the message
             // on the next Send. Edit sends never touched the composer.
             if (intoThreadId === undefined && outcome.persisted !== true) {
-              composerRef.current?.restoreText(text);
-              if (consumedAttachments.length > 0) {
-                setStagedAttachments(consumedAttachments);
-              }
+              restoreFailedSend(recoveryThreadId, text, consumedAttachments);
               videoLinks.unmarkJobsSent(consumedJobIds);
               void chatSend.unbindVideoJobs(turn.boundVideoJobIds);
             }
@@ -1404,10 +1442,7 @@ function ChatSurfaceInner({
               previous !== null && previous.sentAt === sentAt ? null : previous,
             );
             if (intoThreadId === undefined) {
-              composerRef.current?.restoreText(text);
-              if (consumedAttachments.length > 0) {
-                setStagedAttachments(consumedAttachments);
-              }
+              restoreFailedSend(recoveryThreadId, text, consumedAttachments);
               videoLinks.unmarkJobsSent(consumedJobIds);
               void chatSend.unbindVideoJobs(turn.boundVideoJobIds);
             }
@@ -1437,7 +1472,7 @@ function ChatSurfaceInner({
           previous !== null && previous.sentAt === sentAt ? null : previous,
         );
         if (intoThreadId === undefined) {
-          composerRef.current?.restoreText(text);
+          restoreFailedSend(recoveryThreadId, text, []);
           videoLinks.unmarkJobsSent(consumedJobIds);
         }
         // A turn that never started wrote nothing into the sibling.

@@ -1323,6 +1323,58 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
     await waitFor(() => expect(input).toHaveValue('read this file for me'));
   });
 
+  it('keeps failed-send recovery in its originating thread', async () => {
+    let failTurn!: (error: Error) => void;
+    const outcome = new Promise<never>((_resolve, reject) => {
+      failTurn = reject;
+    });
+    outcome.catch(() => undefined);
+    vi.mocked(useChatSend).mockReturnValue({
+      available: true,
+      start: vi.fn(() =>
+        Promise.resolve({
+          threadId: 'thread-a',
+          boundVideoJobIds: [],
+          outcome,
+        }),
+      ),
+      defer: vi.fn(() => Promise.resolve({ threadId: 'thread-a' })),
+      unbindVideoJobs: vi.fn(() => Promise.resolve()),
+      stop: vi.fn(() => Promise.resolve()),
+    });
+    vi.mocked(useThreadView).mockImplementation(() => ({
+      status: 'ready',
+      items: [],
+      generation: null,
+      streamingMessageId: undefined,
+      pendingConsumed: false,
+    }));
+
+    const { user, rerender } = render(
+      <ChatSurface organizationId="org-1" threadId="thread-a" />,
+    );
+    const input = screen.getByRole('textbox', { name: 'Message input' });
+    await user.type(input, 'private draft from A');
+    await user.click(screen.getByRole('button', { name: 'Send message' }));
+
+    rerender(<ChatSurface organizationId="org-1" threadId="thread-b" />);
+    const threadBInput = screen.getByRole('textbox', { name: 'Message input' });
+    expect(threadBInput).toHaveValue('');
+
+    await act(async () => {
+      failTurn(new Error('Turn request failed'));
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(threadBInput).toHaveValue(''));
+    expect(localStorage.getItem('chat-draft-org-1-thread-b')).toBeNull();
+
+    rerender(<ChatSurface organizationId="org-1" threadId="thread-a" />);
+    await waitFor(() =>
+      expect(
+        screen.getByRole('textbox', { name: 'Message input' }),
+      ).toHaveValue('private draft from A'),
+    );
+  });
   // A request the door refused outright (no turn refusal: a body it would
   // not take, a thread it cannot find) used to toast a bare "Couldn't send
   // message" — the door's own words were dropped on the way.
