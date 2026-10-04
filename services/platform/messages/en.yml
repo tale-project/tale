@@ -7771,6 +7771,7 @@ tasks:
   detail:
     overview: Overview
     comments: Comments
+    commentCount: '{count, plural, one {# comment} other {# comments}}'
     noComments: No comments yet.
     conversation: Conversation
     conversationEmpty: No comments yet — start the conversation below.

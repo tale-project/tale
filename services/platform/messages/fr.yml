@@ -7729,6 +7729,7 @@ tasks:
   detail:
     overview: Aperçu
     comments: Commentaires
+    commentCount: '{count, plural, one {# commentaire} other {# commentaires}}'
     noComments: Aucun commentaire pour le moment.
     conversation: Conversation
     conversationEmpty: Aucun commentaire pour le moment — lance la conversation ci-dessous.

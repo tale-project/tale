@@ -7623,6 +7623,7 @@ tasks:
   detail:
     overview: Übersicht
     comments: Kommentare
+    commentCount: '{count, plural, one {# Kommentar} other {# Kommentare}}'
     noComments: Noch keine Kommentare.
     conversation: Unterhaltung
     conversationEmpty: Noch keine Kommentare – beginne die Unterhaltung unten.
