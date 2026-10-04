@@ -43,6 +43,8 @@ export async function saveRawTrace(
   let completionEvent: TraceCompletion | undefined;
   let failure: unknown;
   let deadlineExceeded = false;
+  let endDeadline: number | undefined;
+  let endAcknowledgedAt: number | undefined;
   try {
     assert(
       Number.isSafeInteger(maximumBytes) &&
@@ -65,12 +67,13 @@ export async function saveRawTrace(
     file = await open(path, 'wx', 0o600);
     stage('end-requested');
     // Timer starts before End, exactly as the established completion bound.
-    const endDeadline = Date.now() + completionTimeoutMs;
+    endDeadline = Date.now() + completionTimeoutMs;
     let endTimer: ReturnType<typeof setTimeout> | undefined;
     let endAcknowledged = false;
     try {
       endAcknowledged = await Promise.race([
         cdp.send('Tracing.end').then(() => {
+          endAcknowledgedAt = Date.now();
           stage('end-acknowledged');
           return true;
         }),
@@ -83,11 +86,19 @@ export async function saveRawTrace(
     }
     if (endAcknowledged)
       completionEvent = await owner.wait(Math.max(0, endDeadline - Date.now()));
-    if (!completionEvent) {
+    // A busy event loop may deliver a resolved CDP promise before an overdue
+    // timer callback. The recorded times, not Promise.race ordering, own the
+    // fixed completion verdict. Already-observed late bytes still survive.
+    if (
+      !completionEvent ||
+      endAcknowledgedAt === undefined ||
+      endAcknowledgedAt > endDeadline ||
+      owner.events[0]!.at > endDeadline
+    ) {
       deadlineExceeded = true;
       failure = new Error('CDP trace completion timed out');
       stage('completion-deadline-failed');
-      if (lateObservationMs) {
+      if (!completionEvent && lateObservationMs) {
         completionEvent = await owner.wait(lateObservationMs);
         stage(
           completionEvent
@@ -190,6 +201,8 @@ export async function saveRawTrace(
           completion: completionEvent ?? owner.events[0]?.value ?? null,
           completionEvents: owner.events,
           deadlineExceeded,
+          endDeadline,
+          endAcknowledgedAt,
           lateObservationMs,
           coverageEndAt: options.coverageEndAt,
           stages,

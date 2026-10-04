@@ -261,3 +261,57 @@ test('late protocol evidence does not turn the fixed completion deadline into su
   expect(receipt.bytes).toBeGreaterThan(0);
   expect(f.calls.filter((method) => method === 'IO.close')).toHaveLength(1);
 });
+
+test('recorded completion and End acknowledgement must meet the deadline even before overdue timer callbacks run', async () => {
+  for (const late of ['completion', 'acknowledgement']) {
+    const f = await fixture();
+    const events = f.client as unknown as EventEmitter;
+    const send = f.client.send.bind(f.client);
+    f.client.send = (async (method: string) => {
+      if (method === 'Tracing.end') {
+        const complete = () =>
+          events.emit('Tracing.tracingComplete', {
+            stream: 'owned-stream',
+            dataLossOccurred: false,
+          });
+        const blockedDelivery = () => {
+          // Deliberately block this synthetic transport so its Promise settles
+          // before an overdue timer can run. No performance claim is made.
+          const end = Date.now() + 25;
+          while (Date.now() < end) {
+            /* owned deterministic timer-order control */
+          }
+          if (late === 'completion') complete();
+        };
+        if (late === 'acknowledgement') {
+          complete();
+          blockedDelivery();
+        } else setTimeout(blockedDelivery, 0);
+        return {};
+      }
+      return send(method as 'IO.read');
+    }) as typeof f.client.send;
+    await expect(
+      saveRawTrace(f.client, f.path, { completionTimeoutMs: 10 }),
+    ).rejects.toThrow('timed out');
+    const receipt = JSON.parse(
+      await readFile(`${f.path}.receipt.json`, 'utf8'),
+    );
+    expect(receipt).toMatchObject({ status: 'failed', deadlineExceeded: true });
+    expect(receipt.bytes).toBeGreaterThan(0);
+    if (late === 'acknowledgement') {
+      expect(receipt.endAcknowledgedAt).toBeGreaterThan(receipt.endDeadline);
+      expect(receipt.completionEvents[0].at).toBeLessThanOrEqual(
+        receipt.endDeadline,
+      );
+    } else {
+      expect(receipt.endAcknowledgedAt).toBeLessThanOrEqual(
+        receipt.endDeadline,
+      );
+      expect(receipt.completionEvents[0].at).toBeGreaterThan(
+        receipt.endDeadline,
+      );
+    }
+    expect(f.calls.filter((method) => method === 'IO.close')).toHaveLength(1);
+  }
+});
