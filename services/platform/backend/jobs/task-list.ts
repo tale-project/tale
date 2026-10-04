@@ -1,6 +1,7 @@
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
+import type { Json } from '../../lib/engine/core/types.ts';
 import { parseRunStarter } from '../../lib/shared/run-starter.ts';
 import {
   driveWorkflowAgentTurnImpl,
@@ -125,7 +126,7 @@ export interface TaskContext {
 export type TaskHandler = (
   payload: unknown,
   context?: TaskContext,
-) => Promise<void>;
+) => Promise<void | { output: Record<string, Json> }>;
 
 export type BackendTaskList = Record<string, TaskHandler>;
 
@@ -801,6 +802,13 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
           `[automations] trigger scan fired ${result.fired}/${result.examined} (${result.pages} page${result.pages === 1 ? '' : 's'})`,
         );
       }
+      // A missing organization table returns before examining any page.
+      // That bootstrap/connection state is not proof the scanner is working.
+      // pg-boss persists this only when the actual handler's claim completes;
+      // a draining worker's handover must never produce this marker.
+      return result.pages > 0
+        ? { output: { triggerScanCompleted: true } }
+        : undefined;
     },
     'automation.liveness': async () => {
       const swept = await sweepOverdueRuns(deps.sql);

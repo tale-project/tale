@@ -169,6 +169,7 @@ import { addJobInTx, setEnqueueBoss } from './jobs/enqueue.ts';
 import { checkWorkerDrainHandOff } from './jobs/runner.integration.ts';
 import { startWorker } from './jobs/runner.ts';
 import { registerSchedules } from './jobs/schedules.ts';
+import { checkTaskCompletionEvidence } from './jobs/task-completion.integration.ts';
 import { createTaskList } from './jobs/task-list.ts';
 import type { TaskIdentifier } from './jobs/tasks.ts';
 import {
@@ -29704,6 +29705,9 @@ async function checkControlDrain(
   );
   const hasStreams = metricsBody.includes('tale_backend_hint_streams_open');
   const hasDrain = metricsBody.includes('tale_backend_drain_active');
+  const hasScan = metricsBody.includes(
+    'tale_backend_automation_trigger_scan_last_success_timestamp_seconds',
+  );
   const hasHttp = metricsBody.includes('tale_backend_http_requests_total');
   // The route label must be the bounded class, never a path with ids in it.
   const labelledByClass = /route="\/api\/app\/[a-z_-]+"/.test(metricsBody);
@@ -29719,10 +29723,11 @@ async function checkControlDrain(
       hasGenerations &&
       hasStreams &&
       hasDrain &&
+      hasScan &&
       hasHttp &&
       labelledByClass &&
       noIdsInLabels,
-    `status=${metricsRes.status}, process=${hasProcess} sla=${hasSla} jobs=${hasJobs} generations=${hasGenerations} streams=${hasStreams} drain=${hasDrain} http=${hasHttp}, routeClass=${labelledByClass} noIds=${noIdsInLabels}`,
+    `status=${metricsRes.status}, process=${hasProcess} sla=${hasSla} jobs=${hasJobs} generations=${hasGenerations} streams=${hasStreams} drain=${hasDrain} scan=${hasScan} http=${hasHttp}, routeClass=${labelledByClass} noIds=${noIdsInLabels}`,
   );
 
   record(
@@ -59927,6 +59932,10 @@ async function main(): Promise<void> {
       [
         'checkWorkerDrainHandOff',
         () => checkWorkerDrainHandOff(sql, boss, record),
+      ],
+      [
+        'checkTaskCompletionEvidence',
+        () => checkTaskCompletionEvidence(sql, boss, record),
       ],
       [
         'checkImportCursorContinuation',
