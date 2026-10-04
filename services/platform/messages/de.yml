@@ -4475,7 +4475,8 @@ governance:
       harnessInvalid: Die gewählte Agent-Laufzeit ist nicht verfügbar, deshalb kann der Standard-Agent nicht starten. Wähle eine andere Agent-Laufzeit oder Automatisch.
       noModel: Kein Modell, das du nutzen darfst, kann den Standard-Agenten ausführen. Füge unter KI-Anbieter einen Zugang hinzu oder prüfe den Modellzugriff.
       pinUnavailable: Das gewählte Modell steht dir nicht zur Verfügung, deshalb kann der Standard-Agent für dich nicht starten. Wähle ein anderes Modell oder Automatisch. Solange diese Auswahl gespeichert ist, wechselt Tale nicht zu einem anderen Modell.
-    invalidPolicy: Die gespeicherten Einstellungen des Standard-Agenten sind ungültig. Speichere sie noch einmal, um sie zu reparieren.
+    invalidPolicy: Die gespeicherten Einstellungen des Standard-Agenten sind ungültig. Wähle unter Modell ein Modell oder Automatisch und speichere, um sie zu reparieren.
+    invalidSelection: Ungültige gespeicherte Konfiguration
     savedUnavailable: Gespeicherte Auswahl ist derzeit nicht verfügbar
     searchHarnesses: Agent-Laufzeiten durchsuchen
     noHarnessesFound: Keine passende Agent-Laufzeit
