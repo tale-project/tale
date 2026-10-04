@@ -7,7 +7,7 @@
  * the gated block on the model's wire — rides `integration-check.ts`.
  */
 
-import type { Sql } from 'postgres';
+import type { Sql, TransactionSql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { readGovernancePolicyForOrg } = vi.hoisted(() => ({
@@ -19,6 +19,7 @@ vi.mock('../../lib/org-config.ts', () => ({ readGovernancePolicyForOrg }));
 import {
   effectiveCustomInstructions,
   getEffectiveCustomInstructions,
+  upsertCustomInstructions,
 } from './service.ts';
 
 interface Statement {
@@ -41,6 +42,47 @@ function fakeSql(answer: (statement: Statement) => unknown[] | undefined): {
 }
 
 const SCOPE = { userId: 'user_1', orgId: 'org_1' };
+
+describe('upsertCustomInstructions length boundary', () => {
+  it.each(['', 'a'.repeat(3200), 'a'.repeat(3199) + '\r\n'])(
+    'stores text within the normalized 3200-character budget (%#)',
+    async (text) => {
+      const statements: unknown[][] = [];
+      const tx = vi.fn(
+        async (_strings: TemplateStringsArray, ...values: unknown[]) => {
+          statements.push(values);
+          return [];
+        },
+      ) as unknown as TransactionSql;
+      await expect(
+        upsertCustomInstructions(tx, SCOPE, text),
+      ).resolves.toBeUndefined();
+      expect(statements).toHaveLength(1);
+      expect(statements[0]).toEqual([
+        SCOPE.userId,
+        SCOPE.orgId,
+        text.replaceAll('\r\n', '\n'),
+        expect.any(Number),
+        text.replaceAll('\r\n', '\n'),
+        expect.any(Number),
+      ]);
+    },
+  );
+
+  it.each([3201, 5000, 5001])(
+    'refuses %i characters before touching saved text',
+    async (length) => {
+      const tx = vi.fn() as unknown as TransactionSql;
+      await expect(
+        upsertCustomInstructions(tx, SCOPE, 'a'.repeat(length)),
+      ).rejects.toMatchObject({
+        code: 'too_long',
+        message: 'Custom instructions exceed 3200 characters.',
+      });
+      expect(tx).not.toHaveBeenCalled();
+    },
+  );
+});
 
 /** A preferences row as the SELECT answers it. */
 function row(overrides: {
