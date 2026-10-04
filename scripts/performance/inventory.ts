@@ -28,6 +28,8 @@ const coverage: Record<string, Coverage> = {
       'platform.telemetry-disabled',
       'platform.telemetry-enabled',
       'platform.agent-progress',
+      'platform.projection-fragmented',
+      'platform.projection-bursts',
     ],
     remaining:
       'Full API/worker/DB/object-store/knowledge/agent runs need an isolated seeded stack; UI needs authenticated Playwright traces and real datasets.',

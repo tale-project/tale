@@ -56,6 +56,10 @@ That event starts **Build, Checks, SAST, Commitlint, E2E, CLI and Security**, ea
 `Release candidate <sha>`. It reuses their existing jobs, including all E2E shards and all five
 CLI build targets. Candidate validation never attaches CLI binaries to a release. Normal
 pull request, push, nightly and manual events keep their existing behavior.
+They skip the standalone candidate-source resolver and retain their event's checkout
+commit (including pull-request and merge-group merge commits); manual CLI publication
+still resolves its requested release tag. Downstream jobs explicitly admit that intentional
+skip while retaining their dependency, cancellation and scope checks.
 
 Follow the runs in Actions or list one workflow at a time:
 
@@ -141,7 +145,7 @@ To be `eligible`, the candidate must pass all of these:
   would skip the commit. Repository dispatches only count through their C-bound receipts;
   their GitHub `head_sha` describes H. CLI manual publication dispatches do not count as normal
   source evidence because their input tag can differ from the workflow source. The Build push
-  run does not count: path filters skip checks there and later merges cancel it.
+  run does not count: its path filters can skip required candidate checks.
 
 "Newest" uses GitHub's `run_started_at`, not the run's original creation time or id. Re-running an
 older run after a newer success makes that rerun the deciding evidence: its failure blocks, an
@@ -264,8 +268,8 @@ A published version is not a deployment. Deployments follow their own procedure.
   continues.
 - **A real defect.** Do not release. Fix it on `main`, then choose a new candidate explicitly and
   say that it replaces the old one. Never tag a SHA other than the validated one.
-- **Do not re-run an old `main` Build run** to validate a candidate. It keeps its original group,
-  and the next merge cancels it again.
+- **Do not re-run an old `main` Build run** to validate a candidate. It keeps its ordinary
+  path-filtered graph and does not produce the complete candidate receipt.
 - **An expired receipt** (after 90 days) makes the gate ask for a new validation.
 - **Release-note validation fails.** Before tagging, correct the notes in a reviewed PR and choose
   the new candidate. If a tag was already pushed without valid notes, keep that tag and release

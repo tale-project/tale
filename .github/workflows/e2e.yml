@@ -42,7 +42,10 @@ concurrency:
   cancel-in-progress: ${{ github.event_name != 'repository_dispatch' }}
 
 jobs:
+  # Only candidates need remote source validation; ordinary jobs keep their event SHA.
   candidate-source:
+    if: >-
+      github.event_name == 'repository_dispatch'
     name: Candidate source
     uses: ./.github/workflows/release-candidate-source.yml
     permissions:
@@ -62,7 +65,13 @@ jobs:
   build:
     needs: candidate-source
     name: Build platform (E2E preview bundle)
-    if: github.event_name != 'pull_request' || github.event.pull_request.draft != true
+    if: >-
+      !cancelled() &&
+      (((github.event_name == 'repository_dispatch') &&
+      needs.candidate-source.result == 'success') ||
+      ((github.event_name != 'repository_dispatch') &&
+      needs.candidate-source.result == 'skipped')) &&
+      (github.event_name != 'pull_request' || github.event.pull_request.draft != true)
     runs-on: ubuntu-latest
     # Sized for the COLD path: a lockfile bump invalidates the toolchain and
     # dist caches at once, and the uncached install + prod build exceeds 15
@@ -126,7 +135,14 @@ jobs:
 
   e2e:
     name: Playwright (platform ${{ matrix.shard }}/16)
-    if: github.event_name != 'pull_request' || github.event.pull_request.draft != true
+    if: >-
+      !cancelled() &&
+      (((github.event_name == 'repository_dispatch') &&
+      needs.candidate-source.result == 'success') ||
+      ((github.event_name != 'repository_dispatch') &&
+      needs.candidate-source.result == 'skipped')) &&
+      needs.build.result == 'success' &&
+      (github.event_name != 'pull_request' || github.event.pull_request.draft != true)
     needs: [candidate-source, build]
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -289,7 +305,13 @@ jobs:
   static-sites:
     needs: candidate-source
     name: Playwright (${{ matrix.service }})
-    if: github.event_name != 'pull_request' || github.event.pull_request.draft != true
+    if: >-
+      !cancelled() &&
+      (((github.event_name == 'repository_dispatch') &&
+      needs.candidate-source.result == 'success') ||
+      ((github.event_name != 'repository_dispatch') &&
+      needs.candidate-source.result == 'skipped')) &&
+      (github.event_name != 'pull_request' || github.event.pull_request.draft != true)
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:

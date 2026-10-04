@@ -24,6 +24,8 @@ export const workloadRuntimes = {
   'platform.telemetry-disabled': 'node',
   'platform.telemetry-enabled': 'node',
   'platform.agent-progress': 'node',
+  'platform.projection-fragmented': 'node',
+  'platform.projection-bursts': 'node',
   'sandbox.validation': 'bun',
   'sandbox.sse': 'bun',
   'daemon.exec-replay': 'node',
@@ -95,6 +97,13 @@ export async function prepareWorkload(
         rawPayloadBytesPerSample: 300_000_000,
       }),
     };
+  }
+  if (
+    id === 'platform.projection-fragmented' ||
+    id === 'platform.projection-bursts'
+  ) {
+    const { prepareProjectionWorkload } = await import('./projection.ts');
+    return prepareProjectionWorkload(id);
   }
   if (id === 'daemon.journal-write' || id === 'daemon.journal-reconnect') {
     const { prepareJournalWorkload } = await import('./journal.ts');

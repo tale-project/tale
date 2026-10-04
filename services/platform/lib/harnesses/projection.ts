@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { BoundedTextTail } from './bounded-text-tail';
 import { appendHarnessAnswer } from './jsonl';
 import { boundTimelineParts, type TimelinePart } from './timeline';
 import type { HarnessEvent } from './types';
@@ -10,7 +11,8 @@ const encoder = new TextEncoder();
 const BLOCK_CHARS = 4_000;
 const VALUE_CHARS = 2_000;
 // Leave space in the 1 MiB checkpoint for parser state and partial JSONL.
-const TIMELINE_BYTES = 240_000;
+export const HARNESS_TIMELINE_MAX_JSON_BYTES = 240_000;
+const TEXT_PART_BYTES = '{"type":"text","text":}'.length;
 const partSchema = z.object({
   type: z.string(),
   text: z.string().optional(),
@@ -43,9 +45,10 @@ function boundedValue(value: unknown): unknown {
 /** A bounded incremental display projection. Raw events and large tool
  * payloads never accumulate for the duration of a drain window. */
 export class HarnessProjection {
-  text = '';
   textTruncated = false;
   revision = 0;
+  private displayText = new BoundedTextTail(TEXT_CHARS, false);
+  private textBlock: BoundedTextTail | undefined;
   private streamsDeltas = false;
   private answerText: string | undefined = '';
   private parts: TimelinePart[] = [];
@@ -66,8 +69,11 @@ export class HarnessProjection {
     this.bytes = this.sizes.reduce((sum, size) => sum + size, 0);
   }
 
-  private writePart(index: number, part: TimelinePart): void {
-    const size = encoder.encode(JSON.stringify(part)).byteLength;
+  private writePart(
+    index: number,
+    part: TimelinePart,
+    size = encoder.encode(JSON.stringify(part)).byteLength,
+  ): void {
     this.bytes += size - (this.sizes[index] ?? 0);
     this.sizes[index] = size;
     this.parts[index] = part;
@@ -75,7 +81,7 @@ export class HarnessProjection {
       this.tools.set(part.toolCallId, index + this.offset);
     while (
       this.parts.length > 1 &&
-      (this.parts.length > 400 || this.bytes > TIMELINE_BYTES)
+      (this.parts.length > 400 || this.bytes > HARNESS_TIMELINE_MAX_JSON_BYTES)
     ) {
       this.bytes -= this.sizes.shift() ?? 0;
       const dropped = this.parts.shift();
@@ -90,7 +96,9 @@ export class HarnessProjection {
 
   restore(value: unknown): void {
     const state = projectionSchema.parse(value);
-    this.text = textTail(state.text, TEXT_CHARS);
+    this.displayText = new BoundedTextTail(TEXT_CHARS, false);
+    this.displayText.append(state.text);
+    this.textBlock = undefined;
     this.textTruncated =
       state.textTruncated === true || state.text.length > TEXT_CHARS;
     this.answerText =
@@ -102,7 +110,7 @@ export class HarnessProjection {
     this.streamsDeltas = state.streamsDeltas;
     this.parts = boundTimelineParts(state.parts, {
       maxEntries: 400,
-      maxJsonBytes: TIMELINE_BYTES,
+      maxJsonBytes: HARNESS_TIMELINE_MAX_JSON_BYTES,
     });
     this.indexSizes();
   }
@@ -123,7 +131,20 @@ export class HarnessProjection {
     return this.answerText;
   }
 
+  get text(): string {
+    return this.displayText.text;
+  }
+
+  private materializeTextBlock(): void {
+    if (this.textBlock === undefined) return;
+    const at = this.parts.length - 1;
+    const text = this.textBlock.text;
+    // A persisted/queued snapshot owns its previous strings and objects.
+    if (this.parts[at]?.text !== text) this.parts[at] = { type: 'text', text };
+  }
+
   timeline(): TimelinePart[] {
+    this.materializeTextBlock();
     // Every entry is replaced rather than mutated when its state advances.
     return [...this.parts];
   }
@@ -132,40 +153,51 @@ export class HarnessProjection {
     if (event.type === 'text' || event.type === 'text-delta') {
       if (event.type === 'text-delta' && !this.streamsDeltas) {
         this.streamsDeltas = true;
-        this.text = '';
+        this.displayText = new BoundedTextTail(TEXT_CHARS, false);
+        this.textBlock = undefined;
         this.textTruncated = false;
         this.answerText = '';
         this.parts = this.parts.filter((part) => part.type !== 'text');
         this.indexSizes();
       }
       if (event.type === 'text' && this.streamsDeltas) return;
-      const separator = event.type === 'text' && this.text !== '' ? '\n\n' : '';
+      const separator =
+        event.type === 'text' && this.displayText.length > 0 ? '\n\n' : '';
       if (this.answerText !== undefined)
         this.answerText = appendHarnessAnswer(
           this.answerText,
           separator + event.text,
         );
-      const fullText = this.text + separator + event.text;
-      this.textTruncated ||= fullText.length > TEXT_CHARS;
-      this.text = textTail(fullText, TEXT_CHARS);
-      const previous = this.parts.at(-1);
-      const words = previous?.type === 'text' ? (previous.text ?? '') : '';
-      const text = textTail(
-        words +
-          (words !== '' && event.type === 'text' ? '\n\n' : '') +
-          event.text,
-        BLOCK_CHARS,
-      );
-      const part = { type: 'text', text };
-      this.writePart(
-        previous?.type === 'text' ? this.parts.length - 1 : this.parts.length,
-        part,
-      );
+      this.textTruncated ||=
+        this.displayText.length + separator.length + event.text.length >
+        TEXT_CHARS;
+      this.displayText.append(separator);
+      this.displayText.append(event.text);
+      if (event.text !== '') {
+        const previous = this.parts.at(-1);
+        if (this.textBlock === undefined) {
+          this.textBlock = new BoundedTextTail(BLOCK_CHARS);
+          // Checkpoints carry strings, so resume the active block lazily.
+          if (previous?.type === 'text')
+            this.textBlock.append(previous.text ?? '');
+        }
+        if (this.textBlock.length > 0 && event.type === 'text')
+          this.textBlock.append('\n\n');
+        this.textBlock.append(event.text);
+        this.writePart(
+          previous?.type === 'text' ? this.parts.length - 1 : this.parts.length,
+          previous?.type === 'text' ? previous : { type: 'text', text: '' },
+          TEXT_PART_BYTES + this.textBlock.jsonBytes,
+        );
+      }
       this.revision++;
     } else if (event.type === 'tool-use') {
       if (event.toolUseId.length > 1024 || event.toolName.length > 256)
         throw new Error('Harness tool identifier exceeds its safety budget');
       const input = boundedValue(event.input);
+      this.materializeTextBlock();
+      // Historical blocks retain their final string, never a typed ring.
+      this.textBlock = undefined;
       this.writePart(this.parts.length, {
         type: `tool-${event.toolName}`,
         state: 'input-available',

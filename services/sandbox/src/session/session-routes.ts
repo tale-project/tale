@@ -260,7 +260,7 @@ export class SessionRoutes {
    * occupy capacity (notably Pending Pods after a spawner restart). */
   private unregistered = new Map<string, BackendSession>();
   private readonly activityOperations = new Map<string, Promise<void>>();
-  private readonly activating = new Set<string>();
+  private readonly activating = new Map<string, RegistrySession>();
   private readonly pinOperations = new Map<string, Promise<void>>();
   /** A failed durable pin is unpublished, but keeps its incarnation safe until retry. */
   private readonly pinProtection = new Map<string, RegistrySession>();
@@ -447,11 +447,14 @@ export class SessionRoutes {
     let stopped = 0;
     for (const s of this.registry.list()) {
       try {
-        await this.backend.stopSession(s.sessionId);
-        this.registry.delete(s.sessionId);
-        this.forgetReclaimMarks(s.sessionId);
+        await this.backend.stopSession(s.sessionId, s.createdAtMs);
+        this.forgetReclaimed(s);
         stopped += 1;
       } catch (err) {
+        if (err instanceof SessionIncarnationChangedError) {
+          this.forgetReclaimed(s);
+          continue;
+        }
         console.warn(
           `[sandbox.session] linger stop failed for ${s.sessionId}:`,
           err,
@@ -941,7 +944,8 @@ export class SessionRoutes {
       return Promise.resolve(false);
     }
     const reclaim = this.stopClaimedIdle(session, idle).finally(() => {
-      this.stopping.delete(session.sessionId);
+      if (this.stopping.get(session.sessionId) === reclaim)
+        this.stopping.delete(session.sessionId);
     });
     this.stopping.set(session.sessionId, reclaim);
     return reclaim;
@@ -962,6 +966,7 @@ export class SessionRoutes {
     try {
       if (!this.reclaimClaims.has(sessionId)) {
         const health = idle?.health ?? (await runnerdHealth(opts));
+        if (this.registry.get(sessionId) !== session) return false;
         this.noteReclaimable(sessionId, reclaimable(health));
         const activity = health.activity;
         if (
@@ -981,6 +986,7 @@ export class SessionRoutes {
           generation: activity.generation,
           ...(idle !== undefined ? { idleBeforeMs: idle.beforeMs } : {}),
         });
+        if (this.registry.get(sessionId) !== session) return false;
         if (result.claimed !== true) {
           // Acquired or touched between the probe and the claim: keep it.
           this.noteReclaimable(sessionId, false);
@@ -1000,6 +1006,7 @@ export class SessionRoutes {
       this.forgetReclaimed(session);
       return true;
     } catch (error) {
+      if (this.registry.get(sessionId) !== session) return false;
       // An older daemon has no claim route and cannot have frozen itself.
       if (error instanceof RunnerdActivityError && error.status === 404) {
         this.noteReclaimable(sessionId, false);
@@ -1050,6 +1057,8 @@ export class SessionRoutes {
   /** The incarnation is gone (stopped, or replaced): drop its registry entry
    * — only if the registry still holds THAT entry — and every reclaim mark. */
   private forgetReclaimed(session: RegistrySession): void {
+    const current = this.registry.get(session.sessionId);
+    if (current !== undefined && current !== session) return;
     if (this.registry.get(session.sessionId) === session) {
       this.registry.delete(session.sessionId);
     }
@@ -1075,8 +1084,9 @@ export class SessionRoutes {
   /**
    * Re-adoption: rebuild the in-memory registry from the backend objects still
    * running (the registry is a cache; the backend labels/annotations are the
-   * source of truth). Idempotent — skips sessions already registered — and
-   * called at boot AND on every periodic sweep tick, so a session this spawner
+   * source of truth). Idempotent for the same incarnation; replacements get
+   * their own endpoint and lifecycle state. Called at boot AND on every
+   * periodic sweep tick, so a session this spawner
    * missed (a boot-time `docker ps`/apiserver blip, a peer replica's create)
    * is registered within one interval and from then on routable + subject to
    * the TTL/idle reaper, instead of lingering unregistered for the life of the
@@ -1105,7 +1115,7 @@ export class SessionRoutes {
       // A create in flight on this replica registers itself when it completes;
       // adopting it early would race that registration.
       if (
-        this.registry.has(s.sessionId) ||
+        this.registry.get(s.sessionId)?.createdAtMs === s.createdAtMs ||
         this.creating.has(s.sessionId) ||
         seen.has(s.sessionId)
       ) {
@@ -1309,8 +1319,8 @@ export class SessionRoutes {
     // A queued adoption or a route miss may reach this after draining began.
     // Only sessions already registered belong to the lingering spawner.
     const registered = this.registry.get(s.sessionId);
-    if (registered !== undefined) return registered;
-    if (this.isDraining() || this.creating.has(s.sessionId)) return undefined;
+    if (registered?.createdAtMs === s.createdAtMs) return registered;
+    if (this.adoptionBlocked(s.sessionId, registered)) return undefined;
     let endpoint: string;
     try {
       endpoint = await this.resolveForAdoption(s);
@@ -1321,13 +1331,13 @@ export class SessionRoutes {
       );
       return unavailableSessionResponse();
     }
-    // A concurrent create/adopt may have registered it while we awaited —
-    // never overwrite a live entry (it may already track in-flight execs).
+    // A concurrent create/adopt/destroy may have changed the captured entry
+    // while we awaited. Its successor and reservations belong to that owner.
     const raced = this.registry.get(s.sessionId);
-    if (raced !== undefined) return raced;
+    if (raced !== registered) return raced;
     // A create that is still awaiting its backend has not registered yet.
     // It owns the id too: never adopt an older listing over its pending work.
-    if (this.isDraining() || this.creating.has(s.sessionId)) return undefined;
+    if (this.adoptionBlocked(s.sessionId, registered)) return undefined;
     const entry: RegistrySession = {
       sessionId: s.sessionId,
       organizationId: s.organizationId,
@@ -1344,15 +1354,32 @@ export class SessionRoutes {
       // session older than maxLifetime was TTL-stopped on the first sweep.
       pinned: s.pinned === true,
     };
+    // Both endpoint and listed metadata describe the same verified stamp.
+    // Abort old streams and drop their lifecycle marks, never the peer's compute.
+    if (registered !== undefined) this.forgetReclaimed(registered);
     this.registry.set(entry);
     return entry;
+  }
+
+  private adoptionBlocked(
+    sessionId: string,
+    registered: RegistrySession | undefined,
+  ): boolean {
+    return (
+      this.isDraining() ||
+      this.creating.has(sessionId) ||
+      this.stopping.has(sessionId) ||
+      this.destroySettled.has(sessionId) ||
+      (registered !== undefined &&
+        (this.activating.has(sessionId) || this.pinOperations.has(sessionId)))
+    );
   }
 
   private resolveForAdoption(session: BackendSession): Promise<string> {
     const pending = this.resolvingEndpoints.get(session.sessionId);
     if (pending?.createdAtMs === session.createdAtMs) return pending.promise;
     const promise = this.backend
-      .resolveEndpoint(session.sessionId)
+      .resolveEndpoint(session.sessionId, session.createdAtMs)
       .finally(() => {
         // An older incarnation's completion must not clear its successor's slot.
         if (
@@ -1532,6 +1559,7 @@ export class SessionRoutes {
         baseUrl: s.endpoint,
         token: this.tokenFor(s.sessionId),
       });
+      if (this.registry.get(s.sessionId) !== s) return false;
       this.probeFailures.delete(s.sessionId);
       s.lastActivityAtMs = health.lastActivityAtMs;
       // What the sweep saw spares a create at capacity a probe of its own.
@@ -1577,6 +1605,7 @@ export class SessionRoutes {
       // later sweep; the TTL is the hard backstop) from a ZOMBIE — the
       // backend object is gone but the cache entry survived. Without
       // this, a dead session lingers routable-but-unreachable until TTL.
+      if (this.registry.get(s.sessionId) !== s) return false;
       console.warn(
         `[sandbox.session] sweep health probe failed for ${s.sessionId} (${s.endpoint}):`,
         err,
@@ -1618,6 +1647,7 @@ export class SessionRoutes {
       .stopSession(s.sessionId, s.createdAtMs)
       .then(
         () => {
+          if (this.registry.get(s.sessionId) !== s) return false;
           this.forgetReclaimed(s);
           this.probeFailures.delete(s.sessionId);
           if (reason === 'unreachable') {
@@ -1642,7 +1672,8 @@ export class SessionRoutes {
         },
       )
       .finally(() => {
-        this.stopping.delete(s.sessionId);
+        if (this.stopping.get(s.sessionId) === stop)
+          this.stopping.delete(s.sessionId);
       });
     this.stopping.set(s.sessionId, stop);
     return stop;
@@ -1710,7 +1741,7 @@ export class SessionRoutes {
     const { sessionId } = session;
     let alive: boolean;
     try {
-      alive = await this.backend.sessionExists(sessionId);
+      alive = await this.backend.sessionExists(sessionId, session.createdAtMs);
     } catch (err) {
       console.warn(
         `[sandbox.session] liveness check for ${sessionId} failed (treating as alive):`,
@@ -1730,7 +1761,11 @@ export class SessionRoutes {
       `[sandbox.session] ${sessionId} backend object gone; evicting stale registry entry (workspace preserved for resume)`,
     );
     this.registry.delete(sessionId);
-    if (this.unregistered.get(sessionId)?.state !== 'degraded')
+    const unregistered = this.unregistered.get(sessionId);
+    if (
+      unregistered?.createdAtMs === session.createdAtMs &&
+      unregistered.state !== 'degraded'
+    )
       this.unregistered.delete(sessionId);
     this.forgetReclaimMarks(sessionId);
     return true;
@@ -2048,7 +2083,7 @@ export class SessionRoutes {
     sessionId: string,
     action: 'ticket' | 'acquire' | 'release',
     body = '',
-    knownHealth?: RunnerdHealth,
+    knownHealth?: { session: RegistrySession; health?: RunnerdHealth },
   ): Promise<Response> {
     if (action !== 'acquire') {
       // A release/ticket separates turns; only adjacent acquires coalesce.
@@ -2076,7 +2111,7 @@ export class SessionRoutes {
     sessionId: string,
     action: 'ticket' | 'acquire' | 'release',
     body: string,
-    knownHealth?: RunnerdHealth,
+    knownHealth?: { session: RegistrySession; health?: RunnerdHealth },
   ): Promise<Response> {
     // Runnerd's generation remains the cross-replica authority. Serializing
     // this spawner's requests also keeps an old completion from clearing the
@@ -2103,7 +2138,7 @@ export class SessionRoutes {
     sessionId: string,
     action: 'ticket' | 'acquire' | 'release',
     body: string,
-    knownHealth?: RunnerdHealth,
+    knownHealth?: { session: RegistrySession; health?: RunnerdHealth },
   ): Promise<Response> {
     let generation: string | undefined;
     if (action === 'release') {
@@ -2142,6 +2177,11 @@ export class SessionRoutes {
         ]);
       }
       await this.stopping.get(sessionId);
+      if (
+        knownHealth !== undefined &&
+        this.registry.get(sessionId) !== knownHealth.session
+      )
+        return jsonResponse({ error: 'not_found' }, 404);
       const frozen = this.registry.get(sessionId);
       if (frozen !== undefined && this.reclaimClaims.has(sessionId)) {
         // Frozen by an acknowledged claim whose backend stop failed: finish
@@ -2153,21 +2193,34 @@ export class SessionRoutes {
     }
     const session = await this.ensureRegistered(sessionId);
     if (session instanceof Response) return session;
+    // A direct exec may have queued behind a release while adoption replaced
+    // its session. Its health and request must never acquire that successor.
+    if (knownHealth !== undefined && knownHealth.session !== session)
+      return jsonResponse({ error: 'not_found' }, 404);
     if (!session || (await this.evictIfBackendGone(sessionId))) {
       return jsonResponse({ error: 'not_found' }, 404);
     }
+    if (this.registry.get(sessionId) !== session)
+      return jsonResponse({ error: 'not_found' }, 404);
     const opts = { baseUrl: session.endpoint, token: this.tokenFor(sessionId) };
     try {
       if (action === 'acquire') {
-        this.activating.add(sessionId);
-        const refused = await this.reserveActivation(session, knownHealth);
+        this.activating.set(sessionId, session);
+        const refused = await this.reserveActivation(
+          session,
+          knownHealth?.health,
+        );
         if (refused !== null) return refused;
+        if (this.registry.get(sessionId) !== session)
+          return jsonResponse({ error: 'not_found' }, 404);
       }
       const result = await runnerdActivity(
         opts,
         action,
         generation === undefined ? undefined : { generation },
       );
+      if (this.registry.get(sessionId) !== session)
+        return jsonResponse({ error: 'not_found' }, 404);
       if (action === 'release') {
         if (typeof result.released !== 'boolean')
           throw new Error('invalid runnerd release response');
@@ -2199,7 +2252,11 @@ export class SessionRoutes {
       }
       return jsonResponse({ generation: result.generation }, 200);
     } catch (error) {
+      if (this.registry.get(sessionId) !== session)
+        return jsonResponse({ error: 'not_found' }, 404);
       if (await this.evictIfBackendGone(sessionId))
+        return jsonResponse({ error: 'not_found' }, 404);
+      if (this.registry.get(sessionId) !== session)
         return jsonResponse({ error: 'not_found' }, 404);
       if (error instanceof RunnerdActivityError && error.status === 404) {
         // Older runtime images cannot be pressure-reclaimed. They can still
@@ -2214,6 +2271,8 @@ export class SessionRoutes {
               return null;
             },
           );
+          if (this.registry.get(sessionId) !== session)
+            return jsonResponse({ error: 'not_found' }, 404);
           if (health !== null && health.activity === undefined) {
             return jsonResponse({ generation: 'legacy' }, 200);
           }
@@ -2223,7 +2282,8 @@ export class SessionRoutes {
         'retry-after': '1',
       });
     } finally {
-      if (action === 'acquire') this.activating.delete(sessionId);
+      if (action === 'acquire' && this.activating.get(sessionId) === session)
+        this.activating.delete(sessionId);
     }
   }
 
@@ -2255,6 +2315,8 @@ export class SessionRoutes {
         baseUrl: session.endpoint,
         token: this.tokenFor(sessionId),
       }));
+    if (this.registry.get(sessionId) !== session)
+      return jsonResponse({ error: 'not_found' }, 404);
     if (health.dockerReady === false)
       return this.unavailableDocker(session, health);
     if (!observesMemory) return null;
@@ -2275,6 +2337,7 @@ export class SessionRoutes {
       session.docker ?? this.cfg.dockerInContainer,
     );
     const admit = () => {
+      if (this.registry.get(sessionId) !== session) return 'replaced';
       const now = Date.now();
       const existing = this.youngBytes.get(sessionId);
       const remaining =
@@ -2302,10 +2365,15 @@ export class SessionRoutes {
       this.waiters.delete(sessionId);
       return true;
     };
-    if (await this.withAdmission(admit)) return null;
-    await this.reclaimOneIdle();
-    await this.readHostMemory();
-    if (await this.withAdmission(admit)) return null;
+    let admitted = await this.withAdmission(admit);
+    if (admitted === false) {
+      await this.reclaimOneIdle();
+      await this.readHostMemory();
+      admitted = await this.withAdmission(admit);
+    }
+    if (admitted === 'replaced')
+      return jsonResponse({ error: 'not_found' }, 404);
+    if (admitted) return null;
     const place = this.waitInLine(sessionId, workingSet, Date.now(), false);
     return jsonResponse(
       {
@@ -2326,7 +2394,10 @@ export class SessionRoutes {
     session: RegistrySession,
     health: RunnerdHealth,
   ): Promise<Response> {
-    if (await this.reclaimIdle(session, { health, beforeMs: Date.now() - 1 }))
+    if (
+      (await this.reclaimIdle(session, { health, beforeMs: Date.now() - 1 })) ||
+      this.registry.get(session.sessionId) !== session
+    )
       return jsonResponse({ error: 'not_found' }, 404);
     return jsonResponse({ error: 'session_unavailable' }, 503, {
       'retry-after': '1',
@@ -2551,6 +2622,8 @@ export class SessionRoutes {
           baseUrl: session.endpoint,
           token: this.tokenFor(sessionId),
         });
+        if (this.registry.get(sessionId) !== session)
+          return jsonResponse({ error: 'not_found' }, 404);
         if (readiness.dockerReady === false) {
           // Docker readiness gates fresh work, not retained output. Resolve
           // the id before idle recovery can remove the daemon's replay store.
@@ -2558,6 +2631,8 @@ export class SessionRoutes {
           if (!replayOnly) return this.unavailableDocker(session, readiness);
         }
       } catch (error) {
+        if (this.registry.get(sessionId) !== session)
+          return jsonResponse({ error: 'not_found' }, 404);
         console.warn('[sandbox.session] Docker readiness unavailable:', error);
         return jsonResponse({ error: 'session_unavailable' }, 503, {
           'retry-after': '1',
@@ -2574,7 +2649,10 @@ export class SessionRoutes {
       const refused =
         this.memoryCeiling() === null
           ? await this.reserveActivation(session, readiness)
-          : await this.handleActivity(sessionId, 'acquire', '', readiness);
+          : await this.handleActivity(sessionId, 'acquire', '', {
+              session,
+              health: readiness,
+            });
       if (refused !== null && !refused.ok) {
         // Docker may fail after our health snapshot; /acquire remains the
         // authority and refuses fresh work without deleting retained replay.
@@ -2595,6 +2673,9 @@ export class SessionRoutes {
         }
       }
     }
+
+    if (this.registry.get(sessionId) !== session)
+      return jsonResponse({ error: 'not_found' }, 404);
 
     const ac = new AbortController();
     const abortHandler = () => ac.abort();
@@ -2756,7 +2837,8 @@ export class SessionRoutes {
         if (!(err instanceof RunnerdProtocolError))
           await this.evictIfBackendGone(sessionId);
       } finally {
-        this.registry.unregisterExec(sessionId, execReq.execId);
+        if (this.registry.get(sessionId) === session)
+          this.registry.unregisterExec(sessionId, execReq.execId);
         req.signal.removeEventListener('abort', abortHandler);
       }
     });
@@ -2911,7 +2993,7 @@ export class SessionRoutes {
   }
 
   /** GET /v1/sessions/:id/exec/:execId/attach — reconnect to a running or
-   * just-finished exec; replays runnerd's ring then follows to exit. The
+   * just-finished exec; replays runnerd's journal then follows to exit. The
    * resilience path for a platform action that dropped its original SSE. */
   async handleExecAttach(
     req: Request,
@@ -3073,6 +3155,8 @@ export class SessionRoutes {
         this.pinProtection.delete(sessionId);
       return jsonResponse({ ok: true, pinned }, 200);
     } catch (error) {
+      if (this.registry.get(sessionId) !== session)
+        return jsonResponse({ error: 'session_unavailable' }, 503);
       console.warn(
         `[sandbox.session] pin=${pinned} for ${sessionId} was not durably acknowledged:`,
         error,

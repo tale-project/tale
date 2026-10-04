@@ -149,7 +149,7 @@ function parseEnvPatch(
 
 /** One HTTP consumer of an exec. A slow reader must lose its connection,
  * buffered writes and subscription together; the detached exec and its replay
- * ring remain available to this reader's next attach. */
+ * journal remain available to this reader's next attach. */
 function execConsumer(
   req: IncomingMessage,
   res: ServerResponse,

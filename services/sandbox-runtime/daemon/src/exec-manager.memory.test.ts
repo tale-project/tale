@@ -79,6 +79,56 @@ assert.throws(() => replay.assertAvailable(), /unavailable/);
 `);
   }, 20_000);
 
+  test('completed execs retain journal history without a second in-memory output copy', async () => {
+    await runInNode(String.raw`
+const manager = new ExecManager(new EnvStore(), () => {});
+const expected = Buffer.from('é🌍\n'.repeat(50000));
+let latest = [];
+const outputBytes = events => Buffer.concat(events.filter(event => event.t === 'stdout').map(event => Buffer.from(event.b64, 'base64')));
+try {
+  // Fill and exceed the existing retained-exec window. No consumer keeps a
+  // previous exec's output: the only history owner must be its journal.
+  for (let index = 0; index < 17; index++) {
+    latest = [];
+    await manager.run({ ...base, execId: 'history-' + index, command: [process.execPath, '-e', "process.stdout.write('é🌍\\n'.repeat(50000))"] }, event => latest.push(event));
+    assert.deepEqual(outputBytes(latest), expected);
+  }
+  assert.equal(manager.liveCount(), 0);
+  assert.equal(manager.canAttach('history-0'), false);
+  assert.equal(manager.status('history-0'), null);
+  assert.deepEqual(manager.status('history-1'), { state: 'exited', exitCode: 0 });
+  const retained = Reflect.get(manager, 'recent');
+  assert.equal(retained.size, 16);
+  // Count actual payload strings reachable through completed-record arrays,
+  // not a source-code pattern or a heap/RSS estimate. Previously every record
+  // held a duplicate encoded output tail here despite journal-only attach.
+  let retainedOutputBytes = 0;
+  for (const record of retained.values()) {
+    for (const value of Object.values(record)) {
+      if (Array.isArray(value)) {
+        for (const item of value) if (typeof item === 'string') retainedOutputBytes += Buffer.byteLength(item);
+      }
+    }
+  }
+  assert.equal(retainedOutputBytes, 0, 'completed records must not retain duplicate output strings');
+  for (const execId of ['history-1', 'history-16']) {
+    const replayed = [];
+    await manager.attach(execId, event => replayed.push(event));
+    assert.deepEqual(outputBytes(replayed), expected);
+    assert.equal(replayed[0].t, 'replay-start');
+    assert.equal(replayed.at(-2).t, 'replay-complete');
+    assert.equal(replayed.at(-1).t, 'exit');
+  }
+  const cursor = latest.find(event => event.t === 'stdout').seq;
+  const suffix = [];
+  await manager.attach('history-16', event => suffix.push(event), cursor);
+  assert.deepEqual(suffix.filter(event => event.seq !== undefined), latest.filter(event => event.seq > cursor));
+} finally {
+  manager[Symbol.dispose]();
+}
+`);
+  }, 20_000);
+
   for (const consumerMode of ['exec', 'attach'] as const) {
     test(`a disconnected HTTP ${consumerMode} consumer is collected while its exec keeps running`, async () => {
       await runInNode(

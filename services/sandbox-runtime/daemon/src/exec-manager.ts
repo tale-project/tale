@@ -40,7 +40,6 @@ import {
 import {
   ID_ALPHABET_RE,
   isRunnerdExecEvent,
-  RUNNERD_RING_BUFFER_BYTES,
   RUNNERD_MAX_REQUEST_BODY_BYTES,
   RUNNERD_STDIN_MAX_BYTES,
   WORKSPACE_ROOT,
@@ -58,7 +57,7 @@ const SIGKILL_GRACE_MS = 5_000;
  * where a backgrounded grandchild inherited the stdout/stderr pipe and 'close'
  * would otherwise never fire until the whole timeoutMs SIGKILLs the group. */
 const EXIT_DRAIN_GRACE_MS = 2_000;
-/** How many exited execs keep their ring for replay-after-disconnect. */
+/** How many exited execs keep their replay history after disconnect. */
 const RECENT_EXEC_LIMIT = 16;
 /** Past this many waiting leftovers, the ones whose processes are all gone
  * are dropped — a session that always has a live exec never empties them. */
@@ -142,9 +141,6 @@ interface LiveExec {
   /** What the exit (or a hand-over) left waiting, while it still waits; a
    * cancel or the deadline ends it at once. */
   deferred: Leftover | null;
-  /** Last RING_BUFFER_BYTES of emitted NDJSON lines, for /attach replay. */
-  ring: string[];
-  ringBytes: number;
   replay: ExecReplay;
   exitCode: number | null;
   /** Set by cancel() so the terminal exit event reports cancelled:true. */
@@ -154,7 +150,7 @@ interface LiveExec {
   /** Removable completion waiters: detached consumers must not leave promise
    * reactions retained until a potentially multi-hour exec finishes. */
   completions: Set<() => void>;
-  /** Monotonic per-exec event counter (assigned in ringEmit). Lets a
+  /** Monotonic per-exec event counter (assigned in publishEvent). Lets a
    * reconnecting consumer request `/attach?sinceSeq=` and skip replayed lines. */
   seq: number;
   /** SLIDING deadline: the kill timer is re-armed on every attach() — the ONLY
@@ -172,11 +168,10 @@ interface LiveExec {
   stdin: Writable | null;
 }
 
-/** A retained (exited) exec: its final ring for /attach replay plus the exit
+/** A retained (exited) exec: its disk history for /attach replay plus the exit
  * code, kept so GET /execs/:id can report `exited(code)` after the live record
  * is gone — distinct from an evicted/never-existed exec (404 → 'gone'). */
 interface RetainedExec {
-  ring: string[];
   replay: ExecReplay;
   seq: number;
   exitCode: number | null;
@@ -185,7 +180,7 @@ interface RetainedExec {
 export class ExecManager {
   private readonly live = new Map<string, LiveExec>();
   // Exited execs retained briefly so a reconnecting /attach can replay the
-  // final ring + terminal event, and so GET /execs/:id can still report the
+  // full protocol + terminal event, and so GET /execs/:id can still report the
   // real exit code (insertion-ordered; oldest evicted past cap).
   private readonly recent = new Map<string, RetainedExec>();
   // Execs that exited while another exec of the session ran: what they left
@@ -240,7 +235,7 @@ export class ExecManager {
   }
 
   /**
-   * Attach a consumer to an exec: replay its buffered ring, then (if still
+   * Attach a consumer to an exec: replay its disk history, then (if still
    * live) follow new events until it exits. Returns a promise that resolves
    * when the stream is complete, or null if the exec is unknown (neither live
    * nor recently retained). Used by GET /execs/:id/attach for reconnect.
@@ -312,10 +307,10 @@ export class ExecManager {
           cursor,
           until,
           async (line) => {
-            const seq = ringSequence(line);
+            const seq = replaySequence(line);
             // Historical terminal events must be interpreted only after the
             // replay barrier, even when they were the initial watermark.
-            emitRingLine(line, (event) => {
+            emitReplayLine(line, (event) => {
               if (event.t === 'exit' && (seq ?? 0) >= throughSeq) complete();
               emit(event);
             });
@@ -405,7 +400,6 @@ export class ExecManager {
     if (previous) void previous.replay.dispose().catch(logReplayError);
     void rec.replay.finish().catch(logReplayError);
     this.recent.set(execId, {
-      ring: rec.ring,
       replay: rec.replay,
       seq: rec.seq,
       exitCode,
@@ -440,8 +434,8 @@ export class ExecManager {
 
   /**
    * Run one exec, invoking `emit` for each NDJSON event. Resolves when the
-   * child has exited (or failed pre-spawn). The caller writes each emitted
-   * event to the HTTP response stream AND the ring buffer.
+   * child has exited (or failed pre-spawn). The manager persists the protocol;
+   * the caller writes each emitted event to the HTTP response stream.
    */
   async run(
     req: RunnerdExecRequest,
@@ -547,8 +541,6 @@ export class ExecManager {
       groupPending: shim !== null,
       awaitingGroup: [],
       exitCode: null,
-      ring: [],
-      ringBytes: 0,
       replay: new ExecReplay(
         {
           segmentBytes: 1024 * 1024,
@@ -594,7 +586,7 @@ export class ExecManager {
         error instanceof ReplayError
           ? error
           : new ReplayError('REPLAY_UNAVAILABLE');
-      ringEmit(
+      publishEvent(
         { t: 'fail', code: replayFailure.code, message: replayFailure.message },
         false,
       );
@@ -602,13 +594,13 @@ export class ExecManager {
       child.stdout.resume();
       child.stderr.resume();
     };
-    const ringEmit = (event: RunnerdExecEvent, persist = true) => {
+    const publishEvent = (event: RunnerdExecEvent, persist = true) => {
       // Stamp a monotonic seq so a reconnecting /attach?sinceSeq= can replay
       // only events it hasn't seen — idempotent reconnect.
       record.seq += 1;
       const stamped: RunnerdExecEvent = { ...event, seq: record.seq };
-      const line = `${JSON.stringify(stamped)}\n`;
       if (persist && !replayFailure) {
+        const line = `${JSON.stringify(stamped)}\n`;
         // Coalesce small records while allowing at most the write watermark
         // plus an already-delivered pipe chunk to wait on disk.
         const bytes = Buffer.byteLength(line);
@@ -627,16 +619,6 @@ export class ExecManager {
               child.stderr.resume();
             }
           });
-      }
-      record.ring.push(line);
-      record.ringBytes += Buffer.byteLength(line, 'utf8');
-      while (
-        record.ringBytes > RUNNERD_RING_BUFFER_BYTES &&
-        record.ring.length > 1
-      ) {
-        const dropped = record.ring.shift();
-        if (dropped === undefined) break;
-        record.ringBytes -= Buffer.byteLength(dropped, 'utf8');
       }
       // Publish replay state before notifying a consumer: an immediate attach
       // or checkpoint from its callback must already see this sequence.
@@ -658,7 +640,7 @@ export class ExecManager {
     const flushOutput = (stream: 'stdout' | 'stderr') => {
       const bytes = outputFrames[stream].flush();
       if (bytes.length > 0)
-        ringEmit({ t: stream, b64: bytes.toString('base64') });
+        publishEvent({ t: stream, b64: bytes.toString('base64') });
     };
     const emitOutput = (
       stream: 'stdout' | 'stderr',
@@ -667,11 +649,11 @@ export class ExecManager {
     ) => {
       const bytes = outputFrames[stream].push(chunk);
       if (bytes.length > 0)
-        ringEmit({ t: stream, b64: bytes.toString('base64') });
+        publishEvent({ t: stream, b64: bytes.toString('base64') });
       if (atLimit) flushOutput(stream);
     };
 
-    ringEmit({ t: 'start', execId, startedAtMs });
+    publishEvent({ t: 'start', execId, startedAtMs });
 
     if (req.stdinMode === 'hold') {
       // Held-open stdin: the initial payload is written but NOT ended; later
@@ -720,10 +702,10 @@ export class ExecManager {
       // Drop data that arrives after the terminal event (only reachable when a
       // grace-forced finish raced a leaked-fd writer — see the 'exit'/'close'
       // handling below). Keeps the start..stdout..exit order the platform
-      // adapters depend on and never mutates the already-retained ring.
+      // adapters depend on and never mutates already-persisted output.
       if (settled || replayFailure) return;
       // stdoutMaxBytes <= 0 disables truncation. Replay storage limits fail
-      // explicitly; the diagnostic ring and consumer queues bound memory.
+      // explicitly; pending writes and consumer queues bound memory.
       if (stdoutMaxBytes > 0) {
         const remaining = stdoutMaxBytes - stdoutBytes;
         if (remaining <= 0) {
@@ -851,14 +833,10 @@ export class ExecManager {
             .catch(failReplay);
         await record.replay.finish().catch(failReplay);
         record.exitCode = replayFailure ? -1 : code;
-        ringEmit({ ...terminal, exitCode: record.exitCode }, false);
+        publishEvent({ ...terminal, exitCode: record.exitCode }, false);
         this.dropLive(execId);
         this.retainRecent(execId, record, record.exitCode);
         for (const complete of record.completions) complete();
-        // Deferred descendants may keep pipe callbacks alive. Recent history
-        // owns this array; the settled live record must release its reference.
-        record.ring = [];
-        record.ringBytes = 0;
         detach();
         resolve();
       };
@@ -874,7 +852,7 @@ export class ExecManager {
         child.stdin.destroy();
         if (record.timer) clearTimeout(record.timer);
         if (drainTimer) clearTimeout(drainTimer);
-        ringEmit({
+        publishEvent({
           t: 'fail',
           code: 'BAD_REQUEST',
           message: `spawn failed: ${message}`,
@@ -882,10 +860,6 @@ export class ExecManager {
         this.dropLive(execId);
         this.retainRecent(execId, record, null);
         for (const complete of record.completions) complete();
-        // Deferred descendants may keep pipe callbacks alive. Recent history
-        // owns this array; the settled live record must release its reference.
-        record.ring = [];
-        record.ringBytes = 0;
         detach();
         resolve();
       };
@@ -1414,21 +1388,25 @@ function isObject(v: unknown): v is Record<string, unknown> {
   return v !== null && typeof v === 'object' && !Array.isArray(v);
 }
 
-/** Parse a retained ring line (NDJSON) back to an event for attach replay,
+/** Parse a retained replay line (NDJSON) back to an event for attach replay,
  * skipping anything the reconnecting consumer already saw (seq <= sinceSeq). */
-function emitRingLine(line: string, emit: ExecSubscriber, sinceSeq = 0): void {
+function emitReplayLine(
+  line: string,
+  emit: ExecSubscriber,
+  sinceSeq = 0,
+): void {
   const trimmed = line.trim();
   if (!trimmed) return;
   try {
     const parsed: unknown = JSON.parse(trimmed);
     if (!isRunnerdExecEvent(parsed)) {
-      console.warn('[runnerd] ring line is not a RunnerdExecEvent:', trimmed);
+      console.warn('[runnerd] replay line is not a RunnerdExecEvent:', trimmed);
       return;
     }
     if ((parsed.seq ?? 0) <= sinceSeq) return;
     emit(parsed);
   } catch (err) {
-    console.warn('[runnerd] bad ring line during attach replay:', err);
+    console.warn('[runnerd] bad line during attach replay:', err);
   }
 }
 
@@ -1458,7 +1436,7 @@ function logReplayError(error: unknown): void {
   );
 }
 
-function ringSequence(line: string): number | undefined {
+function replaySequence(line: string): number | undefined {
   const parsed: unknown = JSON.parse(line || 'null');
   return isObject(parsed) && typeof parsed.seq === 'number'
     ? parsed.seq

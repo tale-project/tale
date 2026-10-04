@@ -2,6 +2,14 @@
   "$schema": "https://turbo.build/schema.v2.json",
   "extends": ["//"],
   "tasks": {
+    "lint": {
+      "inputs": [
+        "$TURBO_EXTENDS$",
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/services/sandbox-runtime/daemon/src/file-ops.ts",
+        "$TURBO_ROOT$/services/sandbox-runtime/daemon/src/protocol.ts"
+      ]
+    },
     "test": {
       "inputs": [
         "$TURBO_EXTENDS$",
@@ -47,6 +55,14 @@
         "$TURBO_ROOT$/packages/ui/package.json",
         "$TURBO_ROOT$/packages/ui/src/**",
         "$TURBO_ROOT$/packages/ui/tailwind-preset.ts"
+      ]
+    },
+    "typecheck": {
+      "inputs": [
+        "$TURBO_EXTENDS$",
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/services/sandbox-runtime/daemon/src/file-ops.ts",
+        "$TURBO_ROOT$/services/sandbox-runtime/daemon/src/protocol.ts"
       ]
     }
   }

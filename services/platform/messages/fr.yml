@@ -5711,6 +5711,8 @@ settings:
       description: "Les équipes déterminent quels documents d'équipe, projets et files de la boîte de réception tu vois. Les admins les gèrent dans Paramètres › Équipes."
       none: "Tu n'es encore dans aucune équipe. Tu vois tout ce qui est partagé avec toute l'organisation."
       manageLink: Gérer les équipes
+      loadFailed: Impossible de charger tes équipes.
+      refreshFailed: Impossible d’actualiser tes équipes. L’affichage n’est peut-être plus à jour.
     security:
       title: Mot de passe
       description: Connecte-toi avec ton adresse e-mail et un mot de passe.
@@ -7542,6 +7544,7 @@ tasks:
     notStartedYet: L’agent attend que tu le démarres.
     failureTitle: L’agent n’a pas pu terminer cette tâche
     reported: Ce que l’exécution a signalé
+    logReadFailed: Le journal de l’agent n’a pas pu être chargé. Réessaie.
     failure:
       budget: Une limite d’utilisation a arrêté cette exécution. Demande à un admin de la relever, puis relance l’agent.
       setup: Il manque quelque chose à cet agent — son modèle, l’un de ses skills ou l’agent lui-même. Un éditeur ou un admin peut corriger cela dans l’onglet Agents du projet.

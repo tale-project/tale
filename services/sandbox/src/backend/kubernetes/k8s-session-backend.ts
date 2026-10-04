@@ -485,13 +485,29 @@ export class KubernetesSessionBackend implements SessionBackend {
     }
   }
 
-  async resolveEndpoint(sessionId: string): Promise<string> {
-    const ip = (await this.readPod(sessionId))?.status?.podIP;
+  async resolveEndpoint(
+    sessionId: string,
+    expectedCreatedAtMs?: number,
+  ): Promise<string> {
+    const pod = await this.readPod(sessionId);
+    if (
+      expectedCreatedAtMs !== undefined &&
+      this.observedCreationStamp(sessionId, pod) !== expectedCreatedAtMs
+    ) {
+      throw new SessionIncarnationChangedError(
+        sessionId,
+        'pod changed before endpoint resolution',
+      );
+    }
+    const ip = pod.status?.podIP;
     if (!ip) throw new Error(`session ${sessionId} has no pod IP`);
     return `http://${ip}:${RUNNERD_PORT}`;
   }
 
-  async sessionExists(sessionId: string): Promise<boolean> {
+  async sessionExists(
+    sessionId: string,
+    expectedCreatedAtMs?: number,
+  ): Promise<boolean> {
     let pod;
     try {
       pod = await this.readPod(sessionId);
@@ -504,7 +520,19 @@ export class KubernetesSessionBackend implements SessionBackend {
     // Only a non-terminating Running Pod is present for session purposes.
     // A runner-container crash can restart in place within that same Pod.
     if (pod.metadata?.deletionTimestamp) return false;
-    return pod.status?.phase === 'Running';
+    if (pod.status?.phase !== 'Running') return false;
+    return (
+      expectedCreatedAtMs === undefined ||
+      this.observedCreationStamp(sessionId, pod) === expectedCreatedAtMs
+    );
+  }
+
+  private observedCreationStamp(sessionId: string, pod: V1Pod): number {
+    const raw = pod.metadata?.annotations?.['tale.dev/created-at'];
+    const stamp = Number(raw);
+    if (raw === undefined || raw.trim() === '' || !Number.isFinite(stamp))
+      throw new Error(`session ${sessionId} pod creation stamp is unreadable`);
+    return stamp;
   }
 
   /**

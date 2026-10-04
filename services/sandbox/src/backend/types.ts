@@ -19,13 +19,13 @@ export type HealthResult =
       transient?: boolean;
     };
 
-/** A fenced stop found a DIFFERENT incarnation under the session's
- * deterministic name than the one it was asked to stop (`expectedCreatedAtMs`
+/** A fenced operation found a DIFFERENT incarnation under the session's
+ * deterministic name than the one it was asked to observe (`expectedCreatedAtMs`
  * mismatch, or the Pod/Secret UID moved): nothing was touched, and the caller
  * must not count that replacement as freed. */
 export class SessionIncarnationChangedError extends Error {
   constructor(sessionId: string, detail: string) {
-    super(`session ${sessionId} changed before idle stop (${detail})`);
+    super(`session ${sessionId} incarnation changed (${detail})`);
     this.name = 'SessionIncarnationChangedError';
   }
 }
@@ -196,8 +196,13 @@ export interface SessionBackend {
   createSession(spec: SessionSpec): Promise<CreateSessionResult>;
   /** Base URL of the session's runnerd (e.g. http://tale-sbx-ses-<id>:8200).
    * Resolved per call — on K8s the Pod IP can change across container
-   * restarts. Throws if the backend object doesn't exist. */
-  resolveEndpoint(sessionId: string): Promise<string>;
+   * replacements. Throws if the backend object doesn't exist. When given a
+   * creation stamp, rejects a replacement with SessionIncarnationChangedError;
+   * never pairs listed metadata with another incarnation's endpoint. */
+  resolveEndpoint(
+    sessionId: string,
+    expectedCreatedAtMs?: number,
+  ): Promise<string>;
   /**
    * DEFINITIVE liveness check of the backend object: true only when the
    * container/Pod exists AND is running. Returns false on a confirmed
@@ -205,9 +210,14 @@ export interface SessionBackend {
    * container) — the zombie-registry-eviction signal. THROWS when the
    * backend can't answer (daemon/API hiccup): callers MUST treat a throw as
    * "unknown", never as "gone" — a transient backend blip must not get a
-   * live session destroyed.
+   * live session destroyed. With an expected creation stamp, a different
+   * incarnation is false, while unreadable identity still throws. Without
+   * one, ANY running incarnation counts (notably when verifying freed capacity).
    */
-  sessionExists(sessionId: string): Promise<boolean>;
+  sessionExists(
+    sessionId: string,
+    expectedCreatedAtMs?: number,
+  ): Promise<boolean>;
   /** Tear down container/Pod (+ Secret on K8s) and DELETE the workspace
    * (host dir / PVC). The ONLY data-deleting verb — reached through the
    * DELETE route (the explicit Destroy, and the platform's workspace cleanup)

@@ -575,10 +575,22 @@ export class DockerSessionBackend implements SessionBackend {
     }
   }
 
-  async resolveEndpoint(sessionId: string): Promise<string> {
+  async resolveEndpoint(
+    sessionId: string,
+    expectedCreatedAtMs?: number,
+  ): Promise<string> {
+    if (
+      expectedCreatedAtMs !== undefined &&
+      !(await this.sessionExists(sessionId, expectedCreatedAtMs))
+    ) {
+      throw new SessionIncarnationChangedError(
+        sessionId,
+        'container gone or changed before endpoint resolution',
+      );
+    }
     // Docker DNS: the spawner shares tale-sandbox-net with the session
-    // container, so the container name resolves directly. No backend lookup
-    // needed (unlike K8s, where the Pod IP must be read).
+    // container, so the container name resolves directly. Only adoption's
+    // expected incarnation needs a lookup; an owned create already verified it.
     return `http://${sessionContainerName(sessionId)}:${RUNNERD_PORT}`;
   }
 
@@ -641,13 +653,39 @@ export class DockerSessionBackend implements SessionBackend {
     );
   }
 
-  async sessionExists(sessionId: string): Promise<boolean> {
+  async sessionExists(
+    sessionId: string,
+    expectedCreatedAtMs?: number,
+  ): Promise<boolean> {
     const containerName = sessionContainerName(sessionId);
     const inspect = await runDocker(
-      ['inspect', '--format', '{{.State.Running}}', containerName],
+      [
+        'inspect',
+        '--format',
+        expectedCreatedAtMs === undefined
+          ? '{{.State.Running}}'
+          : '{{.State.Running}}\t{{with index .Config.Labels "tale.created"}}{{.}}{{end}}',
+        containerName,
+      ],
       { timeoutMs: 5_000, priority: true },
     );
-    if (inspect.exitCode === 0) return inspect.stdout.trim() === 'true';
+    if (inspect.exitCode === 0) {
+      const [running, created] = inspect.stdout
+        .replace(/\r?\n$/, '')
+        .split('\t');
+      if (running !== 'true') return false;
+      if (expectedCreatedAtMs === undefined) return true;
+      const stamp = Number(created);
+      if (
+        created === undefined ||
+        created.trim() === '' ||
+        !Number.isFinite(stamp)
+      )
+        throw new Error(
+          `session ${sessionId} container creation stamp is unreadable`,
+        );
+      return stamp === expectedCreatedAtMs;
+    }
     // Only a definitive "the object is gone" answer may return false; any
     // other inspect failure (daemon hiccup, timeout) is "unknown" and must
     // throw per the interface contract.

@@ -77,7 +77,7 @@ describe('disk exec replay', () => {
     },
   );
 
-  test('keeps output beyond the memory ring and replays only newer events', async () => {
+  test('keeps large output on disk and replays only newer events', async () => {
     const replay = new ExecReplay();
     try {
       const payload = 'a'.repeat(64 * 1024);

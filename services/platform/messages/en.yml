@@ -5859,6 +5859,10 @@ settings:
       none: You are not in any team yet. You see everything shared with the
         whole organization.
       manageLink: Manage teams
+      # A read that failed is never "not in any team" (#3847). Try again
+      # is common.actions.tryAgain.
+      loadFailed: "Couldn't load your teams."
+      refreshFailed: "Couldn't refresh your teams. What's shown may be out of date."
     security:
       title: Password
       description: Sign in with your email and a password.
@@ -7584,6 +7588,7 @@ tasks:
     notStartedYet: The agent waits until you start it.
     failureTitle: The agent couldn't finish this task
     reported: What the run reported
+    logReadFailed: The agent log could not be loaded. Try again.
     failure:
       budget: A usage limit stopped this run. Ask an Admin to raise it, then start the agent again.
       setup: Something this agent needs is missing — its model, one of its skills, or the agent itself. An Editor or Admin can fix it on the project's Agents tab.

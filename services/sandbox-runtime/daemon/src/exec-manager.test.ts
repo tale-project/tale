@@ -1335,7 +1335,7 @@ describe('ExecManager', () => {
     );
   });
 
-  test('attach replays the ring of a just-finished exec', async () => {
+  test('attach replays the history of a just-finished exec', async () => {
     using mgr = new ExecManager(new EnvStore(), () => {});
     const { emit } = collect();
     await mgr.run(
@@ -1484,7 +1484,7 @@ describe('ExecManager', () => {
     }
   });
 
-  test('the complete protocol survives diagnostic ring rollover and keeps its cursor', async () => {
+  test('the complete protocol replays large output and keeps its cursor', async () => {
     using mgr = new ExecManager(new EnvStore(), () => {});
     const original = collect();
     await mgr.run(

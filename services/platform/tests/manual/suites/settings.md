@@ -1,6 +1,6 @@
 # Settings
 
-> **Prefix** `SET-` · **Reset** none · **Cost** 118 boxes
+> **Prefix** `SET-` · **Reset** none · **Cost** 119 boxes
 
 Exercise the settings surface along its real rail — **Personal** (Account,
 Preferences, Notifications, Usage), **Organization** (Organization, Teams, Members,
@@ -870,7 +870,13 @@ run.
   `/dashboard/{org}/settings/providers/openrouter` → Redirects to the
   providers index with `?provider=openrouter` — the vendor filter
   (`settings.providers.vendorFilterLabel`) arrives pre-applied to that vendor;
-  clearing the filter clears the URL param.
+  clearing the filter clears the URL param. Repeat with only one other provider
+  holding credentials, and after deleting the selected provider's last
+  credential → The shared no-results state appears (never the first-provider
+  invitation); search and Filter stay enabled, the selected provider stays
+  visible in the facet, and clearing it restores the remaining rows. A link
+  matching the only provider also keeps its filter clearable. Check EN/DE/FR
+  and keyboard access to the facet and clear action.
 - [ ] `SET-B4` · **Role gating — member** — Sign in as a **member** role
   account → The rail shows only the Personal section plus **Skills**; direct
   URLs are refused with the full access-denied message —
@@ -933,6 +939,16 @@ run.
   The name truncates with an ellipsis and never pushes the **Synced** badge
   (`settings.teams.syncedBadge`) or the member count out of place; hovering the
   name shows it in full; the name column is wider than the member-count column.
+- [ ] `SET-B32` · **Your teams when the read fails** — As a member of a team,
+  block `*/api/app/teams/mine*` in DevTools (Network → request blocking) and
+  reload `/dashboard/{org}/settings/account#teams` → once the read's retries
+  give up (a few seconds; a blocked request reads as a lost connection, so the
+  offline notice may cover the page meanwhile) **Your teams**
+  (`settings.account.teams.title`) shows `settings.account.teams.loadFailed`
+  with **Try again** (`common.actions.tryAgain`), never
+  `settings.account.teams.none`. Unblock, Tab to **Try again** and press
+  Enter → the team badges appear without a reload, and the focus is on the
+  section, not lost to the page.
 - [ ] `SET-B18` · **A used or expired connect command** — Run SET-F56's
   command again on another machine (or any copied command after an hour) →
   `tale sandbox connect` fails saying the command expired or was already used,

@@ -17,7 +17,7 @@ within the runtime's lifetime. Each exec may retain up to 64 MiB of unacknowledg
 encoded NDJSON; stdout/stderr base64 counts toward that bound. All live and
 retained execs share a 256 MiB physical storage budget, including checkpoints and
 unlinked segments still held by readers. Completed spools are evicted first.
-The 256 KiB in-memory ring is diagnostic only. A committed parser checkpoint
+Disk replay is the sole retained output history. A committed parser checkpoint
 acknowledges its prefix before segments are pruned, allowing long runs to exceed
 the per-exec bound over time. Unacknowledged overflow ends the writer with
 `OUTPUT_LIMIT`; evicted or unreadable replay reports `REPLAY_UNAVAILABLE`.
