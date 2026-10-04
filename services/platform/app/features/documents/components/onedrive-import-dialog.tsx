@@ -110,7 +110,7 @@ export function OneDriveImportDialog({
   );
 
   const [stage, setStage] = useState<Stage>('picker');
-  const [importType, setImportType] = useState<ImportType>('one-time');
+  const [requestedImportType, setImportType] = useState<ImportType>('one-time');
   // The picker's team for a root-level import; a destination folder's own
   // audience wins over it (the server re-reads the landing folder).
   const [selectedTeamId_local, setSelectedTeamId_local] = useState<
@@ -118,6 +118,8 @@ export function OneDriveImportDialog({
   >(undefined);
 
   const [sourceTab, setSourceTab] = useState<SourceTab>('onedrive');
+  const importType =
+    sourceTab === 'sharepoint' ? 'one-time' : requestedImportType;
   const [selectedSite, setSelectedSite] = useState<SharePointSite | null>(null);
   const [selectedDrive, setSelectedDrive] = useState<SharePointDrive | null>(
     null,
@@ -790,6 +792,7 @@ export function OneDriveImportDialog({
     const settings = OneDriveSettingsStage({
       selectedItemCount: selectedItems.size,
       importType,
+      supportsSync: sourceTab === 'onedrive',
       isImporting: isBusy,
       teams: teams ?? undefined,
       isLoadingTeams,

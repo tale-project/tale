@@ -41,8 +41,10 @@ startBrowserAnalytics(
   },
 );
 
-/** Dev-only probe: marks the end of the session handshake (the one request
- * every auth-gated read waits on). */
+/** Root probe observer in every build: keeps the session answer alive and
+ * eligible for reconnect refetches; also marks its resolution when cold-load
+ * tracing is enabled.
+ * Adapted reads authenticate independently through their session cookie. */
 function ColdLoadProbe() {
   const { isLoading } = useSessionUser();
   useEffect(() => {

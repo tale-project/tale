@@ -6,6 +6,8 @@
       "inputs": [
         "$TURBO_EXTENDS$",
         "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/services/platform/backend/core/lib/config_store/value_hash.ts",
+        "$TURBO_ROOT$/services/platform/lib/shared/utils/stable-stringify.ts",
         "$TURBO_ROOT$/scripts/publish-package.ts",
         "$TURBO_ROOT$/LICENSE",
         "$TURBO_ROOT$/packages/ui/package.json",
@@ -35,8 +37,45 @@
         "$TURBO_ROOT$/services/platform/docker-entrypoint.sh",
         "$TURBO_ROOT$/services/platform/env.sh",
         "$TURBO_ROOT$/services/db/Dockerfile",
-        "$TURBO_ROOT$/services/sandbox-egress/Dockerfile"
+        "$TURBO_ROOT$/services/sandbox-egress/Dockerfile",
+        "$TURBO_ROOT$/services/platform/turbo.json",
+        "$TURBO_ROOT$/packages/*/package.json",
+        "$TURBO_ROOT$/services/*/package.json",
+        "$TURBO_ROOT$/services/sandbox-runtime/daemon/package.json",
+        "$TURBO_ROOT$/tools/*/package.json",
+        "$TURBO_ROOT$/configs/platform/custom/skills/*/package.json",
+        "$TURBO_ROOT$/turbo.json",
+        "$TURBO_ROOT$/package.json",
+        "$TURBO_ROOT$/.github/actions/setup-turbo/action.yml",
+        "$TURBO_ROOT$/services/platform/backend/core/**",
+        "$TURBO_ROOT$/services/platform/lib/**",
+        "$TURBO_ROOT$/configs/platform/**",
+        "!$TURBO_ROOT$/configs/platform/**/.turbo/**"
+      ],
+      "dependsOn": ["generate", "^transit"]
+    },
+    "generate": {
+      "inputs": [
+        "$TURBO_EXTENDS$",
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/services/platform/backend/core/**",
+        "$TURBO_ROOT$/services/platform/lib/**",
+        "$TURBO_ROOT$/configs/platform/**",
+        "!$TURBO_ROOT$/configs/platform/**/.turbo/**"
       ]
+    },
+    "setup": {
+      "inputs": [
+        "$TURBO_EXTENDS$",
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/services/platform/backend/core/**",
+        "$TURBO_ROOT$/services/platform/lib/**",
+        "$TURBO_ROOT$/configs/platform/**",
+        "!$TURBO_ROOT$/configs/platform/**/.turbo/**"
+      ]
+    },
+    "lint": {
+      "dependsOn": ["generate", "^transit"]
     }
   }
 }

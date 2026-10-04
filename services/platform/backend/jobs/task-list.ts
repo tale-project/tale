@@ -1,6 +1,7 @@
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
+import type { Json } from '../../lib/engine/core/types.ts';
 import { parseRunStarter } from '../../lib/shared/run-starter.ts';
 import {
   driveWorkflowAgentTurnImpl,
@@ -47,6 +48,7 @@ import { scaffoldNewOrganization } from '../domains/organizations/scaffold.ts';
 import { releaseIdleSession } from '../domains/sandbox/idle-release.ts';
 import {
   recreatePinnedSession,
+  syncSessionPin,
   teardownSession,
 } from '../domains/sandbox/service.ts';
 import { reconcileSessionOpKey } from '../domains/sandbox/spend-settlement.ts';
@@ -125,7 +127,7 @@ export interface TaskContext {
 export type TaskHandler = (
   payload: unknown,
   context?: TaskContext,
-) => Promise<void>;
+) => Promise<void | { output: Record<string, Json> }>;
 
 export type BackendTaskList = Record<string, TaskHandler>;
 
@@ -548,6 +550,9 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
   };
 
   return {
+    'sandbox.sync_pin': async (payload) => {
+      await syncSessionPin(deps.sql, destroySessionSchema.parse(payload));
+    },
     'sandbox.release_idle': async (payload) => {
       await releaseIdleSession(
         deps.sql,
@@ -801,6 +806,13 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
           `[automations] trigger scan fired ${result.fired}/${result.examined} (${result.pages} page${result.pages === 1 ? '' : 's'})`,
         );
       }
+      // A missing organization table returns before examining any page.
+      // That bootstrap/connection state is not proof the scanner is working.
+      // pg-boss persists this only when the actual handler's claim completes;
+      // a draining worker's handover must never produce this marker.
+      return result.pages > 0
+        ? { output: { triggerScanCompleted: true } }
+        : undefined;
     },
     'automation.liveness': async () => {
       const swept = await sweepOverdueRuns(deps.sql);

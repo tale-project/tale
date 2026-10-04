@@ -2,9 +2,9 @@
 // runnerd-protocol.ts is the canonical copy and the daemon's
 // services/sandbox-runtime/daemon/src/protocol.ts is a hand-kept mirror (the
 // daemon is bundled into the runtime image and cannot import across the
-// service boundary). Each side consumes a different subset, so knip excludes
-// both from the dead-export sweep — which means nothing else keeps them
-// aligned. This test does: every exported constant must exist on BOTH sides
+// service boundary). Each side consumes a different subset, so Knip treats
+// the canonical public contract as an entry and excludes the daemon mirror.
+// This test keeps them aligned: every exported constant must exist on BOTH sides
 // with the same value, so a cap changed on one side (a daemon-enforced limit
 // vs the spawner's request-side validation of the same field) fails here
 // instead of drifting silently.
@@ -44,11 +44,37 @@ describe('runnerd protocol mirror', () => {
       { t: 'replay-start' },
       { t: 'replay-complete', throughSeq: 42 },
       { t: 'fail', code: 'OUTPUT_LIMIT', message: 'limit' },
+      { t: 'fail', code: 'OUTPUT_GAP', message: 'gap' },
       { t: 'fail', code: 'REPLAY_UNAVAILABLE', message: 'unavailable' },
     ];
     const mirrored: MirrorEvent[] = events;
     const roundTrip: CanonicalEvent[] = mirrored;
     expect(roundTrip).toEqual(events);
+  });
+
+  test.each([
+    null,
+    '0',
+    '1',
+    '123',
+    '001',
+    '',
+    '-1',
+    '1.5',
+    'NaN',
+    'Infinity',
+    '9007199254740992',
+    '1e3',
+    ' 2',
+  ])('sequence parser agrees for %s', (raw) => {
+    const expected =
+      raw === null
+        ? 0
+        : /^[0-9]+$/.test(raw) && Number.isSafeInteger(Number(raw))
+          ? Number(raw)
+          : null;
+    expect(canonical.parseRunnerdSequence(raw)).toBe(expected);
+    expect(mirror.parseRunnerdSequence(raw)).toBe(expected);
   });
 
   test('every canonical constant is mirrored with the same value', () => {

@@ -158,10 +158,9 @@ export function EditMemberDialog({
         updates.push(() => updateMemberDisplayName({ memberId, displayName }));
       }
 
-      if (data.updatePassword && data.password) {
-        updates.push(() =>
-          setMemberPassword({ memberId, newPassword: data.password }),
-        );
+      const newPassword = data.password;
+      if (data.updatePassword && newPassword) {
+        updates.push(() => setMemberPassword({ memberId, newPassword }));
       }
 
       if (updates.length > 0) {
@@ -224,7 +223,6 @@ export function EditMemberDialog({
         <Alert
           variant="destructive"
           description={t('organization.memberUpdateFailed')}
-          role="alert"
         />
       )}
 

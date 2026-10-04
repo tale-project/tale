@@ -32,6 +32,9 @@ const service = vi.hoisted(() => ({
   duplicateProject: vi.fn(),
   updateProjectIdentity: vi.fn(),
   updateProjectInstructions: vi.fn(),
+  readProjectInstructionsConfiguration: vi.fn(),
+  readAgentInstructionsConfiguration: vi.fn(),
+  updateAgentInstructionsConfiguration: vi.fn(),
   deleteProject: vi.fn(),
   getProjectAuthContext: vi.fn(),
   assertCanCreateProjects: vi.fn(),
@@ -395,5 +398,84 @@ describe('duplicate — the name is optional, its JSON is not (#3599)', () => {
     expect(res.status).toBe(400);
     expect(await res.json()).toMatchObject({ code: 'INVALID_JSON' });
     expect(service.createProject).not.toHaveBeenCalled();
+  });
+});
+
+describe('managed instruction routes', () => {
+  const hash = 'a'.repeat(64);
+  const project = { projectId: 'p1', instructions: 'project policy' };
+  const agent = { projectId: 'p1', agentId: 'a1', instructions: 'agent brief' };
+
+  it.each([
+    ['/p1/configuration/instructions', project],
+    ['/p1/agents/a1/configuration/instructions', agent],
+  ])(
+    'requires a preimage and rejects unowned fields: %s',
+    async (route, config) => {
+      expect((await send('POST', route, { config })).status).toBe(400);
+      expect(
+        (await send('POST', route, { config, expectedHash: null })).status,
+      ).toBe(400);
+      expect(
+        (
+          await send('POST', route, {
+            config: { ...config, secrets: ['TOKEN'] },
+            expectedHash: hash,
+          })
+        ).status,
+      ).toBe(400);
+      expect(
+        (
+          await send('POST', route, {
+            config: { ...config, projectId: 'other' },
+            expectedHash: hash,
+          })
+        ).status,
+      ).toBe(400);
+      expect(service.updateProjectInstructions).not.toHaveBeenCalled();
+      expect(
+        service.updateAgentInstructionsConfiguration,
+      ).not.toHaveBeenCalled();
+    },
+  );
+
+  it('binds path identity and sends only the owned text through the serializable writer', async () => {
+    expect(
+      (
+        await send('POST', '/p1/configuration/instructions', {
+          config: project,
+          expectedHash: hash,
+        })
+      ).status,
+    ).toBe(200);
+    expect(service.updateProjectInstructions).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      'p1',
+      project.instructions,
+      hash,
+    );
+    expect(
+      (
+        await send('POST', '/p1/agents/a1/configuration/instructions', {
+          config: agent,
+          expectedHash: hash,
+        })
+      ).status,
+    ).toBe(200);
+    expect(service.updateAgentInstructionsConfiguration).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      agent,
+      hash,
+    );
+    expect(
+      (
+        await send('POST', '/p1/agents/other/configuration/instructions', {
+          config: agent,
+          expectedHash: hash,
+        })
+      ).status,
+    ).toBe(400);
   });
 });

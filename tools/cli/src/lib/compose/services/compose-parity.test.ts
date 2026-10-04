@@ -771,10 +771,14 @@ describe('release artifact identity', () => {
   const cli = workflow('cli');
   const build = workflow('build');
   const shell = (script: string, env: Record<string, string> = {}) =>
-    spawnSync('bash', ['-euo', 'pipefail', '-c', script], {
-      encoding: 'utf8',
-      env: { ...process.env, SKIP_BUILD: '', PULL_POLICY: '', ...env },
-    });
+    spawnSync(
+      process.platform === 'darwin' ? '/bin/bash' : 'bash',
+      ['-euo', 'pipefail', '-c', script],
+      {
+        encoding: 'utf8',
+        env: { ...process.env, SKIP_BUILD: '', PULL_POLICY: '', ...env },
+      },
+    );
 
   /** The Build lanes pull each image by the digest its build job recorded
    * (one receipt per image) and check its revision label; the release lane
@@ -803,7 +807,9 @@ describe('release artifact identity', () => {
       }
       result = shell(
         jqMode +
-          'docker() { if [ "$1 $2" = "image inspect" ]; then printf "%s\\n" "$SOURCE_SHA"; return; fi; printf "DOCKER"; printf "\\t%s" "$@"; printf "\\n"; };\n' +
+          // Parallel pulls share stdout. Assemble each record first, then
+          // emit it with one write so another child cannot split its fields.
+          'docker() { if [ "$1 $2" = "image inspect" ]; then printf "%s\\n" "$SOURCE_SHA"; return; fi; local record; printf -v record "\\t%s" "$@"; printf "DOCKER%s\\n" "$record"; };\n' +
           script,
         {
           SERVICE_NAMES: JSON.stringify(services),
@@ -814,7 +820,7 @@ describe('release artifact identity', () => {
     } finally {
       rmSync(receipts, { recursive: true, force: true });
     }
-    expect(result.status).toBe(0);
+    expect(result.status, result.stdout + result.stderr).toBe(0);
     const images = new Map<string, string>();
     for (const line of result.stdout.split('\n')) {
       if (!line.startsWith('DOCKER\t')) continue;

@@ -1,6 +1,7 @@
 /** Bounded incremental display state. Protocol lifecycle/accounting remains
  * independent of this tail: evicting a display entry never forgets a task or
  * usage event. A disk replay can be arbitrarily longer than the displayed log. */
+import { BoundedTextTail } from './bounded-text-tail';
 import { appendHarnessAnswer } from './jsonl';
 import {
   TIMELINE_MAX_ENTRIES,
@@ -9,7 +10,7 @@ import {
 } from './timeline';
 import type { HarnessEvent } from './types';
 
-export const HARNESS_TEXT_MAX_CHARS = 64 * 1024;
+export const HARNESS_TEXT_MAX_CHARS = 32_000;
 const VALUE_CHARS = 2000;
 const BLOCK_CHARS = 4000;
 
@@ -31,11 +32,13 @@ function clampValue(value: unknown): unknown {
 interface Entry {
   part: TimelinePart;
   bytes: number;
+  text?: BoundedTextTail;
 }
 
 const encoder = new TextEncoder();
 const sizeOf = (part: TimelinePart) =>
   encoder.encode(JSON.stringify(part)).length;
+const TEXT_PART_BYTES = '{"type":"text","text":}'.length;
 
 class TimelineTail {
   private entries: Entry[] = [];
@@ -59,8 +62,13 @@ class TimelineTail {
     }
   }
 
-  private append(part: TimelinePart): Entry {
-    const entry = { part, bytes: sizeOf(part) };
+  private append(part: TimelinePart, text?: BoundedTextTail): Entry {
+    const entry: Entry = {
+      part,
+      bytes:
+        text === undefined ? sizeOf(part) : TEXT_PART_BYTES + text.jsonBytes,
+      ...(text === undefined ? {} : { text }),
+    };
     this.entries.push(entry);
     this.bytes += entry.bytes;
     this.bound();
@@ -79,20 +87,39 @@ class TimelineTail {
 
   text(value: string, separator: string): void {
     if (value === '') return;
-    const previous = this.textBlock?.part.text ?? '';
-    const text = textTail(
-      `${previous}${previous === '' ? '' : separator}${value}`,
-      BLOCK_CHARS,
-    );
-    if (this.textBlock === undefined)
-      this.textBlock = this.append({ type: 'text', text });
-    else this.update(this.textBlock, { type: 'text', text });
+    const entry = this.textBlock;
+    if (entry?.text === undefined) {
+      const text = new BoundedTextTail(BLOCK_CHARS);
+      text.append(value);
+      this.textBlock = this.append({ type: 'text', text: '' }, text);
+    } else {
+      this.bytes -= entry.bytes;
+      if (entry.text.length > 0) entry.text.append(separator);
+      entry.text.append(value);
+      entry.bytes = TEXT_PART_BYTES + entry.text.jsonBytes;
+      this.bytes += entry.bytes;
+      this.bound();
+    }
+  }
+
+  private materialize(entry: Entry): TimelinePart {
+    if (entry.text !== undefined) {
+      const text = entry.text.text;
+      // Issued snapshots hold the previous object, never a mutable buffer.
+      if (entry.part.text !== text) entry.part = { type: 'text', text };
+    }
+    return entry.part;
   }
 
   tool(
     event: Extract<HarnessEvent, { type: 'tool-use' }>,
     input: unknown,
   ): void {
+    if (this.textBlock !== undefined) {
+      this.materialize(this.textBlock);
+      // Historical blocks retain only their final string, not a typed ring.
+      delete this.textBlock.text;
+    }
     this.textBlock = undefined;
     const entry = this.append({
       type: `tool-${event.toolName}`,
@@ -124,7 +151,7 @@ class TimelineTail {
   }
 
   snapshot(): TimelinePart[] {
-    return this.entries.map((entry) => entry.part);
+    return this.entries.map((entry) => this.materialize(entry));
   }
 }
 
@@ -133,8 +160,8 @@ export class HarnessProjection {
   // bounded projections until the first delta establishes the display lane.
   private full = new TimelineTail();
   private deltas = new TimelineTail();
-  private fullText = '';
-  private deltaText = '';
+  private fullText = new BoundedTextTail(HARNESS_TEXT_MAX_CHARS, false);
+  private deltaText = new BoundedTextTail(HARNESS_TEXT_MAX_CHARS, false);
   private answerText = '';
   private streamsDeltas = false;
   revision = 0;
@@ -146,19 +173,18 @@ export class HarnessProjection {
         this.answerText,
         `${this.answerText === '' ? '' : '\n\n'}${event.text}`,
       );
-      this.fullText = textTail(
-        `${this.fullText}${this.fullText === '' ? '' : '\n\n'}${event.text}`,
-      );
+      if (this.fullText.length > 0) this.fullText.append('\n\n');
+      this.fullText.append(event.text);
       this.full.text(event.text, '\n\n');
     } else if (event.type === 'text-delta') {
       if (!this.streamsDeltas) {
         this.streamsDeltas = true;
         this.full = new TimelineTail();
-        this.fullText = '';
+        this.fullText = new BoundedTextTail(HARNESS_TEXT_MAX_CHARS, false);
         this.answerText = '';
       }
       this.answerText = appendHarnessAnswer(this.answerText, event.text);
-      this.deltaText = textTail(this.deltaText + event.text);
+      this.deltaText.append(event.text);
       this.deltas.text(event.text, '');
     } else if (event.type === 'tool-use') {
       if (event.toolUseId.length > 1024 || event.toolName.length > 256) {
@@ -182,7 +208,7 @@ export class HarnessProjection {
   }
 
   get text(): string {
-    return this.streamsDeltas ? this.deltaText : this.fullText;
+    return (this.streamsDeltas ? this.deltaText : this.fullText).text;
   }
 
   timeline(): TimelinePart[] {

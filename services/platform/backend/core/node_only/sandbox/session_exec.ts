@@ -407,7 +407,6 @@ export async function harvestSessionOutput(
       );
       continue;
     }
-    const buf = Buffer.from(read.bytes);
     // Every harvested file is stored fresh (no unchanged-file dedup). Costs
     // duplicate blobs on re-runs, never correctness; the retention sweep
     // reclaims unclaimed outputs.
@@ -458,7 +457,7 @@ export async function harvestSessionOutput(
           storageId,
           fileName: e.name,
           contentType,
-          size: buf.byteLength,
+          size: harvestBytes.byteLength,
           source: 'agent',
         },
       );
@@ -468,7 +467,7 @@ export async function harvestSessionOutput(
     files.push({
       path: absPath,
       storageId,
-      size: buf.byteLength,
+      size: harvestBytes.byteLength,
       contentType,
     });
   }

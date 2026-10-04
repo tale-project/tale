@@ -29,7 +29,7 @@ Vérifie le nom de l’organisation avant de modifier des réglages ou d’ajout
 
 ## Voir tes équipes {#teams}
 
-**Paramètres > Compte > Tes équipes** liste les équipes dont tu fais partie. Les équipes déterminent quels documents d’équipe, projets et files de la boîte de réception tu vois ; ce qui est partagé avec toute l’organisation te reste visible dans tous les cas. Si tu n’es dans aucune équipe, la section le dit.
+**Paramètres > Compte > Tes équipes** liste les équipes dont tu fais partie. Les équipes déterminent quels documents d’équipe, projets et files de la boîte de réception tu vois ; ce qui est partagé avec toute l’organisation te reste visible dans tous les cas. Si tu n’es dans aucune équipe, la section le dit. Si tes équipes ne peuvent pas être chargées, la section l’indique au lieu d’affirmer que tu n’es dans aucune équipe. Choisis **Réessayer** pour les charger. Quand une actualisation échoue, les équipes déjà affichées restent visibles, avec un message indiquant qu’elles ne sont peut-être plus à jour.
 
 Pour restreindre une liste à certains travaux, utilise son filtre **Équipes** : **Toute l'organisation** n’affiche que les éléments sans équipe, **Mes équipes** affiche ceux qu’une de tes équipes peut voir, et chaque équipe figure par son nom. La boîte de réception propose un filtre **Responsable** derrière son champ de recherche, qui réunit personnes et équipes. Un filtre change la vue, sans accorder l’accès aux données d’une autre équipe.
 

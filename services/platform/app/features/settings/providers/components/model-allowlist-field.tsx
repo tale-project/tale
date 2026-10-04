@@ -23,6 +23,10 @@ interface ModelAllowlistFieldProps {
   disabled?: boolean;
 }
 
+/** Whether two allowlists hold the same ids in the same order. */
+export const sameList = (a: readonly string[], b: readonly string[]) =>
+  a.length === b.length && a.every((id, index) => id === b[index]);
+
 /** Comma-separated ids → trimmed, deduplicated list. */
 function parseFreeTextIds(raw: string): string[] {
   const seen = new Set<string>();
@@ -49,9 +53,14 @@ export function ModelAllowlistField({
 }: ModelAllowlistFieldProps) {
   const { t } = useT('settings');
   // Free-text drafts keep the raw string (in-progress commas and all) and
-  // push the parsed list up on every change. The dialogs unmount this field
-  // on close, so the draft can never go stale against a reopened form.
-  const [text, setText] = useState(value.join(', '));
+  // push the parsed list up on every change. The draft is shown only while
+  // it still holds `value`: a custom provider's form keeps this one field
+  // across its Models choice, so the picker can change the list while the
+  // draft is out of sight — the field then shows the list a Save sends.
+  const [draft, setDraft] = useState(value.join(', '));
+  const text = sameList(parseFreeTextIds(draft), value)
+    ? draft
+    : value.join(', ');
 
   const options = useMemo<MultiSelectOption[]>(() => {
     const catalogIds = new Set(models.map((model) => model.id));
@@ -70,7 +79,7 @@ export function ModelAllowlistField({
         placeholder={t('providers.dialog.allowlistFreeTextPlaceholder')}
         value={text}
         onChange={(e) => {
-          setText(e.target.value);
+          setDraft(e.target.value);
           onValueChange(parseFreeTextIds(e.target.value));
         }}
         disabled={disabled}

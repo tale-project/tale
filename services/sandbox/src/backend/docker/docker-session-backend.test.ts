@@ -31,6 +31,7 @@ import {
   runDocker,
 } from '../../spawn-util.ts';
 import type { SpawnerConfig } from '../../types.ts';
+import { SessionIncarnationChangedError } from '../types.ts';
 import { DockerBackend, dockerHealth } from './docker-backend.ts';
 import {
   DockerSessionBackend,
@@ -99,7 +100,7 @@ describe('isReapableContainerStatus', () => {
 // ---------------------------------------------------------------------------
 
 const FAKE_DOCKER = `#!/usr/bin/env bash
-# Fake docker CLI for tests. Reads seven lines from ./mode next to this script:
+# Fake docker CLI for tests. Reads eight lines from ./mode next to this script:
 #   line 1: 1 when the container exists, else 0
 #   line 2: rm outcome — ok | removes (ok, and the container is gone after) |
 #           nosuch | busy
@@ -108,6 +109,7 @@ const FAKE_DOCKER = `#!/usr/bin/env bash
 #   line 5: the host source of the container's /agent mount (may be empty)
 #   line 6: the session's Docker-in-container capability (may be empty)
 #   line 7: mount inspect outcome — ok | fail
+#   line 8: creation stamp observed by the running-state probe
 here="$(cd "$(dirname "$0")" && pwd)"
 present="$(sed -n 1p "$here/mode")"
 rm_mode="$(sed -n 2p "$here/mode")"
@@ -127,9 +129,11 @@ case "$cmd" in
     done
     exit 0 ;;
   inspect)
+    printf '%s\\n' "$@" >> "$here/inspect-calls"
     fmt="$2"; name="$3"
     if [ "$present" = "1" ]; then
       case "$fmt" in
+        *State.Running*tale.created*) printf 'true\\t%s\\n' "$(sed -n 8p "$here/mode")" ;;
         *tale.created*) printf 'abcdef123456\\t1700000000000\\n' ;;
         *State.Running*) echo "true" ;;
         *State.Status*) echo "running" ;;
@@ -157,8 +161,10 @@ case "$cmd" in
     case "$rm_mode" in
       ok) exit 0 ;;
       removes)
-        sed '1s/.*/0/' "$here/mode" > "$here/mode.next" && mv "$here/mode.next" "$here/mode" || exit 1
-        exit 0 ;;
+        # Portable across BSD and GNU sed; do not acknowledge a failed update.
+        sed '1s/.*/0/' "$here/mode" > "$here/mode.next" &&
+          mv "$here/mode.next" "$here/mode"
+        exit $? ;;
       nosuch)
         echo "Error response from daemon: No such container: $2" >&2
         exit 1 ;;
@@ -187,10 +193,11 @@ async function fakeDocker(scenario: {
   mount?: string;
   dind?: boolean;
   mountRead?: 'ok' | 'fail';
+  createdStamp?: string;
 }): Promise<void> {
   await writeFile(
     join(fakeRoot, 'mode'),
-    `${scenario.present ? '1' : '0'}\n${scenario.rm}\n${(scenario.listed ?? []).join(',')}\n${scenario.ps ?? 'ok'}\n${scenario.mount ?? ''}\n${scenario.dind ?? ''}\n${scenario.mountRead ?? 'ok'}\n`,
+    `${scenario.present ? '1' : '0'}\n${scenario.rm}\n${(scenario.listed ?? []).join(',')}\n${scenario.ps ?? 'ok'}\n${scenario.mount ?? ''}\n${scenario.dind ?? ''}\n${scenario.mountRead ?? 'ok'}\n${scenario.createdStamp ?? '1700000000000'}\n`,
   );
 }
 
@@ -252,6 +259,53 @@ function backendConfig(): SpawnerConfig {
     session: TEST_SESSION_CONFIG,
   };
 }
+
+describe('Docker session observation incarnation', () => {
+  test.each(['', ' ', 'unreadable'])(
+    'stamp %j cannot be interpreted as a verified incarnation',
+    async (createdStamp) => {
+      await fakeDocker({ present: true, rm: 'busy', createdStamp });
+      const backend = new DockerSessionBackend(backendConfig());
+      expect(
+        await rejection(backend.sessionExists('unknown', 0)),
+      ).toBeInstanceOf(Error);
+      expect(
+        await rejection(backend.resolveEndpoint('unknown', 0)),
+      ).toBeInstanceOf(Error);
+      expect(await backend.sessionExists('unknown')).toBe(true);
+    },
+  );
+
+  test('checks running state and creation stamp in one inspect, preserving unscoped occupancy', async () => {
+    await fakeDocker({ present: true, rm: 'busy' });
+    await writeFile(join(fakeRoot, 'inspect-calls'), '');
+    const backend = new DockerSessionBackend(backendConfig());
+    expect(await backend.sessionExists('replaced', 1_700_000_000_001)).toBe(
+      false,
+    );
+    expect(await backend.sessionExists('replaced', 1_700_000_000_000)).toBe(
+      true,
+    );
+    expect(await backend.sessionExists('replaced')).toBe(true);
+    const calls = await readFile(join(fakeRoot, 'inspect-calls'), 'utf8');
+    expect(calls.match(/--format/g)).toHaveLength(3);
+  });
+
+  test('adoption cannot pair old metadata with a replacement Docker endpoint', async () => {
+    await fakeDocker({ present: true, rm: 'busy' });
+    const backend = new DockerSessionBackend(backendConfig());
+    expect(
+      await rejection(backend.resolveEndpoint('replaced', 1_700_000_000_001)),
+    ).toBeInstanceOf(SessionIncarnationChangedError);
+    expect(
+      await backend.resolveEndpoint('replaced', 1_700_000_000_000),
+    ).toContain(':8200');
+    await fakeDocker({ present: false, rm: 'nosuch' });
+    expect(
+      await rejection(backend.resolveEndpoint('replaced', 1_700_000_000_000)),
+    ).toBeInstanceOf(Error);
+  });
+});
 
 async function exists(path: string): Promise<boolean> {
   try {
@@ -408,7 +462,7 @@ describe('DockerSessionBackend stop/destroy honour the rm result', () => {
     const error = await rejection(
       backend.stopSession('replacement', 1_600_000_000_000),
     );
-    expect(error?.message).toContain('changed before idle stop');
+    expect(error?.message).toContain('incarnation changed');
     expect(await readFile(join(fakeRoot, 'last-rm'), 'utf8')).toBe('untouched');
   });
 

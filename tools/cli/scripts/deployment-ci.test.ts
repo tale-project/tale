@@ -12,6 +12,7 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { runInNewContext } from 'node:vm';
 
 import { parse } from 'yaml';
 
@@ -165,6 +166,33 @@ describe('release candidate validation', () => {
     parse(
       await readFile(join(repository, '.github/workflows/build.yml'), 'utf8'),
     ) as Workflow;
+
+  test.each([
+    ['push', 'refs/heads/main', false],
+    ['push', 'refs/heads/other', true],
+    ['pull_request', 'refs/pull/1/merge', true],
+    ['merge_group', 'refs/heads/gh-readonly-queue/main/pr-1', true],
+    ['workflow_dispatch', 'refs/heads/main', false],
+    ['repository_dispatch', 'refs/heads/main', false],
+  ] as const)(
+    '%s on %s cancels an admitted Build only when supersedable',
+    async (eventName, ref, expected) => {
+      const policy = (await workflow()).concurrency['cancel-in-progress'];
+      expect(typeof policy).toBe('string');
+      // This source-owned expression uses only string comparisons and boolean
+      // operators, with the same semantics for these lowercase event/ref values
+      // in JavaScript and Actions. Evaluate the parsed workflow's actual policy,
+      // not a second implementation of the intended event mapping.
+      const expression = String(policy).match(/^\$\{\{ (.+) \}\}$/)?.[1];
+      expect(expression).toBeDefined();
+      const actual: unknown = runInNewContext(
+        expression!,
+        { github: { event_name: eventName, ref } },
+        { timeout: 100 },
+      );
+      expect(actual).toBe(expected);
+    },
+  );
   const step = (job: Job, name: string) => {
     const found = (job.steps ?? []).find((entry) => entry.name === name);
     if (!found) throw new Error(`build.yml step "${name}" is missing`);
@@ -291,13 +319,14 @@ printf '%s\\n' "$TEST_COMPARE_STATUS"
       "(github.event_name == 'workflow_dispatch' || github.event_name == 'repository_dispatch')";
     const candidate =
       'inputs.candidate_sha || github.event.client_payload.candidate_sha';
-    // A push or pull request keeps `Build-<ref>` and cancels what it
-    // supersedes; either dispatch of one SHA shares `Build-candidate-<sha>`,
+    // Ordinary events keep `Build-<ref>`; main pushes finish the admitted run
+    // while superseded pending runs coalesce. Either dispatch of one SHA shares
+    // `Build-candidate-<sha>`,
     // which only another dispatch of that SHA can enter, and cancels nothing.
     expect(build.concurrency).toEqual({
       group: `\${{ github.workflow }}-\${{ ${dispatched} && format('candidate-{0}', ${candidate}) || github.ref }}`,
       'cancel-in-progress':
-        "${{ github.event_name != 'workflow_dispatch' && github.event_name != 'repository_dispatch' }}",
+        "${{ github.event_name != 'workflow_dispatch' && github.event_name != 'repository_dispatch' && !(github.event_name == 'push' && github.ref == 'refs/heads/main') }}",
     });
     // The title the release gate finds the run by; empty (GitHub's default
     // title) for every other event.
@@ -425,6 +454,7 @@ printf '%s\\n' "$TEST_COMPARE_STATUS"
             CHANGES: '',
             CI_TESTS: '',
             STORYBOOK: '',
+            IMAGE_INPUTS: '',
           })
         ).output,
       );
@@ -438,6 +468,7 @@ printf '%s\\n' "$TEST_COMPARE_STATUS"
           ...(JSON.parse(candidate.list!) as string[]),
           'ci_tests',
           'storybook',
+          'image_inputs',
         ].toSorted(),
       ).toEqual(filters.toSorted());
       expect(JSON.parse(candidate.list!)).toEqual(
@@ -456,12 +487,14 @@ printf '%s\\n' "$TEST_COMPARE_STATUS"
         CHANGES: '["platform","web","ci_tests"]',
         CI_TESTS: 'true',
         STORYBOOK: 'false',
+        IMAGE_INPUTS: '',
       });
       expect(pushed.code, pushed.stdout + pushed.stderr).toBe(0);
       expect(outputs(pushed.output)).toEqual({
         list: '["platform","web"]',
         scannable: '["platform"]',
         ci_tests: 'true',
+        stack: 'true',
         storybook: 'false',
       });
     },
@@ -656,7 +689,7 @@ printf '%s\\n' "$TEST_COMPARE_STATUS"
       expect(setupIndex).toBeGreaterThanOrEqual(0);
       const setup = job.steps[setupIndex]!;
       expect(setup.if).toBeUndefined();
-      expect(setup.with?.['start-turbo-cache']).toBe('false');
+      expect(setup.with?.['turbo-cache']).toBe('false');
       // Inherit the shared Bun pin and its frozen install. The conformance
       // helpers import workspace packages, which Bun alone cannot resolve.
       expect(setup.with?.['bun-version']).toBeUndefined();
@@ -720,14 +753,30 @@ printf '%s\\n' "$TEST_COMPARE_STATUS"
         expect(result.code, result.stdout + result.stderr).toBe(0);
         const image = (service: string) =>
           `ghcr.io/tale-project/tale/tale-${service}@${digest(service)}`;
-        expect(result.calls).toEqual([
-          ...BUILT.flatMap((service) => [
-            `docker pull ${image(service)}`,
+        expect(result.calls.toSorted()).toEqual(
+          [
+            ...BUILT.flatMap((service) => [
+              `docker pull ${image(service)}`,
+              `docker image inspect --format {{ index .Config.Labels "org.opencontainers.image.revision" }} ${image(service)}`,
+              `docker tag ${image(service)} ghcr.io/tale-project/tale/tale-${service}:latest`,
+            ]),
+            'docker tag ghcr.io/tale-project/tale/tale-sandbox-runtime:latest tale-sandbox-runtime:latest',
+          ].toSorted(),
+        );
+        for (const service of BUILT) {
+          const pulled = result.calls.indexOf(`docker pull ${image(service)}`);
+          const inspected = result.calls.indexOf(
             `docker image inspect --format {{ index .Config.Labels "org.opencontainers.image.revision" }} ${image(service)}`,
+          );
+          const tagged = result.calls.indexOf(
             `docker tag ${image(service)} ghcr.io/tale-project/tale/tale-${service}:latest`,
-          ]),
+          );
+          expect(pulled).toBeLessThan(inspected);
+          expect(inspected).toBeLessThan(tagged);
+        }
+        expect(result.calls.at(-1)).toBe(
           'docker tag ghcr.io/tale-project/tale/tale-sandbox-runtime:latest tale-sandbox-runtime:latest',
-        ]);
+        );
         // The loop pulls exactly what the build matrix builds.
         expect(BUILT.toSorted()).toEqual(
           (await workflow()).jobs.build!.strategy!.matrix!.service!.toSorted(),

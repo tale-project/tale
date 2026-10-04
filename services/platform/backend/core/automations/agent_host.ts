@@ -983,6 +983,7 @@ export async function stageWorkflowFiles(
   if (files === undefined) return { mounts: [], stagedPaths: [] };
   const toStage: SessionStageFile[] = [];
   const mounts: string[] = [];
+  const replaceRoots: string[] = [];
   for (const [rawName, rawSource] of Object.entries(files)) {
     const name = mountNameOf(rawName);
     const source = parseStagingSource(rawSource);
@@ -991,17 +992,14 @@ export async function stageWorkflowFiles(
         `the files entry ${JSON.stringify(rawName)} names no usable source — use a folder id string, {folderPath}, or {content}`,
       );
     }
-    // The run's session is shared across its nodes — clear the mount first so
-    // a file from an earlier staging of the same mount cannot linger into
-    // this node's view of its inputs. Best-effort: a fresh session has
-    // nothing to clear.
-    await sessionDeleteFiles(sessionId, [`${pathPrefix}${name}`]).catch((err) =>
-      console.debug(
-        `[agent-host] mount pre-clear skipped for ${pathPrefix}${name}:`,
-        err instanceof Error ? err.message : err,
-      ),
-    );
     if ('content' in source) {
+      const cleared = await sessionDeleteFiles(sessionId, [
+        `${pathPrefix}${name}`,
+      ]);
+      if (cleared.skipped.length > 0)
+        throw new Error(
+          `staging input files failed: ${cleared.skipped.map((file) => file.path).join(', ')}`,
+        );
       toStage.push({
         path: `${pathPrefix}${name}`,
         contentBase64: Buffer.from(source.content, 'utf8').toString('base64'),
@@ -1009,6 +1007,7 @@ export async function stageWorkflowFiles(
       mounts.push(name);
       continue;
     }
+    replaceRoots.push(`${pathPrefix}${name}`);
     const listing = await ctx.runQuery(
       internal.documents.internal_queries.listFilesByFolderInternal,
       {
@@ -1041,12 +1040,19 @@ export async function stageWorkflowFiles(
       // via the token-gated stream route instead of a `_storage` URL.
       const url = await stageUrlForBlobRef(String(file.fileId), organizationId);
       if (url === null) continue; // blob purged under a live row — skip, don't fail
-      toStage.push({ path: `${pathPrefix}${name}/${file.name}`, url });
+      toStage.push({
+        path: `${pathPrefix}${name}/${file.name}`,
+        url,
+        sourceId: `${organizationId}:${String(file.fileId)}`,
+      });
     }
     mounts.push(name);
   }
-  if (toStage.length > 0) {
-    const staged = await sessionStageFiles(sessionId, toStage);
+  if (toStage.length > 0 || replaceRoots.length > 0) {
+    const staged = await sessionStageFiles(sessionId, toStage, {
+      replaceRoots,
+      reuse: true,
+    });
     if (staged.skipped.length > 0) {
       throw new Error(
         `staging input files failed: ${staged.skipped

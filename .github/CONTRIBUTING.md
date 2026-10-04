@@ -61,6 +61,9 @@ when required by the repository or CI:
 bun run verify
 ```
 
+For workflow changes, follow the [CI scheduling and cache guide](CI.md). Keep stable
+required checks and release-candidate receipts complete when splitting jobs.
+
 For performance or memory work, run `bun run test:performance` and read the
 [measurement and coverage guide](../scripts/performance/README.md). It reports
 representative hot paths and explicit gaps; it does not replace integration or

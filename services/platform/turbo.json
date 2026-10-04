@@ -2,6 +2,16 @@
   "$schema": "https://turbo.build/schema.v2.json",
   "extends": ["//"],
   "tasks": {
+    "lint": {
+      "inputs": [
+        "$TURBO_EXTENDS$",
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/services/sandbox-runtime/build-gemini-settings.ts",
+        "$TURBO_ROOT$/services/sandbox-runtime/daemon/src/exec-journal.ts",
+        "$TURBO_ROOT$/services/sandbox-runtime/daemon/src/file-ops.ts",
+        "$TURBO_ROOT$/services/sandbox-runtime/daemon/src/protocol.ts"
+      ]
+    },
     "test": {
       "inputs": [
         "$TURBO_EXTENDS$",
@@ -11,10 +21,12 @@
         "$TURBO_ROOT$/compose.yml",
         "$TURBO_ROOT$/compose.dev.yml",
         "$TURBO_ROOT$/configs/platform/**",
+        "!$TURBO_ROOT$/configs/platform/**/.turbo/**",
         "$TURBO_ROOT$/docs/*/platform/admin/connectors.md",
         "$TURBO_ROOT$/docs/*/platform/connectors/overview.md",
         "$TURBO_ROOT$/docs/*/platform/projects/tasks.md",
         "$TURBO_ROOT$/knip.config.ts",
+        "$TURBO_ROOT$/packages/shared/src/automation-name.ts",
         "$TURBO_ROOT$/packages/ui/package.json",
         "$TURBO_ROOT$/packages/ui/src/**",
         "$TURBO_ROOT$/packages/ui/tailwind-preset.ts",
@@ -25,6 +37,7 @@
         "$TURBO_ROOT$/services/sandbox-llm-gateway/docker-entrypoint.sh",
         "$TURBO_ROOT$/services/sandbox-runtime/Dockerfile",
         "$TURBO_ROOT$/services/sandbox-runtime/build-gemini-settings.ts",
+        "$TURBO_ROOT$/services/sandbox-runtime/daemon/src/exec-journal.ts",
         "$TURBO_ROOT$/services/sandbox-runtime/daemon/src/file-ops.ts",
         "$TURBO_ROOT$/services/sandbox-runtime/daemon/src/protocol.ts",
         "$TURBO_ROOT$/services/sandbox-runtime/playwright-mcp-args.json",
@@ -47,6 +60,24 @@
         "$TURBO_ROOT$/packages/ui/package.json",
         "$TURBO_ROOT$/packages/ui/src/**",
         "$TURBO_ROOT$/packages/ui/tailwind-preset.ts"
+      ]
+    },
+    "typecheck": {
+      "inputs": [
+        "$TURBO_EXTENDS$",
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/services/sandbox-runtime/build-gemini-settings.ts",
+        "$TURBO_ROOT$/services/sandbox-runtime/daemon/src/exec-journal.ts",
+        "$TURBO_ROOT$/services/sandbox-runtime/daemon/src/file-ops.ts",
+        "$TURBO_ROOT$/services/sandbox-runtime/daemon/src/protocol.ts"
+      ]
+    },
+    "build": {
+      "inputs": [
+        "$TURBO_EXTENDS$",
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/configs/platform/**",
+        "!$TURBO_ROOT$/configs/platform/**/.turbo/**"
       ]
     }
   }

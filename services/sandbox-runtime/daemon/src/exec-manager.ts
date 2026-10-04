@@ -33,7 +33,6 @@ import {
 } from './process-reaper.ts';
 import {
   ID_ALPHABET_RE,
-  RUNNERD_RING_BUFFER_BYTES,
   RUNNERD_MAX_REQUEST_BODY_BYTES,
   RUNNERD_STDIN_MAX_BYTES,
   WORKSPACE_ROOT,
@@ -49,7 +48,7 @@ const SIGKILL_GRACE_MS = 5_000;
  * where a backgrounded grandchild inherited the stdout/stderr pipe and 'close'
  * would otherwise never fire until the whole timeoutMs SIGKILLs the group. */
 const EXIT_DRAIN_GRACE_MS = 2_000;
-/** How many exited execs keep their ring for replay-after-disconnect. */
+/** How many exited execs keep their journal for replay-after-disconnect. */
 const RECENT_EXEC_LIMIT = 16;
 /** Past this many waiting leftovers, the ones whose processes are all gone
  * are dropped — a session that always has a live exec never empties them. */
@@ -134,13 +133,10 @@ interface LiveExec {
   /** What the exit (or a hand-over) left waiting, while it still waits; a
    * cancel or the deadline ends it at once. */
   deferred: Leftover | null;
-  /** Last RING_BUFFER_BYTES of emitted NDJSON lines, for diagnostics only. */
-  ring: string[];
-  ringBytes: number;
   exitCode: number | null;
   /** Set by cancel() so the terminal exit event reports cancelled:true. */
   cancelRequested: boolean;
-  /** Monotonic per-exec event counter (assigned in ringEmit). Lets a
+  /** Monotonic per-exec event counter (assigned in publishEvent). Lets a
    * reconnecting consumer request `/attach?sinceSeq=` and skip replayed lines. */
   seq: number;
   /** SLIDING deadline: the kill timer is re-armed on every attach() — the ONLY
@@ -163,7 +159,6 @@ interface LiveExec {
  * is gone — distinct from an evicted/never-existed exec (404 → 'gone'). */
 interface RetainedExec {
   journal: ExecJournal;
-  ring: string[];
   exitCode: number | null;
 }
 
@@ -266,7 +261,6 @@ export class ExecManager {
 
   private retainRecent(
     execId: string,
-    ring: string[],
     journal: ExecJournal,
     exitCode: number | null,
   ): void {
@@ -276,7 +270,7 @@ export class ExecManager {
       return;
     }
     void this.recent.get(execId)?.journal.dispose();
-    this.recent.set(execId, { ring, journal, exitCode });
+    this.recent.set(execId, { journal, exitCode });
     while (this.recent.size > RECENT_EXEC_LIMIT) {
       const oldest = this.recent.keys().next().value;
       if (oldest === undefined) break;
@@ -306,8 +300,8 @@ export class ExecManager {
 
   /**
    * Run one exec, invoking `emit` for each NDJSON event. Resolves when the
-   * child has exited (or failed pre-spawn). The caller writes each emitted
-   * event to the HTTP response stream AND the ring buffer.
+   * child has exited (or failed pre-spawn). The manager journals the protocol;
+   * the caller writes each emitted event to the HTTP response stream.
    */
   async run(
     req: RunnerdExecRequest,
@@ -411,7 +405,7 @@ export class ExecManager {
       },
       (code) => {
         journalFailed = true;
-        ringEmit({
+        publishEvent({
           t: 'fail',
           code,
           message:
@@ -438,8 +432,6 @@ export class ExecManager {
       groupPending: shim !== null,
       awaitingGroup: [],
       exitCode: null,
-      ring: [],
-      ringBytes: 0,
       cancelRequested: false,
       seq: 0,
       timeoutMs: req.timeoutMs,
@@ -467,14 +459,26 @@ export class ExecManager {
     if (consumerSignal?.aborted) detach();
     else consumerSignal?.addEventListener('abort', detach, { once: true });
 
-    const ringEmit = (event: RunnerdExecEvent, persist = true) => {
+    const publishEvent = (event: RunnerdExecEvent, persist = true) => {
+      // Keep one protocol record bounded, including direct shim output. A
+      // multiple of four preserves independently decodable base64 frames.
+      if (
+        (event.t === 'stdout' || event.t === 'stderr') &&
+        event.b64.length > 65536
+      ) {
+        for (let offset = 0; offset < event.b64.length; offset += 65536)
+          publishEvent(
+            { ...event, b64: event.b64.slice(offset, offset + 65536) },
+            persist,
+          );
+        return;
+      }
       // Stamp a monotonic seq so a reconnecting /attach?sinceSeq= can replay
       // only events it hasn't seen — idempotent reconnect.
       record.seq += 1;
       const stamped: RunnerdExecEvent = { ...event, seq: record.seq };
-      const line = `${JSON.stringify(stamped)}\n`;
       if (!journalFailed && persist) {
-        const writable = journal.append(line);
+        const writable = journal.append(`${JSON.stringify(stamped)}\n`);
         if (journalFailed) return;
         if (!writable) {
           child.stdout.pause();
@@ -482,19 +486,9 @@ export class ExecManager {
         }
       }
       emit(stamped);
-      record.ring.push(line);
-      record.ringBytes += Buffer.byteLength(line, 'utf8');
-      while (
-        record.ringBytes > RUNNERD_RING_BUFFER_BYTES &&
-        record.ring.length > 1
-      ) {
-        const dropped = record.ring.shift();
-        if (dropped === undefined) break;
-        record.ringBytes -= Buffer.byteLength(dropped, 'utf8');
-      }
     };
 
-    ringEmit({ t: 'start', execId, startedAtMs });
+    publishEvent({ t: 'start', execId, startedAtMs });
 
     if (req.stdinMode === 'hold') {
       // Held-open stdin: the initial payload is written but NOT ended; later
@@ -543,9 +537,9 @@ export class ExecManager {
       // Drop data that arrives after the terminal event (only reachable when a
       // grace-forced finish raced a leaked-fd writer — see the 'exit'/'close'
       // handling below). Keeps the start..stdout..exit order the platform
-      // adapters depend on and never mutates the already-retained ring.
+      // adapters depend on and never mutates already-journaled output.
       if (settled) return;
-      // stdoutMaxBytes <= 0 disables truncation. The ring and consumer queues
+      // stdoutMaxBytes <= 0 disables truncation. The journal and consumer queues
       // bound memory; the journal's storage budget fails explicitly instead
       // of silently cutting off a long-lived command's output.
       if (stdoutMaxBytes > 0) {
@@ -565,7 +559,7 @@ export class ExecManager {
           // mark truncated so the rest is dropped at the next 'data'.
           stdoutBytes += remaining;
           stdoutTrunc = true;
-          ringEmit({
+          publishEvent({
             t: 'stdout',
             b64: chunk.subarray(0, remaining).toString('base64'),
           });
@@ -573,7 +567,7 @@ export class ExecManager {
         }
       }
       stdoutBytes += chunk.byteLength;
-      ringEmit({ t: 'stdout', b64: chunk.toString('base64') });
+      publishEvent({ t: 'stdout', b64: chunk.toString('base64') });
     });
     child.stderr.on('data', (chunk: Buffer) => {
       if (settled) return;
@@ -592,7 +586,7 @@ export class ExecManager {
         if (chunk.byteLength > remaining) {
           stderrBytes += remaining;
           stderrTrunc = true;
-          ringEmit({
+          publishEvent({
             t: 'stderr',
             b64: chunk.subarray(0, remaining).toString('base64'),
           });
@@ -600,7 +594,7 @@ export class ExecManager {
         }
       }
       stderrBytes += chunk.byteLength;
-      ringEmit({ t: 'stderr', b64: chunk.toString('base64') });
+      publishEvent({ t: 'stderr', b64: chunk.toString('base64') });
     });
     // The output pipes can emit 'error' (e.g. a rare pipe EIO). Without a
     // listener Node throws it as an unhandled stream error and crashes the whole
@@ -667,16 +661,12 @@ export class ExecManager {
         );
         await journal.drain();
         record.exitCode = journalFailed ? -1 : code;
-        ringEmit(
+        publishEvent(
           journalFailed ? { ...terminal, exitCode: -1 } : terminal,
           false,
         );
         this.dropLive(execId);
-        this.retainRecent(execId, record.ring, journal, record.exitCode);
-        // Deferred descendants may keep these pipe callbacks alive after the
-        // recent diagnostic history is evicted. Transfer its sole ownership.
-        record.ring = [];
-        record.ringBytes = 0;
+        this.retainRecent(execId, journal, record.exitCode);
         detach();
         resolve();
       };
@@ -690,15 +680,13 @@ export class ExecManager {
         child.stdin.destroy();
         if (record.timer) clearTimeout(record.timer);
         if (drainTimer) clearTimeout(drainTimer);
-        ringEmit({
+        publishEvent({
           t: 'fail',
           code: 'BAD_REQUEST',
           message: `spawn failed: ${message}`,
         });
         this.dropLive(execId);
-        this.retainRecent(execId, record.ring, journal, null);
-        record.ring = [];
-        record.ringBytes = 0;
+        this.retainRecent(execId, journal, null);
         detach();
         resolve();
       };

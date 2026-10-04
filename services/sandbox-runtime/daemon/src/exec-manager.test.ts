@@ -1344,7 +1344,7 @@ describe('ExecManager', () => {
     }
   });
 
-  test('the complete protocol survives diagnostic ring rollover and keeps its cursor', async () => {
+  test('the complete protocol replays large output and keeps its cursor', async () => {
     using mgr = new ExecManager(new EnvStore(), () => {});
     const original = collect();
     await mgr.run(

@@ -35,7 +35,7 @@ import {
   type DeviceStatus,
   type DeviceUpdateReport,
 } from './messages.ts';
-import { PlacementStore } from './placements.ts';
+import { PlacementStore, type Placement } from './placements.ts';
 import {
   forwardableHeaders,
   isRelayName,
@@ -97,6 +97,12 @@ export interface HubOptions {
 /** A relay fetch's options: Bun's `decompress: false` keeps the upstream's
  * bytes (and its `content-encoding`) exactly as they came. */
 export type RelayFetchInit = RequestInit & { decompress?: boolean };
+
+interface ForwardAttempt {
+  response: Response;
+  /** Set only by this hub before a request can reach the device. */
+  notSent: boolean;
+}
 
 interface ConnectedDevice {
   deviceId: string;
@@ -398,7 +404,7 @@ export class DeviceHub {
       req.method === 'DELETE' &&
       url.pathname === `/v1/sessions/${sessionId}`
     ) {
-      return this.afterDestroy(sessionId, res, createsBefore);
+      return this.afterDestroy(sessionId, res, createsBefore, placement);
     }
     return res;
   }
@@ -557,15 +563,14 @@ export class DeviceHub {
   ): Promise<Response | null> {
     if (create.placement !== 'device') return null;
     if (await this.opts.isLocalSession(create.sessionId)) return null;
-    const now = this.now();
+    const eligible = (device: ConnectedDevice) =>
+      this.devices.get(device.deviceId) === device &&
+      device.organizationId === create.organizationId &&
+      this.compatible(device) &&
+      this.now() >= device.createFailedUntilMs &&
+      this.freeSlots(device) > 0;
     const candidates = [...this.devices.values()]
-      .filter(
-        (d) =>
-          d.organizationId === create.organizationId &&
-          this.compatible(d) &&
-          now >= d.createFailedUntilMs &&
-          this.freeSlots(d) > 0,
-      )
+      .filter(eligible)
       .sort(
         (a, b) =>
           Number(b.deviceId === preferred) - Number(a.deviceId === preferred) ||
@@ -573,26 +578,33 @@ export class DeviceHub {
       );
     for (const device of candidates) {
       // An earlier candidate's refusal may have taken seconds; another
-      // create can have reserved this device while we waited for it.
-      if (this.freeSlots(device) <= 0) continue;
-      // Recorded before the placement is written: a destroy (the hub's own
-      // ask included) answered while the write is under way must find the
-      // id created anew and leave this session's placement alone.
+      // create can have reserved this device, or it may have been replaced
+      // or removed. A stale candidate cannot authorize a new placement.
+      if (!eligible(device)) continue;
+      // Fence destroys already dispatched; finalization also compares the
+      // published placement for an ask dispatched during this durable write.
       this.noteCreate(create.sessionId);
       // Reserve before the durable write yields, so a burst cannot all
       // select the same device using its last free slot.
       device.inflightCreates++;
-      let res: Response;
+      let attempt: ForwardAttempt;
       try {
         await this.placements.set(create.sessionId, {
           deviceId: device.deviceId,
           organizationId: create.organizationId,
           placedAtMs: this.now(),
         });
-        res = await this.forward(device.deviceId, req, url, body);
+        attempt = await this.forwardAttempt(
+          device.deviceId,
+          req,
+          url,
+          body,
+          device,
+        );
       } finally {
         device.inflightCreates--;
       }
+      const res = attempt.response;
       // The platform gave up on this create (its timeout, a restarting
       // worker): nobody reads the answer, and the device may still finish
       // it. Keep the placement, so a retried create for the id lands on that
@@ -601,11 +613,10 @@ export class DeviceHub {
         await discard(res);
         return jsonResponse({ error: 'cancelled' }, 499);
       }
-      // Admission's 429 confirms nothing started. A 5xx or lost tunnel does
-      // not: Docker may have created the session before the answer was lost,
-      // or cleanup may itself have failed. Keep that durable route so a retry
-      // reconciles with the same workspace instead of creating another copy.
-      if (res.status === 429) {
+      // Admission's 429 or the hub's own pre-send refusal confirms nothing
+      // started. Remote 5xx and lost answers do not; a retry must reconcile
+      // with that workspace instead of creating another copy.
+      if (attempt.notSent || res.status === 429) {
         await this.placements.delete(create.sessionId);
         device.createFailedUntilMs = this.now() + CREATE_FAILURE_COOLDOWN_MS;
         await discard(res);
@@ -652,6 +663,7 @@ export class DeviceHub {
     sessionId: string,
     res: Response,
     createsBefore: symbol | undefined,
+    placementBefore: Placement,
   ): Promise<Response> {
     if (!res.ok) return res;
     const text = await res.text();
@@ -677,7 +689,12 @@ export class DeviceHub {
     // about the bytes — keeps it, marked deleting, so the destroy that asks
     // again reaches the device holding them.
     await this.withPlacement(sessionId, async () => {
-      const recreated = this.creates.get(sessionId) !== createsBefore;
+      // A create can already have its generation when a destroy captures
+      // the still-visible deleting route during its durable write. Compare
+      // the immutable published placement too, after that create settles.
+      const recreated =
+        this.creates.get(sessionId) !== createsBefore ||
+        this.placements.get(sessionId) !== placementBefore;
       if (!busy && !recreated) {
         if (deleted) {
           await this.placements.delete(sessionId);
@@ -696,8 +713,24 @@ export class DeviceHub {
     url: URL,
     body: string,
   ): Promise<Response> {
+    return (await this.forwardAttempt(deviceId, req, url, body)).response;
+  }
+
+  private async forwardAttempt(
+    deviceId: string,
+    req: Request,
+    url: URL,
+    body: string,
+    expectedDevice?: ConnectedDevice,
+  ): Promise<ForwardAttempt> {
     const device = this.devices.get(deviceId);
-    if (device === undefined || device.hello === null) return offline(deviceId);
+    if (
+      device === undefined ||
+      device.hello === null ||
+      (expectedDevice !== undefined &&
+        (device !== expectedDevice || !this.compatible(device)))
+    )
+      return { response: offline(deviceId), notSent: true };
     const headers: Array<[string, string]> = [];
     for (const name of ['content-type', 'accept', 'last-event-id']) {
       const value = req.headers.get(name);
@@ -711,19 +744,25 @@ export class DeviceHub {
       );
       const out = toHeaders(forwardableHeaders(res.headers));
       out.set(DEVICE_HEADER, deviceId);
-      return new Response(res.body, { status: res.status, headers: out });
+      return {
+        response: new Response(res.body, { status: res.status, headers: out }),
+        notSent: false,
+      };
     } catch (err) {
       if (err instanceof TunnelBusyError) {
-        return jsonResponse({ error: 'device_busy', deviceId }, 503, {
-          'retry-after': '5',
-          [DEVICE_HEADER]: deviceId,
-        });
+        return {
+          response: jsonResponse({ error: 'device_busy', deviceId }, 503, {
+            'retry-after': '5',
+            [DEVICE_HEADER]: deviceId,
+          }),
+          notSent: true,
+        };
       }
       console.warn(
         `[sandbox.devices] forwarding ${req.method} ${url.pathname} to device ${deviceId} failed:`,
         err instanceof Error ? err.message : err,
       );
-      return offline(deviceId);
+      return { response: offline(deviceId), notSent: false };
     }
   }
 

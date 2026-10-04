@@ -21,7 +21,8 @@
 FROM oven/bun:1 AS daemon-build
 WORKDIR /build
 COPY services/sandbox-runtime/daemon/ ./
-RUN bun build --target=node src/main.ts --outfile /runnerd.mjs
+RUN bun build --target=node src/main.ts --outfile /runnerd.mjs \
+    && bun build --target=node src/lazy-docker-entry.ts --outfile /lazy-docker.mjs
 
 # Gemini's system settings must be immutable and root-owned. Derive them
 # from the platform's existing harness interpreter, without a package install.
@@ -493,6 +494,7 @@ RUN echo 'agent:100000:65536' >> /etc/subuid \
 # daemon-build stage and run by the image's Node 24 (session mode only) — and
 # the subreaper shim it runs every exec under.
 COPY --from=daemon-build /runnerd.mjs /usr/local/lib/tale/runnerd.mjs
+COPY --from=daemon-build /lazy-docker.mjs /usr/local/lib/tale/lazy-docker.mjs
 COPY --from=exec-shim-build /tale-exec-shim /usr/local/bin/tale-exec-shim
 
 # Claude Code managed settings (highest precedence on Linux): disable

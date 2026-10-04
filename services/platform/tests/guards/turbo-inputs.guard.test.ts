@@ -1,7 +1,14 @@
 // @vitest-environment node
 
 import { spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -28,20 +35,26 @@ import { ENSURE_SANDBOX_RUNTIME_SCRIPT } from '../../scripts/dev-sandbox-runtime
  *
  * A suite that starts reading another file outside the workspace adds it to
  * `turbo.json` and to `OUTSIDE_READS`. The sources of the workspace packages
- * the platform depends on (`@tale/shared`, `@tale/e2e`) are not outside
- * reads in this sense when a suite only imports them: turbo would need a `^`
- * dependency to hash those, which `.agents/repo.md` records as a gap of its
- * own. A suite that reads a package's files as text is an outside read like
+ * the platform depends on (`@tale/shared`, `@tale/e2e`) are also hashed through
+ * the root task's `^transit` dependencies without serializing their checks.
+ * A suite that reads a package's files as text is an outside read like
  * any other: the accent palette's test reads `@tale/ui`'s stylesheet, and
  * the error-message guard all of `packages/ui/src`.
  *
- * `@tale/ui` is the exception to that gap. The component suites (`test:ui`
+ * The component suites (`test:ui`
  * in jsdom, `test:browser` in Chromium) render its components, stylesheet
  * and catalogs, and the automation editor's browser suite imports its test
  * helpers (`@tale/ui/testing/flow`), so a design-system change alone must
  * re-run them: both hash `packages/ui/src` whole, as `test` does. All three
  * tasks also hash the package's manifest and every file it exports from
  * outside `src/` (`UI_PACKAGE_FILES`).
+ *
+ * `lint` and `typecheck` read outside the workspace too: `tsc` and oxlint's
+ * type-aware rules build one program from its sources and every module they
+ * import. Suites import the sandbox runtime's `build-gemini-settings.ts` and
+ * daemon `file-ops.ts` and `exec-journal.ts`; the daemon modules both import
+ * `protocol.ts`. An edit to any of these files alone can turn both verdicts:
+ * both tasks list them (`STATIC_IMPORTS`) after the same two-entry prefix.
  */
 
 const PLATFORM_ROOT = path.resolve(
@@ -97,6 +110,10 @@ const OUTSIDE_READS = [
     readers: 'tests/guards/frontend-entry-discovery.guard.test.ts',
   },
   {
+    path: 'packages/shared/src/automation-name.ts',
+    readers: 'lib/engine/selftest/purity.test.ts scans the extracted grammar',
+  },
+  {
     // Not read as text: the suite runs the postgres.js these patches change
     // (the root `patchedDependencies`), so a patch edit alone must re-run it.
     path: 'patches',
@@ -145,6 +162,11 @@ const OUTSIDE_READS = [
     readers: 'scripts/dev-sandbox-runtime.test.ts',
   },
   {
+    path: 'services/sandbox-runtime/daemon/src/exec-journal.ts',
+    readers:
+      'backend/core/chat/external_turn_shared.test.ts proves the real journal and harness control ledger together',
+  },
+  {
     path: 'services/sandbox-runtime/daemon/src/file-ops.ts',
     readers:
       'tests/guards/integration-scope.guard.test.ts follows the native review file transfer proof',
@@ -152,7 +174,31 @@ const OUTSIDE_READS = [
   {
     path: 'services/sandbox-runtime/daemon/src/protocol.ts',
     readers:
-      'tests/guards/integration-scope.guard.test.ts follows the native review file transfer proof',
+      'tests/guards/integration-scope.guard.test.ts follows the native review file transfer proof; backend/core/chat/external_turn_shared.test.ts imports the journal protocol',
+  },
+];
+
+/** Every sandbox-runtime module the platform's sources import, and who imports it. */
+const STATIC_IMPORTS = [
+  {
+    path: 'services/sandbox-runtime/build-gemini-settings.ts',
+    importers:
+      'lib/harnesses/gemini-settings-build.test.ts imports its geminiPolicies and settings placeholders',
+  },
+  {
+    path: 'services/sandbox-runtime/daemon/src/exec-journal.ts',
+    importers:
+      'backend/core/chat/external_turn_shared.test.ts imports its ExecJournal and JournalBudget',
+  },
+  {
+    path: 'services/sandbox-runtime/daemon/src/file-ops.ts',
+    importers:
+      'backend/domains/files/sandbox-blob-routes.test.ts and backend/domains/tasks/agent-review-files.integration.ts import its stageFiles',
+  },
+  {
+    path: 'services/sandbox-runtime/daemon/src/protocol.ts',
+    importers:
+      'file-ops.ts imports its WORKSPACE_ROOT; exec-journal.ts imports its exec-event validator and wire types',
   },
 ];
 
@@ -204,6 +250,7 @@ const dryRunSchema = z.object({
   tasks: z.array(
     z.object({
       taskId: z.string(),
+      hash: z.string(),
       directory: z.string(),
       inputs: z.record(z.string(), z.string()),
     }),
@@ -218,11 +265,12 @@ const turboJsonSchema = z.object({
   ),
 });
 
-function run(command: string, args: string[]): string {
+function run(command: string, args: string[], cwd = REPO_ROOT): string {
   const result = spawnSync(command, args, {
-    cwd: REPO_ROOT,
+    cwd,
     encoding: 'utf8',
     maxBuffer: 64 * 1024 * 1024,
+    timeout: 30_000,
   });
   if (result.error) throw result.error;
   if (result.status !== 0) {
@@ -319,6 +367,106 @@ describe('@tale/platform#test turbo inputs', () => {
     expect(root && toRepoPath(root)).toBe('configs/platform/system');
   });
 
+  it('ignores generated catalog task logs while hashing real catalog and skill edits', () => {
+    // A fresh tiny Git workspace avoids editing source or logs in this checkout.
+    // Use the production input list and real Turbo engine, not a glob imitation.
+    const fixture = mkdtempSync(path.join(tmpdir(), 'tale-config-inputs-'));
+    const write = (file: string, contents: string) => {
+      const absolute = path.join(fixture, file);
+      mkdirSync(path.dirname(absolute), { recursive: true });
+      writeFileSync(absolute, contents);
+    };
+    const config = 'configs/platform/system/providers/example/provider.yml';
+    const skill = 'configs/platform/custom/skills/example/src/analyze.ts';
+    const log = 'configs/platform/custom/skills/example/.turbo/turbo-test.log';
+    const secondLog =
+      'configs/platform/custom/skills/example/.turbo/turbo-typecheck.log';
+    const dry = () => {
+      const output = run('bunx', [
+        '--no-install',
+        'turbo',
+        '--cwd',
+        fixture,
+        'run',
+        'test',
+        '--filter=@tale/platform',
+        '--dry=json',
+        '--cache=local:,remote:',
+        '--no-daemon',
+      ]);
+      const { tasks } = dryRunSchema.parse(JSON.parse(output));
+      const task = tasks.find(
+        (entry) => entry.taskId === '@tale/platform#test',
+      );
+      if (!task) throw new Error('Fixture has no platform test task');
+      return task;
+    };
+    try {
+      const { packageManager } = z
+        .object({ packageManager: z.string() })
+        .parse(
+          JSON.parse(
+            readFileSync(path.join(REPO_ROOT, 'package.json'), 'utf8'),
+          ),
+        );
+      write(
+        'package.json',
+        JSON.stringify({
+          name: 'config-input-fixture',
+          private: true,
+          packageManager,
+          workspaces: ['services/*'],
+        }),
+      );
+      write('turbo.json', JSON.stringify({ tasks: { test: {} } }));
+      write('.gitignore', '.turbo\n');
+      write(
+        'services/platform/package.json',
+        JSON.stringify({
+          name: '@tale/platform',
+          scripts: { test: 'echo never executed' },
+        }),
+      );
+      write(
+        'services/platform/turbo.json',
+        readFileSync(path.join(PLATFORM_ROOT, 'turbo.json'), 'utf8'),
+      );
+      write(config, 'name: original\n');
+      write(skill, 'export const version = 1;\n');
+      run('git', ['init', '--quiet'], fixture);
+      run('git', ['add', '.'], fixture);
+      const baseline = dry();
+      for (const file of [config, skill]) {
+        expect(baseline.inputs[`../../${file}`], file).toBeDefined();
+      }
+      write(log, 'test pass\n');
+      write(secondLog, 'typecheck pass\n');
+      expect(run('git', ['check-ignore', '--', log, secondLog], fixture)).toBe(
+        `${log}\n${secondLog}\n`,
+      );
+      expect(dry()).toEqual(baseline);
+      write(log, 'different test output\n');
+      write(secondLog, 'different typecheck output\n');
+      expect(dry()).toEqual(baseline);
+      write(config, 'name: changed\n');
+      const changedConfig = dry();
+      expect(changedConfig.hash).not.toBe(baseline.hash);
+      expect(changedConfig.inputs[`../../${config}`]).not.toBe(
+        baseline.inputs[`../../${config}`],
+      );
+      write(config, 'name: original\n');
+      expect(dry()).toEqual(baseline);
+      write(skill, 'export const version = 2;\n');
+      const changedSkill = dry();
+      expect(changedSkill.hash).not.toBe(baseline.hash);
+      expect(changedSkill.inputs[`../../${skill}`]).not.toBe(
+        baseline.inputs[`../../${skill}`],
+      );
+    } finally {
+      rmSync(fixture, { recursive: true, force: true });
+    }
+  }, 30_000);
+
   for (const { path: repoPath, readers } of OUTSIDE_READS) {
     it(`hashes ${repoPath} (${readers})`, () => {
       const files = trackedFiles(repoPath);
@@ -364,4 +512,35 @@ describe.each(COMPONENT_TASKS)('@tale/platform#%s turbo inputs', (name) => {
   });
 
   itHashesUiPackageFiles(name, () => hashed);
+});
+
+/** The static checks, which type the platform's sources with their imports. */
+const STATIC_TASKS = ['lint', 'typecheck'];
+
+describe.each(STATIC_TASKS)('@tale/platform#%s turbo inputs', (name) => {
+  let hashed: Set<string>;
+
+  beforeAll(() => {
+    hashed = hashedBy(name);
+  }, 60_000);
+
+  it('still hashes its own workspace', () => {
+    const self = toRepoPath(fileURLToPath(import.meta.url));
+    expect(
+      hashed.has(self),
+      `@tale/platform#${name} does not hash ${self}`,
+    ).toBe(true);
+  });
+
+  for (const { path: repoPath, importers } of STATIC_IMPORTS) {
+    it(`hashes ${repoPath} (${importers})`, () => {
+      const files = trackedFiles(repoPath);
+      expect(files.length, `${repoPath} tracks no file`).toBeGreaterThan(0);
+      const missing = files.filter((file) => !hashed.has(file));
+      expect(
+        missing.slice(0, 10),
+        `@tale/platform#${name} types ${missing.length} imported file(s) at ${repoPath} that turbo does not hash — list \`$TURBO_ROOT$/${repoPath}\` in services/platform/turbo.json tasks.${name}.inputs`,
+      ).toEqual([]);
+    });
+  }
 });

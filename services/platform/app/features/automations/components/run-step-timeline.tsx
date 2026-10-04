@@ -102,6 +102,7 @@ function TimelineRow({
         <AgentActivityLine
           organizationId={organizationId}
           runId={runId}
+          nodeId={nodeId}
           waitingForRoom={waitingForRoom}
           className="mt-1 pl-6"
         />
@@ -122,6 +123,7 @@ function TimelineRow({
             <AgentExecutionLog
               organizationId={organizationId}
               runId={runId}
+              nodeId={nodeId}
               waitingForRoom={waitingForRoom}
             />
           )}

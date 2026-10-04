@@ -18,6 +18,23 @@ function lastBody(): Record<string, unknown> {
 }
 
 describe('skills/actions:saveSkill', () => {
+  it('sends a create-only precondition when requested', async () => {
+    const run = libraryWriteAdapters['skills/actions:saveSkill']?.run;
+    if (run === undefined) throw new Error('adapter missing');
+    await run(
+      {
+        organizationId: 'org-1',
+        slug: 'alpha',
+        description: 'd',
+        body: '',
+        createOnly: true,
+      },
+      { organizationId: 'org-1' } as never,
+    );
+    const call = backendFetch.mock.calls.at(-1);
+    expect(call?.[1]).toMatchObject({ headers: { 'if-none-match': '*' } });
+  });
+
   const run = libraryWriteAdapters['skills/actions:saveSkill']?.run;
   if (run === undefined) throw new Error('adapter missing');
   const ctx = { organizationId: 'org-1' } as never;
@@ -42,5 +59,6 @@ describe('skills/actions:saveSkill', () => {
       ctx,
     );
     expect(lastBody()).not.toHaveProperty('icon');
+    expect(backendFetch.mock.calls.at(-1)?.[1]).not.toHaveProperty('headers');
   });
 });

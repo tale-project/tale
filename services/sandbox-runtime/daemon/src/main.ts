@@ -36,8 +36,12 @@ import {
   type StageItem,
 } from './file-ops.ts';
 import { readJsonBody } from './http-body.ts';
-import { InnerDockerHealth } from './inner-docker-health.ts';
 import {
+  InnerDockerHealth,
+  LAZY_DOCKER_HEALTH_SOCKET,
+} from './inner-docker-health.ts';
+import {
+  parseRunnerdSequence,
   RUNNERD_CONSUMER_BUFFER_MAX_BYTES,
   RUNNERD_MAX_LIVE_EXECS,
   RUNNERD_PORT,
@@ -52,7 +56,10 @@ const MAX_EXEC_CONSUMERS = 8;
 const FILE_READ_MAX_BYTES = 20 * 1024 * 1024;
 
 const TOKEN = process.env.TALE_RUNNERD_TOKEN ?? '';
-const innerDocker = new InnerDockerHealth(process.env.TALE_DIND === '1');
+const innerDocker = new InnerDockerHealth(process.env.TALE_DIND === '1', {
+  socketPath: LAZY_DOCKER_HEALTH_SOCKET,
+  supervisor: true,
+});
 const bootedAtMs = Date.now();
 let lastActivityAtMs = bootedAtMs;
 const touch = () => {
@@ -147,7 +154,7 @@ function parseEnvPatch(
 
 /** One HTTP consumer of an exec. A slow reader must lose its connection,
  * buffered writes and subscription together; the detached exec and its replay
- * ring remain available to this reader's next attach. */
+ * journal remain available to this reader's next attach. */
 function execConsumer(
   req: IncomingMessage,
   res: ServerResponse,
@@ -511,7 +518,11 @@ async function handleOperation(
   }
   const attachMatch = path.match(EXEC_ATTACH_RE);
   if (req.method === 'GET' && attachMatch) {
-    const sinceSeq = Number(url.searchParams.get('sinceSeq') ?? '0');
+    const sinceSeq = parseRunnerdSequence(url.searchParams.get('sinceSeq'));
+    if (sinceSeq === null) {
+      sendJson(res, 400, { error: 'invalid_since_seq' });
+      return;
+    }
     await withExecConsumer(req, res, () =>
       handleAttach(req, res, attachMatch[1] ?? '', sinceSeq),
     );
@@ -721,7 +732,9 @@ if (
   // (daemon-exit.ts).
   for (const sig of ['SIGTERM', 'SIGINT'] as const) {
     process.on(sig, () => {
-      setTimeout(() => exitDaemon(0), 2_000);
+      // Journal/file I/O can block libuv too; the hard deadline cannot rely
+      // on the process-table read counter to decide whether exit is safe.
+      setTimeout(() => exitDaemon(0, { force: true }), 2_000);
       void execManager
         .terminateAll()
         .catch((error: unknown) => {

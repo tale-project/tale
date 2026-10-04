@@ -35,7 +35,7 @@
       "persistent": true
     },
     "lint": {
-      "dependsOn": ["setup"],
+      "dependsOn": ["setup", "^transit"],
       "outputs": []
     },
     "lint:fix": {
@@ -53,17 +53,19 @@
       "outputs": []
     },
     "@tale/cli#generate": {
-      "outputs": ["src/generated/**"]
+      "outputs": ["src/generated/**"],
+      "cache": false
     },
     "@tale/cli#typecheck": {
-      "dependsOn": ["generate"],
+      "dependsOn": ["generate", "^transit"],
       "outputs": []
     },
     "typecheck": {
-      "outputs": []
+      "outputs": [],
+      "dependsOn": ["^transit"]
     },
     "test": {
-      "dependsOn": ["setup"],
+      "dependsOn": ["setup", "^transit"],
       "outputs": [],
       "env": [
         "YOUTUBE_LIVE_TEST",
@@ -77,10 +79,12 @@
       "persistent": true
     },
     "test:ui": {
-      "outputs": []
+      "outputs": [],
+      "dependsOn": ["^transit"]
     },
     "test:browser": {
-      "outputs": []
+      "outputs": [],
+      "dependsOn": ["^transit"]
     },
     "test:e2e": {
       "cache": false,
@@ -91,7 +95,7 @@
       "outputs": []
     },
     "test:coverage": {
-      "dependsOn": ["setup"],
+      "dependsOn": ["setup", "^transit"],
       "outputs": ["coverage/**"]
     },
     "knip": {
@@ -103,17 +107,28 @@
       "persistent": true
     },
     "storybook:build": {
-      "outputs": ["storybook-static/**"]
+      "outputs": ["storybook-static/**"],
+      "dependsOn": ["^transit"]
     },
     "docker:build": {
       "cache": false,
       "outputs": []
+    },
+    "transit": {
+      "dependsOn": ["^transit"],
+      "outputs": []
+    },
+    "@tale/cli#build": {
+      "dependsOn": ["^build"],
+      "cache": false,
+      "outputs": ["dist/**"]
     }
   },
   "globalDependencies": [
     ".github/actions/setup-turbo/action.yml",
     ".oxlintrc.json",
     ".oxfmtrc.json",
-    "tsconfig.base.json"
+    "tsconfig*.json",
+    "bunfig.toml"
   ]
 }

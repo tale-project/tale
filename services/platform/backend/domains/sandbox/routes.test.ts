@@ -426,14 +426,23 @@ describe('agent-node op honours the run project read rule', () => {
   });
 
   it('answers the op for a project run the member can read', async () => {
-    const res = await app().request('/agent-node-op?runId=r-visible');
+    const res = await app().request(
+      '/agent-node-op?runId=r-visible&nodeId=draft_report',
+    );
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ op });
     expect(agentNodeOp).toHaveBeenCalledTimes(1);
+    expect(agentNodeOp).toHaveBeenCalledWith(query, {
+      organizationId: 'member-org',
+      runId: 'r-visible',
+      nodeId: 'draft_report',
+    });
   });
 
   it('hides the op of a run whose project the member cannot read', async () => {
-    const res = await app().request('/agent-node-op?runId=r-hidden');
+    const res = await app().request(
+      '/agent-node-op?runId=r-hidden&nodeId=draft_report',
+    );
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ op: null });
     // The transcript read never runs for a hidden run.

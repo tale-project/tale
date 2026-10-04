@@ -21,10 +21,20 @@ import {
 } from '../../lib/invalid-body-response.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { knowledgeShimHandlers } from '../knowledge/service.ts';
-import { getProjectAuthContext } from '../projects/service.ts';
+import {
+  getProjectAuthContext,
+  assertWritable,
+  ProjectError,
+} from '../projects/service.ts';
 import { SKILL_ERROR_STATUS } from '../skills/errors.ts';
 import { auditIfPublishRefused } from '../skills/publish.ts';
 import { pgAutomationStore } from './dispatch-store.ts';
+import {
+  managedAutomationKindSchema,
+  managedAutomationWriteSchema,
+  readManagedAutomation,
+  writeManagedAutomation,
+} from './managed-configuration';
 import { getOrgAutomationMetrics } from './metrics.ts';
 import {
   canReadRun,
@@ -154,6 +164,8 @@ function handleError<E extends OrgEnv>(
   c: Context<E>,
   error: unknown,
 ): Response {
+  if (error instanceof ProjectError)
+    return c.json({ error: error.code, message: error.message }, error.status);
   if (error instanceof AutomationError) {
     // The structured detail rides beside the sentence (`data`), the shape
     // the app's fetch layer already reads — a stale save names the version
@@ -548,6 +560,75 @@ export function createAutomationRoutes(deps: {
     // The full rows, not summaries: the editor overlays the last run's
     // trace and checkpoints on the canvas from this listing.
     return c.json({ runs: rows.map(toRunDetail) });
+  });
+
+  // Managed configuration uses the same authoring permissions and native
+  // writer gates. Existing project identity is adopted, never inferred by name.
+  app.get('/:name{.+}/configuration', async (c) => {
+    const denied = requireAuthor(c);
+    if (denied) return denied;
+    const kind = managedAutomationKindSchema.safeParse(c.req.query('kind'));
+    const projectId = c.req.query('projectId');
+    if (!kind.success || !projectId || projectId.length > 128)
+      return c.json({ error: 'INVALID_INPUT' }, 400);
+    try {
+      const auth = await projectAuth(c);
+      const project = await readableProject(deps.sql, auth, projectId);
+      if (project === null || project.archivedAt !== null)
+        return c.json({ error: 'PROJECT_NOT_FOUND' }, 404);
+      assertWritable(project, auth);
+      return c.json(
+        await readManagedAutomation(
+          deps.sql,
+          {
+            organizationId: c.get('orgId'),
+            name: nameFrom(c, 'configuration'),
+            projectId,
+          },
+          kind.data,
+        ),
+      );
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.post('/:name{.+}/configuration', async (c) => {
+    const denied = requireAuthor(c);
+    if (denied) return denied;
+    const body = managedAutomationWriteSchema.safeParse(await c.req.json());
+    if (!body.success) return invalidBodyResponse(c, body.error);
+    const { config, kind } = body.data.resource;
+    const name = nameFrom(c, 'configuration');
+    if (!('name' in config) || config.name !== name)
+      return c.json({ error: 'AUTOMATION_NAME_INVALID' }, 400);
+    try {
+      const auth = await projectAuth(c);
+      const project = await readableProject(deps.sql, auth, config.projectId);
+      if (project === null || project.archivedAt !== null)
+        return c.json({ error: 'PROJECT_NOT_FOUND' }, 404);
+      assertWritable(project, auth);
+      // Also refuses tombstones, unrelated project bindings and wrong trigger
+      // kinds before tests or mutation. The writer repeats CAS under its lock.
+      await readManagedAutomation(
+        deps.sql,
+        {
+          organizationId: c.get('orgId'),
+          name,
+          projectId: config.projectId,
+        },
+        managedAutomationKindSchema.parse(kind),
+      );
+      const result = await writeManagedAutomation(
+        deps.sql,
+        c.get('orgId'),
+        c.get('sessionBundle').user.id,
+        body.data,
+      );
+      return authoringRefusal(c, result) ?? c.json(result);
+    } catch (error) {
+      return handleError(c, error);
+    }
   });
 
   app.post('/:name{.+}/save', async (c) => {
