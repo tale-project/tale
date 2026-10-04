@@ -2400,6 +2400,91 @@ describe('SessionRoutes (fake runnerd)', () => {
         }
       });
 
+      test.each(['liveness', 'health'])(
+        'a legacy acquire awaiting %s cannot succeed for a destroyed and recreated session',
+        async (boundary) => {
+          const f = fixture();
+          f.replace('http://old-peer.invalid');
+          await f.routes.adoptExisting();
+          const oldStamp = f.current().createdAtMs;
+          const started = Promise.withResolvers<void>();
+          const release = Promise.withResolvers<void>();
+          let oldChecks = 0;
+          let oldHealthCalls = 0;
+          f.backend.sessionExists = async (_id, stamp) => {
+            if (stamp === oldStamp) {
+              oldChecks += 1;
+              if (boundary === 'liveness' && oldChecks === 2) {
+                started.resolve();
+                await release.promise;
+              }
+            }
+            return true;
+          };
+          const realFetch = globalThis.fetch;
+          const fetchSpy = spyOn(globalThis, 'fetch').mockImplementation(
+            Object.assign(
+              async (...args: Parameters<typeof fetch>) => {
+                const [input, init] = args;
+                if (input === 'http://old-peer.invalid/acquire')
+                  return new Response('unsupported', { status: 404 });
+                if (input === 'http://old-peer.invalid/healthz') {
+                  oldHealthCalls += 1;
+                  if (boundary === 'health') {
+                    started.resolve();
+                    await release.promise;
+                  }
+                  return Response.json({
+                    ok: true,
+                    bootedAtMs: 0,
+                    lastActivityAtMs: 0,
+                    liveExecs: 0,
+                  });
+                }
+                return realFetch(input, init);
+              },
+              { preconnect: realFetch.preconnect },
+            ),
+          );
+          const acquiring = f.routes.handleActivity('peer-replaced', 'acquire');
+          try {
+            await started.promise;
+            expect((await f.routes.handleDestroy('peer-replaced')).status).toBe(
+              200,
+            );
+            f.replace();
+            expect(
+              (
+                await f.routes.handleCreate(
+                  JSON.stringify({
+                    sessionId: 'peer-replaced',
+                    organizationId: 'org_peer',
+                  }),
+                )
+              ).status,
+            ).toBe(201);
+            const replacement = await f.routes.handleList(null).text();
+            release.resolve();
+            const stale = await acquiring;
+            expect(stale.status).toBe(404);
+            expect(await stale.json()).toEqual({ error: 'not_found' });
+            expect(await f.routes.handleList(null).text()).toBe(replacement);
+            const current = await f.routes.handleActivity(
+              'peer-replaced',
+              'acquire',
+            );
+            expect(current.status).toBe(200);
+            expect(await current.json()).not.toEqual({ generation: 'legacy' });
+            expect(oldHealthCalls).toBe(boundary === 'health' ? 1 : 0);
+            expect(f.mutations).toEqual(['destroy']);
+          } finally {
+            release.resolve();
+            await acquiring;
+            fetchSpy.mockRestore();
+          }
+        },
+      );
+
       test.each(['before', 'during'])(
         'a drain %s endpoint resolution preserves the old owned entry',
         async (when) => {

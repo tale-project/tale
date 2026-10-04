@@ -2172,6 +2172,8 @@ export class SessionRoutes {
         return jsonResponse({ error: 'not_found' }, 404);
       if (await this.evictIfBackendGone(sessionId))
         return jsonResponse({ error: 'not_found' }, 404);
+      if (this.registry.get(sessionId) !== session)
+        return jsonResponse({ error: 'not_found' }, 404);
       if (error instanceof RunnerdActivityError && error.status === 404) {
         // Older runtime images cannot be pressure-reclaimed. They can still
         // serve work during a rolling upgrade; a release ticket stays absent.
@@ -2185,6 +2187,8 @@ export class SessionRoutes {
               return null;
             },
           );
+          if (this.registry.get(sessionId) !== session)
+            return jsonResponse({ error: 'not_found' }, 404);
           if (health !== null && health.activity === undefined) {
             return jsonResponse({ generation: 'legacy' }, 200);
           }
