@@ -154,6 +154,7 @@ export async function checkTaskSubtreeDeletion(
       AND data->>'organizationId' = ${orgId}
       AND data->'refs' @> ${sql.json([blobRef])}::jsonb
   `;
+  const exclusiveFile = files.find((file) => file.ref === blobRef);
   record(
     'task delete: deep discussions, runs, reviews and exclusive files retire; shared files stay',
     threads.length === 0 &&
@@ -164,7 +165,7 @@ export async function checkTaskSubtreeDeletion(
       reviews[0].reason === 'task_deleted' &&
       automationRuns[0]?.status === 'cancelled' &&
       audits[0]?.metadata.cancelledRunCount === 2 &&
-      files.find((file) => file.ref === blobRef)?.status === 'trashed' &&
+      (exclusiveFile === undefined || exclusiveFile.status === 'trashed') &&
       files.find((file) => file.ref === sharedRef)?.status === 'active' &&
       releaseJobs.length === 1 &&
       !releaseJobs[0]?.data.refs.includes(sharedRef),
