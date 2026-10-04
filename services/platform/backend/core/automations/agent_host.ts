@@ -2571,7 +2571,7 @@ async function continueOrSettle(
   const text =
     ended?.finalText !== undefined && ended.finalText !== ''
       ? ended.finalText
-      : window.text;
+      : (window.answerText ?? window.text);
   // The conversation the failed turn leaves behind: the retry resumes it
   // when the harness announced a handle (init line or end stamp).
   const agentSessionId = ended?.sessionId ?? window.agentSessionId;
