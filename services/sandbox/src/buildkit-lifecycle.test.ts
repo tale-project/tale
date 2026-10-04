@@ -15,6 +15,7 @@ import {
   buildkitdContainerName,
   buildkitdEndpoint,
   buildkitHelperLimits,
+  buildkitMirrorEnvironment,
   buildkitdMirrorContainerName,
   buildkitdMirrorVolumeName,
   buildkitdNetworkName,
@@ -228,10 +229,14 @@ function seed(organizationId: string): FakeState {
   // Helpers launched by this release with these settings.
   const stamps = [
     helperStamp(cfg.buildkitdImage, buildkitHelperLimits(cfg, 'builder')),
-    ...MIRROR_REGISTRIES.map(() =>
+    ...MIRROR_REGISTRIES.map((registry) =>
       helperStamp(
         cfg.buildkitdMirrorImage,
         buildkitHelperLimits(cfg, 'mirror'),
+        buildkitMirrorEnvironment(
+          { egressProxy: 'http://tale-buildkit-egress:3128/' },
+          registry,
+        ),
       ),
     ),
   ];
@@ -417,6 +422,56 @@ describe('organization build-cache lifecycle', () => {
     expect(final.volumes).toEqual(initial.volumes);
     // Bounds already applied are not applied again.
     expect(log.filter((args) => args[0] === 'update')).toHaveLength(0);
+  });
+
+  test('mirrors with expiry disabled adopt the cleanup setting once builds finish, preserving cache volumes', async () => {
+    const org = nextOrg();
+    const initial = seed(org);
+    const builder = buildkitdContainerName(org);
+    const oldStamp = helperStamp(
+      cfg.buildkitdMirrorImage,
+      buildkitHelperLimits(cfg, 'mirror'),
+    );
+    for (const registry of MIRROR_REGISTRIES) {
+      initial.containers[buildkitdMirrorContainerName(org, registry)]!.labels[
+        'tale.helper-config'
+      ] = oldStamp;
+    }
+    initial.buildRunning = true;
+    await save(initial);
+
+    expect(await ensureBuildkitd(cfg, org)).toBe(buildkitdEndpoint(org));
+    expect(
+      (await calls()).filter((args) => args[0] === 'run' || args[0] === 'rm'),
+    ).toEqual([]);
+    expect((await state()).containers).toEqual(initial.containers);
+
+    const busy = await state();
+    busy.buildRunning = false;
+    await save(busy);
+    await writeFile(join(root, 'calls.jsonl'), '');
+    expect(await ensureBuildkitd(cfg, org)).toBe(buildkitdEndpoint(org));
+
+    const launches = (await calls()).filter((args) => args[0] === 'run');
+    expect(launches).toHaveLength(MIRROR_REGISTRIES.length);
+    for (const launch of launches) {
+      expect(launch).toContain('REGISTRY_STORAGE_DELETE_ENABLED=true');
+    }
+    const final = await state();
+    expect(final.containers[builder]).toEqual(initial.containers[builder]);
+    expect(final.volumes).toEqual(initial.volumes);
+    for (const registry of MIRROR_REGISTRIES) {
+      const mirror = buildkitdMirrorContainerName(org, registry);
+      expect(final.containers[mirror]?.labels['tale.helper-config']).not.toBe(
+        oldStamp,
+      );
+    }
+
+    await writeFile(join(root, 'calls.jsonl'), '');
+    await ensureBuildkitd(cfg, org);
+    expect(
+      (await calls()).filter((args) => args[0] === 'run' || args[0] === 'rm'),
+    ).toEqual([]);
   });
 
   test('a release that re-tags the builder image in place recreates the builder once idle', async () => {
