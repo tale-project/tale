@@ -6,6 +6,7 @@ import { z } from 'zod';
 import {
   CONTACT_EXTERNAL_ID_MAX,
   CONTACT_IMPORT_ROWS_MAX,
+  CONTACT_LOCALE_MAX,
   CONTACT_LOCALE_PATTERN,
 } from '../../../lib/shared/schemas/common.ts';
 import type { Auth } from '../../auth/auth.ts';
@@ -84,6 +85,9 @@ export function createContactRoutes(deps: {
         .object({
           search: z.string().max(200).optional(),
           source: sourceSchema.optional(),
+          // An open set, like `search` and `tag`: the REST door stores any
+          // locale up to the cap, so an unknown one lists nothing.
+          locale: z.string().max(CONTACT_LOCALE_MAX).optional(),
           tag: z.string().max(60).optional(),
           limit: z.coerce.number().int().min(1).max(200).optional(),
           cursorUpdatedAt: z.coerce.number().int().positive().optional(),
@@ -92,6 +96,7 @@ export function createContactRoutes(deps: {
         .safeParse({
           search: c.req.query('search'),
           source: c.req.query('source'),
+          locale: c.req.query('locale'),
           tag: c.req.query('tag'),
           limit: c.req.query('limit'),
           cursorUpdatedAt: c.req.query('cursorUpdatedAt'),
