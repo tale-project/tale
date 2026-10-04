@@ -72,6 +72,11 @@ vi.mock('../hooks/queries', () => ({
       status: mockStatus,
       loadMore: mockLoadMore,
       isLoading: false,
+      error: null,
+      retry: vi.fn(),
+      isRetrying: false,
+      unavailable: false,
+      errorCount: 0,
     };
   },
 }));

@@ -1,5 +1,6 @@
 'use client';
 
+import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
 import { DataTable } from '@tale/ui/data-table/data-table';
 import { BulkDeleteBar } from '@tale/ui/data-table/data-table-bulk-actions';
 import { useListPage } from '@tale/ui/use-list-page';
@@ -8,6 +9,7 @@ import type { Row, RowSelectionState } from '@tanstack/react-table';
 import { Globe } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
+import { useListReadRecovery } from '@/app/hooks/use-list-read-recovery';
 import { useViewedRecord } from '@/app/hooks/use-viewed-record';
 import { firstFailureDetail } from '@/app/lib/backend/adapters';
 import type { WebsiteDoc } from '@/app/lib/backend/contract/docs';
@@ -163,6 +165,9 @@ export function WebsitesTable({
     [deleteWebsite],
   );
 
+  const { regionRef, retryRead, focusRegion, failedWithRows } =
+    useListReadRecovery(paginatedResult);
+
   const list = useListPage<Website>({
     dataSource: {
       type: 'paginated',
@@ -170,6 +175,10 @@ export function WebsitesTable({
       status: paginatedResult.status,
       loadMore: paginatedResult.loadMore,
       isLoading: paginatedResult.isLoading,
+      // A failed first page is the table's error state with its retry,
+      // never "No websites yet" (#3843).
+      error: paginatedResult.error,
+      retry: retryRead,
     },
     pageSize,
     search: {
@@ -189,10 +198,29 @@ export function WebsitesTable({
 
   return (
     <>
-      {/* The notice is a sibling above the table inside the list frame: it
-          keeps the page inset and the table keeps the remaining height. */}
-      <div className="flex min-h-0 flex-1 flex-col gap-6">
+      {/* The notices are siblings above the table inside the list frame: they
+          keep the page inset and the table keeps the remaining height. Rows
+          already on screen outlive a failed read — a refresh, or a page a
+          search or a scroll asked for — and the failure is named above
+          them. */}
+      <div
+        ref={regionRef}
+        role="region"
+        aria-label={tWebsites('title')}
+        tabIndex={-1}
+        className="flex min-h-0 flex-1 flex-col gap-6 outline-none"
+      >
         <WebsiteSearchNotice organizationId={organizationId} />
+        {failedWithRows && (
+          <CatalogLoadError
+            // Each failure is announced again; Try again keeps its node.
+            failureKey={paginatedResult.errorCount}
+            onFocusLost={focusRegion}
+            message={tWebsites('refreshFailed')}
+            onRetry={retryRead}
+            isRetrying={paginatedResult.isRetrying}
+          />
+        )}
         <DataTable
           columns={columns}
           stickyLayout
@@ -200,6 +228,10 @@ export function WebsitesTable({
           rowSelection={rowSelection}
           onRowSelectionChange={setRowSelection}
           onRowClick={handleRowClick}
+          // A refresh the reader did not start takes the table's error state
+          // away while it runs; a focused Try again hands its focus to the
+          // list, not to the page.
+          onErrorFocusLost={focusRegion}
           actionMenu={
             <WebsitesActionMenu
               organizationId={organizationId}

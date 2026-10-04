@@ -76,6 +76,15 @@ Ein Datensatz oder Dokument hilft nur Personen, die darauf zugreifen dürfen. Pr
 
 Ändert sich eine Angabe, aktualisiere den maßgeblichen Datensatz. Warte nach einer Dokumentänderung auf die abgeschlossene Indexierung, bevor du eine Frage zum neuen Inhalt testest. Website-Inhalte folgen dem eingestellten Scan-Intervall und können deshalb hinter der Live-Seite zurückliegen.
 
+## Wenn eine Liste nicht lädt
+
+Lässt sich die Liste der Kontakte, Produkte oder Websites nicht abrufen, meldet Tale das in der Liste. Ein Fehler erscheint nie als leere Liste. **Erneut versuchen** wiederholt den Abruf, ohne dass du die Seite neu laden musst:
+
+- Lässt sich nichts laden, zeigt die Tabelle statt des leeren Zustands den Fehler mit **Erneut versuchen**. Der Fehler bedeutet nicht, dass die Datensätze verschwunden sind: Versuche es erneut, bevor du sie noch einmal importierst oder anlegst.
+- Sind bereits Datensätze zu sehen, bleiben sie stehen, und ein Hinweis über der Tabelle sagt, dass die Liste unvollständig oder veraltet sein kann.
+
+Scheitert **Erneut versuchen** immer wieder, bitte einen Administrator zu prüfen, ob die Dienste von Tale laufen.
+
 ## Mit den vorhandenen Datentypen arbeiten
 
 Der Wissensbereich bietet Kontakte, Produkte und Websites. **Einstellungen > Richtlinien > Modelle** steuert den Zugriff auf KI-Modelle und deren Vorauswahl. Dort legst du keine eigenen Datentypen oder Datenbankfelder an.

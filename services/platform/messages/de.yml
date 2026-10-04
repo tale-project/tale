@@ -2035,6 +2035,7 @@ contacts:
   title: Kontakte
   entityLabelOne: Kontakt
   searchPlaceholder: Kontakte suchen
+  refreshFailed: Die neuesten Kontakte konnten nicht geladen werden. Die Liste ist womöglich unvollständig oder veraltet.
   filter:
     source:
       manual: Manuell
@@ -5142,6 +5143,7 @@ products:
   title: Produkte
   entityLabelOne: Produkt
   searchPlaceholder: Produkte suchen
+  refreshFailed: Die neuesten Produkte konnten nicht geladen werden. Die Liste ist womöglich unvollständig oder veraltet.
   addButton: Produkt hinzufügen
   importMenu:
     fromDevice: Von deinem Gerät
@@ -8106,6 +8108,7 @@ websites:
   title: Websites
   entityLabelOne: Website
   searchPlaceholder: Websites suchen
+  refreshFailed: Die neuesten Websites konnten nicht geladen werden. Die Liste ist womöglich unvollständig oder veraltet.
   addButton: Website hinzufügen
   addWebsite: Website hinzufügen
   addDescription: Indexiere eine ganze Website oder eine Liste von Seiten und wähle, wie oft sie gescannt wird.
