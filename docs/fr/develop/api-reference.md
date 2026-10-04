@@ -610,9 +610,41 @@ Choisis `model` dans le catalogue de l’organisation et précise `modelProvider
 
 `knowledge_entry_write` est une permission facultative pour les agents de projet et les étapes d’agent des automatisations (contrat 3.23.0). Elle enregistre un fait comme entrée de connaissances de toute l’organisation, identifiée par son sujet : transmets `{topic, content, expectedVersionId?}`, avec un sujet de 120 caractères au plus et un contenu de 8 000 caractères au plus. Un sujet sans entrée en reçoit une nouvelle. Modifier une entrée existante exige `expectedVersionId`, la version que l’agent a lue : l’`id` que `knowledge_entry_find` renvoie depuis le contrat 3.23.0, ou la `versionId` de son dernier enregistrement. Sans elle, ou si cette version a été remplacée entre-temps, rien n’est enregistré ; la réponse contient alors la version actuelle et son texte, dans lequel l’agent intègre sa modification. Enregistrer à nouveau le texte actuel n’écrit rien. Ce qu’un agent enregistre porte `source: "agent"`, nomme l’agent dans `createdBy` et est consigné dans le journal d’audit sous `knowledge_entry.created` ou `knowledge_entry.updated`. Une exécution lancée par un membre, qui ne peut travailler que sur sa propre tâche, est refusée (`member_run`). Les enregistrements des agents relèvent d’une limite de débit propre à chaque organisation, distincte de celle des modifications faites par des personnes. L’indexation est asynchrone : `knowledge_entry_find` liste une entrée enregistrée immédiatement, `rag_search` seulement une fois qu’elle est indexée.
 
-`task_review` ajoute une permission facultative pour les agents de projet dans le contrat 3.11.0. Elle décide uniquement d’une relecture native en attente attribuée à l’agent relecteur actif, pour une exécution terminée d’un autre agent du même projet. Transmets `taskId`, `expected: {approvalId, runId, evidenceRevision}` depuis le `task_get.pendingReview` actuel, `decision: "approve" | "request_changes"`, un `feedback` non vide et `evidence: {checks, pullRequests}`. Chaque vérification indique son résultat (`passed` ou `failed`) et des précisions ; une Pull Request GitHub fournie indique son URL, le `headSha` exact et l’état de ses contrôles. L’approbation exige la réussite de toutes les vérifications fournies. Les éléments GitHub sont attestés par l’agent ; Tale ne les vérifie pas auprès du service distant.
+`task_review` ajoute une permission facultative pour les agents de projet dans le contrat 3.11.0. L’outil décide uniquement d’une relecture native en attente attribuée à l’agent relecteur actif, pour une exécution terminée d’un autre agent du même projet. Transmets `taskId`, `expected: {approvalId, runId, evidenceRevision}` depuis le `task_get.pendingReview` actuel, `decision: "approve" | "request_changes"`, `feedback` et `evidence: {checks, pullRequests}`. La demande et ses objets imbriqués sont stricts : les champs inconnus sont refusés.
+
+- `checks` exige 1–20 entrées. Chacune exige `name` (1–200 caractères après suppression des espaces aux extrémités), `outcome` (`passed` ou `failed`) et `details` (1–2 000 caractères après suppression des espaces aux extrémités).
+- `pullRequests` exige une liste de 0–10 entrées. Chacune exige `url` (au plus 2 048 caractères, exactement `https://github.com/<owner>/<repo>/pull/<positive integer>` avec un entier strictement positif, sans barre oblique finale, paramètres de requête ni fragment), `headSha` (40 ou 64 caractères hexadécimaux minuscules) et `checks` (`passed`, `failed` ou `pending`).
+- `feedback` exige 1–8 000 caractères après suppression des espaces aux extrémités.
+- `approve` exige `passed` pour toutes les vérifications et Pull Requests fournies. Une vérification en échec ou une Pull Request avec `failed`/`pending` empêche l’approbation. Utilise `request_changes` si le résultat doit être corrigé, plutôt que d’attester une réussite fictive.
+
+Cet exemple minimal d’arguments ne contient aucune Pull Request. Remplace `taskId` et toutes les valeurs de `expected` par les identités et la révision actuelles de la tâche ; décris dans le retour et les vérifications le résultat que tu as réellement examiné. Des arguments valides ne prouvent pas le droit de relire et n’enregistrent pas encore de décision.
+
+```json
+{
+  "taskId": "task-id",
+  "expected": {
+    "approvalId": "approval-id",
+    "runId": "implementation-run-id",
+    "evidenceRevision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "decision": "approve",
+  "feedback": "Le résultat relu a réussi le test ciblé.",
+  "evidence": {
+    "checks": [
+      { "name": "Test ciblé", "outcome": "passed", "details": "1 test réussi." }
+    ],
+    "pullRequests": []
+  }
+}
+```
+
+Tale enregistre l’attestation externe du relecteur ; il ne vérifie pas lui-même les commits ni les contrôles actuels sur GitHub.
 
 L’outil vérifie à nouveau la permission actuelle, les droits de l’exécution active qui l’appelle, le relecteur enregistré, l’exécution de réalisation et la révision des éléments locaux. Un résultat périmé exige une nouvelle lecture ; changer l’assignation actuelle ne rend pas le relecteur indépendant. L’approbation passe la tâche à `done` ; `request_changes` la passe à `todo` avec un retour, sans démarrer d’exécution, même si ce retour contient une mention. Les compétences humaines requises et les approbations de workflows restent hors de cet outil. Il n’existe aucun point d’entrée REST public pour une décision d’agent.
+
+Le retour d’une relecture native reste un commentaire visible sur la tâche, avec les notifications et l’activité habituelles. Il ne déclenche ni `comment.created` ni les actions liées aux mentions, donc aucune exécution d’agent ou d’automatisation par événement ou mention.
+
+Les refus natifs sont des résultats d’outils de l’espace de travail, pas des réponses d’erreur REST reprenant le statut HTTP du domaine : les refus d’arguments et du domaine utilisent `status: "invalid_args"` (les codes du domaine figurent dans `message`), normalement dans une réponse HTTP 200. La vérification préalable des droits de session peut d’abord renvoyer `status: "unavailable"` avec le blocage `code: "run_ended"` si l’exécution appelante est terminée ; un test direct du domaine peut plutôt obtenir `TASK_REVIEW_FORBIDDEN`. Une source absente ou non terminée peut donner `TASK_REVIEW_SOURCE_REQUIRED`, et un changement de dernière exécution, d’assignation ou de révision peut donner `TASK_REVIEW_STALE`, avant que la vérification du travail actif atteigne `TASK_REVIEW_BUSY`. Maintiens ces prérequis valides pour tester le refus d’une tâche occupée ; le travail actif ne suffit pas à déterminer le premier refus.
 
 Depuis le contrat 3.25.0, un agent qui travaille sur d’autres tâches est lancé quand même : chacune de ses exécutions travaille dans un worker d’agent distinct. Le `task_start_agent` natif et l’étape d’automatisation `task.start_agent` ne répondent plus `agent_busy` ni `busyTaskId`. Un lancement répond `started: true`, et une exécution qui attend un worker libre porte `waitingReason` : `org_limit` (tous les workers d’agent de l’organisation sont occupés), `host` (l’hôte des sandboxes est plein), `destroy_pending` (l’espace de travail qu’elle utiliserait est en cours de suppression) ou `exec_limit` (sa sandbox termine encore un processus précédent). Une telle exécution démarre d’elle-même ; ne la relance pas. Un agent qui se désigne lui-même pour une autre tâche est refusé avec `self_start`. Le `task_get.agentRuns` natif porte `waitingReason` tant qu’une exécution attend. Aucune opération REST ne change.
 
@@ -774,8 +806,8 @@ Pour un déclencheur d’événement, l’entrée de l’exécution est `{ "trig
 | `project.created`                                       | un projet est créé                                                                                                                                               |
 | `task.created`                                          | une tâche est créée — sur un tableau, par l’API ou par un formulaire de collecte                                                                                                   |
 | `task.status_changed`                                   | une personne déplace une tâche vers un autre statut (les déplacements d’un agent n’émettent rien, une automatisation ne peut donc pas se redéclencher elle-même) |
-| `comment.created`                                       | un commentaire arrive sur une tâche                                                                                                                              |
-| `comment.mentioned`                                     | un commentaire de tâche mentionne quelqu’un avec `@`                                                                                                             |
+| `comment.created`                                       | un commentaire est ajouté à une tâche, sauf le retour natif de `task_review` (aucune action par événement ou mention ; notifications et activité conservées) |
+| `comment.mentioned`                                     | un commentaire de tâche mentionne quelqu’un avec `@`, sauf le retour natif de `task_review` |
 
 Le `comment` d’un événement de commentaire contient `body` tel qu’il est enregistré, chaque mention sous forme de lien de mention, et `bodyText`, le même texte avec chaque mention sous la forme `@` suivi du nom actuel. Compare les mots, comme un nom, avec `bodyText` (contrat 3.24.0).
 
