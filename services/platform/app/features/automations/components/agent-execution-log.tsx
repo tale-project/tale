@@ -1,5 +1,6 @@
 'use client';
 
+import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
 import { cn } from '@tale/ui/cn';
 import { CollapsibleDetails } from '@tale/ui/collapsible-details';
@@ -11,6 +12,7 @@ import {
   CheckCircle2,
   Loader2,
   MessageSquare,
+  RotateCcw,
   Wrench,
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
@@ -416,10 +418,35 @@ export function AgentExecutionLog({
   waitingForRoom?: boolean;
   className?: string;
 }) {
+  const { t } = useT('automations');
   const opQuery = useBackendQuery(
     'sandbox/session_queries_public:getAgentNodeSandboxOp',
     { organizationId, runId },
   );
+  if (opQuery.isError) {
+    return (
+      <Stack as="section" gap={2} className={cn('min-h-0 flex-1', className)}>
+        <Text as="h3" variant="label">
+          {t('runs.agentLog.title')}
+        </Text>
+        <Alert
+          variant="destructive"
+          title={t('runs.agentLog.readFailed')}
+          description={t('runs.agentLog.readFailedDescription')}
+        >
+          <Button
+            variant="secondary"
+            size="sm"
+            className="mt-3 w-fit gap-1.5"
+            onClick={() => void opQuery.refetch()}
+          >
+            <RotateCcw className="size-3.5" aria-hidden />
+            {t('runs.agentLog.retry')}
+          </Button>
+        </Alert>
+      </Stack>
+    );
+  }
   return (
     <ExecutionLogView
       op={opQuery.data ?? null}

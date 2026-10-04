@@ -7,11 +7,19 @@ import { AgentActivityLine, AgentExecutionLog } from './agent-execution-log';
 // Drives the mocked `useBackendQuery` return: the run's sandbox op, or `null`
 // for a run that never ran an agent node.
 const { state } = vi.hoisted(() => ({
-  state: { data: undefined as unknown },
+  state: {
+    data: undefined as unknown,
+    isError: false,
+    refetch: vi.fn(),
+  },
 }));
 
 vi.mock('@/app/hooks/use-backend-query', () => ({
-  useBackendQuery: () => ({ data: state.data }),
+  useBackendQuery: () => ({
+    data: state.data,
+    isError: state.isError,
+    refetch: state.refetch,
+  }),
 }));
 
 const runId = 'run-1' as string;
@@ -157,5 +165,21 @@ describe('AgentExecutionLog', () => {
       <AgentExecutionLog organizationId="org-1" runId={runId} />,
     );
     expect(container).toBeEmptyDOMElement();
+  });
+
+  it('keeps the transcript section visible and retries when the op read fails', async () => {
+    state.data = undefined;
+    state.isError = true;
+    const { user } = render(
+      <AgentExecutionLog organizationId="org-1" runId={runId} />,
+    );
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Could not load the agent log.',
+    );
+    const retry = screen.getByRole('button', { name: 'Try again' });
+    await user.click(retry);
+    expect(state.refetch).toHaveBeenCalledOnce();
+    expect(retry).toHaveFocus();
   });
 });
