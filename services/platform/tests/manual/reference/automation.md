@@ -6,6 +6,12 @@ suite alongside the automated ones — they drive the same stack.
 
 ## Coverage map
 
+Text-only edits retain the original uploaded attachment references in both
+the send request and optimistic message, leave unrelated composer files
+staged, and keep regeneration on its original-prompt path:
+`app/features/chat/components/chat-surface.test.tsx` covers the component
+boundary; persisted cards after reload remain manual in `CHAT-F8`.
+
 One row per case group, carried over from the per-suite coverage tables the
 guides used to hold. **Don't** re-verify an automated row by hand: a red there
 is a spec failure and belongs in the gate, not in a round.
