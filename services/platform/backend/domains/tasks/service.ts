@@ -1358,7 +1358,8 @@ export async function createTask(
       org_id, project_id, title, description, attachments, status, priority,
       label_ids, assignee_type, assignee_id, parent_task_id, start_date_ms,
       due_date_ms, repeat_rule, rank, number, created_by, created_by_type,
-      created_at_ms, updated_at_ms, status_changed_at_ms, source_thread_id
+      created_at_ms, updated_at_ms, status_changed_at_ms, completed_at_ms,
+      source_thread_id
     ) VALUES (
       ${auth.organizationId}, ${args.projectId}, ${title},
       ${description ?? null},
@@ -1369,6 +1370,7 @@ export async function createTask(
       ${args.startDate ?? null}, ${args.dueDate ?? null},
       ${repeat !== null ? tx.json(toJson(repeat)) : null}, ${rank}, ${number},
       ${auth.userId}, 'user', ${now}, ${now}, ${now},
+      ${TERMINAL_STATUSES.has(status) ? now : null},
       ${args.sourceThreadId ?? null}
     )
     RETURNING id

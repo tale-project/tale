@@ -2,9 +2,11 @@
  * the page's figures come from, joined and bucketed the way the fold says. */
 import { randomUUID } from 'node:crypto';
 
+import { transactSerializable } from '@tale/shared/db/serializable';
 import type { Sql } from 'postgres';
 
 import { getProjectTaskMetrics, type ProjectMetricsDay } from './metrics.ts';
+import { createTask } from './service.ts';
 
 const HOUR = 60 * 60 * 1000;
 const DAY = 24 * HOUR;
@@ -40,6 +42,52 @@ export async function checkProjectTaskMetrics(
     VALUES (${agentId}, ${orgId}, ${projectId}, 'Metrics agent', 'claude-code',
       'itest-model', ${userId}, ${now}, ${now})
   `;
+  const terminalTaskIds = await transactSerializable(sql, async (tx) => {
+    const doneId = await createTask(
+      tx,
+      {
+        organizationId: orgId,
+        userId,
+        role: 'owner',
+        teamIds: [],
+      },
+      {
+        projectId,
+        title: 'Created done',
+        status: 'done',
+      },
+    );
+    const cancelledId = await createTask(
+      tx,
+      {
+        organizationId: orgId,
+        userId,
+        role: 'owner',
+        teamIds: [],
+      },
+      {
+        projectId,
+        title: 'Created cancelled',
+        status: 'cancelled',
+      },
+    );
+    return { cancelledId, doneId };
+  });
+  const terminalStamps = await sql<
+    { id: string; completedAt: number | null }[]
+  >`
+    SELECT id, completed_at_ms::float8 AS "completedAt"
+    FROM app.tasks
+    WHERE id = ${terminalTaskIds.doneId} OR id = ${terminalTaskIds.cancelledId}
+  `;
+  record(
+    'task creation: Done and Cancelled receive completion timestamps',
+    terminalStamps.length === 2 &&
+      terminalStamps.every(
+        (task) => typeof task.completedAt === 'number' && task.completedAt > 0,
+      ),
+    JSON.stringify(terminalStamps),
+  );
   // An agent task filed three days ago: started two days ago, sent back
   // once yesterday, approved an hour ago.
   const agentCreated = now - 3 * DAY;
