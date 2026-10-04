@@ -153,7 +153,7 @@ function cliModuleGraph(): { files: Set<string>; unresolved: string[] } {
   if (!parsed) throw new Error('tools/cli/tsconfig.json did not parse');
   const files = new Set<string>();
   const unresolved: string[] = [];
-  const queue = [...parsed.fileNames];
+  const queue = parsed.fileNames.map((file) => resolve(file));
   while (queue.length > 0) {
     const file = queue.pop();
     if (
@@ -184,13 +184,16 @@ function cliModuleGraph(): { files: Set<string>; unresolved: string[] } {
           unresolved.push(`${relative(REPO_ROOT, file)}: ${fileName}`);
         continue;
       }
+      // TypeScript normalizes paths to `/` even on Windows. Compare every
+      // module with the native paths used by Turbo inputs and repo roots.
+      const nativeResolved = resolve(resolved);
       if (
-        resolved.split(sep).includes('node_modules') ||
-        /\.d\.[cm]?ts$/.test(resolved) ||
-        !resolved.startsWith(resolve(REPO_ROOT) + sep)
+        nativeResolved.split(sep).includes('node_modules') ||
+        /\.d\.[cm]?ts$/.test(nativeResolved) ||
+        !nativeResolved.startsWith(resolve(REPO_ROOT) + sep)
       )
         continue;
-      queue.push(resolved);
+      queue.push(nativeResolved);
     }
   }
   return { files, unresolved };
