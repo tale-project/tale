@@ -532,7 +532,7 @@ function AutomationEditorScope({
   /** Append the draft as a version built on `baseVersion` (none: append
    * whatever the latest is), then show the version that landed. */
   const submitSave = async (baseVersion: number | undefined): Promise<void> => {
-    await save.mutateAsync({
+    const saved = await save.mutateAsync({
       organizationId,
       automation,
       // Package metadata belongs to the version being edited, even when
@@ -554,7 +554,8 @@ function AutomationEditorScope({
       ...(baseVersion !== undefined && { baseVersion }),
     });
     setSaveDialogOpen(false);
-    setDraft(null);
+    draftBaseRef.current = saved.version;
+    setDraft((current) => (current === automation ? null : current));
     setSaveMessage('');
     // The save appended a version; show it, whichever one was on screen.
     onSelectVersion(undefined);
