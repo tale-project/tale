@@ -29,6 +29,7 @@ import { blobRefHeld } from './blob-holders.ts';
 import {
   claimRejectedUpload,
   consumeUploadIntent,
+  releaseReclaimedIntent,
   type UploadPurpose,
 } from './upload-intents.ts';
 
@@ -872,7 +873,9 @@ export async function getOrgBlobBytes(
  * bind that vouched for it without consuming (an outbound mail) — and never
  * a blob the caller did not mint: the reclaim claims the caller's own
  * upload intent (`claimRejectedUpload`), so naming another member's staged
- * key answers `deleted: false` like a missing or a bound one.
+ * key answers `deleted: false` like a missing or a bound one. The claim
+ * leaves a tombstone until the store confirms the delete; a delete that
+ * fails keeps it, and the abandoned-upload sweep retries (#4111).
  */
 export async function deleteRejectedUploadBlob(
   sql: Sql,
@@ -891,7 +894,12 @@ export async function deleteRejectedUploadBlob(
   try {
     await s3DeleteObject(store, key);
   } catch (error) {
-    console.warn(`[files] rejected-blob delete failed for ${key}:`, error);
+    console.warn(
+      `[files] rejected-blob delete failed for ${key}; the abandoned-upload sweep retries it:`,
+      error,
+    );
+    return { deleted: true };
   }
+  await releaseReclaimedIntent(sql, { organizationId, storageRef });
   return { deleted: true };
 }

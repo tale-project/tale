@@ -70,8 +70,7 @@ jobs:
             echo "version_number=${VERSION_NUMBER}"
           } >> "$GITHUB_OUTPUT"
 
-      # The notes and their validator, not the whole tree (about 540 MB): a
-      # sparse checkout fetches only these blobs, well inside the timeout.
+      # Limit the checkout to the notes and their standalone validator.
       - name: Checkout release notes
         if: steps.version.outputs.sites_only != 'true'
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
@@ -90,6 +89,8 @@ jobs:
 
       - name: Validate authored release notes before building
         if: steps.version.outputs.sites_only != 'true'
+        shell: bash
+        working-directory: .
         env:
           TAG: ${{ steps.version.outputs.version }}
         run: bun tools/cli/scripts/release-notes.ts --version "$TAG"

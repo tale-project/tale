@@ -21,6 +21,10 @@ event (a collected terminal result can be larger). A consumer that stays
 behind is disconnected; cancelling its response also stops the upstream read
 and keepalive immediately. The exec keeps running and can be reattached through
 the session API. Late output is discarded without repeated log messages.
+The runnerd response reader also cancels its upstream stream and releases its
+lock when parsing or forwarding fails, so retries do not retain old output
+subscriptions. Malformed JSON lines remain skippable; a failing output consumer
+ends that attachment.
 
 ## Authentication
 
@@ -102,6 +106,11 @@ Failed or incomplete inventories return 503, never a successful zero count.
 Observations coalesce and cache for five seconds;
 the settings page refreshes every 15 seconds and marks unavailable metrics.
 
+The platform builds workspace rows by grouping execution history once per
+refresh and projecting only the current and running operations. Historical
+spend still contributes to totals, while progress reads transfer only the
+last 280 Unicode characters before applying the existing display limit.
+
 Platform quota allocation and physical runtime state have separate lifecycles:
 finishing work can release an org allocation while its idle container stays
 running. The capacity inventory includes that container until it stops. At
@@ -134,7 +143,7 @@ them: the platform's cleanup and erasure settle a deletion only on an explicit
 older than the contract). See
 [stop vs destroy](docs/sessions.md#stop-vs-destroy--the-data-preservation-contract).
 
-Docker admission serializes creates through the host's single spawner.
+Docker admission serializes creates and released-to-active acquisitions through the host's single spawner. Each idle-to-active transition reserves its expected working-set growth once.
 Concurrent Kubernetes replicas enforce the namespace capacity on a best-effort
 basis; use ResourceQuota for hard namespace resource bounds.
 
@@ -150,6 +159,22 @@ the session (503 `device_offline` while it is away) and relays the device's
 sessions' calls to the backend and the model gateway along an allowlist.
 `device-apply` lays out and updates a device's containers. See
 [the device contract](docs/devices.md).
+
+## Agent Docker capabilities
+
+`SANDBOX_DOCKER_WORKLOADS` narrows the deployment's DinD capability to
+`project`, `workflow`, both (the default), or `none`. The platform tags session
+creation with its owner workload; an untagged legacy request receives Docker
+only when both workloads are allowed. An authenticated create request may also
+set `docker: false`. Neither a workload nor `docker: true` enables Docker when
+the deployment disables it. The `default` profile never receives Docker.
+
+The actual capability is recorded on each container or Pod and recovered after
+a spawner restart. New settings apply to new compute; running sessions retain
+their capability. Lightweight agents keep their normal agent uid and tool
+permissions, skip Docker storage and build-cache setup, and use the shorter
+released-session idle window. Their default memory ceiling is 4 GiB instead of
+the 8 GiB used with Docker; an explicit `SANDBOX_AGENT_MEMORY` applies to both.
 
 ## Organization build caches
 
@@ -167,12 +192,27 @@ An unused invalid owned network is recreated; an in-use or foreign network is
 never removed. If host observation fails or no safe subnet is available,
 sessions build locally.
 
+The mirrors enable registry storage deletion so `registry:2` can expire cached
+image layers after its seven-day lifetime. Without this setting, its expiry
+scheduler forgets failed deletions and the layers remain on disk. A spawner
+upgrade replaces older mirrors once no build is running, preserving their cache
+volumes. Layers whose expiry already failed are not scheduled again by the
+registry; they remain until the organization's stopped caches are reclaimed.
+
 After no agent session may still depend on an organization's cache helpers
-(only agent sessions build), the `SANDBOX_SESSION_MAX_IDLE_MS` window (30
+(only Docker-enabled agent sessions build), the `SANDBOX_SESSION_MAX_IDLE_MS` window (30
 minutes by default) starts. The helpers then stop, the builder pruning its cache
 to `SANDBOX_BUILDKITD_IDLE_CACHE` (5 GB by default) first; their network and
 volumes remain intact and the next build restarts them. Legacy global cache helpers retire once their remaining sessions drain,
 with their cache volumes retained.
+
+An organization's stopped helpers and all four cache volumes are removed after
+`SANDBOX_BUILDKITD_CACHE_RETENTION` (14 days by default), or sooner while the
+session disk is below `SANDBOX_MIN_FREE_DISK`. This also reclaims layers retained
+before mirror expiry was enabled. To make an organization's caches eligible,
+let its agent sessions finish and unpin or stop any warm sessions, then leave
+the helpers stopped for the retention period. Its next build starts with a
+cold cache; session workspaces and package-cache volumes are separate.
 
 Kubernetes sessions use their inner Docker builder. The Kubernetes backend
 does not provision these organization helpers or call the Docker CLI during

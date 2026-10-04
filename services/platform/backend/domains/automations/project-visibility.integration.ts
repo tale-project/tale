@@ -354,14 +354,19 @@ export async function checkAutomationProjectVisibility(
   // A row-level race: the initial ownership read sees the committed shared
   // run. A competing writer changes its run while the answer's locked read
   // waits. PostgreSQL must recheck the pinned run predicate after the wait.
+  // Driven as the owner so the request passes the run's write gate and
+  // actually reaches the pinned `FOR UPDATE` — the run pin, not the write
+  // gate, is what must stop the answer crossing to the other run.
   let held = false;
   let answer: Promise<Awaited<ReturnType<typeof request>>> | undefined;
   await sql.begin(async (tx) => {
     const [owner] = await tx<{ pid: number }[]>`SELECT pg_backend_pid() AS pid`;
     await tx`UPDATE app.automation_human_asks SET run_id = ${hiddenRun} WHERE id = ${sharedAsk}`;
-    answer = request(`/asks/${sharedAsk}/answer`, {
-      answer: 'must not cross runs',
-    });
+    answer = request(
+      `/asks/${sharedAsk}/answer`,
+      { answer: 'must not cross runs' },
+      ctx.cookie,
+    );
     held = await waitsForWriter(sql, owner?.pid ?? 0);
   });
   const raced = await answer;
@@ -385,8 +390,40 @@ export async function checkAutomationProjectVisibility(
     INSERT INTO "teamMember" (id, "teamId", "userId", "createdAt")
     VALUES (gen_random_uuid(), ${teamId}, ${member.userId}, now())
   `;
+  // A read-only member (role 'member') joins the private team: they may now
+  // READ the run and its question, but cancelling and answering are WRITES —
+  // the app door must not bypass the project write gate the REST and task
+  // doors enforce, so both refuse and leave the run and ask untouched.
   const joined = await request(`/runs/${hiddenRun}`);
   const joinedQuestion = await request(`/runs/${hiddenRun}/ask`);
+  const readOnlyAnswer = await request(`/asks/${hiddenAsk}/answer`, {
+    answer: 'must be refused',
+  });
+  const readOnlyCancel = await request(`/runs/${hiddenRun}/cancel`, {});
+  const [afterReadOnly] = await sql<
+    { status: string; answer: string | null }[]
+  >`
+    SELECT r.status, a.answer FROM app.automation_human_asks a
+    JOIN app.automation_runs r ON r.id = a.run_id
+    WHERE a.id = ${hiddenAsk}
+  `;
+  record(
+    'a read-only audience member reads the run but the write gate refuses cancel and answer',
+    ownerRead.status === 200 &&
+      joined.status === 200 &&
+      joinedQuestion.data.ask?.runId === hiddenRun &&
+      readOnlyAnswer.status === 403 &&
+      readOnlyCancel.status === 403 &&
+      afterReadOnly?.status === 'waiting' &&
+      afterReadOnly.answer === null,
+    `owner=${ownerRead.status}, joined=${joined.status}, answer=${readOnlyAnswer.status}, cancel=${readOnlyCancel.status}, run=${afterReadOnly?.status}, answer=${afterReadOnly?.answer}`,
+  );
+  // Promote the same member to an editor (a project writer): control is now
+  // permitted — the read-versus-control distinction, not mere audience.
+  await sql`
+    UPDATE "member" SET "role" = 'editor'
+    WHERE "organizationId" = ${orgId} AND "userId" = ${member.userId}
+  `;
   const answered = await request(`/asks/${hiddenAsk}/answer`, {
     answer: 'visible now',
   });
@@ -397,16 +434,17 @@ export async function checkAutomationProjectVisibility(
     SELECT answer, answered_by AS "answeredBy" FROM app.automation_human_asks WHERE id = ${hiddenAsk}
   `;
   record(
-    'admin and newly joined member can read and act on the private run',
-    ownerRead.status === 200 &&
-      joined.status === 200 &&
-      joinedQuestion.data.ask?.runId === hiddenRun &&
-      answered.status === 200 &&
+    'admin and a project-writer member can read and act on the private run',
+    answered.status === 200 &&
       cancelled.data.cancelled === true &&
       storedAnswer?.answer === 'visible now' &&
       storedAnswer.answeredBy === member.userId,
-    `owner=${ownerRead.status}, joined=${joined.status}, answer=${answered.status}, cancel=${cancelled.data.cancelled}, actor=${storedAnswer?.answeredBy}`,
+    `answer=${answered.status}, cancel=${cancelled.data.cancelled}, actor=${storedAnswer?.answeredBy}`,
   );
+  await sql`
+    UPDATE "member" SET "role" = 'member'
+    WHERE "organizationId" = ${orgId} AND "userId" = ${member.userId}
+  `;
   await sql`DELETE FROM "teamMember" WHERE "teamId" = ${teamId} AND "userId" = ${member.userId}`;
   const revoked = await request(`/runs/${hiddenRun}`);
   const revokedList = await request(

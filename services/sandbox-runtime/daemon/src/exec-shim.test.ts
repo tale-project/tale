@@ -140,7 +140,7 @@ describe.skipIf(SHIM === null)('ExecManager under the subreaper shim', () => {
     });
 
   test('reports the command’s output and exit status', async () => {
-    const mgr = shimmed();
+    using mgr = shimmed();
     const { events, emit } = collect();
     await mgr.run(
       {
@@ -160,7 +160,7 @@ describe.skipIf(SHIM === null)('ExecManager under the subreaper shim', () => {
   });
 
   test('a command ended by a signal exits with 128 + its number', async () => {
-    const mgr = shimmed();
+    using mgr = shimmed();
     const { events, emit } = collect();
     await mgr.run(
       {
@@ -178,7 +178,7 @@ describe.skipIf(SHIM === null)('ExecManager under the subreaper shim', () => {
   });
 
   test('a command that cannot be executed fails the exec', async () => {
-    const mgr = shimmed();
+    using mgr = shimmed();
     const { events, emit } = collect();
     await mgr.run(
       {
@@ -199,7 +199,7 @@ describe.skipIf(SHIM === null)('ExecManager under the subreaper shim', () => {
   });
 
   test('a process that left the group, its session and its tag ends with the exec', async () => {
-    const mgr = shimmed();
+    using mgr = shimmed();
     const { events, emit } = collect();
     let pid = 0;
     try {
@@ -217,7 +217,7 @@ describe.skipIf(SHIM === null)('ExecManager under the subreaper shim', () => {
   });
 
   test('without the shim, the same process is out of reach', async () => {
-    const mgr = new ExecManager(
+    using mgr = new ExecManager(
       new EnvStore(),
       () => {},
       undefined,
@@ -243,7 +243,7 @@ describe.skipIf(SHIM === null)('ExecManager under the subreaper shim', () => {
   });
 
   test('what an exec left waits under its shim while another exec runs, and ends with the last', async () => {
-    const mgr = shimmed();
+    using mgr = shimmed();
     const long = collect();
     const longDone = mgr.run(
       { ...base, execId: 'sh-long', shell: 'sleep 30', cwd: ROOT },
@@ -272,7 +272,7 @@ describe.skipIf(SHIM === null)('ExecManager under the subreaper shim', () => {
 
   test('a cancel that comes before the shim named the group signals the group once it does', async () => {
     const sent: Array<[number, NodeJS.Signals]> = [];
-    const mgr = shimmed({
+    using mgr = shimmed({
       kill: (pid, signal) => {
         sent.push([pid, signal]);
         process.kill(pid, signal);
@@ -298,7 +298,7 @@ describe.skipIf(SHIM === null)('ExecManager under the subreaper shim', () => {
   });
 
   test('a rotation’s cancel ends the command’s group and holds what it left for the exec after it', async () => {
-    const mgr = shimmed();
+    using mgr = shimmed();
     const { events, emit } = collect();
     let pid = 0;
     try {
@@ -332,7 +332,7 @@ describe.skipIf(SHIM === null)('ExecManager under the subreaper shim', () => {
   });
 
   test('what an exec left holding its pipes ends with it, and its exit is not held back', async () => {
-    const mgr = shimmed();
+    using mgr = shimmed();
     const { events, emit } = collect();
     await mgr.run(
       { ...base, execId: 'sh-pipe', shell: 'sleep 30 & echo $!', cwd: ROOT },
@@ -399,7 +399,7 @@ describe('the shim’s status pipe', () => {
 
   test('the command’s end as the pipe reports it wins over the shim’s own exit', async () => {
     const { kill } = recorder();
-    const mgr = new ExecManager(
+    using mgr = new ExecManager(
       new EnvStore(),
       () => {},
       undefined,
@@ -418,7 +418,7 @@ describe('the shim’s status pipe', () => {
 
   test('a command ended by a signal is reported as 128 + its number', async () => {
     const { kill } = recorder();
-    const mgr = new ExecManager(
+    using mgr = new ExecManager(
       new EnvStore(),
       () => {},
       undefined,
@@ -444,7 +444,7 @@ describe('the shim’s status pipe', () => {
     writeFileSync(path, '#!/bin/sh\necho "pid 99983" >&3\nkill -KILL $$\n', {
       mode: 0o755,
     });
-    const mgr = new ExecManager(
+    using mgr = new ExecManager(
       new EnvStore(),
       () => {},
       undefined,
@@ -464,7 +464,7 @@ describe('the shim’s status pipe', () => {
 
   test('a command that could not be executed fails the exec, whatever follows', async () => {
     const { kill } = recorder();
-    const mgr = new ExecManager(
+    using mgr = new ExecManager(
       new EnvStore(),
       () => {},
       undefined,
@@ -491,7 +491,7 @@ describe('the shim’s status pipe', () => {
 
   test('a refused subreaper is said once, and the exec still runs', async () => {
     const { kill } = recorder();
-    const mgr = new ExecManager(
+    using mgr = new ExecManager(
       new EnvStore(),
       () => {},
       undefined,

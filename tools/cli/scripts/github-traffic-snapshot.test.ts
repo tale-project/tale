@@ -145,6 +145,29 @@ test('refuses a new destination inside a checkout before creating it', async () 
   expect(await readdir(unverified)).toEqual([]);
 });
 
+test('refuses a checkout through a missing dot-segment before creating directories', async () => {
+  const outside = await temporaryDirectory();
+  const checkout = join(outside, 'checkout');
+  await mkdir(checkout);
+  execFileSync('git', ['init', '--quiet', checkout]);
+  let reads = 0;
+  // Keep the literal dot-segment: join() would normalize away the case.
+  const failure = await snapshotTraffic(
+    `${outside}/missing/../checkout/private/snapshots`,
+    (endpoint) => {
+      reads += 1;
+      return response(endpoint);
+    },
+  ).catch((error: unknown) => error);
+  expect(failure).toHaveProperty(
+    'message',
+    expect.stringContaining('outside Git'),
+  );
+  expect(reads).toBe(0);
+  expect(await readdir(checkout)).toEqual(['.git']);
+  expect(await readdir(outside)).toEqual(['checkout']);
+});
+
 test('refuses to collect or save traffic when Git is unavailable', async () => {
   const output = await temporaryDirectory();
   execFileSync('git', ['init', '--quiet', output]);

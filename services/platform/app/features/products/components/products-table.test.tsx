@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ProductDoc } from '@/app/lib/backend/contract/docs';
 import { checkAccessibility } from '@/tests/utils/a11y';
@@ -85,6 +85,11 @@ function productRow(name: string): HTMLElement | undefined {
   );
 }
 
+// `Intl` puts no-break spaces in a grouped amount (`1 234,56 €` in French).
+function plainSpaces(text: string | null): string {
+  return (text ?? '').replace(/\s/gu, ' ');
+}
+
 beforeEach(() => {
   mockProducts = [];
   canWrite.current = true;
@@ -157,6 +162,45 @@ describe('ProductsTable', () => {
         'Draft gadget',
       );
     });
+  });
+
+  // The Price cell used to format in the default `en` locale whatever the
+  // reader's language, while the details dialog used theirs (#3619).
+  describe('price column', () => {
+    afterEach(() => {
+      localStorage.removeItem('user-locale');
+    });
+
+    it.each([
+      ['fr-FR', '1 234,56 €'],
+      ['de-DE', '1.234,56 €'],
+      ['en-US', '€1,234.56'],
+    ])(
+      'formats the price for %s as the product details do',
+      async (locale, expected) => {
+        localStorage.setItem('user-locale', locale);
+        mockProducts = [
+          { ...makeProduct('Euro gadget'), price: 1234.56, currency: 'EUR' },
+        ];
+        const { user } = render(<ProductsTable organizationId="test-org-id" />);
+
+        const row = productRow('Euro gadget');
+        expect(row).toBeInstanceOf(HTMLElement);
+        if (!(row instanceof HTMLElement)) return;
+        const tablePrice = plainSpaces(within(row).getByText(/€/).textContent);
+
+        await user.click(within(row).getByText('Euro gadget'));
+        const dialog = await screen.findByRole('dialog');
+        const detailsPrice = plainSpaces(
+          within(dialog).getByText(/€/).textContent,
+        );
+
+        expect({ tablePrice, detailsPrice }).toEqual({
+          tablePrice: expected,
+          detailsPrice: expected,
+        });
+      },
+    );
   });
 
   // Products used to render a client paginator of its own (#1108). Every other

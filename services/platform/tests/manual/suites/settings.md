@@ -1,6 +1,6 @@
 # Settings
 
-> **Prefix** `SET-` · **Reset** none · **Cost** 117 boxes
+> **Prefix** `SET-` · **Reset** none · **Cost** 118 boxes
 
 Exercise the settings surface along its real rail — **Personal** (Account,
 Preferences, Notifications, Usage), **Organization** (Organization, Teams, Members,
@@ -264,7 +264,7 @@ run.
   catalog pane (`settings.credentials.catalog.title`) lists configured
   providers first with a **Configured** badge
   (`settings.credentials.catalog.configured`), then the rest alphabetically →
-  pick a vendor → **Name** (`settings.credentials.name`) arrives filled with
+  While the catalog is loading, the picker shows an accessible loading state instead of the empty-catalog warning; the warning remains for a successfully empty catalog. Then pick a vendor → **Name** (`settings.credentials.name`) arrives filled with
   the vendor's name; keep it, fill **API key**
   (`settings.providers.dialog.secret`), optionally narrow the **Model
   allowlist** (`settings.providers.dialog.allowlist`) → **Add credential**
@@ -325,8 +325,7 @@ run.
 - [ ] `SET-F24` · **Connectors page** — `/dashboard/{org}/settings/connectors`
   → The credential table renders under the description
   (`settings.connectors.sectionDescription`) — or the empty state
-  (`emptyStates.connectors.title`) on a fresh org — with **Add credential**
-  opening the same two-step catalog picker; connector auth methods render from
+  (`emptyStates.connectors.title`) on a fresh org — with **Add credential** opening the same two-step catalog picker; while the connector catalog is loading, the picker shows a loading state rather than the empty-catalog warning; connector auth methods render from
   `settings.connectors.authMethod.*` (API key / Token / Username & password /
   OAuth)
 - [ ] `SET-F25` · **Connector add-credential smoke** — Mode A. **Add
@@ -839,6 +838,17 @@ run.
   stays available); another row can be pinned meanwhile; the row
   leaves the list within a few seconds of the spawner finishing, without a
   reload.
+- [ ] `SET-F74` · **Subscription scope where a subscription is set up** —
+  `/dashboard/{org}/settings/providers` → **Add credential** → Anthropic →
+  **Authentication method** **Subscription broker**
+  (`settings.providers.authMethod.subscriptionBroker`) → An info notice
+  **Tasks and automations only** (`settings.providers.subscriptionScope.title`)
+  with its reason (`settings.providers.subscriptionScope.description`) sits
+  above the broker fields and is not announced as an alert; with **API key**
+  chosen it is gone. In the table a subscription row carries
+  `settings.providers.credential.tasksOnly` under its name. In `en`, `de`,
+  `de-CH` (which spells *ausser*) and `fr`, both texts wrap without clipping
+  at desktop and narrow widths.
 
 ## Boundary & error tests
 

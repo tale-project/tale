@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, test } from 'bun:test';
+import { execFileSync } from 'node:child_process';
 import {
   chmod,
   copyFile,
@@ -45,6 +46,8 @@ async function readWorkflow(path: string) {
               with: z.record(z.string(), scalar).optional(),
               env: z.record(z.string(), scalar).optional(),
               run: z.string().optional(),
+              shell: z.string().optional(),
+              'working-directory': z.string().optional(),
               if: z.string().optional(),
               'continue-on-error': z.unknown().optional(),
             }),
@@ -181,6 +184,7 @@ describe('authored release notes', () => {
       expect(checkout?.uses).toStartWith('actions/checkout@');
       // Exact paths, not cones: nothing else of the tree is fetched.
       expect(checkout?.with?.['sparse-checkout-cone-mode']).toBe(false);
+      expect(checkout?.with?.['persist-credentials']).toBe(false);
       expect(checkout?.with?.['fetch-depth']).toBeUndefined();
       expect(
         String(checkout?.with?.['sparse-checkout']).trim().split('\n'),
@@ -199,15 +203,70 @@ describe('authored release notes', () => {
       expect(imports.length).toBeGreaterThan(0);
       for (const specifier of imports) expect(specifier).toStartWith('node:');
 
-      const validate = steps.find(
+      const validateStep = steps.find(
         (step) =>
           step.name === 'Validate authored release notes before building',
-      )!.run!;
+      )!;
+      expect(validateStep.shell).toBe('bash');
+      expect(validateStep['working-directory']).toBe('.');
+      const validate = validateStep.run!;
       const tree = await validatorCheckout();
       expect(
         (await runStep(validate, tree.directory, { TAG: 'v1.2.3' })).exitCode,
       ).not.toBe(0);
       await tree.notes('v1.2.3', authored);
+      // Exercise Git's actual non-cone matcher, including root anchoring.
+      // Only this disposable synthetic repository is initialized or committed.
+      const excluded = [
+        'README.md',
+        'tools/cli/scripts/sibling.ts',
+        'nested/.github/release-notes/v1.2.3.md',
+        'nested/tools/cli/scripts/release-notes.ts',
+      ];
+      for (const path of excluded) {
+        await mkdir(join(tree.directory, dirname(path)), { recursive: true });
+        await writeFile(join(tree.directory, path), 'not needed by Prepare\n');
+      }
+      const git = (args: string[], input?: string) =>
+        execFileSync(
+          'git',
+          [
+            '-c',
+            'core.hooksPath=/dev/null',
+            '-c',
+            'commit.gpgsign=false',
+            ...args,
+          ],
+          { cwd: tree.directory, encoding: 'utf8', timeout: 10_000, input },
+        );
+      git(['init', '--quiet']);
+      git(['add', '.']);
+      git([
+        '-c',
+        'user.name=Release fixture',
+        '-c',
+        'user.email=release-fixture@example.invalid',
+        'commit',
+        '--quiet',
+        '-m',
+        'fixture',
+      ]);
+      git(
+        ['sparse-checkout', 'set', '--no-cone', '--stdin'],
+        String(checkout?.with?.['sparse-checkout']),
+      );
+      for (const path of excluded)
+        expect(await Bun.file(join(tree.directory, path)).exists(), path).toBe(
+          false,
+        );
+      expect(
+        git(['ls-files', '-t'])
+          .split('\n')
+          .filter((line) => line.startsWith('H ')),
+      ).toEqual([
+        'H .github/release-notes/v1.2.3.md',
+        'H tools/cli/scripts/release-notes.ts',
+      ]);
       const valid = await runStep(validate, tree.directory, { TAG: 'v1.2.3' });
       expect(valid.exitCode, valid.stderr).toBe(0);
     },
@@ -240,6 +299,8 @@ describe('authored release notes', () => {
           step.name === 'Validate authored release notes before building',
       );
       expect(validate?.run).toBe(prepare?.run);
+      expect(validate?.shell).toBe('bash');
+      expect(validate?.['working-directory']).toBe('.');
       expect(validate?.if).toBe("steps.tag.outputs.version != ''");
       expect(validate?.env?.TAG).toBe('${{ steps.tag.outputs.version }}');
 

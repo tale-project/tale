@@ -31,7 +31,7 @@ on:
   workflow_dispatch:
     inputs:
       tag_version:
-        description: 'Also tag the snapshots with this release version (e.g. 0.5.25); empty = branches only'
+        description: 'Also tag the snapshots with a version whose authored notes exist at this ref (e.g. 1.0.0); empty = branches only'
         required: false
         default: ''
         type: string
@@ -95,6 +95,8 @@ jobs:
       # as well, before anything is pushed, so no package tag names it.
       - name: Validate authored release notes before pinning
         if: steps.tag.outputs.version != ''
+        shell: bash
+        working-directory: .
         env:
           TAG: ${{ steps.tag.outputs.version }}
         run: bun tools/cli/scripts/release-notes.ts --version "$TAG"
