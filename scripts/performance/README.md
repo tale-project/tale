@@ -161,6 +161,15 @@ Acceptance alone has a 90-minute job and a 75-minute shared setup/measurement
 deadline. Its browser campaign is capped at 60 minutes and the remaining shared
 time, leaving cleanup/upload margin. There are no replacement samples or retries.
 `acceptance-current.json` checkpoints each action before post-action checks;
+`acceptance-fonts-current.json` retains font identities, stylesheet declarations,
+browser errors and font response status/timing before a font validity assertion.
+During actions, font listeners retain bounded metadata and response references
+only. Font/CSSOM inspection and response-body hashes run after the action's
+three-second tail and heap read, or after failure; they issue no new asset
+requests. Startup checks have separate font receipts. Collection or persistence
+failures remain invalid, and partial row evidence keeps the original cause.
+Every errored font face still fails this guard, including local fallback faces;
+these diagnostics do not grant an exception or change the timing endpoint.
 `acceptance-rows.jsonl` and `acceptance-receipt.json` preserve all rows, original
 observations, tails, heap values, missing coverage, medians/ranges and adjacent
 ABBA block differences. Heap uses MiB; the historical 600 MB budget keeps its

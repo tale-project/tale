@@ -4,6 +4,8 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 
 import { chromium, type Page } from '../../../packages/e2e/src/index.ts';
+import { fontCheckpoint, type FontCheckpoint } from './font-checkpoint.ts';
+import { createFontEvidence } from './font-evidence.ts';
 import { browserOrigins as origins } from './origins.mjs';
 
 export interface Frame {
@@ -103,6 +105,8 @@ export async function browserSession(
       Awaited<ReturnType<Page['waitForResponse']>>
     >();
     const errors: string[] = [];
+    const fontEvidence = createFontEvidence();
+    const fontState: { current?: FontCheckpoint } = {};
     page.on('console', (message) => {
       if (message.type() === 'error')
         errors.push(
@@ -110,6 +114,7 @@ export async function browserSession(
         );
     });
     page.on('response', (response) => {
+      fontEvidence.response(response);
       if (response.request().resourceType() === 'script')
         scriptResponses.set(response.url(), response);
       if (response.status() >= 400)
@@ -118,15 +123,24 @@ export async function browserSession(
         );
     });
     page.on('pageerror', (error) => errors.push(error.message));
-    page.on('requestfailed', (request) =>
-      errors.push(`request failed: ${new URL(request.url()).pathname}`),
-    );
+    page.on('requestfailed', (request) => {
+      fontEvidence.requestFailed(request);
+      errors.push(`request failed: ${new URL(request.url()).pathname}`);
+    });
     await page.addInitScript({
       path: new URL('./observer.js', import.meta.url).pathname,
     });
     const cdp = await context.newCDPSession(page);
     await cdp.send('Performance.enable');
-    return { context, page, cdp, errors, scriptResponses };
+    return {
+      context,
+      page,
+      cdp,
+      errors,
+      scriptResponses,
+      fontEvidence,
+      fontState,
+    };
   } catch (error) {
     await context.close();
     throw error;
@@ -198,14 +212,16 @@ export async function pageBoot(session: BrowserSession) {
   return evidence;
 }
 
-export async function fontsReady(page: Page) {
-  await page.evaluate(() => document.fonts.ready);
-  assert.equal(
-    await page.evaluate(
-      () =>
-        [...document.fonts].filter((font) => font.status === 'error').length,
-    ),
-    0,
-    'A font failed to load',
-  );
+export async function fontsReady(
+  session: BrowserSession,
+  persist: (evidence: FontCheckpoint) => Promise<void>,
+) {
+  return fontCheckpoint({
+    collect: () => session.fontEvidence.collect(session.page),
+    errors: () => session.errors,
+    retain: (evidence) => {
+      session.fontState.current = evidence;
+    },
+    persist,
+  });
 }

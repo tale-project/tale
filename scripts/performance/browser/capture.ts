@@ -11,6 +11,7 @@ import {
   browserIdentity,
   browserSession,
   cards,
+  fontsReady,
   observations,
   pageBoot,
   ready,
@@ -153,16 +154,10 @@ try {
           phase: 'cold-complete',
         });
         await json('browser-receipt.json', receipt);
-        await page.evaluate(() => document.fonts.ready);
-        assert.equal(
-          await page.evaluate(
-            () =>
-              [...document.fonts].filter((font) => font.status === 'error')
-                .length,
-          ),
-          0,
-          'A font failed to load',
-        );
+        await fontsReady(session, async (evidence) => {
+          row.fonts = evidence;
+          await json('browser-receipt.json', receipt);
+        });
         await page.waitForTimeout(3000);
         const { taskId, title } = fixture[size].target;
         const card = page

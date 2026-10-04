@@ -239,11 +239,13 @@ async function perform(
   origin: string,
 ) {
   const { page } = session;
+  delete session.fontState.current;
   const target = fixture.targets[planned.sample + 1]!;
   const card = page
     .locator(cards)
     .and(page.getByRole('button', { name: target.title, exact: true }));
   let actionFrame: { tDom: number; tFrame: number } | undefined;
+  let tailMetrics: Awaited<ReturnType<typeof heap>> | undefined;
   await recordAcceptanceAction(planned, {
     now: Date.now,
     checkpoint: (row) => json('acceptance-current.json', row),
@@ -256,9 +258,23 @@ async function perform(
       await save();
     },
     failureEvidence: async () => {
+      if (!session.fontState.current) {
+        try {
+          await fontsReady(session, (evidence) =>
+            json('acceptance-fonts-current.json', {
+              id: planned.id,
+              phase: 'action-failure',
+              ...evidence,
+            }),
+          );
+        } catch {
+          // The row already owns its original failure. The retained checkpoint
+          // includes partial collection errors even when its write also failed.
+        }
+      }
       let timer: ReturnType<typeof setTimeout> | undefined;
       try {
-        return await Promise.race([
+        const partial = await Promise.race([
           page.evaluate(() => {
             const animation = window.__acceptanceClose?.();
             delete window.__acceptanceClose;
@@ -277,6 +293,19 @@ async function perform(
             );
           }),
         ]);
+        return {
+          ...tailMetrics,
+          ...partial,
+          ...session.fontState.current,
+          errors: [...session.errors],
+        };
+      } catch (error) {
+        return {
+          ...tailMetrics,
+          pageEvidenceError: String(error),
+          ...session.fontState.current,
+          errors: [...session.errors],
+        };
       } finally {
         clearTimeout(timer);
       }
@@ -411,7 +440,15 @@ async function perform(
     after: async () => {
       await delay(session, 3000);
       const metrics = await heap(session);
-      await fontsReady(page);
+      tailMetrics = metrics;
+      const fontEvidence = await fontsReady(session, (evidence) =>
+        json('acceptance-fonts-current.json', {
+          id: planned.id,
+          phase: 'post-action-tail-and-heap',
+          ...metrics,
+          ...evidence,
+        }),
+      );
       const boot = await pageBoot(session);
       const animation =
         planned.operation === 'close'
@@ -429,6 +466,7 @@ async function perform(
         resource: await resource(),
         boot,
         animation,
+        ...fontEvidence,
         errors: [...session.errors],
       };
       await json('acceptance-after-current.json', {
@@ -519,7 +557,12 @@ try {
           { waitUntil: 'domcontentloaded', timeout: remaining() },
         );
         await ready(session.page, remaining());
-        await fontsReady(session.page);
+        await fontsReady(session, (evidence) =>
+          json(
+            `fonts-start-${block.size}-${block.group}-${block.block}.json`,
+            evidence,
+          ),
+        );
         assert.deepEqual(session.errors, []);
       }
       for (const sample of block.samples) {
@@ -562,7 +605,10 @@ try {
           timeout: remaining(),
         });
         await ready(session.page, remaining());
-        await fontsReady(session.page);
+        await fontsReady(session, (evidence) => {
+          functionalRow.fonts = evidence;
+          return save();
+        });
         const result = await proveAcceptanceFunctionality(session, {
           orgId: ids.orgId,
           fixture,
