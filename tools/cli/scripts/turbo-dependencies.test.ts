@@ -134,7 +134,7 @@ describe('parallel checks invalidate cached consumers of workspace sources', () 
     await write(skill, 'export const version = 1;\n');
     await write(connector, 'name: original\n');
     for (const command of [
-      [process.execPath, 'install', '--ignore-scripts'],
+      [process.execPath, 'install', '--lockfile-only', '--ignore-scripts'],
       ['git', 'init', '--quiet'],
       ['git', 'add', '.'],
     ]) {
@@ -265,7 +265,7 @@ describe('parallel checks invalidate cached consumers of workspace sources', () 
       );
     }
     const install = Bun.spawnSync(
-      [process.execPath, 'install', '--ignore-scripts'],
+      [process.execPath, 'install', '--lockfile-only', '--ignore-scripts'],
       { cwd: directory },
     );
     if (install.exitCode !== 0) throw new Error(install.stderr.toString());
