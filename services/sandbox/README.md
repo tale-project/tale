@@ -26,6 +26,13 @@ lock when parsing or forwarding fails, so retries do not retain old output
 subscriptions. Malformed JSON or invalid protocol records fail the attachment;
 a failing output consumer also ends that attachment.
 
+Cold runtime-image warming runs in the background. New local sessions wait
+with `429 runtime_image` and `Retry-After: 5`, while control, health and existing
+sessions remain available. Session lookups whose backend inventory or endpoint
+cannot be read, or whose nonterminal runtime is still starting, answer
+`503 session_unavailable` and `Retry-After: 1`; callers retry without treating
+that temporary uncertainty as a lost session.
+
 ## Authentication
 
 Every route except `GET /health` is HMAC-signed with the shared `SANDBOX_TOKEN`
@@ -194,7 +201,24 @@ network namespace with a read-only filesystem, no capabilities and no mounts;
 this works against remote Docker without borrowing the spawner host's routes.
 An unused invalid owned network is recreated; an in-use or foreign network is
 never removed. If host observation fails or no safe subnet is available,
-sessions build locally.
+sessions build locally. Shared cache provisioning has its own
+`SANDBOX_BUILDKITD_PROVISION_TIMEOUT_MS` budget (15 seconds by default,
+100–60000 ms), including queued Docker calls and helper operations. Independent
+registry mirrors initialize concurrently. Each session waits no longer than
+that budget or a quarter of `SANDBOX_SESSION_CREATE_TIMEOUT_MS`, whichever is
+shorter, before using its local builder. Cancelling a caller ends only its wait;
+the shared producer retains its organization lease until its own budget expires
+or it finishes. Expired queued producers cannot mutate Docker later, and a late
+result never attaches a network to a session that already fell back.
+Session creation has one `SANDBOX_SESSION_CREATE_TIMEOUT_MS` budget (180 seconds
+by default) covering provisioning through environment delivery on Docker and
+Kubernetes. Request cancellation propagates to outstanding work. Docker failed
+creation has a separate 10-second cleanup budget and preserves every workspace
+and its organization marker for retry or explicit destroy. Kubernetes failed
+creation has a separate 30-second cleanup budget, removes only API-acknowledged
+Pod and Secret identities, and preserves workspace PVCs and ambiguous objects.
+BuildKit solver parallelism follows the helper's CPU limit rounded down, at
+least one, and changes when an idle helper is recreated.
 
 The mirrors enable registry storage deletion so `registry:2` can expire cached
 image layers after its seven-day lifetime. Without this setting, its expiry
@@ -254,12 +278,8 @@ reach the server directly. See the script headers for the split rationale.
 docker build -f services/sandbox/Dockerfile .
 ```
 
-Session startup has one `SANDBOX_SESSION_CREATE_TIMEOUT_MS` budget (180 seconds),
-including optional BuildKit startup (`SANDBOX_BUILDKITD_START_TIMEOUT_MS`,
-30 seconds, capped at one quarter of the create budget), container/Pod readiness and environment delivery. Request
-cancellation propagates to outstanding work; cleanup is separately bounded and
-preserves the workspace. The `agent-light` profile keeps the agent user, coding
-tools and persistent workspace without inner Docker or BuildKit.
+The `agent-light` profile keeps the agent user, coding tools and persistent
+workspace without inner Docker or BuildKit.
 
 Reactivating a released session reserves its expected memory growth and checks
 disk headroom. Both create and acquire can return 429 `host_memory` or `host_disk`.

@@ -28,8 +28,8 @@ const KEYS = [
   'SANDBOX_K8S_CPU_REQUEST',
   'SANDBOX_K8S_MEMORY_REQUEST',
   'SANDBOX_BUILDKITD_CPUS',
+  'SANDBOX_BUILDKITD_PROVISION_TIMEOUT_MS',
   'SANDBOX_BUILDKITD_MEMORY',
-  'SANDBOX_BUILDKITD_START_TIMEOUT_MS',
   'SANDBOX_BUILDKITD_IDLE_CACHE',
   'SANDBOX_BUILDKITD_CACHE_RETENTION',
   'SANDBOX_MIN_FREE_DISK',
@@ -106,14 +106,6 @@ test('the builder bounds are optional and validated', () => {
   process.env.SANDBOX_BUILDKITD_MEMORY = '12g';
   process.env.SANDBOX_BUILDKITD_CPUS = 'many';
   expect(() => loadConfig()).toThrow(/SANDBOX_BUILDKITD_CPUS/);
-});
-
-test('optional build cache startup has a bounded, configurable budget', () => {
-  expect(loadConfig().buildkitdStartTimeoutMs).toBe(30_000);
-  process.env.SANDBOX_BUILDKITD_START_TIMEOUT_MS = '5000';
-  expect(loadConfig().buildkitdStartTimeoutMs).toBe(5_000);
-  process.env.SANDBOX_BUILDKITD_START_TIMEOUT_MS = '0';
-  expect(() => loadConfig()).toThrow('SANDBOX_BUILDKITD_START_TIMEOUT_MS');
 });
 
 test('Docker data filesystem monitoring is opt-in and requires absolute paths', () => {
@@ -441,6 +433,14 @@ describe('loadConfig — request body cap follows runnerd', () => {
     process.env.SANDBOX_MAX_REQUEST_BODY_BYTES = String(256 * 1024);
     expect(loadConfig().maxRequestBodyBytes).toBe(256 * 1024);
   });
+});
+
+test('optional build cache has a bounded whole-operation budget', () => {
+  expect(loadConfig().buildkitdProvisionTimeoutMs).toBe(15_000);
+  process.env.SANDBOX_BUILDKITD_PROVISION_TIMEOUT_MS = '500';
+  expect(loadConfig().buildkitdProvisionTimeoutMs).toBe(500);
+  process.env.SANDBOX_BUILDKITD_PROVISION_TIMEOUT_MS = '60001';
+  expect(() => loadConfig()).toThrow(/SANDBOX_BUILDKITD_PROVISION_TIMEOUT_MS/);
 });
 
 test('Docker workloads inherit by default and validate an explicit allowlist', () => {

@@ -10,13 +10,16 @@ export {
   PRODUCT_IMAGE_ACCEPT,
 } from '@/lib/shared/product-images';
 
-/** Upload and register an image; persist the authorized app URL, never a presign. */
+/**
+ * Upload and register an image; persist the authorized app URL, never a presign.
+ * `signal` stops the upload: the draft it was for has been discarded.
+ */
 export function useProductImageUpload() {
   const client = useBackendClient();
   const [isUploading, setIsUploading] = useState(false);
 
   const uploadImage = useCallback(
-    async (file: File): Promise<string | null> => {
+    async (file: File, signal?: AbortSignal): Promise<string | null> => {
       setIsUploading(true);
       try {
         const uploadUrl = await client.mutation(
@@ -27,6 +30,7 @@ export function useProductImageUpload() {
           method: 'POST',
           headers: { 'Content-Type': file.type || 'application/octet-stream' },
           body: file,
+          signal,
         });
         if (!res.ok) {
           // The door names its refusal (`PRODUCT_IMAGE_ACTIVE_CONTENT`,

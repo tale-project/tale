@@ -320,6 +320,14 @@ export async function createContact(
 ): Promise<string> {
   assertContactAccess(scope, 'write');
   const email = normalizeContactEmail(input.email);
+  const externalId = normalizeContactExternalId(input.externalId);
+  const name = textOrNull(input.name);
+  if (name === null && email === undefined && externalId === undefined) {
+    throw new ContactError(
+      'CONTACT_IDENTITY_REQUIRED',
+      'A contact requires at least one of name, email or externalId',
+    );
+  }
   if (email !== undefined) {
     await lockContactEmail(tx, scope.organizationId, email);
     if (
@@ -334,7 +342,6 @@ export async function createContact(
   }
   // The external id is the import lane's second key, and the same rule
   // here: the single create used to admit a twin the bulk door refuses.
-  const externalId = normalizeContactExternalId(input.externalId);
   if (externalId !== undefined) {
     await lockContactExternalId(tx, scope.organizationId, externalId);
     if (
@@ -351,7 +358,6 @@ export async function createContact(
       );
     }
   }
-  const name = textOrNull(input.name);
   const id = await insertContactRow(tx, {
     organizationId: scope.organizationId,
     name,

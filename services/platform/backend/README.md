@@ -236,3 +236,18 @@ URLs, inherited user context or breadcrumbs. Automatic performance integrations
 stay disabled and outgoing requests receive no trace headers. See the
 [operator guide](https://docs.tale.dev/self-hosted/configuration/observability-config)
 for configuration and sampling limits.
+
+Agent progress keeps one active database write and one combined pending text/
+timeline snapshot. Slow storage therefore drops superseded progress snapshots
+without retaining a growing promise chain. Drain windows rebuild bounded UI
+projections from the runtime journal, publishing resumed progress only after
+replay catches up. Missing journal history is an explicit `REPLAY_UNAVAILABLE`
+failure, and output beyond the journal budget fails with `OUTPUT_LIMIT`;
+neither can be booked as a successful turn with incomplete usage or tools.
+
+Task and workflow recovery claim candidates with `FOR UPDATE SKIP LOCKED` and a
+separate recovery timestamp. Unreachable sandboxes rotate behind other runs
+without refreshing agent liveness. Each sweep has a 60-second budget and at
+most four concurrent five-second probes; worker cancellation propagates to
+those probes. Direct chat uses independent worker slots at
+`WORKER_CONCURRENCY`, so a slow answer does not hold completed slots in a batch.

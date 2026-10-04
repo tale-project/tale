@@ -24,13 +24,22 @@ const READ_CHUNK = 64 * 1024;
 
 type ReplayFailure = 'OUTPUT_LIMIT' | 'REPLAY_UNAVAILABLE';
 export class ReplayError extends Error {
-  constructor(readonly code: ReplayFailure) {
+  constructor(
+    readonly code: ReplayFailure,
+    message?: string,
+  ) {
     super(
-      code === 'OUTPUT_LIMIT'
-        ? 'Execution output exceeded its replay storage limit.'
-        : 'The complete execution transcript is unavailable.',
+      message ??
+        (code === 'OUTPUT_LIMIT'
+          ? 'Execution output exceeded its replay storage limit.'
+          : 'The complete execution transcript is unavailable.'),
     );
   }
+}
+
+/** Queued output may already have reached a live reader; later output cannot. */
+export function isReplayCursor(since: number, throughSeq: number): boolean {
+  return Number.isSafeInteger(since) && since >= 0 && since <= throughSeq;
 }
 
 /** Reservation and completed-history eviction share one serialized boundary.
@@ -374,9 +383,14 @@ export class ExecReplay {
   ): Promise<number> {
     this.assertAvailable();
     if (signal?.aborted) return since;
-    if (since >= until) {
-      // Empty suffixes still cross the captured commit boundary. A future
-      // cursor cannot acknowledge a pending write that may yet fail.
+    if (!isReplayCursor(since, until))
+      throw new ReplayError(
+        'REPLAY_UNAVAILABLE',
+        'Invalid execution replay cursor.',
+      );
+    if (since === until) {
+      // Empty suffixes still cross the captured commit boundary. A cursor
+      // cannot acknowledge a pending write that may yet fail.
       await this.serial(async () => this.assertAvailable());
       return since;
     }

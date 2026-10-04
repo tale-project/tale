@@ -77,6 +77,33 @@ describe('buildDockerSessionRunArgs', () => {
     expect(args).not.toContain('TALE_DIND=1');
     expect(args).toContain('--read-only');
   });
+  test('records the internal create attempt as a validated ownership label', () => {
+    const createAttemptId = '01020304-0506-4708-890a-0b0c0d0e0f10';
+    const args = buildDockerSessionRunArgs(cfg, {
+      ...goodInput,
+      createAttemptId,
+    });
+    expect(args).toContain(`tale.create-attempt=${createAttemptId}`);
+    expect(() =>
+      buildDockerSessionRunArgs(cfg, {
+        ...goodInput,
+        createAttemptId: 'unsafe\nattempt',
+      }),
+    ).toThrow(/createAttemptId/);
+  });
+
+  test('an agent can opt out of inner Docker while the deployment supports it', () => {
+    const args = buildDockerSessionRunArgs(
+      { ...cfg, dockerInContainer: true },
+      { ...goodInput, docker: false },
+    );
+    expect(args).toContain('--read-only');
+    expect(args).not.toContain('--privileged');
+    expect(args.some((arg) => arg === 'TALE_DIND=1')).toBe(false);
+    expect(args.some((arg) => arg.includes('pip-org_456'))).toBe(true);
+    expect(args).toContain('tale.docker=false');
+  });
+
   test('a lightweight agent keeps agent ownership but starts no Docker daemon', () => {
     const configured = {
       ...cfg,

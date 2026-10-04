@@ -134,6 +134,128 @@ describe('file-ops', () => {
     }
   });
 
+  test('a zero-progress staged write preserves the destination and releases its slot', async () => {
+    writeFileSync(join(ROOT, 'zero-write.txt'), 'previous');
+    const originalOpen = fsPromises.open;
+    let attempts = 0;
+    const opened = spyOn(fsPromises, 'open').mockImplementation(
+      async (...args) => {
+        const file = await originalOpen(...args);
+        if (args[1] === 'wx') {
+          file.write = async <T extends NodeJS.ArrayBufferView | string>(
+            buffer: T,
+          ) => {
+            attempts += 1;
+            return { bytesWritten: 0, buffer };
+          };
+        }
+        return file;
+      },
+    );
+    try {
+      expect(
+        await stageFiles([{ path: 'zero-write.txt', contentBase64: 'YQ==' }]),
+      ).toEqual({
+        staged: [],
+        skipped: [{ path: 'zero-write.txt', reason: 'file_write_stalled' }],
+      });
+      expect(attempts).toBe(1);
+      expect(readFileSync(join(ROOT, 'zero-write.txt'), 'utf8')).toBe(
+        'previous',
+      );
+      expect(
+        readdirSync(ROOT).some((name) => name.startsWith('.tale-stage-')),
+      ).toBe(false);
+    } finally {
+      opened.mockRestore();
+    }
+    expect(
+      (
+        await stageFiles([
+          { path: 'zero-recovered.txt', contentBase64: 'YQ==' },
+        ])
+      ).staged,
+    ).toEqual([{ path: 'zero-recovered.txt', bytes: 1 }]);
+  });
+
+  test('one batch deadline stops later files and leaves the staging slot reusable', async () => {
+    let requests = 0;
+    const stalled = Bun.serve({
+      port: 0,
+      fetch: () => {
+        requests += 1;
+        return new Promise<Response>(() => {});
+      },
+    });
+    try {
+      const result = await stageFiles(
+        [
+          { path: 'batch-first', url: stalled.url.href },
+          { path: 'batch-second', url: stalled.url.href },
+          { path: 'batch-inline', contentBase64: 'YQ==' },
+        ],
+        { fetchTimeoutMs: 50 },
+      );
+      expect(requests).toBe(2);
+      expect(result.staged).toEqual([]);
+      expect(result.skipped).toEqual([
+        { path: 'batch-first', reason: 'timeout' },
+        { path: 'batch-second', reason: 'timeout' },
+        { path: 'batch-inline', reason: 'timeout' },
+      ]);
+      expect(
+        (await stageFiles([{ path: 'batch-recovered', contentBase64: 'YQ==' }]))
+          .staged,
+      ).toEqual([{ path: 'batch-recovered', bytes: 1 }]);
+    } finally {
+      await stalled.stop(true);
+    }
+  });
+
+  test('a cached destination replaced by a FIFO cannot block source verification or its deadline', async () => {
+    const path = 'cached-fifo';
+    const sourceId = 'cached-fifo-source';
+    await stageFiles([{ path, sourceId, contentBase64: 'YQ==' }]);
+    rmSync(join(ROOT, path));
+    expect(spawnSync('mkfifo', [join(ROOT, path)]).status).toBe(0);
+    const pending = stageFiles([{ path, sourceId }], { fetchTimeoutMs: 50 });
+    try {
+      const result = await Promise.race([
+        pending,
+        Bun.sleep(300).then(() => 'blocked'),
+      ]);
+      expect(result).toEqual({
+        staged: [],
+        skipped: [{ path, reason: 'no_source' }],
+      });
+    } finally {
+      // Release the baseline's blocking open even when the regression fails.
+      const release = openSync(
+        join(ROOT, path),
+        constants.O_RDWR | constants.O_NONBLOCK,
+      );
+      await pending;
+      closeSync(release);
+      rmSync(join(ROOT, path));
+    }
+  });
+
+  test('streamed reads reject a FIFO without waiting for a writer', async () => {
+    const path = join(ROOT, 'stream-fifo');
+    expect(spawnSync('mkfifo', [path]).status).toBe(0);
+    const pending = streamWorkspaceFile('stream-fifo', 1024);
+    try {
+      expect(
+        await Promise.race([pending, Bun.sleep(300).then(() => 'blocked')]),
+      ).toBeNull();
+    } finally {
+      const release = openSync(path, constants.O_RDWR | constants.O_NONBLOCK);
+      await pending;
+      closeSync(release);
+      rmSync(path);
+    }
+  });
+
   test('stageFiles fetches a URL and writes under the workspace', async () => {
     // Stand up a tiny server serving the file bytes.
     const server = Bun.serve({

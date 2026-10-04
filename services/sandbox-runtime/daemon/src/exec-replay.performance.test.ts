@@ -156,12 +156,17 @@ test('suffix replay seeks record starts and preserves large UTF-8 records', asyn
     const lines = Array.from({ length: 4096 }, (_, index) => output(index + 1));
     lines[121] = `${JSON.stringify({ t: 'fail', seq: 122, code: 'BAD_REQUEST', message: '€'.repeat(70_000) })}\n`;
     await appendAll(replay, lines);
-    for (const since of [0, 1, 120, 121, 122, 4086, 4096, 4100]) {
+    for (const since of [0, 1, 120, 121, 122, 4086, 4096]) {
       reads = 0;
       expect(await collect(replay, since, 4096)).toEqual(
         lines.slice(since).map((line) => line.trim()),
       );
       if (since >= 4086) expect(reads).toBeLessThanOrEqual(2);
+    }
+    for (const since of [-1, 0.5, NaN, Infinity, 4100]) {
+      reads = 0;
+      await rejectsWith(collect(replay, since, 4096), 'REPLAY_UNAVAILABLE');
+      expect(reads).toBe(0);
     }
   } finally {
     opened.mockRestore();

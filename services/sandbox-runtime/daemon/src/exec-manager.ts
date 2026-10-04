@@ -22,6 +22,7 @@ import { Readable, type Writable } from 'node:stream';
 import type { EnvStore } from './env-store.ts';
 import {
   ExecReplay,
+  isReplayCursor,
   ReplayBudget,
   ReplayError,
   REPLAY_WRITE_WATERMARK,
@@ -196,6 +197,7 @@ export class ExecManager {
   /** How many execs this session has started. */
   private started = 0;
   private disposed = false;
+  private attachments = 0;
   private readonly replayBudget: ReplayBudget;
 
   constructor(
@@ -232,6 +234,11 @@ export class ExecManager {
     return this.live.has(execId) || this.recent.has(execId);
   }
 
+  /** Refuse excess readers before an HTTP response begins streaming. */
+  get hasAttachCapacity(): boolean {
+    return this.attachments < 8;
+  }
+
   /**
    * Attach a consumer to an exec: replay its buffered ring, then (if still
    * live) follow new events until it exits. Returns a promise that resolves
@@ -250,9 +257,30 @@ export class ExecManager {
   ): Promise<void> | null {
     const rec = this.live.get(execId) ?? this.recent.get(execId);
     if (!rec) return null;
+    if (signal?.aborted) return Promise.resolve();
+    if (!isReplayCursor(sinceSeq, rec.seq)) {
+      emit({
+        t: 'fail',
+        code: 'REPLAY_UNAVAILABLE',
+        message: 'Invalid execution replay cursor.',
+      });
+      return Promise.resolve();
+    }
+    if (!this.hasAttachCapacity)
+      return Promise.reject(new Error('attachment limit reached'));
+    this.attachments += 1;
     const live = this.live.get(execId);
     if (live) this.armDeadline(live);
-    return this.replayAndFollow(execId, rec, emit, sinceSeq, signal, ready);
+    return this.replayAndFollow(
+      execId,
+      rec,
+      emit,
+      sinceSeq,
+      signal,
+      ready,
+    ).finally(() => {
+      this.attachments -= 1;
+    });
   }
 
   private async replayAndFollow(

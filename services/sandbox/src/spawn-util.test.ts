@@ -482,3 +482,63 @@ describe('runDocker — cancellation before spawn', () => {
     },
   );
 });
+
+describe('Docker operation deadlines', () => {
+  async function expectDeadline(operation: Promise<unknown>): Promise<void> {
+    const error: unknown = await operation.then(
+      () => undefined,
+      (cause: unknown) => cause,
+    );
+    expect(error).toBeInstanceOf(Error);
+    expect(error instanceof Error ? error.message : '').toContain('deadline');
+  }
+
+  test('the deadline kills a CLI that ignores SIGTERM and drains its slot', async () => {
+    const started = Date.now();
+    let exitCode: number | undefined;
+    await expectDeadline(
+      withOperationBudget(80, async () => {
+        exitCode = (
+          await runDocker(['-c', 'trap "" TERM; exec sleep 2'], {
+            timeoutMs: 3_000,
+          })
+        ).exitCode;
+      }),
+    );
+    expect(Date.now() - started).toBeLessThan(1000);
+    expect(exitCode).not.toBe(0);
+    expect(dockerCliLoad()).toEqual({ running: 0, waiting: 0 });
+  });
+
+  test('a shared deadline aborts a running CLI and prevents subsequent commands', async () => {
+    const started = Date.now();
+    let first: Awaited<ReturnType<typeof runDocker>> | undefined;
+    let second: Awaited<ReturnType<typeof runDocker>> | undefined;
+    await expectDeadline(
+      withOperationBudget(80, async () => {
+        first = await runDocker(['-c', 'exec sleep 2']);
+        second = await runDocker(['-c', 'printf should-not-run']);
+      }),
+    );
+    expect(Date.now() - started).toBeLessThan(1000);
+    expect(first?.exitCode).not.toBe(0);
+    expect(second?.exitCode).toBe(-1);
+    expect(second?.stdout).toBe('');
+  });
+
+  test('nested deadlines inherit cancellation while independent cleanup can run', async () => {
+    await expectDeadline(
+      withOperationBudget(20, async () => {
+        await Bun.sleep(40);
+        await expectDeadline(
+          withOperationBudget(500, () => runDocker(['-c', 'printf no'])),
+        );
+        const cleanup = await outsideOperationBudget(() =>
+          withOperationBudget(500, () => runDocker(['-c', 'printf cleaned'])),
+        );
+        expect(cleanup.stdout).toBe('cleaned');
+      }),
+    );
+    expect((await runDocker(['-c', 'printf outside'])).stdout).toBe('outside');
+  });
+});

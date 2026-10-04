@@ -91,6 +91,11 @@ import { checkInboundEmailBodies } from './domains/knowledge/message-index.integ
 import { checkScopeRefHolder } from './domains/knowledge/scope-holder.integration.ts';
 import { checkRagStatusHintScope } from './domains/knowledge/status-hints.integration.ts';
 import { checkKnowledgeEntryIndexing } from './domains/knowledge_entries/indexing.integration.ts';
+import {
+  checkConcurrentEntryCreation,
+  checkConcurrentEntryRenameAndCreate,
+  checkConcurrentEntryUpdates,
+} from './domains/knowledge_entries/write-races.integration.ts';
 import { writeNotificationForOrgs } from './domains/notifications/service.ts';
 import { ensureDefaultObjectStore } from './domains/object_storage/bootstrap.ts';
 import { checkOrphanedOrgRowsBackfill } from './domains/organizations/orphaned-rows.integration.ts';
@@ -113,6 +118,7 @@ import { checkAgentTaskReadTools } from './domains/tasks/agent-read-tools.integr
 import { checkAgentTaskReviewRouting } from './domains/tasks/agent-review-routing.integration.ts';
 import { checkAgentTaskReviews } from './domains/tasks/agent-review.integration.ts';
 import { checkSessionOpTranscriptMerge } from './domains/tasks/agent-turn-shim.integration.ts';
+import { checkArchivedTaskWrites } from './domains/tasks/archived-writes.integration.ts';
 import { checkTaskAutomationOccupancy } from './domains/tasks/automation-occupancy.integration.ts';
 import { checkTaskBoardSearch } from './domains/tasks/board-search.integration.ts';
 import {
@@ -19522,6 +19528,9 @@ async function checkTurnReattach(
     WHERE name = 'task.agent_drive'
   `;
 
+  // Simulate the next tick after the failed probes' reservation expires.
+  await sql`UPDATE app.project_agent_runs SET recovery_checked_at_ms = NULL
+    WHERE id = ANY(${[abandoned.runId, noOp.runId]})`;
   // Reachable: the abandoned turn and the op-less one re-attach; the live
   // one is refused by the claim.
   const recovered = await recoverStalledTaskAgentTurns(sql, {
@@ -19684,6 +19693,68 @@ async function checkTurnReattach(
                                     destroyed_at_ms = ${Date.now()}
     WHERE session_id = ANY(${fenceSessions})
   `;
+
+  // Failed probes rotate independently of run liveness. Two replicas must
+  // claim disjoint work, and the 26th row must not remain behind 25 offline
+  // devices. The database, not a process-local cursor, owns this progress.
+  const fairRuns: Array<{ runId: string; sessionId: string; execId: string }> =
+    [];
+  for (let n = 0; n < 26; n++) {
+    const run = await mkRun(`fair-${n}`, { withOp: false });
+    fairRuns.push(run);
+    await sql`UPDATE app.project_agent_runs SET updated_at_ms = ${now - 600_000 + n}
+      WHERE id = ${run.runId}`;
+  }
+  const fairIds = fairRuns.map((run) => run.runId);
+  const visits: string[] = [];
+  const offline = async (sessionId: string): Promise<never> => {
+    visits.push(sessionId);
+    throw new Error('offline device');
+  };
+  const replicas = await Promise.all([
+    recoverStalledTaskAgentTurns(sql, { probe: offline }),
+    recoverStalledTaskAgentTurns(sql, { probe: offline }),
+  ]);
+  const reserved = await sql<{ visited: number; live: number }[]>`
+    SELECT count(*) FILTER (WHERE recovery_checked_at_ms IS NOT NULL)::int AS visited,
+           count(*) FILTER (WHERE updated_at_ms < ${now - 500_000})::int AS live
+    FROM app.project_agent_runs WHERE id = ANY(${fairIds})
+  `;
+  record(
+    'task recovery fairness: replicas visit 26 offline runs once without refreshing their liveness',
+    replicas.reduce((count, result) => count + result.examined, 0) === 26 &&
+      visits.length === 26 &&
+      new Set(visits).size === 26 &&
+      reserved[0]?.visited === 26 &&
+      reserved[0]?.live === 26,
+    `visits=${visits.length}/26 unique=${new Set(visits).size}/26 reserved=${reserved[0]?.visited} unchanged=${reserved[0]?.live}`,
+  );
+  await sql`UPDATE app.project_agent_runs SET recovery_checked_at_ms = NULL WHERE id = ANY(${fairIds})`;
+  const reachable = fairRuns[25];
+  const selectivelyReachable = async (sessionId: string) => {
+    if (sessionId !== reachable?.sessionId) throw new Error('offline device');
+    return { state: 'running' as const };
+  };
+  const failedBatch = await recoverStalledTaskAgentTurns(sql, {
+    probe: selectivelyReachable,
+  });
+  const nextBatch = await recoverStalledTaskAgentTurns(sql, {
+    probe: selectivelyReachable,
+  });
+  record(
+    'task recovery fairness: 25 offline sessions cannot starve the next reachable run',
+    failedBatch.examined === 25 &&
+      failedBatch.resumed === 0 &&
+      nextBatch.examined === 1 &&
+      nextBatch.resumed === 1,
+    `first=${failedBatch.examined}/${failedBatch.resumed}, next=${nextBatch.examined}/${nextBatch.resumed}`,
+  );
+  await sql`DELETE FROM pgboss.job WHERE name = 'task.agent_drive' AND data ->> 'runId' = ANY(${fairIds})`;
+  await sql`UPDATE app.project_agent_runs SET status = 'cancelled' WHERE id = ANY(${fairIds})`;
+  const fairSessions = fairRuns.map((run) => run.sessionId);
+  await sql`DELETE FROM app.sandbox_session_ops WHERE session_id = ANY(${fairSessions})`;
+  await sql`UPDATE app.sandbox_sessions SET status = 'destroyed', destroyed_at_ms = ${Date.now()}
+    WHERE session_id = ANY(${fairSessions})`;
 
   // Migration 0127 names the ops written before the column existed. A
   // task-agent op takes the harness of ITS RUN — here `codex`, under a
@@ -20370,6 +20441,8 @@ async function checkWorkflowTurnReattachRows(
       AND data ->> 'execId' LIKE 'wf-reattach-exec-%'
   `;
 
+  await sql`UPDATE app.automation_runs SET recovery_checked_at_ms = NULL
+    WHERE id = ANY(${[abandoned.runId, noOp.runId]})`;
   // Reachable: the abandoned turn and the op-less one re-attach; the live
   // one is refused by the claim; the ask-parked one is spared by the listing.
   const recovered = await recoverStalledWorkflowAgentTurns(sql, {
@@ -20421,6 +20494,68 @@ async function checkWorkflowTurnReattachRows(
       createdOp[0]?.harness === 'codex',
     `unreachable=${unreachable.resumed} (want 0), resumed=${recovered.resumed}/${recovered.examined} (want 2), driven={stale:${drivenRunIds.has(abandoned.runId)}, noop:${drivenRunIds.has(noOp.runId)}, live:${drivenRunIds.has(live.runId)}, asked:${drivenRunIds.has(asked.runId)}}, keys=${String(driveKeys?.nodeId)}/${String(driveKeys?.providerSlug)}, createdOp=${createdOp[0]?.resumedBy ?? 'missing'}/${createdOp[0]?.status ?? '-'}/${createdOp[0]?.kind ?? '-'}/${createdOp[0]?.harness ?? '-'} (want watchdog/running/workflow-agent/codex)`,
   );
+
+  // Failed probes rotate independently of run liveness. Two replicas must
+  // claim disjoint work, and the 26th row must not remain behind 25 offline
+  // devices. The database, not a process-local cursor, owns this progress.
+  const fairRuns: Array<{ runId: string; sessionId: string; execId: string }> =
+    [];
+  for (let n = 0; n < 26; n++) {
+    const run = await mkRun(`fair-${n}`, { withOp: false });
+    fairRuns.push(run);
+    await sql`UPDATE app.automation_runs SET started_at_ms = ${now - 600_000 + n}
+      WHERE id = ${run.runId}`;
+  }
+  const fairIds = fairRuns.map((run) => run.runId);
+  const visits: string[] = [];
+  const offline = async (sessionId: string): Promise<never> => {
+    visits.push(sessionId);
+    throw new Error('offline device');
+  };
+  const replicas = await Promise.all([
+    recoverStalledWorkflowAgentTurns(sql, { probe: offline }),
+    recoverStalledWorkflowAgentTurns(sql, { probe: offline }),
+  ]);
+  const reserved = await sql<{ visited: number; live: number }[]>`
+    SELECT count(*) FILTER (WHERE recovery_checked_at_ms IS NOT NULL)::int AS visited,
+           count(*) FILTER (WHERE started_at_ms < ${now - 500_000})::int AS live
+    FROM app.automation_runs WHERE id = ANY(${fairIds})
+  `;
+  record(
+    'automation recovery fairness: replicas visit 26 offline runs once without refreshing their liveness',
+    replicas.reduce((count, result) => count + result.examined, 0) === 26 &&
+      visits.length === 26 &&
+      new Set(visits).size === 26 &&
+      reserved[0]?.visited === 26 &&
+      reserved[0]?.live === 26,
+    `visits=${visits.length}/26 unique=${new Set(visits).size}/26 reserved=${reserved[0]?.visited} unchanged=${reserved[0]?.live}`,
+  );
+  await sql`UPDATE app.automation_runs SET recovery_checked_at_ms = NULL WHERE id = ANY(${fairIds})`;
+  const reachable = fairRuns[25];
+  const selectivelyReachable = async (sessionId: string) => {
+    if (sessionId !== reachable?.sessionId) throw new Error('offline device');
+    return { state: 'running' as const };
+  };
+  const failedBatch = await recoverStalledWorkflowAgentTurns(sql, {
+    probe: selectivelyReachable,
+  });
+  const nextBatch = await recoverStalledWorkflowAgentTurns(sql, {
+    probe: selectivelyReachable,
+  });
+  record(
+    'automation recovery fairness: 25 offline sessions cannot starve the next reachable run',
+    failedBatch.examined === 25 &&
+      failedBatch.resumed === 0 &&
+      nextBatch.examined === 1 &&
+      nextBatch.resumed === 1,
+    `first=${failedBatch.examined}/${failedBatch.resumed}, next=${nextBatch.examined}/${nextBatch.resumed}`,
+  );
+  await sql`DELETE FROM pgboss.job WHERE name = 'automation.agent_drive' AND data ->> 'runId' = ANY(${fairIds})`;
+  await sql`UPDATE app.automation_runs SET status = 'cancelled' WHERE id = ANY(${fairIds})`;
+  const fairSessions = fairRuns.map((run) => run.sessionId);
+  await sql`DELETE FROM app.sandbox_session_ops WHERE session_id = ANY(${fairSessions})`;
+  await sql`UPDATE app.sandbox_sessions SET status = 'destroyed', destroyed_at_ms = ${Date.now()}
+    WHERE session_id = ANY(${fairSessions})`;
 
   // Leave nothing for later sweeps or metrics folds to trip over.
   await sql`
@@ -59439,6 +59574,32 @@ async function main(): Promise<void> {
         'checkKnowledgeEntries',
         () => checkKnowledgeEntries(sql, baseUrl, authCtx),
       ],
+      [
+        'checkKnowledgeEntryWriteRaces',
+        async () => {
+          const { resolveObjectStore, s3GetObjectBytes } =
+            await import('./lib/object-store.ts');
+          const store = await resolveObjectStore(`itest-${orgSuffix}`);
+          const writer = {
+            organizationId: authCtx.orgId,
+            userId: authCtx.userId,
+            role: 'owner',
+          };
+          const readBlob = async (ref: string): Promise<string> =>
+            new TextDecoder().decode(
+              await s3GetObjectBytes(store, ref.slice(3)),
+            );
+          await checkConcurrentEntryCreation(sql, writer);
+          await checkConcurrentEntryUpdates(sql, writer, readBlob);
+          await checkConcurrentEntryUpdates(sql, writer, readBlob, true);
+          await checkConcurrentEntryRenameAndCreate(sql, writer);
+          record(
+            'knowledge entries: concurrent creates, corrections and renames',
+            true,
+            'real transaction interleavings; one winner, normal 409, coherent history and backing bytes',
+          );
+        },
+      ],
       ['checkCollabEmitters', () => checkCollabEmitters(sql, baseUrl, authCtx)],
       ['checkBellHintWire', () => checkBellHintWire(sql, baseUrl, authCtx)],
       [
@@ -59845,6 +60006,10 @@ async function main(): Promise<void> {
       [
         'checkTaskBoardSearch',
         () => checkTaskBoardSearch(sql, baseUrl, authCtx, record),
+      ],
+      [
+        'checkArchivedTaskWrites',
+        () => checkArchivedTaskWrites(sql, baseUrl, authCtx, record),
       ],
       [
         'checkAgentTaskReadTools',

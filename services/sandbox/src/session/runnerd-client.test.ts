@@ -6,6 +6,9 @@ import {
   runnerdAttach,
   runnerdExec,
   runnerdReadFile,
+  runnerdStageFiles,
+  RunnerdStageBusyError,
+  runnerdEnvPatch,
   waitForRunnerd,
 } from './runnerd-client.ts';
 import type { RunnerdExecEvent } from './runnerd-protocol.ts';
@@ -545,6 +548,108 @@ test('cancelling a file consumer detaches the upstream body', async () => {
     );
     await cancelled.promise;
   } finally {
+    await server.stop(true);
+  }
+});
+
+test('staging preserves reconciliation and reports admission refusals distinctly', async () => {
+  const bodies: unknown[] = [];
+  const server = Bun.serve({
+    port: 0,
+    async fetch(request) {
+      bodies.push(await request.json());
+      return Response.json({ error: 'busy' }, { status: 503 });
+    },
+  });
+  try {
+    const failure = await runnerdStageFiles(
+      { baseUrl: server.url.origin, token: 'test' },
+      [{ path: 'inputs/a', sourceId: 'source-a' }],
+      { replaceRoots: ['inputs'], keepPaths: ['inputs/a'] },
+    ).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(RunnerdStageBusyError);
+    expect(bodies).toEqual([
+      {
+        files: [{ path: 'inputs/a', sourceId: 'source-a' }],
+        replaceRoots: ['inputs'],
+        keepPaths: ['inputs/a'],
+      },
+    ]);
+  } finally {
+    await server.stop(true);
+  }
+});
+
+test('a cancelled staging caller detaches the daemon request promptly', async () => {
+  const arrived = Promise.withResolvers<void>();
+  const server = Bun.serve({
+    port: 0,
+    fetch() {
+      arrived.resolve();
+      return new Promise<Response>(() => {});
+    },
+  });
+  const abort = new AbortController();
+  try {
+    const result = runnerdStageFiles(
+      { baseUrl: server.url.origin, token: 'test' },
+      [{ path: 'a', contentBase64: 'YQ==' }],
+      {},
+      { signal: abort.signal, timeoutMs: 1000 },
+    ).catch((error: unknown) => error);
+    await arrived.promise;
+    abort.abort();
+    expect(
+      await Promise.race([result, Bun.sleep(200).then(() => 'still pending')]),
+    ).toBeInstanceOf(Error);
+  } finally {
+    abort.abort();
+    await server.stop(true);
+  }
+});
+
+test('staging timeout bounds an unresponsive daemon without a caller signal', async () => {
+  const server = Bun.serve({
+    port: 0,
+    fetch: () => new Promise<Response>(() => {}),
+  });
+  try {
+    const failure = await runnerdStageFiles(
+      { baseUrl: server.url.origin, token: 'test' },
+      [],
+      {},
+      { timeoutMs: 20 },
+    ).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(Error);
+    expect(failure).toMatchObject({ name: 'TimeoutError' });
+  } finally {
+    await server.stop(true);
+  }
+});
+
+test('session creation cancellation reaches the environment patch request', async () => {
+  const arrived = Promise.withResolvers<void>();
+  const server = Bun.serve({
+    port: 0,
+    fetch() {
+      arrived.resolve();
+      return new Promise<Response>(() => {});
+    },
+  });
+  const abort = new AbortController();
+  try {
+    const result = runnerdEnvPatch(
+      { baseUrl: server.url.origin, token: 'test' },
+      { set: { TEST: 'value' } },
+      abort.signal,
+    ).catch((error: unknown) => error);
+    await arrived.promise;
+    abort.abort();
+    expect(
+      await Promise.race([result, Bun.sleep(200).then(() => 'still pending')]),
+    ).toBeInstanceOf(Error);
+  } finally {
+    abort.abort();
     await server.stop(true);
   }
 });

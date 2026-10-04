@@ -149,6 +149,27 @@ describe('equipped skill staging with real bundles', () => {
       'Report template.',
     );
 
+    // Bundle reads and uploads run concurrently. Force the second equipped
+    // skill to upload first without making prompt order depend on that timing.
+    const reportUploaded = Promise.withResolvers<void>();
+    vi.stubGlobal('fetch', async (url: string, init?: RequestInit) => {
+      if (typeof init?.body !== 'string')
+        throw new Error('Expected a serialized staging request');
+      const body = JSON.parse(init.body) as {
+        files: Array<{ path: string; contentBase64?: string }>;
+      };
+      const uploading = (slug: string) =>
+        body.files.some(
+          (file) =>
+            file.path === `workspace/.tale/skills/${slug}/SKILL.md` &&
+            file.contentBase64 !== undefined,
+        );
+      if (uploading('release')) await reportUploaded.promise;
+      const response = await sandboxFetch(url, init);
+      if (uploading('report')) reportUploaded.resolve();
+      return response;
+    });
+
     const prompt = await stageWorkflowSkills(
       ctx,
       ORG_A,
@@ -164,17 +185,19 @@ describe('equipped skill staging with real bundles', () => {
       '<skill-description>Prepare reports.</skill-description>',
     );
     expect(prompt).toContain('Use it only when the task asks for it by name.');
-    expect(staged.map((file) => file.path)).toEqual([
-      'workspace/.tale/skills/release/SKILL.md',
-      'workspace/.tale/skills/report/SKILL.md',
-      'workspace/.tale/skills/report/assets/template.md',
-    ]);
-    expect(Buffer.from(staged[0].contentBase64, 'base64').toString()).toBe(
-      release,
-    );
-    expect(Buffer.from(staged[1].contentBase64, 'base64').toString()).toBe(
-      report,
-    );
+    expect(staged).toHaveLength(3);
+    expect(
+      Object.fromEntries(
+        staged.map((file) => [
+          file.path,
+          Buffer.from(file.contentBase64, 'base64').toString(),
+        ]),
+      ),
+    ).toEqual({
+      'workspace/.tale/skills/release/SKILL.md': release,
+      'workspace/.tale/skills/report/SKILL.md': report,
+      'workspace/.tale/skills/report/assets/template.md': 'Report template.',
+    });
   });
 
   it('keeps identically named skills inside their organization', async () => {

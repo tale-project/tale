@@ -456,6 +456,58 @@ describe('runnerd HTTP service', () => {
     }
   });
 
+  test('invalid attach cursors fail explicitly without consuming or damaging retained output', async () => {
+    const response = await fetch(`${baseUrl}/execs`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        execId: 'invalid-http-cursor',
+        command: ['/bin/sh', '-c', 'printf retained'],
+        cwd: workspace,
+        timeoutMs: 5000,
+        stdoutMaxBytes: 1024,
+        stderrMaxBytes: 1024,
+      }),
+    });
+    expect(response.status).toBe(200);
+    await response.text();
+    for (const cursor of ['-1', 'NaN', '0.5', 'Infinity', '9007199254740991']) {
+      const refused = await fetch(
+        `${baseUrl}/execs/invalid-http-cursor/attach?sinceSeq=${cursor}`,
+        { headers },
+      );
+      expect(refused.status).toBe(200);
+      expect(
+        (await refused.text())
+          .trim()
+          .split('\n')
+          .map((line) => JSON.parse(line)),
+      ).toEqual([
+        {
+          t: 'fail',
+          code: 'REPLAY_UNAVAILABLE',
+          message: 'Invalid execution replay cursor.',
+        },
+      ]);
+    }
+    const replay = await fetch(`${baseUrl}/execs/invalid-http-cursor/attach`, {
+      headers,
+    });
+    const events = (await replay.text())
+      .trim()
+      .split('\n')
+      .map((line) => record(JSON.parse(line)));
+    expect(
+      events.some(
+        (event) =>
+          event.t === 'stdout' &&
+          event.b64 === Buffer.from('retained').toString('base64'),
+      ),
+    ).toBe(true);
+    expect(events.at(-1)).toMatchObject({ t: 'exit', exitCode: 0 });
+    expect(await currentActiveOperations()).toBe(0);
+  });
+
   test('partial exec uploads consume the shared reader slots and release them on disconnect', async () => {
     const uploads = Array.from({ length: 8 }, () => {
       const upload = request(

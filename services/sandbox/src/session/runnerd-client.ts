@@ -330,12 +330,16 @@ export async function runnerdCancelExec(
 export async function runnerdExecStatus(
   opts: RunnerdClientOptions,
   execId: string,
+  signal?: AbortSignal,
 ): Promise<RunnerdExecStatus> {
   const res = await fetch(
     `${opts.baseUrl}/execs/${encodeURIComponent(execId)}`,
     {
       headers: authHeaders(opts.token),
-      signal: AbortSignal.timeout(RUNNERD_RPC_TIMEOUT_MS),
+      signal: AbortSignal.any([
+        AbortSignal.timeout(RUNNERD_RPC_TIMEOUT_MS),
+        ...(signal ? [signal] : []),
+      ]),
     },
   );
   if (res.status === 404) return { execId, state: 'gone' };
@@ -369,6 +373,13 @@ export async function runnerdWriteStdin(
   return (await res.json()) as { ok: boolean; reason?: string };
 }
 
+/** Reader admission refused without changing the exec's lifecycle. */
+export class RunnerdAttachBusyError extends Error {
+  constructor() {
+    super('runnerd replay readers are busy');
+  }
+}
+
 /** GET /execs/:id/attach — reconnect to a live/recent exec; same NDJSON event
  * stream as runnerdExec. Returns false with no events if the exec is unknown
  * (404). */
@@ -379,7 +390,7 @@ export async function runnerdAttach(
   signal?: AbortSignal,
   sinceSeq = 0,
 ): Promise<boolean> {
-  const q = sinceSeq > 0 ? `?sinceSeq=${sinceSeq}` : '';
+  const q = sinceSeq !== 0 ? `?sinceSeq=${sinceSeq}` : '';
   const consumer = new AbortController();
   try {
     const res = await fetch(
@@ -392,6 +403,16 @@ export async function runnerdAttach(
       },
     );
     if (res.status === 404) return false;
+    if (res.status === 503) {
+      const body: unknown = await res.json().catch(() => null);
+      if (
+        body !== null &&
+        typeof body === 'object' &&
+        'error' in body &&
+        body.error === 'busy'
+      )
+        throw new RunnerdAttachBusyError();
+    }
     if (!res.ok || !res.body) throw new Error(`runnerd /attach ${res.status}`);
     await pumpNdjson(res.body, onEvent);
     return true;
@@ -405,12 +426,18 @@ export async function runnerdAttach(
 export async function runnerdEnvPatch(
   opts: RunnerdClientOptions,
   patch: { set?: Record<string, string>; unset?: string[] },
+  signal?: AbortSignal,
 ): Promise<string[]> {
   const res = await fetch(`${opts.baseUrl}/env`, {
     method: 'POST',
     headers: { ...authHeaders(opts.token), 'content-type': 'application/json' },
     body: JSON.stringify(patch),
-    signal: operationSignal(AbortSignal.timeout(RUNNERD_RPC_TIMEOUT_MS)),
+    signal: operationSignal(
+      AbortSignal.any([
+        AbortSignal.timeout(RUNNERD_RPC_TIMEOUT_MS),
+        ...(signal ? [signal] : []),
+      ]),
+    ),
   });
   if (!res.ok) throw new Error(`runnerd /env ${res.status}`);
   // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
@@ -444,15 +471,16 @@ export async function runnerdStageFiles(
     sourceId?: string;
   }>,
   reconcile: { replaceRoots?: string[]; keepPaths?: string[] } = {},
-  signal?: AbortSignal,
+  request: { signal?: AbortSignal; timeoutMs?: number } = {},
 ): Promise<RunnerdStageResult> {
   const res = await fetch(`${opts.baseUrl}/files/stage`, {
     method: 'POST',
     headers: { ...authHeaders(opts.token), 'content-type': 'application/json' },
     body: JSON.stringify({ files, ...reconcile }),
-    signal: signal
-      ? AbortSignal.any([signal, AbortSignal.timeout(RUNNERD_RPC_TIMEOUT_MS)])
-      : AbortSignal.timeout(RUNNERD_RPC_TIMEOUT_MS),
+    signal: AbortSignal.any([
+      AbortSignal.timeout(request.timeoutMs ?? RUNNERD_RPC_TIMEOUT_MS),
+      ...(request.signal ? [request.signal] : []),
+    ]),
   });
   if (res.status === 503) {
     const body: unknown = await res.json().catch(() => null);

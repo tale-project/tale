@@ -201,7 +201,14 @@ export function ProductCreateDialog({
     [trigger],
   );
 
+  // One abort per draft. This dialog stays mounted across close and reopen,
+  // so an image upload still running at close would otherwise land in the
+  // next draft (#3626); closing stops it and drops its answer.
+  const [draftAbort, setDraftAbort] = useState(() => new AbortController());
+
   const handleClose = () => {
+    draftAbort.abort();
+    setDraftAbort(new AbortController());
     reset();
     setActiveIndex(0);
     onClose();
@@ -311,6 +318,7 @@ export function ProductCreateDialog({
             onChange={(v) => setValue('imageUrl', v, { shouldDirty: true })}
             disabled={isSubmitting}
             errorMessage={errors.imageUrl?.message}
+            signal={draftAbort.signal}
           />
         </WizardStep>
 

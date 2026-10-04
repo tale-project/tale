@@ -342,10 +342,10 @@ const HELPER_STAMP_LABEL = 'tale.helper-config';
 export function helperStamp(
   image: string,
   limits: readonly string[],
-  environment: readonly string[] = [],
+  configuration: readonly string[] = [],
 ): string {
   return createHash('sha256')
-    .update([image, ...limits, ...environment].join('\n'))
+    .update([image, ...limits, ...configuration].join('\n'))
     .digest('hex')
     .slice(0, 16);
 }
@@ -1099,7 +1099,7 @@ export async function ensureBuildkitd(
   if (existing) return waitWithinOperation(existing);
   const release = retainBuildkitd(organizationId);
   const work = outsideOperationBudget(() =>
-    withOperationBudget(cfg.buildkitdStartTimeoutMs ?? 30_000, () =>
+    withOperationBudget(cfg.buildkitdProvisionTimeoutMs ?? 15_000, () =>
       withBuildkitdOperation(organizationId, () =>
         ensureBuildkitdUnlocked(cfg, organizationId, name),
       ),
@@ -1207,7 +1207,13 @@ async function ensureBuildkitdOnNetwork(
   // with no working DNS/egress (RUN steps fail to resolve any external host) —
   // recreate it. See buildkitdEgressHealthy.
   const limits = buildkitHelperLimits(cfg, 'builder');
-  const stamp = helperStamp(cfg.buildkitdImage, limits);
+  const parallelism = Math.max(
+    1,
+    Math.floor(cfg.buildkitdCpus ?? cfg.session.agentProfile.cpus),
+  );
+  const stamp = helperStamp(cfg.buildkitdImage, limits, [
+    `solver-parallelism=${parallelism}`,
+  ]);
   const helper = await inspectBuildkitHelper(
     name,
     organizationId,
@@ -1303,6 +1309,8 @@ async function ensureBuildkitdOnNetwork(
       // `registry=ref` pair.
       '--env',
       `TALE_BUILDKITD_MIRRORS=${mirrors}`,
+      '--env',
+      `TALE_BUILDKITD_MAX_PARALLELISM=${parallelism}`,
       '--env',
       `HTTPS_PROXY=${cfg.egressProxy}`,
       '--env',

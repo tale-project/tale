@@ -37,14 +37,16 @@ export function mergeImportRowErrors(
 /**
  * What is wrong with a refused row, in the reader's language: a parser
  * refusal is its `common.import.reasons.<reason>` sentence over the
- * `common.import.fields.<field>` label; a server refusal is the server's
- * own text. `tCommon` is the `common` namespace's `t`.
+ * `common.import.fields.<field>` label, or `common.import.unpairedQuotes` for
+ * a CSV row whose quotes don't pair up; a server refusal is the server's own
+ * text. `tCommon` is the `common` namespace's `t`.
  */
 export function importRowErrorMessage(
   tCommon: TFunction,
   entry: ImportRowError,
 ): string {
   if ('message' in entry) return entry.message;
+  if ('quotes' in entry) return tCommon('import.unpairedQuotes');
   return tCommon(`import.reasons.${entry.reason}`, {
     ...entry.values,
     field: tCommon(`import.fields.${entry.field}`),

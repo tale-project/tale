@@ -10,7 +10,7 @@ The Docker spawner provisions the cache lazily when an agent session needs it.
 `SANDBOX_DOCKER_BUILD_CACHE` defaults to the DinD setting; set it to `false` to
 use only each session's local builder. This integration is implemented by the
 Docker backend, not the Kubernetes backend. A caller waits no more than
-`SANDBOX_BUILDKITD_START_TIMEOUT_MS` (30 seconds by default), or one quarter of
+`SANDBOX_BUILDKITD_PROVISION_TIMEOUT_MS` (15 seconds by default, configurable from 100 to 60,000 ms), or one quarter of
 its total session startup budget if shorter, for the optional cache. After that
 it uses its own builder. Shared provisioning has its own bounded lifetime and
 remains coalesced and protected by its organization lease until completion; a late
@@ -96,9 +96,6 @@ does, and its next build starts cold. When the session disk is below
 with retention off, starting with the longest-stopped organization. See
 [the spawner's cache lifecycle](../sandbox/README.md#organization-build-caches).
 
-The OCI worker limits concurrent build steps to four (`max-parallelism`), in
-addition to its cgroup limits.
-
 The builder is shared by all of its organization's agent sessions and runs
 under their CPU limit and twice their memory limit (its RUN steps execute
 there, outside every session's cgroup), or `SANDBOX_BUILDKITD_CPUS` and
@@ -127,3 +124,15 @@ network for operator review.
 
 Resource creation, refusal, reuse, and guarded legacy retirement are covered by
 [the provisioning tests](../sandbox/src/buildkit-resources.test.ts).
+
+Solver parallelism is bounded to the builder CPU limit rounded down, with a
+minimum of one (two by default). The spawner passes this as `TALE_BUILDKITD_MAX_PARALLELISM`; the
+entrypoint regenerates `max-parallelism` on each start. It is part of the helper
+configuration stamp, so busy helpers finish their builds before recreation
+applies a changed setting. The existing memory limit still bounds the entire
+builder, including its build steps.
+
+The provisioning budget includes queued Docker calls and concurrent registry
+mirror setup. A caller's earlier timeout ends its wait without cancelling a
+shared producer. The producer's own expiry cancels its work, and queued expired
+setup is skipped before it can mutate Docker.

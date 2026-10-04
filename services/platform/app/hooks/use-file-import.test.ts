@@ -1,6 +1,11 @@
 import { describe, it, expect } from 'vitest';
+import * as XLSX from 'xlsx';
 
-import { ImportRowRefusal, parseCSVWithMapper } from '@/lib/utils/file-parsing';
+import {
+  ImportRowRefusal,
+  parseCSVWithMapper,
+  parseImportFile,
+} from '@/lib/utils/file-parsing';
 
 import {
   contactMappers,
@@ -344,5 +349,37 @@ describe('product import row accounting', () => {
       { row: 3, field: 'name', reason: 'blank' },
       { row: 4, field: 'price', reason: 'notNumber' },
     ]);
+  });
+});
+
+describe("product import of a spreadsheet's multi-line cell (#3580)", () => {
+  it('imports one product with the whole description, price and stock', async () => {
+    // The bytes a spreadsheet's CSV export writes, read from the device the
+    // way the products dialog reads them.
+    const csv = XLSX.utils.sheet_to_csv(
+      XLSX.utils.aoa_to_sheet([
+        ['name', 'description', 'price', 'stock'],
+        ['Widget', 'First line\nSecond line', 12, 3],
+      ]),
+    );
+    const file = new File([csv], 'products.csv', { type: 'text/csv' });
+    const result = await parseImportFile(
+      file,
+      productMappers.csv,
+      productMappers.record,
+      { requiredColumns: PRODUCT_REQUIRED_COLUMNS },
+    );
+    expect(result.errors).toEqual([]);
+    expect(result.rowErrors).toEqual([]);
+    expect(result.data).toEqual([
+      {
+        name: 'Widget',
+        description: 'First line\nSecond line',
+        stock: 3,
+        price: 12,
+        currency: 'USD',
+      },
+    ]);
+    expect(result.rows).toEqual([2]);
   });
 });

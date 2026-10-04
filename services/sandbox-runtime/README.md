@@ -31,7 +31,8 @@ at 128 KiB queued, plus the chunk already delivered by the pipe. Sparse record
 indexes every 64 KiB let reconnects seek near their cursor within a segment.
 An exec reader is disconnected before pending writes exceed 8 MiB. Eight
 exec/attach consumers share a session-wide admission limit, including exec
-requests receiving their body; additional readers receive `503 busy`.
+requests receiving their body; excess consumers receive a retryable `503 busy`
+without changing the exec. Invalid or future replay cursors fail explicitly.
 Attach replay waits for socket drain and disconnects a reader stalled for two
 seconds. The command continues under its existing deadline. Reconnect using
 the last sequence number. `replay-start` precedes history; `replay-complete`
@@ -62,7 +63,9 @@ the destination's permission bits, including executable files. At most two stage
 are admitted at once, including their JSON intake; excess requests report
 `busy`. Two transfers run concurrently across all admitted batches. A 25-second
 deadline covers the whole batch, including cache verification and final
-reconciliation. Queued items share the same deadline. URL inputs retain their 100 MiB limit and inline inputs their 1 MiB limit. Output reads also stream, within their
+reconciliation. Queued items share the same deadline. Cancellation propagates
+through the platform and spawner to the active transfer. URL inputs retain their
+100 MiB limit and inline inputs their 1 MiB limit. Output reads also stream, within their
 20 MiB file limit. Immutable source identities can skip a transfer only after
 rehashing the current destination and checking that its pathname still names
 the same unchanged file; a changed file is repaired. Reads and cache probes

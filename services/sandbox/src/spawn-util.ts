@@ -319,6 +319,9 @@ async function runDockerNow(
     stdout: 'pipe',
     stderr: 'pipe',
     signal: opts.signal,
+    // An operation budget is a hard bound, just like the CLI's timeout below.
+    // SIGTERM can be ignored and let a cancelled command report success later.
+    killSignal: 'SIGKILL',
   });
 
   // Drain both streams concurrently to avoid pipe-back-pressure deadlock,

@@ -329,6 +329,10 @@ async function handleAttach(
     sendJson(res, 404, { error: 'not_found' });
     return;
   }
+  if (!execManager.hasAttachCapacity) {
+    sendJson(res, 503, { error: 'busy' });
+    return;
+  }
   res.writeHead(200, {
     'content-type': 'application/x-ndjson',
     'cache-control': 'no-cache, no-transform',
@@ -515,7 +519,7 @@ async function handleOperation(
   }
   const attachMatch = path.match(EXEC_ATTACH_RE);
   if (req.method === 'GET' && attachMatch) {
-    const sinceSeq = Number(url.searchParams.get('sinceSeq') ?? '0') || 0;
+    const sinceSeq = Number(url.searchParams.get('sinceSeq') ?? '0');
     await withExecConsumer(req, res, () =>
       handleAttach(req, res, attachMatch[1] ?? '', sinceSeq),
     );

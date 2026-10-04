@@ -16,7 +16,7 @@ afterAll(() => {
   rmSync(root, { recursive: true, force: true });
 });
 
-test('concurrent attachments wait for the captured write and suppress future-cursor duplicates', async () => {
+test('concurrent attachments wait for the captured write and suppress acknowledged duplicates', async () => {
   using manager = new ExecManager(new EnvStore(), () => {});
   const originalOpen = fs.open;
   const entered = Promise.withResolvers<void>();
@@ -82,7 +82,7 @@ test('concurrent attachments wait for the captured write and suppress future-cur
       Promise.withResolvers<void>(),
       Promise.withResolvers<void>(),
     ];
-    for (const [index, since] of [1, 3].entries()) {
+    for (const [index, since] of [1, 2].entries()) {
       const events = seen[index];
       const barrier = complete[index];
       if (!events || !barrier) throw new Error('missing attachment fixture');
@@ -130,6 +130,7 @@ test('concurrent attachments wait for the captured write and suppress future-cur
       [
         { t: 'replay-start' },
         { t: 'replay-complete', throughSeq: 2 },
+        { t: 'stdout', seq: 3 },
         { t: 'exit', seq: 4 },
       ],
     ]);

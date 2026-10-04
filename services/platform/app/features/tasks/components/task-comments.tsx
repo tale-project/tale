@@ -11,7 +11,7 @@ import { Text } from '@tale/ui/text';
 import { useFormatDate } from '@tale/ui/use-format-date';
 import { useIsMac } from '@tale/ui/use-is-mac';
 import { toast } from '@tale/ui/use-toast';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 
 import { CHAT_COMPOSER_FRAME_CLASS } from '@/app/features/chat/lib/layout';
 import { useCurrentUser } from '@/app/hooks/use-current-user';
@@ -276,14 +276,16 @@ export function TaskCommentComposer({
   );
   const isAdding = addComment.isPending;
   const empty = draft.trim().length === 0;
+  const draftRevision = useRef(0);
 
   const submit = async () => {
     const body = draft.trim();
     if (!body || isAdding) return;
+    const submittedRevision = draftRevision.current;
     try {
       const result = await addComment.mutateAsync({ taskId, body });
       toastUnresolvedMentions(result.unresolvedMentionTokens, toast, tCommon);
-      clearDraft();
+      if (draftRevision.current === submittedRevision) clearDraft();
     } catch (error) {
       // The comment write's own toast reports the failure.
       console.error('[tasks] comment action failed', error);
@@ -297,7 +299,10 @@ export function TaskCommentComposer({
       projectId={projectId}
       rows={compact && empty ? 1 : 2}
       value={draft}
-      onValueChange={setDraft}
+      onValueChange={(value) => {
+        draftRevision.current += 1;
+        setDraft(value);
+      }}
       onKeyDown={onModEnter(() => {
         if (!isAdding) void submit();
       })}

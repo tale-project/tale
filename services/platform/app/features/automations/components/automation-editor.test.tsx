@@ -60,6 +60,7 @@ const {
     mode: string;
     startedBy: string;
     startedAt: number;
+    checkpoints?: unknown;
   }>,
   saveMutation: { mutateAsync: vi.fn(), isPending: false },
   startRun: { mutate: vi.fn(), isPending: false },
@@ -186,10 +187,12 @@ vi.mock('./automation-canvas', () => ({
     graph,
     onSelectNode,
     inspectorId,
+    runStatusByNode,
   }: {
     graph: { nodes: readonly { id: string }[] };
     onSelectNode: (nodeId: string | null) => void;
     inspectorId: string;
+    runStatusByNode?: ReadonlyMap<string, string>;
   }) => (
     <div data-testid="canvas" data-inspector-id={inspectorId}>
       {graph.nodes.map((node) => (
@@ -199,6 +202,7 @@ vi.mock('./automation-canvas', () => ({
           onClick={() => {
             onSelectNode(node.id);
           }}
+          data-run-status={runStatusByNode?.get(node.id)}
         >
           {`select ${node.id}`}
         </button>
@@ -617,6 +621,23 @@ describe('AutomationEditor', () => {
     expect(
       screen.getByRole('button', { name: 'Show last run' }),
     ).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('marks a waiting run cursor as running in the last-run overlay', () => {
+    runsData.push({
+      id: 'run_1',
+      name: 'billing/dunning',
+      version: 3,
+      status: 'waiting',
+      mode: 'mock',
+      startedBy: 'user:a',
+      startedAt: 1_700_000_200_000,
+      checkpoints: { cursor: { node: 'summary' } },
+    });
+    renderPage();
+    expect(
+      screen.getByRole('button', { name: 'select summary' }),
+    ).toHaveAttribute('data-run-status', 'running');
   });
 
   it('stays quiet when the deployed version has no pinless agent node', () => {
