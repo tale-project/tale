@@ -270,6 +270,9 @@ test('missing tools and excessive command output fail closed with bounded diagno
     'TLS command failed',
   );
   await expect(
+    runTlsTool(join(owned, 'missing-tool'), [], Buffer.from('private-input')),
+  ).rejects.toThrow('TLS command failed');
+  await expect(
     runTlsTool(process.execPath, [
       '-e',
       // Keep this owned child alive so the assertion tests output-bound
@@ -289,10 +292,14 @@ test('shared deadline kills the exact owned process and releases its listeners',
   process.env.BENCH_DEADLINE_MS = String(Date.now() + 400);
   try {
     await expect(
-      runTlsTool(process.execPath, [
-        '-e',
-        `require('node:fs').writeFileSync(${JSON.stringify(pidPath)},String(process.pid));setInterval(()=>{},1000)`,
-      ]),
+      runTlsTool(
+        process.execPath,
+        [
+          '-e',
+          `require('node:fs').writeFileSync(${JSON.stringify(pidPath)},String(process.pid));setInterval(()=>{},1000)`,
+        ],
+        Buffer.from('synthetic-private-stdin'),
+      ),
     ).rejects.toThrow('TLS command failed');
   } finally {
     if (previous === undefined) delete process.env.BENCH_DEADLINE_MS;
@@ -348,4 +355,20 @@ test('a signal error in the deadline callback rejects its owner without an uncau
     cleanupError === undefined ||
       (cleanupError as NodeJS.ErrnoException).code === 'ESRCH',
   ).toBe(true);
+});
+
+test('private stdin transport preserves literal executable arguments without shell interpolation', async () => {
+  const literal = 'literal $HOME $(printf forbidden) `printf forbidden` ; &';
+  const result = await runTlsTool(
+    process.execPath,
+    [
+      '-e',
+      "process.stdin.resume();process.stdin.on('end',()=>console.log(JSON.stringify(process.argv.slice(1))))",
+      '--',
+      literal,
+    ],
+    Buffer.from('synthetic-private-stdin'),
+  );
+  expect(JSON.parse(result.stdout)).toEqual([literal]);
+  expect(result.stderr).toBe('');
 });

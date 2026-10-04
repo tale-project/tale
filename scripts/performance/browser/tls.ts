@@ -25,7 +25,15 @@ export async function runTlsTool(
   allowedCodes = [0],
 ) {
   const timeout = phaseTimeout(15000);
-  const child = spawn(command, args, {
+  // Node's stdio "pipe" is a socket on Linux, so OpenSSL cannot reopen
+  // /dev/stdin. A fixed POSIX pipeline provides an actual pipe; executable
+  // and arguments remain positional values and private bytes stay on stdin.
+  const spawnCommand = input === undefined ? command : '/bin/sh';
+  const parameters =
+    input === undefined
+      ? args
+      : ['-c', 'cat | exec "$@"', 'owned-tls-stdin', command, ...args];
+  const child = spawn(spawnCommand, parameters, {
     env: childEnvironment(),
     detached: true,
     stdio: ['pipe', 'pipe', 'pipe'],
