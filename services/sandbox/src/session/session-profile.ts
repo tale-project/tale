@@ -5,7 +5,7 @@
 // `default` profile (run_code / crawler page rendering — untrusted content,
 // uid 65534) never gets the agent-only ones.
 
-import type { SpawnerConfig } from '../types.ts';
+import type { SessionAgentProfileConfig, SpawnerConfig } from '../types.ts';
 import type { SandboxSessionProfile } from '../wire.ts';
 
 /**
@@ -20,8 +20,40 @@ import type { SandboxSessionProfile } from '../wire.ts';
  * setup in lockstep.
  */
 export function sessionDindEnabled(
-  cfg: SpawnerConfig,
+  cfg: Pick<SpawnerConfig, 'dockerInContainer' | 'dockerWorkloads'>,
   profile: SandboxSessionProfile,
+  requested?: boolean,
 ): boolean {
-  return cfg.dockerInContainer && profile === 'agent';
+  return cfg.dockerInContainer && profile === 'agent' && requested !== false;
+}
+
+/** Resolve once at creation and record it on the backend object. A caller
+ * can narrow the deployment's capability, never enable a disabled one.
+ * Untagged callers keep the legacy default only while all workloads are
+ * enabled, so an older caller cannot bypass an operator's restriction. */
+export function sessionDockerCapability(
+  cfg: Pick<SpawnerConfig, 'dockerInContainer' | 'dockerWorkloads'>,
+  profile: SandboxSessionProfile,
+  workload?: 'project' | 'workflow',
+  requested?: boolean,
+): boolean {
+  const allowed = cfg.dockerWorkloads;
+  const workloadAllowed =
+    allowed === undefined ||
+    (workload === undefined
+      ? allowed.includes('project') && allowed.includes('workflow')
+      : allowed.includes(workload));
+  return workloadAllowed && sessionDindEnabled(cfg, profile, requested);
+}
+
+/** The derived memory ceiling follows the session's actual Docker capability.
+ * CPU, ownership and other agent limits remain the configured profile's. */
+export function sessionAgentProfile(
+  cfg: SpawnerConfig,
+  docker: boolean,
+): SessionAgentProfileConfig {
+  const profile = cfg.session.agentProfile;
+  return !docker && profile.memoryWithoutDocker !== undefined
+    ? { ...profile, memory: profile.memoryWithoutDocker }
+    : profile;
 }

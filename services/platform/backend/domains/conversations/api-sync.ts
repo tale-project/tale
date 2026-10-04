@@ -17,6 +17,7 @@ import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { FileError, statOrgBlob } from '../files/service.ts';
 import { firstForeignUpload } from '../files/upload-intents.ts';
+import { assertOwnedAttachments } from './attachment-ownership.ts';
 import { completePendingDraftInTx } from './draft.ts';
 import { applyConversationRouting } from './routing.ts';
 import {
@@ -513,6 +514,13 @@ export async function queueApiReply(
     assertAttachmentLanded(landed, file.size);
   }
   return transactSerializable(sql, async (tx) => {
+    // Proven and stamped in this transaction, so a refusal below leaves no
+    // stamp behind (#4111); the route refused a foreign file before.
+    await assertOwnedAttachments(
+      tx,
+      { organizationId: args.organizationId, userId: args.actor.userId },
+      args.attachments,
+    );
     const identities = await tx<
       { email: string }[]
     >`SELECT email FROM "user" WHERE id = ${args.actor.userId} AND "emailVerified" = true FOR SHARE`;

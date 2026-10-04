@@ -181,6 +181,10 @@ export interface ModelCallRequest {
   /** The model can SEE images (catalog `vision` tag): the host inlines image
    * attachments as content blocks. Without it they read as text surfaces. */
   readonly vision?: boolean;
+  /** The model's function tools work only on the Responses API (catalog
+   * `toolCallingApi`): a direct host speaks that API for the call instead of
+   * Chat Completions. */
+  readonly toolCallingApi?: ModelCatalogEntry['toolCallingApi'];
   readonly signal?: AbortSignal;
   /** The host calls this once the provider ACCEPTED the request: it answered
    * with a success status and its stream opened. From then on the round has
@@ -813,8 +817,11 @@ async function streamWithOutputGuardrails(
       sampling,
       // The catalog's own capability flag decides whether image attachments
       // are inlined on the wire — the pipeline resolves it here so the host
-      // never re-derives capability from a model id.
+      // never re-derives capability from a model id. The tool API likewise.
       vision: request.model.supportsVision,
+      ...(request.model.toolCallingApi !== undefined
+        ? { toolCallingApi: request.model.toolCallingApi }
+        : {}),
       signal: round.signal ?? request.signal,
       onAccepted: () => {
         observed.accepted = true;

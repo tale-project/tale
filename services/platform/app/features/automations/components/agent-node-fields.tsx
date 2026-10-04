@@ -31,6 +31,7 @@ import {
 import { useUnpinnedServingPreview } from '@/app/features/projects/hooks/use-unpinned-serving-preview';
 import {
   findSelectedModel,
+  offeredToHarness,
   toModelOptions,
 } from '@/app/features/projects/lib/model-options';
 import {
@@ -150,18 +151,20 @@ export function AgentNodeFields({
     () => toModelOptions(roster.data?.models ?? []),
     [roster.data],
   );
-  // Subscription-served entries are bound to their forced harness — offer
-  // them only when the node's EFFECTIVE harness (the host default when the
-  // field is unset) is that one. Direct-served entries fit every harness.
+  // Subscription-served entries are bound to their forced harness, and a
+  // Responses-only model needs a harness that speaks that API — offer each
+  // only when the node's EFFECTIVE harness (the host default when the field
+  // is unset) can run it. Other direct-served entries fit every harness.
   const effectiveHarness = harness === '' ? DEFAULT_HARNESS : harness;
+  const harnessWire = roster.data?.harnesses.find(
+    (entry) => entry.harness === effectiveHarness,
+  )?.toolCallingWire;
   const offeredModels = useMemo(
     () =>
-      models.filter(
-        (option) =>
-          option.subscription === undefined ||
-          option.subscription.harness === effectiveHarness,
+      models.filter((option) =>
+        offeredToHarness(option, effectiveHarness, harnessWire),
       ),
-    [models, effectiveHarness],
+    [models, effectiveHarness, harnessWire],
   );
   const selectedModel = findSelectedModel(offeredModels, model, modelProvider);
   // Only claim "not offered" once the listing has answered — an empty roster

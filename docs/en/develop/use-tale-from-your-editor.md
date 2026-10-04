@@ -70,7 +70,7 @@ The answer is an OpenAI model list: `owned_by` is the provider slug, and `create
 }
 ```
 
-The list holds your organization's chat models that a provider credential of type **API key** or **Environment variable** serves, narrowed by each credential's model allowlist and by your model access. Models served through a subscription credential are not listed, and neither are models of a provider whose endpoint is set per credential, such as Azure. `GET /api/v1/models` gives each of these models' context window, capabilities, and prices under the same `providerSlug` and `id`.
+The list holds your organization's chat models that a provider credential of type **API key** or **Environment variable** serves, narrowed by each credential's model allowlist and by your model access. Models served through a subscription credential are not listed, and neither are models of a provider whose endpoint is set per credential, such as Azure, or models whose tool calls work only through OpenAI's Responses API, such as GPT-6.1 Sol, which these endpoints do not relay. `GET /api/v1/models` gives each of these models' context window, capabilities, and prices under the same `providerSlug` and `id`.
 
 ### Point opencode at Tale
 

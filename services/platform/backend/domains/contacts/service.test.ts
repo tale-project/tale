@@ -28,6 +28,7 @@ import {
   ContactError,
   createContact,
   findOrCreateContactByEmail,
+  listContacts,
 } from './service.ts';
 
 type Statement = { text: string; values: unknown[] };
@@ -271,5 +272,41 @@ describe('bulkCreateContacts — the import door', () => {
     ]);
     // Rows land without per-contact audit rows (the import is the audited act).
     expect(createAuditLog).not.toHaveBeenCalled();
+  });
+});
+
+describe('listContacts — the Locale facet', () => {
+  /** The values bound to the listing's three locale comparisons. */
+  function localeSlots(statements: Statement[]): unknown[] {
+    const listing = statements.find((s) => s.text.includes('ORDER BY'));
+    const segments = listing?.text.split('?') ?? [];
+    return (listing?.values ?? []).filter((_, index) => {
+      const after = segments[index + 1] ?? '';
+      return (
+        after.startsWith('::text IS NULL OR lower(replace(locale') ||
+        after.startsWith(" OR starts_with(lower(replace(locale, '_', '-'))") ||
+        after.startsWith("::text || '-')")
+      );
+    });
+  }
+
+  // #3618: the listing had no locale predicate at all. A facet names a
+  // language (`fr`), the directory stores tags (`fr-CH`, `fr_CA`, `FR`), so
+  // the range is compared as RFC 4647 basic filtering compares it.
+  it('compares a lower-case, hyphenated range against the tag and its subtags', async () => {
+    const { sql, statements } = recordingSql();
+    await listContacts(sql, SCOPE, { locale: ' FR_ca ' });
+    expect(statements[0]?.text).toContain(
+      "AND (?::text IS NULL OR lower(replace(locale, '_', '-')) = ? OR starts_with(lower(replace(locale, '_', '-')), ?::text || '-'))",
+    );
+    expect(localeSlots(statements)).toEqual(['fr-ca', 'fr-ca', 'fr-ca']);
+  });
+
+  it('filters nothing without a Locale, or with a blank one', async () => {
+    for (const options of [{}, { locale: '  ' }]) {
+      const { sql, statements } = recordingSql();
+      await listContacts(sql, SCOPE, options);
+      expect(localeSlots(statements)).toEqual([null, null, null]);
+    }
   });
 });

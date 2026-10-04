@@ -638,7 +638,7 @@ pricing:
     cta: Nous contacter
     feature1: Auto-hébergé ou cloud
     feature2: Exploitation professionnelle par Ruler GmbH, certifiée ISO 27001
-    feature3: Des contrôles pour tes processus de protection des données
+    feature3: Accord de traitement des données (DPA)
     feature4: Support email, téléphone et à distance
     feature5: Installation et maintenance continue
     feature7: Influence sur la feuille de route
@@ -668,7 +668,7 @@ pricing:
       selfHosted: Auto-hébergé
       cloud: Cloud
       localDataCenters: Centres de données locaux (CH & UE)
-      gdpr: Contrôles de protection des données
+      dpa: Accord de traitement des données (DPA)
       iso: Exploitation certifiée ISO 27001
       piiRedaction: Masquage des données personnelles
       customDpa: DPA personnalisé

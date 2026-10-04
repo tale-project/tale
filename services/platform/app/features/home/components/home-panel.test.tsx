@@ -15,6 +15,7 @@ import {
 } from '@/tests/utils/render';
 
 import type { HomeData } from '../hooks/use-home-data';
+import { homeDraftKey } from '../lib/home-drafts';
 
 const location = vi.hoisted(() => ({
   current: { pathname: '/dashboard/org-1/chat/t1', search: {} } as {
@@ -337,6 +338,53 @@ describe('HomeNavigator', () => {
     expect(first).toHaveFocus();
   });
 
+  it.each([
+    ['chat', 't1', 'Quarterly report'],
+    ['task', 'k1', 'Review the launch checklist'],
+  ] as const)(
+    'keeps literal %s drafts discoverable after leaving, reopening and remounting',
+    (kind, id, title) => {
+      const pathname =
+        '/dashboard/org-1/' + (kind === 'chat' ? 'chat' : 'tasks') + '/' + id;
+      const key = homeDraftKey({ kind, id }, 'u1', 'org-1');
+      for (const text of [
+        '<Button />',
+        '<tag>',
+        'ordinary unsent note',
+        '',
+        '   ',
+      ]) {
+        const stored = JSON.stringify(text);
+        window.localStorage.setItem(key, stored);
+        location.current = { pathname, search: {} };
+        const view = render(<HomeNavigator organizationId="org-1" />);
+        const row = () =>
+          within(stream()).getByRole('link', { name: new RegExp(title) });
+        expect(row()).not.toHaveTextContent('Draft');
+
+        location.current = { pathname: '/dashboard/org-1/chat', search: {} };
+        view.rerender(<HomeNavigator organizationId="org-1" />);
+        expect(row().textContent?.includes('Draft')).toBe(
+          text.trim().length > 0,
+        );
+
+        location.current = { pathname, search: {} };
+        view.rerender(<HomeNavigator organizationId="org-1" />);
+        expect(row()).not.toHaveTextContent('Draft');
+        expect(window.localStorage.getItem(key)).toBe(stored);
+        view.unmount();
+
+        location.current = { pathname: '/dashboard/org-1/chat', search: {} };
+        const reloaded = render(<HomeNavigator organizationId="org-1" />);
+        expect(row().textContent?.includes('Draft')).toBe(
+          text.trim().length > 0,
+        );
+        expect(window.localStorage.getItem(key)).toBe(stored);
+        reloaded.unmount();
+      }
+    },
+  );
+
   it('marks an item whose composer holds something unsent', () => {
     window.localStorage.setItem(
       'task-comment-draft-u1-org-1-k1',
@@ -629,7 +677,7 @@ describe('HomeNavigator on the phone screen', () => {
     expect(projectRow()).toHaveAttribute('aria-pressed', 'false');
   });
 
-  it('offers Open project in project actions menu without showing redundant scope bars', async () => {
+  it('offers Open project and Pin project in a project menu without showing redundant scope bars', async () => {
     const { user } = render(
       <HomeNavigator organizationId="org-1" variant="screen" />,
     );
@@ -645,9 +693,10 @@ describe('HomeNavigator on the phone screen', () => {
         name: 'Actions for Website relaunch',
       }),
     );
+    // No New chat: on a phone it leads the Chats view instead.
     expect(
-      screen.getByRole('menuitem', { name: 'Open project' }),
-    ).toBeInTheDocument();
+      screen.getAllByRole('menuitem').map((item) => item.textContent),
+    ).toEqual(['Open project', 'Pin project']);
   });
 
   it('narrows the Tasks view to the project too', async () => {
@@ -684,7 +733,7 @@ describe('HomeNavigator on the phone screen', () => {
     expect(screen.queryByText(/^Showing /)).not.toBeInTheDocument();
   });
 
-  it('says the project is empty instead of "nothing yet"', async () => {
+  it('says which view of the project is empty instead of "nothing yet"', async () => {
     homeData.current = data({
       items: data().items.filter((item) => item.kind === 'conversation'),
     });
@@ -695,6 +744,15 @@ describe('HomeNavigator on the phone screen', () => {
     await user.click(projectRow());
     expect(screen.getByText('No chats in this project')).toBeInTheDocument();
     expect(screen.queryByText('Nothing here yet')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('radio', { name: /Tasks/ }));
+    expect(projectRow()).toHaveAttribute('aria-pressed', 'true');
+    expect(
+      screen.getByText('No open tasks assigned to you in this project'),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText('Nothing assigned to you'),
+    ).not.toBeInTheDocument();
   });
 
   it('holds back the archived chats while narrowed', async () => {

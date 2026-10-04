@@ -126,19 +126,28 @@ export async function runnerdExec(
   onEvent: (event: RunnerdExecEvent) => void,
   signal?: AbortSignal,
 ): Promise<void> {
-  const res = await fetch(`${opts.baseUrl}/execs`, {
-    method: 'POST',
-    headers: {
-      ...authHeaders(opts.token),
-      'content-type': 'application/json',
-    },
-    body: JSON.stringify(req),
-    ...(signal ? { signal } : {}),
-  });
-  if (!res.ok || !res.body) {
-    throw new Error(`runnerd /execs ${res.status}`);
+  const consumer = new AbortController();
+  try {
+    const res = await fetch(`${opts.baseUrl}/execs`, {
+      method: 'POST',
+      headers: {
+        ...authHeaders(opts.token),
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify(req),
+      signal: signal
+        ? AbortSignal.any([signal, consumer.signal])
+        : consumer.signal,
+    });
+    if (!res.ok || !res.body) {
+      throw new Error(`runnerd /execs ${res.status}`);
+    }
+    await pumpNdjson(res.body, onEvent);
+  } finally {
+    // Cancelling a body reader alone can leave Bun's HTTP fetch connected.
+    // End this subscription, never the detached command behind it.
+    consumer.abort();
   }
-  await pumpNdjson(res.body, onEvent);
 }
 
 /** Read an NDJSON body, invoking `onEvent` per parsed line in order (trailing
@@ -151,36 +160,56 @@ async function pumpNdjson(
   const reader = body.getReader();
   const decoder = new TextDecoder('utf-8');
   let buf = '';
+  let completed = false;
   const emitLine = (line: string): void => {
     const trimmed = line.trim();
     if (!trimmed) return;
+    let event: RunnerdExecEvent;
     try {
       // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
-      onEvent(JSON.parse(trimmed) as RunnerdExecEvent);
+      event = JSON.parse(trimmed) as RunnerdExecEvent;
     } catch (err) {
       console.warn('[sandbox.session] bad NDJSON line from runnerd:', err);
+      return;
     }
+    // A failed consumer must detach, not masquerade as malformed JSON and
+    // keep reading output nobody can forward.
+    onEvent(event);
   };
-  for (;;) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    buf += decoder.decode(value, { stream: true });
-    let nl = buf.indexOf('\n');
-    while (nl !== -1) {
-      emitLine(buf.slice(0, nl));
-      buf = buf.slice(nl + 1);
-      nl = buf.indexOf('\n');
+  try {
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) {
+        completed = true;
+        break;
+      }
+      buf += decoder.decode(value, { stream: true });
+      let nl = buf.indexOf('\n');
+      while (nl !== -1) {
+        emitLine(buf.slice(0, nl));
+        buf = buf.slice(nl + 1);
+        nl = buf.indexOf('\n');
+      }
+      // Bound the residual partial line: a daemon streaming without newlines
+      // would otherwise grow `buf` until the spawner OOMs. Abort the pump (the
+      // route's catch sends `error` + evicts a gone backend).
+      if (buf.length > MAX_NDJSON_BUFFER_BYTES) {
+        throw new Error(
+          `runnerd NDJSON exceeded ${MAX_NDJSON_BUFFER_BYTES} bytes without a newline`,
+        );
+      }
     }
-    // Bound the residual partial line: a daemon streaming without newlines
-    // would otherwise grow `buf` until the spawner OOMs. Abort the pump (the
-    // route's catch sends `error` + evicts a gone backend).
-    if (buf.length > MAX_NDJSON_BUFFER_BYTES) {
-      throw new Error(
-        `runnerd NDJSON exceeded ${MAX_NDJSON_BUFFER_BYTES} bytes without a newline`,
-      );
+    emitLine(buf);
+  } finally {
+    // A parser/consumer failure does not abort fetch by itself. Detach the
+    // upstream stream before a reconnect can add another runnerd subscriber
+    // (and its output forwarding work); the exec itself keeps running.
+    try {
+      if (!completed) await reader.cancel().catch(() => undefined);
+    } finally {
+      reader.releaseLock();
     }
   }
-  emitLine(buf);
 }
 
 /** POST /execs/:id/cancel. A transport failure THROWS (the route turns it into
@@ -267,14 +296,24 @@ export async function runnerdAttach(
   sinceSeq = 0,
 ): Promise<boolean> {
   const q = sinceSeq > 0 ? `?sinceSeq=${sinceSeq}` : '';
-  const res = await fetch(
-    `${opts.baseUrl}/execs/${encodeURIComponent(execId)}/attach${q}`,
-    { headers: authHeaders(opts.token), ...(signal ? { signal } : {}) },
-  );
-  if (res.status === 404) return false;
-  if (!res.ok || !res.body) throw new Error(`runnerd /attach ${res.status}`);
-  await pumpNdjson(res.body, onEvent);
-  return true;
+  const consumer = new AbortController();
+  try {
+    const res = await fetch(
+      `${opts.baseUrl}/execs/${encodeURIComponent(execId)}/attach${q}`,
+      {
+        headers: authHeaders(opts.token),
+        signal: signal
+          ? AbortSignal.any([signal, consumer.signal])
+          : consumer.signal,
+      },
+    );
+    if (res.status === 404) return false;
+    if (!res.ok || !res.body) throw new Error(`runnerd /attach ${res.status}`);
+    await pumpNdjson(res.body, onEvent);
+    return true;
+  } finally {
+    consumer.abort();
+  }
 }
 
 /** PATCH the session env store (POST /env on runnerd). Returns the names the
@@ -295,23 +334,47 @@ export async function runnerdEnvPatch(
   return body.denied ?? [];
 }
 
+/** A stage request refused before any file mutation; callers may retry it. */
+export class RunnerdStageBusyError extends Error {
+  constructor() {
+    super('runnerd staging is busy');
+  }
+}
+
 interface RunnerdStageResult {
   staged: Array<{ path: string; bytes: number }>;
   skipped: Array<{ path: string; reason: string }>;
+  reconciled?: true;
 }
 
 /** POST /files/stage — write each item into the workspace (inline base64
  * bytes, or fetched by the daemon from its URL). */
 export async function runnerdStageFiles(
   opts: RunnerdClientOptions,
-  files: Array<{ path: string; url?: string; contentBase64?: string }>,
+  files: Array<{
+    path: string;
+    url?: string;
+    contentBase64?: string;
+    sourceId?: string;
+  }>,
+  reconcile: { replaceRoots?: string[]; keepPaths?: string[] } = {},
 ): Promise<RunnerdStageResult> {
   const res = await fetch(`${opts.baseUrl}/files/stage`, {
     method: 'POST',
     headers: { ...authHeaders(opts.token), 'content-type': 'application/json' },
-    body: JSON.stringify({ files }),
+    body: JSON.stringify({ files, ...reconcile }),
     signal: AbortSignal.timeout(RUNNERD_RPC_TIMEOUT_MS),
   });
+  if (res.status === 503) {
+    const body: unknown = await res.json().catch(() => null);
+    if (
+      body !== null &&
+      typeof body === 'object' &&
+      'error' in body &&
+      body.error === 'busy'
+    )
+      throw new RunnerdStageBusyError();
+  }
   if (!res.ok) throw new Error(`runnerd /files/stage ${res.status}`);
   // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
   return (await res.json()) as RunnerdStageResult;
@@ -369,15 +432,22 @@ export async function runnerdListDir(
 export async function runnerdReadFile(
   opts: RunnerdClientOptions,
   path: string,
-): Promise<ArrayBuffer | null> {
+  signal?: AbortSignal,
+): Promise<Response | null> {
   const res = await fetch(
     `${opts.baseUrl}/fs/read?path=${encodeURIComponent(path)}`,
     {
       headers: authHeaders(opts.token),
-      signal: AbortSignal.timeout(RUNNERD_RPC_TIMEOUT_MS),
+      signal: AbortSignal.any([
+        AbortSignal.timeout(RUNNERD_RPC_TIMEOUT_MS),
+        ...(signal === undefined ? [] : [signal]),
+      ]),
     },
   );
-  if (res.status === 404) return null;
-  if (!res.ok) throw new Error(`runnerd /fs/read ${res.status}`);
-  return res.arrayBuffer();
+  if (!res.ok) {
+    await res.body?.cancel();
+    if (res.status === 404) return null;
+    throw new Error(`runnerd /fs/read ${res.status}`);
+  }
+  return res;
 }

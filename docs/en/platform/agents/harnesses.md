@@ -9,7 +9,7 @@ A harness is the coding program that runs an agent’s session in a sandbox. It 
 
 In a project’s **Agents** tab, open an agent and choose **Agent type**. An automation’s agent node calls the field **Harness**. Then choose the model and provider. Under **Settings > AI providers**, **Agent runtimes** shows which execution paths the organization can currently serve.
 
-A runtime needs both compatible credentials and [sandbox capacity](/platform/admin/sandboxes). A working chat model is not enough. If a runtime is missing or has no models, inspect its status and provider credential before changing the task prompt.
+A runtime needs both compatible credentials and [sandbox capacity](/platform/admin/sandboxes). A working chat model is not enough. If a runtime is missing or has no models, inspect its status and provider credential before changing the task prompt. A model whose tool calls need OpenAI’s Responses API, such as GPT-6 Astra or GPT-6.1 Sol, runs only on Codex, so the model picker offers it for no other runtime.
 
 ## Compare supported runtimes
 
@@ -37,7 +37,7 @@ Gemini CLI is the exception: Tale never continues one of its conversations. A la
 
 With a stored API key or deployment-environment credential, Tale supplies a session-scoped gateway key. The original model-provider key stays at the platform. Calls through this gateway are metered and subject to the applicable spending rules, including allowance already assigned to other running turns.
 
-Vendor subscriptions use their supported harness and receive the subscription credential in the session environment. They cannot be used as ordinary chat credentials or with an incompatible harness. Their direct provider calls bypass Tale’s gateway metering and spending caps; review usage with the subscription provider.
+Vendor subscriptions use their supported harness and receive the subscription credential in the session environment. They cannot be used as ordinary chat credentials or with an incompatible harness, because the vendors permit subscription tokens only in their own runtime; [AI providers](/platform/admin/providers#use-subscriptions-in-tasks-not-in-chat) explains this. Their direct provider calls bypass Tale’s gateway metering and spending caps; review usage with the subscription provider.
 
 These model-credential rules do not mean the sandbox contains no secrets. Explicitly granted **Secrets**, and the token supplied for an equipped GitHub connection, can be available inside it. Grant only the access the task needs.
 

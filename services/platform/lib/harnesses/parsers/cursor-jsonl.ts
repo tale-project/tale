@@ -11,6 +11,7 @@
 //   unknown / missing call_id    → raw
 
 import {
+  appendHarnessAnswer,
   asNumber,
   asRecord,
   asString,
@@ -63,7 +64,7 @@ class CursorJsonlParser implements HarnessEventParser {
   private readonly lines = new LineReassembler();
   private started = false;
   private sessionId: string | undefined;
-  private finalTextParts: string[] = [];
+  private finalText = '';
 
   constructor(private readonly slug: HarnessSlug) {}
 
@@ -123,7 +124,10 @@ class CursorJsonlParser implements HarnessEventParser {
       }
       if (text) {
         events.push({ type: 'text', text });
-        this.finalTextParts.push(text);
+        this.finalText = appendHarnessAnswer(
+          this.finalText,
+          `${this.finalText === '' ? '' : '\n'}${text}`,
+        );
       }
       return events;
     }
@@ -189,7 +193,7 @@ class CursorJsonlParser implements HarnessEventParser {
         asString(ev.result) ??
         asString(ev.final_text) ??
         asString(ev.finalText) ??
-        this.finalTextParts.join('\n');
+        this.finalText;
       // The result event carries the turn's accounting as a camelCase
       // `usage` block. Cursor is bring-your-own only, so no gateway meters
       // the turn — this block is the ONLY usage signal and must not be

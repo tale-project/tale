@@ -65,6 +65,8 @@ export interface ChatContract {
           knob: 'effort' | 'budget-tokens';
         };
         vision?: boolean;
+        /** Its function tools work only on the Responses API. */
+        toolCallingApi?: 'responses';
         id: string;
         providerSlug: string;
         label: string;
@@ -85,6 +87,8 @@ export interface ChatContract {
         harness: string;
         label: string;
         iconUrl: undefined | string;
+        /** The wire the harness speaks to the gateway. */
+        toolCallingWire: 'anthropic' | 'openai-chat' | 'openai-responses';
       }>;
       voice: {
         ttsAvailable: boolean;

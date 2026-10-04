@@ -9,7 +9,13 @@ import {
   rmSync,
   writeFileSync,
 } from 'node:fs';
-import { request, type Server, type ServerResponse } from 'node:http';
+import {
+  createServer,
+  request,
+  type IncomingMessage,
+  type Server,
+  type ServerResponse,
+} from 'node:http';
 import { tmpdir } from 'node:os';
 
 const workspace = realpathSync(mkdtempSync(`${tmpdir()}/runnerd-http-`));
@@ -244,13 +250,152 @@ describe('runnerd HTTP service', () => {
     }
   });
 
+  test('disconnecting a staging caller cancels its upstream and releases activity', async () => {
+    const fetched = Promise.withResolvers<void>();
+    const disconnected = Promise.withResolvers<void>();
+    const source = createServer((_req, res) => {
+      res.write('partial');
+      fetched.resolve();
+      res.once('close', () => disconnected.resolve());
+    });
+    await new Promise<void>((resolve) =>
+      source.listen(0, '127.0.0.1', resolve),
+    );
+    const address = source.address();
+    if (address === null || typeof address === 'string')
+      throw new Error('no port');
+    const controller = new AbortController();
+    writeFileSync(`${workspace}/aborted-stage.txt`, 'previous');
+    const staging = fetch(`${baseUrl}/files/stage`, {
+      method: 'POST',
+      headers,
+      signal: controller.signal,
+      body: JSON.stringify({
+        files: [
+          {
+            path: 'aborted-stage.txt',
+            url: `http://127.0.0.1:${address.port}`,
+          },
+        ],
+      }),
+    }).catch(() => null);
+    try {
+      await fetched.promise;
+      controller.abort();
+      await staging;
+      await disconnected.promise;
+      let active = -1;
+      const deadline = Date.now() + 5_000;
+      while (active !== 0 && Date.now() < deadline) {
+        active = await currentActiveOperations();
+        if (active !== 0)
+          await new Promise((resolve) => setTimeout(resolve, 5));
+      }
+      expect(active).toBe(0);
+      expect(readFileSync(`${workspace}/aborted-stage.txt`, 'utf8')).toBe(
+        'previous',
+      );
+      expect(
+        (
+          await activityPost('/files/stage', {
+            files: [{ path: 'after-abort.txt', contentBase64: 'b2s=' }],
+          })
+        ).value,
+      ).toEqual({
+        staged: [{ path: 'after-abort.txt', bytes: 2 }],
+        skipped: [],
+      });
+    } finally {
+      controller.abort();
+      await staging;
+      await new Promise<void>((resolve, reject) => {
+        source.close((error) => (error ? reject(error) : resolve()));
+        source.closeAllConnections();
+      });
+    }
+  });
+
+  test('exec and attach share a consumer cap that releases on refusal and disconnect', async () => {
+    const malformed = await fetch(`${baseUrl}/execs`, {
+      method: 'POST',
+      headers,
+      body: '{',
+    });
+    expect(malformed.status).toBe(400);
+    await malformed.text();
+    const missing = await fetch(`${baseUrl}/execs/no-such-exec/attach`, {
+      headers,
+    });
+    expect(missing.status).toBe(404);
+    await missing.text();
+    const controller = new AbortController();
+    const streams: Response[] = [];
+    try {
+      streams.push(
+        await fetch(`${baseUrl}/execs`, {
+          method: 'POST',
+          headers,
+          signal: controller.signal,
+          body: JSON.stringify({
+            execId: 'consumer-cap',
+            shell: 'exec sleep 30',
+            cwd: workspace,
+            timeoutMs: 30_000,
+            stdoutMaxBytes: 0,
+            stderrMaxBytes: 0,
+          }),
+        }),
+      );
+      for (let index = 0; index < 7; index += 1) {
+        const response = await fetch(`${baseUrl}/execs/consumer-cap/attach`, {
+          headers,
+          signal: controller.signal,
+        });
+        expect(response.status).toBe(200);
+        streams.push(response);
+      }
+      for (const path of ['/execs/consumer-cap/attach', '/execs']) {
+        const overflow = await fetch(`${baseUrl}${path}`, {
+          headers,
+          ...(path === '/execs' ? { method: 'POST', body: '{}' } : {}),
+        });
+        expect(overflow.status).toBe(503);
+        expect(await overflow.json()).toEqual({ error: 'busy' });
+      }
+      await streams.pop()?.body?.cancel();
+      const deadline = Date.now() + 5_000;
+      while ((await currentActiveOperations()) >= 8 && Date.now() < deadline) {
+        await new Promise((settle) => setTimeout(settle, 10));
+      }
+      const replacement = await fetch(`${baseUrl}/execs/consumer-cap/attach`, {
+        headers,
+        signal: controller.signal,
+      });
+      expect(replacement.status).toBe(200);
+      streams.push(replacement);
+    } finally {
+      controller.abort();
+      await Promise.allSettled(
+        streams.map(async (response) => response.body?.cancel()),
+      );
+      await fetch(`${baseUrl}/execs/consumer-cap/cancel`, {
+        method: 'POST',
+        headers,
+      });
+    }
+  });
+
   for (const mode of ['exec', 'attach'] as const) {
     test(`a stalled ${mode} consumer disconnects while its exec remains attachable`, async () => {
       const execId = `stalled-${mode}`;
       const path = mode === 'exec' ? '/execs' : `/execs/${execId}/attach`;
       let stalled: ServerResponse | undefined;
-      const observe = (req: { url?: string }, res: ServerResponse) => {
-        if (req.url === path) stalled = res;
+      let intake: IncomingMessage | undefined;
+      const observe = (req: IncomingMessage, res: ServerResponse) => {
+        if (req.url === path) {
+          stalled = res;
+          intake = req;
+        }
       };
       server.on('request', observe);
       const body = JSON.stringify({
@@ -292,8 +437,13 @@ describe('runnerd HTTP service', () => {
           await received.promise;
         }
         expect(stalled).toBeDefined();
+        // A running response must not keep the parsed upload buffered in
+        // IncomingMessage listeners; detach also releases its abort hook.
+        expect(intake?.listenerCount('data')).toBe(0);
         writeFileSync(`${workspace}/${execId}.emit`, 'go');
         await waitUntil(() => stalled?.destroyed === true);
+        expect(intake?.listenerCount('aborted')).toBe(0);
+        expect(stalled?.listenerCount('drain')).toBe(0);
         expect(
           await (await fetch(`${baseUrl}/execs/${execId}`, { headers })).json(),
         ).toMatchObject({ state: 'running' });

@@ -17,6 +17,7 @@
 //               duration_ms, tool_calls, models } }
 
 import {
+  appendHarnessAnswer,
   asNumber,
   asString,
   isRecord,
@@ -162,7 +163,7 @@ class GeminiStreamParser implements HarnessEventParser {
       if (asString(ev.role) !== 'assistant') return events;
       const text = asString(ev.content);
       if (text) {
-        this.assistantText += text;
+        this.assistantText = appendHarnessAnswer(this.assistantText, text);
         events.push(
           ev.delta === true
             ? { type: 'text-delta', text }
