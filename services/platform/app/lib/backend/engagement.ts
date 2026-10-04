@@ -370,7 +370,7 @@ export const engagementPaginatedAdapters: Record<string, PaginatedAdapter> = {
       typeof args[key] === 'string' && args[key] !== ''
         ? `&${key}=${encodeURIComponent(args[key])}`
         : '';
-    const qs = qsOf('search') + qsOf('source');
+    const qs = qsOf('search') + qsOf('source') + qsOf('locale');
     return {
       queryKey: backendKey(
         orgId,
@@ -378,6 +378,7 @@ export const engagementPaginatedAdapters: Record<string, PaginatedAdapter> = {
         'page',
         keyPart(args.search),
         keyPart(args.source),
+        keyPart(args.locale),
       ),
       fetchPage: (cursor, numItems) => {
         const split = splitCursor(cursor);
