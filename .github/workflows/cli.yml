@@ -46,7 +46,10 @@ concurrency:
   cancel-in-progress: ${{ github.event_name != 'repository_dispatch' && github.event_name != 'workflow_dispatch' }}
 
 jobs:
+  # Only candidates need remote source validation; ordinary jobs keep their event SHA.
   candidate-source:
+    if: >-
+      github.event_name == 'repository_dispatch'
     name: Candidate source
     uses: ./.github/workflows/release-candidate-source.yml
     permissions:
@@ -59,6 +62,12 @@ jobs:
   # Resolve the version string for the build matrix.
   # ---------------------------------------------------------------------------
   prepare:
+    if: >-
+      !cancelled() &&
+      (((github.event_name == 'repository_dispatch') &&
+      needs.candidate-source.result == 'success') ||
+      ((github.event_name != 'repository_dispatch') &&
+      needs.candidate-source.result == 'skipped'))
     needs: candidate-source
     name: Prepare
     runs-on: ubuntu-latest
@@ -111,6 +120,13 @@ jobs:
   # All platforms run on GitHub-hosted runners (free for public repos).
   # ---------------------------------------------------------------------------
   build:
+    if: >-
+      !cancelled() &&
+      (((github.event_name == 'repository_dispatch') &&
+      needs.candidate-source.result == 'success') ||
+      ((github.event_name != 'repository_dispatch') &&
+      needs.candidate-source.result == 'skipped')) &&
+      needs.prepare.result == 'success'
     name: Build (${{ matrix.platform }})
     needs: [candidate-source, prepare]
     runs-on: ${{ matrix.os }}
@@ -271,7 +287,14 @@ jobs:
   release:
     name: Attach to release
     needs: [candidate-source, build]
-    if: ${{ github.event_name == 'workflow_dispatch' }}
+    if: >-
+      !cancelled() &&
+      (((github.event_name == 'repository_dispatch') &&
+      needs.candidate-source.result == 'success') ||
+      ((github.event_name != 'repository_dispatch') &&
+      needs.candidate-source.result == 'skipped')) &&
+      needs.build.result == 'success' &&
+      (github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:

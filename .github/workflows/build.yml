@@ -87,7 +87,10 @@ env:
   REGISTRY: ghcr.io
 
 jobs:
+  # Only candidates need remote source validation; ordinary jobs keep their event SHA.
   candidate-source:
+    if: >-
+      github.event_name == 'repository_dispatch' || github.event_name == 'workflow_dispatch'
     name: Candidate source
     uses: ./.github/workflows/release-candidate-source.yml
     permissions:
@@ -100,6 +103,12 @@ jobs:
   # Discover which services changed so matrix jobs only run for them.
   # ---------------------------------------------------------------------------
   changes:
+    if: >-
+      !cancelled() &&
+      (((github.event_name == 'repository_dispatch' || github.event_name == 'workflow_dispatch') &&
+      needs.candidate-source.result == 'success') ||
+      ((github.event_name != 'repository_dispatch' && github.event_name != 'workflow_dispatch') &&
+      needs.candidate-source.result == 'skipped'))
     needs: candidate-source
     name: Detect changes
     runs-on: ubuntu-latest
@@ -116,7 +125,7 @@ jobs:
       # The commit every job builds and tests. `candidate_sha` is that same
       # commit in a release-candidate run and empty otherwise, so a checkout
       # given it as `ref` keeps its event's default everywhere else.
-      source_sha: ${{ needs.candidate-source.outputs.sha }}
+      source_sha: ${{ needs.candidate-source.outputs.sha || github.sha }}
       candidate_sha: ${{ needs.candidate-source.outputs.candidate_sha }}
     steps:
       - name: Checkout
@@ -273,7 +282,10 @@ jobs:
   build:
     name: Build ${{ matrix.service }}
     needs: changes
-    if: (needs.changes.outputs.services != '[]' || needs.changes.outputs.ci_tests == 'true') && github.event.pull_request.draft != true
+    if: >-
+      !cancelled() &&
+      needs.changes.result == 'success' &&
+      ((needs.changes.outputs.services != '[]' || needs.changes.outputs.ci_tests == 'true') && github.event.pull_request.draft != true)
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -462,7 +474,11 @@ jobs:
   smoke-test:
     name: Smoke test
     needs: [changes, build]
-    if: (needs.changes.outputs.services != '[]' || needs.changes.outputs.ci_tests == 'true') && github.event.pull_request.draft != true && github.event.pull_request.head.repo.fork != true
+    if: >-
+      !cancelled() &&
+      needs.changes.result == 'success' &&
+      needs.build.result == 'success' &&
+      ((needs.changes.outputs.services != '[]' || needs.changes.outputs.ci_tests == 'true') && github.event.pull_request.draft != true && github.event.pull_request.head.repo.fork != true)
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -584,7 +600,10 @@ jobs:
   smoke-test-fork:
     name: Smoke test (fork PR)
     needs: changes
-    if: (needs.changes.outputs.services != '[]' || needs.changes.outputs.ci_tests == 'true') && github.event.pull_request.draft != true && github.event.pull_request.head.repo.fork == true
+    if: >-
+      !cancelled() &&
+      needs.changes.result == 'success' &&
+      ((needs.changes.outputs.services != '[]' || needs.changes.outputs.ci_tests == 'true') && github.event.pull_request.draft != true && github.event.pull_request.head.repo.fork == true)
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -653,7 +672,10 @@ jobs:
   web-test:
     name: Web container test
     needs: changes
-    if: contains(fromJson(needs.changes.outputs.services), 'web') && github.event.pull_request.draft != true
+    if: >-
+      !cancelled() &&
+      needs.changes.result == 'success' &&
+      (contains(fromJson(needs.changes.outputs.services), 'web') && github.event.pull_request.draft != true)
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -689,7 +711,10 @@ jobs:
   docs-test:
     name: Docs container test
     needs: changes
-    if: contains(fromJson(needs.changes.outputs.services), 'docs') && github.event.pull_request.draft != true
+    if: >-
+      !cancelled() &&
+      needs.changes.result == 'success' &&
+      (contains(fromJson(needs.changes.outputs.services), 'docs') && github.event.pull_request.draft != true)
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -721,7 +746,10 @@ jobs:
   ui-docs-test:
     name: UI docs container test
     needs: changes
-    if: contains(fromJson(needs.changes.outputs.services), 'ui-docs') && github.event.pull_request.draft != true
+    if: >-
+      !cancelled() &&
+      needs.changes.result == 'success' &&
+      (contains(fromJson(needs.changes.outputs.services), 'ui-docs') && github.event.pull_request.draft != true)
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -756,7 +784,10 @@ jobs:
   ai-gateway-test:
     name: AI gateway container test
     needs: changes
-    if: contains(fromJson(needs.changes.outputs.services), 'ai-gateway') && github.event.pull_request.draft != true
+    if: >-
+      !cancelled() &&
+      needs.changes.result == 'success' &&
+      (contains(fromJson(needs.changes.outputs.services), 'ai-gateway') && github.event.pull_request.draft != true)
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -793,7 +824,11 @@ jobs:
   image-validate:
     name: Validate images
     needs: [changes, build]
-    if: (needs.changes.outputs.services != '[]' || needs.changes.outputs.ci_tests == 'true') && github.event.pull_request.draft != true && github.event.pull_request.head.repo.fork != true
+    if: >-
+      !cancelled() &&
+      needs.changes.result == 'success' &&
+      needs.build.result == 'success' &&
+      ((needs.changes.outputs.services != '[]' || needs.changes.outputs.ci_tests == 'true') && github.event.pull_request.draft != true && github.event.pull_request.head.repo.fork != true)
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -888,7 +923,10 @@ jobs:
   image-validate-fork:
     name: Validate images (fork PR)
     needs: changes
-    if: (needs.changes.outputs.services != '[]' || needs.changes.outputs.ci_tests == 'true') && github.event.pull_request.draft != true && github.event.pull_request.head.repo.fork == true
+    if: >-
+      !cancelled() &&
+      needs.changes.result == 'success' &&
+      ((needs.changes.outputs.services != '[]' || needs.changes.outputs.ci_tests == 'true') && github.event.pull_request.draft != true && github.event.pull_request.head.repo.fork == true)
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -937,7 +975,11 @@ jobs:
   vulnerability-scan:
     name: Scan ${{ matrix.service }}
     needs: [changes, build]
-    if: needs.changes.outputs.scannable_services != '[]' && github.event.pull_request.head.repo.fork != true
+    if: >-
+      !cancelled() &&
+      needs.changes.result == 'success' &&
+      needs.build.result == 'success' &&
+      (needs.changes.outputs.scannable_services != '[]' && github.event.pull_request.head.repo.fork != true)
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -1023,7 +1065,10 @@ jobs:
   storybook:
     name: Storybook
     needs: changes
-    if: needs.changes.outputs.storybook == 'true' && github.event.pull_request.draft != true
+    if: >-
+      !cancelled() &&
+      needs.changes.result == 'success' &&
+      (needs.changes.outputs.storybook == 'true' && github.event.pull_request.draft != true)
     runs-on: ubuntu-latest
     # A cold build of all four Storybooks (web/docs/ui/platform) on a 2vCPU
     # runner lands right at 5m, so any packages/ui change that misses the Turbo
