@@ -10,13 +10,12 @@ export const RUNNERD_TOKEN_HEADER = 'x-tale-runnerd-token';
 export const RUNNERD_TOKEN_CONTEXT = 'runnerd-v1:';
 
 export const RUNNERD_MAX_LIVE_EXECS = 4;
-export const RUNNERD_RING_BUFFER_BYTES = 256 * 1024;
 /** Per-consumer in-flight write ceiling. A slow/stalled (but still attached)
  * SSE consumer would otherwise let Node buffer un-drained stdout in the HTTP
  * response unboundedly — the only thing the old fixed stdout cap incidentally
  * bounded. Past this, the daemon disconnects that ONE consumer (the others
  * are unaffected); it reconnects via /attach?sinceSeq= and replays from the
- * disk-backed journal. The diagnostic ring is not replay history. */
+ * disk-backed journal. */
 export const RUNNERD_CONSUMER_BUFFER_MAX_BYTES = 8 * 1024 * 1024;
 /** Cap on ONE request body runnerd accepts, on every route. The spawner's own
  * SANDBOX_MAX_REQUEST_BODY_BYTES is clamped to this at boot, so a stage batch

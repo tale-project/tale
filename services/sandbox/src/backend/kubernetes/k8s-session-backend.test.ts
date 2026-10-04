@@ -66,6 +66,80 @@ function notFound(): Promise<never> {
   return Promise.reject(Object.assign(new Error('not found'), { code: 404 }));
 }
 
+describe('Kubernetes session observation incarnation', () => {
+  function observed(pod: V1Pod) {
+    const calls = { reads: 0, mutations: 0 };
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- read-only CoreV1 test seam
+    const core = {
+      async readNamespacedPod() {
+        calls.reads += 1;
+        return pod;
+      },
+      async deleteNamespacedPod() {
+        calls.mutations += 1;
+        throw new Error('observation must not delete compute');
+      },
+    } as unknown as CoreV1Api;
+    return {
+      backend: new KubernetesSessionBackend(cfg, {
+        ...stub(async () => ({})).client,
+        core,
+      }),
+      calls,
+    };
+  }
+
+  const running = (): V1Pod => ({
+    metadata: { annotations: { 'tale.dev/created-at': '2000' } },
+    status: { phase: 'Running', podIP: '10.0.0.2' },
+  });
+
+  test('a replacement is live by name but cannot satisfy the previous incarnation', async () => {
+    const { backend, calls } = observed(running());
+    expect(await backend.sessionExists('replaced', 1000)).toBe(false);
+    expect(await backend.sessionExists('replaced', 2000)).toBe(true);
+    expect(await backend.sessionExists('replaced')).toBe(true);
+    expect(calls).toEqual({ reads: 3, mutations: 0 });
+  });
+
+  test('endpoint resolution cannot combine a listed creation stamp with a replacement IP', async () => {
+    const { backend, calls } = observed(running());
+    expect(
+      await rejection(backend.resolveEndpoint('replaced', 1000)),
+    ).toBeInstanceOf(SessionIncarnationChangedError);
+    expect(await backend.resolveEndpoint('replaced', 2000)).toBe(
+      'http://10.0.0.2:8200',
+    );
+    expect(calls).toEqual({ reads: 2, mutations: 0 });
+  });
+
+  test('missing incarnation metadata is unknown, not definitive absence', async () => {
+    const pod = running();
+    pod.metadata = {};
+    const { backend } = observed(pod);
+    expect(await rejection(backend.sessionExists('legacy', 0))).toBeInstanceOf(
+      Error,
+    );
+    expect(await backend.sessionExists('legacy')).toBe(true);
+  });
+
+  test.each(['', ' ', 'unreadable'])(
+    'stamp %j cannot be interpreted as a verified incarnation',
+    async (stamp) => {
+      const pod = running();
+      pod.metadata = { annotations: { 'tale.dev/created-at': stamp } };
+      const { backend } = observed(pod);
+      expect(
+        await rejection(backend.sessionExists('unknown', 0)),
+      ).toBeInstanceOf(Error);
+      expect(
+        await rejection(backend.resolveEndpoint('unknown', 0)),
+      ).toBeInstanceOf(Error);
+      expect(await backend.sessionExists('unknown')).toBe(true);
+    },
+  );
+});
+
 describe('abandoned Kubernetes startup recovery', () => {
   const stamp = Date.now() - 600_000;
   const pending = (): V1Pod => ({
@@ -274,7 +348,7 @@ describe('Kubernetes pressure stop', () => {
     );
     expect(result).toBeInstanceOf(Error);
     expect(result instanceof Error ? result.message : '').toContain(
-      'changed before idle stop',
+      'incarnation changed',
     );
     expect(base.calls.podDeleted).toBe(false);
     expect(base.calls.secretDeleted).toBe(0);
