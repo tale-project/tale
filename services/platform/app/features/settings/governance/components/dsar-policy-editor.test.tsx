@@ -1,15 +1,20 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { render, screen } from '@/tests/utils/render';
 
 import { DsarPolicyEditor } from './dsar-policy-editor';
 
+const { toast, propose } = vi.hoisted(() => ({
+  toast: vi.fn(),
+  propose: vi.fn(),
+}));
+
 vi.mock('@tale/ui/use-toast', () => ({
-  useToast: () => ({ toast: vi.fn() }),
+  useToast: () => ({ toast }),
 }));
 
 vi.mock('../hooks/mutations', () => ({
-  useProposeDsarPolicy: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useProposeDsarPolicy: () => ({ mutateAsync: propose, isPending: false }),
   useCancelPendingDsarPolicyChange: () => ({
     mutateAsync: vi.fn(),
     isPending: false,
@@ -59,6 +64,78 @@ function setLoading() {
 }
 
 describe('DsarPolicyEditor', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    propose.mockResolvedValue({ applied: false });
+    setLoaded();
+  });
+
+  describe('numeric blur validation', () => {
+    it.each([
+      [
+        'Cooling-off window (hours)',
+        24,
+        'Cooling-off window must be a whole number between 0 and 72.',
+      ],
+      [
+        'Daily limit per admin',
+        5,
+        'Daily limit must be a whole number between 1 and 50.',
+      ],
+    ])(
+      'restores a cleared %s without proposing a policy',
+      async (label, current, message) => {
+        const { user } = render(<DsarPolicyEditor organizationId="org-1" />);
+        const input = screen.getByRole('spinbutton', { name: label });
+
+        await user.clear(input);
+        await user.tab();
+
+        expect(input).toHaveValue(current);
+        expect(propose).not.toHaveBeenCalled();
+        expect(toast).toHaveBeenCalledExactlyOnceWith({
+          title: message,
+          variant: 'destructive',
+        });
+      },
+    );
+
+    it('proposes explicitly typed zero cooling-off hours', async () => {
+      const { user } = render(<DsarPolicyEditor organizationId="org-1" />);
+      const input = screen.getByRole('spinbutton', {
+        name: 'Cooling-off window (hours)',
+      });
+
+      await user.clear(input);
+      await user.type(input, '0');
+      await user.tab();
+
+      expect(input).toHaveValue(0);
+      expect(propose).toHaveBeenCalledExactlyOnceWith({
+        organizationId: 'org-1',
+        config: {
+          coolingOffHours: 0,
+          requireDualApproval: true,
+          dailyLimitPerAdmin: 5,
+        },
+      });
+      expect(toast).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({ variant: 'success' }),
+      );
+    });
+
+    it('does not propose an unchanged cooling-off value on blur', async () => {
+      const { user } = render(<DsarPolicyEditor organizationId="org-1" />);
+      await user.click(
+        screen.getByRole('spinbutton', { name: 'Cooling-off window (hours)' }),
+      );
+      await user.tab();
+
+      expect(propose).not.toHaveBeenCalled();
+      expect(toast).not.toHaveBeenCalled();
+    });
+  });
+
   describe('loaded state', () => {
     it('renders the real number inputs (in the a11y tree)', () => {
       setLoaded();
