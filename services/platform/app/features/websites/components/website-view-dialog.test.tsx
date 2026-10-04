@@ -18,6 +18,13 @@ const scanNowMutate = vi.hoisted(() => vi.fn());
 const answerAction = vi.hoisted(
   () => new Map<string, (data: unknown) => void>(),
 );
+const searchRequests = vi.hoisted(
+  () =>
+    [] as Array<{
+      onSuccess?: (data: unknown) => void;
+      onError?: () => void;
+    }>,
+);
 /** Each action's hook-level error handler, to fail a request later. */
 const failAction = vi.hoisted(() => new Map<string, () => void>());
 const pagesPayload = {
@@ -81,12 +88,25 @@ vi.mock('@/app/hooks/use-backend-action', () => {
       if (options?.onError) failAction.set(name, options.onError);
       let mutate = mutateByName.get(name);
       if (!mutate) {
-        mutate = vi.fn((args: unknown) => {
-          if (name !== 'websites/actions:fetchPages') return;
-          const payload =
-            pagesRead.current?.(args as PagesArgs) ?? pagesPayload.current;
-          if (payload) onSuccessByName.get(name)?.(pagesAnswer(payload, args));
-        });
+        mutate = vi.fn(
+          (
+            args: unknown,
+            callbacks?: {
+              onSuccess?: (data: unknown) => void;
+              onError?: () => void;
+            },
+          ) => {
+            if (name === 'websites/actions:searchContent') {
+              searchRequests.push(callbacks ?? {});
+              return;
+            }
+            if (name !== 'websites/actions:fetchPages') return;
+            const payload =
+              pagesRead.current?.(args as PagesArgs) ?? pagesPayload.current;
+            if (payload)
+              onSuccessByName.get(name)?.(pagesAnswer(payload, args));
+          },
+        );
         mutateByName.set(name, mutate);
       }
       return { mutate, isPending: false };
@@ -120,6 +140,43 @@ describe('WebsiteViewDialog', () => {
     pagesPayload.current = null;
     pagesRead.current = null;
     scanNowMutate.mockClear();
+    searchRequests.length = 0;
+  });
+
+  it('ignores a search response that is older than the latest request', async () => {
+    const { user } = render(
+      <WebsiteViewDialog isOpen onClose={vi.fn()} website={WEBSITE} />,
+    );
+    const search = screen.getByPlaceholderText('Search website content');
+
+    await user.type(search, 'first');
+    await user.keyboard('{Enter}');
+    await user.clear(search);
+    await user.type(search, 'second');
+    await user.keyboard('{Enter}');
+
+    expect(searchRequests).toHaveLength(2);
+    const result = (title: string) => ({
+      results: [
+        {
+          url: `https://docs.example.com/${title.toLowerCase()}`,
+          title,
+          chunk_index: 0,
+          chunk_content: `${title} result`,
+        },
+      ],
+    });
+
+    await act(async () => {
+      searchRequests[1]?.onSuccess?.(result('Second'));
+    });
+    expect(screen.getByText('Second result')).toBeInTheDocument();
+
+    await act(async () => {
+      searchRequests[0]?.onSuccess?.(result('First'));
+    });
+    expect(screen.getByText('Second result')).toBeInTheDocument();
+    expect(screen.queryByText('First result')).not.toBeInTheDocument();
   });
 
   it('names the site in the shared record details', async () => {
