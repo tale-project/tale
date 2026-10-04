@@ -173,6 +173,62 @@ describe('groupMembers', () => {
 });
 
 describe('processesLeft', () => {
+  test.each(['prune', 'signal'] as const)(
+    '%s matches many retained execs without comparing every process to every exec',
+    async (operation) => {
+      const count = 128;
+      const processes: Record<string, FakeProcess> = {};
+      let tagLookups = 0;
+      const targets = Array.from({ length: count }, (_, index) => {
+        const execId = `retained-${index}`;
+        const rootPid = 100 + index * 3;
+        processes[rootPid] = tagged(execId);
+        processes[rootPid + 1] = {
+          env: [],
+          ppid: rootPid,
+          pgrp: rootPid + 1,
+        };
+        processes[rootPid + 2] = {
+          env: [],
+          ppid: rootPid + 1,
+          pgrp: rootPid + 2,
+        };
+        return {
+          get execId() {
+            tagLookups += 1;
+            return execId;
+          },
+          groupId: rootPid + 1,
+          rootPid,
+          rootAlive: () => true,
+        };
+      });
+      const procRoot = procTable(processes);
+      if (operation === 'prune') {
+        expect(await processesLeft(targets, { procRoot })).toEqual(
+          Array.from({ length: count }, () => true),
+        );
+      } else {
+        const { sent, kill } = recorder();
+        const round = await signalExecProcesses(targets, 'SIGTERM', {
+          procRoot,
+          kill,
+        });
+        expect(round.reached).toBe(count * 2);
+        expect(sent).toEqual(
+          targets.flatMap(({ groupId }) => [
+            [-groupId, 'SIGTERM'],
+            [groupId + 1, 'SIGTERM'],
+          ]),
+        );
+      }
+      // Count matching work instead of timing I/O on a contended host. A
+      // lookup per exec stays linear as execs and descendants accumulate;
+      // comparing every table entry to every target reads this 49,152 times.
+      expect(tagLookups).toBeLessThanOrEqual(count * 2);
+    },
+  );
+
   test('a target has processes left while one is tagged with it or a recorded member is still in its group', async () => {
     const procRoot = procTable({
       '20': tagged('e1'),
