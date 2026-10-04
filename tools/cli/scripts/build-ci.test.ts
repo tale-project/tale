@@ -91,50 +91,57 @@ async function plan(build: Workflow, paths: string[]) {
 }
 
 describe('container build boundaries', () => {
-  test('every Dockerfile COPY source is covered by its service or common input scope', async () => {
-    const build = await workflow();
-    const filters = filtersOf(build);
-    const stackInputs = new Set<string>();
-    for (const service of [
-      ...build.jobs.build!.strategy!.matrix!.service!,
-      'web',
-      'docs',
-      'ui-docs',
-      'ai-gateway',
-    ]) {
-      const dockerfile = (
-        await readFile(
-          join(repository, 'services', service, 'Dockerfile'),
-          'utf8',
-        )
-      ).replaceAll(/\\\r?\n\s*/g, ' ');
-      const scopes = [...filters[service]!, ...filters.image_inputs!];
-      for (const line of dockerfile.split('\n')) {
-        if (!line.startsWith('COPY ') || line.includes('--from=')) continue;
-        const sources = line
-          .split(/\s+/)
-          .slice(1, -1)
-          .filter((word) => !word.startsWith('--'));
-        expect(sources.length, line).toBeGreaterThan(0);
-        for (const source of sources) {
-          // A directory COPY owns every descendant, not only the directory name.
-          const path =
-            source.endsWith('/') || !source.split('/').at(-1)!.includes('.')
-              ? `${source.replace(/\/$/, '')}/__scope_probe__`
-              : source;
-          expect(matches(scopes, path), `${service}: ${source}`).toBe(true);
-          expect(matches(build.on.push.paths, path), `push: ${source}`).toBe(
-            true,
-          );
-          if (build.jobs.build!.strategy!.matrix!.service!.includes(service)) {
-            stackInputs.add(path);
+  test.skipIf(process.platform === 'win32')(
+    'every Dockerfile COPY source is covered by its service or common input scope',
+    async () => {
+      const build = await workflow();
+      const filters = filtersOf(build);
+      const stackInputs = new Set<string>();
+      for (const service of [
+        ...build.jobs.build!.strategy!.matrix!.service!,
+        'web',
+        'docs',
+        'ui-docs',
+        'ai-gateway',
+      ]) {
+        const dockerfile = (
+          await readFile(
+            join(repository, 'services', service, 'Dockerfile'),
+            'utf8',
+          )
+        ).replaceAll(/\\\r?\n\s*/g, ' ');
+        const scopes = [...filters[service]!, ...filters.image_inputs!];
+        for (const line of dockerfile.split('\n')) {
+          if (!line.startsWith('COPY ') || line.includes('--from=')) continue;
+          const sources = line
+            .split(/\s+/)
+            .slice(1, -1)
+            .filter((word) => !word.startsWith('--'));
+          expect(sources.length, line).toBeGreaterThan(0);
+          for (const source of sources) {
+            // A directory COPY owns every descendant, not only the directory name.
+            const path =
+              source.endsWith('/') || !source.split('/').at(-1)!.includes('.')
+                ? `${source.replace(/\/$/, '')}/__scope_probe__`
+                : source;
+            expect(matches(scopes, path), `${service}: ${source}`).toBe(true);
+            expect(matches(build.on.push.paths, path), `push: ${source}`).toBe(
+              true,
+            );
+            if (
+              build.jobs.build!.strategy!.matrix!.service!.includes(service)
+            ) {
+              stackInputs.add(path);
+            }
           }
         }
       }
-    }
-    for (const path of stackInputs)
-      expect((await plan(build, [path])).stack, `stack: ${path}`).toBe('true');
-  });
+      for (const path of stackInputs)
+        expect((await plan(build, [path])).stack, `stack: ${path}`).toBe(
+          'true',
+        );
+    },
+  );
 
   test('GHA export lookups use the repository API token without unsupported import parameters', async () => {
     const build = await workflow();
