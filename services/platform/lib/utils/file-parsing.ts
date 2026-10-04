@@ -157,50 +157,82 @@ type CSVParseOutput = {
 };
 
 /**
- * Parse a single CSV line respecting quoted fields (RFC 4180).
- * Handles commas, newlines, and escaped quotes inside quoted values.
+ * Split CSV text into records of trimmed fields (RFC 4180). A record is not
+ * a physical line: a quoted field holds the delimiter, `""` for a quote and
+ * line breaks, which is how a spreadsheet exports a cell with a line break.
+ * A quote opens a quoted field only at the start of a field; inside one
+ * (`6" long`) it is a literal character, and so is a quote that never closes,
+ * so an unbalanced quote cannot swallow the records after it. Records end at
+ * `\n` (a CRLF's `\r` is trimmed with its field); a blank line is a record of
+ * one blank field.
  */
-function parseCSVLine(line: string, delimiter: string): string[] {
-  const fields: string[] = [];
-  let current = '';
-  let inQuotes = false;
+function parseCSVRecords(text: string, delimiter: string): string[][] {
+  const records: string[][] = [];
+  let fields: string[] = [];
+  let field = '';
+  // Only whitespace read into the field so far: a quote here opens it.
+  let atFieldStart = true;
+  let recordStart = 0;
+  // The open quoted field: where its quote is and what the field held before.
+  let quote: { at: number; before: string } | null = null;
   let i = 0;
 
-  while (i < line.length) {
-    const char = line[i];
+  const endField = () => {
+    fields.push(field.trim());
+    field = '';
+    atFieldStart = true;
+  };
+  const endRecord = (next: number) => {
+    endField();
+    records.push(fields);
+    fields = [];
+    recordStart = next;
+  };
 
-    if (inQuotes) {
-      if (char === '"') {
-        // Check for escaped quote ("")
-        if (i + 1 < line.length && line[i + 1] === '"') {
-          current += '"';
-          i += 2;
-        } else {
-          // End of quoted field
-          inQuotes = false;
-          i++;
-        }
-      } else {
-        current += char;
+  while (i < text.length || quote) {
+    if (i === text.length && quote) {
+      // The text ended inside quotes: read that quote as a literal
+      // character, and what follows it again, unquoted.
+      field = `${quote.before}"`;
+      i = quote.at + 1;
+      quote = null;
+      continue;
+    }
+    const char = text[i];
+    if (quote) {
+      if (char !== '"') {
+        field += char;
+      } else if (text[i + 1] === '"') {
+        field += '"';
         i++;
+      } else {
+        quote = null;
       }
+      i++;
+    } else if (char === '"' && atFieldStart) {
+      quote = { at: i, before: field };
+      atFieldStart = false;
+      i++;
+    } else if (char === delimiter) {
+      endField();
+      i++;
+    } else if (char === '\n') {
+      endRecord(i + 1);
+      i++;
     } else {
-      if (char === '"') {
-        inQuotes = true;
-        i++;
-      } else if (char === delimiter) {
-        fields.push(current.trim());
-        current = '';
-        i++;
-      } else {
-        current += char;
-        i++;
-      }
+      field += char;
+      if (atFieldStart && char.trim() !== '') atFieldStart = false;
+      i++;
     }
   }
+  // A last line without a line break is a record too.
+  if (recordStart < text.length) endRecord(text.length);
+  return records;
+}
 
-  fields.push(current.trim());
-  return fields;
+/** A record of one blank field: an empty or whitespace-only line. */
+function isBlankLine(record: string[]): boolean {
+  return record.length === 1 && record[0] === '';
 }
 
 /**
@@ -214,15 +246,11 @@ function parseCSVText(
 ): CSVParseOutput {
   const { delimiter = ',', skipEmptyLines = true } = options;
 
-  const lines = csvText.trim().split('\n');
   const rows: string[][] = [];
 
-  for (const line of lines) {
-    const trimmedLine = line.trim();
-    if (skipEmptyLines && !trimmedLine) continue;
-
-    const values = parseCSVLine(trimmedLine, delimiter);
-    rows.push(values);
+  for (const record of parseCSVRecords(csvText, delimiter)) {
+    if (skipEmptyLines && isBlankLine(record)) continue;
+    rows.push(record);
   }
 
   let headers: string[] | null = null;

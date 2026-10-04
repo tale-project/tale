@@ -65,6 +65,108 @@ describe('parseCSVWithMapper required-column validation (#1312, #1323)', () => {
   });
 });
 
+describe('parseCSVWithMapper quoted fields (RFC 4180, #3580)', () => {
+  // Keeps every cell as read, so a test sees exactly what the parser split.
+  const parse = (csv: string) =>
+    parseCSVWithMapper(csv, () => null, {
+      recordMapper: (record) => record,
+    });
+
+  it("reads a spreadsheet's multi-line cell as one record", () => {
+    // What a spreadsheet's CSV export writes for a cell holding a line
+    // break: one quoted field across two physical lines.
+    const csv = XLSX.utils.sheet_to_csv(
+      XLSX.utils.aoa_to_sheet([
+        ['name', 'description', 'price', 'stock'],
+        ['Widget', 'First line\nSecond line', 12, 3],
+      ]),
+    );
+    expect(csv).toBe(
+      'name,description,price,stock\nWidget,"First line\nSecond line",12,3',
+    );
+    const result = parse(csv);
+    expect(result.errors).toEqual([]);
+    expect(result.rowErrors).toEqual([]);
+    expect(result.data).toEqual([
+      {
+        name: 'Widget',
+        description: 'First line\nSecond line',
+        price: '12',
+        stock: '3',
+      },
+    ]);
+    expect(result.rows).toEqual([2]);
+  });
+
+  it('keeps commas, escaped quotes and CRLF line breaks inside quoted cells', () => {
+    const csv = XLSX.utils.sheet_to_csv(
+      XLSX.utils.aoa_to_sheet([
+        ['name', 'description', 'price', 'stock'],
+        ['Kettle, steel', 'Says "hi", twice\r\nand again', 10, 1],
+        ['Mixer', '', 5, 2],
+      ]),
+      { RS: '\r\n' },
+    );
+    const result = parse(csv);
+    expect(result.errors).toEqual([]);
+    expect(result.rowErrors).toEqual([]);
+    expect(result.data).toEqual([
+      {
+        name: 'Kettle, steel',
+        description: 'Says "hi", twice\r\nand again',
+        price: '10',
+        stock: '1',
+      },
+      { name: 'Mixer', description: '', price: '5', stock: '2' },
+    ]);
+    // A multi-line cell is one spreadsheet row, so Mixer is still row 3.
+    expect(result.rows).toEqual([2, 3]);
+  });
+
+  it('reads records across lines without a header row too', () => {
+    const result = parseCSVWithMapper('a,"b\nc"\nd,e', (row) => row);
+    expect(result.data).toEqual([
+      ['a', 'b\nc'],
+      ['d', 'e'],
+    ]);
+  });
+
+  it('reads plain rows and one-line quoted commas as before', () => {
+    // Blank lines around the header and between rows are still skipped.
+    const result = parse(
+      '\r\n \r\nname,price,stock\r\nWidget,9.99,100\r\n\r\n "Gadget, large" ,5,0\r\n\r\n',
+    );
+    expect(result.errors).toEqual([]);
+    expect(result.data).toEqual([
+      { name: 'Widget', price: '9.99', stock: '100' },
+      { name: 'Gadget, large', price: '5', stock: '0' },
+    ]);
+  });
+
+  it('reads a quote inside an unquoted cell as a literal character', () => {
+    // Only a quote that opens a cell starts a quoted field; the inch mark
+    // must not run on into the next record.
+    const result = parse(
+      'name,description,price,stock\nCable,6" long,5,10\nPlug,"x",1,1',
+    );
+    expect(result.data).toEqual([
+      { name: 'Cable', description: '6" long', price: '5', stock: '10' },
+      { name: 'Plug', description: 'x', price: '1', stock: '1' },
+    ]);
+  });
+
+  it('reads a quote that never closes as a literal character', () => {
+    // An unbalanced quote must not swallow the rows after it.
+    const result = parse(
+      'name,description,price,stock\nWidget,"Best widget,12,3\nGadget,x,5,1',
+    );
+    expect(result.data).toEqual([
+      { name: 'Widget', description: '"Best widget', price: '12', stock: '3' },
+      { name: 'Gadget', description: 'x', price: '5', stock: '1' },
+    ]);
+  });
+});
+
 describe('excelRecords line numbers', () => {
   it('reports the spreadsheet line of each record, blank rows included', () => {
     // Line 1 is the header; line 3 is blank and SheetJS skips it, so the
