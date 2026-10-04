@@ -20,6 +20,8 @@ const {
   scheduleDestroy,
   destroyStates,
   deletions,
+  runningOps,
+  cancelExec,
 } = vi.hoisted(() => ({
   caller: { role: 'admin' },
   capacity: vi.fn(),
@@ -46,6 +48,8 @@ const {
   scheduleDestroy: vi.fn(),
   destroyStates: vi.fn(),
   deletions: vi.fn(),
+  runningOps: vi.fn(),
+  cancelExec: vi.fn(),
 }));
 
 vi.mock('../../auth/session.ts', () => ({
@@ -74,7 +78,7 @@ vi.mock('../../auth/org.ts', () => ({
 vi.mock('../../core/node_only/sandbox/helpers/session_client.ts', () => ({
   sandboxCapacity: capacity,
   sandboxDeploymentLimits: deploymentLimits,
-  sessionCancelExec: vi.fn(),
+  sessionCancelExec: cancelExec,
 }));
 vi.mock('../../lib/org-config.ts', () => ({
   readGovernancePolicyForOrg: policy,
@@ -94,7 +98,7 @@ vi.mock('./workspace-cleanup.ts', () => ({
 }));
 vi.mock('./sessions.ts', () => ({
   listSandboxViewsForOrg: listViews,
-  listRunningOpsBySession: vi.fn(),
+  listRunningOpsBySession: runningOps,
   getAgentNodeSandboxOp: agentNodeOp,
 }));
 vi.mock('../automations/store.ts', () => ({ getRun }));
@@ -134,6 +138,7 @@ beforeEach(() => {
   listViews.mockResolvedValue([]);
   deletions.mockResolvedValue(new Map());
   destroyStates.mockResolvedValue(new Map());
+  runningOps.mockResolvedValue([]);
 });
 afterEach(() => vi.unstubAllEnvs());
 
@@ -314,11 +319,12 @@ describe('sandbox settings read and write authority', () => {
       { execId: 'exec-1' },
       { execId: 'exec-2' },
     ] as never);
+    cancelExec.mockResolvedValueOnce(true).mockResolvedValueOnce(true);
     const response = await app().request('/sessions/pa-1/stop-task?orgId=x', {
       method: 'POST',
     });
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ cancelled: 2 });
+    expect(await response.json()).toEqual({ cancelled: 2, refused: 0 });
     // The workspace is looked up in the caller's organization first.
     expect(query.mock.calls[0]?.slice(1)).toEqual(['pa-1', 'member-org']);
     expect(vi.mocked(sessionCancelExec).mock.calls).toEqual([
@@ -336,6 +342,29 @@ describe('sandbox settings read and write authority', () => {
     expect(await response.json()).toEqual({ error: 'SESSION_NOT_FOUND' });
     expect(listRunningOpsBySession).not.toHaveBeenCalled();
     expect(sessionCancelExec).not.toHaveBeenCalled();
+  });
+
+  it('counts only confirmed cancellations and reports refused ones', async () => {
+    query.mockResolvedValueOnce([{ id: 'row-1' }] as never);
+    runningOps.mockResolvedValueOnce([
+      { execId: 'confirmed' },
+      { execId: 'refused' },
+      { execId: 'unreachable' },
+    ]);
+    cancelExec
+      .mockResolvedValueOnce(true)
+      .mockResolvedValueOnce(false)
+      .mockRejectedValueOnce(new Error('spawner unreachable'));
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const response = await app().request('/sessions/s1/stop-task', {
+      method: 'POST',
+    });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ cancelled: 1, refused: 2 });
+    expect(warn).toHaveBeenCalledOnce();
+    warn.mockRestore();
   });
 
   it('queues a Destroy for the caller organization and answers before it runs [SBX-R2] [SBX-R3] [SBX-R11]', async () => {

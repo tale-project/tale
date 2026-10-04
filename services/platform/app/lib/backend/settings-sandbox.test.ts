@@ -117,6 +117,31 @@ describe('sandbox capacity adapter', () => {
   });
 });
 
+describe('sandbox task stop adapter', () => {
+  it.each([
+    [{ cancelled: 1, refused: 0 }, false],
+    [{ cancelled: 0, refused: 1 }, true],
+    [{ cancelled: 1, refused: 1 }, true],
+  ])(
+    'does not report refused stops as success: %j',
+    async (response, fails) => {
+      vi.spyOn(window, 'fetch').mockResolvedValue(Response.json(response));
+      const adapter =
+        settingsWriteAdapters[
+          'node_only/sandbox/session_admin_actions:stopSandboxTask'
+        ];
+      const result = adapter?.run(
+        { organizationId: 'org-a', sessionId: 's1' },
+        {},
+      );
+      if (fails) {
+        await expect(result).rejects.toThrow('could not be stopped');
+      } else {
+        await expect(result).resolves.toBeNull();
+      }
+    },
+  );
+});
 describe('sandbox quota cache refresh', () => {
   it('invalidates this organization quota usage immediately after a limits save', () => {
     const client = new QueryClient();
