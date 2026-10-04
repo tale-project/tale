@@ -18,7 +18,7 @@ export const useProductsTableConfig = createTableConfigHook<ProductDoc>(
     entityNamespace: 'products',
     defaultSort: 'lastUpdated',
   },
-  ({ tTables, builders }) => [
+  ({ tTables, locale, builders }) => [
     builders.createSelectColumn(),
     {
       accessorKey: 'name',
@@ -75,7 +75,11 @@ export const useProductsTableConfig = createTableConfigHook<ProductDoc>(
       cell: ({ row }) => (
         <span className="text-muted-foreground block text-right text-xs">
           {row.original.price !== undefined
-            ? formatCurrency(row.original.price, row.original.currency || 'USD')
+            ? formatCurrency(
+                row.original.price,
+                row.original.currency || 'USD',
+                locale,
+              )
             : '-'}
         </span>
       ),

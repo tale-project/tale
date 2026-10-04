@@ -97,6 +97,14 @@ the read. A cancel that comes before the shim has named the command's group
 waits for it — the shim does so as soon as it has forked — so the group still
 gets its signal as a whole.
 
+Each cleanup round indexes its process snapshot once by execution tag, parent,
+group and PID. All retained executions use that index, and ancestry walks
+visit their descendants without shifting the remaining queue on every step.
+This keeps unrelated executions from multiplying the matching work as a
+session accumulates background processes. The indexes live only for that
+round; later rounds still take fresh snapshots and verify recorded PIDs with
+their start times before treating a reused group as owned.
+
 **A rotation keeps what the turn started.** A steer's restart cancels a
 running turn and continues the conversation in a new exec over the same
 workspace, so the platform sends that cancel as a rotation:
@@ -175,6 +183,10 @@ and request activity. Attach replay observes socket backpressure directly and
 disconnects a reader that has not drained for two seconds. Other readers and
 the command continue under the existing exec deadline. A dropped consumer does
 not keep an idle session busy after the command ends.
+The spawner also detaches its runnerd response reader if its parser or output
+consumer fails, before a retry can open another attachment. Malformed JSON,
+invalid protocol records and exceptions from the output consumer fail the
+attachment instead of silently discarding execution history.
 
 Reconnect through `/execs/:id/attach?sinceSeq=<last-seen-seq>`. The complete
 protocol lives in an unlinked, disk-backed journal, limited to **64 MiB of
@@ -334,17 +346,35 @@ hold memory in the line, but consume no additional session slot. These checks
 apply only where the Docker host's memory can be verified, and do not impose a
 hard aggregate memory limit on already-running work.
 
-On the Docker backend, admission also keeps a floor of free space on the disk
-the workspaces live on — the session root, read with `statfs` every five
-seconds (`host-disk.ts`): `SANDBOX_MIN_FREE_DISK`, a twentieth of the disk,
-at least 2 GiB and at most 20 GiB (`0` turns it off). Below it every create
+On the Docker backend, admission also keeps a floor of free space on the
+workspace filesystem and Docker's metadata filesystem where it can be verified.
+`statfs` reads the session root and the verified Docker hostname bind every
+five seconds (`host-disk.ts`). `SANDBOX_MIN_FREE_DISK` sets the floor on each
+filesystem; unset, it is a twentieth of each, at least 2 GiB and at most
+20 GiB (`0` turns it off). Below either filesystem's floor every create
 answers 429 `host_disk`; no idle session is reclaimed for it, since a stopped
 session keeps its workspace. The spawner logs the disk going below its floor
 and coming back. Meanwhile each build-cache upkeep removes the helpers and
 caches of organizations whose helpers are all stopped and that no session or
 create may use, the longest-stopped first, at most three a run and only while
 the disk stays short; a removal that frees nothing on that disk (the caches
-live on another one) pauses the removals for six hours.
+live on another one) pauses the removals for six hours. If a different
+filesystem becomes the most constrained after removal, upkeep stops that pass
+and reassesses next sweep instead of comparing free bytes across disks.
+
+The Docker observation reuses the spawner's existing `/etc/hostname` bind.
+Its full container identity and source path must agree with the selected
+daemon's container inspection and data-root; discovery uses bounded Docker
+metadata calls, cached for ten minutes (thirty seconds after an unavailable
+observation). A transient metadata failure keeps an already verified mount
+only while its kernel mount entry is unchanged. No helper container or extra host mount is created. If the bind
+cannot be verified, the spawner logs that Docker disk pressure is unknown
+and continues observing the workspace filesystem. This covers Docker's
+metadata filesystem, including local volumes only when they share it;
+separately mounted volume directories, custom volume drivers, and separate
+containerd image/snapshot stores remain outside the check. The floor controls
+admission of new work, not disk writes by existing work. Hard per-session
+quotas still require [operator-provisioned storage](docker-in-container.md#storage--lifecycle).
 
 **Room goes first come, first served.** A create refused for room (429
 `session_quota`, `host_memory` or `host_disk`) waits in a line, by session id, in the
