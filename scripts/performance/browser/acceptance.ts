@@ -557,12 +557,21 @@ try {
           { waitUntil: 'domcontentloaded', timeout: remaining() },
         );
         await ready(session.page, remaining());
-        await fontsReady(session, (evidence) =>
-          json(
+        await fontsReady(session, (evidence) => {
+          // Keep the same object: a failed dedicated write adds persistenceError
+          // before the outer campaign catch saves this recoverable receipt.
+          receipt.startupFonts = {
+            size: block.size,
+            group: block.group,
+            block: block.block,
+            arm: block.arm,
+            evidence,
+          };
+          return json(
             `fonts-start-${block.size}-${block.group}-${block.block}.json`,
             evidence,
-          ),
-        );
+          );
+        });
         assert.deepEqual(session.errors, []);
       }
       for (const sample of block.samples) {

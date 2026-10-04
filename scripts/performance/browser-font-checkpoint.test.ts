@@ -98,6 +98,41 @@ test('a write failure cannot replace the original font error or erase its cached
   expect(retained?.fonts?.faces[0]?.status).toBe('error');
 });
 
+test('a failed standalone startup write preserves identity and write error in the recoverable campaign receipt', async () => {
+  const campaign: {
+    startupFonts?: { evidence: FontCheckpoint };
+    error?: string;
+  } = {};
+  let writes = 0;
+  try {
+    await fontCheckpoint({
+      collect: async () => evidence(),
+      errors: () => ['font console error'],
+      retain: () => {},
+      persist: async (value) => {
+        campaign.startupFonts = { evidence: value };
+        writes += 1;
+        throw new Error('startup file write failed');
+      },
+    });
+  } catch (error) {
+    campaign.error = String(error);
+  }
+  // Models the outer save after the browser/session has been closed.
+  const saved = JSON.parse(JSON.stringify(campaign)) as typeof campaign;
+  expect(writes).toBe(1);
+  expect(saved.error).toContain('A font failed to load');
+  expect(saved.error).toContain('startup file write failed');
+  expect(saved.startupFonts?.evidence.fonts?.faces[0]).toMatchObject({
+    family: 'Inter Fallback',
+    status: 'error',
+  });
+  expect(saved.startupFonts?.evidence.persistenceError).toBe(
+    'Error: startup file write failed',
+  );
+  expect(saved.startupFonts?.evidence.errors).toEqual(['font console error']);
+});
+
 test('incomplete or unavailable collection is retained and never reported valid', async () => {
   for (const unavailable of [false, true]) {
     let written: FontCheckpoint | undefined;
