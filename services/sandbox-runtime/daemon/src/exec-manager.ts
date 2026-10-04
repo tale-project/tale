@@ -183,6 +183,7 @@ export class ExecManager {
   /** How many execs this session has started. */
   private started = 0;
   private disposed = false;
+  private attachments = 0;
 
   constructor(
     private readonly envStore: EnvStore,
@@ -218,6 +219,11 @@ export class ExecManager {
     return this.live.has(execId) || this.recent.has(execId);
   }
 
+  /** Refuse excess readers before an HTTP response begins streaming. */
+  get hasAttachCapacity(): boolean {
+    return this.attachments < 8;
+  }
+
   /**
    * Attach a consumer to an exec: replay its disk journal, then (if still
    * live) follow new events until it exits. Returns a promise that resolves
@@ -234,18 +240,17 @@ export class ExecManager {
     signal?: AbortSignal,
   ): Promise<void> | null {
     const liveRec = this.live.get(execId);
-    if (liveRec) {
-      // A consumer (re)attached → slide the deadline forward by another full
-      // window. This is what makes an actively-drained exec run UNBOUNDED: the
-      // platform re-attaches every handoff (well within the window), so the
-      // kill timer is perpetually pushed out and only ever fires for a
-      // genuinely orphaned exec (no attach for the whole window).
-      this.armDeadline(liveRec);
-      return liveRec.journal.replay(emit, sinceSeq, signal);
+    const record = liveRec ?? this.recent.get(execId);
+    if (record === undefined) return null;
+    if (signal?.aborted) return Promise.resolve();
+    if (this.attachments >= 8) {
+      return Promise.reject(new Error('attachment limit reached'));
     }
-    const recentRec = this.recent.get(execId);
-    if (recentRec) return recentRec.journal.replay(emit, sinceSeq, signal);
-    return null;
+    this.attachments += 1;
+    if (liveRec) this.armDeadline(liveRec);
+    return record.journal.replay(emit, sinceSeq, signal).finally(() => {
+      this.attachments -= 1;
+    });
   }
 
   /** (Re)arm the sliding deadline. Called at exec start and on every attach.

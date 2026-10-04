@@ -416,11 +416,11 @@ default means deleting the override and fixing what surfaces:
   the default hash covers the task's `title` and `status`, which the workflow itself moves, so
   an honest retry would otherwise answer 409 `IDEMPOTENCY_KEY_REUSED`.
 - **No queue position on a queued send** — the generation poll answers `queued` with no
-  count of the accepted sends ahead; the deployment-wide queue is one `pg-boss` queue worked in
-  batches of `WORKER_CONCURRENCY` (2026-09, round g). Paying it down means `queuedAhead` from
+  count of the accepted sends ahead; the deployment-wide queue is one `pg-boss` queue worked through
+  independent slots at `WORKER_CONCURRENCY` (2026-09, round g). Paying it down means `queuedAhead` from
   `count(*) … WHERE generation_queued_since_ms < ${thread.queuedSince}` on
   `app.thread_metadata` behind a partial index (create-migration skill), an additive field on
-  the poll and a contract bump; no ETA — batch waves times a turn's own length make any figure
+  the poll and a contract bump; no ETA — turn durations and provider capacity make any figure
   dishonest.
 - **A corrupt Office document still fails as a raw parse error** — a PDF that does not parse
   now lands `unsupported` with `errorCode: malformed`, but `docx`/`pptx`/`xlsx`/`odt` parse

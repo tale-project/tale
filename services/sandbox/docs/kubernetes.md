@@ -57,6 +57,11 @@ and 24 hours, plus the same grace. Recovery checks the apiserver creation time,
 creation stamp, UID and resource version, so a newer incarnation or a Pod that
 became Running during the check is left alone. Its Secret is removed by UID;
 the workspace PVC stays intact. Capacity is released only after the Pod is gone.
+
+Failed creates delete only Pod and Secret UIDs acknowledged by their own API
+create responses. Pod cleanup also fences the observed resource version. A
+replacement or ambiguous response leaves compute for normal recovery; every
+failed create preserves its workspace PVC for retry or explicit destroy.
 Running and Unknown Pods are never removed by this startup recovery.
 
 **Resource bounds:** the runner container enforces the profile's cpu/memory

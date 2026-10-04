@@ -14,6 +14,7 @@ export interface DataTableSearchConfig {
 }
 
 export interface DataTableSortingConfig {
+  manual?: boolean;
   /** Current sorting state (synced with URL) */
   initialSorting: SortingState;
   /** Callback when sorting changes (updates URL) */

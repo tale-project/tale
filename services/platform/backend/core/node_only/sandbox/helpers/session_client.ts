@@ -12,6 +12,7 @@
 // sessionIsAlive GET) from colliding in the spawner's replay cache.
 
 import { createHash, createHmac, randomUUID } from 'node:crypto';
+import { setTimeout as delay } from 'node:timers/promises';
 
 import { createParser } from 'eventsource-parser';
 import { z } from 'zod';
@@ -871,10 +872,14 @@ export type ExecLiveness =
 export async function sessionExecStatus(
   sessionId: string,
   execId: string,
+  options: { signal?: AbortSignal; timeoutMs?: number } = {},
 ): Promise<ExecLiveness> {
   const path = `/v1/sessions/${encodeURIComponent(sessionId)}/exec/${encodeURIComponent(execId)}`;
   const res = await spawnerFetch('GET', path, {
-    signal: AbortSignal.timeout(30_000),
+    signal: AbortSignal.any([
+      AbortSignal.timeout(options.timeoutMs ?? 30_000),
+      ...(options.signal ? [options.signal] : []),
+    ]),
   });
   if (res.status === 404) return { state: 'gone' };
   if (!res.ok) {
@@ -920,6 +925,7 @@ export interface SessionStageResult {
 }
 
 interface StageOptions {
+  signal?: AbortSignal;
   /** Directories this payload fully owns; absent files are pruned only after
    * every chunk staged successfully. Never name the workspace root. */
   replaceRoots?: string[];
@@ -990,13 +996,17 @@ async function postStageFiles(
   sessionId: string,
   files: SessionStageFile[],
   reconcile?: { replaceRoots: string[]; keepPaths: string[] },
+  callerSignal?: AbortSignal,
 ): Promise<SessionStageResult> {
   const path = `/v1/sessions/${encodeURIComponent(sessionId)}/files/stage`;
   const bodyJson = JSON.stringify({ files, ...reconcile });
   if (Buffer.byteLength(bodyJson) > STAGE_BODY_BUDGET_BYTES) {
     throw new Error('Sandbox staging manifest exceeds the request budget');
   }
-  const signal = AbortSignal.timeout(30_000);
+  const signal = AbortSignal.any([
+    AbortSignal.timeout(30_000),
+    ...(callerSignal ? [callerSignal] : []),
+  ]);
   for (;;) {
     signal.throwIfAborted();
     const res = await spawnerFetch('POST', path, { body: bodyJson, signal });
@@ -1026,9 +1036,7 @@ async function postStageFiles(
     // or a final prune must wait for another staging request. Keep the queue
     // in the caller, bounded by this batch's one deadline, rather than retain
     // arbitrary request bodies inside the memory-constrained daemon.
-    await new Promise((resolve) =>
-      setTimeout(resolve, 50 + Math.floor(Math.random() * 200)),
-    );
+    await delay(50 + Math.floor(Math.random() * 200), undefined, { signal });
   }
 }
 
@@ -1064,7 +1072,12 @@ export async function sessionStageFiles(
       for (const batch of chunkStageFiles(
         identified.map(({ path, sourceId }) => ({ path, sourceId })),
       )) {
-        const probe = await postStageFiles(sessionId, batch);
+        const probe = await postStageFiles(
+          sessionId,
+          batch,
+          undefined,
+          options.signal,
+        );
         // Legacy runtimes may accept a source-only entry but report no_source;
         // only explicit staged paths count as verified cache hits.
         for (const hit of probe.staged) {
@@ -1082,26 +1095,42 @@ export async function sessionStageFiles(
     }
   }
   for (const batch of chunkStageFiles(missing)) {
-    const result = await postStageFiles(sessionId, batch);
+    const result = await postStageFiles(
+      sessionId,
+      batch,
+      undefined,
+      options.signal,
+    );
     merged.staged.push(...result.staged);
     merged.skipped.push(...result.skipped);
   }
   if (options.replaceRoots?.length && merged.skipped.length === 0) {
-    const final = await postStageFiles(sessionId, [], {
-      replaceRoots: options.replaceRoots,
-      keepPaths: identified.map((file) => file.path),
-    });
+    const final = await postStageFiles(
+      sessionId,
+      [],
+      {
+        replaceRoots: options.replaceRoots,
+        keepPaths: identified.map((file) => file.path),
+      },
+      options.signal,
+    );
     merged.skipped.push(...final.skipped);
     if (final.skipped.length === 0 && final.reconciled !== true) {
       // A legacy runtime ignored the new reconciliation fields. Restore the
       // old clear-and-copy behavior so removed files cannot survive a roll.
+      options.signal?.throwIfAborted();
       const cleared = await sessionDeleteFiles(sessionId, options.replaceRoots);
       if (cleared.skipped.length > 0) {
         merged.skipped.push(...cleared.skipped);
       } else {
         merged.staged = [];
         for (const batch of chunkStageFiles(identified)) {
-          const result = await postStageFiles(sessionId, batch);
+          const result = await postStageFiles(
+            sessionId,
+            batch,
+            undefined,
+            options.signal,
+          );
           merged.staged.push(...result.staged);
           merged.skipped.push(...result.skipped);
         }
@@ -1371,6 +1400,8 @@ export interface SessionExecCallbacks {
 
 /** A protocol or consumer failure cannot be repaired by replaying a later
  * suffix. Fail the turn visibly instead of advancing past corrupt state. */
+class ExecAttachBusyError extends Error {}
+
 export class ExecStreamProtocolError extends Error {
   constructor(message: string, options?: ErrorOptions) {
     super(message, options);
@@ -1515,6 +1546,12 @@ export async function drainSessionExecResilient(
       // help. Surface it so the caller self-heals the stale platform row.
       if (err instanceof SessionNotFoundError) throw err;
       if (err instanceof ExecStreamProtocolError) throw err;
+      if (err instanceof ExecAttachBusyError) {
+        // Reader admission is temporary pressure, not a failure of the exec.
+        // Keep retrying this attach within the action/window cancellation.
+        await delay(RECONNECT_BACKOFF_MS, undefined, { signal });
+        continue;
+      }
       // An idle SSE (no keepalive) is a wedged socket, NOT an exec failure: a
       // live-but-quiet exec resumes losslessly via sinceSeq, and a genuinely
       // dead sandbox surfaces as a real fetch error on the next re-attach
@@ -1689,6 +1726,8 @@ async function consumeExecSse(
       const message = parsed.message ?? 'sandbox session exec stream error';
       // The spawner's attach grammar for an unknown exec (session-routes.ts):
       // `exec <id> not found`.
+      if (parsed?.code === 'ATTACH_BUSY')
+        throw new ExecAttachBusyError(message);
       if (message === `exec ${execId} not found`) {
         throw new ExecNotFoundError(execId);
       }
