@@ -91,6 +91,11 @@ import { checkInboundEmailBodies } from './domains/knowledge/message-index.integ
 import { checkScopeRefHolder } from './domains/knowledge/scope-holder.integration.ts';
 import { checkRagStatusHintScope } from './domains/knowledge/status-hints.integration.ts';
 import { checkKnowledgeEntryIndexing } from './domains/knowledge_entries/indexing.integration.ts';
+import {
+  checkConcurrentEntryCreation,
+  checkConcurrentEntryRenameAndCreate,
+  checkConcurrentEntryUpdates,
+} from './domains/knowledge_entries/write-races.integration.ts';
 import { writeNotificationForOrgs } from './domains/notifications/service.ts';
 import { ensureDefaultObjectStore } from './domains/object_storage/bootstrap.ts';
 import { checkOrphanedOrgRowsBackfill } from './domains/organizations/orphaned-rows.integration.ts';
@@ -59409,6 +59414,32 @@ async function main(): Promise<void> {
       [
         'checkKnowledgeEntries',
         () => checkKnowledgeEntries(sql, baseUrl, authCtx),
+      ],
+      [
+        'checkKnowledgeEntryWriteRaces',
+        async () => {
+          const { resolveObjectStore, s3GetObjectBytes } =
+            await import('./lib/object-store.ts');
+          const store = await resolveObjectStore(`itest-${orgSuffix}`);
+          const writer = {
+            organizationId: authCtx.orgId,
+            userId: authCtx.userId,
+            role: 'owner',
+          };
+          const readBlob = async (ref: string): Promise<string> =>
+            new TextDecoder().decode(
+              await s3GetObjectBytes(store, ref.slice(3)),
+            );
+          await checkConcurrentEntryCreation(sql, writer);
+          await checkConcurrentEntryUpdates(sql, writer, readBlob);
+          await checkConcurrentEntryUpdates(sql, writer, readBlob, true);
+          await checkConcurrentEntryRenameAndCreate(sql, writer);
+          record(
+            'knowledge entries: concurrent creates, corrections and renames',
+            true,
+            'real transaction interleavings; one winner, normal 409, coherent history and backing bytes',
+          );
+        },
       ],
       ['checkCollabEmitters', () => checkCollabEmitters(sql, baseUrl, authCtx)],
       ['checkBellHintWire', () => checkBellHintWire(sql, baseUrl, authCtx)],
