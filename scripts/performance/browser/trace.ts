@@ -1,18 +1,37 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { open, writeFile } from 'node:fs/promises';
+import { createReadStream } from 'node:fs';
+import { open, writeFile, type FileHandle } from 'node:fs/promises';
 
 import type { CDPSession } from '../../../packages/e2e/src/index.ts';
 
 /** Stream to disk incrementally so a failed read retains partial evidence and
  * a large trace does not consume the measured container's memory budget. */
-export async function saveRawTrace(cdp: CDPSession, path: string) {
+export async function saveRawTrace(
+  cdp: CDPSession,
+  path: string,
+  options: {
+    maximumBytes?: number;
+    writeChunk?: (file: FileHandle, chunk: Buffer) => Promise<void>;
+  } = {},
+) {
+  const maximumBytes = options.maximumBytes ?? 512 * 1024 * 1024;
+  assert(
+    Number.isSafeInteger(maximumBytes) &&
+      maximumBytes > 0 &&
+      maximumBytes <= 512 * 1024 * 1024,
+    'A trace budget may only tighten the fixed evidence ceiling',
+  );
+  const writeChunk =
+    options.writeChunk ?? ((file, chunk) => file.writeFile(chunk));
   const file = await open(path, 'wx', 0o600);
   const hash = createHash('sha256');
   const stages: { name: string; at: number }[] = [];
   const stage = (name: string) => stages.push({ name, at: Date.now() });
-  let bytes = 0;
-  let digest = '';
+  let receivedBytes = 0;
+  let bytes: number | null = 0;
+  let digest: string | null = '';
+  let readbackError: string | undefined;
   let stream: string | undefined;
   let completionEvent:
     | {
@@ -65,13 +84,14 @@ export async function saveRawTrace(cdp: CDPSession, path: string) {
         chunk.data,
         chunk.base64Encoded ? 'base64' : 'utf8',
       );
-      bytes += raw.length;
+      receivedBytes += raw.length;
       assert(
-        bytes <= 512 * 1024 * 1024,
+        receivedBytes <= maximumBytes,
         'Raw trace exceeded its explicit evidence budget',
       );
+      await writeChunk(file, raw);
+      bytes += raw.length;
       hash.update(raw);
-      await file.writeFile(raw);
       if (chunk.eof) break;
     }
     stage('stream-read-completed');
@@ -105,7 +125,23 @@ export async function saveRawTrace(cdp: CDPSession, path: string) {
     if (!failure && cleanupErrors.length)
       failure = new Error(cleanupErrors.join('; '));
     stage('cleanup-settled');
-    digest = hash.digest('hex');
+    if (failure) {
+      // A rejected write can still have written a prefix; only the actual
+      // retained file can establish its byte/hash receipt after failure.
+      try {
+        const retainedHash = createHash('sha256');
+        bytes = 0;
+        for await (const chunk of createReadStream(path)) {
+          bytes += chunk.length;
+          retainedHash.update(chunk);
+        }
+        digest = retainedHash.digest('hex');
+      } catch (error) {
+        bytes = null;
+        digest = null;
+        readbackError = String(error);
+      }
+    } else digest = hash.digest('hex');
     await writeFile(
       `${path}.receipt.json`,
       JSON.stringify(
@@ -114,7 +150,9 @@ export async function saveRawTrace(cdp: CDPSession, path: string) {
           completion: completionEvent ?? null,
           stages,
           bytes,
+          receivedBytes,
           sha256: digest,
+          readbackError,
           error: failure ? String(failure) : undefined,
           cleanupErrors,
         },
@@ -125,6 +163,7 @@ export async function saveRawTrace(cdp: CDPSession, path: string) {
     );
   }
   if (failure) throw failure;
+  assert(bytes !== null && digest !== null);
   return { bytes, sha256: digest, streamComplete: true };
 }
 
