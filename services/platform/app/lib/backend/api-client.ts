@@ -55,6 +55,8 @@ export interface BackendFetchOptions {
   /** Appended as the `orgId` query parameter — the backend's org scope. */
   orgId?: string;
   signal?: AbortSignal;
+  /** Additional HTTP headers, such as a conditional-write validator. */
+  headers?: Record<string, string>;
 }
 
 function basePath(): string {
@@ -148,7 +150,10 @@ export async function backendFetch<T>(
       credentials: 'include',
       ...(options.body !== undefined
         ? {
-            headers: { 'content-type': 'application/json' },
+            headers: {
+              'content-type': 'application/json',
+              ...options.headers,
+            },
             body: JSON.stringify(options.body),
           }
         : {}),
