@@ -36,6 +36,12 @@ which the history present at attachment has been delivered. Session idle and
 TTL cleanup atomically checks the current work generation and activity clock
 before freezing compute; see the [session contract](../sandbox/docs/sessions.md).
 
+Process cleanup indexes each process-table snapshot once by execution, parent,
+group and PID. A session retaining many executions' background processes reuses
+those indexes throughout the cleanup pass instead of rescanning the complete
+table for every execution. The indexes expire with the pass; later passes
+still check process identity and ownership from a fresh snapshot.
+
 Completed commands release their request and consumer data even while another
 command keeps the session active. Process cleanup retains only the ownership
 and liveness data it still needs. Held-open stdin has an 8 MiB pending-write

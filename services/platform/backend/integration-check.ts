@@ -39395,6 +39395,75 @@ async function checkSandboxSettingsViews(
       busy.currentOp?.taskId === busyTasks[2],
     `busy=${busy?.busy}, spent=${busy?.totalSpentCents}, running=${busy?.runningOps.map((op) => op.taskId?.slice(0, 8)).join(',')}, current=${busy?.currentOp?.taskId?.slice(0, 8)}, want=${busyTasks.map((id) => id.slice(0, 8)).join(',')}`,
   );
+  // Standing workspaces accumulate historical turns. A poll still counts
+  // their spend but must not transfer their complete progress transcripts.
+  const historicalProgress = `${'Old progress. '.repeat(500)}${'😀'.repeat(200)}tail`;
+  const historyPrefix = randomUUID();
+  await sql`
+    INSERT INTO app.sandbox_session_ops (
+      org_id, session_id, exec_id, kind, status, finalized_at_ms,
+      spent_cents, started_at_ms, progress_text
+    )
+    SELECT ${orgId}, ${busySessionId}, ${historyPrefix} || '-' || n,
+      'task-agent', 'completed', ${now}, 2, ${now - 10_000}::bigint - n,
+      ${historicalProgress}
+    FROM generate_series(1, 256) AS n
+  `;
+  await sql`
+    UPDATE app.sandbox_session_ops SET progress_text = ${historicalProgress}
+    WHERE org_id = ${orgId} AND session_id = ${sessionId} AND exec_id = ${execId}
+  `;
+  let largestProgressRead = 0;
+  const observedSql = new Proxy(sql, {
+    apply(target, thisArg, args: unknown[]) {
+      const result: unknown = Reflect.apply(target, thisArg, args);
+      const parts = args[0];
+      if (
+        Array.isArray(parts) &&
+        'raw' in parts &&
+        parts.join('?').includes('FROM app.sandbox_session_ops o')
+      ) {
+        return Promise.resolve(result).then((rows) => {
+          if (Array.isArray(rows)) {
+            for (const row of rows) {
+              if (
+                row !== null &&
+                typeof row === 'object' &&
+                'progressText' in row &&
+                typeof row.progressText === 'string'
+              ) {
+                largestProgressRead = Math.max(
+                  largestProgressRead,
+                  row.progressText.length,
+                );
+              }
+            }
+          }
+          return rows;
+        });
+      }
+      return result;
+    },
+  });
+  const historicalViews = await listSandboxViewsForOrg(observedSql, orgId);
+  const historicalBusy = historicalViews.find(
+    (view) => view.sessionId === busySessionId,
+  );
+  const historicalProject = historicalViews.find(
+    (view) => view.sessionId === sessionId,
+  );
+  record(
+    'sandbox settings bound historical progress and preserve spend and Unicode tails',
+    largestProgressRead > 0 &&
+      largestProgressRead <= 560 &&
+      historicalBusy?.totalSpentCents === 517 &&
+      historicalBusy.currentOp?.taskId === busyTasks[2] &&
+      historicalBusy.runningOps.map((op) => op.taskId).join(',') ===
+        busyTasks.join(',') &&
+      historicalProject?.currentOp?.progressText ===
+        historicalProgress.slice(-280),
+    `progressRead=${largestProgressRead}, spent=${historicalBusy?.totalSpentCents}, running=${historicalBusy?.runningOps.length}, displayedTail=${historicalProject?.currentOp?.progressText?.length}`,
+  );
   // A corrupt/stale cross-org owner reference must not reveal that owner's
   // label, even though the referenced primary key exists globally.
   await sql`UPDATE app.project_agents SET org_id = 'foreign-settings-org' WHERE id = ${agentId}`;
@@ -39431,10 +39500,23 @@ async function checkSandboxSettingsViews(
     foreignDestroy.status === 404 && foreignSession[0]?.status === 'stopped',
     `status=${foreignDestroy.status}, foreign session=${foreignSession[0]?.status}`,
   );
-  await sql`DELETE FROM app.sandbox_session_ops WHERE session_id = ANY(${[sessionId, workflowSessionId]})`;
-  await sql`DELETE FROM app.sandbox_sessions WHERE session_id = ANY(${[sessionId, workflowSessionId]})`;
+  const fixtureSessionIds = [sessionId, workflowSessionId, busySessionId];
+  await sql`DELETE FROM app.sandbox_session_ops WHERE session_id = ANY(${fixtureSessionIds})`;
+  await sql`DELETE FROM app.sandbox_sessions WHERE session_id = ANY(${fixtureSessionIds})`;
   await sql`DELETE FROM app.automation_runs WHERE id = ${runId}`;
   await sql`DELETE FROM app.projects WHERE id = ${projectId}`;
+  const remaining = await sql<{ ops: number; sessions: number }[]>`
+    SELECT
+      (SELECT count(*)::int FROM app.sandbox_session_ops
+       WHERE session_id = ANY(${fixtureSessionIds})) AS ops,
+      (SELECT count(*)::int FROM app.sandbox_sessions
+       WHERE session_id = ANY(${fixtureSessionIds})) AS sessions
+  `;
+  record(
+    'sandbox settings remove their history before later settlement sweeps',
+    remaining[0]?.ops === 0 && remaining[0].sessions === 0,
+    `remaining ops=${remaining[0]?.ops}, sessions=${remaining[0]?.sessions} (want 0/0)`,
+  );
 }
 
 /**
