@@ -60,7 +60,8 @@ jobs:
           if [[ ! "$VERSION_NUMBER" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.-]+)?$ ]]; then
             echo '::error::Version must be an exact semantic version'; exit 1
           fi
-          SERVICE_NAMES='["platform","db","proxy","web","docs","ui-docs","ai-gateway","sandbox-llm-gateway","sandbox","sandbox-egress","sandbox-buildkitd","sandbox-runtime"]'
+          # Start the longest native builds first within the bounded matrix.
+          SERVICE_NAMES='["sandbox-runtime","platform","db","web","docs","ui-docs","ai-gateway","proxy","sandbox-llm-gateway","sandbox","sandbox-egress","sandbox-buildkitd"]'
           if [ "$SITES_ONLY" = true ]; then SERVICE_NAMES='["web","docs","ui-docs"]'; fi
           {
             echo "sites_only=$SITES_ONLY"
@@ -171,6 +172,12 @@ jobs:
             org.opencontainers.image.revision=${{ steps.meta.outputs.revision }}
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.version=${{ needs.prepare.outputs.version_number }}
+          # Main's GHA cache warms the first release; registry caches survive
+          # the tag boundary and keep amd64/arm64 from evicting one another.
+          cache-from: |
+            type=gha,scope=${{ matrix.service.name }}
+            type=registry,ref=${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service.name }}:buildcache-${{ matrix.arch.name }}
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service.name }}:buildcache-${{ matrix.arch.name }},mode=max
           provenance: false
 
       - name: Setup Bun for document checks
@@ -243,21 +250,39 @@ jobs:
         env:
           SERVICE_NAMES: ${{ needs.prepare.outputs.service_names }}
         run: |
+          set -euo pipefail
           VERSION="${{ needs.prepare.outputs.version_number }}"
           ARCH="amd64"
-          while IFS= read -r svc; do
-            IMAGE="${{ env.REGISTRY }}/${{ github.repository }}/tale-${svc}:${VERSION}-${ARCH}"
-            echo "Pulling ${IMAGE}..."
-            docker pull "${IMAGE}"
-            docker tag "${IMAGE}" "ghcr.io/tale-project/tale/tale-${svc}:latest"
+          pull_image() {
+            local svc=$1 image
+            image="${{ env.REGISTRY }}/${{ github.repository }}/tale-${svc}:${VERSION}-${ARCH}"
+            echo "Pulling ${image}..."
+            docker pull "$image"
+            docker tag "$image" "ghcr.io/tale-project/tale/tale-${svc}:latest"
             # The spawner uses unscoped local defaults for its child images.
-            # Keep those aliases on the same pulled release bytes, too.
             case "$svc" in
               sandbox-runtime|sandbox-buildkitd)
-                docker tag "${IMAGE}" "tale-${svc}:latest"
+                docker tag "$image" "tale-${svc}:latest"
                 ;;
             esac
+          }
+          pids=()
+          failed=false
+          while IFS= read -r svc; do
+            pull_image "$svc" &
+            pids+=("$!")
+            if [ "${#pids[@]}" -eq 3 ]; then
+              for pid in "${pids[@]}"; do
+                if ! wait "$pid"; then failed=true; fi
+              done
+              [ "$failed" = false ] || exit 1
+              pids=()
+            fi
           done < <(jq -r '.[]' <<< "$SERVICE_NAMES")
+          for pid in "${pids[@]}"; do
+            if ! wait "$pid"; then failed=true; fi
+          done
+          [ "$failed" = false ] || exit 1
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2

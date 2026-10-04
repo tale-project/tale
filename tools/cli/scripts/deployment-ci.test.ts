@@ -467,6 +467,7 @@ printf '%s\\n' "$TEST_COMPARE_STATUS"
           ...(JSON.parse(candidate.list!) as string[]),
           'ci_tests',
           'storybook',
+          'shared_build',
         ].toSorted(),
       ).toEqual(filters.toSorted());
       expect(JSON.parse(candidate.list!)).toEqual(
@@ -685,7 +686,7 @@ printf '%s\\n' "$TEST_COMPARE_STATUS"
       expect(setupIndex).toBeGreaterThanOrEqual(0);
       const setup = job.steps[setupIndex]!;
       expect(setup.if).toBeUndefined();
-      expect(setup.with?.['start-turbo-cache']).toBe('false');
+      expect(setup.with?.['turbo-cache']).toBe('false');
       // Inherit the shared Bun pin and its frozen install. The conformance
       // helpers import workspace packages, which Bun alone cannot resolve.
       expect(setup.with?.['bun-version']).toBeUndefined();
@@ -749,14 +750,29 @@ printf '%s\\n' "$TEST_COMPARE_STATUS"
         expect(result.code, result.stdout + result.stderr).toBe(0);
         const image = (service: string) =>
           `ghcr.io/tale-project/tale/tale-${service}@${digest(service)}`;
-        expect(result.calls).toEqual([
+        const expectedCalls = [
           ...BUILT.flatMap((service) => [
             `docker pull ${image(service)}`,
             `docker image inspect --format {{ index .Config.Labels "org.opencontainers.image.revision" }} ${image(service)}`,
             `docker tag ${image(service)} ghcr.io/tale-project/tale/tale-${service}:latest`,
           ]),
           'docker tag ghcr.io/tale-project/tale/tale-sandbox-runtime:latest tale-sandbox-runtime:latest',
-        ]);
+        ];
+        expect(result.calls.toSorted()).toEqual(expectedCalls.toSorted());
+        // Independent downloads overlap, but each image must be verified
+        // before it is tagged for Compose. The final alias waits for all pulls.
+        for (const service of BUILT) {
+          const [pull, inspect, tag] = expectedCalls.filter((call) =>
+            call.includes(image(service)),
+          );
+          expect(result.calls.indexOf(pull!)).toBeLessThan(
+            result.calls.indexOf(inspect!),
+          );
+          expect(result.calls.indexOf(inspect!)).toBeLessThan(
+            result.calls.indexOf(tag!),
+          );
+        }
+        expect(result.calls.at(-1)).toBe(expectedCalls.at(-1));
         // The loop pulls exactly what the build matrix builds.
         expect(BUILT.toSorted()).toEqual(
           (await workflow()).jobs.build!.strategy!.matrix!.service!.toSorted(),

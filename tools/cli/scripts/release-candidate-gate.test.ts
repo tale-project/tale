@@ -663,19 +663,24 @@ describe('complete candidate event and receipt provenance', () => {
     expect((await judge(scenario)).report.state).toBe('blocked');
   });
 
-  test.each([
-    'missing',
-    'skipped',
-    'failure',
-    'cancelled',
-    'duplicate',
-    'unexpected',
-  ])('a green E2E verdict cannot hide a %s shard', async (mode) => {
+  test.each(
+    ['checks', 'e2e'].flatMap((stem) =>
+      [
+        'missing',
+        'skipped',
+        'failure',
+        'cancelled',
+        'duplicate',
+        'unexpected',
+      ].map((mode) => [stem, mode] as const),
+    ),
+  )('a green %s verdict cannot hide a %s shard', async (stem, mode) => {
     const scenario = dispatchedSources();
     const entry = scenario.candidateRuns.find((candidate) =>
-      candidate.path.endsWith('/e2e.yml'),
+      candidate.path.endsWith(`/${stem}.yml`),
     )!;
-    const name = 'Playwright (platform 16/16)';
+    const name =
+      stem === 'checks' ? 'UI (platform 4/4)' : 'Playwright (platform 4/4)';
     if (mode === 'missing')
       scenario.jobs[entry.id] = scenario.jobs[entry.id]!.filter(
         (job) => job.name !== name,

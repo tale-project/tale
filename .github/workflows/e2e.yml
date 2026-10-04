@@ -23,15 +23,20 @@ on:
       - 'services/platform/**'
       - 'services/web/**'
       - 'services/docs/**'
+      - 'docs/**'
       - 'packages/ui/**'
       - 'packages/marketing-ui/**'
       - 'packages/e2e/**'
+      - 'packages/shared/**'
+      - 'configs/platform/**'
       - '.github/workflows/e2e.yml'
       - '.github/actions/setup-turbo/**'
       - 'package.json'
       - 'bun.lock'
       - 'turbo.json'
-      - 'tsconfig.base.json'
+      - 'tsconfig*.json'
+      - 'patches/**'
+      - 'bunfig.toml'
   schedule:
     # Nightly at 02:30 UTC.
     - cron: '30 2 * * *'
@@ -58,7 +63,7 @@ jobs:
   # Before this job existed each of the 16 shards restored the dist cache
   # itself and, on a cold key, all 16 missed simultaneously and ran the ~4-min
   # `bun run build` in parallel (issue #2385). Now the build happens exactly
-  # once: a warm dist cache skips it here too, and the resulting bundle flows
+  # once: Turbo can restore the same build that Checks validated, and it flows
   # to the shards as a run artifact — deterministic within the run (no
   # cache-visibility race between sibling jobs) and still available to
   # `gh run rerun --failed` from the first attempt.
@@ -76,7 +81,7 @@ jobs:
     # Sized for the COLD path: a lockfile bump invalidates the toolchain and
     # dist caches at once, and the uncached install + prod build exceeds 15
     # minutes on the 4-vCPU runner (observed: a one-line dependency override
-    # timed the job out and skipped all 16 shards). The warm path stays ~4
+    # timed the job out and skipped every shard). The warm path stays ~4
     # minutes; the ceiling only bounds a wedged build.
     timeout-minutes: 30
     permissions:
@@ -93,21 +98,9 @@ jobs:
       - name: Setup toolchain
         uses: ./.github/actions/setup-turbo
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
           start-turbo-cache: 'false'
-
-      # Cache the prebuilt dist/ across runs. The key hashes the whole platform
-      # package and the shared UI package, MINUS the tests/ tree (excluded by
-      # hashing each source subtree explicitly) — so a test-only e2e PR, the
-      # common case, restores a cached bundle and skips the ~4-min build.
-      # Exact-match only (no restore-keys): any real source change rebuilds, so
-      # the cache can never serve a stale bundle.
-      - name: Cache platform dist (E2E preview bundle)
-        id: dist-cache
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
-        with:
-          path: services/platform/dist
-          key: e2e-dist-${{ runner.os }}-${{ hashFiles('services/platform/app/**', 'services/platform/lib/**', 'services/platform/backend/core/**', 'services/platform/public/**', 'services/platform/*.json', 'services/platform/*.ts', 'packages/ui/src/**', 'packages/ui/*.json', 'bun.lock') }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          cache-scope: build
 
       # Serve a production build instead of the Vite dev server. `vite dev`
       # transpiles on the fly — the dominant CPU consumer that, on the 4-vCPU
@@ -115,11 +108,10 @@ jobs:
       # makes the webServer (scripts/dev.ts, TALE_E2E_SERVE_BUILD=1) serve via
       # `vite preview`: static assets + API proxy only, no transpilation.
       # Built here (not inside the webServer) so the boot stays inside the
-      # Playwright webServer timeout. Skipped on a dist-cache hit.
+      # Playwright webServer timeout. Reuse the normal build task and its
+      # declared inputs instead of a second, incomplete cache-key file list.
       - name: Build platform (prod bundle for E2E preview)
-        if: steps.dist-cache.outputs.cache-hit != 'true'
-        working-directory: services/platform
-        run: bun run build
+        run: bunx turbo run build --filter=@tale/platform
 
       # Uploaded whether the bundle came from the cache or a fresh build — the
       # shards always download this artifact and never build. 7 days covers
@@ -134,7 +126,7 @@ jobs:
           if-no-files-found: error
 
   e2e:
-    name: Playwright (platform ${{ matrix.shard }}/16)
+    name: Playwright (platform ${{ matrix.shard }}/4)
     if: >-
       !cancelled() &&
       (((github.event_name == 'repository_dispatch') &&
@@ -154,20 +146,14 @@ jobs:
     # cancel the others — we want every shard's result, and a re-run of just the
     # red shards (`gh run rerun --failed`) converges to green.
     #
-    # Shard count: 16. Each shard's cost is the FIXED per-shard boot (Chromium +
-    # Hono backend + Postgres + Vite preview + @tale/mocks) plus its serial test
-    # slice; a single worker per shard is mandatory (two starve the backend on
-    # the 4-vCPU runner — see the run step). Parallelism therefore comes only
-    # from shards, so the lever for wall-clock is the test slice: 16 shards puts
-    # ~5 of the ~74 tests per job. The boot floor dominates at this slice size,
-    # so this trades extra CI minutes for the shortest serial test time per
-    # shard. The prod build sits in the upstream `build` job (built or
-    # cache-restored once per run) and arrives here as an artifact, so no shard
-    # ever builds.
+    # Four shards amortize the fixed Chromium/Postgres/backend setup. With 16,
+    # each slice ran for only 22–37s after roughly 70–100s of runner setup;
+    # queue contention dominated wall time. Keep one worker per shard so the
+    # backend has CPU headroom. The build still arrives once as an artifact.
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
+        shard: [1, 2, 3, 4]
     permissions:
       contents: read
 
@@ -205,8 +191,9 @@ jobs:
       - name: Setup toolchain
         uses: ./.github/actions/setup-turbo
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
           start-turbo-cache: 'false'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          turbo-cache: 'false'
 
       - name: Cache Playwright browsers
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
@@ -242,11 +229,11 @@ jobs:
           name: e2e-platform-dist
           path: services/platform/dist
 
-      - name: Run E2E suite (shard ${{ matrix.shard }}/16)
+      - name: Run E2E suite (shard ${{ matrix.shard }}/4)
         working-directory: services/platform
         # One worker per shard. Two workers over-subscribed the 4-vCPU runner
         # (Vite + backend + mock + the browser workers all share it).
-        # Parallelism comes from the 16 shards; each single-worker shard still
+        # Parallelism comes from the four shards; each single-worker shard still
         # finishes well inside the 30-min budget. Tune via E2E_WORKERS.
         env:
           E2E_WORKERS: '1'
@@ -256,7 +243,7 @@ jobs:
           # Skips the video-toolchain apt install in scripts/dev.ts (a slow
           # mirror has burned the webServer boot budget).
           TALE_E2E: '1'
-        run: bunx playwright test --shard=${{ matrix.shard }}/16
+        run: bunx playwright test --shard=${{ matrix.shard }}/4
 
       # Under the shared config (`@tale/e2e/config`: failure screenshots,
       # traces on the first retry) Playwright writes test-results/ only for an
@@ -331,8 +318,12 @@ jobs:
       - name: Setup toolchain
         uses: ./.github/actions/setup-turbo
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
           start-turbo-cache: 'false'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          # Web's prerender suite reuses the normal build cache; docs only
+          # runs uncached Playwright and needs no shared Turbo cache.
+          turbo-cache: ${{ matrix.service == 'web' }}
+          cache-scope: test-static-${{ matrix.service }}
 
       - name: Cache Playwright browsers
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5

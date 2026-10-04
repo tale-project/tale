@@ -163,7 +163,7 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
 
 ## A green check is not always a run
 
-Every CI job is `setup-turbo` plus one root script, so most check results are **replays**:
+Most CI check jobs use `setup-turbo` plus a root script, so many results are **replays**:
 `@tale/ui:test:browser`, for instance, actually executed four times in one recent stretch of
 forty `checks.yml` runs. Whichever run first executes a given input hash freezes its verdict for
 every later run that shares those inputs — so a task that is flaky but passed once reads green
@@ -172,6 +172,13 @@ concluding that a failure is yours, open the job log and look for `cache hit, re
 beside the task; `--force` re-runs it locally. A task whose result depends on anything but its
 declared inputs — test file ordering, wall-clock, a shared browser page — is not safely
 cacheable, and the fix is the determinism, not the cache.
+
+The stable **UI** check aggregates four platform UI shards and fails unless all four
+succeed. It does not install dependencies. Shard 1 also runs every other workspace's
+`test:ui` once; the platform shards retain the suite's bounded worker pool. **E2E** uses
+four single-worker platform shards, each with its own stack, and builds the preview
+bundle once through the same Turbo task used by Checks. A run artifact carries those
+exact bytes to every shard. See [the CI scheduling guide](../.github/CI.md).
 
 The **Type check** job gives every `tsc` a 6 GiB Node heap (`NODE_OPTIONS`, #4005). The
 platform checks its frontend, backend and tests as one program, which outgrew V8's default of
@@ -242,18 +249,18 @@ These guards ask `turbo --dry=json` whether the files are hashed. Each also read
 without `$TURBO_EXTENDS$` while no root task declares inputs. A suite that starts reading
 another outside file adds it to both the task's inputs and its guard.
 
-Beyond such a declared file, an edit under `packages/` leaves every dependent workspace's
-`test`, `typecheck` and `lint` hash unchanged, because none of those tasks depends on `^…`: a
-package change is judged only by that package's own tasks until the consumer's own files
-change. The platform's `test`, `test:ui` and `test:browser` are the exception for `@tale/ui`:
-they hash `packages/ui/src` whole, the package's `package.json`, whose `exports` resolve every
-`@tale/ui/*` import, and every file an export names outside `src/` — today
-`tailwind-preset.ts` alone; the guard reads that list from the manifest. So a design-system
-change re-runs them — the i18n suite, and every component suite that renders the package or
-imports its test helpers (`@tale/ui/testing/flow`). The i18n suites of `services/web`,
-`services/ui-docs`, `services/ai-gateway` and `packages/marketing-ui` are still in that gap:
-they run `@tale/ui`'s i18n test framework (the first two also read the package catalogs)
-unhashed.
+Workspace checks depend on `^transit`: a task with no executable script that hashes
+each dependency's source and recursively follows its dependencies. A shared package
+change therefore invalidates its consumers without serializing their actual test,
+lint or typecheck processes. Explicit outside-file inputs remain necessary for imports
+and reads that are not workspace dependencies. The platform's UI input guards still
+hold its direct source reads and exported files to that contract. Every root
+`tsconfig.*.json` also participates in the global hash.
+
+CLI generation and builds record the checkout's Git revision and clean state; they are
+uncached because those values are not source-file hashes. Their outside source inputs
+still invalidate dependent checks. Do not cache these artifacts without including and
+verifying their complete source identity.
 
 ## Skills index
 

@@ -216,7 +216,7 @@ describe('ordinary CI source admission', () => {
     },
   );
 
-  test('all 33 ordinary job definitions survive an intentionally skipped ancestor', async () => {
+  test('all 34 ordinary job definitions survive an intentionally skipped ancestor', async () => {
     let count = 0;
     for (const stem of callers) {
       const file = await workflow(stem);
@@ -251,7 +251,7 @@ describe('ordinary CI source admission', () => {
         }
       }
     }
-    expect(count).toBe(33);
+    expect(count).toBe(34);
   });
 
   test('direct source disposition and every other required predecessor fail closed', async () => {
@@ -288,7 +288,11 @@ describe('ordinary CI source admission', () => {
                 dependency === 'candidate-source'
                   ? result ===
                     (candidateEvent(stem, event) ? 'success' : 'skipped')
-                  : dependency === 'integration-scope' || result === 'success';
+                  : dependency === 'integration-scope' ||
+                    (stem === 'checks' &&
+                      id === 'test-ui' &&
+                      dependency === 'test-ui-shards') ||
+                    result === 'success';
               expect(
                 admitted(job, state, true),
                 `${stem}/${id}/${event}/${dependency}/${result}`,
@@ -320,7 +324,12 @@ describe('ordinary CI source admission', () => {
           stem === 'cli'
             ? id !== 'release'
             : stem === 'checks'
-              ? !['test-ui', 'test-browser', 'backend-integration'].includes(id)
+              ? ![
+                  'test-ui',
+                  'test-ui-shards',
+                  'test-browser',
+                  'backend-integration',
+                ].includes(id)
               : stem === 'build' &&
                 ['changes', 'vulnerability-scan'].includes(id);
         expect(admitted(job, state, true), `${stem}/${id} draft`).toBe(

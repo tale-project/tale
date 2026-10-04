@@ -71,6 +71,14 @@
         "$TURBO_ROOT$/services/sandbox-runtime/daemon/src/file-ops.ts",
         "$TURBO_ROOT$/services/sandbox-runtime/daemon/src/protocol.ts"
       ]
+    },
+    "build": {
+      "inputs": [
+        "$TURBO_EXTENDS$",
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/configs/platform/**",
+        "!$TURBO_ROOT$/configs/platform/**/.turbo/**"
+      ]
     }
   }
 }

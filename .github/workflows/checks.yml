@@ -2,7 +2,7 @@ name: Checks
 
 # The tale-project standard check gate (see tale-project/example-project):
 # six jobs with stable names — format, lint, typecheck, build, test, test-ui —
-# each one `setup-turbo` + a single root script, identical across repositories.
+# each one `setup-turbo` + a single root script, except UI's shard aggregate.
 # Repo-specific extra jobs append below the marked banner and never replace or
 # rename the standard six.
 
@@ -23,11 +23,6 @@ on:
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name == 'repository_dispatch' && format('candidate-{0}', github.event.client_payload.candidate_sha) || github.ref }}
   cancel-in-progress: ${{ github.event_name != 'repository_dispatch' }}
-
-env:
-  TURBO_API: 'http://127.0.0.1:9080'
-  TURBO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  TURBO_TEAM: 'tale'
 
 jobs:
   # Only candidates need remote source validation; ordinary jobs keep their event SHA.
@@ -69,6 +64,7 @@ jobs:
       - name: Setup toolchain
         uses: ./.github/actions/setup-turbo
         with:
+          start-turbo-cache: 'false'
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       # uv backs `uvx ruff@<ver>` in format:check (Python formatting).
@@ -113,6 +109,7 @@ jobs:
       - name: Setup toolchain
         uses: ./.github/actions/setup-turbo
         with:
+          start-turbo-cache: 'false'
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Run lint
@@ -151,6 +148,7 @@ jobs:
       - name: Setup toolchain
         uses: ./.github/actions/setup-turbo
         with:
+          start-turbo-cache: 'false'
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       # The budget the compiler runs under: the Node `bunx tsc` resolves (the
@@ -202,7 +200,9 @@ jobs:
       - name: Setup toolchain
         uses: ./.github/actions/setup-turbo
         with:
+          start-turbo-cache: 'false'
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          cache-scope: build
 
       - name: Run build
         run: bunx turbo run build
@@ -252,6 +252,7 @@ jobs:
       - name: Setup toolchain
         uses: ./.github/actions/setup-turbo
         with:
+          start-turbo-cache: 'false'
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       # yt-dlp + deno + ffmpeg + the bgutil plugin are self-provisioned by the
@@ -272,8 +273,42 @@ jobs:
         run: bunx turbo run test --concurrency=2
 
   test-ui:
-    needs: candidate-source
+    needs: [candidate-source, test-ui-shards]
     name: UI
+    if: >-
+      !cancelled() &&
+      (((github.event_name == 'repository_dispatch') &&
+      needs.candidate-source.result == 'success') ||
+      ((github.event_name != 'repository_dispatch') &&
+      needs.candidate-source.result == 'skipped')) &&
+      (github.event.pull_request.draft != true)
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions: {}
+
+    steps:
+      # Stay red if a slice fails, is cancelled or never starts. An implicit
+      # success() would skip this required check after an upstream failure.
+      - name: Require every UI shard
+        env:
+          SHARDS_RESULT: ${{ needs.test-ui-shards.result }}
+        run: |
+          set -euo pipefail
+          if [ "$SHARDS_RESULT" != success ]; then
+            echo "::error::UI shards ended ${SHARDS_RESULT}; every shard must pass."
+            exit 1
+          fi
+
+  # ===========================================================================
+  # Repo-specific jobs — tale's additions beyond the standard six.
+  # ===========================================================================
+
+  # 584 platform UI files took 645s on a hosted runner. Shard the unchanged
+  # suite instead of raising its memory-sensitive jsdom worker count. Turbo
+  # hashes the --shard argument, so each verdict has its own cache entry.
+  test-ui-shards:
+    needs: candidate-source
+    name: UI (platform ${{ matrix.shard }}/4)
     if: >-
       !cancelled() &&
       (((github.event_name == 'repository_dispatch') &&
@@ -285,6 +320,10 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
 
     steps:
       - name: Checkout
@@ -295,14 +334,17 @@ jobs:
       - name: Setup toolchain
         uses: ./.github/actions/setup-turbo
         with:
+          start-turbo-cache: 'false'
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          cache-scope: test-ui-${{ matrix.shard }}
 
       - name: Run UI tests
-        run: bunx turbo run test:ui
+        run: bunx turbo run test:ui --filter=@tale/platform -- --shard=${{ matrix.shard }}/4
 
-  # ===========================================================================
-  # Repo-specific jobs — tale's additions beyond the standard six.
-  # ===========================================================================
+      # Future UI workspaces still run once; only platform is partitioned.
+      - name: Run other workspace UI tests
+        if: matrix.shard == 1
+        run: bunx turbo run test:ui --filter='!@tale/platform'
 
   # Always measure: timing samples must never be replayed from Turbo's cache.
   # Failures mean workload correctness/setup failed, not that a latency budget
@@ -331,8 +373,9 @@ jobs:
       - name: Setup toolchain
         uses: ./.github/actions/setup-turbo
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
           start-turbo-cache: 'false'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          turbo-cache: 'false'
 
       - name: Resolve the platform's Node
         id: node
@@ -388,8 +431,9 @@ jobs:
       - name: Setup toolchain
         uses: ./.github/actions/setup-turbo
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
           start-turbo-cache: 'false'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          turbo-cache: 'false'
 
       - name: Run knip
         run: bun run knip:check
@@ -423,6 +467,7 @@ jobs:
       - name: Setup toolchain
         uses: ./.github/actions/setup-turbo
         with:
+          start-turbo-cache: 'false'
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Cache Playwright browsers
@@ -591,8 +636,9 @@ jobs:
       - name: Setup toolchain
         uses: ./.github/actions/setup-turbo
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
           start-turbo-cache: 'false'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          turbo-cache: 'false'
 
       # The platform image's own Node (its `FROM node:<version>` stage), not
       # whatever the runner image ships.
@@ -779,6 +825,7 @@ jobs:
       - build
       - test
       - test-ui
+      - test-ui-shards
       - performance
       - knip
       - test-browser
