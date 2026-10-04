@@ -32,6 +32,8 @@ interface DockerSessionRunInput {
   organizationId: string;
   profile: SandboxSessionProfile;
   docker?: boolean;
+  /** Internal ownership fence for failed-create cleanup; never caller supplied. */
+  createAttemptId?: string;
   /** Host dir bind-mounted 1:1 at /agent (survives container death). */
   workspaceHostDir: string;
   /** Per-org pip/npm/bun cache volume names (pip/npm reused from one-shot). */
@@ -123,6 +125,8 @@ export function buildDockerSessionRunArgs(
   assertSafe('bunCacheVolume', inp.bunCacheVolume, VOL_RE);
   assertSafe('workspaceHostDir', inp.workspaceHostDir, HOST_DIR_RE);
   assertSafe('runnerdToken', inp.runnerdToken, TOKEN_RE);
+  if (inp.createAttemptId !== undefined)
+    assertSafe('createAttemptId', inp.createAttemptId, ID_RE);
 
   const dind = sessionDindEnabled(cfg, inp.profile, inp.docker);
   const profile =
@@ -395,6 +399,9 @@ export function buildDockerSessionRunArgs(
     `tale.docker=${dind}`,
     '--label',
     `tale.created=${inp.createdAtMs}`,
+    ...(inp.createAttemptId === undefined
+      ? []
+      : ['--label', `tale.create-attempt=${inp.createAttemptId}`]),
     ...networkArgs,
     // These Docker networks carry IPv4 only. Disable loopback/current and
     // future-interface IPv6 explicitly so missing ip6_tables is safe on hosts

@@ -767,6 +767,16 @@ agent.
   page has read the policy back, and turning it off after that keeps `20`.
   Restore: throttling off, the switch off.
 
+- [ ] `GOV-B21` · **Fractional login delays survive unrelated edits** — On
+  `security-monitoring`, enable **Login attempt limits** and record the current
+  schedule and attempt limit. Set **Backoff schedule (seconds)**
+  (`governance.loginPolicy.backoffSchedule`) to `0.4, 1.5`, then **Save**
+  (`common.actions.save`) and reload → the schedule still reads `0.4, 1.5`.
+  Change only **Failures before lockout** (`governance.loginPolicy.maxAttempts`)
+  and **Save**, then reload → the schedule still reads `0.4, 1.5`, never
+  `0, 2`. Repeat with `1, 2` → whole-second delays remain unchanged too.
+  Restore the original schedule, attempt limit and enabled state.
+
 ## Accessibility (WCAG 2.1 AA)
 
 - [ ] `GOV-A1` · **Toggles** → Each governance switch (voice output, content

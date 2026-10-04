@@ -8,6 +8,7 @@ import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
 import {
   createJoinToken,
+  getJoinTokenStatus,
   listDevices,
   removeDevice,
   SandboxDeviceError,
@@ -75,6 +76,23 @@ export function createSandboxDeviceRoutes(deps: {
           actor: actor(c),
         }),
         201,
+      );
+    } catch (error) {
+      return refusal(c, error);
+    }
+  });
+
+  app.get('/join-tokens/:tokenId', async (c) => {
+    const refused = refuseUnlessAdmin(c);
+    if (refused) return refused;
+    c.header('Cache-Control', 'no-store');
+    try {
+      return c.json(
+        await getJoinTokenStatus(deps.sql, {
+          organizationId: c.get('orgId'),
+          tokenId: c.req.param('tokenId'),
+          actor: actor(c),
+        }),
       );
     } catch (error) {
       return refusal(c, error);
