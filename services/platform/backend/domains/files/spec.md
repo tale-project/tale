@@ -63,7 +63,7 @@ someone else, or that the caller did not upload, is refused.
 
 An upload nobody used is cleaned up later, with its record. A file that is attached to
 something, or vouched for, is left alone. When removing the content fails, the record is kept
-so the next cleanup tries again.
+so a later cleanup tries again.
 
 - **Example**: Mia picks a file in the chat box and closes the tab without sending → the
   uploaded file is removed by a later cleanup.

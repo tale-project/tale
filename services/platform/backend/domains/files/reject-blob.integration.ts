@@ -458,6 +458,118 @@ export async function checkRejectedUploadReclaim(
       waited && bound && raceAnswer === 'false' && racedKept,
       `reclaim waited on the bind=${waited} (want true), bind=${bound} (want true), reject=${raceAnswer}/kept=${racedKept} (want false/true)`,
     );
+
+    // The mint path's lazy sweep does bounded work however large the backlog
+    // (#4208): 60 intents past the grace horizon whose blobs a file row
+    // holds drain 25 per sweep, oldest first. Unbounded, the first sweep
+    // evaluated every holder scan for all 60 on one upload request.
+    const drainTag = `itest-drain-${suffix}`;
+    const drainRefs = Array.from(
+      { length: 60 },
+      (_, index) => `s3:${drainTag}/${index}`,
+    );
+    try {
+      await sql`INSERT INTO app.upload_intents ${sql(
+        drainRefs.map((ref, index) => ({
+          id: `${drainTag}-${index}`,
+          org_id: orgId,
+          user_id: owner.userId,
+          purpose: 'file',
+          s3_ref: ref,
+          expires_at_ms: 1,
+          created_at_ms: 1,
+        })),
+      )}`;
+      await sql`INSERT INTO app.file_metadata ${sql(
+        drainRefs.map((ref, index) => ({
+          org_id: orgId,
+          storage_ref: ref,
+          file_name: `drain-${index}.txt`,
+          content_type: 'text/plain',
+          size: 24,
+          uploaded_by: owner.userId,
+          created_at_ms: Date.now(),
+        })),
+      )}`;
+      const left: number[] = [];
+      for (let pass = 0; pass < 3; pass += 1) {
+        await sweepUploadIntents(sql, { organizationId: orgId });
+        const rows = await sql<{ n: number }[]>`
+          SELECT count(*)::int AS n FROM app.upload_intents
+          WHERE org_id = ${orgId} AND s3_ref = ANY(${drainRefs})
+        `;
+        left.push(rows[0]?.n ?? -1);
+      }
+      record(
+        'a backlog of expired intents a file row holds drains 25 per sweep (#4208)',
+        left.join(',') === '35,10,0',
+        `rows left after each of three sweeps ${left.join(',')} (want 35,10,0)`,
+      );
+    } finally {
+      await sql`DELETE FROM app.file_metadata WHERE org_id = ${orgId}
+        AND storage_ref = ANY(${drainRefs})`;
+      await sql`DELETE FROM app.upload_intents WHERE org_id = ${orgId}
+        AND s3_ref = ANY(${drainRefs})`;
+    }
+
+    // Two sends that name the same files in opposite order prove ownership
+    // inside READ COMMITTED transactions (the outbound-mail door). They must
+    // take the intent locks in one order, or each waits on the other's
+    // stamp and one dies on a deadlock (#4208). A trigger that sleeps in
+    // front of every stamp widens the window the way a slow disk would, so
+    // a walk in the client's order deadlocks within a round or two.
+    const lockA = await upload('lock-order-a');
+    const lockB = await upload('lock-order-b');
+    const scope = { organizationId: orgId, userId: owner.userId };
+    const lockOutcomes: string[] = [];
+    await sql.unsafe(`
+      CREATE OR REPLACE FUNCTION app.itest_slow_intent_stamp()
+      RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN
+        PERFORM pg_sleep(0.03);
+        RETURN NEW;
+      END $$
+    `);
+    await sql.unsafe(`
+      CREATE OR REPLACE TRIGGER itest_slow_intent_stamp
+        BEFORE UPDATE ON app.upload_intents
+        FOR EACH ROW EXECUTE FUNCTION app.itest_slow_intent_stamp()
+    `);
+    try {
+      for (let round = 0; round < 10; round += 1) {
+        const proofs = await Promise.allSettled(
+          [
+            [lockA, lockB],
+            [lockB, lockA],
+          ].map((order) =>
+            sql.begin(async (tx) => {
+              await tx`SET LOCAL lock_timeout = '3s'`;
+              return firstForeignUpload(tx, scope, order);
+            }),
+          ),
+        );
+        for (const proof of proofs) {
+          lockOutcomes.push(
+            proof.status === 'fulfilled'
+              ? String(proof.value)
+              : proof.reason instanceof Error
+                ? proof.reason.message
+                : 'rejected',
+          );
+        }
+      }
+    } finally {
+      await sql.unsafe(
+        'DROP TRIGGER IF EXISTS itest_slow_intent_stamp ON app.upload_intents',
+      );
+      await sql.unsafe('DROP FUNCTION IF EXISTS app.itest_slow_intent_stamp()');
+    }
+    const failedProofs = lockOutcomes.filter((outcome) => outcome !== 'null');
+    record(
+      'sends naming the same uploads in opposite order take their intent locks in one order (#4208)',
+      lockOutcomes.length === 20 && failedProofs.length === 0,
+      `${lockOutcomes.length - failedProofs.length} of ${lockOutcomes.length} concurrent proofs owned both refs (want 20 of 20)${failedProofs.length > 0 ? `; first failure: ${failedProofs[0]}` : ''}`,
+    );
   } catch (error) {
     // Recorded, never thrown: a thrown lane truncates every later lane.
     record(
