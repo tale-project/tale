@@ -373,7 +373,21 @@ run.
   with their own toasts (they do not pass through the Save cluster); the
   uploaded logo appears in the preview and survives reload; the reset confirm
   (`settings.branding.resetConfirmTitle`) warns removed images can't be
-  restored — cancel.
+  restored — cancel. Then remove the logo, light favicon and dark favicon
+  individually with their named remove controls, using the keyboard for one
+  removal → Each deletion persists immediately and survives reopening the
+  page; Save/Discard stay disabled unless an accent edit is pending. Focus
+  returns to the corresponding upload control after success. With a deletion
+  delayed, its upload/remove controls prevent competing writes. With a
+  deletion refused, one error toast appears and the image remains available
+  for retry; Discard of a pending accent edit never restores a deleted image.
+  With an accent Save response delayed, remove each image in turn; repeat with
+  a committed DELETE response delayed and Save pressed before it returns →
+  Writes settle in order and reopening never restores the deleted reference;
+  the accent draft is preserved and remains retryable after a refusal. Repeat
+  with a replacement upload and a logo-derived favicon while Save is pending;
+  Save never overwrites those persisted image references. Reset also waits for
+  earlier image/colour writes and leaves the confirmed cleared state saved.
 - [ ] `SET-F30` · **Sandboxes page** — `/dashboard/{org}/settings/sandboxes` →
   A fresh org shows **No workspaces yet** (`sandboxes.empty.title`); with a
   live sandbox session (env-gated) the table renders columns
