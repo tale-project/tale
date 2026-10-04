@@ -12,7 +12,37 @@ import {
   updateProjectIdentitySchema,
   updateProjectInstructionsSchema,
   updateProjectSharingSchema,
+  updateProjectAgentInputSchema,
 } from './projects';
+
+describe('updateProjectAgentInputSchema', () => {
+  const config = {
+    name: 'Reviewer',
+    harness: 'claude-code',
+    model: 'test-model',
+    skills: [],
+    connectors: [],
+  };
+
+  it('preserves a read stamp and supports legacy unconditioned clients', () => {
+    expect(
+      updateProjectAgentInputSchema.parse({ ...config, expectedUpdatedAt: 20 }),
+    ).toEqual({ ...config, expectedUpdatedAt: 20 });
+    expect(updateProjectAgentInputSchema.parse(config)).toEqual(config);
+  });
+
+  it.each([-1, 1.5, '20', null, Infinity, NaN, 8_640_000_000_000_001])(
+    'refuses an invalid epoch stamp: %j',
+    (expectedUpdatedAt) => {
+      expect(
+        updateProjectAgentInputSchema.safeParse({
+          ...config,
+          expectedUpdatedAt,
+        }).success,
+      ).toBe(false);
+    },
+  );
+});
 
 describe('projectColorSchema', () => {
   it('accepts a valid token', () => {

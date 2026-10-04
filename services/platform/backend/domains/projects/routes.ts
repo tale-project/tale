@@ -9,6 +9,7 @@ import {
   createProjectInputSchema,
   deleteProjectInputSchema,
   projectAgentInputSchema,
+  updateProjectAgentInputSchema,
   updateProjectIdentitySchema,
   updateProjectInstructionsSchema,
   updateProjectSharingSchema,
@@ -591,7 +592,7 @@ export function createProjectRoutes(deps: {
   });
 
   app.post('/agents/:agentId', async (c) => {
-    const body = projectAgentInputSchema.safeParse(await c.req.json());
+    const body = updateProjectAgentInputSchema.safeParse(await c.req.json());
     if (!body.success) {
       return invalidBodyResponse(c, body.error);
     }

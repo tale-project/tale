@@ -1,5 +1,7 @@
 import { z } from 'zod/v4';
 
+import { epochMsSchema } from './epoch-ms';
+
 /**
  * Allowlist for project icons (lucide-react icon names).
  *
@@ -118,6 +120,10 @@ export const projectAgentInputSchema = z.object({
   tools: z.array(z.string()).max(PROJECT_AGENT_BINDINGS_MAX).optional(),
   secrets: z.array(z.string()).max(PROJECT_AGENT_BINDINGS_MAX).optional(),
   instructions: z.string().max(PROJECT_AGENT_INSTRUCTIONS_MAX).optional(),
+});
+
+export const updateProjectAgentInputSchema = projectAgentInputSchema.extend({
+  expectedUpdatedAt: epochMsSchema.optional(),
 });
 
 export const createProjectInputSchema = z.object({

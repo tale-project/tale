@@ -109,10 +109,18 @@ export function ProjectAgentDialog({
   // Whether this opening of a create dialog already ticked the document
   // skills — once, so unticking one sticks while the catalog refetches.
   const documentSkillsSeeded = useRef(false);
+  const snapshot = useRef<{ agentId?: string; updatedAt?: number } | null>(
+    null,
+  );
 
   // Re-seed from the row each time the dialog opens; create mode seeds blank.
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      snapshot.current = null;
+      return;
+    }
+    if (snapshot.current && snapshot.current.agentId === agent?._id) return;
+    snapshot.current = { agentId: agent?._id, updatedAt: agent?.updatedAt };
     setName(agent?.name ?? '');
     setHarness(agent?.harness ?? '');
     setModel(agent?.model ?? '');
@@ -256,7 +264,11 @@ export function ProjectAgentDialog({
           : {}),
       };
       if (agent) {
-        await updateAgent({ agentId: agent._id, ...payload });
+        await updateAgent({
+          agentId: agent._id,
+          expectedUpdatedAt: snapshot.current?.updatedAt,
+          ...payload,
+        });
       } else {
         const agentId = await createAgent({ projectId, ...payload });
         onCreated?.(agentId);
@@ -275,6 +287,7 @@ export function ProjectAgentDialog({
         setNameError(t(`errors.${code}`));
       } else if (
         code === 'PROJECT_AGENT_HARNESS_INVALID' ||
+        code === 'PROJECT_AGENT_STALE' ||
         code === 'PROJECT_AGENT_MODEL_INVALID' ||
         code === 'PROJECT_AGENT_INSTRUCTIONS_TOO_LONG' ||
         code === 'PROJECT_AGENT_LIMIT' ||

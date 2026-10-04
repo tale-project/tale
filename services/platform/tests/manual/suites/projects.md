@@ -574,6 +574,10 @@ projects-list row ⋯ menu.
 - [ ] `PROJ-P2` · **Task board render** → < 1.5 s with a seeded project of ≤
   20 tasks (mock stack)
 
+## Concurrent agent edits
+
+- [ ] `PROJ-B14` · **Keep a stale agent draft without overwriting another editor** — Open the same project agent in two editor sessions. In the first, change its name and save. In the second, change its instructions and save → one localized refusal (`projects.errors.PROJECT_AGENT_STALE`) appears, the dialog stays open with the second editor's unsaved edits, and the first editor's saved name and equipment remain unchanged. Copy the draft before closing, reopen the agent, merge the copied changes into the latest settings and save → the merged settings persist. Repeat in English, German and French; inspect the refusal for clipping and keyboard reachability. Saving an unchanged current configuration leaves its version unchanged.
+
 ## Default task reviewer
 
 - [ ] `PROJ-F39` · **Save a default without taking over waiting reviews** — As an editor, open `/dashboard/{org}/projects/{projectId}/overview` → **Task reviews** (`projects.taskReview.title`) → **Default reviewer** (`projects.taskReview.defaultReviewer`), choose project agent B, save, and reload → B remains selected. An existing pending review keeps the person named in **Current review** (`tasks.reviewer.pendingFor`); a later review on a task using **Project default** (`tasks.reviewer.projectDefaultLabel`) names B. Neither saving nor reloading starts B or grants **Review other agents’ task results** (`projects.agents.tool.task_review`).
