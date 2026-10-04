@@ -20,6 +20,7 @@ import {
   buildAgentRunPreview,
   buildTaskActorPreview,
   buildWorkflowRunPreview,
+  isWorkflowSentinel,
   type TaskActivityContext,
   type TaskActorPreview,
 } from '../utils/task-actor-preview';
@@ -180,6 +181,14 @@ export function useActorDirectory(organizationId: string, projectId?: string) {
           };
         }
         if (type === 'agent') {
+          if (isWorkflowSentinel(type, id)) {
+            return {
+              type,
+              id,
+              name: t('timeline.unresolvedWorkflow'),
+              isAgent: true,
+            };
+          }
           if (id === 'system') {
             return {
               type,

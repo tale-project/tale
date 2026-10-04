@@ -1,7 +1,12 @@
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
+import { z } from 'zod';
+
 import { root } from './workloads';
+
+const rootManifestSchema = z.object({ workspaces: z.array(z.string()) });
+const workspaceManifestSchema = z.object({ name: z.string() });
 
 interface Coverage {
   workloads: string[];
@@ -33,12 +38,20 @@ const coverage: Record<string, Coverage> = {
       'Container admission, image warmup, Kubernetes/Docker provisioning and concurrent session capacity need a disposable runtime host.',
   },
   '@tale/sandbox-runtime-daemon': {
-    workloads: ['daemon.exec-replay'],
+    workloads: [
+      'daemon.exec-replay',
+      'daemon.journal-write',
+      'daemon.journal-reconnect',
+    ],
     remaining:
-      'Host exec/replay only; Linux subreaper, long-running reconnect load and container resource limits need the runtime image.',
+      'Host exec/replay and synthetic journal bursts only; Linux subreaper, long-running reconnect load and container resource limits need the runtime image.',
   },
   '@tale/sandbox-runtime': {
-    workloads: ['daemon.exec-replay'],
+    workloads: [
+      'daemon.exec-replay',
+      'daemon.journal-write',
+      'daemon.journal-reconnect',
+    ],
     shared: true,
     remaining:
       'Daemon code measured on host; runtime image, agent CLIs, document toolchain and Linux process isolation require Docker and image builds.',
@@ -142,9 +155,9 @@ export async function workspaceInventory(
   measured: ReadonlySet<string>,
   httpWorkspaces: ReadonlySet<string>,
 ) {
-  const manifest = JSON.parse(
-    await readFile(resolve(root, 'package.json'), 'utf8'),
-  ) as { workspaces: string[] };
+  const manifest = rootManifestSchema.parse(
+    JSON.parse(await readFile(resolve(root, 'package.json'), 'utf8')),
+  );
   const files = new Set<string>();
   for (const pattern of manifest.workspaces) {
     for await (const file of new Bun.Glob(`${pattern}/package.json`).scan({
@@ -154,9 +167,9 @@ export async function workspaceInventory(
   }
   const workspaces = await Promise.all(
     [...files].sort().map(async (path) => {
-      const { name } = JSON.parse(
-        await readFile(resolve(root, path), 'utf8'),
-      ) as { name: string };
+      const { name } = workspaceManifestSchema.parse(
+        JSON.parse(await readFile(resolve(root, path), 'utf8')),
+      );
       const entry = coverage[name];
       if (!entry)
         throw new Error(

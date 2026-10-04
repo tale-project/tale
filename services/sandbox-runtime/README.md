@@ -25,8 +25,10 @@ An acknowledged prefix missing from an older reader's cursor produces an exact
 gap range, which the platform can recover from a covering checkpoint.
 
 Output framing retains at most three trailing bytes until a split UTF-8
-character is complete, without changing raw bytes. Writes backpressure child
-output. An exec reader is disconnected before pending writes exceed 8 MiB;
+character is complete, without changing raw bytes. Writes batch up to 64 records
+or 128 KiB (a larger single record stays intact), and backpressure child output
+at 128 KiB queued, plus the chunk already delivered by the pipe. Sparse record
+indexes every 64 KiB let reconnects seek near their cursor within a segment. An exec reader is disconnected before pending writes exceed 8 MiB;
 attach replay waits for socket drain and disconnects a reader stalled for two
 seconds. Reconnect using the last sequence number. `replay-start` precedes
 history; `replay-complete` names the attachment's initial sequence watermark.

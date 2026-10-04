@@ -38,6 +38,11 @@ bun run test:performance --list
 bun run test:performance --workload shared.long-line --samples 100 \
   --output /tmp/tale-long-lines.json
 
+# Measure output journal writes and repeated late reconnects separately.
+bun run test:performance --workload daemon.journal-write \
+  --workload daemon.journal-reconnect --samples 100 \
+  --output /tmp/tale-journals.json
+
 # Optional local SAST workload: requires the pinned binary already cached by lint:sast.
 bun run test:performance --workload tools.opengrep --samples 3 \
   --output /tmp/tale-opengrep.json
@@ -62,7 +67,7 @@ send authorization headers, measure browser rendering, or inspect server RSS.
 | Platform engine/telemetry | Cold/cached validation of 100-item automation inputs; 1000 bounded metric updates and worker spans with tracing disabled/enabled, on Node | API/worker/knowledge/chat with real Postgres, storage and controlled model responses; authenticated UI |
 | Agent progress (`platform.agent-progress`) | 4,000 events across 1,000 tool cycles with 100 KB payloads; bounded resumable projection | Live model throughput, database write contention and end-to-end task latency |
 | Sandbox spawner | 1000 exec boundary validations with 128 environment values; 1000-event SSE burst | Docker/Kubernetes provisioning, concurrent session admission, image warmup |
-| Sandbox daemon/runtime | Real Node process output, 1 MiB stream and bounded replay | Linux subreaper, sustained reconnects, container resource ceilings and image-only document dependencies |
+| Sandbox daemon/runtime | Real Node process output and 1 MiB replay; 16,000-record journal writes; 20 late reconnects per sample requesting the last ten records | Linux subreaper, sustained concurrent reconnects, container resource ceilings and image-only document dependencies |
 | AI gateway | Read/validate/decrypt 100 file-backed accounts and atomic update | OAuth, provider refresh, controlled credential-pool traffic |
 | UI and marketing UI | 100-button SSR, including marketing wrappers | Browser layout/hydration, all other components and animation |
 | Web/docs/UI docs | Shared server: 100 HTTP requests in batches of ten; cold/cached 250-page SEO artifact bursts | Service content/search/build/prerender and browser navigation; shared code is labelled `shared-library-only` |
@@ -110,6 +115,16 @@ batch; synchronous peaks can fall between observations. The post-GC heap delta
 is useful context, **not proof of a leak or a leak-free service**. The shared HTTP
 worker includes both server and client allocations. Compare like-for-like
 reports; do not claim a speedup from a contended run against an idle run.
+
+The journal workloads use the segmented replay spool and actual temporary files.
+Write samples include record encoding, bounded 128 KiB admission windows, committed
+writes, a verified ten-record suffix replay and descriptor closure. Reconnect
+samples reuse a completed 16,000-record spool prepared before timing; each sample
+makes 20 sequential suffix replays and checks every returned sequence and payload.
+The exec-manager tests own replay-marker validation. Setup still contributes to
+process memory measurements. These workloads exercise Node and the host
+filesystem, without a container network or model provider; their batch timings
+do not predict complete agent-run latency.
 
 ## Completing a deployment profile
 

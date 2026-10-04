@@ -4,6 +4,8 @@ import { Alert } from '@tale/ui/alert';
 import { Badge } from '@tale/ui/badge';
 import { Stack } from '@tale/ui/layout';
 import { SearchInput } from '@tale/ui/search-input';
+import { SkeletonBox } from '@tale/ui/skeleton';
+import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { ChevronRight, Plus } from 'lucide-react';
 import { useMemo, useState } from 'react';
@@ -44,6 +46,7 @@ export function VendorPickerPane<
   onSelect,
   searchPlaceholder,
   catalogEmpty,
+  catalogLoading,
 }: {
   vendors: readonly V[];
   /** `CredentialVendor.key`s the organization already holds a credential for. */
@@ -53,8 +56,10 @@ export function VendorPickerPane<
   searchPlaceholder: string;
   /** Operator-facing copy for a deployment that ships no vendors at all. */
   catalogEmpty: string;
+  catalogLoading: boolean;
 }) {
   const { t } = useT('settings');
+  const { t: tSkeleton } = useT('skeleton');
   const [query, setQuery] = useState('');
 
   const addable = useMemo(
@@ -88,6 +93,21 @@ export function VendorPickerPane<
   // none of them is the endpoint the reader runs — so it stays put whatever
   // the search says.
   const custom = adapter.customVendor?.make(t) ?? null;
+
+  if (catalogLoading) {
+    return (
+      <Skeletonize loading label={tSkeleton('loading')}>
+        <Stack gap={4} className="min-h-0 flex-1">
+          <SkeletonBox className="h-10 w-full">&nbsp;</SkeletonBox>
+          <Stack gap={2} className="min-h-0 flex-1">
+            <SkeletonBox className="h-12 w-full">&nbsp;</SkeletonBox>
+            <SkeletonBox className="h-12 w-full">&nbsp;</SkeletonBox>
+            <SkeletonBox className="h-12 w-full">&nbsp;</SkeletonBox>
+          </Stack>
+        </Stack>
+      </Skeletonize>
+    );
+  }
 
   // Nothing to search through at all is a DEPLOYMENT fault (an unmounted or
   // unreadable config root), not a search that found nothing — so it says so,

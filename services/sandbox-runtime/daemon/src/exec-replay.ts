@@ -18,6 +18,9 @@ import type { RunnerdExecCheckpoint } from './protocol.ts';
 const SEGMENT_BYTES = 1024 * 1024;
 const REPLAY_BYTES = 64 * 1024 * 1024;
 const SESSION_BYTES = 256 * 1024 * 1024;
+export const REPLAY_WRITE_WATERMARK = 128 * 1024;
+const WRITE_VECTORS = 64;
+const READ_CHUNK = 64 * 1024;
 
 type ReplayFailure = 'OUTPUT_LIMIT' | 'REPLAY_UNAVAILABLE';
 export class ReplayError extends Error {
@@ -93,11 +96,22 @@ interface Segment {
   reserved: number;
   readers: number;
   unlinked: boolean;
+  // At most one record-start index entry per read chunk, plus each segment's
+  // first record. Checkpoint pruning releases the matching index with it.
+  index: { seq: number; position: number }[];
+  nextIndex: number;
+}
+
+interface AppendBatch {
+  records: { bytes: Buffer; seq: number }[];
+  bytes: number;
+  committed: Promise<void>;
 }
 
 export class ExecReplay {
   private readonly directory: Promise<string>;
   private queue: Promise<unknown> = Promise.resolve();
+  private pendingAppend: AppendBatch | undefined;
   private readonly segments: Segment[] = [];
   private bytes = 0;
   private nextFile = 0;
@@ -137,6 +151,9 @@ export class ExecReplay {
   }
 
   private serial<T>(work: () => Promise<T>): Promise<T> {
+    // A checkpoint, reader snapshot, finish or disposal is an ordering barrier:
+    // a later append must never join a batch queued before that operation.
+    this.pendingAppend = undefined;
     const result = this.queue.then(async () => {
       this.working = true;
       try {
@@ -152,44 +169,109 @@ export class ExecReplay {
   }
 
   append(line: string, seq: number): Promise<void> {
-    return this.serial(async () => {
-      this.assertAvailable();
-      try {
-        const bytes = Buffer.byteLength(line);
-        await this.prune();
-        if (this.bytes + bytes > this.limits.maxBytes)
-          throw new ReplayError('OUTPUT_LIMIT');
+    const bytes = Buffer.from(line);
+    const pending = this.pendingAppend;
+    if (
+      pending &&
+      pending.records.length < WRITE_VECTORS &&
+      pending.bytes + bytes.length <= REPLAY_WRITE_WATERMARK
+    ) {
+      pending.records.push({ bytes, seq });
+      pending.bytes += bytes.length;
+      return pending.committed;
+    }
+    const batch: AppendBatch = {
+      records: [{ bytes, seq }],
+      bytes: bytes.length,
+      committed: Promise.resolve(),
+    };
+    batch.committed = this.serial(async () => {
+      if (this.pendingAppend === batch) this.pendingAppend = undefined;
+      await this.writeBatch(batch);
+    });
+    this.pendingAppend = batch;
+    return batch.committed;
+  }
+
+  private async writeBatch(batch: AppendBatch): Promise<void> {
+    this.assertAvailable();
+    try {
+      await this.prune();
+      if (this.bytes + batch.bytes > this.limits.maxBytes)
+        throw new ReplayError('OUTPUT_LIMIT');
+      for (let start = 0; start < batch.records.length;) {
+        this.assertAvailable();
+        const first = batch.records[start];
+        if (!first) break;
         let segment = this.segments.at(-1);
         if (!segment || segment.bytes >= this.limits.segmentBytes) {
           segment = {
             path: join(await this.directory, `${this.nextFile++}.ndjson`),
-            first: seq,
-            last: seq,
+            first: first.seq,
+            last: first.seq,
             bytes: 0,
             reserved: 0,
             readers: 0,
             unlinked: false,
+            index: [],
+            nextIndex: 0,
           };
           await this.writer?.close();
           this.writer = await open(segment.path, 'ax', 0o600);
           this.segments.push(segment);
         }
         if (!this.writer) throw new ReplayError('REPLAY_UNAVAILABLE');
+        let end = start;
+        let bytes = 0;
+        while (end < batch.records.length) {
+          const record = batch.records[end];
+          if (!record) break;
+          bytes += record.bytes.length;
+          end += 1;
+          if (segment.bytes + bytes >= this.limits.segmentBytes) break;
+        }
         if (!(await this.budget.reserve(bytes, this)))
           throw new ReplayError('OUTPUT_LIMIT');
         segment.reserved += bytes;
-        await this.writer.writeFile(line);
-        segment.bytes += bytes;
-        segment.last = seq;
+        const records = batch.records.slice(start, end);
+        let buffers = records.map((record) => record.bytes);
+        // writev can stop inside a record. Publish neither its sequence nor
+        // sparse index until every byte in this bounded group is committed.
+        while (buffers.length > 0) {
+          this.assertAvailable();
+          const { bytesWritten } = await this.writer.writev(buffers);
+          if (bytesWritten === 0) throw new ReplayError('REPLAY_UNAVAILABLE');
+          let remaining = bytesWritten;
+          let written = 0;
+          while (written < buffers.length) {
+            const buffer = buffers[written];
+            if (!buffer || remaining < buffer.length) break;
+            remaining -= buffer.length;
+            written += 1;
+          }
+          buffers = buffers.slice(written);
+          const partial = buffers[0];
+          if (remaining > 0 && partial)
+            buffers[0] = partial.subarray(remaining);
+        }
+        for (const record of records) {
+          if (segment.bytes >= segment.nextIndex) {
+            segment.index.push({ seq: record.seq, position: segment.bytes });
+            segment.nextIndex = segment.bytes + READ_CHUNK;
+          }
+          segment.bytes += record.bytes.length;
+          segment.last = record.seq;
+        }
         this.bytes += bytes;
-      } catch (error) {
-        this.failure =
-          error instanceof ReplayError
-            ? error
-            : new ReplayError('REPLAY_UNAVAILABLE');
-        throw this.failure;
+        start = end;
       }
-    });
+    } catch (error) {
+      this.failure =
+        error instanceof ReplayError
+          ? error
+          : new ReplayError('REPLAY_UNAVAILABLE');
+      throw this.failure;
+    }
   }
 
   private releaseSegment(segment: Segment): void {
@@ -291,7 +373,13 @@ export class ExecReplay {
     signal?: AbortSignal,
   ): Promise<number> {
     this.assertAvailable();
-    if (signal?.aborted || since >= until) return since;
+    if (signal?.aborted) return since;
+    if (since >= until) {
+      // Empty suffixes still cross the captured commit boundary. A future
+      // cursor cannot acknowledge a pending write that may yet fail.
+      await this.serial(async () => this.assertAvailable());
+      return since;
+    }
     const combined = signal
       ? AbortSignal.any([signal, this.stopped.signal])
       : this.stopped.signal;
@@ -325,9 +413,17 @@ export class ExecReplay {
           gap(cursor + 1, segment.first - 1);
           return cursor;
         }
-        const buffer = Buffer.alloc(64 * 1024);
+        const buffer = Buffer.alloc(READ_CHUNK);
         const decoder = new StringDecoder('utf8');
-        let offset = 0;
+        let low = 0;
+        let high = segment.index.length;
+        while (low < high) {
+          const middle = Math.floor((low + high) / 2);
+          const entry = segment.index[middle];
+          if (entry && entry.seq <= cursor + 1) low = middle + 1;
+          else high = middle;
+        }
+        let offset = segment.index[low - 1]?.position ?? 0;
         let pending = '';
         while (offset < bytes) {
           if (combined.aborted) return cursor;

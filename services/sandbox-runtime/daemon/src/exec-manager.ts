@@ -20,7 +20,12 @@ import { accessSync, constants as fsConstants, realpathSync } from 'node:fs';
 import { Readable, type Writable } from 'node:stream';
 
 import type { EnvStore } from './env-store.ts';
-import { ExecReplay, ReplayBudget, ReplayError } from './exec-replay.ts';
+import {
+  ExecReplay,
+  ReplayBudget,
+  ReplayError,
+  REPLAY_WRITE_WATERMARK,
+} from './exec-replay.ts';
 import {
   EXEC_TAG_ENV,
   groupMembers,
@@ -271,7 +276,6 @@ export class ExecManager {
       // that stalls immediately must release its transport on disconnect too.
       await ready?.();
       rec.replay.assertAvailable();
-      if (cursor >= throughSeq) complete();
       for (;;) {
         if (signal?.aborted) return;
         const until = rec.seq;
@@ -303,10 +307,14 @@ export class ExecManager {
         if (cursor < rec.seq) continue;
         const live = this.live.get(execId);
         if (live !== rec) return;
-        live.subscribers.add(emit);
+        const follow: ExecSubscriber = (event) => {
+          if (event.seq !== undefined && event.seq <= cursor) return;
+          emit(event);
+        };
+        live.subscribers.add(follow);
         await new Promise<void>((resolve) => {
           const finish = () => {
-            live.subscribers.delete(emit);
+            live.subscribers.delete(follow);
             live.completions.delete(finish);
             signal?.removeEventListener('abort', finish);
             resolve();
@@ -549,7 +557,7 @@ export class ExecManager {
     if (consumerSignal?.aborted) detach();
     else consumerSignal?.addEventListener('abort', detach, { once: true });
 
-    let replayWrites = 0;
+    let replayBytes = 0;
     let replayFailure: ReplayError | undefined;
     const failReplay = (error: unknown) => {
       if (replayFailure) return;
@@ -572,17 +580,20 @@ export class ExecManager {
       const stamped: RunnerdExecEvent = { ...event, seq: record.seq };
       const line = `${JSON.stringify(stamped)}\n`;
       if (persist && !replayFailure) {
-        // Pause both pipes while disk writes are outstanding. Only already
-        // delivered chunks remain in memory, never the whole transcript.
-        child.stdout.pause();
-        child.stderr.pause();
-        replayWrites += 1;
+        // Coalesce small records while allowing at most the write watermark
+        // plus an already-delivered pipe chunk to wait on disk.
+        const bytes = Buffer.byteLength(line);
+        replayBytes += bytes;
+        if (replayBytes >= REPLAY_WRITE_WATERMARK) {
+          child.stdout.pause();
+          child.stderr.pause();
+        }
         void record.replay
           .append(line, record.seq)
           .catch(failReplay)
           .finally(() => {
-            replayWrites -= 1;
-            if (replayWrites === 0) {
+            replayBytes -= bytes;
+            if (replayBytes < REPLAY_WRITE_WATERMARK) {
               child.stdout.resume();
               child.stderr.resume();
             }

@@ -27,6 +27,8 @@ export const workloadRuntimes = {
   'sandbox.validation': 'bun',
   'sandbox.sse': 'bun',
   'daemon.exec-replay': 'node',
+  'daemon.journal-write': 'node',
+  'daemon.journal-reconnect': 'node',
   'gateway.store': 'bun',
   'ui.static-http': 'bun',
   'ui.seo-cold': 'bun',
@@ -93,6 +95,10 @@ export async function prepareWorkload(
         rawPayloadBytesPerSample: 300_000_000,
       }),
     };
+  }
+  if (id === 'daemon.journal-write' || id === 'daemon.journal-reconnect') {
+    const { prepareJournalWorkload } = await import('./journal.ts');
+    return prepareJournalWorkload(id, fixtureRoot);
   }
   if (id === 'tools.plop-scaffold' || id === 'tools.opengrep') {
     const { prepareToolWorkload } = await import('./tooling.ts');
@@ -252,7 +258,7 @@ export async function prepareWorkload(
       operations: 1,
       unit: 'execs',
       description:
-        'Real Node child outputs 1 MiB through runnerd then replays its bounded ring; host process reaping, no container',
+        'Real Node child outputs 1 MiB through runnerd then replays its bounded journal; host process reaping, no container',
       async run() {
         const execId = `performance-${sequence++}`;
         let exited = false;
