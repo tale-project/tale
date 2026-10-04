@@ -194,7 +194,12 @@ if you want to keep a write.
   (`home.scope.emptyChatsTitle`) and **Tasks** reads
   **No open tasks assigned to you in this project** (`home.scope.emptyTasksTitle`). **Open project**
   (`home.scope.open`) in the project row's **...** menu opens the project's page. Choosing the row
-  again brings all chats/tasks back. **All** and **Inbox** show all items without narrowing.
+  again brings all chats/tasks back. Narrow to the first project in **Chats**, then choose
+  **All** → only that project's chat and task are listed; the row stays pressed and items
+  outside the project stay hidden. **Tasks** keeps the same project narrowing. There is no
+  project bar or **Show all** control above the list. Choose the selected project row again
+  → **All** shows items from outside the project again. **Inbox** is never narrowed by project.
+  Narrow to the first project in **Chats** again.
   Open a chat and go back → the narrowing is still on when viewing **Chats**. Delete the project in
   another browser tab and reload → the list shows everything.
   **Inbox** lists the same conversations narrowed or not, and carries no
