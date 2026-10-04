@@ -109,9 +109,12 @@ vi.mock('@/app/features/shared/files/use-file-upload', () => ({
     onTranscriptionUnavailable?: (reason?: string) => void;
   }) => {
     uploadRecovery.notify = config.onTranscriptionUnavailable;
+    const [attachments, setAttachments] = React.useState(
+      uploadRecovery.attachments,
+    );
     return {
-      attachments: uploadRecovery.attachments,
-      setAttachments: vi.fn(),
+      attachments,
+      setAttachments,
       uploadingFiles: [],
       isUploading: false,
       uploadFiles: vi.fn(),
@@ -1579,6 +1582,78 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
     // Nothing was parked: the words come back to the composer.
     expect(input).toHaveValue('what did they decide?');
   });
+
+  it.each(['new chat start', 'existing thread outcome'])(
+    'restores text and staged attachment after a failed %s for retry',
+    async (failurePath) => {
+      const attachment = {
+        fileId: 's3:retry-file',
+        fileName: 'retry-file.txt',
+        fileType: 'text/plain',
+        fileSize: 42,
+      };
+      uploadRecovery.attachments = [attachment];
+      vi.mocked(useThreadView).mockReturnValue({
+        status: 'ready',
+        items: [],
+        generation: null,
+        streamingMessageId: undefined,
+        pendingConsumed: false,
+      });
+      let failRequest!: (error: Error) => void;
+      const failedRequest = new Promise<never>((_resolve, reject) => {
+        failRequest = reject;
+      });
+      failedRequest.catch(() => undefined);
+      const existingThread = failurePath === 'existing thread outcome';
+      start.mockImplementationOnce(() =>
+        existingThread
+          ? Promise.resolve({
+              threadId: 't-1',
+              boundVideoJobIds: [],
+              outcome: failedRequest,
+            })
+          : failedRequest,
+      );
+      start.mockResolvedValueOnce({
+        threadId: 't-1',
+        boundVideoJobIds: [],
+        outcome: new Promise(() => undefined),
+      });
+      const { user } = render(
+        <ChatSurface
+          organizationId="org-1"
+          {...(existingThread ? { threadId: 't-1' } : {})}
+        />,
+      );
+      const input = screen.getByRole('textbox', { name: 'Message input' });
+      await user.type(input, 'read this file for me');
+      expect(screen.getByText(attachment.fileName)).toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: 'Send message' }));
+      expect(input).toHaveValue('');
+      expect(start).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({
+          attachments: [attachment],
+          ...(existingThread ? { threadId: 't-1' } : {}),
+        }),
+      );
+      expect(screen.queryByText(attachment.fileName)).not.toBeInTheDocument();
+      await act(async () => {
+        failRequest(new TypeError('Failed to fetch'));
+      });
+      await waitFor(() => expect(input).toHaveValue('read this file for me'));
+      expect(screen.getByText(attachment.fileName)).toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: 'Send message' }));
+      expect(start).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({
+          text: 'read this file for me',
+          attachments: [attachment],
+        }),
+      );
+    },
+  );
 
   // The first message of a new chat creates its thread first; a door that
   // refused the thread (an archived project) used to toast a bare title.
