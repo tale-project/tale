@@ -241,11 +241,11 @@ export function ThreadRenameInput({
         isComposingRef.current = false;
       }}
       onKeyDown={(event) => {
-        // IME composition guard, as in the composer: Japanese or Pinyin
-        // input confirms a candidate with Enter and cancels one with Escape —
-        // neither may save or drop the rename. `isComposing` is the WHATWG
-        // API, the ref is the React mirror, and `keyCode === 229` is the
-        // legacy Safari path.
+        // IME composition guard, as in the composer: Japanese or Chinese
+        // input commits its composition with Enter and cancels it with
+        // Escape — neither may save or drop the rename. `isComposing` is the
+        // UI Events flag, the ref is the React mirror, and `keyCode === 229`
+        // is the legacy Safari path.
         if (
           event.nativeEvent.isComposing ||
           isComposingRef.current ||

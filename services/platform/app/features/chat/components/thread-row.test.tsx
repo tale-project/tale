@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import React from 'react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { fireEvent, render, screen, waitFor } from '@/tests/utils/render';
+import { act, fireEvent, render, screen, waitFor } from '@/tests/utils/render';
 
 import type { ChatThreadSummary } from '../types';
 
@@ -126,6 +126,11 @@ async function openRename() {
 }
 
 describe('ThreadRow', () => {
+  // The rename tests assert on one shared mock; start each from zero.
+  beforeEach(() => {
+    renameMock.mockClear();
+  });
+
   it('offers the full action set from one menu', async () => {
     const { user } = renderRow(THREAD);
 
@@ -173,7 +178,6 @@ describe('ThreadRow', () => {
   });
 
   it('keeps the rename open while Enter confirms an IME candidate', async () => {
-    renameMock.mockClear();
     const { input } = await openRename();
 
     // Japanese input in Chromium: the Enter that confirms the candidate
@@ -199,11 +203,10 @@ describe('ThreadRow', () => {
   });
 
   it('leaves composition keys to the IME, Escape included', async () => {
-    renameMock.mockClear();
     const { input } = await openRename();
     fireEvent.change(input, { target: { value: '你好' } });
 
-    // The three guards on their own: the WHATWG flag, the legacy Safari
+    // The three guards on their own: the `isComposing` flag, the legacy Safari
     // keyCode (Safari ends the composition before its keydown), and the
     // composition-event mirror for browsers that surface neither.
     fireEvent.keyDown(input, { key: 'Enter', isComposing: true });
@@ -213,6 +216,8 @@ describe('ThreadRow', () => {
     // Escape mid-composition cancels the candidate, not the rename.
     fireEvent.keyDown(input, { key: 'Escape' });
     fireEvent.compositionEnd(input);
+    // Safari ends the composition first, then sends the cancelling Escape.
+    fireEvent.keyDown(input, { key: 'Escape', keyCode: 229 });
 
     expect(screen.getByRole('textbox', { name: 'Rename' })).toHaveValue('你好');
     expect(renameMock).not.toHaveBeenCalled();
@@ -224,8 +229,7 @@ describe('ThreadRow', () => {
     expect(renameMock).not.toHaveBeenCalled();
   });
 
-  it('commits the rename once on blur', async () => {
-    renameMock.mockClear();
+  it('commits the rename on blur', async () => {
     const { user, input } = await openRename();
 
     await user.clear(input);
@@ -235,8 +239,37 @@ describe('ThreadRow', () => {
     await waitFor(() =>
       expect(renameMock).toHaveBeenCalledWith('t1', 'Board deck'),
     );
-    expect(renameMock).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole('textbox')).toBeNull();
+  });
+
+  it('commits on blur mid-composition too: the guard never holds focus', async () => {
+    const { input } = await openRename();
+
+    // Focus leaving ends the composition; the field saves what it shows.
+    fireEvent.compositionStart(input);
+    fireEvent.change(input, { target: { value: 'にほん' } });
+    fireEvent.blur(input);
+
+    await waitFor(() =>
+      expect(renameMock).toHaveBeenCalledWith('t1', 'にほん'),
+    );
+    expect(screen.queryByRole('textbox')).toBeNull();
+  });
+
+  it('saves once when a blur follows Enter in the same batch', async () => {
+    const { input } = await openRename();
+    fireEvent.change(input, { target: { value: 'Board deck' } });
+
+    // One React batch: the field is still mounted when the blur lands.
+    act(() => {
+      fireEvent.keyDown(input, { key: 'Enter' });
+      fireEvent.blur(input);
+    });
+
+    await waitFor(() =>
+      expect(renameMock).toHaveBeenCalledWith('t1', 'Board deck'),
+    );
+    expect(renameMock).toHaveBeenCalledTimes(1);
   });
 
   it('shows the unread dot only while the reply is newer than the read mark', () => {
