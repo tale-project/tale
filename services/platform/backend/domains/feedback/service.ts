@@ -211,6 +211,19 @@ const FOLD_COLUMNS = `
   created_at_ms::float8 AS "createdAt"
 `;
 
+export async function getFeedbackComment(
+  sql: Sql,
+  organizationId: string,
+  feedbackId: string,
+): Promise<string | null | undefined> {
+  const rows = await sql<{ comment: string | null }[]>`
+    SELECT comment
+    FROM app.message_feedback
+    WHERE id = ${feedbackId} AND org_id = ${organizationId}
+  `;
+  return rows[0] === undefined ? undefined : rows[0].comment;
+}
+
 async function feedbackRowsSince(
   sql: Sql,
   organizationId: string,

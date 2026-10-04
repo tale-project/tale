@@ -245,6 +245,8 @@ analytics:
       emptyTitle: Aucun retour sur cette période
       emptyDescription: Ajuste la période ou les filtres pour en voir davantage.
       noComment: (aucun commentaire)
+      loadingComment: Chargement du commentaire complet…
+      commentLoadFailed: Impossible de charger le commentaire complet.
       helpfulAria: Utile
       notHelpfulAria: Pas utile
       types:

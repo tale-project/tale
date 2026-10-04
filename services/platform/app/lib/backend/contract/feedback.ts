@@ -8,6 +8,11 @@
  */
 
 export interface FeedbackContract {
+  'feedback/queries:getFeedbackComment': {
+    kind: 'query';
+    args: { feedbackId: string };
+    returns: { comment: null | string };
+  };
   'feedback/queries:getFeedbackStats': {
     kind: 'query';
     args: {

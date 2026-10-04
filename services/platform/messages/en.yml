@@ -232,6 +232,8 @@ analytics:
       emptyTitle: No feedback in this window
       emptyDescription: Adjust the period or filters to see more.
       noComment: (no comment)
+      loadingComment: Loading full comment…
+      commentLoadFailed: Couldn't load the full comment.
       helpfulAria: Helpful
       notHelpfulAria: Not helpful
       types:

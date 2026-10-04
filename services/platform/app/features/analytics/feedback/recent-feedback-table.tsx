@@ -10,9 +10,43 @@ import type { ColumnDef, Row } from '@tanstack/react-table';
 import { MessageSquare, ThumbsDown, ThumbsUp } from 'lucide-react';
 import { type ReactNode, useCallback, useMemo } from 'react';
 
+import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useT } from '@/lib/i18n/client';
 
 import type { ArenaVerdict, RecentFeedbackItem } from './types';
+
+function ExpandedComment({
+  row,
+  tAnalytics,
+}: {
+  row: RecentFeedbackItem;
+  tAnalytics: ReturnType<typeof useT>['t'];
+}) {
+  const { data, isLoading, isError } = useBackendQuery(
+    'feedback/queries:getFeedbackComment',
+    { feedbackId: row._id },
+  );
+
+  if (isLoading) {
+    return (
+      <Text className="text-sm">
+        {tAnalytics('feedback.recent.loadingComment')}
+      </Text>
+    );
+  }
+  if (isError) {
+    return (
+      <Text className="text-destructive text-sm">
+        {tAnalytics('feedback.recent.commentLoadFailed')}
+      </Text>
+    );
+  }
+  return (
+    <Text className="text-sm whitespace-pre-wrap">
+      {data?.comment ?? tAnalytics('feedback.recent.noComment')}
+    </Text>
+  );
+}
 
 const VERDICT_I18N_KEY: Record<ArenaVerdict, string> = {
   a_better: 'aBetter',
@@ -165,9 +199,7 @@ export function RecentFeedbackTable({
           <Text className="text-muted-foreground text-xs tracking-wide uppercase">
             {tAnalytics('feedback.recent.expanded.comment')}
           </Text>
-          <Text className="text-sm whitespace-pre-wrap">
-            {row.original.comment ?? tAnalytics('feedback.recent.noComment')}
-          </Text>
+          <ExpandedComment row={row.original} tAnalytics={tAnalytics} />
         </Stack>
         {row.original.isArena ? (
           <Stack gap={1}>
