@@ -163,6 +163,7 @@ jobs:
               - 'turbo.json'
             platform:
               - 'services/platform/**'
+              - 'services/db/migrations/knowledge-db/**'
               - 'packages/ui/**'
               - 'packages/shared/**'
               - 'configs/platform/**'
@@ -350,6 +351,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
+      actions: read
       contents: read
       packages: write
     strategy:
@@ -446,7 +448,7 @@ jobs:
           # Publish the large shared stack cache only from main. PR-local
           # exports took 148s and cannot seed other PRs; old candidates must
           # not overwrite the current main cache.
-          cache-to: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && format('type=gha,scope={0},mode=max', matrix.service) || '' }}
+          cache-to: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && format('type=gha,scope={0},mode=max,ghtoken={1},repository={2}', matrix.service, secrets.GITHUB_TOKEN, github.repository) || '' }}
           # `labels:` replaces Dockerfile LABEL (not merges). Include version
           # so `tale` can read the running image the same way it does on
           # release tags — see get-container-version.ts.
@@ -714,6 +716,7 @@ jobs:
       (contains(fromJson(needs.changes.outputs.services), 'web') && github.event.pull_request.draft != true)
     runs-on: ubuntu-latest
     permissions:
+      actions: read
       contents: read
     # Keep cold-cache headroom for standalone image builds.
     timeout-minutes: 15
@@ -773,7 +776,7 @@ jobs:
           load: true
           set: |
             *.cache-from=type=gha,scope=web
-            *.cache-to=type=gha,scope=web,mode=max
+            *.cache-to=type=gha,scope=web,mode=max,ghtoken=${{ secrets.GITHUB_TOKEN }},repository=${{ github.repository }}
           provenance: false
 
       - name: Run web container test
@@ -795,6 +798,7 @@ jobs:
       (contains(fromJson(needs.changes.outputs.services), 'docs') && github.event.pull_request.draft != true)
     runs-on: ubuntu-latest
     permissions:
+      actions: read
       contents: read
     timeout-minutes: 15
 
@@ -841,7 +845,7 @@ jobs:
           load: true
           set: |
             *.cache-from=type=gha,scope=docs
-            *.cache-to=type=gha,scope=docs,mode=max
+            *.cache-to=type=gha,scope=docs,mode=max,ghtoken=${{ secrets.GITHUB_TOKEN }},repository=${{ github.repository }}
           provenance: false
 
       - name: Run docs container test
@@ -863,6 +867,7 @@ jobs:
       (contains(fromJson(needs.changes.outputs.services), 'ui-docs') && github.event.pull_request.draft != true)
     runs-on: ubuntu-latest
     permissions:
+      actions: read
       contents: read
     timeout-minutes: 15
 
@@ -909,7 +914,7 @@ jobs:
           load: true
           set: |
             *.cache-from=type=gha,scope=ui-docs
-            *.cache-to=type=gha,scope=ui-docs,mode=max
+            *.cache-to=type=gha,scope=ui-docs,mode=max,ghtoken=${{ secrets.GITHUB_TOKEN }},repository=${{ github.repository }}
           provenance: false
 
       - name: Run ui-docs container test
@@ -934,6 +939,7 @@ jobs:
       (contains(fromJson(needs.changes.outputs.services), 'ai-gateway') && github.event.pull_request.draft != true)
     runs-on: ubuntu-latest
     permissions:
+      actions: read
       contents: read
     timeout-minutes: 15
 
@@ -980,7 +986,7 @@ jobs:
           load: true
           set: |
             *.cache-from=type=gha,scope=ai-gateway
-            *.cache-to=type=gha,scope=ai-gateway,mode=max
+            *.cache-to=type=gha,scope=ai-gateway,mode=max,ghtoken=${{ secrets.GITHUB_TOKEN }},repository=${{ github.repository }}
           provenance: false
 
       - name: Run ai-gateway container test

@@ -303,10 +303,10 @@ test('Release keeps GHA reads, architecture registry writes and native runner fa
     "format('type=gha,scope={0}', matrix.service.name)",
   );
   expect(image?.with?.['cache-from']).toContain(
-    ':buildcache-${{ matrix.arch.name }}',
+    '-buildcache:${{ matrix.arch.name }}',
   );
   expect(image?.with?.['cache-to']).toContain(
-    ':buildcache-${{ matrix.arch.name }},mode=max,ignore-error=true',
+    '-buildcache:${{ matrix.arch.name }},mode=max,ignore-error=true',
   );
   expect(build?.strategy).toMatchObject({ 'max-parallel': 6 });
 });

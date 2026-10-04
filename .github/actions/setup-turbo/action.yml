@@ -17,7 +17,10 @@ inputs:
     description: Restore and save the local Turbo task cache through GitHub Actions cache
     default: 'true'
   cache-scope:
-    description: Task lane shared across jobs; defaults to the calling job ID. Matrix shards need distinct scopes.
+    description: Task lane shared across jobs; defaults to the calling job ID. Matrix jobs need distinct scopes or writers.
+    default: ''
+  cache-writer:
+    description: Archive writer within the task lane; defaults to the calling job ID. Matrix jobs sharing a scope need distinct writers.
     default: ''
   # Candidate workflows run at H but load this action from their checkout C.
   # Callers pass these legacy inputs so an older C explicitly disables its
@@ -95,15 +98,15 @@ runs:
     # One archive per task lane instead of one API upload/download per task.
     # A prefix hit restores prior task entries; Turbo still verifies each hash.
     # The lockfile/toolchain and lane never fall back across one another.
-    # Distinct workflow writers avoid a platform-only E2E archive winning
-    # the same immutable key as Checks' larger build archive. Both readers
-    # can reuse an archive from the same source, then from an earlier source.
+    # Workflow and writer identities keep concurrent jobs from competing for
+    # one immutable archive, including matrix jobs sharing the build lane.
+    # Readers reuse the lane's archives from this source, then earlier sources.
     - name: Restore Turbo task cache
       if: inputs.turbo-cache == 'true'
       uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
       with:
         path: .turbo/cache
-        key: turbo-v1-${{ runner.os }}-${{ runner.arch }}-${{ inputs.bun-version }}-${{ inputs.cache-scope || github.job }}-${{ hashFiles('bun.lock') }}-${{ steps.cache-source.outputs.revision }}-${{ github.workflow }}
+        key: turbo-v1-${{ runner.os }}-${{ runner.arch }}-${{ inputs.bun-version }}-${{ inputs.cache-scope || github.job }}-${{ hashFiles('bun.lock') }}-${{ steps.cache-source.outputs.revision }}-${{ github.workflow }}-${{ inputs.cache-writer || github.job }}
         restore-keys: |
           turbo-v1-${{ runner.os }}-${{ runner.arch }}-${{ inputs.bun-version }}-${{ inputs.cache-scope || github.job }}-${{ hashFiles('bun.lock') }}-${{ steps.cache-source.outputs.revision }}-
           turbo-v1-${{ runner.os }}-${{ runner.arch }}-${{ inputs.bun-version }}-${{ inputs.cache-scope || github.job }}-${{ hashFiles('bun.lock') }}-

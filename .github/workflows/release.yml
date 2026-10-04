@@ -165,14 +165,14 @@ jobs:
             ${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service.name }}:${{ needs.prepare.outputs.version_number }}-${{ matrix.arch.name }}
           build-args: |
             VERSION=${{ needs.prepare.outputs.version_number }}
-          # Registry caches survive version tags, including native arm64;
-          # architecture tags keep the two builders from replacing each other.
+          # Only trusted releases write these separate per-service cache images.
+          # Architecture tags keep the native builders from replacing each other.
           # amd64 also imports the GHA cache CI warms on main.
           cache-from: |
-            type=registry,ref=${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service.name }}:buildcache-${{ matrix.arch.name }}
+            type=registry,ref=${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service.name }}-buildcache:${{ matrix.arch.name }}
             ${{ matrix.arch.name == 'amd64' && format('type=gha,scope={0}', matrix.service.name) || '' }}
           # A cache outage must not invalidate a successfully pushed image.
-          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service.name }}:buildcache-${{ matrix.arch.name }},mode=max,ignore-error=true
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service.name }}-buildcache:${{ matrix.arch.name }},mode=max,ignore-error=true
           # `labels:` replaces Dockerfile LABEL (not merges). The CLI reads
           # org.opencontainers.image.version to detect the running instance;
           # omitting it made every in-place 0.4.x deploy look like an unknown

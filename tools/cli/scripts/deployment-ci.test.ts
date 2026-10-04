@@ -611,7 +611,11 @@ printf '%s\\n' "$TEST_COMPARE_STATUS"
     );
     const cache = String(step(job, 'Build and push').with?.['cache-to']);
     for (const [event, ref, expected] of [
-      ['push', 'refs/heads/main', 'type=gha,scope=platform,mode=max'],
+      [
+        'push',
+        'refs/heads/main',
+        'type=gha,scope=platform,mode=max,ghtoken=test-github-token,repository=tale-project/tale',
+      ],
       ['pull_request', 'refs/pull/1/merge', ''],
       ['merge_group', 'refs/heads/gh-readonly-queue/main/pr-1', ''],
       ['workflow_dispatch', 'refs/heads/main', ''],
@@ -621,10 +625,15 @@ printf '%s\\n' "$TEST_COMPARE_STATUS"
         runInNewContext(
           cache.slice(3, -2),
           {
-            github: { event_name: event, ref },
+            github: { event_name: event, ref, repository: 'tale-project/tale' },
             matrix: { service: 'platform' },
-            format: (template: string, service: string) =>
-              template.replace('{0}', service),
+            secrets: { GITHUB_TOKEN: 'test-github-token' },
+            format: (template: string, ...values: string[]) =>
+              values.reduce(
+                (result, value, index) =>
+                  result.replaceAll(`{${index}}`, value),
+                template,
+              ),
           },
           { timeout: 100 },
         ),
@@ -890,6 +899,7 @@ printf '%s\\n' "$TEST_COMPARE_STATUS"
       expect(setupIndex).toBeGreaterThanOrEqual(0);
       const setup = job.steps[setupIndex]!;
       expect(setup.if).toBeUndefined();
+      expect(setup.with?.['start-turbo-cache']).toBe('false');
       expect(setup.with?.['turbo-cache']).toBe('false');
       // Inherit the shared Bun pin and its frozen install. The conformance
       // helpers import workspace packages, which Bun alone cannot resolve.
@@ -1096,9 +1106,7 @@ printf '%s\\n' "$TEST_COMPARE_STATUS"
         expect(missing.stdout).toContain(
           '::error::No image receipt with a digest for tale-proxy',
         );
-        expect(missing.calls.some((call) => call.includes('tale-proxy'))).toBe(
-          false,
-        );
+        expect(missing.calls).toEqual([]);
         const malformed = await run(
           await receipts(CANDIDATE, 'tag', (service): Record<string, string> =>
             service === 'db' ? { digest: 'latest' } : {},

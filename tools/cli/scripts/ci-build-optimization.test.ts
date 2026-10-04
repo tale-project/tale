@@ -18,6 +18,7 @@ type Workflow = {
     string,
     {
       if?: string;
+      permissions?: Record<string, string>;
       needs?: string[];
       strategy?: {
         'max-parallel'?: number;
@@ -221,6 +222,10 @@ test.each(['web', 'docs', 'ui-docs', 'ai-gateway'])(
   async (service) => {
     const file = await workflow('build');
     const job = `${service}-test`;
+    expect(file.jobs[job]!.permissions).toEqual({
+      actions: 'read',
+      contents: 'read',
+    });
     const build = step(file, job, 'Build site image');
     expect(build.with).toMatchObject({
       source: '.',
@@ -231,6 +236,12 @@ test.each(['web', 'docs', 'ui-docs', 'ai-gateway'])(
     expect(build.with?.set).toContain(`*.cache-from=type=gha,scope=${service}`);
     expect(build.with?.set).toContain(
       `*.cache-to=type=gha,scope=${service},mode=max`,
+    );
+    expect(build.with?.set).toContain(
+      'ghtoken=${{ secrets.GITHUB_TOKEN }},repository=${{ github.repository }}',
+    );
+    expect(build.with?.set).not.toContain(
+      `*.cache-from=type=gha,scope=${service},ghtoken=`,
     );
     const plan = step(file, job, 'Resolve site build');
     expect(plan.env).toEqual({ SERVICE: service });
@@ -334,7 +345,7 @@ test.skipIf(process.platform === 'win32')(
       step(file, 'build', 'Build and push').with?.['cache-from'],
     ).toContain("format('type=gha,scope={0}', matrix.service.name)");
     expect(step(file, 'build', 'Build and push').with?.['cache-to']).toContain(
-      ':buildcache-${{ matrix.arch.name }},mode=max',
+      '-buildcache:${{ matrix.arch.name }},mode=max,ignore-error=true',
     );
     expect(file.jobs.manifest?.needs).toEqual(
       expect.arrayContaining(['prepare', 'build', 'container-test']),
@@ -803,10 +814,10 @@ test('native release builds reuse isolated architecture caches without adding ru
   const image = findStep(build, 'Build and push');
   expect(build.strategy!['max-parallel']).toBe(6);
   expect(image.with!['cache-from']).toContain(
-    'ref=${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service.name }}:buildcache-${{ matrix.arch.name }}',
+    'ref=${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service.name }}-buildcache:${{ matrix.arch.name }}',
   );
   expect(image.with!['cache-from']).toContain("matrix.arch.name == 'amd64'");
   expect(image.with!['cache-to']).toBe(
-    'type=registry,ref=${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service.name }}:buildcache-${{ matrix.arch.name }},mode=max,ignore-error=true',
+    'type=registry,ref=${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service.name }}-buildcache:${{ matrix.arch.name }},mode=max,ignore-error=true',
   );
 });

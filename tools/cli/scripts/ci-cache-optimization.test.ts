@@ -633,7 +633,10 @@ test('Turbo uses one native branch-scoped cache archive with distinct workflow w
   const prefix =
     "turbo-v1-${{ runner.os }}-${{ runner.arch }}-${{ inputs.bun-version }}-${{ inputs.cache-scope || github.job }}-${{ hashFiles('bun.lock') }}-";
   const source = '${{ steps.cache-source.outputs.revision }}';
-  expect(cache.with?.key).toBe(`${prefix}${source}-\${{ github.workflow }}`);
+  expect(cache.with?.key).toBe(
+    `${prefix}${source}-\${{ github.workflow }}` +
+      '-${{ inputs.cache-writer || github.job }}',
+  );
   expect(cache.with?.['restore-keys']).toBe(`${prefix}${source}-\n${prefix}\n`);
   expect(
     action.runs.steps.some((step) =>
@@ -644,6 +647,66 @@ test('Turbo uses one native branch-scoped cache archive with distinct workflow w
     action.runs.steps.find((step) => step.name === 'Install JS dependencies')
       ?.run,
   ).toBe('bun install --frozen-lockfile');
+});
+
+test('build archive writers share restore prefixes without sharing immutable keys', () => {
+  const action = setupAction();
+  expect(action.inputs['cache-writer']).toMatchObject({ default: '' });
+  const cache = action.runs.steps.find(
+    (step) => step.name === 'Restore Turbo task cache',
+  )!;
+  const key = z.string().parse(cache.with?.key);
+  const restore = z.string().parse(cache.with?.['restore-keys']);
+  const source = 'a'.repeat(40);
+  function identity(
+    workflow: string,
+    job: string,
+    writer = '',
+    scope = 'build',
+  ) {
+    const expressions: Record<string, string> = {
+      'runner.os': 'Linux',
+      'runner.arch': 'X64',
+      'inputs.bun-version': '1.4.2',
+      'inputs.cache-scope || github.job': scope || job,
+      "hashFiles('bun.lock')": 'lockfile-hash',
+      'steps.cache-source.outputs.revision': source,
+      'github.workflow': workflow,
+      'inputs.cache-writer || github.job': writer || job,
+    };
+    const render = (template: string) =>
+      template.replace(
+        /\$\{\{\s*([^}]+)\}\}/g,
+        (_match, expression: string) => {
+          const value = expressions[expression.trim()];
+          if (value === undefined)
+            throw new Error(`Unrecognized cache expression: ${expression}`);
+          return value;
+        },
+      );
+    return {
+      key: render(key),
+      prefixes: render(restore).trim().split('\n'),
+    };
+  }
+  const identities = [
+    identity('Checks', 'build'),
+    identity('E2E', 'build'),
+    identity('E2E', 'static-sites', 'static-web'),
+    identity('E2E', 'static-sites', 'static-docs'),
+  ];
+  expect(new Set(identities.map((entry) => entry.key)).size).toBe(4);
+  for (const entry of identities) {
+    expect(entry.prefixes).toEqual(identities[0]!.prefixes);
+    for (const other of identities)
+      expect(other.key.startsWith(entry.prefixes[0]!)).toBe(true);
+    const previousSource = entry.key.replace(source, 'b'.repeat(40));
+    expect(previousSource.startsWith(entry.prefixes[0]!)).toBe(false);
+    expect(previousSource.startsWith(entry.prefixes[1]!)).toBe(true);
+  }
+  const otherLane = identity('Checks', 'test', '', 'test');
+  for (const entry of identities)
+    expect(otherLane.key.startsWith(entry.prefixes[1]!)).toBe(false);
 });
 
 test('candidate cache keys use checked-out C rather than workflow head H, and disable remote activity', () => {
@@ -728,9 +791,12 @@ test('native cache callers use valid inputs and isolate active matrix task lanes
         }
         if (step.with?.['turbo-cache'] !== 'false' && job.strategy) {
           expect(
-            step.with?.['cache-scope'],
-            `${name}/${id} needs a matrix-specific lane`,
-          ).toMatch(/matrix\./);
+            ['cache-scope', 'cache-writer'].some((input) => {
+              const value = step.with?.[input];
+              return typeof value === 'string' && /matrix\./.test(value);
+            }),
+            `${name}/${id} needs a matrix-specific cache scope or writer`,
+          ).toBe(true);
         }
       }
     }
@@ -753,6 +819,7 @@ test('catalog build and generation hashes ignore task logs but retain source and
     '@tale/cli#setup',
     '@tale/cli#test',
     '@tale/cli#transit',
+    '@tale/cli#test',
   ];
   const hashes = () => {
     const run = spawnSync(
@@ -766,6 +833,7 @@ test('catalog build and generation hashes ignore task logs but retain source and
         'setup',
         'test',
         'transit',
+        'test',
         `--cwd=${fixture}`,
         '--dry=json',
         '--cache=local:,remote:',
