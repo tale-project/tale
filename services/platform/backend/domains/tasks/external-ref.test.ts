@@ -19,6 +19,7 @@ import {
 import {
   closePendingTaskReviewOnStatusLeave,
   getPendingReviewForTask,
+  type PendingTaskReview,
   requestTaskReview,
 } from './reviews.ts';
 import { TaskError, type TaskRow } from './service.ts';
@@ -485,6 +486,90 @@ describe('upsertTaskByExternalRef — the mirror-owned reopen', () => {
     expect(requestTaskReview).toHaveBeenCalledTimes(1);
   });
 
+  it.each([
+    ['user', 'u-2'],
+    ['user', 'workflow'],
+    ['agent', 'u-2'],
+    ['agent', 'workflow'],
+  ] as const)(
+    'does not claim a %s-owned review through a source close/open cycle by %s',
+    async (kind, actorId) => {
+      const pending: PendingTaskReview = {
+        approvalId: 'local-approval',
+        taskId: 't-park',
+        round: 2,
+        reviewer:
+          kind === 'user'
+            ? { kind: 'user', userId: 'human-reviewer' }
+            : { kind: 'agent', agentId: 'agent-reviewer' },
+        requestedFor: kind === 'user' ? 'human-reviewer' : null,
+        agentSlug: null,
+        implementationAgentId: kind === 'agent' ? 'author' : null,
+        evidenceRevision: kind === 'agent' ? 'a'.repeat(64) : null,
+        agentReviewBlockedReason: null,
+        runId: kind === 'agent' ? 'run' : null,
+        createdAt: 1,
+      };
+      const originalReview = structuredClone(pending);
+      vi.mocked(getPendingReviewForTask).mockResolvedValue(pending);
+      const row = parked({});
+      const { tx, updates } = captured(row);
+
+      for (const externalState of ['closed', 'closed', 'open'] as const) {
+        await upsertTaskByExternalRef(tx, {
+          ...intake,
+          actorId,
+          externalState,
+        });
+        const update = updates.at(-1);
+        expect(column(update, 'status')).toBe('in_review');
+        expect(column(update, 'external_closed_at_ms')).toBeNull();
+        expect(column(update, 'completed_at_ms')).toBeNull();
+        expect(column(update, 'status_changed_at_ms')).toBe(1);
+        expect(column(update, 'rank')).toBe('a0');
+        expect(pending).toEqual(originalReview);
+        expect(requestTaskReview).not.toHaveBeenCalled();
+        expect(closePendingTaskReviewOnStatusLeave).not.toHaveBeenCalled();
+        row.status = column(update, 'status') as TaskRow['status'];
+        row.externalClosedAt = column(update, 'external_closed_at_ms') as
+          | number
+          | null;
+      }
+    },
+  );
+
+  it('withdraws only the mirror-owned review on its close/open cycle', async () => {
+    const row = parked({ status: 'todo' });
+    const { tx, updates } = captured(row);
+    await upsertTaskByExternalRef(tx, { ...intake, externalState: 'closed' });
+    expect(column(updates[0], 'status')).toBe('in_review');
+    expect(column(updates[0], 'external_closed_at_ms')).toEqual(
+      expect.any(Number),
+    );
+    expect(requestTaskReview).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({ trigger: { kind: 'automation' } }),
+    );
+    row.status = 'in_review';
+    row.externalClosedAt = column(
+      updates[0],
+      'external_closed_at_ms',
+    ) as number;
+    vi.mocked(closePendingTaskReviewOnStatusLeave).mockClear();
+    await upsertTaskByExternalRef(tx, { ...intake, externalState: 'open' });
+    expect(column(updates[1], 'status')).toBe('backlog');
+    expect(column(updates[1], 'external_closed_at_ms')).toBeNull();
+    expect(closePendingTaskReviewOnStatusLeave).toHaveBeenCalledExactlyOnceWith(
+      tx,
+      {
+        task: row,
+        toStatus: 'backlog',
+        actor: { kind: 'system', actorId: intake.actorId },
+      },
+    );
+    expect(requestTaskReview).toHaveBeenCalledTimes(1);
+  });
+
   it.each(['closed', 'open'] as const)(
     'records upstream %s while preserving a captured agent review',
     async (externalState) => {
@@ -514,12 +599,7 @@ describe('upsertTaskByExternalRef — the mirror-owned reopen', () => {
       });
       expect(column(updates[0], 'status')).toBe('in_review');
       expect(column(updates[0], 'completed_at_ms')).toBeNull();
-      if (externalState === 'open')
-        expect(column(updates[0], 'external_closed_at_ms')).toBeNull();
-      else
-        expect(column(updates[0], 'external_closed_at_ms')).toBeGreaterThan(
-          123,
-        );
+      expect(column(updates[0], 'external_closed_at_ms')).toBeNull();
       expect(closePendingTaskReviewOnStatusLeave).not.toHaveBeenCalled();
       expect(requestTaskReview).not.toHaveBeenCalled();
     },

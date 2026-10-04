@@ -459,10 +459,11 @@ export async function upsertTaskByExternalRef(
     // A custom source's lifecycle is a fact, not the native reviewer's
     // verdict. Keep syncing the batch and the source close/reopen fact,
     // without moving or withdrawing a captured agent-owned review.
-    const preserveAgentReview =
+    const preserveReview =
       existing.status === 'in_review' &&
-      (await getPendingReviewForTask(tx, args.organizationId, existing.id))
-        ?.reviewer?.kind === 'agent';
+      (existing.externalClosedAt === null ||
+        (await getPendingReviewForTask(tx, args.organizationId, existing.id))
+          ?.reviewer?.kind === 'agent');
     const mirrorParked =
       existing.status === 'in_review' && existing.externalClosedAt !== null;
     let statusFrom: TaskStatus | undefined;
@@ -470,9 +471,8 @@ export async function upsertTaskByExternalRef(
     let completedAt: number | null = existing.completedAt;
     let externalClosedAt: number | null = existing.externalClosedAt;
     let rank = existing.rank;
-    if (preserveAgentReview) {
-      if (lifecycleState === 'closed') externalClosedAt ??= now;
-      else if (lifecycleState === 'open') externalClosedAt = null;
+    if (preserveReview) {
+      if (lifecycleState === 'open') externalClosedAt = null;
     } else if (
       lifecycleState === 'closed' &&
       !TERMINAL_STATUSES.has(existing.status)
