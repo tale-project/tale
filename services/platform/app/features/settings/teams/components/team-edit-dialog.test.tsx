@@ -15,7 +15,7 @@ import {
   lapsedSessionRefusal,
   saveLocale,
 } from '@/tests/utils/lapsed-session';
-import { cleanup, render, screen, waitFor } from '@/tests/utils/render';
+import { act, cleanup, render, screen, waitFor } from '@/tests/utils/render';
 
 import { TeamEditDialog } from './team-edit-dialog';
 
@@ -40,10 +40,16 @@ vi.mock('../hooks/mutations', () => ({
 vi.mock('./team-member-checklist', () => ({
   TeamMemberChecklist: ({
     onToggleMember,
+    disabled,
   }: {
     onToggleMember: (userId: string) => void;
+    disabled?: boolean;
   }) => (
-    <button type="button" onClick={() => onToggleMember('user-b')}>
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={() => onToggleMember('user-b')}
+    >
       Add user-b
     </button>
   ),
@@ -66,6 +72,71 @@ beforeEach(() => {
 });
 
 describe('TeamEditDialog', () => {
+  it.each([true, false])(
+    'saves the submitted draft and closes (attempt later edits: %s)',
+    async (attemptLaterEdits) => {
+      const pending =
+        Promise.withResolvers<
+          Awaited<ReturnType<typeof authClient.organization.updateTeam>>
+        >();
+      vi.mocked(authClient.organization.updateTeam).mockReturnValue(
+        pending.promise,
+      );
+      const client = new QueryClient();
+      const onOpenChange = vi.fn();
+      const onSuccess = vi.fn();
+      const { user } = render(
+        <QueryClientProvider client={client}>
+          <TeamEditDialog
+            team={{
+              id: 'team-a',
+              name: storedName,
+              memberCount: 1,
+              createdAt: 0,
+            }}
+            organizationId="org-a"
+            open
+            onOpenChange={onOpenChange}
+            onSuccess={onSuccess}
+          />
+        </QueryClientProvider>,
+      );
+      const name = screen.getByRole('textbox', { name: /Team name/ });
+      await user.clear(name);
+      await user.type(name, 'First draft');
+      await user.click(screen.getByRole('button', { name: /Save/ }));
+      await waitFor(() =>
+        expect(authClient.organization.updateTeam).toHaveBeenCalledTimes(1),
+      );
+      expect(authClient.organization.updateTeam).toHaveBeenCalledWith({
+        teamId: 'team-a',
+        data: { name: 'First draft', organizationId: 'org-a' },
+      });
+      expect(onOpenChange).not.toHaveBeenCalled();
+      if (attemptLaterEdits) {
+        await user.type(name, 'Later unsaved draft');
+        await user.click(screen.getByRole('button', { name: 'Add user-b' }));
+        expect(name).toBeDisabled();
+        expect(name).toHaveValue('First draft');
+        expect(
+          screen.getByRole('button', { name: 'Add user-b' }),
+        ).toBeDisabled();
+        expect(addMember).not.toHaveBeenCalled();
+      }
+      await act(async () => pending.resolve({ data: null, error: null }));
+      await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+      expect(onOpenChange).toHaveBeenCalledTimes(1);
+      expect(onSuccess).toHaveBeenCalledTimes(1);
+      expect(toast).toHaveBeenCalledWith({
+        title: 'Team updated',
+        variant: 'success',
+      });
+      expect(authClient.organization.updateTeam).toHaveBeenCalledTimes(1);
+      expect(addMember).not.toHaveBeenCalled();
+      client.clear();
+    },
+  );
+
   it('refreshes the visible list after a name-only Better Auth update without reloading', async () => {
     vi.mocked(authClient.organization.updateTeam).mockImplementation(
       async () => {
@@ -149,6 +220,11 @@ describe('TeamEditDialog', () => {
       await screen.findByText('A team with this name already exists'),
     ).toBeInTheDocument();
     expect(onOpenChange).not.toHaveBeenCalledWith(false);
+    expect(name).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Add user-b' })).toBeEnabled();
+    await user.clear(name);
+    await user.type(name, 'Available team');
+    expect(name).toHaveValue('Available team');
     client.clear();
   });
 

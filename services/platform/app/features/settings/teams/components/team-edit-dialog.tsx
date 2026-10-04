@@ -266,7 +266,7 @@ export function TeamEditDialog({
         {...register('name')}
         className="w-full"
         required
-        disabled={synced}
+        disabled={synced || isSubmitting}
         errorMessage={formState.errors.name?.message}
       />
       {synced ? null : (
@@ -275,6 +275,7 @@ export function TeamEditDialog({
           selectedMemberIds={selectedMemberIds}
           onToggleMember={handleToggleMember}
           enforceMinimumOne
+          disabled={isSubmitting}
         />
       )}
     </FormDialog>
