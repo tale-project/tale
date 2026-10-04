@@ -70,19 +70,43 @@ export function TeamEditDialog({
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedMemberIds, setSelectedMemberIds] = useState(new Set<string>());
+  const [hasRemoteMemberConflict, setHasRemoteMemberConflict] = useState(false);
   const initialMemberIdsRef = useRef(new Set<string>());
+  const selectedMemberIdsRef = useRef(selectedMemberIds);
+  const hasLoadedMembersRef = useRef(false);
+  selectedMemberIdsRef.current = selectedMemberIds;
 
   const { teamMembers }: { teamMembers: TeamMemberItem[] | undefined } =
     useTeamMembers(team.id);
   const addTeamMember = useAddTeamMember();
   const removeTeamMember = useRemoveTeamMember();
 
-  // Sync selected members when team members data loads or dialog opens
+  // Sync selected members when team members data loads or dialog opens. Once
+  // the user has edited the roster, keep the draft and require them to reopen
+  // before saving against a different server roster.
   useEffect(() => {
     if (teamMembers && open) {
       const memberIds = new Set(teamMembers.map((m) => m.userId));
+      if (hasLoadedMembersRef.current) {
+        const initial = initialMemberIdsRef.current;
+        const hasLocalChanges =
+          initial.size !== selectedMemberIdsRef.current.size ||
+          Array.from(selectedMemberIdsRef.current).some(
+            (id) => !initial.has(id),
+          );
+        const rosterChanged =
+          initial.size !== memberIds.size ||
+          Array.from(memberIds).some((id) => !initial.has(id));
+
+        if (hasLocalChanges && rosterChanged) {
+          setHasRemoteMemberConflict(true);
+          return;
+        }
+      }
       setSelectedMemberIds(memberIds);
       initialMemberIdsRef.current = memberIds;
+      hasLoadedMembersRef.current = true;
+      setHasRemoteMemberConflict(false);
     }
   }, [teamMembers, open]);
 
@@ -236,6 +260,8 @@ export function TeamEditDialog({
         setSelectedMemberIds(memberIds);
         initialMemberIdsRef.current = memberIds;
       }
+      hasLoadedMembersRef.current = false;
+      setHasRemoteMemberConflict(false);
     }
     onOpenChange(isOpen);
   };
@@ -251,9 +277,14 @@ export function TeamEditDialog({
       submittingText={tCommon('actions.saving')}
       isSubmitting={isSubmitting}
       isDirty={isDirty}
-      isValid={formState.isValid}
+      isValid={formState.isValid && !hasRemoteMemberConflict}
       onSubmit={handleSubmit(onSubmit)}
     >
+      {hasRemoteMemberConflict ? (
+        <p role="alert" className="text-destructive text-sm">
+          {tSettings('teams.membershipRefreshConflict')}
+        </p>
+      ) : null}
       {synced ? (
         <p className="text-muted-foreground text-sm">
           {tSettings('teams.syncedNotice')}

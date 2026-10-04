@@ -6004,6 +6004,7 @@ settings:
     teamNameTooLong: Team name can be at most 80 characters
     teamNameTaken: A team with this name already exists
     membershipChangesFailed: '{count, plural, one {# membership change was} other {# membership changes were}} refused. The list has been refreshed.'
+    membershipRefreshConflict: The team membership changed in another session. Close and reopen this dialog to review the latest roster.
     syncedBadge: Synced
     syncedNotice: This team is provisioned by your identity provider, which owns
       its name and members. Change them there; a local edit would be undone by
