@@ -15,6 +15,7 @@ import { z } from 'zod';
 import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
+import { readOptionalAppJsonBody } from '../../lib/app-json-body.ts';
 import { invalidBodyResponse } from '../../lib/invalid-body-response.ts';
 import { rateLimitedResponse } from '../../lib/rate-limit-response.ts';
 import {
@@ -202,7 +203,7 @@ export function createProjectRoutes(deps: {
   app.post('/:id/duplicate', async (c) => {
     const body = z
       .object({ name: z.string().max(200).optional() })
-      .safeParse(await c.req.json().catch(() => ({})));
+      .safeParse(await readOptionalAppJsonBody(c));
     if (!body.success) {
       return invalidBodyResponse(c, body.error);
     }
