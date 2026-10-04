@@ -787,9 +787,24 @@ describe('listTaskAgentRunSummaries — the runs an agent reading its task sees'
     ['unarmed', { autoRetryArmedAt: null }],
     ['retired', { autoRetryRefusedAt: 4 }],
     ['superseded', { id: 'newer-run' }],
+    ['legacy in-place', { inPlace: true }],
   ])('exposes a %s retry as explicitly not pending', async (_kind, change) => {
     const { runs } = await readRetryState([summary()], [history(change)]);
     expect(runs[0]?.retryPending).toBe(false);
+  });
+
+  it('exposes an in-place retry with a captured decision as pending', async () => {
+    const { runs } = await readRetryState(
+      [summary()],
+      [
+        history({
+          inPlace: true,
+          inPlaceRetryStatus: 'todo',
+          inPlaceRetryActivityId: '0',
+        }),
+      ],
+    );
+    expect(runs[0]?.retryPending).toBe(true);
   });
 
   it('uses the same exhausted failure budget as the run card', async () => {

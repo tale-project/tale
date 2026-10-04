@@ -752,7 +752,7 @@ export async function checkScheduledAgentStarts(
       `run=${afterCancel.status} output=${JSON.stringify(afterCancel.output)} agent runs=${describeRuns(afterCancelRuns)}`,
     );
 
-    // ---- a failed in-place run is not retried; the next slot is --------
+    // ---- an unchanged in-place run retries; the next slot coalesces ----
     const retrySkips: string[] = [];
     if (y !== undefined) {
       await failAgentRunFromTurn(sql, {
@@ -785,14 +785,17 @@ export async function checkScheduledAgentStarts(
     const afterFailNext = await runsOf(sql, roleTask);
     const z = afterFailNext[2];
     record(
-      'scheduled starts: a failed in-place run is not auto-retried (the card never left To do); the next occurrence starts the role again',
-      afterFailRuns.length === 2 &&
+      'scheduled starts: an unchanged To do role retries automatically, and the next occurrence coalesces with that live retry',
+      afterFailRuns.length === 3 &&
         afterFailRuns[1]?.status === 'failed' &&
-        retrySkips.join(',') === 'task_moved' &&
-        afterFail.output?.started === true &&
+        retrySkips.length === 0 &&
+        afterFail.output?.started === false &&
+        afterFail.output.reason === 'already_running' &&
         z !== undefined &&
-        afterFail.output.runId === z.id,
-      `runs after the failure=${describeRuns(afterFailRuns)} retry skips=${retrySkips.join(',') || 'none'} (want task_moved) next=${JSON.stringify(afterFail.output)} runs=${describeRuns(afterFailNext)}`,
+        z.trigger === 'auto_retry' &&
+        afterFail.output.runId === z.id &&
+        afterFailNext.length === 3,
+      `runs after the failure=${describeRuns(afterFailRuns)} retry skips=${retrySkips.join(',') || 'none'} (want none) next=${JSON.stringify(afterFail.output)} runs=${describeRuns(afterFailNext)}`,
     );
 
     // ---- the per-task circuit breaker ----------------------------------
@@ -2594,11 +2597,13 @@ export async function checkInPlaceCompletionCycle(
 
     // ---- a person picks a To do role card up while its run is live ------
     // They move it to In progress through the real status door, which keeps
-    // the live run rather than starting their own. The run fails, the real
-    // retry worker retries it and the retry completes: the retry carries the
-    // start's in-place intent, so the card stays In progress with no review.
+    // live automatic retry rather than starting their own. The retry was
+    // admitted before the move; its completion still carries the original
+    // in-place intent, so the card stays In progress with no review.
     await schedule(pickedUpName, true);
     const fifth = await fire(pickedUpName);
+    const retrySkips: string[] = [];
+    await failNewestRunAndRetry(sql, pickedUpCard, retrySkips);
     const personAuth = await getProjectAuthContext(sql, {
       organizationId: orgId,
       userId: editor,
@@ -2609,8 +2614,6 @@ export async function checkInPlaceCompletionCycle(
     );
     const pickedUp = await cardOf(pickedUpCard);
     const pickedUpRuns = await runsOf(sql, pickedUpCard);
-    const retrySkips: string[] = [];
-    await failNewestRunAndRetry(sql, pickedUpCard, retrySkips);
     const retryRun = (await runsOf(sql, pickedUpCard))[1];
     const retryIntent =
       retryRun === undefined
@@ -2632,10 +2635,10 @@ export async function checkInPlaceCompletionCycle(
     const sixth = await fire(pickedUpName);
     const pickedUpAll = await runsOf(sql, pickedUpCard);
     record(
-      'in-place completion: a person moves a To do role card to In progress while its run is live (the run is kept), the run fails and its automatic retry completes — the retry carries the in-place intent, so the card stays In progress with no review and the next occurrence starts the role again',
+      'in-place completion: a person moves a To do role card to In progress while its automatic retry is already live (the run is kept), and that retry completes — the retry carries the in-place intent, so the card stays In progress with no review and the next occurrence starts the role again',
       fifth.output?.started === true &&
         pickedUp?.status === 'in_progress' &&
-        pickedUpRuns.length === 1 &&
+        pickedUpRuns.length === 2 &&
         retrySkips.length === 0 &&
         retryRun !== undefined &&
         retryRun.trigger === 'auto_retry' &&

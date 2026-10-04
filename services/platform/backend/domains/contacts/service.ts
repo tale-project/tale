@@ -759,12 +759,27 @@ export async function getContact(
   return contact;
 }
 
+/**
+ * A locale filter as the listing compares it: lower case, with `_` read as
+ * `-`, so `fr_CA` and `fr-ca` name the same tag. Null when blank.
+ */
+function localeRange(value: string | undefined): string | null {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed.toLowerCase().replaceAll('_', '-') : null;
+}
+
 export async function listContacts(
   sql: Sql,
   scope: ContactScope,
   options: {
     search?: string;
     source?: ContactSource;
+    /** A language (`fr`) or a regional tag (`fr-CH`), matched the way
+     * RFC 4647 basic filtering matches a language range: a tag equal to it,
+     * or one extending it by further subtags, case-insensitively — `fr`
+     * lists `fr`, `FR`, `fr-CH` and `fr_CA`, never `en`; `fr-CH` lists only
+     * `fr-CH`. */
+    locale?: string;
     tag?: string;
     cursor?: { updatedAt: number; id: string } | null;
     limit?: number;
@@ -776,6 +791,7 @@ export async function listContacts(
   assertContactAccess(scope, 'read');
   const limit = Math.min(options.limit ?? 50, 200);
   const search = options.search?.trim() ? `%${options.search.trim()}%` : null;
+  const locale = localeRange(options.locale);
   const cursor = options.cursor ?? null;
   const rows = await sql<ContactRow[]>`
     SELECT ${sql.unsafe(CONTACT_COLUMNS)} FROM app.contacts
@@ -784,6 +800,9 @@ export async function listContacts(
       AND (${search}::text IS NULL OR name ILIKE ${search}
         OR email ILIKE ${search} OR phone ILIKE ${search})
       AND (${options.source ?? null}::text IS NULL OR source = ${options.source ?? null})
+      AND (${locale}::text IS NULL
+        OR lower(replace(locale, '_', '-')) = ${locale}
+        OR starts_with(lower(replace(locale, '_', '-')), ${locale}::text || '-'))
       AND (${options.tag ?? null}::text IS NULL OR ${options.tag ?? null} = ANY(tags))
       AND (${cursor?.updatedAt ?? null}::bigint IS NULL
         OR updated_at_ms < ${cursor?.updatedAt ?? null}

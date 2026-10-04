@@ -1,17 +1,22 @@
 import type { Context } from 'hono';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { CONTACT_IMPORT_ROWS_MAX } from '../../../lib/shared/schemas/common.ts';
+import {
+  CONTACT_IMPORT_ROWS_MAX,
+  CONTACT_LOCALE_MAX,
+} from '../../../lib/shared/schemas/common.ts';
 import type { OrgEnv } from '../../auth/org.ts';
 
-const { bulkCreateContacts, updateContact } = vi.hoisted(() => ({
+const { bulkCreateContacts, listContacts, updateContact } = vi.hoisted(() => ({
   bulkCreateContacts: vi.fn(),
+  listContacts: vi.fn(),
   updateContact: vi.fn(),
 }));
 
 vi.mock('./service.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./service.ts')>()),
   bulkCreateContacts,
+  listContacts,
   updateContact,
 }));
 vi.mock('@tale/shared/db/serializable', () => ({
@@ -201,5 +206,39 @@ describe('contact edit', () => {
       'c-1',
       {},
     );
+  });
+});
+
+describe('contact listing filters', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    listContacts.mockResolvedValue({ items: [], nextCursor: null });
+  });
+
+  const list = (query: string) => app.request(`/?orgId=o1&${query}`);
+
+  // #3618: the door never read `locale`, so the Contacts Locale facet listed
+  // every contact.
+  it('hands the Locale facet to the listing beside the Source', async () => {
+    expect((await list('limit=20&locale=fr')).status).toBe(200);
+    expect(listContacts).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.objectContaining({ organizationId: 'o1' }),
+      { limit: 20, locale: 'fr', cursor: null },
+    );
+    expect((await list('source=file_upload&locale=fr')).status).toBe(200);
+    expect(listContacts).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.anything(),
+      { source: 'file_upload', locale: 'fr', cursor: null },
+    );
+  });
+
+  it('refuses a Locale longer than any contact stores, as it does a Source', async () => {
+    expect(
+      (await list(`locale=${'x'.repeat(CONTACT_LOCALE_MAX + 1)}`)).status,
+    ).toBe(400);
+    expect((await list('source=fax')).status).toBe(400);
+    expect(listContacts).not.toHaveBeenCalled();
   });
 });
