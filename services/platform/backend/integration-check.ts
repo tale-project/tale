@@ -60,6 +60,7 @@ import {
 import { setUrlSafetyResolverForTests } from './core/video_links/url_safety.ts';
 import { runBootMigrations } from './db/migrate.ts';
 import { createSql } from './db/sql.ts';
+import { checkApprovalDecisionResume } from './domains/approvals/decide-resume.integration.ts';
 import { rowToHashInput } from './domains/audit_logs/hash-input.ts';
 import type { AuditLogRow } from './domains/audit_logs/types.ts';
 import { checkDeletedOrgDoors } from './domains/automations/deleted-org-doors.integration.ts';
@@ -59861,6 +59862,10 @@ async function main(): Promise<void> {
       [
         'checkApprovalsSurface',
         () => checkApprovalsSurface(sql, baseUrl, authCtx),
+      ],
+      [
+        'checkApprovalDecisionResume',
+        () => checkApprovalDecisionResume(sql, baseUrl, authCtx, record),
       ],
       [
         'checkGovernance',

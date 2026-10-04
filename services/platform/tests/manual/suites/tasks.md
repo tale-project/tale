@@ -1,6 +1,6 @@
 # Tasks
 
-> **Prefix** `TASK-` · **Reset** none · **Cost** 121 boxes
+> **Prefix** `TASK-` · **Reset** none · **Cost** 122 boxes
 
 Exercise a project's task workspace — the board and list views with
 drag-and-drop across status lanes, the task sheet (description, comments with
@@ -1045,6 +1045,13 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   image model; the run itself still settles. Restore: delete the rule —
   env-gated: mark **ENVIRONMENT** without a runnable harness and an
   image-capable credential.
+- [ ] `TASK-B28` · **A Request changes draft stays with its task** — On an
+  automation-owned task parked **In review** whose automation offers
+  **Request changes** (`tasks.subject.requestChanges`), open it, type feedback
+  under **What should change** (`tasks.subject.requestChangesLabel`) and
+  **Cancel**; open another automation-owned task in review in the same sheet (a
+  subtask, or **Part of**) and open its **Request changes** → the box is empty:
+  feedback written for one task never waits, pre-filled, on another.
 - [ ] `TASK-B32` · **A failed board read** — DevTools → Network → block the
   request URL `*/api/app/tasks/by-project/*`, open **Board**, then **List**;
   unblock and press **Try again** (`common.actions.tryAgain`) → Once the

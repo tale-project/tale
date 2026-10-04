@@ -72,3 +72,25 @@ export async function lockTaskRunStart(
     WHERE id = ${taskId} AND org_id = ${organizationId}
   `;
 }
+
+/** The decision an in-place kick continues. The caller holds the task lock:
+ * native status/assignment/archive/review writers take it too, so the cursor
+ * cannot race those decisions. bigint stays text; a JS number can lose a move.
+ * Comments and other metadata leave the original work authorized. */
+export async function readInPlaceRetryState(
+  tx: TransactionSql,
+  organizationId: string,
+  taskId: string,
+): Promise<{ status: string; activityId: string } | undefined> {
+  const rows = await tx<{ status: string; activityId: string }[]>`
+    SELECT status, coalesce((
+      SELECT id FROM app.task_activity
+      WHERE task_id = ${taskId} AND org_id = ${organizationId}
+        AND action IN ('status.changed', 'assignee.changed', 'archived', 'restored', 'review.responded')
+      ORDER BY id DESC LIMIT 1
+    ), 0)::text AS "activityId"
+    FROM app.tasks
+    WHERE id = ${taskId} AND org_id = ${organizationId}
+  `;
+  return rows[0];
+}
