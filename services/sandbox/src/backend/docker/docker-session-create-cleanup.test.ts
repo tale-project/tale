@@ -8,12 +8,17 @@ async function failedCreate(options: {
   resumed?: boolean;
   removalFails?: boolean;
   discardFails?: boolean;
+  destroyAfterFailure?: boolean;
 }): Promise<{
   error: string | null;
+  destroyError: string | null;
+  warnings: string[];
   workspace: boolean;
   owner: boolean;
   trashEntries: number;
   discarded: number;
+  containerGone: boolean;
+  removalTargets: string[];
 }> {
   const script = `
 import { mock } from 'bun:test';
@@ -26,16 +31,28 @@ const success = {exitCode:0,stdout:'',stderr:'',stdoutTruncated:false,stderrTrun
 const spawnPath = join(source,'spawn-util.ts');
 const realSpawn = await import(spawnPath);
 let containerGone = false;
+let createAttempt = '';
+const containerId = 'a'.repeat(64);
+const removalTargets = [];
+const warnings = [];
+console.warn = (...args) => warnings.push(args.map(String).join(' '));
 mock.module(spawnPath, () => ({...realSpawn,
   runDocker: async (args) => {
-    if (args[0] === 'run') return {...success,exitCode:1,stderr:'runtime startup failed'};
+    if (args[0] === 'run') {
+      createAttempt = args.find(value => value.startsWith('tale.create-attempt='))?.split('=')[1] ?? '';
+      return {...success,exitCode:1,stderr:'runtime startup failed'};
+    }
     if (args[0] === 'inspect') {
       if (containerGone) return {...success,exitCode:1,stderr:'No such container'};
-      return {...success,stdout:args[2].includes('Mounts') ? '' : 'true'};
+      const format = args[2];
+      if (format.includes('tale.create-attempt')) return {...success,stdout:containerId+'\\t0\\t'+createAttempt};
+      if (format.includes('tale.docker')) return {...success,stdout:containerId+'\\tfalse\\t'};
+      return {...success,stdout:format.includes('Mounts') ? '' : 'true'};
     }
     return {...success,stdout:'{"tale.sandbox-cache":"1"}'};
   },
-  dockerRm: async () => {
+  dockerRm: async (target) => {
+    removalTargets.push(target);
     if (options.removalFails) return {...success,exitCode:1,stderr:'device or resource busy'};
     containerGone = true;
     return success;
@@ -70,11 +87,17 @@ const cfg = {
  session:{...TEST_SESSION_CONFIG,agentProfile:{...TEST_SESSION_CONFIG.agentProfile,uid:process.getuid() || 10001,gid:process.getgid() || 10001}},
 };
 let error = null;
+let destroyError = null;
+const backend = new DockerSessionBackend(cfg,trash);
 try {
-  await new DockerSessionBackend(cfg,trash).createSession({sessionId:'failed',organizationId:'org-failed',profile:'agent',env:{},createdAtMs:0,ttlMs:1000,idleTimeoutMs:1000});
+  await backend.createSession({sessionId:'failed',organizationId:'org-failed',profile:'agent',env:{},createdAtMs:0,ttlMs:1000,idleTimeoutMs:1000});
 } catch (e) { error = e.message; }
+if (options.destroyAfterFailure) {
+  try { await backend.destroySession('failed'); }
+  catch (e) { destroyError = e.message; }
+}
 const exists = async (path) => stat(path).then(() => true, () => false);
-const result = {error,workspace:await exists(workspace),owner:await exists(owner),trashEntries:(await readdir(trash.dir).catch(() => [])).length,discarded};
+const result = {error,destroyError,warnings,workspace:await exists(workspace),owner:await exists(owner),trashEntries:(await readdir(trash.dir).catch(() => [])).length,discarded,containerGone,removalTargets};
 gate.resolve();
 await trash.empty();
 await rm(root,{recursive:true,force:true});
@@ -96,26 +119,35 @@ console.log(JSON.stringify(result));
 describe('Docker session failed-create cleanup', () => {
   test('a failed container removal preserves its workspace and ownership', async () => {
     const result = await failedCreate({ removalFails: true });
-    expect(result.error).toContain('device or resource busy');
+    expect(result.error).toContain('runtime startup failed');
+    expect(result.warnings.join('\n')).toContain('device or resource busy');
     expect(result.workspace).toBe(true);
     expect(result.owner).toBe(true);
     expect(result.discarded).toBe(0);
+    expect(result.containerGone).toBe(false);
+    expect(result.removalTargets).toEqual(['a'.repeat(64)]);
   });
 
-  test('a failed workspace removal retains the owner marker for retry', async () => {
-    const result = await failedCreate({ discardFails: true });
-    expect(result.error).toContain('could not be deleted');
+  test('a later failed destroy retains the owner marker for retry', async () => {
+    const result = await failedCreate({
+      discardFails: true,
+      destroyAfterFailure: true,
+    });
+    expect(result.error).toContain('runtime startup failed');
+    expect(result.destroyError).toContain('could not be deleted');
     expect(result.workspace).toBe(true);
     expect(result.owner).toBe(true);
   });
 
-  test('a fresh failed create discards its workspace without waiting for its bytes', async () => {
+  test('a fresh failed create releases its compute and preserves workspace ownership', async () => {
     const result = await failedCreate({});
     expect(result.error).toContain('runtime startup failed');
-    expect(result.workspace).toBe(false);
-    expect(result.owner).toBe(false);
-    expect(result.discarded).toBe(1);
-    expect(result.trashEntries).toBe(1);
+    expect(result.workspace).toBe(true);
+    expect(result.owner).toBe(true);
+    expect(result.discarded).toBe(0);
+    expect(result.trashEntries).toBe(0);
+    expect(result.containerGone).toBe(true);
+    expect(result.removalTargets).toEqual(['a'.repeat(64)]);
   });
 
   test('a failed resume releases compute and preserves the existing workspace', async () => {
@@ -124,5 +156,16 @@ describe('Docker session failed-create cleanup', () => {
     expect(result.workspace).toBe(true);
     expect(result.owner).toBe(true);
     expect(result.discarded).toBe(0);
+    expect(result.containerGone).toBe(true);
+  });
+
+  test('a later explicit destroy discards the failed create workspace and ownership', async () => {
+    const result = await failedCreate({ destroyAfterFailure: true });
+    expect(result.error).toContain('runtime startup failed');
+    expect(result.destroyError).toBeNull();
+    expect(result.workspace).toBe(false);
+    expect(result.owner).toBe(false);
+    expect(result.discarded).toBe(1);
+    expect(result.trashEntries).toBe(1);
   });
 });

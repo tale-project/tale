@@ -52,6 +52,34 @@ describe('Dialog', () => {
       expect(edit.parentElement).toBe(close.parentElement);
     });
 
+    it('disables the back control while backDisabled holds, and only then', () => {
+      // A sub-view saving disables its Cancel; its back control has to wait
+      // the same way, or stepping back drops the input the save was sent from.
+      const onBack = vi.fn();
+      const dialog = (backDisabled?: boolean) => (
+        <Dialog
+          open
+          onOpenChange={vi.fn()}
+          title="Detail"
+          onBack={onBack}
+          backLabel="Go back"
+          backDisabled={backDisabled}
+        >
+          <p>Content</p>
+        </Dialog>
+      );
+      const { rerender } = render(dialog(true));
+      const back = screen.getByRole('button', { name: 'Go back' });
+      expect(back).toBeDisabled();
+      fireEvent.click(back);
+      expect(onBack).not.toHaveBeenCalled();
+
+      rerender(dialog());
+      expect(back).toBeEnabled();
+      fireEvent.click(back);
+      expect(onBack).toHaveBeenCalledTimes(1);
+    });
+
     it('renders no back control when onBack is absent', () => {
       render(
         <Dialog open onOpenChange={vi.fn()} title="Detail" description="d">

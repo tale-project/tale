@@ -172,6 +172,12 @@ export interface DialogProps {
   onBack?: () => void;
   /** Visible + accessible label for the back control (see `onBack`). */
   backLabel?: string;
+  /**
+   * Disables the back control (see `onBack`) while the sub-view can't be left,
+   * such as during a save, when the sub-view also disables its Cancel. Stepping
+   * back then would discard the input the pending request was sent from.
+   */
+  backDisabled?: boolean;
   /** Custom header content - completely replaces the default header */
   customHeader?: React.ReactNode;
   /** Optional trigger element that opens the dialog */
@@ -235,6 +241,7 @@ export function Dialog({
   icon,
   onBack,
   backLabel,
+  backDisabled = false,
   customHeader,
   trigger,
   preventCloseAutoFocus = false,
@@ -323,8 +330,9 @@ export function Dialog({
                     <button
                       type="button"
                       onClick={onBack}
+                      disabled={backDisabled}
                       aria-label={backLabel}
-                      className="text-muted-foreground hover:bg-accent hover:text-accent-foreground focus-visible:ring-ring -ml-2 inline-flex max-w-[calc(100%-3rem)] min-w-0 items-center gap-1 rounded-lg px-2 py-1.5 text-sm transition-all duration-150 focus-visible:ring-1 focus-visible:outline-none"
+                      className="text-muted-foreground hover:bg-accent hover:text-accent-foreground focus-visible:ring-ring -ml-2 inline-flex max-w-[calc(100%-3rem)] min-w-0 items-center gap-1 rounded-lg px-2 py-1.5 text-sm transition-all duration-150 focus-visible:ring-1 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50"
                     >
                       <ChevronLeft
                         className="size-4 shrink-0"

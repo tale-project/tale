@@ -69,6 +69,8 @@ Other native input attributes pass through, except native `size`; `prefix` is re
 
 Use `Textarea` for multiple lines, `Select` for a fixed set, `SearchableSelect` for a searchable set, `JsonInput` for structured JSON, and `CopyableField` for a value primarily meant to be copied. A table search belongs in [`DataTable.search`](/docs/components/data-table), where it can stay associated with the filtered results.
 
+Give `SearchableSelect` a meaningful `label` or `aria-label`, including when you provide a custom trigger. Its open list and popover use `aria-label`, then the field label, then `searchPlaceholder`. The search input uses `searchPlaceholder`, then `aria-label`, then the field label. Rich field labels are referenced by ID rather than converted to text. If none is supplied, all three use the shared localized **Search** name; supply a field-specific name so the person knows what they are searching. The visible search placeholder stays optional.
+
 ## Related controls
 
 <Demo name="input/number-stepper" />
