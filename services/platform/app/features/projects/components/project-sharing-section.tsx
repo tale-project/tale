@@ -6,7 +6,7 @@ import { Spinner } from '@tale/ui/spinner';
 import { Text } from '@tale/ui/text';
 import { toast } from '@tale/ui/use-toast';
 import { Link } from '@tanstack/react-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useLayoutEffect, useState } from 'react';
 
 import { TeamMultiSelect } from '@/app/features/documents/components/team-multi-select';
 import {
@@ -22,6 +22,52 @@ import { useT } from '@/lib/i18n/client';
 import { AppError } from '@/lib/shared/errors/app-error';
 
 import { useUpdateProjectSharing } from '../hooks/mutations';
+
+function TeamsReadError({
+  audience,
+  message,
+  retrying,
+  retryLabel,
+  onRetry,
+  onFocusLost,
+}: {
+  audience: string;
+  message: string;
+  retrying: boolean;
+  retryLabel: string;
+  onRetry: () => void;
+  onFocusLost: () => void;
+}) {
+  const [root, setRoot] = useState<HTMLDivElement | null>(null);
+
+  useLayoutEffect(() => {
+    if (root === null) return undefined;
+    return () => {
+      if (root.contains(document.activeElement)) {
+        requestAnimationFrame(onFocusLost);
+      }
+    };
+  }, [root, onFocusLost]);
+
+  return (
+    <div ref={setRoot}>
+      <Text variant="muted">{audience}</Text>
+      <Text role="alert">{message}</Text>
+      <Button
+        type="button"
+        variant="secondary"
+        size="sm"
+        aria-busy={retrying || undefined}
+        aria-disabled={retrying || undefined}
+        onClick={() => {
+          if (!retrying) onRetry();
+        }}
+      >
+        {retryLabel}
+      </Button>
+    </div>
+  );
+}
 
 interface ProjectSharingSectionProps {
   projectId: string;
@@ -57,6 +103,7 @@ export function ProjectSharingSection({
   // is not in, too.
   const { nameOf } = useTeamNames();
   const { mutateAsync: updateSharing, isPending } = useUpdateProjectSharing();
+  const [teamsRetrying, setTeamsRetrying] = useState(false);
 
   const [acknowledgedAudience, setAcknowledgedAudience] = useState<{
     projectId: string;
@@ -144,9 +191,30 @@ export function ProjectSharingSection({
           .map((id) => nameOf(id) ?? t('list.unknownTeam'))
           .join(', ');
 
+  const focusAudience = useCallback(() => {
+    document
+      .querySelector<HTMLElement>(
+        `[data-project-audience="${projectId}"] [role="combobox"]`,
+      )
+      ?.focus();
+  }, [projectId]);
+
+  useLayoutEffect(() => {
+    if (!teamsRetrying || teamsFetching || teamsError || !assignableTeams) {
+      return;
+    }
+    requestAnimationFrame(focusAudience);
+  }, [
+    assignableTeams,
+    focusAudience,
+    teamsError,
+    teamsFetching,
+    teamsRetrying,
+  ]);
+
   if (!canAdminister) {
     return (
-      <SettingsFieldList>
+      <SettingsFieldList data-project-audience={projectId}>
         <SettingsFieldRow label={t('sharing.effectiveAudience')}>
           <Text variant="muted">{audience}</Text>
         </SettingsFieldRow>
@@ -154,26 +222,26 @@ export function ProjectSharingSection({
     );
   }
 
-  if (teamsError) {
+  if (teamsError || (teamsRetrying && teamsFetching)) {
     return (
-      <SettingsFieldList>
+      <SettingsFieldList data-project-audience={projectId}>
         <SettingsFieldRow
           label={t('settings.audience')}
           description={t('settings.audienceHelp')}
         >
-          <div className="space-y-2">
-            <Text variant="muted">{audience}</Text>
-            <Text role="alert">{t('sharing.teamsLoadError')}</Text>
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              isLoading={teamsFetching}
-              onClick={() => void refetchTeams()}
-            >
-              {tCommon('actions.tryAgain')}
-            </Button>
-          </div>
+          <TeamsReadError
+            audience={audience}
+            message={t('sharing.teamsLoadError')}
+            retryLabel={tCommon('actions.tryAgain')}
+            retrying={teamsRetrying}
+            onRetry={() => {
+              setTeamsRetrying(true);
+              void refetchTeams().then((result) => {
+                if (result.isError) setTeamsRetrying(false);
+              });
+            }}
+            onFocusLost={focusAudience}
+          />
         </SettingsFieldRow>
       </SettingsFieldList>
     );
@@ -184,7 +252,7 @@ export function ProjectSharingSection({
   // right, so this page reads as one aligned list of rows.
   if (!assignableTeams || assignableTeams.length === 0) {
     return (
-      <SettingsFieldList>
+      <SettingsFieldList data-project-audience={projectId}>
         <SettingsFieldRow
           label={t('settings.audience')}
           description={t('settings.audienceHelp')}
@@ -215,7 +283,7 @@ export function ProjectSharingSection({
 
   return (
     <>
-      <SettingsFieldList>
+      <SettingsFieldList data-project-audience={projectId}>
         <SettingsFieldRow
           label={t('settings.audience')}
           description={t('settings.audienceHelp')}

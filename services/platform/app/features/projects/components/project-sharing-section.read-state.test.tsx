@@ -87,17 +87,20 @@ it('preserves known audience after four failed reads and recovers through Try ag
   );
   expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
   recover = true;
-  await user.click(screen.getByRole('button', { name: 'Try again' }));
+  const retry = screen.getByRole('button', { name: 'Try again' });
+  await user.click(retry);
+  expect(retry).toHaveFocus();
   await waitFor(() => expect(releaseRetry).toBeTypeOf('function'));
-  expect(screen.getByRole('status', { name: /Loading/ })).toBeInTheDocument();
-  expect(
-    screen.queryByRole('button', { name: 'Try again' }),
-  ).not.toBeInTheDocument();
+  expect(retry).toHaveAttribute('aria-busy', 'true');
+  expect(retry).toHaveAttribute('aria-disabled', 'true');
+  expect(retry).toHaveFocus();
   expect(screen.getByText('Alpha')).toBeInTheDocument();
   await act(async () => releaseRetry?.());
-  expect(
-    await screen.findByRole('combobox', { name: 'Audience' }),
-  ).toBeInTheDocument();
+  const audiencePicker = await screen.findByRole('combobox', {
+    name: 'Audience',
+  });
+  expect(audiencePicker).toBeInTheDocument();
+  await waitFor(() => expect(audiencePicker).toHaveFocus());
   expect(screen.getByText('Alpha')).toBeInTheDocument();
   expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   expect(teamReads).toBe(5);
@@ -129,8 +132,10 @@ it.each([
     const { user } = mount(teamIds);
     await screen.findByRole('alert');
     expect(screen.getByText(audience)).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Try again' }));
+    const retry = screen.getByRole('button', { name: 'Try again' });
+    await user.click(retry);
     await screen.findByRole('alert');
+    expect(retry).toHaveFocus();
     expect(reads).toBe(8);
     expect(screen.getByText(audience)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Try again' })).toBeEnabled();
