@@ -3,6 +3,7 @@
 import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
 import { DataTable } from '@tale/ui/data-table/data-table';
 import { BulkDeleteBar } from '@tale/ui/data-table/data-table-bulk-actions';
+import { useDebounce } from '@tale/ui/use-debounce';
 import { useListPage } from '@tale/ui/use-list-page';
 import { useNavigate } from '@tanstack/react-router';
 import type { Row, RowSelectionState } from '@tanstack/react-table';
@@ -49,8 +50,11 @@ export function ContactsTable({
 
   const { data: count } = useApproxContactCount(organizationId);
   const { columns, searchPlaceholder, pageSize } = useContactsTableConfig();
+  const [searchValue, setSearchValue] = useState('');
+  const debouncedSearch = useDebounce(searchValue.trim(), 250);
   const paginatedResult = useListContactsPaginated({
     organizationId,
+    search: debouncedSearch || undefined,
     source,
     locale,
     initialNumItems: pageSize,
@@ -216,8 +220,11 @@ export function ContactsTable({
     },
     pageSize,
     sorting,
+    sortingColumns: columns,
     search: {
-      fields: ['name', 'email', 'externalId'],
+      serverSide: true,
+      value: searchValue,
+      onChange: setSearchValue,
       placeholder: searchPlaceholder,
     },
     filters: {
@@ -234,8 +241,8 @@ export function ContactsTable({
   return (
     <>
       {/* Rows already on screen outlive a failed read — a refresh, or a page
-          a search, a sort or a scroll asked for — and the failure is named
-          above them. */}
+          a sort or a scroll asked for — and the failure is named above them.
+          A search asks the server for a first page of its own. */}
       <div
         ref={regionRef}
         role="region"
@@ -260,7 +267,11 @@ export function ContactsTable({
           enableRowSelection={canSelectRow}
           rowSelection={deletableSelection}
           onRowSelectionChange={setRowSelection}
-          sorting={{ initialSorting: sorting, onSortingChange: setSorting }}
+          sorting={{
+            manual: true,
+            initialSorting: sorting,
+            onSortingChange: setSorting,
+          }}
           // A refresh the reader did not start takes the table's error state
           // away while it runs; a focused Try again hands its focus to the
           // list, not to the page.

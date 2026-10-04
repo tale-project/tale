@@ -107,6 +107,20 @@ function ndjson(lines: object[]): string {
   return lines.map((l) => JSON.stringify(l)).join('\n') + '\n';
 }
 
+function replayGapResponse(): Response {
+  return new Response(
+    ndjson([
+      {
+        t: 'fail',
+        code: 'REPLAY_UNAVAILABLE',
+        message:
+          'Exec output is no longer available from the requested cursor.',
+      },
+    ]),
+    { headers: { 'content-type': 'application/x-ndjson' } },
+  );
+}
+
 /** A quiet live exec: one event, then it waits for its reader to detach. */
 function hangingExecResponse(): Response {
   return new Response(
@@ -216,6 +230,7 @@ beforeAll(() => {
           stderrMaxBytes?: number;
         };
         execRequests.push(body);
+        if (body.execId === 'gap') return replayGapResponse();
         if (body.execId?.startsWith('hang-')) return hangingExecResponse();
         // Echo-style script: a start, one stdout chunk, then exit 0.
         const text: string =
@@ -343,6 +358,7 @@ beforeAll(() => {
         });
       }
       if (url.pathname.endsWith('/attach')) {
+        if (url.pathname.includes('/gap/')) return replayGapResponse();
         if (url.pathname.includes('/malformed-'))
           return new Response('{broken}\n', {
             headers: { 'content-type': 'application/x-ndjson' },
@@ -801,6 +817,33 @@ describe('SessionRoutes (fake runnerd)', () => {
     // spawned, so no runner wall-clock exists to forward.
     expect(payload.durationMs).toBe(0);
   });
+
+  test.each(['exec', 'attach'] as const)(
+    'a replay gap stays distinct on the %s error wire',
+    async (mode) => {
+      const routes = new SessionRoutes(cfg, fakeBackend);
+      await routes.handleCreate(
+        JSON.stringify({ sessionId: 'gap-session', organizationId: 'org' }),
+      );
+      const request = new Request('http://x/exec');
+      const response =
+        mode === 'exec'
+          ? await routes.handleExec(
+              request,
+              'gap-session',
+              JSON.stringify({ execId: 'gap', command: ['true'] }),
+            )
+          : await routes.handleExecAttach(request, 'gap-session', 'gap');
+      const { events } = await readSse(response);
+      expect(
+        events.find((event) => event.event === 'error')?.data,
+      ).toMatchObject({
+        code: 'REPLAY_UNAVAILABLE',
+        message:
+          'Exec output is no longer available from the requested cursor.',
+      });
+    },
+  );
 
   test('a clean exit (0) that raced the deadline reports completed WITHOUT a TIMEOUT marker', async () => {
     const routes = new SessionRoutes(cfg, fakeBackend);
@@ -1561,11 +1604,13 @@ describe('SessionRoutes (fake runnerd)', () => {
             createdAtMs: ancient,
             pinned: true,
             state: stateOf('adopt-pinned'),
+            ended: stopped.has('adopt-pinned'),
           },
           {
             ...mkBackendSession('adopt-plain', 'org_restart'),
             createdAtMs: ancient,
             state: stateOf('adopt-plain'),
+            ended: stopped.has('adopt-plain'),
           },
         ];
       },
@@ -2401,10 +2446,16 @@ describe('SessionRoutes (fake runnerd)', () => {
           expect(simultaneousResolutions).toBe(1);
           expect(
             responses.every(
-              (response) => response.status === (fail ? 404 : 200),
+              (response) => response.status === (fail ? 503 : 200),
             ),
           ).toBe(true);
           if (fail) {
+            for (const response of responses) {
+              expect(response.headers.get('retry-after')).toBe('1');
+              expect(await response.json()).toEqual({
+                error: 'session_unavailable',
+              });
+            }
             fail = false;
             expect((await routes.handleGet(entry.sessionId)).status).toBe(200);
             expect(resolutions).toBe(2);
@@ -2477,7 +2528,12 @@ describe('SessionRoutes (fake runnerd)', () => {
         const newer = routes.handleGet(entry.sessionId);
         await newStarted.promise;
         oldRelease.resolve();
-        expect((await older).status).toBe(404);
+        const unavailable = await older;
+        expect(unavailable.status).toBe(503);
+        expect(unavailable.headers.get('retry-after')).toBe('1');
+        expect(await unavailable.json()).toEqual({
+          error: 'session_unavailable',
+        });
         const joining = routes.handleGet(entry.sessionId);
         await new Promise<void>((resolve) => setImmediate(resolve));
         const simultaneousResolutions = resolutions;
@@ -2525,6 +2581,7 @@ describe('SessionRoutes (fake runnerd)', () => {
           peerBackend({
             ...mkBackendSession('stopped1', 'org_peer'),
             state: 'degraded',
+            ended: true,
           }),
         );
         expect((await routes.handleGet('stopped1')).status).toBe(404);
@@ -2533,7 +2590,7 @@ describe('SessionRoutes (fake runnerd)', () => {
         );
       });
 
-      test('a failed backend list answers not-found without registering anything', async () => {
+      test('a failed backend list answers retryable without registering anything', async () => {
         const failing: SessionBackend = {
           ...fakeBackend,
           async listSessions(): Promise<BackendSession[]> {
@@ -2541,7 +2598,7 @@ describe('SessionRoutes (fake runnerd)', () => {
           },
         };
         const routes = new SessionRoutes(cfg, failing);
-        expect((await routes.handleGet('nope')).status).toBe(404);
+        expect((await routes.handleGet('nope')).status).toBe(503);
         expect(routes.sessionCount()).toBe(0);
       });
 
@@ -2550,7 +2607,7 @@ describe('SessionRoutes (fake runnerd)', () => {
           cfg,
           peerBackend(mkBackendSession('unaddressable-peer', 'org_peer')),
         );
-        expect((await routes.handleGet('unaddressable-peer')).status).toBe(404);
+        expect((await routes.handleGet('unaddressable-peer')).status).toBe(503);
         expect(routes.sessionCount()).toBe(0);
       });
 
@@ -3395,17 +3452,20 @@ describe('sweep and adoption hygiene', () => {
       ended: false,
     };
     const reaped: Array<[string, number]> = [];
+    let present = true;
     const routes = new SessionRoutes(
       { ...cfg, session: { ...cfg.session, maxSessions: 1 } },
       {
         ...fakeBackend,
         kind: 'kubernetes',
         async listSessions() {
-          return [pending];
+          return present ? [pending] : [];
         },
         async reapStaleSession(id, stamp) {
           reaped.push([id, stamp]);
-          return removal.promise;
+          const removed = await removal.promise;
+          if (removed) present = false;
+          return removed;
         },
       },
     );
@@ -3764,6 +3824,18 @@ describe('sweep and adoption hygiene', () => {
     expect(stopped.has('legacy-idle')).toBe(true);
     expect(destroyed.has('legacy-idle')).toBe(false);
     expect(reclaimRequests).toEqual([]);
+  });
+
+  test('a peer pin reported by a legacy idle daemon still prevents expiry', async () => {
+    legacyIdleReclaim = true;
+    const routes = new SessionRoutes(cfg, fakeBackend);
+    await create(routes, 'legacy-peer-pin');
+    await routes.handleActivity('legacy-peer-pin', 'ticket');
+    expect(
+      fakeActivities.get(tokenOf('legacy-peer-pin'))?.setPinned(true),
+    ).toBe(true);
+    expect(await routes.sweepExpired()).toBe(0);
+    expect(stopped.has('legacy-peer-pin')).toBe(false);
   });
 
   test('a released Docker-in-sandbox agent session keeps the full idle window', async () => {
@@ -4529,6 +4601,307 @@ describe('settlesWithin', () => {
   });
 });
 
+describe('per-session Docker capability', () => {
+  test.each(['false', 1])(
+    'refuses a malformed request (%p)',
+    async (docker) => {
+      const routes = new SessionRoutes(cfg, fakeBackend);
+      const response = await routes.handleCreate(
+        JSON.stringify({
+          sessionId: 'no-elevation',
+          organizationId: 'org',
+          profile: 'agent',
+          docker,
+        }),
+      );
+      expect(response.status).toBe(400);
+      expect(created.size).toBe(0);
+    },
+  );
+
+  test('an opt-out is persisted, reported and admitted with the lighter working set', async () => {
+    let launched: SessionSpec | undefined;
+    const GIB = 1024 ** 3;
+    const memory = { totalBytes: 4 * GIB, availableBytes: 1.75 * GIB };
+    const routes = new SessionRoutes(
+      { ...cfg, dockerInContainer: true },
+      {
+        ...fakeBackend,
+        async createSession(spec) {
+          launched = spec;
+          return fakeBackend.createSession(spec);
+        },
+      },
+      undefined,
+      { latest: () => memory, read: async () => memory },
+    );
+    const response = await routes.handleCreate(
+      JSON.stringify({
+        sessionId: 'light-agent',
+        organizationId: 'org',
+        profile: 'agent',
+        docker: false,
+      }),
+    );
+    expect(response.status).toBe(201);
+    expect(launched?.docker).toBe(false);
+    expect(await response.json()).toMatchObject({
+      session: { docker: false },
+    });
+    const ticket = await routes.handleActivity('light-agent', 'ticket');
+    await routes.handleActivity('light-agent', 'release', await ticket.text());
+    const now = Date.now();
+    fakeHealth.lastActivityAtMs = now - 6 * 60_000;
+    expect(await routes.sweepExpired(now)).toBe(1);
+    expect(stopped.has('light-agent')).toBe(true);
+  });
+
+  test('adoption keeps the actual capability across a configuration change', async () => {
+    const now = Date.now();
+    const routes = new SessionRoutes(
+      { ...cfg, dockerInContainer: true },
+      {
+        ...fakeBackend,
+        async listSessions() {
+          return [
+            {
+              ...mkBackendSession('adopt-light', 'org'),
+              createdAtMs: now,
+              ttlMs: cfg.session.maxLifetimeMs,
+              idleTimeoutMs: cfg.session.maxIdleMs,
+              docker: false,
+            },
+          ];
+        },
+      },
+    );
+    await routes.adoptExisting();
+    expect(await (await routes.handleGet('adopt-light')).json()).toMatchObject({
+      session: { docker: false },
+    });
+    const ticket = await routes.handleActivity('adopt-light', 'ticket');
+    await routes.handleActivity('adopt-light', 'release', await ticket.text());
+    fakeHealth.lastActivityAtMs = now - 6 * 60_000;
+    expect(await routes.sweepExpired(now)).toBe(1);
+  });
+});
+
+describe('unavailable session observations', () => {
+  test('a lookup during a local create retries until the session is routable', async () => {
+    const entered = Promise.withResolvers<void>();
+    const ready = Promise.withResolvers<void>();
+    const routes = new SessionRoutes(cfg, {
+      ...fakeBackend,
+      async createSession(spec) {
+        entered.resolve();
+        await ready.promise;
+        return fakeBackend.createSession(spec);
+      },
+    });
+    const pending = routes.handleCreate(
+      JSON.stringify({
+        sessionId: 'starting-local',
+        organizationId: 'org_start',
+      }),
+    );
+    await entered.promise;
+    try {
+      const response = await routes.handleGet('starting-local');
+      expect(response.status).toBe(503);
+      expect(response.headers.get('retry-after')).toBe('1');
+    } finally {
+      ready.resolve();
+      expect((await pending).status).toBe(201);
+    }
+    expect((await routes.handleGet('starting-local')).status).toBe(200);
+  });
+
+  test.each(['inventory', 'endpoint', 'readiness'] as const)(
+    'a cold registry reports a failed %s as retryable and recovers without recreating',
+    async (failure) => {
+      let unavailable = true;
+      const id = 'existing-unobserved';
+      const routes = new SessionRoutes(cfg, {
+        ...fakeBackend,
+        async listSessions() {
+          if (unavailable && failure === 'inventory')
+            throw new Error('temporary inventory failure');
+          return [
+            {
+              ...mkBackendSession(id, 'org_observed'),
+              ...(unavailable && failure === 'readiness'
+                ? { state: 'degraded' as const, ended: false }
+                : {}),
+            },
+          ];
+        },
+        async resolveEndpoint() {
+          if (unavailable && failure === 'endpoint')
+            throw new Error('temporary endpoint failure');
+          return fakeBaseUrl;
+        },
+      });
+      const requests = [
+        () => routes.handleGet(id),
+        () => routes.handleExecStatus(id, 'run1'),
+        () => routes.handleActivity(id, 'acquire'),
+        () => routes.handleActivity(id, 'ticket'),
+        () => routes.handleExec(new Request('http://x/exec'), id, '{}'),
+        () => routes.handleExecAttach(new Request('http://x/attach'), id, 'e1'),
+        () => routes.handleExecCancel(id, 'e1'),
+        () => routes.handleExecStdin(id, 'e1', '{}'),
+        () => routes.handleEnvPatch(id, '{}'),
+        () => routes.handleSetPinned(id, '{"pinned":true}'),
+        () => routes.handleFilesStage(id, '{}'),
+        () => routes.handleFilesDelete(id, '{}'),
+        () => routes.handleFilesList(id, '.'),
+        () => routes.handleFileContent(id, 'file.txt'),
+      ];
+      for (const request of requests) {
+        const response = await request();
+        expect(response.status).toBe(503);
+        expect(response.headers.get('retry-after')).toBe('1');
+        expect(await response.json()).toEqual({ error: 'session_unavailable' });
+      }
+      expect(routes.sessionCount()).toBe(0);
+      expect(created.size).toBe(0);
+      expect(stopped.size).toBe(0);
+      unavailable = false;
+      expect((await routes.handleGet(id)).status).toBe(200);
+      expect((await routes.handleExecStatus(id, 'run1')).status).toBe(200);
+      expect(routes.sessionIds()).toEqual([id]);
+      expect(created.size).toBe(0);
+    },
+  );
+});
+
+describe('Kubernetes namespace admission', () => {
+  const create = (routes: SessionRoutes, sessionId: string) =>
+    routes.handleCreate(JSON.stringify({ sessionId, organizationId: 'org' }));
+  const namespaceCfg = {
+    ...cfg,
+    backend: 'kubernetes' as const,
+    session: { ...cfg.session, maxSessions: 1 },
+  };
+
+  test('sequential creates on different replicas count the preceding Pod before the next sweep', async () => {
+    const sessions: BackendSession[] = [];
+    const backend: SessionBackend = {
+      ...fakeBackend,
+      kind: 'kubernetes',
+      async createSession(spec) {
+        sessions.push({
+          ...mkBackendSession(spec.sessionId, spec.organizationId),
+          createdAtMs: spec.createdAtMs,
+        });
+        return { resumed: false };
+      },
+      async listSessions() {
+        return [...sessions];
+      },
+    };
+    const first = new SessionRoutes(namespaceCfg, backend);
+    const second = new SessionRoutes(namespaceCfg, backend);
+    await first.adoptExisting();
+    await second.adoptExisting();
+    expect((await create(first, 'replica-one')).status).toBe(201);
+    expect((await create(second, 'replica-two')).status).toBe(429);
+    expect(sessions.map((s) => s.sessionId)).toEqual(['replica-one']);
+  });
+
+  test.each(['starting', 'unknown', 'terminating'] as const)(
+    'a %s Pod occupies namespace capacity even when it cannot be routed',
+    async (phase) => {
+      const routes = new SessionRoutes(namespaceCfg, {
+        ...fakeBackend,
+        kind: 'kubernetes',
+        async listSessions() {
+          return [
+            {
+              ...mkBackendSession(`peer-${phase}`, 'org_peer'),
+              state: 'degraded' as const,
+              ended: false,
+            },
+          ];
+        },
+      });
+      await routes.adoptExisting();
+      expect(routes.sessionCount()).toBe(0);
+      expect((await create(routes, `after-${phase}`)).status).toBe(429);
+      expect(created.size).toBe(0);
+    },
+  );
+
+  test('terminal Pods free room but an unknown namespace observation does not', async () => {
+    let unreadable = true;
+    const routes = new SessionRoutes(namespaceCfg, {
+      ...fakeBackend,
+      kind: 'kubernetes',
+      async listSessions() {
+        if (unreadable) throw new Error('apiserver temporarily unavailable');
+        return [{ ...mkBackendSession('ended', 'org_peer'), ended: true }];
+      },
+    });
+    expect((await create(routes, 'new-session')).status).toBe(503);
+    expect(created.size).toBe(0);
+    unreadable = false;
+    expect((await create(routes, 'new-session')).status).toBe(201);
+  });
+
+  test('a local create finishing while the inventory is in flight still occupies its slot', async () => {
+    const creating = Promise.withResolvers<void>();
+    const finishCreate = Promise.withResolvers<void>();
+    const listing = Promise.withResolvers<void>();
+    const finishList = Promise.withResolvers<void>();
+    let holdInventory = false;
+    let lists = 0;
+    const sessions: BackendSession[] = [];
+    const routes = new SessionRoutes(namespaceCfg, {
+      ...fakeBackend,
+      kind: 'kubernetes',
+      async createSession(spec) {
+        creating.resolve();
+        await finishCreate.promise;
+        sessions.push({
+          ...mkBackendSession(spec.sessionId, spec.organizationId),
+          createdAtMs: spec.createdAtMs,
+        });
+        return { resumed: false };
+      },
+      async listSessions() {
+        lists += 1;
+        const snapshot = [...sessions];
+        if (holdInventory && lists === 2) {
+          listing.resolve();
+          await finishList.promise;
+        }
+        return snapshot;
+      },
+    });
+    const first = create(routes, 'finishing');
+    await creating.promise;
+    // Advance the observation clock beyond createdAtMs: equality alone must
+    // not be what preserves the create's reservation.
+    const now = Date.now();
+    setSystemTime(now + 1_000);
+    holdInventory = true;
+    const second = create(routes, 'late');
+    try {
+      await listing.promise;
+      finishCreate.resolve();
+      expect((await first).status).toBe(201);
+      finishList.resolve();
+      expect((await second).status).toBe(429);
+      expect(sessions.map((s) => s.sessionId)).toEqual(['finishing']);
+    } finally {
+      finishCreate.resolve();
+      finishList.resolve();
+      setSystemTime();
+      await Promise.allSettled([first, second]);
+    }
+  });
+});
+
 function mkBackendSession(
   sessionId: string,
   organizationId: string,
@@ -4543,3 +4916,111 @@ function mkBackendSession(
     state: 'ready',
   };
 }
+
+test('staging stops before contacting runnerd when its caller has cancelled', async () => {
+  const routes = new SessionRoutes(cfg, fakeBackend);
+  await routes.handleCreate(
+    JSON.stringify({
+      sessionId: 'cancel-stage',
+      organizationId: 'org_stage',
+    }),
+  );
+  const signal = AbortSignal.abort();
+  const response = await routes.handleFilesStage(
+    'cancel-stage',
+    JSON.stringify({
+      files: [{ path: 'ignored.txt', contentBase64: 'eA==' }],
+    }),
+    signal,
+  );
+  expect(response.status).toBe(502);
+  expect((await routes.handleGet('cancel-stage')).status).toBe(200);
+});
+
+test('cancelled status probes detach runnerd and skip backend eviction probes', async () => {
+  const arrived = Promise.withResolvers<void>();
+  const upstream = Bun.serve({
+    port: 0,
+    fetch(req) {
+      if (new URL(req.url).pathname.startsWith('/execs/')) {
+        arrived.resolve();
+        return new Promise<Response>(() => {});
+      }
+      return Response.json({ denied: [] });
+    },
+  });
+  let existsChecks = 0;
+  const routes = new SessionRoutes(cfg, {
+    ...fakeBackend,
+    async resolveEndpoint() {
+      return upstream.url.origin;
+    },
+    async sessionExists() {
+      existsChecks += 1;
+      return true;
+    },
+  });
+  const abort = new AbortController();
+  try {
+    await routes.handleCreate(
+      JSON.stringify({ sessionId: 'cancel-status', organizationId: 'org' }),
+    );
+    existsChecks = 0;
+    const result = routes.handleExecStatus('cancel-status', 'e', abort.signal);
+    await arrived.promise;
+    abort.abort();
+    const response = await result;
+    expect(response.status).toBe(502);
+    expect(await response.json()).toEqual({ error: 'cancelled' });
+    expect(existsChecks).toBe(0);
+  } finally {
+    abort.abort();
+    await upstream.stop(true);
+  }
+});
+
+test('busy replay admission stays nonterminal and preserves invalid cursor validation', async () => {
+  const queries: Array<string | null> = [];
+  const upstream = Bun.serve({
+    port: 0,
+    fetch(req) {
+      const url = new URL(req.url);
+      if (url.pathname.endsWith('/attach')) {
+        queries.push(url.searchParams.get('sinceSeq'));
+        return Response.json({ error: 'busy' }, { status: 503 });
+      }
+      return Response.json({ denied: [] });
+    },
+  });
+  let existsChecks = 0;
+  const routes = new SessionRoutes(cfg, {
+    ...fakeBackend,
+    async resolveEndpoint() {
+      return upstream.url.origin;
+    },
+    async sessionExists() {
+      existsChecks += 1;
+      return true;
+    },
+  });
+  try {
+    await routes.handleCreate(
+      JSON.stringify({ sessionId: 'busy-attach', organizationId: 'org' }),
+    );
+    existsChecks = 0;
+    const response = await routes.handleExecAttach(
+      new Request(
+        'http://sandbox/v1/sessions/busy-attach/exec/e/attach?sinceSeq=not-a-number',
+      ),
+      'busy-attach',
+      'e',
+    );
+    const stream = await response.text();
+    expect(stream).toContain('ATTACH_BUSY');
+    expect(stream).not.toContain('event: result');
+    expect(queries).toEqual(['NaN']);
+    expect(existsChecks).toBe(0);
+  } finally {
+    await upstream.stop(true);
+  }
+});

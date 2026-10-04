@@ -1,5 +1,6 @@
 import type {
   SandboxDeviceJoinToken,
+  SandboxDeviceJoinTokenStatus,
   SandboxDevicesView,
 } from '@/lib/shared/schemas/sandbox-devices';
 
@@ -11,6 +12,11 @@ import type {
  */
 
 export interface SandboxDevicesContract {
+  'sandbox_devices/queries:joinTokenStatus': {
+    kind: 'query';
+    args: { organizationId: string; tokenId: string };
+    returns: SandboxDeviceJoinTokenStatus;
+  };
   'sandbox_devices/queries:list': {
     kind: 'query';
     args: { organizationId: string };
