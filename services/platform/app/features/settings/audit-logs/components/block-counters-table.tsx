@@ -30,7 +30,7 @@ export function BlockCountersTable({
 }: BlockCountersTableProps) {
   const { t } = useT('settings');
   const { t: tTables } = useT('tables');
-  const { data, isLoading } = useBackendQuery(
+  const { data, error, isLoading, refetch } = useBackendQuery(
     'login_attempts/queries:listBlockCounters',
     { organizationId, limit: 200 },
   );
@@ -108,7 +108,9 @@ export function BlockCountersTable({
       columns={columns}
       data={rows}
       caption={t('logs.blockCounters.tableCaption')}
+      error={error}
       isLoading={isLoading}
+      onRetry={refetch}
       emptyState={{
         icon: ShieldOff,
         title: t('logs.blockCounters.emptyTitle'),
