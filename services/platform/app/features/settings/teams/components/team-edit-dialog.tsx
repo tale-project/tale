@@ -266,7 +266,9 @@ export function TeamEditDialog({
         {...register('name')}
         className="w-full"
         required
-        disabled={synced || isSubmitting}
+        disabled={synced}
+        readOnly={isSubmitting}
+        variant="default"
         errorMessage={formState.errors.name?.message}
       />
       {synced ? null : (
