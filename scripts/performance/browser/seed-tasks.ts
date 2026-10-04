@@ -26,6 +26,8 @@ const ids = z
     orgId: id,
     userIds: z.array(id).length(5),
     emails: z.array(z.string().email()).length(5),
+    names: z.array(z.string()).length(5),
+    projectNames: z.record(z.string(), z.string()),
     projects: z.record(z.string(), id),
   })
   .parse(JSON.parse(readFileSync(`${OUT}/seed-ids.json`, 'utf8')));
@@ -182,8 +184,12 @@ async function main() {
     }
     const rand = prng(361_000 + count);
     const created: string[] = [];
-    const seeded: Array<{ taskId: string; title: string; parent?: string }> =
-      [];
+    const seeded: Array<{
+      taskId: string;
+      title: string;
+      parent?: string;
+      assigneeName: string | null;
+    }> = [];
     const roots: string[] = [];
     let subtasks = 0,
       comments = 0,
@@ -254,7 +260,12 @@ async function main() {
         } as Parameters<typeof createTask>[2]),
       );
       created.push(taskId);
-      seeded.push({ taskId, title: taskTitle, parent });
+      seeded.push({
+        taskId,
+        title: taskTitle,
+        parent,
+        assigneeName: assignee === null ? null : ids.names[assignee]!,
+      });
       if (parent === undefined) roots.push(taskId);
       else subtasks += 1;
       if (desc !== undefined) withDesc += 1;
@@ -300,6 +311,8 @@ async function main() {
       projectId,
       count,
       target,
+      projectName: ids.projectNames[size],
+      tasks: seeded,
       statusCount,
       subtasks,
       comments,
@@ -308,7 +321,19 @@ async function main() {
       withDue,
       seconds: Math.round((Date.now() - t0) / 1000),
     };
-    console.log(size, JSON.stringify(summary[size]));
+    console.log(
+      size,
+      JSON.stringify({
+        count,
+        target,
+        statusCount,
+        subtasks,
+        comments,
+        deps,
+        withDesc,
+        withDue,
+      }),
+    );
   }
   writeFileSync(`${OUT}/seed-summary.json`, JSON.stringify(summary, null, 2));
   await sql.end();

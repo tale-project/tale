@@ -1,43 +1,22 @@
 import assert from 'node:assert/strict';
-import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
-import { createRequire } from 'node:module';
 import { loadavg } from 'node:os';
 
 import { z } from 'zod';
 
-import { chromium, type Page } from '../../../packages/e2e/src/index.ts';
+import { chromium } from '../../../packages/e2e/src/index.ts';
 import { verifyBoot } from './boot.ts';
+import {
+  browserIdentity,
+  browserSession,
+  cards,
+  observations,
+  pageBoot,
+  ready,
+} from './browser-session.ts';
 import { json, outputPath } from './common.ts';
 import { browserOrigins as origins } from './origins.mjs';
 import { capturePhase as trace } from './phase.ts';
-
-interface Frame {
-  tDom: number;
-  tRaf: number;
-  tFrame: number;
-}
-interface Input {
-  type: string;
-  t: number;
-}
-declare global {
-  interface Window {
-    __perf: {
-      inputs: Input[];
-      longtasks: number[][];
-      events: unknown[];
-      lcp: number[];
-      watch: (
-        selector: string,
-        predicate: (count: number) => boolean,
-        label: string,
-      ) => Promise<Frame>;
-      watchDialog: (title: string, open: boolean) => Promise<Frame>;
-    };
-    __benchmarkReady: Promise<Frame>;
-  }
-}
 
 const ids = z
   .object({
@@ -59,51 +38,16 @@ const build = z.object({
 const builds = z
   .object({ baseline: build, candidate: build })
   .parse(JSON.parse(await readFile(outputPath('builds.json'), 'utf8')));
-const executable = process.env.BENCH_CHROMIUM;
-assert(
-  executable && process.env.BENCH_PASSWORD,
-  'Synthetic browser environment is missing',
-);
-const driverRequire = createRequire(
-  new URL('../../../packages/e2e/package.json', import.meta.url),
-);
-const driver = z
-  .object({ version: z.string() })
-  .parse(
-    JSON.parse(
-      await readFile(
-        driverRequire.resolve('@playwright/test/package.json'),
-        'utf8',
-      ),
-    ),
-  );
-const driverOwner = z
-  .object({ dependencies: z.object({ '@playwright/test': z.string() }) })
-  .parse(
-    JSON.parse(
-      await readFile(
-        new URL('../../../packages/e2e/package.json', import.meta.url),
-        'utf8',
-      ),
-    ),
-  );
-assert.equal(
-  driver.version,
-  driverOwner.dependencies['@playwright/test'],
-  'Browser driver differs from the E2E package pin',
-);
-const browserHash = createHash('sha256')
-  .update(await readFile(executable))
-  .digest('hex');
-const cards = '[role="region"] section button.line-clamp-2';
+const identity = await browserIdentity();
+const executable = identity.executable;
 const rows: unknown[] = [];
 const receipt = {
-  driverVersion: driver.version,
+  driverVersion: identity.driverVersion,
   mode: 'diagnostic',
   acceptanceVerdict: 'not-evaluated',
   retries: 0,
   browser: '141.0.7390.37',
-  browserHash,
+  browserHash: identity.browserHash,
   viewport: { width: 1440, height: 900 },
   order: ['baseline', 'candidate'],
   sizes: [50, 2000],
@@ -121,35 +65,6 @@ const receipt = {
     'One serial pair per size on a fresh Linux host. Both arms share one unchanged API and database. Task detail reads are identically prewarmed for dialog measurements. Fixed-order backend warming remains a limitation. Content-ready rendering opportunities are not first-visible-pixel proof. Original latency criteria remain unchanged.',
 };
 
-async function observations(page: Page) {
-  return page.evaluate(() => ({
-    at: Date.now(),
-    timeOrigin: performance.timeOrigin,
-    domElements: document.getElementsByTagName('*').length,
-    longtasks: window.__perf.longtasks,
-    events: window.__perf.events,
-    lcp: window.__perf.lcp,
-    inputs: window.__perf.inputs,
-    marks: performance
-      .getEntriesByType('mark')
-      .map((entry) => ({ name: entry.name, at: entry.startTime })),
-  }));
-}
-
-async function ready(page: Page) {
-  return page.evaluate(() =>
-    Promise.race([
-      window.__benchmarkReady,
-      new Promise<never>((_, reject) =>
-        setTimeout(
-          () => reject(new Error('Content readiness timed out')),
-          120_000,
-        ),
-      ),
-    ]),
-  );
-}
-
 try {
   // Functional protocol controls only: no Tale page, asset or API is warmed.
   // The ordinary pair below still launches a fresh browser for every arm.
@@ -157,8 +72,8 @@ try {
     status: 'running',
     cases: [] as string[],
     browser: receipt.browser,
-    driverVersion: driver.version,
-    browserHash,
+    driverVersion: identity.driverVersion,
+    browserHash: identity.browserHash,
   };
   await json('trace-control.json', control);
   const controlBrowser = await chromium.launch({
@@ -238,59 +153,9 @@ try {
           receipt.browser,
           'Wrong historical browser binary',
         );
-        const context = await browser.newContext({
-          viewport: receipt.viewport,
-          deviceScaleFactor: 1,
-          serviceWorkers: 'block',
-          locale: 'en-US',
-          timezoneId: 'UTC',
-        });
-        await context.route('**/*', (route) => {
-          const url = new URL(route.request().url());
-          return origins.includes(url.origin) || url.protocol === 'data:'
-            ? route.continue()
-            : route.abort();
-        });
-        const login = await context.request.post(
-          `${origin}/api/auth/sign-in/email`,
-          {
-            headers: { origin },
-            data: {
-              email: ids.ownerEmail,
-              password: process.env.BENCH_PASSWORD,
-            },
-            timeout: 30_000,
-          },
-        );
-        assert(login.ok(), 'Synthetic sign-in failed');
-        const page = await context.newPage();
-        const scriptResponses = new Map<
-          string,
-          Awaited<ReturnType<Page['waitForResponse']>>
-        >();
-        const errors: string[] = [];
+        const session = await browserSession(browser, origin, ids.ownerEmail);
+        const { context, page, cdp, errors } = session;
         row.errors = errors;
-        page.on('console', (message) => {
-          if (message.type() === 'error')
-            errors.push(
-              `console error: ${message.text().replaceAll(process.env.BENCH_PASSWORD!, '[redacted]')}`,
-            );
-        });
-        page.on('response', (response) => {
-          if (response.request().resourceType() === 'script')
-            scriptResponses.set(response.url(), response);
-          if (response.status() >= 400)
-            errors.push(
-              `HTTP ${response.status()}: ${new URL(response.url()).pathname}`,
-            );
-        });
-        page.on('pageerror', (error) => errors.push(error.message));
-        page.on('requestfailed', (request) =>
-          errors.push(`request failed: ${new URL(request.url()).pathname}`),
-        );
-        await page.addInitScript({
-          path: new URL('./observer.js', import.meta.url).pathname,
-        });
         await page.addInitScript(
           ({ selector, total }) => {
             addEventListener('DOMContentLoaded', () => {
@@ -303,8 +168,6 @@ try {
           },
           { selector: cards, total: count },
         );
-        const cdp = await context.newCDPSession(page);
-        await cdp.send('Performance.enable');
         await json('browser-receipt.json', receipt);
         const cold = await trace(
           cdp,
@@ -327,34 +190,7 @@ try {
             await json('browser-receipt.json', receipt);
             // Inspect only the page and responses its recorded cold navigation
             // already loaded. No extra app request or cache-warming asset read.
-            const boot = await page.evaluate(() => ({
-              origin: location.origin,
-              siteUrl: (
-                window as unknown as { __ENV__?: { SITE_URL?: unknown } }
-              ).__ENV__?.SITE_URL,
-              figmaScripts: [...document.scripts]
-                .map((script) => script.src)
-                .filter(
-                  (src) => src && new URL(src).hostname === 'mcp.figma.com',
-                ),
-              modules: [
-                ...document.querySelectorAll<HTMLScriptElement>(
-                  'script[type="module"][src]',
-                ),
-              ].map((script) => script.src),
-            }));
-            const entries = [];
-            for (const url of boot.modules) {
-              const response = scriptResponses.get(url);
-              if (response)
-                entries.push({
-                  url,
-                  sha256: createHash('sha256')
-                    .update(await response.body())
-                    .digest('hex'),
-                });
-            }
-            const evidence = { ...boot, entries };
+            const evidence = await pageBoot(session);
             row.coldBoot = evidence;
             await json('browser-receipt.json', receipt);
             verifyBoot(evidence, origin, builds[variant].assets);

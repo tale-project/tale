@@ -102,6 +102,8 @@ const ids = {
   ownerEmail: people[0].email,
   userIds,
   emails: people.map((p) => p.email),
+  names: people.map((p) => p.name),
+  projectNames: { small: 'Website relaunch', large: 'Support operations' },
   projects,
 };
 writeFileSync(`${OUT}/seed-ids.json`, JSON.stringify(ids, null, 2));

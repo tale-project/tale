@@ -158,6 +158,7 @@
         subtree: true,
         attributes: true,
         attributeFilter: ['aria-busy', 'aria-labelledby', 'aria-label'],
+        characterData: true,
       });
       if (open) check('initial');
     });
