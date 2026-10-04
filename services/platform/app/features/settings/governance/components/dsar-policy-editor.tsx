@@ -116,7 +116,12 @@ export function DsarPolicyEditor({ organizationId }: DsarPolicyEditorProps) {
   const commitCoolingOffHours = useCallback(() => {
     if (!data) return;
     const hours = Number(coolingOffHours);
-    if (!Number.isInteger(hours) || hours < 0 || hours > 72) {
+    if (
+      coolingOffHours.trim() === '' ||
+      !Number.isInteger(hours) ||
+      hours < 0 ||
+      hours > 72
+    ) {
       toast({
         title: t('dsarPolicy.invalidCoolingOffHours'),
         variant: 'destructive',
@@ -135,7 +140,12 @@ export function DsarPolicyEditor({ organizationId }: DsarPolicyEditorProps) {
   const commitDailyLimit = useCallback(() => {
     if (!data) return;
     const limit = Number(dailyLimitPerAdmin);
-    if (!Number.isInteger(limit) || limit < 1 || limit > 50) {
+    if (
+      dailyLimitPerAdmin.trim() === '' ||
+      !Number.isInteger(limit) ||
+      limit < 1 ||
+      limit > 50
+    ) {
       toast({
         title: t('dsarPolicy.invalidDailyLimit'),
         variant: 'destructive',

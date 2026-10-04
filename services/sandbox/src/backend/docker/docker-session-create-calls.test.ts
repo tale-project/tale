@@ -6,9 +6,11 @@ import { resolve } from 'node:path';
 async function createTwo(plant: {
   dirs?: string[];
   files?: string[];
+  dockerInitiallyUnavailable?: boolean;
 }): Promise<{
   calls: string[][][];
   error: string | null;
+  healthChecks: number;
 }> {
   const sourceRoot = resolve(import.meta.dir, '../..');
   const script = `
@@ -20,6 +22,7 @@ const source = ${JSON.stringify(sourceRoot)};
 const planted = ${JSON.stringify(plant)};
 const success = {exitCode:0, stdout:'', stderr:'', stdoutTruncated:false, stderrTruncated:false};
 let calls = [];
+let healthChecks = 0;
 const spawnPath = join(source,'spawn-util.ts');
 const realSpawn = await import(spawnPath);
 // Every cache volume is there, with its label.
@@ -31,7 +34,7 @@ mock.module(spawnPath, () => ({...realSpawn,
   },
 }));
 mock.module(join(source,'session/runnerd-client.ts'), () => ({
-  runnerdHealth: async () => ({}),
+  runnerdHealth: async () => ({dockerReady: !(++healthChecks === 1 && planted.dockerInitiallyUnavailable)}),
   runnerdEnvPatch: async () => [],
 }));
 const {DockerSessionBackend} = await import(join(source,'backend/docker/docker-session-backend.ts'));
@@ -56,7 +59,7 @@ try {
   }
 } catch (e) { error = e.message; }
 await rm(root,{recursive:true,force:true});
-console.log(JSON.stringify({calls:perCreate,error}));
+console.log(JSON.stringify({calls:perCreate,error,healthChecks}));
 `;
   const child = Bun.spawn([process.execPath, '-e', script], {
     stdout: 'pipe',
@@ -77,6 +80,13 @@ const volumeInspect = (args: string[]) =>
   args[0] === 'volume' && args[1] === 'inspect';
 
 describe('what a session create asks the docker daemon', () => {
+  test('a live runnerd with unavailable inner Docker is polled until ready', async () => {
+    const { error, healthChecks } = await createTwo({
+      dockerInitiallyUnavailable: true,
+    });
+    expect(error).toBeNull();
+    expect(healthChecks).toBe(3);
+  });
   test('the cache volumes once per organization, and no legacy mount lookup on a flat root', async () => {
     const { calls, error } = await createTwo({});
     expect(error).toBeNull();

@@ -23,8 +23,8 @@ and keepalive immediately. The exec keeps running and can be reattached through
 the session API. Late output is discarded without repeated log messages.
 The runnerd response reader also cancels its upstream stream and releases its
 lock when parsing or forwarding fails, so retries do not retain old output
-subscriptions. Malformed JSON lines remain skippable; a failing output consumer
-ends that attachment.
+subscriptions. Malformed JSON or invalid protocol records fail the attachment;
+a failing output consumer also ends that attachment.
 
 ## Authentication
 
@@ -58,9 +58,13 @@ the host, at least 1 GiB), counting creates still starting at their planned
 working set and sessions started in the last 90 seconds at what they are
 still growing into: a create that would cut into it reclaims a released idle
 session or answers 429 `host_memory`. Admission also keeps
-`SANDBOX_MIN_FREE_DISK` free on the disk the session workspaces live on (a
-twentieth of it, at least 2 GiB, at most 20 GiB; `0` turns it off): below
-that floor every create answers 429 `host_disk`, and the build-cache upkeep
+`SANDBOX_MIN_FREE_DISK` free on the workspace filesystem and, where the
+spawner's Docker hostname bind can be verified, Docker's metadata filesystem
+(a twentieth of each, at least 2 GiB, at most 20 GiB; `0` turns it off). This
+does not observe separately mounted volume or containerd stores, and does not
+cap already-running writers; hard per-volume quotas require operator
+provisioning (docs/docker-in-container.md). Below either observed filesystem's
+floor every create answers 429 `host_disk`, and the build-cache upkeep
 removes the caches of organizations whose helpers are all stopped, the
 longest-stopped first. Creates refused for room wait in a
 first-come line: freed room goes to the oldest waiter still asking, and each

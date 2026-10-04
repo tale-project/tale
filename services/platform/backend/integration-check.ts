@@ -50,6 +50,7 @@ import { checkLapsedTeamWrites } from './auth/team-lapse.integration.ts';
 import { ASK_DEADLINE_MARGIN_MS } from './core/automations/agent_host.ts';
 import { buildPeriodKeyFromTimestamp } from './core/governance/helpers.ts';
 import { computeAuditHash } from './core/lib/helpers/audit_hash.ts';
+import type { SessionExecResult } from './core/node_only/sandbox/helpers/session_client.ts';
 import {
   TASK_COMMENT_MAX,
   TASK_DESCRIPTION_MAX,
@@ -37217,10 +37218,13 @@ async function checkTaskAgentTurnDrive(
         }
         res.write(
           `event: result\ndata: ${JSON.stringify({
+            status: 'completed',
             exitCode: 0,
+            durationMs: 850,
             stdoutBase64: '',
             stderrBase64: '',
-          })}\n\n`,
+            truncated: { stdout: false, stderr: false },
+          } satisfies SessionExecResult)}\n\n`,
         );
         res.end();
         return;
@@ -37952,10 +37956,13 @@ async function checkAutomationAgentNode(
     }
     res.write(
       `event: result\ndata: ${JSON.stringify({
+        status: 'completed',
         exitCode: 0,
+        durationMs: 400,
         stdoutBase64: '',
         stderrBase64: '',
-      })}\n\n`,
+        truncated: { stdout: false, stderr: false },
+      } satisfies SessionExecResult)}\n\n`,
     );
     res.end();
   };
@@ -38745,7 +38752,14 @@ async function checkAutomationStepDestroyPending(
       );
     });
     res.write(
-      `event: result\ndata: ${JSON.stringify({ exitCode: 0, stdoutBase64: '', stderrBase64: '' })}\n\n`,
+      `event: result\ndata: ${JSON.stringify({
+        status: 'completed',
+        exitCode: 0,
+        durationMs: 200,
+        stdoutBase64: '',
+        stderrBase64: '',
+        truncated: { stdout: false, stderr: false },
+      } satisfies SessionExecResult)}\n\n`,
     );
     res.end();
   };

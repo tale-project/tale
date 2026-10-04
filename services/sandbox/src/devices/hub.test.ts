@@ -269,11 +269,60 @@ describe('DeviceHub placement', () => {
     expect(hub.capacityOverlay(ORG).placements).toEqual([]);
   });
 
-  test('a device that is draining or drops mid-create hands the session on', async () => {
+  test('reported memory headroom takes precedence over nominal free slots', async () => {
+    const { hub } = await makeHub();
+    const tight = connectDevice(hub, 'dev-tight');
+    await tight.hello({ maxSessions: 20 });
+    await tight.status({
+      maxSessions: 20,
+      resources: {
+        memory: { totalBytes: 8 * 1024 ** 3, usedBytes: 7.5 * 1024 ** 3 },
+      },
+    });
+    const room = connectDevice(hub, 'dev-room');
+    await room.hello();
+    await room.status({
+      running: 1,
+      resources: {
+        memory: { totalBytes: 8 * 1024 ** 3, usedBytes: 2 * 1024 ** 3 },
+      },
+    });
+    const call = createRequest('memory-choice', 'device');
+    expect(
+      (await hub.maybeForward(call.req, call.url, call.body))?.headers.get(
+        DEVICE_HEADER,
+      ),
+    ).toBe('dev-room');
+    expect(tight.served).toHaveLength(0);
+  });
+
+  test('concurrent retries of an id retain a single device even if its first answer is lost', async () => {
+    const { hub } = await makeHub();
+    const cut = connectDevice(hub, 'dev-cut', (s) =>
+      s.reset('internal', 'lost answer'),
+    );
+    await cut.hello();
+    const fine = connectDevice(hub, 'dev-fine');
+    await fine.hello();
+    const responses = await Promise.all(
+      Array.from({ length: 3 }, () => {
+        const call = createRequest('same-create', 'device');
+        return hub.maybeForward(call.req, call.url, call.body);
+      }),
+    );
+    expect(responses.map((res) => res?.status)).toEqual([503, 503, 503]);
+    expect(cut.served).toHaveLength(3);
+    expect(fine.served).toHaveLength(0);
+    expect(hub.capacityOverlay(ORG).placements).toEqual([
+      { sessionId: 'same-create', deviceId: 'dev-cut' },
+    ]);
+  });
+
+  test('a lost create answer keeps its placement and retries on that device', async () => {
     const { hub } = await makeHub();
     const draining = connectDevice(hub, 'dev-draining', (s) =>
       s.respond(
-        { status: 503, headers: [['content-type', 'application/json']] },
+        { status: 429, headers: [['content-type', 'application/json']] },
         new Response(JSON.stringify({ error: 'draining' })).body,
       ),
     );
@@ -293,26 +342,35 @@ describe('DeviceHub placement', () => {
     const res = await hub.maybeForward(req, url, body);
     expect(draining.served).toHaveLength(1);
     expect(cut.served).toHaveLength(1);
-    expect(res?.status).toBe(201);
-    expect(res?.headers.get(DEVICE_HEADER)).toBe('dev-fine');
+    expect(res?.status).toBe(503);
+    expect(res?.headers.get(DEVICE_HEADER)).toBe('dev-cut');
+    expect(fine.served).toHaveLength(0);
     expect(hub.capacityOverlay(ORG).placements).toEqual([
-      { sessionId: 'pa-agent9', deviceId: 'dev-fine' },
+      { sessionId: 'pa-agent9', deviceId: 'dev-cut' },
     ]);
+    const retry = createRequest('pa-agent9', 'device');
+    expect(
+      (await hub.maybeForward(retry.req, retry.url, retry.body))?.status,
+    ).toBe(503);
+    expect(cut.served).toHaveLength(2);
+    expect(fine.served).toHaveLength(0);
   });
 
-  test('when every device fails a create, the server takes it', async () => {
+  test('an ambiguous create never falls back to the server', async () => {
     const { hub } = await makeHub();
     const cut = connectDevice(hub, 'dev-cut', (s) =>
       s.reset('internal', 'connection lost'),
     );
     await cut.hello();
     const { req, url, body } = createRequest('pa-agent10', 'device');
-    expect(await hub.maybeForward(req, url, body)).toBeNull();
+    expect((await hub.maybeForward(req, url, body))?.status).toBe(503);
     expect(cut.served).toHaveLength(1);
-    expect(hub.capacityOverlay(ORG).placements).toEqual([]);
+    expect(hub.capacityOverlay(ORG).placements).toEqual([
+      { sessionId: 'pa-agent10', deviceId: 'dev-cut' },
+    ]);
   });
 
-  test('a device that cannot start sessions hands them on and sits out the next ones', async () => {
+  test('a failed create stays placed while its device sits out unrelated new sessions', async () => {
     const { hub } = await makeHub();
     const broken = connectDevice(hub, 'dev-broken', (s) =>
       s.respond(
@@ -328,11 +386,13 @@ describe('DeviceHub placement', () => {
     for (const id of ['pa-b1', 'pa-b2', 'pa-b3']) {
       const { req, url, body } = createRequest(id, 'device');
       const res = await hub.maybeForward(req, url, body);
-      expect(res?.headers.get(DEVICE_HEADER)).toBe('dev-healthy');
+      expect(res?.headers.get(DEVICE_HEADER)).toBe(
+        id === 'pa-b1' ? 'dev-broken' : 'dev-healthy',
+      );
     }
     expect(broken.served).toHaveLength(1);
     expect(hub.capacityOverlay(ORG).placements.map((p) => p.deviceId)).toEqual([
-      'dev-healthy',
+      'dev-broken',
       'dev-healthy',
       'dev-healthy',
     ]);
@@ -410,6 +470,45 @@ describe('DeviceHub placement', () => {
     await (await destroying)?.text();
     expect(hub.capacityOverlay(ORG).placements).toEqual([
       { sessionId: 'pa-turns', deviceId: 'dev-1' },
+    ]);
+  });
+
+  test('a delayed destroy cannot forget a session recreated after another destroy completed', async () => {
+    const { hub } = await makeHub();
+    const held = Promise.withResolvers<IncomingStream>();
+    let holdNextDestroy = true;
+    const reply = (stream: IncomingStream) =>
+      stream.respond(
+        { status: stream.head.method === 'DELETE' ? 200 : 201, headers: [] },
+        new Response(
+          JSON.stringify({ destroyed: true, busy: false, deletion: 'done' }),
+        ).body,
+      );
+    const device = connectDevice(hub, 'dev-1', (stream) => {
+      if (stream.head.method === 'DELETE' && holdNextDestroy) {
+        holdNextDestroy = false;
+        held.resolve(stream);
+      } else reply(stream);
+    });
+    await device.hello();
+    const create = () => {
+      const call = createRequest('pa-recreated', 'device');
+      return hub.maybeForward(call.req, call.url, call.body);
+    };
+    const destroy = () => {
+      const call = callRequest('DELETE', '/v1/sessions/pa-recreated');
+      return hub.maybeForward(call.req, call.url, '');
+    };
+    await (await create())?.text();
+    const delayed = destroy();
+    const heldStream = await held.promise;
+    await (await destroy())?.text();
+    expect(hub.capacityOverlay(ORG).placements).toEqual([]);
+    await (await create())?.text();
+    reply(heldStream);
+    await (await delayed)?.text();
+    expect(hub.capacityOverlay(ORG).placements).toEqual([
+      { sessionId: 'pa-recreated', deviceId: 'dev-1' },
     ]);
   });
 
@@ -646,7 +745,7 @@ describe('DeviceHub placement', () => {
       // Later on: draining, or its Docker cannot start the session.
       s.respond(
         {
-          status: refuseCreates ? 503 : 201,
+          status: refuseCreates ? 429 : 201,
           headers: [['content-type', 'application/json']],
         },
         new Response('{}').body,
@@ -712,6 +811,87 @@ describe('DeviceHub placement', () => {
     expect(await destroy()).toBeNull();
   });
 
+  test.each([
+    { answer: 'done', sweep: false },
+    { answer: 'pending', sweep: false },
+    { answer: 'done', sweep: true },
+  ])(
+    'a create during durable destroy finalization keeps its route (%j)',
+    async ({ answer, sweep }) => {
+      const { hub } = await makeHub();
+      let deletion = sweep ? 'pending' : answer;
+      const device = connectDevice(hub, 'dev-1', (stream) => {
+        stream.respond(
+          { status: stream.head.method === 'DELETE' ? 200 : 201, headers: [] },
+          new Response(
+            JSON.stringify(
+              stream.head.method === 'DELETE'
+                ? { destroyed: true, busy: false, deletion }
+                : {},
+            ),
+          ).body,
+        );
+      });
+      await device.hello();
+      const create = () => {
+        const call = createRequest('pa-finalize', 'device');
+        return hub.maybeForward(call.req, call.url, call.body);
+      };
+      const destroy = () => {
+        const call = callRequest('DELETE', '/v1/sessions/pa-finalize');
+        return hub.maybeForward(call.req, call.url, '');
+      };
+      await (await create())?.text();
+      if (sweep) await (await destroy())?.text();
+      deletion = answer;
+      // Hold the disk write after the destroy's create-generation check. A
+      // create must not reuse the still-visible old route inside this window.
+      // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion -- hold a private disk write after the real destroy response
+      const store = PlacementStore.prototype as unknown as {
+        writeSnapshot: (
+          placements: ReadonlyMap<string, unknown>,
+        ) => Promise<void>;
+      };
+      const write = store.writeSnapshot;
+      const entered = Promise.withResolvers<void>();
+      const release = Promise.withResolvers<void>();
+      let hold = true;
+      store.writeSnapshot = async function (this: unknown, placements) {
+        if (hold) {
+          hold = false;
+          entered.resolve();
+          await release.promise;
+        }
+        return write.call(this, placements);
+      };
+      try {
+        const destroying = sweep ? hub.recheckDeleting() : destroy();
+        await entered.promise;
+        const creating = create();
+        await Bun.sleep(20);
+        const createsBeforeCommit = device.served.filter(
+          (call) => call.method === 'POST',
+        ).length;
+        release.resolve();
+        await destroying;
+        expect((await creating)?.status).toBe(201);
+        expect(createsBeforeCommit).toBe(1);
+        expect(hub.capacityOverlay(ORG).placements).toEqual([
+          { sessionId: 'pa-finalize', deviceId: 'dev-1' },
+        ]);
+        const read = callRequest('GET', '/v1/sessions/pa-finalize');
+        expect(
+          (await hub.maybeForward(read.req, read.url, ''))?.headers.get(
+            DEVICE_HEADER,
+          ),
+        ).toBe('dev-1');
+      } finally {
+        release.resolve();
+        store.writeSnapshot = write;
+      }
+    },
+  );
+
   for (const answer of ['pending', 'done'] as const) {
     test(`an ask answered ${answer} while a create under the id writes its placement leaves the new session's route alone`, async () => {
       let now = 1_800_000_000_000;
@@ -761,13 +941,15 @@ describe('DeviceHub placement', () => {
       // The store's private file write, held open from outside.
       // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion -- the write is private; the test holds it
       const store = PlacementStore.prototype as unknown as {
-        writeSnapshot: () => Promise<void>;
+        writeSnapshot: (
+          placements: ReadonlyMap<string, unknown>,
+        ) => Promise<void>;
       };
       const write = store.writeSnapshot;
       const written = Promise.withResolvers<void>();
-      store.writeSnapshot = async function (this: unknown) {
+      store.writeSnapshot = async function (this: unknown, placements) {
         await written.promise;
-        return write.call(this);
+        return write.call(this, placements);
       };
       try {
         const creating = create();
