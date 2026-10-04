@@ -511,6 +511,9 @@ function pgTurnStore(
             threadId: setup.threadId,
             role: 'user',
             parts: setup.userParts,
+            ...(setup.attachmentProvenance !== undefined
+              ? { attachmentProvenance: setup.attachmentProvenance }
+              : {}),
             text: setup.userParts
               .map((part) => (part.type === 'text' ? part.text : ''))
               .join(''),

@@ -26,6 +26,7 @@ export function replayableChatParts(
         AND EXISTS (
           SELECT 1 FROM app.file_metadata file
           WHERE file.org_id = ${organizationId} AND file.storage_ref = part->>'fileId'
+            AND file.document_id IS NULL
             AND (file.lifecycle_status IS NULL OR file.lifecycle_status = 'active')
         )
       )

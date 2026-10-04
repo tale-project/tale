@@ -211,6 +211,7 @@ export interface TurnStore {
     threadId: string;
     role: ChatMessage['role'];
     parts: ChatMessage['parts'];
+    attachmentProvenance?: Readonly<Record<string, ChatAttachmentProvenance>>;
     model?: string;
     providerSlug?: string;
     usage?: TurnUsage;
@@ -1264,6 +1265,9 @@ export async function runTurn(
         threadId: request.threadId,
         role: 'user',
         parts: userTurnParts(userText, request.attachments),
+        ...(request.attachmentProvenance !== undefined
+          ? { attachmentProvenance: request.attachmentProvenance }
+          : {}),
       });
     }
     await deps.store.appendMessage({

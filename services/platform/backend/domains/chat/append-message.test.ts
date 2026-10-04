@@ -19,7 +19,10 @@ vi.mock('../../core/lib/providers/catalog_fetch.ts', () => ({
 }));
 vi.mock('../../jobs/enqueue.ts', () => ({ addJobInTx: vi.fn() }));
 
-import { attachmentOwnershipForParts } from '../files/chat-ownership.ts';
+import {
+  attachmentOwnershipForParts,
+  preserveChatAttachmentOwnership,
+} from '../files/chat-ownership.ts';
 import { MESSAGE_SLOT_CLAIM_DEADLINE_MS } from '../threads/store.ts';
 import { appendMessageRow } from './store.ts';
 
@@ -208,9 +211,7 @@ describe('appendMessageRow — locked attachment provenance', () => {
     expect(jsonInputs[0]).toEqual(['ref-1', 'ref-2']);
     expect(insert).toContain("jsonb_build_object('owned', true)");
     expect(insert).toContain("jsonb_build_object('fileId', file.id)");
-    expect(insert).toContain(
-      "jsonb_build_object('documentId', file.document_id)",
-    );
+    expect(insert).toContain("jsonb_build_object('sourceAmbiguous', true)");
     expect(insert).toContain('file.uploaded_by = thread.user_id');
     expect(insert).toContain('file.thread_id = thread.thread_id');
     expect(insert).toContain('file.thread_id = thread.branch_root_id');
@@ -288,5 +289,30 @@ describe('appendMessageRow — locked attachment provenance', () => {
     );
     expect(text).toContain('?::jsonb ? file.storage_ref');
     expect(jsonInputs).toHaveLength(2);
+  });
+
+  it('never invents a document source when admission provenance is absent', () => {
+    const { sql } = fakeSql([]);
+    const text = fragmentText(
+      attachmentOwnershipForParts(sql, 'org-1', 't-1', parts),
+    );
+    expect(text).not.toContain(
+      "jsonb_build_object('documentId', file.document_id)",
+    );
+    expect(text).toContain("jsonb_build_object('sourceAmbiguous', true)");
+  });
+
+  it('lazy capture distinguishes proven uploads from source-ambiguous document history', async () => {
+    const { sql, statements } = fakeSql([]);
+    await preserveChatAttachmentOwnership(sql, 'org-1', 'ref-1');
+    const text = statements.find((statement) =>
+      statement.includes('UPDATE app.messages'),
+    );
+    expect(text).toContain("jsonb_build_object('owned', true)");
+    expect(text).toContain("jsonb_build_object('fileId', file.id)");
+    expect(text).toContain("jsonb_build_object('sourceAmbiguous', true)");
+    expect(text).not.toContain(
+      "jsonb_build_object('documentId', file.document_id)",
+    );
   });
 });

@@ -25,7 +25,7 @@ export async function preserveChatAttachmentOwnership(
         CASE WHEN ${chatUploadOwned(tx, tx`file`, tx`thread`)}
           THEN jsonb_build_object('owned', true)
           WHEN file.document_id IS NULL THEN jsonb_build_object('fileId', file.id)
-          ELSE jsonb_build_object('documentId', file.document_id) END)
+          ELSE jsonb_build_object('sourceAmbiguous', true) END)
     FROM app.thread_metadata thread CROSS JOIN LATERAL (
       SELECT candidate.* FROM app.file_metadata candidate
       WHERE candidate.org_id = thread.org_id AND candidate.storage_ref = ${ref}
@@ -58,7 +58,7 @@ export function attachmentOwnershipForParts(
           WHEN ${chatUploadOwned(sql, sql`file`, sql`thread`)}
           THEN jsonb_build_object('owned', true)
           WHEN file.document_id IS NULL THEN jsonb_build_object('fileId', file.id)
-          ELSE jsonb_build_object('documentId', file.document_id) END AS proof
+          ELSE jsonb_build_object('sourceAmbiguous', true) END AS proof
       FROM ${source} file JOIN app.thread_metadata thread
         ON thread.org_id = file.org_id AND thread.thread_id = ${threadId}
       WHERE file.org_id = ${organizationId}

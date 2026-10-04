@@ -8,6 +8,7 @@
 
 import type { Sql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { z } from 'zod';
 
 const { resolveOrgSlug, resolveProvidersForOrg, getProviderCatalog } =
   vi.hoisted(() => ({
@@ -40,7 +41,10 @@ vi.mock('./budget-admission.ts', () => ({
   admitChatTurnSpend: budget.admitChatTurnSpend,
 }));
 
-import { ThreadBusyError } from '../../../lib/chat/turn.ts';
+import { modelCatalogEntrySchema } from '@tale/shared/schemas/providers';
+
+import { runTurn, ThreadBusyError } from '../../../lib/chat/turn.ts';
+import { chatShimHandlers } from './shim.ts';
 import {
   createPgTurnStore,
   createPgUsageLedger,
@@ -186,18 +190,48 @@ function fakeChatSql(
     streamed?: { text: string; reasoning?: string };
     /** The placeholder's parts as stored before the finalize. */
     storedParts?: unknown[];
+    borrowedDocument?: boolean;
   } = {},
 ): {
   sql: Sql;
   pool: Statement[];
   tx: Statement[];
   transactions: Array<'commit' | 'rollback'>;
+  jsonInputs: unknown[];
 } {
   const pool: Statement[] = [];
   const tx: Statement[] = [];
   const transactions: Array<'commit' | 'rollback'> = [];
+  const jsonInputs: unknown[] = [];
   let messageRows = 0;
   const answer = (text: string): unknown[] => {
+    if (text.includes('FROM "teamMember"')) return [{ teamId: 'team-a' }];
+    if (options.borrowedDocument && text.includes('FROM app.file_metadata'))
+      return [
+        {
+          organizationId: 'org_1',
+          storageRef: 's3:shared',
+          uploadedBy: 'other',
+          documentId: 'doc-b',
+          threadId: null,
+          conversationId: null,
+        },
+      ];
+    if (options.borrowedDocument && text.includes('FROM app.documents'))
+      return [
+        {
+          id: 'doc-b',
+          organizationId: 'org_1',
+          projectId: null,
+          teamTags: ['team-b'],
+        },
+        {
+          id: 'doc-a',
+          organizationId: 'org_1',
+          projectId: null,
+          teamTags: ['team-a'],
+        },
+      ];
     if (text.includes('FOR UPDATE OF tm')) {
       return options.scopeChanged ? [] : [{ id: 'thread_1' }];
     }
@@ -247,7 +281,10 @@ function fakeChatSql(
       log.push({ text, values });
       return Promise.resolve(answer(text));
     };
-    tag.json = (value: unknown) => ({ json: value });
+    tag.json = (value: unknown) => {
+      jsonInputs.push(value);
+      return { json: value };
+    };
     // The audience expression rides `sql.unsafe`; bound as a value here.
     tag.unsafe = (text: string) => text;
     return tag;
@@ -273,8 +310,82 @@ function fakeChatSql(
     },
   });
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the turn store exercises exactly the tag, json, and begin surfaces faked here
-  return { sql: pooled as unknown as Sql, pool, tx, transactions };
+  return { sql: pooled as unknown as Sql, pool, tx, transactions, jsonInputs };
 }
+
+describe('authenticated document provenance through runTurn and the real PG store', () => {
+  it.each([false, true])(
+    'keeps D-A rather than the D-B file pointer (refused=%s)',
+    async (refused) => {
+      const fixture = fakeChatSql({ borrowedDocument: true });
+      const resolver = chatShimHandlers(fixture.sql)[
+        'file_metadata/internal_queries:resolveReadableStorageBindings'
+      ];
+      if (!resolver) throw new Error('missing resolver');
+      const provenance = await resolver({
+        organizationId: 'org_1',
+        userId: 'user_1',
+        storageIds: ['s3:shared'],
+      });
+      expect(provenance).toEqual({ 's3:shared': { documentId: 'doc-a' } });
+      fixture.jsonInputs.length = 0;
+      const outcome = await runTurn(
+        {
+          organizationId: 'org_1',
+          userId: 'user_1',
+          threadId: 'thread_1',
+          userText: 'read this',
+          history: [],
+          locale: 'en',
+          attachments: [
+            {
+              fileId: 's3:shared',
+              fileName: 'image.png',
+              fileType: 'image/png',
+              fileSize: 8,
+            },
+          ],
+          attachmentProvenance: z
+            .record(z.string(), z.object({ documentId: z.string() }))
+            .parse(provenance),
+          model: modelCatalogEntrySchema.parse({
+            id: 'model',
+            provider: 'synthetic',
+            tags: ['chat'],
+            contextWindow: 10000,
+            supportsTools: false,
+            supportsVision: true,
+          }),
+          credential: { authMethod: 'api-key' },
+          executionMode: 'direct',
+        },
+        {
+          store: createPgTurnStore(fixture.sql),
+          model: async function* () {
+            yield { text: 'done' };
+          },
+          usage: { record: async () => {} },
+          ...(refused
+            ? {
+                inputFilters: [
+                  {
+                    name: 'pii' as const,
+                    run: () => ({
+                      kind: 'blocked' as const,
+                      categoryIds: ['policy'],
+                      matchCount: 1,
+                    }),
+                  },
+                ],
+              }
+            : {}),
+        },
+      );
+      expect(outcome.status).toBe(refused ? 'refused' : 'completed');
+      expect(fixture.jsonInputs).toContainEqual(provenance);
+    },
+  );
+});
 
 const OPEN = {
   organizationId: 'org_1',
