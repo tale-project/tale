@@ -1,7 +1,14 @@
 // @vitest-environment node
 
 import { spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -244,6 +251,7 @@ const dryRunSchema = z.object({
   tasks: z.array(
     z.object({
       taskId: z.string(),
+      hash: z.string(),
       directory: z.string(),
       inputs: z.record(z.string(), z.string()),
     }),
@@ -258,11 +266,12 @@ const turboJsonSchema = z.object({
   ),
 });
 
-function run(command: string, args: string[]): string {
+function run(command: string, args: string[], cwd = REPO_ROOT): string {
   const result = spawnSync(command, args, {
-    cwd: REPO_ROOT,
+    cwd,
     encoding: 'utf8',
     maxBuffer: 64 * 1024 * 1024,
+    timeout: 30_000,
   });
   if (result.error) throw result.error;
   if (result.status !== 0) {
@@ -358,6 +367,106 @@ describe('@tale/platform#test turbo inputs', () => {
     const root = findRepoSystemConfigRoot(PLATFORM_ROOT);
     expect(root && toRepoPath(root)).toBe('configs/platform/system');
   });
+
+  it('ignores generated catalog task logs while hashing real catalog and skill edits', () => {
+    // A fresh tiny Git workspace avoids editing source or logs in this checkout.
+    // Use the production input list and real Turbo engine, not a glob imitation.
+    const fixture = mkdtempSync(path.join(tmpdir(), 'tale-config-inputs-'));
+    const write = (file: string, contents: string) => {
+      const absolute = path.join(fixture, file);
+      mkdirSync(path.dirname(absolute), { recursive: true });
+      writeFileSync(absolute, contents);
+    };
+    const config = 'configs/platform/system/providers/example/provider.yml';
+    const skill = 'configs/platform/custom/skills/example/src/analyze.ts';
+    const log = 'configs/platform/custom/skills/example/.turbo/turbo-test.log';
+    const secondLog =
+      'configs/platform/custom/skills/example/.turbo/turbo-typecheck.log';
+    const dry = () => {
+      const output = run('bunx', [
+        '--no-install',
+        'turbo',
+        '--cwd',
+        fixture,
+        'run',
+        'test',
+        '--filter=@tale/platform',
+        '--dry=json',
+        '--cache=local:,remote:',
+        '--no-daemon',
+      ]);
+      const { tasks } = dryRunSchema.parse(JSON.parse(output));
+      const task = tasks.find(
+        (entry) => entry.taskId === '@tale/platform#test',
+      );
+      if (!task) throw new Error('Fixture has no platform test task');
+      return task;
+    };
+    try {
+      const { packageManager } = z
+        .object({ packageManager: z.string() })
+        .parse(
+          JSON.parse(
+            readFileSync(path.join(REPO_ROOT, 'package.json'), 'utf8'),
+          ),
+        );
+      write(
+        'package.json',
+        JSON.stringify({
+          name: 'config-input-fixture',
+          private: true,
+          packageManager,
+          workspaces: ['services/*'],
+        }),
+      );
+      write('turbo.json', JSON.stringify({ tasks: { test: {} } }));
+      write('.gitignore', '.turbo\n');
+      write(
+        'services/platform/package.json',
+        JSON.stringify({
+          name: '@tale/platform',
+          scripts: { test: 'echo never executed' },
+        }),
+      );
+      write(
+        'services/platform/turbo.json',
+        readFileSync(path.join(PLATFORM_ROOT, 'turbo.json'), 'utf8'),
+      );
+      write(config, 'name: original\n');
+      write(skill, 'export const version = 1;\n');
+      run('git', ['init', '--quiet'], fixture);
+      run('git', ['add', '.'], fixture);
+      const baseline = dry();
+      for (const file of [config, skill]) {
+        expect(baseline.inputs[`../../${file}`], file).toBeDefined();
+      }
+      write(log, 'test pass\n');
+      write(secondLog, 'typecheck pass\n');
+      expect(run('git', ['check-ignore', '--', log, secondLog], fixture)).toBe(
+        `${log}\n${secondLog}\n`,
+      );
+      expect(dry()).toEqual(baseline);
+      write(log, 'different test output\n');
+      write(secondLog, 'different typecheck output\n');
+      expect(dry()).toEqual(baseline);
+      write(config, 'name: changed\n');
+      const changedConfig = dry();
+      expect(changedConfig.hash).not.toBe(baseline.hash);
+      expect(changedConfig.inputs[`../../${config}`]).not.toBe(
+        baseline.inputs[`../../${config}`],
+      );
+      write(config, 'name: original\n');
+      expect(dry()).toEqual(baseline);
+      write(skill, 'export const version = 2;\n');
+      const changedSkill = dry();
+      expect(changedSkill.hash).not.toBe(baseline.hash);
+      expect(changedSkill.inputs[`../../${skill}`]).not.toBe(
+        baseline.inputs[`../../${skill}`],
+      );
+    } finally {
+      rmSync(fixture, { recursive: true, force: true });
+    }
+  }, 30_000);
 
   for (const { path: repoPath, readers } of OUTSIDE_READS) {
     it(`hashes ${repoPath} (${readers})`, () => {
