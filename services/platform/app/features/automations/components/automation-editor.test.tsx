@@ -1,9 +1,10 @@
 import { ActiveEditorProvider } from '@tale/ui/editor';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useState, type AnchorHTMLAttributes } from 'react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { render, screen, waitFor, within } from '@/tests/utils/render';
+import { act, render, screen, waitFor, within } from '@/tests/utils/render';
 
 import { AutomationVersionPicker } from './automation-version-picker';
 import { AutomationVersionPickerTarget } from './automation-version-picker-target';
@@ -46,6 +47,7 @@ const {
     /** A `?version=` the read refuses with `AUTOMATION_VERSION_UNKNOWN`. */
     missingVersion: undefined as number | undefined,
     detailError: undefined as Error | undefined,
+    realDetailRead: false,
   },
   /** The org's projects and the automation's bindings — the run-scope picker
    * appears only when two or more projects are bound. */
@@ -94,76 +96,91 @@ vi.mock('@/app/features/projects/hooks/queries', () => ({
   useProjectHarnesses: () => ({ data: { harnesses: [], models: [] } }),
 }));
 
-vi.mock('../hooks/queries', () => ({
-  useAutomation: (_organizationId: string, _name: string, version?: number) =>
-    version === undefined && state.detailError !== undefined
-      ? {
-          data: undefined,
-          isPending: false,
-          isError: true,
-          error: state.detailError,
-          refetch,
-        }
-      : version !== undefined && version === state.missingVersion
-        ? {
-            data: undefined,
-            isPending: false,
-            isError: true,
-            error: {
-              data: {
-                code: 'AUTOMATION_VERSION_UNKNOWN',
-                message: `version ${version} does not exist`,
-                latestVersion: state.version,
+vi.mock('../hooks/queries', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../hooks/queries')>();
+  return {
+    useAutomation: (
+      _organizationId: string,
+      _name: string,
+      version?: number,
+    ) =>
+      state.realDetailRead
+        ? actual.useAutomation(_organizationId, _name, version)
+        : version === undefined && state.detailError !== undefined
+          ? {
+              data: undefined,
+              isPending: false,
+              isError: true,
+              error: state.detailError,
+              isFetching: false,
+              errorUpdateCount: 1,
+              refetch,
+            }
+          : version !== undefined && version === state.missingVersion
+            ? {
+                data: undefined,
+                isPending: false,
+                isError: true,
+                isFetching: false,
+                errorUpdateCount: 1,
+                error: {
+                  data: {
+                    code: 'AUTOMATION_VERSION_UNKNOWN',
+                    message: `version ${version} does not exist`,
+                    latestVersion: state.version,
+                  },
+                },
+                refetch,
+              }
+            : {
+                data: {
+                  document:
+                    version === state.deployedVersion &&
+                    state.deployedDocument !== undefined
+                      ? state.deployedDocument
+                      : state.document,
+                  version: version ?? state.version,
+                  deployedVersion: state.deployedVersion,
+                  ...(state.presentation !== undefined
+                    ? { presentation: state.presentation }
+                    : {}),
+                  settings: state.settings,
+                  taskContract: state.taskContract,
+                  ...(state.deployedUnpinnedAgentNodes !== undefined
+                    ? {
+                        deployedUnpinnedAgentNodes:
+                          state.deployedUnpinnedAgentNodes,
+                      }
+                    : {}),
+                },
+                isPending: false,
+                isError: false,
+                isFetching: false,
+                errorUpdateCount: 0,
+                error: null,
+                refetch,
               },
-            },
-            refetch,
-          }
-        : {
-            data: {
-              document:
-                version === state.deployedVersion &&
-                state.deployedDocument !== undefined
-                  ? state.deployedDocument
-                  : state.document,
-              version: version ?? state.version,
-              deployedVersion: state.deployedVersion,
-              ...(state.presentation !== undefined
-                ? { presentation: state.presentation }
-                : {}),
-              settings: state.settings,
-              taskContract: state.taskContract,
-              ...(state.deployedUnpinnedAgentNodes !== undefined
-                ? {
-                    deployedUnpinnedAgentNodes:
-                      state.deployedUnpinnedAgentNodes,
-                  }
-                : {}),
-            },
-            isPending: false,
-            isError: false,
-            error: null,
-            refetch,
-          },
-  useAutomationVersions: () => ({
-    data: [
-      {
-        version: 3,
-        message: 'tightened the prompt',
-        createdBy: 'user:a',
-        createdAt: 1_700_000_100_000,
-      },
-      {
-        version: 2,
-        message: 'first cut',
-        createdBy: 'user:a',
-        createdAt: 1_700_000_000_000,
-      },
-    ],
-  }),
-  useAutomationRuns: () => ({ data: runsData }),
-  useAutomationProjects: () => ({ data: projectsData.bound }),
-  useNodeTypeCatalog: () => ({ data: undefined, isError: false }),
-}));
+    useAutomationVersions: () => ({
+      data: [
+        {
+          version: 3,
+          message: 'tightened the prompt',
+          createdBy: 'user:a',
+          createdAt: 1_700_000_100_000,
+        },
+        {
+          version: 2,
+          message: 'first cut',
+          createdBy: 'user:a',
+          createdAt: 1_700_000_000_000,
+        },
+      ],
+    }),
+    useAutomationRuns: () => ({ data: runsData }),
+    useAutomationProjects: () => ({ data: projectsData.bound }),
+    useNodeTypeCatalog: () => ({ data: undefined, isError: false }),
+  };
+});
 
 vi.mock('../hooks/mutations', () => ({
   useSaveAutomation: () => saveMutation,
@@ -335,7 +352,198 @@ beforeEach(() => {
   state.deployedUnpinnedAgentNodes = undefined;
   state.missingVersion = undefined;
   state.detailError = undefined;
+  state.realDetailRead = false;
   refetch.mockClear();
+});
+
+const detailQueryKey = [
+  'backend',
+  'org-1',
+  'automation',
+  'detail',
+  'billing/dunning',
+  'latest',
+];
+
+function realReadPage() {
+  state.realDetailRead = true;
+  const client = new QueryClient({
+    defaultOptions: { queries: { retryDelay: 0, gcTime: Infinity } },
+  });
+  const view = render(
+    <QueryClientProvider client={client}>
+      <button type="button">Outside editor</button>
+      {page()}
+    </QueryClientProvider>,
+  );
+  return { ...view, client };
+}
+
+function automationResponse() {
+  return Response.json({
+    document: state.document,
+    version: state.version,
+    deployedVersion: state.deployedVersion,
+  });
+}
+
+function failedReadResponse() {
+  return Response.json({ message: 'Service unavailable' }, { status: 503 });
+}
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
+describe('AutomationEditor real detail read recovery', () => {
+  it.each(['retry', 'outside'] as const)(
+    'keeps keyboard retry stable and respects %s focus on recovery',
+    async (recoveryFocus) => {
+      let recovering = false;
+      let finishRead: ((response: Response) => void) | undefined;
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((url: string) => {
+          if (
+            new URL(url, window.location.origin).searchParams.has('version')
+          ) {
+            return Promise.resolve(automationResponse());
+          }
+          if (!recovering) return Promise.resolve(failedReadResponse());
+          return new Promise<Response>((resolve) => {
+            finishRead = resolve;
+          });
+        }),
+      );
+      const { user } = realReadPage();
+      const retryButton = await screen.findByRole(
+        'button',
+        { name: 'Try again' },
+        { timeout: 15000 },
+      );
+      await user.click(screen.getByRole('button', { name: 'Outside editor' }));
+      await user.tab();
+      expect(retryButton).toHaveFocus();
+      recovering = true;
+      await user.keyboard('{Enter}');
+      await waitFor(() => expect(finishRead).toBeDefined());
+      expect(retryButton).toHaveFocus();
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'Service unavailable',
+      );
+      expect(screen.queryByText('Loading the automation…')).toBeNull();
+      expect(retryButton).toHaveAttribute('aria-busy', 'true');
+      await act(async () => {
+        finishRead?.(
+          Response.json({ message: 'Still unavailable' }, { status: 400 }),
+        );
+      });
+      await waitFor(() => expect(retryButton).not.toHaveAttribute('aria-busy'));
+      expect(screen.getByRole('button', { name: 'Try again' })).toBe(
+        retryButton,
+      );
+      expect(retryButton).toHaveFocus();
+      expect(screen.getByRole('alert')).toHaveTextContent('Still unavailable');
+      finishRead = undefined;
+      await user.keyboard('{Enter}');
+      await waitFor(() => expect(finishRead).toBeDefined());
+      if (recoveryFocus === 'outside') {
+        await user.click(
+          screen.getByRole('button', { name: 'Outside editor' }),
+        );
+      }
+      await act(async () => {
+        finishRead?.(automationResponse());
+      });
+      await screen.findByTestId('canvas');
+      await waitFor(() => expect(screen.queryByRole('alert')).toBeNull());
+      await waitFor(() => {
+        const target =
+          recoveryFocus === 'retry'
+            ? screen.getByRole('region', { name: 'Editor' })
+            : screen.getByRole('button', { name: 'Outside editor' });
+        expect(target).toHaveFocus();
+      });
+    },
+    30000,
+  );
+
+  it('keeps the canvas, inspector and dirty draft after a failed background read', async () => {
+    let failRefresh = false;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) => {
+        const deployed = new URL(url, window.location.origin).searchParams.has(
+          'version',
+        );
+        return Promise.resolve(
+          failRefresh && !deployed
+            ? failedReadResponse()
+            : automationResponse(),
+        );
+      }),
+    );
+    const { user, client } = realReadPage();
+    await screen.findByTestId('canvas');
+    await editTheNode(user);
+    const canvas = screen.getByTestId('canvas');
+    const draftField = whenField();
+    expect(draftField).toHaveValue('x');
+    failRefresh = true;
+    await act(async () => {
+      await client.invalidateQueries({ queryKey: detailQueryKey });
+    });
+    await waitFor(
+      () => expect(client.getQueryState(detailQueryKey)?.status).toBe('error'),
+      { timeout: 15000 },
+    );
+    expect(screen.getByTestId('canvas')).toBe(canvas);
+    expect(whenField()).toBe(draftField);
+    expect(draftField).toHaveValue('x');
+    expect(saveButton()).toBeEnabled();
+    expect(screen.queryByRole('alert')).toBeNull();
+  }, 30000);
+
+  it('does not steal outside focus when the initial failure settles', async () => {
+    let finishRead: ((response: Response) => void) | undefined;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        () =>
+          new Promise<Response>((resolve) => {
+            finishRead = resolve;
+          }),
+      ),
+    );
+    const { user } = realReadPage();
+    await user.click(screen.getByRole('button', { name: 'Outside editor' }));
+    await act(async () => {
+      finishRead?.(
+        Response.json({ message: 'Service unavailable' }, { status: 400 }),
+      );
+    });
+    await screen.findByRole('alert', {}, { timeout: 15000 });
+    expect(
+      screen.getByRole('button', { name: 'Outside editor' }),
+    ).toHaveFocus();
+  }, 30000);
+});
+
+describe('AutomationEditor detail read failure', () => {
+  it('names the error and retries instead of staying loading', async () => {
+    state.detailError = new Error('Request failed with status 503');
+    const { user } = renderPage();
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      "Couldn't load the automation: Request failed with status 503",
+    );
+    const retryButton = screen.getByRole('button', { name: 'Try again' });
+    expect(retryButton).not.toHaveFocus();
+    expect(screen.queryByText('Loading the automation…')).toBeNull();
+
+    await user.click(retryButton);
+    expect(refetch).toHaveBeenCalledOnce();
+  });
 });
 
 /**
@@ -344,23 +552,6 @@ beforeEach(() => {
  * version is missing and offers the latest, instead of the automation-level
  * not-found state under the automation's own tabs.
  */
-describe('AutomationEditor detail read failure', () => {
-  it('names the error, focuses retry, and retries instead of staying loading', async () => {
-    state.detailError = new Error('Request failed with status 503');
-    const { user } = renderPage();
-
-    expect(screen.getByRole('alert')).toHaveTextContent(
-      "Couldn't load the automationRequest failed with status 503",
-    );
-    const retryButton = screen.getByRole('button', { name: 'Try again' });
-    expect(retryButton).toHaveFocus();
-    expect(screen.queryByText('Loading the automation…')).toBeNull();
-
-    await user.click(retryButton);
-    expect(refetch).toHaveBeenCalledOnce();
-  });
-});
-
 describe('AutomationEditor missing version', () => {
   it('names the missing version and opens the latest on request', async () => {
     state.missingVersion = 99;
