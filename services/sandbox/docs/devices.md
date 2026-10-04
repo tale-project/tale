@@ -78,9 +78,31 @@ The proxy publishes the door at `<site>/sandbox/tunnel` (`services/proxy/Caddyfi
   with `x-tale-sandbox-device: <id>`, never a 404 — the platform reads 404 as
   "gone" and would create a fresh workspace elsewhere. The platform surfaces
   this as `SandboxDeviceOfflineError`.
-- A destroy the device confirms (not `busy`) forgets the placement — unless
-  a create for the same id was forwarded while it ran (the next turn), which
-  made the session anew there.
+- A destroy whose answer confirms the workspace's bytes are gone
+  (`deletion: done`, not `busy`) forgets the placement — unless a create for
+  the same id was forwarded while it ran (the next turn), which made the
+  session anew there. Any other answer — the device still deleting
+  (`pending`, `failed`), or a device older than the `deletion` contract, whose
+  answer says nothing about the bytes — keeps the placement, marked deleting
+  in `placements.json`: no session lives there (the capacity overlay leaves it
+  out), but the platform's next destroy of the id, an erasure's Retry
+  included, still reaches the device that holds them. Nobody has to ask again
+  for the route to end: on its 30 s sweep the hub itself asks each connected
+  device on its own release about such a placement — at most every 5 minutes
+  per placement and 8 a sweep, least recently asked first, so a backlog is
+  worked through in turn — with the cleanup's conditional destroy
+  (`?if_idle=1&if_stopped=1&await_deletion=1`: the whole idempotent destroy,
+  one Docker round trip, which with no session under the id finds nothing to
+  remove, reads the trash and has what is left attempted again, and with a
+  create or compute under way answers busy and touches nothing), and lets the
+  placement go on `done`. A create under the id is counted before its new
+  placement is written, so an answer that lands meanwhile leaves that new
+  placement alone. A route therefore lasts exactly as long as the bytes it leads to; a
+  device older than the contract keeps its entries until it updates. A fresh
+  create under the id is placed like any other create, with every fallback,
+  but tries that device first; placed anywhere else, the route to the old
+  bytes is let go. A hub from before this contract reads a deleting entry as a
+  live placement.
 - Only placements the hub made route anywhere: a device's report of what it
   holds never claims a session id (another organization's included), and the
   capacity overlay only shows reported sessions the hub placed there. If the

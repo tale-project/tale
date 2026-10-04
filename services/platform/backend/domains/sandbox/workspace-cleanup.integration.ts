@@ -51,10 +51,22 @@ export async function checkWorkspaceCleanup(
   const destroyCalls: Array<[string, WorkspaceDestroyMode]> = [];
   const unpinCalls: string[] = [];
   let inventory: SandboxWorkspaceInventory | null = null;
+  /** How far the spawner reports a workspace's deletion — `done` unless
+   * scripted; `legacy` is a spawner older than the contract, whose answer
+   * carries no deletion state at all. */
+  const deletionOf = new Map<
+    string,
+    'done' | 'pending' | 'failed' | 'handed_off' | 'legacy'
+  >();
   const spawner: WorkspaceSpawner = {
     destroy: async (sessionId, mode) => {
       destroyCalls.push([sessionId, mode]);
-      return { destroyed: true, busy: false };
+      const deletion = deletionOf.get(sessionId) ?? 'done';
+      return {
+        destroyed: true,
+        busy: false,
+        ...(deletion === 'legacy' ? {} : { deletion }),
+      };
     },
     inventory: async () => inventory,
     teardownOrganization: async () => null,
@@ -122,6 +134,24 @@ export async function checkWorkspaceCleanup(
           AND resource_id = ${sessionId}
       `
     ).map((row) => row.reason);
+  const auditDeletions = async (sessionId: string) =>
+    (
+      await sql<{ deletion: string | null }[]>`
+        SELECT metadata ->> 'deletion' AS deletion FROM app.audit_logs
+        WHERE org_id = ${orgId} AND action = 'sandbox_workspace.deleted'
+          AND resource_id = ${sessionId}
+      `
+    ).map((row) => row.deletion);
+  const auditStatuses = async (sessionId: string) =>
+    (
+      await sql<{ status: string }[]>`
+        SELECT status FROM app.audit_logs
+        WHERE org_id = ${orgId} AND action = 'sandbox_workspace.deleted'
+          AND resource_id = ${sessionId}
+      `
+    )
+      .map((row) => row.status)
+      .sort();
 
   const agent = async (id: string) => {
     await sql`
@@ -478,6 +508,112 @@ export async function checkWorkspaceCleanup(
         (await statusOf(erased))?.status === 'destroyed' &&
         destroyedWith(erased).join() === 'force',
       `erased ${erasedCount}`,
+    );
+
+    // 5b. Out of use is not erased: while the spawner is still deleting the
+    // workspace's files, or their deletion keeps failing, the pass throws
+    // (the receipt reads partial) and nothing settles; a Retry once they
+    // are gone does.
+    const slow = memberSessionIdForProjectAgent(liveAgent, 'user-erased-slow');
+    await session(slow, { ownerId: liveAgent, status: 'active' });
+    const erase = () =>
+      eraseMemberWorkspaces(
+        sql,
+        { organizationId: orgId, userId: 'user-erased-slow' },
+        spawner,
+      ).then(
+        (count) => `erased ${count}`,
+        (error: unknown) => (error instanceof Error ? error.message : 'threw'),
+      );
+    deletionOf.set(slow, 'pending');
+    const whileDeleting = {
+      pass: await erase(),
+      status: (await statusOf(slow))?.status,
+      audits: await auditStatuses(slow),
+    };
+    deletionOf.set(slow, 'failed');
+    const whileFailing = {
+      pass: await erase(),
+      status: (await statusOf(slow))?.status,
+      audits: await auditStatuses(slow),
+    };
+    deletionOf.set(slow, 'done');
+    const retried = {
+      pass: await erase(),
+      status: (await statusOf(slow))?.status,
+      audits: await auditStatuses(slow),
+      reasons: await audited(slow),
+    };
+    record(
+      'workspace cleanup: an erasure is not done while the workspace’s files are still being deleted or their deletion fails; its Retry settles it',
+      whileDeleting.pass.includes(`${slow} (deleting)`) &&
+        whileDeleting.status === 'expired' &&
+        whileDeleting.audits.length === 0 &&
+        whileFailing.pass.includes(`${slow} (deletion_failed)`) &&
+        whileFailing.status === 'expired' &&
+        whileFailing.audits.join() === 'failure' &&
+        retried.pass === 'erased 1' &&
+        retried.status === 'destroyed' &&
+        retried.audits.join() === 'failure,success' &&
+        retried.reasons.every((reason) => reason === 'member_erased') &&
+        destroyedWith(slow).join() === 'force,force,force',
+      JSON.stringify({ whileDeleting, whileFailing, retried }),
+    );
+
+    // 5c. A spawner or device older than the deletion contract answers
+    // without a deletion state, though it deletes in the background (or
+    // fails to): unconfirmed, never erased. Once it is updated and answers,
+    // the Retry settles. Kubernetes' explicit hand-off of the volume settles
+    // under its own contract, and the audit row says which.
+    const legacy = memberSessionIdForProjectAgent(
+      liveAgent,
+      'user-erased-legacy',
+    );
+    const handedOff = memberSessionIdForProjectAgent(
+      liveAgent,
+      'user-erased-k8s',
+    );
+    await session(legacy, { ownerId: liveAgent, status: 'stopped' });
+    await session(handedOff, { ownerId: liveAgent, status: 'stopped' });
+    const eraseUser = (userId: string) =>
+      eraseMemberWorkspaces(
+        sql,
+        { organizationId: orgId, userId },
+        spawner,
+      ).then(
+        (count) => `erased ${count}`,
+        (error: unknown) => (error instanceof Error ? error.message : 'threw'),
+      );
+    deletionOf.set(legacy, 'legacy');
+    const whileLegacy = {
+      pass: await eraseUser('user-erased-legacy'),
+      status: (await statusOf(legacy))?.status,
+      audits: await auditStatuses(legacy),
+    };
+    deletionOf.set(legacy, 'done');
+    const afterUpdate = {
+      pass: await eraseUser('user-erased-legacy'),
+      status: (await statusOf(legacy))?.status,
+      deletions: await auditDeletions(legacy),
+    };
+    deletionOf.set(handedOff, 'handed_off');
+    const kubernetes = {
+      pass: await eraseUser('user-erased-k8s'),
+      status: (await statusOf(handedOff))?.status,
+      deletions: await auditDeletions(handedOff),
+    };
+    record(
+      'workspace cleanup: an older spawner’s answer without a deletion state never settles an erasure; an update does, and Kubernetes’ hand-off is recorded as such',
+      whileLegacy.pass.includes(`${legacy} (deletion_unconfirmed)`) &&
+        whileLegacy.status === 'expired' &&
+        whileLegacy.audits.length === 0 &&
+        afterUpdate.pass === 'erased 1' &&
+        afterUpdate.status === 'destroyed' &&
+        afterUpdate.deletions.join() === 'done' &&
+        kubernetes.pass === 'erased 1' &&
+        kubernetes.status === 'destroyed' &&
+        kubernetes.deletions.join() === 'handed_off',
+      JSON.stringify({ whileLegacy, afterUpdate, kubernetes }),
     );
 
     // 6. An organization hold keeps everything; released, the sweep resumes.

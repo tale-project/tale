@@ -339,16 +339,6 @@ default means deleting the override and fixing what surfaces:
   backfill was shipped (the `0093`/`0098` external-key precedent). Paying it down means a
   forward-only migration that canonicalises `app.folders.name` where no twin exists and detaches
   or renames the loser where one does, documented like `0098_external_keys_canonical_twins.sql`.
-- **A long OpenCode or Pi turn books only its later calls' tokens** — every drain window
-  re-parses the exec from the start of runnerd's replay buffer (`resumeSinceSeq: 0` in
-  `drainHarnessWindow`, `backend/core/chat/external_turn_shared.ts`), and the buffer keeps only
-  the last 256 KB of output (`RUNNERD_RING_BUFFER_BYTES`). A CLI that reports its own turn totals
-  (Claude Code, Codex, Gemini, Qwen Code, OpenClaw) books them whole, but the OpenCode and Pi
-  parsers sum the model calls they see, so a turn whose output outgrew the buffer books the
-  tokens of the calls still in it (2026-09). Cost is unaffected: it comes from the turn's gateway
-  key. Paying it down means counting each call's usage once by stream position across windows
-  (the drain passing line seqs, the op row keeping the last counted seq and the running totals),
-  or reading the turn's token counts from the gateway as its cost is read.
 - **No usage or cost on a run** — `GET …/runs/{runId}` carries no `usage` block: an `llm`
   node's spend is not metered at all (`backend/core/automations/llm_call.ts` → `model_call.ts`
   parses no usage and writes no ledger row), and an `agent` node's cents settle on
@@ -551,7 +541,7 @@ xlsx,odt}.ts`) still reach the catch-all as `failed` + `indexer_error` and are r
   harness YAML declares `capabilities.resume: false`: every later kick of a task, every automatic
   retry and every answered ask starts a fresh conversation over the preserved workspace with the
   brief and the earlier rounds restated, where the other harnesses hand the exec the announced
-  handle (2026-10). Paying it down means a sandbox-runtime pin that carries the upstream fix —
-  which first needs root-owned system-settings staging in `tale-gemini-run`, as the
-  `GEMINI_CLI_VERSION` note in `services/sandbox-runtime/Dockerfile` says — then flipping the
-  flag and restoring the `resume` argv slot (the schema holds the two coherent).
+  handle (2026-10). The runtime now bakes root-owned system settings for Gemini 0.62.0;
+  the resume bug remains open. Paying it down means a sandbox-runtime pin that carries
+  the upstream fix, then flipping the flag and restoring the `resume` argv slot (the schema
+  holds the two coherent).

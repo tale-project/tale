@@ -17,7 +17,7 @@
 //  - POST /execs responds with NDJSON (one JSON object per line, flushed per
 //    event). The spawner translates NDJSON → SSE for the platform. NDJSON
 //    (not SSE) daemon-side keeps the in-container parser trivial and makes
-//    the ring-buffer replay path byte-identical to the live path.
+//    the journal replay path byte-identical to the live path.
 //  - stdout/stderr ride as base64 chunks: the bytes must survive the hop
 //    UNALTERED and in order (agent adapters parse JSONL from stdout; any
 //    re-encoding or line-merging corrupts mid-line chunk boundaries).
@@ -37,7 +37,8 @@ export const RUNNERD_RING_BUFFER_BYTES = 256 * 1024;
  * SSE consumer would otherwise let Node buffer un-drained stdout in the HTTP
  * response unboundedly. Past this, the daemon disconnects that ONE
  * consumer (the others are unaffected); it reconnects via /attach?sinceSeq=
- * and replays from the bounded ring. Bounds memory, never truncates output. */
+ * and replays from the disk-backed journal. The diagnostic ring is not replay
+ * history. */
 export const RUNNERD_CONSUMER_BUFFER_MAX_BYTES = 8 * 1024 * 1024;
 /** Cap on ONE request body runnerd accepts, on every route. The spawner's own
  * SANDBOX_MAX_REQUEST_BODY_BYTES is clamped to this at boot, so a stage batch
@@ -120,11 +121,12 @@ export interface RunnerdExecRequest {
    * Code --input-format stream-json). Default 'close' = write-then-end. */
   stdinMode?: 'close' | 'hold';
   timeoutMs: number;
-  /** Cumulative stdout truncation cap; `<= 0` means UNLIMITED (the live stream
-   * is never truncated, memory bounded by runnerd's ring). The spawner sends 0
-   * for streaming execs (collectOutput=false), a positive cap otherwise. */
+  /** Cumulative stdout truncation cap; `<= 0` disables truncation. Journal
+   * storage limits still end an exec with OUTPUT_LIMIT. In-memory diagnostic
+   * output and consumer queues remain bounded. The spawner sends 0 for
+   * streaming execs (collectOutput=false), a positive cap otherwise. */
   stdoutMaxBytes: number;
-  /** Cumulative stderr truncation cap; `<= 0` means UNLIMITED (see above). */
+  /** Cumulative stderr truncation cap; `<= 0` disables truncation (see above). */
   stderrMaxBytes: number;
 }
 
@@ -150,7 +152,8 @@ export interface RunnerdStdinWriteResponse {
   ok: boolean;
   /** NOT_FOUND: exec not live. STDIN_CLOSED: exec spawned in 'close' mode or
    * EOF already sent. BAD_LINE: payload failed the single-NDJSON-line check
-   * (or exceeded RUNNERD_STDIN_MAX_BYTES). WRITE_FAILED: pipe write threw. */
+   * (or exceeded RUNNERD_STDIN_MAX_BYTES). WRITE_FAILED: pipe write threw or
+   * its bounded input queue is full. */
   reason?: 'NOT_FOUND' | 'STDIN_CLOSED' | 'BAD_LINE' | 'WRITE_FAILED';
 }
 
@@ -158,12 +161,15 @@ export interface RunnerdStdinWriteResponse {
  * `fail` line closes the stream; `stdout`/`stderr` chunks are base64 and
  * preserve byte order within their own stream.
  *
- * `seq` is a monotonic per-exec counter assigned to every emitted event. A
+ * `seq` is a monotonic per-exec counter assigned to journaled events. A
  * consumer that drops its stream reconnects via `GET /attach?sinceSeq=<lastSeq>`
  * and the daemon replays only events with a higher seq — making reconnect
- * idempotent (no missed or double-counted lines). Optional only because the
- * pre-spawn `fail` lines (which can never be reconnected to) skip the counter. */
+ * idempotent (no missed or double-counted lines). Replay boundary markers and
+ * pre-spawn `fail` lines (which can never be reconnected to) skip the counter.
+ * Unavailable history fails explicitly instead of replaying a partial suffix. */
 export type RunnerdExecEvent = (
+  | { t: 'replay-start' }
+  | { t: 'replay-complete'; throughSeq: number }
   | { t: 'start'; execId: string; startedAtMs: number }
   | { t: 'stdout'; b64: string }
   | { t: 'stderr'; b64: string }
@@ -188,8 +194,14 @@ export type RunnerdExecEvent = (
     }
   | {
       t: 'fail';
-      /** Structured pre-spawn failures (the process never ran). */
-      code: 'INVALID_CWD' | 'EXEC_LIMIT' | 'DUPLICATE_EXEC' | 'BAD_REQUEST';
+      /** Structured start, replay and output-budget failures. */
+      code:
+        | 'INVALID_CWD'
+        | 'EXEC_LIMIT'
+        | 'DUPLICATE_EXEC'
+        | 'BAD_REQUEST'
+        | 'OUTPUT_LIMIT'
+        | 'REPLAY_UNAVAILABLE';
       message: string;
     }
 ) & { seq?: number };

@@ -413,6 +413,501 @@ describe('DeviceHub placement', () => {
     ]);
   });
 
+  test('a destroyed session keeps its route to the device until the device confirms the bytes are gone', async () => {
+    const { hub } = await makeHub();
+    // What the device answers each destroy: an older device's answer with no
+    // `deletion` at all (19776cf18 renamed into its trash and deleted in the
+    // background), then still deleting, then failing, then done.
+    const answers: Array<Record<string, unknown>> = [
+      { destroyed: true, busy: false },
+      { destroyed: false, busy: false, deletion: 'pending' },
+      { destroyed: false, busy: false, deletion: 'failed' },
+      { destroyed: false, busy: false, deletion: 'done' },
+    ];
+    const d1 = connectDevice(hub, 'dev-1', (s) => {
+      if (s.head.method === 'DELETE') {
+        s.respond(
+          { status: 200, headers: [['content-type', 'application/json']] },
+          new Response(JSON.stringify(answers.shift())).body,
+        );
+        return;
+      }
+      s.respond(
+        { status: 201, headers: [['content-type', 'application/json']] },
+        new Response('{}').body,
+      );
+    });
+    await d1.hello();
+    const create = createRequest('pa-erased', 'device');
+    await hub.maybeForward(create.req, create.url, create.body);
+    const destroy = async () => {
+      const call = callRequest(
+        'DELETE',
+        '/v1/sessions/pa-erased?await_deletion=1',
+      );
+      // `null`: the hub's own backend would answer — and it holds nothing.
+      const res = await hub.maybeForward(call.req, call.url, '');
+      return res === null ? null : res.json();
+    };
+    for (const expected of [{ destroyed: true }, { deletion: 'pending' }]) {
+      expect(await destroy()).toMatchObject(expected);
+      // No session lives there any more: the capacity view drops it.
+      expect(hub.capacityOverlay(ORG).placements).toEqual([]);
+    }
+    expect(await destroy()).toMatchObject({ deletion: 'failed' });
+    expect(await destroy()).toMatchObject({ deletion: 'done' });
+    // Confirmed: the route goes, and so does the next destroy's trip.
+    expect(await destroy()).toBeNull();
+    expect(d1.served.filter((call) => call.method === 'DELETE')).toHaveLength(
+      4,
+    );
+  });
+
+  test('a fresh session under an id whose bytes a device still deletes goes back there while it can, else is placed anew', async () => {
+    const { hub } = await makeHub();
+    const respond = (s: IncomingStream) => {
+      if (s.head.method === 'DELETE') {
+        // An older device: no deletion state in its answer.
+        s.respond(
+          { status: 200, headers: [['content-type', 'application/json']] },
+          new Response(JSON.stringify({ destroyed: true, busy: false })).body,
+        );
+        return;
+      }
+      s.respond(
+        { status: 201, headers: [['content-type', 'application/json']] },
+        new Response('{}').body,
+      );
+    };
+    const d1 = connectDevice(hub, 'dev-1', respond);
+    await d1.hello();
+    const create = () => {
+      const call = createRequest('pa-again', 'device');
+      return hub.maybeForward(call.req, call.url, call.body);
+    };
+    const destroy = async () => {
+      const call = callRequest('DELETE', '/v1/sessions/pa-again');
+      await (await hub.maybeForward(call.req, call.url, ''))?.text();
+    };
+    expect((await create())?.headers.get(DEVICE_HEADER)).toBe('dev-1');
+    await destroy();
+    // A roomier device joins; least-loaded would pick it. The fresh session
+    // goes back to the device holding the old bytes while that one can
+    // take it, so one place keeps answering for both.
+    const d2 = connectDevice(hub, 'dev-2', respond);
+    await d2.hello({ maxSessions: 8 });
+    expect((await create())?.headers.get(DEVICE_HEADER)).toBe('dev-1');
+    expect(hub.capacityOverlay(ORG).placements).toEqual([
+      { sessionId: 'pa-again', deviceId: 'dev-1' },
+    ]);
+    await destroy();
+    // dev-1 drops off: a new session never waits on an old workspace's
+    // bytes — it is placed anew, and that route is let go.
+    const conn = hub.attach(
+      {
+        deviceId: 'dev-1',
+        organizationId: ORG,
+        issuedAtMs: Date.now(),
+        expiresAtMs: Date.now() + 900_000,
+      },
+      { send: () => {}, bufferedAmount: () => 0, close: () => {} },
+    );
+    conn.closed();
+    expect((await create())?.headers.get(DEVICE_HEADER)).toBe('dev-2');
+    expect(hub.capacityOverlay(ORG).placements).toEqual([
+      { sessionId: 'pa-again', deviceId: 'dev-2' },
+    ]);
+  });
+
+  test('a placement a plain if_idle destroy left deleting ends once the device has deleted the bytes, though nobody asks for the id again', async () => {
+    let now = 1_800_000_000_000;
+    const { hub } = await makeHub({ now: () => now });
+    let deletion = 'pending';
+    const d1 = connectDevice(hub, 'dev-1', (s) => {
+      if (s.head.method === 'DELETE') {
+        s.respond(
+          { status: 200, headers: [['content-type', 'application/json']] },
+          new Response(
+            JSON.stringify({ destroyed: false, busy: false, deletion }),
+          ).body,
+        );
+        return;
+      }
+      s.respond(
+        { status: 201, headers: [['content-type', 'application/json']] },
+        new Response('{}').body,
+      );
+    });
+    await d1.hello();
+    const create = createRequest('wf-run-1', 'device');
+    await hub.maybeForward(create.req, create.url, create.body);
+    // The run ended: its reclaim is a plain `if_idle` destroy, answered
+    // right after the rename, and the platform settles its row. A run id
+    // is never destroyed or created again.
+    const reclaim = callRequest('DELETE', '/v1/sessions/wf-run-1?if_idle=1');
+    await (await hub.maybeForward(reclaim.req, reclaim.url, ''))?.text();
+    const routed = async () => {
+      const read = callRequest('GET', '/v1/sessions/wf-run-1');
+      return (await hub.maybeForward(read.req, read.url, '')) !== null;
+    };
+    const asks = () =>
+      d1.served.filter(
+        (call) =>
+          call.method === 'DELETE' &&
+          call.path ===
+            '/v1/sessions/wf-run-1?if_idle=1&if_stopped=1&await_deletion=1',
+      ).length;
+    // The hub asks the device itself — the cleanup's conditional destroy,
+    // which never touches a session or a create under way — and not more
+    // often than its interval.
+    await hub.recheckDeleting();
+    await hub.recheckDeleting();
+    expect(asks()).toBe(1);
+    expect(await routed()).toBe(true);
+    // Done on the device: the next ask lets the route go.
+    deletion = 'done';
+    now += 5 * 60_000;
+    await hub.recheckDeleting();
+    expect(asks()).toBe(2);
+    expect(await routed()).toBe(false);
+  });
+
+  test('a route stays while its device still says the bytes are there, or cannot say', async () => {
+    let now = 1_800_000_000_000;
+    const { hub } = await makeHub({ now: () => now });
+    // The reclaim, then the hub's own asks: still deleting, failing, and an
+    // answer without a state (the device rolled back to an older release).
+    const answers: Array<Record<string, unknown>> = [
+      { destroyed: true, busy: false, deletion: 'pending' },
+      { destroyed: false, busy: false, deletion: 'pending' },
+      { destroyed: false, busy: false, deletion: 'failed' },
+      { destroyed: false, busy: false },
+      { destroyed: false, busy: false, deletion: 'done' },
+    ];
+    const d1 = connectDevice(hub, 'dev-1', (s) => {
+      if (s.head.method === 'DELETE') {
+        s.respond(
+          { status: 200, headers: [['content-type', 'application/json']] },
+          new Response(JSON.stringify(answers.shift())).body,
+        );
+        return;
+      }
+      s.respond(
+        { status: 201, headers: [['content-type', 'application/json']] },
+        new Response('{}').body,
+      );
+    });
+    await d1.hello();
+    const create = createRequest('pa-held', 'device');
+    await hub.maybeForward(create.req, create.url, create.body);
+    const reclaim = callRequest('DELETE', '/v1/sessions/pa-held?if_idle=1');
+    await (await hub.maybeForward(reclaim.req, reclaim.url, ''))?.text();
+    for (let ask = 0; ask < 3; ask++) {
+      now += 5 * 60_000;
+      await hub.recheckDeleting();
+    }
+    // An erasure's Retry still reaches the device that holds the bytes.
+    const retry = callRequest(
+      'DELETE',
+      '/v1/sessions/pa-held?if_idle=1&if_stopped=1&await_deletion=1',
+    );
+    const answer = await hub.maybeForward(retry.req, retry.url, '');
+    expect(await answer?.json()).toMatchObject({ deletion: 'done' });
+    expect(d1.served.filter((call) => call.method === 'DELETE')).toHaveLength(
+      5,
+    );
+    // Confirmed: nothing routes there any more, and nothing is asked again.
+    now += 5 * 60_000;
+    await hub.recheckDeleting();
+    const again = callRequest('DELETE', '/v1/sessions/pa-held');
+    expect(await hub.maybeForward(again.req, again.url, '')).toBeNull();
+    expect(d1.served.filter((call) => call.method === 'DELETE')).toHaveLength(
+      5,
+    );
+  });
+
+  test('a create sent back to a device still deleting the id falls back like any create when that device cannot take it', async () => {
+    const { hub } = await makeHub();
+    let refuseCreates = false;
+    const d1 = connectDevice(hub, 'dev-1', (s) => {
+      if (s.head.method === 'DELETE') {
+        s.respond(
+          { status: 200, headers: [['content-type', 'application/json']] },
+          new Response(
+            JSON.stringify({
+              destroyed: true,
+              busy: false,
+              deletion: 'pending',
+            }),
+          ).body,
+        );
+        return;
+      }
+      // Later on: draining, or its Docker cannot start the session.
+      s.respond(
+        {
+          status: refuseCreates ? 503 : 201,
+          headers: [['content-type', 'application/json']],
+        },
+        new Response('{}').body,
+      );
+    });
+    await d1.hello();
+    const create = () => {
+      const call = createRequest('pa-fall', 'device');
+      return hub.maybeForward(call.req, call.url, call.body);
+    };
+    expect((await create())?.headers.get(DEVICE_HEADER)).toBe('dev-1');
+    const destroy = callRequest('DELETE', '/v1/sessions/pa-fall');
+    await (await hub.maybeForward(destroy.req, destroy.url, ''))?.text();
+    const d2 = connectDevice(hub, 'dev-2');
+    await d2.hello();
+    refuseCreates = true;
+    // dev-1 is tried first — it holds the old bytes — and its refusal falls
+    // back on the next device, as for any create: a new session never fails
+    // for an old workspace's bytes.
+    const res = await create();
+    expect(res?.status).toBe(201);
+    expect(res?.headers.get(DEVICE_HEADER)).toBe('dev-2');
+    expect(
+      d1.served.filter((call) => call.method === 'POST').map((c) => c.path),
+    ).toEqual(['/v1/sessions', '/v1/sessions']);
+  });
+
+  test('a device that hands the volume off releases the route, and a destroyed session it still reports is no runtime session', async () => {
+    const { hub } = await makeHub();
+    let deletion = 'pending';
+    const d1 = connectDevice(hub, 'dev-1', (s) => {
+      if (s.head.method === 'DELETE') {
+        s.respond(
+          { status: 200, headers: [['content-type', 'application/json']] },
+          new Response(
+            JSON.stringify({ destroyed: true, busy: false, deletion }),
+          ).body,
+        );
+        return;
+      }
+      s.respond(
+        { status: 201, headers: [['content-type', 'application/json']] },
+        new Response('{}').body,
+      );
+    });
+    await d1.hello();
+    const create = createRequest('pa-k8s', 'device');
+    await hub.maybeForward(create.req, create.url, create.body);
+    const destroy = async () => {
+      const call = callRequest('DELETE', '/v1/sessions/pa-k8s');
+      return hub.maybeForward(call.req, call.url, '');
+    };
+    await (await destroy())?.text();
+    // A status sent before the destroy still lists the session: it is not
+    // running any more, whatever the report says.
+    await d1.status({
+      running: 1,
+      sessions: [{ sessionId: 'pa-k8s', state: 'running' }],
+    });
+    expect(hub.capacityOverlay(ORG).runtimeSessions).toEqual([]);
+    deletion = 'handed_off';
+    await (await destroy())?.text();
+    expect(await destroy()).toBeNull();
+  });
+
+  for (const answer of ['pending', 'done'] as const) {
+    test(`an ask answered ${answer} while a create under the id writes its placement leaves the new session's route alone`, async () => {
+      let now = 1_800_000_000_000;
+      const { hub } = await makeHub({ now: () => now });
+      let holdNextDelete = false;
+      let answerHeldAsk: () => void = () => {};
+      const d1 = connectDevice(hub, 'dev-1', (s) => {
+        if (s.head.method !== 'DELETE') {
+          s.respond(
+            { status: 201, headers: [['content-type', 'application/json']] },
+            new Response('{}').body,
+          );
+          return;
+        }
+        const reply = (deletion: string) =>
+          s.respond(
+            { status: 200, headers: [['content-type', 'application/json']] },
+            new Response(
+              JSON.stringify({ destroyed: false, busy: false, deletion }),
+            ).body,
+          );
+        if (holdNextDelete) {
+          holdNextDelete = false;
+          answerHeldAsk = () => reply(answer);
+          return;
+        }
+        reply('pending');
+      });
+      await d1.hello();
+      const create = () => {
+        const call = createRequest('pa-again', 'device');
+        return hub.maybeForward(call.req, call.url, call.body);
+      };
+      const asks = () =>
+        d1.served.filter((call) => call.path.includes('if_stopped=1')).length;
+      await create();
+      const destroy = callRequest('DELETE', '/v1/sessions/pa-again');
+      await (await hub.maybeForward(destroy.req, destroy.url, ''))?.text();
+
+      // The hub's ask is on its way to dev-1, and held there.
+      holdNextDelete = true;
+      const asking = hub.recheckDeleting();
+      await Bun.sleep(20);
+      expect(asks()).toBe(1);
+      // A new session under the id starts, and its placement write is held:
+      // the window between the placement and the file.
+      // The store's private file write, held open from outside.
+      // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion -- the write is private; the test holds it
+      const store = PlacementStore.prototype as unknown as {
+        writeSnapshot: () => Promise<void>;
+      };
+      const write = store.writeSnapshot;
+      const written = Promise.withResolvers<void>();
+      store.writeSnapshot = async function (this: unknown) {
+        await written.promise;
+        return write.call(this);
+      };
+      try {
+        const creating = create();
+        await Bun.sleep(20);
+        // The ask's answer lands inside that window.
+        answerHeldAsk();
+        await Bun.sleep(20);
+        written.resolve();
+        expect((await creating)?.status).toBe(201);
+        await asking;
+      } finally {
+        store.writeSnapshot = write;
+      }
+      // The answer was about the old bytes, not the new session: its route
+      // stands, as a session, and nothing asks about it.
+      expect(hub.capacityOverlay(ORG).placements).toEqual([
+        { sessionId: 'pa-again', deviceId: 'dev-1' },
+      ]);
+      now += 5 * 60_000;
+      await hub.recheckDeleting();
+      expect(asks()).toBe(1);
+    });
+  }
+
+  test('a backlog of deleting placements is asked about 8 a sweep, least recently asked first, so none starves', async () => {
+    let now = 1_800_000_000_000;
+    const { hub } = await makeHub({ now: () => now });
+    const d1 = connectDevice(hub, 'dev-1', (s) => {
+      s.respond(
+        {
+          status: s.head.method === 'DELETE' ? 200 : 201,
+          headers: [['content-type', 'application/json']],
+        },
+        new Response(
+          JSON.stringify({ destroyed: false, busy: false, deletion: 'failed' }),
+        ).body,
+      );
+    });
+    await d1.hello({ maxSessions: 256 });
+    const ids = Array.from({ length: 90 }, (_, i) => `wf-run-${i}`);
+    for (const id of ids) {
+      const call = createRequest(id, 'device');
+      await hub.maybeForward(call.req, call.url, call.body);
+      const destroy = callRequest('DELETE', `/v1/sessions/${id}`);
+      await (await hub.maybeForward(destroy.req, destroy.url, ''))?.text();
+    }
+    const asked = () =>
+      new Set(
+        d1.served
+          .filter((call) => call.path.includes('if_stopped=1'))
+          .map((call) => call.path.split('?')[0]),
+      );
+    const askCount = () =>
+      d1.served.filter((call) => call.path.includes('if_stopped=1')).length;
+    await hub.recheckDeleting();
+    expect(askCount()).toBe(8);
+    // Ten more minutes of sweeps: past the first 80, the rest are reached
+    // too, though the first ones are due again by then.
+    for (let sweep = 0; sweep < 20; sweep++) {
+      now += 30_000;
+      await hub.recheckDeleting();
+    }
+    expect(asked().size).toBe(90);
+  });
+
+  /** A device on dev-1 whose destroys answer `pending`, then whatever
+   * `later` says; `pa-x` placed there and destroyed, so its placement is
+   * deleting. */
+  async function deletingOnDev1(
+    overrides: Partial<HubOptions> = {},
+    later = 'done',
+  ) {
+    const made = await makeHub(overrides);
+    let destroys = 0;
+    const device = connectDevice(made.hub, 'dev-1', (s) => {
+      if (s.head.method !== 'DELETE') {
+        s.respond(
+          { status: 201, headers: [['content-type', 'application/json']] },
+          new Response('{}').body,
+        );
+        return;
+      }
+      destroys++;
+      s.respond(
+        { status: 200, headers: [['content-type', 'application/json']] },
+        new Response(
+          JSON.stringify({
+            destroyed: destroys === 1,
+            busy: false,
+            deletion: destroys === 1 ? 'pending' : later,
+          }),
+        ).body,
+      );
+    });
+    await device.hello();
+    const create = createRequest('pa-x', 'device');
+    await made.hub.maybeForward(create.req, create.url, create.body);
+    const destroy = callRequest('DELETE', '/v1/sessions/pa-x');
+    await (await made.hub.maybeForward(destroy.req, destroy.url, ''))?.text();
+    const routed = async () => {
+      const read = callRequest('GET', '/v1/sessions/pa-x');
+      return (await made.hub.maybeForward(read.req, read.url, '')) !== null;
+    };
+    const asks = () =>
+      device.served.filter((call) => call.path.includes('if_stopped=1')).length;
+    return { ...made, device, routed, asks };
+  }
+
+  test('a device on another release is not asked: its answer could not confirm anything', async () => {
+    const { hub, routed, asks } = await deletingOnDev1();
+    // dev-1 comes back on another release; the hub still routes to it.
+    const again = connectDevice(hub, 'dev-1');
+    await again.hello({ version: '0.5.59' });
+    await hub.recheckDeleting();
+    expect(asks()).toBe(0);
+    expect(again.served.filter((call) => call.method === 'DELETE')).toEqual([]);
+    expect(await routed()).toBe(true);
+  });
+
+  test('the sweep asks on its own, with nobody calling it', async () => {
+    const { hub, routed, asks } = await deletingOnDev1({
+      sweepIntervalMs: 20,
+    });
+    await Bun.sleep(200);
+    hub.stop();
+    expect(asks()).toBe(1);
+    expect(await routed()).toBe(false);
+  });
+
+  test('a create under a deleting id that the server takes lets the route to the old bytes go', async () => {
+    const { hub, routed } = await deletingOnDev1();
+    // Not for a device: the session lives on the server now, so no call
+    // under the id may still go to dev-1.
+    const create = createRequest('pa-x');
+    expect(
+      await hub.maybeForward(create.req, create.url, create.body),
+    ).toBeNull();
+    expect(await routed()).toBe(false);
+  });
+
   test('removing a device forgets where its sessions were', async () => {
     const { hub } = await makeHub();
     const d1 = connectDevice(hub, 'dev-1');

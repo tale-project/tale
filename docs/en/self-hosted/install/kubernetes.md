@@ -10,7 +10,7 @@ Tale runs on Kubernetes when you translate the [service contract](/self-hosted/i
 | Requirement | Why it matters |
 | --- | --- |
 | A CNI that enforces NetworkPolicy, such as Calico, Cilium, or kube-network-policies | The sandbox egress fence and the backend fence are NetworkPolicy objects. Every API server accepts them; only the CNI makes them block traffic. |
-| A default StorageClass whose `ReadWriteOnce` volumes re-bind where a Pod is scheduled | The database, the object store, the proxy certificates, the gateway state, and every sandbox workspace live on PersistentVolumeClaims. |
+| A default StorageClass whose `ReadWriteOnce` volumes re-bind where a Pod is scheduled | The database, the object store, the proxy certificates, the gateway state, and every sandbox workspace live on PersistentVolumeClaims. A deleted sandbox workspace's volume follows the StorageClass's `reclaimPolicy`: with `Delete`, its files go with it; with `Retain`, they stay until you remove the volume. |
 | `ReadWriteMany` storage, or a single node, for the organization configuration | The backend roles write `config-data`; the web tier and the spawner read it. `ReadWriteOnce` is enough on one node. Several nodes need `ReadWriteMany` or a node pin for those Pods. |
 | Nodes that grant `NET_ADMIN` and provide ip6tables, or allow the IPv6 sysctls | The egress proxy installs its firewall at start and refuses to start without it. |
 | Ports 80 and 443 reachable at the public address | Caddy obtains certificates itself in `selfsigned` and `letsencrypt` mode. Behind an Ingress that terminates TLS, set `TLS_MODE=external`. |

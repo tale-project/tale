@@ -244,8 +244,10 @@ describe('shipped Sol 6.1 serving', () => {
     });
   });
 
+  // Listed, but not on the harness's wire: the refusal says so and names the
+  // harness that can run it, instead of reporting the model as missing.
   it.each([undefined, 'openai'])(
-    'refuses a managed chat-wire harness with provider pin %s',
+    'refuses a managed chat-wire harness with provider pin %s, naming the Responses API',
     async (modelProvider) => {
       await shippedOpenAi();
       credentials = { openai: DIRECT };
@@ -256,7 +258,9 @@ describe('shipped Sol 6.1 serving', () => {
           modelProvider,
           harness: 'opencode',
         }),
-      ).rejects.toThrow(/cannot serve|no configured provider serves/);
+      ).rejects.toThrow(
+        'model "gpt-6.1-sol" takes tools only through the Responses API, which the "opencode" harness does not speak — run the agent on "codex", or pick another model',
+      );
     },
   );
 });

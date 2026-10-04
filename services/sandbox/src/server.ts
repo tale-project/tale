@@ -72,6 +72,7 @@ async function sizeSessionCapacity(): Promise<void> {
     memory.totalBytes,
     memoryReserveBytes(memory.totalBytes, cfg.session.minFreeMemoryBytes),
     cfg.dockerInContainer,
+    cfg.dockerWorkloads,
   );
   console.log(
     `[sandbox] session capacity ${cfg.session.maxSessions}, sized from the host's ${Math.round(memory.totalBytes / 1024 ** 3)} GiB (set SANDBOX_MAX_SESSIONS to fix it)`,
@@ -347,6 +348,7 @@ async function handleSessionRoutes(
     return getSessionRoutes().handleFileContent(
       fileContentMatch[1] ?? '',
       url.searchParams.get('path') ?? '',
+      req.signal,
     );
   }
   // GET /v1/sessions/:id/files?path=  (directory listing)
@@ -368,10 +370,13 @@ async function handleSessionRoutes(
       // `?if_idle=1` — conditional destroy for janitor callers: no-op with
       // {busy:true} while the session still has a live exec. `?if_stopped=1`
       // — the workspace cleanup's: no-op while ANY compute runs under the id.
+      // `?await_deletion=1` — the cleanup's too: wait a bounded time for the
+      // workspace's bytes, and answer how far their deletion came.
       // The query string is HMAC-covered (authorize signs pathname + search).
       return getSessionRoutes().handleDestroy(id, {
         ifIdle: url.searchParams.get('if_idle') === '1',
         ifStopped: url.searchParams.get('if_stopped') === '1',
+        awaitDeletion: url.searchParams.get('await_deletion') === '1',
       });
     }
   }

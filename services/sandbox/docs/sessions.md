@@ -169,13 +169,73 @@ Every such stop is fenced to the incarnation the registry or listing
 describes, and keeps the workspace. The pass probes at most eight daemons at a
 time, so a few hung ones bound it rather than the sum of every probe.
 
-Exec and attach output consumers each have an 8 MiB pending-write ceiling.
-When a reader falls behind that ceiling, runnerd disconnects that reader and
-releases its socket, buffered writes, subscription and request activity. The
-exec continues under its existing deadline; reconnect through
-`/execs/:id/attach?sinceSeq=<last-seen-seq>` to replay the retained output from
-the 256 KiB ring. Other readers continue receiving output. A dropped consumer
-does not cancel the command or keep an idle session busy after the command ends.
+Exec output consumers have an 8 MiB pending-write ceiling. When a reader
+falls behind, runnerd disconnects it and releases its socket, buffered writes
+and request activity. Attach replay observes socket backpressure directly and
+disconnects a reader that has not drained for two seconds. Other readers and
+the command continue under the existing exec deadline. A dropped consumer does
+not keep an idle session busy after the command ends.
+
+Reconnect through `/execs/:id/attach?sinceSeq=<last-seen-seq>`. The complete
+protocol lives in an unlinked, disk-backed journal, limited to **64 MiB of
+encoded NDJSON per exec** and **256 MiB per session**, including base64 output.
+Completed journals are evicted oldest first under the session budget, and at
+most 16 completed execs are retained. An active writer that exhausts its budget
+ends with `OUTPUT_LIMIT`; unavailable or evicted history reports
+`REPLAY_UNAVAILABLE`. The 256 KiB diagnostic ring is never used as incomplete
+protocol history. A runtime restart loses its journals and execs; these files
+do not extend the persistent workspace's lifecycle.
+
+An attach sends `replay-start` before journal history and `replay-complete`
+with `throughSeq` after delivering the
+historical prefix that existed when attachment began. Clients must reconstruct
+protocol state through that boundary before treating a historical turn result
+as completion; a process `exit` is authoritative independently. Older runtimes
+omit these markers. Consumers retain their legacy completion behavior only
+while replay sequence continuity is verified; an observed gap fails the replay
+rather than treating a suffix as complete history.
+
+The initial exec consumer releases its callback and HTTP objects on disconnect.
+Body intake drops its raw upload buffers after parsing, and completed commands
+release request and consumer data even when background descendants await a
+sibling's completion. Deferred process cleanup keeps only ownership and
+liveness information, separate from the bounded replay history.
+
+Held-open stdin accepts a whole line only while its pending writes plus that
+line fit within 8 MiB. A full queue returns the existing `WRITE_FAILED` reason
+without enqueuing any of that line; once the child drains its pipe, writes may
+resume. This bounds memory when a command stops reading stdin. Device tunnel
+streams also remove caller abort listeners on completion, reset or disconnect.
+
+### Staged inputs and output reads
+
+`POST /files/stage` accepts the existing `files` list: a destination `path`
+and either `url` or `contentBase64`. Downloads stream to a temporary file,
+with a 100 MiB cap and 25-second per-file deadline, and atomically replace the
+destination only after success. Inline files remain capped at 1 MiB. Cancelled,
+failed and oversized transfers leave the previous destination intact and
+remove their temporary file. Parent symlinks cannot redirect staging outside
+the workspace; Linux pins the destination directory while downloading. At
+most two stage requests, including body intake, are admitted at once; a busy
+request must be retried. `/fs/read` streams an opened regular file within the
+20 MiB read cap and fixes its range before sending bytes, so later growth does
+not bypass the limit.
+
+A file may carry an immutable `sourceId` supplied by the platform. runnerd
+keeps up to 4,096 source/digest entries in memory and skips an unchanged source
+only after hashing the actual destination again. A source-only entry probes
+that cache: a verified hit is `staged`; a miss reports `no_source` and requires
+the bytes or URL. Restarting runnerd loses the cache and causes a refresh.
+This does not cache grants, credentials or source authorization: callers must
+resolve those for the current turn.
+
+After every transfer batch succeeds, a final empty `files` request may supply
+`replaceRoots` and `keepPaths`. This explicitly reconciles fully managed input,
+skill or mount directories, removing files absent from the final list while
+preserving paths elsewhere. The workspace root itself cannot be reconciled.
+A successful response includes `reconciled: true`; older runtimes omit it, so
+the platform uses its prior clear-and-restage behavior during a mixed rollout.
+Never send a final manifest for a failed or unfinished transfer batch.
 
 The build-cache upkeep — the reconcile for the organizations whose agent
 sessions adoption just registered, the retirement of legacy helpers and the
@@ -250,6 +310,18 @@ admission lock from a reading the probe refreshes every second, so a burst
 sees each create admitted before it. Unknown memory never refuses a create,
 and the check cannot stop sessions already running from growing past it.
 
+Warm idle-to-active acquisitions use the same memory guard and FIFO as new
+creates. They renew the 90-second growth reservation for the actual Docker
+capability of that incarnation; repeated acquisition of already active work
+shares the reservation. Only a release acknowledged by runnerd's current
+generation gives it back early. An old release cannot free newer work's budget.
+Direct exec requests also enter admission when no recent activation is held.
+A refused activation returns 429 `host_memory` with queue position and
+`retry-after`, preserving its workspace and compute for retry. Warm waiters
+hold memory in the line, but consume no additional session slot. These checks
+apply only where the Docker host's memory can be verified, and do not impose a
+hard aggregate memory limit on already-running work.
+
 On the Docker backend, admission also keeps a floor of free space on the disk
 the workspaces live on — the session root, read with `statfs` every five
 seconds (`host-disk.ts`): `SANDBOX_MIN_FREE_DISK`, a twentieth of the disk,
@@ -299,6 +371,15 @@ workspace. Pinned ("always-on") and live-exec sessions are exempt from the
 reaper entirely, except that compute which has already ended is removed (the
 pin's own reconcile recreates a pinned session).
 
+A pin change succeeds only after runnerd and the backend's durable record
+acknowledge it. Failure returns 503 and keeps the last acknowledged `pinned`
+value visible with `pinSynchronized: false`, so platform reconciliation retries
+even when a canceled toggle happens to match that old value. The affected
+incarnation remains protected while the pin is uncertain. Pin writes serialize
+with each other and local replacement; backend incarnation fences reject a late
+write to a replacement container or Pod. Only an acknowledged true-to-false
+transition renews the normal TTL; repeating an unpin does not extend it.
+
 A destroy does not wait for the workspace's data to go. On Docker, once the
 container is confirmed gone, the `ses-<id>` dir is renamed into
 `<root>/.trash/` under a name of its own (`ses-<id>.<uuid>`) — one directory
@@ -311,12 +392,46 @@ The disk space comes back when the background deletion finishes; one that took
 a second or more is logged (`[sandbox.trash] removed …`). What a restart or a
 crash cut short goes at the next start (the boot sweep), and an entry that
 could not be removed is logged and retried by the next pass and the
-five-minute sweep. `.trash/` is a dot-dir: the workspace inventory, the
-host-dir sweep and the resume resolver never take it for a workspace. Where the
-rename cannot happen (another filesystem, a disk too full for the directory
-entry), the workspace is deleted in place before the answer, as it was before
-the trash, and a failure there answers 502. On Kubernetes the PVC delete
-already hands the volume to its provisioner.
+five-minute sweep.
+
+Out of use is not deleted, so every destroy answer that is not busy says how
+far the bytes came, in `deletion`: `done` once no trash entry of the id is
+left, `pending` while one waits or is being deleted, `failed` while the last
+attempt at one failed. It is read from the trash itself, so a restart turns
+nothing still on disk into `done` (a failure is remembered in memory only:
+after a restart the entry reads `pending` until a pass has tried it again).
+Only the id's own entries count (`ses-<id>.<uuid>`), never a fresh `ses-<id>`
+a later session laid out. `?await_deletion=1` — the platform's
+[workspace cleanup](#workspace-cleanup) sends it — has the entries attempted
+now, a failed one again, and waits up to 10 s for them before answering; an
+interactive Destroy does not wait.
+
+`.trash/` is a dot-dir: the workspace inventory, the host-dir sweep and the
+resume resolver never take it for a workspace. Where the rename cannot happen
+(another filesystem, a disk too full for the directory entry), the workspace is
+deleted in place before the answer, as it was before the trash, and a failure
+there answers 502.
+
+On Kubernetes the destroy's deletion is the PVC delete: once the API accepted
+it, Kubernetes removes the claim when nothing mounts it, and the volume is its
+storage provisioner's to delete under the StorageClass's `reclaimPolicy` —
+bytes the spawner cannot observe. So it answers `deletion: handed_off`, never
+`done`, and the platform records which contract a deletion settled on. Every
+backend states its contract (`SessionBackend.workspaceDeletion` is required):
+an answer without `deletion` comes from a spawner or device older than this
+contract — one that already renamed into its trash and deleted in the
+background — and the platform reads it as unconfirmed, never as done.
+
+The device hub keeps a destroyed session's placement, marked deleting, until
+its device answers `done`: while the device is still deleting (`pending`,
+`failed`), or is too old to say, the destroy that asks again reaches the device
+holding the bytes rather than the hub's own backend. The hub asks again itself,
+at most every 5 minutes per placement and least recently asked first, so a
+placement ends once its bytes are gone even when nothing destroys or creates
+the id again (a run's reclaim never does). Such a placement is no session — the
+capacity view leaves it out — and a fresh session under the id is placed like
+any other, trying that device first, so a new session never waits on an old
+workspace's bytes.
 
 ### Workspace cleanup
 
@@ -367,14 +482,28 @@ The spawner's part:
   either existed names none. Leaving a workspace out is always safe: the
   platform only deletes what the list names and its records disown. A list
   that cannot be read is a 503.
-- `DELETE /v1/sessions/:id?if_idle=1&if_stopped=1` — the cleanup's destroy:
-  `if_stopped` refuses (`{busy:true}`) while any compute runs under the id or a
-  create of it is in flight; `if_idle` rides along so a spawner or device that
-  predates `if_stopped` still refuses a live exec. Destroys of one id run one
-  after another, and a create of an id waits for a destroy of it under way —
+- `DELETE /v1/sessions/:id?if_idle=1&if_stopped=1&await_deletion=1` — the
+  cleanup's destroy: `if_stopped` refuses (`{busy:true}`) while any compute runs
+  under the id or a create of it is in flight; `if_idle` rides along so a
+  spawner or device that predates `if_stopped` still refuses a live exec. An
+  erasure sends neither condition, and an owner's deletion `if_idle` alone.
+  `await_deletion` waits a bounded time for the bytes; the platform settles a
+  deletion — the rows destroyed, the audit row, the erasure's count — only on
+  `deletion: done` (or Kubernetes' `handed_off`, recorded as such). `pending`,
+  `failed` and an answer without `deletion` leave the workspace for the next
+  attempt (the sweep defers it, the owner's and the organization's jobs throw
+  for the queue's retry, an erasure's pass fails so the receipt reads
+  partial), and `failed` is audited as a failed deletion. Destroys of one id
+  run one after another, and a create of an id waits for a destroy of it under way —
   up to two minutes; past that it answers 429 busy (`retry-after`), so a
   destroy wedged on its filesystem never holds the create and its capacity
-  slot for ever.
+  slot for ever. On Docker, destroying an id discards every flat and legacy
+  workspace copy plus the workspace its container actually mounts, even if
+  the configured session root moved. The organization marker stays until all
+  copies are discarded; an unreadable directory or an unknown container mount
+  defers the destroy. A failed create uses the same verified cleanup: existing
+  workspaces survive a failed resume, and failed removal retains ownership so
+  the platform can retry cleanup.
 - `DELETE /v1/organizations/:id` — for an organization the platform deleted:
   destroys every session the backend still holds for it (containers/Pods with
   their workspaces) and every stopped workspace attributed to it, then its
@@ -382,7 +511,14 @@ The spawner's part:
   Kubernetes keeps nothing per organization beyond PVCs). A workspace list
   that cannot be read leaves the stopped ones to the platform, which names
   every workspace its rows knew. 409 while a create of the organization is in
-  flight, 502 on a failure; idempotent.
+  flight, 502 on a failure; idempotent. A package cache is the spawner's by its
+  `tale.sandbox-cache` label, and the teardown refuses a volume under a cache
+  name without it. Docker makes such a volume itself when a session mounts a
+  cache that was pruned while the spawner still took it to be ready (for up
+  to five minutes after it last checked): root-owned and unwritable to the
+  sessions. The organization's next create past that window replaces it with
+  a labelled, writable one, or makes it writable while a session still holds
+  it and replaces it at a later check.
 
 ## Secret-management model (tiered — the security invariant)
 

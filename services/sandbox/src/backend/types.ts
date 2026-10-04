@@ -84,6 +84,8 @@ export interface SessionSpec {
   sessionId: string;
   organizationId: string;
   profile: SandboxSessionProfile;
+  /** Resolved capability for this incarnation; absent uses the deployment default. */
+  docker?: boolean;
   /** Clamped by the route layer to cfg.session.maxLifetimeMs / maxIdleMs. */
   ttlMs: number;
   idleTimeoutMs: number;
@@ -101,6 +103,8 @@ export interface BackendSession {
   sessionId: string;
   organizationId: string;
   profile: SandboxSessionProfile;
+  /** Durable capability label; absent only on older runtime objects. */
+  docker?: boolean;
   createdAtMs: number;
   ttlMs: number;
   idleTimeoutMs: number;
@@ -155,6 +159,21 @@ export interface CreateSessionResult {
   resumed: boolean;
 }
 
+/**
+ * How far deleting a destroyed workspace's bytes has come, as every destroy
+ * answers it — the one completion signal the platform settles on:
+ *  - `done` — nothing of it is left (Docker: no trash entry of the id);
+ *  - `pending` — it waits in the trash or is being deleted;
+ *  - `failed` — the last attempt at it failed, and the next one tries again;
+ *  - `handed_off` — Kubernetes: the PVC delete was accepted, and the volume
+ *    is its storage provisioner's to delete under the storage class's reclaim
+ *    policy, which the spawner cannot observe. Never presented as `done`.
+ * A destroy answer without it comes from a spawner or device older than this
+ * contract — one that already deleted in the background (19776cf18) — and
+ * proves nothing about the bytes.
+ */
+export type WorkspaceDeletion = 'done' | 'pending' | 'failed' | 'handed_off';
+
 /** What the build-cache upkeep is told about the host. */
 export interface BuildCacheUpkeep {
   /** The disk the workspaces live on, read now (null when it cannot be):
@@ -198,6 +217,18 @@ export interface SessionBackend {
    * provisioner. Idempotent; returns false when nothing existed. */
   destroySession(sessionId: string): Promise<boolean>;
   /**
+   * How far deleting the workspaces destroyed under the id has come — what
+   * an erasure or a retirement waits for, since a destroy answers once the
+   * workspace is out of use. With `waitMs`, what is left is attempted now (a
+   * failed removal again) and waited for that long. Required: every backend
+   * states its own contract (Docker reads its trash; Kubernetes answers
+   * `handed_off`), because an answer without one reads as unconfirmed.
+   */
+  workspaceDeletion(
+    sessionId: string,
+    waitMs?: number,
+  ): Promise<WorkspaceDeletion>;
+  /**
    * Stop the container/Pod (+ Secret on K8s) to release compute, but PRESERVE
    * the workspace (host dir / PVC) so a later createSession with the same
    * sessionId re-attaches it. This is the idle/TTL-reaper outcome — never
@@ -211,6 +242,14 @@ export interface SessionBackend {
   stopSession(
     sessionId: string,
     expectedCreatedAtMs?: number,
+  ): Promise<boolean>;
+  /** Recover an abandoned startup only when its durable age and current
+   * backend state prove no peer is still starting it. Fenced to the original
+   * incarnation and observed state; preserves the workspace. False means
+   * still starting/unknown, never permission to release its capacity. */
+  reapStaleSession?(
+    sessionId: string,
+    expectedCreatedAtMs: number,
   ): Promise<boolean>;
   /** List session objects (label-selected), for boot + periodic re-adoption
    * and the route layer's registry-miss re-resolve. THROWS when the backend
@@ -226,10 +265,15 @@ export interface SessionBackend {
    * without this a spawner restart forgets every pin and the next sweep reaps
    * the user's always-on session. A new create always starts unpinned (the
    * platform row is the truth and re-pushes); stop/destroy clear the record.
-   * THROWS when the backend cannot record it — the caller keeps the in-memory
-   * pin and warns, so the current process still honours it.
+   * THROWS when the backend cannot record it. The caller keeps the previous
+   * published value for reconciliation and protects the pending incarnation.
+   * An expected creation stamp fences writes away from a same-name replacement.
    */
-  setPinned(sessionId: string, pinned: boolean): Promise<void>;
+  setPinned(
+    sessionId: string,
+    pinned: boolean,
+    expectedCreatedAtMs?: number,
+  ): Promise<void>;
   /**
    * Reconcile the shared cross-session build cache (the per-org buildkitd) at
    * spawner startup, after running sessions are re-adopted. The daemon is

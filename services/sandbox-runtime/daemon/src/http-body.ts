@@ -39,7 +39,15 @@ function readBody(req: IncomingMessage, maxBytes: number): Promise<BodyRead> {
     let settled = false;
     const declared = Number(req.headers['content-length']);
     let tooLarge = Number.isFinite(declared) && declared > maxBytes;
-    req.on('data', (chunk: unknown) => {
+    const cleanup = () => {
+      // The response may stream for minutes after intake. Do not let its
+      // IncomingMessage keep the original upload through these listeners.
+      chunks.length = 0;
+      req.removeListener('data', onData);
+      req.removeListener('end', onEnd);
+      req.removeListener('error', onError);
+    };
+    const onData = (chunk: unknown) => {
       if (tooLarge) return;
       const buf = Buffer.isBuffer(chunk)
         ? chunk
@@ -53,21 +61,25 @@ function readBody(req: IncomingMessage, maxBytes: number): Promise<BodyRead> {
         return;
       }
       chunks.push(buf);
-    });
-    req.once('end', () => {
+    };
+    const onEnd = () => {
       if (settled) return;
       settled = true;
-      resolve(
-        tooLarge
-          ? { kind: 'too_large' }
-          : { kind: 'read', raw: Buffer.concat(chunks).toString('utf8') },
-      );
-    });
-    req.once('error', (error: Error) => {
+      const body: BodyRead = tooLarge
+        ? { kind: 'too_large' }
+        : { kind: 'read', raw: Buffer.concat(chunks).toString('utf8') };
+      cleanup();
+      resolve(body);
+    };
+    const onError = (error: Error) => {
       if (settled) return;
       settled = true;
+      cleanup();
       reject(error);
-    });
+    };
+    req.on('data', onData);
+    req.once('end', onEnd);
+    req.once('error', onError);
   });
 }
 

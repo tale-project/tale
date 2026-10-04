@@ -75,9 +75,15 @@ export function useBackendHints(orgId: string | undefined): void {
           void queryClient.invalidateQueries({
             queryKey: backendEntityPrefix(org, hint.entity),
           });
-          // The task reviewer read also includes its project's future default.
-          // Refetch that read without retargeting the captured pending review.
+          // Project writes also remove or hide the project's tasks and chats.
+          // Refresh those entity lists so Home cannot retain stale rows.
           if (hint.entity === 'project') {
+            void queryClient.invalidateQueries({
+              queryKey: backendEntityPrefix(org, 'task'),
+            });
+            void queryClient.invalidateQueries({
+              queryKey: backendEntityPrefix(org, 'chat_thread'),
+            });
             void queryClient.invalidateQueries({
               queryKey: backendKey(org, 'task', 'reviewer'),
             });

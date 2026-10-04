@@ -135,6 +135,24 @@ function mirrorUpstream(registry: string): string {
     : `https://${registry}`;
 }
 
+/** Immutable mirror settings, also stamped so an existing helper adopts a
+ * changed cleanup policy once its organization's builds finish. */
+export function buildkitMirrorEnvironment(
+  cfg: Pick<SpawnerConfig, 'egressProxy'>,
+  registry: string,
+): string[] {
+  return [
+    `REGISTRY_PROXY_REMOTEURL=${mirrorUpstream(registry)}`,
+    // Distribution's proxy TTL scheduler calls the storage deletion path.
+    // Its default is disabled: expiration otherwise fails before removing
+    // any layer bytes, even though the scheduler forgets the expired entry.
+    'REGISTRY_STORAGE_DELETE_ENABLED=true',
+    `HTTPS_PROXY=${cfg.egressProxy}`,
+    `HTTP_PROXY=${cfg.egressProxy}`,
+    'NO_PROXY=127.0.0.1,localhost',
+  ];
+}
+
 function assertOrg(organizationId: string): void {
   if (!ORG_RE.test(organizationId)) {
     throw new Error(
@@ -306,12 +324,16 @@ export function buildkitHelperLimits(
 /** The label a helper carries with {@link helperStamp}. */
 const HELPER_STAMP_LABEL = 'tale.helper-config';
 
-/** How a helper was launched — its image and bounds — as a short hash: a
+/** How a helper was launched — its image, bounds and settings — as a short hash: a
  * running helper whose stamp differs predates the current release or
  * settings. */
-export function helperStamp(image: string, limits: readonly string[]): string {
+export function helperStamp(
+  image: string,
+  limits: readonly string[],
+  environment: readonly string[] = [],
+): string {
   return createHash('sha256')
-    .update([image, ...limits].join('\n'))
+    .update([image, ...limits, ...environment].join('\n'))
     .digest('hex')
     .slice(0, 16);
 }
@@ -469,14 +491,14 @@ async function liveBuildkitOrganizations(
     'label=tale.sandbox-session=1',
     ...(organizationId ? ['--filter', `label=tale.org=${organizationId}`] : []),
     '--format',
-    '{{.ID}}\t{{.State}}\t{{.Label "tale.org"}}\t{{.Label "tale.profile"}}',
+    '{{.ID}}\t{{.State}}\t{{.Label "tale.org"}}\t{{.Label "tale.profile"}}\t{{.Label "tale.docker"}}',
   ]);
   if (sessions.exitCode !== 0) {
     throw new Error('buildkitd: cannot establish idle session dependencies');
   }
   const live = new Set<string>();
   for (const line of sessions.stdout.split('\n').filter(Boolean)) {
-    const [id, status, org, profile, extra] = line.split('\t');
+    const [id, status, org, profile, docker, extra] = line.split('\t');
     if (
       !id ||
       !DOCKER_ID_RE.test(id) ||
@@ -490,7 +512,7 @@ async function liveBuildkitOrganizations(
     // Only agent sessions build: a crawler render or a script session of the
     // organization kept its helpers running for nothing. A container without
     // the label predates it and counts, as before.
-    if (profile === 'default') continue;
+    if (profile === 'default' || docker === 'false') continue;
     // Created, paused, restarting, removing and unrecognized non-terminal
     // states may still use the cache. Pinned/warm runtimes are also retained.
     if (status !== 'exited' && status !== 'dead') live.add(org);
@@ -913,20 +935,24 @@ async function ensureBuildkitdMirrors(
    * then: the pulls through it come from that builder's builds. */
   idle: () => Promise<boolean>,
 ): Promise<string> {
-  const pairs: string[] = [];
-  for (const registry of MIRROR_REGISTRIES) {
-    try {
-      await ensureOneMirror(cfg, organizationId, registry, idle);
-      pairs.push(`${registry}=${buildkitdMirrorRef(organizationId, registry)}`);
-    } catch (err) {
-      console.warn(
-        `[sandbox.buildkitd] mirror for ${registry} unavailable; ` +
-          `${registry} base images won't be pullable in builds:`,
-        err,
-      );
-    }
-  }
-  return pairs.join(';');
+  // Three independent resources, still inside the per-organization lease and
+  // global Docker CLI bound. A slow registry must not serialize the others.
+  const pairs = await Promise.all(
+    MIRROR_REGISTRIES.map(async (registry) => {
+      try {
+        await ensureOneMirror(cfg, organizationId, registry, idle);
+        return `${registry}=${buildkitdMirrorRef(organizationId, registry)}`;
+      } catch (err) {
+        console.warn(
+          `[sandbox.buildkitd] mirror for ${registry} unavailable; ` +
+            `${registry} base images won't be pullable in builds:`,
+          err,
+        );
+        return undefined;
+      }
+    }),
+  );
+  return pairs.filter((pair) => pair !== undefined).join(';');
 }
 
 async function ensureOneMirror(
@@ -959,7 +985,8 @@ async function ensureOneMirrorUnlocked(
   idle: () => Promise<boolean>,
 ): Promise<void> {
   const limits = buildkitHelperLimits(cfg, 'mirror');
-  const stamp = helperStamp(cfg.buildkitdMirrorImage, limits);
+  const environment = buildkitMirrorEnvironment(cfg, registry);
+  const stamp = helperStamp(cfg.buildkitdMirrorImage, limits, environment);
   const helper = await inspectBuildkitHelper(
     name,
     organizationId,
@@ -1009,14 +1036,7 @@ async function ensureOneMirrorUnlocked(
       // through the egress proxy (so the mirror itself needs no external DNS).
       '--network',
       cfg.egressNetwork,
-      '--env',
-      `REGISTRY_PROXY_REMOTEURL=${mirrorUpstream(registry)}`,
-      '--env',
-      `HTTPS_PROXY=${cfg.egressProxy}`,
-      '--env',
-      `HTTP_PROXY=${cfg.egressProxy}`,
-      '--env',
-      'NO_PROXY=127.0.0.1,localhost',
+      ...environment.flatMap((value) => ['--env', value]),
       '--mount',
       `type=volume,src=${volume},dst=/var/lib/registry`,
       cfg.buildkitdMirrorImage,

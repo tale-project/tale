@@ -5,19 +5,20 @@ footer:
 home:
   faq:
     byoModels:
-      a: Nein. Du kannst eigene Modelle nutzen, musst es aber nicht. Tale
-        unterstützt die meisten grossen KI-Anbieter ohne Aufschlag.
-        Cloud-Modellnutzung wird zu den Preisen deines Anbieters abgerechnet
-        und ist nicht in den Plänen enthalten.
+      a: Nein. Du kannst eigene Modelle mitbringen, musst es aber nicht. Tale
+        unterstützt die meisten grossen KI-Anbieter ohne Aufschlag —
+        Cloud-Modellnutzung wird zu den Tarifen deines Anbieters abgerechnet und
+        ist nicht in den Plänen enthalten.
     aiProviders:
-      a: Ja. Tale unterstützt die grossen Cloud-KI-Anbieter ohne Aufschlag. Du
-        behältst deinen Anbieter und dessen nutzungsbasierte Abrechnung.
+      a: Ja. Tale unterstützt die grossen Cloud-KI-Anbieter ohne Aufschlag — die
+        Nutzung wird zu den Preisen deines Anbieters abgerechnet. Du behältst
+        deinen Anbieter und deine bestehende Abrechnung.
 pricing:
   extras:
     cloudProviders:
-      description: Wir unterstützen OpenAI, Anthropic, Gemini und andere grosse
-        Cloud-KI-Anbieter in EU/CH — bessere Preise, höhere Verfügbarkeit und
-        nutzungsbasierte Abrechnung.
+      description: Wir unterstützen OpenAI, Anthropic, Gemini und weitere grosse
+        Cloud-KI-Anbieter in CH & EU — ohne Aufschlag; die Nutzung wird zu
+        Anbieterpreisen abgerechnet.
 hardwarePricing:
   compare:
     categories:
