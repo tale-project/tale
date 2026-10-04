@@ -19,8 +19,8 @@
  *   the lane shows with that order;
  * - every look re-reads the task and the starter: a person's move, a
  *   reassignment, an archived task or project and a starter who lost the
- *   Editor role end the wait with nothing started, and a To do standing card
- *   still waits for its next occurrence;
+ *   Editor role end the wait with nothing started; an unchanged in-place
+ *   card retries in its original column, while later decisions retire it;
  * - the wait is bounded: past its looks or its age the retry is refused once,
  *   on the task's timeline (`agent_run.refused`, `agent_busy`), and the
  *   manager's next start of that task runs;
@@ -74,7 +74,13 @@ import {
   getProjectAuthContext,
   restoreProject,
 } from '../projects/service.ts';
-import { failAgentRunFromTurn, settleAgentRun } from './agent-runs.ts';
+import {
+  failAgentRunFromTurn,
+  getLatestAgentRunCardForTask,
+  listTaskAgentRunSummaries,
+  settleAgentRun,
+} from './agent-runs.ts';
+import { addTaskComment } from './comments.ts';
 import {
   describeRuns,
   fixtures,
@@ -88,7 +94,13 @@ import {
   startDelegatedAgentRun,
   type DelegatedAgentStart,
 } from './delegated-start.ts';
-import { archiveTask, assignTask, updateTaskStatus } from './service.ts';
+import {
+  archiveTask,
+  assignTask,
+  recordActivity,
+  restoreTask,
+  updateTaskStatus,
+} from './service.ts';
 
 /** How long a case waits for one transaction to queue behind another. */
 const BLOCK_WAIT_MS = 10_000;
@@ -936,65 +948,162 @@ export async function checkAutomatedRetryAgentBusy(
       break;
     }
 
-    // ---- standing roles: a To do card waits for its next occurrence -----
-    {
-      const role = await failedDelegation('Standing report', {
-        moveToInProgress: false,
-      });
-      const busy = await occupy('Work while the role waits');
-      const log = await deliver(role.payload);
-      const card = await sql<{ status: string }[]>`
-        SELECT status FROM app.tasks WHERE id = ${role.taskId}
-      `;
-      record(
-        'busy retry: a To do standing card’s failed in-place run is still not retried, busy agent or not — it waits for its next occurrence, and no later look is sent',
-        busy.outcome === 'started' &&
-          JSON.stringify(log) === JSON.stringify(['skipped:task_moved']) &&
-          card[0]?.status === 'todo' &&
-          (await looksOf(role.runId)).length === 0 &&
-          (await runsOf(sql, role.taskId)).length === 1,
-        `busy=${busy.outcome} log=${JSON.stringify(log)} card=${card[0]?.status} looks=${(await looksOf(role.runId)).length}`,
-      );
-      await free(worker);
-
-      // A person picked the role card up while its run was live: its retry
-      // waits like any other and keeps the in-place intent when it starts.
-      const pickedTask = await fx.insertTask({
+    // ---- in-place retries continue only the captured task decision -----
+    for (const status of ['backlog', 'todo', 'in_progress']) {
+      const taskId = await fx.insertTask({
         projectId: projectA,
-        title: 'Standing role a person picked up',
+        title: `Standing report in ${status}`,
+        status,
       });
-      const pickedStart = await delegate(pickedTask, {
+      const roleStarted = await delegate(taskId, {
         agentId: worker,
         moveToInProgress: false,
       });
       await sql.begin(async (tx) =>
-        updateTaskStatus(tx, await editorAuth(), pickedTask, 'in_progress'),
+        addTaskComment(tx, await editorAuth(), {
+          taskId,
+          body: 'Additional context, with no new workflow decision.',
+        }),
       );
-      const picked = await failNewest(pickedTask);
-      const pickedBusy = await occupy('Work while the picked-up role waits');
-      const pickedWait = await deliver(picked.payload);
+      const role = await failNewest(taskId);
+      const busy = await occupy('Work while the standing report waits');
+      const waiting = await deliver(role.payload);
+      const pending = await getLatestAgentRunCardForTask(sql, orgId, taskId);
       await free(worker);
-      const pickedLook = (await looksOf(picked.runId))[0];
-      const pickedLog =
-        pickedLook === undefined ? ['no look'] : await deliver(pickedLook.data);
-      const pickedRuns = await runsOf(sql, pickedTask);
-      const pickedRetry = pickedRuns[1];
-      const pickedFacts =
-        pickedRetry === undefined
-          ? undefined
-          : await retryFacts(pickedRetry.id);
+      const look = (await looksOf(role.runId))[0];
+      const resumed =
+        look === undefined ? ['no look'] : await deliver(look.data);
+      const runs = await runsOf(sql, taskId);
+      const retried = runs.at(-1);
+      const facts =
+        retried === undefined ? undefined : await retryFacts(retried.id);
+      const card = await sql<
+        { status: string; expected: string | null; cursor: string | null }[]
+      >`
+        SELECT t.status, r.in_place_retry_status AS expected,
+               r.in_place_retry_activity_id::text AS cursor
+        FROM app.tasks t JOIN app.project_agent_runs r ON r.task_id = t.id
+        WHERE t.id = ${taskId} ORDER BY r.seq DESC LIMIT 1
+      `;
       record(
-        'busy retry: a standing role card a person moved to In progress waits for the busy agent like any other, and its retry keeps the start’s in-place intent',
-        pickedStart.outcome === 'started' &&
-          pickedBusy.outcome === 'started' &&
-          JSON.stringify(pickedWait) ===
-            JSON.stringify(['waiting:agent_busy']) &&
-          pickedLog.length === 0 &&
-          describeRuns(pickedRuns) === 'failed/delegated,queued/auto_retry' &&
-          pickedFacts?.inPlace === true,
-        `start=${pickedStart.outcome} busy=${pickedBusy.outcome} wait=${JSON.stringify(pickedWait)} look=${JSON.stringify(pickedLog)} runs=${describeRuns(pickedRuns)} inPlace=${pickedFacts?.inPlace}`,
+        `in-place retry: unchanged ${status} survives a comment and a busy workspace, then retries in place with its decision and attempt preserved`,
+        roleStarted.outcome === 'started' &&
+          busy.outcome === 'started' &&
+          JSON.stringify(waiting) === JSON.stringify(['waiting:agent_busy']) &&
+          pending?.retryPending === true &&
+          resumed.length === 0 &&
+          describeRuns(runs) === 'failed/delegated,queued/auto_retry' &&
+          facts?.inPlace === true &&
+          facts.attempt === 1 &&
+          card[0]?.status === status &&
+          card[0].expected === status &&
+          card[0].cursor !== null,
+        `started=${roleStarted.outcome} waiting=${JSON.stringify(waiting)} pending=${pending?.retryPending} resumed=${JSON.stringify(resumed)} runs=${describeRuns(runs)} card=${JSON.stringify(card)} facts=${JSON.stringify(facts)}`,
       );
       await free(worker);
+    }
+
+    for (const change of [
+      'moved',
+      'status_round_trip',
+      'assignee_round_trip',
+      'archive_round_trip',
+      'review_decision',
+      'legacy',
+    ]) {
+      const auth = await editorAuth();
+      const taskId = await fx.insertTask({
+        projectId: projectA,
+        title: `Standing role: ${change}`,
+      });
+      const roleStart = await delegate(taskId, {
+        agentId: worker,
+        moveToInProgress: false,
+      });
+      if (roleStart.outcome !== 'started')
+        throw new Error(`itest: ${change} start was ${roleStart.outcome}`);
+      // Moving an idle agent-owned card to In progress starts new work.
+      // Move while the original run is live, so that human door reuses it.
+      if (change === 'moved') {
+        await sql.begin((tx) =>
+          updateTaskStatus(tx, auth, taskId, 'in_progress'),
+        );
+      }
+      const role = { taskId, ...(await failNewest(taskId)) };
+      if (change === 'status_round_trip') {
+        await sql.begin((tx) => updateTaskStatus(tx, auth, taskId, 'backlog'));
+        await sql.begin((tx) => updateTaskStatus(tx, auth, taskId, 'todo'));
+      } else if (change === 'assignee_round_trip') {
+        for (const agentId of [other, worker]) {
+          await sql.begin((tx) =>
+            assignTask(tx, auth, {
+              taskId: role.taskId,
+              assigneeType: 'agent',
+              assigneeId: agentId,
+            }),
+          );
+        }
+      } else if (change === 'archive_round_trip') {
+        await sql.begin((tx) => archiveTask(tx, owner, role.taskId));
+        await sql.begin((tx) => restoreTask(tx, owner, role.taskId));
+      } else if (change === 'review_decision') {
+        // The native review writer's decision event; equal card columns do
+        // not erase a later reviewer decision. No wall-clock ordering used.
+        await sql.begin(async (tx) => {
+          await tx`SELECT id FROM app.tasks WHERE id = ${role.taskId} FOR UPDATE`;
+          await recordActivity(tx, {
+            task: {
+              id: role.taskId,
+              organizationId: orgId,
+              projectId: projectA,
+            },
+            actorType: 'agent',
+            actorId: manager,
+            action: 'review.responded',
+          });
+        });
+      } else if (change === 'legacy') {
+        // The previous image can still insert/fail this shape after the
+        // migration ran. It cannot acquire a guessed snapshot on retry.
+        await sql`
+          UPDATE app.project_agent_runs
+          SET in_place_retry_status = NULL, in_place_retry_activity_id = NULL
+          WHERE id = ${role.runId}
+        `;
+      }
+      const hintCount = async () =>
+        (
+          await sql<{ count: number }[]>`
+        SELECT count(*)::int AS count FROM app_realtime.outbox
+        WHERE org_id = ${orgId} AND entity = 'task' AND entity_id = ${taskId}
+      `
+        )[0]?.count ?? -1;
+      const hintsBefore = await hintCount();
+      const first = await deliver(role.payload);
+      const hintsAfter = await hintCount();
+      const replay = await deliver(role.payload);
+      const hintsAfterReplay = await hintCount();
+      const card = await getLatestAgentRunCardForTask(sql, orgId, role.taskId);
+      const summaries = await listTaskAgentRunSummaries(sql, {
+        organizationId: orgId,
+        taskId: role.taskId,
+        limit: 5,
+      });
+      record(
+        `in-place retry: ${change} retires the exact failed source and replay stays retired; task_get and the card no longer promise work`,
+        hintsAfter === hintsBefore + 1 &&
+          hintsAfterReplay === hintsAfter &&
+          JSON.stringify(first) === JSON.stringify(['skipped:task_moved']) &&
+          JSON.stringify(replay) ===
+            JSON.stringify(['skipped:retry_refused']) &&
+          (await retiredAt(role.runId)) !== null &&
+          (await runsOf(sql, role.taskId)).length === 1 &&
+          (await looksOf(role.runId)).length === 0 &&
+          card?.retryPending !== true &&
+          summaries.length === 1 &&
+          !summaries[0].retryPending,
+        `first=${JSON.stringify(first)} replay=${JSON.stringify(replay)} retired=${await retiredAt(role.runId)} cardPending=${card?.retryPending} summaryPending=${summaries[0]?.retryPending} hints=${hintsBefore}/${hintsAfter}/${hintsAfterReplay}`,
+      );
     }
 
     // ---- the wait is bounded --------------------------------------------
@@ -1545,9 +1654,18 @@ export async function checkAutomatedRetryAgentBusy(
         project: await counts(project),
         plain: await counts(plain),
       };
+      const retired = await Promise.all(
+        [moved, reassigned, archived, demoted, project].map((failed) =>
+          retiredAt(failed.runId),
+        ),
+      );
+      const restoredReplay = await look(project.runId);
       record(
         'busy retry: every look re-reads the task and its starter — a person’s move, a reassignment, an archived task, a demoted starter and an archived project each end the wait with nothing started and no further look, while an unchanged task starts',
         busy.outcome === 'started' &&
+          retired.every((at) => at !== null) &&
+          JSON.stringify(restoredReplay) ===
+            JSON.stringify(['skipped:retry_refused']) &&
           changeErrors.length === 0 &&
           waits.length === 6 &&
           waits.every((line) => line === 'waiting:agent_busy') &&
@@ -1569,7 +1687,7 @@ export async function checkAutomatedRetryAgentBusy(
               project: '1/1',
               plain: '2/1',
             }),
-        `busy=${busy.outcome} changes refused=${JSON.stringify(changeErrors)} waits=${JSON.stringify(waits)} reasons=${JSON.stringify(reasons)} runs/looks=${JSON.stringify(shape)}`,
+        `busy=${busy.outcome} changes refused=${JSON.stringify(changeErrors)} waits=${JSON.stringify(waits)} reasons=${JSON.stringify(reasons)} runs/looks=${JSON.stringify(shape)} retired=${JSON.stringify(retired)} restoredReplay=${JSON.stringify(restoredReplay)}`,
       );
       await free(worker);
     }

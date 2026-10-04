@@ -15,6 +15,7 @@ import {
 } from '@/tests/utils/render';
 
 import type { HomeData } from '../hooks/use-home-data';
+import { homeDraftKey } from '../lib/home-drafts';
 
 const location = vi.hoisted(() => ({
   current: { pathname: '/dashboard/org-1/chat/t1', search: {} } as {
@@ -336,6 +337,53 @@ describe('HomeNavigator', () => {
     fireEvent.keyDown(second as HTMLElement, { key: 'ArrowUp' });
     expect(first).toHaveFocus();
   });
+
+  it.each([
+    ['chat', 't1', 'Quarterly report'],
+    ['task', 'k1', 'Review the launch checklist'],
+  ] as const)(
+    'keeps literal %s drafts discoverable after leaving, reopening and remounting',
+    (kind, id, title) => {
+      const pathname =
+        '/dashboard/org-1/' + (kind === 'chat' ? 'chat' : 'tasks') + '/' + id;
+      const key = homeDraftKey({ kind, id }, 'u1', 'org-1');
+      for (const text of [
+        '<Button />',
+        '<tag>',
+        'ordinary unsent note',
+        '',
+        '   ',
+      ]) {
+        const stored = JSON.stringify(text);
+        window.localStorage.setItem(key, stored);
+        location.current = { pathname, search: {} };
+        const view = render(<HomeNavigator organizationId="org-1" />);
+        const row = () =>
+          within(stream()).getByRole('link', { name: new RegExp(title) });
+        expect(row()).not.toHaveTextContent('Draft');
+
+        location.current = { pathname: '/dashboard/org-1/chat', search: {} };
+        view.rerender(<HomeNavigator organizationId="org-1" />);
+        expect(row().textContent?.includes('Draft')).toBe(
+          text.trim().length > 0,
+        );
+
+        location.current = { pathname, search: {} };
+        view.rerender(<HomeNavigator organizationId="org-1" />);
+        expect(row()).not.toHaveTextContent('Draft');
+        expect(window.localStorage.getItem(key)).toBe(stored);
+        view.unmount();
+
+        location.current = { pathname: '/dashboard/org-1/chat', search: {} };
+        const reloaded = render(<HomeNavigator organizationId="org-1" />);
+        expect(row().textContent?.includes('Draft')).toBe(
+          text.trim().length > 0,
+        );
+        expect(window.localStorage.getItem(key)).toBe(stored);
+        reloaded.unmount();
+      }
+    },
+  );
 
   it('marks an item whose composer holds something unsent', () => {
     window.localStorage.setItem(

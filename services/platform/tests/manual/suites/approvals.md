@@ -1,6 +1,6 @@
 # Approvals
 
-> **Prefix** `APV-` · **Reset** none · **Cost** 20 boxes
+> **Prefix** `APV-` · **Reset** none · **Cost** 22 boxes
 
 Exercise the cross-cutting human-in-the-loop surface — every place a run or
 agent parks for a human decision and what that decision does downstream. After
@@ -165,6 +165,26 @@ checks.
   on a terminal run — only the outcome alert (approved/rejected) or the run's
   failure state; an unanswered ask simply never resumes the run (asks expire
   server-side after 7 days — note, don't wait for it)
+- [ ] `APV-B4` · **Unreadable approval** — On APV-F1's parked run, block the
+  approval read in DevTools (Network → block the request URL
+  `…/api/app/approvals/{approvalId}`) and reload → While the read retries the
+  card already reads **Waiting for approval** (`automations.runs.waiting.approval`);
+  once it gives up it says **Couldn't load this approval.**
+  (`automations.runs.approval.loadFailed`) with **Try again**
+  (`automations.runs.approval.retry`) — never an empty space, and no
+  **Approve**/**Reject** while the operation is unreadable; unblock and press
+  **Try again** → the card returns with the operation, its input and both
+  decisions, without a reload.
+- [ ] `APV-B5` · **A failed decision stays with its approval** — Park runs for
+  a task A and for its subtask B, each on its own approval (APV-F4); open A's
+  sheet, block `…/approvals/{approvalId}/decide` in DevTools and press
+  **Approve** → **Couldn't record your decision.**
+  (`automations.runs.approval.decideFailed`) shows under A's card with both
+  buttons still enabled, never a raw `Request failed with status …`; open B
+  from A's subtask list in the same sheet → B's card shows B's operation and
+  input and no error; open A again (**Part of**), unblock and press **Approve**
+  → A reads approved (`automations.runs.approval.approved`) at once, without
+  waiting for a reload.
 
 ## Accessibility (WCAG 2.1 AA)
 
