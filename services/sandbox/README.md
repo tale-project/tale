@@ -21,6 +21,10 @@ event (a collected terminal result can be larger). A consumer that stays
 behind is disconnected; cancelling its response also stops the upstream read
 and keepalive immediately. The exec keeps running and can be reattached through
 the session API. Late output is discarded without repeated log messages.
+The runnerd response reader also cancels its upstream stream and releases its
+lock when parsing or forwarding fails, so retries do not retain old output
+subscriptions. Malformed JSON lines remain skippable; a failing output consumer
+ends that attachment.
 
 ## Authentication
 
@@ -101,6 +105,11 @@ organization/session identities appear in that organization's session list.
 Failed or incomplete inventories return 503, never a successful zero count.
 Observations coalesce and cache for five seconds;
 the settings page refreshes every 15 seconds and marks unavailable metrics.
+
+The platform builds workspace rows by grouping execution history once per
+refresh and projecting only the current and running operations. Historical
+spend still contributes to totals, while progress reads transfer only the
+last 280 Unicode characters before applying the existing display limit.
 
 Platform quota allocation and physical runtime state have separate lifecycles:
 finishing work can release an org allocation while its idle container stays
