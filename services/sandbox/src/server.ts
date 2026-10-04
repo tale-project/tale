@@ -72,6 +72,7 @@ async function sizeSessionCapacity(): Promise<void> {
     memory.totalBytes,
     memoryReserveBytes(memory.totalBytes, cfg.session.minFreeMemoryBytes),
     cfg.dockerInContainer,
+    cfg.dockerWorkloads,
   );
   console.log(
     `[sandbox] session capacity ${cfg.session.maxSessions}, sized from the host's ${Math.round(memory.totalBytes / 1024 ** 3)} GiB (set SANDBOX_MAX_SESSIONS to fix it)`,
@@ -347,6 +348,7 @@ async function handleSessionRoutes(
     return getSessionRoutes().handleFileContent(
       fileContentMatch[1] ?? '',
       url.searchParams.get('path') ?? '',
+      req.signal,
     );
   }
   // GET /v1/sessions/:id/files?path=  (directory listing)

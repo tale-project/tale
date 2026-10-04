@@ -15,6 +15,7 @@ import {
   buildkitdContainerName,
   buildkitdEndpoint,
   buildkitHelperLimits,
+  buildkitMirrorEnvironment,
   buildkitdMirrorContainerName,
   buildkitdMirrorVolumeName,
   buildkitdNetworkName,
@@ -31,17 +32,45 @@ import type { SpawnerConfig } from './types.ts';
 // Runs the actual orchestration against an isolated fake Docker CLI. Persistent
 // cache contents are represented independently of replaceable containers.
 const FAKE_DOCKER = String.raw`#!/usr/bin/env bun
+import { mkdirSync as lockDir, rmdirSync as unlockDir, renameSync } from 'node:fs';
 import { appendFileSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 const dir = dirname(process.argv[1]);
 const path = join(dir, 'state.json');
 const s = JSON.parse(readFileSync(path, 'utf8'));
+const before = structuredClone(s);
+// Merge only this command's mutations into the fake daemon's state. Atomic
+// rename keeps concurrent readers from observing half of the JSON file.
+function merge(old, next, live) {
+  if (JSON.stringify(old) === JSON.stringify(next)) return live;
+  if (old && next && !Array.isArray(next) && typeof old === 'object' && typeof next === 'object') {
+    const out = { ...live };
+    for (const key of Object.keys(old)) if (!(key in next)) delete out[key];
+    for (const key of Object.keys(next)) out[key] = merge(old[key], next[key], live?.[key]);
+    return out;
+  }
+  return next;
+}
+function commit() {
+  const lock = join(dir, 'state.lock');
+  while (true) {
+    try { lockDir(lock); break; }
+    catch (error) { if (error.code !== 'EEXIST') throw error; Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 1); }
+  }
+  try {
+    const live = JSON.parse(readFileSync(path, 'utf8'));
+    const temp = path + '.' + process.pid;
+    writeFileSync(temp, JSON.stringify(merge(before, s, live)));
+    renameSync(temp, path);
+  } finally { unlockDir(lock); }
+}
+
 const a = process.argv.slice(2);
 appendFileSync(join(dir, 'calls.jsonl'), JSON.stringify(a) + '\n');
 const flags = name => a.filter((_, i) => a[i - 1] === name);
 const flag = name => flags(name)[0];
 function done(value = '', observation = '') {
-  writeFileSync(path, JSON.stringify(s));
+  commit();
   let output = typeof value === 'string' ? value : JSON.stringify(value);
   if (s.oversized === observation && observation) output = output.padEnd(2 * 1024 * 1024, '\n');
   console.log(output); process.exit(0);
@@ -58,7 +87,7 @@ if (a[0] === 'ps') {
   s.sessionReads++;
   if (s.lateSession && s.sessionReads >= s.lateSession.afterRead) s.sessions = [s.lateSession.session];
   const orgFilter = flags('--filter').find(value => value.startsWith('label=tale.org='))?.slice('label=tale.org='.length);
-  done(s.sessions.filter(c => !orgFilter || c.org === orgFilter).map(c => [c.id, c.status, ...(flag('--format').includes('.Label') ? [c.org] : []), ...(flag('--format').includes('tale.profile') ? [c.profile || ''] : [])].join('\t')).join('\n'), 'sessions');
+  done(s.sessions.filter(c => !orgFilter || c.org === orgFilter).map(c => [c.id, c.status, ...(flag('--format').includes('.Label') ? [c.org] : []), ...(flag('--format').includes('tale.profile') ? [c.profile || ''] : []), ...(flag('--format').includes('tale.docker') ? [c.docker ?? ''] : [])].join('\t')).join('\n'), 'sessions');
 }
 if (a[0] === 'inspect') {
   if (flag('--format').includes('"id"')) done({ id: s.egressId, name: '/egress', networks: { 'tale-sandbox-net': { Aliases: ['sandbox-egress'], IPAddress: '172.22.0.2' } } });
@@ -99,7 +128,7 @@ if (a[0] === 'update') { if (!find(a.at(-1))) fail('Error: No such container'); 
 if (a[0] === 'image' && a[1] === 'inspect') { const id = (s.imageIds ?? {})[a.at(-1)]; if (!id) fail('Error: No such image: ' + a.at(-1)); done(id); }
 if (a[0] === 'run') {
   const name = flag('--name');
-  s.containers[name] = { id: (++s.nextId).toString(16).padStart(64, '0'), name, labels: Object.fromEntries(flags('--label').map(v => v.split('='))), networks: { [flag('--network')]: {} }, ports: null, running: true, image: (s.imageIds ?? {})[a.at(-1)] ?? 'sha256:' + a.at(-1) };
+  s.containers[name] = { id: new Bun.CryptoHasher('sha256').update(name + ':' + process.pid).digest('hex'), name, labels: Object.fromEntries(flags('--label').map(v => v.split('='))), networks: { [flag('--network')]: {} }, ports: null, running: true, image: (s.imageIds ?? {})[a.at(-1)] ?? 'sha256:' + a.at(-1) };
   done(s.containers[name].id);
 }
 if (a[0] === 'stop') {
@@ -121,6 +150,7 @@ interface FakeSession {
   status: string;
   org: string;
   profile?: string;
+  docker?: boolean;
 }
 
 interface FakeState {
@@ -197,10 +227,14 @@ function seed(organizationId: string): FakeState {
   // Helpers launched by this release with these settings.
   const stamps = [
     helperStamp(cfg.buildkitdImage, buildkitHelperLimits(cfg, 'builder')),
-    ...MIRROR_REGISTRIES.map(() =>
+    ...MIRROR_REGISTRIES.map((registry) =>
       helperStamp(
         cfg.buildkitdMirrorImage,
         buildkitHelperLimits(cfg, 'mirror'),
+        buildkitMirrorEnvironment(
+          { egressProxy: 'http://tale-buildkit-egress:3128/' },
+          registry,
+        ),
       ),
     ),
   ];
@@ -386,6 +420,56 @@ describe('organization build-cache lifecycle', () => {
     expect(final.volumes).toEqual(initial.volumes);
     // Bounds already applied are not applied again.
     expect(log.filter((args) => args[0] === 'update')).toHaveLength(0);
+  });
+
+  test('mirrors with expiry disabled adopt the cleanup setting once builds finish, preserving cache volumes', async () => {
+    const org = nextOrg();
+    const initial = seed(org);
+    const builder = buildkitdContainerName(org);
+    const oldStamp = helperStamp(
+      cfg.buildkitdMirrorImage,
+      buildkitHelperLimits(cfg, 'mirror'),
+    );
+    for (const registry of MIRROR_REGISTRIES) {
+      initial.containers[buildkitdMirrorContainerName(org, registry)]!.labels[
+        'tale.helper-config'
+      ] = oldStamp;
+    }
+    initial.buildRunning = true;
+    await save(initial);
+
+    expect(await ensureBuildkitd(cfg, org)).toBe(buildkitdEndpoint(org));
+    expect(
+      (await calls()).filter((args) => args[0] === 'run' || args[0] === 'rm'),
+    ).toEqual([]);
+    expect((await state()).containers).toEqual(initial.containers);
+
+    const busy = await state();
+    busy.buildRunning = false;
+    await save(busy);
+    await writeFile(join(root, 'calls.jsonl'), '');
+    expect(await ensureBuildkitd(cfg, org)).toBe(buildkitdEndpoint(org));
+
+    const launches = (await calls()).filter((args) => args[0] === 'run');
+    expect(launches).toHaveLength(MIRROR_REGISTRIES.length);
+    for (const launch of launches) {
+      expect(launch).toContain('REGISTRY_STORAGE_DELETE_ENABLED=true');
+    }
+    const final = await state();
+    expect(final.containers[builder]).toEqual(initial.containers[builder]);
+    expect(final.volumes).toEqual(initial.volumes);
+    for (const registry of MIRROR_REGISTRIES) {
+      const mirror = buildkitdMirrorContainerName(org, registry);
+      expect(final.containers[mirror]?.labels['tale.helper-config']).not.toBe(
+        oldStamp,
+      );
+    }
+
+    await writeFile(join(root, 'calls.jsonl'), '');
+    await ensureBuildkitd(cfg, org);
+    expect(
+      (await calls()).filter((args) => args[0] === 'run' || args[0] === 'rm'),
+    ).toEqual([]);
   });
 
   test('a release that re-tags the builder image in place recreates the builder once idle', async () => {
@@ -1039,17 +1123,23 @@ describe('organization build-cache lifecycle', () => {
     ).toBe(true);
   });
 
-  test("a running session of the organization's that never builds does not keep its helpers", async () => {
-    const org = nextOrg();
-    const initial = seed(org);
-    initial.sessions = [
-      { id: 'd'.repeat(64), org, status: 'running', profile: 'default' },
-    ];
-    await save(initial);
-    const now = Date.now();
-    await sweepIdleBuildkitd(cfg, now);
-    expect((await sweepIdleBuildkitd(cfg, now + 1000)).stopped).toBe(4);
-  });
+  test.each([
+    { profile: 'default', docker: undefined },
+    { profile: 'agent', docker: false },
+  ])(
+    'a running session that never builds does not keep its helpers (%j)',
+    async (capability) => {
+      const org = nextOrg();
+      const initial = seed(org);
+      initial.sessions = [
+        { id: 'd'.repeat(64), org, status: 'running', ...capability },
+      ];
+      await save(initial);
+      const now = Date.now();
+      await sweepIdleBuildkitd(cfg, now);
+      expect((await sweepIdleBuildkitd(cfg, now + 1000)).stopped).toBe(4);
+    },
+  );
 
   test('an ensure arriving during an idle stop waits, then restores every helper', async () => {
     const org = nextOrg();

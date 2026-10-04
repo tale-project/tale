@@ -70,7 +70,7 @@ La réponse est une liste de modèles au format OpenAI : `owned_by` est le slug
 }
 ```
 
-La liste contient les modèles de chat de ton organisation que servent des identifiants de fournisseur de type **Clé API** ou **Variable d'environnement**, restreints par les modèles autorisés de chaque identifiant et par ton accès aux modèles. Les modèles servis par des identifiants d’abonnement n’y figurent pas, pas plus que ceux d’un fournisseur dont l’adresse est définie pour chaque identifiant, comme Azure. `GET /api/v1/models` donne pour chacun de ces modèles sa fenêtre de contexte, ses capacités et ses prix, sous les mêmes `providerSlug` et `id`.
+La liste contient les modèles de chat de ton organisation que servent des identifiants de fournisseur de type **Clé API** ou **Variable d'environnement**, restreints par les modèles autorisés de chaque identifiant et par ton accès aux modèles. Les modèles servis par des identifiants d’abonnement n’y figurent pas, pas plus que ceux d’un fournisseur dont l’adresse est définie pour chaque identifiant, comme Azure, ni les modèles qui n’appellent des tools que via l’API Responses d’OpenAI, comme GPT-6.1 Sol, car ces endpoints ne les relaient pas. `GET /api/v1/models` donne pour chacun de ces modèles sa fenêtre de contexte, ses capacités et ses prix, sous les mêmes `providerSlug` et `id`.
 
 ### Brancher opencode sur Tale
 

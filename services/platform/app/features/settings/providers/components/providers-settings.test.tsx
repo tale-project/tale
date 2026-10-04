@@ -346,6 +346,16 @@ describe('ProvidersSettings', () => {
     expect(screen.getByText(/OpenRouter API unreachable/)).toBeInTheDocument();
   });
 
+  it('says on a subscription row that it serves tasks and automations, never chat', () => {
+    renderPage();
+    // The broker row carries it; the api-key and env rows do not.
+    expect(
+      screen.getAllByText(
+        'Tasks and automations only — chat needs an API key or environment variable',
+      ),
+    ).toHaveLength(1);
+  });
+
   it('names a credential whose provider left the catalog by its stored slug', () => {
     fixtures.catalogs = [openrouterProvider];
     fixtures.credentials = [
@@ -447,6 +457,27 @@ describe('ProvidersSettings', () => {
       expect(
         screen.getAllByRole('option').map((option) => option.textContent),
       ).toEqual(['API key', 'Environment variable', 'Subscription broker']);
+    });
+
+    it('explains before the broker fields that a subscription never serves chat, and why', async () => {
+      const { user } = renderPage();
+      const form = await pickProvider(user, 'Anthropic');
+      // The direct method needs no such word.
+      expect(form.queryByText('Tasks and automations only')).toBeNull();
+      await user.click(
+        form.getByRole('combobox', { name: /Authentication method/ }),
+      );
+      await user.click(
+        screen.getByRole('option', { name: 'Subscription broker' }),
+      );
+      expect(form.getByText('Tasks and automations only')).toBeInTheDocument();
+      expect(
+        form.getByText(
+          /vendors do not\s+permit these tokens in other applications/,
+        ),
+      ).toBeInTheDocument();
+      // A static notice describes the method; it announces nothing.
+      expect(form.queryByRole('alert')).toBeNull();
     });
 
     it('names the credential after its provider, numbered past a name that provider already holds', async () => {

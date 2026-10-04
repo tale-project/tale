@@ -7,6 +7,7 @@ import {
   eligibleChatCandidates,
 } from '../../../lib/chat/model-choice.ts';
 import { DOCUMENT_SKILL_SLUGS } from '../../../lib/shared/document-skills.ts';
+import { harnessToolCallingWire } from '../../../lib/shared/providers/resolve_execution.ts';
 import { getOrganizationDefaultLocale } from '../../../lib/shared/utils/get-organization-default-locale.ts';
 import type { ComposerModelOption } from '../../core/chat/composer.ts';
 import { catalogString } from '../../core/i18n/catalog.ts';
@@ -129,12 +130,15 @@ function boundHarness(option: ComposerModelOption): string | undefined {
 
 /**
  * What runs the standard agent, from the models a person may use. Pure: the
- * listing and the eligible runtimes in, the choice or the refusal out.
+ * listing and the eligible runtimes in, the choice or the refusal out. A
+ * model whose tools work only on the Responses API runs only on a runtime in
+ * `responsesHarnesses`, the ones that speak it.
  */
 export function chooseStandardAgentServing(
   options: readonly ComposerModelOption[],
   config: Pick<StandardAgentConfig, 'harness' | 'providerSlug' | 'modelId'>,
   eligibleHarnesses: readonly string[],
+  responsesHarnesses: ReadonlySet<string>,
 ): StandardAgentServing {
   if (
     config.harness !== undefined &&
@@ -149,7 +153,10 @@ export function chooseStandardAgentServing(
     : eligibleHarnesses[0];
   const runnable = (option: ComposerModelOption, harness: string) => {
     const bound = boundHarness(option);
-    return bound === undefined || bound === harness;
+    return (
+      (bound === undefined || bound === harness) &&
+      (option.toolCallingApi !== 'responses' || responsesHarnesses.has(harness))
+    );
   };
 
   if (config.providerSlug !== undefined && config.modelId !== undefined) {
@@ -158,10 +165,22 @@ export function chooseStandardAgentServing(
         option.providerSlug === config.providerSlug &&
         option.id === config.modelId,
     );
-    const direct = pinned.some((option) => boundHarness(option) === undefined);
+    const direct = pinned.filter(
+      (option) => boundHarness(option) === undefined,
+    );
+    // A directly served pin runs on the default runtime, unless its tools
+    // need the Responses API the default does not speak: then on the first
+    // runtime that does.
+    const directHarness =
+      defaultHarness !== undefined &&
+      direct.some((option) => runnable(option, defaultHarness))
+        ? defaultHarness
+        : eligibleHarnesses.find((harness) => responsesHarnesses.has(harness));
     const harness =
       config.harness ??
-      (direct ? defaultHarness : pinned.map(boundHarness).find(Boolean));
+      (direct.length > 0
+        ? directHarness
+        : pinned.map(boundHarness).find(Boolean));
     if (
       harness === undefined ||
       !eligibleHarnesses.includes(harness) ||
@@ -186,15 +205,24 @@ export function chooseStandardAgentServing(
     const pinnedHarness = config.harness;
     pool = options.filter((option) => runnable(option, pinnedHarness));
   } else {
-    const direct = options.filter(
-      (option) => boundHarness(option) === undefined,
-    );
+    const direct =
+      defaultHarness === undefined
+        ? []
+        : options.filter(
+            (option) =>
+              boundHarness(option) === undefined &&
+              runnable(option, defaultHarness),
+          );
     pool =
-      direct.length > 0 && defaultHarness !== undefined
+      direct.length > 0
         ? direct
         : options.filter((option) => {
             const bound = boundHarness(option);
-            return bound !== undefined && eligibleHarnesses.includes(bound);
+            return (
+              bound !== undefined &&
+              eligibleHarnesses.includes(bound) &&
+              runnable(option, bound)
+            );
           });
   }
   const screened = eligibleChatCandidates(
@@ -229,6 +257,19 @@ export function chooseStandardAgentServing(
   };
 }
 
+/** The shipped harnesses that speak the Responses API — the only ones a
+ * model whose tools need it can run on. One set for the run and for the
+ * availability every picker reads, so the two never disagree. */
+function responsesSpeakingHarnesses(): ReadonlySet<string> {
+  return new Set(
+    loadHarnesses()
+      .filter(
+        (harness) => harnessToolCallingWire(harness) === 'openai-responses',
+      )
+      .map((harness) => harness.slug),
+  );
+}
+
 /** What runs the standard agent for this person, under this policy. */
 async function resolveStandardAgentServing(
   sql: Sql | TransactionSql,
@@ -249,7 +290,12 @@ async function resolveStandardAgentServing(
     organizationId: args.organizationId,
     userId: args.userId,
   });
-  return chooseStandardAgentServing(options, args.config, eligible);
+  return chooseStandardAgentServing(
+    options,
+    args.config,
+    eligible,
+    responsesSpeakingHarnesses(),
+  );
 }
 
 /** Whether this person can hand work to the standard agent now, and what
@@ -283,7 +329,12 @@ export async function readStandardAgentAvailability(
     config.harness !== undefined && !eligible.includes(config.harness)
       ? []
       : await listGovernedChatModels(sql, args);
-  const serving = chooseStandardAgentServing(options, config, eligible);
+  const serving = chooseStandardAgentServing(
+    options,
+    config,
+    eligible,
+    responsesSpeakingHarnesses(),
+  );
   if (!serving.ok) {
     return { enabled: true, available: false, refusal: serving.refusal };
   }

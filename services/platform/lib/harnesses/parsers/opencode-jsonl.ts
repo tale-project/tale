@@ -18,6 +18,7 @@ import {
   asNumber,
   asRecord,
   asString,
+  BoundedIdLedger,
   LineReassembler,
   parseJsonLine,
 } from '../jsonl';
@@ -33,7 +34,7 @@ class OpenCodeJsonlParser implements HarnessEventParser {
   private lastText: string | undefined;
   /** The CLI usually emits only a completed tool part; a running phase is
    * optional. Every result still needs one named call in the transcript. */
-  private readonly toolStarted = new Set<string>();
+  private readonly toolStarted = new BoundedIdLedger();
   /** The turn's totals so far. Every step (one model call) finishes with
    * its own counts, so the turn's are their sum — the terminal step alone
    * is only the last call. */

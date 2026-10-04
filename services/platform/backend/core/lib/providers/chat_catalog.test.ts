@@ -53,7 +53,7 @@ beforeEach(() => {
 });
 
 describe('walkChatCatalog — model allowlist', () => {
-  it('offers Responses-only tools through the subscription without enabling native chat or Auto', async () => {
+  it('offers a Responses-only model on every credential: direct chat calls it on the Responses API', async () => {
     resolveProvidersMock.mockResolvedValue([
       providerDefinitionSchema.parse({
         ...OPENAI,
@@ -79,11 +79,32 @@ describe('walkChatCatalog — model allowlist', () => {
     expect(
       hits.map((hit) => [hit.credential.authMethod, hit.entry.id]),
     ).toEqual([
+      ['api-key', 'gpt-6.1-sol'],
       ['api-key', 'gpt-5.6-sol'],
+      ['env', 'gpt-6.1-sol'],
       ['env', 'gpt-5.6-sol'],
       ['subscription-broker', 'gpt-6.1-sol'],
       ['subscription-broker', 'gpt-5.6-sol'],
     ]);
+  });
+
+  it('skips a Responses-only entry on an Anthropic-format connector, which has no wire for its tools', async () => {
+    resolveProvidersMock.mockResolvedValue([
+      providerDefinitionSchema.parse({
+        ...OPENAI,
+        name: 'messages-only',
+        displayName: 'Messages only',
+        apiFormat: 'anthropic',
+      }),
+    ]);
+    catalogMock.mockResolvedValue([
+      { ...entry('responses-only'), toolCallingApi: 'responses' },
+      entry('plain'),
+    ]);
+    const hits = await walkChatCatalog(ctx, ORG, [
+      { providerSlug: 'messages-only', authMethod: 'api-key' },
+    ]);
+    expect(hits.map((hit) => hit.entry.id)).toEqual(['plain']);
   });
 
   it('offers every catalog entry when the credential has no allowlist', async () => {
