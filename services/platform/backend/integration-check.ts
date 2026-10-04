@@ -19687,8 +19687,8 @@ async function checkTurnReattach(
       AND (id = ANY(${fenceJobIds.filter((id) => id !== null)})
         OR data ->> 'execId' = ${deadWorker.execId})
   `;
-  // The fence's turns are this check's alone: the backfill check below
-  // reads every op of the lane's sessions.
+  // The fence's turns are this check's alone; release their sessions
+  // before the independent fairness and backfill probes below.
   const fenceSessions = [fencedQueued, fencedRunning, deadWorker].map(
     (turn) => turn.sessionId,
   );
@@ -19767,6 +19767,19 @@ async function checkTurnReattach(
   await sql`UPDATE app.sandbox_sessions SET status = 'destroyed', destroyed_at_ms = ${Date.now()}
     WHERE session_id = ANY(${fairSessions})`;
 
+  // A fairness worker can finish writing an op after the cleanup above.
+  // Keep one such neighboring op so the backfill snapshot must name its
+  // own five fixtures rather than every session with the lane's prefix.
+  const neighbor = fairRuns[25];
+  if (!neighbor) throw new Error('Missing recovery fairness fixture');
+  await sql`
+    INSERT INTO app.sandbox_session_ops (
+      org_id, session_id, exec_id, kind, status, started_at_ms
+    ) VALUES (${orgId}, ${neighbor.sessionId}, ${neighbor.execId},
+              'task-agent', 'failed', ${now})
+    ON CONFLICT DO NOTHING
+  `;
+
   // Migration 0127 names the ops written before the column existed. A
   // task-agent op takes the harness of ITS RUN — here `codex`, under a
   // session stamped `claude-code`; an op that already records one keeps it.
@@ -19821,10 +19834,18 @@ async function checkTurnReattach(
     ),
     'utf8',
   );
+  const harnessFixtures = [
+    [live.execId, 'pi'],
+    [noOp.execId, 'pi'],
+    [abandoned.execId, 'codex'],
+    ['reattach-exec-wf-bare', null],
+    ['reattach-exec-wf-stamped', null],
+  ] as const;
+  const harnessExecIds = harnessFixtures.map(([execId]) => execId);
   const opHarnesses = async () => {
     const rows = await sql<{ execId: string; harness: string | null }[]>`
       SELECT exec_id AS "execId", harness FROM app.sandbox_session_ops
-      WHERE org_id = ${orgId} AND session_id LIKE 'reattach-session-%'
+      WHERE org_id = ${orgId} AND exec_id = ANY(${harnessExecIds})
       ORDER BY exec_id
     `;
     return JSON.stringify(rows.map((row) => [row.execId, row.harness]));
@@ -19833,13 +19854,7 @@ async function checkTurnReattach(
   const backfilledHarnesses = await opHarnesses();
   await sql.unsafe(harnessBackfill);
   const backfilledHarnessesAgain = await opHarnesses();
-  const wantHarnesses = JSON.stringify([
-    [live.execId, 'pi'],
-    [noOp.execId, 'pi'],
-    [abandoned.execId, 'codex'],
-    ['reattach-exec-wf-bare', null],
-    ['reattach-exec-wf-stamped', null],
-  ]);
+  const wantHarnesses = JSON.stringify(harnessFixtures);
   record(
     'harness turns: migration 0127 names an op by its run, keeps a recorded harness, and is idempotent',
     backfilledHarnesses === wantHarnesses &&
