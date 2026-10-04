@@ -72,6 +72,7 @@ export function EmbeddingSection({
   const {
     data: policy,
     isLoading,
+    isFetching,
     isError: policyReadFailed,
     refetch,
   } = useGovernancePolicy(
@@ -129,13 +130,13 @@ export function EmbeddingSection({
       title={
         <HStack gap={2} align="center" wrap>
           {t('enterpriseSso.embedding.section')}
-          {stored.enabled ? (
-            <Badge variant="green" dot>
-              {t('enterpriseSso.embedding.enabled')}
-            </Badge>
-          ) : policyReadFailed ? (
+          {policyReadFailed ? (
             <Badge variant="orange" dot>
               {t('enterpriseSso.embedding.unavailable')}
+            </Badge>
+          ) : stored.enabled ? (
+            <Badge variant="green" dot>
+              {t('enterpriseSso.embedding.enabled')}
             </Badge>
           ) : (
             <Badge variant="slate" dot>
@@ -157,7 +158,7 @@ export function EmbeddingSection({
                 type="button"
                 variant="ghost"
                 size="sm"
-                disabled={isLoading}
+                disabled={isFetching}
                 onClick={() => void refetch()}
               >
                 {t('enterpriseSso.embedding.retry')}

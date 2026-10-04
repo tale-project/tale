@@ -19,9 +19,9 @@ import {
  * catalog.
  */
 
-const { policyState, saveMock, toastMock } = vi.hoisted(() => ({
+const { policyState, readState, saveMock, toastMock } = vi.hoisted(() => ({
   policyState: { current: null as null | { config: unknown } },
-  readState: { isError: false, refetch: vi.fn() },
+  readState: { isError: false, isFetching: false, refetch: vi.fn() },
   saveMock: vi.fn(),
   toastMock: vi.fn(),
 }));
@@ -35,6 +35,7 @@ vi.mock('@/app/features/settings/governance/hooks/queries', () => ({
   useGovernancePolicy: () => ({
     data: policyState.current,
     isLoading: false,
+    isFetching: readState.isFetching,
     isError: readState.isError,
     refetch: readState.refetch,
   }),
@@ -67,6 +68,7 @@ beforeEach(() => {
   };
   saveMock.mockReset().mockResolvedValue(null);
   readState.isError = false;
+  readState.isFetching = false;
   readState.refetch.mockReset();
   toastMock.mockReset();
 });
@@ -169,7 +171,9 @@ describe('EmbeddingSection', () => {
   });
   it('shows an unavailable state after a failed read and does not persist fallback data', () => {
     readState.isError = true;
-    policyState.current = null;
+    policyState.current = {
+      config: { enabled: true, frameAncestors: ['https://portal.example'] },
+    };
     renderCard();
 
     expect(screen.getByText('Unavailable')).toBeInTheDocument();
@@ -187,6 +191,18 @@ describe('EmbeddingSection', () => {
 
     expect(saveMock).not.toHaveBeenCalled();
     expect(readState.refetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('disables Retry while the failed policy read is fetching', () => {
+    readState.isError = true;
+    readState.isFetching = true;
+    renderCard();
+
+    const retry = screen.getByRole('button', { name: 'Try again' });
+    expect(retry).toBeDisabled();
+
+    fireEvent.click(retry);
+    expect(readState.refetch).not.toHaveBeenCalled();
   });
 
 });
