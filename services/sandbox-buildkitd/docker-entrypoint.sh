@@ -97,8 +97,10 @@ resolve_egress_retry() {
 # both the egress and TALE_SKIP_EGRESS paths so buildkitd always has a config.
 init_base_config() {
   [ -f "$BASE_TOML" ] || return 0
-  cat "$BASE_TOML" >"$LIVE_TOML" 2>/dev/null \
-    || log "WARN: could not materialize $LIVE_TOML from base; using existing config"
+  _parallelism="${TALE_BUILDKITD_MAX_PARALLELISM:-2}"
+  case "$_parallelism" in '' | *[!0-9]*) log "invalid solver parallelism"; exit 1 ;; esac
+  [ "$_parallelism" -ge 1 ] || { log "invalid solver parallelism"; exit 1; }
+  sed "s/^max-parallelism = .*/max-parallelism = $_parallelism/" "$BASE_TOML" >"$LIVE_TOML"
 }
 
 # Append the dynamic [registry] mirrors + [dns] block to the freshly-materialized

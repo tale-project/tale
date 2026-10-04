@@ -1604,6 +1604,7 @@ common:
     rowError: 'Row {row}: {message}'
     moreRows: '…and {count} more'
     tooManyRows: This file has {count} rows to import, and Tale imports at most {max} at a time. Split it into smaller files and import each one.
+    unpairedQuotes: 'The quotes in this row don''t pair up. Close each quoted cell, and write a quote inside one as two quotes ("").'
     fields:
       name: Name
       price: Price

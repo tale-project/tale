@@ -101,6 +101,7 @@ function NotificationPreferencesSettingsView({
 
   const handleToggle = useCallback(
     async (key: InAppPrefKey | 'actionableEmail', checked: boolean) => {
+      if (isPending) return;
       try {
         await save({
           organizationId,
@@ -114,7 +115,7 @@ function NotificationPreferencesSettingsView({
         });
       }
     },
-    [organizationId, save, t, toast],
+    [isPending, organizationId, save, t, toast],
   );
 
   const emailChecked = prefs?.actionableEmail !== false;
@@ -129,7 +130,6 @@ function NotificationPreferencesSettingsView({
           label={t('fields.actionableEmail.label')}
           description={t('fields.actionableEmail.description')}
           checked={emailChecked}
-          disabled={isPending}
           ariaBusy={isPending}
           onCheckedChange={(next) => void handleToggle('actionableEmail', next)}
         />
@@ -153,7 +153,7 @@ function NotificationPreferencesSettingsView({
                   : t(`fields.${key}.description`)
               }
               checked={checked}
-              disabled={isLockedOn || isPending}
+              disabled={isLockedOn}
               ariaBusy={isPending}
               onCheckedChange={(next) => void handleToggle(key, next)}
             />

@@ -118,6 +118,14 @@ export function CredentialAddDialog<
     clearSetup();
   }, [clearSetup]);
 
+  // Stepping back waits out a save in flight, as Cancel and close do: the
+  // request was sent from this draft, so its refusal has to come back to the
+  // form that still holds it, not to a fresh one picked in the meantime.
+  const leaveSetup = () => {
+    if (create.isPending) return;
+    backToPicker();
+  };
+
   // Step two opens already named after the vendor, numbered past the names
   // its credentials hold ("OpenRouter", then "OpenRouter 2"), so keeping the
   // suggestion can never collide with a sibling. Taken once, on the pick: the
@@ -236,7 +244,11 @@ export function CredentialAddDialog<
       // keeps sizing to its own fields.
       className={vendor === null ? 'md:h-[70dvh] md:max-h-[70dvh]' : undefined}
       {...(vendor !== null
-        ? { onBack: backToPicker, backLabel: tCommon('actions.back') }
+        ? {
+            onBack: leaveSetup,
+            backLabel: tCommon('actions.back'),
+            backDisabled: create.isPending,
+          }
         : {})}
       footer={
         setupIsForm ? (
@@ -279,8 +291,9 @@ export function CredentialAddDialog<
             <Consent
               organizationId={organizationId}
               vendor={vendor}
-              onBack={backToPicker}
+              onBack={leaveSetup}
               onClose={() => {
+                if (create.isPending) return;
                 backToPicker();
                 onOpenChange(false);
               }}

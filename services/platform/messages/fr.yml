@@ -1664,6 +1664,7 @@ common:
     rowError: 'Ligne {row} : {message}'
     moreRows: '… et {count} de plus'
     tooManyRows: Ce fichier contient {count} lignes à importer, et Tale en importe au plus {max} à la fois. Divise-le en fichiers plus petits et importe-les un par un.
+    unpairedQuotes: 'Les guillemets de cette ligne ne vont pas par paires. Entoure chaque cellule d''une seule paire de guillemets et double un guillemet à l''intérieur ("").'
     fields:
       name: Nom
       price: Prix

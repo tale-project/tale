@@ -698,6 +698,8 @@ export const TASK_WORKER_BATCH_LIMITS: ReadonlyMap<string, number> = new Map<
 export const TASK_WORKER_SLOT_QUEUES: ReadonlySet<string> =
   new Set<TaskIdentifier>([
     'websites.scan',
+    // One slow answer must not hold the next chat after its batch-mates finish.
+    'chat.api_turn',
     // An agent turn's start (a session create can take minutes) and each of
     // its 90 s drive windows: batched, one slow start held every start
     // behind it, and live turns past a batch were drained only in turns.
@@ -711,7 +713,7 @@ export const TASK_WORKER_SLOT_QUEUES: ReadonlySet<string> =
  * The fewest slots a slot queue runs, whatever `WORKER_CONCURRENCY` says. A
  * drive window spends its 90 s waiting on the sandbox's output stream, and a
  * live turn whose window waits for a free slot is not drained meanwhile: its
- * output piles up in the daemon's replay ring (256 KB) and its heartbeat
+ * output waits in the daemon's bounded replay journal and its heartbeat
  * goes stale, so the default of five slots throttled a worker to five live
  * agent turns at once.
  */

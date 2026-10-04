@@ -10,6 +10,7 @@ import {
   type SandboxDeviceJoined,
   type SandboxDeviceJoinInput,
   type SandboxDeviceJoinToken,
+  type SandboxDeviceJoinTokenStatus,
   type SandboxDevicePlatform,
   type SandboxDeviceRelay,
   type SandboxDevicesView,
@@ -69,6 +70,7 @@ const LAST_SEEN_THROTTLE_MS = 60_000;
 
 export type SandboxDeviceErrorCode =
   | 'JOIN_TOKEN_INVALID'
+  | 'JOIN_TOKEN_NOT_FOUND'
   | 'JOIN_TOKEN_LIMIT'
   | 'DEVICE_LIMIT'
   | 'DEVICE_NOT_FOUND'
@@ -135,7 +137,7 @@ export async function createJoinToken(
   const tokenHash = await hashOpaqueToken(token);
   const now = Date.now();
   const expiresAt = now + SANDBOX_DEVICE_JOIN_TOKEN_TTL_MS;
-  await sql.begin(async (tx) => {
+  const id = await sql.begin(async (tx) => {
     await orgLock(tx, args.organizationId, 'join-tokens');
     // Spent and long-expired tokens have no use left; drop them here so the
     // table stays the size of what is live.
@@ -156,14 +158,18 @@ export async function createJoinToken(
         409,
       );
     }
-    await tx`
+    const inserted = await tx<{ id: string }[]>`
       INSERT INTO app.sandbox_device_join_tokens (
         org_id, token_hash, created_by, created_at_ms, expires_at_ms
       ) VALUES (
         ${args.organizationId}, ${tokenHash}, ${args.actor.userId}, ${now},
         ${expiresAt}
       )
+      RETURNING id
     `;
+    const tokenId = inserted[0]?.id;
+    if (tokenId === undefined)
+      throw new Error('sandbox join token insert failed');
     await createAuditLog(tx, {
       organizationId: args.organizationId,
       actorId: args.actor.userId,
@@ -177,8 +183,31 @@ export async function createJoinToken(
       newState: { expiresAt },
       status: 'success',
     });
+    return tokenId;
   });
-  return { token, expiresAt, serverUrl: deviceServerUrl() };
+  return { id, token, expiresAt, serverUrl: deviceServerUrl() };
+}
+
+export async function getJoinTokenStatus(
+  sql: Sql,
+  args: { organizationId: string; tokenId: string; actor: SandboxDeviceActor },
+): Promise<SandboxDeviceJoinTokenStatus> {
+  const rows = await sql<SandboxDeviceJoinTokenStatus[]>`
+    SELECT device_id AS "deviceId"
+    FROM app.sandbox_device_join_tokens
+    WHERE id = ${args.tokenId}
+      AND org_id = ${args.organizationId}
+      AND created_by = ${args.actor.userId}
+  `;
+  const row = rows[0];
+  if (row === undefined) {
+    throw new SandboxDeviceError(
+      'JOIN_TOKEN_NOT_FOUND',
+      'Device command not found',
+      404,
+    );
+  }
+  return row;
 }
 
 /** The machine door's join: spend the token, enrol the device, answer its
