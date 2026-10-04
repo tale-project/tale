@@ -6,6 +6,14 @@ suite alongside the automated ones — they drive the same stack.
 
 ## Coverage map
 
+Task agent Details distinguishes a failed sandbox-op read from loading and a
+successful no-log response. EN/DE/FR errors offer Try again without starting a
+new run; retry restores a stranded focus after another failure, preserves a
+deliberate focus move, recovers the transcript in the same dialog, and keeps a
+cached transcript after a failed refresh. These component cases are owned by
+`app/features/tasks/components/task-agent-run-entry.test.tsx` (#3830, #3831).
+Real-browser focus trapping, speech and narrow-screen layout remain manual.
+
 Text-only edits retain the original uploaded attachment references in both
 the send request and optimistic message, leave unrelated composer files
 staged, and keep regeneration on its original-prompt path:

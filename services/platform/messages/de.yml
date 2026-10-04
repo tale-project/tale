@@ -7436,6 +7436,7 @@ tasks:
     notStartedYet: Der Agent wartet, bis du ihn startest.
     failureTitle: Der Agent konnte diese Aufgabe nicht fertigstellen
     reported: Was der Lauf gemeldet hat
+    logReadFailed: Das Agentenprotokoll konnte nicht geladen werden. Versuch es erneut.
     failure:
       budget: Ein Nutzungslimit hat diesen Lauf gestoppt. Bitte einen Admin, es anzuheben, und starte den Agenten dann erneut.
       setup: 'Dem Agenten fehlt etwas, das er braucht — sein Modell, einer seiner Skills oder der Agent selbst. Ein Redakteur oder Admin kann das im Tab "Agenten" des Projekts beheben.'
