@@ -69,6 +69,7 @@
     "cron-parser": "5.5.0",
     "dayjs": "1.11.20",
     "dompurify": "3.4.16",
+    "eventsource-parser": "4.1.1",
     "fast-xml-parser": "5.8.0",
     "file-type": "^22.0.1",
     "framer-motion": "12.38.0",

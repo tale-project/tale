@@ -565,6 +565,14 @@ describe('organization BuildKit provisioning', () => {
       expect(builder).toContain(
         `TALE_BUILDKITD_MIRRORS=${MIRROR_REGISTRIES.map((registry) => `${registry}=${buildkitdMirrorRef(org, registry)}`).join(';')}`,
       );
+      for (const registry of MIRROR_REGISTRIES) {
+        const mirror = launched.find((a) =>
+          a.includes(buildkitdMirrorContainerName(org, registry)),
+        )!;
+        // Without this the proxy's expiry scheduler rejects blob deletion,
+        // leaving every pulled image layer on disk indefinitely.
+        expect(mirror).toContain('REGISTRY_STORAGE_DELETE_ENABLED=true');
+      }
     }
     expect(commands.some((a) => a[0] === 'rm' || a[1] === 'rm')).toBe(false);
     expect(commands.findIndex((a) => a.includes('-I'))).toBeLessThan(

@@ -2,7 +2,7 @@
 // fetch is mocked to return SSE streams, including a mid-turn drop, and we
 // assert the drain re-attaches via sinceSeq and feeds each delta exactly once.
 
-import { afterEach, beforeEach, describe, expect, test } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
 import {
   chunkStageFiles,
@@ -100,6 +100,206 @@ function restoreEnv(name: string, value: string | undefined): void {
 }
 
 describe('drainSessionExecResilient', () => {
+  test('preserves stdout and completion at every CRLF chunk boundary', async () => {
+    const frame =
+      'event: stdout\r\ndata: {"seq":2,"text":"REQUIRED OUTPUT"}\r\n\r\n';
+    for (let split = 1; split < frame.length; split += 1) {
+      globalThis.fetch = (async () =>
+        sseResponse([
+          frame.slice(0, split),
+          frame.slice(split),
+          RESULT_OK,
+        ])) as unknown as typeof fetch;
+      let text = '';
+      const cursor = { lastSeq: 0 };
+      const result = await drainSessionExecResilient(
+        's',
+        { execId: 'e' },
+        new AbortController().signal,
+        {
+          onStdout: (chunk) => {
+            text += chunk;
+          },
+        },
+        { cursor },
+      );
+      expect({
+        split,
+        text,
+        seq: cursor.lastSeq,
+        status: result.status,
+      }).toEqual({
+        split,
+        text: 'REQUIRED OUTPUT',
+        seq: 2,
+        status: 'completed',
+      });
+    }
+  });
+
+  test('scans fragmented SSE input in linear work instead of rescanning its buffered prefix', async () => {
+    const text = 'x'.repeat(1024 * 1024);
+    const frame = `event: stdout\ndata: ${JSON.stringify({ seq: 2, text })}\n\n`;
+    const chunks: string[] = [];
+    for (let at = 0; at < frame.length; at += 4096) {
+      chunks.push(frame.slice(at, at + 4096));
+    }
+    globalThis.fetch = (async () =>
+      sseResponse([...chunks, RESULT_OK])) as unknown as typeof fetch;
+    // Saved for the instrumentation below, which supplies its receiver with call.
+    // oxlint-disable-next-line typescript/unbound-method
+    const originalIndexOf = String.prototype.indexOf;
+    let searchedChars = 0;
+    const spy = vi
+      .spyOn(String.prototype, 'indexOf')
+      .mockImplementation(function (this: string, search: string, start = 0) {
+        const found = originalIndexOf.call(this, search, start);
+        if (search === '\n' || search === '\r' || search === '\n\n') {
+          searchedChars +=
+            (found < 0 ? this.length : found + search.length) - start;
+        }
+        return found;
+      });
+    let output = '';
+    try {
+      await drainSessionExecResilient(
+        's',
+        { execId: 'e' },
+        new AbortController().signal,
+        {
+          onStdout: (chunk) => {
+            output += chunk;
+          },
+        },
+      );
+    } finally {
+      spy.mockRestore();
+    }
+    expect(output).toBe(text);
+    // Counts characters examined by delimiter searches, not noisy elapsed
+    // time. Whole-prefix rescans examine over128x the input for this fixture.
+    expect(searchedChars).toBeLessThan(frame.length * 8);
+  });
+
+  test.each(['complete', 'fragmented', 'comment', 'multiline'] as const)(
+    'refuses an oversized %s SSE frame and cancels without reconnecting',
+    async (shape) => {
+      const maxChars = 16 * 1024 * 1024;
+      const frame =
+        shape === 'comment'
+          ? `: ${'x'.repeat(maxChars)}\n\n`
+          : shape === 'multiline'
+            ? `event: stdout\n${`data: ${'x'.repeat(4096)}\n`.repeat(4096)}\n`
+            : `event: stdout\ndata: ${JSON.stringify({ seq: 2, text: 'x'.repeat(maxChars) })}\n\n`;
+      const chunkSize = shape === 'complete' ? frame.length : 64 * 1024;
+      let at = 0;
+      let cancelled = false;
+      let requests = 0;
+      globalThis.fetch = (async () => {
+        requests += 1;
+        return new Response(
+          new ReadableStream<Uint8Array>({
+            pull(controller) {
+              if (at < frame.length) {
+                controller.enqueue(enc.encode(frame.slice(at, at + chunkSize)));
+                at += chunkSize;
+              }
+            },
+            cancel() {
+              cancelled = true;
+            },
+          }),
+        );
+      }) as unknown as typeof fetch;
+      const cursor = { lastSeq: 0 };
+      const onStdout = vi.fn();
+      await expect(
+        drainSessionExecResilient(
+          's',
+          { execId: 'e' },
+          new AbortController().signal,
+          { onStdout },
+          { cursor },
+        ),
+      ).rejects.toThrow('Sandbox SSE frame exceeds 16 MiB');
+      expect(cancelled).toBe(true);
+      expect(requests).toBe(1);
+      expect(cursor.lastSeq).toBe(0);
+      expect(onStdout).not.toHaveBeenCalled();
+    },
+  );
+
+  test('resets the frame budget between events in a large network chunk', async () => {
+    const value = 'x'.repeat(8 * 1024 * 1024);
+    const frame = (seq: number) =>
+      `event: stdout\ndata: ${JSON.stringify({ seq, text: value })}\n\n`;
+    globalThis.fetch = (async () =>
+      sseResponse([
+        frame(2) + frame(3) + RESULT_OK,
+      ])) as unknown as typeof fetch;
+    let chars = 0;
+    await drainSessionExecResilient(
+      's',
+      { execId: 'e' },
+      new AbortController().signal,
+      {
+        onStdout: (text) => {
+          chars += text.length;
+        },
+      },
+    );
+    expect(chars).toBe(value.length * 2);
+  });
+
+  test('discards an incomplete event at EOF before replaying it once', async () => {
+    const frame = 'event: stdout\ndata: {"seq":2,"text":"once"}\n\n';
+    let requests = 0;
+    const cursor = { lastSeq: 0 };
+    globalThis.fetch = (async () => {
+      requests += 1;
+      // A single newline has finished the data line, but has not dispatched
+      // the event. Reconnect must neither emit it nor advance its cursor.
+      if (requests === 1) return sseResponse([frame.slice(0, -1)]);
+      expect(cursor.lastSeq).toBe(0);
+      return sseResponse([frame, RESULT_OK]);
+    }) as unknown as typeof fetch;
+    const received: string[] = [];
+    await drainSessionExecResilient(
+      's',
+      { execId: 'e' },
+      new AbortController().signal,
+      {
+        onStdout: (text) => {
+          received.push(text);
+        },
+      },
+      { cursor },
+    );
+    expect(received).toEqual(['once']);
+    expect(requests).toBe(2);
+    expect(cursor.lastSeq).toBe(2);
+  });
+
+  test('accepts standard multiline data and CR-only event boundaries', async () => {
+    globalThis.fetch = (async () =>
+      sseResponse([
+        'event:stdout\rdata:{"seq":2,\rdata:"text":"joined"}\r\r',
+        RESULT_OK,
+      ])) as unknown as typeof fetch;
+    const received: string[] = [];
+    await drainSessionExecResilient(
+      's',
+      { execId: 'e' },
+      new AbortController().signal,
+      {
+        onStdout: (text) => {
+          received.push(text);
+        },
+      },
+    );
+    expect(received).toEqual(['joined']);
+  });
+
   test('enables contiguous legacy replay without waiting for a marker', async () => {
     const phases: string[] = [];
     globalThis.fetch = (async () =>
