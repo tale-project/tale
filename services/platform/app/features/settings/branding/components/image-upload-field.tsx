@@ -14,6 +14,10 @@ import { failureDetail } from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
 
 import { useDeleteImage, useSaveImage } from '../hooks/mutations';
+import {
+  runBrandingWrite,
+  type BrandingWriteRunner,
+} from '../hooks/use-branding-write-queue';
 import { imageUploadErrorToastKey } from '../utils/image-upload-error';
 
 const ACCEPTED_IMAGE_TYPES = '.png,.svg,.jpg,.jpeg,.webp,.ico';
@@ -63,6 +67,7 @@ function isAcceptedImage(file: File): boolean {
 
 interface ImageUploadFieldProps {
   organizationId: string;
+  runWrite?: BrandingWriteRunner;
   currentUrl?: string | null;
   imageType: 'logo' | 'favicon-light' | 'favicon-dark';
   onUpload: (filename: string, file: File) => void;
@@ -75,6 +80,7 @@ interface ImageUploadFieldProps {
 
 export function ImageUploadField({
   organizationId,
+  runWrite = runBrandingWrite,
   currentUrl,
   imageType,
   onUpload,
@@ -162,20 +168,22 @@ export function ImageUploadField({
       setIsUploading(true);
 
       try {
-        const arrayBuffer = await file.arrayBuffer();
-        const bytes = new Uint8Array(arrayBuffer);
-        let binary = '';
-        for (let i = 0; i < bytes.length; i++) {
-          binary += String.fromCharCode(bytes[i]);
-        }
-        const base64 = btoa(binary);
-        const result = await saveImage.mutateAsync({
-          organizationId,
-          type: imageType,
-          base64,
-          mimeType: file.type,
+        await runWrite(async () => {
+          const arrayBuffer = await file.arrayBuffer();
+          const bytes = new Uint8Array(arrayBuffer);
+          let binary = '';
+          for (let i = 0; i < bytes.length; i++) {
+            binary += String.fromCharCode(bytes[i]);
+          }
+          const base64 = btoa(binary);
+          const result = await saveImage.mutateAsync({
+            organizationId,
+            type: imageType,
+            base64,
+            mimeType: file.type,
+          });
+          onUpload(result.filename, file);
         });
-        onUpload(result.filename, file);
       } catch (err) {
         // Surface the failure instead of silently dropping the preview: log for
         // diagnostics and show a destructive toast whose message reflects the
@@ -205,6 +213,7 @@ export function ImageUploadField({
     [
       organizationId,
       isBusy,
+      runWrite,
       saveImage,
       imageType,
       onUpload,
@@ -250,16 +259,18 @@ export function ImageUploadField({
     if (isBusy) return;
     setIsDeleting(true);
     try {
-      await deleteImage.mutateAsync({ organizationId, type: imageType });
-      setPreviewUrl(null);
-      onPreviewUrlChange?.(null);
-      setIsRemoved(true);
-      if (objectUrlRef.current) {
-        URL.revokeObjectURL(objectUrlRef.current);
-        objectUrlRef.current = null;
-      }
-      onRemove?.();
-      focusAfterDeleteRef.current = true;
+      await runWrite(async () => {
+        await deleteImage.mutateAsync({ organizationId, type: imageType });
+        setPreviewUrl(null);
+        onPreviewUrlChange?.(null);
+        setIsRemoved(true);
+        if (objectUrlRef.current) {
+          URL.revokeObjectURL(objectUrlRef.current);
+          objectUrlRef.current = null;
+        }
+        onRemove?.();
+        focusAfterDeleteRef.current = true;
+      });
     } catch (error) {
       console.error('[ImageUploadField] image removal failed', error);
     } finally {
@@ -267,6 +278,7 @@ export function ImageUploadField({
     }
   }, [
     isBusy,
+    runWrite,
     deleteImage,
     organizationId,
     imageType,
