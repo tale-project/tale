@@ -105,6 +105,7 @@ interface SsoFormData {
   tokenEndpoint: string;
   userinfoEndpoint: string;
   domainHint: string;
+  claimMappings?: { email?: string; name?: string; groups?: string };
   // SAML
   idpEntityId: string;
   idpSsoUrl: string;
@@ -271,6 +272,13 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
         tokenEndpoint: z.string(),
         userinfoEndpoint: z.string(),
         domainHint: z.string(),
+        claimMappings: z
+          .object({
+            email: z.string().optional(),
+            name: z.string().optional(),
+            groups: z.string().optional(),
+          })
+          .optional(),
         idpEntityId: z.string(),
         idpSsoUrl: z.string(),
         idpCertificate: z.string(),
@@ -398,6 +406,7 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
     let scopes = DEFAULT_SCOPES['entra-id'];
     let pkce = true;
     let domainHint = '';
+    let claimMappings: SsoFormData['claimMappings'];
     let authzEndpoint = '';
     let tokenEndpoint = '';
     let userinfoEndpoint = '';
@@ -432,6 +441,7 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
       scopes = config.oidc.scopes.join(' ');
       pkce = config.oidc.pkce ?? true;
       domainHint = config.oidc.domainHint ?? '';
+      claimMappings = config.oidc.claimMappings;
       // Explicit OAuth2 endpoints (and any discovery override) are part of the
       // read view now — round-trip them so editing a stored OAuth2 connection
       // doesn't blank its required endpoints on the next save.
@@ -454,6 +464,7 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
       tokenEndpoint,
       userinfoEndpoint,
       domainHint,
+      claimMappings,
       idpEntityId,
       idpSsoUrl,
       idpCertificate,
@@ -513,6 +524,7 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
             scopes: scopeList,
             pkce: values.pkce,
             domainHint: values.domainHint || undefined,
+            claimMappings: values.claimMappings,
             // Deprecated: SSO never requests Graph file scopes. Knowledge
             // import uses cloud-import OAuth. Always clear on save.
             enableOneDriveAccess: false,
