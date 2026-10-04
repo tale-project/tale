@@ -158,6 +158,7 @@ describe('equipped skill staging with real bundles', () => {
     // skill to upload first without making prompt order depend on that timing.
     const reportUploaded = Promise.withResolvers<void>();
     vi.stubGlobal('fetch', async (url: string, init?: RequestInit) => {
+      if (init?.method === 'GET') return sandboxFetch(url, init);
       if (typeof init?.body !== 'string')
         throw new Error('Expected a serialized staging request');
       const body = JSON.parse(init.body) as {

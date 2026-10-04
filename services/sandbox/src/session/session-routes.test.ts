@@ -986,12 +986,20 @@ describe('SessionRoutes (fake runnerd)', () => {
   });
 
   test.each(['exec', 'attach'] as const)(
-    'a replay gap stays distinct on the %s error wire',
+    'unavailable replay stays terminal on the %s error wire',
     async (mode) => {
-      const routes = new SessionRoutes(cfg, fakeBackend);
+      let existsChecks = 0;
+      const routes = new SessionRoutes(cfg, {
+        ...fakeBackend,
+        async sessionExists() {
+          existsChecks += 1;
+          return true;
+        },
+      });
       await routes.handleCreate(
         JSON.stringify({ sessionId: 'gap-session', organizationId: 'org' }),
       );
+      existsChecks = 0;
       const request = new Request('http://x/exec');
       const response =
         mode === 'exec'
@@ -1005,10 +1013,13 @@ describe('SessionRoutes (fake runnerd)', () => {
       expect(
         events.find((event) => event.event === 'error')?.data,
       ).toMatchObject({
-        code: 'REPLAY_UNAVAILABLE',
+        // The transport normalizes explicit journal loss and sequence gaps.
+        code: 'OUTPUT_GAP',
         message:
           'Exec output is no longer available from the requested cursor.',
       });
+      expect(events.some((event) => event.event === 'result')).toBe(false);
+      expect(existsChecks).toBe(0);
     },
   );
 
