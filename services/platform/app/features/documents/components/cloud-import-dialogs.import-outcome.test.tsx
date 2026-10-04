@@ -223,6 +223,10 @@ async function importFolder(
   await user.click(
     await screen.findByRole('menuitem', { name: documents(menuItem) }),
   );
+  // Wait for the real lazy picker module before timing its semantic content.
+  await act(async () => {
+    await vi.dynamicImportSettled();
+  });
   await browse(user);
   await user.click(
     await screen.findByRole('checkbox', {

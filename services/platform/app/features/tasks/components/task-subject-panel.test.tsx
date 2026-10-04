@@ -291,6 +291,32 @@ describe('TaskSubjectPanel', () => {
     });
   });
 
+  it('explains a refused human approval when organization policy is unavailable', async () => {
+    mocks.reviewer = capturedReview({ kind: 'user', userId: 'alice' });
+    mocks.updateStatus.mockRejectedValueOnce(
+      new AppError({
+        code: 'TASK_REVIEW_POLICY_UNAVAILABLE',
+        message:
+          'The review policy is unavailable; restore valid configuration before deciding',
+      }),
+    );
+    const { user } = renderPanel(ownedBy(), true, 'in_review', 'alice');
+    await user.click(screen.getByRole('button', { name: 'Approve' }));
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledExactlyOnceWith({
+        title:
+          'Review policy could not be read. Restore valid organization policy before deciding.',
+        variant: 'destructive',
+      }),
+    );
+    expect(mocks.updateStatus).toHaveBeenCalledExactlyOnceWith({
+      taskId: 'task_1',
+      status: 'done',
+    });
+    expect(mocks.addComment).not.toHaveBeenCalled();
+    expect(screen.getByText('Current review: Alice')).toBeInTheDocument();
+  });
+
   it('does not offer a human verdict or name a future reviewer before the captured review loads', () => {
     mocks.reviewer = undefined;
     renderPanel(ownedBy(), true, 'in_review', 'future');
