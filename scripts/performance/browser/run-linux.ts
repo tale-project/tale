@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
-import { randomBytes } from 'node:crypto';
-import { readFile, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { createHash, randomBytes } from 'node:crypto';
+import { readFile, realpath, writeFile } from 'node:fs/promises';
+import { isAbsolute, join } from 'node:path';
 
 import {
   childEnvironment,
@@ -19,6 +19,7 @@ import {
   sampleLinuxResources,
   verifyContainerResources,
 } from './linux-resources.ts';
+import { browserOrigins } from './origins.mjs';
 import { nativeIO } from './resource-io.ts';
 
 const boundedIO = {
@@ -115,7 +116,7 @@ try {
     BENCH_OUTPUT: process.env.BENCH_OUTPUT!,
     BENCH_SOURCE: source.candidatePath,
     BENCH_BASELINE: source.baselinePath,
-    BENCH_URL: 'http://127.0.0.1:43830',
+    BENCH_URL: browserOrigins[0]!,
     DATABASE_URL: `postgres://tale:${secret}@127.0.0.1:5432/tale_app`,
     KNOWLEDGE_DATABASE_URL: `postgres://tale:${secret}@127.0.0.1:5432/tale_knowledge`,
     BENCH_CHROMIUM: '/ms-playwright/chromium-1194/chrome-linux/chrome',
@@ -123,6 +124,31 @@ try {
     ENCRYPTION_SECRET_HEX: randomBytes(32).toString('hex'),
     WEBDAV_APP_PASSWORD_HMAC_KEY: randomBytes(32).toString('hex'),
   };
+  const bunLocation = await boundedIO.command(
+    'bun',
+    ['--print', 'process.execPath'],
+    10_000,
+  );
+  assert.equal(bunLocation.code, 0);
+  const bunPath = await realpath(bunLocation.stdout.trim());
+  assert(
+    isAbsolute(bunPath) && !/[\r\n,]/.test(bunPath),
+    'Invalid pinned Bun path',
+  );
+  const bunVersion = await boundedIO.command(bunPath, ['--version'], 10_000);
+  assert.equal(bunVersion.code, 0);
+  assert.equal(
+    bunVersion.stdout.trim(),
+    source.bun,
+    'Mounted Bun differs from root pin',
+  );
+  await json('bun-runtime.json', {
+    version: source.bun,
+    path: bunPath,
+    sha256: createHash('sha256')
+      .update(await readFile(bunPath))
+      .digest('hex'),
+  });
   const args = [
     'run',
     '--detach',
@@ -147,6 +173,8 @@ try {
     `type=bind,src=${process.env.BENCH_OUTPUT},dst=${process.env.BENCH_OUTPUT}`,
     '--mount',
     `type=bind,src=${process.execPath},dst=/tools/node,readonly`,
+    '--mount',
+    `type=bind,src=${bunPath},dst=/tools/bun,readonly`,
     '--workdir',
     source.candidatePath,
     ...Object.keys(runtimeEnv)

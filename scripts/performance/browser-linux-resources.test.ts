@@ -152,7 +152,16 @@ function fixture() {
 describe('shared browser diagnostic resource boundary', () => {
   test('both containers use the same verified aggregate budget and distinct CID receipts', async () => {
     const f = fixture();
-    await initializeLinuxResources(f.io, f.plan);
+    expect(await initializeLinuxResources(f.io, f.plan)).toEqual({
+      OSType: 'linux',
+      Architecture: 'x86_64',
+      CgroupDriver: 'systemd',
+      CgroupVersion: '2',
+      cgroupLimits: {
+        'cpu.max': '200000 100000\n',
+        'memory.max': '4294967296\n',
+      },
+    });
     const db = f.add('db');
     const browser = f.add('browser');
     expect(await verifyContainerResources(f.io, f.plan, 'db')).toEqual({

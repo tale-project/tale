@@ -75,18 +75,19 @@ async function verifySlice(io: ResourceIO, plan: ResourcePlan) {
     plan.slice,
   ]);
   assert.equal(group, `/${plan.slice}`, 'Unexpected diagnostic cgroup path');
+  const cpuMax = await io.readFile(`${plan.groupPath}/cpu.max`);
+  const memoryMax = await io.readFile(`${plan.groupPath}/memory.max`);
   assert.equal(
-    (await io.readFile(`${plan.groupPath}/cpu.max`))
-      ?.trim()
-      .replace(/\s+/g, ' '),
+    cpuMax?.trim().replace(/\s+/g, ' '),
     '200000 100000',
     'Shared CPU quota was not applied',
   );
   assert.equal(
-    (await io.readFile(`${plan.groupPath}/memory.max`))?.trim(),
+    memoryMax?.trim(),
     memoryBytes,
     'Shared memory ceiling was not applied',
   );
+  return { 'cpu.max': cpuMax, 'memory.max': memoryMax };
 }
 
 export async function initializeLinuxResources(
@@ -126,8 +127,8 @@ export async function initializeLinuxResources(
   }
   await systemctl(io, ['daemon-reload']);
   await systemctl(io, ['start', plan.slice]);
-  await verifySlice(io, plan);
-  return info;
+  const cgroupLimits = await verifySlice(io, plan);
+  return { ...info, cgroupLimits };
 }
 
 export function containerResourceArgs(plan: ResourcePlan, role: ResourceRole) {

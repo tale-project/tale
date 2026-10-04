@@ -28,6 +28,8 @@ export function assertCandidate(expected, actual, dirty) {
 export function sharedServerChange(path) {
   return (
     path === 'bun.lock' ||
+    /^services\/platform\/[^/]+\.(?:ts|mjs)$/.test(path) ||
+    path.startsWith('services/proxy/') ||
     /(^|\/)package\.json$/.test(path) ||
     /(^|\/)tsconfig[^/]*\.json$/.test(path) ||
     [
@@ -139,6 +141,8 @@ export async function prepareSources(env = process.env, cwd = process.cwd()) {
         .filter(
           (path) =>
             path === 'bun.lock' ||
+            /^services\/platform\/[^/]+\.(?:ts|mjs)$/.test(path) ||
+            path.startsWith('services/proxy/') ||
             /(^|\/)package\.json$/.test(path) ||
             /(^|\/)tsconfig[^/]*\.json$/.test(path) ||
             path.startsWith('patches/'),

@@ -13,7 +13,7 @@ afterEach(async () => {
     await rm(path, { recursive: true, force: true });
 });
 
-async function fixture(failRead = false) {
+async function fixture(failRead = false, dataLossOccurred: unknown = false) {
   const directory = await mkdtemp(join(tmpdir(), 'tale-browser-trace-'));
   owned.push(directory);
   const calls: string[] = [];
@@ -23,7 +23,10 @@ async function fixture(failRead = false) {
     async send(method: string) {
       calls.push(method);
       if (method === 'Tracing.end')
-        transport.emit('Tracing.tracingComplete', { stream: 'owned-stream' });
+        transport.emit('Tracing.tracingComplete', {
+          stream: 'owned-stream',
+          dataLossOccurred,
+        });
       if (method === 'IO.read') {
         reads += 1;
         if (reads === 2 && failRead) throw new Error('trace transport lost');
@@ -58,5 +61,33 @@ test('a mid-stream failure keeps raw partial evidence and closes the owned strea
     'transport lost',
   );
   expect(await readFile(f.path, 'utf8')).toBe('{"traceEvents":[');
+  expect(f.calls.filter((call) => call === 'IO.close')).toHaveLength(1);
+});
+
+test('CDP data loss invalidates the capture while preserving its raw stream and receipt', async () => {
+  const f = await fixture(false, true);
+  await expect(saveRawTrace(f.client, f.path)).rejects.toThrow(
+    'CDP reported trace data loss',
+  );
+  expect(JSON.parse(await readFile(f.path, 'utf8')).traceEvents).toHaveLength(
+    1,
+  );
+  const receipt = JSON.parse(await readFile(`${f.path}.receipt.json`, 'utf8'));
+  expect(receipt.completion.dataLossOccurred).toBe(true);
+  expect(receipt.status).toBe('failed');
+  expect(receipt.bytes).toBeGreaterThan(0);
+  expect(receipt.sha256).toHaveLength(64);
+  expect(f.calls.filter((call) => call === 'IO.close')).toHaveLength(1);
+});
+
+test('a malformed CDP completion cannot certify a valid raw capture', async () => {
+  const f = await fixture(false, 'false');
+  await expect(saveRawTrace(f.client, f.path)).rejects.toThrow(
+    'Malformed CDP trace completion',
+  );
+  const receipt = JSON.parse(await readFile(`${f.path}.receipt.json`, 'utf8'));
+  expect(receipt.completion.dataLossOccurred).toBe('false');
+  expect(receipt.status).toBe('failed');
+  expect(f.calls).not.toContain('IO.read');
   expect(f.calls.filter((call) => call === 'IO.close')).toHaveLength(1);
 });

@@ -3,15 +3,13 @@ import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync } from 'node:fs';
 
 import { z } from 'zod';
+
+import { browserOrigins } from './origins.mjs';
 const ROUND = process.argv[2] ?? 'r1';
 const BASE = process.env.BENCH_URL;
 const OUT = process.env.BENCH_OUTPUT;
 assert(BASE && OUT, 'Diagnostic URL and output directory are required');
-assert.equal(
-  BASE,
-  'http://127.0.0.1:43830',
-  'Synthetic seeding is loopback-only',
-);
+assert.equal(BASE, browserOrigins[0], 'Synthetic seeding is loopback-only');
 assert.match(ROUND, /^[a-z0-9-]+$/);
 mkdirSync(OUT, { recursive: true });
 const id = z.string().regex(/^[A-Za-z0-9_-]+$/);

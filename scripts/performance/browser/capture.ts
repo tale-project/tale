@@ -6,13 +6,11 @@ import { loadavg } from 'node:os';
 
 import { z } from 'zod';
 
-import {
-  chromium,
-  type CDPSession,
-  type Page,
-} from '../../../packages/e2e/src/index.ts';
+import { chromium, type Page } from '../../../packages/e2e/src/index.ts';
+import { verifyBoot } from './boot.ts';
 import { json, outputPath } from './common.ts';
-import { finishProfile, saveRawTrace } from './trace.ts';
+import { browserOrigins as origins } from './origins.mjs';
+import { capturePhase as trace } from './phase.ts';
 
 interface Frame {
   tDom: number;
@@ -55,6 +53,12 @@ const fixture = z
     large: z.object({ target: targetSchema }),
   })
   .parse(JSON.parse(await readFile(outputPath('seed-summary.json'), 'utf8')));
+const build = z.object({
+  assets: z.record(z.string(), z.string().regex(/^[a-f0-9]{64}$/)),
+});
+const builds = z
+  .object({ baseline: build, candidate: build })
+  .parse(JSON.parse(await readFile(outputPath('builds.json'), 'utf8')));
 const executable = process.env.BENCH_CHROMIUM;
 assert(
   executable && process.env.BENCH_PASSWORD,
@@ -91,7 +95,6 @@ assert.equal(
 const browserHash = createHash('sha256')
   .update(await readFile(executable))
   .digest('hex');
-const origins = ['http://127.0.0.1:43830', 'http://127.0.0.1:43831'];
 const cards = '[role="region"] section button.line-clamp-2';
 const rows: unknown[] = [];
 const receipt = {
@@ -117,43 +120,6 @@ const receipt = {
   limits:
     'One serial pair per size on a fresh Linux host. Both arms share one unchanged API and database. Task detail reads are identically prewarmed for dialog measurements. Fixed-order backend warming remains a limitation. Content-ready rendering opportunities are not first-visible-pixel proof. Original latency criteria remain unchanged.',
 };
-
-async function trace<T>(
-  cdp: CDPSession,
-  name: string,
-  action: () => Promise<T>,
-) {
-  await cdp.send('Profiler.enable');
-  await cdp.send('Profiler.start');
-  await cdp.send('Tracing.start', {
-    categories:
-      'devtools.timeline,blink.user_timing,disabled-by-default-devtools.timeline.stack,disabled-by-default-devtools.timeline.invalidationTracking',
-    transferMode: 'ReturnAsStream',
-  });
-  try {
-    return await action();
-  } catch (error) {
-    await json(`${name}.action-failure.json`, { error: String(error) });
-    throw error;
-  } finally {
-    const retained = await Promise.allSettled([
-      finishProfile(cdp, outputPath(`${name}.cpuprofile`)),
-      saveRawTrace(cdp, outputPath(`${name}.trace.json`)),
-    ]);
-    await json(
-      `${name}.capture.json`,
-      retained.map((result) =>
-        result.status === 'fulfilled'
-          ? { status: 'complete', ...result.value }
-          : { status: 'incomplete', error: String(result.reason) },
-      ),
-    );
-    assert(
-      retained.every((result) => result.status === 'fulfilled'),
-      'Profile or trace retention failed; partial evidence retained',
-    );
-  }
-}
 
 async function observations(page: Page) {
   return page.evaluate(() => ({
@@ -185,11 +151,70 @@ async function ready(page: Page) {
 }
 
 try {
+  // Functional protocol controls only: no Tale page, asset or API is warmed.
+  // The ordinary pair below still launches a fresh browser for every arm.
+  const control = {
+    status: 'running',
+    cases: [] as string[],
+    browser: receipt.browser,
+    driverVersion: driver.version,
+    browserHash,
+  };
+  await json('trace-control.json', control);
+  const controlBrowser = await chromium.launch({
+    executablePath: executable,
+    headless: true,
+    args: ['--enable-precise-memory-info'],
+  });
+  try {
+    assert.equal(controlBrowser.version(), receipt.browser);
+    for (const name of ['static', 'navigation'] as const) {
+      const context = await controlBrowser.newContext({
+        serviceWorkers: 'block',
+      });
+      try {
+        const page = await context.newPage();
+        const cdp = await context.newCDPSession(page);
+        await trace(cdp, outputPath(`control-${name}`), async () => {
+          if (name === 'navigation')
+            await page.goto(
+              'data:text/html,<title>Trace control</title><main>Owned protocol control</main>',
+            );
+          await page.evaluate(() => {
+            performance.mark('control-start');
+            const element = document.createElement('span');
+            element.textContent = 'protocol control';
+            document.body.appendChild(element);
+            performance.mark('control-end');
+          });
+          assert.equal(
+            await page.locator('span').textContent(),
+            'protocol control',
+          );
+          return { functionalControl: true, case: name };
+        });
+        control.cases.push(name);
+        await json('trace-control.json', control);
+      } finally {
+        await context.close();
+      }
+    }
+    control.status = 'passed';
+  } catch (error) {
+    control.status = 'failed';
+    await json('trace-control.json', { ...control, error: String(error) });
+    throw error;
+  } finally {
+    await controlBrowser.close();
+  }
+  await json('trace-control.json', control);
   for (const [size, count] of [
     ['small', 50],
     ['large', 2000],
   ] as const) {
-    for (const [index, variant] of ['baseline', 'candidate'].entries()) {
+    for (const [index, variant] of (
+      ['baseline', 'candidate'] as const
+    ).entries()) {
       const origin = origins[index]!;
       const row: Record<string, unknown> = {
         variant,
@@ -239,6 +264,10 @@ try {
         );
         assert(login.ok(), 'Synthetic sign-in failed');
         const page = await context.newPage();
+        const scriptResponses = new Map<
+          string,
+          Awaited<ReturnType<Page['waitForResponse']>>
+        >();
         const errors: string[] = [];
         row.errors = errors;
         page.on('console', (message) => {
@@ -248,6 +277,8 @@ try {
             );
         });
         page.on('response', (response) => {
+          if (response.request().resourceType() === 'script')
+            scriptResponses.set(response.url(), response);
           if (response.status() >= 400)
             errors.push(
               `HTTP ${response.status()}: ${new URL(response.url()).pathname}`,
@@ -275,17 +306,68 @@ try {
         const cdp = await context.newCDPSession(page);
         await cdp.send('Performance.enable');
         await json('browser-receipt.json', receipt);
-        const cold = await trace(cdp, `${variant}-${size}-cold`, async () => {
-          await page.goto(
-            `${origin}/dashboard/${ids.orgId}/projects/${ids.projects[size]}/tasks/board`,
-            { waitUntil: 'domcontentloaded', timeout: 120_000 },
-          );
-          return ready(page);
-        });
+        const cold = await trace(
+          cdp,
+          outputPath(`${variant}-${size}-cold`),
+          async () => {
+            await page.goto(
+              `${origin}/dashboard/${ids.orgId}/projects/${ids.projects[size]}/tasks/board`,
+              { waitUntil: 'domcontentloaded', timeout: 120_000 },
+            );
+            return ready(page);
+          },
+          async (observed) => {
+            Object.assign(row, {
+              cold: observed,
+              coldObservations: await observations(page),
+              coldMetrics: await cdp.send('Performance.getMetrics'),
+              coldCaptureComplete: false,
+              phase: 'cold-observed',
+            });
+            await json('browser-receipt.json', receipt);
+            // Inspect only the page and responses its recorded cold navigation
+            // already loaded. No extra app request or cache-warming asset read.
+            const boot = await page.evaluate(() => ({
+              origin: location.origin,
+              siteUrl: (
+                window as unknown as { __ENV__?: { SITE_URL?: unknown } }
+              ).__ENV__?.SITE_URL,
+              figmaScripts: [...document.scripts]
+                .map((script) => script.src)
+                .filter(
+                  (src) => src && new URL(src).hostname === 'mcp.figma.com',
+                ),
+              modules: [
+                ...document.querySelectorAll<HTMLScriptElement>(
+                  'script[type="module"][src]',
+                ),
+              ].map((script) => script.src),
+            }));
+            const entries = [];
+            for (const url of boot.modules) {
+              const response = scriptResponses.get(url);
+              if (response)
+                entries.push({
+                  url,
+                  sha256: createHash('sha256')
+                    .update(await response.body())
+                    .digest('hex'),
+                });
+            }
+            const evidence = { ...boot, entries };
+            row.coldBoot = evidence;
+            await json('browser-receipt.json', receipt);
+            verifyBoot(evidence, origin, builds[variant].assets);
+            assert.deepEqual(
+              errors,
+              [],
+              'Cold browser errors invalidate this sample',
+            );
+          },
+        );
         Object.assign(row, {
           cold,
-          coldObservations: await observations(page),
-          coldMetrics: await cdp.send('Performance.getMetrics'),
+          coldCaptureComplete: true,
           phase: 'cold-complete',
         });
         await json('browser-receipt.json', receipt);
@@ -325,15 +407,28 @@ try {
           window.__perf.inputs = [];
           window.__benchmarkReady = window.__perf.watchDialog(taskTitle, true);
         }, title);
-        const open = await trace(cdp, `${variant}-${size}-open`, async () => {
-          await card.click({ timeout: 120_000 });
-          return ready(page);
-        });
+        const open = await trace(
+          cdp,
+          outputPath(`${variant}-${size}-open`),
+          async () => {
+            await card.click({ timeout: 120_000 });
+            return ready(page);
+          },
+          async (observed) => {
+            Object.assign(row, {
+              open: observed,
+              openObservations: await observations(page),
+              openMetrics: await cdp.send('Performance.getMetrics'),
+              openCaptureComplete: false,
+              phase: 'open-observed',
+            });
+            await json('browser-receipt.json', receipt);
+          },
+        );
         const dialog = page.getByRole('dialog', { name: title, exact: true });
         Object.assign(row, {
           open,
-          openObservations: await observations(page),
-          openMetrics: await cdp.send('Performance.getMetrics'),
+          openCaptureComplete: true,
           phase: 'open-complete',
         });
         await json('browser-receipt.json', receipt);
@@ -422,13 +517,26 @@ try {
         }, title);
         Object.assign(row, { closeStartedAt: Date.now(), phase: 'close' });
         await json('browser-receipt.json', receipt);
-        const close = await trace(cdp, `${variant}-${size}-close`, async () => {
-          await page.keyboard.press('Escape');
-          return ready(page);
-        });
+        const close = await trace(
+          cdp,
+          outputPath(`${variant}-${size}-close`),
+          async () => {
+            await page.keyboard.press('Escape');
+            return ready(page);
+          },
+          async (observed) => {
+            Object.assign(row, {
+              close: observed,
+              closeObservations: await observations(page),
+              closeCaptureComplete: false,
+              phase: 'close-observed',
+            });
+            await json('browser-receipt.json', receipt);
+          },
+        );
         Object.assign(row, {
           close,
-          closeObservations: await observations(page),
+          closeCaptureComplete: true,
           phase: 'close-complete',
         });
         await json('browser-receipt.json', receipt);

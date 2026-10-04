@@ -16,6 +16,7 @@ import {
   runLogged,
   sources,
 } from './common.ts';
+import { backendOrigin, browserOrigins } from './origins.mjs';
 
 const scripts = dirname(fileURLToPath(import.meta.url));
 const baseline = process.env.BENCH_BASELINE!;
@@ -26,7 +27,7 @@ const environment = {
   ROLE: 'api',
   PORT: '43838',
   SITE_URL: process.env.BENCH_URL,
-  ADDITIONAL_SITE_URLS: 'http://127.0.0.1:43831',
+  ADDITIONAL_SITE_URLS: browserOrigins[1],
   TALE_CONFIG_DIR: outputPath('config'),
   TALE_CONFIG_BUILTIN_DIR: outputPath('builtin'),
   TALE_CONFIG_SYSTEM_DIR: outputPath('system'),
@@ -39,9 +40,10 @@ function start(
   cwd: string,
   name: string,
   extra: Record<string, string> = {},
+  executable = process.execPath,
 ) {
   const log = openSync(outputPath(`${name}.log`), 'wx', 0o600);
-  const child = spawn(process.execPath, args, {
+  const child = spawn(executable, args, {
     cwd,
     env: { ...environment, ...extra },
     stdio: ['ignore', log, log],
@@ -188,26 +190,23 @@ try {
   );
   await ready('http://127.0.0.1:43838/ready', backend);
   const listeners = [{ name: 'backend', pid: backend.pid, port: 43838 }];
-  for (const [name, source, port] of [
-    ['baseline', baseline, '43830'],
-    ['candidate', candidate, '43831'],
-  ]) {
-    const preview = start(
-      [
-        join(source, 'node_modules/vite/bin/vite.js'),
-        'preview',
-        '--host',
-        '127.0.0.1',
-        '--port',
-        port,
-        '--strictPort',
-      ],
-      join(source, 'services/platform'),
-      `preview-${name}`,
-      { TALE_BACKEND_URL: 'http://127.0.0.1:43838' },
+  for (const [index, name] of ['baseline', 'candidate'].entries()) {
+    const origin = browserOrigins[index]!;
+    const web = start(
+      [join(scripts, 'serve-web.ts'), name],
+      join(name === 'baseline' ? baseline : candidate, 'services/platform'),
+      `web-${name}`,
+      {
+        SITE_URL: origin,
+        ADDITIONAL_SITE_URLS: browserOrigins
+          .filter((entry) => entry !== origin)
+          .join(','),
+        TALE_BACKEND_URL: backendOrigin,
+      },
+      '/tools/bun',
     );
-    await ready(`http://127.0.0.1:${port}/`, preview);
-    listeners.push({ name, pid: preview.pid, port: Number(port) });
+    await ready(`${origin}/api/health`, web);
+    listeners.push({ name, pid: web.pid, port: Number(new URL(origin).port) });
   }
   await json('listeners.json', listeners);
   await runLogged(
@@ -255,7 +254,7 @@ try {
     ],
     {
       cwd: candidate,
-      env: environment,
+      env: { ...environment, DEBUG: 'pw:browser' },
       log: outputPath('capture.log'),
       timeoutMs: 600_000,
     },

@@ -26,14 +26,14 @@ After it is registered, its manual input fields also accept full baseline and
 candidate commit SHAs. Do not supply branch names or abbreviated hashes.
 
 The candidate must contain the event's baseline commit. Both sources must have
-identical server, platform messages, shared-library (including `@tale/ui`),
-database, configuration, dependency and runtime inputs: this first diagnostic mode shares one API and database while comparing
+identical server (including the production web shim and proxy contract), platform messages,
+shared-library (including `@tale/ui`), database, configuration, dependency and runtime inputs: this first diagnostic mode shares one API and database while comparing
 the frontend builds. A refusal after `main` advances needs an explicitly reviewed
 integration and new source pair, not a weaker comparison check. Each production
 bundle is built directly with the same pinned Bun, Node and options.
 
 The serial diagnostic uses synthetic boards of 50 and 2,000 tasks, Chromium
-141.0.7390.37, and one shared 2 CPU / 4 GiB cgroup for the database, API, previews and
+141.0.7390.37, and one shared 2 CPU / 4 GiB cgroup for the database, API, production web handlers and
 browser. It records a cold board load and one dialog open/close per arm and size,
 including forward and backward keyboard wrapping and return to the opener. Cold frame stamps use
 the navigation time origin; dialog latency uses its recorded input timestamp. There are no automatic
@@ -41,11 +41,30 @@ measurement retries. Setup and measurement share a 32-minute deadline; the
 45-minute job reserves time for bounded cleanup and artifact upload. All services share an isolated loopback namespace with no
 host ports, live accounts, provider calls or production access. The browser image
 is pinned by digest; the receipt checks its actual version and executable hash.
+Each arm imports its own unchanged production `server.ts` under the root-pinned
+Bun binary, mounted read-only and checked by version and hash. Private
+`127.0.0.2` web origins preserve production runtime injection without activating
+the product's localhost-only development capture script. The narrow proxy keeps
+`/api/health` and `/events/file` web-owned; it forwards the API, exact `/events`
+and OAuth discovery routes to the shared API, preserving cookies, request
+cancellation, streaming and redirects. Minimal health readiness and synthetic
+API setup precede the cold page; its already-loaded entry-script responses are
+hashed against that arm's build receipt without another asset request.
+
+Two tiny app-free trace controls exercise DOM mutation and data-URL navigation
+before the measured pairs, using the same browser, profiler, categories and
+15-second trace-completion deadline. They warm no Tale page or asset. A control
+failure stops the diagnostic with evidence; there is no retry. Measurement then
+starts in a fresh browser.
 
 Download `browser-performance-<run>-<attempt>` even when the job fails. It contains
 the exact source trees, build and runtime receipts, raw CDP traces and CPU profiles,
 source maps, frame stamps, DOM counts, heap metrics, long-task/event observations,
-screenshots, resource counters and cleanup readback. Query-observer counts are
+screenshots, literal verified cgroup limits, resource counters and cleanup readback.
+Action and observation checkpoints remain explicitly incomplete until profile and
+trace retention finish. Trace sidecars retain completion metadata, buffer usage,
+stage timestamps and partial-byte hashes; data loss or malformed completion fails
+the capture. Browser process stderr is retained alongside the raw evidence. Query-observer counts are
 explicitly unavailable: the production app exposes no supported inspection API.
 `browser-failure.json`, `inside-failure.json` or `runner-failure.json` explains an
 incomplete phase. A resource, source, readiness or cleanup refusal fails the job;
@@ -57,7 +76,10 @@ rendering opportunity is not proof of the first visible pixel. The baseline runs
 first; both task-detail reads are prewarmed and receive one explicit garbage
 collection before the open trace. Natural GC within the trace is retained.
 Shared-backend warming remains a
-limitation. GitHub's CPU model and current database/runtime may differ from an
+limitation. Timeline stack instrumentation can force CPU-profiler samples alongside
+periodic samples; profile self times alone do not establish application CPU cost.
+This instrumented diagnostic must not be compared with an uninstrumented arm or
+substituted for the agreed uninstrumented acceptance timing campaign. GitHub's CPU model and current database/runtime may differ from an
 earlier measurement host. Keep the original latency, keyboard and modal behavior
 requirements; use the traces to choose a repair, then run the agreed acceptance
 campaign. The default performance inventory continues to mark authenticated UI
