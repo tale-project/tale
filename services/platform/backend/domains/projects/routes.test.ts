@@ -288,7 +288,7 @@ describe('project routes — the shared schemas guard the door', () => {
 describe('duplicate — the name is optional, its JSON is not (#3599)', () => {
   // The project routes as `app.ts` mounts them: behind the app door's one
   // JSON reader and its error handler, which answer a body that does not
-  // parse with the 400 `INVALID_JSON` every other app write answers.
+  // parse with the door's 400 `INVALID_JSON`.
   function door(): Hono {
     const hono = new Hono();
     hono.onError(appErrorHandler);
@@ -336,8 +336,11 @@ describe('duplicate — the name is optional, its JSON is not (#3599)', () => {
           code: 'INVALID_JSON',
           requestId: 'req-duplicate',
         });
-        expect(service.duplicateProject).not.toHaveBeenCalled();
+        // Refused after the session and membership gates, before the
+        // route's own project lookup, its rate-limit charge and the copy.
+        expect(service.getProjectAuthContext).not.toHaveBeenCalled();
         expect(checkUserRateLimit).not.toHaveBeenCalled();
+        expect(service.duplicateProject).not.toHaveBeenCalled();
         // A client's mistake, not a defect to report.
         expect(errors).not.toHaveBeenCalled();
       } finally {

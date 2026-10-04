@@ -55,8 +55,8 @@ export function appJsonBody<E extends Env>(): MiddlewareHandler<E> {
 /**
  * The body of an app route whose body is OPTIONAL, read through the door's
  * reader above: nothing sent (or only whitespace) reads as `{}`, and a body
- * that is sent must be JSON — a truncated or malformed one answers the same
- * 400 `INVALID_JSON` as every other app write. The former
+ * that is sent must be JSON — a truncated or malformed one answers the
+ * door's 400 `INVALID_JSON`, as a required body does. The former
  * `c.req.json().catch(() => ({}))` read a corrupted body as an omitted one,
  * so a lone `{` duplicated a project under its default name (#3599). The
  * REST door's twin is `readOptionalJsonBody` (`rest/shared.ts`).
