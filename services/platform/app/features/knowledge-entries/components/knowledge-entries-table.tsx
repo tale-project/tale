@@ -8,6 +8,7 @@ import type { Row, RowSelectionState } from '@tanstack/react-table';
 import { BookOpen } from 'lucide-react';
 import { useCallback, useState } from 'react';
 
+import { useAbility } from '@/app/hooks/use-ability';
 import { useListReadRecovery } from '@/app/hooks/use-list-read-recovery';
 import { useViewedRecord } from '@/app/hooks/use-viewed-record';
 import { firstFailureDetail } from '@/app/lib/backend/adapters';
@@ -30,6 +31,9 @@ export interface KnowledgeEntriesTableProps {
 export function KnowledgeEntriesTable({
   organizationId,
 }: KnowledgeEntriesTableProps) {
+  const ability = useAbility();
+  const canWrite = ability.can('write', 'knowledgeWrite');
+  const canSelectRow = useCallback(() => canWrite, [canWrite]);
   const { t: tEmpty } = useT('emptyStates');
   const { t } = useT('knowledgeEntries');
   const [createOpen, setCreateOpen] = useState(false);
@@ -125,7 +129,7 @@ export function KnowledgeEntriesTable({
         <DataTable
           columns={columns}
           stickyLayout
-          enableRowSelection
+          enableRowSelection={canSelectRow}
           rowSelection={rowSelection}
           onRowSelectionChange={setRowSelection}
           onRowClick={handleRowClick}
@@ -146,18 +150,20 @@ export function KnowledgeEntriesTable({
             description: tEmpty('knowledgeEntries.description'),
           }}
           footer={
-            <BulkDeleteBar
-              rowSelection={rowSelection}
-              onRowSelectionChange={setRowSelection}
-              getItemLabel={(id) =>
-                paginatedResult.results.find((item) => item._id === id)
-                  ?.topic ?? id
-              }
-              onClearSelection={handleClearSelection}
-              onDeleteItem={handleDeleteItem}
-              onDeleteComplete={handleClearSelection}
-              describeFailure={firstFailureDetail}
-            />
+            canWrite && (
+              <BulkDeleteBar
+                rowSelection={rowSelection}
+                onRowSelectionChange={setRowSelection}
+                getItemLabel={(id) =>
+                  paginatedResult.results.find((item) => item._id === id)
+                    ?.topic ?? id
+                }
+                onClearSelection={handleClearSelection}
+                onDeleteItem={handleDeleteItem}
+                onDeleteComplete={handleClearSelection}
+                describeFailure={firstFailureDetail}
+              />
+            )
           }
           {...list.tableProps}
         />

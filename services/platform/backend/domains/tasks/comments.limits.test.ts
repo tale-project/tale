@@ -77,7 +77,7 @@ beforeEach(() => {
   });
 });
 
-describe('a comment body names its limit when refused', () => {
+describe('a comment body names its limit when refused [TASK-R8]', () => {
   it('tells an empty comment from an over-long one on the post', async () => {
     const empty = fakeTx();
     await expect(

@@ -8,6 +8,7 @@ import type { Row, RowSelectionState } from '@tanstack/react-table';
 import { Package } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
+import { useAbility } from '@/app/hooks/use-ability';
 import { useViewedRecord } from '@/app/hooks/use-viewed-record';
 import { firstFailureDetail } from '@/app/lib/backend/adapters';
 import type { ProductDoc } from '@/app/lib/backend/contract/docs';
@@ -36,6 +37,9 @@ export function ProductsTable({
   category,
 }: ProductsTableProps) {
   const navigate = useNavigate();
+  const ability = useAbility();
+  const canWrite = ability.can('write', 'knowledgeWrite');
+  const canSelectRow = useCallback(() => canWrite, [canWrite]);
   const { t: tEmpty } = useT('emptyStates');
   const { t: tCommon } = useT('common');
   const { t: tTables } = useT('tables');
@@ -149,7 +153,7 @@ export function ProductsTable({
         columns={columns}
         stickyLayout
         onRowClick={handleRowClick}
-        enableRowSelection
+        enableRowSelection={canSelectRow}
         rowSelection={rowSelection}
         onRowSelectionChange={setRowSelection}
         actionMenu={
@@ -166,18 +170,20 @@ export function ProductsTable({
           headingLevel: 2,
         }}
         footer={
-          <BulkDeleteBar
-            rowSelection={rowSelection}
-            onRowSelectionChange={setRowSelection}
-            getItemLabel={(id) =>
-              paginatedResult.results.find((item) => item._id === id)?.name ??
-              id
-            }
-            onClearSelection={handleClearSelection}
-            onDeleteItem={handleDeleteItem}
-            onDeleteComplete={handleClearSelection}
-            describeFailure={firstFailureDetail}
-          />
+          canWrite && (
+            <BulkDeleteBar
+              rowSelection={rowSelection}
+              onRowSelectionChange={setRowSelection}
+              getItemLabel={(id) =>
+                paginatedResult.results.find((item) => item._id === id)?.name ??
+                id
+              }
+              onClearSelection={handleClearSelection}
+              onDeleteItem={handleDeleteItem}
+              onDeleteComplete={handleClearSelection}
+              describeFailure={firstFailureDetail}
+            />
+          )
         }
         {...list.tableProps}
       />
