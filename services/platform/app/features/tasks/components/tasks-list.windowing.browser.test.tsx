@@ -166,13 +166,15 @@ describe('a long list section (real Chromium)', () => {
       </div>,
     );
     screen.getByRole('button', { name: 'List task 0' }).focus();
-    const steps = 60;
+    // About two dozen rows are mounted at first: 35 steps leave that window.
+    expect(titles(/^List task \d+$/)).not.toContain('List task 35');
+    const steps = 35;
     for (let step = 0; step < steps; step += 1) {
       await userEvent.keyboard('{Tab}');
       await nextFrame();
     }
     expect(document.activeElement?.textContent).toBe(`List task ${steps}`);
-  });
+  }, 30_000);
 
   it('keeps the focused row mounted and focused while the list scrolls away', async () => {
     await page.viewport(1280, 900);

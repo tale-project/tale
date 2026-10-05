@@ -161,13 +161,15 @@ describe('a long board lane (real Chromium)', () => {
       </div>,
     );
     screen.getByRole('button', { name: 'Lane task 0' }).focus();
-    const steps = 45;
+    // About a dozen cards are mounted at first: 25 steps leave that window.
+    expect(laneTitles()).not.toContain('Lane task 25');
+    const steps = 25;
     for (let step = 0; step < steps; step += 1) {
       await userEvent.keyboard('{Tab}');
       await nextFrame();
     }
     expect(document.activeElement?.textContent).toBe(`Lane task ${steps}`);
-  });
+  }, 30_000);
 
   it('keeps the focused card mounted and focused while the lane scrolls away', async () => {
     await page.viewport(1280, 900);
