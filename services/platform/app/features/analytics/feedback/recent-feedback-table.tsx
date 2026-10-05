@@ -245,7 +245,7 @@ export function RecentFeedbackTable({
       title={tAnalytics('feedback.recent.title')}
       actions={headerActions}
     >
-      {error && rows.length > 0 ? (
+      {error ? (
         <Alert
           variant="destructive"
           title={tAnalytics('feedback.recent.loadFailed')}
@@ -278,18 +278,8 @@ export function RecentFeedbackTable({
         }}
         emptyState={{
           icon: MessageSquare,
-          title: error
-            ? tAnalytics('feedback.recent.loadFailed')
-            : tAnalytics('feedback.recent.emptyTitle'),
-          description: error
-            ? failureDetail(error)
-            : tAnalytics('feedback.recent.emptyDescription'),
-          action:
-            error && retry ? (
-              <Button onClick={retry} disabled={isRetrying}>
-                {tAnalytics('feedback.recent.retry')}
-              </Button>
-            ) : undefined,
+          title: tAnalytics('feedback.recent.emptyTitle'),
+          description: tAnalytics('feedback.recent.emptyDescription'),
         }}
       />
     </MetricsSection>

@@ -40,7 +40,10 @@ const row: RecentFeedbackItem = {
 
 const clients: QueryClient[] = [];
 
-function mount(item = row) {
+function mount(
+  item: RecentFeedbackItem | undefined = row,
+  options: { error?: Error; retry?: () => void } = {},
+) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false, retryDelay: 0 } },
   });
@@ -55,11 +58,13 @@ function mount(item = row) {
     ...render(
       <QueryClientProvider client={client}>
         <RecentFeedbackTable
-          rows={[item]}
+          rows={item ? [item] : []}
           isLoading={false}
           hasMore={false}
           isLoadingMore={false}
           onLoadMore={vi.fn()}
+          error={options.error}
+          retry={options.retry}
         />
       </QueryClientProvider>,
     ),
@@ -74,6 +79,43 @@ afterEach(async () => {
 });
 
 describe('RecentFeedbackTable', () => {
+  it.each(['en', 'de', 'fr'] as const)(
+    'announces an initial read failure with retry (%s)',
+    async (locale) => {
+      saveLocale(locale);
+      await i18n.changeLanguage(locale);
+      const retry = vi.fn();
+      const { user } = mount(undefined, {
+        error: new Error('read failed'),
+        retry,
+      });
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        i18n.t('feedback.recent.loadFailed', { ns: 'analytics' }),
+      );
+      await user.click(
+        screen.getByRole('button', {
+          name: i18n.t('feedback.recent.retry', { ns: 'analytics' }),
+        }),
+      );
+      expect(retry).toHaveBeenCalledOnce();
+      expect(
+        screen.queryByText(
+          i18n.t('feedback.recent.emptyTitle', { ns: 'analytics' }),
+        ),
+      ).not.toBeInTheDocument();
+    },
+  );
+
+  it('keeps the successful empty state when there is no error', () => {
+    mount(undefined);
+    expect(
+      screen.getByText(
+        i18n.t('feedback.recent.emptyTitle', { ns: 'analytics' }),
+      ),
+    ).toBeVisible();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
   it('requests full text only after expansion and retains the preview while loading', async () => {
     let finish: (value: { comment: string }) => void = () => {};
     vi.mocked(backendFetch).mockImplementation(
