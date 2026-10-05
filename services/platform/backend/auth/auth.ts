@@ -103,6 +103,7 @@ import {
   SIGN_UP_EMAIL_PATH,
   signUpAllowed,
 } from './sign-up-gate.ts';
+import { totpIssuer } from './totp-issuer.ts';
 
 /**
  * Better Auth on Postgres — the 0.5 replacement for the Convex Better Auth
@@ -124,6 +125,8 @@ export interface AuthConfig {
   secret: string;
   /** Public origin auth cookies/callbacks bind to, e.g. https://localhost. */
   baseUrl: string;
+  /** Deployment environment shown on newly generated authenticator entries. */
+  totpEnvironment?: string;
   /**
    * The other public origins this deployment is served from
    * (`ADDITIONAL_SITE_URLS`, already normalized). Better Auth's origin check
@@ -455,6 +458,7 @@ const logBetterAuth: NonNullable<Logger['log']> = (level, message, ...args) => {
 
 export function createAuth(config: AuthConfig) {
   const siteUrl = config.baseUrl;
+  const authenticatorIssuer = totpIssuer('Tale', config.totpEnvironment);
   /** The OIDC issuer — the auth mount. */
   const oidcIssuer = `${siteUrl.replace(/\/$/, '')}/api/auth`;
 
@@ -1507,8 +1511,8 @@ export function createAuth(config: AuthConfig) {
       // TOTP two-factor. The verify-endpoint lockout + org enforcement hooks
       // land with the two_factor domain port.
       twoFactor({
-        issuer: 'Tale',
-        totpOptions: { digits: 6, period: 30 },
+        issuer: authenticatorIssuer,
+        totpOptions: { issuer: authenticatorIssuer, digits: 6, period: 30 },
         backupCodeOptions: { amount: 10, length: 10 },
         skipVerificationOnEnable: false,
       }),

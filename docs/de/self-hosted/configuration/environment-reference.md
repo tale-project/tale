@@ -24,12 +24,15 @@ Nutze zusätzlich die kommentierte Beispieldatei und prüfe bei fehlenden Werten
 | `HOST`      | `localhost`         | **Pflicht.** Hostname ohne Protokoll. Wird für Docker-Networking und ausgehende Mails verwendet.                               |
 | `SITE_URL`  | `https://localhost` | **Pflicht.** Vollständige kanonische URL inklusive Schema und Port. Auth-Callbacks und externe Links nutzen das.               |
 | `ADDITIONAL_SITE_URLS` | unset    | **Optional.** Weitere Origins, auf denen dasselbe Deployment antwortet, per Komma oder Leerzeichen getrennt (z. B. `https://a.example,https://b.example`). Jeder ist ein vollwertiger Eingang. Siehe [TLS und Domains](/de/self-hosted/configuration/tls-and-domains#mehrere-domains-gleichzeitig). |
+| `TOTP_ENVIRONMENT` | nicht gesetzt | Umgebungsname für die Authenticator-Einträge von `backend-api` und der Rolle `all`: 1–32 Buchstaben, Ziffern, Unterstriche oder Bindestriche. Leerzeichen am Rand werden entfernt, Buchstaben großgeschrieben. `pr` oder ein fehlender Wert behält `Tale` bei; mit `te` heißen neu erzeugte Einträge `Tale <TE>`. Ein ungültiger Wert verhindert den Backend-Start. |
 | `BASE_PATH` | unset               | **Optional.** Pfad-Präfix für Subpath-Deployments hinter einem Reverse-Proxy (z. B. `/app`). Bei Root-Deployment unset lassen. |
 | `DOCS_URL` | `https://docs.<HOST>` | Öffentliche Origin des eigenen Dokumentationshosts im Proxy. Der Docs-Dienst muss ebenfalls zur Bereitstellung gehören. |
 
 `SITE_URL` bezeichnet den kanonischen öffentlichen Ursprung. Protokoll, Hostname und Port müssen zur Browseradresse und zu registrierten Callbacks passen. `BASE_PATH` ergänzt einen Bereitstellungspfad. Einen abschließenden Schrägstrich normalisiert der Proxy. Weitere Adressen gehören als reine Ursprünge in `ADDITIONAL_SITE_URLS`. Ungültige zusätzliche Ursprünge verhindern den Backend-Start.
 
 Die Dokumentation verwendet eine eigene Origin. Auf der Plattform-Origin öffnet `/docs` die interaktive API-Referenz; `/openapi.json` liefert deren Schema. `DOCS_URL` ändert den Docs-Host des Proxys. Die Variable installiert keinen Docs-Dienst und schreibt keine Links in vorhandenen Client-Bundles um. `TALE_DOCS_URL` in den SEO-Buildwerkzeugen und das Build- und Laufzeitpfadpräfix `DOCS_BASE_URL` des Docs-Dienstes sind separate Einstellungen.
+
+Eine Änderung von `TOTP_ENVIRONMENT` gilt für neu erzeugte QR-Codes und Einrichtungs-URIs, auch wenn ein bestehender Schlüssel erneut angezeigt wird. Sie ändert weder den Schlüssel noch den Namen eines bereits auf deinem Gerät gespeicherten Eintrags. Diesen kannst du bei Bedarf in deiner Authenticator-App umbenennen.
 
 ## TLS
 
