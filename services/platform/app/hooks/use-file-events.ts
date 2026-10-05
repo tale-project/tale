@@ -2,6 +2,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
 
 import { useUserOrganizationsWithDetails } from '@/app/features/organization/hooks/queries';
+import { projectCapabilityCatalogKey } from '@/app/lib/backend/query-keys';
 import { getEnv } from '@/lib/env';
 
 import { configKeys } from './config-query-keys';
@@ -54,6 +55,23 @@ export function useFileEvents() {
 
       // Skip the initial "connected" event
       if (data.type === 'connected') return;
+
+      // Project equipment reads the same files as the config catalog.
+      if (data.type === 'skills' || data.type === 'connectors') {
+        const orgId = data.orgSlug
+          ? slugToIdRef.current.get(data.orgSlug)
+          : undefined;
+        const orgIds = data.orgSlug
+          ? orgId
+            ? [orgId]
+            : []
+          : [...slugToIdRef.current.values()];
+        for (const id of orgIds) {
+          void queryClient.invalidateQueries({
+            queryKey: projectCapabilityCatalogKey(id),
+          });
+        }
+      }
 
       // Events without an orgSlug (e.g. global branding) invalidate the
       // whole config-type prefix.

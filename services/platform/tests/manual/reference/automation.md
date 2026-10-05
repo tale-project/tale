@@ -939,6 +939,17 @@ Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no s
 | [automations](../suites/automations.md) | Validation results for agents and people: `validate_automation` answers the `analysis` (the per-node summary and the possible paths) and the `types` beside its issues — a host may ask for less with `detail`, the MCP door always gets both; a save answers the warnings the saved version keeps, a refused save names its warnings beside its errors, the deploy refusal keeps its keys, and `get_catalog` gives each capability its output as an `outputSchema`; `get_docs` explains an issue's `at`, `params` and `related`, the analysis and the types. Every engine code has a title, an explanation, a cause and a fix in EN/DE/FR (the Swiss German without ß or „“): a sentence reads only its code's params and the derived ones (node names the way the canvas shows them, field labels the way the inspector shows them, quoted lists of at most six and a count), never a technical one, and a code the build does not know reads as words, never as a key | ✅ unit + MCP wire + catalog guard | `lib/engine/selftest/dispatch.test.ts`, `lib/engine/api/dispatch.refusals.test.ts`, `backend/core/automations_builder/mcp_http.test.ts`, `lib/i18n/automation-issue-keys.test.ts`, `app/features/automations/lib/issue-text.test.ts` (every golden issue rendered in every locale); the editor shows them in Problems (the Problems row below) |
 | CI workflow operations | A same-head duplicate may release only its predecessor’s sole unallocated final-check tail after canceled actual work; complete fresh PR, run and paged job identities are required. Default reads do not mutate; explicit apply journals at most one cancellation and preserves unknown outcomes without retry. | ✅ pure policy + bounded adapter | `tools/cli/scripts/ci-retire-tail.test.ts`; native runner admission and terminal cancellation remain live observations |
 
+<!-- tale-241-project-capability-catalog -->
+Project agent equipment refreshes after a saved Audience change: reopening
+**New agent → Skills** reveals the newly available synthetic team skill.
+Project hints invalidate only the named project's catalog; resync, connector
+credential writes/hints, skill save/delete/upload and skill/connector file
+changes refresh the relevant organization catalogs. Covered by
+`app/features/projects/components/project-capability-catalog.test.tsx` with
+actual components, query hooks, adapters and hint listeners over fixture HTTP
+and stream transports. Authorization, agent execution, browser layout and
+live two-session SSE delivery remain outside this automated proof (#3767).
+
 ## Documentation rebase regressions
 
 - `backend/rest/v1-core.test.ts` verifies that document `If-Match` uses a fresh

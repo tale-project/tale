@@ -276,8 +276,8 @@ describe('useBackendHints', () => {
 
   it('coalesces project and task hints without crossing organizations', async () => {
     vi.useFakeTimers();
-    const own = ['project', 'task', 'chat_thread'].map((entity) =>
-      backendKey('org1', entity, 'list'),
+    const own = ['project', 'project_capability', 'task', 'chat_thread'].map(
+      (entity) => backendKey('org1', entity, 'list'),
     );
     const other = backendKey('org2', 'task', 'list');
     const unrelated = backendKey('org1', 'conversation', 'list');
@@ -298,7 +298,9 @@ describe('useBackendHints', () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(HINT_BATCH_MS);
     });
-    expect(invalidate).toHaveBeenCalledTimes(3);
+    // One refresh per entity: the many projects widen to every capability
+    // catalog rather than refreshing each project's separately.
+    expect(invalidate).toHaveBeenCalledTimes(4);
     for (const key of own)
       expect(queryClient.getQueryState(key)?.isInvalidated).toBe(true);
     for (const key of [other, unrelated])
@@ -347,6 +349,7 @@ describe('useBackendHints', () => {
     expect(invalidate.mock.calls.map(([options]) => options?.queryKey)).toEqual(
       [
         ['backend', 'org1', 'project'],
+        ['backend', 'org1', 'project_capability', 'p1'],
         ['backend', 'org1', 'task'],
         ['backend', 'org1', 'chat_thread'],
       ],
@@ -453,9 +456,32 @@ describe('useBackendHints', () => {
       [
         ['backend', 'org1', 'task'],
         ['backend', 'org1', 'project'],
+        ['backend', 'org1', 'project_capability', 'p1'],
         ['backend', 'org1', 'chat_thread'],
       ],
     );
+  });
+
+  it('widens to every capability catalog when several projects change in one window', () => {
+    vi.useFakeTimers();
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
+    renderHook(() => useBackendHints('org1'), { wrapper });
+    const source = FakeEventSource.instances[0];
+
+    act(() => {
+      for (const id of ['p1', 'p1', 'p2']) {
+        source?.emit(
+          'hint',
+          JSON.stringify({ entity: 'project', entityId: id }),
+        );
+      }
+    });
+
+    flushHints();
+    const keys = invalidate.mock.calls.map(([options]) => options?.queryKey);
+    expect(keys.filter((key) => key?.[2] === 'project_capability')).toEqual([
+      ['backend', 'org1', 'project_capability'],
+    ]);
   });
 
   it('refetches the whole org scope when the server cannot replay the gap (resync)', () => {
