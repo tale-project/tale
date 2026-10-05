@@ -15,6 +15,14 @@ in EN/DE/FR that clear after correction:
 covers the component boundary and axe audit; real API persistence and browser
 layout remain manual.
 
+Failed single-notification and bulk reads restore unread rows and retry controls
+in both organization and personal streams, including body activation and a
+fresh unread response. Bulk failures restore only the failed stream's captured
+rows, preserving successful dismissals in the other stream; successful
+optimistic dismissals and the All-filter recovery control remain covered by
+`app/features/notifications/components/notification-list-panel.test.tsx`.
+The real disconnected-backend/browser interaction remains a manual check.
+
 Task agent Details distinguishes a failed sandbox-op read from loading and a
 successful no-log response. EN/DE/FR errors offer Try again without starting a
 new run; retry restores a stranded focus after another failure, preserves a
