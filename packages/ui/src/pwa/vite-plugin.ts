@@ -12,7 +12,7 @@ import { resolve } from 'node:path';
 import type { Plugin } from 'vite';
 import { VitePWA, type VitePWAOptions } from 'vite-plugin-pwa';
 
-import { installOfflineRecovery } from './offline-recovery';
+import { installOfflineRecovery } from './offline-recovery.ts';
 
 // This callback is serialized into the worker, whose global is not Window.
 declare const self: { registration: ServiceWorkerRegistration };
