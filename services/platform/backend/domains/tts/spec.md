@@ -29,7 +29,7 @@ piece is answered as if it did not exist.
 ### TTS-R3 · One piece of a reply is produced once, even when asked for twice at once
 
 The second request is told that the piece is already being produced, and no second one is
-started or charged.
+started.
 
 - **Example**: Mia's browser asks for the same piece of a reply from two tabs at the same
   moment → one piece of audio is produced.
