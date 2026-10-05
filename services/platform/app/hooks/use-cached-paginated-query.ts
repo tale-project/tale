@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 
 import { useReactInfiniteQuery } from '@/app/hooks/use-react-query';
 import {
@@ -48,6 +48,10 @@ export interface UsePaginatedQueryReturnType<Item> {
   errorCount: number;
 }
 
+/** One empty listing for every read without pages, so a consumer's memo of
+ *  the rows holds while nothing has loaded. */
+const NO_RESULTS: never[] = [];
+
 /** The listing lane: react-query `useInfiniteQuery` over the backend's keyset
  * cursors. Always called (hook-order stability) — a listing with no adapter
  * row passes `opts: null` and the underlying query stays disabled. */
@@ -73,6 +77,10 @@ function useBackendPaginatedQuery<Item>(
       last.isDone ? undefined : last.continueCursor,
     retry: retryAdaptedRead,
   });
+  // `isFetching` is left out on purpose: react-query re-renders a consumer
+  // only for the properties it read, and a list that read it re-rendered on
+  // the start and the end of every refetch a live hint caused. It is read
+  // below only while the listing is failing, where it says a retry runs.
   const {
     fetchNextPage,
     hasNextPage,
@@ -80,7 +88,6 @@ function useBackendPaginatedQuery<Item>(
     isFetchNextPageError,
     data,
     isLoading,
-    isFetching,
     isError,
     error,
     errorUpdateCount,
@@ -97,7 +104,12 @@ function useBackendPaginatedQuery<Item>(
     },
     [fetchNextPage, hasNextPage, isFetchingNextPage, isFetchNextPageError],
   );
-  const results = data?.pages.flatMap((page) => page.page) ?? [];
+  // The same array until the pages change: react-query keeps `data` when a
+  // refetch answers the same rows, so the rows' memos downstream hold.
+  const results = useMemo(
+    () => data?.pages.flatMap((page) => page.page) ?? NO_RESULTS,
+    [data],
+  );
   // A failed first page reads as an exhausted empty list (never an eternal
   // skeleton) — the retry policy has already given up on a deterministic 4xx.
   // Asking for it again clears the error, so it loads like the first time.
@@ -117,7 +129,15 @@ function useBackendPaginatedQuery<Item>(
     if (isFetchNextPageError) void fetchNextPage();
     else void refetch();
   }, [isFetchNextPageError, fetchNextPage, refetch]);
-  const read = readStateOf({ data, isError, isFetching, errorUpdateCount });
+  const failing =
+    (data === undefined && errorUpdateCount > 0) ||
+    (data !== undefined && isError);
+  const read = readStateOf({
+    data,
+    isError,
+    isFetching: failing && infinite.isFetching,
+    errorUpdateCount,
+  });
   return {
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the adapter's page rows are the contract's page item by construction (both keyed by the same name)
     results: results as Item[],

@@ -224,3 +224,40 @@ describe('useCachedPaginatedQuery — a failed read and its retry', () => {
     expect(cursors).toHaveLength(6);
   });
 });
+
+// Live hints refetch every loaded listing. A refetch that answers the rows the
+// listing already shows must not hand out a new array or re-render the list:
+// a task's 200-comment discussion re-rendered twice per hint for nothing.
+describe('useCachedPaginatedQuery — a refetch of the same rows', () => {
+  it('keeps the rows array and does not re-render its consumer', async () => {
+    const page = () =>
+      json(200, {
+        items: [row('c1'), row('c2')],
+        isDone: true,
+        continueCursor: '',
+      });
+    const cursors = listDoor([page, page]);
+    const client = new QueryClient();
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+    let renders = 0;
+    const { result } = renderHook(
+      () => {
+        renders += 1;
+        return useCachedPaginatedQuery(LIST, ARGS, { initialNumItems: 2 });
+      },
+      { wrapper },
+    );
+    await waitFor(() => expect(result.current.results).toHaveLength(2));
+    const rows = result.current.results;
+    const rendersBefore = renders;
+
+    await act(() => client.invalidateQueries());
+    await waitFor(() => expect(cursors).toHaveLength(2));
+    await act(async () => {});
+
+    expect(result.current.results).toBe(rows);
+    expect(renders).toBe(rendersBefore);
+  });
+});
