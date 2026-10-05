@@ -179,7 +179,7 @@ afterEach(() => {
  * client that reuses on 409 and gives up on 400 gave up on a recoverable
  * collision.
  */
-describe('a duplicate agent name is the 409 every other duplicate answers', () => {
+describe('a duplicate agent name is the 409 every other duplicate answers [PROJ-R8]', () => {
   it('refuses a create whose name another agent carries, in any case, writing nothing', async () => {
     const { tx, statements } = fakeTx(['REVIEW_TOKEN'], { nameTaken: true });
     await expect(
@@ -204,7 +204,7 @@ describe('a duplicate agent name is the 409 every other duplicate answers', () =
     ).toBe(false);
   });
 
-  it('refuses a create on an archived project with PROJECT_ARCHIVED, not a permission code', async () => {
+  it('refuses a create on an archived project with PROJECT_ARCHIVED, not a permission code [PROJ-R7]', async () => {
     // Archived = read-only: the guard used to answer PROJECT_FORBIDDEN, which
     // the dialog rendered as "Couldn't save the agent" — nothing said the
     // project was archived. The distinct code lets the UI say "restore it".
@@ -255,7 +255,7 @@ describe('the harness rule is the models door’s eligible set', () => {
       connectors: [],
     });
 
-  it('refuses a harness that brings its own credentials, and an unknown one, naming the eligible set', async () => {
+  it('refuses a harness that brings its own credentials, and an unknown one, naming the eligible set [PROJ-R9]', async () => {
     for (const harness of ['cursor', 'not-a-harness']) {
       const { tx, statements } = fakeTx();
       await expect(create(tx, harness)).rejects.toMatchObject({
@@ -338,7 +338,7 @@ describe('updateProjectAgent — the optimistic precondition', () => {
     },
   );
 
-  it('refuses a stale expectedUpdatedAt with 409 and the current stamp, writing nothing', async () => {
+  it('refuses a stale expectedUpdatedAt with 409 and the current stamp, writing nothing [PROJ-R10]', async () => {
     const { tx, statements } = fakeTx();
     await expect(
       updateProjectAgent(tx, auth, { ...config, expectedUpdatedAt: 10 }),
@@ -350,7 +350,7 @@ describe('updateProjectAgent — the optimistic precondition', () => {
     expect(updates(statements)).toEqual([]);
   });
 
-  it('writes nothing for a replace that names the stored configuration (2026-09-19, K4-5)', async () => {
+  it('writes nothing for a replace that names the stored configuration (2026-09-19, K4-5) [PROJ-R10]', async () => {
     const { tx, statements } = fakeTx();
     await updateProjectAgent(tx, auth, {
       ...config,
@@ -400,7 +400,7 @@ describe('the standard agent follows the organization, not an edit', () => {
       return [];
     });
 
-  it('refuses a save of the standard agent with PROJECT_AGENT_MANAGED, writing nothing', async () => {
+  it('refuses a save of the standard agent with PROJECT_AGENT_MANAGED, writing nothing [PROJ-R11]', async () => {
     const { tx, statements } = managedTx();
 
     await expect(updateProjectAgent(tx, auth, config)).rejects.toMatchObject({
@@ -514,7 +514,7 @@ describe('the standard agent follows the organization, not an edit', () => {
 });
 
 describe('updateProjectAgent — equipment the project can no longer see', () => {
-  it('validates only the equipment a save ADDS, so a stored but unshared skill blocks nothing else', async () => {
+  it('validates only the equipment a save ADDS, so a stored but unshared skill blocks nothing else [PROJ-R9]', async () => {
     // The agent still names `gone-skill` (unshared from the scope after it
     // was equipped); the author changes the model and adds `docx`. Only
     // the addition is checked (2026-09-26 evaluation, C-09).
@@ -551,7 +551,7 @@ describe('updateProjectAgent — equipment the project can no longer see', () =>
   });
 });
 
-describe('deleteProjectAgent', () => {
+describe('deleteProjectAgent [PROJ-R12]', () => {
   it('clears the tasks the agent was assigned to, in the same transaction, and counts them in the audit', async () => {
     // The docs' promise ("clears task assignment references while preserving
     // task history") was never kept: the delete touched only the agent row,
