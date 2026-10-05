@@ -219,7 +219,10 @@ export function SearchCommand({
                   duration: reduceMotion ? 0 : 0.18,
                   ease: [0.22, 1, 0.36, 1],
                 }}
-                className="fixed inset-0 z-50 bg-black/50 backdrop-blur-md"
+                // Dimmed, not blurred: a backdrop blur is re-rendered for
+                // every frame the panel changes in, and without GPU
+                // compositing that was 200–450 ms per keystroke (#4348).
+                className="fixed inset-0 z-50 bg-black/50"
               />
             </Dialog.Overlay>
             <Dialog.Content
@@ -246,8 +249,10 @@ export function SearchCommand({
                   ease: [0.22, 1, 0.36, 1],
                 }}
                 className={cn(
-                  'border-border-base bg-bg-base/95 fixed top-[12vh] left-1/2 z-50 flex w-[min(680px,calc(100vw-2rem))]',
-                  '-translate-x-1/2 flex-col overflow-hidden rounded-2xl border shadow-2xl backdrop-blur-xl',
+                  // An opaque panel, so nothing behind it has to be blurred
+                  // while the results change under every keystroke.
+                  'border-border-base bg-bg-base fixed top-[12vh] left-1/2 z-50 flex w-[min(680px,calc(100vw-2rem))]',
+                  '-translate-x-1/2 flex-col overflow-hidden rounded-2xl border shadow-2xl',
                 )}
               >
                 <PagePointerPin />
