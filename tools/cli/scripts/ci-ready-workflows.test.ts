@@ -9,6 +9,7 @@ import {
   BUILD_FILTERS,
   CI_CONTEXTS,
   CI_JOBS,
+  E2E_SERVICES,
   COMPOSE_SERVICES,
 } from './ci-ready';
 import { CANDIDATE_JOBS, IMAGE_SERVICES } from './release-candidate-gate';
@@ -171,12 +172,16 @@ describe('seven complete native merge gates', () => {
     expect(
       scope.steps?.some((step) => step.uses?.startsWith('dorny/paths-filter')),
     ).toBe(false);
-    const decide = scope.steps?.find((step) => step.id === 'decide')!;
-    expect(decide.env).toEqual({
+    const decide = scope.steps?.find((step) => step.id === 'decide');
+    expect(E2E_SERVICES).toEqual(['platform', 'web', 'docs']);
+    expect(decide?.env).toEqual({
       EVENT_NAME: '${{ github.event_name }}',
-      PLATFORM: '${{ needs.pr-scope.outputs.platform }}',
-      WEB: '${{ needs.pr-scope.outputs.web }}',
-      DOCS: '${{ needs.pr-scope.outputs.docs }}',
+      ...Object.fromEntries(
+        E2E_SERVICES.map((name) => [
+          name.toUpperCase(),
+          '${{ needs.pr-scope.outputs.' + name + ' }}',
+        ]),
+      ),
     });
     for (const id of ['build', 'static-sites']) {
       expect([file.jobs[id]!.needs].flat()).toContain('scope');
