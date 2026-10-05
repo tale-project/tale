@@ -89,6 +89,23 @@ function triggerFields(row: StoredTrigger | undefined): TriggerFields {
   };
 }
 
+/** `sent` with each field it left as `loaded` moved on to `incoming`. */
+function keepSentEdits(
+  loaded: TriggerFields,
+  sent: TriggerFields,
+  incoming: TriggerFields,
+): TriggerFields {
+  const pick = <K extends keyof TriggerFields>(key: K): TriggerFields[K] =>
+    sent[key] === loaded[key] ? incoming[key] : sent[key];
+  return {
+    kind: pick('kind'),
+    cron: pick('cron'),
+    timezone: pick('timezone'),
+    event: pick('event'),
+    enabled: pick('enabled'),
+  };
+}
+
 const NO_DIRTY_KEYS: ReadonlySet<string> = new Set();
 /** What the General tab's strip lights its unsaved dot for. */
 const TRIGGER_DIRTY_KEYS: ReadonlySet<string> = new Set([TRIGGER_DIRTY_KEY]);
@@ -176,29 +193,52 @@ export function TriggerEditor({
   // The fields as the form last loaded them (or saved them): what tells an
   // edit from a field the author left alone.
   const loadedRef = useRef<TriggerFields>(NO_TRIGGER);
+  // While a save is out, the fields it sent: a field changed since then is
+  // an edit too, even one changed back to its loaded value.
+  const sentRef = useRef<TriggerFields | null>(null);
 
   /**
    * Put a binding (none: the empty form) into the fields. With `keepEdits`,
-   * a field the author changed since the form last loaded keeps the edit and
-   * only the fields left alone take the binding's values: a row another
-   * session saved must not erase a draft in progress.
+   * a field the author changed — since the form last loaded, or since the
+   * save in flight sent it — keeps the edit, and only the fields left alone
+   * take the binding's values: a row another session saved, or a save's
+   * own row, must not erase a draft in progress.
    */
   const applyStored = useCallback(
     (row: StoredTrigger | undefined, keepEdits = false) => {
       const loaded = loadedRef.current;
+      const sent = sentRef.current ?? loaded;
       const next = triggerFields(row);
       loadedRef.current = next;
-      const take = <T,>(current: T, wasLoaded: unknown, incoming: T): T =>
-        keepEdits && current !== wasLoaded ? current : incoming;
+      // A field the save in flight left as loaded follows the row from now
+      // on, as the form does.
+      if (sentRef.current !== null) {
+        sentRef.current = keepSentEdits(loaded, sentRef.current, next);
+      }
+      const take = <T,>(
+        current: T,
+        wasLoaded: unknown,
+        wasSent: unknown,
+        incoming: T,
+      ): T =>
+        keepEdits && (current !== wasLoaded || current !== wasSent)
+          ? current
+          : incoming;
       setAdding(false);
       const nextKind = next.kind;
       if (isTriggerKind(nextKind)) {
-        setKind((current) => take(current, loaded.kind, nextKind));
+        setKind((current) => take(current, loaded.kind, sent.kind, nextKind));
       }
-      setCron((current) => take(current, loaded.cron, next.cron));
-      setTimezone((current) => take(current, loaded.timezone, next.timezone));
-      setEventName((current) => take(current, loaded.event, next.event));
-      setEnabled((current) => take(current, loaded.enabled, next.enabled));
+      setCron((current) => take(current, loaded.cron, sent.cron, next.cron));
+      setTimezone((current) =>
+        take(current, loaded.timezone, sent.timezone, next.timezone),
+      );
+      setEventName((current) =>
+        take(current, loaded.event, sent.event, next.event),
+      );
+      setEnabled((current) =>
+        take(current, loaded.enabled, sent.enabled, next.enabled),
+      );
     },
     [],
   );
@@ -294,6 +334,7 @@ export function TriggerEditor({
       enabled,
     };
     const storedFieldsBefore = storedFieldsRef.current;
+    sentRef.current = sent;
     try {
       const result = await setTrigger.mutateAsync({
         organizationId,
@@ -310,7 +351,7 @@ export function TriggerEditor({
       // The store holds the form as sent: a field still as sent takes the
       // row it answers with, which drops what the kind leaves out (a
       // webhook keeps no cron), while an edit made during the save stays.
-      loadedRef.current = sent;
+      loadedRef.current = sentRef.current ?? sent;
       if (result.token !== undefined) setMintedToken(result.token);
       // The server names the live URL this bind stopped answering on — say
       // so, since nothing on the page shows the old URL any more.
@@ -318,6 +359,7 @@ export function TriggerEditor({
         toast({ title: t('trigger.revokedToast') });
       }
     } finally {
+      sentRef.current = null;
       // A row that arrived while the save was out loaded against the form
       // as it stood before; load it again against what the store holds now.
       if (

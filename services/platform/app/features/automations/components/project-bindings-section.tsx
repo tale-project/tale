@@ -29,19 +29,23 @@ function sameSelection(a: readonly string[], b: readonly string[]): boolean {
 }
 
 /**
- * `incoming` with the author's unsaved edits replayed on it: the projects
- * they added since `loaded` stay picked, the ones they removed stay off.
+ * `incoming` with the author's unsaved edits replayed on it: a project they
+ * picked or dropped — since `loaded`, or since the save in flight sent
+ * `sent` — keeps their choice, and every other project follows `incoming`.
  */
 function keepEdits(
   loaded: readonly string[],
   current: readonly string[],
   incoming: readonly string[],
+  sent: readonly string[] = loaded,
 ): string[] {
-  const removed = new Set(loaded.filter((id) => !current.includes(id)));
-  const added = current.filter(
-    (id) => !loaded.includes(id) && !incoming.includes(id),
-  );
-  return [...incoming.filter((id) => !removed.has(id)), ...added];
+  const edited = (id: string): boolean =>
+    current.includes(id) !== loaded.includes(id) ||
+    current.includes(id) !== sent.includes(id);
+  return [
+    ...incoming.filter((id) => !edited(id) || current.includes(id)),
+    ...current.filter((id) => edited(id) && !incoming.includes(id)),
+  ];
 }
 
 /**
@@ -88,15 +92,23 @@ export function ProjectBindingsSection({
   // re-render.
   const storedRef = useRef(stored);
   storedRef.current = stored;
-  // The set the selection last loaded: what tells the author's edits apart.
+  // The set the selection last loaded (or saved), and while a save is out
+  // the set it sent: what tells the author's edits apart.
   const loadedRef = useRef<readonly string[]>([]);
+  const sentRef = useRef<readonly string[] | null>(null);
   const storedKey = stored.join(',');
   useEffect(() => {
     const next = storedRef.current;
     const loaded = loadedRef.current;
+    const sent = sentRef.current ?? loaded;
     loadedRef.current = next;
+    // A project the save in flight left as loaded follows the set from now
+    // on, as the selection does.
+    if (sentRef.current !== null) {
+      sentRef.current = keepEdits(loaded, sentRef.current, next);
+    }
     setSelection((current) => {
-      const rebased = keepEdits(loaded, current, next);
+      const rebased = keepEdits(loaded, current, next, sent);
       return sameSelection(current, rebased) ? current : rebased;
     });
   }, [storedKey]);
@@ -114,6 +126,7 @@ export function ProjectBindingsSection({
 
   /** Write the selection as the automation's binding set. */
   const persist = async (): Promise<void> => {
+    sentRef.current = selection;
     try {
       await setProjects.mutateAsync({
         organizationId,
@@ -121,10 +134,16 @@ export function ProjectBindingsSection({
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- every value came from the projects listing
         projectIds: selection,
       });
+      // The store holds the selection as sent: a project still as sent
+      // follows the set it answers with, while one changed during the save
+      // keeps the change.
+      loadedRef.current = sentRef.current ?? selection;
     } catch (error) {
       // The store's refusal names the problem and the fix; the cluster
       // raises it as the save's one failure toast.
       throw new Error(automationErrorMessage(error), { cause: error });
+    } finally {
+      sentRef.current = null;
     }
   };
 

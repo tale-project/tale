@@ -330,6 +330,66 @@ describe('TriggerEditor', () => {
       expect(discardButton()).toBeDisabled();
       expect(savedButton()).toBeDisabled();
     });
+
+    // The fields stay editable while a save is out (#4321 review B1): a
+    // change made after Save is the author's newest word, even one back to
+    // the value the form loaded, whichever of the save's row and its answer
+    // comes first.
+    it.each([
+      ['before the save answers', true],
+      ['after the save answers', false],
+    ])(
+      'keeps a cron changed back during the save when its row lands %s',
+      async (_when, rowFirst) => {
+        let answer: (value: object) => void = () => {};
+        mockSetTrigger.mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              answer = resolve;
+            }),
+        );
+        const { rerender } = renderTrigger();
+        const cron = await editCron();
+        await userEvent.click(saveButton());
+        await waitFor(() => expect(mockSetTrigger).toHaveBeenCalledTimes(1));
+        await userEvent.clear(cron);
+        await userEvent.paste('0 */6 * * *');
+        const saved = { ...SCHEDULE_ROW, cron: '0 9 * * 1' };
+        if (rowFirst) rerenderWith(rerender, saved);
+        await act(async () => {
+          answer({});
+        });
+        if (!rowFirst) rerenderWith(rerender, saved);
+
+        expect(cron).toHaveValue('0 */6 * * *');
+        expect(discardButton()).toBeEnabled();
+        expect(savedButton()).toBeEnabled();
+      },
+    );
+
+    it('settles on its own save when another session’s row lands first', async () => {
+      let answer: (value: object) => void = () => {};
+      mockSetTrigger.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            answer = resolve;
+          }),
+      );
+      const { rerender } = renderTrigger();
+      await editCron();
+      await userEvent.click(saveButton());
+      await waitFor(() => expect(mockSetTrigger).toHaveBeenCalledTimes(1));
+      // Another session switches the trigger off; then this save, written
+      // after it, lands with the switch on again.
+      rerenderWith(rerender, { ...SCHEDULE_ROW, enabled: false });
+      rerenderWith(rerender, { ...SCHEDULE_ROW, cron: '0 9 * * 1' });
+      await act(async () => {
+        answer({});
+      });
+
+      expect(screen.getByRole('switch', { name: 'Enabled' })).toBeChecked();
+      expect(discardButton()).toBeDisabled();
+    });
   });
 
   it('holds Save while the cron cannot be read', async () => {
