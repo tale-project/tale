@@ -104,7 +104,13 @@ def send(obj):
     sys.stdout.write(json.dumps(obj) + '\n'); sys.stdout.flush()
 roots = False
 for line in sys.stdin:
-    msg = json.loads(line)
+    try:
+        msg = json.loads(line)
+    except ValueError:
+        msg = None
+    if not isinstance(msg, dict):
+        log.write(json.dumps({'raw': line.rstrip('\n')}) + '\n'); log.flush()
+        continue
     log.write(json.dumps(msg) + '\n'); log.flush()
     method, id_ = msg.get('method'), msg.get('id')
     if method == 'initialize':
@@ -206,6 +212,9 @@ describe('the start of a turn without the server', () => {
     return {
       send(obj: Record<string, unknown>) {
         proc.stdin.write(`${JSON.stringify(obj)}\n`);
+      },
+      sendRaw(line: string) {
+        proc.stdin.write(`${line}\n`);
       },
       async answer(id: unknown): Promise<Record<string, unknown>> {
         const until = Date.now() + 10_000;
@@ -584,6 +593,33 @@ describe('the start of a turn without the server', () => {
       method: 'tools/call',
       params: { name: 'browser_install', arguments: {} },
     });
+
+    test.each([false, true])(
+      'malformed and non-object messages reach the managed server after initialization (eager=%s)',
+      async (eager) => {
+        const mcp = client({
+          ...env,
+          TALE_PLAYWRIGHT_MCP_EAGER: eager ? '1' : '0',
+        });
+        mcp.send(initialize('2025-06-18'));
+        await mcp.answer(1);
+        mcp.send({ jsonrpc: '2.0', method: 'notifications/initialized' });
+        const raw = ['not-json', 'null', '[]', '42', '"text"'];
+        for (const line of raw) mcp.sendRaw(line);
+        mcp.send(toolCall(2));
+        expect(await mcp.answer(2)).toMatchObject({
+          result: { content: [{ text: 'navigated' }] },
+        });
+        expect(await mcp.close()).toBe(0);
+        expect(
+          received()
+            .slice(1)
+            .map((line) => JSON.parse(line).raw)
+            .filter((line) => line !== undefined),
+        ).toEqual(raw);
+        expect(await mcp.stderr()).toBe('');
+      },
+    );
 
     test('a defensive install before and after navigation uses the installed shell without starting a downloader', async () => {
       const mcp = client(env);

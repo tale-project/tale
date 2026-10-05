@@ -442,7 +442,7 @@ class LazyServer:
             # do not mutate or redownload the read-only image on its behalf.
             params = msg.get('params') if msg is not None else None
             if (
-                self.browser is not None and self.client_initialized
+                self.browser is not None and self.client_initialized and msg is not None
                 and msg.get('method') == 'tools/call' and 'id' in msg
                 and isinstance(params, dict) and params.get('name') == 'browser_install'
                 and isinstance(params.get('arguments', {}), dict)

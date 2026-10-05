@@ -163,14 +163,11 @@ ENV PYTHONUNBUFFERED=1
 ENV NPM_CONFIG_UPDATE_NOTIFIER=false
 # Playwright browsers in a world-readable global path (the agent user reads
 # them; the baked browsers mean no per-session download — the MCP runs with
-# --isolated so its profile stays in memory). The directory itself is made
-# sticky-writable after install (see below) so the MCP's `browser_install`
-# tool — which an agent may call defensively even though the browser is
-# already present — can create its `__dirlock`/`.links` bookkeeping and
-# fast-exit as a no-op, instead of hanging for minutes retrying the lock and
-# then failing EACCES (which cascades into a redundant `playwright install`
-# download). The browser binaries stay root-owned and read-only. Telemetry
-# off.
+# --isolated so its profile stays in memory). The managed MCP launcher answers
+# defensive `browser_install` calls from the verified shell metadata. Keep the
+# cache directory sticky-writable for ordinary Playwright registry bookkeeping
+# and explicit browser installs, while baked binaries stay root-owned and
+# read-only. Telemetry off.
 ENV PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright
 ENV CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
 # Maximum reasoning effort by DEFAULT for the in-sandbox coding agent (drives
