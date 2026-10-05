@@ -24,7 +24,7 @@ A passkey satisfies Tale's two-factor policy even if you have never set up an au
 ## Set up an authenticator
 
 1. Open **Settings > Account**, find **Two-factor authentication**, and select **Enable two-factor**.
-2. Enter your current Tale password and select **Confirm**.
+2. Enter your current Tale password and select **Confirm**. A wrong password counts toward the same temporary lock as a failed sign-in.
 3. Scan the QR code with your authenticator app. If scanning is unavailable, enter the displayed setup secret manually in the app.
 4. Enter its current six-digit code in **Verification code**, then select **Verify and enable**.
 5. Download or copy the backup codes before selecting **Done**. Tale does not display them again.

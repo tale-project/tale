@@ -13,7 +13,7 @@ Dein Name ist für Kollegen sichtbar und darf höchstens 100 Zeichen lang sein. 
 
 ## Die Anmeldung absichern
 
-Unter **Passwort** findest du **Passwort ändern** oder **Passwort festlegen**, falls dein Konto noch keines hat. Beachte die Anforderungen im Dialog. Sie stammen aus der Passwort-Richtlinie deiner Organisation. Gehörst du mehreren Organisationen an, muss dein Passwort die Anforderungen aller dieser Organisationen erfüllen. Eine Passwortänderung beendet deine Sitzungen. Halte das neue Passwort deshalb bereit, bevor du bestätigst.
+Unter **Passwort** findest du **Passwort ändern** oder **Passwort festlegen**, falls dein Konto noch keines hat. Beachte die Anforderungen im Dialog. Sie stammen aus der Passwort-Richtlinie deiner Organisation. Gehörst du mehreren Organisationen an, muss dein Passwort die Anforderungen aller dieser Organisationen erfüllen. Eine Passwortänderung beendet deine Sitzungen. Halte das neue Passwort deshalb bereit, bevor du bestätigst. Ein falsches aktuelles Passwort zählt wie eine fehlgeschlagene Anmeldung zur vorübergehenden Sperre.
 
 Richte unter **Zwei-Faktor-Authentifizierung** eine Authenticator-App ein oder ergänze unter **Passkeys** einen Passkey. Bewahre Wiederherstellungscodes an einem Ort auf, den du ohne Tale-Anmeldung erreichst. [Zwei-Faktor-Authentifizierung](/de/platform/admin/two-factor-authentication) erklärt Einrichtung, Wiederherstellung und Organisationsvorgaben.
 

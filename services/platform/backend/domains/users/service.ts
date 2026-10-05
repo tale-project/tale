@@ -35,13 +35,21 @@ export { hasAnyUsers } from './has-any-users.ts';
 
 export class UserServiceError extends Error {
   readonly code: string;
-  readonly status: 400 | 401 | 403 | 404;
+  readonly status: 400 | 401 | 403 | 404 | 429;
+  /** Seconds a refused caller waits before trying again, on a 429. */
+  readonly retryAfter: number | undefined;
 
-  constructor(code: string, message: string, status: 400 | 401 | 403 | 404) {
+  constructor(
+    code: string,
+    message: string,
+    status: 400 | 401 | 403 | 404 | 429,
+    retryAfter?: number,
+  ) {
     super(message);
     this.name = 'UserServiceError';
     this.code = code;
     this.status = status;
+    this.retryAfter = retryAfter;
   }
 }
 
@@ -271,6 +279,20 @@ export async function computePasswordExpiry(
 // Password mutations
 // ---------------------------------------------------------------------------
 
+/**
+ * The wait a password check refused by the sign-in lock names, in seconds —
+ * Better Auth's 429 from `auth/password-attempts.ts` — or null for any other
+ * error. A 429 without a usable wait names none.
+ */
+function lockedRetryAfter(error: unknown): { seconds?: number } | null {
+  if (!(error instanceof APIError) || error.statusCode !== 429) return null;
+  const body: unknown = error.body;
+  const seconds = isRecord(body) ? body.retryAfter : undefined;
+  return typeof seconds === 'number' && Number.isFinite(seconds)
+    ? { seconds }
+    : {};
+}
+
 function isInvalidPasswordError(error: unknown): boolean {
   if (!(error instanceof APIError)) {
     return false;
@@ -438,6 +460,17 @@ export async function updateUserPassword(
           'INVALID_CURRENT_PASSWORD',
           'Current password is incorrect',
           400,
+        );
+      }
+      // The current password counts like a sign-in: the account's lock
+      // refused it before it was checked.
+      const locked = lockedRetryAfter(error);
+      if (locked !== null) {
+        throw new UserServiceError(
+          'PASSWORD_ATTEMPTS_LOCKED',
+          'Too many failed password attempts; try again later',
+          429,
+          locked.seconds,
         );
       }
       throw error;

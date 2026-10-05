@@ -1,9 +1,10 @@
 // @vitest-environment node
 
 /**
- * The throttle both password doors share — sign-in and the re-authentication
- * that freshens a session. A guess at either is refused while the account is
- * locked or the address floods, and counts against the same account.
+ * The throttle every password door shares — sign-in, the re-authentication
+ * that freshens a session, and the confirmations of an account change. A
+ * guess at any of them is refused while the account is locked or the address
+ * floods, and counts against the same account.
  */
 
 import { APIError } from 'better-auth/api';
@@ -15,6 +16,7 @@ const h = vi.hoisted(() => ({
   recordBlocked: vi.fn(),
   recordFailure: vi.fn(),
   clearOnSuccess: vi.fn(),
+  clearFailures: vi.fn(),
   checkIpRateLimit: vi.fn(),
 }));
 vi.mock('../domains/login_attempts/service.ts', () => ({
@@ -22,6 +24,7 @@ vi.mock('../domains/login_attempts/service.ts', () => ({
   recordBlocked: h.recordBlocked,
   recordFailure: h.recordFailure,
   clearOnSuccess: h.clearOnSuccess,
+  clearFailures: h.clearFailures,
 }));
 vi.mock('../lib/rate-limit.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../lib/rate-limit.ts')>()),
@@ -122,30 +125,56 @@ describe('recordPasswordAttempt', () => {
     vi.clearAllMocks();
     h.recordFailure.mockResolvedValue({ locked: false, lockedUntil: null });
     h.clearOnSuccess.mockResolvedValue(undefined);
+    h.clearFailures.mockResolvedValue(undefined);
   });
 
-  it('books a failure against the account, stamped when it re-authenticated', async () => {
+  it('books a failure against the account, stamped with where it was typed', async () => {
     await recordPasswordAttempt(sql, {
       email: EMAIL,
       outcome: 'failure',
       ip: IP,
       userAgent: 'test/1.0',
-      reauthentication: true,
+      check: 'two_factor_disable',
     });
 
     expect(h.recordFailure).toHaveBeenCalledWith(sql, {
       email: EMAIL,
       ip: IP,
       userAgent: 'test/1.0',
-      reauthentication: true,
+      passwordCheck: 'two_factor_disable',
     });
     expect(h.clearOnSuccess).not.toHaveBeenCalled();
   });
 
-  it('clears the counter on a success, leaving a sign-in unstamped', async () => {
+  it('audits a sign-in success, leaving the sign-in form unstamped', async () => {
     await recordPasswordAttempt(sql, { email: EMAIL, outcome: 'success' });
 
     expect(h.clearOnSuccess).toHaveBeenCalledWith(sql, { email: EMAIL });
     expect(h.recordFailure).not.toHaveBeenCalled();
+  });
+
+  it('audits a re-authentication as the sign-in it is', async () => {
+    await recordPasswordAttempt(sql, {
+      email: EMAIL,
+      outcome: 'success',
+      check: 'reauthenticate',
+    });
+
+    expect(h.clearOnSuccess).toHaveBeenCalledWith(sql, {
+      email: EMAIL,
+      passwordCheck: 'reauthenticate',
+    });
+    expect(h.clearFailures).not.toHaveBeenCalled();
+  });
+
+  it('only clears the counter when a confirmed account change succeeds — the change audits itself', async () => {
+    await recordPasswordAttempt(sql, {
+      email: EMAIL,
+      outcome: 'success',
+      check: 'change_password',
+    });
+
+    expect(h.clearFailures).toHaveBeenCalledWith(sql, EMAIL);
+    expect(h.clearOnSuccess).not.toHaveBeenCalled();
   });
 });

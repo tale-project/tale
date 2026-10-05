@@ -8169,7 +8169,6 @@ twoFactor:
       revokeFailed: Impossible de supprimer le passkey. Réessaie.
       listFailed: Impossible de charger tes passkeys.
       refreshFailed: Impossible d'actualiser tes passkeys. La liste affichée n'est peut-être plus à jour.
-      wrongPassword: Mot de passe incorrect. Après plusieurs échecs, ton compte est temporairement verrouillé.
       confirmFailed: Impossible de confirmer ton mot de passe. Réessaie.
   setup:
     title: Configurer l'authentification à double facteur
@@ -8191,6 +8190,7 @@ twoFactor:
   confirmPassword:
     label: Mot de passe
     submit: Confirmer
+    wrongPassword: Mot de passe incorrect. Après plusieurs échecs, ton compte est temporairement verrouillé.
   verify:
     title: Vérifier ton identité
     description: Saisis le code à 6 chiffres de ton application d'authentification.
