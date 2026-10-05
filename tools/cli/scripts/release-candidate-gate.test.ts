@@ -685,6 +685,11 @@ describe('complete candidate event and receipt provenance', () => {
     const entry = scenario.candidateRuns.find((candidate) =>
       candidate.path.endsWith(`/${stem}.yml`),
     )!;
+    expect(entry.conclusion).toBe('success');
+    if (stem === 'checks')
+      expect(
+        scenario.jobs[entry.id]!.find((job) => job.name === 'Unit')?.conclusion,
+      ).toBe('success');
     if (mode === 'missing')
       scenario.jobs[entry.id] = scenario.jobs[entry.id]!.filter(
         (job) => job.name !== name,
