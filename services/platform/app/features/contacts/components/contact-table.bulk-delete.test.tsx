@@ -229,3 +229,68 @@ describe('ContactsTable bulk delete', () => {
     });
   });
 });
+
+describe('ContactsTable failed bulk recovery', () => {
+  it.each(['mixed', 'refused'] as const)(
+    'retains %s failures in the real table and retries only them',
+    async (outcome) => {
+      mockContacts = ['Alpha', 'Bravo', 'Charlie'].map((name) =>
+        makeContact(name, 'manual_import'),
+      );
+      mockDelete.mockImplementation(
+        async ({ contactId }: { contactId: string }) => {
+          if (outcome === 'refused' || contactId === 'contact-bravo')
+            throw new Error('Not allowed');
+        },
+      );
+      const { user } = render(<ContactsTable organizationId="org-1" />);
+      const alpha = checkboxOf('Alpha');
+      const bravo = checkboxOf('Bravo');
+      const charlie = checkboxOf('Charlie');
+      if (!alpha || !bravo || !charlie)
+        throw new Error('Missing selection checkbox');
+      await user.click(alpha);
+      await user.click(bravo);
+      await user.click(screen.getByRole('button', { name: 'Delete selected' }));
+      await user.click(
+        within(screen.getByRole('dialog')).getByRole('button', {
+          name: 'Delete',
+        }),
+      );
+      const alert = await within(screen.getByRole('dialog')).findByRole(
+        'alert',
+      );
+      expect(within(alert).getByText('Bravo')).toBeInTheDocument();
+      expect(bravo).toBeChecked();
+      expect(charlie).not.toBeChecked();
+      if (outcome === 'mixed') {
+        expect(alpha).not.toBeChecked();
+        expect(within(alert).queryByText('Alpha')).not.toBeInTheDocument();
+      } else {
+        expect(alpha).toBeChecked();
+        expect(within(alert).getByText('Alpha')).toBeInTheDocument();
+      }
+      mockDelete.mockClear();
+      mockDelete.mockResolvedValue(undefined);
+      await user.click(
+        within(screen.getByRole('dialog')).getByRole('button', {
+          name: 'Delete',
+        }),
+      );
+      await waitFor(() =>
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument(),
+      );
+      expect(mockDelete.mock.calls).toEqual(
+        outcome === 'mixed'
+          ? [[{ contactId: 'contact-bravo' }]]
+          : [
+              [{ contactId: 'contact-alpha' }],
+              [{ contactId: 'contact-bravo' }],
+            ],
+      );
+      expect(checkboxOf('Alpha')).not.toBeChecked();
+      expect(checkboxOf('Bravo')).not.toBeChecked();
+      expect(checkboxOf('Charlie')).not.toBeChecked();
+    },
+  );
+});

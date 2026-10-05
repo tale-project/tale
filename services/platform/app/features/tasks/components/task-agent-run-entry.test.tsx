@@ -26,6 +26,9 @@ vi.mock('@tale/ui/i18n/client', () => ({
       if (key === 'agentRun.logReadFailed') {
         return catalogs[locale.value].tasks.agentRun.logReadFailed;
       }
+      if (key === 'agentRun.runReadFailed') {
+        return catalogs[locale.value].tasks.agentRun.runReadFailed;
+      }
       if (key === 'actions.tryAgain') {
         return uiCatalogs[locale.value].common.actions.tryAgain;
       }
@@ -109,22 +112,31 @@ vi.mock('@tale/ui/use-toast', () => ({ toast }));
 
 // Routes the card's two reads: the run-card query (args carry `taskId`) and
 // the details dialog's op query (args carry `runId`, `'skip'` until opened).
-const { state, refetchOp } = vi.hoisted(() => ({
+const { state, refetchOp, refetchRun } = vi.hoisted(() => ({
   state: {
     run: undefined as unknown,
     op: undefined as unknown,
     isError: false,
     isFetching: false,
     error: undefined as unknown,
+    runIsError: false,
+    runIsFetching: false,
   },
   refetchOp: vi.fn(),
+  refetchRun: vi.fn(),
 }));
 
 vi.mock('@/app/hooks/use-backend-query', () => ({
   useBackendQuery: (_func: unknown, args: unknown) => {
     if (args === 'skip') return { data: undefined };
     if (typeof args === 'object' && args !== null && 'taskId' in args) {
-      return { data: state.run };
+      return {
+        data: state.run,
+        isError: state.runIsError,
+        isFetching: state.runIsFetching,
+        error: state.runIsError ? new Error('503') : undefined,
+        refetch: refetchRun,
+      };
     }
     return {
       data: state.op,
@@ -156,10 +168,115 @@ describe('TaskAgentRunEntry details', () => {
     startRun.mockReset().mockResolvedValue({ started: true });
     vi.mocked(toast).mockClear();
     refetchOp.mockReset().mockResolvedValue(undefined);
+    refetchRun.mockReset().mockResolvedValue(undefined);
+    state.runIsError = false;
+    state.runIsFetching = false;
     state.isError = false;
     state.isFetching = false;
     state.error = undefined;
     locale.value = 'en';
+  });
+
+  it.each(['en', 'de', 'fr'] as const)(
+    'keeps a failed latest-run read visible and recovers in %s',
+    async (language) => {
+      locale.value = language;
+      state.run = undefined;
+      state.runIsError = true;
+      const user = userEvent.setup();
+      const entry = (
+        <TaskAgentRunEntry
+          organizationId="org-1"
+          taskId={taskId}
+          assigneeId="agent-1"
+          canEdit
+        />
+      );
+      const { rerender } = render(entry);
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        catalogs[language].tasks.agentRun.runReadFailed,
+      );
+      expect(screen.queryByText('503')).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Start agent' })).toBeNull();
+      await user.click(
+        screen.getByRole('button', {
+          name: uiCatalogs[language].common.actions.tryAgain,
+        }),
+      );
+      expect(refetchRun).toHaveBeenCalledOnce();
+      expect(refetchOp).not.toHaveBeenCalled();
+      expect(startRun).not.toHaveBeenCalled();
+      state.runIsFetching = true;
+      rerender(cloneElement(entry));
+      expect(screen.queryByRole('alert')).toBeNull();
+      state.runIsFetching = false;
+      rerender(cloneElement(entry));
+      expect(
+        screen.getByRole('button', {
+          name: uiCatalogs[language].common.actions.tryAgain,
+        }),
+      ).toHaveFocus();
+      await user.click(
+        screen.getByRole('button', {
+          name: uiCatalogs[language].common.actions.tryAgain,
+        }),
+      );
+      expect(refetchRun).toHaveBeenCalledTimes(2);
+      state.runIsError = false;
+      state.run = null;
+      rerender(cloneElement(entry));
+      expect(screen.queryByRole('alert')).toBeNull();
+      expect(screen.getByRole('button', { name: 'Start agent' })).toBeEnabled();
+      state.run = settledRun();
+      rerender(cloneElement(entry));
+      expect(screen.getByRole('button', { name: 'Details' })).toBeEnabled();
+    },
+  );
+
+  it('offers read recovery to a viewer without run permissions', () => {
+    state.run = undefined;
+    state.runIsError = true;
+    render(
+      <TaskAgentRunEntry
+        organizationId="org-1"
+        taskId={taskId}
+        assigneeId="agent-1"
+        canEdit={false}
+        assigneeLive={false}
+      />,
+    );
+    expect(screen.getByRole('alert')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeEnabled();
+  });
+
+  it('preserves cached run controls after a background read failure', () => {
+    state.run = settledRun();
+    state.runIsError = true;
+    render(
+      <TaskAgentRunEntry
+        organizationId="org-1"
+        taskId={taskId}
+        assigneeId="agent-1"
+        canEdit
+      />,
+    );
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.getByText('Reported for review')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Details' })).toBeEnabled();
+  });
+
+  it('keeps an initial latest-run read quiet while loading', () => {
+    state.run = undefined;
+    state.runIsFetching = true;
+    const { container } = render(
+      <TaskAgentRunEntry
+        organizationId="org-1"
+        taskId={taskId}
+        assigneeId="agent-1"
+        canEdit
+      />,
+    );
+    expect(container).toBeEmptyDOMElement();
   });
 
   it.each(['en', 'de', 'fr'] as const)(

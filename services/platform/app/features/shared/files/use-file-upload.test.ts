@@ -138,6 +138,26 @@ async function flush() {
 
 const config = { organizationId: 'org-1' };
 
+describe('useFileUpload attachment drain', () => {
+  it('clears the committed ref before another batch can read it', () => {
+    const initial = {
+      fileId: 'prior-ref',
+      fileName: 'prior.txt',
+      fileType: 'text/plain',
+      fileSize: 1,
+      previewUrl: 'blob:prior',
+    };
+    const { result } = renderHook(() =>
+      useFileUpload({ ...config, initialAttachments: [initial] }),
+    );
+    act(() => {
+      expect(result.current.clearAttachments()).toEqual([initial]);
+      expect(result.current.clearAttachments()).toEqual([]);
+    });
+    expect(result.current.attachments).toEqual([]);
+  });
+});
+
 beforeEach(() => {
   installFetch();
   vi.stubGlobal('URL', {

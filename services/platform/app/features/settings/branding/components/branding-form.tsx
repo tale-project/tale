@@ -31,7 +31,10 @@ import {
   useSaveImage,
   useSnapshotBrandingHistory,
 } from '../hooks/mutations';
-import { useBrandingWriteQueue } from '../hooks/use-branding-write-queue';
+import {
+  useBrandingWriteQueue,
+  type BrandingWriteRunner,
+} from '../hooks/use-branding-write-queue';
 import type { BrandingPreviewData } from './branding-preview';
 import { ColorPickerInput } from './color-picker-input';
 import { ImageUploadField } from './image-upload-field';
@@ -142,6 +145,20 @@ export function BrandingForm({
   }, [branding?.faviconDarkFilename]);
 
   const runWrite = useBrandingWriteQueue();
+
+  // Counts the admin's own favicon choices: an upload or removal on either
+  // favicon field counts the moment it starts, before it waits for its slot,
+  // and so does a confirmed Reset. A favicon derived from the logo was decided
+  // on the state before such a choice, so it only lands while the count is
+  // still the one it was requested under.
+  const faviconChoicesRef = useRef(0);
+  const runFaviconWrite = useCallback<BrandingWriteRunner>(
+    (write) => {
+      faviconChoicesRef.current += 1;
+      return runWrite(write);
+    },
+    [runWrite],
+  );
 
   const persistBranding = useCallback(
     async (values: BrandingFormData) => {
@@ -285,9 +302,13 @@ export function BrandingForm({
 
   // When a logo is uploaded and no favicon is set yet, derive a square favicon
   // from the same image so the org gets a tab icon without a second upload.
+  // A favicon choice made after the request retires it, whether it comes
+  // before the derivation's slot starts or during the image conversion.
   const maybeDeriveFavicon = useCallback(
-    async (file: File) =>
-      runWrite(async () => {
+    async (file: File) => {
+      const choices = faviconChoicesRef.current;
+      const superseded = () => faviconChoicesRef.current !== choices;
+      return runWrite(async () => {
         const values = {
           ...getValues(),
           ...Object.fromEntries(savedImageFilenamesRef.current),
@@ -298,10 +319,11 @@ export function BrandingForm({
           faviconLightUrl: branding?.faviconLightUrl,
           faviconDarkUrl: branding?.faviconDarkUrl,
         };
-        if (!shouldDeriveFavicon(faviconState)) return;
+        if (superseded() || !shouldDeriveFavicon(faviconState)) return;
 
         try {
           const base64 = await deriveFaviconPngBase64(file);
+          if (superseded()) return;
           const { filename } = await saveImage.mutateAsync({
             organizationId,
             type: 'favicon-light',
@@ -312,6 +334,9 @@ export function BrandingForm({
           // the field mirrors the saved state rather than staging an edit.
           savedImageFilenamesRef.current.set('faviconLightFilename', filename);
           setValue('faviconLightFilename', filename);
+          // A choice made while this write was in flight is queued behind it
+          // and decides the favicon, so the preview and the toast are its own.
+          if (superseded()) return;
           setFaviconPreviewUrl(`data:image/png;base64,${base64}`);
           toast({
             title: tToast('success.faviconGenerated.title'),
@@ -323,7 +348,8 @@ export function BrandingForm({
           // manually. Surface rather than swallow so canvas/upload bugs show up.
           console.warn('[branding] favicon derivation from logo failed', err);
         }
-      }),
+      });
+    },
     [
       getValues,
       runWrite,
@@ -353,6 +379,7 @@ export function BrandingForm({
       faviconLightFilename: '',
       faviconDarkFilename: '',
     };
+    faviconChoicesRef.current += 1;
     setResetting(true);
     try {
       await runWrite(async () => {
@@ -461,7 +488,7 @@ export function BrandingForm({
             <HStack gap={2}>
               <ImageUploadField
                 organizationId={organizationId}
-                runWrite={runWrite}
+                runWrite={runFaviconWrite}
                 currentUrl={faviconPreviewUrl ?? branding?.faviconLightUrl}
                 imageType="favicon-light"
                 onUpload={(filename) => {
@@ -485,7 +512,7 @@ export function BrandingForm({
 
               <ImageUploadField
                 organizationId={organizationId}
-                runWrite={runWrite}
+                runWrite={runFaviconWrite}
                 currentUrl={branding?.faviconDarkUrl}
                 imageType="favicon-dark"
                 onUpload={(filename) => {

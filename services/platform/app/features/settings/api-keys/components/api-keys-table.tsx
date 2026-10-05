@@ -128,6 +128,10 @@ export function ApiKeysTable({
         footer={
           <BulkDeleteBar
             rowSelection={rowSelection}
+            onRowSelectionChange={setRowSelection}
+            getItemLabel={(id) =>
+              apiKeys?.find((item) => item.id === id)?.name ?? id
+            }
             onClearSelection={handleClearSelection}
             onDeleteItem={handleDeleteItem}
             onDeleteComplete={handleClearSelection}

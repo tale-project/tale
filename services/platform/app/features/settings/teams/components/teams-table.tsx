@@ -132,6 +132,10 @@ export function TeamsTable({ teams, organizationId }: TeamsTableProps) {
         footer={
           <BulkDeleteBar
             rowSelection={rowSelection}
+            onRowSelectionChange={setRowSelection}
+            getItemLabel={(id) =>
+              teams?.find((item) => item.id === id)?.name ?? id
+            }
             onClearSelection={handleClearSelection}
             onDeleteItem={handleDeleteItem}
             onDeleteComplete={handleDeleteComplete}
