@@ -4381,6 +4381,7 @@ governance:
         userPickerLabel: Personne concernée
         userPickerPlaceholder: Recherche par nom ou email
         userPickerEmpty: Aucun membre correspondant.
+        userPickerFailed: Impossible de charger les membres.
         reasonCodeLabel: Fondement légal
         reasonCodeDescription: RGPD art. 17(1)(a)–(f) plus le motif opérationnel de fin de contrat.
         reasonLabel: Motif détaillé

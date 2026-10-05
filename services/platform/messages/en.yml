@@ -4161,6 +4161,7 @@ governance:
         userPickerLabel: Subject
         userPickerPlaceholder: Search by name or email
         userPickerEmpty: No matching members.
+        userPickerFailed: Members could not be loaded.
         reasonCodeLabel: Lawful ground
         reasonCodeDescription: GDPR Art. 17(1)(a)–(f) plus the operational
           contract-termination ground.
