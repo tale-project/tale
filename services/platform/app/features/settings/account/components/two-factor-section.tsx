@@ -10,7 +10,7 @@ import { lazyComponent } from '@tale/ui/lazy-component';
 import { Text } from '@tale/ui/text';
 import { useToast } from '@tale/ui/use-toast';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { usePasswordRefusalMessage } from '@/app/features/auth/hooks/use-password-refusal-message';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
@@ -322,6 +322,10 @@ function PasswordPromptDialog({
 }: PasswordPromptProps) {
   const { t } = useT('twoFactor');
   const [password, setPassword] = useState('');
+
+  useEffect(() => {
+    if (!open) setPassword('');
+  }, [open]);
 
   return (
     <FormDialog
