@@ -117,7 +117,7 @@ beforeEach(() => {
 });
 
 describe('GET /directory', () => {
-  it('lists every team’s id and name of the organization for any member', async () => {
+  it('lists every team’s id and name of the organization for any member [TEAM-R1]', async () => {
     caller.role = 'member';
     const { sql, statements } = fakeSql((s) =>
       s.text.startsWith('SELECT "id", "name" FROM "team"')
@@ -142,7 +142,7 @@ describe('GET /directory', () => {
 });
 
 describe('GET /:teamId/impact', () => {
-  it('is an admin door', async () => {
+  it('is an admin door [TEAM-R3]', async () => {
     caller.role = 'member';
     const res = await mount(fakeSql(() => undefined).sql).request('/t1/impact');
     expect(res.status).toBe(403);
@@ -150,7 +150,7 @@ describe('GET /:teamId/impact', () => {
     expect(teamDeletionImpact).not.toHaveBeenCalled();
   });
 
-  it('answers the preview, or 404 for a team that is not the organization’s', async () => {
+  it('answers the preview, or 404 for a team that is not the organization’s [TEAM-R8] [TEAM-R10]', async () => {
     const impact = { teamId: 't1', name: 'Finance', memberCount: 2 };
     teamDeletionImpact.mockResolvedValueOnce(impact);
     const { sql } = fakeSql(() => undefined);
@@ -178,7 +178,7 @@ describe('DELETE /:teamId', () => {
     touchedFileDocumentIds: ['d1', 'd2'],
   };
 
-  it('is an admin door', async () => {
+  it('is an admin door [TEAM-R3]', async () => {
     caller.role = 'member';
     const res = await mount(fakeSql(() => undefined).sql).request('/t1', {
       method: 'DELETE',
@@ -187,7 +187,7 @@ describe('DELETE /:teamId', () => {
     expect(deleteTeamInTx).not.toHaveBeenCalled();
   });
 
-  it('deletes atomically, audits the counts, and re-stamps the corpus after the commit', async () => {
+  it('deletes atomically, audits the counts, and re-stamps the corpus after the commit [TEAM-R9]', async () => {
     deleteTeamInTx.mockResolvedValueOnce({ name: 'Finance', retirement });
     const { sql } = fakeSql(() => undefined);
     const res = await mount(sql).request('/t1', { method: 'DELETE' });
@@ -222,7 +222,7 @@ describe('DELETE /:teamId', () => {
     );
   });
 
-  it('answers 404 without an audit row or a re-stamp for a team that is not the organization’s', async () => {
+  it('answers 404 without an audit row or a re-stamp for a team that is not the organization’s [TEAM-R10]', async () => {
     deleteTeamInTx.mockResolvedValueOnce(null);
     const res = await mount(fakeSql(() => undefined).sql).request('/t-gone', {
       method: 'DELETE',
@@ -234,7 +234,7 @@ describe('DELETE /:teamId', () => {
   });
 });
 
-describe('GET /:teamId/members', () => {
+describe('GET /:teamId/members [TEAM-R2]', () => {
   const roster = (statement: Statement) =>
     statement.text.startsWith('SELECT tm."id", tm."teamId", tm."userId"')
       ? [
@@ -317,7 +317,7 @@ describe('POST /:teamId/members', () => {
       body: JSON.stringify({ userId: 'u2' }),
     });
 
-  it('is an admin door', async () => {
+  it('is an admin door [TEAM-R3]', async () => {
     caller.role = 'member';
     const { sql, statements } = fakeSql(() => undefined);
     const res = await post(sql);
@@ -325,7 +325,7 @@ describe('POST /:teamId/members', () => {
     expect(statements).toEqual([]);
   });
 
-  it('refuses a user outside the organization without a write or a row', async () => {
+  it('refuses a user outside the organization without a write or a row [TEAM-R4]', async () => {
     const { sql, statements } = fakeSql((s) => TEAM_ROW(s));
     const res = await post(sql);
     expect(res.status).toBe(400);
@@ -335,7 +335,7 @@ describe('POST /:teamId/members', () => {
     expect(emitHintInTx).not.toHaveBeenCalled();
   });
 
-  it('answers an existing membership without a second row or an audit row', async () => {
+  it('answers an existing membership without a second row or an audit row [TEAM-R5]', async () => {
     const { sql, statements } = fakeSql(
       (s) =>
         TEAM_ROW(s) ??
@@ -354,7 +354,7 @@ describe('POST /:teamId/members', () => {
     expect(createAuditLog).not.toHaveBeenCalled();
   });
 
-  it('adds the membership, audits it and hints the team in one transaction', async () => {
+  it('adds the membership, audits it and hints the team in one transaction [TEAM-R7]', async () => {
     const { sql, statements } = fakeSql(
       (s) => TEAM_ROW(s) ?? orgMember('bob@example.test')(s),
     );
@@ -425,7 +425,7 @@ describe('the last-member rule', () => {
     return TEAM_ROW(statement);
   };
 
-  it('refuses to remove the last member with 409', async () => {
+  it('refuses to remove the last member with 409 [TEAM-R6]', async () => {
     const { sql, statements } = fakeSql(membership(1));
     const res = await mount(sql).request('/members/by-id/tm1', {
       method: 'DELETE',
@@ -442,7 +442,7 @@ describe('the last-member rule', () => {
     expect(lock?.text).toContain('FROM "team" WHERE "id" = ?');
   });
 
-  it('removes one of several members, audits it and hints the team', async () => {
+  it('removes one of several members, audits it and hints the team [TEAM-R7]', async () => {
     const { sql, statements } = fakeSql(membership(2));
     const res = await mount(sql).request('/members/by-id/tm1', {
       method: 'DELETE',
@@ -478,7 +478,7 @@ describe('the last-member rule', () => {
     });
   });
 
-  it('is an admin door', async () => {
+  it('is an admin door [TEAM-R3]', async () => {
     caller.role = 'member';
     const { sql, statements } = fakeSql(membership(2));
     const res = await mount(sql).request('/members/by-id/tm1', {
