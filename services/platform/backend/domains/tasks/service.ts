@@ -252,7 +252,7 @@ const BOARD_OMITTED_COLUMNS = new Set([
  * ones no card or list row shows — the description (up to 20,000
  * characters), the attachment and output lists and the external issue
  * snapshot. A 2,000-task board read all of them, 3.35 MB that every task
- * change made each open board fetch again (#4062). The board's search
+ * change made each open board fetch again. The board's search
  * still matches the description in its WHERE clause.
  */
 export const BOARD_TASK_COLUMNS = TASK_COLUMNS.split(',')

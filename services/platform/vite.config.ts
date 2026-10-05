@@ -76,7 +76,7 @@ const devFsAllow = [
  * Routes whose components stay in the entry chunk: the sign-in pages and
  * the signed-in landing (`/dashboard/$id` redirects to the chat), so neither
  * waits on a second wave of chunks. Every other route's component loads
- * with its route, which the router's intent preload starts on hover (#4089).
+ * with its route, which the router's intent preload starts on hover.
  */
 const ENTRY_ROUTES = new Set<string>([
   '/',
@@ -101,7 +101,7 @@ const ENTRY_ROUTES = new Set<string>([
  * that load with the surfaces using them, not with every page: the flow
  * canvas (which brings its d3 modules) and the table and virtual-list cores.
  * In vendor-core they loaded with every page, the sign-in page's included,
- * whoever imported them (#4089).
+ * whoever imported them.
  */
 const NOT_CORE =
   /\/node_modules\/(?:@xyflow|@tanstack\/(?:table-core|react-table|virtual-core|react-virtual))\//;
@@ -153,7 +153,7 @@ function vendorChunk(id: string): string | null {
   }
   // The flow canvas, named so the cold-load budget can forbid it
   // (`scripts/check-entry-budget.ts`): only the automation editor and run
-  // pages load it (#4089). Recharts has no such group: its own dependencies
+  // pages load it. Recharts has no such group: its own dependencies
   // are shared with the entry, so a group capturing them would be preloaded.
   if (id.includes('/node_modules/@xyflow/')) {
     return 'vendor-flow';
@@ -161,7 +161,7 @@ function vendorChunk(id: string): string | null {
   // The KaTeX package alone: it has no dependencies of its own to drag in.
   // Matching every path with `katex` in it took `rehype-katex` too, and with
   // it the hast utilities the markdown renderers share, so the entry needed
-  // this chunk and KaTeX loaded with every page (#4089).
+  // this chunk and KaTeX loaded with every page.
   if (id.includes('/node_modules/katex/')) {
     return 'vendor-katex';
   }

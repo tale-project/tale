@@ -6,7 +6,7 @@ index 88c40400a174f781d66b14b6c17da0b354fa8aed..05ce8a5c7bd05e5d608a4fdfd7121747
  			if (prevMatch.status === "success" && !inner.sync && !prevMatch.preload && shouldReloadInBackground) return prevMatch;
  			await prevMatch._nonReactive.loaderPromise;
  			const match = inner.router.getMatch(matchId);
-+			// Tale: a navigation that commits while a preload waits drops its cached match (#4089).
++			// Tale: a navigation that commits while a preload waits drops its cached match.
 +			if (!match) return inner.matches[index];
  			const error = match._nonReactive.error || match.error;
  			if (error) handleRedirectAndNotFound(inner, match, error);
@@ -15,7 +15,7 @@ index 88c40400a174f781d66b14b6c17da0b354fa8aed..05ce8a5c7bd05e5d608a4fdfd7121747
  		}
  	}
  	const match = inner.router.getMatch(matchId);
-+	// Tale: as above, once the loader and the route's chunk have been awaited (#4089).
++	// Tale: as above, once the loader and the route's chunk have been awaited.
 +	if (!match) return inner.matches[index];
  	if (!loaderIsRunningAsync) {
  		match._nonReactive.loaderPromise?.resolve();
@@ -28,7 +28,7 @@ index b1445aba595ab72dffe1d69bf13f066ae167375e..f5ca1e7c55652831ff55fa01dae2eca7
  			if (prevMatch.status === "success" && !inner.sync && !prevMatch.preload && shouldReloadInBackground) return prevMatch;
  			await prevMatch._nonReactive.loaderPromise;
  			const match = inner.router.getMatch(matchId);
-+			// Tale: a navigation that commits while a preload waits drops its cached match (#4089).
++			// Tale: a navigation that commits while a preload waits drops its cached match.
 +			if (!match) return inner.matches[index];
  			const error = match._nonReactive.error || match.error;
  			if (error) handleRedirectAndNotFound(inner, match, error);
@@ -37,7 +37,7 @@ index b1445aba595ab72dffe1d69bf13f066ae167375e..f5ca1e7c55652831ff55fa01dae2eca7
  		}
  	}
  	const match = inner.router.getMatch(matchId);
-+	// Tale: as above, once the loader and the route's chunk have been awaited (#4089).
++	// Tale: as above, once the loader and the route's chunk have been awaited.
 +	if (!match) return inner.matches[index];
  	if (!loaderIsRunningAsync) {
  		match._nonReactive.loaderPromise?.resolve();

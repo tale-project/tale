@@ -98,7 +98,7 @@ interface AssigneePickerProps {
  * Until its first use the picker is only the avatar: the list, its candidate
  * reads, the handoff guard and their writes mount when it is first opened and
  * stay mounted from then on. Every card and row of a board carries one, and
- * mounting them all closed cost a 2,000-task board seconds (#4062). The name
+ * mounting them all closed cost a 2,000-task board seconds. The name
  * comes from the directory an `ActorDirectoryProvider` provides (the board's,
  * the task's) or, without one, from the picker's own.
  */

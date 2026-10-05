@@ -17,7 +17,7 @@ import type { TaskRow } from './task-card';
 // count what the mounted cards subscribe to. react-query adds and removes an
 // observer in time linear in its query's observer count: a board whose cards
 // each read the members, the automations and the project's agents turned a
-// 2,000-card mount and unmount quadratic (#4062).
+// 2,000-card mount and unmount quadratic.
 const READS: Record<string, unknown> = {
   'members/queries:listByOrganization': [
     {
@@ -127,7 +127,7 @@ function observerCount(client: QueryClient): number {
     .reduce((sum, query) => sum + query.getObserversCount(), 0);
 }
 
-describe('board cards and the board directory (#4062)', () => {
+describe('board cards and the board directory', () => {
   it('adds no query observer per card, however many cards mount', () => {
     const client = new QueryClient();
     const few = renderBoard(client, makeTasks(5));

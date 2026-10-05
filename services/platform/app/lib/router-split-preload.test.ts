@@ -9,12 +9,13 @@ import {
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 // The build splits every route component outside the sign-in pages and the
-// landing into a chunk of its own (`vite.config.ts`, #4089), so preloading
-// such a route waits on its chunk. A navigation that commits meanwhile drops
-// the cached match of a route without a loader, and router-core 1.168.9 then
-// read the vanished match after the wait: `TypeError: Cannot read properties
-// of undefined (reading '_nonReactive')`, logged on every landing through `/`
-// or `/dashboard` while the sidebar's links preloaded their sections.
+// landing into a chunk of its own (`ENTRY_ROUTES` in `vite.config.ts`), so
+// preloading such a route waits on its chunk. A navigation that commits
+// meanwhile drops the cached match of a route without a loader, and
+// router-core 1.168.9 then read the vanished match after the wait:
+// `TypeError: Cannot read properties of undefined (reading '_nonReactive')`,
+// logged on every landing through `/` or `/dashboard` while the sidebar's
+// links preloaded their sections.
 // `patches/@tanstack%2Frouter-core@1.168.9.patch` returns early instead, as
 // the router already does when the match is gone before its loader runs.
 

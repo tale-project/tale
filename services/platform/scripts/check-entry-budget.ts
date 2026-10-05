@@ -9,9 +9,9 @@
  * theirs back in the preload list fails the build so the regression is
  * caught here, not in the next evaluation. KaTeX (which the streaming
  * markdown renderer loads for the first reply with math), the flow canvas
- * and the libraries only some pages use are held to the same rule: until
- * #4089 every route's code loaded with every page, and they with it.
- * Routes now load with their route (`ENTRY_ROUTES` in `vite.config.ts`).
+ * and the libraries only some pages use are held to the same rule: each
+ * route's code loads with its route (`ENTRY_ROUTES` in `vite.config.ts`), and
+ * a static import from the entry would bring one back to every page.
  *
  * Usage (from `services/platform`): `bun scripts/check-entry-budget.ts [dist]`
  */

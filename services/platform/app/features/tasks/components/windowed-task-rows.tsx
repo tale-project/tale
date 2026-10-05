@@ -21,7 +21,7 @@ import type { TaskRow } from './task-card';
  * mounts every task, so a board of ordinary size keeps all of its tasks in
  * the page (find in page, a screen reader's browse mode). Mounting every
  * task made a 2,000-task board block the tab for 16–26 s on each open,
- * search and clear (#4062).
+ * search and clear.
  */
 export const WINDOWED_LANE_MIN_CARDS = 40;
 
