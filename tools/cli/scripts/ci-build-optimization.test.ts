@@ -91,7 +91,10 @@ async function execute(
   directories.push(directory);
   const output = join(directory, 'output');
   await writeFile(output, '');
-  const shell = process.platform === 'darwin' ? '/bin/bash' : 'bash';
+  // Resolve before a negative-control fixture replaces PATH with its own bin.
+  const shell = Bun.which(process.platform === 'darwin' ? '/bin/bash' : 'bash');
+  if (!shell)
+    throw new Error('Build CI fixtures require Bash on the host PATH');
   const child = Bun.spawn([shell, '-euo', 'pipefail', '-c', script], {
     cwd: cwd ?? directory,
     env: { PATH: process.env.PATH, GITHUB_OUTPUT: output, ...env },
@@ -111,6 +114,28 @@ async function execute(
     outputs: outputs(await readFile(output, 'utf8')),
   };
 }
+
+test.skipIf(process.platform === 'win32')(
+  'workflow shell fixtures launch without adding Bash to their isolated PATH',
+  async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'tale-build-ci-path-'));
+    directories.push(directory);
+    const result = await execute(
+      `printf '%s\\n' "$PATH"
+if command -v bash >/dev/null 2>&1; then
+  printf 'Bash unexpectedly available in fixture PATH\\n' >&2
+  exit 17
+fi
+printf 'shell-started\\n'
+`,
+      { PATH: directory },
+      directory,
+    );
+    expect(result.code, result.stdout + result.stderr).toBe(0);
+    expect(result.stdout).toBe(`${directory}\nshell-started\n`);
+    expect(result.stderr).toBe('');
+  },
+);
 
 test.skipIf(process.platform === 'win32')(
   'standalone site changes avoid the platform stack while shared build inputs retain full coverage',
