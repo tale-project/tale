@@ -2,6 +2,7 @@
 
 import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
+import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
 import { Heading } from '@tale/ui/heading';
 import { Row } from '@tale/ui/layout';
 import { useToast } from '@tale/ui/use-toast';
@@ -9,6 +10,7 @@ import { Clock } from 'lucide-react';
 
 import { useBackendAction } from '@/app/hooks/use-backend-action';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
+import { readStateOf } from '@/app/lib/backend/read-state';
 import { useT } from '@/lib/i18n/client';
 
 import { mapGovernanceSaveError } from '../governance-save-errors';
@@ -38,7 +40,22 @@ export function RetentionPendingBanner({ organizationId }: Props) {
     { errorToast: false },
   );
 
-  if (!pending.data) return null;
+  const read = readStateOf(pending);
+  const readError =
+    read.unavailable || read.stale ? (
+      <CatalogLoadError
+        failureKey={read.failureCount}
+        message={
+          read.unavailable
+            ? t('retentionPolicy.pendingChange.loadFailed')
+            : t('retentionPolicy.pendingChange.refreshFailed')
+        }
+        onRetry={() => void pending.refetch()}
+        isRetrying={read.retrying}
+      />
+    ) : null;
+
+  if (!pending.data) return readError;
 
   const { _id, appliesAt, summary } = pending.data;
   const daysRemaining = Math.max(
@@ -47,64 +64,67 @@ export function RetentionPendingBanner({ organizationId }: Props) {
   );
 
   return (
-    <Alert variant="warning" icon={Clock}>
-      <div className="text-foreground flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
-        <div className="min-w-0 flex-1 space-y-1">
-          <Heading
-            level={5}
-            size="sm"
-            weight="medium"
-            tracking="tight"
-            className="leading-none"
-          >
-            {t(
-              'retentionPolicy.pendingChange.title',
-              'A retention reduction is pending.',
-            )}
-          </Heading>
-          <p className="text-muted-foreground text-sm leading-relaxed">
-            {summary} —{' '}
-            {t(
-              'retentionPolicy.pendingChange.applyIn',
-              'applies in {days} day(s).',
-              { days: daysRemaining },
-            )}
-          </p>
-        </div>
-        <Row gap={2} wrap className="shrink-0">
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={async () => {
-              try {
-                await cancel.mutateAsync({
-                  organizationId,
-                  pendingId: _id,
-                });
-                toast({
-                  title: t('toastSavedTitle'),
-                  variant: 'success',
-                });
-              } catch (err) {
-                toast({
-                  title: t('toastSaveFailedTitle'),
-                  description: mapGovernanceSaveError(
-                    err,
-                    t,
-                    t(
-                      'retentionPolicy.pendingChange.cancelFailedToast',
-                      'Failed to cancel the pending retention change.',
+    <>
+      {readError}
+      <Alert variant="warning" icon={Clock}>
+        <div className="text-foreground flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+          <div className="min-w-0 flex-1 space-y-1">
+            <Heading
+              level={5}
+              size="sm"
+              weight="medium"
+              tracking="tight"
+              className="leading-none"
+            >
+              {t(
+                'retentionPolicy.pendingChange.title',
+                'A retention reduction is pending.',
+              )}
+            </Heading>
+            <p className="text-muted-foreground text-sm leading-relaxed">
+              {summary} —{' '}
+              {t(
+                'retentionPolicy.pendingChange.applyIn',
+                'applies in {days} day(s).',
+                { days: daysRemaining },
+              )}
+            </p>
+          </div>
+          <Row gap={2} wrap className="shrink-0">
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={async () => {
+                try {
+                  await cancel.mutateAsync({
+                    organizationId,
+                    pendingId: _id,
+                  });
+                  toast({
+                    title: t('toastSavedTitle'),
+                    variant: 'success',
+                  });
+                } catch (err) {
+                  toast({
+                    title: t('toastSaveFailedTitle'),
+                    description: mapGovernanceSaveError(
+                      err,
+                      t,
+                      t(
+                        'retentionPolicy.pendingChange.cancelFailedToast',
+                        'Failed to cancel the pending retention change.',
+                      ),
                     ),
-                  ),
-                  variant: 'destructive',
-                });
-              }
-            }}
-          >
-            {t('retentionPolicy.pendingChange.cancel', 'Cancel')}
-          </Button>
-        </Row>
-      </div>
-    </Alert>
+                    variant: 'destructive',
+                  });
+                }
+              }}
+            >
+              {t('retentionPolicy.pendingChange.cancel', 'Cancel')}
+            </Button>
+          </Row>
+        </div>
+      </Alert>
+    </>
   );
 }

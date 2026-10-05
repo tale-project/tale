@@ -6,6 +6,14 @@ suite alongside the automated ones — they drive the same stack.
 
 ## Coverage map
 
+Pending retention reads distinguish successful null from failure. EN/DE/FR read
+errors expose a destructive alert and Try again; retry keeps the first-read
+failure visible and its focused button inert while fetching. A failed refresh
+keeps cached pending details and Cancel reachable, including recovery to a
+healthy response. `app/features/settings/governance/components/retention-pending-banner.test.tsx`
+owns these jsdom cases and the healthy/null/loading controls; the real
+disconnected-backend interaction and browser layout remain manual.
+
 Legal matter editing preserves retained 2500- and 4000-character descriptions
 when only the name changes. Creation accepts trimmed fields at the API limits
 (300-character name, 200-character case number, 4000-character description).

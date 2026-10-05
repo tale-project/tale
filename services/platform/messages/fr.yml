@@ -3141,6 +3141,8 @@ governance:
       noGraceConnector: pas de fenêtre de grâce
       cascadeConnector: suppression en cascade
     pendingChange:
+      loadFailed: Impossible de charger le changement de rétention en attente.
+      refreshFailed: Impossible d'actualiser le changement de rétention en attente. Les informations précédemment chargées ne sont peut-être plus à jour.
       title: Une réduction de rétention est en attente.
       applyIn: s'applique dans {days} jour(s).
       cancel: Annuler
