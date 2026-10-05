@@ -20,7 +20,9 @@ needs fewer runners, while a long CPU-bound suite can benefit from more slices.
   a browser failure when the build succeeded. Pull requests first compute affected service
   scope from the PR diff; missing or nonboolean filter results fail the scope job.
   Nightly, manual and candidate rounds always select platform, web and docs. Static
-  suites use two workers, verified with all 90 web and 55 docs cases passing without retries.
+  suites use two workers. Ordinary interactive web journeys await a test-only root
+  snapshot marker being removed by the client commit, so prerendered nodes cannot
+  satisfy their readiness check. Cold-start tests still exercise the transition itself.
 - **Build** distinguishes the platform stack from standalone sites. Site-only changes run
   their container tests without building the eight-image platform stack. Shared package,
   dependency, toolchain and test-harness inputs expand to full coverage. Release candidates
