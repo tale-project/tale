@@ -1794,6 +1794,10 @@ conversations:
     noEmailConnector: Connect an email inbox under Settings > Connectors.
     noEmailConnectorAskAdmin: Ask an organization admin to connect an email
       inbox before you can send.
+    emailConnectorReadErrorTitle: Email connection unavailable
+    emailConnectorReadError: We couldn't load your email connections. Your draft is
+      safe; try again.
+    retryEmailConnectorRead: Try again
     openConnectorSettings: Open connector settings
     subject: Subject
     subjectPlaceholder: What's this about?
