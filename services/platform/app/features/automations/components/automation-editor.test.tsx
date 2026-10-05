@@ -574,12 +574,92 @@ describe('AutomationEditor deployed read failure', () => {
     );
     const liveRun = screen.getByRole('button', { name: 'Run live' });
     expect(liveRun).toHaveAttribute('aria-disabled', 'true');
-    expect(
-      screen.getByText("Couldn't load the deployed version — try again."),
-    ).toBeInTheDocument();
+    act(() => liveRun.focus());
+    expect(await screen.findByRole('tooltip')).toHaveTextContent(
+      "Couldn't load the deployed version — try again.",
+    );
     await user.click(screen.getByRole('button', { name: 'Try again' }));
     expect(refetch).toHaveBeenCalledOnce();
   });
+  it.each([400, 503])(
+    'keeps the secondary %s failure visible during a real retry and recovers live runs',
+    async (status) => {
+      let recovering = false;
+      let finishRead: ((response: Response) => void) | undefined;
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((url: string) => {
+          if (
+            !new URL(url, window.location.origin).searchParams.has('version')
+          ) {
+            return Promise.resolve(automationResponse());
+          }
+          if (!recovering)
+            return Promise.resolve(
+              Response.json(
+                {
+                  error: 'AUTOMATION_READ_REFUSED',
+                  message: 'Version unavailable',
+                },
+                { status },
+              ),
+            );
+          return new Promise<Response>((resolve) => {
+            finishRead = resolve;
+          });
+        }),
+      );
+      const { user } = realReadPage();
+      const retryButton = await screen.findByRole(
+        'button',
+        { name: 'Try again' },
+        { timeout: 15000 },
+      );
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        status === 400
+          ? "Couldn't load the deployed version: Version unavailable"
+          : "Couldn't load the deployed version",
+      );
+      if (status === 503)
+        expect(screen.getByRole('alert')).not.toHaveTextContent(
+          'Version unavailable',
+        );
+      recovering = true;
+      await user.click(retryButton);
+      await waitFor(() => expect(finishRead).toBeDefined());
+      expect(retryButton).toHaveAttribute('aria-busy', 'true');
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        "Couldn't load the deployed version",
+      );
+      expect(screen.getByRole('alert')).not.toHaveTextContent(/null|undefined/);
+      expect(screen.getByRole('button', { name: 'Run live' })).toHaveAttribute(
+        'aria-disabled',
+        'true',
+      );
+      await act(async () => {
+        finishRead?.(automationResponse());
+      });
+      await waitFor(() => expect(screen.queryByRole('alert')).toBeNull());
+      expect(
+        screen.getByRole('button', { name: 'Run live' }),
+      ).not.toHaveAttribute('aria-disabled', 'true');
+    },
+    30000,
+  );
+
+  it.each([new TypeError('runtime internals'), { message: 'private payload' }])(
+    'omits unsafe failure detail (%s)',
+    (error) => {
+      state.deployedDetailError = error as Error;
+      renderPage();
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        "Couldn't load the deployed version",
+      );
+      expect(screen.getByRole('alert')).not.toHaveTextContent(
+        /runtime internals|private payload|\[object Object\]/,
+      );
+    },
+  );
 });
 
 /**

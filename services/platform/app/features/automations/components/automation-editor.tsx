@@ -42,6 +42,7 @@ import { useCallback, useId, useMemo, useRef, useState } from 'react';
 
 import { useProjects } from '@/app/features/projects/hooks/queries';
 import { useAbility } from '@/app/hooks/use-ability';
+import { failureDetail } from '@/app/lib/backend/adapters';
 import { readStateOf } from '@/app/lib/backend/read-state';
 import type { NodeDef, Automation } from '@/lib/engine/core/types';
 import { useT } from '@/lib/i18n/client';
@@ -280,6 +281,7 @@ function AutomationEditorScope({
   const deployedReadError =
     automationQuery.data?.deployedVersion !== undefined &&
     (deployedRead.unavailable || deployedRead.stale);
+  const deployedFailureDetail = failureDetail(deployedQuery.error);
   // Only the newest run matters here — it is what the canvas overlays; the
   // Runs tab reads the log.
   const runsQuery = useAutomationRuns(organizationId, automationSlug, 1);
@@ -839,7 +841,11 @@ function AutomationEditorScope({
           <div className="border-border flex flex-col gap-3 border-b p-4">
             {deployedReadError && (
               <CatalogLoadError
-                message={`${t('detail.deployedReadFailed')}: ${automationErrorMessage(deployedQuery.error)}`}
+                message={
+                  deployedFailureDetail === undefined
+                    ? t('detail.deployedReadFailed')
+                    : `${t('detail.deployedReadFailed')}: ${deployedFailureDetail}`
+                }
                 onRetry={() => void deployedQuery.refetch()}
                 isRetrying={deployedRead.retrying}
                 failureKey={deployedRead.failureCount}
