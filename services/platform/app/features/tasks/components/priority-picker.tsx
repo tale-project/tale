@@ -84,6 +84,11 @@ export function PriorityPicker({
 }) {
   const { t } = useT('tasks');
   const [engaged, setEngaged] = useState(false);
+  // The list's open state lives here, not in the list: a picker disabled
+  // and enabled again (a task archived and then restored) mounts its list
+  // anew, and that list must come back shut, never open on its own.
+  const [open, setOpen] = useState(false);
+  if (disabled && open) setOpen(false);
 
   const glyph = priority ? (
     <TaskPriorityIcon priority={priority} />
@@ -115,7 +120,9 @@ export function PriorityPicker({
         'data-state': 'closed',
       } as const);
   const engage = () => {
-    if (!engaged) setEngaged(true);
+    if (engaged) return;
+    setEngaged(true);
+    setOpen(true);
   };
 
   // See AssigneePicker: keep the press/click off the draggable parent so it
@@ -174,6 +181,8 @@ export function PriorityPicker({
           onChange={onChange}
           align={align}
           trigger={trigger}
+          open={open}
+          onOpenChange={setOpen}
         />
       ) : (
         trigger
@@ -186,21 +195,24 @@ export function PriorityPicker({
   return showLabel ? picker : <Tooltip content={label}>{picker}</Tooltip>;
 }
 
-/** The picker's list, mounted open around its trigger on first use. */
+/** The picker's list, mounted around its trigger on first use. */
 function PriorityList({
   priority,
   onChange,
   align,
   trigger,
+  open,
+  onOpenChange,
 }: {
   priority: TaskPriority | null | undefined;
   onChange: (priority: TaskPriority | null) => void;
   align: 'start' | 'center' | 'end';
   trigger: ReactElement;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }) {
   const { t } = useT('tasks');
   const { t: tCommon } = useT('common');
-  const [open, setOpen] = useState(true);
 
   // "No priority" leads so a set priority can always be cleared back to it.
   const options: SearchableSelectOption[] = [
@@ -224,7 +236,7 @@ function PriorityList({
       }}
       options={options}
       open={open}
-      onOpenChange={setOpen}
+      onOpenChange={onOpenChange}
       align={align}
       trigger={trigger}
       aria-label={t('fields.priority')}
