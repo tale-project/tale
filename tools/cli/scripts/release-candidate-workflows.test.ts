@@ -1,12 +1,20 @@
 import { afterEach, describe, expect, test } from 'bun:test';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runInNewContext } from 'node:vm';
 
+import picomatch from 'picomatch';
 import { parse } from 'yaml';
 
+import releaseContract from '../../../.github/release-candidate-contract.json';
+import { fixtureGit } from '../src/lib/config/releases/tests/fixture-git';
+import {
+  admissionAssertions,
+  refreshContract,
+} from './release-candidate-contract';
 import {
   ALWAYS_PUSH_WORKFLOWS,
   CANDIDATE_JOBS,
@@ -1060,3 +1068,234 @@ git checkout -q --detach "$publication_source"
     }
   },
 );
+
+test('admission assertions close field shapes and bind inherited execution selectors', () => {
+  const source = {
+    name: 'Presentation',
+    on: { push: { branches: ['main'] } },
+    defaults: { run: { shell: 'bash', 'working-directory': 'tools/cli' } },
+    permissions: { contents: 'read' },
+    jobs: {
+      check: {
+        name: 'Required check',
+        'runs-on': 'ubuntu-latest',
+        defaults: { run: { shell: 'bash -e {0}' } },
+        permissions: { contents: 'read' },
+        'timeout-minutes': 10,
+        container: { image: 'pinned-image' },
+        services: { db: { image: 'pinned-db' } },
+        environment: 'validation',
+        steps: [
+          {
+            name: 'Presentation',
+            run: 'check',
+            shell: 'bash',
+            'working-directory': '.',
+          },
+        ],
+      },
+      reusable: { uses: './.github/workflows/required.yml' },
+    },
+  };
+  const assertions = admissionAssertions(source);
+  expect(assertions).toContainEqual({
+    path: [],
+    kind: 'keys',
+    expected: ['defaults', 'jobs', 'name', 'on', 'permissions'],
+  });
+  expect(assertions).toContainEqual({
+    path: ['defaults'],
+    kind: 'value',
+    expected: source.defaults,
+  });
+  expect(assertions).toContainEqual({
+    path: ['jobs', 'check', 'defaults'],
+    kind: 'value',
+    expected: source.jobs.check.defaults,
+  });
+  expect(assertions).toContainEqual({
+    path: ['jobs', 'check', 'steps', 0],
+    kind: 'keys',
+    expected: ['name', 'run', 'shell', 'working-directory'],
+  });
+  expect(assertions).toContainEqual({
+    path: ['jobs', 'check', 'steps', 0, 'shell'],
+    kind: 'value',
+    expected: 'bash',
+  });
+  expect(assertions).toContainEqual({
+    path: ['jobs', 'check', 'steps', 0, 'working-directory'],
+    kind: 'value',
+    expected: '.',
+  });
+  expect(assertions).toContainEqual({
+    path: ['jobs', 'reusable'],
+    kind: 'keys',
+    expected: ['uses'],
+  });
+  const edited = structuredClone(source);
+  edited.name = 'Reviewed presentation';
+  edited.jobs.check.steps[0]!.name = 'Reviewed step presentation';
+  edited.jobs.check.steps[0]!.run = "check && printf 'reviewed body marker\\n'";
+  expect(admissionAssertions(edited)).toEqual(assertions);
+  edited.defaults.run.shell = 'echo {0}';
+  expect(admissionAssertions(edited)).not.toEqual(assertions);
+  const jobDefault = structuredClone(source);
+  jobDefault.jobs.check.defaults.run.shell = 'echo {0}';
+  expect(admissionAssertions(jobDefault)).not.toEqual(assertions);
+  const stepShell = structuredClone(source);
+  stepShell.jobs.check.steps[0]!.shell = 'echo {0}';
+  expect(admissionAssertions(stepShell)).not.toEqual(assertions);
+  const stepDirectory = structuredClone(source);
+  stepDirectory.jobs.check.steps[0]!['working-directory'] = '/tmp';
+  expect(admissionAssertions(stepDirectory)).not.toEqual(assertions);
+});
+
+test('the shared source descriptor binds the full admission graph and event-specific jobs', async () => {
+  expect(releaseContract.schemaVersion).toBe(1);
+  expect(await refreshContract(root)).toEqual(releaseContract);
+  expect(releaseContract.requiredWorkflows.toSorted()).toEqual(
+    sourceWorkflows.map((stem) => `.github/workflows/${stem}.yml`).toSorted(),
+  );
+  expect(Object.keys(releaseContract.sourceWorkflows).toSorted()).toEqual(
+    sourceWorkflows.map((stem) => `${stem}.yml`).toSorted(),
+  );
+  for (const stem of sourceWorkflows) {
+    const file = await workflow(stem);
+    const contract =
+      releaseContract.sourceWorkflows[
+        `${stem}.yml` as keyof typeof releaseContract.sourceWorkflows
+      ];
+    expect<ReturnType<typeof admissionAssertions>>(
+      contract.assertions,
+      stem,
+    ).toEqual(admissionAssertions(file as unknown as Record<string, unknown>));
+    const prOnly = ['pr-scope', 'ci-ready']
+      .filter((id) => file.jobs[id])
+      .map((id) => file.jobs[id]!.name!);
+    const skipped = [
+      ...prOnly,
+      ...(stem === 'cli' ? ['Attach to release'] : []),
+    ];
+    expect(contract.candidateSkipped, stem).toEqual(skipped);
+    expect(contract.normal, stem).toEqual({
+      success: CANDIDATE_JOBS[stem]!.names.filter(
+        (name) =>
+          ![
+            'Candidate source / Resolve source',
+            'Candidate gate / Record receipt',
+          ].includes(name),
+      ),
+      skipped: ['Candidate source', 'Candidate gate', ...skipped],
+    });
+    expect(contract.events, stem).toEqual(
+      ['push', 'schedule', 'workflow_dispatch'].filter(
+        (event) =>
+          Object.hasOwn(file.on, event) &&
+          !(stem === 'cli' && event === 'workflow_dispatch'),
+      ),
+    );
+  }
+  const cli = releaseContract.sourceWorkflows['cli.yml'];
+  expect(cli.publication).toEqual({
+    success: [...cli.normal.success, 'Attach to release'],
+    skipped: cli.normal.skipped.filter((name) => name !== 'Attach to release'),
+  });
+  for (const [path, digest] of Object.entries(releaseContract.helpers))
+    expect(
+      createHash('sha256')
+        .update(await readFile(join(root, path)))
+        .digest('hex'),
+      path,
+    ).toBe(digest);
+});
+
+test('helper hashes survive an autocrlf checkout only with the repository attributes', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'release-helper-eol-'));
+  temporary.push(directory);
+  const globalAttributes = join(directory, 'empty-global-attributes');
+  await writeFile(globalAttributes, '');
+  const git = fixtureGit(directory, {
+    command: [
+      'git',
+      '-c',
+      'core.autocrlf=true',
+      '-c',
+      'core.safecrlf=false',
+      '-c',
+      `core.attributesFile=${globalAttributes}`,
+    ],
+  });
+  git('init', '--quiet');
+  const attributes = await readFile(join(root, '.gitattributes'));
+  await writeFile(join(directory, '.gitattributes'), attributes);
+  const paths = Object.keys(releaseContract.helpers);
+  for (const path of paths) {
+    await mkdir(dirname(join(directory, path)), { recursive: true });
+    await writeFile(join(directory, path), await readFile(join(root, path)));
+  }
+  git('add', '--', '.gitattributes', ...paths);
+  for (const withAttributes of [true, false]) {
+    // Checkout reads attributes from the index first, so change only that
+    // entry for the negative control. Both helper blobs remain identical.
+    await writeFile(
+      join(directory, '.gitattributes'),
+      withAttributes ? attributes : '',
+    );
+    git('add', '--', '.gitattributes');
+    for (const path of paths) await rm(join(directory, path));
+    git('checkout-index', '--force', '--', ...paths);
+    for (const [path, digest] of Object.entries(releaseContract.helpers)) {
+      const bytes = await readFile(join(directory, path));
+      const actual = createHash('sha256').update(bytes).digest('hex');
+      expect(bytes.includes('\r\n'), path).toBe(!withAttributes);
+      if (withAttributes) expect(actual, path).toBe(digest);
+      else expect(actual, path).not.toBe(digest);
+    }
+  }
+});
+
+test('source contract edits trigger native CI and invalidate CLI caches', async () => {
+  const filters = parse(
+    await readFile(join(root, '.github/ci-scope.yml'), 'utf8'),
+  ) as Record<string, string[]>;
+  const build = await workflow('build');
+  const cli = await workflow('cli');
+  const matches = (patterns: string[], path: string) =>
+    picomatch(patterns, { dot: true })(path);
+  const files = [
+    '.github/release-candidate-contract.json',
+    'tools/cli/scripts/release-candidate-contract.ts',
+    'tools/cli/scripts/release-candidate-gate.ts',
+    'tools/cli/scripts/release-candidate-workflows.test.ts',
+  ];
+  for (const path of files) {
+    for (const category of ['guard', 'build', 'build_ci_tests', 'cli'])
+      expect(matches(filters[category]!, path), `${category}: ${path}`).toBe(
+        true,
+      );
+    for (const [name, file] of [
+      ['build', build],
+      ['cli', cli],
+    ] as const)
+      expect(
+        matches((file.on.push as { paths: string[] }).paths, path),
+        `${name} push: ${path}`,
+      ).toBe(true);
+    // These sources govern evidence, not image contexts; keep the existing
+    // positive platform/ci_tests extglob and image-input discovery untouched.
+    expect(matches(filters.build_image_inputs!, path), path).toBe(false);
+  }
+  const turbo = JSON.parse(
+    await readFile(join(root, 'tools/cli/turbo.json'), 'utf8'),
+  );
+  expect(matches(filters.cli!, '.gitattributes')).toBe(true);
+  expect(
+    matches((cli.on.push as { paths: string[] }).paths, '.gitattributes'),
+  ).toBe(true);
+  expect(turbo.tasks.test.inputs).toContain('$TURBO_ROOT$/.gitattributes');
+  for (const task of ['transit', 'test'])
+    expect(turbo.tasks[task].inputs).toContain(
+      '$TURBO_ROOT$/.github/release-candidate-contract.json',
+    );
+});

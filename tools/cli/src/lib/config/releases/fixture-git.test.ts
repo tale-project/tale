@@ -3,6 +3,9 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
+import { stringify } from 'yaml';
+
+import { commandFixture, commandRelease } from './tests/command-fixture';
 import { fixture, temporary } from './tests/fixture';
 import {
   FIXTURE_GIT_BOUND_MS,
@@ -187,3 +190,121 @@ test('a stalled step is stopped and probed inside the per-test budget', () => {
   );
   expect(FIXTURE_GIT_BOUND_MS + FIXTURE_GIT_PROBE_MS).toBeLessThan(budget);
 });
+
+test('the default fixture retains its committed minimal documents and executable source', () => {
+  const f = fixture();
+  const committed = (file: string) =>
+    f.git(
+      'show',
+      `${f.options.sourceCommit}:${path.relative(f.root, path.join(f.pack, file)).replaceAll('\\', '/')}`,
+    );
+  expect(committed('workflow.yml')).toBe(
+    stringify({
+      name: 'acme-intake',
+      nodes: [
+        { id: 'start', type: 'start' },
+        {
+          id: 'script-0',
+          type: 'sandbox.run_script',
+          input: { skill: 'invoice', entry: 'scripts/run.py' },
+        },
+      ],
+    }).trim(),
+  );
+  expect(committed('automation.yml')).toBe(
+    stringify({
+      name: 'acme document intake',
+      scope: 'project',
+      skills: ['invoice'],
+      settings: { enabled: true },
+      subjects: { task: { workflow: 'acme-intake', externalSystem: 'acme' } },
+    }).trim(),
+  );
+  expect(f.git('ls-tree', '-r', f.options.sourceCommit)).toMatch(
+    /^100755 blob [a-f0-9]{40}\ttale\/clients\/acme\/packs\/acme-intake\/skills\/invoice\/scripts\/run.py$/m,
+  );
+  expect(f.git('rev-list', '--count', 'HEAD')).toBe('1');
+}, 30_000);
+
+test.each([true, false])(
+  'native fixture commits final bytes in its first revision (owned skill: %p)',
+  (owned) => {
+    const f = commandFixture('native-team', owned);
+    const failed = failure(() =>
+      f.git('rev-parse', '--verify', 'refs/heads/absent'),
+    );
+    const committed = (file: string) =>
+      f.git(
+        'show',
+        `${f.options.sourceCommit}:${path.relative(f.root, path.join(f.pack, file)).replaceAll('\\', '/')}`,
+      );
+    expect(committed('workflow.yml')).toBe(
+      stringify({
+        version: 1,
+        name: 'native-team-intake',
+        nodes: [
+          owned
+            ? {
+                id: 'work',
+                type: 'sandbox.run_script',
+                input: { skill: 'invoice', entry: 'scripts/run.py' },
+              }
+            : {
+                id: 'work',
+                type: 'transform',
+                code: 'return { received: true };',
+              },
+        ],
+        output: '{{ nodes.work.output }}',
+      }).trim(),
+    );
+    expect(committed('workflow.yml')).toBe(stringify(f.document).trim());
+    expect(committed('automation.yml')).toBe(
+      stringify({
+        name: 'native-team document intake',
+        scope: 'project',
+        skills: owned ? ['invoice'] : [],
+      }).trim(),
+    );
+    expect(committed('automation.yml')).toBe(stringify(f.metadata).trim());
+    expect(f.git('status', '--porcelain=v1', '--untracked-files=all')).toBe('');
+    const tree = f.git('ls-tree', '-r', f.options.sourceCommit);
+    if (owned)
+      expect(tree).toMatch(
+        /^100755 blob [a-f0-9]{40}\t.*\/skills\/invoice\/scripts\/run.py$/m,
+      );
+    else expect(tree).not.toContain('/skills/');
+    expect(
+      failed.startsWith(`Fixture git rev-parse (step ${owned ? 6 : 5}, `),
+    ).toBe(true);
+    expect(f.git('rev-list', '--count', 'HEAD')).toBe('1');
+    const other = commandFixture('native-team', owned);
+    expect(other.root).not.toBe(f.root);
+    expect(other.git('rev-list', '--count', 'HEAD')).toBe('1');
+    writeFileSync(
+      path.join(other.pack, 'README.md'),
+      'Independent source mutation\n',
+    );
+    expect(f.git('status', '--porcelain=v1', '--untracked-files=all')).toBe('');
+    expect(
+      other.git('status', '--porcelain=v1', '--untracked-files=all'),
+    ).toContain('M ');
+  },
+  30_000,
+);
+
+test('native catalogue commits retain their source parent and executable tree', async () => {
+  const f = await commandRelease();
+  expect(f.catalogueCommit).not.toBe(f.options.sourceCommit);
+  expect(f.git('rev-parse', 'HEAD^')).toBe(f.options.sourceCommit);
+  expect(f.git('rev-list', '--count', 'HEAD')).toBe('2');
+  expect(
+    f.git(
+      'show',
+      `${f.catalogueCommit}:${path.relative(f.root, f.manifestPath).replaceAll('\\', '/')}`,
+    ),
+  ).toBe(readFileSync(f.manifestPath, 'utf8').trim());
+  expect(f.git('ls-tree', '-r', f.catalogueCommit)).toMatch(
+    /^100755 blob [a-f0-9]{40}\t.*\/skills\/invoice\/scripts\/run.py$/m,
+  );
+}, 30_000);

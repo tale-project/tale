@@ -49,6 +49,7 @@ function stub(options: {
   automations?: unknown[];
   credentials?: unknown[];
   loading?: { automations?: boolean; credentials?: boolean };
+  credentialsError?: unknown;
 }): void {
   convexQuery.mockImplementation((ref: unknown, args: unknown) => {
     if (args === 'skip') return { data: undefined, isLoading: false };
@@ -57,7 +58,12 @@ function stub(options: {
       return { data: isLoading ? undefined : options.automations, isLoading };
     }
     const isLoading = options.loading?.credentials === true;
-    return { data: isLoading ? undefined : options.credentials, isLoading };
+    return {
+      data: isLoading ? undefined : options.credentials,
+      isLoading,
+      error: options.credentialsError,
+      refetch: vi.fn(),
+    };
   });
 }
 
@@ -169,6 +175,19 @@ describe('useEmailConnectors', () => {
     const { result } = renderHook(() => useEmailConnectors('org_1'));
 
     expect(result.current.emailConnectors).toEqual([]);
+  });
+
+  it('exposes credential read failures without treating them as an empty result', () => {
+    const error = new Error('temporary failure');
+    stub({
+      automations: [inboxPack('imap-smtp/sync-emails', 'imap-smtp')],
+      credentialsError: error,
+    });
+
+    const { result } = renderHook(() => useEmailConnectors('org_1'));
+
+    expect(result.current.emailConnectors).toEqual([]);
+    expect(result.current.error).toBe(error);
   });
 
   it('reports loading while either half is still in flight', () => {

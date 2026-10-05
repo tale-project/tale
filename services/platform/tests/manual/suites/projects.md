@@ -489,6 +489,21 @@ projects-list row ⋯ menu.
   announces the failure again. Unblock → **Try again** → the stored
   secret's row returns without a reload and the focus lands on the
   **Environment** group. Network shows no write in either state.
+- [ ] `PROJ-B17` · **A project read that fails is not a project that is gone**
+  — On a project you can edit, block the project's own read
+  `*/api/app/projects/<its id>?*` in DevTools (Network → request blocking)
+  and reload its **Overview** tab (`projects.navigation.overview`) → after
+  the retries (a few seconds) the header and the tab strip stay, and in
+  place of the tab an alert reads **Couldn't load this project.**
+  (`projects.loadFailed`) with **Try again** (`common.actions.tryAgain`);
+  never **We couldn't find that project. It may have been deleted.**
+  (`projects.errors.PROJECT_NOT_FOUND`) and never a blank tab — the Files
+  and Agents tabs show the same alert, and reopening the project from the
+  Home panel keeps you on it. Unblock → **Try again** → the Overview's form
+  returns without a reload and the focus lands on the content region named
+  after the project. A deleted project's link still shows the not-found
+  message with **Projects** (`projects.title`), and no alert. Network shows
+  no write in either state.
 
 - [ ] `PROJ-A1` · **Board DnD** → A keyboard path exists to move/reorder a
   task (not drag-only)

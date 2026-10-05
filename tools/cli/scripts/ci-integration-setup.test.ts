@@ -8,6 +8,9 @@ import { z } from 'zod';
 const workflow = fileURLToPath(
   new URL('../../../.github/workflows/checks.yml', import.meta.url),
 );
+const databaseDockerfile = fileURLToPath(
+  new URL('../../../services/db/Dockerfile', import.meta.url),
+);
 const integrationSchema = z.object({
   jobs: z.object({
     'backend-integration': z.object({
@@ -55,4 +58,35 @@ test('integration teardown is skipped only on an ephemeral runner while the from
   expect(proof?.env?.ITEST_LANES).toBeUndefined();
   expect(proof?.run).toContain('bun run backend:integration');
   expect(proof?.run).not.toContain('turbo');
+});
+
+test('database release metadata preserves cached filesystem layers and runtime version identity', async () => {
+  const instructions = (await readFile(databaseDockerfile, 'utf8'))
+    .replace(/\\\r?\n/g, ' ')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line && !line.startsWith('#'));
+  const runtime = instructions.slice(
+    instructions.findLastIndex((line) => /^FROM\s/i.test(line)) + 1,
+  );
+  const lastFilesystemChange = runtime.findLastIndex((line) =>
+    /^(?:RUN|COPY|ADD)\s/i.test(line),
+  );
+  expect(lastFilesystemChange).toBeGreaterThanOrEqual(0);
+  const versionArguments = runtime.filter((line) =>
+    /^ARG\s+VERSION(?:=|$)/i.test(line),
+  );
+  expect(versionArguments).toEqual(['ARG VERSION=dev']);
+  const versionArgument = runtime.indexOf(versionArguments[0]!);
+  expect(versionArgument).toBeGreaterThan(lastFilesystemChange);
+  const versionLabel = runtime.findIndex(
+    (line) =>
+      /^LABEL\s/i.test(line) &&
+      /org\.opencontainers\.image\.version="\$\{VERSION\}"/.test(line),
+  );
+  const versionEnvironment = runtime.findIndex((line) =>
+    /^ENV\s+TALE_VERSION=\$\{VERSION\}$/.test(line),
+  );
+  expect(versionLabel).toBeGreaterThan(versionArgument);
+  expect(versionEnvironment).toBeGreaterThan(versionArgument);
 });

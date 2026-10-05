@@ -37,15 +37,21 @@ export interface RunPendingAsk {
  * the answer onto the task timeline as the member's own comment BEFORE the
  * resume kicks (post-then-run, so the resumed agent can already read it).
  */
-export function RunAskCard({
-  organizationId,
-  ask,
-  onAnswerPosted,
-}: {
+interface RunAskCardProps {
   organizationId: string;
   ask: RunPendingAsk;
   onAnswerPosted?: (answer: string) => Promise<void>;
-}) {
+}
+
+export function RunAskCard(props: RunAskCardProps) {
+  return <RunAskAnswer key={props.ask.askId} {...props} />;
+}
+
+function RunAskAnswer({
+  organizationId,
+  ask,
+  onAnswerPosted,
+}: RunAskCardProps) {
   const { t } = useT('automations');
   const answerAsk = useAnswerHumanAsk();
   const inputId = useId();

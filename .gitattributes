@@ -8,3 +8,7 @@ design/sources/** linguist-vendored
 # Exclude migration schema/config baselines from Linguist — large generated JSON
 # fingerprints (see services/platform/scripts/check-{schema,config}-snapshot.ts).
 services/platform/convex/migrations/*.snapshot.json linguist-vendored
+
+# The release source contract hashes these helpers' raw checkout bytes.
+.github/workflows/release-candidate-receipt.yml text eol=lf
+.github/workflows/release-candidate-source.yml text eol=lf

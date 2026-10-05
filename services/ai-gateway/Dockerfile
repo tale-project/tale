@@ -67,13 +67,7 @@ WORKDIR /app
 # ============================================================================
 FROM oven/bun:1.3.12-slim AS runner
 
-ARG VERSION=dev
-LABEL org.opencontainers.image.version="${VERSION}" \
-      org.opencontainers.image.title="tale-ai-gateway" \
-      org.opencontainers.image.description="Multi-provider AI subscription credential gateway"
-
 ENV NODE_ENV=production \
-    TALE_VERSION=${VERSION} \
     PORT=3004 \
     HOSTNAME="0.0.0.0" \
     DO_NOT_TRACK=1
@@ -95,6 +89,14 @@ RUN chmod +x ./docker-entrypoint.sh
 # the unprivileged user rather than root — the server could not write it
 # otherwise. `AI_GATEWAY_DATA_DIR` still decides where the document goes.
 RUN mkdir -p /data && chown app:app /data
+
+# Keep version metadata after filesystem work so new releases reuse its layers.
+ARG VERSION=dev
+LABEL org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.title="tale-ai-gateway" \
+      org.opencontainers.image.description="Multi-provider AI subscription credential gateway"
+ENV TALE_VERSION=${VERSION}
+
 VOLUME ["/data"]
 
 USER app

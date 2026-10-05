@@ -1,4 +1,5 @@
 import { afterEach, expect, test } from 'bun:test';
+import { execFileSync } from 'node:child_process';
 import {
   mkdir,
   mkdtemp,
@@ -8,7 +9,7 @@ import {
   writeFile,
 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 
 import { parse } from 'yaml';
 
@@ -104,6 +105,128 @@ test('release checkouts remove persisted credentials while retaining complete co
     )?.with?.['fetch-depth'],
   ).toBe(0);
 });
+
+test.skipIf(process.platform === 'win32').each([
+  ['a tag away from HEAD', 'v1.2.3', '1.2.1', 'GET /tagged'],
+  ['a dispatch without a local tag', 'v1.2.4', '1.2.2', 'GET /head'],
+])(
+  'the sparse release checkout renders %s from full Git history',
+  async (_label, tag, version, operation) => {
+    const directory = await fixture();
+    const file = await workflow();
+    const checkout = file.jobs['create-release']!.steps.find(
+      (entry) => entry.name === 'Checkout',
+    )!;
+    expect(checkout.with?.['fetch-depth']).toBe(0);
+    expect(checkout.with?.['sparse-checkout-cone-mode']).toBe(false);
+    expect(checkout.with?.filter).toBeUndefined();
+    const patterns = String(checkout.with?.['sparse-checkout']);
+    expect(patterns.trim().split('\n')).toEqual([
+      '.github/release-notes',
+      'services/platform/scripts/openapi/contract-notes.ts',
+      'tools/cli/scripts/release-notes.ts',
+    ]);
+    const write = async (path: string, content: string) => {
+      await mkdir(join(directory, dirname(path)), { recursive: true });
+      await writeFile(join(directory, path), content);
+    };
+    for (const path of patterns.trim().split('\n').slice(1))
+      await write(path, await readFile(join(repository, path), 'utf8'));
+    for (const release of ['v1.2.3', 'v1.2.4'])
+      await write(
+        `.github/release-notes/${release}.md`,
+        '## Highlights\n\nAuthored release outcome.\n\n## Upgrade notes\n\nNo operator changes.\n',
+      );
+    const excluded = [
+      'README.md',
+      'tools/cli/scripts/sibling.ts',
+      'services/platform/scripts/openapi/spec.ts',
+      'nested/.github/release-notes/v1.2.3.md',
+      'nested/tools/cli/scripts/release-notes.ts',
+    ];
+    for (const path of excluded) await write(path, 'not a release input\n');
+    const fingerprint =
+      'services/platform/scripts/openapi/contract-fingerprint.json';
+    const openapi = 'services/platform/public/openapi.json';
+    const changelog = 'services/platform/lib/shared/constants/api-contract.ts';
+    const snapshot = async (value: string, path: string) => {
+      await write(fingerprint, JSON.stringify({ version: value }));
+      await write(openapi, JSON.stringify({ paths: { [path]: { get: {} } } }));
+      await write(
+        changelog,
+        `/**\n * ${value} — Fixture contract outcome.\n */\n`,
+      );
+    };
+    const git = (args: string[], input?: string) =>
+      execFileSync(
+        'git',
+        [
+          '-c',
+          'core.hooksPath=/dev/null',
+          '-c',
+          'commit.gpgsign=false',
+          '-c',
+          'user.name=Release fixture',
+          '-c',
+          'user.email=release-fixture@example.invalid',
+          ...args,
+        ],
+        { cwd: directory, encoding: 'utf8', timeout: 10_000, input },
+      );
+    const commit = (message: string) => {
+      git(['add', '.']);
+      git(['commit', '--quiet', '-m', message]);
+    };
+    git(['init', '--quiet']);
+    await snapshot('1.2.0', '/previous');
+    commit('previous contract');
+    git(['tag', 'v1.2.2']);
+    await snapshot('1.2.1', '/tagged');
+    commit('tagged contract');
+    git(['tag', 'v1.2.3']);
+    await snapshot('1.2.2', '/head');
+    commit('later contract');
+    git(['sparse-checkout', 'set', '--no-cone', '--stdin'], patterns);
+    for (const path of [...excluded, fingerprint, openapi, changelog])
+      expect(await Bun.file(join(directory, path)).exists(), path).toBe(false);
+    expect(git(['rev-parse', '--is-shallow-repository']).trim()).toBe('false');
+    expect(git(['rev-list', '--count', 'HEAD']).trim()).toBe('3');
+    expect(git(['tag', '--list']).trim().split('\n')).toEqual([
+      'v1.2.2',
+      'v1.2.3',
+    ]);
+    // Only redirect scratch outputs; run the actual workflow bodies and Git
+    // commands against the sparse tree without installed dependencies.
+    const describe = (
+      await step('create-release', 'Describe API contract changes')
+    ).run!.replaceAll('/tmp/contract', join(directory, 'contract-output'));
+    const described = await execute(describe, directory, { TAG: tag });
+    expect(described.code, described.stderr).toBe(0);
+    const authored = (
+      await step('create-release', 'Lead with authored release outcomes')
+    )
+      .run!.replaceAll('/tmp/contract', join(directory, 'contract-output'))
+      .replaceAll('/tmp/release-notes.md', join(directory, 'rendered.md'));
+    const rendered = await execute(authored, directory, { TAG: tag });
+    expect(rendered.code, rendered.stderr).toBe(0);
+    const notes = await readFile(join(directory, 'rendered.md'), 'utf8');
+    expect(notes).toContain('Authored release outcome.');
+    expect(notes).toContain(`to ${version}`);
+    expect(notes).toContain(`- \`${operation}\``);
+    expect(notes.indexOf('## Upgrade notes')).toBeLessThan(
+      notes.indexOf('## API contract changes'),
+    );
+    if (tag === 'v1.2.3') {
+      expect(notes).not.toContain('GET /head');
+      expect(described.stdout).toContain('refs/tags/v1.2.3 with v1.2.2');
+    } else {
+      expect(described.stdout).toContain(
+        'Comparing the contract at HEAD with v1.2.3',
+      );
+      expect(described.stdout).toContain('::warning::tag v1.2.4');
+    }
+  },
+);
 
 test.skipIf(process.platform === 'win32').each([
   ['sites with headroom', 'true', '20971520', false],

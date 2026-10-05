@@ -3,7 +3,7 @@ import '@testing-library/jest-dom/vitest';
 import { cleanup } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { render, screen, waitFor } from '@/tests/utils/render';
+import { render, screen, waitFor, within } from '@/tests/utils/render';
 
 // ---------------------------------------------------------------------------
 // The project shell shows an Automations tab only when something is bound to
@@ -340,6 +340,94 @@ describe('project shell — a project that is gone', () => {
       params: { id: 'org-1' },
       replace: true,
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// #3885: a project read that FAILED is not a project that is gone. The shell
+// read both as "We couldn't find that project. It may have been deleted." —
+// and on a restored arrival dropped the memory and left for the list. It
+// stays, says the read failed and tries it again; no tab renders without its
+// project (Files and Agents would show nothing).
+// ---------------------------------------------------------------------------
+describe('project shell — a project read that failed', () => {
+  const retry = vi.fn();
+  const failedRead = {
+    project: null,
+    isLoading: false,
+    unavailable: true,
+    stale: false,
+    retrying: false,
+    failureCount: 1,
+    retry,
+  };
+
+  function setupFailed(overrides: Record<string, unknown> = {}) {
+    mockUseProject.mockReturnValue({ ...failedRead, ...overrides });
+    mockUseAutomations.mockReturnValue({ data: [] });
+    return render(<ProjectDetailLayout />);
+  }
+
+  const tryAgain = () =>
+    screen.getByRole('button', { name: 'common.actions.tryAgain' });
+
+  it('says the read failed inside the shell, never that the project is gone', () => {
+    setupFailed();
+
+    const content = screen.getByRole('region', { name: 'projects.title' });
+    expect(within(content).getByRole('alert')).toHaveTextContent(
+      'projects.loadFailed',
+    );
+    expect(
+      screen.queryByText('projects.errors.PROJECT_NOT_FOUND'),
+    ).not.toBeInTheDocument();
+    // The shell keeps its tab strip; the tab itself waits for its project.
+    expect(
+      screen.getByRole('link', { name: 'projects.navigation.overview' }),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId('outlet')).not.toBeInTheDocument();
+  });
+
+  it('tries the read again from the alert', async () => {
+    const { user } = setupFailed();
+
+    await user.click(tryAgain());
+
+    expect(retry).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps Try again busy, not gone, while the retry runs', () => {
+    // react-query puts a read that never answered back to loading as the
+    // retry starts; the alert holds still instead of a skeleton.
+    setupFailed({ isLoading: true, retrying: true });
+
+    expect(tryAgain()).toHaveAttribute('aria-busy', 'true');
+    expect(screen.queryByTestId('outlet')).not.toBeInTheDocument();
+  });
+
+  it('keeps the memory and the place on a restored arrival', () => {
+    mockLocation.state = { navRestore: true };
+    setupFailed();
+
+    expect(mockNavigate).not.toHaveBeenCalled();
+    expect(screen.getByRole('alert')).toBeInTheDocument();
+  });
+
+  it('opens the tab, and hands it the focus, when Try again worked', async () => {
+    const { rerender } = setupFailed();
+    tryAgain().focus();
+
+    mockUseProject.mockReturnValue({
+      ...failedRead,
+      project: { _id: 'proj-1', name: 'Apollo', canAdminister: false },
+      unavailable: false,
+    });
+    rerender(<ProjectDetailLayout />);
+
+    expect(screen.getByTestId('outlet')).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByRole('region', { name: 'Apollo' })).toHaveFocus(),
+    );
   });
 });
 

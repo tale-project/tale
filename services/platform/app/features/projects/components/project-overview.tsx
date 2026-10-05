@@ -33,6 +33,7 @@ import { ProjectArchiveSection } from './project-archive-section';
 import { ProjectDangerZone } from './project-danger-zone';
 import { ProjectIdentityPicker } from './project-identity-picker';
 import { ProjectInstructionsEditor } from './project-instructions-editor';
+import { ProjectReadError } from './project-read-error';
 import { ProjectReadOnlyBanner } from './project-read-only-banner';
 import { ProjectSharingSection } from './project-sharing-section';
 import { ProjectTaskReviewerSection } from './project-task-reviewer-section';
@@ -89,7 +90,8 @@ function ProjectOverviewContent({
 }: ProjectOverviewProps) {
   const { t } = useT('projects');
   const { t: tCommon } = useT('common');
-  const { project } = useProject(projectId);
+  const projectRead = useProject(projectId);
+  const { project } = projectRead;
   const { mutateAsync: updateIdentity } = useUpdateProjectIdentity();
 
   const identitySchema = useMemo(
@@ -197,7 +199,19 @@ function ProjectOverviewContent({
   const iconValue = watch('icon');
   const colorValue = watch('color');
 
-  if (!project) return null;
+  if (!project) {
+    // The project shell answers both states before this page mounts; on its
+    // own, the page still says what happened rather than going blank
+    // (#3885): a read that failed, with Try again, or a project the read
+    // answered as gone. Its first read stays under the shell's skeleton.
+    if (projectRead.unavailable) return <ProjectReadError read={projectRead} />;
+    if (projectRead.isLoading) return null;
+    return (
+      <ContentArea variant="narrow" className="py-6">
+        <Text variant="muted">{t('errors.PROJECT_NOT_FOUND')}</Text>
+      </ContentArea>
+    );
+  }
 
   // An archived project is read-only for everyone (the backend drops
   // `canEdit` with it) — only Restore, in the Archive section below, and

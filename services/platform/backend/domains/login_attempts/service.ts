@@ -74,10 +74,19 @@ export interface RecordFailureResult {
  * from the strictest applicable policy, write per-org audit rows, and (on
  * the first threshold crossing) notify org admins. Unknown emails are a
  * no-op — no row, no audit — to avoid enumeration and DoS amplification.
+ * `passwordCheck` stamps the rows of a password a signed-in person typed
+ * somewhere other than the sign-in form — re-authentication, or confirming
+ * an account change (`auth/password-attempts.ts`) — which counts like a
+ * sign-in.
  */
 export async function recordFailure(
   tx: TransactionSql,
-  args: { email: string; ip?: string; userAgent?: string },
+  args: {
+    email: string;
+    ip?: string;
+    userAgent?: string;
+    passwordCheck?: string;
+  },
 ): Promise<RecordFailureResult> {
   const email = normalizeAuthEmail(args.email);
   const user = await findUserByEmail(tx, email);
@@ -121,6 +130,10 @@ export async function recordFailure(
   const ipParts = args.ip !== undefined ? await splitIpForAudit(args.ip) : {};
   const notifyEmail = emailParts.hash ?? emailParts.plaintext ?? email;
   const notifyIp = ipParts.hash ?? ipParts.plaintext ?? 'unknown';
+  const stamp =
+    args.passwordCheck !== undefined
+      ? { passwordCheck: args.passwordCheck }
+      : {};
 
   for (const { organizationId } of orgs) {
     await createAuditLog(tx, {
@@ -149,6 +162,7 @@ export async function recordFailure(
         ...(lockedUntil !== null
           ? { lockedUntil: new Date(lockedUntil).toISOString() }
           : {}),
+        ...stamp,
       },
     });
 
@@ -178,6 +192,7 @@ export async function recordFailure(
           consecutiveFailures: newFailures,
           lockedUntil:
             lockedUntil !== null ? new Date(lockedUntil).toISOString() : null,
+          ...stamp,
         },
       });
     }
@@ -246,13 +261,27 @@ export async function recordBlocked(
   `;
 }
 
-/** Clear failure state on successful sign-in + write the success audit rows. */
+/** Clear the failure counter of `email` — a password proved right. */
+export async function clearFailures(
+  tx: TransactionSql,
+  email: string,
+): Promise<void> {
+  await tx`DELETE FROM app.login_attempts WHERE email = ${normalizeAuthEmail(email)}`;
+}
+
+/** Clear failure state on successful sign-in + write the success audit rows.
+ * `passwordCheck` stamps the rows of a re-authentication. */
 export async function clearOnSuccess(
   tx: TransactionSql,
-  args: { email: string; ip?: string; userAgent?: string },
+  args: {
+    email: string;
+    ip?: string;
+    userAgent?: string;
+    passwordCheck?: string;
+  },
 ): Promise<void> {
   const email = normalizeAuthEmail(args.email);
-  await tx`DELETE FROM app.login_attempts WHERE email = ${email}`;
+  await clearFailures(tx, email);
 
   const user = await findUserByEmail(tx, email);
   if (!user) {
@@ -283,6 +312,9 @@ export async function clearOnSuccess(
       ...(ipParts.hash !== undefined ? { actorIpHash: ipParts.hash } : {}),
       ...(args.userAgent !== undefined ? { userAgent: args.userAgent } : {}),
       status: 'success',
+      ...(args.passwordCheck !== undefined
+        ? { metadata: { passwordCheck: args.passwordCheck } }
+        : {}),
     });
   }
 }

@@ -34,6 +34,7 @@ import {
   DEMO_KNOWLEDGE_ENTRIES,
   DEMO_ORG_NAME,
   DEMO_OWNER,
+  DEMO_PASSKEY_NAME,
   DEMO_PROJECT_AGENTS,
   DEMO_PROJECT_FILES,
   DEMO_PRODUCTS,
@@ -1514,6 +1515,73 @@ export const SHOTS: readonly Shot[] = [
     readyWhen: (page) => page.getByText(DEMO_WEBDAV_RETIRED_LABEL),
     // The connection URL shows the capture rig's localhost origin.
     sanitize: replaceRigNames,
+  },
+  {
+    // Settings > Account — the sign-in methods a member manages for
+    // themselves: the password, two-factor authentication and passkeys, with
+    // one passkey registered. `prepare` registers it through the real dialog
+    // against a virtual authenticator (the WebAuthn ceremony a browser runs),
+    // confirming the password first when the stored session is older than a
+    // day. The passkey stays; a later run finds it listed and skips ahead.
+    name: 'settings-account-security',
+    section: 'platform',
+    route: '/dashboard/:orgId/settings/account',
+    // Tall enough for the whole page, Profile down to Passkeys.
+    viewport: { width: 1440, height: 1260 },
+    prepare: async (page) => {
+      const passkeys = page.getByRole('region', {
+        name: t('twoFactor.passkeys.title'),
+      });
+      const add = passkeys.getByRole('button', {
+        name: t('twoFactor.passkeys.addButton'),
+      });
+      const listed = passkeys.getByRole('cell', { name: DEMO_PASSKEY_NAME });
+      // The list reads after the section paints: wait for its answer.
+      await expect(
+        listed.or(passkeys.getByText(t('twoFactor.passkeys.empty'))),
+      ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+      if (await listed.isVisible()) return;
+
+      const cdp = await page.context().newCDPSession(page);
+      await cdp.send('WebAuthn.enable');
+      await cdp.send('WebAuthn.addVirtualAuthenticator', {
+        options: {
+          protocol: 'ctap2',
+          transport: 'internal',
+          hasResidentKey: true,
+          hasUserVerification: true,
+          isUserVerified: true,
+          automaticPresenceSimulation: true,
+        },
+      });
+      await add.click();
+      const dialog = page.getByRole('dialog', {
+        name: t('twoFactor.passkeys.addButton'),
+      });
+      const password = dialog.getByRole('textbox', {
+        name: t('twoFactor.confirmPassword.label'),
+        exact: true,
+      });
+      const name = dialog.getByRole('textbox', {
+        name: t('twoFactor.passkeys.nameLabel'),
+      });
+      await expect(password.or(name)).toBeVisible();
+      if (await password.isVisible()) {
+        await password.fill(DEMO_OWNER.password);
+        await dialog
+          .getByRole('button', { name: t('twoFactor.confirmPassword.submit') })
+          .click();
+      }
+      await name.fill(DEMO_PASSKEY_NAME);
+      await dialog
+        .getByRole('button', { name: t('twoFactor.passkeys.addButton') })
+        .click();
+      await expect(dialog).toBeHidden({ timeout: TIMEOUT.PERSIST });
+    },
+    readyWhen: (page) =>
+      page
+        .getByRole('region', { name: t('twoFactor.passkeys.title') })
+        .getByRole('cell', { name: DEMO_PASSKEY_NAME }),
   },
   {
     // Settings > Preferences — the custom-instructions section with its

@@ -18,7 +18,7 @@ const task = (overrides: Partial<TaskOwnership> = {}): TaskOwnership => ({
 });
 
 describe('the task access rule', () => {
-  it('grants creating to every reader and editing to the editor roles', () => {
+  it('grants creating to every reader and editing to the editor roles [TASK-R1]', () => {
     for (const role of ['owner', 'admin', 'developer', 'editor', 'member']) {
       const access = taskAccessFrom(checkProjectAccess(null, [], role));
       expect(access.canCreate).toBe(true);
@@ -49,7 +49,7 @@ describe('the task access rule', () => {
     expect(isOwnTask(task(), 'user-1')).toBe(false);
   });
 
-  it('an agent, automation or import author makes a task nobody’s own', () => {
+  it('an agent, automation or import author makes a task nobody’s own [TASK-R2]', () => {
     for (const createdByType of ['agent', 'app']) {
       expect(
         isOwnTask(task({ createdBy: 'user-1', createdByType }), 'user-1'),
@@ -63,7 +63,7 @@ describe('the task access rule', () => {
     ).toBe(false);
   });
 
-  it('an editor works every task; a reader works their own', () => {
+  it('an editor works every task; a reader works their own [TASK-R2]', () => {
     const editor = { canEdit: true, canCreate: true };
     const reader = { canEdit: false, canCreate: true };
     expect(canWorkTask(editor, task(), 'user-1')).toBe(true);
@@ -87,7 +87,7 @@ describe('the task access rule', () => {
     ).toBe(false);
   });
 
-  it('work rights run down the subtask tree', () => {
+  it('work rights run down the subtask tree [TASK-R2]', () => {
     const reader = { canEdit: false, canCreate: true };
     // An agent broke the member's task down: the subtask is nobody's own,
     // but it sits under the member's task, at any depth.
@@ -106,7 +106,7 @@ describe('the task access rule', () => {
     ).toBe(false);
   });
 
-  it('the starter of a live run may stop and steer it on a task no longer theirs', () => {
+  it('the starter of a live run may stop and steer it on a task no longer theirs [TASK-R3]', () => {
     const reader = { canEdit: false, canCreate: true };
     // The member handed their assigned task to an agent: it is the agent's
     // now, but the run is theirs.

@@ -1,6 +1,6 @@
 # Auth & account
 
-> **Prefix** `AUTH-` · **Reset** none · **Cost** 52 boxes
+> **Prefix** `AUTH-` · **Reset** none · **Cost** 58 boxes
 
 Exercise sign-in, the account/security model (password policy, 2FA, passkeys,
 backup codes), the first-run and create-org wizards, the post-grace 2FA
@@ -246,6 +246,38 @@ compute codes from the enrollment secret.
   (`settings.logs.audit.actionLabels.connector_credential.deleted`), each
   naming the credential and, in its detail, the connector and auth method;
   no row carries the secret or the connector's configuration.
+- [ ] `AUTH-F29` · **Add a passkey a day after signing in** — Signed in with
+  a password, date your session back past a day:
+  `docker exec tale-db psql -U tale -d tale_app -c "UPDATE \"session\" SET
+  \"createdAt\" = now() - interval '25 hours' WHERE \"userId\" = (SELECT id
+  FROM \"user\" WHERE email = '<you>')"`. On
+  `/dashboard/{org}/settings/account` choose **Add a passkey**
+  (`twoFactor.passkeys.addButton`) → the dialog first asks for **Password**
+  (`twoFactor.confirmPassword.label`), focused, under **You signed in a while
+  ago. Confirm your password to add a passkey.**
+  (`twoFactor.passkeys.confirmPasswordDescription`), with no passkey name yet.
+  Enter the password → **Confirm** (`twoFactor.confirmPassword.submit`) → the
+  same dialog asks for **Passkey name** (`twoFactor.passkeys.nameLabel`),
+  focused; **Add a passkey** → the browser's passkey prompt opens (Chromium's
+  devtools **WebAuthn** panel can stand in an authenticator) and, completed,
+  the passkey is listed. "Session is not fresh" never shows. With a session
+  under a day old the dialog opens on **Passkey name** directly. Repeat with
+  Deutsch and Français → the password step is localized.
+- [ ] `AUTH-F30` · **Register a passkey on the enrollment wall after the
+  grace** — With **Require two-factor authentication** on and a grace of 0
+  days for the organization, sign in as a member with a password and no
+  second factor → `/2fa-enroll`. Date that session back as in `AUTH-F29`,
+  then choose **Register a passkey instead**
+  (`twoFactor.enroll.usePasskeyButton`) → the password step; **Confirm** →
+  **Passkey name**; **Add a passkey** and complete the prompt → **Passkey
+  registered** (`twoFactor.passkeys.registered`) and the dashboard opens; a
+  reload stays there. A member who signs in only through SSO (exemption off)
+  instead reads **You signed in a while ago. Sign in again, then add your
+  passkey.** (`twoFactor.passkeys.signInAgainDescription`) with **Sign in
+  again** (`auth.accountUnavailable.signInAgain`), which ends the session and
+  opens `/log-in?redirectTo=…`.
+
+- [ ] `AUTH-F31` · **Recognize the authenticator environment** — On a test deployment (`TOTP_ENVIRONMENT=te`), scan a new enrollment from Account and from the required enrollment screen → the authenticator offers `Tale <TE>` with your e-mail, and its code completes verification. Production (`pr`) offers `Tale`. A previously saved entry keeps its name and still signs in; rename it in the authenticator app if needed.
 
 ## Boundary & error tests
 
@@ -446,6 +478,45 @@ compute codes from the enrollment secret.
   passkeys are listed and the focus rests on the Passkeys section, never on
   the page. Repeat with Deutsch and Français → the notice and **Try again**
   are localized.
+- [ ] `AUTH-B17` · **A wrong password before adding a passkey** — In
+  `AUTH-F29`'s password step, enter a wrong password → **Confirm** → the field
+  says **Wrong password. Repeated failed attempts temporarily lock your
+  account.** (`twoFactor.confirmPassword.wrongPassword`) and the dialog stays
+  on the password step; `/dashboard/{org}/settings/logs` lists a **Login
+  attempt** (`settings.logs.audit.actionLabels.login_attempt`) for you whose
+  detail carries `passwordCheck: reauthenticate`. Keep failing until the account locks (5
+  attempts under the default login policy) → the field says the account is
+  temporarily locked and for how long (`auth.login.accountLockedSeconds`),
+  and the log-in page in another browser profile refuses the same account
+  too. Once the wait is over, the right password → **Passkey name**, and the
+  log lists a **Login success**
+  (`settings.logs.audit.actionLabels.login_success`) carrying
+  `passwordCheck: reauthenticate`.
+- [ ] `AUTH-B18` · **Wrong passwords in the two-factor prompts lock the
+  account** — Signed in with a password, on `/dashboard/{org}/settings/account`
+  choose **Enable two-factor** (`twoFactor.enrollment.enableButton`), enter a
+  wrong password → **Confirm** (`twoFactor.confirmPassword.submit`) → the
+  field says **Wrong password. Repeated failed attempts temporarily lock your
+  account.** (`twoFactor.confirmPassword.wrongPassword`), never Better Auth's
+  English "Invalid password"; `/dashboard/{org}/settings/logs` lists a
+  **Login attempt** (`settings.logs.audit.actionLabels.login_attempt`) whose
+  detail carries `passwordCheck: two_factor_enable`. Keep failing until the
+  account locks (5 attempts under the default login policy) → the field says
+  the account is temporarily locked and for how long
+  (`auth.login.accountLockedSeconds`), and the log-in page in another browser
+  profile refuses the same account. After the wait, the right password opens
+  the authenticator setup and no **Login success** row appears for it. With
+  two-factor on, **Disable** and **Regenerate backup codes** answer a wrong
+  password the same way.
+- [ ] `AUTH-B19` · **A wrong current password locks the account** — In
+  **Change password** (`auth.changePassword.title`), fill a wrong **Current
+  password** (`auth.changePassword.currentPassword`) and a valid new one →
+  submit → the field says **Current password is incorrect**
+  (`auth.changePassword.validation.currentIncorrect`) and the log lists a
+  **Login attempt** carrying `passwordCheck: change_password`. Keep failing
+  until the account locks → the field says the account is temporarily locked
+  and for how long (`auth.login.accountLockedSeconds`), no toast appears, and
+  you stay signed in; after the wait the right current password changes it.
 
 ## Accessibility (WCAG 2.1 AA)
 
