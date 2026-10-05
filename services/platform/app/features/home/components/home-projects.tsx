@@ -34,7 +34,7 @@ import {
   PinOff,
   SquarePen,
 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { memo, useMemo, useState } from 'react';
 
 import { ProjectRowsSkeleton } from '@/app/components/layout/home-panel-skeleton';
 import {
@@ -58,7 +58,7 @@ export interface HomeProjectScope {
   readonly onChange: (projectId: string | undefined) => void;
 }
 
-function HomeProjectRow({
+const HomeProjectRow = memo(function HomeProjectRow({
   organizationId,
   project,
   active,
@@ -190,7 +190,7 @@ function HomeProjectRow({
       </div>
     </li>
   );
-}
+});
 
 export function HomeProjects({
   organizationId,

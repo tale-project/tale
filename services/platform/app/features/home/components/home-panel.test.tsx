@@ -74,6 +74,28 @@ vi.mock('../hooks/use-home-data', async (importOriginal) => {
   };
 });
 
+const NO_HOLDS = vi.hoisted(() => ({
+  status: 'ready' as const,
+  data: { orgHeld: false, targetIds: [] as string[] },
+}));
+
+// Every row reads its age once per render: the calls say which rows rendered.
+const ageReads = vi.hoisted(() => ({ current: [] as (number | undefined)[] }));
+vi.mock('../hooks/use-compact-age', async (importOriginal) => {
+  const original =
+    await importOriginal<typeof import('../hooks/use-compact-age')>();
+  return {
+    ...original,
+    useCompactAge: (
+      timestamp: number | undefined,
+      options?: { paused?: boolean },
+    ) => {
+      ageReads.current.push(timestamp);
+      return original.useCompactAge(timestamp, options);
+    },
+  };
+});
+
 vi.mock('@/app/features/chat/data/chat-backend', async (importOriginal) => {
   const original =
     await importOriginal<
@@ -81,10 +103,8 @@ vi.mock('@/app/features/chat/data/chat-backend', async (importOriginal) => {
     >();
   return {
     ...original,
-    useThreadHolds: () => ({
-      status: 'ready',
-      data: { orgHeld: false, targetIds: [] },
-    }),
+    // One object, as react-query hands back an unchanged answer.
+    useThreadHolds: () => NO_HOLDS,
     useProjectPin: () => ({ available: true, setPinned: vi.fn() }),
     useThreadProjectMove: () => ({ available: true, move: vi.fn() }),
     useArchivedThreads: () => ({ status: 'ready', data: [] }),
@@ -222,6 +242,22 @@ describe('HomeNavigator', () => {
     expect(
       within(stream()).getByRole('link', { current: 'page' }),
     ).toHaveAttribute('href', '/dashboard/org-1/chat/t1');
+  });
+
+  // A long list re-rendered every row on every navigation — 600 chats and
+  // 250 projects, three times over on one chat switch.
+  it('re-renders only the rows a navigation closes and opens', () => {
+    const view = render(<HomeNavigator organizationId="org-1" />);
+    ageReads.current = [];
+
+    location.current = { pathname: '/dashboard/org-1/tasks/k1', search: {} };
+    view.rerender(<HomeNavigator organizationId="org-1" />);
+
+    expect(
+      within(stream()).getByRole('link', { current: 'page' }),
+    ).toHaveAttribute('href', '/dashboard/org-1/tasks/k1');
+    // The chat that closed and the task that opened; not the conversation.
+    expect(new Set(ageReads.current)).toEqual(new Set([TODAY, TODAY - 1000]));
   });
 
   it('narrows the stream to one kind from the switcher, and remembers it', async () => {

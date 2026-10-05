@@ -86,6 +86,37 @@ function isInboxStatus(value: unknown): value is InboxStatus {
   );
 }
 
+/**
+ * One stream item per thread summary. A refetch of the chat list keeps the
+ * summary of every thread that did not change (react-query shares the
+ * structure of an equal answer), so its item — and with it its row's memo —
+ * survives a send, a hint or a turn in another chat, and only the threads
+ * that moved re-render.
+ */
+const chatItemByThread = new WeakMap<ChatThreadSummary, HomeChatItem>();
+
+function toHomeChatItem(thread: ChatThreadSummary): HomeChatItem {
+  const known = chatItemByThread.get(thread);
+  if (known !== undefined) return known;
+  const item: HomeChatItem = {
+    kind: 'chat',
+    id: thread.id,
+    title: thread.title ?? '',
+    activityAt: thread.lastReplyAt ?? thread.updatedAt ?? thread.createdAt,
+    unread:
+      !thread.generating &&
+      thread.lastReplyAt !== undefined &&
+      thread.lastReplyAt > (thread.lastReadAt ?? 0),
+    projectId: thread.projectId,
+    pinnedAt: thread.pinnedAt,
+    generating: thread.generating,
+    shared: thread.isShared === true || thread.sharedWithProject === true,
+    archived: thread.archived ?? false,
+  };
+  chatItemByThread.set(thread, item);
+  return item;
+}
+
 type ConversationListRow = ReturnType<
   typeof useListConversationsPaginated
 >['results'][number];
@@ -209,21 +240,7 @@ export function useHomeData(
         }
       }
     }
-    return list.map((thread) => ({
-      kind: 'chat',
-      id: thread.id,
-      title: thread.title ?? '',
-      activityAt: thread.lastReplyAt ?? thread.updatedAt ?? thread.createdAt,
-      unread:
-        !thread.generating &&
-        thread.lastReplyAt !== undefined &&
-        thread.lastReplyAt > (thread.lastReadAt ?? 0),
-      projectId: thread.projectId,
-      pinnedAt: thread.pinnedAt,
-      generating: thread.generating,
-      shared: thread.isShared === true || thread.sharedWithProject === true,
-      archived: thread.archived ?? false,
-    }));
+    return list.map(toHomeChatItem);
   }, [threads, archivedThreads, includeArchived]);
 
   const taskItems = useMemo((): HomeTaskItem[] => {

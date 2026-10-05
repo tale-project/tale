@@ -54,7 +54,7 @@ import type { ChatThreadSummary } from '../types';
 import { LegalHoldIndicator } from './legal-hold-indicator';
 import { ThreadDeleteDialog } from './thread-delete-dialog';
 import { useThreadDraggable } from './thread-dnd';
-import { useThreadListFrame } from './thread-list-context';
+import { useActiveThreadId, useThreadListFrame } from './thread-list-context';
 
 interface ThreadRowProps {
   thread: ChatThreadSummary;
@@ -64,8 +64,8 @@ interface ThreadRowProps {
 
 export function ThreadRow({ thread, variant = 'default' }: ThreadRowProps) {
   const { t } = useT('chat');
-  const { organizationId, activeThreadId, orgHeld, heldThreadIds } =
-    useThreadListFrame();
+  const { organizationId, orgHeld, heldThreadIds } = useThreadListFrame();
+  const activeThreadId = useActiveThreadId();
   const active = thread.id === activeThreadId;
   // The lock renders only for a hold on THIS thread — an org-wide hold on
   // every row would read as noise; the menu's disabled items carry it there.
@@ -362,7 +362,9 @@ export function ThreadRowMenu({
       ]
     : [];
 
-  const items: DropdownMenuGroup[] =
+  // Built when the menu opens: every chat row carries this menu, and its
+  // Move-to-project submenu lists every project of the organization.
+  const items = (): DropdownMenuGroup[] =>
     variant === 'archived'
       ? [
           ...heldNotice,

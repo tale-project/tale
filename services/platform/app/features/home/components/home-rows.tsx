@@ -21,7 +21,7 @@ import {
   Share2,
   SquarePen,
 } from 'lucide-react';
-import { useState, type CSSProperties, type ReactNode } from 'react';
+import { memo, useState, type CSSProperties, type ReactNode } from 'react';
 
 import { useThreadDraggable } from '@/app/features/chat/components/thread-dnd';
 import { useThreadListFrame } from '@/app/features/chat/components/thread-list-context';
@@ -178,7 +178,7 @@ function ProjectMarker({ project }: { project: ChatProjectSummary }) {
  * share, archive, delete — through the row menu an archived chat's row
  * shares, on the same handlers as the chat header's menu.
  */
-export function HomeChatRow({
+export const HomeChatRow = memo(function HomeChatRow({
   item,
   thread,
   project,
@@ -293,7 +293,7 @@ export function HomeChatRow({
       )}
     </li>
   );
-}
+});
 
 /** The provisional row while a fresh chat is being written. */
 export function HomeDraftChatRow({
@@ -334,7 +334,7 @@ export function HomeDraftChatRow({
 
 // ───────────────────────────── tasks ─────────────────────────────
 
-export function HomeTaskRow({
+export const HomeTaskRow = memo(function HomeTaskRow({
   item,
   organizationId,
   active,
@@ -392,7 +392,7 @@ export function HomeTaskRow({
       </Link>
     </li>
   );
-}
+});
 
 // ───────────────────────────── conversations ─────────────────────────────
 
@@ -405,7 +405,7 @@ export interface HomeRowSelection {
   readonly label: string;
 }
 
-export function HomeConversationRow({
+export const HomeConversationRow = memo(function HomeConversationRow({
   item,
   organizationId,
   active,
@@ -504,4 +504,4 @@ export function HomeConversationRow({
       )}
     </li>
   );
-}
+});

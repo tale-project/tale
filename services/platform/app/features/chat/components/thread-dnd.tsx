@@ -37,7 +37,7 @@ import { useT } from '@/lib/i18n/client';
 
 import { useThreadProjectMove } from '../data/chat-backend';
 import { useThreadActions } from '../data/thread-actions';
-import { useThreadListFrame } from './thread-list-context';
+import { useActiveThreadId } from './thread-list-context';
 
 const NO_PROJECT_DROPPABLE_ID = 'project:none';
 const ARCHIVE_DROPPABLE_ID = 'archive';
@@ -194,6 +194,18 @@ const dropAnimation: DropAnimation = {
   }),
 };
 
+// Module constants, not literals in the render: `useSensor` memoises on the
+// options' identity, and a new object each render handed DndContext new
+// activators, so its context changed and every draggable chat row and every
+// project drop zone re-rendered with each render of the panel — three times
+// over all 600 rows of a long list on one chat switch.
+/** Mouse: start dragging after a small move so plain clicks still open a chat. */
+const MOUSE_SENSOR_OPTIONS = { activationConstraint: { distance: 5 } };
+/** Touch: press-and-hold to drag, so a vertical swipe scrolls the list. */
+const TOUCH_SENSOR_OPTIONS = {
+  activationConstraint: { delay: 200, tolerance: 8 },
+};
+
 interface ActiveThread {
   id: string;
   title: string;
@@ -231,17 +243,13 @@ export function ThreadDndProvider({
   const { t } = useT('chat');
   const { move } = useThreadProjectMove(organizationId);
   const actions = useThreadActions(organizationId);
-  const { activeThreadId } = useThreadListFrame();
+  const activeThreadId = useActiveThreadId();
   const navigate = useNavigate();
   const [activeThread, setActiveThread] = useState<ActiveThread | null>(null);
 
   const sensors = useSensors(
-    // Mouse: start dragging after a small move so plain clicks still open a chat.
-    useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
-    // Touch: press-and-hold to drag, so a vertical swipe scrolls the list.
-    useSensor(TouchSensor, {
-      activationConstraint: { delay: 200, tolerance: 8 },
-    }),
+    useSensor(MouseSensor, MOUSE_SENSOR_OPTIONS),
+    useSensor(TouchSensor, TOUCH_SENSOR_OPTIONS),
   );
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
