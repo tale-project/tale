@@ -60,8 +60,8 @@ nothing to move, on a trial move too, and no file is touched.
 It does not stay "running" forever, and a move that was marked as failed or finished does not
 carry on.
 
-- **Example**: The server restarts in the middle of a move → the move is marked as failed, and
-  Ada can start it again.
+- **Example**: The server restarts in the middle of a move → the move is later marked as
+  failed, with the reason, instead of showing as running.
 
 ## Not yet
 
