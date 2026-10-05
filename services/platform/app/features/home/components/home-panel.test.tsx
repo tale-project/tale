@@ -347,6 +347,50 @@ describe('HomeNavigator', () => {
     expect(new Set(ageReads.current)).toEqual(new Set([TODAY, TODAY - 1000]));
   });
 
+  it('updates a live row without re-rendering unchanged rows in the same places', () => {
+    const initial = data();
+    homeData.current = initial;
+    const view = render(<HomeNavigator organizationId="org-1" />);
+    const task = within(stream()).getByRole('link', {
+      name: /Review the launch checklist/,
+    });
+    const conversation = within(stream()).getByRole('link', {
+      name: /Invoice shows the wrong VAT rate/,
+    });
+    const taskPosition = task.closest('li')?.getAttribute('aria-posinset');
+    const conversationPosition = conversation
+      .closest('li')
+      ?.getAttribute('aria-posinset');
+    expect(taskPosition).toBe('2');
+    expect(conversationPosition).toBe('3');
+    ageReads.current = [];
+
+    homeData.current = {
+      ...initial,
+      items: initial.items.map((item) =>
+        item.kind === 'chat'
+          ? Object.assign({}, item, { title: 'Quarterly report updated live' })
+          : item,
+      ),
+    };
+    view.rerender(<HomeNavigator organizationId="org-1" />);
+
+    expect(
+      within(stream()).getByRole('link', {
+        name: /Quarterly report updated live/,
+        current: 'page',
+      }),
+    ).toBeInTheDocument();
+    expect(task.isConnected).toBe(true);
+    expect(conversation.isConnected).toBe(true);
+    expect(task.closest('li')).toHaveAttribute('aria-posinset', taskPosition);
+    expect(conversation.closest('li')).toHaveAttribute(
+      'aria-posinset',
+      conversationPosition,
+    );
+    expect(new Set(ageReads.current)).toEqual(new Set([TODAY]));
+  });
+
   it('narrows the stream to one kind from the switcher, and remembers it', async () => {
     const { user, unmount } = render(<HomeNavigator organizationId="org-1" />);
 

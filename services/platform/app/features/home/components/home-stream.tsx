@@ -452,8 +452,8 @@ function Spacer({ height }: { height: number }) {
 }
 
 /**
- * One placement object per row, kept while the stream's entries are: a
- * memoized row then re-renders as the list scrolls only when it mounts.
+ * One placement object per row, kept while its placement is unchanged:
+ * scrolling or another row's live update leaves a memoized row alone.
  */
 function useStablePlacements<T>(
   entries: readonly HomeListEntry<T>[],
@@ -462,19 +462,31 @@ function useStablePlacements<T>(
   onFocusWithin: (key: string, within: boolean) => void,
 ): ReadonlyMap<string, HomeRowPlacement> {
   const { measureElement } = virtualizer;
+  const previous = useRef<ReadonlyMap<string, HomeRowPlacement>>(new Map());
   return useMemo(() => {
     const map = new Map<string, HomeRowPlacement>();
     rowIndexes.forEach((index, position) => {
       const entry = entries[index];
       if (entry === undefined) return;
-      map.set(entry.key, {
-        measureRef: measureElement,
-        index,
-        position: position + 1,
-        size: rowIndexes.length,
-        onFocusWithin,
-      });
+      const cached = previous.current.get(entry.key);
+      map.set(
+        entry.key,
+        cached?.measureRef === measureElement &&
+          cached.index === index &&
+          cached.position === position + 1 &&
+          cached.size === rowIndexes.length &&
+          cached.onFocusWithin === onFocusWithin
+          ? cached
+          : {
+              measureRef: measureElement,
+              index,
+              position: position + 1,
+              size: rowIndexes.length,
+              onFocusWithin,
+            },
+      );
     });
+    previous.current = map;
     return map;
   }, [entries, rowIndexes, measureElement, onFocusWithin]);
 }
