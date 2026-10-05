@@ -27,12 +27,7 @@ import {
  * One hook, so two lists cannot page or count differently.
  */
 
-/**
- * How many rows a list shows before it loads more on scroll. A host that
- * primes a backend page from a route loader asks for this many, so the first
- * paint is exactly the window the table renders.
- */
-export const DEFAULT_LIST_PAGE_SIZE = 20;
+export { DEFAULT_LIST_PAGE_SIZE } from './list-page-size';
 
 // ---------------------------------------------------------------------------
 // Data Source Types

@@ -197,6 +197,7 @@
     "./language-switcher": "./src/components/site/language-switcher.tsx",
     "./layout": "./src/components/layout/layout.tsx",
     "./lazy-component": "./src/lib/lazy-component.tsx",
+    "./list-page-size": "./src/hooks/list-page-size.ts",
     "./loading-overlay": "./src/components/feedback/loading-overlay.tsx",
     "./locale-tabs": "./src/components/navigation/locale-tabs.tsx",
     "./logo": "./src/logo/tale-logo.tsx",
