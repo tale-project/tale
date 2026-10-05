@@ -686,6 +686,8 @@ automations:
     runLive: Live ausführen
     runLiveNeedsDeploy: Schalte zuerst eine Version live — ein Live-Lauf führt
       die Version aus, die live ist.
+    deployedReadFailed: Die live geschaltete Version konnte nicht geladen werden
+    runLiveNeedsDeployedRead: Die live geschaltete Version konnte nicht geladen werden — versuche es erneut.
     runLiveTitle: Live ausführen?
     runLiveBody: Führt die deployte Version live aus — Mails gehen raus, Daten ändern sich. Ein erneuter Lauf startet nicht automatisch.
     runInput:

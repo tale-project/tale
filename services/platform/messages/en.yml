@@ -656,6 +656,8 @@ automations:
     runLive: Run live
     runLiveNeedsDeploy: Deploy a version first — a live run executes the
       deployed version.
+    deployedReadFailed: Couldn't load the deployed version
+    runLiveNeedsDeployedRead: Couldn't load the deployed version — try again.
     runLiveTitle: Run live?
     runLiveBody: This runs the deployed version for real — emails send, records change. It won't run again automatically.
     runInput:

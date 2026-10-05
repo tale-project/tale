@@ -694,6 +694,8 @@ automations:
     runLive: Exécuter en réel
     runLiveNeedsDeploy: Mets d’abord une version en service — une exécution
       réelle lance la version en service.
+    deployedReadFailed: Impossible de charger la version en service
+    runLiveNeedsDeployedRead: Impossible de charger la version en service — réessaie.
     runLiveTitle: Exécuter en réel ?
     runLiveBody: Lance la version déployée pour de vrai — des e-mails partent, des données changent. L’automatisation ne se relancera pas automatiquement.
     runInput:
