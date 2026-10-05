@@ -303,6 +303,7 @@ export function ComposeEmailPane({
 
   const hasEmailConnector = emailConnectors.length > 0;
   const canSend = Boolean(
+    !connectorsError &&
     contactId &&
     selectedConnector &&
     subject.trim() &&
@@ -402,6 +403,9 @@ export function ComposeEmailPane({
     attachments?: AttachedFile[],
     sourceMarkdown?: string,
   ) => {
+    if (connectorsError) {
+      throw new Error(t('compose.emailConnectorReadError'));
+    }
     if (!contactId || !selectedConnector || !subject.trim()) return;
 
     // Let upload failures reject the editor's onSave, just like send failures:
@@ -674,14 +678,16 @@ export function ComposeEmailPane({
               messageId={composeBodyMessageId}
               disabled={!canSend}
               sendDisabledReason={
-                !hasEmailConnector
-                  ? t('compose.noEmailConnectorTitle')
-                  : !canSend
-                    ? t('compose.fillRequired')
-                    : undefined
+                connectorsError
+                  ? t('compose.emailConnectorReadError')
+                  : !hasEmailConnector
+                    ? t('compose.noEmailConnectorTitle')
+                    : !canSend
+                      ? t('compose.fillRequired')
+                      : undefined
               }
             />
-            {hasEmailConnector && !canSend && (
+            {hasEmailConnector && !canSend && !connectorsError && (
               <Text variant="muted" className="mt-2 text-xs">
                 {t('compose.fillRequired')}
               </Text>
