@@ -58,6 +58,9 @@ analytics:
   externalTurns:
     title: Harness turns
     description: Reliability of harness turns running in the sandbox.
+    errors:
+      loadFailed: Couldn't load harness turn metrics.
+      refreshFailed: Couldn't refresh harness turn metrics. The figures shown may be out of date.
     cappedNotice: Showing the most recent 5,000 turns in this window. Older
       turns in this period are not included in these totals.
     cards:

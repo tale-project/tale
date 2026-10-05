@@ -29,6 +29,8 @@ Un tour de harness est une étape de travail qu’un harness, comme Claude Code 
 
 Les cartes indiquent les **Tours au total**, le **Taux de réussite**, le **Taux d'expiration**, la **Durée p95**, dans laquelle 95 % des tours se sont terminés, et, sous **Arrêtés par l'utilisateur**, les tours qu’une personne a interrompus. **Par harness** reprend les tours, le taux de réussite et les expirations pour chaque harness : si le taux d’expiration augmente, tu vois de quel harness il vient. [Choisir un environnement d’agent](/fr/platform/agents/harnesses) explique comment chaque harness fonctionne, et [Gérer la capacité des sandboxes](/fr/platform/admin/sandboxes) où leur capacité se règle.
 
+Si les chiffres ne peuvent pas être chargés, la page le signale et propose **Réessayer** au lieu d’afficher zéro tour ou un tableau **Par harness** vide ; la période choisie reste en place. Si une actualisation échoue, les chiffres déjà affichés restent, avec une note indiquant qu’ils ne sont peut-être plus à jour.
+
 ## Suivre les exécutions d’automatisation
 
 **Automatisations** compte les exécutions réelles des automatisations de ton organisation ; les exécutions de test apparaissent dans l’onglet **Exécutions** de chaque automatisation, mais pas ici. Choisis 7, 30 ou 90 jours ; la page s’ouvre sur 30 jours. Chaque carte compare son chiffre à la période de même durée qui précède.
