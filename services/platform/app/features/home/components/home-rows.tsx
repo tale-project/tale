@@ -55,7 +55,7 @@ const ROW_LINK_CLASS =
 const ROW_ENTER_CLASS = 'animate-row-enter motion-reduce:animate-none';
 
 const HOME_ROW_AGE_CLASS =
-  'text-muted-foreground shrink-0 text-[11px] leading-5 tabular-nums transition-opacity duration-150';
+  'text-muted-foreground shrink-0 text-[11px] leading-5 tabular-nums transition-opacity duration-150 [[aria-current=page]_&]:text-inherit';
 
 /**
  * A row's own treatment. The open row's fill is the list's one gliding
