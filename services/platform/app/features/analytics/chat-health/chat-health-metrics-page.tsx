@@ -2,6 +2,7 @@
 
 import { Alert } from '@tale/ui/alert';
 import { Badge } from '@tale/ui/badge';
+import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
 import { ChartCard } from '@tale/ui/chart-card';
 import { ChartLegend } from '@tale/ui/chart-legend';
 import { CHART_COLORS } from '@tale/ui/chart-theme';
@@ -21,7 +22,7 @@ import { StatCard, StatCardGrid } from '@tale/ui/stat-card-grid';
 import { Text } from '@tale/ui/text';
 import { useFormatDate } from '@tale/ui/use-format-date';
 import { AlertTriangle } from 'lucide-react';
-import { useCallback } from 'react';
+import { useCallback, type ReactNode } from 'react';
 
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useFormatNumber } from '@/app/hooks/use-format-number';
@@ -326,6 +327,7 @@ interface ChatHealthMetricsPageViewProps {
   period: ChatHealthPeriod;
   isPeriodEmpty: boolean;
   onChangePeriod: (value: string) => void;
+  readFailure?: ReactNode;
 }
 
 // Presentational view — no data hooks. Rendered live and, while stats load,
@@ -337,6 +339,7 @@ function ChatHealthMetricsPageView({
   period,
   isPeriodEmpty,
   onChangePeriod,
+  readFailure,
 }: ChatHealthMetricsPageViewProps) {
   const { t } = useT('analytics');
   const { t: tGov } = useT('governance');
@@ -436,6 +439,7 @@ function ChatHealthMetricsPageView({
       }
       notice={
         <>
+          {readFailure}
           {summary?.capped || guardrails?.capped ? (
             <Alert
               variant="warning"
@@ -583,10 +587,14 @@ export function ChatHealthMetricsPage({
     { organizationId, periodDays },
     { enabled: !!organizationId },
   );
-  // Both queries sit behind the same admin gate, so a denial fails them
-  // together; a lone guardrails hiccup degrades to an empty section instead of
-  // failing the page.
-  const { data: guardrails, isLoading: guardrailsLoading } = useBackendQuery(
+  // Both queries sit behind the same admin gate, but guardrail failures are
+  // partial: keep chat health visible and name the failed section.
+  const {
+    data: guardrails,
+    isLoading: guardrailsLoading,
+    error: guardrailsError,
+    refetch: refetchGuardrails,
+  } = useBackendQuery(
     'chat_filter_events/queries:getGuardrailStats',
     { organizationId, periodDays },
     { enabled: !!organizationId },
@@ -649,6 +657,19 @@ export function ChatHealthMetricsPage({
       <ChatHealthMetricsPageView
         health={health ?? null}
         guardrails={guardrails ?? null}
+        readFailure={
+          guardrailsError ? (
+            <CatalogLoadError
+              message={[
+                t('chatHealth.errors.guardrailsLoadFailed'),
+                failureDetail(guardrailsError),
+              ]
+                .filter(Boolean)
+                .join(' ')}
+              onRetry={() => void refetchGuardrails()}
+            />
+          ) : undefined
+        }
         period={period}
         isPeriodEmpty={isPeriodEmpty}
         onChangePeriod={handleChangePeriod}

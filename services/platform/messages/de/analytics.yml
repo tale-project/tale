@@ -311,6 +311,7 @@ chatHealth:
       zu Antwortzeit, Fehlern und Routing.
   errors:
     loadFailed: Chat-Metriken konnten nicht geladen werden
+    guardrailsLoadFailed: Guardrail-Metriken konnten nicht geladen werden. Erneut versuchen
     unauthorized: Du hast keinen Zugriff auf die Chat-Metriken
   errorType:
     missing_api_key: API-Schlüssel fehlt
