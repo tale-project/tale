@@ -8054,6 +8054,8 @@ twoFactor:
     empty: Du hast noch keinen Passkey hinzugefügt.
     namePromptDescription: Gib diesem Passkey einen Namen, damit du ihn später
       wiedererkennst (z. B. "MacBook Touch ID").
+    confirmPasswordDescription: Deine Anmeldung liegt schon eine Weile zurück. Bestätige dein Passwort, um einen Passkey hinzuzufügen.
+    signInAgainDescription: Deine Anmeldung liegt schon eine Weile zurück. Melde dich erneut an und füge dann deinen Passkey hinzu.
     nameLabel: Passkey-Name
     namePlaceholder: MacBook Touch ID
     attachment:
@@ -8066,6 +8068,8 @@ twoFactor:
       revokeFailed: Passkey konnte nicht entfernt werden. Versuch es nochmal.
       listFailed: Deine Passkeys konnten nicht geladen werden.
       refreshFailed: Deine Passkeys konnten nicht aktualisiert werden. Die angezeigte Liste ist womöglich veraltet.
+      wrongPassword: Falsches Passwort. Nach wiederholten Fehlversuchen wird dein Konto vorübergehend gesperrt.
+      confirmFailed: Dein Passwort konnte nicht bestätigt werden. Versuch es nochmal.
   setup:
     title: Zwei-Faktor-Authentifizierung einrichten
     qrInstructions: Scanne den QR-Code mit einer Authenticator-App (Google

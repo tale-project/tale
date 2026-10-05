@@ -24,6 +24,7 @@ import {
   ORG_SLUG_IMMUTABLE_MESSAGE,
 } from '../../lib/shared/constants/org-slug.ts';
 import { isReservedOrgSlug } from '../../lib/shared/constants/reserved-org-slugs.ts';
+import { SESSION_FRESH_AGE_SECONDS } from '../../lib/shared/constants/session-freshness.ts';
 import {
   API_KEY_HINT_ENTITY,
   TEAM_HINT_ENTITY,
@@ -44,12 +45,6 @@ import {
   userEmail,
   userOrgIds,
 } from '../domains/audit_logs/user-scoped.ts';
-import {
-  clearOnSuccess,
-  getLockState,
-  recordBlocked,
-  recordFailure,
-} from '../domains/login_attempts/service.ts';
 import { hasAnyOrganizations } from '../domains/organizations/has-any-organizations.ts';
 import {
   assertOrgSlugNotRetiring,
@@ -77,7 +72,6 @@ import {
 import { hasAnyUsers } from '../domains/users/has-any-users.ts';
 import { addJobInTx } from '../jobs/enqueue.ts';
 import { readGovernancePolicy } from '../lib/org-config.ts';
-import { checkIpRateLimit, RateLimitExceededError } from '../lib/rate-limit.ts';
 import { emitHintInTx } from '../realtime/outbox.ts';
 import { ac, orgRoles } from './access.ts';
 import {
@@ -93,6 +87,12 @@ import {
   organizationCreationAllowed,
   parseOrganizationCreators,
 } from './organization-creation-gate.ts';
+import {
+  jitterDelay,
+  recordPasswordAttempt,
+  refuseThrottledPasswordAttempt,
+} from './password-attempts.ts';
+import { reauthenticate } from './reauthenticate.ts';
 import {
   openSignUpEnabled,
   SIGN_UP_CLOSED_MESSAGE,
@@ -274,10 +274,6 @@ function resolveApiKeyLifecycle(mw: {
   };
 }
 
-// Random delay (ms) added to lockout responses to fuzz the timing channel
-// between "wrong password" (bcrypt, ~100ms) and "locked" (a single read).
-const LOCKOUT_JITTER_MAX_MS = 200;
-
 /**
  * The sign-in body's email in its CANONICAL form — the key every lockout
  * read and write uses. `normalizeAuthEmail` (lowercase + trim) is also how
@@ -315,11 +311,6 @@ export function classifySignInOutcome(
     return returned.statusCode === 401 ? 'failure' : 'not-attempted';
   }
   return newSession ? 'success' : 'failure';
-}
-
-async function jitterDelay(): Promise<void> {
-  const ms = Math.floor(Math.random() * LOCKOUT_JITTER_MAX_MS);
-  await new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /**
@@ -794,6 +785,10 @@ export function createAuth(config: AuthConfig) {
       // default lifetime with updateAge tightened so `updatedAt` tracks
       // activity for the per-org idle-revocation sweep.
       ...sessionIdleWindowSeconds(),
+      // How long a sign-in keeps the session fresh enough to register a
+      // passkey. Pinned (it is Better Auth's default) because the app reads
+      // the same value to ask for the password before the server refuses.
+      freshAge: SESSION_FRESH_AGE_SECONDS,
       additionalFields: {
         // The role a trusted-headers proxy asserted at sign-in, and the ONE
         // organization it holds for; the org middleware applies the override
@@ -942,46 +937,11 @@ export function createAuth(config: AuthConfig) {
         if (mw.path !== SIGN_IN_EMAIL_PATH) {
           return;
         }
-        const email = bodyEmail(mw.body);
         const trusted = await loadTrustedProxies();
-        const ip = mw.request
-          ? getClientIp(mw.request.headers, trusted)
-          : 'unknown';
-
-        let lockoutMs = 0;
-        if (email) {
-          const { lockedUntil } = await getLockState(sql, email);
-          if (lockedUntil !== null && lockedUntil > Date.now()) {
-            lockoutMs = lockedUntil - Date.now();
-          }
-        }
-
-        let ipLimitMs = 0;
-        try {
-          await checkIpRateLimit(sql, 'security:login-ip', ip);
-        } catch (error) {
-          if (error instanceof RateLimitExceededError) {
-            ipLimitMs = error.retryAfter;
-          } else {
-            throw error;
-          }
-        }
-
-        const retryAfterMs = Math.max(lockoutMs, ipLimitMs);
-        if (retryAfterMs > 0) {
-          // Better Auth skips after-hooks when a before-hook throws, so the
-          // coalesced block-counter write happens HERE.
-          if (email) {
-            await transactSerializable(sql, (tx) =>
-              recordBlocked(tx, { email, ip }),
-            );
-          }
-          await jitterDelay();
-          throw new APIError('TOO_MANY_REQUESTS', {
-            message: 'Invalid credentials',
-            retryAfter: Math.ceil(retryAfterMs / 1000),
-          });
-        }
+        await refuseThrottledPasswordAttempt(sql, {
+          email: bodyEmail(mw.body),
+          ip: mw.request ? getClientIp(mw.request.headers, trusted) : 'unknown',
+        });
       }),
 
       // Post-flight: classify the sign-in result into the failure counter,
@@ -1000,19 +960,12 @@ export function createAuth(config: AuthConfig) {
             mw.context.newSession,
           );
           if (email && outcome !== 'not-attempted') {
-            await transactSerializable(sql, (tx) =>
-              outcome === 'failure'
-                ? recordFailure(tx, {
-                    email,
-                    ...(ip !== undefined ? { ip } : {}),
-                    ...(userAgent !== undefined ? { userAgent } : {}),
-                  }).then(() => undefined)
-                : clearOnSuccess(tx, {
-                    email,
-                    ...(ip !== undefined ? { ip } : {}),
-                    ...(userAgent !== undefined ? { userAgent } : {}),
-                  }),
-            );
+            await recordPasswordAttempt(sql, {
+              email,
+              outcome,
+              ...(ip !== undefined ? { ip } : {}),
+              ...(userAgent !== undefined ? { userAgent } : {}),
+            });
           }
           // Org 2FA enforcement: an enforced policy either starts the grace
           // clock (session kept — the enrolment wall needs it) or, past
@@ -1506,6 +1459,9 @@ export function createAuth(config: AuthConfig) {
         rpName: 'Tale',
         origin: siteOrigins,
       }),
+      // Registering a passkey needs a fresh session; an older one confirms
+      // the password here and is replaced by a fresh one.
+      reauthenticate({ sql, trustedProxies: loadTrustedProxies }),
     ],
   });
 }

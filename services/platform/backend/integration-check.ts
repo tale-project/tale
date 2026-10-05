@@ -46,6 +46,7 @@ import { createApp } from './app.ts';
 import { createAuth, type Auth } from './auth/auth.ts';
 import { checkExpiredSessionReaper } from './auth/expired-sessions.integration.ts';
 import { checkNativeIdentity } from './auth/oidc-integration.ts';
+import { checkStaleSessionReauthentication } from './auth/reauthenticate.integration.ts';
 import { checkLapsedTeamWrites } from './auth/team-lapse.integration.ts';
 import { ASK_DEADLINE_MARGIN_MS } from './core/automations/agent_host.ts';
 import { buildPeriodKeyFromTimestamp } from './core/governance/helpers.ts';
@@ -59771,6 +59772,23 @@ async function main(): Promise<void> {
       [
         'checkTwoFactor',
         () => checkTwoFactor(sql, baseUrl, authCtx, `itest-${orgSuffix}`),
+      ],
+      [
+        'checkStaleSessionReauthentication',
+        async () =>
+          checkStaleSessionReauthentication(
+            sql,
+            baseUrl,
+            authCtx,
+            await signUpOrgMember(
+              sql,
+              baseUrl,
+              authCtx.orgId,
+              'reauth',
+              'member',
+            ),
+            record,
+          ),
       ],
       [
         'checkChatDeferredAuto',
