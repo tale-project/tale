@@ -11,7 +11,7 @@ import { Text } from '@tale/ui/text';
 import { useFormatDate } from '@tale/ui/use-format-date';
 import { useIsMac } from '@tale/ui/use-is-mac';
 import { toast } from '@tale/ui/use-toast';
-import { memo, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 
 import { CHAT_COMPOSER_FRAME_CLASS } from '@/app/features/chat/lib/layout';
 import { useCurrentUser } from '@/app/hooks/use-current-user';
@@ -26,12 +26,11 @@ import {
 } from '../hooks/mutations';
 import { useTaskDiscussion } from '../hooks/queries';
 import {
-  ActorDirectoryProvider,
-  useActorDirectory,
-  useProvidedActorDirectory,
-  type ActorDirectory,
-} from '../hooks/use-actor-directory';
+  useTaskActorDirectory,
+  withTaskActorDirectory,
+} from '../hooks/task-actor-directory-context';
 import { useFirstFrameSlice } from '../hooks/use-first-frame-slice';
+import { useTaskHistoryAnchor } from '../hooks/use-task-history-anchor';
 import { taskCommentDraftKey } from '../lib/draft-key';
 import {
   pickCommentBody,
@@ -75,7 +74,24 @@ function onModEnter(submit: () => void) {
   };
 }
 
-interface TaskCommentViewProps {
+/**
+ * One comment: author, time, the `(edited)` marker, the body with its
+ * mentions, and — on hover, for whoever may — edit in place and delete. The
+ * edit draft is the comment's own state, so any list (the board dialog's log,
+ * the task page's conversation) renders comments the same way.
+ */
+export const TaskCommentView = withTaskActorDirectory(TaskCommentViewContent);
+
+function TaskCommentViewContent({
+  comment: c,
+  organizationId,
+  projectId,
+  canComment,
+  canWork = false,
+  currentUserId,
+  isAdmin,
+  onRequestDelete,
+}: {
   comment: TaskCommentData;
   organizationId: string;
   projectId: string;
@@ -87,53 +103,14 @@ interface TaskCommentViewProps {
   currentUserId?: string;
   isAdmin?: boolean;
   onRequestDelete: (messageId: string) => void;
-}
-
-/**
- * One comment: author, time, the `(edited)` marker, the body with its
- * mentions, and — on hover, for whoever may — edit in place and delete. The
- * edit draft is the comment's own state, so any list (the board dialog's log,
- * the task page's conversation) renders comments the same way.
- *
- * A task carries hundreds of these: each names its author from the actor
- * directory its list provides (reading its own only outside one), keeps its
- * editor unmounted until asked, and re-renders only when its own props change.
- */
-export const TaskCommentView = memo(function TaskCommentView(
-  props: TaskCommentViewProps,
-) {
-  const provided = useProvidedActorDirectory(
-    props.organizationId,
-    props.projectId,
-  );
-  return provided !== undefined ? (
-    <TaskCommentRow {...props} directory={provided} />
-  ) : (
-    <TaskCommentWithOwnDirectory {...props} />
-  );
-});
-
-function TaskCommentWithOwnDirectory(props: TaskCommentViewProps) {
-  const directory = useActorDirectory(props.organizationId, props.projectId);
-  return <TaskCommentRow {...props} directory={directory} />;
-}
-
-function TaskCommentRow({
-  comment: c,
-  organizationId,
-  projectId,
-  canComment,
-  canWork = false,
-  currentUserId,
-  isAdmin,
-  onRequestDelete,
-  directory: { resolveActor, resolveActorPreview },
-}: TaskCommentViewProps & {
-  directory: Pick<ActorDirectory, 'resolveActor' | 'resolveActorPreview'>;
 }) {
   const { t } = useT('tasks');
   const { t: tCommon } = useT('common');
   const { locale } = useLocale();
+  const { resolveActor, resolveActorPreview } = useTaskActorDirectory(
+    organizationId,
+    projectId,
+  );
   const { formatRelative, formatDate } = useFormatDate();
   const [editing, setEditing] = useState(false);
 
@@ -149,7 +126,18 @@ function TaskCommentRow({
     c.authorId === currentUserId;
 
   return (
-    <Row gap={2} align="start" className="group/comment">
+    <Row
+      gap={2}
+      align="start"
+      // Keep offscreen history in the DOM for browser find, keyboard access
+      // and draft state, while letting the browser skip its layout/paint.
+      // Editing needs normal layout so its mention menu may overflow the row.
+      className={cn(
+        'group/comment',
+        !editing &&
+          '[contain-intrinsic-block-size:auto_8rem] [content-visibility:auto]',
+      )}
+    >
       <AssigneeAvatar
         assigneeType={c.authorType}
         assigneeId={c.authorId}
@@ -172,11 +160,11 @@ function TaskCommentRow({
 
         {editing ? (
           <TaskCommentEditor
-            messageId={c.messageId}
-            initialBody={displayBody}
+            comment={c}
             organizationId={organizationId}
             projectId={projectId}
-            onDone={() => setEditing(false)}
+            initialBody={displayBody}
+            onClose={() => setEditing(false)}
           />
         ) : (
           <MentionText
@@ -193,7 +181,11 @@ function TaskCommentRow({
             className="mt-1 text-xs opacity-0 transition-opacity group-focus-within/comment:opacity-100 group-hover/comment:opacity-100"
           >
             {canManage && (
-              <CommentAction onClick={() => setEditing(true)}>
+              <CommentAction
+                onClick={() => {
+                  setEditing(true);
+                }}
+              >
                 {tCommon('actions.edit')}
               </CommentAction>
             )}
@@ -212,32 +204,31 @@ function TaskCommentRow({
   );
 }
 
-/** Editing one comment in place: its draft and its write, which exist only
- *  while the editor is open. */
+/** A read-only comment creates no mutation observer or edit draft. The
+ * editor stays mounted while editing, including when scrolled offscreen. */
 function TaskCommentEditor({
-  messageId,
-  initialBody,
+  comment: c,
   organizationId,
   projectId,
-  onDone,
+  initialBody,
+  onClose,
 }: {
-  messageId: string;
-  initialBody: string;
+  comment: TaskCommentData;
   organizationId: string;
   projectId: string;
-  onDone: () => void;
+  initialBody: string;
+  onClose: () => void;
 }) {
   const { t: tCommon } = useT('common');
   const editComment = useEditTaskComment();
   const [editDraft, setEditDraft] = useState(initialBody);
   const isEditPending = editComment.isPending;
-
   const submitEdit = async () => {
     const body = editDraft.trim();
     if (!body || isEditPending) return;
     try {
-      await editComment.mutateAsync({ messageId, body });
-      onDone();
+      await editComment.mutateAsync({ messageId: c.messageId, body });
+      onClose();
     } catch (error) {
       // The comment write's own toast reports the failure.
       console.error('[tasks] comment action failed', error);
@@ -247,7 +238,7 @@ function TaskCommentEditor({
   return (
     <Stack gap={2} className="mt-1">
       <MentionTextarea
-        id={`edit-comment-${messageId}`}
+        id={`edit-comment-${c.messageId}`}
         organizationId={organizationId}
         projectId={projectId}
         rows={2}
@@ -266,7 +257,7 @@ function TaskCommentEditor({
         >
           {tCommon('actions.save')}
         </Button>
-        <Button variant="secondary" onClick={onDone}>
+        <Button variant="secondary" onClick={onClose}>
           {tCommon('actions.cancel')}
         </Button>
       </Row>
@@ -501,7 +492,9 @@ export function useTaskCommentDelete() {
  * ones before them — so however busy a task gets, its freshest comment is on
  * screen and nothing older is silently cut.
  */
-export const TaskComments = memo(function TaskComments({
+export const TaskComments = withTaskActorDirectory(TaskCommentsContent);
+
+function TaskCommentsContent({
   taskId,
   organizationId,
   projectId,
@@ -553,7 +546,11 @@ export const TaskComments = memo(function TaskComments({
     taskId,
   );
   const { requestDelete, dialog: deleteDialog } = useTaskCommentDelete();
-  const provided = useProvidedActorDirectory(organizationId, projectId);
+  const { historyRef, loadEarlierWithAnchor } = useTaskHistoryAnchor(
+    newestFirst.at(-1)?.messageId,
+    loadEarlier,
+    isLoadingEarlier,
+  );
 
   // The composer sits at the NEWEST end of the thread — below an ascending
   // conversation, above a newest-first log — so a fresh comment appears where
@@ -579,15 +576,15 @@ export const TaskComments = memo(function TaskComments({
         variant="secondary"
         isLoading={isLoadingEarlier}
         disabled={isLoadingEarlier}
-        onClick={loadEarlier}
+        onClick={loadEarlierWithAnchor}
       >
         {t('detail.showEarlierComments')}
       </Button>
     </Row>
   );
 
-  const section = (
-    <section>
+  return (
+    <section ref={historyRef}>
       {showHeading ? (
         <Text as="h3" variant="label">
           {t('detail.comments')} ({commentCount ?? comments.length})
@@ -606,7 +603,7 @@ export const TaskComments = memo(function TaskComments({
           </li>
         )}
         {shownComments.map((c) => (
-          <li key={c.messageId}>
+          <li key={c.messageId} data-task-history-entry>
             <TaskCommentView
               comment={c}
               organizationId={organizationId}
@@ -627,20 +624,7 @@ export const TaskComments = memo(function TaskComments({
       {deleteDialog}
     </section>
   );
-
-  // Every comment names its author from one directory: the one the task's
-  // surface provides, else one read here for the whole list.
-  return provided !== undefined ? (
-    section
-  ) : (
-    <ActorDirectoryProvider
-      organizationId={organizationId}
-      projectId={projectId}
-    >
-      {section}
-    </ActorDirectoryProvider>
-  );
-});
+}
 
 function CommentAction({
   children,

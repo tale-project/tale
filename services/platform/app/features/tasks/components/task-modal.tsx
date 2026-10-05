@@ -1323,11 +1323,11 @@ export function EditTaskBody({
   // beside it goes through and leaves.
   const repeatControlId = useId();
   const { data: me } = useCurrentMemberContext(task?.organizationId);
-  const {
-    resolveActor,
-    agents: projectAgents,
-    agentsLoading,
-  } = useActorDirectory(task?.organizationId ?? '', task?.projectId);
+  const actorDirectory = useActorDirectory(
+    task?.organizationId ?? '',
+    task?.projectId,
+  );
+  const { resolveActor, agents: projectAgents, agentsLoading } = actorDirectory;
   // The assigned agent still exists in the project — Start/Retry are for a
   // run that can happen. While the list loads, assume it does (no flicker).
   const assigneeLive =
@@ -2315,6 +2315,7 @@ export function EditTaskBody({
     <ActorDirectoryProvider
       organizationId={task.organizationId}
       projectId={task.projectId}
+      directory={actorDirectory}
     >
       {/* display:contents — a paste-event catcher, never a layout box. */}
       <div className="contents" onPaste={onPasteImages}>

@@ -24,6 +24,8 @@ import { ConversationDateHeader } from '@/app/features/conversations/components/
 import { useT } from '@/lib/i18n/client';
 
 import { useTaskDiscussion } from '../hooks/queries';
+import { withTaskActorDirectory } from '../hooks/task-actor-directory-context';
+import { useTaskHistoryAnchor } from '../hooks/use-task-history-anchor';
 import {
   TaskCommentView,
   useTaskCommentDelete,
@@ -54,7 +56,9 @@ function dayOf(at: number): string {
   return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
 }
 
-export function TaskConversation({
+export const TaskConversation = withTaskActorDirectory(TaskConversationContent);
+
+function TaskConversationContent({
   taskId,
   organizationId,
   projectId,
@@ -82,6 +86,11 @@ export function TaskConversation({
   } = useTaskDiscussion(taskId);
   const { timeline, runs } = useTaskTimeline(taskId);
   const { requestDelete, dialog: deleteDialog } = useTaskCommentDelete();
+  const { historyRef, loadEarlierWithAnchor } = useTaskHistoryAnchor(
+    newestFirst.at(-1)?.messageId,
+    loadEarlier,
+    isLoadingEarlier,
+  );
 
   const entries = useMemo((): ConversationEntry[] => {
     const oldestLoaded = newestFirst.at(-1)?.createdAt;
@@ -135,7 +144,11 @@ export function TaskConversation({
   }, [entries]);
 
   return (
-    <section aria-label={t('detail.conversation')} className="flex flex-col">
+    <section
+      ref={historyRef}
+      aria-label={t('detail.conversation')}
+      className="flex flex-col"
+    >
       {hasEarlier && (
         <Row gap={0} align="stretch" justify="center" className="mb-4">
           <Button
@@ -143,7 +156,7 @@ export function TaskConversation({
             size="sm"
             isLoading={isLoadingEarlier}
             disabled={isLoadingEarlier}
-            onClick={loadEarlier}
+            onClick={loadEarlierWithAnchor}
           >
             {t('detail.showEarlierComments')}
           </Button>
@@ -166,6 +179,7 @@ export function TaskConversation({
                   entry.kind === 'comment' ? (
                     <li
                       key={entry.key}
+                      data-task-history-entry
                       className={
                         arrived(entry.key)
                           ? 'animate-in fade-in-0 slide-in-from-bottom-1 duration-300 motion-reduce:animate-none'
@@ -186,7 +200,11 @@ export function TaskConversation({
                       />
                     </li>
                   ) : (
-                    <li key={entry.key} className="pl-0.5">
+                    <li
+                      key={entry.key}
+                      data-task-history-entry
+                      className="pl-0.5"
+                    >
                       <TaskTimelineEntry
                         item={entry.item}
                         runs={runs}

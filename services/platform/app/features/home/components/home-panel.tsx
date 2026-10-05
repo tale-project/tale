@@ -286,6 +286,7 @@ export function HomeNavigator({
       const row = adjacentRow(event, root);
       if (row === null) return;
       event.preventDefault();
+      row.scrollIntoView({ block: 'nearest' });
       row.click();
     };
     window.addEventListener('keydown', onKeyDown);

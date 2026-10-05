@@ -9,18 +9,16 @@ import { Text } from '@tale/ui/text';
 import { useFormatDate } from '@tale/ui/use-format-date';
 import { useRecurrenceFormat } from '@tale/ui/use-recurrence-format';
 import { Bot } from 'lucide-react';
-import { memo, useMemo } from 'react';
+import { useMemo } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 import { parseTaskRepeat, type TaskRepeat } from '@/lib/shared/task-repeat';
 
 import { useTaskActivity, useTaskAgentRuns } from '../hooks/queries';
 import {
-  ActorDirectoryProvider,
-  useActorDirectory,
-  useProvidedActorDirectory,
-  type ActorDirectory,
-} from '../hooks/use-actor-directory';
+  useTaskActorDirectory,
+  withTaskActorDirectory,
+} from '../hooks/task-actor-directory-context';
 import { useFirstFrameSlice } from '../hooks/use-first-frame-slice';
 import {
   TASK_ACTIVITY_FIELD,
@@ -110,51 +108,34 @@ export function timelineItemKey(item: TimelineItem): string {
   return item.kind === 'agentRun' ? `run-${item.run.runId}` : item.entry._id;
 }
 
-interface TaskTimelineEntryProps {
-  item: TimelineItem;
-  runs: ReturnType<typeof useTaskAgentRuns>['runs'];
-  organizationId: string;
-  projectId: string;
-}
-
 /**
  * One line of a task's history: an agent run (who, how it went, how long,
  * what it cost) or an activity entry (who changed what, from → to). Rendered
  * as a quiet single line, so it reads as the event it is between comments.
- * Names come from the actor directory the timeline provides (a directory of
- * its own only outside one), and a line re-renders only when its props do.
  */
-export const TaskTimelineEntry = memo(function TaskTimelineEntry(
-  props: TaskTimelineEntryProps,
-) {
-  const provided = useProvidedActorDirectory(
-    props.organizationId,
-    props.projectId,
-  );
-  return provided !== undefined ? (
-    <TimelineEntryRow {...props} directory={provided} />
-  ) : (
-    <TimelineEntryWithOwnDirectory {...props} />
-  );
-});
+export const TaskTimelineEntry = withTaskActorDirectory(
+  TaskTimelineEntryContent,
+);
 
-function TimelineEntryWithOwnDirectory(props: TaskTimelineEntryProps) {
-  const directory = useActorDirectory(props.organizationId, props.projectId);
-  return <TimelineEntryRow {...props} directory={directory} />;
-}
-
-function TimelineEntryRow({
+function TaskTimelineEntryContent({
   item,
   runs,
-  directory: {
+  organizationId,
+  projectId,
+}: {
+  item: TimelineItem;
+  runs: ReturnType<typeof useTaskAgentRuns>['runs'];
+  organizationId: string;
+  projectId: string;
+}) {
+  const { t } = useT('tasks');
+  const {
     resolveActor,
     resolveAssigneeId,
     resolveActorPreview,
     resolveAgentRunPreview,
     resolveWorkflowRunPreview,
-  },
-}: TaskTimelineEntryProps & { directory: ActorDirectory }) {
-  const { t } = useT('tasks');
+  } = useTaskActorDirectory(organizationId, projectId);
   const { formatRelative, formatDate } = useFormatDate();
   const repeatLabel = useTaskRepeatLabel();
   const { never: repeatNever } = useRecurrenceFormat();
@@ -173,7 +154,7 @@ function TimelineEntryRow({
         ? resolveActor('agent', run.delegatedByAgentId).name
         : undefined;
     return (
-      <div className="flex items-start gap-2 text-sm">
+      <div className="flex items-start gap-2 text-sm [contain-intrinsic-block-size:auto_2rem] [content-visibility:auto]">
         <span
           className="bg-primary/10 text-primary mt-0.5 inline-flex size-5 shrink-0 items-center justify-center rounded-full"
           aria-hidden
@@ -330,8 +311,7 @@ function TimelineEntryRow({
         return key ? t(key) : value;
       }
       default:
-        // Titles, descriptions, label and file names, task keys: as stored,
-        // quoted to a line's length.
+        // Titles, descriptions, label and file names, task keys: as stored.
         return quoteActivityText(value);
     }
   };
@@ -343,7 +323,7 @@ function TimelineEntryRow({
   const detail = from && to ? `${from} → ${to}` : (to ?? from);
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-2 [contain-intrinsic-block-size:auto_2rem] [content-visibility:auto]">
       <AssigneeAvatar
         assigneeType={entry.actorType}
         assigneeId={entry.actorId}
@@ -367,7 +347,9 @@ function TimelineEntryRow({
   );
 }
 
-export const TaskTimeline = memo(function TaskTimeline({
+export const TaskTimeline = withTaskActorDirectory(TaskTimelineContent);
+
+function TaskTimelineContent({
   taskId,
   organizationId,
   projectId,
@@ -378,14 +360,13 @@ export const TaskTimeline = memo(function TaskTimeline({
 }) {
   const { t } = useT('tasks');
   const { timeline, runs, totalCostCents } = useTaskTimeline(taskId);
-  const provided = useProvidedActorDirectory(organizationId, projectId);
   // The newest lines mount with the task, the older ones right after — a
   // long history sits below the comments, out of the opening screen.
   const shownTimeline = useFirstFrameSlice(timeline, FIRST_FRAME_LINES, taskId);
 
   if (timeline.length === 0) return null;
 
-  const section = (
+  return (
     <section>
       <Stack gap={2}>
         <div className="flex items-center justify-between gap-2">
@@ -415,17 +396,4 @@ export const TaskTimeline = memo(function TaskTimeline({
       </Stack>
     </section>
   );
-
-  // Every line names its actor from one directory: the one the task's
-  // surface provides, else one read here for the whole timeline.
-  return provided !== undefined ? (
-    section
-  ) : (
-    <ActorDirectoryProvider
-      organizationId={organizationId}
-      projectId={projectId}
-    >
-      {section}
-    </ActorDirectoryProvider>
-  );
-});
+}

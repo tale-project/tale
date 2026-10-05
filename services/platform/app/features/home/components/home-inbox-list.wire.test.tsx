@@ -15,6 +15,24 @@ import { render, screen, waitFor } from '@/tests/utils/render';
 
 import { HomeInboxList } from './home-inbox-list';
 
+// jsdom has no layout. Give the real virtualizer a viewport and measured
+// row heights; selection still runs against every loaded conversation.
+vi.mock('@tale/ui/use-virtual-list', async (importOriginal) => {
+  const original =
+    await importOriginal<typeof import('@tale/ui/use-virtual-list')>();
+  return {
+    ...original,
+    useVirtualList: (options: Parameters<typeof original.useVirtualList>[0]) =>
+      original.useVirtualList({
+        ...options,
+        observeElementRect: (_instance, callback) => {
+          callback({ width: 280, height: 600 });
+        },
+        measureElement: () => 49,
+      }),
+  };
+});
+
 vi.mock('@tanstack/react-router', () => ({
   Link: ({
     children,
@@ -221,8 +239,7 @@ describe('the Home Inbox over its real list read', () => {
 
 describe('the Home Inbox bulk verbs over more rows than one request takes', () => {
   const COUNT = BULK_CONVERSATION_LIMIT + 1;
-  // 201 rows render and settle slowly under a loaded parallel run: each test
-  // and each wait gets room, so only a real hang fails.
+  // The source contains more conversations than a single bulk request takes.
   const HEAVY = 30_000;
   const WAIT = { timeout: 10_000 };
 
@@ -232,7 +249,8 @@ describe('the Home Inbox bulk verbs over more rows than one request takes', () =
       { name: 'Select conversation' },
       WAIT,
     );
-    expect(rows).toHaveLength(COUNT);
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows.length).toBeLessThan(COUNT);
     await user.click(rows[0]!);
     await user.click(screen.getByRole('checkbox', { name: 'Select all' }));
     expect(screen.getByRole('toolbar')).toHaveAccessibleName(

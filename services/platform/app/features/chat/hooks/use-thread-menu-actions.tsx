@@ -142,7 +142,7 @@ export function moveToProjectMenuItem({
     label: t('moveToProject'),
     icon: FolderInput,
     contentClassName: 'min-w-56',
-    items: [
+    items: () => [
       [
         {
           type: 'custom' as const,

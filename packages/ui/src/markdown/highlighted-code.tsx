@@ -94,6 +94,12 @@ export const HighlightedCode = memo(function HighlightedCode({
 
   useEffect(() => {
     if (!isVisible) return undefined;
+    if (
+      highlighted?.code === normalisedCode &&
+      highlighted.language === language &&
+      highlighted.theme === resolvedTheme
+    )
+      return undefined;
     let cancelled = false;
     void highlightCode(normalisedCode, language, resolvedTheme).then(
       (result) => {
@@ -118,7 +124,7 @@ export const HighlightedCode = memo(function HighlightedCode({
     return () => {
       cancelled = true;
     };
-  }, [normalisedCode, language, resolvedTheme, isVisible]);
+  }, [normalisedCode, language, resolvedTheme, isVisible, highlighted]);
 
   const html =
     highlighted?.code === normalisedCode &&

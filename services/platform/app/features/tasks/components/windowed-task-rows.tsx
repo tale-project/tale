@@ -1,8 +1,9 @@
 import {
   defaultRangeExtractor,
   type Range,
-  useVirtualizer,
-} from '@tanstack/react-virtual';
+  useVirtualList,
+} from '@tale/ui/use-virtual-list';
+import { observeElementOffset } from '@tanstack/react-virtual';
 import {
   type ReactNode,
   useCallback,
@@ -28,8 +29,8 @@ export const WINDOWED_LANE_MIN_CARDS = 40;
 /**
  * A windowed lane mounts every task again only below this. The gap to
  * {@link WINDOWED_LANE_MIN_CARDS} keeps a lane that hovers around 40 tasks
- * from switching on each move: a switch remounts every task in the lane,
- * and with them a picker that was open in one, or the focus.
+ * from switching layouts on each move. Both modes retain the same keyed
+ * wrappers, so picker state and focus also survive the eventual switch.
  */
 export const UNWINDOWED_LANE_MAX_CARDS = 30;
 
@@ -48,13 +49,12 @@ export function useLaneWindowed(count: number): boolean {
 const OVERSCAN = 6;
 
 /**
- * A long lane's tasks, windowed: only the tasks in and near the scrollport
- * are mounted, each placed at its measured offset inside a box as tall as
- * the whole lane. The task being dragged and the task holding focus stay
- * mounted wherever the lane scrolls — dnd-kit measures the dragged node, and
- * a focused task that unmounted would drop the focus to the page. Tabbing on
- * from a task scrolls the next one into view, so the keyboard still reaches
- * every task in order.
+ * A long lane mounts only the tasks in and near its scrollport, measured
+ * inside a box as tall as the whole lane. Both modes keep the same keyed
+ * wrappers so live reads crossing the threshold retain picker state and
+ * focus. Focused tasks, their keyboard neighbours and the active drag source
+ * remain mounted while scrolling. The full ordered SortableContext stays
+ * outside, so drag placement still uses every task.
  *
  * `scrollMargin` is where this box starts inside a scrollport it shares with
  * other content (a list section below its siblings); a board lane's
@@ -62,6 +62,7 @@ const OVERSCAN = 6;
  */
 export function WindowedTaskRows({
   tasks,
+  windowed,
   scrollElement,
   scrollMargin = 0,
   estimateSize,
@@ -70,6 +71,8 @@ export function WindowedTaskRows({
   renderTask,
 }: {
   tasks: readonly TaskRow[];
+  /** The containing lane owns this mode, including its hysteresis. */
+  windowed: boolean;
   scrollElement: HTMLElement | null;
   scrollMargin?: number;
   /** A task's height before it is measured. */
@@ -88,13 +91,17 @@ export function WindowedTaskRows({
   const release = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useEffect(() => () => clearTimeout(release.current), []);
   const pinned = useMemo(() => {
-    const indexes: number[] = [];
-    for (const id of [activeId, focusedId]) {
-      if (id === null) continue;
-      const index = tasks.findIndex((task) => task._id === id);
-      if (index >= 0 && !indexes.includes(index)) indexes.push(index);
+    const indexes = new Set<number>();
+    const focusedIndex = tasks.findIndex((task) => task._id === focusedId);
+    if (focusedIndex >= 0) {
+      // Native Tab follows the complete order even at a window boundary.
+      for (const index of [focusedIndex - 1, focusedIndex, focusedIndex + 1]) {
+        if (index >= 0 && index < tasks.length) indexes.add(index);
+      }
     }
-    return indexes;
+    const activeIndex = tasks.findIndex((task) => task._id === activeId);
+    if (activeIndex >= 0) indexes.add(activeIndex);
+    return [...indexes];
   }, [tasks, activeId, focusedId]);
   const rangeExtractor = useCallback(
     (range: Range) => {
@@ -106,7 +113,7 @@ export function WindowedTaskRows({
     },
     [pinned],
   );
-  const virtualizer = useVirtualizer({
+  const virtualizer = useVirtualList({
     count: tasks.length,
     getScrollElement: () => scrollElement,
     estimateSize: () => estimateSize,
@@ -115,28 +122,53 @@ export function WindowedTaskRows({
     overscan: OVERSCAN,
     scrollMargin,
     rangeExtractor,
+    // Measure the bounded native rows too: guesses replacing their actual
+    // heights at the threshold would move the reader's current task.
+    enabled: tasks.length > 0,
+    initialRect: { width: 800, height: 600 },
+    initialOffset: () => scrollElement?.scrollTop ?? 0,
+    // Preserve subpixel card heights instead of accumulating rounded pixels
+    // when native layout becomes positioned rows at the threshold.
+    measureElement: (element, entry) =>
+      entry?.borderBoxSize[0]?.blockSize ??
+      element.getBoundingClientRect().height,
+    observeElementOffset: (instance, callback) => {
+      // TanStack subscribes before writing its remembered offset. Seed that
+      // memory from this shared scrollport rather than reset it on attachment.
+      callback(instance.scrollElement?.scrollTop ?? 0, false);
+      return observeElementOffset(instance, callback);
+    },
+    useAnimationFrameWithResizeObserver: true,
   });
+  const items = windowed
+    ? virtualizer.getVirtualItems()
+    : tasks.map((task, index) => ({ key: task._id, index, start: 0 }));
 
   return (
     <div
-      className="relative w-full shrink-0"
-      style={{ height: virtualizer.getTotalSize() }}
+      className="relative flex w-full shrink-0 flex-col"
+      style={windowed ? { height: virtualizer.getTotalSize() } : { gap }}
     >
-      {virtualizer.getVirtualItems().map((item) => {
+      {items.map((item) => {
         const task = tasks[item.index];
         if (task === undefined) return null;
         return (
           <div
             key={item.key}
             data-index={item.index}
+            data-task-id={task._id}
             ref={virtualizer.measureElement}
-            className="absolute top-0 left-0 w-full"
-            style={{
-              transform: `translateY(${item.start - scrollMargin}px)`,
-            }}
-            // React hands focus moves inside a task's portaled picker to
-            // this task as well, so an open picker pins its task too.
-            onFocus={() => {
+            className={windowed ? 'absolute top-0 left-0 w-full' : 'w-full'}
+            style={
+              windowed
+                ? {
+                    transform: `translateY(${item.start - scrollMargin}px)`,
+                  }
+                : undefined
+            }
+            // Capture native focus before live updates enable windowing;
+            // React also carries focus from a task's picker portal here.
+            onFocusCapture={() => {
               clearTimeout(release.current);
               setFocusedId(task._id);
             }}

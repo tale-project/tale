@@ -22,10 +22,12 @@ function json(body: unknown): Response {
 }
 
 let requested: string[];
+let discussionPageSizes: Array<string | null>;
 
 beforeEach(() => {
   window.history.replaceState({}, '', '/dashboard/org-1/tasks');
   requested = [];
+  discussionPageSizes = [];
   vi.spyOn(window, 'fetch').mockImplementation((input) => {
     const url = new URL(
       typeof input === 'string'
@@ -37,6 +39,7 @@ beforeEach(() => {
     );
     requested.push(url.pathname);
     if (url.pathname.endsWith('/comments')) {
+      discussionPageSizes.push(url.searchParams.get('numItems'));
       return Promise.resolve(
         json({
           page: [
@@ -87,6 +90,7 @@ describe('usePrefetchTaskReads', () => {
         ]),
       ),
     );
+    expect(discussionPageSizes).toEqual(['50']);
 
     // The discussion the section reads is the one already fetched.
     const reads = requested.length;

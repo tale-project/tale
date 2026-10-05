@@ -28,6 +28,26 @@ precache bytes while scoping direct offline visits. Real-browser proxy
 failure/recovery, mixed-colour installation, subpath deployments, long-lived-tab
 prompts and cold-visitor fallback remain `NAV-B17`/`NAV-B18`/`NAV-F25`.
 
+Large task boards and lists keep their mounted rows bounded while retaining the
+full task order, end-of-list access, keyboard reordering and focused rows. Chat
+transcripts defer rich history rendering while keeping every message's words
+findable and accessible; sends still reach their anchor as history rows wake. These real
+Chromium regressions live in `app/features/tasks/components/tasks-list.browser.test.tsx`
+and `app/features/chat/components/message-thread.browser.test.tsx`.
+Home retains full-order keyboard navigation for 2,000 chats and 1,000 projects
+in `app/features/home/components/home-panel.browser.test.tsx`. Project chat
+sections bound 2,000 rows while retaining focused share controls in
+`app/features/projects/components/project-threads-tab.browser.test.tsx`.
+Accumulated task histories skip offscreen layout, preserve edit drafts, and keep
+the reading anchor when earlier pages load in
+`app/features/tasks/components/task-conversation.browser.test.tsx`.
+The shared menu and Markdown tests cover closed-menu laziness, unchanged-body
+render reuse and deferred offscreen syntax highlighting. Task actor-directory
+tests cover one scope for 1,000 paragraphs/mentions and shared comment histories.
+`backend/domains/tasks/board-search.integration.ts` proves summary payloads,
+full-detail reads and batched folder scope against real Postgres. Visual smoothness
+and screen-reader announcements remain manual.
+
 Shared bulk Delete and Archive preserve refused selections and keep the confirmation
 open with failed item names and safe caller-supplied reasons. Retries exclude successes;
 all-success closes and clears as before. Mixed/all-refused/success controls for both

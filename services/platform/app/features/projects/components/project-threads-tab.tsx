@@ -13,15 +13,21 @@ import { ContentArea } from '@tale/ui/content-area';
 import { EmptyState } from '@tale/ui/empty-state';
 import { FormSection } from '@tale/ui/form-section';
 import { PageSection } from '@tale/ui/page-section';
+import { findScrollableAncestor } from '@tale/ui/scroll-wheel-chain';
 import { StickySectionHeader } from '@tale/ui/sticky-section-header';
 import { Switch } from '@tale/ui/switch';
 import { Text } from '@tale/ui/text';
 import { useFormatDate } from '@tale/ui/use-format-date';
 import { toast } from '@tale/ui/use-toast';
+import {
+  defaultRangeExtractor,
+  useVirtualList,
+  type Range,
+} from '@tale/ui/use-virtual-list';
 import { Link, useNavigate } from '@tanstack/react-router';
 import { MessageCircle, SquarePen } from 'lucide-react';
-import type { ReactNode } from 'react';
-import { useCallback, useRef } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
+import { useCallback, useLayoutEffect, useRef, useState } from 'react';
 
 import { failureDetail } from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
@@ -36,6 +42,141 @@ interface ProjectThreadsTabProps {
   projectId: string;
 }
 
+interface ChatRowPlacement {
+  index: number;
+  total: number;
+  style?: CSSProperties;
+  measure: (element: HTMLLIElement | null) => void;
+}
+
+/** Both sections use the page's existing scrollport and retain the focused
+ * chat and its neighbours so native link/switch Tab order keeps working. */
+function ProjectChatList<Thread extends { id: string }>({
+  threads,
+  renderRow,
+}: {
+  threads: readonly Thread[];
+  renderRow: (thread: Thread, placement?: ChatRowPlacement) => ReactNode;
+}) {
+  const listRef = useRef<HTMLUListElement>(null);
+  const [scrollElement, setScrollElement] = useState<HTMLElement | null>(null);
+  const [scrollMargin, setScrollMargin] = useState(0);
+  const [focusedId, setFocusedId] = useState<string | null>(null);
+  const windowed = threads.length > 80;
+  const focusedIndex = threads.findIndex((thread) => thread.id === focusedId);
+  const virtualizer = useVirtualList<HTMLElement, HTMLLIElement>({
+    count: threads.length,
+    enabled: threads.length > 0,
+    getScrollElement: () => scrollElement,
+    estimateSize: () => 64,
+    initialRect: { width: 800, height: 600 },
+    getItemKey: useCallback(
+      (index: number) => threads[index]?.id ?? index,
+      [threads],
+    ),
+    overscan: 8,
+    scrollMargin,
+    measureElement: (element, entry) =>
+      entry?.borderBoxSize[0]?.blockSize ??
+      element.getBoundingClientRect().height,
+    useAnimationFrameWithResizeObserver: true,
+    rangeExtractor: useCallback(
+      (range: Range) => {
+        const indices = new Set(defaultRangeExtractor(range));
+        for (const index of [
+          focusedIndex - 1,
+          focusedIndex,
+          focusedIndex + 1,
+        ]) {
+          if (index >= 0 && index < threads.length) indices.add(index);
+        }
+        return [...indices].sort((a, b) => a - b);
+      },
+      [focusedIndex, threads.length],
+    ),
+  });
+  const measureRow = useCallback(
+    (element: HTMLLIElement | null) => {
+      // The parent scrollport attaches after the native row refs. Rebind
+      // them once it exists so their actual heights seed the measured cache.
+      if (element === null || scrollElement !== null)
+        virtualizer.measureElement(element);
+    },
+    [virtualizer, scrollElement],
+  );
+  // Build the measured source in native mode too, before its row refs run.
+  // Their heights then survive the first positioned render at the threshold.
+  const totalSize = virtualizer.getTotalSize();
+  useLayoutEffect(() => {
+    const list = listRef.current;
+    const scroller = list && findScrollableAncestor(list.parentElement);
+    if (!list || !scroller) return undefined;
+    setScrollElement(scroller);
+    const measure = () =>
+      setScrollMargin(
+        list.getBoundingClientRect().top -
+          scroller.getBoundingClientRect().top +
+          scroller.scrollTop,
+      );
+    measure();
+    let frame: number | null = null;
+    const observer = new ResizeObserver(() => {
+      if (frame !== null) return;
+      frame = requestAnimationFrame(() => {
+        frame = null;
+        measure();
+      });
+    });
+    observer.observe(scroller);
+    const content = list.closest('[data-project-chats]');
+    if (content) observer.observe(content);
+    return () => {
+      observer.disconnect();
+      if (frame !== null) cancelAnimationFrame(frame);
+    };
+  }, [windowed]);
+
+  return (
+    <ul
+      ref={listRef}
+      className="relative divide-y overflow-hidden rounded-lg border"
+      style={windowed ? { height: totalSize } : undefined}
+      onFocusCapture={(event) => {
+        const row = event.target.closest<HTMLElement>(
+          '[data-project-thread-id]',
+        );
+        if (row?.dataset.projectThreadId)
+          setFocusedId(row.dataset.projectThreadId);
+      }}
+    >
+      {windowed
+        ? virtualizer.getVirtualItems().map((item) => {
+            const thread = threads[item.index];
+            return thread
+              ? renderRow(thread, {
+                  index: item.index,
+                  total: threads.length,
+                  measure: measureRow,
+                  style: {
+                    position: 'absolute',
+                    top: item.start - scrollMargin,
+                    left: 0,
+                    width: '100%',
+                  },
+                })
+              : null;
+          })
+        : threads.map((thread, index) =>
+            renderRow(thread, {
+              index,
+              total: threads.length,
+              measure: measureRow,
+            }),
+          )}
+    </ul>
+  );
+}
+
 /**
  * One chat of the project, read the way Home lists a chat: the bubble, the
  * title (or "Untitled chat"), when it last moved and one line of context —
@@ -47,17 +188,27 @@ function ProjectChatRow({
   thread,
   context,
   trailing,
+  placement,
 }: {
   organizationId: string;
   thread: { id: string; title?: string; updatedAt: number };
   context?: ReactNode;
   trailing?: ReactNode;
+  placement?: ChatRowPlacement;
 }) {
   const { t: tHome } = useT('home');
   const { formatRelative } = useFormatDate();
   const title = thread.title ?? tHome('row.untitledChat');
   return (
-    <li className="hover:bg-muted/50 has-[a:focus-visible]:bg-muted/50 has-[a:focus-visible]:ring-ring relative flex items-center gap-3 px-4 py-2.5 transition-colors duration-150 has-[a:focus-visible]:ring-2 has-[a:focus-visible]:ring-inset">
+    <li
+      ref={placement?.measure}
+      data-project-thread-id={thread.id}
+      data-index={placement?.index}
+      aria-posinset={placement ? placement.index + 1 : undefined}
+      aria-setsize={placement?.total}
+      style={placement?.style}
+      className="hover:bg-muted/50 has-[a:focus-visible]:bg-muted/50 has-[a:focus-visible]:ring-ring relative flex items-center gap-3 px-4 py-2.5 transition-colors duration-150 has-[a:focus-visible]:ring-2 has-[a:focus-visible]:ring-inset"
+    >
       <MessageCircle
         className="text-muted-foreground size-4 shrink-0"
         aria-hidden="true"
@@ -180,6 +331,7 @@ export function ProjectThreadsTab({
 
       <div
         ref={bodyRef}
+        data-project-chats
         role="group"
         aria-label={t('threads.yourChats')}
         tabIndex={-1}
@@ -210,12 +362,14 @@ export function ProjectThreadsTab({
                 <Text variant="muted" className="text-sm">
                   {t('threads.shareToggleDisclosure')}
                 </Text>
-                <ul className="divide-y overflow-hidden rounded-lg border">
-                  {mine.map((thread) => (
+                <ProjectChatList
+                  threads={mine}
+                  renderRow={(thread, placement) => (
                     <ProjectChatRow
                       key={thread.id}
                       organizationId={organizationId}
                       thread={thread}
+                      placement={placement}
                       trailing={
                         <Switch
                           checked={thread.sharedWithProject === true}
@@ -229,8 +383,8 @@ export function ProjectThreadsTab({
                         />
                       }
                     />
-                  ))}
-                </ul>
+                  )}
+                />
               </div>
             )}
           </FormSection>
@@ -249,16 +403,18 @@ export function ProjectThreadsTab({
                 className="rounded-lg border border-dashed py-8"
               />
             ) : (
-              <ul className="divide-y overflow-hidden rounded-lg border">
-                {sharedThreads.map((thread) => (
+              <ProjectChatList
+                threads={sharedThreads}
+                renderRow={(thread, placement) => (
                   <ProjectChatRow
                     key={thread.id}
                     organizationId={organizationId}
                     thread={thread}
+                    placement={placement}
                     context={thread.authorName ?? thread.userId.slice(0, 8)}
                   />
-                ))}
-              </ul>
+                )}
+              />
             )}
           </PageSection>
         )}

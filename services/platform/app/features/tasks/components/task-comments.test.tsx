@@ -10,6 +10,7 @@ const localeState = { locale: 'en' };
 const mutationState = vi.hoisted(() => ({
   addPending: false,
   addMutateAsync: vi.fn(),
+  editRead: vi.fn(),
 }));
 
 vi.mock('@/app/hooks/use-current-user', () => ({
@@ -86,7 +87,10 @@ vi.mock('../hooks/mutations', () => ({
       isPending: mutationState.addPending || isPending,
     };
   },
-  useEditTaskComment: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useEditTaskComment: () => {
+    mutationState.editRead();
+    return { mutateAsync: vi.fn(), isPending: false };
+  },
   useDeleteTaskComment: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 
@@ -161,6 +165,17 @@ describe('TaskComments — who may change a comment', () => {
         {...props}
       />,
     );
+
+  it('creates no edit mutation observers until an author opens an editor', () => {
+    mutationState.editRead.mockClear();
+    localeState.locale = 'en';
+    thread({ currentUserId: 'user_1', canWork: false });
+    expect(mutationState.editRead).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'actions.edit' }));
+    expect(mutationState.editRead).toHaveBeenCalledTimes(1);
+    expect(screen.getByDisplayValue('Thanks.')).toBeInTheDocument();
+  });
 
   it('lets an author edit and delete their own comment on a task they may not work', () => {
     localeState.locale = 'en';

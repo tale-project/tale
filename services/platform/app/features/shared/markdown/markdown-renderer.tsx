@@ -349,7 +349,7 @@ export const markdownComponents = {
  * for the plugin + component-map decision so consumers (chat canvas, workspace
  * viewer, operator file preview) can't drift apart.
  */
-export function MarkdownContent({
+export const MarkdownContent = memo(function MarkdownContent({
   content,
   className,
   disallowedElements,
@@ -374,4 +374,4 @@ export function MarkdownContent({
       </ReactMarkdown>
     </div>
   );
-}
+});
