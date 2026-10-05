@@ -1,5 +1,6 @@
 /** The operational event fields that can contain request credentials. */
 export interface PrivacyEvent {
+  message?: string;
   request?: {
     cookies?: unknown;
     data?: unknown;
