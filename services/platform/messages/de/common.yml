@@ -1,4 +1,5 @@
 import:
+  partialTitle: Teilweise importiert
   rowErrorsTitle: '{count, plural, one {# Zeile wurde nicht importiert} other {# Zeilen wurden nicht importiert}}'
   rowError: 'Zeile {row}: {message}'
   moreRows: '… und {count} weitere'
