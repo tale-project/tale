@@ -10,7 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AbilityContext } from '@/app/context/ability-context';
 import { defineAbilityFor } from '@/lib/permissions/ability';
 import type { SsoConnectionView } from '@/lib/shared/schemas/enterprise_sso';
-import { cleanup, render, screen, waitFor } from '@/tests/utils/render';
+import { act, cleanup, render, screen, waitFor } from '@/tests/utils/render';
 
 import { EnterpriseSsoForm } from './enterprise-sso-form';
 
@@ -136,6 +136,52 @@ describe('Enterprise SSO initial client-ID loading (#3925)', () => {
     await saveReplacement(view);
     expect(clientIdInput()).toHaveValue('replacement-client-id');
   });
+  it('keeps a saved replacement and name when the older reveal arrives', async () => {
+    const view = setup();
+    await waitFor(() => expect(view.reads).toHaveLength(1));
+    await view.user.type(clientIdInput(), 'replacement-client-id');
+    await saveReplacement(view);
+    const save = screen.getByRole('button', { name: /^save(d)?$/i });
+    await waitFor(() => expect(save).toBeDisabled());
+
+    await act(async () => {
+      view.finishReveal(Response.json({ clientId: 'stored-client-id' }));
+    });
+    expect(clientIdInput()).toHaveValue('replacement-client-id');
+    const name = screen.getByRole('textbox', { name: /display name/i });
+    expect(name).toHaveValue('Replacement SSO');
+    expect(save).toBeDisabled();
+
+    // A subsequent save must still send the saved ID and name, rather than
+    // the stale connection values hidden behind a clean form.
+    await view.user.type(name, ' updated');
+    await view.user.tab();
+    await waitFor(() => expect(save).toBeEnabled());
+    await view.user.click(save);
+    await waitFor(() => expect(view.writes).toHaveLength(2));
+    expect(view.writes[1]).toMatchObject({
+      clientId: 'replacement-client-id',
+      displayName: 'Replacement SSO updated',
+    });
+  });
+
+  it('leaves the ID empty after typing and clearing while revealing', async () => {
+    const view = setup();
+    await waitFor(() => expect(view.reads).toHaveLength(1));
+    await view.user.type(clientIdInput(), 'replacement-client-id');
+    await view.user.clear(clientIdInput());
+    await view.user.tab();
+    const save = screen.getByRole('button', { name: /^save$/i });
+    await waitFor(() => expect(save).toBeDisabled());
+
+    await act(async () => {
+      view.finishReveal(Response.json({ clientId: 'stored-client-id' }));
+    });
+    expect(clientIdInput()).toHaveValue('');
+    expect(save).toBeDisabled();
+    expect(view.writes).toHaveLength(0);
+  });
+
   it('fills an untouched field without dirtying the form', async () => {
     const view = setup();
     await waitFor(() => expect(view.reads).toHaveLength(1));
