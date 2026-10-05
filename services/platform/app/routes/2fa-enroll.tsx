@@ -33,6 +33,7 @@ import { LogoLink } from '@/app/components/logo/logo-link';
 import { usePasswordRefusalMessage } from '@/app/features/auth/hooks/use-password-refusal-message';
 import { resumeOAuthSignIn } from '@/app/features/auth/lib/resume-oauth';
 import { PasskeyRegisterDialog } from '@/app/features/settings/account/components/passkey-register-dialog';
+import { downloadBackupCodes } from '@/app/features/settings/account/lib/download-backup-codes';
 import { useReactQueryClient } from '@/app/hooks/use-react-query-client';
 import { readPasswordRefusal } from '@/app/lib/auth/password-refusal';
 import { invalidateAuthState } from '@/app/lib/auth/session-query';
@@ -64,20 +65,6 @@ type Step =
       backupCodes: string[];
     }
   | { kind: 'done'; backupCodes: string[] };
-
-function downloadBackupCodes(codes: string[]) {
-  const blob = new Blob([codes.join('\n')], {
-    type: 'text/plain;charset=utf-8',
-  });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'tale-backup-codes.txt';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-}
 
 // Exported for tests (mirrors `LogInPage` in `_auth/log-in.tsx`).
 export function TwoFactorEnrollPage() {

@@ -244,6 +244,20 @@ test.describe('two-factor authentication', () => {
       ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
     }).toPass({ timeout: TIMEOUT.PERSIST });
 
+    // The codes download under the deployment's authenticator name: the
+    // synthetic client and environment the stack starts with
+    // (`E2E_TOTP_CLIENT_NAME`, `E2E_TOTP_ENVIRONMENT`).
+    const download = page.waitForEvent('download');
+    await page
+      .getByRole('button', {
+        name: t('twoFactor.backupCodes.downloadButton'),
+        exact: true,
+      })
+      .click();
+    expect((await download).suggestedFilename()).toBe(
+      'exampleplus-tale-platform-e2e-backup-codes.txt',
+    );
+
     // Drop the session so the next sign-in hits the challenge (sign-out is a
     // programmatic POST in-app; clearing the context cookies is the hermetic
     // equivalent and avoids depending on a GET sign-out route).

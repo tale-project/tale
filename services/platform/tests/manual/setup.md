@@ -41,6 +41,8 @@ cd services/platform && \
   TALE_ALLOW_PRIVATE_PROVIDER_HOSTS=1 \
   TALE_MOCK_CONNECTORS_BASE=http://127.0.0.1:4141 \
   TALE_CONTACT_SUPPORT_URL='https://support.example.com/help?source=tale' \
+  TOTP_CLIENT_NAME='Example plus' \
+  TOTP_ENVIRONMENT=e2e \
   bun scripts/dev.ts
 ```
 
@@ -56,7 +58,11 @@ own, and the fixture's `agents/` dir seeds nothing: the chat assistant is
 built in (`lib/chat/assistant.ts`). `TALE_MOCK_CONNECTORS_BASE` redirects connectors'
 outbound HTTP to the gateway so you can connect/test connectors offline.
 `TALE_CONTACT_SUPPORT_URL` points the error screens' **contact support** link
-at a placeholder help desk, as `navigation.spec.ts` expects. The connector and
+at a placeholder help desk, as `navigation.spec.ts` expects. `TOTP_CLIENT_NAME`
+and `TOTP_ENVIRONMENT` make the stack a synthetic client's test deployment:
+authenticator entries read `Example plus Tale Platform E2E` and backup codes
+download as `exampleplus-tale-platform-e2e-backup-codes.txt`, as
+`auth-account.spec.ts` expects. The connector and
 AI-provider catalogs are not fixtures: both come from the shipped system tree,
 `configs/platform/system/` (`connectors/`, `providers/`), which no mode-A
 variable redirects; a `providers/*.yml` in an org's config dir adds a provider

@@ -31,6 +31,8 @@ A passkey satisfies Tale's two-factor policy even if you have never set up an au
 
 The account page now confirms that two-factor authentication is active. At your next password sign-in, enter a code from the same authenticator entry.
 
+Your authenticator app lists the entry under the name of this deployment, so entries from different deployments stay apart. A deployment for a client puts the client's name first, and a test deployment adds its environment, as in **Acme Tale Platform TE**; Tale's own production deployment is **Tale Platform**. Downloaded backup codes use the same words in their file name, such as `acme-tale-platform-te-backup-codes.txt`.
+
 <Tip>
 Keep recovery codes somewhere you can reach without the device you use to sign in, such as a password manager available on another trusted device.
 </Tip>
