@@ -110,7 +110,10 @@ The UI package's transit omits only its publication README: an edit to that pros
 keeps consumer check hashes stable, while UI's own checks, all builds and the CLI's
 publication tests still hash it. Runtime source, exports and the Tailwind preset
 continue to invalidate consumers. An isolated real-Turbo fixture guards the boundary.
-Explicit `inputs` cover files read outside a workspace dependency. Root `tsconfig*.json`,
+Explicit `inputs` cover files read outside a workspace dependency. Catalog input lists
+omit nested task logs and TypeScript's incremental `*.tsbuildinfo` outputs, which
+CLI embedding already skips. Creating or rewriting these artifacts preserves
+consumer hashes; catalog source and toolchain edits still invalidate them. Root `tsconfig*.json`,
 lint and formatter configurations, `bunfig.toml`, patches and the Bun setup action
 participate in the global hash. Bun download caches separate OS and CPU architecture.
 

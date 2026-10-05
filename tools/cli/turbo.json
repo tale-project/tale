@@ -12,6 +12,7 @@
         "$TURBO_ROOT$/configs/platform/custom/**",
         "$TURBO_ROOT$/configs/platform/system/connectors/**",
         "!$TURBO_ROOT$/configs/platform/**/.turbo/**",
+        "!$TURBO_ROOT$/configs/platform/**/*.tsbuildinfo",
         "$TURBO_ROOT$/services/platform/backend/auth/membership.ts",
         "$TURBO_ROOT$/services/platform/backend/auth/oidc.ts",
         "$TURBO_ROOT$/services/platform/backend/db/sql.ts",
@@ -117,6 +118,7 @@
         "$TURBO_ROOT$/services/platform/lib/**",
         "$TURBO_ROOT$/configs/platform/**",
         "!$TURBO_ROOT$/configs/platform/**/.turbo/**",
+        "!$TURBO_ROOT$/configs/platform/**/*.tsbuildinfo",
         "$TURBO_ROOT$/.github/scripts/pull-ci-images.sh",
         "$TURBO_ROOT$/.github/workflows/scorecard.yml"
       ],
@@ -129,7 +131,8 @@
         "$TURBO_ROOT$/services/platform/backend/core/**",
         "$TURBO_ROOT$/services/platform/lib/**",
         "$TURBO_ROOT$/configs/platform/**",
-        "!$TURBO_ROOT$/configs/platform/**/.turbo/**"
+        "!$TURBO_ROOT$/configs/platform/**/.turbo/**",
+        "!$TURBO_ROOT$/configs/platform/**/*.tsbuildinfo"
       ]
     },
     "setup": {
@@ -139,7 +142,8 @@
         "$TURBO_ROOT$/services/platform/backend/core/**",
         "$TURBO_ROOT$/services/platform/lib/**",
         "$TURBO_ROOT$/configs/platform/**",
-        "!$TURBO_ROOT$/configs/platform/**/.turbo/**"
+        "!$TURBO_ROOT$/configs/platform/**/.turbo/**",
+        "!$TURBO_ROOT$/configs/platform/**/*.tsbuildinfo"
       ]
     },
     "lint": {

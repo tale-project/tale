@@ -314,10 +314,11 @@ preserving its compiler arguments and bundle check. Unrecognized or invalid entr
 Dirty local source must still record `clean: false`. CLI transit inputs cover its
 generator's embedded trees and the platform modules reached by relative imports;
 module-closure and generator-tree guards require those actual outside inputs to be hashed.
-CLI lint/test run generation directly and do not repeat the setup alias. Nested catalog
-`.turbo/` logs are excluded. The real
-Turbo fixture in `tools/cli/scripts/ci-cache-optimization.test.ts` checks log creation and
-rewrites leave hashes unchanged while real catalog sources invalidate them.
+CLI lint/test run generation directly and do not repeat the setup alias. External catalog
+inputs exclude nested `.turbo/` logs and `*.tsbuildinfo` incremental outputs; CLI embedding
+already omits both. The real Turbo fixture in
+`tools/cli/scripts/ci-cache-optimization.test.ts` proves creating and rewriting either
+artifact preserves consumer hashes while real catalog sources and toolchain inputs invalidate them.
 Do not cache these artifacts without including and
 verifying their complete source identity.
 

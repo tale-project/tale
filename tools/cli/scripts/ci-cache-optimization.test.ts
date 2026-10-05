@@ -946,9 +946,9 @@ test('native cache callers use valid inputs and isolate active matrix task lanes
 });
 
 // Explicit outside-workspace globs include Git-ignored files unless they are
-// excluded. A catalog skill's own Turbo log must not invalidate another task;
+// excluded. Skill logs and incremental compiler outputs are local state;
 // dependency patches and shared toolchain inputs must invalidate every reader.
-test('catalog build and generation hashes ignore task logs but retain source and toolchain edits', () => {
+test('catalog readers ignore local artifacts but retain source and toolchain edits', () => {
   const fixture = mkdtempSync(join(tmpdir(), 'tale-catalog-cache-'));
   const write = (file: string, value: string) => {
     const target = join(fixture, file);
@@ -957,6 +957,7 @@ test('catalog build and generation hashes ignore task logs but retain source and
   };
   const readers = [
     '@tale/platform#build',
+    '@tale/platform#test',
     '@tale/cli#generate',
     '@tale/cli#setup',
     '@tale/cli#test',
@@ -1051,10 +1052,12 @@ test('catalog build and generation hashes ignore task logs but retain source and
         readFileSync(join(REPO_ROOT, directory, 'turbo.json'), 'utf8'),
       );
     }
-    write('.gitignore', '.turbo\n');
+    write('.gitignore', '.turbo\n*.tsbuildinfo\n');
     const catalog = 'configs/platform/system/connectors/example/connector.yml';
     const skill = 'configs/platform/custom/skills/example/analyze.ts';
     const log = 'configs/platform/custom/skills/example/.turbo/turbo-test.log';
+    const incremental =
+      'configs/platform/custom/skills/example/tsconfig.tsbuildinfo';
     const globalInputs = {
       'patches/postgres@3.4.7.patch': 'fixture patch\n',
       'tsconfig.dom.json': '{"compilerOptions":{"lib":["DOM"]}}\n',
@@ -1085,6 +1088,21 @@ test('catalog build and generation hashes ignore task logs but retain source and
     expect(hashes()).toEqual(baseline);
     write(log, 'different test output\n');
     expect(hashes()).toEqual(baseline);
+    // tsc --noEmit still writes incremental output. Catalog consumers and
+    // CLI embedding never read it; creation and rewrites keep their verdicts.
+    for (const contents of [
+      '{"version":"6.0.2"}\n',
+      '{"version":"6.0.2","fileNames":["./src/analyze.ts"]}\n',
+    ]) {
+      write(incremental, contents);
+      const ignoredIncremental = spawnSync(
+        'git',
+        ['check-ignore', '--', incremental],
+        { cwd: fixture, encoding: 'utf8' },
+      );
+      expect(ignoredIncremental.stdout).toBe(incremental + '\n');
+      expect(hashes()).toEqual(baseline);
+    }
     write(catalog, 'name: changed\n');
     const changedCatalog = hashes();
     for (const reader of readers) {
