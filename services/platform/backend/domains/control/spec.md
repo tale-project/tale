@@ -1,15 +1,15 @@
-# Control — what the deployment's own door lets an operator do
+# Control — what the deployment's own endpoint lets an operator do
 
 > **Prefix** `CTRL-`
 
-The control door is what `tale deploy`, `tale migrate` and `tale auth reset-owner` call on a
+The control endpoint is what `tale deploy`, `tale migrate` and `tale auth reset-owner` call on a
 running deployment. Nobody signs in to it: a call is let in by the deployment's control token
-alone. These rules cover who can call the door and how a drain before a deploy behaves. Owner
+alone. These rules cover who can call it and how a drain before a deploy behaves. Owner
 recovery and re-seeding organizations are not covered; see Not yet.
 
-## Who can call the control door
+## Who can call the control endpoint
 
-### CTRL-R1 · The control door exists only on a deployment that sets a control token
+### CTRL-R1 · The control endpoint exists only on a deployment that sets a control token
 
 On a deployment without one, every call is answered as not found (`NOT_FOUND`), whatever it
 presents.
@@ -17,7 +17,7 @@ presents.
 - **Example**: A deployment sets no control token. The CLI asks for its drain status → not
   found, and the CLI carries on without a drain.
 
-### CTRL-R2 · Every call to the control door must present the control token
+### CTRL-R2 · Every call to the control endpoint must present the control token
 
 A call with no token, with another token, or with the token outside the `Bearer` scheme is
 refused (`UNAUTHORIZED`).
