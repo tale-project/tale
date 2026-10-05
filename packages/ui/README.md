@@ -40,6 +40,8 @@ reserve the scrollable height with `getTotalSize()`. Preserve native list semant
 and each row's position in the full list. Use `scrollToIndex` for keyboard navigation
 to unmounted rows and `rangeExtractor` to keep focused or dragged rows mounted.
 Enable `useAnimationFrameWithResizeObserver` when measured rows change height.
+An omitted `initialOffset` adopts the scrollport's current position; an explicit
+number or function restores the requested starting position instead.
 
 `DropdownMenu` accepts an item array or a callback returning its groups, including
 submenu items. Pass a callback for expensive menus: it runs when that menu opens,

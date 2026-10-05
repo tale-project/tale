@@ -58,8 +58,14 @@ export function useVirtualList<
 ) {
   return useVirtualizer<TScrollElement, TItemElement>({
     ...options,
+    // A supplied offset is the caller's requested starting position. Let
+    // TanStack restore it before reading native scroll events; a synchronous
+    // DOM seed would replace it with the scrollport's old position.
     observeElementOffset:
-      options.observeElementOffset ?? observeCurrentElementOffset,
+      options.observeElementOffset ??
+      (options.initialOffset === undefined
+        ? observeCurrentElementOffset
+        : observeElementOffset),
     initialOffset:
       options.initialOffset ??
       (() => {
