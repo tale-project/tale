@@ -20,6 +20,7 @@
  *
  * The lane resolves no model: creating one through the door needs a
  * servable model, which the policy's own unit tests and the live rig cover. */
+import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -31,6 +32,7 @@ import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { kickAgentRun } from '../tasks/agent-runs.ts';
 import {
   alignManagedProjectAgent,
+  detachSkillFromAgents,
   getProjectAuthContext,
   insertManagedProjectAgent,
   updateProjectAgent,
@@ -208,6 +210,22 @@ export async function checkStandardAgent(
       skills: ['docx'],
       instructions: 'Do the task.',
     };
+    const futureRevision = Date.now() + 86_400_000;
+    await sql`UPDATE app.project_agents SET updated_at_ms = ${futureRevision}
+      WHERE id = ${first.agentId}`;
+    const readAligned = async () => {
+      const [row] = await sql<
+        {
+          model: string;
+          skills: string[];
+          updatedAt: number;
+        }[]
+      >`SELECT model, skills, updated_at_ms::float8 AS "updatedAt"
+        FROM app.project_agents WHERE id = ${first.agentId}`;
+      assert.ok(row);
+      return row;
+    };
+    const beforeAlignment = await readAligned();
     // Another start holds the row: the alignment skips it at once.
     let whileHeld: boolean | undefined;
     let whileHeldMs = 0;
@@ -222,12 +240,16 @@ export async function checkStandardAgent(
       );
       whileHeldMs = Date.now() - started;
     });
+    assert.deepEqual(await readAligned(), beforeAlignment);
     const healed = await sql.begin((tx) =>
       alignManagedProjectAgent(tx, target, resolved),
     );
+    const afterAlignment = await readAligned();
+    assert.equal(afterAlignment.updatedAt, futureRevision + 1);
     const again = await sql.begin((tx) =>
       alignManagedProjectAgent(tx, target, resolved),
     );
+    assert.deepEqual(await readAligned(), afterAlignment);
     const aligned = await sql<{ model: string; skills: string[] }[]>`
       SELECT model, skills FROM app.project_agents WHERE id = ${first.agentId}
     `;
@@ -240,6 +262,63 @@ export async function checkStandardAgent(
         aligned[0]?.model === 'healed-model' &&
         aligned[0].skills.join(',') === 'docx',
       `whileHeld=${String(whileHeld)} in ${whileHeldMs}ms healed=${String(healed)} again=${String(again)} model=${aligned[0]?.model} skills=${aligned[0]?.skills.join(',')}`,
+    );
+
+    // Bulk removal advances each matched row's own revision, not one shared
+    // wall-clock stamp, and leaves rows without this synthetic skill alone.
+    const skill = `revision-probe-${randomUUID()}`;
+    const [curated] = await sql<{ id: string }[]>`
+      SELECT id FROM app.project_agents WHERE project_id = ${curatedProjectId}`;
+    assert.ok(curated);
+    const untouchedId = randomUUID();
+    await sql`INSERT INTO app.project_agents
+      (id, org_id, project_id, name, harness, model, created_by, created_at_ms, updated_at_ms)
+      VALUES (${untouchedId}, ${orgId}, ${curatedProjectId}, 'Unchanged revision',
+        'claude-code', 'lane-model', ${userId}, ${now}, ${futureRevision + 75})`;
+    for (const [id, revision] of [
+      [first.agentId, futureRevision + 10],
+      [curated.id, futureRevision + 50],
+    ] as const) {
+      await sql`UPDATE app.project_agents
+        SET skills = ${['keep-skill', skill]}, updated_at_ms = ${revision}
+        WHERE id = ${id}`;
+    }
+    const readBulk = async () => [
+      ...(await sql<{ id: string; skills: string[]; updatedAt: number }[]>`
+        SELECT id, skills, updated_at_ms::float8 AS "updatedAt"
+        FROM app.project_agents
+        WHERE id IN ${sql([first.agentId, curated.id, untouchedId])} ORDER BY id`),
+    ];
+    const beforeBulk = await readBulk();
+    const detached = await sql.begin((tx) =>
+      detachSkillFromAgents(tx, orgId, skill),
+    );
+    assert.deepEqual(
+      detached.map(({ id }) => id).sort(),
+      [first.agentId, curated.id].sort(),
+    );
+    const afterBulk = await readBulk();
+    assert.deepEqual(
+      afterBulk,
+      beforeBulk.map((row) =>
+        row.id === untouchedId
+          ? row
+          : {
+              id: row.id,
+              skills: ['keep-skill'],
+              updatedAt: row.updatedAt + 1,
+            },
+      ),
+    );
+    const detachedAgain = await sql.begin((tx) =>
+      detachSkillFromAgents(tx, orgId, skill),
+    );
+    assert.equal(detachedAgain.length, 0);
+    assert.deepEqual(await readBulk(), afterBulk);
+    record(
+      'agent revisions: bulk skill removal advances each affected row once',
+      true,
+      'two distinct future revisions advance; unmatched row and repeated removal unchanged',
     );
 
     // ---- a project with agents of its own ----------------------------------
