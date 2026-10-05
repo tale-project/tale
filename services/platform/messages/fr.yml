@@ -2790,6 +2790,9 @@ emptyStates:
     description: Génère une clé pour connecter des outils et scripts externes.
     descriptionNoCreate: Créer une clé demande le rôle Propriétaire, Admin ou Développeur, ou une compétence qu’un admin attribue pour cela.
 governance:
+  policyReadFailed: "Impossible de charger la politique enregistrée. La modification sera disponible après un chargement réussi."
+  policyReadRetry: Réessayer
+  policyReadRetrying: Rechargement de la politique en cours
   title: Gouvernance
   toastSavedTitle: Modifications enregistrées
   toastSaveFailedTitle: Échec de l'enregistrement des modifications

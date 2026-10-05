@@ -19,6 +19,7 @@ import { isRecord } from '@/lib/utils/type-utils';
 import { useUpsertGovernancePolicy } from '../hooks/mutations';
 import { useGovernancePolicy } from '../hooks/queries';
 import { useGovernancePolicyToggle } from '../hooks/use-governance-policy-toggle';
+import { withGovernancePolicyReadBoundary } from './policy-read-boundary';
 
 interface SystemPromptEditorProps {
   organizationId: string;
@@ -77,7 +78,7 @@ function readSavedInstructions(rawConfig: unknown): SavedInstructions {
 // the feature and explains it, so a second label would say the same thing twice.
 // The textarea keeps an `aria-label` so the bare control is still named.
 // =============================================================================
-export function SystemPromptEditor({
+function SystemPromptEditorContent({
   organizationId,
 }: SystemPromptEditorProps) {
   const { t } = useT('governance');
@@ -212,3 +213,8 @@ export function SystemPromptEditor({
     </Skeletonize>
   );
 }
+
+export const SystemPromptEditor = withGovernancePolicyReadBoundary(
+  SystemPromptEditorContent,
+  'system_prompt',
+);

@@ -2665,6 +2665,9 @@ emptyStates:
     description: Generate a key to connect external tools and scripts.
     descriptionNoCreate: Creating a key takes the Owner, Admin or Developer role, or a competence an Admin grants for one.
 governance:
+  policyReadFailed: "Couldn't load the saved policy. Editing is unavailable until the policy can be read."
+  policyReadRetry: Retry
+  policyReadRetrying: Retrying policy read
   title: Governance
   toastSavedTitle: Changes saved
   toastSaveFailedTitle: Couldn't save changes
