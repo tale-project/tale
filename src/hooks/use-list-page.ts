@@ -1,0 +1,543 @@
+'use client';
+
+import type { FilterConfig } from '@tale/ui/data-table/data-table-filters';
+import type {
+  DataTableSearchConfig,
+  EntityLabel,
+} from '@tale/ui/data-table/data-table-types';
+import {
+  createTable,
+  getCoreRowModel,
+  getSortedRowModel,
+  type ColumnDef,
+  type SortingState,
+} from '@tanstack/react-table';
+import { useState, useMemo, useCallback, useEffect } from 'react';
+
+import {
+  filterByTextSearch,
+  filterByFields,
+  type SearchAccessor,
+} from '../lib/filtering';
+
+/**
+ * The state behind every collection screen's `DataTable`: search, facets, and
+ * the window of rows the table shows before it loads more on scroll — which is
+ * what ends each list on the same "Showing all N …" footer inside its frame.
+ * One hook, so two lists cannot page or count differently.
+ */
+
+/**
+ * How many rows a list shows before it loads more on scroll. A host that
+ * primes a backend page from a route loader asks for this many, so the first
+ * paint is exactly the window the table renders.
+ */
+export const DEFAULT_LIST_PAGE_SIZE = 20;
+
+// ---------------------------------------------------------------------------
+// Data Source Types
+// ---------------------------------------------------------------------------
+
+/**
+ * What a data source says about a failed request. A list that has nothing
+ * loaded renders the table's error state with the retry, never the
+ * collection's empty state — "No projects yet" over a 500 read as data loss
+ * (2026-09-26 evaluation, G-07). With rows already loaded the rows stay on
+ * screen and the next successful refetch heals it; the host names the
+ * failure above the table, with the same retry. A paginated source stops
+ * loading further pages until then (`infiniteScroll.loadFailed`).
+ */
+interface RequestOutcome {
+  /** The request's error once the retry policy gave up; `null`/absent
+   * while it is healthy or still loading. */
+  error?: Error | null;
+  /** Re-issue the request — the table's retry action. */
+  retry?: () => void;
+  /**
+   * The host's word that the rows on screen are all the list could load for
+   * now — for a host that lists rows of its own beside the source's, or
+   * narrows the rows itself, so the table cannot tell. A documents table's
+   * folders stay when its documents read never answered. While it holds,
+   * the list loads no further, keeps its rows through a retry instead of
+   * drawing a first-load skeleton, and says the rest could not be loaded —
+   * never "all". Absent, a paginated source counts as stopped once a
+   * request failed with rows loaded and more to come.
+   */
+  loadFailed?: boolean;
+}
+
+interface PaginatedDataSource<TData> extends RequestOutcome {
+  type: 'paginated';
+  results: TData[] | undefined;
+  status: 'LoadingFirstPage' | 'CanLoadMore' | 'LoadingMore' | 'Exhausted';
+  loadMore: (numItems: number) => void;
+  isLoading: boolean;
+}
+
+interface QueryDataSource<TData> extends RequestOutcome {
+  type: 'query';
+  data: TData[] | undefined;
+}
+
+type DataSource<TData> = PaginatedDataSource<TData> | QueryDataSource<TData>;
+
+// ---------------------------------------------------------------------------
+// Filter Definition (for managed filters)
+// ---------------------------------------------------------------------------
+
+interface ListFilterDefinition {
+  key: string;
+  title: string;
+  options: Array<{ value: string; label: string }>;
+  grid?: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// Search Configuration
+// ---------------------------------------------------------------------------
+
+interface ManagedSearch<TData> {
+  /**
+   * What the query matches against: a row's own keys, or an accessor for a
+   * value the row does not carry as a field — a label the host translates, a
+   * related record's name.
+   */
+  fields: (Extract<keyof TData, string> | SearchAccessor<TData>)[];
+  placeholder?: string;
+}
+
+interface ControlledSearch {
+  serverSide?: boolean;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Filter Configuration
+// ---------------------------------------------------------------------------
+
+interface ManagedFilters {
+  definitions: ListFilterDefinition[];
+}
+
+interface ControlledFilters {
+  configs: FilterConfig[];
+  onClear: () => void;
+}
+
+// ---------------------------------------------------------------------------
+// Hook Options
+// ---------------------------------------------------------------------------
+
+interface UseListPageOptions<TData> {
+  dataSource: DataSource<TData>;
+  pageSize: number;
+  search?: ManagedSearch<TData> | ControlledSearch;
+  filters?: ManagedFilters | ControlledFilters;
+  getRowId?: (row: TData) => string;
+  /** Approximate item count for skeleton row count during initial loading */
+  approxRowCount?: number;
+  /** Entity noun. Enables the "Showing all X {entity}" footer — pass `{ one, other }` so a single-row table reads correctly too. */
+  entityLabel?: EntityLabel;
+  /**
+   * Entities a row represents in the footer count. A folder row aggregates
+   * its members, so counting rows would count the folder as one entity
+   * (#2348). Defaults to 1 per row; only affects the infinite-scroll entity
+   * footer.
+   */
+  countRow?: (row: TData) => number;
+  /**
+   * The table's controlled sort state, when its columns are sortable. A sort
+   * orders the WHOLE dataset, not the page the user happens to have scrolled
+   * to, so while one is active the hook drains every remaining backend page
+   * to preserve completeness. Without `sortingColumns`, the table receives
+   * the full set as before. Supply the table's columns to sort the whole
+   * buffer through TanStack before windowing; that table must use manual
+   * sorting so it does not independently sort the resulting window.
+   */
+  sorting?: SortingState;
+  sortingColumns?: ColumnDef<TData>[];
+}
+
+// ---------------------------------------------------------------------------
+// Hook Return Type
+// ---------------------------------------------------------------------------
+
+interface ListPageTableProps<TData> {
+  data: TData[];
+  search?: DataTableSearchConfig;
+  filters?: FilterConfig[];
+  onClearFilters?: () => void;
+  getRowId: (row: TData) => string;
+  /** The data source's request error when nothing is loaded — the table
+   * renders its error state with `onRetry` instead of the empty state. */
+  error: Error | null;
+  onRetry?: () => void;
+  infiniteScroll: {
+    hasMore: boolean;
+    onLoadMore: () => void;
+    isLoadingMore: boolean;
+    isInitialLoading: boolean;
+    /** A request failed while rows are on screen and the backend may hold
+     * more: nothing is loading, and nothing will until the retry. */
+    loadFailed: boolean;
+    entityLabel?: EntityLabel;
+    /** Unfiltered total from rawData — differs from the shown count when filters are active */
+    totalCount?: number;
+    /** Entities the visible rows represent when rows aggregate (see `countRow`) */
+    displayedCount?: number;
+  };
+  approxRowCount?: number;
+}
+
+interface UseListPageReturn<TData> {
+  tableProps: ListPageTableProps<TData>;
+  processedData: TData[];
+  totalCount: number;
+  filteredCount: number;
+  isLoading: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// Type Guards
+// ---------------------------------------------------------------------------
+
+function isManagedSearch<TData>(
+  search: ManagedSearch<TData> | ControlledSearch,
+): search is ManagedSearch<TData> {
+  return 'fields' in search;
+}
+
+function isControlledFilters(
+  filters: ManagedFilters | ControlledFilters,
+): filters is ControlledFilters {
+  return 'configs' in filters;
+}
+
+/** Sums the entities the rows represent — 1 per row unless `countRow` says otherwise. */
+function countEntities<TData>(
+  rows: readonly TData[],
+  countRow?: (row: TData) => number,
+): number {
+  if (!countRow) return rows.length;
+  return rows.reduce((sum, row) => sum + countRow(row), 0);
+}
+
+// ---------------------------------------------------------------------------
+// Hook Implementation
+// ---------------------------------------------------------------------------
+
+export function useListPage<TData>(
+  options: UseListPageOptions<TData>,
+): UseListPageReturn<TData> {
+  const {
+    dataSource,
+    pageSize,
+    search,
+    filters,
+    getRowId,
+    approxRowCount,
+    entityLabel,
+    countRow,
+    sorting,
+    sortingColumns,
+  } = options;
+
+  // 1. Normalize data source
+  const rawData = useMemo(
+    () =>
+      dataSource.type === 'paginated'
+        ? (dataSource.results ?? [])
+        : (dataSource.data ?? []),
+    [dataSource],
+  );
+
+  const requestError = dataSource.error ?? null;
+  // With rows on screen, a failed request halts a paginated source where it
+  // stands: draining on would re-issue the failed page on every render, and
+  // the table would keep promising rows ("loading", "scroll for more") that
+  // no request is fetching. A retry in flight reads as loading again.
+  const loadFailed =
+    dataSource.loadFailed ??
+    (requestError !== null &&
+      rawData.length > 0 &&
+      dataSource.type === 'paginated' &&
+      dataSource.status === 'CanLoadMore');
+
+  // react-query resets a read that never answered to its first-load state
+  // the moment a retry starts. A list that stopped short keeps its rows
+  // meanwhile: a skeleton would take them — and a dialog open on one of
+  // them — off the screen, only to bring them back if the retry fails.
+  const isLoading =
+    dataSource.type === 'paginated'
+      ? dataSource.status === 'LoadingFirstPage' && !loadFailed
+      : dataSource.data === undefined;
+
+  // 2. Managed search state
+  const [managedSearchValue, setManagedSearchValue] = useState('');
+
+  // 3. Managed filter states (single object for all filters)
+  const [managedFilterStates, setManagedFilterStates] = useState<
+    Record<string, string[]>
+  >({});
+
+  // 4. Display count
+  const [displayCount, setDisplayCount] = useState(pageSize);
+
+  // Determine actual search value
+  const searchValue =
+    search && isManagedSearch(search) ? managedSearchValue : '';
+
+  // Determine actual filter values (only for managed mode)
+  const filterValues =
+    filters && !isControlledFilters(filters) ? managedFilterStates : null;
+
+  // Whether a client-side search/filter is currently narrowing the dataset.
+  // When true in infinite-scroll mode we must eagerly drain ALL backend pages
+  // so the filter scans the full dataset rather than only already-loaded pages
+  // (#2054) — otherwise a match on an un-loaded page is silently missed.
+  const hasActiveClientFilter = useMemo(() => {
+    const searchActive = search
+      ? isManagedSearch(search)
+        ? managedSearchValue.trim().length > 0
+        : !search.serverSide && search.value.trim().length > 0
+      : false;
+    const managedFilterActive = filterValues
+      ? Object.values(filterValues).some((values) => values.length > 0)
+      : false;
+    return searchActive || managedFilterActive;
+  }, [search, managedSearchValue, filterValues]);
+
+  // A sort reorders the whole dataset, so it needs the whole dataset: the
+  // buffer drains like an active filter does, and the `displayCount` window
+  // is dropped so TanStack sorts every row rather than the first page.
+  const hasActiveSort = (sorting?.length ?? 0) > 0;
+
+  // 5. Process data (search + filters)
+  const processed = useMemo(() => {
+    let data = [...rawData];
+
+    // Apply managed text search
+    if (search && isManagedSearch<TData>(search) && searchValue) {
+      data = filterByTextSearch(data, searchValue, search.fields);
+    }
+
+    // Apply managed field filters
+    if (filterValues) {
+      const activeFilters = Object.entries(filterValues)
+        .filter(([, values]) => values.length > 0)
+        .map(([field, values]) => ({
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Object.entries loses key type; field is keyof TData from filter definitions
+          field: field as keyof TData,
+          values: new Set(values),
+        }));
+
+      if (activeFilters.length > 0) {
+        data = filterByFields(data, activeFilters);
+      }
+    }
+
+    return data;
+  }, [rawData, searchValue, filterValues, search]);
+
+  // A halted source has no scroll to page its loaded rows in (the table
+  // stops watching the end of the list), so every processed row is on
+  // screen while it holds — whatever last reset the window: a search or a
+  // filter that matched them all, or its clearing (#3944). The effect
+  // carries that window over, so it stays open once the retry succeeds and
+  // nothing leaves the screen on recovery.
+  const windowCount = loadFailed
+    ? Math.max(displayCount, processed.length)
+    : displayCount;
+  useEffect(() => {
+    if (loadFailed && displayCount < processed.length) {
+      setDisplayCount(processed.length);
+    }
+  }, [loadFailed, displayCount, processed.length]);
+
+  const sortedProcessed = useMemo(() => {
+    if (!sortingColumns || !sorting?.length) return processed;
+    const table = createTable({
+      data: processed,
+      columns: sortingColumns,
+      state: { sorting },
+      onStateChange: () => {},
+      renderFallbackValue: null,
+      getCoreRowModel: getCoreRowModel(),
+      getSortedRowModel: getSortedRowModel(),
+      getRowId,
+    });
+    return table.getSortedRowModel().rows.map((row) => row.original);
+  }, [processed, sorting, sortingColumns, getRowId]);
+  const renderAllForSort =
+    hasActiveSort && (!sortingColumns || sortedProcessed.length < pageSize * 5);
+  const displayed = useMemo(
+    () =>
+      renderAllForSort
+        ? sortedProcessed
+        : sortedProcessed.slice(0, windowCount),
+    [sortedProcessed, renderAllForSort, windowCount],
+  );
+
+  const localRemaining =
+    !renderAllForSort && windowCount < sortedProcessed.length;
+  const hasMore =
+    dataSource.type === 'paginated'
+      ? localRemaining ||
+        dataSource.status === 'CanLoadMore' ||
+        dataSource.status === 'LoadingMore'
+      : localRemaining;
+
+  // 8. Reset displayCount helper
+  const resetDisplayCount = useCallback(() => {
+    setDisplayCount(pageSize);
+  }, [pageSize]);
+
+  // 9. handleLoadMore — prefetch from backend before buffer is exhausted
+  const handleLoadMore = useCallback(() => {
+    if (dataSource.type === 'paginated') {
+      const nextDisplayCount = displayCount + pageSize;
+      const remainingAfterIncrement = processed.length - nextDisplayCount;
+      if (
+        remainingAfterIncrement <= pageSize &&
+        dataSource.status === 'CanLoadMore' &&
+        !loadFailed
+      ) {
+        dataSource.loadMore(pageSize * 3);
+      }
+    }
+    setDisplayCount((prev) => prev + pageSize);
+  }, [dataSource, displayCount, processed.length, pageSize, loadFailed]);
+
+  // 10. Build search config
+  const searchConfig = useMemo((): DataTableSearchConfig | undefined => {
+    if (!search) return undefined;
+
+    if (isManagedSearch<TData>(search)) {
+      return {
+        value: managedSearchValue,
+        onChange: (value: string) => {
+          setManagedSearchValue(value);
+          resetDisplayCount();
+        },
+        placeholder: search.placeholder,
+      };
+    }
+
+    return {
+      value: search.value,
+      onChange: (value: string) => {
+        search.onChange(value);
+        resetDisplayCount();
+      },
+      placeholder: search.placeholder,
+    };
+  }, [search, managedSearchValue, resetDisplayCount]);
+
+  // 11. Build filter configs
+  const filterConfigs = useMemo((): FilterConfig[] | undefined => {
+    if (!filters) return undefined;
+
+    if (isControlledFilters(filters)) {
+      return filters.configs;
+    }
+
+    return filters.definitions.map((def) => ({
+      key: def.key,
+      title: def.title,
+      options: def.options,
+      grid: def.grid,
+      selectedValues: managedFilterStates[def.key] ?? [],
+      onChange: (values: string[]) => {
+        setManagedFilterStates((prev) => ({ ...prev, [def.key]: values }));
+        resetDisplayCount();
+      },
+    }));
+  }, [filters, managedFilterStates, resetDisplayCount]);
+
+  // 12. Build clearAll
+  const clearAll = useCallback(() => {
+    if (search && isManagedSearch(search)) {
+      setManagedSearchValue('');
+    }
+    if (filters && !isControlledFilters(filters)) {
+      setManagedFilterStates({});
+    }
+    if (filters && isControlledFilters(filters)) {
+      filters.onClear();
+    }
+    resetDisplayCount();
+  }, [search, filters, resetDisplayCount]);
+
+  // 13. Determine onClearFilters
+  const onClearFilters =
+    filters || (search && isManagedSearch(search)) ? clearAll : undefined;
+
+  // 14. Build getRowId
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex documents always have _id; TData generic doesn't enforce it
+  const rowIdFn = getRowId ?? ((row: TData) => (row as { _id: string })._id);
+
+  // A failed request with nothing loaded is the table's error state (with
+  // its retry), never its empty state; loaded rows outlive a failed refetch.
+  const sharedTableProps = {
+    search: searchConfig,
+    filters: filterConfigs,
+    onClearFilters,
+    getRowId: rowIdFn,
+    approxRowCount,
+    error: requestError !== null && rawData.length === 0 ? requestError : null,
+    onRetry: dataSource.retry,
+  };
+
+  // The list normally fetches the next backend page only as the user scrolls.
+  // But while a client-side search/filter is active we eagerly drain the
+  // remaining pages so the filter scans the entire dataset — without this,
+  // matches on un-loaded pages are silently missed, and a filter that narrows
+  // the loaded buffer to zero suppresses the scroll sentinel, stranding the user
+  // on a false "no results" (#2054). A sort drains for the same reason: it has
+  // to order rows it hasn't seen yet.
+  if (
+    (hasActiveClientFilter || hasActiveSort) &&
+    dataSource.type === 'paginated' &&
+    dataSource.status === 'CanLoadMore' &&
+    !loadFailed
+  ) {
+    dataSource.loadMore(pageSize * 3);
+  }
+
+  return {
+    tableProps: {
+      ...sharedTableProps,
+      data: displayed,
+      infiniteScroll: {
+        hasMore,
+        onLoadMore: handleLoadMore,
+        // Only a backend fetch the local buffer can't cover reads as "loading
+        // more". While a sort is active the buffer is always spent — every
+        // processed row is already on screen — so the backend fetch is it.
+        isLoadingMore:
+          dataSource.type === 'paginated'
+            ? dataSource.status === 'LoadingMore' &&
+              (hasActiveSort || windowCount >= processed.length)
+            : false,
+        isInitialLoading: isLoading,
+        loadFailed,
+        entityLabel,
+        // In entity units when rows aggregate (countRow) — a folder row stands
+        // in for its members, so summing per-row counts keeps the footer's
+        // numerator and denominator in the unit the entity label names (#2348).
+        totalCount: entityLabel ? countEntities(rawData, countRow) : undefined,
+        displayedCount: countRow
+          ? countEntities(displayed, countRow)
+          : undefined,
+      },
+    },
+    processedData: processed,
+    totalCount: rawData.length,
+    filteredCount: processed.length,
+    isLoading,
+  };
+}
+
+export type { UseListPageOptions, UseListPageReturn };
