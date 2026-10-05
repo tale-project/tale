@@ -4,8 +4,8 @@ Optimize both time to feedback and total runner work. Inspect job queue time sep
 from step duration before adding shards: a short test behind a large setup cost usually
 needs fewer runners, while a long CPU-bound suite can benefit from more slices.
 
-The cumulative audit records [131 retained implemented improvements](CI-improvements.json)
-since `c8f31b2b9`: 81 authored here, 45 integrated from concurrent upstream work and five
+The cumulative audit records [132 retained implemented improvements](CI-improvements.json)
+since `c8f31b2b9`: 82 authored here, 45 integrated from concurrent upstream work and five
 combining both. Each entry records before/after behavior, changed paths, source commits
 and proof. Repeated patterns across workflows count once; suggestions and retained
 baseline behavior do not count.
@@ -220,6 +220,12 @@ commit, preserving historical candidate source checkouts. Failed analysis, conve
 or regression checks fail the informational job; reports that exist are uploaded.
 The direct SBOM pass reuses the pinned scanner installation and skips a second cache transfer.
 
+Release publication keeps full commit/tag history for contract comparisons, while its
+working tree selects authored release notes and the two dependency-free renderers.
+Historical API snapshots still come from `git show` and fetch on demand from this public
+repository. An anonymous partial clone reproduced the full-checkout notes byte for byte
+without retained checkout credentials or installed dependencies.
+
 Scorecard remains informational and runs weekly, manually and when branch protections
 change. Blocking source and dependency security gates retain their triggers.
 
@@ -291,6 +297,10 @@ joins every bounded worker. Shared main, release, candidate and other-PR tags su
 Security retains each advisory retry and scanner result independently of SARIF publishing.
 Blocking Trivy checks still run after informational reporting failures; reporting and
 upload budgets leave time for the blocking scan. Read-only checkouts do not retain tokens.
+The independent filesystem gate reuses the engine and database provisioned by a
+successful report scan, then executes its own blocking HIGH/CRITICAL vulnerability scan.
+Failed, cancelled, skipped or missing report outcomes retain full installation and cache
+restoration; candidates still use that fallback because their reporting step is skipped.
 
 The built-site crawler keeps its bounded worker pool active as links appear, schedules
 addresses once, includes active requests in URL caps and reports interrupted response
@@ -586,6 +596,26 @@ zero failures) in 246.41 seconds and its compiled smoke suite passed 56 cases
 with one existing skip in 47.29 seconds. This observes the restored production
 scheduling; the additional two-file Git regression still needs its own final run.
 
+The continued 2026-10-05 round retained incoming sparse/audit/cache work and added
+conditional Trivy provisioning reuse, narrow release rendering and native-Node execution
+inside the existing sparse Git guards. All affected CLI generation, lint, type and source
+tests executed and passed: 2,345 tests, 29 existing skips and 37,614 assertions. The focused
+combined guard suite passed 76 cases; the actual sparse action source also passed under
+checksummed Node 24.9.0 without a package manifest or dependencies. An anonymous partial
+clone retained every remote tag and reproduced the 8,685-byte release notes while historical
+snapshots fetched on demand. The materialized release tree contained six files/23,100 bytes.
+These are working-tree measurements, not a measured network or pipeline speedup.
+After rebasing onto `6bd227fdc`, the integration guards passed 143 cases/2,169 assertions;
+affected CLI lint, types and all-workflow actionlint also passed.
+
+The broader local gate remains recorded as red. The bounded run passed 5,800 platform UI
+cases but failed 27 cases in twelve files, with Unit cancelled afterward. A one-worker
+recheck passed 426 cases and failed seven. A subsequent four-file recheck passed 122
+cases and failed one; that remaining skills file then passed all six cases in isolation.
+These overlapping retries do not make the full gate green. No assertions or time limits
+were relaxed; hosted validation must judge the final revision separately. A filtered native
+CLI install was rejected because modest size savings did not establish a reliable benefit.
+
 ## Pull-request CI readiness
 
 Each validation workflow emits one direct terminal context on every PR and merge group:
@@ -640,6 +670,8 @@ Native Git fixtures execute both actions from those minimal trees and retain sco
 pre/postflight API checks and failed or incomplete readiness verdicts.
 An official checksummed Node 24 runtime also imports the sparse TypeScript and executes
 the actual action scripts with both `package.json` and `node_modules` absent.
+The tracked Git fixtures also execute those scripts with native Node, including every
+scope policy and passed, failed and incomplete readiness evidence.
 
 ### Activation and observation
 
