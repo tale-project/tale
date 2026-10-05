@@ -164,7 +164,7 @@ describe('the dense leg runs exactly for a small scope', () => {
 });
 
 describe('the documents corpus is scoped to one organization', () => {
-  it('filters both legs by the organization it was constructed for', async () => {
+  it('filters both legs by the organization it was constructed for [KNOW-R1]', async () => {
     const { sql, sent } = recorder();
     const reader = new DocumentCorpusReader(sql, 'acme');
     await reader.keyword(LEG);
@@ -179,7 +179,7 @@ describe('the documents corpus is scoped to one organization', () => {
     }
   });
 
-  it('joins chunks to documents on the organization as well as the id', async () => {
+  it('joins chunks to documents on the organization as well as the id [KNOW-R1]', async () => {
     // The composite join is what stops a chunk of one organization from being
     // attributed to another organization's document.
     const { sql, sent } = recorder();
@@ -192,7 +192,7 @@ describe('the documents corpus is scoped to one organization', () => {
     );
   });
 
-  it('takes the organization from its constructor, never from the query', async () => {
+  it('takes the organization from its constructor, never from the query [KNOW-R1]', async () => {
     // A second organization asking the same question addresses its own corpus,
     // and nothing in the query could change that.
     const acme = recorder();
@@ -241,7 +241,7 @@ describe('the documents corpus is scoped to one organization', () => {
     expect(corpusStatements(sent)[0].text).toContain("|| '/'");
   });
 
-  it("applies the caller's access scope to both legs", async () => {
+  it("applies the caller's access scope to both legs [KNOW-R3]", async () => {
     // Team/project scoping is what stops a scoped document from leaking
     // org-wide; a leg without the clause would leak on exactly that leg.
     const { sql, sent } = recorder();
@@ -276,7 +276,7 @@ describe('the documents corpus is scoped to one organization', () => {
     }
   });
 
-  it('matches a shared document by ANY of its teams, on both legs', async () => {
+  it('matches a shared document by ANY of its teams, on both legs [KNOW-R3]', async () => {
     // A document shared to [sales, support] must be retrievable by a support
     // member even though sales is stamped first — the single-column era
     // matched only the first team and silently hid the rest. `&&` is array
@@ -323,6 +323,31 @@ describe('the documents corpus is scoped to one organization', () => {
     expect(statement.text).toContain(
       'd.team_ids && $3::text[] OR (d.team_ids IS NULL AND d.team_id = ANY($3))',
     );
+  });
+
+  it('opens every team library to an owner or admin on both legs, and to nobody else [KNOW-R3]', async () => {
+    // The audience rule's admin leg: an owner or admin reads a team library
+    // without being in the team. A project file is not a team library.
+    const adminLeg =
+      '((d.team_ids IS NOT NULL OR d.team_id IS NOT NULL) AND d.project_id IS NULL)';
+    for (const isAdmin of [true, false]) {
+      const { sql, sent } = recorder();
+      const reader = new DocumentCorpusReader(sql, 'acme');
+      const access = {
+        teamIds: [],
+        isAdmin,
+        projectIds: [],
+        includeHub: true,
+      };
+      await reader.keyword({ ...LEG, access });
+      await reader.dense({ ...LEG, access, embedding: EMBEDDING });
+
+      const statements = corpusStatements(sent);
+      expect(statements.length).toBe(2);
+      for (const statement of statements) {
+        expect(statement.text.includes(adminLeg)).toBe(isAdmin);
+      }
+    }
   });
 
   it('drops the hub disjunct when the scope excludes it', async () => {
@@ -385,7 +410,7 @@ describe('the documents corpus is scoped to one organization', () => {
     }
   });
 
-  it('keeps mail out of every statement for a door that did not ask', async () => {
+  it('keeps mail out of every statement for a door that did not ask [KNOW-R5]', async () => {
     // Mail is text an outsider wrote; only a door that wraps it may take any,
     // so for every other — the org-wide callers included — no message row
     // and no emailed attachment may even win a candidate slot. The dense
@@ -583,7 +608,7 @@ describe('the documents corpus is scoped to one organization', () => {
   });
 });
 
-describe('the web corpus is scoped by membership', () => {
+describe('the web corpus is scoped by membership [KNOW-R1]', () => {
   it('joins through the organization membership on both legs', async () => {
     // Web pages are fetched once per domain and shared inside one database, so
     // the membership join is the ONLY thing that scopes this corpus.
