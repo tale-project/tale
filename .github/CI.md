@@ -31,6 +31,9 @@ needs fewer runners, while a long CPU-bound suite can benefit from more slices.
   their container tests without building the eight-image platform stack. Shared package,
   dependency, toolchain and test-harness inputs expand to full coverage. Release candidates
   always run the complete graph, regardless of changed paths.
+  Edits to the four service-specific container probes select their standalone container
+  job without the platform stack; shared probes, helper libraries and platform sources
+  retain full stack coverage. Storybook still scans those probe files for CSS classes.
   Forks build on their consuming smoke and image-validation runners rather than additionally
   scheduling eight isolated builds that those runners cannot use. Published image checks
   preflight every digest receipt, pull at most three images concurrently, and check each

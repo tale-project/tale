@@ -162,7 +162,10 @@ jobs:
               - '.github/actions/setup-turbo/**'
               - 'turbo.json'
             platform:
-              - 'services/platform/**'
+              # These four standalone probes are excluded from Docker contexts
+              # and run in their own jobs. One positive extglob retains every
+              # other platform path under paths-filter's default OR semantics.
+              - &platform_sources 'services/platform/!(tests/integration/container-web-test.ts|tests/integration/container-docs-test.ts|tests/integration/container-ui-docs-test.ts|tests/integration/container-ai-gateway-test.ts)'
               - 'services/db/migrations/knowledge-db/**'
               - 'packages/ui/**'
               - 'packages/shared/**'
@@ -226,7 +229,6 @@ jobs:
               - 'configs/platform/system/harnesses/gemini/harness.yml'
               - 'configs/platform/custom/skills/visual-aspect-analyzer/**'
             ci_tests:
-              - 'services/platform/tests/integration/container-*'
               - 'services/platform/tests/integration/static-site-test.ts'
               - 'services/platform/tests/integration/lib/**'
               - 'compose.test.yml'
@@ -236,7 +238,7 @@ jobs:
               - '.github/workflows/build.yml'
               - '.github/scripts/pull-ci-images.sh'
               - 'services/db/**'
-              - 'services/platform/**'
+              - *platform_sources
               - 'services/proxy/**'
               - 'services/sandbox-llm-gateway/**'
               - 'services/sandbox/**'

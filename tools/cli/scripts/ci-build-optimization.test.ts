@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
+import picomatch from 'picomatch';
 import { parse } from 'yaml';
 
 type Step = {
@@ -34,6 +35,8 @@ type Workflow = {
 
 const repository = resolve(import.meta.dir, '../../..');
 const source = '1234567890abcdef1234567890abcdef12345678';
+const matches = (patterns: string[], path: string) =>
+  patterns.some((pattern) => picomatch(pattern, { dot: true })(path));
 const directories: string[] = [];
 afterEach(async () => {
   for (const directory of directories.splice(0))
@@ -114,8 +117,8 @@ test.skipIf(process.platform === 'win32')(
       ['services/platform/backend/server.ts', ['platform'], true],
       [
         'services/platform/tests/integration/container-docs-test.ts',
-        ['platform', 'docs'],
-        true,
+        ['docs'],
+        false,
       ],
       [
         'services/platform/lib/harnesses/gemini.ts',
@@ -182,7 +185,7 @@ test.skipIf(process.platform === 'win32')(
           `${event}: ${path}`,
         ).toBe(true);
       const changes = Object.keys(filters).filter((key) =>
-        filters[key]!.some((pattern) => new Bun.Glob(pattern).match(path)),
+        matches(filters[key]!, path),
       );
       const result = await execute(
         step(file, 'changes', 'Compute service matrix').run!,
@@ -710,11 +713,7 @@ describe.skipIf(process.platform === 'win32')(
         'tools/cli/package.json',
         'tsconfig.dom.json',
       ])
-        expect(
-          filters.image_inputs!.some((pattern) =>
-            new Bun.Glob(pattern).match(input),
-          ),
-        ).toBe(true);
+        expect(matches(filters.image_inputs!, input)).toBe(true);
     });
   },
 );
@@ -733,9 +732,7 @@ test('standalone container tests run for their own harness and shared stack inpu
       'services/platform/tests/integration/static-site-test.ts',
       'services/platform/tests/integration/lib/docker.ts',
     ]) {
-      expect(
-        filters[service]!.some((pattern) => new Bun.Glob(pattern).match(input)),
-      ).toBe(true);
+      expect(matches(filters[service]!, input)).toBe(true);
       for (const event of ['pull_request', 'push'])
         expect(
           build.on[event]!.paths!.some((pattern) =>
@@ -757,12 +754,7 @@ test('every declared workspace manifest selects the workspace image consumers', 
   expect(workspaces.length).toBeGreaterThan(0);
   for (const workspace of workspaces) {
     const manifest = `${workspace.replaceAll('*', 'example')}/package.json`;
-    expect(
-      filters.image_inputs!.some((pattern) =>
-        new Bun.Glob(pattern).match(manifest),
-      ),
-      manifest,
-    ).toBe(true);
+    expect(matches(filters.image_inputs!, manifest), manifest).toBe(true);
     for (const event of ['pull_request', 'push'])
       expect(
         build.on[event]!.paths!.some((pattern) =>
@@ -784,21 +776,11 @@ test('standalone compose edits do not select the unrelated stack harness', async
       `compose.${service}.yml`,
       `compose.${service}.test.yml`,
     ]) {
-      expect(
-        filters[service]!.some((pattern) => new Bun.Glob(pattern).match(path)),
-        path,
-      ).toBe(true);
-      expect(
-        filters.ci_tests!.some((pattern) => new Bun.Glob(pattern).match(path)),
-        path,
-      ).toBe(false);
+      expect(matches(filters[service]!, path), path).toBe(true);
+      expect(matches(filters.ci_tests!, path), path).toBe(false);
     }
   }
-  expect(
-    filters.ci_tests!.some((pattern) =>
-      new Bun.Glob(pattern).match('compose.test.yml'),
-    ),
-  ).toBe(true);
+  expect(matches(filters.ci_tests!, 'compose.test.yml')).toBe(true);
 });
 
 test('direct config validation avoids starting an unused Turbo cache server', async () => {

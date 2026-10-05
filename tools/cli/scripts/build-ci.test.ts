@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import picomatch from 'picomatch';
 import { parse } from 'yaml';
 
 type Step = {
@@ -26,6 +27,11 @@ type Workflow = {
   jobs: Record<string, Job>;
 };
 const repository = fileURLToPath(new URL('../../..', import.meta.url));
+const standaloneServices = ['web', 'docs', 'ui-docs', 'ai-gateway'];
+const standaloneHarnesses = standaloneServices.map(
+  (service) =>
+    `services/platform/tests/integration/container-${service}-test.ts`,
+);
 const roots: string[] = [];
 afterEach(async () => {
   for (const root of roots.splice(0))
@@ -36,7 +42,7 @@ const workflow = async (name = 'build.yml') =>
     await readFile(join(repository, '.github/workflows', name), 'utf8'),
   ) as Workflow;
 const matches = (patterns: string[], path: string) =>
-  patterns.some((pattern) => new Bun.Glob(pattern).match(path));
+  patterns.some((pattern) => picomatch(pattern, { dot: true })(path));
 const filtersOf = (build: Workflow) =>
   parse(
     String(
@@ -45,7 +51,7 @@ const filtersOf = (build: Workflow) =>
     ),
   ) as Record<string, string[]>;
 
-async function plan(build: Workflow, paths: string[]) {
+async function plan(build: Workflow, paths: string[], candidate = '') {
   const root = await mkdtemp(join(tmpdir(), 'tale-build-scope-'));
   roots.push(root);
   const output = join(root, 'output');
@@ -64,7 +70,7 @@ async function plan(build: Workflow, paths: string[]) {
     env: {
       PATH: process.env.PATH,
       GITHUB_OUTPUT: output,
-      CANDIDATE_SHA: '',
+      CANDIDATE_SHA: candidate,
       CHANGES: JSON.stringify(changed),
       CI_TESTS: String(changed.includes('ci_tests')),
       STORYBOOK: String(changed.includes('storybook')),
@@ -91,6 +97,127 @@ async function plan(build: Workflow, paths: string[]) {
 }
 
 describe('container build boundaries', () => {
+  test('scope matching retains the pinned action default and exact matcher version', async () => {
+    const build = await workflow();
+    const filter = build.jobs.changes!.steps!.find(
+      (step) => step.name === 'Filter paths',
+    )!;
+    expect(filter.uses).toBe(
+      'dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d',
+    );
+    expect(filter.with?.['predicate-quantifier'] ?? 'some').toBe('some');
+    const manifest = JSON.parse(
+      await readFile(join(repository, 'tools/cli/package.json'), 'utf8'),
+    ) as { devDependencies: Record<string, string> };
+    expect(manifest.devDependencies.picomatch).toBe('2.3.2');
+    expect(manifest.devDependencies['@types/picomatch']).toBe('2.3.4');
+  });
+
+  test('standalone harnesses are isolated entry points outside platform Docker contexts', async () => {
+    const build = await workflow();
+    const filters = filtersOf(build);
+    expect(
+      (await readFile(join(repository, '.dockerignore'), 'utf8')).split(
+        /\r?\n/,
+      ),
+    ).toContain('services/platform/tests/');
+    for (const [index, harness] of standaloneHarnesses.entries()) {
+      expect(matches(filters[standaloneServices[index]!]!, harness)).toBe(true);
+      for (const scope of ['platform', 'ci_tests'])
+        expect(matches(filters[scope]!, harness), `${scope}: ${harness}`).toBe(
+          false,
+        );
+      const contents = await readFile(join(repository, harness), 'utf8');
+      const imports = [...contents.matchAll(/from\s+['"]([^'"]+)['"]/g)].map(
+        (match) => match[1],
+      );
+      expect(imports, harness).toEqual(['./static-site-test']);
+      expect(contents, harness).toContain(
+        `name: '${standaloneServices[index]}',`,
+      );
+    }
+    for (const patterns of Object.values(filters))
+      expect(patterns.some((pattern) => pattern.startsWith('!'))).toBe(false);
+  });
+
+  test('neighboring names and shared container harnesses retain platform validation', async () => {
+    const filters = filtersOf(await workflow());
+    const paths = [
+      'services/platform/.scope-probe',
+      'services/platform/backend/server.ts',
+      'services/platform/tests/integration/container-smoke-test.ts',
+      'services/platform/tests/integration/container-image-test.ts',
+      'services/platform/tests/integration/container-sandbox-runtime-test.ts',
+      'services/platform/tests/integration/container-vulnerability-scan.ts',
+      'services/platform/tests/integration/static-site-test.ts',
+      'services/platform/tests/integration/lib/docker.ts',
+      'services/platform/tests/integration/lib/.fixture',
+      ...standaloneHarnesses.flatMap((path) => {
+        const separator = path.lastIndexOf('/');
+        const directory = path.slice(0, separator);
+        const name = path.slice(separator + 1);
+        return [
+          `${directory}/prefix-${name}`,
+          `${path}.bak`,
+          path.replace('.ts', '-extra.ts'),
+          `${directory}/nested/${name}`,
+          `${path}/nested.ts`,
+        ];
+      }),
+    ];
+    for (const path of paths)
+      for (const scope of ['platform', 'ci_tests'])
+        expect(matches(filters[scope]!, path), `${scope}: ${path}`).toBe(true);
+    for (const scope of ['platform', 'ci_tests'])
+      expect(matches(filters[scope]!, 'unrelated/example.ts')).toBe(false);
+  });
+
+  describe.skipIf(process.platform === 'win32')(
+    'standalone harness plans',
+    () => {
+      test.each(standaloneServices)(
+        '%s harness selects its own image while mixed source edits keep the stack',
+        async (service) => {
+          const build = await workflow();
+          const harness = `services/platform/tests/integration/container-${service}-test.ts`;
+          const isolated = await plan(build, [harness]);
+          expect(JSON.parse(isolated.list!)).toEqual([service]);
+          expect(isolated.stack).toBe('false');
+          expect(isolated.ci_tests).toBe('false');
+          // Storybook uses the full checkout's automatic Tailwind scanner.
+          expect(isolated.storybook).toBe('true');
+          const mixed = await plan(build, [
+            harness,
+            'services/platform/backend/server.ts',
+          ]);
+          expect(JSON.parse(mixed.list!).toSorted()).toEqual(
+            ['platform', service].toSorted(),
+          );
+          expect(mixed.stack).toBe('true');
+          expect(mixed.ci_tests).toBe('true');
+        },
+      );
+
+      test('candidate-only harness edits still validate every image and gate', async () => {
+        const build = await workflow();
+        const candidate = await plan(
+          build,
+          standaloneHarnesses,
+          '1234567890abcdef1234567890abcdef12345678',
+        );
+        const expected = Object.keys(filtersOf(build)).filter(
+          (name) => !['image_inputs', 'ci_tests', 'storybook'].includes(name),
+        );
+        expect(JSON.parse(candidate.list!).toSorted()).toEqual(
+          expected.toSorted(),
+        );
+        expect(candidate.stack).toBe('true');
+        expect(candidate.ci_tests).toBe('true');
+        expect(candidate.storybook).toBe('true');
+      });
+    },
+  );
+
   test.skipIf(process.platform === 'win32')(
     'every Dockerfile COPY source is covered by its service or common input scope',
     async () => {

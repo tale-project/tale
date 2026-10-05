@@ -46,6 +46,11 @@ const CHECKED_CI_FILES = [
   '.github/actions/setup-cli/action.yml',
   '.github/workflows/scorecard.yml',
   '.github/scripts/pull-ci-images.sh',
+  '.dockerignore',
+  'services/platform/tests/integration/container-web-test.ts',
+  'services/platform/tests/integration/container-docs-test.ts',
+  'services/platform/tests/integration/container-ui-docs-test.ts',
+  'services/platform/tests/integration/container-ai-gateway-test.ts',
   'services/platform/turbo.json',
 ];
 /**

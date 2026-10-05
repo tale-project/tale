@@ -35,8 +35,10 @@
   "devDependencies": {
     "@better-auth/core": "1.7.5",
     "@types/bun": "1.3.11",
+    "@types/picomatch": "2.3.4",
     "@types/yauzl": "3.4.0",
     "better-auth": "1.7.5",
+    "picomatch": "2.3.2",
     "typescript": "6.0.2"
   }
 }
