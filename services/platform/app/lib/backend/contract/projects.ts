@@ -159,6 +159,7 @@ export interface ProjectsContract {
       openTaskCount?: number;
       doneTaskCount?: number;
       projectAgentCount?: number;
+      managedAgentCount?: number;
       taskLabelColors?: Record<string, string>;
       sharedWithTeamIds?: string[];
       /** The audience — every team the project is scoped to; [] = org-wide. */
@@ -285,6 +286,7 @@ export interface ProjectsContract {
         openTaskCount?: number;
         doneTaskCount?: number;
         projectAgentCount?: number;
+        managedAgentCount?: number;
         taskLabelColors?: Record<string, string>;
         sharedWithTeamIds?: string[];
         /** The audience — every team the project is scoped to; [] = org-wide. */
@@ -323,6 +325,7 @@ export interface ProjectsContract {
           openTaskCount?: number;
           doneTaskCount?: number;
           projectAgentCount?: number;
+          managedAgentCount?: number;
           taskLabelColors?: Record<string, string>;
           sharedWithTeamIds?: string[];
           /** The audience — every team the project is scoped to; [] = org-wide. */

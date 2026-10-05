@@ -46,6 +46,7 @@ export interface AssignableActor {
   /** Granted platform tools (agents only) — lets the reviewer picker grey an
    * agent the server would refuse for a missing `task_review` grant. */
   tools?: readonly string[];
+  managed?: boolean;
 }
 
 // Shared frozen instances keep hook results referentially stable across
@@ -129,6 +130,7 @@ export function useActorDirectory(organizationId: string, projectId?: string) {
             id: row._id,
             name: row.name,
             tools: row.tools,
+            managed: row.managed,
           })),
     [projectAgents],
   );
@@ -351,14 +353,15 @@ export function useAssignableActors(
 
   // Instances are project-curated by construction — the directory already
   // scoped them to this project.
-  const assignableAgents = directory.agents;
-  const scopeReady = !projectId || scope.data !== undefined;
-  const projectResolved = project.data != null;
-  const canAddAgents = project.data?.canEdit === true;
   const standardAgentAvailable =
     useStandardAgent(projectId ? organizationId : undefined)?.available ===
     true;
-
+  const assignableAgents = standardAgentAvailable
+    ? directory.agents
+    : directory.agents.filter((agent) => agent.managed !== true);
+  const scopeReady = !projectId || scope.data !== undefined;
+  const projectResolved = project.data != null;
+  const canAddAgents = project.data?.canEdit === true;
   return {
     ...directory,
     assignableMembers,

@@ -37,7 +37,12 @@ vi.mock('../hooks/use-actor-directory', () => ({
     assignableMembers: [
       { type: 'user', id: 'user-1', name: 'Alex', email: 'alex@example.com' },
     ],
-    assignableAgents: projectId === undefined ? [] : mockDirectoryAgents,
+    assignableAgents:
+      projectId === undefined
+        ? []
+        : mockStandardAgentAvailable
+          ? mockDirectoryAgents
+          : mockDirectoryAgents.filter((agent) => agent.managed !== true),
     agentsLoading: mockAgentsLoading,
     currentUserId: 'user-1',
     resolveActor: () => ({
@@ -204,6 +209,27 @@ describe('AssigneePicker', () => {
     );
     expect(onAssign).not.toHaveBeenCalled();
     consoleError.mockRestore();
+  });
+
+  it('hides an unavailable managed standard agent and shows the no-agent note', async () => {
+    mockDirectoryAgents = [{ ...mockAgents[0], managed: true }];
+    mockStandardAgentAvailable = false;
+    const { open } = renderPicker();
+    await open();
+
+    expect(screen.queryByText('Research Bot')).not.toBeInTheDocument();
+    expect(
+      screen.getByText('tasks.assignee.noAgentsReader'),
+    ).toBeInTheDocument();
+  });
+
+  it('keeps an available managed standard agent assignable', async () => {
+    mockDirectoryAgents = [{ ...mockAgents[0], managed: true }];
+    mockStandardAgentAvailable = true;
+    const { open } = renderPicker();
+    await open();
+
+    expect(screen.getByText('Research Bot')).toBeInTheDocument();
   });
 
   it('offers no standard agent where the project has agents of its own', async () => {

@@ -99,16 +99,21 @@ export function CreateTaskFromChat({
     open ? organizationId : undefined,
   );
   const standardAgentAvailable = standardAgentQuery.data?.available === true;
-  const withAgents = listed.filter((row) => (row.agentCount ?? 0) > 0);
-  const withoutAgents = listed.filter((row) => (row.agentCount ?? 0) === 0);
+  const withAgents = listed.filter((row) => {
+    const agentCount = row.agentCount ?? 0;
+    const onlyManagedAgents =
+      agentCount > 0 && row.managedAgentCount === agentCount;
+    return agentCount > 0 && !(onlyManagedAgents && !standardAgentAvailable);
+  });
+  const withoutAgents = listed.filter((row) => !withAgents.includes(row));
   // A lone project is the answer; asking would be a step with one choice.
   const onlyProjectId =
     projects.status === 'ready' && listed.length === 1
       ? listed[0]?.id
       : undefined;
   const [pickedProjectId, setPickedProjectId] = useState<string | null>(null);
-  // Pre-picked when exactly one project has an agent: that is where the
-  // work can start. With a standard agent, every project has one.
+  // Pre-picked when exactly one project has an agent that can take the work.
+  // An unavailable managed standard agent does not make a project startable.
   const startable = standardAgentAvailable ? listed : withAgents;
   const pickedOrDefault =
     pickedProjectId ??
@@ -121,8 +126,8 @@ export function CreateTaskFromChat({
   const agents = useProjectAgents(open ? targetProjectId : undefined);
   // A target with none of its own gets the organization's standard agent,
   // created once the person has chosen the project — so the form opens with
-  // it picked, as with any project's only agent. A refusal opens the form
-  // unassigned and says why.
+  // it picked, as with any project's only agent. An unavailable managed row
+  // stays unassigned instead of steering the form to a refused start.
   const { mutateAsync: ensureStandardAgent } = useEnsureStandardAgent();
   const [standardAgent, setStandardAgent] = useState<
     { projectId: string; agentId: string | null } | undefined
@@ -171,9 +176,12 @@ export function CreateTaskFromChat({
     standardAgent?.projectId === targetProjectId
       ? (standardAgent?.agentId ?? undefined)
       : undefined;
+  const assignableAgents = standardAgentAvailable
+    ? agents.agents
+    : agents.agents.filter((agent) => !agent.managed);
   const onlyAgentId =
     ensuredAgentId ??
-    (agents.agents.length === 1 ? agents.agents[0]?._id : undefined);
+    (assignableAgents.length === 1 ? assignableAgents[0]?._id : undefined);
 
   // The draft is taken from a conversation that was actually read: the form
   // keeps what it opened with, so a read that failed must not open it with

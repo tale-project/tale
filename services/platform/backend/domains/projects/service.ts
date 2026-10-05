@@ -163,6 +163,8 @@ export interface ProjectRow {
   openTaskCount: number;
   doneTaskCount: number;
   projectAgentCount: number;
+  /** Number of Tale-managed standard-agent rows in this project. */
+  managedAgentCount?: number;
   defaultTaskReviewerAgentId: string | null;
   /** The audience — team ids; empty = organization-wide. */
   teamIds: string[];
@@ -183,6 +185,8 @@ const PROJECT_COLUMNS = `
   external_item_id AS "externalItemId", task_counter AS "taskCounter",
   open_task_count AS "openTaskCount", done_task_count AS "doneTaskCount",
   project_agent_count AS "projectAgentCount",
+  (SELECT count(*)::int FROM app.project_agents pa
+    WHERE pa.project_id = app.projects.id AND pa.managed) AS "managedAgentCount",
   default_task_reviewer_agent_id AS "defaultTaskReviewerAgentId",
   ${PROJECT_TEAM_IDS_SQL} AS "teamIds",
   (${PROJECT_TEAM_IDS_SQL})[1] AS "teamId",
