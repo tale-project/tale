@@ -73,6 +73,16 @@ const devFsAllow = [
 ];
 
 /**
+ * Packages the core patterns below match by name (`/react/`, `@tanstack`)
+ * that load with the surfaces using them, not with every page: the flow
+ * canvas (which brings its d3 modules) and the table and virtual-list cores.
+ * In vendor-core they loaded with every page, the sign-in page's included,
+ * whoever imported them (#4089).
+ */
+const NOT_CORE =
+  /\/node_modules\/(?:@xyflow|@tanstack\/(?:table-core|react-table|virtual-core|react-virtual))\//;
+
+/**
  * The chunk every route loads first: React, the router and query stack,
  * and Vite's dynamic-import helper (`\0vite/preload-helper.js`), which every
  * module that lazy-loads imports statically. Its own group at a higher
@@ -85,6 +95,9 @@ const devFsAllow = [
 function coreChunk(id: string): string | null {
   if (id.includes('vite/preload-helper')) {
     return 'vendor-core';
+  }
+  if (NOT_CORE.test(id)) {
+    return null;
   }
   if (
     id.includes('node_modules') &&
@@ -114,7 +127,18 @@ function vendorChunk(id: string): string | null {
   if (id.includes('pdfjs-dist')) {
     return 'vendor-pdf';
   }
-  if (id.includes('katex')) {
+  // The flow canvas, named so the cold-load budget can forbid it
+  // (`scripts/check-entry-budget.ts`): only the automation editor and run
+  // pages load it (#4089). Recharts has no such group: its own dependencies
+  // are shared with the entry, so a group capturing them would be preloaded.
+  if (id.includes('/node_modules/@xyflow/')) {
+    return 'vendor-flow';
+  }
+  // The KaTeX package alone: it has no dependencies of its own to drag in.
+  // Matching every path with `katex` in it took `rehype-katex` too, and with
+  // it the hast utilities the markdown renderers share, so the entry needed
+  // this chunk and KaTeX loaded with every page (#4089).
+  if (id.includes('/node_modules/katex/')) {
     return 'vendor-katex';
   }
   if (
