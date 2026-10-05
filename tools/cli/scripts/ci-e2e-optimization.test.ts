@@ -526,6 +526,61 @@ test('candidate scans retain blocking policies without publishing SARIF', async 
 });
 
 describe('security failure paths', () => {
+  test('the independent Trivy gate reuses provisioning only after a successful report', async () => {
+    const job = (await workflow('security')).jobs['trivy-fs'];
+    const report = step(job, 'Run Trivy filesystem scan');
+    const gate = step(job, 'Trivy vulnerability gate (HIGH/CRITICAL)');
+    expect(report.id).toBe('report');
+    expect(gate.uses).toBe(report.uses);
+    expect(job?.steps?.indexOf(report)).toBeLessThan(
+      job?.steps?.indexOf(gate) ?? -1,
+    );
+    expect(report.with?.['skip-setup-trivy']).toBeUndefined();
+    expect(report.with?.cache).toBeUndefined();
+    const skipSetup = String(gate.with?.['skip-setup-trivy']).replace(
+      /^\$\{\{\s*|\s*\}\}$/g,
+      '',
+    );
+    const cache = String(gate.with?.cache).replace(/^\$\{\{\s*|\s*\}\}$/g, '');
+    for (const [outcome, conclusion] of [
+      ['success', 'success'],
+      ['failure', 'failure'],
+      ['failure', 'success'], // continue-on-error must still provision again
+      ['cancelled', 'cancelled'],
+      ['skipped', 'skipped'], // candidate reporting is deliberately skipped
+      ['', ''],
+      [undefined, undefined],
+    ]) {
+      const context = { steps: { report: { outcome, conclusion } } };
+      expect(runInNewContext(skipSetup, context)).toBe(outcome === 'success');
+      expect(runInNewContext(cache, context)).toBe(outcome !== 'success');
+      for (const cancelled of [false, true])
+        expect(
+          runInNewContext(gate.if!, {
+            ...context,
+            cancelled: () => cancelled,
+            steps: { ...context.steps, source: { outcome: 'success' } },
+          }),
+        ).toBe(!cancelled);
+    }
+    const {
+      'skip-setup-trivy': _skipSetup,
+      cache: _cache,
+      ...scanInputs
+    } = gate.with ?? {};
+    expect(scanInputs).toEqual({
+      'scan-type': 'fs',
+      'scan-ref': '.',
+      format: 'table',
+      severity: 'HIGH,CRITICAL',
+      'exit-code': '1',
+      scanners: 'vuln',
+      'ignore-unfixed': true,
+      trivyignores: '.trivyignore.yaml',
+      'skip-files': 'tools/plop/templates/**/Dockerfile.hbs',
+    });
+  });
+
   test('one production audit lookup supplies complete reporting and the native gate', async () => {
     const job = (await workflow('security')).jobs['bun-audit'];
     const gate = step(job, 'Gate on high/critical advisories');

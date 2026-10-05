@@ -215,6 +215,7 @@ jobs:
           persist-credentials: false
 
       - name: Run Trivy filesystem scan
+        id: report
         # Candidates do not upload SARIF against moving main. The standalone
         # blocking vulnerability gate below still installs Trivy and scans.
         if: github.event_name != 'repository_dispatch'
@@ -248,6 +249,10 @@ jobs:
         timeout-minutes: 5
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
+          # A successful report already provisioned this exact action's engine
+          # and database cache. Failed or skipped reports keep full provisioning.
+          skip-setup-trivy: ${{ steps.report.outcome == 'success' }}
+          cache: ${{ steps.report.outcome != 'success' }}
           scan-type: 'fs'
           scan-ref: '.'
           format: 'table'
