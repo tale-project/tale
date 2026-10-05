@@ -723,10 +723,14 @@ describe('Checks execution optimizations', () => {
 
   test('compiler families, Bun install settings and patches owe the real backend proof', async () => {
     const steps = (await workflow()).jobs['integration-scope']!.steps;
-    const filter = steps.find((step) => step.id === 'filter');
+    const decide = steps.find((step) => step.id === 'decide');
+    expect(decide?.uses).toBe('./.github/actions/ci-scope');
+    expect(decide?.with?.filter).toBe('integration');
     const patterns = z
       .object({ integration: z.array(z.string()) })
-      .parse(parse(z.string().parse(filter?.with?.filters))).integration;
+      .parse(
+        parse(await readFile(join(repository, '.github/ci-scope.yml'), 'utf8')),
+      ).integration;
     const compilerFiles = (await readdir(repository)).filter(
       (file) => file.startsWith('tsconfig') && file.endsWith('.json'),
     );

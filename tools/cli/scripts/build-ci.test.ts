@@ -53,20 +53,27 @@ const matches = (patterns: string[], path: string) =>
     }
     return compiled(path);
   });
-const filtersOf = (build: Workflow) =>
-  parse(
-    String(
-      build.jobs.changes?.steps?.find((step) => step.name === 'Filter paths')
-        ?.with?.filters,
-    ),
+const filtersOf = async (build: Workflow) => {
+  const source = String(
+    build.jobs.changes?.steps?.find((step) => step.name === 'Filter paths')
+      ?.with?.filters,
+  );
+  const policies = parse(
+    await readFile(join(repository, source), 'utf8'),
   ) as Record<string, string[]>;
+  return Object.fromEntries(
+    Object.entries(policies)
+      .filter(([name]) => name.startsWith('build_'))
+      .map(([name, patterns]) => [name.slice(6), patterns]),
+  );
+};
 
 async function plan(build: Workflow, paths: string[], candidate = '') {
   const root = await mkdtemp(join(tmpdir(), 'tale-build-scope-'));
   roots.push(root);
   const output = join(root, 'output');
   await writeFile(output, '');
-  const filters = filtersOf(build);
+  const filters = await filtersOf(build);
   const changed = Object.entries(filters)
     .filter(([, patterns]) => paths.some((path) => matches(patterns, path)))
     .map(([name]) => name);
@@ -81,7 +88,9 @@ async function plan(build: Workflow, paths: string[], candidate = '') {
       PATH: process.env.PATH,
       GITHUB_OUTPUT: output,
       CANDIDATE_SHA: candidate,
-      CHANGES: JSON.stringify(changed),
+      EVENT_NAME: 'push',
+      FULL_SCOPE: 'false',
+      CHANGES: JSON.stringify(changed.map((name) => `build_${name}`)),
       CI_TESTS: String(changed.includes('ci_tests')),
       STORYBOOK: String(changed.includes('storybook')),
       IMAGE_INPUTS: String(changed.includes('image_inputs')),
@@ -125,7 +134,7 @@ describe('container build boundaries', () => {
 
   test('standalone harnesses are isolated entry points outside platform Docker contexts', async () => {
     const build = await workflow();
-    const filters = filtersOf(build);
+    const filters = await filtersOf(build);
     expect(
       (await readFile(join(repository, '.dockerignore'), 'utf8')).split(
         /\r?\n/,
@@ -151,7 +160,7 @@ describe('container build boundaries', () => {
   });
 
   test('neighboring names and shared container harnesses retain platform validation', async () => {
-    const filters = filtersOf(await workflow());
+    const filters = await filtersOf(await workflow());
     const paths = [
       'services/platform/.scope-probe',
       'services/platform/backend/server.ts',
@@ -215,7 +224,7 @@ describe('container build boundaries', () => {
           standaloneHarnesses,
           '1234567890abcdef1234567890abcdef12345678',
         );
-        const expected = Object.keys(filtersOf(build)).filter(
+        const expected = Object.keys(await filtersOf(build)).filter(
           (name) => !['image_inputs', 'ci_tests', 'storybook'].includes(name),
         );
         expect(JSON.parse(candidate.list!).toSorted()).toEqual(
@@ -232,7 +241,7 @@ describe('container build boundaries', () => {
     'every Dockerfile COPY source is covered by its service or common input scope',
     async () => {
       const build = await workflow();
-      const filters = filtersOf(build);
+      const filters = await filtersOf(build);
       const stackInputs = new Set<string>();
       for (const service of [
         ...build.jobs.build!.strategy!.matrix!.service!,

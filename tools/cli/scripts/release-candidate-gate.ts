@@ -17,6 +17,9 @@ import { parseArgs } from 'node:util';
 
 import { z } from 'zod';
 
+import releaseContract from '../../../.github/release-candidate-contract.json';
+import { ordinaryOnlyJob } from './ci-ready';
+
 /** Answers a REST path, or null for a 404. Artifact ZIPs are validated and
  * decoded into their sole release-candidate.json by the real adapter. */
 export type GitHubApi = (path: string) => Promise<unknown>;
@@ -42,14 +45,7 @@ export type GateState =
 
 /** All source checks are required. One candidate event starts the complete
  * existing graph, including workflows normally filtered by changed paths. */
-export const REQUIRED_WORKFLOWS = [
-  '.github/workflows/checks.yml',
-  '.github/workflows/sast.yml',
-  '.github/workflows/commitlint.yml',
-  '.github/workflows/e2e.yml',
-  '.github/workflows/cli.yml',
-  '.github/workflows/security.yml',
-] as const;
+export const REQUIRED_WORKFLOWS = releaseContract.requiredWorkflows;
 
 /** build.yml names a candidate run after its SHA (`run-name`), and this job
  * is its verdict. The push run of the same commit does not count: path
@@ -58,130 +54,13 @@ const CANDIDATE_WORKFLOW = 'build.yml';
 const CANDIDATE_WORKFLOW_PATH = `.github/workflows/${CANDIDATE_WORKFLOW}`;
 const CANDIDATE_EVENTS = ['workflow_dispatch', 'repository_dispatch'];
 const CANDIDATE_GATE_JOB = 'Candidate gate';
-const SOURCE_JOB = 'Candidate source / Resolve source';
 const RECEIPT_JOB = 'Candidate gate / Record receipt';
-export const IMAGE_SERVICES = [
-  'db',
-  'platform',
-  'proxy',
-  'sandbox-llm-gateway',
-  'sandbox',
-  'sandbox-egress',
-  'sandbox-buildkitd',
-  'sandbox-runtime',
-] as const;
-/** Held to the actual workflow graphs by release-candidate-workflows.test.ts. */
+export const IMAGE_SERVICES = releaseContract.imageServices;
+/** One source contract, checked against the workflow graph by its existing guard. */
 export const CANDIDATE_JOBS: Record<
   string,
   { ids: string[]; names: string[] }
-> = {
-  build: {
-    ids: [
-      'candidate-source',
-      'changes',
-      'build',
-      'smoke-test',
-      'image-validate',
-      'web-test',
-      'docs-test',
-      'ui-docs-test',
-      'ai-gateway-test',
-      'storybook',
-    ],
-    names: [
-      SOURCE_JOB,
-      'Detect changes',
-      ...IMAGE_SERVICES.map((service) => `Build ${service}`),
-      'Smoke test',
-      'Validate images',
-      'Web container test',
-      'Docs container test',
-      'UI docs container test',
-      'AI gateway container test',
-      'Storybook',
-      CANDIDATE_GATE_JOB,
-    ],
-  },
-  checks: {
-    ids: [
-      'candidate-source',
-      'format',
-      'lint',
-      'typecheck',
-      'build',
-      'test',
-      'test-platform-shards',
-      'test-workspaces',
-      'test-ui-shards',
-      'test-ui',
-      'performance',
-      'knip',
-      'test-browser',
-      'integration-scope',
-      'backend-integration',
-    ],
-    names: [
-      SOURCE_JOB,
-      'Format',
-      'Lint',
-      'Type check',
-      'Build',
-      'Unit',
-      'Unit (platform 1/2)',
-      'Unit (platform 2/2)',
-      'Unit (workspaces)',
-      ...Array.from(
-        { length: 4 },
-        (_, index) => `UI (platform ${index + 1}/4)`,
-      ),
-      'UI',
-      'Performance',
-      'Knip',
-      'Browser',
-      'Integration scope',
-      'Backend integration',
-      RECEIPT_JOB,
-    ],
-  },
-  sast: {
-    ids: ['candidate-source', 'sast'],
-    names: [SOURCE_JOB, 'Opengrep', RECEIPT_JOB],
-  },
-  commitlint: {
-    ids: ['candidate-source', 'commitlint'],
-    names: [SOURCE_JOB, 'Lint commits', RECEIPT_JOB],
-  },
-  e2e: {
-    ids: ['candidate-source', 'scope', 'build', 'e2e', 'static-sites'],
-    names: [
-      SOURCE_JOB,
-      'E2E scope',
-      'Build platform (E2E preview bundle)',
-      ...Array.from(
-        { length: 4 },
-        (_, index) => `Playwright (platform ${index + 1}/4)`,
-      ),
-      'Playwright (web)',
-      'Playwright (docs)',
-      RECEIPT_JOB,
-    ],
-  },
-  cli: {
-    ids: ['candidate-source', 'prepare', 'build'],
-    names: [
-      SOURCE_JOB,
-      'Prepare',
-      ...['linux', 'linux-arm64', 'macos', 'macos-x64', 'windows'].map(
-        (platform) => `Build (${platform})`,
-      ),
-      RECEIPT_JOB,
-    ],
-  },
-  security: {
-    ids: ['candidate-source', 'bun-audit', 'trivy-fs'],
-    names: [SOURCE_JOB, 'Bun audit', 'Trivy filesystem scan', RECEIPT_JOB],
-  },
-};
+> = releaseContract.candidateJobs;
 const RUNS_PAGE_SIZE = 100;
 const RUNS_MAX_PAGES = 10;
 // Filtered Actions searches return at most 1,000 results. At that boundary,
@@ -929,6 +808,7 @@ async function candidateEvidence(
     for (const job of jobs) {
       if (contract.names.includes(job.name)) continue;
       const conditional =
+        ordinaryOnlyJob(stem, job.name) ||
         (stem === 'cli' && job.name === 'Attach to release') ||
         (stem === 'build' &&
           (/^Scan(?: .*)?$/.test(job.name) ||

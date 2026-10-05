@@ -27,6 +27,9 @@ analytics:
   automations:
     title: Automatisierungs-Metriken
     description: Laufzahlen, Erfolgsquoten und Durchschnittsdauer über alle deine Automatisierungen.
+    errors:
+      loadFailed: Die Automatisierungs-Metriken konnten nicht geladen werden.
+      refreshFailed: Die Automatisierungs-Metriken konnten nicht aktualisiert werden. Die angezeigten Zahlen sind möglicherweise veraltet.
     cappedNotice: Zeigt die letzten 5.000 Läufe in diesem Zeitraum. Ältere Läufe
       fließen nicht in diese Zahlen ein.
     cards:
@@ -650,6 +653,8 @@ automations:
       Organisation.
   detail:
     loading: Automatisierung wird geladen …
+    loadFailed:
+      title: Automatisierung konnte nicht geladen werden
     # Eine gelöschte Automatisierung behält ihre Laufhistorie, bis die
     # Aufbewahrung sie entfernt; die Läufe-Seiten öffnen unter diesem Banner.
     deleted:
@@ -1425,10 +1430,12 @@ chat:
       placedAtLabel: Gesetzt am
     generating: Antwort wird generiert
     renameChat: Umbenennen
+    renameEmpty: Gib einen Chat-Titel ein.
+    renameTooLong: Verwende höchstens 500 Zeichen.
     loadMore: Mehr laden
     toast:
       moveFailed: Chat konnte nicht verschoben werden
-      renameFailed: Chat konnte nicht umbenannt werden
+      renameFailed: Chat konnte nicht umbenannt werden. Versuche es erneut.
   searchPalette:
     title: Chats durchsuchen
     placeholder: Chats durchsuchen
@@ -1849,6 +1856,10 @@ conversations:
       Connectors.
     noEmailConnectorAskAdmin: Bitte einen Org-Admin, ein E-Mail-Postfach zu
       verbinden, bevor du senden kannst.
+    emailConnectorReadErrorTitle: E-Mail-Verbindung nicht verfügbar
+    emailConnectorReadError: Deine E-Mail-Verbindungen konnten nicht geladen werden.
+      Dein Entwurf ist sicher. Versuche es erneut.
+    retryEmailConnectorRead: Erneut versuchen
     openConnectorSettings: Connector-Einstellungen öffnen
     subject: Betreff
     subjectPlaceholder: Worum geht es?
@@ -4309,6 +4320,7 @@ governance:
         userPickerLabel: Person
         userPickerPlaceholder: Nach Name oder E-Mail suchen
         userPickerEmpty: Keine passenden Mitglieder.
+        userPickerFailed: Mitglieder konnten nicht geladen werden.
         reasonCodeLabel: Rechtsgrund
         reasonCodeDescription: DSGVO Art. 17(1)(a)–(f) plus operativer Vertragsbeendigungs-Grund.
         reasonLabel: Begründung
@@ -4618,6 +4630,8 @@ knowledgeEntries:
   addEntry: Wissenseintrag hinzufügen
   addDescription: Wähle ein Thema und formuliere das Wissen so, dass es für sich allein verständlich ist.
   editEntry: Wissenseintrag bearbeiten
+  editDialog:
+    newerVersion: Während deiner Bearbeitung wurde eine neue Version veröffentlicht. Dein Entwurf ist noch vorhanden. Speichere ihn, um diese Version zu ersetzen, oder brich ab und verwerfe ihn.
   adding: Wird hinzugefügt...
   saving: Wird gespeichert...
   topic: Thema
@@ -5714,6 +5728,8 @@ settings:
       unlimited: Für dich gilt kein Speicherlimit.
   organization:
     title: Organisationsname
+    loadFailed: Die Organisationsdetails konnten nicht geladen werden.
+    notFound: Organisation nicht gefunden.
     detailsTitle: Organisationsdetails
     detailsDescription: Grundlegende Informationen zu deiner Organisation.
     nameDescription: Der Anzeigename deiner Organisation.
@@ -8046,6 +8062,8 @@ twoFactor:
     empty: Du hast noch keinen Passkey hinzugefügt.
     namePromptDescription: Gib diesem Passkey einen Namen, damit du ihn später
       wiedererkennst (z. B. "MacBook Touch ID").
+    confirmPasswordDescription: Deine Anmeldung liegt schon eine Weile zurück. Bestätige dein Passwort, um einen Passkey hinzuzufügen.
+    signInAgainDescription: Deine Anmeldung liegt schon eine Weile zurück. Melde dich erneut an und füge dann deinen Passkey hinzu.
     nameLabel: Passkey-Name
     namePlaceholder: MacBook Touch ID
     attachment:
@@ -8058,6 +8076,7 @@ twoFactor:
       revokeFailed: Passkey konnte nicht entfernt werden. Versuch es nochmal.
       listFailed: Deine Passkeys konnten nicht geladen werden.
       refreshFailed: Deine Passkeys konnten nicht aktualisiert werden. Die angezeigte Liste ist womöglich veraltet.
+      confirmFailed: Dein Passwort konnte nicht bestätigt werden. Versuch es nochmal.
   setup:
     title: Zwei-Faktor-Authentifizierung einrichten
     qrInstructions: Scanne den QR-Code mit einer Authenticator-App (Google
@@ -8079,6 +8098,7 @@ twoFactor:
   confirmPassword:
     label: Passwort
     submit: Bestätigen
+    wrongPassword: Falsches Passwort. Nach wiederholten Fehlversuchen wird dein Konto vorübergehend gesperrt.
   verify:
     title: Identität bestätigen
     description: Gib den 6-stelligen Code aus deiner Authenticator-App ein.
@@ -8314,6 +8334,7 @@ projects:
   title: Projekte
   entityLabel: Projekte
   entityLabelOne: Projekt
+  loadFailed: Dieses Projekt konnte nicht geladen werden.
   switcher:
     title: Projekt wechseln
     searchPlaceholder: Projekte suchen

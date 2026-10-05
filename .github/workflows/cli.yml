@@ -3,6 +3,8 @@ name: CLI
 run-name: ${{ github.event_name == 'repository_dispatch' && format('Release candidate {0}', github.event.client_payload.candidate_sha) || '' }}
 
 on:
+  merge_group:
+    types: [checks_requested]
   repository_dispatch:
     types: [release-candidate]
   workflow_dispatch:
@@ -15,6 +17,8 @@ on:
     branches:
       - main
     paths:
+      - '.gitattributes'
+      - '.github/release-candidate-contract.json'
       - 'tools/cli/**'
       - 'services/platform/backend/core/**'
       - 'services/platform/backend/auth/membership.ts'
@@ -39,30 +43,7 @@ on:
       - '.github/workflows/cli.yml'
       - '.github/actions/setup-cli/**'
   pull_request:
-    paths:
-      - 'tools/cli/**'
-      - 'services/platform/backend/core/**'
-      - 'services/platform/backend/auth/membership.ts'
-      - 'services/platform/backend/auth/oidc.ts'
-      - 'services/platform/backend/db/sql.ts'
-      - 'services/platform/backend/db/ssl.ts'
-      - 'services/platform/backend/domains/audit_logs/**'
-      - 'services/platform/backend/domains/sandbox/retirement-schedule.ts'
-      - 'services/platform/backend/domains/two_factor/service.ts'
-      - 'services/platform/backend/jobs/enqueue.ts'
-      - 'services/platform/backend/jobs/tasks.ts'
-      - 'services/platform/backend/lib/org-config.ts'
-      - 'services/platform/lib/**'
-      - 'configs/platform/**'
-      - 'packages/shared/**'
-      - 'bun.lock'
-      - 'package.json'
-      - 'bunfig.toml'
-      - 'patches/**'
-      - 'tsconfig*.json'
-      - 'scripts/install-cli.*'
-      - '.github/workflows/cli.yml'
-      - '.github/actions/setup-cli/**'
+    types: [opened, synchronize, reopened, ready_for_review]
 
 permissions:
   contents: read
@@ -72,6 +53,33 @@ concurrency:
   cancel-in-progress: ${{ github.event_name != 'repository_dispatch' && github.event_name != 'workflow_dispatch' }}
 
 jobs:
+  pr-scope:
+    name: PR scope
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      run: ${{ steps.scope.outputs.run }}
+      full: ${{ steps.scope.outputs.full }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            /.github/actions/ci-scope/action.yml
+            /.github/ci-scope.yml
+            /tools/cli/scripts/ci-ready.ts
+          sparse-checkout-cone-mode: false
+      - name: Decide applicability
+        id: scope
+        uses: ./.github/actions/ci-scope
+        with:
+          filter: cli
+
   # Only candidates need remote source validation; ordinary jobs keep their event SHA.
   candidate-source:
     if: >-
@@ -93,8 +101,10 @@ jobs:
       (((github.event_name == 'repository_dispatch') &&
       needs.candidate-source.result == 'success') ||
       ((github.event_name != 'repository_dispatch') &&
-      needs.candidate-source.result == 'skipped'))
-    needs: candidate-source
+      needs.candidate-source.result == 'skipped')) &&
+      (github.event_name != 'pull_request' ||
+      (needs.pr-scope.result == 'success' && needs.pr-scope.outputs.run == 'true'))
+    needs: [candidate-source, pr-scope]
     name: Prepare
     runs-on: ubuntu-latest
     timeout-minutes: 3
@@ -152,9 +162,11 @@ jobs:
       needs.candidate-source.result == 'success') ||
       ((github.event_name != 'repository_dispatch') &&
       needs.candidate-source.result == 'skipped')) &&
-      needs.prepare.result == 'success'
+      needs.prepare.result == 'success' &&
+      (github.event_name != 'pull_request' ||
+      (needs.pr-scope.result == 'success' && needs.pr-scope.outputs.run == 'true'))
     name: Build (${{ matrix.platform }})
-    needs: [candidate-source, prepare]
+    needs: [candidate-source, prepare, pr-scope]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     strategy:
@@ -217,18 +229,33 @@ jobs:
           bun-version: '1.4.2'
 
       - name: Configure Bun install cache
-        if: matrix.cross
+        if: matrix.cross || runner.os == 'Windows'
+        env:
+          CROSS: ${{ matrix.cross }}
         run: |
-          # Cross legs only compile the CLI. Keep their smaller dependency
-          # cache separate from the native suites' complete monorepo cache.
-          echo "BUN_INSTALL_CACHE_DIR=${RUNNER_TEMP}/bun-cli-cache" >> "$GITHUB_ENV"
+          set -euo pipefail
+          if [ "$CROSS" = true ]; then
+            # Cross legs only compile the CLI. Keep their smaller dependency
+            # cache separate from the native suites' complete monorepo cache.
+            printf 'BUN_INSTALL_CACHE_DIR=%s/bun-cli-cache\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
+          else
+            # Windows' home and checkout can live on different volumes. Bun
+            # hardlinks packages only within one volume; keep this native store
+            # beside the checkout, outside its clean-source identity boundary.
+            # Cache glob inputs reject literal '.' and '..' path segments.
+            cache_path=$(bun -e 'process.stdout.write(require("node:path").win32.resolve(process.env.GITHUB_WORKSPACE, "..", ".tale-bun-install-cache"))')
+            printf 'BUN_INSTALL_CACHE_DIR=%s\n' "$cache_path" >> "$GITHUB_ENV"
+          fi
 
       - name: Restore Bun install cache
+        # The measured warm Windows archive still costs more than a fresh install.
+        # Cross legs retain their separate archive; Setup Bun keeps its binary cache.
+        if: matrix.cross || runner.os != 'Windows'
         id: bun-cache
         uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
-          path: ${{ matrix.cross && env.BUN_INSTALL_CACHE_DIR || '~/.bun/install/cache' }}
-          key: ${{ matrix.cross && 'bun-cli-install' || 'bun-install' }}-${{ runner.os }}-${{ runner.arch }}-1.4.2-${{ hashFiles('bun.lock', 'package.json', '**/package.json', 'patches/**', 'bunfig.toml') }}
+          path: ${{ (matrix.cross || runner.os == 'Windows') && env.BUN_INSTALL_CACHE_DIR || '~/.bun/install/cache' }}
+          key: ${{ matrix.cross && 'bun-cli-install' || 'bun-install' }}-${{ runner.os }}-${{ runner.arch }}-1.4.2-${{ hashFiles('bun.lock', 'package.json', 'packages/*/package.json', 'services/*/package.json', 'services/sandbox-runtime/daemon/package.json', 'configs/platform/custom/skills/*/package.json', 'tools/*/package.json', 'patches/**', 'bunfig.toml') }}
           restore-keys: |
             ${{ matrix.cross && 'bun-cli-install' || 'bun-install' }}-${{ runner.os }}-${{ runner.arch }}-1.4.2-
 
@@ -246,11 +273,98 @@ jobs:
           fi
 
       - name: Save installed Bun downloads
-        if: steps.bun-cache.outputs.cache-hit != 'true'
+        if: (matrix.cross || runner.os != 'Windows') && steps.bun-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
-          path: ${{ matrix.cross && env.BUN_INSTALL_CACHE_DIR || '~/.bun/install/cache' }}
+          path: ${{ (matrix.cross || runner.os == 'Windows') && env.BUN_INSTALL_CACHE_DIR || '~/.bun/install/cache' }}
           key: ${{ steps.bun-cache.outputs.cache-primary-key }}
+
+      - name: Observe Windows Bun cache locality
+        if: runner.os == 'Windows' && !matrix.cross
+        working-directory: tools/cli
+        run: |
+          bun_cache_path="$(bun pm cache)"
+          # PowerShell variables remain literal inside the inline Bun program.
+          # shellcheck disable=SC2016
+          BUN_INSTALL_CACHE_OBSERVED="$bun_cache_path" bun -e '
+            import { spawnSync } from "node:child_process";
+            import { readFileSync, readdirSync, realpathSync, statSync } from "node:fs";
+            import { homedir } from "node:os";
+            import { dirname, join } from "node:path";
+            const optional = (read) => {
+              try { return read(); }
+              catch (error) {
+                if (error.code === "ENOENT" || error.code === "ENOTDIR") return undefined;
+                throw error;
+              }
+            };
+            const fileSystems = new Map();
+            const inspect = (path) => {
+              const sample = path ? optional(() => {
+                const resolved = realpathSync(path);
+                const info = statSync(resolved, { bigint: true });
+                return { path: resolved, regular: info.isFile(), directory: info.isDirectory(),
+                  dev: info.dev, ino: info.ino, nlink: info.nlink, size: info.size };
+              }) : undefined;
+              if (sample?.regular && process.platform === "win32") {
+                if (!fileSystems.has(sample.path)) {
+                  const query = spawnSync("powershell.exe", ["-NoLogo", "-NoProfile", "-NonInteractive", "-Command",
+                    "$ErrorActionPreference = \"Stop\"; $volumes = @(Get-Volume -FilePath $env:TALE_BUN_PROBE_FILE -ErrorAction Stop); if ($volumes.Count -eq 1) { [string]$volumes[0].FileSystem }"],
+                    { encoding: "utf8", env: { ...process.env, TALE_BUN_PROBE_FILE: sample.path } });
+                  if (query.error) throw query.error;
+                  if (query.status !== 0) throw new Error("Volume filesystem query failed: " + query.stderr);
+                  fileSystems.set(sample.path, query.stdout.trim() || null);
+                }
+                sample.fileSystem = fileSystems.get(sample.path);
+              }
+              return sample;
+            };
+            const cachePath = process.env.BUN_INSTALL_CACHE_OBSERVED;
+            if (!cachePath) throw new Error("bun pm cache returned an empty path.");
+            const paths = {
+              home: inspect(homedir()), workspace: inspect(process.env.GITHUB_WORKSPACE),
+              cache: inspect(cachePath), runnerTemp: inspect(process.env.RUNNER_TEMP),
+            };
+            let manifestPath, metadata;
+            for (const root of [process.cwd(), process.env.GITHUB_WORKSPACE].filter(Boolean)) {
+              const path = join(root, "node_modules/typescript/package.json");
+              const found = optional(() => JSON.parse(readFileSync(path, "utf8")));
+              if (found?.name === "typescript" && typeof found.version === "string") {
+                manifestPath = path; metadata = found; break;
+              }
+            }
+            const installed = manifestPath && inspect(join(dirname(manifestPath), "lib/typescript.js"));
+            const candidates = [];
+            if (metadata?.name === "typescript" && typeof metadata.version === "string") {
+              for (const entry of optional(() => readdirSync(cachePath)) ?? []) {
+                if (!entry.startsWith("typescript@")) continue;
+                const root = join(cachePath, entry);
+                const cachedMetadata = optional(() => JSON.parse(readFileSync(join(root, "package.json"), "utf8")));
+                if (cachedMetadata?.name !== metadata.name || cachedMetadata.version !== metadata.version) continue;
+                const cached = inspect(join(root, "lib/typescript.js"));
+                const comparable = installed?.regular && cached?.regular && installed.dev !== 0n && cached.dev !== 0n
+                  && installed.ino !== 0n && cached.ino !== 0n;
+                const samePath = installed && cached && (process.platform === "win32"
+                  ? installed.path.toLowerCase() === cached.path.toLowerCase() : installed.path === cached.path);
+                const sameIdentity = comparable && installed.dev === cached.dev && installed.ino === cached.ino;
+                const supportedIdentity = process.platform !== "win32"
+                  || installed?.fileSystem === "NTFS" && cached?.fileSystem === "NTFS";
+                const status = !comparable || samePath || !supportedIdentity ? "unknown"
+                  : sameIdentity && installed.nlink >= 2n && cached.nlink >= 2n ? "hardlinked"
+                  : sameIdentity ? "unknown" : "not-linked-to-sampled-cache-file";
+                candidates.push({ cached, status });
+              }
+            }
+            const status = candidates.some((entry) => entry.status === "hardlinked") ? "hardlinked"
+              : candidates.some((entry) => entry.status === "not-linked-to-sampled-cache-file")
+                ? "not-linked-to-sampled-cache-file" : "unknown";
+            const cacheWorkspaceSameVolume = paths.cache?.dev && paths.workspace?.dev
+              ? paths.cache.dev === paths.workspace.dev : null;
+            console.log(JSON.stringify({ selectedCache: process.env.BUN_INSTALL_CACHE_DIR, observedCache: cachePath,
+              paths, cacheWorkspaceSameVolume, package: metadata && { name: metadata.name, version: metadata.version },
+              installed, candidates, candidateCount: candidates.length, status },
+              (_key, value) => typeof value === "bigint" ? value.toString() : value));
+          '
 
       - name: Generate embedded files
         working-directory: tools/cli
@@ -489,3 +603,27 @@ jobs:
       candidate_sha: ${{ github.event.client_payload.candidate_sha }}
       workflow: .github/workflows/cli.yml
       jobs: ${{ toJSON(needs) }}
+
+  # A required context must execute even when an upstream check failed/skipped.
+  ci-ready:
+    name: CI ready (CLI)
+    if: always() && (github.event_name == 'pull_request' || github.event_name == 'merge_group')
+    needs: [pr-scope, candidate-source, prepare, build, release, candidate-gate]
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout verdict policy
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            /.github/actions/ci-ready/action.yml
+            /tools/cli/scripts/ci-ready.ts
+          sparse-checkout-cone-mode: false
+      - name: Evaluate native workflow
+        uses: ./.github/actions/ci-ready
+        with:
+          workflow: cli
+          jobs: ${{ toJSON(needs) }}

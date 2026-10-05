@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
+import type { MouseEventHandler, ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { render, screen } from '@/tests/utils/render';
+import { act, render, screen } from '@/tests/utils/render';
 
 import { NotificationListPanel } from './notification-list-panel';
 
@@ -31,8 +32,7 @@ const markMyRead = { mutateAsync: vi.fn(), isPending: false };
 // while either has another page, and a click advances every stream that still
 // has more. The `loadMore` spies let us assert exactly which streams a click
 // advances; the `status` and `unread` fields are mutated per test before
-// render. Empty result arrays keep both suites focused on the button controls
-// (which render regardless of row count) and avoid row/render-target plumbing.
+// render. The rollback suites populate both streams and use real row controls.
 const orgLoadMore = vi.fn();
 const myLoadMore = vi.fn();
 
@@ -65,6 +65,7 @@ const streamState = {
   // Row payloads for the arrival-announcement suite. Empty by default so the
   // other suites stay focused on the button controls.
   orgResults: [] as MockNotification[],
+  myResults: [] as MockNotification[],
 };
 
 // --- Org stream hooks (`../hooks/*`) --------------------------------------
@@ -97,19 +98,32 @@ vi.mock('@/app/features/inbox/hooks/mutations', () => ({
 
 vi.mock('@/app/features/inbox/hooks/queries', () => ({
   useMyNotificationsList: () => ({
-    results: [],
+    results: streamState.myResults,
     status: streamState.my,
     loadMore: myLoadMore,
   }),
   useUnreadNotificationCount: () => streamState.myUnread,
 }));
 
-// Stub the row so the arrival suite can add unread items without wiring up the
-// row's router/date-format dependencies — the announcer reads the raw streams,
-// not the rendered rows.
-vi.mock('./notification-row', () => ({
-  NotificationRow: () => <li data-testid="notification-row" />,
-}));
+vi.mock('@tanstack/react-router', async () => {
+  const actual = await vi.importActual<typeof import('@tanstack/react-router')>(
+    '@tanstack/react-router',
+  );
+  return {
+    ...actual,
+    Link: ({
+      children,
+      onClick,
+    }: {
+      children: ReactNode;
+      onClick?: MouseEventHandler<HTMLAnchorElement>;
+    }) => (
+      <a href="#notification" onClick={onClick}>
+        {children}
+      </a>
+    ),
+  };
+});
 
 function renderPanel() {
   return render(<NotificationListPanel organizationId="org-1" />);
@@ -126,9 +140,263 @@ beforeEach(() => {
   streamState.orgUnread = 0;
   streamState.myUnread = 0;
   streamState.orgResults = [];
+  streamState.myResults = [];
+  for (const mutation of [markRead, markMyRead, markAllRead, markAllMyRead]) {
+    mutation.mutateAsync.mockReset().mockResolvedValue(undefined);
+  }
 });
 
 describe('NotificationListPanel', () => {
+  describe('bulk read rollback (#3609 B1)', () => {
+    it.each([
+      { orgFails: true, personalFails: true },
+      { orgFails: true, personalFails: false },
+      { orgFails: false, personalFails: true },
+      { orgFails: false, personalFails: false },
+    ])(
+      'restores only failed streams: %o',
+      async ({ orgFails, personalFails }) => {
+        streamState.orgResults = [
+          {
+            _id: 'org-bulk',
+            createdAt: 1000,
+            read: false,
+            titleKey: 'title',
+            bodyKey: 'body',
+          },
+        ];
+        streamState.myResults = [
+          {
+            _id: 'personal-bulk',
+            createdAt: 2000,
+            read: false,
+            titleKey: 'title',
+            bodyKey: 'body',
+          },
+        ];
+        streamState.orgUnread = 1;
+        streamState.myUnread = 1;
+        let settleOrg: () => void = () => {};
+        let settlePersonal: () => void = () => {};
+        markAllRead.mutateAsync.mockImplementationOnce(
+          () =>
+            new Promise<void>((resolve, reject) => {
+              settleOrg = () =>
+                orgFails ? reject(new Error('Org read failed')) : resolve();
+            }),
+        );
+        markAllMyRead.mutateAsync.mockImplementationOnce(
+          () =>
+            new Promise<void>((resolve, reject) => {
+              settlePersonal = () =>
+                personalFails
+                  ? reject(new Error('Personal read failed'))
+                  : resolve();
+            }),
+        );
+        const { user, rerender } = renderPanel();
+        await user.click(
+          screen.getByRole('button', { name: 'Mark all as read' }),
+        );
+        expect(
+          screen.queryAllByRole('button', { name: 'Mark as read' }),
+        ).toHaveLength(0);
+        await act(async () => {
+          settleOrg();
+          settlePersonal();
+        });
+        streamState.orgUnread = orgFails ? 1 : 0;
+        streamState.myUnread = personalFails ? 1 : 0;
+        streamState.orgResults = streamState.orgResults.map((row) => ({
+          ...row,
+        }));
+        streamState.myResults = streamState.myResults.map((row) => ({
+          ...row,
+        }));
+        rerender(<NotificationListPanel organizationId="org-1" />);
+        const failedCount = Number(orgFails) + Number(personalFails);
+        expect(
+          screen.queryAllByRole('button', { name: 'Mark as read' }),
+        ).toHaveLength(failedCount);
+        expect(markAllRead.mutateAsync).toHaveBeenCalledWith({
+          organizationId: 'org-1',
+        });
+        expect(markAllMyRead.mutateAsync).toHaveBeenCalledWith({
+          organizationId: 'org-1',
+        });
+        if (failedCount === 0) {
+          expect(screen.getByText("You're all caught up")).toBeInTheDocument();
+        } else {
+          expect(
+            screen.queryByText("You're all caught up"),
+          ).not.toBeInTheDocument();
+          expect(
+            screen.getByRole('tab', { name: `Unread (${failedCount})` }),
+          ).toBeInTheDocument();
+          for (const button of screen.getAllByRole('button', {
+            name: 'Mark as read',
+          })) {
+            expect(button).toBeEnabled();
+          }
+          if (failedCount === 1) {
+            await user.click(
+              screen.getByRole('button', { name: 'Mark as read' }),
+            );
+            const failedMutation = orgFails ? markRead : markMyRead;
+            const successfulMutation = orgFails ? markMyRead : markRead;
+            expect(failedMutation.mutateAsync).toHaveBeenCalledWith({
+              notificationId: orgFails ? 'org-bulk' : 'personal-bulk',
+            });
+            expect(successfulMutation.mutateAsync).not.toHaveBeenCalled();
+          }
+          await user.click(
+            screen.getByRole('button', { name: 'Mark all as read' }),
+          );
+          expect(markAllRead.mutateAsync).toHaveBeenCalledTimes(2);
+          expect(markAllMyRead.mutateAsync).toHaveBeenCalledTimes(2);
+          expect(
+            screen.queryAllByRole('button', { name: 'Mark as read' }),
+          ).toHaveLength(0);
+        }
+      },
+    );
+  });
+  describe.each(['org', 'personal'] as const)('read rollback: %s', (stream) => {
+    function seedUnread() {
+      const notification: MockNotification = {
+        _id: `${stream}-notification`,
+        createdAt: 1000,
+        read: false,
+        titleKey: 'title',
+        bodyKey: 'body',
+        params: {},
+      };
+      if (stream === 'org') {
+        streamState.orgResults = [notification];
+        streamState.orgUnread = 1;
+      } else {
+        streamState.myResults = [notification];
+        streamState.myUnread = 1;
+      }
+      return stream === 'org' ? markRead : markMyRead;
+    }
+
+    it.each(['mark-read', 'activate'] as const)(
+      'restores a failed %s after a fresh unread response and allows retry',
+      async (action) => {
+        const mutation = seedUnread();
+        let rejectRead: (error: Error) => void = () => {};
+        mutation.mutateAsync.mockImplementationOnce(
+          () =>
+            new Promise<void>((_resolve, reject) => {
+              rejectRead = reject;
+            }),
+        );
+        const { user, rerender } = renderPanel();
+
+        await user.click(
+          action === 'mark-read'
+            ? screen.getByRole('button', { name: 'Mark as read' })
+            : screen.getByRole('link'),
+        );
+        expect(
+          screen.queryByRole('button', { name: 'Mark as read' }),
+        ).not.toBeInTheDocument();
+
+        await act(async () => {
+          rejectRead(new Error('Connection lost'));
+        });
+        streamState.orgResults = streamState.orgResults.map((row) => ({
+          ...row,
+        }));
+        streamState.myResults = streamState.myResults.map((row) => ({
+          ...row,
+        }));
+        rerender(<NotificationListPanel organizationId="org-1" />);
+
+        expect(
+          screen.getByRole('tab', { name: 'Unread (1)' }),
+        ).toBeInTheDocument();
+        expect(
+          screen.queryByText("You're all caught up"),
+        ).not.toBeInTheDocument();
+        expect(
+          screen.getByRole('button', { name: 'Mark as read' }),
+        ).toBeEnabled();
+        await user.click(screen.getByRole('button', { name: 'Mark as read' }));
+        expect(mutation.mutateAsync).toHaveBeenCalledTimes(2);
+        expect(mutation.mutateAsync).toHaveBeenLastCalledWith({
+          notificationId: `${stream}-notification`,
+        });
+      },
+    );
+
+    it('keeps a successful read optimistically hidden until the server catches up', async () => {
+      const mutation = seedUnread();
+      const { user, rerender } = renderPanel();
+      await user.click(screen.getByRole('button', { name: 'Mark as read' }));
+      rerender(<NotificationListPanel organizationId="org-1" />);
+      expect(mutation.mutateAsync).toHaveBeenCalledTimes(1);
+      expect(
+        screen.queryByRole('button', { name: 'Mark as read' }),
+      ).not.toBeInTheDocument();
+      expect(screen.getByText("You're all caught up")).toBeInTheDocument();
+    });
+
+    it('preserves All as a recovery control for an optimistic dismissal', async () => {
+      seedUnread();
+      const { user } = renderPanel();
+      await user.click(screen.getByRole('button', { name: 'Mark as read' }));
+      await user.click(screen.getByRole('tab', { name: 'All' }));
+      expect(
+        screen.getByRole('button', { name: 'Mark as read' }),
+      ).toBeEnabled();
+    });
+  });
+
+  it('restores only the failed row while another stream has a successful dismissal', async () => {
+    streamState.orgResults = [
+      {
+        _id: 'org-fails',
+        createdAt: 1000,
+        read: false,
+        titleKey: 'title',
+        bodyKey: 'body',
+      },
+    ];
+    streamState.myResults = [
+      {
+        _id: 'personal-succeeds',
+        createdAt: 2000,
+        read: false,
+        titleKey: 'title',
+        bodyKey: 'body',
+      },
+    ];
+    streamState.orgUnread = 1;
+    streamState.myUnread = 1;
+    let rejectRead: (error: Error) => void = () => {};
+    markRead.mutateAsync.mockImplementationOnce(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          rejectRead = reject;
+        }),
+    );
+    const { user } = renderPanel();
+    await user.click(
+      screen.getAllByRole('button', { name: 'Mark as read' })[1],
+    );
+    await user.click(screen.getByRole('button', { name: 'Mark as read' }));
+    await act(async () => {
+      rejectRead(new Error('Connection lost'));
+    });
+    expect(
+      screen.getAllByRole('button', { name: 'Mark as read' }),
+    ).toHaveLength(1);
+    await user.click(screen.getByRole('button', { name: 'Mark as read' }));
+    expect(markRead.mutateAsync).toHaveBeenCalledTimes(2);
+    expect(markMyRead.mutateAsync).toHaveBeenCalledTimes(1);
+  });
   // Regression test for #2019: "Mark all as read" must stay disabled for the
   // full duration of BOTH mutations it fires (org + personal stream), not just
   // the org stream — otherwise a second submission can slip through while the

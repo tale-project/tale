@@ -13,31 +13,14 @@ name: E2E
 run-name: ${{ github.event_name == 'repository_dispatch' && format('Release candidate {0}', github.event.client_payload.candidate_sha) || '' }}
 
 on:
+  merge_group:
+    types: [checks_requested]
   repository_dispatch:
     types: [release-candidate]
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     branches:
       - main
-    paths:
-      - 'services/platform/**'
-      - 'services/web/**'
-      - 'services/docs/**'
-      - 'packages/**'
-      - 'configs/platform/**'
-      - 'services/sandbox-runtime/daemon/**'
-      - 'tools/cli/**'
-      - 'scripts/**'
-      - 'compose*.yml'
-      - 'docs/**'
-      - 'patches/**'
-      - '.github/workflows/e2e.yml'
-      - '.github/actions/setup-turbo/**'
-      - 'package.json'
-      - 'bun.lock'
-      - 'bunfig.toml'
-      - 'turbo.json'
-      - 'tsconfig*.json'
   schedule:
     # Nightly at 02:30 UTC.
     - cron: '30 2 * * *'
@@ -48,6 +31,36 @@ concurrency:
   cancel-in-progress: ${{ github.event_name != 'repository_dispatch' }}
 
 jobs:
+  pr-scope:
+    name: PR scope
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      run: ${{ steps.scope.outputs.run }}
+      full: ${{ steps.scope.outputs.full }}
+      platform: ${{ steps.scope.outputs.platform }}
+      web: ${{ steps.scope.outputs.web }}
+      docs: ${{ steps.scope.outputs.docs }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            /.github/actions/ci-scope/action.yml
+            /.github/ci-scope.yml
+            /tools/cli/scripts/ci-ready.ts
+          sparse-checkout-cone-mode: false
+      - name: Decide applicability
+        id: scope
+        uses: ./.github/actions/ci-scope
+        with:
+          filter: e2e
+
   # Only candidates need remote source validation; ordinary jobs keep their event SHA.
   candidate-source:
     if: >-
@@ -62,9 +75,9 @@ jobs:
 
   # PRs run only the affected services. Shared packages/toolchain changes run
   # all three; release candidates, nightly and manual runs always run all.
-  # The REST PR diff requires no checkout, dependency install or git history.
+  # Detailed PR decisions reuse the validated frozen discovery above.
   scope:
-    needs: candidate-source
+    needs: [candidate-source, pr-scope]
     name: E2E scope
     if: >-
       !cancelled() &&
@@ -72,69 +85,24 @@ jobs:
       needs.candidate-source.result == 'success') ||
       ((github.event_name != 'repository_dispatch') &&
       needs.candidate-source.result == 'skipped')) &&
-      (github.event_name != 'pull_request' || github.event.pull_request.draft != true)
+      (github.event_name != 'pull_request' || github.event.pull_request.draft != true) &&
+      (github.event_name != 'pull_request' ||
+      (needs.pr-scope.result == 'success' && needs.pr-scope.outputs.run == 'true'))
     runs-on: ubuntu-latest
     timeout-minutes: 3
     permissions:
       contents: read
-      pull-requests: read
     outputs:
       platform: ${{ steps.decide.outputs.platform }}
       static_services: ${{ steps.decide.outputs.static_services }}
     steps:
-      - name: Filter paths
-        id: filter
-        if: github.event_name == 'pull_request'
-        uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4
-        with:
-          filters: |
-            platform:
-              - 'services/platform/**'
-              - 'configs/platform/**'
-              - 'services/sandbox-runtime/daemon/**'
-              - 'tools/cli/**'
-              - 'scripts/**'
-              - 'compose*.yml'
-              - 'packages/**'
-              - 'patches/**'
-              - 'package.json'
-              - 'bun.lock'
-              - 'bunfig.toml'
-              - 'turbo.json'
-              - 'tsconfig*.json'
-              - '.github/workflows/e2e.yml'
-              - '.github/actions/setup-turbo/**'
-            web:
-              - 'services/web/**'
-              - 'packages/**'
-              - 'patches/**'
-              - 'package.json'
-              - 'bun.lock'
-              - 'bunfig.toml'
-              - 'turbo.json'
-              - 'tsconfig*.json'
-              - '.github/workflows/e2e.yml'
-              - '.github/actions/setup-turbo/**'
-            docs:
-              - 'services/docs/**'
-              - 'docs/**'
-              - 'packages/**'
-              - 'patches/**'
-              - 'package.json'
-              - 'bun.lock'
-              - 'bunfig.toml'
-              - 'turbo.json'
-              - 'tsconfig*.json'
-              - '.github/workflows/e2e.yml'
-              - '.github/actions/setup-turbo/**'
-
       - name: Decide
         id: decide
         env:
           EVENT_NAME: ${{ github.event_name }}
-          PLATFORM: ${{ steps.filter.outputs.platform }}
-          WEB: ${{ steps.filter.outputs.web }}
-          DOCS: ${{ steps.filter.outputs.docs }}
+          PLATFORM: ${{ needs.pr-scope.outputs.platform }}
+          WEB: ${{ needs.pr-scope.outputs.web }}
+          DOCS: ${{ needs.pr-scope.outputs.docs }}
         run: |
           set -euo pipefail
           if [ "$EVENT_NAME" != pull_request ]; then
@@ -588,3 +556,27 @@ jobs:
       candidate_sha: ${{ github.event.client_payload.candidate_sha }}
       workflow: .github/workflows/e2e.yml
       jobs: ${{ toJSON(needs) }}
+
+  # A required context must execute even when an upstream check failed/skipped.
+  ci-ready:
+    name: CI ready (E2E)
+    if: always() && (github.event_name == 'pull_request' || github.event_name == 'merge_group')
+    needs: [pr-scope, candidate-source, scope, build, e2e, static-sites, candidate-gate]
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout verdict policy
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            /.github/actions/ci-ready/action.yml
+            /tools/cli/scripts/ci-ready.ts
+          sparse-checkout-cone-mode: false
+      - name: Evaluate native workflow
+        uses: ./.github/actions/ci-ready
+        with:
+          workflow: e2e
+          jobs: ${{ toJSON(needs) }}

@@ -349,7 +349,8 @@ jobs:
           if [ "$SITES_ONLY" != true ]; then SERVICES+=(ai-gateway); fi
           PIDS=()
           for SERVICE in "${SERVICES[@]}"; do
-            bun run "services/platform/tests/integration/container-${SERVICE}-test.ts" > "${LOG_DIR}/${SERVICE}.log" 2>&1 &
+            TEST_SCRIPT="services/platform/tests/integration/container-${SERVICE}-test.ts"
+            bun run "$TEST_SCRIPT" > "${LOG_DIR}/${SERVICE}.log" 2>&1 &
             PIDS+=("$!")
           done
           FAILED=0
@@ -447,6 +448,13 @@ jobs:
           # one (`git describe`), so the whole tag history is needed.
           fetch-depth: 0
           persist-credentials: false
+          # API snapshots are read with git show; only the notes and their
+          # dependency-free renderers need to be present in the working tree.
+          sparse-checkout: |
+            .github/release-notes
+            services/platform/scripts/openapi/contract-notes.ts
+            tools/cli/scripts/release-notes.ts
+          sparse-checkout-cone-mode: false
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2

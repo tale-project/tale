@@ -71,6 +71,11 @@ are:
 - `SANDBOX_URL`, `SANDBOX_TOKEN` and
   `SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD` for the sandbox and model gateway.
 
+Set `TOTP_ENVIRONMENT` in the backend environment so new authenticator entries
+identify non-production deployments: `te` produces `Tale <TE>`, while `pr` or
+unset keeps `Tale`. Existing saved entries keep their names; they can be renamed
+in the authenticator app without changing the secret.
+
 A second worktree does not isolate databases, container names or ports. Use
 separate backing state when parallel work must not affect another instance.
 

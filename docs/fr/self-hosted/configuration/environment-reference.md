@@ -24,12 +24,15 @@ Consulte aussi les commentaires du fichier d’exemple et vérifie l’environne
 | `HOST`      | `localhost`         | **Obligatoire.** Nom d'hôte sans protocole. Utilisé pour le réseau Docker et le mail sortant.                                             |
 | `SITE_URL`  | `https://localhost` | **Obligatoire.** URL canonique complète incluant le schéma et tout port non standard. Les callbacks d'auth l'utilisent.                   |
 | `ADDITIONAL_SITE_URLS` | non défini | **Optionnel.** Autres origines sur lesquelles le même déploiement répond, séparées par des virgules ou des espaces (ex. `https://a.example,https://b.example`). Chacune est une entrée complète. Voir [TLS et domaines](/fr/self-hosted/configuration/tls-and-domains#plusieurs-domaines-a-la-fois). |
+| `TOTP_ENVIRONMENT` | non défini | Nom d’environnement des entrées de l’application d’authentification, lu par `backend-api` et le rôle `all` : 1–32 lettres, chiffres, tirets bas ou traits d’union. Les espaces aux extrémités sont supprimés et les lettres passent en majuscules. `pr` ou une valeur absente conserve `Tale` ; avec `te`, les nouvelles entrées portent le nom `Tale <TE>`. Une valeur invalide empêche le backend de démarrer. |
 | `BASE_PATH` | non défini          | **Optionnel.** Préfixe de chemin pour les déploiements en sous-chemin derrière un reverse proxy (ex. `/app`). Laisse vide pour la racine. |
 | `DOCS_URL` | `https://docs.<HOST>` | Origine publique de l’hôte de documentation distinct dans le proxy. Le service docs doit aussi faire partie du déploiement. |
 
 `SITE_URL` désigne l’origine publique canonique. Protocole, hôte et port doivent correspondre à l’adresse du navigateur et aux callbacks enregistrés. `BASE_PATH` ajoute le préfixe de chemin ; le proxy normalise une barre oblique finale. Les adresses supplémentaires sont des origines sans chemin dans `ADDITIONAL_SITE_URLS`. Une origine supplémentaire invalide empêche le backend de démarrer.
 
 La documentation utilise sa propre origine. Sur l’origine de la plateforme, `/docs` ouvre la référence API interactive et `/openapi.json` fournit son schéma. `DOCS_URL` change l’hôte de documentation du proxy ; cette variable n’installe pas le service docs et ne réécrit pas les liens des clients déjà compilés. `TALE_DOCS_URL` dans les outils de compilation SEO et le préfixe `DOCS_BASE_URL` du service docs, utilisé à la compilation comme à l’exécution, sont des réglages distincts.
+
+Une modification de `TOTP_ENVIRONMENT` s’applique aux nouveaux codes QR et URI de configuration, y compris lorsqu’un secret existant est affiché à nouveau. Elle ne change ni les secrets ni les noms des entrées déjà enregistrées sur ton appareil ; tu peux renommer ces entrées dans ton application d’authentification.
 
 ## TLS
 

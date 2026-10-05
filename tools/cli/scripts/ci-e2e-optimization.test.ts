@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runInNewContext } from 'node:vm';
+import { gunzipSync } from 'node:zlib';
 
 import { parse } from 'yaml';
 
@@ -106,6 +107,7 @@ describe('E2E service scheduling', () => {
     'candidate, nightly and manual runs always execute every service without a PR diff',
     async () => {
       for (const event of [
+        'merge_group',
         'repository_dispatch',
         'schedule',
         'workflow_dispatch',
@@ -139,9 +141,15 @@ describe('E2E service scheduling', () => {
 
   test('service and shared source edits trigger and select the suites that consume them', async () => {
     const file = await workflow('e2e');
-    const filters = parse(
-      String(step(file.jobs.scope, 'Filter paths').with?.filters),
+    const policies = parse(
+      await readFile(join(repository, '.github/ci-scope.yml'), 'utf8'),
     ) as Record<string, string[]>;
+    const filters = Object.fromEntries(
+      Object.entries(policies)
+        .filter(([name]) => name.startsWith('e2e_'))
+        .map(([name, globs]) => [name.slice(4), globs]),
+    );
+    expect(file.on.pull_request.paths).toBeUndefined();
     const cases: [string, string[]][] = [
       ['services/platform/tests/e2e/specs/chat.spec.ts', ['platform']],
       ['services/platform/backend/main.ts', ['platform']],
@@ -180,7 +188,7 @@ describe('E2E service scheduling', () => {
       ].map((path): [string, string[]] => [path, ['docs', 'platform', 'web']]),
     ];
     for (const [path, expected] of cases) {
-      expect(matches(file.on.pull_request.paths, path), path).toBe(true);
+      expect(matches(policies.e2e!, path), path).toBe(true);
       expect(
         Object.entries(filters)
           .filter(([, globs]) => matches(globs, path))
@@ -518,6 +526,191 @@ test('candidate scans retain blocking policies without publishing SARIF', async 
 });
 
 describe('security failure paths', () => {
+  test('the independent Trivy gate reuses provisioning only after a successful report', async () => {
+    const job = (await workflow('security')).jobs['trivy-fs'];
+    const report = step(job, 'Run Trivy filesystem scan');
+    const gate = step(job, 'Trivy vulnerability gate (HIGH/CRITICAL)');
+    expect(report.id).toBe('report');
+    expect(gate.uses).toBe(report.uses);
+    expect(job?.steps?.indexOf(report)).toBeLessThan(
+      job?.steps?.indexOf(gate) ?? -1,
+    );
+    expect(report.with?.['skip-setup-trivy']).toBeUndefined();
+    expect(report.with?.cache).toBeUndefined();
+    const skipSetup = String(gate.with?.['skip-setup-trivy']).replace(
+      /^\$\{\{\s*|\s*\}\}$/g,
+      '',
+    );
+    const cache = String(gate.with?.cache).replace(/^\$\{\{\s*|\s*\}\}$/g, '');
+    for (const [outcome, conclusion] of [
+      ['success', 'success'],
+      ['failure', 'failure'],
+      ['failure', 'success'], // continue-on-error must still provision again
+      ['cancelled', 'cancelled'],
+      ['skipped', 'skipped'], // candidate reporting is deliberately skipped
+      ['', ''],
+      [undefined, undefined],
+    ]) {
+      const context = { steps: { report: { outcome, conclusion } } };
+      expect(runInNewContext(skipSetup, context)).toBe(outcome === 'success');
+      expect(runInNewContext(cache, context)).toBe(outcome !== 'success');
+      for (const cancelled of [false, true])
+        expect(
+          runInNewContext(gate.if!, {
+            ...context,
+            cancelled: () => cancelled,
+            steps: { ...context.steps, source: { outcome: 'success' } },
+          }),
+        ).toBe(!cancelled);
+    }
+    const {
+      'skip-setup-trivy': _skipSetup,
+      cache: _cache,
+      ...scanInputs
+    } = gate.with ?? {};
+    expect(scanInputs).toEqual({
+      'scan-type': 'fs',
+      'scan-ref': '.',
+      format: 'table',
+      severity: 'HIGH,CRITICAL',
+      'exit-code': '1',
+      scanners: 'vuln',
+      'ignore-unfixed': true,
+      trivyignores: '.trivyignore.yaml',
+      'skip-files': 'tools/plop/templates/**/Dockerfile.hbs',
+    });
+  });
+
+  test('one production audit lookup supplies complete reporting and the native gate', async () => {
+    const job = (await workflow('security')).jobs['bun-audit'];
+    const gate = step(job, 'Gate on high/critical advisories');
+    const scans = job?.steps?.filter((entry) =>
+      entry.run?.includes('bun audit'),
+    );
+    expect(scans).toEqual([gate]);
+    expect(gate.run).toContain(
+      'timeout 240 bun audit --prod --audit-level=high --json',
+    );
+    expect(gate.run?.match(/bun audit/g)).toHaveLength(1);
+    expect(gate['continue-on-error']).not.toBe(true);
+    expect(step(job, 'Summary').if).toBe('always()');
+    expect(step(job, 'Summary').run).toContain('bun-audit*.txt');
+    expect(step(job, 'Retain advisory evidence').with?.path).toBe(
+      'bun-audit*.txt',
+    );
+  });
+
+  test('the installed audit engine retains low findings while gating high production advisories', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'tale-native-audit-'));
+    temporary.push(directory);
+    const manifest = {
+      name: 'tale-audit-proof',
+      dependencies: { 'tale-audit-production': '1.0.0' },
+      devDependencies: { 'tale-audit-development': '1.0.0' },
+    };
+    await writeFile(join(directory, 'package.json'), JSON.stringify(manifest));
+    await writeFile(
+      join(directory, 'bun.lock'),
+      JSON.stringify({
+        lockfileVersion: 1,
+        configVersion: 1,
+        workspaces: { '': manifest },
+        packages: {
+          'tale-audit-production': ['tale-audit-production@1.0.0', '', {}, ''],
+          'tale-audit-development': [
+            'tale-audit-development@1.0.0',
+            '',
+            {},
+            '',
+          ],
+        },
+      }),
+    );
+    const command = step(
+      (await workflow('security')).jobs['bun-audit'],
+      'Gate on high/critical advisories',
+    ).run!;
+    const flags = command.match(/timeout 240 bun (audit[^\n]+?) 2>&1/)?.[1];
+    if (!flags) throw new Error('Missing bounded native audit command');
+    const requests: unknown[] = [];
+    let severity = 'low';
+    let outage = false;
+    const server = Bun.serve({
+      hostname: '127.0.0.1',
+      port: 0,
+      async fetch(request) {
+        expect(request.method).toBe('POST');
+        expect(new URL(request.url).pathname).toBe(
+          '/-/npm/v1/security/advisories/bulk',
+        );
+        const bytes = new Uint8Array(await request.arrayBuffer());
+        requests.push(
+          JSON.parse(
+            new TextDecoder().decode(
+              request.headers.get('content-encoding') === 'gzip'
+                ? gunzipSync(bytes)
+                : bytes,
+            ),
+          ),
+        );
+        if (outage)
+          return new Response('Synthetic registry outage', { status: 503 });
+        return Response.json({
+          'tale-audit-production': [
+            {
+              id: 123456,
+              title: 'Synthetic production advisory',
+              severity,
+              url: 'https://example.invalid/audit-proof',
+              vulnerable_versions: '<2.0.0',
+            },
+          ],
+        });
+      },
+    });
+    const audit = async () => {
+      const child = Bun.spawn([process.execPath, ...flags.split(' ')], {
+        cwd: directory,
+        env: {
+          ...process.env,
+          NPM_CONFIG_REGISTRY: server.url.origin,
+          BUN_INSTALL_CACHE_DIR: join(directory, 'cache'),
+        },
+        stdout: 'pipe',
+        stderr: 'pipe',
+        timeout: 10_000,
+      });
+      const [code, stdout, stderr] = await Promise.all([
+        child.exited,
+        new Response(child.stdout).text(),
+        new Response(child.stderr).text(),
+      ]);
+      return { code, stdout, stderr };
+    };
+    try {
+      for (severity of ['low', 'moderate', 'high', 'critical']) {
+        const { code, stdout, stderr } = await audit();
+        expect(stderr).toBe('');
+        expect(code).toBe(['high', 'critical'].includes(severity) ? 1 : 0);
+        expect(JSON.parse(stdout)['tale-audit-production'][0].severity).toBe(
+          severity,
+        );
+        expect(requests.at(-1)).toEqual({ 'tale-audit-production': ['1.0.0'] });
+      }
+      expect(requests).toHaveLength(4);
+      outage = true;
+      const failed = await audit();
+      expect(failed.code).toBe(1);
+      expect(failed.stdout).toBe('');
+      expect(failed.stderr).toMatch(
+        /^error: POST http:\/\/127\.0\.0\.1:\d+\/-\/npm\/v1\/security\/advisories\/bulk - 503\n$/,
+      );
+      expect(requests).toHaveLength(5);
+    } finally {
+      await server.stop(true);
+    }
+  });
+
   test('reporting failures cannot suppress or precede the blocking vulnerability gate', async () => {
     const job = (await workflow('security')).jobs['trivy-fs'];
     const gate = step(job, 'Trivy vulnerability gate (HIGH/CRITICAL)');

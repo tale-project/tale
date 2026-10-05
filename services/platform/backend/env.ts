@@ -2,6 +2,7 @@ import { parseAdditionalSiteUrls } from '@tale/shared/utils/site-urls';
 import { z } from 'zod';
 
 import { ensureWebdavHmacKey } from '../lib/webdav/hmac-key.ts';
+import { totpEnvironmentSchema } from './auth/totp-issuer.ts';
 
 /**
  * Process roles: `api` serves HTTP/SSE, `worker` runs pg-boss task queues,
@@ -52,6 +53,8 @@ const envSchema = z.object({
     ),
   /** Public origin auth cookies bind to; defaults to the direct dev port. */
   SITE_URL: z.string().url().default('http://localhost:3005'),
+  /** PR/unset retains Tale; other environments name their authenticator entries. */
+  TOTP_ENVIRONMENT: totpEnvironmentSchema,
   /**
    * The other public origins this deployment is served from, comma- or
    * whitespace-separated (`https://tale.partner.example, https://…`). Each

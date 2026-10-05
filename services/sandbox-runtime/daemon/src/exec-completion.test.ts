@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, expect, spyOn, test } from 'bun:test';
-import { mkdtempSync, realpathSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, realpathSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 
 import { runnerdExec } from '../../../sandbox/src/session/runnerd-client.ts';
@@ -44,6 +44,37 @@ function alive(pid: number): boolean {
   } catch {
     return false;
   }
+}
+
+// Without an exec shim, init can retain a terminated orphan as a zombie.
+// The final barrier requires no live leftover; the earlier presence checks stay strict.
+function running(pid: number): boolean {
+  let stat: string;
+  try {
+    stat = readFileSync(`/proc/${pid}/stat`, 'utf8');
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      'code' in error &&
+      (error.code === 'ENOENT' || error.code === 'ESRCH')
+    )
+      return false;
+    throw error;
+  }
+  const end = stat.lastIndexOf(')');
+  const fields = stat
+    .slice(end + 2)
+    .trim()
+    .split(/\s+/);
+  if (
+    !stat.startsWith(`${pid} (`) ||
+    end < `${pid} (`.length ||
+    fields.length < 20 ||
+    !/^[RSDZTtXxKWPI]$/.test(fields[0] ?? '') ||
+    fields.slice(1).some((field) => !/^-?\d+$/.test(field))
+  )
+    throw new Error(`Invalid process stat for ${pid}`);
+  return fields[0] !== 'Z';
 }
 
 test.skipIf(process.platform !== 'linux')(
@@ -153,7 +184,7 @@ test.skipIf(process.platform !== 'linux')(
       expect(alive(survivor)).toBe(true);
       expect(manager.cancel('completion-peer')).toBe(true);
       await peer;
-      await waitFor(() => !alive(survivor));
+      await waitFor(() => !running(survivor));
     } finally {
       release.resolve();
       drain.mockRestore();

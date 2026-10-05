@@ -3,6 +3,8 @@ name: Commitlint
 run-name: ${{ github.event_name == 'repository_dispatch' && format('Release candidate {0}', github.event.client_payload.candidate_sha) || '' }}
 
 on:
+  merge_group:
+    types: [checks_requested]
   repository_dispatch:
     types: [release-candidate]
   pull_request:
@@ -67,9 +69,12 @@ jobs:
         # PR: lint the branch range. Push: lint the pushed range; a forced or
         # history-less push (all-zero `before`) degrades to the last commit.
         # Candidate: lint C itself, never the workflow head H or a tag input.
+        # Merge queue: lint its actual group base-to-head source range.
         env:
           EVENT_NAME: ${{ github.event_name }}
           CANDIDATE_SHA: ${{ needs.candidate-source.outputs.candidate_sha }}
+          GROUP_BASE: ${{ github.event.merge_group.base_sha }}
+          GROUP_HEAD: ${{ github.event.merge_group.head_sha }}
           PR_BASE: ${{ github.event.pull_request.base.sha }}
           PR_HEAD: ${{ github.event.pull_request.head.sha }}
           PUSH_BEFORE: ${{ github.event.before }}
@@ -80,6 +85,11 @@ jobs:
             git show -s --format=%B "$CANDIDATE_SHA" | bunx commitlint --verbose
           elif [ "$EVENT_NAME" = "pull_request" ]; then
             bunx commitlint --from "$PR_BASE" --to "$PR_HEAD" --verbose
+          elif [ "$EVENT_NAME" = "merge_group" ]; then
+            if [[ ! "$GROUP_BASE" =~ ^[a-f0-9]{40}$ ]] || [[ ! "$GROUP_HEAD" =~ ^[a-f0-9]{40}$ ]] || [ "$GROUP_HEAD" != "$PUSH_SHA" ]; then
+              echo "::error::Merge group must supply its exact base and head"; exit 1
+            fi
+            bunx commitlint --from "$GROUP_BASE" --to "$GROUP_HEAD" --verbose
           elif [ -z "$PUSH_BEFORE" ] || [ "$PUSH_BEFORE" = "0000000000000000000000000000000000000000" ]; then
             bunx commitlint --last --verbose
           else
@@ -96,3 +106,27 @@ jobs:
       candidate_sha: ${{ github.event.client_payload.candidate_sha }}
       workflow: .github/workflows/commitlint.yml
       jobs: ${{ toJSON(needs) }}
+
+  # A required context must execute even when an upstream check failed/skipped.
+  ci-ready:
+    name: CI ready (Commitlint)
+    if: always() && (github.event_name == 'pull_request' || github.event_name == 'merge_group')
+    needs: [candidate-source, commitlint, candidate-gate]
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout verdict policy
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            /.github/actions/ci-ready/action.yml
+            /tools/cli/scripts/ci-ready.ts
+          sparse-checkout-cone-mode: false
+      - name: Evaluate native workflow
+        uses: ./.github/actions/ci-ready
+        with:
+          workflow: commitlint
+          jobs: ${{ toJSON(needs) }}

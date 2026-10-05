@@ -1,5 +1,6 @@
 import { afterEach, beforeAll, describe, expect, test } from 'bun:test';
 import { spawnSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import {
   mkdir,
   mkdtemp,
@@ -26,6 +27,7 @@ const HASH_TASKS = [
   'storybook:build',
 ];
 const ALL_TASKS = [...HASH_TASKS, 'build', 'test:prerender'];
+const DOCUMENTATION_PACKAGES = ['ui', 'marketing-ui', 'e2e'];
 const DAEMON_TASKS = ['lint', 'typecheck', 'test'];
 const DAEMON_OUTSIDE_FILES = [
   'services/sandbox/src/session/runnerd-client.ts',
@@ -35,7 +37,10 @@ const DAEMON_OUTSIDE_FILES = [
 const temporary: string[] = [];
 
 const dryRunSchema = z.object({
-  globalCacheInputs: z.object({ files: z.record(z.string(), z.string()) }),
+  globalCacheInputs: z.object({
+    files: z.record(z.string(), z.string()),
+    hashOfInternalDependencies: z.string(),
+  }),
   tasks: z.array(
     z.object({
       taskId: z.string(),
@@ -91,11 +96,17 @@ async function fixture(includeDaemon = false): Promise<string> {
     await readFile(join(ROOT, 'turbo.json')),
   );
   await writeFile(
+    join(directory, 'tsconfig.base.json'),
+    await readFile(join(ROOT, 'tsconfig.base.json')),
+  );
+  await writeFile(
     join(directory, 'package.json'),
     JSON.stringify({
       name: 'cache-regression-fixture',
       private: true,
       packageManager: 'bun@1.4.2',
+      // Root workspace dependencies participate in Turbo's global hash.
+      devDependencies: { '@tale/shared': 'workspace:*' },
       workspaces: [
         'packages/*',
         ...(includeDaemon ? ['services/sandbox-runtime/daemon'] : []),
@@ -106,8 +117,12 @@ async function fixture(includeDaemon = false): Promise<string> {
   for (const [name, dependencies] of [
     ['ui', {}],
     ['marketing-ui', { '@tale/ui': 'workspace:*' }],
-    ['web', { '@tale/marketing-ui': 'workspace:*' }],
+    [
+      'web',
+      { '@tale/marketing-ui': 'workspace:*', '@tale/e2e': 'workspace:*' },
+    ],
     ['shared', {}],
+    ['e2e', {}],
     ['cli', { '@tale/shared': 'workspace:*' }],
     ['unrelated', {}],
     ['db', {}],
@@ -133,12 +148,14 @@ async function fixture(includeDaemon = false): Promise<string> {
     );
     await writeFile(join(workspace, 'source.ts'), 'export const value = 1;\n');
     await writeFile(join(workspace, 'catalog.yml'), 'label: First\n');
-    if (name === 'ui') {
-      await writeFile(
-        join(workspace, 'turbo.json'),
-        await readFile(join(ROOT, 'packages/ui/turbo.json')),
-      );
-      await writeFile(join(workspace, 'README.md'), '# UI package\n');
+    if (DOCUMENTATION_PACKAGES.includes(name)) {
+      const config = join(ROOT, 'packages', name, 'turbo.json');
+      if (existsSync(config))
+        await writeFile(join(workspace, 'turbo.json'), await readFile(config));
+    }
+    if (DOCUMENTATION_PACKAGES.includes(name) || name === 'shared')
+      await writeFile(join(workspace, 'README.md'), `# ${name} package\n`);
+    if (name === 'ui' || name === 'marketing-ui') {
       await writeFile(
         join(workspace, 'tailwind-preset.ts'),
         'export const theme = {};\n',
@@ -353,61 +370,129 @@ describe('dependency-aware Turbo cache', () => {
     );
   }, 60_000);
 
-  test('UI documentation preserves consumer checks while package checks, builds and publication stay current', async () => {
-    const directory = await fixture();
-    const baseline = graph(directory);
-    const readme = join(directory, 'packages/ui/README.md');
-    const original = await readFile(readme, 'utf8');
-    await writeFile(readme, `${original}\nUpdated installation guide.\n`);
-    const documentationChanged = graph(directory);
-    for (const name of HASH_TASKS) {
-      for (const consumer of ['marketing-ui', 'web']) {
-        const id = `@tale/${consumer}#${name}`;
-        expect(getTask(documentationChanged, id).hash, id).toBe(
-          getTask(baseline, id).hash,
+  for (const packageName of DOCUMENTATION_PACKAGES) {
+    test(`${packageName} documentation preserves consumer checks while package checks, builds and publication stay current`, async () => {
+      const directory = await fixture();
+      const baseline = graph(directory);
+      const config = z
+        .object({
+          tasks: z.object({
+            transit: z.object({ inputs: z.array(z.string()) }),
+          }),
+        })
+        .parse(
+          JSON.parse(
+            await readFile(
+              join(directory, 'packages', packageName, 'turbo.json'),
+              'utf8',
+            ),
+          ),
         );
-      }
-      const own = `@tale/ui#${name}`;
-      expect(getTask(documentationChanged, own).hash, own).not.toBe(
-        getTask(baseline, own).hash,
-      );
-    }
-    for (const name of ['build', 'test:prerender']) {
-      for (const consumer of ['marketing-ui', 'web']) {
-        const id = `@tale/${consumer}#${name}`;
-        expect(getTask(documentationChanged, id).hash, id).not.toBe(
-          getTask(baseline, id).hash,
-        );
-      }
-    }
-    expect(getTask(documentationChanged, '@tale/cli#test').hash).not.toBe(
-      getTask(baseline, '@tale/cli#test').hash,
-    );
-    await writeFile(readme, original);
-    expect(graph(directory)).toEqual(baseline);
-
-    // Exported files outside src and the public export map remain dependencies,
-    // along with the ordinary shared source/catalog changes tested above.
-    for (const file of ['tailwind-preset.ts', 'package.json']) {
-      const target = join(directory, 'packages/ui', file);
-      const contents = await readFile(target, 'utf8');
-      await writeFile(
-        target,
-        file === 'package.json'
-          ? JSON.stringify({
-              ...JSON.parse(contents),
-              exports: { './theme': './tailwind-preset.ts' },
-            })
-          : `${contents}\nexport const accent = 'blue';\n`,
-      );
-      const changed = graph(directory);
-      for (const name of ALL_TASKS) {
-        for (const consumer of ['marketing-ui', 'web']) {
+      expect(config.tasks.transit.inputs.slice(0, 2)).toEqual([
+        '$TURBO_EXTENDS$',
+        '$TURBO_DEFAULT$',
+      ]);
+      const consumers =
+        packageName === 'ui' ? ['marketing-ui', 'web'] : ['web'];
+      const readme = join(directory, 'packages', packageName, 'README.md');
+      const original = await readFile(readme, 'utf8');
+      await writeFile(readme, `${original}\nUpdated installation guide.\n`);
+      const documentationChanged = graph(directory);
+      for (const name of HASH_TASKS) {
+        for (const consumer of consumers) {
           const id = `@tale/${consumer}#${name}`;
-          expect(getTask(changed, id).hash, `${id}: ${file}`).not.toBe(
+          expect(getTask(documentationChanged, id).hash, id).toBe(
             getTask(baseline, id).hash,
           );
         }
+        const own = `@tale/${packageName}#${name}`;
+        expect(getTask(documentationChanged, own).hash, own).not.toBe(
+          getTask(baseline, own).hash,
+        );
+      }
+      for (const name of ['build', 'test:prerender']) {
+        for (const consumer of consumers) {
+          const id = `@tale/${consumer}#${name}`;
+          expect(getTask(documentationChanged, id).hash, id).not.toBe(
+            getTask(baseline, id).hash,
+          );
+        }
+      }
+      if (packageName === 'ui' || packageName === 'marketing-ui')
+        expect(getTask(documentationChanged, '@tale/cli#test').hash).not.toBe(
+          getTask(baseline, '@tale/cli#test').hash,
+        );
+      await writeFile(readme, original);
+      expect(graph(directory)).toEqual(baseline);
+
+      // Only documentation drops from transit: source, catalogs, the public
+      // export map and exported files outside src remain dependencies.
+      const files = ['source.ts', 'catalog.yml', 'package.json'];
+      if (packageName === 'ui' || packageName === 'marketing-ui')
+        files.push('tailwind-preset.ts');
+      for (const file of files) {
+        const target = join(directory, 'packages', packageName, file);
+        const contents = await readFile(target, 'utf8');
+        await writeFile(
+          target,
+          file === 'package.json'
+            ? JSON.stringify({
+                ...JSON.parse(contents),
+                exports: { './source': './source.ts' },
+              })
+            : file === 'catalog.yml'
+              ? `${contents}\nupdated: true\n`
+              : `${contents}\nexport const accent = 'blue';\n`,
+        );
+        const changed = graph(directory);
+        for (const name of ALL_TASKS) {
+          for (const consumer of consumers) {
+            const id = `@tale/${consumer}#${name}`;
+            expect(getTask(changed, id).hash, `${id}: ${file}`).not.toBe(
+              getTask(baseline, id).hash,
+            );
+          }
+        }
+        await writeFile(target, contents);
+        expect(graph(directory)).toEqual(baseline);
+      }
+    }, 60_000);
+  }
+
+  test('package documentation boundaries retain compiler and root workspace dependency global hashes', async () => {
+    const directory = await fixture();
+    const baselineRun = dryRun(directory);
+    const baseline = new Map(
+      baselineRun.tasks.map((task) => [task.taskId, task]),
+    );
+    for (const file of ['tsconfig.base.json', 'packages/shared/README.md']) {
+      const target = join(directory, file);
+      const contents = await readFile(target, 'utf8');
+      await writeFile(
+        target,
+        file.endsWith('.json')
+          ? JSON.stringify({
+              ...JSON.parse(contents),
+              compilerOptions: {
+                ...JSON.parse(contents).compilerOptions,
+                strict: false,
+              },
+            })
+          : `${contents}\nUpdated shared package guide.\n`,
+      );
+      const changedRun = dryRun(directory);
+      const changed = new Map(
+        changedRun.tasks.map((task) => [task.taskId, task]),
+      );
+      if (file === 'packages/shared/README.md')
+        expect(
+          changedRun.globalCacheInputs.hashOfInternalDependencies,
+        ).not.toBe(baselineRun.globalCacheInputs.hashOfInternalDependencies);
+      for (const task of baseline.values()) {
+        expect(
+          getTask(changed, task.taskId).hash,
+          `${task.taskId}: ${file}`,
+        ).not.toBe(task.hash);
       }
       await writeFile(target, contents);
       expect(graph(directory)).toEqual(baseline);

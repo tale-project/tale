@@ -72,17 +72,11 @@ WORKDIR /app
 # ============================================================================
 FROM oven/bun:1.3.12-slim AS runner
 
-ARG VERSION=dev
-LABEL org.opencontainers.image.version="${VERSION}" \
-      org.opencontainers.image.title="tale-docs" \
-      org.opencontainers.image.description="Tale documentation site"
-
 ARG LOCALE_COOKIE_DOMAIN=
 # Re-declare DOCS_BASE_URL here so the runner stage can promote it to ENV;
 # the server uses it as the public mount prefix for locale redirects.
 ARG DOCS_BASE_URL=/
 ENV NODE_ENV=production \
-    TALE_VERSION=${VERSION} \
     PORT=3002 \
     HOSTNAME="0.0.0.0" \
     DO_NOT_TRACK=1 \
@@ -102,6 +96,13 @@ COPY --from=builder --chown=app:app /app/services/docs/server.js ./server.js
 COPY --from=builder --chown=app:app /app/services/docs/package.json ./package.json
 COPY --from=builder --chown=app:app /app/services/docs/docker-entrypoint.sh ./docker-entrypoint.sh
 RUN chmod +x ./docker-entrypoint.sh
+
+# Keep version metadata after filesystem work so new releases reuse its layers.
+ARG VERSION=dev
+LABEL org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.title="tale-docs" \
+      org.opencontainers.image.description="Tale documentation site"
+ENV TALE_VERSION=${VERSION}
 
 USER app
 EXPOSE 3002

@@ -103,3 +103,30 @@ test('Bun dependency caches are isolated by operating system and host architectu
     '${{ runner.os }}-${{ runner.arch }}',
   );
 });
+
+test('only native Windows skips the Bun dependency archive', () => {
+  const restore = step('Restore Bun install cache');
+  const save = step('Save installed Bun downloads');
+  expect(restore.if).toBe("matrix.cross || runner.os != 'Windows'");
+  expect(save.if).toBe(
+    "(matrix.cross || runner.os != 'Windows') && steps.bun-cache.outputs.cache-hit != 'true'",
+  );
+  expect(step('Install dependencies').if).toBeUndefined();
+  expect(step('Setup Bun').if).toBeUndefined();
+  expect(
+    build.strategy.matrix.include
+      .filter((target) => !target.cross)
+      .map((target) => target.os)
+      .sort(),
+  ).toEqual(['macos-latest', 'ubuntu-latest', 'windows-latest']);
+  expect(restore.with?.path).toBe(
+    "${{ (matrix.cross || runner.os == 'Windows') && env.BUN_INSTALL_CACHE_DIR || '~/.bun/install/cache' }}",
+  );
+  expect(restore.with?.key).toContain(
+    "matrix.cross && 'bun-cli-install' || 'bun-install'",
+  );
+  expect(save.with?.path).toBe(restore.with?.path);
+  expect(save.with?.key).toBe(
+    '${{ steps.bun-cache.outputs.cache-primary-key }}',
+  );
+});

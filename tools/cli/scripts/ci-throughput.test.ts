@@ -315,7 +315,15 @@ test('E2E uses the normal build cache and one artifact for every platform shard'
 
 test('E2E source scopes include the build and test inputs outside services', async () => {
   const file = await workflow('e2e');
-  const paths = file.on.pull_request.paths ?? [];
+  expect(file.on.pull_request.paths).toBeUndefined();
+  const paths = (
+    parse(
+      await readFile(
+        new URL('../../../.github/ci-scope.yml', import.meta.url),
+        'utf8',
+      ),
+    ) as Record<string, string[]>
+  ).e2e!;
   for (const input of [
     'docs/en/self-hosted/install/overview.md',
     'packages/shared/src/utils/session-idle.ts',

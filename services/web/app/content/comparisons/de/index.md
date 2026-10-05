@@ -10,7 +10,7 @@ Ein hilfreicher Vergleich beginnt mit der Arbeit, die dein Team koordinieren mö
 
 Diese Leitfäden vergleichen den dokumentierten Produktumfang anhand einer konkreten Testaufgabe. Sie berücksichtigen Überschneidungen und erklären, wann das andere Produkt passen kann. Frameworks und kompatible Laufzeiten sind eigene Entscheidungen, keine austauschbaren Ersatzprodukte.
 
-Die Recherche wurde am 3. Oktober 2026 anhand verlinkter offizieller Quellen geprüft. Die Alternativen wurden nicht installiert oder einem Benchmark unterzogen. Das angekündigte Supportende von Flowise und der Wartungsübergang von Vibe Kanban sind in den jeweiligen Leitfäden beschrieben. Prüfe vor einer Einführung den aktuellen Stand.
+Die Recherche wurde am 3. Oktober 2026 anhand verlinkter offizieller Quellen geprüft. Die Alternativen wurden nicht installiert oder einem Benchmark unterzogen. Das [angekündigte Supportende von Flowise](https://flowiseai.com/sunset) und der [Wartungsübergang von Vibe Kanban](https://www.vibekanban.com/blog/shutdown) sind in den jeweiligen Leitfäden beschrieben. Prüfe vor einer Einführung den aktuellen Stand.
 
 ## Projektkoordination und Agentenausführung
 
@@ -19,7 +19,7 @@ Die Recherche wurde am 3. Oktober 2026 anhand verlinkter offizieller Quellen gep
 | [Multica](/de/compare/tale-vs-multica) | Issue-Bearbeitung und gemeinsame Projektarbeit |
 | [Paperclip](/de/compare/tale-vs-paperclip) | Agentenorganisationen und Projektreviews |
 | [Conductor](/de/compare/tale-vs-conductor) | Parallele Codearbeit und weitere Teamaufgaben |
-| [Vibe Kanban](/de/compare/tale-vs-vibe-kanban) | Code-Aufgabenboards und der Wartungsübergang |
+| [Vibe Kanban](/de/compare/tale-vs-vibe-kanban) | Coding-Agenten und der Wartungsübergang |
 | [OpenAI Symphony](/de/compare/tale-vs-symphony) | Issue-basierte Orchestrierung und gemeinsamer Arbeitsbereich |
 | [Mission Control (builderz-labs)](/de/compare/tale-vs-mission-control) | Agentensteuerung und tägliche Projektarbeit |
 | [Autensa](/de/compare/tale-vs-autensa) | Koordinierte Produktentwicklung und gemeinsame Aufgaben |

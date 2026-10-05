@@ -10,7 +10,7 @@ Un comparatif utile part du travail que ton équipe doit coordonner. Tale est un
 
 Ces guides comparent le périmètre documenté des produits et proposent une tâche d’évaluation concrète. Ils reconnaissent les capacités communes et expliquent quand l’autre produit peut convenir. Frameworks et environnements d’exécution compatibles correspondent à des décisions différentes, pas à des remplacements interchangeables.
 
-Recherche vérifiée le 3 octobre 2026 à partir des sources officielles liées. Les alternatives n’ont pas été installées ni soumises à des benchmarks. La fin de vie annoncée de Flowise et la transition de maintenance de Vibe Kanban sont expliquées dans leurs guides ; vérifie leur statut actuel avant de les adopter.
+Recherche vérifiée le 3 octobre 2026 à partir des sources officielles liées. Les alternatives n’ont pas été installées ni soumises à des benchmarks. La [fin de vie annoncée de Flowise](https://flowiseai.com/sunset) et la [transition de maintenance de Vibe Kanban](https://www.vibekanban.com/blog/shutdown) sont expliquées dans leurs guides ; vérifie leur statut actuel avant de les adopter.
 
 ## Coordination de projets et exécution des agents
 
@@ -19,7 +19,7 @@ Recherche vérifiée le 3 octobre 2026 à partir des sources officielles liées.
 | [Multica](/fr/compare/tale-vs-multica) | Exécution de tickets et travail de projet partagé |
 | [Paperclip](/fr/compare/tale-vs-paperclip) | Organisation d’agents et revue de projet |
 | [Conductor](/fr/compare/tale-vs-conductor) | Code en parallèle et autres tâches d’équipe |
-| [Vibe Kanban](/fr/compare/tale-vs-vibe-kanban) | Tableaux de tâches de code et transition de maintenance |
+| [Vibe Kanban](/fr/compare/tale-vs-vibe-kanban) | Agents de code et transition de maintenance |
 | [OpenAI Symphony](/fr/compare/tale-vs-symphony) | Orchestration depuis les tickets et espace partagé |
 | [Mission Control (builderz-labs)](/fr/compare/tale-vs-mission-control) | Pilotage d’agents et travail de projet quotidien |
 | [Autensa](/fr/compare/tale-vs-autensa) | Orchestration de livraison produit et tâches partagées |

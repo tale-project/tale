@@ -115,6 +115,8 @@ export const EMAIL_PROVIDER_SLUGS: ReadonlySet<string> = new Set([
 export function useEmailConnectors(organizationId: string): {
   emailConnectors: EmailConnectorOption[];
   isLoading: boolean;
+  error: unknown;
+  retry: () => Promise<unknown>;
 } {
   const { inboxAutomations, isLoading: inboxLoading } =
     useInboxAvailability(organizationId);
@@ -133,7 +135,12 @@ export function useEmailConnectors(organizationId: string): {
     [inboxAutomations],
   );
 
-  const { data: credentials, isLoading: credentialsLoading } = useBackendQuery(
+  const {
+    data: credentials,
+    error: credentialsError,
+    isLoading: credentialsLoading,
+    refetch: refetchCredentials,
+  } = useBackendQuery(
     'connector_credentials/queries:listCredentials',
     organizationId ? { organizationId } : 'skip',
   );
@@ -162,6 +169,8 @@ export function useEmailConnectors(organizationId: string): {
   return {
     emailConnectors,
     isLoading: inboxLoading || credentialsLoading,
+    error: credentialsError,
+    retry: refetchCredentials,
   };
 }
 

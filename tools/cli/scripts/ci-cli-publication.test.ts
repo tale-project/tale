@@ -30,7 +30,7 @@ const workflow = parse(
     'utf8',
   ),
 ) as {
-  on: { push: { paths: string[] }; pull_request: { paths: string[] } };
+  on: { push: { paths: string[] }; pull_request: { paths?: string[] } };
   jobs: {
     build: { steps: Step[] };
     release: { needs: string[]; 'timeout-minutes': number; steps: Step[] };
@@ -85,7 +85,7 @@ async function execute(
   return { status, output: stdout + stderr };
 }
 
-test('CLI triggers include install inputs and imported runtime source', () => {
+test('CLI push and PR scope include install inputs and imported runtime source', async () => {
   const expected = [
     'package.json',
     'bunfig.toml',
@@ -104,9 +104,16 @@ test('CLI triggers include install inputs and imported runtime source', () => {
     'services/platform/backend/jobs/tasks.ts',
     'services/platform/backend/lib/org-config.ts',
   ];
-  for (const event of ['push', 'pull_request'] as const)
-    for (const path of expected)
-      expect(workflow.on[event].paths).toContain(path);
+  const scopes = parse(
+    await readFile(
+      new URL('../../../.github/ci-scope.yml', import.meta.url),
+      'utf8',
+    ),
+  ) as { cli: string[] };
+  expect(workflow.on.pull_request.paths).toBeUndefined();
+  expect(scopes.cli).toEqual(workflow.on.push.paths);
+  for (const paths of [workflow.on.push.paths, scopes.cli])
+    for (const path of expected) expect(paths).toContain(path);
 });
 
 test('CLI downloads are saved after install before later checks can fail', () => {
@@ -120,8 +127,13 @@ test('CLI downloads are saved after install before later checks can fail', () =>
     'actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae',
   );
   expect(restore.id).toBe('bun-cache');
-  expect(save.if).toBe("steps.bun-cache.outputs.cache-hit != 'true'");
+  expect(save.if).toBe(
+    "(matrix.cross || runner.os != 'Windows') && steps.bun-cache.outputs.cache-hit != 'true'",
+  );
   expect(save.with?.path).toBe(restore.with?.path);
+  expect(restore.with?.path).toBe(
+    "${{ (matrix.cross || runner.os == 'Windows') && env.BUN_INSTALL_CACHE_DIR || '~/.bun/install/cache' }}",
+  );
   expect(save.with?.key).toBe(
     '${{ steps.bun-cache.outputs.cache-primary-key }}',
   );

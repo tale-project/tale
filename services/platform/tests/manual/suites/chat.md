@@ -1,6 +1,6 @@
 # Chat
 
-> **Prefix** `CHAT-` · **Reset** none · **Cost** 101 boxes
+> **Prefix** `CHAT-` · **Reset** none · **Cost** 102 boxes
 
 Exercise the AI chat surface — the welcome view, messaging and the composer
 (model + reasoning-effort picker, attachments, dictation, voice output),
@@ -795,6 +795,17 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   **Create an agent…** (`tasks.assignee.createAgent`) opens **New agent**
   over the task, and once it is created and assigned the footer reads
   **Create and start agent** (`tasks.actions.createAndStart`).
+
+- [ ] `CHAT-B21` · **Rename refusal preserves the draft** — In Home, open
+  **More actions** → **Rename** (`chat.history.renameChat`). Paste a
+  501-character title and press Enter → the draft remains, the field announces
+  **Use 500 characters or fewer.** (`chat.history.renameTooLong`), and no rename
+  request is sent. Shorten it to 500 characters and press Enter → one rename
+  succeeds and the editor closes. Repeat with the rename request refused →
+  the attempted title stays available with **Couldn't rename chat. Try again.**
+  (`chat.history.toast.renameFailed`); retry succeeds, or Escape cancels without
+  changing the old title. Repeat in the Archived drawer. While a request is
+  pending, Enter followed by blur submits once and the draft is read-only.
 
 ## Accessibility (WCAG 2.1 AA)
 

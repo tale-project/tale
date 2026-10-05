@@ -124,8 +124,12 @@ export function ComposeEmailPane({
   const ability = useAbility();
   const navigate = useNavigate();
   const assignTriggerId = useId();
-  const { emailConnectors, isLoading: connectorsLoading } =
-    useEmailConnectors(organizationId);
+  const {
+    emailConnectors,
+    isLoading: connectorsLoading,
+    error: connectorsError,
+    retry: retryConnectors,
+  } = useEmailConnectors(organizationId);
   const { mutateAsync: composeEmail } = useComposeEmailConversation({
     errorToast: false,
   });
@@ -255,7 +259,7 @@ export function ComposeEmailPane({
   // auto-select the sole mailbox (or clear when there's a choice to make). A
   // mailbox that went away takes its sender override with it.
   useEffect(() => {
-    if (connectorsLoading) return;
+    if (connectorsLoading || connectorsError) return;
     if (
       mailboxId !== '' &&
       emailConnectors.some((i) => i.credentialId === mailboxId)
@@ -274,6 +278,7 @@ export function ComposeEmailPane({
     setMailboxId(next?.credentialId ?? '');
   }, [
     connectorsLoading,
+    connectorsError,
     emailConnectors,
     mailboxId,
     legacyInbox,
@@ -298,6 +303,7 @@ export function ComposeEmailPane({
 
   const hasEmailConnector = emailConnectors.length > 0;
   const canSend = Boolean(
+    !connectorsError &&
     contactId &&
     selectedConnector &&
     subject.trim() &&
@@ -397,6 +403,9 @@ export function ComposeEmailPane({
     attachments?: AttachedFile[],
     sourceMarkdown?: string,
   ) => {
+    if (connectorsError) {
+      throw new Error(t('compose.emailConnectorReadError'));
+    }
     if (!contactId || !selectedConnector || !subject.trim()) return;
 
     // Let upload failures reject the editor's onSave, just like send failures:
@@ -564,7 +573,23 @@ export function ComposeEmailPane({
               {/* Sending details — demoted below the message fields when an
                   inbox exists; the missing-connector case is a banner, not a
                   muted label, so send being off is obvious. */}
-              {connectorsLoading ? null : !hasEmailConnector ? (
+              {connectorsLoading ? null : connectorsError ? (
+                <Alert
+                  variant="warning"
+                  live="assertive"
+                  title={t('compose.emailConnectorReadErrorTitle')}
+                  description={t('compose.emailConnectorReadError')}
+                >
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="mt-3"
+                    onClick={() => void retryConnectors()}
+                  >
+                    {t('compose.retryEmailConnectorRead')}
+                  </Button>
+                </Alert>
+              ) : !hasEmailConnector ? (
                 <Alert
                   variant="warning"
                   live="off"
@@ -653,14 +678,16 @@ export function ComposeEmailPane({
               messageId={composeBodyMessageId}
               disabled={!canSend}
               sendDisabledReason={
-                !hasEmailConnector
-                  ? t('compose.noEmailConnectorTitle')
-                  : !canSend
-                    ? t('compose.fillRequired')
-                    : undefined
+                connectorsError
+                  ? t('compose.emailConnectorReadError')
+                  : !hasEmailConnector
+                    ? t('compose.noEmailConnectorTitle')
+                    : !canSend
+                      ? t('compose.fillRequired')
+                      : undefined
               }
             />
-            {hasEmailConnector && !canSend && (
+            {hasEmailConnector && !canSend && !connectorsError && (
               <Text variant="muted" className="mt-2 text-xs">
                 {t('compose.fillRequired')}
               </Text>

@@ -166,7 +166,7 @@ beforeEach(() => {
 });
 
 describe('adding a dependency', () => {
-  it('refuses an archived blocked task with TASK_ARCHIVED, writing nothing', async () => {
+  it('refuses an archived blocked task with TASK_ARCHIVED, writing nothing [TASK-R5]', async () => {
     await expect(
       addTaskDependency(fakeTx([ACTIVE, ARCHIVED]), editor, {
         blockerTaskId: 't-active',
@@ -178,7 +178,7 @@ describe('adding a dependency', () => {
     expect(createAuditLog).not.toHaveBeenCalled();
   });
 
-  it('refuses an archived blocker with TASK_ARCHIVED, writing nothing', async () => {
+  it('refuses an archived blocker with TASK_ARCHIVED, writing nothing [TASK-R5]', async () => {
     await expect(
       addTaskDependency(fakeTx([ACTIVE, ARCHIVED]), editor, {
         blockerTaskId: 't-archived',
@@ -201,7 +201,7 @@ describe('adding a dependency', () => {
 });
 
 describe('removing a dependency', () => {
-  it('refuses an archived blocked task with TASK_ARCHIVED, writing nothing', async () => {
+  it('refuses an archived blocked task with TASK_ARCHIVED, writing nothing [TASK-R5]', async () => {
     await expect(
       removeTaskDependency(fakeTx([ACTIVE, ARCHIVED]), editor, {
         blockerTaskId: 't-active',

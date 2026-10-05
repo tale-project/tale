@@ -24,6 +24,7 @@ import {
   ORG_SLUG_IMMUTABLE_MESSAGE,
 } from '../../lib/shared/constants/org-slug.ts';
 import { isReservedOrgSlug } from '../../lib/shared/constants/reserved-org-slugs.ts';
+import { SESSION_FRESH_AGE_SECONDS } from '../../lib/shared/constants/session-freshness.ts';
 import {
   API_KEY_HINT_ENTITY,
   TEAM_HINT_ENTITY,
@@ -44,12 +45,6 @@ import {
   userEmail,
   userOrgIds,
 } from '../domains/audit_logs/user-scoped.ts';
-import {
-  clearOnSuccess,
-  getLockState,
-  recordBlocked,
-  recordFailure,
-} from '../domains/login_attempts/service.ts';
 import { hasAnyOrganizations } from '../domains/organizations/has-any-organizations.ts';
 import {
   assertOrgSlugNotRetiring,
@@ -77,7 +72,6 @@ import {
 import { hasAnyUsers } from '../domains/users/has-any-users.ts';
 import { addJobInTx } from '../jobs/enqueue.ts';
 import { readGovernancePolicy } from '../lib/org-config.ts';
-import { checkIpRateLimit, RateLimitExceededError } from '../lib/rate-limit.ts';
 import { emitHintInTx } from '../realtime/outbox.ts';
 import { ac, orgRoles } from './access.ts';
 import {
@@ -94,11 +88,22 @@ import {
   parseOrganizationCreators,
 } from './organization-creation-gate.ts';
 import {
+  jitterDelay,
+  recordPasswordAttempt,
+  refuseThrottledPasswordAttempt,
+} from './password-attempts.ts';
+import {
+  confirmationOutcome,
+  passwordConfirmationOf,
+} from './password-confirmations.ts';
+import { reauthenticate } from './reauthenticate.ts';
+import {
   openSignUpEnabled,
   SIGN_UP_CLOSED_MESSAGE,
   SIGN_UP_EMAIL_PATH,
   signUpAllowed,
 } from './sign-up-gate.ts';
+import { totpIssuer } from './totp-issuer.ts';
 
 /**
  * Better Auth on Postgres — the 0.5 replacement for the Convex Better Auth
@@ -120,6 +125,8 @@ export interface AuthConfig {
   secret: string;
   /** Public origin auth cookies/callbacks bind to, e.g. https://localhost. */
   baseUrl: string;
+  /** Deployment environment shown on newly generated authenticator entries. */
+  totpEnvironment?: string;
   /**
    * The other public origins this deployment is served from
    * (`ADDITIONAL_SITE_URLS`, already normalized). Better Auth's origin check
@@ -274,10 +281,6 @@ function resolveApiKeyLifecycle(mw: {
   };
 }
 
-// Random delay (ms) added to lockout responses to fuzz the timing channel
-// between "wrong password" (bcrypt, ~100ms) and "locked" (a single read).
-const LOCKOUT_JITTER_MAX_MS = 200;
-
 /**
  * The sign-in body's email in its CANONICAL form — the key every lockout
  * read and write uses. `normalizeAuthEmail` (lowercase + trim) is also how
@@ -291,6 +294,24 @@ function bodyEmail(body: unknown): string | null {
   const email = getString(body, 'email');
   const normalized = email ? normalizeAuthEmail(email) : '';
   return normalized || null;
+}
+
+/**
+ * The client address and agent of a request: over HTTP, or a server-side
+ * call that passes the browser's headers on — the app's own password door
+ * calls `auth.api.changePassword` that way.
+ */
+function requestOrigin(
+  mw: { request?: Request | undefined; headers?: Headers | undefined },
+  trusted: string[],
+): { ip?: string; userAgent?: string } {
+  const headers = mw.request?.headers ?? mw.headers;
+  if (headers === undefined) return {};
+  const userAgent = headers.get('user-agent');
+  return {
+    ip: getClientIp(headers, trusted),
+    ...(userAgent !== null ? { userAgent } : {}),
+  };
 }
 
 export type SignInOutcome = 'success' | 'failure' | 'not-attempted';
@@ -315,11 +336,6 @@ export function classifySignInOutcome(
     return returned.statusCode === 401 ? 'failure' : 'not-attempted';
   }
   return newSession ? 'success' : 'failure';
-}
-
-async function jitterDelay(): Promise<void> {
-  const ms = Math.floor(Math.random() * LOCKOUT_JITTER_MAX_MS);
-  await new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /**
@@ -442,6 +458,7 @@ const logBetterAuth: NonNullable<Logger['log']> = (level, message, ...args) => {
 
 export function createAuth(config: AuthConfig) {
   const siteUrl = config.baseUrl;
+  const authenticatorIssuer = totpIssuer('Tale', config.totpEnvironment);
   /** The OIDC issuer — the auth mount. */
   const oidcIssuer = `${siteUrl.replace(/\/$/, '')}/api/auth`;
 
@@ -794,6 +811,10 @@ export function createAuth(config: AuthConfig) {
       // default lifetime with updateAge tightened so `updatedAt` tracks
       // activity for the per-org idle-revocation sweep.
       ...sessionIdleWindowSeconds(),
+      // How long a sign-in keeps the session fresh enough to register a
+      // passkey. Pinned (it is Better Auth's default) because the app reads
+      // the same value to ask for the password before the server refuses.
+      freshAge: SESSION_FRESH_AGE_SECONDS,
       additionalFields: {
         // The role a trusted-headers proxy asserted at sign-in, and the ONE
         // organization it holds for; the org middleware applies the override
@@ -939,49 +960,30 @@ export function createAuth(config: AuthConfig) {
           }
           return;
         }
+        // A signed-in person confirming their password before an account
+        // change is a password guess like a sign-in: a locked account or a
+        // flooding address is refused before the check
+        // (password-confirmations.ts).
+        if (passwordConfirmationOf(mw.path, mw.body) !== null) {
+          const session = await getSessionFromCtx(mw);
+          // Without a session the endpoint answers 401 itself.
+          if (session) {
+            const { ip } = requestOrigin(mw, await loadTrustedProxies());
+            await refuseThrottledPasswordAttempt(sql, {
+              email: normalizeAuthEmail(session.user.email),
+              ip: ip ?? 'unknown',
+            });
+          }
+          return;
+        }
         if (mw.path !== SIGN_IN_EMAIL_PATH) {
           return;
         }
-        const email = bodyEmail(mw.body);
         const trusted = await loadTrustedProxies();
-        const ip = mw.request
-          ? getClientIp(mw.request.headers, trusted)
-          : 'unknown';
-
-        let lockoutMs = 0;
-        if (email) {
-          const { lockedUntil } = await getLockState(sql, email);
-          if (lockedUntil !== null && lockedUntil > Date.now()) {
-            lockoutMs = lockedUntil - Date.now();
-          }
-        }
-
-        let ipLimitMs = 0;
-        try {
-          await checkIpRateLimit(sql, 'security:login-ip', ip);
-        } catch (error) {
-          if (error instanceof RateLimitExceededError) {
-            ipLimitMs = error.retryAfter;
-          } else {
-            throw error;
-          }
-        }
-
-        const retryAfterMs = Math.max(lockoutMs, ipLimitMs);
-        if (retryAfterMs > 0) {
-          // Better Auth skips after-hooks when a before-hook throws, so the
-          // coalesced block-counter write happens HERE.
-          if (email) {
-            await transactSerializable(sql, (tx) =>
-              recordBlocked(tx, { email, ip }),
-            );
-          }
-          await jitterDelay();
-          throw new APIError('TOO_MANY_REQUESTS', {
-            message: 'Invalid credentials',
-            retryAfter: Math.ceil(retryAfterMs / 1000),
-          });
-        }
+        await refuseThrottledPasswordAttempt(sql, {
+          email: bodyEmail(mw.body),
+          ip: mw.request ? getClientIp(mw.request.headers, trusted) : 'unknown',
+        });
       }),
 
       // Post-flight: classify the sign-in result into the failure counter,
@@ -1000,19 +1002,12 @@ export function createAuth(config: AuthConfig) {
             mw.context.newSession,
           );
           if (email && outcome !== 'not-attempted') {
-            await transactSerializable(sql, (tx) =>
-              outcome === 'failure'
-                ? recordFailure(tx, {
-                    email,
-                    ...(ip !== undefined ? { ip } : {}),
-                    ...(userAgent !== undefined ? { userAgent } : {}),
-                  }).then(() => undefined)
-                : clearOnSuccess(tx, {
-                    email,
-                    ...(ip !== undefined ? { ip } : {}),
-                    ...(userAgent !== undefined ? { userAgent } : {}),
-                  }),
-            );
+            await recordPasswordAttempt(sql, {
+              email,
+              outcome,
+              ...(ip !== undefined ? { ip } : {}),
+              ...(userAgent !== undefined ? { userAgent } : {}),
+            });
           }
           // Org 2FA enforcement: an enforced policy either starts the grace
           // clock (session kept — the enrolment wall needs it) or, past
@@ -1038,6 +1033,32 @@ export function createAuth(config: AuthConfig) {
                   enrollRequired: true,
                 });
               }
+            }
+          }
+        }
+
+        // Password confirmations: a wrong password counts toward the sign-in
+        // lock, a right one clears it (the change audits itself). Non-fatal
+        // like the lifecycle audit below — a confirmed change has already
+        // happened, and a booking that throws here would answer it with an
+        // error; a failed write is LOUD instead.
+        const confirmation = passwordConfirmationOf(mw.path, mw.body);
+        if (confirmation !== null) {
+          const confirmer = sessionPayloadUser(mw.context.session);
+          const outcome = confirmationOutcome(mw.context.returned);
+          if (confirmer?.email !== undefined && outcome !== 'not-attempted') {
+            try {
+              await recordPasswordAttempt(sql, {
+                email: normalizeAuthEmail(confirmer.email),
+                outcome,
+                check: confirmation,
+                ...requestOrigin(mw, trusted),
+              });
+            } catch (error) {
+              console.error(
+                `[password-confirmation] failed to book the ${confirmation} attempt`,
+                error instanceof Error ? error.message : error,
+              );
             }
           }
         }
@@ -1490,8 +1511,8 @@ export function createAuth(config: AuthConfig) {
       // TOTP two-factor. The verify-endpoint lockout + org enforcement hooks
       // land with the two_factor domain port.
       twoFactor({
-        issuer: 'Tale',
-        totpOptions: { digits: 6, period: 30 },
+        issuer: authenticatorIssuer,
+        totpOptions: { issuer: authenticatorIssuer, digits: 6, period: 30 },
         backupCodeOptions: { amount: 10, length: 10 },
         skipVerificationOnEnable: false,
       }),
@@ -1506,6 +1527,9 @@ export function createAuth(config: AuthConfig) {
         rpName: 'Tale',
         origin: siteOrigins,
       }),
+      // Registering a passkey needs a fresh session; an older one confirms
+      // the password here and is replaced by a fresh one.
+      reauthenticate({ sql, trustedProxies: loadTrustedProxies }),
     ],
   });
 }

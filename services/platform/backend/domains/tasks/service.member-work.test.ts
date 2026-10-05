@@ -262,7 +262,7 @@ beforeEach(() => {
 });
 
 describe('a member creates a task', () => {
-  it('in a project they can read — the insert names them as its creator', async () => {
+  it('in a project they can read — the insert names them as its creator [TASK-R1]', async () => {
     const taskId = await createTask(fakeTx([]), member, {
       projectId: 'p-1',
       title: 'Summarize the supplier contracts',
@@ -292,7 +292,7 @@ describe('a member creates a task', () => {
     );
   });
 
-  it('not in an archived project, writing nothing', async () => {
+  it('not in an archived project, writing nothing [TASK-R7]', async () => {
     vi.mocked(loadProjectOrThrow).mockResolvedValue({
       ...project,
       archivedAt: 1_700_000_000_000,
@@ -435,7 +435,7 @@ describe('a member works their own task', () => {
     expect(wrote('INSERT INTO app.task_dependencies')).toBe(false);
   });
 
-  it('does not delete it — deleting stays with owners and admins', async () => {
+  it('does not delete it — deleting stays with owners and admins [TASK-R4]', async () => {
     await expect(
       deleteTask(fakeTx([OWN]), member, 't-own'),
     ).rejects.toMatchObject({ code: 'ROLE_FORBIDDEN', status: 403 });
@@ -547,7 +547,7 @@ describe('a member decides the review of their own task only', () => {
 });
 
 describe("a member on someone else's task", () => {
-  it('cannot edit, move, start or hand it on — and nothing is written', async () => {
+  it('cannot edit, move, start or hand it on — and nothing is written [TASK-R2]', async () => {
     const agentTask = taskRow({
       id: 't-others',
       createdBy: 'u-editor',
