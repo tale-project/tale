@@ -68,11 +68,12 @@ needs fewer runners, while a long CPU-bound suite can benefit from more slices.
   still generate and build their binaries; repeating the same source suite on the same
   host OS adds no platform coverage. Cross legs use a proven CLI-only frozen install
   and keep its download cache in a separate namespace. Native source tests retain
-  the full workspace install because they import platform auth modules. Linux and macOS
-  run at most two source test files in parallel, isolating each file's modules and globals;
-  tests within a file remain serial. Windows source tests and compiled smoke discovery
-  remain serial. Two workers made Windows fixtures exceed their unchanged 30-second
-  limits and increased source-suite duration in the first observed run.
+  the full workspace install because they import platform auth modules. macOS runs at
+  most two source test files in parallel, isolating each file's modules and globals;
+  tests within a file remain serial. Linux and Windows source tests and compiled smoke
+  discovery remain serial. Two workers made Windows fixtures exceed their unchanged
+  30-second limits; Linux two-worker runs also failed to finish promptly. Serial suites
+  retain all assertions and the same limits.
   Binary artifacts use fast compression; all five targets still build, native binaries
   retain smoke tests, and both macOS targets retain signature checks. Command suites
   run source cases before compilation, then select only the explicit `TALE_BINARY`
@@ -318,7 +319,17 @@ passed Linux, macOS and both cross targets, but Windows source tests took 365.5s
 two workers and timed out two unchanged Git/ZIP fixtures at 30 seconds. The later
 temporary-file errors followed timeout cleanup. Earlier serial Windows source runs
 took 191–216s and passed. Windows therefore retains the serial command and all existing
-assertions and timeout limits; Linux and macOS retain two workers.
+assertions and timeout limits. In [CLI run 37262821778](https://github.com/tale-project/tale/actions/runs/37262821778),
+Windows source and compiled smoke passed completely. macOS source and signed compiled
+smoke also passed in both later runs with two workers.
+
+Linux's [later two-worker source run](https://github.com/tale-project/tale/actions/runs/37262217358)
+remained unfinished when cancelled after 418s,
+with three unchanged PowerShell checksum case receipts missing and no failure or
+timeout summary. The next run also remained unfinished beyond five minutes. These
+logs localize an unfinished fixture but do not establish the subprocess or worker
+cause. Full serial CLI tests in Checks passed freshly in 117.6s and 136.7s, so Linux
+also retains the serial command while macOS retains two workers.
 
 Run workflow and source-identity regressions with:
 

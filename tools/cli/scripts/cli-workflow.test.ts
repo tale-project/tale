@@ -210,7 +210,11 @@ process.exit(result.exitCode);
       join(directory, 'tools/cli/dist/tale.exe'),
       'utf8',
     );
-    const child = Bun.spawn([process.execPath, '--eval', bundle], {
+    // Large bundles exceed Linux's per-argument limit. Keep the executable
+    // fixture in the ignored output directory so inspection preserves Git state.
+    const inspection = join(directory, 'tools/cli/dist/inspection.js');
+    await writeFile(inspection, bundle);
+    const child = Bun.spawn([process.execPath, inspection], {
       cwd: directory,
       stdout: 'pipe',
       stderr: 'pipe',
@@ -326,7 +330,7 @@ describe('CLI builds retain native execution coverage without duplicate host sui
     const compile = job.steps.find((entry) => entry.name === 'Build binary')!;
     const smoke = job.steps.find((entry) => entry.name === 'Run smoke tests')!;
     expect(source.run).toBe(
-      "${{ matrix.platform == 'windows' && 'bun run test' || 'bun run test --parallel=2' }}",
+      "${{ matrix.platform == 'macos' && 'bun run test --parallel=2' || 'bun run test' }}",
     );
     expect(source.env?.TALE_BINARY).toBe('');
     expect(smoke.run).toBe('bun run test tests/');
