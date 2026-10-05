@@ -59,8 +59,12 @@ function ProjectFilesPage() {
   const { id: organizationId, projectId } = Route.useParams();
   const { folderId, createFolder, historyExternalItemId, doc } =
     Route.useSearch();
+  // The tab's upload folder, tree and dialogs belong to one project: a
+  // project switch keeps this route mounted, so the key starts the next
+  // project's tab fresh (#3918).
   return (
     <ProjectFilesTab
+      key={`${organizationId}:${projectId}`}
       organizationId={organizationId}
       projectId={asProjectId(projectId)}
       initialFolderId={folderId}
