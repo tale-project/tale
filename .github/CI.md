@@ -134,6 +134,14 @@ source trees and platform modules reached by relative imports. Module-closure an
 generator-tree guards require those effective inputs.
 Keep arbitrary outside reads explicit; workspace dependencies alone cannot hash them.
 
+Source archive regressions verify the complete ZIP inventory and CRCs, full TAR extraction
+and inventory, and Git symlink identity. The TAR probe dereferences the setup action and
+every tracked symlink, comparing each target's complete file bytes, names and types.
+It avoids copying unrelated assets a second time. The inspected source held 8,750 files
+and about 569 MB; the symlink targets held 292 files and about 4 MB. A local TAR proof
+finished in 19.76s within its unchanged 60s budget; the former whole-tree copy timed out
+under shared-machine contention. These observations are not a hosted speedup guarantee.
+
 Website builds cache `dist/`, `dist-ssr/`, `dist-seo/`, generated frontmatter and translated
 search indexes together. The tracked web release snapshot remains an input, so a snapshot-only
 commit rebuilds its bundle. A real cold/warm docs proof restored all 3,793 artifacts byte-for-byte
