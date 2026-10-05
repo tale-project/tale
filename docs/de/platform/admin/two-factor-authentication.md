@@ -15,6 +15,12 @@ Sichere dein Konto mit einer Authenticator-App oder einem Passkey. Mitglieder ri
 
 Ein Passkey erfüllt Tales Zwei-Faktor-Richtlinie auch ohne eingerichteten Authenticator. Bei Konten, die sich ausschließlich per SSO anmelden, fehlt die Authenticator-Einrichtung: Sie setzt ein Tale-Passwort voraus. Die SSO-Ausnahme deiner Organisation bestimmt, ob du einen Tale-Passkey brauchst.
 
+<Frame caption="Unter Einstellungen > Konto findest du dein Passwort, die Zwei-Faktor-Authentifizierung und deine Passkeys. Hier richtest du den Authenticator ein oder registrierst einen weiteren Passkey.">
+
+![Die Kontoeinstellungen mit den Abschnitten Passwort, Zwei-Faktor-Authentifizierung und Passkeys; unter Passkeys ist ein Passkey namens „Work laptop“ aufgeführt.](/images/platform/settings-account-security.webp)
+
+</Frame>
+
 ## Einen Authenticator einrichten
 
 1. Öffne **Einstellungen > Konto**, gehe zu **Zwei-Faktor-Authentifizierung** und wähle **Zwei-Faktor aktivieren**.

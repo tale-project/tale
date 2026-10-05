@@ -15,6 +15,12 @@ Protect your account with an authenticator app or a passkey. Members set up thei
 
 A passkey satisfies Tale's two-factor policy even if you have never set up an authenticator. Accounts that sign in only through SSO do not show authenticator setup because it requires a Tale password; your organization's SSO exemption determines whether you need a Tale passkey.
 
+<Frame caption="Settings > Account shows your password, two-factor authentication, and passkeys: start the authenticator setup or register another passkey from here.">
+
+![The Account settings page with the Password, Two-factor authentication, and Passkeys sections; the Passkeys section lists one passkey named Work laptop.](/images/platform/settings-account-security.webp)
+
+</Frame>
+
 ## Set up an authenticator
 
 1. Open **Settings > Account**, find **Two-factor authentication**, and select **Enable two-factor**.
