@@ -65,11 +65,11 @@ describe('task history read defaults', () => {
     expect(mocks.paginatedRead).toHaveBeenCalledWith(
       'tasks/queries:listTaskDiscussion',
       { taskId: 'task-1', organizationId: 'org-1' },
-      { initialNumItems: 50 },
+      { initialNumItems: 30 },
     );
     expect(result.current.hasEarlier).toBe(true);
     result.current.loadEarlier();
-    expect(mocks.loadMore).toHaveBeenCalledWith(50);
+    expect(mocks.loadMore).toHaveBeenCalledWith(30);
   });
 });
 

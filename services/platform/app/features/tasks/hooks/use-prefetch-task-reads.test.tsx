@@ -90,7 +90,7 @@ describe('usePrefetchTaskReads', () => {
         ]),
       ),
     );
-    expect(discussionPageSizes).toEqual(['50']);
+    expect(discussionPageSizes).toEqual(['30']);
 
     // The discussion the section reads is the one already fetched.
     const reads = requested.length;
