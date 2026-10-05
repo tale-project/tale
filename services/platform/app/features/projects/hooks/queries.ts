@@ -70,7 +70,14 @@ export function useProjectAgents(projectId: string | undefined) {
   const retry = useCallback(() => {
     void refetch();
   }, [refetch]);
-  return { agents: data ?? [], isLoading, error, ...readStateOf(query), retry };
+  return {
+    agents: data ?? [],
+    hasAnswer: data !== undefined,
+    isLoading,
+    error,
+    ...readStateOf(query),
+    retry,
+  };
 }
 
 export type StandardAgentAvailability =

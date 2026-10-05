@@ -60,6 +60,7 @@ export function ProjectAgentsTab({
   const catalogQuery = useProjectCapabilityCatalog(organizationId, projectId);
   const {
     agents,
+    hasAnswer,
     isLoading: agentsLoading,
     unavailable,
     stale,
@@ -69,6 +70,7 @@ export function ProjectAgentsTab({
   } = useProjectAgents(projectId);
   const bodyRef = useRef<HTMLDivElement>(null);
   const focusBody = useCallback(() => bodyRef.current?.focus(), []);
+  const listAnswered = hasAnswer ?? !agentsLoading;
   const standardAgentAvailable =
     useStandardAgent(organizationId)?.available === true;
   const { mutateAsync: deleteAgent } = useDeleteProjectAgent();
@@ -152,7 +154,7 @@ export function ProjectAgentsTab({
 
   return (
     <ProjectAgentsFrame
-      action={canEdit && !unavailable ? newAgentButton : undefined}
+      action={canEdit && listAnswered ? newAgentButton : undefined}
       reader={!canEdit}
     >
       <div
@@ -173,7 +175,7 @@ export function ProjectAgentsTab({
             isRetrying={retrying}
           />
         ) : null}
-        {unavailable ? null : agentsLoading && agents.length === 0 ? (
+        {unavailable ? null : !listAnswered ? (
           <ProjectAgentRowsSkeleton canEdit={canEdit} />
         ) : agents.length === 0 ? (
           // Adding an agent is the editors'. A reader is told who can, not to

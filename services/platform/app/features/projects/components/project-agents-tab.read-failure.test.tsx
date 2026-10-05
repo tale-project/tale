@@ -18,7 +18,7 @@ import {
 import { ProjectAgentsTab } from './project-agents-tab';
 
 configure({ asyncUtilTimeout: 10_000 });
-const state = vi.hoisted(() => ({ canEdit: true }));
+const state = vi.hoisted(() => ({ canEdit: true, organizationId: 'org-1' }));
 vi.mock('../hooks/queries', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../hooks/queries')>()),
   useProject: () => ({ project: { canEdit: state.canEdit }, isLoading: false }),
@@ -27,7 +27,7 @@ vi.mock('../hooks/queries', async (importOriginal) => ({
   useStandardAgent: () => ({ available: false }),
 }));
 vi.mock('@/app/hooks/use-organization-id', () => ({
-  useOrganizationId: () => 'org-1',
+  useOrganizationId: () => state.organizationId,
 }));
 vi.mock('../hooks/mutations', () => ({
   useDeleteProjectAgent: () => ({ mutateAsync: vi.fn() }),
@@ -48,6 +48,7 @@ const retryName = () => i18n.t('actions.tryAgain', { ns: 'common' });
 
 beforeEach(() => {
   state.canEdit = true;
+  state.organizationId = 'org-1';
   window.history.replaceState(
     {},
     '',
@@ -79,6 +80,45 @@ function expectNoCreation() {
 }
 
 describe('Project Agents directory read failures', { timeout: 30_000 }, () => {
+  it('hides creation until the initial pending read answers, retaining a cached empty answer', async () => {
+    let release = () => {};
+    backend.on(
+      AGENTS,
+      () =>
+        new Promise<Response>((resolve) => {
+          release = () => resolve(Response.json({ agents: [] }));
+        }),
+    );
+    renderTab();
+    await waitFor(() => expect(backend.count(AGENTS)).toBe(1));
+    expectNoCreation();
+    expect(screen.queryByText(t('agents.emptyBody'))).not.toBeInTheDocument();
+    await act(async () => release());
+    await screen.findByText(t('agents.emptyTitle'));
+    expect(
+      screen.getByRole('button', { name: t('agents.newAgent') }),
+    ).toBeEnabled();
+    backend.on(AGENTS, serviceUnavailable);
+    await act(async () => {
+      await client.refetchQueries();
+    });
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      t('agents.refreshFailed'),
+    );
+    expect(screen.getByText(t('agents.emptyTitle'))).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: t('agents.newAgent') }),
+    ).toBeEnabled();
+  });
+
+  it('hides creation while the initial read is disabled', async () => {
+    state.organizationId = '';
+    renderTab();
+    expectNoCreation();
+    expect(screen.queryByText(t('agents.emptyBody'))).not.toBeInTheDocument();
+    expect(backend.count(AGENTS)).toBe(0);
+  });
+
   it.each(SHIPPED_LOCALES)(
     'names the failure and keeps project context in %s',
     async (locale) => {
@@ -133,9 +173,11 @@ describe('Project Agents directory read failures', { timeout: 30_000 }, () => {
     expect(
       screen.getByRole('button', { name: t('agents.newAgent') }),
     ).toBeEnabled();
-    expect(
-      screen.getByRole('group', { name: t('agents.agentsHeading') }),
-    ).toHaveFocus();
+    await waitFor(() =>
+      expect(
+        screen.getByRole('group', { name: t('agents.agentsHeading') }),
+      ).toHaveFocus(),
+    );
   });
 
   it('offers readers Retry and recovers rows, retaining them after a failed refresh', async () => {
@@ -168,7 +210,7 @@ describe('Project Agents directory read failures', { timeout: 30_000 }, () => {
     await act(async () => {
       await client.refetchQueries();
     });
-    expect(screen.getByRole('alert')).toHaveTextContent(
+    expect(await screen.findByRole('alert')).toHaveTextContent(
       t('agents.refreshFailed'),
     );
     expect(screen.getByText('Existing worker')).toBeInTheDocument();
