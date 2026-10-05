@@ -1236,6 +1236,8 @@ legalHold:
         description:
           Crée un dossier pour grouper les conservations par numéro d'affaire
           ou périmètre eDiscovery.
+      loadFailed: Impossible de charger les dossiers.
+      refreshFailed: Impossible de charger les derniers dossiers. La liste est peut-être obsolète.
     history:
       title: Historique des libérations
       entityLabel: libérations

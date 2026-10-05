@@ -166,6 +166,17 @@ healthy response. `app/features/settings/governance/components/retention-pending
 owns these jsdom cases and the healthy/null/loading controls; the real
 disconnected-backend interaction and browser layout remain manual.
 
+The Legal hold Matters register tells a failed matters read apart from an
+empty register. A first read that fails shows an EN/DE/FR alert with Try again
+in place of the table and its "No matters" copy; Try again stays busy and keeps
+its focus through the retry and a repeated failure, and a read that answers
+hands the focus to the Matters section. A failed refresh keeps the listed
+matters under its own notice. Successful empty, populated and loading reads are
+the controls in
+`app/features/settings/governance/legal-hold/matters-section.read-failure.test.tsx`
+(#3837, #3838). The real disconnected-backend interaction and browser layout
+remain manual.
+
 Harness turn metrics distinguish a failed read from a period with no turns. A
 failed first read shows an EN/DE/FR alert with Try again instead of zero or
 em-dash SLO cards and the empty By harness line, keeps the heading and period
