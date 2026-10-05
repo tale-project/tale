@@ -178,6 +178,15 @@ successful empty period keeps its zero figures and empty-period line.
 runs the real read lane against a synthetic backend (#3868); real-browser
 layout and screen-reader announcements remain manual.
 
+Chat-health metrics preserve a localized EN/DE/FR guardrail read failure and
+Try again alongside loaded chat figures or the no-chat-data teaching panel.
+Retry refetches only guardrail statistics; recovery clears the partial error.
+Successful zero guardrail events remain empty without a failure or Retry, and
+a full chat-health failure keeps its existing destructive alert.
+`app/features/analytics/chat-health/chat-health-metrics-page.test.tsx` owns
+these component regressions; live backend recovery, browser layout and
+screen-reader announcements remain manual.
+
 Task agent Details distinguishes a failed sandbox-op read from loading and a
 successful no-log response. EN/DE/FR errors offer Try again without starting a
 new run; retry restores a stranded focus after another failure, preserves a

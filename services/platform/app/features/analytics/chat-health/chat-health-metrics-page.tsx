@@ -621,6 +621,18 @@ export function ChatHealthMetricsPage({
     );
   }
 
+  const readFailure = guardrailsError ? (
+    <CatalogLoadError
+      message={[
+        t('chatHealth.errors.guardrailsLoadFailed'),
+        failureDetail(guardrailsError),
+      ]
+        .filter(Boolean)
+        .join(' ')}
+      onRetry={() => void refetchGuardrails()}
+    />
+  ) : undefined;
+
   // Org has never produced chat traffic — a teaching panel, not empty KPIs.
   if (!isLoading && health && !health.summary.hasAnyData) {
     return (
@@ -628,6 +640,7 @@ export function ChatHealthMetricsPage({
         as="h3"
         title={t('chatHealth.title')}
         description={t('chatHealth.description')}
+        notice={readFailure}
       >
         <Alert
           title={t('chatHealth.empty.title')}
@@ -657,19 +670,7 @@ export function ChatHealthMetricsPage({
       <ChatHealthMetricsPageView
         health={health ?? null}
         guardrails={guardrails ?? null}
-        readFailure={
-          guardrailsError ? (
-            <CatalogLoadError
-              message={[
-                t('chatHealth.errors.guardrailsLoadFailed'),
-                failureDetail(guardrailsError),
-              ]
-                .filter(Boolean)
-                .join(' ')}
-              onRetry={() => void refetchGuardrails()}
-            />
-          ) : undefined
-        }
+        readFailure={readFailure}
         period={period}
         isPeriodEmpty={isPeriodEmpty}
         onChangePeriod={handleChangePeriod}
