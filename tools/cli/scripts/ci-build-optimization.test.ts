@@ -851,6 +851,41 @@ test('direct config validation avoids starting an unused Turbo cache server', as
   ).toBe('false');
 });
 
+test('published image gates record remaining disk after every accepted-image probe', async () => {
+  const file = await workflow();
+  for (const job of ['smoke-test', 'image-validate']) {
+    const steps = file.jobs[job]!.steps;
+    const after = step(file, job, 'Log disk after image checks');
+    const check = step(
+      file,
+      job,
+      job === 'smoke-test'
+        ? 'Run smoke tests'
+        : 'Run image validation and sandbox runtime behavior',
+    );
+    expect(after.if).toBe('always()');
+    expect(after.run).toBe(step(file, 'smoke-test', after.name!).run);
+    expect(after.run).toContain('df -Pk /');
+    expect(check.env?.SKIP_BUILD).toBe('true');
+    expect(steps.indexOf(step(file, job, 'Reclaim disk space'))).toBeLessThan(
+      steps.indexOf(step(file, job, 'Download image receipts')),
+    );
+    expect(
+      steps.indexOf(step(file, job, 'Download image receipts')),
+    ).toBeLessThan(steps.indexOf(step(file, job, 'Pull images from GHCR')));
+    expect(
+      steps.indexOf(step(file, job, 'Pull images from GHCR')),
+    ).toBeLessThan(steps.indexOf(check));
+    expect(steps.indexOf(check)).toBeLessThan(steps.indexOf(after));
+    if (job === 'image-validate') {
+      const upload = step(file, job, 'Upload image validation logs');
+      expect(upload.if).toBe('always()');
+      expect(steps.indexOf(check)).toBeLessThan(steps.indexOf(upload));
+      expect(steps.indexOf(upload)).toBeLessThan(steps.indexOf(after));
+    }
+  }
+});
+
 test('native release builds reuse isolated architecture caches without adding runner pressure', async () => {
   const build = (await workflow('release')).jobs.build!;
   const image = findStep(build, 'Build and push');

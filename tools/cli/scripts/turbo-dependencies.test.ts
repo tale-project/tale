@@ -124,6 +124,17 @@ async function fixture(): Promise<string> {
     );
     await writeFile(join(workspace, 'source.ts'), 'export const value = 1;\n');
     await writeFile(join(workspace, 'catalog.yml'), 'label: First\n');
+    if (name === 'ui') {
+      await writeFile(
+        join(workspace, 'turbo.json'),
+        await readFile(join(ROOT, 'packages/ui/turbo.json')),
+      );
+      await writeFile(join(workspace, 'README.md'), '# UI package\n');
+      await writeFile(
+        join(workspace, 'tailwind-preset.ts'),
+        'export const theme = {};\n',
+      );
+    }
     if (name === 'cli')
       await writeFile(
         join(workspace, 'turbo.json'),
@@ -304,6 +315,67 @@ describe('dependency-aware Turbo cache', () => {
     expect(getTask(sharedChanged, '@tale/cli#typecheck').hash).not.toBe(
       getTask(unrelatedChanged, '@tale/cli#typecheck').hash,
     );
+  }, 60_000);
+
+  test('UI documentation preserves consumer checks while package checks, builds and publication stay current', async () => {
+    const directory = await fixture();
+    const baseline = graph(directory);
+    const readme = join(directory, 'packages/ui/README.md');
+    const original = await readFile(readme, 'utf8');
+    await writeFile(readme, `${original}\nUpdated installation guide.\n`);
+    const documentationChanged = graph(directory);
+    for (const name of HASH_TASKS) {
+      for (const consumer of ['marketing-ui', 'web']) {
+        const id = `@tale/${consumer}#${name}`;
+        expect(getTask(documentationChanged, id).hash, id).toBe(
+          getTask(baseline, id).hash,
+        );
+      }
+      const own = `@tale/ui#${name}`;
+      expect(getTask(documentationChanged, own).hash, own).not.toBe(
+        getTask(baseline, own).hash,
+      );
+    }
+    for (const name of ['build', 'test:prerender']) {
+      for (const consumer of ['marketing-ui', 'web']) {
+        const id = `@tale/${consumer}#${name}`;
+        expect(getTask(documentationChanged, id).hash, id).not.toBe(
+          getTask(baseline, id).hash,
+        );
+      }
+    }
+    expect(getTask(documentationChanged, '@tale/cli#test').hash).not.toBe(
+      getTask(baseline, '@tale/cli#test').hash,
+    );
+    await writeFile(readme, original);
+    expect(graph(directory)).toEqual(baseline);
+
+    // Exported files outside src and the public export map remain dependencies,
+    // along with the ordinary shared source/catalog changes tested above.
+    for (const file of ['tailwind-preset.ts', 'package.json']) {
+      const target = join(directory, 'packages/ui', file);
+      const contents = await readFile(target, 'utf8');
+      await writeFile(
+        target,
+        file === 'package.json'
+          ? JSON.stringify({
+              ...JSON.parse(contents),
+              exports: { './theme': './tailwind-preset.ts' },
+            })
+          : `${contents}\nexport const accent = 'blue';\n`,
+      );
+      const changed = graph(directory);
+      for (const name of ALL_TASKS) {
+        for (const consumer of ['marketing-ui', 'web']) {
+          const id = `@tale/${consumer}#${name}`;
+          expect(getTask(changed, id).hash, `${id}: ${file}`).not.toBe(
+            getTask(baseline, id).hash,
+          );
+        }
+      }
+      await writeFile(target, contents);
+      expect(graph(directory)).toEqual(baseline);
+    }
   }, 60_000);
 
   test('static build caches restore SSR, SEO and source-side generated data', () => {

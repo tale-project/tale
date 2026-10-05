@@ -66,6 +66,9 @@ baseline behavior do not count.
   space, removes existing tool directories one at a time and stops when the job's
   target is met. If all existing cleanup still leaves less space, it warns and preserves
   the existing build behavior; these targets are not new admission requirements.
+  Published-image smoke and validation jobs also log disk usage after their probes,
+  including failures. Compare that remaining headroom with preparation's measurement;
+  the completion measurement does not establish peak disk usage during the probes.
 - **Release** starts sandbox-runtime and platform builds first within its existing
   six-job limit. Separate service/architecture registry cache images survive tag boundaries;
   main's amd64 service caches can warm a first release. Only trusted Release writes registry
@@ -103,6 +106,10 @@ Turbo owns workspace task caching. Generic checks depend on `^transit`: scriptle
 nodes hash dependency workspaces recursively and propagate shared-package changes
 without forcing real tests or compilers to run sequentially. Each check's effective
 inputs still hash its own selected source; component tasks can omit unrelated trees.
+The UI package's transit omits only its publication README: an edit to that prose
+keeps consumer check hashes stable, while UI's own checks, all builds and the CLI's
+publication tests still hash it. Runtime source, exports and the Tailwind preset
+continue to invalidate consumers. An isolated real-Turbo fixture guards the boundary.
 Explicit `inputs` cover files read outside a workspace dependency. Root `tsconfig*.json`,
 lint and formatter configurations, `bunfig.toml`, patches and the Bun setup action
 participate in the global hash. Bun download caches separate OS and CPU architecture.

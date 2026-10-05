@@ -640,6 +640,12 @@ jobs:
           SKIP_BUILD: 'true'
           PULL_POLICY: never
 
+      - name: Log disk after image checks
+        if: always()
+        run: &log-pulled-disk |
+          echo 'Disk after pull-only image checks:'
+          df -Pk /
+
       - name: Dump container logs on failure
         if: failure()
         run: |
@@ -1139,6 +1145,10 @@ jobs:
           retention-days: 7
           # Pull/setup failure can prevent the probes from creating their logs.
           if-no-files-found: ignore
+
+      - name: Log disk after image checks
+        if: always()
+        run: *log-pulled-disk
 
       - name: Summary
         if: always()
