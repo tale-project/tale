@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useT } from '../i18n/client';
 import { cn } from '../lib/cn';
 import { useTheme } from '../theme';
-import { highlightCode } from './shiki';
+import { highlightCode, peekHighlightedCode } from './shiki';
 
 const LINE_NUMBER_THRESHOLD = 3;
 
@@ -59,7 +59,6 @@ export function HighlightedCode({
 }: HighlightedCodeProps) {
   const { t } = useT('markdownCopy');
   const { resolvedTheme } = useTheme();
-  const [html, setHtml] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
   // Strip the trailing newline most fenced blocks carry. Both the gutter
@@ -71,6 +70,14 @@ export function HighlightedCode({
     () => (code.endsWith('\n') ? code.slice(0, -1) : code),
     [code],
   );
+  // A snippet highlighted before shows highlighted from the first frame.
+  const [html, setHtml] = useState<string | null>(() => {
+    const known = peekHighlightedCode(normalisedCode, language, resolvedTheme);
+    if (known === null) return null;
+    return known.language === 'diff'
+      ? applyDiffLineBackgrounds(known.html)
+      : known.html;
+  });
 
   useEffect(() => {
     let cancelled = false;

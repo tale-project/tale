@@ -221,12 +221,61 @@ export function resolveShikiTheme(theme: ShikiTheme): 'min-dark' | 'min-light' {
 }
 
 /**
+ * The highlighted HTML of the snippets highlighted lately, newest last. A
+ * chat highlighted every code block again each time it opened — Shiki's
+ * tokenizer is the most expensive step of rendering a reply — and showed it
+ * unhighlighted until then. Bounded by the HTML it holds; the oldest entry
+ * leaves first.
+ */
+const highlighted = new Map<string, HighlightResult>();
+let highlightedChars = 0;
+const HIGHLIGHTED_MAX_CHARS = 4_000_000;
+
+function highlightKey(
+  code: string,
+  lang: string | undefined,
+  theme: ShikiTheme,
+): string {
+  return `${resolveShikiTheme(theme)}\u0000${resolveLanguage(lang)}\u0000${code}`;
+}
+
+function remember(key: string, result: HighlightResult): void {
+  const known = highlighted.get(key);
+  if (known !== undefined) {
+    highlighted.delete(key);
+    highlightedChars -= known.html.length;
+  }
+  highlighted.set(key, result);
+  highlightedChars += result.html.length;
+  for (const [oldest, entry] of highlighted) {
+    if (highlightedChars <= HIGHLIGHTED_MAX_CHARS) break;
+    highlighted.delete(oldest);
+    highlightedChars -= entry.html.length;
+  }
+}
+
+/**
+ * The highlight `highlightCode` already made for this snippet, if it still
+ * holds one — synchronous, so a code block shown before renders highlighted
+ * from its first frame instead of flashing plain text.
+ */
+export function peekHighlightedCode(
+  code: string,
+  lang: string | undefined,
+  theme: ShikiTheme = 'light',
+): HighlightResult | null {
+  return highlighted.get(highlightKey(code, lang, theme)) ?? null;
+}
+
+/**
  * Tokenize `code` into highlighted HTML. Returns `null` when:
  *   - `code.length` exceeds `MAX_SHIKI_BYTES` (caller should plain-text)
  *   - the underlying highlighter fails to initialize or render
  *
  * Languages outside the eager list are lazy-loaded on first request and
- * cached for subsequent calls. Unknown grammars fall back to plaintext.
+ * cached for subsequent calls. Unknown grammars fall back to plaintext. A
+ * snippet highlighted before answers from {@link peekHighlightedCode}'s
+ * store without tokenizing again.
  */
 export async function highlightCode(
   code: string,
@@ -234,7 +283,22 @@ export async function highlightCode(
   theme: ShikiTheme = 'light',
 ): Promise<HighlightResult | null> {
   if (code.length > MAX_SHIKI_BYTES) return null;
+  const key = highlightKey(code, lang, theme);
+  const known = highlighted.get(key);
+  if (known !== undefined) {
+    remember(key, known);
+    return known;
+  }
+  const result = await tokenize(code, lang, theme);
+  if (result !== null) remember(key, result);
+  return result;
+}
 
+async function tokenize(
+  code: string,
+  lang: string | undefined,
+  theme: ShikiTheme,
+): Promise<HighlightResult | null> {
   let highlighter: HighlighterCore;
   try {
     highlighter = await getHighlighter();

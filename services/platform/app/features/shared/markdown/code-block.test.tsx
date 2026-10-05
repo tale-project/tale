@@ -12,6 +12,7 @@ vi.mock('@tale/ui/use-toast', () => ({
 // Mock Shiki — returns the `{ html, language }` shape the shared
 // `@tale/ui/markdown/shiki` exports so callers extracting `.html` work.
 vi.mock('@/lib/utils/shiki', () => ({
+  peekHighlightedCode: vi.fn(() => null),
   highlightCode: vi.fn((code: string, language: string) =>
     Promise.resolve({
       html: `<pre class="shiki"><code><span class="line">${code}</span></code></pre>`,

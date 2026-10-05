@@ -8,7 +8,7 @@ import type { ComponentPropsWithoutRef, ReactNode } from 'react';
 import { memo, useEffect, useRef, useState } from 'react';
 
 import { useT } from '@/lib/i18n/client';
-import { highlightCode } from '@/lib/utils/shiki';
+import { highlightCode, peekHighlightedCode } from '@/lib/utils/shiki';
 
 /**
  * Extract the inner HTML from Shiki's codeToHtml output.
@@ -53,13 +53,24 @@ export const HighlightedCode = memo(function HighlightedCode({
   lang: string;
   code: string;
 }) {
-  const [html, setHtml] = useState('');
-  const highlightedForRef = useRef('');
   const { resolvedTheme } = useTheme();
   const shikiTheme = resolvedTheme === 'dark' ? 'min-dark' : 'min-light';
+  // A snippet highlighted before — the history of a thread opened again, a
+  // row that remounted — shows highlighted from the first frame.
+  const [html, setHtml] = useState(() => {
+    const known = peekHighlightedCode(code, lang, shikiTheme);
+    return known === null ? '' : extractShikiCodeContent(known.html);
+  });
+  const highlightedForRef = useRef(html === '' ? '' : code);
 
   useEffect(() => {
     let cancelled = false;
+    const known = peekHighlightedCode(code, lang, shikiTheme);
+    if (known !== null) {
+      highlightedForRef.current = code;
+      setHtml(extractShikiCodeContent(known.html));
+      return undefined;
+    }
     const timeout = setTimeout(() => {
       void highlightCode(code, lang, shikiTheme).then((result) => {
         if (!cancelled && result) {

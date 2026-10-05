@@ -12,7 +12,10 @@ const { renderDiagram } = vi.hoisted(() => ({ renderDiagram: vi.fn() }));
 vi.mock('mermaid', () => ({
   default: { initialize: vi.fn(), render: renderDiagram },
 }));
-vi.mock('../shiki', () => ({ highlightCode: async () => null }));
+vi.mock('../shiki', () => ({
+  highlightCode: async () => null,
+  peekHighlightedCode: () => null,
+}));
 
 let i18n: ReturnType<typeof initServiceI18n>;
 beforeAll(() => {
