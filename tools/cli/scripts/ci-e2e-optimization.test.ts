@@ -295,6 +295,43 @@ describe('E2E service scheduling', () => {
     ).toContain('bun run --filter @tale/web test:prerender');
   });
 
+  test('web SEO requires the completed build and still inspects it after browser failure', async () => {
+    const job = (await workflow('e2e')).jobs['static-sites']!;
+    const steps = job.steps!;
+    const build = step(job, 'Build static site');
+    const browser = step(job, 'Run E2E suite');
+    const seo = step(job, 'Prerender SEO suite (web)');
+    expect(build.id).toBe('site-build');
+    expect(steps.indexOf(build)).toBeLessThan(steps.indexOf(browser));
+    expect(steps.indexOf(browser)).toBeLessThan(steps.indexOf(seo));
+    // A status function prevents GitHub's implicit success() from suppressing
+    // this step when Playwright fails; failed or missing builds remain barred.
+    expect(seo.if).toMatch(/\b(?:always|cancelled|success|failure)\s*\(/);
+    const condition = seo.if!.replace(
+      'steps.site-build',
+      "steps['site-build']",
+    );
+    for (const service of ['web', 'docs'])
+      for (const outcome of ['success', 'failure', 'cancelled', 'skipped', ''])
+        for (const browserOutcome of ['success', 'failure'])
+          for (const cancelled of [false, true]) {
+            const admitted = runInNewContext(condition, {
+              matrix: { service },
+              steps: { 'site-build': { outcome } },
+              cancelled: () => cancelled,
+              success: () =>
+                outcome === 'success' && browserOutcome === 'success',
+              failure: () =>
+                outcome === 'failure' || browserOutcome === 'failure',
+              always: () => true,
+            });
+            expect(
+              admitted,
+              `${service}/${outcome}/${browserOutcome}/${cancelled}`,
+            ).toBe(service === 'web' && outcome === 'success' && !cancelled);
+          }
+  });
+
   test.each([
     ['e2e', 'e2e'],
     ['e2e', 'static-sites'],
