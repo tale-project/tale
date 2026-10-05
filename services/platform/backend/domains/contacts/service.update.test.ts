@@ -103,7 +103,7 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
-describe('updateContact — metadata merges, address replaces', () => {
+describe('updateContact — metadata merges, address replaces [CONTACT-R10]', () => {
   it('merges metadata per RFC 7396: sent keys set, omitted keys stay, null removes', async () => {
     const values = await update({
       metadata: { f: 2, nested: { b: null, c: 3 }, gone: null, added: 'x' },
@@ -141,7 +141,7 @@ describe('updateContact — metadata merges, address replaces', () => {
  * the CRM follows through, so a snapshot naming the contact's current id
  * applies — the string used to lag for good (2026-09-14 evaluation, h6).
  */
-describe('updateContact — a re-key follows through to the mirrored conversations', () => {
+describe('updateContact — a re-key follows through to the mirrored conversations [CONTACT-R13]', () => {
   const bindings = (statements: Statement[]) =>
     statements.filter((s) =>
       s.text.startsWith('UPDATE app.conversation_api_bindings'),
@@ -173,7 +173,7 @@ describe('updateContact — a re-key follows through to the mirrored conversatio
 });
 
 describe('updateContact — the clearing rule', () => {
-  it('clears every optional field sent as null (tags to an empty list)', async () => {
+  it('clears every optional field sent as null (tags to an empty list) [CONTACT-R9]', async () => {
     const values = await update({
       phone: null,
       locale: null,
@@ -211,7 +211,7 @@ describe('updateContact — the clearing rule', () => {
     expect(values[UPDATE.notes]).toBe('hi');
   });
 
-  it('keeps every other column on a one-field patch', async () => {
+  it('keeps every other column on a one-field patch [CONTACT-R9]', async () => {
     const values = await update({ phone: '+1 555 0100' });
     expect(values.slice(0, 10)).toEqual([
       'Ann',
@@ -228,7 +228,7 @@ describe('updateContact — the clearing rule', () => {
   });
 });
 
-describe('updateContact — a contact keeps an identity', () => {
+describe('updateContact — a contact keeps an identity [CONTACT-R2]', () => {
   it('refuses a patch that would clear the last of name, email and externalId', async () => {
     const { sql, statements } = recordingSql(rowAnswer());
     await expect(
@@ -273,7 +273,7 @@ describe('updateContact — a patch that changes nothing', () => {
   // A no-op used to move `updatedAt`, write an audit row and raise
   // `contact.updated` — so a mirror's retry spent another client's
   // `expectedUpdatedAt` (2026-09-14 evaluation, g3-7).
-  it('writes nothing, audits nothing and emits nothing when every field is already at its value', async () => {
+  it('writes nothing, audits nothing and emits nothing when every field is already at its value [CONTACT-R12]', async () => {
     const { sql, statements } = recordingSql(rowAnswer());
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the tag stands in for a transaction
     await updateContact(sql as never, scope, 'c-1', {
@@ -291,7 +291,7 @@ describe('updateContact — a patch that changes nothing', () => {
     expect(emitEvent).not.toHaveBeenCalled();
   });
 
-  it('still refuses a stale expectedUpdatedAt ahead of the short-circuit', async () => {
+  it('still refuses a stale expectedUpdatedAt ahead of the short-circuit [CONTACT-R11]', async () => {
     const { sql, statements } = recordingSql(rowAnswer());
     await expect(
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the tag stands in for a transaction
