@@ -8,7 +8,14 @@ import {
   isSkippedPageKind,
 } from '@/backend/core/websites/types';
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { act, render, screen, waitFor, within } from '@/tests/utils/render';
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@/tests/utils/render';
 
 import { WebsiteViewDialog } from './website-view-dialog';
 
@@ -151,6 +158,54 @@ describe('WebsiteViewDialog', () => {
     searchRequests.length = 0;
   });
 
+  it('clears results on an unsubmitted edit and searches the new query on Enter', async () => {
+    const { user } = render(
+      <WebsiteViewDialog isOpen onClose={vi.fn()} website={WEBSITE} />,
+    );
+    const search = screen.getByPlaceholderText('Search website content');
+    const result = (query: string) => ({
+      results: [
+        {
+          url: `https://docs.example.com/${query}`,
+          title: query,
+          chunk_index: 0,
+          chunk_content: `${query} excerpt`,
+        },
+      ],
+    });
+
+    await user.type(search, 'alpha{Enter}');
+    await act(async () => {
+      searchRequests[0]?.onSuccess?.(result('alpha'));
+    });
+    expect(screen.getByText('alpha excerpt')).toBeInTheDocument();
+
+    fireEvent.change(search, { target: { value: ' alpha ' } });
+    expect(screen.getByText('alpha excerpt')).toBeInTheDocument();
+    fireEvent.change(search, { target: { value: 'beta' } });
+    expect(search).toHaveValue('beta');
+    expect(screen.queryByText('alpha excerpt')).not.toBeInTheDocument();
+    expect(screen.queryByText('No results found')).not.toBeInTheDocument();
+    expect(searchRequests).toHaveLength(1);
+
+    await user.click(search);
+    await user.keyboard('{Enter}');
+    expect(searchRequests).toHaveLength(2);
+    expect(
+      useBackendAction('websites/actions:searchContent').mutateAsync,
+    ).toHaveBeenLastCalledWith({ websiteId: 'w-1', query: 'beta', limit: 20 });
+    await act(async () => {
+      searchRequests[1]?.onSuccess?.(result('beta'));
+    });
+    expect(screen.getByText('beta excerpt')).toBeInTheDocument();
+
+    await user.clear(search);
+    expect(search).toHaveValue('');
+    expect(screen.queryByText('beta excerpt')).not.toBeInTheDocument();
+    expect(screen.queryByText('No results found')).not.toBeInTheDocument();
+    expect(searchRequests).toHaveLength(2);
+  });
+
   it('ignores a search response that is older than the latest request', async () => {
     const { user } = render(
       <WebsiteViewDialog isOpen onClose={vi.fn()} website={WEBSITE} />,
@@ -250,6 +305,8 @@ describe('WebsiteViewDialog', () => {
   it.each([
     ['clear', 'success'],
     ['clear', 'error'],
+    ['edit', 'success'],
+    ['edit', 'error'],
     ['site change', 'success'],
     ['site change', 'error'],
   ] as const)(
@@ -264,6 +321,8 @@ describe('WebsiteViewDialog', () => {
 
       if (invalidation === 'clear') {
         await user.clear(search);
+      } else if (invalidation === 'edit') {
+        fireEvent.change(search, { target: { value: 'second' } });
       } else {
         rerender(
           <WebsiteViewDialog
@@ -291,8 +350,9 @@ describe('WebsiteViewDialog', () => {
         }
       });
       expect(searchToast).not.toHaveBeenCalled();
-      expect(search).toHaveValue('');
+      expect(search).toHaveValue(invalidation === 'edit' ? 'second' : '');
 
+      await user.clear(search);
       await user.type(search, 'second{Enter}');
       expect(screen.queryByText('Obsolete result')).not.toBeInTheDocument();
       expect(searchRequests).toHaveLength(2);
