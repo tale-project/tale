@@ -71,7 +71,10 @@ function withFixture(proof: (fixture: string) => void) {
     writeFileSync(
       join(fixture, 'build.mjs'),
       `import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-if (existsSync('fail.txt')) throw new Error('source validation failed');
+if (existsSync('fail.txt')) {
+  writeFileSync('rejection', 'source validation failed');
+  throw new Error('source validation failed');
+}
 mkdirSync('dist', { recursive: true });
 writeFileSync('dist/result.txt', readFileSync('input.txt'));
 const count = existsSync('executions') ? Number(readFileSync('executions', 'utf8')) : 0;
@@ -241,9 +244,13 @@ describe('native CI Turbo cache eviction', () => {
       expect(existsSync(join(fixture, 'executions'))).toBe(false);
       const good = turbo(fixture, '512MB');
       expect(good.status, good.stderr).toBe(0);
+      expect(existsSync(join(fixture, 'rejection'))).toBe(false);
       writeFileSync(join(fixture, 'fail.txt'), 'reject changed source');
       const bad = turbo(fixture, '512MB');
       expect(bad.status, bad.stdout + bad.stderr).toBe(1);
+      expect(readFileSync(join(fixture, 'rejection'), 'utf8')).toBe(
+        'source validation failed',
+      );
       expect(bad.stdout).toContain('cache miss, executing');
       expect(bad.stdout).toContain('0 cached, 1 total');
       // CI console adapters can omit the failed task's buffered error body.
