@@ -6,13 +6,6 @@ suite alongside the automated ones — they drive the same stack.
 
 ## Coverage map
 
-Website status sync records the five-minute throttle only after success. Failed
-syncs retry on remount, clear expired timestamps and expose an accessible Retry
-alert that stays visible during retry and clears on success. Organization-scoped
-storage and errors, completion after unmount and successful throttle expiry are
-covered by `app/features/websites/components/websites-table.test.tsx`.
-Real-browser layout, focus and screen-reader announcements remain manual.
-
 Website content search clears submitted results when the input changes to a
 different query, without issuing another request until Enter. Whitespace-only
 edits retain results; clearing the input and late responses after edits are
@@ -27,6 +20,13 @@ in EN/DE/FR that clear after correction:
 `app/features/settings/governance/legal-hold/upsert-matter-dialog.test.tsx`
 covers the component boundary and axe audit; real API persistence and browser
 layout remain manual.
+
+Website status sync records the five-minute throttle only after success. Failed
+syncs retry on remount, clear expired timestamps and expose an accessible Retry
+alert that stays visible during retry and clears on success. Organization-scoped
+storage and errors, completion after unmount and successful throttle expiry are
+covered by `app/features/websites/components/websites-table.test.tsx`.
+Real-browser layout, focus and screen-reader announcements remain manual.
 
 Failed single-notification and bulk reads restore unread rows and retry controls
 in both organization and personal streams, including body activation and a
