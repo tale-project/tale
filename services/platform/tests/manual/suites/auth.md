@@ -1,6 +1,6 @@
 # Auth & account
 
-> **Prefix** `AUTH-` · **Reset** none · **Cost** 57 boxes
+> **Prefix** `AUTH-` · **Reset** none · **Cost** 58 boxes
 
 Exercise sign-in, the account/security model (password policy, 2FA, passkeys,
 backup codes), the first-run and create-org wizards, the post-grace 2FA
@@ -276,6 +276,8 @@ compute codes from the enrollment secret.
   passkey.** (`twoFactor.passkeys.signInAgainDescription`) with **Sign in
   again** (`auth.accountUnavailable.signInAgain`), which ends the session and
   opens `/log-in?redirectTo=…`.
+
+- [ ] `AUTH-F31` · **Recognize the authenticator environment** — On a test deployment (`TOTP_ENVIRONMENT=te`), scan a new enrollment from Account and from the required enrollment screen → the authenticator offers `Tale <TE>` with your e-mail, and its code completes verification. Production (`pr`) offers `Tale`. A previously saved entry keeps its name and still signs in; rename it in the authenticator app if needed.
 
 ## Boundary & error tests
 
