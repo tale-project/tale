@@ -91,6 +91,11 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           persist-credentials: false
+          sparse-checkout: |
+            /.github/actions/ci-scope/action.yml
+            /.github/ci-scope.yml
+            /tools/cli/scripts/ci-ready.ts
+          sparse-checkout-cone-mode: false
       - name: Decide applicability
         id: scope
         uses: ./.github/actions/ci-scope
@@ -727,7 +732,7 @@ jobs:
           load: true
           set: |
             *.cache-from=type=gha,scope=web
-            *.cache-to=type=gha,scope=web,mode=max,ghtoken=${{ secrets.GITHUB_TOKEN }},repository=${{ github.repository }}
+            ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && format('*.cache-to=type=gha,scope=web,mode=max,ghtoken={0},repository={1}', secrets.GITHUB_TOKEN, github.repository) || '' }}
           provenance: false
 
       - name: Run web container test
@@ -798,7 +803,7 @@ jobs:
           load: true
           set: |
             *.cache-from=type=gha,scope=docs
-            *.cache-to=type=gha,scope=docs,mode=max,ghtoken=${{ secrets.GITHUB_TOKEN }},repository=${{ github.repository }}
+            ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && format('*.cache-to=type=gha,scope=docs,mode=max,ghtoken={0},repository={1}', secrets.GITHUB_TOKEN, github.repository) || '' }}
           provenance: false
 
       - name: Run docs container test
@@ -869,7 +874,7 @@ jobs:
           load: true
           set: |
             *.cache-from=type=gha,scope=ui-docs
-            *.cache-to=type=gha,scope=ui-docs,mode=max,ghtoken=${{ secrets.GITHUB_TOKEN }},repository=${{ github.repository }}
+            ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && format('*.cache-to=type=gha,scope=ui-docs,mode=max,ghtoken={0},repository={1}', secrets.GITHUB_TOKEN, github.repository) || '' }}
           provenance: false
 
       - name: Run ui-docs container test
@@ -943,7 +948,7 @@ jobs:
           load: true
           set: |
             *.cache-from=type=gha,scope=ai-gateway
-            *.cache-to=type=gha,scope=ai-gateway,mode=max,ghtoken=${{ secrets.GITHUB_TOKEN }},repository=${{ github.repository }}
+            ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && format('*.cache-to=type=gha,scope=ai-gateway,mode=max,ghtoken={0},repository={1}', secrets.GITHUB_TOKEN, github.repository) || '' }}
           provenance: false
 
       - name: Run ai-gateway container test
@@ -1410,6 +1415,10 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           persist-credentials: false
+          sparse-checkout: |
+            /.github/actions/ci-ready/action.yml
+            /tools/cli/scripts/ci-ready.ts
+          sparse-checkout-cone-mode: false
       - name: Evaluate native workflow
         uses: ./.github/actions/ci-ready
         with:

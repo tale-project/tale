@@ -67,6 +67,11 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           persist-credentials: false
+          sparse-checkout: |
+            /.github/actions/ci-scope/action.yml
+            /.github/ci-scope.yml
+            /tools/cli/scripts/ci-ready.ts
+          sparse-checkout-cone-mode: false
       - name: Decide applicability
         id: scope
         uses: ./.github/actions/ci-scope
@@ -233,7 +238,7 @@ jobs:
         uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: ${{ matrix.cross && env.BUN_INSTALL_CACHE_DIR || '~/.bun/install/cache' }}
-          key: ${{ matrix.cross && 'bun-cli-install' || 'bun-install' }}-${{ runner.os }}-${{ runner.arch }}-1.4.2-${{ hashFiles('bun.lock', 'package.json', '**/package.json', 'patches/**', 'bunfig.toml') }}
+          key: ${{ matrix.cross && 'bun-cli-install' || 'bun-install' }}-${{ runner.os }}-${{ runner.arch }}-1.4.2-${{ hashFiles('bun.lock', 'package.json', 'packages/*/package.json', 'services/*/package.json', 'services/sandbox-runtime/daemon/package.json', 'configs/platform/custom/skills/*/package.json', 'tools/*/package.json', 'patches/**', 'bunfig.toml') }}
           restore-keys: |
             ${{ matrix.cross && 'bun-cli-install' || 'bun-install' }}-${{ runner.os }}-${{ runner.arch }}-1.4.2-
 
@@ -509,6 +514,10 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           persist-credentials: false
+          sparse-checkout: |
+            /.github/actions/ci-ready/action.yml
+            /tools/cli/scripts/ci-ready.ts
+          sparse-checkout-cone-mode: false
       - name: Evaluate native workflow
         uses: ./.github/actions/ci-ready
         with:

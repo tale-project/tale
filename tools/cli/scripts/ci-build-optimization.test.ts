@@ -330,13 +330,19 @@ test.each(['web', 'docs', 'ui-docs', 'ai-gateway'])(
       files: '${{ runner.temp }}/site-build.json',
       targets: service,
       load: true,
+      provenance: false,
     });
-    expect(build.with?.set).toContain(`*.cache-from=type=gha,scope=${service}`);
-    expect(build.with?.set).toContain(
-      `*.cache-to=type=gha,scope=${service},mode=max`,
+    expect(build.uses).toBe(
+      'docker/bake-action@018cb6412ab401ebaa809aa5f85966b74628600f',
     );
-    expect(build.with?.set).toContain(
-      'ghtoken=${{ secrets.GITHUB_TOKEN }},repository=${{ github.repository }}',
+    const writer =
+      "github.event_name == 'push' && github.ref == 'refs/heads/main'";
+    expect(step(file, 'build', 'Build and push').with?.['cache-to']).toContain(
+      writer,
+    );
+    expect(build.with?.set).toBe(
+      `*.cache-from=type=gha,scope=${service}\n` +
+        `\${{ ${writer} && format('*.cache-to=type=gha,scope=${service},mode=max,ghtoken={0},repository={1}', secrets.GITHUB_TOKEN, github.repository) || '' }}\n`,
     );
     expect(build.with?.set).not.toContain(
       `*.cache-from=type=gha,scope=${service},ghtoken=`,
@@ -478,7 +484,7 @@ test('cross CLI builds isolate filtered dependencies while native suites keep th
     "${{ matrix.cross && env.BUN_INSTALL_CACHE_DIR || '~/.bun/install/cache' }}",
   );
   expect(cache.with?.key).toBe(
-    "${{ matrix.cross && 'bun-cli-install' || 'bun-install' }}-${{ runner.os }}-${{ runner.arch }}-1.4.2-${{ hashFiles('bun.lock', 'package.json', '**/package.json', 'patches/**', 'bunfig.toml') }}",
+    "${{ matrix.cross && 'bun-cli-install' || 'bun-install' }}-${{ runner.os }}-${{ runner.arch }}-1.4.2-${{ hashFiles('bun.lock', 'package.json', 'packages/*/package.json', 'services/*/package.json', 'services/sandbox-runtime/daemon/package.json', 'configs/platform/custom/skills/*/package.json', 'tools/*/package.json', 'patches/**', 'bunfig.toml') }}",
   );
   expect(String(cache.with?.['restore-keys']).trim()).toBe(
     "${{ matrix.cross && 'bun-cli-install' || 'bun-install' }}-${{ runner.os }}-${{ runner.arch }}-1.4.2-",
