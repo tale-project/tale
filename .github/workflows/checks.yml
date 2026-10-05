@@ -760,6 +760,10 @@ jobs:
 
       - name: Setup Docker builder
         uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
+        with:
+          # The hosted runner is discarded after this job; deleting its
+          # builder adds teardown time without changing the integration proof.
+          cleanup: false
 
       # Build's own layer cache (scope `db`) is read, never written: this job
       # tests the image, the Build workflow publishes it.
