@@ -175,6 +175,80 @@ describe('TwoFactorSection – a refused password', () => {
   });
 });
 
+describe('TwoFactorSection backup-code password reset', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockStatus.value = enrolledStatus(false);
+    vi.mocked(authClient.twoFactor.generateBackupCodes).mockResolvedValue({
+      data: { backupCodes: ['synthetic-backup-code'] },
+      error: null,
+    });
+  });
+
+  it('requires a fresh password after successful regeneration closes the prompt', async () => {
+    const { user } = render(<TwoFactorSection />);
+    const regenerate = screen.getByRole('button', {
+      name: 'Regenerate backup codes',
+    });
+    await user.click(regenerate);
+    const dialog = await screen.findByRole('dialog');
+    await user.type(
+      within(dialog).getByLabelText('Password'),
+      'synthetic-password',
+    );
+    await user.click(within(dialog).getByRole('button', { name: 'Confirm' }));
+
+    await waitFor(() => expect(showBackupCodes).toHaveBeenCalledOnce());
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(authClient.twoFactor.generateBackupCodes).toHaveBeenCalledOnce();
+
+    await user.click(regenerate);
+    const reopened = await screen.findByRole('dialog');
+    const password =
+      within(reopened).getByLabelText<HTMLInputElement>('Password');
+    const confirm = within(reopened).getByRole('button', { name: 'Confirm' });
+    expect(password.value.length).toBe(0);
+    expect(confirm).toBeDisabled();
+    await user.click(confirm);
+    expect(authClient.twoFactor.generateBackupCodes).toHaveBeenCalledOnce();
+
+    await user.type(password, 'fresh-synthetic-password');
+    expect(confirm).toBeEnabled();
+    await user.click(confirm);
+    await waitFor(() =>
+      expect(authClient.twoFactor.generateBackupCodes).toHaveBeenCalledTimes(2),
+    );
+    const [first, second] = vi.mocked(authClient.twoFactor.generateBackupCodes)
+      .mock.calls;
+    expect(second?.[0].password === first?.[0].password).toBe(false);
+  });
+
+  it('clears the password when Cancel closes the prompt', async () => {
+    const { user } = render(<TwoFactorSection />);
+    const regenerate = screen.getByRole('button', {
+      name: 'Regenerate backup codes',
+    });
+    await user.click(regenerate);
+    const dialog = await screen.findByRole('dialog');
+    await user.type(
+      within(dialog).getByLabelText('Password'),
+      'synthetic-password',
+    );
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+
+    await user.click(regenerate);
+    const reopened = await screen.findByRole('dialog');
+    const password =
+      within(reopened).getByLabelText<HTMLInputElement>('Password');
+    expect(password.value.length).toBe(0);
+    expect(
+      within(reopened).getByRole('button', { name: 'Confirm' }),
+    ).toBeDisabled();
+    expect(authClient.twoFactor.generateBackupCodes).not.toHaveBeenCalled();
+  });
+});
+
 describe('TwoFactorSection session rotation', () => {
   const originalLocation = window.location;
   let navigations: string[];
