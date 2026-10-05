@@ -5,6 +5,7 @@ import {
   moderationProviderConfigSchema,
   piiConfigSchema,
 } from '@tale/shared/schemas/governance';
+import { Alert } from '@tale/ui/alert';
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { Card } from '@tale/ui/card';
@@ -286,6 +287,8 @@ function RecentEvents({ organizationId, chatFilterLabels }: RecentEventsProps) {
     data: events,
     isLoading,
     isError,
+    isFetching,
+    refetch,
   } = useBackendQuery('chat_filter_events/queries:listRecent', queryArgs);
 
   return (
@@ -377,7 +380,24 @@ function RecentEvents({ organizationId, chatFilterLabels }: RecentEventsProps) {
         />
       </Row>
 
-      {!isLoading && (!events || events.length === 0) ? (
+      {isError ? (
+        <Alert
+          variant="destructive"
+          title={t('guardrailsOverview.recentEvents.error.title')}
+          description={t('guardrailsOverview.recentEvents.error.description')}
+        >
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            className="mt-3"
+            disabled={isFetching}
+            onClick={() => void refetch()}
+          >
+            {t('guardrailsOverview.recentEvents.error.retry')}
+          </Button>
+        </Alert>
+      ) : !isLoading && events?.length === 0 ? (
         // Same bordered shell as the table below so empty/loaded don't jump
         // chrome. EmptyState itself is borderless by design.
         <div className="border-border overflow-hidden rounded-lg border">

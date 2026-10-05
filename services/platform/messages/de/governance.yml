@@ -681,6 +681,10 @@ guardrailsOverview:
     description:
       Die letzten 50 Erkennungen / Blockierungen / Anbieter-Fehler dieser
       Organisation. Treffertext wird nie gespeichert.
+    error:
+      title: Letzte Ereignisse konnten nicht geladen werden
+      description: Die letzten Schutzregel-Ereignisse sind nicht verfügbar. Versuche es erneut, um Erkennungen, Blockierungen und Fehler zu prüfen.
+      retry: Erneut versuchen
     filterPii: PII
     filterChatFilter: Inhaltssicherheit
     filterModeration: Moderation

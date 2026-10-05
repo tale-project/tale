@@ -4,7 +4,10 @@ import { render, screen, waitFor } from '@/tests/utils/render';
 
 import { GuardrailsOverview } from './guardrails-overview';
 
-const { toastSpy } = vi.hoisted(() => ({ toastSpy: vi.fn() }));
+const { toastSpy, refetchSpy } = vi.hoisted(() => ({
+  toastSpy: vi.fn(),
+  refetchSpy: vi.fn(),
+}));
 
 vi.mock('@tale/ui/use-toast', () => ({
   useToast: () => ({ toast: toastSpy }),
@@ -30,6 +33,8 @@ const { state } = vi.hoisted(() => ({
     filteredEvents: [] as unknown[],
     eventsLoading: false,
     eventsFailed: false,
+    eventsFetching: false,
+    staleEvents: false,
   },
 }));
 
@@ -44,13 +49,17 @@ vi.mock('../hooks/queries', () => ({
 vi.mock('@/app/hooks/use-backend-query', () => ({
   useBackendQuery: (_name: string, args: Record<string, unknown>) => ({
     data:
-      state.isLoading || state.eventsLoading || state.eventsFailed
+      state.isLoading ||
+      state.eventsLoading ||
+      (state.eventsFailed && !state.staleEvents)
         ? undefined
         : 'filterName' in args || 'kind' in args
           ? state.filteredEvents
           : state.events,
     isLoading: state.isLoading || state.eventsLoading,
     isError: state.eventsFailed,
+    isFetching: state.eventsFetching,
+    refetch: refetchSpy,
   }),
 }));
 
@@ -86,6 +95,9 @@ beforeEach(() => {
   state.filteredEvents = [];
   state.eventsLoading = false;
   state.eventsFailed = false;
+  state.eventsFetching = false;
+  state.staleEvents = false;
+  refetchSpy.mockReset();
 });
 
 describe('GuardrailsOverview', () => {
@@ -146,6 +158,85 @@ describe('GuardrailsOverview', () => {
       expect(
         screen.getByRole('link', { name: /moderation provider/i }),
       ).toHaveAttribute('href', '#guardrails-moderation');
+    });
+  });
+
+  describe('recent events read failure', () => {
+    it('shows an accessible error and retry while preserving policy cards', async () => {
+      setEnabledOnServer();
+      state.eventsFailed = true;
+      const { user } = render(<GuardrailsOverview organizationId="org-1" />);
+
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'Could not load recent events',
+      );
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'Recent guardrail events are unavailable.',
+      );
+      expect(screen.queryByText(/no events yet/i)).not.toBeInTheDocument();
+      expect(screen.getAllByText('On')).toHaveLength(3);
+      expect(
+        screen.getByRole('link', { name: /pii detection/i }),
+      ).toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: 'Retry' }));
+      expect(refetchSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it.each(['empty', 'recorded'] as const)(
+      'retains the error during retry and recovers to %s events',
+      async (recovery) => {
+        setLoaded();
+        state.eventsFailed = true;
+        const { user, rerender } = render(
+          <GuardrailsOverview organizationId="org-1" />,
+        );
+        await user.click(screen.getByRole('button', { name: 'Retry' }));
+        state.eventsFetching = true;
+        rerender(<GuardrailsOverview organizationId="org-1" />);
+        expect(screen.getByRole('alert')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Retry' })).toBeDisabled();
+        expect(screen.queryByText(/no events yet/i)).not.toBeInTheDocument();
+        await user.click(screen.getByRole('button', { name: 'Retry' }));
+        expect(refetchSpy).toHaveBeenCalledTimes(1);
+
+        state.eventsFetching = false;
+        rerender(<GuardrailsOverview organizationId="org-1" />);
+        expect(screen.getByRole('alert')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Retry' })).toBeEnabled();
+        await user.click(screen.getByRole('button', { name: 'Retry' }));
+        expect(refetchSpy).toHaveBeenCalledTimes(2);
+
+        state.eventsFailed = false;
+        state.events = recovery === 'recorded' ? [EVENT] : [];
+        rerender(<GuardrailsOverview organizationId="org-1" />);
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+        expect(
+          screen.queryByRole('button', { name: 'Retry' }),
+        ).not.toBeInTheDocument();
+        if (recovery === 'empty') {
+          expect(
+            screen.getByRole('heading', { name: /no events yet/i }),
+          ).toBeInTheDocument();
+        } else {
+          expect(
+            screen.getByRole('row', { name: /view event/i }),
+          ).toBeInTheDocument();
+          expect(screen.queryByText(/no events yet/i)).not.toBeInTheDocument();
+        }
+      },
+    );
+
+    it('shows a failed refresh instead of stale rows', () => {
+      setLoaded();
+      state.events = [EVENT];
+      state.eventsFailed = true;
+      state.staleEvents = true;
+      render(<GuardrailsOverview organizationId="org-1" />);
+      expect(screen.getByRole('alert')).toBeInTheDocument();
+      expect(
+        screen.queryByRole('row', { name: /view event/i }),
+      ).not.toBeInTheDocument();
+      expect(screen.queryByText(/no events yet/i)).not.toBeInTheDocument();
     });
   });
 
