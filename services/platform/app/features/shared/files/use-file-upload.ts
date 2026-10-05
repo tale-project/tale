@@ -735,6 +735,7 @@ export function useFileUpload(config: FileUploadConfig) {
 
   const clearAttachments = useCallback(() => {
     const clearedAttachments = attachmentsRef.current;
+    attachmentsRef.current = [];
     for (const att of clearedAttachments) {
       if (att.previewUrl) {
         URL.revokeObjectURL(att.previewUrl);
