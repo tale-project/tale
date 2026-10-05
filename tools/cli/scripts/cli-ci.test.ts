@@ -7,6 +7,7 @@ type Step = {
   name: string;
   if?: string;
   run?: string;
+  env?: Record<string, string>;
   with?: Record<string, string>;
 };
 type Target = {
@@ -60,7 +61,11 @@ test('source tests run once per host OS while every target still builds', () => 
   expect(step('Run unit tests').if).toBe('${{ !matrix.cross }}');
   expect(step('Run unit tests').run).toBe('bun run test');
   expect(step('Build binary').if).toBeUndefined();
-  expect(step('Build binary').run).toBe('bun run ${{ matrix.build_script }}');
+  expect(step('Build binary').run).toContain('bun run "$BUILD_SCRIPT"');
+  expect(step('Build binary').env).toEqual({
+    PLATFORM: '${{ matrix.platform }}',
+    BUILD_SCRIPT: '${{ matrix.build_script }}',
+  });
   expect(step('Run type check').if).toBe("matrix.platform == 'linux'");
 });
 

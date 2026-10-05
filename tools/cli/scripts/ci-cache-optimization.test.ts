@@ -629,6 +629,7 @@ test('Turbo uses one native branch-scoped cache archive with distinct workflow w
   )!;
   expect(cache.uses).toMatch(/^actions\/cache@[a-f0-9]{40}$/);
   expect(cache.if).toBe("inputs.turbo-cache == 'true'");
+  expect(cache.env?.SEGMENT_DOWNLOAD_TIMEOUT_MINS).toBe('2');
   expect(cache.with?.path).toBe('.turbo/cache');
   const prefix =
     "turbo-v1-${{ runner.os }}-${{ runner.arch }}-${{ inputs.bun-version }}-${{ inputs.cache-scope || github.job }}-${{ hashFiles('bun.lock') }}-";
@@ -647,6 +648,147 @@ test('Turbo uses one native branch-scoped cache archive with distinct workflow w
     action.runs.steps.find((step) => step.name === 'Install JS dependencies')
       ?.run,
   ).toBe('bun install --frozen-lockfile');
+});
+
+test('shared setup pins the exact production Node and disables redundant npm caching', () => {
+  const action = setupAction();
+  const resolver = action.runs.steps.find((step) => step.id === 'node')!;
+  const setup = action.runs.steps.find((step) => step.name === 'Setup Node')!;
+  expect(setup.uses).toMatch(/^actions\/setup-node@[a-f0-9]{40}$/);
+  expect(setup.with).toEqual({
+    'node-version': '${{ steps.node.outputs.version }}',
+    'package-manager-cache': false,
+  });
+  expect(action.runs.steps.indexOf(resolver)).toBeLessThan(
+    action.runs.steps.indexOf(setup),
+  );
+  expect(action.runs.steps.indexOf(setup)).toBeLessThan(
+    action.runs.steps.findIndex(
+      (step) => step.name === 'Install JS dependencies',
+    ),
+  );
+  const fixture = mkdtempSync(join(tmpdir(), 'tale-ci-node-pin-'));
+  try {
+    mkdirSync(join(fixture, 'services/platform'), { recursive: true });
+    const output = join(fixture, 'output');
+    const dockerfile = readFileSync(
+      join(REPO_ROOT, 'services/platform/Dockerfile'),
+      'utf8',
+    );
+    const version = dockerfile.match(
+      /^FROM node:([\d.]+)-.* AS node-bin$/m,
+    )?.[1];
+    expect(version).toMatch(/^\d+\.\d+\.\d+$/);
+    for (const [source, expected] of [
+      [dockerfile, version],
+      ['FROM node:22.21.1-bookworm-slim AS node-bin\n', '22.21.1'],
+      ['FROM node:latest AS node-bin\n', undefined],
+      ['FROM node:22-bookworm-slim AS node-bin\n', undefined],
+      [
+        'FROM node:22.21.1-bookworm-slim AS node-bin\nFROM node:22.21.2-bookworm-slim AS node-bin\n',
+        undefined,
+      ],
+      ['', undefined],
+    ] as const) {
+      writeFileSync(join(fixture, 'services/platform/Dockerfile'), source);
+      writeFileSync(output, '');
+      const result = spawnSync('bash', ['-c', resolver.run!], {
+        cwd: fixture,
+        encoding: 'utf8',
+        env: { ...process.env, GITHUB_OUTPUT: output },
+      });
+      expect(result.status, result.stderr + result.stdout).toBe(
+        expected ? 0 : 1,
+      );
+      expect(readFileSync(output, 'utf8')).toBe(
+        expected ? `version=${expected}\n` : '',
+      );
+    }
+  } finally {
+    rmSync(fixture, { recursive: true, force: true });
+  }
+});
+
+test('actual Bun, Node and runner identity reach Turbo hashes while telemetry remains disabled', () => {
+  const action = setupAction();
+  const identify = action.runs.steps.find(
+    (step) => step.name === 'Identify the actual task runtime',
+  )!;
+  const telemetry = action.runs.steps.find(
+    (step) => step.name === 'Disable third-party telemetry',
+  )!;
+  const fixture = mkdtempSync(join(tmpdir(), 'tale-ci-runtime-'));
+  const environment = join(fixture, 'env');
+  try {
+    const result = spawnSync(
+      'bash',
+      ['-c', `${telemetry.run}\n${identify.run}`],
+      {
+        cwd: REPO_ROOT,
+        encoding: 'utf8',
+        env: {
+          ...process.env,
+          RUNNER_OS: 'Linux',
+          RUNNER_ARCH: 'X64',
+          GITHUB_ENV: environment,
+        },
+      },
+    );
+    expect(result.status, result.stderr).toBe(0);
+    const values = readFileSync(environment, 'utf8').split('\n');
+    const runtime = values.find((value) =>
+      value.startsWith('TALE_CI_RUNTIME='),
+    );
+    expect(runtime).toStartWith('TALE_CI_RUNTIME=Linux-X64-');
+    expect(runtime).toContain(
+      spawnSync('node', ['--version'], { encoding: 'utf8' }).stdout.trim(),
+    );
+    expect(runtime).toEndWith(
+      spawnSync('bun', ['--version'], { encoding: 'utf8' }).stdout.trim(),
+    );
+    expect(values).toContain('TELEMETRY_DISABLED=1');
+    const config = z
+      .object({ globalEnv: z.array(z.string()) })
+      .parse(JSON.parse(readFileSync(join(REPO_ROOT, 'turbo.json'), 'utf8')));
+    expect(config.globalEnv).toContain('TALE_CI_RUNTIME');
+    const hashes: string[][] = [];
+    for (const identity of [
+      'Linux-X64-ubuntu-24.04-v22.21.1-1.4.2',
+      'Linux-X64-ubuntu-24.04-v22.21.2-1.4.2',
+      'Linux-X64-ubuntu-24.04-v22.21.1-1.4.3',
+      'Linux-X64-ubuntu-26.04-v22.21.1-1.4.2',
+    ]) {
+      const dry = spawnSync(
+        process.execPath,
+        [
+          'x',
+          'turbo',
+          'run',
+          'lint',
+          '--filter=@tale/shared',
+          '--dry=json',
+          '--cache=local:,remote:',
+        ],
+        {
+          cwd: REPO_ROOT,
+          encoding: 'utf8',
+          maxBuffer: 16 * 1024 * 1024,
+          env: { ...process.env, TALE_CI_RUNTIME: identity },
+        },
+      );
+      expect(dry.status, dry.stderr).toBe(0);
+      const tasks = summarySchema.parse(JSON.parse(dry.stdout)).tasks;
+      expect(tasks.length).toBeGreaterThan(0);
+      hashes.push(
+        tasks.map((task) => `${task.taskId}=${task.hash}`).toSorted(),
+      );
+    }
+    expect(new Set(hashes.map((hash) => JSON.stringify(hash))).size).toBe(
+      hashes.length,
+    );
+  } finally {
+    rmSync(fixture, { recursive: true, force: true });
+  }
 });
 
 test('build archive writers share restore prefixes without sharing immutable keys', () => {
@@ -804,9 +946,9 @@ test('native cache callers use valid inputs and isolate active matrix task lanes
 });
 
 // Explicit outside-workspace globs include Git-ignored files unless they are
-// excluded. A catalog skill's own Turbo log must not invalidate another task;
+// excluded. Skill logs and incremental compiler outputs are local state;
 // dependency patches and shared toolchain inputs must invalidate every reader.
-test('catalog build and generation hashes ignore task logs but retain source and toolchain edits', () => {
+test('catalog readers ignore local artifacts but retain source and toolchain edits', () => {
   const fixture = mkdtempSync(join(tmpdir(), 'tale-catalog-cache-'));
   const write = (file: string, value: string) => {
     const target = join(fixture, file);
@@ -815,6 +957,7 @@ test('catalog build and generation hashes ignore task logs but retain source and
   };
   const readers = [
     '@tale/platform#build',
+    '@tale/platform#test',
     '@tale/cli#generate',
     '@tale/cli#setup',
     '@tale/cli#test',
@@ -909,10 +1052,12 @@ test('catalog build and generation hashes ignore task logs but retain source and
         readFileSync(join(REPO_ROOT, directory, 'turbo.json'), 'utf8'),
       );
     }
-    write('.gitignore', '.turbo\n');
+    write('.gitignore', '.turbo\n*.tsbuildinfo\n');
     const catalog = 'configs/platform/system/connectors/example/connector.yml';
     const skill = 'configs/platform/custom/skills/example/analyze.ts';
     const log = 'configs/platform/custom/skills/example/.turbo/turbo-test.log';
+    const incremental =
+      'configs/platform/custom/skills/example/tsconfig.tsbuildinfo';
     const globalInputs = {
       'patches/postgres@3.4.7.patch': 'fixture patch\n',
       'tsconfig.dom.json': '{"compilerOptions":{"lib":["DOM"]}}\n',
@@ -943,6 +1088,21 @@ test('catalog build and generation hashes ignore task logs but retain source and
     expect(hashes()).toEqual(baseline);
     write(log, 'different test output\n');
     expect(hashes()).toEqual(baseline);
+    // tsc --noEmit still writes incremental output. Catalog consumers and
+    // CLI embedding never read it; creation and rewrites keep their verdicts.
+    for (const contents of [
+      '{"version":"6.0.2"}\n',
+      '{"version":"6.0.2","fileNames":["./src/analyze.ts"]}\n',
+    ]) {
+      write(incremental, contents);
+      const ignoredIncremental = spawnSync(
+        'git',
+        ['check-ignore', '--', incremental],
+        { cwd: fixture, encoding: 'utf8' },
+      );
+      expect(ignoredIncremental.stdout).toBe(incremental + '\n');
+      expect(hashes()).toEqual(baseline);
+    }
     write(catalog, 'name: changed\n');
     const changedCatalog = hashes();
     for (const reader of readers) {

@@ -16,6 +16,15 @@ bun run --filter @tale/sandbox dev    # bun --hot src/server.ts (local session r
 bun run --filter @tale/sandbox test   # bun test
 ```
 
+Set `SENTRY_DSN` to enable optional Sentry-compatible error reporting, including
+GlitchTip. `SENTRY_ENVIRONMENT` and `TALE_VERSION` identify the deployment and
+release; events carry `tale.role=sandbox`. HTTP handler failures, failed background
+tasks and genuine unhandled errors are reported. A verified client abort or a
+closed SSE stream after cancellation is expected and sends no event. Request
+bodies, cookies and credential headers or URL tokens are omitted or masked using
+the same privacy filter as the platform backend. Stack frames and error messages
+are sent unchanged. Unset `SENTRY_DSN` disables reporting.
+
 Exec and attach streams bound their pending output to 8 MiB plus at most one
 event (a collected terminal result can be larger). A consumer that stays
 behind is disconnected; cancelling its response also stops the upstream read

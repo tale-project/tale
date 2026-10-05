@@ -70,6 +70,27 @@ afterEach(() => {
 });
 
 describe('EditMemberDialog name validation', () => {
+  it('keeps the failed draft open and announces the save refusal', async () => {
+    updateNameMock.mockRejectedValueOnce(new Error('display name refused'));
+    const { user, onOpenChange } = renderDialog();
+    const input = screen.getByRole('textbox', { name: /^Name/ });
+
+    await user.clear(input);
+    await user.type(input, 'A repaired name');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        "Couldn't save the member — try again.",
+      );
+    });
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+    expect(input).toHaveValue('A repaired name');
+    expect(toastMock).not.toHaveBeenCalledWith(
+      expect.objectContaining({ variant: 'success' }),
+    );
+  });
+
   it.each([
     ['   ', 'Name is required'],
     [

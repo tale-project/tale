@@ -110,6 +110,8 @@ export const CANDIDATE_JOBS: Record<
       'typecheck',
       'build',
       'test',
+      'test-platform-shards',
+      'test-workspaces',
       'test-ui-shards',
       'test-ui',
       'performance',
@@ -125,6 +127,9 @@ export const CANDIDATE_JOBS: Record<
       'Type check',
       'Build',
       'Unit',
+      'Unit (platform 1/2)',
+      'Unit (platform 2/2)',
+      'Unit (workspaces)',
       ...Array.from(
         { length: 4 },
         (_, index) => `UI (platform ${index + 1}/4)`,

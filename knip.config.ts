@@ -274,6 +274,9 @@ export default {
       project: ['**/*.{ts,tsx,css}'],
     },
     'tools/cli': {
+      // The scan job invokes this from an isolated workflow checkout, whose
+      // prefix is not its actual source path in Knip's workspace graph.
+      entry: ['scripts/check-sbom-hashes.ts'],
       project: ['**/*.ts'],
       // The embedded native workflow validator imports Ajv from platform
       // source. A CLI-only filtered install must provide that runtime edge,

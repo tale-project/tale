@@ -17,6 +17,10 @@ const LOCALES = ['en', 'de', 'fr'];
 /** Outside files read by the CI, cache, candidate and performance suites. */
 const CHECKED_CI_FILES = [
   'services/platform/tests/integration/container-image-test.ts',
+  'services/platform/tests/integration/lib/docker.ts',
+  'services/platform/tests/integration/lib/exec.ts',
+  'services/platform/tests/integration/lib/log.ts',
+  'services/platform/tests/integration/static-site-test.ts',
   'turbo.json',
   'package.json',
   'services/web/turbo.json',
@@ -27,6 +31,8 @@ const CHECKED_CI_FILES = [
   'services/platform/vitest.ui.config.ts',
   '.github/actions/setup-turbo/action.yml',
   'services/platform/vitest.config.ts',
+  'services/platform/postcss.config.mjs',
+  'packages/ui/src/vite/yaml.ts',
   'packages/ui/vitest.config.ts',
   'services/platform/playwright.config.ts',
   'packages/e2e/src/config.ts',
@@ -46,6 +52,11 @@ const CHECKED_CI_FILES = [
   '.github/actions/setup-cli/action.yml',
   '.github/workflows/scorecard.yml',
   '.github/scripts/pull-ci-images.sh',
+  '.dockerignore',
+  'services/platform/tests/integration/container-web-test.ts',
+  'services/platform/tests/integration/container-docs-test.ts',
+  'services/platform/tests/integration/container-ui-docs-test.ts',
+  'services/platform/tests/integration/container-ai-gateway-test.ts',
   'services/platform/turbo.json',
 ];
 /**
@@ -54,6 +65,12 @@ const CHECKED_CI_FILES = [
  * entrypoints and Dockerfiles, and the workflows that build and release them.
  */
 const PARITY_FILES = [
+  'services/platform/tests/integration/lib/document-tools.ts',
+  'services/platform/tests/integration/fixtures/document-tools/workbook.xls',
+  'services/platform/tests/integration/fixtures/document-tools/workbook.xlsx',
+  'services/sandbox-runtime/document-python-requirements.txt',
+  'services/sandbox-runtime/document-node/package.json',
+  'services/sandbox-runtime/document-node/package-lock.json',
   '.github/workflows/build.yml',
   '.github/workflows/cli.yml',
   '.github/workflows/release.yml',

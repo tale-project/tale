@@ -55,12 +55,17 @@ Ne collecte pas `/metrics/sla-rules` comme des métriques. Les règles généré
 
 ## Choisir la destination des erreurs
 
-`SENTRY_DSN` active le suivi facultatif des erreurs. Il peut désigner Sentry ou un service compatible comme GlitchTip ou Bugsink. Le navigateur et le backend utilisent ce DSN ; les événements du backend indiquent le rôle du processus et la version déployée.
+`SENTRY_DSN` active le suivi facultatif des erreurs. Il peut désigner Sentry ou un service compatible comme GlitchTip ou Bugsink. Le navigateur, le backend et la sandbox utilisent ce DSN et le libellé `SENTRY_ENVIRONMENT` ; les événements serveur indiquent le rôle du processus et la version déployée.
 
 ```bash
 SENTRY_DSN=https://your-key@your-sentry-host/project-id
+SENTRY_ENVIRONMENT=example-pr
 SENTRY_TRACES_SAMPLE_RATE=0.1
 ```
+
+Les déploiements gérés utilisent leur `name` existant comme libellé par défaut. Pour choisir un autre libellé, déclare `"environment": { "SENTRY_ENVIRONMENT": { "env": "TALE_REPORTING_ENVIRONMENT" } }` dans la spécification du déploiement et définis cette variable à destination. La valeur commence par une lettre minuscule ou un chiffre et contient de 1 à 64 lettres minuscules, chiffres ou traits d’union. L’identité du déploiement, son état et ses identifiants enregistrés conservent leurs chemins existants.
+
+Les erreurs de sandbox comprennent les échecs HTTP et des tâches de fond. Les annulations attendues du client et les flux SSE fermés après annulation sont exclus. La sandbox envoie uniquement des erreurs ; les paramètres de traces du navigateur et du backend n’activent pas de traces dans la sandbox. Elle utilise le filtre de confidentialité du backend décrit ci-dessous.
 
 `SENTRY_TRACES_SAMPLE_RATE` concerne les traces de performance du navigateur ; leur taux par défaut est de 1.0 en développement. Les traces du backend sont désactivées par défaut. Pour les activer, règle `BACKEND_SENTRY_TRACES_SAMPLE_RATE` entre `0` et `1` (par exemple, `0.05` échantillonne 5 % des opérations) et utilise une destination qui accepte les transactions Sentry. Recrée les services API et worker du backend après la modification. Choisis des taux adaptés à ton budget de supervision ; le taux backend `0` désactive les spans tout en conservant le suivi des erreurs.
 

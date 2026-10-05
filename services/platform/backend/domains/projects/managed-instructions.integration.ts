@@ -15,6 +15,8 @@ import {
   readAgentInstructionsConfiguration,
   updateProjectInstructions,
   updateAgentInstructionsConfiguration,
+  getProjectAgent,
+  updateProjectAgent,
 } from './service.ts';
 
 export async function checkManagedInstructions(
@@ -99,6 +101,13 @@ export async function checkManagedInstructions(
   };
   const before = await stableFields();
   for (const resource of resources) {
+    // A stored revision ahead of the wall clock reproduces clock rollback
+    // without changing the process clock or unrelated integration lanes.
+    const agentRevision = Date.now() + 86_400_000;
+    if (resource.kind === 'agent') {
+      await sql`UPDATE app.project_agents SET updated_at_ms = ${agentRevision}
+        WHERE id = ${agentId}`;
+    }
     const response = await fetch(`${base}${resource.path}`, {
       headers: { cookie: ctx.cookie },
     });
@@ -195,6 +204,53 @@ export async function checkManagedInstructions(
     );
     assert.deepEqual(await stamps(), noOpBefore);
     assert.deepEqual(await stableFields(), before);
+
+    if (resource.kind === 'agent') {
+      const current = await getProjectAgent(sql, auth, projectId, agentId);
+      assert.ok(current);
+      assert.equal(current.updatedAt, agentRevision + 1);
+      const fullSave = (expectedUpdatedAt: number, instructions: string) =>
+        transactSerializable(sql, (tx) =>
+          updateProjectAgent(tx, auth, {
+            agentId,
+            name: current.name,
+            harness: current.harness,
+            model: current.model,
+            modelProvider: current.modelProvider ?? undefined,
+            skills: current.skills,
+            connectors: current.connectors,
+            tools: current.tools,
+            secrets: current.secrets,
+            instructions,
+            expectedUpdatedAt,
+          }),
+        );
+      // The field-specific writer must also invalidate a full-row reader.
+      await assert.rejects(fullSave(agentRevision, 'stale full save'), {
+        code: 'PROJECT_AGENT_STALE',
+      });
+      await fullSave(current.updatedAt, current.instructions ?? '');
+      assert.deepEqual(await stamps(), noOpBefore);
+      await fullSave(current.updatedAt, 'Full replacement after instructions');
+      const changed = await getProjectAgent(sql, auth, projectId, agentId);
+      assert.ok(changed);
+      assert.equal(changed.updatedAt, current.updatedAt + 1);
+      const afterFullSave = await stamps();
+      await assert.rejects(fullSave(current.updatedAt, 'second stale writer'), {
+        code: 'PROJECT_AGENT_STALE',
+      });
+      assert.deepEqual(
+        await getProjectAgent(sql, auth, projectId, agentId),
+        changed,
+      );
+      assert.deepEqual(await stamps(), afterFullSave);
+      assert.deepEqual(await stableFields(), before);
+      record(
+        'agent revisions: instruction and full saves advance under clock rollback',
+        true,
+        `instructions=${current.updatedAt}; full=${changed.updatedAt}; stale full saves refused; no-op and unrelated fields preserved`,
+      );
+    }
     record(
       `managed ${resource.kind} instructions: native read/CAS/no-op`,
       true,

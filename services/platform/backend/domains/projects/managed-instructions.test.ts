@@ -1,7 +1,7 @@
 // @vitest-environment node
 
 import type { TransactionSql } from 'postgres';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { managedConfigurationHash } from '../../core/lib/config_store/value_hash.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
@@ -152,8 +152,28 @@ function hash(value: unknown) {
 }
 
 beforeEach(() => vi.clearAllMocks());
+afterEach(() => vi.restoreAllMocks());
 
 describe('managed instruction adoption and preconditions', () => {
+  it.each([agent.updatedAt, agent.updatedAt - 1, agent.updatedAt + 100])(
+    'advances the full agent revision at wall time %i without changing grants',
+    async (now) => {
+      vi.spyOn(Date, 'now').mockReturnValue(now);
+      const db = database();
+      await updateAgentInstructionsConfiguration(
+        db.tx,
+        auth,
+        { ...config.agent, instructions: 'Updated review policy' },
+        hash(config.agent),
+      );
+      expect(db.writes()).toHaveLength(1);
+      const revision = db.writes()[0]!.values[1];
+      expect(revision).toBeGreaterThan(agent.updatedAt);
+      expect(revision).toBeGreaterThanOrEqual(now);
+      expect(db.writes()[0]!.text).not.toMatch(/secrets =|tools =|model =/);
+    },
+  );
+
   it('stores mention text without starting agents or dispatching notifications', async () => {
     const db = database();
     await updateTaskInstructionsConfiguration(

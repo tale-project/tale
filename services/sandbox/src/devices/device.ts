@@ -18,6 +18,11 @@
 // A dropped connection is retried with capped, jittered backoff; running
 // sessions keep running meanwhile — only calls into them wait.
 
+import {
+  handleSandboxRequest,
+  reportSandboxError,
+  sandboxServerError,
+} from '../error-reporting.ts';
 import { jsonResponse, sessionRequestBodyLimit } from '../http-util.ts';
 import { runDocker } from '../spawn-util.ts';
 import { readUpdateStatus, type DeviceConfig } from './device-config.ts';
@@ -406,6 +411,7 @@ export class DeviceAgent {
     );
     this.opts.selfUpdate(serverVersion).catch((err: unknown) => {
       console.error('[sandbox.devices] launching the update failed:', err);
+      reportSandboxError(err, 'device-update');
     });
   }
 
@@ -584,6 +590,7 @@ export class DeviceAgent {
       });
     } catch (err) {
       console.error('[sandbox.devices] announcing the device failed:', err);
+      reportSandboxError(err, 'device-announcement');
       this.socket?.close(4000, 'hello failed');
     }
   }
@@ -664,6 +671,7 @@ export class DeviceAgent {
         `[sandbox.devices] serving ${method} ${url.pathname} failed:`,
         err,
       );
+      reportSandboxError(err, 'device-handler', req.signal, req);
       res = jsonResponse(
         {
           error: 'internal',
@@ -690,10 +698,15 @@ export class DeviceAgent {
             hostname: '0.0.0.0',
             // LLM streams can pause while a model thinks; stay under Bun's cap.
             idleTimeout: 255,
-            fetch: (req) => this.relayRequest(relay.name, req),
+            fetch: (req) =>
+              handleSandboxRequest(req, (request) =>
+                this.relayRequest(relay.name, request),
+              ),
+            error: sandboxServerError,
           }),
         );
       } catch (err) {
+        reportSandboxError(err, 'device-relay-listener');
         console.error(
           `[sandbox.devices] cannot answer ${relay.url} for sessions (port ${port}):`,
           err,

@@ -195,6 +195,10 @@ L’exemple définit `runtime.containerPrefix` pour rendre l’environnement rec
 }
 ```
 
+#### Choisir l’environnement des rapports d’erreurs
+
+Les instances gérées définissent `SENTRY_ENVIRONMENT` sur le `name` existant du déploiement par défaut. Pour utiliser un libellé canonique comme `example-pr`, déclare `"environment": { "SENTRY_ENVIRONMENT": { "env": "TALE_REPORTING_ENVIRONMENT" } }` et définis cette variable à destination. Le libellé commence par une lettre minuscule ou un chiffre et contient de 1 à 64 lettres minuscules, chiffres ou traits d’union. Le navigateur, le backend et la sandbox l’utilisent sans modifier `name`, `composeProject`, `stateDirectory` ni les identifiants enregistrés.
+
 #### Choisir les noms des conteneurs
 
 Définis `runtime.containerPrefix` pour obtenir des noms comme `north-desk-prod-db` et `north-desk-prod-backend-api` dans la liste des conteneurs. Le préfixe commence par une lettre minuscule et contient des lettres minuscules, des chiffres et des traits d’union simples, sur 40 caractères au maximum. Les espaces, les traits de soulignement, les traits d’union répétés et un trait d’union final sont refusés.

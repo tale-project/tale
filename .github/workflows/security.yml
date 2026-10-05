@@ -113,15 +113,7 @@ jobs:
         # Bounded so a hung registry request cannot eat the gate's time.
         continue-on-error: true
         timeout-minutes: 4
-        run: bun audit --prod | tee bun-audit.txt
-
-      - name: Summary
-        if: always()
-        run: |
-          echo "## Bun audit" >> "$GITHUB_STEP_SUMMARY"
-          echo '```' >> "$GITHUB_STEP_SUMMARY"
-          tail -n 50 bun-audit.txt >> "$GITHUB_STEP_SUMMARY" || true
-          echo '```' >> "$GITHUB_STEP_SUMMARY"
+        run: bun audit --prod 2>&1 | tee bun-audit.txt
 
       - name: Gate on high/critical advisories
         # The blocking gate: fail on HIGH or CRITICAL production advisories.
@@ -135,19 +127,49 @@ jobs:
         run: |
           set +e -o pipefail
           for attempt in 1 2 3; do
-            timeout 240 bun audit --prod --audit-level=high 2>&1 | tee bun-audit-gate.txt
-            status=${PIPESTATUS[0]}
+            attempt_log="bun-audit-gate-attempt-${attempt}.txt"
+            timeout 240 bun audit --prod --audit-level=high 2>&1 | tee "$attempt_log"
+            statuses=("${PIPESTATUS[@]}")
+            status=${statuses[0]}
+            if [ "${statuses[1]}" -ne 0 ]; then
+              echo '::error::Could not retain the advisory gate output'; exit 1
+            fi
             if [ "$status" -eq 0 ]; then
               exit 0
             fi
-            if [ "$status" -ne 124 ] && ! grep -q -E '^error: (GET|POST) https?://' bun-audit-gate.txt; then
+            if [ "$status" -ne 124 ] && ! grep -q -E '^error: (GET|POST) https?://' "$attempt_log"; then
               exit 1
             fi
-            echo "advisory registry request failed or hung (attempt $attempt/3, exit $status); retrying in 30s"
-            sleep 30
+            if [ "$attempt" -lt 3 ]; then
+              echo "advisory registry request failed or hung (attempt $attempt/3, exit $status); retrying in 30s"
+              sleep 30
+            fi
           done
           echo "advisory registry unreachable after 3 attempts" >&2
           exit 1
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Bun audit" >> "$GITHUB_STEP_SUMMARY"
+          for report in bun-audit*.txt; do
+            [ -f "$report" ] || continue
+            {
+              printf '\n### %s\n\n```\n' "$report"
+              tail -n 50 "$report"
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          done
+
+      - name: Retain advisory evidence
+        if: >-
+          !cancelled() && hashFiles('bun-audit*.txt') != ''
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: bun-audit-attempt-${{ github.run_attempt }}
+          path: bun-audit*.txt
+          retention-days: 14
+          if-no-files-found: error
 
   # ---------------------------------------------------------------------------
   # Scan source tree for known CVEs in dependencies + misconfigurations + secrets.
@@ -176,6 +198,7 @@ jobs:
 
     steps:
       - name: Checkout
+        id: source
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           ref: ${{ needs.candidate-source.outputs.candidate_sha }}
@@ -185,6 +208,7 @@ jobs:
         # Candidates do not upload SARIF against moving main. The standalone
         # blocking vulnerability gate below still installs Trivy and scans.
         if: github.event_name != 'repository_dispatch'
+        timeout-minutes: 3
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: 'fs'
@@ -203,18 +227,15 @@ jobs:
           # downstream when each service runs its own build.
           skip-files: 'tools/plop/templates/**/Dockerfile.hbs'
 
-      - name: Upload SARIF
-        uses: github/codeql-action/upload-sarif@e46ed2cbd01164d986452f91f178727624ae40d7 # v4
-        if: always() && github.event_name != 'repository_dispatch'
-        with:
-          sarif_file: 'trivy-fs.sarif'
-          category: 'trivy-fs'
-
       # Blocking gate: fail the build on FIXABLE high or critical dependency
       # vulnerabilities. Runs vuln-only (secret/misconfig stay informational via
       # the SARIF upload above) and honours the same path-scoped ignore file, so
       # a real, patchable high/critical CVE cannot merge silently.
       - name: Trivy vulnerability gate (HIGH/CRITICAL)
+        # Reporting/upload failures must never suppress the blocking scan.
+        if: >-
+          !cancelled() && steps.source.outcome == 'success'
+        timeout-minutes: 5
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: 'fs'
@@ -226,6 +247,27 @@ jobs:
           ignore-unfixed: true
           trivyignores: '.trivyignore.yaml'
           skip-files: 'tools/plop/templates/**/Dockerfile.hbs'
+
+      - name: Upload SARIF
+        uses: github/codeql-action/upload-sarif@e46ed2cbd01164d986452f91f178727624ae40d7 # v4
+        if: >-
+          !cancelled() && github.event_name != 'repository_dispatch' && hashFiles('trivy-fs.sarif') != ''
+        timeout-minutes: 1
+        # The vulnerability scan above is the gate; SARIF is informational.
+        continue-on-error: true
+        with:
+          sarif_file: 'trivy-fs.sarif'
+          category: 'trivy-fs'
+
+      - name: Retain filesystem scan evidence
+        if: >-
+          !cancelled() && github.event_name != 'repository_dispatch' && hashFiles('trivy-fs.sarif') != ''
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: trivy-fs-attempt-${{ github.run_attempt }}
+          path: trivy-fs.sarif
+          retention-days: 14
+          if-no-files-found: error
 
       - name: Summary
         if: always()

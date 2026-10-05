@@ -217,6 +217,11 @@ export function prepareRuntimeEnvironment(
       'Managed runtime environment override is not permitted.',
     );
   }
+  requireRuntime(
+    extras.SENTRY_ENVIRONMENT === undefined ||
+      /^[a-z0-9][a-z0-9-]{0,63}(?![\s\S])/.test(extras.SENTRY_ENVIRONMENT),
+    'Managed runtime reporting environment must be a lowercase label of 1 to 64 letters, digits or hyphens.',
+  );
   const origin = new URL(options.origin);
   const environment: Record<string, string> = {
     ...previous,
@@ -234,7 +239,7 @@ export function prepareRuntimeEnvironment(
     PULL_POLICY: 'never',
     VERSION: `sha-${revision}`,
     SENTRY_DSN: extras.SENTRY_DSN ?? previous.SENTRY_DSN ?? '',
-    SENTRY_ENVIRONMENT: options.name,
+    SENTRY_ENVIRONMENT: extras.SENTRY_ENVIRONMENT ?? options.name,
     SENTRY_TRACES_SAMPLE_RATE:
       extras.SENTRY_TRACES_SAMPLE_RATE ??
       previous.SENTRY_TRACES_SAMPLE_RATE ??

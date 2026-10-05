@@ -23,6 +23,10 @@ import { hostname } from 'node:os';
 import { join } from 'node:path';
 
 import type { HostBackend } from './backend/types.ts';
+import {
+  flushSandboxErrorReporting,
+  reportSandboxError,
+} from './error-reporting.ts';
 import { isSessionWorkspaceDirName } from './session/session-naming.ts';
 import { workspaceTrash } from './session/workspace-trash.ts';
 import { dockerRm, dockerRmSucceeded, runDocker } from './spawn-util.ts';
@@ -539,6 +543,7 @@ export function makeSweepTick(
       });
     } catch (err) {
       console.warn(`[sandbox.periodic] sweep error:`, err);
+      reportSandboxError(err, 'host-sweep');
     } finally {
       inFlight = false;
     }
@@ -581,6 +586,7 @@ export function installSignalHandlers(
       try {
         stopAccepting();
       } catch (err) {
+        reportSandboxError(err, 'shutdown-stop-accepting');
         console.warn(`[sandbox.shutdown] stopAccepting failed:`, err);
       }
       // Every run is a session now; the session subsystem drains its own
@@ -588,8 +594,10 @@ export function installSignalHandlers(
       // in-flight registry left to quiesce here.
       await backend.shutdown();
     } catch (err) {
+      reportSandboxError(err, 'shutdown');
       console.error('[sandbox.shutdown] drain/shutdown failed:', err);
     } finally {
+      await flushSandboxErrorReporting();
       process.exit(0);
     }
   };

@@ -6,11 +6,13 @@
       "inputs": [
         "$TURBO_EXTENDS$",
         "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/scripts/ci-task-cache.ts",
         "$TURBO_ROOT$/services/platform/backend/core/**",
         "$TURBO_ROOT$/services/platform/lib/**",
         "$TURBO_ROOT$/configs/platform/custom/**",
         "$TURBO_ROOT$/configs/platform/system/connectors/**",
         "!$TURBO_ROOT$/configs/platform/**/.turbo/**",
+        "!$TURBO_ROOT$/configs/platform/**/*.tsbuildinfo",
         "$TURBO_ROOT$/services/platform/backend/auth/membership.ts",
         "$TURBO_ROOT$/services/platform/backend/auth/oidc.ts",
         "$TURBO_ROOT$/services/platform/backend/db/sql.ts",
@@ -45,7 +47,10 @@
         "$TURBO_ROOT$/services/web/playwright.config.ts",
         "$TURBO_ROOT$/services/docs/playwright.config.ts",
         "$TURBO_ROOT$/services/platform/vitest.ui.config.ts",
+        "$TURBO_ROOT$/services/platform/postcss.config.mjs",
+        "$TURBO_ROOT$/packages/ui/src/vite/yaml.ts",
         "$TURBO_ROOT$/services/*/Dockerfile",
+        "$TURBO_ROOT$/.dockerignore",
         "$TURBO_ROOT$/.github/actions/setup-turbo/action.yml",
         "$TURBO_ROOT$/services/platform/backend/core/lib/config_store/value_hash.ts",
         "$TURBO_ROOT$/services/platform/lib/shared/utils/stable-stringify.ts",
@@ -60,6 +65,20 @@
         "$TURBO_ROOT$/scripts/install-cli.sh",
         "$TURBO_ROOT$/scripts/install-cli.ps1",
         "$TURBO_ROOT$/services/platform/tests/integration/container-image-test.ts",
+        "$TURBO_ROOT$/services/platform/tests/integration/lib/docker.ts",
+        "$TURBO_ROOT$/services/platform/tests/integration/lib/exec.ts",
+        "$TURBO_ROOT$/services/platform/tests/integration/lib/log.ts",
+        "$TURBO_ROOT$/services/platform/tests/integration/static-site-test.ts",
+        "$TURBO_ROOT$/services/platform/tests/integration/lib/document-tools.ts",
+        "$TURBO_ROOT$/services/platform/tests/integration/fixtures/document-tools/workbook.xls",
+        "$TURBO_ROOT$/services/platform/tests/integration/fixtures/document-tools/workbook.xlsx",
+        "$TURBO_ROOT$/services/sandbox-runtime/document-python-requirements.txt",
+        "$TURBO_ROOT$/services/sandbox-runtime/document-node/package.json",
+        "$TURBO_ROOT$/services/sandbox-runtime/document-node/package-lock.json",
+        "$TURBO_ROOT$/services/platform/tests/integration/container-web-test.ts",
+        "$TURBO_ROOT$/services/platform/tests/integration/container-docs-test.ts",
+        "$TURBO_ROOT$/services/platform/tests/integration/container-ui-docs-test.ts",
+        "$TURBO_ROOT$/services/platform/tests/integration/container-ai-gateway-test.ts",
         "$TURBO_ROOT$/.github/workflows/build.yml",
         "$TURBO_ROOT$/.github/workflows/checks.yml",
         "$TURBO_ROOT$/.github/workflows/cleanup-pr-images.yml",
@@ -99,6 +118,7 @@
         "$TURBO_ROOT$/services/platform/lib/**",
         "$TURBO_ROOT$/configs/platform/**",
         "!$TURBO_ROOT$/configs/platform/**/.turbo/**",
+        "!$TURBO_ROOT$/configs/platform/**/*.tsbuildinfo",
         "$TURBO_ROOT$/.github/scripts/pull-ci-images.sh",
         "$TURBO_ROOT$/.github/workflows/scorecard.yml"
       ],
@@ -111,7 +131,8 @@
         "$TURBO_ROOT$/services/platform/backend/core/**",
         "$TURBO_ROOT$/services/platform/lib/**",
         "$TURBO_ROOT$/configs/platform/**",
-        "!$TURBO_ROOT$/configs/platform/**/.turbo/**"
+        "!$TURBO_ROOT$/configs/platform/**/.turbo/**",
+        "!$TURBO_ROOT$/configs/platform/**/*.tsbuildinfo"
       ]
     },
     "setup": {
@@ -121,7 +142,8 @@
         "$TURBO_ROOT$/services/platform/backend/core/**",
         "$TURBO_ROOT$/services/platform/lib/**",
         "$TURBO_ROOT$/configs/platform/**",
-        "!$TURBO_ROOT$/configs/platform/**/.turbo/**"
+        "!$TURBO_ROOT$/configs/platform/**/.turbo/**",
+        "!$TURBO_ROOT$/configs/platform/**/*.tsbuildinfo"
       ]
     },
     "lint": {

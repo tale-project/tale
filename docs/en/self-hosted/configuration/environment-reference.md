@@ -126,6 +126,7 @@ See [Audit log integrity](/self-hosted/operate/security/audit-log-integrity) for
 | Name                        | Default | Description                                                                                                                            |
 | --------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------- |
 | `SENTRY_DSN`                | unset   | Sentry DSN for error tracking. Leave unset to disable. Compatible with self-hosted GlitchTip and Bugsink.                              |
+| `SENTRY_ENVIRONMENT` | unset | Shared reporting label for browser, backend and sandbox events. Managed deployments default to their retained `name`; an explicit environment reference can select a canonical label without renaming the deployment. |
 | `SENTRY_TRACES_SAMPLE_RATE` | unset | Optional sample rate for browser performance traces (`0.0`–`1.0`); independent of backend sampling. |
 | `BACKEND_SENTRY_TRACES_SAMPLE_RATE` | `0` | Backend HTTP and worker span sample rate (`0.0`–`1.0`). Requires `SENTRY_DSN` and a destination accepting Sentry transactions; `0` disables spans. |
 | `METRICS_BEARER_TOKEN` | unset | Bearer token for the proxy’s `/metrics/*` routes. Without a configured token they return 401. Internal process endpoints remain a separate network-access concern. |

@@ -16,6 +16,8 @@ type Step = {
   'working-directory'?: string;
   env?: Record<string, string>;
   with?: Record<string, unknown>;
+  'continue-on-error'?: boolean;
+  'timeout-minutes'?: number;
 };
 type Job = {
   outputs?: Record<string, string>;
@@ -295,6 +297,43 @@ describe('E2E service scheduling', () => {
     ).toContain('bun run --filter @tale/web test:prerender');
   });
 
+  test('web SEO requires the completed build and still inspects it after browser failure', async () => {
+    const job = (await workflow('e2e')).jobs['static-sites']!;
+    const steps = job.steps!;
+    const build = step(job, 'Build static site');
+    const browser = step(job, 'Run E2E suite');
+    const seo = step(job, 'Prerender SEO suite (web)');
+    expect(build.id).toBe('site-build');
+    expect(steps.indexOf(build)).toBeLessThan(steps.indexOf(browser));
+    expect(steps.indexOf(browser)).toBeLessThan(steps.indexOf(seo));
+    // A status function prevents GitHub's implicit success() from suppressing
+    // this step when Playwright fails; failed or missing builds remain barred.
+    expect(seo.if).toMatch(/\b(?:always|cancelled|success|failure)\s*\(/);
+    const condition = seo.if!.replace(
+      'steps.site-build',
+      "steps['site-build']",
+    );
+    for (const service of ['web', 'docs'])
+      for (const outcome of ['success', 'failure', 'cancelled', 'skipped', ''])
+        for (const browserOutcome of ['success', 'failure'])
+          for (const cancelled of [false, true]) {
+            const admitted = runInNewContext(condition, {
+              matrix: { service },
+              steps: { 'site-build': { outcome } },
+              cancelled: () => cancelled,
+              success: () =>
+                outcome === 'success' && browserOutcome === 'success',
+              failure: () =>
+                outcome === 'failure' || browserOutcome === 'failure',
+              always: () => true,
+            });
+            expect(
+              admitted,
+              `${service}/${outcome}/${browserOutcome}/${cancelled}`,
+            ).toBe(service === 'web' && outcome === 'success' && !cancelled);
+          }
+  });
+
   test.each([
     ['e2e', 'e2e'],
     ['e2e', 'static-sites'],
@@ -325,7 +364,11 @@ describe('E2E service scheduling', () => {
       );
       expect(browserCache.with?.['restore-keys']).toBeUndefined();
       const install = step(file.jobs[job], 'Install Playwright Chromium');
-      expect(install.if).toBeUndefined();
+      if (stem === 'checks')
+        expect(install.if).toBe(
+          "steps.browser-cache.outputs.provision != 'false'",
+        );
+      else expect(install.if).toBeUndefined();
       expect(install.run).toContain(
         'playwright install --with-deps --only-shell chromium',
       );
@@ -405,7 +448,31 @@ describe('E2E service scheduling', () => {
   );
 });
 
-test('candidate scans retain blocking policies without a second discarded SARIF scan', async () => {
+test('SAST verifies reporting and blocking behavior on its provisioned engine', async () => {
+  const sast = await workflow('sast');
+  const job = sast.jobs.sast;
+  const setup = step(job, 'Setup Bun for scanner regressions');
+  const scan = step(job, 'Run Opengrep');
+  const regression = step(
+    job,
+    'Verify scanner reporting and blocking behavior',
+  );
+  expect(setup.with?.['bun-version']).toBe('1.4.2');
+  expect(setup.if).toBe("hashFiles('tools/opengrep/run.test.ts') != ''");
+  expect(regression.run).toBe('bun test tools/opengrep/run.test.ts');
+  expect(regression.if).toBe(
+    "always() && !cancelled() && hashFiles('tools/opengrep/run.test.ts') != ''",
+  );
+  expect(regression['continue-on-error']).not.toBe(true);
+  expect(job.steps?.indexOf(setup)).toBeLessThan(
+    job.steps?.indexOf(scan) ?? -1,
+  );
+  expect(job.steps?.indexOf(scan)).toBeLessThan(
+    job.steps?.indexOf(regression) ?? -1,
+  );
+});
+
+test('candidate scans retain blocking policies without publishing SARIF', async () => {
   const sast = await workflow('sast');
   const scan = step(sast.jobs.sast, 'Run Opengrep');
   const expression = scan.env?.OPENGREP_SARIF_OUTPUT?.replace(
@@ -440,7 +507,7 @@ test('candidate scans retain blocking policies without a second discarded SARIF 
     security.jobs['trivy-fs'],
     'Trivy vulnerability gate (HIGH/CRITICAL)',
   );
-  expect(gate.if).toBeUndefined();
+  expect(gate.if).toBe("!cancelled() && steps.source.outcome == 'success'");
   expect(gate.with).toMatchObject({
     'exit-code': '1',
     severity: 'HIGH,CRITICAL',
@@ -448,6 +515,200 @@ test('candidate scans retain blocking policies without a second discarded SARIF 
     'ignore-unfixed': true,
     trivyignores: '.trivyignore.yaml',
   });
+});
+
+describe('security failure paths', () => {
+  test('reporting failures cannot suppress or precede the blocking vulnerability gate', async () => {
+    const job = (await workflow('security')).jobs['trivy-fs'];
+    const gate = step(job, 'Trivy vulnerability gate (HIGH/CRITICAL)');
+    const report = step(job, 'Run Trivy filesystem scan');
+    const upload = step(job, 'Upload SARIF');
+    expect(gate.if).toContain('cancelled()');
+    expect(step(job, 'Checkout').id).toBe('source');
+    for (const cancelled of [false, true])
+      for (const previousFailure of [false, true]) {
+        // The status function prevents GitHub from inserting success().
+        for (const source of ['success', 'failure', 'skipped', ''])
+          expect(
+            runInNewContext(gate.if!, {
+              cancelled: () => cancelled,
+              failure: () => previousFailure,
+              steps: { source: { outcome: source } },
+            }),
+          ).toBe(!cancelled && source === 'success');
+      }
+    expect(gate['continue-on-error']).not.toBe(true);
+    expect(job?.steps?.indexOf(gate)).toBeLessThan(
+      job?.steps?.indexOf(upload) ?? -1,
+    );
+    expect(upload.if).toContain("hashFiles('trivy-fs.sarif') != ''");
+    expect(upload['continue-on-error']).toBe(true);
+    expect(report['timeout-minutes']).toBe(3);
+    expect(gate['timeout-minutes']).toBe(5);
+    expect(upload['timeout-minutes']).toBe(1);
+  });
+
+  test.skipIf(process.platform === 'win32').each([
+    ['clean', 0, 1, 0],
+    ['finding', 1, 1, 0],
+    ['transport-then-clean', 0, 2, 1],
+    ['transport', 1, 3, 2],
+    ['timeout', 1, 3, 2],
+    ['tee-failure', 1, 1, 0],
+  ] as const)(
+    'the real audit gate handles %s without masking exits or delaying final failure',
+    async (scenario, expectedCode, attempts, sleeps) => {
+      const script = step(
+        (await workflow('security')).jobs['bun-audit'],
+        'Gate on high/critical advisories',
+      ).run!;
+      const directory = await mkdtemp(join(tmpdir(), 'tale-audit-gate-'));
+      temporary.push(directory);
+      await writeFile(join(directory, 'attempt-count'), '0');
+      await writeFile(join(directory, 'sleeps'), '');
+      const mocks = `
+timeout() {
+  count=$(cat attempt-count)
+  count=$((count + 1))
+  printf '%s' "$count" > attempt-count
+  case "$SCENARIO:$count" in
+    finding:*) printf 'HIGH production advisory\\n'; return 1 ;;
+    transport:*|transport-then-clean:1) printf 'error: POST https://registry.npmjs.org/-/npm/v1/security/advisories/bulk failed\\n'; return 1 ;;
+    timeout:*) return 124 ;;
+    *) printf 'no high or critical findings\\n'; return 0 ;;
+  esac
+}
+sleep() { printf '%s\\n' "$*" >> sleeps; }
+tee() {
+  if [ "$SCENARIO" = tee-failure ]; then cat; return 74; fi
+  command tee "$@"
+}
+`;
+      const result = await execute(
+        ['bash', '-e', '-c', mocks + script],
+        directory,
+        { SCENARIO: scenario },
+      );
+      expect(result.code, result.stderr).toBe(expectedCode);
+      expect(await readFile(join(directory, 'attempt-count'), 'utf8')).toBe(
+        String(attempts),
+      );
+      expect(
+        (await readFile(join(directory, 'sleeps'), 'utf8'))
+          .trim()
+          .split('\n')
+          .filter(Boolean),
+      ).toHaveLength(sleeps);
+      if (scenario !== 'tee-failure')
+        for (let attempt = 1; attempt <= attempts; attempt += 1)
+          expect(
+            await readFile(
+              join(directory, `bun-audit-gate-attempt-${attempt}.txt`),
+              'utf8',
+            ),
+          ).toBeDefined();
+      if (scenario === 'tee-failure')
+        expect(result.stdout).toContain(
+          'Could not retain the advisory gate output',
+        );
+    },
+  );
+
+  test('scan evidence survives reporting failure with immutable rerun names', async () => {
+    for (const [stem, job, name, artifact] of [
+      ['security', 'bun-audit', 'Retain advisory evidence', 'bun-audit'],
+      ['security', 'trivy-fs', 'Retain filesystem scan evidence', 'trivy-fs'],
+      ['sast', 'sast', 'Retain scanner evidence', 'opengrep'],
+    ] as const) {
+      const retain = step((await workflow(stem)).jobs[job], name);
+      expect(retain.if).toContain('!cancelled()');
+      expect(retain.if).toContain('hashFiles(');
+      expect(retain.with).toMatchObject({
+        name: `${artifact}-attempt-\${{ github.run_attempt }}`,
+        'retention-days': 14,
+        'if-no-files-found': 'error',
+      });
+    }
+  });
+});
+
+test('provisioned browser and scanner caches survive later test or finding failures', async () => {
+  const file = await workflow('e2e');
+  for (const id of ['e2e', 'static-sites']) {
+    const job = file.jobs[id];
+    const restore = step(job, 'Cache Playwright browsers');
+    const install = step(job, 'Install Playwright Chromium');
+    const save = step(job, 'Save Playwright browsers');
+    const suite = job?.steps?.find(
+      (entry) =>
+        entry.run?.includes('test:e2e') ||
+        entry.run?.includes('playwright test'),
+    );
+    expect(suite).toBeDefined();
+    expect(restore.uses).toContain('actions/cache/restore@');
+    expect(restore.id).toBe('playwright-cache');
+    expect(restore.env?.SEGMENT_DOWNLOAD_TIMEOUT_MINS).toBe('2');
+    expect(save.uses).toContain('actions/cache/save@');
+    expect(save.if).toBe("steps.playwright-cache.outputs.cache-hit != 'true'");
+    expect(save.with?.key).toBe(
+      '${{ steps.playwright-cache.outputs.cache-primary-key }}',
+    );
+    expect(job?.steps?.indexOf(install)).toBeLessThan(
+      job?.steps?.indexOf(save) ?? -1,
+    );
+    expect(job?.steps?.indexOf(save)).toBeLessThan(
+      job?.steps?.indexOf(suite!) ?? -1,
+    );
+  }
+  const job = (await workflow('sast')).jobs.sast;
+  const restore = step(job, 'Cache Opengrep binary');
+  const save = step(job, 'Save Opengrep binary');
+  expect(restore.with?.key).toContain('${{ runner.arch }}');
+  expect(restore.env?.SEGMENT_DOWNLOAD_TIMEOUT_MINS).toBe('2');
+  expect(restore.uses).toContain('actions/cache/restore@');
+  for (const outcome of ['success', 'failure', 'skipped'])
+    for (const regression of ['success', 'failure', 'skipped'])
+      for (const cancelled of [false, true])
+        for (const hit of ['true', 'false', ''])
+          expect(
+            runInNewContext(save.if!.replace(/\.([\w-]*-[\w-]+)/g, "['$1']"), {
+              cancelled: () => cancelled,
+              steps: {
+                'scanner-cache': { outputs: { 'cache-hit': hit } },
+                scanner: { outcome },
+                'scanner-regressions': { outcome: regression },
+              },
+            }),
+          ).toBe(
+            !cancelled &&
+              hit !== 'true' &&
+              (outcome === 'success' || regression === 'success'),
+          );
+});
+
+test('invalid preview identity fails before dependency or browser setup', async () => {
+  const job = (await workflow('e2e')).jobs.e2e;
+  const validate = step(job, 'Validate platform bundle artifact identity');
+  expect(job?.steps?.indexOf(validate)).toBeLessThan(
+    job?.steps?.indexOf(step(job, 'Setup toolchain')) ?? -1,
+  );
+});
+
+test('candidate commitlint needs only its commit while ordinary ranges keep history', async () => {
+  const checkout = step(
+    (await workflow('commitlint')).jobs.commitlint,
+    'Checkout',
+  );
+  const depth = String(checkout.with?.['fetch-depth']).replace(
+    /^\$\{\{\s*|\s*\}\}$/g,
+    '',
+  );
+  for (const event of ['repository_dispatch', 'pull_request', 'push'])
+    expect(runInNewContext(depth, { github: { event_name: event } })).toBe(
+      event === 'repository_dispatch' ? 1 : 0,
+    );
+  expect(checkout.with?.filter).toBe('blob:none');
+  expect(checkout.with?.['persist-credentials']).toBe(false);
 });
 
 async function execute(

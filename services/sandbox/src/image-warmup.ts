@@ -1,3 +1,5 @@
+import { reportSandboxError } from './error-reporting.ts';
+
 /** A cold image pull must not hold the control API or session adoption behind
  * a registry transfer. Only creation waits; existing compute keeps serving. */
 export class ImageWarmup {
@@ -16,6 +18,7 @@ export class ImageWarmup {
         // Warming is best effort. The backend's normal create reports an
         // unavailable image after this attempt, as it did before warmup.
         console.warn('[sandbox] runtime image warmup failed:', error);
+        reportSandboxError(error, 'image-warmup');
       })
       .finally(() => {
         this.inFlight = null;

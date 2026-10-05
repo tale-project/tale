@@ -1,12 +1,21 @@
 import { afterEach, describe, expect, test } from 'bun:test';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  symlink,
+  writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
+import picomatch from 'picomatch';
 import { parse } from 'yaml';
 
 type Step = {
   name?: string;
+  uses?: string;
   if?: string;
   run?: string;
   env?: Record<string, string>;
@@ -18,12 +27,13 @@ type Workflow = {
     string,
     {
       if?: string;
+      'continue-on-error'?: boolean;
       permissions?: Record<string, string>;
       needs?: string[];
       strategy?: {
         'max-parallel'?: number;
         matrix?: {
-          service?: string[];
+          service?: string[] | string;
           include?: { os: string; cross?: boolean }[];
         };
       };
@@ -34,6 +44,8 @@ type Workflow = {
 
 const repository = resolve(import.meta.dir, '../../..');
 const source = '1234567890abcdef1234567890abcdef12345678';
+const matches = (patterns: string[], path: string) =>
+  patterns.some((pattern) => picomatch(pattern, { dot: true })(path));
 const directories: string[] = [];
 afterEach(async () => {
   for (const directory of directories.splice(0))
@@ -79,7 +91,10 @@ async function execute(
   directories.push(directory);
   const output = join(directory, 'output');
   await writeFile(output, '');
-  const shell = process.platform === 'darwin' ? '/bin/bash' : 'bash';
+  // Resolve before a negative-control fixture replaces PATH with its own bin.
+  const shell = Bun.which(process.platform === 'darwin' ? '/bin/bash' : 'bash');
+  if (!shell)
+    throw new Error('Build CI fixtures require Bash on the host PATH');
   const child = Bun.spawn([shell, '-euo', 'pipefail', '-c', script], {
     cwd: cwd ?? directory,
     env: { PATH: process.env.PATH, GITHUB_OUTPUT: output, ...env },
@@ -101,6 +116,28 @@ async function execute(
 }
 
 test.skipIf(process.platform === 'win32')(
+  'workflow shell fixtures launch without adding Bash to their isolated PATH',
+  async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'tale-build-ci-path-'));
+    directories.push(directory);
+    const result = await execute(
+      `printf '%s\\n' "$PATH"
+if command -v bash >/dev/null 2>&1; then
+  printf 'Bash unexpectedly available in fixture PATH\\n' >&2
+  exit 17
+fi
+printf 'shell-started\\n'
+`,
+      { PATH: directory },
+      directory,
+    );
+    expect(result.code, result.stdout + result.stderr).toBe(0);
+    expect(result.stdout).toBe(`${directory}\nshell-started\n`);
+    expect(result.stderr).toBe('');
+  },
+);
+
+test.skipIf(process.platform === 'win32')(
   'standalone site changes avoid the platform stack while shared build inputs retain full coverage',
   async () => {
     const file = await workflow('build');
@@ -114,8 +151,8 @@ test.skipIf(process.platform === 'win32')(
       ['services/platform/backend/server.ts', ['platform'], true],
       [
         'services/platform/tests/integration/container-docs-test.ts',
-        ['platform', 'docs'],
-        true,
+        ['docs'],
+        false,
       ],
       [
         'services/platform/lib/harnesses/gemini.ts',
@@ -182,7 +219,7 @@ test.skipIf(process.platform === 'win32')(
           `${event}: ${path}`,
         ).toBe(true);
       const changes = Object.keys(filters).filter((key) =>
-        filters[key]!.some((pattern) => new Bun.Glob(pattern).match(path)),
+        matches(filters[key]!, path),
       );
       const result = await execute(
         step(file, 'changes', 'Compute service matrix').run!,
@@ -380,7 +417,7 @@ test('cross CLI builds isolate filtered dependencies while native suites keep th
     "${{ matrix.cross && env.BUN_INSTALL_CACHE_DIR || '~/.bun/install/cache' }}",
   );
   expect(cache.with?.key).toBe(
-    "${{ matrix.cross && 'bun-cli-install' || 'bun-install' }}-${{ runner.os }}-${{ runner.arch }}-1.4.2-${{ hashFiles('bun.lock') }}",
+    "${{ matrix.cross && 'bun-cli-install' || 'bun-install' }}-${{ runner.os }}-${{ runner.arch }}-1.4.2-${{ hashFiles('bun.lock', 'package.json', '**/package.json', 'patches/**', 'bunfig.toml') }}",
   );
   expect(String(cache.with?.['restore-keys']).trim()).toBe(
     "${{ matrix.cross && 'bun-cli-install' || 'bun-install' }}-${{ runner.os }}-${{ runner.arch }}-1.4.2-",
@@ -656,19 +693,40 @@ describe.skipIf(process.platform === 'win32')(
       );
     });
 
-    test('root build inputs validate every workspace image and keep candidate breadth', async () => {
+    test('root build inputs and SBOM helper edits validate every workspace image and keep candidate breadth', async () => {
       const build = await workflow();
       const filters = parse(
         String(findStep(build.jobs.changes!, 'Filter paths').with!.filters),
       ) as Record<string, string[]>;
       const matrix = findStep(build.jobs.changes!, 'Compute service matrix');
+      const scan = build.jobs['vulnerability-scan']!;
+      const publishedServices = build.jobs.build!.strategy!.matrix!.service;
+      if (!Array.isArray(publishedServices))
+        throw new Error('Build image matrix must list its published services');
+      const sbomHelper = String(
+        findStep(scan, 'Checkout SBOM hash guard').with!['sparse-checkout'],
+      );
+      expect(sbomHelper).toBe('tools/cli/scripts/check-sbom-hashes.ts');
+      for (const event of ['pull_request', 'push'])
+        expect(build.on[event]!.paths!).toContain(sbomHelper);
+      expect(filters.image_inputs!).toContain(sbomHelper);
+      const helperChanges = Object.keys(filters).filter((key) =>
+        matches(filters[key]!, sbomHelper),
+      );
+      expect(helperChanges).toEqual(['image_inputs']);
+      expect(scan.strategy?.matrix?.service).toBe(
+        '${{ fromJson(needs.changes.outputs.scannable_services) }}',
+      );
+      expect(findStep(scan, 'Verify SBOM package hashes').if).toBe(
+        'matrix.service == fromJSON(needs.changes.outputs.scannable_services)[0]',
+      );
       for (const candidate of ['', source]) {
         const result = await execute(matrix.run!, {
           CANDIDATE_SHA: candidate,
-          CHANGES: '["image_inputs"]',
+          CHANGES: JSON.stringify(helperChanges),
           CI_TESTS: 'false',
           STORYBOOK: 'false',
-          IMAGE_INPUTS: 'true',
+          IMAGE_INPUTS: String(helperChanges.includes('image_inputs')),
         });
         expect(result.code, result.stdout + result.stderr).toBe(0);
         const values = outputs(result.output);
@@ -683,6 +741,11 @@ describe.skipIf(process.platform === 'win32')(
           expect(services).toContain(service);
         expect(services).not.toContain('image_inputs');
         expect(values.stack).toBe('true');
+        expect(values.ci_tests).toBe('true');
+        const scannable = JSON.parse(values.scannable!) as string[];
+        expect(scannable.toSorted()).toEqual(
+          candidate ? [] : publishedServices.toSorted(),
+        );
         expect(values.storybook).toBe('true');
         expect(services.toSorted()).toEqual(
           Object.keys(filters)
@@ -710,11 +773,7 @@ describe.skipIf(process.platform === 'win32')(
         'tools/cli/package.json',
         'tsconfig.dom.json',
       ])
-        expect(
-          filters.image_inputs!.some((pattern) =>
-            new Bun.Glob(pattern).match(input),
-          ),
-        ).toBe(true);
+        expect(matches(filters.image_inputs!, input)).toBe(true);
     });
   },
 );
@@ -733,9 +792,7 @@ test('standalone container tests run for their own harness and shared stack inpu
       'services/platform/tests/integration/static-site-test.ts',
       'services/platform/tests/integration/lib/docker.ts',
     ]) {
-      expect(
-        filters[service]!.some((pattern) => new Bun.Glob(pattern).match(input)),
-      ).toBe(true);
+      expect(matches(filters[service]!, input)).toBe(true);
       for (const event of ['pull_request', 'push'])
         expect(
           build.on[event]!.paths!.some((pattern) =>
@@ -757,12 +814,7 @@ test('every declared workspace manifest selects the workspace image consumers', 
   expect(workspaces.length).toBeGreaterThan(0);
   for (const workspace of workspaces) {
     const manifest = `${workspace.replaceAll('*', 'example')}/package.json`;
-    expect(
-      filters.image_inputs!.some((pattern) =>
-        new Bun.Glob(pattern).match(manifest),
-      ),
-      manifest,
-    ).toBe(true);
+    expect(matches(filters.image_inputs!, manifest), manifest).toBe(true);
     for (const event of ['pull_request', 'push'])
       expect(
         build.on[event]!.paths!.some((pattern) =>
@@ -784,21 +836,11 @@ test('standalone compose edits do not select the unrelated stack harness', async
       `compose.${service}.yml`,
       `compose.${service}.test.yml`,
     ]) {
-      expect(
-        filters[service]!.some((pattern) => new Bun.Glob(pattern).match(path)),
-        path,
-      ).toBe(true);
-      expect(
-        filters.ci_tests!.some((pattern) => new Bun.Glob(pattern).match(path)),
-        path,
-      ).toBe(false);
+      expect(matches(filters[service]!, path), path).toBe(true);
+      expect(matches(filters.ci_tests!, path), path).toBe(false);
     }
   }
-  expect(
-    filters.ci_tests!.some((pattern) =>
-      new Bun.Glob(pattern).match('compose.test.yml'),
-    ),
-  ).toBe(true);
+  expect(matches(filters.ci_tests!, 'compose.test.yml')).toBe(true);
 });
 
 test('direct config validation avoids starting an unused Turbo cache server', async () => {
@@ -807,6 +849,41 @@ test('direct config validation avoids starting an unused Turbo cache server', as
       'start-turbo-cache'
     ],
   ).toBe('false');
+});
+
+test('published image gates record remaining disk after every accepted-image probe', async () => {
+  const file = await workflow();
+  for (const job of ['smoke-test', 'image-validate']) {
+    const steps = file.jobs[job]!.steps;
+    const after = step(file, job, 'Log disk after image checks');
+    const check = step(
+      file,
+      job,
+      job === 'smoke-test'
+        ? 'Run smoke tests'
+        : 'Run image validation and sandbox runtime behavior',
+    );
+    expect(after.if).toBe('always()');
+    expect(after.run).toBe(step(file, 'smoke-test', after.name!).run);
+    expect(after.run).toContain('df -Pk /');
+    expect(check.env?.SKIP_BUILD).toBe('true');
+    expect(steps.indexOf(step(file, job, 'Reclaim disk space'))).toBeLessThan(
+      steps.indexOf(step(file, job, 'Download image receipts')),
+    );
+    expect(
+      steps.indexOf(step(file, job, 'Download image receipts')),
+    ).toBeLessThan(steps.indexOf(step(file, job, 'Pull images from GHCR')));
+    expect(
+      steps.indexOf(step(file, job, 'Pull images from GHCR')),
+    ).toBeLessThan(steps.indexOf(check));
+    expect(steps.indexOf(check)).toBeLessThan(steps.indexOf(after));
+    if (job === 'image-validate') {
+      const upload = step(file, job, 'Upload image validation logs');
+      expect(upload.if).toBe('always()');
+      expect(steps.indexOf(check)).toBeLessThan(steps.indexOf(upload));
+      expect(steps.indexOf(upload)).toBeLessThan(steps.indexOf(after));
+    }
+  }
 });
 
 test('native release builds reuse isolated architecture caches without adding runner pressure', async () => {
@@ -821,3 +898,227 @@ test('native release builds reuse isolated architecture caches without adding ru
     'type=registry,ref=${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service.name }}-buildcache:${{ matrix.arch.name }},mode=max,ignore-error=true',
   );
 });
+
+test('SARIF preserves all findings while direct SBOM analysis retains package hashes', async () => {
+  const scan = (await workflow()).jobs['vulnerability-scan']!;
+  const imageScans = scan.steps.filter((entry) =>
+    entry.uses?.startsWith('aquasecurity/trivy-action@'),
+  );
+  expect(imageScans).toHaveLength(2);
+  const trivyAction =
+    'aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25';
+  expect(imageScans.map((entry) => entry.uses)).toEqual([
+    trivyAction,
+    trivyAction,
+  ]);
+  expect(imageScans[0]!.with).toMatchObject({
+    version: 'v0.70.0',
+    format: 'json',
+    output: '${{ matrix.service }}-trivy.json',
+    'list-all-pkgs': 'true',
+    scanners: 'vuln,secret',
+    severity: 'UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL',
+    trivyignores: '.trivyignore.yaml',
+  });
+  expect(scan['continue-on-error']).toBe(true);
+  const inventory = findStep(scan, 'Generate SBOM (CycloneDX)');
+  expect(inventory.with).toEqual({
+    version: 'v0.70.0',
+    'skip-setup-trivy': 'true',
+    cache: 'false',
+    'scan-type': 'image',
+    'image-ref': imageScans[0]!.with!['image-ref'],
+    format: 'cyclonedx',
+    output: '${{ matrix.service }}-sbom.cdx.json',
+  });
+  // Trivy's persistent analysis-cache key omits its file-checksum option.
+  // Reusing an earlier JSON entry would silently discard package hashes.
+  expect(inventory.env).toEqual({ TRIVY_CACHE_BACKEND: 'memory' });
+  expect(inventory.run).toBeUndefined();
+  expect(inventory.if).toBeUndefined();
+  expect(scan.needs).toEqual(['changes', 'build']);
+  expect(scan.if).toContain('!cancelled()');
+  expect(scan.if).toContain("needs.changes.outputs.scannable_services != '[]'");
+  expect(scan.if).toContain('github.event.pull_request.head.repo.fork != true');
+  const names = scan.steps.map((entry) => entry.name);
+  const ordered = [
+    'Run Trivy',
+    'Generate SARIF',
+    'Upload SARIF',
+    'Generate SBOM (CycloneDX)',
+    'Checkout SBOM hash guard',
+    'Setup Bun for SBOM hash guard',
+    'Verify SBOM package hashes',
+    'Upload SBOM',
+  ];
+  expect(ordered.map((name) => names.indexOf(name))).toEqual(
+    ordered.map((name) => names.indexOf(name)).toSorted((a, b) => a - b),
+  );
+  const conversion = findStep(scan, 'Generate SARIF');
+  expect(conversion.if).toBeUndefined();
+  expect(conversion.env).toEqual({ SERVICE: '${{ matrix.service }}' });
+  expect(conversion.uses).toBeUndefined();
+  const once =
+    'matrix.service == fromJSON(needs.changes.outputs.scannable_services)[0]';
+  for (const name of [
+    'Checkout SBOM hash guard',
+    'Setup Bun for SBOM hash guard',
+    'Verify SBOM package hashes',
+  ]) {
+    expect(findStep(scan, name).if).toBe(once);
+  }
+  const helper = findStep(scan, 'Checkout SBOM hash guard');
+  expect(helper.uses).toBe(
+    'actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd',
+  );
+  expect(helper.with).toEqual({
+    ref: '${{ github.workflow_sha }}',
+    path: '.ci-workflow',
+    'persist-credentials': false,
+    'sparse-checkout': 'tools/cli/scripts/check-sbom-hashes.ts',
+    'sparse-checkout-cone-mode': false,
+  });
+  const bun = findStep(scan, 'Setup Bun for SBOM hash guard');
+  expect(bun.uses).toBe(
+    'oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6',
+  );
+  expect(bun.with).toEqual({ 'bun-version': '1.4.2' });
+  expect(findStep(scan, 'Verify SBOM package hashes').run).toBe(
+    'bun .ci-workflow/tools/cli/scripts/check-sbom-hashes.ts',
+  );
+  const sourceCheckout = findStep(scan, 'Checkout');
+  expect(sourceCheckout.with?.ref).toBe(
+    '${{ needs.changes.outputs.candidate_sha }}',
+  );
+  expect(sourceCheckout.with?.path).toBeUndefined();
+  const sarif = findStep(scan, 'Upload SARIF');
+  expect(sarif.if).toBe(
+    "always() && hashFiles(format('{0}-trivy.sarif', matrix.service)) != ''",
+  );
+  expect(sarif.with).toMatchObject({
+    sarif_file: '${{ matrix.service }}-trivy.sarif',
+    category: 'trivy-${{ matrix.service }}',
+  });
+  const sbom = findStep(scan, 'Upload SBOM');
+  expect(sbom.if).toBe(
+    "always() && hashFiles(format('{0}-sbom.cdx.json', matrix.service)) != ''",
+  );
+  expect(sbom.with).toMatchObject({
+    name: 'sbom-${{ matrix.service }}',
+    path: '${{ matrix.service }}-sbom.cdx.json',
+    'retention-days': 14,
+    'if-no-files-found': 'ignore',
+  });
+});
+
+describe.skipIf(process.platform === 'win32')('Trivy SARIF conversion', () => {
+  const commands: [string, string[]][] = [
+    [
+      'Generate SARIF',
+      [
+        'convert',
+        '--format',
+        'sarif',
+        '--severity',
+        'UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL',
+        '--ignorefile',
+        '.trivyignore.yaml',
+        '--output',
+        'proxy-trivy.sarif',
+        'proxy-trivy.json',
+      ],
+    ],
+  ];
+
+  async function fixture(expected: string[]) {
+    const directory = await mkdtemp(join(tmpdir(), 'tale-trivy-convert-ci-'));
+    directories.push(directory);
+    const calls = join(directory, 'calls.json');
+    await writeFile(join(directory, 'proxy-trivy.json'), '{}');
+    await writeFile(
+      join(directory, 'trivy'),
+      `#!${process.execPath}
+import { readFileSync, writeFileSync } from 'node:fs';
+const args = process.argv.slice(2);
+writeFileSync(process.env.TEST_CALLS, JSON.stringify(args));
+if (JSON.stringify(args) !== process.env.TEST_ARGUMENTS) process.exit(18);
+if (process.env.TEST_FAILURE === 'true') process.exit(17);
+readFileSync(args.at(-1));
+writeFileSync(args[args.indexOf('--output') + 1], 'converted');
+`,
+      { mode: 0o755 },
+    );
+    return {
+      directory,
+      calls,
+      env: {
+        PATH: `${directory}:${process.env.PATH}`,
+        SERVICE: 'proxy',
+        TEST_CALLS: calls,
+        TEST_ARGUMENTS: JSON.stringify(expected),
+      },
+    };
+  }
+
+  test.each(commands)(
+    '%s preserves arguments and propagates conversion failures',
+    async (name, expected) => {
+      const conversion = step(await workflow(), 'vulnerability-scan', name);
+      for (const failure of ['false', 'true']) {
+        const run = await fixture(expected);
+        const result = await execute(
+          conversion.run!,
+          { ...run.env, TEST_FAILURE: failure },
+          run.directory,
+        );
+        expect(JSON.parse(await readFile(run.calls, 'utf8'))).toEqual(expected);
+        expect(result.code, result.stdout + result.stderr).toBe(
+          failure === 'true' ? 17 : 0,
+        );
+      }
+    },
+  );
+});
+
+test.skipIf(process.platform === 'win32')(
+  'SBOM hash guard fails closed without the installed pinned engine',
+  async () => {
+    const guard = step(
+      await workflow(),
+      'vulnerability-scan',
+      'Verify SBOM package hashes',
+    );
+    for (const mode of ['absent', 'wrong-version', 'engine-error']) {
+      const directory = await mkdtemp(join(tmpdir(), 'tale-sbom-engine-ci-'));
+      directories.push(directory);
+      const helper = 'tools/cli/scripts/check-sbom-hashes.ts';
+      const helperPath = join(directory, '.ci-workflow', helper);
+      await mkdir(resolve(helperPath, '..'), { recursive: true });
+      await writeFile(helperPath, await readFile(join(repository, helper)));
+      await symlink(process.execPath, join(directory, 'bun'));
+      if (mode !== 'absent') {
+        await writeFile(
+          join(directory, 'trivy'),
+          `#!${process.execPath}
+if (!process.argv.includes('--version')) throw new Error('A rejected engine must not scan');
+${mode === 'engine-error' ? 'process.exit(17);' : 'console.log("Version: 0.71.0");'}
+`,
+          { mode: 0o755 },
+        );
+      }
+      const result = await execute(
+        guard.run!,
+        { PATH: directory, TMPDIR: directory },
+        directory,
+      );
+      expect(result.code, result.stdout + result.stderr).toBe(1);
+      expect(result.stderr).toContain(
+        mode === 'absent'
+          ? 'The installed Trivy 0.70.0 binary is required'
+          : mode === 'wrong-version'
+            ? 'Expected Trivy 0.70.0'
+            : 'version failed',
+      );
+    }
+  },
+);

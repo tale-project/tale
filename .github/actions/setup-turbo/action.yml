@@ -33,6 +33,11 @@ inputs:
     description: Deprecated compatibility input for older candidate actions; unused here.
     required: false
 
+outputs:
+  node-version:
+    description: Exact Node version selected from the platform image
+    value: ${{ steps.node.outputs.version }}
+
 runs:
   using: composite
   steps:
@@ -46,16 +51,62 @@ runs:
           echo "DO_NOT_TRACK=1"
           echo "TURBO_TELEMETRY_DISABLED=1"
           echo "STORYBOOK_DISABLE_TELEMETRY=1"
+          echo "TELEMETRY_DISABLED=1"
           echo "SCARF_ANALYTICS=false"
           # GitHub's cache visibility isolates PR writes from main. Never
           # read repository-wide artifacts or a remote server for task cache.
           echo "TURBO_CACHE=local:rw"
         } >> "$GITHUB_ENV"
 
+    - name: Bound hosted Turbo cache history
+      if: inputs.turbo-cache == 'true'
+      shell: bash
+      run: |
+        set -euo pipefail
+        # Turbo's best-effort native eviction removes the oldest archives and
+        # their sidecars at run startup. This is a 512 MiB starting target,
+        # not a hard limit on the outputs written during that run.
+        # Never apply eviction to a developer or persistent self-hosted cache.
+        if [ "${GITHUB_ACTIONS:-}" = 'true' ] && [ "${RUNNER_ENVIRONMENT:-}" = 'github-hosted' ]; then
+          {
+            printf 'TURBO_CACHE_DIR=%s/.turbo/cache\n' "$GITHUB_WORKSPACE"
+            echo "TURBO_CACHE_MAX_SIZE=512MB"
+          } >> "$GITHUB_ENV"
+        fi
+
+    # Use the runtime the shipped platform runs, rather than whichever Node
+    # the hosted runner image happened to select this week.
+    - name: Resolve the platform's Node
+      id: node
+      shell: bash
+      run: |
+        set -euo pipefail
+        version=$(sed -n 's/^FROM node:\([0-9][0-9.]*\)-.* AS node-bin$/\1/p' services/platform/Dockerfile)
+        if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+          echo '::error::services/platform/Dockerfile names no exact node-bin stage version'; exit 1
+        fi
+        echo "version=$version" >> "$GITHUB_OUTPUT"
+
+    - name: Setup Node
+      uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+      with:
+        node-version: ${{ steps.node.outputs.version }}
+        package-manager-cache: false
+
     - name: Setup Bun
       uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
       with:
         bun-version: ${{ inputs.bun-version }}
+
+    - name: Identify the actual task runtime
+      shell: bash
+      run: |
+        set -euo pipefail
+        distribution="$RUNNER_OS"
+        if [ -f /etc/os-release ]; then
+          distribution="$(. /etc/os-release; printf '%s-%s' "$ID" "$VERSION_ID")"
+        fi
+        printf 'TALE_CI_RUNTIME=%s-%s-%s-%s-%s\n' "$RUNNER_OS" "$RUNNER_ARCH" "$distribution" "$(node --version)" "$(bun --version)" >> "$GITHUB_ENV"
 
     # Cache downloaded packages, not node_modules. A frozen install remains
     # authoritative even when a prior lockfile supplied the package payloads.
@@ -104,6 +155,8 @@ runs:
     - name: Restore Turbo task cache
       if: inputs.turbo-cache == 'true'
       uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+      env:
+        SEGMENT_DOWNLOAD_TIMEOUT_MINS: '2'
       with:
         path: .turbo/cache
         key: turbo-v1-${{ runner.os }}-${{ runner.arch }}-${{ inputs.bun-version }}-${{ inputs.cache-scope || github.job }}-${{ hashFiles('bun.lock') }}-${{ steps.cache-source.outputs.revision }}-${{ github.workflow }}-${{ inputs.cache-writer || github.job }}
