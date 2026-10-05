@@ -2093,6 +2093,7 @@ documents:
   searchPlaceholder: Search documents
   refreshFailed: "Couldn't load the latest documents. What's listed may be incomplete or out of date."
   loadFailed: "Couldn't load the documents here. Only the folders are listed until the documents load."
+  foldersLoadFailed: "Couldn't load the folders here. Documents filed in folders aren't listed until the folders load."
   record:
     badge: 'v{version} · {state}'
     state:

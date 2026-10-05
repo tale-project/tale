@@ -66,6 +66,19 @@ cached run controls survive a failed background read. These cases are owned
 by `app/features/tasks/components/task-agent-run-entry.test.tsx` (#3829).
 Real-browser focus, speech and narrow-screen layout remain manual.
 
+A Documents folder list that never answers is named above the table in
+EN/DE/FR (`documents.foldersLoadFailed`) with Try again, never as an empty
+library: at the hub root with no unfiled documents **No documents yet** stays
+away, listed documents stay and are never counted as all, and with both reads
+failed the table's error state retries both. Try again stays busy through the
+retry, reads only the folders again, keeps its focus through a background
+re-failure and hands it to the Documents region once the folders load; an
+empty library keeps its empty state. These cases are owned by
+`app/features/documents/components/documents-table.read-failure.test.tsx`
+(#3880); `DataTable` never shows the empty state for a list a failed read
+stopped with nothing loaded (`packages/ui/src/components/data-table/data-table.test.tsx`).
+Real-browser speech and layout remain manual.
+
 Text-only edits retain the original uploaded attachment references in both
 the send request and optimistic message, leave unrelated composer files
 staged, and keep regeneration on its original-prompt path:
