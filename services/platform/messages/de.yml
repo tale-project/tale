@@ -1803,6 +1803,7 @@ connectivity:
     reload: Neu laden
     later: Später
 conversations:
+  availabilityError: Deine Posteingangsquellen konnten nicht geprüft werden. Versuch es erneut, um die Verfügbarkeit des Posteingangs zu aktualisieren.
   title: Inbox
   unknownContact: Unbekannter Kontakt
   messagePlaceholder: Nachricht eingeben

@@ -1812,6 +1812,7 @@ connectivity:
     reload: Recharger
     later: Plus tard
 conversations:
+  availabilityError: Impossible de vérifier les sources de ta boîte de réception. Réessaie pour actualiser sa disponibilité.
   title: Boîte de réception
   unknownContact: Contact inconnu
   messagePlaceholder: Saisis un message

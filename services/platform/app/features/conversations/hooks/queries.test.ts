@@ -50,12 +50,30 @@ function stub(options: {
   credentials?: unknown[];
   loading?: { automations?: boolean; credentials?: boolean };
   credentialsError?: unknown;
+  automationsError?: unknown;
 }): void {
   convexQuery.mockImplementation((ref: unknown, args: unknown) => {
     if (args === 'skip') return { data: undefined, isLoading: false };
+    if (ref === 'conversations/queries:apiSources')
+      return {
+        data: [],
+        isLoading: false,
+        isError: false,
+        errorUpdateCount: 0,
+        isFetching: false,
+        refetch: vi.fn(),
+      };
     if (ref === 'automations/queries:listAutomations') {
       const isLoading = options.loading?.automations === true;
-      return { data: isLoading ? undefined : options.automations, isLoading };
+      return {
+        data: isLoading ? undefined : options.automations,
+        isLoading,
+        error: options.automationsError,
+        isError: Boolean(options.automationsError),
+        errorUpdateCount: options.automationsError ? 1 : 0,
+        isFetching: isLoading,
+        refetch: vi.fn(),
+      };
     }
     const isLoading = options.loading?.credentials === true;
     return {
@@ -72,6 +90,17 @@ beforeEach(() => {
 });
 
 describe('useEmailConnectors', () => {
+  it('reports discovery failures and retries every dependency', async () => {
+    const error = new Error('discovery failed');
+    stub({ automationsError: error, credentials: [] });
+    const { result } = renderHook(() => useEmailConnectors('org_1'));
+    expect(result.current.error).toBe(error);
+    await result.current.retry();
+    for (const query of convexQuery.mock.results) {
+      expect(query.value.refetch).toHaveBeenCalledOnce();
+    }
+  });
+
   it('offers one sender per deployed inbox pack with an active credential', () => {
     stub({
       automations: [

@@ -47,6 +47,10 @@ function stubList(
       : {
           data: ref === 'conversations/queries:apiSources' ? sources : data,
           isLoading,
+          isError: false,
+          isFetching: isLoading,
+          errorUpdateCount: 0,
+          refetch: vi.fn(),
         },
   );
 }
@@ -56,6 +60,67 @@ beforeEach(() => {
 });
 
 describe('useInboxAvailability', () => {
+  it.each([
+    'automations/queries:listAutomations',
+    'conversations/queries:apiSources',
+  ])(
+    'keeps %s failures visible and the retry stable until discovery recovers',
+    async (source) => {
+      const refetchAutomations = vi.fn();
+      const refetchSources = vi.fn();
+      let failed = true;
+      let fetching = false;
+      convexQuery.mockImplementation((name: string) => ({
+        data: failed && name === source ? undefined : [],
+        isLoading: fetching,
+        isError: failed && name === source && !fetching,
+        isFetching: fetching,
+        errorUpdateCount: failed && name === source ? 1 : 0,
+        refetch:
+          name === 'automations/queries:listAutomations'
+            ? refetchAutomations
+            : refetchSources,
+      }));
+      const { result, rerender } = renderHook(() =>
+        useInboxAvailability('org_1'),
+      );
+      const retry = result.current.retry;
+      expect(result.current.hasInbox).toBe(false);
+      expect(result.current.showInbox).toBe(true);
+      expect(result.current.readState.unavailable).toBe(true);
+      await retry();
+      expect(refetchAutomations).toHaveBeenCalledOnce();
+      expect(refetchSources).toHaveBeenCalledOnce();
+      fetching = true;
+      rerender();
+      expect(result.current.retry).toBe(retry);
+      expect(result.current.isLoading).toBe(false);
+      expect(result.current.showInbox).toBe(true);
+      expect(result.current.readState.retrying).toBe(true);
+      failed = false;
+      fetching = false;
+      rerender();
+      expect(result.current.showInbox).toBe(false);
+      expect(result.current.readState.unavailable).toBe(false);
+    },
+  );
+
+  it('reports a failed refresh even when cached empty discovery data exists', () => {
+    convexQuery.mockReturnValue({
+      data: [],
+      isLoading: false,
+      isError: true,
+      isFetching: false,
+      errorUpdateCount: 1,
+      refetch: vi.fn(),
+    });
+    const { result } = renderHook(() => useInboxAvailability('org_1'));
+    expect(result.current.hasInbox).toBe(false);
+    expect(result.current.showInbox).toBe(true);
+    expect(result.current.readState.stale).toBe(true);
+    expect(result.current.readState.unavailable).toBe(false);
+  });
+
   it('opens the native Inbox for an API source without a mail automation', () => {
     stubList([], false, ['vatplus']);
     const { result } = renderHook(() => useInboxAvailability('org_1'));

@@ -8,7 +8,12 @@ import { renderHook } from '@/tests/utils/render';
 
 // The two reads the Home entry's chip depends on: whether the organization
 // has an inbox at all, and the unread count the chip carries.
-const inbox = { hasInbox: true };
+const inbox = {
+  get showInbox() {
+    return this.hasInbox;
+  },
+  hasInbox: true,
+};
 const unread: { data: number | undefined } = { data: undefined };
 const unreadCalls: (string | undefined)[] = [];
 
