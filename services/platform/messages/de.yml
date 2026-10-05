@@ -4618,6 +4618,8 @@ knowledgeEntries:
   addEntry: Wissenseintrag hinzufügen
   addDescription: Wähle ein Thema und formuliere das Wissen so, dass es für sich allein verständlich ist.
   editEntry: Wissenseintrag bearbeiten
+  editDialog:
+    newerVersion: Während deiner Bearbeitung wurde eine neue Version veröffentlicht. Dein Entwurf ist noch vorhanden. Speichere ihn, um diese Version zu ersetzen, oder brich ab und verwerfe ihn.
   adding: Wird hinzugefügt...
   saving: Wird gespeichert...
   topic: Thema

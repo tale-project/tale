@@ -4456,6 +4456,8 @@ knowledgeEntries:
   addEntry: Add knowledge entry
   addDescription: Name a topic, then write the knowledge so it makes sense on its own.
   editEntry: Edit knowledge entry
+  editDialog:
+    newerVersion: A newer version was published while you were editing. Your draft is still here; save it to replace that version, or cancel and discard it.
   adding: Adding...
   saving: Saving...
   topic: Topic
