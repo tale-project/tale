@@ -6,6 +6,15 @@ suite alongside the automated ones — they drive the same stack.
 
 ## Coverage map
 
+Legal matter editing preserves retained 2500- and 4000-character descriptions
+when only the name changes. Creation accepts trimmed fields at the API limits
+(300-character name, 200-character case number, 4000-character description).
+Over-limit fields disable saving and show localized, accessible inline errors
+in EN/DE/FR that clear after correction:
+`app/features/settings/governance/legal-hold/upsert-matter-dialog.test.tsx`
+covers the component boundary and axe audit; real API persistence and browser
+layout remain manual.
+
 Task agent Details distinguishes a failed sandbox-op read from loading and a
 successful no-log response. EN/DE/FR errors offer Try again without starting a
 new run; retry restores a stranded focus after another failure, preserves a
