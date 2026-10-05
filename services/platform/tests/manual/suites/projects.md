@@ -1,6 +1,6 @@
 # Projects & tasks
 
-> **Prefix** `PROJ-` · **Reset** none · **Cost** 63 boxes
+> **Prefix** `PROJ-` · **Reset** none · **Cost** 64 boxes
 
 Exercise projects (identity edit, sharing/visibility), their tabs (files,
 threads, agents, instructions, secrets, metrics, automations), the task
@@ -476,7 +476,7 @@ projects-list row ⋯ menu.
   reads **A project appears here once someone shares it with you or one of
   your teams.** (`projects.list.emptyReaderDescription`). As an Editor both
   doors are back. The server refuses a create below the Editor role.
-- [ ] `PROJ-B14` · **A secrets read that fails is not an empty Environment** —
+- [ ] `PROJ-B16` · **A secrets read that fails is not an empty Environment** —
   As a project administrator with one stored secret, block
   `*/api/app/projects/*/secrets*` in DevTools (Network → request blocking)
   and reload the project's **Environment** tab (`projectSecrets.title`) →
