@@ -10,6 +10,8 @@ const { state } = vi.hoisted(() => ({
   state: {
     data: undefined as unknown,
     isError: false,
+    isFetching: false,
+    errorUpdateCount: 0,
     refetch: vi.fn(),
   },
 }));
@@ -18,6 +20,8 @@ vi.mock('@/app/hooks/use-backend-query', () => ({
   useBackendQuery: () => ({
     data: state.data,
     isError: state.isError,
+    isFetching: state.isFetching,
+    errorUpdateCount: state.errorUpdateCount,
     refetch: state.refetch,
   }),
 }));
@@ -170,6 +174,7 @@ describe('AgentExecutionLog', () => {
   it('keeps the transcript section visible and retries when the op read fails', async () => {
     state.data = undefined;
     state.isError = true;
+    state.errorUpdateCount = 1;
     const { user } = render(
       <AgentExecutionLog organizationId="org-1" runId={runId} />,
     );
@@ -181,5 +186,45 @@ describe('AgentExecutionLog', () => {
     await user.click(retry);
     expect(state.refetch).toHaveBeenCalledOnce();
     expect(retry).toHaveFocus();
+  });
+
+  it('keeps the section and focused retry mounted while a retry resets the query', async () => {
+    state.data = undefined;
+    state.isError = true;
+    state.errorUpdateCount = 1;
+    state.refetch.mockImplementation(() => {
+      state.isError = false;
+      state.isFetching = true;
+    });
+    const { user, rerender } = render(
+      <AgentExecutionLog organizationId="org-1" runId={runId} />,
+    );
+
+    const retry = screen.getByRole('button', { name: 'Try again' });
+    await user.click(retry);
+    rerender(<AgentExecutionLog organizationId="org-1" runId={runId} />);
+
+    expect(
+      screen.getByRole('heading', { name: 'Agent log' }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('alert')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Try again' })).toHaveFocus();
+    expect(retry).toHaveAttribute('aria-disabled', 'true');
+    expect(retry).toHaveAttribute('aria-busy', 'true');
+    expect(retry).not.toBeDisabled();
+  });
+
+  it('keeps cached transcript content visible when a refresh fails', () => {
+    state.data = op([{ type: 'text', text: 'cached thought' }]);
+    state.isError = true;
+    state.errorUpdateCount = 1;
+    const { container } = render(
+      <AgentExecutionLog organizationId="org-1" runId={runId} />,
+    );
+
+    expect(container).toHaveTextContent('cached thought');
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Could not load the agent log.',
+    );
   });
 });
