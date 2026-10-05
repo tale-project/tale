@@ -19,9 +19,13 @@ import {
 
 import { ProjectBreadcrumbSwitcher } from '@/app/features/projects/components/project-breadcrumb-switcher';
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { render, screen, waitFor } from '@/tests/utils/render';
+import { configure, render, screen, waitFor } from '@/tests/utils/render';
 
 import { Route } from './files';
+
+// The first render waits on cold module transforms, which a loaded runner
+// stretches past the default one-second wait.
+configure({ asyncUtilTimeout: 10_000 });
 
 // #3918: the project breadcrumb keeps the Files tab on a project switch, and
 // the tab used to keep the previous project's upload folder with it, in its
