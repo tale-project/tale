@@ -6,6 +6,14 @@ suite alongside the automated ones — they drive the same stack.
 
 ## Coverage map
 
+Shared bulk Delete and Archive preserve refused selections and keep the confirmation
+open with failed item names and safe caller-supplied reasons. Retries exclude successes;
+all-success closes and clears as before. Mixed/all-refused/success controls for both
+verbs live in `packages/ui/src/components/data-table/data-table-bulk-actions.test.tsx`;
+the real ContactsTable selection and failure-only retry are covered by
+`app/features/contacts/components/contact-table.bulk-delete.test.tsx`.
+Real-browser focus, layout and visual transitions remain manual.
+
 Website content search clears submitted results when the input changes to a
 different query, without issuing another request until Enter. Whitespace-only
 edits retain results; clearing the input and late responses after edits are
