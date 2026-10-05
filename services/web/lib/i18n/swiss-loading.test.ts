@@ -43,15 +43,6 @@ describe('Swiss catalog loading', () => {
         ['home:faq.onPrem.a', null],
       ],
     ],
-    [
-      'services/platform/messages',
-      [
-        ['chat:budgetWarningDismiss', 'Schliessen'],
-        ['conversations:bulk.close', 'Schliessen'],
-        ['notifications:expand', 'Vergrössern'],
-        ['common:flow.zoomIn', 'Vergrössern'],
-      ],
-    ],
   ] as const)('resolves %s through de-CH → de → en', async (dir, controls) => {
     const instance = initServiceI18n({
       bundles: {
@@ -68,6 +59,20 @@ describe('Swiss catalog loading', () => {
       expect(german).toContain('ß');
       expect(instance.t(key)).toBe(german.replaceAll('ß', 'ss'));
       if (label) expect(instance.t(key)).toBe(label);
+    }
+    // Array overrides replace the entire list. Retain its other cards and
+    // every field while correcting the entries that need Swiss spelling.
+    for (const key of [
+      'platformAgents:tour.stages',
+      'platformAutomations:capabilities.items',
+      'platformGovernance:capabilities.items',
+      'platformGovernance:faq.items',
+      'platformProjects:faq.items',
+    ]) {
+      const german = instance.t(key, { lng: 'de', returnObjects: true });
+      expect(instance.t(key, { returnObjects: true })).toEqual(
+        JSON.parse(JSON.stringify(german).replaceAll('ß', 'ss')),
+      );
     }
   });
 });
