@@ -7585,6 +7585,7 @@ tasks:
     detailsTitleLive: '{name} — progress'
     openFull: Open the full run
   subject:
+    runLoadError: "Couldn't load the workflow state. Try again to see the available actions."
     ready: 'Ready to start — {name} takes it from here.'
     start: Start
     startAgain: Start again

@@ -7536,6 +7536,7 @@ tasks:
     detailsTitleLive: '{name} — avancement'
     openFull: "Ouvrir l'exécution complète"
   subject:
+    runLoadError: "Impossible de charger l’état du workflow. Réessaie pour voir les actions disponibles."
     ready: 'Prête à démarrer — {name} prend la suite.'
     start: Démarrer
     startAgain: Relancer
