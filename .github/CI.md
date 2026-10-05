@@ -4,8 +4,8 @@ Optimize both time to feedback and total runner work. Inspect job queue time sep
 from step duration before adding shards: a short test behind a large setup cost usually
 needs fewer runners, while a long CPU-bound suite can benefit from more slices.
 
-The cumulative audit records [129 distinct implemented improvements](CI-improvements.json)
-since `c8f31b2b9`: 78 authored here, 47 integrated from concurrent upstream work and four
+The cumulative audit records [128 retained implemented improvements](CI-improvements.json)
+since `c8f31b2b9`: 78 authored here, 46 integrated from concurrent upstream work and four
 combining both. Each entry records before/after behavior, changed paths, source commits
 and proof. Repeated patterns across workflows count once; suggestions and retained
 baseline behavior do not count.
@@ -83,8 +83,8 @@ baseline behavior do not count.
   failed to finish promptly, and a macOS candidate reached the unchanged 15-minute
   job cap without a source summary. Serial suites retain all assertions and the same
   limits. The native command fixture checks complete discovery, serial case order,
-  real synchronous/asynchronous subprocess completion and one process without
-  worker IDs under every host's selected command.
+  real synchronous/asynchronous subprocess completion, two-file Git indexing, and
+  one process without worker IDs under every host's selected command.
   Binary artifacts use fast compression; all five targets still build, native binaries
   retain smoke tests, and both macOS targets retain signature checks. Command suites
   run source cases before compilation, then select only the explicit `TALE_BINARY`
@@ -386,7 +386,8 @@ temporary-file errors followed timeout cleanup. Earlier serial Windows source ru
 took 191–216s and passed. Windows therefore retains the serial command and all existing
 assertions and timeout limits. In [CLI run 37262821778](https://github.com/tale-project/tale/actions/runs/37262821778),
 Windows source and compiled smoke passed completely. macOS source and signed compiled
-smoke also passed in both later runs with two workers.
+smoke also passed in both later runs with two workers; that mode was withdrawn after
+the later candidate failures documented below.
 
 Linux's [later two-worker source run](https://github.com/tale-project/tale/actions/runs/37262217358)
 remained unfinished when cancelled after 418s,
@@ -509,6 +510,40 @@ closure failure was corrected and the unchanged closure guard passed in the comb
 suite. Five affected-workspace lint/type/generate tasks executed freshly and passed;
 Knip, actionlint, formatting and commit hooks also passed. No original assertion or
 time budget was relaxed, and these follow-up corrections do not increase the ledger.
+
+Protected candidate `91ac292ca` passed [Checks](https://github.com/tale-project/tale/actions/runs/37273313395),
+[Build](https://github.com/tale-project/tale/actions/runs/37273313417),
+[E2E](https://github.com/tale-project/tale/actions/runs/37273313365),
+[Security](https://github.com/tale-project/tale/actions/runs/37273313414) and
+[SAST](https://github.com/tale-project/tale/actions/runs/37273313397). The candidate
+receipts bind that selected source separately from workflow commit `2c3fe20c`;
+Turbo's SCM environment alone can name the latter. E2E passed 214 browser tests and
+822 SEO tests with zero retries. All eight image builds, four standalone sites and
+smoke/image/runtime gates passed.
+
+Its [CLI run](https://github.com/tale-project/tale/actions/runs/37273313502) passed four
+targets but macOS hit 25 existing runtime-fixture timeouts, followed by the 15-minute
+job limit. The new document and cache guards had already passed. Runtime fixture
+setup creates only `compose.yml` and `services/proxy/Caddyfile`; repeated `git add`
+stalls therefore do not show excess copying or a larger source index. The same
+relevant source, Git/Bun versions and runner image passed comparison macOS steps in
+172 and 136 seconds; the worker/subprocess liveness cause remains unproven. macOS
+returns to serial source execution with every assertion, 30-second test limit and
+15-minute job budget retained. CI-114 is recorded as withdrawn rather than counted
+as an improvement or replaced with another count for this correction.
+
+The newer product source `2c3fe20c` passed ordinary
+[Checks](https://github.com/tale-project/tale/actions/runs/37273116498),
+[CLI](https://github.com/tale-project/tale/actions/runs/37273116351) and
+[Build](https://github.com/tale-project/tale/actions/runs/37273116429). This confirms
+its separate product changes without relabelling the failed `91ac292ca` CLI run.
+
+After serial scheduling landed, latest `main` source `4653d3e3b` passed
+[CLI run 37283199170](https://github.com/tale-project/tale/actions/runs/37283199170)
+on all five targets. macOS executed 2,366 source cases (2,346 passed, 20 skipped,
+zero failures) in 246.41 seconds and its compiled smoke suite passed 56 cases
+with one existing skip in 47.29 seconds. This observes the restored production
+scheduling; the additional two-file Git regression still needs its own final run.
 
 ## Pull-request CI readiness
 

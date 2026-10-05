@@ -1,7 +1,18 @@
 {
   "baseline": "c8f31b2b92283ea027966ef1556fadf3826302db",
-  "count": 129,
+  "count": 128,
   "counting": "Distinct implemented CI execution, caching, validation, safety, or regression improvements since the task baseline. Shared patterns across workflows are merged; suggestions, cosmetic changes and retained baseline behavior are excluded. Integrated upstream contributions are labelled separately from this team\u2019s authored work.",
+  "withdrawn": [
+    {
+      "id": "CI-114",
+      "title": "Overlap isolated CLI source test files on macOS",
+      "reason": "Withdrawn after exact source 91ac292ca stalled in the two-file Git runtime fixture on macOS: 25 failures at the unchanged 30-second limit, followed by the 15-minute job deadline. Comparison runs passed, but the worker/subprocess liveness cause remains unproven. Native source execution is restored to serial without dropping tests or relaxing budgets. This rollback is not counted as a new improvement.",
+      "commits": [
+        "c2af6aedc56d3fd41acc50a4ab5ca73ce027b0a3",
+        "f7983f21e70b2942ba63a8fc021d1ffd72a23951"
+      ]
+    }
+  ],
   "improvements": [
     {
       "title": "Batch native Turbo cache archives",
@@ -1342,25 +1353,6 @@
       "id": "CI-113"
     },
     {
-      "title": "Retain CLI source reliability after native parallel trials",
-      "before": "Source test files ran serially despite substantial subprocess/I/O waits.",
-      "after": "Native parallel trials were withdrawn: Linux, macOS and Windows run the complete plain serial source command with the original 30-second per-test budgets and 15-minute job cap.",
-      "paths": [
-        ".github/workflows/cli.yml",
-        "tools/cli/scripts/ci-cli-parallel.test.ts",
-        "tools/cli/scripts/cli-ci.test.ts",
-        "tools/cli/scripts/cli-workflow.test.ts",
-        ".github/CI.md"
-      ],
-      "proof": "Historical ci-cli-parallel two-file barrier proved isolation/overlap; Windows rejected the slower failing parallel path, and subsequent native Linux hosted completion failures returned Linux to serial. macOS parallel mode was withdrawn after exact candidate CLI run 37271160243 reached its 15-minute deadline without a source summary, while the same-source push completed in 171.91 seconds. The logs do not establish a specific Bun worker or Git child cause. The existing actual-command fixture now verifies complete file discovery, serial case order, synchronous/asynchronous subprocess completion and one PID without worker IDs; cli-ci/cli-workflow guards retain full native source/build/signature/smoke coverage.",
-      "commits": [
-        "c2af6aedc56d3fd41acc50a4ab5ca73ce027b0a3",
-        "f7983f21e70b2942ba63a8fc021d1ffd72a23951"
-      ],
-      "origins": ["integrated"],
-      "id": "CI-114"
-    },
-    {
       "title": "Split the full platform Unit suite into two runners",
       "before": "Single platform Unit task took480.563s on fresh hosted Checks37258100927.",
       "after": "Two complete Vitest shards use unchanged isolation/worker pools with separate cache scopes.",
@@ -1551,8 +1543,8 @@
     }
   ],
   "validation": {
-    "focused": "Integrated Checks/cache105tests1903assertions, container/release66tests1204assertions, publication/cleanup/shared171tests, E2E/security57tests478assertions; historical-helper fallback2tests158assertions. Exact Bun1.4.2 lint/types, formatter and actionlint passed. Final guard follow-up: real compiler guard6/6; real Compose helper plus actual Turbo input closure122/122 (2403assertions); both local/hosted failed-cache variants48assertions; 185other release/metadata/Build/deployment/cache cases passed in the integration batch. Five affected-workspace lint/type/generate tasks executed freshly and passed; Knip/actionlint and commit hooks passed.",
+    "focused": "Integrated Checks/cache105tests1903assertions, container/release66tests1204assertions, publication/cleanup/shared171tests, E2E/security57tests478assertions; historical-helper fallback2tests158assertions. Exact Bun1.4.2 lint/types, formatter and actionlint passed. Final guard follow-up: real compiler guard6/6; real Compose helper plus actual Turbo input closure122/122 (2403assertions); both local/hosted failed-cache variants48assertions; 185other release/metadata/Build/deployment/cache cases passed in the integration batch. Five affected-workspace lint/type/generate tasks executed freshly and passed; Knip/actionlint and commit hooks passed. Final upstream readiness integration: 71/71 native CLI, workflow/readiness and candidate guards passed with 2241 assertions; CLI typecheck, targeted lint/format, actionlint and all links passed.",
     "local_broad": "Frozen-source full gate:47/49tasks passed (38cache replays),30m49.996s. Fresh platformUnit passed82,098tests; fresh CLI passed2247tests/0fail (29existing skips). Both affected workspaces lint/types passed. The gate remained red for unchanged sandbox5s subprocess fixtures and load-sensitive UI timeouts; all12failed UI files subsequently passed241tests with1worker and unchanged assertions/budgets. Full SAST exit0:476applicable rules/4541files/0findings,91partially analyzed files under the existing policy. The red monolithic gate is not represented as green.",
-    "hosted": "Full E2E37265091303 at4a77db784 passed214browser tests with zero retries and822SEO tests (one preexisting fixme). Exact-source Checks37271033992, CLI37271033868, SAST37271033889 and Security37271160205 passed at1dcc2e523. Ordinary Build37269909176 at3184c0b2b passed all8stack builders, smoke, metadata/runtime checks and the selected platform scan, including actualTrivy0.70 SBOM Node/Python hashes and JSON-conversion negatives. Standalone jobs were not selected in that push. Regressions found during validation were corrected, not counted as new improvements. Cached verdicts, cancelled runs and older candidate sources are distinguished from fresh execution."
+    "hosted": "Full E2E37265091303 at4a77db784 passed214browser tests with zero retries and822SEO tests (one preexisting fixme). Exact-source Checks37271033992, CLI37271033868, SAST37271033889 and Security37271160205 passed at1dcc2e523. Ordinary Build37269909176 at3184c0b2b passed all8stack builders, smoke, metadata/runtime checks and the selected platform scan, including actualTrivy0.70 SBOM Node/Python hashes and JSON-conversion negatives. Standalone jobs were not selected in that push. Regressions found during validation were corrected, not counted as new improvements. Cached verdicts, cancelled runs and older candidate sources are distinguished from fresh execution. Protected candidate91ac also passed Checks/Build/E2E/Security/SAST, but CLI macOS failed25runtime fixture setup timeouts and its15min job budget; all4other CLI targets passed. Ordinary descendant2c3fe passed Checks37273116498, CLI37273116351 and Build37273116429. The Macparallelism optimizationCI114 is withdrawn and not included in count128; serial production CLI37283199170 at4653d3e3b passed all5targets, with macOS2346pass/20skip/0fail in246.41s and smoke56pass/1skip/0fail in47.29s. The additional Git fixture regression awaits its final hosted run."
   }
 }
