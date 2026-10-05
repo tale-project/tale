@@ -195,6 +195,7 @@ beforeEach(() => {
 
 afterEach(() => {
   window.localStorage.clear();
+  vi.restoreAllMocks();
 });
 
 function stream() {
@@ -204,6 +205,13 @@ function stream() {
 }
 
 function largeData() {
+  // A zero-height jsdom scrollport is hidden to the virtualizer. Give this
+  // fixture a measured viewport and rows; Chromium owns the actual layout.
+  vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockImplementation(
+    function (this: HTMLElement) {
+      return this.matches('li[data-index]') ? 48 : 720;
+    },
+  );
   return data({
     items: Array.from({ length: 1000 }, (_, index) => ({
       kind: 'task' as const,

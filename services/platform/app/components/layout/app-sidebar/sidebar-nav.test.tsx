@@ -10,7 +10,7 @@ import React from 'react';
 import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { render, screen, waitFor } from '@/tests/utils/render';
+import { render, screen } from '@/tests/utils/render';
 
 import { SidebarNav } from './sidebar-nav';
 
@@ -233,7 +233,7 @@ describe('SidebarNav', () => {
 
     it('passes an axe link-name audit', async () => {
       const { container } = render(<SidebarNav organizationId="test-org" />);
-      await waitFor(() => checkAccessibility(container));
+      await checkAccessibility(container);
     });
   });
 

@@ -495,6 +495,6 @@ describe('ThreadRow', () => {
       lastReplyAt: 2000,
       lastReadAt: 1000,
     });
-    await waitFor(() => checkAccessibility(container));
+    await checkAccessibility(container);
   });
 });

@@ -405,7 +405,7 @@ describe('ChatSurface while the chat backend is unavailable', () => {
 
   it('passes an axe audit', async () => {
     const { container } = render(<ChatSurface organizationId="org-1" />);
-    await waitFor(() => checkAccessibility(container));
+    await checkAccessibility(container);
   });
 });
 
@@ -470,7 +470,7 @@ describe('ChatSurface when the model listing answers and is empty', () => {
 
   it('passes an axe audit', async () => {
     const { container } = render(<ChatSurface organizationId="org-1" />);
-    await waitFor(() => checkAccessibility(container));
+    await checkAccessibility(container);
   });
 });
 
@@ -1734,7 +1734,7 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
 
   it('passes an axe audit', async () => {
     const { container } = render(<ChatSurface organizationId="org-1" />);
-    await waitFor(() => checkAccessibility(container));
+    await checkAccessibility(container);
   });
 });
 
@@ -1799,7 +1799,7 @@ describe('ChatSurface Home panel toggle', () => {
   it('passes an axe audit while folded', async () => {
     window.localStorage.setItem('chat-history-panel-open-org-1', 'false');
     const { container } = renderInHome();
-    await waitFor(() => checkAccessibility(container));
+    await checkAccessibility(container);
   });
 });
 
