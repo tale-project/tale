@@ -3825,6 +3825,14 @@ export interface TaskActivityRow {
   createdAt: number;
 }
 
+/**
+ * How much of a changed description the activity read carries. The row keeps
+ * both whole descriptions (up to 20,000 characters each) and the timeline
+ * quotes a line's length of them, so a task edited a few dozen times answered
+ * megabytes of text nobody reads, on every open and every refresh.
+ */
+const ACTIVITY_DESCRIPTION_QUOTE_MAX = 1000;
+
 export async function listTaskActivity(
   sql: Sql,
   auth: ProjectAuthContext,
@@ -3834,7 +3842,7 @@ export async function listTaskActivity(
   const task = await loadTaskOrThrow(sql, taskId, auth.organizationId);
   const project = await loadProjectOrThrow(sql, task.projectId);
   assertTaskReadable(project, auth);
-  return sql<TaskActivityRow[]>`
+  const rows = await sql<TaskActivityRow[]>`
     SELECT id::text AS id, org_id AS "organizationId",
            task_id AS "taskId", project_id AS "projectId",
            actor_type AS "actorType", actor_id AS "actorId",
@@ -3845,6 +3853,25 @@ export async function listTaskActivity(
     ORDER BY created_at_ms DESC, id DESC
     LIMIT ${Math.min(limit, 500)}
   `;
+  // The rows are this read's own, fresh from the query: quoted in place.
+  for (const row of rows) {
+    if (row.action === 'description.changed') {
+      row.fromValue = quoteDescription(row.fromValue);
+      row.toValue = quoteDescription(row.toValue);
+    }
+  }
+  return rows;
+}
+
+/** The head of a description, never cut inside a character. */
+function quoteDescription(value: string | null): string | null {
+  if (value === null || value.length <= ACTIVITY_DESCRIPTION_QUOTE_MAX) {
+    return value;
+  }
+  const end = ACTIVITY_DESCRIPTION_QUOTE_MAX;
+  // A high surrogate at the cut opens a pair the cut would split.
+  const code = value.charCodeAt(end - 1);
+  return value.slice(0, code >= 0xd800 && code <= 0xdbff ? end - 1 : end);
 }
 
 // ---------------------------------------------------------------------------
