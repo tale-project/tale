@@ -66,7 +66,6 @@ function DenseDocumentTable() {
   const { columns } = useDocumentsTableConfig({
     onDocumentClick: onOpen,
     onDocumentView: vi.fn(),
-    onFolderDeleted: vi.fn(),
     isLoadingTeams: false,
     nameOf: (id) => (id === 't1' ? 'Customer success' : 'Ops'),
   });
@@ -106,7 +105,6 @@ function DocumentTable({ state }: { state: 'in_review' | 'approved' }) {
   const { columns } = useDocumentsTableConfig({
     onDocumentClick: onOpen,
     onDocumentView: vi.fn(),
-    onFolderDeleted: vi.fn(),
     isLoadingTeams: false,
     nameOf: () => undefined,
   });

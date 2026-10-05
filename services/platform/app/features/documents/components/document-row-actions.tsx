@@ -60,7 +60,6 @@ interface DocumentRowActionsProps {
   teamIds?: string[];
   /** The folder the row sits in — the move dialog opens on it. */
   currentFolderId?: string;
-  onFolderDeleted?: () => void;
   parentFolderTeamId?: string;
   /** Gates the "Reindex" action — terminal `unsupported` files (no text
    *  extractor exists) never get a retry affordance, on the row menu any
@@ -85,7 +84,6 @@ export function DocumentRowActions({
   sourceProvider,
   teamIds,
   currentFolderId,
-  onFolderDeleted,
   parentFolderTeamId,
   ragStatus,
   record,
@@ -156,10 +154,7 @@ export function DocumentRowActions({
 
   const handleDeleteFolderConfirm = useCallback(() => {
     void deleteFolder({ folderId: documentId }).then(
-      () => {
-        dialogs.setOpen.deleteFolder(false);
-        onFolderDeleted?.();
-      },
+      () => dialogs.setOpen.deleteFolder(false),
       (error: unknown) => {
         console.error('Failed to delete folder:', error);
         // `AppError.message` is the serialized payload by design; the
@@ -176,7 +171,7 @@ export function DocumentRowActions({
         });
       },
     );
-  }, [deleteFolder, documentId, dialogs.setOpen, tDocuments, onFolderDeleted]);
+  }, [deleteFolder, documentId, dialogs.setOpen, tDocuments]);
 
   const handleDeleteClick = useCallback(() => {
     if (itemType === 'folder') {
