@@ -230,7 +230,9 @@ jobs:
         # spawn git several times per build, and Windows runners stall on
         # git for seconds at a time — bun test's 5 s default killed passing
         # tests mid-commit.
-        run: bun run test
+        # Two isolated file workers overlap subprocess and fixture I/O while
+        # tests inside each file retain their existing serial order.
+        run: bun run test --parallel=2
 
       - name: Run type check
         if: matrix.platform == 'linux'
