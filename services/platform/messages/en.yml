@@ -5784,6 +5784,8 @@ settings:
       manage automations — and to reach this organization's own capabilities and
       knowledge.
     copyEndpoint: Copy MCP endpoint URL
+    organizationReadFailed: The organization details could not be loaded, so the example request is unavailable.
+    organizationReadRetry: Try again
     authHelp:
       'Authenticate with a REST API key as a bearer token. A key belongs to
       the person who created it and works in every organization they are a

@@ -5626,6 +5626,8 @@ settings:
       créer, exécuter et gérer des automatisations — et pour accéder aux
       capacités et aux connaissances de cette organisation.
     copyEndpoint: Copier l'URL de l'endpoint MCP
+    organizationReadFailed: Les informations de l'organisation n'ont pas pu être chargées ; la requête d'exemple n'est pas disponible.
+    organizationReadRetry: Réessayer
     authHelp:
       "Authentifie-toi avec une clé API REST en jeton Bearer. Une clé
       appartient à la personne qui l'a créée et fonctionne dans chaque
