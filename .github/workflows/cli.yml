@@ -17,6 +17,8 @@ on:
     branches:
       - main
     paths:
+      - '.gitattributes'
+      - '.github/release-candidate-contract.json'
       - 'tools/cli/**'
       - 'services/platform/backend/core/**'
       - 'services/platform/backend/auth/membership.ts'

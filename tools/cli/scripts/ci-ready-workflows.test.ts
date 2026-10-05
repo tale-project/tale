@@ -150,7 +150,7 @@ describe('seven complete native merge gates', () => {
   test('all current native matrix legs and fork/advisory dispositions survive', async () => {
     const build = await workflow('build');
     expect(build.jobs.build!.strategy?.matrix.service).toEqual(IMAGE_SERVICES);
-    expect(COMPOSE_SERVICES).toEqual(IMAGE_SERVICES);
+    expect<readonly string[]>(COMPOSE_SERVICES).toEqual(IMAGE_SERVICES);
     const checks = await workflow('checks');
     expect(checks.jobs['test-platform-shards']!.strategy?.matrix.shard).toEqual(
       [1, 2],
