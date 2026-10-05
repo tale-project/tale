@@ -2166,6 +2166,7 @@ documents:
   searchPlaceholder: Dokumente suchen
   refreshFailed: Die neuesten Dokumente konnten nicht geladen werden. Die Liste ist womöglich unvollständig oder veraltet.
   loadFailed: Die Dokumente hier konnten nicht geladen werden. Bis sie geladen sind, werden nur die Ordner angezeigt.
+  foldersLoadFailed: Die Ordner hier konnten nicht geladen werden. Dokumente in Ordnern werden erst angezeigt, wenn die Ordner geladen sind.
   record:
     badge: 'v{version} · {state}'
     state:
