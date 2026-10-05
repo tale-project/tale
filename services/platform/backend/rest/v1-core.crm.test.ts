@@ -243,10 +243,33 @@ describe('contact bodies', () => {
     expect(vi.mocked(createContact)).not.toHaveBeenCalled();
   });
 
-  it('refuses a create with nothing to file the contact under', async () => {
-    const res = await send('/contacts', 'POST', { tags: ['vip'] });
-    expect(res.status).toBe(400);
-    expect(await res.json()).toMatchObject({ code: 'INVALID_BODY' });
+  it.each([
+    { tags: ['vip'] },
+    { source: 'manual_import', notes: 'Commerce audit empty identity fixture' },
+    { name: null, email: null, externalId: null },
+    { name: '   ', email: '   ', externalId: '   ' },
+  ])(
+    'refuses a create with nothing to file the contact under: %j',
+    async (input) => {
+      const res = await send('/contacts', 'POST', input);
+      expect(res.status).toBe(400);
+      expect(await res.json()).toMatchObject({ code: 'INVALID_BODY' });
+      expect(createContact).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    { name: 'Ann' },
+    { email: 'ann@example.test' },
+    { externalId: 'crm-1' },
+  ])('accepts a single contact identity field: %j', async (identity) => {
+    const res = await send('/contacts', 'POST', identity);
+    expect(res.status).toBe(201);
+    expect(createContact).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining(identity),
+    );
   });
 
   it('refuses an externalId beyond the safe integer range, keeps one inside it as text', async () => {

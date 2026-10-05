@@ -11,6 +11,8 @@ Hänge eine Datei an, wenn sie für das aktuelle Gespräch gebraucht wird. Der A
 
 Bilder erscheinen als Vorschaubilder, andere Dateien als benannte Chips mit Verarbeitungsstatus. Prüfe die Dateinamen vor dem Senden. Entferne einen vorbereiteten Anhang über dessen Entfernen-Schaltfläche, wenn er nicht zur Nachricht gehören soll.
 
+Nach dem Senden ändert **Nachricht bearbeiten** den Text in einer neuen Version des Gesprächs und behält die ursprünglichen Anhänge bei. Du musst sie nicht erneut hochladen.
+
 <Frame caption="Ein vorbereitetes Dokument zeigt seinen Namen und, sobald es verarbeitet und sendebereit ist, seine Größe.">
 
 ![Über dem Nachrichtenfeld steht ein angehängtes Dokument mit seiner Dateigröße und einer Schaltfläche zum Entfernen.](/images/platform/chat-document-attachment.webp)

@@ -122,6 +122,36 @@ export async function checkSessionOpTranscriptMerge(
       `afterStale=${afterStale} afterBare=${afterBare}`,
     );
 
+    // A progress callback can wait behind a slow database write while the
+    // gateway or recovery claim records a newer heartbeat. Its event time
+    // must not replace that newer independent sign of agent life.
+    await flush('exec-heartbeat', [text('Working')]);
+    const freshHeartbeat = Date.now();
+    await sql`UPDATE app.sandbox_session_ops SET heartbeat_at_ms = ${freshHeartbeat}
+      WHERE session_id = ${sessionId} AND exec_id = 'exec-heartbeat'`;
+    await upsert({
+      organizationId: ctx.orgId,
+      sessionId,
+      execId: 'exec-heartbeat',
+      kind: 'task-agent',
+      status: 'running',
+      heartbeatAt: freshHeartbeat - 300_000,
+      lastEventAt: freshHeartbeat - 300_000,
+      liveTimeline: [tool('delayed')],
+    });
+    const heartbeatRows = await sql<{ heartbeatAt: number }[]>`
+      SELECT heartbeat_at_ms::float8 AS "heartbeatAt"
+      FROM app.sandbox_session_ops
+      WHERE session_id = ${sessionId} AND exec_id = 'exec-heartbeat'
+    `;
+    record(
+      'session op heartbeat: delayed progress preserves a newer gateway or recovery heartbeat',
+      heartbeatRows[0]?.heartbeatAt === freshHeartbeat &&
+        shape(await stored('exec-heartbeat')) ===
+          '"Working" delayed:output-available',
+      `heartbeat=${heartbeatRows[0]?.heartbeatAt} expected=${freshHeartbeat}`,
+    );
+
     // Concurrent flushes, each carrying one new tool call: the row lock
     // orders them, so every one folds into what the previous one wrote. The
     // second exec has no row yet, so its first writes race the insert too.

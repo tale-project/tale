@@ -53,9 +53,13 @@ describe('listStalledWorkflowAgentTurns', () => {
     );
     expect(listing).toMatch(/greatest\([\s\S]*heartbeat_at_ms[\s\S]*\) < \?/);
     // Oldest first, bounded by the sweep size only — no scan page.
-    expect(listing).toContain('ORDER BY r.started_at_ms ASC');
+    expect(listing).toContain(
+      'r.recovery_checked_at_ms ASC NULLS FIRST, r.started_at_ms ASC',
+    );
+    expect(listing).toContain('FOR UPDATE OF r SKIP LOCKED');
+    expect(listing).toContain('SET recovery_checked_at_ms');
     expect(listing).not.toMatch(/ORDER BY r\.started_at_ms DESC/);
-    expect(fake.statements[0]?.values.at(-1)).toBe(25);
+    expect(fake.statements[0]?.values).toContain(25);
     // The staleness cut is a parameter, evaluated per row in SQL.
     const staleBefore = fake.statements[0]?.values[0];
     expect(staleBefore).toBeTypeOf('number');

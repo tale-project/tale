@@ -1,6 +1,7 @@
 import { resolve } from 'node:path';
 
 import { Command } from 'commander';
+import { z } from 'zod';
 
 import { createBackendBreakGlassAccount } from '../../lib/deployment/break-glass';
 import {
@@ -117,7 +118,11 @@ export interface ManagedProvisionDependencies {
 export async function provisionManagedBundle(
   directory: string,
   input: InstanceInput,
-  pins: { cliRef?: string; deploymentRef?: string } = {},
+  pins: {
+    cliRef?: string;
+    deploymentRef?: string;
+    existingOnly?: { userId: string; organizationId: string };
+  } = {},
   dependencies: ManagedProvisionDependencies = {},
 ) {
   return withFrozenDeployment(directory, pins, async (frozen, bundle) => {
@@ -125,6 +130,7 @@ export async function provisionManagedBundle(
     const stateDirectory = nativeDeploymentStateDirectory(
       dependencies.dataDirectory ?? '/app/data',
       bundle.spec.name,
+      !pins.existingOnly,
     );
     return withLock(stateDirectory, 'deploy provision', async () => {
       let configs: unknown[] = [];
@@ -135,6 +141,7 @@ export async function provisionManagedBundle(
         input,
         {
           stateDirectory,
+          existingOnly: pins.existingOnly,
           emailAttestation:
             dependencies.emailAttestation ??
             createBackendEmailAttestation({ origin: input.origin }),
@@ -153,10 +160,14 @@ export async function provisionManagedBundle(
           provision: async (context) => {
             configuration = await (
               dependencies.configuration ?? provisionDeploymentConfiguration
-            )(frozen, context);
-            configs = await (
-              dependencies.configs ?? provisionDeploymentConfigs
-            )(frozen, context);
+            )(frozen, context, {
+              managedOnly: pins.existingOnly !== undefined,
+            });
+            if (!pins.existingOnly) {
+              configs = await (
+                dependencies.configs ?? provisionDeploymentConfigs
+              )(frozen, context);
+            }
           },
         },
       );
@@ -178,77 +189,142 @@ export function createProvisionCommand(): Command {
       '--bundle <directory>',
       'Verify and provision this prepared deployment bundle',
     )
+    .option(
+      '--configuration-only',
+      'Apply only hot native configuration to an existing identity',
+    )
+    .option(
+      '--expected-user <id>',
+      'Exact operator from the completed deployment receipt',
+    )
+    .option(
+      '--expected-organization <id>',
+      'Exact organization from the completed deployment receipt',
+    )
     .action(
-      action(async (flags: { bundle?: string }, command: Command) => {
-        let result;
-        try {
-          assertManagedOptions(command, ['bundle', 'cliRef', 'deploymentRef']);
-          if (process.stdin.isTTY)
-            throw usageError('Provide private native instance JSON on stdin.');
-          const input = await readPrivateProvisionInput();
-          // Commander may consume these shared flags on the parent deploy
-          // command even when they follow this subcommand. Do not let a root
-          // default from optsWithGlobals overwrite the explicit parent value.
-          const inherited = command.parent?.opts<{
+      action(
+        async (
+          flags: {
             bundle?: string;
-            yes?: boolean;
-            cliRef?: string;
-            deploymentRef?: string;
-          }>();
-          const selectedBundle = flags.bundle ?? inherited?.bundle;
-          if (selectedBundle === '')
-            throw usageError('--bundle must name a deployment directory.');
-          if (
-            selectedBundle === undefined &&
-            (inherited?.cliRef !== undefined ||
-              inherited?.deploymentRef !== undefined)
-          )
-            throw usageError('Expected deployment pins require --bundle.');
-          const directory = selectedBundle
-            ? resolve(selectedBundle)
-            : undefined;
-          if (
-            !directory &&
-            (input.bootstrap ||
-              input.breakGlass ||
-              input.nativeClients.some((client) => client.managed))
-          )
-            throw preconditionError(
-              'Fresh native provisioning requires a verified deployment bundle.',
-            );
-          if (
-            !resolveConsent(inherited?.yes) &&
-            !(await confirm({
-              message: 'Provision the selected native instance?',
-              default: false,
-            }))
-          )
-            throw new NonInteractiveError(
-              'Native instance provisioning was not confirmed.',
-            );
-          result = directory
-            ? await provisionManagedBundle(directory, input, {
-                cliRef: inherited?.cliRef,
-                deploymentRef: inherited?.deploymentRef,
-              })
-            : {
-                ...(await configureInstance(input, {
-                  nativeUpdate: createBackendNativeUpdate({
-                    origin: input.origin,
-                  }),
-                })),
-                configs: [],
-              };
-        } catch (error) {
-          if (error instanceof CliError || error instanceof NonInteractiveError)
-            throw error;
-          throw externalDepError('Native instance provisioning failed.');
-        }
-        if (getOutputMode().json) emitJson('deploy provision', result);
-        else {
-          logger.success('Native instance provisioning completed.');
-          logger.info(JSON.stringify(result, null, 2));
-        }
-      }),
+            configurationOnly?: boolean;
+            expectedUser?: string;
+            expectedOrganization?: string;
+          },
+          command: Command,
+        ) => {
+          let result;
+          try {
+            assertManagedOptions(command, [
+              'bundle',
+              'cliRef',
+              'deploymentRef',
+              'configurationOnly',
+            ]);
+            if (process.stdin.isTTY)
+              throw usageError(
+                'Provide private native instance JSON on stdin.',
+              );
+            const input = await readPrivateProvisionInput();
+            // Commander may consume these shared flags on the parent deploy
+            // command even when they follow this subcommand. Do not let a root
+            // default from optsWithGlobals overwrite the explicit parent value.
+            const inherited = command.parent?.opts<{
+              bundle?: string;
+              yes?: boolean;
+              cliRef?: string;
+              deploymentRef?: string;
+              configurationOnly?: boolean;
+            }>();
+            const selectedBundle = flags.bundle ?? inherited?.bundle;
+            const configurationOnly =
+              flags.configurationOnly ?? inherited?.configurationOnly;
+            if (
+              configurationOnly &&
+              (!selectedBundle ||
+                !flags.expectedUser ||
+                !flags.expectedOrganization)
+            )
+              throw usageError(
+                'Configuration-only provisioning requires a bundle and both retained identity IDs.',
+              );
+            if (
+              !configurationOnly &&
+              (flags.expectedUser !== undefined ||
+                flags.expectedOrganization !== undefined)
+            )
+              throw usageError(
+                'Expected identity IDs require --configuration-only.',
+              );
+            if (selectedBundle === '')
+              throw usageError('--bundle must name a deployment directory.');
+            if (
+              selectedBundle === undefined &&
+              (inherited?.cliRef !== undefined ||
+                inherited?.deploymentRef !== undefined)
+            )
+              throw usageError('Expected deployment pins require --bundle.');
+            const directory = selectedBundle
+              ? resolve(selectedBundle)
+              : undefined;
+            if (
+              !directory &&
+              (input.bootstrap ||
+                input.breakGlass ||
+                input.nativeClients.some((client) => client.managed))
+            )
+              throw preconditionError(
+                'Fresh native provisioning requires a verified deployment bundle.',
+              );
+            if (
+              !resolveConsent(inherited?.yes) &&
+              !(await confirm({
+                message: 'Provision the selected native instance?',
+                default: false,
+              }))
+            )
+              throw new NonInteractiveError(
+                'Native instance provisioning was not confirmed.',
+              );
+            result = directory
+              ? await provisionManagedBundle(directory, input, {
+                  cliRef: inherited?.cliRef,
+                  deploymentRef: inherited?.deploymentRef,
+                  ...(configurationOnly
+                    ? {
+                        existingOnly: z
+                          .strictObject({
+                            userId: z.string().min(1).max(256),
+                            organizationId: z.string().min(1).max(256),
+                          })
+                          .parse({
+                            userId: flags.expectedUser,
+                            organizationId: flags.expectedOrganization,
+                          }),
+                      }
+                    : {}),
+                })
+              : {
+                  ...(await configureInstance(input, {
+                    nativeUpdate: createBackendNativeUpdate({
+                      origin: input.origin,
+                    }),
+                  })),
+                  configs: [],
+                };
+          } catch (error) {
+            if (
+              error instanceof CliError ||
+              error instanceof NonInteractiveError
+            )
+              throw error;
+            throw externalDepError('Native instance provisioning failed.');
+          }
+          if (getOutputMode().json) emitJson('deploy provision', result);
+          else {
+            logger.success('Native instance provisioning completed.');
+            logger.info(JSON.stringify(result, null, 2));
+          }
+        },
+      ),
     );
 }

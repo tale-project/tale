@@ -14,6 +14,7 @@ import {
   verify,
 } from './auth.ts';
 import { loadConfig } from './config.ts';
+import { ImageWarmup } from './image-warmup.ts';
 import { SessionRoutes } from './session/session-routes.ts';
 
 test('device spawners observe local resource pressure while preserving their configured slot count', async () => {
@@ -84,6 +85,127 @@ describe('session HTTP routes', () => {
     }
   });
 
+  test('image warmup queues only new local sessions while existing sessions remain addressable', async () => {
+    const pending = spyOn(ImageWarmup.prototype, 'pending').mockReturnValue(
+      true,
+    );
+    const create = spyOn(
+      SessionRoutes.prototype,
+      'handleCreate',
+    ).mockImplementation(async () => Response.json({}));
+    const get = spyOn(SessionRoutes.prototype, 'handleGet').mockImplementation(
+      async () => Response.json({ session: { sessionId: 'existing' } }),
+    );
+    const request = (method: string, path: string, body = '') => {
+      const timestamp = String(Date.now());
+      const nonce = crypto.randomUUID();
+      return router(
+        new Request(`http://sandbox${path}`, {
+          method,
+          headers: {
+            [SIGNATURE_HEADER]: sign(
+              method,
+              path,
+              timestamp,
+              body,
+              'route-test-secret',
+              nonce,
+            ),
+            [TIMESTAMP_HEADER]: timestamp,
+            [NONCE_HEADER]: nonce,
+          },
+          ...(body ? { body } : {}),
+        }),
+      );
+    };
+    try {
+      const warming = await request('POST', '/v1/sessions', '{}');
+      expect(warming.status).toBe(429);
+      expect(warming.headers.get('retry-after')).toBe('5');
+      expect(await warming.json()).toMatchObject({ error: 'runtime_image' });
+      expect(create).not.toHaveBeenCalled();
+      expect((await request('GET', '/v1/sessions/existing')).status).toBe(200);
+      expect((await request('GET', '/v1/limits')).status).toBe(200);
+      expect(get).toHaveBeenCalledWith('existing');
+      pending.mockReturnValue(false);
+      expect((await request('POST', '/v1/sessions', '{}')).status).toBe(200);
+      expect(create).toHaveBeenCalledTimes(1);
+    } finally {
+      pending.mockRestore();
+      create.mockRestore();
+      get.mockRestore();
+    }
+  });
+
+  test('exec status forwards the incoming recovery cancellation signal', async () => {
+    const status = spyOn(
+      SessionRoutes.prototype,
+      'handleExecStatus',
+    ).mockImplementation(async () => Response.json({ state: 'running' }));
+    const path = '/v1/sessions/sess1/exec/exec1';
+    const timestamp = String(Date.now());
+    const nonce = crypto.randomUUID();
+    const abort = new AbortController();
+    const request = new Request(`http://sandbox${path}`, {
+      signal: abort.signal,
+      headers: {
+        [SIGNATURE_HEADER]: sign(
+          'GET',
+          path,
+          timestamp,
+          '',
+          'route-test-secret',
+          nonce,
+        ),
+        [TIMESTAMP_HEADER]: timestamp,
+        [NONCE_HEADER]: nonce,
+      },
+    });
+    try {
+      expect((await router(request)).status).toBe(200);
+      expect(status).toHaveBeenCalledWith('sess1', 'exec1', request.signal);
+    } finally {
+      status.mockRestore();
+    }
+  });
+
+  test('staging forwards the incoming cancellation signal', async () => {
+    const stage = spyOn(
+      SessionRoutes.prototype,
+      'handleFilesStage',
+    ).mockImplementation(async () =>
+      Response.json({ staged: [], skipped: [] }),
+    );
+    const path = '/v1/sessions/sess1/files/stage';
+    const body = JSON.stringify({ files: [] });
+    const timestamp = String(Date.now());
+    const nonce = crypto.randomUUID();
+    const abort = new AbortController();
+    const request = new Request(`http://sandbox${path}`, {
+      method: 'POST',
+      body,
+      signal: abort.signal,
+      headers: {
+        [SIGNATURE_HEADER]: sign(
+          'POST',
+          path,
+          timestamp,
+          body,
+          'route-test-secret',
+          nonce,
+        ),
+        [TIMESTAMP_HEADER]: timestamp,
+        [NONCE_HEADER]: nonce,
+      },
+    });
+    try {
+      expect((await router(request)).status).toBe(200);
+      expect(stage).toHaveBeenCalledWith('sess1', body, request.signal);
+    } finally {
+      stage.mockRestore();
+    }
+  });
+
   test('an exec cancel passes leftovers=keep on, and only that', async () => {
     const cancel = spyOn(
       SessionRoutes.prototype,
@@ -120,6 +242,65 @@ describe('session HTTP routes', () => {
       ]);
     } finally {
       cancel.mockRestore();
+    }
+  });
+
+  test('checkpoint GET and PUT pass the authenticated router with a bounded body', async () => {
+    const checkpoint = spyOn(
+      SessionRoutes.prototype,
+      'handleExecCheckpoint',
+    ).mockImplementation(async () => Response.json({ checkpoint: null }));
+    const path = '/v1/sessions/sess1/exec/exec1/checkpoint';
+    try {
+      for (const method of ['GET', 'PUT']) {
+        expect(
+          (await router(new Request(`http://sandbox${path}`, { method })))
+            .status,
+        ).toBe(401);
+        const body =
+          method === 'PUT'
+            ? JSON.stringify({ seq: 10, state: 'x'.repeat(300_000) })
+            : '';
+        const timestamp = String(Date.now());
+        const nonce = crypto.randomUUID();
+        const response = await router(
+          new Request(`http://sandbox${path}`, {
+            method,
+            ...(method === 'PUT' ? { body } : {}),
+            headers: {
+              [SIGNATURE_HEADER]: sign(
+                method,
+                path,
+                timestamp,
+                body,
+                'route-test-secret',
+                nonce,
+              ),
+              [TIMESTAMP_HEADER]: timestamp,
+              [NONCE_HEADER]: nonce,
+            },
+          }),
+        );
+        expect(response.status).toBe(200);
+        expect(checkpoint.mock.calls.at(-1)?.slice(1)).toEqual([
+          'sess1',
+          'exec1',
+          body,
+        ]);
+      }
+      expect(
+        (
+          await router(
+            new Request(`http://sandbox${path}`, {
+              method: 'PUT',
+              body: 'x'.repeat(1024 * 1024 + 1),
+            }),
+          )
+        ).status,
+      ).toBe(413);
+      expect(checkpoint).toHaveBeenCalledTimes(2);
+    } finally {
+      checkpoint.mockRestore();
     }
   });
 

@@ -46,7 +46,10 @@ concurrency:
   cancel-in-progress: ${{ github.event_name != 'repository_dispatch' && github.event_name != 'workflow_dispatch' }}
 
 jobs:
+  # Only candidates need remote source validation; ordinary jobs keep their event SHA.
   candidate-source:
+    if: >-
+      github.event_name == 'repository_dispatch'
     name: Candidate source
     uses: ./.github/workflows/release-candidate-source.yml
     permissions:
@@ -59,6 +62,12 @@ jobs:
   # Resolve the version string for the build matrix.
   # ---------------------------------------------------------------------------
   prepare:
+    if: >-
+      !cancelled() &&
+      (((github.event_name == 'repository_dispatch') &&
+      needs.candidate-source.result == 'success') ||
+      ((github.event_name != 'repository_dispatch') &&
+      needs.candidate-source.result == 'skipped'))
     needs: candidate-source
     name: Prepare
     runs-on: ubuntu-latest
@@ -111,6 +120,13 @@ jobs:
   # All platforms run on GitHub-hosted runners (free for public repos).
   # ---------------------------------------------------------------------------
   build:
+    if: >-
+      !cancelled() &&
+      (((github.event_name == 'repository_dispatch') &&
+      needs.candidate-source.result == 'success') ||
+      ((github.event_name != 'repository_dispatch') &&
+      needs.candidate-source.result == 'skipped')) &&
+      needs.prepare.result == 'success'
     name: Build (${{ matrix.platform }})
     needs: [candidate-source, prepare]
     runs-on: ${{ matrix.os }}
@@ -171,17 +187,33 @@ jobs:
           # keep the "Verify macOS code signature" step below.
           bun-version: '1.4.2'
 
+      - name: Configure Bun install cache
+        if: matrix.cross
+        run: |
+          # Cross legs only compile the CLI. Keep their smaller dependency
+          # cache separate from the native suites' complete monorepo cache.
+          echo "BUN_INSTALL_CACHE_DIR=${RUNNER_TEMP}/bun-cli-cache" >> "$GITHUB_ENV"
+
       - name: Restore Bun install cache
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
-          path: ~/.bun/install/cache
-          key: bun-install-${{ runner.os }}-1.4.2-${{ hashFiles('bun.lock') }}
+          path: ${{ matrix.cross && env.BUN_INSTALL_CACHE_DIR || '~/.bun/install/cache' }}
+          key: ${{ matrix.cross && 'bun-cli-install' || 'bun-install' }}-${{ runner.os }}-${{ runner.arch }}-1.4.2-${{ hashFiles('bun.lock') }}
           restore-keys: |
-            bun-install-${{ runner.os }}-1.4.2-
+            ${{ matrix.cross && 'bun-cli-install' || 'bun-install' }}-${{ runner.os }}-${{ runner.arch }}-1.4.2-
 
       - name: Install dependencies
         working-directory: tools/cli
-        run: bun install --frozen-lockfile
+        env:
+          CROSS: ${{ matrix.cross }}
+        run: |
+          if [ "$CROSS" = true ]; then
+            bun install --frozen-lockfile --filter @tale/cli
+          else
+            # Source tests/typecheck import platform modules outside the CLI's
+            # dependency closure, so native legs retain the complete install.
+            bun install --frozen-lockfile
+          fi
 
       - name: Generate embedded files
         working-directory: tools/cli
@@ -189,7 +221,10 @@ jobs:
 
       # Smoke tests in tests/ are discovered too but skip cleanly here —
       # TALE_BINARY is only set after the binary is built.
+      # Cross-compilation rows use the same Linux/macOS hosts as their native
+      # counterparts. Run source tests once per host OS; all binaries still build.
       - name: Run unit tests
+        if: ${{ !matrix.cross }}
         working-directory: tools/cli
         # The package script carries the per-test budget: the git fixtures
         # spawn git several times per build, and Windows runners stall on
@@ -263,7 +298,11 @@ jobs:
         with:
           name: ${{ matrix.artifact }}
           path: tools/cli/dist/${{ matrix.artifact }}
+          # Fast compression retains the large saving on embedded source and
+          # runtime bytes without the default level's extra CPU work.
+          compression-level: 1
           retention-days: 30
+          if-no-files-found: error
 
   # ---------------------------------------------------------------------------
   # Attach built binaries to the GitHub release (dispatch only).
@@ -271,7 +310,14 @@ jobs:
   release:
     name: Attach to release
     needs: [candidate-source, build]
-    if: ${{ github.event_name == 'workflow_dispatch' }}
+    if: >-
+      !cancelled() &&
+      (((github.event_name == 'repository_dispatch') &&
+      needs.candidate-source.result == 'success') ||
+      ((github.event_name != 'repository_dispatch') &&
+      needs.candidate-source.result == 'skipped')) &&
+      needs.build.result == 'success' &&
+      (github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:

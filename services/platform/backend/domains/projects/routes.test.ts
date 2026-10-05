@@ -18,15 +18,23 @@ import {
   PROJECT_INSTRUCTIONS_MAX_CHARS,
   PROJECT_NAME_MAX,
 } from '@tale/shared/schemas/projects';
-import type { Context } from 'hono';
+import { Hono, type Context } from 'hono';
+import { requestId } from 'hono/request-id';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { OrgEnv } from '../../auth/org.ts';
+import { appErrorHandler } from '../../error-reporting.ts';
+import { appJsonBody, INVALID_JSON_MESSAGE } from '../../lib/app-json-body.ts';
+import { checkUserRateLimit } from '../../lib/rate-limit.ts';
 
 const service = vi.hoisted(() => ({
   createProject: vi.fn(),
+  duplicateProject: vi.fn(),
   updateProjectIdentity: vi.fn(),
   updateProjectInstructions: vi.fn(),
+  readProjectInstructionsConfiguration: vi.fn(),
+  readAgentInstructionsConfiguration: vi.fn(),
+  updateAgentInstructionsConfiguration: vi.fn(),
   deleteProject: vi.fn(),
   getProjectAuthContext: vi.fn(),
   assertCanCreateProjects: vi.fn(),
@@ -277,5 +285,197 @@ describe('project routes — the shared schemas guard the door', () => {
     const res = await send('DELETE', '/p1', { mode: 'cascade' });
     expect(res.status).toBe(400);
     expect(service.deleteProject).not.toHaveBeenCalled();
+  });
+});
+
+describe('duplicate — the name is optional, its JSON is not (#3599)', () => {
+  // The project routes as `app.ts` mounts them: behind the app door's one
+  // JSON reader and its error handler, which answer a body that does not
+  // parse with the door's 400 `INVALID_JSON`.
+  function door(): Hono {
+    const hono = new Hono();
+    hono.onError(appErrorHandler);
+    hono.use(requestId());
+    hono.use('/api/app/*', appJsonBody());
+    hono.route(
+      '/api/app/projects',
+      createProjectRoutes({ sql: {} as never, auth: {} as never }),
+    );
+    return hono;
+  }
+
+  async function post(route: string, body: string): Promise<Response> {
+    return await door().request(
+      `http://localhost/api/app/projects${route}?orgId=o1`,
+      {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-request-id': 'req-duplicate',
+        },
+        body,
+      },
+    );
+  }
+
+  beforeEach(() => {
+    service.duplicateProject.mockResolvedValue('p2');
+  });
+
+  it.each([
+    ['a lone brace', '{'],
+    ['a truncated name', '{"name":"Cop'],
+    ['a body that is not JSON', 'name=Copy'],
+  ])(
+    'refuses %s with 400 INVALID_JSON and duplicates nothing',
+    async (_name, body) => {
+      const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+      try {
+        const res = await post('/p1/duplicate', body);
+
+        expect(res.status).toBe(400);
+        expect(await res.json()).toEqual({
+          error: INVALID_JSON_MESSAGE,
+          code: 'INVALID_JSON',
+          requestId: 'req-duplicate',
+        });
+        // Refused after the session and membership gates, before the
+        // route's own project lookup, its rate-limit charge and the copy.
+        expect(service.getProjectAuthContext).not.toHaveBeenCalled();
+        expect(checkUserRateLimit).not.toHaveBeenCalled();
+        expect(service.duplicateProject).not.toHaveBeenCalled();
+        // A client's mistake, not a defect to report.
+        expect(errors).not.toHaveBeenCalled();
+      } finally {
+        errors.mockRestore();
+      }
+    },
+  );
+
+  it.each([
+    ['no body', ''],
+    ['only whitespace', ' \n\t'],
+    ['an empty object', '{}'],
+  ])('duplicates under the default name for %s', async (_name, body) => {
+    const res = await post('/p1/duplicate', body);
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ projectId: 'p2' });
+    expect(service.duplicateProject).toHaveBeenCalledExactlyOnceWith(
+      expect.anything(),
+      expect.anything(),
+      'p1',
+      undefined,
+    );
+  });
+
+  it('duplicates under the name a valid body gives', async () => {
+    const res = await post('/p1/duplicate', '{"name":"Copy of P"}');
+
+    expect(res.status).toBe(200);
+    expect(service.duplicateProject).toHaveBeenCalledExactlyOnceWith(
+      expect.anything(),
+      expect.anything(),
+      'p1',
+      'Copy of P',
+    );
+  });
+
+  it('refuses a name over its cap as an invalid body', async () => {
+    const res = await post(
+      '/p1/duplicate',
+      JSON.stringify({ name: 'x'.repeat(201) }),
+    );
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ error: 'invalid body' });
+    expect(service.duplicateProject).not.toHaveBeenCalled();
+  });
+
+  it('answers the same lone brace on create as before', async () => {
+    const res = await post('', '{');
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ code: 'INVALID_JSON' });
+    expect(service.createProject).not.toHaveBeenCalled();
+  });
+});
+
+describe('managed instruction routes', () => {
+  const hash = 'a'.repeat(64);
+  const project = { projectId: 'p1', instructions: 'project policy' };
+  const agent = { projectId: 'p1', agentId: 'a1', instructions: 'agent brief' };
+
+  it.each([
+    ['/p1/configuration/instructions', project],
+    ['/p1/agents/a1/configuration/instructions', agent],
+  ])(
+    'requires a preimage and rejects unowned fields: %s',
+    async (route, config) => {
+      expect((await send('POST', route, { config })).status).toBe(400);
+      expect(
+        (await send('POST', route, { config, expectedHash: null })).status,
+      ).toBe(400);
+      expect(
+        (
+          await send('POST', route, {
+            config: { ...config, secrets: ['TOKEN'] },
+            expectedHash: hash,
+          })
+        ).status,
+      ).toBe(400);
+      expect(
+        (
+          await send('POST', route, {
+            config: { ...config, projectId: 'other' },
+            expectedHash: hash,
+          })
+        ).status,
+      ).toBe(400);
+      expect(service.updateProjectInstructions).not.toHaveBeenCalled();
+      expect(
+        service.updateAgentInstructionsConfiguration,
+      ).not.toHaveBeenCalled();
+    },
+  );
+
+  it('binds path identity and sends only the owned text through the serializable writer', async () => {
+    expect(
+      (
+        await send('POST', '/p1/configuration/instructions', {
+          config: project,
+          expectedHash: hash,
+        })
+      ).status,
+    ).toBe(200);
+    expect(service.updateProjectInstructions).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      'p1',
+      project.instructions,
+      hash,
+    );
+    expect(
+      (
+        await send('POST', '/p1/agents/a1/configuration/instructions', {
+          config: agent,
+          expectedHash: hash,
+        })
+      ).status,
+    ).toBe(200);
+    expect(service.updateAgentInstructionsConfiguration).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      agent,
+      hash,
+    );
+    expect(
+      (
+        await send('POST', '/p1/agents/other/configuration/instructions', {
+          config: agent,
+          expectedHash: hash,
+        })
+      ).status,
+    ).toBe(400);
   });
 });

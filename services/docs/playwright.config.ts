@@ -31,8 +31,11 @@ export default createPlaywrightConfig({
     // webServer timeout with zero tests run. The explicit exit is only safe
     // on Bun ≥ 1.4.1 — see build-client.ts for why.
     command:
-      `bun --bun scripts/build-search-index.ts && ` +
-      `bun --bun scripts/build-client.ts && ` +
+      // CI restores/builds the complete site through Turbo once, including
+      // search. Ordinary local runs keep the client-only build below.
+      (process.env.E2E_USE_BUILD === '1'
+        ? ''
+        : `bun --bun scripts/build-search-index.ts && bun --bun scripts/build-client.ts && `) +
       `bun --bun vite preview --port ${PORT} --strictPort`,
     url: `http://localhost:${PORT}`,
     // Locally reuse an already-running `bun run dev`; in CI boot fresh.

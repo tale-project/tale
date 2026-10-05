@@ -82,15 +82,18 @@ export async function ensureAgentSession(
   const policy = ownerPolicy(ctx, organizationId, args.owner);
   // A project agent owns more than one workspace — its standing one and one
   // per member who starts its runs — so its row is found by session id too.
-  const existing: { status: string; createdAt: number } | null =
-    await ctx.runQuery(
-      internal.sandbox.session_queries.getActiveSessionByOwner,
-      {
-        ownerType: policy.ownerType,
-        ownerId: policy.ownerId,
-        ...(args.owner.type === 'project_agent' ? { sessionId } : {}),
-      },
-    );
+  const existing: {
+    status: string;
+    createdAt: number;
+    profile?: unknown;
+  } | null = await ctx.runQuery(
+    internal.sandbox.session_queries.getActiveSessionByOwner,
+    {
+      ownerType: policy.ownerType,
+      ownerId: policy.ownerId,
+      ...(args.owner.type === 'project_agent' ? { sessionId } : {}),
+    },
+  );
 
   if (existing !== null) {
     // Re-read and re-admit even when the query saw an active row: a previous
@@ -107,6 +110,7 @@ export async function ensureAgentSession(
         await createOrAcquireSession(
           sessionId,
           organizationId,
+          existing.profile === 'agent-light' ? 'agent-light' : 'agent',
           args.owner.type,
         );
       }
@@ -122,12 +126,16 @@ export async function ensureAgentSession(
     return { liveCreatedAt: existing.createdAt };
   }
 
+  const profile =
+    process.env.SANDBOX_AGENT_PROFILE === 'agent-light'
+      ? 'agent-light'
+      : 'agent';
   const rowId: string = await ctx.runMutation(
     internal.sandbox.session_mutations.reserveSessionSlotAndInsert,
     {
       organizationId,
       sessionId,
-      profile: 'agent',
+      profile,
       ownerType: policy.ownerType,
       ownerId: policy.ownerId,
       createdBy: policy.createdBy,
@@ -135,7 +143,12 @@ export async function ensureAgentSession(
     },
   );
   try {
-    await createOrAcquireSession(sessionId, organizationId, args.owner.type);
+    await createOrAcquireSession(
+      sessionId,
+      organizationId,
+      profile,
+      args.owner.type,
+    );
   } catch (error) {
     // The spawner may already hold what this create made (one cut short
     // between Docker's create and start stays `created`), and a `failed` row
@@ -187,6 +200,7 @@ export async function ensureAgentSession(
 async function createOrAcquireSession(
   sessionId: string,
   organizationId: string,
+  profile: 'agent' | 'agent-light',
   ownerType: AgentSessionOwner['type'],
 ): Promise<void> {
   try {
@@ -195,7 +209,7 @@ async function createOrAcquireSession(
     await sessionCreate({
       sessionId,
       organizationId,
-      profile: 'agent',
+      profile,
       workload: ownerType === 'project_agent' ? 'project' : 'workflow',
       placement: 'device',
     });

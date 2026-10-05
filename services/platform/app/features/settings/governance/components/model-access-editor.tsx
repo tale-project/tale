@@ -50,8 +50,10 @@ import { isRecord } from '@/lib/utils/type-utils';
 import { mapGovernanceSaveError } from '../governance-save-errors';
 import { useListProviders, useModelCapabilities } from '../hooks/model-catalog';
 import { useUpsertGovernancePolicy } from '../hooks/mutations';
+import { usePolicyReadAvailable } from '../hooks/policy-read-access';
 import { useGovernancePolicy } from '../hooks/queries';
 import { stripQualifier } from './model-id';
+import { withGovernancePolicyReadBoundary } from './policy-read-boundary';
 import { ROLE_OPTIONS } from './role-options';
 import { RulesTableEmptyState } from './rules-table-empty-state';
 
@@ -319,7 +321,8 @@ function RuleDialog({
 // forced visible while loading so its placeholder rows can render even though
 // `enabled` is still its initial `false`.
 // =============================================================================
-export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
+function ModelAccessEditorContent({ organizationId }: ModelAccessEditorProps) {
+  const policyReadAvailable = usePolicyReadAvailable();
   const { t } = useT('governance');
   const { toast } = useToast();
   const ability = useAbility();
@@ -772,7 +775,7 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
 
         {dialogOpen && (
           <RuleDialog
-            open={dialogOpen}
+            open={policyReadAvailable && dialogOpen}
             onOpenChange={setDialogOpen}
             rule={dialogRule}
             onSave={handleDialogSave}
@@ -792,7 +795,7 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
         )}
 
         <ConfirmDialog
-          open={deletingIndex !== null}
+          open={policyReadAvailable && deletingIndex !== null}
           onOpenChange={(open) => {
             if (!open) setDeletingIndex(null);
           }}
@@ -804,7 +807,7 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
         />
 
         <ConfirmDialog
-          open={pendingSave !== null}
+          open={policyReadAvailable && pendingSave !== null}
           onOpenChange={(open) => {
             if (!open && pendingSave) {
               pendingSave.revert();
@@ -852,3 +855,8 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
     </Skeletonize>
   );
 }
+
+export const ModelAccessEditor = withGovernancePolicyReadBoundary(
+  ModelAccessEditorContent,
+  'model_access',
+);

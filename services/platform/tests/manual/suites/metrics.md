@@ -1,6 +1,6 @@
 # Metrics
 
-> **Prefix** `MET-` · **Reset** none · **Cost** 19 boxes
+> **Prefix** `MET-` · **Reset** none · **Cost** 20 boxes
 
 Exercise the org metrics section under Settings — six tabs (Usage, Feedback,
 Chat health, Harness turns, Automations, Projects), each with the shared
@@ -208,6 +208,18 @@ rollups**, so figures may legitimately lag same-day activity.
   **keeping** `?period=90`; the governance pair land on `…/metrics/usage` /
   `…/metrics/feedback`; an out-of-range `period` value falls back to the tab's
   default (the page renders normally, no crash) — never a 404.
+- [ ] `MET-B3` · **A usage read that fails is not zero usage** — Block
+  `*/api/app/governance/usage-metrics*` in DevTools (Network → request
+  blocking) and reload `/dashboard/{org}/settings/metrics/usage` → after the
+  retries (a few seconds) an alert reads **Couldn't load usage metrics.**
+  (`analytics.usage.errors.loadFailed`, then why when the failure says, e.g.
+  `common.errors.connectionLost`) with **Try again**
+  (`common.actions.tryAgain`) where the cards, chart and tables were — no
+  zero card and no empty table (`analytics.usage.empty.title`); the heading,
+  **Filter** and any filter chips stay. Unblock → **Try again** → the figures
+  appear without a reload, and `document.activeElement` is the region named
+  **Usage metrics**, not the page body. At a 375 px viewport the alert wraps
+  inside the page with **Try again** fully visible. No toast.
 
 ## Accessibility (WCAG 2.1 AA)
 

@@ -14,12 +14,14 @@ import {
   reconcileSession,
   recreatePinnedSession,
   schedulePinnedRecreate,
+  syncSessionPin,
   teardownSession,
 } from './service.ts';
 import {
   markSessionDestroyed,
   reserveSessionSlot,
   resumeSessionSlot,
+  setSessionPinned,
 } from './sessions.ts';
 
 function oneConnectionPool(databaseUrl: string): Sql {
@@ -325,6 +327,164 @@ export async function checkSandboxLifecycle(
         unpinnedRow !== undefined &&
         !unpinnedRow.pinned,
       `waited=${unpinWait}, spawner pinned=${remotePinned}, row pinned=${(await state())?.pinned}`,
+    );
+
+    await reset();
+    remotePinned = true;
+    const refusedUnpin = await pinSession(
+      first,
+      { ...args, pinned: false },
+      async () => false,
+    ).then(
+      () => false,
+      () => true,
+    );
+    const deliveries = await sql<{ rowId: string; policy: string }[]>`
+      SELECT data ->> 'rowId' AS "rowId",
+        (SELECT policy FROM pgboss.queue WHERE name = 'sandbox.sync_pin') AS policy
+      FROM pgboss.job WHERE name = 'sandbox.sync_pin'
+        AND data ->> 'organizationId' = ${orgId}
+        AND data ->> 'sessionId' = ${sessionId}
+      ORDER BY created_on DESC LIMIT 1
+    `;
+    const delivery = deliveries[0];
+    if (delivery === undefined)
+      throw new Error('pin synchronization was not durably queued');
+    await syncSessionPin(first, { ...args, rowId: delivery.rowId }, spawner);
+    record(
+      'sandbox lifecycle: failed Unpin leaves durable delivery and converges after the request ends',
+      refusedUnpin &&
+        !remotePinned &&
+        !(await state())?.pinned &&
+        delivery.policy === 'short',
+      `remote=${remotePinned}, row=${(await state())?.pinned}, queue=${delivery.policy}`,
+    );
+    const refusedPin = await pinSession(
+      first,
+      { ...args, pinned: true },
+      async () => false,
+    ).then(
+      () => false,
+      () => true,
+    );
+    await syncSessionPin(second, { ...args, rowId: delivery.rowId }, spawner);
+    record(
+      'sandbox lifecycle: an older pin delivery reads the newer desired state',
+      refusedPin && remotePinned && ((await state())?.pinned ?? false),
+      `remote=${remotePinned}, row=${(await state())?.pinned}`,
+    );
+
+    for (const status of ['stopped', 'expired']) {
+      await sql`UPDATE app.sandbox_sessions SET status = ${status}, pinned = false WHERE session_id = ${sessionId} AND org_id = ${orgId}`;
+      remotePinned = true;
+      const repaired = await reconcileSession(first, args, {
+        ...spawner,
+        observe: async () => ({ pinned: remotePinned }),
+      });
+      const retained = await state();
+      record(
+        `sandbox lifecycle: a ${status} workspace loses its stale runtime pin without retirement`,
+        repaired === 'unpinned' && !remotePinned && retained?.status === status,
+        `outcome=${repaired}, remote=${remotePinned}, row=${retained?.status}`,
+      );
+    }
+    await reset();
+
+    // A delayed fixture is never picked up by the real worker. The
+    // transaction proof uses the same row writer and enqueue as pinSession;
+    // the unit layer also checks they receive the SAME transaction.
+    const deliverySessionId = `pin-delivery-${randomUUID()}`;
+    const deliveryRows = await sql<{ id: string }[]>`
+      INSERT INTO app.sandbox_sessions (
+        org_id, session_id, profile, status, owner_type, owner_id, created_by,
+        pinned, created_at_ms, expires_at_ms
+      ) VALUES (
+        ${orgId}, ${deliverySessionId}, '"agent"'::jsonb, 'active', 'project_agent',
+        ${deliverySessionId}, ${ctx.userId}, true, ${now}, ${now + 3_600_000}
+      ) RETURNING id
+    `;
+    const deliveryRowId = deliveryRows[0]?.id;
+    if (deliveryRowId === undefined)
+      throw new Error('missing pin delivery fixture');
+    const deliveryArgs = {
+      organizationId: orgId,
+      sessionId: deliverySessionId,
+      rowId: deliveryRowId,
+    };
+    const deliveryKey = JSON.stringify([
+      orgId,
+      deliverySessionId,
+      deliveryRowId,
+    ]);
+    const later = new Date(Date.now() + 86_400_000);
+    const rollback = new Error('intentional pin delivery rollback');
+    try {
+      await sql.begin(async (tx) => {
+        await setSessionPinned(tx, { ...deliveryArgs, pinned: false });
+        await addJobInTx(tx, 'sandbox.sync_pin', deliveryArgs, {
+          singletonKey: deliveryKey,
+          startAfter: later,
+        });
+        throw rollback;
+      });
+    } catch (error) {
+      if (error !== rollback) throw error;
+    }
+    const atomic = await sql<{ pinned: boolean; jobs: number }[]>`
+      SELECT pinned, (SELECT count(*)::int FROM pgboss.job
+        WHERE name = 'sandbox.sync_pin' AND singleton_key = ${deliveryKey}) AS jobs
+      FROM app.sandbox_sessions WHERE id = ${deliveryRowId}
+    `;
+    record(
+      'sandbox lifecycle: desired pin and its durable delivery roll back together',
+      (atomic[0]?.pinned ?? false) && atomic[0]?.jobs === 0,
+      JSON.stringify(atomic[0]),
+    );
+    const activeJobId = await addJobInTx(
+      sql,
+      'sandbox.sync_pin',
+      deliveryArgs,
+      {
+        singletonKey: deliveryKey,
+        startAfter: later,
+      },
+    );
+    if (activeJobId === null)
+      throw new Error('pin delivery fixture was not queued');
+    await sql`UPDATE pgboss.job SET state = 'active', started_on = now() WHERE id = ${activeJobId}`;
+    const refusingSpawner = {
+      isAlive: async () => true,
+      setPinned: async () => false,
+    };
+    await syncSessionPin(first, deliveryArgs, refusingSpawner);
+    await syncSessionPin(first, deliveryArgs, refusingSpawner);
+    const handoff = await sql<{ active: number; waiting: number }[]>`
+      SELECT count(*) FILTER (WHERE state = 'active')::int AS active,
+             count(*) FILTER (WHERE state = 'created')::int AS waiting
+      FROM pgboss.job WHERE name = 'sandbox.sync_pin' AND singleton_key = ${deliveryKey}
+    `;
+    record(
+      'sandbox lifecycle: a failing active pin delivery retains exactly one waiting successor',
+      handoff[0]?.active === 1 && handoff[0].waiting === 1,
+      JSON.stringify(handoff[0]),
+    );
+    await pinSession(
+      first,
+      { ...deliveryArgs, pinned: false },
+      async () => true,
+    );
+    let deliveredPin: boolean | undefined;
+    await syncSessionPin(second, deliveryArgs, {
+      isAlive: async () => true,
+      setPinned: async (_session, desired) => {
+        deliveredPin = desired;
+        return true;
+      },
+    });
+    record(
+      'sandbox lifecycle: a queued successor delivers a toggle committed after its predecessor',
+      deliveredPin === false,
+      `delivered=${String(deliveredPin)} (want false)`,
     );
 
     await checkLifecycleDurability(sql, first, ctx, record);

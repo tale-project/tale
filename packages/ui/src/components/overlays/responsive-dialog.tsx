@@ -173,6 +173,7 @@ export const ResponsiveDialogContent = forwardRef<
           <DrawerPrimitive.Content
             ref={ref}
             aria-modal="true"
+            data-tale-modal=""
             onOpenAutoFocus={onOpenAutoFocus}
             onCloseAutoFocus={restoreFocus}
             onPointerDownOutside={preventDatePickerDismiss}
@@ -211,6 +212,7 @@ export const ResponsiveDialogContent = forwardRef<
         <DialogPrimitive.Content
           ref={ref}
           aria-modal="true"
+          data-tale-modal=""
           onOpenAutoFocus={onOpenAutoFocus}
           onCloseAutoFocus={restoreFocus}
           onPointerDownOutside={preventDatePickerDismiss}

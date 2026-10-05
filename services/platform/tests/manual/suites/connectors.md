@@ -153,6 +153,13 @@ Sign in as an owner/admin — the page requires the `developerSettings` ability
   the GitHub rows show — the param seeded the **Connector** facet
   (`settings.connectors.vendorFilterLabel`). Changing or clearing the facet
   removes `?connector=` from the URL and the facet's own selection takes over.
+  Repeat with only GitHub credentials and `?connector=slack`, and after
+  deleting the selected connector's last credential → The shared no-results
+  state appears (never the first-connector invitation); search and Filter stay
+  enabled, the selected connector stays visible in the facet, and clearing it
+  removes the param and restores GitHub rows. A matching single-connector link
+  also keeps its filter clearable. Check EN/DE/FR and keyboard access to the
+  facet and clear action.
 - [ ] `CONN-F10` · **Row actions** — Row 3-dot menu
   (`settings.credentials.actionsLabel`) → Offers **Make default** /
   **Disable** / **Replace …** / **Edit credential** / **Delete**
@@ -315,6 +322,15 @@ Sign in as an owner/admin — the page requires the `developerSettings` ability
   row leaves A's table; on another such row, **Delete** → **Delete** answers
   `settings.credentials.deleteFailed` once and the confirm closes with the
   row. No second click can fail the same way.
+- [ ] `CONN-B12` · **Back waits out a save in flight** — With CONN-F4's
+  **GitHub** row, Picker → **GitHub** → name it **GitHub** again, fill the
+  token, throttle the network (DevTools → Network → Slow 4G) and submit →
+  While the save is pending, **Cancel** and the back control
+  (`common.actions.back`) are both disabled. The server's refusal then shows
+  inline on that same form (`A credential named "GitHub" already exists for
+  this connector — pick a different name.`) with the name and token still
+  filled. Once settled, the back control returns to the picker, and a
+  re-picked **GitHub** starts over with an empty token.
 
 ## Accessibility (WCAG 2.1 AA)
 

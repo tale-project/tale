@@ -78,6 +78,7 @@ describe('TrashPage', () => {
     mockListTrashedRows.mockReturnValue({
       data: { rows: [], nextCursor: null },
       isLoading: false,
+      error: null,
     });
 
     render(<TrashPage organizationId="org-1" />);
@@ -123,6 +124,7 @@ describe('TrashPage', () => {
         nextCursor: null,
       },
       isLoading: false,
+      error: null,
     });
 
     render(<TrashPage organizationId="org-1" />);
@@ -136,8 +138,10 @@ describe('TrashPage', () => {
       screen.getByRole('columnheader', { name: TYPE_COLUMN }),
     ).toBeInTheDocument();
 
-    // The empty notice must NOT show once rows exist.
+    // The empty notice must NOT show once rows exist, nor a failure notice
+    // over a read that answered.
     expect(screen.queryByText(EMPTY_NOTICE)).not.toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
 
     // With rows present the filter affordance is interactive again.
     expect(screen.getByRole('button', { name: FILTER_BUTTON })).toBeEnabled();
@@ -164,6 +168,7 @@ describe('TrashPage', () => {
         nextCursor: null,
       },
       isLoading: false,
+      error: null,
     });
 
     const { user } = render(<TrashPage organizationId="org-1" />);
@@ -196,6 +201,7 @@ describe('TrashPage', () => {
     mockListTrashedRows.mockReturnValue({
       data: { rows: [], nextCursor: null },
       isLoading: false,
+      error: null,
     });
 
     render(<TrashPage organizationId="org-1" />);
@@ -230,6 +236,7 @@ describe('TrashPage', () => {
         nextCursor: null,
       },
       isLoading: false,
+      error: null,
     });
 
     render(<TrashPage organizationId="org-1" />);
@@ -268,6 +275,7 @@ describe('TrashPage', () => {
         nextCursor: null,
       },
       isLoading: false,
+      error: null,
     });
 
     render(<TrashPage organizationId="org-1" />);
@@ -301,6 +309,7 @@ describe('TrashPage', () => {
         nextCursor: null,
       },
       isLoading: false,
+      error: null,
     });
 
     render(<TrashPage organizationId="org-1" />);

@@ -2,7 +2,7 @@ import * as client from '@tale/ui/search/static-index/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { render, screen, waitFor, within } from '@/tests/utils/render';
+import { act, render, screen, within } from '@/tests/utils/render';
 
 import { ACTIVE_HREF, SECTIONS } from './__fixtures__/docs-nav';
 
@@ -90,7 +90,12 @@ describe('DocsLayout', () => {
   it('opens the search palette with Cmd/Ctrl+K', async () => {
     const { user } = renderLayout();
     await user.keyboard('{Control>}k{/Control}');
-    await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
+    // The first shortcut loads the real palette; finish that import and its
+    // React commit before asserting, without timing cold modules against 1s.
+    await act(async () => {
+      await vi.dynamicImportSettled();
+    });
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
     expect(
       screen.getByPlaceholderText('Search documentation'),
     ).toBeInTheDocument();

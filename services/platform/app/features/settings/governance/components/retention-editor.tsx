@@ -15,8 +15,10 @@ import { useAbility } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
 import { isRecord } from '@/lib/utils/type-utils';
 
+import { usePolicyReadAvailable } from '../hooks/policy-read-access';
 import { useGovernancePolicy } from '../hooks/queries';
 import { useRetentionBounds } from '../hooks/use-retention-bounds';
+import { withGovernancePolicyReadBoundary } from './policy-read-boundary';
 import { RetentionBoundsProposalBanner } from './retention-bounds-proposal-banner';
 import { RetentionEditDrawer } from './retention-edit-drawer';
 import { RetentionPendingBanner } from './retention-pending-banner';
@@ -49,7 +51,8 @@ function parseRetentionConfig(policy: unknown): RetentionPolicyConfig {
 // `<Skeletonize>` drives the mask), so the block reserves its real height; the
 // Edit action button auto-masks via `<Skeletonize>`.
 // =============================================================================
-export function RetentionEditor({ organizationId }: RetentionEditorProps) {
+function RetentionEditorContent({ organizationId }: RetentionEditorProps) {
+  const policyReadAvailable = usePolicyReadAvailable();
   const { t } = useT('governance');
   const { t: tCommon } = useT('common');
   const ability = useAbility();
@@ -107,7 +110,7 @@ export function RetentionEditor({ organizationId }: RetentionEditorProps) {
         <RetentionPolicySummary config={savedConfig} bounds={bounds} />
 
         <RetentionEditDrawer
-          open={drawerOpen}
+          open={policyReadAvailable && drawerOpen}
           onOpenChange={setDrawerOpen}
           savedConfig={savedConfig}
           bounds={bounds}
@@ -118,3 +121,8 @@ export function RetentionEditor({ organizationId }: RetentionEditorProps) {
     </Skeletonize>
   );
 }
+
+export const RetentionEditor = withGovernancePolicyReadBoundary(
+  RetentionEditorContent,
+  'retention_policy',
+);

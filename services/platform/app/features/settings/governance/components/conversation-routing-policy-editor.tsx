@@ -55,8 +55,10 @@ import { useT } from '@/lib/i18n/client';
 import { createConfigParser } from '../config-parser';
 import { mapGovernanceSaveError } from '../governance-save-errors';
 import { useUpsertGovernancePolicy } from '../hooks/mutations';
+import { usePolicyReadAvailable } from '../hooks/policy-read-access';
 import { useGovernancePolicy } from '../hooks/queries';
 import { useGovernancePolicyToggle } from '../hooks/use-governance-policy-toggle';
+import { withGovernancePolicyReadBoundary } from './policy-read-boundary';
 import { RulesTableEmptyState } from './rules-table-empty-state';
 
 // One sectioned picker carries both target dimensions (like the conversation
@@ -454,13 +456,14 @@ interface ConversationRoutingPolicyEditorProps {
  * conversations. Mirrors the model-access editor's rules-table + dialog
  * pattern; both rule arrays are saved on every add/edit/remove.
  */
-export function ConversationRoutingPolicyEditor({
+function ConversationRoutingPolicyEditorContent({
   organizationId,
   openAddRule = false,
   initialAddress,
   initialArrivesOn,
   returnToConversation,
 }: ConversationRoutingPolicyEditorProps) {
+  const policyReadAvailable = usePolicyReadAvailable();
   const { t } = useT('governance');
   const { toast } = useToast();
   const ability = useAbility();
@@ -901,7 +904,7 @@ export function ConversationRoutingPolicyEditor({
 
         {dialogOpen && (
           <RuleDialog
-            open={dialogOpen}
+            open={policyReadAvailable && dialogOpen}
             onOpenChange={handleDialogOpenChange}
             rule={dialogRule}
             onSave={handleDialogSave}
@@ -924,7 +927,7 @@ export function ConversationRoutingPolicyEditor({
         )}
 
         <ConfirmDialog
-          open={deletingIndex !== null}
+          open={policyReadAvailable && deletingIndex !== null}
           onOpenChange={(open) => {
             if (!open) setDeletingIndex(null);
           }}
@@ -938,3 +941,8 @@ export function ConversationRoutingPolicyEditor({
     </Skeletonize>
   );
 }
+
+export const ConversationRoutingPolicyEditor = withGovernancePolicyReadBoundary(
+  ConversationRoutingPolicyEditorContent,
+  'conversation_routing',
+);

@@ -1,5 +1,9 @@
 import type { Sql, TransactionSql } from 'postgres';
 
+import {
+  CUSTOM_INSTRUCTIONS_MAX_CHARS,
+  normalizeCustomInstructions,
+} from '../../../lib/shared/custom-instructions.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
 
 /**
@@ -158,28 +162,15 @@ function chatModelPickOf(
   };
 }
 
-// Soft length guard on a settings field (flat chars/4 approximation of the
-// retired estimateTokens — see the 0.4 module comment).
-function estimateTokens(text: string): number {
-  if (!text) {
-    return 0;
-  }
-  return Math.ceil(text.length / 4);
-}
-
 // oxlint-disable-next-line no-control-regex -- control characters are exactly what this guard rejects
 const CUSTOM_INSTRUCTIONS_ILLEGAL_RE = /[<>`\x00-\x09\x0b-\x1f\x7f]/;
-const CUSTOM_INSTRUCTIONS_MAX_CHARS = 5000;
-const CUSTOM_INSTRUCTIONS_MAX_TOKENS = 800;
 
 export async function upsertCustomInstructions(
   tx: TransactionSql,
   scope: { userId: string; orgId: string },
   customInstructions: string,
 ): Promise<void> {
-  const normalized = customInstructions
-    .replaceAll('\r\n', '\n')
-    .replaceAll('\r', '\n');
+  const normalized = normalizeCustomInstructions(customInstructions);
   if (normalized.length > CUSTOM_INSTRUCTIONS_MAX_CHARS) {
     throw new PreferencesError(
       'too_long',
@@ -194,13 +185,6 @@ export async function upsertCustomInstructions(
       'invalid',
       'Custom instructions contain disallowed characters (angle brackets, ' +
         'backticks, or control characters).',
-    );
-  }
-  const tokens = estimateTokens(normalized);
-  if (tokens > CUSTOM_INSTRUCTIONS_MAX_TOKENS) {
-    throw new PreferencesError(
-      'too_long',
-      `Custom instructions exceed ${CUSTOM_INSTRUCTIONS_MAX_TOKENS} token budget (got ~${tokens}).`,
     );
   }
   await tx`

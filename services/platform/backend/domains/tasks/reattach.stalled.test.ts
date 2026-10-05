@@ -40,7 +40,7 @@ describe('recoverStalledTaskAgentTurns — the op-less arm ages on the run row',
     });
     expect(result).toEqual({ examined: 0, resumed: 0 });
     const listing = statements.find((text) =>
-      text.startsWith('SELECT r.id AS "runId"'),
+      text.includes('FROM app.project_agent_runs r'),
     );
     expect(listing).toBeDefined();
     expect(listing).toContain("r.status = 'running'");
@@ -123,10 +123,11 @@ describe('recoverStalledTaskAgentTurns — the missing-op-row heal', () => {
             deadlineAt: Date.now() + 3_600_000,
           },
         ],
-        // 2: the claim's FOR UPDATE read — no row
+        // 2: no queued drive; 3: the claim finds no op.
+        [{ pending: false }],
         [],
-        // 3: the INSERT (the insert IS the claim)
-        [],
+        // 4: the INSERT wins the claim.
+        [{ id: 'op_1' }],
       ],
       statements,
     );
@@ -181,10 +182,15 @@ describe('recoverStalledTaskAgentTurns — the drive-chain fence', () => {
       statements,
     );
 
+    let probes = 0;
     const result = await recoverStalledTaskAgentTurns(sql, {
-      probe: () => Promise.resolve({ state: 'running' as const }),
+      probe: () => {
+        probes++;
+        return Promise.resolve({ state: 'running' as const });
+      },
     });
 
+    expect(probes).toBe(0);
     expect(result).toEqual({ examined: 1, resumed: 0 });
     expect(sent).toEqual([]);
     const fence = statements[1];

@@ -31,6 +31,8 @@ import {
   PROJECT_TEAM_IDS_SQL,
   TeamAssignmentError,
 } from '../../core/lib/audience.ts';
+import { assertExpectedHash } from '../../core/lib/config_store/precondition.ts';
+import { managedConfigurationHash } from '../../core/lib/config_store/value_hash.ts';
 import { loadHarnesses } from '../../core/lib/providers/load_system_config.ts';
 import {
   ADMIN_ROLES,
@@ -998,10 +1000,21 @@ export async function updateProjectInstructions(
   auth: ProjectAuthContext,
   projectId: string,
   instructions: string,
+  expectedHash?: string,
 ): Promise<void> {
   const project = await loadProjectOrThrow(tx, projectId);
   assertActiveWritable(project, auth);
   const validated = validateInstructions(instructions);
+  if (expectedHash !== undefined) {
+    assertExpectedHash(
+      managedConfigurationHash({
+        projectId,
+        instructions: project.instructions ?? '',
+      }),
+      expectedHash,
+    );
+    if ((project.instructions ?? '') === validated) return;
+  }
   await tx`
     UPDATE app.projects SET
       instructions = ${validated.length > 0 ? validated : null},
@@ -1018,6 +1031,17 @@ export async function updateProjectInstructions(
     }),
   );
   await hintProject(tx, auth.organizationId, projectId);
+}
+
+export async function readProjectInstructionsConfiguration(
+  sql: Sql | TransactionSql,
+  auth: ProjectAuthContext,
+  projectId: string,
+) {
+  const project = await loadProjectOrThrow(sql, projectId);
+  assertReadable(project, auth);
+  const config = { projectId, instructions: project.instructions ?? '' };
+  return { config, hash: managedConfigurationHash(config) };
 }
 
 export async function updateProjectSharing(
@@ -1431,6 +1455,19 @@ interface ProjectAgentFields {
   instructions: string | undefined;
 }
 
+function validateProjectAgentInstructions(
+  instructions: string | undefined,
+): string | undefined {
+  const value = instructions?.trim();
+  if (value !== undefined && value.length > PROJECT_AGENT_INSTRUCTIONS_MAX) {
+    throw new ProjectError(
+      'PROJECT_AGENT_INSTRUCTIONS_TOO_LONG',
+      'Agent instructions too long',
+    );
+  }
+  return value;
+}
+
 function validateProjectAgentFields(args: {
   name: string;
   harness: string;
@@ -1481,16 +1518,7 @@ function validateProjectAgentFields(args: {
       `An agent may be equipped with at most ${PROJECT_AGENT_BINDINGS_MAX} skills, ${PROJECT_AGENT_BINDINGS_MAX} connectors, ${PROJECT_AGENT_BINDINGS_MAX} tools, and ${PROJECT_AGENT_BINDINGS_MAX} secrets.`,
     );
   }
-  const instructions = args.instructions?.trim();
-  if (
-    instructions !== undefined &&
-    instructions.length > PROJECT_AGENT_INSTRUCTIONS_MAX
-  ) {
-    throw new ProjectError(
-      'PROJECT_AGENT_INSTRUCTIONS_TOO_LONG',
-      'Agent instructions too long',
-    );
-  }
+  const instructions = validateProjectAgentInstructions(args.instructions);
   // A grant the catalog does not carry is refused by name — it used to be
   // dropped in silence, so a caller that sent `["bash", "web_search"]` got
   // a 201 and an agent with no tools at all.
@@ -1693,6 +1721,75 @@ export async function getProjectAgent(
     LIMIT 1
   `;
   return rows[0] ?? null;
+}
+
+export async function readAgentInstructionsConfiguration(
+  sql: Sql | TransactionSql,
+  auth: ProjectAuthContext,
+  projectId: string,
+  agentId: string,
+) {
+  const agent = await getProjectAgent(sql, auth, projectId, agentId);
+  if (!agent)
+    throw new ProjectError('PROJECT_AGENT_NOT_FOUND', 'Agent not found', 404);
+  const config = { projectId, agentId, instructions: agent.instructions ?? '' };
+  return { config, hash: managedConfigurationHash(config) };
+}
+
+/** Instructions have no authority to replace equipment, credential grants or
+ * serving choices. The serializable caller protects this preimage alongside
+ * the native audit and realtime hint. */
+export async function updateAgentInstructionsConfiguration(
+  tx: TransactionSql,
+  auth: ProjectAuthContext,
+  config: { projectId: string; agentId: string; instructions: string },
+  expectedHash: string,
+): Promise<void> {
+  const project = await loadProjectOrThrow(tx, config.projectId);
+  assertAgentWritable(project, auth);
+  const agent = await getProjectAgent(
+    tx,
+    auth,
+    config.projectId,
+    config.agentId,
+  );
+  if (!agent)
+    throw new ProjectError('PROJECT_AGENT_NOT_FOUND', 'Agent not found', 404);
+  if (agent.managed)
+    throw new ProjectError(
+      'PROJECT_AGENT_MANAGED',
+      'Managed agent configuration is read-only',
+      409,
+    );
+  const instructions =
+    validateProjectAgentInstructions(config.instructions) ?? '';
+  assertExpectedHash(
+    managedConfigurationHash({
+      projectId: config.projectId,
+      agentId: config.agentId,
+      instructions: agent.instructions ?? '',
+    }),
+    expectedHash,
+  );
+  if ((agent.instructions ?? '') === instructions) return;
+  await tx`
+    UPDATE app.project_agents SET instructions = ${instructions.length > 0 ? instructions : null},
+      updated_at_ms = ${Date.now()}
+    WHERE id = ${config.agentId} AND project_id = ${config.projectId}
+      AND org_id = ${auth.organizationId}
+  `;
+  await createAuditLog(
+    tx,
+    projectAudit(auth, project, PROJECT_AUDIT_ACTIONS.agentsChanged, {
+      metadata: {
+        op: 'update',
+        projectAgentId: config.agentId,
+        previousLength: agent.instructions?.length ?? 0,
+        newLength: instructions.length,
+      },
+    }),
+  );
+  await hintProject(tx, auth.organizationId, config.projectId);
 }
 
 export async function createProjectAgent(

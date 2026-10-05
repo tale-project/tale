@@ -120,6 +120,9 @@ beforeEach(() => {
     runtimeSessions: [
       { sessionId: 'private-project-session', state: 'running' },
     ],
+    placements: [
+      { sessionId: 'private-project-session', deviceId: 'private-device' },
+    ],
   });
   policy.mockResolvedValue({
     maxSessionsPerOrg: 2,
@@ -163,18 +166,25 @@ describe('sandbox settings read and write authority', () => {
           status: 'available',
           observedAt: 1000,
           runtimeSessions: [],
+          placements: [],
         });
       } else {
         expect(listViews).toHaveBeenCalledWith(query, 'member-org');
         expect(await response.json()).toMatchObject({
           runtimeSessions: [{ sessionId: 'private-project-session' }],
+          placements: [
+            {
+              sessionId: 'private-project-session',
+              deviceId: 'private-device',
+            },
+          ],
         });
       }
       expect(policy).toHaveBeenCalledWith(query, 'member-org', 'sandbox_quota');
     },
   );
 
-  it.each(['editor', 'viewer'])(
+  it.each(['member', 'editor', 'viewer'])(
     'withholds infrastructure reads from %s',
     async (role) => {
       caller.role = role;
@@ -416,14 +426,23 @@ describe('agent-node op honours the run project read rule', () => {
   });
 
   it('answers the op for a project run the member can read', async () => {
-    const res = await app().request('/agent-node-op?runId=r-visible');
+    const res = await app().request(
+      '/agent-node-op?runId=r-visible&nodeId=draft_report',
+    );
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ op });
     expect(agentNodeOp).toHaveBeenCalledTimes(1);
+    expect(agentNodeOp).toHaveBeenCalledWith(query, {
+      organizationId: 'member-org',
+      runId: 'r-visible',
+      nodeId: 'draft_report',
+    });
   });
 
   it('hides the op of a run whose project the member cannot read', async () => {
-    const res = await app().request('/agent-node-op?runId=r-hidden');
+    const res = await app().request(
+      '/agent-node-op?runId=r-hidden&nodeId=draft_report',
+    );
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ op: null });
     // The transcript read never runs for a hidden run.

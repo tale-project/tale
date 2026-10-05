@@ -274,6 +274,12 @@ export interface TaskPayloads {
    * spawner-side, under its id, then re-pin it — queued by the sweep and the
    * Sandboxes page probe so neither waits for a create. */
   'sandbox.recreate_pinned': { organizationId: string; sessionId: string };
+  /** Deliver the latest desired pin of this incarnation, including Unpin. */
+  'sandbox.sync_pin': {
+    organizationId: string;
+    sessionId: string;
+    rowId: string;
+  };
   /** An administrator's Destroy from the Sandboxes page: delete the session's
    * sandbox and workspace and settle its rows. `rowId` is the incarnation it
    * was asked for; a newer one under the reused id is left alone. The page
@@ -587,6 +593,13 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
   'watchdog.automation_agents': { retryLimit: 1, expireInSeconds: 120 },
   'watchdog.sandbox': { retryLimit: 1, expireInSeconds: 300 },
   // A spawner blip is retried with backoff, not three times in one second.
+  'sandbox.sync_pin': {
+    policy: 'short',
+    retryLimit: 3,
+    retryDelay: 5,
+    retryBackoff: true,
+    expireInSeconds: 300,
+  },
   'sandbox.release_idle': {
     retryLimit: 3,
     retryDelay: 5,
@@ -698,6 +711,8 @@ export const TASK_WORKER_BATCH_LIMITS: ReadonlyMap<string, number> = new Map<
 export const TASK_WORKER_SLOT_QUEUES: ReadonlySet<string> =
   new Set<TaskIdentifier>([
     'websites.scan',
+    // One slow answer must not hold the next chat after its batch-mates finish.
+    'chat.api_turn',
     // An agent turn's start (a session create can take minutes) and each of
     // its 90 s drive windows: batched, one slow start held every start
     // behind it, and live turns past a batch were drained only in turns.
@@ -711,7 +726,7 @@ export const TASK_WORKER_SLOT_QUEUES: ReadonlySet<string> =
  * The fewest slots a slot queue runs, whatever `WORKER_CONCURRENCY` says. A
  * drive window spends its 90 s waiting on the sandbox's output stream, and a
  * live turn whose window waits for a free slot is not drained meanwhile: its
- * output piles up in the daemon's replay ring (256 KB) and its heartbeat
+ * output waits in the daemon's bounded replay journal and its heartbeat
  * goes stale, so the default of five slots throttled a worker to five live
  * agent turns at once.
  */

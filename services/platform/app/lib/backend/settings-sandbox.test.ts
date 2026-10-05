@@ -14,6 +14,46 @@ afterEach(() => {
   delete window.__ENV__;
 });
 
+describe('device enrollment status adapter', () => {
+  it('polls only the requested grant with an organization-scoped key and no secret in the URL', async () => {
+    const fetch = vi
+      .spyOn(window, 'fetch')
+      .mockResolvedValue(Response.json({ deviceId: 'device-own' }));
+    const adapter = settingsReadAdapters[
+      'sandbox_devices/queries:joinTokenStatus'
+    ]?.(
+      { organizationId: 'org-a', tokenId: 'grant/one' },
+      { organizationId: 'org-b' },
+    );
+    expect(adapter?.queryKey).toEqual(
+      backendKey('org-a', 'sandbox_device', 'join-token', 'grant/one'),
+    );
+    expect(adapter?.refetchInterval).toBe(3_000);
+    await expect(adapter?.queryFn()).resolves.toEqual({
+      deviceId: 'device-own',
+    });
+    expect(fetch.mock.calls[0]?.[0]).toBe(
+      '/api/app/sandbox-devices/join-tokens/grant%2Fone?orgId=org-a',
+    );
+    expect(
+      settingsReadAdapters['sandbox_devices/queries:joinTokenStatus']?.(
+        { tokenId: 'grant-1' },
+        {},
+      ),
+    ).toBeNull();
+  });
+
+  it('does not turn a failed status read into enrollment success', async () => {
+    vi.spyOn(window, 'fetch').mockResolvedValue(
+      new Response('{}', { status: 404 }),
+    );
+    const adapter = settingsReadAdapters[
+      'sandbox_devices/queries:joinTokenStatus'
+    ]?.({ organizationId: 'org-a', tokenId: 'grant-1' }, {});
+    await expect(adapter?.queryFn()).rejects.toThrow('404');
+  });
+});
+
 describe('sandbox capacity adapter', () => {
   it('requests an organization-scoped infrastructure snapshot and preserves unknown state', async () => {
     const response = { status: 'unavailable', reason: 'unreachable' };

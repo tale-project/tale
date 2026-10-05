@@ -465,8 +465,9 @@ function RunsOn({
   devices: readonly SandboxDeviceView[] | undefined;
 }) {
   const { t } = useT('sandboxes');
-  if (devices === undefined || devices.length === 0) return null;
-  const placement = placements?.find((p) => p.sessionId === sessionId);
+  if (placements === undefined || devices === undefined || devices.length === 0)
+    return null;
+  const placement = placements.find((p) => p.sessionId === sessionId);
   if (placement === undefined) {
     return (
       <span className="text-muted-foreground text-xs">

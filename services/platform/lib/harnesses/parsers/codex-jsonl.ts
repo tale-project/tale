@@ -16,6 +16,8 @@
 //   { type: "turn.failed", error: { message } }
 //   { type: "error", message }   // includes TRANSIENT stream reconnects
 
+import { z } from 'zod';
+
 import {
   asNumber,
   asString,
@@ -77,6 +79,14 @@ function toolOutput(item: Record<string, unknown>): unknown {
   return undefined;
 }
 
+const checkpointSchema = z.object({
+  lines: z.string(),
+  started: z.boolean(),
+  sessionId: z.string().optional(),
+  finalText: z.string().optional(),
+  toolStarted: z.array(z.string()),
+});
+
 class CodexJsonlParser implements HarnessEventParser {
   private readonly lines = new LineReassembler();
   private started = false;
@@ -86,6 +96,26 @@ class CodexJsonlParser implements HarnessEventParser {
   private readonly toolStarted = new BoundedIdLedger();
 
   constructor(private readonly slug: HarnessSlug) {}
+
+  snapshot(): Record<string, unknown> {
+    return {
+      lines: this.lines.snapshot(),
+      started: this.started,
+      sessionId: this.sessionId,
+      finalText: this.finalText,
+      toolStarted: [...this.toolStarted],
+    };
+  }
+
+  restore(value: unknown): void {
+    const state = checkpointSchema.parse(value);
+    this.lines.restore(state.lines);
+    this.started = state.started;
+    this.sessionId = state.sessionId;
+    this.finalText = state.finalText;
+    this.toolStarted.clear();
+    for (const item of state.toolStarted) this.toolStarted.add(item);
+  }
 
   feed(chunk: string): HarnessEvent[] {
     return this.lines.push(chunk).flatMap((line) => this.line(line));
