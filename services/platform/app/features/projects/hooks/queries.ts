@@ -222,15 +222,17 @@ export function useProjectFolders(projectId: string | undefined) {
  * the ones other members shared with it, from the chat-v2 tables. */
 export function useProjectChatThreads(projectId: string | undefined) {
   const organizationId = useOrganizationId();
-  const { data, isLoading } = useBackendQuery(
+  const query = useBackendQuery(
     'chat/project_threads:listThreadsForProject',
     projectId && organizationId
       ? { organizationId, projectId: projectId }
       : 'skip',
   );
   return {
-    mine: data?.mine ?? [],
-    shared: data?.shared ?? [],
-    isLoading,
+    mine: query.data?.mine ?? [],
+    shared: query.data?.shared ?? [],
+    isLoading: query.isLoading,
+    ...readStateOf(query),
+    retry: () => void query.refetch(),
   };
 }

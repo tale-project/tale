@@ -8,6 +8,7 @@
  */
 
 import { Button } from '@tale/ui/button';
+import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
 import { ContentArea } from '@tale/ui/content-area';
 import { EmptyState } from '@tale/ui/empty-state';
 import { FormSection } from '@tale/ui/form-section';
@@ -99,6 +100,11 @@ export function ProjectThreadsTab({
     mine,
     shared: sharedThreads,
     isLoading,
+    unavailable,
+    stale,
+    retrying,
+    failureCount,
+    retry,
   } = useProjectChatThreads(projectId);
   const { mutateAsync: setShared } = useSetThreadSharedWithProject();
 
@@ -162,67 +168,82 @@ export function ProjectThreadsTab({
         }
       />
 
-      <FormSection>
-        {mine.length === 0 ? (
-          <EmptyState
-            icon={MessageCircle}
-            title={t('threads.emptyYours')}
-            className="rounded-lg border border-dashed py-8"
-          />
-        ) : (
-          <div className="flex flex-col gap-3">
-            <Text variant="muted" className="text-sm">
-              {t('threads.shareToggleDisclosure')}
-            </Text>
+      {unavailable || stale ? (
+        <CatalogLoadError
+          failureKey={failureCount}
+          message={
+            unavailable ? t('threads.loadFailed') : t('threads.refreshFailed')
+          }
+          onRetry={retry}
+          isRetrying={retrying}
+        />
+      ) : null}
+
+      {unavailable ? null : (
+        <FormSection>
+          {mine.length === 0 ? (
+            <EmptyState
+              icon={MessageCircle}
+              title={t('threads.emptyYours')}
+              className="rounded-lg border border-dashed py-8"
+            />
+          ) : (
+            <div className="flex flex-col gap-3">
+              <Text variant="muted" className="text-sm">
+                {t('threads.shareToggleDisclosure')}
+              </Text>
+              <ul className="divide-y overflow-hidden rounded-lg border">
+                {mine.map((thread) => (
+                  <ProjectChatRow
+                    key={thread.id}
+                    organizationId={organizationId}
+                    thread={thread}
+                    trailing={
+                      <Switch
+                        checked={thread.sharedWithProject === true}
+                        onCheckedChange={(checked) =>
+                          void handleToggleShare(thread.id, checked)
+                        }
+                        label={t('threads.shareToggle')}
+                        // The disclosure above names the toggle; repeated on
+                        // every row it left a phone's chat title a few letters.
+                        hideLabelOnMobile
+                      />
+                    }
+                  />
+                ))}
+              </ul>
+            </div>
+          )}
+        </FormSection>
+      )}
+
+      {unavailable ? null : (
+        <PageSection
+          title={t('threads.sharedWithProject')}
+          gap={6}
+          className="mt-8 border-t pt-8"
+        >
+          {sharedThreads.length === 0 ? (
+            <EmptyState
+              icon={MessageCircle}
+              title={t('threads.emptyShared')}
+              className="rounded-lg border border-dashed py-8"
+            />
+          ) : (
             <ul className="divide-y overflow-hidden rounded-lg border">
-              {mine.map((thread) => (
+              {sharedThreads.map((thread) => (
                 <ProjectChatRow
                   key={thread.id}
                   organizationId={organizationId}
                   thread={thread}
-                  trailing={
-                    <Switch
-                      checked={thread.sharedWithProject === true}
-                      onCheckedChange={(checked) =>
-                        void handleToggleShare(thread.id, checked)
-                      }
-                      label={t('threads.shareToggle')}
-                      // The disclosure above names the toggle; repeated on
-                      // every row it left a phone's chat title a few letters.
-                      hideLabelOnMobile
-                    />
-                  }
+                  context={thread.authorName ?? thread.userId.slice(0, 8)}
                 />
               ))}
             </ul>
-          </div>
-        )}
-      </FormSection>
-
-      <PageSection
-        title={t('threads.sharedWithProject')}
-        gap={6}
-        className="mt-8 border-t pt-8"
-      >
-        {sharedThreads.length === 0 ? (
-          <EmptyState
-            icon={MessageCircle}
-            title={t('threads.emptyShared')}
-            className="rounded-lg border border-dashed py-8"
-          />
-        ) : (
-          <ul className="divide-y overflow-hidden rounded-lg border">
-            {sharedThreads.map((thread) => (
-              <ProjectChatRow
-                key={thread.id}
-                organizationId={organizationId}
-                thread={thread}
-                context={thread.authorName ?? thread.userId.slice(0, 8)}
-              />
-            ))}
-          </ul>
-        )}
-      </PageSection>
+          )}
+        </PageSection>
+      )}
     </ContentArea>
   );
 }
