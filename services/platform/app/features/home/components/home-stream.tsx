@@ -178,22 +178,25 @@ function WindowedHomeStream({
   const [listElement, setListElement] = useState<HTMLOListElement | null>(null);
   const scrollMargin = useOffsetInScrollport(listElement, scrollElement);
 
+  // Whether a draft row leads, not the row itself: its element is new on
+  // every render, and the entries (with every row's placement) must not be.
+  const hasDraftRow = draft !== null;
   const entries = useMemo(() => {
     const list: Entry[] = [];
-    if (draft !== null) list.push({ kind: 'draft', key: DRAFT_ROW_KEY });
+    if (hasDraftRow) list.push({ kind: 'draft', key: DRAFT_ROW_KEY });
     groups.forEach((group, groupIndex) => {
       list.push({
         kind: 'heading',
         key: `heading:${group.key}`,
         group: group.key,
-        first: groupIndex === 0 && draft === null,
+        first: groupIndex === 0 && !hasDraftRow,
       });
       for (const item of group.items) {
         list.push({ kind: 'row', key: homeItemKey(item), item });
       }
     });
     return list;
-  }, [groups, draft]);
+  }, [groups, hasDraftRow]);
 
   // The rows (the draft included) in stream order, and where each sits in
   // the list of entries.

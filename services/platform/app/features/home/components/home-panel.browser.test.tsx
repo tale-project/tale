@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom/vitest';
-import type { AnchorHTMLAttributes, ReactNode } from 'react';
+import { useState, type AnchorHTMLAttributes, type ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { page, userEvent } from 'vitest/browser';
 
@@ -13,11 +13,15 @@ import { painted } from '@/tests/utils/paint';
 import { cleanup, render, screen, within } from '@/tests/utils/render';
 
 import type { HomeData } from '../hooks/use-home-data';
-import type { HomeItem } from '../lib/home-items';
+import type { HomeGroup, HomeItem } from '../lib/home-items';
 import { HomeNavigator, HomePanel } from './home-panel';
 import { HomePanelProvider } from './home-panel-context';
 import { HomeConversationRow } from './home-rows';
-import { WINDOWED_STREAM_MIN_ROWS } from './home-stream';
+import {
+  HomeStream,
+  WINDOWED_STREAM_MIN_ROWS,
+  type HomeRowPlacement,
+} from './home-stream';
 
 import '@/app/globals.css';
 
@@ -666,6 +670,61 @@ describe('a long Home stream in Chromium', () => {
       .not.toBeNull();
     expect(document.querySelector('[data-thread-id="chat-5"]')).not.toBeNull();
     expect(document.activeElement).toBe(link);
+  });
+
+  it("hands each row the same placement while a fresh chat's draft row leads", async () => {
+    const groups: HomeGroup[] = [
+      {
+        key: 'today',
+        items: Array.from({ length: 200 }, (_, index) => ({
+          kind: 'chat' as const,
+          id: `chat-${index}`,
+          title: `Chat ${index}`,
+          activityAt: 0,
+          unread: false,
+          generating: false,
+          shared: false,
+        })),
+      },
+    ];
+    const placements = new Map<string, HomeRowPlacement | undefined>();
+    function Stream() {
+      const [scrollElement, setScrollElement] = useState<HTMLElement | null>(
+        null,
+      );
+      return (
+        <div ref={setScrollElement} style={{ height: 400, overflow: 'auto' }}>
+          <HomeStream
+            groups={groups}
+            // A new element on every render, as the panel builds it.
+            draft={<li>Draft</li>}
+            renderRow={(item, placement) => {
+              placements.set(item.id, placement);
+              return (
+                <li
+                  key={item.id}
+                  ref={placement?.measureRef}
+                  data-index={placement?.index}
+                >
+                  {item.title}
+                </li>
+              );
+            }}
+            ariaLabel="Stream"
+            scrollElement={scrollElement}
+            activeKey={null}
+          />
+        </div>
+      );
+    }
+    const { rerender } = render(<Stream />);
+    await expect.poll(() => placements.get('chat-0')).toBeDefined();
+    const placement = placements.get('chat-0');
+
+    // The panel renders again, the draft row with it: a memoized row must
+    // not.
+    rerender(<Stream />);
+    expect(placements.get('chat-0')).toBe(placement);
   });
 });
 
