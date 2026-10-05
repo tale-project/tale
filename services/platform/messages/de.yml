@@ -8528,6 +8528,8 @@ projects:
     shareSuccess: Chat mit Projekt geteilt
     unshareSuccess: Chat aus Projekt ausgeblendet
     shareError: Freigabe konnte nicht aktualisiert werden
+    loadFailed: Die Chats dieses Projekts konnten nicht geladen werden.
+    refreshFailed: Die Chats dieses Projekts konnten nicht aktualisiert werden. Die Anzeige ist womöglich veraltet.
   agents:
     agentsHeading: Agenten
     sectionDescription: Agenten für dieses Projekt, jeder mit eigenem Modell, eigenen Skills und eigenen Anweisungen.
