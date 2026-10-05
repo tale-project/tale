@@ -42,8 +42,9 @@ const SIZE_BUDGETS: Record<string, number> = {
   platform: 2900,
   db: 1200,
   proxy: 100,
-  // Exact Build43a9 digest measured86.45MiB; ~15% growth headroom.
-  'sandbox-llm-gateway': 100,
+  // Docker .Size measured 255 MiB in Build37264873673; ~17% headroom.
+  // Registry gzip layers are 86.45 MiB, a different metric from this guard.
+  'sandbox-llm-gateway': 300,
   sandbox: 320,
   'sandbox-egress': 80,
   // Debian-slim + the verbatim BuildKit static binaries + redsocks/iptables —

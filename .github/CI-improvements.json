@@ -619,9 +619,9 @@
     {
       "title": "Validate the omitted sandbox LLM gateway image",
       "before": "Image harness omitted gateway from its seven-image service list despite publication/pulling/scanning eight images.",
-      "after": "Gateway receives nonroot/OCI/ENV/filesystem/health checks and measured100MiB budget alongside all other services.",
+      "after": "Gateway receives nonroot/OCI/ENV/filesystem/health checks and a 300 MiB Docker uncompressed-size budget alongside all other services; observed 255 MiB leaves about 17% growth headroom.",
       "paths": ["services/platform/tests/integration/container-image-test.ts"],
-      "proof": "Exact Build37260011687 gateway receipt f420badf\u2026 pulled/inspected:90,653,959bytes,revision43a9,appuser; actual harness root/health/101MiB failures.",
+      "proof": "Build37264873673 validated the exact gateway receipt but exposed Docker .Size of 255 MiB against a budget mistakenly based on 86.45 MiB compressed registry layers. ci-container-metadata.test.ts executes the actual harness: 255 MiB passes and 301 MiB fails; root/health/provenance failures remain covered.",
       "commits": ["013cef62abe5ce05e2e277d76c082988b11228ea"],
       "origins": ["authored"],
       "id": "CI-053"
