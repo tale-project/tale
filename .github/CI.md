@@ -109,10 +109,13 @@ Turbo owns workspace task caching. Generic checks depend on `^transit`: scriptle
 nodes hash dependency workspaces recursively and propagate shared-package changes
 without forcing real tests or compilers to run sequentially. Each check's effective
 inputs still hash its own selected source; component tasks can omit unrelated trees.
-The UI package's transit omits only its publication README: an edit to that prose
-keeps consumer check hashes stable, while UI's own checks, all builds and the CLI's
-publication tests still hash it. Runtime source, exports and the Tailwind preset
-continue to invalidate consumers. An isolated real-Turbo fixture guards the boundary.
+The UI, marketing-UI and E2E packages' transit omits only each package-root README:
+an edit to that prose keeps consumer check hashes stable, while the package's own checks,
+ordinary builds through `^build` and the CLI's publication tests retain their inputs.
+Runtime source, exports, catalogs and the Tailwind preset continue to invalidate consumers.
+The shared package's README still participates in Turbo's global internal-dependency hash
+because the root depends on `@tale/shared`; a transit exclusion alone would save no work.
+The isolated real-Turbo fixture includes that root dependency and guards both boundaries.
 Explicit `inputs` cover files read outside a workspace dependency. Catalog input lists
 omit nested task logs and TypeScript's incremental `*.tsbuildinfo` outputs, which
 CLI embedding already skips. Creating or rewriting these artifacts preserves
