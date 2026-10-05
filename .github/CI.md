@@ -16,8 +16,12 @@ needs fewer runners, while a long CPU-bound suite can benefit from more slices.
   then uploads it for four single-worker Playwright shards. Each shard owns its database,
   backend and worker-scoped org fixture. Reports still capture failed tests and retries.
   The web and docs suites restore/build their complete output once through Turbo and opt into
-  `E2E_USE_BUILD=1` preview. Web SEO reads the same production bytes and still runs after
-  a browser failure when the build succeeded. Pull requests first compute affected service
+  `E2E_USE_BUILD=1` preview. Web SEO runs the workspace script directly against those
+  production bytes and still runs after a browser failure when the build succeeded.
+  Calling its Turbo prerequisite again would rebuild after release fetching changes the
+  tracked snapshot. Historical candidates use an uncached compatibility lane with forced
+  complete builds before browsers and SEO: their older browser configs may rebuild only
+  the client and overwrite prerendered HTML. Pull requests first compute affected service
   scope from the PR diff; missing or nonboolean filter results fail the scope job.
   Nightly, manual and candidate rounds always select platform, web and docs. Static
   suites use two workers. Ordinary interactive web journeys await a test-only root

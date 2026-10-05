@@ -190,6 +190,11 @@ writers. Chromium caches use the installed Playwright version,
 runner OS and architecture; jobs install its headless shell and always provision native
 dependencies. See [the CI scheduling guide](../.github/CI.md).
 
+Web E2E's SEO step runs the workspace script directly against its browser-tested build:
+release fetching rewrites a tracked snapshot, so another Turbo prerequisite invocation
+would rebuild different bytes. Historical candidates keep forced, uncached static builds
+because their browser configs can predate preview reuse and overwrite prerendered HTML.
+
 E2E pull requests first compute a fail-closed platform, web and docs service scope;
 candidates, nightly and manual runs select every service. Candidate receipts require
 the scope, the stable UI aggregate and every individual UI and E2E shard.

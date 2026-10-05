@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
-import { readFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { delimiter, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { runInNewContext } from 'node:vm';
 
@@ -217,13 +218,13 @@ describe('static-site build reuse', () => {
     const seo = steps.find(
       (step) => step.name === 'Prerender SEO suite (web)',
     )!;
-    expect(build.run).toBe(
-      'bunx turbo run build --filter=@tale/${{ matrix.service }}',
+    expect(build.run).toContain(
+      'args=(build --filter=@tale/${{ matrix.service }})',
     );
     expect(build.env?.GITHUB_TOKEN).toBe('${{ secrets.GITHUB_TOKEN }}');
     expect(steps.indexOf(build)).toBeLessThan(steps.indexOf(smoke));
     expect(smoke.env?.E2E_USE_BUILD).toBe('1');
-    expect(seo.run).toBe('bunx turbo run test:prerender --filter=@tale/web');
+    expect(seo.run).toContain('bun run --filter @tale/web test:prerender');
     expect(seo.if).toContain('!cancelled()');
     expect(seo.if).toContain("steps.site-build.outcome == 'success'");
     expect(seo.if).toContain("matrix.service == 'web'");
@@ -232,11 +233,80 @@ describe('static-site build reuse', () => {
     )!;
     expect(setup.with).toMatchObject({
       'start-turbo-cache': 'false',
-      'turbo-cache': 'true',
+      'turbo-cache': "${{ github.event_name != 'repository_dispatch' }}",
       'cache-scope': 'build',
       'cache-writer': 'static-${{ matrix.service }}',
     });
   });
+
+  test.skipIf(process.platform === 'win32')(
+    'ordinary SEO checks reuse browser-tested bytes and historical candidates force complete builds',
+    async () => {
+      const steps = (await workflow('e2e')).jobs['static-sites']!.steps!;
+      const build = steps.find((step) => step.id === 'site-build')!;
+      const seo = steps.find(
+        (step) => step.name === 'Prerender SEO suite (web)',
+      )!;
+      for (const candidate of ['false', 'true']) {
+        const directory = await mkdtemp(join(tmpdir(), 'tale-site-reuse-'));
+        try {
+          const log = join(directory, 'commands');
+          const fake = [
+            '#!/bin/sh',
+            'printf "%s" "${0##*/}" >> "$COMMAND_LOG"',
+            'printf " %s" "$@" >> "$COMMAND_LOG"',
+            'printf "\\n" >> "$COMMAND_LOG"',
+            'exit "${COMMAND_EXIT:-0}"',
+          ].join('\n');
+          for (const executable of ['bun', 'bunx'])
+            await writeFile(join(directory, executable), fake, {
+              mode: 0o755,
+            });
+          for (const current of [build, seo]) {
+            expect(current.env?.CANDIDATE_RUN).toBe(
+              "${{ github.event_name == 'repository_dispatch' }}",
+            );
+            const script = current.run!.replaceAll(
+              '${{ matrix.service }}',
+              'web',
+            );
+            for (const exit of ['0', '7']) {
+              const child = Bun.spawn(['bash', '-c', script], {
+                cwd: directory,
+                env: {
+                  PATH: `${directory}${delimiter}${process.env.PATH}`,
+                  CANDIDATE_RUN: candidate,
+                  COMMAND_LOG: log,
+                  COMMAND_EXIT: exit,
+                },
+                stdout: 'pipe',
+                stderr: 'pipe',
+              });
+              const [code, , stderr] = await Promise.all([
+                child.exited,
+                new Response(child.stdout).text(),
+                new Response(child.stderr).text(),
+              ]);
+              expect(code, stderr).toBe(Number(exit));
+            }
+          }
+          const buildCommand = `bunx turbo run build --filter=@tale/web${candidate === 'true' ? ' --force' : ''}`;
+          const seoCommand =
+            candidate === 'true'
+              ? 'bunx turbo run test:prerender --filter=@tale/web --force'
+              : 'bun run --filter @tale/web test:prerender';
+          expect((await readFile(log, 'utf8')).trim().split('\n')).toEqual([
+            buildCommand,
+            buildCommand,
+            seoCommand,
+            seoCommand,
+          ]);
+        } finally {
+          await rm(directory, { recursive: true, force: true });
+        }
+      }
+    },
+  );
 
   test.each(['web', 'docs'])(
     '%s skips only its build when explicitly supplied a bundle',

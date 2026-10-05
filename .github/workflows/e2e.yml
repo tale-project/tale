@@ -442,9 +442,9 @@ jobs:
         with:
           start-turbo-cache: 'false'
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          # Complete client, SSR, SEO and generated outputs are declared by
-          # the ordinary build task; each matrix leg saves its own archive.
-          turbo-cache: 'true'
+          # Historical candidates can predate complete build outputs and
+          # preview reuse. Keep their compatibility lane uncached.
+          turbo-cache: ${{ github.event_name != 'repository_dispatch' }}
           cache-scope: build
           cache-writer: static-${{ matrix.service }}
 
@@ -486,9 +486,14 @@ jobs:
       # rebuilds, and web's SEO suite reads this same production output.
       - name: Build static site
         id: site-build
-        run: bunx turbo run build --filter=@tale/${{ matrix.service }}
+        run: |
+          set -euo pipefail
+          args=(build --filter=@tale/${{ matrix.service }})
+          if [[ "$CANDIDATE_RUN" == 'true' ]]; then args+=(--force); fi
+          bunx turbo run "${args[@]}"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CANDIDATE_RUN: ${{ github.event_name == 'repository_dispatch' }}
 
       - name: Run E2E suite
         # Static sites share no mutable backend: each page/context is isolated.
@@ -501,11 +506,22 @@ jobs:
         if: >-
           !cancelled() && matrix.service == 'web' &&
           steps.site-build.outcome == 'success'
-        run: bunx turbo run test:prerender --filter=@tale/web
+        run: |
+          set -euo pipefail
+          if [[ "$CANDIDATE_RUN" == 'true' ]]; then
+            # Older candidate browser configs rebuild only the client and
+            # overwrite prerendered HTML. Restore their complete build first.
+            bunx turbo run test:prerender --filter=@tale/web --force
+          else
+            # fetch-releases rewrites a tracked build input. Calling Turbo
+            # again would rebuild; inspect the exact browser-tested bytes.
+            bun run --filter @tale/web test:prerender
+          fi
         env:
           # fetch-releases calls api.github.com; unauthenticated shared-runner
           # IPs get rate-limited (403), so hand it the workflow token.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CANDIDATE_RUN: ${{ github.event_name == 'repository_dispatch' }}
 
       # Same diagnostics pair as the platform shards above.
       - name: Find Playwright diagnostics

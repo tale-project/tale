@@ -284,7 +284,7 @@ describe('E2E service scheduling', () => {
     expect(
       step(file.jobs['static-sites'], 'Setup toolchain').with,
     ).toMatchObject({
-      'turbo-cache': 'true',
+      'turbo-cache': "${{ github.event_name != 'repository_dispatch' }}",
       'cache-scope': 'build',
       'cache-writer': 'static-${{ matrix.service }}',
       'start-turbo-cache': 'false',
@@ -292,7 +292,7 @@ describe('E2E service scheduling', () => {
     });
     expect(
       step(file.jobs['static-sites'], 'Prerender SEO suite (web)').run,
-    ).toBe('bunx turbo run test:prerender --filter=@tale/web');
+    ).toContain('bun run --filter @tale/web test:prerender');
   });
 
   test.each([
