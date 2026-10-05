@@ -102,7 +102,7 @@ describe('saveVersion', () => {
     ).toBe(false);
   });
 
-  it('refuses a save whose draft started from a version that is no longer the latest', async () => {
+  it('refuses a save whose draft started from a version that is no longer the latest [AUTO-R3]', async () => {
     // Tab A saved v6 while tab B still held a draft of v5: B's save must
     // not silently revert A's change (2026-09-26 evaluation, D-15).
     const fake = fakeStore([4, 5, 6]);
@@ -126,7 +126,7 @@ describe('saveVersion', () => {
     ).toBe(false);
   });
 
-  it('appends when the draft started from the latest version, and always without a base', async () => {
+  it('appends when the draft started from the latest version, and always without a base [AUTO-R3]', async () => {
     const current = fakeStore([4, 5, 6]);
     await expect(
       saveVersion(current.sql, args({ baseVersion: 6 })),
@@ -140,7 +140,7 @@ describe('saveVersion', () => {
     });
   });
 
-  it('creates a fresh name and appends to an existing one without the flag', async () => {
+  it('creates a fresh name and appends to an existing one without the flag [AUTO-R3]', async () => {
     const fresh = fakeStore([]);
     await expect(
       saveVersion(fresh.sql, args({ create: true })),

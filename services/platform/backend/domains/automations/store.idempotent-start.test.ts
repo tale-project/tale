@@ -84,7 +84,7 @@ const key = { key: 'client-key-1' };
 
 beforeEach(() => vi.clearAllMocks());
 
-describe('beginRunIdempotentInTx', () => {
+describe('beginRunIdempotentInTx [AUTO-R9]', () => {
   it('claims the key with the conditional upsert, starts the run, and records it', async () => {
     const { sql, statements } = fakeStore({ claimed: true });
     await expect(beginRunIdempotent(sql, args, key)).resolves.toEqual({

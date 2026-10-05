@@ -191,7 +191,7 @@ describe('GET /:name?version= — a version the automation does not have', () =>
 // and rendered blank (2026-09-26 evaluation, D-14): the read now names the
 // deletion, with its date, so the page can show the retained history.
 describe('GET /:name — a deleted automation', () => {
-  it('answers AUTOMATION_DELETED with the tombstone date, still a 404', async () => {
+  it('answers AUTOMATION_DELETED with the tombstone date, still a 404 [AUTO-R15]', async () => {
     versionRow.mockResolvedValue(null);
     automationTombstone.mockResolvedValue({
       deletedAt: 1789363170729,
