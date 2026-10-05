@@ -8549,6 +8549,8 @@ projects:
     loadFailed: Die Chats dieses Projekts konnten nicht geladen werden.
     refreshFailed: Die Chats dieses Projekts konnten nicht aktualisiert werden. Die Anzeige ist womöglich veraltet.
   agents:
+    loadFailed: Die Agenten dieses Projekts konnten nicht geladen werden.
+    refreshFailed: Die Agenten dieses Projekts konnten nicht aktualisiert werden. Die Anzeige ist womöglich veraltet.
     agentsHeading: Agenten
     sectionDescription: Agenten für dieses Projekt, jeder mit eigenem Modell, eigenen Skills und eigenen Anweisungen.
     newAgent: Neuer Agent

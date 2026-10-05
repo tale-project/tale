@@ -8647,6 +8647,8 @@ projects:
     loadFailed: Impossible de charger les chats de ce projet.
     refreshFailed: Impossible d'actualiser les chats de ce projet. L'affichage n'est peut-être plus à jour.
   agents:
+    loadFailed: Impossible de charger les agents de ce projet.
+    refreshFailed: Impossible d'actualiser les agents de ce projet. L'affichage n'est peut-être plus à jour.
     agentsHeading: Agents
     sectionDescription: Agents rattachés à ce projet, chacun avec son propre modèle, ses skills et ses instructions.
     newAgent: Nouvel agent

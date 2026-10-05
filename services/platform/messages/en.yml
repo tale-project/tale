@@ -5536,6 +5536,8 @@ projects:
     loadFailed: Couldn't load this project's chats.
     refreshFailed: Couldn't refresh this project's chats. What's shown may be out of date.
   agents:
+    loadFailed: Couldn't load this project's agents.
+    refreshFailed: Couldn't refresh this project's agents. What's shown may be out of date.
     agentsHeading: Agents
     sectionDescription: Agents assigned to this project, each with their own model, skills, and instructions.
     newAgent: New agent
