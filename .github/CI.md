@@ -606,7 +606,15 @@ clone retained every remote tag and reproduced the 8,685-byte release notes whil
 snapshots fetched on demand. The materialized release tree contained six files/23,100 bytes.
 These are working-tree measurements, not a measured network or pipeline speedup.
 After rebasing onto `6bd227fdc`, the integration guards passed 143 cases/2,169 assertions;
-affected CLI lint, types and all-workflow actionlint also passed.
+affected CLI lint, types and all-workflow actionlint also passed. The subsequent Windows-cache
+integration passed all 128 CI guard cases plus lint/types/actionlint. Its combined
+container batch had one unchanged five-second fixture timeout, which passed alone
+within the original budget.
+
+Ordinary [Security run 37293502987](https://github.com/tale-project/tale/actions/runs/37293502987)
+passed at `b04bbb5e6`. Its blocking gate resolved `skip-setup-trivy=true` and `cache=false`,
+skipped repeated binary/database restoration and executed its independent vulnerability
+scan. Final-source validation is recorded separately from this ordinary reuse observation.
 
 The broader local gate remains recorded as red. The bounded run passed 5,800 platform UI
 cases but failed 27 cases in twelve files, with Unit cancelled afterward. A one-worker
