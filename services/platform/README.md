@@ -60,6 +60,12 @@ other colour's HTML and older tabs. Running replicas refresh their artifacts
 hourly; inactive artifacts expire seven days after their last refresh. Keep the
 mount when maintaining your own Compose configuration.
 
+The worker verifies the offline shell, recovery script and build identity with
+SHA-256 integrity. Mismatched recovery bytes fail installation while the current
+worker stays active; subsequent update checks retry after the handover. The
+server serves canonical offline HTML to precache requests, and the worker scopes
+the cached recovery script to the deployment's base path before displaying it.
+
 The prose guides live on the separate docs origin. The interactive reference
 links to the published developer guides and the same-origin OpenAPI document.
 When operating a docs mirror, configure its proxy host with `DOCS_URL` and review

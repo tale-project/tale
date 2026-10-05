@@ -66,6 +66,8 @@ fail, time out or return a proxy 5xx use this screen and retry automatically.
 Document HTML and application bundles remain online-first. A deterministic
 `pwa-build.json` changes the worker on code-only releases; long-lived tabs check
 for updates every minute and when they regain focus or connectivity.
+Recovery files carry SHA-256 integrity, so mixed-release bytes fail installation
+and a later update check retries while the current worker remains active.
 
 Change the shared parts in [`packages/ui/src/components/docs/`](../../packages/ui/src/components/docs/)
 and check both sites. Read the [design contract](../../design/docs/README.md) and verify keyboard

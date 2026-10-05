@@ -1122,11 +1122,18 @@ export function createApp(
         const file = Bun.file(filePath);
         if (await file.exists()) {
           if (pathname === '/offline.html') {
-            const html = (await file.text()).replace(
-              'src="/pwa-recovery.js"',
-              () => `src="${env.BASE_PATH}/pwa-recovery.js"`,
-            );
-            return c.html(html, 200, { 'Cache-Control': 'no-cache' });
+            const canonical = await file.text();
+            const html =
+              new URL(c.req.url).searchParams.get('__tale_offline') === '1'
+                ? canonical
+                : canonical.replace(
+                    'src="/pwa-recovery.js"',
+                    () => `src="${env.BASE_PATH}/pwa-recovery.js"`,
+                  );
+            return c.html(html, 200, {
+              'Cache-Control': 'no-cache',
+              'X-Tale-PWA-Offline': '1',
+            });
           }
           // Bun infers Content-Type from the file extension; we only add the
           // caching directive (immutable for content-hashed chunks).

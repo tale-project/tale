@@ -376,15 +376,19 @@ export function startReactServer(opts: ReactServerOptions) {
       const candidate = await existingFile(resolved, rel);
       if (candidate) {
         if (rel === 'offline.html') {
+          const canonical = await candidate.text();
           return new Response(
-            (await candidate.text()).replace(
-              'src="/pwa-recovery.js"',
-              () => `src="${redirectPrefix}/pwa-recovery.js"`,
-            ),
+            url.searchParams.get('__tale_offline') === '1'
+              ? canonical
+              : canonical.replace(
+                  'src="/pwa-recovery.js"',
+                  () => `src="${redirectPrefix}/pwa-recovery.js"`,
+                ),
             {
               headers: {
                 'content-type': 'text/html; charset=utf-8',
                 'cache-control': 'no-cache',
+                'X-Tale-PWA-Offline': '1',
               },
             },
           );

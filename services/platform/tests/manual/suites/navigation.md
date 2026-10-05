@@ -605,6 +605,16 @@ loaded, and reads **No teams** for an account in none.
   screen appears within eight seconds. API and write requests never receive
   the cached HTML shell.
 
+- [ ] `NAV-B18` · **Mixed-colour worker installation** — Keep a blue release
+  controlled by its worker. Serve the green worker while returning different blue bytes
+  for one of `offline.html`, `pwa-recovery.js` or `pwa-build.json` → The update
+  fails installation and the blue worker keeps controlling the tab. Restore
+  all green files and check for an update → The waiting worker installs and
+  activates normally. Repeat under a deployment base path, then return an
+  HTML 503 for a navigation and a direct `offline.html` visit → The green
+  connection screen runs its recovery script under the existing CSP and
+  recovers when the gateway returns.
+
 ## Accessibility (WCAG 2.1 AA)
 
 - [ ] `NAV-A1` · **Landmarks** → Exactly one `role="main"` and one `<nav

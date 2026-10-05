@@ -22,9 +22,11 @@ writes, and deferred recovery of memoized chunk failures in
 and `app/lib/stale-bundle-recovery.test.tsx`. `lib/static-assets.test.ts` and
 `server.test.ts` cover both colours sharing complete hashed artifacts while
 missing modules remain HTTP 404. The shared `packages/ui/src/pwa/` tests build
-real workers for code-only releases and exercise offline retries and waiting
-worker activation. Real-browser proxy failure/recovery, subpath deployments,
-long-lived-tab prompts and cold-visitor fallback remain `NAV-B17`/`NAV-F25`.
+real workers for code-only releases, verify recovery-file integrity and exercise
+offline retries and waiting worker activation. Both servers keep canonical
+precache bytes while scoping direct offline visits. Real-browser proxy
+failure/recovery, mixed-colour installation, subpath deployments, long-lived-tab
+prompts and cold-visitor fallback remain `NAV-B17`/`NAV-B18`/`NAV-F25`.
 
 Shared bulk Delete and Archive preserve refused selections and keep the confirmation
 open with failed item names and safe caller-supplied reasons. Retries exclude successes;

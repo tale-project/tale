@@ -1,6 +1,6 @@
 /**
  * Pin the built service worker's precache manifest to what an offline shell
- * needs: every URL once, every entry revisioned.
+ * needs: every URL once, every entry revisioned and recovery bytes protected.
  *
  * Runs after `vite build` (the `build` script and the image build). The
  * generated `dist/sw.js` used to list nine files twice — once hashed from
@@ -21,6 +21,7 @@ import ts from 'typescript';
 interface PrecacheEntry {
   url: string;
   revision: string | null;
+  integrity?: string;
 }
 
 /** The manifest passed to Workbox, including a bundled/minified runtime. */
@@ -59,19 +60,24 @@ export function parsePrecacheManifest(source: string): PrecacheEntry[] {
               throw new Error('unreadable precache entry');
             const url = property(entry, 'url');
             const revision = property(entry, 'revision');
+            const integrity = property(entry, 'integrity');
             if (
               !url ||
               !ts.isStringLiteral(url) ||
               !revision ||
               (!ts.isStringLiteral(revision) &&
-                revision.kind !== ts.SyntaxKind.NullKeyword)
+                revision.kind !== ts.SyntaxKind.NullKeyword) ||
+              (integrity && !ts.isStringLiteral(integrity))
             ) {
               throw new Error('unreadable precache entry');
             }
-            return {
+            const parsed: PrecacheEntry = {
               url: url.text,
               revision: ts.isStringLiteral(revision) ? revision.text : null,
             };
+            if (integrity && ts.isStringLiteral(integrity))
+              parsed.integrity = integrity.text;
+            return parsed;
           }),
         );
       }
@@ -108,8 +114,19 @@ export function findManifestDefects(entries: PrecacheEntry[]): string[] {
     'pwa-recovery.js',
     'pwa-build.json',
   ]) {
-    if (!entries.some((entry) => entry.url === required))
-      defects.push(`${required} is not precached`);
+    const entry = entries.find(
+      (candidate) => candidate.url.split('?')[0] === required,
+    );
+    if (!entry) defects.push(`${required} is not precached`);
+    else {
+      if (!/^sha256-[A-Za-z0-9+/]{43}=$/.test(entry.integrity ?? ''))
+        defects.push(`${required} has no SHA-256 integrity`);
+      if (
+        required === 'offline.html' &&
+        entry.url !== 'offline.html?__tale_offline=1'
+      )
+        defects.push('offline.html must use the navigation fallback cache URL');
+    }
   }
   return defects;
 }
@@ -124,6 +141,6 @@ if (import.meta.main) {
     process.exit(1);
   }
   console.log(
-    `Service worker precache manifest: ${entries.length} entries, unique and revisioned`,
+    `Service worker precache manifest: ${entries.length} entries, unique and revisioned; recovery files carry integrity`,
   );
 }

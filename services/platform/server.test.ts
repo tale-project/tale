@@ -122,6 +122,7 @@ describe('blue-green browser assets', () => {
         new Request('http://localhost/offline.html'),
       );
       expect(response.status).toBe(200);
+      expect(response.headers.get('X-Tale-PWA-Offline')).toBe('1');
       expect(await response.text()).toContain('src="/tale/pwa-recovery.js"');
       expect(response.headers.get('content-security-policy')).toMatch(
         /script-src [^;]*'self'/,
@@ -132,6 +133,14 @@ describe('blue-green browser assets', () => {
           ?.split(';')
           .find((part) => part.trim().startsWith('script-src')),
       ).not.toContain("'unsafe-inline'");
+      const precache = await app.fetch(
+        new Request('http://localhost/offline.html?__tale_offline=1'),
+      );
+      expect(precache.status).toBe(200);
+      expect(precache.headers.get('X-Tale-PWA-Offline')).toBe('1');
+      expect(await precache.text()).toBe(
+        '<!doctype html><script src="/pwa-recovery.js"></script>',
+      );
     } finally {
       vi.unstubAllGlobals();
       await rm(directory, { recursive: true, force: true });

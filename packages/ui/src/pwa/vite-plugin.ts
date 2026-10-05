@@ -6,6 +6,7 @@
 // an optional peer here so build-only consumers don't pull it in.
 
 import { createHash } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
 import type { Plugin } from 'vite';
@@ -90,9 +91,9 @@ export function createPwaPlugin(options: PwaPluginOptions): Plugin[] {
     projectDir,
   } = options;
 
-  // Public assets come from `includeAssets` + manifest icons + the web
+  // Public icons come from `includeAssets` + manifest icons + the web
   // manifest, hashed by vite-plugin-pwa (`additionalManifestEntries`). The
-  // glob includes only our generated recovery script and build identity:
+  // glob includes the offline shell, recovery script and build identity:
   // globbing public files too would find the same files
   // un-hashed under `dist/assets/`, and a glob hit there rides
   // vite-plugin-pwa's `dontCacheBustURLsMatching: /^assets\//` with
@@ -103,12 +104,17 @@ export function createPwaPlugin(options: PwaPluginOptions): Plugin[] {
   // announced "ready to work offline" (2026-09-26 evaluation, G-05/G-01).
   // `scripts/check-sw-manifest.ts` in the platform build pins the built
   // manifest to unique, revisioned entries.
-  const globPatterns = ['pwa-recovery.js', 'pwa-build.json'];
+  const globPatterns = [offlineFallback, 'pwa-recovery.js', 'pwa-build.json'];
+  // Keep direct offline.html navigations on the navigation strategy too:
+  // Workbox's precache route otherwise returns canonical, unscoped HTML.
+  const offlineCacheURL = `${offlineFallback}?__tale_offline=1`;
+  let buildDirectory = resolve(projectDir, 'dist');
 
   const buildIdentity: Plugin = {
     name: 'tale-pwa-build-identity',
     apply: 'build',
     configResolved(config) {
+      buildDirectory = resolve(config.root, config.build.outDir);
       // Preserve the document's runtime <base> in relocatable builds.
       // Otherwise vite-plugin-pwa turns './' into '/' and pins sw.js to
       // the origin root, bypassing deployments under BASE_PATH.
@@ -152,9 +158,37 @@ export function createPwaPlugin(options: PwaPluginOptions): Plugin[] {
       globPatterns,
       clientsClaim: true,
       inlineWorkboxRuntime: true,
-      // `offline.html` is precached via `includeAssets` (default list above)
-      // with a content-based revision injected by vite-plugin-pwa, so
-      // Workbox automatically refreshes the cache when the shell changes.
+      manifestTransforms: [
+        async (entries) => ({
+          manifest: await Promise.all(
+            entries.map(async (entry) => {
+              if (
+                ![
+                  offlineFallback,
+                  'pwa-recovery.js',
+                  'pwa-build.json',
+                ].includes(entry.url)
+              )
+                return entry;
+              // Revisions choose cache keys; integrity verifies the bytes.
+              // During a rollout sw.js and these mutable URLs can come from
+              // different colours. Refuse that install, keeping the old worker.
+              const bytes = await readFile(resolve(buildDirectory, entry.url));
+              const digest = createHash('sha256').update(bytes).digest();
+              return {
+                ...entry,
+                url:
+                  entry.url === offlineFallback ? offlineCacheURL : entry.url,
+                revision: digest.toString('hex'),
+                integrity: `sha256-${digest.toString('base64')}`,
+              };
+            }),
+          ),
+        }),
+      ],
+      // The three recovery files come from the glob and integrity transform.
+      // Public includeAssets entries are added AFTER manifestTransforms,
+      // so the offline shell must not also be in that unprotected list.
       // We still set `navigateFallback` because vite-plugin-pwa's dev mode
       // hard-codes its precache manifest to `[{ url: navigateFallback, ... }]`
       // and ignores any extra entries — pointing it at the offline shell
@@ -162,7 +196,7 @@ export function createPwaPlugin(options: PwaPluginOptions): Plugin[] {
       // navigation route this option would otherwise register from ever
       // matching; navigations are handled by the runtimeCaching entry
       // below (`precacheFallback`), which also handles proxy HTTP failures.
-      navigateFallback: offlineFallback,
+      navigateFallback: offlineCacheURL,
       navigateFallbackAllowlist: [],
       runtimeCaching: [
         {
@@ -222,9 +256,32 @@ export function createPwaPlugin(options: PwaPluginOptions): Plugin[] {
                       clearTimeout(state.navigationTimeout);
                   }
                 },
+                handlerWillRespond: async ({ response }) => {
+                  if (response.headers.get('X-Tale-PWA-Offline') !== '1')
+                    return response;
+                  // Precache fetches receive canonical bytes for integrity.
+                  // Scope their script only when returning the offline screen.
+                  const scriptPath = new URL(
+                    'pwa-recovery.js',
+                    self.registration.scope,
+                  ).pathname;
+                  const html = (await response.text()).replace(
+                    'src="/pwa-recovery.js"',
+                    () => `src="${scriptPath}"`,
+                  );
+                  const headers = new Headers(response.headers);
+                  headers.delete('content-length');
+                  headers.delete('content-encoding');
+                  headers.delete('etag');
+                  return new Response(html, {
+                    status: response.status,
+                    statusText: response.statusText,
+                    headers,
+                  });
+                },
               },
             ],
-            precacheFallback: { fallbackURL: offlineFallback },
+            precacheFallback: { fallbackURL: offlineCacheURL },
           },
         },
         {
@@ -249,7 +306,7 @@ export function createPwaPlugin(options: PwaPluginOptions): Plugin[] {
       ],
       cleanupOutdatedCaches: true,
     },
-    includeAssets,
+    includeAssets: includeAssets.filter((asset) => asset !== offlineFallback),
     manifest: {
       name,
       short_name: shortName,

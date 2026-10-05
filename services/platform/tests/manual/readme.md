@@ -29,7 +29,7 @@ tale-project standard ([`AGENTS.md`](../../../../AGENTS.md) "Manual tests"), and
 
 ## The suites
 
-1119 boxes across 21 suites. Every suite declares the ID prefix its
+1120 boxes across 21 suites. Every suite declares the ID prefix its
 boxes carry, in its header blockquote; a box ID is unique across this whole
 directory and greppable as one token.
 
@@ -46,7 +46,7 @@ directory and greppable as one token.
 | [governance](suites/governance.md) | `GOV-` | content models, guardrails, policies, legal hold, DSAR, logs, trash | 83 |
 | [knowledge](suites/knowledge.md) | `KNOW-` | documents, knowledge entries, products, contacts, websites | 67 |
 | [metrics](suites/metrics.md) | `MET-` | org metrics tabs: usage, feedback, chat health, harness turns, automations, projects | 20 |
-| [navigation](suites/navigation.md) | `NAV-` | side-nav rail + the Home panel, section panels, breadcrumbs, command palette, changelog, page-loads | 69 |
+| [navigation](suites/navigation.md) | `NAV-` | side-nav rail + the Home panel, section panels, breadcrumbs, command palette, changelog, page-loads | 70 |
 | [notifications](suites/notifications.md) | `NOTIF-` | the notification bell + panel | 32 |
 | [origins](suites/origins.md) | `ORIGIN-` | one deployment on several origins: sessions, file links, sign-in doors, an external TLS terminator | 12 |
 | [performance](suites/performance.md) | `PERF-` | cold load, chat TTFT, thread switch, pagination | 21 |
