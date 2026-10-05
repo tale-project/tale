@@ -6,15 +6,6 @@ suite alongside the automated ones — they drive the same stack.
 
 ## Coverage map
 
-### Usage reporting windows
-
-`backend/domains/governance/usage-metrics.test.ts` exercises the real reader and
-fold with a fake SQL boundary: daily, weekly and monthly charts preserve the
-same seven-day totals, detail tables and equal-length prior comparison. Partial
-months, ISO week-year boundaries, out-of-window and future days are covered;
-a foreign organization reads zero. Chart granularity groups only current-window
-daily rows. Real PostgreSQL query execution remains an integration proof.
-
 Personalization distinguishes a failed preferences read from a successful null
 response. Localized errors offer Try again without a switch, editor or save path
 until preferences load. Pending retries preserve the alert and keyboard focus;
@@ -163,6 +154,15 @@ the send request and optimistic message, leave unrelated composer files
 staged, and keep regeneration on its original-prompt path:
 `app/features/chat/components/chat-surface.test.tsx` covers the component
 boundary; persisted cards after reload remain manual in `CHAT-F8`.
+
+### Usage reporting windows
+
+`backend/domains/governance/usage-metrics.test.ts` exercises the real reader and
+fold with a fake SQL boundary: daily, weekly and monthly charts preserve the
+same seven-day totals, detail tables and equal-length prior comparison. Partial
+months, ISO week-year boundaries, out-of-window and future days are covered;
+a foreign organization reads zero. Chart granularity groups only current-window
+daily rows. Real PostgreSQL query execution remains an integration proof.
 
 Automation-owned tasks retain their workflow name and description after a failed
 live-run read, show an accessible error with retry, keep that surface during
