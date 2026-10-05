@@ -81,37 +81,41 @@ describe('native CI readiness', () => {
     });
 
     test(`${workflow}: failures, cancellations, missing and unexpected skips fail closed`, () => {
-      for (const id of CI_JOBS[workflow]) {
-        for (const result of [
-          'failure',
-          'cancelled',
-          'skipped',
-          '',
-          'neutral',
-          'timed_out',
-        ]) {
-          const input = fixture(workflow);
-          const original = input.needs[id]!.result;
-          if (
-            result === original ||
-            (id === 'vulnerability-scan' && result === 'failure')
-          )
-            continue;
-          input.needs[id]!.result = result;
-          expect(evaluateReadiness(input).passed, `${id}/${result}`).toBe(
+      for (const event of ['pull_request', 'merge_group']) {
+        for (const id of CI_JOBS[workflow]) {
+          for (const result of [
+            'failure',
+            'cancelled',
+            'skipped',
+            '',
+            'neutral',
+            'timed_out',
+          ]) {
+            const input = fixture(workflow, event);
+            const original = input.needs[id]!.result;
+            if (
+              result === original ||
+              (id === 'vulnerability-scan' && result === 'failure')
+            )
+              continue;
+            input.needs[id]!.result = result;
+            expect(evaluateReadiness(input).passed, `${id}/${result}`).toBe(
+              false,
+            );
+          }
+          const missing = fixture(workflow, event);
+          delete missing.needs[id];
+          expect(evaluateReadiness(missing).passed, `missing ${id}`).toBe(
             false,
           );
         }
-        const missing = fixture(workflow);
-        delete missing.needs[id];
-        expect(evaluateReadiness(missing).passed, `missing ${id}`).toBe(false);
+        const extra = fixture(workflow, event);
+        extra.needs['new-unclassified-proof'] = {
+          result: 'success',
+          outputs: {},
+        };
+        expect(evaluateReadiness(extra).passed).toBe(false);
       }
-      const extra = fixture(workflow);
-      extra.needs['new-unclassified-proof'] = {
-        result: 'success',
-        outputs: {},
-      };
-      expect(evaluateReadiness(extra).passed).toBe(false);
     });
 
     test(`${workflow}: a newer native failed rerun cannot borrow a prior success`, () => {
@@ -128,6 +132,28 @@ describe('native CI readiness', () => {
       expect(evaluateReadiness(input).passed).toBe(true);
     });
   }
+
+  test('Checks requires each native Unit lane even when its aggregate reports success', () => {
+    for (const event of ['pull_request', 'merge_group']) {
+      for (const id of ['test-platform-shards', 'test-workspaces']) {
+        for (const result of ['failure', 'cancelled', 'skipped', '']) {
+          const input = fixture('checks', event);
+          expect(input.needs.test!.result).toBe('success');
+          input.needs[id]!.result = result;
+          expect(
+            evaluateReadiness(input).passed,
+            `${event}/${id}/${result}`,
+          ).toBe(false);
+        }
+        const missing = fixture('checks', event);
+        delete missing.needs[id];
+        expect(
+          evaluateReadiness(missing).passed,
+          `${event}/missing ${id}`,
+        ).toBe(false);
+      }
+    }
+  });
 
   test.each(['build', 'e2e', 'cli', 'security'] as const)(
     '%s: an explicit irrelevant scope permits only the corresponding skips',

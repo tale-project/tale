@@ -6,6 +6,13 @@ needs fewer runners, while a long CPU-bound suite can benefit from more slices.
 
 ## Current execution graph
 
+- **Checks / Unit** is the stable required aggregate. Two platform Vitest shards run
+  `test` with `--shard=N/2`; a separate job runs every other workspace's `test` once
+  with Turbo concurrency limited to two. Both platform runners retain the live
+  YouTube service and environment and the PII project's isolation policy. The aggregate
+  needs no checkout or installation and rejects failed, cancelled, skipped or missing
+  results. Candidate receipts require the aggregate, both platform shards and the
+  other-workspace job.
 - **Checks / UI** is the stable required aggregate. Four platform UI shards run the same
   suite with Vitest's `--shard=N/4`; shard 1 also runs other workspaces' `test:ui` once.
   The aggregate fails on failed, cancelled, skipped or missing shard results. It needs no
@@ -39,11 +46,20 @@ needs fewer runners, while a long CPU-bound suite can benefit from more slices.
   preflight every digest receipt, pull at most three images concurrently, and check each
   source revision before tagging it locally. Every child must succeed before the runtime
   alias is created.
+  Image metadata/document checks and sandbox runtime conformance then run as two
+  independent processes against those accepted images. Their containers own private
+  temporary filesystems; both processes finish and print their separate logs even when
+  one fails, and either failure rejects the job. Full or partial logs are retained for
+  seven days, including when a probe times out. Forks retain their sequential local
+  build and conformance path.
 - The four standalone container tests load their cached Buildx image into Docker and pass
   `SKIP_BUILD=true` and `PULL_POLICY=never` to the existing probes. Their Compose commands
   test those local bytes. Compose produces the Bake plan, preserving its build arguments,
   overrides, targets and tags. They reclaim disk only below 20 GiB of free space;
-  full-stack jobs retain their larger cleanup.
+  full-stack builders aim for 40 GiB and pull-only gates for 28 GiB. Cleanup logs free
+  space, removes existing tool directories one at a time and stops when the job's
+  target is met. If all existing cleanup still leaves less space, it warns and preserves
+  the existing build behavior; these targets are not new admission requirements.
 - **Release** starts sandbox-runtime and platform builds first within its existing
   six-job limit. Separate service/architecture registry cache images survive tag boundaries;
   main's amd64 service caches can warm a first release. Only trusted Release writes registry
@@ -52,7 +68,11 @@ needs fewer runners, while a long CPU-bound suite can benefit from more slices.
   still generate and build their binaries; repeating the same source suite on the same
   host OS adds no platform coverage. Cross legs use a proven CLI-only frozen install
   and keep its download cache in a separate namespace. Native source tests retain
-  the full workspace install because they import platform auth modules.
+  the full workspace install because they import platform auth modules. Linux and macOS
+  run at most two source test files in parallel, isolating each file's modules and globals;
+  tests within a file remain serial. Windows source tests and compiled smoke discovery
+  remain serial. Two workers made Windows fixtures exceed their unchanged 30-second
+  limits and increased source-suite duration in the first observed run.
   Binary artifacts use fast compression; all five targets still build, native binaries
   retain smoke tests, and both macOS targets retain signature checks. Command suites
   run source cases before compilation, then select only the explicit `TALE_BINARY`
@@ -98,8 +118,18 @@ stay within that task scope. Separate writer keys let E2E save its platform bund
 without preventing Checks from saving the larger build archive.
 Checks, E2E platform builds and static sites share the `build` scope. Static matrix jobs
 set `cache-writer` per service, so their immutable writes stay distinct within E2E too.
-Every UI shard has its own scope.
+Every Unit and UI platform shard has its own scope; other-workspace unit tests use
+their own scope.
 Turbo still compares task hashes before replaying any restored result.
+
+Hosted jobs set Turbo's native `TURBO_CACHE_MAX_SIZE=512MB` (512 MiB). Turbo
+attempts to evict the oldest archive entries in a background thread at startup.
+This is a best-effort target: very short runs can finish before eviction, and
+current-run outputs can grow the final archive beyond it. Cache hits do not refresh archive write times, so
+an old matching task may be evicted and safely execute again. The setup action
+sets this policy only on GitHub-hosted Actions runners and pins the cache to
+that checkout. Local and persistent self-hosted caches retain their existing
+policy. See [Turbo's cache size setting](https://turborepo.com/docs/reference/system-environment-variables#turbo_cache_max_size).
 
 GitHub restricts a pull request's cache to its merge ref; `main` cannot restore it.
 This preserves the [documented cache visibility boundary](https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching#restrictions-for-accessing-a-cache)
@@ -133,6 +163,8 @@ CLI checks additionally depend on their own `transit`, whose inputs cover embedd
 source trees and platform modules reached by relative imports. Module-closure and
 generator-tree guards require those effective inputs.
 Keep arbitrary outside reads explicit; workspace dependencies alone cannot hash them.
+The CLI's Vitest policy guard also hashes the platform PostCSS config and the shared
+YAML Vite plugin it loads, and disables Storybook discovery in that probe.
 
 Source archive regressions verify the complete ZIP inventory and CRCs, full TAR extraction
 and inventory, and Git symlink identity. The TAR probe dereferences the setup action and
@@ -167,6 +199,9 @@ Writing a requested SARIF report must also succeed; reporting failures fail the 
 See [the repo contract](../.agents/repo.md#a-green-check-is-not-always-a-run) before
 interpreting a green cached result. Backend integration always executes its strict lanes;
 performance measurements and Playwright journeys are never replayed as tests.
+Its shared database, session and process state requires serial lanes. The disposable
+hosted integration runner skips only Buildx teardown; it still builds the database
+from the checked-out source and requires every lane to run.
 
 ## Evidence and regression checks
 
@@ -217,9 +252,57 @@ compilation. Those repeats consumed 47.8 seconds, alongside 38.3 seconds of comp
 command cases. Selecting only the compiled target in the second lane removes that
 duplicate work while retaining both source and binary coverage.
 
+[Checks run 37256749343](https://github.com/tale-project/tale/actions/runs/37256749343)
+at `8b6723935` spent 297 seconds executing all 230 backend integration lanes and
+9 seconds tearing down its disposable builder. Its Unit step spent 146 seconds on
+fresh CLI tests; the platform's 438.6-second result was a cache replay. In
+[Build run 37253041674](https://github.com/tale-project/tale/actions/runs/37253041674),
+image validation took 13 seconds and runtime conformance took 91 seconds, after
+their shared image pulls. Overlapping these independent probes avoids extra runner
+setup and another download of the roughly 6 GB runtime image. These baseline durations
+identify the work being overlapped; they do not establish a controlled speedup.
+
 A local inventory verified that the 67 platform Playwright tests partition exactly once across
 the four shards (17, 17, 17 and 16 tests). An isolated Bun 1.4.2 checkout installed 265 packages
 for cross compilation and built both Linux arm64 and macOS x64 CLI binaries successfully.
+
+The 2026-10-05 follow-up used [Checks run 37253041672](https://github.com/tale-project/tale/actions/runs/37253041672),
+whose platform unit task executed for 438.6s while the other fifteen unit tasks were
+cache hits. The installed Vitest sequencer at checkout `4f95bd54` partitioned all
+1,054 platform unit files once across two shards (527 each, including all nine PII
+files). File counts do not promise balanced durations: the live YouTube and PII
+corpus tests concentrate substantial work in one shard. Backend integration's 230
+strict lanes retain their sequential execution because they share mutable process state.
+
+[Build run 37253041674](https://github.com/tale-project/tale/actions/runs/37253041674)
+spent 50–119s reclaiming disk on full-stack jobs. Those logs did not record initial
+free space, so the new stop targets need hosted observation before claiming savings.
+
+The build-scope archive in that Build run was 2,080.8 MB; sixty retained build
+archives totaled 86.3 GB. A warm build spent 17.5s restoring and 10s saving the
+archive versus 15.3s executing build tasks. The native size policy limits that
+accumulated history when eviction completes, while preserving the existing GitHub
+cache visibility boundary.
+
+At `ab8d18ec`, [Checks run 37260796248](https://github.com/tale-project/tale/actions/runs/37260796248)
+passed both platform Unit shards as fresh executions in 151.4s and 198.7s. All fifteen
+other workspace test tasks also executed and passed. The largest platform task was
+shorter than the earlier 438.6s full-platform task, but revisions, runner conditions
+and queue times differed; this does not establish a controlled whole-pipeline speedup.
+The current docs and UI-docs builds remained cache hits on their next Turbo invocation.
+
+In [Build run 37260796293](https://github.com/tale-project/tale/actions/runs/37260796293),
+all eight cleanup calls at the 20/28/40 GiB targets found about 85 GiB free and stopped
+after one measurement, with zero-second rounded step durations. All image builds,
+standalone tests, smoke and image/runtime gates passed. These observations prove the
+ample-space path; low-space deletion paths remain covered by executable fixtures.
+
+[CLI run 37260796143](https://github.com/tale-project/tale/actions/runs/37260796143)
+passed Linux, macOS and both cross targets, but Windows source tests took 365.5s with
+two workers and timed out two unchanged Git/ZIP fixtures at 30 seconds. The later
+temporary-file errors followed timeout cleanup. Earlier serial Windows source runs
+took 191–216s and passed. Windows therefore retains the serial command and all existing
+assertions and timeout limits; Linux and macOS retain two workers.
 
 Run workflow and source-identity regressions with:
 
@@ -296,8 +379,11 @@ and a dependency-free evaluator; they do not install the monorepo or start anoth
 
 Source alone does not activate branch protection. Before requiring these contexts, observe
 their exact live names and GitHub Actions application identity (15368), positive and negative
-PR/merge-group cases, and failed/latest rerun behavior. Bind the seven contexts to that app;
-generic candidate or skipped execution jobs cannot substitute for them. Keep the coordinator's
+PR cases, and failed/latest rerun behavior. If a merge queue is configured, also observe
+positive and negative `merge_group` runs. Otherwise record live queue proof as not applicable,
+retain the source guards for that event and its full scope, and require live queue proof before
+enabling a queue. Bind the seven contexts to that app; generic candidate or skipped execution
+jobs cannot substitute for them. Keep the coordinator's
 exact-head checks and independent review until enforcement is active and observed. Independent
 review remains a separate obligation; a CI readiness result does not certify it.
 

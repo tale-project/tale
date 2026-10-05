@@ -52,6 +52,22 @@ runs:
           echo "TURBO_CACHE=local:rw"
         } >> "$GITHUB_ENV"
 
+    - name: Bound hosted Turbo cache history
+      if: inputs.turbo-cache == 'true'
+      shell: bash
+      run: |
+        set -euo pipefail
+        # Turbo's best-effort native eviction removes the oldest archives and
+        # their sidecars at run startup. This is a 512 MiB starting target,
+        # not a hard limit on the outputs written during that run.
+        # Never apply eviction to a developer or persistent self-hosted cache.
+        if [ "${GITHUB_ACTIONS:-}" = 'true' ] && [ "${RUNNER_ENVIRONMENT:-}" = 'github-hosted' ]; then
+          {
+            printf 'TURBO_CACHE_DIR=%s/.turbo/cache\n' "$GITHUB_WORKSPACE"
+            echo "TURBO_CACHE_MAX_SIZE=512MB"
+          } >> "$GITHUB_ENV"
+        fi
+
     - name: Setup Bun
       uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
       with:

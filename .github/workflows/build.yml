@@ -301,9 +301,41 @@ jobs:
 
       - name: Reclaim disk space
         if: matrix.service == 'platform' || matrix.service == 'sandbox-runtime'
-        run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+        # The pulled stack occupies roughly 12–13GB locally. Builders also
+        # retain dependency snapshots and compressed exports; keep 40GiB.
+        env:
+          MIN_FREE_GIB: '40'
+        run: &reclaim-ci-disk |
+          set -euo pipefail
+          case "$MIN_FREE_GIB" in
+            20|28|40) ;;
+            *) echo '::error::Invalid CI disk target'; exit 1 ;;
+          esac
+          MIN_FREE_KB=$((MIN_FREE_GIB * 1024 * 1024))
+          measure_space() {
+            df -h /
+            AVAILABLE_KB=$(df -Pk / | awk 'NR == 2 { print $4 }')
+            if [[ ! "$AVAILABLE_KB" =~ ^[0-9]+$ ]]; then
+              echo '::error::Could not measure free disk space'; exit 1
+            fi
+            echo "Available: ${AVAILABLE_KB} KiB; cleanup target: ${MIN_FREE_GIB} GiB"
+          }
+          measure_space
+          if [ "$AVAILABLE_KB" -ge "$MIN_FREE_KB" ]; then exit 0; fi
+          # Stop once the next build/pull has headroom. Deleting all installed
+          # toolchains took 50–119s even when the image build was cached.
+          for DIRECTORY in /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL; do
+            sudo rm -rf -- "$DIRECTORY"
+            measure_space
+            if [ "$AVAILABLE_KB" -ge "$MIN_FREE_KB" ]; then exit 0; fi
+          done
           sudo docker image prune -af
+          measure_space
+          # Preserve the old cold-build fallback after exhausting its cleanup.
+          # The target controls when to stop deleting; it is not a runner quota.
+          if [ "$AVAILABLE_KB" -lt "$MIN_FREE_KB" ]; then
+            echo '::warning::Full CI disk cleanup completed below the headroom target'
+          fi
 
       - name: Setup Docker builder
         uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
@@ -472,9 +504,9 @@ jobs:
           sparse-checkout-cone-mode: false
 
       - name: Reclaim disk space
-        run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
-          sudo docker image prune -af
+        env:
+          MIN_FREE_GIB: '28'
+        run: *reclaim-ci-disk
 
       - name: Log Docker environment
         run: |
@@ -576,9 +608,9 @@ jobs:
           ref: ${{ needs.changes.outputs.candidate_sha }}
 
       - name: Reclaim disk space
-        run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
-          sudo docker image prune -af
+        env:
+          MIN_FREE_GIB: '40'
+        run: *reclaim-ci-disk
 
       - name: Log Docker environment
         run: |
@@ -650,19 +682,9 @@ jobs:
           ref: ${{ needs.changes.outputs.candidate_sha }}
 
       - name: Reclaim disk space if needed
-        run: &reclaim-static-disk |
-          set -euo pipefail
-          AVAILABLE_KB=$(df -Pk . | awk 'NR == 2 { print $4 }')
-          if [[ ! "$AVAILABLE_KB" =~ ^[0-9]+$ ]]; then
-            echo '::error::Could not measure free disk space'; exit 1
-          fi
-          # Keep 20 GiB for a cold standalone build. Skip expensive toolchain
-          # removal only when the runner already has that headroom.
-          echo "Available disk before static build: ${AVAILABLE_KB} KiB"
-          if [ "$AVAILABLE_KB" -lt 20971520 ]; then
-            sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
-            sudo docker image prune -af
-          fi
+        env:
+          MIN_FREE_GIB: '20'
+        run: *reclaim-ci-disk
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
@@ -731,7 +753,9 @@ jobs:
           ref: ${{ needs.changes.outputs.candidate_sha }}
 
       - name: Reclaim disk space if needed
-        run: *reclaim-static-disk
+        env:
+          MIN_FREE_GIB: '20'
+        run: *reclaim-ci-disk
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
@@ -800,7 +824,9 @@ jobs:
           ref: ${{ needs.changes.outputs.candidate_sha }}
 
       - name: Reclaim disk space if needed
-        run: *reclaim-static-disk
+        env:
+          MIN_FREE_GIB: '20'
+        run: *reclaim-ci-disk
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
@@ -872,7 +898,9 @@ jobs:
           ref: ${{ needs.changes.outputs.candidate_sha }}
 
       - name: Reclaim disk space if needed
-        run: *reclaim-static-disk
+        env:
+          MIN_FREE_GIB: '20'
+        run: *reclaim-ci-disk
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
@@ -959,9 +987,9 @@ jobs:
           sparse-checkout-cone-mode: false
 
       - name: Reclaim disk space
-        run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
-          sudo docker image prune -af
+        env:
+          MIN_FREE_GIB: '28'
+        run: *reclaim-ci-disk
 
       - name: Login to GHCR
         uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
@@ -995,17 +1023,39 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           turbo-cache: 'false'
 
-      - name: Run image validation
-        run: bun services/platform/tests/integration/container-image-test.ts
+      # Both suites reuse the accepted images and own isolated containers.
+      # Overlap metadata/document checks with runtime conformance without
+      # another image download; retain both verdicts and their complete logs.
+      - name: Run image validation and sandbox runtime behavior
+        run: |
+          set -euo pipefail
+          LOG_DIR=$(mktemp -d "${RUNNER_TEMP}/image-validation.XXXXXX")
+          PULL_POLICY=never bun services/platform/tests/integration/container-image-test.ts > "${LOG_DIR}/images.log" 2>&1 &
+          IMAGES_PID=$!
+          IMAGE=tale-sandbox-runtime:latest bun services/platform/tests/integration/container-sandbox-runtime-test.ts > "${LOG_DIR}/runtime.log" 2>&1 &
+          RUNTIME_PID=$!
+          FAILED=0
+          if ! wait "$IMAGES_PID"; then FAILED=1; fi
+          if ! wait "$RUNTIME_PID"; then FAILED=1; fi
+          echo '::group::Container image validation'
+          cat "${LOG_DIR}/images.log"
+          echo '::endgroup::'
+          echo '::group::Sandbox runtime conformance'
+          cat "${LOG_DIR}/runtime.log"
+          echo '::endgroup::'
+          exit "$FAILED"
         env:
           SKIP_BUILD: 'true'
-          PULL_POLICY: never
 
-      - name: Validate sandbox runtime behavior
-        run: bun services/platform/tests/integration/container-sandbox-runtime-test.ts
-        env:
-          SKIP_BUILD: 'true'
-          IMAGE: tale-sandbox-runtime:latest
+      - name: Upload image validation logs
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: image-validation-logs-attempt-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/image-validation.*/*.log
+          retention-days: 7
+          # Pull/setup failure can prevent the probes from creating their logs.
+          if-no-files-found: ignore
 
       - name: Summary
         if: always()
@@ -1033,9 +1083,9 @@ jobs:
           ref: ${{ needs.changes.outputs.candidate_sha }}
 
       - name: Reclaim disk space
-        run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
-          sudo docker image prune -af
+        env:
+          MIN_FREE_GIB: '40'
+        run: *reclaim-ci-disk
 
       # The fork lane runs the same workspace-dependent conformance helpers.
       - name: Setup toolchain

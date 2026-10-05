@@ -8,6 +8,8 @@ export const CI_JOBS = {
     'typecheck',
     'build',
     'test',
+    'test-platform-shards',
+    'test-workspaces',
     'test-ui',
     'test-ui-shards',
     'performance',

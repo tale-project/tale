@@ -125,6 +125,14 @@ describe('seven complete native merge gates', () => {
     expect(build.jobs.build!.strategy?.matrix.service).toEqual(IMAGE_SERVICES);
     expect(COMPOSE_SERVICES).toEqual(IMAGE_SERVICES);
     const checks = await workflow('checks');
+    expect(checks.jobs['test-platform-shards']!.strategy?.matrix.shard).toEqual(
+      [1, 2],
+    );
+    expect(checks.jobs.test!.needs).toEqual([
+      'candidate-source',
+      'test-platform-shards',
+      'test-workspaces',
+    ]);
     expect(checks.jobs['test-ui-shards']!.strategy?.matrix.shard).toEqual([
       1, 2, 3, 4,
     ]);

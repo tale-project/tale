@@ -51,6 +51,7 @@ const workflow = async (name: string) =>
 describe('CI test partitioning preserves the complete validation', () => {
   test.each([
     ['checks', 'test-ui-shards'],
+    ['checks', 'test-platform-shards'],
     ['e2e', 'e2e'],
   ])('%s/%s runs each declared shard exactly once', async (file, id) => {
     const job = (await workflow(file)).jobs[id];
@@ -73,6 +74,70 @@ describe('CI test partitioning preserves the complete validation', () => {
     expect(job.strategy?.['fail-fast']).toBe(false);
     expect(runner.run).not.toMatch(/--(?:grep|exclude|testNamePattern)/);
   });
+
+  test('the stable Unit verdict retains candidate and draft admission on cancellation', async () => {
+    const file = await workflow('checks');
+    const verdict = file.jobs.test;
+    expect(verdict.name).toBe('Unit');
+    expect(verdict.needs).toEqual([
+      'candidate-source',
+      'test-platform-shards',
+      'test-workspaces',
+    ]);
+    expect(verdict.if).toContain('always()');
+    expect(verdict.if).not.toContain('github.event.pull_request.draft');
+    expect(verdict.if).not.toContain('needs.test-platform-shards.result');
+    expect(verdict.if).not.toContain('needs.test-workspaces.result');
+    expect(verdict.permissions).toEqual({});
+    expect(verdict['timeout-minutes']).toBeLessThanOrEqual(3);
+    expect(verdict.steps.some((step) => step.uses)).toBe(false);
+    for (const id of ['test-platform-shards', 'test-workspaces']) {
+      const worker = file.jobs[id];
+      expect(worker.needs).toBe('candidate-source');
+      expect(worker.if).toBe(verdict.if?.replace('always()', '!cancelled()'));
+      expect(
+        worker.steps.find((step) => step.name === 'Checkout')?.with?.ref,
+      ).toBe('${{ needs.candidate-source.outputs.candidate_sha }}');
+    }
+    expect([file.jobs['candidate-gate'].needs].flat()).toEqual(
+      expect.arrayContaining([
+        'test',
+        'test-platform-shards',
+        'test-workspaces',
+      ]),
+    );
+  });
+
+  test.each(
+    ['success', 'failure', 'cancelled', 'skipped', ''].flatMap((platform) =>
+      ['success', 'failure', 'cancelled', 'skipped', ''].map(
+        (workspaces) => [platform, workspaces] as const,
+      ),
+    ),
+  )(
+    'the stable Unit check fails closed for platform=%j and workspaces=%j',
+    async (platform, workspaces) => {
+      const guard = (await workflow('checks')).jobs.test.steps.find(
+        (step) => step.name === 'Require every Unit lane',
+      )!;
+      expect(guard.env).toEqual({
+        PLATFORM_RESULT: '${{ needs.test-platform-shards.result }}',
+        WORKSPACES_RESULT: '${{ needs.test-workspaces.result }}',
+      });
+      const execution = Bun.spawnSync(['bash', '-c', guard.run!], {
+        env: {
+          ...process.env,
+          PLATFORM_RESULT: platform,
+          WORKSPACES_RESULT: workspaces,
+        },
+        stdout: 'pipe',
+        stderr: 'pipe',
+      });
+      expect(execution.exitCode === 0).toBe(
+        platform === 'success' && workspaces === 'success',
+      );
+    },
+  );
 
   test('platform UI is sharded while other workspaces run once', async () => {
     const job = (await workflow('checks')).jobs['test-ui-shards'];

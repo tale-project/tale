@@ -2,7 +2,7 @@ name: Checks
 
 # The tale-project standard check gate (see tale-project/example-project):
 # six jobs with stable names — format, lint, typecheck, build, test, test-ui —
-# each one `setup-turbo` + a single root script, except UI's shard aggregate.
+# each one `setup-turbo` + a single root script, except the test aggregates.
 # Repo-specific extra jobs append below the marked banner and never replace or
 # rename the standard six.
 
@@ -254,22 +254,54 @@ jobs:
           retention-days: 7
 
   test:
+    needs: [candidate-source, test-platform-shards, test-workspaces]
+    name: Unit
+    if: >-
+      always() &&
+      (((github.event_name == 'repository_dispatch') &&
+      needs.candidate-source.result == 'success') ||
+      ((github.event_name != 'repository_dispatch') &&
+      needs.candidate-source.result == 'skipped'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions: {}
+
+    steps:
+      - name: Require every Unit lane
+        env:
+          PLATFORM_RESULT: ${{ needs.test-platform-shards.result }}
+          WORKSPACES_RESULT: ${{ needs.test-workspaces.result }}
+        run: |
+          set -euo pipefail
+          if [ "$PLATFORM_RESULT" != success ] || [ "$WORKSPACES_RESULT" != success ]; then
+            echo "::error::Unit lanes ended platform=${PLATFORM_RESULT}, workspaces=${WORKSPACES_RESULT}; every lane must pass."
+            exit 1
+          fi
+
+  # Split the platform's full server + PII suite without increasing worker
+  # pools or changing isolation. Other workspaces have their own runner so
+  # their cold suites cannot queue behind a platform shard.
+  test-platform-shards:
+    needs: candidate-source
+    name: Unit (platform ${{ matrix.shard }}/2)
     if: >-
       !cancelled() &&
       (((github.event_name == 'repository_dispatch') &&
       needs.candidate-source.result == 'success') ||
       ((github.event_name != 'repository_dispatch') &&
       needs.candidate-source.result == 'skipped'))
-    needs: candidate-source
-    name: Unit
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
       contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
 
     # bgutil PO-token provider — the zero-config anti-bot layer baked into the
     # platform image. Runs as a service container so the live YouTube-ingestion
-    # step (last) can fetch GVS tokens at 127.0.0.1:4416, exactly like the
+    # suite can fetch GVS tokens at 127.0.0.1:4416, exactly like the
     # `bgutil-provider` compose sidecar in production.
     services:
       bgutil:
@@ -282,12 +314,14 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           ref: ${{ needs.candidate-source.outputs.candidate_sha }}
+          persist-credentials: false
 
       - name: Setup toolchain
         uses: ./.github/actions/setup-turbo
         with:
           start-turbo-cache: 'false'
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          cache-scope: test-platform-${{ matrix.shard }}
 
       # yt-dlp + deno + ffmpeg + the bgutil plugin are self-provisioned by the
       # live YouTube ingestion test via `ensureVideoToolchain()` in a
@@ -295,7 +329,7 @@ jobs:
       # because GitHub runners are datacenter IPs — the environment where
       # YouTube's bot wall appears — so a green run proves the shipped anti-bot
       # stack actually gets past it.
-      - name: Run tests
+      - name: Run platform Unit tests
         # YOUTUBE_LIVE_TEST enables the live ingest test within the normal
         # suite; it + VIDEO_INGEST_POT_PROVIDER_URL are declared on the `test`
         # task in turbo.json so turbo keys its cache on them.
@@ -305,15 +339,58 @@ jobs:
           # Reuse Node's parsed dependency bytecode across isolated workers.
           # This caches no test results and leaves every file's isolation intact.
           NODE_COMPILE_CACHE: ${{ runner.temp }}/node-compile-cache
-        # Each workspace runner has its own worker pool. Bound their overlap so
-        # full-corpus checks retain CPU time on the shared hosted runner.
-        run: bunx turbo run test --concurrency=2 --output-logs=errors-only --summarize
+        run: bunx turbo run test --filter=@tale/platform --output-logs=errors-only --summarize -- --shard=${{ matrix.shard }}/2
 
       - name: Upload Turbo execution summary
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: turbo-test-${{ github.run_id }}-${{ github.run_attempt }}
+          name: turbo-test-platform-shards-${{ matrix.shard }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .turbo/runs/*.json
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 7
+
+  test-workspaces:
+    needs: candidate-source
+    name: Unit (workspaces)
+    if: >-
+      !cancelled() &&
+      (((github.event_name == 'repository_dispatch') &&
+      needs.candidate-source.result == 'success') ||
+      ((github.event_name != 'repository_dispatch') &&
+      needs.candidate-source.result == 'skipped'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: ${{ needs.candidate-source.outputs.candidate_sha }}
+          persist-credentials: false
+
+      - name: Setup toolchain
+        uses: ./.github/actions/setup-turbo
+        with:
+          start-turbo-cache: 'false'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          cache-scope: test-workspaces
+
+      # Every other workspace still runs exactly once, including future ones.
+      # Bound overlapping worker pools on the shared hosted runner.
+      - name: Run other workspace Unit tests
+        run: bunx turbo run test --filter='!@tale/platform' --concurrency=2 --output-logs=errors-only --summarize
+        env:
+          NODE_COMPILE_CACHE: ${{ runner.temp }}/node-compile-cache
+
+      - name: Upload Turbo execution summary
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: turbo-test-workspaces-${{ github.run_id }}-${{ github.run_attempt }}
           path: .turbo/runs/*.json
           include-hidden-files: true
           if-no-files-found: ignore
@@ -739,6 +816,10 @@ jobs:
 
       - name: Setup Docker builder
         uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
+        with:
+          # The hosted runner is discarded after this job; deleting its
+          # builder adds teardown time without changing the integration proof.
+          cleanup: false
 
       # Build's own layer cache (scope `db`) is read, never written: this job
       # tests the image, the Build workflow publishes it.
@@ -886,6 +967,8 @@ jobs:
       - typecheck
       - build
       - test
+      - test-platform-shards
+      - test-workspaces
       - test-ui
       - test-ui-shards
       - performance
@@ -905,7 +988,7 @@ jobs:
   ci-ready:
     name: CI ready (Checks)
     if: always() && (github.event_name == 'pull_request' || github.event_name == 'merge_group')
-    needs: [candidate-source, format, lint, typecheck, build, test, test-ui, test-ui-shards, performance, knip, test-browser, integration-scope, backend-integration, candidate-gate]
+    needs: [candidate-source, format, lint, typecheck, build, test, test-platform-shards, test-workspaces, test-ui, test-ui-shards, performance, knip, test-browser, integration-scope, backend-integration, candidate-gate]
     runs-on: ubuntu-latest
     timeout-minutes: 3
     permissions:

@@ -244,11 +244,16 @@ jobs:
       - name: Run unit tests
         if: ${{ !matrix.cross }}
         working-directory: tools/cli
+        env:
+          TALE_BINARY: ''
         # The package script carries the per-test budget: the git fixtures
         # spawn git several times per build, and Windows runners stall on
         # git for seconds at a time — bun test's 5 s default killed passing
         # tests mid-commit.
-        run: bun run test
+        # Two isolated file workers overlap I/O on Linux and macOS. On Windows
+        # the same fixtures exceeded their 30 s budgets and ran slower; keep
+        # the complete source suite serial there without changing its timeout.
+        run: ${{ matrix.platform == 'windows' && 'bun run test' || 'bun run test --parallel=2' }}
 
       - name: Run type check
         if: matrix.platform == 'linux'

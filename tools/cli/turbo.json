@@ -45,6 +45,8 @@
         "$TURBO_ROOT$/services/web/playwright.config.ts",
         "$TURBO_ROOT$/services/docs/playwright.config.ts",
         "$TURBO_ROOT$/services/platform/vitest.ui.config.ts",
+        "$TURBO_ROOT$/services/platform/postcss.config.mjs",
+        "$TURBO_ROOT$/packages/ui/src/vite/yaml.ts",
         "$TURBO_ROOT$/services/*/Dockerfile",
         "$TURBO_ROOT$/.dockerignore",
         "$TURBO_ROOT$/.github/actions/setup-turbo/action.yml",

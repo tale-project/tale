@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, relative } from 'node:path';
+import { join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { parse } from 'yaml';
@@ -64,12 +64,36 @@ describe('CLI builds retain native execution coverage without duplicate host sui
     const source = job.steps.find((entry) => entry.name === 'Run unit tests')!;
     const compile = job.steps.find((entry) => entry.name === 'Build binary')!;
     const smoke = job.steps.find((entry) => entry.name === 'Run smoke tests')!;
-    expect(source.run).toBe('bun run test');
-    expect(source.env?.TALE_BINARY).toBeUndefined();
+    expect(source.run).toBe(
+      "${{ matrix.platform == 'windows' && 'bun run test' || 'bun run test --parallel=2' }}",
+    );
+    expect(source.env?.TALE_BINARY).toBe('');
     expect(smoke.run).toBe('bun run test tests/');
     expect(smoke.env?.TALE_BINARY).toBe('dist/${{ matrix.artifact }}');
     expect(job.steps.indexOf(source)).toBeLessThan(job.steps.indexOf(compile));
     expect(job.steps.indexOf(compile)).toBeLessThan(job.steps.indexOf(smoke));
+  });
+
+  test('compiled smoke follows binary and macOS signature verification', async () => {
+    const job = await buildJob();
+    const names = [
+      'Build binary',
+      'Normalize macOS code signature',
+      'Verify binary',
+      'Verify macOS code signature',
+      'Run smoke tests',
+    ];
+    const indices = names.map((name) => {
+      const index = job.steps.findIndex((step) => step.name === name);
+      expect(index, name).toBeGreaterThanOrEqual(0);
+      return index;
+    });
+    for (let index = 1; index < indices.length; index++) {
+      expect(
+        indices[index - 1]!,
+        `${names[index - 1]} before ${names[index]}`,
+      ).toBeLessThan(indices[index]!);
+    }
   });
 
   test('one install step selects native or cross dependencies before generation', async () => {
@@ -90,6 +114,31 @@ describe('CLI builds retain native execution coverage without duplicate host sui
 });
 
 describe('CLI command test targets', () => {
+  test('every source/compiled command suite uses the shared phase selector', async () => {
+    const directory = fileURLToPath(new URL('../tests/', import.meta.url));
+    const suites: string[] = [];
+    for await (const file of new Bun.Glob('*.test.ts').scan(directory)) {
+      if (file === 'smoke.test.ts') continue;
+      const contents = await readFile(resolve(directory, file), 'utf8');
+      expect(contents, file).not.toContain('src/index.ts');
+      if (!contents.includes('process.env.TALE_BINARY')) continue;
+      expect(contents, file).toContain("from './fixtures/command-targets'");
+      expect(contents, file).toContain(
+        'commandTargets(process.env.TALE_BINARY)',
+      );
+      suites.push(file);
+    }
+    expect(suites.toSorted()).toEqual([
+      'client-export.test.ts',
+      'config-releases.test.ts',
+      'deployment.test.ts',
+      'doctor.test.ts',
+      'hash-password.test.ts',
+      'platform-configuration.test.ts',
+      'provision.test.ts',
+    ]);
+  });
+
   test.each([undefined, ''])(
     'an absent binary selects source commands only (%p)',
     (binary) => {

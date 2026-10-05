@@ -27,6 +27,8 @@ const CHECKED_CI_FILES = [
   'services/platform/vitest.ui.config.ts',
   '.github/actions/setup-turbo/action.yml',
   'services/platform/vitest.config.ts',
+  'services/platform/postcss.config.mjs',
+  'packages/ui/src/vite/yaml.ts',
   'packages/ui/vitest.config.ts',
   'services/platform/playwright.config.ts',
   'packages/e2e/src/config.ts',

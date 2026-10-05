@@ -58,7 +58,9 @@ test('source tests run once per host OS while every target still builds', () => 
   }
   expect(build.strategy['fail-fast']).toBe(false);
   expect(step('Run unit tests').if).toBe('${{ !matrix.cross }}');
-  expect(step('Run unit tests').run).toBe('bun run test');
+  expect(step('Run unit tests').run).toBe(
+    "${{ matrix.platform == 'windows' && 'bun run test' || 'bun run test --parallel=2' }}",
+  );
   expect(step('Build binary').if).toBeUndefined();
   expect(step('Build binary').run).toBe('bun run ${{ matrix.build_script }}');
   expect(step('Run type check').if).toBe("matrix.platform == 'linux'");
