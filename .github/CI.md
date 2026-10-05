@@ -6,6 +6,13 @@ needs fewer runners, while a long CPU-bound suite can benefit from more slices.
 
 ## Current execution graph
 
+- **Checks / Unit** is the stable required aggregate. Two platform Vitest shards run
+  `test` with `--shard=N/2`; a separate job runs every other workspace's `test` once
+  with Turbo concurrency limited to two. Both platform runners retain the live
+  YouTube service and environment and the PII project's isolation policy. The aggregate
+  needs no checkout or installation and rejects failed, cancelled, skipped or missing
+  results. Candidate receipts require the aggregate, both platform shards and the
+  other-workspace job.
 - **Checks / UI** is the stable required aggregate. Four platform UI shards run the same
   suite with Vitest's `--shard=N/4`; shard 1 also runs other workspaces' `test:ui` once.
   The aggregate fails on failed, cancelled, skipped or missing shard results. It needs no
@@ -49,7 +56,10 @@ needs fewer runners, while a long CPU-bound suite can benefit from more slices.
   `SKIP_BUILD=true` and `PULL_POLICY=never` to the existing probes. Their Compose commands
   test those local bytes. Compose produces the Bake plan, preserving its build arguments,
   overrides, targets and tags. They reclaim disk only below 20 GiB of free space;
-  full-stack jobs retain their larger cleanup.
+  full-stack builders aim for 40 GiB and pull-only gates for 28 GiB. Cleanup logs free
+  space, removes existing tool directories one at a time and stops when the job's
+  target is met. If all existing cleanup still leaves less space, it warns and preserves
+  the existing build behavior; these targets are not new admission requirements.
 - **Release** starts sandbox-runtime and platform builds first within its existing
   six-job limit. Separate service/architecture registry cache images survive tag boundaries;
   main's amd64 service caches can warm a first release. Only trusted Release writes registry
@@ -106,8 +116,18 @@ stay within that task scope. Separate writer keys let E2E save its platform bund
 without preventing Checks from saving the larger build archive.
 Checks, E2E platform builds and static sites share the `build` scope. Static matrix jobs
 set `cache-writer` per service, so their immutable writes stay distinct within E2E too.
-Every UI shard has its own scope.
+Every Unit and UI platform shard has its own scope; other-workspace unit tests use
+their own scope.
 Turbo still compares task hashes before replaying any restored result.
+
+Hosted jobs set Turbo's native `TURBO_CACHE_MAX_SIZE=512MB` (512 MiB). Turbo
+attempts to evict the oldest archive entries in a background thread at startup.
+This is a best-effort target: very short runs can finish before eviction, and
+current-run outputs can grow the final archive beyond it. Cache hits do not refresh archive write times, so
+an old matching task may be evicted and safely execute again. The setup action
+sets this policy only on GitHub-hosted Actions runners and pins the cache to
+that checkout. Local and persistent self-hosted caches retain their existing
+policy. See [Turbo's cache size setting](https://turborepo.com/docs/reference/system-environment-variables#turbo_cache_max_size).
 
 GitHub restricts a pull request's cache to its merge ref; `main` cannot restore it.
 This preserves the [documented cache visibility boundary](https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching#restrictions-for-accessing-a-cache)
@@ -141,6 +161,8 @@ CLI checks additionally depend on their own `transit`, whose inputs cover embedd
 source trees and platform modules reached by relative imports. Module-closure and
 generator-tree guards require those effective inputs.
 Keep arbitrary outside reads explicit; workspace dependencies alone cannot hash them.
+The CLI's Vitest policy guard also hashes the platform PostCSS config and the shared
+YAML Vite plugin it loads, and disables Storybook discovery in that probe.
 
 Source archive regressions verify the complete ZIP inventory and CRCs, full TAR extraction
 and inventory, and Git symlink identity. The TAR probe dereferences the setup action and
@@ -241,6 +263,24 @@ identify the work being overlapped; they do not establish a controlled speedup.
 A local inventory verified that the 67 platform Playwright tests partition exactly once across
 the four shards (17, 17, 17 and 16 tests). An isolated Bun 1.4.2 checkout installed 265 packages
 for cross compilation and built both Linux arm64 and macOS x64 CLI binaries successfully.
+
+The 2026-10-05 follow-up used [Checks run 37253041672](https://github.com/tale-project/tale/actions/runs/37253041672),
+whose platform unit task executed for 438.6s while the other fifteen unit tasks were
+cache hits. The installed Vitest sequencer at checkout `4f95bd54` partitioned all
+1,054 platform unit files once across two shards (527 each, including all nine PII
+files). File counts do not promise balanced durations: the live YouTube and PII
+corpus tests concentrate substantial work in one shard. Backend integration's 230
+strict lanes retain their sequential execution because they share mutable process state.
+
+[Build run 37253041674](https://github.com/tale-project/tale/actions/runs/37253041674)
+spent 50–119s reclaiming disk on full-stack jobs. Those logs did not record initial
+free space, so the new stop targets need hosted observation before claiming savings.
+
+The build-scope archive in that Build run was 2,080.8 MB; sixty retained build
+archives totaled 86.3 GB. A warm build spent 17.5s restoring and 10s saving the
+archive versus 15.3s executing build tasks. The native size policy limits that
+accumulated history when eviction completes, while preserving the existing GitHub
+cache visibility boundary.
 
 Run workflow and source-identity regressions with:
 

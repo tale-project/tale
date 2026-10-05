@@ -175,6 +175,12 @@ restores that detail locally, and `--force` re-runs the task. A task whose resul
 declared inputs — test file ordering, wall-clock, a shared browser page — is not safely
 cacheable, and the fix is the determinism, not the cache.
 
+The stable **Unit** check aggregates two platform unit shards and a separate job for
+every other workspace's unit tests. Both platform shards retain the live YouTube service
+and the PII project's isolation policy. The aggregate needs no dependency installation
+and rejects failed, cancelled, skipped or missing results. Candidate receipts require
+every individual unit job as well as the aggregate.
+
 The stable **UI** check aggregates four platform UI shards and fails unless all four
 succeed. It does not install dependencies. Shard 1 also runs every other workspace's
 `test:ui` once; the platform shards retain the suite's bounded worker pool. **E2E** uses
@@ -186,7 +192,9 @@ successful build's original ID. Unit and UI workers reuse a job-local Node bytec
 cache without relaxing isolation. Static-site browser and web prerender suites also reuse
 one complete Turbo build, including client, SSR, SEO, frontmatter and translated search
 outputs. Native cache archives share a build scope but retain distinct workflow/job/matrix
-writers. Chromium caches use the installed Playwright version,
+writers. Hosted jobs use Turbo's native 512 MiB startup eviction target. Eviction
+is best-effort; short runs or new outputs can leave a larger saved archive.
+Local shared caches keep their existing policy. Chromium caches use the installed Playwright version,
 runner OS and architecture; jobs install its headless shell and always provision native
 dependencies. See [the CI scheduling guide](../.github/CI.md).
 

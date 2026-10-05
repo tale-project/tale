@@ -1526,19 +1526,19 @@ describe('standalone container CI efficiency', () => {
     'only reclaims preinstalled SDKs with %s',
     async (_, available, reclaim) => {
       const jobs = (await workflow()).jobs;
-      const script = jobs['web-test']?.steps.find(
+      const diskStep = jobs['web-test']?.steps.find(
         (step) => step.name === 'Reclaim disk space if needed',
-      )?.run;
+      );
       for (const service of SERVICES) {
-        expect(
-          jobs[`${service}-test`]?.steps.find(
-            (step) => step.name === 'Reclaim disk space if needed',
-          )?.run,
-        ).toBe(script);
+        const step = jobs[`${service}-test`]?.steps.find(
+          (entry) => entry.name === 'Reclaim disk space if needed',
+        );
+        expect(step?.env).toEqual({ MIN_FREE_GIB: '20' });
+        expect(step?.run).toBe(diskStep?.run);
       }
       const result = await execute(
-        script,
-        { TEST_AVAILABLE: available },
+        diskStep?.run,
+        { ...diskStep?.env, TEST_AVAILABLE: available },
         {
           df: '#!/bin/sh\nprintf "Filesystem 1024-blocks Used Available Capacity Mounted on\\nsynthetic 10000000 1000000 %s 10%% /\\n" "$TEST_AVAILABLE"\n',
           sudo: '#!/bin/sh\nprintf "%s\\n" "$*" >> "$PROOF_DIR/reclaim-calls"\n',
@@ -1549,23 +1549,36 @@ describe('standalone container CI efficiency', () => {
       expect(await calls.exists()).toBe(reclaim);
       if (reclaim) {
         expect(await calls.text()).toBe(
-          'rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL\ndocker image prune -af\n',
+          [
+            'rm -rf -- /usr/share/dotnet',
+            'rm -rf -- /usr/local/lib/android',
+            'rm -rf -- /opt/ghc',
+            'rm -rf -- /opt/hostedtoolcache/CodeQL',
+            'docker image prune -af',
+            '',
+          ].join('\n'),
         );
       }
     },
   );
 
-  test
-    .skipIf(process.platform === 'win32')
-    .each([
-      '#!/bin/sh\nexit 27\n',
-      '#!/bin/sh\nprintf "unreadable free space\\n"\n',
-    ])('fails when free disk space cannot be measured', async (df) => {
-    const script = (await workflow()).jobs['web-test']?.steps.find(
-      (step) => step.name === 'Reclaim disk space if needed',
-    )?.run;
-    expect((await execute(script, {}, { df })).code).not.toBe(0);
-  });
+  test.skipIf(process.platform === 'win32').each([
+    ['#!/bin/sh\nexit 27\n', 27],
+    ['#!/bin/sh\nprintf "unreadable free space\\n"\n', 1],
+  ] as const)(
+    'fails when free disk space cannot be measured',
+    async (df, code) => {
+      const diskStep = (await workflow()).jobs['web-test']?.steps.find(
+        (step) => step.name === 'Reclaim disk space if needed',
+      );
+      const result = await execute(diskStep?.run, diskStep?.env ?? {}, {
+        df,
+        sudo: '#!/bin/sh\nexit 99\n',
+      });
+      expect(result.code, result.stdout + result.stderr).toBe(code);
+      expect(result.stderr).not.toContain('MIN_FREE_GIB');
+    },
+  );
 });
 
 test.skipIf(process.platform === 'win32')(

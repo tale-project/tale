@@ -226,6 +226,8 @@ jobs:
       - name: Run unit tests
         if: ${{ !matrix.cross }}
         working-directory: tools/cli
+        env:
+          TALE_BINARY: ''
         # The package script carries the per-test budget: the git fixtures
         # spawn git several times per build, and Windows runners stall on
         # git for seconds at a time — bun test's 5 s default killed passing

@@ -664,7 +664,13 @@ describe('complete candidate event and receipt provenance', () => {
   });
 
   test.each(
-    ['checks', 'e2e'].flatMap((stem) =>
+    [
+      ['checks', 'UI (platform 4/4)'],
+      ['checks', 'Unit (platform 1/2)'],
+      ['checks', 'Unit (platform 2/2)'],
+      ['checks', 'Unit (workspaces)'],
+      ['e2e', 'Playwright (platform 4/4)'],
+    ].flatMap(([stem, name]) =>
       [
         'missing',
         'skipped',
@@ -672,15 +678,13 @@ describe('complete candidate event and receipt provenance', () => {
         'cancelled',
         'duplicate',
         'unexpected',
-      ].map((mode) => [stem, mode] as const),
+      ].map((mode) => [stem, name, mode] as const),
     ),
-  )('a green %s verdict cannot hide a %s shard', async (stem, mode) => {
+  )('a green %s verdict cannot hide %s when %s', async (stem, name, mode) => {
     const scenario = dispatchedSources();
     const entry = scenario.candidateRuns.find((candidate) =>
       candidate.path.endsWith(`/${stem}.yml`),
     )!;
-    const name =
-      stem === 'checks' ? 'UI (platform 4/4)' : 'Playwright (platform 4/4)';
     if (mode === 'missing')
       scenario.jobs[entry.id] = scenario.jobs[entry.id]!.filter(
         (job) => job.name !== name,
@@ -697,6 +701,24 @@ describe('complete candidate event and receipt provenance', () => {
         mode;
     expect((await judge(scenario)).report.state).toBe('blocked');
   });
+
+  test.each(
+    ['test', 'test-platform-shards', 'test-workspaces'].flatMap((job) =>
+      ['missing', 'failure', 'cancelled', 'skipped'].map(
+        (result) => [job, result] as const,
+      ),
+    ),
+  )(
+    'a green Checks run cannot certify Unit receipt job %s when %s',
+    async (job, result) => {
+      const scenario = dispatchedSources();
+      await replaceReceipt(scenario, 'checks', (receipt) => {
+        if (result === 'missing') delete receipt.jobs[job];
+        else receipt.jobs[job] = result;
+      });
+      expect((await judge(scenario)).report.state).toBe('blocked');
+    },
+  );
 
   test.each([
     'old-artifact',
