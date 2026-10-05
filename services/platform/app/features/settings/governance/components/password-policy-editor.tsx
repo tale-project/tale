@@ -24,6 +24,7 @@ import { useT } from '@/lib/i18n/client';
 import { createConfigParser } from '../config-parser';
 import { useUpsertGovernancePolicy } from '../hooks/mutations';
 import { useGovernancePolicy } from '../hooks/queries';
+import { withGovernancePolicyReadBoundary } from './policy-read-boundary';
 
 interface PasswordPolicyEditorProps {
   organizationId: string;
@@ -62,7 +63,7 @@ const parseConfig = createConfigParser(
 // renders once `rotationEnabled` is true (matching the loaded behavior, since
 // the form value is `undefined`/`false` while loading).
 // =============================================================================
-export function PasswordPolicyEditor({
+function PasswordPolicyEditorContent({
   organizationId,
 }: PasswordPolicyEditorProps) {
   const { t } = useT('governance');
@@ -265,3 +266,8 @@ export function PasswordPolicyEditor({
     </Skeletonize>
   );
 }
+
+export const PasswordPolicyEditor = withGovernancePolicyReadBoundary(
+  PasswordPolicyEditorContent,
+  'password_policy',
+);

@@ -1,6 +1,6 @@
 # Projects & tasks
 
-> **Prefix** `PROJ-` · **Reset** none · **Cost** 62 boxes
+> **Prefix** `PROJ-` · **Reset** none · **Cost** 64 boxes
 
 Exercise projects (identity edit, sharing/visibility), their tabs (files,
 threads, agents, instructions, secrets, metrics, automations), the task
@@ -476,6 +476,19 @@ projects-list row ⋯ menu.
   reads **A project appears here once someone shares it with you or one of
   your teams.** (`projects.list.emptyReaderDescription`). As an Editor both
   doors are back. The server refuses a create below the Editor role.
+- [ ] `PROJ-B16` · **A secrets read that fails is not an empty Environment** —
+  As a project administrator with one stored secret, block
+  `*/api/app/projects/*/secrets*` in DevTools (Network → request blocking)
+  and reload the project's **Environment** tab (`projectSecrets.title`) →
+  after the retries (a few seconds) an alert reads **Couldn't load this
+  project's secrets.** (`projectSecrets.errors.loadFailed`) with **Try
+  again** (`common.actions.tryAgain`), and there is no editor: no **Add
+  variable** (`envEditor.add`), no **Save** (`envEditor.save`), never the
+  empty list a project without secrets shows. A screen reader announces the
+  alert; **Try again** pressed while still blocked stays focused (busy) and
+  announces the failure again. Unblock → **Try again** → the stored
+  secret's row returns without a reload and the focus lands on the
+  **Environment** group. Network shows no write in either state.
 
 - [ ] `PROJ-A1` · **Board DnD** → A keyboard path exists to move/reorder a
   task (not drag-only)
@@ -539,4 +552,5 @@ projects-list row ⋯ menu.
 ## Default task reviewer
 
 - [ ] `PROJ-F39` · **Save a default without taking over waiting reviews** — As an editor, open `/dashboard/{org}/projects/{projectId}/overview` → **Task reviews** (`projects.taskReview.title`) → **Default reviewer** (`projects.taskReview.defaultReviewer`), choose project agent B, save, and reload → B remains selected. An existing pending review keeps the person named in **Current review** (`tasks.reviewer.pendingFor`); a later review on a task using **Project default** (`tasks.reviewer.projectDefaultLabel`) names B. Neither saving nor reloading starts B or grants **Review other agents’ task results** (`projects.agents.tool.task_review`).
+- [ ] `PROJ-B14` · **A slow agent save cannot discard later typing** — Edit an agent's **Instructions** (`projects.agents.instructionsLabel`), throttle the save request, and choose **Save changes** (`projects.agents.editSubmit`) → name, agent type, model, equipment, secrets and instructions are unavailable while saving; keyboard and pointer input cannot change the submitted draft. Successful completion closes the dialog and reopening shows the submitted instructions. Repeat with a duplicate name → the dialog stays open, the draft remains visible, and editing becomes available again; the stored agent is unchanged. Repeat in **New agent** → fields also lock until creation finishes.
 - [ ] `PROJ-B12` · **Keep the review default safe across concurrent saves** — Open the project's General tab in two editor sessions, edit the default in both, and save B in the first → the second save refuses with the localized stale-draft message (`projects.taskReview.stale`), and reloading still shows B. Discard the stale draft, choose another default and save; then make and save a second change after the first save's live update → both deliberate later choices persist, without an unexpected stale warning or lost draft.

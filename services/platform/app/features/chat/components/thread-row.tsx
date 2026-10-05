@@ -190,7 +190,10 @@ export function ThreadRow({ thread, variant = 'default' }: ThreadRowProps) {
   );
 }
 
-/** The in-place rename field — Enter commits, Escape cancels, blur commits. */
+/**
+ * The in-place rename field — Enter commits, Escape cancels, blur commits;
+ * keys pressed mid-composition stay with the IME.
+ */
 export function ThreadRenameInput({
   thread,
   organizationId,
@@ -208,6 +211,9 @@ export function ThreadRenameInput({
   const cancelledRef = useRef(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string>();
+  // React's synthetic events don't expose `isComposing`, so the DOM
+  // composition events keep this mirror for the key guard.
+  const isComposingRef = useRef(false);
 
   const commit = async () => {
     if (settledRef.current) return;
@@ -254,7 +260,25 @@ export function ThreadRenameInput({
       onFocus={(event) => event.currentTarget.select()}
       onChange={() => setError(undefined)}
       onBlur={() => void commit()}
+      onCompositionStart={() => {
+        isComposingRef.current = true;
+      }}
+      onCompositionEnd={() => {
+        isComposingRef.current = false;
+      }}
       onKeyDown={(event) => {
+        // IME composition guard, as in the composer: Japanese or Chinese
+        // input commits its composition with Enter and cancels it with
+        // Escape — neither may save or drop the rename. `isComposing` is the
+        // UI Events flag, the ref is the React mirror, and `keyCode === 229`
+        // is the legacy Safari path.
+        if (
+          event.nativeEvent.isComposing ||
+          isComposingRef.current ||
+          event.keyCode === 229
+        ) {
+          return;
+        }
         if (event.key === 'Enter') {
           event.preventDefault();
           void commit();

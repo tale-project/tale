@@ -226,6 +226,24 @@ Prometheus request labels use a finite vocabulary of HTTP methods and mounted ap
 domains. Unknown methods and paths share fallback labels. Concurrent `/metrics`
 scrapes share one render and one round of collectors; the next scrape reads afresh.
 
+`tale_backend_automation_trigger_scan_last_success_timestamp_seconds` reads
+the database completion time of an actually executed schedule scan. It is zero
+when no verified completion exists in the last ten minutes or the read fails.
+A queued job, drain handover, failed/aborted attempt or unavailable organization
+table cannot refresh it. The stamp survives process restarts; a healthy API
+process alone does not prove that its workers are scanning.
+
+The scan runs each minute with a 120-second attempt budget and one retry. An
+external alert can allow three minutes of stamp age and five continuous
+unhealthy minutes before firing, with two healthy minutes before resolving.
+That gives bootstrap/retry grace without resetting on every process restart.
+Treat a missing series and materially future timestamp as unhealthy. Enable
+the consumer only after this producer is deployed and its advancing stamp is
+observed. The native queue retains completed jobs for seven days; the query
+uses the queue's existing `(name,id)` index and a ten-minute evidence window.
+This measures scanner execution, not individual trigger or agent success;
+per-role liveness, useful results and deliberate pauses need separate evidence.
+
 Set `BACKEND_SENTRY_TRACES_SAMPLE_RATE` above `0` to sample backend operations
 independently of browser tracing. HTTP spans measure handler completion, excluding
 response-body streaming and health/metrics probes. Worker spans measure each job

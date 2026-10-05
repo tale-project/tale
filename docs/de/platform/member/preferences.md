@@ -29,7 +29,7 @@ Unter **Einstellungen > Konto > Deine Rolle** steht deine Rolle in dieser Organi
 
 ## Deine Teams sehen {#teams}
 
-Unter **Einstellungen > Konto > Deine Teams** stehen die Teams, zu denen du gehörst. Teams bestimmen, welche Team-Dokumente, Projekte und Posteingangs-Warteschlangen du siehst; was mit der ganzen Organisation geteilt ist, siehst du in jedem Fall. Bist du in keinem Team, sagt der Abschnitt das.
+Unter **Einstellungen > Konto > Deine Teams** stehen die Teams, zu denen du gehörst. Teams bestimmen, welche Team-Dokumente, Projekte und Posteingangs-Warteschlangen du siehst; was mit der ganzen Organisation geteilt ist, siehst du in jedem Fall. Bist du in keinem Team, sagt der Abschnitt das. Können deine Teams nicht geladen werden, sagt der Abschnitt das, statt zu behaupten, du seist in keinem Team. Wähle **Erneut versuchen**, um sie zu laden. Schlägt eine Aktualisierung fehl, bleiben die angezeigten Teams stehen, und ein Hinweis sagt, dass sie womöglich veraltet sind.
 
 Um eine Liste auf bestimmte Arbeit einzugrenzen, nutze ihren Filter **Teams**: **Organisationsweit** zeigt nur Einträge ohne Team, **Meine Teams** zeigt Einträge, die eines deiner Teams sehen darf, und jedes Team steht mit Namen zur Wahl. Der Posteingang bietet hinter seinem Suchfeld den Filter **Zuständig**, der Personen und Teams gemeinsam aufführt. Ein Filter ändert die Ansicht, erweitert aber nicht deinen Zugriff auf Daten anderer Teams.
 

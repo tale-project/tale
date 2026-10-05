@@ -43,7 +43,6 @@ vi.mock('@/app/hooks/use-session-user', () => ({
     isLoading: false,
     signOut: mockSignOut,
   }),
-  useSessionUser: () => ({ isLoading: false, isAuthenticated: true }),
 }));
 
 vi.mock('@tale/ui/use-toast', () => ({

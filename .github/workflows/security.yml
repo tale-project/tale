@@ -50,7 +50,10 @@ concurrency:
   cancel-in-progress: ${{ github.event_name != 'repository_dispatch' }}
 
 jobs:
+  # Only candidates need remote source validation; ordinary jobs keep their event SHA.
   candidate-source:
+    if: >-
+      github.event_name == 'repository_dispatch'
     name: Candidate source
     uses: ./.github/workflows/release-candidate-source.yml
     permissions:
@@ -70,7 +73,13 @@ jobs:
   bun-audit:
     needs: candidate-source
     name: Bun audit
-    if: github.event.pull_request.draft != true
+    if: >-
+      !cancelled() &&
+      (((github.event_name == 'repository_dispatch') &&
+      needs.candidate-source.result == 'success') ||
+      ((github.event_name != 'repository_dispatch') &&
+      needs.candidate-source.result == 'skipped')) &&
+      (github.event.pull_request.draft != true)
     runs-on: ubuntu-latest
     # Budget for a degraded advisory registry: the report step is capped at 4
     # minutes, the gate below retries hung or 5xx lookups up to three times.
@@ -83,6 +92,7 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           ref: ${{ needs.candidate-source.outputs.candidate_sha }}
+          persist-credentials: false
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
@@ -151,7 +161,13 @@ jobs:
   trivy-fs:
     needs: candidate-source
     name: Trivy filesystem scan
-    if: github.event.pull_request.draft != true
+    if: >-
+      !cancelled() &&
+      (((github.event_name == 'repository_dispatch') &&
+      needs.candidate-source.result == 'success') ||
+      ((github.event_name != 'repository_dispatch') &&
+      needs.candidate-source.result == 'skipped')) &&
+      (github.event.pull_request.draft != true)
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -163,8 +179,12 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           ref: ${{ needs.candidate-source.outputs.candidate_sha }}
+          persist-credentials: false
 
       - name: Run Trivy filesystem scan
+        # Candidates do not upload SARIF against moving main. The standalone
+        # blocking vulnerability gate below still installs Trivy and scans.
+        if: github.event_name != 'repository_dispatch'
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: 'fs'

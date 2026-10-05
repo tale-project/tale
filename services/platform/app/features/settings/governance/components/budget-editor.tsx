@@ -55,8 +55,10 @@ import { isRecord } from '@/lib/utils/type-utils';
 
 import { mapGovernanceSaveError } from '../governance-save-errors';
 import { useUpsertGovernancePolicy } from '../hooks/mutations';
+import { usePolicyReadAvailable } from '../hooks/policy-read-access';
 import { useGovernancePolicy } from '../hooks/queries';
 import { useGovernancePolicyToggle } from '../hooks/use-governance-policy-toggle';
+import { withGovernancePolicyReadBoundary } from './policy-read-boundary';
 import { ROLE_OPTIONS } from './role-options';
 import { RulesTableEmptyState } from './rules-table-empty-state';
 
@@ -617,7 +619,8 @@ const COLUMN_COUNT = 7;
 // `<Skeletonize>`; the table renders fixed PLACEHOLDER rows while loading so an
 // empty `<tbody>` never reads as "no rules" during load.
 // =============================================================================
-export function BudgetEditor({ organizationId }: BudgetEditorProps) {
+function BudgetEditorContent({ organizationId }: BudgetEditorProps) {
+  const policyReadAvailable = usePolicyReadAvailable();
   const { t } = useT('governance');
   const { toast } = useToast();
   const ability = useAbility();
@@ -1012,7 +1015,7 @@ export function BudgetEditor({ organizationId }: BudgetEditorProps) {
         )}
 
         <RuleDialog
-          open={dialogOpen}
+          open={policyReadAvailable && dialogOpen}
           onOpenChange={onDialogOpenChange}
           rule={dialogRule}
           onSave={onDialogSave}
@@ -1024,7 +1027,7 @@ export function BudgetEditor({ organizationId }: BudgetEditorProps) {
         />
 
         <ConfirmDialog
-          open={deletingIndex !== null}
+          open={policyReadAvailable && deletingIndex !== null}
           onOpenChange={(open) => {
             if (!open) onDeletingIndexChange(null);
           }}
@@ -1038,3 +1041,8 @@ export function BudgetEditor({ organizationId }: BudgetEditorProps) {
     </Skeletonize>
   );
 }
+
+export const BudgetEditor = withGovernancePolicyReadBoundary(
+  BudgetEditorContent,
+  'budgets',
+);

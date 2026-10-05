@@ -1,16 +1,19 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
 import { DeleteDialog } from '@tale/ui/dialog/delete-dialog';
 import { IconButton } from '@tale/ui/icon-button';
 import { Table, TableBody, TableCell, TableRow } from '@tale/ui/table';
+import { Text } from '@tale/ui/text';
 import { useToast } from '@tale/ui/use-toast';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Trash2 } from 'lucide-react';
-import { useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { twoFactorStatusQuery } from '@/app/lib/backend/account';
+import { readStateOf } from '@/app/lib/backend/read-state';
 import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
 
@@ -50,7 +53,7 @@ export function PasskeySection() {
   const [revokeTarget, setRevokeTarget] = useState<PasskeyRow | null>(null);
   const [isRevoking, setIsRevoking] = useState(false);
 
-  const { data: passkeys, isLoading } = useQuery({
+  const passkeysQuery = useQuery({
     queryKey: PASSKEYS_QUERY_KEY,
     queryFn: async (): Promise<PasskeyRow[]> => {
       const res = await authClient.passkey.listUserPasskeys();
@@ -61,6 +64,17 @@ export function PasskeySection() {
     },
     enabled: Boolean(status?.authenticated && status.hasCredential),
   });
+  const { data: passkeys, refetch: refetchPasskeys } = passkeysQuery;
+  // A list that failed to load is not an empty one (#3845): it used to look
+  // like "no passkeys yet", next to the button that adds one.
+  const passkeysRead = readStateOf(passkeysQuery);
+
+  // When the list comes back, the alert and its Try again leave the page;
+  // the section takes the focus instead of the page body.
+  const sectionRef = useRef<HTMLElement>(null);
+  const focusSection = useCallback(() => {
+    sectionRef.current?.focus();
+  }, []);
 
   if (!status || !status.authenticated || !status.hasCredential) return null;
 
@@ -101,6 +115,9 @@ export function PasskeySection() {
 
   return (
     <SettingsSection
+      ref={sectionRef}
+      tabIndex={-1}
+      className="outline-none"
       title={t('passkeys.title')}
       description={t('passkeys.description')}
       action={
@@ -109,7 +126,25 @@ export function PasskeySection() {
         </Button>
       }
     >
-      {!isLoading && passkeys && passkeys.length > 0 && (
+      {(passkeysRead.unavailable || passkeysRead.stale) && (
+        <CatalogLoadError
+          // Each failure is announced again; Try again keeps its node, and
+          // the focus on it, through a retry that fails again.
+          failureKey={passkeysRead.failureCount}
+          onFocusLost={focusSection}
+          message={t(
+            passkeysRead.stale
+              ? 'passkeys.errors.refreshFailed'
+              : 'passkeys.errors.listFailed',
+          )}
+          onRetry={() => void refetchPasskeys()}
+          isRetrying={passkeysRead.retrying}
+        />
+      )}
+      {passkeys?.length === 0 && (
+        <Text variant="muted">{t('passkeys.empty')}</Text>
+      )}
+      {passkeys && passkeys.length > 0 && (
         <Table>
           <TableBody>
             {passkeys.map((pk) => (

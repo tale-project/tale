@@ -261,6 +261,23 @@ export function registerBackendCollectors(sql: Sql): client.Gauge[] {
     },
   });
 
+  const triggerScan = new client.Gauge({
+    name: 'tale_backend_automation_trigger_scan_last_success_timestamp_seconds',
+    help: 'Database completion time of the last executed automation schedule scan; zero when missing or unreadable. Does not prove individual trigger or agent success.',
+    async collect() {
+      // Failure must invalidate an earlier healthy sample. Process uptime,
+      // queued jobs and drain handovers are not successful scan executions.
+      this.set(0);
+      try {
+        this.set(
+          await readSuccessfulScanCompletion(sql, 'automation.trigger_scan'),
+        );
+      } catch (error) {
+        console.warn('[metrics] trigger-scan gauge failed:', error);
+      }
+    },
+  });
+
   const stores = new client.Gauge({
     name: 'tale_backend_store_up',
     help: 'Whether each of the deployment’s three stores is reachable.',
@@ -280,7 +297,30 @@ export function registerBackendCollectors(sql: Sql): client.Gauge[] {
 
   // Returned so a test can drive the collectors against a throwaway
   // registry; the constructors already self-register on the default one.
-  return [hintStreams, generations, jobs, drain, stores];
+  return [hintStreams, generations, jobs, drain, triggerScan, stores];
+}
+
+/** Native completion read shared with the isolated real-Postgres proof. The
+ * collector names exactly one queue, so no user/organization labels or IDs
+ * enter metrics. The existing (name,id) index scopes this to that queue's
+ * retained jobs (normally seven days, about 10,080 minutely scans). */
+export async function readSuccessfulScanCompletion(
+  sql: Sql,
+  queue: string,
+): Promise<number> {
+  const rows = await sql<{ completed: number | null }[]>`
+    SELECT extract(epoch FROM max(completed_on))::float8 AS completed
+    FROM pgboss.job
+    WHERE name = ${queue} AND state = 'completed'
+      AND output -> 'triggerScanCompleted' = 'true'::jsonb
+      AND completed_on > now() - interval '10 minutes'
+  `;
+  const completed = rows[0]?.completed;
+  return typeof completed === 'number' &&
+    Number.isFinite(completed) &&
+    completed > 0
+    ? completed
+    : 0;
 }
 
 export function initBackendTelemetry(sql: Sql): void {

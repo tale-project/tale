@@ -155,6 +155,9 @@ analytics:
     emptyVoiceModels:
       title: Noch keine Sprachnutzung
       description: Für den ausgewählten Zeitraum wurde keine TTS-Synthese erfasst.
+    errors:
+      loadFailed: Nutzungs-Metriken konnten nicht geladen werden.
+      refreshFailed: Nutzungs-Metriken konnten nicht aktualisiert werden. Die angezeigten Zahlen sind womöglich veraltet.
   feedback:
     title: Feedback-Metriken
     description: Daumen-Bewertungen und Arena-Urteile zu Assistenten-Antworten.
@@ -243,6 +246,8 @@ analytics:
       emptyTitle: Kein Feedback in diesem Zeitraum
       emptyDescription: Passe Zeitraum oder Filter an, um mehr zu sehen.
       noComment: (kein Kommentar)
+      loadingComment: Vollständiger Kommentar wird geladen …
+      commentLoadFailed: Der vollständige Kommentar konnte nicht geladen werden.
       helpfulAria: Hilfreich
       notHelpfulAria: Nicht hilfreich
       types:
@@ -2759,6 +2764,9 @@ emptyStates:
     description: Erstelle einen Schlüssel, um externe Tools und Skripte zu verbinden.
     descriptionNoCreate: Einen Schlüssel erstellen können Inhaber, Admins und Entwickler oder wer von einem Admin eine Kompetenz dafür erhalten hat.
 governance:
+  policyReadFailed: "Die gespeicherte Richtlinie konnte nicht geladen werden. Die Bearbeitung ist erst nach erfolgreichem Laden möglich."
+  policyReadRetry: Erneut versuchen
+  policyReadRetrying: Richtlinie wird erneut geladen
   title: Richtlinien
   toastSavedTitle: Änderungen gespeichert
   toastSaveFailedTitle: Änderungen konnten nicht gespeichert werden
@@ -3879,6 +3887,8 @@ governance:
     emptyTitle: Papierkorb ist leer
     entityLabelOne: Datensatz
     entityLabel: Datensätze
+    refreshFailed: Die neuesten Datensätze konnten nicht geladen werden. Die Liste ist womöglich unvollständig oder veraltet.
+    loadFailed: Die Datensätze im Papierkorb konnten nicht geladen werden.
   legalHold:
     targetTypes:
       thread: Thread
@@ -3980,6 +3990,7 @@ governance:
         userPickerLabel: Benutzer
         userPickerPlaceholder: Nach Name oder E-Mail suchen
         userPickerEmpty: Keine passenden Benutzer.
+        userPickerFailed: Benutzer konnten nicht geladen werden.
         orgWarning:
           Organisationsweite Holds frieren ALLE Aufbewahrung für jede Entität
           in diesem Tenant ein. Es handelt sich um eine bewusste, im Audit-Log
@@ -3992,6 +4003,7 @@ governance:
         reasonPlaceholder: z. B. Beweissicherungs-Hold für Acme./. Co. (Az. 2026-04)
         matterLabel: Fall
         matterPlaceholder: Fall auswählen oder anlegen
+        matterPickerFailed: Fälle konnten nicht geladen werden.
         matterCreateNew: Neuen Fall anlegen…
         submit: Hold setzen
       requestRelease:
@@ -5407,6 +5419,7 @@ skills:
       deiner Teams, oder lass einen Admin das Bundle hochladen.
     refused: Deine Organisation beschränkt das Teilen mit allen, und du darfst
       nicht veröffentlichen. Teile den Skill stattdessen mit deinen Teams.
+    exists: Ein Skill mit diesem Namen existiert bereits. Es wurde nichts geändert.
   addMenu:
     label: Skill hinzufügen
   createMenu:
@@ -5641,6 +5654,8 @@ settings:
       none: Du bist noch in keinem Team. Du siehst alles, was mit der ganzen
         Organisation geteilt ist.
       manageLink: Teams verwalten
+      loadFailed: Deine Teams konnten nicht geladen werden.
+      refreshFailed: Deine Teams konnten nicht aktualisiert werden. Die Anzeige ist womöglich veraltet.
     security:
       title: Passwort
       description: Melde dich mit deiner E-Mail-Adresse und einem Passwort an.
@@ -6173,6 +6188,9 @@ settings:
       save: Herkünfte speichern
       saved: Einbettungseinstellungen gespeichert
       saveFailed: Einbettungseinstellungen konnten nicht gespeichert werden
+      unavailable: Nicht verfügbar
+      readFailed: Einbettungseinstellungen konnten nicht geladen werden. Bitte erneut versuchen.
+      retry: Erneut versuchen
       sameSiteNote:
         Ein Frame erhält die angemeldete Sitzung nur, wenn die umgebende Seite
         zur selben Site wie Tale gehört, etwa eine Subdomain des Hosts oder Tale unter
@@ -6526,6 +6544,7 @@ settings:
     yourApiKey: Dein API-Schlüssel
     keyRevoked: API-Schlüssel widerrufen
     keyRevokeFailed: API-Schlüssel konnte nicht widerrufen werden
+    keyCreateFailed: API-Schlüssel konnte nicht erstellt werden
     revokeKey: Schlüssel widerrufen
     revokeKeyTitle: API-Schlüssel widerrufen
     revokeConfirmation: '„{keyName}" widerrufen? Alle Anwendungen, die diesen Schlüssel verwenden, verlieren sofort den Zugriff. Das lässt sich nicht rückgängig machen.'
@@ -7355,6 +7374,8 @@ projectSecrets:
       Du hast keinen Zugriff auf die Secrets dieses Projekts. Nur
       Projekt-Administratoren können sie ansehen oder verwalten.
     PROJECT_NOT_FOUND: Dieses Projekt existiert nicht mehr.
+    loadFailed: Die Secrets dieses Projekts konnten nicht geladen werden.
+    refreshFailed: Die Secrets dieses Projekts konnten nicht aktualisiert werden. Die Anzeige ist womöglich veraltet.
 tasks:
   sourceIssue:
     heading: '{provider}-Issue'
@@ -7439,6 +7460,7 @@ tasks:
     notStartedYet: Der Agent wartet, bis du ihn startest.
     failureTitle: Der Agent konnte diese Aufgabe nicht fertigstellen
     reported: Was der Lauf gemeldet hat
+    logReadFailed: Das Agentenprotokoll konnte nicht geladen werden. Versuch es erneut.
     failure:
       budget: Ein Nutzungslimit hat diesen Lauf gestoppt. Bitte einen Admin, es anzuheben, und starte den Agenten dann erneut.
       setup: 'Dem Agenten fehlt etwas, das er braucht — sein Modell, einer seiner Skills oder der Agent selbst. Ein Redakteur oder Admin kann das im Tab "Agenten" des Projekts beheben.'
@@ -7622,6 +7644,7 @@ tasks:
   detail:
     overview: Übersicht
     comments: Kommentare
+    commentCount: '{count, plural, one {# Kommentar} other {# Kommentare}}'
     noComments: Noch keine Kommentare.
     conversation: Unterhaltung
     conversationEmpty: Noch keine Kommentare – beginne die Unterhaltung unten.
@@ -8017,6 +8040,7 @@ twoFactor:
     unnamed: Passkey
     registered: Passkey registriert
     revoked: Passkey entfernt
+    empty: Du hast noch keinen Passkey hinzugefügt.
     namePromptDescription: Gib diesem Passkey einen Namen, damit du ihn später
       wiedererkennst (z. B. "MacBook Touch ID").
     nameLabel: Passkey-Name
@@ -8029,6 +8053,8 @@ twoFactor:
     errors:
       registerFailed: Passkey konnte nicht registriert werden. Versuch es nochmal.
       revokeFailed: Passkey konnte nicht entfernt werden. Versuch es nochmal.
+      listFailed: Deine Passkeys konnten nicht geladen werden.
+      refreshFailed: Deine Passkeys konnten nicht aktualisiert werden. Die angezeigte Liste ist womöglich veraltet.
   setup:
     title: Zwei-Faktor-Authentifizierung einrichten
     qrInstructions: Scanne den QR-Code mit einer Authenticator-App (Google
@@ -8701,6 +8727,7 @@ projects:
   sharing:
     effectiveAudience: Tatsächliche Reichweite
     noTeamsHint: Noch keine Teams.
+    teamsLoadError: Teams konnten nicht geladen werden.
     noTeamsCreateLink: Team erstellen
 webdav:
   description:

@@ -39,3 +39,5 @@ Compare [feedback analytics](/platform/admin/governance/feedback-analytics) befo
 ## Understand missing history
 
 Charts reflect the usage records Tale still retains. The organization and deployment retention settings determine the available history; there is no universal 365-day guarantee. Check the selected period, filters, and usage-ledger retention if expected activity is missing.
+
+If the metrics cannot be loaded, the page says so and offers **Try again** instead of showing zeros or empty tables. The period and filters you chose stay as they are. If a refresh fails, the figures already shown stay, with a note that they may be out of date. If **Try again** keeps failing, ask the deployment operator to check that Tale's services are running.

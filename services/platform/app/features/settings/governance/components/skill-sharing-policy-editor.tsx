@@ -24,6 +24,7 @@ import { useT } from '@/lib/i18n/client';
 import { createConfigParser } from '../config-parser';
 import { useUpsertGovernancePolicy } from '../hooks/mutations';
 import { useGovernancePolicy } from '../hooks/queries';
+import { withGovernancePolicyReadBoundary } from './policy-read-boundary';
 
 interface SkillSharingPolicyEditorProps {
   organizationId: string;
@@ -51,7 +52,7 @@ const formSchema = z.object({ orgWide: z.enum(ORG_WIDE_AUDIENCE_MODES) });
 // narrows no skill that is already organization-wide. Saved through the
 // settings header's Save/Discard cluster like the page's other editors.
 // =============================================================================
-export function SkillSharingPolicyEditor({
+function SkillSharingPolicyEditorContent({
   organizationId,
 }: SkillSharingPolicyEditorProps) {
   const { t } = useT('governance');
@@ -138,3 +139,8 @@ export function SkillSharingPolicyEditor({
     </Skeletonize>
   );
 }
+
+export const SkillSharingPolicyEditor = withGovernancePolicyReadBoundary(
+  SkillSharingPolicyEditorContent,
+  'skill_sharing',
+);

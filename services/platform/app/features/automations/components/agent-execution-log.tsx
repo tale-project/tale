@@ -89,11 +89,13 @@ function TypingDots() {
 export function AgentActivityLine({
   organizationId,
   runId,
+  nodeId,
   waitingForRoom = false,
   className,
 }: {
   organizationId: string;
   runId: string;
+  nodeId?: string;
   /** The run is parked on the turn's start, waiting for sandbox room. */
   waitingForRoom?: boolean;
   className?: string;
@@ -101,7 +103,7 @@ export function AgentActivityLine({
   const { t } = useT('automations');
   const opQuery = useBackendQuery(
     'sandbox/session_queries_public:getAgentNodeSandboxOp',
-    { organizationId, runId },
+    { organizationId, runId, ...(nodeId !== undefined ? { nodeId } : {}) },
   );
   const op = opQuery.data ?? null;
   const live = op !== null && op.status === 'running';
@@ -401,24 +403,26 @@ export function ExecutionLogView({
 
 /**
  * An automation run's agent transcript — {@link ExecutionLogView} bound to
- * the run's `workflow-agent` session op. Renders nothing when the run never
- * ran an agent node.
+ * a step's `workflow-agent` session op when nodeId is given, otherwise the
+ * run's latest op. Renders nothing when the selected step has no known op.
  */
 export function AgentExecutionLog({
   organizationId,
   runId,
+  nodeId,
   waitingForRoom = false,
   className,
 }: {
   organizationId: string;
   runId: string;
+  nodeId?: string;
   /** The run is parked on the turn's start, waiting for sandbox room. */
   waitingForRoom?: boolean;
   className?: string;
 }) {
   const opQuery = useBackendQuery(
     'sandbox/session_queries_public:getAgentNodeSandboxOp',
-    { organizationId, runId },
+    { organizationId, runId, ...(nodeId !== undefined ? { nodeId } : {}) },
   );
   return (
     <ExecutionLogView

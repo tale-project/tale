@@ -59,6 +59,15 @@ const describeRows = (rows: Record<string, number> | undefined): string =>
     .map(([table, count]) => `${table}=${count}`)
     .join(',') || 'none';
 
+const describeChanges = (
+  before: Record<string, number> | undefined,
+  after: Record<string, number> | undefined,
+): string =>
+  [...new Set([...Object.keys(before ?? {}), ...Object.keys(after ?? {})])]
+    .filter((table) => (before?.[table] ?? 0) !== (after?.[table] ?? 0))
+    .map((table) => `${table}=${before?.[table] ?? 0}→${after?.[table] ?? 0}`)
+    .join(',') || 'none';
+
 class RollbackFixture extends Error {}
 
 export async function checkOrphanedOrgRowsBackfill(
@@ -90,7 +99,10 @@ export async function checkOrphanedOrgRowsBackfill(
   let second: OrgRows = {};
   const deliveries = { before: -1, after: -1 };
   try {
-    await sql.begin(async (tx) => {
+    // Workers from earlier lanes still write to the shared live organization.
+    // Hold one snapshot across the counts: our migration's own writes remain
+    // visible, while unrelated commits cannot masquerade as backfill changes.
+    await sql.begin('isolation level repeatable read', async (tx) => {
       const tables = (
         await tx<{ tableName: string }[]>`
           SELECT c.table_name AS "tableName"
@@ -240,7 +252,7 @@ export async function checkOrphanedOrgRowsBackfill(
       isDeepStrictEqual(first[held], before[held]) &&
       Object.keys(before[live] ?? {}).length > 0 &&
       isDeepStrictEqual(first[live], before[live]),
-    `held: ${describeRows(before[held])} → ${describeRows(first[held])}; live: ${Object.keys(before[live] ?? {}).length} tables, unchanged=${isDeepStrictEqual(first[live], before[live])}`,
+    `held: ${describeRows(before[held])} → ${describeRows(first[held])}; live: ${Object.keys(before[live] ?? {}).length} tables, unchanged=${isDeepStrictEqual(first[live], before[live])}, changes=${describeChanges(before[live], first[live])}`,
   );
   record(
     'org backfill: re-applying the file changes nothing',

@@ -15,6 +15,7 @@ import {
   submitMessageFeedback,
   getFeedbackStats,
   listRecentFeedbackPage,
+  getFeedbackComment,
 } from './service.ts';
 
 /**
@@ -111,6 +112,21 @@ export function createFeedbackRoutes(deps: {
           : {}),
       }),
     );
+  });
+  /** Full comment for an expanded metrics-page feedback row. */
+  app.get('/recent/:feedbackId/comment', async (c) => {
+    if (!isAdminRole(c.get('orgMember').role)) {
+      return c.json({ error: 'forbidden' }, 403);
+    }
+    const comment = await getFeedbackComment(
+      deps.sql,
+      c.get('orgId'),
+      c.req.param('feedbackId'),
+    );
+    if (comment === undefined) {
+      return c.json({ error: 'not_found' }, 404);
+    }
+    return c.json({ comment });
   });
 
   /** Metrics-page recent-feedback page (the 0.4 `listRecentFeedback`). */
