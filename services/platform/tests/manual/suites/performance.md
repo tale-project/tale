@@ -1,6 +1,6 @@
 # Performance (cross-cutting)
 
-> **Prefix** `PERF-` · **Reset** none · **Cost** 21 boxes
+> **Prefix** `PERF-` · **Reset** none · **Cost** 22 boxes
 
 Spot-check the load and interaction budgets — cold load to first paint, chat
 time-to-first-token (TTFT), thread/route switching, warm-transition prefetch,
@@ -136,6 +136,11 @@ magnitude:
   2.09 MB / 46 files before #4089 and 2.60 MB / 41 files) and the favicon file
   (favicon.ico) transfers under 20 KB. The number to compare against is the `Cold-load JS:` line
   `scripts/check-entry-budget.ts` prints in the build log.
+- [ ] `PERF-P11` · **Search palette without a GPU** — Start Chrome with
+  `--disable-gpu`, open any dashboard page, press ⌘K (Ctrl+K) and type a word
+  quickly → each keystroke paints promptly (DevTools → Performance: no
+  interaction near 200 ms), and the palette still reads as a panel over the
+  dimmed page.
 
 ## Response-time SLAs
 

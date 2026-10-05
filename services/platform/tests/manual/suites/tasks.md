@@ -1,6 +1,6 @@
 # Tasks
 
-> **Prefix** `TASK-` · **Reset** none · **Cost** 124 boxes
+> **Prefix** `TASK-` · **Reset** none · **Cost** 125 boxes
 
 Exercise a project's task workspace — the board and list views with
 drag-and-drop across status lanes, the task sheet (description, comments with
@@ -1318,6 +1318,15 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   place down and the order holds after a reload. Switch to **List** and repeat
   → the same holds for a status section of more than 40 tasks, and a long
   section below another long one shows its rows where the scroll reaches them.
+- [ ] `TASK-P6` · **A long task opens quick** — On a production build, open a
+  task with a 20,000-character description, 400 comments and a long activity
+  history from its board, then close it with **Escape** → the task and its
+  newest comments show < 1 s after the click, and the older comments follow
+  without freezing the tab; typing in **Add subtask** or the comment field
+  keeps up with the keys; **Blocked by**, **Blocks** and **Reviewer** open their
+  lists on the first click; a changed description reads as a short excerpt in
+  **Activity**, not both whole texts; once everything has arrived, find-in-page
+  reaches the oldest loaded comment.
 
 ## Independent agent reviews
 
