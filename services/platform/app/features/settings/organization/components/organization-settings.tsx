@@ -2,6 +2,7 @@
 
 import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
+import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
 import { CopyableField } from '@tale/ui/copyable-field';
 import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
 import { useFormEditor, useRegisterActiveEditor } from '@tale/ui/editor';
@@ -340,8 +341,13 @@ export function OrganizationSettings({
 
   const ability = useAbility();
   const abilityLoading = useAbilityLoading();
-  const { data: organization, isLoading: isOrgLoading } =
-    useOrganization(organizationId);
+  const {
+    data: organization,
+    isLoading: isOrgLoading,
+    isError: isOrgError,
+    isFetching: isOrgFetching,
+    refetch,
+  } = useOrganization(organizationId);
   const { data: memberContext } = useCurrentMemberContext(organizationId);
 
   const existingMetadata = useMemo(
@@ -432,6 +438,25 @@ export function OrganizationSettings({
   // skeleton stands in (no denied-flash on warm entry).
   if (!abilityLoading && ability.cannot('read', 'orgSettings')) {
     return <AccessDenied message={tAccessDenied('organization')} />;
+  }
+
+  if (!abilityLoading && !isOrgLoading && !organization) {
+    return (
+      <SettingsPage>
+        {isOrgError ? (
+          <CatalogLoadError
+            message={tSettings('organization.loadFailed')}
+            onRetry={() => void refetch()}
+            isRetrying={isOrgFetching}
+          />
+        ) : (
+          <Alert
+            variant="info"
+            description={tSettings('organization.notFound')}
+          />
+        )}
+      </SettingsPage>
+    );
   }
 
   return (

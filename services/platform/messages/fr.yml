@@ -5801,6 +5801,8 @@ settings:
       unlimited: Aucune limite de stockage ne s'applique à toi.
   organization:
     title: Nom de l'organisation
+    loadFailed: Les informations de l'organisation n'ont pas pu être chargées.
+    notFound: Organisation introuvable.
     detailsTitle: Détails de l'organisation
     detailsDescription: Informations de base sur ton organisation.
     nameDescription: Le nom d'affichage de ton organisation.

@@ -5727,6 +5727,8 @@ settings:
       unlimited: Für dich gilt kein Speicherlimit.
   organization:
     title: Organisationsname
+    loadFailed: Die Organisationsdetails konnten nicht geladen werden.
+    notFound: Organisation nicht gefunden.
     detailsTitle: Organisationsdetails
     detailsDescription: Grundlegende Informationen zu deiner Organisation.
     nameDescription: Der Anzeigename deiner Organisation.

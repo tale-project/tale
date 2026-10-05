@@ -1,7 +1,20 @@
 import { useFormEditor } from '@tale/ui/editor';
-import { describe, it, expect, vi } from 'vitest';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { useMemo, useState } from 'react';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { z } from 'zod/v4';
 
+import {
+  AbilityContext,
+  AbilityLoadingContext,
+} from '@/app/context/ability-context';
+import { BackendApiError } from '@/app/lib/backend/api-client';
+import {
+  memberContextQuery,
+  type OrganizationView,
+} from '@/app/lib/backend/org';
+import { i18n } from '@/lib/i18n/i18n';
+import { defineAbilityFor } from '@/lib/permissions/ability';
 import { organizationNameSchema } from '@/lib/shared/schemas/organizations';
 import enMessages from '@/messages/en.yml';
 import { checkAccessibility } from '@/tests/utils/a11y';
@@ -13,7 +26,216 @@ import {
   within,
 } from '@/tests/utils/render';
 
-import { OrganizationSettingsView } from './organization-settings';
+import {
+  OrganizationSettings,
+  OrganizationSettingsView,
+} from './organization-settings';
+
+const organizationQueryState = vi.hoisted(() => ({
+  data: undefined as OrganizationView | null | undefined,
+  isLoading: false,
+  isError: false,
+  isFetching: false,
+  error: null as Error | null,
+  refetch: vi.fn(),
+}));
+
+vi.mock(
+  '@/app/features/organization/hooks/queries',
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import('@/app/features/organization/hooks/queries')
+    >()),
+    useOrganization: () => organizationQueryState,
+  }),
+);
+
+const healthyOrganization: OrganizationView = {
+  _id: 'org1',
+  _creationTime: 0,
+  createdAt: 0,
+  name: 'Acme',
+  slug: 'acme',
+};
+
+const retryLabel = i18n.getFixedT('en', 'common')('actions.tryAgain');
+
+function ContainerHarness({
+  memberRole = 'owner',
+  abilityLoading = false,
+}: {
+  memberRole?: string;
+  abilityLoading?: boolean;
+}) {
+  const [queryClient] = useState(() => {
+    const client = new QueryClient({
+      defaultOptions: { queries: { enabled: false, retry: false } },
+    });
+    client.setQueryData(memberContextQuery('org1').queryKey, {
+      status: 'ok',
+      memberId: 'member1',
+      organizationId: 'org1',
+      userId: 'user1',
+      role: 'owner',
+      createdAt: 0,
+      displayName: 'Owner',
+      isAdmin: true,
+    });
+    return client;
+  });
+  const ability = useMemo(() => defineAbilityFor(memberRole), [memberRole]);
+  return (
+    <QueryClientProvider client={queryClient}>
+      <AbilityContext.Provider value={ability}>
+        <AbilityLoadingContext.Provider value={abilityLoading}>
+          <OrganizationSettings organizationId="org1" />
+        </AbilityLoadingContext.Provider>
+      </AbilityContext.Provider>
+    </QueryClientProvider>
+  );
+}
+
+describe('OrganizationSettings organization read', () => {
+  beforeEach(() => {
+    Object.assign(organizationQueryState, {
+      data: undefined,
+      isLoading: false,
+      isError: true,
+      isFetching: false,
+      error: new BackendApiError(503, 'Service unavailable'),
+    });
+    organizationQueryState.refetch.mockReset();
+  });
+
+  function expectNoEditor() {
+    expect(screen.queryByRole('textbox', { name: orgNameLabel })).toBeNull();
+    expect(
+      screen.queryByRole('heading', {
+        name: enMessages.settings.organization.detailsTitle,
+      }),
+    ).toBeNull();
+    expect(
+      screen.queryByRole('button', {
+        name: enMessages.settings.organization.deleteConfirmAction,
+      }),
+    ).toBeNull();
+  }
+
+  it('announces a settled 503 instead of a blank disabled editor', async () => {
+    const { container } = render(<ContainerHarness />);
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      enMessages.settings.organization.loadFailed,
+    );
+    expect(screen.getByRole('button', { name: retryLabel })).toBeEnabled();
+    expectNoEditor();
+    await checkAccessibility(container);
+  });
+
+  it('refetches on Try again and restores the healthy owner editor', async () => {
+    const { user, rerender } = render(<ContainerHarness />);
+    await user.click(screen.getByRole('button', { name: retryLabel }));
+    expect(organizationQueryState.refetch).toHaveBeenCalledTimes(1);
+    organizationQueryState.isFetching = true;
+    rerender(<ContainerHarness />);
+    const retry = screen.getByRole('button', { name: retryLabel });
+    expect(retry).toHaveAttribute('aria-busy', 'true');
+    await user.click(retry);
+    expect(organizationQueryState.refetch).toHaveBeenCalledTimes(1);
+    expectNoEditor();
+    Object.assign(organizationQueryState, {
+      data: healthyOrganization,
+      isError: false,
+      isFetching: false,
+      error: null,
+    });
+    rerender(<ContainerHarness />);
+    await waitFor(() =>
+      expect(screen.getByRole('textbox', { name: orgNameLabel })).toHaveValue(
+        'Acme',
+      ),
+    );
+    expect(
+      screen.queryByText(enMessages.settings.organization.loadFailed),
+    ).toBeNull();
+    expect(
+      screen.getByRole('button', {
+        name: enMessages.settings.organization.deleteConfirmAction,
+      }),
+    ).toBeEnabled();
+  });
+
+  it('gives a successful null response its own not-found message', () => {
+    Object.assign(organizationQueryState, {
+      data: null,
+      isError: false,
+      error: null,
+    });
+    render(<ContainerHarness />);
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      enMessages.settings.organization.notFound,
+    );
+    expect(
+      screen.queryByText(enMessages.settings.organization.loadFailed),
+    ).toBeNull();
+    expect(screen.queryByRole('button', { name: retryLabel })).toBeNull();
+    expectNoEditor();
+  });
+
+  it('keeps the loading skeleton until the organization read settles', () => {
+    Object.assign(organizationQueryState, {
+      isLoading: true,
+      isError: false,
+      error: null,
+    });
+    const { container } = render(<ContainerHarness />);
+    expect(
+      screen.queryByText(enMessages.settings.organization.notFound),
+    ).toBeNull();
+    expect(
+      screen.queryByText(enMessages.settings.organization.loadFailed),
+    ).toBeNull();
+    expect(container.querySelector('#org-name')).toBeDisabled();
+  });
+
+  it('waits for access and preserves access-denied precedence', () => {
+    const { rerender } = render(
+      <ContainerHarness memberRole="disabled" abilityLoading />,
+    );
+    expect(
+      screen.queryByText(enMessages.settings.organization.loadFailed),
+    ).toBeNull();
+    rerender(<ContainerHarness memberRole="disabled" />);
+    expect(
+      screen.getByText(enMessages.accessDenied.organization),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(enMessages.settings.organization.loadFailed),
+    ).toBeNull();
+    expectNoEditor();
+  });
+
+  it('renders known organization details and owner controls normally', async () => {
+    Object.assign(organizationQueryState, {
+      data: healthyOrganization,
+      isError: false,
+      error: null,
+    });
+    render(<ContainerHarness />);
+    await waitFor(() =>
+      expect(screen.getByRole('textbox', { name: orgNameLabel })).toHaveValue(
+        'Acme',
+      ),
+    );
+    expect(
+      screen.getByRole('button', {
+        name: enMessages.settings.organization.deleteConfirmAction,
+      }),
+    ).toBeEnabled();
+    expect(
+      screen.queryByText(enMessages.settings.organization.loadFailed),
+    ).toBeNull();
+  });
+});
 
 // Resolve user-facing labels through the translation layer rather than
 // hardcoding English, matching the platform i18n rule for tests.

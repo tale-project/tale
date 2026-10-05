@@ -5948,6 +5948,8 @@ settings:
     title: Organization name
     detailsTitle: Organization details
     detailsDescription: Basic information about your organization.
+    loadFailed: Organization details could not be loaded.
+    notFound: Organization not found.
     nameDescription: The display name for your organization.
     nameRequired: Organization name is required
     localeDescription: Primary language for your organization.
