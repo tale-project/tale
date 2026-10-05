@@ -6,6 +6,12 @@ suite alongside the automated ones — they drive the same stack.
 
 ## Coverage map
 
+Website content search clears submitted results when the input changes to a
+different query, without issuing another request until Enter. Whitespace-only
+edits retain results; clearing the input and late responses after edits are
+covered by `app/features/websites/components/website-view-dialog.test.tsx`.
+Real-browser speech and visual transitions remain manual.
+
 Inbox source discovery distinguishes a failed read from successful empty
 discovery. Both automation and API-source failures retain the Inbox shell and
 conversation outlet with an accessible retry; retries retain the error while
@@ -18,12 +24,6 @@ offers setup, and failed discovery keeps Home's Inbox navigation visible.
 `app/features/conversations/hooks/queries.test.ts`, and
 `app/features/home/hooks/use-home-data.test.tsx` own these controls. Real-browser
 layout and screen-reader announcements remain manual.
-
-Website content search clears submitted results when the input changes to a
-different query, without issuing another request until Enter. Whitespace-only
-edits retain results; clearing the input and late responses after edits are
-covered by `app/features/websites/components/website-view-dialog.test.tsx`.
-Real-browser speech and visual transitions remain manual.
 
 Legal matter editing preserves retained 2500- and 4000-character descriptions
 when only the name changes. Creation accepts trimmed fields at the API limits
