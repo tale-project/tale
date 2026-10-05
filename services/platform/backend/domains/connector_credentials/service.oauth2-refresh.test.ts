@@ -196,7 +196,7 @@ afterEach(() => {
 });
 
 describe('resolveConnectorCredential — oauth2 refresh', () => {
-  it('hands a live token out untouched: no vendor call, no write', async () => {
+  it('hands a live token out untouched: no vendor call, no write [CCRED-R3]', async () => {
     const store: Store = {
       row: row({
         accessToken: 'live-token',
@@ -214,7 +214,7 @@ describe('resolveConnectorCredential — oauth2 refresh', () => {
     expect(sql.updates).toEqual([]);
   });
 
-  it('renews an expired token from the refresh token and re-seals the row under a CAS', async () => {
+  it('renews an expired token from the refresh token and re-seals the row under a CAS [CCRED-R4]', async () => {
     const store: Store = { row: row({ ...EXPIRED, scopes: ['chat:write'] }) };
     const sql = fakeSql(store);
     const fetchImpl = vi
@@ -266,7 +266,7 @@ describe('resolveConnectorCredential — oauth2 refresh', () => {
     expect(store.row.status).toBe('active');
   });
 
-  it('refreshes a token expiring within the skew, and keeps a rotated refresh token', async () => {
+  it('refreshes a token expiring within the skew, and keeps a rotated refresh token [CCRED-R4]', async () => {
     const store: Store = {
       row: row({
         accessToken: 'nearly-dead',
@@ -288,7 +288,7 @@ describe('resolveConnectorCredential — oauth2 refresh', () => {
     expect(envelopeOf(store).refreshToken).toBe('refresh-2');
   });
 
-  it('marks a grant with no refresh token needs-reauth and refuses, without a vendor call', async () => {
+  it('marks a grant with no refresh token needs-reauth and refuses, without a vendor call [CCRED-R5]', async () => {
     const store: Store = {
       row: row({ accessToken: 'dead-token', expiresAt: Date.now() - 1 }),
     };
@@ -309,7 +309,7 @@ describe('resolveConnectorCredential — oauth2 refresh', () => {
     expect(sql.hints).toEqual([FLIP_HINT]);
   });
 
-  it('marks a vendor-rejected refresh needs-reauth with the vendor code and refuses', async () => {
+  it('marks a vendor-rejected refresh needs-reauth with the vendor code and refuses [CCRED-R5]', async () => {
     const store: Store = { row: row({ ...EXPIRED, refreshToken: 'revoked' }) };
     const fetchImpl = vi
       .fn()
@@ -329,7 +329,7 @@ describe('resolveConnectorCredential — oauth2 refresh', () => {
     expect(envelopeOf(store).accessToken).toBe('dead-token');
   });
 
-  it('does not flip a grant an operator re-issued between the read and the vendor rejection', async () => {
+  it('does not flip a grant an operator re-issued between the read and the vendor rejection [CCRED-R5]', async () => {
     // Reconnect stored a fresh envelope after this invocation read the row
     // and before the vendor rejected the old refresh token: the verdict is
     // about a stale envelope, so the needs-reauth write must lose its CAS
@@ -389,7 +389,7 @@ describe('resolveConnectorCredential — oauth2 refresh', () => {
     expect(sql.updates).toHaveLength(1);
   });
 
-  it('refuses with a retryable code when the vendor is unreachable, leaving the row active', async () => {
+  it('refuses with a retryable code when the vendor is unreachable, leaving the row active [CCRED-R6]', async () => {
     const store: Store = { row: row(EXPIRED) };
     const sql = fakeSql(store);
     const fetchImpl = vi.fn().mockRejectedValue(new Error('ECONNRESET'));
@@ -416,7 +416,7 @@ describe('resolveConnectorCredential — oauth2 refresh', () => {
     expect(sql.updates).toEqual([]);
   });
 
-  it('uses the row a concurrent refresh stored when the CAS is lost', async () => {
+  it('uses the row a concurrent refresh stored when the CAS is lost [CCRED-R4]', async () => {
     const store: Store = {
       row: row(EXPIRED),
       casLostTo: row(
