@@ -134,7 +134,7 @@ magnitude:
   flow canvas stay behind dynamic imports, and every page but the sign-in
   pages and the chat landing loads its code with the page); their
   `transferSize` sums to at most **1.5 MB** (the measured baseline is
-  1.31 MB gzip, down from 2.09 MB / 46 files before #4089 and
+  1.19 MB gzip, down from 2.09 MB / 46 files before #4089 and
   2.60 MB / 41 files) and the favicon file
   (favicon.ico) transfers under 20 KB. The number to compare against is the `Cold-load JS:` line
   `scripts/check-entry-budget.ts` prints in the build log.

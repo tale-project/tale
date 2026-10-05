@@ -164,6 +164,14 @@ const videoLinksState = {
 vi.mock('../hooks/use-chat-video-links', () => ({
   useChatVideoLinks: () => videoLinksState,
 }));
+// The task dialog loads on first open (a lazy chunk); a marker stands in for
+// it so the cases below see what the surface hands it.
+vi.mock('./create-task-from-chat', () => ({
+  CreateTaskFromChat: ({ threadId }: { threadId: string }) => (
+    <div data-testid="create-task-from-chat">{threadId}</div>
+  ),
+}));
+
 // The parked-sends tray subscribes to Convex on its own; inert here.
 vi.mock('./deferred-send-tray', () => ({
   DeferredSendTray: () => null,
@@ -2221,6 +2229,27 @@ describe('ChatSurface on a conversation shared with the project', () => {
     expect(
       screen.queryByRole('menuitem', { name: 'Create task from chat' }),
     ).toBeNull();
+  });
+
+  it('opens the task dialog from the header verb, loading it on first open', async () => {
+    render(<ChatSurface organizationId="org-1" threadId="thread-shared" />);
+
+    expect(screen.queryByTestId('create-task-from-chat')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Create task' }));
+    expect(
+      await screen.findByTestId('create-task-from-chat'),
+    ).toHaveTextContent('thread-shared');
+  });
+
+  it('starts loading the task dialog when the header verb is pointed at', async () => {
+    render(<ChatSurface organizationId="org-1" threadId="thread-shared" />);
+
+    const verb = screen.getByRole('button', { name: 'Create task' });
+    fireEvent.pointerEnter(verb);
+    fireEvent.click(verb);
+    expect(
+      await screen.findByTestId('create-task-from-chat'),
+    ).toHaveTextContent('thread-shared');
   });
 
   it('passes an axe audit', async () => {

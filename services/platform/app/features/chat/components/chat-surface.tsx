@@ -27,6 +27,7 @@ import { DropdownMenu, type DropdownMenuGroup } from '@tale/ui/dropdown-menu';
 import { EmptyState } from '@tale/ui/empty-state';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { Stack } from '@tale/ui/layout';
+import { lazyComponent } from '@tale/ui/lazy-component';
 import { SkipLink } from '@tale/ui/skip-link';
 import { Text } from '@tale/ui/text';
 import { ThreadHeader, ThreadHeaderSeparator } from '@tale/ui/thread-header';
@@ -47,7 +48,14 @@ import {
   Share2,
   Trash2,
 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  type ComponentProps,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 
 import { DataNoticeFooter } from '@/app/features/governance/components/data-notice-footer';
 import { HomeBackButton } from '@/app/features/home/components/home-back-button';
@@ -147,7 +155,7 @@ import { ChatTranscript } from './chat-transcript';
 import { Composer, type ComposerHandle } from './composer';
 import { directServedModels, withDefaultModel } from './composer-model-picker';
 import { ConversationSkeleton } from './conversation-skeleton';
-import { CreateTaskFromChat } from './create-task-from-chat';
+import type { CreateTaskFromChat as CreateTaskFromChatDialog } from './create-task-from-chat';
 import { DeferredSendTray } from './deferred-send-tray';
 import { ExportChatDialog } from './export-chat-dialog';
 import type { MessageForkGroupView } from './message-item';
@@ -159,6 +167,27 @@ import { VoiceOutputAnnouncer } from './voice-output-announcer';
 import { WelcomeView } from './welcome-view';
 
 const NO_SELECTION: ComposerSelection = {};
+
+/**
+ * The dialog Create task opens loads the first time it opens, not with every
+ * chat: it brings the whole task form, its date pickers and drawer among it.
+ * Pointing at the header's Create task button starts the load, so a click
+ * mostly finds it there.
+ */
+const loadCreateTaskFromChat = () => import('./create-task-from-chat');
+const CreateTaskFromChat = lazyComponent<
+  ComponentProps<typeof CreateTaskFromChatDialog>
+>(() =>
+  loadCreateTaskFromChat().then((module) => ({
+    default: module.CreateTaskFromChat,
+  })),
+);
+function warmCreateTaskFromChat() {
+  loadCreateTaskFromChat().catch((error: unknown) => {
+    // Opening the dialog loads it again, and says so if it still fails.
+    console.warn('[chat] the task dialog did not load ahead', error);
+  });
+}
 
 const NO_MODELS: readonly ComposerModelOption[] = [];
 const NO_PROVIDERS: readonly string[] = [];
@@ -1806,6 +1835,12 @@ function ChatSurfaceInner({
                     size="icon"
                     variant="ghost"
                     aria-label={t('aria.threadActions')}
+                    // This menu holds Create task where the header has no
+                    // room for its button.
+                    onPointerEnter={
+                      canCreateTask ? warmCreateTaskFromChat : undefined
+                    }
+                    onFocus={canCreateTask ? warmCreateTaskFromChat : undefined}
                   >
                     <Ellipsis className="text-muted-foreground size-5" />
                   </Button>
@@ -1889,6 +1924,8 @@ function ChatSurfaceInner({
                         size="sm"
                         icon={ListChecks}
                         onClick={() => setCreateTaskOpen(true)}
+                        onPointerEnter={warmCreateTaskFromChat}
+                        onFocus={warmCreateTaskFromChat}
                         aria-label={t('createTask.headerButton')}
                         className="text-muted-foreground hover:text-foreground"
                       >
