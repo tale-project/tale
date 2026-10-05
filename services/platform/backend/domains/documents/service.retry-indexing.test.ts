@@ -101,7 +101,7 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-describe('retryRagIndexingForDocument — the explicit opt-in', () => {
+describe('retryRagIndexingForDocument — the explicit opt-in [DOC-R12]', () => {
   it('clears a bind-time opt-out before queueing, in the same transaction', async () => {
     const { sql, statements } = fakeSql({
       skipRagIndexing: true,
