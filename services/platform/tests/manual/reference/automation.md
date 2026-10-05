@@ -262,6 +262,11 @@ pending saves, failure recovery and the sequential control. The shared drain's
 synchronous reset is covered in `app/features/shared/files/use-file-upload.test.ts`.
 Live storage persistence and cross-session races remain manual.
 
+Feedback analytics keeps summary metrics visible when the recent-feedback read
+fails, announces the unavailable list and offers Retry; successful empty lists
+retain their normal copy. `app/features/analytics/feedback/recent-feedback-table.test.tsx`
+owns the component states and localized EN/DE/FR copy.
+
 One row per case group, carried over from the per-suite coverage tables the
 guides used to hold. **Don't** re-verify an automated row by hand: a red there
 is a spec failure and belongs in the gate, not in a round.
