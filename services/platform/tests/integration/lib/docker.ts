@@ -84,7 +84,7 @@ export class Compose {
 }
 
 /** `docker inspect --format=<fmt> <ref>` → trimmed stdout, or '' on failure. */
-export function dockerInspect(ref: string, format: string): Promise<string> {
+function dockerInspect(ref: string, format: string): Promise<string> {
   return stdoutOf(['docker', 'inspect', `--format=${format}`, ref]);
 }
 

@@ -10,7 +10,7 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { delimiter, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { runInNewContext } from 'node:vm';
 
 import { parse } from 'yaml';
@@ -771,7 +771,7 @@ describe('release artifact identity', () => {
     if?: string;
     run?: string;
     uses?: string;
-    env?: Record<string, string>;
+    env?: Record<string, string | number>;
     with?: Record<string, string | boolean>;
   };
   const workflow = (name: string) =>
@@ -862,7 +862,13 @@ fi
       for (const service of services) {
         writeFileSync(
           resolve(receipts, `${service}.json`),
-          JSON.stringify({ service, digest: CI_DIGEST, revision: CI_SOURCE }),
+          JSON.stringify({
+            service,
+            image: `${CI_REGISTRY}/tale-${service}`,
+            tag: '0.5.43-amd64',
+            digest: CI_DIGEST,
+            revision: CI_SOURCE,
+          }),
         );
       }
       const context = {
@@ -879,9 +885,11 @@ fi
         },
         runner: { temp: directory.replaceAll('\\', '/') },
       };
-      const expand = (value: string) =>
-        value.replace(/\$\{\{\s*(.*?)\s*\}\}/g, (_match, expression: string) =>
-          String(runInNewContext(expression, context)),
+      const expand = (value: string | number) =>
+        String(value).replace(
+          /\$\{\{\s*(.*?)\s*\}\}/g,
+          (_match, expression: string) =>
+            String(runInNewContext(expression, context)),
         );
       const environment = Object.fromEntries(
         Object.entries(step.env ?? {}).map(([key, value]) => [
@@ -1067,28 +1075,115 @@ fi
     );
   });
 
-  test('every release container check inspects pulled images without rebuilding', () => {
-    const steps = release.jobs['container-test']!.steps.filter((step) =>
-      step.run?.includes('bun services/platform/tests/integration/'),
-    );
-    // image, smoke, web, docs, ui-docs, ai-gateway. Bump this with the job:
-    // the count is what catches a check added to one workflow and not the
-    // other, which is how the ai-gateway check arrived unguarded.
-    expect(steps).toHaveLength(6);
-    for (const step of steps) {
-      const result = shell(
-        'bun() { printf "%s\\n" "$SKIP_BUILD" "$PULL_POLICY" "$*"; };\n' +
-          step.run,
-        step.env,
+  test.each([
+    [false, ''],
+    [false, 'image'],
+    [false, 'smoke'],
+    [false, 'web'],
+    [false, 'docs'],
+    [false, 'ui-docs'],
+    [false, 'ai-gateway'],
+    [true, ''],
+    [true, 'web'],
+    [true, 'docs'],
+    [true, 'ui-docs'],
+  ] as const)(
+    'release container checks retain pulled images and await every child with sites_only=%s when %s fails',
+    (sitesOnly, failed) => {
+      const steps = release.jobs['container-test']!.steps.filter((step) =>
+        step.run?.includes('services/platform/tests/integration/'),
       );
-      expect(result.status).toBe(0);
-      expect(result.stdout.trim().split('\n')).toEqual([
-        'true',
-        'never',
-        expect.stringMatching(/^services\/platform\/tests\/integration\//),
+      expect(steps.map((step) => step.name)).toEqual([
+        'Run stack validation',
+        'Run standalone container tests',
       ]);
-    }
-  });
+      expect(steps[0]!.if).toBe("needs.prepare.outputs.sites_only != 'true'");
+      // image, smoke, web, docs, ui-docs, ai-gateway. Keep all six actual
+      // commands: combining steps must not remove a container check.
+      const groups = [
+        ['image', 'smoke'],
+        ['web', 'docs', 'ui-docs', ...(sitesOnly ? [] : ['ai-gateway'])],
+      ];
+      const directory = mkdtempSync(resolve(tmpdir(), 'tale-release-checks-'));
+      const log = resolve(directory, 'calls');
+      try {
+        writeFileSync(log, '');
+        writeFileSync(
+          resolve(directory, 'bun'),
+          `#!/usr/bin/env bash
+set -euo pipefail
+if [ "$1" = run ]; then shift; fi
+test "$#" -eq 1
+SERVICE="$(basename "$1" .ts)"
+SERVICE="\${SERVICE#container-}"
+SERVICE="\${SERVICE%-test}"
+printf '%s\\t%s\\t%s\\n' "$SKIP_BUILD" "$PULL_POLICY" "$1" >> "$TEST_VALIDATION_LOG"
+touch "$TEST_VALIDATION_DIR/\${SERVICE}.start"
+for ((ATTEMPT = 0; ATTEMPT < 1000; ATTEMPT++)); do
+  READY=1
+  for REQUIRED in $TEST_VALIDATION_GROUP; do
+    if [ ! -f "$TEST_VALIDATION_DIR/\${REQUIRED}.start" ]; then READY=0; fi
+  done
+  if [ "$READY" -eq 1 ]; then break; fi
+  sleep 0.01
+done
+test "$READY" -eq 1
+printf 'CHECK %s\\n' "$SERVICE"
+touch "$TEST_VALIDATION_DIR/\${SERVICE}.finish"
+if [ "$SERVICE" = "$TEST_FAILED_VALIDATION" ]; then exit 37; fi
+`,
+          { mode: 0o755 },
+        );
+        for (const [index, step] of steps.entries()) {
+          if (sitesOnly && index === 0) continue;
+          const group = groups[index]!;
+          const environment = Object.fromEntries(
+            Object.entries(step.env ?? {}).map(([key, value]) => [
+              key,
+              key === 'SITES_ONLY' ? String(sitesOnly) : String(value),
+            ]),
+          );
+          expect(environment.SKIP_BUILD).toBe('true');
+          expect(environment.PULL_POLICY).toBe('never');
+          if (index === 0) expect(environment.SMOKE_TEST_TIMEOUT).toBe('300');
+          else
+            expect(step.env?.SITES_ONLY).toBe(
+              '${{ needs.prepare.outputs.sites_only }}',
+            );
+          const result = shell(step.run!, {
+            ...environment,
+            PATH: `${directory}${delimiter}${process.env.PATH ?? ''}`,
+            RUNNER_TEMP: directory.replaceAll('\\', '/'),
+            TEST_VALIDATION_DIR: directory.replaceAll('\\', '/'),
+            TEST_VALIDATION_LOG: log.replaceAll('\\', '/'),
+            TEST_VALIDATION_GROUP: group.join(' '),
+            TEST_FAILED_VALIDATION: failed,
+          });
+          expect(result.status, result.stderr + result.stdout).toBe(
+            group.includes(failed) ? 1 : 0,
+          );
+          for (const service of group) {
+            expect(existsSync(resolve(directory, `${service}.finish`))).toBe(
+              true,
+            );
+            expect(result.stdout).toContain(`CHECK ${service}\n`);
+          }
+        }
+        expect(readFileSync(log, 'utf8').trim().split('\n').sort()).toEqual(
+          groups
+            .slice(sitesOnly ? 1 : 0)
+            .flat()
+            .map(
+              (service) =>
+                `true\tnever\tservices/platform/tests/integration/container-${service}-test.ts`,
+            )
+            .sort(),
+        );
+      } finally {
+        rmSync(directory, { recursive: true, force: true });
+      }
+    },
+  );
 
   const documentStep = () => {
     const step = release.jobs.build!.steps.find(
@@ -1103,9 +1198,45 @@ fi
   const runDocumentGate = (
     arch: string,
     overrides: Record<string, string> = {},
-  ) =>
-    shell(
-      String.raw`
+  ) => {
+    const directory = mkdtempSync(resolve(tmpdir(), 'tale-document-gate-'));
+    const module = resolve(directory, 'document-tools.ts');
+    const environment = {
+      DOCUMENT_IMAGE: documentImage(arch),
+      DOCUMENT_PLATFORM: `linux/${arch}`,
+      DOCUMENT_REVISION: 'b'.repeat(40),
+      DOCUMENT_VERSION: '0.5.44',
+      DOCUMENT_SOURCE: 'https://github.com/synthetic/tale',
+      ACTUAL_REVISION: 'b'.repeat(40),
+      ACTUAL_VERSION: '0.5.44',
+      ACTUAL_SOURCE: 'https://github.com/synthetic/tale',
+      PULL_EXIT: '0',
+      FAIL_UID: '',
+      REJECT_UID: '',
+      ...overrides,
+    };
+    try {
+      writeFileSync(
+        module,
+        `export async function checkDocumentTools(image: string, uid: number, platform: string) {
+  if (image !== process.env.DOCUMENT_IMAGE || platform !== process.env.DOCUMENT_PLATFORM) throw new Error('Wrong document identity');
+  await Bun.sleep(uid === 65534 ? 5 : 20);
+  await Bun.write(process.env.TEST_DOCUMENT_DIR + '/' + uid + '.finish', '');
+  if (String(uid) === process.env.REJECT_UID) throw new Error('Rejected document uid ' + uid);
+  return {
+    exitCode: String(uid) === process.env.FAIL_UID ? 92 : 0,
+    combined: ['CHECK', uid, platform, image].join(' '),
+  };
+}\n`,
+      );
+      const importStatement =
+        'import { checkDocumentTools } from "./services/platform/tests/integration/lib/document-tools.ts";';
+      const script = documentStep().run!;
+      expect(script).toContain(importStatement);
+      // Execute the actual allSettled command, replacing only its offline
+      // container boundary. Identity admission and both UID decisions stay real.
+      const result = shell(
+        String.raw`
         docker() {
           case "$1 $2" in
             'pull --platform')
@@ -1116,36 +1247,43 @@ fi
               ;;
             'image inspect')
               test "$5" = "$DOCUMENT_IMAGE"
-              case "$4" in
-                *image.revision*) printf '%s\n' "$ACTUAL_REVISION" ;;
-                *image.version*) printf '%s\n' "$ACTUAL_VERSION" ;;
-                *image.source*) printf '%s\n' "$ACTUAL_SOURCE" ;;
-                *) return 90 ;;
-              esac
+              test "$4" = '{{json .Config.Labels}}'
+              printf '%s\n' "$TEST_DOCUMENT_LABELS"
               ;;
             *) return 91 ;;
           esac
         }
         bun() {
+          test "$#" -eq 2
           test "$1" = '-e'
-          printf 'CHECK %s %s %s\n' "$DOCUMENT_UID" "$DOCUMENT_PLATFORM" "$DOCUMENT_IMAGE"
-          if test "$DOCUMENT_UID" = "$FAIL_UID"; then return 92; fi
+          "$TEST_BUN_EXECUTABLE" "$@"
         }
-      ` + documentStep().run,
-      {
-        DOCUMENT_IMAGE: documentImage(arch),
-        DOCUMENT_PLATFORM: `linux/${arch}`,
-        DOCUMENT_REVISION: 'b'.repeat(40),
-        DOCUMENT_VERSION: '0.5.44',
-        DOCUMENT_SOURCE: 'https://github.com/synthetic/tale',
-        ACTUAL_REVISION: 'b'.repeat(40),
-        ACTUAL_VERSION: '0.5.44',
-        ACTUAL_SOURCE: 'https://github.com/synthetic/tale',
-        PULL_EXIT: '0',
-        FAIL_UID: '',
-        ...overrides,
-      },
-    );
+      ` +
+          script.replace(
+            importStatement,
+            `import { checkDocumentTools } from ${JSON.stringify(pathToFileURL(module).href)};`,
+          ),
+        {
+          ...environment,
+          TEST_BUN_EXECUTABLE: process.execPath.replaceAll('\\', '/'),
+          TEST_DOCUMENT_DIR: directory,
+          TEST_DOCUMENT_LABELS: JSON.stringify({
+            'org.opencontainers.image.revision': environment.ACTUAL_REVISION,
+            'org.opencontainers.image.version': environment.ACTUAL_VERSION,
+            'org.opencontainers.image.source': environment.ACTUAL_SOURCE,
+          }),
+        },
+      );
+      return {
+        ...result,
+        finishedUids: ['65534', '10001'].filter((uid) =>
+          existsSync(resolve(directory, `${uid}.finish`)),
+        ),
+      };
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  };
 
   test('native document conformance gates both release manifests on built bytes', () => {
     const job = release.jobs.build!;
@@ -1182,8 +1320,11 @@ fi
       'import { checkDocumentTools } from "./services/platform/tests/integration/lib/document-tools.ts"',
     );
     expect(step.run).toContain('checkDocumentTools(image, uid, platform)');
-    expect(step.run).toContain('if (result.exitCode !== 0)');
-    expect(step.run).toContain('throw new Error(result.combined)');
+    expect(step.run).toContain('const uids = [65534, 10001]');
+    expect(step.run).toContain('await Promise.allSettled(');
+    expect(step.run).toContain('if (check.status === "rejected")');
+    expect(step.run).toContain('failed ||= check.value.exitCode !== 0');
+    expect(step.run).toContain('if (failed) process.exitCode = 1');
   });
 
   test.each(['amd64', 'arm64'])(
@@ -1193,19 +1334,32 @@ fi
       expect(result.status).toBe(0);
       expect(result.stdout.trim().split('\n')).toEqual([
         `PULL linux/${arch} ${documentImage(arch)}`,
+        'Document tools as uid 65534',
         `CHECK 65534 linux/${arch} ${documentImage(arch)}`,
+        'Document tools as uid 10001',
         `CHECK 10001 linux/${arch} ${documentImage(arch)}`,
       ]);
+      expect(result.finishedUids).toEqual(['65534', '10001']);
     },
   );
 
-  test.each(['65534', '10001'])(
-    'native document gate fails if session user %s fails',
-    (uid) => {
-      const result = runDocumentGate('arm64', { FAIL_UID: uid });
-      expect(result.status).toBe(92);
-      expect(result.stdout).toContain(`CHECK ${uid} `);
-      if (uid === '65534') expect(result.stdout).not.toContain('CHECK 10001 ');
+  test.each([
+    ['65534', 'FAIL_UID'],
+    ['10001', 'FAIL_UID'],
+    ['65534', 'REJECT_UID'],
+    ['10001', 'REJECT_UID'],
+  ] as const)(
+    'native document gate fails if session user %s fails through %s',
+    (uid, failure) => {
+      const result = runDocumentGate('arm64', { [failure]: uid });
+      expect(result.status, result.stderr + result.stdout).toBe(1);
+      for (const checkedUid of ['65534', '10001']) {
+        expect(result.stdout).toContain(`Document tools as uid ${checkedUid}`);
+        if (failure === 'REJECT_UID' && checkedUid === uid)
+          expect(result.stderr).toContain(`Rejected document uid ${uid}`);
+        else expect(result.stdout).toContain(`CHECK ${checkedUid} `);
+      }
+      expect(result.finishedUids).toEqual(['65534', '10001']);
     },
   );
 
@@ -1220,6 +1374,7 @@ fi
     const result = runDocumentGate('amd64', { [key]: value });
     expect(result.status).not.toBe(0);
     expect(result.stdout).not.toContain('CHECK ');
+    expect(result.finishedUids).toEqual([]);
   });
 
   test('release dispatch pins the CLI workflow to the same release tag', () => {

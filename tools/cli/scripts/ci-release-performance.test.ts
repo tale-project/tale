@@ -147,6 +147,8 @@ async function probeFixture(expected: string[], failed: string) {
     join(directory, 'bun'),
     `#!/usr/bin/env bash
 set -euo pipefail
+if [ "$1" = run ]; then shift; fi
+test "$#" -eq 1
 SERVICE="$(basename "$1" .ts)"
 SERVICE="\${SERVICE#container-}"
 SERVICE="\${SERVICE%-test}"

@@ -1,6 +1,13 @@
 import { describe, expect, test } from 'bun:test';
 import { createHash } from 'node:crypto';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import {
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  rm,
+  writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -521,10 +528,12 @@ describe('Checks execution optimizations', () => {
     const patterns = z
       .object({ integration: z.array(z.string()) })
       .parse(parse(z.string().parse(filter?.with?.filters))).integration;
+    const compilerFiles = (await readdir(repository)).filter(
+      (file) => file.startsWith('tsconfig') && file.endsWith('.json'),
+    );
+    expect(compilerFiles.length).toBeGreaterThan(0);
     for (const path of [
-      'tsconfig.base.json',
-      'tsconfig.dom.json',
-      'tsconfig.strict.json',
+      ...compilerFiles,
       'bunfig.toml',
       'patches/postgres@3.4.7.patch',
     ])
