@@ -1,4 +1,5 @@
 import '@testing-library/jest-dom/vitest';
+import { Dialog } from '@tale/ui/dialog/dialog';
 import { useState, type AnchorHTMLAttributes, type ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { page, userEvent } from 'vitest/browser';
@@ -1286,4 +1287,29 @@ describe('Home screen on a phone', () => {
     expect(frame().scrollWidth).toBeLessThanOrEqual(frame().clientWidth);
     expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(390);
   });
+});
+
+it('isolates Home shortcuts from a focused Search dialog button in Chromium', async () => {
+  renderHome({ threads: chatList(3) });
+  const next = await screen.findByRole('link', { name: /Chat 02/ });
+  const click = vi.spyOn(next, 'click').mockImplementation(() => {});
+  await userEvent.keyboard('{Alt>}{ArrowDown}{/Alt}');
+  expect(click).toHaveBeenCalledOnce();
+  click.mockClear();
+  const modal = render(
+    <Dialog open onOpenChange={() => {}} title="Search">
+      <button>Chats</button>
+      <input aria-label="Search text" />
+    </Dialog>,
+  );
+  const button = await screen.findByRole('button', { name: 'Chats' });
+  await userEvent.click(button);
+  await userEvent.keyboard('{Alt>}{ArrowDown}{ArrowUp}{/Alt}');
+  expect(click).not.toHaveBeenCalled();
+  expect(button).toHaveFocus();
+  expect(screen.getByRole('dialog', { name: 'Search' })).toBeInTheDocument();
+  await userEvent.click(screen.getByRole('textbox', { name: 'Search text' }));
+  await userEvent.keyboard('{Alt>}{ArrowDown}{/Alt}');
+  expect(click).not.toHaveBeenCalled();
+  modal.unmount();
 });
