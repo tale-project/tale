@@ -891,7 +891,9 @@
           "path": ["jobs", "ci-ready", "steps", 0, "with"],
           "kind": "value",
           "expected": {
-            "persist-credentials": false
+            "persist-credentials": false,
+            "sparse-checkout": "/.github/actions/ci-ready/action.yml\n/tools/cli/scripts/ci-ready.ts\n",
+            "sparse-checkout-cone-mode": false
           }
         },
         {
@@ -1126,7 +1128,9 @@
           "kind": "value",
           "expected": {
             "ref": "${{ needs.candidate-source.outputs.candidate_sha }}",
-            "persist-credentials": false
+            "persist-credentials": false,
+            "sparse-checkout": "/.github/actions/ci-scope/action.yml\n/.github/ci-scope.yml\n/tools/cli/scripts/ci-ready.ts\n",
+            "sparse-checkout-cone-mode": false
           }
         },
         {
@@ -2692,7 +2696,9 @@
           "path": ["jobs", "ci-ready", "steps", 0, "with"],
           "kind": "value",
           "expected": {
-            "persist-credentials": false
+            "persist-credentials": false,
+            "sparse-checkout": "/.github/actions/ci-ready/action.yml\n/tools/cli/scripts/ci-ready.ts\n",
+            "sparse-checkout-cone-mode": false
           }
         },
         {
@@ -3165,7 +3171,9 @@
           "path": ["jobs", "ci-ready", "steps", 0, "with"],
           "kind": "value",
           "expected": {
-            "persist-credentials": false
+            "persist-credentials": false,
+            "sparse-checkout": "/.github/actions/ci-ready/action.yml\n/tools/cli/scripts/ci-ready.ts\n",
+            "sparse-checkout-cone-mode": false
           }
         },
         {
@@ -3645,7 +3653,9 @@
           "path": ["jobs", "ci-ready", "steps", 0, "with"],
           "kind": "value",
           "expected": {
-            "persist-credentials": false
+            "persist-credentials": false,
+            "sparse-checkout": "/.github/actions/ci-ready/action.yml\n/tools/cli/scripts/ci-ready.ts\n",
+            "sparse-checkout-cone-mode": false
           }
         },
         {
@@ -4033,7 +4043,9 @@
           "path": ["jobs", "pr-scope", "steps", 0, "with"],
           "kind": "value",
           "expected": {
-            "persist-credentials": false
+            "persist-credentials": false,
+            "sparse-checkout": "/.github/actions/ci-scope/action.yml\n/.github/ci-scope.yml\n/tools/cli/scripts/ci-ready.ts\n",
+            "sparse-checkout-cone-mode": false
           }
         },
         {
@@ -4670,12 +4682,19 @@
         {
           "path": ["jobs", "build", "steps", 2],
           "kind": "keys",
-          "expected": ["if", "name", "run"]
+          "expected": ["env", "if", "name", "run"]
+        },
+        {
+          "path": ["jobs", "build", "steps", 2, "env"],
+          "kind": "value",
+          "expected": {
+            "CROSS": "${{ matrix.cross }}"
+          }
         },
         {
           "path": ["jobs", "build", "steps", 2, "if"],
           "kind": "value",
-          "expected": "matrix.cross"
+          "expected": "matrix.cross || runner.os == 'Windows'"
         },
         {
           "path": ["jobs", "build", "steps", 3],
@@ -4696,8 +4715,8 @@
           "path": ["jobs", "build", "steps", 3, "with"],
           "kind": "value",
           "expected": {
-            "path": "${{ matrix.cross && env.BUN_INSTALL_CACHE_DIR || '~/.bun/install/cache' }}",
-            "key": "${{ matrix.cross && 'bun-cli-install' || 'bun-install' }}-${{ runner.os }}-${{ runner.arch }}-1.4.2-${{ hashFiles('bun.lock', 'package.json', '**/package.json', 'patches/**', 'bunfig.toml') }}",
+            "path": "${{ (matrix.cross || runner.os == 'Windows') && env.BUN_INSTALL_CACHE_DIR || '~/.bun/install/cache' }}",
+            "key": "${{ matrix.cross && 'bun-cli-install' || 'bun-install' }}-${{ runner.os }}-${{ runner.arch }}-1.4.2-${{ hashFiles('bun.lock', 'package.json', 'packages/*/package.json', 'services/*/package.json', 'services/sandbox-runtime/daemon/package.json', 'configs/platform/custom/skills/*/package.json', 'tools/*/package.json', 'patches/**', 'bunfig.toml') }}",
             "restore-keys": "${{ matrix.cross && 'bun-cli-install' || 'bun-install' }}-${{ runner.os }}-${{ runner.arch }}-1.4.2-\n"
           }
         },
@@ -4737,7 +4756,7 @@
           "path": ["jobs", "build", "steps", 5, "with"],
           "kind": "value",
           "expected": {
-            "path": "${{ matrix.cross && env.BUN_INSTALL_CACHE_DIR || '~/.bun/install/cache' }}",
+            "path": "${{ (matrix.cross || runner.os == 'Windows') && env.BUN_INSTALL_CACHE_DIR || '~/.bun/install/cache' }}",
             "key": "${{ steps.bun-cache.outputs.cache-primary-key }}"
           }
         },
@@ -5064,7 +5083,9 @@
           "path": ["jobs", "ci-ready", "steps", 0, "with"],
           "kind": "value",
           "expected": {
-            "persist-credentials": false
+            "persist-credentials": false,
+            "sparse-checkout": "/.github/actions/ci-ready/action.yml\n/tools/cli/scripts/ci-ready.ts\n",
+            "sparse-checkout-cone-mode": false
           }
         },
         {
@@ -5153,7 +5174,9 @@
           "path": ["jobs", "pr-scope", "steps", 0, "with"],
           "kind": "value",
           "expected": {
-            "persist-credentials": false
+            "persist-credentials": false,
+            "sparse-checkout": "/.github/actions/ci-scope/action.yml\n/.github/ci-scope.yml\n/tools/cli/scripts/ci-ready.ts\n",
+            "sparse-checkout-cone-mode": false
           }
         },
         {
@@ -5555,50 +5578,35 @@
         {
           "path": ["jobs", "bun-audit", "steps", 2],
           "kind": "keys",
-          "expected": ["continue-on-error", "name", "run", "timeout-minutes"]
-        },
-        {
-          "path": ["jobs", "bun-audit", "steps", 2, "continue-on-error"],
-          "kind": "value",
-          "expected": true
-        },
-        {
-          "path": ["jobs", "bun-audit", "steps", 2, "timeout-minutes"],
-          "kind": "value",
-          "expected": 4
+          "expected": ["name", "run"]
         },
         {
           "path": ["jobs", "bun-audit", "steps", 3],
           "kind": "keys",
-          "expected": ["name", "run"]
-        },
-        {
-          "path": ["jobs", "bun-audit", "steps", 4],
-          "kind": "keys",
           "expected": ["if", "name", "run"]
         },
         {
-          "path": ["jobs", "bun-audit", "steps", 4, "if"],
+          "path": ["jobs", "bun-audit", "steps", 3, "if"],
           "kind": "value",
           "expected": "always()"
         },
         {
-          "path": ["jobs", "bun-audit", "steps", 5],
+          "path": ["jobs", "bun-audit", "steps", 4],
           "kind": "keys",
           "expected": ["if", "name", "uses", "with"]
         },
         {
-          "path": ["jobs", "bun-audit", "steps", 5, "if"],
+          "path": ["jobs", "bun-audit", "steps", 4, "if"],
           "kind": "value",
           "expected": "!cancelled() && hashFiles('bun-audit*.txt') != ''"
         },
         {
-          "path": ["jobs", "bun-audit", "steps", 5, "uses"],
+          "path": ["jobs", "bun-audit", "steps", 4, "uses"],
           "kind": "value",
           "expected": "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
         },
         {
-          "path": ["jobs", "bun-audit", "steps", 5, "with"],
+          "path": ["jobs", "bun-audit", "steps", 4, "with"],
           "kind": "value",
           "expected": {
             "name": "bun-audit-attempt-${{ github.run_attempt }}",
@@ -5610,7 +5618,7 @@
         {
           "path": ["jobs", "bun-audit", "steps"],
           "kind": "length",
-          "expected": 6
+          "expected": 5
         },
         {
           "path": ["jobs", "candidate-gate"],
@@ -5751,7 +5759,9 @@
           "path": ["jobs", "ci-ready", "steps", 0, "with"],
           "kind": "value",
           "expected": {
-            "persist-credentials": false
+            "persist-credentials": false,
+            "sparse-checkout": "/.github/actions/ci-ready/action.yml\n/tools/cli/scripts/ci-ready.ts\n",
+            "sparse-checkout-cone-mode": false
           }
         },
         {
@@ -5840,7 +5850,9 @@
           "path": ["jobs", "pr-scope", "steps", 0, "with"],
           "kind": "value",
           "expected": {
-            "persist-credentials": false
+            "persist-credentials": false,
+            "sparse-checkout": "/.github/actions/ci-scope/action.yml\n/.github/ci-scope.yml\n/tools/cli/scripts/ci-ready.ts\n",
+            "sparse-checkout-cone-mode": false
           }
         },
         {

@@ -126,9 +126,95 @@ async function openRename() {
 }
 
 describe('ThreadRow', () => {
-  // The rename tests assert on one shared mock; start each from zero.
   beforeEach(() => {
-    renameMock.mockClear();
+    renameMock.mockReset().mockResolvedValue(true);
+  });
+
+  it('keeps a refused draft available for retry with an accessible error', async () => {
+    renameMock.mockResolvedValueOnce(false);
+    const { user, input, container } = await openRename();
+    fireEvent.change(input, { target: { value: 'Attempted title' } });
+    await user.keyboard('{Enter}');
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      "Couldn't rename chat. Try again.",
+    );
+    expect(input).toHaveValue('Attempted title');
+    expect(input).toHaveAttribute('aria-invalid', 'true');
+    expect(input).toHaveAccessibleDescription(
+      "Couldn't rename chat. Try again.",
+    );
+    await checkAccessibility(container);
+    await user.keyboard('{Enter}');
+    await waitFor(() => expect(screen.queryByRole('textbox')).toBeNull());
+    expect(renameMock).toHaveBeenCalledTimes(2);
+    expect(renameMock).toHaveBeenLastCalledWith('t1', 'Attempted title');
+  });
+
+  it('rejects 501 characters and accepts a corrected 500-character title', async () => {
+    const { user, input } = await openRename();
+    fireEvent.change(input, { target: { value: 'a'.repeat(501) } });
+    await user.keyboard('{Enter}');
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Use 500 characters or fewer.',
+    );
+    expect(input).toHaveValue('a'.repeat(501));
+    expect(renameMock).not.toHaveBeenCalled();
+    fireEvent.change(input, { target: { value: ` ${'a'.repeat(500)} ` } });
+    expect(screen.queryByRole('alert')).toBeNull();
+    await user.keyboard('{Enter}');
+    await waitFor(() => expect(screen.queryByRole('textbox')).toBeNull());
+    expect(renameMock).toHaveBeenCalledExactlyOnceWith('t1', 'a'.repeat(500));
+  });
+
+  it('keeps an empty title open for correction and lets Escape cancel', async () => {
+    const { user, input } = await openRename();
+    fireEvent.change(input, { target: { value: '  ' } });
+    await user.keyboard('{Enter}');
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Enter a chat title.',
+    );
+    expect(renameMock).not.toHaveBeenCalled();
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('textbox')).toBeNull();
+    expect(renameMock).not.toHaveBeenCalled();
+  });
+
+  it('waits for rename and saves once when Enter and blur overlap', async () => {
+    let resolveRename: (value: boolean) => void = () => {};
+    renameMock.mockImplementationOnce(
+      () =>
+        new Promise<boolean>((resolve) => {
+          resolveRename = resolve;
+        }),
+    );
+    const { user, input } = await openRename();
+    fireEvent.change(input, { target: { value: 'Pending title' } });
+    await user.keyboard('{Enter}{Enter}');
+    fireEvent.blur(input);
+    expect(screen.getByRole('textbox')).toHaveValue('Pending title');
+    expect(input).toHaveAttribute('readonly');
+    expect(renameMock).toHaveBeenCalledTimes(1);
+    resolveRename(true);
+    await waitFor(() => expect(screen.queryByRole('textbox')).toBeNull());
+  });
+
+  it('preserves a refused blur draft and allows explicit cancellation', async () => {
+    renameMock.mockResolvedValueOnce(false);
+    const { user, input } = await openRename();
+    fireEvent.change(input, { target: { value: 'Blur draft' } });
+    fireEvent.blur(input);
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      "Couldn't rename chat. Try again.",
+    );
+    expect(screen.getByRole('textbox')).toHaveValue('Blur draft');
+    expect(input).not.toHaveAttribute('readonly');
+    await user.click(input);
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('textbox')).toBeNull();
+    expect(
+      screen.getByRole('link', { name: /Quarterly report/ }),
+    ).toBeInTheDocument();
+    expect(renameMock).toHaveBeenCalledTimes(1);
   });
 
   it('offers the full action set from one menu', async () => {
@@ -227,6 +313,37 @@ describe('ThreadRow', () => {
 
     expect(screen.queryByRole('textbox')).toBeNull();
     expect(renameMock).not.toHaveBeenCalled();
+  });
+
+  it('keeps a refused draft open through IME keys before a successful retry', async () => {
+    renameMock.mockResolvedValueOnce(false);
+    const { input } = await openRename();
+    fireEvent.change(input, { target: { value: 'にほん' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      "Couldn't rename chat. Try again.",
+    );
+
+    for (const key of ['Enter', 'Escape']) {
+      fireEvent.keyDown(input, { key, isComposing: true });
+      fireEvent.keyDown(input, { key, keyCode: 229 });
+      fireEvent.compositionStart(input);
+      fireEvent.keyDown(input, { key });
+      fireEvent.compositionEnd(input);
+    }
+
+    expect(screen.getByRole('textbox', { name: 'Rename' })).toHaveValue(
+      'にほん',
+    );
+    expect(input).toHaveAccessibleDescription(
+      "Couldn't rename chat. Try again.",
+    );
+    expect(renameMock).toHaveBeenCalledTimes(1);
+
+    fireEvent.keyDown(input, { key: 'Enter' });
+    await waitFor(() => expect(screen.queryByRole('textbox')).toBeNull());
+    expect(renameMock).toHaveBeenCalledTimes(2);
+    expect(renameMock).toHaveBeenLastCalledWith('t1', 'にほん');
   });
 
   it('commits the rename on blur', async () => {

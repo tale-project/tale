@@ -54,11 +54,11 @@ interface Instruction {
  * inside a continuation are dropped. `stage` is the `AS` name of the
  * enclosing FROM, or '' for an unnamed one.
  */
-function instructions(file: string): Instruction[] {
+function parseInstructions(source: string): Instruction[] {
   const result: Instruction[] = [];
   let stage = '';
   let pending = '';
-  for (const line of readFileSync(file, 'utf8').split('\n')) {
+  for (const line of source.split('\n')) {
     if (/^\s*(#|$)/.test(line)) continue;
     pending += line.replace(/\\\s*$/, '');
     if (/\\\s*$/.test(line)) continue;
@@ -69,6 +69,43 @@ function instructions(file: string): Instruction[] {
     result.push({ stage, keyword, args });
   }
   return result;
+}
+
+function instructions(file: string): Instruction[] {
+  return parseInstructions(readFileSync(file, 'utf8'));
+}
+
+/** All context files reachable through a stage's FROM and COPY dependencies. */
+function contextInputs(source: string, stage: string): Set<string> {
+  const parsed = parseInstructions(source);
+  const namedStages = new Set(parsed.map((instruction) => instruction.stage));
+  const inputs = new Set<string>();
+  const visited = new Set<string>();
+  function visit(name: string): void {
+    if (visited.has(name)) return;
+    visited.add(name);
+    for (const instruction of parsed.filter((item) => item.stage === name)) {
+      const words = instruction.args.trim().split(/\s+/);
+      if (instruction.keyword === 'FROM') {
+        const parent = words[0] ?? '';
+        if (namedStages.has(parent)) visit(parent);
+      } else if (instruction.keyword === 'COPY') {
+        const from = words.find((word) => word.startsWith('--from='));
+        if (from) {
+          const parent = from.slice('--from='.length);
+          if (namedStages.has(parent)) visit(parent);
+        } else {
+          for (const input of words
+            .filter((word) => !word.startsWith('--'))
+            .slice(0, -1)) {
+            inputs.add(input);
+          }
+        }
+      }
+    }
+  }
+  visit(stage);
+  return inputs;
 }
 
 /**
@@ -209,6 +246,37 @@ describe('platform pruner: the production install fails closed', () => {
 });
 
 describe('platform pruner manifests', () => {
+  it('keeps production dependencies independent of every source and build stage', () => {
+    const source = readFileSync(PLATFORM_DOCKERFILE, 'utf8');
+    const production = contextInputs(source, 'pruner');
+    const development = contextInputs(source, 'workspace-deps');
+    expect(production.has('bun.lock')).toBe(true);
+    expect(production.has('patches/')).toBe(true);
+    expect(production.size).toBeGreaterThanOrEqual(10);
+    expect([...production].sort()).toEqual([...development].sort());
+
+    // Lock the prior regression: inheriting builder makes source-only edits
+    // reinstall dependencies, even when the manifests themselves are unchanged.
+    const regressed = source.replace(
+      /FROM \S+ AS pruner/,
+      'FROM builder AS pruner',
+    );
+    const changed = contextInputs(regressed, 'pruner');
+    expect(changed.has('services/platform/app')).toBe(true);
+    expect([...changed].sort()).not.toEqual([...development].sort());
+
+    // Only the installed dependency tree comes from this manifest-only stage.
+    const copies = instructions(PLATFORM_DOCKERFILE).filter(
+      (instruction) =>
+        instruction.stage === 'runner' &&
+        instruction.keyword === 'COPY' &&
+        instruction.args.includes('--from=pruner'),
+    );
+    expect(copies.map((instruction) => instruction.args)).toEqual([
+      '--from=pruner --chown=app:app /app/node_modules ./node_modules',
+    ]);
+  });
+
   /**
    * Install-root-relative paths of the files a stage's COPYs (with exactly
    * the given `--from`, '' for the build context) place under `root`, each

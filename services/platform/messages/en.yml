@@ -620,6 +620,8 @@ automations:
       organization.
   detail:
     loading: Loading the automation…
+    loadFailed:
+      title: Couldn't load the automation
     # A deleted automation keeps its run history until retention removes
     # it; the Runs pages still open under this banner.
     deleted:
@@ -1381,10 +1383,12 @@ chat:
       placedAtLabel: Placed
     generating: Generating response
     renameChat: Rename
+    renameEmpty: Enter a chat title.
+    renameTooLong: Use 500 characters or fewer.
     loadMore: Load more
     toast:
       moveFailed: Couldn't move chat
-      renameFailed: Couldn't rename chat
+      renameFailed: Couldn't rename chat. Try again.
   searchPalette:
     title: Search chats
     placeholder: Search chats
@@ -1794,6 +1798,10 @@ conversations:
     noEmailConnector: Connect an email inbox under Settings > Connectors.
     noEmailConnectorAskAdmin: Ask an organization admin to connect an email
       inbox before you can send.
+    emailConnectorReadErrorTitle: Email connection unavailable
+    emailConnectorReadError: We couldn't load your email connections. Your draft is
+      safe; try again.
+    retryEmailConnectorRead: Try again
     openConnectorSettings: Open connector settings
     subject: Subject
     subjectPlaceholder: What's this about?
@@ -4456,6 +4464,8 @@ knowledgeEntries:
   addEntry: Add knowledge entry
   addDescription: Name a topic, then write the knowledge so it makes sense on its own.
   editEntry: Edit knowledge entry
+  editDialog:
+    newerVersion: A newer version was published while you were editing. Your draft is still here; save it to replace that version, or cancel and discard it.
   adding: Adding...
   saving: Saving...
   topic: Topic
@@ -8182,6 +8192,8 @@ twoFactor:
     namePromptDescription:
       Give this passkey a name so you can recognize it later
       (e.g. "MacBook Touch ID").
+    confirmPasswordDescription: You signed in a while ago. Confirm your password to add a passkey.
+    signInAgainDescription: You signed in a while ago. Sign in again, then add your passkey.
     nameLabel: Passkey name
     namePlaceholder: MacBook Touch ID
     attachment:
@@ -8194,6 +8206,7 @@ twoFactor:
       revokeFailed: Couldn't remove the passkey. Try again.
       listFailed: Couldn't load your passkeys.
       refreshFailed: Couldn't refresh your passkeys. The list shown may be out of date.
+      confirmFailed: Couldn't confirm your password. Try again.
   setup:
     title: Set up two-factor authentication
     qrInstructions: Scan the QR code with an authenticator app (Google
@@ -8211,6 +8224,7 @@ twoFactor:
   confirmPassword:
     label: Password
     submit: Confirm
+    wrongPassword: Wrong password. Repeated failed attempts temporarily lock your account.
   verify:
     title: Verify your identity
     description: Enter the 6-digit code from your authenticator app.

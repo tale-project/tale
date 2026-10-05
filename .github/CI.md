@@ -4,8 +4,8 @@ Optimize both time to feedback and total runner work. Inspect job queue time sep
 from step duration before adding shards: a short test behind a large setup cost usually
 needs fewer runners, while a long CPU-bound suite can benefit from more slices.
 
-The cumulative audit records [129 distinct implemented improvements](CI-improvements.json)
-since `c8f31b2b9`: 78 authored here, 47 integrated from concurrent upstream work and four
+The cumulative audit records [131 retained implemented improvements](CI-improvements.json)
+since `c8f31b2b9`: 81 authored here, 45 integrated from concurrent upstream work and five
 combining both. Each entry records before/after behavior, changed paths, source commits
 and proof. Repeated patterns across workflows count once; suggestions and retained
 baseline behavior do not count.
@@ -77,14 +77,17 @@ baseline behavior do not count.
   still generate and build their binaries; repeating the same source suite on the same
   host OS adds no platform coverage. Cross legs use a proven CLI-only frozen install
   and keep its download cache in a separate namespace. Native source tests retain
-  the full workspace install because they import platform auth modules. Source tests
+  the full workspace install because they import platform auth modules. Windows
+  places its download store beside the checkout, outside the source tree, so Bun
+  can hardlink packages into `node_modules` on the same volume. Linux and macOS
+  native rows retain their home-directory store. Source tests
   and compiled smoke discovery run serially on all three hosts. Two workers made
   Windows fixtures exceed their unchanged 30-second limits; Linux two-worker runs
   failed to finish promptly, and a macOS candidate reached the unchanged 15-minute
   job cap without a source summary. Serial suites retain all assertions and the same
   limits. The native command fixture checks complete discovery, serial case order,
-  real synchronous/asynchronous subprocess completion and one process without
-  worker IDs under every host's selected command.
+  real synchronous/asynchronous subprocess completion, two-file Git indexing, and
+  one process without worker IDs under every host's selected command.
   Binary artifacts use fast compression; all five targets still build, native binaries
   retain smoke tests, and both macOS targets retain signature checks. Command suites
   run source cases before compilation, then select only the explicit `TALE_BINARY`
@@ -125,7 +128,11 @@ Node-version output: only those checkouts resolve and install their production N
 job level. Current composites skip that fallback. Integration evidence verifies and records
 the actual selected version.
 
-The Bun download key also includes workspace manifests, the lockfile and patches.
+Shared checks and native CLI builds use the same Bun download key inputs: the root
+manifest, every declared workspace manifest, lockfile, patches and `bunfig.toml`.
+The independent document-node npm manifest is outside that workspace identity.
+Native caches retain OS, architecture and Bun version separation; cross-compilation
+keeps its separate namespace and every path retains its prefix fallback.
 A frozen install remains authoritative after a cache hit, and successful downloads
 are saved before the workload begins. Browser checks and E2E share an exact
 installed Playwright version, OS and architecture cache for the Chromium headless
@@ -216,6 +223,12 @@ The direct SBOM pass reuses the pinned scanner installation and skips a second c
 Scorecard remains informational and runs weekly, manually and when branch protections
 change. Blocking source and dependency security gates retain their triggers.
 
+Security's production Bun audit uses one registry response per attempt for both
+reporting and its blocking HIGH/CRITICAL threshold. Native JSON output retains all
+advisory severities; Bun decides the exit status. Each bounded attempt is retained,
+including transport failures. Findings fail immediately, while a degraded registry
+keeps the existing three-attempt retry policy and delay.
+
 CLI checks additionally depend on their own `transit`, whose inputs cover embedded
 source trees and platform modules reached by relative imports. Module-closure and
 generator-tree guards require those effective inputs.
@@ -245,9 +258,15 @@ Keep platform tests in build inputs: Tailwind's automatic source scanner read 63
 Narrowing those inputs requires explicit production-only Tailwind sources and an output-
 equivalence check.
 
-Only main pushes publish the shared platform-stack Docker layer cache; pull requests
-and candidates read it. This removes costly PR-local exports and prevents old release
+Only ordinary main pushes publish the shared platform-stack and four standalone
+service Docker layer caches; pull requests and candidates read them. This removes
+costly PR-local exports and prevents old release
 candidates from replacing main's cache. PR reruns may rebuild layers unique to that PR.
+The platform's production dependency stage shares the builder's minimal Bun/Debian
+base but reads only workspace manifests, patches and the installed lockfile. Application
+source edits therefore preserve that stage's cache. The runtime takes pruned dependencies
+from this stage and application files from the builder; the production install and
+swap still fail closed.
 Ephemeral hosted builders skip teardown. Forks build on the runners that test their
 images and retain builtin catalog validation, without a second unused image matrix.
 SAST scans once: normal runs serialize SARIF from the same result while retaining the
@@ -386,7 +405,8 @@ temporary-file errors followed timeout cleanup. Earlier serial Windows source ru
 took 191–216s and passed. Windows therefore retains the serial command and all existing
 assertions and timeout limits. In [CLI run 37262821778](https://github.com/tale-project/tale/actions/runs/37262821778),
 Windows source and compiled smoke passed completely. macOS source and signed compiled
-smoke also passed in both later runs with two workers.
+smoke also passed in both later runs with two workers; that mode was withdrawn after
+the later candidate failures documented below.
 
 Linux's [later two-worker source run](https://github.com/tale-project/tale/actions/runs/37262217358)
 remained unfinished when cancelled after 418s,
@@ -414,6 +434,21 @@ packed; the image did not grow. The gateway limit is now 300 MiB, about 18% abov
 its observed inspection size, using the existing metric. Other image budgets stay
 unchanged. Executable fixtures accept 255 and 300 MiB and reject 301 MiB while
 retaining gateway user, health, secret and required-image checks.
+
+[Build run 37283199187](https://github.com/tale-project/tale/actions/runs/37283199187)
+at `4653d3e3b` spent 434 seconds building and pushing the platform image, including
+223 seconds exporting its complete layer cache. The production dependency stage
+inherited the application builder, so source edits also repeated its install and
+runtime dependency copy. The manifest-only stage removes that dependency without
+changing the cache backend or its branch isolation.
+
+In the [same-source CLI run](https://github.com/tale-project/tale/actions/runs/37283199170),
+Windows downloaded its 254 MiB Bun cache in about one second, then spent about
+128 seconds extracting it and 41 seconds installing dependencies. Its home-directory
+cache and checkout were on different volumes. Moving the store beside the checkout
+enables Bun's [documented Windows hardlinks](https://bun.sh/docs/pm/global-cache#fast-copying);
+it does not establish a reduction in cache extraction time. The path change starts a
+new cache version, so the first hosted run measures a cold store.
 
 Run workflow and source-identity regressions with:
 
@@ -510,6 +545,40 @@ suite. Five affected-workspace lint/type/generate tasks executed freshly and pas
 Knip, actionlint, formatting and commit hooks also passed. No original assertion or
 time budget was relaxed, and these follow-up corrections do not increase the ledger.
 
+Protected candidate `91ac292ca` passed [Checks](https://github.com/tale-project/tale/actions/runs/37273313395),
+[Build](https://github.com/tale-project/tale/actions/runs/37273313417),
+[E2E](https://github.com/tale-project/tale/actions/runs/37273313365),
+[Security](https://github.com/tale-project/tale/actions/runs/37273313414) and
+[SAST](https://github.com/tale-project/tale/actions/runs/37273313397). The candidate
+receipts bind that selected source separately from workflow commit `2c3fe20c`;
+Turbo's SCM environment alone can name the latter. E2E passed 214 browser tests and
+822 SEO tests with zero retries. All eight image builds, four standalone sites and
+smoke/image/runtime gates passed.
+
+Its [CLI run](https://github.com/tale-project/tale/actions/runs/37273313502) passed four
+targets but macOS hit 25 existing runtime-fixture timeouts, followed by the 15-minute
+job limit. The new document and cache guards had already passed. Runtime fixture
+setup creates only `compose.yml` and `services/proxy/Caddyfile`; repeated `git add`
+stalls therefore do not show excess copying or a larger source index. The same
+relevant source, Git/Bun versions and runner image passed comparison macOS steps in
+172 and 136 seconds; the worker/subprocess liveness cause remains unproven. macOS
+returns to serial source execution with every assertion, 30-second test limit and
+15-minute job budget retained. CI-114 is recorded as withdrawn rather than counted
+as an improvement or replaced with another count for this correction.
+
+The newer product source `2c3fe20c` passed ordinary
+[Checks](https://github.com/tale-project/tale/actions/runs/37273116498),
+[CLI](https://github.com/tale-project/tale/actions/runs/37273116351) and
+[Build](https://github.com/tale-project/tale/actions/runs/37273116429). This confirms
+its separate product changes without relabelling the failed `91ac292ca` CLI run.
+
+After serial scheduling landed, latest `main` source `4653d3e3b` passed
+[CLI run 37283199170](https://github.com/tale-project/tale/actions/runs/37283199170)
+on all five targets. macOS executed 2,366 source cases (2,346 passed, 20 skipped,
+zero failures) in 246.41 seconds and its compiled smoke suite passed 56 cases
+with one existing skip in 47.29 seconds. This observes the restored production
+scheduling; the additional two-file Git regression still needs its own final run.
+
 ## Pull-request CI readiness
 
 Each validation workflow emits one direct terminal context on every PR and merge group:
@@ -557,6 +626,13 @@ artifact review as described in the repo contract.
 
 Scope and verdict actions use the repository-pinned `actions/github-script` Node 24 runtime
 and a dependency-free evaluator; they do not install the monorepo or start another CI graph.
+Their pinned checkouts use non-cone sparse paths: scope materializes only its action,
+the central policy and evaluator, while readiness needs only its action and evaluator.
+Checks' integration scope retains its exact candidate-source ref and PR condition.
+Native Git fixtures execute both actions from those minimal trees and retain scope
+pre/postflight API checks and failed or incomplete readiness verdicts.
+An official checksummed Node 24 runtime also imports the sparse TypeScript and executes
+the actual action scripts with both `package.json` and `node_modules` absent.
 
 ### Activation and observation
 

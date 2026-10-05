@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import type { AnchorHTMLAttributes, ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { render, screen, waitFor } from '@/tests/utils/render';
+import { act, render, screen, waitFor } from '@/tests/utils/render';
 
 import { AutomationEditorActions } from './automation-editor-actions';
 import { TriggerEditor } from './trigger-editor';
@@ -129,6 +129,8 @@ function renderTrigger(
 
 const saveButton = () => screen.getByRole('button', { name: 'Save' });
 const discardButton = () => screen.getByRole('button', { name: 'Discard' });
+/** Save, which reads "Saved" for a moment after a save went through. */
+const savedButton = () => screen.getByRole('button', { name: /^Saved?$/ });
 
 describe('TriggerEditor', () => {
   beforeEach(() => {
@@ -198,6 +200,196 @@ describe('TriggerEditor', () => {
 
     expect(cron).toHaveValue('0 9 * * 1');
     expect(saveButton()).toBeEnabled();
+  });
+
+  // A row another session saved reaches a form holding an edit (#3620): the
+  // fields the author changed keep the edit, the ones they left alone follow
+  // the row — and a save's own row still settles the form.
+  describe('a row saved while the form holds an edit', () => {
+    const WEBHOOK_ROW = {
+      name: 'gmail-triage-inbox',
+      kind: 'webhook',
+      hasToken: true,
+      enabled: true,
+    };
+
+    function rerenderWith(
+      rerender: ReturnType<typeof renderTrigger>['rerender'],
+      row: NonNullable<typeof triggersData>[number],
+    ) {
+      triggersData = [row];
+      rerender(
+        <GeneralTab>
+          <TriggerEditor
+            organizationId="org-1"
+            name="gmail-triage-inbox"
+            canEdit
+          />
+        </GeneralTab>,
+      );
+    }
+
+    async function editCron() {
+      const cron = screen.getByLabelText('Cron');
+      await userEvent.clear(cron);
+      await userEvent.paste('0 9 * * 1');
+      return cron;
+    }
+
+    /** Edit the cron, make the binding a webhook, and press Save. */
+    async function saveCronEditAsWebhook() {
+      await editCron();
+      await userEvent.click(
+        screen.getByRole('combobox', { name: 'Trigger type' }),
+      );
+      await userEvent.click(screen.getByRole('option', { name: 'Webhook' }));
+      await userEvent.click(saveButton());
+      await waitFor(() => expect(mockSetTrigger).toHaveBeenCalledTimes(1));
+    }
+
+    it('keeps an edited cron when another session switches the trigger off', async () => {
+      const { rerender } = renderTrigger();
+      const cron = await editCron();
+      rerenderWith(rerender, { ...SCHEDULE_ROW, enabled: false });
+
+      expect(cron).toHaveValue('0 9 * * 1');
+      // The switch the author left alone takes the other session's answer.
+      expect(screen.getByRole('switch', { name: 'Enabled' })).not.toBeChecked();
+      expect(saveButton()).toBeEnabled();
+
+      await userEvent.click(saveButton());
+      expect(mockSetTrigger).toHaveBeenCalledWith({
+        organizationId: 'org-1',
+        name: 'gmail-triage-inbox',
+        trigger: {
+          kind: 'schedule',
+          cron: '0 9 * * 1',
+          timezone: 'UTC',
+          enabled: false,
+        },
+      });
+    });
+
+    it('keeps an edited cron when another session saved a different one', async () => {
+      const { rerender } = renderTrigger();
+      const cron = await editCron();
+      rerenderWith(rerender, { ...SCHEDULE_ROW, cron: '0 7 * * *' });
+
+      expect(cron).toHaveValue('0 9 * * 1');
+      expect(saveButton()).toBeEnabled();
+    });
+
+    it('keeps the edit when the save is refused while another session’s row arrives', async () => {
+      let refuse: (error: Error) => void = () => {};
+      mockSetTrigger.mockImplementation(
+        () =>
+          new Promise((_resolve, reject) => {
+            refuse = reject;
+          }),
+      );
+      const { rerender } = renderTrigger();
+      const cron = await editCron();
+      await userEvent.click(saveButton());
+      await waitFor(() => expect(mockSetTrigger).toHaveBeenCalledTimes(1));
+      rerenderWith(rerender, { ...SCHEDULE_ROW, enabled: false });
+      await act(async () => {
+        refuse(new Error('The store refused the trigger.'));
+      });
+
+      expect(cron).toHaveValue('0 9 * * 1');
+      expect(screen.getByRole('switch', { name: 'Enabled' })).not.toBeChecked();
+      expect(saveButton()).toBeEnabled();
+    });
+
+    it('settles on the row its own save wrote, cron left behind', async () => {
+      const { rerender } = renderTrigger();
+      await saveCronEditAsWebhook();
+      // The store holds the webhook now, with no cron.
+      rerenderWith(rerender, WEBHOOK_ROW);
+
+      // Nothing is left to save: the cluster reads clean, not dirty.
+      expect(discardButton()).toBeDisabled();
+      expect(savedButton()).toBeDisabled();
+    });
+
+    it('settles on its own save when the row lands before the save answers', async () => {
+      let answer: (value: object) => void = () => {};
+      mockSetTrigger.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            answer = resolve;
+          }),
+      );
+      const { rerender } = renderTrigger();
+      await saveCronEditAsWebhook();
+      rerenderWith(rerender, WEBHOOK_ROW);
+      await act(async () => {
+        answer({});
+      });
+
+      expect(discardButton()).toBeDisabled();
+      expect(savedButton()).toBeDisabled();
+    });
+
+    // The fields stay editable while a save is out (#4321 review B1): a
+    // change made after Save is the author's newest word, even one back to
+    // the value the form loaded, whichever of the save's row and its answer
+    // comes first.
+    it.each([
+      ['before the save answers', true],
+      ['after the save answers', false],
+    ])(
+      'keeps a cron changed back during the save when its row lands %s',
+      async (_when, rowFirst) => {
+        let answer: (value: object) => void = () => {};
+        mockSetTrigger.mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              answer = resolve;
+            }),
+        );
+        const { rerender } = renderTrigger();
+        const cron = await editCron();
+        await userEvent.click(saveButton());
+        await waitFor(() => expect(mockSetTrigger).toHaveBeenCalledTimes(1));
+        await userEvent.clear(cron);
+        await userEvent.paste('0 */6 * * *');
+        const saved = { ...SCHEDULE_ROW, cron: '0 9 * * 1' };
+        if (rowFirst) rerenderWith(rerender, saved);
+        await act(async () => {
+          answer({});
+        });
+        if (!rowFirst) rerenderWith(rerender, saved);
+
+        expect(cron).toHaveValue('0 */6 * * *');
+        expect(discardButton()).toBeEnabled();
+        expect(savedButton()).toBeEnabled();
+      },
+    );
+
+    it('settles on its own save when another session’s row lands first', async () => {
+      let answer: (value: object) => void = () => {};
+      mockSetTrigger.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            answer = resolve;
+          }),
+      );
+      const { rerender } = renderTrigger();
+      await editCron();
+      await userEvent.click(saveButton());
+      await waitFor(() => expect(mockSetTrigger).toHaveBeenCalledTimes(1));
+      // Another session switches the trigger off; then this save, written
+      // after it, lands with the switch on again.
+      rerenderWith(rerender, { ...SCHEDULE_ROW, enabled: false });
+      rerenderWith(rerender, { ...SCHEDULE_ROW, cron: '0 9 * * 1' });
+      await act(async () => {
+        answer({});
+      });
+
+      expect(screen.getByRole('switch', { name: 'Enabled' })).toBeChecked();
+      expect(discardButton()).toBeDisabled();
+    });
   });
 
   it('holds Save while the cron cannot be read', async () => {

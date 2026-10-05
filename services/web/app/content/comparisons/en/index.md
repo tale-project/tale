@@ -10,7 +10,7 @@ The useful comparison starts with the work your team needs to coordinate. Tale i
 
 These guides compare documented product scope and a concrete evaluation task. They recognize overlapping capabilities and explain when the other product may fit. Frameworks and compatible runtimes are included as different decisions, not interchangeable replacements.
 
-Research reviewed on 3 October 2026 using linked official sources. The alternatives were not installed or benchmarked. Flowise's announced end of life and Vibe Kanban's maintenance transition are covered in their guides; check current status before adopting either.
+Research reviewed on 3 October 2026 using linked official sources. The alternatives were not installed or benchmarked. Flowise's [announced end of life](https://flowiseai.com/sunset) and Vibe Kanban's [maintenance transition](https://www.vibekanban.com/blog/shutdown) are covered in their guides; check current status before adopting either.
 
 ## Project coordination and agent execution
 
@@ -19,7 +19,7 @@ Research reviewed on 3 October 2026 using linked official sources. The alternati
 | [Multica](/compare/tale-vs-multica) | Issue execution and shared project work |
 | [Paperclip](/compare/tale-vs-paperclip) | Agent organizations and project review |
 | [Conductor](/compare/tale-vs-conductor) | Parallel coding work and broader team tasks |
-| [Vibe Kanban](/compare/tale-vs-vibe-kanban) | Coding boards and the maintenance transition |
+| [Vibe Kanban](/compare/tale-vs-vibe-kanban) | Coding agents and the maintenance transition |
 | [OpenAI Symphony](/compare/tale-vs-symphony) | Issue-driven orchestration and a shared workspace |
 | [Mission Control (builderz-labs)](/compare/tale-vs-mission-control) | An agent control plane and daily project work |
 | [Autensa](/compare/tale-vs-autensa) | Product-delivery orchestration and shared tasks |

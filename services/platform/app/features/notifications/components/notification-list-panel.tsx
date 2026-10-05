@@ -127,6 +127,18 @@ export function NotificationListPanel({
   const markMyRead = useMarkMyNotificationRead();
   const markAllMyRead = useMarkAllMyNotificationsRead();
 
+  const restoreHiddenNotifications = useCallback(
+    (notificationIds: string[]) => {
+      setHiddenIds((prev) => {
+        const next = new Set(prev);
+        for (const notificationId of notificationIds)
+          next.delete(notificationId);
+        return next;
+      });
+    },
+    [],
+  );
+
   const handleMarkRead = useCallback(
     (notificationId: string) => {
       setHiddenIds((prev) => {
@@ -134,9 +146,11 @@ export function NotificationListPanel({
         next.add(notificationId);
         return next;
       });
-      void markRead.mutateAsync({ notificationId });
+      void markRead.mutateAsync({ notificationId }).catch(() => {
+        restoreHiddenNotifications([notificationId]);
+      });
     },
-    [markRead],
+    [markRead, restoreHiddenNotifications],
   );
 
   const handleMarkMyRead = useCallback(
@@ -146,26 +160,41 @@ export function NotificationListPanel({
         next.add(notificationId);
         return next;
       });
-      void markMyRead.mutateAsync({ notificationId });
+      void markMyRead.mutateAsync({ notificationId }).catch(() => {
+        restoreHiddenNotifications([notificationId]);
+      });
     },
-    [markMyRead],
+    [markMyRead, restoreHiddenNotifications],
   );
 
   const handleMarkAllRead = useCallback(() => {
+    const orgHiddenIds =
+      filter === 'unread'
+        ? results
+            .filter((notification) => !notification.read)
+            .map((notification) => notification._id)
+        : [];
+    const personalHiddenIds =
+      filter === 'unread'
+        ? myNotifications
+            .filter((notification) => !notification.read)
+            .map((notification) => notification._id)
+        : [];
     if (filter === 'unread') {
       setHiddenIds((prev) => {
         const next = new Set(prev);
-        for (const n of results) {
-          if (!n.read) next.add(n._id);
-        }
-        for (const n of myNotifications) {
-          if (!n.read) next.add(n._id);
-        }
+        for (const notificationId of orgHiddenIds) next.add(notificationId);
+        for (const notificationId of personalHiddenIds)
+          next.add(notificationId);
         return next;
       });
     }
-    void markAllRead.mutateAsync({ organizationId });
-    void markAllMyRead.mutateAsync({ organizationId });
+    void markAllRead.mutateAsync({ organizationId }).catch(() => {
+      restoreHiddenNotifications(orgHiddenIds);
+    });
+    void markAllMyRead.mutateAsync({ organizationId }).catch(() => {
+      restoreHiddenNotifications(personalHiddenIds);
+    });
   }, [
     filter,
     markAllRead,
@@ -173,6 +202,7 @@ export function NotificationListPanel({
     organizationId,
     results,
     myNotifications,
+    restoreHiddenNotifications,
   ]);
 
   const handleFilterChange = useCallback((next: NotificationsFilter) => {

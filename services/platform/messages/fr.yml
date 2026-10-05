@@ -657,6 +657,8 @@ automations:
       organisation.
   detail:
     loading: Chargement de l’automatisation…
+    loadFailed:
+      title: Impossible de charger l’automatisation
     # Une automatisation supprimée garde son historique d’exécutions jusqu’à
     # ce que la rétention l’efface ; les pages Exécutions s’ouvrent sous ce
     # bandeau.
@@ -1436,10 +1438,12 @@ chat:
       placedAtLabel: Placé le
     generating: Génération de la réponse
     renameChat: Renommer
+    renameEmpty: Saisis un titre de chat.
+    renameTooLong: Utilise 500 caractères au maximum.
     loadMore: Charger plus
     toast:
       moveFailed: Échec du déplacement du chat
-      renameFailed: Échec du renommage du chat
+      renameFailed: Impossible de renommer le chat. Réessaie.
   searchPalette:
     title: Rechercher dans les chats
     placeholder: Rechercher dans les chats
@@ -1858,6 +1862,10 @@ conversations:
     noEmailConnector: Connecte une boîte e-mail sous Paramètres > Connectors.
     noEmailConnectorAskAdmin: Demande à un admin de l'organisation de connecter
       une boîte e-mail avant de pouvoir envoyer.
+    emailConnectorReadErrorTitle: Connexion e-mail indisponible
+    emailConnectorReadError: Nous n'avons pas pu charger tes connexions e-mail. Ton
+      brouillon est conservé. Réessaie.
+    retryEmailConnectorRead: Réessayer
     openConnectorSettings: Ouvrir les paramètres des connectors
     subject: Objet
     subjectPlaceholder: De quoi s'agit-il ?
@@ -4680,6 +4688,8 @@ knowledgeEntries:
   addEntry: Ajouter une entrée de connaissances
   addDescription: Choisis un sujet, puis rédige la connaissance pour qu'elle soit compréhensible seule.
   editEntry: Modifier l'entrée de connaissances
+  editDialog:
+    newerVersion: Une nouvelle version a été publiée pendant ta modification. Ton brouillon est toujours là ; enregistre-le pour remplacer cette version, ou annule pour le supprimer.
   adding: Ajout en cours...
   saving: Enregistrement...
   topic: Sujet
@@ -8147,6 +8157,8 @@ twoFactor:
     namePromptDescription:
       Donne un nom à ce passkey pour le reconnaître plus tard
       (p. ex. "Touch ID du MacBook").
+    confirmPasswordDescription: Ta connexion remonte à un certain temps. Confirme ton mot de passe pour ajouter un passkey.
+    signInAgainDescription: Ta connexion remonte à un certain temps. Reconnecte-toi, puis ajoute ton passkey.
     nameLabel: Nom du passkey
     namePlaceholder: Touch ID du MacBook
     attachment:
@@ -8159,6 +8171,7 @@ twoFactor:
       revokeFailed: Impossible de supprimer le passkey. Réessaie.
       listFailed: Impossible de charger tes passkeys.
       refreshFailed: Impossible d'actualiser tes passkeys. La liste affichée n'est peut-être plus à jour.
+      confirmFailed: Impossible de confirmer ton mot de passe. Réessaie.
   setup:
     title: Configurer l'authentification à double facteur
     qrInstructions: Scanne le code QR avec une application d'authentification
@@ -8179,6 +8192,7 @@ twoFactor:
   confirmPassword:
     label: Mot de passe
     submit: Confirmer
+    wrongPassword: Mot de passe incorrect. Après plusieurs échecs, ton compte est temporairement verrouillé.
   verify:
     title: Vérifier ton identité
     description: Saisis le code à 6 chiffres de ton application d'authentification.

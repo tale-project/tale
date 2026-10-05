@@ -334,6 +334,10 @@ verifying their complete source identity.
 `setup-turbo` always runs a frozen install. Its download cache separates OS,
 architecture, Bun version, manifests, lockfile and patches, and saves after a successful
 install so a later workload failure does not lose the downloaded packages.
+CLI's Windows native row keeps its Bun store beside the checkout, outside the source
+tree, to permit same-volume hardlinks; Linux/macOS native rows retain their home store.
+All native rows keep the full frozen install. Cross rows retain the separate CLI-only
+store and filtered frozen install.
 Browser checks and Playwright share an exact installed-version/OS/architecture
 headless-shell cache. Successful browser provisioning is saved before later suites can
 fail. Native dependencies are installed for every E2E runner and cold Browser run;

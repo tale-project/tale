@@ -17,14 +17,19 @@ FROM oven/bun:1.3.12 AS bun-bin
 FROM node:22.21.1-bookworm-slim AS node-bin
 
 # ============================================================================
-# Stage 1: Dependencies
+# Shared build/install base — no source or installed dependencies
 # ============================================================================
-FROM debian:bookworm-slim AS workspace-deps
+FROM debian:bookworm-slim AS bun-base
 
 COPY --from=bun-bin /usr/local/bin/bun /usr/local/bin/bun
 RUN ln -s /usr/local/bin/bun /usr/local/bin/bunx
 
 WORKDIR /app
+
+# ============================================================================
+# Stage 1: Dependencies
+# ============================================================================
+FROM bun-base AS workspace-deps
 
 COPY package.json bun.lock bunfig.toml ./
 # The root package.json's `patchedDependencies` (patches/README.md): `bun install`
@@ -54,12 +59,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 # ============================================================================
 # Stage 2: Builder
 # ============================================================================
-FROM debian:bookworm-slim AS builder
-
-COPY --from=bun-bin /usr/local/bin/bun /usr/local/bin/bun
-RUN ln -s /usr/local/bin/bun /usr/local/bin/bunx
-
-WORKDIR /app
+FROM bun-base AS builder
 
 # In hoisted mode all dependencies are in root node_modules
 COPY --from=workspace-deps /app/node_modules ./node_modules
@@ -198,7 +198,13 @@ CMD ["/app/services/platform/docker-entrypoint.sh"]
 # ============================================================================
 # Stage 3: Pruner
 # ============================================================================
-FROM builder AS pruner
+# Production dependencies must not inherit the source/build tree: app and
+# backend edits otherwise reinstall and prune the same dependency graph.
+# Keep the builder's install environment, but copy only the exact manifests
+# and patches that workspace-deps installed from.
+FROM bun-base AS pruner
+
+ENV NODE_ENV=production
 
 COPY --from=workspace-deps /app/package.json /app/bun.lock /app/bunfig.toml /tmp/workspace/
 COPY --from=workspace-deps /app/patches/ /tmp/workspace/patches/
@@ -410,26 +416,26 @@ ENV NODE_ENV=production \
     # path looking for a repo checkout, and a container has none.
     KNOWLEDGE_MIGRATIONS_DIR=/app/db/migrations/knowledge-db
 
-COPY --from=pruner --chown=app:app /app/services/platform/dist ./dist
-COPY --from=pruner --chown=app:app /app/services/platform/dist-seo ./dist-seo
-COPY --from=pruner --chown=app:app \
+COPY --from=builder --chown=app:app /app/services/platform/dist ./dist
+COPY --from=builder --chown=app:app /app/services/platform/dist-seo ./dist-seo
+COPY --from=builder --chown=app:app \
      /app/services/platform/server.ts \
      /app/services/platform/telemetry.ts \
      /app/services/platform/sla-targets.ts \
      /app/services/platform/status-probe.ts \
      ./
-COPY --from=pruner --chown=app:app /app/services/platform/lib ./lib
+COPY --from=builder --chown=app:app /app/services/platform/lib ./lib
 # 0.5 backend sources (run unbundled by Node via type stripping; role dispatch
 # in docker-entrypoint.sh execs `node /app/backend/main.ts`).
-COPY --from=pruner --chown=app:app /app/services/platform/backend ./backend
-COPY --from=pruner --chown=app:app /app/services/platform/messages ./messages
+COPY --from=builder --chown=app:app /app/services/platform/backend ./backend
+COPY --from=builder --chown=app:app /app/services/platform/messages ./messages
 COPY --from=pruner --chown=app:app /app/node_modules ./node_modules
 # Workspace packages backing the `@tale/*` symlinks in node_modules. The
 # platform runs `bun server.ts` unbundled, so server-side imports of
 # `@tale/ui/seo/*` resolve at runtime through these directories — the
 # docs + web Dockerfiles bundle their server.ts and don't need this.
-COPY --from=pruner --chown=app:app /app/packages ./packages
-COPY --from=pruner --chown=app:app /app/services/platform/package.json ./
+COPY --from=builder --chown=app:app /app/packages ./packages
+COPY --from=builder --chown=app:app /app/services/platform/package.json ./
 # Knowledge-corpus DDL. Preparing a NEW corpus (the deployment default on
 # first boot, and every BYO per-org database) applies these at runtime, and
 # `findMigrationsDir` walks up from the module path — which finds nothing in
@@ -446,7 +452,7 @@ COPY --chown=app:app services/db/migrations/knowledge-db ./db/migrations/knowled
 # builtin/ = the per-org seed catalog at TALE_CONFIG_BUILTIN_DIR.
 COPY --chown=app:app configs/platform/system/ /app/system/
 COPY --chown=app:app configs/platform/custom/ /app/builtin/
-COPY --from=pruner --chown=app:app /app/services/platform/docker-entrypoint.sh /app/services/platform/env.sh ./
+COPY --from=builder --chown=app:app /app/services/platform/docker-entrypoint.sh /app/services/platform/env.sh ./
 
 # /app/data is the org-config volume's mount point; owning it here makes a
 # NEW named volume initialize app-writable for the backend roles. The

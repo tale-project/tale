@@ -121,7 +121,7 @@ runs:
         # architectures apart and move the exact key with workspace manifests
         # and patches as well as the lockfile; fallback downloads are still
         # validated by the frozen install below.
-        key: bun-install-${{ runner.os }}-${{ runner.arch }}-${{ inputs.bun-version }}-${{ hashFiles('bun.lock', 'package.json', 'packages/*/package.json', 'services/*/package.json', 'services/sandbox-runtime/daemon/package.json', 'configs/platform/custom/skills/*/package.json', 'tools/*/package.json', 'patches/**') }}
+        key: bun-install-${{ runner.os }}-${{ runner.arch }}-${{ inputs.bun-version }}-${{ hashFiles('bun.lock', 'package.json', 'packages/*/package.json', 'services/*/package.json', 'services/sandbox-runtime/daemon/package.json', 'configs/platform/custom/skills/*/package.json', 'tools/*/package.json', 'patches/**', 'bunfig.toml') }}
         restore-keys: |
           bun-install-${{ runner.os }}-${{ runner.arch }}-${{ inputs.bun-version }}-
 
