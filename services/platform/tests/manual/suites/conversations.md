@@ -1,6 +1,6 @@
 # Inbox (org-level conversations)
 
-> **Prefix** `CONV-` · **Reset** none · **Cost** 62 boxes
+> **Prefix** `CONV-` · **Reset** none · **Cost** 63 boxes
 
 Exercise the org-level **Inbox** — the customer conversations of
 `/dashboard/{org}/conversations` (user-visible name: **Inbox**,
