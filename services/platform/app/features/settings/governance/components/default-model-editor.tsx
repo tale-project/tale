@@ -44,9 +44,11 @@ import { isRecord } from '@/lib/utils/type-utils';
 import { mapGovernanceSaveError } from '../governance-save-errors';
 import { useListProviders, useModelCapabilities } from '../hooks/model-catalog';
 import { useUpsertGovernancePolicy } from '../hooks/mutations';
+import { usePolicyReadAvailable } from '../hooks/policy-read-access';
 import { useGovernancePolicy } from '../hooks/queries';
 import { useGovernancePolicyToggle } from '../hooks/use-governance-policy-toggle';
 import { stripQualifier } from './model-id';
+import { withGovernancePolicyReadBoundary } from './policy-read-boundary';
 import { ROLE_OPTIONS } from './role-options';
 import { RulesTableEmptyState } from './rules-table-empty-state';
 
@@ -357,9 +359,10 @@ function RuleDialog({
 // placeholder rows while loading so an empty body never reads as "no rules"
 // mid-load.
 // =============================================================================
-export function DefaultModelEditor({
+function DefaultModelEditorContent({
   organizationId,
 }: DefaultModelEditorProps) {
+  const policyReadAvailable = usePolicyReadAvailable();
   const { t } = useT('governance');
   const { toast } = useToast();
   const ability = useAbility();
@@ -716,7 +719,7 @@ export function DefaultModelEditor({
         )}
 
         <RuleDialog
-          open={dialogOpen}
+          open={policyReadAvailable && dialogOpen}
           onOpenChange={setDialogOpen}
           rule={dialogRule}
           onSave={handleDialogSave}
@@ -733,7 +736,7 @@ export function DefaultModelEditor({
         />
 
         <ConfirmDialog
-          open={deletingIndex !== null}
+          open={policyReadAvailable && deletingIndex !== null}
           onOpenChange={(open) => {
             if (!open) setDeletingIndex(null);
           }}
@@ -747,3 +750,8 @@ export function DefaultModelEditor({
     </Skeletonize>
   );
 }
+
+export const DefaultModelEditor = withGovernancePolicyReadBoundary(
+  DefaultModelEditorContent,
+  'default_models',
+);

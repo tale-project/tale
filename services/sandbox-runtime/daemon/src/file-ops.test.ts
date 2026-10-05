@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, spyOn, test } from 'bun:test';
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import {
   chmodSync,
   closeSync,
@@ -22,6 +23,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import {
+  deletePaths,
   listDir,
   readWorkspaceFile,
   stageFiles,
@@ -92,9 +94,10 @@ describe('file-ops', () => {
   // later item in the batch for undici's 300 s defaults, long after the
   // spawner's 30 s RPC bound had already reported a timeout.
   test('stageFiles shares one deadline across the batch and never starts later downloads after it expires', async () => {
+    const release = Promise.withResolvers<Response>();
     const stalled = Bun.serve({
       port: 0,
-      fetch: () => new Promise<Response>(() => {}), // never answers
+      fetch: () => release.promise, // stalls until teardown, without a leaked handler
     });
     let laterRequests = 0;
     const live = Bun.serve({
@@ -109,6 +112,10 @@ describe('file-ops', () => {
       const result = await stageFiles(
         [
           { path: 'stalled.txt', url: `http://127.0.0.1:${stalled.port}/x` },
+          {
+            path: 'also-stalled.txt',
+            url: `http://127.0.0.1:${stalled.port}/x`,
+          },
           { path: 'later.txt', url: `http://127.0.0.1:${live.port}/x` },
         ],
         { fetchTimeoutMs: 200 },
@@ -116,13 +123,137 @@ describe('file-ops', () => {
       expect(Date.now() - started).toBeLessThan(2_000);
       expect(result.skipped).toEqual([
         { path: 'stalled.txt', reason: 'timeout' },
+        { path: 'also-stalled.txt', reason: 'timeout' },
         { path: 'later.txt', reason: 'timeout' },
       ]);
       expect(result.staged).toEqual([]);
       expect(laterRequests).toBe(0);
     } finally {
+      release.resolve(new Response('released'));
       await stalled.stop(true);
       await live.stop(true);
+    }
+  });
+
+  test('a zero-progress staged write preserves the destination and releases its slot', async () => {
+    writeFileSync(join(ROOT, 'zero-write.txt'), 'previous');
+    const originalOpen = fsPromises.open;
+    let attempts = 0;
+    const opened = spyOn(fsPromises, 'open').mockImplementation(
+      async (...args) => {
+        const file = await originalOpen(...args);
+        if (args[1] === 'wx') {
+          file.write = async <T extends NodeJS.ArrayBufferView | string>(
+            buffer: T,
+          ) => {
+            attempts += 1;
+            return { bytesWritten: 0, buffer };
+          };
+        }
+        return file;
+      },
+    );
+    try {
+      expect(
+        await stageFiles([{ path: 'zero-write.txt', contentBase64: 'YQ==' }]),
+      ).toEqual({
+        staged: [],
+        skipped: [{ path: 'zero-write.txt', reason: 'file_write_stalled' }],
+      });
+      expect(attempts).toBe(1);
+      expect(readFileSync(join(ROOT, 'zero-write.txt'), 'utf8')).toBe(
+        'previous',
+      );
+      expect(
+        readdirSync(ROOT).some((name) => name.startsWith('.tale-stage-')),
+      ).toBe(false);
+    } finally {
+      opened.mockRestore();
+    }
+    expect(
+      (
+        await stageFiles([
+          { path: 'zero-recovered.txt', contentBase64: 'YQ==' },
+        ])
+      ).staged,
+    ).toEqual([{ path: 'zero-recovered.txt', bytes: 1 }]);
+  });
+
+  test('one batch deadline stops later files and leaves the staging slot reusable', async () => {
+    let requests = 0;
+    const stalled = Bun.serve({
+      port: 0,
+      fetch: () => {
+        requests += 1;
+        return new Promise<Response>(() => {});
+      },
+    });
+    try {
+      const result = await stageFiles(
+        [
+          { path: 'batch-first', url: stalled.url.href },
+          { path: 'batch-second', url: stalled.url.href },
+          { path: 'batch-inline', contentBase64: 'YQ==' },
+        ],
+        { fetchTimeoutMs: 50 },
+      );
+      expect(requests).toBe(2);
+      expect(result.staged).toEqual([]);
+      expect(result.skipped).toEqual([
+        { path: 'batch-first', reason: 'timeout' },
+        { path: 'batch-second', reason: 'timeout' },
+        { path: 'batch-inline', reason: 'timeout' },
+      ]);
+      expect(
+        (await stageFiles([{ path: 'batch-recovered', contentBase64: 'YQ==' }]))
+          .staged,
+      ).toEqual([{ path: 'batch-recovered', bytes: 1 }]);
+    } finally {
+      await stalled.stop(true);
+    }
+  });
+
+  test('a cached destination replaced by a FIFO cannot block source verification or its deadline', async () => {
+    const path = 'cached-fifo';
+    const sourceId = 'cached-fifo-source';
+    await stageFiles([{ path, sourceId, contentBase64: 'YQ==' }]);
+    rmSync(join(ROOT, path));
+    expect(spawnSync('mkfifo', [join(ROOT, path)]).status).toBe(0);
+    const pending = stageFiles([{ path, sourceId }], { fetchTimeoutMs: 50 });
+    try {
+      const result = await Promise.race([
+        pending,
+        Bun.sleep(300).then(() => 'blocked'),
+      ]);
+      expect(result).toEqual({
+        staged: [],
+        skipped: [{ path, reason: 'no_source' }],
+      });
+    } finally {
+      // Release the baseline's blocking open even when the regression fails.
+      const release = openSync(
+        join(ROOT, path),
+        constants.O_RDWR | constants.O_NONBLOCK,
+      );
+      await pending;
+      closeSync(release);
+      rmSync(join(ROOT, path));
+    }
+  });
+
+  test('streamed reads reject a FIFO without waiting for a writer', async () => {
+    const path = join(ROOT, 'stream-fifo');
+    expect(spawnSync('mkfifo', [path]).status).toBe(0);
+    const pending = streamWorkspaceFile('stream-fifo', 1024);
+    try {
+      expect(
+        await Promise.race([pending, Bun.sleep(300).then(() => 'blocked')]),
+      ).toBeNull();
+    } finally {
+      const release = openSync(path, constants.O_RDWR | constants.O_NONBLOCK);
+      await pending;
+      closeSync(release);
+      rmSync(path);
     }
   });
 
@@ -151,61 +282,236 @@ describe('file-ops', () => {
   });
 });
 
-describe('bounded atomic staging', () => {
-  test('one batch deadline bounds later transfers and preserves destinations', async () => {
-    const first = Promise.withResolvers<Response>();
-    const second = Promise.withResolvers<Response>();
-    const firstRequested = Promise.withResolvers<void>();
-    const secondRequested = Promise.withResolvers<void>();
-    const server = Bun.serve({
+describe('atomic bounded staging', () => {
+  test('failed and cancelled uploads preserve the previous destination and remove temporary files', async () => {
+    const target = join(ROOT, 'atomic.txt');
+    writeFileSync(target, 'previous');
+    const release = Promise.withResolvers<void>();
+    const entered = Promise.withResolvers<void>();
+    const source = Bun.serve({
       port: 0,
-      fetch(request) {
-        if (new URL(request.url).pathname === '/first') {
-          firstRequested.resolve();
-          return first.promise;
-        }
-        secondRequested.resolve();
-        return second.promise;
+      fetch: () =>
+        new Response(
+          new ReadableStream({
+            async start(controller) {
+              controller.enqueue(new TextEncoder().encode('partial'));
+              entered.resolve();
+              await release.promise;
+              try {
+                controller.close();
+              } catch {
+                /* cancelled */
+              }
+            },
+          }),
+        ),
+    });
+    const caller = new AbortController();
+    try {
+      const staged = stageFiles(
+        [{ path: 'atomic.txt', url: `http://127.0.0.1:${source.port}` }],
+        { signal: caller.signal },
+      );
+      await entered.promise;
+      caller.abort();
+      expect((await staged).skipped).toEqual([
+        { path: 'atomic.txt', reason: 'cancelled' },
+      ]);
+      expect(readFileSync(target, 'utf8')).toBe('previous');
+      expect(
+        readdirSync(ROOT).filter((name) => name.startsWith('.tale-stage-')),
+      ).toEqual([]);
+    } finally {
+      release.resolve();
+      await source.stop(true);
+    }
+  });
+
+  test('the batch deadline stops queued URLs and preserves existing destinations', async () => {
+    writeFileSync(join(ROOT, 'batch-b'), 'previous');
+    const release = Promise.withResolvers<Response>();
+    let calls = 0;
+    const source = Bun.serve({
+      port: 0,
+      fetch: () => {
+        calls++;
+        return release.promise;
       },
     });
-    writeFileSync(join(ROOT, 'batch-second.txt'), 'previous');
-    const staging = stageFiles(
-      [
-        {
-          path: 'batch-first.txt',
-          url: `http://127.0.0.1:${server.port}/first`,
-        },
-        {
-          path: 'batch-second.txt',
-          url: `http://127.0.0.1:${server.port}/second`,
-        },
-        { path: 'batch-never.txt', contentBase64: 'YQ==' },
-      ],
-      { fetchTimeoutMs: 1_000 },
-    );
     try {
-      await firstRequested.promise;
-      first.resolve(new Response('first'));
-      await secondRequested.promise;
-      const result = await staging;
-      expect(result.staged).toEqual([{ path: 'batch-first.txt', bytes: 5 }]);
-      expect(result.skipped).toEqual([
-        { path: 'batch-second.txt', reason: 'timeout' },
-        { path: 'batch-never.txt', reason: 'timeout' },
-      ]);
-      expect(readFileSync(join(ROOT, 'batch-second.txt'), 'utf8')).toBe(
-        'previous',
+      const result = await stageFiles(
+        [
+          { path: 'batch-a', url: `http://127.0.0.1:${source.port}` },
+          { path: 'batch-b', url: `http://127.0.0.1:${source.port}` },
+          { path: 'batch-c', url: `http://127.0.0.1:${source.port}` },
+        ],
+        { batchTimeoutMs: 50 },
       );
-      expect(readdirSync(ROOT)).not.toContain('batch-never.txt');
+      expect(calls).toBe(2);
+      expect(readFileSync(join(ROOT, 'batch-b'), 'utf8')).toBe('previous');
+      expect(readdirSync(ROOT)).not.toContain('batch-c');
       expect(
         readdirSync(ROOT).some((name) => name.startsWith('.tale-stage-')),
       ).toBe(false);
+      expect(result.skipped.map((item) => item.reason)).toEqual([
+        'timeout',
+        'timeout',
+        'timeout',
+      ]);
     } finally {
-      first.resolve(new Response('released'));
-      second.resolve(new Response('released'));
-      await staging;
-      await server.stop(true);
+      release.resolve(new Response('released'));
+      await source.stop(true);
     }
+  });
+
+  test('verified immutable sources skip downloads and restore locally modified files', async () => {
+    let downloads = 0;
+    const source = Bun.serve({
+      port: 0,
+      fetch: () => {
+        downloads++;
+        return new Response('immutable');
+      },
+    });
+    const item = {
+      path: 'cached.txt',
+      url: `http://127.0.0.1:${source.port}`,
+      cacheKey: 'org/blob-version',
+    };
+    try {
+      expect((await stageFiles([item])).staged).toHaveLength(1);
+      expect((await stageFiles([item])).staged).toHaveLength(1);
+      expect(downloads).toBe(1);
+      writeFileSync(join(ROOT, 'cached.txt'), 'changed');
+      expect((await stageFiles([item])).staged).toHaveLength(1);
+      expect(downloads).toBe(2);
+      expect(readFileSync(join(ROOT, 'cached.txt'), 'utf8')).toBe('immutable');
+    } finally {
+      await source.stop(true);
+    }
+  });
+
+  test('two batches share two transfer slots and duplicate normalized destinations are refused', async () => {
+    let active = 0;
+    let peak = 0;
+    let calls = 0;
+    const source = Bun.serve({
+      port: 0,
+      async fetch() {
+        calls++;
+        active++;
+        peak = Math.max(peak, active);
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        active--;
+        return new Response('parallel');
+      },
+    });
+    const item = (path: string) => ({
+      path,
+      url: `http://127.0.0.1:${source.port}`,
+    });
+    try {
+      const results = await Promise.all([
+        stageFiles([item('parallel-a'), item('parallel-b')]),
+        stageFiles([
+          item('parallel-c'),
+          item('./parallel-c'),
+          item('parallel-d'),
+        ]),
+      ]);
+      expect(peak).toBe(2);
+      expect(calls).toBe(4);
+      expect(results[0]?.staged.map((entry) => entry.path)).toEqual([
+        'parallel-a',
+        'parallel-b',
+      ]);
+      expect(results[1]?.skipped).toEqual([
+        { path: './parallel-c', reason: 'duplicate_path' },
+      ]);
+    } finally {
+      await source.stop(true);
+    }
+  });
+
+  test('digest mismatch leaves an existing file intact and unsafe parent links are refused', async () => {
+    writeFileSync(join(ROOT, 'digest.txt'), 'old');
+    expect(
+      (
+        await stageFiles([
+          {
+            path: 'digest.txt',
+            contentBase64: Buffer.from('new').toString('base64'),
+            sha256: createHash('sha256').update('different').digest('hex'),
+          },
+        ])
+      ).skipped,
+    ).toEqual([{ path: 'digest.txt', reason: 'digest_mismatch' }]);
+    expect(readFileSync(join(ROOT, 'digest.txt'), 'utf8')).toBe('old');
+    symlinkSync(tmpdir(), join(ROOT, 'outside'));
+    expect(
+      (await stageFiles([{ path: 'outside/nope/file', contentBase64: 'YQ==' }]))
+        .skipped,
+    ).toEqual([{ path: 'outside/nope/file', reason: 'unsafe_path' }]);
+  });
+});
+
+describe('bounded atomic staging', () => {
+  test('a verified digest promotes a new source identity for later source-only probes', async () => {
+    const path = 'source-promotion.txt';
+    const content = 'verified bytes';
+    await stageFiles([
+      {
+        path,
+        sourceId: 'previous-identity',
+        contentBase64: Buffer.from(content).toString('base64'),
+      },
+    ]);
+    const fetcher = spyOn(globalThis, 'fetch').mockRejectedValue(
+      new Error('verified bytes must not be downloaded'),
+    );
+    try {
+      const verified = await stageFiles([
+        {
+          path,
+          sourceId: 'promoted-identity',
+          sha256: createHash('sha256').update(content).digest('hex'),
+          url: 'https://cache-promotion.invalid/file',
+        },
+      ]);
+      expect(verified).toEqual({
+        staged: [{ path, bytes: Buffer.byteLength(content) }],
+        skipped: [],
+      });
+      expect(
+        await stageFiles([{ path, sourceId: 'promoted-identity' }]),
+      ).toEqual(verified);
+      expect(fetcher).not.toHaveBeenCalled();
+    } finally {
+      fetcher.mockRestore();
+    }
+  });
+
+  test('a matching source identity cannot bypass an explicit content digest', async () => {
+    const source = {
+      path: 'source-attestation.txt',
+      sourceId: 'immutable-attested-source',
+      contentBase64: Buffer.from('previous').toString('base64'),
+    };
+    expect((await stageFiles([source])).skipped).toEqual([]);
+    const result = await stageFiles([
+      {
+        ...source,
+        sha256: createHash('sha256').update('different').digest('hex'),
+      },
+    ]);
+    expect(result.staged).toEqual([]);
+    expect(result.skipped).toEqual([
+      { path: source.path, reason: 'digest_mismatch' },
+    ]);
+    expect(readFileSync(join(ROOT, source.path), 'utf8')).toBe('previous');
+    expect(
+      readdirSync(ROOT).some((name) => name.startsWith('.tale-stage-')),
+    ).toBe(false);
   });
 
   test('atomic replacement preserves executable permissions and new files stay private', async () => {
@@ -614,4 +920,45 @@ describe('bounded atomic staging', () => {
     expect(text).toBe('original');
     expect(await streamWorkspaceFile('range.txt', 8)).toBeNull();
   });
+});
+
+test('staging does not rewrite identical inline bytes', async () => {
+  const item = {
+    path: 'same-inline.txt',
+    contentBase64: Buffer.from('same bytes').toString('base64'),
+  };
+  expect((await stageFiles([item])).skipped).toEqual([]);
+  const original = statSync(join(ROOT, item.path));
+  expect((await stageFiles([item])).skipped).toEqual([]);
+  expect(statSync(join(ROOT, item.path)).ino).toBe(original.ino);
+  const sourceId = 'inline-reuse-identity';
+  expect((await stageFiles([{ ...item, sourceId }])).skipped).toEqual([]);
+  expect(statSync(join(ROOT, item.path)).ino).toBe(original.ino);
+  expect(await stageFiles([{ path: item.path, sourceId }])).toEqual({
+    staged: [{ path: item.path, bytes: Buffer.byteLength('same bytes') }],
+    skipped: [],
+  });
+});
+
+test('FIFO staging and streamed reads return promptly without opening a blocking reader', async () => {
+  const path = join(ROOT, 'stage-fifo');
+  expect(spawnSync('mkfifo', [path]).status).toBe(0);
+  expect(
+    (await stageFiles([{ path: 'stage-fifo', contentBase64: 'eA==' }])).skipped,
+  ).toEqual([{ path: 'stage-fifo', reason: 'unsafe_path' }]);
+  expect(await streamWorkspaceFile('stage-fifo', 1024)).toBeNull();
+  expect(statSync(path).isFIFO()).toBe(true);
+});
+
+test('managed roots reject file and symlink listings and deletion never follows a parent symlink', async () => {
+  const target = join(ROOT, 'guarded-target');
+  mkdirSync(target);
+  writeFileSync(join(target, 'keep.txt'), 'keep');
+  symlinkSync(target, join(ROOT, 'root-link'));
+  expect(await listDir('root-link')).toBeNull();
+  expect(await listDir('hello.txt')).toBeNull();
+  expect((await deletePaths(['root-link/keep.txt'])).skipped).toHaveLength(1);
+  expect(readFileSync(join(target, 'keep.txt'), 'utf8')).toBe('keep');
+  expect((await deletePaths(['root-link'])).deleted).toEqual(['root-link']);
+  expect(readFileSync(join(target, 'keep.txt'), 'utf8')).toBe('keep');
 });

@@ -2,6 +2,8 @@ import { expect, test } from '@playwright/test';
 import { createI18n } from '@tale/e2e/i18n';
 import { collectConsoleErrors, expectPageRenders } from '@tale/e2e/smoke';
 
+import { gotoClientPage } from '../helpers/client-page';
+
 /**
  * Marketing-site smoke: the high-value "does it load and navigate" checks.
  * Labels resolve from `messages/en.yml` (the context pins en-US), never
@@ -33,7 +35,7 @@ test.describe('web marketing smoke', () => {
     page,
   }) => {
     const errors = collectConsoleErrors(page);
-    await page.goto('/');
+    await gotoClientPage(page, '/');
     await expectPageRenders(page);
     await expect(
       page.getByRole('link', { name: t('nav.pricing') }).first(),
@@ -64,7 +66,7 @@ test.describe('web marketing smoke', () => {
     test(`desktop ${menuKey} disclosure restores only its own focus on Escape`, async ({
       page,
     }) => {
-      await page.goto('/');
+      await gotoClientPage(page, '/');
       const trigger = page.getByRole('button', { name: t(`nav.${menuKey}`) });
       const panel = page.getByRole('region', { name: t(`nav.${menuKey}`) });
       await trigger.focus();
@@ -91,13 +93,13 @@ test.describe('web marketing smoke', () => {
   for (const path of MARKETING_PATHS) {
     if (path === '/') continue;
     test(`${path} renders`, async ({ page }) => {
-      await page.goto(path);
+      await gotoClientPage(page, path);
       await expectPageRenders(page);
     });
   }
 
   test('contact page shows a submittable form', async ({ page }) => {
-    await page.goto('/contact');
+    await gotoClientPage(page, '/contact');
     await expectPageRenders(page);
     await expect(page.locator('form')).toBeVisible();
     await expect(
@@ -106,7 +108,7 @@ test.describe('web marketing smoke', () => {
   });
 
   test('request-demo form still exposes submit by label', async ({ page }) => {
-    await page.goto('/request-demo');
+    await gotoClientPage(page, '/request-demo');
     await expectPageRenders(page);
     await expect(page.locator('form')).toBeVisible();
     await expect(
@@ -115,7 +117,7 @@ test.describe('web marketing smoke', () => {
   });
 
   test('German locale route renders', async ({ page }) => {
-    await page.goto('/de');
+    await gotoClientPage(page, '/de');
     await expectPageRenders(page);
   });
 
@@ -130,7 +132,7 @@ test.describe('web marketing smoke', () => {
       await page.emulateMedia({ reducedMotion: 'reduce' });
       for (const width of [1440, 390]) {
         await page.setViewportSize({ width, height: 900 });
-        await page.goto(prefix || '/');
+        await gotoClientPage(page, prefix || '/');
         const install = page
           .locator('main section')
           .first()
@@ -151,21 +153,21 @@ test.describe('web marketing smoke', () => {
   }
 
   test('German platform + pricing routes render', async ({ page }) => {
-    await page.goto('/de/platform');
+    await gotoClientPage(page, '/de/platform');
     await expectPageRenders(page);
-    await page.goto('/de/pricing');
+    await gotoClientPage(page, '/de/pricing');
     await expectPageRenders(page);
   });
 
   test('French changelog + contact routes render', async ({ page }) => {
-    await page.goto('/fr/changelog');
+    await gotoClientPage(page, '/fr/changelog');
     await expectPageRenders(page);
-    await page.goto('/fr/contact');
+    await gotoClientPage(page, '/fr/contact');
     await expectPageRenders(page);
   });
 
   test('unknown route shows not-found recovery', async ({ page }) => {
-    await page.goto('/nope-not-a-route');
+    await gotoClientPage(page, '/nope-not-a-route');
     await expectPageRenders(page);
     await expect(
       page.getByRole('heading', { name: t('notFound.title') }),
@@ -179,7 +181,7 @@ test.describe('web marketing smoke', () => {
     page,
   }) => {
     for (const path of ['/platform', '/pricing'] as const) {
-      await page.goto(path);
+      await gotoClientPage(page, path);
       await expectPageRenders(page);
       const outline = await page.evaluate(() =>
         [...document.querySelectorAll('main h1, main h2, main h3')].map((el) =>

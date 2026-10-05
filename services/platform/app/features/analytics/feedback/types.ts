@@ -42,6 +42,7 @@ export interface RecentFeedbackItem {
   userDisplayName: string;
   rating: 'positive' | 'negative';
   comment: string | null;
+  commentTruncated?: boolean;
   agentSlug: string | null;
   model: string | null;
   provider: string | null;

@@ -88,6 +88,82 @@ export function dockerInspect(ref: string, format: string): Promise<string> {
   return stdoutOf(['docker', 'inspect', `--format=${format}`, ref]);
 }
 
+export interface ImageMetadata {
+  labels: Record<string, string>;
+  user: string;
+  env: string[];
+  hasHealthcheck: boolean;
+  sizeMb: number;
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+/** Docker USER may include a group; only the account determines root. */
+export function nonRootImageUser(user: string): boolean {
+  const account = user.split(':')[0]?.trim() ?? '';
+  return account !== '' && account !== 'root' && !/^0+$/.test(account);
+}
+
+/** Read an immutable image's metadata once for all validation checks. */
+export async function imageMetadata(ref: string): Promise<ImageMetadata> {
+  const result = await capture([
+    'docker',
+    'image',
+    'inspect',
+    '--format={{json .}}',
+    ref,
+  ]);
+  if (result.exitCode !== 0) {
+    throw new Error(`Could not inspect image ${ref}: ${result.stderr.trim()}`);
+  }
+  const value: unknown = JSON.parse(result.stdout);
+  if (
+    !isRecord(value) ||
+    !isRecord(value.Config) ||
+    typeof value.Size !== 'number' ||
+    !Number.isFinite(value.Size) ||
+    value.Size < 0
+  ) {
+    throw new Error(`Invalid image metadata for ${ref}`);
+  }
+  const config = value.Config;
+  const labels = config.Labels ?? {};
+  const env = config.Env ?? [];
+  const user = config.User ?? '';
+  if (
+    !isRecord(labels) ||
+    !Object.values(labels).every((label) => typeof label === 'string') ||
+    !Array.isArray(env) ||
+    !env.every((entry) => typeof entry === 'string') ||
+    typeof user !== 'string'
+  ) {
+    throw new Error(`Invalid image configuration for ${ref}`);
+  }
+  const healthcheck = config.Healthcheck;
+  if (
+    healthcheck != null &&
+    (!isRecord(healthcheck) ||
+      !Array.isArray(healthcheck.Test) ||
+      !healthcheck.Test.every((entry) => typeof entry === 'string'))
+  ) {
+    throw new Error(`Invalid image healthcheck for ${ref}`);
+  }
+  return {
+    labels: Object.fromEntries(
+      Object.entries(labels).map(([key, label]) => [key, String(label)]),
+    ),
+    user,
+    env,
+    hasHealthcheck:
+      isRecord(healthcheck) &&
+      Array.isArray(healthcheck.Test) &&
+      healthcheck.Test.length > 0 &&
+      healthcheck.Test[0] !== 'NONE',
+    sizeMb: Math.floor(value.Size / 1024 / 1024),
+  };
+}
+
 /** Image size in MiB (`{{.Size}}` / 1024 / 1024), or 0 when unknown. */
 export async function imageSizeMb(ref: string): Promise<number> {
   const bytes = await dockerInspect(ref, '{{.Size}}');

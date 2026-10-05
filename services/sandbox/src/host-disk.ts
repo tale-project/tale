@@ -23,6 +23,9 @@ export interface HostDisk {
   /** What an unprivileged process may still write there: sessions run as
    * one. */
   availableBytes: number;
+  /** An explicitly configured filesystem could not be verified/read.
+   * Its zero counters are placeholders, never a successful observation. */
+  unavailable?: boolean;
 }
 
 /** The free space admission keeps on the session disk: the operator's (0
@@ -50,6 +53,8 @@ export function belowDiskFloor(
   configuredBytes?: number,
 ): boolean {
   if (disk === null) return false;
+  if (configuredBytes === 0) return false;
+  if (disk.unavailable === true) return true;
   return (
     disk.availableBytes < diskReserveBytes(disk.totalBytes, configuredBytes)
   );
@@ -64,10 +69,6 @@ export interface HostDiskDeps {
     path: string,
   ) => Promise<{ bsize: number; blocks: number; bavail: number }>;
   now?: () => number;
-  /** A verified path on another storage filesystem (the Docker data-root
-   * hostname bind in the standard container deployment). Never guess a host
-   * path in the spawner's own filesystem namespace. */
-  additionalPath?: () => Promise<string | null>;
 }
 
 /** Where admission reads the session disk from. */
@@ -83,9 +84,8 @@ export class HostDiskProbe implements HostDiskSource {
   private refreshing: Promise<HostDisk | null> | null = null;
   private ticker: ReturnType<typeof setInterval> | null = null;
   /** The last verdict logged, so each change is said once. */
-  private readonly wasShort = new Map<string, boolean>();
-  private readonly unreadableWarned = new Set<string>();
-  private readonly additionalPath: HostDiskDeps['additionalPath'];
+  private wasShort = false;
+  private unreadableWarned = false;
 
   constructor(
     /** A directory on the disk: the session root. */
@@ -96,7 +96,6 @@ export class HostDiskProbe implements HostDiskSource {
   ) {
     this.statfs = deps.statfs ?? ((dir) => statfs(dir));
     this.now = deps.now ?? Date.now;
-    this.additionalPath = deps.additionalPath;
   }
 
   /** Keep the reading fresh, so admission, which decides without waiting,
@@ -142,83 +141,47 @@ export class HostDiskProbe implements HostDiskSource {
 
   private async readNow(): Promise<HostDisk | null> {
     const atMs = this.now();
-    const paths = [this.path];
-    if (this.additionalPath !== undefined) {
-      try {
-        const additional = await this.additionalPath();
-        if (additional !== null && additional !== this.path)
-          paths.push(additional);
-      } catch (error) {
+    let disk: HostDisk | null = null;
+    try {
+      const fs = await this.statfs(this.path);
+      disk = {
+        totalBytes: fs.blocks * fs.bsize,
+        availableBytes: fs.bavail * fs.bsize,
+        filesystem: this.path,
+      };
+      this.unreadableWarned = false;
+    } catch (error) {
+      if (!this.unreadableWarned) {
+        this.unreadableWarned = true;
         console.warn(
-          '[sandbox] additional disk location is unreadable:',
+          `[sandbox] cannot read the free space of ${this.path}; admission does not hold creates to it until it can:`,
           error,
         );
       }
-    }
-    const disks = await Promise.all(paths.map((path) => this.readPath(path)));
-    let disk: HostDisk | null = null;
-    for (const candidate of disks) {
-      if (candidate === null) continue;
-      // Compare headroom after each disk's own reserve, not raw free bytes:
-      // a large filesystem can have more free bytes but less safe room.
-      if (disk === null || this.headroom(candidate) < this.headroom(disk))
-        disk = candidate;
     }
     // A slower read that started earlier never replaces a newer reading.
     if (this.reading === null || this.reading.atMs <= atMs) {
       this.reading = { atMs, disk };
-      for (const [index, candidate] of disks.entries()) {
-        const path = paths[index];
-        if (candidate !== null && path !== undefined)
-          this.sayChange(path, candidate);
-      }
+      this.sayChange(disk);
     }
     return disk;
   }
 
-  private headroom(disk: HostDisk): number {
-    return (
-      disk.availableBytes -
-      diskReserveBytes(disk.totalBytes, this.configuredBytes)
-    );
-  }
-
-  private async readPath(path: string): Promise<HostDisk | null> {
-    try {
-      const fs = await this.statfs(path);
-      const disk = {
-        totalBytes: fs.blocks * fs.bsize,
-        availableBytes: fs.bavail * fs.bsize,
-        filesystem: path,
-      };
-      this.unreadableWarned.delete(path);
-      return disk;
-    } catch (error) {
-      if (!this.unreadableWarned.has(path)) {
-        this.unreadableWarned.add(path);
-        console.warn(
-          `[sandbox] cannot read the free space of ${path}; admission does not hold creates to it until it can:`,
-          error,
-        );
-      }
-      return null;
-    }
-  }
-
   /** Log the session disk going below its floor, and coming back. */
-  private sayChange(path: string, disk: HostDisk): void {
+  private sayChange(disk: HostDisk | null): void {
+    if (disk === null) return;
     const short = belowDiskFloor(disk, this.configuredBytes);
-    if (short === (this.wasShort.get(path) ?? false)) return;
-    this.wasShort.set(path, short);
+    if (short === this.wasShort) return;
+    this.wasShort = short;
     const free = `${(disk.availableBytes / GIB).toFixed(1)} GiB`;
     const floor = `${(diskReserveBytes(disk.totalBytes, this.configuredBytes) / GIB).toFixed(1)} GiB`;
     if (short) {
       console.warn(
-        `[sandbox] the session disk (${path}) has ${free} free, below its ${floor} floor: new sessions wait until some is freed (SANDBOX_MIN_FREE_DISK)`,
+        `[sandbox] the session disk (${this.path}) has ${free} free, below its ${floor} floor: new sessions wait until some is freed (SANDBOX_MIN_FREE_DISK)`,
       );
     } else {
       console.log(
-        `[sandbox] the session disk (${path}) has ${free} free again, above its ${floor} floor`,
+        `[sandbox] the session disk (${this.path}) has ${free} free again, above its ${floor} floor`,
       );
     }
   }

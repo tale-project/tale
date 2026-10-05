@@ -23,6 +23,9 @@ export const workloadRuntimes = {
   'platform.schema-hot': 'node',
   'platform.telemetry-disabled': 'node',
   'platform.telemetry-enabled': 'node',
+  'platform.agent-progress': 'node',
+  'platform.projection-fragmented': 'node',
+  'platform.projection-bursts': 'node',
   'sandbox.validation': 'bun',
   'sandbox.sse': 'bun',
   'daemon.exec-replay': 'node',
@@ -52,6 +55,56 @@ export async function prepareWorkload(
   id: string,
   fixtureRoot: string,
 ): Promise<Workload> {
+  if (id === 'platform.agent-progress') {
+    const { HarnessProjection } =
+      await import('../../services/platform/lib/harnesses/projection.ts');
+    const payload = 'x'.repeat(100_000);
+    let retainedBytes = 0;
+    return {
+      operations: 4000,
+      unit: 'events',
+      description:
+        '1000 tool cycles with 100 KB payloads, raw events and text deltas, projected into a bounded resumable checkpoint',
+      run() {
+        const projection = new HarnessProjection();
+        for (let i = 0; i < 1000; i++) {
+          projection.accept({ type: 'raw', harness: 'claude-code', payload });
+          projection.accept({
+            type: 'text-delta',
+            text: 'Completed a step.\n',
+          });
+          projection.accept({
+            type: 'tool-use',
+            toolName: 'Read',
+            toolUseId: String(i),
+            input: { payload },
+          });
+          projection.accept({
+            type: 'tool-result',
+            toolUseId: String(i),
+            output: payload,
+          });
+        }
+        retainedBytes = Buffer.byteLength(
+          JSON.stringify(projection.snapshot()),
+        );
+        assert.ok(retainedBytes < 400_000);
+        assert.ok(projection.timeline().length <= 400);
+        assert.equal(projection.timeline().at(-1)?.toolCallId, '999');
+      },
+      details: () => ({
+        retainedCheckpointBytes: retainedBytes,
+        rawPayloadBytesPerSample: 300_000_000,
+      }),
+    };
+  }
+  if (
+    id === 'platform.projection-fragmented' ||
+    id === 'platform.projection-bursts'
+  ) {
+    const { prepareProjectionWorkload } = await import('./projection.ts');
+    return prepareProjectionWorkload(id);
+  }
   if (id === 'daemon.journal-write' || id === 'daemon.journal-reconnect') {
     const { prepareJournalWorkload } = await import('./journal.ts');
     return prepareJournalWorkload(id, fixtureRoot);
@@ -214,7 +267,7 @@ export async function prepareWorkload(
       operations: 1,
       unit: 'execs',
       description:
-        'Real Node child outputs 1 MiB through runnerd then replays its bounded journal; host process reaping, no container',
+        'Real Node child outputs 1 MiB through runnerd then replays every byte from its bounded disk journal; host process reaping, no container',
       async run() {
         const execId = `performance-${sequence++}`;
         let exited = false;
@@ -239,13 +292,21 @@ export async function prepareWorkload(
           },
         );
         assert.equal(exited, true);
-        let replayed = 0;
-        const replay = manager.attach(execId, () => {
-          replayed++;
+        let replayedBytes = 0;
+        let replayedExit = false;
+        let replayComplete = false;
+        const replay = manager.attach(execId, (event) => {
+          assert.notEqual(event.t, 'fail');
+          if (event.t === 'stdout')
+            replayedBytes += Buffer.byteLength(event.b64, 'base64');
+          if (event.t === 'exit') replayedExit = true;
+          if (event.t === 'replay-complete') replayComplete = true;
         });
         assert.ok(replay);
         await replay;
-        assert.ok(replayed > 0);
+        assert.equal(replayedBytes, 1048576);
+        assert.equal(replayedExit, true);
+        assert.equal(replayComplete, true);
         assert.equal(manager.liveCount(), 0);
       },
       async cleanup() {

@@ -18,7 +18,7 @@
 // A dropped connection is retried with capped, jittered backoff; running
 // sessions keep running meanwhile — only calls into them wait.
 
-import { jsonResponse } from '../http-util.ts';
+import { jsonResponse, sessionRequestBodyLimit } from '../http-util.ts';
 import { runDocker } from '../spawn-util.ts';
 import { readUpdateStatus, type DeviceConfig } from './device-config.ts';
 import {
@@ -637,7 +637,10 @@ export class DeviceAgent {
     }
     let body: string;
     try {
-      body = await readCapped(stream.body, this.opts.maxRequestBodyBytes);
+      body = await readCapped(
+        stream.body,
+        sessionRequestBodyLimit(path, this.opts.maxRequestBodyBytes),
+      );
     } catch (err) {
       stream.reset(
         'bad_request',

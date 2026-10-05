@@ -43,8 +43,10 @@ import { isRecord } from '@/lib/utils/type-utils';
 
 import { mapGovernanceSaveError } from '../governance-save-errors';
 import { useUpsertGovernancePolicy } from '../hooks/mutations';
+import { usePolicyReadAvailable } from '../hooks/policy-read-access';
 import { useGovernancePolicy } from '../hooks/queries';
 import { useGovernancePolicyToggle } from '../hooks/use-governance-policy-toggle';
+import { withGovernancePolicyReadBoundary } from './policy-read-boundary';
 import { RulesTableEmptyState } from './rules-table-empty-state';
 
 interface FeatureFlagsEditorProps {
@@ -323,9 +325,10 @@ const COLUMN_COUNT = 4;
 // empty `<tbody>` never reads as "no rules" during load; the real empty-state
 // only shows once loaded with zero rules.
 // =============================================================================
-export function FeatureFlagsEditor({
+function FeatureFlagsEditorContent({
   organizationId,
 }: FeatureFlagsEditorProps) {
+  const policyReadAvailable = usePolicyReadAvailable();
   const { t } = useT('governance');
   const { toast } = useToast();
   const ability = useAbility();
@@ -640,7 +643,7 @@ export function FeatureFlagsEditor({
         )}
 
         <RuleDialog
-          open={dialogOpen}
+          open={policyReadAvailable && dialogOpen}
           onOpenChange={onDialogOpenChange}
           rule={dialogRule}
           onSave={onDialogSave}
@@ -651,7 +654,7 @@ export function FeatureFlagsEditor({
         />
 
         <ConfirmDialog
-          open={deletingIndex !== null}
+          open={policyReadAvailable && deletingIndex !== null}
           onOpenChange={(open) => {
             if (!open) onDeletingIndexChange(null);
           }}
@@ -665,3 +668,8 @@ export function FeatureFlagsEditor({
     </Skeletonize>
   );
 }
+
+export const FeatureFlagsEditor = withGovernancePolicyReadBoundary(
+  FeatureFlagsEditorContent,
+  'feature_flags',
+);

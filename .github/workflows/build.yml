@@ -23,18 +23,20 @@ on:
     paths:
       - 'services/**'
       - 'packages/**'
-      - 'configs/platform/custom/skills/visual-aspect-analyzer/**'
+      - 'configs/platform/**'
+      - 'patches/**'
+      - 'tools/**/package.json'
       - 'docs/**'
       - '.github/workflows/build.yml'
+      - '.github/scripts/pull-ci-images.sh'
       - '.github/actions/setup-turbo/**'
-      - 'compose.yml'
-      - 'compose.test.yml'
+      - 'compose*.yml'
       - 'services/platform/tests/integration/container-*'
       - 'services/platform/tests/integration/static-site-test.ts'
       - 'services/platform/tests/integration/lib/**'
       - '.env.test'
       - 'bunfig.toml'
-      - 'tsconfig.base.json'
+      - 'tsconfig*.json'
       - 'turbo.json'
       - '.dockerignore'
       - 'package.json'
@@ -45,18 +47,20 @@ on:
     paths:
       - 'services/**'
       - 'packages/**'
-      - 'configs/platform/custom/skills/visual-aspect-analyzer/**'
+      - 'configs/platform/**'
+      - 'patches/**'
+      - 'tools/**/package.json'
       - 'docs/**'
       - '.github/workflows/build.yml'
+      - '.github/scripts/pull-ci-images.sh'
       - '.github/actions/setup-turbo/**'
-      - 'compose.yml'
-      - 'compose.test.yml'
+      - 'compose*.yml'
       - 'services/platform/tests/integration/container-*'
       - 'services/platform/tests/integration/static-site-test.ts'
       - 'services/platform/tests/integration/lib/**'
       - '.env.test'
       - 'bunfig.toml'
-      - 'tsconfig.base.json'
+      - 'tsconfig*.json'
       - 'turbo.json'
       - '.dockerignore'
       - 'package.json'
@@ -71,20 +75,26 @@ on:
   repository_dispatch:
     types: [release-candidate]
 
-# Pushes and pull requests keep one run per ref: a newer commit cancels the
-# run it supersedes. A release candidate gets a group of its own, keyed by its
+# Main pushes keep one running Build and coalesce newer pushes into the pending
+# slot. Let the running build finish publishing the shared main layer cache;
+# otherwise frequent merges can keep every PR rebuilding unchanged images.
+# Pull requests and merge groups still cancel superseded runs. A release
+# candidate gets a group of its own, keyed by its
 # SHA and never cancelled — a merge to main must not starve it (#3951), and a
 # second dispatch of the same SHA waits behind the first instead of replacing
 # it.
 concurrency:
   group: ${{ github.workflow }}-${{ (github.event_name == 'workflow_dispatch' || github.event_name == 'repository_dispatch') && format('candidate-{0}', inputs.candidate_sha || github.event.client_payload.candidate_sha) || github.ref }}
-  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' && github.event_name != 'repository_dispatch' }}
+  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' && github.event_name != 'repository_dispatch' && !(github.event_name == 'push' && github.ref == 'refs/heads/main') }}
 
 env:
   REGISTRY: ghcr.io
 
 jobs:
+  # Only candidates need remote source validation; ordinary jobs keep their event SHA.
   candidate-source:
+    if: >-
+      github.event_name == 'repository_dispatch' || github.event_name == 'workflow_dispatch'
     name: Candidate source
     uses: ./.github/workflows/release-candidate-source.yml
     permissions:
@@ -97,6 +107,12 @@ jobs:
   # Discover which services changed so matrix jobs only run for them.
   # ---------------------------------------------------------------------------
   changes:
+    if: >-
+      !cancelled() &&
+      (((github.event_name == 'repository_dispatch' || github.event_name == 'workflow_dispatch') &&
+      needs.candidate-source.result == 'success') ||
+      ((github.event_name != 'repository_dispatch' && github.event_name != 'workflow_dispatch') &&
+      needs.candidate-source.result == 'skipped'))
     needs: candidate-source
     name: Detect changes
     runs-on: ubuntu-latest
@@ -108,12 +124,13 @@ jobs:
       services: ${{ steps.services.outputs.list }}
       scannable_services: ${{ steps.services.outputs.scannable }}
       ci_tests: ${{ steps.services.outputs.ci_tests }}
+      stack: ${{ steps.services.outputs.stack }}
       storybook: ${{ steps.services.outputs.storybook }}
       image_tag: ${{ steps.tag.outputs.value }}
       # The commit every job builds and tests. `candidate_sha` is that same
       # commit in a release-candidate run and empty otherwise, so a checkout
       # given it as `ref` keeps its event's default everywhere else.
-      source_sha: ${{ needs.candidate-source.outputs.sha }}
+      source_sha: ${{ needs.candidate-source.outputs.sha || github.sha }}
       candidate_sha: ${{ needs.candidate-source.outputs.candidate_sha }}
     steps:
       - name: Checkout
@@ -127,8 +144,32 @@ jobs:
         id: filter
         with:
           filters: |
+            # Root build inputs, workspace manifests and shared package code
+            # retain full validation coverage across the image consumers.
+            image_inputs:
+              - 'package.json'
+              - 'bun.lock'
+              - 'bunfig.toml'
+              - 'patches/**'
+              - 'packages/**/package.json'
+              - 'packages/shared/**'
+              - 'services/**/package.json'
+              - 'configs/platform/custom/skills/*/package.json'
+              - 'tools/**/package.json'
+              - 'tsconfig*.json'
+              - '.dockerignore'
+              - '.github/workflows/build.yml'
+              - '.github/actions/setup-turbo/**'
+              - 'turbo.json'
             platform:
-              - 'services/platform/**'
+              # These four standalone probes are excluded from Docker contexts
+              # and run in their own jobs. One positive extglob retains every
+              # other platform path under paths-filter's default OR semantics.
+              - &platform_sources 'services/platform/!(tests/integration/container-web-test.ts|tests/integration/container-docs-test.ts|tests/integration/container-ui-docs-test.ts|tests/integration/container-ai-gateway-test.ts)'
+              - 'services/db/migrations/knowledge-db/**'
+              - 'packages/ui/**'
+              - 'packages/shared/**'
+              - 'configs/platform/**'
             db:
               - 'services/db/**'
             proxy:
@@ -137,22 +178,43 @@ jobs:
               - 'services/sandbox-llm-gateway/**'
             web:
               - 'services/web/**'
+              - 'services/platform/tests/integration/container-web-test.ts'
+              - 'compose.web*.yml'
+              - '.env.test'
+              - 'services/platform/tests/integration/static-site-test.ts'
+              - 'services/platform/tests/integration/lib/**'
               - 'packages/ui/**'
               - 'packages/marketing-ui/**'
             docs:
               - 'services/docs/**'
+              - 'compose.docs*.yml'
+              - '.env.test'
+              - 'services/platform/tests/integration/container-docs-test.ts'
+              - 'services/platform/tests/integration/static-site-test.ts'
+              - 'services/platform/tests/integration/lib/**'
               - 'docs/**'
               - 'packages/ui/**'
               - 'packages/marketing-ui/**'
             ui-docs:
               - 'services/ui-docs/**'
+              - 'services/platform/tests/integration/container-ui-docs-test.ts'
+              - 'compose.ui-docs*.yml'
+              - '.env.test'
+              - 'services/platform/tests/integration/static-site-test.ts'
+              - 'services/platform/tests/integration/lib/**'
               - 'packages/ui/**'
               - 'packages/marketing-ui/**'
             ai-gateway:
               - 'services/ai-gateway/**'
+              - 'services/platform/tests/integration/container-ai-gateway-test.ts'
+              - 'compose.ai-gateway*.yml'
+              - '.env.test'
+              - 'services/platform/tests/integration/static-site-test.ts'
+              - 'services/platform/tests/integration/lib/**'
               - 'packages/ui/**'
             storybook:
               - 'services/platform/**'
+              - 'services/web/**'
               - 'packages/ui/**'
               - 'packages/marketing-ui/**'
             sandbox:
@@ -163,22 +225,27 @@ jobs:
               - 'services/sandbox-buildkitd/**'
             sandbox-runtime:
               - 'services/sandbox-runtime/**'
+              - 'services/platform/lib/harnesses/**'
+              - 'configs/platform/system/harnesses/gemini/harness.yml'
+              - 'configs/platform/custom/skills/visual-aspect-analyzer/**'
             ci_tests:
-              - 'services/platform/tests/integration/container-*'
               - 'services/platform/tests/integration/static-site-test.ts'
               - 'services/platform/tests/integration/lib/**'
               - 'compose.test.yml'
               - 'compose.yml'
+              - 'compose.dev.yml'
               - '.env.test'
               - '.github/workflows/build.yml'
+              - '.github/scripts/pull-ci-images.sh'
               - 'services/db/**'
-              - 'services/platform/**'
+              - *platform_sources
               - 'services/proxy/**'
               - 'services/sandbox-llm-gateway/**'
               - 'services/sandbox/**'
               - 'services/sandbox-egress/**'
               - 'services/sandbox-buildkitd/**'
               - 'services/sandbox-runtime/**'
+              - 'configs/platform/**'
 
       - name: Compute service matrix
         id: services
@@ -187,20 +254,28 @@ jobs:
           CHANGES: ${{ steps.filter.outputs.changes }}
           CI_TESTS: ${{ steps.filter.outputs.ci_tests }}
           STORYBOOK: ${{ steps.filter.outputs.storybook }}
+          IMAGE_INPUTS: ${{ steps.filter.outputs.image_inputs }}
         run: |
           set -euo pipefail
           if [ -n "$CANDIDATE_SHA" ]; then
             # A release candidate runs every check, whatever its last commit
             # touched: a check skipped for the candidate never passed for it.
             # Every filter above, pseudo-filters included (deployment-ci.test.ts).
-            CHANGES='["platform","db","proxy","sandbox-llm-gateway","web","docs","ui-docs","ai-gateway","storybook","sandbox","sandbox-egress","sandbox-buildkitd","sandbox-runtime","ci_tests"]'
+            CHANGES='["platform","db","proxy","sandbox-llm-gateway","web","docs","ui-docs","ai-gateway","storybook","sandbox","sandbox-egress","sandbox-buildkitd","sandbox-runtime","ci_tests","image_inputs"]'
+            CI_TESTS=true
+            STORYBOOK=true
+          elif [ "${IMAGE_INPUTS:-false}" = true ]; then
+            CHANGES=$(jq -c '. + ["platform","db","proxy","sandbox-llm-gateway","web","docs","ui-docs","ai-gateway","storybook","sandbox","sandbox-egress","sandbox-buildkitd","sandbox-runtime"] | unique' <<< "$CHANGES")
             CI_TESTS=true
             STORYBOOK=true
           fi
           # Strip pseudo-filters that aren't real services from the matrix list.
-          SERVICES=$(jq -c '[.[] | select(. != "ci_tests" and . != "storybook")]' <<< "$CHANGES")
+          SERVICES=$(jq -c '[.[] | select(. != "ci_tests" and . != "storybook" and . != "image_inputs")]' <<< "$CHANGES")
           echo "list=${SERVICES}" >> "$GITHUB_OUTPUT"
           echo "Services to build: ${SERVICES}"
+          # Standalone sites have their own tests and need no platform stack.
+          STACK=$(jq -r 'any(.[]; . == "db" or . == "platform" or . == "proxy" or . == "sandbox-llm-gateway" or . == "sandbox" or . == "sandbox-egress" or . == "sandbox-buildkitd" or . == "sandbox-runtime")' <<< "$SERVICES")
+          if [ "$CI_TESTS" = true ]; then STACK=true; fi
 
           # Vulnerability scan covers the compose-stack services + sandbox
           # trio that `build` actually pushes to GHCR. Web, docs and ui-docs
@@ -213,6 +288,7 @@ jobs:
           {
             echo "scannable=${SCANNABLE}"
             echo "ci_tests=${CI_TESTS}"
+            echo "stack=${STACK}"
             echo "storybook=${STORYBOOK}"
           } >> "$GITHUB_OUTPUT"
           echo "Services to scan: ${SCANNABLE}"
@@ -250,29 +326,34 @@ jobs:
   # ---------------------------------------------------------------------------
   # Build each compose-stack service's Docker image and push to GHCR.
   #
-  # Matrix is intentionally fixed (not driven by `changes.outputs.services`):
+  # Standalone-only edits use their own container jobs. When compose services
+  # or their test inputs change, the matrix is intentionally fixed:
   # smoke-test and image-validate need ALL compose-stack services available, so
   # building only changed ones would force them back into local-build mode.
-  # Unchanged services hit the GHA layer cache and finish in seconds.
+  # Unchanged services can reuse the main branch's GHA layer cache when it is
+  # available. A missing or evicted cache still requires a complete build.
   #
   # Web/docs/ui-docs are NOT in this matrix — they have their own compose
   # stacks and are exercised by the separate web-test / docs-test /
   # ui-docs-test jobs below.
   #
-  # Fork PRs cannot push to the upstream GHCR (read-only GITHUB_TOKEN), so
-  # this job switches to local build (`push: false`, `load: true`). The
-  # smoke-test-fork / image-validate-fork jobs cover that path with the
-  # OLD-style local-build smoke pipeline.
+  # Fork PRs cannot push to upstream GHCR. Their smoke-test-fork and
+  # image-validate-fork jobs build locally on the runners that use the images;
+  # loading eight additional matrix images into unrelated runners wastes work.
   #
   # Draft PRs skip to save minutes.
   # ---------------------------------------------------------------------------
   build:
     name: Build ${{ matrix.service }}
     needs: changes
-    if: (needs.changes.outputs.services != '[]' || needs.changes.outputs.ci_tests == 'true') && github.event.pull_request.draft != true
+    if: >-
+      !cancelled() &&
+      needs.changes.result == 'success' &&
+      (needs.changes.outputs.stack == 'true' && github.event.pull_request.draft != true && github.event.pull_request.head.repo.fork != true)
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
+      actions: read
       contents: read
       packages: write
     strategy:
@@ -300,32 +381,50 @@ jobs:
 
       - name: Reclaim disk space
         if: matrix.service == 'platform' || matrix.service == 'sandbox-runtime'
-        run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+        # The pulled stack occupies roughly 12–13GB locally. Builders also
+        # retain dependency snapshots and compressed exports; keep 40GiB.
+        env:
+          MIN_FREE_GIB: '40'
+        run: &reclaim-ci-disk |
+          set -euo pipefail
+          case "$MIN_FREE_GIB" in
+            20|28|40) ;;
+            *) echo '::error::Invalid CI disk target'; exit 1 ;;
+          esac
+          MIN_FREE_KB=$((MIN_FREE_GIB * 1024 * 1024))
+          measure_space() {
+            df -h /
+            AVAILABLE_KB=$(df -Pk / | awk 'NR == 2 { print $4 }')
+            if [[ ! "$AVAILABLE_KB" =~ ^[0-9]+$ ]]; then
+              echo '::error::Could not measure free disk space'; exit 1
+            fi
+            echo "Available: ${AVAILABLE_KB} KiB; cleanup target: ${MIN_FREE_GIB} GiB"
+          }
+          measure_space
+          if [ "$AVAILABLE_KB" -ge "$MIN_FREE_KB" ]; then exit 0; fi
+          # Stop once the next build/pull has headroom. Deleting all installed
+          # toolchains took 50–119s even when the image build was cached.
+          for DIRECTORY in /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL; do
+            sudo rm -rf -- "$DIRECTORY"
+            measure_space
+            if [ "$AVAILABLE_KB" -ge "$MIN_FREE_KB" ]; then exit 0; fi
+          done
           sudo docker image prune -af
-
-      # Fork PRs get a read-only GITHUB_TOKEN regardless of `permissions:`,
-      # so we can't push to GHCR. Switch to local build (load into runner's
-      # Docker) on forks; the smoke-test-fork / image-validate-fork jobs
-      # then exercise the resulting images via SKIP_BUILD=true on the same
-      # runner. Same-repo PRs and pushes use push: true → GHCR as before.
-      - name: Set push mode
-        id: pushmode
-        run: |
-          if [ "${{ github.event.pull_request.head.repo.fork }}" = "true" ]; then
-            echo "push=false" >> "$GITHUB_OUTPUT"
-            echo "load=true"  >> "$GITHUB_OUTPUT"
-            echo "Fork PR detected — building locally (push=false, load=true)"
-          else
-            echo "push=true"  >> "$GITHUB_OUTPUT"
-            echo "load=false" >> "$GITHUB_OUTPUT"
+          measure_space
+          # Preserve the old cold-build fallback after exhausting its cleanup.
+          # The target controls when to stop deleting; it is not a runner quota.
+          if [ "$AVAILABLE_KB" -lt "$MIN_FREE_KB" ]; then
+            echo '::warning::Full CI disk cleanup completed below the headroom target'
           fi
 
       - name: Setup Docker builder
         uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
+        with:
+          # Hosted runners are discarded; large layer teardown delayed
+          # downstream checks by 47–132 seconds in measured builds.
+          cleanup: false
 
       - name: Login to GHCR
-        if: steps.pushmode.outputs.push == 'true'
         uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
         with:
           registry: ${{ env.REGISTRY }}
@@ -356,7 +455,9 @@ jobs:
         if: matrix.service == 'platform'
         uses: ./.github/actions/setup-turbo
         with:
+          start-turbo-cache: 'false'
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          turbo-cache: 'false'
 
       - name: Validate builtin configs
         if: matrix.service == 'platform'
@@ -373,13 +474,15 @@ jobs:
           context: .
           file: services/${{ matrix.service }}/Dockerfile
           platforms: linux/amd64
-          push: ${{ steps.pushmode.outputs.push }}
-          load: ${{ steps.pushmode.outputs.load }}
+          push: true
           tags: ${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service }}:${{ needs.changes.outputs.image_tag }}
           build-args: |
             VERSION=${{ needs.changes.outputs.image_tag }}
           cache-from: type=gha,scope=${{ matrix.service }}
-          cache-to: type=gha,scope=${{ matrix.service }},mode=max
+          # Publish the large shared stack cache only from main. PR-local
+          # exports took 148s and cannot seed other PRs; old candidates must
+          # not overwrite the current main cache.
+          cache-to: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && format('type=gha,scope={0},mode=max,ghtoken={1},repository={2}', matrix.service, secrets.GITHUB_TOKEN, github.repository) || '' }}
           # `labels:` replaces Dockerfile LABEL (not merges). Include version
           # so `tale` can read the running image the same way it does on
           # release tags — see get-container-version.ts.
@@ -395,7 +498,6 @@ jobs:
       # candidate gate read these, so they test and name the exact bytes built
       # here, never whatever a tag points at by the time they pull it.
       - name: Record image receipt
-        if: steps.pushmode.outputs.push == 'true'
         env:
           SERVICE: ${{ matrix.service }}
           IMAGE: ${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service }}
@@ -415,7 +517,6 @@ jobs:
             > "${RECEIPTS}/${SERVICE}.json"
 
       - name: Upload image receipt
-        if: steps.pushmode.outputs.push == 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: image-receipt-${{ matrix.service }}
@@ -431,13 +532,9 @@ jobs:
           {
             echo "## Built tale-${{ matrix.service }}"
             echo ""
-            if [ "${{ steps.pushmode.outputs.push }}" = "true" ]; then
-              echo "Pushed: \`${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service }}:${{ needs.changes.outputs.image_tag }}\`"
-              echo ""
-              echo "Digest: \`${{ steps.image.outputs.digest }}\` from \`${{ steps.meta.outputs.revision }}\`"
-            else
-              echo "Loaded locally (fork PR): \`${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service }}:${{ needs.changes.outputs.image_tag }}\`"
-            fi
+            echo "Pushed: \`${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service }}:${{ needs.changes.outputs.image_tag }}\`"
+            echo "Digest: \`${{ steps.image.outputs.digest }}\`"
+            echo "Source: \`${{ steps.meta.outputs.revision }}\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Failure summary
@@ -447,7 +544,6 @@ jobs:
             echo "## ❌ Build failed for tale-${{ matrix.service }}"
             echo ""
             echo "Attempted tag: \`${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service }}:${{ needs.changes.outputs.image_tag }}\`"
-            echo "Push mode: \`${{ steps.pushmode.outputs.push }}\` / Load: \`${{ steps.pushmode.outputs.load }}\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
   # ---------------------------------------------------------------------------
@@ -458,7 +554,11 @@ jobs:
   smoke-test:
     name: Smoke test
     needs: [changes, build]
-    if: (needs.changes.outputs.services != '[]' || needs.changes.outputs.ci_tests == 'true') && github.event.pull_request.draft != true && github.event.pull_request.head.repo.fork != true
+    if: >-
+      !cancelled() &&
+      needs.changes.result == 'success' &&
+      needs.build.result == 'success' &&
+      (needs.changes.outputs.stack == 'true' && github.event.pull_request.draft != true && github.event.pull_request.head.repo.fork != true)
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -471,10 +571,22 @@ jobs:
         with:
           ref: ${{ needs.changes.outputs.candidate_sha }}
 
+      - name: Checkout CI image pull helper
+        if: needs.changes.outputs.candidate_sha != ''
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          # Candidate C can predate the helper. Use only this trusted workflow
+          # file from exact H, isolated from C's source and image receipts.
+          ref: ${{ github.workflow_sha }}
+          path: .ci-workflow
+          persist-credentials: false
+          sparse-checkout: .github/scripts/pull-ci-images.sh
+          sparse-checkout-cone-mode: false
+
       - name: Reclaim disk space
-        run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
-          sudo docker image prune -af
+        env:
+          MIN_FREE_GIB: '28'
+        run: *reclaim-ci-disk
 
       - name: Log Docker environment
         run: |
@@ -505,38 +617,18 @@ jobs:
       # the pull.
       - name: Pull images from GHCR
         env:
+          PULL_HELPER: ${{ needs.changes.outputs.candidate_sha != '' && '.ci-workflow/.github/scripts/pull-ci-images.sh' || '.github/scripts/pull-ci-images.sh' }}
+          REGISTRY_PATH: ${{ env.REGISTRY }}/${{ github.repository }}
           SOURCE_SHA: ${{ needs.changes.outputs.source_sha }}
           RECEIPTS: ${{ runner.temp }}/image-receipts
-        run: |
-          set -euo pipefail
-          # Compose-stack services + sandbox-runtime. Keep in sync with build.yml
-          # (build matrix) and cleanup-pr-images.yml matrix. sandbox-runtime is
-          # not a compose service but the spawner pulls it at boot — re-tag it
-          # locally so smoke tests with PULL_POLICY=never find it.
-          REGISTRY_PATH="${{ env.REGISTRY }}/${{ github.repository }}"
-          for svc in db platform proxy sandbox-llm-gateway sandbox sandbox-egress sandbox-buildkitd sandbox-runtime; do
-            DIGEST=$(jq -r '.digest // empty' "${RECEIPTS}/${svc}.json" 2> /dev/null || true)
-            if [[ ! "$DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]]; then
-              echo "::error::No image receipt with a digest for tale-${svc}"; exit 1
-            fi
-            IMAGE="${REGISTRY_PATH}/tale-${svc}@${DIGEST}"
-            echo "Pulling ${IMAGE}..."
-            docker pull "${IMAGE}"
-            REVISION=$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "${IMAGE}")
-            if [ "$REVISION" != "$SOURCE_SHA" ]; then
-              echo "::error::tale-${svc} was built from ${REVISION}, not ${SOURCE_SHA}"; exit 1
-            fi
-            docker tag "${IMAGE}" "ghcr.io/tale-project/tale/tale-${svc}:latest"
-          done
-          # See note in image-validate: the spawner's SANDBOX_RUNTIME_IMAGE
-          # defaults to the unscoped `tale-sandbox-runtime:latest`.
-          docker tag "ghcr.io/tale-project/tale/tale-sandbox-runtime:latest" \
-            "tale-sandbox-runtime:latest"
+        run: &pull-ci-images |
+          bash "$PULL_HELPER" \
+            db platform proxy sandbox-llm-gateway sandbox sandbox-egress sandbox-buildkitd sandbox-runtime
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          bun-version: '1.3.12'
+          bun-version: '1.4.2'
 
       - name: Run smoke tests
         run: bun services/platform/tests/integration/container-smoke-test.ts
@@ -580,7 +672,10 @@ jobs:
   smoke-test-fork:
     name: Smoke test (fork PR)
     needs: changes
-    if: (needs.changes.outputs.services != '[]' || needs.changes.outputs.ci_tests == 'true') && github.event.pull_request.draft != true && github.event.pull_request.head.repo.fork == true
+    if: >-
+      !cancelled() &&
+      needs.changes.result == 'success' &&
+      (needs.changes.outputs.stack == 'true' && github.event.pull_request.draft != true && github.event.pull_request.head.repo.fork == true)
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -593,9 +688,9 @@ jobs:
           ref: ${{ needs.changes.outputs.candidate_sha }}
 
       - name: Reclaim disk space
-        run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
-          sudo docker image prune -af
+        env:
+          MIN_FREE_GIB: '40'
+        run: *reclaim-ci-disk
 
       - name: Log Docker environment
         run: |
@@ -607,7 +702,7 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          bun-version: '1.3.12'
+          bun-version: '1.4.2'
 
       - name: Run smoke tests (local build)
         run: bun services/platform/tests/integration/container-smoke-test.ts
@@ -649,14 +744,15 @@ jobs:
   web-test:
     name: Web container test
     needs: changes
-    if: contains(fromJson(needs.changes.outputs.services), 'web') && github.event.pull_request.draft != true
+    if: >-
+      !cancelled() &&
+      needs.changes.result == 'success' &&
+      (contains(fromJson(needs.changes.outputs.services), 'web') && github.event.pull_request.draft != true)
     runs-on: ubuntu-latest
     permissions:
+      actions: read
       contents: read
-    # The four container tests share this budget: the disk reclaim ahead of the
-    # test alone has taken seven minutes on a slow runner, and an 8-minute job
-    # then cancelled the test before it ran (PR #3491) — a cancel that reads
-    # as a failed check while nothing was tested.
+    # Keep cold-cache headroom for standalone image builds.
     timeout-minutes: 15
 
     steps:
@@ -665,18 +761,53 @@ jobs:
         with:
           ref: ${{ needs.changes.outputs.candidate_sha }}
 
-      - name: Reclaim disk space
-        run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
-          sudo docker image prune -af
+      - name: Reclaim disk space if needed
+        env:
+          MIN_FREE_GIB: '20'
+        run: *reclaim-ci-disk
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          bun-version: '1.3.12'
+          bun-version: '1.4.2'
+
+      - name: Setup Docker builder
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
+        with:
+          # Hosted runners are discarded; large layer teardown delayed
+          # downstream checks by 47–132 seconds in measured builds.
+          cleanup: false
+
+      # Keep Compose's build arguments, context, Dockerfile and image tags as
+      # the source of truth; only add a persistent layer cache and local load.
+      - name: Resolve site build
+        env:
+          SERVICE: web
+        run: |
+          set -euo pipefail
+          # The existing probe creates this placeholder before Compose too.
+          if [ ! -e "services/$SERVICE/.env" ]; then touch "services/$SERVICE/.env"; fi
+          docker compose -f "compose.$SERVICE.yml" -f "compose.$SERVICE.test.yml" \
+            --env-file .env.test -p "tale-$SERVICE-test" build --print "$SERVICE" \
+            > "$RUNNER_TEMP/site-build.json"
+
+      - name: Build site image
+        uses: docker/bake-action@018cb6412ab401ebaa809aa5f85966b74628600f # v7.4.0
+        with:
+          source: .
+          files: ${{ runner.temp }}/site-build.json
+          targets: web
+          load: true
+          set: |
+            *.cache-from=type=gha,scope=web
+            *.cache-to=type=gha,scope=web,mode=max,ghtoken=${{ secrets.GITHUB_TOKEN }},repository=${{ github.repository }}
+          provenance: false
 
       - name: Run web container test
         run: bun services/platform/tests/integration/container-web-test.ts
+        env:
+          SKIP_BUILD: 'true'
+          PULL_POLICY: never
 
       - name: Summary
         if: always()
@@ -685,9 +816,13 @@ jobs:
   docs-test:
     name: Docs container test
     needs: changes
-    if: contains(fromJson(needs.changes.outputs.services), 'docs') && github.event.pull_request.draft != true
+    if: >-
+      !cancelled() &&
+      needs.changes.result == 'success' &&
+      (contains(fromJson(needs.changes.outputs.services), 'docs') && github.event.pull_request.draft != true)
     runs-on: ubuntu-latest
     permissions:
+      actions: read
       contents: read
     timeout-minutes: 15
 
@@ -697,18 +832,53 @@ jobs:
         with:
           ref: ${{ needs.changes.outputs.candidate_sha }}
 
-      - name: Reclaim disk space
-        run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
-          sudo docker image prune -af
+      - name: Reclaim disk space if needed
+        env:
+          MIN_FREE_GIB: '20'
+        run: *reclaim-ci-disk
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          bun-version: '1.3.12'
+          bun-version: '1.4.2'
+
+      - name: Setup Docker builder
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
+        with:
+          # Hosted runners are discarded; large layer teardown delayed
+          # downstream checks by 47–132 seconds in measured builds.
+          cleanup: false
+
+      # Keep Compose's build arguments, context, Dockerfile and image tags as
+      # the source of truth; only add a persistent layer cache and local load.
+      - name: Resolve site build
+        env:
+          SERVICE: docs
+        run: |
+          set -euo pipefail
+          # The existing probe creates this placeholder before Compose too.
+          if [ ! -e "services/$SERVICE/.env" ]; then touch "services/$SERVICE/.env"; fi
+          docker compose -f "compose.$SERVICE.yml" -f "compose.$SERVICE.test.yml" \
+            --env-file .env.test -p "tale-$SERVICE-test" build --print "$SERVICE" \
+            > "$RUNNER_TEMP/site-build.json"
+
+      - name: Build site image
+        uses: docker/bake-action@018cb6412ab401ebaa809aa5f85966b74628600f # v7.4.0
+        with:
+          source: .
+          files: ${{ runner.temp }}/site-build.json
+          targets: docs
+          load: true
+          set: |
+            *.cache-from=type=gha,scope=docs
+            *.cache-to=type=gha,scope=docs,mode=max,ghtoken=${{ secrets.GITHUB_TOKEN }},repository=${{ github.repository }}
+          provenance: false
 
       - name: Run docs container test
         run: bun services/platform/tests/integration/container-docs-test.ts
+        env:
+          SKIP_BUILD: 'true'
+          PULL_POLICY: never
 
       - name: Summary
         if: always()
@@ -717,9 +887,13 @@ jobs:
   ui-docs-test:
     name: UI docs container test
     needs: changes
-    if: contains(fromJson(needs.changes.outputs.services), 'ui-docs') && github.event.pull_request.draft != true
+    if: >-
+      !cancelled() &&
+      needs.changes.result == 'success' &&
+      (contains(fromJson(needs.changes.outputs.services), 'ui-docs') && github.event.pull_request.draft != true)
     runs-on: ubuntu-latest
     permissions:
+      actions: read
       contents: read
     timeout-minutes: 15
 
@@ -729,18 +903,53 @@ jobs:
         with:
           ref: ${{ needs.changes.outputs.candidate_sha }}
 
-      - name: Reclaim disk space
-        run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
-          sudo docker image prune -af
+      - name: Reclaim disk space if needed
+        env:
+          MIN_FREE_GIB: '20'
+        run: *reclaim-ci-disk
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          bun-version: '1.3.12'
+          bun-version: '1.4.2'
+
+      - name: Setup Docker builder
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
+        with:
+          # Hosted runners are discarded; large layer teardown delayed
+          # downstream checks by 47–132 seconds in measured builds.
+          cleanup: false
+
+      # Keep Compose's build arguments, context, Dockerfile and image tags as
+      # the source of truth; only add a persistent layer cache and local load.
+      - name: Resolve site build
+        env:
+          SERVICE: ui-docs
+        run: |
+          set -euo pipefail
+          # The existing probe creates this placeholder before Compose too.
+          if [ ! -e "services/$SERVICE/.env" ]; then touch "services/$SERVICE/.env"; fi
+          docker compose -f "compose.$SERVICE.yml" -f "compose.$SERVICE.test.yml" \
+            --env-file .env.test -p "tale-$SERVICE-test" build --print "$SERVICE" \
+            > "$RUNNER_TEMP/site-build.json"
+
+      - name: Build site image
+        uses: docker/bake-action@018cb6412ab401ebaa809aa5f85966b74628600f # v7.4.0
+        with:
+          source: .
+          files: ${{ runner.temp }}/site-build.json
+          targets: ui-docs
+          load: true
+          set: |
+            *.cache-from=type=gha,scope=ui-docs
+            *.cache-to=type=gha,scope=ui-docs,mode=max,ghtoken=${{ secrets.GITHUB_TOKEN }},repository=${{ github.repository }}
+          provenance: false
 
       - name: Run ui-docs container test
         run: bun services/platform/tests/integration/container-ui-docs-test.ts
+        env:
+          SKIP_BUILD: 'true'
+          PULL_POLICY: never
 
       - name: Summary
         if: always()
@@ -752,9 +961,13 @@ jobs:
   ai-gateway-test:
     name: AI gateway container test
     needs: changes
-    if: contains(fromJson(needs.changes.outputs.services), 'ai-gateway') && github.event.pull_request.draft != true
+    if: >-
+      !cancelled() &&
+      needs.changes.result == 'success' &&
+      (contains(fromJson(needs.changes.outputs.services), 'ai-gateway') && github.event.pull_request.draft != true)
     runs-on: ubuntu-latest
     permissions:
+      actions: read
       contents: read
     timeout-minutes: 15
 
@@ -764,18 +977,53 @@ jobs:
         with:
           ref: ${{ needs.changes.outputs.candidate_sha }}
 
-      - name: Reclaim disk space
-        run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
-          sudo docker image prune -af
+      - name: Reclaim disk space if needed
+        env:
+          MIN_FREE_GIB: '20'
+        run: *reclaim-ci-disk
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          bun-version: '1.3.12'
+          bun-version: '1.4.2'
+
+      - name: Setup Docker builder
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
+        with:
+          # Hosted runners are discarded; large layer teardown delayed
+          # downstream checks by 47–132 seconds in measured builds.
+          cleanup: false
+
+      # Keep Compose's build arguments, context, Dockerfile and image tags as
+      # the source of truth; only add a persistent layer cache and local load.
+      - name: Resolve site build
+        env:
+          SERVICE: ai-gateway
+        run: |
+          set -euo pipefail
+          # The existing probe creates this placeholder before Compose too.
+          if [ ! -e "services/$SERVICE/.env" ]; then touch "services/$SERVICE/.env"; fi
+          docker compose -f "compose.$SERVICE.yml" -f "compose.$SERVICE.test.yml" \
+            --env-file .env.test -p "tale-$SERVICE-test" build --print "$SERVICE" \
+            > "$RUNNER_TEMP/site-build.json"
+
+      - name: Build site image
+        uses: docker/bake-action@018cb6412ab401ebaa809aa5f85966b74628600f # v7.4.0
+        with:
+          source: .
+          files: ${{ runner.temp }}/site-build.json
+          targets: ai-gateway
+          load: true
+          set: |
+            *.cache-from=type=gha,scope=ai-gateway
+            *.cache-to=type=gha,scope=ai-gateway,mode=max,ghtoken=${{ secrets.GITHUB_TOKEN }},repository=${{ github.repository }}
+          provenance: false
 
       - name: Run ai-gateway container test
         run: bun services/platform/tests/integration/container-ai-gateway-test.ts
+        env:
+          SKIP_BUILD: 'true'
+          PULL_POLICY: never
 
       - name: Summary
         if: always()
@@ -789,7 +1037,11 @@ jobs:
   image-validate:
     name: Validate images
     needs: [changes, build]
-    if: (needs.changes.outputs.services != '[]' || needs.changes.outputs.ci_tests == 'true') && github.event.pull_request.draft != true && github.event.pull_request.head.repo.fork != true
+    if: >-
+      !cancelled() &&
+      needs.changes.result == 'success' &&
+      needs.build.result == 'success' &&
+      (needs.changes.outputs.stack == 'true' && github.event.pull_request.draft != true && github.event.pull_request.head.repo.fork != true)
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -802,10 +1054,22 @@ jobs:
         with:
           ref: ${{ needs.changes.outputs.candidate_sha }}
 
+      - name: Checkout CI image pull helper
+        if: needs.changes.outputs.candidate_sha != ''
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          # Candidate C can predate the helper. Use only this trusted workflow
+          # file from exact H, isolated from C's source and image receipts.
+          ref: ${{ github.workflow_sha }}
+          path: .ci-workflow
+          persist-credentials: false
+          sparse-checkout: .github/scripts/pull-ci-images.sh
+          sparse-checkout-cone-mode: false
+
       - name: Reclaim disk space
-        run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
-          sudo docker image prune -af
+        env:
+          MIN_FREE_GIB: '28'
+        run: *reclaim-ci-disk
 
       - name: Login to GHCR
         uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
@@ -825,54 +1089,53 @@ jobs:
       # the smoke test does.
       - name: Pull images from GHCR
         env:
+          PULL_HELPER: ${{ needs.changes.outputs.candidate_sha != '' && '.ci-workflow/.github/scripts/pull-ci-images.sh' || '.github/scripts/pull-ci-images.sh' }}
+          REGISTRY_PATH: ${{ env.REGISTRY }}/${{ github.repository }}
           SOURCE_SHA: ${{ needs.changes.outputs.source_sha }}
           RECEIPTS: ${{ runner.temp }}/image-receipts
-        run: |
-          set -euo pipefail
-          # Compose-stack services + sandbox-runtime. Keep in sync with build.yml
-          # (build matrix) and cleanup-pr-images.yml matrix. sandbox-runtime is
-          # not a compose service but the spawner pulls it at boot — re-tag it
-          # locally so PULL_POLICY=never validation finds it.
-          REGISTRY_PATH="${{ env.REGISTRY }}/${{ github.repository }}"
-          for svc in db platform proxy sandbox-llm-gateway sandbox sandbox-egress sandbox-buildkitd sandbox-runtime; do
-            DIGEST=$(jq -r '.digest // empty' "${RECEIPTS}/${svc}.json" 2> /dev/null || true)
-            if [[ ! "$DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]]; then
-              echo "::error::No image receipt with a digest for tale-${svc}"; exit 1
-            fi
-            IMAGE="${REGISTRY_PATH}/tale-${svc}@${DIGEST}"
-            echo "Pulling ${IMAGE}..."
-            docker pull "${IMAGE}"
-            REVISION=$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "${IMAGE}")
-            if [ "$REVISION" != "$SOURCE_SHA" ]; then
-              echo "::error::tale-${svc} was built from ${REVISION}, not ${SOURCE_SHA}"; exit 1
-            fi
-            docker tag "${IMAGE}" "ghcr.io/tale-project/tale/tale-${svc}:latest"
-          done
-          # The spawner reads SANDBOX_RUNTIME_IMAGE which defaults to
-          # `tale-sandbox-runtime:latest` (unscoped). Mirror the tag so the
-          # spawner's boot-time `ensureImage` hits a local cache instead of
-          # trying to pull from GHCR.
-          docker tag "ghcr.io/tale-project/tale/tale-sandbox-runtime:latest" \
-            "tale-sandbox-runtime:latest"
+        run: *pull-ci-images
 
       # Runtime conformance imports workspace schemas and the exec builder.
       - name: Setup toolchain
         uses: ./.github/actions/setup-turbo
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
           start-turbo-cache: 'false'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          turbo-cache: 'false'
 
-      - name: Run image validation
-        run: bun services/platform/tests/integration/container-image-test.ts
+      # Both suites reuse the accepted images and own isolated containers.
+      # Overlap metadata/document checks with runtime conformance without
+      # another image download; retain both verdicts and their complete logs.
+      - name: Run image validation and sandbox runtime behavior
+        run: |
+          set -euo pipefail
+          LOG_DIR=$(mktemp -d "${RUNNER_TEMP}/image-validation.XXXXXX")
+          PULL_POLICY=never bun services/platform/tests/integration/container-image-test.ts > "${LOG_DIR}/images.log" 2>&1 &
+          IMAGES_PID=$!
+          IMAGE=tale-sandbox-runtime:latest bun services/platform/tests/integration/container-sandbox-runtime-test.ts > "${LOG_DIR}/runtime.log" 2>&1 &
+          RUNTIME_PID=$!
+          FAILED=0
+          if ! wait "$IMAGES_PID"; then FAILED=1; fi
+          if ! wait "$RUNTIME_PID"; then FAILED=1; fi
+          echo '::group::Container image validation'
+          cat "${LOG_DIR}/images.log"
+          echo '::endgroup::'
+          echo '::group::Sandbox runtime conformance'
+          cat "${LOG_DIR}/runtime.log"
+          echo '::endgroup::'
+          exit "$FAILED"
         env:
           SKIP_BUILD: 'true'
-          PULL_POLICY: never
 
-      - name: Validate sandbox runtime behavior
-        run: bun services/platform/tests/integration/container-sandbox-runtime-test.ts
-        env:
-          SKIP_BUILD: 'true'
-          IMAGE: tale-sandbox-runtime:latest
+      - name: Upload image validation logs
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: image-validation-logs-attempt-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/image-validation.*/*.log
+          retention-days: 7
+          # Pull/setup failure can prevent the probes from creating their logs.
+          if-no-files-found: ignore
 
       - name: Summary
         if: always()
@@ -884,7 +1147,10 @@ jobs:
   image-validate-fork:
     name: Validate images (fork PR)
     needs: changes
-    if: (needs.changes.outputs.services != '[]' || needs.changes.outputs.ci_tests == 'true') && github.event.pull_request.draft != true && github.event.pull_request.head.repo.fork == true
+    if: >-
+      !cancelled() &&
+      needs.changes.result == 'success' &&
+      (needs.changes.outputs.stack == 'true' && github.event.pull_request.draft != true && github.event.pull_request.head.repo.fork == true)
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -897,16 +1163,22 @@ jobs:
           ref: ${{ needs.changes.outputs.candidate_sha }}
 
       - name: Reclaim disk space
-        run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
-          sudo docker image prune -af
+        env:
+          MIN_FREE_GIB: '40'
+        run: *reclaim-ci-disk
 
       # The fork lane runs the same workspace-dependent conformance helpers.
       - name: Setup toolchain
         uses: ./.github/actions/setup-turbo
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
           start-turbo-cache: 'false'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          turbo-cache: 'false'
+
+      # Forks skip the isolated publishing matrix, so retain its catalog gate
+      # here before building the platform image locally.
+      - name: Validate builtin configs
+        run: bun run --filter @tale/platform configs:validate
 
       - name: Run image validation (local build)
         run: bun services/platform/tests/integration/container-image-test.ts
@@ -933,7 +1205,11 @@ jobs:
   vulnerability-scan:
     name: Scan ${{ matrix.service }}
     needs: [changes, build]
-    if: needs.changes.outputs.scannable_services != '[]' && github.event.pull_request.head.repo.fork != true
+    if: >-
+      !cancelled() &&
+      needs.changes.result == 'success' &&
+      needs.build.result == 'success' &&
+      (needs.changes.outputs.scannable_services != '[]' && github.event.pull_request.head.repo.fork != true)
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -965,11 +1241,25 @@ jobs:
       - name: Run Trivy
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
+          version: 'v0.70.0'
           image-ref: ${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service }}:${{ needs.changes.outputs.image_tag }}
-          format: 'sarif'
-          output: '${{ matrix.service }}-trivy.sarif'
-          severity: 'HIGH,CRITICAL'
+          format: 'json'
+          output: '${{ matrix.service }}-trivy.json'
+          list-all-pkgs: 'true'
+          scanners: 'vuln,secret'
+          # The SARIF action previously retained every severity, regardless of
+          # its nominal HIGH,CRITICAL input. Preserve that reporting policy.
+          severity: 'UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL'
           trivyignores: '.trivyignore.yaml'
+
+      - name: Generate SARIF
+        env:
+          SERVICE: ${{ matrix.service }}
+        run: |
+          trivy convert --format sarif \
+            --severity UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL \
+            --ignorefile .trivyignore.yaml \
+            --output "${SERVICE}-trivy.sarif" "${SERVICE}-trivy.json"
 
       - name: Upload SARIF
         uses: github/codeql-action/upload-sarif@e46ed2cbd01164d986452f91f178727624ae40d7 # v4.35.3
@@ -978,15 +1268,14 @@ jobs:
           sarif_file: '${{ matrix.service }}-trivy.sarif'
           category: 'trivy-${{ matrix.service }}'
 
-      # Software Bill of Materials for supply-chain transparency. Reuses the
-      # already-pulled image; Trivy is already a dependency, so no new tool.
+      # Convert the complete package inventory without analyzing the image twice.
+      # An empty severity set keeps the previous SBOM free of security findings.
       - name: Generate SBOM (CycloneDX)
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
-        with:
-          scan-type: 'image'
-          image-ref: ${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service }}:${{ needs.changes.outputs.image_tag }}
-          format: 'cyclonedx'
-          output: '${{ matrix.service }}-sbom.cdx.json'
+        env:
+          SERVICE: ${{ matrix.service }}
+        run: |
+          trivy convert --format cyclonedx --severity '' \
+            --output "${SERVICE}-sbom.cdx.json" "${SERVICE}-trivy.json"
 
       - name: Upload SBOM
         if: always() && hashFiles(format('{0}-sbom.cdx.json', matrix.service)) != ''
@@ -1019,20 +1308,17 @@ jobs:
   storybook:
     name: Storybook
     needs: changes
-    if: needs.changes.outputs.storybook == 'true' && github.event.pull_request.draft != true
+    if: >-
+      !cancelled() &&
+      needs.changes.result == 'success' &&
+      (needs.changes.outputs.storybook == 'true' && github.event.pull_request.draft != true)
     runs-on: ubuntu-latest
-    # A cold build of all four Storybooks (web/docs/ui/platform) on a 2vCPU
+    # A cold build of all four Storybooks (web/marketing-ui/ui/platform) on a 2vCPU
     # runner lands right at 5m, so any packages/ui change that misses the Turbo
     # cache flakily times out. Give the cold path headroom.
     timeout-minutes: 12
     permissions:
       contents: read
-    env:
-      # Turbo cache is only used by storybook:build; scope env to this job
-      # so the GITHUB_TOKEN isn't materialized as TURBO_TOKEN in unrelated jobs.
-      TURBO_API: 'http://127.0.0.1:9080'
-      TURBO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      TURBO_TEAM: 'tale'
 
     steps:
       - name: Checkout
@@ -1043,6 +1329,7 @@ jobs:
       - name: Setup toolchain
         uses: ./.github/actions/setup-turbo
         with:
+          start-turbo-cache: 'false'
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build Storybook

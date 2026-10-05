@@ -16,9 +16,10 @@
 import {
   Compose,
   composeArgs,
-  dockerInspect,
   imageExists,
-  imageSizeMb,
+  imageMetadata,
+  nonRootImageUser,
+  type ImageMetadata,
 } from './lib/docker';
 import { checkDocumentTools } from './lib/document-tools';
 import { capture, projectRoot, stream } from './lib/exec';
@@ -41,6 +42,8 @@ const SIZE_BUDGETS: Record<string, number> = {
   platform: 2900,
   db: 1200,
   proxy: 100,
+  // Exact Build43a9 digest measured86.45MiB; ~15% growth headroom.
+  'sandbox-llm-gateway': 100,
   sandbox: 320,
   'sandbox-egress': 80,
   // Debian-slim + the verbatim BuildKit static binaries + redsocks/iptables —
@@ -74,6 +77,7 @@ const SERVICES = [
   'platform',
   'db',
   'proxy',
+  'sandbox-llm-gateway',
   'sandbox',
   'sandbox-egress',
   'sandbox-buildkitd',
@@ -99,8 +103,13 @@ const SAFE_SECRET_VALUES = new Set([
 const SPAWNER_IMAGES = new Set(['sandbox-runtime', 'sandbox-buildkitd']);
 
 /** Resolve a service's image ref, with the spawner-image fallbacks. */
-async function getImage(service: string): Promise<string> {
-  const fromCompose = await compose.imageFor(service);
+async function getImage(
+  service: string,
+  composeImages: string[],
+): Promise<string> {
+  const fromCompose = composeImages.find((image) =>
+    image.includes(`/tale-${service}:`),
+  );
   if (fromCompose) return fromCompose;
   if (SPAWNER_IMAGES.has(service)) {
     const local = `tale-${service}:latest`;
@@ -142,26 +151,31 @@ async function main(): Promise<number> {
     }
   }
 
+  // Resolve Compose once and snapshot each immutable image once. All later
+  // checks reuse these values instead of spawning Docker for every field.
+  const composeImages = await compose.images();
   const images = new Map<string, string>();
+  const metadata = new Map<string, ImageMetadata>();
   for (const svc of SERVICES) {
-    const img = await getImage(svc);
+    const img = await getImage(svc, composeImages);
     images.set(svc, img);
     if (img) {
+      metadata.set(svc, await imageMetadata(img));
       console.log(`  ${GREEN}✓${NC} ${svc}: ${img}`);
     } else {
-      console.log(
-        `  ${YELLOW}⚠${NC} ${svc}: image not found (skipping checks)`,
-      );
+      r.fail(`${svc}: required image not found`);
     }
   }
+
+  if (r.failed > 0) return 1;
 
   // 1. OCI label checks
   header('Checking OCI labels');
   for (const svc of SERVICES) {
     const img = images.get(svc);
     if (!img) continue;
-    const labels = await dockerInspect(img, '{{json .Config.Labels}}');
-    if (labels.includes('org.opencontainers.image.source')) {
+    const labels = metadata.get(svc)!.labels;
+    if ('org.opencontainers.image.source' in labels) {
       r.pass(`${svc}: OCI labels present`);
     } else {
       r.warn(`${svc}: OCI labels missing (acceptable for local builds)`);
@@ -173,8 +187,8 @@ async function main(): Promise<number> {
   for (const svc of SERVICES) {
     const img = images.get(svc);
     if (!img) continue;
-    const user = await dockerInspect(img, '{{.Config.User}}');
-    const nonRoot = Boolean(user) && user !== 'root' && user !== '0';
+    const user = metadata.get(svc)!.user;
+    const nonRoot = nonRootImageUser(user);
     switch (svc) {
       case 'platform':
         r.pass(`${svc}: root (expected — gosu to app at runtime)`);
@@ -196,9 +210,10 @@ async function main(): Promise<number> {
           `${svc}: root (expected — buildkitd needs root + --privileged for build mount/namespace ops)`,
         );
         break;
+      case 'sandbox-llm-gateway':
       case 'sandbox-runtime':
         if (nonRoot) r.pass(`${svc}: runs as user '${user}' (non-root)`);
-        else r.fail(`${svc}: runtime image must not run as root`);
+        else r.fail(`${svc}: image must not run as root`);
         break;
     }
   }
@@ -229,16 +244,13 @@ async function main(): Promise<number> {
     if (!img) continue;
     let foundSecret = false;
 
-    const envRaw = await dockerInspect(
-      img,
-      '{{range .Config.Env}}{{.}} {{end}}',
-    );
-    const tokens = envRaw.split(/\s+/).filter(Boolean);
+    // Preserve each complete ENV value; a space must not disguise a secret
+    // whose prefix matches one of the explicitly permitted dummy values.
+    const tokens = metadata.get(svc)!.env;
     for (const key of SECRET_KEYS) {
-      const entry = tokens.find(
-        (tok) => tok.startsWith(`${key}=`) && tok.length > key.length + 1,
-      );
-      if (entry) {
+      for (const entry of tokens.filter((token) =>
+        token.startsWith(`${key}=`),
+      )) {
         const value = entry.slice(key.length + 1);
         if (value && !SAFE_SECRET_VALUES.has(value)) {
           r.fail(`${svc}: secret ${key} found in image env`);
@@ -321,8 +333,7 @@ async function main(): Promise<number> {
       );
       continue;
     }
-    const healthcheck = await dockerInspect(img, '{{.Config.Healthcheck}}');
-    if (healthcheck && healthcheck !== '<nil>') {
+    if (metadata.get(svc)!.hasHealthcheck) {
       r.pass(`${svc}: HEALTHCHECK defined`);
     } else {
       r.fail(`${svc}: no HEALTHCHECK instruction`);
@@ -339,7 +350,7 @@ async function main(): Promise<number> {
   for (const svc of SERVICES) {
     const img = images.get(svc);
     if (!img) continue;
-    const sizeMb = await imageSizeMb(img);
+    const sizeMb = metadata.get(svc)!.sizeMb;
     const budget = SIZE_BUDGETS[svc] ?? 0;
     if (sizeMb <= budget) {
       console.log(
@@ -362,6 +373,7 @@ try {
   exitCode = await main();
 } catch (err) {
   console.error(err);
+  r.fail('Image validation could not complete');
   exitCode = 1;
 }
 

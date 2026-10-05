@@ -101,6 +101,7 @@ export function createSandboxRoutes(deps: {
         // Developers can see aggregate infrastructure pressure without
         // learning ids belonging to a project they cannot access.
         runtimeSessions: hasAdminCapability(c) ? snapshot.runtimeSessions : [],
+        placements: hasAdminCapability(c) ? snapshot.placements : [],
       });
     } catch (error) {
       console.warn(
@@ -306,8 +307,13 @@ export function createSandboxRoutes(deps: {
       role: c.get('orgMember').role,
     });
     if (!(await canReadRun(deps.sql, auth, run))) return c.json({ op: null });
+    const nodeId = c.req.query('nodeId');
     return c.json({
-      op: await getAgentNodeSandboxOp(deps.sql, { organizationId, runId }),
+      op: await getAgentNodeSandboxOp(deps.sql, {
+        organizationId,
+        runId,
+        ...(nodeId !== undefined ? { nodeId } : {}),
+      }),
     });
   });
 

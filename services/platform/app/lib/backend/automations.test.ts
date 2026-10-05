@@ -32,6 +32,33 @@ afterEach(() => {
   delete window.__ENV__;
 });
 
+it('separates agent-step transcript cache keys and carries the selector over HTTP', async () => {
+  const fetchSpy = vi
+    .spyOn(window, 'fetch')
+    .mockImplementation(async () =>
+      jsonResponse(200, { op: { execId: 'draft-exec' } }),
+    );
+  const adapter =
+    automationReadAdapters[
+      'sandbox/session_queries_public:getAgentNodeSandboxOp'
+    ];
+  const args = { organizationId: 'org1', runId: 'run/1' };
+  const draft = adapter?.({ ...args, nodeId: 'draft/report' }, {});
+  const review = adapter?.({ ...args, nodeId: 'review_report' }, {});
+  const latest = adapter?.(args, {});
+  expect(draft?.queryKey).not.toEqual(review?.queryKey);
+  expect(draft?.queryKey).not.toEqual(latest?.queryKey);
+  expect(adapter?.({ ...args, nodeId: 123 }, {})).toBeNull();
+  expect(await draft?.queryFn()).toEqual({ execId: 'draft-exec' });
+  expect(fetchSpy.mock.calls[0]?.[0]).toBe(
+    '/api/app/sandbox/agent-node-op?runId=run%2F1&nodeId=draft%2Freport&orgId=org1',
+  );
+  await latest?.queryFn();
+  expect(fetchSpy.mock.calls[1]?.[0]).toBe(
+    '/api/app/sandbox/agent-node-op?runId=run%2F1&orgId=org1',
+  );
+});
+
 it.each([null, 'p1'])(
   'normalizes run project scope %s for continuation pickers',
   async (projectId) => {

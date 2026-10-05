@@ -107,6 +107,8 @@ export interface ProvisionContext extends NativeClientContext {
   stateDirectory?: string;
 }
 export interface InstanceOptions {
+  /** Authenticate an exact already-provisioned identity without reconciling it. */
+  existingOnly?: { userId: string; organizationId: string };
   fetchImpl?: (url: string, init: RequestInit) => Promise<Response>;
   nativeUpdate?: NativeClientUpdate;
   managedClients?: Omit<ManagedClientOptions, 'stateDirectory'>;
@@ -248,7 +250,7 @@ export async function configureInstance(
   let bootstrap:
     | { file: string; intent: z.infer<typeof bootstrapSchema> }
     | undefined;
-  if (input.bootstrap === 'fresh') {
+  if (input.bootstrap === 'fresh' && !options.existingOnly) {
     if (!options.stateDirectory)
       throw preconditionError(
         'Fresh bootstrap requires private managed deployment state.',
@@ -532,7 +534,7 @@ export async function configureInstance(
     // An address migration signs in with the retained account's current
     // address, read backend-locally; a replay after the rename uses the new one.
     let signInEmail = input.email;
-    if (input.migrateEmailFrom) {
+    if (input.migrateEmailFrom && !options.existingOnly) {
       if (
         !options.operatorAddress ||
         !bootstrap?.intent.userId ||
@@ -564,6 +566,7 @@ export async function configureInstance(
     // Local-only migrations must prove the original local account, never create
     // a replacement. Public Entra mode retains native first-boot semantics.
     if (
+      !options.existingOnly &&
       login.status === 401 &&
       (input.ssoEnabled || input.bootstrap === 'fresh')
     ) {
@@ -594,355 +597,420 @@ export async function configureInstance(
     }
     await authenticated(login);
     let verifiedSession = await session(signInEmail);
-    if (
-      bootstrap?.intent.userId &&
-      bootstrap.intent.userId !== verifiedSession.user.id
-    )
-      throw preconditionError(
-        'Fresh bootstrap account differs from its retained identity.',
-      );
-    if (
-      input.migrateEmailFrom &&
-      options.operatorAddress &&
-      bootstrap &&
-      previousEmail &&
-      (signInEmail.toLowerCase() !== declaredEmail ||
-        bootstrap.intent.migratingEmailFrom !== undefined ||
-        bootstrap.intent.email !== declaredEmail)
-    ) {
-      const retained = bootstrap;
-      const unchanged = () => {
-        if (
-          JSON.stringify(readProvisionState(retained.file, bootstrapSchema)) !==
-          JSON.stringify(retained.intent)
-        )
-          throw preconditionError(
-            'Retained bootstrap changed during operator address migration.',
-          );
-      };
-      // Journal before the native write: a run interrupted after the rename
-      // finds the marker, skips the rename and still ends every session.
-      if (retained.intent.migratingEmailFrom === undefined) {
-        unchanged();
-        retained.intent = {
-          ...retained.intent,
-          migratingEmailFrom: previousEmail,
-        };
-        writeProvisionState(retained.file, retained.intent);
-      }
-      await options.operatorAddress.rename({
-        userId: verifiedSession.user.id,
-        email: declaredEmail,
-        migrateEmailFrom: previousEmail,
-        headers: headers(),
-      });
-      // Every session, this one included, has ended.
-      cookies.clear();
-      unchanged();
-      const { migratingEmailFrom: _migrated, ...renamed } = retained.intent;
-      retained.intent = bootstrapSchema.parse({
-        ...renamed,
-        email: declaredEmail,
-      });
-      writeProvisionState(retained.file, retained.intent);
-      await authenticated(
-        await request('/api/auth/sign-in/email', 'POST', {
-          email: input.email,
-          password: input.password,
-        }),
-      );
-      const renamedSession = await session(declaredEmail);
-      if (renamedSession.user.id !== verifiedSession.user.id)
+    if (options.existingOnly) {
+      if (verifiedSession.user.id !== options.existingOnly.userId)
         throw preconditionError(
-          'Administrator identity changed during operator address migration.',
+          'Configuration-only operator differs from the ready deployment.',
         );
-      verifiedSession = renamedSession;
-    }
-    if (bootstrap && !bootstrap.intent.userId) {
-      bootstrap.intent = {
-        ...bootstrap.intent,
-        userId: verifiedSession.user.id,
-      };
-      writeProvisionState(bootstrap.file, bootstrap.intent);
-    }
-    let emailVerification: EmailAttestationProof | undefined;
-    if (input.emailVerification) {
-      if (!options.emailAttestation || !options.stateDirectory)
-        throw preconditionError('Managed email verification is unavailable.');
-      emailVerification = emailAttestationProofSchema.parse(
-        await options.emailAttestation({
-          userId: verifiedSession.user.id,
-          email: input.email,
-          headers: headers(),
-          stateDirectory: options.stateDirectory,
-          ...(input.migrateOriginFrom
-            ? { migrateOriginFrom: input.migrateOriginFrom }
-            : {}),
-          ...(input.migrateEmailFrom
-            ? { migrateEmailFrom: input.migrateEmailFrom }
-            : {}),
-        }),
+      const organizations = z
+        .array(organizationSchema)
+        .max(1000)
+        .parse(
+          await requireJson(
+            await request('/api/auth/organization/list'),
+            'Existing organization lookup',
+          ),
+        );
+      const matches = organizations.filter(
+        (organization) => organization.slug === input.slug,
       );
+      const organization = matches[0];
       if (
-        emailVerification.userId !== verifiedSession.user.id ||
-        emailVerification.email !== input.email.toLowerCase() ||
-        emailVerification.receipt.path !==
-          provisionStatePath(options.stateDirectory, 'email-attestation.json')
+        matches.length !== 1 ||
+        organization?.id !== options.existingOnly.organizationId
       )
         throw preconditionError(
-          'Native email verification differs from the declared operator.',
+          'Configuration-only organization differs from the ready deployment.',
         );
-    }
-    const organizations = z
-      .array(organizationSchema)
-      .max(1000)
-      .safeParse(
+      if (verifiedSession.session.activeOrganizationId !== organization.id) {
         await requireJson(
-          await request('/api/auth/organization/list'),
-          'Organization lookup',
-        ),
-      );
-    if (!organizations.success)
-      throw preconditionError('Unexpected organization response.');
-    const matches = organizations.data.filter(
-      (value) => value.slug === input.slug,
-    );
-    if (matches.length > 1)
-      throw preconditionError('Ambiguous managed organization.');
-    let organization = matches[0];
-    if (!organization) {
-      if (bootstrap?.intent.organizationId)
-        throw preconditionError(
-          'The retained bootstrap organization is missing; no replacement was created.',
+          await request('/api/auth/organization/set-active', 'POST', {
+            organizationId: organization.id,
+          }),
+          'Select existing organization',
         );
-      if (bootstrap?.intent.organizationCreateAttempted)
+        const selected = await session(input.email, organization.id);
+        if (selected.user.id !== options.existingOnly.userId)
+          throw preconditionError(
+            'Configuration-only session identity changed.',
+          );
+      }
+      if (!options.provision)
+        throw preconditionError('Configuration-only callback is missing.');
+      await options.provision({
+        baseUrl: API_URL,
+        origin: input.origin,
+        organization,
+        user: { id: verifiedSession.user.id },
+        request,
+        requireJson,
+        headers,
+        ...(options.stateDirectory
+          ? { stateDirectory: options.stateDirectory }
+          : {}),
+      });
+      result = {
+        organizationId: organization.id,
+        organizationSlug: organization.slug,
+        userId: verifiedSession.user.id,
+        ssoEnabled: input.ssoEnabled,
+        nativeClients: [],
+      };
+    } else {
+      if (
+        bootstrap?.intent.userId &&
+        bootstrap.intent.userId !== verifiedSession.user.id
+      )
         throw preconditionError(
-          'Bootstrap organization creation is uncertain; review its retained intent before retrying.',
+          'Fresh bootstrap account differs from its retained identity.',
         );
-      if (!input.ssoEnabled && input.bootstrap !== 'fresh')
-        throw preconditionError(
-          'Existing managed organization is required for local-only mode.',
+      if (
+        input.migrateEmailFrom &&
+        options.operatorAddress &&
+        bootstrap &&
+        previousEmail &&
+        (signInEmail.toLowerCase() !== declaredEmail ||
+          bootstrap.intent.migratingEmailFrom !== undefined ||
+          bootstrap.intent.email !== declaredEmail)
+      ) {
+        const retained = bootstrap;
+        const unchanged = () => {
+          if (
+            JSON.stringify(
+              readProvisionState(retained.file, bootstrapSchema),
+            ) !== JSON.stringify(retained.intent)
+          )
+            throw preconditionError(
+              'Retained bootstrap changed during operator address migration.',
+            );
+        };
+        // Journal before the native write: a run interrupted after the rename
+        // finds the marker, skips the rename and still ends every session.
+        if (retained.intent.migratingEmailFrom === undefined) {
+          unchanged();
+          retained.intent = {
+            ...retained.intent,
+            migratingEmailFrom: previousEmail,
+          };
+          writeProvisionState(retained.file, retained.intent);
+        }
+        await options.operatorAddress.rename({
+          userId: verifiedSession.user.id,
+          email: declaredEmail,
+          migrateEmailFrom: previousEmail,
+          headers: headers(),
+        });
+        // Every session, this one included, has ended.
+        cookies.clear();
+        unchanged();
+        const { migratingEmailFrom: _migrated, ...renamed } = retained.intent;
+        retained.intent = bootstrapSchema.parse({
+          ...renamed,
+          email: declaredEmail,
+        });
+        writeProvisionState(retained.file, retained.intent);
+        await authenticated(
+          await request('/api/auth/sign-in/email', 'POST', {
+            email: input.email,
+            password: input.password,
+          }),
         );
-      if (bootstrap) {
+        const renamedSession = await session(declaredEmail);
+        if (renamedSession.user.id !== verifiedSession.user.id)
+          throw preconditionError(
+            'Administrator identity changed during operator address migration.',
+          );
+        verifiedSession = renamedSession;
+      }
+      if (bootstrap && !bootstrap.intent.userId) {
         bootstrap.intent = {
           ...bootstrap.intent,
-          organizationCreateAttempted: true,
+          userId: verifiedSession.user.id,
         };
         writeProvisionState(bootstrap.file, bootstrap.intent);
       }
-      const created = organizationSchema.safeParse(
-        await requireJson(
-          await request('/api/auth/organization/create', 'POST', {
-            name: input.name,
-            slug: input.slug,
+      let emailVerification: EmailAttestationProof | undefined;
+      if (input.emailVerification) {
+        if (!options.emailAttestation || !options.stateDirectory)
+          throw preconditionError('Managed email verification is unavailable.');
+        emailVerification = emailAttestationProofSchema.parse(
+          await options.emailAttestation({
+            userId: verifiedSession.user.id,
+            email: input.email,
+            headers: headers(),
+            stateDirectory: options.stateDirectory,
+            ...(input.migrateOriginFrom
+              ? { migrateOriginFrom: input.migrateOriginFrom }
+              : {}),
+            ...(input.migrateEmailFrom
+              ? { migrateEmailFrom: input.migrateEmailFrom }
+              : {}),
           }),
-          'Organization bootstrap',
-        ),
-      );
-      if (!created.success || created.data.slug !== input.slug)
-        throw preconditionError('Unexpected managed organization identity.');
-      organization = created.data;
-    }
-    if (
-      bootstrap?.intent.organizationId &&
-      bootstrap.intent.organizationId !== organization.id
-    )
-      throw preconditionError(
-        'Fresh bootstrap organization differs from its retained identity.',
-      );
-    if (verifiedSession.session.activeOrganizationId !== organization.id) {
-      await requireJson(
-        await request('/api/auth/organization/set-active', 'POST', {
-          organizationId: organization.id,
-        }),
-        'Select managed organization',
-      );
-      const selected = await session(
-        verifiedSession.user.email,
-        organization.id,
-      );
-      if (selected.user.id !== verifiedSession.user.id)
-        throw preconditionError(
-          'Administrator identity changed while selecting the managed organization.',
         );
-    }
-    if (bootstrap && !bootstrap.intent.organizationId) {
-      bootstrap.intent = {
-        ...bootstrap.intent,
-        organizationId: organization.id,
-      };
-      writeProvisionState(bootstrap.file, bootstrap.intent);
-    }
-    let breakGlass: BreakGlassResult | undefined;
-    if (input.breakGlass) {
-      if (!options.breakGlassAccount || !options.stateDirectory)
-        throw preconditionError(
-          'Break-glass administrator provisioning is unavailable.',
-        );
-      const account = breakGlassResultSchema.safeParse(
-        await options.breakGlassAccount({
-          operatorUserId: verifiedSession.user.id,
-          email: input.breakGlass.email,
-          passwordHash: input.breakGlass.passwordHash,
-          headers: headers(),
-          stateDirectory: options.stateDirectory,
-          ...(input.migrateOriginFrom
-            ? { migrateOriginFrom: input.migrateOriginFrom }
-            : {}),
-        }),
-      );
-      if (
-        !account.success ||
-        account.data.email !== input.breakGlass.email.toLowerCase() ||
-        account.data.userId === verifiedSession.user.id
-      )
-        throw preconditionError(
-          'Break-glass administrator differs from the declaration.',
-        );
-      await reconcileBreakGlassMembership(
-        { organization, request, requireJson },
-        account.data.userId,
-      );
-      breakGlass = account.data;
-    }
-    const configPath = `/api/app/sso/config?orgId=${encodeURIComponent(organization.id)}`;
-    if (input.ssoEnabled) {
-      await requireJson(
-        await request(
-          `/api/app/sso/config/oidc?orgId=${encodeURIComponent(organization.id)}`,
-          'PUT',
-          {
-            displayName: 'Microsoft Entra ID',
-            providerId: 'entra-id',
-            issuer: `https://login.microsoftonline.com/${input.tenantId}/v2.0`,
-            clientId: input.clientId,
-            clientSecret: input.clientSecret,
-            scopes: entraScopes,
-            pkce: true,
-            ...provisioning,
-          },
-        ),
-        'Entra SSO configuration',
-      );
-    } else {
-      const connection = connectionSchema.safeParse(
-        await requireJson(
-          await request(configPath),
-          'SSO configuration lookup',
-        ),
-      );
-      if (!connection.success)
-        throw preconditionError('Unexpected SSO configuration response.');
-      const config = connection.data;
-      if (config.otherOrgsEnabled)
-        throw preconditionError(
-          'Only the managed Entra connection may be removed; another organization has SSO.',
-        );
-      if (config.configured) {
         if (
-          config.protocol !== 'oidc' ||
-          config.displayName !== 'Microsoft Entra ID' ||
-          config.oidc?.providerId !== 'entra-id' ||
-          !/^https:\/\/login\.microsoftonline\.com\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/v2\.0$/i.test(
-            config.oidc.issuer,
-          )
+          emailVerification.userId !== verifiedSession.user.id ||
+          emailVerification.email !== input.email.toLowerCase() ||
+          emailVerification.receipt.path !==
+            provisionStatePath(options.stateDirectory, 'email-attestation.json')
         )
           throw preconditionError(
-            'Refusing to remove an unrecognized managed Entra connection.',
+            'Native email verification differs from the declared operator.',
           );
-        await requireJson(
-          await request(configPath, 'DELETE'),
-          'Managed Entra removal',
+      }
+      const organizations = z
+        .array(organizationSchema)
+        .max(1000)
+        .safeParse(
+          await requireJson(
+            await request('/api/auth/organization/list'),
+            'Organization lookup',
+          ),
         );
+      if (!organizations.success)
+        throw preconditionError('Unexpected organization response.');
+      const matches = organizations.data.filter(
+        (value) => value.slug === input.slug,
+      );
+      if (matches.length > 1)
+        throw preconditionError('Ambiguous managed organization.');
+      let organization = matches[0];
+      if (!organization) {
+        if (bootstrap?.intent.organizationId)
+          throw preconditionError(
+            'The retained bootstrap organization is missing; no replacement was created.',
+          );
+        if (bootstrap?.intent.organizationCreateAttempted)
+          throw preconditionError(
+            'Bootstrap organization creation is uncertain; review its retained intent before retrying.',
+          );
+        if (!input.ssoEnabled && input.bootstrap !== 'fresh')
+          throw preconditionError(
+            'Existing managed organization is required for local-only mode.',
+          );
+        if (bootstrap) {
+          bootstrap.intent = {
+            ...bootstrap.intent,
+            organizationCreateAttempted: true,
+          };
+          writeProvisionState(bootstrap.file, bootstrap.intent);
+        }
+        const created = organizationSchema.safeParse(
+          await requireJson(
+            await request('/api/auth/organization/create', 'POST', {
+              name: input.name,
+              slug: input.slug,
+            }),
+            'Organization bootstrap',
+          ),
+        );
+        if (!created.success || created.data.slug !== input.slug)
+          throw preconditionError('Unexpected managed organization identity.');
+        organization = created.data;
       }
-      const after = connectionSchema.safeParse(
-        await requireJson(
-          await request(configPath),
-          'SSO removal verification',
-        ),
-      );
       if (
-        !after.success ||
-        after.data.configured ||
-        after.data.enabled ||
-        after.data.otherOrgsEnabled
-      )
-        throw preconditionError('Managed Entra connection remains configured.');
-    }
-    const status = z
-      .object({ enabled: z.boolean(), multiple: z.boolean().optional() })
-      .safeParse(
-        await requireJson(
-          await request('/api/app/sso/discovery/configured'),
-          'SSO discovery',
-        ),
-      );
-    if (
-      !status.success ||
-      (input.ssoEnabled
-        ? !status.data.enabled || status.data.multiple !== false
-        : status.data.enabled)
-    )
-      throw preconditionError(
-        'SSO discovery does not match the destination policy.',
-      );
-    const context: ProvisionContext = {
-      baseUrl: API_URL,
-      origin: input.origin,
-      ...(input.migrateOriginFrom
-        ? { migrateOriginFrom: input.migrateOriginFrom }
-        : {}),
-      organization,
-      user: { id: verifiedSession.user.id },
-      request,
-      requireJson,
-      headers,
-      ...(options.stateDirectory
-        ? { stateDirectory: options.stateDirectory }
-        : {}),
-    };
-    const nativeClients = await reconcileNativeClients(
-      context,
-      input.nativeClients,
-      options.nativeUpdate,
-      { ...options.managedClients, stateDirectory: options.stateDirectory },
-    );
-    if (options.provision) {
-      try {
-        await options.provision(context);
-      } catch {
-        throw externalDepError('Native configuration provisioning failed.');
-      }
-    }
-    result = {
-      organizationId: organization.id,
-      organizationSlug: organization.slug,
-      userId: verifiedSession.user.id,
-      ssoEnabled: input.ssoEnabled,
-      nativeClients,
-      ...(emailVerification ? { emailVerification } : {}),
-      ...(breakGlass ? { breakGlass } : {}),
-    };
-    if (
-      bootstrap &&
-      (bootstrap.intent.phase !== 'ready' ||
-        bootstrap.intent.origin !== input.origin)
-    ) {
-      if (
-        input.migrateOriginFrom &&
-        JSON.stringify(readProvisionState(bootstrap.file, bootstrapSchema)) !==
-          JSON.stringify(bootstrap.intent)
+        bootstrap?.intent.organizationId &&
+        bootstrap.intent.organizationId !== organization.id
       )
         throw preconditionError(
-          'Retained bootstrap changed during origin migration.',
+          'Fresh bootstrap organization differs from its retained identity.',
         );
-      writeProvisionState(bootstrap.file, {
-        ...bootstrap.intent,
+      if (verifiedSession.session.activeOrganizationId !== organization.id) {
+        await requireJson(
+          await request('/api/auth/organization/set-active', 'POST', {
+            organizationId: organization.id,
+          }),
+          'Select managed organization',
+        );
+        const selected = await session(
+          verifiedSession.user.email,
+          organization.id,
+        );
+        if (selected.user.id !== verifiedSession.user.id)
+          throw preconditionError(
+            'Administrator identity changed while selecting the managed organization.',
+          );
+      }
+      if (bootstrap && !bootstrap.intent.organizationId) {
+        bootstrap.intent = {
+          ...bootstrap.intent,
+          organizationId: organization.id,
+        };
+        writeProvisionState(bootstrap.file, bootstrap.intent);
+      }
+      let breakGlass: BreakGlassResult | undefined;
+      if (input.breakGlass) {
+        if (!options.breakGlassAccount || !options.stateDirectory)
+          throw preconditionError(
+            'Break-glass administrator provisioning is unavailable.',
+          );
+        const account = breakGlassResultSchema.safeParse(
+          await options.breakGlassAccount({
+            operatorUserId: verifiedSession.user.id,
+            email: input.breakGlass.email,
+            passwordHash: input.breakGlass.passwordHash,
+            headers: headers(),
+            stateDirectory: options.stateDirectory,
+            ...(input.migrateOriginFrom
+              ? { migrateOriginFrom: input.migrateOriginFrom }
+              : {}),
+          }),
+        );
+        if (
+          !account.success ||
+          account.data.email !== input.breakGlass.email.toLowerCase() ||
+          account.data.userId === verifiedSession.user.id
+        )
+          throw preconditionError(
+            'Break-glass administrator differs from the declaration.',
+          );
+        await reconcileBreakGlassMembership(
+          { organization, request, requireJson },
+          account.data.userId,
+        );
+        breakGlass = account.data;
+      }
+      const configPath = `/api/app/sso/config?orgId=${encodeURIComponent(organization.id)}`;
+      if (input.ssoEnabled) {
+        await requireJson(
+          await request(
+            `/api/app/sso/config/oidc?orgId=${encodeURIComponent(organization.id)}`,
+            'PUT',
+            {
+              displayName: 'Microsoft Entra ID',
+              providerId: 'entra-id',
+              issuer: `https://login.microsoftonline.com/${input.tenantId}/v2.0`,
+              clientId: input.clientId,
+              clientSecret: input.clientSecret,
+              scopes: entraScopes,
+              pkce: true,
+              ...provisioning,
+            },
+          ),
+          'Entra SSO configuration',
+        );
+      } else {
+        const connection = connectionSchema.safeParse(
+          await requireJson(
+            await request(configPath),
+            'SSO configuration lookup',
+          ),
+        );
+        if (!connection.success)
+          throw preconditionError('Unexpected SSO configuration response.');
+        const config = connection.data;
+        if (config.otherOrgsEnabled)
+          throw preconditionError(
+            'Only the managed Entra connection may be removed; another organization has SSO.',
+          );
+        if (config.configured) {
+          if (
+            config.protocol !== 'oidc' ||
+            config.displayName !== 'Microsoft Entra ID' ||
+            config.oidc?.providerId !== 'entra-id' ||
+            !/^https:\/\/login\.microsoftonline\.com\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/v2\.0$/i.test(
+              config.oidc.issuer,
+            )
+          )
+            throw preconditionError(
+              'Refusing to remove an unrecognized managed Entra connection.',
+            );
+          await requireJson(
+            await request(configPath, 'DELETE'),
+            'Managed Entra removal',
+          );
+        }
+        const after = connectionSchema.safeParse(
+          await requireJson(
+            await request(configPath),
+            'SSO removal verification',
+          ),
+        );
+        if (
+          !after.success ||
+          after.data.configured ||
+          after.data.enabled ||
+          after.data.otherOrgsEnabled
+        )
+          throw preconditionError(
+            'Managed Entra connection remains configured.',
+          );
+      }
+      const status = z
+        .object({ enabled: z.boolean(), multiple: z.boolean().optional() })
+        .safeParse(
+          await requireJson(
+            await request('/api/app/sso/discovery/configured'),
+            'SSO discovery',
+          ),
+        );
+      if (
+        !status.success ||
+        (input.ssoEnabled
+          ? !status.data.enabled || status.data.multiple !== false
+          : status.data.enabled)
+      )
+        throw preconditionError(
+          'SSO discovery does not match the destination policy.',
+        );
+      const context: ProvisionContext = {
+        baseUrl: API_URL,
         origin: input.origin,
-        phase: 'ready',
-        userId: result.userId,
-        organizationId: result.organizationId,
-      });
+        ...(input.migrateOriginFrom
+          ? { migrateOriginFrom: input.migrateOriginFrom }
+          : {}),
+        organization,
+        user: { id: verifiedSession.user.id },
+        request,
+        requireJson,
+        headers,
+        ...(options.stateDirectory
+          ? { stateDirectory: options.stateDirectory }
+          : {}),
+      };
+      const nativeClients = await reconcileNativeClients(
+        context,
+        input.nativeClients,
+        options.nativeUpdate,
+        { ...options.managedClients, stateDirectory: options.stateDirectory },
+      );
+      if (options.provision) {
+        try {
+          await options.provision(context);
+        } catch {
+          throw externalDepError('Native configuration provisioning failed.');
+        }
+      }
+      result = {
+        organizationId: organization.id,
+        organizationSlug: organization.slug,
+        userId: verifiedSession.user.id,
+        ssoEnabled: input.ssoEnabled,
+        nativeClients,
+        ...(emailVerification ? { emailVerification } : {}),
+        ...(breakGlass ? { breakGlass } : {}),
+      };
+      if (
+        bootstrap &&
+        (bootstrap.intent.phase !== 'ready' ||
+          bootstrap.intent.origin !== input.origin)
+      ) {
+        if (
+          input.migrateOriginFrom &&
+          JSON.stringify(
+            readProvisionState(bootstrap.file, bootstrapSchema),
+          ) !== JSON.stringify(bootstrap.intent)
+        )
+          throw preconditionError(
+            'Retained bootstrap changed during origin migration.',
+          );
+        writeProvisionState(bootstrap.file, {
+          ...bootstrap.intent,
+          origin: input.origin,
+          phase: 'ready',
+          userId: result.userId,
+          organizationId: result.organizationId,
+        });
+      }
     }
   } catch (error) {
     failure =

@@ -1,6 +1,8 @@
 import { isRecord } from '../../../lib/utils/type-utils.ts';
 import type { AuditLogRow, CreateAuditLogArgs } from './types.ts';
 
+export { redactSensitiveFields } from '../../../lib/shared/audit-redaction.ts';
+
 /**
  * Pure audit-record shaping — redaction, diffing, the STORED-form
  * normalization the writer hashes, and the canonical hash input. Ported from
@@ -8,80 +10,6 @@ import type { AuditLogRow, CreateAuditLogArgs } from './types.ts';
  * ALGORITHM itself is reused unported from `convex/lib/helpers/audit_hash.ts`
  * so 0.4 chains stay verifiable after the cutover data import.
  */
-
-const SENSITIVE_FIELDS = new Set([
-  'password',
-  'passwordHash',
-  'secret',
-  'apiKey',
-  'apiSecret',
-  'token',
-  'accessToken',
-  'refreshToken',
-  'privateKey',
-  'clientSecret',
-  'credentials',
-  'authorization',
-  'auth',
-  'bearer',
-  'jwt',
-  'sessionToken',
-  'cookieValue',
-  'oauthToken',
-  'encryptionKey',
-  'decryptionKey',
-  'symmetricKey',
-  'asymmetricKey',
-  'salt',
-  'iv',
-  'nonce',
-  'hmac',
-  'signature',
-  'totpcode',
-  'totpsecret',
-  'backupcode',
-  'backupcodes',
-]);
-
-const REDACTED_VALUE = '[REDACTED]';
-
-function isSensitiveKey(key: string): boolean {
-  const lowerKey = key.toLowerCase();
-  return (
-    SENSITIVE_FIELDS.has(lowerKey) ||
-    lowerKey.includes('password') ||
-    lowerKey.includes('secret') ||
-    lowerKey.includes('token') ||
-    lowerKey.includes('apikey') ||
-    lowerKey.includes('api_key') ||
-    lowerKey.includes('credential') ||
-    lowerKey.includes('totp') ||
-    lowerKey.includes('backupcode')
-  );
-}
-
-export function redactSensitiveFields(
-  obj: Record<string, unknown> | undefined,
-): Record<string, unknown> | undefined {
-  if (!obj || typeof obj !== 'object') {
-    return obj;
-  }
-  const redacted: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(obj)) {
-    if (isSensitiveKey(key)) {
-      redacted[key] = REDACTED_VALUE;
-    } else if (isRecord(value)) {
-      redacted[key] = redactSensitiveFields(value);
-    } else if (Array.isArray(value)) {
-      redacted[key] = value.map((item) =>
-        isRecord(item) ? redactSensitiveFields(item) : item,
-      );
-    } else {
-      redacted[key] = value;
-    }
-  }
-  return redacted;
-}
 
 function stableStringify(value: unknown): string {
   if (isRecord(value)) {

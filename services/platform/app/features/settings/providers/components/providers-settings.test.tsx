@@ -1,14 +1,20 @@
 import { pickFilterOption } from '@tale/ui/testing/filters';
 import { useState, type ReactNode } from 'react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   SettingsHeaderActionsSetter,
   type SettingsHeaderAction,
 } from '@/app/features/settings/components/settings-secondary-action-context';
+import { i18n } from '@/lib/i18n/i18n';
 import { AppError } from '@/lib/shared/errors/app-error';
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { render, screen, waitFor, within } from '@/tests/utils/render';
+import {
+  SHIPPED_LOCALES,
+  saveLocale,
+  forgetSavedLocale,
+} from '@/tests/utils/lapsed-session';
+import { cleanup, render, screen, waitFor, within } from '@/tests/utils/render';
 
 import type { ProviderCatalog, MaskedCredential } from '../hooks/queries';
 import { ProvidersSettings } from './providers-settings';
@@ -31,6 +37,8 @@ const setDefaultCredential = vi.hoisted(() => vi.fn());
 const refreshCatalogs = vi.hoisted(() => vi.fn());
 const checkCatalog = vi.hoisted(() => vi.fn());
 const toastSpy = vi.hoisted(() => vi.fn());
+const urlState = vi.hoisted(() => ({ provider: null as string | null }));
+const setUrlState = vi.hoisted(() => vi.fn());
 
 const fixtures = vi.hoisted(() => ({
   catalogs: [] as unknown[],
@@ -133,10 +141,15 @@ vi.mock('@/app/hooks/use-url-state', () => {
   const React = require('react') as typeof import('react');
   return {
     useUrlState: () => {
-      const [provider, setProvider] = React.useState<string | null>(null);
+      const [provider, setProvider] = React.useState<string | null>(
+        urlState.provider,
+      );
       return {
         state: { provider },
-        setState: (_key: string, value: string | null) => setProvider(value),
+        setState: (key: string, value: string | null) => {
+          setUrlState(key, value);
+          setProvider(value);
+        },
         setStates: () => {},
         clearState: () => {},
         clearAll: () => {},
@@ -315,6 +328,7 @@ async function rename(
 describe('ProvidersSettings', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    urlState.provider = null;
     abilityState.canRead = true;
     fixtures.catalogs = [anthropicProvider, openrouterProvider];
     fixtures.credentials = [...defaultCredentials];
@@ -376,6 +390,144 @@ describe('ProvidersSettings', () => {
   });
 
   describe('narrowing', () => {
+    describe('localized no-results recovery', () => {
+      afterEach(async () => {
+        cleanup();
+        await forgetSavedLocale();
+      });
+
+      it.each(SHIPPED_LOCALES)(
+        'keeps the filter keyboard-clearable in %s',
+        async (locale) => {
+          saveLocale(locale);
+          await i18n.changeLanguage(locale);
+          urlState.provider = 'openrouter';
+          const { user, container } = renderPage();
+          expect(
+            await screen.findByRole('heading', {
+              name: i18n.t('search.noResults', { ns: 'common' }),
+            }),
+          ).toBeInTheDocument();
+          expect(
+            screen.getByPlaceholderText(
+              i18n.t('credentials.searchPlaceholder', { ns: 'settings' }),
+            ),
+          ).toBeEnabled();
+          const filter = screen.getByRole('button', {
+            name: new RegExp(i18n.t('labels.filter', { ns: 'common' })),
+          });
+          filter.focus();
+          await user.keyboard('{Enter}');
+          const group = screen.getByRole('button', {
+            name: new RegExp(
+              `^${i18n.t('providers.vendorFilterLabel', { ns: 'settings' })}`,
+            ),
+          });
+          group.focus();
+          await user.keyboard('{Enter}');
+          const selected = screen.getByRole('checkbox', { name: 'OpenRouter' });
+          expect(selected).toBeChecked();
+          await checkAccessibility(container);
+          selected.focus();
+          await user.keyboard(' ');
+          await user.keyboard('{Escape}');
+          expect(screen.getByText('Production key')).toBeInTheDocument();
+          expect(setUrlState).toHaveBeenCalledWith('provider', null);
+        },
+      );
+    });
+
+    it.each(['openrouter', 'retired-provider'])(
+      'keeps an unmatched %s deep-link filter reversible',
+      async (provider) => {
+        urlState.provider = provider;
+        const { user, container } = renderPage();
+        expect(
+          await screen.findByRole('heading', { name: 'No results found' }),
+        ).toBeInTheDocument();
+        expect(
+          screen.queryByRole('heading', {
+            name: 'Connect your first AI provider',
+          }),
+        ).not.toBeInTheDocument();
+        expect(screen.getByPlaceholderText('Search credentials')).toBeEnabled();
+        const filter = screen.getByRole('button', { name: /Filter/ });
+        expect(filter).toBeEnabled();
+        await checkAccessibility(container);
+        await user.click(filter);
+        await user.click(screen.getByRole('button', { name: /^Provider/ }));
+        const option = screen.getByRole('checkbox', {
+          name: provider === 'openrouter' ? 'OpenRouter' : provider,
+        });
+        expect(option).toBeChecked();
+        await user.click(option);
+        await user.keyboard('{Escape}');
+        expect(screen.getByText('Production key')).toBeInTheDocument();
+        expect(setUrlState).toHaveBeenCalledWith('provider', null);
+      },
+    );
+
+    it('keeps a matching single-provider deep link clearable', async () => {
+      urlState.provider = 'anthropic';
+      const { user } = renderPage();
+      await user.click(await screen.findByRole('button', { name: /Filter/ }));
+      await user.click(
+        within(screen.getByRole('dialog', { name: 'Filters' })).getByRole(
+          'button',
+          { name: 'Clear all' },
+        ),
+      );
+      expect(setUrlState).toHaveBeenCalledWith('provider', null);
+      expect(screen.getByText('Production key')).toBeInTheDocument();
+    });
+
+    it('keeps the active facet after deleting its last credential', async () => {
+      const routerCredential = credential({
+        id: 'router',
+        name: 'Router key',
+        providerSlug: 'openrouter',
+        isDefault: true,
+      });
+      fixtures.credentials = [...defaultCredentials, routerCredential];
+      const { user, rerender } = renderPage();
+      await pickFilterOption(user, 'Provider', 'OpenRouter');
+      await user.keyboard('{Escape}');
+      await user.click(
+        screen.getByRole('button', { name: 'Actions for Router key' }),
+      );
+      await user.click(
+        within(await screen.findByRole('menu')).getByRole('menuitem', {
+          name: 'Delete',
+        }),
+      );
+      const dialog = within(
+        await screen.findByRole('dialog', { name: 'Delete credential' }),
+      );
+      await user.click(dialog.getByRole('button', { name: /Delete/ }));
+      expect(deleteCredential).toHaveBeenCalledWith({
+        organizationId: 'org-1',
+        credentialId: 'router',
+      });
+      fixtures.credentials = [...defaultCredentials];
+      rerender(
+        <WithHeaderSlot>
+          <ProvidersSettings organizationId="org-1" />
+        </WithHeaderSlot>,
+      );
+      expect(
+        await screen.findByRole('heading', { name: 'No results found' }),
+      ).toBeInTheDocument();
+      expect(screen.getByPlaceholderText('Search credentials')).toBeEnabled();
+      await user.click(screen.getByRole('button', { name: /Filter/ }));
+      await user.click(
+        within(screen.getByRole('dialog', { name: 'Filters' })).getByRole(
+          'button',
+          { name: 'Clear all' },
+        ),
+      );
+      expect(screen.getByText('Production key')).toBeInTheDocument();
+    });
+
     it('finds a credential by the provider it authenticates', async () => {
       fixtures.credentials = [
         ...defaultCredentials,
@@ -1094,6 +1246,50 @@ describe('ProvidersSettings', () => {
       await user.click(dialog.getByRole('button', { name: 'Save' }));
       expect(await dialog.findByRole('alert')).toHaveTextContent(
         'The provider changed since it was loaded. Reopen the dialog and try again.',
+      );
+    });
+
+    it('shows back in manual entry the model ids Save sends after discovery removed one', async () => {
+      fixtures.catalogs = [
+        anthropicProvider,
+        { ...customVendor, catalogSource: 'none', models: [] },
+      ];
+      fixtures.credentials = [
+        { ...customCredential, modelAllowlist: ['alpha', 'beta'] },
+      ];
+      updateCredential.mockResolvedValue(null);
+      const { user } = renderPage();
+      await user.click(
+        screen.getByRole('button', { name: 'Actions for Qwen CN' }),
+      );
+      await user.click(
+        within(await screen.findByRole('menu')).getByRole('menuitem', {
+          name: 'Edit credential',
+        }),
+      );
+      const dialog = within(
+        await screen.findByRole('dialog', { name: 'Edit credential' }),
+      );
+      const ids = () =>
+        dialog.getByRole('textbox', { name: /^Model allowlist/ });
+      expect(ids()).toHaveValue('alpha, beta');
+
+      await user.click(
+        dialog.getByRole('radio', { name: /Discover from the endpoint/ }),
+      );
+      await user.click(dialog.getByRole('button', { name: 'Remove alpha' }));
+      await user.click(dialog.getByRole('radio', { name: /Enter model IDs/ }));
+      // The field says what the Save below sends, not what it opened with.
+      expect(ids()).toHaveValue('beta');
+
+      await user.click(dialog.getByRole('button', { name: 'Save' }));
+      await waitFor(() =>
+        expect(updateCredential).toHaveBeenCalledWith(
+          expect.objectContaining({
+            modelAllowlist: ['beta'],
+            customProvider: expect.objectContaining({ catalogSource: 'none' }),
+          }),
+        ),
       );
     });
   });

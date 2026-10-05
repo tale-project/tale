@@ -156,6 +156,9 @@ analytics:
     emptyVoiceModels:
       title: Aucune utilisation vocale
       description: Aucune synthèse TTS n'a été enregistrée pour la période sélectionnée.
+    errors:
+      loadFailed: Impossible de charger les métriques d'utilisation.
+      refreshFailed: Impossible d'actualiser les métriques d'utilisation. Les chiffres affichés ne sont peut-être plus à jour.
   feedback:
     title: Métriques des retours
     description:
@@ -245,6 +248,8 @@ analytics:
       emptyTitle: Aucun retour sur cette période
       emptyDescription: Ajuste la période ou les filtres pour en voir davantage.
       noComment: (aucun commentaire)
+      loadingComment: Chargement du commentaire complet…
+      commentLoadFailed: Impossible de charger le commentaire complet.
       helpfulAria: Utile
       notHelpfulAria: Pas utile
       types:
@@ -924,6 +929,7 @@ automations:
     heading: 'Exécution de {automation}'
     empty: Cette automatisation ne s’est encore jamais exécutée.
     loading: Chargement de l’exécution…
+    loadFailed: Impossible de charger cette exécution.
     # Pendant que la plateforme retente d’elle-même l’étape agent échouée —
     # pour distinguer sa relance de la tienne.
     autoRetrying: 'Tentative automatique {n} sur {max}'
@@ -1666,6 +1672,7 @@ common:
     rowError: 'Ligne {row} : {message}'
     moreRows: '… et {count} de plus'
     tooManyRows: Ce fichier contient {count} lignes à importer, et Tale en importe au plus {max} à la fois. Divise-le en fichiers plus petits et importe-les un par un.
+    unpairedQuotes: 'Les guillemets de cette ligne ne vont pas par paires. Entoure chaque cellule d''une seule paire de guillemets et double un guillemet à l''intérieur ("").'
     fields:
       name: Nom
       price: Prix
@@ -2788,6 +2795,9 @@ emptyStates:
     description: Génère une clé pour connecter des outils et scripts externes.
     descriptionNoCreate: Créer une clé demande le rôle Propriétaire, Admin ou Développeur, ou une compétence qu’un admin attribue pour cela.
 governance:
+  policyReadFailed: "Impossible de charger la politique enregistrée. La modification sera disponible après un chargement réussi."
+  policyReadRetry: Réessayer
+  policyReadRetrying: Rechargement de la politique en cours
   title: Gouvernance
   toastSavedTitle: Modifications enregistrées
   toastSaveFailedTitle: Échec de l'enregistrement des modifications
@@ -3946,6 +3956,8 @@ governance:
     emptyTitle: La corbeille est vide
     entityLabelOne: enregistrement
     entityLabel: enregistrements
+    refreshFailed: Impossible de charger les derniers enregistrements. La liste est peut-être incomplète ou obsolète.
+    loadFailed: Impossible de charger les enregistrements de la corbeille.
   legalHold:
     targetTypes:
       thread: Thread
@@ -4051,6 +4063,7 @@ governance:
         userPickerLabel: Utilisateur
         userPickerPlaceholder: Recherche par nom ou email
         userPickerEmpty: Aucun utilisateur correspondant.
+        userPickerFailed: Impossible de charger les utilisateurs.
         orgWarning: Les conservations à l'échelle de l'organisation gèlent TOUTE
           rétention pour chaque entité de ce tenant. C'est une action délibérée,
           enregistrée dans l'audit — vérifie le contexte du dossier avant de
@@ -4063,6 +4076,7 @@ governance:
         reasonPlaceholder: 'ex. Hold litige Acme c. Co. (dossier #2026-04)'
         matterLabel: Dossier
         matterPlaceholder: Choisir ou créer un dossier
+        matterPickerFailed: Impossible de charger les dossiers.
         matterCreateNew: Créer un nouveau dossier…
         submit: Placer la conservation
       requestRelease:
@@ -5478,6 +5492,7 @@ skills:
       bundle.
     refused: Ton organisation réserve le partage avec tout le monde, et tu n'as
       pas le droit de publier. Partage plutôt ce skill avec tes équipes.
+    exists: Un skill portant ce nom existe déjà. Aucune modification n’a été effectuée.
   addMenu:
     label: Ajouter un skill
   createMenu:
@@ -5714,6 +5729,8 @@ settings:
       description: "Les équipes déterminent quels documents d'équipe, projets et files de la boîte de réception tu vois. Les admins les gèrent dans Paramètres › Équipes."
       none: "Tu n'es encore dans aucune équipe. Tu vois tout ce qui est partagé avec toute l'organisation."
       manageLink: Gérer les équipes
+      loadFailed: Impossible de charger tes équipes.
+      refreshFailed: Impossible d’actualiser tes équipes. L’affichage n’est peut-être plus à jour.
     security:
       title: Mot de passe
       description: Connecte-toi avec ton adresse e-mail et un mot de passe.
@@ -6260,6 +6277,9 @@ settings:
       save: Enregistrer les origines
       saved: Paramètres d’intégration enregistrés
       saveFailed: Impossible d’enregistrer les paramètres d’intégration
+      unavailable: Indisponible
+      readFailed: Impossible de charger les paramètres d’intégration. Réessaie.
+      retry: Réessayer
       sameSiteNote:
         Un cadre ne reçoit la session connectée que si la page englobante est
         sur le même site que Tale, par exemple un sous-domaine de l’hôte ou Tale servi
@@ -6627,6 +6647,7 @@ settings:
     yourApiKey: Ta clé API
     keyRevoked: Clé API révoquée
     keyRevokeFailed: Échec de la révocation de la clé API
+    keyCreateFailed: Échec de la création de la clé API
     revokeKey: Révoquer la clé
     revokeKeyTitle: Révoquer la clé API
     revokeConfirmation: Es-tu sûr de vouloir révoquer la clé API « {keyName} » ?
@@ -7460,6 +7481,8 @@ projectSecrets:
     PROJECT_FORBIDDEN: Tu n'as pas accès aux secrets de ce projet. Seuls les
       administrateurs du projet peuvent les consulter ou les gérer.
     PROJECT_NOT_FOUND: Ce projet n'existe plus.
+    loadFailed: "Impossible de charger les secrets de ce projet."
+    refreshFailed: "Impossible d'actualiser les secrets de ce projet. L'affichage n'est peut-être plus à jour."
 tasks:
   sourceIssue:
     heading: 'Issue {provider}'
@@ -7545,6 +7568,7 @@ tasks:
     notStartedYet: L’agent attend que tu le démarres.
     failureTitle: L’agent n’a pas pu terminer cette tâche
     reported: Ce que l’exécution a signalé
+    logReadFailed: Le journal de l’agent n’a pas pu être chargé. Réessaie.
     failure:
       budget: Une limite d’utilisation a arrêté cette exécution. Demande à un admin de la relever, puis relance l’agent.
       setup: Il manque quelque chose à cet agent — son modèle, l’un de ses skills ou l’agent lui-même. Un éditeur ou un admin peut corriger cela dans l’onglet Agents du projet.
@@ -7729,6 +7753,7 @@ tasks:
   detail:
     overview: Aperçu
     comments: Commentaires
+    commentCount: '{count, plural, one {# commentaire} other {# commentaires}}'
     noComments: Aucun commentaire pour le moment.
     conversation: Conversation
     conversationEmpty: Aucun commentaire pour le moment — lance la conversation ci-dessous.
@@ -8118,6 +8143,7 @@ twoFactor:
     unnamed: Passkey
     registered: Passkey enregistré
     revoked: Passkey supprimé
+    empty: Tu n'as pas encore ajouté de passkey.
     namePromptDescription:
       Donne un nom à ce passkey pour le reconnaître plus tard
       (p. ex. "Touch ID du MacBook").
@@ -8131,6 +8157,8 @@ twoFactor:
     errors:
       registerFailed: Impossible d'enregistrer le passkey. Réessaie.
       revokeFailed: Impossible de supprimer le passkey. Réessaie.
+      listFailed: Impossible de charger tes passkeys.
+      refreshFailed: Impossible d'actualiser tes passkeys. La liste affichée n'est peut-être plus à jour.
   setup:
     title: Configurer l'authentification à double facteur
     qrInstructions: Scanne le code QR avec une application d'authentification
@@ -8793,6 +8821,7 @@ projects:
   sharing:
     effectiveAudience: Audience effective
     noTeamsHint: Aucune équipe pour l'instant.
+    teamsLoadError: Impossible de charger les équipes.
     noTeamsCreateLink: Créer une équipe
 webdav:
   description: Monte les documents Tale comme lecteur réseau dans Finder, File

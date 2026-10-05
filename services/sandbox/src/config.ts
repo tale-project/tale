@@ -2,7 +2,7 @@
 // every knob is overridable so an operator can tune without rebuilding.
 
 import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { dirname, isAbsolute, join } from 'node:path';
 
 import { parse as parseYaml } from 'yaml';
 
@@ -231,6 +231,21 @@ function dockerWorkloadsEnv(): readonly ('project' | 'workflow')[] | undefined {
 }
 
 export function loadConfig(): SpawnerConfig {
+  const dockerDataRoot =
+    process.env.SANDBOX_DOCKER_DATA_ROOT?.trim() || undefined;
+  const dockerDataPath =
+    process.env.SANDBOX_DOCKER_DATA_PATH?.trim() ||
+    (dockerDataRoot === undefined
+      ? undefined
+      : '/var/lib/tale-sandbox/docker-data');
+  for (const [name, value] of [
+    ['SANDBOX_DOCKER_DATA_ROOT', dockerDataRoot],
+    ['SANDBOX_DOCKER_DATA_PATH', dockerDataPath],
+  ]) {
+    if (value !== undefined && (!isAbsolute(value) || value.includes('\0'))) {
+      throw new Error(`${name} must be an absolute path`);
+    }
+  }
   // Runtime tier (default 'runc'). The deployment config (deployment.json,
   // operator's higher-level source of truth) overrides SANDBOX_RUNTIME when set;
   // 'runsc' is accepted as a back-compat alias for the 'gvisor' tier. The tier
@@ -469,6 +484,8 @@ export function loadConfig(): SpawnerConfig {
 
   return {
     backend,
+    ...(dockerDataRoot !== undefined ? { dockerDataRoot } : {}),
+    ...(dockerDataPath !== undefined ? { dockerDataPath } : {}),
     instance,
     hub,
     deviceConfigPath,
@@ -513,6 +530,11 @@ export function loadConfig(): SpawnerConfig {
     buildkitdMirrorImage:
       process.env.SANDBOX_BUILDKITD_MIRROR_IMAGE ?? 'registry:2',
     ...(buildkitdCpus !== undefined ? { buildkitdCpus } : {}),
+    buildkitdProvisionTimeoutMs: numEnv(
+      'SANDBOX_BUILDKITD_PROVISION_TIMEOUT_MS',
+      5_000,
+      { min: 100, max: 60_000 },
+    ),
     ...(buildkitdMemoryBytes !== undefined ? { buildkitdMemoryBytes } : {}),
     ...(buildkitdCacheRetentionMs !== undefined
       ? { buildkitdCacheRetentionMs }

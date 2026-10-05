@@ -73,6 +73,7 @@ import {
   hashVirtualKey,
   resolveGatewayRouting,
 } from '../node_only/sandbox/llm_gateway_admin';
+import { stageBlobCacheKey } from '../node_only/sandbox/managed_stage';
 import {
   harvestSessionOutput,
   type HarvestSkippedOutput,
@@ -343,7 +344,7 @@ async function stageTaskInputs(
       toStage.push({
         path,
         url,
-        sourceId: `${args.organizationId}:${file.fileId}`,
+        sourceId: stageBlobCacheKey(args.organizationId, file.fileId),
       });
       planned.set(path, {
         kind,

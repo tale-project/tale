@@ -28,6 +28,7 @@ import {
   NeedsReviewIndicator,
   RepeatIndicator,
   SubtaskProgress,
+  useTaskCardStateLabels,
 } from './task-indicators';
 import { TaskLabelBadge, TaskLabelOverflow } from './task-label-badge';
 import { TaskTitleButton } from './task-title-button';
@@ -64,6 +65,7 @@ export function TaskCard({
   canWorkTask?: (task: TaskRow) => boolean;
 }) {
   const { t } = useT('tasks');
+  const stateLabels = useTaskCardStateLabels();
   const resolvedProjectKey = task.projectKey ?? projectKey;
   const identifier = formatTaskIdentifier(resolvedProjectKey, task.number);
   const assignTask = useAssignTask();
@@ -95,6 +97,16 @@ export function TaskCard({
           reviewer.kind === 'user' ? reviewer.userId : reviewer.agentId,
         ).name
       : undefined;
+
+  const stateDescription = [
+    blocked && stateLabels.blocked,
+    needsReview(task._id) && stateLabels.review(reviewerName, reviewerIsMe),
+    task.commentCount != null &&
+      task.commentCount > 0 &&
+      stateLabels.comments(task.commentCount),
+  ]
+    .filter(Boolean)
+    .join('. ');
 
   // The subtask glyph names its parent ("Part of TAL-2") — fall back to the
   // parent's title, then a generic label, when the id/parent isn't resolvable.
@@ -169,6 +181,7 @@ export function TaskCard({
           title={task.title}
           sortable={sortable}
           draggable={editable}
+          description={stateDescription}
           onOpen={() => onOpen?.(task)}
           className="text-foreground line-clamp-2 w-full text-left text-sm leading-snug font-medium"
         />
@@ -200,7 +213,11 @@ export function TaskCard({
             />
             {task.parentTaskId && (
               <Tooltip content={parentLabel}>
-                <span className="inline-flex" aria-label={parentLabel}>
+                <span
+                  className="inline-flex"
+                  role="img"
+                  aria-label={parentLabel}
+                >
                   <GitBranch
                     className="text-muted-foreground size-3.5"
                     aria-hidden="true"

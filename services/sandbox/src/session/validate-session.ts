@@ -99,12 +99,14 @@ export function validateCreateSession(
         rawProfile,
       ))
   ) {
-    return { ok: false, error: 'profile must be default|agent' };
+    return { ok: false, error: 'profile must be default|agent|agent-light' };
   }
   // Narrow to the union without an assertion (only 'agent' | 'default' reach
   // here after the guard above).
   const profile: SandboxSessionProfile =
-    rawProfile === 'agent' ? 'agent' : 'default';
+    rawProfile === 'agent' || rawProfile === 'agent-light'
+      ? rawProfile
+      : 'default';
   if (raw.docker !== undefined && typeof raw.docker !== 'boolean') {
     return { ok: false, error: 'docker must be a boolean' };
   }

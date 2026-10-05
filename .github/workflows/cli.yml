@@ -16,24 +16,50 @@ on:
       - main
     paths:
       - 'tools/cli/**'
-      - 'services/platform/backend/core/automations/pack_zip.ts'
-      - 'services/platform/backend/core/skills/bundle_zip.ts'
+      - 'services/platform/backend/core/**'
+      - 'services/platform/backend/auth/membership.ts'
+      - 'services/platform/backend/auth/oidc.ts'
+      - 'services/platform/backend/db/sql.ts'
+      - 'services/platform/backend/db/ssl.ts'
+      - 'services/platform/backend/domains/audit_logs/**'
+      - 'services/platform/backend/domains/sandbox/retirement-schedule.ts'
+      - 'services/platform/backend/domains/two_factor/service.ts'
+      - 'services/platform/backend/jobs/enqueue.ts'
+      - 'services/platform/backend/jobs/tasks.ts'
+      - 'services/platform/backend/lib/org-config.ts'
       - 'services/platform/lib/**'
-      - 'configs/platform/system/connectors/**'
+      - 'configs/platform/**'
       - 'packages/shared/**'
       - 'bun.lock'
+      - 'package.json'
+      - 'bunfig.toml'
+      - 'patches/**'
+      - 'tsconfig*.json'
       - 'scripts/install-cli.*'
       - '.github/workflows/cli.yml'
       - '.github/actions/setup-cli/**'
   pull_request:
     paths:
       - 'tools/cli/**'
-      - 'services/platform/backend/core/automations/pack_zip.ts'
-      - 'services/platform/backend/core/skills/bundle_zip.ts'
+      - 'services/platform/backend/core/**'
+      - 'services/platform/backend/auth/membership.ts'
+      - 'services/platform/backend/auth/oidc.ts'
+      - 'services/platform/backend/db/sql.ts'
+      - 'services/platform/backend/db/ssl.ts'
+      - 'services/platform/backend/domains/audit_logs/**'
+      - 'services/platform/backend/domains/sandbox/retirement-schedule.ts'
+      - 'services/platform/backend/domains/two_factor/service.ts'
+      - 'services/platform/backend/jobs/enqueue.ts'
+      - 'services/platform/backend/jobs/tasks.ts'
+      - 'services/platform/backend/lib/org-config.ts'
       - 'services/platform/lib/**'
-      - 'configs/platform/system/connectors/**'
+      - 'configs/platform/**'
       - 'packages/shared/**'
       - 'bun.lock'
+      - 'package.json'
+      - 'bunfig.toml'
+      - 'patches/**'
+      - 'tsconfig*.json'
       - 'scripts/install-cli.*'
       - '.github/workflows/cli.yml'
       - '.github/actions/setup-cli/**'
@@ -46,7 +72,10 @@ concurrency:
   cancel-in-progress: ${{ github.event_name != 'repository_dispatch' && github.event_name != 'workflow_dispatch' }}
 
 jobs:
+  # Only candidates need remote source validation; ordinary jobs keep their event SHA.
   candidate-source:
+    if: >-
+      github.event_name == 'repository_dispatch'
     name: Candidate source
     uses: ./.github/workflows/release-candidate-source.yml
     permissions:
@@ -59,6 +88,12 @@ jobs:
   # Resolve the version string for the build matrix.
   # ---------------------------------------------------------------------------
   prepare:
+    if: >-
+      !cancelled() &&
+      (((github.event_name == 'repository_dispatch') &&
+      needs.candidate-source.result == 'success') ||
+      ((github.event_name != 'repository_dispatch') &&
+      needs.candidate-source.result == 'skipped'))
     needs: candidate-source
     name: Prepare
     runs-on: ubuntu-latest
@@ -111,6 +146,13 @@ jobs:
   # All platforms run on GitHub-hosted runners (free for public repos).
   # ---------------------------------------------------------------------------
   build:
+    if: >-
+      !cancelled() &&
+      (((github.event_name == 'repository_dispatch') &&
+      needs.candidate-source.result == 'success') ||
+      ((github.event_name != 'repository_dispatch') &&
+      needs.candidate-source.result == 'skipped')) &&
+      needs.prepare.result == 'success'
     name: Build (${{ matrix.platform }})
     needs: [candidate-source, prepare]
     runs-on: ${{ matrix.os }}
@@ -146,7 +188,9 @@ jobs:
             cross: true
           - os: windows-latest
             platform: windows
-            build_script: build:windows
+            # "Generate embedded files" captures the clean checkout before version
+            # injection changes package.json. Compile those exact sources.
+            build_script: build:windows:compile
             binary: tale.exe
             artifact: tale_windows.exe
 
@@ -161,6 +205,7 @@ jobs:
           # A manual release dispatch may be started from another branch.
           # Prepare resolves that tag once; every binary builds its exact commit.
           ref: ${{ needs.candidate-source.outputs.candidate_sha || needs.prepare.outputs.source_sha || github.sha }}
+          persist-credentials: false
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
@@ -171,17 +216,41 @@ jobs:
           # keep the "Verify macOS code signature" step below.
           bun-version: '1.4.2'
 
+      - name: Configure Bun install cache
+        if: matrix.cross
+        run: |
+          # Cross legs only compile the CLI. Keep their smaller dependency
+          # cache separate from the native suites' complete monorepo cache.
+          echo "BUN_INSTALL_CACHE_DIR=${RUNNER_TEMP}/bun-cli-cache" >> "$GITHUB_ENV"
+
       - name: Restore Bun install cache
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        id: bun-cache
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
-          path: ~/.bun/install/cache
-          key: bun-install-${{ runner.os }}-1.4.2-${{ hashFiles('bun.lock') }}
+          path: ${{ matrix.cross && env.BUN_INSTALL_CACHE_DIR || '~/.bun/install/cache' }}
+          key: ${{ matrix.cross && 'bun-cli-install' || 'bun-install' }}-${{ runner.os }}-${{ runner.arch }}-1.4.2-${{ hashFiles('bun.lock', 'package.json', '**/package.json', 'patches/**', 'bunfig.toml') }}
           restore-keys: |
-            bun-install-${{ runner.os }}-1.4.2-
+            ${{ matrix.cross && 'bun-cli-install' || 'bun-install' }}-${{ runner.os }}-${{ runner.arch }}-1.4.2-
 
       - name: Install dependencies
         working-directory: tools/cli
-        run: bun install --frozen-lockfile
+        env:
+          CROSS: ${{ matrix.cross }}
+        run: |
+          if [ "$CROSS" = true ]; then
+            bun install --frozen-lockfile --filter @tale/cli
+          else
+            # Source tests/typecheck import platform modules outside the CLI's
+            # dependency closure, so native legs retain the complete install.
+            bun install --frozen-lockfile
+          fi
+
+      - name: Save installed Bun downloads
+        if: steps.bun-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: ${{ matrix.cross && env.BUN_INSTALL_CACHE_DIR || '~/.bun/install/cache' }}
+          key: ${{ steps.bun-cache.outputs.cache-primary-key }}
 
       - name: Generate embedded files
         working-directory: tools/cli
@@ -189,13 +258,21 @@ jobs:
 
       # Smoke tests in tests/ are discovered too but skip cleanly here —
       # TALE_BINARY is only set after the binary is built.
+      # Cross-compilation rows use the same Linux/macOS hosts as their native
+      # counterparts. Run source tests once per host OS; all binaries still build.
       - name: Run unit tests
+        if: ${{ !matrix.cross }}
         working-directory: tools/cli
+        env:
+          TALE_BINARY: ''
         # The package script carries the per-test budget: the git fixtures
         # spawn git several times per build, and Windows runners stall on
         # git for seconds at a time — bun test's 5 s default killed passing
         # tests mid-commit.
-        run: bun run test
+        # Two isolated file workers overlap I/O on macOS. Windows fixtures
+        # exceeded their 30 s budgets and Linux workers failed to finish
+        # promptly; keep both complete suites serial with the same timeout.
+        run: ${{ matrix.platform == 'macos' && 'bun run test --parallel=2' || 'bun run test' }}
 
       - name: Run type check
         if: matrix.platform == 'linux'
@@ -210,7 +287,38 @@ jobs:
 
       - name: Build binary
         working-directory: tools/cli
-        run: bun run ${{ matrix.build_script }}
+        env:
+          PLATFORM: ${{ matrix.platform }}
+          BUILD_SCRIPT: ${{ matrix.build_script }}
+        run: |
+          if [ "$PLATFORM" = windows ]; then
+            # The trusted workflow may build an older candidate/tag checkout.
+            # Reuse that source's compiler/checker without generating again.
+            bun -e '
+              const file = "package.json";
+              const manifest = await Bun.file(file).json();
+              const scripts = manifest.scripts;
+              const helper = "build:windows:compile";
+              if (!scripts || typeof scripts !== "object" || Array.isArray(scripts))
+                throw new Error("Selected source has no Windows build scripts.");
+              if (Object.hasOwn(scripts, helper)) {
+                if (typeof scripts[helper] !== "string" || !scripts[helper].trim())
+                  throw new Error("Selected source has an invalid Windows compile helper.");
+              } else {
+                const legacy = scripts["build:windows"];
+                const prefix = "bun run generate && ";
+                const compile = "bun build --compile ";
+                if (typeof legacy !== "string" || !legacy.startsWith(prefix))
+                  throw new Error("Selected source has no supported Windows compile entry.");
+                const command = legacy.slice(prefix.length);
+                if (!command.startsWith(compile) || !command.slice(compile.length).trim())
+                  throw new Error("Selected source has no supported Windows compile entry.");
+                scripts[helper] = command;
+                await Bun.write(file, JSON.stringify(manifest, null, 2) + "\n");
+              }
+            '
+          fi
+          bun run "$BUILD_SCRIPT"
 
       - name: Rename binary
         working-directory: tools/cli/dist
@@ -253,8 +361,8 @@ jobs:
         working-directory: tools/cli
         env:
           TALE_BINARY: dist/${{ matrix.artifact }}
-        # Discover the command suites together so newly added CLI commands
-        # cannot be tested only from source while their compiled cases skip.
+        # TALE_BINARY selects the compiled target; the source cases already ran
+        # above. Discover every command suite so new compiled cases cannot skip.
         run: bun run test tests/
 
       - name: Upload artifact
@@ -263,15 +371,27 @@ jobs:
         with:
           name: ${{ matrix.artifact }}
           path: tools/cli/dist/${{ matrix.artifact }}
+          # Fast compression retains the large saving on embedded source and
+          # runtime bytes without the default level's extra CPU work.
+          compression-level: 1
           retention-days: 30
+          if-no-files-found: error
 
   # ---------------------------------------------------------------------------
   # Attach built binaries to the GitHub release (dispatch only).
   # ---------------------------------------------------------------------------
   release:
     name: Attach to release
-    needs: [candidate-source, build]
-    if: ${{ github.event_name == 'workflow_dispatch' }}
+    needs: [candidate-source, prepare, build]
+    if: >-
+      !cancelled() &&
+      (((github.event_name == 'repository_dispatch') &&
+      needs.candidate-source.result == 'success') ||
+      ((github.event_name != 'repository_dispatch') &&
+      needs.candidate-source.result == 'skipped')) &&
+      needs.prepare.result == 'success' &&
+      needs.build.result == 'success' &&
+      (github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -282,6 +402,7 @@ jobs:
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           path: artifacts
+          pattern: '{tale_linux,tale_linux_arm64,tale_macos,tale_macos_x64,tale_windows.exe}'
 
       - name: List artifacts
         run: find artifacts -type f
@@ -291,32 +412,51 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_TAG: ${{ github.event.inputs.release_tag }}
           REPO: ${{ github.repository }}
+          EXPECTED_SOURCE_SHA: ${{ needs.prepare.outputs.source_sha }}
         run: |
           TAG="$RELEASE_TAG"
           MAX_ATTEMPTS=10
           DELAY=15
           for i in $(seq 1 $MAX_ATTEMPTS); do
             if gh release view "$TAG" --repo "$REPO" > /dev/null 2>&1; then
+              CURRENT_SOURCE_SHA=$(gh api "repos/${REPO}/commits/refs%2Ftags%2F${TAG}" --jq .sha)
+              if [ "$CURRENT_SOURCE_SHA" != "$EXPECTED_SOURCE_SHA" ] || [[ ! "$CURRENT_SOURCE_SHA" =~ ^[a-f0-9]{40}$ ]]; then
+                echo '::error::Release tag changed after CLI preparation'; exit 1
+              fi
               echo "Release $TAG found."
               exit 0
             fi
+            if [ "$i" -eq "$MAX_ATTEMPTS" ]; then
+              break
+            fi
             echo "Release $TAG not found yet (attempt $i/$MAX_ATTEMPTS). Waiting ${DELAY}s..."
             sleep $DELAY
-            DELAY=$((DELAY * 2 > 120 ? 120 : DELAY * 2))
+            DELAY=$((DELAY * 2 > 30 ? 30 : DELAY * 2))
           done
           echo "::error::Release $TAG not found after $MAX_ATTEMPTS attempts."
           exit 1
 
       - name: Generate checksums
         run: |
-          # Flatten the per-artifact dirs into one, then emit a single
-          # SHA256SUMS-style file the installers verify the binary against.
-          mkdir -p release
-          cp artifacts/tale_linux/* release/tale_linux
-          cp artifacts/tale_linux_arm64/* release/tale_linux_arm64
-          cp artifacts/tale_macos/* release/tale_macos
-          cp artifacts/tale_macos_x64/* release/tale_macos_x64
-          cp artifacts/tale_windows.exe/* release/tale_windows.exe
+          set -euo pipefail
+          shopt -s nullglob dotglob
+          binaries=(tale_linux tale_linux_arm64 tale_macos tale_macos_x64 tale_windows.exe)
+          directories=(artifacts/*)
+          if [ ! -d artifacts ] || [ -L artifacts ] || [ "${#directories[@]}" -ne "${#binaries[@]}" ]; then
+            echo '::error::Expected exactly five CLI binary artifacts'; exit 1
+          fi
+          # Validate every artifact before creating checksums or copying bytes.
+          for binary in "${binaries[@]}"; do
+            directory="artifacts/$binary"
+            files=("$directory"/*)
+            if [ ! -d "$directory" ] || [ -L "$directory" ] || [ "${#files[@]}" -ne 1 ] || [ "${files[0]:-}" != "$directory/$binary" ] || [ ! -f "$directory/$binary" ] || [ -L "$directory/$binary" ] || [ ! -s "$directory/$binary" ]; then
+              echo "::error::Invalid CLI artifact: $binary"; exit 1
+            fi
+          done
+          mkdir release
+          for binary in "${binaries[@]}"; do
+            cp -- "artifacts/$binary/$binary" "release/$binary"
+          done
           cd release
           sha256sum tale_linux tale_linux_arm64 tale_macos tale_macos_x64 tale_windows.exe > tale_checksums.txt
           cat tale_checksums.txt

@@ -87,6 +87,14 @@ describe('useSaveSkill', () => {
     });
   });
 
+  it('names a create-only refusal without announcing a successful write', () => {
+    const options = optionsOf(() => useSaveSkill());
+    const errorToast = options.errorToast || undefined;
+    expect(errorToast?.description?.(refusal('SKILL_EXISTS'))).toBe(
+      'skills:publishing.exists',
+    );
+  });
+
   it('keeps the generic feedback for any other failure', () => {
     const options = optionsOf(() => useSaveSkill());
     const error = refusal('SKILL_STALE');
