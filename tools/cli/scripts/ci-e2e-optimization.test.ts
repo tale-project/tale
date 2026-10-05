@@ -16,6 +16,7 @@ type Step = {
   'working-directory'?: string;
   env?: Record<string, string>;
   with?: Record<string, unknown>;
+  'continue-on-error'?: boolean;
 };
 type Job = {
   outputs?: Record<string, string>;
@@ -442,7 +443,31 @@ describe('E2E service scheduling', () => {
   );
 });
 
-test('candidate scans retain blocking policies without a second discarded SARIF scan', async () => {
+test('SAST verifies reporting and blocking behavior on its provisioned engine', async () => {
+  const sast = await workflow('sast');
+  const job = sast.jobs.sast;
+  const setup = step(job, 'Setup Bun for scanner regressions');
+  const scan = step(job, 'Run Opengrep');
+  const regression = step(
+    job,
+    'Verify scanner reporting and blocking behavior',
+  );
+  expect(setup.with?.['bun-version']).toBe('1.4.2');
+  expect(setup.if).toBe("hashFiles('tools/opengrep/run.test.ts') != ''");
+  expect(regression.run).toBe('bun test tools/opengrep/run.test.ts');
+  expect(regression.if).toBe(
+    "always() && !cancelled() && hashFiles('tools/opengrep/run.test.ts') != ''",
+  );
+  expect(regression['continue-on-error']).not.toBe(true);
+  expect(job.steps?.indexOf(setup)).toBeLessThan(
+    job.steps?.indexOf(scan) ?? -1,
+  );
+  expect(job.steps?.indexOf(scan)).toBeLessThan(
+    job.steps?.indexOf(regression) ?? -1,
+  );
+});
+
+test('candidate scans retain blocking policies without publishing SARIF', async () => {
   const sast = await workflow('sast');
   const scan = step(sast.jobs.sast, 'Run Opengrep');
   const expression = scan.env?.OPENGREP_SARIF_OUTPUT?.replace(

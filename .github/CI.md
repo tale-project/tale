@@ -158,7 +158,11 @@ and candidates read it. This removes costly PR-local exports and prevents old re
 candidates from replacing main's cache. PR reruns may rebuild layers unique to that PR.
 Ephemeral hosted builders skip teardown. Forks build on the runners that test their
 images and retain builtin catalog validation, without a second unused image matrix.
-Candidate SAST retains its full blocking scan and omits only the unused SARIF pass.
+SAST scans once: normal runs serialize SARIF from the same result while retaining the
+engine's blocking exit status and text diagnostics. Candidates keep the complete blocking
+scan without publishing a report against moving main. A real pinned-engine regression suite
+runs in the same SAST job and checks findings, suppressions, exclusions and fatal errors.
+Writing a requested SARIF report must also succeed; reporting failures fail the scan.
 
 See [the repo contract](../.agents/repo.md#a-green-check-is-not-always-a-run) before
 interpreting a green cached result. Backend integration always executes its strict lanes;
@@ -238,4 +242,4 @@ Type check retains its 6 GiB heap, compiler diagnostics and peak memory evidence
 Turbo check commands print failing logs; the seven-day `turbo-*` artifacts preserve task
 hashes, timings and cache status, including failed jobs. Use `--output-logs=full` to inspect
 replayed logs locally and `--force` for fresh execution. Candidate SAST and dependency scans
-retain their blocking passes while skipping informational SARIF that cannot be published.
+retain their blocking policies while omitting SARIF that cannot be published.

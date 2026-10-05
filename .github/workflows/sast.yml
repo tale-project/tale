@@ -70,13 +70,19 @@ jobs:
           restore-keys: |
             opengrep-${{ runner.os }}-
 
+      - name: Setup Bun for scanner regressions
+        if: hashFiles('tools/opengrep/run.test.ts') != ''
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: '1.4.2'
+
       # The blocking gate: downloads the pinned engine (cached above), runs the
       # vendored ruleset, writes SARIF, and exits non-zero on any finding.
       # Repos without the opengrep port keep this identical file and self-skip.
       - name: Run Opengrep
         env:
-          # Candidates cannot upload against moving main. Avoid the extra full
-          # reporting scan there; the identical blocking scan still always runs.
+          # Candidates cannot upload against moving main. Both modes enforce
+          # the same blocking scan; normal runs also serialize its SARIF.
           OPENGREP_SARIF_OUTPUT: ${{ github.event_name != 'repository_dispatch' && 'opengrep.sarif' || '' }}
         run: |
           if [ ! -f tools/opengrep/run.sh ]; then
@@ -84,6 +90,12 @@ jobs:
             exit 0
           fi
           bash tools/opengrep/run.sh
+
+      # Run against the exact binary provisioned above, including after a
+      # finding. This builtin-only suite needs no workspace dependency install.
+      - name: Verify scanner reporting and blocking behavior
+        if: always() && !cancelled() && hashFiles('tools/opengrep/run.test.ts') != ''
+        run: bun test tools/opengrep/run.test.ts
 
       - name: Upload SARIF
         if: always() && github.event_name != 'repository_dispatch' && hashFiles('opengrep.sarif') != ''
