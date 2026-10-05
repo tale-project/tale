@@ -29,9 +29,9 @@ beforeEach(() => {
   upsert.mockResolvedValue('matter-a');
 });
 
-afterEach(() => {
+afterEach(async () => {
   cleanup();
-  forgetSavedLocale();
+  await forgetSavedLocale();
 });
 
 describe('UpsertMatterDialog API-compatible descriptions', () => {
