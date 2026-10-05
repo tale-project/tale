@@ -363,7 +363,7 @@ describe('storeOauth2Grant', () => {
   });
 });
 
-describe('completeOauth2 — the completer must be the initiator, and still allowed', () => {
+describe('completeOauth2 — the completer must be the initiator, and still allowed [CONN-R7]', () => {
   /** A `sql` whose state consume answers the pending row for `stateHash`
    * (once — a second consume finds nothing, like `DELETE … RETURNING`), and
    * whose membership read answers `roles`. */
@@ -489,7 +489,7 @@ describe('completeOauth2 — the completer must be the initiator, and still allo
     },
   );
 
-  it('refuses a Reconnect whose credential is gone before redeeming the code', async () => {
+  it('refuses a Reconnect whose credential is gone before redeeming the code [CONN-R8]', async () => {
     const state = mintStateToken();
     const sql = sqlWithPending(await hashStateToken(state), 'user-1', {
       reconnectCredentialId: 'cred-gone',
