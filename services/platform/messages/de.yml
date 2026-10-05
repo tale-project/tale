@@ -1877,6 +1877,7 @@ conversations:
       title: Entwurf verwerfen?
       description: Dieser Entwurf wird endgültig verworfen.
     sent: E-Mail gesendet
+    sending: Wird gesendet… Der Entwurf ist gesperrt, bis das Senden abgeschlossen ist.
   updating: Konversationen werden aktualisiert...
   bulk:
     progress: 'Konversationen werden aktualisiert... {settled} von {total}'

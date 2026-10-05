@@ -1888,6 +1888,7 @@ conversations:
         Ce brouillon d'e-mail sera définitivement supprimé. Cette action
         est irréversible.
     sent: E-mail envoyé
+    sending: Envoi en cours… Le brouillon est verrouillé jusqu'à la fin de l'envoi.
   updating: Mise à jour des conversations...
   bulk:
     progress: 'Mise à jour des conversations... {settled} sur {total}'

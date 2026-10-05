@@ -49,6 +49,7 @@ function MilkdownEditorInner({
   placeholder,
   disabled = false,
   sendDisabledReason,
+  sending = false,
   onSave,
   messageId,
   conversationId: _conversationId,
@@ -85,7 +86,8 @@ function MilkdownEditorInner({
   const setAttachedFiles = onAttachmentsChange ?? setLocalAttachedFiles;
   const [isImproveMode, setIsImproveMode] = useState(false);
   const [isImproving, startImprovingTransition] = useTransition();
-  const [isSending, startSendingTransition] = useTransition();
+  const [isSendPending, startSendingTransition] = useTransition();
+  const isSending = isSendPending || sending;
   const [isFocused, setIsFocused] = useState(false);
 
   const initialHasContent =
@@ -366,6 +368,9 @@ function MilkdownEditorInner({
               isSending && 'pointer-events-none opacity-50',
               (isImproveMode || isImproving) && 'hidden',
             )}
+            // The send carries the body as it was and its success clears it:
+            // keep the keyboard and assistive tech out until it settles too.
+            inert={isSending || undefined}
           >
             <style>{`
               .milkdown {
@@ -441,6 +446,7 @@ function MilkdownEditorInner({
         <FileAttachmentsList
           files={attachedFiles}
           onRemove={handleRemoveFile}
+          disabled={isSending}
         />
 
         <EditorActionBar

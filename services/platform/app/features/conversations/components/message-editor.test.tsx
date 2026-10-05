@@ -12,6 +12,9 @@ let capturedOnSend: (() => void) | null = null;
 let capturedOnFileAttach: ((file: AttachedFile) => void) | null = null;
 // The files the composer currently holds, as it hands them to the list.
 let listedFiles: AttachedFile[] = [];
+let listDisabled: boolean | undefined;
+// Whether the action bar holds Send (and attaching) for a send in flight.
+let barSending: boolean | undefined;
 // What the persisted drafts start from — a typed body unless a test clears it.
 let persistedSeed = 'some content';
 
@@ -99,12 +102,15 @@ vi.mock('./message-editor/editor-action-bar', () => ({
   EditorActionBar: ({
     onSend,
     onFileAttach,
+    isSending,
   }: {
     onSend: () => void;
     onFileAttach: (file: AttachedFile) => void;
+    isSending: boolean;
   }) => {
     capturedOnSend = onSend;
     capturedOnFileAttach = onFileAttach;
+    barSending = isSending;
     return (
       <button data-testid="send-button" onClick={onSend}>
         Send
@@ -114,8 +120,15 @@ vi.mock('./message-editor/editor-action-bar', () => ({
 }));
 
 vi.mock('./message-editor/file-attachments-list', () => ({
-  FileAttachmentsList: ({ files }: { files: AttachedFile[] }) => {
+  FileAttachmentsList: ({
+    files,
+    disabled,
+  }: {
+    files: AttachedFile[];
+    disabled?: boolean;
+  }) => {
     listedFiles = files;
+    listDisabled = disabled;
     return null;
   },
 }));
@@ -243,6 +256,54 @@ describe('MessageEditor', () => {
     });
 
     expect(window.localStorage.getItem(storageKey)).toBeNull();
+  });
+
+  it('keeps the body and the files out of reach while their send is in flight', async () => {
+    let failSend = (_error: Error) => {};
+    const onSave = vi.fn(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          failSend = reject;
+        }),
+    );
+
+    render(<MessageEditor onSave={onSave} organizationId="org_test" />);
+    const body = screen.getByTestId('milkdown-editor').parentElement;
+    expect(body).not.toHaveAttribute('inert');
+    expect(listDisabled).toBe(false);
+
+    await act(async () => {
+      capturedOnSend?.();
+    });
+
+    expect(onSave).toHaveBeenCalledTimes(1);
+    expect(body).toHaveAttribute('inert');
+    // The files went with the send: removing one now would be neither
+    // honored nor kept.
+    expect(listDisabled).toBe(true);
+
+    await act(async () => {
+      failSend(new Error('Send failed'));
+    });
+
+    expect(body).not.toHaveAttribute('inert');
+    expect(listDisabled).toBe(false);
+  });
+
+  it("holds the body, files and Send while an earlier mount's send is in flight", () => {
+    const view = render(
+      <MessageEditor onSave={vi.fn()} organizationId="org_test" sending />,
+    );
+    const body = screen.getByTestId('milkdown-editor').parentElement;
+    expect(body).toHaveAttribute('inert');
+    expect(listDisabled).toBe(true);
+    expect(barSending).toBe(true);
+
+    view.rerender(<MessageEditor onSave={vi.fn()} organizationId="org_test" />);
+
+    expect(body).not.toHaveAttribute('inert');
+    expect(listDisabled).toBe(false);
+    expect(barSending).toBe(false);
   });
 
   it('does not remount MilkdownProvider when send fails', async () => {
