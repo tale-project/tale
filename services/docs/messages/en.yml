@@ -39,9 +39,6 @@ nav:
     tutorialsVideos: Videos
 docs:
   home: Home
-footer:
-  copyrightLine1: © {year} Tale by Ruler GmbH
-  copyrightLine2: Tale is MIT licensed — free to use, modify, and distribute.
 pwa:
   updateAvailableTitle: Update available
   updateAvailableDescription: A new version of the docs is ready.
@@ -49,41 +46,3 @@ pwa:
   updateLater: Later
   dismiss: Dismiss
   offlineReady: The offline screen is ready.
-home:
-  docsLabel: Docs
-  heroTitle: From your first question to finished work.
-  heroDescription: Find your way around Tale, give an agent its first task, or build
-    on the platform. Start with the guide that matches what you want to do.
-  heroPrimary: Start using Tale
-  heroSecondary: Install your own workspace
-  heroNote: Guides for your team, agent builders, and the people running your workspace.
-  mapTitle: A clear path from task to result
-  mapNote: Each step opens a guide. Check its prerequisites before you begin.
-  map:
-    define:
-      title: Describe the work
-      description: Give a task its goal, source files, and a clear outcome.
-    delegate:
-      title: Give an agent the task
-      description: Choose its instructions and tools, then start the work.
-    review:
-      title: Review what comes back
-      description: Inspect the report and files, then approve or request changes.
-  pathsEyebrow: Start with your role
-  pathsTitle: What would you like to do?
-  pathsDescription: Take a focused path through your first task. You can look up the
-    details as you go.
-  featuredDetail: Configure a focused agent, give it a project task, and inspect its
-    first result. The guide explains the access, model, and runtime you need.
-  readGuide: Follow the guide
-  tutorialsEyebrow: Learn by doing
-  tutorialsTitle: Take a real task from start to finish.
-  tutorialsDescription: Work through example inputs and checkpoints in your own
-    workspace. Each tutorial tells you what you need before you start.
-  allTutorials: All tutorials
-  tutorialLabel: Hands-on guide
-  referenceEyebrow: Keep building
-  referenceTitle: The details, when you need them.
-  referenceDescription: Find product behavior, API contracts, deployment instructions,
-    and the responsibilities that come with your hosting choice.
-  productLink: Back to Tale

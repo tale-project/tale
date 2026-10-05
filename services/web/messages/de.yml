@@ -139,6 +139,7 @@ legal:
     data-processing-agreement: AVV
     technical-organizational-measures: TOM
 footer:
+  taleUi: Tale UI
   resources: Ressourcen
   legal: Rechtliches
   pricing: Preise
@@ -154,7 +155,6 @@ footer:
   githubAriaLabel: GitHub
   llmsTxtLabel: llms.txt
   llmsFullTxtLabel: llms-full.txt
-  copyright: © {year} Tale von Ruler GmbH. MIT-lizenziert.
   platform: Platform
   company: Unternehmen
   changelog: Changelog

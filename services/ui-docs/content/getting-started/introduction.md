@@ -20,7 +20,7 @@ Use `@tale/ui` for application screens: forms, tables, dialogs, navigation, and 
 
 ## Choose the package by the screen's purpose
 
-Application screens favor compact controls, readable status, and predictable placement for repeated tasks. Marketing pages use larger headings, wider sections, and pill-shaped calls to action. This site's documentation uses the application components; its [home page](/) uses marketing components.
+Application screens favor compact controls, readable status, and predictable placement for repeated tasks. Marketing pages use larger headings, wider sections, and pill-shaped calls to action. This site's documentation uses the application components; [Tale's public website](https://tale.dev) uses marketing components.
 
 | Package | Typical building blocks | Stylesheet |
 | --- | --- | --- |

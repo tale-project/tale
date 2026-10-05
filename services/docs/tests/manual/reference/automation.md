@@ -14,8 +14,6 @@ Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no s
 
 | Suite | Boxes | Status | Owning spec |
 |---|---|---|---|
-| [home](../suites/home.md) | EN/DE/FR discovery headings, localized links, 320/1440px containment, skip link, search across both shells, article palette isolation, phone menu navigation and header-search focus/result selection | ✅ browser | `tests/e2e/specs/home.spec.ts`; visual hierarchy and theme contrast remain manual |
-| [home](../suites/home.md) | Every curated path resolves to localized frontmatter and remains in the published Markdown homepage | ✅ structural | `lib/content/home-guides.test.ts` |
 | [search](../suites/search.md) | Shared Mod+K controller toggles, ignores unrelated keys, mounts the dialog lazily, and cleans up on shell changes | ✅ component | `packages/ui/src/components/docs/use-docs-search.test.tsx` |
 | [navigation](../suites/navigation.md) | Every link a page renders lands — no 404, no link through a redirect, every fragment an id the target renders, translated pages keep their locale | ✅ structural | `links.test.ts` (full source corpus, the renderer's parser, judged against `scripts/link-site.ts`) |
 | [navigation](../suites/navigation.md) | Links into the docs from app code, the marketing site, the CLI and READMEs land | ✅ automated | `bun run lint:links` (`tools/lint-links`, CI Format job) |
@@ -142,3 +140,10 @@ and checks runtime configuration, envelope redaction and the disabled default.
 `packages/ui/src/server/monitoring.integration.test.ts` starts the real Bun
 server and a local receiver; it checks escaped runtime HTML, strict CSP, HTTP
 error receipt and zero report traffic when disabled.
+
+The root and localized roots use the same first-guide frame and search as deep
+pages; `tests/e2e/specs/smoke.spec.ts` owns routing, locale, canonical metadata,
+current row semantics, search, keyboard navigation and the shared footnote.
+`tests/redirects.test.ts` and `tests/prerender/seo.test.ts` cover old entry addresses
+and the built canonical metadata.
+Visual treatment remains manual (`HOME-F2`).

@@ -265,7 +265,6 @@
       "name": "@tale/docs",
       "version": "0.1.0",
       "dependencies": {
-        "@tale/marketing-ui": "workspace:*",
         "@tale/ui": "workspace:*",
         "vite-plugin-pwa": "1.3.0",
       },

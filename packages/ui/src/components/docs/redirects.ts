@@ -195,6 +195,39 @@ export function redirectLocation(
     : `${basePath}${target}${search}`;
 }
 
+/**
+ * A static-host redirect that keeps the built template's assets and theme
+ * script. Shared by both documentation sites for retired pages and folders.
+ */
+export function renderRedirectHtml(
+  template: string,
+  locale: string,
+  toUrl: string,
+): string {
+  const escape = (value: string) =>
+    value
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;');
+  const target = escape(toUrl);
+  const head = `<meta http-equiv="refresh" content="0;url=${target}" />
+    <link rel="canonical" href="${target}" />
+    <meta name="robots" content="noindex" />
+    <title>Redirecting…</title>`;
+  return template
+    .replace(/<html lang="[^"]*"/, () => `<html lang="${escape(locale)}"`)
+    .replace(
+      /<!-- seo:start -->[\s\S]*?<!-- seo:end -->/,
+      () => `<!-- seo:start -->\n    ${head}\n    <!-- seo:end -->`,
+    )
+    .replace(
+      '<div id="root"></div>',
+      () =>
+        `<div id="root"><p>This page has moved to <a href="${target}">${target}</a>.</p></div>`,
+    );
+}
+
 interface RedirectMapRouteOptions {
   /** Where a request path redirects, or null to let the server go on. */
   resolve: (pathname: string) => string | null | undefined;

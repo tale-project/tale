@@ -367,6 +367,7 @@
     "./use-format-date": "./src/hooks/use-format-date.ts",
     "./use-infinite-scroll": "./src/hooks/use-infinite-scroll.ts",
     "./use-is-mac": "./src/hooks/use-is-mac.ts",
+    "./use-site-copyright": "./src/hooks/use-site-copyright.ts",
     "./use-recurrence-format": "./src/hooks/use-recurrence-format.ts",
     "./use-scroll-compact": "./src/hooks/use-scroll-compact.ts",
     "./use-mobile-keyboard": "./src/hooks/use-mobile-keyboard.ts",

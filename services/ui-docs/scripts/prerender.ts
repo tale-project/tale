@@ -6,6 +6,10 @@
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
+import { isExternalTarget, renderRedirectHtml } from '@tale/ui/docs/redirects';
+
+import { REDIRECT_PATHS } from '../lib/redirects';
+import { uiDocsSiteUrl } from '../lib/seo/build';
 import { listAllContent } from './walk-content';
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
@@ -39,8 +43,7 @@ async function main() {
   };
 
   const records = await listAllContent();
-  // The marketing front page plus one route per content page. `/404` is
-  // rendered separately so it never enters the sitemap.
+  // The root renders the first guide, using its canonical deep-link URL.
   const routes = ['/', ...records.map((record) => `/docs/${record.slug}`)];
 
   process.stdout.write(`prerendering ${routes.length} routes...\n`);
@@ -54,6 +57,18 @@ async function main() {
         : resolve(DIST, route.slice(1), 'index.html');
     await Bun.write(outPath, final);
     process.stdout.write('done\n');
+  }
+
+  const siteUrl = uiDocsSiteUrl();
+  for (const [from, to] of REDIRECT_PATHS) {
+    await Bun.write(
+      resolve(DIST, from.slice(1), 'index.html'),
+      renderRedirectHtml(
+        template,
+        'en',
+        isExternalTarget(to) ? to : `${siteUrl}${to}`,
+      ),
+    );
   }
 
   // Prerendered 404 artifact. The shared React server serves
