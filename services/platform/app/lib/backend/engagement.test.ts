@@ -157,6 +157,52 @@ describe.each([
   });
 });
 
+// #3617: the pg row holds `null` for a price or stock nobody set, and the
+// Products cells read anything but `undefined` as a value, so an unpriced
+// product showed `$0.00`.
+describe('the products listing rows', () => {
+  async function readBack(row: Record<string, unknown>): Promise<unknown> {
+    vi.spyOn(window, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ items: [row], nextCursor: null })),
+    );
+    const page = await engagementPaginatedAdapters[
+      'products/queries:listProductsPaginated'
+    ]?.({}, ctx)?.fetchPage(null, 20);
+    return page?.page[0];
+  }
+
+  it('leaves an unset column absent, as the product doc declares it', async () => {
+    expect(
+      await readBack({
+        ...tableDatesRow,
+        description: null,
+        imageUrl: null,
+        stock: null,
+        price: null,
+        currency: null,
+        category: null,
+        tags: [],
+        status: null,
+        translations: null,
+        externalId: null,
+        metadata: null,
+      }),
+    ).toStrictEqual({
+      ...tableDatesRow,
+      tags: [],
+      _id: 'record-1',
+      _creationTime: tableDatesRow.createdAt,
+      lastUpdated: tableDatesRow.updatedAt,
+    });
+  });
+
+  it('keeps an explicit zero price and stock', async () => {
+    expect(
+      await readBack({ ...tableDatesRow, stock: 0, price: 0, currency: 'CHF' }),
+    ).toMatchObject({ stock: 0, price: 0, currency: 'CHF' });
+  });
+});
+
 describe('the contacts listing facets', () => {
   const listing = (args: Record<string, unknown>) =>
     engagementPaginatedAdapters['contacts/queries:listContactsPaginated']?.(

@@ -11,8 +11,10 @@ import {
   describe,
   expect,
   setSystemTime,
+  spyOn,
   test,
 } from 'bun:test';
+import { createHash } from 'node:crypto';
 import { getEventListeners } from 'node:events';
 
 import { ActivityGate } from '../../../sandbox-runtime/daemon/src/activity-gate.ts';
@@ -63,6 +65,7 @@ const cfg: SpawnerConfig = {
 
 let fakeServer: ReturnType<typeof Bun.serve>;
 let fakeBaseUrl = '';
+let largeReplayCancelled = false;
 const created = new Set<string>();
 const destroyed = new Set<string>();
 const stopped = new Set<string>();
@@ -71,6 +74,8 @@ const stageBodies: unknown[] = [];
 let stageFailure: string | undefined;
 // Each POST /execs/:id/cancel runnerd received, path and query.
 const cancelRequests: string[] = [];
+const attachRequests: string[] = [];
+let failDockerAfterHealth = false;
 // Captures each POST /execs body the spawner sends to runnerd, so tests can
 // assert the per-exec stdoutMaxBytes/stderrMaxBytes the spawner chose.
 const execRequests: Array<{
@@ -86,6 +91,7 @@ const fakeHealth = {
   lastActivityAtMs: 0,
   liveExecs: 0,
   dockerReady: undefined as boolean | undefined,
+  dockerRecoveryRequired: undefined as boolean | undefined,
 };
 const fakeActivities = new Map<string, ActivityGate>();
 let legacyDaemon = false;
@@ -103,8 +109,20 @@ const healthProbes = new Map<string, number>();
 // Per-daemon activity clocks (by session token), over fakeHealth's shared one.
 const daemonLastActivity = new Map<string, number>();
 
-function ndjson(lines: object[]): string {
-  return lines.map((l) => JSON.stringify(l)).join('\n') + '\n';
+function ndjson(
+  lines: Array<{ t: string; seq?: number; [key: string]: unknown }>,
+): string {
+  let seq = 0;
+  return (
+    lines
+      .map((line) => {
+        if (['fail', 'gap', 'replay-start', 'replay-complete'].includes(line.t))
+          return JSON.stringify(line);
+        seq = line.seq ?? seq + 1;
+        return JSON.stringify({ ...line, seq });
+      })
+      .join('\n') + '\n'
+  );
 }
 
 function replayGapResponse(): Response {
@@ -161,19 +179,30 @@ beforeAll(() => {
       }
       if (url.pathname === '/healthz') {
         healthProbes.set(token, (healthProbes.get(token) ?? 0) + 1);
+        const dockerReady = fakeHealth.dockerReady;
+        if (failDockerAfterHealth) {
+          failDockerAfterHealth = false;
+          fakeHealth.dockerReady = false;
+        }
         return Response.json({
           ok: true,
           bootedAtMs: 0,
           lastActivityAtMs:
             daemonLastActivity.get(token) ?? fakeHealth.lastActivityAtMs,
           liveExecs: fakeHealth.liveExecs,
-          ...(fakeHealth.dockerReady === undefined
+          ...(dockerReady === undefined ? {} : { dockerReady }),
+          ...(fakeHealth.dockerRecoveryRequired === undefined
             ? {}
-            : { dockerReady: fakeHealth.dockerReady }),
+            : { dockerRecoveryRequired: fakeHealth.dockerRecoveryRequired }),
           ...(legacyDaemon ? {} : { activity: activity.snapshot() }),
         });
       }
       if (!legacyDaemon && url.pathname === '/acquire') {
+        if (fakeHealth.dockerReady === false)
+          return Response.json(
+            { error: 'docker_unavailable' },
+            { status: 503 },
+          );
         const generation = activity.acquire();
         return Response.json(
           { generation },
@@ -230,6 +259,8 @@ beforeAll(() => {
           stderrMaxBytes?: number;
         };
         execRequests.push(body);
+        if (body.execId === 'checkpoint-gap')
+          return new Response(ndjson([{ t: 'gap', fromSeq: 1, toSeq: 9 }]));
         if (body.execId === 'gap') return replayGapResponse();
         if (body.execId?.startsWith('hang-')) return hangingExecResponse();
         // Echo-style script: a start, one stdout chunk, then exit 0.
@@ -357,7 +388,59 @@ beforeAll(() => {
           headers: { 'content-type': 'application/octet-stream' },
         });
       }
+      if (url.pathname.endsWith('/checkpoint-gap/attach'))
+        return new Response(ndjson([{ t: 'gap', fromSeq: 1, toSeq: 9 }]));
+      if (url.pathname.endsWith('/attach') && url.pathname.includes('/gap-')) {
+        return new Response(ndjson([{ t: 'stdout', b64: 'eA==', seq: 19 }]));
+      }
+      if (
+        url.pathname.endsWith('/attach') &&
+        /\/large-(replay|live)\//.test(url.pathname)
+      ) {
+        const live = url.pathname.includes('/large-live/');
+        let next = 0;
+        const count = 1536;
+        const encoder = new TextEncoder();
+        return new Response(
+          new ReadableStream<Uint8Array>({
+            pull(controller) {
+              let event: Record<string, unknown>;
+              if (next === 0) event = { t: 'replay-start' };
+              else if (next <= count || live)
+                event = {
+                  t: 'stdout',
+                  b64: Buffer.alloc(16384, next % 251).toString('base64'),
+                  seq: next,
+                };
+              else if (next === count + 1)
+                event = { t: 'replay-complete', throughSeq: count };
+              else {
+                event = {
+                  t: 'exit',
+                  seq: count + 1,
+                  exitCode: 0,
+                  durationMs: 5,
+                  truncated: { stdout: false, stderr: false },
+                  timedOut: false,
+                  cancelled: false,
+                };
+              }
+              controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`));
+              if (!live && next === count + 2) controller.close();
+              next++;
+            },
+            cancel() {
+              largeReplayCancelled = true;
+            },
+          }),
+          { headers: { 'content-type': 'application/x-ndjson' } },
+        );
+      }
       if (url.pathname.endsWith('/attach')) {
+        attachRequests.push(url.pathname);
+        if (url.pathname.includes('/done-disappears/')) {
+          return new Response('gone', { status: 404 });
+        }
         if (url.pathname.includes('/gap/')) return replayGapResponse();
         if (url.pathname.includes('/malformed-'))
           return new Response('{broken}\n', {
@@ -384,7 +467,9 @@ beforeAll(() => {
             { t: 'replay-start' },
             {
               t: 'stdout',
-              b64: Buffer.from('replayed').toString('base64'),
+              b64: Buffer.from(
+                url.pathname.includes('/bom-') ? '\uFEFFreplayed' : 'replayed',
+              ).toString('base64'),
               seq: 1,
             },
             { t: 'replay-complete', throughSeq: 1 },
@@ -522,6 +607,8 @@ beforeEach(() => {
   stageBodies.length = 0;
   stageFailure = undefined;
   execRequests.length = 0;
+  attachRequests.length = 0;
+  failDockerAfterHealth = false;
   backendGone.clear();
   backendCheckThrows = false;
   backendDestroyThrows.clear();
@@ -530,6 +617,7 @@ beforeEach(() => {
   fakeHealth.lastActivityAtMs = 0;
   fakeHealth.liveExecs = 0;
   fakeHealth.dockerReady = undefined;
+  fakeHealth.dockerRecoveryRequired = undefined;
   fakeActivities.clear();
   legacyDaemon = false;
   legacyIdleReclaim = false;
@@ -575,7 +663,7 @@ describe('SessionRoutes (fake runnerd)', () => {
   );
 
   test.each(['acquire', 'exec', 'sweep'])(
-    'unhealthy inner Docker recovers idle compute through the fenced claim on %s',
+    'a first unhealthy inner Docker observation refuses %s without stopping compute',
     async (operation) => {
       const routes = new SessionRoutes(
         { ...cfg, dockerInContainer: true },
@@ -588,8 +676,13 @@ describe('SessionRoutes (fake runnerd)', () => {
           profile: 'agent',
         }),
       );
+      expect(
+        (await routes.handleActivity('docker-idle', 'acquire')).status,
+      ).toBe(200);
+      fakeHealth.lastActivityAtMs = Date.now() - 100;
       fakeHealth.dockerReady = false;
-      if (operation === 'sweep') expect(await routes.sweepExpired()).toBe(1);
+      fakeHealth.dockerRecoveryRequired = false;
+      if (operation === 'sweep') expect(await routes.sweepExpired()).toBe(0);
       else {
         const result =
           operation === 'acquire'
@@ -597,17 +690,167 @@ describe('SessionRoutes (fake runnerd)', () => {
             : await routes.handleExec(
                 new Request('http://sandbox/exec'),
                 'docker-idle',
-                JSON.stringify({ execId: 'e-docker', command: ['true'] }),
+                JSON.stringify({ execId: 'gone-e-docker', command: ['true'] }),
               );
-        expect(result.status).toBe(404);
+        expect(result.status).toBe(503);
       }
-      expect(stopped.has('docker-idle')).toBe(true);
+      expect(stopped.has('docker-idle')).toBe(false);
       expect(destroyed.has('docker-idle')).toBe(false);
       expect(execRequests).toHaveLength(0);
+      expect(reclaimRequests).toHaveLength(0);
+      expect(routes.holds('docker-idle')).toBe(true);
     },
   );
 
-  test.each(['busy', 'pinned', 'acquired-race', 'legacy'])(
+  test('Docker readiness returns not_found when its fenced idle stop discovers replacement', async () => {
+    const routes = new SessionRoutes(
+      { ...cfg, dockerInContainer: true },
+      {
+        ...fakeBackend,
+        async stopSession(sessionId) {
+          throw new SessionIncarnationChangedError(
+            sessionId,
+            'peer replaced compute',
+          );
+        },
+      },
+    );
+    await routes.handleCreate(
+      JSON.stringify({
+        sessionId: 'docker-replaced',
+        organizationId: 'org_a',
+        profile: 'agent',
+      }),
+    );
+    fakeHealth.dockerReady = false;
+    fakeHealth.dockerRecoveryRequired = true;
+    const result = await routes.handleExec(
+      new Request('http://sandbox/exec'),
+      'docker-replaced',
+      JSON.stringify({ execId: 'gone-e-docker', command: ['true'] }),
+    );
+    expect(result.status).toBe(404);
+    expect(routes.holds('docker-replaced')).toBe(false);
+    expect(execRequests).toHaveLength(0);
+    expect(destroyed.has('docker-replaced')).toBe(false);
+  });
+
+  test.each(['acquire', 'exec', 'sweep'])(
+    'sustained inner Docker failure recovers idle compute through the fenced claim on %s',
+    async (operation) => {
+      const routes = new SessionRoutes(
+        { ...cfg, dockerInContainer: true },
+        fakeBackend,
+      );
+      await routes.handleCreate(
+        JSON.stringify({
+          sessionId: 'docker-confirmed',
+          organizationId: 'org_a',
+          profile: 'agent',
+        }),
+      );
+      expect(
+        (await routes.handleActivity('docker-confirmed', 'acquire')).status,
+      ).toBe(200);
+      fakeHealth.lastActivityAtMs = Date.now() - 100;
+      fakeHealth.dockerReady = false;
+      fakeHealth.dockerRecoveryRequired = true;
+      if (operation === 'sweep') expect(await routes.sweepExpired()).toBe(1);
+      else {
+        const result =
+          operation === 'acquire'
+            ? await routes.handleActivity('docker-confirmed', 'acquire')
+            : await routes.handleExec(
+                new Request('http://sandbox/exec'),
+                'docker-confirmed',
+                JSON.stringify({ execId: 'gone-e-docker', command: ['true'] }),
+              );
+        expect(result.status).toBe(404);
+      }
+      expect(stopped.has('docker-confirmed')).toBe(true);
+      expect(destroyed.has('docker-confirmed')).toBe(false);
+      expect(execRequests).toHaveLength(0);
+      expect(reclaimRequests).toHaveLength(1);
+    },
+  );
+
+  test.each(['idle', 'lifetime'])(
+    'legacy Docker readiness refuses new work but preserves ordinary %s recovery',
+    async (expiry) => {
+      const routes = new SessionRoutes(
+        {
+          ...cfg,
+          dockerInContainer: true,
+          ...(expiry === 'lifetime'
+            ? { session: { ...cfg.session, maxLifetimeMs: 10_000 } }
+            : {}),
+        },
+        fakeBackend,
+      );
+      await routes.handleCreate(
+        JSON.stringify({
+          sessionId: 'docker-legacy',
+          organizationId: 'org_a',
+          profile: 'agent',
+        }),
+      );
+      fakeHealth.lastActivityAtMs = Date.now() - 100;
+      fakeHealth.dockerReady = false;
+      expect(
+        (await routes.handleActivity('docker-legacy', 'acquire')).status,
+      ).toBe(503);
+      expect(await routes.sweepExpired()).toBe(0);
+      expect(reclaimRequests).toHaveLength(0);
+      expect(stopped.has('docker-legacy')).toBe(false);
+      const later =
+        Date.now() +
+        (expiry === 'lifetime' ? 20_000 : cfg.session.maxIdleMs + 1);
+      expect(await routes.sweepExpired(later)).toBe(1);
+      expect(reclaimRequests).toHaveLength(1);
+      expect(stopped.has('docker-legacy')).toBe(true);
+      expect(destroyed.has('docker-legacy')).toBe(false);
+    },
+  );
+
+  test('healthy Docker ignores recovery confidence and admits new work', async () => {
+    const routes = new SessionRoutes(
+      { ...cfg, dockerInContainer: true },
+      fakeBackend,
+    );
+    await routes.handleCreate(
+      JSON.stringify({
+        sessionId: 'docker-healthy',
+        organizationId: 'org_a',
+        profile: 'agent',
+      }),
+    );
+    fakeHealth.lastActivityAtMs = Date.now() - 100;
+    fakeHealth.dockerReady = true;
+    fakeHealth.dockerRecoveryRequired = true;
+    expect(
+      (await routes.handleActivity('docker-healthy', 'acquire')).status,
+    ).toBe(200);
+    const result = await routes.handleExec(
+      new Request('http://sandbox/exec'),
+      'docker-healthy',
+      JSON.stringify({ execId: 'healthy-exec', command: ['true'] }),
+    );
+    expect(result.status).toBe(200);
+    await result.text();
+    expect(await routes.sweepExpired()).toBe(0);
+    expect(stopped.has('docker-healthy')).toBe(false);
+    expect(reclaimRequests).toHaveLength(0);
+    expect(execRequests).toHaveLength(1);
+  });
+
+  test.each([
+    'busy',
+    'active-operation',
+    'pinned',
+    'acquired-race',
+    'activity-race',
+    'legacy',
+  ])(
     'unhealthy inner Docker protects %s compute while refusing new work',
     async (state) => {
       const routes = new SessionRoutes(
@@ -622,6 +865,15 @@ describe('SessionRoutes (fake runnerd)', () => {
         }),
       );
       if (state === 'busy') fakeHealth.liveExecs = 1;
+      let finishOperation: (() => void) | undefined;
+      if (state === 'active-operation') {
+        await routes.handleActivity('docker-protected', 'ticket');
+        finishOperation =
+          fakeActivities
+            .get(deriveRunnerdToken(cfg.sandboxToken, 'docker-protected'))
+            ?.enter() ?? undefined;
+        expect(finishOperation).toBeDefined();
+      }
       if (state === 'pinned')
         await routes.handleSetPinned('docker-protected', '{"pinned":true}');
       if (state === 'legacy') legacyIdleReclaim = true;
@@ -629,7 +881,14 @@ describe('SessionRoutes (fake runnerd)', () => {
         beforeReclaim = (_token, activity) => {
           activity.acquire();
         };
+      if (state === 'activity-race')
+        beforeReclaim = (_token, activity) => {
+          const finish = activity.enter();
+          fakeHealth.lastActivityAtMs = Date.now();
+          finish?.();
+        };
       fakeHealth.dockerReady = false;
+      fakeHealth.dockerRecoveryRequired = true;
       expect(
         (await routes.handleActivity('docker-protected', 'acquire')).status,
       ).toBe(503);
@@ -638,7 +897,7 @@ describe('SessionRoutes (fake runnerd)', () => {
           await routes.handleExec(
             new Request('http://sandbox/exec'),
             'docker-protected',
-            JSON.stringify({ execId: 'e-docker', command: ['true'] }),
+            JSON.stringify({ execId: 'gone-e-docker', command: ['true'] }),
           )
         ).status,
       ).toBe(503);
@@ -646,6 +905,55 @@ describe('SessionRoutes (fake runnerd)', () => {
       expect(stopped.has('docker-protected')).toBe(false);
       expect(destroyed.has('docker-protected')).toBe(false);
       expect(execRequests).toHaveLength(0);
+      finishOperation?.();
+    },
+  );
+
+  test.each(
+    ['running-existing', 'done-existing', 'done-disappears'].flatMap((execId) =>
+      [false, true].flatMap((acquired) =>
+        [false, true].map((dockerRecoveryRequired) => ({
+          execId,
+          acquired,
+          dockerRecoveryRequired,
+        })),
+      ),
+    ),
+  )(
+    'unhealthy Docker preserves retained exec replay: %j',
+    async ({ execId, acquired, dockerRecoveryRequired }) => {
+      const routes = new SessionRoutes(
+        { ...cfg, dockerInContainer: true },
+        fakeBackend,
+      );
+      await routes.handleCreate(
+        JSON.stringify({
+          sessionId: 'docker-replay',
+          organizationId: 'org_a',
+          profile: 'agent',
+        }),
+      );
+      if (acquired)
+        expect(
+          (await routes.handleActivity('docker-replay', 'acquire')).status,
+        ).toBe(200);
+      fakeHealth.dockerReady = false;
+      fakeHealth.dockerRecoveryRequired = dockerRecoveryRequired;
+      const response = await routes.handleExec(
+        new Request('http://sandbox/exec'),
+        'docker-replay',
+        JSON.stringify({ execId, command: ['true'] }),
+      );
+      expect(response.status).toBe(200);
+      const { events } = await readSse(response);
+      expect(stopped.has('docker-replay')).toBe(false);
+      expect(execRequests).toHaveLength(0);
+      expect(attachRequests).toEqual([`/execs/${execId}/attach`]);
+      expect(events.some((event) => event.event === 'result')).toBe(
+        execId !== 'done-disappears',
+      );
+      if (execId === 'done-disappears')
+        expect(events.some((event) => event.event === 'error')).toBe(true);
     },
   );
 
@@ -688,7 +996,15 @@ describe('SessionRoutes (fake runnerd)', () => {
       JSON.stringify({ sessionId: 'stage-probe', organizationId: 'org_stage' }),
     );
     const request = {
-      files: [{ path: 'repo/README.md', sourceId: 'sha256:fixture' }],
+      files: [
+        { path: 'repo/README.md', sourceId: 'sha256:fixture' },
+        {
+          path: 'skills/example/SKILL.md',
+          contentBase64: 'eA==',
+          sha256: 'a'.repeat(64),
+          cacheKey: 'immutable-version',
+        },
+      ],
       replaceRoots: ['skills'],
       keepPaths: ['skills/example/SKILL.md'],
     };
@@ -722,6 +1038,18 @@ describe('SessionRoutes (fake runnerd)', () => {
         )
       ).status,
     ).toBe(400);
+    for (const invalid of [{ sha256: 'not-a-digest' }, { cacheKey: '' }]) {
+      expect(
+        (
+          await routes.handleFilesStage(
+            'stage-probe',
+            JSON.stringify({
+              files: [{ path: 'x', contentBase64: 'eA==', ...invalid }],
+            }),
+          )
+        ).status,
+      ).toBe(400);
+    }
     expect(stageBodies.length).toBe(1);
   });
   test('create → exec echo → destroy', async () => {
@@ -781,6 +1109,137 @@ describe('SessionRoutes (fake runnerd)', () => {
     expect((await routes.handleGet('sess1')).status).toBe(404);
   });
 
+  test('exec and attach preserve a frame-leading Unicode BOM as output', async () => {
+    const routes = new SessionRoutes(cfg, fakeBackend);
+    await routes.handleCreate(
+      JSON.stringify({ sessionId: 'sess_bom', organizationId: 'org_bom' }),
+    );
+    const execRes = await routes.handleExec(
+      new Request('http://x/v1/sessions/sess_bom/exec', { method: 'POST' }),
+      'sess_bom',
+      JSON.stringify({ execId: 'bom-live', command: ['echo', '\uFEFFhi'] }),
+    );
+    const live = await readSse(execRes);
+    expect(
+      live.events.find((event) => event.event === 'stdout')?.data.text,
+    ).toBe('\uFEFFhi\n');
+    const attachRes = await routes.handleExecAttach(
+      new Request('http://x', { method: 'GET' }),
+      'sess_bom',
+      'bom-replay',
+    );
+    const replay = await readSse(attachRes);
+    expect(
+      replay.events.find((event) => event.event === 'stdout')?.data.text,
+    ).toBe('\uFEFFreplayed');
+  });
+
+  test('negotiated binary output preserves bytes on both exec and replay', async () => {
+    const routes = new SessionRoutes(cfg, fakeBackend);
+    await routes.handleCreate(
+      JSON.stringify({ sessionId: 'binary', organizationId: 'org_binary' }),
+    );
+    const headers = { accept: 'text/event-stream; tale-output=base64' };
+    const exec = await routes.handleExec(
+      new Request('http://x/v1/sessions/binary/exec', {
+        method: 'POST',
+        headers,
+      }),
+      'binary',
+      JSON.stringify({ execId: 'binary-exec', command: ['echo', '🙂'] }),
+    );
+    const initial = (await readSse(exec)).events.find(
+      (event) => event.event === 'stdout',
+    );
+    expect(initial?.data).toEqual({
+      b64: Buffer.from('🙂\n').toString('base64'),
+      seq: 2,
+    });
+    const attach = await routes.handleExecAttach(
+      new Request('http://x/v1/sessions/binary/exec/binary-exec/attach', {
+        headers,
+      }),
+      'binary',
+      'binary-exec',
+    );
+    expect(
+      (await readSse(attach)).events.find((event) => event.event === 'stdout')
+        ?.data,
+    ).toEqual({ b64: Buffer.from('replayed').toString('base64'), seq: 1 });
+  });
+
+  test('refuses malformed replay cursors before opening an event stream', async () => {
+    const routes = new SessionRoutes(cfg, fakeBackend);
+    await routes.handleCreate(
+      JSON.stringify({ sessionId: 'cursor', organizationId: 'org_cursor' }),
+    );
+    for (const cursor of [
+      '-1',
+      '1.5',
+      'Infinity',
+      'invalid',
+      '9007199254740992',
+    ]) {
+      const response = await routes.handleExecAttach(
+        new Request(`http://x/attach?sinceSeq=${cursor}`),
+        'cursor',
+        'exec',
+      );
+      expect(response.status).toBe(400);
+      expect(await response.json()).toEqual({ error: 'invalid_since_seq' });
+    }
+  });
+
+  test.each(['direct', 'attach'] as const)(
+    'checkpoint gap through %s preserves recovery without synthesizing terminal failure',
+    async (entry) => {
+      const routes = new SessionRoutes(cfg, fakeBackend);
+      await routes.handleCreate(
+        JSON.stringify({
+          sessionId: 'checkpoint-gap-session',
+          organizationId: 'org_gap',
+        }),
+      );
+      const req = new Request(
+        'http://x/v1/sessions/checkpoint-gap-session/exec',
+      );
+      const response =
+        entry === 'direct'
+          ? await routes.handleExec(
+              req,
+              'checkpoint-gap-session',
+              JSON.stringify({ execId: 'checkpoint-gap', command: ['true'] }),
+            )
+          : await routes.handleExecAttach(
+              req,
+              'checkpoint-gap-session',
+              'checkpoint-gap',
+            );
+      expect((await readSse(response)).events).toEqual([
+        { event: 'gap', data: { fromSeq: 1, toSeq: 9 } },
+      ]);
+      expect(routes.holds('checkpoint-gap-session')).toBe(true);
+    },
+  );
+
+  test('lost replay history reaches the platform as a typed error with no successful result', async () => {
+    const routes = new SessionRoutes(cfg, fakeBackend);
+    await routes.handleCreate(
+      JSON.stringify({ sessionId: 'replay-gap', organizationId: 'org_gap' }),
+    );
+    const response = await routes.handleExecAttach(
+      new Request('http://x/v1/sessions/replay-gap/exec/gap-exec/attach'),
+      'replay-gap',
+      'gap-exec',
+    );
+    const { events } = await readSse(response);
+    expect(events.find((event) => event.event === 'error')?.data.code).toBe(
+      'OUTPUT_GAP',
+    );
+    expect(events.some((event) => event.event === 'result')).toBe(false);
+    expect(events.some((event) => event.event === 'stdout')).toBe(false);
+  });
+
   test('result forwards runnerd exit durationMs VERBATIM (the runner-measured wall-clock)', async () => {
     const routes = new SessionRoutes(cfg, fakeBackend);
     await routes.handleCreate(
@@ -819,12 +1278,20 @@ describe('SessionRoutes (fake runnerd)', () => {
   });
 
   test.each(['exec', 'attach'] as const)(
-    'a replay gap stays distinct on the %s error wire',
+    'unavailable replay stays terminal on the %s error wire',
     async (mode) => {
-      const routes = new SessionRoutes(cfg, fakeBackend);
+      let existsChecks = 0;
+      const routes = new SessionRoutes(cfg, {
+        ...fakeBackend,
+        async sessionExists() {
+          existsChecks += 1;
+          return true;
+        },
+      });
       await routes.handleCreate(
         JSON.stringify({ sessionId: 'gap-session', organizationId: 'org' }),
       );
+      existsChecks = 0;
       const request = new Request('http://x/exec');
       const response =
         mode === 'exec'
@@ -838,10 +1305,13 @@ describe('SessionRoutes (fake runnerd)', () => {
       expect(
         events.find((event) => event.event === 'error')?.data,
       ).toMatchObject({
+        // The transport normalizes explicit journal loss and sequence gaps.
         code: 'REPLAY_UNAVAILABLE',
         message:
           'Exec output is no longer available from the requested cursor.',
       });
+      expect(events.some((event) => event.event === 'result')).toBe(false);
+      expect(existsChecks).toBe(0);
     },
   );
 
@@ -1228,7 +1698,7 @@ describe('SessionRoutes (fake runnerd)', () => {
   });
 
   test.each(['start', 'attach'])(
-    'replay storage failures on %s preserve their fatal SSE code before the compatibility result',
+    'replay storage failures on %s propagate a fatal output gap without a successful result',
     async (mode) => {
       const routes = new SessionRoutes(cfg, fakeBackend);
       await routes.handleCreate(
@@ -1256,11 +1726,10 @@ describe('SessionRoutes (fake runnerd)', () => {
       const failure = events.findIndex((event) => event.event === 'error');
       const result = events.findIndex((event) => event.event === 'result');
       expect(failure).toBeGreaterThanOrEqual(0);
-      expect(result).toBeGreaterThan(failure);
+      expect(result).toBe(-1);
       expect(events[failure]?.data.code).toBe(
         mode === 'start' ? 'OUTPUT_LIMIT' : 'REPLAY_UNAVAILABLE',
       );
-      expect(events[result]?.data.status).toBe('failed');
     },
   );
 
@@ -1523,6 +1992,49 @@ describe('SessionRoutes (fake runnerd)', () => {
     expect(destroyed.has(replacement.sessionId)).toBe(false);
   });
 
+  test('a cancelled recreate stops waiting for an older pin without starting new compute', async () => {
+    const entered = Promise.withResolvers<void>();
+    const finish = Promise.withResolvers<void>();
+    let gone = false;
+    let creates = 0;
+    const routes = new SessionRoutes(cfg, {
+      ...fakeBackend,
+      async createSession(spec) {
+        creates++;
+        return fakeBackend.createSession(spec);
+      },
+      async sessionExists() {
+        return !gone;
+      },
+      async setPinned() {
+        entered.resolve();
+        await finish.promise;
+      },
+    });
+    const body = JSON.stringify({
+      sessionId: 'pin-create-cancel',
+      organizationId: 'org_pin',
+    });
+    await routes.handleCreate(body);
+    const pin = routes.handleSetPinned('pin-create-cancel', '{"pinned":true}');
+    await entered.promise;
+    gone = true;
+    expect((await routes.handleGet('pin-create-cancel')).status).toBe(404);
+    const controller = new AbortController();
+    const creating = routes.handleCreate(body, controller.signal);
+    await Bun.sleep(0);
+    controller.abort(new Error('create caller cancelled'));
+    try {
+      expect(await settlesWithin(creating, 50)).toBe(true);
+      expect((await creating).status).toBe(502);
+      expect(creates).toBe(1);
+    } finally {
+      finish.resolve();
+      await pin;
+      await creating;
+    }
+  });
+
   test('pin writes are serialized, and destroy waits before removing their incarnation', async () => {
     const entered = Promise.withResolvers<void>();
     const finish = Promise.withResolvers<void>();
@@ -1580,6 +2092,83 @@ describe('SessionRoutes (fake runnerd)', () => {
       setSystemTime(Date.now() + 1000);
       await routes.handleSetPinned('pin-ttl', '{"pinned":false}');
       expect(await expiry()).toBe(renewed);
+    } finally {
+      setSystemTime();
+    }
+  });
+
+  test('failed durable Unpin converges on retry, then restart reads the acknowledged false', async () => {
+    let rejectUnpin = true;
+    const backend: SessionBackend = {
+      ...fakeBackend,
+      async setPinned(sessionId, pinned) {
+        if (!pinned && rejectUnpin) throw new Error('pin storage unavailable');
+        await fakeBackend.setPinned(sessionId, pinned);
+      },
+    };
+    const routes = new SessionRoutes(cfg, backend);
+    await routes.handleCreate(
+      JSON.stringify({ sessionId: 'pin-retry', organizationId: 'org_pin' }),
+    );
+    await routes.handleSetPinned('pin-retry', JSON.stringify({ pinned: true }));
+    expect(backendPins.get('pin-retry')).toBe(true);
+    expect(
+      (
+        await routes.handleSetPinned(
+          'pin-retry',
+          JSON.stringify({ pinned: false }),
+        )
+      ).status,
+    ).toBe(503);
+    expect(backendPins.get('pin-retry')).toBe(true);
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the route fixture's response shape is asserted below
+    const before = (await (await routes.handleGet('pin-retry')).json()) as {
+      session: { expiresAtMs: number };
+    };
+    rejectUnpin = false;
+    setSystemTime(new Date(Date.now() + 60_000));
+    try {
+      expect(
+        (
+          await routes.handleSetPinned(
+            'pin-retry',
+            JSON.stringify({ pinned: false }),
+          )
+        ).status,
+      ).toBe(200);
+      expect(backendPins.get('pin-retry')).toBe(false);
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the route fixture's response shape is asserted below
+      const after = (await (await routes.handleGet('pin-retry')).json()) as {
+        session: { expiresAtMs: number };
+      };
+      expect(after.session.expiresAtMs).toBeGreaterThan(
+        before.session.expiresAtMs,
+      );
+      await routes.handleSetPinned(
+        'pin-retry',
+        JSON.stringify({ pinned: false }),
+      );
+      expect(await (await routes.handleGet('pin-retry')).json()).toMatchObject({
+        session: { expiresAtMs: after.session.expiresAtMs },
+      });
+      // Restart observes the acknowledged durable false, not the stale pin.
+      const restarted = new SessionRoutes(cfg, {
+        ...backend,
+        async listSessions() {
+          return [
+            {
+              ...mkBackendSession('pin-retry', 'org_pin'),
+              pinned: backendPins.get('pin-retry') === true,
+            },
+          ];
+        },
+      });
+      await restarted.adoptExisting();
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the restarted route's pinned response is the assertion under test
+      const observed = (await (
+        await restarted.handleGet('pin-retry')
+      ).json()) as { session: { pinned: boolean } };
+      expect(observed.session.pinned).toBe(false);
     } finally {
       setSystemTime();
     }
@@ -2019,6 +2608,878 @@ describe('SessionRoutes (fake runnerd)', () => {
   });
 
   describe('exec cancel / status / boot adoption', () => {
+    describe('peer incarnation replacement', () => {
+      function fixture(initialEndpoint = fakeBaseUrl) {
+        let current: BackendSession = {
+          ...mkBackendSession('peer-replaced', 'org_peer'),
+          pinned: true,
+          docker: true,
+        };
+        let listed: BackendSession | undefined;
+        let endpoint = initialEndpoint;
+        let draining = false;
+        let memoryAvailable: number | null = null;
+        const resolutions: Array<number | undefined> = [];
+        const checks: Array<number | undefined> = [];
+        const mutations: string[] = [];
+        const backend: SessionBackend = {
+          ...fakeBackend,
+          async listSessions() {
+            return [listed ?? current];
+          },
+          async resolveEndpoint(_id, expected) {
+            resolutions.push(expected);
+            if (expected !== undefined && expected !== current.createdAtMs)
+              throw new SessionIncarnationChangedError(
+                'peer-replaced',
+                'test replacement',
+              );
+            return endpoint;
+          },
+          async sessionExists(_id, expected) {
+            checks.push(expected);
+            return expected === undefined || expected === current.createdAtMs;
+          },
+          async stopSession() {
+            mutations.push('stop');
+            return true;
+          },
+          async destroySession() {
+            mutations.push('destroy');
+            return true;
+          },
+        };
+        const memory = () =>
+          memoryAvailable === null
+            ? null
+            : {
+                totalBytes: 16 * 1024 ** 3,
+                availableBytes: memoryAvailable,
+              };
+        const routes = new SessionRoutes(cfg, backend, () => draining, {
+          latest: memory,
+          read: async () => memory(),
+        });
+        return {
+          routes,
+          backend,
+          checks,
+          resolutions,
+          mutations,
+          current: () => current,
+          replace(nextEndpoint = fakeBaseUrl) {
+            current = {
+              ...current,
+              createdAtMs: current.createdAtMs + 1000,
+              pinned: false,
+              docker: false,
+            };
+            endpoint = nextEndpoint;
+          },
+          list(value: BackendSession | undefined) {
+            listed = value;
+          },
+          drain() {
+            draining = true;
+          },
+          memoryAvailable(bytes: number) {
+            memoryAvailable = bytes;
+          },
+        };
+      }
+
+      test.each(['ready', 'unready', 'failed'])(
+        'exec ignores a replaced Docker readiness response: %s',
+        async (state) => {
+          const f = fixture('http://old-peer.invalid');
+          await f.routes.adoptExisting();
+          const started = Promise.withResolvers<void>();
+          const answer = Promise.withResolvers<Response>();
+          const realFetch = globalThis.fetch;
+          let staleExecs = 0;
+          const fetchSpy = spyOn(globalThis, 'fetch').mockImplementation(
+            Object.assign(
+              (...args: Parameters<typeof fetch>) => {
+                const [input, init] = args;
+                if (input === 'http://old-peer.invalid/healthz') {
+                  started.resolve();
+                  return answer.promise;
+                }
+                if (input === 'http://old-peer.invalid/execs') {
+                  staleExecs += 1;
+                  return realFetch(`${fakeBaseUrl}/execs`, init);
+                }
+                return realFetch(input, init);
+              },
+              { preconnect: realFetch.preconnect },
+            ),
+          );
+          try {
+            const pending = f.routes.handleExec(
+              new Request('http://sandbox/exec'),
+              'peer-replaced',
+              JSON.stringify({ execId: 'stale-readiness', command: ['true'] }),
+            );
+            await started.promise;
+            f.replace();
+            await f.routes.adoptExisting();
+            if (state === 'failed') answer.reject(new Error('old daemon gone'));
+            else
+              answer.resolve(
+                Response.json({
+                  ok: true,
+                  bootedAtMs: 0,
+                  lastActivityAtMs: 0,
+                  liveExecs: 0,
+                  dockerReady: state === 'ready',
+                }),
+              );
+            const result = await pending;
+            await result.text();
+            expect(result.status).toBe(404);
+            expect(staleExecs).toBe(0);
+            expect(
+              await (await f.routes.handleGet('peer-replaced')).json(),
+            ).toMatchObject({ session: { createdAtMs: 2000, docker: false } });
+            expect(f.mutations).toEqual([]);
+          } finally {
+            answer.resolve(Response.json({ ok: true }));
+            fetchSpy.mockRestore();
+          }
+        },
+      );
+
+      test.each(['missing', 'retained'])(
+        'late retained exec status cannot clear a replacement cleanup claim: %s',
+        async (state) => {
+          const f = fixture('http://old-peer.invalid');
+          f.current().pinned = false;
+          await f.routes.adoptExisting();
+          const started = Promise.withResolvers<void>();
+          const answer = Promise.withResolvers<Response>();
+          const realFetch = globalThis.fetch;
+          let replacementStops = 0;
+          const fetchSpy = spyOn(globalThis, 'fetch').mockImplementation(
+            Object.assign(
+              (...args: Parameters<typeof fetch>) => {
+                const [input, init] = args;
+                if (input === 'http://old-peer.invalid/healthz')
+                  return Promise.resolve(
+                    Response.json({
+                      ok: true,
+                      bootedAtMs: 0,
+                      lastActivityAtMs: 0,
+                      liveExecs: 0,
+                      dockerReady: false,
+                      dockerRecoveryRequired: true,
+                    }),
+                  );
+                if (input === 'http://old-peer.invalid/execs/late-status') {
+                  started.resolve();
+                  return answer.promise;
+                }
+                return realFetch(input, init);
+              },
+              { preconnect: realFetch.preconnect },
+            ),
+          );
+          const pending = f.routes.handleExec(
+            new Request('http://sandbox/exec'),
+            'peer-replaced',
+            JSON.stringify({ execId: 'late-status', command: ['true'] }),
+          );
+          try {
+            await started.promise;
+            f.replace();
+            await f.routes.adoptExisting();
+            f.backend.stopSession = async () => {
+              replacementStops += 1;
+              throw new Error('replacement stop unavailable');
+            };
+            const expiredAt = Date.now() + cfg.session.maxLifetimeMs + 1;
+            await f.routes.sweepExpired(expiredAt);
+            expect(replacementStops).toBe(1);
+            expect(reclaimRequests).toHaveLength(1);
+            answer.resolve(
+              state === 'missing'
+                ? new Response('gone', { status: 404 })
+                : Response.json({
+                    execId: 'late-status',
+                    state: 'exited',
+                    exitCode: 0,
+                  }),
+            );
+            expect((await pending).status).toBe(404);
+            expect(replacementStops).toBe(1);
+            expect(execRequests).toHaveLength(0);
+            expect(attachRequests).toHaveLength(0);
+            // The successor remains frozen under its acknowledged claim.
+            // Its retry must stop without asking an already-frozen daemon
+            // to grant a second, different claim.
+            await f.routes.sweepExpired(expiredAt);
+            expect(replacementStops).toBe(2);
+            expect(reclaimRequests).toHaveLength(1);
+            expect(await f.routes.handleList(null).json()).toMatchObject({
+              sessions: [{ createdAtMs: 2000 }],
+            });
+          } finally {
+            answer.resolve(new Response('gone', { status: 404 }));
+            await pending;
+            fetchSpy.mockRestore();
+          }
+        },
+      );
+
+      test('exec rechecks its captured session after admission succeeds', async () => {
+        const f = fixture();
+        await f.routes.adoptExisting();
+        f.memoryAvailable(16 * 1024 ** 3);
+        const started = Promise.withResolvers<void>();
+        const answer = Promise.withResolvers<Response>();
+        const admission = spyOn(f.routes, 'handleActivity').mockImplementation(
+          () => {
+            started.resolve();
+            return answer.promise;
+          },
+        );
+        try {
+          const pending = f.routes.handleExec(
+            new Request('http://sandbox/exec'),
+            'peer-replaced',
+            JSON.stringify({ execId: 'stale-admission', command: ['true'] }),
+          );
+          await started.promise;
+          f.replace();
+          await f.routes.adoptExisting();
+          answer.resolve(Response.json({ generation: 'old' }));
+          const result = await pending;
+          await result.text();
+          expect(result.status).toBe(404);
+          expect(execRequests).toHaveLength(0);
+          expect(
+            await (await f.routes.handleGet('peer-replaced')).json(),
+          ).toMatchObject({ session: { createdAtMs: 2000, docker: false } });
+          expect(f.mutations).toEqual([]);
+        } finally {
+          answer.resolve(Response.json({ generation: 'old' }));
+          admission.mockRestore();
+        }
+      });
+
+      test.each(
+        [true, false].flatMap((docker) =>
+          [false, true].map((frozen) => ({ docker, frozen })),
+        ),
+      )(
+        'queued direct exec cannot use its old health snapshot to acquire a replacement %j',
+        async ({ docker, frozen }) => {
+          const f = fixture('http://old-peer.invalid');
+          f.current().docker = docker;
+          await f.routes.adoptExisting();
+          f.memoryAvailable(16 * 1024 ** 3);
+          const releasing = Promise.withResolvers<void>();
+          const releaseAnswer = Promise.withResolvers<Response>();
+          const queued = Promise.withResolvers<void>();
+          const realFetch = globalThis.fetch;
+          let replacementAcquires = 0;
+          let replacementStops = 0;
+          const fetchSpy = spyOn(globalThis, 'fetch').mockImplementation(
+            Object.assign(
+              (...args: Parameters<typeof fetch>) => {
+                const [input, init] = args;
+                if (input === 'http://old-peer.invalid/release') {
+                  releasing.resolve();
+                  return releaseAnswer.promise;
+                }
+                if (input === 'http://old-peer.invalid/healthz')
+                  return Promise.resolve(
+                    Response.json({
+                      ok: true,
+                      bootedAtMs: 0,
+                      lastActivityAtMs: 0,
+                      liveExecs: 1,
+                      dockerReady: true,
+                    }),
+                  );
+                if (input === `${fakeBaseUrl}/acquire`)
+                  replacementAcquires += 1;
+                return realFetch(input, init);
+              },
+              { preconnect: realFetch.preconnect },
+            ),
+          );
+          const handleActivity = f.routes.handleActivity.bind(f.routes);
+          const activitySpy = spyOn(
+            f.routes,
+            'handleActivity',
+          ).mockImplementation((...args) => {
+            const work = handleActivity(...args);
+            if (args[1] === 'acquire') queued.resolve();
+            return work;
+          });
+          let pending: Promise<Response> | undefined;
+          const release = f.routes.handleActivity(
+            'peer-replaced',
+            'release',
+            '{"generation":"old"}',
+          );
+          try {
+            await releasing.promise;
+            pending = f.routes.handleExec(
+              new Request('http://sandbox/exec'),
+              'peer-replaced',
+              JSON.stringify({
+                execId: 'stale-queued-health',
+                command: ['true'],
+              }),
+            );
+            await queued.promise;
+            f.replace();
+            await f.routes.adoptExisting();
+            if (frozen) {
+              f.backend.stopSession = async () => {
+                replacementStops += 1;
+                throw new Error('replacement stop unavailable');
+              };
+              await f.routes.sweepExpired(
+                Date.now() + cfg.session.maxLifetimeMs + 1,
+              );
+              expect(replacementStops).toBe(1);
+            }
+            f.memoryAvailable(0);
+            releaseAnswer.resolve(Response.json({ released: false }));
+            expect((await release).status).toBe(404);
+            const response = await pending;
+            expect(response.status).toBe(404);
+            await response.text();
+            expect(replacementAcquires).toBe(0);
+            expect(replacementStops).toBe(frozen ? 1 : 0);
+            expect(execRequests).toHaveLength(0);
+            expect(f.mutations).toEqual([]);
+            expect(await f.routes.handleList(null).json()).toMatchObject({
+              sessions: [{ createdAtMs: 2000 }],
+            });
+          } finally {
+            releaseAnswer.resolve(Response.json({ released: false }));
+            await release;
+            await pending;
+            activitySpy.mockRestore();
+            fetchSpy.mockRestore();
+          }
+        },
+      );
+
+      test('periodic adoption refreshes the pinned incarnation and its endpoint without mutating compute', async () => {
+        const f = fixture();
+        let replacementCalls = 0;
+        const replacement = Bun.serve({
+          port: 0,
+          fetch() {
+            replacementCalls += 1;
+            return Response.json({ ok: true });
+          },
+        });
+        try {
+          await f.routes.adoptExisting();
+          f.replace(`http://127.0.0.1:${replacement.port}`);
+          await f.routes.adoptExisting();
+          expect(
+            await (await f.routes.handleGet('peer-replaced')).json(),
+          ).toMatchObject({
+            session: { createdAtMs: 2000, pinned: false, docker: false },
+          });
+          expect(
+            (
+              await f.routes.handleEnvPatch(
+                'peer-replaced',
+                '{"set":{"A":"b"}}',
+              )
+            ).status,
+          ).toBe(200);
+          expect(replacementCalls).toBe(1);
+          expect(f.resolutions).toEqual([1000, 2000]);
+          expect(f.mutations).toEqual([]);
+        } finally {
+          await replacement.stop(true);
+        }
+      });
+
+      test('GET evicts an old incarnation and the next lookup adopts its running replacement', async () => {
+        const f = fixture();
+        await f.routes.adoptExisting();
+        f.replace();
+        expect((await f.routes.handleGet('peer-replaced')).status).toBe(404);
+        expect(
+          await (await f.routes.handleGet('peer-replaced')).json(),
+        ).toMatchObject({
+          session: { createdAtMs: 2000, pinned: false, docker: false },
+        });
+        expect(f.checks).toEqual([1000, 2000]);
+        expect(f.mutations).toEqual([]);
+      });
+
+      test('linger shutdown fences the held incarnation and never stops a peer replacement', async () => {
+        const f = fixture();
+        const fences: Array<number | undefined> = [];
+        f.backend.stopSession = async (_id, stamp) => {
+          fences.push(stamp);
+          if (stamp !== undefined && stamp !== f.current().createdAtMs)
+            throw new SessionIncarnationChangedError(
+              'peer-replaced',
+              'linger replacement',
+            );
+          f.mutations.push('stop');
+          return true;
+        };
+        await f.routes.adoptExisting();
+        f.replace();
+        f.drain();
+        expect(await f.routes.stopAllSessions()).toBe(0);
+        expect(f.routes.holds('peer-replaced')).toBe(false);
+        expect(fences).toEqual([1000]);
+        expect(f.mutations).toEqual([]);
+      });
+
+      test('an older listing cannot borrow the replacement endpoint', async () => {
+        const f = fixture();
+        f.list(f.current());
+        f.replace();
+        const unavailable = await f.routes.handleGet('peer-replaced');
+        expect(unavailable.status).toBe(503);
+        expect(unavailable.headers.get('retry-after')).toBe('1');
+        expect(await unavailable.json()).toEqual({
+          error: 'session_unavailable',
+        });
+        expect(f.routes.holds('peer-replaced')).toBe(false);
+        expect(f.resolutions).toEqual([1000]);
+        f.list(undefined);
+        expect((await f.routes.handleGet('peer-replaced')).status).toBe(200);
+        expect(f.resolutions).toEqual([1000, 2000]);
+        expect(f.mutations).toEqual([]);
+      });
+
+      test('an unknown replacement endpoint preserves the current entry until a verified retry', async () => {
+        const f = fixture();
+        await f.routes.adoptExisting();
+        f.replace();
+        const resolve = f.backend.resolveEndpoint.bind(f.backend);
+        f.backend.resolveEndpoint = async () => {
+          throw new Error('temporary API failure');
+        };
+        await f.routes.adoptExisting();
+        expect(await f.routes.handleList(null).json()).toMatchObject({
+          sessions: [{ createdAtMs: 1000, pinned: true, docker: true }],
+        });
+        f.backend.resolveEndpoint = resolve;
+        await f.routes.adoptExisting();
+        expect(await f.routes.handleList(null).json()).toMatchObject({
+          sessions: [{ createdAtMs: 2000, pinned: false, docker: false }],
+        });
+        expect(f.mutations).toEqual([]);
+      });
+
+      test('a delayed old liveness answer cannot evict a periodically adopted replacement', async () => {
+        const f = fixture();
+        await f.routes.adoptExisting();
+        const started = Promise.withResolvers<void>();
+        const answer = Promise.withResolvers<boolean>();
+        f.backend.sessionExists = async () => {
+          started.resolve();
+          return answer.promise;
+        };
+        const oldProbe = f.routes.handleGet('peer-replaced');
+        await started.promise;
+        f.replace();
+        await f.routes.adoptExisting();
+        answer.resolve(false);
+        expect((await oldProbe).status).toBe(200);
+        expect(await f.routes.handleList(null).json()).toMatchObject({
+          sessions: [{ createdAtMs: 2000 }],
+        });
+        expect(f.mutations).toEqual([]);
+      });
+
+      test('an old release response cannot update the replacement bookkeeping', async () => {
+        const f = fixture();
+        f.replace('http://old-peer.invalid');
+        await f.routes.adoptExisting();
+        const started = Promise.withResolvers<void>();
+        const released = Promise.withResolvers<Response>();
+        const realFetch = globalThis.fetch;
+        const fetchSpy = spyOn(globalThis, 'fetch').mockImplementation(
+          Object.assign(
+            (...args: Parameters<typeof fetch>) => {
+              const [input, init] = args;
+              if (input === 'http://old-peer.invalid/release') {
+                started.resolve();
+                return released.promise;
+              }
+              return realFetch(input, init);
+            },
+            { preconnect: realFetch.preconnect },
+          ),
+        );
+        try {
+          const release = f.routes.handleActivity(
+            'peer-replaced',
+            'release',
+            '{"generation":"old"}',
+          );
+          await started.promise;
+          f.replace();
+          await f.routes.adoptExisting();
+          released.resolve(Response.json({ released: true }));
+          expect((await release).status).toBe(404);
+          expect(await f.routes.handleList(null).json()).toMatchObject({
+            sessions: [{ createdAtMs: 3000 }],
+          });
+          expect(f.mutations).toEqual([]);
+        } finally {
+          released.resolve(Response.json({ released: true }));
+          fetchSpy.mockRestore();
+        }
+      });
+
+      test.each(['liveness', 'health'])(
+        'a legacy acquire awaiting %s cannot succeed for a destroyed and recreated session',
+        async (boundary) => {
+          const f = fixture();
+          f.replace('http://old-peer.invalid');
+          await f.routes.adoptExisting();
+          const oldStamp = f.current().createdAtMs;
+          const started = Promise.withResolvers<void>();
+          const release = Promise.withResolvers<void>();
+          let oldChecks = 0;
+          let oldHealthCalls = 0;
+          f.backend.sessionExists = async (_id, stamp) => {
+            if (stamp === oldStamp) {
+              oldChecks += 1;
+              if (boundary === 'liveness' && oldChecks === 2) {
+                started.resolve();
+                await release.promise;
+              }
+            }
+            return true;
+          };
+          const realFetch = globalThis.fetch;
+          const fetchSpy = spyOn(globalThis, 'fetch').mockImplementation(
+            Object.assign(
+              async (...args: Parameters<typeof fetch>) => {
+                const [input, init] = args;
+                if (input === 'http://old-peer.invalid/acquire')
+                  return new Response('unsupported', { status: 404 });
+                if (input === 'http://old-peer.invalid/healthz') {
+                  oldHealthCalls += 1;
+                  if (boundary === 'health') {
+                    started.resolve();
+                    await release.promise;
+                  }
+                  return Response.json({
+                    ok: true,
+                    bootedAtMs: 0,
+                    lastActivityAtMs: 0,
+                    liveExecs: 0,
+                  });
+                }
+                return realFetch(input, init);
+              },
+              { preconnect: realFetch.preconnect },
+            ),
+          );
+          const acquiring = f.routes.handleActivity('peer-replaced', 'acquire');
+          try {
+            await started.promise;
+            expect((await f.routes.handleDestroy('peer-replaced')).status).toBe(
+              200,
+            );
+            f.replace();
+            expect(
+              (
+                await f.routes.handleCreate(
+                  JSON.stringify({
+                    sessionId: 'peer-replaced',
+                    organizationId: 'org_peer',
+                  }),
+                )
+              ).status,
+            ).toBe(201);
+            const replacement = await f.routes.handleList(null).text();
+            release.resolve();
+            const stale = await acquiring;
+            expect(stale.status).toBe(404);
+            expect(await stale.json()).toEqual({ error: 'not_found' });
+            expect(await f.routes.handleList(null).text()).toBe(replacement);
+            const current = await f.routes.handleActivity(
+              'peer-replaced',
+              'acquire',
+            );
+            expect(current.status).toBe(200);
+            expect(await current.json()).not.toEqual({ generation: 'legacy' });
+            expect(oldHealthCalls).toBe(boundary === 'health' ? 1 : 0);
+            expect(f.mutations).toEqual(['destroy']);
+          } finally {
+            release.resolve();
+            await acquiring;
+            fetchSpy.mockRestore();
+          }
+        },
+      );
+
+      test.each(['before', 'during'])(
+        'a drain %s endpoint resolution preserves the old owned entry',
+        async (when) => {
+          const f = fixture();
+          await f.routes.adoptExisting();
+          f.replace();
+          const started = Promise.withResolvers<void>();
+          const release = Promise.withResolvers<void>();
+          const resolve = f.backend.resolveEndpoint.bind(f.backend);
+          f.backend.resolveEndpoint = async (...args) => {
+            started.resolve();
+            await release.promise;
+            return resolve(...args);
+          };
+          if (when === 'before') f.drain();
+          const refresh = f.routes.adoptExisting();
+          if (when === 'during') {
+            await started.promise;
+            f.drain();
+          }
+          release.resolve();
+          await refresh;
+          expect(await f.routes.handleList(null).json()).toMatchObject({
+            sessions: [{ createdAtMs: 1000, pinned: true }],
+          });
+          expect(f.mutations).toEqual([]);
+        },
+      );
+
+      test('a stop beginning during endpoint resolution retains its ownership until settlement', async () => {
+        const f = fixture();
+        f.replace();
+        await f.routes.adoptExisting();
+        f.replace();
+        const resolveStarted = Promise.withResolvers<void>();
+        const resolveRelease = Promise.withResolvers<void>();
+        const stopStarted = Promise.withResolvers<void>();
+        const stopRelease = Promise.withResolvers<void>();
+        const resolve = f.backend.resolveEndpoint.bind(f.backend);
+        f.backend.resolveEndpoint = async (...args) => {
+          resolveStarted.resolve();
+          await resolveRelease.promise;
+          return resolve(...args);
+        };
+        f.backend.stopSession = async () => {
+          stopStarted.resolve();
+          await stopRelease.promise;
+          throw new SessionIncarnationChangedError(
+            'peer-replaced',
+            'peer replaced compute',
+          );
+        };
+        const refresh = f.routes.adoptExisting();
+        await resolveStarted.promise;
+        const stopping = f.routes.sweepExpired(
+          Date.now() + cfg.session.maxLifetimeMs + 1,
+        );
+        await stopStarted.promise;
+        resolveRelease.resolve();
+        await refresh;
+        await f.routes.adoptExisting();
+        expect(await f.routes.handleList(null).json()).toMatchObject({
+          sessions: [{ createdAtMs: 2000 }],
+        });
+        expect(f.resolutions).toEqual([2000, 3000]);
+        stopRelease.resolve();
+        await stopping;
+        await f.routes.adoptExisting();
+        expect(await f.routes.handleList(null).json()).toMatchObject({
+          sessions: [{ createdAtMs: 3000 }],
+        });
+        expect(f.mutations).toEqual([]);
+      });
+
+      test('a pending endpoint refresh cannot overwrite a local destroy and recreate', async () => {
+        const f = fixture();
+        await f.routes.adoptExisting();
+        f.replace();
+        const started = Promise.withResolvers<void>();
+        const release = Promise.withResolvers<void>();
+        const resolve = f.backend.resolveEndpoint.bind(f.backend);
+        f.backend.resolveEndpoint = async (id, stamp) => {
+          if (stamp !== undefined) {
+            started.resolve();
+            await release.promise;
+          }
+          return resolve(id, stamp);
+        };
+        const refresh = f.routes.adoptExisting();
+        await started.promise;
+        await f.routes.handleDestroy('peer-replaced');
+        expect(
+          (
+            await f.routes.handleCreate(
+              JSON.stringify({
+                sessionId: 'peer-replaced',
+                organizationId: 'org_peer',
+              }),
+            )
+          ).status,
+        ).toBe(201);
+        const replacement = await f.routes.handleList(null).text();
+        release.resolve();
+        await refresh;
+        expect(await f.routes.handleList(null).text()).toBe(replacement);
+        expect(f.mutations).toEqual(['destroy']);
+      });
+
+      test('an old pin failure cannot clear the successor admission reservation', async () => {
+        const f = fixture();
+        await f.routes.adoptExisting();
+        const started = Promise.withResolvers<void>();
+        const release = Promise.withResolvers<void>();
+        f.backend.setPinned = async () => {
+          started.resolve();
+          await release.promise;
+          throw new SessionIncarnationChangedError(
+            'peer-replaced',
+            'old pin settled',
+          );
+        };
+        const pinning = f.routes.handleSetPinned(
+          'peer-replaced',
+          '{"pinned":false}',
+        );
+        await started.promise;
+        f.replace();
+        expect((await f.routes.handleGet('peer-replaced')).status).toBe(404);
+        expect((await f.routes.handleGet('peer-replaced')).status).toBe(200);
+        f.memoryAvailable(16 * 1024 ** 3);
+        expect(
+          (await f.routes.handleActivity('peer-replaced', 'acquire')).status,
+        ).toBe(200);
+        f.memoryAvailable(0);
+        release.resolve();
+        expect((await pinning).status).toBe(503);
+        // The new generation was already admitted: old failure cleanup must
+        // not make its idempotent acquire compete again under memory pressure.
+        expect(
+          (await f.routes.handleActivity('peer-replaced', 'acquire')).status,
+        ).toBe(200);
+        expect(f.mutations).toEqual([]);
+      });
+
+      test('an old exec completion cannot unregister the same exec id on its replacement', async () => {
+        const f = fixture();
+        f.replace('http://old-peer.invalid');
+        await f.routes.adoptExisting();
+        const started = Promise.withResolvers<void>();
+        const completed = Promise.withResolvers<Response>();
+        const realFetch = globalThis.fetch;
+        const fetchSpy = spyOn(globalThis, 'fetch').mockImplementation(
+          Object.assign(
+            (...args: Parameters<typeof fetch>) => {
+              const [input, init] = args;
+              if (input === 'http://old-peer.invalid/execs') {
+                started.resolve();
+                return completed.promise;
+              }
+              return realFetch(input, init);
+            },
+            { preconnect: realFetch.preconnect },
+          ),
+        );
+        const newRequest = new AbortController();
+        try {
+          const body = JSON.stringify({
+            execId: 'hang-peer',
+            command: ['sleep', '60'],
+          });
+          const oldExec = await f.routes.handleExec(
+            new Request('http://x'),
+            'peer-replaced',
+            body,
+          );
+          await started.promise;
+          f.replace();
+          await f.routes.adoptExisting();
+          const newExec = await f.routes.handleExec(
+            new Request('http://x', { signal: newRequest.signal }),
+            'peer-replaced',
+            body,
+          );
+          const reader = newExec.body!.getReader();
+          await reader.read();
+          completed.resolve(
+            new Response(
+              ndjson([
+                {
+                  t: 'exit',
+                  exitCode: 0,
+                  durationMs: 1,
+                  truncated: { stdout: false, stderr: false },
+                  timedOut: false,
+                  cancelled: false,
+                },
+              ]),
+            ),
+          );
+          await readSse(oldExec);
+          expect(
+            await f.routes.sweepExpired(
+              Date.now() + cfg.session.maxLifetimeMs + 1,
+            ),
+          ).toBe(0);
+          expect(f.mutations).toEqual([]);
+          newRequest.abort();
+          await reader.cancel();
+        } finally {
+          completed.resolve(new Response(''));
+          newRequest.abort();
+          fetchSpy.mockRestore();
+        }
+      });
+
+      test('an old sweep health response cannot stop or mark the replacement', async () => {
+        const f = fixture();
+        f.replace('http://old-peer.invalid');
+        await f.routes.adoptExisting();
+        const started = Promise.withResolvers<void>();
+        const health = Promise.withResolvers<Response>();
+        const realFetch = globalThis.fetch;
+        const fetchSpy = spyOn(globalThis, 'fetch').mockImplementation(
+          Object.assign(
+            (...args: Parameters<typeof fetch>) => {
+              const [input, init] = args;
+              if (input === 'http://old-peer.invalid/healthz') {
+                started.resolve();
+                return health.promise;
+              }
+              return realFetch(input, init);
+            },
+            { preconnect: realFetch.preconnect },
+          ),
+        );
+        try {
+          const sweep = f.routes.sweepExpired(
+            Date.now() + cfg.session.maxLifetimeMs + 1,
+          );
+          await started.promise;
+          f.replace();
+          await f.routes.adoptExisting();
+          health.resolve(Response.json({ liveExecs: 0, lastActivityAtMs: 0 }));
+          expect(await sweep).toBe(0);
+          expect(await f.routes.handleList(null).json()).toMatchObject({
+            sessions: [{ createdAtMs: 3000 }],
+          });
+          expect(f.mutations).toEqual([]);
+        } finally {
+          health.resolve(Response.json({ liveExecs: 0, lastActivityAtMs: 0 }));
+          fetchSpy.mockRestore();
+        }
+      });
+    });
+
     test('handleExecCancel: kills via runnerd → 200 {killed}; unknown session → 404', async () => {
       const routes = new SessionRoutes(cfg, fakeBackend);
       await routes.handleCreate(
@@ -3695,6 +5156,7 @@ describe('sweep and adoption hygiene', () => {
     const gate = Promise.withResolvers<void>();
     const reconciled: string[][] = [];
     let lists = 0;
+    const createdAtMs = Date.now();
     const routes = new SessionRoutes(cfg, {
       ...fakeBackend,
       async listSessions(): Promise<BackendSession[]> {
@@ -3702,7 +5164,7 @@ describe('sweep and adoption hygiene', () => {
         return [
           {
             ...mkBackendSession('slow-cache-1', 'org_slow_cache'),
-            createdAtMs: Date.now(),
+            createdAtMs,
             ttlMs: 3_600_000,
             idleTimeoutMs: 3_600_000,
           },
@@ -4155,6 +5617,12 @@ describe('the first-come line for host room', () => {
 
 describe('memory-aware admission', () => {
   const GIB = 1024 ** 3;
+  const release = async (routes: SessionRoutes, id: string) => {
+    const ticket: unknown = await (
+      await routes.handleActivity(id, 'ticket')
+    ).json();
+    return routes.handleActivity(id, 'release', JSON.stringify(ticket));
+  };
   const create = (routes: SessionRoutes, id: string) =>
     routes.handleCreate(
       JSON.stringify({
@@ -4171,13 +5639,196 @@ describe('memory-aware admission', () => {
     });
     return { latest: reading, read: () => Promise.resolve(reading()) };
   };
+  const exec = (routes: SessionRoutes, id: string, execId: string) =>
+    routes.handleExec(
+      new Request(`http://spawner/v1/sessions/${id}/exec`, { method: 'POST' }),
+      id,
+      JSON.stringify({ execId, command: ['echo', 'admitted'] }),
+    );
 
-  const release = async (routes: SessionRoutes, id: string) => {
-    const ticket: unknown = await (
-      await routes.handleActivity(id, 'ticket')
-    ).json();
-    return routes.handleActivity(id, 'release', JSON.stringify(ticket));
-  };
+  test.each(['done-existing', 'gone-new'])(
+    'Docker failure between health and acquire preserves retained state for %s',
+    async (execId) => {
+      const routes = new SessionRoutes(
+        { ...cfg, dockerInContainer: true },
+        fakeBackend,
+        undefined,
+        host(() => 8),
+      );
+      await create(routes, 'docker-flip');
+      await release(routes, 'docker-flip');
+      healthProbes.clear();
+      fakeHealth.dockerReady = true;
+      failDockerAfterHealth = true;
+      const response = await exec(routes, 'docker-flip', execId);
+      expect(response.status).toBe(execId === 'done-existing' ? 200 : 503);
+      if (response.ok) {
+        const { events } = await readSse(response);
+        expect(events.some((event) => event.event === 'result')).toBe(true);
+      }
+      expect([...healthProbes.values()]).toEqual([1]);
+      expect(stopped.has('docker-flip')).toBe(false);
+      expect(reclaimRequests).toHaveLength(0);
+      expect(execRequests).toHaveLength(0);
+      expect(attachRequests).toEqual(
+        execId === 'done-existing' ? ['/execs/done-existing/attach'] : [],
+      );
+    },
+  );
+
+  test('a new direct exec on released warm compute cannot bypass memory admission', async () => {
+    let available = 8;
+    const routes = new SessionRoutes(
+      cfg,
+      fakeBackend,
+      undefined,
+      host(() => available),
+    );
+    await create(routes, 'direct-pressure');
+    await release(routes, 'direct-pressure');
+    available = 0.125;
+    const response = await exec(routes, 'direct-pressure', 'gone-new');
+    expect(response.status).toBe(429);
+    expect(await response.json()).toMatchObject({ error: 'host_memory' });
+    expect(execRequests).toHaveLength(0);
+    expect(attachRequests).toHaveLength(0);
+  });
+
+  test('concurrent direct execs share one warm growth reservation', async () => {
+    let available = 8;
+    const routes = new SessionRoutes(
+      cfg,
+      fakeBackend,
+      undefined,
+      host(() => available),
+    );
+    for (const id of ['direct-pair', 'direct-other']) {
+      await create(routes, id);
+      await release(routes, id);
+    }
+    available = 2.2;
+    const responses = await Promise.all([
+      exec(routes, 'direct-pair', 'gone-first'),
+      exec(routes, 'direct-pair', 'gone-second'),
+    ]);
+    expect(responses.map((response) => response.status)).toEqual([200, 200]);
+    await Promise.all(responses.map(readSse));
+    expect(execRequests).toHaveLength(2);
+    expect((await exec(routes, 'direct-other', 'gone-third')).status).toBe(429);
+    expect(execRequests).toHaveLength(2);
+  });
+
+  test('an acquired work lease with live work is not charged again under pressure', async () => {
+    let available = 8;
+    const routes = new SessionRoutes(
+      cfg,
+      fakeBackend,
+      undefined,
+      host(() => available),
+    );
+    await create(routes, 'direct-held');
+    await release(routes, 'direct-held');
+    expect((await routes.handleActivity('direct-held', 'acquire')).status).toBe(
+      200,
+    );
+    try {
+      setSystemTime(Date.now() + 120_000);
+      fakeHealth.liveExecs = 1;
+      available = 0.125;
+      const response = await exec(routes, 'direct-held', 'gone-new');
+      expect(response.status).toBe(200);
+      await readSse(response);
+      expect(execRequests).toHaveLength(1);
+      expect(attachRequests).toHaveLength(0);
+    } finally {
+      setSystemTime();
+    }
+  });
+
+  test.each(['running-existing', 'done-existing', 'done-disappears'])(
+    'a capacity-refused retry of %s only attaches and never starts a fresh exec',
+    async (execId) => {
+      let available = 8;
+      const routes = new SessionRoutes(
+        cfg,
+        fakeBackend,
+        undefined,
+        host(() => available),
+      );
+      await create(routes, 'direct-replay');
+      await release(routes, 'direct-replay');
+      available = 0.125;
+      const response = await exec(routes, 'direct-replay', execId);
+      expect(response.status).toBe(200);
+      const { events } = await readSse(response);
+      expect(execRequests).toHaveLength(0);
+      expect(attachRequests).toEqual([`/execs/${execId}/attach`]);
+      if (execId === 'done-disappears') {
+        expect(events.some((event) => event.event === 'error')).toBe(true);
+        expect(events.some((event) => event.event === 'result')).toBe(false);
+      } else {
+        expect(
+          events.find((event) => event.event === 'result')?.data,
+        ).toMatchObject({
+          status: 'completed',
+          stdoutBase64: Buffer.from('replayedlive').toString('base64'),
+        });
+      }
+    },
+  );
+
+  test('warm turns reserve growth, refuse pressure, and release the reservation', async () => {
+    let available = 8;
+    const routes = new SessionRoutes(
+      cfg,
+      fakeBackend,
+      undefined,
+      host(() => available),
+    );
+    for (const id of ['warm-one', 'warm-two']) {
+      expect((await create(routes, id)).status).toBe(201);
+      await release(routes, id);
+      await routes.handleSetPinned(id, '{"pinned":true}');
+    }
+    available = 2;
+    const refused = await routes.handleActivity('warm-one', 'acquire');
+    expect(refused.status).toBe(429);
+    expect(await refused.json()).toMatchObject({ error: 'host_memory' });
+    expect(stopped.size).toBe(0);
+    available = 2.5;
+    const burst = await Promise.all([
+      routes.handleActivity('warm-one', 'acquire'),
+      routes.handleActivity('warm-two', 'acquire'),
+    ]);
+    expect(burst.map((response) => response.status)).toEqual([200, 429]);
+    // An existing lease can retry; it does not pay a second working set.
+    expect((await routes.handleActivity('warm-one', 'acquire')).status).toBe(
+      200,
+    );
+    await release(routes, 'warm-one');
+    expect((await routes.handleActivity('warm-two', 'acquire')).status).toBe(
+      200,
+    );
+  });
+
+  test('duplicate warm acquires share one generation and reservation', async () => {
+    let available = 8;
+    const routes = new SessionRoutes(
+      cfg,
+      fakeBackend,
+      undefined,
+      host(() => available),
+    );
+    await create(routes, 'same-warm');
+    await release(routes, 'same-warm');
+    available = 2.2;
+    const responses = await Promise.all([
+      routes.handleActivity('same-warm', 'acquire'),
+      routes.handleActivity('same-warm', 'acquire'),
+    ]);
+    expect(responses.map((response) => response.status)).toEqual([200, 200]);
+    expect(await responses[0].json()).toEqual(await responses[1].json());
+  });
 
   test('a warm released session waits for memory before acquiring without losing its workspace', async () => {
     let available = 8;
@@ -4238,6 +5889,25 @@ describe('memory-aware admission', () => {
     expect((await routes.handleActivity('warm-b', 'acquire')).status).toBe(200);
   });
 
+  test('an intervening ticket separates acquires into distinct serialized generations', async () => {
+    const routes = new SessionRoutes(
+      cfg,
+      fakeBackend,
+      undefined,
+      host(() => 8),
+    );
+    await create(routes, 'ordered-activation');
+    await release(routes, 'ordered-activation');
+    const first = routes.handleActivity('ordered-activation', 'acquire');
+    const ticket = routes.handleActivity('ordered-activation', 'ticket');
+    const next = routes.handleActivity('ordered-activation', 'acquire');
+    const generations = await Promise.all(
+      [first, ticket, next].map(async (response) => (await response).json()),
+    );
+    expect(generations[0]).toEqual(generations[1]);
+    expect(generations[2]).not.toEqual(generations[0]);
+  });
+
   test('concurrent acquires of one released session share its activation reservation', async () => {
     let available = 8;
     const routes = new SessionRoutes(
@@ -4269,25 +5939,25 @@ describe('memory-aware admission', () => {
     );
     await create(routes, 'direct-warm');
     await release(routes, 'direct-warm');
-    const exec = () =>
+    const directExec = () =>
       routes.handleExec(
         new Request('http://x'),
         'direct-warm',
-        JSON.stringify({ execId: 'direct-exec', command: ['echo', 'ok'] }),
+        JSON.stringify({ execId: 'gone-direct-exec', command: ['echo', 'ok'] }),
       );
     available = 2;
-    expect((await exec()).status).toBe(429);
+    expect((await directExec()).status).toBe(429);
     expect(execRequests).toHaveLength(0);
     available = 2.2;
-    const admitted = await exec();
+    const admitted = await directExec();
     expect(admitted.status).toBe(200);
     await readSse(admitted);
     available = 1;
-    const sameTurn = await exec();
+    const sameTurn = await directExec();
     expect(sameTurn.status).toBe(200);
     await readSse(sameTurn);
     await release(routes, 'direct-warm');
-    expect((await exec()).status).toBe(429);
+    expect((await directExec()).status).toBe(429);
     expect(execRequests).toHaveLength(2);
   });
 
@@ -4311,7 +5981,10 @@ describe('memory-aware admission', () => {
           await routes.handleExec(
             new Request('http://x'),
             'abandoned-acquire',
-            JSON.stringify({ execId: 'too-late', command: ['echo', 'ok'] }),
+            JSON.stringify({
+              execId: 'gone-too-late',
+              command: ['echo', 'ok'],
+            }),
           )
         ).status,
       ).toBe(429);
@@ -4380,6 +6053,121 @@ describe('memory-aware admission', () => {
       ).toMatchObject({ session: { docker } });
     },
   );
+
+  const releaseWarm = async (routes: SessionRoutes, id: string) => {
+    const ticket: unknown = await (
+      await routes.handleActivity(id, 'ticket')
+    ).json();
+    expect(
+      (await routes.handleActivity(id, 'release', JSON.stringify(ticket)))
+        .status,
+    ).toBe(200);
+    return ticket;
+  };
+
+  test('a low-memory warm acquisition parks without changing its release generation', async () => {
+    let available = 8;
+    const routes = new SessionRoutes(
+      cfg,
+      fakeBackend,
+      undefined,
+      host(() => available),
+    );
+    expect((await create(routes, 'warm-short')).status).toBe(201);
+    const ticket = await releaseWarm(routes, 'warm-short');
+    available = 2;
+    const refused = await routes.handleActivity('warm-short', 'acquire');
+    expect(refused.status).toBe(429);
+    expect(refused.headers.get('retry-after')).toBe('5');
+    expect(await refused.json()).toMatchObject({ error: 'host_memory' });
+    expect(
+      await (await routes.handleActivity('warm-short', 'ticket')).json(),
+    ).toEqual(ticket);
+    expect(stopped.has('warm-short')).toBe(false);
+    available = 8;
+    expect((await routes.handleActivity('warm-short', 'acquire')).status).toBe(
+      200,
+    );
+    // The admitted use still invalidates the old completion ticket.
+    expect(
+      await (
+        await routes.handleActivity(
+          'warm-short',
+          'release',
+          JSON.stringify(ticket),
+        )
+      ).json(),
+    ).toEqual({ released: false });
+  });
+
+  test('concurrent warm acquisitions reserve working sets before the telemetry changes', async () => {
+    let available = 8;
+    const routes = new SessionRoutes(
+      cfg,
+      fakeBackend,
+      undefined,
+      host(() => available),
+    );
+    const ids = ['warm-burst-1', 'warm-burst-2', 'warm-burst-3'];
+    for (const id of ids) {
+      expect((await create(routes, id)).status).toBe(201);
+      await releaseWarm(routes, id);
+    }
+    setSystemTime(new Date(Date.now() + 91_000));
+    try {
+      available = 3; // 1.6 GiB floor: two 512 MiB working sets fit, three do not.
+      const acquired = await Promise.all(
+        ids.map((id) => routes.handleActivity(id, 'acquire')),
+      );
+      expect(
+        acquired.map((response) => response.status).sort((a, b) => a - b),
+      ).toEqual([200, 200, 429]);
+    } finally {
+      setSystemTime();
+    }
+  });
+
+  test('reacquiring a young released sandbox replaces its existing reservation without double counting', async () => {
+    const routes = new SessionRoutes(
+      cfg,
+      fakeBackend,
+      undefined,
+      host(() => 2.2),
+    );
+    expect((await create(routes, 'warm-young')).status).toBe(201);
+    await releaseWarm(routes, 'warm-young');
+    expect((await routes.handleActivity('warm-young', 'acquire')).status).toBe(
+      200,
+    );
+  });
+
+  test('memory pressure does not refuse already-held work or delay its release', async () => {
+    let available = 8;
+    const routes = new SessionRoutes(
+      cfg,
+      fakeBackend,
+      undefined,
+      host(() => available),
+    );
+    expect((await create(routes, 'warm-held')).status).toBe(201);
+    available = 1;
+    expect((await routes.handleActivity('warm-held', 'acquire')).status).toBe(
+      200,
+    );
+    await releaseWarm(routes, 'warm-held');
+  });
+
+  test('unknown host memory adds no daemon health round trip to acquisition', async () => {
+    const routes = new SessionRoutes(cfg, fakeBackend);
+    expect((await create(routes, 'warm-unknown')).status).toBe(201);
+    await releaseWarm(routes, 'warm-unknown');
+    const token = deriveRunnerdToken(cfg.sandboxToken, 'warm-unknown');
+    const before = healthProbes.get(token) ?? 0;
+    expect(
+      (await routes.handleActivity('warm-unknown', 'acquire')).status,
+    ).toBe(200);
+    expect(healthProbes.get(token) ?? 0).toBe(before);
+  });
 
   test('a create that would leave the host under its reserve is refused with host_memory', async () => {
     // 16 GiB host: the reserve is 1.6 GiB; an agent session is planned at
@@ -4500,6 +6288,30 @@ describe('disk-aware admission', () => {
     return { latest: reading, read: () => Promise.resolve(reading()) };
   };
 
+  test('a new direct exec cannot bypass disk admission on warm compute', async () => {
+    let available = 50;
+    const routes = new SessionRoutes(
+      cfg,
+      fakeBackend,
+      undefined,
+      undefined,
+      disk(() => available),
+    );
+    await create(routes, 'direct-disk');
+    available = 4;
+    const response = await routes.handleExec(
+      new Request('http://spawner/v1/sessions/direct-disk/exec', {
+        method: 'POST',
+      }),
+      'direct-disk',
+      JSON.stringify({ execId: 'gone-new', command: ['echo', 'blocked'] }),
+    );
+    expect(response.status).toBe(429);
+    expect(await response.json()).toMatchObject({ error: 'host_disk' });
+    expect(execRequests).toHaveLength(0);
+    expect(attachRequests).toHaveLength(0);
+  });
+
   test('below its floor, the session disk takes no session: the create waits in line with host_disk', async () => {
     let available = 4;
     const routes = new SessionRoutes(
@@ -4517,6 +6329,9 @@ describe('disk-aware admission', () => {
     ).json();
     await routes.handleActivity('warm-disk', 'release', JSON.stringify(ticket));
     available = 4;
+    const warmRefused = await routes.handleActivity('warm-disk', 'acquire');
+    expect(warmRefused.status).toBe(429);
+    expect(await warmRefused.json()).toMatchObject({ error: 'host_disk' });
     const refused = await create(routes, 'disk-wait');
     expect(refused.status).toBe(429);
     expect(refused.headers.get('retry-after')).toBe('5');
@@ -4744,6 +6559,20 @@ describe('unavailable session observations', () => {
       const requests = [
         () => routes.handleGet(id),
         () => routes.handleExecStatus(id, 'run1'),
+        () =>
+          routes.handleExecCheckpoint(
+            new Request('http://x/checkpoint'),
+            id,
+            'run1',
+            '',
+          ),
+        () =>
+          routes.handleExecCheckpoint(
+            new Request('http://x/checkpoint', { method: 'PUT' }),
+            id,
+            'run1',
+            '{"seq":1,"state":{}}',
+          ),
         () => routes.handleActivity(id, 'acquire'),
         () => routes.handleActivity(id, 'ticket'),
         () => routes.handleExec(new Request('http://x/exec'), id, '{}'),
@@ -4979,48 +6808,195 @@ test('cancelled status probes detach runnerd and skip backend eviction probes', 
   }
 });
 
-test('busy replay admission stays nonterminal and preserves invalid cursor validation', async () => {
-  const queries: Array<string | null> = [];
-  const upstream = Bun.serve({
-    port: 0,
-    fetch(req) {
-      const url = new URL(req.url);
-      if (url.pathname.endsWith('/attach')) {
-        queries.push(url.searchParams.get('sinceSeq'));
-        return Response.json({ error: 'busy' }, { status: 503 });
+test.each(['attach', 'direct'] as const)(
+  'busy replay admission stays nonterminal for %s retries',
+  async (entry) => {
+    const queries: Array<string | null> = [];
+    let newExecs = 0;
+    const upstream = Bun.serve({
+      port: 0,
+      fetch(req) {
+        const url = new URL(req.url);
+        if (url.pathname.endsWith('/attach')) {
+          queries.push(url.searchParams.get('sinceSeq'));
+          return Response.json({ error: 'busy' }, { status: 503 });
+        }
+        if (url.pathname === '/healthz')
+          return Response.json({
+            liveExecs: 0,
+            recentExecs: 1,
+            dockerReady: false,
+          });
+        if (url.pathname === '/execs/e' && req.method === 'GET')
+          return Response.json({ execId: 'e', state: 'exited', exitCode: 0 });
+        if (url.pathname === '/execs' && req.method === 'POST') newExecs++;
+        return Response.json({ denied: [] });
+      },
+    });
+    let existsChecks = 0;
+    const routes = new SessionRoutes(
+      { ...cfg, dockerInContainer: true },
+      {
+        ...fakeBackend,
+        async resolveEndpoint() {
+          return upstream.url.origin;
+        },
+        async sessionExists() {
+          existsChecks += 1;
+          return true;
+        },
+      },
+    );
+    try {
+      await routes.handleCreate(
+        JSON.stringify({
+          sessionId: 'busy-attach',
+          organizationId: 'org',
+          profile: 'agent',
+          docker: true,
+        }),
+      );
+      existsChecks = 0;
+      if (entry === 'attach') {
+        const invalid = await routes.handleExecAttach(
+          new Request(
+            'http://sandbox/v1/sessions/busy-attach/exec/e/attach?sinceSeq=not-a-number',
+          ),
+          'busy-attach',
+          'e',
+        );
+        expect(invalid.status).toBe(400);
+        expect(await invalid.json()).toEqual({ error: 'invalid_since_seq' });
+        expect(queries).toEqual([]);
       }
-      return Response.json({ denied: [] });
-    },
-  });
-  let existsChecks = 0;
-  const routes = new SessionRoutes(cfg, {
-    ...fakeBackend,
-    async resolveEndpoint() {
-      return upstream.url.origin;
-    },
-    async sessionExists() {
-      existsChecks += 1;
-      return true;
-    },
+      const response =
+        entry === 'direct'
+          ? await routes.handleExec(
+              new Request('http://sandbox/v1/sessions/busy-attach/exec'),
+              'busy-attach',
+              JSON.stringify({
+                execId: 'e',
+                command: ['true'],
+                collect: false,
+              }),
+            )
+          : await routes.handleExecAttach(
+              new Request(
+                'http://sandbox/v1/sessions/busy-attach/exec/e/attach?sinceSeq=7',
+              ),
+              'busy-attach',
+              'e',
+            );
+      const stream = await response.text();
+      expect(stream).toContain('ATTACH_BUSY');
+      expect(stream).not.toContain('event: result');
+      expect(queries).toEqual([entry === 'attach' ? '7' : null]);
+      expect(newExecs).toBe(0);
+      expect(existsChecks).toBe(0);
+    } finally {
+      await upstream.stop(true);
+    }
+  },
+);
+
+test('HTTP replay larger than the SSE ceiling preserves every byte and terminal event under backpressure', async () => {
+  const routes = new SessionRoutes(cfg, fakeBackend);
+  await routes.handleCreate(
+    JSON.stringify({ sessionId: 'large-http', organizationId: 'org_http' }),
+  );
+  const proxy = Bun.serve({
+    port: 0,
+    fetch: (req) => routes.handleExecAttach(req, 'large-http', 'large-replay'),
   });
   try {
-    await routes.handleCreate(
-      JSON.stringify({ sessionId: 'busy-attach', organizationId: 'org' }),
-    );
-    existsChecks = 0;
-    const response = await routes.handleExecAttach(
-      new Request(
-        'http://sandbox/v1/sessions/busy-attach/exec/e/attach?sinceSeq=not-a-number',
-      ),
-      'busy-attach',
-      'e',
-    );
-    const stream = await response.text();
-    expect(stream).toContain('ATTACH_BUSY');
-    expect(stream).not.toContain('event: result');
-    expect(queries).toEqual(['NaN']);
-    expect(existsChecks).toBe(0);
+    const response = await fetch(proxy.url, {
+      headers: { accept: 'text/event-stream; tale-output=base64' },
+    });
+    // Exercise downstream network/HTTP queues before consuming the response.
+    await Bun.sleep(100);
+    const reader = response.body!.getReader();
+    const decoder = new TextDecoder();
+    const actual = createHash('sha256');
+    const expected = createHash('sha256');
+    for (let seq = 1; seq <= 1536; seq++)
+      expected.update(Buffer.alloc(16384, seq % 251));
+    let pending = '';
+    let bytes = 0;
+    let frames = 0;
+    const controls: string[] = [];
+    for (;;) {
+      const next = await reader.read();
+      if (next.done) break;
+      pending += decoder.decode(next.value, { stream: true });
+      for (
+        let end = pending.indexOf('\n\n');
+        end !== -1;
+        end = pending.indexOf('\n\n')
+      ) {
+        const block = pending.slice(0, end);
+        pending = pending.slice(end + 2);
+        const event = block
+          .split('\n')
+          .find((line) => line.startsWith('event: '))
+          ?.slice(7);
+        const data = block
+          .split('\n')
+          .find((line) => line.startsWith('data: '))
+          ?.slice(6);
+        if (!event || !data) continue;
+        const parsed: Record<string, unknown> = JSON.parse(data);
+        if (event === 'stdout') {
+          const chunk = Buffer.from(String(parsed.b64), 'base64');
+          actual.update(chunk);
+          bytes += chunk.length;
+          expect(parsed.seq).toBe(++frames);
+        } else {
+          controls.push(event);
+          if (event === 'result')
+            expect(parsed).toMatchObject({ status: 'completed', exitCode: 0 });
+        }
+      }
+    }
+    reader.releaseLock();
+    expect(pending).toBe('');
+    expect(bytes).toBe(24 * 1024 * 1024);
+    expect(actual.digest('hex')).toBe(expected.digest('hex'));
+    expect(controls).toEqual(['replay-start', 'replay-complete', 'result']);
   } finally {
-    await upstream.stop(true);
+    await proxy.stop(true);
   }
-});
+}, 15000);
+
+test('cancelling a backpressured HTTP replay detaches its upstream producer', async () => {
+  largeReplayCancelled = false;
+  const routes = new SessionRoutes(cfg, fakeBackend);
+  await routes.handleCreate(
+    JSON.stringify({
+      sessionId: 'cancel-large-http',
+      organizationId: 'org_http',
+    }),
+  );
+  const proxy = Bun.serve({
+    port: 0,
+    fetch: (req) =>
+      routes.handleExecAttach(req, 'cancel-large-http', 'large-live'),
+  });
+  try {
+    const controller = new AbortController();
+    const response = await fetch(proxy.url, {
+      signal: controller.signal,
+      headers: { accept: 'text/event-stream; tale-output=base64' },
+    });
+    await Bun.sleep(100);
+    controller.abort();
+    await response.body?.cancel().catch(() => {});
+    const deadline = Date.now() + 3000;
+    while (Date.now() < deadline) {
+      if (largeReplayCancelled) break;
+      await Bun.sleep(10);
+    }
+    expect(largeReplayCancelled).toBe(true);
+  } finally {
+    await proxy.stop(true);
+  }
+}, 10000);

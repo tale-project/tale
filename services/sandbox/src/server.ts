@@ -27,8 +27,9 @@ import { launchSelfUpdate } from './devices/apply.ts';
 import { loadDeviceConfig } from './devices/device-config.ts';
 import { DeviceAgent } from './devices/device.ts';
 import { DeviceHub, serveHub } from './devices/hub.ts';
+import { DockerDataDiskProbe, SandboxDiskProbe } from './docker-data-disk.ts';
 import { makeHealthProbe } from './health-probe.ts';
-import { DockerDataRootMount, HostDiskProbe } from './host-disk.ts';
+import { HostDiskProbe } from './host-disk.ts';
 import {
   autoSessionCapacity,
   HostMemoryProbe,
@@ -52,12 +53,23 @@ const imageWarmup = new ImageWarmup(() => backend.warmImage());
 const hostMemory = cfg.backend === 'docker' ? new HostMemoryProbe() : null;
 // Keep a floor on the workspace filesystem and the Docker metadata filesystem
 // where its existing hostname bind can be verified against the local daemon.
-const dockerDataRootMount = new DockerDataRootMount();
 const hostDisk =
   cfg.backend === 'docker'
-    ? new HostDiskProbe(cfg.hostSessionRoot, cfg.session.minFreeDiskBytes, {
-        additionalPath: () => dockerDataRootMount.read(),
-      })
+    ? new SandboxDiskProbe(
+        new HostDiskProbe(cfg.hostSessionRoot, cfg.session.minFreeDiskBytes),
+        new DockerDataDiskProbe(
+          cfg.dockerDataPath === undefined
+            ? undefined
+            : { path: cfg.dockerDataPath, root: cfg.dockerDataRoot },
+          {
+            isLocalHost: () =>
+              hostMemory?.latest() !== null &&
+              hostMemory?.latest() !== undefined,
+          },
+        ),
+        cfg.session.minFreeDiskBytes,
+        cfg.dockerDataPath !== undefined,
+      )
     : null;
 // No SANDBOX_MAX_SESSIONS set: a host whose memory the spawner can read
 // gets a capacity sized from it (never below the fixed default of 8), and
@@ -170,7 +182,11 @@ async function handleHealth(): Promise<Response> {
   // `dockerServerVersion` is preserved as the field name for the docker
   // backend (the compose healthcheck only checks HTTP 200, not the body).
   return jsonResponse(
-    { status: 'ok', dockerServerVersion: health.detail },
+    {
+      status: 'ok',
+      dockerServerVersion: health.detail,
+      disks: hostDisk?.status() ?? null,
+    },
     200,
   );
 }
@@ -190,6 +206,9 @@ const SESSION_EXEC_ATTACH_RE = new RegExp(
 );
 const SESSION_EXEC_STDIN_RE = new RegExp(
   `^/v1/sessions/${SESSION_ID}/exec/${EXEC_ID}/stdin$`,
+);
+const SESSION_EXEC_CHECKPOINT_RE = new RegExp(
+  `^/v1/sessions/${SESSION_ID}/exec/${EXEC_ID}/checkpoint$`,
 );
 const SESSION_EXEC_STATUS_RE = new RegExp(
   `^/v1/sessions/${SESSION_ID}/exec/${EXEC_ID}$`,
@@ -226,6 +245,8 @@ function isSessionRoute(method: string, path: string): boolean {
     ['GET', SESSION_EXEC_ATTACH_RE],
     ['POST', SESSION_EXEC_STDIN_RE],
     ['GET', SESSION_EXEC_STATUS_RE],
+    ['GET', SESSION_EXEC_CHECKPOINT_RE],
+    ['PUT', SESSION_EXEC_CHECKPOINT_RE],
     ['PATCH', SESSION_ENV_RE],
     ['PATCH', SESSION_PIN_RE],
     ['POST', SESSION_FILES_STAGE_RE],
@@ -265,7 +286,7 @@ async function handleSessionRoutes(
         { 'retry-after': '5' },
       );
     }
-    return getSessionRoutes().handleCreate(body);
+    return getSessionRoutes().handleCreate(body, req.signal);
   }
   // GET /v1/sessions?organizationId=… (list)
   if (req.method === 'GET' && path === '/v1/sessions') {
@@ -326,6 +347,15 @@ async function handleSessionRoutes(
   // restorative recovery watchdog's liveness probe. Must follow the cancel/
   // attach/stdin matchers (they carry a trailing segment) and the bare-:id
   // create matcher (no execId).
+  const checkpointMatch = path.match(SESSION_EXEC_CHECKPOINT_RE);
+  if ((req.method === 'GET' || req.method === 'PUT') && checkpointMatch) {
+    return getSessionRoutes().handleExecCheckpoint(
+      req,
+      checkpointMatch[1] ?? '',
+      checkpointMatch[2] ?? '',
+      body,
+    );
+  }
   const execStatusMatch = path.match(SESSION_EXEC_STATUS_RE);
   if (req.method === 'GET' && execStatusMatch) {
     return getSessionRoutes().handleExecStatus(

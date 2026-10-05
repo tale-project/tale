@@ -254,7 +254,12 @@ builtin skill from `configs/platform/custom/skills/`.
   error: the destructive replace confirm opens (`skills.upload.replaceTitle` /
   `…replaceDescription` naming the slug) — confirming toasts
   `skills.upload.replaceSuccess` and overwrites, cancelling leaves the
-  original intact (verify body unchanged after reload)
+  original intact (verify body unchanged after reload); (c) open **Blank skill**
+  in one session, create the same slug with instructions and labels in another,
+  then submit the stale form → `skills.publishing.exists` says nothing changed,
+  no `skills.createDialog.created` success appears, and description, instructions,
+  labels and visibility remain unchanged after reload. An absent slug still
+  creates; ordinary edits still save.
 - [ ] `SKILL-B3` · **Size & structure caps** — Upload a zip over 32 MB
   unpacked; a bundle with a file over 4 MB; a name like `My_Skill` in the
   create dialog → The oversize zips are refused client-side

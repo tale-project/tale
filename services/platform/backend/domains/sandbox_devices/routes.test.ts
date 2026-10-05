@@ -8,6 +8,7 @@ import type { OrgEnv } from '../../auth/org.ts';
 const {
   caller,
   createJoinToken,
+  getJoinTokenStatus,
   describeDevice,
   grantTicket,
   joinDevice,
@@ -18,6 +19,7 @@ const {
 } = vi.hoisted(() => ({
   caller: { role: 'admin' },
   createJoinToken: vi.fn(),
+  getJoinTokenStatus: vi.fn(),
   describeDevice: vi.fn(),
   grantTicket: vi.fn(),
   joinDevice: vi.fn(),
@@ -57,6 +59,7 @@ vi.mock('../../lib/rate-limit.ts', async (importOriginal) => ({
 vi.mock('./service.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./service.ts')>()),
   createJoinToken,
+  getJoinTokenStatus,
   describeDevice,
   grantTicket,
   joinDevice,
@@ -96,6 +99,44 @@ beforeEach(() => {
 });
 
 describe('settings routes', () => {
+  it('reads a grant through the authenticated membership and creator, without caching', async () => {
+    getJoinTokenStatus.mockResolvedValue({ deviceId: 'dev-own' });
+    const res = await admin().request('/join-tokens/grant-1?orgId=foreign');
+    expect(res.status).toBe(200);
+    expect(res.headers.get('cache-control')).toBe('no-store');
+    expect(await res.json()).toEqual({ deviceId: 'dev-own' });
+    expect(getJoinTokenStatus).toHaveBeenCalledWith(expect.anything(), {
+      organizationId: 'member-org',
+      tokenId: 'grant-1',
+      actor: { userId: 'u1', email: 'u@example.test' },
+    });
+  });
+
+  it.each(['developer', 'member'])(
+    '%s cannot read grant status',
+    async (role) => {
+      caller.role = role;
+      expect((await admin().request('/join-tokens/grant-1')).status).toBe(403);
+      expect(getJoinTokenStatus).not.toHaveBeenCalled();
+    },
+  );
+
+  it('returns the same refusal for a missing or inaccessible grant', async () => {
+    getJoinTokenStatus.mockRejectedValue(
+      new SandboxDeviceError(
+        'JOIN_TOKEN_NOT_FOUND',
+        'Device command not found',
+        404,
+      ),
+    );
+    const res = await admin().request('/join-tokens/other');
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({
+      error: 'Device command not found',
+      code: 'JOIN_TOKEN_NOT_FOUND',
+    });
+  });
+
   it.each(['owner', 'admin', 'developer'])(
     '%s may list devices',
     async (role) => {

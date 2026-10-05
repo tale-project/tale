@@ -10,6 +10,7 @@ import { checkAccessibility } from '@/tests/utils/a11y';
 // the in-flight `isUploading` state.
 let mockSaveImage = vi.fn().mockResolvedValue({ filename: 'logo.png' });
 vi.mock('../hooks/mutations', () => ({
+  useDeleteImage: () => ({ mutateAsync: vi.fn().mockResolvedValue(null) }),
   useSaveImage: () => ({ mutateAsync: (args: unknown) => mockSaveImage(args) }),
 }));
 

@@ -77,6 +77,16 @@ export function SkillsSettings({ organizationId }: { organizationId: string }) {
     | { view: 'upload'; mode: 'zip' | 'folder' }
     | { view: 'detail'; slug: string };
   const [pane, setPane] = useState<ActivePane | null>(null);
+  // A create or upload that lands after its dialog was dismissed — closing it
+  // stays possible while it saves — must not take over the page: the member
+  // may have opened a new draft or another skill since. The saved skill opens
+  // only while the dialog that saved it is still the open one (each opening
+  // is a new pane object); the library refresh and the success toast still
+  // say it landed.
+  const openSaved = (from: ActivePane, slug: string) =>
+    setPane((current) =>
+      current === from ? { view: 'detail', slug } : current,
+    );
   const detailTrigger = useRef<HTMLButtonElement | null>(null);
   const rowButtons = useRef(new Map<string, HTMLButtonElement>());
   const [scopes, setScopes] = useState<string[]>([]);
@@ -353,7 +363,7 @@ export function SkillsSettings({ organizationId }: { organizationId: string }) {
         <SkillCreateDialog
           organizationId={organizationId}
           open
-          onCreated={(slug) => setPane({ view: 'detail', slug })}
+          onCreated={(slug) => openSaved(pane, slug)}
           onClose={() => setPane(null)}
         />
       )}
@@ -362,7 +372,7 @@ export function SkillsSettings({ organizationId }: { organizationId: string }) {
           organizationId={organizationId}
           mode={pane.mode}
           open
-          onUploaded={(slug) => setPane({ view: 'detail', slug })}
+          onUploaded={(slug) => openSaved(pane, slug)}
           onClose={() => setPane(null)}
         />
       )}

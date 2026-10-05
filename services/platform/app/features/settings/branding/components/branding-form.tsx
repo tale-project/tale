@@ -31,6 +31,7 @@ import {
   useSaveImage,
   useSnapshotBrandingHistory,
 } from '../hooks/mutations';
+import { useBrandingWriteQueue } from '../hooks/use-branding-write-queue';
 import type { BrandingPreviewData } from './branding-preview';
 import { ColorPickerInput } from './color-picker-input';
 import { ImageUploadField } from './image-upload-field';
@@ -112,7 +113,37 @@ export function BrandingForm({
   // flashes "Saved" on success and raises the single destructive toast on
   // failure. The favicon/logo uploads below are instant actions and keep their
   // own toasts — they never pass through this save.
-  const save = useCallback(
+  const savedImageFilenamesRef = useRef(
+    new Map<
+      'logoFilename' | 'faviconLightFilename' | 'faviconDarkFilename',
+      string
+    >(),
+  );
+
+  useEffect(() => {
+    savedImageFilenamesRef.current.set(
+      'logoFilename',
+      branding?.logoFilename ?? '',
+    );
+  }, [branding?.logoFilename]);
+
+  useEffect(() => {
+    savedImageFilenamesRef.current.set(
+      'faviconLightFilename',
+      branding?.faviconLightFilename ?? '',
+    );
+  }, [branding?.faviconLightFilename]);
+
+  useEffect(() => {
+    savedImageFilenamesRef.current.set(
+      'faviconDarkFilename',
+      branding?.faviconDarkFilename ?? '',
+    );
+  }, [branding?.faviconDarkFilename]);
+
+  const runWrite = useBrandingWriteQueue();
+
+  const persistBranding = useCallback(
     async (values: BrandingFormData) => {
       try {
         const pickedAccent = values.accentColor || undefined;
@@ -148,10 +179,27 @@ export function BrandingForm({
     ],
   );
 
+  const save = useCallback(
+    (values: BrandingFormData) =>
+      runWrite(() =>
+        persistBranding({
+          ...values,
+          ...Object.fromEntries(savedImageFilenamesRef.current),
+        }),
+      ),
+    [runWrite, persistBranding],
+  );
+
   const editor = useFormEditor<BrandingFormData>({
     data,
     schema: brandingFormSchema,
     save,
+    onReset: () => {
+      for (const [filename, value] of savedImageFilenamesRef.current) {
+        register(filename);
+        resetField(filename, { defaultValue: value });
+      }
+    },
   });
 
   const [confirmClearOpen, setConfirmClearOpen] = useState(false);
@@ -179,8 +227,20 @@ export function BrandingForm({
   ]);
 
   const {
-    form: { watch, setValue, getValues, control, reset: resetForm },
+    form: {
+      watch,
+      setValue,
+      getValues,
+      control,
+      register,
+      resetField,
+      reset: resetForm,
+    },
   } = editor;
+
+  register('logoFilename');
+  register('faviconLightFilename');
+  register('faviconDarkFilename');
 
   const watchedValues = watch();
 
@@ -226,41 +286,47 @@ export function BrandingForm({
   // When a logo is uploaded and no favicon is set yet, derive a square favicon
   // from the same image so the org gets a tab icon without a second upload.
   const maybeDeriveFavicon = useCallback(
-    async (file: File) => {
-      const values = getValues();
-      const faviconState = {
-        faviconLightFilename: values.faviconLightFilename || undefined,
-        faviconDarkFilename: values.faviconDarkFilename || undefined,
-        faviconLightUrl: branding?.faviconLightUrl,
-        faviconDarkUrl: branding?.faviconDarkUrl,
-      };
-      if (!shouldDeriveFavicon(faviconState)) return;
+    async (file: File) =>
+      runWrite(async () => {
+        const values = {
+          ...getValues(),
+          ...Object.fromEntries(savedImageFilenamesRef.current),
+        };
+        const faviconState = {
+          faviconLightFilename: values.faviconLightFilename || undefined,
+          faviconDarkFilename: values.faviconDarkFilename || undefined,
+          faviconLightUrl: branding?.faviconLightUrl,
+          faviconDarkUrl: branding?.faviconDarkUrl,
+        };
+        if (!shouldDeriveFavicon(faviconState)) return;
 
-      try {
-        const base64 = await deriveFaviconPngBase64(file);
-        const { filename } = await saveImage.mutateAsync({
-          organizationId,
-          type: 'favicon-light',
-          base64,
-          mimeType: 'image/png',
-        });
-        // Already on the server: the image write records its reference, so
-        // the field mirrors the saved state rather than staging an edit.
-        setValue('faviconLightFilename', filename);
-        setFaviconPreviewUrl(`data:image/png;base64,${base64}`);
-        toast({
-          title: tToast('success.faviconGenerated.title'),
-          description: tToast('success.faviconGenerated.description'),
-          variant: 'success',
-        });
-      } catch (err) {
-        // Non-fatal: the logo still uploaded; the admin can set a favicon
-        // manually. Surface rather than swallow so canvas/upload bugs show up.
-        console.warn('[branding] favicon derivation from logo failed', err);
-      }
-    },
+        try {
+          const base64 = await deriveFaviconPngBase64(file);
+          const { filename } = await saveImage.mutateAsync({
+            organizationId,
+            type: 'favicon-light',
+            base64,
+            mimeType: 'image/png',
+          });
+          // Already on the server: the image write records its reference, so
+          // the field mirrors the saved state rather than staging an edit.
+          savedImageFilenamesRef.current.set('faviconLightFilename', filename);
+          setValue('faviconLightFilename', filename);
+          setFaviconPreviewUrl(`data:image/png;base64,${base64}`);
+          toast({
+            title: tToast('success.faviconGenerated.title'),
+            description: tToast('success.faviconGenerated.description'),
+            variant: 'success',
+          });
+        } catch (err) {
+          // Non-fatal: the logo still uploaded; the admin can set a favicon
+          // manually. Surface rather than swallow so canvas/upload bugs show up.
+          console.warn('[branding] favicon derivation from logo failed', err);
+        }
+      }),
     [
       getValues,
+      runWrite,
       setValue,
       branding?.faviconLightUrl,
       branding?.faviconDarkUrl,
@@ -289,46 +355,51 @@ export function BrandingForm({
     };
     setResetting(true);
     try {
-      const deletions = await Promise.allSettled([
-        deleteImage.mutateAsync({ organizationId, type: 'logo' }),
-        deleteImage.mutateAsync({ organizationId, type: 'favicon-light' }),
-        deleteImage.mutateAsync({ organizationId, type: 'favicon-dark' }),
-      ]);
-      for (const deletion of deletions) {
-        if (deletion.status === 'rejected') {
-          // Non-fatal: the config save below drops the reference either way;
-          // surface the blob-deletion failure rather than swallow it.
-          console.warn(
-            '[branding] failed to delete an image blob on reset',
-            deletion.reason,
-          );
+      await runWrite(async () => {
+        const deletions = await Promise.allSettled([
+          deleteImage.mutateAsync({ organizationId, type: 'logo' }),
+          deleteImage.mutateAsync({ organizationId, type: 'favicon-light' }),
+          deleteImage.mutateAsync({ organizationId, type: 'favicon-dark' }),
+        ]);
+        for (const deletion of deletions) {
+          if (deletion.status === 'rejected') {
+            // Non-fatal: the config save below drops the reference either way;
+            // surface the blob-deletion failure rather than swallow it.
+            console.warn(
+              '[branding] failed to delete an image blob on reset',
+              deletion.reason,
+            );
+          }
         }
-      }
-      try {
-        await save(cleared);
-      } catch (err) {
-        // The images are gone but the config is not: keep the clear staged
-        // so the header's Save can retry it, and say why.
-        const opts = { shouldDirty: true };
-        setValue('accentColor', '', opts);
-        setValue('logoFilename', '', opts);
-        setValue('faviconLightFilename', '', opts);
-        setValue('faviconDarkFilename', '', opts);
-        // `save` wraps the backend failure as its `cause`; the localized
-        // title stays the title and the server's own sentence (when it
-        // wrote one) goes underneath — never a raw error message as title.
-        const cause =
-          err instanceof Error && err.cause !== undefined ? err.cause : err;
-        toast({
-          title: tToast('error.brandingUpdateFailed.title'),
-          description: backendRefusalReason(cause),
-          variant: 'destructive',
-        });
-        return;
-      }
-      // The cleared values ARE the saved state now: nothing left unsaved.
-      resetForm(cleared);
-      toast({ title: t('branding.resetDone'), variant: 'success' });
+        try {
+          savedImageFilenamesRef.current.set('logoFilename', '');
+          savedImageFilenamesRef.current.set('faviconLightFilename', '');
+          savedImageFilenamesRef.current.set('faviconDarkFilename', '');
+          await persistBranding(cleared);
+        } catch (err) {
+          // The images are gone but the config is not: keep the clear staged
+          // so the header's Save can retry it, and say why.
+          const opts = { shouldDirty: true };
+          setValue('accentColor', '', opts);
+          setValue('logoFilename', '', opts);
+          setValue('faviconLightFilename', '', opts);
+          setValue('faviconDarkFilename', '', opts);
+          // `save` wraps the backend failure as its `cause`; the localized
+          // title stays the title and the server's own sentence (when it
+          // wrote one) goes underneath — never a raw error message as title.
+          const cause =
+            err instanceof Error && err.cause !== undefined ? err.cause : err;
+          toast({
+            title: tToast('error.brandingUpdateFailed.title'),
+            description: backendRefusalReason(cause),
+            variant: 'destructive',
+          });
+          return;
+        }
+        // The cleared values ARE the saved state now: nothing left unsaved.
+        resetForm(cleared);
+        toast({ title: t('branding.resetDone'), variant: 'success' });
+      });
     } finally {
       setResetting(false);
     }
@@ -336,7 +407,8 @@ export function BrandingForm({
     deleteImage,
     organizationId,
     resetForm,
-    save,
+    persistBranding,
+    runWrite,
     setValue,
     t,
     tToast,
@@ -360,17 +432,20 @@ export function BrandingForm({
           >
             <ImageUploadField
               organizationId={organizationId}
+              runWrite={runWrite}
               currentUrl={branding?.logoUrl}
               imageType="logo"
               // Uploads and removals take effect on the server as they
               // happen (the image write records its own reference); the
               // fields only mirror that, so they never dirty the Save cluster.
               onUpload={(filename, file) => {
+                savedImageFilenamesRef.current.set('logoFilename', filename);
                 setValue('logoFilename', filename);
                 void maybeDeriveFavicon(file);
               }}
               onRemove={() => {
-                setValue('logoFilename', '');
+                savedImageFilenamesRef.current.set('logoFilename', '');
+                resetField('logoFilename', { defaultValue: '' });
               }}
               onPreviewUrlChange={setLogoPreviewUrl}
               size="md"
@@ -386,13 +461,22 @@ export function BrandingForm({
             <HStack gap={2}>
               <ImageUploadField
                 organizationId={organizationId}
+                runWrite={runWrite}
                 currentUrl={faviconPreviewUrl ?? branding?.faviconLightUrl}
                 imageType="favicon-light"
                 onUpload={(filename) => {
+                  savedImageFilenamesRef.current.set(
+                    'faviconLightFilename',
+                    filename,
+                  );
                   setValue('faviconLightFilename', filename);
                 }}
                 onRemove={() => {
-                  setValue('faviconLightFilename', '');
+                  savedImageFilenamesRef.current.set(
+                    'faviconLightFilename',
+                    '',
+                  );
+                  resetField('faviconLightFilename', { defaultValue: '' });
                 }}
                 onPreviewUrlChange={setFaviconPreviewUrl}
                 label={t('branding.light')}
@@ -401,13 +485,19 @@ export function BrandingForm({
 
               <ImageUploadField
                 organizationId={organizationId}
+                runWrite={runWrite}
                 currentUrl={branding?.faviconDarkUrl}
                 imageType="favicon-dark"
                 onUpload={(filename) => {
+                  savedImageFilenamesRef.current.set(
+                    'faviconDarkFilename',
+                    filename,
+                  );
                   setValue('faviconDarkFilename', filename);
                 }}
                 onRemove={() => {
-                  setValue('faviconDarkFilename', '');
+                  savedImageFilenamesRef.current.set('faviconDarkFilename', '');
+                  resetField('faviconDarkFilename', { defaultValue: '' });
                 }}
                 label={t('branding.dark')}
                 ariaLabel={`${t('branding.uploadFavicon')} (${t('branding.dark')})`}

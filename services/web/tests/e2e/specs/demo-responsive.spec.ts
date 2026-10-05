@@ -1,6 +1,8 @@
 import { expect, test, type Locator } from '@playwright/test';
 import { createI18n } from '@tale/e2e/i18n';
 
+import { gotoClientPage } from '../helpers/client-page';
+
 test.use({ contextOptions: { reducedMotion: 'reduce' } });
 
 const demoFields = {
@@ -193,7 +195,7 @@ for (const locale of ['en', 'de', 'fr'] as const) {
           demos: ['govern'],
         },
       ] as const) {
-        await page.goto(`${prefix}${route.path}`);
+        await gotoClientPage(page, `${prefix}${route.path}`);
         await page.evaluate(() => document.fonts.ready);
         for (const name of route.demos) {
           const key = `${route.namespace}.demos.${name}`;
@@ -261,7 +263,7 @@ test('the mobile GitHub link has a 44px touch target', async ({ page }) => {
     new URL('../../../messages/en.yml', import.meta.url),
   );
   await page.setViewportSize({ width: 320, height: 900 });
-  await page.goto('/');
+  await gotoClientPage(page, '/');
   await page
     .getByRole('button', { name: t('nav.openMenu'), exact: true })
     .click();

@@ -134,7 +134,7 @@ describe('pull-time collectors', () => {
     );
     // `register.metrics()` runs every registered `collect()` itself — the
     // real scrape path, so the test exercises what Prometheus would.
-    expect(gauges).toHaveLength(5);
+    expect(gauges).toHaveLength(6);
     const metrics = await client.register.metrics();
     expect(metrics).toContain('tale_backend_generations_inflight 3');
     expect(metrics).toContain('tale_backend_jobs{state="created"} 12');
@@ -167,9 +167,44 @@ describe('pull-time collectors', () => {
         throw new Error('connection reset');
       }),
     );
-    expect(gauges).toHaveLength(5);
+    expect(gauges).toHaveLength(6);
     // The scrape still renders: each collector swallowed its own failure.
     await expect(client.register.metrics()).resolves.toBeTypeOf('string');
+  });
+
+  test('scan evidence advances only with a new durable completion and fails closed on missing/query failure', async () => {
+    const name =
+      'tale_backend_automation_trigger_scan_last_success_timestamp_seconds';
+    let completed: unknown = 1_791_123_456;
+    let failed = false;
+    registerBackendCollectors(
+      fakeSql((text) => {
+        if (!text.includes('triggerScanCompleted')) return [];
+        expect(text).toContain('name = ?');
+        expect(text).toContain("state = 'completed'");
+        expect(text).toContain("= 'true'::jsonb");
+        expect(text).toContain("interval '10 minutes'");
+        if (failed) throw new Error('database unavailable');
+        return [{ completed }];
+      }),
+    );
+    const sample = async () => {
+      const metrics = await client.register.metrics();
+      return metrics.split('\n').find((line) => line.startsWith(`${name} `));
+    };
+    expect(await sample()).toBe(`${name} 1791123456`);
+    // Scraping a healthy API cannot move a stopped worker's timestamp.
+    expect(await sample()).toBe(`${name} 1791123456`);
+    completed = 1_791_123_516;
+    expect(await sample()).toBe(`${name} 1791123516`);
+    failed = true;
+    expect(await sample()).toBe(`${name} 0`);
+    failed = false;
+    expect(await sample()).toBe(`${name} 1791123516`);
+    for (const missing of [null, undefined, Number.NaN, Infinity, -1, '123']) {
+      completed = missing;
+      expect(await sample()).toBe(`${name} 0`);
+    }
   });
 });
 

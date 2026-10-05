@@ -1,5 +1,5 @@
 name: Setup toolchain
-description: Bun + deps with cache, optional Turbo remote cache server
+description: Bun + frozen dependencies and branch-scoped Turbo task caches
 
 inputs:
   bun-version:
@@ -13,12 +13,25 @@ inputs:
     # timed out with zero tests run. The pin is hashed into every Turbo task
     # (`globalDependencies`), so a bump reruns the cached tasks under it.
     default: '1.4.2'
-  start-turbo-cache:
-    description: Start the Turborepo GH artifacts cache server
+  turbo-cache:
+    description: Restore and save the local Turbo task cache through GitHub Actions cache
     default: 'true'
+  cache-scope:
+    description: Task lane shared across jobs; defaults to the calling job ID. Matrix jobs need distinct scopes or writers.
+    default: ''
+  cache-writer:
+    description: Archive writer within the task lane; defaults to the calling job ID. Matrix jobs sharing a scope need distinct writers.
+    default: ''
+  # Candidate workflows run at H but load this action from their checkout C.
+  # Callers pass these legacy inputs so an older C explicitly disables its
+  # artifact server. This implementation ignores both; native cache needs no
+  # repository token and is controlled only by turbo-cache above.
+  start-turbo-cache:
+    description: Deprecated compatibility input for candidates before native task caching; keep false.
+    default: 'false'
   github-token:
-    description: GitHub token for turbo cache
-    required: true
+    description: Deprecated compatibility input for older candidate actions; unused here.
+    required: false
 
 runs:
   using: composite
@@ -34,6 +47,9 @@ runs:
           echo "TURBO_TELEMETRY_DISABLED=1"
           echo "STORYBOOK_DISABLE_TELEMETRY=1"
           echo "SCARF_ANALYTICS=false"
+          # GitHub's cache visibility isolates PR writes from main. Never
+          # read repository-wide artifacts or a remote server for task cache.
+          echo "TURBO_CACHE=local:rw"
         } >> "$GITHUB_ENV"
 
     - name: Setup Bun
@@ -41,20 +57,56 @@ runs:
       with:
         bun-version: ${{ inputs.bun-version }}
 
+    # Cache downloaded packages, not node_modules. A frozen install remains
+    # authoritative even when a prior lockfile supplied the package payloads.
     - name: Restore Bun install cache
-      uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+      id: bun-cache
+      uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+      env:
+        SEGMENT_DOWNLOAD_TIMEOUT_MINS: '2'
       with:
         path: ~/.bun/install/cache
-        key: bun-install-${{ runner.os }}-${{ inputs.bun-version }}-${{ hashFiles('bun.lock') }}
+        # The download store carries platform-specific package builds. Keep
+        # architectures apart and move the exact key with workspace manifests
+        # and patches as well as the lockfile; fallback downloads are still
+        # validated by the frozen install below.
+        key: bun-install-${{ runner.os }}-${{ runner.arch }}-${{ inputs.bun-version }}-${{ hashFiles('bun.lock', 'package.json', 'packages/*/package.json', 'services/*/package.json', 'services/sandbox-runtime/daemon/package.json', 'configs/platform/custom/skills/*/package.json', 'tools/*/package.json', 'patches/**') }}
         restore-keys: |
-          bun-install-${{ runner.os }}-${{ inputs.bun-version }}-
+          bun-install-${{ runner.os }}-${{ runner.arch }}-${{ inputs.bun-version }}-
 
     - name: Install JS dependencies
       shell: bash
       run: bun install --frozen-lockfile
 
-    - name: Start Turbo remote cache
-      if: inputs.start-turbo-cache == 'true'
-      uses: felixmosh/turborepo-gh-artifacts@118f869397261f74bc39cb8565f2d02c0ed4209f # v4
+    # Save successful downloads before a later check failure can prevent the
+    # job's post steps. A failed install never reaches this normal step.
+    - name: Save Bun install cache
+      if: steps.bun-cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
       with:
-        repo-token: ${{ inputs.github-token }}
+        path: ~/.bun/install/cache
+        key: ${{ steps.bun-cache.outputs.cache-primary-key }}
+
+    - name: Identify the checked-out cache source
+      if: inputs.turbo-cache == 'true'
+      id: cache-source
+      shell: bash
+      run: |
+        set -euo pipefail
+        printf 'revision=%s\n' "$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+    # One archive per task lane instead of one API upload/download per task.
+    # A prefix hit restores prior task entries; Turbo still verifies each hash.
+    # The lockfile/toolchain and lane never fall back across one another.
+    # Workflow and writer identities keep concurrent jobs from competing for
+    # one immutable archive, including matrix jobs sharing the build lane.
+    # Readers reuse the lane's archives from this source, then earlier sources.
+    - name: Restore Turbo task cache
+      if: inputs.turbo-cache == 'true'
+      uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+      with:
+        path: .turbo/cache
+        key: turbo-v1-${{ runner.os }}-${{ runner.arch }}-${{ inputs.bun-version }}-${{ inputs.cache-scope || github.job }}-${{ hashFiles('bun.lock') }}-${{ steps.cache-source.outputs.revision }}-${{ github.workflow }}-${{ inputs.cache-writer || github.job }}
+        restore-keys: |
+          turbo-v1-${{ runner.os }}-${{ runner.arch }}-${{ inputs.bun-version }}-${{ inputs.cache-scope || github.job }}-${{ hashFiles('bun.lock') }}-${{ steps.cache-source.outputs.revision }}-
+          turbo-v1-${{ runner.os }}-${{ runner.arch }}-${{ inputs.bun-version }}-${{ inputs.cache-scope || github.job }}-${{ hashFiles('bun.lock') }}-

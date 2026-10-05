@@ -27,6 +27,7 @@ import { createConfigParser } from '../config-parser';
 import { useUpsertGovernancePolicy } from '../hooks/mutations';
 import { useGovernancePolicy, useResolvedVisionModel } from '../hooks/queries';
 import { modelSelectionValue, parseModelSelection } from './model-id';
+import { withGovernancePolicyReadBoundary } from './policy-read-boundary';
 
 interface VisionModelEditorProps {
   organizationId: string;
@@ -59,7 +60,7 @@ interface VisionModelForm {
 // The resolved pick is rendered alongside, with its reason — this is the only
 // surface anywhere that answers "which model is reading our images".
 // =============================================================================
-export function VisionModelEditor({ organizationId }: VisionModelEditorProps) {
+function VisionModelEditorContent({ organizationId }: VisionModelEditorProps) {
   const { t } = useT('governance');
   const ability = useAbility();
   const canEdit = ability.can('write', 'orgSettings');
@@ -216,3 +217,8 @@ export function VisionModelEditor({ organizationId }: VisionModelEditorProps) {
     </Skeletonize>
   );
 }
+
+export const VisionModelEditor = withGovernancePolicyReadBoundary(
+  VisionModelEditorContent,
+  'vision_model',
+);
