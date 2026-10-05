@@ -47,7 +47,7 @@ Deleting credentials removes access for automations and agents that depend on th
 
 ## Prepare an OAuth app
 
-Owners and Admins use **OAuth apps** at the bottom of the page to configure the vendor app registrations used during consent. An organization app overrides the deployment-wide app. If neither exists, the connector cannot start authorization and the page shows that it is not configured.
+Owners and Admins use **OAuth apps** at the bottom of the page to configure the vendor app registrations used during consent. An organization app overrides the deployment-wide app. If neither exists, the connector cannot start authorization and the page shows that it is not configured. If Tale cannot check whether a Knowledge import app is set up, its row shows **Status unavailable** without **Configure**, and **Try again** runs the check again. You can configure the app once the check works.
 
 Select **Configure**, enter the vendor's client ID and secret, and register the exact redirect URIs shown in the dialog with the vendor. Microsoft apps may also require a directory/tenant ID. On a later edit, leave a stored secret blank to keep it.
 

@@ -436,6 +436,10 @@ connectors:
     statusOrg: Organization app
     statusEnv: Deployment app
     statusNone: Not configured
+    statusUnavailable: Status unavailable
+    statusLoadFailed:
+      Couldn't check whether the Knowledge import apps are set up. You can
+      configure them once the check works.
     orgClientId: 'Client ID: {clientId}'
     configure: Configure
     remove: Remove
