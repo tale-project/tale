@@ -251,6 +251,11 @@ export function WebsitesTable({
           footer={
             <BulkDeleteBar
               rowSelection={rowSelection}
+              onRowSelectionChange={setRowSelection}
+              getItemLabel={(id) =>
+                paginatedResult.results.find((item) => item._id === id)
+                  ?.domain ?? id
+              }
               onClearSelection={handleClearSelection}
               onDeleteItem={handleDeleteItem}
               onDeleteComplete={handleClearSelection}

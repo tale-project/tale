@@ -128,6 +128,22 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
 - **Judge the platform against its user docs** — the pages under `docs/en/platform/` are the
   behaviour oracle for a manual round; a mismatch between the running app and its documented
   behaviour is a reportable defect of one or the other, never a silent judgment call.
+- **A domain's rules are a checked spec** — `services/platform/backend/domains/<domain>/spec.md`
+  states what a domain guarantees for a reader who has not opened the code, in the shape
+  [`spec-template.md`](../services/platform/backend/domains/spec-template.md) describes: a prefix
+  shared with the feature's manual suite (`TASK-R4` beside `TASK-F63`), topic headings a reader
+  would look up, one card per rule, then Not yet. A card's heading is the rule as one plain
+  sentence ("Only owners and admins can delete a task"); under it comes an example with a named
+  person. A spec carries rules and nothing about them: no status and no list of tests. Whether
+  a rule is the intended one is settled in the review of the change that adds it. Never guess
+  an intent: a question nobody has decided goes under Not yet as `**Undecided: …?**`, not into
+  a rule. A test holds every rule and says so in its title (`it('… [TASK-R4]', …)`, or the
+  `describe` when the whole block does). The guard,
+  `services/platform/tests/guards/domain-specs.guard.test.ts`, parses every spec and the test
+  titles of the workspace, and fails on a shape it does not know, a rule with no example, a
+  rule no running test names, and a title that names a rule no spec states. Change what a rule
+  says the code does, and its card and its test move in the same change. This is a trial on
+  `tasks` (2026-10): the other domains have no spec, and none is owed yet.
 - **Pencil**: `design/docs/comments.md` is strictly designer↔developer UI communication. Put
   code-level bug analysis in a GitHub issue, never there.
 - **Git**: branch off `main`, never commit to it; PRs squash-merge (linear history), so the PR

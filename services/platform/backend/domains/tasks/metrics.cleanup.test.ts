@@ -9,21 +9,27 @@ vi.mock('@tale/shared/db/serializable', () => ({
     run(sql),
 }));
 vi.mock('./service.ts', () => ({
+  archiveTask: async () => {},
   createTask: async () => 'terminal-task',
+  restoreTask: async () => {},
 }));
 vi.mock('./metrics.ts', () => ({ getProjectTaskMetrics: vi.fn() }));
 
 describe('project metrics fixture cleanup', () => {
-  it.each(['return', 'throw'] as const)(
-    'deletes both fixture projects when metrics %s',
+  it.each(['return', 'throw', 'archive throw'] as const)(
+    'deletes all created fixture projects when metrics %s',
     async (outcome) => {
       const projects = new Set<string>();
       const insertedProjects: string[] = [];
+      const auditMutations: string[] = [];
       const tag = async (
         strings: TemplateStringsArray,
         ...values: unknown[]
       ) => {
         const query = strings.join('?');
+        if (query.includes('app.audit_logs')) {
+          auditMutations.push(query);
+        }
         if (query.includes('INSERT INTO app.projects')) {
           const projectId = String(values[0]);
           projects.add(projectId);
@@ -40,9 +46,12 @@ describe('project metrics fixture cleanup', () => {
         }
         return [];
       };
-      const sql = Object.assign(tag, { json: (value: unknown) => value });
+      const sql = Object.assign(tag, {
+        begin: async (run: (tx: typeof tag) => Promise<unknown>) => run(tag),
+        json: (value: unknown) => value,
+      });
       vi.mocked(getProjectTaskMetrics).mockReset();
-      if (outcome === 'throw') {
+      if (outcome !== 'return') {
         vi.mocked(getProjectTaskMetrics).mockRejectedValue(
           new Error('metrics read failed'),
         );
@@ -52,19 +61,27 @@ describe('project metrics fixture cleanup', () => {
           previousDaily: [],
         });
       }
+      if (outcome === 'archive throw') {
+        vi.mocked(getProjectTaskMetrics).mockResolvedValueOnce({
+          daily: [],
+          previousDaily: [],
+        });
+      }
       const run = checkProjectTaskMetrics(
         sql as unknown as Sql,
         { orgId: 'org', userId: 'user' },
         vi.fn(),
       );
-      if (outcome === 'throw') {
+      if (outcome !== 'return') {
         await expect(run).rejects.toThrow('metrics read failed');
       } else {
         await run;
       }
-      expect(insertedProjects).toHaveLength(2);
-      expect(new Set(insertedProjects).size).toBe(2);
+      const expectedProjects = outcome === 'throw' ? 2 : 3;
+      expect(insertedProjects).toHaveLength(expectedProjects);
+      expect(new Set(insertedProjects).size).toBe(expectedProjects);
       expect(projects.size).toBe(0);
+      expect(auditMutations).toEqual([]);
     },
   );
 });

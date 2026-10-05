@@ -488,6 +488,10 @@ export function ProjectsTable({
         footer={
           <BulkArchiveBar
             rowSelection={rowSelection}
+            onRowSelectionChange={setRowSelection}
+            getItemLabel={(id) =>
+              projects.find((item) => item._id === id)?.name ?? id
+            }
             onClearSelection={handleClearSelection}
             onArchiveItem={handleArchiveItem}
             onComplete={handleClearSelection}
