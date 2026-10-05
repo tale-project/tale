@@ -1,10 +1,7 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useCallback } from 'react';
 
-import {
-  FeedbackMetricsPage,
-  type FeedbackKind,
-} from '@/app/features/analytics/feedback/feedback-metrics-page';
+import type { FeedbackKind } from '@/app/features/analytics/feedback/feedback-metrics-page';
 import {
   feedbackMetricsSearchSchema,
   type FeedbackMetricsSearch,
@@ -13,6 +10,10 @@ import {
   periodToDays,
   type FeedbackPeriod,
 } from '@/app/features/analytics/feedback/feedback-period';
+import {
+  LazyFeedbackMetricsPage,
+  loadFeedbackMetricsPage,
+} from '@/app/features/analytics/lazy-metrics-pages';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { ensureOrgSettingsQuery } from '@/app/lib/loader-preload';
 
@@ -33,8 +34,9 @@ export const Route = createFileRoute(
   }),
   // Bounded aggregate; never fail the transition on a transient/auth error
   // (the page's error/empty branches still render correctly).
-  loader: ({ context, params, deps }) =>
-    ensureOrgSettingsQuery(
+  loader: ({ context, params, deps }) => {
+    void loadFeedbackMetricsPage();
+    return ensureOrgSettingsQuery(
       context,
       params.id,
       'feedback/queries:getFeedbackStats',
@@ -47,7 +49,8 @@ export const Route = createFileRoute(
       },
     ).catch((error: unknown) => {
       console.warn('Failed to preload feedback stats', error);
-    }),
+    });
+  },
   component: FeedbackRoute,
 });
 
@@ -79,7 +82,7 @@ function FeedbackRoute() {
     // `fullWidth`, like every Metrics page: a dashboard of stat cards and
     // charts, and moving between Metrics pages no longer resizes the column.
     <SettingsPage fullWidth>
-      <FeedbackMetricsPage
+      <LazyFeedbackMetricsPage
         organizationId={organizationId}
         period={period}
         kind={kind}

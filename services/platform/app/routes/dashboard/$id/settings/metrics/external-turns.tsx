@@ -7,7 +7,10 @@ import {
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useCallback } from 'react';
 
-import { ExternalTurnMetricsPage } from '@/app/features/analytics/external-turns/external-turns-metrics-page';
+import {
+  LazyExternalTurnMetricsPage,
+  loadExternalTurnMetricsPage,
+} from '@/app/features/analytics/lazy-metrics-pages';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { ensureOrgSettingsQuery } from '@/app/lib/loader-preload';
 
@@ -16,8 +19,9 @@ export const Route = createFileRoute(
 )({
   validateSearch: metricsPeriodSearchSchema,
   loaderDeps: ({ search }) => ({ period: search.period ?? '30' }),
-  loader: ({ context, params, deps }) =>
-    ensureOrgSettingsQuery(
+  loader: ({ context, params, deps }) => {
+    void loadExternalTurnMetricsPage();
+    return ensureOrgSettingsQuery(
       context,
       params.id,
       'sandbox/session_queries_public:getExternalTurnMetrics',
@@ -27,7 +31,8 @@ export const Route = createFileRoute(
       },
     ).catch((error: unknown) => {
       console.warn('Failed to preload external-turn metrics', error);
-    }),
+    });
+  },
   component: ExternalTurnsRoute,
 });
 
@@ -55,7 +60,7 @@ function ExternalTurnsRoute() {
 
   return (
     <SettingsPage fullWidth>
-      <ExternalTurnMetricsPage
+      <LazyExternalTurnMetricsPage
         organizationId={organizationId}
         periodDays={periodDays}
         onChangePeriod={onChangePeriod}

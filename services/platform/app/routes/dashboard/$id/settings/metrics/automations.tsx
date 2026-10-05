@@ -7,7 +7,10 @@ import {
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useCallback } from 'react';
 
-import { AutomationMetricsPage } from '@/app/features/analytics/automations/automation-metrics-page';
+import {
+  LazyAutomationMetricsPage,
+  loadAutomationMetricsPage,
+} from '@/app/features/analytics/lazy-metrics-pages';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { ensureOrgSettingsQuery } from '@/app/lib/loader-preload';
 import { automationSlugToParam } from '@/lib/automations/slug';
@@ -23,8 +26,9 @@ export const Route = createFileRoute(
   // period) so a warm navigation paints real cards+charts+table instead of the
   // skeleton. Bounded query (summary + capped series + top-N), safe to await;
   // never fail the transition on a transient/auth error.
-  loader: ({ context, params, deps }) =>
-    ensureOrgSettingsQuery(
+  loader: ({ context, params, deps }) => {
+    void loadAutomationMetricsPage();
+    return ensureOrgSettingsQuery(
       context,
       params.id,
       'automations/queries:getOrgAutomationMetrics',
@@ -34,7 +38,8 @@ export const Route = createFileRoute(
       },
     ).catch((error: unknown) => {
       console.warn('Failed to preload automation metrics', error);
-    }),
+    });
+  },
   component: AutomationsMetricsRoute,
 });
 
@@ -75,7 +80,7 @@ function AutomationsMetricsRoute() {
     // six-column runs `DataTable` — both need more than the `max-w-3xl`
     // standard settings measure (#2567).
     <SettingsPage fullWidth>
-      <AutomationMetricsPage
+      <LazyAutomationMetricsPage
         organizationId={organizationId}
         periodDays={periodDays}
         onChangePeriod={handleChangePeriod}

@@ -1,7 +1,10 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { useCallback } from 'react';
 
-import { AutomationEditor } from '@/app/features/automations/components/automation-editor';
+import {
+  LazyAutomationEditor,
+  loadAutomationEditor,
+} from '@/app/features/automations/components/lazy-automation-pages';
 import { automationEditorSearchSchema } from '@/app/features/automations/lib/editor-search';
 import { paramToAutomationSlug } from '@/lib/automations/slug';
 
@@ -12,6 +15,9 @@ export const Route = createFileRoute(
   // latest. It lives in the URL so a Versions row, a shared link and the
   // editor's own picker all land on the same picture.
   validateSearch: automationEditorSearchSchema,
+  loader: () => {
+    void loadAutomationEditor();
+  },
   component: AutomationEditorPage,
 });
 
@@ -31,7 +37,7 @@ function AutomationEditorPage() {
     [navigate],
   );
   return (
-    <AutomationEditor
+    <LazyAutomationEditor
       organizationId={organizationId}
       automationSlug={paramToAutomationSlug(automationSlug)}
       {...(version !== undefined && { version })}
