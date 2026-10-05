@@ -89,7 +89,7 @@ describe('conversations door — organization rule', () => {
     expect(await res.json()).toEqual({ snapshot: null });
   });
 
-  it('names the role refusal with a code, not as the whole message', async () => {
+  it('names the role refusal with a code, not as the whole message [CONV-R3]', async () => {
     const { app } = mount(['org-1'], 'member');
     const res = await app.request(STATE);
     expect(res.status).toBe(403);
@@ -345,7 +345,7 @@ describe('GET /conversations', () => {
           : undefined,
     );
 
-  it('answers the mirrors under the source, newest first, in the page envelope', async () => {
+  it('answers the mirrors under the source, newest first, in the page envelope [CONV-R14]', async () => {
     // The reconciliation read the mirror had none of (2026-09-14
     // evaluation, h6).
     const { app, queries } = list();
@@ -597,7 +597,7 @@ describe('POST /conversations/deliveries/{id}/retry', () => {
  * snapshot reopened it (2026-09-15 evaluation, i7).
  */
 describe('GET /conversations/sync — the receipt after a teardown', () => {
-  it('reports sourceDeleted and the Inbox status beside the contact', async () => {
+  it('reports sourceDeleted and the Inbox status beside the contact [CONV-R15]', async () => {
     const { app, queries } = mount(['org-1'], 'admin', (text) =>
       text.includes('FROM app.conversation_api_bindings WHERE') &&
       text.includes('AND owner_user_id = $?')
@@ -695,7 +695,7 @@ describe('conversations door — team assignment', () => {
     expect(queries.some((q) => q.includes('SET assignee_team_id'))).toBe(true);
   });
 
-  it('refuses an editor key: assigning is for admins and owners', async () => {
+  it('refuses an editor key: assigning is for admins and owners [CONV-R4]', async () => {
     const { app, queries } = mount(['org-1'], 'editor', respond({}));
     const res = await post(app, BODY);
     expect(res.status).toBe(403);
@@ -710,14 +710,14 @@ describe('conversations door — team assignment', () => {
     expect(await res.json()).toMatchObject({ code: 'CONVERSATION_NOT_FOUND' });
   });
 
-  it("refuses another service user's mirror", async () => {
+  it("refuses another service user's mirror [CONV-R14]", async () => {
     const { app } = mount(['org-1'], 'admin', respond({ owner: 'user-2' }));
     const res = await post(app, BODY);
     expect(res.status).toBe(403);
     expect(await res.json()).toMatchObject({ code: 'INTEGRATION_NOT_OWNED' });
   });
 
-  it('answers 400 TEAM_NOT_IN_ORG for a team from elsewhere', async () => {
+  it('answers 400 TEAM_NOT_IN_ORG for a team from elsewhere [CONV-R4]', async () => {
     const { app, queries } = mount(
       ['org-1'],
       'admin',
@@ -729,7 +729,7 @@ describe('conversations door — team assignment', () => {
     expect(queries.some((q) => q.includes('SET assignee_team_id'))).toBe(false);
   });
 
-  it('refuses an unknown key and a missing teamId', async () => {
+  it('refuses an unknown key and a missing teamId [CONV-R4]', async () => {
     const { app } = mount(['org-1'], 'admin', respond({}));
     for (const body of [
       { ...BODY, assigneeUserId: 'u-1' },

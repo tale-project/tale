@@ -27,8 +27,11 @@ interface Statement {
 }
 
 /** A transaction double answering the binding read with a live mirror at
- * version 2 and recording every statement the sync issues. */
-function txDouble() {
+ * version 2 (or that mirror as `binding` changes it) and recording every
+ * statement the sync issues. */
+function txDouble(
+  binding: { ownerUserId?: string; sourceDeleted?: boolean } = {},
+) {
   const statements: Statement[] = [];
   const tag = (
     strings: TemplateStringsArray,
@@ -45,6 +48,7 @@ function txDouble() {
           version: '2',
           hash: 'h2',
           sourceDeleted: false,
+          ...binding,
         },
       ]);
     }
@@ -76,7 +80,7 @@ const teardown = apiSnapshotSchema.parse({
 });
 
 describe('a deleted snapshot', () => {
-  it('closes the mirror and leaves every mirrored message in place', async () => {
+  it('closes the mirror and leaves every mirrored message in place [CONV-R15]', async () => {
     const { tx, statements } = txDouble();
     transactSerializable.mockImplementation(
       async (_sql: Sql, run: (tx: TransactionSql) => Promise<unknown>) =>
@@ -106,5 +110,68 @@ describe('a deleted snapshot', () => {
     expect(binding?.text).toContain('source_deleted = true');
     expect(binding?.values[0]).toBe(3);
     expect(emitHintInTx).toHaveBeenCalledTimes(1);
+  });
+});
+
+/** The next content the source sends for the same conversation. */
+const content = apiSnapshotSchema.parse({
+  source: 'crm',
+  externalId: 'thread-1',
+  externalContactId: 'crm:contact-1',
+  version: 3,
+  subject: 'Order 4711',
+  status: 'open',
+  messages: [
+    {
+      externalId: 'm-9',
+      content: 'One more thing.',
+      isCustomer: true,
+      authorName: 'Carla',
+      createdAt: 1_789_230_000_000,
+    },
+  ],
+});
+
+/** Runs the sync on `tx` and answers what it refused with. */
+function refusal(tx: TransactionSql, snapshot: typeof content) {
+  transactSerializable.mockImplementation(
+    async (_sql: Sql, run: (tx: TransactionSql) => Promise<unknown>) => run(tx),
+  );
+  return synchronizeConversation(sql, viewer, snapshot).then(
+    () => undefined,
+    (error: unknown) => error,
+  );
+}
+
+const wrote = (statements: Statement[]) =>
+  statements.some((s) => /^(INSERT|UPDATE|DELETE)/.test(s.text));
+
+describe('a mirror its source closed', () => {
+  it('takes no more content and stays closed [CONV-R15]', async () => {
+    const { tx, statements } = txDouble({ sourceDeleted: true });
+
+    expect(await refusal(tx, content)).toMatchObject({
+      name: 'ConversationError',
+      code: 'CONVERSATION_CLOSED',
+      status: 409,
+    });
+    // Nothing reopened it and no message landed.
+    expect(wrote(statements)).toBe(false);
+  });
+});
+
+describe('a mirror another API key user created', () => {
+  it.each([
+    ['a content snapshot', content],
+    ['a teardown', teardown],
+  ])('refuses %s and changes nothing [CONV-R14]', async (_kind, snapshot) => {
+    const { tx, statements } = txDouble({ ownerUserId: 'user-2' });
+
+    expect(await refusal(tx, snapshot)).toMatchObject({
+      name: 'ConversationError',
+      code: 'INTEGRATION_NOT_OWNED',
+      status: 403,
+    });
+    expect(wrote(statements)).toBe(false);
   });
 });
