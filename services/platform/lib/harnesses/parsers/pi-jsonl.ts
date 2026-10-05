@@ -31,6 +31,8 @@
 // { type: "wrapper_error", message } — not a Pi event; defined by the
 // wrapper.
 
+import { z } from 'zod';
+
 import {
   asNumber,
   asString,
@@ -60,6 +62,18 @@ function assistantText(content: unknown): string {
     .join('');
 }
 
+const checkpointSchema = z.object({
+  lines: z.string(),
+  started: z.boolean(),
+  sessionId: z.string().optional(),
+  resultEmitted: z.boolean(),
+  lastText: z.string(),
+  lastStopReason: z.string().optional(),
+  lastError: z.string().optional(),
+  totalInput: z.number(),
+  totalOutput: z.number(),
+});
+
 class PiJsonlParser implements HarnessEventParser {
   private readonly lines = new LineReassembler();
   private started = false;
@@ -79,6 +93,33 @@ class PiJsonlParser implements HarnessEventParser {
   private totalOutput = 0;
 
   constructor(private readonly slug: HarnessSlug) {}
+
+  snapshot(): Record<string, unknown> {
+    return {
+      lines: this.lines.snapshot(),
+      started: this.started,
+      sessionId: this.sessionId,
+      resultEmitted: this.resultEmitted,
+      lastText: this.lastText,
+      lastStopReason: this.lastStopReason,
+      lastError: this.lastError,
+      totalInput: this.totalInput,
+      totalOutput: this.totalOutput,
+    };
+  }
+
+  restore(value: unknown): void {
+    const state = checkpointSchema.parse(value);
+    this.lines.restore(state.lines);
+    this.started = state.started;
+    this.sessionId = state.sessionId;
+    this.resultEmitted = state.resultEmitted;
+    this.lastText = state.lastText;
+    this.lastStopReason = state.lastStopReason;
+    this.lastError = state.lastError;
+    this.totalInput = state.totalInput;
+    this.totalOutput = state.totalOutput;
+  }
 
   feed(chunk: string): HarnessEvent[] {
     return this.lines.push(chunk).flatMap((line) => this.line(line));

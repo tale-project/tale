@@ -1,3 +1,5 @@
+import { RUNNERD_CHECKPOINT_MAX_BYTES } from './session/runnerd-protocol.ts';
+
 // Shared HTTP helpers for the spawner's route handlers. Extracted verbatim
 // from server.ts when the session routes landed (sessions plan, milestone A)
 // so /v1/execute and /v1/sessions/* share one body-cap + JSON-response
@@ -67,4 +69,16 @@ export function jsonResponse(
       ...extraHeaders,
     },
   });
+}
+
+/** Checkpoints have a separate bounded wire budget on both server and device. */
+export function sessionRequestBodyLimit(
+  path: string,
+  fallback: number,
+): number {
+  return /^\/v1\/sessions\/[a-zA-Z0-9_-]{1,64}\/exec\/[a-zA-Z0-9_-]{1,64}\/checkpoint$/.test(
+    path.split('?')[0] ?? '',
+  )
+    ? RUNNERD_CHECKPOINT_MAX_BYTES
+    : fallback;
 }

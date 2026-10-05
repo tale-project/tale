@@ -6,11 +6,16 @@
     "STORYBOOK_DISABLE_TELEMETRY",
     "TELEMETRY_DISABLED",
     "SCARF_ANALYTICS",
+    "NODE_COMPILE_CACHE",
     "SANDBOX_TOKEN",
     "GITHUB_TOKEN",
     "GH_TOKEN"
   ],
   "tasks": {
+    "transit": {
+      "dependsOn": ["^transit"],
+      "outputs": []
+    },
     "setup": {
       "cache": false,
       "outputs": [".venv/**"]
@@ -35,35 +40,30 @@
       "persistent": true
     },
     "lint": {
-      "dependsOn": ["setup"],
+      "dependsOn": ["^transit"],
       "outputs": []
     },
     "lint:fix": {
-      "dependsOn": ["setup"],
       "cache": false,
       "outputs": []
     },
     "format": {
-      "dependsOn": ["setup"],
       "cache": false,
       "outputs": []
     },
     "format:check": {
-      "dependsOn": ["setup"],
       "outputs": []
     },
     "@tale/cli#generate": {
+      "cache": false,
       "outputs": ["src/generated/**"]
     },
-    "@tale/cli#typecheck": {
-      "dependsOn": ["generate"],
-      "outputs": []
-    },
     "typecheck": {
+      "dependsOn": ["^transit"],
       "outputs": []
     },
     "test": {
-      "dependsOn": ["setup"],
+      "dependsOn": ["^transit"],
       "outputs": [],
       "env": [
         "YOUTUBE_LIVE_TEST",
@@ -72,14 +72,15 @@
       ]
     },
     "test:watch": {
-      "dependsOn": ["setup"],
       "cache": false,
       "persistent": true
     },
     "test:ui": {
+      "dependsOn": ["^transit"],
       "outputs": []
     },
     "test:browser": {
+      "dependsOn": ["^transit"],
       "outputs": []
     },
     "test:e2e": {
@@ -91,7 +92,7 @@
       "outputs": []
     },
     "test:coverage": {
-      "dependsOn": ["setup"],
+      "dependsOn": ["^transit"],
       "outputs": ["coverage/**"]
     },
     "knip": {
@@ -103,17 +104,25 @@
       "persistent": true
     },
     "storybook:build": {
+      "dependsOn": ["^transit"],
       "outputs": ["storybook-static/**"]
     },
     "docker:build": {
       "cache": false,
       "outputs": []
+    },
+    "@tale/cli#build": {
+      "dependsOn": ["^build"],
+      "cache": false,
+      "outputs": ["dist/**"]
     }
   },
   "globalDependencies": [
     ".github/actions/setup-turbo/action.yml",
     ".oxlintrc.json",
     ".oxfmtrc.json",
-    "tsconfig.base.json"
+    "tsconfig*.json",
+    "bunfig.toml",
+    "patches/**"
   ]
 }

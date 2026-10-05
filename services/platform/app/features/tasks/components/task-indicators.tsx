@@ -20,6 +20,20 @@ import { type TaskRepeat, taskRepeatCreateOn } from '@/lib/shared/task-repeat';
 import { TASK_TERMINAL_STATUSES, isTaskStatus } from '../lib/display';
 import { useTaskRepeatLabel } from '../lib/task-repeat-label';
 
+export function useTaskCardStateLabels() {
+  const { t } = useT('tasks');
+  return {
+    blocked: t('detail.blocked'),
+    comments: (count: number) => t('detail.commentCount', { count }),
+    review: (reviewerName?: string, reviewerIsMe = false) =>
+      reviewerIsMe
+        ? t('review.waitingOnYou')
+        : reviewerName !== undefined
+          ? t('review.waitingOn', { name: reviewerName })
+          : t('review.needsReview'),
+  };
+}
+
 /**
  * Amber "blocked" glyph shown on a task card/row when the task has at least one
  * unfinished blocker (computed from dependency edges, see `lib/dependencies`).
@@ -33,16 +47,17 @@ export function BlockedIndicator({
   blocked: boolean;
   className?: string;
 }) {
-  const { t } = useT('tasks');
+  const labels = useTaskCardStateLabels();
   if (!blocked) return null;
   return (
-    <Tooltip content={t('detail.blocked')}>
+    <Tooltip content={labels.blocked}>
       <span
         className={cn(
           'inline-flex items-center text-amber-600 dark:text-amber-400',
           className,
         )}
-        aria-label={t('detail.blocked')}
+        aria-label={labels.blocked}
+        role="img"
       >
         <Ban className="size-3.5 shrink-0" aria-hidden="true" />
       </span>
@@ -62,9 +77,9 @@ export function CommentCountIndicator({
   count: number | undefined;
   className?: string;
 }) {
-  const { t } = useT('tasks');
+  const labels = useTaskCardStateLabels();
   if (!count || count <= 0) return null;
-  const label = `${count} ${t('detail.comments')}`;
+  const label = labels.comments(count);
   return (
     <Tooltip content={label}>
       <span
@@ -73,6 +88,7 @@ export function CommentCountIndicator({
           className,
         )}
         aria-label={label}
+        role="img"
       >
         <MessageSquare className="size-3.5 shrink-0" aria-hidden="true" />
         <span className="tabular-nums">{count}</span>
@@ -110,6 +126,7 @@ export function SubtaskProgress({
           className,
         )}
         aria-label={label}
+        role="img"
       >
         <svg
           viewBox="0 0 16 16"
@@ -163,6 +180,7 @@ export function AgentWorkingIndicator({
       <span
         className={cn('text-primary inline-flex items-center', className)}
         aria-label={t('agentRuns.working')}
+        role="img"
       >
         <Bot className="size-3.5 shrink-0 animate-pulse" aria-hidden="true" />
       </span>
@@ -195,6 +213,7 @@ export function AgentNeedsAnswerIndicator({
           className,
         )}
         aria-label={label}
+        role="img"
       >
         <MessageCircleQuestion
           className="size-3.5 shrink-0"
@@ -225,14 +244,10 @@ export function NeedsReviewIndicator({
   reviewerIsMe?: boolean;
   className?: string;
 }) {
-  const { t } = useT('tasks');
+  const labels = useTaskCardStateLabels();
   if (!needsReview) return null;
   const hasNamedReviewer = reviewerIsMe || reviewerName !== undefined;
-  const label = reviewerIsMe
-    ? t('review.waitingOnYou')
-    : reviewerName !== undefined
-      ? t('review.waitingOn', { name: reviewerName })
-      : t('review.needsReview');
+  const label = labels.review(reviewerName, reviewerIsMe);
   return (
     <Tooltip content={label}>
       <span
@@ -241,6 +256,7 @@ export function NeedsReviewIndicator({
           className,
         )}
         aria-label={label}
+        role="img"
       >
         <Eye className="size-3.5 shrink-0" aria-hidden="true" />
         {hasNamedReviewer && <span className="tabular-nums">1</span>}
@@ -286,6 +302,7 @@ export function RepeatIndicator({
           className,
         )}
         aria-label={label}
+        role="img"
       >
         <Glyph className="size-3.5 shrink-0" aria-hidden="true" />
       </span>
@@ -327,6 +344,7 @@ export function DueDateIndicator({
           className,
         )}
         aria-label={tooltip}
+        role="img"
       >
         <CalendarClock className="size-3.5 shrink-0" aria-hidden="true" />
         {formatDate(date, 'short')}

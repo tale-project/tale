@@ -70,7 +70,7 @@ Keep descriptions in one place rather than repeating them in the summary and bod
 | `size` | `sm`, `default`, `md`, `lg`, `xl`, `3xl`, `entity`, or `wide`; default `default`. `entity` gives record forms a shared width and content-driven height. `EntityViewDialog` uses the wider `lg` reading measure. |
 | `children`, `footer` | Body and action content; either may be omitted. |
 | `icon`, `headerActions` | Additional header content. |
-| `onBack`, `backLabel` | A labelled back control for an in-dialog subview. |
+| `onBack`, `backLabel`, `backDisabled` | A labelled back control for an in-dialog subview. Set `backDisabled` while the subview can't be left, such as during a save that also disables its Cancel. |
 | `customHeader` | Replaces the visible header; the required title remains available to assistive technology. |
 | `hideClose` | Hides the close control; provide an accessible dismiss path unless the current operation deliberately blocks it. |
 | `className`, `headerClassName`, `bodyClassName`, `footerClassName` | Targeted layout adjustments. |

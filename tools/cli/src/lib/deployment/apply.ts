@@ -16,7 +16,7 @@ import {
 import { createSnapshot } from '../backup/create-snapshot';
 import { verifySnapshot } from '../backup/verify-snapshot';
 import { verifyArtifactBytes } from '../config/releases/artifacts';
-import { sha256 } from '../config/releases/identity';
+import { sha256, valueHash } from '../config/releases/identity';
 import { loadClient } from '../config/releases/identity';
 import { loadRelease } from '../config/releases/manifest';
 import { sha, slug } from '../config/releases/model';
@@ -42,7 +42,10 @@ import {
   readBootstrapPassword,
   type RuntimeResult,
 } from './runtime';
-import { activateRuntimeConfiguration } from './runtime-apply';
+import {
+  activateRuntimeConfiguration,
+  observeReadyRuntime,
+} from './runtime-apply';
 import { runtimeProcessEnvironment } from './runtime-command';
 import {
   atomicRuntimeFile,
@@ -55,6 +58,7 @@ export interface ApplyDeploymentOptions {
   cliRef?: string;
   deploymentRef?: string;
   dryRun?: boolean;
+  configurationOnly?: boolean;
 }
 
 type Dependencies = {
@@ -64,7 +68,20 @@ type Dependencies = {
   exec?: typeof exec;
   bootstrapPassword?: typeof readBootstrapPassword;
   activateConfiguration?: typeof activateRuntimeConfiguration;
+  observeRuntime?: typeof observeReadyRuntime;
 };
+
+/** Native configuration is the only field a hot apply may change. The source
+ * commit is carried separately by the immutable bundle, never folded into
+ * this comparison of destination, identity, runtime and config-pack inputs. */
+function configurationBasis(bundle: DeploymentBundle): string {
+  const {
+    configuration: _configuration,
+    supersedesPendingConfigurationPlan: _recovery,
+    ...basis
+  } = bundle.spec;
+  return valueHash(basis);
+}
 
 const recoverySnapshotSchema = z.object({
   id: z.string().refine(isValidSnapshotId),
@@ -272,6 +289,7 @@ async function provisionBackend(
   runtime: RuntimeResult,
   configs: Awaited<ReturnType<typeof configProofs>>,
   dependencies: Dependencies,
+  existingOnly?: z.infer<typeof nativeProvisionProofSchema>,
 ) {
   if (!bundle.spec.identity) return undefined;
   if (!runtime.backendContainer)
@@ -353,6 +371,15 @@ async function provisionBackend(
         `${temporary}/cli/tale.mjs`,
         'deploy',
         'provision',
+        ...(existingOnly
+          ? [
+              '--configuration-only',
+              '--expected-user',
+              existingOnly.userId,
+              '--expected-organization',
+              existingOnly.organizationId,
+            ]
+          : []),
         '--bundle',
         temporary,
         '--json',
@@ -379,6 +406,33 @@ async function provisionBackend(
         data: nativeProvisionProofSchema,
       })
       .safeParse(output);
+    if (existingOnly) {
+      if (
+        !parsed.success ||
+        !bundle.spec.configuration ||
+        parsed.data.data.userId !== existingOnly.userId ||
+        parsed.data.data.organizationId !== existingOnly.organizationId ||
+        parsed.data.data.organizationSlug !== existingOnly.organizationSlug ||
+        parsed.data.data.nativeClients.length !== 0 ||
+        parsed.data.data.configs.length !== 0
+      )
+        throw externalDepError(
+          'Configuration-only native receipt differs from the retained deployment identity.',
+        );
+      const configuration = verifyNativeConfigurationProof(
+        parsed.data.data.configuration,
+        bundle.spec.configuration,
+        sha256(await readFile(join(directory, 'deployment.json'))),
+        existingOnly.organizationId,
+        input.slug,
+        bundle.spec.origin,
+      );
+      if (configuration.restartRequired)
+        throw externalDepError(
+          'Configuration-only provisioning unexpectedly requested a restart.',
+        );
+      return { ...existingOnly, configuration };
+    }
     if (
       !parsed.success ||
       parsed.data.data.organizationSlug !== bundle.spec.identity.slug ||
@@ -538,7 +592,7 @@ async function applyVerifiedDeployment(
     environment,
   };
   const runtime = dependencies.runtime ?? applyRuntime;
-  if (options.dryRun) {
+  if (options.dryRun && !options.configurationOnly) {
     return {
       dryRun: true,
       runtime: await runtime({ ...runtimeOptions, dryRun: true }),
@@ -605,9 +659,86 @@ async function applyVerifiedDeployment(
             name: z.literal(bundle.spec.name),
             bundleSha256: sha,
             snapshotId: z.string().refine(isValidSnapshotId).optional(),
+            configurationBasisSha256: sha.optional(),
+            native: nativeProvisionProofSchema.optional(),
           })
           .parse(JSON.parse(readRegular(receiptPath).toString('utf8')))
       : undefined;
+    if (options.configurationOnly) {
+      if (
+        intent ||
+        bundle.spec.supersedesPendingBundle ||
+        !previous?.native ||
+        previous.configurationBasisSha256 !== configurationBasis(bundle) ||
+        !bundle.spec.configuration ||
+        !preview.existing ||
+        preview.changed ||
+        !preview.backendContainer
+      )
+        throw preconditionError(
+          'Configuration-only apply requires an unchanged, already-ready deployment with no pending runtime rollout. Complete a normal deployment of these exact runtime and identity inputs first.',
+        );
+      const observed = await (
+        dependencies.observeRuntime ?? observeReadyRuntime
+      )(runtimeOptions);
+      if (
+        observed.backendContainer !== preview.backendContainer ||
+        observed.revision !== runtimeBundle.revision ||
+        valueHash(observed.images) !== valueHash(preview.images)
+      )
+        throw preconditionError(
+          'Configuration-only runtime changed during observation.',
+        );
+      if (options.dryRun)
+        return {
+          dryRun: true,
+          configurationOnly: true,
+          runtime: preview,
+          configs,
+        };
+      const native = await provisionBackend(
+        bundle,
+        directory,
+        preview,
+        configs,
+        dependencies,
+        previous.native,
+      );
+      if (!native?.configuration)
+        throw externalDepError(
+          'Configuration-only provisioning returned no verified configuration.',
+        );
+      const after = await (dependencies.observeRuntime ?? observeReadyRuntime)(
+        runtimeOptions,
+      );
+      if (valueHash(after) !== valueHash(observed))
+        throw preconditionError(
+          'Runtime identity changed during configuration-only apply; its native journal is retained for reconciliation.',
+        );
+      const receipt = {
+        schemaVersion: 1,
+        phase: 'configuration-ready',
+        name: bundle.spec.name,
+        revision: runtimeBundle.revision,
+        cliRevision: bundle.cli.revision,
+        deploymentRef: bundle.deploymentRef,
+        bundleSha256,
+        baseDeploymentBundleSha256: previous.bundleSha256,
+        configurationBasisSha256: previous.configurationBasisSha256,
+        images: observed.images,
+        native: {
+          organizationId: native.organizationId,
+          organizationSlug: native.organizationSlug,
+          userId: native.userId,
+          configuration: native.configuration,
+        },
+      };
+      atomicRuntimeFile(
+        join(bundle.spec.stateDirectory, '.tale', 'configuration-ready.json'),
+        `${JSON.stringify(receipt, null, 2)}\n`,
+      );
+      return { ...receipt, dryRun: false, runtimeChanged: false };
+    }
     let snapshot = intent?.snapshot;
     // A pending run records no snapshot only when it changed nothing: the
     // deployment was ready on that same bundle. Unless something took it over
@@ -709,6 +840,7 @@ async function applyVerifiedDeployment(
       cliRevision: bundle.cli.revision,
       deploymentRef: bundle.deploymentRef,
       bundleSha256,
+      configurationBasisSha256: configurationBasis(bundle),
       ...(intent.supersededBundles
         ? { supersededBundles: intent.supersededBundles }
         : {}),

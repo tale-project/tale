@@ -217,6 +217,71 @@ afterEach(() => {
 });
 
 describe('provisionProviders', () => {
+  it('carries the freshly verified org key into its mint without a second listing', async () => {
+    const calls = stubGateway({ keyExists: true });
+    const mod = await loadModule();
+    const keyIds = new Map<string, string>();
+    const options = { provisionedKeys: { organizationId: ORG, keyIds } };
+    expect(
+      await mod.provisionProviders(ORG, [PROVIDER], {
+        onProviderKey: (provider, keyId) => keyIds.set(provider, keyId),
+      }),
+    ).toEqual([]);
+    await mod.mintVirtualKey(
+      {
+        organizationId: ORG,
+        sessionId: 'verified-session',
+        budgetCents: 100,
+        allowedModels: [
+          { providerSlug: PROVIDER.name, modelId: PROVIDER.models[0]! },
+        ],
+      },
+      options,
+    );
+    expect(
+      calls.filter(
+        (call) => call.method === 'GET' && call.url.endsWith('/keys'),
+      ),
+    ).toHaveLength(1);
+    expect(
+      calls.find((call) => call.url.endsWith('/virtual-keys'))?.body
+        ?.provider_configs,
+    ).toMatchObject([{ key_ids: ['kid-A'] }]);
+    // The request-owned map is scoped to the organization as well as record.
+    await expect(
+      mod.mintVirtualKey(
+        {
+          organizationId: 'other-org',
+          sessionId: 'other-session',
+          budgetCents: 100,
+          allowedModels: [
+            { providerSlug: PROVIDER.name, modelId: PROVIDER.models[0]! },
+          ],
+        },
+        options,
+      ),
+    ).rejects.toThrow('provisioned keys belong to another organization');
+  });
+
+  it('coalesces simultaneous identical reconciliations and forgets them afterward', async () => {
+    const calls = stubGateway({ keyExists: true });
+    const mod = await loadModule();
+    await Promise.all(
+      Array.from({ length: 5 }, () => mod.provisionProviders(ORG, [PROVIDER])),
+    );
+    expect(
+      calls.filter(
+        (call) => call.method === 'GET' && call.url.endsWith('/keys'),
+      ),
+    ).toHaveLength(1);
+    await mod.provisionProviders(ORG, [PROVIDER]);
+    expect(
+      calls.filter(
+        (call) => call.method === 'GET' && call.url.endsWith('/keys'),
+      ),
+    ).toHaveLength(2);
+  });
+
   it('creates an absent org key: config PUT + key POST with the stable per-org name and the catalog model ids as-is', async () => {
     const calls = stubGateway({ keyExists: false });
     const mod = await loadModule();
@@ -1734,6 +1799,37 @@ describe('applyGatewayConfig', () => {
 });
 
 describe('applyGatewayConfig — a request-scoped key reuses a recent apply', () => {
+  it('verifies every sandbox create but does not rewrite an already enforced posture', async () => {
+    const calls = stubGateway({
+      authEnabled: true,
+      clientConfig: {
+        log_retention_days: 30,
+        enforce_auth_on_inference: true,
+        disable_content_logging: true,
+      },
+    });
+    const mod = await loadModule();
+    await mod.applyGatewayConfig();
+    await mod.applyGatewayConfig();
+    expect(calls.map((call) => call.method)).toEqual(['GET', 'GET']);
+  });
+
+  it('shares a concurrent auth verification, without caching a later sandbox create', async () => {
+    const calls = stubGateway({ authEnabled: true });
+    const mod = await loadModule();
+    await Promise.all(
+      Array.from({ length: 5 }, () => mod.applyGatewayConfig()),
+    );
+    expect(calls.map((call) => call.method)).toEqual(['GET', 'PUT']);
+    await mod.applyGatewayConfig();
+    expect(calls.map((call) => call.method)).toEqual([
+      'GET',
+      'PUT',
+      'GET',
+      'PUT',
+    ]);
+  });
+
   const T0 = 1_790_000_000_000;
   const configCalls = (calls: RecordedCall[]) =>
     calls.filter((c) => c.url.endsWith('/api/config')).map((c) => c.method);

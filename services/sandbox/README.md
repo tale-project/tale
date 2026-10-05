@@ -23,8 +23,9 @@ and keepalive immediately. The exec keeps running and can be reattached through
 the session API. Late output is discarded without repeated log messages.
 The runnerd response reader also cancels its upstream stream and releases its
 lock when parsing or forwarding fails, so retries do not retain old output
-subscriptions. Malformed JSON or invalid protocol records fail the attachment;
-a failing output consumer also ends that attachment.
+subscriptions. Malformed JSON, invalid payloads, invalid UTF-8 or oversized
+records fail with `REPLAY_UNAVAILABLE`; missing sequence numbers or sequence
+gaps fail with `OUTPUT_GAP`. A failing output consumer also ends that attachment.
 
 Cold runtime-image warming runs in the background. New local sessions wait
 with `429 runtime_image` and `Retry-After: 5`, while control, health and existing
@@ -201,15 +202,22 @@ network namespace with a read-only filesystem, no capabilities and no mounts;
 this works against remote Docker without borrowing the spawner host's routes.
 An unused invalid owned network is recreated; an in-use or foreign network is
 never removed. If host observation fails or no safe subnet is available,
-sessions build locally. Optional cache provisioning has one budget: the smaller
-of `SANDBOX_BUILDKITD_PROVISION_TIMEOUT_MS` (15 seconds by default, 100–60000 ms)
-and a quarter of `SANDBOX_SESSION_CREATE_TIMEOUT_MS`. It includes waiting for
-Docker slots and helper operations. Its independent registry mirrors initialize
-concurrently. Expiry cancels provisioning and uses the local builder. Docker
-session creation has one `SANDBOX_SESSION_CREATE_TIMEOUT_MS` budget (180 seconds
-by default) covering provisioning through environment delivery; failed creation
-has a separate 10-second Docker cleanup budget and preserves every workspace
-and its organization marker for retry or explicit destroy.
+sessions build locally. Shared cache provisioning has its own
+`SANDBOX_BUILDKITD_PROVISION_TIMEOUT_MS` budget (5 seconds by default,
+100–60000 ms), including queued Docker calls and helper operations. Independent
+registry mirrors initialize concurrently. Each session waits no longer than
+that budget or a quarter of `SANDBOX_SESSION_CREATE_TIMEOUT_MS`, whichever is
+shorter, before using its local builder. Cancelling a caller ends only its wait;
+the shared producer retains its organization lease until its own budget expires
+or it finishes. Expired queued producers cannot mutate Docker later, and a late
+result never attaches a network to a session that already fell back.
+Session creation has one `SANDBOX_SESSION_CREATE_TIMEOUT_MS` budget (180 seconds
+by default) covering provisioning through environment delivery on Docker and
+Kubernetes. Request cancellation propagates to outstanding work. Docker failed
+creation has a separate 10-second cleanup budget and preserves every workspace
+and its organization marker for retry or explicit destroy. Kubernetes failed
+creation has a separate 30-second cleanup budget, removes only API-acknowledged
+Pod and Secret identities, and preserves workspace PVCs and ambiguous objects.
 BuildKit solver parallelism follows the helper's CPU limit rounded down, at
 least one, and changes when an idle helper is recreated.
 
@@ -247,6 +255,14 @@ on host IPv6 firewall support. See the [operator environment reference](../../do
 
 ## Inner Docker networking
 
+An enabled agent session starts its inner engine on the first ordinary Docker
+socket connection and stops it after five idle minutes only when no clients
+or active containers need it and all container restart policies are disabled. The image store and workspace survive that
+engine stop; the address pool stays fixed until the session container restarts.
+Existing container metadata at boot starts the engine immediately for restart
+policies. Agents need no setting or new command. See the
+[Docker lifecycle](docs/docker-in-container.md#storage--lifecycle).
+
 On Docker and Kubernetes, DinD agent sessions choose an inner private `/16`
 against their observed routes, interface addresses, DNS and proxy/gateway
 addresses configured at container startup. Hosts supplied later during a turn
@@ -270,3 +286,19 @@ reach the server directly. See the script headers for the split rationale.
 # from repo root
 docker build -f services/sandbox/Dockerfile .
 ```
+
+The `agent-light` profile keeps the agent user, coding tools and persistent
+workspace without inner Docker or BuildKit.
+
+Reactivating a released session reserves its expected memory growth and checks
+disk headroom. Both create and acquire can return 429 `host_memory` or `host_disk`.
+Docker's metadata filesystem is observed through its existing `/etc/hostname`
+bind when that mount can be verified against the selected daemon. Otherwise,
+workspace admission remains active and Docker disk pressure is unavailable.
+An explicit `SANDBOX_DOCKER_DATA_ROOT` read-only mount visible at
+`SANDBOX_DOCKER_DATA_PATH` takes priority. The CLI generates that optional mount;
+raw Compose needs an override. Its source must match DockerRootDir; failed
+verification closes admission. `/health.disks` reports each monitor as ready or
+unavailable. Separately mounted volumes or containerd stores need their own
+monitoring. These checks do not
+enforce per-session disk quotas; those require a quota-capable storage backend.

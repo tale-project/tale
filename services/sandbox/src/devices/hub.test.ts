@@ -7,6 +7,7 @@ import { DEVICE_HEADER, DeviceHub, type HubOptions } from './hub.ts';
 import { PlacementStore } from './placements.ts';
 import {
   FRAME,
+  MAX_STREAMS_PER_SIDE,
   TUNNEL_CLOSE,
   TUNNEL_PROTOCOL_VERSION,
   TunnelClosedError,
@@ -179,7 +180,266 @@ function callRequest(method: string, path: string): { req: Request; url: URL } {
   return { req: new Request(url.toString(), { method }), url };
 }
 
+/** Hold one real durable write without changing its publication behavior. */
+function holdNextPlacementWrite() {
+  // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion -- causal barrier at the existing private filesystem seam
+  const store = PlacementStore.prototype as unknown as {
+    writeSnapshot: (placements: ReadonlyMap<string, unknown>) => Promise<void>;
+  };
+  const write = store.writeSnapshot;
+  const entered = Promise.withResolvers<void>();
+  const release = Promise.withResolvers<void>();
+  let hold = true;
+  store.writeSnapshot = async function (this: unknown, placements) {
+    if (hold) {
+      hold = false;
+      entered.resolve();
+      await release.promise;
+    }
+    return write.call(this, placements);
+  };
+  return {
+    entered: entered.promise,
+    release: release.resolve,
+    restore() {
+      release.resolve();
+      store.writeSnapshot = write;
+    },
+  };
+}
+
 describe('DeviceHub placement', () => {
+  test.each(['done', 'pending'])(
+    'a sweep started during a create write cannot apply its old %s answer to the new route',
+    async (answer) => {
+      let now = 1_800_000_000_000;
+      const { hub, stateDir } = await makeHub({ now: () => now });
+      const answered = Promise.withResolvers<void>();
+      const device = connectDevice(hub, 'dev-1', (stream) => {
+        const sweep = stream.head.path.includes('if_stopped=1');
+        stream.respond(
+          { status: stream.head.method === 'DELETE' ? 200 : 201, headers: [] },
+          new Response(
+            JSON.stringify(
+              stream.head.method === 'DELETE'
+                ? {
+                    destroyed: false,
+                    busy: false,
+                    deletion: sweep ? answer : 'pending',
+                  }
+                : {},
+            ),
+          ).body,
+        );
+        if (sweep) answered.resolve();
+      });
+      await device.hello();
+      const create = () => {
+        const call = createRequest('pa-midwrite', 'device');
+        return hub.maybeForward(call.req, call.url, call.body);
+      };
+      await (await create())?.text();
+      const destroy = callRequest('DELETE', '/v1/sessions/pa-midwrite');
+      await (await hub.maybeForward(destroy.req, destroy.url, ''))?.text();
+      const held = holdNextPlacementWrite();
+      try {
+        const creating = create();
+        await held.entered;
+        // The new generation already exists, but only the old deleting
+        // placement is visible. This ordering is the regression boundary.
+        const sweeping = hub.recheckDeleting();
+        await answered.promise;
+        expect(
+          device.served.filter((call) => call.method === 'POST'),
+        ).toHaveLength(1);
+        held.release();
+        expect((await creating)?.status).toBe(201);
+        await sweeping;
+        expect(hub.capacityOverlay(ORG).placements).toEqual([
+          { sessionId: 'pa-midwrite', deviceId: 'dev-1' },
+        ]);
+        const read = callRequest('GET', '/v1/sessions/pa-midwrite');
+        expect(
+          (await hub.maybeForward(read.req, read.url, ''))?.headers.get(
+            DEVICE_HEADER,
+          ),
+        ).toBe('dev-1');
+        const restarted = new PlacementStore(join(stateDir, 'placements.json'));
+        await restarted.load();
+        expect(restarted.get('pa-midwrite')).toMatchObject({
+          deviceId: 'dev-1',
+        });
+        expect(restarted.get('pa-midwrite')?.deleting).toBeUndefined();
+        now += 5 * 60_000;
+        await hub.recheckDeleting();
+        expect(
+          device.served.filter((call) => call.path.includes('if_stopped=1')),
+        ).toHaveLength(1);
+      } finally {
+        held.restore();
+        hub.stop();
+      }
+    },
+  );
+
+  test.each(['removed', 'replaced'])(
+    'a candidate %s during an earlier refusal cannot receive a new placement',
+    async (change) => {
+      const { hub, stateDir } = await makeHub();
+      const entered = Promise.withResolvers<IncomingStream>();
+      const first = connectDevice(hub, 'dev-first', (stream) =>
+        entered.resolve(stream),
+      );
+      await first.hello({ maxSessions: 3 });
+      const stale = connectDevice(hub, 'dev-stale');
+      await stale.hello();
+      const healthy = connectDevice(hub, 'dev-healthy');
+      await healthy.hello({ maxSessions: 1 });
+      const call = createRequest('pa-candidate', 'device');
+      const creating = hub.maybeForward(call.req, call.url, call.body);
+      const pending = await entered.promise;
+      let replacement: FakeDevice | undefined;
+      try {
+        if (change === 'removed') await hub.disconnect('dev-stale');
+        else {
+          replacement = connectDevice(hub, 'dev-stale');
+          await replacement.hello({ version: '0.5.59' });
+        }
+        pending.respond({ status: 429, headers: [] }, null);
+        const response = await creating;
+        expect(response?.status).toBe(201);
+        expect(response?.headers.get(DEVICE_HEADER)).toBe('dev-healthy');
+        expect(stale.served).toEqual([]);
+        expect(replacement?.served ?? []).toEqual([]);
+        const restarted = new PlacementStore(join(stateDir, 'placements.json'));
+        await restarted.load();
+        expect(restarted.get('pa-candidate')?.deviceId).toBe('dev-healthy');
+      } finally {
+        pending.respond({ status: 429, headers: [] }, null);
+        hub.stop();
+        await creating;
+      }
+    },
+  );
+
+  test.each(['removed', 'replaced'])(
+    'a candidate %s during durable publication falls back before sending',
+    async (change) => {
+      const { hub, stateDir } = await makeHub();
+      const stale = connectDevice(hub, 'dev-stale');
+      await stale.hello();
+      const healthy = connectDevice(hub, 'dev-healthy');
+      await healthy.hello({ maxSessions: 1 });
+      const held = holdNextPlacementWrite();
+      const call = createRequest('pa-before-send', 'device');
+      const creating = hub.maybeForward(call.req, call.url, call.body);
+      let removing: Promise<unknown> | undefined;
+      let replacement: FakeDevice | undefined;
+      try {
+        await held.entered;
+        if (change === 'removed') removing = hub.disconnect('dev-stale');
+        else {
+          replacement = connectDevice(hub, 'dev-stale');
+          await replacement.hello({ version: '0.5.59' });
+        }
+        held.release();
+        const response = await creating;
+        await removing;
+        expect(response?.status).toBe(201);
+        expect(response?.headers.get(DEVICE_HEADER)).toBe('dev-healthy');
+        expect(stale.served).toEqual([]);
+        expect(replacement?.served ?? []).toEqual([]);
+        const restarted = new PlacementStore(join(stateDir, 'placements.json'));
+        await restarted.load();
+        expect(restarted.get('pa-before-send')?.deviceId).toBe('dev-healthy');
+      } finally {
+        held.restore();
+        await removing;
+        await creating;
+        hub.stop();
+      }
+    },
+  );
+
+  test('local tunnel saturation releases only the fresh unsent placement', async () => {
+    const { hub, stateDir } = await makeHub();
+    const waiting: IncomingStream[] = [];
+    const saturated = Promise.withResolvers<void>();
+    const busy = connectDevice(hub, 'dev-busy', (stream) => {
+      if (stream.head.method === 'GET') {
+        waiting.push(stream);
+        if (waiting.length === MAX_STREAMS_PER_SIDE) saturated.resolve();
+      } else stream.respond({ status: 201, headers: [] }, null);
+    });
+    await busy.hello();
+    const create = (id: string) => {
+      const call = createRequest(id, 'device');
+      return hub.maybeForward(call.req, call.url, call.body);
+    };
+    await create('pa-established');
+    const healthy = connectDevice(hub, 'dev-healthy');
+    await healthy.hello({ maxSessions: 1 });
+    const reads = Array.from({ length: MAX_STREAMS_PER_SIDE }, () => {
+      const call = callRequest('GET', '/v1/sessions/pa-established');
+      return hub.maybeForward(call.req, call.url, '');
+    });
+    try {
+      await saturated.promise;
+      // A retry may already own a workspace even if this attempt is unsent.
+      expect((await create('pa-established'))?.status).toBe(503);
+      const response = await create('pa-unsent');
+      expect(response?.status).toBe(201);
+      expect(response?.headers.get(DEVICE_HEADER)).toBe('dev-healthy');
+      expect(busy.served.filter((call) => call.method === 'POST')).toHaveLength(
+        1,
+      );
+      const restarted = new PlacementStore(join(stateDir, 'placements.json'));
+      await restarted.load();
+      expect(restarted.get('pa-established')?.deviceId).toBe('dev-busy');
+      expect(restarted.get('pa-unsent')?.deviceId).toBe('dev-healthy');
+    } finally {
+      for (const stream of waiting)
+        stream.respond({ status: 200, headers: [] }, null);
+      await Promise.all(reads);
+      hub.stop();
+    }
+  });
+
+  test.each(['device_busy', 'device_offline'])(
+    'a remote503 naming %s remains ambiguous and cannot authorize fallback',
+    async (error) => {
+      const { hub } = await makeHub();
+      const remote = connectDevice(hub, 'dev-remote', (stream) =>
+        stream.respond(
+          {
+            status: 503,
+            headers: [
+              ['content-type', 'application/json'],
+              [DEVICE_HEADER, 'dev-remote'],
+            ],
+          },
+          new Response(JSON.stringify({ error, deviceId: 'dev-remote' })).body,
+        ),
+      );
+      await remote.hello();
+      const healthy = connectDevice(hub, 'dev-healthy');
+      await healthy.hello({ maxSessions: 1 });
+      try {
+        const call = createRequest('pa-remote503', 'device');
+        expect(
+          (await hub.maybeForward(call.req, call.url, call.body))?.status,
+        ).toBe(503);
+        expect(remote.served).toHaveLength(1);
+        expect(healthy.served).toEqual([]);
+        expect(hub.capacityOverlay(ORG).placements).toEqual([
+          { sessionId: 'pa-remote503', deviceId: 'dev-remote' },
+        ]);
+      } finally {
+        hub.stop();
+      }
+    },
+  );
+
   test('a device-eligible create lands on a connected device and sticks there', async () => {
     const { hub, stateDir } = await makeHub();
     const d1 = connectDevice(hub, 'dev-1');

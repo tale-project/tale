@@ -3,7 +3,7 @@ import type { ComponentProps } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AppError } from '@/lib/shared/errors/app-error';
-import { render, screen, waitFor } from '@/tests/utils/render';
+import { act, render, screen, waitFor } from '@/tests/utils/render';
 
 import type { ProjectAgentRow } from '../hooks/queries';
 import { ProjectAgentDialog } from './project-agent-dialog';
@@ -70,11 +70,15 @@ const LEGACY_AGENT = {
   connectors: [],
 } as unknown as ProjectAgentRow;
 
-function renderDialog(agent: ProjectAgentRow, models = MODELS) {
+function renderDialog(
+  agent: ProjectAgentRow,
+  models = MODELS,
+  onOpenChange = vi.fn(),
+) {
   return render(
     <ProjectAgentDialog
       open
-      onOpenChange={() => undefined}
+      onOpenChange={onOpenChange}
       projectId={'p1' as string}
       organizationId="org-1"
       harnesses={[{ harness: 'claude-code', label: 'Claude Code' }]}
@@ -92,8 +96,75 @@ beforeEach(() => {
   previewState.data = undefined;
 });
 
+describe('ProjectAgentDialog pending save', () => {
+  it('blocks edits until the submitted instructions finish saving', async () => {
+    const pending = Promise.withResolvers<void>();
+    updateAgent.mockReturnValueOnce(pending.promise);
+    const onOpenChange = vi.fn();
+    const { user } = renderDialog(LEGACY_AGENT, MODELS, onOpenChange);
+    const instructions = screen.getByRole('textbox', { name: /Instructions/ });
+    await user.type(instructions, 'Submitted instructions');
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+
+    expect(updateAgent).toHaveBeenCalledWith(
+      expect.objectContaining({ instructions: 'Submitted instructions' }),
+    );
+    expect(instructions).toBeDisabled();
+    expect(screen.getByRole('textbox', { name: /Name/ })).toBeDisabled();
+    expect(screen.getByRole('combobox', { name: /Agent type/ })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /^Model/ })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /skills/i })).toBeDisabled();
+    await user.type(instructions, 'Later unsaved instructions');
+    expect(instructions).toHaveValue('Submitted instructions');
+    expect(onOpenChange).not.toHaveBeenCalled();
+
+    await act(async () => pending.resolve());
+    expect(onOpenChange).toHaveBeenCalledExactlyOnceWith(false);
+  });
+
+  it('restores editing and retains the draft after a duplicate-name refusal', async () => {
+    const pending = Promise.withResolvers<void>();
+    updateAgent.mockReturnValueOnce(pending.promise);
+    const onOpenChange = vi.fn();
+    const { user } = renderDialog(LEGACY_AGENT, MODELS, onOpenChange);
+    const name = screen.getByRole('textbox', { name: /Name/ });
+    const instructions = screen.getByRole('textbox', { name: /Instructions/ });
+    await user.clear(name);
+    await user.type(name, 'Duplicate name');
+    await user.type(instructions, 'Keep this draft');
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    expect(instructions).toBeDisabled();
+
+    await act(async () => {
+      pending.reject(new AppError({ code: 'PROJECT_AGENT_NAME_TAKEN' }));
+    });
+    expect(onOpenChange).not.toHaveBeenCalled();
+    expect(name).toHaveValue('Duplicate name');
+    expect(name).toBeEnabled();
+    expect(
+      screen.getByText('Another agent in this project already has that name.'),
+    ).toBeVisible();
+    expect(instructions).toBeEnabled();
+    await user.type(instructions, ' and continue');
+    expect(instructions).toHaveValue('Keep this draft and continue');
+  });
+
+  it('sends empty instructions through the existing clearing payload', async () => {
+    const { user } = renderDialog({
+      ...LEGACY_AGENT,
+      instructions: 'Old text',
+    });
+    await user.clear(screen.getByRole('textbox', { name: /Instructions/ }));
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    expect(updateAgent).toHaveBeenCalledTimes(1);
+    expect(updateAgent.mock.calls[0]?.[0]).not.toHaveProperty('instructions');
+  });
+});
+
 describe('ProjectAgentDialog create', () => {
   it('hands the new agent to a caller that goes on to use it', async () => {
+    const pending = Promise.withResolvers<string>();
+    createAgent.mockReturnValueOnce(pending.promise);
     const onCreated = vi.fn();
     const { user } = render(
       <ProjectAgentDialog
@@ -119,6 +190,11 @@ describe('ProjectAgentDialog create', () => {
       await screen.findByRole('option', { name: /anthropic\/claude-fable-5/ }),
     );
     await user.click(screen.getByRole('button', { name: 'Create agent' }));
+    expect(
+      screen.getByRole('textbox', { name: /Instructions/ }),
+    ).toBeDisabled();
+    expect(onCreated).not.toHaveBeenCalled();
+    await act(async () => pending.resolve('agent-new'));
 
     await waitFor(() => expect(onCreated).toHaveBeenCalledWith('agent-new'));
     expect(createAgent).toHaveBeenCalledWith(

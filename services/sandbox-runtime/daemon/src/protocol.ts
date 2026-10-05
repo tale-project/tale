@@ -10,13 +10,12 @@ export const RUNNERD_TOKEN_HEADER = 'x-tale-runnerd-token';
 export const RUNNERD_TOKEN_CONTEXT = 'runnerd-v1:';
 
 export const RUNNERD_MAX_LIVE_EXECS = 4;
-export const RUNNERD_RING_BUFFER_BYTES = 256 * 1024;
 /** Per-consumer in-flight write ceiling. A slow/stalled (but still attached)
  * SSE consumer would otherwise let Node buffer un-drained stdout in the HTTP
  * response unboundedly — the only thing the old fixed stdout cap incidentally
  * bounded. Past this, the daemon disconnects that ONE consumer (the others
  * are unaffected); it reconnects via /attach?sinceSeq= and replays from the
- * disk-backed journal. The diagnostic ring is not replay history. */
+ * disk-backed journal. */
 export const RUNNERD_CONSUMER_BUFFER_MAX_BYTES = 8 * 1024 * 1024;
 /** Cap on ONE request body runnerd accepts, on every route. The spawner's own
  * SANDBOX_MAX_REQUEST_BODY_BYTES is clamped to this at boot, so a stage batch
@@ -50,11 +49,15 @@ export function isDeniedEnvName(name: string): boolean {
 
 export interface RunnerdHealth {
   ok: true;
-  /** DinD /_ping readiness. False keeps liveness healthy but blocks new work. */
+  /** DinD capability readiness without activation. False blocks new work. */
   dockerReady?: boolean;
+  /** Sustained probe failure or observed terminal Docker state; permits fenced idle recovery. */
+  dockerRecoveryRequired?: boolean;
   bootedAtMs: number;
   lastActivityAtMs: number;
   liveExecs: number;
+  /** Optional dependency diagnostics; do not affect daemon liveness. */
+  dependencies?: { docker?: { ok: boolean }; egress?: { ok: boolean } };
   /** Absent on older runtime images; pressure reclamation then fails closed. */
   activity?: {
     generation: string;
@@ -80,8 +83,8 @@ export interface RunnerdExecRequest {
   stdinMode?: 'close' | 'hold';
   timeoutMs: number;
   /** Cumulative stdout truncation cap; `<= 0` disables truncation. Journal
-   * storage limits still end an exec with OUTPUT_LIMIT. In-memory diagnostic
-   * output and consumer queues remain bounded. One-shot collected execs pass
+   * storage limits still end an exec with OUTPUT_LIMIT. Pending disk writes
+   * and consumer queues remain bounded. One-shot collected execs pass
    * a positive cap; long-lived streaming execs (the agent) pass 0. */
   stdoutMaxBytes: number;
   /** Cumulative stderr truncation cap; `<= 0` disables truncation (see above). */
@@ -113,10 +116,18 @@ export interface RunnerdStdinWriteResponse {
   reason?: 'NOT_FOUND' | 'STDIN_CLOSED' | 'BAD_LINE' | 'WRITE_FAILED';
 }
 
+/** Maximum encoded checkpoint payload; state is opaque to the sandbox. */
+export const RUNNERD_CHECKPOINT_MAX_BYTES = 1024 * 1024;
+export interface RunnerdExecCheckpoint {
+  seq: number;
+  state: unknown;
+}
+
 export type RunnerdExecEvent = (
   | { t: 'start'; execId: string; startedAtMs: number }
   | { t: 'stdout'; b64: string }
   | { t: 'stderr'; b64: string }
+  | { t: 'gap'; fromSeq: number; toSeq: number }
   | { t: 'replay-start' }
   | { t: 'replay-complete'; throughSeq: number }
   | {
@@ -145,7 +156,8 @@ export type RunnerdExecEvent = (
         | 'DUPLICATE_EXEC'
         | 'BAD_REQUEST'
         | 'OUTPUT_LIMIT'
-        | 'REPLAY_UNAVAILABLE';
+        | 'REPLAY_UNAVAILABLE'
+        | 'OUTPUT_GAP';
       message: string;
     }
 ) & { seq?: number };
@@ -156,6 +168,12 @@ export function isRunnerdExecEvent(value: unknown): value is RunnerdExecEvent {
   if (!isObject(value)) return false;
   if (value.seq !== undefined && !positiveInteger(value.seq)) return false;
   switch (value.t) {
+    case 'gap':
+      return (
+        positiveInteger(value.fromSeq) &&
+        positiveInteger(value.toSeq) &&
+        value.fromSeq <= value.toSeq
+      );
     case 'replay-start':
       return true;
     case 'replay-complete':
@@ -197,7 +215,8 @@ export function isRunnerdExecEvent(value: unknown): value is RunnerdExecEvent {
           value.code === 'DUPLICATE_EXEC' ||
           value.code === 'BAD_REQUEST' ||
           value.code === 'OUTPUT_LIMIT' ||
-          value.code === 'REPLAY_UNAVAILABLE')
+          value.code === 'REPLAY_UNAVAILABLE' ||
+          value.code === 'OUTPUT_GAP')
       );
     default:
       return false;
@@ -248,3 +267,11 @@ export interface RunnerdError {
 
 export const WORKSPACE_ROOT = '/agent';
 export const ID_ALPHABET_RE = /^[a-zA-Z0-9_-]{1,64}$/;
+
+/** Missing cursor starts at zero; malformed cursors must never skip history. */
+export function parseRunnerdSequence(value: string | null): number | null {
+  if (value === null) return 0;
+  if (!/^[0-9]+$/.test(value)) return null;
+  const sequence = Number(value);
+  return Number.isSafeInteger(sequence) ? sequence : null;
+}

@@ -9,6 +9,8 @@
 import { pendingProcReads } from './process-reaper.ts';
 
 export interface ExitDeps {
+  /** The graceful shutdown deadline expired; no pending filesystem work may delay exit. */
+  force?: boolean;
   /** How many reads of the process table have not come back. */
   pendingReads?: () => number;
   exit?: (code: number) => void;
@@ -16,13 +18,15 @@ export interface ExitDeps {
   pid?: number;
 }
 
-/** End the daemon with `code`, or by SIGKILL when an exit would wait on a
- * read that may never come back. */
+/** End the daemon with `code`, or by SIGKILL when the graceful deadline
+ * expired or a known process read could block libuv shutdown. */
 export function exitDaemon(code: number, deps: ExitDeps = {}): void {
   const pending = (deps.pendingReads ?? pendingProcReads)();
-  if (pending > 0) {
+  if (deps.force || pending > 0) {
     console.warn(
-      `[runnerd] ${pending} process read(s) have not come back; ending by SIGKILL`,
+      deps.force
+        ? '[runnerd] graceful shutdown deadline expired; ending by SIGKILL'
+        : `[runnerd] ${pending} process read(s) have not come back; ending by SIGKILL`,
     );
     const kill = deps.kill ?? ((pid, signal) => process.kill(pid, signal));
     kill(deps.pid ?? process.pid, 'SIGKILL');

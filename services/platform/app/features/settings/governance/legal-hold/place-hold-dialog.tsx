@@ -2,6 +2,7 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Alert } from '@tale/ui/alert';
+import { Button } from '@tale/ui/button';
 import { FormDialog } from '@tale/ui/dialog/form-dialog';
 import { FormSection } from '@tale/ui/form-section';
 import { Input } from '@tale/ui/input';
@@ -10,9 +11,12 @@ import { Select } from '@tale/ui/select';
 import { Textarea } from '@tale/ui/textarea';
 import { useForm } from '@tale/ui/use-form';
 import { useToast } from '@tale/ui/use-toast';
-import { useEffect, useMemo, useState } from 'react';
+import { Loader2, RefreshCw } from 'lucide-react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import * as z from 'zod';
 
+import { failureDetail } from '@/app/lib/backend/adapters';
+import { readStateOf } from '@/app/lib/backend/read-state';
 import { useT } from '@/lib/i18n/client';
 
 import { usePlaceLegalHold } from '../hooks/mutations';
@@ -52,18 +56,87 @@ interface FormValues {
   matterRef: string;
 }
 
+function PickerReadFailure({
+  message,
+  error,
+  retrying,
+  onRetry,
+  pickerId,
+}: {
+  message: string;
+  error: unknown;
+  retrying: boolean;
+  onRetry: () => void;
+  pickerId: string;
+}) {
+  const { t } = useT('common');
+  const root = useRef<HTMLDivElement>(null);
+  const detail = failureDetail(error);
+
+  useLayoutEffect(() => {
+    const element = root.current;
+    return () => {
+      if (element?.contains(document.activeElement)) {
+        requestAnimationFrame(() => document.getElementById(pickerId)?.focus());
+      }
+    };
+  }, [pickerId]);
+
+  return (
+    <div ref={root}>
+      <Alert
+        variant="destructive"
+        description={
+          <>
+            <p>{message}</p>
+            {detail && <p>{detail}</p>}
+          </>
+        }
+      >
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          icon={retrying ? Loader2 : RefreshCw}
+          iconClassName={
+            retrying ? 'animate-spin motion-reduce:animate-none' : undefined
+          }
+          className="mt-3"
+          aria-busy={retrying || undefined}
+          aria-disabled={retrying || undefined}
+          onClick={() => {
+            if (!retrying) onRetry();
+          }}
+        >
+          {t('actions.tryAgain')}
+        </Button>
+      </Alert>
+    </div>
+  );
+}
+
 export function PlaceHoldDialog({
   open,
   onOpenChange,
   organizationId,
 }: PlaceHoldDialogProps) {
   const { t } = useT('governance');
+  const { t: tCommon } = useT('common');
   const { toast } = useToast();
   const { mutateAsync, isPending } = usePlaceLegalHold();
   const matters = useLegalMatters(organizationId, { status: 'open' });
   const members = useOrgMembersForPicker(organizationId);
+  const membersFailed = members.isError || readStateOf(members).unavailable;
+  const mattersFailed = matters.isError || readStateOf(matters).unavailable;
   const [createMatterOpen, setCreateMatterOpen] = useState(false);
   const [orgConfirmText, setOrgConfirmText] = useState('');
+  const [userPickerOpen, setUserPickerOpen] = useState(false);
+  const [matterPickerOpen, setMatterPickerOpen] = useState(false);
+
+  useEffect(() => {
+    if (membersFailed || members.isLoading) setUserPickerOpen(false);
+    if (mattersFailed || matters.isLoading) setMatterPickerOpen(false);
+  }, [membersFailed, members.isLoading, mattersFailed, matters.isLoading]);
 
   const targetTypeOptions = useMemo(
     () =>
@@ -221,24 +294,45 @@ export function PlaceHoldDialog({
             options={targetTypeOptions}
           />
           {targetType === 'userMembership' ? (
-            <SearchableSelect
-              id="hold-user-target"
-              label={t('legalHold.dialogs.placeHold.userPickerLabel')}
-              placeholder={t(
-                'legalHold.dialogs.placeHold.userPickerPlaceholder',
+            <>
+              <SearchableSelect
+                id="hold-user-target"
+                label={t('legalHold.dialogs.placeHold.userPickerLabel')}
+                placeholder={t(
+                  'legalHold.dialogs.placeHold.userPickerPlaceholder',
+                )}
+                required
+                value={targetId || null}
+                onValueChange={(value) =>
+                  setValue('targetId', value, {
+                    shouldDirty: true,
+                    shouldValidate: true,
+                  })
+                }
+                options={memberOptions}
+                open={userPickerOpen && !membersFailed && !members.isLoading}
+                onOpenChange={setUserPickerOpen}
+                disabled={members.isLoading || membersFailed}
+                description={
+                  members.isLoading && !membersFailed
+                    ? tCommon('actions.loading')
+                    : undefined
+                }
+                emptyText={t('legalHold.dialogs.placeHold.userPickerEmpty')}
+                error={!!formState.errors.targetId}
+              />
+              {membersFailed && (
+                <PickerReadFailure
+                  message={t('legalHold.dialogs.placeHold.userPickerFailed')}
+                  error={members.error}
+                  retrying={members.isFetching}
+                  onRetry={() => {
+                    void members.refetch();
+                  }}
+                  pickerId="hold-user-target"
+                />
               )}
-              required
-              value={targetId || null}
-              onValueChange={(value) =>
-                setValue('targetId', value, {
-                  shouldDirty: true,
-                  shouldValidate: true,
-                })
-              }
-              options={memberOptions}
-              emptyText={t('legalHold.dialogs.placeHold.userPickerEmpty')}
-              error={!!formState.errors.targetId}
-            />
+            </>
           ) : (
             <>
               <Alert
@@ -279,6 +373,14 @@ export function PlaceHoldDialog({
               setValue('matterRef', value, { shouldDirty: true })
             }
             options={matterOptions}
+            open={matterPickerOpen && !mattersFailed && !matters.isLoading}
+            onOpenChange={setMatterPickerOpen}
+            disabled={matters.isLoading || mattersFailed}
+            description={
+              matters.isLoading && !mattersFailed
+                ? tCommon('actions.loading')
+                : undefined
+            }
             footer={
               // The picker is dark:bg-muted, above the page the accent text
               // shade is derived against. Keep readable foreground ink and
@@ -292,6 +394,17 @@ export function PlaceHoldDialog({
               </button>
             }
           />
+          {mattersFailed && (
+            <PickerReadFailure
+              message={t('legalHold.dialogs.placeHold.matterPickerFailed')}
+              error={matters.error}
+              retrying={matters.isFetching}
+              onRetry={() => {
+                void matters.refetch();
+              }}
+              pickerId="hold-matter"
+            />
+          )}
         </FormSection>
       </FormDialog>
       <UpsertMatterDialog

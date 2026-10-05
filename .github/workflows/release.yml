@@ -60,7 +60,8 @@ jobs:
           if [[ ! "$VERSION_NUMBER" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.-]+)?$ ]]; then
             echo '::error::Version must be an exact semantic version'; exit 1
           fi
-          SERVICE_NAMES='["platform","db","proxy","web","docs","ui-docs","ai-gateway","sandbox-llm-gateway","sandbox","sandbox-egress","sandbox-buildkitd","sandbox-runtime"]'
+          # Start the longest native builds first within the bounded matrix.
+          SERVICE_NAMES='["sandbox-runtime","platform","db","web","docs","ui-docs","ai-gateway","proxy","sandbox-llm-gateway","sandbox","sandbox-egress","sandbox-buildkitd"]'
           if [ "$SITES_ONLY" = true ]; then SERVICE_NAMES='["web","docs","ui-docs"]'; fi
           {
             echo "sites_only=$SITES_ONLY"
@@ -136,6 +137,8 @@ jobs:
 
       - name: Setup Docker builder
         uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
+        with:
+          cleanup: false
 
       - name: Login to GHCR
         uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4
@@ -162,6 +165,14 @@ jobs:
             ${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service.name }}:${{ needs.prepare.outputs.version_number }}-${{ matrix.arch.name }}
           build-args: |
             VERSION=${{ needs.prepare.outputs.version_number }}
+          # Only trusted releases write these separate per-service cache images.
+          # Architecture tags keep the native builders from replacing each other.
+          # amd64 also imports the GHA cache CI warms on main.
+          cache-from: |
+            type=registry,ref=${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service.name }}-buildcache:${{ matrix.arch.name }}
+            ${{ matrix.arch.name == 'amd64' && format('type=gha,scope={0}', matrix.service.name) || '' }}
+          # A cache outage must not invalidate a successfully pushed image.
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service.name }}-buildcache:${{ matrix.arch.name }},mode=max,ignore-error=true
           # `labels:` replaces Dockerfile LABEL (not merges). The CLI reads
           # org.opencontainers.image.version to detect the running instance;
           # omitting it made every in-place 0.4.x deploy look like an unknown
@@ -242,22 +253,13 @@ jobs:
       - name: Pull release images
         env:
           SERVICE_NAMES: ${{ needs.prepare.outputs.service_names }}
+          REGISTRY_PATH: ${{ env.REGISTRY }}/${{ github.repository }}
+          SOURCE_SHA: ${{ github.sha }}
+          IMAGE_TAG: ${{ needs.prepare.outputs.version_number }}-amd64
         run: |
-          VERSION="${{ needs.prepare.outputs.version_number }}"
-          ARCH="amd64"
-          while IFS= read -r svc; do
-            IMAGE="${{ env.REGISTRY }}/${{ github.repository }}/tale-${svc}:${VERSION}-${ARCH}"
-            echo "Pulling ${IMAGE}..."
-            docker pull "${IMAGE}"
-            docker tag "${IMAGE}" "ghcr.io/tale-project/tale/tale-${svc}:latest"
-            # The spawner uses unscoped local defaults for its child images.
-            # Keep those aliases on the same pulled release bytes, too.
-            case "$svc" in
-              sandbox-runtime|sandbox-buildkitd)
-                docker tag "${IMAGE}" "tale-${svc}:latest"
-                ;;
-            esac
-          done < <(jq -r '.[]' <<< "$SERVICE_NAMES")
+          set -euo pipefail
+          read -r -a SERVICES <<< "$(jq -r 'join(" ")' <<< "$SERVICE_NAMES")"
+          bash .github/scripts/pull-ci-images.sh "${SERVICES[@]}"
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2

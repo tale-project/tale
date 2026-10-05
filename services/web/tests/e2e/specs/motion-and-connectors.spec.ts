@@ -1,6 +1,8 @@
 import { expect, test } from '@playwright/test';
 import { createI18n } from '@tale/e2e/i18n';
 
+import { gotoClientPage } from '../helpers/client-page';
+
 const { t } = createI18n(new URL('../../../messages/en.yml', import.meta.url));
 
 for (const width of [390, 1280]) {
@@ -9,7 +11,7 @@ for (const width of [390, 1280]) {
   }) => {
     await page.setViewportSize({ width, height: 900 });
     await page.emulateMedia({ reducedMotion: 'reduce' });
-    await page.goto('/');
+    await gotoClientPage(page, '/');
 
     const connectors = page.getByRole('list', {
       name: t('home.connectors.title'),
@@ -35,7 +37,7 @@ test('changing motion preference completes an already-mounted offscreen demo', a
   page,
 }) => {
   await page.emulateMedia({ reducedMotion: 'no-preference' });
-  await page.goto('/');
+  await gotoClientPage(page, '/');
 
   const govern = page.getByRole('img', {
     name: t('home.demos.govern.label'),

@@ -68,7 +68,6 @@ vi.mock('@/app/hooks/use-current-member-context', () => ({
 }));
 vi.mock('@/app/hooks/use-session-user', () => ({
   useAuth: () => ({ isLoading: false, isAuthenticated: true }),
-  useSessionUser: () => ({ isLoading: false, isAuthenticated: true }),
 }));
 vi.mock('@/lib/auth-client', () => ({
   authClient: {

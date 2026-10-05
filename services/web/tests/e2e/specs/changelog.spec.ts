@@ -5,6 +5,7 @@ import {
   RELEASES,
   RELEASES_FETCHED_AT,
 } from '../../../app/generated/releases-manifest';
+import { gotoClientPage } from '../helpers/client-page';
 
 const { t } = createI18n(new URL('../../../messages/en.yml', import.meta.url));
 
@@ -30,7 +31,7 @@ test.describe('changelog timeline', () => {
     page,
   }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
-    await page.goto('/changelog');
+    await gotoClientPage(page, '/changelog');
 
     const nav = page.getByRole('navigation', {
       name: t('changelogPage.allReleases'),
@@ -68,7 +69,7 @@ test.describe('changelog timeline', () => {
       page,
     }) => {
       await page.setViewportSize({ width, height: 844 });
-      await page.goto('/changelog');
+      await gotoClientPage(page, '/changelog');
       await expect(page.locator('article').last()).toBeAttached();
       await page.evaluate(() => document.fonts.ready);
 
@@ -96,7 +97,7 @@ test.describe('changelog timeline', () => {
     page,
   }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
-    await page.goto('/changelog');
+    await gotoClientPage(page, '/changelog');
 
     const nav = page.getByRole('navigation', {
       name: t('changelogPage.allReleases'),
@@ -139,7 +140,7 @@ test.describe('changelog release feed', () => {
       }),
     );
 
-    await page.goto('/changelog');
+    await gotoClientPage(page, '/changelog');
 
     await expect(page.locator('article#v9\\.9\\.9')).toBeVisible();
     await expect(
@@ -152,7 +153,7 @@ test.describe('changelog release feed', () => {
       route.fulfill({ status: 503, json: { error: 'upstream' } }),
     );
 
-    await page.goto('/changelog');
+    await gotoClientPage(page, '/changelog');
 
     const nav = page.getByRole('navigation', {
       name: t('changelogPage.allReleases'),

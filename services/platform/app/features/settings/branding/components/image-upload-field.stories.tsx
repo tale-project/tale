@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react';
 import { expect, fn, mocked } from 'storybook/test';
 
-import { useSaveImage } from '../hooks/mutations';
+import { useDeleteImage, useSaveImage } from '../hooks/mutations';
 import { ImageUploadField } from './image-upload-field';
 
 const meta: Meta<typeof ImageUploadField> = {
@@ -34,6 +34,10 @@ const meta: Meta<typeof ImageUploadField> = {
     ariaLabel: 'Upload image',
   },
   beforeEach() {
+    mocked(useDeleteImage, { partial: true }).mockReturnValue({
+      mutateAsync: fn().mockResolvedValue(null),
+      isPending: false,
+    });
     mocked(useSaveImage, { partial: true }).mockReturnValue({
       mutateAsync: fn().mockResolvedValue({ filename: 'storybook-logo.svg' }),
       isPending: false,

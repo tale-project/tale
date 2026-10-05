@@ -110,6 +110,7 @@ export const CANDIDATE_JOBS: Record<
       'typecheck',
       'build',
       'test',
+      'test-ui-shards',
       'test-ui',
       'performance',
       'knip',
@@ -124,6 +125,10 @@ export const CANDIDATE_JOBS: Record<
       'Type check',
       'Build',
       'Unit',
+      ...Array.from(
+        { length: 4 },
+        (_, index) => `UI (platform ${index + 1}/4)`,
+      ),
       'UI',
       'Performance',
       'Knip',
@@ -142,13 +147,14 @@ export const CANDIDATE_JOBS: Record<
     names: [SOURCE_JOB, 'Lint commits', RECEIPT_JOB],
   },
   e2e: {
-    ids: ['candidate-source', 'build', 'e2e', 'static-sites'],
+    ids: ['candidate-source', 'scope', 'build', 'e2e', 'static-sites'],
     names: [
       SOURCE_JOB,
+      'E2E scope',
       'Build platform (E2E preview bundle)',
       ...Array.from(
-        { length: 16 },
-        (_, index) => `Playwright (platform ${index + 1}/16)`,
+        { length: 4 },
+        (_, index) => `Playwright (platform ${index + 1}/4)`,
       ),
       'Playwright (web)',
       'Playwright (docs)',
@@ -179,6 +185,10 @@ const RUNS_SEARCH_CEILING = RUNS_PAGE_SIZE * RUNS_MAX_PAGES;
 // The unfiltered run list has no search ceiling. 3,000 runs were about six
 // days of this repository's runs in 2026-10.
 const WALK_MAX_PAGES = 30;
+// #4330 observed a lower run id created one second later in the same event.
+// Sixty seconds is this gate's chosen enumeration tolerance, not a GitHub
+// ordering guarantee. The running minimum and extended cutoff share it.
+const CREATED_AT_SKEW_MS = 60_000;
 /** GitHub creates one run of each of these for every push to main: their push
  * triggers carry no path filter (release-candidate-workflows.test.ts holds
  * them to the workflow files). */
@@ -527,6 +537,9 @@ async function walkRuns(
   const path = `${repo}/actions/runs?per_page=${RUNS_PAGE_SIZE}`;
   const runs: Run[] = [];
   const seen = new Map<number, Run>();
+  // Measured against the earliest creation time listed so far, so small
+  // inversions cannot add up to a larger one.
+  let earliest = Number.POSITIVE_INFINITY;
   const refuse = (detail: string) => {
     blocked.push(`incomplete workflow run evidence from ${path}: ${detail}`);
     return null;
@@ -553,14 +566,13 @@ async function walkRuns(
       if (runs.length > 0 && run.id >= runs.at(-1)!.id) {
         return refuse(`page ${page} lists run ${run.id} out of order`);
       }
-      if (
-        runs.length > 0 &&
-        Date.parse(run.created_at) > Date.parse(runs.at(-1)!.created_at)
-      ) {
+      const created = Date.parse(run.created_at);
+      if (created > earliest + CREATED_AT_SKEW_MS) {
         return refuse(
           `page ${page} lists run ${run.id} with creation time out of order`,
         );
       }
+      earliest = Math.min(earliest, created);
       seen.set(run.id, run);
       runs.push(run);
     }
@@ -631,8 +643,8 @@ function sameAttempt(a: Run, b: Run) {
 }
 
 /** Filtered Actions pages may be self-consistent subsets (#4055). Compare
- * them with the unfiltered creation-ordered walk past the fixed PR merge
- * time and every listed run, including excluded originals. We accept that
+ * them with the unfiltered creation-ordered walk a skew past the fixed PR
+ * merge time and every listed run, including excluded originals. We accept that
  * listing model, not a documented snapshot or lifetime first-arrival proof.
  * Missing/different attempts refuse; a run either read saw pending waits. */
 async function crossCheck(
@@ -660,10 +672,13 @@ async function crossCheck(
     api,
     repo,
     (runs) => {
+      // A run listed later may be up to the skew younger than the earliest
+      // listed so far, so the walk only ends a skew before the cutoff.
       const last = runs.at(-1)!;
       return (
         last.id < oldestListed &&
-        Date.parse(last.created_at) < Date.parse(merge.createdAt)
+        Date.parse(last.created_at) <
+          Date.parse(merge.createdAt) - CREATED_AT_SKEW_MS
       );
     },
     `the canonical merge of ${sha} and every run a listing returned`,

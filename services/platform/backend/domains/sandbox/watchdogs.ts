@@ -1,4 +1,3 @@
-import PQueue from 'p-queue';
 import type { Sql } from 'postgres';
 
 import {
@@ -32,6 +31,7 @@ export interface WatchdogSpawner extends ReconcileSpawner {
   /** DELETE /v1/sessions/:id?if_idle=1 — the spawner arbitrates busy. */
   destroyIfIdle: (
     sessionId: string,
+    options?: { signal?: AbortSignal },
   ) => Promise<{ destroyed: boolean; busy: boolean }>;
 }
 
@@ -71,7 +71,11 @@ export const SANDBOX_FAILED_SESSION_COLLECT_GRACE_MS = 10 * 60_000;
 export const SANDBOX_RENDER_SESSION_MAX_AGE_MS = 10 * 60_000;
 
 export interface SandboxWatchdogOptions {
-  /** Rows probed against the spawner per tick (reconcile). */
+  /** Each independent spawner-facing pass owns this time budget. At most
+   * four rows are in flight (one per pass), below the job's 300s expiry. */
+  passTimeoutMs?: number;
+  /** Rows probed per tick. One fifth is reserved for historical pin drift
+   * when runtime pin metadata is available; batches below five probe active rows. */
   reconcileBatch?: number;
   /** Ended-run sessions reclaimed per tick. */
   reclaimBatch?: number;
@@ -232,34 +236,57 @@ export async function runSandboxWatchdog(
   let released = 0;
   if (options.skipReconcile !== true) {
     const spawner = options.spawner ?? DEFAULT_SPAWNER;
-    const signal = options.signal;
-    ({ healed, recreating } = await reconcilePass(sql, spawner, {
-      batch: options.reconcileBatch ?? 25,
-      now,
-      ...(options.scheduleRecreate !== undefined
-        ? { scheduleRecreate: options.scheduleRecreate }
-        : {}),
-      ...(signal !== undefined ? { signal } : {}),
-    }));
-    reclaimed = await reclaimEndedRunSessions(sql, spawner, {
-      batch: options.reclaimBatch ?? 25,
-      graceMs: options.reclaimGraceMs ?? SANDBOX_RUN_SESSION_RECLAIM_GRACE_MS,
-      now,
-      ...(signal !== undefined ? { signal } : {}),
-    });
-    collected = await collectFailedSessions(sql, spawner, {
-      batch: options.collectBatch ?? 25,
-      graceMs:
-        options.collectGraceMs ?? SANDBOX_FAILED_SESSION_COLLECT_GRACE_MS,
-      now,
-      ...(signal !== undefined ? { signal } : {}),
-    });
-    released = await releaseAbandonedRenderSessions(sql, spawner, {
-      batch: options.releaseBatch ?? 25,
-      maxAgeMs: options.renderMaxAgeMs ?? SANDBOX_RENDER_SESSION_MAX_AGE_MS,
-      now,
-      ...(signal !== undefined ? { signal } : {}),
-    });
+    const passSignal = () =>
+      AbortSignal.any([
+        AbortSignal.timeout(options.passTimeoutMs ?? 120_000),
+        ...(options.signal !== undefined ? [options.signal] : []),
+      ]);
+    // Independent serial walks bound fanout to four sessions. An unreachable
+    // daemon at the front of reconciliation cannot consume the reclaim,
+    // failed-create or render passes' opportunity to release resources.
+    const results = await Promise.allSettled([
+      reconcilePass(sql, spawner, {
+        batch: options.reconcileBatch ?? 25,
+        now,
+        ...(options.scheduleRecreate !== undefined
+          ? { scheduleRecreate: options.scheduleRecreate }
+          : {}),
+        signal: passSignal(),
+      }),
+      reclaimEndedRunSessions(sql, spawner, {
+        batch: options.reclaimBatch ?? 25,
+        graceMs: options.reclaimGraceMs ?? SANDBOX_RUN_SESSION_RECLAIM_GRACE_MS,
+        now,
+        signal: passSignal(),
+      }),
+      collectFailedSessions(sql, spawner, {
+        batch: options.collectBatch ?? 25,
+        graceMs:
+          options.collectGraceMs ?? SANDBOX_FAILED_SESSION_COLLECT_GRACE_MS,
+        now,
+        signal: passSignal(),
+      }),
+      releaseAbandonedRenderSessions(sql, spawner, {
+        batch: options.releaseBatch ?? 25,
+        maxAgeMs: options.renderMaxAgeMs ?? SANDBOX_RENDER_SESSION_MAX_AGE_MS,
+        now,
+        signal: passSignal(),
+      }),
+    ]);
+    const [reconciled, reclaimedRows, collectedRows, releasedRows] = results;
+    if (reconciled.status === 'fulfilled')
+      ({ healed, recreating } = reconciled.value);
+    if (reclaimedRows.status === 'fulfilled') reclaimed = reclaimedRows.value;
+    if (collectedRows.status === 'fulfilled') collected = collectedRows.value;
+    if (releasedRows.status === 'fulfilled') released = releasedRows.value;
+    for (const [index, result] of results.entries()) {
+      if (result.status === 'rejected') {
+        console.warn(
+          `[watchdog] sandbox pass ${index} failed; other passes continued:`,
+          result.reason,
+        );
+      }
+    }
   }
 
   // A model-endpoint request whose process died mid-answer never closed its
@@ -365,70 +392,90 @@ async function reconcilePass(
     signal?: AbortSignal;
   },
 ): Promise<{ healed: number; recreating: number }> {
-  // Compute-holding rows ONLY. A `stopped` row is hibernated: its container
-  // is gone BY DESIGN (idle reaper, capacity reclaim) while its workspace
-  // waits for the next turn, so the spawner's 404 for it is the expected
-  // answer, not a phantom to heal. Settling it as destroyed strands the
-  // standing workspace — the next turn mints a fresh incarnation and the
-  // harness conversation no longer binds — which is how the Sandboxes page
-  // used to empty itself on every open (its probe walked every live row).
+  // Compute-holding rows may heal/recreate. The newest stopped/expired
+  // unpinned incarnation is visited only to remove an old runtime pin: its
+  // missing compute is expected and can never destroy its preserved workspace.
+  // Separate quotas prevent a large historical inventory from starving live
+  // health checks. Both queues rotate independently; every four active rows
+  // give a historical row a turn before the pass's deadline.
   const scope = args.organizationId ?? null;
-  const candidates = await sql<Candidate[]>`
+  const pinBatch =
+    spawner.observe === undefined ? 0 : Math.floor(args.batch / 5);
+  const active = await sql<Candidate[]>`
     SELECT id, session_id AS "sessionId", org_id AS "orgId"
     FROM app.sandbox_sessions
     WHERE status IN ('creating', 'active', 'degraded')
       AND (${scope}::text IS NULL OR org_id = ${scope})
     ORDER BY last_reconciled_at_ms ASC NULLS FIRST, created_at_ms ASC, id ASC
-    LIMIT ${args.batch}
+    LIMIT ${args.batch - pinBatch}
   `;
+  const historical =
+    pinBatch === 0
+      ? []
+      : await sql<Candidate[]>`
+    SELECT id, session_id AS "sessionId", org_id AS "orgId"
+    FROM app.sandbox_sessions
+    WHERE status IN ('stopped', 'expired') AND pinned = false
+        AND NOT EXISTS (
+          SELECT 1 FROM app.sandbox_sessions newer
+          WHERE newer.org_id = sandbox_sessions.org_id
+            AND newer.session_id = sandbox_sessions.session_id
+            AND (newer.created_at_ms, newer.id) > (sandbox_sessions.created_at_ms, sandbox_sessions.id)
+        )
+      AND (${scope}::text IS NULL OR org_id = ${scope})
+    ORDER BY last_reconciled_at_ms ASC NULLS FIRST, created_at_ms ASC, id ASC
+    LIMIT ${pinBatch}
+  `;
+  const candidates: Candidate[] = [];
+  for (
+    let offset = 0;
+    offset < Math.max(active.length, historical.length * 4);
+    offset += 4
+  ) {
+    candidates.push(...active.slice(offset, offset + 4));
+    const retained = historical[offset / 4];
+    if (retained !== undefined) candidates.push(retained);
+  }
   let healed = 0;
   let recreating = 0;
   const visited: Candidate[] = [];
-  const signal = AbortSignal.any([
-    AbortSignal.timeout(20_000),
-    ...(args.signal ? [args.signal] : []),
-  ]);
-  const queue = new PQueue({ concurrency: 4 });
-  await Promise.all(
-    candidates.map((candidate) =>
-      queue.add(async () => {
-        if (signal.aborted) return;
-        visited.push(candidate);
-        try {
-          const outcome = await reconcileSession(
-            sql,
-            { organizationId: candidate.orgId, sessionId: candidate.sessionId },
-            spawner,
-            {
-              signal,
-              ...(args.scheduleRecreate !== undefined
-                ? { schedule: args.scheduleRecreate }
-                : {}),
-            },
-          );
-          if (outcome === 'healed') healed += 1;
-          if (outcome === 'recreating') recreating += 1;
-        } catch (error) {
-          // Spawner unreachable or refusing ⇒ no verdict on this row; leave it
-          // alone for its next visit.
-          console.warn(
-            `[watchdog] reconcile failed for ${candidate.sessionId}:`,
-            error,
-          );
-        }
-      }),
-    ),
-  );
+  for (const candidate of candidates) {
+    if (args.signal?.aborted === true) break;
+    visited.push(candidate);
+    try {
+      const outcome = await reconcileSession(
+        sql,
+        { organizationId: candidate.orgId, sessionId: candidate.sessionId },
+        spawner,
+        {
+          ...(args.scheduleRecreate !== undefined
+            ? { schedule: args.scheduleRecreate }
+            : {}),
+          ...(args.signal !== undefined ? { signal: args.signal } : {}),
+        },
+      );
+      if (outcome === 'healed') healed += 1;
+      if (outcome === 'recreating') recreating += 1;
+    } catch (error) {
+      // Spawner unreachable or refusing ⇒ no verdict on this row; leave it
+      // alone for its next visit.
+      console.warn(
+        `[watchdog] reconcile failed for ${candidate.sessionId}:`,
+        error,
+      );
+    }
+  }
   await stampVisited(sql, visited, args.now);
   return { healed, recreating };
 }
 
 /**
  * The Sandboxes page's mount-time probe (the 0.4 `reconcileOrgSessions`):
- * the SAME fair, compute-holding-only pass the sweep runs, scoped to one
+ * the SAME fair lifecycle and pin-drift pass the sweep runs, scoped to one
  * organization and stamped like a sweep tick. One implementation, so the
  * page can never heal a row the sweep would leave alone — a hibernated
- * project workspace stays listed until someone destroys it. A pinned
+ * project workspace stays listed until someone destroys it; only a leaked
+ * runtime pin may be repaired on such an allocation. A pinned
  * session's recreate is queued like the sweep's, so the request answers
  * once the probes have, never after a create.
  */
@@ -442,6 +489,7 @@ export async function reconcileOrgSessions(
     batch: 25,
     now: Date.now(),
     organizationId,
+    signal: AbortSignal.timeout(20_000),
     ...(scheduleRecreate !== undefined ? { scheduleRecreate } : {}),
   });
   return { healed };
@@ -486,7 +534,9 @@ async function reclaimEndedRunSessions(
     visited.push(candidate);
     let outcome: { destroyed: boolean; busy: boolean };
     try {
-      outcome = await spawner.destroyIfIdle(candidate.sessionId);
+      outcome = await spawner.destroyIfIdle(candidate.sessionId, {
+        signal: args.signal,
+      });
     } catch (error) {
       // Spawner unreachable or refusing ⇒ the container may survive; the row
       // must not settle ahead of it. Next tick retries.
@@ -539,7 +589,9 @@ async function releaseAbandonedRenderSessions(
     visited.push(candidate);
     let outcome: { destroyed: boolean; busy: boolean };
     try {
-      outcome = await spawner.destroyIfIdle(candidate.sessionId);
+      outcome = await spawner.destroyIfIdle(candidate.sessionId, {
+        signal: args.signal,
+      });
     } catch (error) {
       // Spawner unreachable or refusing ⇒ the container may survive; the row
       // must not settle ahead of it. Next tick retries.
@@ -595,7 +647,9 @@ async function collectFailedSessions(
     if (!(await isSupersededIncarnation(sql, candidate))) {
       let outcome: { destroyed: boolean; busy: boolean };
       try {
-        outcome = await spawner.destroyIfIdle(candidate.sessionId);
+        outcome = await spawner.destroyIfIdle(candidate.sessionId, {
+          signal: args.signal,
+        });
       } catch (error) {
         console.warn(
           `[watchdog] failed-session destroy failed for ${candidate.sessionId}:`,

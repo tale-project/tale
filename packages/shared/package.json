@@ -4,6 +4,8 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./automation-name": "./src/automation-name.ts",
+    "./task-limits": "./src/task-limits.ts",
     "./db/retry": "./src/db/retry.ts",
     "./db/serializable": "./src/db/serializable.ts",
     "./logging/logger": "./src/logging/logger.ts",
@@ -20,6 +22,7 @@
     "./schemas/knowledge": "./src/schemas/knowledge.ts",
     "./schemas/providers": "./src/schemas/providers.ts",
     "./schemas/configuration": "./src/schemas/configuration.ts",
+    "./schemas/managed-configuration": "./src/schemas/managed-configuration.ts",
     "./schemas/connectors": "./src/schemas/connectors.ts",
     "./schemas/epoch-ms": "./src/schemas/epoch-ms.ts",
     "./schemas/skills": "./src/schemas/skills.ts",

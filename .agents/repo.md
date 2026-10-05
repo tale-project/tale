@@ -163,15 +163,36 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
 
 ## A green check is not always a run
 
-Every CI job is `setup-turbo` plus one root script, so most check results are **replays**:
+Most CI check jobs use `setup-turbo` plus a root script, so many results are **replays**:
 `@tale/ui:test:browser`, for instance, actually executed four times in one recent stretch of
 forty `checks.yml` runs. Whichever run first executes a given input hash freezes its verdict for
 every later run that shares those inputs — so a task that is flaky but passed once reads green
 until its inputs change, and "it passes on `main`" is not evidence the suite ran there. Before
-concluding that a failure is yours, open the job log and look for `cache hit, replaying logs`
-beside the task; `--force` re-runs it locally. A task whose result depends on anything but its
+concluding that a failure is yours, inspect the task cache status in the job's `turbo-*`
+artifact. Most check jobs print only failing logs; the summary preserves per-task execution
+evidence. Type check retains full logs (`cache hit, replaying logs`); `--output-logs=full`
+restores that detail locally, and `--force` re-runs the task. A task whose result depends on anything but its
 declared inputs — test file ordering, wall-clock, a shared browser page — is not safely
 cacheable, and the fix is the determinism, not the cache.
+
+The stable **UI** check aggregates four platform UI shards and fails unless all four
+succeed. It does not install dependencies. Shard 1 also runs every other workspace's
+`test:ui` once; the platform shards retain the suite's bounded worker pool. **E2E** uses
+four single-worker platform shards, each with its own stack, and builds the preview
+bundle once through the same Turbo task used by Checks. A run artifact carries those
+exact bytes to every shard through the build's validated immutable artifact ID.
+Full reruns publish a new attempt-specific artifact; failed-only reruns reuse the
+successful build's original ID. Unit and UI workers reuse a job-local Node bytecode
+cache without relaxing isolation. Static-site browser and web prerender suites also reuse
+one complete Turbo build, including client, SSR, SEO, frontmatter and translated search
+outputs. Native cache archives share a build scope but retain distinct workflow/job/matrix
+writers. Chromium caches use the installed Playwright version,
+runner OS and architecture; jobs install its headless shell and always provision native
+dependencies. See [the CI scheduling guide](../.github/CI.md).
+
+E2E pull requests first compute a fail-closed platform, web and docs service scope;
+candidates, nightly and manual runs select every service. Candidate receipts require
+the scope, the stable UI aggregate and every individual UI and E2E shard.
 
 The **Type check** job gives every `tsc` a 6 GiB Node heap (`NODE_OPTIONS`, #4005). The
 platform checks its frontend, backend and tests as one program, which outgrew V8's default of
@@ -209,11 +230,22 @@ own files), then list the outside files as `$TURBO_ROOT$/<path>`:
 
 - [`services/platform/turbo.json`](../services/platform/turbo.json) gives `@tale/platform`'s
   tests the catalogs under `configs/platform/`, compose files, tale-db init scripts,
+  the shared automation-name grammar inspected by the engine purity guard,
   knowledge-db migrations, `packages/ui/src` (two suites read it as text), `checks.yml` (the
   integration scope guard) and other outside files; its `test:ui` and `test:browser` list `packages/ui/src` as well, since their
   component suites render it, and all three list `@tale/ui`'s `package.json` and every file
-  it exports from outside `src/` (`tailwind-preset.ts`). Its guard is
-  `services/platform/tests/guards/turbo-inputs.guard.test.ts`.
+  it exports from outside `src/` (`tailwind-preset.ts`). Its `lint` and `typecheck` list the
+  sandbox runtime's `build-gemini-settings.ts` and daemon `file-ops.ts` and
+  `exec-replay.ts`, which suites import, plus the daemon modules' shared `protocol.ts`:
+  `tsc` and oxlint's type-aware rules type every module the sources import. Its guard is
+  `services/platform/tests/guards/turbo-inputs.guard.test.ts`. The catalog glob explicitly
+  excludes nested `.turbo/` output: explicit inputs include otherwise ignored task logs, so
+  running a catalog skill must not invalidate the platform test cache. The guard changes logs
+  and real catalog/skill source in an isolated Git fixture and checks the actual Turbo hashes.
+  Component tasks exclude unrelated backend trees and manual/E2E evidence; the same guard
+  follows runtime imports and re-exports and requires every visited module and source-text read
+  to remain hashed, including recursive workspace dependencies. Keep that proof green before
+  narrowing a component input list.
 - [`services/docs/turbo.json`](../services/docs/turbo.json) gives `@tale/docs` the root `docs/`
   tree (test, build), its JSON maps (typecheck, lint), and the root `README*.md` plus `@tale/ui`'s
   i18n catalogs and test framework (test). Its guard is `services/docs/tests/turbo-inputs.test.ts`.
@@ -221,7 +253,8 @@ own files), then list the outside files as `$TURBO_ROOT$/<path>`:
   pages; the CI files `scripts/deployment-ci.test.ts` and the candidate graph suite
   (`scripts/release-candidate-workflows.test.ts`) check: the `build.yml`, `checks.yml`,
   `cleanup-pr-images.yml`, `commitlint.yml`, `e2e.yml`, `sast.yml`, `security.yml` and both
-  `release-candidate-*` workflows and the `setup-cli` action; the files the compose parity
+  `release-candidate-*` workflows and the `setup-cli` action, plus the container image harness used to prove fork
+  build coverage; the files the compose parity
   suite reads: `compose.yml`, the proxy's `Caddyfile` and entrypoint, the platform's
   `Dockerfile`, entrypoint and `env.sh`, the db and sandbox-egress `Dockerfile`s, and the
   `cli.yml` and `release.yml` workflows. The runtime suites prepare, read and apply the
@@ -235,18 +268,38 @@ These guards ask `turbo --dry=json` whether the files are hashed. Each also read
 without `$TURBO_EXTENDS$` while no root task declares inputs. A suite that starts reading
 another outside file adds it to both the task's inputs and its guard.
 
-Beyond such a declared file, an edit under `packages/` leaves every dependent workspace's
-`test`, `typecheck` and `lint` hash unchanged, because none of those tasks depends on `^…`: a
-package change is judged only by that package's own tasks until the consumer's own files
-change. The platform's `test`, `test:ui` and `test:browser` are the exception for `@tale/ui`:
-they hash `packages/ui/src` whole, the package's `package.json`, whose `exports` resolve every
-`@tale/ui/*` import, and every file an export names outside `src/` — today
-`tailwind-preset.ts` alone; the guard reads that list from the manifest. So a design-system
-change re-runs them — the i18n suite, and every component suite that renders the package or
-imports its test helpers (`@tale/ui/testing/flow`). The i18n suites of `services/web`,
-`services/ui-docs`, `services/ai-gateway` and `packages/marketing-ui` are still in that gap:
-they run `@tale/ui`'s i18n test framework (the first two also read the package catalogs)
-unhashed.
+Generic workspace checks depend on `^transit`: scriptless nodes recursively hash
+dependency workspaces. A shared package change therefore invalidates its consumers
+without serializing their actual test, lint or typecheck processes. Each check's
+effective inputs hash its own selected source, preserving component input narrowing.
+CLI checks also depend on their own `transit` to hash their extra outside-module closure.
+Explicit outside-file inputs remain necessary for imports and reads that are not
+workspace dependencies. The platform's UI input guards still hold its direct source
+reads and exported files to that contract. Every root `tsconfig*.json`, `bunfig.toml`,
+lint and formatter configuration, patch and the setup action participate in the global hash.
+
+Checks skip echo-only setup tasks. The CLI keeps its real generation prerequisite explicitly;
+a workspace that adds substantive setup must attach it to its checks. The dependency fixture
+holds workspace setup scripts to this contract.
+
+CLI generation and builds record the checkout's Git revision and clean state; they are
+uncached because those values are not source-file hashes. CLI transit inputs cover its
+generator's embedded trees and the platform modules reached by relative imports;
+module-closure and generator-tree guards require those actual outside inputs to be hashed.
+CLI lint/test run generation directly and do not repeat the setup alias. Nested catalog
+`.turbo/` logs are excluded. The real
+Turbo fixture in `tools/cli/scripts/ci-cache-optimization.test.ts` checks log creation and
+rewrites leave hashes unchanged while real catalog sources invalidate them.
+Do not cache these artifacts without including and
+verifying their complete source identity.
+
+`setup-turbo` always runs a frozen install. Its download cache separates OS,
+architecture, Bun version, manifests, lockfile and patches, and saves after a successful
+install so a later workload failure does not lose the downloaded packages.
+Browser checks and Playwright share an exact installed-version/OS/architecture
+headless-shell cache; native dependencies are still installed on every runner.
+The [CI guide](../.github/CI.md) documents task cache boundaries and the four-way
+UI and platform Playwright matrices, including their required release evidence.
 
 ## Skills index
 

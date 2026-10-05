@@ -61,10 +61,15 @@ The proxy publishes the door at `<site>/sandbox/tunnel` (`services/proxy/Caddyfi
 - A create with `placement: 'device'` goes to the organization's
   release-compatible device with the most free slots after limiting them
   to the observed memory headroom. Devices enforce local-host memory and disk admission
-  while retaining their configured session ceiling. Only a confirmed 429
-  releases the placement to try another device, then the local backend.
-  A 5xx or lost response keeps the placement: the remote create may have
-  succeeded. Concurrent creates of the same id share that decision. A device
+  while retaining their configured session ceiling. Before each attempt the hub
+  rechecks that the selected connection is still registered, compatible and has
+  room. For a new placement, a confirmed 429 or a refusal known to occur before
+  sending releases the placement to try another device, then the local backend.
+  That pre-send refusal includes a removed or replaced connection during the
+  durable write and a full tunnel stream budget. A remote 5xx or lost response
+  keeps the placement: the remote create may have succeeded. An unsent retry of
+  an existing placement also keeps its route, since a previous attempt may have
+  created the workspace. Concurrent creates of the same id share that decision. A device
   that refused a create sits out new ones for a minute. A session id the
   server already holds is never moved.
 - A create the platform abandons (its timeout, a restarting worker) keeps its
@@ -101,9 +106,10 @@ The proxy publishes the door at `<site>/sandbox/tunnel` (`services/proxy/Caddyfi
   one Docker round trip, which with no session under the id finds nothing to
   remove, reads the trash and has what is left attempted again, and with a
   create or compute under way answers busy and touches nothing), and lets the
-  placement go on `done`. A create under the id is counted before its new
-  placement is written, so an answer that lands meanwhile leaves that new
-  placement alone. A route therefore lasts exactly as long as the bytes it leads to; a
+  placement go on `done`. Destroy finalization shares the create's ordering and
+  checks both the captured create generation and the immutable placement it
+  asked about. An answer dispatched before or during a new placement's durable
+  write therefore leaves the new route alone. A route therefore lasts exactly as long as the bytes it leads to; a
   device older than the contract keeps its entries until it updates. A fresh
   create under the id is placed like any other create, with every fallback,
   but tries that device first; placed anywhere else, the route to the old
