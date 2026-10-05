@@ -1612,7 +1612,8 @@ export async function detachSkillFromAgents(
 ): Promise<{ id: string; name: string; projectId: string }[]> {
   const detached = await tx<{ id: string; name: string; projectId: string }[]>`
     UPDATE app.project_agents
-    SET skills = array_remove(skills, ${slug}), updated_at_ms = ${Date.now()}
+    SET skills = array_remove(skills, ${slug}),
+      updated_at_ms = GREATEST(updated_at_ms + 1, ${Date.now()})
     WHERE org_id = ${organizationId} AND ${slug} = ANY(skills)
     RETURNING id, name, project_id AS "projectId"
   `;
@@ -1774,7 +1775,7 @@ export async function updateAgentInstructionsConfiguration(
   if ((agent.instructions ?? '') === instructions) return;
   await tx`
     UPDATE app.project_agents SET instructions = ${instructions.length > 0 ? instructions : null},
-      updated_at_ms = ${Date.now()}
+      updated_at_ms = ${Math.max(Date.now(), agent.updatedAt + 1)}
     WHERE id = ${config.agentId} AND project_id = ${config.projectId}
       AND org_id = ${auth.organizationId}
   `;
@@ -1992,7 +1993,8 @@ export async function alignManagedProjectAgent(
     UPDATE app.project_agents SET
       harness = ${fields.harness}, model = ${fields.model},
       model_provider = ${fields.modelProvider}, skills = ${fields.skills},
-      instructions = ${fields.instructions}, updated_at_ms = ${Date.now()}
+      instructions = ${fields.instructions},
+      updated_at_ms = GREATEST(updated_at_ms + 1, ${Date.now()})
     WHERE id = (
       SELECT id FROM app.project_agents
       WHERE id = ${agent.id} AND managed
@@ -2115,7 +2117,9 @@ export async function updateProjectAgent(
     throw new ProjectError('PROJECT_AGENT_NAME_TAKEN', 'Agent name taken', 409);
   }
 
-  const now = Date.now();
+  // updatedAt is also the full-save precondition. A changed row must not
+  // reuse a revision when the wall clock stalls or moves backwards.
+  const now = Math.max(Date.now(), agent.updatedAt + 1);
   await tx`
     UPDATE app.project_agents SET
       name = ${fields.name}, harness = ${fields.harness},

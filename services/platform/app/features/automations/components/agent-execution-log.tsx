@@ -1,5 +1,6 @@
 'use client';
 
+import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
 import { cn } from '@tale/ui/cn';
 import { CollapsibleDetails } from '@tale/ui/collapsible-details';
@@ -11,12 +12,14 @@ import {
   CheckCircle2,
   Loader2,
   MessageSquare,
+  RotateCcw,
   Wrench,
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
 import { useAutoScroll } from '@/app/hooks/use-auto-scroll';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
+import { readStateOf } from '@/app/lib/backend/read-state';
 import {
   mergeTimelineEntries,
   strippedText,
@@ -420,15 +423,57 @@ export function AgentExecutionLog({
   waitingForRoom?: boolean;
   className?: string;
 }) {
+  const { t } = useT('automations');
   const opQuery = useBackendQuery(
     'sandbox/session_queries_public:getAgentNodeSandboxOp',
     { organizationId, runId, ...(nodeId !== undefined ? { nodeId } : {}) },
   );
+  const read = readStateOf(opQuery);
+  const failure = (read.unavailable || read.stale) && (
+    <Alert
+      variant="destructive"
+      title={t('runs.agentLog.readFailed')}
+      description={t('runs.agentLog.readFailedDescription')}
+    >
+      <Button
+        variant="secondary"
+        size="sm"
+        className="mt-3 w-fit gap-1.5"
+        aria-disabled={read.retrying}
+        aria-busy={read.retrying}
+        onClick={() => void opQuery.refetch()}
+      >
+        <RotateCcw className="size-3.5" aria-hidden />
+        {t('runs.agentLog.retry')}
+      </Button>
+    </Alert>
+  );
+  if (read.unavailable) {
+    return (
+      <Stack as="section" gap={2} className={cn('min-h-0 flex-1', className)}>
+        <Text as="h3" variant="label">
+          {t('runs.agentLog.title')}
+        </Text>
+        {failure}
+      </Stack>
+    );
+  }
+  if (!read.stale) {
+    return (
+      <ExecutionLogView
+        op={opQuery.data ?? null}
+        waitingForRoom={waitingForRoom}
+        className={className}
+      />
+    );
+  }
   return (
-    <ExecutionLogView
-      op={opQuery.data ?? null}
-      waitingForRoom={waitingForRoom}
-      className={className}
-    />
+    <Stack gap={2} className={cn('min-h-0 flex-1', className)}>
+      <ExecutionLogView
+        op={opQuery.data ?? null}
+        waitingForRoom={waitingForRoom}
+      />
+      {failure}
+    </Stack>
   );
 }

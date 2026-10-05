@@ -890,6 +890,9 @@ automations:
       title: Agenten-Log
       starting: Der Agent startet in der Sandbox…
       empty: Der Agent hat für diesen Lauf kein Log erzeugt.
+      readFailed: Das Agenten-Log konnte nicht geladen werden.
+      readFailedDescription: Das Transkript ist vorübergehend nicht verfügbar. Versuche es erneut, um es zu laden.
+      retry: Erneut versuchen
       servedBy: 'Diese Runde lief auf {model}.'
       visionModel: 'Bilder in diesem Lauf hat {model} gelesen.'
     approval:
@@ -916,6 +919,7 @@ automations:
     heading: 'Lauf von {automation}'
     empty: Diese Automatisierung ist noch nicht gelaufen.
     loading: Lauf wird geladen …
+    loadFailed: Dieser Lauf konnte nicht geladen werden.
     # Während die Plattform den fehlgeschlagenen Agent-Schritt von selbst
     # wiederholt — damit klar ist, dass nicht du es warst.
     autoRetrying: 'Automatischer Versuch {n} von {max}'
@@ -5757,6 +5761,7 @@ settings:
     editMember: Mitglied bearbeiten
     removeMember: Mitglied entfernen
     memberUpdated: Mitglied aktualisiert
+    memberUpdateFailed: Das Mitglied konnte nicht gespeichert werden. Versuch es nochmal.
     memberRemoved: Mitglied entfernt
     twoFactorResetSuccess:
       Zwei-Faktor zurückgesetzt — das Mitglied muss sich bei

@@ -252,12 +252,12 @@ describe('ordinary CI source admission', () => {
           ).toBe(expected);
           state.cancelled = true;
           expect(admitted(job, state, true), `${stem}/${id} cancelled`).toBe(
-            stem === 'checks' && id === 'test-ui',
+            stem === 'checks' && ['test', 'test-ui'].includes(id),
           );
         }
       }
     }
-    expect(count).toBe(35);
+    expect(count).toBe(37);
   });
 
   test('direct source disposition and every other required predecessor fail closed', async () => {
@@ -298,6 +298,11 @@ describe('ordinary CI source admission', () => {
                     (stem === 'checks' &&
                       id === 'test-ui' &&
                       dependency === 'test-ui-shards') ||
+                    (stem === 'checks' &&
+                      id === 'test' &&
+                      ['test-platform-shards', 'test-workspaces'].includes(
+                        dependency,
+                      )) ||
                     result === 'success';
               expect(
                 admitted(job, state, true),
