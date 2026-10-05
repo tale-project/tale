@@ -1,6 +1,6 @@
 import { LocaleProvider } from '@tale/ui/i18n/locale-provider';
 import { act, renderHook } from '@testing-library/react';
-import { createElement, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -85,8 +85,9 @@ describe('useCompactAge', () => {
     vi.useRealTimers();
   });
 
-  const wrapper = ({ children }: { children: ReactNode }) =>
-    createElement(LocaleProvider, { defaultLocale: 'en', children });
+  const wrapper = ({ children }: { children: ReactNode }) => (
+    <LocaleProvider defaultLocale="en">{children}</LocaleProvider>
+  );
 
   // A Home list renders hundreds of rows: a row woken every minute to read
   // the same "2d" again was hundreds of renders a minute for nothing.
