@@ -13,6 +13,20 @@ import {
 import { arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+const NO_LANE_IDS: readonly string[] = [];
+/** Each lane's ids as a set, per lane array: the working copy replaces a
+ * lane's array whenever it changes and never edits one in place. A lane's
+ * `includes` per mounted card made every pointer move cost cards × lane. */
+const laneIdSets = new WeakMap<readonly string[], ReadonlySet<string>>();
+function laneIdSet(ids: readonly string[]): ReadonlySet<string> {
+  let set = laneIdSets.get(ids);
+  if (set === undefined) {
+    set = new Set(ids);
+    laneIdSets.set(ids, set);
+  }
+  return set;
+}
+
 /**
  * Pointer-first collision detection for a lane board.
  *
@@ -43,9 +57,9 @@ export function createBoardCollisionDetection(
 
     const lane = under[0];
     if (!lane) return closestCorners(args);
-    const items = cols[String(lane.id)] ?? [];
+    const items = laneIdSet(cols[String(lane.id)] ?? NO_LANE_IDS);
     const laneCards = args.droppableContainers.filter((container) =>
-      items.includes(String(container.id)),
+      items.has(String(container.id)),
     );
     if (laneCards.length === 0) return [lane];
 
