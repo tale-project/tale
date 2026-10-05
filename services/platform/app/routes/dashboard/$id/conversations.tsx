@@ -17,7 +17,7 @@ import {
   useSearch,
 } from '@tanstack/react-router';
 import { Inbox, SquarePen } from 'lucide-react';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 
 import { ConversationsNavigation } from '@/app/features/conversations/components/conversations-navigation';
 import { InboxMobileBackButton } from '@/app/features/conversations/components/inbox-mobile-back-button';
@@ -75,6 +75,12 @@ interface PendingCompose {
 function ConversationsLayout() {
   const { id: organizationId } = Route.useParams();
   const { t } = useT('conversations');
+  const recoveryTarget = useRef<HTMLDivElement>(null);
+  const focusRecoveredInbox = () => {
+    if (document.activeElement === document.body) {
+      recoveryTarget.current?.focus();
+    }
+  };
   // The Inbox is gated on an INSTALLED automation declaring the `inbox`
   // builtin view — the same signal that shows/hides the nav entry. A deep
   // link into an org without one lands on a friendly pointer to the
@@ -177,7 +183,13 @@ function ConversationsLayout() {
           </AdaptiveHeaderRoot>
         }
       >
-        <ContentWrapper className="flex size-full max-h-full flex-1 flex-row">
+        <div
+          ref={recoveryTarget}
+          role="region"
+          aria-label={t('activate.noAutomationTitle')}
+          tabIndex={-1}
+          className="flex size-full max-h-full min-h-0 flex-1 flex-row"
+        >
           {/* While availability loads, keep the shell empty — no flash of the
               empty state (or of the inbox) before the answer is in. */}
           {!isLoading && (
@@ -218,7 +230,7 @@ function ConversationsLayout() {
               }
             />
           )}
-        </ContentWrapper>
+        </div>
       </PageLayout>
     );
   }
@@ -278,9 +290,16 @@ function ConversationsLayout() {
             onRetry={() => void retry()}
             isRetrying={readState.retrying}
             failureKey={readState.failureCount}
+            onFocusLost={focusRecoveredInbox}
           />
         )}
-        <div className="flex min-h-0 flex-1 flex-row">
+        <div
+          ref={recoveryTarget}
+          role="region"
+          aria-label={t('title')}
+          tabIndex={-1}
+          className="flex min-h-0 flex-1 flex-row"
+        >
           <Outlet />
         </div>
       </ContentWrapper>

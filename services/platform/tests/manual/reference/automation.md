@@ -9,7 +9,9 @@ suite alongside the automated ones — they drive the same stack.
 Inbox source discovery distinguishes a failed read from successful empty
 discovery. Both automation and API-source failures retain the Inbox shell and
 conversation outlet with an accessible retry; retries retain the error while
-running and recover to the healthy Inbox. Successful empty discovery still
+running and recover to the healthy Inbox. When the focused Retry disappears,
+focus moves to the labelled Inbox region or successful-empty setup region;
+focus moved elsewhere stays there. Successful empty discovery still
 offers setup, and failed discovery keeps Home's Inbox navigation visible.
 `app/routes/dashboard/$id/conversations.test.tsx`,
 `app/features/conversations/hooks/use-inbox-availability.test.ts`,

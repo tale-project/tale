@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { cleanup } from '@testing-library/react';
+import { cleanup, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -217,9 +217,56 @@ describe('ConversationsLayout', () => {
         apiSources = ['synthetic'];
       else mockInboxAvailability.hasInbox = true;
       rerender(<ConversationsLayout />);
+      await waitFor(() => {
+        expect(document.activeElement).not.toBe(document.body);
+        expect(screen.getByRole('region', { name: 'Inbox' })).toHaveFocus();
+      });
       expect(screen.queryByRole('alert')).not.toBeInTheDocument();
       expect(screen.getByTestId('outlet')).toBeInTheDocument();
       expect(screen.queryByText('Set up your Inbox')).not.toBeInTheDocument();
+    },
+  );
+
+  it.each([
+    'automations/queries:listAutomations',
+    'conversations/queries:apiSources',
+  ])('hands Retry focus to empty setup after %s recovers', async (source) => {
+    failedSource = source;
+    const { rerender } = render(<ConversationsLayout />);
+    await userEvent
+      .setup()
+      .click(screen.getByRole('button', { name: 'Try again' }));
+    failedSource = undefined;
+    rerender(<ConversationsLayout />);
+    await waitFor(() => {
+      expect(document.activeElement).not.toBe(document.body);
+      expect(
+        screen.getByRole('region', { name: 'Set up your Inbox' }),
+      ).toHaveFocus();
+    });
+  });
+
+  it.each([true, false])(
+    'preserves moved focus on recovery (hasInbox: %s)',
+    async (hasInbox) => {
+      failedSource = 'automations/queries:listAutomations';
+      const view = () => (
+        <>
+          <button>Elsewhere</button>
+          <ConversationsLayout />
+        </>
+      );
+      const { rerender } = render(view());
+      const user = userEvent.setup();
+      await user.click(screen.getByRole('button', { name: 'Try again' }));
+      await user.click(screen.getByRole('button', { name: 'Elsewhere' }));
+      failedSource = undefined;
+      mockInboxAvailability.hasInbox = hasInbox;
+      rerender(view());
+      await new Promise<void>((resolve) =>
+        requestAnimationFrame(() => resolve()),
+      );
+      expect(screen.getByRole('button', { name: 'Elsewhere' })).toHaveFocus();
     },
   );
 
