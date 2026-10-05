@@ -79,7 +79,10 @@ baseline behavior do not count.
   tests within a file remain serial. Linux and Windows source tests and compiled smoke
   discovery remain serial. Two workers made Windows fixtures exceed their unchanged
   30-second limits; Linux two-worker runs also failed to finish promptly. Serial suites
-  retain all assertions and the same limits.
+  retain all assertions and the same limits. The native command fixture checks complete
+  discovery, serial case order and real synchronous/asynchronous subprocess completion
+  under each host's selected command. The macOS lane also checks file isolation and its
+  worker bound.
   Binary artifacts use fast compression; all five targets still build, native binaries
   retain smoke tests, and both macOS targets retain signature checks. Command suites
   run source cases before compilation, then select only the explicit `TALE_BINARY`
@@ -108,6 +111,10 @@ participate in the global hash. Bun download caches separate OS and CPU architec
 Shared checks install the exact Node version from the production platform image once.
 Their actual Bun, Node, OS, architecture and Linux distribution fingerprint participates
 in task hashes, preventing runtime changes from replaying source-identical verdicts.
+Performance and backend integration also support older candidate composites without the
+Node-version output: only those checkouts resolve and install their production Node at the
+job level. Current composites skip that fallback. Integration evidence verifies and records
+the actual selected version.
 
 The Bun download key also includes workspace manifests, the lockfile and patches.
 A frozen install remains authoritative after a cache hit, and successful downloads
@@ -147,8 +154,9 @@ Every Unit and UI platform shard has its own scope; other-workspace unit tests u
 their own scope.
 Turbo still compares task hashes before replaying any restored result.
 
-Hosted jobs set Turbo's native `TURBO_CACHE_MAX_SIZE=512MB` (512 MiB). Turbo
-attempts to evict the oldest archive entries in a background thread at startup.
+Hosted jobs normally set Turbo's native `TURBO_CACHE_MAX_SIZE=512MB` (512 MiB).
+Browser's admission probe and final test command disable eviction as described above.
+Turbo attempts to evict the oldest archive entries in a background thread at startup.
 This is a best-effort target: very short runs can finish before eviction, and
 current-run outputs can grow the final archive beyond it. Cache hits do not refresh archive write times, so
 an old matching task may be evicted and safely execute again. The setup action
@@ -181,12 +189,20 @@ labels before tagging. Candidate image gates fetch only that helper from the exa
 trusted workflow commit into an isolated sparse checkout, preserving an older
 candidate's source and image receipts.
 
-Image vulnerability reporting and SBOM publication share one Trivy 0.70.0 image scan.
-The JSON report retains all packages and finding severities; local conversion produces
-SARIF with the same ignored findings and a complete CycloneDX inventory without
-vulnerability records. The empty severity selection belongs only to SBOM conversion.
-SARIF keeps all severities, matching the previous action's actual behavior. A failed
-scan or conversion still fails the informational job; reports that exist are uploaded.
+Image vulnerability reporting uses Trivy 0.70.0 JSON and local SARIF conversion,
+retaining every finding severity and the existing suppressions. CycloneDX publication
+uses a separate direct image analysis: this engine computes Node and Python package
+hashes only when scanning for an SBOM format. JSON conversion loses those hashes.
+The SBOM analysis uses an in-memory artifact cache so previous checksum-free analysis
+cannot supply incomplete package metadata. It retains the complete package inventory
+and the original policy of omitting vulnerability records.
+
+A real pinned-engine check verifies Node and Python package hashes once per scan
+matrix, including JSON-conversion negative controls. It uses offline temporary rootfs
+fixtures and the already installed engine. The helper comes from the immutable workflow
+commit, preserving historical candidate source checkouts. Failed analysis, conversion
+or regression checks fail the informational job; reports that exist are uploaded.
+The direct SBOM pass reuses the pinned scanner installation and skips a second cache transfer.
 
 Scorecard remains informational and runs weekly, manually and when branch protections
 change. Blocking source and dependency security gates retain their triggers.
@@ -367,6 +383,15 @@ timeout summary. The next run also remained unfinished beyond five minutes. Thes
 logs localize an unfinished fixture but do not establish the subprocess or worker
 cause. Full serial CLI tests in Checks passed freshly in 117.6s and 136.7s, so Linux
 also retains the serial command while macOS retains two workers.
+
+In [Build run 37265214548](https://github.com/tale-project/tale/actions/runs/37265214548),
+new gateway size coverage compared a 100 MiB limit calibrated from packed layers with
+Docker inspection's 255 MiB result. The exact gateway images from this run and
+Build run 37260011687 contain the same seven layer descriptors, totaling 86.45 MiB
+packed; the image did not grow. The gateway limit is now 300 MiB, about 18% above
+its observed inspection size, using the existing metric. Other image budgets stay
+unchanged. Executable fixtures accept 255 and 300 MiB and reject 301 MiB while
+retaining gateway user, health, secret and required-image checks.
 
 Run workflow and source-identity regressions with:
 

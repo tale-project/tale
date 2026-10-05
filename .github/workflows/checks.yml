@@ -533,11 +533,32 @@ jobs:
           persist-credentials: false
 
       - name: Setup toolchain
+        id: toolchain
         uses: ./.github/actions/setup-turbo
         with:
           start-turbo-cache: 'false'
           github-token: ${{ secrets.GITHUB_TOKEN }}
           turbo-cache: 'false'
+
+      # A trusted workflow can select an older candidate whose composite
+      # predates the shared Node pin. Keep that source's production runtime.
+      - name: Resolve the platform's Node
+        id: node
+        if: steps.toolchain.outputs.node-version == ''
+        run: |
+          set -euo pipefail
+          version=$(sed -n 's/^FROM node:\([0-9][0-9.]*\)-.* AS node-bin$/\1/p' services/platform/Dockerfile)
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo '::error::services/platform/Dockerfile names no node-bin stage version'; exit 1
+          fi
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+
+      - name: Setup legacy candidate Node
+        if: steps.toolchain.outputs.node-version == ''
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: ${{ steps.node.outputs.version }}
+          package-manager-cache: false
 
       - name: Generate CLI fixtures
         run: bun run --filter @tale/cli generate
@@ -816,6 +837,7 @@ jobs:
           } > "$PROOF_DIR/source.txt"
 
       - name: Setup toolchain
+        id: toolchain
         uses: ./.github/actions/setup-turbo
         with:
           start-turbo-cache: 'false'
@@ -826,6 +848,7 @@ jobs:
       # whatever the runner image ships.
       - name: Resolve the platform's Node
         id: node
+        if: steps.toolchain.outputs.node-version == ''
         run: |
           set -euo pipefail
           version=$(sed -n 's/^FROM node:\([0-9][0-9.]*\)-.* AS node-bin$/\1/p' services/platform/Dockerfile)
@@ -833,7 +856,23 @@ jobs:
             echo '::error::services/platform/Dockerfile names no node-bin stage version'; exit 1
           fi
           echo "version=${version}" >> "$GITHUB_OUTPUT"
-          echo "node-version=$version" >> "$PROOF_DIR/source.txt"
+
+      - name: Setup legacy candidate Node
+        if: steps.toolchain.outputs.node-version == ''
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: ${{ steps.node.outputs.version }}
+          package-manager-cache: false
+
+      - name: Record integration Node version
+        env:
+          NODE_VERSION: ${{ steps.toolchain.outputs.node-version || steps.node.outputs.version }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$NODE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || [ "$(node --version)" != "v$NODE_VERSION" ]; then
+            echo '::error::Integration Node differs from the selected production runtime'; exit 1
+          fi
+          echo "node-version=$NODE_VERSION" >> "$PROOF_DIR/source.txt"
 
       # The transcription and video-link lanes run the real ffmpeg/ffprobe the
       # platform image bakes in. Same APT bounds as the Playwright installs.

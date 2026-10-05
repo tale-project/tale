@@ -1,8 +1,16 @@
 import { describe, expect, test } from 'bun:test';
 import { createHash } from 'node:crypto';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import {
+  chmod,
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  rm,
+  writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { delimiter, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runInNewContext } from 'node:vm';
 
@@ -26,6 +34,7 @@ const workflowSchema = z.object({
             run: z.string().optional(),
             uses: z.string().optional(),
             if: z.string().optional(),
+            'continue-on-error': z.boolean().optional(),
             with: z.record(z.string(), z.unknown()).optional(),
           }),
         )
@@ -55,6 +64,120 @@ const dryRunSchema = z.object({
     }),
   ),
 });
+
+async function candidateNodeFixture(
+  job: z.infer<typeof workflowSchema>['jobs'][string],
+  compositeVersion: string,
+  dockerfile: string,
+  initialVersion = compositeVersion || '18.0.0',
+) {
+  const directory = await mkdtemp(join(tmpdir(), 'tale-candidate-node-'));
+  try {
+    const bin = join(directory, 'bin');
+    const proof = join(directory, 'proof');
+    const output = join(directory, 'output');
+    await mkdir(bin);
+    await mkdir(proof);
+    await mkdir(join(directory, 'services/platform'), { recursive: true });
+    await writeFile(
+      join(directory, 'services/platform/Dockerfile'),
+      dockerfile,
+    );
+    await writeFile(join(proof, 'source.txt'), '');
+    await writeFile(
+      join(bin, 'node'),
+      '#!/usr/bin/env bash\nprintf "v%s\\n" "$NODE_FIXTURE_VERSION"\n',
+    );
+    await chmod(join(bin, 'node'), 0o755);
+    const context: {
+      steps: Record<string, { outputs: Record<string, string> }>;
+    } = { steps: {} };
+    const setup = job.steps.find((step) => step.name === 'Setup toolchain');
+    if (setup?.id)
+      context.steps[setup.id] = {
+        outputs: { 'node-version': compositeVersion },
+      };
+    const expression = (value: string) =>
+      value
+        .replace(/^\$\{\{\s*|\s*\}\}$/g, '')
+        .replaceAll('.node-version', "['node-version']");
+    const env = {
+      ...process.env,
+      PATH: `${bin}${delimiter}${process.env.PATH}`,
+      PROOF_DIR: proof,
+      GITHUB_OUTPUT: output,
+      NODE_FIXTURE_VERSION: initialVersion,
+    };
+    const execute = (script: string, extra: Record<string, string> = {}) =>
+      Bun.spawnSync(['bash', '-euo', 'pipefail', '-c', script], {
+        cwd: directory,
+        env: { ...env, ...extra },
+      });
+    const versions: string[] = [];
+    const executed: string[] = [];
+    let code = 0;
+    let diagnostic = '';
+    // Run the actual workflow's pin/evidence steps. The hosted setup-node
+    // action is the only boundary replaced: record its selected input and
+    // expose that version to subsequent real shell steps.
+    for (const step of job.steps.filter((entry) =>
+      [
+        "Resolve the platform's Node",
+        'Setup legacy candidate Node',
+        'Record integration Node version',
+      ].includes(entry.name ?? ''),
+    )) {
+      if (step.if && !runInNewContext(expression(step.if), context)) continue;
+      executed.push(step.name!);
+      if (step.uses) {
+        expect(step.uses).toMatch(/^actions\/setup-node@[a-f0-9]{40}$/);
+        expect(step.with?.['package-manager-cache']).toBe(false);
+        const selected = String(
+          runInNewContext(
+            expression(z.string().parse(step.with?.['node-version'])),
+            context,
+          ),
+        );
+        versions.push(selected);
+        env.NODE_FIXTURE_VERSION = selected;
+        continue;
+      }
+      await writeFile(output, '');
+      const extra = Object.fromEntries(
+        Object.entries(step.env ?? {}).map(([name, value]) => [
+          name,
+          value.startsWith('${{')
+            ? String(runInNewContext(expression(value), context))
+            : value,
+        ]),
+      );
+      const run = execute(z.string().parse(step.run), extra);
+      code = run.exitCode;
+      diagnostic = run.stdout.toString() + run.stderr.toString();
+      if (code !== 0) break;
+      if (step.id)
+        context.steps[step.id] = {
+          outputs: Object.fromEntries(
+            (await readFile(output, 'utf8'))
+              .trim()
+              .split('\n')
+              .filter(Boolean)
+              .map((line) => line.split('=', 2)),
+          ),
+        };
+    }
+    return {
+      code,
+      diagnostic,
+      versions,
+      executed,
+      actual: execute('node --version').stdout.toString().trim(),
+      evidence: await readFile(join(proof, 'source.txt'), 'utf8'),
+    };
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+}
 
 function resolveTasks(command: string, taskName: string) {
   // Ask the actual pinned Turbo CLI to resolve the workflow command;
@@ -86,6 +209,89 @@ function resolveTasks(command: string, taskName: string) {
 }
 
 describe('Checks execution optimizations', () => {
+  test.each(['performance', 'backend-integration'])(
+    '%s pins production Node for historical candidates without repeating modern setup',
+    async (id) => {
+      const job = (await workflow()).jobs[id]!;
+      const dockerfile = 'FROM node:22.21.1-bookworm-slim AS node-bin\n';
+      const legacy = await candidateNodeFixture(job, '', dockerfile);
+      expect(legacy.code, legacy.diagnostic).toBe(0);
+      expect(legacy.versions).toEqual(['22.21.1']);
+      expect(legacy.actual).toBe('v22.21.1');
+      const current = await candidateNodeFixture(job, '22.21.1', dockerfile);
+      expect(current.code, current.diagnostic).toBe(0);
+      expect(current.versions).toEqual([]);
+      expect(current.actual).toBe('v22.21.1');
+      for (const result of [legacy, current])
+        expect(result.evidence).toBe(
+          id === 'backend-integration' ? 'node-version=22.21.1\n' : '',
+        );
+      expect(current.executed).not.toContain("Resolve the platform's Node");
+      expect(current.executed).not.toContain('Setup legacy candidate Node');
+      const setup = job.steps.find((step) => step.name === 'Setup toolchain')!;
+      const resolve = job.steps.find(
+        (step) => step.name === "Resolve the platform's Node",
+      )!;
+      const pin = job.steps.find(
+        (step) => step.name === 'Setup legacy candidate Node',
+      )!;
+      const workload = job.steps.findIndex((step) =>
+        ['Measure runtime performance', 'Run backend integration'].includes(
+          step.name ?? '',
+        ),
+      );
+      expect(setup.id).toBe('toolchain');
+      expect(resolve.if).toBe("steps.toolchain.outputs.node-version == ''");
+      expect(pin.if).toBe(resolve.if);
+      expect(job.steps.indexOf(setup)).toBeLessThan(job.steps.indexOf(resolve));
+      expect(job.steps.indexOf(resolve)).toBeLessThan(job.steps.indexOf(pin));
+      expect(job.steps.indexOf(pin)).toBeLessThan(workload);
+      for (const step of [resolve, pin])
+        expect(step['continue-on-error']).not.toBe(true);
+    },
+  );
+
+  test.each(['performance', 'backend-integration'])(
+    '%s rejects malformed historical production Node pins before provisioning',
+    async (id) => {
+      const job = (await workflow()).jobs[id]!;
+      for (const dockerfile of [
+        '',
+        'FROM node:latest AS node-bin\n',
+        'FROM node:22-bookworm-slim AS node-bin\n',
+        'FROM node:22.21.1-bookworm-slim AS node-bin\nFROM node:22.21.2-bookworm-slim AS node-bin\n',
+      ]) {
+        const result = await candidateNodeFixture(job, '', dockerfile);
+        expect(result.code).toBe(1);
+        expect(result.diagnostic).toContain('no node-bin stage version');
+        expect(result.versions).toEqual([]);
+        expect(result.evidence).toBe('');
+      }
+    },
+  );
+
+  test('integration evidence rejects a different actual Node instead of labelling it as the source pin', async () => {
+    const job = (await workflow()).jobs['backend-integration']!;
+    const result = await candidateNodeFixture(
+      job,
+      '22.21.1',
+      'FROM node:22.21.1-bookworm-slim AS node-bin\n',
+      '18.0.0',
+    );
+    expect(result.code).toBe(1);
+    expect(result.diagnostic).toContain(
+      'differs from the selected production runtime',
+    );
+    expect(result.evidence).toBe('');
+    const record = job.steps.find(
+      (step) => step.name === 'Record integration Node version',
+    )!;
+    expect(record['continue-on-error']).not.toBe(true);
+    expect(job.steps.indexOf(record)).toBeLessThan(
+      job.steps.findIndex((step) => step.name === 'Run backend integration'),
+    );
+  });
+
   test('platform UI shards have distinct verdicts while every other UI workspace runs once', async () => {
     const job = (await workflow()).jobs['test-ui-shards'];
     expect(job.strategy?.['fail-fast']).toBe(false);
@@ -525,10 +731,12 @@ describe('Checks execution optimizations', () => {
       .parse(
         parse(await readFile(join(repository, '.github/ci-scope.yml'), 'utf8')),
       ).integration;
+    const compilerFiles = (await readdir(repository)).filter(
+      (file) => file.startsWith('tsconfig') && file.endsWith('.json'),
+    );
+    expect(compilerFiles.length).toBeGreaterThan(0);
     for (const path of [
-      'tsconfig.base.json',
-      'tsconfig.dom.json',
-      'tsconfig.strict.json',
+      ...compilerFiles,
       'bunfig.toml',
       'patches/postgres@3.4.7.patch',
     ])

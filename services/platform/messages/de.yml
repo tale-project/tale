@@ -890,6 +890,9 @@ automations:
       title: Agenten-Log
       starting: Der Agent startet in der Sandbox…
       empty: Der Agent hat für diesen Lauf kein Log erzeugt.
+      readFailed: Das Agenten-Log konnte nicht geladen werden.
+      readFailedDescription: Das Transkript ist vorübergehend nicht verfügbar. Versuche es erneut, um es zu laden.
+      retry: Erneut versuchen
       servedBy: 'Diese Runde lief auf {model}.'
       visionModel: 'Bilder in diesem Lauf hat {model} gelesen.'
     approval:
@@ -5756,6 +5759,7 @@ settings:
     editMember: Mitglied bearbeiten
     removeMember: Mitglied entfernen
     memberUpdated: Mitglied aktualisiert
+    memberUpdateFailed: Das Mitglied konnte nicht gespeichert werden. Versuch es nochmal.
     memberRemoved: Mitglied entfernt
     twoFactorResetSuccess:
       Zwei-Faktor zurückgesetzt — das Mitglied muss sich bei

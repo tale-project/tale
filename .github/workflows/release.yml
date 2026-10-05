@@ -350,7 +350,7 @@ jobs:
           PIDS=()
           for SERVICE in "${SERVICES[@]}"; do
             TEST_SCRIPT="services/platform/tests/integration/container-${SERVICE}-test.ts"
-            bun "$TEST_SCRIPT" > "${LOG_DIR}/${SERVICE}.log" 2>&1 &
+            bun run "$TEST_SCRIPT" > "${LOG_DIR}/${SERVICE}.log" 2>&1 &
             PIDS+=("$!")
           done
           FAILED=0

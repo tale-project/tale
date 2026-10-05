@@ -1,5 +1,12 @@
 import { afterEach, describe, expect, test } from 'bun:test';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  symlink,
+  writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
@@ -149,7 +156,9 @@ test.skipIf(process.platform === 'win32')(
       ),
     ) as Record<string, string[]>;
     expect(file.on.pull_request?.paths).toBeUndefined();
-    expect(filters.build).toEqual(file.on.push?.paths);
+    const pushPaths = file.on.push?.paths;
+    if (!pushPaths) throw new Error('Build push paths are missing');
+    expect(filters.build).toEqual(pushPaths);
     expect(
       Object.keys(filters)
         .filter((name) => name.startsWith('build_'))
@@ -853,12 +862,18 @@ test('native release builds reuse isolated architecture caches without adding ru
   );
 });
 
-test('one image scan retains all findings and complete package inventory for both reports', async () => {
+test('SARIF preserves all findings while direct SBOM analysis retains package hashes', async () => {
   const scan = (await workflow()).jobs['vulnerability-scan']!;
   const imageScans = scan.steps.filter((entry) =>
     entry.uses?.startsWith('aquasecurity/trivy-action@'),
   );
-  expect(imageScans).toHaveLength(1);
+  expect(imageScans).toHaveLength(2);
+  const trivyAction =
+    'aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25';
+  expect(imageScans.map((entry) => entry.uses)).toEqual([
+    trivyAction,
+    trivyAction,
+  ]);
   expect(imageScans[0]!.with).toMatchObject({
     version: 'v0.70.0',
     format: 'json',
@@ -869,6 +884,21 @@ test('one image scan retains all findings and complete package inventory for bot
     trivyignores: '.trivyignore.yaml',
   });
   expect(scan['continue-on-error']).toBe(true);
+  const inventory = findStep(scan, 'Generate SBOM (CycloneDX)');
+  expect(inventory.with).toEqual({
+    version: 'v0.70.0',
+    'skip-setup-trivy': 'true',
+    cache: 'false',
+    'scan-type': 'image',
+    'image-ref': imageScans[0]!.with!['image-ref'],
+    format: 'cyclonedx',
+    output: '${{ matrix.service }}-sbom.cdx.json',
+  });
+  // Trivy's persistent analysis-cache key omits its file-checksum option.
+  // Reusing an earlier JSON entry would silently discard package hashes.
+  expect(inventory.env).toEqual({ TRIVY_CACHE_BACKEND: 'memory' });
+  expect(inventory.run).toBeUndefined();
+  expect(inventory.if).toBeUndefined();
   expect(scan.needs).toEqual(['changes', 'build']);
   expect(scan.if).toContain('!cancelled()');
   expect(scan.if).toContain("needs.changes.outputs.scannable_services != '[]'");
@@ -879,18 +909,51 @@ test('one image scan retains all findings and complete package inventory for bot
     'Generate SARIF',
     'Upload SARIF',
     'Generate SBOM (CycloneDX)',
+    'Checkout SBOM hash guard',
+    'Setup Bun for SBOM hash guard',
+    'Verify SBOM package hashes',
     'Upload SBOM',
   ];
   expect(ordered.map((name) => names.indexOf(name))).toEqual(
     ordered.map((name) => names.indexOf(name)).toSorted((a, b) => a - b),
   );
-  for (const name of ['Generate SARIF', 'Generate SBOM (CycloneDX)']) {
-    expect(findStep(scan, name).if).toBeUndefined();
-    expect(findStep(scan, name).env).toEqual({
-      SERVICE: '${{ matrix.service }}',
-    });
-    expect(findStep(scan, name).uses).toBeUndefined();
+  const conversion = findStep(scan, 'Generate SARIF');
+  expect(conversion.if).toBeUndefined();
+  expect(conversion.env).toEqual({ SERVICE: '${{ matrix.service }}' });
+  expect(conversion.uses).toBeUndefined();
+  const once =
+    'matrix.service == fromJSON(needs.changes.outputs.scannable_services)[0]';
+  for (const name of [
+    'Checkout SBOM hash guard',
+    'Setup Bun for SBOM hash guard',
+    'Verify SBOM package hashes',
+  ]) {
+    expect(findStep(scan, name).if).toBe(once);
   }
+  const helper = findStep(scan, 'Checkout SBOM hash guard');
+  expect(helper.uses).toBe(
+    'actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd',
+  );
+  expect(helper.with).toEqual({
+    ref: '${{ github.workflow_sha }}',
+    path: '.ci-workflow',
+    'persist-credentials': false,
+    'sparse-checkout': 'tools/cli/scripts/check-sbom-hashes.ts',
+    'sparse-checkout-cone-mode': false,
+  });
+  const bun = findStep(scan, 'Setup Bun for SBOM hash guard');
+  expect(bun.uses).toBe(
+    'oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6',
+  );
+  expect(bun.with).toEqual({ 'bun-version': '1.4.2' });
+  expect(findStep(scan, 'Verify SBOM package hashes').run).toBe(
+    'bun .ci-workflow/tools/cli/scripts/check-sbom-hashes.ts',
+  );
+  const sourceCheckout = findStep(scan, 'Checkout');
+  expect(sourceCheckout.with?.ref).toBe(
+    '${{ needs.changes.outputs.candidate_sha }}',
+  );
+  expect(sourceCheckout.with?.path).toBeUndefined();
   const sarif = findStep(scan, 'Upload SARIF');
   expect(sarif.if).toBe(
     "always() && hashFiles(format('{0}-trivy.sarif', matrix.service)) != ''",
@@ -911,7 +974,7 @@ test('one image scan retains all findings and complete package inventory for bot
   });
 });
 
-describe.skipIf(process.platform === 'win32')('Trivy report conversion', () => {
+describe.skipIf(process.platform === 'win32')('Trivy SARIF conversion', () => {
   const commands: [string, string[]][] = [
     [
       'Generate SARIF',
@@ -925,19 +988,6 @@ describe.skipIf(process.platform === 'win32')('Trivy report conversion', () => {
         '.trivyignore.yaml',
         '--output',
         'proxy-trivy.sarif',
-        'proxy-trivy.json',
-      ],
-    ],
-    [
-      'Generate SBOM (CycloneDX)',
-      [
-        'convert',
-        '--format',
-        'cyclonedx',
-        '--severity',
-        '',
-        '--output',
-        'proxy-sbom.cdx.json',
         'proxy-trivy.json',
       ],
     ],
@@ -992,3 +1042,46 @@ writeFileSync(args[args.indexOf('--output') + 1], 'converted');
     },
   );
 });
+
+test.skipIf(process.platform === 'win32')(
+  'SBOM hash guard fails closed without the installed pinned engine',
+  async () => {
+    const guard = step(
+      await workflow(),
+      'vulnerability-scan',
+      'Verify SBOM package hashes',
+    );
+    for (const mode of ['absent', 'wrong-version', 'engine-error']) {
+      const directory = await mkdtemp(join(tmpdir(), 'tale-sbom-engine-ci-'));
+      directories.push(directory);
+      const helper = 'tools/cli/scripts/check-sbom-hashes.ts';
+      const helperPath = join(directory, '.ci-workflow', helper);
+      await mkdir(resolve(helperPath, '..'), { recursive: true });
+      await writeFile(helperPath, await readFile(join(repository, helper)));
+      await symlink(process.execPath, join(directory, 'bun'));
+      if (mode !== 'absent') {
+        await writeFile(
+          join(directory, 'trivy'),
+          `#!${process.execPath}
+if (!process.argv.includes('--version')) throw new Error('A rejected engine must not scan');
+${mode === 'engine-error' ? 'process.exit(17);' : 'console.log("Version: 0.71.0");'}
+`,
+          { mode: 0o755 },
+        );
+      }
+      const result = await execute(
+        guard.run!,
+        { PATH: directory, TMPDIR: directory },
+        directory,
+      );
+      expect(result.code, result.stdout + result.stderr).toBe(1);
+      expect(result.stderr).toContain(
+        mode === 'absent'
+          ? 'The installed Trivy 0.70.0 binary is required'
+          : mode === 'wrong-version'
+            ? 'Expected Trivy 0.70.0'
+            : 'version failed',
+      );
+    }
+  },
+);
