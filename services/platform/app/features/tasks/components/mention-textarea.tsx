@@ -41,6 +41,42 @@ interface MentionTextareaProps extends Omit<
   placement?: 'above' | 'below';
 }
 
+const NO_MENTION_OPTIONS: readonly MentionActorOption[] = [];
+
+function sameOptions(
+  a: readonly MentionActorOption[],
+  b: readonly MentionActorOption[],
+): boolean {
+  return (
+    a.length === b.length &&
+    a.every(
+      (option, index) =>
+        option.type === b[index]?.type &&
+        option.id === b[index]?.id &&
+        option.name === b[index]?.name &&
+        option.handle === b[index]?.handle,
+    )
+  );
+}
+
+/** Reads the mention candidates for a field that has been focused, and hands
+ *  them to it. */
+function MentionOptionsSource({
+  organizationId,
+  projectId,
+  onOptions,
+}: {
+  organizationId: string;
+  projectId: string;
+  onOptions: (options: readonly MentionActorOption[]) => void;
+}) {
+  const options = useMentionActorOptions(organizationId, projectId);
+  useEffect(() => {
+    onOptions(options);
+  }, [options, onOptions]);
+  return null;
+}
+
 /**
  * A {@link Textarea} with an `@`-mention autocomplete over the project's
  * mentionable actors (org members + project agents). The native multiline
@@ -60,6 +96,7 @@ export function MentionTextarea({
   onKeyUp,
   onClick,
   onBlur,
+  onFocus,
   id,
   ...textareaProps
 }: MentionTextareaProps) {
@@ -69,7 +106,19 @@ export function MentionTextarea({
   const [trigger, setTrigger] = useState<MentionTrigger | null>(null);
   const [highlight, setHighlight] = useState(0);
 
-  const options = useMentionActorOptions(organizationId, projectId);
+  // The mentionable people, agents and automations are read once the field
+  // is first focused: a task's comment composer is on screen with every task
+  // opened, and reading its candidates then cost every open their requests.
+  const [optionsWanted, setOptionsWanted] = useState(false);
+  const [options, setOptions] =
+    useState<readonly MentionActorOption[]>(NO_MENTION_OPTIONS);
+  // The same candidates handed over again change nothing, so a reader that
+  // rebuilds its list on every render can never keep this one re-rendering.
+  const receiveOptions = useCallback(
+    (next: readonly MentionActorOption[]) =>
+      setOptions((current) => (sameOptions(current, next) ? current : next)),
+    [],
+  );
   const results = useMemo(
     () => filterMentionActorOptions(options, trigger?.query ?? ''),
     [options, trigger?.query],
@@ -184,12 +233,23 @@ export function MentionTextarea({
           setTrigger(null);
           onBlur?.(e);
         }}
+        onFocus={(e) => {
+          setOptionsWanted(true);
+          onFocus?.(e);
+        }}
         aria-autocomplete="list"
         aria-controls={open && results.length > 0 ? listboxId : undefined}
         aria-activedescendant={
           open && results.length > 0 ? optionId(clampedHighlight) : undefined
         }
       />
+      {optionsWanted && (
+        <MentionOptionsSource
+          organizationId={organizationId}
+          projectId={projectId}
+          onOptions={receiveOptions}
+        />
+      )}
       {open && (
         <div
           className={cn(
