@@ -298,8 +298,10 @@ describe('ExecManager', () => {
     const { events, emit } = collect();
     const beforeMonotonicMs = performance.now();
     const beforeMs = Date.now();
+    // Keep host login initialization outside this duration fixture; the next
+    // test covers the production shell form.
     await mgr.run(
-      { ...base, execId: 'dur1', shell: 'sleep 0.12', cwd: ROOT },
+      { ...base, execId: 'dur1', command: ['sleep', '0.12'], cwd: ROOT },
       emit,
     );
     const afterMs = Date.now();
