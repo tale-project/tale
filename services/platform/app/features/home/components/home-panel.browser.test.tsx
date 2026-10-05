@@ -669,6 +669,88 @@ describe('a long Home stream in Chromium', () => {
   });
 });
 
+describe('a long PROJECTS list in Chromium', () => {
+  // Three digits, so 300 names sort in their numeric order.
+  function manyProjects(count: number): ChatProjectSummary[] {
+    return Array.from({ length: count }, (_, index) => ({
+      id: `project-${index}`,
+      name: `Project ${String(index + 1).padStart(3, '0')}`,
+    }));
+  }
+
+  function projectRows() {
+    return screen
+      .getByRole('region', { name: 'Projects' })
+      .querySelectorAll('li[data-index]');
+  }
+
+  function projectsScroller() {
+    const list = screen
+      .getByRole('region', { name: 'Projects' })
+      .querySelector('ul[role="list"]');
+    const scroller = list?.parentElement;
+    if (!(scroller instanceof HTMLElement)) throw new Error('No scroller');
+    return scroller;
+  }
+
+  it('mounts only the projects near the view, and every one a scroll or End reaches', async () => {
+    renderHome({ projects: manyProjects(300), threads: chatList(3) });
+    await expect.poll(() => projectRows().length).toBeGreaterThan(5);
+    expect(projectRows().length).toBeLessThan(60);
+    const first = projectRows()[0];
+    expect(first).toHaveAttribute('aria-posinset', '1');
+    expect(first).toHaveAttribute('aria-setsize', '300');
+
+    const scroller = projectsScroller();
+    scroller.scrollTop = scroller.scrollHeight;
+    await expect
+      .poll(() => screen.queryByRole('link', { name: /Project 300/ }))
+      .not.toBeNull();
+    expect(projectRows().length).toBeLessThan(60);
+
+    scroller.scrollTop = 0;
+    const firstLink = await screen.findByRole('link', { name: /Project 001/ });
+    firstLink.focus();
+    await userEvent.keyboard('{End}');
+    await expect
+      .poll(() => document.activeElement?.textContent)
+      .toContain('Project 300');
+  });
+
+  it('keeps the open project mounted wherever the list scrolls', async () => {
+    renderHome({ projects: manyProjects(300), threads: chatList(3) });
+    backend.location = {
+      pathname: `/dashboard/${ORG}/projects/project-150`,
+      search: {},
+    };
+    cleanup();
+    render(
+      <div
+        data-testid="frame"
+        style={{ height: 640 }}
+        className="bg-background flex w-70 flex-col overflow-hidden"
+      >
+        <HomeNavigator organizationId={ORG} />
+      </div>,
+    );
+    await expect
+      .poll(() => screen.queryByRole('link', { name: /Project 151/ }))
+      .not.toBeNull();
+    expect(screen.getByRole('link', { name: /Project 151/ })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+    const scroller = projectsScroller();
+    scroller.scrollTop = scroller.scrollHeight;
+    await expect
+      .poll(() => screen.queryByRole('link', { name: /Project 300/ }))
+      .not.toBeNull();
+    expect(
+      screen.getByRole('link', { name: /Project 151/ }),
+    ).toBeInTheDocument();
+  });
+});
+
 describe('desktop Home panel resizing', () => {
   function mountPanel() {
     backend.home = homeData([], []);

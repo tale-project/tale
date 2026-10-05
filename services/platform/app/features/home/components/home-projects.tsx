@@ -25,6 +25,11 @@ import { useSlidingIndicator } from '@tale/ui/use-sliding-indicator';
 import { toast } from '@tale/ui/use-toast';
 import { Link, useNavigate } from '@tanstack/react-router';
 import {
+  defaultRangeExtractor,
+  type Range,
+  useVirtualizer,
+} from '@tanstack/react-virtual';
+import {
   ChevronRight,
   FolderOpen,
   FolderPlus,
@@ -34,7 +39,14 @@ import {
   PinOff,
   SquarePen,
 } from 'lucide-react';
-import { memo, useMemo, useState } from 'react';
+import {
+  Fragment,
+  memo,
+  useCallback,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react';
 
 import { ProjectRowsSkeleton } from '@/app/components/layout/home-panel-skeleton';
 import {
@@ -45,11 +57,20 @@ import { useProjectPin } from '@/app/features/chat/data/chat-backend';
 import type { ChatProjectSummary } from '@/app/features/chat/types';
 import { ProjectAvatar } from '@/app/features/projects/components/project-avatar';
 import { ProjectCreateDialog } from '@/app/features/projects/components/project-create-dialog';
+import { useOffsetInScrollport } from '@/app/features/tasks/components/windowed-task-rows';
 import { useAbility } from '@/app/hooks/use-ability';
 import { usePersistedState } from '@/app/hooks/use-persisted-state';
 import { useT } from '@/lib/i18n/client';
 
 import { moveRowFocus } from '../lib/row-navigation';
+import { usePlacementProps } from './home-rows';
+import {
+  type HomeRowPlacement,
+  useRowWindowKeys,
+  WINDOWED_STREAM_MIN_ROWS,
+  windowSpacing,
+  WindowSpacer,
+} from './home-stream';
 
 /** How a row behaves on a phone: a toggle that narrows the stream. */
 export interface HomeProjectScope {
@@ -63,11 +84,14 @@ const HomeProjectRow = memo(function HomeProjectRow({
   project,
   active,
   scope,
+  placement,
 }: {
   organizationId: string;
   project: ChatProjectSummary;
   active: boolean;
   scope?: HomeProjectScope;
+  /** Its place in a windowed list of projects. */
+  placement?: HomeRowPlacement;
 }) {
   const { t } = useT('home');
   const { t: tChat } = useT('chat');
@@ -144,11 +168,10 @@ const HomeProjectRow = memo(function HomeProjectRow({
     </>
   );
 
+  const placed = usePlacementProps(placement, project.id, setNodeRef);
+
   return (
-    <li
-      ref={setNodeRef}
-      className={cn('group relative', dropZoneClassName(isOver))}
-    >
+    <li {...placed} className={cn('group relative', dropZoneClassName(isOver))}>
       {scope === undefined ? (
         <Link
           to="/dashboard/$id/projects/$projectId"
@@ -239,6 +262,32 @@ export function HomeProjects({
     highlightedId ?? null,
     sorted.map((project) => project.id).join(','),
   );
+  // The scroller as state too, for the windowed list inside it: a child's
+  // layout effect runs before this ref attaches.
+  const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(
+    null,
+  );
+  const { containerRef } = indicator;
+  const setScrollRefs = useCallback(
+    (node: HTMLDivElement | null) => {
+      containerRef(node);
+      setScrollElement(node);
+    },
+    [containerRef],
+  );
+  const renderRow = (
+    project: ChatProjectSummary,
+    placement?: HomeRowPlacement,
+  ) => (
+    <HomeProjectRow
+      key={project.id}
+      organizationId={organizationId}
+      project={project}
+      active={project.id === highlightedId}
+      {...(scope !== undefined ? { scope } : {})}
+      {...(placement !== undefined ? { placement } : {})}
+    />
+  );
 
   return (
     <section
@@ -316,7 +365,7 @@ export function HomeProjects({
       </div>
       <SubPanelDisclosureBody open={open} className="min-h-0">
         <div
-          ref={indicator.containerRef}
+          ref={setScrollRefs}
           className="scrollbar-thin relative max-h-full overflow-y-auto"
         >
           <SlidingHighlight indicator={indicator} />
@@ -328,21 +377,20 @@ export function HomeProjects({
             <p className="text-muted-foreground px-2 py-1.5 text-xs">
               {t('projects.empty')}
             </p>
+          ) : sorted.length > WINDOWED_PROJECTS_MIN_ROWS ? (
+            <WindowedProjectRows
+              projects={sorted}
+              scrollElement={scrollElement}
+              activeId={highlightedId ?? null}
+              renderRow={renderRow}
+            />
           ) : (
             <ul
               role="list"
               onKeyDown={moveRowFocus}
               className="flex flex-col gap-0.5 py-0.5"
             >
-              {sorted.map((project) => (
-                <HomeProjectRow
-                  key={project.id}
-                  organizationId={organizationId}
-                  project={project}
-                  active={project.id === highlightedId}
-                  {...(scope !== undefined ? { scope } : {})}
-                />
-              ))}
+              {sorted.map((project) => renderRow(project))}
             </ul>
           )}
         </div>
@@ -355,5 +403,146 @@ export function HomeProjects({
         />
       )}
     </section>
+  );
+}
+
+/**
+ * More projects than this mount only the rows near the section's view; a
+ * shorter list mounts every row, so find in page and a screen reader's
+ * browse mode keep reaching all of them. The Home stream draws the line at
+ * the same count.
+ */
+const WINDOWED_PROJECTS_MIN_ROWS = WINDOWED_STREAM_MIN_ROWS;
+/** A project row's `h-8` and the list's `gap-0.5` and `py-0.5`. */
+const PROJECT_ROW_HEIGHT = 32;
+const PROJECT_ROW_GAP = 2;
+const PROJECT_LIST_PADDING = { start: 2, end: 2 };
+const PROJECT_OVERSCAN = 8;
+
+/**
+ * A long PROJECTS list, windowed like the Home stream (`home-stream.tsx`):
+ * the rows near the view are mounted, spacers stand in for the others, and
+ * the open project's row, a focused row and the first and last rows stay
+ * mounted wherever the list scrolls. A row's drop zone exists while it is
+ * mounted, and dnd-kit scrolls the list as a dragged chat nears its edge,
+ * which mounts the rows it reaches.
+ */
+function WindowedProjectRows({
+  projects,
+  scrollElement,
+  activeId,
+  renderRow,
+}: {
+  projects: readonly ChatProjectSummary[];
+  scrollElement: HTMLElement | null;
+  activeId: string | null;
+  renderRow: (
+    project: ChatProjectSummary,
+    placement?: HomeRowPlacement,
+  ) => ReactNode;
+}) {
+  const [listElement, setListElement] = useState<HTMLUListElement | null>(null);
+  const scrollMargin = useOffsetInScrollport(listElement, scrollElement);
+  const [focusedKey, setFocusedKey] = useState<string | null>(null);
+  const [pendingFocusKey, setPendingFocusKey] = useState<string | null>(null);
+  const onFocusWithin = useCallback((key: string, within: boolean) => {
+    setFocusedKey((current) =>
+      within ? key : current === key ? null : current,
+    );
+  }, []);
+  const rowKeys = useMemo(
+    () => projects.map((project) => project.id),
+    [projects],
+  );
+  const indexByKey = useMemo(
+    () => new Map(rowKeys.map((key, index) => [key, index])),
+    [rowKeys],
+  );
+  const pinned = useMemo(() => {
+    const indexes = new Set<number>([0, projects.length - 1]);
+    for (const key of [activeId, focusedKey, pendingFocusKey]) {
+      const index = key === null ? undefined : indexByKey.get(key);
+      if (index !== undefined) indexes.add(index);
+    }
+    return indexes;
+  }, [projects.length, activeId, focusedKey, pendingFocusKey, indexByKey]);
+  const rangeExtractor = useCallback(
+    (range: Range) => {
+      const indexes = new Set(defaultRangeExtractor(range));
+      for (const index of pinned) {
+        if (index >= 0 && index < range.count) indexes.add(index);
+      }
+      return [...indexes].sort((a, b) => a - b);
+    },
+    [pinned],
+  );
+  const virtualizer = useVirtualizer<HTMLElement, HTMLLIElement>({
+    count: projects.length,
+    getScrollElement: () => scrollElement,
+    estimateSize: () => PROJECT_ROW_HEIGHT,
+    getItemKey: (index) => projects[index]?.id ?? index,
+    gap: PROJECT_ROW_GAP,
+    paddingStart: PROJECT_LIST_PADDING.start,
+    paddingEnd: PROJECT_LIST_PADDING.end,
+    overscan: PROJECT_OVERSCAN,
+    scrollMargin,
+    initialRect: { width: 280, height: 360 },
+    rangeExtractor,
+  });
+  const handleKeyDown = useRowWindowKeys({
+    listElement,
+    rowKeys,
+    indexByKey,
+    virtualizer,
+    pendingFocusKey,
+    setPendingFocusKey,
+  });
+  const { measureElement } = virtualizer;
+  const placements = useMemo(
+    () =>
+      new Map(
+        projects.map((project, index) => [
+          project.id,
+          {
+            measureRef: measureElement,
+            index,
+            position: index + 1,
+            size: projects.length,
+            onFocusWithin,
+          },
+        ]),
+      ),
+    [projects, measureElement, onFocusWithin],
+  );
+
+  const items = virtualizer.getVirtualItems();
+  const spacing = windowSpacing(
+    items,
+    projects.length,
+    virtualizer.getTotalSize(),
+    scrollMargin,
+    PROJECT_ROW_GAP,
+    PROJECT_LIST_PADDING,
+  );
+  return (
+    <ul
+      ref={setListElement}
+      role="list"
+      onKeyDown={handleKeyDown}
+      className="flex flex-col gap-0.5 py-0.5"
+    >
+      {items.map((item, position) => {
+        const project = projects[item.index];
+        if (project === undefined) return null;
+        const space = spacing.before[position] ?? 0;
+        return (
+          <Fragment key={project.id}>
+            {space > 0 && <WindowSpacer height={space} />}
+            {renderRow(project, placements.get(project.id))}
+          </Fragment>
+        );
+      })}
+      {spacing.after > 0 && <WindowSpacer height={spacing.after} />}
+    </ul>
   );
 }

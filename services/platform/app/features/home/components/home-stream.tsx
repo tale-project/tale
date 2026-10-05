@@ -21,6 +21,7 @@
 import {
   defaultRangeExtractor,
   type Range,
+  type VirtualItem,
   type Virtualizer,
   useVirtualizer,
 } from '@tanstack/react-virtual';
@@ -283,89 +284,35 @@ function WindowedHomeStream({
     onFocusWithin,
   );
 
-  const focusRow = useCallback(
-    (key: string) => {
-      const link = listElement?.querySelector<HTMLAnchorElement>(
-        `a[data-indicator-key="${CSS.escape(key)}"]`,
-      );
-      if (link) {
-        link.focus();
-        return;
-      }
-      const index = indexByKey.get(key);
-      if (index === undefined) return;
-      setPendingFocusKey(key);
-      virtualizer.scrollToIndex(index, { align: 'auto' });
-    },
-    [listElement, indexByKey, virtualizer],
+  const rowKeys = useMemo(
+    () => rowIndexes.flatMap((index) => entries[index]?.key ?? []),
+    [rowIndexes, entries],
   );
+  const handleKeyDown = useRowWindowKeys({
+    listElement,
+    rowKeys,
+    indexByKey,
+    virtualizer,
+    pendingFocusKey,
+    setPendingFocusKey,
+  });
 
   const items = virtualizer.getVirtualItems();
-
-  // A row ↑/↓/Home/End moved to that was not mounted yet takes the focus
-  // once the window mounts it.
-  useLayoutEffect(() => {
-    if (pendingFocusKey === null) return;
-    const link = listElement?.querySelector<HTMLAnchorElement>(
-      `a[data-indicator-key="${CSS.escape(pendingFocusKey)}"]`,
-    );
-    if (!link) return;
-    link.focus();
-    setPendingFocusKey(null);
-  }, [pendingFocusKey, listElement, items]);
-
-  const handleKeyDown = (event: KeyboardEvent<HTMLOListElement>) => {
-    if (event.altKey || event.metaKey || event.ctrlKey || event.shiftKey) {
-      return;
-    }
-    const target = event.target;
-    if (
-      !(target instanceof HTMLAnchorElement) ||
-      !target.matches('a[data-indicator-key]')
-    ) {
-      return;
-    }
-    const at = rowIndexes.indexOf(
-      indexByKey.get(target.dataset.indicatorKey ?? '') ?? -1,
-    );
-    if (at === -1) return;
-    const next =
-      event.key === 'ArrowDown'
-        ? at + 1
-        : event.key === 'ArrowUp'
-          ? at - 1
-          : event.key === 'Home'
-            ? 0
-            : event.key === 'End'
-              ? rowIndexes.length - 1
-              : undefined;
-    const index = next === undefined ? undefined : rowIndexes[next];
-    const entry = index === undefined ? undefined : entries[index];
-    if (entry === undefined) return;
-    event.preventDefault();
-    focusRow(entry.key);
-  };
-
-  const totalSize = virtualizer.getTotalSize();
+  const spacing = windowSpacing(
+    items,
+    entries.length,
+    virtualizer.getTotalSize(),
+    scrollMargin,
+    ROW_GAP,
+  );
   const nodes: ReactNode[] = [];
   items.forEach((virtualItem, position) => {
     const entry = entries[virtualItem.index];
     if (entry === undefined) return;
-    // Rows the window leaves out are stood in for by one spacer, so the
-    // mounted rows sit where the whole stream would put them; the list's
-    // gap falls on both sides of it.
-    const previous = items[position - 1];
-    const space =
-      previous === undefined
-        ? virtualItem.index === 0
-          ? 0
-          : virtualItem.start - scrollMargin - ROW_GAP
-        : virtualItem.index === previous.index + 1
-          ? 0
-          : virtualItem.start - previous.end - 2 * ROW_GAP;
+    const space = spacing.before[position] ?? 0;
     nodes.push(
       <Fragment key={entry.key}>
-        {space > 0 && <Spacer height={space} />}
+        {space > 0 && <WindowSpacer height={space} />}
         {entry.kind === 'heading' ? (
           <li
             role="presentation"
@@ -393,12 +340,6 @@ function WindowedHomeStream({
       </Fragment>,
     );
   });
-  const last = items.at(-1);
-  const trailing =
-    last === undefined || last.index === entries.length - 1
-      ? 0
-      : totalSize - (last.end - scrollMargin) - ROW_GAP;
-
   return (
     <ol
       ref={setListElement}
@@ -407,12 +348,50 @@ function WindowedHomeStream({
       className="animate-in fade-in-0 flex flex-col gap-px duration-200 motion-reduce:animate-none"
     >
       {nodes}
-      {trailing > 0 && <Spacer height={trailing} />}
+      {spacing.after > 0 && <WindowSpacer height={spacing.after} />}
     </ol>
   );
 }
 
-function Spacer({ height }: { height: number }) {
+/**
+ * The room a windowed flow list leaves for the items it did not mount: the
+ * height of the spacer before each mounted item (`before`, by its place in
+ * `items`) and after the last (`after`). The list lays its children out with
+ * `gap` between them, spacers included, so each mounted item sits where the
+ * whole list would put it.
+ */
+export function windowSpacing(
+  items: readonly VirtualItem[],
+  count: number,
+  totalSize: number,
+  scrollMargin: number,
+  gap: number,
+  /** The list's own padding, given to the virtualizer as
+   * `paddingStart` / `paddingEnd` too. */
+  padding: { start: number; end: number } = { start: 0, end: 0 },
+): { before: number[]; after: number } {
+  const before = items.map((item, position) => {
+    const previous = items[position - 1];
+    if (previous === undefined) {
+      return item.index === 0
+        ? 0
+        : item.start - scrollMargin - padding.start - gap;
+    }
+    return item.index === previous.index + 1
+      ? 0
+      : item.start - previous.end - 2 * gap;
+  });
+  const last = items.at(-1);
+  const after =
+    last === undefined || last.index === count - 1
+      ? 0
+      : totalSize - (last.end - scrollMargin) - gap - padding.end;
+  return { before, after };
+}
+
+/** One spacer of a windowed list: hidden from assistive technology, which
+ * counts the list's items by `aria-setsize` instead. */
+export function WindowSpacer({ height }: { height: number }) {
   return (
     <li
       aria-hidden="true"
@@ -421,6 +400,78 @@ function Spacer({ height }: { height: number }) {
       style={{ height }}
     />
   );
+}
+
+/**
+ * ↑/↓/Home/End through every row of a windowed list: `rowKeys` in order,
+ * `indexByKey` each row's place among the virtualizer's items. A row's
+ * focusable element carries `data-indicator-key`; one the window has not
+ * mounted is scrolled to, kept mounted (`pendingFocusKey`, which the list
+ * pins) and focused once it is. Answers the list's `onKeyDown`.
+ */
+export function useRowWindowKeys({
+  listElement,
+  rowKeys,
+  indexByKey,
+  virtualizer,
+  pendingFocusKey,
+  setPendingFocusKey,
+}: {
+  listElement: HTMLElement | null;
+  rowKeys: readonly string[];
+  indexByKey: ReadonlyMap<string, number>;
+  virtualizer: Virtualizer<HTMLElement, HTMLLIElement>;
+  pendingFocusKey: string | null;
+  setPendingFocusKey: (key: string | null) => void;
+}): (event: KeyboardEvent<HTMLElement>) => void {
+  const findRow = useCallback(
+    (key: string) =>
+      listElement?.querySelector<HTMLElement>(
+        `[data-indicator-key="${CSS.escape(key)}"]`,
+      ) ?? null,
+    [listElement],
+  );
+
+  const items = virtualizer.getVirtualItems();
+  useLayoutEffect(() => {
+    if (pendingFocusKey === null) return;
+    const row = findRow(pendingFocusKey);
+    if (row === null) return;
+    row.focus();
+    setPendingFocusKey(null);
+  }, [pendingFocusKey, findRow, items, setPendingFocusKey]);
+
+  return (event: KeyboardEvent<HTMLElement>) => {
+    if (event.altKey || event.metaKey || event.ctrlKey || event.shiftKey) {
+      return;
+    }
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) return;
+    const at = rowKeys.indexOf(target.dataset.indicatorKey ?? '');
+    if (at === -1) return;
+    const next =
+      event.key === 'ArrowDown'
+        ? at + 1
+        : event.key === 'ArrowUp'
+          ? at - 1
+          : event.key === 'Home'
+            ? 0
+            : event.key === 'End'
+              ? rowKeys.length - 1
+              : undefined;
+    const key = next === undefined ? undefined : rowKeys[next];
+    if (key === undefined) return;
+    event.preventDefault();
+    const row = findRow(key);
+    if (row !== null) {
+      row.focus();
+      return;
+    }
+    const index = indexByKey.get(key);
+    if (index === undefined) return;
+    setPendingFocusKey(key);
+    virtualizer.scrollToIndex(index, { align: 'auto' });
+  };
 }
 
 /**
