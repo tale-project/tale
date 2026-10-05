@@ -602,12 +602,19 @@ describe('Home panel in Chromium', () => {
     );
     const last = chatRow('chat-1999').querySelector('a');
     if (last === null) throw new Error('The last chat has no link');
-    // Presentational date headings are not counted as work rows.
+    // Date headings are not counted as work rows.
     expect(last.closest('li')).toHaveAttribute('aria-setsize', '2000');
     last.focus();
     await userEvent.keyboard('{Home}');
     await expect.poll(() => chatRow('chat-0').querySelector('a')).toHaveFocus();
     await expect.poll(() => drawnInside(chatRow('chat-0'), stream)).toBe(true);
+    await expect
+      .poll(
+        () =>
+          box(chatRow('chat-0')).top -
+          box(screen.getByRole('heading', { name: 'Today' })).bottom,
+      )
+      .toBeGreaterThanOrEqual(-SUBPIXEL);
     await userEvent.keyboard('{End}');
     await expect
       .poll(() => chatRow('chat-1999').querySelector('a'))
@@ -691,6 +698,18 @@ describe('Home panel in Chromium', () => {
       .toHaveFocus();
     expect(scroller.querySelectorAll('li').length).toBeLessThan(80);
     expect(drawnInside(chatRow('chat-0'), streamRows())).toBe(true);
+    // A non-last row uses indexed alignment rather than the browser's
+    // maximum offset. Its list inset must not leave its lower edge clipped.
+    await userEvent.keyboard('{Home}');
+    await expect
+      .element(page.getByRole('link', { name: /Project 0001/ }))
+      .toHaveFocus();
+    await userEvent.keyboard('{ArrowDown}'.repeat(12));
+    await expect
+      .element(page.getByRole('link', { name: /Project 0013/ }))
+      .toHaveFocus();
+    const middle = screen.getByRole('link', { name: /Project 0013/ });
+    await expect.poll(() => drawnInside(middle, scroller)).toBe(true);
   });
 
   it('scrolls stream list and keeps open chat in view', async () => {

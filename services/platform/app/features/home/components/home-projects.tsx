@@ -357,7 +357,10 @@ export function HomeProjects({
       <SubPanelDisclosureBody open={open} className="min-h-0">
         <div
           ref={setScrollerRef}
-          className="scrollbar-thin relative max-h-full overflow-y-auto"
+          className={cn(
+            'scrollbar-thin relative max-h-full overflow-y-auto',
+            !loading && sorted.length > 0 && 'py-0.5',
+          )}
         >
           <SlidingHighlight indicator={indicator} />
           {loading ? (
@@ -377,7 +380,6 @@ export function HomeProjects({
               rowEstimate={32}
               rowGap={2}
               measurementsPaused={!open}
-              className="py-0.5"
               renderRow={renderProject}
             />
           )}

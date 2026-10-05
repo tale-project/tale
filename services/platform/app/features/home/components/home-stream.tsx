@@ -58,6 +58,8 @@ export const WINDOWED_STREAM_MIN_ROWS = 60;
 /** Sizes before a row is measured: a two-line row, a band heading. */
 const ROW_ESTIMATE = 48;
 const HEADING_ESTIMATE = 28;
+/** Clear the sticky date band, including its top spacing, when moving up. */
+const HEADING_SCROLL_PADDING = 32;
 const DRAFT_ESTIMATE = 56;
 /** The rows' `gap-px`, which the window places itself. */
 const ROW_GAP = 1;
@@ -141,6 +143,7 @@ export function HomeStream({
       scrollElement={scrollElement}
       activeKey={activeKey}
       draggedKey={draggedKey}
+      revealActive
     />
   );
 }
@@ -160,6 +163,7 @@ export function HomeWindowedList<T>({
   rowEstimate = ROW_ESTIMATE,
   rowGap = ROW_GAP,
   measurementsPaused = false,
+  revealActive = false,
   className,
 }: {
   entries: readonly HomeListEntry<T>[];
@@ -173,6 +177,9 @@ export function HomeWindowedList<T>({
   rowEstimate?: number;
   rowGap?: number;
   measurementsPaused?: boolean;
+  /** Reveal the open work item once; subsequent live reads leave the reader
+   * where they scrolled. Projects keep their existing independent position. */
+  revealActive?: boolean;
   className?: string;
 }) {
   const [listElement, setListElement] = useState<HTMLElement | null>(null);
@@ -268,6 +275,9 @@ export function HomeWindowedList<T>({
     gap: rowGap,
     overscan: OVERSCAN,
     scrollMargin,
+    scrollPaddingStart: entries.some((entry) => entry.kind === 'heading')
+      ? HEADING_SCROLL_PADDING
+      : 0,
     initialRect: INITIAL_RECT,
     rangeExtractor,
     enabled: entries.length > 0,
@@ -285,19 +295,61 @@ export function HomeWindowedList<T>({
     onFocusWithin,
   );
 
+  // A parent effect runs before the stateful scrollport reaches this child.
+  // Its native smooth scroll would then be cancelled by the virtualizer's
+  // initial offset write. Let the attached virtualizer own the reveal and
+  // reconcile its target as estimated row heights become measured heights.
+  const revealedKey = useRef<string | null>(null);
+  useEffect(() => {
+    if (
+      !revealActive ||
+      activeKey === null ||
+      scrollElement === null ||
+      virtualizer.scrollElement !== scrollElement ||
+      revealedKey.current === activeKey
+    )
+      return;
+    const index = indexByKey.get(activeKey);
+    if (index === undefined) return;
+    revealedKey.current = activeKey;
+    // An already visible item needs no scroll command that might keep
+    // chasing it if the reader starts scrolling straight after opening.
+    if (
+      virtualizer.getOffsetForIndex(index, 'auto')?.[0] ===
+      scrollElement.scrollTop
+    )
+      return;
+    virtualizer.scrollToIndex(index, {
+      align: 'auto',
+      // A long window resolves estimated heights as it travels. Reveal its
+      // indexed destination directly; ordinary lists retain their glide.
+      behavior: windowed ? 'auto' : 'smooth',
+    });
+  }, [
+    revealActive,
+    activeKey,
+    scrollElement,
+    virtualizer,
+    indexByKey,
+    windowed,
+  ]);
+
   const focusRow = useCallback(
     (key: string) => {
+      const index = indexByKey.get(key);
+      if (index === undefined) return;
+      // First/last/open rows can be pinned far outside the viewport. Even
+      // when their link already exists, the indexed command must reconcile
+      // late measurements rather than leave native focus partly clipped.
+      virtualizer.scrollToIndex(index, { align: 'auto' });
       const link = listElement?.querySelector<HTMLElement>(
         `[data-indicator-key="${CSS.escape(key)}"]`,
       );
       if (link) {
-        link.focus();
+        link.focus({ preventScroll: true });
         return;
       }
-      const index = indexByKey.get(key);
-      if (index === undefined) return;
       setPendingFocusKey(key);
-      virtualizer.scrollToIndex(index, { align: 'auto' });
     },
     [listElement, indexByKey, virtualizer],
   );
@@ -320,7 +372,7 @@ export function HomeWindowedList<T>({
       `[data-indicator-key="${CSS.escape(pendingFocusKey)}"]`,
     );
     if (!link) return;
-    link.focus();
+    link.focus({ preventScroll: true });
     setPendingFocusKey(null);
   }, [pendingFocusKey, listElement, virtualItems]);
 
@@ -379,7 +431,6 @@ export function HomeWindowedList<T>({
         {space > 0 && <Spacer height={space} />}
         {entry.kind === 'heading' ? (
           <li
-            role="presentation"
             data-index={virtualItem.index}
             ref={virtualizer.measureElement}
             className={
