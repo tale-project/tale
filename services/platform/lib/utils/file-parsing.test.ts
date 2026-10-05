@@ -3,6 +3,7 @@ import * as XLSX from 'xlsx';
 
 import {
   excelRecords,
+  excelHeaderText,
   parseImportFile,
   parseCSVWithMapper,
   type RequiredColumn,
@@ -252,6 +253,21 @@ describe('excelRecords line numbers', () => {
         line: 2,
       },
     ]);
+  });
+});
+
+describe('Excel header cell conversion', () => {
+  it('accepts primitive, date, and rich-text values without object coercion', () => {
+    expect(excelHeaderText(' Email ')).toBe(' Email ');
+    expect(excelHeaderText(42)).toBe('42');
+    expect(excelHeaderText(false)).toBe('false');
+    expect(excelHeaderText(new Date('2024-01-02T03:04:05.000Z'))).toBe(
+      '2024-01-02T03:04:05.000Z',
+    );
+    expect(excelHeaderText({ text: 'Email address' })).toBe('Email address');
+    expect(excelHeaderText({ w: 'Formatted header' })).toBe('Formatted header');
+    expect(excelHeaderText({ unexpected: 'object' })).toBe('');
+    expect(excelHeaderText(null)).toBe('');
   });
 });
 

@@ -430,6 +430,21 @@ export function excelRecords(
   }));
 }
 
+/** Convert a worksheet header cell to its textual column name safely. */
+export function excelHeaderText(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean')
+    return String(value);
+  if (value instanceof Date) return value.toISOString();
+  if (typeof value === 'object' && value !== null) {
+    const text = (value as { text?: unknown; w?: unknown }).text;
+    if (typeof text === 'string') return text;
+    const formatted = (value as { text?: unknown; w?: unknown }).w;
+    if (typeof formatted === 'string') return formatted;
+  }
+  return '';
+}
+
 /**
  * Parse an Excel file and return its rows with their lines.
  * Dynamically imports xlsx to reduce initial bundle size.
@@ -449,9 +464,7 @@ async function parseExcelFile(
     blankrows: false,
   });
   const headers = (headerRows[0] ?? []).map((header) =>
-    String(header ?? '')
-      .trim()
-      .toLowerCase(),
+    excelHeaderText(header).trim().toLowerCase(),
   );
   return { headers, records: excelRecords(XLSX, worksheet) };
 }
