@@ -1219,8 +1219,14 @@ if [ "$SERVICE" = "$TEST_FAILED_VALIDATION" ]; then exit 37; fi
       writeFileSync(
         module,
         `export async function checkDocumentTools(image: string, uid: number, platform: string) {
-  if (image !== process.env.DOCUMENT_IMAGE || platform !== process.env.DOCUMENT_PLATFORM) throw new Error('Wrong document identity');
-  await Bun.sleep(uid === 65534 ? 5 : 20);
+  if (image !== process.env.DOCUMENT_IMAGE || platform !== process.env.DOCUMENT_PLATFORM || ![65534, 10001].includes(uid)) throw new Error('Wrong document identity');
+  await Bun.write(process.env.TEST_DOCUMENT_DIR + '/' + uid + '.start', '');
+  for (let attempt = 0; attempt < 100; attempt++) {
+    if (await Bun.file(process.env.TEST_DOCUMENT_DIR + '/65534.start').exists() && await Bun.file(process.env.TEST_DOCUMENT_DIR + '/10001.start').exists()) break;
+    if (attempt === 99) throw new Error('Document users did not start concurrently');
+    await Bun.sleep(10);
+  }
+  await Bun.sleep(uid === 65534 ? 5 : 40);
   await Bun.write(process.env.TEST_DOCUMENT_DIR + '/' + uid + '.finish', '');
   if (String(uid) === process.env.REJECT_UID) throw new Error('Rejected document uid ' + uid);
   return {
