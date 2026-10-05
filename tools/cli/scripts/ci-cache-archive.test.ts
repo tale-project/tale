@@ -244,6 +244,13 @@ describe('native CI Turbo cache eviction', () => {
       expect(existsSync(join(fixture, 'executions'))).toBe(false);
       const good = turbo(fixture, '512MB');
       expect(good.status, good.stderr).toBe(0);
+      const cache = join(fixture, '.turbo/cache');
+      const published = readdirSync(cache).filter((name) =>
+        name.endsWith('.tar.zst'),
+      );
+      expect(published).toHaveLength(1);
+      const archiveName = z.string().parse(published[0]);
+      const archive = readFileSync(join(cache, archiveName));
       expect(existsSync(join(fixture, 'rejection'))).toBe(false);
       writeFileSync(join(fixture, 'fail.txt'), 'reject changed source');
       const bad = turbo(fixture, '512MB');
@@ -259,6 +266,11 @@ describe('native CI Turbo cache eviction', () => {
         readFileSync(join(fixture, '.turbo/turbo-build.log'), 'utf8'),
       ).toContain('source validation failed');
       expect(readFileSync(join(fixture, 'executions'), 'utf8')).toBe('1');
+      // Failed work cannot publish an archive or replace a previous success.
+      expect(
+        readdirSync(cache).filter((name) => name.endsWith('.tar.zst')),
+      ).toEqual(published);
+      expect(readFileSync(join(cache, archiveName))).toEqual(archive);
     });
   });
 });
