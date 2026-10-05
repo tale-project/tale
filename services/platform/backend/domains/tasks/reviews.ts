@@ -562,13 +562,32 @@ export async function retargetPendingTaskReviewsForUser(
       t.created_by_type AS "createdByType"
     FROM app.tasks t
     JOIN app.projects p ON p.id = t.project_id AND p.org_id = t.org_id
-    WHERE t.org_id = ${args.organizationId} AND t.status = 'in_review'
-      AND t.reviewer_user_id = ${args.userId}
+    WHERE t.org_id = ${args.organizationId}
+      AND (${teamIds.length === 0} OR (${tx.unsafe(PROJECT_TEAM_IDS_SQL)} && ${teamIds}))
+      AND (
+        t.reviewer_user_id = ${args.userId}
+        OR EXISTS (
+          SELECT 1 FROM app.approvals a
+          WHERE a.org_id = t.org_id AND a.resource_type = 'task_review'
+            AND a.resource_id = t.id AND a.status = 'pending'
+            AND (
+              a.metadata ->> 'requestedFor' = ${args.userId}
+              OR a.metadata -> 'reviewer' ->> 'userId' = ${args.userId}
+            )
+        )
+      )
+  `;
+  // Clear the live designation for every task, including tasks whose review
+  // gate has not opened yet. The pending approval metadata above preserves
+  // creator fallback intent so open reviews can be rerouted below.
+  await tx`
+    UPDATE app.tasks SET reviewer_user_id = NULL, updated_at_ms = ${Date.now()}
+    WHERE org_id = ${args.organizationId} AND reviewer_user_id = ${args.userId}
       AND (${teamIds.length === 0} OR (${tx.unsafe(PROJECT_TEAM_IDS_SQL)} && ${teamIds}))
   `;
   for (const row of rows) {
     await retargetPendingTaskReview(tx, {
-      task: row as unknown as TaskRow,
+      task: { ...row, reviewerUserId: null } as unknown as TaskRow,
       excludeUserId: args.userId,
     });
     await emitHintInTx(tx, {
