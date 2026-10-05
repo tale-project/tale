@@ -275,7 +275,11 @@ own files), then list the outside files as `$TURBO_ROOT$/<path>`:
 - [`services/docs/turbo.json`](../services/docs/turbo.json) gives `@tale/docs` the root `docs/`
   tree (test, build), its JSON maps (typecheck, lint), and the root `README*.md` plus `@tale/ui`'s
   i18n catalogs and test framework (test). Its guard is `services/docs/tests/turbo-inputs.test.ts`.
-- [`tools/cli/turbo.json`](../tools/cli/turbo.json) gives `@tale/cli`'s tests the CLI install
+- [`tools/cli/turbo.json`](../tools/cli/turbo.json) hashes the shared root
+  `.github/release-candidate-contract.json` through CLI transit for lint/typecheck/test
+  and directly for its source-reading tests. The candidate contract refresh script
+  and existing graph guard own its admission assertions; `.github/RELEASING.md`
+  describes the reviewed Ops digest transition. It also gives `@tale/cli`'s tests the CLI install
   pages; the CI files `scripts/deployment-ci.test.ts` and the candidate graph suite
   (`scripts/release-candidate-workflows.test.ts`) check: the `build.yml`, `checks.yml`,
   `cleanup-pr-images.yml`, `commitlint.yml`, `e2e.yml`, `sast.yml`, `security.yml` and both

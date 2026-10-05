@@ -25,6 +25,8 @@ on:
     branches:
       - main
     paths:
+      - '.github/release-candidate-contract.json'
+      - 'tools/cli/scripts/release-candidate*'
       - 'services/**'
       - 'packages/**'
       - 'configs/platform/**'
