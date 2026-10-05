@@ -32,8 +32,7 @@ const markMyRead = { mutateAsync: vi.fn(), isPending: false };
 // while either has another page, and a click advances every stream that still
 // has more. The `loadMore` spies let us assert exactly which streams a click
 // advances; the `status` and `unread` fields are mutated per test before
-// render. Empty result arrays keep both suites focused on the button controls
-// (which render regardless of row count) and avoid row/render-target plumbing.
+// render. The rollback suites populate both streams and use real row controls.
 const orgLoadMore = vi.fn();
 const myLoadMore = vi.fn();
 
@@ -148,6 +147,120 @@ beforeEach(() => {
 });
 
 describe('NotificationListPanel', () => {
+  describe('bulk read rollback (#3609 B1)', () => {
+    it.each([
+      { orgFails: true, personalFails: true },
+      { orgFails: true, personalFails: false },
+      { orgFails: false, personalFails: true },
+      { orgFails: false, personalFails: false },
+    ])(
+      'restores only failed streams: %o',
+      async ({ orgFails, personalFails }) => {
+        streamState.orgResults = [
+          {
+            _id: 'org-bulk',
+            createdAt: 1000,
+            read: false,
+            titleKey: 'title',
+            bodyKey: 'body',
+          },
+        ];
+        streamState.myResults = [
+          {
+            _id: 'personal-bulk',
+            createdAt: 2000,
+            read: false,
+            titleKey: 'title',
+            bodyKey: 'body',
+          },
+        ];
+        streamState.orgUnread = 1;
+        streamState.myUnread = 1;
+        let settleOrg: () => void = () => {};
+        let settlePersonal: () => void = () => {};
+        markAllRead.mutateAsync.mockImplementationOnce(
+          () =>
+            new Promise<void>((resolve, reject) => {
+              settleOrg = () =>
+                orgFails ? reject(new Error('Org read failed')) : resolve();
+            }),
+        );
+        markAllMyRead.mutateAsync.mockImplementationOnce(
+          () =>
+            new Promise<void>((resolve, reject) => {
+              settlePersonal = () =>
+                personalFails
+                  ? reject(new Error('Personal read failed'))
+                  : resolve();
+            }),
+        );
+        const { user, rerender } = renderPanel();
+        await user.click(
+          screen.getByRole('button', { name: 'Mark all as read' }),
+        );
+        expect(
+          screen.queryAllByRole('button', { name: 'Mark as read' }),
+        ).toHaveLength(0);
+        await act(async () => {
+          settleOrg();
+          settlePersonal();
+        });
+        streamState.orgUnread = orgFails ? 1 : 0;
+        streamState.myUnread = personalFails ? 1 : 0;
+        streamState.orgResults = streamState.orgResults.map((row) => ({
+          ...row,
+        }));
+        streamState.myResults = streamState.myResults.map((row) => ({
+          ...row,
+        }));
+        rerender(<NotificationListPanel organizationId="org-1" />);
+        const failedCount = Number(orgFails) + Number(personalFails);
+        expect(
+          screen.queryAllByRole('button', { name: 'Mark as read' }),
+        ).toHaveLength(failedCount);
+        expect(markAllRead.mutateAsync).toHaveBeenCalledWith({
+          organizationId: 'org-1',
+        });
+        expect(markAllMyRead.mutateAsync).toHaveBeenCalledWith({
+          organizationId: 'org-1',
+        });
+        if (failedCount === 0) {
+          expect(screen.getByText("You're all caught up")).toBeInTheDocument();
+        } else {
+          expect(
+            screen.queryByText("You're all caught up"),
+          ).not.toBeInTheDocument();
+          expect(
+            screen.getByRole('tab', { name: `Unread (${failedCount})` }),
+          ).toBeInTheDocument();
+          for (const button of screen.getAllByRole('button', {
+            name: 'Mark as read',
+          })) {
+            expect(button).toBeEnabled();
+          }
+          if (failedCount === 1) {
+            await user.click(
+              screen.getByRole('button', { name: 'Mark as read' }),
+            );
+            const failedMutation = orgFails ? markRead : markMyRead;
+            const successfulMutation = orgFails ? markMyRead : markRead;
+            expect(failedMutation.mutateAsync).toHaveBeenCalledWith({
+              notificationId: orgFails ? 'org-bulk' : 'personal-bulk',
+            });
+            expect(successfulMutation.mutateAsync).not.toHaveBeenCalled();
+          }
+          await user.click(
+            screen.getByRole('button', { name: 'Mark all as read' }),
+          );
+          expect(markAllRead.mutateAsync).toHaveBeenCalledTimes(2);
+          expect(markAllMyRead.mutateAsync).toHaveBeenCalledTimes(2);
+          expect(
+            screen.queryAllByRole('button', { name: 'Mark as read' }),
+          ).toHaveLength(0);
+        }
+      },
+    );
+  });
   describe.each(['org', 'personal'] as const)('read rollback: %s', (stream) => {
     function seedUnread() {
       const notification: MockNotification = {

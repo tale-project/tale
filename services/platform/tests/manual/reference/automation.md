@@ -6,10 +6,11 @@ suite alongside the automated ones — they drive the same stack.
 
 ## Coverage map
 
-Failed single-notification reads restore the unread row and its retry control
+Failed single-notification and bulk reads restore unread rows and retry controls
 in both organization and personal streams, including body activation and a
-fresh unread response; successful optimistic dismissals and the All-filter
-recovery control remain covered by
+fresh unread response. Bulk failures restore only the failed stream's captured
+rows, preserving successful dismissals in the other stream; successful
+optimistic dismissals and the All-filter recovery control remain covered by
 `app/features/notifications/components/notification-list-panel.test.tsx`.
 The real disconnected-backend/browser interaction remains a manual check.
 
