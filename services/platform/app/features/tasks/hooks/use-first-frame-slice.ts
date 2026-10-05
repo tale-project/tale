@@ -13,12 +13,23 @@ import { startTransition, useEffect, useState } from 'react';
 export function useFirstFrameSlice<T>(
   items: readonly T[],
   firstFrame: number,
+  /** What the list shows: when it changes (the dialog moves to another
+   *  task), the new list opens with its first screens again. */
+  listKey: string,
 ): readonly T[] {
   const [limit, setLimit] = useState(firstFrame);
-  const waiting = items.length > limit;
+  const [shownKey, setShownKey] = useState(listKey);
+  const listChanged = shownKey !== listKey;
+  if (listChanged) {
+    setShownKey(listKey);
+    setLimit(firstFrame);
+  }
+  // This pass already slices the new list as its reset will.
+  const current = listChanged ? firstFrame : limit;
+  const waiting = items.length > current;
   useEffect(() => {
     if (!waiting) return;
     startTransition(() => setLimit(Number.POSITIVE_INFINITY));
   }, [waiting]);
-  return waiting ? items.slice(0, limit) : items;
+  return waiting ? items.slice(0, current) : items;
 }

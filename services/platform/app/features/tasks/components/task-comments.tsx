@@ -550,6 +550,7 @@ export const TaskComments = memo(function TaskComments({
   const shownComments = useFirstFrameSlice(
     comments,
     order === 'desc' ? FIRST_FRAME_COMMENTS : Number.POSITIVE_INFINITY,
+    taskId,
   );
   const { requestDelete, dialog: deleteDialog } = useTaskCommentDelete();
   const provided = useProvidedActorDirectory(organizationId, projectId);

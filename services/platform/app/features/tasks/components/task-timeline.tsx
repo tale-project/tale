@@ -381,7 +381,7 @@ export const TaskTimeline = memo(function TaskTimeline({
   const provided = useProvidedActorDirectory(organizationId, projectId);
   // The newest lines mount with the task, the older ones right after — a
   // long history sits below the comments, out of the opening screen.
-  const shownTimeline = useFirstFrameSlice(timeline, FIRST_FRAME_LINES);
+  const shownTimeline = useFirstFrameSlice(timeline, FIRST_FRAME_LINES, taskId);
 
   if (timeline.length === 0) return null;
 
