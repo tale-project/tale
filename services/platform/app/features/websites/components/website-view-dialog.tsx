@@ -501,15 +501,18 @@ export function WebsiteViewDialog({
     [website._id, fetchPages],
   );
 
-  const handleSearchChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
-    setSearchQuery(e.target.value);
-    if (!e.target.value.trim()) {
-      searchRequestId.current += 1;
-      setActiveQuery('');
-      setSearchResults([]);
-      setIsSearching(false);
-    }
-  }, []);
+  const handleSearchChange = useCallback(
+    (e: ChangeEvent<HTMLInputElement>) => {
+      setSearchQuery(e.target.value);
+      if (!e.target.value.trim() || e.target.value.trim() !== activeQuery) {
+        searchRequestId.current += 1;
+        setActiveQuery('');
+        setSearchResults([]);
+        setIsSearching(false);
+      }
+    },
+    [activeQuery],
+  );
 
   const handleSearchKeyDown = useCallback(
     (e: KeyboardEvent<HTMLInputElement>) => {

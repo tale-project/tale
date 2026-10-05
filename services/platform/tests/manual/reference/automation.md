@@ -6,6 +6,12 @@ suite alongside the automated ones — they drive the same stack.
 
 ## Coverage map
 
+Website content search clears submitted results when the input changes to a
+different query, without issuing another request until Enter. Whitespace-only
+edits retain results; clearing the input and late responses after edits are
+covered by `app/features/websites/components/website-view-dialog.test.tsx`.
+Real-browser speech and visual transitions remain manual.
+
 Legal matter editing preserves retained 2500- and 4000-character descriptions
 when only the name changes. Creation accepts trimmed fields at the API limits
 (300-character name, 200-character case number, 4000-character description).
