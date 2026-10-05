@@ -42,6 +42,12 @@ edits retain results; clearing the input and late responses after edits are
 covered by `app/features/websites/components/website-view-dialog.test.tsx`.
 Real-browser speech and visual transitions remain manual.
 
+The All projects board and list never badge the archived project retained in
+the URL. `app/routes/dashboard/$id/projects/$projectId.test.tsx` covers a live
+archive update, a fresh mount with an archived path project (reload state), and
+the archived badge retained on single-project board/list pages. Real-browser
+reloads and cross-session archive delivery remain manual.
+
 Inbox source discovery distinguishes a failed read from successful empty
 discovery. Both automation and API-source failures retain the Inbox shell and
 conversation outlet with an accessible retry; retries retain the error while
