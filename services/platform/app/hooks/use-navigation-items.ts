@@ -101,7 +101,7 @@ export function useNavigationItems(businessId: string): NavigationItems {
   const { t: tKnowledge } = useT('knowledge');
   const isMac = useIsMac();
   const newChatShortcut = isMac ? '⌥ ⌘ N' : 'ALT + CTRL + N';
-  const { hasInbox } = useInboxAvailability(businessId);
+  const { showInbox: hasInbox } = useInboxAvailability(businessId);
   // The chip on the Home tile: OPEN inbox conversations still carrying
   // unread messages, already narrowed to this caller's inbox scope by the
   // counts door — the one signal that arrives from outside while you work.

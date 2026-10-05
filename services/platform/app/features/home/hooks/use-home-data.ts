@@ -172,7 +172,7 @@ export function useHomeData(
     enabled: myUserId !== undefined,
   });
 
-  const { hasInbox, isLoading: inboxGateLoading } =
+  const { showInbox: hasInbox, isLoading: inboxGateLoading } =
     useInboxAvailability(organizationId);
   const conversations = useListConversationsPaginated({
     organizationId,

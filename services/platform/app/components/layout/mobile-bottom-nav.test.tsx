@@ -7,7 +7,12 @@ import { render, screen } from '@/tests/utils/render';
 import { MobileBottomNav } from './mobile-bottom-nav';
 
 // The two reads the Home tab's chip depends on, mirroring the desktop rail.
-const inbox = { hasInbox: true };
+const inbox = {
+  get showInbox() {
+    return this.hasInbox;
+  },
+  hasInbox: true,
+};
 const unread: { data: number | undefined } = { data: undefined };
 const unreadCalls: (string | undefined)[] = [];
 

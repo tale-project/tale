@@ -3,6 +3,7 @@ import {
   AdaptiveHeaderTitle,
 } from '@tale/ui/adaptive-header';
 import { Button } from '@tale/ui/button';
+import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
 import { ContentWrapper } from '@tale/ui/content-wrapper';
 import { EmptyState } from '@tale/ui/empty-state';
 import { PageLayout } from '@tale/ui/page-layout';
@@ -78,7 +79,8 @@ function ConversationsLayout() {
   // builtin view — the same signal that shows/hides the nav entry. A deep
   // link into an org without one lands on a friendly pointer to the
   // Automations catalog instead of an inbox that can never fill.
-  const { isLoading, hasInbox } = useInboxAvailability(organizationId);
+  const { isLoading, hasInbox, showInbox, readState, retry } =
+    useInboxAvailability(organizationId);
   const navigate = useNavigate();
   // The active status tab lives on the child route; read it (strict: false) so
   // Compose opens the pane on whichever tab the user is viewing.
@@ -91,7 +93,7 @@ function ConversationsLayout() {
   // never mounts while there's no inbox to show it in (the early return
   // below), so read them loosely here too. Without this the params are
   // silently dropped the moment a mailbox isn't connected yet (#2641).
-  const rawSearch = useSearch({ strict: false }) as Record<string, unknown>;
+  const rawSearch = useSearch({ strict: false });
   const composeParam =
     typeof rawSearch.compose === 'string' ? rawSearch.compose : undefined;
   const composeContactParam =
@@ -111,7 +113,7 @@ function ConversationsLayout() {
   // the Automations catalog and back (nothing else holds it — the child route
   // that owns these params never mounts here).
   useEffect(() => {
-    if (!isLoading && !hasInbox && composeParam !== undefined) {
+    if (!isLoading && !showInbox && composeParam !== undefined) {
       setPendingCompose({
         compose: composeParam,
         composeContact: composeContactParam,
@@ -119,7 +121,7 @@ function ConversationsLayout() {
     }
   }, [
     isLoading,
-    hasInbox,
+    showInbox,
     composeParam,
     composeContactParam,
     setPendingCompose,
@@ -156,10 +158,10 @@ function ConversationsLayout() {
   const { name: composeContactName, isLoading: isComposeContactLoading } =
     useComposeContactName(
       organizationId,
-      !isLoading && !hasInbox ? composeContactParam : undefined,
+      !isLoading && !showInbox ? composeContactParam : undefined,
     );
 
-  if (isLoading || !hasInbox) {
+  if (isLoading || !showInbox) {
     // Only Owners, Admins and Developers can deploy the mail automation that
     // feeds the Inbox. Everyone else is told who can, rather than sent to an
     // Automations list that holds nothing they could act on.
@@ -269,8 +271,18 @@ function ConversationsLayout() {
         )
       }
     >
-      <ContentWrapper className="flex size-full max-h-full flex-1 flex-row">
-        <Outlet />
+      <ContentWrapper className="flex size-full max-h-full flex-1 flex-col">
+        {(readState.unavailable || readState.stale) && (
+          <CatalogLoadError
+            message={t('availabilityError')}
+            onRetry={() => void retry()}
+            isRetrying={readState.retrying}
+            failureKey={readState.failureCount}
+          />
+        )}
+        <div className="flex min-h-0 flex-1 flex-row">
+          <Outlet />
+        </div>
       </ContentWrapper>
     </PageLayout>
   );

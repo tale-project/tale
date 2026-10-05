@@ -1750,6 +1750,7 @@ connectivity:
     reload: Reload
     later: Later
 conversations:
+  availabilityError: We couldn't check your Inbox sources. Try again to refresh Inbox availability.
   title: Inbox
   unknownContact: Unknown contact
   messagePlaceholder: Type a message

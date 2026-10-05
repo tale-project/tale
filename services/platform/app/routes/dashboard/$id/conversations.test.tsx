@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import { cleanup } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
@@ -47,8 +48,40 @@ let mockInboxAvailability: { isLoading: boolean; hasInbox: boolean } = {
   isLoading: false,
   hasInbox: false,
 };
-vi.mock('@/app/features/conversations/hooks/use-inbox-availability', () => ({
-  useInboxAvailability: () => mockInboxAvailability,
+let failedSource: string | undefined;
+let retrying = false;
+let apiSources: string[] = [];
+const refetchAutomations = vi.fn();
+const refetchSources = vi.fn();
+const emailPack = {
+  name: 'imap-smtp/sync-emails',
+  deployedVersion: 1,
+  presentation: {
+    name: 'Sync emails',
+    builtinViews: [{ id: 'inbox' }],
+    requiredConnectors: ['imap-smtp'],
+  },
+};
+vi.mock('@/app/hooks/use-backend-query', () => ({
+  useBackendQuery: (name: string) => ({
+    data:
+      failedSource === name
+        ? undefined
+        : name === 'conversations/queries:apiSources'
+          ? apiSources
+          : mockInboxAvailability.hasInbox
+            ? [emailPack]
+            : [],
+    isLoading: retrying || mockInboxAvailability.isLoading,
+    isError: failedSource === name && !retrying,
+    errorUpdateCount: failedSource === name ? 1 : 0,
+    isFetching: retrying || mockInboxAvailability.isLoading,
+    error: failedSource === name ? new Error('Unavailable') : null,
+    refetch:
+      name === 'conversations/queries:apiSources'
+        ? refetchSources
+        : refetchAutomations,
+  }),
 }));
 
 let mockComposeContactName: { name: string | undefined; isLoading: boolean } = {
@@ -125,6 +158,11 @@ beforeEach(() => {
   mockComposeContactName = { name: undefined, isLoading: false };
   mockNavigate.mockClear();
   viewer.canAuthor = true;
+  failedSource = undefined;
+  retrying = false;
+  apiSources = [];
+  refetchAutomations.mockReset();
+  refetchSources.mockReset();
 });
 
 afterEach(() => {
@@ -132,6 +170,74 @@ afterEach(() => {
 });
 
 describe('ConversationsLayout', () => {
+  it.each([
+    'automations/queries:listAutomations',
+    'conversations/queries:apiSources',
+  ])('keeps an accessible Inbox and retry when %s fails', async (source) => {
+    failedSource = source;
+    const { container } = render(<ConversationsLayout />);
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      "We couldn't check your Inbox sources",
+    );
+    expect(
+      screen.getByRole('button', { name: 'Try again' }),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId('outlet')).toBeInTheDocument();
+    expect(screen.queryByText('Set up your Inbox')).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('link', { name: 'Browse automations' }),
+    ).not.toBeInTheDocument();
+    await checkAccessibility(container);
+  });
+
+  it.each([
+    'automations/queries:listAutomations',
+    'conversations/queries:apiSources',
+  ])(
+    'recovers through Retry after %s fails without losing the shell during retry',
+    async (source) => {
+      failedSource = source;
+      const user = userEvent.setup();
+      const { rerender } = render(<ConversationsLayout />);
+      const button = screen.getByRole('button', { name: 'Try again' });
+      await user.click(button);
+      expect(refetchAutomations).toHaveBeenCalledOnce();
+      expect(refetchSources).toHaveBeenCalledOnce();
+      retrying = true;
+      rerender(<ConversationsLayout />);
+      expect(screen.getByRole('alert')).toBeInTheDocument();
+      expect(screen.getByTestId('outlet')).toBeInTheDocument();
+      expect(button).toHaveAttribute('aria-busy', 'true');
+      expect(button).toHaveFocus();
+      await user.click(button);
+      expect(refetchAutomations).toHaveBeenCalledOnce();
+      failedSource = undefined;
+      retrying = false;
+      if (source === 'conversations/queries:apiSources')
+        apiSources = ['synthetic'];
+      else mockInboxAvailability.hasInbox = true;
+      rerender(<ConversationsLayout />);
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+      expect(screen.getByTestId('outlet')).toBeInTheDocument();
+      expect(screen.queryByText('Set up your Inbox')).not.toBeInTheDocument();
+    },
+  );
+
+  it('opens a healthy API-only Inbox', () => {
+    apiSources = ['synthetic'];
+    render(<ConversationsLayout />);
+    expect(screen.getByTestId('outlet')).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('does not stash an installation intent on failed discovery', () => {
+    failedSource = 'automations/queries:listAutomations';
+    mockSearch = { compose: 'new', composeContact: 'contact-1' };
+    render(<ConversationsLayout />);
+    expect(window.localStorage.getItem(pendingComposeKey)).toBeNull();
+    expect(screen.getByTestId('outlet')).toBeInTheDocument();
+  });
+
   it('shows the generic setup notice when there is no compose intent', () => {
     render(<ConversationsLayout />);
 
@@ -139,6 +245,8 @@ describe('ConversationsLayout', () => {
       screen.getByRole('heading', { name: 'Set up your Inbox' }),
     ).toBeInTheDocument();
     expect(screen.getByText(/Install an email automation/)).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('outlet')).not.toBeInTheDocument();
     expect(
       screen.queryByText(/first install an email automation\./),
     ).not.toBeInTheDocument();
