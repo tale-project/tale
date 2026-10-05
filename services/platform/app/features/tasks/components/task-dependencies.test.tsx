@@ -59,9 +59,26 @@ vi.mock('@/app/hooks/use-current-member-context', () => ({
   useCurrentMemberContext: () => ({ data: { userId: 'u-member' } }),
 }));
 
+// Counts the candidate rows built: every option names its task by key.
+const identifiers = vi.hoisted(() => ({ built: 0 }));
+vi.mock('@tale/shared/utils/project-key', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('@tale/shared/utils/project-key')>();
+  return {
+    ...actual,
+    formatTaskIdentifier: (
+      ...args: Parameters<typeof actual.formatTaskIdentifier>
+    ) => {
+      identifiers.built += 1;
+      return actual.formatTaskIdentifier(...args);
+    },
+  };
+});
+
 const others = task('others');
 
 beforeEach(() => {
+  identifiers.built = 0;
   state.canEdit = false;
   state.add.mockReset().mockResolvedValue(null);
   state.boardRead.mockReset();
@@ -111,5 +128,31 @@ describe('TaskDependencies candidates', () => {
     for (const call of state.boardRead.mock.calls) {
       expect(call).toEqual(['project-1', { statuses: BOARD_TASK_STATUSES }]);
     }
+  });
+});
+
+// A project's every task is a candidate. A closed picker that built a row per
+// task on every render cost a large project's task dialog hundreds of
+// milliseconds to open; it builds them once someone opens it.
+describe('TaskDependencies picker', () => {
+  it('builds no candidate rows until it is opened', async () => {
+    const user = userEvent.setup();
+    state.canEdit = true;
+    state.tasks = Array.from({ length: 300 }, (_, index) =>
+      task(`t${index}`, { number: index + 1 }),
+    );
+    render(<TaskDependencies task={state.tasks[0]} canEdit projectKey="SCL" />);
+
+    expect(identifiers.built).toBe(0);
+    expect(screen.queryByRole('option')).toBeNull();
+
+    const [blockedBy] = screen.getAllByRole('button', { name: 'Add' });
+    await user.click(blockedBy);
+
+    expect(
+      await screen.findByRole('option', { name: /Task t1\b/ }),
+    ).toBeInTheDocument();
+    // Every other task of the project, the open one excluded.
+    expect(screen.getAllByRole('option')).toHaveLength(299);
   });
 });
