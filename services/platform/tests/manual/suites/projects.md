@@ -1,6 +1,6 @@
 # Projects & tasks
 
-> **Prefix** `PROJ-` · **Reset** none · **Cost** 64 boxes
+> **Prefix** `PROJ-` · **Reset** none · **Cost** 65 boxes
 
 Exercise projects (identity edit, sharing/visibility), their tabs (files,
 threads, agents, instructions, secrets, metrics, automations), the task
@@ -199,6 +199,16 @@ projects-list row ⋯ menu.
   (`projects.settings.deleteConfirmPhrase`) → **Delete project**
   (`projects.settings.deleteSubmit`) → The project row is gone from the list
   after the dialog closes and survives a reload; its tasks are also removed.
+- [ ] `PROJ-F40` · **Delete from General lands on the list** — Open a
+  throwaway project's **General** tab (`projects.navigation.overview`) → in
+  the danger zone (`projects.dangerZone.title`) **Delete**
+  (`projects.rowActions.delete`) → **Delete project**
+  (`projects.settings.deleteSubmit`) → The toast **Project deleted**
+  (`projects.settings.deleteSuccess`) shows and the URL settles on
+  `/dashboard/{org}/projects`, never **We couldn't find that project. It may
+  have been deleted.** (`projects.errors.PROJECT_NOT_FOUND`); Back from the
+  list does not reopen the General page. Deleting from the list's row ⋯
+  instead leaves you on the list with its **Teams** filter still in the URL.
 - [ ] `PROJ-F16` · **List + board basics** — Create a project + task, view
   board & list, then cascade-delete → Mirrors the automated happy path in
   `projects.spec.ts`
