@@ -592,7 +592,7 @@ describe('MessageThread accessibility', () => {
         generation={{ status: 'streaming' }}
       />,
     );
-    await waitFor(() => checkAccessibility(container));
+    await checkAccessibility(container);
   });
 });
 
@@ -849,6 +849,8 @@ describe('MessageThread long threads', () => {
   it('passes an axe audit with dormant rows', async () => {
     const { container } = openThread(30);
     expect(rows().some(isDormant)).toBe(true);
-    await waitFor(() => checkAccessibility(container));
+    // The rows are in place once the thread renders: one audit, not a
+    // retry loop that a slow machine's single audit outlasts.
+    await checkAccessibility(container);
   });
 });
