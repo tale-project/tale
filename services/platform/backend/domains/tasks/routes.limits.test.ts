@@ -157,7 +157,7 @@ const OVER_LONG = {
 
 beforeEach(() => vi.clearAllMocks());
 
-describe('POST /api/app/tasks names the refused title limit', () => {
+describe('POST /api/app/tasks names the refused title limit [TASK-R8]', () => {
   it.each(['', '   '])(
     'answers the empty title %j as empty, with the range',
     async (title) => {
@@ -193,7 +193,7 @@ describe('POST /api/app/tasks names the refused title limit', () => {
   });
 });
 
-describe('POST /api/app/tasks names the refused description and label limits', () => {
+describe('POST /api/app/tasks names the refused description and label limits [TASK-R8]', () => {
   it.each([TASK_DESCRIPTION_MAX + 1, 50_001])(
     'answers a description of %i code units with the cap',
     async (length) => {
@@ -257,7 +257,7 @@ describe('POST /api/app/tasks names the refused description and label limits', (
   });
 });
 
-describe('POST /api/app/tasks/:taskId names the refused title limit', () => {
+describe('POST /api/app/tasks/:taskId names the refused title limit [TASK-R8]', () => {
   it('answers a title cleared to empty as empty', async () => {
     const sent = await send('/t1', { title: '' });
     expect(sent.status).toBe(400);
@@ -345,7 +345,7 @@ describe.each([
   );
 });
 
-describe('POST /api/app/tasks/from-external-issue names what it refuses and cuts what it imports', () => {
+describe('POST /api/app/tasks/from-external-issue names what it refuses and cuts what it imports [TASK-R9]', () => {
   const intake = { projectId: 'p1', externalSystem: 'crm', externalId: 'c-1' };
   const inserted = (sent: Awaited<ReturnType<typeof send>>): unknown[] => {
     const index = sent.statements.findIndex((text) =>
