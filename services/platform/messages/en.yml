@@ -6610,6 +6610,8 @@ settings:
       subscriptionVia: Subscription · {provider}
       subscriptionInert: Subscription · {provider} — not usable, this harness runs managed credentials only
       listFailed: Couldn't load the agent status.
+      healthLoadFailed: Couldn't check which runtimes are failing, so none is marked as recently failing.
+      healthRefreshFailed: Couldn't refresh which runtimes are failing. What's shown may be out of date.
     apiFormat:
       openai: OpenAI-compatible API
       anthropic: Anthropic Messages API

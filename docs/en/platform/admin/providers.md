@@ -99,7 +99,7 @@ Choose **Make default** from a credential's row menu. There is one default per p
 
 A credential's **Model allowlist** limits only that credential. [Models](/platform/admin/governance/content-models) sets default models and access rules for people, teams, and roles across providers. Both restrictions apply; widening one list cannot bypass the other.
 
-The **Agent runtimes** section below the credentials is read-only. It shows available models and subscriptions for each runtime; change the credentials above to change that configuration.
+The **Agent runtimes** section below the credentials is read-only. It shows available models and subscriptions for each runtime; change the credentials above to change that configuration. A runtime is marked **Recently failing** when at least half of its runs in the last 30 minutes failed, counting from three runs. When that check can't be read, a notice above the list says so, with **Try again**.
 
 ## Recover a missing or failing model
 

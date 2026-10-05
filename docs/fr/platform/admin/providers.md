@@ -99,7 +99,7 @@ Sélectionne **Définir par défaut** dans le menu d’une ligne. Chaque fournis
 
 La liste **Modèles autorisés** limite seulement les identifiants concernés. [Modèles](/fr/platform/admin/governance/content-models) définit les modèles par défaut et les règles d’accès des personnes, équipes et rôles pour tous les fournisseurs. Les deux restrictions s’appliquent : élargir une liste ne contourne pas l’autre.
 
-La section **Harnesses**, sous le tableau, est en lecture seule. Elle présente les modèles et abonnements disponibles pour chaque environnement d’exécution. Modifie les identifiants au-dessus pour changer cette configuration.
+La section **Harnesses**, sous le tableau, est en lecture seule. Elle présente les modèles et abonnements disponibles pour chaque environnement d’exécution. Modifie les identifiants au-dessus pour changer cette configuration. Un environnement d’exécution est signalé **En échec récemment** quand au moins la moitié de ses exécutions des 30 dernières minutes ont échoué, à partir de trois exécutions. Si Tale ne peut pas le vérifier, un avis au-dessus de la liste l’indique, avec **Réessayer**.
 
 ## Résoudre un modèle absent ou en échec
 

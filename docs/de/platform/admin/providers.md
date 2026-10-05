@@ -99,7 +99,7 @@ Wähle **Zum Standard machen** im Zeilenmenü. Pro Anbieter gibt es einen Standa
 
 Die Liste **Erlaubte Modelle** eines Eintrags begrenzt nur diese Zugangsdaten. Unter [Modelle](/de/platform/admin/governance/content-models) legst du anbieterübergreifend Standardmodelle und Zugriffsregeln für Personen, Teams und Rollen fest. Beide Einschränkungen gelten. Eine erweiterte Liste umgeht die andere nicht.
 
-**Agent-Laufzeiten** unter der Tabelle ist schreibgeschützt. Dort siehst du verfügbare Modelle und Abonnements je Laufzeit. Um diese Konfiguration zu ändern, bearbeitest du die Zugangsdaten darüber.
+**Agent-Laufzeiten** unter der Tabelle ist schreibgeschützt. Dort siehst du verfügbare Modelle und Abonnements je Laufzeit. Um diese Konfiguration zu ändern, bearbeitest du die Zugangsdaten darüber. Eine Laufzeit ist als **Zuletzt fehlerhaft** markiert, wenn in den letzten 30 Minuten mindestens die Hälfte ihrer Läufe fehlgeschlagen ist, ab drei Läufen. Kann Tale das nicht prüfen, weist ein Hinweis über der Liste darauf hin, mit **Erneut versuchen**.
 
 ## Fehlende oder nicht funktionierende Modelle prüfen
 
