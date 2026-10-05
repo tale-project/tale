@@ -8256,6 +8256,10 @@ websites:
   resumeScanning: Scans fortsetzen
   scanNow: Jetzt scannen
   indexed: Indexiert
+  syncError:
+    title: Die Website-Status konnten nicht aktualisiert werden
+    description: Status und Anzahl indexierter Seiten sind möglicherweise veraltet. Versuch erneut, sie zu aktualisieren.
+    retry: Erneut versuchen
   searchNotice:
     title: Der Chat kann diese Websites noch nicht durchsuchen
     description: Die Seiten werden gecrawlt und gespeichert. Die Wissenssuche braucht aber ein funktionierendes Embedding-Modell, und diese Organisation hat noch keines.
