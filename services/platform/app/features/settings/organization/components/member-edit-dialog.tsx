@@ -135,44 +135,48 @@ export function EditMemberDialog({
   const { mutateAsync: resetMemberTwoFactor } = useResetMemberTwoFactor();
   const [resetOpen, setResetOpen] = useState(false);
   const [resetting, setResetting] = useState(false);
+  const [saveError, setSaveError] = useState(false);
 
   const handleUpdateMember = async (
     memberId: string,
     data: EditMemberFormData,
     original: { role?: string; displayName?: string },
-  ) => {
+  ): Promise<boolean> => {
     try {
-      const promises: Promise<unknown>[] = [];
+      const updates: Array<() => Promise<unknown>> = [];
 
       const roleChanged =
         data.role.toLowerCase() !== original.role?.toLowerCase();
       if (roleChanged) {
-        promises.push(updateMemberRole({ memberId, role: data.role }));
+        updates.push(() => updateMemberRole({ memberId, role: data.role }));
       }
 
       const displayName = data.displayName.trim();
       const displayNameChanged =
         displayName !== (original.displayName ?? '').trim();
       if (displayNameChanged) {
-        promises.push(updateMemberDisplayName({ memberId, displayName }));
+        updates.push(() => updateMemberDisplayName({ memberId, displayName }));
       }
 
-      if (data.updatePassword && data.password) {
-        promises.push(
-          setMemberPassword({ memberId, newPassword: data.password }),
-        );
+      const newPassword = data.password;
+      if (data.updatePassword && newPassword) {
+        updates.push(() => setMemberPassword({ memberId, newPassword }));
       }
 
-      if (promises.length > 0) {
-        await Promise.all(promises);
+      if (updates.length > 0) {
+        for (const update of updates) {
+          await update();
+        }
 
         toast({
           title: t('organization.memberUpdated'),
           variant: 'success',
         });
       }
+      return true;
     } catch (error) {
       console.error(error);
+      return false;
     }
   };
 
@@ -185,16 +189,22 @@ export function EditMemberDialog({
 
   const onSubmit = async (data: EditMemberFormData) => {
     if (!member) return;
-    await handleUpdateMember(member._id, data, {
+    setSaveError(false);
+    const updated = await handleUpdateMember(member._id, data, {
       role: member.role,
       displayName: member.displayName,
     });
-    onOpenChange(false);
+    if (updated) {
+      onOpenChange(false);
+    } else {
+      setSaveError(true);
+    }
   };
 
   const handleOpenChange = (isOpen: boolean) => {
     if (!isOpen) {
       reset();
+      setSaveError(false);
     }
     onOpenChange(isOpen);
   };
@@ -209,6 +219,13 @@ export function EditMemberDialog({
       isValid={isValid}
       onSubmit={handleSubmit(onSubmit)}
     >
+      {saveError && (
+        <Alert
+          variant="destructive"
+          description={t('organization.memberUpdateFailed')}
+        />
+      )}
+
       {/* Name Field */}
       <Input
         id="displayName"

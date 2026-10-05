@@ -5831,6 +5831,7 @@ settings:
     editMember: Modifier le membre
     removeMember: Retirer le membre
     memberUpdated: Membre mis à jour avec succès
+    memberUpdateFailed: Impossible d'enregistrer le membre — réessaie.
     memberRemoved: Membre retiré avec succès
     twoFactorResetSuccess: Double facteur réinitialisé — le membre devra se
       réinscrire lors de sa prochaine connexion

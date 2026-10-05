@@ -5759,6 +5759,7 @@ settings:
     editMember: Mitglied bearbeiten
     removeMember: Mitglied entfernen
     memberUpdated: Mitglied aktualisiert
+    memberUpdateFailed: Das Mitglied konnte nicht gespeichert werden. Versuch es nochmal.
     memberRemoved: Mitglied entfernt
     twoFactorResetSuccess:
       Zwei-Faktor zurückgesetzt — das Mitglied muss sich bei
