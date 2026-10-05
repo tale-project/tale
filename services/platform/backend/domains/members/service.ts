@@ -447,10 +447,7 @@ export async function updateMemberRole(
   }
 
   await tx`UPDATE "member" SET "role" = ${newRole} WHERE "id" = ${args.memberId}`;
-  if (
-    newRole !== previousRole &&
-    !['owner', 'admin', 'developer', 'editor'].includes(newRole)
-  ) {
+  if (newRole !== previousRole) {
     await retargetPendingTaskReviewsForUser(tx, {
       organizationId: member.organizationId,
       userId: member.userId,
