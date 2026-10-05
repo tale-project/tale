@@ -35,6 +35,17 @@ const { mockMutation, mockToast } = vi.hoisted(() => ({
 vi.mock('../hooks/use-actor-directory', () => ({
   useProvidedActorDirectory: () => undefined,
   ActorDirectoryProvider: ({ children }: { children?: unknown }) => children,
+  // A closed picker names its assignee from a directory alone; the
+  // candidate reads below mount with its list.
+  useActorDirectory: () => ({
+    currentUserId: 'user-1',
+    resolveActor: () => ({
+      type: 'user',
+      id: 'user-1',
+      name: 'Alex',
+      isAgent: false,
+    }),
+  }),
   useAssignableActors: (_organizationId: string, projectId?: string) => ({
     assignableMembers: [
       { type: 'user', id: 'user-1', name: 'Alex', email: 'alex@example.com' },

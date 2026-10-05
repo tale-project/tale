@@ -32,6 +32,8 @@ vi.mock('@/app/hooks/use-backend-action', () => ({
   useBackendAction: () => ({ mutateAsync: vi.fn() }),
 }));
 vi.mock('../hooks/use-actor-directory', () => ({
+  useProvidedActorDirectory: () => undefined,
+  ActorDirectoryProvider: ({ children }: { children?: unknown }) => children,
   useActorDirectory: () => ({
     members: [],
     agents: [],
@@ -53,6 +55,7 @@ vi.mock('../hooks/use-task-status-choreography', () => ({
 vi.mock('../hooks/use-task-subject-contract', () => ({
   resolveTaskOwnership: () => ({ kind: 'human' }),
   taskSubjectEntries: () => [],
+  resolveTaskSubjectContract: () => null,
   useTaskSubjectContract: () => null,
   useTaskContractAutomations: () => [],
 }));

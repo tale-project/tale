@@ -27,7 +27,10 @@ import {
   useTasksAcrossProjects,
   useTasksByProject,
 } from '../hooks/queries';
-import { useActorDirectory } from '../hooks/use-actor-directory';
+import {
+  ActorDirectoryProvider,
+  useActorDirectory,
+} from '../hooks/use-actor-directory';
 import { useTaskAccess } from '../hooks/use-task-access';
 import { BOARD_TASK_STATUSES, TASK_PRIORITY_ORDER } from '../lib/display';
 import {
@@ -513,35 +516,46 @@ export function TasksWorkspace({
             askingTaskIds={askingTaskIds}
             pendingReviews={pendingReviewRefs}
           >
-            <div
-              ref={boardRegionRef}
-              role="region"
-              aria-label={view === 'board' ? t('views.board') : t('views.list')}
-              aria-busy={updating || undefined}
-              tabIndex={-1}
-              className={cn(
-                'focus-visible:ring-ring min-h-0 flex-1 rounded-lg transition-opacity duration-200 outline-none focus-visible:ring-2 motion-reduce:transition-none',
-                // Dimmed only once an answer is slow, so a quick one never
-                // flickers the board.
-                updating && 'opacity-60 delay-300',
-              )}
+            {/* One directory names every card's assignee and reviewer; a card
+                read its own, five reads and a member index per card. The
+                all-projects board spans projects, so its cards read their
+                own. */}
+            <ActorDirectoryProvider
+              organizationId={organizationId}
+              projectId={allProjects ? undefined : projectId}
             >
-              {view === 'board' ? (
-                <KanbanBoard
-                  tasks={tasks}
-                  onOpenTask={handleOpenTask}
-                  projectKey={projectKey}
-                  canWorkTask={access.canWorkTask}
-                />
-              ) : (
-                <TasksList
-                  tasks={tasks}
-                  onOpenTask={handleOpenTask}
-                  projectKey={projectKey}
-                  canWorkTask={access.canWorkTask}
-                />
-              )}
-            </div>
+              <div
+                ref={boardRegionRef}
+                role="region"
+                aria-label={
+                  view === 'board' ? t('views.board') : t('views.list')
+                }
+                aria-busy={updating || undefined}
+                tabIndex={-1}
+                className={cn(
+                  'focus-visible:ring-ring min-h-0 flex-1 rounded-lg transition-opacity duration-200 outline-none focus-visible:ring-2 motion-reduce:transition-none',
+                  // Dimmed only once an answer is slow, so a quick one never
+                  // flickers the board.
+                  updating && 'opacity-60 delay-300',
+                )}
+              >
+                {view === 'board' ? (
+                  <KanbanBoard
+                    tasks={tasks}
+                    onOpenTask={handleOpenTask}
+                    projectKey={projectKey}
+                    canWorkTask={access.canWorkTask}
+                  />
+                ) : (
+                  <TasksList
+                    tasks={tasks}
+                    onOpenTask={handleOpenTask}
+                    projectKey={projectKey}
+                    canWorkTask={access.canWorkTask}
+                  />
+                )}
+              </div>
+            </ActorDirectoryProvider>
           </TaskBoardProvider>
         </>
       )}

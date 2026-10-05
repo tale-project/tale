@@ -58,7 +58,7 @@ export interface ResolvedTaskSubjectContract {
 }
 
 /** One listed automation, as the contract surfaces need it. */
-interface ContractAutomationEntry {
+export interface ContractAutomationEntry {
   name: string;
   deployedVersion?: number;
   taskContract?: unknown;
@@ -102,11 +102,37 @@ export function useTaskContractAutomations(
   );
 }
 
+/** Each listing's entries per locale, so a board's cards and pickers, which
+ * all resolve against the same listing, parse its contracts once rather than
+ * once per card per render. Listings are react-query answers: replaced on
+ * change, never edited in place. */
+const entriesByListing = new WeakMap<
+  readonly ContractAutomationEntry[],
+  Map<string, readonly ResolvedTaskSubjectContract[]>
+>();
+
 /** Deployed automations narrowed to the ones carrying a VALID task contract
  *  (tolerant: an unparsable contract reads as none). */
 export function taskSubjectEntries(
-  automations: ContractAutomationEntry[],
+  automations: readonly ContractAutomationEntry[],
   /** The reader's locale — decides which declared name the surfaces show. */
+  locale: string,
+): readonly ResolvedTaskSubjectContract[] {
+  let byLocale = entriesByListing.get(automations);
+  if (byLocale === undefined) {
+    byLocale = new Map();
+    entriesByListing.set(automations, byLocale);
+  }
+  let entries = byLocale.get(locale);
+  if (entries === undefined) {
+    entries = parseTaskSubjectEntries(automations, locale);
+    byLocale.set(locale, entries);
+  }
+  return entries;
+}
+
+function parseTaskSubjectEntries(
+  automations: readonly ContractAutomationEntry[],
   locale: string,
 ): ResolvedTaskSubjectContract[] {
   return automations.flatMap((automation) => {
@@ -170,7 +196,7 @@ export type TaskOwnership =
  */
 export function resolveTaskOwnership(
   task: TaskOwnershipFields,
-  automations: ContractAutomationEntry[],
+  automations: readonly ContractAutomationEntry[],
   locale: string,
 ): TaskOwnership {
   const entries = taskSubjectEntries(automations, locale);
@@ -208,7 +234,7 @@ export function resolveTaskOwnership(
  * contract, or null for agent- and human-owned tasks. */
 export function resolveTaskSubjectContract(
   task: TaskOwnershipFields,
-  automations: ContractAutomationEntry[],
+  automations: readonly ContractAutomationEntry[],
   locale: string,
 ): ResolvedTaskSubjectContract | null {
   const ownership = resolveTaskOwnership(task, automations, locale);

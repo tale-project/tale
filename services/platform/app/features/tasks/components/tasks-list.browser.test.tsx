@@ -63,6 +63,7 @@ vi.mock('../hooks/use-task-status-choreography', () => ({
 vi.mock('../hooks/use-task-subject-contract', () => ({
   resolveTaskOwnership: () => ({ kind: 'human' }),
   taskSubjectEntries: () => [],
+  resolveTaskSubjectContract: () => null,
   useTaskSubjectContract: () => null,
   useTaskContractAutomations: () => [],
 }));

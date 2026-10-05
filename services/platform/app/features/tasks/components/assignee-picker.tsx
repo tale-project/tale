@@ -23,7 +23,12 @@ import { useBackendClient } from '@/app/hooks/use-backend-client';
 import { useT } from '@/lib/i18n/client';
 
 import { useCancelTaskAgentRun } from '../hooks/mutations';
-import { useAssignableActors } from '../hooks/use-actor-directory';
+import {
+  type ActorDirectory,
+  useActorDirectory,
+  useAssignableActors,
+  useProvidedActorDirectory,
+} from '../hooks/use-actor-directory';
 import {
   taskSubjectEntries,
   useTaskContractAutomations,
@@ -48,6 +53,24 @@ const CREATE_AGENT_ACTION = '__action:create-agent';
  * assigns it. */
 const STANDARD_AGENT_ACTION = '__action:standard-agent';
 
+interface AssigneePickerProps {
+  organizationId: string;
+  projectId?: string;
+  /** Enables the ownership-transfer guard (confirm + cancel-then-reassign)
+   * and is required for it — pickers without a bound task keep the bare
+   * assign behavior. */
+  taskId?: string;
+  assigneeType?: TaskActorType;
+  assigneeId?: string;
+  onAssign: (type: TaskActorType, id: string) => void;
+  onUnassign: () => void;
+  size?: 'sm' | 'md';
+  align?: 'start' | 'center' | 'end';
+  disabled?: boolean;
+  /** Renders beside the avatar trigger (e.g. assignee name in the task modal). */
+  afterTrigger?: ReactNode;
+}
+
 /**
  * Assignee control built on the same {@link SearchableSelect} as the chat model
  * and agent selectors: the assignee avatar is the (icon-button) trigger, and a
@@ -71,8 +94,111 @@ const STANDARD_AGENT_ACTION = '__action:standard-agent';
  * refuses the reassign otherwise — `TASK_HAS_LIVE_RUN`).
  *
  * When `disabled` (no edit permission) it renders the bare avatar with no menu.
+ *
+ * Until its first use the picker is only the avatar: the list, its candidate
+ * reads, the handoff guard and their writes mount when it is first opened and
+ * stay mounted from then on. Every card and row of a board carries one, and
+ * mounting them all closed cost a 2,000-task board seconds (#4062). The name
+ * comes from the directory an `ActorDirectoryProvider` provides (the board's,
+ * the task's) or, without one, from the picker's own.
  */
-export function AssigneePicker({
+export function AssigneePicker(props: AssigneePickerProps) {
+  const provided = useProvidedActorDirectory(
+    props.organizationId,
+    props.projectId,
+  );
+  return provided ? (
+    <AssigneePickerTrigger {...props} directory={provided} />
+  ) : (
+    <AssigneePickerOwnDirectory {...props} />
+  );
+}
+
+function AssigneePickerOwnDirectory(props: AssigneePickerProps) {
+  const directory = useActorDirectory(props.organizationId, props.projectId);
+  return <AssigneePickerTrigger {...props} directory={directory} />;
+}
+
+/** The avatar a closed picker shows, until its first use mounts the list. */
+function AssigneePickerTrigger({
+  directory,
+  ...props
+}: AssigneePickerProps & {
+  directory: Pick<ActorDirectory, 'resolveActor' | 'currentUserId'>;
+}) {
+  const { t } = useT('tasks');
+  const [engaged, setEngaged] = useState(false);
+  if (engaged) return <AssigneePickerList {...props} defaultOpen />;
+
+  const {
+    assigneeType,
+    assigneeId,
+    size = 'sm',
+    disabled = false,
+    afterTrigger,
+  } = props;
+  const resolved =
+    assigneeType && assigneeId
+      ? directory.resolveActor(assigneeType, assigneeId)
+      : null;
+  const label = resolved?.name ?? t('assignee.unassigned');
+  const avatar = (
+    <AssigneeAvatar
+      assigneeType={assigneeType}
+      assigneeId={assigneeId}
+      name={resolved?.name}
+      isCurrentUser={
+        assigneeType === 'user' &&
+        !!assigneeId &&
+        assigneeId === directory.currentUserId
+      }
+      size={size}
+    />
+  );
+  if (disabled) {
+    return (
+      <span className="inline-flex max-w-full min-w-0 items-center gap-1.5">
+        <Tooltip content={label}>
+          <span className="inline-flex">{avatar}</span>
+        </Tooltip>
+        {afterTrigger}
+      </span>
+    );
+  }
+  return (
+    <Tooltip content={label}>
+      {/* oxlint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events -- propagation boundary */}
+      <span
+        className="inline-flex max-w-full min-w-0 items-center gap-1.5"
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          aria-label={t('actions.assign')}
+          // What the list's popover trigger says while it is shut.
+          aria-haspopup="dialog"
+          aria-expanded={false}
+          data-state="closed"
+          className="h-auto w-auto rounded-full p-1"
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation();
+            setEngaged(true);
+          }}
+        >
+          {avatar}
+        </Button>
+        {afterTrigger}
+      </span>
+    </Tooltip>
+  );
+}
+
+/** The picker in use: its list, candidate reads and handoff guard. */
+function AssigneePickerList({
   organizationId,
   projectId,
   taskId,
@@ -84,22 +210,10 @@ export function AssigneePicker({
   align = 'start',
   disabled = false,
   afterTrigger,
-}: {
-  organizationId: string;
-  projectId?: string;
-  /** Enables the ownership-transfer guard (confirm + cancel-then-reassign)
-   * and is required for it — pickers without a bound task keep the bare
-   * assign behavior. */
-  taskId?: string;
-  assigneeType?: TaskActorType;
-  assigneeId?: string;
-  onAssign: (type: TaskActorType, id: string) => void;
-  onUnassign: () => void;
-  size?: 'sm' | 'md';
-  align?: 'start' | 'center' | 'end';
-  disabled?: boolean;
-  /** Renders beside the avatar trigger (e.g. assignee name in the task modal). */
-  afterTrigger?: ReactNode;
+  defaultOpen = false,
+}: AssigneePickerProps & {
+  /** Mounted by a click on the closed picker: open the list at once. */
+  defaultOpen?: boolean;
 }) {
   const { t } = useT('tasks');
   const { t: tCommon } = useT('common');
@@ -136,7 +250,7 @@ export function AssigneePicker({
     'tasks/public_actions:cancelTaskWorkflow',
   );
   const { mutateAsync: cancelAgentRun } = useCancelTaskAgentRun();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
   // The trigger's name tip stays shut while its list or the New agent
   // dialog is open, and does not flash back when focus returns to it.
   const tooltipGuard = useTriggerTooltipGuard(open || createAgentOpen);

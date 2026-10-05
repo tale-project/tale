@@ -109,6 +109,7 @@ vi.mock('@/app/features/tasks/hooks/use-task-status-choreography', () => ({
 }));
 vi.mock('@/app/features/tasks/hooks/use-task-subject-contract', () => ({
   useTaskSubjectContract: () => null,
+  resolveTaskSubjectContract: () => null,
   useTaskContractAutomations: () => [],
   taskSubjectEntries: () => [],
 }));
