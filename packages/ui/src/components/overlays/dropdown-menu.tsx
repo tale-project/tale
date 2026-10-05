@@ -110,7 +110,13 @@ export type DropdownMenuGroup = DropdownMenuItem[];
 
 interface DropdownMenuProps {
   trigger: ReactNode;
-  items: DropdownMenuGroup[];
+  /**
+   * The menu's groups, or a function that builds them. Either way they are
+   * rendered only while the menu shows; a function is also only CALLED then,
+   * so a closed menu in every row of a long list builds nothing — pass one
+   * when the groups are costly to assemble (a submenu listing every project).
+   */
+  items: DropdownMenuGroup[] | (() => DropdownMenuGroup[]);
   align?: 'start' | 'center' | 'end';
   /** Side the menu opens on. @default 'bottom' (Radix default) */
   side?: 'top' | 'right' | 'bottom' | 'left';
@@ -361,6 +367,17 @@ function renderItem(item: DropdownMenuItem, key: number) {
   }
 }
 
+/** The open menu's rows. A component of its own, so its render — and a
+ * lazy `items` function — runs only while the Content it sits in is
+ * mounted: Radix mounts it while the menu shows, exit animation included. */
+function MenuGroups({
+  items,
+}: {
+  items: DropdownMenuGroup[] | (() => DropdownMenuGroup[]);
+}) {
+  return renderGroups(typeof items === 'function' ? items() : items);
+}
+
 function renderGroups(groups: DropdownMenuGroup[]) {
   return groups.map((group, groupIndex) => (
     <Fragment key={groupIndex}>
@@ -459,7 +476,7 @@ export function DropdownMenu({
             contentClassName,
           )}
         >
-          {renderGroups(items)}
+          <MenuGroups items={items} />
         </DropdownMenuPrimitive.Content>
       </DropdownMenuPrimitive.Portal>
     </DropdownMenuPrimitive.Root>

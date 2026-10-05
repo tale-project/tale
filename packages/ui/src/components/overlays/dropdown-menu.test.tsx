@@ -6,6 +6,25 @@ import { render, act, screen } from '@/tests/utils/render';
 import { DropdownMenu } from './dropdown-menu';
 
 describe('DropdownMenu', () => {
+  describe('items', () => {
+    // A closed menu sits in every row of a long list (a chat row's "Move to
+    // project" submenu lists every project), so it must build nothing.
+    it('calls an items function only while the menu shows', async () => {
+      const items = vi.fn(() => [
+        [{ type: 'item' as const, label: 'Pin', onClick: vi.fn() }],
+      ]);
+      const { user } = render(
+        <DropdownMenu trigger={<button>Open Menu</button>} items={items} />,
+      );
+      expect(items).not.toHaveBeenCalled();
+      expect(screen.queryByRole('menuitem')).not.toBeInTheDocument();
+
+      await user.click(screen.getByRole('button', { name: 'Open Menu' }));
+      expect(screen.getByRole('menuitem', { name: 'Pin' })).toBeInTheDocument();
+      expect(items).toHaveBeenCalled();
+    });
+  });
+
   describe('keepOpen items (in-place drill-down)', () => {
     it('activate via keyboard and keep the menu open', async () => {
       // Drill-down menus (e.g. chat "Move to project") swap the panel's
