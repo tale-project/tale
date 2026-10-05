@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { isBackendReachable, reportBackendReachable } from './connection-state';
 import { backendKey } from './query-keys';
 import { settingsReadAdapters } from './settings';
-import { useBackendHints } from './use-backend-hints';
+import { HINT_BATCH_MS, useBackendHints } from './use-backend-hints';
 
 /** A controllable EventSource double: tests dispatch named SSE events. */
 class FakeEventSource {
@@ -83,6 +83,13 @@ afterEach(() => {
   reportBackendReachable();
 });
 
+/** Hints gather for a short window before their reads refresh. */
+function flushHints(): void {
+  act(() => {
+    vi.advanceTimersByTime(HINT_BATCH_MS);
+  });
+}
+
 /** The browser abandoned the handshake (non-200) and will not retry. */
 function abandon(source: FakeEventSource | undefined): void {
   act(() => {
@@ -95,6 +102,7 @@ function abandon(source: FakeEventSource | undefined): void {
 
 describe('useBackendHints', () => {
   it('refreshes project-dependent lists when another session changes a project', () => {
+    vi.useFakeTimers();
     const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
     renderHook(() => useBackendHints('org1'), { wrapper });
     act(() =>
@@ -103,6 +111,7 @@ describe('useBackendHints', () => {
         JSON.stringify({ entity: 'project', entityId: 'p1' }),
       ),
     );
+    flushHints();
     expect(invalidate.mock.calls.map(([options]) => options?.queryKey)).toEqual(
       [
         ['backend', 'org1', 'project'],
@@ -114,6 +123,7 @@ describe('useBackendHints', () => {
   });
 
   it('refreshes knowledge-entry indexing when its backing document changes', () => {
+    vi.useFakeTimers();
     const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
     renderHook(() => useBackendHints('org1'), { wrapper });
     act(() => {
@@ -122,6 +132,7 @@ describe('useBackendHints', () => {
         JSON.stringify({ entity: 'document', entityId: null }),
       );
     });
+    flushHints();
     expect(invalidate.mock.calls.map(([options]) => options?.queryKey)).toEqual(
       [
         ['backend', 'org1', 'document'],
@@ -131,6 +142,7 @@ describe('useBackendHints', () => {
   });
 
   it('refreshes the organization’s key listing when a governance policy changes', () => {
+    vi.useFakeTimers();
     // The listing describes the keys the saved budget rules name. A budgets
     // save — from this tab, another session, or a configuration import or
     // rollback through the same door — reaches every open session as a
@@ -156,12 +168,14 @@ describe('useBackendHints', () => {
         JSON.stringify({ entity: 'governance_policy', entityId: 'budgets' }),
       );
     });
+    flushHints();
     expect(queryClient.getQueryState(own)?.isInvalidated).toBe(true);
     expect(queryClient.getQueryState(otherOrg)?.isInvalidated).toBe(false);
     expect(queryClient.getQueryState(ownKeyAccess)?.isInvalidated).toBe(false);
   });
 
   it('subscribes the org stream and invalidates the entity prefix on a hint', () => {
+    vi.useFakeTimers();
     const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
     renderHook(() => useBackendHints('org1'), { wrapper });
 
@@ -172,9 +186,39 @@ describe('useBackendHints', () => {
     act(() => {
       source?.emit('hint', JSON.stringify({ entity: 'task', entityId: 't1' }));
     });
+    flushHints();
     expect(invalidate).toHaveBeenCalledWith({
       queryKey: ['backend', 'org1', 'task'],
     });
+  });
+
+  it('refreshes an entity once for a burst of its hints', () => {
+    vi.useFakeTimers();
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
+    renderHook(() => useBackendHints('org1'), { wrapper });
+    const source = FakeEventSource.instances[0];
+
+    act(() => {
+      for (const id of ['t1', 't2', 't3', 't4', 't5']) {
+        source?.emit('hint', JSON.stringify({ entity: 'task', entityId: id }));
+      }
+      source?.emit(
+        'hint',
+        JSON.stringify({ entity: 'project', entityId: 'p1' }),
+      );
+    });
+    // Nothing restarts while the window gathers.
+    expect(invalidate).not.toHaveBeenCalled();
+
+    flushHints();
+    expect(invalidate.mock.calls.map(([options]) => options?.queryKey)).toEqual(
+      [
+        ['backend', 'org1', 'task'],
+        ['backend', 'org1', 'project'],
+        ['backend', 'org1', 'chat_thread'],
+        ['backend', 'org1', 'task', 'reviewer'],
+      ],
+    );
   });
 
   it('refetches the whole org scope when the server cannot replay the gap (resync)', () => {

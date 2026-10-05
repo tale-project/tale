@@ -18,6 +18,17 @@ import {
  * so a stubbed global cannot change the meaning of the check.
  */
 const EVENT_SOURCE_CLOSED = 2;
+/**
+ * How long hints gather before the reads they name are refreshed. A write
+ * emits a hint for every row it touches, and the stream delivers each poll's
+ * hints back to back: refreshing per hint restarted every active read of the
+ * entity once per hint (a burst of task hints read a 2,000-task board once per
+ * hint), and each abandoned request still ran to its end on the server. Hints already
+ * wait up to the server's 300 ms poll; this adds at most a tenth of a second
+ * and refreshes each entity once per window.
+ */
+export const HINT_BATCH_MS = 100;
+
 /** First delay before we reopen a stream the browser abandoned. */
 const RECONNECT_BASE_MS = 1_000;
 /** Ceiling for the backoff — a backend that stays down is polled once a minute. */
@@ -62,6 +73,31 @@ export function useBackendHints(orgId: string | undefined): void {
     let stopped = false;
     /** A forced reconnect skipped the cursor: refetch on the next open. */
     let replayLost = false;
+    /** The reads the hints of the current window name, once each, in the
+     * order they arrived. */
+    const pending = new Map<string, readonly unknown[]>();
+    let flushTimer: ReturnType<typeof setTimeout> | undefined;
+
+    const flush = (): void => {
+      flushTimer = undefined;
+      const queryKeys = [...pending.values()];
+      pending.clear();
+      for (const queryKey of queryKeys) {
+        void queryClient.invalidateQueries({ queryKey });
+      }
+    };
+    const refresh = (queryKey: readonly unknown[]): void => {
+      pending.set(JSON.stringify(queryKey), queryKey);
+      flushTimer ??= setTimeout(flush, HINT_BATCH_MS);
+    };
+    /** The whole org scope refreshes now: whatever the window held is part
+     * of it. */
+    const refreshOrg = (): void => {
+      if (flushTimer !== undefined) clearTimeout(flushTimer);
+      flushTimer = undefined;
+      pending.clear();
+      void queryClient.invalidateQueries({ queryKey: backendOrgPrefix(org) });
+    };
 
     const onHint = (event: MessageEvent<string>): void => {
       try {
@@ -72,36 +108,24 @@ export function useBackendHints(orgId: string | undefined): void {
           'entity' in hint &&
           typeof hint.entity === 'string'
         ) {
-          void queryClient.invalidateQueries({
-            queryKey: backendEntityPrefix(org, hint.entity),
-          });
+          refresh(backendEntityPrefix(org, hint.entity));
           // Project writes also remove or hide the project's tasks and chats.
           // Refresh those entity lists so Home cannot retain stale rows.
           if (hint.entity === 'project') {
-            void queryClient.invalidateQueries({
-              queryKey: backendEntityPrefix(org, 'task'),
-            });
-            void queryClient.invalidateQueries({
-              queryKey: backendEntityPrefix(org, 'chat_thread'),
-            });
-            void queryClient.invalidateQueries({
-              queryKey: backendKey(org, 'task', 'reviewer'),
-            });
+            refresh(backendEntityPrefix(org, 'task'));
+            refresh(backendEntityPrefix(org, 'chat_thread'));
+            refresh(backendKey(org, 'task', 'reviewer'));
           }
           // Entry lists display the indexing state of their backing document.
           // The indexing worker emits document hints as that state changes.
           if (hint.entity === 'document') {
-            void queryClient.invalidateQueries({
-              queryKey: backendEntityPrefix(org, 'knowledge_entry'),
-            });
+            refresh(backendEntityPrefix(org, 'knowledge_entry'));
           }
           // The key listing describes the keys the budget rules name; a
           // policy change from anywhere (a save, a configuration import or
           // rollback) arrives as this hint.
           if (hint.entity === 'governance_policy') {
-            void queryClient.invalidateQueries({
-              queryKey: orgApiKeyListKey(org),
-            });
+            refresh(orgApiKeyListKey(org));
           }
         }
       } catch (error) {
@@ -115,9 +139,7 @@ export function useBackendHints(orgId: string | undefined): void {
       reportBackendReachable();
       if (replayLost) {
         replayLost = false;
-        void queryClient.invalidateQueries({
-          queryKey: backendOrgPrefix(org),
-        });
+        refreshOrg();
       }
       // The backend answering again is the moment a read that failed on
       // a fault gets its retry: a list stuck on its error heals itself
@@ -132,7 +154,7 @@ export function useBackendHints(orgId: string | undefined): void {
     // The replay had a hole: hints between the reconnect cursor and now were
     // reclaimed, so nothing the cache holds for this org can be trusted.
     const onResync = (): void => {
-      void queryClient.invalidateQueries({ queryKey: backendOrgPrefix(org) });
+      refreshOrg();
     };
     // The reader lost the org (or the session): stop for good. The next mount
     // — a fresh sign-in, a re-added member — reopens it.
@@ -201,6 +223,9 @@ export function useBackendHints(orgId: string | undefined): void {
         clearTimeout(retryTimer);
         retryTimer = undefined;
       }
+      // The scope is going away; the next mount reads fresh anyway.
+      if (flushTimer !== undefined) clearTimeout(flushTimer);
+      pending.clear();
       detach();
       // A closed stream is not an outage — the next mount reopens it.
       reportBackendReachable();
