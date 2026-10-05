@@ -229,6 +229,7 @@ function AutomationEditorScope({
   /** The version the draft was built on — pinned on its first edit, sent
    * with the save so the store can refuse a draft another tab overtook. */
   const draftBaseRef = useRef<number | undefined>(undefined);
+  const draftEpochRef = useRef(0);
   /** A save the store refused because a version landed after the draft
    * started: the author decides — drop the draft and reload, or save on
    * top of what landed. Never resolved silently either way. */
@@ -357,7 +358,10 @@ function AutomationEditorScope({
       // follows every version another tab saves (its hint invalidates the
       // read), so reading the version at save time would name the one that
       // overtook the draft, not the one it was built on.
-      if (draft === null) draftBaseRef.current = automationQuery.data?.version;
+      if (draft === null) {
+        draftBaseRef.current = automationQuery.data?.version;
+        draftEpochRef.current += 1;
+      }
       setDraft(patchNode(automation, selectedNodeId, patch));
     },
     [automation, selectedNodeId, draft, automationQuery.data?.version],
@@ -407,6 +411,7 @@ function AutomationEditorScope({
   }, []);
 
   const discardDraft = useCallback(() => {
+    draftEpochRef.current += 1;
     setDraft(null);
   }, []);
 
@@ -532,7 +537,8 @@ function AutomationEditorScope({
   /** Append the draft as a version built on `baseVersion` (none: append
    * whatever the latest is), then show the version that landed. */
   const submitSave = async (baseVersion: number | undefined): Promise<void> => {
-    await save.mutateAsync({
+    const submittedEpoch = draftEpochRef.current;
+    const saved = await save.mutateAsync({
       organizationId,
       automation,
       // Package metadata belongs to the version being edited, even when
@@ -553,8 +559,10 @@ function AutomationEditorScope({
       ...(projectId !== undefined && { projectId }),
       ...(baseVersion !== undefined && { baseVersion }),
     });
+    if (draftEpochRef.current !== submittedEpoch) return;
     setSaveDialogOpen(false);
-    setDraft(null);
+    draftBaseRef.current = saved.version;
+    setDraft((current) => (current === automation ? null : current));
     setSaveMessage('');
     // The save appended a version; show it, whichever one was on screen.
     onSelectVersion(undefined);
@@ -602,7 +610,7 @@ function AutomationEditorScope({
   /** Drop the draft and show the version that landed. */
   const reloadAfterStale = (): void => {
     setStaleSave(null);
-    setDraft(null);
+    discardDraft();
     onSelectVersion(undefined);
   };
 
@@ -1002,7 +1010,7 @@ function AutomationEditorScope({
         confirmText={t('detail.switchVersion.confirm')}
         variant="destructive"
         onConfirm={() => {
-          setDraft(null);
+          discardDraft();
           if (pendingVersion !== null) onSelectVersion(pendingVersion);
           setPendingVersion(null);
         }}

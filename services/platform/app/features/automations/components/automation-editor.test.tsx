@@ -3,7 +3,7 @@ import { useState, type AnchorHTMLAttributes } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { render, screen, waitFor, within } from '@/tests/utils/render';
+import { act, render, screen, waitFor, within } from '@/tests/utils/render';
 
 import { AutomationVersionPicker } from './automation-version-picker';
 import { AutomationVersionPickerTarget } from './automation-version-picker-target';
@@ -296,7 +296,10 @@ async function editTheNode(user: ReturnType<typeof renderPage>['user']) {
 }
 
 beforeEach(() => {
-  saveMutation.mutateAsync = vi.fn().mockResolvedValue(undefined);
+  saveMutation.mutateAsync = vi.fn().mockResolvedValue({
+    name: 'billing/dunning',
+    version: 4,
+  });
   saveMutation.isPending = false;
   toastSpy.mockClear();
   onSelectVersion.mockClear();
@@ -1010,7 +1013,7 @@ describe('AutomationEditor', () => {
           baseVersion: 3,
         },
       })
-      .mockResolvedValue(undefined);
+      .mockResolvedValue({ name: 'billing/dunning', version: 5 });
     const { user } = renderPage();
     await editTheNode(user);
     await user.click(saveButton());
@@ -1040,6 +1043,208 @@ describe('AutomationEditor', () => {
     await waitFor(() => {
       expect(saveButton()).toBeDisabled();
     });
+  });
+
+  it.each([false, true])(
+    'keeps later edits dirty after Save anyway succeeds (query refreshed: %s)',
+    async (refreshQuery) => {
+      const append = Promise.withResolvers<{ name: string; version: number }>();
+      saveMutation.mutateAsync = vi
+        .fn()
+        .mockRejectedValueOnce({
+          data: {
+            code: 'AUTOMATION_VERSION_STALE',
+            message: 'v4 landed.',
+            latestVersion: 4,
+            baseVersion: 3,
+          },
+        })
+        .mockImplementationOnce(() => append.promise)
+        .mockResolvedValue({ name: 'billing/dunning', version: 6 });
+      const { user, rerender } = renderPage();
+      await user.click(screen.getByRole('button', { name: 'select summary' }));
+      const prompt = () => screen.getByRole('textbox', { name: 'Prompt' });
+      await user.clear(prompt());
+      await user.paste('Submitted draft');
+      await user.click(saveButton());
+      await user.click(screen.getByRole('button', { name: 'Save version' }));
+      await screen.findByText('v4 landed.');
+      await user.click(screen.getByRole('button', { name: 'Save anyway' }));
+
+      saveMutation.isPending = true;
+      rerender(page());
+      expect(screen.queryByRole('dialog')).toBeNull();
+      expect(prompt()).not.toHaveAttribute('readonly');
+      expect(saveButton()).toBeDisabled();
+      expect(discardButton()).toBeDisabled();
+      expect(saveMutation.mutateAsync).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          baseVersion: 4,
+          automation: expect.objectContaining({
+            nodes: [expect.objectContaining({ prompt: 'Submitted draft' })],
+          }),
+        }),
+      );
+
+      await user.clear(prompt());
+      await user.paste('Later unsaved draft');
+      expect(prompt()).toHaveValue('Later unsaved draft');
+      const submitted = saveMutation.mutateAsync.mock.calls[1]?.[0].automation;
+      expect(submitted.nodes[0].prompt).toBe('Submitted draft');
+      if (refreshQuery) {
+        state.document = submitted;
+        state.version = 5;
+        rerender(page());
+      }
+      await act(async () => {
+        saveMutation.isPending = false;
+        append.resolve({ name: 'billing/dunning', version: 5 });
+      });
+      rerender(page());
+
+      expect(prompt()).toHaveValue('Later unsaved draft');
+      expect(saveButton()).toBeEnabled();
+      expect(discardButton()).toBeEnabled();
+      expect(toastSpy).not.toHaveBeenCalled();
+      expect(onSelectVersion).toHaveBeenCalledWith(undefined);
+
+      await user.click(saveButton());
+      await user.click(screen.getByRole('button', { name: 'Save version' }));
+      await waitFor(() => expect(discardButton()).toBeDisabled());
+      expect(saveMutation.mutateAsync).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          baseVersion: 5,
+          automation: expect.objectContaining({
+            nodes: [expect.objectContaining({ prompt: 'Later unsaved draft' })],
+          }),
+        }),
+      );
+    },
+    30_000,
+  );
+
+  it.each([true, false])(
+    'settles only its own draft after a pending append is discarded (replacement edited while pending: %s)',
+    async (editWhilePending) => {
+      state.deployedDocument = {
+        name: 'billing/dunning',
+        description: 'The v2 document.',
+        nodes: [{ id: 'summary', type: 'llm', prompt: 'Stored on v2' }],
+      };
+      const append = Promise.withResolvers<{ name: string; version: number }>();
+      saveMutation.mutateAsync = vi
+        .fn()
+        .mockRejectedValueOnce({
+          data: {
+            code: 'AUTOMATION_VERSION_STALE',
+            message: 'v4 landed.',
+            latestVersion: 4,
+            baseVersion: 3,
+          },
+        })
+        .mockImplementationOnce(() => append.promise)
+        .mockRejectedValueOnce({
+          data: {
+            code: 'AUTOMATION_VERSION_STALE',
+            message: 'v5 landed after v2.',
+            latestVersion: 5,
+            baseVersion: 2,
+          },
+        });
+      const { user, rerender } = renderPage();
+      const prompt = () => screen.getByRole('textbox', { name: 'Prompt' });
+      const editReplacement = async () => {
+        await user.clear(prompt());
+        await user.paste('Edited on v2');
+      };
+      await user.click(screen.getByRole('button', { name: 'select summary' }));
+      await user.clear(prompt());
+      await user.paste('Submitted draft');
+      await user.click(saveButton());
+      await user.click(screen.getByRole('button', { name: 'Save version' }));
+      await screen.findByText('v4 landed.');
+      await user.click(screen.getByRole('button', { name: 'Save anyway' }));
+      saveMutation.isPending = true;
+      rerender(page());
+
+      expect(saveMutation.mutateAsync).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          baseVersion: 4,
+          automation: expect.objectContaining({
+            nodes: [expect.objectContaining({ prompt: 'Submitted draft' })],
+          }),
+        }),
+      );
+      const submitted = saveMutation.mutateAsync.mock.calls[1]?.[0].automation;
+      await user.click(versionPicker());
+      await user.click(screen.getByRole('radio', { name: /^v2/ }));
+      await user.click(
+        screen.getByRole('button', { name: 'Discard and switch' }),
+      );
+      expect(prompt()).toHaveValue('Stored on v2');
+      if (editWhilePending) await editReplacement();
+      expect(versionPicker()).toHaveTextContent('v2');
+      onSelectVersion.mockClear();
+
+      state.document = submitted;
+      state.version = 5;
+      rerender(page());
+      await act(async () => {
+        saveMutation.isPending = false;
+        append.resolve({ name: 'billing/dunning', version: 5 });
+      });
+      rerender(page());
+
+      expect(versionPicker()).toHaveTextContent('v2');
+      expect(onSelectVersion).not.toHaveBeenCalled();
+      expect(prompt()).toHaveValue(
+        editWhilePending ? 'Edited on v2' : 'Stored on v2',
+      );
+      expect(submitted.nodes[0].prompt).toBe('Submitted draft');
+      if (!editWhilePending) {
+        expect(discardButton()).toBeDisabled();
+        await editReplacement();
+      }
+      expect(saveButton()).toBeEnabled();
+      expect(discardButton()).toBeEnabled();
+      await user.click(saveButton());
+      await user.click(screen.getByRole('button', { name: 'Save version' }));
+      await screen.findByText('v5 landed after v2.');
+      expect(saveMutation.mutateAsync).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          baseVersion: 2,
+          automation: expect.objectContaining({
+            description: 'The v2 document.',
+            nodes: [expect.objectContaining({ prompt: 'Edited on v2' })],
+          }),
+        }),
+      );
+      expect(toastSpy).not.toHaveBeenCalled();
+    },
+    30_000,
+  );
+
+  it('keeps the draft when the stale-version decision is cancelled', async () => {
+    saveMutation.mutateAsync = vi.fn().mockRejectedValue({
+      data: {
+        code: 'AUTOMATION_VERSION_STALE',
+        message: 'v4 landed.',
+        latestVersion: 4,
+        baseVersion: 3,
+      },
+    });
+    const { user } = renderPage();
+    await editTheNode(user);
+    await user.click(saveButton());
+    await user.click(screen.getByRole('button', { name: 'Save version' }));
+    await screen.findByText('v4 landed.');
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    expect(whenField()).toHaveValue('x');
+    expect(saveButton()).toBeEnabled();
+    expect(discardButton()).toBeEnabled();
+    expect(saveMutation.mutateAsync).toHaveBeenCalledTimes(1);
+    expect(toastSpy).not.toHaveBeenCalled();
   });
 
   it('drops the draft and shows the newer version on reload after a stale refusal', async () => {
