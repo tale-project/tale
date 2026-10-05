@@ -51,7 +51,10 @@ needs fewer runners, while a long CPU-bound suite can benefit from more slices.
   and keep its download cache in a separate namespace. Native source tests retain
   the full workspace install because they import platform auth modules.
   Binary artifacts use fast compression; all five targets still build, native binaries
-  retain smoke tests, and both macOS targets retain signature checks.
+  retain smoke tests, and both macOS targets retain signature checks. Command suites
+  run source cases before compilation, then select only the explicit `TALE_BINARY`
+  artifact in the smoke lane. A missing selected artifact fails instead of falling
+  back to source; every command suite remains part of smoke discovery.
 
 ## Cache boundaries
 
@@ -162,6 +165,26 @@ not a claim about the duration of a future hosted run. The audit at checkout `79
 partitioned all 595 UI files once as 149/149/149/148; the E2E audit partition proof covered
 all 67 tests once as 17/17/17/16. Later source changes require a fresh inventory.
 
+A follow-up [Checks run 37253041672](https://github.com/tale-project/tale/actions/runs/37253041672)
+at `4f95bd54d` executed all four platform UI shards: each Turbo summary records a cache
+miss, with task durations of 151.7, 98.1, 180.3 and 183.6 seconds. The stable UI aggregate
+completed 4m02s after run creation, including queue and setup time. This follow-up and
+the baseline used different revisions and queue conditions, so they do not establish a
+controlled speedup.
+
+[E2E run 37248634565](https://github.com/tale-project/tale/actions/runs/37248634565)
+at `f04fe7c73` built web in 39.8 seconds and passed all 93 browser tests, then spent
+about 38 seconds rebuilding web before the SEO assertions. Its build wrote a new
+release snapshot timestamp, changing its own input hash; invoking Turbo again for
+`test:prerender` therefore missed the build cache. The same duplicate build occurred
+in [run 37245899655](https://github.com/tale-project/tale/actions/runs/37245899655)
+even though its first build was restored. Ordinary E2E invokes the existing workspace SEO
+suite directly after the successful build, preserving release-snapshot invalidation
+while avoiding a second build and keeping both suites on identical output.
+The first observed follow-up, [E2E run 37255219568](https://github.com/tale-project/tale/actions/runs/37255219568)
+at `dc2ded7a3`, restored web in one second and passed its browser and SEO steps;
+SEO took 15 seconds without rebuilding the site.
+
 [Release run 37136987405](https://github.com/tale-project/tale/actions/runs/37136987405)
 took 31m21s, with sandbox-runtime starting about eleven minutes after Prepare.
 Starting it first removes that scheduling delay when capacity is available.
@@ -172,6 +195,12 @@ spent 70–113s reclaiming disk per standalone site, before doing any site work.
 spent 148 seconds exporting the platform's PR-local cache and 47 seconds deleting its
 ephemeral builder. [CLI run 37210592060](https://github.com/tale-project/tale/actions/runs/37210592060)
 repeated source tests for 132 seconds on macOS and 115 seconds on Linux cross rows.
+
+In [CLI run 37252195260](https://github.com/tale-project/tale/actions/runs/37252195260),
+Windows smoke repeated 19 source command cases that had already passed before
+compilation. Those repeats consumed 47.8 seconds, alongside 38.3 seconds of compiled
+command cases. Selecting only the compiled target in the second lane removes that
+duplicate work while retaining both source and binary coverage.
 
 A local inventory verified that the 67 platform Playwright tests partition exactly once across
 the four shards (17, 17, 17 and 16 tests). An isolated Bun 1.4.2 checkout installed 265 packages

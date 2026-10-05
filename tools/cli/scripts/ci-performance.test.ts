@@ -225,9 +225,39 @@ describe('static-site build reuse', () => {
     expect(steps.indexOf(build)).toBeLessThan(steps.indexOf(smoke));
     expect(smoke.env?.E2E_USE_BUILD).toBe('1');
     expect(seo.run).toContain('bun run --filter @tale/web test:prerender');
+    expect(steps.indexOf(smoke)).toBeLessThan(steps.indexOf(seo));
+    const turbo = JSON.parse(
+      await readFile(join(repository, 'turbo.json'), 'utf8'),
+    ) as { tasks: Record<string, { dependsOn?: string[] }> };
+    expect(turbo.tasks['test:prerender']?.dependsOn).toContain('build');
     expect(seo.if).toContain('!cancelled()');
     expect(seo.if).toContain("steps.site-build.outcome == 'success'");
     expect(seo.if).toContain("matrix.service == 'web'");
+    for (const service of ['web', 'docs'])
+      for (const buildOutcome of [
+        'success',
+        'failure',
+        'skipped',
+        'cancelled',
+        '',
+      ])
+        for (const browserSucceeded of [true, false])
+          for (const wasCancelled of [true, false]) {
+            expect(
+              runInNewContext(
+                seo.if!.replaceAll('steps.site-build', 'steps["site-build"]'),
+                {
+                  cancelled: () => wasCancelled,
+                  success: () => browserSucceeded,
+                  failure: () => !browserSucceeded,
+                  matrix: { service },
+                  steps: { 'site-build': { outcome: buildOutcome } },
+                },
+              ),
+            ).toBe(
+              !wasCancelled && service === 'web' && buildOutcome === 'success',
+            );
+          }
     const setup = job.steps!.find(
       (step) => step.uses === './.github/actions/setup-turbo',
     )!;
