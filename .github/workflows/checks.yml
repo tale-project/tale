@@ -56,6 +56,7 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           ref: ${{ needs.candidate-source.outputs.candidate_sha }}
+          persist-credentials: false
           # lint:links compares a change with HEAD^1 (a pull request's merge
           # commit has the base branch as its first parent), so a page it
           # retires without a redirect, or a ledger line it drops, is caught.
@@ -66,6 +67,7 @@ jobs:
         with:
           start-turbo-cache: 'false'
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          turbo-cache: 'false'
 
       # uv backs `uvx ruff@<ver>` in format:check (Python formatting).
       - name: Setup uv
@@ -109,6 +111,7 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           ref: ${{ needs.candidate-source.outputs.candidate_sha }}
+          persist-credentials: false
 
       - name: Setup toolchain
         uses: ./.github/actions/setup-turbo
@@ -158,6 +161,7 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           ref: ${{ needs.candidate-source.outputs.candidate_sha }}
+          persist-credentials: false
 
       - name: Setup toolchain
         uses: ./.github/actions/setup-turbo
@@ -165,8 +169,8 @@ jobs:
           start-turbo-cache: 'false'
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      # The budget the compiler runs under: the Node `bunx tsc` resolves (the
-      # runner image's, not pinned here) and V8's heap limit under this job's
+      # The budget the compiler runs under: the production Node selected by
+      # setup-turbo and V8's heap limit under this job's
       # NODE_OPTIONS.
       - name: Report the compiler's heap budget
         run: |
@@ -220,6 +224,7 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           ref: ${{ needs.candidate-source.outputs.candidate_sha }}
+          persist-credentials: false
 
       - name: Setup toolchain
         uses: ./.github/actions/setup-turbo
@@ -346,7 +351,13 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: turbo-test-platform-shards-${{ matrix.shard }}-${{ github.run_id }}-${{ github.run_attempt }}
-          path: .turbo/runs/*.json
+          path: |
+            .turbo/runs/*.json
+            packages/*/.turbo/turbo-test.log
+            services/*/.turbo/turbo-test.log
+            services/sandbox-runtime/daemon/.turbo/turbo-test.log
+            tools/*/.turbo/turbo-test.log
+            configs/platform/custom/skills/*/.turbo/turbo-test.log
           include-hidden-files: true
           if-no-files-found: ignore
           retention-days: 7
@@ -391,7 +402,13 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: turbo-test-workspaces-${{ github.run_id }}-${{ github.run_attempt }}
-          path: .turbo/runs/*.json
+          path: |
+            .turbo/runs/*.json
+            packages/*/.turbo/turbo-test.log
+            services/*/.turbo/turbo-test.log
+            services/sandbox-runtime/daemon/.turbo/turbo-test.log
+            tools/*/.turbo/turbo-test.log
+            configs/platform/custom/skills/*/.turbo/turbo-test.log
           include-hidden-files: true
           if-no-files-found: ignore
           retention-days: 7
@@ -480,7 +497,13 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: turbo-test-ui-shards-${{ matrix.shard }}-${{ github.run_id }}-${{ github.run_attempt }}
-          path: .turbo/runs/*.json
+          path: |
+            .turbo/runs/*.json
+            packages/*/.turbo/turbo-test$colon$ui.log
+            services/*/.turbo/turbo-test$colon$ui.log
+            services/sandbox-runtime/daemon/.turbo/turbo-test$colon$ui.log
+            tools/*/.turbo/turbo-test$colon$ui.log
+            configs/platform/custom/skills/*/.turbo/turbo-test$colon$ui.log
           include-hidden-files: true
           if-no-files-found: ignore
           retention-days: 7
@@ -516,22 +539,6 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           turbo-cache: 'false'
 
-      - name: Resolve the platform's Node
-        id: node
-        run: |
-          set -euo pipefail
-          version=$(sed -n 's/^FROM node:\([0-9][0-9.]*\)-.* AS node-bin$/\1/p' services/platform/Dockerfile)
-          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo '::error::services/platform/Dockerfile names no node-bin stage version'; exit 1
-          fi
-          echo "version=${version}" >> "$GITHUB_OUTPUT"
-
-      - name: Setup Node
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
-        with:
-          node-version: ${{ steps.node.outputs.version }}
-          package-manager-cache: false
-
       - name: Generate CLI fixtures
         run: bun run --filter @tale/cli generate
 
@@ -566,6 +573,7 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           ref: ${{ needs.candidate-source.outputs.candidate_sha }}
+          persist-credentials: false
 
       - name: Setup toolchain
         uses: ./.github/actions/setup-turbo
@@ -602,6 +610,7 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           ref: ${{ needs.candidate-source.outputs.candidate_sha }}
+          persist-credentials: false
 
       - name: Setup toolchain
         uses: ./.github/actions/setup-turbo
@@ -609,9 +618,20 @@ jobs:
           start-turbo-cache: 'false'
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Inspect cached browser prerequisites
+        id: browser-cache
+        if: github.event_name != 'repository_dispatch' && hashFiles('scripts/ci-task-cache.ts') != ''
+        # The admission plan and actual verdict must see the same archives.
+        # Native startup eviction is asynchronous and can remove a planned hit.
+        env:
+          TURBO_CACHE_MAX_SIZE: '0'
+          TURBO_CACHE_MAX_AGE: '0'
+        run: bun scripts/ci-task-cache.ts test:browser >> "$GITHUB_OUTPUT"
+
       # Browser revisions follow Playwright, not unrelated dependency updates.
       # Cache only the headless payload these channel-free CI projects execute.
       - name: Resolve Playwright version
+        if: steps.browser-cache.outputs.provision != 'false'
         id: playwright-version
         working-directory: services/platform
         run: |
@@ -623,12 +643,17 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
       - name: Cache Playwright browsers
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        if: steps.browser-cache.outputs.provision != 'false'
+        id: playwright-cache
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        env:
+          SEGMENT_DOWNLOAD_TIMEOUT_MINS: '2'
         with:
           path: ~/.cache/ms-playwright
           key: playwright-shell-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright-version.outputs.version }}
 
       - name: Install Playwright Chromium
+        if: steps.browser-cache.outputs.provision != 'false'
         working-directory: services/platform
         # Preserve the runner's mirror failover. Bound APT itself: killing
         # bunx with a shell timeout can leave its root child holding the lock.
@@ -644,7 +669,19 @@ jobs:
           sudo apt-config shell IPv4 Acquire::ForceIPv4 HTTPTimeout Acquire::http::Timeout HTTPSTimeout Acquire::https::Timeout Retries Acquire::Retries
           bunx playwright install --with-deps --only-shell chromium
 
+      # Browser downloads are useful even when the component suite fails.
+      # Publish only after Playwright has successfully installed the payload.
+      - name: Save Playwright browsers
+        if: steps.browser-cache.outputs.provision != 'false' && steps.playwright-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ steps.playwright-cache.outputs.cache-primary-key }}
+
       - name: Run browser-mode component tests
+        env:
+          TURBO_CACHE_MAX_SIZE: '0'
+          TURBO_CACHE_MAX_AGE: '0'
         run: bunx turbo run test:browser --output-logs=errors-only --summarize
 
       - name: Upload Turbo execution summary
@@ -652,7 +689,13 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: turbo-test-browser-${{ github.run_id }}-${{ github.run_attempt }}
-          path: .turbo/runs/*.json
+          path: |
+            .turbo/runs/*.json
+            packages/*/.turbo/turbo-test$colon$browser.log
+            services/*/.turbo/turbo-test$colon$browser.log
+            services/sandbox-runtime/daemon/.turbo/turbo-test$colon$browser.log
+            tools/*/.turbo/turbo-test$colon$browser.log
+            configs/platform/custom/skills/*/.turbo/turbo-test$colon$browser.log
           include-hidden-files: true
           if-no-files-found: ignore
           retention-days: 7
@@ -707,6 +750,9 @@ jobs:
               - 'tools/cli/src/lib/compose/types.ts'
               - 'package.json'
               - 'bun.lock'
+              - 'bunfig.toml'
+              - 'tsconfig*.json'
+              - 'patches/**'
               - '.github/workflows/checks.yml'
               - '.github/actions/setup-turbo/**'
 
@@ -813,12 +859,6 @@ jobs:
           echo "version=${version}" >> "$GITHUB_OUTPUT"
           echo "node-version=$version" >> "$PROOF_DIR/source.txt"
 
-      - name: Setup Node
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
-        with:
-          node-version: ${{ steps.node.outputs.version }}
-          package-manager-cache: false
-
       # The transcription and video-link lanes run the real ffmpeg/ffprobe the
       # platform image bakes in. Same APT bounds as the Playwright installs.
       - name: Install ffmpeg
@@ -895,10 +935,10 @@ jobs:
           docker exec tale-itest-db psql -v ON_ERROR_STOP=1 -U tale -d tale_knowledge -Atc \
             "SELECT string_agg(extname || ' ' || extversion, ', ' ORDER BY extname) FROM pg_extension"
           for _ in $(seq 1 60); do
-            if curl -sf -o /dev/null http://127.0.0.1:9000/minio/health/ready; then break; fi
+            if curl --connect-timeout 2 --max-time 5 -sf -o /dev/null http://127.0.0.1:9000/minio/health/ready; then break; fi
             sleep 1
           done
-          curl -sf -o /dev/null http://127.0.0.1:9000/minio/health/ready || { echo '::error::the object store never became ready'; exit 1; }
+          curl --connect-timeout 2 --max-time 5 -sf -o /dev/null http://127.0.0.1:9000/minio/health/ready || { echo '::error::the object store never became ready'; exit 1; }
 
       - name: Verify and record integration services
         env:

@@ -16,24 +16,50 @@ on:
       - main
     paths:
       - 'tools/cli/**'
-      - 'services/platform/backend/core/automations/pack_zip.ts'
-      - 'services/platform/backend/core/skills/bundle_zip.ts'
+      - 'services/platform/backend/core/**'
+      - 'services/platform/backend/auth/membership.ts'
+      - 'services/platform/backend/auth/oidc.ts'
+      - 'services/platform/backend/db/sql.ts'
+      - 'services/platform/backend/db/ssl.ts'
+      - 'services/platform/backend/domains/audit_logs/**'
+      - 'services/platform/backend/domains/sandbox/retirement-schedule.ts'
+      - 'services/platform/backend/domains/two_factor/service.ts'
+      - 'services/platform/backend/jobs/enqueue.ts'
+      - 'services/platform/backend/jobs/tasks.ts'
+      - 'services/platform/backend/lib/org-config.ts'
       - 'services/platform/lib/**'
-      - 'configs/platform/system/connectors/**'
+      - 'configs/platform/**'
       - 'packages/shared/**'
       - 'bun.lock'
+      - 'package.json'
+      - 'bunfig.toml'
+      - 'patches/**'
+      - 'tsconfig*.json'
       - 'scripts/install-cli.*'
       - '.github/workflows/cli.yml'
       - '.github/actions/setup-cli/**'
   pull_request:
     paths:
       - 'tools/cli/**'
-      - 'services/platform/backend/core/automations/pack_zip.ts'
-      - 'services/platform/backend/core/skills/bundle_zip.ts'
+      - 'services/platform/backend/core/**'
+      - 'services/platform/backend/auth/membership.ts'
+      - 'services/platform/backend/auth/oidc.ts'
+      - 'services/platform/backend/db/sql.ts'
+      - 'services/platform/backend/db/ssl.ts'
+      - 'services/platform/backend/domains/audit_logs/**'
+      - 'services/platform/backend/domains/sandbox/retirement-schedule.ts'
+      - 'services/platform/backend/domains/two_factor/service.ts'
+      - 'services/platform/backend/jobs/enqueue.ts'
+      - 'services/platform/backend/jobs/tasks.ts'
+      - 'services/platform/backend/lib/org-config.ts'
       - 'services/platform/lib/**'
-      - 'configs/platform/system/connectors/**'
+      - 'configs/platform/**'
       - 'packages/shared/**'
       - 'bun.lock'
+      - 'package.json'
+      - 'bunfig.toml'
+      - 'patches/**'
+      - 'tsconfig*.json'
       - 'scripts/install-cli.*'
       - '.github/workflows/cli.yml'
       - '.github/actions/setup-cli/**'
@@ -179,6 +205,7 @@ jobs:
           # A manual release dispatch may be started from another branch.
           # Prepare resolves that tag once; every binary builds its exact commit.
           ref: ${{ needs.candidate-source.outputs.candidate_sha || needs.prepare.outputs.source_sha || github.sha }}
+          persist-credentials: false
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
@@ -197,10 +224,11 @@ jobs:
           echo "BUN_INSTALL_CACHE_DIR=${RUNNER_TEMP}/bun-cli-cache" >> "$GITHUB_ENV"
 
       - name: Restore Bun install cache
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        id: bun-cache
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: ${{ matrix.cross && env.BUN_INSTALL_CACHE_DIR || '~/.bun/install/cache' }}
-          key: ${{ matrix.cross && 'bun-cli-install' || 'bun-install' }}-${{ runner.os }}-${{ runner.arch }}-1.4.2-${{ hashFiles('bun.lock') }}
+          key: ${{ matrix.cross && 'bun-cli-install' || 'bun-install' }}-${{ runner.os }}-${{ runner.arch }}-1.4.2-${{ hashFiles('bun.lock', 'package.json', '**/package.json', 'patches/**', 'bunfig.toml') }}
           restore-keys: |
             ${{ matrix.cross && 'bun-cli-install' || 'bun-install' }}-${{ runner.os }}-${{ runner.arch }}-1.4.2-
 
@@ -216,6 +244,13 @@ jobs:
             # dependency closure, so native legs retain the complete install.
             bun install --frozen-lockfile
           fi
+
+      - name: Save installed Bun downloads
+        if: steps.bun-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: ${{ matrix.cross && env.BUN_INSTALL_CACHE_DIR || '~/.bun/install/cache' }}
+          key: ${{ steps.bun-cache.outputs.cache-primary-key }}
 
       - name: Generate embedded files
         working-directory: tools/cli
@@ -347,13 +382,14 @@ jobs:
   # ---------------------------------------------------------------------------
   release:
     name: Attach to release
-    needs: [candidate-source, build]
+    needs: [candidate-source, prepare, build]
     if: >-
       !cancelled() &&
       (((github.event_name == 'repository_dispatch') &&
       needs.candidate-source.result == 'success') ||
       ((github.event_name != 'repository_dispatch') &&
       needs.candidate-source.result == 'skipped')) &&
+      needs.prepare.result == 'success' &&
       needs.build.result == 'success' &&
       (github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
@@ -366,6 +402,7 @@ jobs:
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           path: artifacts
+          pattern: '{tale_linux,tale_linux_arm64,tale_macos,tale_macos_x64,tale_windows.exe}'
 
       - name: List artifacts
         run: find artifacts -type f
@@ -375,32 +412,51 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_TAG: ${{ github.event.inputs.release_tag }}
           REPO: ${{ github.repository }}
+          EXPECTED_SOURCE_SHA: ${{ needs.prepare.outputs.source_sha }}
         run: |
           TAG="$RELEASE_TAG"
           MAX_ATTEMPTS=10
           DELAY=15
           for i in $(seq 1 $MAX_ATTEMPTS); do
             if gh release view "$TAG" --repo "$REPO" > /dev/null 2>&1; then
+              CURRENT_SOURCE_SHA=$(gh api "repos/${REPO}/commits/refs%2Ftags%2F${TAG}" --jq .sha)
+              if [ "$CURRENT_SOURCE_SHA" != "$EXPECTED_SOURCE_SHA" ] || [[ ! "$CURRENT_SOURCE_SHA" =~ ^[a-f0-9]{40}$ ]]; then
+                echo '::error::Release tag changed after CLI preparation'; exit 1
+              fi
               echo "Release $TAG found."
               exit 0
             fi
+            if [ "$i" -eq "$MAX_ATTEMPTS" ]; then
+              break
+            fi
             echo "Release $TAG not found yet (attempt $i/$MAX_ATTEMPTS). Waiting ${DELAY}s..."
             sleep $DELAY
-            DELAY=$((DELAY * 2 > 120 ? 120 : DELAY * 2))
+            DELAY=$((DELAY * 2 > 30 ? 30 : DELAY * 2))
           done
           echo "::error::Release $TAG not found after $MAX_ATTEMPTS attempts."
           exit 1
 
       - name: Generate checksums
         run: |
-          # Flatten the per-artifact dirs into one, then emit a single
-          # SHA256SUMS-style file the installers verify the binary against.
-          mkdir -p release
-          cp artifacts/tale_linux/* release/tale_linux
-          cp artifacts/tale_linux_arm64/* release/tale_linux_arm64
-          cp artifacts/tale_macos/* release/tale_macos
-          cp artifacts/tale_macos_x64/* release/tale_macos_x64
-          cp artifacts/tale_windows.exe/* release/tale_windows.exe
+          set -euo pipefail
+          shopt -s nullglob dotglob
+          binaries=(tale_linux tale_linux_arm64 tale_macos tale_macos_x64 tale_windows.exe)
+          directories=(artifacts/*)
+          if [ ! -d artifacts ] || [ -L artifacts ] || [ "${#directories[@]}" -ne "${#binaries[@]}" ]; then
+            echo '::error::Expected exactly five CLI binary artifacts'; exit 1
+          fi
+          # Validate every artifact before creating checksums or copying bytes.
+          for binary in "${binaries[@]}"; do
+            directory="artifacts/$binary"
+            files=("$directory"/*)
+            if [ ! -d "$directory" ] || [ -L "$directory" ] || [ "${#files[@]}" -ne 1 ] || [ "${files[0]:-}" != "$directory/$binary" ] || [ ! -f "$directory/$binary" ] || [ -L "$directory/$binary" ] || [ ! -s "$directory/$binary" ]; then
+              echo "::error::Invalid CLI artifact: $binary"; exit 1
+            fi
+          done
+          mkdir release
+          for binary in "${binaries[@]}"; do
+            cp -- "artifacts/$binary/$binary" "release/$binary"
+          done
           cd release
           sha256sum tale_linux tale_linux_arm64 tale_macos tale_macos_x64 tale_windows.exe > tale_checksums.txt
           cat tale_checksums.txt

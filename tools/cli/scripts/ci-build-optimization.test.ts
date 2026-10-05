@@ -385,7 +385,7 @@ test('cross CLI builds isolate filtered dependencies while native suites keep th
     "${{ matrix.cross && env.BUN_INSTALL_CACHE_DIR || '~/.bun/install/cache' }}",
   );
   expect(cache.with?.key).toBe(
-    "${{ matrix.cross && 'bun-cli-install' || 'bun-install' }}-${{ runner.os }}-${{ runner.arch }}-1.4.2-${{ hashFiles('bun.lock') }}",
+    "${{ matrix.cross && 'bun-cli-install' || 'bun-install' }}-${{ runner.os }}-${{ runner.arch }}-1.4.2-${{ hashFiles('bun.lock', 'package.json', '**/package.json', 'patches/**', 'bunfig.toml') }}",
   );
   expect(String(cache.with?.['restore-keys']).trim()).toBe(
     "${{ matrix.cross && 'bun-cli-install' || 'bun-install' }}-${{ runner.os }}-${{ runner.arch }}-1.4.2-",

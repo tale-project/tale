@@ -1,7 +1,10 @@
 import { describe, expect, test } from 'bun:test';
-import { readFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { runInNewContext } from 'node:vm';
 
 import { parse } from 'yaml';
 import { z } from 'zod';
@@ -319,11 +322,31 @@ describe('Checks execution optimizations', () => {
       expect(upload?.if, id).toBe('always()');
       expect(upload?.uses, id).toStartWith('actions/upload-artifact@');
       expect(upload?.with, id).toMatchObject({
-        path: '.turbo/runs/*.json',
         'include-hidden-files': true,
         'if-no-files-found': 'ignore',
         'retention-days': 7,
       });
+      const paths = z.string().parse(upload?.with?.path).trim().split('\n');
+      expect(paths, id).toContain('.turbo/runs/*.json');
+      const testLogs: Record<string, string> = {
+        'test-platform-shards': 'test',
+        'test-workspaces': 'test',
+        'test-ui-shards': 'test$colon$ui',
+        'test-browser': 'test$colon$browser',
+      };
+      const task = testLogs[id];
+      if (task) {
+        for (const workspace of [
+          'packages/*',
+          'services/*',
+          'services/sandbox-runtime/daemon',
+          'tools/*',
+          'configs/platform/custom/skills/*',
+        ])
+          expect(paths, id).toContain(`${workspace}/.turbo/turbo-${task}.log`);
+      } else {
+        expect(paths).toEqual(['.turbo/runs/*.json']);
+      }
       expect(steps.indexOf(upload!), id).toBeGreaterThan(
         Math.max(...turboSteps.map((step) => steps.indexOf(step))),
       );
@@ -354,6 +377,170 @@ describe('Checks execution optimizations', () => {
     expect(manifest.scripts['format:check']).toMatch(
       /uvx ruff@[\d.]+ format --check/,
     );
+  });
+
+  test('formatting skips task archives while every source checkout drops stored credentials', async () => {
+    const { jobs } = await workflow();
+    const setup = jobs.format!.steps.find(
+      (step) => step.uses === './.github/actions/setup-turbo',
+    );
+    expect(setup?.with?.['turbo-cache']).toBe('false');
+    expect(
+      jobs.format!.steps.some((step) => step.run === 'bun run format:check'),
+    ).toBe(true);
+    for (const [id, job] of Object.entries(jobs)) {
+      const checkout = job.steps.find((step) =>
+        step.uses?.startsWith('actions/checkout@'),
+      );
+      if (checkout)
+        expect(checkout.with?.['persist-credentials'], id).toBe(false);
+    }
+  });
+
+  test('browser provisioning defaults to cold setup while candidates bypass cache admission', async () => {
+    const steps = (await workflow()).jobs['test-browser']!.steps;
+    const admission = steps.find((step) => step.id === 'browser-cache');
+    expect(admission?.if).toBe(
+      "github.event_name != 'repository_dispatch' && hashFiles('scripts/ci-task-cache.ts') != ''",
+    );
+    expect(admission?.run).toBe(
+      'bun scripts/ci-task-cache.ts test:browser >> "$GITHUB_OUTPUT"',
+    );
+    expect(admission?.env).toEqual({
+      TURBO_CACHE_MAX_SIZE: '0',
+      TURBO_CACHE_MAX_AGE: '0',
+    });
+    for (const name of [
+      'Resolve Playwright version',
+      'Cache Playwright browsers',
+      'Install Playwright Chromium',
+    ]) {
+      const step = steps.find((entry) => entry.name === name);
+      expect(step?.if, name).toBe(
+        "steps.browser-cache.outputs.provision != 'false'",
+      );
+      expect(steps.indexOf(step!), name).toBeGreaterThan(
+        steps.indexOf(admission!),
+      );
+    }
+    const verdict = steps.find(
+      (step) => step.name === 'Run browser-mode component tests',
+    );
+    expect(verdict?.if).toBeUndefined();
+    expect(verdict?.run).toBe(
+      'bunx turbo run test:browser --output-logs=errors-only --summarize',
+    );
+    expect(verdict?.env).toEqual(admission?.env);
+    const restore = steps.find((step) => step.id === 'playwright-cache');
+    const install = steps.find(
+      (step) => step.name === 'Install Playwright Chromium',
+    );
+    const save = steps.find((step) => step.name === 'Save Playwright browsers');
+    expect(restore?.uses).toMatch(/^actions\/cache\/restore@[a-f0-9]{40}$/);
+    expect(restore?.env?.SEGMENT_DOWNLOAD_TIMEOUT_MINS).toBe('2');
+    expect(save?.uses).toBe(restore?.uses?.replace('/restore@', '/save@'));
+    expect(save?.if).toBe(
+      "steps.browser-cache.outputs.provision != 'false' && steps.playwright-cache.outputs.cache-hit != 'true'",
+    );
+    expect(save?.with).toEqual({
+      path: '~/.cache/ms-playwright',
+      key: '${{ steps.playwright-cache.outputs.cache-primary-key }}',
+    });
+    expect(steps.indexOf(save!)).toBeGreaterThan(steps.indexOf(install!));
+    expect(steps.indexOf(save!)).toBeLessThan(steps.indexOf(verdict!));
+  });
+
+  test('historical sources without the browser helper retain provisioning for every admitted event', async () => {
+    const steps = (await workflow()).jobs['test-browser']!.steps;
+    const admission = steps.find((step) => step.id === 'browser-cache');
+    const condition = z.string().parse(admission?.if);
+    const fixture = await mkdtemp(join(tmpdir(), 'tale-browser-admission-'));
+    const helperPath = 'scripts/ci-task-cache.ts';
+    try {
+      for (const present of [false, true]) {
+        if (present) {
+          await mkdir(join(fixture, 'scripts'));
+          await writeFile(join(fixture, helperPath), 'synthetic helper source');
+        }
+        const file = Bun.file(join(fixture, helperPath));
+        const hash = (await file.exists())
+          ? createHash('sha256')
+              .update(await file.bytes())
+              .digest('hex')
+          : '';
+        for (const event of [
+          'push',
+          'pull_request',
+          'merge_group',
+          'workflow_dispatch',
+          'repository_dispatch',
+        ]) {
+          const admitted = runInNewContext(condition, {
+            github: { event_name: event },
+            hashFiles: (path: string) => {
+              expect(path).toBe(helperPath);
+              return hash;
+            },
+          });
+          expect(admitted, `${event}, helper=${present}`).toBe(
+            present && event !== 'repository_dispatch',
+          );
+          for (const output of ['', 'true', 'false', 'unexpected']) {
+            const provision = admitted ? output : '';
+            for (const name of [
+              'Resolve Playwright version',
+              'Cache Playwright browsers',
+              'Install Playwright Chromium',
+            ]) {
+              const source = z
+                .string()
+                .parse(steps.find((step) => step.name === name)?.if)
+                .replaceAll('steps.browser-cache', "steps['browser-cache']");
+              expect(
+                runInNewContext(source, {
+                  steps: { 'browser-cache': { outputs: { provision } } },
+                }),
+                `${event}, helper=${present}, output=${output}, ${name}`,
+              ).toBe(provision !== 'false');
+            }
+          }
+        }
+      }
+      expect(
+        steps.find((step) => step.name === 'Run browser-mode component tests')
+          ?.if,
+      ).toBeUndefined();
+    } finally {
+      await rm(fixture, { recursive: true, force: true });
+    }
+  });
+
+  test('compiler families, Bun install settings and patches owe the real backend proof', async () => {
+    const steps = (await workflow()).jobs['integration-scope']!.steps;
+    const filter = steps.find((step) => step.id === 'filter');
+    const patterns = z
+      .object({ integration: z.array(z.string()) })
+      .parse(parse(z.string().parse(filter?.with?.filters))).integration;
+    for (const path of [
+      'tsconfig.base.json',
+      'tsconfig.dom.json',
+      'tsconfig.strict.json',
+      'bunfig.toml',
+      'patches/postgres@3.4.7.patch',
+    ])
+      expect(
+        patterns.some((pattern) => new Bun.Glob(pattern).match(path)),
+        path,
+      ).toBe(true);
+    const readiness = (await workflow()).jobs[
+      'backend-integration'
+    ]!.steps.find((step) => step.name === 'Start tale-db and the object store');
+    const requests =
+      readiness?.run?.split('\n').filter((line) => line.includes('curl ')) ??
+      [];
+    expect(requests).toHaveLength(2);
+    for (const request of requests)
+      expect(request).toContain('curl --connect-timeout 2 --max-time 5');
   });
 
   test('isolated unit and UI workers receive a job-local Node bytecode cache through Turbo strict mode', async () => {
@@ -426,7 +613,12 @@ describe('Checks execution optimizations', () => {
       ).toBe(true);
       expect(result.tasks.length).toBeGreaterThan(0);
       hashes.push(
-        result.tasks.map((task) => `${task.taskId}=${task.hash}`).toSorted(),
+        // Only executable tasks create Node workers; placeholder hashes
+        // belong to unrelated workspaces.
+        result.tasks
+          .filter((task) => task.command !== '<NONEXISTENT>')
+          .map((task) => `${task.taskId}=${task.hash}`)
+          .toSorted(),
       );
     }
     expect(hashes[0]).toEqual(hashes[1]);

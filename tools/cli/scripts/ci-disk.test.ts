@@ -71,7 +71,11 @@ test('every image cleanup uses one candidate-independent policy and preserves co
     ['build', 'image-validate', '28'],
     ['build', 'image-validate-fork', '40'],
     ['release', 'build', '40'],
-    ['release', 'container-test', '28'],
+    [
+      'release',
+      'container-test',
+      "${{ needs.prepare.outputs.sites_only == 'true' && '20' || '40' }}",
+    ],
   ]);
   expect(new Set(entries.map(({ step }) => step.run)).size).toBe(1);
   for (const { job, step } of entries) {

@@ -1372,10 +1372,21 @@ const GH_STAND_IN = `#!/bin/sh
 printf '%s\\n' "$*" >> "$TEST_COMMAND_LOG"
 if [ "$2" = -X ]; then
   replies=$TEST_DELETE_REPLIES
-  call=$(grep -c '^api -X DELETE ' "$TEST_COMMAND_LOG")
-else
+  version_id=\${4##*/}
+  call=$(jq -r --argjson id "$version_id" 'map(select(.metadata.container.tags | length > 0 and all(.[]; test("^pr-7-sha-[a-f0-9]{40}$")))) | map(.id) | index($id) + 1' "$TEST_VERSIONS")
+elif printf '%s\\n' "$*" | grep -q ' --paginate '; then
   replies=$TEST_LIST_REPLIES
   call=$(grep -c ' --paginate ' "$TEST_COMMAND_LOG")
+else
+  # Recheck ownership immediately before deletion through the real jq filter.
+  endpoint=$2
+  version_id=\${endpoint##*/}
+  while [ $# -gt 1 ]; do
+    [ "$1" = --jq ] && filter=$2
+    shift
+  done
+  jq --argjson id "$version_id" '.[] | select(.id == $id)' "$TEST_VERSIONS" | jq -r "$filter"
+  exit $?
 fi
 reply=$(printf '%s\\n' $replies | sed -n "\${call}p")
 case "$reply" in
@@ -1500,10 +1511,10 @@ test.skipIf(process.platform === 'win32')(
       ],
     );
     expect(result.code, result.stdout + result.stderr).toBe(0);
-    expect(result.deletions).toEqual(['1', '5']);
+    expect(result.deletions.sort()).toEqual(['1', '5']);
     // A version gone before its delete (a duplicate run, say) is no failure.
     expect(result.summary).toContain(
-      '- Deleted: 1\n- Already gone (404): 1\n- Failures: 0',
+      '- Deleted: 1\n- Already gone (404): 1\n- Shared versions preserved: 0\n- Failures: 0',
     );
   },
 );

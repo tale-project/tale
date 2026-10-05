@@ -1,7 +1,8 @@
 name: Cleanup PR images
 
 # When a PR closes (merged or otherwise), delete every GHCR container version
-# whose tag begins with `pr-{number}-sha-`. The `build` job in build.yml pushes
+# whose tags all belong to `pr-{number}-sha-{full SHA}`. Shared versions with
+# main, release, candidate or another PR's tags are retained. The build job pushes
 # one such tag per push to a PR, so they accumulate fast without cleanup.
 #
 # Tags from main / merge_group runs use the `sha-…` prefix, and release
@@ -54,10 +55,16 @@ jobs:
           # GHCR package names URL-encode the slash: `tale/tale-{svc}` → `tale%2Ftale-{svc}`.
           PACKAGE="tale%2Ftale-${SVC}"
           PREFIX="pr-${PR}-sha-"
+          if [[ ! "$PR" =~ ^[1-9][0-9]*$ ]]; then
+            echo '::error::Cleanup requires a positive pull request number'; exit 1
+          fi
+          TAG_PATTERN="^${PREFIX}[a-f0-9]{40}$"
           # gh-api writes its error, status included ("… (HTTP 404)"), to
           # stderr; both loops below read the status from this file.
-          err_log=$(mktemp)
-          trap 'rm -f "${err_log}"' EXIT
+          task_directory=$(mktemp -d)
+          err_log="$task_directory/list.stderr"
+          pids=()
+          trap 'for pid in ${pids[@]+"${pids[@]}"}; do kill "$pid" 2>/dev/null || true; done; for pid in ${pids[@]+"${pids[@]}"}; do wait "$pid" 2>/dev/null || true; done; rm -rf "$task_directory"' EXIT
 
           echo "Looking up versions of ${OWNER}/${PACKAGE} tagged ${PREFIX}*"
 
@@ -81,7 +88,7 @@ jobs:
             if VERSION_IDS=$(gh api -H "Accept: application/vnd.github+json" \
               "/orgs/${OWNER}/packages/container/${PACKAGE}/versions" \
               --paginate \
-              --jq "[.[] | select(any(.metadata.container.tags[]?; startswith(\"${PREFIX}\"))) | .id] | .[]" \
+              --jq "[.[] | select((.metadata.container.tags | length) > 0 and all(.metadata.container.tags[]; test(\"${TAG_PATTERN}\"))) | .id] | .[]" \
               2>"${err_log}"); then
               break
             fi
@@ -116,23 +123,77 @@ jobs:
 
           deleted=0
           already_gone=0
+          preserved=0
           failures=0
-          # Distinguish 404 ("already gone" — expected on close-mid-build races
-          # or duplicate cleanup runs) from 403/5xx (real failures we should
-          # report).
+          worker_failed=false
+          # Validate and deduplicate the complete listing before starting writes.
           while read -r version_id; do
-            [ -z "${version_id}" ] && continue
+            if [[ ! "$version_id" =~ ^[1-9][0-9]*$ ]]; then
+              echo '::error::Package listing returned an invalid version ID'; exit 1
+            fi
+          done <<< "$VERSION_IDS"
+          VERSION_IDS=$(awk '!seen[$0]++' <<< "$VERSION_IDS")
+
+          clean_version() {
+            trap - EXIT
+            local version_id="$1"
+            local error_log="$task_directory/$version_id.stderr"
+            local result="$task_directory/$version_id.result"
+            local still_owned
+            # Tags may change between the listing and this worker. Refuse to
+            # delete a newly shared version; a failed read never permits DELETE.
+            if still_owned=$(gh api \
+                "/orgs/${OWNER}/packages/container/${PACKAGE}/versions/${version_id}" \
+                --jq "if (.metadata.container.tags | type) != \"array\" then error(\"Missing container tags\") else (.metadata.container.tags | length > 0 and all(.[]; test(\"${TAG_PATTERN}\"))) end" \
+                2>"$error_log"); then
+              if [ "$still_owned" != true ]; then
+                printf 'preserved\n' > "$result"
+                return
+              fi
+            elif grep -q 'HTTP 404' "$error_log"; then
+              printf 'already_gone\n' > "$result"
+              return
+            else
+              cat "$error_log" >&2
+              printf 'failed\n' > "$result"
+              return
+            fi
+
             echo "Deleting version ${version_id}..."
             if gh api -X DELETE \
                 "/orgs/${OWNER}/packages/container/${PACKAGE}/versions/${version_id}" \
-                --silent 2>"${err_log}"; then
-              deleted=$((deleted + 1))
-            elif grep -q "HTTP 404" "${err_log}"; then
-              already_gone=$((already_gone + 1))
+                --silent 2>"$error_log"; then
+              printf 'deleted\n' > "$result"
+            elif grep -q 'HTTP 404' "$error_log"; then
+              printf 'already_gone\n' > "$result"
             else
-              echo "::warning::Delete ${version_id} failed: $(cat "${err_log}")"
-              failures=$((failures + 1))
+              cat "$error_log" >&2
+              printf 'failed\n' > "$result"
             fi
+          }
+          # Eight service jobs share the API: at most three workers per job.
+          # Every worker owns its diagnostics and is joined even after failures.
+          while read -r version_id; do
+            clean_version "$version_id" &
+            pids+=("$!")
+            if [ "${#pids[@]}" -eq 3 ]; then
+              for pid in ${pids[@]+"${pids[@]}"}; do
+                if ! wait "$pid"; then worker_failed=true; fi
+              done
+              pids=()
+            fi
+          done <<< "${VERSION_IDS}"
+          for pid in ${pids[@]+"${pids[@]}"}; do
+            if ! wait "$pid"; then worker_failed=true; fi
+          done
+          pids=()
+          while read -r version_id; do
+            case "$(cat "$task_directory/$version_id.result" 2>/dev/null || true)" in
+              deleted) deleted=$((deleted + 1)) ;;
+              already_gone) already_gone=$((already_gone + 1)) ;;
+              preserved) preserved=$((preserved + 1)) ;;
+              *) failures=$((failures + 1)) ;;
+            esac
           done <<< "${VERSION_IDS}"
 
           {
@@ -140,10 +201,11 @@ jobs:
             echo ""
             echo "- Deleted: ${deleted}"
             echo "- Already gone (404): ${already_gone}"
+            echo "- Shared versions preserved: ${preserved}"
             echo "- Failures: ${failures}"
           } >> "$GITHUB_STEP_SUMMARY"
 
-          if [ "${failures}" -gt 0 ]; then
+          if [ "${failures}" -gt 0 ] || [ "$worker_failed" = true ]; then
             echo "::error::${failures} deletion(s) failed for tale-${SVC}"
             exit 1
           fi

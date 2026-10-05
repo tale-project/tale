@@ -41,8 +41,18 @@ const workflow = async (name = 'build.yml') =>
   parse(
     await readFile(join(repository, '.github/workflows', name), 'utf8'),
   ) as Workflow;
+// Thousands of boundary probes use the same fixed deployed patterns. Compile
+// each once without changing paths-filter's dot:true/default OR semantics.
+const compiledPatterns = new Map<string, ReturnType<typeof picomatch>>();
 const matches = (patterns: string[], path: string) =>
-  patterns.some((pattern) => picomatch(pattern, { dot: true })(path));
+  patterns.some((pattern) => {
+    let compiled = compiledPatterns.get(pattern);
+    if (!compiled) {
+      compiled = picomatch(pattern, { dot: true });
+      compiledPatterns.set(pattern, compiled);
+    }
+    return compiled(path);
+  });
 const filtersOf = (build: Workflow) =>
   parse(
     String(

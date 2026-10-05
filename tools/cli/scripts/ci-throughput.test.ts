@@ -233,12 +233,12 @@ describe('Browser check cache', () => {
     }
   });
 
-  test('always installs native dependencies and only the used headless shell', async () => {
+  test('cold browser verdicts install native dependencies and only the used headless shell', async () => {
     const job = (await workflow('checks')).jobs['test-browser'];
     const install = job.steps.find(
       (step) => step.name === 'Install Playwright Chromium',
     )!;
-    expect(install.if).toBeUndefined();
+    expect(install.if).toBe("steps.browser-cache.outputs.provision != 'false'");
     expect(install.run).toContain(
       'bunx playwright install --with-deps --only-shell chromium',
     );
