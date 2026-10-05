@@ -215,10 +215,13 @@ interface ActiveThread {
 
 const ThreadDndStateContext = createContext<{
   isDragging: boolean;
+  /** The chat being dragged — a windowed list keeps its row mounted. */
+  draggedThreadId: string | null;
   /** True while the row being dragged is an archived one. */
   activeIsArchived: boolean;
 }>({
   isDragging: false,
+  draggedThreadId: null,
   activeIsArchived: false,
 });
 
@@ -321,6 +324,7 @@ export function ThreadDndProvider({
   const state = useMemo(
     () => ({
       isDragging: activeThread !== null,
+      draggedThreadId: activeThread?.id ?? null,
       activeIsArchived: activeThread?.archived === true,
     }),
     [activeThread],

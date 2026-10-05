@@ -86,7 +86,7 @@ import {
   readHomeLocation,
   type HomeLocation,
 } from '../lib/home-paths';
-import { adjacentRow, moveRowFocus } from '../lib/row-navigation';
+import { adjacentRow } from '../lib/row-navigation';
 import { HomeInboxList } from './home-inbox-list';
 import { useHomePanel } from './home-panel-context';
 import { HomeProjects } from './home-projects';
@@ -96,6 +96,7 @@ import {
   HomeDraftChatRow,
   HomeTaskRow,
 } from './home-rows';
+import { HomeStream, type HomeRowPlacement } from './home-stream';
 import { HomeViewSwitcher } from './home-view-switcher';
 
 const SEARCH_PLACEHOLDER_KEY: Record<HomeView, string> = {
@@ -576,6 +577,9 @@ export function HomeNavigator({
   // from elsewhere (a notification, search, a link), its row scrolls into
   // the stream's view instead of staying highlighted somewhere off-screen.
   const streamRef = useRef<HTMLDivElement>(null);
+  const [streamElement, setStreamElement] = useState<HTMLDivElement | null>(
+    null,
+  );
   const activeKey =
     location.kind === 'chat'
       ? // A fresh chat's draft row is the open item too.
@@ -662,7 +666,7 @@ export function HomeNavigator({
     !active &&
     hasDraft(homeDraftKey(item, myUserId, organizationId), item.kind);
 
-  const renderRow = (item: HomeItem) => {
+  const renderRow = (item: HomeItem, placement?: HomeRowPlacement) => {
     const active = isActive(item, location);
     const draft = draftFor(item, active);
     if (item.kind === 'chat') {
@@ -681,6 +685,7 @@ export function HomeNavigator({
               : undefined
           }
           active={active}
+          placement={placement}
         />
       );
     }
@@ -693,6 +698,7 @@ export function HomeNavigator({
           item={item}
           organizationId={organizationId}
           active={active}
+          placement={placement}
         />
       );
     }
@@ -704,6 +710,7 @@ export function HomeNavigator({
         item={item}
         organizationId={organizationId}
         active={active}
+        placement={placement}
       />
     );
   };
@@ -831,6 +838,7 @@ export function HomeNavigator({
 
                 <HomeStreamScroller
                   scrollerRef={streamRef}
+                  onScrollElement={setStreamElement}
                   highlightKey={highlightKey}
                   showBorder={view !== 'all'}
                   layoutVersion={`${view}|${draftingChat ? 'draft|' : ''}${streamLayout}`}
@@ -851,37 +859,26 @@ export function HomeNavigator({
                       />
                     )
                   ) : (
-                    <ol
+                    <HomeStream
                       // Re-keyed per view, so switching views fades the new
                       // list in instead of swapping rows in place.
                       key={view}
-                      aria-label={t('aria.stream')}
-                      onKeyDown={moveRowFocus}
-                      className="animate-in fade-in-0 flex flex-col gap-1 duration-200 motion-reduce:animate-none"
-                    >
-                      {draftingChat && (
-                        <li>
-                          <ul role="list" className="flex flex-col pt-2">
-                            <HomeDraftChatRow
-                              organizationId={organizationId}
-                              {...(draftProjectId !== undefined
-                                ? { projectId: draftProjectId }
-                                : {})}
-                            />
-                          </ul>
-                        </li>
-                      )}
-                      {groups.map((group) => (
-                        <li key={group.key}>
-                          <h3 className="bg-background text-muted-foreground sticky top-0 z-20 px-2 pt-2 pb-1 text-[11px] font-semibold tracking-wider uppercase">
-                            {t(`groups.${group.key}`)}
-                          </h3>
-                          <ul role="list" className="flex flex-col gap-px">
-                            {group.items.map(renderRow)}
-                          </ul>
-                        </li>
-                      ))}
-                    </ol>
+                      groups={groups}
+                      draft={
+                        draftingChat ? (
+                          <HomeDraftChatRow
+                            organizationId={organizationId}
+                            {...(draftProjectId !== undefined
+                              ? { projectId: draftProjectId }
+                              : {})}
+                          />
+                        ) : null
+                      }
+                      renderRow={renderRow}
+                      ariaLabel={t('aria.stream')}
+                      scrollElement={streamElement}
+                      activeKey={highlightKey}
+                    />
                   )}
                 </HomeStreamScroller>
 
@@ -904,12 +901,17 @@ export function HomeNavigator({
  */
 function HomeStreamScroller({
   scrollerRef,
+  onScrollElement,
   highlightKey,
   layoutVersion,
   showBorder = true,
   children,
 }: {
   scrollerRef: RefObject<HTMLDivElement | null>;
+  /** The scroller as state, for the windowed stream inside it: a child's
+   * layout effect runs before this ref attaches, so a ref alone would leave
+   * the window without its scrollport on a quiet mount. */
+  onScrollElement: (node: HTMLDivElement | null) => void;
   /** The open row's key — the one the gliding highlight rests on. */
   highlightKey: string | null;
   /** Changes whenever rows move without the open one changing. */
@@ -928,10 +930,11 @@ function HomeStreamScroller({
   const setRefs = useCallback(
     (node: HTMLDivElement | null) => {
       scrollerRef.current = node;
+      onScrollElement(node);
       setDropRef(node);
       containerRef(node);
     },
-    [scrollerRef, setDropRef, containerRef],
+    [scrollerRef, onScrollElement, setDropRef, containerRef],
   );
   return (
     <div

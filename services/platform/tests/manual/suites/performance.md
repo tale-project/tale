@@ -1,6 +1,6 @@
 # Performance (cross-cutting)
 
-> **Prefix** `PERF-` · **Reset** none · **Cost** 20 boxes
+> **Prefix** `PERF-` · **Reset** none · **Cost** 21 boxes
 
 Spot-check the load and interaction budgets — cold load to first paint, chat
 time-to-first-token (TTFT), thread/route switching, warm-transition prefetch,
@@ -226,6 +226,15 @@ single warm sample.
   minute of the start, or at once on **Try again**. Neither failure sends an
   event to `SENTRY_DSN`: the edge's `UPSTREAM_UNAVAILABLE` is an operational
   answer, like `DATABASE_UNAVAILABLE` in `PERF-B5`.
+- [ ] `PERF-B9` · **Long Home stream** — With more than 60 chats in Home (a
+  few hundred seeded), open one, scroll the stream to its end and back, press
+  **End** and **Home** on a row, then drag a chat from the far end onto a
+  project. → The panel holds only the rows near its view (under 100
+  `[data-thread-id]` elements), and every row is reached by scrolling and by
+  the arrow keys, with no blank gap and no jump. A screen reader reads a row
+  as one item of the whole stream; the open chat keeps its highlight wherever
+  the list scrolls; the drag files the chat. A stream of 60 or fewer keeps
+  every row in the page, so **Ctrl+F** finds any of them.
 
 ## Accessibility (WCAG 2.1 AA)
 

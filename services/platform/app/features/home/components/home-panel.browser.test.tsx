@@ -17,6 +17,7 @@ import type { HomeItem } from '../lib/home-items';
 import { HomeNavigator, HomePanel } from './home-panel';
 import { HomePanelProvider } from './home-panel-context';
 import { HomeConversationRow } from './home-rows';
+import { WINDOWED_STREAM_MIN_ROWS } from './home-stream';
 
 import '@/app/globals.css';
 
@@ -534,6 +535,119 @@ describe('Home panel in Chromium', () => {
     expect(getComputedStyle(dot as HTMLElement).backgroundColor).toBe(
       'rgb(163, 0, 163)',
     );
+  });
+});
+
+/**
+ * Past `WINDOWED_STREAM_MIN_ROWS` the stream mounts only the rows near its
+ * view. A stream of 600 chats mounted 600 rows — each with its menu, drag
+ * handle, age and link — on every load and every search.
+ */
+describe('a long Home stream in Chromium', () => {
+  function mountedRows() {
+    return document.querySelectorAll('[data-thread-id]').length;
+  }
+
+  function rowLink(threadId: string) {
+    return chatRow(threadId).querySelector('a[data-indicator-key]');
+  }
+
+  it('mounts every row of a stream at the threshold', () => {
+    renderHome({ threads: chatList(WINDOWED_STREAM_MIN_ROWS) });
+    expect(mountedRows()).toBe(WINDOWED_STREAM_MIN_ROWS);
+  });
+
+  it('mounts only the rows near the view, each telling its place in the whole stream', async () => {
+    renderHome({ threads: chatList(400) });
+    await expect.poll(() => mountedRows()).toBeGreaterThan(10);
+    expect(mountedRows()).toBeLessThan(80);
+    expect(chatRow('chat-0')).toHaveAttribute('aria-posinset', '1');
+    expect(chatRow('chat-0')).toHaveAttribute('aria-setsize', '400');
+    // The rows sit one under the other, a pixel apart, as the whole list
+    // would place them.
+    const first = box(chatRow('chat-0'));
+    const second = box(chatRow('chat-1'));
+    expect(second.top - first.bottom).toBeCloseTo(1, 0);
+  });
+
+  it('mounts the rows a scroll reaches, at their place, and keeps the open chat with its neighbours', async () => {
+    renderHome({ threads: chatList(400), openThreadId: 'chat-10' });
+    const stream = streamRows();
+    await expect.poll(() => mountedRows()).toBeGreaterThan(10);
+    const expectedHeight = stream.scrollHeight;
+
+    stream.scrollTop = stream.scrollHeight;
+    await expect
+      .poll(() => document.querySelector('[data-thread-id="chat-399"]'))
+      .not.toBeNull();
+    await expect
+      .poll(() => drawnInside(chatRow('chat-399'), stream))
+      .toBe(true);
+    // The far end of the list ends where the list does.
+    expect(box(chatRow('chat-399')).bottom).toBeLessThanOrEqual(
+      box(stream).bottom + SUBPIXEL,
+    );
+    expect(Math.abs(stream.scrollHeight - expectedHeight)).toBeLessThan(
+      expectedHeight * 0.1,
+    );
+    // The open chat and its neighbours stay mounted for ⌥↑/⌥↓ and the
+    // highlight; a row between them and the view does not.
+    for (const id of ['chat-9', 'chat-10', 'chat-11']) {
+      expect(document.querySelector(`[data-thread-id="${id}"]`)).not.toBeNull();
+    }
+    expect(document.querySelector('[data-thread-id="chat-200"]')).toBeNull();
+    expect(mountedRows()).toBeLessThan(90);
+  });
+
+  it('walks the whole stream with the arrow keys, Home and End', async () => {
+    renderHome({ threads: chatList(400) });
+    await expect.poll(() => rowLink('chat-0')).not.toBeNull();
+    const firstLink = rowLink('chat-0');
+    if (!(firstLink instanceof HTMLElement)) throw new Error('No first row');
+    firstLink.focus();
+
+    await userEvent.keyboard('{End}');
+    await expect
+      .poll(() =>
+        document.activeElement
+          ?.closest('[data-thread-id]')
+          ?.getAttribute('data-thread-id'),
+      )
+      .toBe('chat-399');
+
+    await userEvent.keyboard('{ArrowUp}');
+    await expect
+      .poll(() =>
+        document.activeElement
+          ?.closest('[data-thread-id]')
+          ?.getAttribute('data-thread-id'),
+      )
+      .toBe('chat-398');
+
+    await userEvent.keyboard('{Home}');
+    await expect
+      .poll(() =>
+        document.activeElement
+          ?.closest('[data-thread-id]')
+          ?.getAttribute('data-thread-id'),
+      )
+      .toBe('chat-0');
+  });
+
+  it('keeps a focused row mounted, and focused, while the stream scrolls away', async () => {
+    renderHome({ threads: chatList(400) });
+    await expect.poll(() => rowLink('chat-5')).not.toBeNull();
+    const link = rowLink('chat-5');
+    if (!(link instanceof HTMLElement)) throw new Error('No row');
+    link.focus();
+
+    const stream = streamRows();
+    stream.scrollTop = stream.scrollHeight;
+    await expect
+      .poll(() => document.querySelector('[data-thread-id="chat-399"]'))
+      .not.toBeNull();
+    expect(document.querySelector('[data-thread-id="chat-5"]')).not.toBeNull();
+    expect(document.activeElement).toBe(link);
   });
 });
 
