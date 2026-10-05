@@ -79,11 +79,18 @@ baseline behavior do not count.
   and keep its download cache in a separate namespace. Native source tests retain
   the full workspace install because they import platform auth modules. Windows
   keeps its normalized download store beside the checkout, outside the source tree,
-  so Bun can hardlink on the same volume. Its native row skips archive restore/save
-  and runs that complete frozen install directly. Matched dependency inputs took
-  70 seconds cold, versus 25 seconds restoring plus 55 seconds installing from a
-  warm archive; compare final hosted results before treating that difference as a
-  fixed saving. Linux/macOS native and cross rows retain their download archives.
+  so Bun can use hardlinks when the physical filesystem permits them. Its native row
+  skips archive restore/save and runs that complete frozen install directly.
+  Matched dependency inputs took 70 seconds cold, versus 25 seconds restoring plus
+  55 seconds installing from a warm archive; compare final hosted results before
+  treating that difference as a fixed saving. Linux/macOS native and cross rows
+  retain their download archives.
+  A trusted inline Windows step records the effective store and samples the
+  installed TypeScript file against cache entries with matching package metadata.
+  It reports hardlinks only for distinct regular files with confirmed NTFS,
+  matching nonzero BigInt volume/file IDs and at least two links; unsupported
+  layouts report unknown. The observation follows installation and precedes
+  embedded source generation.
   Source tests
   and compiled smoke discovery run serially on all three hosts. Two workers made
   Windows fixtures exceed their unchanged 30-second limits; Linux two-worker runs
@@ -496,11 +503,25 @@ Both amd64 production installs retained the same 1,543 packages; the native SBOM
 test-only glob library absent. Cache export remains a substantial, variable cost;
 these changes do not establish an overall pipeline speedup.
 
+A local Linux/amd64 comparison of the `6e0cadb2c` and `d934290d8` Dockerfiles
+executed both production installs with identical workspace metadata, patches and
+resolved base images. The dependency trees matched across all 65,920 entries,
+including 57,751 regular files and 96 symlinks: bytes, file types, modes, ownership
+and symlink targets were identical. Modification times, traversal order and
+physical inode representation were excluded. The isolated pruner executed without
+frontend vertices; its final dependency COPY reused the original build's content
+cache. This proves artifact parity at those inputs, not a controlled timing
+improvement or a new artifact comparison after later manifest changes.
+The Docker guard rejects source ancestry through FROM, COPY, ADD and RUN mounts,
+and pins complete runtime copies, ownership and the production install's required
+failure propagation.
+
 In the [same-source CLI run](https://github.com/tale-project/tale/actions/runs/37283199170),
 Windows downloaded its 254 MiB Bun cache in about one second, then spent about
 128 seconds extracting it and 41 seconds installing dependencies. Its home-directory
-cache and checkout were on different volumes. Moving the store beside the checkout
-enables Bun's [documented Windows hardlinks](https://bun.sh/docs/pm/global-cache#fast-copying);
+store used a `C:` path and its checkout used a `D:` path; that run did not record
+volume or file identities. Moving the store beside the checkout permits Bun's
+[documented Windows hardlinks](https://bun.sh/docs/pm/global-cache#fast-copying);
 it does not establish a reduction in cache extraction time. That path change started
 a new cache version, and the first hosted runs used a cold store.
 
@@ -512,9 +533,10 @@ uses the cache action's pinned `@actions/glob` 0.5.1 to reject that original pat
 accept a resolved, populated store. A passing install alone does not prove cache reuse.
 
 The corrected [main publisher](https://github.com/tale-project/tale/actions/runs/37293503192)
-at `b04bbb5e6` saved a 252,814,413-byte archive from the absolute sibling path.
+at `b04bbb5e6` passed all five targets and saved a 252,814,413-byte archive from the
+absolute sibling path after a cold 70.18-second install.
 The protected [CLI run](https://github.com/tale-project/tale/actions/runs/37293674424)
-checked out corrected source `b3e73c51d` under that workflow, restored the exact
+checked out corrected source `b3e73c51d` under that workflow and restored the exact
 archive. All five targets compiled and uploaded; source and compiled smoke tests
 passed on the three native hosts, and both macOS targets passed strict signatures.
 
@@ -525,9 +547,14 @@ passed on the three native hosts, and both macOS targets passed strict signature
 
 The corrected frozen install retained the complete workspace and installed 1,909
 packages. The earlier run installed 1,903; the archive contents and runners also
-differ. These are observed samples, not a controlled percentage improvement.
+differ. These are observed samples, not a controlled percentage improvement. Later
+dispatched runs and [the ordinary `628a1c623` run](https://github.com/tale-project/tale/actions/runs/37294480506)
+restored the same exact key and archive: restoration took 25–36 seconds and
+installation took 54–56 seconds, with every source and compiled smoke case retained.
+These phase measurements prove archive reuse; no native volume or file identities
+were recorded in these runs.
 
-Later main (`74935ed9b`) keeps the normalized same-volume store but skips native
+Later main (`74935ed9b`) keeps the normalized sibling store but skips native
 Windows archive restore/save and runs the complete frozen install directly. The
 measurements above describe the validated preceding archive strategy; current
 Linux/macOS native and cross targets still use their archives.

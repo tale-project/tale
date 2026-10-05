@@ -277,6 +277,93 @@ jobs:
           path: ${{ (matrix.cross || runner.os == 'Windows') && env.BUN_INSTALL_CACHE_DIR || '~/.bun/install/cache' }}
           key: ${{ steps.bun-cache.outputs.cache-primary-key }}
 
+      - name: Observe Windows Bun cache locality
+        if: runner.os == 'Windows' && !matrix.cross
+        working-directory: tools/cli
+        run: |
+          bun_cache_path="$(bun pm cache)"
+          # PowerShell variables remain literal inside the inline Bun program.
+          # shellcheck disable=SC2016
+          BUN_INSTALL_CACHE_OBSERVED="$bun_cache_path" bun -e '
+            import { spawnSync } from "node:child_process";
+            import { readFileSync, readdirSync, realpathSync, statSync } from "node:fs";
+            import { homedir } from "node:os";
+            import { dirname, join } from "node:path";
+            const optional = (read) => {
+              try { return read(); }
+              catch (error) {
+                if (error.code === "ENOENT" || error.code === "ENOTDIR") return undefined;
+                throw error;
+              }
+            };
+            const fileSystems = new Map();
+            const inspect = (path) => {
+              const sample = path ? optional(() => {
+                const resolved = realpathSync(path);
+                const info = statSync(resolved, { bigint: true });
+                return { path: resolved, regular: info.isFile(), directory: info.isDirectory(),
+                  dev: info.dev, ino: info.ino, nlink: info.nlink, size: info.size };
+              }) : undefined;
+              if (sample?.regular && process.platform === "win32") {
+                if (!fileSystems.has(sample.path)) {
+                  const query = spawnSync("powershell.exe", ["-NoLogo", "-NoProfile", "-NonInteractive", "-Command",
+                    "$ErrorActionPreference = \"Stop\"; $volumes = @(Get-Volume -FilePath $env:TALE_BUN_PROBE_FILE -ErrorAction Stop); if ($volumes.Count -eq 1) { [string]$volumes[0].FileSystem }"],
+                    { encoding: "utf8", env: { ...process.env, TALE_BUN_PROBE_FILE: sample.path } });
+                  if (query.error) throw query.error;
+                  if (query.status !== 0) throw new Error("Volume filesystem query failed: " + query.stderr);
+                  fileSystems.set(sample.path, query.stdout.trim() || null);
+                }
+                sample.fileSystem = fileSystems.get(sample.path);
+              }
+              return sample;
+            };
+            const cachePath = process.env.BUN_INSTALL_CACHE_OBSERVED;
+            if (!cachePath) throw new Error("bun pm cache returned an empty path.");
+            const paths = {
+              home: inspect(homedir()), workspace: inspect(process.env.GITHUB_WORKSPACE),
+              cache: inspect(cachePath), runnerTemp: inspect(process.env.RUNNER_TEMP),
+            };
+            let manifestPath, metadata;
+            for (const root of [process.cwd(), process.env.GITHUB_WORKSPACE].filter(Boolean)) {
+              const path = join(root, "node_modules/typescript/package.json");
+              const found = optional(() => JSON.parse(readFileSync(path, "utf8")));
+              if (found?.name === "typescript" && typeof found.version === "string") {
+                manifestPath = path; metadata = found; break;
+              }
+            }
+            const installed = manifestPath && inspect(join(dirname(manifestPath), "lib/typescript.js"));
+            const candidates = [];
+            if (metadata?.name === "typescript" && typeof metadata.version === "string") {
+              for (const entry of optional(() => readdirSync(cachePath)) ?? []) {
+                if (!entry.startsWith("typescript@")) continue;
+                const root = join(cachePath, entry);
+                const cachedMetadata = optional(() => JSON.parse(readFileSync(join(root, "package.json"), "utf8")));
+                if (cachedMetadata?.name !== metadata.name || cachedMetadata.version !== metadata.version) continue;
+                const cached = inspect(join(root, "lib/typescript.js"));
+                const comparable = installed?.regular && cached?.regular && installed.dev !== 0n && cached.dev !== 0n
+                  && installed.ino !== 0n && cached.ino !== 0n;
+                const samePath = installed && cached && (process.platform === "win32"
+                  ? installed.path.toLowerCase() === cached.path.toLowerCase() : installed.path === cached.path);
+                const sameIdentity = comparable && installed.dev === cached.dev && installed.ino === cached.ino;
+                const supportedIdentity = process.platform !== "win32"
+                  || installed?.fileSystem === "NTFS" && cached?.fileSystem === "NTFS";
+                const status = !comparable || samePath || !supportedIdentity ? "unknown"
+                  : sameIdentity && installed.nlink >= 2n && cached.nlink >= 2n ? "hardlinked"
+                  : sameIdentity ? "unknown" : "not-linked-to-sampled-cache-file";
+                candidates.push({ cached, status });
+              }
+            }
+            const status = candidates.some((entry) => entry.status === "hardlinked") ? "hardlinked"
+              : candidates.some((entry) => entry.status === "not-linked-to-sampled-cache-file")
+                ? "not-linked-to-sampled-cache-file" : "unknown";
+            const cacheWorkspaceSameVolume = paths.cache?.dev && paths.workspace?.dev
+              ? paths.cache.dev === paths.workspace.dev : null;
+            console.log(JSON.stringify({ selectedCache: process.env.BUN_INSTALL_CACHE_DIR, observedCache: cachePath,
+              paths, cacheWorkspaceSameVolume, package: metadata && { name: metadata.name, version: metadata.version },
+              installed, candidates, candidateCount: candidates.length, status },
+              (_key, value) => typeof value === "bigint" ? value.toString() : value));
+          '
+
       - name: Generate embedded files
         working-directory: tools/cli
         run: bun run generate
