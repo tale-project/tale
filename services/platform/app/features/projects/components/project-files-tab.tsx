@@ -36,6 +36,7 @@ import {
   useCallback,
   useEffect,
   useId,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -271,6 +272,19 @@ function buildTree(folders: ProjectFolderRow[], docs: ProjectDocumentRow[]) {
   return { childFolders, filesByFolder };
 }
 
+/** A folder's id and every id below it, from `buildTree`'s child index. */
+function folderSubtree(
+  childFolders: ReadonlyMap<string, ProjectFolderRow[]>,
+  folderId: string,
+): ReadonlySet<string> {
+  const ids = new Set([folderId]);
+  // A Set visits what is added during its iteration: a breadth-first walk.
+  for (const id of ids) {
+    for (const child of childFolders.get(id) ?? []) ids.add(child._id);
+  }
+  return ids;
+}
+
 export function ProjectFilesTab({
   organizationId,
   projectId,
@@ -324,6 +338,17 @@ export function ProjectFilesTab({
   // Expanded folder ids; the selected folder is the upload target.
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
+  // The upload target as the mounted tab shows it now, for a write that
+  // answers later: the tree stays usable while a folder delete is pending,
+  // so the reader may have picked another folder, switched project or left
+  // the tab (#3917).
+  const selectedFolderIdRef = useRef<string | null>(null);
+  useLayoutEffect(() => {
+    selectedFolderIdRef.current = selectedFolderId;
+    return () => {
+      selectedFolderIdRef.current = null;
+    };
+  }, [selectedFolderId]);
   const [createFolderParent, setCreateFolderParent] = useState<{
     parentId?: string;
   } | null>(null);
@@ -364,6 +389,12 @@ export function ProjectFilesTab({
     },
     [syncFolderSearch],
   );
+  // A late answer clears through the committed callback, so the address it
+  // writes names the project the tab shows now.
+  const selectFolderRef = useRef(selectFolder);
+  useLayoutEffect(() => {
+    selectFolderRef.current = selectFolder;
+  });
 
   // One-shot deep-link hydrate: select + expand the folder (and ancestors)
   // once folders have loaded and `initialFolderId` matches a real row.
@@ -851,9 +882,17 @@ export function ProjectFilesTab({
 
   const handleDeleteFolder = useCallback(
     async (folderId: string) => {
+      // The delete takes the folder's whole subtree, as the tree knew it
+      // when the reader confirmed.
+      const deleted = folderSubtree(childFolders, folderId);
       try {
         await deleteFolder({ folderId });
-        if (selectedFolderId === folderId) selectFolder(null);
+        // Clear the upload target only if it still is a deleted folder: a
+        // folder picked while the write was pending stays the target.
+        const current = selectedFolderIdRef.current;
+        if (current !== null && deleted.has(current)) {
+          selectFolderRef.current(null);
+        }
         toast({
           title: t('files.folderDeleted', { defaultValue: 'Folder deleted' }),
           variant: 'success',
@@ -880,7 +919,7 @@ export function ProjectFilesTab({
         });
       }
     },
-    [deleteFolder, selectFolder, selectedFolderId, t],
+    [childFolders, deleteFolder, t],
   );
 
   const handleRetryIndexing = useCallback(

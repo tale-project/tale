@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
@@ -118,8 +118,12 @@ export function useEmailConnectors(organizationId: string): {
   error: unknown;
   retry: () => Promise<unknown>;
 } {
-  const { inboxAutomations, isLoading: inboxLoading } =
-    useInboxAvailability(organizationId);
+  const {
+    inboxAutomations,
+    isLoading: inboxLoading,
+    error: inboxError,
+    retry: retryInbox,
+  } = useInboxAvailability(organizationId);
 
   const providerSlugs = useMemo(
     () => [
@@ -166,11 +170,16 @@ export function useEmailConnectors(organizationId: string): {
     return options.length === 0 ? EMPTY_EMAIL_CONNECTORS : options;
   }, [credentials, providerSlugs]);
 
+  const retry = useCallback(
+    () => Promise.all([retryInbox(), refetchCredentials()]),
+    [retryInbox, refetchCredentials],
+  );
+
   return {
     emailConnectors,
     isLoading: inboxLoading || credentialsLoading,
-    error: credentialsError,
-    retry: refetchCredentials,
+    error: inboxError ?? credentialsError,
+    retry,
   };
 }
 

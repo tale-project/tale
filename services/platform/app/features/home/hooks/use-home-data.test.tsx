@@ -13,6 +13,7 @@ const reads = vi.hoisted(() => ({
   archived: vi.fn(),
   threads: vi.fn(),
   retryChats: vi.fn(),
+  inboxAvailability: { hasInbox: true, showInbox: true, isLoading: false },
 }));
 
 const CHATS = {
@@ -58,7 +59,7 @@ vi.mock('@/app/hooks/use-current-user', () => ({
 }));
 
 vi.mock('@/app/features/conversations/hooks/use-inbox-availability', () => ({
-  useInboxAvailability: () => ({ hasInbox: true, isLoading: false }),
+  useInboxAvailability: () => reads.inboxAvailability,
 }));
 
 vi.mock('@/app/features/conversations/hooks/queries', () => ({
@@ -106,6 +107,8 @@ function task(overrides: Record<string, unknown>) {
 }
 
 beforeEach(() => {
+  reads.inboxAvailability.hasInbox = true;
+  reads.inboxAvailability.showInbox = true;
   reads.threads.mockReset().mockReturnValue(CHATS);
   reads.retryChats.mockReset().mockResolvedValue(undefined);
   reads.archived.mockReset().mockReturnValue({
@@ -149,6 +152,26 @@ beforeEach(() => {
 });
 
 describe('useHomeData', () => {
+  it('keeps the Inbox navigation visible while source discovery has failed', () => {
+    reads.inboxAvailability.hasInbox = false;
+    reads.inboxAvailability.showInbox = true;
+    const { result } = renderHook(() => useHomeData('org-1'));
+    expect(result.current.hasInbox).toBe(true);
+    expect(reads.conversations).toHaveBeenCalledWith(
+      expect.objectContaining({ enabled: true }),
+    );
+  });
+
+  it('hides the Inbox navigation only after successful empty discovery', () => {
+    reads.inboxAvailability.hasInbox = false;
+    reads.inboxAvailability.showInbox = false;
+    const { result } = renderHook(() => useHomeData('org-1'));
+    expect(result.current.hasInbox).toBe(false);
+    expect(reads.conversations).toHaveBeenCalledWith(
+      expect.objectContaining({ enabled: false }),
+    );
+  });
+
   it('uses the captured server review recipient instead of a stale task designation', () => {
     reads.tasks.mockImplementation(
       (options: { assigneeId?: string; reviewerId?: string }) =>

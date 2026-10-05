@@ -656,6 +656,8 @@ automations:
     runLive: Run live
     runLiveNeedsDeploy: Deploy a version first — a live run executes the
       deployed version.
+    deployedReadFailed: Couldn't load the deployed version
+    runLiveNeedsDeployedRead: Couldn't load the deployed version — try again.
     runLiveTitle: Run live?
     runLiveBody: This runs the deployed version for real — emails send, records change. It won't run again automatically.
     runInput:
@@ -1750,6 +1752,7 @@ connectivity:
     reload: Reload
     later: Later
 conversations:
+  availabilityError: We couldn't check your Inbox sources. Try again to refresh Inbox availability.
   title: Inbox
   unknownContact: Unknown contact
   messagePlaceholder: Type a message
@@ -5785,6 +5788,8 @@ settings:
       manage automations — and to reach this organization's own capabilities and
       knowledge.
     copyEndpoint: Copy MCP endpoint URL
+    organizationReadFailed: The organization details could not be loaded, so the example request is unavailable.
+    organizationReadRetry: Try again
     authHelp:
       'Authenticate with a REST API key as a bearer token. A key belongs to
       the person who created it and works in every organization they are a

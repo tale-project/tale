@@ -107,6 +107,10 @@ export function ProjectBreadcrumbSwitcher({
           search: (prev) => {
             const next = { ...prev };
             delete next.projects;
+            // A folder belongs to one project: the next project's Files tab
+            // opens at its root, never on the previous project's folder
+            // (#3918).
+            delete next.folderId;
             return next;
           },
         });

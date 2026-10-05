@@ -686,6 +686,8 @@ automations:
     runLive: Live ausführen
     runLiveNeedsDeploy: Schalte zuerst eine Version live — ein Live-Lauf führt
       die Version aus, die live ist.
+    deployedReadFailed: Die live geschaltete Version konnte nicht geladen werden
+    runLiveNeedsDeployedRead: Die live geschaltete Version konnte nicht geladen werden — versuche es erneut.
     runLiveTitle: Live ausführen?
     runLiveBody: Führt die deployte Version live aus — Mails gehen raus, Daten ändern sich. Ein erneuter Lauf startet nicht automatisch.
     runInput:
@@ -1803,6 +1805,7 @@ connectivity:
     reload: Neu laden
     later: Später
 conversations:
+  availabilityError: Deine Posteingangsquellen konnten nicht geprüft werden. Versuch es erneut, um die Verfügbarkeit des Posteingangs zu aktualisieren.
   title: Inbox
   unknownContact: Unbekannter Kontakt
   messagePlaceholder: Nachricht eingeben
@@ -5557,6 +5560,8 @@ settings:
       Automatisierungen zu erstellen, auszuführen und zu verwalten — und um an
       die Capabilities und das Wissen dieser Organisation zu kommen.
     copyEndpoint: MCP-Endpunkt-URL kopieren
+    organizationReadFailed: Die Organisationsdaten konnten nicht geladen werden; die Beispielanfrage ist nicht verfügbar.
+    organizationReadRetry: Erneut versuchen
     authHelp: 'Authentifiziere dich mit einem REST-API-Schlüssel als
       Bearer-Token. Ein Schlüssel gehört der Person, die ihn erstellt hat, und
       gilt in jeder Organisation, der sie angehört; diese Organisation nennt der
