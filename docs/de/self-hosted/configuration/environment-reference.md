@@ -372,6 +372,34 @@ Halte `sandbox`, `sandbox-egress` und `SANDBOX_RUNTIME_IMAGE` beim Upgrade auf d
 
 Kubernetes-Pods erhalten nicht automatisch unsichere Sysctls. Der Egress-Proxy braucht eine funktionierende IPv6-Firewall oder deaktiviertes IPv6 in seinem Netzwerk-Namespace. Ist die IPv6-Firewall nicht verfügbar, versucht der Entrypoint IPv6 dort zu deaktivieren und prüft danach den Standardwert und jede Schnittstelle. Ein schreibgeschütztes `/proc/sys` oder fehlende Schreibrechte können das verhindern; ohne Schutz für weiterhin aktives IPv6 startet der Proxy nicht. Konfiguriere den Egress-Pod vor dem Deployment mit den Netzwerkeinstellungen, die dein Cluster erlaubt.
 
+## SSH-Zugang zu Repositories {#ssh-repository-access}
+
+Die native Sandbox enthält OpenSSH und `netcat-openbsd`. Gib einen austauschbaren, auf das Repository beschränkten Schlüssel als benanntes Agent-Secret frei und lade ihn im berechtigten Lauf über stdin in `ssh-agent`. Die privaten Bytes bleiben in der Umgebung; schreibe keine Schlüsseldatei und gib sie nie aus. Ein von einem Mitglied gestarteter Lauf erhält keine Agent-Secrets. Git-Commits nutzen den Namen und die E-Mail des Workspace-Eigentümers auch ohne Freigabe eines GitHub-Konnektors.
+
+Interne Sitzungen nutzen ihren bestehenden `HTTP_PROXY` für ausgehende Verbindungen. Direktes SSH kann in diesem Netz nicht auf externe DNS-Auflösung bauen. Nutze den HTTP-CONNECT-Tunnel des Proxys und einen erlaubten Port. GitHub unterstützt SSH über `ssh.github.com:443`; prüfe den Host gegen [GitHubs veröffentlichte Fingerabdrücke](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/githubs-ssh-key-fingerprints), wie unter [SSH über Port 443](https://docs.github.com/en/authentication/troubleshooting-ssh/using-ssh-over-the-https-port) beschrieben. Lege eine öffentliche Known-Hosts-Datei mit dem unabhängig geprüften Schlüssel an und konfiguriere den Befehl, nachdem der Agent den privaten Schlüssel geladen hat:
+
+```python
+import os
+import shlex
+import subprocess
+from urllib.parse import urlsplit
+
+proxy = urlsplit(os.environ["HTTP_PROXY"])
+if proxy.scheme != "http" or not proxy.hostname or not proxy.port or proxy.username or proxy.password:
+    raise ValueError("Expected the existing unauthenticated HTTP egress proxy")
+connect = shlex.join(["nc", "-X", "connect", "-x", f"{proxy.hostname}:{proxy.port}", "%h", "%p"])
+environment = os.environ.copy()
+environment["GIT_SSH_COMMAND"] = shlex.join([
+    "ssh", "-o", f"ProxyCommand={connect}", "-o", "StrictHostKeyChecking=yes",
+    "-o", "UserKnownHostsFile=/tmp/repository-known-hosts",
+    "-o", "GlobalKnownHostsFile=/dev/null", "-o", "BatchMode=yes",
+    "-o", "ConnectTimeout=20",
+])
+subprocess.run(["git", "ls-remote", "--exit-code", "ssh://git@ssh.github.com:443/org/repository.git", "HEAD"], env=environment, check=True, timeout=30)
+```
+
+Die Known-Hosts-Datei enthält nur den öffentlichen Hostschlüssel des Anbieters; der private Repository-Schlüssel bleibt in `ssh-agent`. Die bestehende Egress-Richtlinie und der Zugriffsumfang des Repository-Schlüssels gelten weiterhin. Eine weitergehende GitHub-Konnektorfreigabe ist nicht nötig.
+
 ## Sandbox-Geräte {#sandbox-devices}
 
 Organisationen können ihre Sandboxes auf eigenen Rechnern ausführen, die sie unter [Einstellungen > Sandboxes](/de/platform/admin/sandbox-devices) verbinden. Ein Gerät baut über HTTPS eine Verbindung zu `<SITE_URL><BASE_PATH>/sandbox/tunnel` auf und hält einen WebSocket offen. Der mitgelieferte Proxy leitet diesen Pfad, und nur diesen, an den Geräte-Hub des Spawners weiter; die signierte API des Spawners bleibt im internen Netz. Geräte brauchen das Docker-Backend: Mit Kubernetes bleibt der Hub ausgeschaltet.

@@ -45551,16 +45551,25 @@ async function checkTurnEquipmentBroker(
     `created=${created.success}, GITHUB_TOKEN=${env.GITHUB_TOKEN === token}, GH_TOKEN=${env.GH_TOKEN === token}, gitConfig=${env.GIT_CONFIG_COUNT ?? 'unset'} (want 3), helper=${helperPair?.[1] ?? 'missing'}, audit=${audit.map((row) => `${row.slug}:${row.kind}`).join(',') || 'none'}`,
   );
 
-  // An UNGRANTED turn does no credential work and injects nothing.
+  // An ungranted turn resolves the same owner's non-secret author identity,
+  // without fetching a connector token or recording credential access.
   const emptyEnv = await resolveTurnEquipmentEnv(
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the work-lane jobs run the resolver on exactly this shim
     shim as unknown as Parameters<typeof resolveTurnEquipmentEnv>[0],
     { organizationId: orgId, sessionId, connectors: [], secrets: [] },
   );
   record(
-    'turn-equipment broker: no grants → empty env',
-    Object.keys(emptyEnv).length === 0,
-    `env keys=${Object.keys(emptyEnv).join(',') || 'none'}`,
+    'turn-equipment broker: no grants → owner identity only, no new credential access',
+    emptyEnv.GIT_CONFIG_COUNT === '2' &&
+      emptyEnv.GIT_CONFIG_KEY_0 === 'user.name' &&
+      emptyEnv.GIT_CONFIG_VALUE_0 === env.GIT_CONFIG_VALUE_1 &&
+      emptyEnv.GIT_CONFIG_KEY_1 === 'user.email' &&
+      emptyEnv.GIT_CONFIG_VALUE_1 === env.GIT_CONFIG_VALUE_2 &&
+      emptyEnv.GITHUB_TOKEN === undefined &&
+      (
+        await sql`SELECT 1 FROM app.sandbox_credential_access WHERE session_id = ${sessionId}`
+      ).length === audit.length,
+    `identity pairs=${emptyEnv.GIT_CONFIG_COUNT ?? 'unset'}, token present=${emptyEnv.GITHUB_TOKEN !== undefined}`,
   );
 
   // Leave no connected github credential behind — later checks read the

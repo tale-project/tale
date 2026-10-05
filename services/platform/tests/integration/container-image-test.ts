@@ -25,6 +25,7 @@ import {
 import { checkDocumentTools } from './lib/document-tools';
 import { capture, projectRoot, stream } from './lib/exec';
 import { BOLD, GREEN, header, NC, RED, Results, YELLOW } from './lib/log';
+import { checkSshTools } from './lib/ssh-tools';
 
 const PROJECT_ROOT = projectRoot();
 const compose = new Compose(
@@ -208,6 +209,16 @@ async function main(): Promise<number> {
   const runtimeImage = images.get('sandbox-runtime');
   if (runtimeImage) {
     for (const uid of [65534, 10001] as const) {
+      const ssh = await checkSshTools(runtimeImage, uid);
+      if (ssh.exitCode === 0) {
+        r.pass(
+          `sandbox-runtime: SSH agent and HTTP CONNECT work as uid ${uid}`,
+        );
+      } else {
+        r.fail(
+          `sandbox-runtime: SSH tools failed as uid ${uid}: ${ssh.combined.slice(-1200)}`,
+        );
+      }
       const result = await checkDocumentTools(runtimeImage, uid);
       if (result.exitCode === 0) {
         r.pass(
