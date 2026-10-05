@@ -38,6 +38,7 @@ security:
   - .trivyignore.yaml
   - .github/workflows/security.yml
 cli:
+  - '.gitattributes'
   - '.github/release-candidate-contract.json'
   - 'tools/cli/**'
   - 'services/platform/backend/core/**'

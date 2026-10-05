@@ -127,6 +127,7 @@
         "$TURBO_ROOT$/.github/ci-scope.yml",
         "$TURBO_ROOT$/.github/actions/ci-scope/action.yml",
         "$TURBO_ROOT$/.github/actions/ci-ready/action.yml",
+        "$TURBO_ROOT$/.gitattributes",
         "$TURBO_ROOT$/.github/release-candidate-contract.json"
       ],
       "dependsOn": ["generate", "transit"]

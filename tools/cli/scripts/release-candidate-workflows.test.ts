@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import { createHash } from 'node:crypto';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runInNewContext } from 'node:vm';
 
@@ -10,6 +10,7 @@ import picomatch from 'picomatch';
 import { parse } from 'yaml';
 
 import releaseContract from '../../../.github/release-candidate-contract.json';
+import { fixtureGit } from '../src/lib/config/releases/tests/fixture-git';
 import {
   admissionAssertions,
   refreshContract,
@@ -1209,6 +1210,51 @@ test('the shared source descriptor binds the full admission graph and event-spec
     ).toBe(digest);
 });
 
+test('helper hashes survive an autocrlf checkout only with the repository attributes', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'release-helper-eol-'));
+  temporary.push(directory);
+  const globalAttributes = join(directory, 'empty-global-attributes');
+  await writeFile(globalAttributes, '');
+  const git = fixtureGit(directory, {
+    command: [
+      'git',
+      '-c',
+      'core.autocrlf=true',
+      '-c',
+      'core.safecrlf=false',
+      '-c',
+      `core.attributesFile=${globalAttributes}`,
+    ],
+  });
+  git('init', '--quiet');
+  const attributes = await readFile(join(root, '.gitattributes'));
+  await writeFile(join(directory, '.gitattributes'), attributes);
+  const paths = Object.keys(releaseContract.helpers);
+  for (const path of paths) {
+    await mkdir(dirname(join(directory, path)), { recursive: true });
+    await writeFile(join(directory, path), await readFile(join(root, path)));
+  }
+  git('add', '--', '.gitattributes', ...paths);
+  for (const withAttributes of [true, false]) {
+    // Checkout reads attributes from the index first, so change only that
+    // entry for the negative control. Both helper blobs remain identical.
+    await writeFile(
+      join(directory, '.gitattributes'),
+      withAttributes ? attributes : '',
+    );
+    git('add', '--', '.gitattributes');
+    for (const path of paths) await rm(join(directory, path));
+    git('checkout-index', '--force', '--', ...paths);
+    for (const [path, digest] of Object.entries(releaseContract.helpers)) {
+      const bytes = await readFile(join(directory, path));
+      const actual = createHash('sha256').update(bytes).digest('hex');
+      expect(bytes.includes('\r\n'), path).toBe(!withAttributes);
+      if (withAttributes) expect(actual, path).toBe(digest);
+      else expect(actual, path).not.toBe(digest);
+    }
+  }
+});
+
 test('source contract edits trigger native CI and invalidate CLI caches', async () => {
   const filters = parse(
     await readFile(join(root, '.github/ci-scope.yml'), 'utf8'),
@@ -1243,6 +1289,11 @@ test('source contract edits trigger native CI and invalidate CLI caches', async 
   const turbo = JSON.parse(
     await readFile(join(root, 'tools/cli/turbo.json'), 'utf8'),
   );
+  expect(matches(filters.cli!, '.gitattributes')).toBe(true);
+  expect(
+    matches((cli.on.push as { paths: string[] }).paths, '.gitattributes'),
+  ).toBe(true);
+  expect(turbo.tasks.test.inputs).toContain('$TURBO_ROOT$/.gitattributes');
   for (const task of ['transit', 'test'])
     expect(turbo.tasks[task].inputs).toContain(
       '$TURBO_ROOT$/.github/release-candidate-contract.json',

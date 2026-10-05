@@ -16,6 +16,7 @@ const CLI_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 const LOCALES = ['en', 'de', 'fr'];
 /** Outside files read by the CI, cache, candidate and performance suites. */
 const CHECKED_CI_FILES = [
+  '.gitattributes',
   '.github/release-candidate-contract.json',
   'services/platform/tests/integration/container-image-test.ts',
   'services/platform/tests/integration/lib/docker.ts',
