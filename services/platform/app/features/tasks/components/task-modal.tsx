@@ -57,6 +57,7 @@ import {
   useFileUpload,
 } from '@/app/features/shared/files/use-file-upload';
 import { useBackendAction } from '@/app/hooks/use-backend-action';
+import { useBackendClient } from '@/app/hooks/use-backend-client';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { useFormatNumber } from '@/app/hooks/use-format-number';
@@ -1332,6 +1333,8 @@ export function EditTaskBody({
   const { formatNumber } = useFormatNumber();
 
   const updateTask = useUpdateTask({ errorToast: false });
+  const backendClient = useBackendClient();
+  const attachmentQueueRef = useRef(Promise.resolve());
   const updateStatus = useUpdateTaskStatus();
   // Status verbs on an automation-owned task route through the owning
   // workflow's choreography; a plain task keeps the bare write. Cancelling a
@@ -1605,30 +1608,43 @@ export function EditTaskBody({
     }
   };
 
-  // Upload then persist atomically: uploadFiles awaits every upload, then
-  // clearAttachments() returns + resets them, so we fold the new files into the
-  // task's existing set in a single updateTask (full-replace, like labels).
-  const onUploadAttachments = async (files: File[]) => {
-    await uploadFiles(files);
-    const added = clearAttachments();
-    if (added.length === 0) return;
-    await updateTask
-      .mutateAsync({
-        taskId: task._id,
-        attachments: stripPreviews([...(task.attachments ?? []), ...added]),
-      })
-      .catch(onMutationError);
+  const enqueueAttachmentChange = (change: () => Promise<void>) => {
+    const pending = attachmentQueueRef.current.then(change);
+    attachmentQueueRef.current = pending.catch(onMutationError);
+    return attachmentQueueRef.current;
   };
-  const onRemoveAttachment = (fileId: string) => {
-    void updateTask
-      .mutateAsync({
+  const savedAttachments = async () => {
+    const latest = await backendClient.query('tasks/queries:getTask', {
+      organizationId: task.organizationId,
+      taskId: task._id,
+    });
+    if (latest === null) throw new Error(tCommon('errors.generic'));
+    return latest.task.attachments ?? [];
+  };
+  const onUploadAttachments = (files: File[]) =>
+    uploadFiles(files)
+      .catch(onMutationError)
+      .then(() =>
+        enqueueAttachmentChange(async () => {
+          const added = clearAttachments();
+          if (added.length === 0) return;
+          const current = await savedAttachments();
+          await updateTask.mutateAsync({
+            taskId: task._id,
+            attachments: stripPreviews([...current, ...added]),
+          });
+        }),
+      );
+  const onRemoveAttachment = (fileId: string) =>
+    enqueueAttachmentChange(async () => {
+      const current = await savedAttachments();
+      await updateTask.mutateAsync({
         taskId: task._id,
         attachments: stripPreviews(
-          (task.attachments ?? []).filter((a) => a.fileId !== fileId),
+          current.filter((entry) => entry.fileId !== fileId),
         ),
-      })
-      .catch(onMutationError);
-  };
+      });
+    });
   // A paste anywhere in the dialog carrying image bytes attaches it — same
   // rule as the chat composer (images win over the text/alt fallback). Kept
   // off folder-bound automation tasks, whose input door is the folder zone.
