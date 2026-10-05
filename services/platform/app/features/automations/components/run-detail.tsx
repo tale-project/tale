@@ -130,7 +130,11 @@ function RunDetailBody({
   const runQuery = useAutomationRun(organizationId, runId);
   const runRead = readStateOf(runQuery);
   const readFailureRef = useRef<string | undefined>(undefined);
-  if (runQuery.isError) readFailureRef.current = failureDetail(runQuery.error);
+  const settledRunErrorRef = useRef<unknown>(undefined);
+  if (runQuery.isError) {
+    settledRunErrorRef.current = runQuery.error;
+    readFailureRef.current = failureDetail(runQuery.error);
+  }
   const run = runQuery.data ?? null;
   const pendingAskQuery = useRunPendingAsk(organizationId, runId);
   const pendingAsk = pendingAskQuery.data ?? null;
@@ -190,7 +194,11 @@ function RunDetailBody({
     [catalogQuery.data],
   );
 
-  const runMissing = isMissingAutomationRead(runQuery);
+  const runMissing = isMissingAutomationRead({
+    data: runQuery.data,
+    isError: runQuery.isError || runRead.unavailable,
+    error: runRead.unavailable ? settledRunErrorRef.current : runQuery.error,
+  });
 
   if (runMissing) {
     return (

@@ -349,6 +349,102 @@ function unavailableResponse() {
 }
 
 describe('RunDetail real run read focus recovery', () => {
+  it.each([
+    ['en', 'Run not found'],
+    ['de', 'Lauf nicht gefunden'],
+    ['fr', 'Exécution introuvable'],
+  ])(
+    'keeps a settled missing run distinct during background rereads in %s',
+    async (locale, missingTitle) => {
+      const previousLocale = localStorage.getItem('user-locale');
+      localStorage.setItem('user-locale', locale);
+      await i18n.changeLanguage(locale);
+      try {
+        let refreshing = false;
+        let finishRead: ((response: Response) => void) | undefined;
+        const missingResponse = () =>
+          Response.json({ error: 'run not found' }, { status: 404 });
+        const fetchRun = vi.fn(() => {
+          if (!refreshing) return Promise.resolve(missingResponse());
+          return new Promise<Response>((resolve) => {
+            finishRead = resolve;
+          });
+        });
+        vi.stubGlobal('fetch', fetchRun);
+        const { user, client } = renderRealRun();
+        const missingHeading = await screen.findByRole(
+          'heading',
+          { name: missingTitle },
+          { timeout: 30000 },
+        );
+        expect(fetchRun).toHaveBeenCalledTimes(1);
+        expect(screen.queryByRole('alert')).toBeNull();
+        await user.click(
+          screen.getByRole('button', { name: 'Route navigation' }),
+        );
+        refreshing = true;
+        act(() => {
+          void client.invalidateQueries({
+            queryKey: ['backend', 'org-proof', 'automation_run'],
+          });
+        });
+        await waitFor(() => expect(finishRead).toBeDefined(), {
+          timeout: 30000,
+        });
+        expect(client.getQueryState(runQueryKey)?.status).toBe('pending');
+        expect(client.getQueryState(runQueryKey)?.error).toBeNull();
+        expect(screen.getByRole('heading', { name: missingTitle })).toBe(
+          missingHeading,
+        );
+        expect(screen.queryByRole('alert')).toBeNull();
+        expect(screen.queryByText('run not found')).toBeNull();
+        expect(
+          screen.getByRole('button', { name: 'Route navigation' }),
+        ).toHaveFocus();
+        await act(async () => {
+          finishRead?.(missingResponse());
+        });
+        await waitFor(
+          () => expect(client.getQueryState(runQueryKey)?.status).toBe('error'),
+          { timeout: 30000 },
+        );
+        expect(screen.getByRole('heading', { name: missingTitle })).toBe(
+          missingHeading,
+        );
+        expect(screen.queryByRole('alert')).toBeNull();
+        finishRead = undefined;
+        act(() => {
+          void client.invalidateQueries({
+            queryKey: ['backend', 'org-proof', 'automation_run'],
+          });
+        });
+        await waitFor(() => expect(finishRead).toBeDefined(), {
+          timeout: 30000,
+        });
+        expect(screen.getByRole('heading', { name: missingTitle })).toBe(
+          missingHeading,
+        );
+        expect(screen.queryByRole('alert')).toBeNull();
+        await act(async () => {
+          finishRead?.(runResponse());
+        });
+        await screen.findByTestId('canvas', {}, { timeout: 30000 });
+        expect(
+          screen.queryByRole('heading', { name: missingTitle }),
+        ).toBeNull();
+        expect(screen.queryByRole('alert')).toBeNull();
+        expect(
+          screen.getByRole('button', { name: 'Route navigation' }),
+        ).toHaveFocus();
+      } finally {
+        if (previousLocale === null) localStorage.removeItem('user-locale');
+        else localStorage.setItem('user-locale', previousLocale);
+        await i18n.changeLanguage('en');
+      }
+    },
+    60000,
+  );
+
   it.each(['retry', 'outside'] as const)(
     'retains keyboard Retry through repeated failure and respects %s focus on recovery',
     async (recoveryFocus) => {
