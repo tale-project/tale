@@ -37,6 +37,7 @@ function keys(
   return {
     key,
     target,
+    defaultPrevented: false,
     altKey: false,
     metaKey: false,
     ctrlKey: false,
@@ -76,6 +77,61 @@ describe('adjacentRow', () => {
       adjacentRow(keys('ArrowUp', document.body, { altKey: true }), root)
         ?.dataset.indicatorKey,
     ).toBe('chat:c');
+  });
+
+  it.each([
+    'dialog',
+    '[role="dialog"]',
+    '[role="alertdialog"]',
+    '[aria-modal="true"]',
+  ])('leaves shortcuts inside %s to the dialog', (selector) => {
+    const root = panel('task:b');
+    const dialog = document.createElement(
+      selector === 'dialog' ? 'dialog' : 'div',
+    );
+    if (selector.includes('role='))
+      dialog.setAttribute(
+        'role',
+        selector.includes('alertdialog') ? 'alertdialog' : 'dialog',
+      );
+    if (selector.includes('aria-modal'))
+      dialog.setAttribute('aria-modal', 'true');
+    const button = document.createElement('button');
+    dialog.append(button);
+    document.body.append(dialog);
+    for (const key of ['ArrowDown', 'ArrowUp']) {
+      expect(adjacentRow(keys(key, button, { altKey: true }), root)).toBeNull();
+    }
+  });
+
+  it.each(['inert', 'hidden', 'aria-hidden'])(
+    'ignores a navigator under a %s ancestor',
+    (attribute) => {
+      const root = panel('task:b');
+      const wrapper = document.createElement('div');
+      wrapper.setAttribute(
+        attribute,
+        attribute === 'aria-hidden' ? 'true' : '',
+      );
+      wrapper.append(root);
+      document.body.append(wrapper);
+      expect(
+        adjacentRow(keys('ArrowDown', document.body, { altKey: true }), root),
+      ).toBeNull();
+    },
+  );
+
+  it('leaves an already handled event alone', () => {
+    const root = panel('task:b');
+    expect(
+      adjacentRow(
+        {
+          ...keys('ArrowDown', document.body, { altKey: true }),
+          defaultPrevented: true,
+        },
+        root,
+      ),
+    ).toBeNull();
   });
 
   it('stops at the ends', () => {
