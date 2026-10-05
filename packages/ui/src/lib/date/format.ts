@@ -48,6 +48,18 @@ function applyLocale(d: Dayjs, locale: string): Dayjs {
   return d;
 }
 
+let runtimeTimeZone: string | undefined;
+
+/**
+ * The zone this runtime keeps local time in — the one a plain dayjs date
+ * already reads in. Resolved once: building an `Intl.DateTimeFormat` per
+ * call showed up in every list that formats a date per row.
+ */
+export function localTimeZone(): string {
+  runtimeTimeZone ??= Intl.DateTimeFormat().resolvedOptions().timeZone;
+  return runtimeTimeZone;
+}
+
 /**
  * Check if timestamp has timezone information using ISO 8601 format patterns
  */
@@ -94,8 +106,11 @@ export function formatDate(
 
     dayjsDate = applyLocale(dayjsDate, locale);
 
-    // Apply timezone if specified
-    if (timezone) {
+    // Apply timezone if specified. The runtime's own zone is what a dayjs
+    // date already reads in, and converting into it renders the same
+    // wall-clock time — while costing an ICU formatter per call, which a
+    // list formatting a date per row paid hundreds of times.
+    if (timezone && timezone !== localTimeZone()) {
       dayjsDate = dayjsDate.tz(timezone);
     }
 
@@ -229,4 +244,4 @@ export function formatDateHeader(
  * Export dayjs instance for direct use when needed
  */
 export { default as dayjs } from './dayjs-setup';
-export { loadDayjsLocale } from './dayjs-setup';
+export { isDayjsLocaleReady, loadDayjsLocale } from './dayjs-setup';
