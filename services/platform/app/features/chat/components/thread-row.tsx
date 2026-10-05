@@ -464,7 +464,6 @@ export function ThreadRowMenu({
           organizationId={organizationId}
           open={deleteOpen}
           onOpenChange={setDeleteOpen}
-          onDeleted={leaveIfActive}
         />
       )}
     </>

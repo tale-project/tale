@@ -2273,12 +2273,6 @@ function ChatSurfaceInner({
             organizationId={organizationId}
             open={deleteOpen}
             onOpenChange={setDeleteOpen}
-            onDeleted={() =>
-              void navigate({
-                to: '/dashboard/$id/chat',
-                params: { id: organizationId },
-              })
-            }
           />
         )}
 

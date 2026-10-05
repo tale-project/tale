@@ -41,6 +41,7 @@ vi.mock('@tanstack/react-router', () => ({
     </a>
   ),
   useNavigate: () => navigateMock,
+  useParams: () => ({ id: 'org-1' }),
 }));
 
 const renameMock = vi.hoisted(() => vi.fn(() => Promise.resolve(true)));
