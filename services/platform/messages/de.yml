@@ -650,6 +650,8 @@ automations:
       Organisation.
   detail:
     loading: Automatisierung wird geladen …
+    loadFailed:
+      title: Automatisierung konnte nicht geladen werden
     # Eine gelöschte Automatisierung behält ihre Laufhistorie, bis die
     # Aufbewahrung sie entfernt; die Läufe-Seiten öffnen unter diesem Banner.
     deleted:

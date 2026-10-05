@@ -3,6 +3,7 @@
 import { Alert } from '@tale/ui/alert';
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
+import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
 import { cn } from '@tale/ui/cn';
 import { ContentArea } from '@tale/ui/content-area';
 import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
@@ -41,6 +42,7 @@ import { useCallback, useId, useMemo, useRef, useState } from 'react';
 
 import { useProjects } from '@/app/features/projects/hooks/queries';
 import { useAbility } from '@/app/hooks/use-ability';
+import { readStateOf } from '@/app/lib/backend/read-state';
 import type { NodeDef, Automation } from '@/lib/engine/core/types';
 import { useT } from '@/lib/i18n/client';
 
@@ -263,6 +265,12 @@ function AutomationEditorScope({
     automationSlug,
     version,
   );
+  const automationRead = readStateOf(automationQuery);
+  const editorRegionRef = useRef<HTMLDivElement>(null);
+  const readErrorRef = useRef('');
+  if (automationQuery.isError) {
+    readErrorRef.current = automationErrorMessage(automationQuery.error);
+  }
   const deployedQuery = useAutomation(
     organizationId,
     automationSlug,
@@ -491,6 +499,19 @@ function AutomationEditorScope({
           title={t('notFound.title')}
           description={t('notFound.description')}
           headingLevel={2}
+        />
+      </ContentArea>
+    );
+  }
+  if (automationRead.unavailable) {
+    return (
+      <ContentArea variant="narrow">
+        <CatalogLoadError
+          message={`${t('detail.loadFailed.title')}: ${readErrorRef.current}`}
+          isRetrying={automationRead.retrying}
+          failureKey={automationRead.failureCount}
+          onRetry={() => void automationQuery.refetch()}
+          onFocusLost={() => editorRegionRef.current?.focus()}
         />
       </ContentArea>
     );
@@ -794,7 +815,13 @@ function AutomationEditorScope({
           table's rows, the canvas's background runs behind the pill, and its
           own zoom cluster and action toolbar (`FlowCanvas`) keep themselves
           clear of it instead of the workbench flooring on it site-wide. */}
-      <div className="mobile-nav-clearance flex min-w-0 flex-1 flex-col pb-[var(--mobile-floating-actions-pad,0px)] lg:min-h-0">
+      <div
+        ref={editorRegionRef}
+        role="region"
+        aria-label={t('navigation.editor')}
+        tabIndex={-1}
+        className="mobile-nav-clearance flex min-w-0 flex-1 flex-col pb-[var(--mobile-floating-actions-pad,0px)] lg:min-h-0"
+      >
         {/* A refused RUN, kept inline: it is the engine's own account of why
             nothing started, which the author has to read next to the automation
             it concerns. Save feedback goes through the editor cluster instead.

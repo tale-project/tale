@@ -657,6 +657,8 @@ automations:
       organisation.
   detail:
     loading: Chargement de l’automatisation…
+    loadFailed:
+      title: Impossible de charger l’automatisation
     # Une automatisation supprimée garde son historique d’exécutions jusqu’à
     # ce que la rétention l’efface ; les pages Exécutions s’ouvrent sous ce
     # bandeau.
