@@ -9,6 +9,20 @@ home:
         unterstützt die meisten grossen KI-Anbieter ohne Aufschlag —
         Cloud-Modellnutzung wird zu den Tarifen deines Anbieters abgerechnet und
         ist nicht in den Plänen enthalten.
+    onPrem:
+      a: Tale kann auf deiner Infrastruktur mit lokalen Modellen laufen. Für einen
+        Offline-Betrieb brauchst du auch lokale Abhängigkeiten und begrenzte
+        ausgehende Verbindungen. Aktivierte Cloud-Modelle, externe Werkzeuge und
+        Konnektoren können Daten nach aussen senden; Selbsthosting macht sie
+        nicht automatisch lokal.
+  demos:
+    arena:
+      replyA3: Schliesse mit dem Link zur Eskalations-Richtlinie, den der Kontakt
+        intern teilen kann.
+  tagline:
+    pillars:
+      selfHosted:
+        title: Standardmässig selbst gehostet
 
 pricing:
   extras:
@@ -21,3 +35,51 @@ hardwarePricing:
     categories:
       size: Grösse
       sizeInfo: Richtwerte — die tatsächliche Grösse kann leicht abweichen.
+platformAgents:
+  tour:
+    stages:
+      - null
+      - title: |-
+          Jeden Agent in dem
+          verankern, was du weisst
+platformAutomations:
+  capabilities:
+    items:
+      - null
+      - null
+      - null
+      - null
+      - body: Connector-Regeln können geschützte Schreibzugriffe bis zur Freigabe
+          anhalten. Ein Agentenschritt kann ausserdem eine Person nach fehlenden
+          Informationen fragen, bevor er fortfährt.
+platformChat:
+  tour:
+    description: Besprich das Problem im Chat und nutze Projektaufgaben und
+      Automatisierungen für die anschliessende Arbeit.
+  demos:
+    arena:
+      replyA3: Schliesse mit dem dokumentierten nächsten Schritt.
+platformGovernance:
+  capabilities:
+    items:
+      - body: Connector-Schreibaktionen in Automatisierungen warten auf Genehmigung,
+          wenn deine Richtlinie es verlangt. Für externe Schreibaktionen gilt
+          das standardmässig; Lesezugriffe und interne Plattformaktionen haben
+          andere Regeln.
+  faq:
+    items:
+      - null
+      - null
+      - a: Ja. Die Richtlinie lässt sich für einen Connector oder eine einzelne Aktion
+          festlegen. Externe Schreibaktionen brauchen standardmässig eine
+          Genehmigung. Eine Richtlinienänderung entscheidet keine bereits
+          wartende Anfrage.
+platformProjects:
+  faq:
+    items:
+      - null
+      - null
+      - a: Projekte sind standardmässig für die ganze Organisation zugänglich.
+          Beschränke den Projektzugriff bei Bedarf auf ausgewählte Teams;
+          Administratoren behalten Zugriff. Chats bleiben persönlich, bis sie
+          ausdrücklich geteilt werden – auch Chats innerhalb eines Projekts.

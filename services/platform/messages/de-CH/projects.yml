@@ -1,2 +1,7 @@
 errors:
   RATE_LIMITED: Das passiert grad zu oft. Versuch es gleich nochmal.
+settings:
+  descriptionHint: Eine kurze Zusammenfassung, damit dein Team weiss, was hierher gehört.
+dangerZone:
+  deleteHelp: Löschen entfernt das Projekt endgültig, einschliesslich seiner
+    Dateien und Einstellungen. Das lässt sich nicht rückgängig machen.
