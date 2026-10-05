@@ -1,6 +1,11 @@
 'use client';
 
-import { observeElementOffset, useVirtualizer } from '@tanstack/react-virtual';
+import {
+  observeElementOffset,
+  type PartialKeys,
+  type ReactVirtualizerOptions,
+  useVirtualizer,
+} from '@tanstack/react-virtual';
 
 /** Seed a newly attached observer before TanStack restores its offset. A
  * restored page or newly enabled window may already be far down the list. */
@@ -45,7 +50,12 @@ export {
 export function useVirtualList<
   TScrollElement extends Element,
   TItemElement extends Element,
->(options: Parameters<typeof useVirtualizer<TScrollElement, TItemElement>>[0]) {
+>(
+  options: PartialKeys<
+    ReactVirtualizerOptions<TScrollElement, TItemElement>,
+    'observeElementRect' | 'observeElementOffset' | 'scrollToFn'
+  >,
+) {
   return useVirtualizer<TScrollElement, TItemElement>({
     ...options,
     observeElementOffset:
