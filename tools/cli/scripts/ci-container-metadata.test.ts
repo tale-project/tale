@@ -168,8 +168,10 @@ elif args[:2] == ['image', 'inspect']:
             print('{'); sys.exit(0)
         gateway = 'tale-sandbox-llm-gateway:' in args[-1]
         case = os.environ.get('GATEWAY_CASE') if gateway else ''
-        size = (301 if case == 'size' else int(os.environ['GATEWAY_SIZE'])) if gateway else 1
-        print(json.dumps(dict(Config=dict(Labels={'org.opencontainers.image.source':'source'}, User=case if case in ('root', 'root:app', '0:10001') else '10001', Env=json.loads(os.environ['SECRET']) if os.environ['SECRET'].startswith('[') else [os.environ['SECRET']] if os.environ['SECRET'] else [], Healthcheck=dict(Test=['NONE'] if case == 'health' else ['CMD', 'true'])), Size=size*1024*1024)))
+        size = (301*1024*1024 if case == 'size' else int(os.environ['GATEWAY_SIZE'])) if gateway else 1024*1024
+        if gateway:
+            with open(os.environ['PROOF_DIR'] + '/gateway-size', 'w') as stream: stream.write(str(size))
+        print(json.dumps(dict(Config=dict(Labels={'org.opencontainers.image.source':'source'}, User=case if case in ('root', 'root:app', '0:10001') else '10001', Env=json.loads(os.environ['SECRET']) if os.environ['SECRET'].startswith('[') else [os.environ['SECRET']] if os.environ['SECRET'] else [], Healthcheck=dict(Test=['NONE'] if case == 'health' else ['CMD', 'true'])), Size=size)))
 elif args[0] == 'run':
     if args[-2:] == ['-c', 'ls /app/system/providers | head -1; ls /app/builtin | head -1; stat -c %U /app/data']:
         print('provider\\nbuiltin\\napp')
@@ -196,7 +198,7 @@ else:
     MISSING_SERVICE: missing,
     GATEWAY_CASE: gateway,
     METADATA_FAILURE: metadataFailure,
-    GATEWAY_SIZE: String(gatewaySize),
+    GATEWAY_SIZE: String(gatewaySize * 1024 * 1024),
   });
 }
 
@@ -286,6 +288,35 @@ test.skipIf(process.platform === 'win32').each([255, 300])(
     expect(result.exit, result.stdout + result.stderr).toBe(0);
     expect(result.stdout).toContain(
       `sandbox-llm-gateway: ${size} MB ≤ 300 MB budget`,
+    );
+    expect(result.stdout).toContain('Tests: 45');
+    expect(result.stdout).toContain('Passed: 45');
+    expect(result.stdout).toContain('Failed: 0');
+    expect(result.stdout).toContain('ALL IMAGE VALIDATION TESTS PASSED');
+  },
+);
+
+test.skipIf(process.platform === 'win32').each([
+  ['packed baseline', 90_653_959, 86],
+  ['uncompressed baseline', 268_266_714, 255],
+])(
+  'the raw-byte gateway %s passes without truncating Docker image-store metadata',
+  async (_label, bytes, sizeMb) => {
+    const directory = await fixture();
+    const result = await imageHarness(
+      directory,
+      '',
+      '',
+      '',
+      '',
+      bytes / 1024 / 1024,
+    );
+    expect(await readFile(join(directory, 'gateway-size'), 'utf8')).toBe(
+      String(bytes),
+    );
+    expect(result.exit, result.stdout + result.stderr).toBe(0);
+    expect(result.stdout).toContain(
+      `sandbox-llm-gateway: ${sizeMb} MB ≤ 300 MB budget`,
     );
     expect(result.stdout).toContain('Tests: 45');
     expect(result.stdout).toContain('Passed: 45');

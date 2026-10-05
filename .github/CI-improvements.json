@@ -620,8 +620,11 @@
       "title": "Validate the omitted sandbox LLM gateway image",
       "before": "Image harness omitted gateway from its seven-image service list despite publication/pulling/scanning eight images.",
       "after": "Gateway receives nonroot/OCI/ENV/filesystem/health checks and a 300 MiB Docker uncompressed-size budget alongside all other services; observed 255 MiB leaves about 17% growth headroom.",
-      "paths": ["services/platform/tests/integration/container-image-test.ts"],
-      "proof": "Build37264873673 validated the exact gateway receipt but exposed Docker .Size of 255 MiB against a budget mistakenly based on 86.45 MiB compressed registry layers. ci-container-metadata.test.ts executes the actual harness: 255 MiB passes and 301 MiB fails; root/health/provenance failures remain covered.",
+      "paths": [
+        "services/platform/tests/integration/container-image-test.ts",
+        "tools/cli/scripts/ci-container-metadata.test.ts"
+      ],
+      "proof": "Build37264873673 exposed hosted Docker .Size of 255 MiB against a budget calibrated from 86.45 MiB packed data. Exact 43a9, a3f2 and 546ace manifests share all seven compressed layer digests and rootfs diff IDs: no filesystem growth. Packed Docker containerd size is 90,653,959 bytes; expanded regular file data is 268,266,714 bytes (255.839 MiB). The actual harness accepts both measured representations and the 300 MiB boundary, rejects 301 MiB, and retains root/health/provenance failures.",
       "commits": ["013cef62abe5ce05e2e277d76c082988b11228ea"],
       "origins": ["authored"],
       "id": "CI-053"
