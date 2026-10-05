@@ -1622,16 +1622,19 @@ export function EditTaskBody({
     return latest.task.attachments ?? [];
   };
   const onUploadAttachments = (files: File[]) =>
-    enqueueAttachmentChange(async () => {
-      await uploadFiles(files);
-      const added = clearAttachments();
-      if (added.length === 0) return;
-      const current = await savedAttachments();
-      await updateTask.mutateAsync({
-        taskId: task._id,
-        attachments: stripPreviews([...current, ...added]),
-      });
-    });
+    uploadFiles(files)
+      .catch(onMutationError)
+      .then(() =>
+        enqueueAttachmentChange(async () => {
+          const added = clearAttachments();
+          if (added.length === 0) return;
+          const current = await savedAttachments();
+          await updateTask.mutateAsync({
+            taskId: task._id,
+            attachments: stripPreviews([...current, ...added]),
+          });
+        }),
+      );
   const onRemoveAttachment = (fileId: string) =>
     enqueueAttachmentChange(async () => {
       const current = await savedAttachments();

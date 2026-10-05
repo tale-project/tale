@@ -6,8 +6,9 @@ suite alongside the automated ones — they drive the same stack.
 
 ## Coverage map
 
-Task attachment batches and removals are serialized through upload and save,
-and replacements read the latest saved list rather than an upload-start snapshot.
+Task attachment uploads overlap while their drain, read and replace steps are
+serialized, and replacements read the latest saved list rather than an
+upload-start snapshot.
 `app/features/tasks/components/task-modal.attachments.test.tsx` drives the real
 file input, upload hook and edit body against synthetic upload/query/write seams:
 overlapping selections, removal during upload, intervening accepted changes,

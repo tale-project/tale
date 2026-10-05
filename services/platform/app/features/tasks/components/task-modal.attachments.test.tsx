@@ -254,7 +254,8 @@ describe('saved task attachment batches', () => {
     await view.user.upload(view.input, file('first'));
     await waitFor(() => expect(seams.update).toHaveBeenCalledTimes(1));
     await view.user.upload(view.input, file('second'));
-    expect(upload).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(upload).toHaveBeenCalledTimes(2));
+    expect(seams.update).toHaveBeenCalledTimes(1);
     await act(async () => save.resolve());
     await waitFor(() => expect(seams.update).toHaveBeenCalledTimes(2));
     expect(seams.task?.attachments).toEqual([
@@ -262,6 +263,76 @@ describe('saved task attachment batches', () => {
       attachment('first'),
       attachment('second'),
     ]);
+  });
+
+  it('rejects a file re-selected while its upload is in flight', async () => {
+    const slow = deferred<Response>();
+    let calls = 0;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => {
+        calls += 1;
+        return calls === 1
+          ? slow.promise
+          : Promise.resolve(Response.json({ storageId: `slow-ref-${calls}` }));
+      }),
+    );
+    const view = openTask();
+    await view.user.upload(view.input, file('slow'));
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
+    await view.user.upload(view.input, file('slow'));
+    await act(async () => {
+      slow.resolve(Response.json({ storageId: 'slow-ref-1' }));
+    });
+    await waitFor(() => expect(seams.update).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(
+        seams.task?.attachments?.filter((entry) =>
+          entry.fileId.startsWith('slow-ref'),
+        ),
+      ).toHaveLength(1),
+    );
+    expect(
+      vi
+        .mocked(toast)
+        .mock.calls.some(
+          ([arg]) =>
+            typeof arg?.title === 'string' && /duplicate/i.test(arg.title),
+        ),
+    ).toBe(true);
+  });
+
+  it('shows an uploading row for a second selection right away', async () => {
+    const pending = deferred<Response>();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => pending.promise),
+    );
+    const view = openTask();
+    await view.user.upload(view.input, file('slow'));
+    await waitFor(() =>
+      expect(screen.getAllByText('Uploading…')).toHaveLength(1),
+    );
+    await view.user.upload(view.input, file('other'));
+    await waitFor(() =>
+      expect(screen.getAllByText('Uploading…')).toHaveLength(2),
+    );
+  });
+
+  it('sends a removal without waiting for an unrelated upload', async () => {
+    const slow = deferred<Response>();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => slow.promise),
+    );
+    const view = openTask();
+    await view.user.upload(view.input, file('slow'));
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
+    await view.user.click(
+      screen.getByRole('button', { name: 'Remove attachment' }),
+    );
+    await waitFor(() => expect(seams.update).toHaveBeenCalledTimes(1));
+    expect(seams.task?.attachments).toEqual([]);
   });
 
   it('reports a failed save once and lets the next batch proceed', async () => {
