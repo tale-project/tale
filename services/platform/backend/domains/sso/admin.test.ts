@@ -220,7 +220,7 @@ describe('upsertSamlConnection — encryption needs the key that decrypts', () =
     excludeGroups: [],
   };
 
-  it('refuses to require encrypted assertions without any SP private key', async () => {
+  it('refuses to require encrypted assertions without any SP private key [SSO-R16]', async () => {
     const attempt = upsertSamlConnection(slugSql('acme'), 'org-1', actor, {
       ...saml,
       spCertificate:
@@ -235,7 +235,7 @@ describe('upsertSamlConnection — encryption needs the key that decrypts', () =
     });
   });
 
-  it('accepts the toggle with a key typed in the same save', async () => {
+  it('accepts the toggle with a key typed in the same save [SSO-R16]', async () => {
     await expect(
       upsertSamlConnection(slugSql('acme'), 'org-1', actor, {
         ...saml,
@@ -247,7 +247,7 @@ describe('upsertSamlConnection — encryption needs the key that decrypts', () =
     ).resolves.toBeUndefined();
   });
 
-  it('refuses readably instead of clobbering a corrupt connection file', async () => {
+  it('refuses readably instead of clobbering a corrupt connection file [SSO-R17]', async () => {
     const file = await corruptConnectionFile(configRoot, 'acme');
 
     const attempt = upsertSamlConnection(slugSql('acme'), 'org-1', actor, {

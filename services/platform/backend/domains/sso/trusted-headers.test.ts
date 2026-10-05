@@ -210,7 +210,7 @@ describe('presentedTrustedHeaderKey — where the key rides', () => {
 });
 
 describe('trustedHeadersAuthenticate — the org-binding contract', () => {
-  it('signs an existing member into the key’s organization and stamps role + organization on the session', async () => {
+  it('signs an existing member into the key’s organization and stamps role + organization on the session [SSO-R12]', async () => {
     const { sql, queries } = fakeSql(memberScript());
 
     const result = await trustedHeadersAuthenticate(sql, baseArgs);
@@ -247,7 +247,7 @@ describe('trustedHeadersAuthenticate — the org-binding contract', () => {
     );
   });
 
-  it('moves an existing seat to the asserted role and writes the member audit', async () => {
+  it('moves an existing seat to the asserted role and writes the member audit [SSO-R13]', async () => {
     const { sql, queries } = fakeSql(memberScript());
 
     const result = await trustedHeadersAuthenticate(sql, {
@@ -272,7 +272,7 @@ describe('trustedHeadersAuthenticate — the org-binding contract', () => {
     expect(session?.values).toEqual(expect.arrayContaining(['admin', 'org-1']));
   });
 
-  it('never moves the owner seat, whatever the proxy asserts', async () => {
+  it('never moves the owner seat, whatever the proxy asserts [SSO-R13]', async () => {
     const script = memberScript();
     const seat = script.find((entry) =>
       entry.match.test('SELECT "role" FROM "member"'),
@@ -291,7 +291,7 @@ describe('trustedHeadersAuthenticate — the org-binding contract', () => {
     );
   });
 
-  it('creates a user new to the deployment INSIDE the organization, with the clamped role', async () => {
+  it('creates a user new to the deployment INSIDE the organization, with the clamped role [SSO-R12]', async () => {
     const { sql, queries } = fakeSql(newUserScript());
 
     const result = await trustedHeadersAuthenticate(sql, {
@@ -322,7 +322,7 @@ describe('trustedHeadersAuthenticate — the org-binding contract', () => {
     expect(audits).toContain('trusted_headers_sign_in');
   });
 
-  it('refuses an existing user who is not a member of the organization, before any write', async () => {
+  it('refuses an existing user who is not a member of the organization, before any write [SSO-R12]', async () => {
     const { sql, queries } = fakeSql(strangerScript());
 
     await expect(
@@ -442,7 +442,7 @@ describe('GET /api/trusted-headers/authenticate — the hand-off door', () => {
   };
   const withKey = { ...identity, 'Remote-Internal-Secret': 'thk_live' };
 
-  it('mints nothing when no key is presented, and never asks the database', async () => {
+  it('mints nothing when no key is presented, and never asks the database [SSO-R11]', async () => {
     const { app, queries } = makeApp(memberScript());
 
     const res = await request(app, identity);
@@ -454,7 +454,7 @@ describe('GET /api/trusted-headers/authenticate — the hand-off door', () => {
     expect(queries).toHaveLength(0);
   });
 
-  it('charges an unknown key to the source IP and answers 401', async () => {
+  it('charges an unknown key to the source IP and answers 401 [SSO-R11]', async () => {
     vi.mocked(resolveTrustedHeaderKey).mockResolvedValue(null);
     const { app, queries } = makeApp(memberScript());
 
@@ -474,7 +474,7 @@ describe('GET /api/trusted-headers/authenticate — the hand-off door', () => {
     expect(queries).toHaveLength(0);
   });
 
-  it('answers 429 once the source IP is over its failure budget', async () => {
+  it('answers 429 once the source IP is over its failure budget [SSO-R11]', async () => {
     vi.mocked(resolveTrustedHeaderKey).mockResolvedValue(null);
     const { RateLimitExceededError } = await import('../../lib/rate-limit.ts');
     vi.mocked(checkIpRateLimit).mockRejectedValue(
@@ -488,7 +488,7 @@ describe('GET /api/trusted-headers/authenticate — the hand-off door', () => {
     expect(await res.text()).toContain('Too many failed attempts');
   });
 
-  it('refuses a live key of a paused organization', async () => {
+  it('refuses a live key of a paused organization [SSO-R11]', async () => {
     vi.mocked(resolveTrustedHeaderKey).mockResolvedValue({
       keyId: 'key-1',
       organizationId: 'org-1',
@@ -504,7 +504,7 @@ describe('GET /api/trusted-headers/authenticate — the hand-off door', () => {
     expect(queries).toHaveLength(0);
   });
 
-  it('refuses a key without an email header', async () => {
+  it('refuses a key without an email header [SSO-R11]', async () => {
     const { app, queries } = makeApp(memberScript());
 
     const res = await request(app, { 'Remote-Internal-Secret': 'thk_live' });
@@ -514,7 +514,7 @@ describe('GET /api/trusted-headers/authenticate — the hand-off door', () => {
     expect(queries).toHaveLength(0);
   });
 
-  it('ignores an Authorization bearer — the key has one slot, and the REST API key is not it', async () => {
+  it('ignores an Authorization bearer — the key has one slot, and the REST API key is not it [SSO-R11]', async () => {
     const { app, queries } = makeApp(memberScript());
 
     const res = await request(app, {
@@ -559,7 +559,7 @@ describe('GET /api/trusted-headers/authenticate — the hand-off door', () => {
     );
   });
 
-  it("clamps the asserted role to the organization's ceiling", async () => {
+  it("clamps the asserted role to the organization's ceiling [SSO-R13]", async () => {
     vi.mocked(resolveTrustedHeaderKey).mockResolvedValue({
       keyId: 'key-1',
       organizationId: 'org-1',
@@ -578,7 +578,7 @@ describe('GET /api/trusted-headers/authenticate — the hand-off door', () => {
     expect(insert?.values).not.toContain('admin');
   });
 
-  it('answers 403 for a stranger, with no session and no write', async () => {
+  it('answers 403 for a stranger, with no session and no write [SSO-R12]', async () => {
     const { app, queries } = makeApp(strangerScript());
 
     const res = await request(app, withKey);
@@ -640,7 +640,7 @@ describe('GET /api/trusted-headers/authenticate — the hand-off door', () => {
     ).toBe(true);
   });
 
-  it('refuses every frame ancestor unless the organization embeds', async () => {
+  it('refuses every frame ancestor unless the organization embeds [SSO-R15]', async () => {
     const { app } = makeApp(memberScript());
 
     const noKey = await request(app, identity);
@@ -662,7 +662,7 @@ describe('GET /api/trusted-headers/authenticate — the hand-off door', () => {
     );
   });
 
-  it("admits the organization's embedding origins on its answers, refusals included", async () => {
+  it("admits the organization's embedding origins on its answers, refusals included [SSO-R15]", async () => {
     vi.mocked(readGovernancePolicyForOrg).mockResolvedValue({
       enabled: true,
       frameAncestors: ['https://portal.example', 'https://app.example'],
@@ -684,7 +684,7 @@ describe('GET /api/trusted-headers/authenticate — the hand-off door', () => {
     expect(stranger.headers.get('x-frame-options')).toBeNull();
   });
 
-  it('keeps a disabled embedding policy and an unknown key on DENY', async () => {
+  it('keeps a disabled embedding policy and an unknown key on DENY [SSO-R15]', async () => {
     vi.mocked(readGovernancePolicyForOrg).mockResolvedValue({
       enabled: false,
       frameAncestors: ['https://portal.example'],
