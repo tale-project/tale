@@ -522,6 +522,24 @@ describe('Home panel in Chromium', () => {
     expect(backend.move).not.toHaveBeenCalled();
   });
 
+  // Drop targets are measured when a drag starts and again as the pointer
+  // moves, never at rest: a project row must still take the chat dropped on
+  // it.
+  it('files a chat dropped on a project into it', async () => {
+    renderHome({ projects: projectList(4), threads: chatList(8) });
+    const project = screen.getByRole('link', { name: /Project 03/ });
+    const held = await pickUp(chatRow('chat-5'));
+    const target = centre(project);
+    await carryTo(held, target, () =>
+      Boolean(project.closest('li')?.className.includes('ring-primary')),
+    );
+    mouse(document, 'mouseup', target);
+    await expect
+      .poll(() => backend.move.mock.calls.at(-1))
+      .toEqual(['chat-5', 'project-2']);
+    expect(backend.setArchived).not.toHaveBeenCalled();
+  });
+
   it("marks an unread chat with a dot in the organization's accent", () => {
     // `--primary` is what the branding provider sets from an org's accent;
     // the dot once stayed a fixed blue whatever the org picked.

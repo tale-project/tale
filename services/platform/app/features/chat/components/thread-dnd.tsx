@@ -165,10 +165,13 @@ const collisionDetection: CollisionDetection = (args) => {
 };
 
 // The PROJECTS list and the ARCHIVED drawer fold open and shut, and the lists
-// scroll, mid-drag — so re-measure drop targets continuously instead of only
-// at drag start.
+// scroll, mid-drag — so while a chat is dragged the drop targets are measured
+// again as the pointer moves, a tenth of a second apart at most. Only while
+// dragging: measuring at rest (`MeasuringStrategy.Always`) read the box of
+// every project row whenever the rows changed, and a drag measures them
+// afresh when it starts anyway.
 const measuring: MeasuringConfiguration = {
-  droppable: { strategy: MeasuringStrategy.Always },
+  droppable: { strategy: MeasuringStrategy.WhileDragging, frequency: 100 },
 };
 
 // On drop, fade the lifted row out where it was released (with a subtle
