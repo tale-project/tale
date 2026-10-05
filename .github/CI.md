@@ -154,8 +154,9 @@ Every Unit and UI platform shard has its own scope; other-workspace unit tests u
 their own scope.
 Turbo still compares task hashes before replaying any restored result.
 
-Hosted jobs set Turbo's native `TURBO_CACHE_MAX_SIZE=512MB` (512 MiB). Turbo
-attempts to evict the oldest archive entries in a background thread at startup.
+Hosted jobs normally set Turbo's native `TURBO_CACHE_MAX_SIZE=512MB` (512 MiB).
+Browser's admission probe and final test command disable eviction as described above.
+Turbo attempts to evict the oldest archive entries in a background thread at startup.
 This is a best-effort target: very short runs can finish before eviction, and
 current-run outputs can grow the final archive beyond it. Cache hits do not refresh archive write times, so
 an old matching task may be evicted and safely execute again. The setup action
@@ -188,12 +189,20 @@ labels before tagging. Candidate image gates fetch only that helper from the exa
 trusted workflow commit into an isolated sparse checkout, preserving an older
 candidate's source and image receipts.
 
-Image vulnerability reporting and SBOM publication share one Trivy 0.70.0 image scan.
-The JSON report retains all packages and finding severities; local conversion produces
-SARIF with the same ignored findings and a complete CycloneDX inventory without
-vulnerability records. The empty severity selection belongs only to SBOM conversion.
-SARIF keeps all severities, matching the previous action's actual behavior. A failed
-scan or conversion still fails the informational job; reports that exist are uploaded.
+Image vulnerability reporting uses Trivy 0.70.0 JSON and local SARIF conversion,
+retaining every finding severity and the existing suppressions. CycloneDX publication
+uses a separate direct image analysis: this engine computes Node and Python package
+hashes only when scanning for an SBOM format. JSON conversion loses those hashes.
+The SBOM analysis uses an in-memory artifact cache so previous checksum-free analysis
+cannot supply incomplete package metadata. It retains the complete package inventory
+and the original policy of omitting vulnerability records.
+
+A real pinned-engine check verifies Node and Python package hashes once per scan
+matrix, including JSON-conversion negative controls. It uses offline temporary rootfs
+fixtures and the already installed engine. The helper comes from the immutable workflow
+commit, preserving historical candidate source checkouts. Failed analysis, conversion
+or regression checks fail the informational job; reports that exist are uploaded.
+The direct SBOM pass reuses the pinned scanner installation and skips a second cache transfer.
 
 Scorecard remains informational and runs weekly, manually and when branch protections
 change. Blocking source and dependency security gates retain their triggers.

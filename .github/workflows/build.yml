@@ -1268,14 +1268,42 @@ jobs:
           sarif_file: '${{ matrix.service }}-trivy.sarif'
           category: 'trivy-${{ matrix.service }}'
 
-      # Convert the complete package inventory without analyzing the image twice.
-      # An empty severity set keeps the previous SBOM free of security findings.
+      # Only direct SBOM analysis computes installed-package metadata hashes.
+      # JSON analysis-cache entries lack them; memory avoids reusing those entries.
       - name: Generate SBOM (CycloneDX)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         env:
-          SERVICE: ${{ matrix.service }}
-        run: |
-          trivy convert --format cyclonedx --severity '' \
-            --output "${SERVICE}-sbom.cdx.json" "${SERVICE}-trivy.json"
+          TRIVY_CACHE_BACKEND: memory
+        with:
+          version: 'v0.70.0'
+          skip-setup-trivy: 'true'
+          cache: 'false'
+          scan-type: 'image'
+          image-ref: ${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service }}:${{ needs.changes.outputs.image_tag }}
+          format: 'cyclonedx'
+          output: '${{ matrix.service }}-sbom.cdx.json'
+
+      - name: Checkout SBOM hash guard
+        if: matrix.service == fromJSON(needs.changes.outputs.scannable_services)[0]
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          # The selected source can predate this helper. Run exact workflow H's
+          # guard without replacing its source checkout or image receipts.
+          ref: ${{ github.workflow_sha }}
+          path: .ci-workflow
+          persist-credentials: false
+          sparse-checkout: tools/cli/scripts/check-sbom-hashes.ts
+          sparse-checkout-cone-mode: false
+
+      - name: Setup Bun for SBOM hash guard
+        if: matrix.service == fromJSON(needs.changes.outputs.scannable_services)[0]
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: '1.4.2'
+
+      - name: Verify SBOM package hashes
+        if: matrix.service == fromJSON(needs.changes.outputs.scannable_services)[0]
+        run: bun .ci-workflow/tools/cli/scripts/check-sbom-hashes.ts
 
       - name: Upload SBOM
         if: always() && hashFiles(format('{0}-sbom.cdx.json', matrix.service)) != ''

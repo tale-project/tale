@@ -751,6 +751,34 @@ printf '%s\\n' "$TEST_COMPARE_STATUS"
         });
         continue;
       }
+      if (entry.name === 'Checkout SBOM hash guard') {
+        expect(id).toBe('vulnerability-scan');
+        const once =
+          'matrix.service == fromJSON(needs.changes.outputs.scannable_services)[0]';
+        expect(entry.if).toBe(once);
+        expect(entry.uses).toBe(
+          'actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd',
+        );
+        expect(entry.with).toEqual({
+          ref: '${{ github.workflow_sha }}',
+          path: '.ci-workflow',
+          'persist-credentials': false,
+          'sparse-checkout': 'tools/cli/scripts/check-sbom-hashes.ts',
+          'sparse-checkout-cone-mode': false,
+        });
+        expect(
+          job.steps.filter((item) => item.name === entry.name),
+        ).toHaveLength(1);
+        const runner = step(job, 'Verify SBOM package hashes');
+        expect(runner.if).toBe(once);
+        expect(runner.run).toBe(
+          'bun .ci-workflow/tools/cli/scripts/check-sbom-hashes.ts',
+        );
+        expect(job.steps.indexOf(entry)).toBeLessThan(
+          job.steps.indexOf(runner),
+        );
+        continue;
+      }
       if (id === 'changes') {
         expect(entry.with?.ref).toBe(
           '${{ needs.candidate-source.outputs.candidate_sha }}',
