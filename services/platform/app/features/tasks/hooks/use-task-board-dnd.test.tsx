@@ -175,6 +175,22 @@ afterEach(() => {
   choreograph.mockClear();
 });
 
+describe('useTaskBoardDnd options', () => {
+  it('hands DndContext the same sensors and autoscroll on every render', () => {
+    // `useSensor` memoizes on its options' identity: new options each render
+    // gave DndContext new sensors, which re-rendered every card and row.
+    const view = renderHook(
+      ({ rows }: { rows: TaskRow[] }) => useTaskBoardDnd(rows),
+      { wrapper, initialProps: { rows: TASKS } },
+    );
+    const { sensors, autoScroll } = view.result.current;
+    view.rerender({ rows: TASKS });
+    view.rerender({ rows: [...TASKS] });
+    expect(view.result.current.sensors).toBe(sensors);
+    expect(view.result.current.autoScroll).toBe(autoScroll);
+  });
+});
+
 describe('useTaskBoardDnd announcements', () => {
   it('names the task, its status and its position through a reorder, never its id', async () => {
     const drag = await renderDrag(TASKS);

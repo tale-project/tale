@@ -30,6 +30,23 @@ export type TaskColumns = Record<TaskStatus, string[]>;
 /** One object for every render, so `DndContext` never sees a new option. */
 const AUTO_SCROLL = { acceleration: 5, threshold: { x: 0.15, y: 0.2 } };
 
+// The sensors' options are module constants: `useSensor` memoizes on their
+// identity, and a new object each render handed `DndContext` new sensors,
+// which re-rendered every card and row subscribed to it on every render.
+const POINTER_SENSOR_OPTIONS = { activationConstraint: { distance: 5 } };
+const KEYBOARD_SENSOR_OPTIONS = {
+  coordinateGetter: sortableKeyboardCoordinates,
+  // Space picks up / drops a card and arrow keys move it; Escape cancels.
+  // Enter is deliberately NOT a drag key so the card/row keydown handler can
+  // use it to OPEN the task — without this, dnd-kit's default (Space+Enter
+  // start a drag) would collide with opening.
+  keyboardCodes: {
+    start: ['Space'],
+    cancel: ['Escape'],
+    end: ['Space'],
+  },
+};
+
 export interface TaskBoardDndOptions extends TaskStatusChoreographyOptions {
   /** The board's project key: drag announcements name a task `KEY-12` when
    * its row carries no key of its own. */
@@ -161,19 +178,8 @@ export function useTaskBoardDnd(
   const [activeId, setActiveId] = useState<string | null>(null);
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-      // Space picks up / drops a card and arrow keys move it; Escape cancels.
-      // Enter is deliberately NOT a drag key so the card/row keydown handler can
-      // use it to OPEN the task — without this, dnd-kit's default (Space+Enter
-      // start a drag) would collide with opening.
-      keyboardCodes: {
-        start: ['Space'],
-        cancel: ['Escape'],
-        end: ['Space'],
-      },
-    }),
+    useSensor(PointerSensor, POINTER_SENSOR_OPTIONS),
+    useSensor(KeyboardSensor, KEYBOARD_SENSOR_OPTIONS),
   );
 
   const byId = useMemo(() => {

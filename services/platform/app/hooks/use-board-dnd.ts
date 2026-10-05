@@ -13,6 +13,14 @@ import {
 import { arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+// Module constants: `useSensor` memoizes on its options' identity, and a new
+// object each render handed `DndContext` new sensors, re-rendering every
+// draggable and droppable under it on every render.
+const POINTER_SENSOR_OPTIONS = { activationConstraint: { distance: 5 } };
+const KEYBOARD_SENSOR_OPTIONS = {
+  coordinateGetter: sortableKeyboardCoordinates,
+};
+
 const NO_LANE_IDS: readonly string[] = [];
 /** Each lane's ids as a set, per lane array: the working copy replaces a
  * lane's array whenever it changes and never edits one in place. A lane's
@@ -190,10 +198,8 @@ export function useBoardDnd<Row>({
   const [activeId, setActiveId] = useState<string | null>(null);
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    }),
+    useSensor(PointerSensor, POINTER_SENSOR_OPTIONS),
+    useSensor(KeyboardSensor, KEYBOARD_SENSOR_OPTIONS),
   );
 
   const byId = useMemo(() => {
