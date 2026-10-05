@@ -195,8 +195,10 @@ outputs. Native cache archives share a build scope but retain distinct workflow/
 writers. Hosted jobs use Turbo's native 512 MiB startup eviction target. Eviction
 is best-effort; short runs or new outputs can leave a larger saved archive.
 Local shared caches keep their existing policy. Chromium caches use the installed Playwright version,
-runner OS and architecture; jobs install its headless shell and always provision native
-dependencies. See [the CI scheduling guide](../.github/CI.md).
+runner OS and architecture. E2E and cold Browser jobs install its headless shell and
+native dependencies; a Browser task whose complete executable prerequisite graph has
+verified local hits can skip provisioning while still running its normal Turbo command.
+The probe and verdict disable archive eviction to keep those hits available. See [the CI scheduling guide](../.github/CI.md).
 
 Web E2E's SEO step runs the workspace script directly against its browser-tested build:
 release fetching rewrites a tracked snapshot, so another Turbo prerequisite invocation
@@ -317,7 +319,11 @@ verifying their complete source identity.
 architecture, Bun version, manifests, lockfile and patches, and saves after a successful
 install so a later workload failure does not lose the downloaded packages.
 Browser checks and Playwright share an exact installed-version/OS/architecture
-headless-shell cache; native dependencies are still installed on every runner.
+headless-shell cache. Successful browser provisioning is saved before later suites can
+fail. Native dependencies are installed for every E2E runner and cold Browser run;
+fully cached Browser prerequisites use the guarded exception above.
+Shared setup pins Node from the production image and hashes actual Bun/Node/OS/architecture/
+distribution identity. Keep unknown or forced Browser plans on the cold path.
 The [CI guide](../.github/CI.md) documents task cache boundaries and the four-way
 UI and platform Playwright matrices, including their required release evidence.
 

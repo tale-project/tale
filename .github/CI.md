@@ -4,6 +4,12 @@ Optimize both time to feedback and total runner work. Inspect job queue time sep
 from step duration before adding shards: a short test behind a large setup cost usually
 needs fewer runners, while a long CPU-bound suite can benefit from more slices.
 
+The cumulative audit records [129 distinct implemented improvements](CI-improvements.json)
+since `c8f31b2b9`: 78 authored here, 47 integrated from concurrent upstream work and four
+combining both. Each entry records before/after behavior, changed paths, source commits
+and proof. Repeated patterns across workflows count once; suggestions and retained
+baseline behavior do not count.
+
 ## Current execution graph
 
 - **Checks / Unit** is the stable required aggregate. Two platform Vitest shards run
@@ -99,11 +105,20 @@ Explicit `inputs` cover files read outside a workspace dependency. Root `tsconfi
 lint and formatter configurations, `bunfig.toml`, patches and the Bun setup action
 participate in the global hash. Bun download caches separate OS and CPU architecture.
 
+Shared checks install the exact Node version from the production platform image once.
+Their actual Bun, Node, OS, architecture and Linux distribution fingerprint participates
+in task hashes, preventing runtime changes from replaying source-identical verdicts.
+
 The Bun download key also includes workspace manifests, the lockfile and patches.
 A frozen install remains authoritative after a cache hit, and successful downloads
 are saved before the workload begins. Browser checks and E2E share an exact
 installed Playwright version, OS and architecture cache for the Chromium headless
-shell. Every runner still installs native dependencies; a malformed version fails
+shell. Cold Browser jobs and every E2E runner install native dependencies. Checks can skip
+Chromium provisioning only when the actual Turbo plan proves every executable Browser
+prerequisite has a local cached verdict. Candidates, forced runs, unknown plans and
+uncached prerequisites retain provisioning. Both the probe and unconditional final test
+command disable size and age eviction so planned verdict archives stay available. A
+malformed version fails
 before cache restoration or browser installation.
 
 Unit and UI jobs also share a job-local Node compile cache between isolated workers.
@@ -212,6 +227,28 @@ engine's blocking exit status and text diagnostics. Candidates keep the complete
 scan without publishing a report against moving main. A real pinned-engine regression suite
 runs in the same SAST job and checks findings, suppressions, exclusions and fatal errors.
 Writing a requested SARIF report must also succeed; reporting failures fail the scan.
+
+Release validation overlaps isolated stack probes and standalone sites, waits for every
+verdict and preserves separate logs. Remote manifest inspections have three workers.
+Image validation resolves Compose once and reads one validated metadata snapshot per
+image, including the sandbox LLM gateway. Failed inspection, missing image references,
+disabled health checks, root users with group suffixes and concealed secret values fail
+the gate. Summaries report the actual verdict.
+
+CLI publication downloads exactly five binary artifacts, validates the complete nonempty
+set and refuses symlinks before checksumming. It rechecks the prepared release source
+before upload and bounds readiness waits within the job budget. PR image cleanup deletes
+only versions whose every tag belongs to the closed PR, rechecks tags before deletion and
+joins every bounded worker. Shared main, release, candidate and other-PR tags survive.
+
+Security retains each advisory retry and scanner result independently of SARIF publishing.
+Blocking Trivy checks still run after informational reporting failures; reporting and
+upload budgets leave time for the blocking scan. Read-only checkouts do not retain tokens.
+
+The built-site crawler keeps its bounded worker pool active as links appear, schedules
+addresses once, includes active requests in URL caps and reports interrupted response
+bodies. Startup failures reject promptly, keep bounded diagnostics and terminate wedged
+children. These changes apply to the E2E helper, not the product's ingestion crawler.
 
 See [the repo contract](../.agents/repo.md#a-green-check-is-not-always-a-run) before
 interpreting a green cached result. Backend integration always executes its strict lanes;
@@ -353,3 +390,13 @@ Turbo check commands print failing logs; the seven-day `turbo-*` artifacts prese
 hashes, timings and cache status, including failed jobs. Use `--output-logs=full` to inspect
 replayed logs locally and `--force` for fresh execution. Candidate SAST and dependency scans
 retain their blocking policies while omitting SARIF that cannot be published.
+
+
+The final optimization round's focused gates passed: 105 Checks/cache regressions,
+66 container/release regressions, 171 publication/cleanup/candidate regressions and
+57 E2E/security regressions. A historical-checkout probe fixture added 158 assertions
+across two tests. Exact Bun 1.4.2 lint/types, formatting and actionlint passed.
+Local SAST exited zero with no findings. Cold local full checks encountered unchanged
+five-second sandbox process-fixture timeouts on the shared machine; no budgets or
+assertions were relaxed. Hosted results must be inspected separately before calling
+all task verdicts fresh.
