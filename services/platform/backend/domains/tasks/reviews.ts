@@ -15,6 +15,7 @@ import { ConfigurationError } from '../../core/lib/config_store/precondition.ts'
 import { checkProjectAccess } from '../../core/projects/access.ts';
 import { toJson } from '../../db/sql.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
+import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import {
   autoSubscribe,
@@ -535,6 +536,47 @@ export async function retargetPendingTaskReview(
     });
   }
   return reviewer;
+}
+
+/** Revalidate open human reviews after membership or audience access changes. */
+export async function retargetPendingTaskReviewsForUser(
+  tx: TransactionSql,
+  args: { organizationId: string; userId: string; teamIds?: readonly string[] },
+): Promise<void> {
+  const teamIds = args.teamIds ?? [];
+  const rows = await tx<
+    {
+      id: string;
+      projectId: string;
+      title: string;
+      organizationId: string;
+      reviewerUserId: string | null;
+      reviewerAgentId: string | null;
+      createdBy: string;
+      createdByType: string;
+    }[]
+  >`
+    SELECT t.id, t.project_id AS "projectId", t.title,
+      t.org_id AS "organizationId", t.reviewer_user_id AS "reviewerUserId",
+      t.reviewer_agent_id AS "reviewerAgentId", t.created_by AS "createdBy",
+      t.created_by_type AS "createdByType"
+    FROM app.tasks t
+    JOIN app.projects p ON p.id = t.project_id AND p.org_id = t.org_id
+    WHERE t.org_id = ${args.organizationId} AND t.status = 'in_review'
+      AND t.reviewer_user_id = ${args.userId}
+      AND (${teamIds.length === 0} OR (${tx.unsafe(PROJECT_TEAM_IDS_SQL)} && ${teamIds}))
+  `;
+  for (const row of rows) {
+    await retargetPendingTaskReview(tx, {
+      task: row as unknown as TaskRow,
+      excludeUserId: args.userId,
+    });
+    await emitHintInTx(tx, {
+      orgId: args.organizationId,
+      entity: 'task',
+      entityId: row.id,
+    });
+  }
 }
 
 export interface TaskReviewPolicyOutcome {
