@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { runInNewContext } from 'node:vm';
 
 import { parse } from 'yaml';
 
@@ -29,25 +30,27 @@ test('native source workers use the pinned isolation-capable Bun and retain fixt
   expect(cliPackage.scripts.test).toBe('bun test --timeout 30000');
 });
 
-test('the native source command runs every file with two workers, isolated globals and serial cases', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'tale-cli-parallel-'));
-  try {
-    await writeFile(
-      join(directory, 'package.json'),
-      JSON.stringify({
-        type: 'module',
-        scripts: { test: cliPackage.scripts.test },
-      }),
-    );
-    await writeFile(
-      join(directory, 'state.ts'),
-      'export let value = 0; export function setValue(next: number) { value = next; }\n',
-    );
-    const files = ['a', 'b', 'c', 'd'];
-    for (const name of files) {
+test.each(['linux', 'macos', 'windows'])(
+  'the native %s source command runs every file with its bounded workers and serial cases',
+  async (platform) => {
+    const directory = await mkdtemp(join(tmpdir(), 'tale-cli-parallel-'));
+    try {
       await writeFile(
-        join(directory, `${name}.test.ts`),
-        `import { expect, test } from 'bun:test';
+        join(directory, 'package.json'),
+        JSON.stringify({
+          type: 'module',
+          scripts: { test: cliPackage.scripts.test },
+        }),
+      );
+      await writeFile(
+        join(directory, 'state.ts'),
+        'export let value = 0; export function setValue(next: number) { value = next; }\n',
+      );
+      const files = ['a', 'b', 'c', 'd'];
+      for (const name of files) {
+        await writeFile(
+          join(directory, `${name}.test.ts`),
+          `import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { value, setValue } from './state';
@@ -64,48 +67,66 @@ test('the prior case completed before this case', () => {
   expect(globalThis.__taleParallelFixture).toBe(${JSON.stringify(name)});
   writeFileSync(join(process.env.TALE_PARALLEL_PROOF_DIR, ${JSON.stringify(`${name}.json`)}),
     JSON.stringify({ worker: process.env.BUN_TEST_WORKER_ID, pid: process.pid }));
+  ${platform === 'windows' ? 'setValue(0); delete globalThis.__taleParallelFixture;' : ''}
 });
 `,
+        );
+      }
+      const expression = steps
+        .find((step) => step.name === 'Run unit tests')
+        ?.run?.trim()
+        .replace(/^\$\{\{\s*|\s*\}\}$/g, '');
+      if (!expression)
+        throw new Error(
+          'Native CLI source command must select the matrix platform',
+        );
+      const selected = runInNewContext(expression, {
+        matrix: { platform },
+      }) as unknown;
+      if (typeof selected !== 'string')
+        throw new Error('Native CLI source command must resolve to a string');
+      const command = selected.split(/\s+/);
+      if (command[0] !== 'bun')
+        throw new Error('Native CLI source command must use the pinned Bun');
+      const child = Bun.spawn([process.execPath, ...command.slice(1)], {
+        cwd: directory,
+        env: {
+          ...process.env,
+          TALE_BINARY: '',
+          TALE_PARALLEL_PROOF_DIR: directory,
+        },
+        stdout: 'pipe',
+        stderr: 'pipe',
+      });
+      const [stdout, stderr, status] = await Promise.all([
+        new Response(child.stdout).text(),
+        new Response(child.stderr).text(),
+        child.exited,
+      ]);
+      expect(status, stdout + stderr).toBe(0);
+      const results = await Promise.all(
+        files.map(
+          async (name) =>
+            JSON.parse(
+              await readFile(join(directory, `${name}.json`), 'utf8'),
+            ) as {
+              worker: string;
+              pid: number;
+            },
+        ),
       );
+      if (platform === 'windows') {
+        // Serial Bun can inherit the parent's BUN_TEST_WORKER_ID. One PID,
+        // every file receipt and each case's state assertions prove this lane.
+        expect(new Set(results.map((result) => result.pid)).size).toBe(1);
+      } else {
+        expect(
+          [...new Set(results.map((result) => result.worker))].sort(),
+        ).toEqual(['1', '2']);
+        expect(new Set(results.map((result) => result.pid)).size).toBe(2);
+      }
+    } finally {
+      await rm(directory, { recursive: true, force: true });
     }
-    const command = steps
-      .find((step) => step.name === 'Run unit tests')
-      ?.run?.trim()
-      .split(/\s+/);
-    if (!command || command[0] !== 'bun')
-      throw new Error('Native CLI source command must use the pinned Bun');
-    const child = Bun.spawn([process.execPath, ...command.slice(1)], {
-      cwd: directory,
-      env: {
-        ...process.env,
-        TALE_BINARY: '',
-        TALE_PARALLEL_PROOF_DIR: directory,
-      },
-      stdout: 'pipe',
-      stderr: 'pipe',
-    });
-    const [stdout, stderr, status] = await Promise.all([
-      new Response(child.stdout).text(),
-      new Response(child.stderr).text(),
-      child.exited,
-    ]);
-    expect(status, stdout + stderr).toBe(0);
-    const results = await Promise.all(
-      files.map(
-        async (name) =>
-          JSON.parse(
-            await readFile(join(directory, `${name}.json`), 'utf8'),
-          ) as {
-            worker: string;
-            pid: number;
-          },
-      ),
-    );
-    expect([...new Set(results.map((result) => result.worker))].sort()).toEqual(
-      ['1', '2'],
-    );
-    expect(new Set(results.map((result) => result.pid)).size).toBe(2);
-  } finally {
-    await rm(directory, { recursive: true, force: true });
-  }
-});
+  },
+);

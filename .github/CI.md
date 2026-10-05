@@ -68,9 +68,11 @@ needs fewer runners, while a long CPU-bound suite can benefit from more slices.
   still generate and build their binaries; repeating the same source suite on the same
   host OS adds no platform coverage. Cross legs use a proven CLI-only frozen install
   and keep its download cache in a separate namespace. Native source tests retain
-  the full workspace install because they import platform auth modules. Bun runs at
-  most two source test files in parallel, isolating each file's modules and globals;
-  tests within a file remain serial. Compiled smoke discovery remains serial.
+  the full workspace install because they import platform auth modules. Linux and macOS
+  run at most two source test files in parallel, isolating each file's modules and globals;
+  tests within a file remain serial. Windows source tests and compiled smoke discovery
+  remain serial. Two workers made Windows fixtures exceed their unchanged 30-second
+  limits and increased source-suite duration in the first observed run.
   Binary artifacts use fast compression; all five targets still build, native binaries
   retain smoke tests, and both macOS targets retain signature checks. Command suites
   run source cases before compilation, then select only the explicit `TALE_BINARY`
@@ -281,6 +283,26 @@ archives totaled 86.3 GB. A warm build spent 17.5s restoring and 10s saving the
 archive versus 15.3s executing build tasks. The native size policy limits that
 accumulated history when eviction completes, while preserving the existing GitHub
 cache visibility boundary.
+
+At `ab8d18ec`, [Checks run 37260796248](https://github.com/tale-project/tale/actions/runs/37260796248)
+passed both platform Unit shards as fresh executions in 151.4s and 198.7s. All fifteen
+other workspace test tasks also executed and passed. The largest platform task was
+shorter than the earlier 438.6s full-platform task, but revisions, runner conditions
+and queue times differed; this does not establish a controlled whole-pipeline speedup.
+The current docs and UI-docs builds remained cache hits on their next Turbo invocation.
+
+In [Build run 37260796293](https://github.com/tale-project/tale/actions/runs/37260796293),
+all eight cleanup calls at the 20/28/40 GiB targets found about 85 GiB free and stopped
+after one measurement, with zero-second rounded step durations. All image builds,
+standalone tests, smoke and image/runtime gates passed. These observations prove the
+ample-space path; low-space deletion paths remain covered by executable fixtures.
+
+[CLI run 37260796143](https://github.com/tale-project/tale/actions/runs/37260796143)
+passed Linux, macOS and both cross targets, but Windows source tests took 365.5s with
+two workers and timed out two unchanged Git/ZIP fixtures at 30 seconds. The later
+temporary-file errors followed timeout cleanup. Earlier serial Windows source runs
+took 191–216s and passed. Windows therefore retains the serial command and all existing
+assertions and timeout limits; Linux and macOS retain two workers.
 
 Run workflow and source-identity regressions with:
 
