@@ -214,7 +214,9 @@ test('a producer exit after a backward wall clock retains epoch start and is acc
     await runnerdExec(
       { baseUrl: 'http://runnerd.test', token: '' },
       { ...request, execId: 'completion-clock', command: ['true'] },
-      (event) => consumed.push(event),
+      (event) => {
+        consumed.push(event);
+      },
     );
     expect(consumed).toEqual(events);
   } finally {
