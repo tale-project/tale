@@ -4,6 +4,7 @@ import { initReactI18next } from 'react-i18next';
 
 import { defaultLocale } from './config';
 import { detectInitialLocale } from './detect-locale';
+import { memoizeLanguageHierarchy } from './language-hierarchy';
 
 type Bundle = Record<string, Record<string, unknown>>;
 
@@ -79,6 +80,9 @@ export function initI18n({ bundles, global = {} }: InitParams) {
         useSuspense: false,
       },
     });
+  // `init` builds the instance's services synchronously, so the language
+  // utilities exist by now.
+  memoizeLanguageHierarchy(i18n);
 
   return i18n;
 }
