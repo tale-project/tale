@@ -8808,6 +8808,7 @@ projects:
   sharing:
     effectiveAudience: Audience effective
     noTeamsHint: Aucune équipe pour l'instant.
+    teamsLoadError: Impossible de charger les équipes.
     noTeamsCreateLink: Créer une équipe
 webdav:
   description: Monte les documents Tale comme lecteur réseau dans Finder, File

@@ -42,7 +42,13 @@ const meta: Meta<typeof FeatureFlagsEditor> = {
       isPending: false,
     });
     mocked(useMembers).mockReturnValue({ members: [], isLoading: false });
-    mocked(useOrgTeams).mockReturnValue({ teams: [], isLoading: false });
+    mocked(useOrgTeams).mockReturnValue({
+      teams: [],
+      isLoading: false,
+      isError: false,
+      isFetching: false,
+      refetch: fn<ReturnType<typeof useOrgTeams>['refetch']>(),
+    });
   },
 };
 

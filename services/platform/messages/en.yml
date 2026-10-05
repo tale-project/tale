@@ -5705,6 +5705,7 @@ projects:
     effectiveAudience: Effective audience
     noTeamsHint: No teams yet.
     noTeamsCreateLink: Create a team
+    teamsLoadError: Couldn't load teams.
 settings:
   menu:
     groups:

@@ -356,4 +356,22 @@ describe('ProjectSharingSection chrome', () => {
       orgTeams.loading = false;
     }
   });
+
+  // Low-priority known limitation: while the directory is still loading, the
+  // saved ID cannot resolve to a name yet, so the summary briefly says Unknown team.
+  it('documents the unknown-team summary while the directory is loading', () => {
+    const previous = orgTeams.current;
+    orgTeams.current = undefined;
+    orgTeams.loading = true;
+    try {
+      renderSection(['missing-team']);
+      expect(screen.getByText('Unknown team')).toBeInTheDocument();
+      expect(
+        screen.getByRole('status', { name: /Loading/ }),
+      ).toBeInTheDocument();
+    } finally {
+      orgTeams.current = previous;
+      orgTeams.loading = false;
+    }
+  });
 });

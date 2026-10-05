@@ -8717,6 +8717,7 @@ projects:
   sharing:
     effectiveAudience: Tatsächliche Reichweite
     noTeamsHint: Noch keine Teams.
+    teamsLoadError: Teams konnten nicht geladen werden.
     noTeamsCreateLink: Team erstellen
 webdav:
   description:
