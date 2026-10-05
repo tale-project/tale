@@ -53,7 +53,7 @@ beforeEach(() => {
   createAuditLog.mockClear();
 });
 
-describe('auditSkillWrite', () => {
+describe('auditSkillWrite [SKILL-R13]', () => {
   it('records a new skill as created, with its audience and resulting tag', async () => {
     await auditSkillWrite(tx, {
       ...base,
@@ -148,7 +148,7 @@ describe('auditSkillWrite', () => {
     ]);
   });
 
-  it('records nothing for a write that changed nothing', async () => {
+  it('records nothing for a write that changed nothing [SKILL-R12]', async () => {
     await auditSkillWrite(tx, {
       ...base,
       previous: revision('"t1"'),
