@@ -270,11 +270,28 @@ during startup. An image update does not add models to the platform catalog;
 deploy the matching platform release before selecting newly supported models.
 
 BuildKit keeps native-addon headers and the built-in skill's Bun package cache
-outside runtime layers. The October harness refresh grows the amd64 image to
-about 6.0 GB; its image-validation budget is 6,600 MB (roughly 10% headroom).
-The complete upstream runtimes and diagnostics ship in the image, which is
-shared by concurrent sessions. This increases image pull and base-image disk
-cost; it does not duplicate the base image for every worker.
+outside runtime layers. OS tools, Office, TeX and the document libraries form
+a shared base without harness version arguments. Each harness installs in its
+own stage and exports an independent artifact layer, so refreshing one harness
+reuses the base and the other harnesses instead of storing new copies of them.
+The image remains shared by concurrent sessions.
+
+Headless Chromium is the only baked browser. Playwright scripts use their usual
+`chromium.launch({ headless: true })`; the MCP launcher selects that same pinned
+executable and answers `browser_install` without downloading another browser
+when the baked browser is present. Explicit browser, executable and configuration
+overrides keep the real server's installation behavior. Office, PDF, CJK fonts,
+XeTeX, all managed harnesses and Docker tooling remain available offline.
+
+The runtime's image-validation budget measures the sum of unpacked image layers,
+including files superseded in later layers. It does not use packed OCI content
+size, which Docker's containerd store can report through `image inspect .Size`.
+Inspect that disk requirement directly:
+
+```bash
+docker image history --no-trunc --human=false --format '{{.Size}}' tale-sandbox-runtime \
+  | awk '{ bytes += $1 } END { printf "%.0f bytes (%.1f MiB)\n", bytes, bytes / 1048576 }'
+```
 
 Run the wrapper regression tests and the real image conformance suite before
 shipping a refresh:
