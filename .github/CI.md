@@ -562,6 +562,11 @@ suite. Five affected-workspace lint/type/generate tasks executed freshly and pas
 Knip, actionlint, formatting and commit hooks also passed. No original assertion or
 time budget was relaxed, and these follow-up corrections do not increase the ledger.
 
+The cache fixture emits its changed-source rejection diagnostic synchronously before
+exiting with status 1. This keeps Bun's multiline error rendering from truncating the
+marker collected by Turbo. The exact task-log assertion and every cache, hash, exit
+status and archive-integrity assertion remain in place; this correction adds no ledger entry.
+
 Protected candidate `91ac292ca` passed [Checks](https://github.com/tale-project/tale/actions/runs/37273313395),
 [Build](https://github.com/tale-project/tale/actions/runs/37273313417),
 [E2E](https://github.com/tale-project/tale/actions/runs/37273313365),
