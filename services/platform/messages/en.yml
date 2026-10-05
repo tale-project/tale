@@ -144,6 +144,9 @@ analytics:
     emptyVoiceModels:
       title: No voice usage yet
       description: No TTS synthesis has been recorded for the selected period.
+    errors:
+      loadFailed: Couldn't load usage metrics.
+      refreshFailed: Couldn't refresh usage metrics. The figures shown may be out of date.
   feedback:
     title: Feedback metrics
     description: User-submitted thumbs up/down and arena verdicts on assistant responses.
@@ -232,6 +235,8 @@ analytics:
       emptyTitle: No feedback in this window
       emptyDescription: Adjust the period or filters to see more.
       noComment: (no comment)
+      loadingComment: Loading full comment…
+      commentLoadFailed: Couldn't load the full comment.
       helpfulAria: Helpful
       notHelpfulAria: Not helpful
       types:
@@ -3740,6 +3745,8 @@ governance:
     emptyTitle: Trash is empty
     entityLabelOne: record
     entityLabel: records
+    refreshFailed: Couldn't load the latest records. What's listed may be incomplete or out of date.
+    loadFailed: Couldn't load the records in Trash.
   legalHold:
     targetTypes:
       thread: Thread
@@ -3837,6 +3844,7 @@ governance:
         userPickerLabel: User
         userPickerPlaceholder: Search by name or email
         userPickerEmpty: No matching users.
+        userPickerFailed: Users could not be loaded.
         orgWarning:
           Organization-wide holds freeze ALL retention for every entity in
           this tenant. This is a deliberate, audit-logged action — review the
@@ -3849,6 +3857,7 @@ governance:
         reasonPlaceholder: 'e.g. Litigation hold for Acme v. Co. (matter #2026-04)'
         matterLabel: Matter
         matterPlaceholder: Pick or create a matter
+        matterPickerFailed: Matters could not be loaded.
         matterCreateNew: Create new matter…
         submit: Place hold
       requestRelease:
@@ -5229,6 +5238,7 @@ skills:
       ask an admin to upload this bundle.
     refused: Your organization reserves sharing with everyone, and you aren't
       allowed to publish. Share the skill with your teams instead.
+    exists: A skill with this name already exists. Nothing was changed.
   addMenu:
     label: Add skill
   createMenu:
@@ -5695,6 +5705,7 @@ projects:
     effectiveAudience: Effective audience
     noTeamsHint: No teams yet.
     noTeamsCreateLink: Create a team
+    teamsLoadError: Couldn't load teams.
 settings:
   menu:
     groups:
@@ -5859,6 +5870,10 @@ settings:
       none: You are not in any team yet. You see everything shared with the
         whole organization.
       manageLink: Manage teams
+      # A read that failed is never "not in any team" (#3847). Try again
+      # is common.actions.tryAgain.
+      loadFailed: "Couldn't load your teams."
+      refreshFailed: "Couldn't refresh your teams. What's shown may be out of date."
     security:
       title: Password
       description: Sign in with your email and a password.
@@ -6694,6 +6709,7 @@ settings:
     yourApiKey: Your API key
     keyRevoked: API key revoked
     keyRevokeFailed: Couldn't revoke API key
+    keyCreateFailed: Couldn't create API key
     revokeKey: Revoke key
     revokeKeyTitle: Revoke API key
     revokeConfirmation: 'Revoke "{keyName}"? Any applications using this key will immediately lose access. This can''t be undone.'
@@ -7584,6 +7600,7 @@ tasks:
     notStartedYet: The agent waits until you start it.
     failureTitle: The agent couldn't finish this task
     reported: What the run reported
+    logReadFailed: The agent log could not be loaded. Try again.
     failure:
       budget: A usage limit stopped this run. Ask an Admin to raise it, then start the agent again.
       setup: Something this agent needs is missing — its model, one of its skills, or the agent itself. An Editor or Admin can fix it on the project's Agents tab.
@@ -7766,6 +7783,7 @@ tasks:
   detail:
     overview: Overview
     comments: Comments
+    commentCount: '{count, plural, one {# comment} other {# comments}}'
     noComments: No comments yet.
     conversation: Conversation
     conversationEmpty: No comments yet — start the conversation below.
@@ -8147,6 +8165,7 @@ twoFactor:
     unnamed: Passkey
     registered: Passkey registered
     revoked: Passkey removed
+    empty: You haven't added a passkey yet.
     namePromptDescription:
       Give this passkey a name so you can recognize it later
       (e.g. "MacBook Touch ID").
@@ -8160,6 +8179,8 @@ twoFactor:
     errors:
       registerFailed: Couldn't register the passkey. Try again.
       revokeFailed: Couldn't remove the passkey. Try again.
+      listFailed: Couldn't load your passkeys.
+      refreshFailed: Couldn't refresh your passkeys. The list shown may be out of date.
   setup:
     title: Set up two-factor authentication
     qrInstructions: Scan the QR code with an authenticator app (Google

@@ -1,6 +1,17 @@
-import { renderHook, act } from '@testing-library/react';
-import { describe, it, expect, vi } from 'vitest';
+import { createServer } from 'node:http';
 
+import {
+  createTable,
+  getCoreRowModel,
+  getSortedRowModel,
+  type ColumnDef,
+  type SortingState,
+} from '@tanstack/react-table';
+import { renderHook, act, waitFor } from '@testing-library/react';
+import { useEffect, useState } from 'react';
+import { describe, it, expect, vi, onTestFinished } from 'vitest';
+
+import { useDebounce } from './use-debounce';
 import { useListPage } from './use-list-page';
 
 // ---------------------------------------------------------------------------
@@ -172,18 +183,20 @@ describe('useListPage — infiniteScroll mode (default)', () => {
 // ---------------------------------------------------------------------------
 
 describe('useListPage — active sort', () => {
-  it('hands the table every processed row instead of the page window', () => {
+  it('keeps the rendered sort window bounded for large buffers', () => {
     const { result } = renderListPage({
+      sortingColumns: [{ accessorKey: 'name' }],
       sorting: [{ id: 'name', desc: false }],
     });
 
-    // Without a sort this would be the 10-row `pageSize` slice; a sort that
-    // only saw the first page would reshuffle rows as later pages arrived.
-    expect(result.current.tableProps.data).toHaveLength(50);
+    // The full buffer is still drained for completeness, but only one page
+    // is rendered once the list is large enough to make rendering expensive.
+    expect(result.current.tableProps.data).toHaveLength(10);
   });
 
-  it('reports no more rows once the backend is drained', () => {
+  it('keeps buffered rows reachable after backend exhaustion', () => {
     const { result } = renderListPage({
+      sortingColumns: [{ accessorKey: 'name' }],
       sorting: [{ id: 'name', desc: true }],
       dataSource: {
         type: 'paginated',
@@ -196,7 +209,7 @@ describe('useListPage — active sort', () => {
 
     const props = result.current.tableProps;
     if ('infiniteScroll' in props) {
-      expect(props.infiniteScroll.hasMore).toBe(false);
+      expect(props.infiniteScroll.hasMore).toBe(true);
     }
   });
 
@@ -579,5 +592,221 @@ describe('useListPage — failed request', () => {
       expect(result.current.tableProps.data).toHaveLength(35);
       expect(result.current.tableProps.infiniteScroll.hasMore).toBe(true);
     });
+  });
+});
+
+describe('useListPage — server search budget', () => {
+  it('retains drains for ordinary controlled client search and genuine client sorting', () => {
+    for (const serverSide of [false, true]) {
+      const loadMore = vi.fn();
+      const { unmount } = renderListPage({
+        dataSource: {
+          type: 'paginated',
+          results: makeItems(20),
+          status: 'CanLoadMore',
+          loadMore,
+          isLoading: false,
+        },
+        pageSize: 20,
+        search: { serverSide, value: 'Item', onChange: vi.fn() },
+        sorting: serverSide ? [{ id: 'name', desc: false }] : [],
+      });
+      expect(loadMore).toHaveBeenCalled();
+      unmount();
+    }
+  });
+
+  it('never drains a broad controlled server query through successive page completions', () => {
+    const loadMore = vi.fn();
+    const { result, rerender } = renderHook(
+      ({ count }) =>
+        useListPage<TestItem>({
+          dataSource: {
+            type: 'paginated',
+            results: makeItems(count),
+            status: 'CanLoadMore',
+            loadMore,
+            isLoading: false,
+          },
+          pageSize: 20,
+          search: { serverSide: true, value: 'Item', onChange: vi.fn() },
+        }),
+      { initialProps: { count: 20 } },
+    );
+    for (const count of [40, 60, 80, 100, 120, 140]) rerender({ count });
+    expect(loadMore).not.toHaveBeenCalled();
+    expect(result.current.tableProps.infiniteScroll.hasMore).toBe(true);
+    act(() => result.current.tableProps.infiniteScroll.onLoadMore());
+    expect(result.current.tableProps.data).toHaveLength(40);
+  });
+
+  it('makes one debounced list request for broad search and no unsolicited next-page requests', async () => {
+    const requests: string[] = [];
+    const server = createServer((request, response) => {
+      requests.push(request.url ?? '');
+      response.setHeader('Content-Type', 'application/json');
+      response.end(
+        JSON.stringify({ items: makeItems(20), nextCursor: 'next' }),
+      );
+    });
+    await new Promise<void>((resolve) =>
+      server.listen(0, '127.0.0.1', resolve),
+    );
+    onTestFinished(
+      () =>
+        new Promise<void>((resolve, reject) =>
+          server.close((error) => (error ? reject(error) : resolve())),
+        ),
+    );
+    const address = server.address();
+    if (!address || typeof address === 'string')
+      throw new Error('Missing test server port');
+    const baseUrl = `http://127.0.0.1:${address.port}`;
+    const requestPage = async (query: string, cursor?: string) => {
+      const response = await fetch(
+        `${baseUrl}/contacts?limit=20&search=${query}${cursor ? `&cursor=${cursor}` : ''}`,
+      );
+      return response.json();
+    };
+    const { result, unmount } = renderHook(() => {
+      const [query, setQuery] = useState('');
+      const search = useDebounce(query, 250);
+      const [rows, setRows] = useState<TestItem[]>(makeItems(20));
+      useEffect(() => {
+        void requestPage(search).then((page: { items: TestItem[] }) =>
+          setRows(page.items),
+        );
+      }, [search]);
+      const list = useListPage<TestItem>({
+        dataSource: {
+          type: 'paginated',
+          results: rows,
+          status: 'CanLoadMore',
+          isLoading: false,
+          loadMore: () => {
+            void requestPage(search, 'next');
+          },
+        },
+        pageSize: 20,
+        search: { serverSide: true, value: query, onChange: setQuery },
+      });
+      return list;
+    });
+    onTestFinished(unmount);
+    await waitFor(() => expect(requests).toHaveLength(1));
+    act(() => result.current.tableProps.search?.onChange('I'));
+    act(() => result.current.tableProps.search?.onChange('It'));
+    act(() => result.current.tableProps.search?.onChange('Item'));
+    expect(requests).toHaveLength(1);
+    await waitFor(() => expect(requests).toHaveLength(2));
+    expect(new URL(requests[1]!, baseUrl).searchParams.get('search')).toBe(
+      'Item',
+    );
+    expect(
+      requests.filter((url) =>
+        new URL(url, baseUrl).searchParams.has('cursor'),
+      ),
+    ).toHaveLength(0);
+  });
+});
+
+describe('useListPage — column-aware sorted window', () => {
+  function fullOrder(
+    data: TestItem[],
+    columns: ColumnDef<TestItem>[],
+    sorting: SortingState,
+  ) {
+    return createTable({
+      data,
+      columns,
+      state: { sorting },
+      onStateChange: () => {},
+      renderFallbackValue: null,
+      getCoreRowModel: getCoreRowModel(),
+      getSortedRowModel: getSortedRowModel(),
+    })
+      .getSortedRowModel()
+      .rows.map((row) => row.original);
+  }
+
+  it('matches the whole TanStack Name model for Zebra/Álvaro in both directions', () => {
+    const items = makeItems(100).map((item, index) =>
+      Object.assign(item, {
+        name: index < 20 ? `Zebra ${index}` : `Álvaro ${index}`,
+      }),
+    );
+    const columns: ColumnDef<TestItem>[] = [{ accessorKey: 'name' }];
+    for (const desc of [false, true]) {
+      const sorting = [{ id: 'name', desc }];
+      const expected = fullOrder(items, columns, sorting);
+      const { result, unmount } = renderListPage({
+        dataSource: { type: 'query', data: items },
+        pageSize: 20,
+        sorting,
+        sortingColumns: columns,
+      });
+      expect(result.current.tableProps.data).toEqual(expected.slice(0, 20));
+      if (!desc)
+        expect(result.current.tableProps.data.map((row) => row._id)).toEqual(
+          makeItems(20).map((row) => row._id),
+        );
+      act(() => result.current.tableProps.infiniteScroll.onLoadMore());
+      expect(result.current.tableProps.data).toEqual(expected.slice(0, 40));
+      unmount();
+    }
+  });
+
+  it('preserves accessor, custom comparator and multi-column sorting', () => {
+    const items = makeItems(100);
+    const columns: ColumnDef<TestItem>[] = [
+      {
+        id: 'derived',
+        accessorFn: (item) => item.category,
+        sortingFn: (left, right, id) =>
+          String(right.getValue(id)).localeCompare(String(left.getValue(id))),
+      },
+      { accessorKey: 'name' },
+    ];
+    const sorting = [
+      { id: 'derived', desc: false },
+      { id: 'name', desc: true },
+    ];
+    const { result } = renderListPage({
+      dataSource: { type: 'query', data: items },
+      pageSize: 20,
+      sorting,
+      sortingColumns: columns,
+    });
+    expect(result.current.tableProps.data).toEqual(
+      fullOrder(items, columns, sorting).slice(0, 20),
+    );
+  });
+
+  it('keeps all 50 sorted control rows and retains 5,000 rows behind a 20-row window', () => {
+    const columns: ColumnDef<TestItem>[] = [{ accessorKey: 'name' }];
+    for (const count of [50, 5000]) {
+      const { result, unmount } = renderListPage({
+        dataSource: { type: 'query', data: makeItems(count) },
+        pageSize: 20,
+        sorting: [{ id: 'name', desc: false }],
+        sortingColumns: columns,
+      });
+      expect(result.current.tableProps.data).toHaveLength(
+        count === 50 ? 50 : 20,
+      );
+      expect(result.current.processedData).toHaveLength(count);
+      expect(result.current.tableProps.infiniteScroll.hasMore).toBe(
+        count !== 50,
+      );
+      unmount();
+    }
+  });
+
+  it('leaves hosts without column-aware windowing on their existing complete-sort path', () => {
+    const { result } = renderListPage({
+      sorting: [{ id: 'name', desc: false }],
+    });
+    expect(result.current.tableProps.data).toHaveLength(50);
+    expect(result.current.tableProps.infiniteScroll.hasMore).toBe(false);
   });
 });

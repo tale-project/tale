@@ -140,6 +140,22 @@ describe('harvestSessionOutput — per-file harvest skips', () => {
     deleteBlob.mockReset();
   });
 
+  it('uploads the original file backing store without copying the payload', async () => {
+    const read = textBytes('the original payload');
+    sessionListFiles.mockResolvedValue([
+      outputEntry('report.txt', read.bytes.byteLength),
+    ]);
+    sessionReadFile.mockResolvedValue(read);
+    const result = await harvestSessionOutput(harvestCtx({}), {
+      organizationId: ORG,
+      sessionId: 'sid',
+    });
+    expect(result.files).toHaveLength(1);
+    const uploaded = putBlob.mock.calls[0]?.[1] as Uint8Array;
+    expect(uploaded.buffer).toBe(read.bytes);
+    expect(new TextDecoder().decode(uploaded)).toBe('the original payload');
+  });
+
   const harvestArgs = { organizationId: ORG, sessionId: 'sid' };
 
   it('fails LOUD before touching the session when the org has no bucket', async () => {

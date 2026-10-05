@@ -22,6 +22,7 @@ vi.mock('../node_only/sandbox/helpers/session_client', async (importActual) => {
     >();
   return {
     ...actual,
+    sessionListFiles: async () => [],
     sessionStageFiles: async (
       _sessionId: string,
       files: Array<{ path: string }>,

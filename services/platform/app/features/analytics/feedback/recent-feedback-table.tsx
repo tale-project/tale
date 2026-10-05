@@ -10,9 +10,43 @@ import type { ColumnDef, Row } from '@tanstack/react-table';
 import { MessageSquare, ThumbsDown, ThumbsUp } from 'lucide-react';
 import { type ReactNode, useCallback, useMemo } from 'react';
 
+import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useT } from '@/lib/i18n/client';
 
 import type { ArenaVerdict, RecentFeedbackItem } from './types';
+
+function ExpandedComment({
+  row,
+  tAnalytics,
+}: {
+  row: RecentFeedbackItem;
+  tAnalytics: ReturnType<typeof useT>['t'];
+}) {
+  const { data, isLoading, isError } = useBackendQuery(
+    'feedback/queries:getFeedbackComment',
+    row.commentTruncated === true ? { feedbackId: row._id } : 'skip',
+  );
+
+  return (
+    <Stack gap={1} aria-live="polite">
+      <Text className="text-sm whitespace-pre-wrap">
+        {(row.commentTruncated === true && data !== undefined
+          ? data.comment
+          : row.comment) ?? tAnalytics('feedback.recent.noComment')}
+      </Text>
+      {row.commentTruncated === true && data === undefined && isLoading && (
+        <Text role="status" className="text-sm">
+          {tAnalytics('feedback.recent.loadingComment')}
+        </Text>
+      )}
+      {row.commentTruncated === true && data === undefined && isError && (
+        <Text role="alert" className="text-destructive text-sm">
+          {tAnalytics('feedback.recent.commentLoadFailed')}
+        </Text>
+      )}
+    </Stack>
+  );
+}
 
 const VERDICT_I18N_KEY: Record<ArenaVerdict, string> = {
   a_better: 'aBetter',
@@ -165,9 +199,7 @@ export function RecentFeedbackTable({
           <Text className="text-muted-foreground text-xs tracking-wide uppercase">
             {tAnalytics('feedback.recent.expanded.comment')}
           </Text>
-          <Text className="text-sm whitespace-pre-wrap">
-            {row.original.comment ?? tAnalytics('feedback.recent.noComment')}
-          </Text>
+          <ExpandedComment row={row.original} tAnalytics={tAnalytics} />
         </Stack>
         {row.original.isArena ? (
           <Stack gap={1}>

@@ -10,38 +10,46 @@
  * A harness turn runs a coding-harness CLI (Claude Code, Codex, …) inside a
  * sandbox session. The exec runs UNDER runnerd, independent of any single
  * Convex action: it is started once and then DRAINED in short self-chaining
- * windows (a Convex action cannot be held open for a long turn — a cold or
- * slow turn would outlive its execution window and be killed mid-run). Each
- * window re-attaches to the running exec from the START of runnerd's
- * byte-identical disk journal and re-parses the full output-so-far —
- * re-parsing from the start (rather than carrying a per-delta cursor across
- * windows) keeps a JSONL line that straddles a window boundary from being
- * stranded by the fresh per-window parser. This module owns the lane-neutral
+ * windows. Each window restores an atomic checkpoint of its parser, partial
+ * JSONL line, background-task ledger and bounded display projection, then
+ * attaches after its acknowledged stream cursor. The daemon retains the
+ * unacknowledged bytes on disk, so a worker restart cannot lose accounting or
+ * confuse a missing task-start event with a finished background task. Older
+ * runtimes without checkpoints keep their seq-0 compatibility path.
+ * This module owns the lane-neutral
  * core: exec construction (`buildExternalTurnExec`, with the model window
  * `resolveHarnessTurnContextWindow` reads), the window drain
  * (`drainHarnessWindow`), end classification (`classifyHarnessEnd`), and the
- * event→transcript projection (`HarnessProjection`); each host wraps it
+ * bounded event→transcript projection (`HarnessProjection`); each host wraps it
  * with its own token mint, progress sink, and settle.
  */
+
+import { z } from 'zod';
 
 import { resolveEffectiveWindow } from '../../../lib/chat/budget';
 import { HarnessProjection } from '../../../lib/harnesses/projection';
 import { getHarnessGlue } from '../../../lib/harnesses/registry';
-import type { TimelinePart } from '../../../lib/harnesses/timeline';
+import { type TimelinePart } from '../../../lib/harnesses/timeline';
 import {
   isHarnessSlug,
   type HarnessEvent,
   type HarnessExec,
 } from '../../../lib/harnesses/types';
+import { traceSandboxPhase } from '../../tracing';
 import type { ActionCtx } from '../lib/ctx';
 import { internal } from '../lib/handler_names';
 import { loadHarnesses } from '../lib/providers/load_system_config';
 import { resolveModel } from '../lib/providers/resolve_model';
 import {
   drainSessionExecResilient,
+  ExecReplayGapError,
   ExecStreamProtocolError,
   SessionNotFoundError,
   sessionCancelExec,
+  sessionGetExecCheckpoint,
+  sessionPutExecCheckpoint,
+  type ExecCursor,
+  type SessionExecCheckpoint,
   sessionStageFiles,
   type SessionExecBody,
   type SessionExecResult,
@@ -65,7 +73,7 @@ const TURN_ENDED_EXIT_GRACE_MS = 1_500;
 /** Floor between two mid-window notifications of the accumulating output —
  * the cadence of the `onText`/`onTimeline` progress sinks, so a host's
  * per-notification write stays off the hot path. */
-const STREAM_TEXT_THROTTLE_MS = 250;
+const STREAM_TEXT_THROTTLE_MS = 500;
 /** The `timeoutMs` handed to a harness exec. NOT a turn deadline: runnerd's
  * timer is a SLIDING orphan window (re-armed on every drain attach, see the
  * daemon's exec manager), not an absolute cap — an exec whose drainer keeps
@@ -335,8 +343,37 @@ export function buildExternalTurnExec(args: {
   return { ...exec, env: { ...args.extraEnv, ...exec.env } };
 }
 
-/** One entry of the op row's bounded live transcript. */
+/** One entry of the op row's live timeline. */
 export type HarnessTimelinePart = TimelinePart;
+
+const turnEndSchema = z.object({
+  type: z.literal('turn-ended'),
+  status: z.enum(['completed', 'error', 'max-turns', 'cancelled']),
+  sessionId: z.string().optional(),
+  finalText: z.string().optional(),
+  durationMs: z.number().optional(),
+  usageTotals: z
+    .object({
+      inputTokens: z.number(),
+      outputTokens: z.number(),
+      costEstimateUsd: z.number().optional(),
+    })
+    .optional(),
+  isError: z.boolean().optional(),
+  apiErrorStatus: z.number().optional(),
+});
+const turnCheckpointSchema = z.object({
+  version: z.literal(1),
+  harness: z.string(),
+  parser: z.unknown(),
+  projection: z.unknown(),
+  pendingTasks: z.array(z.string().max(1024)).max(4096),
+  ended: turnEndSchema.optional(),
+  agentSessionId: z.string().optional(),
+  outputTokens: z.number(),
+  stderrRing: z.string(),
+  harnessError: z.string().optional(),
+});
 
 /** What one harness window observed — the lane-neutral core result. */
 export type HarnessWindowResult =
@@ -350,6 +387,9 @@ export type HarnessWindowResult =
   | {
       kind: 'terminal';
       text: string;
+      /** Display text is bounded; a successful result must use finalText if
+       * the display omitted an earlier prefix. */
+      textTruncated?: boolean;
       /** Exact bounded fallback when the harness terminal has no finalText. */
       answerText?: string;
       timeline: HarnessTimelinePart[];
@@ -382,7 +422,7 @@ export async function drainHarnessWindow(args: {
   execId: string;
   harness: string;
   start?: HarnessExec;
-  /** Throttled bounded text-tail callback (at most 4/s), for live display. */
+  /** Throttled bounded text-tail callback (at most ~2/s), for live display. */
   onText?: (text: string) => void;
   /** Throttled transcript-so-far callback (same cadence as `onText`), in the
    * op row's `liveTimeline` shape. The chat lane renders its transcript from
@@ -401,6 +441,7 @@ export async function drainHarnessWindow(args: {
   );
   const parser = glue.createParser();
   const projection = new HarnessProjection();
+  const cursor: ExecCursor = { lastSeq: 0 };
   let ended: Extract<HarnessEvent, { type: 'turn-ended' }> | undefined;
   let agentSessionId: string | undefined;
   let outputTokens = 0;
@@ -410,22 +451,16 @@ export async function drainHarnessWindow(args: {
   // `turn-ended` event that actually ends the turn. Cut the drain shortly
   // after the parser sees `turn-ended`; the grace lets a harness that DOES
   // exit deliver its terminal result (and exit code) first.
+  let replayComplete = args.start !== undefined;
   const turnEndedCut = new AbortController();
   let turnEndedGrace: ReturnType<typeof setTimeout> | undefined;
-  let turnEndedSeen = false;
-  // A large journal may take longer than the exit grace to replay. Its
-  // historical result is not actionable until we have caught up: a later
-  // record can reopen the background ledger. The transport negotiates legacy
-  // streams before accepting their first contiguous sequence; an evicted
-  // legacy prefix fails explicitly instead of rebuilding partial state.
-  let replayComplete = args.start !== undefined;
+
   // The background-task ledger (`types.ts` contract): a harness that
   // launched background work reports `task-started`/`task-settled` pairs,
   // and a `turn-ended` whose ledger is still open is a LINGERING turn — the
   // main reply is in, but a deliverable may still be being written. The turn
-  // is done only when the reply is in AND the ledger is empty; until then
-  // the process stays alive and the next window keeps draining it. (Every
-  // window re-parses from seq 0, so the ledger is rebuilt consistently.)
+  // is done only when the reply is in AND the ledger is empty; the checkpoint
+  // carries that ledger across windows independently of display retention.
   const pendingTasks = new Set<string>();
   const armTurnEndedCut = () => {
     if (!replayComplete || turnEndedGrace !== undefined) return;
@@ -444,8 +479,6 @@ export async function drainHarnessWindow(args: {
   let lastNotifiedEventCount = 0;
   let lastNotifyAt = 0;
   const notifyTextSoFar = () => {
-    // A fresh parser traverses the full journal. Publishing an ancient
-    // prefix would merge evicted entries back into the persisted tail.
     if (!replayComplete) return;
     if (args.onText === undefined && args.onTimeline === undefined) return;
     const now = Date.now();
@@ -481,21 +514,90 @@ export async function drainHarnessWindow(args: {
   let stderrRing = '';
   const onStderr = (chunk: string) => {
     stderrRing = (stderrRing + chunk).slice(-STDERR_RING_CHARS);
+    maybeCheckpoint();
   };
 
   // The harness's own account of a failure. Before this the `error` events
   // were pushed and never read: a Codex turn the provider refused settled
   // with the agent's last narration sentence as its reason (2026-09-26).
   let harnessError: string | undefined;
+  const restoreCheckpoint = (checkpoint: SessionExecCheckpoint) => {
+    const state = turnCheckpointSchema.parse(checkpoint.state);
+    if (state.harness !== args.harness)
+      throw new Error('sandbox exec checkpoint belongs to another harness');
+    parser.restore(state.parser);
+    projection.restore(state.projection);
+    cursor.lastSeq = checkpoint.seq;
+    pendingTasks.clear();
+    for (const id of state.pendingTasks) pendingTasks.add(id);
+    ended = state.ended;
+    agentSessionId = state.agentSessionId;
+    outputTokens = state.outputTokens;
+    stderrRing = state.stderrRing;
+    harnessError = state.harnessError;
+    lastNotifiedEventCount = -1;
+  };
+  if (args.start === undefined) {
+    const checkpoint = await sessionGetExecCheckpoint(
+      args.sessionId,
+      args.execId,
+    );
+    if (checkpoint !== null) restoreCheckpoint(checkpoint);
+  }
+  let lastCheckpointAt = Date.now();
+  let pendingCheckpoint: SessionExecCheckpoint | undefined;
+  let checkpointWrite: Promise<void> | undefined;
+  const writeCheckpoints = async () => {
+    while (pendingCheckpoint !== undefined) {
+      const checkpoint = pendingCheckpoint;
+      pendingCheckpoint = undefined;
+      try {
+        await sessionPutExecCheckpoint(args.sessionId, args.execId, checkpoint);
+      } catch (error) {
+        // Never acknowledge on failure. The daemon retains the unacknowledged
+        // spool so another worker can resume the last successful checkpoint.
+        console.warn('[harness-window] checkpoint write failed:', error);
+      }
+    }
+    checkpointWrite = undefined;
+  };
+  const flushCheckpoints = async () => {
+    for (;;) {
+      const active = checkpointWrite;
+      if (active === undefined) return;
+      await active;
+    }
+  };
+  const maybeCheckpoint = (force = false) => {
+    if (
+      cursor.lastSeq === 0 ||
+      (!force && Date.now() - lastCheckpointAt < 5_000)
+    )
+      return;
+    lastCheckpointAt = Date.now();
+    pendingCheckpoint = {
+      seq: cursor.lastSeq,
+      state: {
+        version: 1,
+        harness: args.harness,
+        parser: parser.snapshot(),
+        projection: projection.snapshot(),
+        pendingTasks: [...pendingTasks],
+        ended,
+        agentSessionId,
+        outputTokens,
+        stderrRing,
+        harnessError,
+      },
+    };
+    checkpointWrite ??= Promise.resolve().then(writeCheckpoints);
+  };
+  let outputFailure: { error: unknown } | undefined;
   const acceptEvent = (e: HarnessEvent) => {
     projection.accept(e);
+    if (e.type === 'turn-started' && e.sessionId !== undefined)
+      agentSessionId = e.sessionId;
     if (e.type === 'usage') outputTokens += e.outputTokens;
-    if (e.type === 'turn-started' || e.type === 'turn-ended') {
-      agentSessionId ??= e.sessionId;
-    }
-    if (e.type === 'turn-ended') {
-      ended = e;
-    }
     if (e.type === 'error') {
       harnessError = e.message;
     } else if (e.type === 'task-started') {
@@ -514,13 +616,24 @@ export async function drainHarnessWindow(args: {
     } else if (e.type === 'task-settled') {
       pendingTasks.delete(e.taskId);
     } else if (e.type === 'turn-ended') {
-      turnEndedSeen = true;
+      ended = e;
+      agentSessionId ??= e.sessionId;
     }
-    if (turnEndedSeen && pendingTasks.size === 0) armTurnEndedCut();
+    if (ended !== undefined && pendingTasks.size === 0) armTurnEndedCut();
   };
-  const onStdout = (chunk: string) => {
+  const consumeStdout = (chunk: string) => {
     for (const e of parser.feed(chunk)) acceptEvent(e);
     notifyTextSoFar();
+    maybeCheckpoint();
+  };
+
+  const onStdout = (chunk: string) => {
+    try {
+      consumeStdout(chunk);
+    } catch (error) {
+      outputFailure = { error };
+      throw error;
+    }
   };
 
   const body: SessionExecBody = args.start
@@ -549,7 +662,8 @@ export async function drainHarnessWindow(args: {
       };
 
   // On the start window we STAGE the exec's input files, then start it; drain
-  // windows attach from the durable journal start (resumeSinceSeq 0).
+  // windows restore parser state and continue after its acknowledged cursor.
+  // An old runtime without checkpoints retains the seq-0 compatibility lane.
   if (
     args.start?.stagedFiles !== undefined &&
     args.start.stagedFiles.length > 0
@@ -574,28 +688,69 @@ export async function drainHarnessWindow(args: {
 
   const windowSignal = AbortSignal.timeout(args.windowMs ?? DRAIN_WINDOW_MS);
   const drainSignal = AbortSignal.any([windowSignal, turnEndedCut.signal]);
+  if (ended !== undefined && pendingTasks.size === 0) armTurnEndedCut();
   let exited = false;
   let execResult: SessionExecResult | undefined;
+  let unresolvedReplayGap: ExecReplayGapError | undefined;
   try {
-    execResult = await drainSessionExecResilient(
-      args.sessionId,
-      body,
-      drainSignal,
-      {
-        onStdout,
-        onStderr,
-        onReplayStarted: () => {
-          replayComplete = false;
-          disarmTurnEndedCut();
-        },
-        onReplayComplete: () => {
-          replayComplete = true;
-          notifyTextSoFar();
-          if (turnEndedSeen && pendingTasks.size === 0) armTurnEndedCut();
-        },
-      },
-      args.start ? {} : { resumeSinceSeq: 0 },
-    );
+    let resumeDrain = args.start === undefined;
+    for (;;) {
+      try {
+        execResult = await traceSandboxPhase('execute', () =>
+          drainSessionExecResilient(
+            args.sessionId,
+            body,
+            drainSignal,
+            {
+              onStdout,
+              onStderr,
+              onReplayStarted: () => {
+                replayComplete = false;
+                disarmTurnEndedCut();
+              },
+              onReplayComplete: () => {
+                replayComplete = true;
+                notifyTextSoFar();
+                if (ended !== undefined && pendingTasks.size === 0)
+                  armTurnEndedCut();
+              },
+            },
+            {
+              cursor,
+              ...(resumeDrain ? { resumeSinceSeq: cursor.lastSeq } : {}),
+            },
+          ),
+        );
+        break;
+      } catch (error) {
+        if (!(error instanceof ExecReplayGapError)) throw error;
+        unresolvedReplayGap = error;
+        if (drainSignal.aborted) throw error;
+        // A recovering sibling can commit and prune after our checkpoint
+        // read but before attach. Adopt its newer atomic snapshot, never
+        // restart the exec or parse a suffix without its missing prefix.
+        const newer = await sessionGetExecCheckpoint(
+          args.sessionId,
+          args.execId,
+        );
+        // Merely advancing is insufficient: the snapshot must account for
+        // every missing event, even if the end grace expires during its GET.
+        // An invalid/old gap without a verifiable range fails closed.
+        if (
+          newer === null ||
+          newer.seq <= cursor.lastSeq ||
+          error.toSeq === undefined ||
+          newer.seq < error.toSeq
+        )
+          throw error;
+        disarmTurnEndedCut();
+        pendingCheckpoint = undefined;
+        restoreCheckpoint(newer);
+        unresolvedReplayGap = undefined;
+        if (ended !== undefined && pendingTasks.size === 0) armTurnEndedCut();
+        resumeDrain = true;
+      }
+    }
     exited = true;
     if (unreplayableExecResult(execResult)) {
       // A refused stream does not prove that its process has stopped. Never
@@ -605,6 +760,10 @@ export async function drainHarnessWindow(args: {
       );
     }
   } catch (err) {
+    // A deadline/grace can fire while recovery awaits I/O. It cannot turn a
+    // known missing prefix or rejected parser record into a successful end.
+    if (outputFailure !== undefined) throw outputFailure.error;
+    if (unresolvedReplayGap !== undefined) throw unresolvedReplayGap;
     if (err instanceof SessionNotFoundError) return { kind: 'gone' };
     if (err instanceof ExecStreamProtocolError) {
       await sessionCancelExec(args.sessionId, args.execId).catch((cancelErr) =>
@@ -617,13 +776,14 @@ export async function drainHarnessWindow(args: {
     // lingering exec — either way not a drain failure.
   } finally {
     disarmTurnEndedCut();
+    await flushCheckpoints();
   }
   // `end()` is the parser's EOF: the process has exited and whatever it
   // buffered is final — a family that HOLDS a result until the stream ends
   // (pi's retry hold) finalizes it here. A window that merely elapsed under a
   // live exec is not an EOF: flushing it would turn a mid-tool assistant stop
-  // into a completed turn and cut the process under it. The next window
-  // re-parses from seq 0, so nothing buffered here is lost.
+  // into a completed turn and cut the process under it. The checkpoint keeps
+  // the parser's unfinished line and held result for the next window.
   const replayGap = unreplayableExecResult(execResult);
   if (exited && !replayGap) {
     for (const e of parser.end()) acceptEvent(e);
@@ -642,6 +802,8 @@ export async function drainHarnessWindow(args: {
   const terminal =
     exited || (replayComplete && ended !== undefined && !lingeringOnTasks);
   if (!terminal) {
+    maybeCheckpoint(true);
+    await flushCheckpoints();
     if (lingeringOnTasks) {
       console.warn(
         `[harness-window] ${args.execId}: turn ended with ${pendingTasks.size} background task(s) still running — draining on`,
@@ -667,6 +829,7 @@ export async function drainHarnessWindow(args: {
   return {
     kind: 'terminal',
     text,
+    textTruncated: projection.textTruncated,
     answerText: replayGap ? '' : projection.answer,
     timeline,
     ...(ended !== undefined ? { ended } : {}),
@@ -685,6 +848,7 @@ function unreplayableExecResult(
   result: SessionExecResult | undefined,
 ): boolean {
   return (
+    result?.errorCode === 'OUTPUT_GAP' ||
     result?.errorCode === 'REPLAY_GAP' ||
     result?.errorCode === 'REPLAY_UNAVAILABLE' ||
     result?.errorCode === 'OUTPUT_LIMIT'
@@ -727,6 +891,8 @@ type HarnessEndWindow = Pick<
   | 'execResult'
   | 'exited'
   | 'text'
+  | 'textTruncated'
+  | 'answerText'
   | 'timeline'
   | 'outputTokens'
   | 'stderrTail'
@@ -746,7 +912,7 @@ function hasWords(text: string | undefined): boolean {
  * end), a tool call, or output tokens, from the window's usage reports or
  * the end's own totals. The tokens are what counts a turn that only reasoned
  * (no timeline part shows reasoning), and for a harness whose end reports
- * the whole turn they cover what a long turn's replay no longer holds.
+ * the whole turn they also cover reasoning absent from the timeline.
  */
 function isEmptyAnswer(
   window: HarnessEndWindow,
@@ -754,6 +920,7 @@ function isEmptyAnswer(
 ): boolean {
   if (ended.status !== 'completed') return false;
   const answered =
+    hasWords(window.answerText) ||
     hasWords(window.text) ||
     hasWords(ended.finalText) ||
     window.timeline.some((part) => part.type !== 'text' || hasWords(part.text));
@@ -842,6 +1009,18 @@ export function classifyHarnessEnd(window: HarnessEndWindow): {
     return {
       errored: true,
       reason: named.length <= MAX ? named : `${named.slice(0, MAX)} …`,
+      emptyAnswer: false,
+    };
+  }
+  if (
+    window.textTruncated === true &&
+    !hasWords(ended.finalText) &&
+    !hasWords(window.answerText)
+  ) {
+    return {
+      errored: true,
+      reason:
+        'The harness did not provide its complete final answer; the available progress text is truncated.',
       emptyAnswer: false,
     };
   }

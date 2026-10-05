@@ -89,6 +89,21 @@ function withRecordDates(row: unknown): unknown {
   };
 }
 
+/**
+ * A product row as the document the products UI reads. The pg row holds
+ * `null` for an unset column, while the doc declares those fields optional
+ * (`price?: number`) and its readers test `!== undefined`: an unpriced
+ * product read as `$0.00` and an unknown stock as a blank cell (#3617). An
+ * unset field arrives absent; an explicit `0` stays `0`.
+ */
+function withProductFields(row: unknown): unknown {
+  const doc = withRecordDates(row);
+  if (doc === null || typeof doc !== 'object') return doc;
+  return Object.fromEntries(
+    Object.entries(doc).filter(([, value]) => value !== null),
+  );
+}
+
 interface PageEnvelope {
   page: unknown[];
   isDone: boolean;
@@ -428,7 +443,7 @@ export const engagementPaginatedAdapters: Record<string, PaginatedAdapter> = {
             body.items,
             body.nextCursor,
             'updatedAt',
-            withRecordDates,
+            withProductFields,
           ),
         );
       },

@@ -60,6 +60,81 @@ const baseArgs = {
   userId: 'user-1',
 };
 
+describe('SharePoint import modes', () => {
+  const sharePointItem: ImportItem = {
+    id: 'report',
+    name: 'Report.txt',
+    size: 10,
+    isDirectlySelected: true,
+    sourceType: 'sharepoint',
+    siteId: 'site-1',
+    driveId: 'drive-1',
+  };
+
+  it.each([false, true])(
+    'refuses sync before effects (mixed: %s)',
+    async (mixed) => {
+      const deps = makeDeps();
+      const items = mixed
+        ? [
+            {
+              ...sharePointItem,
+              id: 'personal',
+              sourceType: 'onedrive' as const,
+            },
+            sharePointItem,
+          ]
+        : [sharePointItem];
+      const result = await importFiles(
+        { ...baseArgs, items, importType: 'sync' },
+        deps,
+      );
+      expect(result.success).toBe(false);
+      expect(result.successCount).toBe(0);
+      expect(result.failedCount).toBe(items.length);
+      expect(result.results.every((row) => row.status === 'error')).toBe(true);
+      expect(deps.upsertSyncConfig).not.toHaveBeenCalled();
+      expect(deps.getFileMetadata).not.toHaveBeenCalled();
+      expect(deps.downloadToStorage).not.toHaveBeenCalled();
+      expect(deps.createDocument).not.toHaveBeenCalled();
+    },
+  );
+
+  it('imports SharePoint once with manual metadata and no registration', async () => {
+    const deps = makeDeps();
+    const result = await importFiles(
+      { ...baseArgs, items: [sharePointItem], importType: 'one-time' },
+      deps,
+    );
+    expect(result.success).toBe(true);
+    expect(deps.upsertSyncConfig).not.toHaveBeenCalled();
+    expect(deps.createDocument).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata: expect.objectContaining({ sourceMode: 'manual' }),
+      }),
+    );
+    expect(
+      vi.mocked(deps.createDocument).mock.calls[0][0].metadata,
+    ).not.toHaveProperty('syncConfigId');
+  });
+
+  it('keeps a refused SharePoint metadata read a failure', async () => {
+    const deps = makeDeps({
+      getFileMetadata: vi
+        .fn()
+        .mockResolvedValue({ success: false, error: 'refused' }),
+    });
+    const result = await importFiles(
+      { ...baseArgs, items: [sharePointItem], importType: 'one-time' },
+      deps,
+    );
+    expect(result.success).toBe(false);
+    expect(result.failedCount).toBe(1);
+    expect(deps.upsertSyncConfig).not.toHaveBeenCalled();
+    expect(deps.createDocument).not.toHaveBeenCalled();
+  });
+});
+
 /**
  * The sync binding — `sourceMode: 'auto'` + `syncConfigId` — is what lets a
  * later run update and prune a document. The regression under test: the

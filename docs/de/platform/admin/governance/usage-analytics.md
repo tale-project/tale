@@ -39,3 +39,5 @@ Prüfe die [Feedback-Analyse](/de/platform/admin/governance/feedback-analytics),
 ## Fehlende Historie verstehen
 
 Die Diagramme zeigen die Nutzungsdaten, die Tale noch aufbewahrt. Organisations- und Deployment-Einstellungen bestimmen, wie weit die Historie reicht; eine allgemeine Garantie von 365 Tagen gibt es nicht. Prüfe Zeitraum, Filter und Aufbewahrung des Nutzungsprotokolls, wenn erwartete Aktivität fehlt.
+
+Lassen sich die Metriken nicht laden, sagt die Seite das und bietet **Erneut versuchen** an, statt Nullen oder leere Tabellen zu zeigen. Zeitraum und Filter bleiben, wie du sie gewählt hast. Schlägt eine Aktualisierung fehl, bleiben die bereits angezeigten Zahlen stehen, mit dem Hinweis, dass sie womöglich veraltet sind. Scheitert **Erneut versuchen** immer wieder, bitte den Bereitstellungsbetreiber zu prüfen, ob die Dienste von Tale laufen.

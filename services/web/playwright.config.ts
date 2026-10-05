@@ -26,7 +26,11 @@ export default createPlaywrightConfig({
     // Deliberately NOT `bun run build`: SSR/prerender/SEO and the networked
     // fetch-releases step are not needed to serve the SPA the dev server
     // serves, and each adds a failure mode inside the webServer budget.
-    command: `bun --bun vite build && bun --bun vite preview --port ${PORT} --strictPort`,
+    // CI restores/builds through Turbo once, also for the SEO suite. The
+    // opt-in requires that output; ordinary local runs still build it here.
+    command:
+      (process.env.E2E_USE_BUILD === '1' ? '' : 'bun --bun vite build && ') +
+      `bun --bun vite preview --port ${PORT} --strictPort`,
     url: `http://localhost:${PORT}`,
     // Locally reuse an already-running `bun run dev`; in CI boot fresh.
     reuseExistingServer: !process.env.CI,

@@ -16,6 +16,7 @@
  * the run itself reported.
  */
 
+import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
 import { Row, Stack } from '@tale/ui/layout';
 import {
@@ -25,6 +26,7 @@ import {
 } from '@tale/ui/responsive-dialog';
 import { StatusIndicator } from '@tale/ui/status-indicator';
 import { Text } from '@tale/ui/text';
+import { useRetryFocus } from '@tale/ui/use-retry-focus';
 import { Loader2, Play } from 'lucide-react';
 import { useState } from 'react';
 
@@ -86,11 +88,23 @@ function TaskAgentRunDetailsDialog({
 }) {
   const { t } = useT('tasks');
   const { t: tAutomations } = useT('automations');
+  const { t: tCommon } = useT('common');
   const opQuery = useBackendQuery(
     'tasks/queries:getTaskAgentRunSandboxOp',
     open ? { organizationId, runId } : 'skip',
   );
   const op = opQuery.data ?? null;
+  const readStatus =
+    !open || op !== null
+      ? 'ready'
+      : opQuery.isFetching
+        ? 'loading'
+        : opQuery.isError
+          ? 'failed'
+          : opQuery.data === null
+            ? 'ready'
+            : 'loading';
+  const retryFocus = useRetryFocus(readStatus, `${runId}:${open}`);
   // A harness often ends its transcript on the very words the run reported
   // (its own API error as its last text): then the log below says them, and
   // the reported block would only repeat them. A reason the run row alone
@@ -142,7 +156,23 @@ function TaskAgentRunDetailsDialog({
         )}
         {op !== null ? (
           <ExecutionLogView op={op} hideHeader className="max-h-[60vh]" />
-        ) : opQuery.data === null ? (
+        ) : readStatus === 'failed' ? (
+          <div ref={retryFocus.ref}>
+            <Alert variant="destructive" title={t('agentRun.logReadFailed')}>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  retryFocus.arm();
+                  void opQuery.refetch();
+                }}
+              >
+                {tCommon('actions.tryAgain')}
+              </Button>
+            </Alert>
+          </div>
+        ) : readStatus === 'ready' ? (
           // A failed run said why above; "no log" would only repeat that it
           // never got to work.
           failure === undefined && (
@@ -151,10 +181,13 @@ function TaskAgentRunDetailsDialog({
             </Text>
           )
         ) : (
-          <Loader2
-            className="text-muted-foreground size-4 animate-spin"
-            aria-hidden
-          />
+          <Row gap={2} role="status">
+            <Loader2
+              className="text-muted-foreground size-4 animate-spin"
+              aria-hidden
+            />
+            <Text variant="muted">{tCommon('actions.loading')}</Text>
+          </Row>
         )}
       </ResponsiveDialogContent>
     </ResponsiveDialog>

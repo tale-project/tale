@@ -169,6 +169,21 @@ export function useSearchCommand({
     setActiveIndex(0);
   }, [effectiveQuery]);
 
+  // A scope or source update can replace the result set without changing the
+  // query. Keep the selection valid in the same render so the combobox never
+  // points at a removed option, then sync the state used by later key events.
+  const boundedActiveIndex =
+    visualResults.length === 0
+      ? 0
+      : Math.min(activeIndex, visualResults.length - 1);
+  useEffect(() => {
+    setActiveIndex((index) =>
+      visualResults.length === 0
+        ? 0
+        : Math.min(index, visualResults.length - 1),
+    );
+  }, [visualResults.length]);
+
   const select = useCallback(
     (result: SearchResult) => {
       if (recentsStorageKey) {
@@ -229,7 +244,7 @@ export function useSearchCommand({
     groups,
     visualResults,
     terms,
-    activeIndex,
+    activeIndex: boundedActiveIndex,
     setActiveIndex,
     select,
     recents,

@@ -21,6 +21,8 @@
 // usage stamp (0 or 1 output tokens), not the final count; the turn's totals
 // are the result's `usage`.
 
+import { z } from 'zod';
+
 import {
   asArray,
   asNumber,
@@ -80,11 +82,30 @@ const TERMINAL_TASK_STATUSES: ReadonlySet<string> = new Set([
   'killed',
 ]);
 
+const checkpointSchema = z.object({
+  lines: z.string(),
+  seenUsageMsgIds: z.array(z.string()),
+});
+
 class ClaudeStreamJsonParser implements HarnessEventParser {
   private readonly lines = new LineReassembler();
   private readonly seenUsageMsgIds = new BoundedIdLedger();
 
   constructor(private readonly slug: HarnessSlug) {}
+
+  snapshot(): Record<string, unknown> {
+    return {
+      lines: this.lines.snapshot(),
+      seenUsageMsgIds: [...this.seenUsageMsgIds],
+    };
+  }
+
+  restore(value: unknown): void {
+    const state = checkpointSchema.parse(value);
+    this.lines.restore(state.lines);
+    this.seenUsageMsgIds.clear();
+    for (const item of state.seenUsageMsgIds) this.seenUsageMsgIds.add(item);
+  }
 
   feed(chunk: string): HarnessEvent[] {
     return this.lines.push(chunk).flatMap((line) => this.line(line));
