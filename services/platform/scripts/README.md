@@ -40,7 +40,8 @@ do not edit generated API output directly. `validate-builtin-configs.ts` checks
 the shipped configuration catalog against the shared schemas. The platform build
 also runs this validation, pins the service worker's precache manifest
 (`check-sw-manifest.ts`), refuses a cold load that preloads the editor stack,
-KaTeX or the flow canvas and prints the gzip weight of the preloaded JavaScript
+KaTeX, the flow canvas or a library only some pages use, and prints the gzip
+weight of the preloaded JavaScript
 (`check-entry-budget.ts`), and renders its boot shell through
 `prerender-boot-shell.tsx`.
 

@@ -129,11 +129,13 @@ magnitude:
 - [ ] `PERF-P10` · **Cold /log-in JS budget** — In a brand-new browser
   context (empty cache) open `/log-in`, then read
   `performance.getEntriesByType('resource')` filtered to `.js` → The page
-  fetches about **70** script files and **no** `vendor-codemirror-*`,
+  fetches about **9** script files and **no** `vendor-codemirror-*`,
   `vendor-katex-*` or `vendor-flow-*` chunk (the editor stack, KaTeX and the
-  flow canvas stay behind dynamic imports); their `transferSize` sums to at
-  most **2.0 MB** (the measured baseline is 1.83 MB gzip, down from
-  2.09 MB / 46 files before #4089 and 2.60 MB / 41 files) and the favicon file
+  flow canvas stay behind dynamic imports, and every page but the sign-in
+  pages and the chat landing loads its code with the page); their
+  `transferSize` sums to at most **1.5 MB** (the measured baseline is
+  1.31 MB gzip, down from 2.09 MB / 46 files before #4089 and
+  2.60 MB / 41 files) and the favicon file
   (favicon.ico) transfers under 20 KB. The number to compare against is the `Cold-load JS:` line
   `scripts/check-entry-budget.ts` prints in the build log.
 - [ ] `PERF-P11` · **Search palette without a GPU** — Start Chrome with

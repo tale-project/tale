@@ -55,15 +55,27 @@ describe('findForbiddenPreloads', () => {
 });
 
 describe('forbiddenPackagesIn', () => {
-  it('names the charts, the flow canvas and KaTeX a chunk carries', () => {
+  it('names the charts, the flow canvas, KaTeX and the single-page libraries a chunk carries', () => {
     expect(
       forbiddenPackagesIn([
         '../../app/main.tsx',
         '../../../../node_modules/recharts/es6/chart/LineChart.js',
         '../../../../node_modules/@xyflow/react/dist/esm/index.js',
         '../../../../node_modules/katex/dist/katex.mjs',
+        '../../../../node_modules/jszip/dist/jszip.min.js',
+        '../../../../node_modules/ajv/dist/ajv.js',
+        '../../../../node_modules/yaml/browser/index.js',
+        '../../../../node_modules/cron-parser/dist/index.js',
       ]),
-    ).toEqual(['recharts', '@xyflow/react', 'katex']);
+    ).toEqual([
+      'recharts',
+      '@xyflow/react',
+      'katex',
+      'jszip',
+      'ajv',
+      'yaml',
+      'cron-parser',
+    ]);
   });
 
   it('passes a chunk that only shares their names or helpers', () => {

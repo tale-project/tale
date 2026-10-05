@@ -73,6 +73,30 @@ const devFsAllow = [
 ];
 
 /**
+ * Routes whose components stay in the entry chunk: the sign-in pages and
+ * the signed-in landing (`/dashboard/$id` redirects to the chat), so neither
+ * waits on a second wave of chunks. Every other route's component loads
+ * with its route, which the router's intent preload starts on hover (#4089).
+ */
+const ENTRY_ROUTES = new Set<string>([
+  '/',
+  '/_auth',
+  '/_auth/log-in',
+  '/_auth/sign-up',
+  '/_auth/2fa',
+  '/2fa-enroll',
+  '/forced-change-password/$id',
+  '/dashboard',
+  '/dashboard/',
+  '/dashboard/$id',
+  '/dashboard/$id/',
+  '/dashboard/$id/chat',
+  '/dashboard/$id/chat/',
+  '/dashboard/$id/chat/$threadId',
+  '/dashboard/$id/home',
+]);
+
+/**
  * Packages the core patterns below match by name (`/react/`, `@tanstack`)
  * that load with the surfaces using them, not with every page: the flow
  * canvas (which brings its d3 modules) and the table and virtual-list cores.
@@ -268,14 +292,43 @@ export default defineConfig({
         // Rolldown's native chunk groups rather than the `manualChunks`
         // shim, which cannot order them — see `coreChunk`.
         codeSplitting: {
-          groups: [{ name: coreChunk, priority: 1 }, { name: vendorChunk }],
+          groups: [
+            { name: coreChunk, priority: 3 },
+            { name: vendorChunk, priority: 2 },
+            // Everything else the entry loads statically, in three chunks
+            // rather than one per set of importers: with the routes split,
+            // each module the entry shares with a route became a chunk of
+            // its own, 89 of them under 1 KB gzip, every one preloaded. Three,
+            // not one, so the browser compiles them side by side; split along
+            // the import direction (the app imports the libraries and the
+            // catalogs, never the reverse), so their order cannot cycle.
+            {
+              name: 'vendor-initial',
+              tags: ['$initial'],
+              test: /[\\/]node_modules[\\/]/,
+              priority: 1,
+            },
+            {
+              name: 'messages',
+              tags: ['$initial'],
+              test: /[\\/]messages[\\/][^\\/]+\.yml$/,
+              priority: 1,
+            },
+            { name: 'app', tags: ['$initial'] },
+          ],
         },
       },
     },
   },
   plugins: [
     yamlImports(),
-    tanstackRouter(),
+    tanstackRouter({
+      autoCodeSplitting: true,
+      codeSplittingOptions: {
+        splitBehavior: ({ routeId }) =>
+          ENTRY_ROUTES.has(routeId) ? [] : undefined,
+      },
+    }),
     injectAcceptLanguage(),
     stubSSRImports(),
     viteReact(),

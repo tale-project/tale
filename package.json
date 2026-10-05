@@ -172,7 +172,8 @@
   },
   "packageManager": "bun@1.4.2",
   "patchedDependencies": {
-    "postgres@3.4.7": "patches/postgres@3.4.7.patch"
+    "postgres@3.4.7": "patches/postgres@3.4.7.patch",
+    "@tanstack/router-core@1.168.9": "patches/@tanstack%2Frouter-core@1.168.9.patch"
   },
   "scarfSettings": {
     "enabled": false

@@ -8,9 +8,10 @@
  * evaluation, G-08). Editors belong behind a dynamic import; a chunk of
  * theirs back in the preload list fails the build so the regression is
  * caught here, not in the next evaluation. KaTeX (which the streaming
- * markdown renderer loads for the first reply with math) and the flow
- * canvas (the automation editor and run pages) are held to the same rule:
- * both loaded with every page until #4089.
+ * markdown renderer loads for the first reply with math), the flow canvas
+ * and the libraries only some pages use are held to the same rule: until
+ * #4089 every route's code loaded with every page, and they with it.
+ * Routes now load with their route (`ENTRY_ROUTES` in `vite.config.ts`).
  *
  * Usage (from `services/platform`): `bun scripts/check-entry-budget.ts [dist]`
  */
@@ -29,10 +30,21 @@ export const FORBIDDEN_PRELOADS = [
 /**
  * Packages no preloaded chunk may carry, whatever chunk they land in: the
  * charts (recharts has no chunk of its own; its dependencies are the
- * entry's too), the flow canvas and KaTeX. Read from the chunks' source
- * maps, so a static import that pulls one into the entry fails the build.
+ * entry's too), the flow canvas, KaTeX, and what single pages need: zip
+ * files (skill uploads, document previews), the automation engine's schema
+ * validation and YAML (the MCP settings page), cron schedules (automations).
+ * Read from the chunks' source maps, so a static import that pulls one into
+ * the entry fails the build.
  */
-export const FORBIDDEN_PACKAGES = ['recharts', '@xyflow/react', 'katex'];
+export const FORBIDDEN_PACKAGES = [
+  'recharts',
+  '@xyflow/react',
+  'katex',
+  'jszip',
+  'ajv',
+  'yaml',
+  'cron-parser',
+];
 
 /**
  * The module scripts and modulepreloads of a built index.html, in document
