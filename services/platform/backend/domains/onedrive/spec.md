@@ -34,8 +34,8 @@ without one, its size and the time it was last changed are compared.
 
 A subfolder of the synced folder becomes a subfolder under the destination, not beside it.
 
-- **Example**: The OneDrive folder `Reports` with a subfolder `2026` is synced into the
-  library folder `Finance` → the files land in `Finance/Reports` and `Finance/Reports/2026`.
+- **Example**: A synced OneDrive folder has a subfolder `2026`, and the sync files into the
+  library folder `Finance` → the files of `2026` land in a subfolder `2026` under `Finance`.
 
 ## When the synced folder is gone
 
