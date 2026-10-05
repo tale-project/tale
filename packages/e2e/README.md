@@ -74,6 +74,14 @@ production URLs in canonical links, the sitemap and `llms.txt` are judged on the
 instead of being skipped as external. The docs sites run it in `test:prerender`
 (`tests/prerender/links.test.ts`).
 
+The crawler fetches each address once, including addresses already in flight, and uses
+`concurrency` (default 8) for every discovered frontier. `maxUrls` (default 5000) bounds
+all discovered addresses, including queued and active requests; inspect `truncated`
+before accepting the report. Both limits must be positive integers. Interrupted
+response bodies are broken-link findings, and literal percent signs in fragments are
+checked as IDs. Startup failures reject promptly; server startup diagnostics retain
+their last 64 KiB, and a process that misses the startup deadline is terminated.
+
 ## Run and maintain tests
 
 From the repository root:

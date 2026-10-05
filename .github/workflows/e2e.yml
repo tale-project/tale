@@ -250,6 +250,15 @@ jobs:
           # This job only reads/tests — don't leave the GITHUB_TOKEN in git config.
           persist-credentials: false
 
+      - name: Validate platform bundle artifact identity
+        env:
+          DIST_ARTIFACT_ID: ${{ needs.build.outputs.dist_artifact_id }}
+        run: |
+          if [[ ! "$DIST_ARTIFACT_ID" =~ ^[1-9][0-9]*$ ]]; then
+            echo '::error::The platform build reported no valid bundle artifact ID'
+            exit 1
+          fi
+
       - name: Setup toolchain
         uses: ./.github/actions/setup-turbo
         with:
@@ -271,7 +280,10 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
       - name: Cache Playwright browsers
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        id: playwright-cache
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        env:
+          SEGMENT_DOWNLOAD_TIMEOUT_MINS: '2'
         with:
           path: ~/.cache/ms-playwright
           key: playwright-shell-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright-version.outputs.version }}
@@ -292,19 +304,19 @@ jobs:
           sudo apt-config shell IPv4 Acquire::ForceIPv4 HTTPTimeout Acquire::http::Timeout HTTPSTimeout Acquire::https::Timeout Retries Acquire::Retries
           bunx playwright install --with-deps --only-shell chromium
 
+      # Keep provisioned browsers even when a later test fails. Failed-only
+      # reruns otherwise download the same cold browser payload again.
+      - name: Save Playwright browsers
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ steps.playwright-cache.outputs.cache-primary-key }}
+
       # The prod bundle is built (or cache-restored) exactly once by the
       # upstream `build` job — see its comments for why the suite serves a
       # prebuilt dist/ via `vite preview` (TALE_E2E_SERVE_BUILD=1). Shards only
       # download it; none ever runs `bun run build` (issue #2385).
-      - name: Validate platform bundle artifact identity
-        env:
-          DIST_ARTIFACT_ID: ${{ needs.build.outputs.dist_artifact_id }}
-        run: |
-          if [[ ! "$DIST_ARTIFACT_ID" =~ ^[1-9][0-9]*$ ]]; then
-            echo '::error::The platform build reported no valid bundle artifact ID'
-            exit 1
-          fi
-
       - name: Download platform dist (built once by the build job)
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
@@ -425,7 +437,10 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
       - name: Cache Playwright browsers
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        id: playwright-cache
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        env:
+          SEGMENT_DOWNLOAD_TIMEOUT_MINS: '2'
         with:
           path: ~/.cache/ms-playwright
           key: playwright-shell-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright-version.outputs.version }}
@@ -444,6 +459,15 @@ jobs:
           APT
           sudo apt-config shell IPv4 Acquire::ForceIPv4 HTTPTimeout Acquire::http::Timeout HTTPSTimeout Acquire::https::Timeout Retries Acquire::Retries
           bunx playwright install --with-deps --only-shell chromium
+
+      # Keep provisioned browsers even when a later test fails. Failed-only
+      # reruns otherwise download the same cold browser payload again.
+      - name: Save Playwright browsers
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ steps.playwright-cache.outputs.cache-primary-key }}
 
       # Restore/build once with the same task hash as Checks. Preview never
       # rebuilds, and web's SEO suite reads this same production output.

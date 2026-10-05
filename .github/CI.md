@@ -4,6 +4,12 @@ Optimize both time to feedback and total runner work. Inspect job queue time sep
 from step duration before adding shards: a short test behind a large setup cost usually
 needs fewer runners, while a long CPU-bound suite can benefit from more slices.
 
+The cumulative audit records [129 distinct implemented improvements](CI-improvements.json)
+since `c8f31b2b9`: 78 authored here, 47 integrated from concurrent upstream work and four
+combining both. Each entry records before/after behavior, changed paths, source commits
+and proof. Repeated patterns across workflows count once; suggestions and retained
+baseline behavior do not count.
+
 ## Current execution graph
 
 - **Checks / Unit** is the stable required aggregate. Two platform Vitest shards run
@@ -68,16 +74,26 @@ needs fewer runners, while a long CPU-bound suite can benefit from more slices.
   still generate and build their binaries; repeating the same source suite on the same
   host OS adds no platform coverage. Cross legs use a proven CLI-only frozen install
   and keep its download cache in a separate namespace. Native source tests retain
-  the full workspace install because they import platform auth modules. Linux and macOS
-  run at most two source test files in parallel, isolating each file's modules and globals;
-  tests within a file remain serial. Windows source tests and compiled smoke discovery
-  remain serial. Two workers made Windows fixtures exceed their unchanged 30-second
-  limits and increased source-suite duration in the first observed run.
+  the full workspace install because they import platform auth modules. macOS runs at
+  most two source test files in parallel, isolating each file's modules and globals;
+  tests within a file remain serial. Linux and Windows source tests and compiled smoke
+  discovery remain serial. Two workers made Windows fixtures exceed their unchanged
+  30-second limits; Linux two-worker runs also failed to finish promptly. Serial suites
+  retain all assertions and the same limits.
   Binary artifacts use fast compression; all five targets still build, native binaries
   retain smoke tests, and both macOS targets retain signature checks. Command suites
   run source cases before compilation, then select only the explicit `TALE_BINARY`
   artifact in the smoke lane. A missing selected artifact fails instead of falling
   back to source; every command suite remains part of smoke discovery.
+  All targets compile the identity generated from the clean checkout before CI injects
+  the release version. Windows uses `build:windows:compile` for that step; the public
+  `build:windows` command still regenerates identity for local builds. When a trusted
+  workflow checks out an older candidate/tag without the helper, it derives the helper
+  after generation and version injection by removing only the known generate prefix
+  from that source's `bun build --compile …` script. The selected source remains the
+  authority for compiler arguments and bundle validation; malformed scripts fail closed.
+  Do not regenerate after CI changes the tracked manifest or bypass dirty-source
+  rejection.
 
 ## Cache boundaries
 
@@ -89,11 +105,20 @@ Explicit `inputs` cover files read outside a workspace dependency. Root `tsconfi
 lint and formatter configurations, `bunfig.toml`, patches and the Bun setup action
 participate in the global hash. Bun download caches separate OS and CPU architecture.
 
+Shared checks install the exact Node version from the production platform image once.
+Their actual Bun, Node, OS, architecture and Linux distribution fingerprint participates
+in task hashes, preventing runtime changes from replaying source-identical verdicts.
+
 The Bun download key also includes workspace manifests, the lockfile and patches.
 A frozen install remains authoritative after a cache hit, and successful downloads
 are saved before the workload begins. Browser checks and E2E share an exact
 installed Playwright version, OS and architecture cache for the Chromium headless
-shell. Every runner still installs native dependencies; a malformed version fails
+shell. Cold Browser jobs and every E2E runner install native dependencies. Checks can skip
+Chromium provisioning only when the actual Turbo plan proves every executable Browser
+prerequisite has a local cached verdict. Candidates, forced runs, unknown plans and
+uncached prerequisites retain provisioning. Both the probe and unconditional final test
+command disable size and age eviction so planned verdict archives stay available. A
+malformed version fails
 before cache restoration or browser installation.
 
 Unit and UI jobs also share a job-local Node compile cache between isolated workers.
@@ -156,6 +181,13 @@ labels before tagging. Candidate image gates fetch only that helper from the exa
 trusted workflow commit into an isolated sparse checkout, preserving an older
 candidate's source and image receipts.
 
+Image vulnerability reporting and SBOM publication share one Trivy 0.70.0 image scan.
+The JSON report retains all packages and finding severities; local conversion produces
+SARIF with the same ignored findings and a complete CycloneDX inventory without
+vulnerability records. The empty severity selection belongs only to SBOM conversion.
+SARIF keeps all severities, matching the previous action's actual behavior. A failed
+scan or conversion still fails the informational job; reports that exist are uploaded.
+
 Scorecard remains informational and runs weekly, manually and when branch protections
 change. Blocking source and dependency security gates retain their triggers.
 
@@ -195,6 +227,28 @@ engine's blocking exit status and text diagnostics. Candidates keep the complete
 scan without publishing a report against moving main. A real pinned-engine regression suite
 runs in the same SAST job and checks findings, suppressions, exclusions and fatal errors.
 Writing a requested SARIF report must also succeed; reporting failures fail the scan.
+
+Release validation overlaps isolated stack probes and standalone sites, waits for every
+verdict and preserves separate logs. Remote manifest inspections have three workers.
+Image validation resolves Compose once and reads one validated metadata snapshot per
+image, including the sandbox LLM gateway. Failed inspection, missing image references,
+disabled health checks, root users with group suffixes and concealed secret values fail
+the gate. Summaries report the actual verdict.
+
+CLI publication downloads exactly five binary artifacts, validates the complete nonempty
+set and refuses symlinks before checksumming. It rechecks the prepared release source
+before upload and bounds readiness waits within the job budget. PR image cleanup deletes
+only versions whose every tag belongs to the closed PR, rechecks tags before deletion and
+joins every bounded worker. Shared main, release, candidate and other-PR tags survive.
+
+Security retains each advisory retry and scanner result independently of SARIF publishing.
+Blocking Trivy checks still run after informational reporting failures; reporting and
+upload budgets leave time for the blocking scan. Read-only checkouts do not retain tokens.
+
+The built-site crawler keeps its bounded worker pool active as links appear, schedules
+addresses once, includes active requests in URL caps and reports interrupted response
+bodies. Startup failures reject promptly, keep bounded diagnostics and terminate wedged
+children. These changes apply to the E2E helper, not the product's ingestion crawler.
 
 See [the repo contract](../.agents/repo.md#a-green-check-is-not-always-a-run) before
 interpreting a green cached result. Backend integration always executes its strict lanes;
@@ -302,7 +356,17 @@ passed Linux, macOS and both cross targets, but Windows source tests took 365.5s
 two workers and timed out two unchanged Git/ZIP fixtures at 30 seconds. The later
 temporary-file errors followed timeout cleanup. Earlier serial Windows source runs
 took 191–216s and passed. Windows therefore retains the serial command and all existing
-assertions and timeout limits; Linux and macOS retain two workers.
+assertions and timeout limits. In [CLI run 37262821778](https://github.com/tale-project/tale/actions/runs/37262821778),
+Windows source and compiled smoke passed completely. macOS source and signed compiled
+smoke also passed in both later runs with two workers.
+
+Linux's [later two-worker source run](https://github.com/tale-project/tale/actions/runs/37262217358)
+remained unfinished when cancelled after 418s,
+with three unchanged PowerShell checksum case receipts missing and no failure or
+timeout summary. The next run also remained unfinished beyond five minutes. These
+logs localize an unfinished fixture but do not establish the subprocess or worker
+cause. Full serial CLI tests in Checks passed freshly in 117.6s and 136.7s, so Linux
+also retains the serial command while macOS retains two workers.
 
 Run workflow and source-identity regressions with:
 
@@ -326,6 +390,16 @@ Turbo check commands print failing logs; the seven-day `turbo-*` artifacts prese
 hashes, timings and cache status, including failed jobs. Use `--output-logs=full` to inspect
 replayed logs locally and `--force` for fresh execution. Candidate SAST and dependency scans
 retain their blocking policies while omitting SARIF that cannot be published.
+
+
+The final optimization round's focused gates passed: 105 Checks/cache regressions,
+66 container/release regressions, 171 publication/cleanup/candidate regressions and
+57 E2E/security regressions. A historical-checkout probe fixture added 158 assertions
+across two tests. Exact Bun 1.4.2 lint/types, formatting and actionlint passed.
+Local SAST exited zero with no findings. Cold local full checks encountered unchanged
+five-second sandbox process-fixture timeouts on the shared machine; no budgets or
+assertions were relaxed. Hosted results must be inspected separately before calling
+all task verdicts fresh.
 
 ## Pull-request CI readiness
 

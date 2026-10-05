@@ -68,7 +68,16 @@ describe('bounded test parallelism', () => {
       );
       expect(cache.with?.['restore-keys']).toBeUndefined();
       expect(steps.indexOf(version)).toBeLessThan(steps.indexOf(cache));
-      expect(install.if).toBeUndefined();
+      if (file === 'checks') {
+        expect(install.if).toBe(
+          "steps.browser-cache.outputs.provision != 'false'",
+        );
+        expect(
+          steps.find((step) => step.id === 'browser-cache')?.run,
+        ).toContain('scripts/ci-task-cache.ts');
+      } else {
+        expect(install.if).toBeUndefined();
+      }
       expect(install.run).toContain(
         'playwright install --with-deps --only-shell chromium',
       );

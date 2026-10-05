@@ -1,23 +1,26 @@
 # Authoritative scope for PRs and existing Build service discovery.
 integration:
-  - services/platform/backend/**
-  - services/platform/lib/**
-  - services/platform/messages/**
-  - services/platform/sla-targets.ts
-  - services/platform/package.json
-  - services/platform/Dockerfile
-  - services/db/**
-  - services/sandbox-runtime/daemon/src/file-ops.ts
-  - services/sandbox-runtime/daemon/src/protocol.ts
-  - packages/shared/**
-  - packages/ui/package.json
-  - packages/ui/src/i18n/**
-  - configs/platform/**
-  - tools/cli/src/lib/compose/types.ts
-  - package.json
-  - bun.lock
-  - .github/workflows/checks.yml
-  - .github/actions/setup-turbo/**
+  - 'services/platform/backend/**'
+  - 'services/platform/lib/**'
+  - 'services/platform/messages/**'
+  - 'services/platform/sla-targets.ts'
+  - 'services/platform/package.json'
+  - 'services/platform/Dockerfile'
+  - 'services/db/**'
+  - 'services/sandbox-runtime/daemon/src/file-ops.ts'
+  - 'services/sandbox-runtime/daemon/src/protocol.ts'
+  - 'packages/shared/**'
+  - 'packages/ui/package.json'
+  - 'packages/ui/src/i18n/**'
+  - 'configs/platform/**'
+  - 'tools/cli/src/lib/compose/types.ts'
+  - 'package.json'
+  - 'bun.lock'
+  - 'bunfig.toml'
+  - 'tsconfig*.json'
+  - 'patches/**'
+  - '.github/workflows/checks.yml'
+  - '.github/actions/setup-turbo/**'
 security:
   - bun.lock
   - package.json
@@ -29,16 +32,29 @@ security:
   - .trivyignore.yaml
   - .github/workflows/security.yml
 cli:
-  - tools/cli/**
-  - services/platform/backend/core/automations/pack_zip.ts
-  - services/platform/backend/core/skills/bundle_zip.ts
-  - services/platform/lib/**
-  - configs/platform/system/connectors/**
-  - packages/shared/**
-  - bun.lock
-  - scripts/install-cli.*
-  - .github/workflows/cli.yml
-  - .github/actions/setup-cli/**
+  - 'tools/cli/**'
+  - 'services/platform/backend/core/**'
+  - 'services/platform/backend/auth/membership.ts'
+  - 'services/platform/backend/auth/oidc.ts'
+  - 'services/platform/backend/db/sql.ts'
+  - 'services/platform/backend/db/ssl.ts'
+  - 'services/platform/backend/domains/audit_logs/**'
+  - 'services/platform/backend/domains/sandbox/retirement-schedule.ts'
+  - 'services/platform/backend/domains/two_factor/service.ts'
+  - 'services/platform/backend/jobs/enqueue.ts'
+  - 'services/platform/backend/jobs/tasks.ts'
+  - 'services/platform/backend/lib/org-config.ts'
+  - 'services/platform/lib/**'
+  - 'configs/platform/**'
+  - 'packages/shared/**'
+  - 'bun.lock'
+  - 'package.json'
+  - 'bunfig.toml'
+  - 'patches/**'
+  - 'tsconfig*.json'
+  - 'scripts/install-cli.*'
+  - '.github/workflows/cli.yml'
+  - '.github/actions/setup-cli/**'
 e2e:
   - "services/platform/**"
   - "services/web/**"

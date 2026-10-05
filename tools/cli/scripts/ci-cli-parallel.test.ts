@@ -31,7 +31,7 @@ test('native source workers use the pinned isolation-capable Bun and retain fixt
 });
 
 test.each(['linux', 'macos', 'windows'])(
-  'the native %s source command runs every file with its bounded workers and serial cases',
+  'the native %s source command runs every file with its selected scheduling and serial cases',
   async (platform) => {
     const directory = await mkdtemp(join(tmpdir(), 'tale-cli-parallel-'));
     try {
@@ -67,7 +67,7 @@ test('the prior case completed before this case', () => {
   expect(globalThis.__taleParallelFixture).toBe(${JSON.stringify(name)});
   writeFileSync(join(process.env.TALE_PARALLEL_PROOF_DIR, ${JSON.stringify(`${name}.json`)}),
     JSON.stringify({ worker: process.env.BUN_TEST_WORKER_ID, pid: process.pid }));
-  ${platform === 'windows' ? 'setValue(0); delete globalThis.__taleParallelFixture;' : ''}
+  ${platform !== 'macos' ? 'setValue(0); delete globalThis.__taleParallelFixture;' : ''}
 });
 `,
         );
@@ -85,6 +85,9 @@ test('the prior case completed before this case', () => {
       }) as unknown;
       if (typeof selected !== 'string')
         throw new Error('Native CLI source command must resolve to a string');
+      expect(selected).toBe(
+        platform === 'macos' ? 'bun run test --parallel=2' : 'bun run test',
+      );
       const command = selected.split(/\s+/);
       if (command[0] !== 'bun')
         throw new Error('Native CLI source command must use the pinned Bun');
@@ -115,15 +118,28 @@ test('the prior case completed before this case', () => {
             },
         ),
       );
-      if (platform === 'windows') {
+      if (platform !== 'macos') {
         // Serial Bun can inherit the parent's BUN_TEST_WORKER_ID. One PID,
         // every file receipt and each case's state assertions prove this lane.
         expect(new Set(results.map((result) => result.pid)).size).toBe(1);
       } else {
-        expect(
-          [...new Set(results.map((result) => result.worker))].sort(),
-        ).toEqual(['1', '2']);
-        expect(new Set(results.map((result) => result.pid)).size).toBe(2);
+        // The first worker can finish these tiny files before its sibling starts.
+        const workers = new Set(results.map((result) => result.worker));
+        expect(workers.size).toBeGreaterThanOrEqual(1);
+        expect(workers.size).toBeLessThanOrEqual(2);
+        expect(new Set(results.map((result) => result.pid)).size).toBe(
+          workers.size,
+        );
+        for (const worker of workers) {
+          expect(['1', '2']).toContain(worker);
+          expect(
+            new Set(
+              results
+                .filter((result) => result.worker === worker)
+                .map((result) => result.pid),
+            ).size,
+          ).toBe(1);
+        }
       }
     } finally {
       await rm(directory, { recursive: true, force: true });

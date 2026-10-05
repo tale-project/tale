@@ -10,6 +10,7 @@ import { BUILD_FILTERS, buildScope } from './ci-ready';
 
 type Step = {
   name?: string;
+  uses?: string;
   if?: string;
   run?: string;
   env?: Record<string, string>;
@@ -21,6 +22,7 @@ type Workflow = {
     string,
     {
       if?: string;
+      'continue-on-error'?: boolean;
       permissions?: Record<string, string>;
       needs?: string[];
       strategy?: {
@@ -437,7 +439,7 @@ test('cross CLI builds isolate filtered dependencies while native suites keep th
     "${{ matrix.cross && env.BUN_INSTALL_CACHE_DIR || '~/.bun/install/cache' }}",
   );
   expect(cache.with?.key).toBe(
-    "${{ matrix.cross && 'bun-cli-install' || 'bun-install' }}-${{ runner.os }}-${{ runner.arch }}-1.4.2-${{ hashFiles('bun.lock') }}",
+    "${{ matrix.cross && 'bun-cli-install' || 'bun-install' }}-${{ runner.os }}-${{ runner.arch }}-1.4.2-${{ hashFiles('bun.lock', 'package.json', '**/package.json', 'patches/**', 'bunfig.toml') }}",
   );
   expect(String(cache.with?.['restore-keys']).trim()).toBe(
     "${{ matrix.cross && 'bun-cli-install' || 'bun-install' }}-${{ runner.os }}-${{ runner.arch }}-1.4.2-",
@@ -848,5 +850,145 @@ test('native release builds reuse isolated architecture caches without adding ru
   expect(image.with!['cache-from']).toContain("matrix.arch.name == 'amd64'");
   expect(image.with!['cache-to']).toBe(
     'type=registry,ref=${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service.name }}-buildcache:${{ matrix.arch.name }},mode=max,ignore-error=true',
+  );
+});
+
+test('one image scan retains all findings and complete package inventory for both reports', async () => {
+  const scan = (await workflow()).jobs['vulnerability-scan']!;
+  const imageScans = scan.steps.filter((entry) =>
+    entry.uses?.startsWith('aquasecurity/trivy-action@'),
+  );
+  expect(imageScans).toHaveLength(1);
+  expect(imageScans[0]!.with).toMatchObject({
+    version: 'v0.70.0',
+    format: 'json',
+    output: '${{ matrix.service }}-trivy.json',
+    'list-all-pkgs': 'true',
+    scanners: 'vuln,secret',
+    severity: 'UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL',
+    trivyignores: '.trivyignore.yaml',
+  });
+  expect(scan['continue-on-error']).toBe(true);
+  expect(scan.needs).toEqual(['changes', 'build']);
+  expect(scan.if).toContain('!cancelled()');
+  expect(scan.if).toContain("needs.changes.outputs.scannable_services != '[]'");
+  expect(scan.if).toContain('github.event.pull_request.head.repo.fork != true');
+  const names = scan.steps.map((entry) => entry.name);
+  const ordered = [
+    'Run Trivy',
+    'Generate SARIF',
+    'Upload SARIF',
+    'Generate SBOM (CycloneDX)',
+    'Upload SBOM',
+  ];
+  expect(ordered.map((name) => names.indexOf(name))).toEqual(
+    ordered.map((name) => names.indexOf(name)).toSorted((a, b) => a - b),
+  );
+  for (const name of ['Generate SARIF', 'Generate SBOM (CycloneDX)']) {
+    expect(findStep(scan, name).if).toBeUndefined();
+    expect(findStep(scan, name).env).toEqual({
+      SERVICE: '${{ matrix.service }}',
+    });
+    expect(findStep(scan, name).uses).toBeUndefined();
+  }
+  const sarif = findStep(scan, 'Upload SARIF');
+  expect(sarif.if).toBe(
+    "always() && hashFiles(format('{0}-trivy.sarif', matrix.service)) != ''",
+  );
+  expect(sarif.with).toMatchObject({
+    sarif_file: '${{ matrix.service }}-trivy.sarif',
+    category: 'trivy-${{ matrix.service }}',
+  });
+  const sbom = findStep(scan, 'Upload SBOM');
+  expect(sbom.if).toBe(
+    "always() && hashFiles(format('{0}-sbom.cdx.json', matrix.service)) != ''",
+  );
+  expect(sbom.with).toMatchObject({
+    name: 'sbom-${{ matrix.service }}',
+    path: '${{ matrix.service }}-sbom.cdx.json',
+    'retention-days': 14,
+    'if-no-files-found': 'ignore',
+  });
+});
+
+describe.skipIf(process.platform === 'win32')('Trivy report conversion', () => {
+  const commands: [string, string[]][] = [
+    [
+      'Generate SARIF',
+      [
+        'convert',
+        '--format',
+        'sarif',
+        '--severity',
+        'UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL',
+        '--ignorefile',
+        '.trivyignore.yaml',
+        '--output',
+        'proxy-trivy.sarif',
+        'proxy-trivy.json',
+      ],
+    ],
+    [
+      'Generate SBOM (CycloneDX)',
+      [
+        'convert',
+        '--format',
+        'cyclonedx',
+        '--severity',
+        '',
+        '--output',
+        'proxy-sbom.cdx.json',
+        'proxy-trivy.json',
+      ],
+    ],
+  ];
+
+  async function fixture(expected: string[]) {
+    const directory = await mkdtemp(join(tmpdir(), 'tale-trivy-convert-ci-'));
+    directories.push(directory);
+    const calls = join(directory, 'calls.json');
+    await writeFile(join(directory, 'proxy-trivy.json'), '{}');
+    await writeFile(
+      join(directory, 'trivy'),
+      `#!${process.execPath}
+import { readFileSync, writeFileSync } from 'node:fs';
+const args = process.argv.slice(2);
+writeFileSync(process.env.TEST_CALLS, JSON.stringify(args));
+if (JSON.stringify(args) !== process.env.TEST_ARGUMENTS) process.exit(18);
+if (process.env.TEST_FAILURE === 'true') process.exit(17);
+readFileSync(args.at(-1));
+writeFileSync(args[args.indexOf('--output') + 1], 'converted');
+`,
+      { mode: 0o755 },
+    );
+    return {
+      directory,
+      calls,
+      env: {
+        PATH: `${directory}:${process.env.PATH}`,
+        SERVICE: 'proxy',
+        TEST_CALLS: calls,
+        TEST_ARGUMENTS: JSON.stringify(expected),
+      },
+    };
+  }
+
+  test.each(commands)(
+    '%s preserves arguments and propagates conversion failures',
+    async (name, expected) => {
+      const conversion = step(await workflow(), 'vulnerability-scan', name);
+      for (const failure of ['false', 'true']) {
+        const run = await fixture(expected);
+        const result = await execute(
+          conversion.run!,
+          { ...run.env, TEST_FAILURE: failure },
+          run.directory,
+        );
+        expect(JSON.parse(await readFile(run.calls, 'utf8'))).toEqual(expected);
+        expect(result.code, result.stdout + result.stderr).toBe(
+          failure === 'true' ? 17 : 0,
+        );
+      }
+    },
   );
 });

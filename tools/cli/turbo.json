@@ -6,6 +6,7 @@
       "inputs": [
         "$TURBO_EXTENDS$",
         "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/scripts/ci-task-cache.ts",
         "$TURBO_ROOT$/services/platform/backend/core/**",
         "$TURBO_ROOT$/services/platform/lib/**",
         "$TURBO_ROOT$/configs/platform/custom/**",
@@ -63,6 +64,10 @@
         "$TURBO_ROOT$/scripts/install-cli.sh",
         "$TURBO_ROOT$/scripts/install-cli.ps1",
         "$TURBO_ROOT$/services/platform/tests/integration/container-image-test.ts",
+        "$TURBO_ROOT$/services/platform/tests/integration/lib/docker.ts",
+        "$TURBO_ROOT$/services/platform/tests/integration/lib/exec.ts",
+        "$TURBO_ROOT$/services/platform/tests/integration/lib/log.ts",
+        "$TURBO_ROOT$/services/platform/tests/integration/static-site-test.ts",
         "$TURBO_ROOT$/services/platform/tests/integration/container-web-test.ts",
         "$TURBO_ROOT$/services/platform/tests/integration/container-docs-test.ts",
         "$TURBO_ROOT$/services/platform/tests/integration/container-ui-docs-test.ts",

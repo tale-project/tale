@@ -3,6 +3,7 @@
 import { Alert } from '@tale/ui/alert';
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
+import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
 import { cn } from '@tale/ui/cn';
 import { ContentArea } from '@tale/ui/content-area';
 import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
@@ -13,8 +14,10 @@ import { SectionHeader } from '@tale/ui/section-header';
 import { Text } from '@tale/ui/text';
 import { useFormatDate } from '@tale/ui/use-format-date';
 import { Ban, SearchX } from 'lucide-react';
-import { useCallback, useId, useMemo, useState } from 'react';
+import { useCallback, useId, useMemo, useRef, useState } from 'react';
 
+import { failureDetail } from '@/app/lib/backend/adapters';
+import { readStateOf } from '@/app/lib/backend/read-state';
 import { useT } from '@/lib/i18n/client';
 import { automationDisplayName } from '@/lib/shared/schemas/automation_presentation';
 
@@ -75,7 +78,24 @@ import { RunBadge } from './run-status-badge';
  * refused stop or a picked node never shows on the next run.
  */
 export function RunDetail(props: RunDetailProps) {
-  return <RunDetailBody key={props.runId} {...props} />;
+  const { t } = useT('automations');
+  const runRegionRef = useRef<HTMLDivElement>(null);
+  const focusRunRegion = useCallback(() => runRegionRef.current?.focus(), []);
+  return (
+    <div
+      ref={runRegionRef}
+      role="region"
+      aria-label={t('runs.breadcrumb')}
+      tabIndex={-1}
+      className="flex min-w-0 flex-1 flex-col"
+    >
+      <RunDetailBody
+        key={props.runId}
+        {...props}
+        onFocusLost={focusRunRegion}
+      />
+    </div>
+  );
 }
 
 interface RunDetailProps {
@@ -88,7 +108,8 @@ function RunDetailBody({
   organizationId,
   automationSlug,
   runId,
-}: RunDetailProps) {
+  onFocusLost,
+}: RunDetailProps & { onFocusLost: () => void }) {
   const { t } = useT('automations');
   const { formatDate } = useFormatDate();
   const inspectorId = useId();
@@ -107,6 +128,13 @@ function RunDetailBody({
   const [confirmStop, setConfirmStop] = useState(false);
 
   const runQuery = useAutomationRun(organizationId, runId);
+  const runRead = readStateOf(runQuery);
+  const readFailureRef = useRef<string | undefined>(undefined);
+  const settledRunErrorRef = useRef<unknown>(undefined);
+  if (runQuery.isError) {
+    settledRunErrorRef.current = runQuery.error;
+    readFailureRef.current = failureDetail(runQuery.error);
+  }
   const run = runQuery.data ?? null;
   const pendingAskQuery = useRunPendingAsk(organizationId, runId);
   const pendingAsk = pendingAskQuery.data ?? null;
@@ -166,7 +194,13 @@ function RunDetailBody({
     [catalogQuery.data],
   );
 
-  if (isMissingAutomationRead(runQuery)) {
+  const runMissing = isMissingAutomationRead({
+    data: runQuery.data,
+    isError: runQuery.isError || runRead.unavailable,
+    error: runRead.unavailable ? settledRunErrorRef.current : runQuery.error,
+  });
+
+  if (runMissing) {
     return (
       <ContentArea variant="narrow">
         <EmptyState
@@ -174,6 +208,21 @@ function RunDetailBody({
           title={t('runs.notFound.title')}
           description={t('runs.notFound.description')}
           headingLevel={2}
+        />
+      </ContentArea>
+    );
+  }
+  if (runRead.unavailable) {
+    return (
+      <ContentArea variant="narrow">
+        <CatalogLoadError
+          message={[t('runs.loadFailed'), readFailureRef.current]
+            .filter(Boolean)
+            .join(' ')}
+          isRetrying={runRead.retrying}
+          failureKey={runRead.failureCount}
+          onRetry={() => void runQuery.refetch()}
+          onFocusLost={onFocusLost}
         />
       </ContentArea>
     );

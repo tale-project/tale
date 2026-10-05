@@ -65,12 +65,15 @@ jobs:
           persist-credentials: false
 
       - name: Cache Opengrep binary
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        id: scanner-cache
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        env:
+          SEGMENT_DOWNLOAD_TIMEOUT_MINS: '2'
         with:
           path: ~/.cache/opengrep
-          key: opengrep-${{ runner.os }}-${{ hashFiles('tools/opengrep/run.sh') }}
+          key: opengrep-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('tools/opengrep/run.sh') }}
           restore-keys: |
-            opengrep-${{ runner.os }}-
+            opengrep-${{ runner.os }}-${{ runner.arch }}-
 
       - name: Setup Bun for scanner regressions
         if: hashFiles('tools/opengrep/run.test.ts') != ''
@@ -82,6 +85,7 @@ jobs:
       # vendored ruleset, writes SARIF, and exits non-zero on any finding.
       # Repos without the opengrep port keep this identical file and self-skip.
       - name: Run Opengrep
+        id: scanner
         env:
           # Candidates cannot upload against moving main. Both modes enforce
           # the same blocking scan; normal runs also serialize its SARIF.
@@ -96,11 +100,25 @@ jobs:
       # Run against the exact binary provisioned above, including after a
       # finding. This builtin-only suite needs no workspace dependency install.
       - name: Verify scanner reporting and blocking behavior
+        id: scanner-regressions
         if: always() && !cancelled() && hashFiles('tools/opengrep/run.test.ts') != ''
         run: bun test tools/opengrep/run.test.ts
 
+      # A source finding must not discard a valid provisioned engine. The real
+      # engine regressions still prove its reporting and blocking semantics.
+      - name: Save Opengrep binary
+        if: >-
+          !cancelled() && steps.scanner-cache.outputs.cache-hit != 'true' &&
+          (steps.scanner.outcome == 'success' || steps.scanner-regressions.outcome == 'success')
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: ~/.cache/opengrep
+          key: ${{ steps.scanner-cache.outputs.cache-primary-key }}
+
       - name: Upload SARIF
-        if: always() && github.event_name != 'repository_dispatch' && hashFiles('opengrep.sarif') != ''
+        if: >-
+          !cancelled() && github.event_name != 'repository_dispatch' && hashFiles('opengrep.sarif') != ''
+        timeout-minutes: 1
         # Repos without code scanning (private plans lacking Advanced
         # Security) can't receive SARIF — the gate is the scan step above.
         continue-on-error: true
@@ -108,6 +126,16 @@ jobs:
         with:
           sarif_file: opengrep.sarif
           category: opengrep
+
+      - name: Retain scanner evidence
+        if: >-
+          !cancelled() && github.event_name != 'repository_dispatch' && hashFiles('opengrep.sarif') != ''
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: opengrep-attempt-${{ github.run_attempt }}
+          path: opengrep.sarif
+          retention-days: 14
+          if-no-files-found: error
 
       - name: Summary
         if: always()

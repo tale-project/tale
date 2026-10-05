@@ -17,6 +17,10 @@ const LOCALES = ['en', 'de', 'fr'];
 /** Outside files read by the CI, cache, candidate and performance suites. */
 const CHECKED_CI_FILES = [
   'services/platform/tests/integration/container-image-test.ts',
+  'services/platform/tests/integration/lib/docker.ts',
+  'services/platform/tests/integration/lib/exec.ts',
+  'services/platform/tests/integration/lib/log.ts',
+  'services/platform/tests/integration/static-site-test.ts',
   'turbo.json',
   'package.json',
   'services/web/turbo.json',
