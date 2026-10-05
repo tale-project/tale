@@ -20,7 +20,7 @@ export function createPlatformService(
     // /app/data is the org config store, mounted read-only so server.ts can
     // watch config files and serve branding images. Platform does not mount
     // caddy-data any more (zero outbound HTTPS).
-    volumes: ['config-data:/app/data:ro'],
+    volumes: ['config-data:/app/data:ro', 'static-assets:/app/static-assets'],
     env_file: ['.env'],
     restart: 'unless-stopped',
     // Graceful shutdown budget. The entrypoint's SIGTERM trap

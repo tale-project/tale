@@ -275,7 +275,7 @@ metrics:
     last90Days: 90 derniers jours
     allTime: Tout l'historique
 pwa:
-  offlineReady: Tale est prêt à fonctionner hors ligne.
+  offlineReady: La page hors ligne de Tale est prête.
   updateAvailableDescription: Une nouvelle version de Tale est prête.
   updateAvailableTitle: Mise à jour disponible
   updateNow: Mettre à jour

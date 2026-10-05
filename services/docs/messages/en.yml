@@ -48,7 +48,7 @@ pwa:
   updateNow: Reload
   updateLater: Later
   dismiss: Dismiss
-  offlineReady: Docs are ready to read offline.
+  offlineReady: The offline screen is ready.
 home:
   docsLabel: Docs
   heroTitle: From your first question to finished work.

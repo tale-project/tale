@@ -36,6 +36,7 @@ export function generateStatefulCompose(
   const compose: ComposeConfig = {
     services,
     volumes: {
+      'static-assets': { external: true, name: `${prefix}static-assets` },
       'db-data': { external: true, name: `${prefix}db-data` },
       'db-backup': { external: true, name: `${prefix}db-backup` },
       'caddy-data': { external: true, name: `${prefix}caddy-data` },

@@ -35,6 +35,10 @@ export function generateColorCompose(
       'backend-worker': createBackendWorkerService(config, { colour: color }),
     },
     volumes: {
+      'static-assets': {
+        external: true,
+        name: `${prefix}static-assets`,
+      },
       // The org config store: the backend tier writes it, platform reads it.
       // Shared by BOTH colours — it is durable state, so it does not rotate.
       'config-data': {

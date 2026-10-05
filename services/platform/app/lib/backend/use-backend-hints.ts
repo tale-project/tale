@@ -227,8 +227,8 @@ export function useBackendHints(orgId: string | undefined): void {
       if (flushTimer !== undefined) clearTimeout(flushTimer);
       pending.clear();
       detach();
-      // A closed stream is not an outage — the next mount reopens it.
-      reportBackendReachable();
+      // Unmounting says nothing about availability. The next scope's stream
+      // or a successful readiness probe supplies the next positive evidence.
     };
   }, [orgId, queryClient]);
 }

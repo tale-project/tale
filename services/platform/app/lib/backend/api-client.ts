@@ -22,6 +22,22 @@ import {
   reportBackendUnreachable,
 } from './connection-state';
 
+const PLATFORM_UNAVAILABLE: ReadonlyMap<string, readonly number[]> = new Map([
+  ['UPSTREAM_UNAVAILABLE', [502, 503, 504]],
+  ['DATABASE_UNAVAILABLE', [503]],
+]);
+
+/** The transport's availability refusals, shared by recovery and reporting. */
+export function isPlatformUnavailableAnswer(
+  status: number,
+  code: string | undefined,
+): boolean {
+  return (
+    code !== undefined &&
+    PLATFORM_UNAVAILABLE.get(code)?.includes(status) === true
+  );
+}
+
 export class BackendApiError extends Error {
   readonly status: number;
   /** The backend's machine-readable error code, when the body carried one. */
@@ -118,6 +134,16 @@ export function backendApiErrorFromBody(
   if (isLapsedSessionAnswer(status, code)) {
     reportSessionLapsed();
   }
+  // An HTML/empty gateway refusal is the same outage as the proxy's JSON
+  // envelope. Give it the same safe code; never expose the proxy's markup.
+  if (code === undefined && [502, 503, 504].includes(status)) {
+    code = 'UPSTREAM_UNAVAILABLE';
+  }
+  if (isPlatformUnavailableAnswer(status, code)) {
+    reportBackendUnreachable();
+  } else {
+    reportBackendReachable();
+  }
   return new BackendApiError(status, message, code, data);
 }
 
@@ -162,20 +188,27 @@ export async function backendFetch<T>(
     if (isAbortError(error)) {
       throw error;
     }
-    // No HTTP response (refused, DNS, offline). Statused replies — including
-    // 5xx — still mean the server is reachable; the offline overlay must not
-    // fire for those.
+    // No HTTP response (refused, DNS, offline).
     reportBackendUnreachable();
     throw error;
   }
-  reportBackendReachable();
   if (!response.ok) {
     throw await readBackendApiError(response);
   }
   if (response.status === 204) {
+    reportBackendReachable();
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- 204 callers declare T = undefined
     return undefined as T;
   }
+  // A proxy's HTML 200 is not a successful JSON API answer.
+  let body: unknown;
+  try {
+    body = await response.json();
+  } catch (error) {
+    if (!isAbortError(error)) reportBackendUnreachable();
+    throw error;
+  }
+  reportBackendReachable();
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the fetch boundary: T states the endpoint's contract
-  return (await response.json()) as T;
+  return body as T;
 }

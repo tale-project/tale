@@ -48,7 +48,7 @@ here the first time a round re-files it.
   empty state with zero credentials until the mock provider is wired per
   [setup.md](../setup.md) §1.A (the provider file, then its environment
   credential). Observed live 2026-08-04 and 2026-10-03.
-- **"Tale is ready to work offline." fires once on first service-worker
+- **"Tale's offline screen is ready." fires once on first service-worker
   install.** Benign, and it will photobomb an unrelated screenshot.
 - **A chunked body past a route's cap is read to the cap before the 413.** A
   JSON write sent with `Transfer-Encoding: chunked` and no `Content-Length`

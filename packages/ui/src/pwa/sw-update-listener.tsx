@@ -3,12 +3,23 @@
 /// <reference types="vite-plugin-pwa/client" />
 /// <reference types="vite-plugin-pwa/react" />
 
-import { useEffect, useRef, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 // vite-plugin-pwa generates this virtual module at build time. Consuming
 // services must add the plugin to their vite.config.ts (see
 // `@tale/ui/pwa/vite-plugin`) and reference `vite-plugin-pwa/client` and
 // `vite-plugin-pwa/react` in their `vite-env.d.ts` for the types.
 import { useRegisterSW } from 'virtual:pwa-register/react';
+
+import {
+  activateWaitingWorker,
+  watchServiceWorker,
+} from './watch-service-worker';
 
 export interface SwUpdateListenerLabels {
   /** Toast title shown when a new service worker is waiting. */
@@ -19,7 +30,7 @@ export interface SwUpdateListenerLabels {
   updateNow: string;
   /** Dismiss label inside the update toast — the page keeps its version. */
   updateLater: string;
-  /** Toast title shown the first time the app is cached for offline use. */
+  /** Toast title shown when the offline connection screen is cached. */
   offlineReady: string;
 }
 
@@ -44,7 +55,7 @@ interface SwUpdateListenerProps {
     labels: SwUpdateListenerLabels;
     onUpdate: () => void;
   }) => void;
-  /** Brief notice shown once the service worker has cached the app. */
+  /** Brief notice shown once the service worker has cached the offline screen. */
   renderOfflineReadyToast: (input: { labels: SwUpdateListenerLabels }) => void;
 }
 
@@ -52,8 +63,8 @@ interface SwUpdateListenerProps {
  * Service-worker update listener. Renders nothing; delegates toast UI to
  * the caller so each app can use its own toast system. Wire it into
  * the app shell once and it will:
- *  - prompt the user to reload when a new SW is waiting (`needRefresh`)
- *  - announce that the app is ready offline the first time (`offlineReady`)
+ *  - check for releases in long-lived tabs and prompt when a worker waits
+ *  - announce that the offline screen is ready the first time (`offlineReady`)
  *
  * Requires `vite-plugin-pwa` to be configured in the consuming service.
  */
@@ -62,19 +73,23 @@ export function SwUpdateListener({
   renderUpdateToast,
   renderOfflineReadyToast,
 }: SwUpdateListenerProps): ReactNode {
-  const firedRef = useRef(false);
-  // Read once, at mount: `needRefresh` can only mean "a newer worker is
-  // waiting behind the one that controls this page". On a first install
-  // nothing controls the page yet, and the workbox-window `waiting` event
-  // that first visit can still see (a worker left waiting by an earlier
-  // registration) is not an update of what the user is looking at.
-  const hadControllerRef = useRef(hasControllingServiceWorker());
-
+  const prompted = useRef(new WeakSet<ServiceWorker>());
+  const activating = useRef(new WeakSet<ServiceWorker>());
+  const activations = useRef(new Set<() => void>());
+  const reloading = useRef(false);
+  const reloadOnce = useCallback(() => {
+    if (reloading.current) return;
+    reloading.current = true;
+    window.location.reload();
+  }, []);
+  const [registration, setRegistration] = useState<ServiceWorkerRegistration>();
   const {
-    needRefresh: [needRefresh],
     offlineReady: [offlineReady, setOfflineReady],
-    updateServiceWorker,
   } = useRegisterSW({
+    onNeedReload: reloadOnce,
+    onRegisteredSW(_url, registered) {
+      if (registered) setRegistration(registered);
+    },
     // The browser decides this (private mode, workers disabled, no storage),
     // and the page works without a worker, so it is a warning, not an error.
     onRegisterError(error) {
@@ -83,16 +98,40 @@ export function SwUpdateListener({
   });
 
   useEffect(() => {
-    if (!needRefresh || firedRef.current) return;
-    firedRef.current = true;
-    if (!hadControllerRef.current) return;
-    renderUpdateToast({
-      labels,
-      onUpdate: () => {
-        void updateServiceWorker(true);
-      },
+    if (!registration) return undefined;
+    return watchServiceWorker(registration, (worker) => {
+      if (!hasControllingServiceWorker() || prompted.current.has(worker))
+        return;
+      prompted.current.add(worker);
+      renderUpdateToast({
+        labels,
+        onUpdate: () => {
+          if (activating.current.has(worker)) return;
+          activating.current.add(worker);
+          reloading.current = false;
+          const failed = (error: unknown): void => {
+            activating.current.delete(worker);
+            prompted.current.delete(worker);
+            console.warn('Service worker activation failed', error);
+          };
+          try {
+            activations.current.add(
+              activateWaitingWorker(worker, reloadOnce, failed),
+            );
+          } catch (error) {
+            failed(error);
+          }
+        },
+      });
     });
-  }, [needRefresh, updateServiceWorker, labels, renderUpdateToast]);
+  }, [registration, labels, renderUpdateToast, reloadOnce]);
+
+  useEffect(() => {
+    const stops = activations.current;
+    return () => {
+      for (const stop of stops) stop();
+    };
+  }, []);
 
   useEffect(() => {
     if (!offlineReady) return;

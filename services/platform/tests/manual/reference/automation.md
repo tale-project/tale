@@ -14,6 +14,20 @@ organization defaults and successful saves remain covered by
 `app/features/settings/personalization/components/preferences-settings.test.tsx`.
 Live backend recovery and screen-reader announcements remain manual.
 
+Availability regressions cover validated API/database readiness, HTML proxy
+errors, bounded and idle probes, recovery of failed reads without replaying
+writes, and deferred recovery of memoized chunk failures in
+`backend/app.readiness.test.ts`, `app/hooks/use-backend-connection-state.test.ts`,
+`app/lib/backend/api-client.test.ts`, `app/lib/backend/use-availability-recovery.test.tsx`
+and `app/lib/stale-bundle-recovery.test.tsx`. `lib/static-assets.test.ts` and
+`server.test.ts` cover both colours sharing complete hashed artifacts while
+missing modules remain HTTP 404. The shared `packages/ui/src/pwa/` tests build
+real workers for code-only releases, verify recovery-file integrity and exercise
+offline retries and waiting worker activation. Both servers keep canonical
+precache bytes while scoping direct offline visits. Real-browser proxy
+failure/recovery, mixed-colour installation, subpath deployments, long-lived-tab
+prompts and cold-visitor fallback remain `NAV-B17`/`NAV-B18`/`NAV-F25`.
+
 Shared bulk Delete and Archive preserve refused selections and keep the confirmation
 open with failed item names and safe caller-supplied reasons. Retries exclude successes;
 all-success closes and clears as before. Mixed/all-refused/success controls for both

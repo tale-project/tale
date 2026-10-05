@@ -279,14 +279,16 @@ describe('useBackendHints', () => {
     expect(isBackendReachable()).toBe(true);
     const fetchMock = vi
       .spyOn(window, 'fetch')
-      .mockResolvedValue(new Response('ok', { status: 200 }));
+      .mockImplementation(async () =>
+        Response.json({ ok: true, service: 'backend' }),
+      );
     renderHook(() => useBackendHints('org1'), { wrapper });
     await act(async () => {
       FakeEventSource.instances[0]?.emit('error', '');
     });
     // The error is not the verdict — the probe it triggers is.
     expect(fetchMock).toHaveBeenCalledWith(
-      '/api/health',
+      '/api/health/ready',
       expect.objectContaining({ cache: 'no-store' }),
     );
     expect(isBackendReachable()).toBe(true);
