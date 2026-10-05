@@ -214,6 +214,9 @@ export function useHomeData(
 
   const projects =
     projectsQuery.status === 'ready' ? projectsQuery.data : NO_PROJECTS;
+  const threadRows = threads.status === 'ready' ? threads.data : undefined;
+  const archivedRows =
+    archivedThreads.status === 'ready' ? archivedThreads.data.rows : undefined;
 
   const projectKeys = useMemo(() => {
     const keys = new Map<string, string>();
@@ -225,23 +228,19 @@ export function useHomeData(
 
   const chatItems = useMemo((): HomeChatItem[] => {
     const list: ChatThreadSummary[] = [];
-    if (threads.status === 'ready') {
-      list.push(...threads.data);
+    if (threadRows !== undefined) {
+      list.push(...threadRows);
     }
-    if (
-      includeArchived &&
-      archivedThreads.status === 'ready' &&
-      archivedThreads.data.rows
-    ) {
+    if (includeArchived && archivedRows !== undefined) {
       const existingIds = new Set(list.map((t) => t.id));
-      for (const thread of archivedThreads.data.rows) {
+      for (const thread of archivedRows) {
         if (!existingIds.has(thread.id)) {
           list.push(thread);
         }
       }
     }
     return list.map(toHomeChatItem);
-  }, [threads, archivedThreads, includeArchived]);
+  }, [threadRows, archivedRows, includeArchived]);
 
   const taskItems = useMemo((): HomeTaskItem[] => {
     const seen = new Set<string>();
@@ -348,20 +347,16 @@ export function useHomeData(
 
   const threadsById = useMemo(() => {
     const map = new Map<string, ChatThreadSummary>();
-    if (threads.status === 'ready') {
-      for (const thread of threads.data) map.set(thread.id, thread);
+    if (threadRows !== undefined) {
+      for (const thread of threadRows) map.set(thread.id, thread);
     }
-    if (
-      includeArchived &&
-      archivedThreads.status === 'ready' &&
-      archivedThreads.data.rows
-    ) {
-      for (const thread of archivedThreads.data.rows) {
+    if (includeArchived && archivedRows !== undefined) {
+      for (const thread of archivedRows) {
         if (!map.has(thread.id)) map.set(thread.id, thread);
       }
     }
     return map;
-  }, [threads, archivedThreads, includeArchived]);
+  }, [threadRows, archivedRows, includeArchived]);
 
   return {
     items,

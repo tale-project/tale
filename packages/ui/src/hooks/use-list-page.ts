@@ -134,6 +134,12 @@ interface ControlledFilters {
 interface UseListPageOptions<TData> {
   dataSource: DataSource<TData>;
   pageSize: number;
+  /** A different collection or view starts its display window over. Live
+   * updates of the same collection keep the user's loaded rows. */
+  windowKey?: string;
+  /** Keep a linked row from this collection visible without mounting every
+   * preceding row. The normal window still advances through the whole set. */
+  revealedRow?: TData;
   search?: ManagedSearch<TData> | ControlledSearch;
   filters?: ManagedFilters | ControlledFilters;
   getRowId?: (row: TData) => string;
@@ -243,16 +249,14 @@ export function useListPage<TData>(
     countRow,
     sorting,
     sortingColumns,
+    windowKey,
+    revealedRow,
   } = options;
 
   // 1. Normalize data source
-  const rawData = useMemo(
-    () =>
-      dataSource.type === 'paginated'
-        ? (dataSource.results ?? [])
-        : (dataSource.data ?? []),
-    [dataSource],
-  );
+  const sourceRows =
+    dataSource.type === 'paginated' ? dataSource.results : dataSource.data;
+  const rawData = useMemo(() => sourceRows ?? [], [sourceRows]);
 
   const requestError = dataSource.error ?? null;
   // With rows on screen, a failed request halts a paginated source where it
@@ -285,6 +289,11 @@ export function useListPage<TData>(
 
   // 4. Display count
   const [displayCount, setDisplayCount] = useState(pageSize);
+  const [previousWindowKey, setPreviousWindowKey] = useState(windowKey);
+  if (previousWindowKey !== windowKey) {
+    setPreviousWindowKey(windowKey);
+    setDisplayCount(pageSize);
+  }
 
   // Determine actual search value
   const searchValue =
@@ -317,7 +326,9 @@ export function useListPage<TData>(
 
   // 5. Process data (search + filters)
   const processed = useMemo(() => {
-    let data = [...rawData];
+    // Filtering creates a fresh result when necessary. Copying an unchanged
+    // source here invalidated every table row and sort on wrapper rerenders.
+    let data = rawData;
 
     // Apply managed text search
     if (search && isManagedSearch<TData>(search) && searchValue) {
@@ -373,13 +384,18 @@ export function useListPage<TData>(
   }, [processed, sorting, sortingColumns, getRowId]);
   const renderAllForSort =
     hasActiveSort && (!sortingColumns || sortedProcessed.length < pageSize * 5);
-  const displayed = useMemo(
-    () =>
-      renderAllForSort
-        ? sortedProcessed
-        : sortedProcessed.slice(0, windowCount),
-    [sortedProcessed, renderAllForSort, windowCount],
-  );
+  const displayed = useMemo(() => {
+    if (renderAllForSort) return sortedProcessed;
+    const rows = sortedProcessed.slice(0, windowCount);
+    if (
+      revealedRow !== undefined &&
+      sortedProcessed.includes(revealedRow) &&
+      !rows.includes(revealedRow)
+    ) {
+      rows.push(revealedRow);
+    }
+    return rows;
+  }, [sortedProcessed, renderAllForSort, windowCount, revealedRow]);
 
   const localRemaining =
     !renderAllForSort && windowCount < sortedProcessed.length;
@@ -398,7 +414,7 @@ export function useListPage<TData>(
   // 9. handleLoadMore — prefetch from backend before buffer is exhausted
   const handleLoadMore = useCallback(() => {
     if (dataSource.type === 'paginated') {
-      const nextDisplayCount = displayCount + pageSize;
+      const nextDisplayCount = windowCount + pageSize;
       const remainingAfterIncrement = processed.length - nextDisplayCount;
       if (
         remainingAfterIncrement <= pageSize &&
@@ -408,8 +424,8 @@ export function useListPage<TData>(
         dataSource.loadMore(pageSize * 3);
       }
     }
-    setDisplayCount((prev) => prev + pageSize);
-  }, [dataSource, displayCount, processed.length, pageSize, loadFailed]);
+    setDisplayCount(windowCount + pageSize);
+  }, [dataSource, windowCount, processed.length, pageSize, loadFailed]);
 
   // 10. Build search config
   const searchConfig = useMemo((): DataTableSearchConfig | undefined => {

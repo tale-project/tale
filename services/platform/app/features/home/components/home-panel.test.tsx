@@ -203,7 +203,86 @@ function stream() {
   });
 }
 
+function largeData() {
+  return data({
+    items: Array.from({ length: 1000 }, (_, index) => ({
+      kind: 'task' as const,
+      id: `scale-${index}`,
+      title: `Scale ${String(index).padStart(4, '0')}`,
+      activityAt: TODAY - index * 1000,
+      unread: false,
+      status: 'todo' as const,
+      awaitingMyReview: false,
+    })),
+    projects: Array.from({ length: 1000 }, (_, index) => ({
+      id: `project-${index}`,
+      name: `Project ${String(index).padStart(4, '0')}`,
+      key: `P${index}`,
+    })),
+  });
+}
+
 describe('HomeNavigator', () => {
+  it.each(['task', 'project'] as const)(
+    'reveals a linked %s without mounting preceding rows',
+    (kind) => {
+      homeData.current = largeData();
+      location.current = {
+        pathname:
+          kind === 'task'
+            ? '/dashboard/org-1/tasks/scale-999'
+            : '/dashboard/org-1/projects/project-999',
+        search: {},
+      };
+      render(<HomeNavigator organizationId="org-1" />);
+      const projects = screen.getByRole('region', { name: 'Projects' });
+      if (kind === 'task') {
+        expect(
+          within(stream()).getAllByRole('link', { hidden: true }).length,
+        ).toBeLessThan(70);
+        expect(
+          within(stream()).getByRole('link', { current: 'page' }),
+        ).toHaveTextContent('Scale 0999');
+      } else {
+        expect(
+          within(projects).getAllByRole('link', {
+            name: /Project \d{4}/,
+            hidden: true,
+          }).length,
+        ).toBeLessThan(70);
+        expect(
+          within(projects).getByRole('link', { current: 'page' }),
+        ).toHaveTextContent('Project 0999');
+      }
+    },
+  );
+
+  it('bounds large streams and project trees, while searching the whole collection', async () => {
+    homeData.current = largeData();
+    render(<HomeNavigator organizationId="org-1" />);
+    const projects = screen.getByRole('region', { name: 'Projects' });
+    expect(
+      within(stream()).getAllByRole('link', { hidden: true }).length,
+    ).toBeLessThan(70);
+    expect(
+      within(projects).getAllByRole('link', {
+        name: /Project \d{4}/,
+        hidden: true,
+      }).length,
+    ).toBeLessThan(70);
+    fireEvent.change(screen.getByRole('textbox'), {
+      target: { value: 'Scale 0999' },
+    });
+    await waitFor(() =>
+      expect(
+        within(stream()).getAllByRole('link', { hidden: true }),
+      ).toHaveLength(1),
+    );
+    expect(
+      within(stream()).getByRole('link', { name: /Scale 0999/ }),
+    ).toBeInTheDocument();
+  });
+
   it('lists chats, tasks and conversations together, newest first, in day bands', () => {
     render(<HomeNavigator organizationId="org-1" />);
 
@@ -374,50 +453,46 @@ describe('HomeNavigator', () => {
     expect(first).toHaveFocus();
   });
 
-  it.each([
-    ['chat', 't1', 'Quarterly report'],
-    ['task', 'k1', 'Review the launch checklist'],
-  ] as const)(
-    'keeps literal %s drafts discoverable after leaving, reopening and remounting',
-    (kind, id, title) => {
+  it.each(
+    (
+      [
+        ['chat', 't1', 'Quarterly report'],
+        ['task', 'k1', 'Review the launch checklist'],
+      ] as const
+    ).flatMap(([kind, id, title]) =>
+      ['<Button />', '<tag>', 'ordinary unsent note', '', '   '].map(
+        (text) => [kind, id, title, text] as const,
+      ),
+    ),
+  )(
+    'keeps literal %s drafts discoverable after leaving, reopening and remounting (%s, %s, %j)',
+    (kind, id, title, text) => {
       const pathname =
         '/dashboard/org-1/' + (kind === 'chat' ? 'chat' : 'tasks') + '/' + id;
       const key = homeDraftKey({ kind, id }, 'u1', 'org-1');
-      for (const text of [
-        '<Button />',
-        '<tag>',
-        'ordinary unsent note',
-        '',
-        '   ',
-      ]) {
-        const stored = JSON.stringify(text);
-        window.localStorage.setItem(key, stored);
-        location.current = { pathname, search: {} };
-        const view = render(<HomeNavigator organizationId="org-1" />);
-        const row = () =>
-          within(stream()).getByRole('link', { name: new RegExp(title) });
-        expect(row()).not.toHaveTextContent('Draft');
+      const stored = JSON.stringify(text);
+      window.localStorage.setItem(key, stored);
+      location.current = { pathname, search: {} };
+      const view = render(<HomeNavigator organizationId="org-1" />);
+      const row = () =>
+        within(stream()).getByRole('link', { name: new RegExp(title) });
+      expect(row()).not.toHaveTextContent('Draft');
 
-        location.current = { pathname: '/dashboard/org-1/chat', search: {} };
-        view.rerender(<HomeNavigator organizationId="org-1" />);
-        expect(row().textContent?.includes('Draft')).toBe(
-          text.trim().length > 0,
-        );
+      location.current = { pathname: '/dashboard/org-1/chat', search: {} };
+      view.rerender(<HomeNavigator organizationId="org-1" />);
+      expect(row().textContent?.includes('Draft')).toBe(text.trim().length > 0);
 
-        location.current = { pathname, search: {} };
-        view.rerender(<HomeNavigator organizationId="org-1" />);
-        expect(row()).not.toHaveTextContent('Draft');
-        expect(window.localStorage.getItem(key)).toBe(stored);
-        view.unmount();
+      location.current = { pathname, search: {} };
+      view.rerender(<HomeNavigator organizationId="org-1" />);
+      expect(row()).not.toHaveTextContent('Draft');
+      expect(window.localStorage.getItem(key)).toBe(stored);
+      view.unmount();
 
-        location.current = { pathname: '/dashboard/org-1/chat', search: {} };
-        const reloaded = render(<HomeNavigator organizationId="org-1" />);
-        expect(row().textContent?.includes('Draft')).toBe(
-          text.trim().length > 0,
-        );
-        expect(window.localStorage.getItem(key)).toBe(stored);
-        reloaded.unmount();
-      }
+      location.current = { pathname: '/dashboard/org-1/chat', search: {} };
+      const reloaded = render(<HomeNavigator organizationId="org-1" />);
+      expect(row().textContent?.includes('Draft')).toBe(text.trim().length > 0);
+      expect(window.localStorage.getItem(key)).toBe(stored);
+      reloaded.unmount();
     },
   );
 

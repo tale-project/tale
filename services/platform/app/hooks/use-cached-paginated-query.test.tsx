@@ -67,6 +67,27 @@ afterEach(() => {
 });
 
 describe('useCachedPaginatedQuery — a failed read and its retry', () => {
+  it('preserves loaded row identity through unrelated renders and changes it for a new page', async () => {
+    listDoor([
+      () =>
+        json(200, {
+          items: [row('c1')],
+          isDone: false,
+          continueCursor: 'next',
+        }),
+      () => json(200, { items: [row('c2')], isDone: true, continueCursor: '' }),
+    ]);
+    const { result, rerender } = renderListing();
+    await waitFor(() => expect(result.current.results).toHaveLength(1));
+    const firstPage = result.current.results;
+    rerender();
+    expect(result.current.results).toBe(firstPage);
+    act(() => result.current.loadMore(2));
+    await waitFor(() => expect(result.current.results).toHaveLength(2));
+    expect(result.current.results).not.toBe(firstPage);
+    expect(result.current.results[0]).toBe(firstPage[0]);
+  });
+
   it('hands over the error of a first page every attempt failed, then loads it again on retry', async () => {
     let answerRetry = (): void => {};
     const cursors = listDoor([

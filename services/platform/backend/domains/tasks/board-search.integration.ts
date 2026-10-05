@@ -205,6 +205,23 @@ export async function checkTaskBoardSearch(
     : [];
   const searched = await board({ includeArchived: 'false', statuses, q: term });
   const searchedIds = searched ? idsOf(searched.rows) : new Set<string>();
+  const detail = z
+    .object({ task: z.object({ description: z.string().nullable() }) })
+    .safeParse(await get(`/api/app/tasks/${described.id}?orgId=${orgId}`));
+  record(
+    'board rows omit large bodies while the selected task retains its description',
+    searched !== null &&
+      searched.rows.every(
+        (row) =>
+          !Object.hasOwn(row, 'description') &&
+          !Object.hasOwn(row, 'attachments') &&
+          !Object.hasOwn(row, 'outputs') &&
+          !Object.hasOwn(row, 'externalIssue'),
+      ) &&
+      detail.success &&
+      detail.data.task.description === described.description,
+    `board=${searched?.rows.length ?? 'ERR'} summary-only=${searched?.rows.every((row) => !Object.hasOwn(row, 'description')) ?? false} detail=${detail.success && detail.data.task.description === described.description}`,
+  );
   const urgentOnly =
     searched?.rows.filter((row) => row.priority === 'p0') ?? [];
   const perStatus = BOARD_STATUSES.map(

@@ -61,6 +61,56 @@ function renderListPage(
 // ---------------------------------------------------------------------------
 
 describe('useListPage — infiniteScroll mode (default)', () => {
+  it('keeps unfiltered rows and the visible window stable across fresh option wrappers', () => {
+    const items = makeItems(1000);
+    const { result, rerender } = renderHook(() =>
+      useListPage({
+        dataSource: { type: 'query', data: items },
+        pageSize: 20,
+        search: { value: '', onChange: () => {}, serverSide: true },
+      }),
+    );
+    const visible = result.current.tableProps.data;
+    expect(result.current.processedData).toBe(items);
+    rerender();
+    expect(result.current.tableProps.data).toBe(visible);
+  });
+
+  it('starts a new collection window over, retains live rows, and reveals linked rows', () => {
+    const items = makeItems(1000);
+    const initialProps: { windowKey: string; revealedRow?: TestItem } = {
+      windowKey: 'org-a',
+    };
+    const { result, rerender } = renderHook(
+      ({ windowKey, revealedRow }) =>
+        useListPage({
+          dataSource: { type: 'query', data: items },
+          pageSize: 20,
+          windowKey,
+          revealedRow,
+        }),
+      { initialProps },
+    );
+    act(() => result.current.tableProps.infiniteScroll.onLoadMore());
+    rerender({ windowKey: 'org-a' });
+    expect(result.current.tableProps.data).toHaveLength(40);
+    rerender({ windowKey: 'org-b' });
+    expect(result.current.tableProps.data).toHaveLength(20);
+    rerender({ windowKey: 'org-b', revealedRow: items[80] });
+    expect(result.current.tableProps.data).toHaveLength(21);
+    expect(result.current.tableProps.data.at(-1)).toBe(items[80]);
+    act(() => result.current.tableProps.infiniteScroll.onLoadMore());
+    expect(result.current.tableProps.data).toHaveLength(41);
+    for (let page = 0; page < 3; page += 1) {
+      act(() => result.current.tableProps.infiniteScroll.onLoadMore());
+    }
+    expect(result.current.tableProps.data).toHaveLength(100);
+    expect(
+      result.current.tableProps.data.filter((item) => item === items[80]),
+    ).toHaveLength(1);
+    rerender({ windowKey: 'org-b', revealedRow: makeItems(1)[0] });
+    expect(result.current.tableProps.data).toHaveLength(100);
+  });
   it('returns sliced data matching pageSize', () => {
     const { result } = renderListPage();
 

@@ -152,6 +152,35 @@ beforeEach(() => {
 });
 
 describe('useHomeData', () => {
+  it('retains chat rows and their lookup when only read envelopes change', () => {
+    const archived = [{ ...CHATS.data[0], id: 'archived', archived: true }];
+    reads.threads.mockImplementation(() => ({ ...CHATS }));
+    reads.archived.mockImplementation(() => ({
+      status: 'ready',
+      data: { rows: archived, nextCursor: null },
+    }));
+    const { result, rerender } = renderHook(() =>
+      useHomeData('org-1', { includeArchivedChats: true }),
+    );
+    const chats = result.current.items.filter((item) => item.kind === 'chat');
+    const lookup = result.current.threadsById;
+    rerender();
+    const next = result.current.items.filter((item) => item.kind === 'chat');
+    expect(next).toHaveLength(3);
+    for (const [index, chat] of chats.entries()) expect(next[index]).toBe(chat);
+    expect(result.current.threadsById).toBe(lookup);
+
+    reads.threads.mockReturnValue({
+      ...CHATS,
+      data: CHATS.data.map((chat) => ({ ...chat, title: 'Updated title' })),
+    });
+    rerender();
+    expect(result.current.threadsById).not.toBe(lookup);
+    expect(result.current.threadsById.get('chat-unread')?.title).toBe(
+      'Updated title',
+    );
+  });
+
   it('keeps the Inbox navigation visible while source discovery has failed', () => {
     reads.inboxAvailability.hasInbox = false;
     reads.inboxAvailability.showInbox = true;

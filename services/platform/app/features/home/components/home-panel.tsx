@@ -36,6 +36,7 @@ import {
 } from 'lucide-react';
 import {
   useCallback,
+  useDeferredValue,
   useEffect,
   useMemo,
   useRef,
@@ -457,7 +458,7 @@ export function HomeNavigator({
     location.kind === 'chat' ? location.threadId : undefined;
 
   const [search, setSearch] = useState('');
-  const query = search.trim().toLowerCase();
+  const query = useDeferredValue(search.trim().toLowerCase());
 
   // Each project's name, lowercased once: the search matches every row's
   // project on every keystroke.

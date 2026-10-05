@@ -1,6 +1,6 @@
 # Performance (cross-cutting)
 
-> **Prefix** `PERF-` · **Reset** none · **Cost** 22 boxes
+> **Prefix** `PERF-` · **Reset** none · **Cost** 26 boxes
 
 Spot-check the load and interaction budgets — cold load to first paint, chat
 time-to-first-token (TTFT), thread/route switching, warm-transition prefetch,
@@ -142,6 +142,11 @@ magnitude:
   interaction near 200 ms), and the palette still reads as a panel over the
   dimmed page.
 
+
+- [ ] `PERF-P12` · **Content-heavy task board** — Open `/dashboard/{org}/projects/{projectId}/tasks/board` in a fixture project with 1,000 tasks carrying long descriptions, then switch to `/dashboard/{org}/projects/{projectId}/tasks/list`. → Both views mount only the task cards or rows near the viewport, retain the full lane counts, and reveal distant tasks on scroll. The board response omits description and file bodies; searching a distinctive phrase in a description or comment still finds the task. Record response bytes, mounted row counts and the warm interaction trace.
+- [ ] `PERF-P13` · **Large task details and discussion** — Open a task with a 20,000-character description, resolved mentions and 300 comments from the board. → The complete description appears with its formatting and mentions; the discussion starts with at most 30 comments, and loading earlier comments reveals the next page. Close and reopen the sheet, edit the description, save, reload and read it back. Record warm open latency and long tasks; unchanged prose does not trigger another Markdown parse during unrelated status or picker updates.
+- [ ] `PERF-P14` · **Large Home collections and deep links** — With 1,000 chats, tasks and projects, open `/dashboard/{org}/chat/{threadId}` for an older chat and `/dashboard/{org}/projects/{projectId}` for a project near the end of its list. → Home mounts stream rows around the viewport and at most 21 project rows, including the selected item; opening a deep link does not mount every preceding row. Scroll the stream and use **Load more** (`common.pagination.loadMore`) in the project tree, then search for an item beyond the initial window: it remains reachable, with no duplicate selected row. Record the DOM counts and warm trace.
+
 ## Response-time SLAs
 
 PERF-P2 above is the per-request **ceiling** a single warm first token (the
@@ -254,3 +259,4 @@ single warm sample.
   skeleton shimmer stops: the pulse element carries
   `motion-reduce:animate-none` (source: `packages/ui/.../skeleton.tsx`) so no
   infinite animation runs. Verify via emulated reduced-motion.
+- [ ] `PERF-A3` · **Keyboard paging** — In the project tree with more than two windows, Tab to **Load more** (`common.pagination.loadMore`) and press Enter. → Another window appears, the control retains visible focus while more rows remain, and the newly revealed project opens from its named control. A collapsed project tree does not automatically load rows.
