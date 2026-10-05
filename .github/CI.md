@@ -4,8 +4,8 @@ Optimize both time to feedback and total runner work. Inspect job queue time sep
 from step duration before adding shards: a short test behind a large setup cost usually
 needs fewer runners, while a long CPU-bound suite can benefit from more slices.
 
-The cumulative audit records [128 retained implemented improvements](CI-improvements.json)
-since `c8f31b2b9`: 78 authored here, 46 integrated from concurrent upstream work and four
+The cumulative audit records [131 retained implemented improvements](CI-improvements.json)
+since `c8f31b2b9`: 81 authored here, 45 integrated from concurrent upstream work and five
 combining both. Each entry records before/after behavior, changed paths, source commits
 and proof. Repeated patterns across workflows count once; suggestions and retained
 baseline behavior do not count.
@@ -125,7 +125,11 @@ Node-version output: only those checkouts resolve and install their production N
 job level. Current composites skip that fallback. Integration evidence verifies and records
 the actual selected version.
 
-The Bun download key also includes workspace manifests, the lockfile and patches.
+Shared checks and native CLI builds use the same Bun download key inputs: the root
+manifest, every declared workspace manifest, lockfile, patches and `bunfig.toml`.
+The independent document-node npm manifest is outside that workspace identity.
+Native caches retain OS, architecture and Bun version separation; cross-compilation
+keeps its separate namespace and every path retains its prefix fallback.
 A frozen install remains authoritative after a cache hit, and successful downloads
 are saved before the workload begins. Browser checks and E2E share an exact
 installed Playwright version, OS and architecture cache for the Chromium headless
@@ -216,6 +220,12 @@ The direct SBOM pass reuses the pinned scanner installation and skips a second c
 Scorecard remains informational and runs weekly, manually and when branch protections
 change. Blocking source and dependency security gates retain their triggers.
 
+Security's production Bun audit uses one registry response per attempt for both
+reporting and its blocking HIGH/CRITICAL threshold. Native JSON output retains all
+advisory severities; Bun decides the exit status. Each bounded attempt is retained,
+including transport failures. Findings fail immediately, while a degraded registry
+keeps the existing three-attempt retry policy and delay.
+
 CLI checks additionally depend on their own `transit`, whose inputs cover embedded
 source trees and platform modules reached by relative imports. Module-closure and
 generator-tree guards require those effective inputs.
@@ -245,8 +255,9 @@ Keep platform tests in build inputs: Tailwind's automatic source scanner read 63
 Narrowing those inputs requires explicit production-only Tailwind sources and an output-
 equivalence check.
 
-Only main pushes publish the shared platform-stack Docker layer cache; pull requests
-and candidates read it. This removes costly PR-local exports and prevents old release
+Only ordinary main pushes publish the shared platform-stack and four standalone
+service Docker layer caches; pull requests and candidates read them. This removes
+costly PR-local exports and prevents old release
 candidates from replacing main's cache. PR reruns may rebuild layers unique to that PR.
 Ephemeral hosted builders skip teardown. Forks build on the runners that test their
 images and retain builtin catalog validation, without a second unused image matrix.
@@ -592,6 +603,13 @@ artifact review as described in the repo contract.
 
 Scope and verdict actions use the repository-pinned `actions/github-script` Node 24 runtime
 and a dependency-free evaluator; they do not install the monorepo or start another CI graph.
+Their pinned checkouts use non-cone sparse paths: scope materializes only its action,
+the central policy and evaluator, while readiness needs only its action and evaluator.
+Checks' integration scope retains its exact candidate-source ref and PR condition.
+Native Git fixtures execute both actions from those minimal trees and retain scope
+pre/postflight API checks and failed or incomplete readiness verdicts.
+An official checksummed Node 24 runtime also imports the sparse TypeScript and executes
+the actual action scripts with both `package.json` and `node_modules` absent.
 
 ### Activation and observation
 

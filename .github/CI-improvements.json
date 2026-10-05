@@ -1,6 +1,6 @@
 {
   "baseline": "c8f31b2b92283ea027966ef1556fadf3826302db",
-  "count": 128,
+  "count": 131,
   "counting": "Distinct implemented CI execution, caching, validation, safety, or regression improvements since the task baseline. Shared patterns across workflows are merged; suggestions, cosmetic changes and retained baseline behavior are excluded. Integrated upstream contributions are labelled separately from this team\u2019s authored work.",
   "withdrawn": [
     {
@@ -1327,11 +1327,17 @@
     {
       "title": "Publish shared Docker layer caches only from main",
       "before": "PR/candidate jobs exported expensive cache layers and older candidates could replace main caches.",
-      "after": "PR/candidates read; trusted main publishes shared stack layers.",
-      "paths": [".github/workflows/build.yml"],
-      "proof": "ci-build-optimization event predicate and unchanged image publication guards; exact247 Build37257839752 success.",
-      "commits": ["027655fa3dc8c80a7602124cc7eda79edea77108"],
-      "origins": ["integrated"],
+      "after": "PR/candidates read; ordinary main pushes publish shared stack and four standalone service layers. Same-PR reruns may rebuild unique layers.",
+      "paths": [
+        ".github/workflows/build.yml",
+        "tools/cli/scripts/ci-build-optimization.test.ts"
+      ],
+      "proof": "ci-build-optimization event predicate and unchanged image publication guards; exact247 Build37257839752 success. Standalone extension: official expressions and pinned Bake input parser passed28event cases;32actual Compose/Bake --print exits0 preserve imports/context/tags/args/load/provenance. Observed prior web PR export127.5s is context, not a controlled speedup.",
+      "commits": [
+        "027655fa3dc8c80a7602124cc7eda79edea77108",
+        "14918a728b3e5fa0401fc4df6533c94e245ff6fb"
+      ],
+      "origins": ["integrated", "authored"],
       "id": "CI-112"
     },
     {
@@ -1540,11 +1546,64 @@
       "commits": ["013cef62abe5ce05e2e277d76c082988b11228ea"],
       "origins": ["authored"],
       "id": "CI-129"
+    },
+    {
+      "title": "Use one native production audit response for report and gate",
+      "before": "Nonblocking text reporting requested advisories before the blocking native gate requested them again.",
+      "after": "One JSON lookup per bounded attempt retains every severity while Bun enforces HIGH/CRITICAL; retries, finding failures, tee failures and evidence retention remain.",
+      "paths": [
+        ".github/workflows/security.yml",
+        "tools/cli/scripts/ci-e2e-optimization.test.ts"
+      ],
+      "proof": "Actual Bun1.4.2 loopback registry: low/moderate exit0, high/critical exit1; complete JSON, production-only payload and exactly one POST per case. Actual503 and existing Bash outage/timeout/tee/finding fixtures retain failure policy. Full affected CLI gate executed freshly.",
+      "commits": ["14918a728b3e5fa0401fc4df6533c94e245ff6fb"],
+      "origins": ["authored"],
+      "id": "CI-130"
+    },
+    {
+      "title": "Materialize only scope and readiness source closures",
+      "before": "Five scope jobs and seven terminal readiness jobs checked out the full source although their evaluators have no workspace dependencies.",
+      "after": "Pinned non-cone checkouts materialize three scope files or two readiness files, preserving source refs, PR API discovery and complete native-needs verdicts.",
+      "paths": [
+        ".github/workflows/build.yml",
+        ".github/workflows/checks.yml",
+        ".github/workflows/cli.yml",
+        ".github/workflows/commitlint.yml",
+        ".github/workflows/e2e.yml",
+        ".github/workflows/sast.yml",
+        ".github/workflows/security.yml",
+        "tools/cli/scripts/ci-ready-workflows.test.ts"
+      ],
+      "proof": "Real Git materialization at4653:8792blobs/569464405tracked bytes become28544scope/15931readiness bytes. Native Git guards reject sibling/nested/dependency files and execute actions. Official checksummed Node24.21.0 and Node22.22.0 import sparse TS and pass seven action cases without package.json/node_modules. No hosted PR duration or network-byte claim.",
+      "commits": ["14918a728b3e5fa0401fc4df6533c94e245ff6fb"],
+      "origins": ["authored"],
+      "id": "CI-131"
+    },
+    {
+      "title": "Align shared checks and native CLI Bun download identities",
+      "before": "Shared setup omitted bunfig while CLI hashed independent non-workspace npm manifests, producing different exact native cache keys.",
+      "after": "Both hash the same root/workspace/lock/config/patch inputs; OS/arch/Bun and cross namespaces, prefix fallbacks, frozen installs and early successful saves remain.",
+      "paths": [
+        ".github/actions/setup-turbo/action.yml",
+        ".github/workflows/cli.yml",
+        "tools/cli/scripts/ci-cache-optimization.test.ts",
+        "tools/cli/scripts/ci-build-optimization.test.ts"
+      ],
+      "proof": "Actual @actions/glob0.5.0 hashes28real inputs: every individual mutation invalidates both, independent document-node edit preserves both, five OS/arch identities match. Actual CLI install shell passes native/cross/empty-cross frozen fixtures and rejects stale locks for native/cross. Fresh pinned full CLI gate passes.",
+      "commits": ["14918a728b3e5fa0401fc4df6533c94e245ff6fb"],
+      "origins": ["authored"],
+      "id": "CI-132"
     }
   ],
   "validation": {
     "focused": "Integrated Checks/cache105tests1903assertions, container/release66tests1204assertions, publication/cleanup/shared171tests, E2E/security57tests478assertions; historical-helper fallback2tests158assertions. Exact Bun1.4.2 lint/types, formatter and actionlint passed. Final guard follow-up: real compiler guard6/6; real Compose helper plus actual Turbo input closure122/122 (2403assertions); both local/hosted failed-cache variants48assertions; 185other release/metadata/Build/deployment/cache cases passed in the integration batch. Five affected-workspace lint/type/generate tasks executed freshly and passed; Knip/actionlint and commit hooks passed. Final upstream readiness integration: 71/71 native CLI, workflow/readiness and candidate guards passed with 2241 assertions; CLI typecheck, targeted lint/format, actionlint and all links passed.",
     "local_broad": "Frozen-source full gate:47/49tasks passed (38cache replays),30m49.996s. Fresh platformUnit passed82,098tests; fresh CLI passed2247tests/0fail (29existing skips). Both affected workspaces lint/types passed. The gate remained red for unchanged sandbox5s subprocess fixtures and load-sensitive UI timeouts; all12failed UI files subsequently passed241tests with1worker and unchanged assertions/budgets. Full SAST exit0:476applicable rules/4541files/0findings,91partially analyzed files under the existing policy. The red monolithic gate is not represented as green.",
-    "hosted": "Full E2E37265091303 at4a77db784 passed214browser tests with zero retries and822SEO tests (one preexisting fixme). Exact-source Checks37271033992, CLI37271033868, SAST37271033889 and Security37271160205 passed at1dcc2e523. Ordinary Build37269909176 at3184c0b2b passed all8stack builders, smoke, metadata/runtime checks and the selected platform scan, including actualTrivy0.70 SBOM Node/Python hashes and JSON-conversion negatives. Standalone jobs were not selected in that push. Regressions found during validation were corrected, not counted as new improvements. Cached verdicts, cancelled runs and older candidate sources are distinguished from fresh execution. Protected candidate91ac also passed Checks/Build/E2E/Security/SAST, but CLI macOS failed25runtime fixture setup timeouts and its15min job budget; all4other CLI targets passed. Ordinary descendant2c3fe passed Checks37273116498, CLI37273116351 and Build37273116429. The Macparallelism optimizationCI114 is withdrawn and not included in count128; serial production CLI37283199170 at4653d3e3b passed all5targets, with macOS2346pass/20skip/0fail in246.41s and smoke56pass/1skip/0fail in47.29s. The additional Git fixture regression awaits its final hosted run."
+    "hosted": "Full E2E37265091303 at4a77db784 passed214browser tests with zero retries and822SEO tests (one preexisting fixme). Exact-source Checks37271033992, CLI37271033868, SAST37271033889 and Security37271160205 passed at1dcc2e523. Ordinary Build37269909176 at3184c0b2b passed all8stack builders, smoke, metadata/runtime checks and the selected platform scan, including actualTrivy0.70 SBOM Node/Python hashes and JSON-conversion negatives. Standalone jobs were not selected in that push. Regressions found during validation were corrected, not counted as new improvements. Cached verdicts, cancelled runs and older candidate sources are distinguished from fresh execution. Protected candidate91ac also passed Checks/Build/E2E/Security/SAST, but CLI macOS failed25runtime fixture setup timeouts and its15min job budget; all4other CLI targets passed. Ordinary descendant2c3fe passed Checks37273116498, CLI37273116351 and Build37273116429. The Macparallelism optimizationCI114 is withdrawn and not included in count128; serial production CLI37283199170 at4653d3e3b passed all5targets, with macOS2346pass/20skip/0fail in246.41s and smoke56pass/1skip/0fail in47.29s. The additional Git fixture regression awaits its final hosted run.",
+    "continued_pass_2026_10_05": {
+      "source": "14918a728b3e5fa0401fc4df6533c94e245ff6fb",
+      "local": "Bun1.4.2 full affected check exit0: all4CLI tasks freshly executed,0cache replays;2342pass/29existing skips/0fail,37507assertions in635.48s. Root format/conflicts/links and sandbox format check passed. Seven-workflow actionlint0; targeted full-pack Opengrep162applicable rules on4changed test files/0findings with configured exclusions retained. Normal source commit hooks passed. This full execution used main parent01032f955; implementation blobs remain identical after rebasing onto cb69c47ce plus its incoming product fixes. Final hosted validation will judge the rebased source. Rebased focused gate:97tests/2855assertions/0fail; CLI typecheck0 and links0 over452documentation pages/8799tracked files.",
+      "native": "Actual Bun advisory engine, official GitHub hash and Bake expression/input-list libraries, actual Docker plan commands, real Git non-cone materialization, actual Node24/22 sparse action execution and frozen/stale-lock fixtures passed. Peer reviews found no blocking source defects.",
+      "hosted_at_record_creation": "Not yet triggered when this record was authored; observe after ordinary direct main push; PR scope/readiness do not run on push, and E2E has no push trigger. No dispatch, rerun or cancellation requested."
+    }
   }
 }
