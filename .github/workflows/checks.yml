@@ -778,6 +778,7 @@ jobs:
               - 'tsconfig.node.json'
               - 'tsconfig.strict.json'
               - 'tsconfig.vite.json'
+              - 'services/platform/tsconfig.json'
               - 'patches/**'
               - '.github/workflows/checks.yml'
               - '.github/actions/setup-turbo/**'
