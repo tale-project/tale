@@ -13,6 +13,8 @@ let capturedOnFileAttach: ((file: AttachedFile) => void) | null = null;
 // The files the composer currently holds, as it hands them to the list.
 let listedFiles: AttachedFile[] = [];
 let listDisabled: boolean | undefined;
+// Whether the action bar holds Send (and attaching) for a send in flight.
+let barSending: boolean | undefined;
 // What the persisted drafts start from — a typed body unless a test clears it.
 let persistedSeed = 'some content';
 
@@ -100,12 +102,15 @@ vi.mock('./message-editor/editor-action-bar', () => ({
   EditorActionBar: ({
     onSend,
     onFileAttach,
+    isSending,
   }: {
     onSend: () => void;
     onFileAttach: (file: AttachedFile) => void;
+    isSending: boolean;
   }) => {
     capturedOnSend = onSend;
     capturedOnFileAttach = onFileAttach;
+    barSending = isSending;
     return (
       <button data-testid="send-button" onClick={onSend}>
         Send
@@ -283,6 +288,22 @@ describe('MessageEditor', () => {
 
     expect(body).not.toHaveAttribute('inert');
     expect(listDisabled).toBe(false);
+  });
+
+  it("holds the body, files and Send while an earlier mount's send is in flight", () => {
+    const view = render(
+      <MessageEditor onSave={vi.fn()} organizationId="org_test" sending />,
+    );
+    const body = screen.getByTestId('milkdown-editor').parentElement;
+    expect(body).toHaveAttribute('inert');
+    expect(listDisabled).toBe(true);
+    expect(barSending).toBe(true);
+
+    view.rerender(<MessageEditor onSave={vi.fn()} organizationId="org_test" />);
+
+    expect(body).not.toHaveAttribute('inert');
+    expect(listDisabled).toBe(false);
+    expect(barSending).toBe(false);
   });
 
   it('does not remount MilkdownProvider when send fails', async () => {

@@ -488,6 +488,9 @@ describe('ComposeEmailPane — the mailbox', () => {
 describe('ComposeEmailPane — a send in flight', () => {
   const DRAFT = 'compose-user-1-org-1';
   const SENDING = 'Sending… The draft is locked until the send finishes.';
+  // Sends a test still holds when it ends: the lock is per draft and outlives
+  // the pane, so one left in flight would freeze every later test's Compose.
+  const heldSends = new Set<() => void>();
 
   beforeEach(() => {
     emailConnectorsMock.error = undefined;
@@ -520,9 +523,13 @@ describe('ComposeEmailPane — a send in flight', () => {
     generateUploadUrlMock.mockClear();
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     vi.restoreAllMocks();
     cleanup();
+    await act(async () => {
+      for (const release of heldSends) release();
+    });
+    heldSends.clear();
   });
 
   function renderCompose(onSent = vi.fn()) {
@@ -546,15 +553,20 @@ describe('ComposeEmailPane — a send in flight', () => {
       () =>
         new Promise((resolve, reject) => {
           settle = { resolve, reject };
+          heldSends.add(() =>
+            resolve({ conversationId: 'c-new', messageId: 'm-new' }),
+          );
         }),
     );
     return {
       succeed: () =>
         act(async () => {
+          heldSends.clear();
           settle.resolve({ conversationId: 'c-new', messageId: 'm-new' });
         }),
       fail: () =>
         act(async () => {
+          heldSends.clear();
           settle.reject(new Error('Mail server unavailable'));
         }),
     };

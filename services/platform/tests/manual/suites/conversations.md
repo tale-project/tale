@@ -640,7 +640,12 @@ subject.
   Compose reopens with no recipient, subject or body. Block the request
   instead (**Network request blocking**, pattern `*/conversations/compose`)
   and send again → The send-failure toast appears and every field is editable
-  again, still holding `Quote 7` and the body.
+  again, still holding `Quote 7` and the body. Unblock the request, send once
+  more and, before it settles, open another conversation, then reopen
+  **Compose** → It shows the same fields and body, still frozen, with
+  **Send** disabled and the **Sending…** line; the file is not shown again
+  (files are never stored with the draft). When the send succeeds, Compose
+  empties where it is (no thread opens) and keeps whatever you type next.
 
 ## Accessibility (WCAG 2.1 AA)
 
