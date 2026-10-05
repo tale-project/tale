@@ -77,7 +77,10 @@ baseline behavior do not count.
   still generate and build their binaries; repeating the same source suite on the same
   host OS adds no platform coverage. Cross legs use a proven CLI-only frozen install
   and keep its download cache in a separate namespace. Native source tests retain
-  the full workspace install because they import platform auth modules. Source tests
+  the full workspace install because they import platform auth modules. Windows
+  places its download store beside the checkout, outside the source tree, so Bun
+  can hardlink packages into `node_modules` on the same volume. Linux and macOS
+  native rows retain their home-directory store. Source tests
   and compiled smoke discovery run serially on all three hosts. Two workers made
   Windows fixtures exceed their unchanged 30-second limits; Linux two-worker runs
   failed to finish promptly, and a macOS candidate reached the unchanged 15-minute
@@ -259,6 +262,11 @@ Only ordinary main pushes publish the shared platform-stack and four standalone
 service Docker layer caches; pull requests and candidates read them. This removes
 costly PR-local exports and prevents old release
 candidates from replacing main's cache. PR reruns may rebuild layers unique to that PR.
+The platform's production dependency stage shares the builder's minimal Bun/Debian
+base but reads only workspace manifests, patches and the installed lockfile. Application
+source edits therefore preserve that stage's cache. The runtime takes pruned dependencies
+from this stage and application files from the builder; the production install and
+swap still fail closed.
 Ephemeral hosted builders skip teardown. Forks build on the runners that test their
 images and retain builtin catalog validation, without a second unused image matrix.
 SAST scans once: normal runs serialize SARIF from the same result while retaining the
@@ -426,6 +434,21 @@ packed; the image did not grow. The gateway limit is now 300 MiB, about 18% abov
 its observed inspection size, using the existing metric. Other image budgets stay
 unchanged. Executable fixtures accept 255 and 300 MiB and reject 301 MiB while
 retaining gateway user, health, secret and required-image checks.
+
+[Build run 37283199187](https://github.com/tale-project/tale/actions/runs/37283199187)
+at `4653d3e3b` spent 434 seconds building and pushing the platform image, including
+223 seconds exporting its complete layer cache. The production dependency stage
+inherited the application builder, so source edits also repeated its install and
+runtime dependency copy. The manifest-only stage removes that dependency without
+changing the cache backend or its branch isolation.
+
+In the [same-source CLI run](https://github.com/tale-project/tale/actions/runs/37283199170),
+Windows downloaded its 254 MiB Bun cache in about one second, then spent about
+128 seconds extracting it and 41 seconds installing dependencies. Its home-directory
+cache and checkout were on different volumes. Moving the store beside the checkout
+enables Bun's [documented Windows hardlinks](https://bun.sh/docs/pm/global-cache#fast-copying);
+it does not establish a reduction in cache extraction time. The path change starts a
+new cache version, so the first hosted run measures a cold store.
 
 Run workflow and source-identity regressions with:
 

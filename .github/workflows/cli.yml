@@ -227,17 +227,27 @@ jobs:
           bun-version: '1.4.2'
 
       - name: Configure Bun install cache
-        if: matrix.cross
+        if: matrix.cross || runner.os == 'Windows'
+        env:
+          CROSS: ${{ matrix.cross }}
         run: |
-          # Cross legs only compile the CLI. Keep their smaller dependency
-          # cache separate from the native suites' complete monorepo cache.
-          echo "BUN_INSTALL_CACHE_DIR=${RUNNER_TEMP}/bun-cli-cache" >> "$GITHUB_ENV"
+          set -euo pipefail
+          if [ "$CROSS" = true ]; then
+            # Cross legs only compile the CLI. Keep their smaller dependency
+            # cache separate from the native suites' complete monorepo cache.
+            printf 'BUN_INSTALL_CACHE_DIR=%s/bun-cli-cache\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
+          else
+            # Windows' home and checkout can live on different volumes. Bun
+            # hardlinks packages only within one volume; keep this native store
+            # beside the checkout, outside its clean-source identity boundary.
+            printf 'BUN_INSTALL_CACHE_DIR=%s/../.tale-bun-install-cache\n' "$GITHUB_WORKSPACE" >> "$GITHUB_ENV"
+          fi
 
       - name: Restore Bun install cache
         id: bun-cache
         uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
-          path: ${{ matrix.cross && env.BUN_INSTALL_CACHE_DIR || '~/.bun/install/cache' }}
+          path: ${{ (matrix.cross || runner.os == 'Windows') && env.BUN_INSTALL_CACHE_DIR || '~/.bun/install/cache' }}
           key: ${{ matrix.cross && 'bun-cli-install' || 'bun-install' }}-${{ runner.os }}-${{ runner.arch }}-1.4.2-${{ hashFiles('bun.lock', 'package.json', 'packages/*/package.json', 'services/*/package.json', 'services/sandbox-runtime/daemon/package.json', 'configs/platform/custom/skills/*/package.json', 'tools/*/package.json', 'patches/**', 'bunfig.toml') }}
           restore-keys: |
             ${{ matrix.cross && 'bun-cli-install' || 'bun-install' }}-${{ runner.os }}-${{ runner.arch }}-1.4.2-
@@ -259,7 +269,7 @@ jobs:
         if: steps.bun-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
-          path: ${{ matrix.cross && env.BUN_INSTALL_CACHE_DIR || '~/.bun/install/cache' }}
+          path: ${{ (matrix.cross || runner.os == 'Windows') && env.BUN_INSTALL_CACHE_DIR || '~/.bun/install/cache' }}
           key: ${{ steps.bun-cache.outputs.cache-primary-key }}
 
       - name: Generate embedded files

@@ -129,6 +129,9 @@ test('CLI downloads are saved after install before later checks can fail', () =>
   expect(restore.id).toBe('bun-cache');
   expect(save.if).toBe("steps.bun-cache.outputs.cache-hit != 'true'");
   expect(save.with?.path).toBe(restore.with?.path);
+  expect(restore.with?.path).toBe(
+    "${{ (matrix.cross || runner.os == 'Windows') && env.BUN_INSTALL_CACHE_DIR || '~/.bun/install/cache' }}",
+  );
   expect(save.with?.key).toBe(
     '${{ steps.bun-cache.outputs.cache-primary-key }}',
   );

@@ -8,7 +8,7 @@ import {
   writeFile,
 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join, resolve, win32 } from 'node:path';
 
 import picomatch from 'picomatch';
 import { parse } from 'yaml';
@@ -471,17 +471,21 @@ test('CLI source tests still cover every host OS while every target builds', asy
   });
 });
 
-test('cross CLI builds isolate filtered dependencies while native suites keep the shared cache', async () => {
+test('cross CLI builds isolate filtered dependencies and Windows keeps its store beside the checkout', async () => {
   const file = await workflow('cli');
   const configure = step(file, 'build', 'Configure Bun install cache');
   const cache = step(file, 'build', 'Restore Bun install cache');
   const install = step(file, 'build', 'Install dependencies');
-  expect(configure.if).toBe('matrix.cross');
+  expect(configure.if).toBe("matrix.cross || runner.os == 'Windows'");
+  expect(configure.env?.CROSS).toBe('${{ matrix.cross }}');
   expect(configure.run).toContain(
-    'BUN_INSTALL_CACHE_DIR=${RUNNER_TEMP}/bun-cli-cache',
+    "printf 'BUN_INSTALL_CACHE_DIR=%s/bun-cli-cache\\n'",
+  );
+  expect(configure.run).toContain(
+    "printf 'BUN_INSTALL_CACHE_DIR=%s/../.tale-bun-install-cache\\n'",
   );
   expect(cache.with?.path).toBe(
-    "${{ matrix.cross && env.BUN_INSTALL_CACHE_DIR || '~/.bun/install/cache' }}",
+    "${{ (matrix.cross || runner.os == 'Windows') && env.BUN_INSTALL_CACHE_DIR || '~/.bun/install/cache' }}",
   );
   expect(cache.with?.key).toBe(
     "${{ matrix.cross && 'bun-cli-install' || 'bun-install' }}-${{ runner.os }}-${{ runner.arch }}-1.4.2-${{ hashFiles('bun.lock', 'package.json', 'packages/*/package.json', 'services/*/package.json', 'services/sandbox-runtime/daemon/package.json', 'configs/platform/custom/skills/*/package.json', 'tools/*/package.json', 'patches/**', 'bunfig.toml') }}",
@@ -496,6 +500,50 @@ test('cross CLI builds isolate filtered dependencies while native suites keep th
     names.indexOf('Generate embedded files'),
   );
 });
+
+test.skipIf(process.platform === 'win32')(
+  'CLI cache configuration preserves cross stores and places Windows outside its checkout on the same volume',
+  async () => {
+    const configure = step(
+      await workflow('cli'),
+      'build',
+      'Configure Bun install cache',
+    );
+    const directory = await mkdtemp(join(tmpdir(), 'tale-cli-cache-ci-'));
+    directories.push(directory);
+    const environment = join(directory, 'environment');
+    for (const workspace of [
+      'D:/a/repo with spaces/tale',
+      'D:\\a\\repo with spaces\\tale',
+    ]) {
+      for (const cross of ['true', 'false', '']) {
+        await writeFile(environment, '');
+        const result = await execute(configure.run!, {
+          CROSS: cross,
+          GITHUB_ENV: environment,
+          GITHUB_WORKSPACE: workspace,
+          RUNNER_TEMP: 'E:/runner temp',
+        });
+        expect(result.code, result.stdout + result.stderr).toBe(0);
+        const configured = outputs(await readFile(environment, 'utf8'));
+        expect(Object.keys(configured)).toEqual(['BUN_INSTALL_CACHE_DIR']);
+        expect(configured.BUN_INSTALL_CACHE_DIR).toBe(
+          cross === 'true'
+            ? 'E:/runner temp/bun-cli-cache'
+            : `${workspace}/../.tale-bun-install-cache`,
+        );
+        if (cross !== 'true') {
+          const checkout = win32.resolve(workspace);
+          const cache = win32.resolve(configured.BUN_INSTALL_CACHE_DIR!);
+          expect(win32.parse(cache).root).toBe(win32.parse(checkout).root);
+          expect(win32.relative(checkout, cache)).toBe(
+            '..\\.tale-bun-install-cache',
+          );
+        }
+      }
+    }
+  },
+);
 
 test.skipIf(process.platform === 'win32')(
   'CLI install filters only cross builds and remains frozen on every host',
