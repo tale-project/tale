@@ -259,6 +259,11 @@ export function ContactsTable({
         footer={
           <BulkDeleteBar
             rowSelection={deletableSelection}
+            onRowSelectionChange={setRowSelection}
+            getItemLabel={(id) =>
+              paginatedResult.results.find((item) => item._id === id)?.name ??
+              id
+            }
             onClearSelection={handleClearSelection}
             onDeleteItem={handleDeleteItem}
             onDeleteComplete={handleClearSelection}
