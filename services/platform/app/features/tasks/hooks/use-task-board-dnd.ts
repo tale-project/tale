@@ -27,6 +27,9 @@ import {
 
 export type TaskColumns = Record<TaskStatus, string[]>;
 
+/** One object for every render, so `DndContext` never sees a new option. */
+const AUTO_SCROLL = { acceleration: 5, threshold: { x: 0.15, y: 0.2 } };
+
 export interface TaskBoardDndOptions extends TaskStatusChoreographyOptions {
   /** The board's project key: drag announcements name a task `KEY-12` when
    * its row carries no key of its own. */
@@ -404,7 +407,7 @@ export function useTaskBoardDnd(
     onDragOver,
     onDragEnd,
     onDragCancel,
-    autoScroll: { acceleration: 5, threshold: { x: 0.15, y: 0.2 } },
+    autoScroll: AUTO_SCROLL,
     accessibility,
   };
 }

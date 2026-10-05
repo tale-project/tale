@@ -7,6 +7,7 @@ import { Row } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { Tooltip } from '@tale/ui/tooltip';
 import { GitBranch } from 'lucide-react';
+import { memo } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 
@@ -45,7 +46,11 @@ export type TaskRow = TaskDoc & {
   projectKey?: string;
 };
 
-export function TaskCard({
+/**
+ * Memoized: a lane re-renders on every drag move and every board read, and a
+ * card whose own props held still has nothing new to draw.
+ */
+export const TaskCard = memo(function TaskCard({
   task,
   subtasks,
   onOpen,
@@ -267,4 +272,4 @@ export function TaskCard({
       </div>
     </Card>
   );
-}
+});

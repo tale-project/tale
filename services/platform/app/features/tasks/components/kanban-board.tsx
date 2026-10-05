@@ -122,9 +122,9 @@ export const KanbanBoard = memo(function KanbanBoard({
           <BoardColumn
             key={status}
             status={status}
-            tasks={dnd.columns[status]
-              .map((id) => dnd.byId.get(id))
-              .filter((row): row is TaskRow => row != null)}
+            taskIds={dnd.columns[status]}
+            tasksById={dnd.byId}
+            activeId={dnd.activeId}
             childrenByParent={childrenByParent}
             onOpenTask={onOpenTask}
             projectKey={projectKey}

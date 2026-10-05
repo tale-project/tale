@@ -1,6 +1,6 @@
 # Tasks
 
-> **Prefix** `TASK-` · **Reset** none · **Cost** 123 boxes
+> **Prefix** `TASK-` · **Reset** none · **Cost** 124 boxes
 
 Exercise a project's task workspace — the board and list views with
 drag-and-drop across status lanes, the task sheet (description, comments with
@@ -1305,6 +1305,17 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   the dialog, the route and the Home panel in the commits, never a card).
   Target: the task shows < 1 s after the click, and the close ends with its
   exit animation.
+- [ ] `TASK-P5` · **A 2,000-task board stays usable** — On a production
+  build, in a project with 2,000 tasks, open **Tasks** from **General**, type
+  a search that narrows the board to a few cards, clear it, then go back to
+  **General** → each shows its result within 3 s, and the tab keeps taking
+  input meanwhile. A lane of more than 40 tasks mounts only the cards in and
+  near its view (DevTools → Elements: about a dozen cards, not hundreds) while
+  its header still counts every task; scrolling it shows the later cards with
+  no blank slot; **Tab** from a card reaches the next card of the same lane
+  past the first screen; a focused card keeps its focus while you scroll its
+  lane away; **Space**, **↓**, **Space** on a card in a long lane drops it one
+  place down and the order holds after a reload.
 
 ## Independent agent reviews
 
