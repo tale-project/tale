@@ -55,6 +55,61 @@ afterEach(async () => {
     await rm(directory, { recursive: true, force: true });
 });
 
+test.each([
+  'db',
+  'proxy',
+  'platform',
+  'sandbox',
+  'web',
+  'docs',
+  'ui-docs',
+  'ai-gateway',
+])(
+  '%s version metadata does not invalidate runtime filesystem work',
+  async (service) => {
+    const dockerfile = await readFile(
+      join(repository, `services/${service}/Dockerfile`),
+      'utf8',
+    );
+    const stages = dockerfile
+      .split(/^(?=FROM\s)/m)
+      .filter((stage) => /^FROM\s/.test(stage));
+    const versioned = stages.filter((stage) =>
+      /^ARG VERSION(?:=|\s*$)/m.test(stage),
+    );
+    expect(versioned.length).toBeGreaterThan(0);
+    for (const stage of versioned) {
+      const version = stage.search(/^ARG VERSION(?:=|\s*$)/m);
+      const filesystem = [...stage.matchAll(/^(?:RUN|COPY|ADD)\s/gm)];
+      expect(filesystem.length).toBeGreaterThan(0);
+      for (const instruction of filesystem) {
+        expect(
+          instruction.index,
+          `${service}: ${stage.split('\n')[0]}`,
+        ).toBeLessThan(version);
+      }
+      // ARG values implicitly enter every later RUN environment, even if the
+      // command never expands VERSION. Keep the declaration, not just LABEL,
+      // below all file operations. The shipped metadata still reads that ARG.
+      expect(stage.slice(0, version)).not.toContain('${VERSION}');
+      const metadata = stage
+        .slice(version)
+        .split(/\r?\n/)
+        .filter((line) => !/^\s*#/.test(line))
+        .join('\n')
+        .replace(/\\\r?\n\s*/g, ' ');
+      expect(metadata).toMatch(
+        /^ENV\s+[^\n]*\bTALE_VERSION=\$\{VERSION\}(?:\s|$)/m,
+      );
+      if (/^LABEL\s/m.test(metadata)) {
+        expect(metadata).toContain(
+          'org.opencontainers.image.version="${VERSION}"',
+        );
+      }
+    }
+  },
+);
+
 async function workflow(name = 'build'): Promise<Workflow> {
   return parse(
     await readFile(join(repository, `.github/workflows/${name}.yml`), 'utf8'),

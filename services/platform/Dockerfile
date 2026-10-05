@@ -157,8 +157,6 @@ COPY services/platform/backend ./services/platform/backend
 # ============================================================================
 FROM builder AS dev
 
-ARG VERSION=dev
-
 # Node for the 0.5 backend roles; the dev image keeps sources at the workspace
 # path, so the entrypoint's role dispatch needs the dir override below.
 COPY --from=node-bin /usr/local/bin/node /usr/local/bin/node
@@ -176,6 +174,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 # ENV (so the entrypoint behaves identically) except NODE_ENV, which gates the
 # dev hot-reload watchers, and TALE_DEV_NO_PRIVDROP, which keeps the container
 # as root for bind-mount write access.
+ARG VERSION=dev
 ENV NODE_ENV=development \
     TALE_VERSION=${VERSION} \
     PORT=3000 \
@@ -377,18 +376,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     && apt-get autoremove -y \
     && rm -rf /var/lib/apt/lists/*
 
-
-# Re-declare VERSION arg (ARGs don't persist after FROM)
-ARG VERSION=dev
-LABEL org.opencontainers.image.version="${VERSION}" \
-      org.opencontainers.image.title="tale-platform" \
-      org.opencontainers.image.description="Tale Platform — TanStack Start SPA + Postgres backend" \
-      org.opencontainers.image.source="https://github.com/tale-project/tale" \
-      org.opencontainers.image.vendor="Tale" \
-      org.opencontainers.image.licenses="MIT"
-
 ENV NODE_ENV=production \
-    TALE_VERSION=${VERSION} \
     PORT=3000 \
     HOSTNAME="0.0.0.0" \
     # Origin the in-sandbox daemons use to fetch staged blobs — the
@@ -461,6 +449,17 @@ COPY --from=builder --chown=app:app /app/services/platform/docker-entrypoint.sh 
 RUN chmod +x ./docker-entrypoint.sh \
     && mkdir -p /app/data \
     && chown app:app /app/data
+
+# Keep version metadata after filesystem work so new releases reuse its layers.
+# Re-declare VERSION arg (ARGs don't persist after FROM)
+ARG VERSION=dev
+LABEL org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.title="tale-platform" \
+      org.opencontainers.image.description="Tale Platform — TanStack Start SPA + Postgres backend" \
+      org.opencontainers.image.source="https://github.com/tale-project/tale" \
+      org.opencontainers.image.vendor="Tale" \
+      org.opencontainers.image.licenses="MIT"
+ENV TALE_VERSION=${VERSION}
 
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=3s CMD curl -f http://localhost:3000/api/health || exit 1
