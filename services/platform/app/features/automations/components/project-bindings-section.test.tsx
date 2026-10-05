@@ -4,7 +4,7 @@ import { ActiveEditorProvider, EditorGroup } from '@tale/ui/editor';
 import React, { type ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
-import { render, screen } from '@/tests/utils/render';
+import { act, render, screen, waitFor } from '@/tests/utils/render';
 
 // The section reads the bound set and the org's projects reactively and saves
 // through the reconcile mutation; the tests stub all three seams.
@@ -22,6 +22,7 @@ vi.mock('@/app/features/projects/hooks/queries', () => ({
     projects: [
       { _id: 'proj_1', name: 'Document desk' },
       { _id: 'proj_2', name: 'Getting started' },
+      { _id: 'proj_3', name: 'Field service' },
     ],
     isLoading: false,
   }),
@@ -50,6 +51,27 @@ function GeneralTab({ children }: { children: ReactNode }) {
 
 const saveButton = () =>
   screen.getByRole('button', { name: 'common.actions.save' });
+
+/** The selected projects, in chip order — each chip carries a remove button. */
+const selectedProjects = () =>
+  screen
+    .queryAllByRole('button', { name: /^Remove / })
+    .map((button) =>
+      button.getAttribute('aria-label')?.replace(/^Remove /, ''),
+    );
+
+/** An author's section, rendered again as each query answer arrives. */
+function section() {
+  return (
+    <GeneralTab>
+      <ProjectBindingsSection
+        organizationId="org-1"
+        name="desk/prepare-return"
+        canEdit
+      />
+    </GeneralTab>
+  );
+}
 
 describe('ProjectBindingsSection', () => {
   it('shows the hint and no count for an unbound automation, and waits for an edit', () => {
@@ -106,15 +128,6 @@ describe('ProjectBindingsSection', () => {
 
   it('keeps a selection in progress when a refetch answers the same set', async () => {
     boundData = ['proj_1'];
-    const section = () => (
-      <GeneralTab>
-        <ProjectBindingsSection
-          organizationId="org-1"
-          name="desk/prepare-return"
-          canEdit
-        />
-      </GeneralTab>
-    );
     const { user, rerender } = render(section());
 
     await user.click(screen.getByRole('combobox'));
@@ -125,6 +138,145 @@ describe('ProjectBindingsSection', () => {
     rerender(section());
 
     expect(saveButton()).toBeEnabled();
+  });
+
+  // A set another session saved reaches a selection holding an edit (#3620):
+  // the author's unsaved adds and removes are replayed onto it.
+  it('keeps an unsaved project when another session changes the bound set', async () => {
+    boundData = ['proj_1'];
+    setProjects.mutateAsync.mockResolvedValue(undefined);
+    const { user, rerender } = render(section());
+
+    await user.click(screen.getByRole('combobox'));
+    await user.click(screen.getByRole('option', { name: /Getting started/ }));
+    await user.keyboard('{Escape}');
+    boundData = ['proj_1', 'proj_3'];
+    rerender(section());
+
+    expect(selectedProjects()).toEqual([
+      'Document desk',
+      'Field service',
+      'Getting started',
+    ]);
+    expect(saveButton()).toBeEnabled();
+    await user.click(saveButton());
+    expect(setProjects.mutateAsync).toHaveBeenLastCalledWith(
+      expect.objectContaining({ projectIds: ['proj_1', 'proj_3', 'proj_2'] }),
+    );
+  });
+
+  it('keeps an unsaved removal when another session adds a project', async () => {
+    boundData = ['proj_1', 'proj_2'];
+    const { user, rerender } = render(section());
+
+    await user.click(
+      screen.getByRole('button', { name: 'Remove Document desk' }),
+    );
+    boundData = ['proj_1', 'proj_2', 'proj_3'];
+    rerender(section());
+
+    expect(selectedProjects()).toEqual(['Getting started', 'Field service']);
+    expect(saveButton()).toBeEnabled();
+  });
+
+  it('settles on the set its own save wrote', async () => {
+    boundData = ['proj_1'];
+    setProjects.mutateAsync.mockResolvedValue(undefined);
+    const { user, rerender } = render(section());
+
+    await user.click(screen.getByRole('combobox'));
+    await user.click(screen.getByRole('option', { name: /Getting started/ }));
+    await user.keyboard('{Escape}');
+    await user.click(saveButton());
+    // The store answers with the saved set, in its own order.
+    boundData = ['proj_2', 'proj_1'];
+    rerender(section());
+
+    expect(selectedProjects()).toEqual(['Getting started', 'Document desk']);
+    // Nothing is left to save (Save reads "Saved" for a moment).
+    expect(
+      screen.getByRole('button', { name: 'common.actions.discard' }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole('button', { name: /^common\.actions\.saved?$/ }),
+    ).toBeDisabled();
+  });
+
+  /** Pick Getting started and press Save, whose answer waits for `answer`. */
+  async function addAndSaveDeferred(
+    user: ReturnType<typeof render>['user'],
+  ): Promise<() => void> {
+    let answer: () => void = () => {};
+    setProjects.mutateAsync.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          answer = resolve;
+        }),
+    );
+    await user.click(screen.getByRole('combobox'));
+    await user.click(screen.getByRole('option', { name: /Getting started/ }));
+    await user.keyboard('{Escape}');
+    await user.click(saveButton());
+    await waitFor(() =>
+      expect(setProjects.mutateAsync).toHaveBeenLastCalledWith(
+        expect.objectContaining({ projectIds: ['proj_1', 'proj_2'] }),
+      ),
+    );
+    return () => answer();
+  }
+
+  // The picker stays editable while a save is out (#4321 review B2): a
+  // project dropped after Save stays dropped, whichever of the save's set
+  // and its answer comes first.
+  it.each([
+    ['before the save answers', true],
+    ['after the save answers', false],
+  ])(
+    'keeps a project dropped during the save when its set lands %s',
+    async (_when, setFirst) => {
+      boundData = ['proj_1'];
+      const { user, rerender } = render(section());
+      const answer = await addAndSaveDeferred(user);
+      await user.click(
+        screen.getByRole('button', { name: 'Remove Getting started' }),
+      );
+      if (setFirst) {
+        boundData = ['proj_1', 'proj_2'];
+        rerender(section());
+      }
+      await act(async () => {
+        answer();
+      });
+      if (!setFirst) {
+        boundData = ['proj_1', 'proj_2'];
+        rerender(section());
+      }
+
+      expect(selectedProjects()).toEqual(['Document desk']);
+      expect(
+        screen.getByRole('button', { name: 'common.actions.discard' }),
+      ).toBeEnabled();
+    },
+  );
+
+  it('settles on its own save when another session’s set lands first', async () => {
+    boundData = ['proj_1'];
+    const { user, rerender } = render(section());
+    const answer = await addAndSaveDeferred(user);
+    // Another session unbinds Document desk; then this save, written after
+    // it, lands with both projects bound.
+    boundData = [];
+    rerender(section());
+    boundData = ['proj_1', 'proj_2'];
+    rerender(section());
+    await act(async () => {
+      answer();
+    });
+
+    expect(selectedProjects()).toEqual(['Document desk', 'Getting started']);
+    expect(
+      screen.getByRole('button', { name: 'common.actions.discard' }),
+    ).toBeDisabled();
   });
 
   it('discards the selection back to the stored set', async () => {
