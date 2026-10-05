@@ -101,7 +101,12 @@ while (targets.some((file) => existsSync(join('.turbo/cache', file)))) {
   }
 }
 
-function turbo(fixture: string, maxSize: string, awaitEviction = false) {
+function turbo(
+  fixture: string,
+  maxSize: string,
+  awaitEviction = false,
+  environment: NodeJS.ProcessEnv = {},
+) {
   return spawnSync(
     process.execPath,
     [
@@ -113,12 +118,14 @@ function turbo(fixture: string, maxSize: string, awaitEviction = false) {
       `--cwd=${fixture}`,
       '--cache=local:rw',
       '--output-logs=full',
+      '--summarize',
     ],
     {
       cwd: REPO_ROOT,
       encoding: 'utf8',
       env: {
         ...process.env,
+        ...environment,
         TURBO_CACHE_DIR: join(fixture, '.turbo/cache'),
         TURBO_CACHE_MAX_SIZE: maxSize,
         TURBO_CACHE_MAX_AGE: '0',
@@ -127,6 +134,31 @@ function turbo(fixture: string, maxSize: string, awaitEviction = false) {
       timeout: 15_000,
     },
   );
+}
+
+function buildEvidence(fixture: string) {
+  const schema = z.object({
+    tasks: z.array(
+      z.object({
+        taskId: z.string(),
+        task: z.string(),
+        hash: z.string().regex(/^[a-f0-9]{16}$/),
+        cache: z.object({ status: z.enum(['HIT', 'MISS']) }),
+        execution: z.object({
+          exitCode: z.number().int(),
+          error: z.string().optional(),
+        }),
+      }),
+    ),
+  });
+  const runs = join(fixture, '.turbo/runs');
+  return readdirSync(runs)
+    .filter((file) => file.endsWith('.json'))
+    .flatMap(
+      (file) =>
+        schema.parse(JSON.parse(readFileSync(join(runs, file), 'utf8'))).tasks,
+    )
+    .filter((task) => task.task === 'build');
 }
 
 function seedHistory(fixture: string, hash: string, ageDays: number) {
@@ -236,41 +268,62 @@ describe('native CI Turbo cache eviction', () => {
     });
   });
 
-  test('native size parsing rejects invalid units and cannot hide a changed failing task', () => {
-    withFixture((fixture) => {
-      const invalid = turbo(fixture, '512MiB');
-      expect(invalid.status).not.toBe(0);
-      expect(invalid.stderr).toContain('unknown unit');
-      expect(existsSync(join(fixture, 'executions'))).toBe(false);
-      const good = turbo(fixture, '512MB');
-      expect(good.status, good.stderr).toBe(0);
-      const cache = join(fixture, '.turbo/cache');
-      const published = readdirSync(cache).filter((name) =>
-        name.endsWith('.tar.zst'),
-      );
-      expect(published).toHaveLength(1);
-      const archiveName = z.string().parse(published[0]);
-      const archive = readFileSync(join(cache, archiveName));
-      expect(existsSync(join(fixture, 'rejection'))).toBe(false);
-      writeFileSync(join(fixture, 'fail.txt'), 'reject changed source');
-      const bad = turbo(fixture, '512MB');
-      expect(bad.status, bad.stdout + bad.stderr).toBe(1);
-      expect(readFileSync(join(fixture, 'rejection'), 'utf8')).toBe(
-        'source validation failed',
-      );
-      expect(bad.stdout).toContain('cache miss, executing');
-      expect(bad.stdout).toContain('0 cached, 1 total');
-      // CI console adapters can omit the failed task's buffered error body.
-      // Its actual per-task log still records the same validation failure.
-      expect(
-        readFileSync(join(fixture, '.turbo/turbo-build.log'), 'utf8'),
-      ).toContain('source validation failed');
-      expect(readFileSync(join(fixture, 'executions'), 'utf8')).toBe('1');
-      // Failed work cannot publish an archive or replace a previous success.
-      expect(
-        readdirSync(cache).filter((name) => name.endsWith('.tar.zst')),
-      ).toEqual(published);
-      expect(readFileSync(join(cache, archiveName))).toEqual(archive);
+  for (const [name, environment] of [
+    ['local', { CI: '', GITHUB_ACTIONS: '' }],
+    ['hosted Actions', { CI: '1', GITHUB_ACTIONS: 'true' }],
+  ] as const) {
+    test(`native size parsing rejects invalid units and cannot hide a changed failing task (${name})`, () => {
+      withFixture((fixture) => {
+        const invalid = turbo(fixture, '512MiB', false, environment);
+        expect(invalid.status).not.toBe(0);
+        expect(invalid.stderr).toContain('unknown unit');
+        expect(existsSync(join(fixture, 'executions'))).toBe(false);
+        const good = turbo(fixture, '512MB', false, environment);
+        expect(good.status, good.stderr).toBe(0);
+        const cache = join(fixture, '.turbo/cache');
+        const published = readdirSync(cache).filter((file) =>
+          file.endsWith('.tar.zst'),
+        );
+        expect(published).toHaveLength(1);
+        const archiveName = z.string().parse(published[0]);
+        const archive = readFileSync(join(cache, archiveName));
+        const passed = buildEvidence(fixture);
+        expect(passed).toHaveLength(1);
+        expect(passed[0]?.cache.status).toBe('MISS');
+        expect(passed[0]?.execution.exitCode).toBe(0);
+        expect(existsSync(join(fixture, 'rejection'))).toBe(false);
+        writeFileSync(join(fixture, 'fail.txt'), 'reject changed source');
+        const bad = turbo(fixture, '512MB', false, environment);
+        expect(bad.status, bad.stdout + bad.stderr).toBe(1);
+        const evidence = buildEvidence(fixture);
+        expect(evidence).toHaveLength(2);
+        const failures = evidence.filter(
+          (task) => task.execution.exitCode !== 0,
+        );
+        expect(failures).toHaveLength(1);
+        const failed = failures[0]!;
+        expect(failed.taskId).toBe(passed[0]?.taskId);
+        expect(failed.cache.status).toBe('MISS');
+        expect(failed.hash).not.toBe(passed[0]?.hash);
+        expect(failed.execution.exitCode).toBe(1);
+        expect(failed.execution.error).toContain('exited (1)');
+        expect(readFileSync(join(fixture, 'rejection'), 'utf8')).toBe(
+          'source validation failed',
+        );
+        expect(bad.stdout).toContain('cache miss, executing');
+        expect(bad.stdout).toContain('0 cached, 1 total');
+        // CI console adapters can omit the failed task's buffered error body.
+        // Its actual per-task log still records the same validation failure.
+        expect(
+          readFileSync(join(fixture, '.turbo/turbo-build.log'), 'utf8'),
+        ).toContain('source validation failed');
+        expect(readFileSync(join(fixture, 'executions'), 'utf8')).toBe('1');
+        // Failed work cannot publish an archive or replace a previous success.
+        expect(
+          readdirSync(cache).filter((file) => file.endsWith('.tar.zst')),
+        ).toEqual(published);
+        expect(readFileSync(join(cache, archiveName))).toEqual(archive);
+      });
     });
-  });
+  }
 });

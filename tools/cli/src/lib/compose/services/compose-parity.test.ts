@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import {
   existsSync,
   mkdirSync,
@@ -1195,12 +1196,61 @@ if [ "$SERVICE" = "$TEST_FAILED_VALIDATION" ]; then exit 37; fi
   const documentDigest = `sha256:${'a'.repeat(64)}`;
   const documentImage = (arch: string) =>
     `ghcr.io/synthetic/tale/tale-sandbox-runtime:0.5.44-${arch}@${documentDigest}`;
+  type DocumentInput = {
+    uid: number;
+    architecture: string;
+    versions: Record<string, string>;
+    requirementsSha256: string;
+    nodeCheck: string;
+    nodeVersions: Record<string, string>;
+    nodeLockSha256: string;
+    xls: { base64: string; sha256: string };
+    xlsx: { base64: string; sha256: string };
+  };
+  type DocumentEvent = {
+    phase: 'start' | 'finish';
+    uid: string;
+    command?: string[];
+    input?: DocumentInput;
+  };
+  const documentCapture = String.raw`
+    import { mock } from 'bun:test';
+    import { appendFileSync } from 'node:fs';
+    const execPath = process.env.TEST_DOCUMENT_EXEC;
+    const exec = await import(execPath);
+    const started = new Set();
+    const record = event => appendFileSync(process.env.TEST_DOCUMENT_LOG, JSON.stringify(event) + '\n');
+    // Keep the real helper, repository resolver and fixture reads. Only the
+    // process boundary is replaced so no Docker daemon or image is needed.
+    mock.module(execPath, () => ({
+      ...exec,
+      capture: async (command, options) => {
+        const uid = command[command.indexOf('--user') + 1].split(':')[0];
+        started.add(uid);
+        record({ phase: 'start', uid, command, input: JSON.parse(options.stdin) });
+        for (let attempt = 0; started.size !== 2; attempt++) {
+          if (attempt === 99) throw new Error('Document users did not start concurrently');
+          await Bun.sleep(10);
+        }
+        await Bun.sleep(uid === '65534' ? 5 : 40);
+        record({ phase: 'finish', uid });
+        return {
+          exitCode: 0,
+          stdout: 'CHECK ' + uid,
+          stderr: '',
+          combined: 'CHECK ' + uid,
+        };
+      },
+    }));
+  `;
   const runDocumentGate = (
     arch: string,
     overrides: Record<string, string> = {},
+    actualHelper = false,
   ) => {
     const directory = mkdtempSync(resolve(tmpdir(), 'tale-document-gate-'));
     const module = resolve(directory, 'document-tools.ts');
+    const log = resolve(directory, 'document-calls');
     const environment = {
       DOCUMENT_IMAGE: documentImage(arch),
       DOCUMENT_PLATFORM: `linux/${arch}`,
@@ -1211,11 +1261,13 @@ if [ "$SERVICE" = "$TEST_FAILED_VALIDATION" ]; then exit 37; fi
       ACTUAL_VERSION: '0.5.44',
       ACTUAL_SOURCE: 'https://github.com/synthetic/tale',
       PULL_EXIT: '0',
+      INSPECT_EXIT: '0',
       FAIL_UID: '',
       REJECT_UID: '',
       ...overrides,
     };
     try {
+      writeFileSync(log, '');
       writeFileSync(
         module,
         `export async function checkDocumentTools(image: string, uid: number, platform: string) {
@@ -1258,6 +1310,7 @@ if [ "$SERVICE" = "$TEST_FAILED_VALIDATION" ]; then exit 37; fi
               test "$5" = "$DOCUMENT_IMAGE" || return 90
               test "$4" = '{{json .Config.Labels}}' || return 90
               printf '%s\n' "$TEST_DOCUMENT_LABELS"
+              return "$INSPECT_EXIT"
               ;;
             *) return 91 ;;
           esac
@@ -1265,26 +1318,51 @@ if [ "$SERVICE" = "$TEST_FAILED_VALIDATION" ]; then exit 37; fi
         bun() {
           test "$#" -eq 2 || return 90
           test "$1" = '-e' || return 90
-          "$TEST_BUN_EXECUTABLE" "$@"
+          "$TEST_BUN_EXECUTABLE" -e "$TEST_DOCUMENT_CAPTURE"$'\n'"$2"
         }
       ` +
           script.replace(
             importStatement,
-            `import { checkDocumentTools } from ${JSON.stringify(pathToFileURL(module).href)};`,
+            actualHelper
+              ? 'const { checkDocumentTools } = await import(process.env.TEST_DOCUMENT_HELPER);'
+              : `import { checkDocumentTools } from ${JSON.stringify(pathToFileURL(module).href)};`,
           ),
         {
           ...environment,
           TEST_BUN_EXECUTABLE: process.execPath.replaceAll('\\', '/'),
           TEST_DOCUMENT_DIR: directory,
-          TEST_DOCUMENT_LABELS: JSON.stringify({
-            'org.opencontainers.image.revision': environment.ACTUAL_REVISION,
-            'org.opencontainers.image.version': environment.ACTUAL_VERSION,
-            'org.opencontainers.image.source': environment.ACTUAL_SOURCE,
-          }),
+          TEST_DOCUMENT_LOG: log.replaceAll('\\', '/'),
+          TEST_DOCUMENT_CAPTURE: actualHelper ? documentCapture : '',
+          TEST_DOCUMENT_EXEC: pathToFileURL(
+            resolve(
+              repoRoot,
+              'services/platform/tests/integration/lib/exec.ts',
+            ),
+          ).href,
+          TEST_DOCUMENT_HELPER: pathToFileURL(
+            resolve(
+              repoRoot,
+              'services/platform/tests/integration/lib/document-tools.ts',
+            ),
+          ).href,
+          TEST_DOCUMENT_LABELS:
+            overrides.TEST_DOCUMENT_LABELS ??
+            JSON.stringify({
+              'org.opencontainers.image.revision': environment.ACTUAL_REVISION,
+              'org.opencontainers.image.version': environment.ACTUAL_VERSION,
+              'org.opencontainers.image.source': environment.ACTUAL_SOURCE,
+            }),
         },
       );
       return {
         ...result,
+        events: readFileSync(log, 'utf8')
+          .split('\n')
+          .filter(Boolean)
+          .map((line) => JSON.parse(line) as DocumentEvent),
+        startedUids: ['65534', '10001'].filter((uid) =>
+          existsSync(resolve(directory, `${uid}.start`)),
+        ),
         finishedUids: ['65534', '10001'].filter((uid) =>
           existsSync(resolve(directory, `${uid}.finish`)),
         ),
@@ -1352,6 +1430,142 @@ if [ "$SERVICE" = "$TEST_FAILED_VALIDATION" ]; then exit 37; fi
     },
   );
 
+  // The integration helper's repository pathname targets the native Unix
+  // Docker hosts. Windows retains the workflow identity/scheduling fixtures
+  // above; this executes the unmodified helper and its actual source reads.
+  test.skipIf(process.platform === 'win32').each(['amd64', 'arm64'])(
+    'native %s document helper preserves the offline resource and stdin contract',
+    (arch) => {
+      const result = runDocumentGate(arch, {}, true);
+      expect(result.status, result.stderr + result.stdout).toBe(0);
+      expect(result.events.map((event) => event.phase)).toEqual([
+        'start',
+        'start',
+        'finish',
+        'finish',
+      ]);
+      const requests = result.events.filter((event) => event.phase === 'start');
+      expect(requests.map((event) => event.uid).sort()).toEqual([
+        '10001',
+        '65534',
+      ]);
+      expect(
+        result.events
+          .filter((event) => event.phase === 'finish')
+          .map((event) => event.uid)
+          .sort(),
+      ).toEqual(['10001', '65534']);
+      const requirements = readFileSync(
+        resolve(
+          repoRoot,
+          'services/sandbox-runtime/document-python-requirements.txt',
+        ),
+      );
+      const nodeLock = readFileSync(
+        resolve(
+          repoRoot,
+          'services/sandbox-runtime/document-node/package-lock.json',
+        ),
+      );
+      const nodeManifest = JSON.parse(
+        readFileSync(
+          resolve(
+            repoRoot,
+            'services/sandbox-runtime/document-node/package.json',
+          ),
+          'utf8',
+        ),
+      ) as { dependencies: Record<string, string> };
+      const versions = Object.fromEntries(
+        [
+          ...requirements
+            .toString('utf8')
+            .matchAll(/^(\S+)==(\S+) --hash=sha256:/gm),
+        ].map((match) => [match[1], match[2]]),
+      );
+      for (const request of requests) {
+        const command = request.command!;
+        expect(command.slice(0, -2)).toEqual([
+          'docker',
+          'run',
+          '--rm',
+          '-i',
+          '--platform',
+          `linux/${arch}`,
+          '--network',
+          'none',
+          '--read-only',
+          '--cap-drop',
+          'ALL',
+          '--security-opt',
+          'no-new-privileges',
+          '--memory',
+          '1g',
+          '--pids-limit',
+          '128',
+          '--user',
+          `${request.uid}:${request.uid}`,
+          '--tmpfs',
+          `/tmp:uid=${request.uid},gid=${request.uid},mode=700`,
+          '--env',
+          'PYTHONDONTWRITEBYTECODE=1',
+          '--env',
+          'PIP_NO_INDEX=1',
+          '--env',
+          'OPENBLAS_NUM_THREADS=1',
+          '--env',
+          'OMP_NUM_THREADS=1',
+          '--env',
+          'VIPS_CONCURRENCY=1',
+          '--entrypoint',
+          'python3',
+          documentImage(arch),
+        ]);
+        expect(command.at(-2)).toBe('-c');
+        expect(command.at(-1)).toContain('data = json.load(sys.stdin)');
+        expect(command.at(-1)).toContain('signal.alarm(120)');
+        const input = request.input!;
+        expect(Object.keys(input).sort()).toEqual([
+          'architecture',
+          'nodeCheck',
+          'nodeLockSha256',
+          'nodeVersions',
+          'requirementsSha256',
+          'uid',
+          'versions',
+          'xls',
+          'xlsx',
+        ]);
+        expect(input.uid).toBe(Number(request.uid));
+        expect(input.architecture).toBe(
+          arch === 'amd64' ? 'x86_64' : 'aarch64',
+        );
+        expect(Object.keys(versions).length).toBeGreaterThan(0);
+        expect(input.versions).toEqual(versions);
+        expect(input.requirementsSha256).toBe(
+          createHash('sha256').update(requirements).digest('hex'),
+        );
+        expect(input.nodeVersions).toEqual(nodeManifest.dependencies);
+        expect(input.nodeLockSha256).toBe(
+          createHash('sha256').update(nodeLock).digest('hex'),
+        );
+        expect(input.nodeCheck).toContain("require('node:assert/strict')");
+        for (const extension of ['xls', 'xlsx'] as const) {
+          const fixture = readFileSync(
+            resolve(
+              repoRoot,
+              `services/platform/tests/integration/fixtures/document-tools/workbook.${extension}`,
+            ),
+          );
+          expect(input[extension]).toEqual({
+            base64: fixture.toString('base64'),
+            sha256: createHash('sha256').update(fixture).digest('hex'),
+          });
+        }
+      }
+    },
+  );
+
   test.each([
     ['65534', 'FAIL_UID'],
     ['10001', 'FAIL_UID'],
@@ -1376,6 +1590,8 @@ if [ "$SERVICE" = "$TEST_FAILED_VALIDATION" ]; then exit 37; fi
     ['DOCUMENT_IMAGE', 'ghcr.io/synthetic/tale/tale-sandbox-runtime:latest'],
     ['DOCUMENT_PLATFORM', 'linux/unknown'],
     ['PULL_EXIT', '93'],
+    ['INSPECT_EXIT', '94'],
+    ['TEST_DOCUMENT_LABELS', 'invalid-json'],
     ['ACTUAL_REVISION', 'c'.repeat(40)],
     ['ACTUAL_VERSION', '0.5.43'],
     ['ACTUAL_SOURCE', 'https://github.com/another/tale'],
@@ -1383,6 +1599,8 @@ if [ "$SERVICE" = "$TEST_FAILED_VALIDATION" ]; then exit 37; fi
     const result = runDocumentGate('amd64', { [key]: value });
     expect(result.status).not.toBe(0);
     expect(result.stdout).not.toContain('CHECK ');
+    expect(result.stdout).not.toContain('Document tools as uid');
+    expect(result.startedUids).toEqual([]);
     expect(result.finishedUids).toEqual([]);
   });
 
