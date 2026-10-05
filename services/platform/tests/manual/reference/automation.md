@@ -6,16 +6,6 @@ suite alongside the automated ones — they drive the same stack.
 
 ## Coverage map
 
-Task attachment uploads overlap while their drain, read and replace steps are
-serialized, and replacements read the latest saved list rather than an
-upload-start snapshot.
-`app/features/tasks/components/task-modal.attachments.test.tsx` drives the real
-file input, upload hook and edit body against synthetic upload/query/write seams:
-overlapping selections, removal during upload, intervening accepted changes,
-pending saves, failure recovery and the sequential control. The shared drain's
-synchronous reset is covered in `app/features/shared/files/use-file-upload.test.ts`.
-Live storage persistence and cross-session races remain manual.
-
 Legal matter editing preserves retained 2500- and 4000-character descriptions
 when only the name changes. Creation accepts trimmed fields at the API limits
 (300-character name, 200-character case number, 4000-character description).
@@ -38,6 +28,16 @@ the send request and optimistic message, leave unrelated composer files
 staged, and keep regeneration on its original-prompt path:
 `app/features/chat/components/chat-surface.test.tsx` covers the component
 boundary; persisted cards after reload remain manual in `CHAT-F8`.
+
+Task attachment uploads overlap while their drain, read and replace steps are
+serialized, and replacements read the latest saved list rather than an
+upload-start snapshot.
+`app/features/tasks/components/task-modal.attachments.test.tsx` drives the real
+file input, upload hook and edit body against synthetic upload/query/write seams:
+overlapping selections, removal during upload, intervening accepted changes,
+pending saves, failure recovery and the sequential control. The shared drain's
+synchronous reset is covered in `app/features/shared/files/use-file-upload.test.ts`.
+Live storage persistence and cross-session races remain manual.
 
 One row per case group, carried over from the per-suite coverage tables the
 guides used to hold. **Don't** re-verify an automated row by hand: a red there
