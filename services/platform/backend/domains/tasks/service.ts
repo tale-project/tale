@@ -3494,6 +3494,22 @@ export interface TaskListFilters {
   query?: string;
 }
 
+export interface TaskBoardReadOptions extends TaskListFilters {
+  /** Boards omit long bodies by default; false keeps the full compatibility
+   * read. Task details always use the full projection. */
+  summary?: boolean;
+}
+
+interface TaskFolderFacts {
+  existingFolders: Set<string>;
+  foldersWithFiles: Set<string>;
+}
+
+const NO_FOLDER_FACTS: TaskFolderFacts = {
+  existingFolders: new Set(),
+  foldersWithFiles: new Set(),
+};
+
 /** Batch-resolve the page's label ids to catalog DTOs (color derived, the
  * 0.4 rule — the catalog stores names, the palette is deterministic). */
 async function resolveLabelMap(
@@ -3523,33 +3539,44 @@ async function resolveLabelMap(
 async function collectFolderFacts(
   sql: Sql,
   organizationId: string,
-  projectId: string,
-  tasks: readonly Pick<TaskRow, 'externalId'>[],
-): Promise<{ existingFolders: Set<string>; foldersWithFiles: Set<string> }> {
-  const folderIds = [
-    ...new Set(
-      tasks
-        .map((task) => task.externalId)
-        .filter((id): id is string => id !== null),
-    ),
-  ];
-  if (folderIds.length === 0) {
-    return { existingFolders: new Set(), foldersWithFiles: new Set() };
+  tasksByProject: ReadonlyMap<
+    string,
+    readonly Pick<BoardTaskRow, 'externalId'>[]
+  >,
+): Promise<Map<string, TaskFolderFacts>> {
+  const folderIds: string[] = [];
+  const projectIds: string[] = [];
+  for (const [projectId, tasks] of tasksByProject) {
+    const roots = new Set(tasks.map((task) => task.externalId));
+    for (const root of roots) {
+      if (root === null) continue;
+      folderIds.push(root);
+      projectIds.push(projectId);
+    }
   }
-  const rows = await sql<{ rootId: string; hasFiles: boolean }[]>`
+  if (folderIds.length === 0) {
+    return new Map();
+  }
+  const rows = await sql<
+    { rootId: string; projectId: string; hasFiles: boolean }[]
+  >`
     WITH RECURSIVE tree AS (
-      SELECT f.id AS root_id, f.id, 0 AS depth
+      SELECT f.id AS root_id, f.project_id, f.id, 0 AS depth
       FROM app.folders f
-      WHERE f.id = ANY(${folderIds})
-        AND f.org_id = ${organizationId}
-        AND f.project_id = ${projectId}
+      JOIN unnest(${folderIds}::text[], ${projectIds}::text[])
+        AS roots(id, project_id)
+        ON f.id = roots.id AND f.project_id = roots.project_id
+      WHERE f.org_id = ${organizationId}
       UNION ALL
-      SELECT t.root_id, f.id, t.depth + 1
+      SELECT t.root_id, t.project_id, f.id, t.depth + 1
       FROM app.folders f
       JOIN tree t ON f.parent_id = t.id
       WHERE t.depth < 16
+        AND f.org_id = ${organizationId}
+        AND f.project_id = t.project_id
     )
     SELECT root_id AS "rootId",
+           project_id AS "projectId",
            bool_or(EXISTS (
              SELECT 1 FROM app.documents d
              WHERE d.folder_id = tree.id
@@ -3558,14 +3585,19 @@ async function collectFolderFacts(
                AND (d.lifecycle_status IS NULL OR d.lifecycle_status = 'active')
            )) AS "hasFiles"
     FROM tree
-    GROUP BY root_id
+    GROUP BY root_id, project_id
   `;
-  return {
-    existingFolders: new Set(rows.map((row) => row.rootId)),
-    foldersWithFiles: new Set(
-      rows.filter((row) => row.hasFiles).map((row) => row.rootId),
-    ),
-  };
+  const facts = new Map<string, TaskFolderFacts>();
+  for (const row of rows) {
+    let project = facts.get(row.projectId);
+    if (project === undefined) {
+      project = { existingFolders: new Set(), foldersWithFiles: new Set() };
+      facts.set(row.projectId, project);
+    }
+    project.existingFolders.add(row.rootId);
+    if (row.hasFiles) project.foldersWithFiles.add(row.rootId);
+  }
+  return facts;
 }
 
 function decorateTaskRow<Row extends BoardTaskRow>(
@@ -3593,8 +3625,14 @@ async function decorateProjectPage<Row extends BoardTaskRow>(
   (Row & Pick<DecoratedTaskRow, 'labels' | 'folderExists' | 'hasFiles'>)[]
 > {
   const labelMap = await resolveLabelMap(sql, tasks);
-  const facts = await collectFolderFacts(sql, organizationId, projectId, tasks);
-  return tasks.map((task) => decorateTaskRow(task, labelMap, facts));
+  const facts = await collectFolderFacts(
+    sql,
+    organizationId,
+    new Map([[projectId, tasks]]),
+  );
+  return tasks.map((task) =>
+    decorateTaskRow(task, labelMap, facts.get(projectId) ?? NO_FOLDER_FACTS),
+  );
 }
 
 /**
@@ -3642,7 +3680,7 @@ export async function listTasksByProject(
   sql: Sql,
   auth: ProjectAuthContext,
   projectId: string,
-  filters: TaskListFilters = {},
+  filters: TaskBoardReadOptions = {},
 ): Promise<
   {
     tasks: DecoratedBoardTaskRow[];
@@ -3653,7 +3691,7 @@ export async function listTasksByProject(
   assertTaskReadable(project, auth);
   const access = boardTaskAccess(project, auth);
   const rows = await sql<BoardTaskRow[]>`
-    SELECT ${sql.unsafe(BOARD_TASK_COLUMNS)} FROM app.tasks t
+    SELECT ${sql.unsafe(filters.summary === false ? TASK_COLUMNS : BOARD_TASK_COLUMNS)} FROM app.tasks t
     WHERE project_id = ${projectId}
       AND ${boardFilterClause(sql, filters)}
     ORDER BY status ASC, rank ASC
@@ -3782,14 +3820,14 @@ export async function listTasksForAgent(
 export async function listTasksForAccessibleProjects(
   sql: Sql,
   auth: ProjectAuthContext,
-  filters: TaskListFilters = {},
+  filters: TaskBoardReadOptions = {},
 ): Promise<
   {
     tasks: DecoratedBoardTaskRow[];
     truncated: boolean;
   } & TaskAccess
 > {
-  const projects = await listProjects(sql, auth);
+  const projects = await listProjects(sql, auth, { summary: true });
   const access: TaskAccess = {
     canEdit: EDITOR_ROLES.has(auth.role),
     canCreate: auth.role !== 'disabled',
@@ -3801,7 +3839,7 @@ export async function listTasksForAccessibleProjects(
     projects.map((project) => [project.id, project.key]),
   );
   const rows = await sql<BoardTaskRow[]>`
-    SELECT ${sql.unsafe(BOARD_TASK_COLUMNS)} FROM app.tasks t
+    SELECT ${sql.unsafe(filters.summary === false ? TASK_COLUMNS : BOARD_TASK_COLUMNS)} FROM app.tasks t
     WHERE org_id = ${auth.organizationId}
       AND project_id = ANY(${[...projectKeys.keys()]})
       AND ${boardFilterClause(sql, filters)}
@@ -3824,24 +3862,15 @@ export async function listTasksForAccessibleProjects(
     if (group) group.push(task);
     else byProject.set(task.projectId, [task]);
   }
-  const merged = {
-    existingFolders: new Set<string>(),
-    foldersWithFiles: new Set<string>(),
-  };
-  for (const [projectId, projectRows] of byProject) {
-    const facts = await collectFolderFacts(
-      sql,
-      auth.organizationId,
-      projectId,
-      projectRows,
-    );
-    for (const id of facts.existingFolders) merged.existingFolders.add(id);
-    for (const id of facts.foldersWithFiles) merged.foldersWithFiles.add(id);
-  }
+  const facts = await collectFolderFacts(sql, auth.organizationId, byProject);
   return {
     tasks: page.map((task) => {
       const key = projectKeys.get(task.projectId) ?? null;
-      const decorated = decorateTaskRow(task, labelMap, merged);
+      const decorated = decorateTaskRow(
+        task,
+        labelMap,
+        facts.get(task.projectId) ?? NO_FOLDER_FACTS,
+      );
       return key !== null
         ? Object.assign(decorated, { projectKey: key })
         : decorated;
@@ -4878,7 +4907,7 @@ export async function getTaskOpsIndicatorsForAccessibleProjects(
   sql: Sql,
   auth: ProjectAuthContext,
 ): Promise<TaskOpsIndicators> {
-  const projects = await listProjects(sql, auth);
+  const projects = await listProjects(sql, auth, { summary: true });
   if (projects.length === 0) {
     return { runningTaskIds: [], askingTaskIds: [], pendingReviews: [] };
   }
