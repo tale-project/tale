@@ -8,10 +8,7 @@ import { setSessionCookie } from 'better-auth/cookies';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
-import {
-  PASSWORD_NOT_SET_CODE,
-  REAUTHENTICATE_PATH,
-} from '../../lib/shared/constants/session-freshness.ts';
+import { REAUTHENTICATE_PATH } from '../../lib/shared/constants/session-freshness.ts';
 import { normalizeAuthEmail } from '../core/lib/auth/normalize_auth_email.ts';
 import { getClientIp } from '../core/lib/utils/client_ip.ts';
 import { anchorTwoFactorGraceOnSignIn } from '../domains/two_factor/service.ts';
@@ -72,10 +69,12 @@ export function reauthenticate(deps: {
           const credential =
             await ctx.context.internalAdapter.findCredentialAccount(user.id);
           if (!credential?.password) {
+            // `PASSWORD_NOT_SET_CODE`, spelled out so the REST error-code
+            // guard (`rest/error-codes.test.ts`) sees it.
             throw new APIError('BAD_REQUEST', {
               message:
                 'This account has no password to confirm; sign in again instead',
-              code: PASSWORD_NOT_SET_CODE,
+              code: 'PASSWORD_NOT_SET',
             });
           }
           const valid = await ctx.context.password.verify({

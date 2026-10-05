@@ -479,6 +479,12 @@ const APP_ONLY_CODES: ReadonlySet<string> = new Set<string>([
   // the before-hooks of `/organization/create-team` and `/update-team`);
   // REST has no team write, and SCIM answers its own 409 `uniqueness`.
   'TEAM_NAME_TAKEN',
+  // The re-authentication door (`/api/auth/reauthenticate`), where a
+  // signed-in person confirms their password before adding a passkey: a
+  // wrong password, and an account with no password to confirm. REST
+  // authenticates a key and mounts no password confirmation.
+  'INVALID_PASSWORD',
+  'PASSWORD_NOT_SET',
 ]);
 
 describe('the REST error-code registry', () => {
