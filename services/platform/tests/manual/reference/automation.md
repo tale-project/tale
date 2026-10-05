@@ -6,6 +6,15 @@ suite alongside the automated ones — they drive the same stack.
 
 ## Coverage map
 
+### Usage reporting windows
+
+`backend/domains/governance/usage-metrics.test.ts` exercises the real reader and
+fold with a fake SQL boundary: daily, weekly and monthly charts preserve the
+same seven-day totals, detail tables and equal-length prior comparison. Partial
+months, ISO week-year boundaries, out-of-window and future days are covered;
+a foreign organization reads zero. Chart granularity groups only current-window
+daily rows. Real PostgreSQL query execution remains an integration proof.
+
 Personalization distinguishes a failed preferences read from a successful null
 response. Localized errors offer Try again without a switch, editor or save path
 until preferences load. Pending retries preserve the alert and keyboard focus;
