@@ -356,23 +356,29 @@ export function DocumentRowActions({
     <>
       <EntityRowActions actions={actions} triggerRef={menuTriggerRef} />
 
-      {/* Always mount dialogs to allow Radix UI to handle animation states properly */}
-      <DocumentDeleteDialog
-        open={dialogs.isOpen.delete}
-        onOpenChange={dialogs.setOpen.delete}
-        onConfirmDelete={handleDeleteConfirm}
-        isLoading={isDeleting}
-        fileName={name}
-      />
+      {/* Each dialog mounts from its first open — every row of a folder
+          carries them all — and stays mounted after it closes, so Radix
+          plays its exit animation. */}
+      {dialogs.mounted.delete && (
+        <DocumentDeleteDialog
+          open={dialogs.isOpen.delete}
+          onOpenChange={dialogs.setOpen.delete}
+          onConfirmDelete={handleDeleteConfirm}
+          isLoading={isDeleting}
+          fileName={name}
+        />
+      )}
 
-      <DocumentDeleteFolderDialog
-        open={dialogs.isOpen.deleteFolder}
-        onOpenChange={dialogs.setOpen.deleteFolder}
-        onConfirmDelete={handleDeleteFolderConfirm}
-        isLoading={isDeletingFolder}
-        folderName={name}
-        isSyncFolder={!!syncConfigId}
-      />
+      {dialogs.mounted.deleteFolder && (
+        <DocumentDeleteFolderDialog
+          open={dialogs.isOpen.deleteFolder}
+          onOpenChange={dialogs.setOpen.deleteFolder}
+          onConfirmDelete={handleDeleteFolderConfirm}
+          isLoading={isDeletingFolder}
+          folderName={name}
+          isSyncFolder={!!syncConfigId}
+        />
+      )}
 
       {dialogs.isOpen.rename ? (
         <RenameFolderDialog
@@ -395,14 +401,16 @@ export function DocumentRowActions({
         />
       ) : null}
 
-      <DocumentTeamTagsDialog
-        open={dialogs.isOpen.teamTags}
-        onOpenChange={dialogs.setOpen.teamTags}
-        entityId={documentId}
-        entityType={itemType}
-        documentName={name}
-        currentTeamIds={teamIds}
-      />
+      {dialogs.mounted.teamTags && (
+        <DocumentTeamTagsDialog
+          open={dialogs.isOpen.teamTags}
+          onOpenChange={dialogs.setOpen.teamTags}
+          entityId={documentId}
+          entityType={itemType}
+          documentName={name}
+          currentTeamIds={teamIds}
+        />
+      )}
 
       {recordDialogs}
     </>
