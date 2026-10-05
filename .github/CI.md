@@ -4,8 +4,8 @@ Optimize both time to feedback and total runner work. Inspect job queue time sep
 from step duration before adding shards: a short test behind a large setup cost usually
 needs fewer runners, while a long CPU-bound suite can benefit from more slices.
 
-The cumulative audit records [132 retained implemented improvements](CI-improvements.json)
-since `c8f31b2b9`: 82 authored here, 45 integrated from concurrent upstream work and five
+The cumulative audit records [133 retained implemented improvements](CI-improvements.json)
+since `c8f31b2b9`: 83 authored here, 45 integrated from concurrent upstream work and five
 combining both. Each entry records before/after behavior, changed paths, source commits
 and proof. Repeated patterns across workflows count once; suggestions and retained
 baseline behavior do not count.
@@ -179,6 +179,15 @@ set `cache-writer` per service, so their immutable writes stay distinct within E
 Every Unit and UI platform shard has its own scope; other-workspace unit tests use
 their own scope.
 Turbo still compares task hashes before replaying any restored result.
+
+Runtime image stages declare release-version arguments after filesystem work. Docker
+implicitly adds declared arguments to later `RUN` environments, so an early `VERSION`
+declaration invalidated unchanged installation and permission layers on every release.
+DB, proxy, static services, and platform runner/dev now retain those layers across version
+changes while applying the current version to their final metadata and runtime environment.
+The React and Docker service generator templates preserve the same boundary for new services.
+The DB integration build can also reuse the producer's versioned filesystem cache with its
+local `dev` version. Image assembly, provenance and runtime validation still run.
 
 Hosted jobs normally set Turbo's native `TURBO_CACHE_MAX_SIZE=512MB` (512 MiB).
 Browser's admission probe and final test command disable eviction as described above.
