@@ -4320,6 +4320,7 @@ governance:
         userPickerLabel: Person
         userPickerPlaceholder: Nach Name oder E-Mail suchen
         userPickerEmpty: Keine passenden Mitglieder.
+        userPickerFailed: Mitglieder konnten nicht geladen werden.
         reasonCodeLabel: Rechtsgrund
         reasonCodeDescription: DSGVO Art. 17(1)(a)–(f) plus operativer Vertragsbeendigungs-Grund.
         reasonLabel: Begründung
