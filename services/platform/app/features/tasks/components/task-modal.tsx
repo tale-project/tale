@@ -135,6 +135,7 @@ import { TaskDeleteDialog } from './task-delete-dialog';
 import { TaskDependencies } from './task-dependencies';
 import { TaskDetailFallback } from './task-detail-fallback';
 import { TaskExternalIssueCard } from './task-external-issue-card';
+import { TaskExternalStatusCard } from './task-external-status-card';
 import { SubtaskProgress } from './task-indicators';
 import { TaskInputFilesCard } from './task-input-files';
 import { TaskOutcomeFilesCard } from './task-outcome-files';
@@ -1854,6 +1855,12 @@ export function EditTaskBody({
         externalId={task.externalId}
         externalUrl={task.externalUrl}
         externalIssue={task.externalIssue}
+      />
+      <TaskExternalStatusCard
+        organizationId={task.organizationId}
+        taskId={task._id}
+        externalSystem={task.externalSystem}
+        canWork={canWork && project?.archivedAt == null}
       />
       {ownedBy === null && descriptionSection}
 

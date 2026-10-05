@@ -865,16 +865,18 @@ export async function recordActivity(
     action: string;
     fromValue?: string;
     toValue?: string;
+    context?: Record<string, unknown>;
   },
 ): Promise<void> {
   await tx`
     INSERT INTO app.task_activity (
       org_id, task_id, project_id, actor_type, actor_id, action,
-      from_value, to_value, created_at_ms
+      from_value, to_value, context, created_at_ms
     ) VALUES (
       ${args.task.organizationId}, ${args.task.id}, ${args.task.projectId},
       ${args.actorType}, ${args.actorId}, ${args.action},
-      ${args.fromValue ?? null}, ${args.toValue ?? null}, ${Date.now()}
+      ${args.fromValue ?? null}, ${args.toValue ?? null},
+      ${args.context === undefined ? null : tx.json(toJson(args.context))}, ${Date.now()}
     )
   `;
   // Every task change writes its activity line, so this is the ONE spot that
@@ -1053,6 +1055,11 @@ async function settleTaskStatusChange(
      * in its own words (the review decision's resolved bell) — a second
      * "status changed" row would be noise. */
     bell?: boolean;
+    /** Source-owned lifecycle can archive and move atomically, and the source
+     * owns recurrence. Other status writers keep their existing choreography. */
+    toArchivedAt?: number | null;
+    repeat?: boolean;
+    context?: Record<string, unknown>;
   },
 ): Promise<TaskRepeatCopy | null> {
   const { task, toStatus } = args;
@@ -1068,7 +1075,11 @@ async function settleTaskStatusChange(
     tx,
     task.projectId,
     taskCountBucket(task),
-    taskCountBucket({ status: toStatus, archivedAt: task.archivedAt }),
+    taskCountBucket({
+      status: toStatus,
+      archivedAt:
+        args.toArchivedAt === undefined ? task.archivedAt : args.toArchivedAt,
+    }),
   );
   await recordActivity(tx, {
     task,
@@ -1077,6 +1088,7 @@ async function settleTaskStatusChange(
     action: 'status.changed',
     fromValue: task.status,
     toValue: toStatus,
+    ...(args.context !== undefined ? { context: args.context } : {}),
   });
   if (args.audit !== undefined) {
     await createAuditLog(
@@ -1117,6 +1129,7 @@ async function settleTaskStatusChange(
       actorId: args.actorId,
     });
   }
+  if (args.repeat === false) return null;
   return await createNextRepeatCopy(tx, {
     task,
     toStatus,
@@ -2271,6 +2284,90 @@ export async function updateTaskStatus(
     });
   }
   return nextTask;
+}
+
+/** An accepted custom-source business result is evidence, never a native Tale
+ * approval. The external-status door owns authorization, binding and CAS; this
+ * seam keeps board counts, rank, run cancellation, history and bells coherent.
+ * It never starts an agent, requests a second review or continues a local series. */
+export async function applyExternalTaskStatusProjection(
+  tx: TransactionSql,
+  args: {
+    task: TaskRow;
+    actorId: string;
+    status: TaskStatus;
+    archived: boolean;
+    context: Record<string, unknown>;
+  },
+): Promise<void> {
+  const { task, status } = args;
+  const statusChanges = task.status !== status;
+  const archiveChanges = (task.archivedAt !== null) !== args.archived;
+  if (
+    statusChanges &&
+    TERMINAL_STATUSES.has(status) &&
+    (await hasOpenChildren(tx, task.id))
+  ) {
+    throw new TaskError('TASK_HAS_OPEN_SUBTASKS', 'Open subtasks remain');
+  }
+  if (statusChanges) {
+    await closePendingTaskReviewOnStatusLeave(tx, {
+      task,
+      toStatus: status,
+      actor: { kind: 'system', actorId: args.actorId },
+    });
+    await cancelLiveAgentRunOnLeave(tx, task, status);
+  }
+  const now = Date.now();
+  const archivedAt = args.archived ? (task.archivedAt ?? now) : null;
+  if (statusChanges || archiveChanges) {
+    const rank = statusChanges
+      ? await computeEndRank(tx, task.projectId, status)
+      : task.rank;
+    await tx`
+      UPDATE app.tasks SET status = ${status}, rank = ${rank},
+        completed_at_ms = ${TERMINAL_STATUSES.has(status) ? (task.completedAt ?? now) : null},
+        archived_at_ms = ${archivedAt}, updated_at_ms = ${now},
+        status_changed_at_ms = ${statusChanges ? now : task.statusChangedAt}
+      WHERE id = ${task.id} AND org_id = ${task.organizationId}
+    `;
+    if (statusChanges) {
+      await settleTaskStatusChange(tx, {
+        task,
+        toStatus: status,
+        actorType: 'agent',
+        actorId: args.actorId,
+        toArchivedAt: archivedAt,
+        repeat: false,
+        context: args.context,
+        bell: !args.archived,
+      });
+    } else {
+      await applyTaskCountTransition(
+        tx,
+        task.projectId,
+        taskCountBucket(task),
+        taskCountBucket({ status, archivedAt }),
+      );
+    }
+    if (archiveChanges) {
+      await recordActivity(tx, {
+        task,
+        actorType: 'agent',
+        actorId: args.actorId,
+        action: args.archived ? 'archived' : 'restored',
+        context: args.context,
+      });
+    }
+  }
+  await recordActivity(tx, {
+    task,
+    actorType: 'agent',
+    actorId: args.actorId,
+    action: 'external_status.projected',
+    toValue: status,
+    context: args.context,
+  });
 }
 
 /**

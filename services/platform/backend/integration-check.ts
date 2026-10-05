@@ -137,6 +137,7 @@ import {
 import { checkTaskSubtreeDeletion } from './domains/tasks/delete-subtree.integration.ts';
 import { checkTaskDescriptionMentions } from './domains/tasks/description-mentions.integration.ts';
 import { checkTaskExternalIssueSync } from './domains/tasks/external-issue.integration.ts';
+import { checkTaskExternalStatusProjection } from './domains/tasks/external-status.integration.ts';
 import { checkImportCursorContinuation } from './domains/tasks/import-cursors.integration.ts';
 import { checkProjectTaskMetrics } from './domains/tasks/metrics.integration.ts';
 import { checkTaskRepeatSeriesUpgrade } from './domains/tasks/repeat-series.integration.ts';
@@ -60144,6 +60145,10 @@ async function main(): Promise<void> {
       [
         'checkTaskExternalIssueSync',
         () => checkTaskExternalIssueSync(sql, authCtx, record),
+      ],
+      [
+        'checkTaskExternalStatusProjection',
+        () => checkTaskExternalStatusProjection(sql, baseUrl, authCtx, record),
       ],
       [
         'checkProjectTaskMetrics',

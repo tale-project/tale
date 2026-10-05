@@ -344,5 +344,13 @@
  * 3.15.0 — 2026-10-03: native task_get agentRuns includes explicit
  * retryPending, reusing the task card's native retry state without exposing
  * error text or provider reset times. No public REST endpoint is added.
+ *
+ * 3.16.0 — 2026-10-05: task `/status` reads a lifecycle activity revision,
+ * verified member provenance and the accepted external projection receipt.
+ * Custom sources opt into `/external-status` to project business decisions
+ * they already validated, including completion and atomic archival. Exact
+ * source binding, conditional native revision and monotonic source lifecycle
+ * ordering protect concurrent native moves; no Tale approval is claimed and
+ * captured native agent reviews remain protected. Additive.
  */
-export const API_CONTRACT_VERSION = '3.15.0';
+export const API_CONTRACT_VERSION = '3.16.0';

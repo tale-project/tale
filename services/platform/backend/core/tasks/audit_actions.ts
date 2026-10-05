@@ -10,6 +10,8 @@ export const TASK_AUDIT_ACTIONS = {
   created: 'task.created',
   updated: 'task.updated',
   statusChanged: 'task.status_changed',
+  externalStatusProjected: 'task.external_status_projected',
+  externalStatusRequested: 'task.external_status_requested',
   assigned: 'task.assigned',
   unassigned: 'task.unassigned',
   reviewerChanged: 'task.reviewer_changed',

@@ -7414,6 +7414,17 @@ projectSecrets:
     loadFailed: Die Secrets dieses Projekts konnten nicht geladen werden.
     refreshFailed: Die Secrets dieses Projekts konnten nicht aktualisiert werden. Die Anzeige ist womöglich veraltet.
 tasks:
+  sourceStatus:
+    heading: Ablauf der Quelle
+    explanation: Wähle eine Aktion und ergänze die Angaben. Die verbundene Quelle prüft deine Berechtigungen und jeden Übergang, bevor sie diese Aufgabe aktualisiert.
+    submit: Anfrage senden
+    pending: Die Quelle prüft deine Anfrage.
+    accepted: Die Quelle hat deine Anfrage angenommen.
+    refused: Die Quelle hat deine Anfrage abgelehnt.
+    invalidFields: Prüfe die Pflichtfelder und ihr Format.
+    submitFailed: Die Anfrage konnte nicht gesendet werden. Versuche es erneut.
+    loadFailed: Die Aktionen der Quelle konnten nicht geladen werden.
+    retry: Erneut versuchen
   sourceIssue:
     heading: '{provider}-Issue'
     state:
@@ -7765,6 +7776,8 @@ tasks:
     restored: Wiederhergestellt
     reordered: Neu sortiert
     statusChanged: Status geändert
+    externalStatusProjected: Quellstatus synchronisiert
+    externalStatusRequested: Statusübergang bei der Quelle angefragt
     assigneeChanged: Zuständigkeit geändert
     titleChanged: Titel geändert
     descriptionChanged: Beschreibung geändert

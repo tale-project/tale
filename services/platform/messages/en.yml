@@ -7569,6 +7569,17 @@ projectSecrets:
     loadFailed: "Couldn't load this project's secrets."
     refreshFailed: "Couldn't refresh this project's secrets. What's shown may be out of date."
 tasks:
+  sourceStatus:
+    heading: Source workflow
+    explanation: Choose an action and provide its details. The connected source validates your permissions and every transition before updating this task.
+    submit: Send request
+    pending: The source is validating your request.
+    accepted: The source accepted your request.
+    refused: The source refused your request.
+    invalidFields: Check the required fields and their format.
+    submitFailed: Couldn't send the request. Try again.
+    loadFailed: Couldn't load source actions.
+    retry: Retry
   sourceIssue:
     heading: '{provider} issue'
     state:
@@ -7914,6 +7925,8 @@ tasks:
     restored: Restored
     reordered: Reordered
     statusChanged: Status changed
+    externalStatusProjected: Source status synchronized
+    externalStatusRequested: Source transition requested
     assigneeChanged: Assignee changed
     titleChanged: Title changed
     descriptionChanged: Description changed

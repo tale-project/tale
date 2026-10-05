@@ -290,6 +290,18 @@ function boardFilterParams(args: Record<string, unknown>): {
 }
 
 export const taskReadAdapters: Record<string, ReadAdapter> = {
+  'tasks/queries:getExternalStatus': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    const taskId = args.taskId;
+    if (orgId === undefined || typeof taskId !== 'string') return null;
+    return {
+      queryKey: backendKey(orgId, 'task', 'external-status', taskId),
+      queryFn: () =>
+        backendFetch(`/tasks/${encodeURIComponent(taskId)}/external-status`, {
+          orgId,
+        }),
+    };
+  },
   'tasks/queries:getTaskReviewer': (args, ctx) => {
     const orgId = orgOf(args, ctx);
     const taskId = args.taskId;
@@ -874,6 +886,18 @@ function statusWriteView(body: unknown): TaskStatusWriteResult {
 }
 
 export const taskWriteAdapters: Record<string, WriteAdapter> = {
+  'tasks/mutations:requestExternalStatus': {
+    run: async (args, ctx) => {
+      const orgId = requireOrg(args, ctx);
+      const taskId = requireString(args, 'taskId');
+      const { organizationId: _org, taskId: _task, ...body } = args;
+      return backendFetch(
+        `/tasks/${encodeURIComponent(taskId)}/external-status-request`,
+        { method: 'POST', body, orgId },
+      );
+    },
+    invalidate: taskWriteInvalidate,
+  },
   'tasks/mutations:createTask': {
     run: async (args, ctx) => {
       const orgId = requireOrg(args, ctx);

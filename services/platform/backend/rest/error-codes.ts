@@ -201,6 +201,8 @@ export const REST_ERROR_CODES = [
   'TASK_ARCHIVED',
   'TASK_AUTOMATION_DISABLED',
   'TASK_AUTOMATION_UNAVAILABLE',
+  'TASK_EXTERNAL_REF_INVALID',
+  'TASK_EXTERNAL_STATUS_STALE',
   'TASK_HAS_LIVE_RUN',
   'TASK_HAS_OPEN_SUBTASKS',
   // The task intake of a key holder who is not the project's editor names a
@@ -209,6 +211,7 @@ export const REST_ERROR_CODES = [
   'TASK_NOT_FOUND',
   'TASK_NOT_IN_REVIEW',
   'TASK_REVIEW_POLICY_UNAVAILABLE',
+  'TASK_STATUS_CONFLICT',
   'TEAM_ACCESS_DENIED',
   // A hub document inside a team folder takes the folder's audience; a
   // request naming a team outside it is refused.

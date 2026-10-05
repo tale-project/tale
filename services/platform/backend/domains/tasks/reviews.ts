@@ -877,6 +877,25 @@ export interface PendingTaskReview {
   createdAt: number;
 }
 
+/** An external business decision cannot replace any captured native agent
+ * review, even when another pending row is newer or the task state drifted. */
+export async function hasPendingAgentReviewForTask(
+  sql: Sql | TransactionSql,
+  organizationId: string,
+  taskId: string,
+): Promise<boolean> {
+  const rows = await sql<{ pending: boolean }[]>`
+    SELECT EXISTS (
+      SELECT 1 FROM app.approvals
+      WHERE org_id = ${organizationId} AND resource_id = ${taskId}
+        AND resource_type = 'task_review' AND status = 'pending'
+        AND wf_execution_id IS NULL
+        AND metadata -> 'reviewer' ->> 'kind' = 'agent'
+    ) AS pending
+  `;
+  return rows[0]?.pending ?? false;
+}
+
 /** The task's open workflow-free review, newest first — the sheet's gate
  * card and the board chip read this. */
 export async function getPendingReviewForTask(
