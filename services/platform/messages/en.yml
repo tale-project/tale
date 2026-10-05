@@ -3005,6 +3005,8 @@ governance:
       noGraceConnector: no grace window
       cascadeConnector: cascade delete
     pendingChange:
+      loadFailed: Couldn't load the pending retention change.
+      refreshFailed: Couldn't refresh the pending retention change. Previously loaded information may be out of date.
       title: A retention reduction is pending.
       applyIn: applies in {days} day(s).
       cancel: Cancel

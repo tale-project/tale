@@ -57,6 +57,14 @@ optimistic dismissals and the All-filter recovery control remain covered by
 `app/features/notifications/components/notification-list-panel.test.tsx`.
 The real disconnected-backend/browser interaction remains a manual check.
 
+Pending retention reads distinguish successful null from failure. EN/DE/FR read
+errors expose a destructive alert and Try again; retry keeps the first-read
+failure visible and its focused button inert while fetching. A failed refresh
+keeps cached pending details and Cancel reachable, including recovery to a
+healthy response. `app/features/settings/governance/components/retention-pending-banner.test.tsx`
+owns these jsdom cases and the healthy/null/loading controls; the real
+disconnected-backend interaction and browser layout remain manual.
+
 Task agent Details distinguishes a failed sandbox-op read from loading and a
 successful no-log response. EN/DE/FR errors offer Try again without starting a
 new run; retry restores a stranded focus after another failure, preserves a

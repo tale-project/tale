@@ -3110,6 +3110,8 @@ governance:
       noGraceConnector: kein Schonfrist-Fenster
       cascadeConnector: Kaskaden-Löschung
     pendingChange:
+      loadFailed: Die ausstehende Aufbewahrungsänderung konnte nicht geladen werden.
+      refreshFailed: Die ausstehende Aufbewahrungsänderung konnte nicht aktualisiert werden. Zuvor geladene Angaben sind möglicherweise nicht mehr aktuell.
       title: Eine Aufbewahrungsverkürzung steht aus.
       applyIn: wird in {days} Tag(en) wirksam.
       cancel: Abbrechen
