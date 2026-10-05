@@ -67,6 +67,7 @@ describe('forbiddenPackagesIn', () => {
         '../../../../node_modules/ajv/dist/ajv.js',
         '../../../../node_modules/yaml/browser/index.js',
         '../../../../node_modules/cron-parser/dist/index.js',
+        '../../../../node_modules/@tanstack/table-core/build/lib/index.mjs',
       ]),
     ).toEqual([
       'recharts',
@@ -76,6 +77,7 @@ describe('forbiddenPackagesIn', () => {
       'ajv',
       'yaml',
       'cron-parser',
+      '@tanstack/table-core',
     ]);
   });
 
