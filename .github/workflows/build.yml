@@ -1075,17 +1075,39 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           turbo-cache: 'false'
 
-      - name: Run image validation
-        run: bun services/platform/tests/integration/container-image-test.ts
+      # Both suites reuse the accepted images and own isolated containers.
+      # Overlap metadata/document checks with runtime conformance without
+      # another image download; retain both verdicts and their complete logs.
+      - name: Run image validation and sandbox runtime behavior
+        run: |
+          set -euo pipefail
+          LOG_DIR=$(mktemp -d "${RUNNER_TEMP}/image-validation.XXXXXX")
+          PULL_POLICY=never bun services/platform/tests/integration/container-image-test.ts > "${LOG_DIR}/images.log" 2>&1 &
+          IMAGES_PID=$!
+          IMAGE=tale-sandbox-runtime:latest bun services/platform/tests/integration/container-sandbox-runtime-test.ts > "${LOG_DIR}/runtime.log" 2>&1 &
+          RUNTIME_PID=$!
+          FAILED=0
+          if ! wait "$IMAGES_PID"; then FAILED=1; fi
+          if ! wait "$RUNTIME_PID"; then FAILED=1; fi
+          echo '::group::Container image validation'
+          cat "${LOG_DIR}/images.log"
+          echo '::endgroup::'
+          echo '::group::Sandbox runtime conformance'
+          cat "${LOG_DIR}/runtime.log"
+          echo '::endgroup::'
+          exit "$FAILED"
         env:
           SKIP_BUILD: 'true'
-          PULL_POLICY: never
 
-      - name: Validate sandbox runtime behavior
-        run: bun services/platform/tests/integration/container-sandbox-runtime-test.ts
-        env:
-          SKIP_BUILD: 'true'
-          IMAGE: tale-sandbox-runtime:latest
+      - name: Upload image validation logs
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: image-validation-logs-attempt-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/image-validation.*/*.log
+          retention-days: 7
+          # Pull/setup failure can prevent the probes from creating their logs.
+          if-no-files-found: ignore
 
       - name: Summary
         if: always()

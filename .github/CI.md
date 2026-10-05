@@ -39,6 +39,12 @@ needs fewer runners, while a long CPU-bound suite can benefit from more slices.
   preflight every digest receipt, pull at most three images concurrently, and check each
   source revision before tagging it locally. Every child must succeed before the runtime
   alias is created.
+  Image metadata/document checks and sandbox runtime conformance then run as two
+  independent processes against those accepted images. Their containers own private
+  temporary filesystems; both processes finish and print their separate logs even when
+  one fails, and either failure rejects the job. Full or partial logs are retained for
+  seven days, including when a probe times out. Forks retain their sequential local
+  build and conformance path.
 - The four standalone container tests load their cached Buildx image into Docker and pass
   `SKIP_BUILD=true` and `PULL_POLICY=never` to the existing probes. Their Compose commands
   test those local bytes. Compose produces the Bake plan, preserving its build arguments,
@@ -52,7 +58,9 @@ needs fewer runners, while a long CPU-bound suite can benefit from more slices.
   still generate and build their binaries; repeating the same source suite on the same
   host OS adds no platform coverage. Cross legs use a proven CLI-only frozen install
   and keep its download cache in a separate namespace. Native source tests retain
-  the full workspace install because they import platform auth modules.
+  the full workspace install because they import platform auth modules. Bun runs at
+  most two source test files in parallel, isolating each file's modules and globals;
+  tests within a file remain serial. Compiled smoke discovery remains serial.
   Binary artifacts use fast compression; all five targets still build, native binaries
   retain smoke tests, and both macOS targets retain signature checks. Command suites
   run source cases before compilation, then select only the explicit `TALE_BINARY`
@@ -167,6 +175,9 @@ Writing a requested SARIF report must also succeed; reporting failures fail the 
 See [the repo contract](../.agents/repo.md#a-green-check-is-not-always-a-run) before
 interpreting a green cached result. Backend integration always executes its strict lanes;
 performance measurements and Playwright journeys are never replayed as tests.
+Its shared database, session and process state requires serial lanes. The disposable
+hosted integration runner skips only Buildx teardown; it still builds the database
+from the checked-out source and requires every lane to run.
 
 ## Evidence and regression checks
 
@@ -216,6 +227,16 @@ Windows smoke repeated 19 source command cases that had already passed before
 compilation. Those repeats consumed 47.8 seconds, alongside 38.3 seconds of compiled
 command cases. Selecting only the compiled target in the second lane removes that
 duplicate work while retaining both source and binary coverage.
+
+[Checks run 37256749343](https://github.com/tale-project/tale/actions/runs/37256749343)
+at `8b6723935` spent 297 seconds executing all 230 backend integration lanes and
+9 seconds tearing down its disposable builder. Its Unit step spent 146 seconds on
+fresh CLI tests; the platform's 438.6-second result was a cache replay. In
+[Build run 37253041674](https://github.com/tale-project/tale/actions/runs/37253041674),
+image validation took 13 seconds and runtime conformance took 91 seconds, after
+their shared image pulls. Overlapping these independent probes avoids extra runner
+setup and another download of the roughly 6 GB runtime image. These baseline durations
+identify the work being overlapped; they do not establish a controlled speedup.
 
 A local inventory verified that the 67 platform Playwright tests partition exactly once across
 the four shards (17, 17, 17 and 16 tests). An isolated Bun 1.4.2 checkout installed 265 packages
