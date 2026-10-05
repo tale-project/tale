@@ -112,8 +112,8 @@ belongs to. A run of another project, and an import with no run, are refused
 
 ### CONN-R12 · Importing the same items again keeps the progress made on them here
 
-A task that was imported before is matched, not duplicated, and what people changed on it in
-Tale since is kept.
+A task that was imported before is matched within its project, not duplicated. A repeat
+leaves the task's status and its description as they are in Tale.
 
 - **Example**: An issue was imported and Mia moved its task to Done. The import runs again →
   the task is still Done, and there is one task for the issue.
