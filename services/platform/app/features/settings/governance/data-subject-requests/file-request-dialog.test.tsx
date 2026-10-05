@@ -97,14 +97,16 @@ describe('FileRequestDialog', () => {
     expect(memberQuery.refetch).toHaveBeenCalledOnce();
   });
 
-  it('keeps the normal empty state for a successful empty read', () => {
-    render(
+  it('keeps the normal empty state for a successful empty read', async () => {
+    const { user } = render(
       <FileRequestDialog
         open={true}
         onOpenChange={vi.fn()}
         organizationId="org-1"
       />,
     );
+
+    await user.click(screen.getByLabelText('Subject'));
 
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     expect(screen.getByText('No matching members.')).toBeInTheDocument();

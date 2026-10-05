@@ -59,6 +59,7 @@ function MemberPickerReadFailure({
   onRetry: () => void;
 }) {
   const { t } = useT('governance');
+  const { t: tCommon } = useT('common');
   const detail = failureDetail(error);
 
   return (
@@ -86,7 +87,7 @@ function MemberPickerReadFailure({
           if (!retrying) onRetry();
         }}
       >
-        {t('common.actions.tryAgain')}
+        {tCommon('actions.tryAgain')}
       </Button>
     </Alert>
   );
@@ -98,6 +99,7 @@ export function FileRequestDialog({
   organizationId,
 }: FileRequestDialogProps) {
   const { t } = useT('governance');
+  const { t: tCommon } = useT('common');
   const { toast } = useToast();
   const navigate = useNavigate();
   const { mutateAsync, isPending } = useRequestErasure();
@@ -248,7 +250,7 @@ export function FileRequestDialog({
           disabled={members.isLoading || membersFailed}
           description={
             members.isLoading && !membersFailed
-              ? t('common.actions.loading')
+              ? tCommon('actions.loading')
               : undefined
           }
           emptyText={t(
