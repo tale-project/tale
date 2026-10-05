@@ -14,6 +14,7 @@ interface CronSchedule {
 }
 
 export const SCHEDULES: CronSchedule[] = [
+  { name: 'files.recover_retirements', cron: '* * * * *' },
   // Better Auth deletes an expired session only when it is presented again;
   // one nobody comes back with stays for good. Daily sweep.
   { name: 'maintenance.expired_sessions', cron: '0 3 * * *' },

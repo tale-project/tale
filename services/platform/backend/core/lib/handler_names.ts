@@ -192,6 +192,7 @@ interface HandlerNames {
     };
     internal_queries: FunctionRef & {
       filterStorageIdsReadable: FunctionRef;
+      resolveReadableStorageBindings: FunctionRef;
       findCachedTranscript: FunctionRef;
       getByStorageId: FunctionRef;
       listMailAttachmentsForChat: FunctionRef;

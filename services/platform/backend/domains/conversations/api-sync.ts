@@ -15,10 +15,12 @@ import {
 import { toJson } from '../../db/sql.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
+import { queueBlobRetirement } from '../files/retirement.ts';
 import { FileError, statOrgBlob } from '../files/service.ts';
 import { firstForeignUpload } from '../files/upload-intents.ts';
 import { assertOwnedAttachments } from './attachment-ownership.ts';
 import { completePendingDraftInTx } from './draft.ts';
+import { mailAttachmentRefs } from './message-corpus.ts';
 import { applyConversationRouting } from './routing.ts';
 import {
   addMessageToConversation,
@@ -461,7 +463,17 @@ export async function synchronizeConversation(
     // have no receipt and cannot be erased by an older source snapshot.
     for (const removed of byExternalId.values()) {
       if (removed.sourceVersion > input.version) continue;
-      await tx`DELETE FROM app.conversation_messages WHERE id = ${removed.messageId} AND org_id = ${viewer.organizationId}`;
+      const retired = await tx<{ metadata: unknown; owner: string | null }[]>`
+        DELETE FROM app.conversation_messages WHERE id = ${removed.messageId} AND org_id = ${viewer.organizationId}
+        RETURNING metadata, attachment_owner_user_id AS owner
+      `;
+      await queueBlobRetirement(
+        tx,
+        viewer.organizationId,
+        retired.flatMap((row) => mailAttachmentRefs(row.metadata)),
+        Date.now(),
+        retired.flatMap((row) => (row.owner ? [row.owner] : [])),
+      );
     }
     await tx`
       UPDATE app.conversations SET subject = ${input.subject}, status = ${input.status},
@@ -585,6 +597,8 @@ export async function queueApiReply(
       INSERT INTO app.conversation_api_deliveries(message_id, conversation_id, org_id, actor_user_id, actor_email, body, available_at_ms, retry_at_ms)
       VALUES (${created.messageId}, ${args.conversationId}, ${args.organizationId}, ${args.actor.userId}, ${actorEmail}, ${args.body}, ${args.availableAt}, ${args.availableAt})
     `;
+    await tx`UPDATE app.conversation_messages SET attachment_owner_user_id = ${args.actor.userId}
+      WHERE id = ${created.messageId} AND org_id = ${args.organizationId}`;
     // The human's send consumes the drafted reply on this lane exactly as the
     // email lane's does — otherwise the card stayed pending and the composer
     // re-offered the sent text on every reload.
@@ -1019,7 +1033,21 @@ export async function acknowledgeApiDelivery(
         'Receipt belongs to another message',
         409,
       );
-    await tx`UPDATE app.conversation_messages SET delivery_state = 'delivered', sent_at_ms = coalesce(sent_at_ms, ${now}), delivered_at_ms = coalesce(delivered_at_ms, ${now}), metadata = coalesce(metadata, '{}'::jsonb) - 'error' - 'errorCode' WHERE id = ${messageId} AND org_id = ${viewer.organizationId}`;
+    const settled = await tx<{ metadata: unknown; owner: string | null }[]>`
+      UPDATE app.conversation_messages SET delivery_state = 'delivered', sent_at_ms = coalesce(sent_at_ms, ${now}), delivered_at_ms = coalesce(delivered_at_ms, ${now}), metadata = coalesce(metadata, '{}'::jsonb) - 'error' - 'errorCode'
+      WHERE id = ${messageId} AND org_id = ${viewer.organizationId}
+        AND direction = 'outbound' AND delivery_state IN ('queued', 'failed')
+      RETURNING metadata, attachment_owner_user_id AS owner
+    `;
+    await queueBlobRetirement(
+      tx,
+      viewer.organizationId,
+      settled.flatMap((settlement) => mailAttachmentRefs(settlement.metadata)),
+      Date.now(),
+      settled.flatMap((settlement) =>
+        settlement.owner ? [settlement.owner] : [],
+      ),
+    );
     await hint(tx, viewer.organizationId, row.conversationId);
     return { ok: true };
   });

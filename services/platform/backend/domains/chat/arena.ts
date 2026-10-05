@@ -241,10 +241,12 @@ export async function ensureArenaPair(
         blockedReason: string | null;
         error: string | null;
         order: number;
+        attachmentOwnership: unknown;
       }[]
     >`
       SELECT role, parts, text, model, provider_slug AS "providerSlug",
-             usage, blocked_reason AS "blockedReason", error, "order"
+             usage, blocked_reason AS "blockedReason", error, "order",
+             attachment_ownership AS "attachmentOwnership"
       FROM app.messages
       WHERE thread_id = ${thread.id}
       ORDER BY "order" DESC, step_order DESC
@@ -279,13 +281,15 @@ export async function ensureArenaPair(
       await tx`
         INSERT INTO app.messages (
           thread_id, org_id, "order", step_order, role, parts, text, model,
-          provider_slug, usage, blocked_reason, error, status, created_at_ms
+          provider_slug, usage, blocked_reason, error, status, created_at_ms,
+          attachment_ownership
         ) VALUES (
           ${idB}, ${args.organizationId}, ${sequence}, 0, ${message.role},
           ${message.parts === null ? null : tx.json(toJson(message.parts))},
           ${message.text}, ${message.model}, ${message.providerSlug},
           ${message.usage === null ? null : tx.json(toJson(message.usage))},
-          ${message.blockedReason}, ${message.error}, 'complete', ${now}
+          ${message.blockedReason}, ${message.error}, 'complete', ${now},
+          ${message.attachmentOwnership === null ? null : tx.json(toJson(message.attachmentOwnership))}
         )
       `;
       sequence += 1;

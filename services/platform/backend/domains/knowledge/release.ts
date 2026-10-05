@@ -13,6 +13,7 @@ import {
 import { parseBlobRef } from '../../core/lib/storage/blob_ref.ts';
 import { deleteOrgObject } from '../../lib/object-store.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
+import { preserveChatAttachmentOwnership } from '../files/chat-ownership.ts';
 import { assessMessageRefLiveness, assessRefLiveness } from './liveness.ts';
 import { queueRefRelease } from './release-queue.ts';
 import {
@@ -67,6 +68,9 @@ export interface ReleaseOutcome {
   /** Refs something still references — corpus row and bytes stay. */
   kept: string[];
   failures: ReleaseFailure[];
+  bytesRetained?: string[];
+  bytesDeleted?: string[];
+  bytesUnknown?: string[];
 }
 
 export interface ReleaseRefsArgs {
@@ -154,6 +158,9 @@ export async function releaseRefs(
   await releaseMessageRefs(sql, args, messageRefs, outcome);
   if (refs.length === 0) return outcome;
 
+  for (const ref of refs)
+    await preserveChatAttachmentOwnership(sql, args.organizationId, ref);
+
   const liveness = await assessRefLiveness(sql, {
     organizationId: args.organizationId,
     refs,
@@ -185,6 +192,8 @@ export async function releaseRefs(
   for (const entry of liveness) {
     if (corpusFailed.has(entry.ref)) continue; // retry releases both surfaces
     if (entry.blobLive) {
+      if (args.excludeDocumentId !== undefined)
+        (outcome.bytesRetained ??= []).push(entry.ref);
       if (entry.corpusLive) outcome.kept.push(entry.ref);
       else outcome.released.push(entry.ref); // corpus gone, bytes retained
       continue;
@@ -203,6 +212,11 @@ export async function releaseRefs(
           AND lifecycle_status = 'trashed' AND document_id IS NULL
       `;
       outcome.released.push(entry.ref);
+      if (args.excludeDocumentId !== undefined) {
+        if (parsed.backend === 's3')
+          (outcome.bytesDeleted ??= []).push(entry.ref);
+        else (outcome.bytesUnknown ??= []).push(entry.ref);
+      }
     } catch (error) {
       outcome.failures.push({
         ref: entry.ref,

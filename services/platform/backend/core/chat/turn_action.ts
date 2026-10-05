@@ -1037,6 +1037,22 @@ export async function executeTurn(
           ),
         )
       : null;
+  const pendingAttachmentProvenance =
+    sentAttachments.length > 0
+      ? settled(
+          ctx.runQuery(
+            internal.file_metadata.internal_queries
+              .resolveReadableStorageBindings,
+            {
+              organizationId: args.organizationId,
+              userId: args.userId,
+              storageIds: sentAttachments.map(
+                (attachment) => attachment.fileId,
+              ),
+            },
+          ),
+        )
+      : null;
   const pendingResolved = settled(
     resolveModel(
       ctx,
@@ -1124,6 +1140,10 @@ export async function executeTurn(
       },
     );
   }
+  const attachmentProvenance =
+    pendingAttachmentProvenance === null
+      ? undefined
+      : unwrap(await pendingAttachmentProvenance);
 
   const resolved = unwrap(await pendingResolved);
   const policies = unwrap(await pendingPolicies);
@@ -1314,6 +1334,7 @@ export async function executeTurn(
     credential: { authMethod: 'api-key' } satisfies CredentialAuth,
     executionMode: 'direct',
     ...(args.resend === true ? { appendUserMessage: false } : {}),
+    ...(attachmentProvenance !== undefined ? { attachmentProvenance } : {}),
   };
 
   return runTurn(request, deps);
