@@ -45,6 +45,14 @@ cached transcript after a failed refresh. These component cases are owned by
 `app/features/tasks/components/task-agent-run-entry.test.tsx` (#3830, #3831).
 Real-browser focus trapping, speech and narrow-screen layout remain manual.
 
+Task agent latest-run read failures keep an EN/DE/FR alert and Try again in
+the assignment lane, including for read-only viewers. Retrying only refetches
+the read, restores stranded focus after another failure, and recovers Start
+and Details without changing the assignment. Initial loading remains quiet;
+cached run controls survive a failed background read. These cases are owned
+by `app/features/tasks/components/task-agent-run-entry.test.tsx` (#3829).
+Real-browser focus, speech and narrow-screen layout remain manual.
+
 Text-only edits retain the original uploaded attachment references in both
 the send request and optimistic message, leave unrelated composer files
 staged, and keep regeneration on its original-prompt path:

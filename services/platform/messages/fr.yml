@@ -7585,6 +7585,7 @@ tasks:
     failureTitle: L’agent n’a pas pu terminer cette tâche
     reported: Ce que l’exécution a signalé
     logReadFailed: Le journal de l’agent n’a pas pu être chargé. Réessaie.
+    runReadFailed: L’exécution de l’agent n’a pas pu être chargée. Réessaie.
     failure:
       budget: Une limite d’utilisation a arrêté cette exécution. Demande à un admin de la relever, puis relance l’agent.
       setup: Il manque quelque chose à cet agent — son modèle, l’un de ses skills ou l’agent lui-même. Un éditeur ou un admin peut corriger cela dans l’onglet Agents du projet.
