@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { i18n } from '@/lib/i18n/i18n';
+import { checkAccessibility } from '@/tests/utils/a11y';
 import {
   SHIPPED_LOCALES,
   forgetSavedLocale,
@@ -173,6 +174,16 @@ describe(
         ).toBeEnabled();
       }
       expect(screen.queryByRole('status')).toBeNull();
+    });
+
+    it('passes axe with the unavailable row and the alert on screen', async () => {
+      backend.on(statusOf('onedrive'), () => serviceUnavailable());
+      const { container } = renderCard();
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        label.failure(),
+      );
+      await checkAccessibility(container);
     });
 
     it('says the Google Drive row is unavailable when only its import lane could answer', async () => {
