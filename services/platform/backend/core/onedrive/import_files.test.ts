@@ -490,7 +490,7 @@ describe('importFiles sync configs', () => {
  * item types and in-flight uploads) used to be re-downloaded on every scan.
  * The source's size + modified stamp now stands in for the hash.
  */
-describe('importFiles hash-less change detection', () => {
+describe('importFiles hash-less change detection [ODRIVE-R3]', () => {
   const stamped = {
     _id: 'doc-1' as Id<'documents'>,
     metadata: {
@@ -718,7 +718,7 @@ describe('importFiles files an adopted document under its selected folder', () =
  * path to mirror and went to the hub root whatever folder the person had
  * open. `destinationFolderId` is that folder.
  */
-describe('onedrive importFiles placement', () => {
+describe('onedrive importFiles placement [ODRIVE-R4]', () => {
   const rootFile: ImportItem[] = [
     { id: 'file-r', name: 'r.docx', size: 10, relativePath: 'r.docx' },
   ];
