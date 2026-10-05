@@ -233,11 +233,29 @@ describe('the Integration scope filter', () => {
       configs.filter((config) => !covers(entries, config)),
       'add every root config family to the Integration scope filter',
     ).toEqual([]);
+    for (const config of configs) {
+      expect(
+        uncovered(
+          entries.filter((entry) => !covers([entry], config)),
+          new Set(configs),
+        ),
+        config,
+      ).toContain(config);
+    }
   });
 
   it('covers the compiler configurations actually extended', () => {
     expect(compilerConfigurations).toContain('services/platform/tsconfig.json');
     expect(uncovered(entries, compilerConfigurations)).toEqual([]);
+    for (const config of compilerConfigurations) {
+      expect(
+        uncovered(
+          entries.filter((entry) => !covers([entry], config)),
+          compilerConfigurations,
+        ),
+        config,
+      ).toContain(config);
+    }
   });
 
   it('walks the whole harness', () => {

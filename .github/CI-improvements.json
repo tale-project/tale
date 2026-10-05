@@ -219,7 +219,7 @@
         ".github/actions/setup-turbo/action.yml",
         ".github/workflows/checks.yml"
       ],
-      "proof": "tools/cli/scripts/ci-cache-optimization.test.ts exact actual Dockerfile pin plus malformed/duplicate resolver cases; tools/cli/scripts/ci-cache-optimization.test.ts shared setup order; actionlint; fresh hosted validation pending",
+      "proof": "ci-cache-optimization.test.ts verifies the exact Dockerfile Node pin, malformed/duplicate resolver cases and shared setup order; actionlint passed; hosted Checks37271033992 passed at1dcc2e523.",
       "commits": ["013cef62abe5ce05e2e277d76c082988b11228ea"],
       "origins": ["authored"],
       "id": "CI-019"
@@ -261,7 +261,7 @@
         "tools/cli/scripts/ci-e2e-optimization.test.ts",
         ".github/workflows/cli.yml"
       ],
-      "proof": "ci-checks-optimization enumerates every source checkout credential option; ci-release-performance.test.ts checkout credential/history assertions.; Current YAML and owned candidate-depth guard; securitypart authored earlierf0d76f140, commitlintextensionpending. Dedup with equivalent team token-removal entries.",
+      "proof": "ci-checks-optimization.test.ts enumerates every source checkout credential option; ci-release-performance.test.ts checks checkout credentials and history; ci-e2e-optimization.test.ts checks read-only workflow checkouts. Focused gates and actionlint passed.",
       "commits": ["013cef62abe5ce05e2e277d76c082988b11228ea"],
       "origins": ["authored"],
       "id": "CI-022"
@@ -457,7 +457,7 @@
     {
       "title": "Condition expensive release disk cleanup on measured headroom",
       "before": "Release container gate always removed SDK trees and pruned images (113s in Release37233660424), even for small sites-only releases.",
-      "after": "Upstream introduced shared progressive measured cleanup for native builders and the container gate; the pending authored refinement selects20GiB for sites-only and40GiB for full container validation. Cleanup rechecks after each removal, stops at sufficient headroom, and retains the cold-build fallback.",
+      "after": "Upstream introduced shared progressive measured cleanup for native builders and the container gate; the authored refinement selects20GiB for sites-only and40GiB for full container validation. Cleanup rechecks after each removal, stops at sufficient headroom, and retains the cold-build fallback.",
       "paths": [
         ".github/workflows/release.yml",
         "tools/cli/scripts/ci-disk.test.ts",
@@ -620,8 +620,11 @@
       "title": "Validate the omitted sandbox LLM gateway image",
       "before": "Image harness omitted gateway from its seven-image service list despite publication/pulling/scanning eight images.",
       "after": "Gateway receives nonroot/OCI/ENV/filesystem/health checks and a 300 MiB Docker uncompressed-size budget alongside all other services; observed 255 MiB leaves about 17% growth headroom.",
-      "paths": ["services/platform/tests/integration/container-image-test.ts"],
-      "proof": "Build37264873673 validated the exact gateway receipt but exposed Docker .Size of 255 MiB against a budget mistakenly based on 86.45 MiB compressed registry layers. ci-container-metadata.test.ts executes the actual harness: 255 MiB passes and 301 MiB fails; root/health/provenance failures remain covered.",
+      "paths": [
+        "services/platform/tests/integration/container-image-test.ts",
+        "tools/cli/scripts/ci-container-metadata.test.ts"
+      ],
+      "proof": "Build37264873673 exposed hosted Docker .Size of 255 MiB against a budget calibrated from 86.45 MiB packed data. Exact 43a9, a3f2 and 546ace manifests share all seven compressed layer digests and rootfs diff IDs: no filesystem growth. Packed Docker containerd size is 90,653,959 bytes; expanded regular file data is 268,266,714 bytes (255.839 MiB). The actual harness accepts both measured representations and the 300 MiB boundary, rejects 301 MiB, and retains root/health/provenance failures.",
       "commits": ["013cef62abe5ce05e2e277d76c082988b11228ea"],
       "origins": ["authored"],
       "id": "CI-053"
@@ -1356,7 +1359,7 @@
       "before": "Single platform Unit task took480.563s on fresh hosted Checks37258100927.",
       "after": "Two complete Vitest shards use unchanged isolation/worker pools with separate cache scopes.",
       "paths": [".github/workflows/checks.yml"],
-      "proof": "ci-checks-optimization actual Turbo shard parse/hash and complete platform file partition proof; hosted integrated run pending.; ci-checks-optimization actualTurbo two distinct hashes and complete executable task coverage; real installedVitest server/PII project policy; focused105/105",
+      "proof": "ci-checks-optimization.test.ts verifies distinct Turbo shard hashes, complete executable task coverage and the installed Vitest server/PII project policy; focused105/105 passed. Hosted Checks37260796248 executed both platform shards freshly in151.4s/198.7s and passed; later Checks37271033992 also passed.",
       "commits": ["ab8d18ec2670a9e3e58978a22c7ce977e4602022"],
       "origins": ["integrated"],
       "id": "CI-115"
@@ -1542,8 +1545,8 @@
     }
   ],
   "validation": {
-    "focused": "Integrated Checks/cache105tests1903assertions, container/release66tests1204assertions, publication/cleanup/shared171tests, E2E/security57tests478assertions; historical-helper fallback2tests158assertions. Exact Bun1.4.2 lint/types, formatter and actionlint passed.",
-    "local_broad": "SAST exit0 with0findings. Two cold local full-check attempts failed only unchanged sandbox5s process-fixture budgets under shared-machine contention; a complete dependency-successful continuation is running without changing budgets or exit status.",
-    "hosted": "Fresh final hosted validation will be recorded in CI.md; local or hosted cache replays are not fresh execution proof."
+    "focused": "Integrated Checks/cache105tests1903assertions, container/release66tests1204assertions, publication/cleanup/shared171tests, E2E/security57tests478assertions; historical-helper fallback2tests158assertions. Exact Bun1.4.2 lint/types, formatter and actionlint passed. Final guard follow-up: real compiler guard6/6; real Compose helper plus actual Turbo input closure122/122 (2403assertions); both local/hosted failed-cache variants48assertions; 185other release/metadata/Build/deployment/cache cases passed in the integration batch. Five affected-workspace lint/type/generate tasks executed freshly and passed; Knip/actionlint and commit hooks passed.",
+    "local_broad": "Frozen-source full gate:47/49tasks passed (38cache replays),30m49.996s. Fresh platformUnit passed82,098tests; fresh CLI passed2247tests/0fail (29existing skips). Both affected workspaces lint/types passed. The gate remained red for unchanged sandbox5s subprocess fixtures and load-sensitive UI timeouts; all12failed UI files subsequently passed241tests with1worker and unchanged assertions/budgets. Full SAST exit0:476applicable rules/4541files/0findings,91partially analyzed files under the existing policy. The red monolithic gate is not represented as green.",
+    "hosted": "Full E2E37265091303 at4a77db784 passed214browser tests with zero retries and822SEO tests (one preexisting fixme). Exact-source Checks37271033992, CLI37271033868, SAST37271033889 and Security37271160205 passed at1dcc2e523. Ordinary Build37269909176 at3184c0b2b passed all8stack builders, smoke, metadata/runtime checks and the selected platform scan, including actualTrivy0.70 SBOM Node/Python hashes and JSON-conversion negatives. Standalone jobs were not selected in that push. Regressions found during validation were corrected, not counted as new improvements. Cached verdicts, cancelled runs and older candidate sources are distinguished from fresh execution."
   }
 }

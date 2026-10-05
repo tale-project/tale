@@ -55,12 +55,17 @@ Frage `/metrics/sla-rules` nicht als Metriken ab. Die generierten Regeln verweis
 
 ## Ziel für Fehlerberichte wählen
 
-`SENTRY_DSN` aktiviert die optionale Fehlererfassung. Du kannst Sentry oder einen kompatiblen Dienst wie GlitchTip oder Bugsink verwenden. Browser und Backend nutzen denselben DSN; Backend-Ereignisse enthalten Prozessrolle und Versionsnummer.
+`SENTRY_DSN` aktiviert die optionale Fehlererfassung. Du kannst Sentry oder einen kompatiblen Dienst wie GlitchTip oder Bugsink verwenden. Browser, Backend und Sandbox nutzen denselben DSN und die Umgebungsbezeichnung `SENTRY_ENVIRONMENT`; Server-Ereignisse enthalten Prozessrolle und Versionsnummer.
 
 ```bash
 SENTRY_DSN=https://your-key@your-sentry-host/project-id
+SENTRY_ENVIRONMENT=example-pr
 SENTRY_TRACES_SAMPLE_RATE=0.1
 ```
+
+Verwaltete Deployments verwenden als Umgebungsbezeichnung standardmäßig ihren bestehenden `name`. Für eine andere Bezeichnung deklarierst du `"environment": { "SENTRY_ENVIRONMENT": { "env": "TALE_REPORTING_ENVIRONMENT" } }` in der Deployment-Spezifikation und setzt die Variable am Ziel. Der Wert beginnt mit einem Kleinbuchstaben oder einer Ziffer und enthält 1–64 Kleinbuchstaben, Ziffern oder Bindestriche. Deployment-Identität, Zustand und gespeicherte Zugangsdaten bleiben an ihren bestehenden Pfaden.
+
+Sandbox-Fehler umfassen fehlgeschlagene HTTP-Anfragen und Hintergrundaufgaben. Erwartete Client-Abbrüche und nach einer Abmeldung geschlossene SSE-Streams werden ausgeschlossen. Die Sandbox sendet nur Fehler; die Tracing-Einstellungen für Browser und Backend aktivieren kein Sandbox-Tracing. Sie nutzt den unten beschriebenen Datenschutzfilter des Backends.
 
 `SENTRY_TRACES_SAMPLE_RATE` gilt für Leistungstraces im Browser; in der Entwicklung beträgt die Standardrate 1.0. Backend-Tracing ist standardmäßig deaktiviert. Setze `BACKEND_SENTRY_TRACES_SAMPLE_RATE` auf einen Wert zwischen `0` und `1`, um es einzuschalten (zum Beispiel erfasst `0.05` 5 % der Vorgänge), und verwende ein Ziel, das Sentry-Transaktionen annimmt. Erstelle die Backend-API- und Worker-Dienste nach der Änderung neu. Wähle Raten passend zu deinem Überwachungsbudget; mit der Backend-Rate `0` deaktivierst du Spans, während die Fehlererfassung aktiv bleibt.
 

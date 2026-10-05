@@ -65,6 +65,12 @@ const CHECKED_CI_FILES = [
  * entrypoints and Dockerfiles, and the workflows that build and release them.
  */
 const PARITY_FILES = [
+  'services/platform/tests/integration/lib/document-tools.ts',
+  'services/platform/tests/integration/fixtures/document-tools/workbook.xls',
+  'services/platform/tests/integration/fixtures/document-tools/workbook.xlsx',
+  'services/sandbox-runtime/document-python-requirements.txt',
+  'services/sandbox-runtime/document-node/package.json',
+  'services/sandbox-runtime/document-node/package-lock.json',
   '.github/workflows/build.yml',
   '.github/workflows/cli.yml',
   '.github/workflows/release.yml',

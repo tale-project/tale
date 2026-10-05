@@ -35,7 +35,7 @@ type Workflow = {
       strategy?: {
         'max-parallel'?: number;
         matrix?: {
-          service?: string[];
+          service?: string[] | string;
           include?: { os: string; cross?: boolean }[];
         };
       };
@@ -115,7 +115,10 @@ async function execute(
   directories.push(directory);
   const output = join(directory, 'output');
   await writeFile(output, '');
-  const shell = process.platform === 'darwin' ? '/bin/bash' : 'bash';
+  // Resolve before a negative-control fixture replaces PATH with its own bin.
+  const shell = Bun.which(process.platform === 'darwin' ? '/bin/bash' : 'bash');
+  if (!shell)
+    throw new Error('Build CI fixtures require Bash on the host PATH');
   const child = Bun.spawn([shell, '-euo', 'pipefail', '-c', script], {
     cwd: cwd ?? directory,
     env: {
@@ -141,6 +144,28 @@ async function execute(
     outputs: outputs(await readFile(output, 'utf8')),
   };
 }
+
+test.skipIf(process.platform === 'win32')(
+  'workflow shell fixtures launch without adding Bash to their isolated PATH',
+  async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'tale-build-ci-path-'));
+    directories.push(directory);
+    const result = await execute(
+      `printf '%s\\n' "$PATH"
+if command -v bash >/dev/null 2>&1; then
+  printf 'Bash unexpectedly available in fixture PATH\\n' >&2
+  exit 17
+fi
+printf 'shell-started\\n'
+`,
+      { PATH: directory },
+      directory,
+    );
+    expect(result.code, result.stdout + result.stderr).toBe(0);
+    expect(result.stdout).toBe(`${directory}\nshell-started\n`);
+    expect(result.stderr).toBe('');
+  },
+);
 
 test.skipIf(process.platform === 'win32')(
   'standalone site changes avoid the platform stack while shared build inputs retain full coverage',
@@ -227,6 +252,11 @@ test.skipIf(process.platform === 'win32')(
       ],
       [
         '.github/workflows/build.yml',
+        ['platform', 'web', 'docs', 'ui-docs', 'ai-gateway'],
+        true,
+      ],
+      [
+        'tools/cli/scripts/check-sbom-hashes.ts',
         ['platform', 'web', 'docs', 'ui-docs', 'ai-gateway'],
         true,
       ],
@@ -724,17 +754,39 @@ describe.skipIf(process.platform === 'win32')(
       );
     });
 
-    test('root build inputs validate every workspace image and keep candidate breadth', async () => {
+    test('root build inputs and SBOM helper edits validate every workspace image and keep candidate breadth', async () => {
       const build = await workflow();
       const filters = await buildFilters();
       const matrix = findStep(build.jobs.changes!, 'Compute service matrix');
+      const scan = build.jobs['vulnerability-scan']!;
+      const publishedServices = build.jobs.build!.strategy!.matrix!.service;
+      if (!Array.isArray(publishedServices))
+        throw new Error('Build image matrix must list its published services');
+      const sbomHelper = String(
+        findStep(scan, 'Checkout SBOM hash guard').with!['sparse-checkout'],
+      );
+      expect(sbomHelper).toBe('tools/cli/scripts/check-sbom-hashes.ts');
+      expect(build.on.pull_request!.paths).toBeUndefined();
+      expect(await scopePaths('build')).toContain(sbomHelper);
+      expect(build.on.push!.paths!).toContain(sbomHelper);
+      expect(filters.image_inputs!).toContain(sbomHelper);
+      const helperChanges = Object.keys(filters).filter((key) =>
+        matches(filters[key]!, sbomHelper),
+      );
+      expect(helperChanges).toEqual(['image_inputs']);
+      expect(scan.strategy?.matrix?.service).toBe(
+        '${{ fromJson(needs.changes.outputs.scannable_services) }}',
+      );
+      expect(findStep(scan, 'Verify SBOM package hashes').if).toBe(
+        'matrix.service == fromJSON(needs.changes.outputs.scannable_services)[0]',
+      );
       for (const candidate of ['', source]) {
         const result = await execute(matrix.run!, {
           CANDIDATE_SHA: candidate,
-          CHANGES: '["build_image_inputs"]',
+          CHANGES: JSON.stringify(helperChanges.map((name) => `build_${name}`)),
           CI_TESTS: 'false',
           STORYBOOK: 'false',
-          IMAGE_INPUTS: 'true',
+          IMAGE_INPUTS: String(helperChanges.includes('image_inputs')),
         });
         expect(result.code, result.stdout + result.stderr).toBe(0);
         const values = outputs(result.output);
@@ -749,6 +801,11 @@ describe.skipIf(process.platform === 'win32')(
           expect(services).toContain(service);
         expect(services).not.toContain('image_inputs');
         expect(values.stack).toBe('true');
+        expect(values.ci_tests).toBe('true');
+        const scannable = JSON.parse(values.scannable!) as string[];
+        expect(scannable.toSorted()).toEqual(
+          candidate ? [] : publishedServices.toSorted(),
+        );
         expect(values.storybook).toBe('true');
         expect(services.toSorted()).toEqual(
           Object.keys(filters)

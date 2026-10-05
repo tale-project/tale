@@ -7,6 +7,7 @@
 
 import type { V1Pod, V1Secret } from '@kubernetes/client-node';
 
+import { reportSandboxError } from '../../error-reporting.ts';
 import type { SpawnerConfig } from '../../types.ts';
 import type { HostBackend, HealthResult, SweepOptions } from '../types.ts';
 import { secretNameFor } from './exec-spec.ts';
@@ -165,6 +166,7 @@ export class KubernetesBackend implements HostBackend {
           'networking.k8s.io/networkpolicies, or apply the policy yourself:',
         err instanceof Error ? err.message : err,
       );
+      reportSandboxError(err, 'kubernetes-egress-policy');
     }
     // Docker-in-container on K8s is not silently shipped: it requires a node-
     // level runtime (sysbox-deploy-k8s / kata-deploy) registering the
