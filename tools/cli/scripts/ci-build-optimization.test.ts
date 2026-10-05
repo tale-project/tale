@@ -33,7 +33,7 @@ type Workflow = {
       strategy?: {
         'max-parallel'?: number;
         matrix?: {
-          service?: string[];
+          service?: string[] | string;
           include?: { os: string; cross?: boolean }[];
         };
       };
@@ -693,19 +693,40 @@ describe.skipIf(process.platform === 'win32')(
       );
     });
 
-    test('root build inputs validate every workspace image and keep candidate breadth', async () => {
+    test('root build inputs and SBOM helper edits validate every workspace image and keep candidate breadth', async () => {
       const build = await workflow();
       const filters = parse(
         String(findStep(build.jobs.changes!, 'Filter paths').with!.filters),
       ) as Record<string, string[]>;
       const matrix = findStep(build.jobs.changes!, 'Compute service matrix');
+      const scan = build.jobs['vulnerability-scan']!;
+      const publishedServices = build.jobs.build!.strategy!.matrix!.service;
+      if (!Array.isArray(publishedServices))
+        throw new Error('Build image matrix must list its published services');
+      const sbomHelper = String(
+        findStep(scan, 'Checkout SBOM hash guard').with!['sparse-checkout'],
+      );
+      expect(sbomHelper).toBe('tools/cli/scripts/check-sbom-hashes.ts');
+      for (const event of ['pull_request', 'push'])
+        expect(build.on[event]!.paths!).toContain(sbomHelper);
+      expect(filters.image_inputs!).toContain(sbomHelper);
+      const helperChanges = Object.keys(filters).filter((key) =>
+        matches(filters[key]!, sbomHelper),
+      );
+      expect(helperChanges).toEqual(['image_inputs']);
+      expect(scan.strategy?.matrix?.service).toBe(
+        '${{ fromJson(needs.changes.outputs.scannable_services) }}',
+      );
+      expect(findStep(scan, 'Verify SBOM package hashes').if).toBe(
+        'matrix.service == fromJSON(needs.changes.outputs.scannable_services)[0]',
+      );
       for (const candidate of ['', source]) {
         const result = await execute(matrix.run!, {
           CANDIDATE_SHA: candidate,
-          CHANGES: '["image_inputs"]',
+          CHANGES: JSON.stringify(helperChanges),
           CI_TESTS: 'false',
           STORYBOOK: 'false',
-          IMAGE_INPUTS: 'true',
+          IMAGE_INPUTS: String(helperChanges.includes('image_inputs')),
         });
         expect(result.code, result.stdout + result.stderr).toBe(0);
         const values = outputs(result.output);
@@ -720,6 +741,11 @@ describe.skipIf(process.platform === 'win32')(
           expect(services).toContain(service);
         expect(services).not.toContain('image_inputs');
         expect(values.stack).toBe('true');
+        expect(values.ci_tests).toBe('true');
+        const scannable = JSON.parse(values.scannable!) as string[];
+        expect(scannable.toSorted()).toEqual(
+          candidate ? [] : publishedServices.toSorted(),
+        );
         expect(values.storybook).toBe('true');
         expect(services.toSorted()).toEqual(
           Object.keys(filters)

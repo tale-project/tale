@@ -29,6 +29,7 @@ on:
       - 'docs/**'
       - '.github/workflows/build.yml'
       - '.github/scripts/pull-ci-images.sh'
+      - 'tools/cli/scripts/check-sbom-hashes.ts'
       - '.github/actions/setup-turbo/**'
       - 'compose*.yml'
       - 'services/platform/tests/integration/container-*'
@@ -53,6 +54,7 @@ on:
       - 'docs/**'
       - '.github/workflows/build.yml'
       - '.github/scripts/pull-ci-images.sh'
+      - 'tools/cli/scripts/check-sbom-hashes.ts'
       - '.github/actions/setup-turbo/**'
       - 'compose*.yml'
       - 'services/platform/tests/integration/container-*'
@@ -159,6 +161,7 @@ jobs:
               - 'tsconfig*.json'
               - '.dockerignore'
               - '.github/workflows/build.yml'
+              - 'tools/cli/scripts/check-sbom-hashes.ts'
               - '.github/actions/setup-turbo/**'
               - 'turbo.json'
             platform:
