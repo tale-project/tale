@@ -25,7 +25,7 @@ outside connector run without approval.
 - **Example**: Ada's organization requires approval for writes to its internal product list →
   an automation that updates a product pauses for approval.
 
-### APV-R3 · A rule for one action beats a rule for its connector, and a later rule an earlier
+### APV-R3 · A rule for one action beats a rule for its whole connector
 
 When two rules of the policy apply to the same write, the one that names the action wins over
 the one that names the whole connector. Between two rules that are equally specific, the one
