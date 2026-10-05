@@ -261,6 +261,12 @@ own files), then list the outside files as `$TURBO_ROOT$/<path>`:
   follows runtime imports and re-exports and requires every visited module and source-text read
   to remain hashed, including recursive workspace dependencies. Keep that proof green before
   narrowing a component input list.
+- [`services/sandbox-runtime/daemon/turbo.json`](../services/sandbox-runtime/daemon/turbo.json)
+  gives daemon tests, type-aware lint and typecheck the sandbox client closure reached by
+  `src/exec-completion.test.ts`: `session/runnerd-client.ts`, `session/runnerd-protocol.ts`
+  and `operation-budget.ts` under `services/sandbox/src`. The dependency fixture in
+  `tools/cli/scripts/turbo-dependencies.test.ts` proves each edit invalidates those checks
+  while unrelated sandbox source and the daemon's production build retain their hashes.
 - [`services/docs/turbo.json`](../services/docs/turbo.json) gives `@tale/docs` the root `docs/`
   tree (test, build), its JSON maps (typecheck, lint), and the root `README*.md` plus `@tale/ui`'s
   i18n catalogs and test framework (test). Its guard is `services/docs/tests/turbo-inputs.test.ts`.

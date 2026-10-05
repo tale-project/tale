@@ -9,7 +9,7 @@ import {
   writeFile,
 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { z } from 'zod';
@@ -26,6 +26,12 @@ const HASH_TASKS = [
   'storybook:build',
 ];
 const ALL_TASKS = [...HASH_TASKS, 'build', 'test:prerender'];
+const DAEMON_TASKS = ['lint', 'typecheck', 'test'];
+const DAEMON_OUTSIDE_FILES = [
+  'services/sandbox/src/session/runnerd-client.ts',
+  'services/sandbox/src/session/runnerd-protocol.ts',
+  'services/sandbox/src/operation-budget.ts',
+];
 const temporary: string[] = [];
 
 const dryRunSchema = z.object({
@@ -77,7 +83,7 @@ function graph(cwd: string): Map<string, Task> {
 
 /** Real production definitions, synthetic source graph, no dependency install.
  * The intermediate and leaf have no build scripts, as source-only packages do. */
-async function fixture(): Promise<string> {
+async function fixture(includeDaemon = false): Promise<string> {
   const directory = await mkdtemp(join(tmpdir(), 'tale-turbo-dependencies-'));
   temporary.push(directory);
   await writeFile(
@@ -90,7 +96,10 @@ async function fixture(): Promise<string> {
       name: 'cache-regression-fixture',
       private: true,
       packageManager: 'bun@1.4.2',
-      workspaces: ['packages/*'],
+      workspaces: [
+        'packages/*',
+        ...(includeDaemon ? ['services/sandbox-runtime/daemon'] : []),
+      ],
     }),
   );
   await writeFile(join(directory, '.gitignore'), '.turbo/\ndist/\n');
@@ -168,6 +177,33 @@ async function fixture(): Promise<string> {
     const target = join(directory, file);
     await mkdir(dirname(target), { recursive: true });
     await writeFile(target, source);
+  }
+  if (includeDaemon) {
+    const daemon = join(directory, 'services/sandbox-runtime/daemon');
+    await mkdir(join(daemon, 'src'), { recursive: true });
+    await writeFile(
+      join(daemon, 'package.json'),
+      JSON.stringify({
+        name: '@tale/sandbox-runtime-daemon',
+        version: '0.0.0',
+        scripts: Object.fromEntries(
+          [...DAEMON_TASKS, 'build'].map((name) => [name, 'echo fixture']),
+        ),
+      }),
+    );
+    await writeFile(
+      join(daemon, 'turbo.json'),
+      await readFile(join(ROOT, 'services/sandbox-runtime/daemon/turbo.json')),
+    );
+    await writeFile(join(daemon, 'src/main.ts'), 'export const value = 1;\n');
+    for (const file of [
+      ...DAEMON_OUTSIDE_FILES,
+      'services/sandbox/src/unrelated.ts',
+    ]) {
+      const target = join(directory, file);
+      await mkdir(dirname(target), { recursive: true });
+      await writeFile(target, 'export const value = 1;\n');
+    }
   }
   run('git', ['init', '-q'], directory);
   run('git', ['add', '.'], directory);
@@ -375,6 +411,74 @@ describe('dependency-aware Turbo cache', () => {
       }
       await writeFile(target, contents);
       expect(graph(directory)).toEqual(baseline);
+    }
+  }, 60_000);
+
+  test('daemon checks hash their canonical client closure without hashing unrelated sandbox source', async () => {
+    const daemonRoot = join(ROOT, 'services/sandbox-runtime/daemon');
+    const config = z
+      .object({
+        tasks: z.record(
+          z.string(),
+          z.object({ inputs: z.array(z.string()).optional() }),
+        ),
+      })
+      .parse(
+        JSON.parse(await readFile(join(daemonRoot, 'turbo.json'), 'utf8')),
+      );
+    for (const name of DAEMON_TASKS) {
+      expect(config.tasks[name]?.inputs?.slice(0, 2), name).toEqual([
+        '$TURBO_EXTENDS$',
+        '$TURBO_DEFAULT$',
+      ]);
+      const task = getTask(tasks, `@tale/sandbox-runtime-daemon#${name}`);
+      expect(task.command).not.toBe('<NONEXISTENT>');
+      for (const file of DAEMON_OUTSIDE_FILES) {
+        const input = relative(daemonRoot, join(ROOT, file))
+          .split(sep)
+          .join('/');
+        expect(
+          task.inputs[input],
+          `${task.taskId} hashes ${file}`,
+        ).toBeDefined();
+      }
+      expect(
+        prerequisites(task, tasks).map((entry) => entry.taskId),
+      ).not.toContain('@tale/sandbox#transit');
+    }
+
+    const directory = await fixture(true);
+    const baseline = graph(directory);
+    for (const file of DAEMON_OUTSIDE_FILES) {
+      const target = join(directory, file);
+      const original = await readFile(target, 'utf8');
+      await writeFile(target, `${original}\nexport const changed = true;\n`);
+      const changed = graph(directory);
+      for (const name of DAEMON_TASKS) {
+        const id = `@tale/sandbox-runtime-daemon#${name}`;
+        expect(getTask(changed, id).hash, `${id}: ${file}`).not.toBe(
+          getTask(baseline, id).hash,
+        );
+        const unrelated = `@tale/unrelated#${name}`;
+        expect(getTask(changed, unrelated).hash, unrelated).toBe(
+          getTask(baseline, unrelated).hash,
+        );
+      }
+      const build = '@tale/sandbox-runtime-daemon#build';
+      expect(getTask(changed, build).hash, build).toBe(
+        getTask(baseline, build).hash,
+      );
+      await writeFile(target, original);
+      expect(graph(directory)).toEqual(baseline);
+    }
+    await writeFile(
+      join(directory, 'services/sandbox/src/unrelated.ts'),
+      'export const value = 2;\n',
+    );
+    const unrelated = graph(directory);
+    for (const name of [...DAEMON_TASKS, 'build']) {
+      const id = `@tale/sandbox-runtime-daemon#${name}`;
+      expect(getTask(unrelated, id).hash, id).toBe(getTask(baseline, id).hash);
     }
   }, 60_000);
 
