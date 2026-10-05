@@ -85,6 +85,7 @@ vi.mock('@/app/hooks/use-ability', () => ({
 vi.mock('@/app/hooks/use-backend-action', () => {
   const onSuccessByName = answerAction;
   const mutateByName = new Map<string, ReturnType<typeof vi.fn>>();
+  const mutateAsyncByName = new Map<string, ReturnType<typeof vi.fn>>();
   return {
     useBackendAction: (
       name: string,
@@ -94,37 +95,28 @@ vi.mock('@/app/hooks/use-backend-action', () => {
       if (options?.onError) failAction.set(name, options.onError);
       let mutate = mutateByName.get(name);
       if (!mutate) {
-        mutate = vi.fn(
-          (
-            args: unknown,
-            callbacks?: {
-              onSuccess?: (data: unknown) => void;
-              onError?: () => void;
-            },
-          ) => {
-            if (name === 'websites/actions:searchContent') {
-              searchRequests.push({
-                onSuccess: (data) => {
-                  onSuccessByName.get(name)?.(data);
-                  callbacks?.onSuccess?.(data);
-                },
-                onError: () => {
-                  failAction.get(name)?.();
-                  callbacks?.onError?.();
-                },
-              });
-              return;
-            }
-            if (name !== 'websites/actions:fetchPages') return;
-            const payload =
-              pagesRead.current?.(args as PagesArgs) ?? pagesPayload.current;
-            if (payload)
-              onSuccessByName.get(name)?.(pagesAnswer(payload, args));
-          },
-        );
+        mutate = vi.fn((args: unknown) => {
+          if (name !== 'websites/actions:fetchPages') return;
+          const payload =
+            pagesRead.current?.(args as PagesArgs) ?? pagesPayload.current;
+          if (payload) onSuccessByName.get(name)?.(pagesAnswer(payload, args));
+        });
         mutateByName.set(name, mutate);
       }
-      return { mutate, isPending: false };
+      let mutateAsync = mutateAsyncByName.get(name);
+      if (!mutateAsync) {
+        mutateAsync = vi.fn(
+          () =>
+            new Promise((resolve, reject) => {
+              searchRequests.push({
+                onSuccess: resolve,
+                onError: () => reject(new Error('Search failed')),
+              });
+            }),
+        );
+        mutateAsyncByName.set(name, mutateAsync);
+      }
+      return { mutate, mutateAsync, isPending: false };
     },
   };
 });
@@ -195,34 +187,44 @@ describe('WebsiteViewDialog', () => {
     expect(screen.queryByText('First result')).not.toBeInTheDocument();
   });
 
-  it('keeps loading through obsolete search success and error until the latest empty response', async () => {
-    const { user } = render(
-      <WebsiteViewDialog isOpen onClose={vi.fn()} website={WEBSITE} />,
-    );
-    const search = screen.getByPlaceholderText('Search website content');
+  it.each(['success', 'error'] as const)(
+    'keeps loading through obsolete search %s until the latest empty response',
+    async (outcome) => {
+      const { user } = render(
+        <WebsiteViewDialog isOpen onClose={vi.fn()} website={WEBSITE} />,
+      );
+      const search = screen.getByPlaceholderText('Search website content');
 
-    await user.type(search, 'first{Enter}');
-    await user.clear(search);
-    await user.type(search, 'second{Enter}');
+      await user.type(search, 'first{Enter}');
+      await user.clear(search);
+      await user.type(search, 'second{Enter}');
 
-    expect(searchRequests).toHaveLength(2);
-    expect(screen.getByRole('status', { name: 'Loading' })).toBeInTheDocument();
-    await act(async () => {
-      searchRequests[0]?.onSuccess?.({ results: [] });
-      searchRequests[0]?.onError?.();
-    });
-    expect(screen.getByRole('status', { name: 'Loading' })).toBeInTheDocument();
-    expect(screen.queryByText('No results found')).not.toBeInTheDocument();
-    expect(searchToast).not.toHaveBeenCalled();
+      expect(searchRequests).toHaveLength(2);
+      expect(
+        screen.getByRole('status', { name: 'Loading' }),
+      ).toBeInTheDocument();
+      await act(async () => {
+        if (outcome === 'success') {
+          searchRequests[0]?.onSuccess?.({ results: [] });
+        } else {
+          searchRequests[0]?.onError?.();
+        }
+      });
+      expect(
+        screen.getByRole('status', { name: 'Loading' }),
+      ).toBeInTheDocument();
+      expect(screen.queryByText('No results found')).not.toBeInTheDocument();
+      expect(searchToast).not.toHaveBeenCalled();
 
-    await act(async () => {
-      searchRequests[1]?.onSuccess?.({ results: [] });
-    });
-    expect(
-      screen.queryByRole('status', { name: 'Loading' }),
-    ).not.toBeInTheDocument();
-    expect(screen.getByText('No results found')).toBeInTheDocument();
-  });
+      await act(async () => {
+        searchRequests[1]?.onSuccess?.({ results: [] });
+      });
+      expect(
+        screen.queryByRole('status', { name: 'Loading' }),
+      ).not.toBeInTheDocument();
+      expect(screen.getByText('No results found')).toBeInTheDocument();
+    },
+  );
 
   it('reports the latest search error and stops loading', async () => {
     const { user } = render(
@@ -245,9 +247,14 @@ describe('WebsiteViewDialog', () => {
     });
   });
 
-  it.each(['clear', 'site change'] as const)(
-    'ignores pending search callbacks after %s',
-    async (invalidation) => {
+  it.each([
+    ['clear', 'success'],
+    ['clear', 'error'],
+    ['site change', 'success'],
+    ['site change', 'error'],
+  ] as const)(
+    'ignores pending search %s / %s',
+    async (invalidation, outcome) => {
       const onClose = vi.fn();
       const { user, rerender } = render(
         <WebsiteViewDialog isOpen onClose={onClose} website={WEBSITE} />,
@@ -268,17 +275,20 @@ describe('WebsiteViewDialog', () => {
       }
 
       await act(async () => {
-        searchRequests[0]?.onSuccess?.({
-          results: [
-            {
-              url: 'https://docs.example.com/obsolete',
-              title: 'Obsolete',
-              chunk_index: 0,
-              chunk_content: 'Obsolete result',
-            },
-          ],
-        });
-        searchRequests[0]?.onError?.();
+        if (outcome === 'success') {
+          searchRequests[0]?.onSuccess?.({
+            results: [
+              {
+                url: 'https://docs.example.com/obsolete',
+                title: 'Obsolete',
+                chunk_index: 0,
+                chunk_content: 'Obsolete result',
+              },
+            ],
+          });
+        } else {
+          searchRequests[0]?.onError?.();
+        }
       });
       expect(searchToast).not.toHaveBeenCalled();
       expect(search).toHaveValue('');
@@ -286,10 +296,6 @@ describe('WebsiteViewDialog', () => {
       await user.type(search, 'second{Enter}');
       expect(screen.queryByText('Obsolete result')).not.toBeInTheDocument();
       expect(searchRequests).toHaveLength(2);
-      await act(async () => {
-        searchRequests[0]?.onSuccess?.({ results: [] });
-        searchRequests[0]?.onError?.();
-      });
       expect(search).toHaveValue('second');
       expect(
         screen.getByRole('status', { name: 'Loading' }),
@@ -302,6 +308,26 @@ describe('WebsiteViewDialog', () => {
       expect(screen.getByText('No results found')).toBeInTheDocument();
     },
   );
+
+  it('reports a pending search rejection after the caller unmounts', async () => {
+    const { user, unmount } = render(
+      <WebsiteViewDialog isOpen onClose={vi.fn()} website={WEBSITE} />,
+    );
+    await user.type(
+      screen.getByPlaceholderText('Search website content'),
+      'first{Enter}',
+    );
+    unmount();
+
+    await act(async () => {
+      searchRequests[0]?.onError?.();
+    });
+
+    expect(searchToast).toHaveBeenCalledExactlyOnceWith({
+      title: 'Search failed',
+      variant: 'destructive',
+    });
+  });
 
   it('names the site in the shared record details', async () => {
     render(<WebsiteViewDialog isOpen onClose={vi.fn()} website={WEBSITE} />);

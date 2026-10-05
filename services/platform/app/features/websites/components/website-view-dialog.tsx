@@ -401,7 +401,7 @@ export function WebsiteViewDialog({
     },
   );
 
-  const { mutate: searchContent } = useBackendAction(
+  const { mutateAsync: searchContent } = useBackendAction(
     'websites/actions:searchContent',
     { errorToast: false },
   );
@@ -455,19 +455,16 @@ export function WebsiteViewDialog({
     const requestId = ++searchRequestId.current;
     setActiveQuery(query);
     setIsSearching(true);
-    searchContent(
-      { websiteId: website._id, query, limit: 20 },
-      {
-        onSuccess: (data) => {
-          if (requestId !== searchRequestId.current) return;
-          setSearchResults(data.results);
-          setIsSearching(false);
-        },
-        onError: () => {
-          if (requestId !== searchRequestId.current) return;
-          setIsSearching(false);
-          toast({ title: t('toast.searchError'), variant: 'destructive' });
-        },
+    void searchContent({ websiteId: website._id, query, limit: 20 }).then(
+      (data) => {
+        if (requestId !== searchRequestId.current) return;
+        setSearchResults(data.results);
+        setIsSearching(false);
+      },
+      () => {
+        if (requestId !== searchRequestId.current) return;
+        setIsSearching(false);
+        toast({ title: t('toast.searchError'), variant: 'destructive' });
       },
     );
   }, [searchQuery, t, website._id, searchContent]);
