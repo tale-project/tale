@@ -8373,6 +8373,10 @@ websites:
   resumeScanning: Resume scanning
   scanNow: Scan now
   indexed: Indexed
+  syncError:
+    title: Website statuses couldn't be refreshed
+    description: Statuses and indexed page counts may be out of date. Try refreshing them again.
+    retry: Retry
   searchNotice:
     title: Chat can't search these websites yet
     description: Pages are crawled and stored, but knowledge search needs a working embedding model, and this organization doesn't have one yet.

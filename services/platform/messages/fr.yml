@@ -8350,6 +8350,10 @@ websites:
   resumeScanning: Reprendre l'analyse
   scanNow: Analyser maintenant
   indexed: Indexé
+  syncError:
+    title: Les statuts des sites web n'ont pas pu être actualisés
+    description: Les statuts et le nombre de pages indexées sont peut-être obsolètes. Essaie de les actualiser à nouveau.
+    retry: Réessayer
   searchNotice:
     title: Le chat ne peut pas encore chercher dans ces sites web
     description: Les pages sont explorées et enregistrées, mais la recherche de connaissances a besoin d'un modèle d'embedding qui fonctionne, et cette organisation n'en a pas encore.

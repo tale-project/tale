@@ -1,5 +1,7 @@
 'use client';
 
+import { Alert } from '@tale/ui/alert';
+import { Button } from '@tale/ui/button';
 import { DataTable } from '@tale/ui/data-table/data-table';
 import { BulkDeleteBar } from '@tale/ui/data-table/data-table-bulk-actions';
 import { useListPage } from '@tale/ui/use-list-page';
@@ -41,18 +43,33 @@ export function WebsitesTable({
   const { t: tEmpty } = useT('emptyStates');
   const { t: tWebsites } = useT('websites');
   const [createOpen, setCreateOpen] = useState(false);
+  const [syncErrors, setSyncErrors] = useState<Record<string, boolean>>({});
 
   const { data: count } = useApproxWebsiteCount(organizationId);
-  const { mutate: syncStatuses } = useSyncWebsiteStatuses();
+  const { mutateAsync: syncStatuses, isPending: isSyncPending } =
+    useSyncWebsiteStatuses();
+
+  const handleSync = useCallback(() => {
+    const key = `websites-sync-${organizationId}`;
+    void syncStatuses({ organizationId }).then(
+      () => {
+        sessionStorage.setItem(key, String(Date.now()));
+        setSyncErrors((previous) => ({ ...previous, [organizationId]: false }));
+      },
+      () => {
+        sessionStorage.removeItem(key);
+        setSyncErrors((previous) => ({ ...previous, [organizationId]: true }));
+      },
+    );
+  }, [organizationId, syncStatuses]);
 
   useEffect(() => {
     const key = `websites-sync-${organizationId}`;
     const lastSync = sessionStorage.getItem(key);
     const fiveMinutes = 5 * 60 * 1000;
     if (lastSync && Date.now() - Number(lastSync) < fiveMinutes) return;
-    sessionStorage.setItem(key, String(Date.now()));
-    syncStatuses({ organizationId });
-  }, [organizationId, syncStatuses]);
+    handleSync();
+  }, [organizationId, handleSync]);
   const { columns, searchPlaceholder, pageSize } = useWebsitesTableConfig();
   const paginatedResult = useListWebsitesPaginated({
     organizationId,
@@ -193,6 +210,24 @@ export function WebsitesTable({
           keeps the page inset and the table keeps the remaining height. */}
       <div className="flex min-h-0 flex-1 flex-col gap-6">
         <WebsiteSearchNotice organizationId={organizationId} />
+        {syncErrors[organizationId] && (
+          <Alert
+            variant="destructive"
+            title={tWebsites('syncError.title')}
+            description={tWebsites('syncError.description')}
+          >
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              isLoading={isSyncPending}
+              onClick={handleSync}
+              className="mt-3"
+            >
+              {tWebsites('syncError.retry')}
+            </Button>
+          </Alert>
+        )}
         <DataTable
           columns={columns}
           stickyLayout
