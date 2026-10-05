@@ -189,7 +189,7 @@ describe('POST /api/auth/reauthenticate', () => {
       email: 'ada@example.test',
       ip: CLIENT_IP,
       userAgent: 'reauthenticate-test/1.0',
-      reauthentication: true,
+      check: 'reauthenticate',
       outcome: 'success',
     });
     expect(h.anchorTwoFactorGraceOnSignIn).toHaveBeenCalledWith(sql, userId);
@@ -212,7 +212,7 @@ describe('POST /api/auth/reauthenticate', () => {
     expect((await registrationOptions(cookie)).status).toBe(403);
     expect(h.recordPasswordAttempt).toHaveBeenCalledWith(
       sql,
-      expect.objectContaining({ outcome: 'failure', reauthentication: true }),
+      expect.objectContaining({ outcome: 'failure', check: 'reauthenticate' }),
     );
     expect(h.anchorTwoFactorGraceOnSignIn).not.toHaveBeenCalled();
   });

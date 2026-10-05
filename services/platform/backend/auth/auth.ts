@@ -92,6 +92,10 @@ import {
   recordPasswordAttempt,
   refuseThrottledPasswordAttempt,
 } from './password-attempts.ts';
+import {
+  confirmationOutcome,
+  passwordConfirmationOf,
+} from './password-confirmations.ts';
 import { reauthenticate } from './reauthenticate.ts';
 import {
   openSignUpEnabled,
@@ -287,6 +291,24 @@ function bodyEmail(body: unknown): string | null {
   const email = getString(body, 'email');
   const normalized = email ? normalizeAuthEmail(email) : '';
   return normalized || null;
+}
+
+/**
+ * The client address and agent of a request: over HTTP, or a server-side
+ * call that passes the browser's headers on — the app's own password door
+ * calls `auth.api.changePassword` that way.
+ */
+function requestOrigin(
+  mw: { request?: Request | undefined; headers?: Headers | undefined },
+  trusted: string[],
+): { ip?: string; userAgent?: string } {
+  const headers = mw.request?.headers ?? mw.headers;
+  if (headers === undefined) return {};
+  const userAgent = headers.get('user-agent');
+  return {
+    ip: getClientIp(headers, trusted),
+    ...(userAgent !== null ? { userAgent } : {}),
+  };
 }
 
 export type SignInOutcome = 'success' | 'failure' | 'not-attempted';
@@ -934,6 +956,22 @@ export function createAuth(config: AuthConfig) {
           }
           return;
         }
+        // A signed-in person confirming their password before an account
+        // change is a password guess like a sign-in: a locked account or a
+        // flooding address is refused before the check
+        // (password-confirmations.ts).
+        if (passwordConfirmationOf(mw.path, mw.body) !== null) {
+          const session = await getSessionFromCtx(mw);
+          // Without a session the endpoint answers 401 itself.
+          if (session) {
+            const { ip } = requestOrigin(mw, await loadTrustedProxies());
+            await refuseThrottledPasswordAttempt(sql, {
+              email: normalizeAuthEmail(session.user.email),
+              ip: ip ?? 'unknown',
+            });
+          }
+          return;
+        }
         if (mw.path !== SIGN_IN_EMAIL_PATH) {
           return;
         }
@@ -991,6 +1029,32 @@ export function createAuth(config: AuthConfig) {
                   enrollRequired: true,
                 });
               }
+            }
+          }
+        }
+
+        // Password confirmations: a wrong password counts toward the sign-in
+        // lock, a right one clears it (the change audits itself). Non-fatal
+        // like the lifecycle audit below — a confirmed change has already
+        // happened, and a booking that throws here would answer it with an
+        // error; a failed write is LOUD instead.
+        const confirmation = passwordConfirmationOf(mw.path, mw.body);
+        if (confirmation !== null) {
+          const confirmer = sessionPayloadUser(mw.context.session);
+          const outcome = confirmationOutcome(mw.context.returned);
+          if (confirmer?.email !== undefined && outcome !== 'not-attempted') {
+            try {
+              await recordPasswordAttempt(sql, {
+                email: normalizeAuthEmail(confirmer.email),
+                outcome,
+                check: confirmation,
+                ...requestOrigin(mw, trusted),
+              });
+            } catch (error) {
+              console.error(
+                `[password-confirmation] failed to book the ${confirmation} attempt`,
+                error instanceof Error ? error.message : error,
+              );
             }
           }
         }

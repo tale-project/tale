@@ -264,6 +264,27 @@ describe('Change password session revocation', () => {
     expect(navigations).toEqual([]);
   });
 
+  it('says how long the lock lasts when it refuses the current password', async () => {
+    stubBackend({
+      policy: ['strict'],
+      write: Promise.resolve(
+        json(
+          { error: 'PASSWORD_ATTEMPTS_LOCKED', data: { retryAfter: 90 } },
+          429,
+        ),
+      ),
+    });
+    const dialog = await submitPassword();
+
+    expect(
+      await within(dialog).findByText(
+        'Account temporarily locked. Try again in 2 minutes, or contact an administrator.',
+      ),
+    ).toBeInTheDocument();
+    expect(mockToast).not.toHaveBeenCalled();
+    expect(mockSignOut).not.toHaveBeenCalled();
+  });
+
   it('finishes password-change cleanup and its own navigation after session revocation', async () => {
     let changed = () => {};
     const write = new Promise<Response>((resolve) => {

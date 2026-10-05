@@ -1,6 +1,6 @@
 # Auth & account
 
-> **Prefix** `AUTH-` · **Reset** none · **Cost** 55 boxes
+> **Prefix** `AUTH-` · **Reset** none · **Cost** 57 boxes
 
 Exercise sign-in, the account/security model (password policy, 2FA, passkeys,
 backup codes), the first-run and create-org wizards, the post-grace 2FA
@@ -479,17 +479,42 @@ compute codes from the enrollment secret.
 - [ ] `AUTH-B17` · **A wrong password before adding a passkey** — In
   `AUTH-F29`'s password step, enter a wrong password → **Confirm** → the field
   says **Wrong password. Repeated failed attempts temporarily lock your
-  account.** (`twoFactor.passkeys.errors.wrongPassword`) and the dialog stays
+  account.** (`twoFactor.confirmPassword.wrongPassword`) and the dialog stays
   on the password step; `/dashboard/{org}/settings/logs` lists a **Login
   attempt** (`settings.logs.audit.actionLabels.login_attempt`) for you whose
-  detail carries `reauthentication`. Keep failing until the account locks (5
+  detail carries `passwordCheck: reauthenticate`. Keep failing until the account locks (5
   attempts under the default login policy) → the field says the account is
   temporarily locked and for how long (`auth.login.accountLockedSeconds`),
   and the log-in page in another browser profile refuses the same account
   too. Once the wait is over, the right password → **Passkey name**, and the
   log lists a **Login success**
   (`settings.logs.audit.actionLabels.login_success`) carrying
-  `reauthentication`.
+  `passwordCheck: reauthenticate`.
+- [ ] `AUTH-B18` · **Wrong passwords in the two-factor prompts lock the
+  account** — Signed in with a password, on `/dashboard/{org}/settings/account`
+  choose **Enable two-factor** (`twoFactor.enrollment.enableButton`), enter a
+  wrong password → **Confirm** (`twoFactor.confirmPassword.submit`) → the
+  field says **Wrong password. Repeated failed attempts temporarily lock your
+  account.** (`twoFactor.confirmPassword.wrongPassword`), never Better Auth's
+  English "Invalid password"; `/dashboard/{org}/settings/logs` lists a
+  **Login attempt** (`settings.logs.audit.actionLabels.login_attempt`) whose
+  detail carries `passwordCheck: two_factor_enable`. Keep failing until the
+  account locks (5 attempts under the default login policy) → the field says
+  the account is temporarily locked and for how long
+  (`auth.login.accountLockedSeconds`), and the log-in page in another browser
+  profile refuses the same account. After the wait, the right password opens
+  the authenticator setup and no **Login success** row appears for it. With
+  two-factor on, **Disable** and **Regenerate backup codes** answer a wrong
+  password the same way.
+- [ ] `AUTH-B19` · **A wrong current password locks the account** — In
+  **Change password** (`auth.changePassword.title`), fill a wrong **Current
+  password** (`auth.changePassword.currentPassword`) and a valid new one →
+  submit → the field says **Current password is incorrect**
+  (`auth.changePassword.validation.currentIncorrect`) and the log lists a
+  **Login attempt** carrying `passwordCheck: change_password`. Keep failing
+  until the account locks → the field says the account is temporarily locked
+  and for how long (`auth.login.accountLockedSeconds`), no toast appears, and
+  you stay signed in; after the wait the right current password changes it.
 
 ## Accessibility (WCAG 2.1 AA)
 
