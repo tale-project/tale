@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -199,6 +199,23 @@ describe('the Integration scope filter', () => {
     expect(
       shapeless,
       'use a literal path or `<directory>/**`, the two shapes this guard reads',
+    ).toEqual([]);
+  });
+
+  it('covers every root TypeScript config family', () => {
+    const configs = readdirSync(REPO_ROOT, { withFileTypes: true })
+      .filter(
+        (entry) =>
+          entry.isFile() &&
+          entry.name.startsWith('tsconfig') &&
+          entry.name.endsWith('.json'),
+      )
+      .map((entry) => entry.name)
+      .sort();
+    expect(configs.length).toBeGreaterThan(0);
+    expect(
+      configs.filter((config) => !covers(entries, config)),
+      'add every root config family to the Integration scope filter',
     ).toEqual([]);
   });
 

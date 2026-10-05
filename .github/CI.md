@@ -108,6 +108,10 @@ participate in the global hash. Bun download caches separate OS and CPU architec
 Shared checks install the exact Node version from the production platform image once.
 Their actual Bun, Node, OS, architecture and Linux distribution fingerprint participates
 in task hashes, preventing runtime changes from replaying source-identical verdicts.
+Performance and backend integration also support older candidate composites without the
+Node-version output: only those checkouts resolve and install their production Node at the
+job level. Current composites skip that fallback. Integration evidence verifies and records
+the actual selected version.
 
 The Bun download key also includes workspace manifests, the lockfile and patches.
 A frozen install remains authoritative after a cache hit, and successful downloads
