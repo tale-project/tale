@@ -1425,10 +1425,12 @@ chat:
       placedAtLabel: Gesetzt am
     generating: Antwort wird generiert
     renameChat: Umbenennen
+    renameEmpty: Gib einen Chat-Titel ein.
+    renameTooLong: Verwende höchstens 500 Zeichen.
     loadMore: Mehr laden
     toast:
       moveFailed: Chat konnte nicht verschoben werden
-      renameFailed: Chat konnte nicht umbenannt werden
+      renameFailed: Chat konnte nicht umbenannt werden. Versuche es erneut.
   searchPalette:
     title: Chats durchsuchen
     placeholder: Chats durchsuchen

@@ -1436,10 +1436,12 @@ chat:
       placedAtLabel: Placé le
     generating: Génération de la réponse
     renameChat: Renommer
+    renameEmpty: Saisis un titre de chat.
+    renameTooLong: Utilise 500 caractères au maximum.
     loadMore: Charger plus
     toast:
       moveFailed: Échec du déplacement du chat
-      renameFailed: Échec du renommage du chat
+      renameFailed: Impossible de renommer le chat. Réessaie.
   searchPalette:
     title: Rechercher dans les chats
     placeholder: Rechercher dans les chats

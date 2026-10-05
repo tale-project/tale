@@ -1381,10 +1381,12 @@ chat:
       placedAtLabel: Placed
     generating: Generating response
     renameChat: Rename
+    renameEmpty: Enter a chat title.
+    renameTooLong: Use 500 characters or fewer.
     loadMore: Load more
     toast:
       moveFailed: Couldn't move chat
-      renameFailed: Couldn't rename chat
+      renameFailed: Couldn't rename chat. Try again.
   searchPalette:
     title: Search chats
     placeholder: Search chats

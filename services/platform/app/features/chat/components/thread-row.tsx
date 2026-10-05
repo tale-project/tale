@@ -19,11 +19,11 @@
 import { Button } from '@tale/ui/button';
 import { cn } from '@tale/ui/cn';
 import { DropdownMenu, type DropdownMenuGroup } from '@tale/ui/dropdown-menu';
+import { Input } from '@tale/ui/input';
 import {
   SUB_PANEL_ROW_CLASS,
   useSubPanelRowTreatment,
 } from '@tale/ui/sub-panel-list';
-import { toast } from '@tale/ui/use-toast';
 import { Link, useNavigate } from '@tanstack/react-router';
 import {
   Archive,
@@ -208,31 +208,57 @@ export function ThreadRenameInput({
   const inputRef = useRef<HTMLInputElement | null>(null);
   // Committed once, whether Enter or blur lands first.
   const settledRef = useRef(false);
+  const cancelledRef = useRef(false);
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string>();
   // React's synthetic events don't expose `isComposing`, so the DOM
   // composition events keep this mirror for the key guard.
   const isComposingRef = useRef(false);
 
   const commit = async () => {
     if (settledRef.current) return;
-    settledRef.current = true;
     const next = inputRef.current?.value.trim() ?? '';
-    onDone();
-    if (next.length === 0 || next === (thread.title ?? '')) return;
-    if (!(await actions.rename(thread.id, next))) {
-      toast({
-        title: t('history.toast.renameFailed'),
-        variant: 'destructive',
-      });
+    if (next.length === 0) {
+      setError(t('history.renameEmpty'));
+      return;
     }
+    if (next.length > 500) {
+      setError(t('history.renameTooLong'));
+      return;
+    }
+    if (next === (thread.title ?? '')) {
+      settledRef.current = true;
+      onDone();
+      return;
+    }
+    settledRef.current = true;
+    setPending(true);
+    setError(undefined);
+    const renamed = await actions.rename(thread.id, next);
+    if (cancelledRef.current) return;
+    if (renamed) {
+      onDone();
+      return;
+    }
+    settledRef.current = false;
+    setPending(false);
+    setError(t('history.toast.renameFailed'));
   };
 
   return (
-    <input
+    <Input
       ref={inputRef}
+      wrapperClassName="min-w-0 flex-1"
+      wideControl
       defaultValue={thread.title ?? ''}
       aria-label={t('history.renameChat')}
+      aria-busy={pending}
+      readOnly={pending}
+      variant="default"
+      {...(error !== undefined ? { errorMessage: error } : {})}
       autoFocus
       onFocus={(event) => event.currentTarget.select()}
+      onChange={() => setError(undefined)}
       onBlur={() => void commit()}
       onCompositionStart={() => {
         isComposingRef.current = true;
@@ -260,6 +286,7 @@ export function ThreadRenameInput({
         if (event.key === 'Escape') {
           event.preventDefault();
           settledRef.current = true;
+          cancelledRef.current = true;
           onDone();
         }
       }}
