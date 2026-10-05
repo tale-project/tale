@@ -10,6 +10,7 @@ import {
 import { tmpdir } from 'node:os';
 import { join, resolve, win32 } from 'node:path';
 
+import { create as createGlob } from '@actions/glob';
 import picomatch from 'picomatch';
 import { parse } from 'yaml';
 
@@ -482,7 +483,7 @@ test('cross CLI builds isolate filtered dependencies and Windows keeps its store
     "printf 'BUN_INSTALL_CACHE_DIR=%s/bun-cli-cache\\n'",
   );
   expect(configure.run).toContain(
-    "printf 'BUN_INSTALL_CACHE_DIR=%s/../.tale-bun-install-cache\\n'",
+    'require("node:path").win32.resolve(process.env.GITHUB_WORKSPACE, "..", ".tale-bun-install-cache")',
   );
   expect(cache.with?.path).toBe(
     "${{ (matrix.cross || runner.os == 'Windows') && env.BUN_INSTALL_CACHE_DIR || '~/.bun/install/cache' }}",
@@ -530,20 +531,49 @@ test.skipIf(process.platform === 'win32')(
         expect(configured.BUN_INSTALL_CACHE_DIR).toBe(
           cross === 'true'
             ? 'E:/runner temp/bun-cli-cache'
-            : `${workspace}/../.tale-bun-install-cache`,
+            : 'D:\\a\\repo with spaces\\.tale-bun-install-cache',
         );
         if (cross !== 'true') {
           const checkout = win32.resolve(workspace);
           const cache = win32.resolve(configured.BUN_INSTALL_CACHE_DIR!);
+          expect(configured.BUN_INSTALL_CACHE_DIR).toBe(cache);
           expect(win32.parse(cache).root).toBe(win32.parse(checkout).root);
           expect(win32.relative(checkout, cache)).toBe(
             '..\\.tale-bun-install-cache',
           );
+          // macOS/Linux do not have a Windows drive filesystem. Preserve the
+          // drive and segments using portable separators for the real cache
+          // glob validator; the native win32 assertions above prove location.
+          const portable = (path: string) => path.replaceAll('\\', '/');
+          await expect(
+            createGlob(portable(`${workspace}/../.tale-bun-install-cache`)),
+          ).rejects.toThrow("Relative pathing '.' and '..' is not allowed");
+          const accepted = await createGlob(portable(cache));
+          expect(accepted.getSearchPaths()).toHaveLength(1);
         }
       }
     }
   },
 );
+
+test('the pinned cache glob consumer rejects the old sibling path and matches a normalized populated store', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'tale-cli-cache-consumer-'));
+  directories.push(directory);
+  const checkout = join(directory, 'checkout with spaces');
+  const cache = resolve(checkout, '..', '.tale-bun-install-cache');
+  await mkdir(checkout);
+  await mkdir(cache);
+  const packageFile = join(cache, 'package.json');
+  await writeFile(packageFile, '{"name":"synthetic-cached-package"}');
+
+  // This executes @actions/glob 0.5.1, the exact consumer in cache v5.0.5.
+  // Resolving only while comparing paths would miss the hosted save failure.
+  await expect(
+    createGlob(`${checkout}/../.tale-bun-install-cache`),
+  ).rejects.toThrow("Relative pathing '.' and '..' is not allowed");
+  const accepted = await createGlob(cache);
+  expect(await accepted.glob()).toContain(packageFile);
+});
 
 test.skipIf(process.platform === 'win32')(
   'CLI install filters only cross builds and remains frozen on every host',

@@ -246,6 +246,11 @@ describe('platform pruner: the production install fails closed', () => {
 });
 
 describe('platform pruner manifests', () => {
+  const isDependencyInput = (input: string) =>
+    input === 'package.json' ||
+    input.endsWith('/package.json') ||
+    ['bun.lock', 'bunfig.toml', 'patches/'].includes(input);
+
   it('keeps production dependencies independent of every source and build stage', () => {
     const source = readFileSync(PLATFORM_DOCKERFILE, 'utf8');
     const production = contextInputs(source, 'pruner');
@@ -253,6 +258,7 @@ describe('platform pruner manifests', () => {
     expect(production.has('bun.lock')).toBe(true);
     expect(production.has('patches/')).toBe(true);
     expect(production.size).toBeGreaterThanOrEqual(10);
+    expect([...production].every(isDependencyInput)).toBe(true);
     expect([...production].sort()).toEqual([...development].sort());
 
     // Lock the prior regression: inheriting builder makes source-only edits
@@ -277,6 +283,19 @@ describe('platform pruner manifests', () => {
     ]);
   });
 
+  it('detects application source shared by both dependency input graphs', () => {
+    const source = readFileSync(PLATFORM_DOCKERFILE, 'utf8').replace(
+      /(FROM \S+ AS workspace-deps)/,
+      '$1\nCOPY services/platform/app /app/unexpected-source/',
+    );
+    const production = contextInputs(source, 'pruner');
+    const development = contextInputs(source, 'workspace-deps');
+    // Graph equality alone misses a source copied into their shared parent.
+    expect([...production].sort()).toEqual([...development].sort());
+    expect(production.has('services/platform/app')).toBe(true);
+    expect([...production].every(isDependencyInput)).toBe(false);
+  });
+
   /**
    * Install-root-relative paths of the files a stage's COPYs (with exactly
    * the given `--from`, '' for the build context) place under `root`, each
@@ -287,9 +306,10 @@ describe('platform pruner manifests', () => {
     from: string,
     sourceRoot: string,
     root: string,
+    config = readFileSync(PLATFORM_DOCKERFILE, 'utf8'),
   ): Set<string> {
     const placed = new Set<string>();
-    for (const instruction of instructions(PLATFORM_DOCKERFILE)) {
+    for (const instruction of parseInstructions(config)) {
       if (instruction.stage !== stage || instruction.keyword !== 'COPY') {
         continue;
       }
@@ -329,6 +349,47 @@ describe('platform pruner manifests', () => {
     // A manifest stage 1 installed from but the pruner lacks changes the
     // workspace graph, and --production refuses the lockfile stage 1 wrote.
     expect([...pruner].sort()).toEqual([...stage1].sort());
+  });
+
+  it.each(['tools/opengrep/package.json', 'patches/'])(
+    'detects a pruner missing %s',
+    (missing) => {
+      const source = readFileSync(PLATFORM_DOCKERFILE, 'utf8');
+      const incomplete = source
+        .split('\n')
+        .filter(
+          (line) =>
+            !line.startsWith(`COPY --from=workspace-deps /app/${missing}`),
+        )
+        .join('\n');
+      expect(incomplete).not.toBe(source);
+      const stage1 = manifests('workspace-deps', '', '', './', incomplete);
+      const pruner = manifests(
+        'pruner',
+        '--from=workspace-deps',
+        '/app/',
+        '/tmp/workspace/',
+        incomplete,
+      );
+      expect([...pruner].sort()).not.toEqual([...stage1].sort());
+      expect(pruner.has(missing)).toBe(false);
+    },
+  );
+
+  it('detects a manifest copied to the wrong workspace path', () => {
+    const source = readFileSync(PLATFORM_DOCKERFILE, 'utf8').replace(
+      '/app/tools/opengrep/package.json /tmp/workspace/tools/opengrep/',
+      '/app/tools/opengrep/package.json /tmp/workspace/tools/other/',
+    );
+    expect(() =>
+      manifests(
+        'pruner',
+        '--from=workspace-deps',
+        '/app/',
+        '/tmp/workspace/',
+        source,
+      ),
+    ).toThrow();
   });
 });
 

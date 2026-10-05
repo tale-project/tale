@@ -4699,12 +4699,17 @@
         {
           "path": ["jobs", "build", "steps", 3],
           "kind": "keys",
-          "expected": ["id", "name", "uses", "with"]
+          "expected": ["id", "if", "name", "uses", "with"]
         },
         {
           "path": ["jobs", "build", "steps", 3, "id"],
           "kind": "value",
           "expected": "bun-cache"
+        },
+        {
+          "path": ["jobs", "build", "steps", 3, "if"],
+          "kind": "value",
+          "expected": "matrix.cross || runner.os != 'Windows'"
         },
         {
           "path": ["jobs", "build", "steps", 3, "uses"],
@@ -4745,7 +4750,7 @@
         {
           "path": ["jobs", "build", "steps", 5, "if"],
           "kind": "value",
-          "expected": "steps.bun-cache.outputs.cache-hit != 'true'"
+          "expected": "(matrix.cross || runner.os != 'Windows') && steps.bun-cache.outputs.cache-hit != 'true'"
         },
         {
           "path": ["jobs", "build", "steps", 5, "uses"],
@@ -5954,7 +5959,12 @@
         {
           "path": ["jobs", "trivy-fs", "steps", 1],
           "kind": "keys",
-          "expected": ["if", "name", "timeout-minutes", "uses", "with"]
+          "expected": ["id", "if", "name", "timeout-minutes", "uses", "with"]
+        },
+        {
+          "path": ["jobs", "trivy-fs", "steps", 1, "id"],
+          "kind": "value",
+          "expected": "report"
         },
         {
           "path": ["jobs", "trivy-fs", "steps", 1, "if"],
@@ -6011,6 +6021,8 @@
           "path": ["jobs", "trivy-fs", "steps", 2, "with"],
           "kind": "value",
           "expected": {
+            "skip-setup-trivy": "${{ steps.report.outcome == 'success' }}",
+            "cache": "${{ steps.report.outcome != 'success' }}",
             "scan-type": "fs",
             "scan-ref": ".",
             "format": "table",

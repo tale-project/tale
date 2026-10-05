@@ -242,10 +242,15 @@ jobs:
             # Windows' home and checkout can live on different volumes. Bun
             # hardlinks packages only within one volume; keep this native store
             # beside the checkout, outside its clean-source identity boundary.
-            printf 'BUN_INSTALL_CACHE_DIR=%s/../.tale-bun-install-cache\n' "$GITHUB_WORKSPACE" >> "$GITHUB_ENV"
+            # Cache glob inputs reject literal '.' and '..' path segments.
+            cache_path=$(bun -e 'process.stdout.write(require("node:path").win32.resolve(process.env.GITHUB_WORKSPACE, "..", ".tale-bun-install-cache"))')
+            printf 'BUN_INSTALL_CACHE_DIR=%s\n' "$cache_path" >> "$GITHUB_ENV"
           fi
 
       - name: Restore Bun install cache
+        # The measured warm Windows archive still costs more than a fresh install.
+        # Cross legs retain their separate archive; Setup Bun keeps its binary cache.
+        if: matrix.cross || runner.os != 'Windows'
         id: bun-cache
         uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
@@ -268,7 +273,7 @@ jobs:
           fi
 
       - name: Save installed Bun downloads
-        if: steps.bun-cache.outputs.cache-hit != 'true'
+        if: (matrix.cross || runner.os != 'Windows') && steps.bun-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: ${{ (matrix.cross || runner.os == 'Windows') && env.BUN_INSTALL_CACHE_DIR || '~/.bun/install/cache' }}

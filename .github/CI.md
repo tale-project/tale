@@ -4,8 +4,8 @@ Optimize both time to feedback and total runner work. Inspect job queue time sep
 from step duration before adding shards: a short test behind a large setup cost usually
 needs fewer runners, while a long CPU-bound suite can benefit from more slices.
 
-The cumulative audit records [131 retained implemented improvements](CI-improvements.json)
-since `c8f31b2b9`: 81 authored here, 45 integrated from concurrent upstream work and five
+The cumulative audit records [132 retained implemented improvements](CI-improvements.json)
+since `c8f31b2b9`: 82 authored here, 45 integrated from concurrent upstream work and five
 combining both. Each entry records before/after behavior, changed paths, source commits
 and proof. Repeated patterns across workflows count once; suggestions and retained
 baseline behavior do not count.
@@ -78,9 +78,13 @@ baseline behavior do not count.
   host OS adds no platform coverage. Cross legs use a proven CLI-only frozen install
   and keep its download cache in a separate namespace. Native source tests retain
   the full workspace install because they import platform auth modules. Windows
-  places its download store beside the checkout, outside the source tree, so Bun
-  can hardlink packages into `node_modules` on the same volume. Linux and macOS
-  native rows retain their home-directory store. Source tests
+  keeps its normalized download store beside the checkout, outside the source tree,
+  so Bun can hardlink on the same volume. Its native row skips archive restore/save
+  and runs that complete frozen install directly. Matched dependency inputs took
+  70 seconds cold, versus 25 seconds restoring plus 55 seconds installing from a
+  warm archive; compare final hosted results before treating that difference as a
+  fixed saving. Linux/macOS native and cross rows retain their download archives.
+  Source tests
   and compiled smoke discovery run serially on all three hosts. Two workers made
   Windows fixtures exceed their unchanged 30-second limits; Linux two-worker runs
   failed to finish promptly, and a macOS candidate reached the unchanged 15-minute
@@ -102,6 +106,9 @@ baseline behavior do not count.
   authority for compiler arguments and bundle validation; malformed scripts fail closed.
   Do not regenerate after CI changes the tracked manifest or bypass dirty-source
   rejection.
+  Native command fixtures write their workflow and metadata before the initial Git commit,
+  rather than creating and replacing an unused minimal revision. Ordinary fixture defaults,
+  executable-file tracking and every later release/catalogue commit remain covered.
 
 ## Cache boundaries
 
@@ -109,10 +116,13 @@ Turbo owns workspace task caching. Generic checks depend on `^transit`: scriptle
 nodes hash dependency workspaces recursively and propagate shared-package changes
 without forcing real tests or compilers to run sequentially. Each check's effective
 inputs still hash its own selected source; component tasks can omit unrelated trees.
-The UI package's transit omits only its publication README: an edit to that prose
-keeps consumer check hashes stable, while UI's own checks, all builds and the CLI's
-publication tests still hash it. Runtime source, exports and the Tailwind preset
-continue to invalidate consumers. An isolated real-Turbo fixture guards the boundary.
+The UI, marketing-UI and E2E packages' transit omits only each package-root README:
+an edit to that prose keeps consumer check hashes stable, while the package's own checks,
+ordinary builds through `^build` and the CLI's publication tests retain their inputs.
+Runtime source, exports, catalogs and the Tailwind preset continue to invalidate consumers.
+The shared package's README still participates in Turbo's global internal-dependency hash
+because the root depends on `@tale/shared`; a transit exclusion alone would save no work.
+The isolated real-Turbo fixture includes that root dependency and guards both boundaries.
 Explicit `inputs` cover files read outside a workspace dependency. Catalog input lists
 omit nested task logs and TypeScript's incremental `*.tsbuildinfo` outputs, which
 CLI embedding already skips. Creating or rewriting these artifacts preserves
@@ -220,6 +230,12 @@ commit, preserving historical candidate source checkouts. Failed analysis, conve
 or regression checks fail the informational job; reports that exist are uploaded.
 The direct SBOM pass reuses the pinned scanner installation and skips a second cache transfer.
 
+Release publication keeps full commit/tag history for contract comparisons, while its
+working tree selects authored release notes and the two dependency-free renderers.
+Historical API snapshots still come from `git show` and fetch on demand from this public
+repository. An anonymous partial clone reproduced the full-checkout notes byte for byte
+without retained checkout credentials or installed dependencies.
+
 Scorecard remains informational and runs weekly, manually and when branch protections
 change. Blocking source and dependency security gates retain their triggers.
 
@@ -291,6 +307,10 @@ joins every bounded worker. Shared main, release, candidate and other-PR tags su
 Security retains each advisory retry and scanner result independently of SARIF publishing.
 Blocking Trivy checks still run after informational reporting failures; reporting and
 upload budgets leave time for the blocking scan. Read-only checkouts do not retain tokens.
+The independent filesystem gate reuses the engine and database provisioned by a
+successful report scan, then executes its own blocking HIGH/CRITICAL vulnerability scan.
+Failed, cancelled, skipped or missing report outcomes retain full installation and cache
+restoration; candidates still use that fallback because their reporting step is skipped.
 
 The built-site crawler keeps its bounded worker pool active as links appear, schedules
 addresses once, includes active requests in URL caps and reports interrupted response
@@ -450,6 +470,13 @@ enables Bun's [documented Windows hardlinks](https://bun.sh/docs/pm/global-cache
 it does not establish a reduction in cache extraction time. The path change starts a
 new cache version, so the first hosted run measures a cold store.
 
+Resolve the Windows sibling with Bun's `node:path.win32.resolve` before passing it
+to the cache action. Its glob consumer rejects `.` and `..` path segments even when
+the install accepts them. At `d934290d8`, all five CLI targets passed, but the Windows
+save warned and retained no archive; its 75.80-second install was cold. The regression
+uses the cache action's pinned `@actions/glob` 0.5.1 to reject that original path and
+accept a resolved, populated store. A passing install alone does not prove cache reuse.
+
 Run workflow and source-identity regressions with:
 
 ```bash
@@ -545,6 +572,11 @@ suite. Five affected-workspace lint/type/generate tasks executed freshly and pas
 Knip, actionlint, formatting and commit hooks also passed. No original assertion or
 time budget was relaxed, and these follow-up corrections do not increase the ledger.
 
+The cache fixture emits its changed-source rejection diagnostic synchronously before
+exiting with status 1. This keeps Bun's multiline error rendering from truncating the
+marker collected by Turbo. The exact task-log assertion and every cache, hash, exit
+status and archive-integrity assertion remain in place; this correction adds no ledger entry.
+
 Protected candidate `91ac292ca` passed [Checks](https://github.com/tale-project/tale/actions/runs/37273313395),
 [Build](https://github.com/tale-project/tale/actions/runs/37273313417),
 [E2E](https://github.com/tale-project/tale/actions/runs/37273313365),
@@ -578,6 +610,34 @@ on all five targets. macOS executed 2,366 source cases (2,346 passed, 20 skipped
 zero failures) in 246.41 seconds and its compiled smoke suite passed 56 cases
 with one existing skip in 47.29 seconds. This observes the restored production
 scheduling; the additional two-file Git regression still needs its own final run.
+
+The continued 2026-10-05 round retained incoming sparse/audit/cache work and added
+conditional Trivy provisioning reuse, narrow release rendering and native-Node execution
+inside the existing sparse Git guards. All affected CLI generation, lint, type and source
+tests executed and passed: 2,345 tests, 29 existing skips and 37,614 assertions. The focused
+combined guard suite passed 76 cases; the actual sparse action source also passed under
+checksummed Node 24.9.0 without a package manifest or dependencies. An anonymous partial
+clone retained every remote tag and reproduced the 8,685-byte release notes while historical
+snapshots fetched on demand. The materialized release tree contained six files/23,100 bytes.
+These are working-tree measurements, not a measured network or pipeline speedup.
+After rebasing onto `6bd227fdc`, the integration guards passed 143 cases/2,169 assertions;
+affected CLI lint, types and all-workflow actionlint also passed. The subsequent Windows-cache
+integration passed all 128 CI guard cases plus lint/types/actionlint. Its combined
+container batch had one unchanged five-second fixture timeout, which passed alone
+within the original budget.
+
+Ordinary [Security run 37293502987](https://github.com/tale-project/tale/actions/runs/37293502987)
+passed at `b04bbb5e6`. Its blocking gate resolved `skip-setup-trivy=true` and `cache=false`,
+skipped repeated binary/database restoration and executed its independent vulnerability
+scan. Final-source validation is recorded separately from this ordinary reuse observation.
+
+The broader local gate remains recorded as red. The bounded run passed 5,800 platform UI
+cases but failed 27 cases in twelve files, with Unit cancelled afterward. A one-worker
+recheck passed 426 cases and failed seven. A subsequent four-file recheck passed 122
+cases and failed one; that remaining skills file then passed all six cases in isolation.
+These overlapping retries do not make the full gate green. No assertions or time limits
+were relaxed; hosted validation must judge the final revision separately. A filtered native
+CLI install was rejected because modest size savings did not establish a reliable benefit.
 
 ## Pull-request CI readiness
 
@@ -633,6 +693,8 @@ Native Git fixtures execute both actions from those minimal trees and retain sco
 pre/postflight API checks and failed or incomplete readiness verdicts.
 An official checksummed Node 24 runtime also imports the sparse TypeScript and executes
 the actual action scripts with both `package.json` and `node_modules` absent.
+The tracked Git fixtures also execute those scripts with native Node, including every
+scope policy and passed, failed and incomplete readiness evidence.
 
 ### Activation and observation
 

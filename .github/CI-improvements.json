@@ -1,6 +1,6 @@
 {
   "baseline": "c8f31b2b92283ea027966ef1556fadf3826302db",
-  "count": 131,
+  "count": 132,
   "counting": "Distinct implemented CI execution, caching, validation, safety, or regression improvements since the task baseline. Shared patterns across workflows are merged; suggestions, cosmetic changes and retained baseline behavior are excluded. Integrated upstream contributions are labelled separately from this team\u2019s authored work.",
   "withdrawn": [
     {
@@ -1561,9 +1561,9 @@
       "id": "CI-130"
     },
     {
-      "title": "Materialize only scope and readiness source closures",
-      "before": "Five scope jobs and seven terminal readiness jobs checked out the full source although their evaluators have no workspace dependencies.",
-      "after": "Pinned non-cone checkouts materialize three scope files or two readiness files, preserving source refs, PR API discovery and complete native-needs verdicts.",
+      "title": "Materialize only policy and release rendering source closures",
+      "before": "Five scope jobs and seven terminal readiness jobs checked out the full source although their evaluators have no workspace dependencies. Release publication also materialized the full tree for dependency-free notes rendering.",
+      "after": "Pinned non-cone checkouts materialize three scope files or two readiness files, preserving source refs, PR API discovery and complete native-needs verdicts. Release publication selects authored notes and two renderers while retaining complete commit/tag history and on-demand historical API blobs.",
       "paths": [
         ".github/workflows/build.yml",
         ".github/workflows/checks.yml",
@@ -1572,10 +1572,16 @@
         ".github/workflows/e2e.yml",
         ".github/workflows/sast.yml",
         ".github/workflows/security.yml",
-        "tools/cli/scripts/ci-ready-workflows.test.ts"
+        "tools/cli/scripts/ci-ready-workflows.test.ts",
+        ".github/workflows/release.yml",
+        "tools/cli/scripts/ci-release-performance.test.ts"
       ],
-      "proof": "Real Git materialization at4653:8792blobs/569464405tracked bytes become28544scope/15931readiness bytes. Native Git guards reject sibling/nested/dependency files and execute actions. Official checksummed Node24.21.0 and Node22.22.0 import sparse TS and pass seven action cases without package.json/node_modules. No hosted PR duration or network-byte claim.",
-      "commits": ["14918a728b3e5fa0401fc4df6533c94e245ff6fb"],
+      "proof": "Real Git materialization at4653:8792blobs/569464405tracked bytes become28544scope/15931readiness bytes. Native Git guards reject sibling/nested/dependency files and execute actions. Official checksummed Node24.21.0 and Node22.22.0 import sparse TS and pass seven action cases without package.json/node_modules. No hosted PR duration or network-byte claim. Tracked sparse fixtures now execute all five scope policies plus passed/failed/incomplete readiness using native Node as well as Bun VM. A fresh anonymous GitHub blob:none clone retains all 390 remote tags and 3,522 source commits; excluded historical snapshots fetch without credentials and render the same 8,685-byte notes. Six release files materialize 23,100 bytes. Release tag-away-from-HEAD and missing-tag dispatch regressions preserve full-history rendering.",
+      "commits": [
+        "14918a728b3e5fa0401fc4df6533c94e245ff6fb",
+        "256a7d583fc14ad6a4711faec335510c6ea5b6aa",
+        "64b08128bc732f5d73d5ea09bd21ba1559c88faf"
+      ],
       "origins": ["authored"],
       "id": "CI-131"
     },
@@ -1593,6 +1599,19 @@
       "commits": ["14918a728b3e5fa0401fc4df6533c94e245ff6fb"],
       "origins": ["authored"],
       "id": "CI-132"
+    },
+    {
+      "id": "CI-133",
+      "title": "Reuse successful Trivy report provisioning for the independent filesystem gate",
+      "before": "After a successful report scan, the blocking filesystem gate repeated binary and database cache provisioning.",
+      "after": "Only report outcome=success enables skip-setup/cache=false; every other outcome retains full provisioning. The gate executes its own HIGH/CRITICAL vulnerability scan with unchanged admission, ignores and time budget.",
+      "paths": [
+        ".github/workflows/security.yml",
+        "tools/cli/scripts/ci-e2e-optimization.test.ts"
+      ],
+      "proof": "Actual expression matrix covers success/failure/cancelled/skipped/missing outcomes and failure with successful conclusion; scanner inputs remain exact. Unconditional/conclusion-based negative controls reject. Checksum-verified Trivy0.70.0 through the pinned action entrypoint independently rejects HIGH findings and wrong-path ignores; clean and matching-path cases pass. External policy fixture used a copied June DB; live workflow retains normal updates. Full integrated CLI gate: 2,345 pass, 29 existing skips, 0 fail, 37,614 assertions; generation/lint/types also pass.",
+      "commits": ["0d3c95a5e75d532e0d4224e57b68b51900700c1d"],
+      "origins": ["authored"]
     }
   ],
   "validation": {
@@ -1604,6 +1623,17 @@
       "local": "Bun1.4.2 full affected check exit0: all4CLI tasks freshly executed,0cache replays;2342pass/29existing skips/0fail,37507assertions in635.48s. Root format/conflicts/links and sandbox format check passed. Seven-workflow actionlint0; targeted full-pack Opengrep162applicable rules on4changed test files/0findings with configured exclusions retained. Normal source commit hooks passed. This full execution used main parent01032f955; implementation blobs remain identical after rebasing onto cb69c47ce plus its incoming product fixes. Final hosted validation will judge the rebased source. Rebased focused gate:97tests/2855assertions/0fail; CLI typecheck0 and links0 over452documentation pages/8799tracked files.",
       "native": "Actual Bun advisory engine, official GitHub hash and Bake expression/input-list libraries, actual Docker plan commands, real Git non-cone materialization, actual Node24/22 sparse action execution and frozen/stale-lock fixtures passed. Peer reviews found no blocking source defects.",
       "hosted_at_record_creation": "Not yet triggered when this record was authored; observe after ordinary direct main push; PR scope/readiness do not run on push, and E2E has no push trigger. No dispatch, rerun or cancellation requested."
+    },
+    "continued_followup_2026_10_05": {
+      "source_parent": "e3c832aa8dda9ecae878a7f3d4ca6641b04de657",
+      "local": "Fresh full affected CLI generation/lint/typecheck/test gate exit0: 2,345 pass,29 existing skips,0 fail,37,614 assertions across150files in629.97s. Combined focused guard suite76cases/1086assertions passes; native Node24 sparse action guard10cases/393assertions passes. Actionlint, formatting, full-pack SAST on3changed test files, links/conflicts/manual and normal commit hooks pass. Native policy fixture extends the concurrently integrated sparse Git fixture rather than introducing another model.",
+      "broad_limits": "Initial full gate red for two unchanged web content loader timeouts; both cases pass isolated with original budgets. Bounded full gate red after18m13.651s: platformUI593files/5800cases pass,12files/27cases fail; Unit cancelled. One-worker recheck:426pass/7fail across12files. Subsequent four-file recheck:122pass/1fail; last remaining skills file passes all6cases in isolation. These overlapping isolated retries do not make the full gate green. No assertion or test timeout relaxed; hosted exact-revision validation is observed separately.",
+      "scope": "Retains concurrent upstream audit/cache/sparse-checkout changes. Release narrowing is folded into CI131, not counted as a repeated pattern. Native filtered install was rejected without controlled timing or complete coverage. Only owned disposable experimental caches/install contents/scanner copies were removed to recover disk; source fixtures/proof/user state preserved.",
+      "hosted": "Ordinary Security37293502987 and Commitlint37293502883 pass exact push source b04bbb5e68376511b6ff04cc1675968f8a00275d. Security gate resolves skip-setup-trivy=true/cache=false, skips binary/DB restore and independently executes the vulnerability scan; Bun blocking audit passes. Checks/CLI/SAST are still running. Final immutable source validation is observed after the documentation reference correction; no blanket green or causal pipeline speedup claim.",
+      "rebased_parent": "6bd227fdc724638cda39bb296b5bda1f67f3a8bd",
+      "rebased_local": "Implementation blobs remain identical after rebasing onto 6bd227fdc and its incoming production-install/Windows-cache changes. Latest rebased integration guard suite:143pass/0fail/2169assertions across6files; affected CLI lint/typecheck and all-workflow actionlint exit0.",
+      "final_rebased_parent": "b3e73c51d9f1b8157f08f16d170ea463793bb36c",
+      "final_local": "After integrating Windows cache normalization b3e73c51d, fresh frozen install succeeds. Latest CI guard suite:128pass/0fail/2057assertions across5files; CLI lint/types and actionlint exit0. Combined batch:143pass/1 unchanged container-fixture5s timeout; that case passes isolated within its original budget (4.14s total). Prior6bd integrated suite143cases passed; these results remain distinct."
     }
   }
 }

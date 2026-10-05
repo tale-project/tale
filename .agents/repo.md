@@ -307,6 +307,12 @@ Explicit outside-file inputs remain necessary for imports and reads that are not
 workspace dependencies. The platform's UI input guards still hold its direct source
 reads and exported files to that contract. Every root `tsconfig*.json`, `bunfig.toml`,
 lint and formatter configuration, patch and the setup action participate in the global hash.
+The UI, marketing-UI and E2E transit lists omit only package-root `README.md` prose;
+package-owned checks and ordinary `^build` consumers keep their default inputs, and CLI
+publication tests explicitly hash the published READMEs. Source, catalogs, exports and
+toolchains still invalidate consumers. The dependency fixture also models the root's
+`@tale/shared` dependency: its README must retain global invalidation, since narrowing
+only shared transit would not change that separate hash.
 
 Checks skip echo-only setup tasks. The CLI keeps its real generation prerequisite explicitly;
 a workspace that adds substantive setup must attach it to its checks. The dependency fixture
@@ -336,6 +342,8 @@ architecture, Bun version, manifests, lockfile and patches, and saves after a su
 install so a later workload failure does not lose the downloaded packages.
 CLI's Windows native row keeps its Bun store beside the checkout, outside the source
 tree, to permit same-volume hardlinks; Linux/macOS native rows retain their home store.
+Native Windows skips download-archive restore/save; its normalized store still backs
+the complete frozen install. Other native and cross rows retain their archives.
 All native rows keep the full frozen install. Cross rows retain the separate CLI-only
 store and filtered frozen install.
 Browser checks and Playwright share an exact installed-version/OS/architecture
