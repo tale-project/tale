@@ -17,7 +17,7 @@
  */
 
 import { existsSync, readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
 import { gzipSync } from 'node:zlib';
 
 /** Vendor chunks that must never be in the cold-load preload set. */
@@ -45,6 +45,13 @@ export const FORBIDDEN_PACKAGES = [
   'yaml',
   'cron-parser',
 ];
+
+/**
+ * The service's own catalogs no preloaded chunk may carry, from its root: a
+ * session reads one language, and German and French load when one first
+ * needs them (`lib/i18n/i18n.ts`).
+ */
+export const FORBIDDEN_SOURCES = ['messages/de.yml', 'messages/fr.yml'];
 
 /**
  * The module scripts and modulepreloads of a built index.html, in document
@@ -77,8 +84,26 @@ export function forbiddenPackagesIn(sources: readonly string[]): string[] {
   );
 }
 
-/** Every preloaded chunk that carries a forbidden package, with the package. */
-export function findForbiddenPackages(dist: string, urls: string[]): string[] {
+/**
+ * The forbidden sources a source map names: its `sources` resolve from the
+ * map's folder, the forbidden paths from the service root.
+ */
+export function forbiddenSourcesIn(
+  sources: readonly string[],
+  mapDir: string,
+  serviceRoot: string,
+): string[] {
+  const named = new Set(sources.map((source) => resolve(mapDir, source)));
+  return FORBIDDEN_SOURCES.filter((path) =>
+    named.has(resolve(serviceRoot, path)),
+  );
+}
+
+/**
+ * Every preloaded chunk that carries a forbidden package or source, with
+ * what it carries.
+ */
+export function findForbiddenContent(dist: string, urls: string[]): string[] {
   const found: string[] = [];
   for (const url of urls) {
     const mapPath = resolve(dist, `${url}.map`);
@@ -86,7 +111,11 @@ export function findForbiddenPackages(dist: string, urls: string[]): string[] {
     const map = JSON.parse(readFileSync(mapPath, 'utf8')) as {
       sources?: string[];
     };
-    for (const name of forbiddenPackagesIn(map.sources ?? [])) {
+    const sources = map.sources ?? [];
+    for (const name of [
+      ...forbiddenPackagesIn(sources),
+      ...forbiddenSourcesIn(sources, dirname(mapPath), resolve(dist, '..')),
+    ]) {
       found.push(`${url} (${name})`);
     }
   }
@@ -112,7 +141,7 @@ if (import.meta.main) {
   }
   const forbidden = [
     ...findForbiddenPreloads(urls),
-    ...findForbiddenPackages(dist, urls),
+    ...findForbiddenContent(dist, urls),
   ];
   const total = gzipTotal(dist, urls);
   console.log(

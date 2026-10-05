@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   findForbiddenPreloads,
   forbiddenPackagesIn,
+  forbiddenSourcesIn,
   parsePreloadedScripts,
 } from './check-entry-budget.ts';
 
@@ -85,6 +86,35 @@ describe('forbiddenPackagesIn', () => {
         '../../../../node_modules/recharts-scale/es6/index.js',
         '../../app/features/analytics/usage/usage-metrics-search.ts',
       ]),
+    ).toEqual([]);
+  });
+});
+
+describe('forbiddenSourcesIn', () => {
+  const root = '/srv/platform';
+  const mapDir = '/srv/platform/dist/assets';
+
+  it("names the service's German and French catalogs a chunk carries", () => {
+    expect(
+      forbiddenSourcesIn(
+        [
+          '../../messages/en.yml',
+          '../../messages/de.yml',
+          '../../messages/fr.yml',
+        ],
+        mapDir,
+        root,
+      ),
+    ).toEqual(['messages/de.yml', 'messages/fr.yml']);
+  });
+
+  it("passes a package's catalog of the same name", () => {
+    expect(
+      forbiddenSourcesIn(
+        ['../../../../packages/ui/src/i18n/messages/de.yml'],
+        mapDir,
+        root,
+      ),
     ).toEqual([]);
   });
 });
