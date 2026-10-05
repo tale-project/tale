@@ -1241,11 +1241,25 @@ jobs:
       - name: Run Trivy
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
+          version: 'v0.70.0'
           image-ref: ${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service }}:${{ needs.changes.outputs.image_tag }}
-          format: 'sarif'
-          output: '${{ matrix.service }}-trivy.sarif'
-          severity: 'HIGH,CRITICAL'
+          format: 'json'
+          output: '${{ matrix.service }}-trivy.json'
+          list-all-pkgs: 'true'
+          scanners: 'vuln,secret'
+          # The SARIF action previously retained every severity, regardless of
+          # its nominal HIGH,CRITICAL input. Preserve that reporting policy.
+          severity: 'UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL'
           trivyignores: '.trivyignore.yaml'
+
+      - name: Generate SARIF
+        env:
+          SERVICE: ${{ matrix.service }}
+        run: |
+          trivy convert --format sarif \
+            --severity UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL \
+            --ignorefile .trivyignore.yaml \
+            --output "${SERVICE}-trivy.sarif" "${SERVICE}-trivy.json"
 
       - name: Upload SARIF
         uses: github/codeql-action/upload-sarif@e46ed2cbd01164d986452f91f178727624ae40d7 # v4.35.3
@@ -1254,15 +1268,14 @@ jobs:
           sarif_file: '${{ matrix.service }}-trivy.sarif'
           category: 'trivy-${{ matrix.service }}'
 
-      # Software Bill of Materials for supply-chain transparency. Reuses the
-      # already-pulled image; Trivy is already a dependency, so no new tool.
+      # Convert the complete package inventory without analyzing the image twice.
+      # An empty severity set keeps the previous SBOM free of security findings.
       - name: Generate SBOM (CycloneDX)
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
-        with:
-          scan-type: 'image'
-          image-ref: ${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service }}:${{ needs.changes.outputs.image_tag }}
-          format: 'cyclonedx'
-          output: '${{ matrix.service }}-sbom.cdx.json'
+        env:
+          SERVICE: ${{ matrix.service }}
+        run: |
+          trivy convert --format cyclonedx --severity '' \
+            --output "${SERVICE}-sbom.cdx.json" "${SERVICE}-trivy.json"
 
       - name: Upload SBOM
         if: always() && hashFiles(format('{0}-sbom.cdx.json', matrix.service)) != ''

@@ -165,6 +165,13 @@ labels before tagging. Candidate image gates fetch only that helper from the exa
 trusted workflow commit into an isolated sparse checkout, preserving an older
 candidate's source and image receipts.
 
+Image vulnerability reporting and SBOM publication share one Trivy 0.70.0 image scan.
+The JSON report retains all packages and finding severities; local conversion produces
+SARIF with the same ignored findings and a complete CycloneDX inventory without
+vulnerability records. The empty severity selection belongs only to SBOM conversion.
+SARIF keeps all severities, matching the previous action's actual behavior. A failed
+scan or conversion still fails the informational job; reports that exist are uploaded.
+
 Scorecard remains informational and runs weekly, manually and when branch protections
 change. Blocking source and dependency security gates retain their triggers.
 
