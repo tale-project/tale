@@ -897,6 +897,23 @@ terminator.
 - **The vitest lanes (`test`, `test:ui`, `test:browser`) boot and tear down
   their own stack**, so they are safe beside a round.
 
+## Product create draft lifetime
+
+`app/features/products/components/product-create-dialog.pending.test.tsx` holds the real
+form, Wizard/Footer, mutation hook and TanStack Query lifecycle to deferred writes. An
+external close/reopen replaces the draft: an older success cannot clear its replacement,
+close it or announce success. A healthy success closes and resets after React Hook Form's
+submission settles, so the next name field validates on first blur rather than keystrokes.
+StrictMode effect replay preserves a working draft. Repeat Create, Back, Escape and Close
+remain blocked during the current draft's write; a refusal keeps its values for repair.
+
+Pending-write policy follows `FormDialog`: even an offline-paused or stalled write keeps
+local dismissal blocked until settlement. Closing would not cancel a potentially committed
+product write. Parent-driven close or organization replacement can still end the draft;
+the write itself continues, and actual failures still report once from its own promise.
+The offline-paused case is automated. Browser focus, modal transitions and a genuinely
+stalled network connection remain manual observations.
+
 ## Moving a box here
 
 When a spec takes a box over end to end, **delete the box and add its row here
